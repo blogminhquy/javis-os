@@ -1551,10 +1551,9 @@
         '<div class="tm-note-line">' + esc(tw("teams.auth.need_leader")) + "</div></section>";
     }
     return '<section class="tm-auth" aria-label="' + esc(tw("teams.auth.title")) + '"><div class="tm-qhead">' +
-      esc(tw("teams.auth.title")) + "</div>" +
+      esc(tw("teams.auth.title")) + infoBtn() + "</div>" + infoBody(esc(tw("teams.auth.scope"))) +
       '<div class="tm-auth-status' + (auth ? " tm-auth-on" : "") + '">' + esc(status) + "</div>" +
       '<div class="tm-react-sub">' + esc(tw("teams.auth.now", { caps: now })) + "</div>" +
-      '<div class="tm-react-sub">' + esc(tw("teams.auth.scope")) + "</div>" +
       '<div class="tm-react-sub">' + esc(managed.length ? tw("teams.auth.managed", { names: managed.join(", ") })
         : tw("teams.auth.managed_none")) + "</div>" +
       '<div class="tm-qhead">' + esc(tw("teams.auth.caps_head")) + "</div>" + rows +
@@ -1624,10 +1623,10 @@
     var list = function (obj, label) {
       return Object.keys(obj).map(function (k) { return esc(label(k)) + " " + obj[k]; }).join(" · ");
     };
-    return '<div class="tm-turns"><div class="tm-qhead">' + esc(tw("teams.turns_today", { n: today, cap: capText((team.caps || {}).daily_turns) })) + "</div>" +
+    return '<div class="tm-turns"><div class="tm-qhead">' + esc(tw("teams.turns_today", { n: today, cap: capText((team.caps || {}).daily_turns) })) +
+      infoBtn() + "</div>" + infoBody(esc(tw("teams.turns_note"))) +
       "<div>" + esc(tw("teams.turns_by_agent")) + ": " + list(byAgent, function (k) { return nameOf(team.members, k); }) + "</div>" +
-      "<div>" + esc(tw("teams.turns_by_role")) + ": " + list(byRole, function (k) { return tw(k); }) + "</div>" +
-      '<div class="tm-sub">' + esc(tw("teams.turns_note")) + "</div></div>";
+      "<div>" + esc(tw("teams.turns_by_role")) + ": " + list(byRole, function (k) { return tw(k); }) + "</div></div>";
   }
 
   // 0.208.0: department mandate (team_mandate.py). Kinds, levels and states with literal keys for test_i18n.
@@ -1655,9 +1654,12 @@
   function mandateFormHtml(m) {
     m = m || {};
     var b = m.budget || {};
-    var area = function (name, key, val, rows) {
-      return '<label class="tm-field"><span>' + esc(tw(key)) + '</span><textarea name="' + name + '" rows="' + (rows || 2) +
-        '">' + esc(val || "") + "</textarea></label>";
+    // `help`: an explanation folded into an (i) beside the label. The label's for= keeps the textarea as its control, so the
+    // (i) button inside the label does not steal the click target.
+    var area = function (name, key, val, rows, help) {
+      return '<label class="tm-field" for="' + name + '"><span>' + esc(tw(key)) + (help ? infoBtn() : "") + '</span><textarea id="' +
+        name + '" name="' + name + '" rows="' + (rows || 2) + '">' + esc(val || "") + "</textarea></label>" +
+        (help ? infoBody(esc(tw(help))) : "");
     };
     var num = function (name, key, val) {
       return '<label class="tm-field tm-cap"><span>' + esc(tw(key)) + '</span><input type="number" min="0" name="' + name +
@@ -1673,8 +1675,7 @@
     return '<form class="tm-form tm-md-form" onsubmit="return false">' +
       area("tm-md-outcome", "teams.md.outcome", m.outcome, 2) +
       area("tm-md-metrics", "teams.md.metrics", (m.metrics || []).join("\n"), 3) +
-      area("tm-md-sources", "teams.md.sources", (m.sources || []).join("\n"), 3) +
-      '<div class="tm-sub">' + esc(tw("teams.md.sources_help")) + "</div>" +
+      area("tm-md-sources", "teams.md.sources", (m.sources || []).join("\n"), 3, "teams.md.sources_help") +
       area("tm-md-scope", "teams.md.scope", m.scope, 2) +
       num("tm-md-cadence", "teams.md.cadence", m.cadence_min || 60) +
       num("tm-md-obs", "teams.md.observe_per_day", b.observe_per_day == null ? 48 : b.observe_per_day) +
@@ -1833,7 +1834,9 @@
       '<label class="tm-rs tm-pin-row"><input type="checkbox" class="tm-pin-toggle"' + (team.pinned_at ? " checked" : "") +
       "><span>" + esc(tw("teams.pin_top")) + "</span></label>" + settingsFormHtml(team) + "</section>" +
       '<details class="tm-adv"' + (ui.advOpen ? " open" : "") + '><summary class="tm-adv-sum">' + esc(tw("teams.advanced")) +
-      '</summary><div class="tm-sub">' + esc(tw("teams.advanced_note")) + "</div>" + capsFormHtml(team) + authorityHtml(team) +
+      // The (i) may sit inside <summary>: info-tip.js cancels the click's default action, so it opens the note without
+      // folding or unfolding the section.
+      infoBtn() + "</summary>" + infoBody(esc(tw("teams.advanced_note"))) + capsFormHtml(team) + authorityHtml(team) +
       limitsHtml(team) + turnsHtml(ui.turns || [], team) + "</details>";
   }
 
@@ -3482,8 +3485,10 @@
     if (!t) return "";
     var I = S.info;
     var members = (t.members || []).filter(function (m) { return m.status !== "left"; });
-    var h = '<div class="tm-info-head">' + teamAvatarHtml(t, 64) + '<div class="tm-info-name"><strong>' + esc(t.name) + "</strong>" +
-      (t.description ? '<span class="tm-sub">' + esc(t.description) + "</span>" : "") + "</div></div>";
+    // 2026-11-07 (owner): the description sits in the (i) beside the name instead of a line under it, to keep the head short.
+    var h = '<div class="tm-info-head">' + teamAvatarHtml(t, 64) + '<div class="tm-info-name"><span class="tm-info-title"><strong>' +
+      esc(t.name) + "</strong>" + (t.description ? infoBtn() : "") + "</span>" +
+      (t.description ? infoBody(esc(t.description).replace(/\n/g, "<br>")) : "") + "</div></div>";
     h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_members", { n: members.length + 1 })) + '</h4><ul class="tm-info-members">' +
       '<li>' + avaHtml(tw("teams.you")) + "<span>" + esc(tw("teams.you")) + "</span></li>" +
       members.map(function (m) {
@@ -3513,14 +3518,17 @@
             esc(rawUrl(f.brain_path || f.path)) + '" alt="" loading="lazy" onerror="jvImgGone(this)"></a>';
         }).join("") + "</div></section>";
     }
-    h += '<section class="tm-info-sec"><div class="tm-info-sechead"><h4>' + esc(tw("teams.info_files", { n: docs.length })) + "</h4>" +
+    // 2026-11-07: who can read files and where links come from sit in the (i) by each heading; the empty line stays short.
+    h += '<section class="tm-info-sec"><div class="tm-info-sechead"><h4>' + esc(tw("teams.info_files", { n: docs.length })) + infoBtn() + "</h4>" +
       '<button type="button" class="ws-btn" data-info-add-file="1">' + ic("plus") + " " + esc(tw("teams.info_add_file")) + "</button></div>" +
+      infoBody(esc(tw("teams.info_files_help"))) +
       (docs.length ? '<ul class="tm-info-list">' + docs.map(function (f) {
         return '<li><a href="' + esc(rawUrl(f.brain_path || f.path)) + '" target="_blank" rel="noopener">' + ic("file-text") + "<span>" +
           esc(f.label || f.name) + "</span></a>" + (f.manual && f.id ? '<button type="button" class="tm-chip-x" data-info-del-file="' + esc(f.id) +
           '" aria-label="' + esc(tw("teams.info_remove")) + '" title="' + esc(tw("teams.info_remove")) + '">' + ic("x") + "</button>" : "") + "</li>";
       }).join("") + "</ul>" : '<p class="tm-sub">' + esc(tw("teams.info_no_files")) + "</p>") + "</section>";
-    h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_links", { n: I.links.length })) + "</h4>" +
+    h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_links", { n: I.links.length })) + infoBtn() + "</h4>" +
+      infoBody(esc(tw("teams.info_links_help"))) +
       '<div class="tm-info-addlink"><input type="url" class="tm-info-link" placeholder="' + esc(tw("teams.info_link_ph")) + '">' +
       '<button type="button" class="ws-btn" data-info-add-link="1">' + esc(tw("teams.info_add")) + "</button></div>" +
       (I.links.length ? '<ul class="tm-info-list">' + I.links.map(function (l) {

@@ -4086,6 +4086,8 @@ button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-s
 .tm-info-head { display: flex; align-items: center; gap: 12px; padding: 4px 2px 12px; }
 .tm-info-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .tm-info-name strong { font-size: 17px; overflow-wrap: anywhere; }
+/* Team name with the (i) that holds its description (2026-11-07). */
+.tm-info-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .tm-info-sec { border-top: 1px solid var(--border); padding: 12px 2px; }
 .tm-info-sec h4 { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: var(--text); }
 .tm-info-sechead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
