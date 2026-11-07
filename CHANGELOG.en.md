@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.493.0] - 2026-11-07
+### Added
+- **Unread chats get a red dot.** When Javis has answered and you have not opened the chat since, its row in the chat history shows a red dot and a heavier title, on the Chat page and in the history column of the Partners page.
+- **Opening a chat clears its dot.** New replies to the chat you are looking at never light it, and a chat read in one tab clears in the others.
+- **Unread counts in the Teams and Partners lists turn red.** A muted team or partner keeps its grey count.
+- Chats from before this version count as read, so the history does not all light up at once.
+
 ## [0.492.1] - 2026-11-07
 ### Improved
 - **The Chatbot page opens much faster on a busy inbox.** The "messages today" counts on Conversations and on each bot card used to read every stored message every 5 seconds; now they read only the time range they need.
