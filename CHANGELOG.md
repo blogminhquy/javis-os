@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.493.0] - 2026-11-07
+### Thêm mới
+- **Cuộc trò chuyện chưa đọc có chấm đỏ.** Javis trả lời xong mà chưa mở xem thì hàng đó trong lịch sử trò chuyện hiện chấm đỏ và tiêu đề in đậm hơn, ở cả trang Trò chuyện lẫn cột lịch sử của trang Cộng sự.
+- **Mở cuộc nào là hết chấm cuộc đó.** Đang xem đúng cuộc nào thì tin mới về cũng không hiện chấm, và đã đọc ở tab này thì tab khác cũng tự tắt chấm.
+- **Số tin chưa đọc ở danh sách Nhóm và Cộng sự đổi sang màu đỏ.** Nhóm hoặc cộng sự đã tắt thông báo vẫn giữ màu xám.
+- Cuộc trò chuyện cũ có từ trước bản này tính là đã đọc, nên lịch sử không sáng đỏ cùng lúc.
+
 ## [0.492.1] - 2026-11-07
 ### Cải thiện
 - **Trang Chatbot mở nhanh hơn hẳn khi hòm thư đã nhiều tin.** Các con số "tin hôm nay" ở Hội thoại và trên thẻ bot trước đây phải đọc lại toàn bộ tin nhắn mỗi 5 giây, nay chỉ đọc đúng khoảng thời gian cần.
