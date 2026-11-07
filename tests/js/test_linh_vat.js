@@ -247,7 +247,7 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(e?\) => \{[\s\S]{0,320}bao
     /setProperty\("--pet-eye", mauMatCfg\(\)\)/.test(pet));
   check("dấu ấn trên thanh bên cũng theo màu mắt đã chọn",
     /markSvg: function \(\) \{ return chanDung\(cfg\.shape, cfg\.palette, optsCfg\(\)\); \}/.test(pet)
-    && /function optsCfg\(\) \{ return \{ mau: cfg\.color, mat: cfg\.eye, mauMat: cfg\.eyeColor, coMat: cfg\.eyeSize \}; \}/.test(pet));
+    && /function optsCfg\(\) \{ return \{ mau: cfg\.color, mat: cfg\.eye, mauMat: cfg\.eyeColor, coMat: cfg\.eyeSize(, anh: cfg\.image)? \}; \}/.test(pet));
   // Avatar trợ lý dùng màu mắt RIÊNG của nó (0.64.39), không bao giờ màu mắt của con pet;
   // trợ lý cũ chưa chọn thì vẫn đi đường tự động. Mất chốt này là đổi màu mắt pet kéo theo
   // cả danh sách trợ lý đổi theo.
@@ -259,7 +259,7 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(e?\) => \{[\s\S]{0,320}bao
     /P\.editorHtml\(cur, OPTS_ED\)/.test(console_js)
     && /P\.editorBind\(host\.querySelector\("\[data-pet-editor\]"\), cur, \(patch, tam\) => P\.setCfg\(patch, tam\), OPTS_ED\)/.test(console_js));
   check("ô xem thử hình dáng vẽ đúng màu mắt đang chọn",
-    /chanDung\(k, v\.palette, Object\.assign\(\{ vanh: !!o\.vanh \}, anhCua\(v\)\)\)/.test(pet));
+    /chanDung\(k, v\.palette, Object\.assign\(\{ vanh: !!o\.vanh(, anh: o\.image \? v\.image : "")? \}, anhCua\(v\)\)\)/.test(pet));
   check("Đặt lại trả màu mắt về đen", /eye: "den", eyeSize: 1, enabled: true/.test(console_js));
   ["settings.pet_eye", "pet.eye.den", "pet.eye.trang"].forEach(k => {
     check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");

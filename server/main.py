@@ -284,6 +284,8 @@ _AUTH_PUBLIC_PREFIX = ("/static/", "/s/", "/hooks/")
 # /brand-logo: hiện trên màn đăng nhập (trước session). /tls-check: Caddy gọi (không đăng nhập được).
 _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/health", "/auth/status", "/auth/login", "/auth/setup",
                       "/brand-logo", "/brand-theme.css", "/tls-check",
+                      # /pet-icon: the mascot picture as the tab icon, shown on the login screen too.
+                      "/pet-icon",
                       # /domain/auto, /domain/whoami (0.302.0): the login page opened by IP asks whether a
                       # verified https link exists; neither reveals anything beyond that link and a random id.
                       "/domain/auto", "/domain/whoami",
@@ -1349,6 +1351,12 @@ async def root():
     # nó đứng yên ở 5 qua hàng chục bản.
     html = html.replace("/brand-logo?v=5", "/brand-logo?v=" + ver).replace(
         'src="/brand-logo"', 'src="/brand-logo?v=' + ver + '"')
+    # The mascot's own picture as the tab icon (dashboard.pet.image + favicon): set it in the page itself, so the
+    # tab shows it from the first paint and on the login screen too, not only after pet.js has run.
+    pet_icon = _pet_icon_file()
+    if pet_icon is not None:
+        html = re.sub(r'(<link rel="(?:icon|apple-touch-icon)" href=")/brand-logo\?v=[\w.]+',
+                      lambda m: m.group(1) + "/pet-icon?v=" + pet_icon.stem, html)
     # Nhúng phiên bản + vân tay vào chính trang. index.html luôn tải mới (no-store) nên khối
     # này LUÔN đúng, kể cả khi mọi file JS quanh nó đã cũ - đó chính là điểm tựa để
     # freshness.js phát hiện ra chuyện đó.
@@ -6666,6 +6674,17 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                     pet["pos"] = max(0.0, min(1.0, float(pet_moi["pos"])))
                 except (TypeError, ValueError):
                     pass
+            # The mascot's own uploaded picture: a name from the /avatars store (POST /avatars/upload), never a path.
+            # "" removes it. A name the store does not hold is dropped, so settings.json never points at a stray file.
+            if "image" in pet_moi:
+                v = pet_moi.get("image")
+                if v in ("", None):
+                    pet["image"] = ""
+                elif avatar_upload.hop_le(v):
+                    pet["image"] = v
+            # Use that picture as the browser tab icon too, so several Javis tabs tell apart at a glance.
+            if "favicon" in pet_moi:
+                pet["favicon"] = bool(pet_moi["favicon"])
             cfg["dashboard"]["pet"] = pet
     elif section == "image":
         cfg.setdefault("image", {})
@@ -16726,15 +16745,42 @@ async def brand_logo():
     return FileResponse(str(p), headers={"Cache-Control": "public, max-age=60"})
 
 
+_ICON_MEDIA = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+               ".webp": "image/webp", ".gif": "image/gif"}
+
+
+def _pet_icon_file():
+    """The mascot's own uploaded picture when the owner uses it as the tab icon, else None.
+
+    Lets someone with several Javis open (shop, family, a VPS for a client) tell the tabs apart. On by default once
+    a picture is uploaded; `favicon: false` keeps the logo on the tab. The name goes through avatar_upload, so a
+    hand-edited settings.json cannot point this at any other file."""
+    pet = (cfgmod.read_settings().get("dashboard") or {}).get("pet") or {}
+    if not isinstance(pet, dict) or pet.get("favicon") is False:
+        return None
+    return avatar_upload.duong_dan(pet.get("image"))
+
+
+@app.get("/pet-icon")
+async def pet_icon():
+    """Tab icon from the mascot picture. Public like /brand-logo: the login screen shows it before any session.
+    No picture (or the option is off) falls back to the logo, so a stale link never shows a broken icon."""
+    p = _pet_icon_file() or _current_logo_file() or _DEFAULT_LOGO
+    if not p.exists():
+        return JSONResponse({"error": "no icon"}, status_code=404)
+    return FileResponse(str(p), media_type=_ICON_MEDIA.get(p.suffix.lower(), "image/png"),
+                        headers={"Cache-Control": "public, max-age=60", "X-Content-Type-Options": "nosniff"})
+
+
 @app.get("/favicon.ico")
 async def favicon_ico():
     """Favicon = logo hiện tại. Trình duyệt LUÔN tự gọi /favicon.ico và cache rất lì;
-    trước đây route này trả 404 nên tab giữ icon cũ. Trả thẳng ảnh logo cho khớp app."""
-    p = _current_logo_file() or _DEFAULT_LOGO
+    trước đây route này trả 404 nên tab giữ icon cũ. Trả thẳng ảnh logo cho khớp app.
+    The mascot picture wins when the owner made it the tab icon (see _pet_icon_file)."""
+    p = _pet_icon_file() or _current_logo_file() or _DEFAULT_LOGO
     if not p.exists():
         return JSONResponse({"error": "no favicon"}, status_code=404)
-    media = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-             ".webp": "image/webp", ".gif": "image/gif"}.get(p.suffix.lower(), "image/png")
+    media = _ICON_MEDIA.get(p.suffix.lower(), "image/png")
     return FileResponse(str(p), media_type=media, headers={"Cache-Control": "public, max-age=300"})
 
 
