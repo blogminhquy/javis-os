@@ -196,7 +196,7 @@ class Store:
         """Rows the watcher must look at: a pushed commit whose CI or PR is not settled yet."""
         with self._lock:
             rows = self._db.execute(
-                "SELECT * FROM work WHERE head_sha != '' AND (ci IN ('pending','running') OR "
+                "SELECT * FROM work WHERE head_sha != '' AND ((ci IN ('pending','running') AND integ != 'merged') OR "
                 "integ IN ('pr_open','ready') OR (integ='merged' AND post_merge='pending'))").fetchall()
         return [self._row(r) for r in rows]
 
@@ -326,6 +326,12 @@ def store() -> Store:
         return _STORE
 
 
+def waits_on_ci(r: Dict[str, Any]) -> bool:
+    """The row's commit still waits for a CI result. A merged PR waits for nothing: when it was merged while
+    Javis could not reach GitHub, its CI mark stays the "pending" it had, and that must not read as work going on."""
+    return r.get("ci") in ("pending", "running") and r.get("integ") != "merged"
+
+
 def icon(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     """The conversation's icon from its rows (spec 12.1). Worst state wins; running work shows with its count.
 
@@ -335,10 +341,10 @@ def icon(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     # A repo attached to the chat with nothing pushed and nothing going on says nothing about the chat's GitHub work.
     # Without this, one merged repo next to an untouched one read as "working" forever.
     rows = [r for r in rows if r.get("head_sha") or r["exec"] in ("running", "stuck")
-            or r["ci"] in ("pending", "running") or r["integ"] not in ("", "no_pr")]
+            or waits_on_ci(r) or r["integ"] not in ("", "no_pr")]
     if not rows:
         return {"state": "", "running": 0, "sub": "", "merged_warning": False}
-    running = sum(1 for r in rows if r["exec"] == "running" or r["ci"] in ("pending", "running"))
+    running = sum(1 for r in rows if r["exec"] == "running" or waits_on_ci(r))
     broken = [r for r in rows if r["integ"] in ("conflict", "merge_failed")]
     stuck = [r for r in rows if r["exec"] == "stuck"]
     if broken or stuck:
@@ -351,7 +357,7 @@ def icon(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         state = "ready"
     else:
         state = "working" if any(r["head_sha"] for r in rows) else ""
-    sub = "stuck" if stuck else ("waiting_ci" if any(r["ci"] in ("pending", "running") for r in rows) else
+    sub = "stuck" if stuck else ("waiting_ci" if any(waits_on_ci(r) for r in rows) else
                                  ("waiting_review" if any(r["integ"] == "ready" for r in rows) else ""))
     return {"state": state, "running": running, "sub": sub,
             "merged_warning": any(r["integ"] == "merged" and r.get("post_merge") == "red" for r in rows)}

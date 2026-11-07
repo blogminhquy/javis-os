@@ -263,6 +263,21 @@ check("tool cancel drops it", "Đã bỏ" in plug._chay({"op": "cancel", "chat_i
 check("tool refuses outside a web chat", plug._chay({"op": "status"}, Ctx()).startswith("ERROR"))
 check("a next job needs an attached repo", plug._chay({"op": "next", "chat_id": "web:nope", "text": "x"}, Ctx()).startswith("ERROR"))
 
+# ---- a PR merged while Javis could not reach GitHub keeps the CI mark it had: merged still means merged ----
+# Real case 2026-11-07 (PR #1120): the token dropped while CI ran, a person merged, Javis saw the merge after
+# reconnecting, and the chat kept the "working / waiting for CI" icon with no way out.
+S().ensure("c9", "acme/stale", brain=BRAIN, worktree="")
+S().update("c9", "acme/stale", branch="javis/c9", head_sha="abc123", pr_number=7, ci="pending", integ="merged",
+           post_merge="green", exec="done")
+ic = github_store.icon(S().for_session("c9"))
+check("a merged PR whose CI mark stayed 'pending' shows as merged, not working",
+      ic["state"] == "merged" and ic["running"] == 0 and ic["sub"] == "")
+check("the watcher stops polling a merged row with a stale CI mark",
+      all(r["sid"] != "c9" for r in S().active()))
+check("a merged row with a stale CI mark does not block removing the repo", w.busy_jobs(BRAIN, "acme/stale") == [])
+out = plug._chay({"op": "status", "chat_id": "web:c9"}, Ctx())
+check("tool status of that row says merged, not 'chờ CI'", "đã merge" in out and "chờ CI" not in out)
+
 fake.close()
 print()
 if _fails:
