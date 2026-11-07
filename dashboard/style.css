@@ -1604,6 +1604,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cp-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .cp-chips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; }
 .cp-gap { flex: 1 1 auto; }
+/* Suggested next message (chat-suggest.js, 2026-11-07): the grey placeholder of the empty box IS the suggestion, and
+   this chip fills it in (the way on a phone, which has no Tab key). Main chat and Teams share it. */
+.sug-tab { flex: none; align-self: center; font: 600 12px/1 var(--font); padding: 6px 9px; border-radius: 7px;
+  border: 1px solid var(--border); background: var(--bg3); color: var(--text2); cursor: pointer; white-space: nowrap; }
+.sug-tab:hover { border-color: var(--accent); color: var(--accent); }
+.sug-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sug-tab[hidden] { display: none; }
+@media (pointer: coarse) { .sug-tab { font-size: 14px; padding: 8px 11px; } }
 .cp-plus, .cp-limit {
   flex: none; width: 32px; height: 32px; border-radius: 50%; padding: 0;
   border: 1px solid var(--border); background: transparent; color: var(--text2);
