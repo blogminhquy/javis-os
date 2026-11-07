@@ -116,5 +116,9 @@
   "common.account": "Benutzername",
   "common.password": "Passwort",
   "common.default": "Standard",
-  "top.install_title": "Javis als eigene App installieren: öffnen über Desktop/Dock, kein Suchen mehr zwischen Tabs"
+  "top.install_title": "Javis als eigene App installieren: öffnen über Desktop/Dock, kein Suchen mehr zwischen Tabs",
+  "sug.menu": "Nächste Nachricht vorschlagen",
+  "sug.on": "An",
+  "sug.off": "Aus",
+  "sug.use": "Vorschlag übernehmen (Tab)"
 }

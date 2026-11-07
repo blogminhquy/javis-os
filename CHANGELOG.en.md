@@ -8,6 +8,18 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.495.1] - 2026-11-07
+### Fixed
+- **The chat no longer sits on "Lost the connection to the server" for hours.** A message the server failed on used to drop the connection, the page reconnected and sent the same message again, which dropped it again, forever, even across server restarts. Now the server shows the error under that message and the connection stays up.
+- **A message sent 3 times without being taken goes back to the input box** instead of being resent forever.
+- **An expired sign-in shows the sign-in screen** instead of "reconnecting" forever with every list at 0.
+- **A brain on Google Drive or OneDrive freezes the server less:** the folder scans at the start and end of each chat turn run on their own and no longer block the connection.
+
+## [0.495.0] - 2026-11-07
+### Added
+- **Your next message, suggested right in the chat box.** Once Javis answers, the empty box shows in grey what you will most likely type next (for example "ok, go with the proposal for both PRs"). Press **Tab** to fill it in, edit it or press Enter to send; on a phone tap the **Tab** button next to the box.
+- Works in the main chat and on the Teams page. Suggestions run on the background model, not the main brain. Switch it off or on from the chat's **+** menu, "Suggest my next message".
+
 ## [0.494.0] - 2026-11-07
 ### Added
 - **Per-partner ChatGPT Live voice selection.** Pick a supported realtime v3 voice in the shared partner editor; Default inherits the global voice. The preference is stored with the partner frontmatter and follows Brain Sync.

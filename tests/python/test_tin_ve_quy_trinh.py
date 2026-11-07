@@ -25,6 +25,7 @@ KHÔNG dùng ký tự em dash.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
+import re
 import os
 import sys
 import tempfile
@@ -203,7 +204,7 @@ check("nhánh trả lời đi run_turn kèm khối QUY TRÌNH ĐANG MỞ",
 check("nhánh trả lời nói ra là không chạy (khung system)",
       "workflow_chat.tin_khong_chay(" in src)
 check("nhánh chạy dùng tin ĐÃ BÓC tiền tố, không phải tin thô",
-      "run_workflow_turn(\n                        conv_sid, _msg_wf," in src)
+      re.search(r"run_workflow_turn\(\n\s+conv_sid, _msg_wf,", src) is not None)
 
 app_js = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
 ws_js = (ROOT / "dashboard" / "workspace.js").read_text(encoding="utf-8")
