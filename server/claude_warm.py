@@ -326,13 +326,51 @@ def _linger(handle: "ClaudeHandle", completion, cap: float = LINGER_MAX_S) -> No
     t.add_done_callback(_LINGERING.discard)
 
 
+# A lost thread reported as an EXCEPTION instead of a ResultMessage (owner's report, 07/11/2026). Claude Code 2.1.31x
+# prints "No conversation found with session ID" and exits 1 at once, so the SDK raises (ProcessError "exit code 1 ...
+# Check stderr output for details" on 0.2.116, ResultError on 0.2.17x) before any ResultMessage reaches
+# claude_sdk_engine.map_message, and the chat showed that raw error instead of priming a new thread. Seen every time a
+# chat moved to another Claude account: the thread lives in the first account's config folder. Measured on 2.1.319.
+# Recognised here and not in claude_sdk_engine.py, which must stay byte for byte the qualified source.
+_LOST_THREAD = "no conversation found with session id"
+
+
+def resume_lost(text: str, stderr_lines=()) -> bool:
+    try:
+        return _LOST_THREAD in (str(text or "") + " " + " ".join(str(x) for x in (stderr_lines or ()))).lower()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def resume_lost_event() -> dict:
+    """The event map_message gives a lost thread, so callers prime a new thread from the saved history."""
+    import localefmt
+    return {"type": "error", "resume_failed": True,
+            "content": localefmt.chu(
+                "Phiên Claude cũ không còn trên máy (mạch hội thoại phía Claude Code đã mất). Javis mở mạch mới và "
+                "mồi lại từ lịch sử đã lưu.",
+                "The old Claude session is no longer on this machine (Claude Code lost the conversation thread). "
+                "Javis opens a new thread and primes it from the saved history.")}
+
+
+async def cold_query(cli, prompt) -> AsyncIterator[dict]:
+    """`cli.query`, with a lost thread reported by an exit code turned into the `resume_failed` event."""
+    had = bool(getattr(cli, "session_id", None))
+    async for ev in cli.query(prompt):
+        if (had and ev.get("type") == "error" and not ev.get("resume_failed")
+                and resume_lost(ev.get("content"), getattr(cli, "_stderr_tail", ()))):
+            cli.session_id = None
+            ev = resume_lost_event()
+        yield ev
+
+
 async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
     """One chat turn, on the conversation's warm `claude` when it has one that fits, else cold, keeping the process
     afterwards when the pool has room. Same events as `ClaudeSDK.query`."""
     import tien_trinh_nen
     mark_background(cli, tien_trinh_nen.mark_for(getattr(cli, "tag", "")) or key)
     if not key or not eligible(cli) or not cli.is_available():
-        async for ev in cli.query(prompt):
+        async for ev in cold_query(cli, prompt):
             yield ev
         return
     try:
@@ -522,6 +560,11 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
         raise
     except Exception as e:
         linger = False
+        clean = False
+        if cli.session_id and resume_lost(str(e), cli._stderr_tail):
+            cli.session_id = None   # 07/11/2026: the thread is not in this account's folder, prime a new one
+            yield resume_lost_event()
+            return
         chan_doan = None
         if "Control request timeout: initialize" in str(e):
             chan_doan = cli._startup_diagnosis(started)

@@ -340,7 +340,61 @@ def use(engine, provider: str, account_id: str):
         engine.agy_home = str(folder) if folder else None
     else:
         _claude_use(engine, folder)
+        _claude_drop_foreign_thread(engine, folder)
     return engine
+
+
+_SID_CHARS = set("0123456789abcdefABCDEF-")
+
+
+def _claude_thread_in(folder: Path, session_id: str) -> bool:
+    """Whether a Claude config folder keeps the transcript of `session_id` (projects/<cwd>/<id>.jsonl)."""
+    try:
+        return any(Path(folder, "projects").glob(f"*/{session_id}.jsonl"))
+    except OSError:
+        return False
+
+
+def claude_thread_owner(session_id: str, folder=None):
+    """Which account folder keeps a Claude thread: `folder` itself when it does (None = account 1), another account's
+    folder when only that one does, or "" when no folder has it (left to Claude Code to report)."""
+    sid = str(session_id or "")
+    if not sid or len(sid) > 80 or not set(sid) <= _SID_CHARS:
+        return ""
+    here = Path(folder) if folder else default_home("anthropic-cli")
+    if _claude_thread_in(here, sid):
+        return here
+    others = [default_home("anthropic-cli")]
+    try:
+        others += [d / "claude" for d in root().iterdir() if d.is_dir()]
+    except OSError:
+        pass
+    for f in others:
+        if f != here and _claude_thread_in(f, sid):
+            return f
+    return ""
+
+
+def _claude_drop_foreign_thread(engine, folder) -> None:
+    """A chat moving to another Claude account must not resume the thread of the account it ran on before.
+
+    Claude Code keeps a thread in the config folder of the account that wrote it, so `--resume` from another account
+    finds nothing and exits 1 at once (owner's report, 07/11/2026: account 1 ran out, the chat moved to account 2 and
+    every turn died with "SDK engine: ProcessError: Command failed with exit code 1"). Dropping the id here sends the
+    turn down the usual "no thread" path, which primes the new thread from the saved history. Only dropped on positive
+    evidence: the transcript sits in another account's folder and not in this one."""
+    sid = getattr(engine, "session_id", None)
+    if not sid:
+        return
+    try:
+        owner = claude_thread_owner(sid, folder)
+        here = Path(folder) if folder else default_home("anthropic-cli")
+        if owner and owner != here:
+            engine.session_id = None
+            print(f"[plan accounts] claude: thread {str(sid)[:8]} belongs to another account, priming a new one",
+                  file=sys.stderr)
+    except Exception as e:  # noqa: BLE001 - choosing an account must never stop a turn
+        print(f"[plan accounts] claude thread check: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def _claude_use(engine, folder) -> None:

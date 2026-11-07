@@ -324,6 +324,63 @@ finally:
     os.environ.pop("JAVIS_CLAUDE_TOOL_TIMEOUT", None)
     os.environ.pop("JAVIS_CLAUDE_FIRST_TIMEOUT", None)
 
+# ---- 5b. Lost thread reported as an EXCEPTION (owner's report, 07/11/2026) ----
+# Claude Code 2.1.31x prints "No conversation found with session ID" and exits 1, so the SDK raises before any
+# ResultMessage. Seen whenever a chat moved to a second Claude account: the old thread lives in account 1's folder.
+# claude_warm (claude_sdk_engine.py itself stays byte for byte the qualified source) must flag it `resume_failed`
+# (callers then prime a new thread) instead of a raw "ProcessError".
+import claude_warm  # noqa: E402
+def _raising_client(exc):
+    class _Fake:
+        def __init__(self, options=None): pass
+        async def connect(self): raise exc
+        async def query(self, prompt): pass
+        async def interrupt(self): pass
+        async def disconnect(self): pass
+        def receive_response(self): raise exc
+    return _Fake
+
+
+async def _run_resume(sid, stderr_line=""):
+    e = ClaudeSDK(tag="resume-test")
+    e.session_id = sid
+    if stderr_line:
+        _orig_opts = e._options
+
+        def _opts_with_stderr():
+            o = _orig_opts()
+            e._on_stderr(stderr_line)
+            return o
+        e._options = _opts_with_stderr
+    return e, [ev async for ev in claude_warm.cold_query(e, "x")]
+
+
+ClaudeSDK.is_available = lambda self: True
+try:
+    claude_agent_sdk.ClaudeSDKClient = _raising_client(
+        Exception("Command failed with exit code 1 (exit code: 1)\nError output: Check stderr output for details"))
+    _e5b, evs = asyncio.run(_run_resume("3f1c2a9e-0000-4000-8000-123456789abc",
+                                        "No conversation found with session ID: 3f1c2a9e-0000-4000-8000-123456789abc"))
+    check("lost thread via exit 1 + stderr -> resume_failed event, not a raw SDK error",
+          [e.get("resume_failed") for e in evs if e["type"] == "error"] == [True]
+          and not any("SDK engine" in str(e.get("content")) for e in evs))
+    check("lost thread via exit 1 -> the dead session id is dropped", _e5b.session_id is None)
+    claude_agent_sdk.ClaudeSDKClient = _raising_client(Exception(
+        "Claude Code returned an error result: No conversation found with session ID: abc (exit code: 1)"))
+    _e5c, evs = asyncio.run(_run_resume("abc"))
+    check("lost thread named in the exception itself (SDK 0.2.17x ResultError) -> resume_failed",
+          [e.get("resume_failed") for e in evs if e["type"] == "error"] == [True])
+    claude_agent_sdk.ClaudeSDKClient = _raising_client(Exception("Command failed with exit code 1"))
+    _e5d, evs = asyncio.run(_run_resume("abc"))
+    check("any other exit 1 stays a plain error and keeps the session id",
+          [bool(e.get("resume_failed")) for e in evs if e["type"] == "error"] == [False] and _e5d.session_id == "abc")
+    _e5e, evs = asyncio.run(_run_resume(None, "No conversation found with session ID: x"))
+    check("no session to resume -> never flagged as a lost thread",
+          not any(e.get("resume_failed") for e in evs))
+finally:
+    claude_agent_sdk.ClaudeSDKClient = _orig_client_cls
+    ClaudeSDK.is_available = _orig_avail
+
 # ---- 6. System prompt DÀI đẩy qua FILE, không nhét vào argv (lỗi CLINotFound trên Windows) ----
 # Gốc lỗi: SDK để --append-system-prompt <prompt> trên dòng lệnh; > 32767 ký tự thì Windows
 # CreateProcess chết -> FileNotFoundError bị dán nhãn "Claude Code not found at ...\\_bundled\\claude.exe".
