@@ -70,6 +70,8 @@ function load(opts) {
     infoBody: (h) => '<div class="info-body">' + h + "</div>",
     renderModelsCloudTab: () => {},
     startClaudeLogin: () => {},
+    acctNameTag: () => "",
+    acctNameField: () => "",
     confirm: (msg) => { calls.confirm.push(msg); return opts.confirm; },
     saveSetting: async (section, data) => { calls.save.push([section, data]); return opts.save || { ok: true }; },
     fetch: async (url, init) => {

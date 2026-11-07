@@ -3352,6 +3352,14 @@
     const prof = (id) => (R.profiles || {})[id] || { model: "", reasoning: "off" };
     const multiKey = R.multi_key || [];
     const accts = m.accounts || {};
+    ACCT_NAMES = {};
+    ACCT_ITEMS = {};
+    PLAN_CLI.forEach(pid => {
+      const l = accts[pid] || [];
+      ACCT_ITEMS[pid] = l;
+      const a = l.find(x => x.main || x.id === "main");
+      if (a && a.label) ACCT_NAMES[pid] = a.label;
+    });
     const bgCfg = R.background || { provider: "anthropic-cli", model: "", reasoning: "off" };
     const bgP = pById(bgCfg.provider) || {};
     const bgUse = R.bg_in_use || null;
@@ -3567,7 +3575,7 @@
       };
       if (p.kind === "oauth") {
         const st = on
-          ? t("models.st_connected") + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
+          ? t("models.st_connected") + esc(acctNameTag(p.id)) + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
           : t("models.st_not_connected") + " · " + p.models.length + " model";
         return `${cardOpen(p, ord)}
           ${provHead(p, on, "Device code", st, false, ord)}
@@ -3577,7 +3585,7 @@
           <div class="prov-action" style="flex-wrap:wrap">
             ${on && ord ? "" : on
               ? `<button class="gcard-btn ghost" data-oauth-disc="1">${esc(t("models.disconnect"))}</button>`
-              : `<button class="gcard-btn" data-oauth-login="1">${esc(t("models.login_gpt"))}</button>
+              : `${acctNameField(p.id)}<button class="gcard-btn" data-oauth-login="1">${esc(t("models.login_gpt"))}</button>
                  <button class="gcard-btn ghost" data-oauth-browser="1">${esc(t("models.via_browser"))}</button>`}
             <span id="oauthMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
           </div>
@@ -3590,7 +3598,7 @@
         // 0.30-0.32.1 từng thử (và tắc trên Windows vì không có pseudo-terminal).
         const dn = p.dang_nhap || {};
         const st = on
-          ? t("models.st_logged_in") + (p.account ? " · " + esc(p.account) : "")
+          ? t("models.st_logged_in") + esc(acctNameTag(p.id)) + (p.account ? " · " + esc(p.account) : "")
             + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
           : (p.cli_found ? t("models.st_cli_no_login") : t("models.st_no_cli", { ten: "Grok Build CLI" }));
         return `${cardOpen(p, ord)}
@@ -3604,7 +3612,7 @@
             ${on && ord ? "" : on
               ? `<button class="gcard-btn ghost" data-grokcheck="1">${esc(t("qs.recheck"))}</button>
                  <button class="gcard-btn ghost" data-grokdisc="1">${esc(t("models.disconnect"))}</button>`
-              : `<button class="gcard-btn" data-groklogin="1">${esc(t("auth.submit"))}</button>
+              : `${acctNameField(p.id)}<button class="gcard-btn" data-groklogin="1">${esc(t("auth.submit"))}</button>
                  <button class="gcard-btn ghost" data-grokcheck="1">${esc(t("qs.recheck"))}</button>`}
             <span id="grokMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
           </div>
@@ -3622,7 +3630,7 @@
         const dn = p.dang_nhap || {};
         const off = !!p.javis_off;
         const st = on
-          ? t("models.st_logged_in") + (p.auth_method ? " · " + esc(p.auth_method) : "")
+          ? t("models.st_logged_in") + esc(acctNameTag(p.id)) + (p.auth_method ? " · " + esc(p.auth_method) : "")
             + " · " + p.models.length + " model"
           : off ? t("models.agy_off")
           : (p.cli_found ? t("models.st_cli_no_login") : t("models.st_no_cli", { ten: "Antigravity CLI" }));
@@ -3641,7 +3649,7 @@
           <div class="prov-action" style="flex-wrap:wrap">
             ${off
               ? `<button class="gcard-btn" data-agyon="1">${ic("plug-zap")} ${esc(t("models.reconnect"))}</button>`
-              : on && ord ? "" : `<button class="gcard-btn ghost" data-agycheck="1">${esc(t("qs.recheck"))}</button>
+              : on && ord ? "" : `${on ? "" : acctNameField(p.id)}<button class="gcard-btn ghost" data-agycheck="1">${esc(t("qs.recheck"))}</button>
                  ${on ? `<button class="gcard-btn ghost" data-agydisc="1">${esc(t("models.disconnect"))}</button>` : ""}`}
             <span id="agyMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on || off ? "" : esc(p.auth_error || "")}</span>
           </div>
@@ -3748,7 +3756,7 @@
       return `${cardOpen(p, ord)}
         ${provHead(p, on, p.kind === "cli" ? "MCP/skill" : "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model", false, ord)}
         ${ord && multiKey.indexOf(p.id) >= 0 ? acctList(p) : p.needs_key
-          ? `<div class="prov-action"><input class="js-input" id="pk-${p.id}" type="password" placeholder="${on ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.key_ph"))}"><button class="gcard-btn" data-pk="${p.id}">${on ? esc(t("models.key_change")) : esc(t("models.connect"))}</button>${on && !ord ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}</div>`
+          ? `<div class="prov-action">${!on && multiKey.indexOf(p.id) >= 0 ? acctNameField(p.id) : ""}<input class="js-input" id="pk-${p.id}" type="password" placeholder="${on ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.key_ph"))}"><button class="gcard-btn" data-pk="${p.id}">${on ? esc(t("models.key_change")) : esc(t("models.connect"))}</button>${on && !ord ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}</div>`
           : `<div class="prov-note">${esc(t("models.no_key_note"))}</div>`}
         ${ordActs(p, ord, { add: ord && multiKey.indexOf(p.id) >= 0 ? "key" : "" })}
       </div>`;
@@ -3762,12 +3770,12 @@
           dung: (useP.label || bgUse.provider) + " · " + (bgUse.model || defName(bgUse.provider)) }))}</div>` : "";
     const moreHtml = offList.length ? `<div class="cview-section${connList.length ? "" : " ord-first"}">
         ${connList.length ? "" : `<div class="prov-note warn">${WARN_ICON} ${esc(t("models.ord_empty"))}</div>`}
-        <button type="button" class="ord-more" id="ordMore" aria-haspopup="dialog" aria-expanded="${showOff ? "true" : "false"}">
+        <button type="button" class="ord-more" id="ordMore" aria-controls="ordOff" aria-expanded="${showOff ? "true" : "false"}">
           <span class="ord-stack">${offList.filter(p => window.JavisProviderLogos && window.JavisProviderLogos.has(p.id)).slice(0, 3)
             .map(p => `<span class="prov-logo mini">${window.JavisProviderLogos.svg(p.id)}</span>`).join("") || `<span class="prov-logo mini ic-tile">${ic("plug")}</span>`}</span>
           <span class="ord-more-t"><b>${esc(t("models.connect_more"))}</b><span>${esc(offList.slice(0, 4).map(p => p.label).join(", ")
             + (offList.length > 4 ? " " + t("models.connect_more_n", { n: offList.length - 4 }) : ""))}</span></span>
-          ${ic("chevron-up", { cls: "ord-more-c" })}
+          ${ic("chevron-down", { cls: "ord-more-c" })}
         </button>
         <div class="prov-list ord-off" id="ordOff" ${showOff ? "" : "hidden"}>${offList.map(p => provCard(p, null)).join("")}</div>
       </div>` : "";
@@ -3816,9 +3824,11 @@
         const pid = b.dataset.pk;
         const inp = document.getElementById("pk-" + pid);
         const val = (inp && inp.value || "").trim();
+        const name = takeAcctName(el, pid);
+        if (name === null) return;
         if (!val) { if (inp) inp.focus(); return; }
         b.disabled = true; b.textContent = t("settings.saving");
-        await saveSetting("model", { [KEYFIELD[pid]]: val });
+        await saveSetting("model", name ? { [KEYFIELD[pid]]: val, key_label: name } : { [KEYFIELD[pid]]: val });
         renderModelsCloudTab(el);
       };
     });
@@ -3882,12 +3892,23 @@
       };
     });
     const ol = el.querySelector("[data-oauth-login]");
-    if (ol) ol.onclick = () => startOauthLogin(el);
+    // The first sign-in waits for the account's name and saves it as account 1's label before the link opens.
+    const named = (pid, go) => async () => {
+      const name = takeAcctName(el, pid);
+      if (name === null) return;
+      try { await savePlanName(pid, name); } catch (e) {}
+      go();
+    };
+    if (ol) ol.onclick = named("openai-oauth", () => startOauthLogin(el));
     const ob = el.querySelector("[data-oauth-browser]");
-    if (ob) ob.onclick = () => startOauthBrowser(el);
+    if (ob) ob.onclick = named("openai-oauth", () => startOauthBrowser(el));
     const agk = el.querySelector("[data-agycheck]");
     if (agk) agk.onclick = async () => {
       const msg = el.querySelector("#agyMsg");
+      // Antigravity signs in from a terminal, so its name is saved when the owner checks the card afterwards.
+      const name = takeAcctName(el, "antigravity-cli");
+      if (name === null) return;
+      try { await savePlanName("antigravity-cli", name); } catch (e) {}
       agk.disabled = true; const cu2 = agk.textContent; agk.textContent = t("models.trying");
       if (msg) msg.textContent = t("models.testing");
       let r = null;
@@ -3931,6 +3952,9 @@
     const gkl = el.querySelector("[data-groklogin]");
     if (gkl) gkl.onclick = async () => {
       const msg = el.querySelector("#grokMsg"), box = el.querySelector("#grokBox");
+      const name = takeAcctName(el, "grok-cli");
+      if (name === null) return;
+      try { await savePlanName("grok-cli", name); } catch (e) {}
       gkl.disabled = true; const cu = gkl.textContent; gkl.textContent = t("models.opening");
       if (msg) msg.textContent = t("models.grok_ask");
       let r = null;
@@ -4083,6 +4107,35 @@
   // every draw of the tab; each change saves at once and draws the tab again from the server's answer.
   // 0.355.0 (owner 27/10): "default" alone tells nothing, so it names the model it stands for when the server knows it.
   let MODEL_DEFAULTS = {};
+  // Owner 07/11/2026: the first sign-in of a card asks for the account's name, so two accounts never read alike. A plan
+  // card keeps it as account 1's label (plan_accounts), an API card as its first key's label. Filled on every draw.
+  let ACCT_NAMES = {};      // plan card id -> account 1's label
+  let ACCT_ITEMS = {};      // plan card id -> its account list, so saving a name keeps order and on/off
+  const acctNameField = (pid) => `<input class="js-input prov-acname" data-acname="${esc(pid)}" maxlength="60" autocomplete="off"
+    spellcheck="false" placeholder="${esc(t("models.acname_ph"))}" value="${esc(ACCT_NAMES[pid] || "")}">`;
+  // The typed name, "" when the card has no name box, or null after pointing at the empty box: the sign-in waits.
+  function takeAcctName(el, pid) {
+    const inp = el.querySelector(`[data-acname="${pid}"]`);
+    if (!inp) return "";
+    const v = inp.value.trim();
+    if (!v) {
+      inp.classList.add("need");
+      inp.placeholder = t("models.acname_need");
+      inp.focus();
+      return null;
+    }
+    inp.classList.remove("need");
+    return v;
+  }
+  async function savePlanName(pid, name) {
+    if (!name || name === ACCT_NAMES[pid]) return;
+    const items = (ACCT_ITEMS[pid] && ACCT_ITEMS[pid].length ? ACCT_ITEMS[pid] : [{ id: "main", label: "", enabled: true }])
+      .map(a => ({ id: a.id, label: a.id === "main" ? name : (a.label || ""), enabled: a.enabled !== false }));
+    ACCT_NAMES[pid] = name;
+    await saveSetting("model", { accounts: { provider: pid, items: items } });
+  }
+  // " · name" for a plan card's status line, "" when account 1 has none yet.
+  const acctNameTag = (pid) => ACCT_NAMES[pid] ? " · " + ACCT_NAMES[pid] : "";
   // A subscription CLI with nothing set picks its own model by plan, which Javis cannot read: say so instead of "default".
   const PLAN_CLI = ["anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli"];
   const defName = (pid) => MODEL_DEFAULTS[pid] ? t("models.mp_default_is", { m: MODEL_DEFAULTS[pid] })
@@ -4331,12 +4384,30 @@
       };
     });
 
-    // ---- the accounts of a plan card (0.353.0): order, on/off, sign in again, remove, add ----
+    // ---- the accounts of a plan card (0.353.0): order, on/off, sign in again, rename, remove, add ----
+    // A new account needs its name before the sign-in starts (owner 07/11/2026: accounts must never read alike).
+    const needLabel = (box) => {
+      const inp = box.querySelector('[data-f="label"]');
+      if (!inp || inp.value.trim()) return true;
+      inp.classList.add("need");
+      inp.placeholder = t("models.acname_need");
+      inp.focus();
+      return false;
+    };
+    // Rename one account of a plan card; account 1 too, which is the card's own sign-in.
+    const renamePlan = (btn, pid, id, name, label) => formSheet(btn, t("models.acct_rename"), name,
+      [{ f: "label", ph: t("models.pacct_label_ph"), value: label || "" }], t("common.save"), (v, box) => {
+        if (!v("label")) return need(box, "label");
+        const l = items(pid), x = l.find(a => a.id === id);
+        if (x) x.label = v("label");
+        saveAcc(pid, l);
+      });
     async function planLogin(pid, box) {
       const msg = box.querySelector(".ord-addmsg"), step = box.querySelector(".ord-pstep");
       const go = box.querySelector("[data-pacct-go]");
       // Signed in: the sheet closes (without cancelling the finished sign-in) and the card draws the new account.
       const done = () => { delete box.dataset.acc; closePop(); c.again(); };
+      if (!box.dataset.re && !needLabel(box)) return;
       go.disabled = true;
       msg.textContent = t("models.opening");
       let r;
@@ -4438,6 +4509,7 @@
       box.querySelector("[data-pacct-cancel]").onclick = () => closePop();
       box.querySelector("[data-pacct-go]").onclick = async (ev) => {
         const go = ev.currentTarget;
+        if (!box.dataset.re && !needLabel(box)) return;
         go.disabled = true;
         let r;
         try {
@@ -4503,6 +4575,7 @@
             saveAcc(pid, l);
           } }];
         // Account 1 is the machine's own sign-in: it can be turned off here, not removed or signed in again.
+        rows.push({ ic: "pencil", label: t("models.acct_rename"), run: () => renamePlan(btn, pid, id, name, a.label) });
         if (!a.main) rows.push({ ic: "log-in", label: t("models.pacct_relogin"), run: () => planSheet(btn, pid, id, a.label || "") });
         if (i0 > 0) rows.push({ ic: "arrow-up", label: t("models.move_up"), run: () => saveAcc(pid, MO.move(items(pid), idx(), idx() - 1)) });
         if (i0 < n - 1) rows.push({ ic: "arrow-down", label: t("models.move_down"), run: () => saveAcc(pid, MO.move(items(pid), idx(), idx() + 1)) });
@@ -4515,8 +4588,8 @@
       };
     });
 
-    // ---- "Connect another provider": a sheet of the providers not signed in yet, each with its logo. Picking one
-    // opens the list below and brings that provider's card into view, where its connect form is. ----
+    // ---- "Connect another provider": one tap unfolds every provider not signed in yet, right under the button, and
+    // a second tap folds them (owner 07/11/2026: "no popup there, a click should just open all the connections"). ----
     const more = el.querySelector("#ordMore");
     const showOff = (open) => {
       const box = el.querySelector("#ordOff");
@@ -4528,24 +4601,8 @@
       return box;
     };
     if (more) more.onclick = () => {
-      const offOpen = !el.querySelector("#ordOff").hidden;
-      menuSheet(more, t("models.connect_more"), [(c.offList || []).map(p => ({ ic: isGw(p.id) ? "key-round" : "plug", label: p.label, sub: c.kindTag(p), run: () => {
-        const box = showOff(true);
-        const card = box && box.querySelector(`[data-offp="${p.id}"]`);
-        if (card) {
-          card.scrollIntoView({ block: "center", behavior: "smooth" });
-          card.classList.add("ord-flash");
-          setTimeout(() => card.classList.remove("ord-flash"), 1600);
-        }
-      } })), offOpen ? [{ ic: "chevron-up", label: t("models.connect_fold"), run: () => showOff(false) }] : []],
-      t("models.connect_more_sub", { n: (c.offList || []).length }));
-      // Each provider row shows the provider's own logo instead of a generic icon.
-      const L = window.JavisProviderLogos;
-      if (L && openPop) openPop.el.querySelectorAll(".ord-mi").forEach((b, i) => {
-        const p = (c.offList || [])[i];
-        const s = p && L.svg(p.id);
-        if (s) { const t0 = b.querySelector(".ord-mic"); t0.innerHTML = s; t0.classList.add("logo"); }
-      });
+      const box = showOff(el.querySelector("#ordOff").hidden);
+      if (box && !box.hidden) more.scrollIntoView({ block: "start", behavior: "smooth" });
     };
 
     el.querySelectorAll("[data-ordpop]").forEach(btn => btn.onclick = () => {
@@ -4721,6 +4778,10 @@
          i >= 0 && i < n - 1 && { ic: "arrow-down", label: t("models.move_down"), run: () => save({ order: MO.move(c.order, i, i + 1) }) }],
         [q("[data-addkey]") && { ic: "key-round", label: t("models.acct_add"), sub: t("models.acct_add_d"), run: () => (isGw(pid) ? advSheet(b, null, pid) : addKeySheet(b, pid)) },
          q("[data-addacc]") && { ic: "user-plus", label: t("models.pacct_add"), sub: t("models.pacct_add_d"), run: () => planSheet(b, pid) },
+         // A plan card with one account has no list to rename it from: its name is edited here.
+         PLAN_CLI.indexOf(pid) >= 0 && (c.accts[pid] || []).length < 2 && !(pid === "anthropic-cli" && p.auth_mode === "api_key")
+           && { ic: "pencil", label: t("models.acname_edit"), sub: ACCT_NAMES[pid] || t("models.acname_none"),
+                run: () => renamePlan(b, pid, "main", p.label, ACCT_NAMES[pid]) },
          pid === "anthropic-cli" ? { ic: "refresh-cw", label: t("qs.recheck"), sub: t("models.check_d"), run: () => refreshClaudeCard(el, true) }
            : check && { ic: "refresh-cw", label: t("qs.recheck"), sub: t("models.check_d"), run: () => check.click() }],
         // Claude Code on an API key: the key is chosen with the card's own switch, there is no plan login to drop.
@@ -4802,7 +4863,7 @@
     }
     if (d.connected) {
       st.className = "prov-status on";
-      st.textContent = t("models.st_connected") + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "")
+      st.textContent = t("models.st_connected") + acctNameTag("anthropic-cli") + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "")
         + (d.stale ? " · " + t("models.st_stale") : "");
       // A card in the usage order has Disconnect in its own button row (and its ⋯ sheet), so none here.
       if (act.closest && act.closest(".ord-card")) { act.innerHTML = ""; return; }
@@ -4821,7 +4882,7 @@
       st.className = "prov-status";
       st.textContent = t("models.st_no_login");
       act.innerHTML = `<div class="prov-action">
-          <button class="gcard-btn" id="cliLogin">${esc(t("models.login_claude"))}</button>
+          ${acctNameField("anthropic-cli")}<button class="gcard-btn" id="cliLogin">${esc(t("models.login_claude"))}</button>
           <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button>${infoBtn()}</div>
         <div id="cliMsg" class="prov-msg">${d.error ? Icons.warn(d.error) : ""}</div>
         ${infoBody(`${esc(t("models.cli_login_note"))}
@@ -4892,6 +4953,9 @@
   }
 
   async function startClaudeLogin(el) {
+    const name = takeAcctName(el, "anthropic-cli");
+    if (name === null) return;
+    try { await savePlanName("anthropic-cli", name); } catch (e) {}
     const act = el.querySelector("#cliAction");
     const msg = el.querySelector("#cliMsg");
     if (msg) msg.textContent = t("models.getting_link");

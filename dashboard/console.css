@@ -318,7 +318,7 @@ body.ord-is-dragging, body.ord-is-dragging * { cursor: grabbing !important; user
 /* The background model card: the model chip icon in front. */
 .aux-now .aux-ic { width: 40px; height: 40px; }
 .aux-now-txt { flex: 1; }
-/* "Connect another provider": three real logos stacked, the names, an arrow that says it opens upward. */
+/* "Connect another provider": three real logos stacked, the names, an arrow that turns over when the list below opens. */
 .ord-more { display: flex; width: 100%; max-width: 760px; align-items: center; gap: 12px; margin: 0 0 10px; padding: 12px 14px;
   border-radius: 18px; border: 1px dashed var(--border); text-align: left; }
 .ord-stack { display: flex; flex: none; }
@@ -328,9 +328,8 @@ body.ord-is-dragging, body.ord-is-dragging * { cursor: grabbing !important; user
 .ord-more-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ord-more-t b { color: var(--text); font-size: 16px; }
 .ord-more-t span { color: var(--text3); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ord-more-c { flex: none; color: var(--text3); }
-.prov-card.ord-flash { animation: ordFlash 1.6s ease-out; }
-@keyframes ordFlash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: none; } }
+.ord-more-c { flex: none; color: var(--text3); transition: transform .2s; }
+.ord-more[aria-expanded="true"] .ord-more-c { transform: rotate(180deg); }
 /* Sheets in the Tasks page's style: grouped finger-sized rows, an icon tile, a short line under the label. */
 .ord-sheet-head .prov-logo { flex: none; }
 .ord-sheet-head small { display: block; font-size: 14px; font-weight: 500; color: var(--text3); overflow: hidden; text-overflow: ellipsis; }
@@ -387,6 +386,11 @@ button.ord-mi:hover, button.ord-mi:focus-visible { background: var(--bg3); }
 .prov-help summary { cursor: pointer; color: var(--text2); }
 .prov-help > div { margin-top: 4px; color: var(--text2); }
 .prov-action .js-input { margin-bottom: 0; flex: 1; }
+/* The account name asked at a card's first sign-in (owner 07/11/2026): its own full row above the buttons, 16px so iOS
+   does not zoom in. An empty box the sign-in waits for, here or in the add-account sheet, turns red. */
+.prov-action .prov-acname { flex: 1 1 100%; max-width: 420px; font-size: 16px; }
+.prov-action .prov-acname + .gcard-btn { margin-left: 0; }
+.js-input.need:placeholder-shown { border-color: var(--red); box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 20%, transparent); }
 /* Claude sign-in code (0.308.0): the box takes the row, at least 240px before the button wraps under it on a phone;
    16px so iOS does not zoom in, monospace so a mistyped character is easy to spot. */
 .prov-code { margin-top: 6px; max-width: 560px; }
