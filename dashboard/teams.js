@@ -2317,6 +2317,7 @@
     grow(box.querySelector(".tm-input"));
     drawHint();
     drawTyping();
+    if (teamSuggest) teamSuggest.refresh();
     if (S.focusComposer && !off) {
       S.focusComposer = false;
       var inp = box.querySelector(".tm-input");
@@ -3030,6 +3031,7 @@
 
   function openTeam(id, taskId) {
     keepTeam();
+    dropNextSug();
     S.jumped = null; S.searchResults = null; S.searchQuery = ""; S.searchOpen = false;
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.taskTitles = {}; S.side = false; S.openMember = null; S.turns = [];
@@ -3546,6 +3548,7 @@
     var atts = S.atts.filter(function (a) { return a.path && !a.err; });
     if (!typed && !atts.length) return;
     stopMic();
+    dropNextSug();
     var scan = mentionScan(typed, S.team.members, S.picked);
     if (scan.ambiguous.length) { drawHint(); return; }
     var mentions = scan.keys;
@@ -4711,6 +4714,43 @@
     }
   }
 
+  // 2026-11-07: the likely next message, grey in the empty box once an assistant answers; Tab or the Tab chip fills
+  // it in. The same module as the main chat (chat-suggest.js), one controller for the page.
+  var teamSuggest = null, sugTimer = null, sugFor = 0;
+  function nextSug() {
+    if (!teamSuggest && typeof window !== "undefined" && window.JavisSuggest) {
+      teamSuggest = window.JavisSuggest.attach({
+        input: function () { return S && S.el ? S.el.querySelector(".tm-input") : null; },
+        chipHost: function () {
+          var row = S && S.el && S.el.querySelector(".tm-row");
+          return row ? [row, row.querySelector(".tm-mic")] : null;
+        },
+        composing: function () { return !!(S && S.composing && S.composing()); },
+      });
+    }
+    return teamSuggest;
+  }
+  function dropNextSug() { clearTimeout(sugTimer); sugFor = 0; if (teamSuggest) teamSuggest.clear(); }
+  // Asked a moment after the last assistant message, so a team answering in turns gets one suggestion at the end.
+  function queueNextSug(mid) {
+    clearTimeout(sugTimer);
+    sugTimer = setTimeout(function () {
+      var sg = nextSug();
+      if (!sg || !S || !S.team || (S.typing || []).length || S.filterTask) return;
+      var last = S.msgs[S.msgs.length - 1];
+      if (!last || Number(last.id) !== Number(mid) || last.author_kind !== "agent" || sugFor === Number(mid)) return;
+      sugFor = Number(mid);
+      var team = S.activeId;
+      var ctx = S.msgs.slice(-6).filter(function (m) { return m.author_kind === "owner" || m.author_kind === "agent"; })
+        .map(function (m) {
+          var name = m.author_kind === "agent" ? nameOf(S.team.members, m.author_ref) : "";
+          return { role: m.author_kind === "owner" ? "user" : "assistant",
+                   text: (name ? name + ": " : "") + String(m.content == null ? "" : m.content) };
+        });
+      sg.request(ctx).then(function () { if (!S || S.activeId !== team) dropNextSug(); });
+    }, 2500);
+  }
+
   function onKey(e) {
     if (e.target.classList && e.target.classList.contains("tm-search-input") && e.key === "Enter") {
       e.preventDefault();
@@ -4719,6 +4759,7 @@
     }
     if (e.key === "Escape" && S.pickSt) { closePicker(); return; }
     if (e.target.classList && e.target.classList.contains("tm-input") && sugKey(e)) return;
+    if (e.target.classList && e.target.classList.contains("tm-input") && teamSuggest && teamSuggest.onKeydown(e)) return;
     if (e.target.classList && e.target.classList.contains("tmp-name-input") && e.key === "Enter") {
       e.preventDefault();
       var srch = S.pickHost && S.pickHost.querySelector(".tmp-search-input");
@@ -4769,6 +4810,7 @@
       grow(e.target);
       suggest();
       drawHint();
+      if (teamSuggest) teamSuggest.onInput();
     }
   }
 
@@ -4818,6 +4860,7 @@
       if (i >= 0 || !S.filterTask) drawMsgs(false);
       // A new message while the owner reads higher up: the jump button becomes "New messages" (at the end it follows).
       if (i < 0 && S.scroll && !S.scroll.stuck()) toLatest(false);
+      if (i < 0 && nm.author_kind === "agent") queueNextSug(nm.id);
     }
     // 2026-11-05: "the owner read this team" only changes the unread badge on the team list. It used to refetch the open
     // team and its queue too, the heaviest reads of the page, after every team switch and every agent message.

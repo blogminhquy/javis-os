@@ -16,6 +16,7 @@ covers what lives outside those files (agent lessons in the lesson store).
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -33,13 +34,16 @@ MAX_ITEMS = 5
 def _walk(mem: Path):
     if not mem.is_dir():
         return
-    for p in mem.rglob("*"):
-        if not p.is_file() or p.suffix not in (".md", ".json"):
-            continue
-        rel = p.relative_to(mem)
-        if any(part in SKIP_DIRS for part in rel.parts[:-1]):
-            continue
-        yield rel.as_posix(), p
+    # os.walk with the skipped folders pruned: rglob stepped into conversations/ (one log a day, forever) and stat-ed
+    # every file only to drop it, which on a synced drive is the slow part.
+    for dirpath, dirnames, filenames in os.walk(mem):
+        base = Path(dirpath)
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        for name in sorted(filenames):
+            p = base / name
+            if p.suffix not in (".md", ".json") or not p.is_file():
+                continue
+            yield p.relative_to(mem).as_posix(), p
 
 
 def snapshot(mem_dir) -> dict:
