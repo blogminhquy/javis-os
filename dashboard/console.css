@@ -4462,3 +4462,29 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
   .ro-hint { font-size: 17px; }
   .cside-reorder { width: 34px; height: 30px; }
 }
+
+/* Multi-pane iframe (multi.html opens the dashboard with ?pane=<sid>): show only the chat.
+   The iframe is narrow, so the mobile rules (<=860px) apply too. Flex column instead of the 5-row grid,
+   because hidden children (top bar) shift every grid row and squeeze the transcript to 0. */
+html.pane-mode { --rail-w: 0px; }
+html.pane-mode .rail,
+html.pane-mode .hud-top,
+html.pane-mode .hud-left,
+html.pane-mode .hud-center,
+html.pane-mode #cview,
+html.pane-mode .pet,
+html.pane-mode .nav-backdrop,
+html.pane-mode #chatZoomBtn,
+html.pane-mode #chatMultiBtn,
+html.pane-mode #chatColThu,
+html.pane-mode .chatcol-expand,
+html.pane-mode .col-resize { display: none !important; }
+html.pane-mode .hud {
+  display: flex !important; flex-direction: column;
+  margin: 0 !important; width: 100% !important; height: 100vh !important;
+  padding-top: 0 !important;
+}
+html.pane-mode .hud > * { flex: 0 0 auto; }
+html.pane-mode .hud-body { display: flex !important; flex: 1 1 auto !important; min-height: 0; overflow: hidden; visibility: visible !important; }
+html.pane-mode .hud-right { display: flex !important; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; max-width: none; border: 0; overflow: hidden; }
+html.pane-mode .hud-right .transcript { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; }

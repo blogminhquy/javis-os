@@ -366,7 +366,8 @@
     try {
       const saved = localStorage.getItem(TRANG_CUOI_KEY);
       const resolved = TRANG_GOP[saved] || saved;
-      if (resolved === "chat" || resolved === "workspace") id = resolved;
+      // Pane mode (multi.html) stays on "home": the chat page would move #chatArea into the hidden #cview.
+      if (!(document.documentElement && document.documentElement.classList.contains("pane-mode")) && (resolved === "chat" || resolved === "workspace")) id = resolved;
     } catch (e) {}
     const store = Alpine.store("nav");
     store.openGroup = groupLabelOf(id) || groupLabelOf("home");   // Chat stands alone: keep the Brain group open
@@ -8962,6 +8963,9 @@
             // đúng một điều mà rail đang tô sáng và khung trống đã ghi bằng chữ in nghiêng
             // ngay bên dưới, nên nó chỉ ăn chỗ. Chip project lùi về mép phải, chiếm chỗ đó.
             '<span class="proj-chip-host"></span>' +
+            '<button class="cp-ico-btn cp-multi" type="button" id="cpMultiBtn" data-i18n-title="chat.multi" data-i18n-aria="chat.multi" ' +
+              'title="' + esc(window.t("chat.multi")) + '" aria-label="' + esc(window.t("chat.multi")) + '">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M15 3v18"/></svg></button>' +
           '</div>' +
           '<div class="chatpage-slot" id="chatPageSlot"></div>' +
           // Chỗ đứng cho TRÌNH SỬA khi mở file từ tab Thư mục. Rỗng và ẩn cho tới lúc đó.
@@ -9016,6 +9020,11 @@
     // Đường VỀ. Nút phóng to ở màn Javis nay dẫn thẳng sang trang này (lớp nổi .chat-stage đã
     // bỏ), nên trang này phải có nút thu nhỏ, nếu không người dùng chỉ còn cách bấm rail.
     el.querySelector("#cpMinBtn").onclick = () => navigateTo("home");
+    const multiBtn = el.querySelector("#cpMultiBtn");
+    if (multiBtn) multiBtn.onclick = () => {
+      const sid = (typeof savedSessionId !== "undefined" && savedSessionId) || "";
+      window.open("/static/multi.html" + (sid ? "?s=" + encodeURIComponent(sid) : ""), "_blank");
+    };
     // Cuộn xuống đáy + focus ô nhập cho tiện gõ ngay
     const ca = document.getElementById("chatArea"); if (ca) ca.scrollTop = ca.scrollHeight;
     const ci = document.getElementById("chatInput"); if (ci) { try { ci.focus(); } catch (e) {} }
@@ -10243,7 +10252,9 @@
     };
     if (cct) cct.onclick = () => datChatColThu(true);
     if (ccm) ccm.onclick = () => datChatColThu(false);
-    try { if (localStorage.getItem("javis_chatcol_thu") === "1") document.body.classList.add("chatcol-thu"); } catch (e) {}
+    // Pane mode (multi.html): the chat IS the whole frame, never restore the collapsed column / brain-max.
+    if (document.documentElement.classList.contains("pane-mode")) document.body.classList.remove("chatcol-thu", "brain-max");
+    else try { if (localStorage.getItem("javis_chatcol_thu") === "1") document.body.classList.add("chatcol-thu"); } catch (e) {}
     refreshEngineBanner();
     setInterval(refreshEngineBanner, 90000);
     // Báo "chưa kết nối" mà không đưa được người ta tới chỗ kết nối thì chỉ là than phiền.

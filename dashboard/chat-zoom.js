@@ -44,6 +44,12 @@
   function bind() {
     var btn = document.getElementById("chatZoomBtn");
     if (btn) btn.addEventListener("click", function () { expand(); });
+    // Side-by-side view (multi.html): opens in a new tab with the chat on screen as its first pane.
+    var multi = document.getElementById("chatMultiBtn");
+    if (multi) multi.addEventListener("click", function () {
+      var sid = (typeof savedSessionId !== "undefined" && savedSessionId) || "";
+      window.open("/static/multi.html" + (sid ? "?s=" + encodeURIComponent(sid) : ""), "_blank");
+    });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
   else bind();

@@ -16,12 +16,16 @@ function setSessionRunning(sid, on) {
 }
 
 // Lưu & khôi phục phiên gần nhất (hội thoại + số liệu + session Claude)
-const SESSION_KEY = "javis.session.v1";
+// Multi-pane view (multi.html): each iframe opens ONE chat via ?pane=<sid> and keeps its own saved state, so the
+// panes never overwrite each other's localStorage entry. Absent => the normal single-chat page, key unchanged.
+const PANE_SID = (() => { try { return new URLSearchParams(location.search).get("pane") || ""; } catch (e) { return ""; } })();
+if (PANE_SID) document.documentElement.classList.add("pane-mode");
+const SESSION_KEY = PANE_SID ? "javis.session.pane." + PANE_SID : "javis.session.v1";
 let convo = [];            // [{role:"user"|"javis", text, atts}]
 let savedSessionId = null; // session_id của Claude để resume sau khi F5
 // Typed messages the server has not confirmed yet (chat_ack), kept in localStorage so a page the phone killed in the
 // background still sends them after it reloads. See _trackUnacked.
-const UNACKED_KEY = "javis.unacked.v1";
+const UNACKED_KEY = PANE_SID ? "javis.unacked.pane." + PANE_SID : "javis.unacked.v1";
 let _unacked = [];
 try { const a = JSON.parse(localStorage.getItem(UNACKED_KEY) || "[]"); if (Array.isArray(a)) _unacked = a; } catch (e) {}
 const stopBtn = document.getElementById("stopBtn");
@@ -3553,6 +3557,7 @@ function _trangGiuKhungChat() {
 let _lastBrain = currentBrainPath();
 const _viewByBrain = {};   // brain -> session id đang xem gần nhất trong phiên trang này
 graphSource.addEventListener("change", () => {
+  if (typeof PANE_SID !== "undefined" && PANE_SID) return;
   localStorage.setItem("javis.graphSource", graphSource.value);
   const nb = currentBrainPath();
   if (nb !== _lastBrain) {
@@ -5405,8 +5410,10 @@ if (document.getElementById("wzFinish")) {
 initAuthGate();
 refreshUsage();
 connect();
-initStarfield();
-initGraph().then(connectGraphWatch).catch(connectGraphWatch);
+if (!PANE_SID) {
+  initStarfield();
+  initGraph().then(connectGraphWatch).catch(connectGraphWatch);
+}
 pumpAudioLevel();
 loadMemStats();
 loadBrainStats();
@@ -5418,6 +5425,8 @@ checkVault();
 // đáp án - thứ mà tải lại từ server (/sessions) không có. savedSessionId sống lại theo, nên
 // lượt đang chạy nền của phiên này vẫn stream tiếp vào đúng khung sau khi tải lại.
 restoreSession();
+// Pane iframe: always show the chat named in the URL (a stale saved copy may be of another chat).
+if (PANE_SID) openStoredSession(PANE_SID);
 // File ghim sống qua F5 luôn - tải lại trang mà mất file đang làm việc thì đúng cái phiền
 // mà khôi phục hội thoại ở trên sinh ra để tránh.
 _pinRestore();
