@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.500.2] - 2026-11-07
+### Fixed
+- **A merged PR no longer sticks on "waiting for CI".** When a PR was merged while Javis had lost its GitHub connection, the chat kept the working-branch icon forever. It now shows as merged, and `javis_github` no longer reports "waiting for CI" for a merged PR.
+
 ## [0.500.1] - 2026-11-07
 ### Fixed
 - **CI no longer fails at random on the startup speed check.** The old test timed the server import and went red on slow runners. It now lists the libraries loaded at startup: no clock involved, and a heavy library that slips in is named.
