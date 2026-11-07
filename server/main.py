@@ -17363,7 +17363,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
     try:
         cfg = _voice_partner_settings(cfg, session_id, brain)
     except Exception as e:  # noqa: BLE001
-        print(f"[voice partner] {type(e).__name__}: {e}", file=sys.stderr)
+        print(f"[voice partner] {type(e).__name__}: {e}", file=__import__("sys").stderr)
     memory_index = ""
     if str(((cfg.get("voice") or {}).get("live_provider")) or "") == "chatgpt":
         # ChatGPT Live chạy qua Codex app-server: bắc cầu token đã nối ở trang Models sang
