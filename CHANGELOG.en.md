@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.492.1] - 2026-11-07
+### Improved
+- **The Chatbot page opens much faster on a busy inbox.** The "messages today" counts on Conversations and on each bot card used to read every stored message every 5 seconds; now they read only the time range they need.
+- **The Stats tab counts faster and remembers.** The earlier period it compares against is kept for 10 minutes, so switching tabs does not count everything again.
+- **Conversations asks for the list and the channels at the same time** instead of one after the other. While the page counts, the rest of Javis no longer freezes.
+
 ## [0.492.0] - 2026-11-07
 ### Added
 - **Turn scheduled jobs off on one machine.** With one brain shared across machines, each reminder used to run once on every machine running Javis. The Recurring view on the Tasks page now has a switch for the machine you are on; other machines keep running the schedule.
