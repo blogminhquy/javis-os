@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.499.0] - 2026-11-07
+### Added
+- **Call Javis over the API without holding a connection open.** `POST /chat/jobs` answers at once with a job id, the turn runs in the background, and `GET /chat/jobs/{id}` returns the answer later. Good for serverless backends, and a dropped connection no longer loses the result.
+- **Each job belongs to the token that started it.** Other tokens cannot read it, each token runs at most 4 jobs at once, one per session. Results are kept for 24 hours.
+
 ## [0.498.0] - 2026-11-07
 ### Improved
 - **Partner voice calls keep longer instructions.** The partner file text sent into a call grows from 4,000 to 12,000 characters and memory from 2,000 to 6,000, adjustable with `JAVIS_VOICE_AGENT_BODY_CHARS` and `JAVIS_VOICE_AGENT_MEMORY_CHARS`. Rules placed between `<!-- JAVIS_VOICE_RULES_START -->` and `<!-- JAVIS_VOICE_RULES_END -->` in the partner file always move to the top and are never cut.
