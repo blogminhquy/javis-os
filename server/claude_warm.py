@@ -522,6 +522,11 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
         raise
     except Exception as e:
         linger = False
+        clean = False
+        if cli.session_id and eng.resume_lost_in_exception(e, cli._stderr_tail):
+            cli.session_id = None   # 07/11/2026: the thread is not in this account's folder, prime a new one
+            yield eng.resume_lost_event()
+            return
         chan_doan = None
         if "Control request timeout: initialize" in str(e):
             chan_doan = cli._startup_diagnosis(started)

@@ -279,6 +279,33 @@ def la_loi_mat_mach(msg) -> bool:
         return False
 
 
+def resume_lost_in_exception(e, stderr_lines=()) -> bool:
+    """The same lost thread, reported as an EXCEPTION instead of a ResultMessage (owner's report, 07/11/2026).
+
+    Claude Code 2.1.31x prints "No conversation found with session ID" and exits 1 at once, so the SDK raises
+    (ResultError on 0.2.172, ProcessError "exit code 1 ... Check stderr output for details" on older releases)
+    before any ResultMessage reaches `map_message`. The chat then showed that raw error and never primed a new
+    thread. Seen every time a chat moved to another Claude account: the thread lives in the first account's
+    config folder. Measured on 2.1.319 with an empty CLAUDE_CONFIG_DIR."""
+    try:
+        text = (str(e) + " " + " ".join(str(x) for x in (stderr_lines or ()))).lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return any(m in text for m in _MAU_MAT_MACH)
+
+
+def resume_lost_event() -> dict:
+    """The error event a lost thread raises, so callers prime a new thread from the saved history."""
+    return {"type": "error", "resume_failed": True,
+            "content": localefmt.chu(
+                "Phiên Claude cũ không còn trên máy (mạch hội thoại phía "
+                "Claude Code đã mất). Javis mở mạch mới và mồi lại từ "
+                "lịch sử đã lưu.",
+                "The old Claude session is no longer on this machine (Claude Code lost "
+                "the conversation thread). Javis opens a new thread and primes it from "
+                "the saved history.")}
+
+
 def _la_dua_token(text: str, is_error: bool) -> bool:
     """Lượt kết thúc vì cuộc đua làm mới token (review sửa pilot 4, P2-1). Tín hiệu chính là is_error có cấu trúc của
     CLI kèm câu lỗi đua token; khi CLI không cắm is_error thì CHỈ nhận khi toàn bộ kết quả là thông báo lỗi thô (neo ở
@@ -364,14 +391,7 @@ def map_message(msg):
         # và trả session_id None để người gọi mồi lại từ kho phiên (cùng cách nhánh Codex).
         resume_failed = la_loi_mat_mach(msg)
         if resume_failed:
-            events.append({"type": "error", "resume_failed": True,
-                           "content": localefmt.chu(
-                               "Phiên Claude cũ không còn trên máy (mạch hội thoại phía "
-                               "Claude Code đã mất). Javis mở mạch mới và mồi lại từ "
-                               "lịch sử đã lưu.",
-                               "The old Claude session is no longer on this machine (Claude Code lost "
-                               "the conversation thread). Javis opens a new thread and primes it from "
-                               "the saved history.")})
+            events.append(resume_lost_event())
         elif msg.is_error and not (msg.result or "").strip():
             events.append({"type": "error",
                            "content": localefmt.chu(
@@ -1176,6 +1196,10 @@ class ClaudeSDK:
                 if isinstance(msg, ResultMessage):
                     break
         except Exception as e:
+            if self.session_id and resume_lost_in_exception(e, self._stderr_tail):
+                self.session_id = None   # dead id: the caller primes a new thread from the saved history
+                yield resume_lost_event()
+                return
             chan_doan = None
             if "Control request timeout: initialize" in str(e):
                 # Hết giờ khởi động: lấy bằng chứng (claude có gọi tới hub không, nó in gì) để câu
