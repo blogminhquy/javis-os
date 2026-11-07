@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.493.1] - 2026-11-07
+### Fixed
+- **Workflow agents with no model of their own now run on the main model.** Before, such a step always ran on Claude whatever brain was picked on the Models page. An agent with its own model keeps it.
+
 ## [0.493.0] - 2026-11-07
 ### Added
 - **Unread chats get a red dot.** When Javis has answered and you have not opened the chat since, its row in the chat history shows a red dot and a heavier title, on the Chat page and in the history column of the Partners page.
