@@ -33,13 +33,12 @@ VOICE_RULES_START = "<!-- JAVIS_VOICE_RULES_START -->"
 VOICE_RULES_END = "<!-- JAVIS_VOICE_RULES_END -->"
 
 # These operational integrity rules are never subject to body or memory truncation.
+# Worded for any partner (not only a sales one): the caller is the owner, not a customer.
 ALWAYS_ON = (
-    "Quy tắc bắt buộc trong Voice: không đoán giá, định lượng, tồn kho, phí giao, lịch "
-    "hoặc trạng thái công việc từ trí nhớ hay lời khách. Cần dữ liệu thật thì dùng công cụ "
-    "có thẩm quyền; thiếu kết quả phải nói rõ chưa xác minh. "
-    "Không nói đã tạo đơn, đặt giao hàng, gửi tin, chuyển nhân viên hay nhận thanh toán "
-    "nếu chưa có kết quả thực thi thành công. Phân biệt yêu cầu đã ghi nhận, bản nháp "
-    "và hành động đã hoàn tất."
+    "Quy tắc luôn giữ trong cuộc gọi: số liệu thật và thông tin hay thay đổi (giá, tồn kho, lịch hẹn, "
+    "tiến độ công việc...) thì lấy từ công cụ, không đoán, không bịa; chưa lấy được thì nói rõ là chưa "
+    "kiểm tra. Chỉ báo một việc đã xong (gửi tin, tạo đơn, đặt lịch...) khi công cụ đã trả kết quả "
+    "thành công; việc đang chạy hay mới ghi nhận thì nói đúng là đang chạy hay mới ghi nhận."
 )
 
 
