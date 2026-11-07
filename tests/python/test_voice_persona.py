@@ -57,7 +57,9 @@ class _Fake(voice_live.LiveProvider):
 
 prov = _Fake("key")
 prov.system = voice_persona.apply(prov.system, "Người viết", block)
-check("Live provider prompt speaks as the partner", prov.system.startswith("Bạn là Người viết"))
+check("Live provider prompt speaks as the partner, identity first",
+      prov.system.startswith(block + "\n\n") and "Bạn là Người viết, một cộng sự của chủ trong Javis," in prov.system
+      and voice_persona.OPENING not in prov.system)
 
 conf = {"provider": "openai", "model": "m", "api_key": "k", "system": "PROMPT RIÊNG"}
 b = voice_brain._make(conf)
@@ -91,7 +93,9 @@ check("persona carries the partner's name and file",
       persona is not None and persona[0] == "Người viết" and "Viết súc tích." in persona[1])
 fast = main._voice_brain_conf({"provider": "openai"}, sid_agent, "brain")
 check("fast lane conf of a partner chat speaks as the partner",
-      fast.get("system", "").startswith("Bạn là Người viết") and fast["provider"] == "openai")
+      fast.get("system", "").startswith(persona[1] + "\n\n")
+      and "Bạn là Người viết, một cộng sự của chủ trong Javis," in fast.get("system", "")
+      and fast["provider"] == "openai")
 check("fast lane conf of a plain chat is unchanged",
       main._voice_brain_conf({"provider": "openai"}, sid_plain, "brain") == {"provider": "openai"})
 
