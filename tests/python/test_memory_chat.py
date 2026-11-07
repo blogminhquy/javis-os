@@ -178,9 +178,9 @@ msgs = [m["content"] for m in main.get_store().get_messages(sid_r)]
 check("push_to_chat stores the receipt block with the line (F5 draws it again) and pushes it live",
       msgs and msgs[0].endswith(blk) and pub and pub[0]["content"].endswith(blk), msgs)
 check("push_to_chat takes only a real receipt block, nothing else", msgs[-1] == "y", msgs)
-check("the turn takes a snapshot first, then pushes the receipt or the note after saving",
-      "_mem_snap = memory_receipt.snapshot(_brain_memory_dir(brain))" in src
-      and "memory_receipt.facts_diff(_mem_snap, _brain_memory_dir(brain))" in src
+check("the turn takes a snapshot first (in a thread), then pushes the receipt or the note after saving",
+      "_mem_snap = await asyncio.to_thread(memory_receipt.snapshot, _brain_memory_dir(brain))" in src
+      and "asyncio.to_thread(memory_receipt.facts_diff, _mem_snap, _brain_memory_dir(brain))" in src
       and "memory_receipt.detect_claim(final_text)" in src and "turn_started=(_mem_snap or {}).get(\"t0\") or 0" in src)
 check("an agent lesson recorded in the turn counts as a change", "memory_control.note_change(_brain_memory_dir(brain))" in src)
 

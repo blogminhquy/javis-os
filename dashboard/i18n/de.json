@@ -120,5 +120,9 @@
   "models.acname_ph": "Kontoname (z. B. Arbeits-Gmail)",
   "models.acname_need": "Zuerst einen Kontonamen vergeben, damit nichts verwechselt wird",
   "models.acname_edit": "Konto benennen",
-  "models.acname_none": "Noch kein Name"
+  "models.acname_none": "Noch kein Name",
+  "sug.menu": "Nächste Nachricht vorschlagen",
+  "sug.on": "An",
+  "sug.off": "Aus",
+  "sug.use": "Vorschlag übernehmen (Tab)"
 }
