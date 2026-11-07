@@ -108,6 +108,7 @@ import luot_dang_chay # sổ lượt chat đang chạy theo brain: tool giao vi�
 import tool_label     # một dòng mô tả lệnh gọi công cụ (lệnh nào, file nào) cho khối tiến trình
 import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
 import transcript_fix  # rewrites what the mic heard at the end of a dictation: the main brain, with the chat as context
+import next_prompt  # suggests the owner's next message after a reply (ghost text, Tab fills it in)
 import phien_am       # từ tiếng Anh -> cách đọc kiểu Việt (đọc loa + so âm câu nghe được)
 import voice_privacy
 voice_privacy.install()
@@ -2278,6 +2279,29 @@ async def _transcript_rewrite_ask(prompt: str) -> str:
 
 
 transcript_fix.wire(ask=_transcript_rewrite_ask)
+
+
+async def _next_prompt_ask(prompt: str) -> str:
+    """One text-only turn on the BACKGROUND brain for the suggested next message (next_prompt.py, 2026-11-07).
+
+    A suggestion is a side job, so it runs on the background model, not the main brain. Same sandbox as the group chat
+    judge: an empty folder, no MCP, every tool refused, so a chat that reads like an order is only guessed at."""
+    base = _reply_policy_sandbox_engine(next_prompt.SYSTEM, "next-prompt", cwd_name="next_prompt_cwd")
+    cli = aux_engine.strip_tools(_aux_swap(base, mode="suggest", tag="next-prompt"), base)
+    if not cli.is_available():
+        raise RuntimeError("background brain not ready")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "engine error")[:200])
+    if aux_engine.final_loi_dang_nhap(final):
+        raise RuntimeError("background brain signed out")
+    return final
+
+
+next_prompt.wire(ask=_next_prompt_ask)
 
 
 def _reply_policy_write_feedback(bot: dict, text: str) -> None:
@@ -6426,6 +6450,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             lc["tz"] = name
         if "currency" in patch:
             lc["currency"] = str(patch["currency"] or "").strip().upper() or "VND"
+    elif section == "chat":
+        # The suggested next message (next_prompt.py): the "+" menu of the composer switches it on and off.
+        if "suggest_next" in patch:
+            cfg.setdefault("chat", {})["suggest_next"] = bool(patch["suggest_next"])
     elif section == "general":
         if "workspace_name" in patch:
             cfg["workspace_name"] = patch["workspace_name"] or "Javis OS"
@@ -16990,6 +17018,26 @@ async def stt_fix_route(request: Request):
         ctx = [str(c)[:300] for c in ctx[-6:]] if isinstance(ctx, list) else []
         return {"ok": True, **await transcript_fix.rewrite_transcript(cfg, text, ctx)}
     return {"ok": True, **await transcript_fix.fix_transcript(cfg, text)}
+
+
+@app.get("/chat/suggest")
+def chat_suggest_state():
+    """Whether the suggested next message is on (the "+" menu of the composer shows the switch)."""
+    return {"enabled": next_prompt.enabled(cfgmod.read_settings())}
+
+
+@app.post("/chat/suggest")
+async def chat_suggest(request: Request):
+    """The owner's likely next message once Javis has answered (2026-11-07), see next_prompt.py.
+
+    Body {"context": [{"role": "user"|"assistant", "text": "..."}, ...]}, the last messages on screen, oldest first.
+    Never an error: any trouble gives an empty suggestion, and the chat box keeps its usual placeholder."""
+    try:
+        body = await request.json()
+    except Exception:
+        return {"ok": False, "text": ""}
+    ctx = (body or {}).get("context") if isinstance(body, dict) else None
+    return {"ok": True, **await next_prompt.suggest(cfgmod.read_settings(), ctx)}
 
 
 @app.get("/voice/call")
