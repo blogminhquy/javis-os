@@ -28,6 +28,7 @@ Tên file cố ý KHÔNG phải `conversations.db`: tên đó đã thuộc về 
 """
 from __future__ import annotations
 
+import copy
 import json
 import re
 import sqlite3
@@ -185,6 +186,11 @@ def _nang_cap(db: sqlite3.Connection) -> None:
         # 0.216.0: số điện thoại của khách (dạng 0xxxxxxxxx), để ô tìm kiếm của hòm thư tìm theo số.
         db.execute("ALTER TABLE customers ADD COLUMN phone TEXT NOT NULL DEFAULT ''")
     db.execute("CREATE INDEX IF NOT EXISTS ix_khach_sdt ON customers(phone) WHERE phone != ''")
+    # Owner, 2026-11-07 ("trang chatbot, hội thoại, bot và thống kê load rất lâu"): every count by time ("messages today"
+    # on the inbox and on each bot card, refreshed every 5 seconds, and the Stats tab) read the WHOLE messages table,
+    # which grows by a thousand rows per busy Zalo group. One range index per access path; built once on an old store.
+    db.execute("CREATE INDEX IF NOT EXISTS ix_msg_time ON messages(created_at)")
+    db.execute("CREATE INDEX IF NOT EXISTS ix_msg_conv_time ON messages(conversation_id, created_at)")
     cot_hoi_thoai = {r[1] for r in db.execute("PRAGMA table_info(conversations)").fetchall()}
     if "pinned" not in cot_hoi_thoai:
         # 0.223.0: chủ ghim một cuộc chat lên đầu hòm thư, như ghim hội thoại ở trang Trò chuyện.
@@ -1018,6 +1024,7 @@ def delete_conversation(conversation_id: int) -> bool:
         except Exception:
             db.rollback()
             raise
+    _insights_cache.clear()      # the Stats tab must not keep counting a chat that is gone
     return cur.rowcount > 0
 
 
@@ -1471,50 +1478,69 @@ def insights(since: float, until: float, account: str = "") -> dict:
     tz = localefmt.tz()
     with _lock:
         db = _conn()
-        rows = db.execute(
-            "SELECT m.conversation_id AS cid, m.sender_type AS who, m.created_at AS ts, a.channel AS channel,"
-            " c.bot_id AS bot_id, a.id AS acc FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+        cur_rows = db.cursor()
+        cur_rows.row_factory = None         # plain tuples: this loop can see hundreds of thousands of rows
+        rows = cur_rows.execute(
+            "SELECT m.conversation_id, m.sender_type, m.created_at, a.channel, c.bot_id, a.id"
+            " FROM messages m JOIN conversations c ON c.id=m.conversation_id"
             " JOIN channel_accounts a ON a.id=c.channel_account_id"
             " WHERE m.created_at>=? AND m.created_at<? AND m.sender_type IN ('customer','ai','human')"
             " AND m.message_type!='reaction'" + (" AND c.channel_account_id=?" if account else "") +
             " ORDER BY m.conversation_id, m.created_at, m.id",
             (float(since), float(until)) + ((str(account),) if account else ())).fetchall()
+        # A new chat: a private chat whose very first message falls in the period, that is, it has a message in the period
+        # and none before it. Asked per chat through ix_msg_conv_time instead of grouping every message ever stored.
         moi = db.execute(
-            "SELECT COUNT(*) FROM (SELECT m.conversation_id, MIN(m.created_at) AS dau FROM messages m"
-            " JOIN conversations c ON c.id=m.conversation_id WHERE c.chat_type='private'" +
+            "SELECT COUNT(*) FROM conversations c WHERE c.chat_type='private'" +
             (" AND c.channel_account_id=?" if account else "") +
-            " GROUP BY m.conversation_id HAVING dau>=? AND dau<?)",
-            ((str(account),) if account else ()) + (float(since), float(until))).fetchone()[0]
+            " AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.created_at>=? AND m.created_at<?)"
+            " AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.created_at<?)",
+            ((str(account),) if account else ()) + (float(since), float(until), float(since))).fetchone()[0]
     out = {"ai": 0, "human": 0, "customer": 0, "wait_avg": None, "waits": 0, "by_channel": {}, "by_bot": {}, "by_account": {},
            "wait_ai": None, "wait_human": None, "waits_ai": 0, "waits_human": 0, "ai_rest": 0,
            "chats": 0, "new_chats": int(moi or 0), "hours": [0] * 24}
+    by_channel, by_account, by_bot, hours = out["by_channel"], out["by_account"], out["by_bot"], out["hours"]
+    totals = {"customer": 0, "ai": 0, "human": 0}
+    # Hour of the day per 15-minute slot: every time zone offset is a whole number of quarter hours, so one slot never
+    # spans two local hours, and the time zone is asked once per slot instead of once per message.
+    slot_hour: dict = {}
     waits, w_ai, w_human, start, cur, khach = [], [], [], None, None, set()
-    for r in rows:
-        who, ts = str(r["who"]), float(r["ts"] or 0)
-        if r["cid"] != cur:
-            cur, start = r["cid"], None
-        ch = out["by_channel"].setdefault(str(r["channel"] or ""), {"customer": 0, "ai": 0, "human": 0})
+    ai_rest = 0
+    for cid, who, ts, channel, bot_id, acc_id in rows:
+        ts = float(ts or 0)
+        if cid != cur:
+            cur, start = cid, None
+        ch = by_channel.get(channel or "")
+        if ch is None:
+            ch = by_channel[channel or ""] = {"customer": 0, "ai": 0, "human": 0}
         ch[who] += 1
-        acc = out["by_account"].setdefault(str(r["acc"] or ""), {"customer": 0, "ai": 0, "human": 0})
+        acc = by_account.get(acc_id or "")
+        if acc is None:
+            acc = by_account[acc_id or ""] = {"customer": 0, "ai": 0, "human": 0}
         acc[who] += 1
-        out[who] += 1
-        gio = datetime.fromtimestamp(ts, tz).hour
+        totals[who] += 1
+        slot = int(ts // 900)
+        gio = slot_hour.get(slot)
+        if gio is None:
+            gio = slot_hour[slot] = datetime.fromtimestamp(slot * 900, tz).hour
         if who == "customer":
-            khach.add(r["cid"])
-            out["hours"][gio] += 1
+            khach.add(cid)
+            hours[gio] += 1
             if start is None:
                 start = ts
         else:
             if who == "ai":
-                if r["bot_id"]:
-                    out["by_bot"][str(r["bot_id"])] = out["by_bot"].get(str(r["bot_id"]), 0) + 1
+                if bot_id:
+                    by_bot[bot_id] = by_bot.get(bot_id, 0) + 1
                 if gio >= NGHI_TU or gio < NGHI_DEN:
-                    out["ai_rest"] += 1
+                    ai_rest += 1
             if start is not None:
                 w = max(0.0, ts - start)
                 waits.append(w)
                 (w_ai if who == "ai" else w_human).append(w)
                 start = None
+    out.update(totals)
+    out["ai_rest"] = ai_rest
     out["chats"] = len(khach)
     if waits:
         out["wait_avg"] = round(sum(waits) / len(waits), 1)
@@ -1522,6 +1548,32 @@ def insights(since: float, until: float, account: str = "") -> dict:
     out["wait_ai"], out["waits_ai"] = _trung_vi(w_ai), len(w_ai)
     out["wait_human"], out["waits_human"] = _trung_vi(w_human), len(w_human)
     return out
+
+
+# Stats tab cache (owner, 2026-11-07: the tab loaded slowly). A period that has ended does not change any more (a deleted
+# chat clears this), so it is kept INSIGHTS_KEEP_CLOSED seconds; the running period, whose end is "now", is kept
+# INSIGHTS_KEEP_OPEN seconds, enough to switch tabs and come back without counting a month of messages again.
+INSIGHTS_KEEP_CLOSED = 600
+INSIGHTS_KEEP_OPEN = 20
+INSIGHTS_CACHE_MAX = 32
+_insights_cache: Dict[tuple, tuple] = {}
+
+
+def insights_cached(since: float, until: float, account: str = "", now: Optional[float] = None) -> dict:
+    """`insights` through a short-lived cache. A period ending at `now` (or later) is the running one: its key leaves
+    the end out, since the end moves on every call."""
+    now = time.time() if now is None else float(now)
+    closed = float(until) < now - 1
+    key = (str(_db_path or DB_PATH), round(float(since), 3), round(float(until), 3) if closed else "open", str(account or ""))
+    hit = _insights_cache.get(key)
+    if hit and hit[0] > now:
+        return copy.deepcopy(hit[1])
+    out = insights(since, until, account)
+    if len(_insights_cache) >= INSIGHTS_CACHE_MAX:
+        for k in [k for k, v in list(_insights_cache.items()) if v[0] <= now] or list(_insights_cache)[:1]:
+            _insights_cache.pop(k, None)
+    _insights_cache[key] = (now + (INSIGHTS_KEEP_CLOSED if closed else INSIGHTS_KEEP_OPEN), out)
+    return copy.deepcopy(out)
 
 
 def stats_accounts() -> List[dict]:
