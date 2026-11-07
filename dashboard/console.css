@@ -4475,6 +4475,7 @@ html.pane-mode #cview,
 html.pane-mode .pet,
 html.pane-mode .nav-backdrop,
 html.pane-mode #chatZoomBtn,
+html.pane-mode #chatMultiBtn,
 html.pane-mode #chatColThu,
 html.pane-mode .chatcol-expand,
 html.pane-mode .col-resize { display: none !important; }

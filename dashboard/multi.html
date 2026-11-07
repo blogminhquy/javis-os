@@ -3,62 +3,96 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Javis - side by side chats</title>
+<title data-i18n="multi.title">Javis - side by side chats</title>
 <style>
   html, body { height: 100%; margin: 0; background: #14151a; color: #e6e6e6; font: 14px system-ui, sans-serif; }
   body { display: flex; flex-direction: column; }
   #bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #2a2c35; }
   #bar select, #bar button { font: inherit; padding: 4px 8px; background: #20222b; color: inherit; border: 1px solid #343744; border-radius: 6px; }
   #bar select { max-width: 360px; }
+  #hint a { color: #8ab4ff; }
   #panes { flex: 1; display: flex; gap: 6px; padding: 6px; min-height: 0; }
   .pane { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; border: 1px solid #2a2c35; border-radius: 8px; overflow: hidden; }
-  .pane header { display: flex; justify-content: space-between; padding: 3px 8px; background: #1b1d25; font-size: 12px; }
+  .pane header { display: flex; justify-content: space-between; gap: 8px; padding: 3px 8px; background: #1b1d25; font-size: 12px; }
+  .pane header span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pane header button { background: none; border: 0; color: inherit; cursor: pointer; }
   .pane iframe { flex: 1; border: 0; width: 100%; }
 </style>
 </head>
 <body>
 <div id="bar">
-  <select id="pick"><option value="">+ Add a chat…</option></select>
-  <button id="add">Add</button>
+  <select id="pick"><option value="" data-i18n="multi.add_ph">+ Add a chat…</option></select>
+  <button id="add" data-i18n="multi.add">Add</button>
   <span id="hint"></span>
 </div>
 <div id="panes"></div>
+<script src="/static/i18n/index.js?v=2"></script>
 <script>
 // State lives in the URL (?s=sid1,sid2,sid3) so a reload or a bookmark restores the layout. Max 3 panes.
-var MAX = 3, panes = document.getElementById("panes"), pick = document.getElementById("pick");
-var titles = {};
-function sids() { var s = new URLSearchParams(location.search).get("s"); return s ? s.split(",").filter(Boolean).slice(0, MAX) : []; }
+var MAX = 3, panes = document.getElementById("panes"), pick = document.getElementById("pick"), hint = document.getElementById("hint");
+var titles = {}, hintKey = null;
+function tr(k, v) { return window.t ? window.t(k, v) : k; }
+function sids() {
+  var s = new URLSearchParams(location.search).get("s"), seen = {};
+  return (s ? s.split(",") : []).filter(function (v) { return v && !seen[v] && (seen[v] = 1); }).slice(0, MAX);
+}
 function save(list) { history.replaceState(null, "", "?s=" + list.join(",")); }
+function setHint(key, vars) {
+  hintKey = key ? [key, vars] : null;
+  hint.textContent = key ? tr(key, vars) : "";
+  if (key === "multi.signin") {
+    var a = document.createElement("a"); a.href = "/"; a.target = "_blank"; a.textContent = tr("multi.signin_link");
+    hint.appendChild(document.createTextNode(" ")); hint.appendChild(a);
+  }
+}
 function draw() {
-  panes.innerHTML = "";
-  sids().forEach(function (sid) {
-    var d = document.createElement("div"); d.className = "pane";
+  var list = sids();
+  panes.querySelectorAll(".pane").forEach(function (p) {
+    if (list.indexOf(p.dataset.sid) < 0) p.remove();
+  });
+  list.forEach(function (sid) {
+    var old = panes.querySelector('.pane[data-sid="' + CSS.escape(sid) + '"]');
+    if (old) {
+      var sp = old.querySelector("header span");
+      if (sp && titles[sid]) { sp.textContent = titles[sid]; sp.title = titles[sid]; }
+      return;
+    }
+    var d = document.createElement("div"); d.className = "pane"; d.dataset.sid = sid;
     var h = document.createElement("header"), t = document.createElement("span"), x = document.createElement("button");
-    t.textContent = titles[sid] || sid.slice(0, 8); x.textContent = "x";
-    x.onclick = function () { save(sids().filter(function (v) { return v !== sid; })); draw(); };
+    t.textContent = titles[sid] || sid.slice(0, 8); t.title = t.textContent;
+    x.textContent = "x"; x.title = tr("multi.close"); x.setAttribute("aria-label", x.title);
+    x.onclick = function () { setHint(null); save(sids().filter(function (v) { return v !== sid; })); draw(); };
     h.appendChild(t); h.appendChild(x);
     var f = document.createElement("iframe"); f.src = "/?pane=" + encodeURIComponent(sid);
     d.appendChild(h); d.appendChild(f); panes.appendChild(d);
   });
 }
+// Dictionary arrives after first paint: redraw the labels built in JS (static ones go through applyDom).
+window.addEventListener("javis:i18n", function () {
+  if (hintKey) setHint(hintKey[0], hintKey[1]);
+  panes.querySelectorAll(".pane header button").forEach(function (b) { b.title = tr("multi.close"); b.setAttribute("aria-label", b.title); });
+});
 document.getElementById("add").onclick = function () {
   var list = sids(), v = pick.value;
   if (!v || list.indexOf(v) >= 0) return;
-  if (list.length >= MAX) { document.getElementById("hint").textContent = "Max " + MAX + " chats at once."; return; }
-  document.getElementById("hint").textContent = "";
+  if (list.length >= MAX) { setHint("multi.max", { n: MAX }); return; }
+  setHint(null);
   list.push(v); save(list); draw();
 };
+draw();
 fetch("/sessions?limit=40").then(function (r) { return r.json(); }).then(function (d) {
-  var hint = document.getElementById("hint");
-  if (d.auth_required) hint.innerHTML = 'Not signed in on this address. <a href="/" target="_blank" style="color:#8ab4ff">Sign in to Javis here</a>, then reload this page.';
-  else if (!d.sessions || !d.sessions.length) hint.textContent = "No chats loaded: " + JSON.stringify(d).slice(0, 120);
+  if (d.auth_required) setHint("multi.signin");
+  else if (!d.sessions || !d.sessions.length) setHint("multi.empty");
   (d.sessions || []).forEach(function (s) {
     titles[s.id] = s.title || s.id.slice(0, 8);
     var o = document.createElement("option"); o.value = s.id; o.textContent = titles[s.id]; pick.appendChild(o);
   });
-  draw();
-}).catch(function (e) { document.getElementById("hint").textContent = "Load failed: " + e; draw(); });
+  // Only retitle the headers: redrawing would reload every iframe.
+  panes.querySelectorAll(".pane").forEach(function (p, i) {
+    var sid = sids()[i], sp = p.querySelector("header span");
+    if (sid && titles[sid]) { sp.textContent = titles[sid]; sp.title = titles[sid]; }
+  });
+}).catch(function (e) { setHint("multi.load_failed", { err: String(e) }); });
 </script>
 </body>
 </html>

@@ -32,7 +32,7 @@
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
   <link rel="stylesheet" href="/static/style.css?v=165">
-  <link rel="stylesheet" href="/static/console.css?v=137">
+  <link rel="stylesheet" href="/static/console.css?v=138">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chưa chọn gì thì SÁNG (2026-11-05; trước đó là "auto"). Chế độ "auto" (0.74.0) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
@@ -335,6 +335,7 @@
           <span class="proj-chip-host" id="projChipHost"></span>
           <span class="panel-acts">
             <button class="mini-btn" id="chatZoomBtn" title="Mở trang Trò chuyện (khung chat toàn màn)" data-i18n-title="chat.zoom"><i data-ic="maximize"></i></button>
+            <button class="mini-btn" id="chatMultiBtn" title="Mở hội thoại này trong trang nhiều khung (tối đa 3 hội thoại cạnh nhau)" data-i18n-title="chat.multi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M15 3v18"/></svg></button>
             <button class="mini-btn chatcol-thu-btn" id="chatColThu" title="Thu khung hội thoại sang phải (như thu sidebar)" data-i18n-title="chat.col_collapse"><i data-ic="panel-left"></i></button>
           </span>
         </div>
@@ -1105,7 +1106,7 @@
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/incoming-call.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=159"></script>
+  <script src="/static/app.js?v=160"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -1123,7 +1124,7 @@
   <script src="/static/branding.js?v=11"></script>
   <script src="/static/quick-settings.js?v=11"></script>
   <script src="/static/remote-access.js?v=2"></script>
-  <script src="/static/chat-zoom.js?v=6"></script>
+  <script src="/static/chat-zoom.js?v=7"></script>
   <script src="/static/brains-ui.js?v=9"></script>
   <!-- Brain picker drawn by Javis over #graphSource (0.431.0): after brains-ui.js and app.js. -->
   <script src="/static/brain-picker.js?v=1"></script>
@@ -1171,7 +1172,7 @@
   <script src="/static/login-vault.js?v=2"></script>
   <script src="/static/messenger-connect.js?v=3"></script>
   <script src="/static/voice-catalog.js?v=1"></script>
-  <script src="/static/console.js?v=209"></script>
+  <script src="/static/console.js?v=210"></script>
   <script src="/static/mobile-chat.js?v=17"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=3"></script>

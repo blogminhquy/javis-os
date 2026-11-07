@@ -3557,6 +3557,7 @@ function _trangGiuKhungChat() {
 let _lastBrain = currentBrainPath();
 const _viewByBrain = {};   // brain -> session id đang xem gần nhất trong phiên trang này
 graphSource.addEventListener("change", () => {
+  if (typeof PANE_SID !== "undefined" && PANE_SID) return;
   localStorage.setItem("javis.graphSource", graphSource.value);
   const nb = currentBrainPath();
   if (nb !== _lastBrain) {
@@ -5409,8 +5410,10 @@ if (document.getElementById("wzFinish")) {
 initAuthGate();
 refreshUsage();
 connect();
-initStarfield();
-initGraph().then(connectGraphWatch).catch(connectGraphWatch);
+if (!PANE_SID) {
+  initStarfield();
+  initGraph().then(connectGraphWatch).catch(connectGraphWatch);
+}
 pumpAudioLevel();
 loadMemStats();
 loadBrainStats();
