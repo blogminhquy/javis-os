@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.497.0] - 2026-11-07
+### Added
+- **Your own mascot picture.** In Settings > Mascot, tap Upload a picture: it is cut to the chosen shape and shows on the pet, the sidebar mark and the shape picker. Use the Javis face brings the drawn face back.
+- **The same picture becomes the browser tab icon**, so several Javis open at once tell apart at a glance. A switch keeps the logo on the tab if you prefer.
+
 ## [0.496.0] - 2026-11-07
 ### Added
 - **Name the account at its first sign-in.** The ChatGPT, Claude Code, Grok and Antigravity cards and an API card's first key ask for a name before signing in, and the name shows on the card's status line, so accounts are never mixed up.
