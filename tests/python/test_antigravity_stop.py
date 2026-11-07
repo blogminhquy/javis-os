@@ -262,8 +262,40 @@ def test_cancel_all_never_signals_a_shared_group(tmp_path):
 def test_watchdog_leaves_room_for_agys_own_print_timeout():
     """With --print-timeout agy stops itself and prints a partial answer; Javis's watchdog must fire later."""
     src = (SERVER / "antigravity_cli.py").read_text(encoding="utf-8")
-    assert 'deadline = self.timeout + (60 if co_co("--print-timeout") else 0)' in src
+    assert 'deadline = (cap + (60 if co_co("--print-timeout") else 0)) if cap > 0 else None' in src
     assert "stop_requested.wait(deadline)" in src
+
+
+def test_no_turn_cap_by_default_for_full_and_auto(monkeypatch):
+    """Owner 2026-11-07: heavy agy tool work kept stopping at the old 15-minute default. Unset = no cap."""
+    import antigravity_cli
+    monkeypatch.delenv("JAVIS_AGY_TIMEOUT", raising=False)
+    monkeypatch.setattr(antigravity_cli, "co_co", lambda *names: "--print-timeout" in names)
+    cli = antigravity_cli.AntigravityCLI(cwd=".")
+    cli.cli_path = "agy"
+    for mode in ("full", "auto"):
+        cli.mode = mode
+        assert cli.turn_cap() == 0
+        args = cli._build_args("hi")
+        assert args[args.index("--print-timeout") + 1] == antigravity_cli.NO_CAP_PRINT_TIMEOUT
+    # suggest does not auto-approve tools, so it keeps the safety net
+    cli.mode = "suggest"
+    assert cli.turn_cap() == antigravity_cli.SUGGEST_MODE_CAP
+    assert "900s" in cli._build_args("hi")
+
+
+def test_env_cap_still_applies(monkeypatch):
+    import antigravity_cli
+    monkeypatch.setattr(antigravity_cli, "co_co", lambda *names: "--print-timeout" in names)
+    for raw, want in (("1800", 1800.0), ("0", 0.0), ("", 0.0), ("abc", 0.0), ("-5", 0.0)):
+        monkeypatch.setenv("JAVIS_AGY_TIMEOUT", raw)
+        cli = antigravity_cli.AntigravityCLI(cwd=".")
+        cli.mode = "full"
+        assert cli.turn_cap() == want, raw
+    monkeypatch.setenv("JAVIS_AGY_TIMEOUT", "1800")
+    cli = antigravity_cli.AntigravityCLI(cwd=".")
+    cli.cli_path, cli.mode = "agy", "suggest"
+    assert "1800s" in cli._build_args("hi")
 
 
 if __name__ == "__main__":
