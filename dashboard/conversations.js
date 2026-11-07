@@ -422,7 +422,11 @@
     attachListResize(body);
     watchPopOutside();
     paintHead();
-    taiTK(false).catch(function () {}).then(function () { paintHead(); tai(); if (_chon) taiTin(false); });
+    // The accounts and the list are asked at the same time (owner, 2026-11-07: the page loaded slowly). The list waits
+    // for the accounts only before it is drawn, since its rows and head name the accounts.
+    var tk = taiTK(false).catch(function () {}).then(function () { paintHead(); });
+    tai(false, tk);
+    if (_chon) taiTin(false, false, tk);
   }
 
   function filterState() {
@@ -677,7 +681,8 @@
 
   // `im` = nhịp tự động: không xoá danh sách đang hiện, mạng hỏng một nhịp thì giữ màn hình cũ.
   // Không phải nhịp (mở trang, đổi bộ lọc, gõ tìm) thì về trang đầu; nhịp thì hỏi lại đúng số dòng người dùng đã tải (tối đa MAX_DONG_NHIP).
-  async function tai(im) {
+  // `cho` (optional): a promise to wait for after the answer and before drawing, so the list can be asked in parallel.
+  async function tai(im, cho) {
     var box = _host && _host.querySelector(".ht-list");
     if (!box) return;
     if (!im) { _soTrang = 1; box.scrollTop = 0; }
@@ -687,6 +692,7 @@
     if (!im) veSdt(null, laSdt(hoi));
     try {
       var d = await api(url);
+      if (cho) await cho;
       // Hỏi Zalo một số có thể mất vài giây: người dùng đã gõ tiếp thì kết quả này cũ, không được đè lên kết quả mới hơn.
       if (hoi !== _q) return;
       if (!im || d.phone_lookup) veSdt(d.phone_lookup, false);
@@ -1318,7 +1324,8 @@
     veDanhSach();
   }
 
-  async function taiTin(im, docLuon) {
+  // `cho` (optional): a promise to wait for before drawing, as in `tai`.
+  async function taiTin(im, docLuon, cho) {
     if (!_chon) return;
     var id = _chon;
     var box = _host.querySelector(".ht-thread");
@@ -1330,6 +1337,7 @@
     try {
       var d = await api("/conversations/" + id + "/messages?" +
                         (dau ? "limit=" + TIN_TRANG : "after=" + _msgs[_msgs.length - 1].id + "&limit=200") + (docLuon ? "&read=1" : ""));
+      if (cho) await cho;
       if (_chon !== id) return;
       _conv = d.conversation; _silence = d.bot_silence || null; _running = !!d.bot_running;
       if (dau) { _msgs = d.messages || []; _conCu = !!d.has_more; }

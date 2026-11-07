@@ -13889,6 +13889,24 @@ async def cache_keepwarm_set(payload: dict = Body(None)):
     return {"ok": True, **cur}
 
 
+def schedules_run_here() -> bool:
+    """False when the owner switched scheduled work off on THIS machine. The flag lives in settings.json, which
+    never syncs, while reminders and loops sync to every machine through the brain repo: without it, a reminder
+    fires once on each machine running Javis."""
+    return not cfgmod.read_settings().get("schedules_off_here")
+
+
+@app.get("/schedules/this-machine")
+async def schedules_this_machine_get():
+    return {"ok": True, "runs": schedules_run_here()}
+
+
+@app.post("/schedules/this-machine")
+async def schedules_this_machine_set(runs: str = Form("1")):
+    cfgmod.update_settings({"schedules_off_here": runs.strip().lower() not in ("1", "true", "on", "yes")})
+    return {"ok": True, "runs": schedules_run_here()}
+
+
 @app.get("/viec/all")
 async def viec_all():
     """Performance (2026-11-05): the whole scan reads loop files of every brain, so it runs in a worker thread; on the
@@ -14965,7 +14983,8 @@ async def _start_scheduler():
                 # 1) Multi-loop tự cải thiện: mỗi tick chọn TỐI ĐA 1 loop đến hạn
                 #    (quá hạn lâu nhất), chạy tuần tự qua lock toàn cục.
                 try:
-                    await loop_feature.tick()
+                    if schedules_run_here():
+                        await loop_feature.tick()
                 except Exception as lpe:
                     print(f"[loop tick] {type(lpe).__name__}: {lpe}", file=__import__('sys').stderr)
                 # 2) Engine tự học: debounce tick (rewire sau lượt) + curator định kỳ
@@ -14981,7 +15000,8 @@ async def _start_scheduler():
                     print(f"[kanban tick] {type(te).__name__}: {te}", file=__import__('sys').stderr)
                 # 3b) Nhắc hẹn từ chat: tới giờ → bắn Telegram (mode task: chạy engine rồi báo)
                 try:
-                    await reminders_feature.tick()
+                    if schedules_run_here():
+                        await reminders_feature.tick()
                     await my_tasks_feature.tick()   # habit reminders (0.424.0)
                     # 0.202.0: prompt-cache keep-warm (off unless switched on, see cache_keepwarm.py).
                     asyncio.create_task(_KEEPWARM.tick())

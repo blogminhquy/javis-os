@@ -751,6 +751,8 @@
           " · " + esc(c.conclusion || "") + "</li>";
       }).join("");
       var canMerge = !r.merging && (r.integ === "ready") && (r.ci === "green" || r.ci === "no_ci");
+      // A push or PR that failed after green local checks: Javis retries on its own, this is the shortcut.
+      var canPush = !!(r.gate && r.gate.ship_failed);
       return '<div class="gh-row" data-repo="' + esc(r.full_name) + '"><div class="gh-row-head"><b>' + esc(r.full_name) + "</b>" +
         (r.branch ? ' <code>' + esc(r.branch) + "</code>" : "") + "</div>" +
         '<div class="gh-row-state">' + esc(tw(CI_KEY[r.ci] || "gh.ci_none")) + " · " + esc(tw(INTEG_KEY[r.integ] || "gh.in_no_pr")) +
@@ -760,6 +762,7 @@
         (checks ? '<ul class="gh-checks">' + checks + "</ul>" : "") +
         '<div class="lv-form-act">' + (r.pr_url ? '<a class="s-btn-ghost" href="' + esc(r.pr_url) + '" target="_blank" rel="noopener">' + esc(tw("gh.open_pr", { n: r.pr_number })) + "</a>" : "") +
         (canMerge ? '<button class="s-btn" type="button" data-merge="' + esc(r.full_name) + '">' + esc(tw("gh.merge")) + "</button>" : "") +
+        (canPush ? '<button class="s-btn" type="button" data-push="' + esc(r.full_name) + '">' + esc(tw("gh.push_again")) + "</button>" : "") +
         '<span class="lv-msg" role="status">' + (r.merging ? esc(tw("gh.merging")) : "") + "</span></div></div>";
     }).join("") : '<div class="mp-empty">' + esc(tw("gh.no_work")) + "</div>";
     var queue = (d.queue || []).length ? '<div class="gh-queue"><div class="gh-local-head">' + esc(tw("gh.queue_head")) + "</div>" +
@@ -791,6 +794,18 @@
             b.disabled = true; msg.textContent = tw("gh.merging");
             // The server merges in the background: closing this panel or the tab no longer stops it.
             api("/github/session/" + encodeURIComponent(id) + "/merge", { full_name: b.getAttribute("data-merge") }).then(function (r) {
+              decorate();
+              if (!open()) return;
+              if (!r || r.ok === false) { b.disabled = false; msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
+              load();
+            });
+          };
+        });
+        body.querySelectorAll("[data-push]").forEach(function (b) {
+          b.onclick = function () {
+            var msg = b.parentElement.querySelector(".lv-msg");
+            b.disabled = true; msg.textContent = tw("gh.pushing");
+            api("/github/session/" + encodeURIComponent(id) + "/push", { full_name: b.getAttribute("data-push") }).then(function (r) {
               decorate();
               if (!open()) return;
               if (!r || r.ok === false) { b.disabled = false; msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
