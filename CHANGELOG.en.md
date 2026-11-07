@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.500.5] - 2026-11-08
+### Fixed
+- **Antigravity CLI no longer stops at minute 15.** Heavy, many-step work now runs until done, like Claude Code and Codex. The Stop button still ends a turn at any moment.
+- To set a cap again, use the `JAVIS_AGY_TIMEOUT` environment variable (seconds). The read-only mode keeps a 15-minute net because it does not auto-approve tools.
+
 ## [0.500.4] - 2026-11-07
 ### Fixed
 - **Moving to a second Claude account now really works.** Before, when account 1 ran out, Javis picked account 2 but still tried to resume the old conversation thread, which lives in account 1's folder. Claude Code could not find it and exited at once, so every later message failed with "SDK engine: ProcessError: Command failed with exit code 1". Javis now sees the thread belongs to another account, opens a new one on the running account and primes it from the saved history, so the chat carries on.
