@@ -327,7 +327,9 @@ finally:
 # ---- 5b. Lost thread reported as an EXCEPTION (owner's report, 07/11/2026) ----
 # Claude Code 2.1.31x prints "No conversation found with session ID" and exits 1, so the SDK raises before any
 # ResultMessage. Seen whenever a chat moved to a second Claude account: the old thread lives in account 1's folder.
-# The engine must flag it `resume_failed` (callers then prime a new thread) instead of a raw "ProcessError".
+# claude_warm (claude_sdk_engine.py itself stays byte for byte the qualified source) must flag it `resume_failed`
+# (callers then prime a new thread) instead of a raw "ProcessError".
+import claude_warm  # noqa: E402
 def _raising_client(exc):
     class _Fake:
         def __init__(self, options=None): pass
@@ -350,7 +352,7 @@ async def _run_resume(sid, stderr_line=""):
             e._on_stderr(stderr_line)
             return o
         e._options = _opts_with_stderr
-    return e, [ev async for ev in e.query("x")]
+    return e, [ev async for ev in claude_warm.cold_query(e, "x")]
 
 
 ClaudeSDK.is_available = lambda self: True

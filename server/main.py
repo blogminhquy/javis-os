@@ -25046,7 +25046,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             resume_failed = False
             # A command Claude Code leaves running in a Telegram turn is adopted and reported back (tien_trinh_nen).
             claude_warm.mark_background(cli, getattr(cli, "tag", ""))
-            async for ev in cli.query(prompt):
+            async for ev in claude_warm.cold_query(cli, prompt):   # 07/11/2026: a lost thread by exit code too
                 et = ev["type"]
                 if et == "final":
                     out = ev.get("content") or out
