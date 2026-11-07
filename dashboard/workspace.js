@@ -1119,7 +1119,9 @@
     // (prefers-reduced-motion, xem style.css) và trình đọc màn hình không thấy vòng quay
     // nào cả, nên thêm một chữ vào dòng phụ và một <title> vào icon.
     var chay = S.loai === "workflow" && dangChay(x.slug);
-    var phu = S.loai === "agent" ? (x.role || "") : (x.group || "Chung") + " · " + cacBuoc(x).length + " " + t("studio.steps");
+    // 2026-11-07 (owner: "phần mô tả này nên gom vào 1 nút (i)... vừa xấu vừa không đọc được thông tin gì cả"): an
+    // assistant's role is no longer a cut-off grey line under the name. It opens whole in the (i) next to the name.
+    var phu = S.loai === "agent" ? "" : (x.group || "Chung") + " · " + cacBuoc(x).length + " " + t("studio.steps");
     if (chay) phu += " · " + t("ws.running");
     // Nút "..." KHÔNG được lồng trong nút chọn mục: button trong button là HTML sai và
     // trình duyệt tự tách thẻ ra, làm cú bấm rơi vào chỗ không ai ngờ. Nên bọc cả hai trong
@@ -1141,15 +1143,16 @@
     var title = laAgent ? [x.name, x.role || ""].concat(tg.length ? [t("ws.tags_aria") + ": " + tg.join(", ")] : [])
       .filter(Boolean).join("\n") : "";
     var nTin = laAgent ? chuaDoc(x.slug) : 0;
+    var info = laAgent ? agentInfoHtml(x, tg) : "";
     return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (he ? " he" : "") + (coTt ? " co-tt" : "") + (nTin ? " has-unread" : "") +
-      (laAgent ? " has-end" : "") + '"' + (jst ? ' data-st="' + jst + '"' : "") + '>' +
+      (laAgent ? " has-end" : "") + (info ? " has-info" : "") + '"' + (jst ? ' data-st="' + jst + '"' : "") + '>' +
       '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '"' +
         (title ? ' title="' + esc(title) + '"' : "") + '>' +
       '<span class="ws-item-ic">' + (laAgent ? avatar(x, 40)
         : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
       '<span class="ws-item-text"><span class="ws-item-top"><strong>' + esc(x.name) + '</strong>' +
       (he ? '<span class="ws-sys">' + esc(t("ws.system_badge")) + '</span>' : "") + '</span>' +
-      '<small>' + esc(phu) + '</small>' +
+      (phu ? '<small>' + esc(phu) + '</small>' : "") +
       (coTt ? '<span class="ws-item-tt">' + bd + '</span>' : "") + '</span>' +
       '</button>' +
       // 0.190.0 (owner, 16/10/2026: "thời gian phải cùng hàng với nút bật tắt auto và nhỏ thôi"): giờ chat gần nhất và
@@ -1162,7 +1165,19 @@
               { saving: !he && !!S.rsSaving[x.slug], locked: he }) : "") + '</div>' : "") +
       (he ? "" : '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
         esc(t("ws.manage")) + '" aria-label="' + esc(t("ws.manage")) + '">' + ic("ellipsis-vertical") + '</button>') +
-      '</div>';
+      info + '</div>';
+  }
+  // The (i) on an assistant card: top right, on the name's row, above the Auto switch. Outside the select button (no
+  // button inside a button); info-tip.js opens the hidden block in a popup. No role and no tags means no button.
+  function agentInfoHtml(x, tg) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    var role = String(x.role || "").trim();
+    if (!J || (!role && !tg.length)) return "";
+    return '<span class="ws-item-info">' + J.btn(t("ws.about_agent", { ten: x.name || x.slug })) +
+      J.body('<p class="ws-info-name"><strong>' + esc(x.name || x.slug) + '</strong></p>' +
+        (role ? '<p class="ws-info-role">' + esc(role) + '</p>' : "") +
+        (tg.length ? '<p class="ws-info-tags">' + esc(t("ws.tags_aria")) + ": " + esc(tg.join(", ")) + '</p>' : "")) +
+      '</span>';
   }
   // Nối dây cho các nút vừa vẽ. Gọi lại sau MỖI lần vẽ: innerHTML mới là node mới, handler cũ
   // chết theo node cũ.
@@ -1762,7 +1777,7 @@
       ? window.JavisAgentJobs.statusText(S.jc[x.slug]) : "";
     var st = tt ? window.JavisAgentJobs.statusOf(S.jc[x.slug]) : "";
     window.JavisColResize.miniTip.show(b, { ava: anh ? anh.innerHTML : "", name: ten ? ten.textContent : "",
-      time: gio ? gio.textContent : "", sub: phu ? phu.textContent : "", stText: tt, st: st });
+      time: gio ? gio.textContent : "", sub: phu ? phu.textContent : (x && x.role) || "", stText: tt, st: st });
   }
   function noiKeoBien(page) {
     page.querySelectorAll("[data-resize]").forEach(function (h) {
