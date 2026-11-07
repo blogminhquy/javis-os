@@ -4308,6 +4308,9 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
    the navbar bell's .notification-badge). A muted team keeps its count, in grey. */
 .tm-team { position: relative; }
 .tm-unread { flex: none; height: 20px; min-width: 20px; border-radius: 10px; font-size: 12px; box-shadow: none; }
+/* 0.491.0: red means unread everywhere (the chat history rows carry a red dot), so the count of a team or partner chat
+   that still wants the owner is red too; a muted one stays grey. */
+.tm-unread:not(.is-muted) { background: var(--red); color: #fff; }
 .tm-unread.is-muted { background: var(--surface-2); color: var(--text2); }
 /* 0.204.0: was ".tm-at", the same class as the @mentions in messages, which it squeezed into a 20px circle. */
 .tm-at-badge { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;

@@ -1347,6 +1347,11 @@ function handleMessage(data) {
     if (data.type === "steer_read" && isActive && t) { try { moveTurnBelow(t); } catch (e) {} }
     return;
   }
+  if (data.type === "session_read") {
+    // 0.491.0: a chat was read (this tab or another): its red unread dot goes away in every history list.
+    try { window.dispatchEvent(new CustomEvent("javis:session-read", { detail: data })); } catch (e) {}
+    return;
+  }
   if (data.type === "agent_read") {
     // 0.205.0: a partner chat was read or muted (this tab or another): the Partners list reads its counts again.
     try { window.dispatchEvent(new CustomEvent("javis:agent-read", { detail: data })); } catch (e) {}

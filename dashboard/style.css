@@ -2405,6 +2405,10 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cside-item.ghim:hover .act > :not(.pin) { opacity: 1; }
 .ci-title { color: var(--text); font-size: 14px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 0.491.0: a chat Javis answered after the owner last looked at it: red dot before the title, title in full weight. */
+.ci-unread { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+  margin-right: 6px; vertical-align: middle; position: relative; top: -1px; }
+.cside-item.has-unread .ci-title { font-weight: 800; }
 .ci-meta { display: flex; gap: 8px; align-items: center; font-size: 12px;
   color: var(--text3); margin-top: 3px; }
 .ci-badge { border: 1px solid var(--border); border-radius: 8px; padding: 0 6px; font-size: 11px; }
