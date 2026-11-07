@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.493.2] - 2026-11-07
+### Fixed
+- **Partner voice calls no longer call themselves ChatGPT.** The partner's identity now leads the call's instructions, so "who are you?" (in English too) gets the partner's own name.
+- **A partner call no longer pulls in the main brain's shared memory,** only that partner's own instructions and memory, so it stays within its role.
+
 ## [0.493.1] - 2026-11-07
 ### Fixed
 - **Workflow agents with no model of their own now run on the main model.** Before, such a step always ran on Claude whatever brain was picked on the Models page. An agent with its own model keeps it.
