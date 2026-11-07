@@ -1038,6 +1038,7 @@ function connect() {
   // Mất socket là trạng thái THẬT người dùng cần thấy ("ĐANG KẾT NỐI LẠI"), không phải đoán.
   ws.onclose = (e) => {
     _ghiDut(e && e.code, !!(e && e.wasClean), _wsMoLuc);
+    if (!_wsMoLuc) _checkLoginAfterRefusal();
     _wsMoLuc = 0;
     try { runActions(turn.wsDown()); } catch (e2) {}
     baoDutMang(true);
@@ -1074,6 +1075,22 @@ function _ghiDut(code, clean, moLuc) {
   _wsDut.push({ code: String(code == null ? "" : code), clean: !!clean, open_s: moLuc ? (now - moLuc) / 1000 : 0,
     at: now / 1000 });
   if (_wsDut.length > 10) _wsDut.shift();
+}
+// ---- A socket refused at the handshake: maybe the login, not the network (users, 07/11/2026) ----
+// The server refuses /ws when the session cookie is no longer valid (it expired after 30 days, a password change or a
+// reset signed every browser out). The browser only sees a socket that never opened, so the page said "Mất kết nối
+// tới máy chủ" and retried every 3 seconds forever, every list read 0, and restarting the server changed nothing.
+// Ask /auth/status (public, cheap) at most every 15 s; signed out means the sign-in screen, not "reconnecting".
+let _loginCheckAt = 0;
+async function _checkLoginAfterRefusal() {
+  if (Date.now() - _loginCheckAt < 15000) return;
+  _loginCheckAt = Date.now();
+  const s = await _fetchAuthStatus(1, 0);
+  if (!(s && s.auth_required && !s.authed)) return;
+  baoDutMang(false);
+  await initAuthGate();
+  const err = document.getElementById("authErr");
+  if (err && authOverlay && authOverlay.classList.contains("open")) err.textContent = window.t("app.ws_login_lost");
 }
 function _baoDutVeMayChu() {
   if (!_wsDut.length) return;
@@ -1733,6 +1750,9 @@ function traTinDutMang() {
 // ACK_WAIT_MS means the socket is dead: drop it, and the next `hello` sends what is left again. The server stores
 // the id with the message, so a resend of a message it did get is answered with an ack and never runs twice.
 const ACK_WAIT_MS = 15000, UNACKED_TTL_MS = 30 * 60 * 1000;
+// Sockets a message may go out on without an ack before it goes back to the input box. Without a cap, a message the
+// server fails on every time (a bug, a broken disk) was resent on every reconnect, forever (users, 07/11/2026).
+const MAX_RESENDS = 3;
 function _saveUnacked() {
   try {
     if (_unacked.length) localStorage.setItem(UNACKED_KEY, JSON.stringify(_unacked.slice(-10)));
@@ -1751,6 +1771,7 @@ function _dropUnacked(id) {
 }
 function _sendUnacked(u) {
   u.sentAt = Date.now();
+  u.tries = (u.tries || 0) + 1;
   _saveUnacked();
   const sock = ws;
   try { sock.send(JSON.stringify(u.payload)); } catch (e) {}
@@ -1779,6 +1800,14 @@ function _resendUnacked() {
       chatInput.value = mine.join("\n");
       ghiChuThoang(window.t("app.ws_tra_tin"));
     }
+  }
+  const failed = _unacked.filter(u => u.tries >= MAX_RESENDS);
+  if (failed.length) {
+    _unacked = _unacked.filter(u => !(u.tries >= MAX_RESENDS));
+    _saveUnacked();
+    const mine = failed.filter(u => u.sid === savedSessionId).map(u => u.msg);
+    if (mine.length && !chatInput.value.trim()) chatInput.value = mine.join("\n");
+    if (mine.length) ghiChuThoang(window.t("app.ws_tin_loi"));
   }
   _unacked.forEach(u => {
     if (!(turns[u.sid] && turns[u.sid].running)) {
