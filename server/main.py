@@ -2183,9 +2183,11 @@ def _sync_legacy_engine(m) -> None:
         _set_main_model({"model": m}, main["provider"], main.get("model") or "")
 
 
-def _routing_key_saved(m, key_field) -> None:
+def _routing_key_saved(m, key_field, label: str = "") -> None:
     """A key typed into a card's old single key box (connect, change key): it becomes account 1 of that card, and a
-    newly connected card joins the END of the usage order (spec 2.1.5)."""
+    newly connected card joins the END of the usage order (spec 2.1.5). `label` is the name typed next to the key on
+    the first connect (owner 07/11/2026), so the key never reads as a bare "Key 1"."""
+    label = str(label or "").strip()[:60]
     d = next((p for p in PROVIDER_DEFS if p.get("key_field") == key_field), None)
     if not d:
         return
@@ -2195,6 +2197,8 @@ def _routing_key_saved(m, key_field) -> None:
             cur[0] = dict(cur[0], key=m[key_field], enabled=True)
         elif not cur:
             cur = [{"id": model_routing.new_account_id(), "label": "Key 1", "enabled": True, "key": m[key_field]}]
+        if label:
+            cur[0] = dict(cur[0], label=label)
         model_routing.save_accounts(m, d["id"], cur, key_field)
     model_routing.add_to_order(m, d["id"])
 
@@ -6445,7 +6449,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         for kf in _PROVIDER_KEY_FIELDS:
             if patch.get(kf) and not str(patch[kf]).startswith("••••"):
                 m[kf] = str(patch[kf]).strip()
-                _routing_key_saved(m, kf)
+                _routing_key_saved(m, kf, patch.get("key_label") or "")
         if "openai_compat_base" in patch:
             new_base = str(patch["openai_compat_base"] or "").strip().rstrip("/")
             if new_base != (m.get("openai_compat_base") or "") and not (
@@ -6539,9 +6543,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             pa = patch["accounts"]
             pid = str(pa.get("provider") or "")
             kf = _routing_key_fields().get(pid)
-            if plan_accounts.supported(pid) and isinstance(pa.get("items"), list):
+            if pid in plan_accounts.KIND and isinstance(pa.get("items"), list):
                 # A plan card's accounts carry no key: order, label and on/off only. Removing one deletes its login
-                # folder; account 1 (the machine's own login) stays (0.353.0).
+                # folder; account 1 (the machine's own login) stays (0.353.0). Every plan card takes this, also one
+                # that holds no extra account on this machine (Antigravity off Linux), so account 1 can be named.
                 plan_accounts.save(m, pid, pa["items"], removed=pa.get("removed"))
             if kf and isinstance(pa.get("items"), list):
                 items = []
