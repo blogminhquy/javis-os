@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.500.3] - 2026-11-07
+### Improved
+- **A tidier Team page.** The team description sits in the (i) beside the team name instead of a line under it. The remaining explanation lines (Advanced, the reply log, the coordinator's authority, how to write mandate sources, Files and Links) fold into the (i) too.
+- **Files and Links no longer cut their text off.** When empty they show one short line; the explanation is in the (i) by the heading.
+
 ## [0.500.2] - 2026-11-07
 ### Fixed
 - **A merged PR no longer sticks on "waiting for CI".** When a PR was merged while Javis had lost its GitHub connection, the chat kept the working-branch icon forever. It now shows as merged, and `javis_github` no longer reports "waiting for CI" for a merged PR.
