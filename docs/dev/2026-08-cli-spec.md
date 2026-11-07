@@ -71,6 +71,7 @@ markdown, ảnh nhúng `![](...)`, link tương đối - vô nghĩa trong termin
 ### 4.1. Có làm
 
 - `POST /chat` một lượt (đồng bộ) và `POST /chat/stream` (SSE) cho phiên tương tác.
+- `POST /chat/jobs` + `GET /chat/jobs/{id}`: cùng lượt đó nhưng chạy nền, lấy kết quả sau (#1021).
 - Token cá nhân: tạo, liệt kê, thu hồi. Băm khi lưu.
 - Gói `javis-cli` cài bằng `pipx`/`uvx`, lệnh `javis`.
 - Kênh `cli` trong `channel_context` + hợp đồng đầu ra hợp terminal.
@@ -180,6 +181,27 @@ trong `main.py`: `status`, `stream`, `tool_call`, `tool_result`, `response`, `er
 
 CLI chỉ cần hiểu bốn loại đầu tiên; loại lạ thì bỏ qua im lặng chứ không vỡ - đây là luật bắt
 buộc để server thêm loại gói mới không làm chết CLI cũ.
+
+### 5.3b. `POST /chat/jobs` - chạy nền, lấy kết quả sau (#1021)
+
+Cho client chạy trên serverless (Vercel...) bị tính tiền theo từng giây giữ kết nối, và cho ai sợ
+rớt mạng mất câu trả lời. Code ở `server/chat_jobs.py`, test ở `tests/python/test_chat_jobs.py`.
+
+- `POST /chat/jobs`: cùng trường và cùng các lỗi 400 với `/chat`, kiểm TRƯỚC khi chạy. Trả ngay
+  `{"ok": true, "job_id": "cj_..."}`, lượt chạy nền qua `_cli_turn`.
+- `GET /chat/jobs/{id}`: `status` là `running`, `done` hoặc `error`, kèm `created_at`,
+  `finished_at`. Xong thì có thêm đúng payload của `/chat` (`text`, `session`, `files`,
+  `ctx_path`); lỗi thì có `error`.
+- Token scope `chat` đi được luôn (nằm dưới `/chat`), không thêm scope.
+- Job thuộc về người tạo: token nào tạo thì chỉ token đó đọc, chủ (cookie hoặc máy không bật
+  đăng nhập) là một chủ riêng. Người khác đọc nhận 404 như id không tồn tại. Middleware ghi
+  `request.state.api_token_id` để route biết token nào đang gọi.
+- Chặn dồn việc: mỗi người tạo tối đa `MAX_RUNNING_PER_OWNER` (4) job đang chạy, quá thì 429.
+  Mỗi phiên (session + agent) chỉ một job chạy cùng lúc, trùng thì 409.
+- Kết quả giữ 24 giờ, tối đa 500 job, trong `STATE_DIR/chat_jobs.json`. Khởi động lại thì job
+  đang chạy dở thành `error` để client biết hỏi lại.
+- **Cố ý chưa làm `callback_url`:** để Javis tự gọi tới một địa chỉ người ngoài đưa vào là rủi
+  ro SSRF (gọi vào dịch vụ nội bộ trên VPS). Muốn làm thì PR riêng, chặn dải IP nội bộ và ký HMAC.
 
 ### 5.4. Kênh `cli`
 
