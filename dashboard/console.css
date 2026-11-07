@@ -3773,7 +3773,7 @@ span.tmp-lead { cursor: default; }
    hàng với nút bật tắt auto và nhỏ thôi"): giờ chat gần nhất và công tắc Auto chung một cụm nhỏ ở góc dưới phải của thẻ.
    Công tắc có trên mọi trợ lý (tắt thì xám). Nút ba chấm luôn ở góc trên phải; dòng chữ cuối chừa chỗ cho cụm. */
 .ws-item-wrap.has-end > .ws-item-more { top: 6px; transform: none; }
-.ws-item-wrap.has-end .ws-item-text > :last-child { padding-right: 104px; }
+.ws-item-wrap.has-end .ws-item-text > :last-child:not(.ws-item-top) { padding-right: 104px; }
 .ws-item-end { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 6px;
   pointer-events: none; }
 .ws-item-end > .ws-auto, .ws-item-end > .ws-rs-confirm { pointer-events: auto; position: relative; }
@@ -3794,6 +3794,19 @@ span.tmp-lead { cursor: default; }
   .ws-item-end > .ws-auto::after, .ws-item-end > .ws-rs-confirm::after { content: ""; position: absolute; inset: -12px -6px; }
 }
 .rsa-desc { color: var(--text2); }
+/* 2026-11-07 (owner: the grey role line under the name "vừa xấu vừa không đọc được thông tin gì cả"): an assistant card
+   shows its name only, on the top line beside the avatar; the role opens whole from an (i) in the top right corner, on
+   the name's row and right above the Auto switch. It sits left of the "..." slot on every card, Javis Core included, so
+   the (i) column lines up down the list. The name row keeps room for it; the touch area stays small so it does not
+   swallow taps meant for Auto. */
+.ws-item-wrap.has-end .ws-item-text { align-self: flex-start; }
+.ws-item-info { position: absolute; right: 30px; top: 8px; display: flex; }
+.ws-item-info > .info-i { margin-left: 0; }
+.ws-item-wrap.has-info .ws-item-top { padding-right: 22px; }
+@media (hover: none), (max-width: 600px) { .ws-item-info > .info-i::after { inset: -6px; } }
+.info-pop .ws-info-name { margin: 0 0 4px; }
+.info-pop .ws-info-role { margin: 0; white-space: pre-line; }
+.info-pop .ws-info-tags { margin: 8px 0 0; color: var(--text3); }
 
 /* Tab Công việc: lọc nguồn, bước kế tiếp, mục được kiểm, form Giao việc hai bước, Xem thêm (0.142.0, bổ sung). */
 .aj-next { font-size: 13px; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
@@ -4097,7 +4110,8 @@ button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-s
 @media (min-width: 901px) {
   .wspage.ws-mini > .ws-left { padding: 12px 8px; gap: 10px; }
   .wspage.ws-mini .ws-filters, .wspage.ws-mini .ws-empty, .wspage.ws-mini .ws-item-text,
-  .wspage.ws-mini .ws-item-end, .wspage.ws-mini .ws-item-more, .wspage.ws-mini .ws-grp-more { display: none; }
+  .wspage.ws-mini .ws-item-end, .wspage.ws-mini .ws-item-more, .wspage.ws-mini .ws-item-info,
+  .wspage.ws-mini .ws-grp-more { display: none; }
   .wspage.ws-mini .ws-seg { flex-direction: column; gap: 4px; }
   .wspage.ws-mini .ws-seg button, .wspage.ws-mini .ws-left-foot .ws-btn { font-size: 0; gap: 0; padding: 8px 0;
     justify-content: center; }

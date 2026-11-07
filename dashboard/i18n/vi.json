@@ -3470,6 +3470,7 @@
   "ws.tag_partial": "Chưa xong: {n} cộng sự chưa đổi được ({ds}). Các cộng sự khác đã đổi.",
   "ws.tag_more": "+{n}",
   "ws.tags_aria": "Tag của cộng sự",
+  "ws.about_agent": "Mô tả {ten}",
   "ws.edit": "Sửa",
   "ws.err_meta": "Không lưu được thay đổi.",
   "ws.run_default": "Chạy quy trình theo cấu hình hiện tại.",

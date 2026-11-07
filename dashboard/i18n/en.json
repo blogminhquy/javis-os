@@ -3470,6 +3470,7 @@
   "ws.tag_partial": "Not finished: {n} agents could not be changed ({ds}). The other agents were changed.",
   "ws.tag_more": "+{n}",
   "ws.tags_aria": "Agent tags",
+  "ws.about_agent": "About {ten}",
   "ws.edit": "Edit",
   "ws.err_meta": "Could not save the change.",
   "ws.run_default": "Run this workflow with its current configuration.",
