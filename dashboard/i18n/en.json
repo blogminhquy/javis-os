@@ -1684,6 +1684,8 @@
   "app.ws_mat_ket_noi": "Lost the connection to the server. Reconnecting…",
   "app.ws_giu_tin": "Connection lost. Your message is held and goes out as soon as we reconnect.",
   "app.ws_tra_tin": "Still not reconnected. Your message is back in the input box, send it again once the network is back.",
+  "app.ws_tin_loi": "The server did not take this message after 3 tries. It is back in the input box, send it again in a few minutes.",
+  "app.ws_login_lost": "Your sign-in has expired, so Javis could not connect. Sign in again to continue.",
   "app.orb_waiting": "WAITING FOR YOU",
   "app.orb_tool": "CALLING {tool}",
   "app.orb_paused": "PAUSED, LISTENING",
