@@ -53,7 +53,7 @@ _URLS = {
     "deepseek": "https://api.deepseek.com/chat/completions",
 }
 _DEFAULT_MODELS = {
-    "groq": "llama-3.3-70b-versatile",
+    "groq": "openai/gpt-oss-120b",
     "openai": "gpt-4o-mini",
     "openrouter": "openai/gpt-4o-mini",
     "gemini": "gemini-2.5-flash",

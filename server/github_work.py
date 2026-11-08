@@ -55,6 +55,8 @@ _start_turn: Optional[StartTurn] = None
 _session_info: Optional[SessionInfo] = None
 _review: Optional[Review] = None
 _reviewers: Optional[Callable[[], List[str]]] = None
+# "groq (openai/gpt-oss-120b)": the chat names the exact model that reviewed, not only the provider.
+_reviewer_label: Callable[[str], str] = lambda p: p
 _brain_root: Callable[[str], str] = lambda b: b
 REVIEW_DIFF_MAX = 60000
 REVIEW_TIMEOUT_S = 600
@@ -90,8 +92,9 @@ def _c(vi: str, en: str) -> str:
 def configure(notify: Optional[Notify] = None, start_turn: Optional[StartTurn] = None,
               session_info: Optional[SessionInfo] = None, review: Optional[Review] = None,
               reviewers: Optional[Callable[[], List[str]]] = None,
-              brain_root: Optional[Callable[[str], str]] = None) -> None:
-    global _notify, _start_turn, _session_info, _review, _reviewers, _brain_root
+              brain_root: Optional[Callable[[str], str]] = None,
+              reviewer_label: Optional[Callable[[str], str]] = None) -> None:
+    global _notify, _start_turn, _session_info, _review, _reviewers, _brain_root, _reviewer_label
     if notify is not None:
         _notify = notify
     if start_turn is not None:
@@ -104,6 +107,8 @@ def configure(notify: Optional[Notify] = None, start_turn: Optional[StartTurn] =
         _reviewers = reviewers
     if brain_root is not None:
         _brain_root = brain_root
+    if reviewer_label is not None:
+        _reviewer_label = reviewer_label
 
 
 def st() -> github_store.Store:
@@ -1181,6 +1186,13 @@ def pick_reviewer(author_provider: str) -> str:
     return lst[0] if lst else ""
 
 
+def _label(provider: str) -> str:
+    try:
+        return str(_reviewer_label(provider) or provider)
+    except Exception:  # noqa: BLE001 - a label must never break the review
+        return provider
+
+
 def _short_reason(e: BaseException) -> str:
     if isinstance(e, asyncio.TimeoutError):
         return _c("quá thời gian chờ", "timed out")
@@ -1273,10 +1285,11 @@ async def cross_review(row: Dict[str, Any]) -> Dict[str, Any]:
     gate.pop("review_running", None)
     gate["reviewed_sha"] = head
     gate["reviewer"] = reviewer
+    shown = _label(reviewer)
     if findings is None:
         gate["review_skipped"] = True
         row = st().update(sid, fn, gate=gate)
-        tried = ", ".join(candidates)
+        tried = ", ".join(_label(c) for c in candidates)
         await _say(sid, _c(f"**{fn}**: review chéo bằng {tried} không chạy được ({why}), bỏ qua lần này.",
                            f"**{fn}**: cross review with {tried} did not run ({why}); skipped this time."), True,
                    once=f"reviewfail:{fn}:{head}")
@@ -1289,10 +1302,10 @@ async def cross_review(row: Dict[str, Any]) -> Dict[str, Any]:
     row = st().update(sid, fn, gate=gate, integ="pr_open")
     lines = [f"- `{f['file']}:{f['line']}` {f['problem']}" + (f" (khi: {f['scenario']})" if f["scenario"] else "")
              for f in findings]
-    await _say(sid, _c(f"**{fn}**: review chéo ({reviewer}) có {len(findings)} phát hiện.",
-                       f"**{fn}**: cross review ({reviewer}) found {len(findings)} issue(s).") + "\n" + "\n".join(lines),
+    await _say(sid, _c(f"**{fn}**: review chéo ({shown}) có {len(findings)} phát hiện.",
+                       f"**{fn}**: cross review ({shown}) found {len(findings)} issue(s).") + "\n" + "\n".join(lines),
                False, once=f"reviewsay:{fn}:{head}")
-    await request_fix(row, f"Review chéo ({reviewer}) có {len(findings)} phát hiện",
+    await request_fix(row, f"Review chéo ({shown}) có {len(findings)} phát hiện",
                       "\n".join(lines) + "\n\nKiểm chứng TỪNG phát hiện bằng cách lần theo đúng đường gây hỏng. Đúng thì "
                       "sửa (kèm test tái hiện). Sai thì nói rõ vì sao bác bỏ, không sửa gì cho phát hiện đó.",
                       f"{sid}:{fn}:review:{head}")
