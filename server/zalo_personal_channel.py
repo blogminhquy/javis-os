@@ -585,6 +585,153 @@ async def nhap_lich_su(conn_id: str, ngay: int = NHAP_NGAY) -> dict:
 
 
 # ============================================================
+# Catching up from the history (private chats)
+# ============================================================
+# Field report 08/11/2026 (owner): a private chat stopped in the inbox at 09:28 while the phone went on until 09:53,
+# messages both ways. `zalo_get_history` had every one of them, so they reached javis-zalo but never its live buffer
+# (or never left it): the read loop above only sees that buffer. javis-zalo files each message in its history first,
+# and also fills the history from Zalo's replay after each reconnect, while the live feed only gets the replayed
+# messages of an outage it noticed. So every RECONCILE_EVERY seconds the private-chat messages of the last
+# RECONCILE_WINDOW are read from the history and the ones the inbox does not have are written.
+#
+# Rules:
+#   1. Private chats only. Groups keep only `conversations.GIU_TIN_NHOM` messages, so a trimmed one would come back.
+#   2. Only after a read that emptied the buffer, and only messages older than RECONCILE_MIN_AGE: a message still on
+#      its way through the read loop must arrive there, since that is where the bot gets it.
+#   3. A recovered message is never handed to the bot (it is late; the owner sees it unread in the inbox). The owner's
+#      own recovered message still counts as typing by hand, so the bot keeps yielding in that chat.
+#   4. The account's own message is skipped when the inbox already holds the same sentence from the bot or the owner
+#      around that time (written before Zalo gave it an id); that row gets the id instead.
+#   5. Stickers and short emoji stay out, as in the live feed (javis-zalo `ThreadFilter.shouldKeep`).
+#   6. A message from before this server started reading the account is only written when the inbox already holds an
+#      older message of that chat (a hole in a chat it follows), so turning an account on never pulls hours of old
+#      chats in through this door ("Import old messages" does that).
+RECONCILE_EVERY = 90         # seconds between two passes for one account
+RECONCILE_WINDOW = 2 * 3600  # how far back a pass looks
+RECONCILE_MIN_AGE = 90       # seconds a message is left to the live read before a pass may write it
+RECONCILE_PAGE = 200         # `limit` of zalo_search_history (its maximum)
+RECONCILE_MAX_PAGES = 10
+RECONCILE_UNSUPPORTED_WAIT = 1800    # javis-zalo without zalo_search_history: try again this much later
+RECONCILE_OWN_MATCH_S = 600  # rule 4 looks this far around the message's time
+_EMOJI_ONLY = re.compile(r"^[\s\U0001F000-\U0001FAFF☀-➿️‍]*$")
+
+
+def _is_dm(msg: dict, names: dict) -> bool:
+    kind = str(_lay(msg, "threadType", "thread_type", mac_dinh="") or "").strip().lower()
+    if kind:
+        return kind in ("dm", "0", "user", "private")
+    return str(((names or {}).get(_thread_cua(msg)) or {}).get("type") or "").lower() == "dm"
+
+
+def _live_feed_keeps(ev: dict) -> bool:
+    """Rule 5: the same noise the live feed drops."""
+    if ev.get("message_type") in ("sticker", "reaction"):
+        return False
+    text = str(ev.get("text") or "")
+    return not (text and len(text) < 3 and _EMOJI_ONLY.match(text))
+
+
+def _own_already_stored(conn_id: str, ev: dict) -> bool:
+    """Rule 4. True when the inbox already holds this sentence of the account around the message's time."""
+    echo = _chuan(ev.get("text"))
+    if not echo:
+        return False
+    ts = float(ev.get("created_at") or time.time())
+    for row in conversations.own_messages_between(KENH, conn_id, ev["external_chat_id"],
+                                                  ts - RECONCILE_OWN_MATCH_S, ts + RECONCILE_OWN_MATCH_S):
+        if str(row.get("external_message_id") or ""):
+            continue        # a message Zalo already named: another one, even with the same words ("ok" twice)
+        sent = _chuan(row.get("text"))
+        if sent and (echo == sent or sent.startswith(echo[:80]) or echo.startswith(sent[:80])):
+            conversations.set_message_id(int(row["id"]), str(ev.get("external_message_id") or ""))
+            return True
+    return False
+
+
+async def reconcile_history(conn: dict, now: Optional[float] = None) -> dict:
+    """One catch-up pass for one account (see above). Returns {"written": n, "seen": n}; raises when the MCP fails."""
+    now = time.time() if now is None else float(now)
+    cid = str(conn["id"])
+    tt = _TT.setdefault(cid, {})
+    since_ms = int((now - RECONCILE_WINDOW) * 1000)
+    until = now - RECONCILE_MIN_AGE
+    found: List[dict] = []
+    before = None
+    for _ in range(RECONCILE_MAX_PAGES):
+        args: Dict[str, Any] = {"since": since_ms, "limit": RECONCILE_PAGE}
+        if before:
+            args["before"] = before
+        d = await _goi(conn, "zalo_search_history", args)
+        page = (d.get("messages") if isinstance(d, dict) else None) or []
+        found.extend(m for m in page if isinstance(m, dict))
+        before = d.get("cursor") if isinstance(d, dict) else None
+        if not (isinstance(d, dict) and d.get("hasMore") and before and page):
+            break
+    names = tt.get("ten") or {}
+    by_chat: Dict[str, List[dict]] = {}
+    for m in found:
+        if not _is_dm(m, names):
+            continue
+        ev = chuan_hoa_tin(conn, m, names)
+        if not ev or not ev.get("external_message_id") or ev["chat_type"] != "private":
+            continue
+        if float(ev.get("created_at") or 0) > until or not _live_feed_keeps(ev):
+            continue
+        by_chat.setdefault(ev["external_chat_id"], []).append(ev)
+    written = 0
+    first_read = float(tt.get("first_read") or now)
+    for chat, evs in by_chat.items():
+        known = conversations.known_message_ids(KENH, cid, chat, [e["external_message_id"] for e in evs])
+        evs.sort(key=lambda e: float(e.get("created_at") or 0))
+        oldest = None
+        for ev in evs:
+            if known is not None and ev["external_message_id"] in known:
+                continue
+            at = float(ev.get("created_at") or 0)
+            if at < first_read:
+                if oldest is None:
+                    oldest = conversations.first_message_at(KENH, cid, chat) or float("inf")
+                if at < oldest:
+                    continue        # rule 6
+            if ev["sender_type"] == "human" and _own_already_stored(cid, ev):
+                continue
+            ev["metadata"] = dict(ev.get("metadata") or {}, recovered=True)
+            r = conversations.ghi_su_kien(ev, late=True)
+            if not (r.get("ok") and not r.get("trung")):
+                continue
+            written += 1
+            if known is None:
+                known = set()
+            known.add(ev["external_message_id"])
+            if ev["sender_type"] == "human":
+                key = (cid, chat)
+                _TAY[key] = max(float(_TAY.get(key) or 0), float(ev.get("created_at") or 0))
+    if written:
+        print(f"[zalo-personal {conn.get('label')}] recovered {written} private message(s) from the history",
+              file=sys.stderr)
+    tt["recovered"] = int(tt.get("recovered") or 0) + written
+    return {"written": written, "seen": len(found)}
+
+
+async def _reconcile_if_due(conn: dict, tt: dict) -> None:
+    """Run `reconcile_history` when its turn has come and the last read emptied the buffer (rule 2). Never raises: a
+    failed pass must not cost the read loop, it only waits for its next turn."""
+    now = time.time()
+    if now < float(tt.get("reconcile_at") or 0) or not tt.get("drained", True):
+        return
+    tt["reconcile_at"] = now + RECONCILE_EVERY
+    try:
+        await reconcile_history(conn, now)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:      # noqa: BLE001
+        msg = f"{type(e).__name__}: {e}"
+        if "zalo_search_history" in msg or "Unknown tool" in msg:
+            tt["reconcile_at"] = now + RECONCILE_UNSUPPORTED_WAIT
+        print(f"[zalo-personal {conn.get('label')}] history catch-up: {msg[:300]}", file=sys.stderr)
+
+
+# ============================================================
 # Vòng đọc
 # ============================================================
 def _epoch(conn: dict) -> int:
@@ -753,6 +900,7 @@ async def doc_mot_lan(conn: dict) -> dict:
     bat_dau = time.time()       # mọi tin tới trước mốc này đã nằm trong lượt đọc này
     moi = trung = 0
     since = 0
+    drained = True      # False when the page cap stopped this round with messages still waiting in the buffer
     if tt.get("since") and tt.get("ep") and tt["ep"] == _epoch(conn):
         since = int(tt["since"])
     for _ in range(MAX_TRANG):
@@ -784,6 +932,10 @@ async def doc_mot_lan(conn: dict) -> dict:
         if not (d.get("hasMore") and tin and nc > since):
             break
         since = nc
+    else:
+        drained = False
+    tt["drained"] = drained
+    tt.setdefault("first_read", bat_dau)
     tt["lan_cuoi"] = time.time()
     tt["loi"] = ""
     tt["so_tin"] = int(tt.get("so_tin") or 0) + moi
@@ -856,6 +1008,7 @@ async def _vong() -> None:
                         print(f"[zalo-personal {conn.get('label')}] {tt['loi']}", file=sys.stderr)
                     else:
                         _nhan_loi_moi(conn)
+                        await _reconcile_if_due(conn, tt)
                     _soi_tranh_phien(conn)
                     # Hạn sớm hơn một nhịp chút ít: vòng ngủ đúng một nhịp thì lần thức sau chắc chắn đã tới hạn.
                     tt["doc_toi"] = luc + _nhip_cua(conn["id"]) * 0.9
