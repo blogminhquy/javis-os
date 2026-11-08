@@ -64,7 +64,7 @@ BRAIN_PROVIDERS = {
     "codex": {"label": "ChatGPT (gói ChatGPT, qua Codex)", "key_field": "", "default_model": ""},
     "claude": {"label": "Claude Code (gói Claude)", "key_field": "", "default_model": "haiku"},
     "grok": {"label": "Grok Build (gói SuperGrok / X Premium+)", "key_field": "", "default_model": ""},
-    "groq": {"label": "Groq (API)", "key_field": "groq_api_key", "default_model": "llama-3.3-70b-versatile"},
+    "groq": {"label": "Groq (API)", "key_field": "groq_api_key", "default_model": "openai/gpt-oss-120b"},
     "gemini": {"label": "Google Gemini (API)", "key_field": "gemini_api_key", "default_model": "gemini-2.5-flash"},
     "openai": {"label": "OpenAI (API)", "key_field": "openai_api_key", "default_model": "gpt-4o-mini"},
     "openrouter": {"label": "OpenRouter", "key_field": "openrouter_key", "default_model": "google/gemini-2.5-flash"},

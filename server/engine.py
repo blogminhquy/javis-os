@@ -906,7 +906,9 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/compl
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 # Groq đổi tên model khá nhanh (model cũ bị deprecate rồi gỡ). Để một chỗ duy nhất, và
 # picker vẫn nạp danh sách LIVE từ /openai/v1/models nên mặc định này chỉ là lưới an toàn.
-GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
+# Groq shut llama-3.3-70b-versatile down on 16/08/2026 (its 404 "does not exist" broke every turn that relied on the
+# default); openai/gpt-oss-120b is the replacement Groq names.
+GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b"
 
 # DeepSeek (endpoint OpenAI-compatible). The picker loads the LIVE list from /models; this
 # default is only the safety net. `deepseek-chat` and `deepseek-reasoner` were retired on

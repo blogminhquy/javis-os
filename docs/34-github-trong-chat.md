@@ -35,6 +35,10 @@ Javis tự làm, không cần bạn nhắc:
 3. **Theo dõi CI** theo đúng commit vừa đẩy. Commit mới không bao giờ thừa hưởng kết quả xanh của commit cũ.
 4. **CI đỏ**: Javis mở lượt sửa ngay trong cuộc trò chuyện đó, kèm log. Tối đa **3 vòng**, quá thì báo kẹt kèm lý do. Đỏ cả trên nhánh chính thì báo không phải lỗi của việc này, không sửa lan.
 5. **Review chéo**: CI xanh rồi, một engine **khác hãng** với engine đã viết đọc diff và chỉ nêu lỗi có đường gây hỏng cụ thể. Tác giả kiểm chứng: đúng thì sửa, sai thì bác bỏ kèm lý do.
+   - **Ai review:** model việc nền đọc trước (đặt ở trang Models), miễn nó khác hãng với engine đã viết. Không được thì lần lượt các thẻ khác theo thứ tự trên trang Models, thử tối đa 2 thẻ.
+   - **Bằng model nào:** đúng model và mức suy nghĩ bạn đã chọn trên thẻ đó. Muốn review kỹ thì chọn model mạnh cho model việc nền, ví dụ Claude Opus khi code do ChatGPT viết, hay DeepSeek V4 Pro, Gemini Pro khi code do Claude viết.
+   - **Ai không review được:** gói ChatGPT, Grok Build và Antigravity chạy qua CLI còn công cụ đọc ghi file, nên không bao giờ được đọc diff của repo. Review chéo chỉ chạy chữ: Claude hoặc một nhà dùng API key.
+   - Không có thẻ nào hợp lệ thì PR ghi "chưa review chéo". Thẻ review lỗi thì khung chat báo rõ thẻ, model và lý do, rồi bỏ qua lần đó, không giữ PR mãi.
 6. **Merge**: CI xanh thì Javis **tự merge** theo kiểu merge repo cho phép. Không tự merge khi: tắt công tắc của repo, có thay đổi "ăn gian" cần người xem, repo không có CI, hay repo còn đòi người duyệt.
 
 Lệnh kiểm tra của từng repo sửa được ở thẻ GitHub trên trang Kết nối, nút **Lệnh kiểm tra**. Công tắc **Tự merge khi CI xanh** cũng ở đó, mặc định bật.

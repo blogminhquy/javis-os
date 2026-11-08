@@ -44,8 +44,33 @@ try:
     resting.clear()
     aux_engine._co_binary = lambda p: ""
     check("Claude Code without its binary is left out", "anthropic-cli" not in main._github_reviewers())
+
+    # Owner, 08/11/2026: "review with the background model, not a model I never set up". The review used to send an
+    # empty model, so Groq fell back to llama-3.3-70b-versatile (shut down by Groq) and answered 404.
+    settings = {"model": {"order": ["anthropic-cli", "deepseek", "groq"],
+                          "auxiliary": {"provider": "groq", "model": "openai/gpt-oss-120b", "reasoning": "high"},
+                          "profiles": {"deepseek": {"model": "deepseek-v4-pro", "reasoning": "medium"},
+                                       "groq": {"model": "qwen3-32b", "reasoning": "off"}}}}
+    got = main._github_reviewers()
+    check("the background model's card reviews first", got[:1] == ["groq"], got)
+    spec = main._github_reviewer_spec("groq")
+    check("the background card reviews on the background model and effort",
+          spec == {"provider": "groq", "model": "openai/gpt-oss-120b", "reasoning": "high"}, spec)
+    spec = main._github_reviewer_spec("deepseek")
+    check("another card reviews on the model and effort picked on that card, never an empty model",
+          spec == {"provider": "deepseek", "model": "deepseek-v4-pro", "reasoning": "medium"}, spec)
+    check("the chat names the exact model", main._github_reviewer_label("groq") == "groq (openai/gpt-oss-120b)",
+          main._github_reviewer_label("groq"))
+    settings = {"model": {"order": ["anthropic-cli", "gemini"],
+                          "auxiliary": {"provider": "openai-oauth", "model": "gpt-5"}}}
+    got = main._github_reviewers()
+    check("a background plan that keeps file tools still never reviews", "openai-oauth" not in got, got)
 finally:
     main.cfgmod.read_settings, aux_engine.availability, aux_engine._co_binary, main._route_ready = orig
+
+import engine  # noqa: E402
+check("Groq's default is no longer the model Groq shut down on 16/08/2026",
+      engine.GROQ_DEFAULT_MODEL != "llama-3.3-70b-versatile")
 
 src = (SERVER / "resonance.py").read_text(encoding="utf-8")
 check("the rule this follows still stands: text-only accepts Claude's gate or an API engine's no_tools",

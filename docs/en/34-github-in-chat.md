@@ -35,6 +35,10 @@ Javis does this on its own:
 3. **Watch CI** on exactly the pushed commit. A new commit never inherits the green result of an older one.
 4. **Red CI**: Javis opens a fix turn in that same conversation, with the logs. At most **3 rounds**, then it reports being stuck with the reason. Red on the base branch too means it is not this job's fault; Javis does not widen the job.
 5. **Cross review**: once CI is green, an engine from **another vendor** than the one that wrote the code reads the diff and reports only issues with a concrete failure path. The author verifies each: fixes what is real, rejects the rest with reasons.
+   - **Who reviews:** the background model (set on the Models page) goes first, as long as it is from another vendor than the author. Otherwise the other cards follow in the Models page order, at most 2 are tried.
+   - **On which model:** exactly the model and reasoning level you picked on that card. For a thorough review pick a strong background model, for example Claude Opus when ChatGPT wrote the code, or DeepSeek V4 Pro or Gemini Pro when Claude did.
+   - **Who never reviews:** the ChatGPT, Grok Build and Antigravity plans run through a CLI that keeps file tools, so they never read a repo's diff. The review runs text-only: Claude, or a provider on an API key.
+   - With no eligible card the PR says "not cross-reviewed". A reviewer that fails is named in the chat with its model and the reason, then skipped for that commit, so the PR is never held forever.
 6. **Merge**: green CI makes Javis **merge on its own**, with a method the repo allows. It does not merge alone when the repo's switch is off, a flagged change needs a person, the repo has no CI, or the repo still requires a review.
 
 Each repo's local check commands are editable on the GitHub card of the Connections page (**Checks**). The **Auto-merge on green CI** switch is there too, on by default.
