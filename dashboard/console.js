@@ -570,9 +570,37 @@
   // Gọi một hàm của module nạp chậm từ chỗ khác trang: chờ nhóm của nó rồi mới gọi.
   const _goiNhom = (nhom, fn) => (window.JavisNapCham ? window.JavisNapCham.goi(nhom, fn) : Promise.resolve(fn()));
 
+  // 2026-11-08: pages drawn from the copy of the last visit (fetch-gop.js) are drawn again once the server's answer
+  // differs, unless the owner has already clicked or typed on the page (a redraw would undo that). Only pages that are
+  // plain lists and cards; chat pages, the file editor and the live Tasks board keep their own refresh.
+  const REDRAW_PAGES = new Set(["learn", "skills", "plugins", "mcp", "packs", "channels", "logins", "models", "settings",
+    "usage", "share", "account", "webhooks"]);
+  let _pageTouched = false, _redrawTimer = 0;
+  ["click", "keydown", "input", "change"].forEach((ev) => document.addEventListener(ev, (e) => {
+    const cv = document.getElementById("cview");
+    if (cv && e.target && cv.contains(e.target)) _pageTouched = true;
+  }, true));
+  window.addEventListener("javis:page-data", (e) => {
+    const id = e && e.detail && e.detail.page;
+    if (!id || !REDRAW_PAGES.has(id) || !window.Alpine || Alpine.store("nav").active !== id) return;
+    clearTimeout(_redrawTimer);
+    _redrawTimer = setTimeout(() => {
+      const cv = document.getElementById("cview"), focused = document.activeElement;
+      if (Alpine.store("nav").active !== id || _pageTouched) return;
+      if (cv && focused && cv.contains(focused) && /^(INPUT|TEXTAREA|SELECT)$/.test(focused.tagName)) return;
+      const top = body() ? body().scrollTop : 0;
+      const leave = _pageLeave; _pageLeave = null;
+      if (leave) { try { leave(); } catch (err) {} }
+      Promise.resolve(renderPage(id)).then(() => { const b = body(); if (b && top) b.scrollTop = top; }).catch(() => {});
+    }, 120);
+  });
+
   async function renderPage(id) {
     let el = body();
     if (!el) return;
+    // This visit's first read of each page key may come from the last visit's copy (fetch-gop.js, 2026-11-08).
+    try { if (window.JavisFetchGop && window.JavisFetchGop.pageStart) window.JavisFetchGop.pageStart(id); } catch (e) {}
+    _pageTouched = false;
     // Cả đổi TAB trong Cài đặt cũng thay cviewBody. Trả node tĩnh về trước khi tháo nó.
     parkQuickSet();
     // Thay #cviewBody bằng node MỚI mỗi lần đổi trang: renderer async của trang CŨ (đang await
@@ -7156,7 +7184,12 @@
       catch (e) { acStatus.innerHTML = WARN_ICON + " " + esc(window.t("cs.ch_net_err")); }
     };
     const lo = document.getElementById("acLogout");
-    if (lo) lo.onclick = async () => { await fetch("/auth/logout", { method: "POST" }); location.reload(); };
+    if (lo) lo.onclick = async () => {
+      await fetch("/auth/logout", { method: "POST" });
+      // 2026-11-08: chats kept in this browser for a quick first paint (chat-cache.js) leave with the session.
+      try { if (window.JavisChatCache) await window.JavisChatCache.clear(); } catch (e) {}
+      location.reload();
+    };
     const dis = document.getElementById("acDisable");
     // 0.224.0: the server wants the current password (+ a 2FA code) and refuses on a public
     // server, so the button is hidden there. The flow lives in app.js, shared with the settings block.

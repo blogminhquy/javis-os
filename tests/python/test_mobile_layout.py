@@ -63,7 +63,7 @@ check("khung chat đặt theo vùng nhìn thấy khi bàn phím mở",
       "body.kb-open .hud {" in CSS and "var(--vv-h" in CSS and "body.kb-open .cview {" in CSS)
 check("bàn phím mở thì ô nhập bỏ lề an toàn", "body.kb-open .hud-voice { margin-bottom: 6px; }" in CSS)
 # 0.359.0 (PR #850): app cài trên iPhone, lúc KHÔNG gõ 100dvh có khi lệch vùng nhìn thấy (hụt đầu, thừa đáy). Khung chat
-# lúc nghỉ lấy đúng chiều cao visualViewport, không cộng độ lệch; bàn phím hạ thì kéo trang về đầu; giữ black-translucent.
+# lúc nghỉ lấy đúng chiều cao visualViewport, không cộng độ lệch; bàn phím hạ thì kéo trang về đầu.
 _sync = re.search(r"function syncKeyboard\(\) \{([\s\S]*?)\n    \}\n    function henKeyboard", MOBILE_CHAT)
 _sb = _sync.group(1) if _sync else ""
 check("lúc không gõ, khung chat dùng chiều cao vùng nhìn thấy (--app-h)",
@@ -73,8 +73,12 @@ check("--app-h chỉ là chiều cao, không cộng offsetTop hay pageTop",
 check("bàn phím vừa hạ mà trang bị trượt thì kéo về đầu", "if (vuaGo && (window.scrollY || document.documentElement.scrollTop)) window.scrollTo(0, 0);" in _sb)
 check("khung chính điện thoại cao theo --app-h, thiếu thì 100dvh",
       CSS.count("height: 100vh; height: var(--app-h, 100dvh);") == 2)
-check("giữ thanh trạng thái trong suốt (giao diện không đổi)",
-      'name="apple-mobile-web-app-status-bar-style" content="black-translucent"' in INDEX)
+# 2026-11-08 (owner, iOS 27): a see-through status bar lets the page draw under the clock, and iOS 26/27 blurs that
+# band in a home-screen app whatever the CSS does (our fixed opaque header did not stop it). A solid "default" bar
+# puts the page below it, so there is nothing left to blur. Do not bring black-translucent back.
+check("iOS status bar is solid (default), so iOS 26/27 has no page under it to blur",
+      'name="apple-mobile-web-app-status-bar-style" content="default"' in INDEX
+      and "black-translucent" not in re.sub(r"<!--[\s\S]*?-->", "", INDEX))
 check("trang quản lý không cộng chồng hai lề đáy dưới ô nhập", ".cview .hud-voice { margin-bottom: 0; }" in CSS)
 check("Android co trang theo bàn phím", "interactive-widget=resizes-content" in INDEX)
 _cd = re.search(r"\.cd-menu \{[^}]*\}", CSS)

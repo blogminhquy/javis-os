@@ -8,6 +8,53 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.505.1] - 2026-11-08
+### Fixed
+- **Bots no longer send "You've hit your monthly spend limit" to customers.** Once the Claude plan's monthly extra-usage cap was spent too, Claude Code printed a new notice Javis did not recognise, so a Zalo bot pasted that English line into its reply to a customer. It now counts as a failed turn like every other plan-limit notice: the customer receives nothing and the owner is told in the notification bell. Chat, Kanban jobs and workflows also read it as the plan running out, with the reset time.
+- **Plan-limit notices with a curly apostrophe (You’ve) are recognised** like the straight one.
+
+## [0.505.0] - 2026-11-08
+### Improved
+- **The reading voice follows the language of each answer.** An English answer is read in proper English by an English-speaking voice, no more "Vinglish". A Vietnamese answer is read by Hoai My or Nam Minh, and English words inside it are still said the Vietnamese way.
+- The voice picked in Settings decides male or female: with Hoai My picked, English answers are read by Emma; with Andrew picked, Vietnamese answers are read by Nam Minh. Voice notes sent on Telegram follow the same rule.
+- **The interface now comes in English and Vietnamese only.** The German translation was removed from the language picker. A device set to German falls back to English.
+
+## [0.504.0] - 2026-11-08
+### Added
+- **The Zalo bot on the Admin channels page can call a partner, like Telegram.** Type `@<name> <question>` to ask once, or `/agent <name>` to let that partner answer the whole chat.
+- **Assistant cards on the Partners page show their tags right under the name**, beside the avatar. Javis Core's "System" badge moved to that line too. In a narrow column the extra tags fold into "+n".
+### Fixed
+- **Chats from Zalo and Telegram (Admin channels) now show in Javis Core's history**, and a chat that called a partner shows in that partner's history, labelled TG or zalo.
+- **`/brain`, `/reset`, `/stop` and `/model` on the Zalo admin bot act on the chat you are in.** Before, they changed another session, so the chat could land in the default brain.
+- **A dedicated bot can no longer share the Zalo admin bot's token.** Sharing it split the messages and half of them went to the customer inbox, missing from your chat.
+
+## [0.503.2] - 2026-11-08
+### Improved
+- **While Javis answers or runs a Kanban job, other clicks no longer wait in line.** Reading and writing the chat history during each turn (including reading back a long chat to send to the model) and every write of a Kanban job now run on worker threads, off the loop that serves the interface.
+- **Read-heavy pages (Files, memory, backup, self-learning, reminders, loops, chat groups, chat assets...) no longer stall the whole server on a large brain.** Blocking calls on the main loop went from 347 down to 218, Kanban to 0.
+- A new test stops that number from growing again.
+
+## [0.503.1] - 2026-11-08
+### Fixed
+- **The Javis home-screen app on iPhone (iOS 26/27) no longer shows a blur strip at the top.** The status bar is now solid and the page starts right below it, so iOS has nothing left to blur.
+- **One-time step:** remove the Javis icon from the Home Screen, then open Safari, tap Share, Add to Home Screen again. iOS only reads the status bar style when the icon is added.
+
+## [0.503.0] - 2026-11-08
+### Improved
+- **Opening the app, a page or a chat now asks the server in one trip instead of several waves.** Javis learns what each of these moments reads, then sends it all together next time, and the server streams each answer back as soon as it is ready. Measured over a slow link: app start from 3.5 s to 2.6 s and from 47 requests to 22; a chat switch from 5 requests to 1.
+- Anything the server leaves out of a batch is simply asked for on its own, as before, so nothing goes missing.
+
+## [0.502.0] - 2026-11-08
+### Improved
+- **Going back to a chat shows it at once, even after reloading the page.** Javis keeps the last part of the 50 most recent chats in this browser, draws from it, then asks the server for the newest copy. Measured over a slow link: from about 0.3 s down to 0.03-0.04 s.
+- **The chat you are teaching Javis in no longer loads from scratch.** Leaving a chat with new messages fetches its new copy in the background, and so does a reply that finishes in another chat. The first chats of the list are loaded ahead when the device is idle, phones included.
+- **The Skills, Connections, Channels, Settings, Models, Self-learning, Plugins and Webhooks pages show at once on a return visit.** A page draws the data of the last visit, then updates itself if anything changed, unless you already clicked or typed on it. Measured over a slow link: from 0.3-0.7 s down to 0.02-0.1 s.
+- Signing out clears the chats kept in the browser.
+
+## [0.501.4] - 2026-11-08
+### Improved
+- **Private Zalo catch-up no longer runs on a schedule.** Javis only reacts when the Zalo history file actually gets new messages, and only looks at those. A day without messages costs almost nothing (one file size check after each read), with no Zalo call and no scan of quiet chats.
+
 ## [0.501.3] - 2026-11-08
 ### Fixed
 - **Bots hear Zalo voice messages.** A Zalo voice message is bare AAC, which Groq and OpenAI refuse, so the bot said it could not hear it. Javis now detects the format from the file's bytes and converts it to mp3 before sending, on every channel.

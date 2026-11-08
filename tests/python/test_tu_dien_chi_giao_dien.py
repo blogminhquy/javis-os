@@ -2,7 +2,8 @@
 
     python tests/run.py tu_dien_chi_giao_dien      (NO network)
 
-German came in as just `dashboard/i18n/de.json` (PR #618 by @sirschnake), CONTRIBUTING.md Translations item 2. The server
+German came in as just `dashboard/i18n/de.json` (PR #618 by @sirschnake) and was removed on 2026-11-08 (owner: English and
+Vietnamese only). The mechanism stays and is tested with temporary files below. The server
 registry only speaks vi and en, so:
   1. GET /settings keeps `lang_list` = what the server speaks (reply language, voice), and adds `ui_lang_list` = that plus
      every dashboard dictionary the server does not know, so the pickers can offer "Deutsch";
@@ -36,12 +37,9 @@ def check(name, cond, detail=""):
 
 # ---- 1. the real dictionaries in the repo ----
 real = L.dashboard_only_languages(ROOT / "dashboard" / "i18n")
-check("German is offered with its own name", {"ma": "de", "ten": "Deutsch", "ten_en": "Deutsch", "chi_giao_dien": True} in real,
-      real)
-check("vi and en are not repeated as dashboard-only", not any(x["ma"] in ("vi", "en") for x in real), real)
-de = json.loads((ROOT / "dashboard" / "i18n" / "de.json").read_text(encoding="utf-8"))
-en = json.loads((ROOT / "dashboard" / "i18n" / "en.json").read_text(encoding="utf-8"))
-check("de.json only uses keys that exist in en.json", not [k for k in de if k not in en], [k for k in de if k not in en][:5])
+# Owner, 2026-11-08: the interface ships in English and Vietnamese only, German was removed.
+check("no dashboard-only dictionary ships (interface is English and Vietnamese only)", real == [], real)
+check("de.json is gone", not (ROOT / "dashboard" / "i18n" / "de.json").exists())
 
 # ---- 2. odd files are never offered ----
 d = Path(tempfile.mkdtemp(prefix="javis-i18n-"))
@@ -71,7 +69,7 @@ s = r.json()
 check(f"GET /settings answers ({r.status_code})", r.status_code == 200)
 check("lang_list stays the languages the server speaks", [x["ma"] for x in s.get("lang_list", [])] == list(L.LANGS),
       s.get("lang_list"))
-check("ui_lang_list = lang_list + German", [x["ma"] for x in s.get("ui_lang_list", [])] == list(L.LANGS) + ["de"],
+check("ui_lang_list = lang_list (no dashboard-only language)", [x["ma"] for x in s.get("ui_lang_list", [])] == list(L.LANGS),
       s.get("ui_lang_list"))
 
 for f in (SERVER / "lang_registry.py", Path(__file__)):

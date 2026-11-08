@@ -6,6 +6,53 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.505.1] - 2026-11-08
+### Sửa lỗi
+- **Bot không còn gửi câu "You've hit your monthly spend limit" cho khách.** Khi gói Claude hết cả hạn mức chi thêm theo tháng, Claude Code in ra một câu mới mà Javis chưa nhận ra, nên bot Zalo dán nguyên câu tiếng Anh đó vào tin trả lời khách. Nay câu này được coi là lượt hỏng như mọi câu báo hết lượt khác: khách không nhận gì, chủ được báo ở chuông thông báo. Khung chat, việc Kanban và workflow cũng nhận ra nó là hết lượt gói, kèm giờ mở lại.
+- **Câu báo hết lượt có dấu nháy cong (You’ve) cũng được nhận ra** như dấu nháy thường.
+
+## [0.505.0] - 2026-11-08
+### Cải thiện
+- **Giọng đọc tự theo thứ tiếng của câu trả lời.** Câu trả lời tiếng Anh do giọng nói được tiếng Anh đọc chuẩn, không còn "Vinglish". Câu trả lời tiếng Việt do Hoài My hoặc Nam Minh đọc, từ tiếng Anh xen trong câu vẫn đọc kiểu người Việt nói.
+- Giọng anh chọn trong Cài đặt quyết định nam hay nữ: chọn Hoài My thì câu tiếng Anh do Emma đọc, chọn Andrew thì câu tiếng Việt do Nam Minh đọc. Tin nhắn thoại gửi qua Telegram cũng theo luật này.
+- **Giao diện giờ chỉ còn tiếng Anh và tiếng Việt.** Bản dịch tiếng Đức đã được gỡ khỏi ô chọn ngôn ngữ. Máy nào đang để tiếng Đức sẽ tự về tiếng Anh.
+
+## [0.504.0] - 2026-11-08
+### Thêm mới
+- **Bot Zalo ở Kênh Admin gọi được cộng sự như Telegram.** Gõ `@<tên> <câu hỏi>` để hỏi một câu, hoặc `/agent <tên>` để cộng sự đó trả lời cả chat.
+- **Thẻ trợ lý ở trang Cộng sự hiện tag ngay dưới tên**, cạnh avatar. Chữ "Hệ thống" của Javis Core cũng xuống dòng này. Cột hẹp thì tag dư gộp thành "+n".
+### Sửa lỗi
+- **Chat từ Zalo và Telegram (Kênh Admin) nay hiện trong lịch sử của Javis Core**, còn chat gọi một cộng sự thì hiện trong lịch sử của cộng sự đó, có nhãn TG hoặc zalo.
+- **Lệnh `/brain`, `/reset`, `/stop`, `/model` trên bot Zalo admin tác động đúng cuộc chat đang nói.** Trước đây chúng đổi nhầm một phiên khác nên chat có thể rơi sang brain mặc định.
+- **Bot chuyên trách không được dùng chung token với bot Zalo admin nữa.** Dùng chung khiến tin nhắn bị chia đôi và một nửa chui vào hộp thư khách, mất khỏi chat của bạn.
+
+## [0.503.2] - 2026-11-08
+### Cải thiện
+- **Lúc Javis đang trả lời hay đang chạy việc Kanban, các cú bấm khác không còn phải xếp hàng chờ.** Việc đọc ghi lịch sử hội thoại trong mỗi lượt chat (kể cả đọc lại cả cuộc dài để gửi cho model) và mọi lần ghi của việc Kanban giờ chạy ở luồng phụ, không chiếm luồng phục vụ giao diện nữa.
+- **Các trang đọc nhiều (Tệp tin, bộ nhớ, sao lưu, tự học, nhắc hẹn, vòng lặp, nhóm hội thoại, tài sản trong chat...) không còn làm cả máy chủ khựng khi brain lớn.** Số chỗ làm việc nặng trên luồng chính giảm từ 347 xuống 218, Kanban về 0.
+- Một test mới chặn không cho con số đó tăng trở lại.
+
+## [0.503.1] - 2026-11-08
+### Sửa lỗi
+- **App Javis trên màn hình chính iPhone (iOS 26/27) hết vệt mờ ở trên cùng.** Thanh trạng thái giờ là nền đặc, trang bắt đầu ngay bên dưới nên iOS không còn gì để làm mờ.
+- **Cần làm một lần:** xoá icon Javis khỏi màn hình chính rồi mở Safari, bấm Chia sẻ, Thêm vào MH chính lại. iOS chỉ đọc kiểu thanh trạng thái lúc thêm icon.
+
+## [0.503.0] - 2026-11-08
+### Cải thiện
+- **Mở app, vào trang, đổi hội thoại giờ hỏi máy chủ một chuyến thay vì nhiều đợt nối tiếp.** Javis học xem mỗi lúc như vậy cần đọc những gì, lần sau gửi gộp tất cả trong một lượt, máy chủ trả từng phần ngay khi xong. Đo qua mạng chậm: mở app từ 3,5 giây còn 2,6 giây, số lượt hỏi từ 47 còn 22; đổi hội thoại từ 5 lượt hỏi còn 1.
+- Phần nào máy chủ không gộp được thì trang tự hỏi riêng như cũ, nên không có gì bị thiếu.
+
+## [0.502.0] - 2026-11-08
+### Cải thiện
+- **Mở lại hội thoại hiện ngay, kể cả sau khi tải lại trang.** Javis giữ phần cuối của 50 cuộc gần nhất ngay trong trình duyệt, vẽ ngay từ đó rồi mới hỏi máy chủ bản mới. Đo qua mạng chậm: từ khoảng 0,3 giây xuống còn 0,03-0,04 giây.
+- **Cuộc vừa dạy Javis không còn phải tải lại từ đầu.** Rời một cuộc đang có tin mới thì Javis lấy sẵn bản mới ở nền, Javis trả lời xong ở cuộc khác cũng vậy. Các cuộc đầu danh sách được tải trước khi máy rảnh, kể cả trên điện thoại.
+- **Quay lại các trang Kỹ năng, Kết nối, Kênh, Cài đặt, Models, Tự học, Plugin, Webhook hiện ngay.** Trang vẽ ngay dữ liệu lần trước rồi tự cập nhật nếu có gì đổi, trừ khi đã có thao tác bấm hay gõ trên trang. Đo qua mạng chậm: từ 0,3-0,7 giây xuống 0,02-0,1 giây.
+- Đăng xuất là xoá các hội thoại đã giữ trong trình duyệt.
+
+## [0.501.4] - 2026-11-08
+### Cải thiện
+- **Bù tin Zalo cá nhân không còn chạy theo lịch.** Javis chỉ để ý khi file lịch sử Zalo thật sự có tin mới, rồi chỉ xét đúng những tin đó. Ngày không có tin nào thì gần như không tốn gì (một lần xem kích thước file sau mỗi lượt đọc), không gọi Zalo, không quét các cuộc chat đã im.
+
 ## [0.501.3] - 2026-11-08
 ### Sửa lỗi
 - **Bot nghe được tin thoại Zalo.** Tin thoại Zalo là AAC thô, Groq và OpenAI từ chối nên bot báo "chưa nghe được". Giờ Javis nhận dạng định dạng theo nội dung file và tự đổi sang mp3 trước khi gửi, áp dụng cho mọi kênh.

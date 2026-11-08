@@ -33,7 +33,7 @@ def check(name: str, condition: bool) -> None:
 # --- Server: /files/read phải trả đường dẫn THẬT -----------------------------
 # Client không tự ghép được: `path` tính theo TRẦN DUYỆT còn engine cần đường dẫn hệ thống,
 # và hai cái lệch nhau khi trần cao hơn gốc brain.
-_read = MAIN.split("async def files_read(", 1)[1].split("\n@app.", 1)[0]
+_read = MAIN.split("def files_read(", 1)[1].split("\n@app.", 1)[0]
 check("/files/read trả thêm khoá 'abs'", '"abs": str(f)' in _read)
 
 

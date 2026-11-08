@@ -8016,5 +8016,15 @@
    "GET"
   ],
   "trong": null
+ },
+ {
+  "order": 805,
+  "type": "APIRoute",
+  "path": "/batch",
+  "name": "batch_reads",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

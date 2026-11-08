@@ -64,10 +64,14 @@ VI = "Chào chị, đơn hàng đã giao xong."
 EN = "Your order has been delivered."
 P = voice_note.pick_voice
 check("a voice named by the tool still wins", P(VI, "vi-VN-NamMinhNeural", "en-US-AvaMultilingualNeural") == "vi-VN-NamMinhNeural")
-check("a multilingual chosen voice reads Vietnamese", P(VI, "", "en-US-AvaMultilingualNeural") == "en-US-AvaMultilingualNeural")
+# Owner, 2026-11-08: Vietnamese is read by a Vietnamese voice, English by an English-speaking one,
+# of the same gender as the voice picked.
+check("Vietnamese with a female English voice picked: Hoai My", P(VI, "", "en-US-AvaMultilingualNeural") == "vi-VN-HoaiMyNeural")
+check("Vietnamese with a male English voice picked: Nam Minh", P(VI, "", "en-US-BrianMultilingualNeural") == "vi-VN-NamMinhNeural")
 check("a multilingual chosen voice reads English", P(EN, "", "en-US-AndrewMultilingualNeural") == "en-US-AndrewMultilingualNeural")
 check("a Vietnamese chosen voice reads Vietnamese", P(VI, "", "vi-VN-NamMinhNeural") == "vi-VN-NamMinhNeural")
-check("a Vietnamese-only voice does not read English: language default", P(EN, "", "vi-VN-HoaiMyNeural") == voice_note.DEFAULT_VOICE)
+check("English with Hoai My picked: Emma", P(EN, "", "vi-VN-HoaiMyNeural") == voice_note.DEFAULT_VOICE)
+check("English with Nam Minh picked: Andrew", P(EN, "", "vi-VN-NamMinhNeural") == "en-US-AndrewMultilingualNeural")
 check("'auto' or nothing chosen keeps the old behaviour", P(VI, "", "auto") == voice_note.VI_VOICE and P(VI) == voice_note.VI_VOICE)
 check("make() reads the chosen voice from settings", voice_note._chosen_edge_voice() == "en-US-AvaMultilingualNeural")
 

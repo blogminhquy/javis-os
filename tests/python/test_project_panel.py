@@ -183,7 +183,7 @@ _table = _src.split("CREATE TABLE IF NOT EXISTS project_files", 1)[1].split(");"
 check("CANARY: project_files has NO brain column (the brain comes from the project)",
       "brain" not in _table, _table)
 _main = (SERVER / "main.py").read_text(encoding="utf-8")
-_add_route = _main.split("async def projects_add_file", 1)[1].split("\n@app.", 1)[0]
+_add_route = _main.split("def projects_add_file", 1)[1].split("\n@app.", 1)[0]
 check("CANARY: the add-file route takes the brain from the PROJECT, not from the client",
       'p.get("brain")' in _add_route and "brain: str = Form" not in _add_route,
       _add_route[:200])
@@ -220,7 +220,7 @@ _ses = (SERVER / "sessions.py").read_text(encoding="utf-8")
 check("the store returns every file path attached to a project",
       "def all_project_file_paths" in _ses)
 
-_link = _main.split("async def projects_add_link", 1)[1].split("\n@app.", 1)[0]
+_link = _main.split("def projects_add_link", 1)[1].split("\n@app.", 1)[0]
 check("CANARY: links accept only http/https", "^https?://" in _link, _link[:200])
 
 # ── One real upload, not just source inspection ──────────────────────────────────────────

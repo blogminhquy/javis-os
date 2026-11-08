@@ -428,7 +428,7 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False) -> dict
                 # and messages from the bot or the owner leave it hidden.
                 unhide = 1 if e["sender_type"] == "customer" and dem_chua_doc else 0
                 # A message written late (`late`: recovered from the Zalo history, see
-                # `zalo_personal_channel.reconcile_history`) may be older than the last one stored: it must not become the
+                # `zalo_personal_channel.catch_up`) may be older than the last one stored: it must not become the
                 # "last message" of the conversation. Live messages keep the old rule (the last written is the last).
                 newest = "(? = 0 OR last_message_at IS NULL OR ? >= last_message_at)"
                 db.execute(

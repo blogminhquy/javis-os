@@ -18,7 +18,13 @@
        rồi "Thêm vào MH chính" lại thì iOS mới đọc lại và chạy standalone. -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Status bar "default", NOT "black-translucent" (owner, iOS 27, 2026-11-08). With a see-through bar the page
+       draws under the clock, and iOS 26/27 lays a blur strip over that band in a home-screen app that no CSS turns off:
+       our fixed opaque header was already there and the strip still showed. With "default" the bar is solid and the
+       page starts below it, so nothing sits under it to blur. iOS reads this tag when the app is added to the Home
+       Screen: an icon added before this change keeps the blur until it is removed and added again. The CSS still
+       pads with env(safe-area-inset-*), which is 0 at the top now and still covers the notch in landscape. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Javis OS">
   <meta name="theme-color" content="#ffffff">
   <!-- manifest.json khai icon PNG vuông 192/512 có sizes rõ ràng: đó là điều kiện để
@@ -396,7 +402,7 @@
                   <span class="vc-saved" id="vcVoiceSaved" aria-live="polite"></span>
                 </div>
               </div>
-              <div class="qs-hint" id="vcVoiceNote" data-i18n="qs.voice_ml_note" hidden>Giọng đa ngôn ngữ hỗ trợ tiếng Việt.</div>
+              <div class="qs-hint" id="vcVoiceNote" data-i18n="qs.voice_ml_note" hidden>Tiếng Việt đọc bằng Hoài My hoặc Nam Minh, tiếng Anh bằng giọng đa ngôn ngữ, cùng giới giọng chọn.</div>
               <div class="vc-mismatch" id="vcMismatch" role="status" hidden>
                 <span id="vcMismatchTxt"></span>
                 <button class="gcard-btn" type="button" id="vcMismatchFix"></button>
@@ -973,6 +979,8 @@
   <script src="/static/loi-may-khach.js?v=1"></script>
   <!-- Gộp các lượt đọc trùng nhau lúc mở app (fetch-gop.js, 0.416.0). Đứng trước mọi file gọi máy chủ. -->
   <script src="/static/fetch-gop.js?v=1"></script>
+  <!-- Recently opened chats kept in this browser for an instant first paint (chat-cache.js, 2026-11-08). Before app.js. -->
+  <script src="/static/chat-cache.js?v=1"></script>
   <!-- Code của từng trang nạp khi cần (nap-cham.js, 0.417.0): các file LỚN chỉ một trang dùng không còn chặn lúc mở app.
        Nhóm nào trang nào cần: console.js renderPage. Trang rảnh thì nạp nốt ở nền theo đúng thứ tự dưới đây. -->
   <script id="javis-lazy" type="application/json">{

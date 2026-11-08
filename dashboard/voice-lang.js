@@ -55,6 +55,36 @@
     return "";
   }
 
+  // Language of a WHOLE message, for read aloud (2026-11-08, owner): an answer written in English
+  // is read in English, one written in Vietnamese keeps the Vietnamese way of saying English words.
+  // Same rule as phien_am.is_english_text on the server. Words left out of the list stand alone in
+  // Vietnamese too: "to", "in", "do", "so", "no", "an", "a", "me", "he".
+  var ENGLISH_MARKERS = {};
+  ("the is are was were been will would can could should does did have has had not " +
+   "of for with from and but if than then that this these those there here " +
+   "you your yours we our they their them it's its i'm i've i'll don't doesn't can't " +
+   "what when where why how who which please just also very about into over")
+    .split(" ").forEach(function (w) { ENGLISH_MARKERS[w] = 1; });
+
+  function messageLang(text) {
+    text = String(text || "");
+    var tokens = text.match(/[A-Za-z\u00c0-\u024f\u1e00-\u1eff]+(?:['\u2019][A-Za-z]+)*/g) || [];
+    var vietnamese = 0, markers = 0;
+    tokens.forEach(function (w) {
+      if (/[^\x00-\x7f]/.test(w)) vietnamese++;
+      if (ENGLISH_MARKERS[w.toLowerCase().replace("\u2019", "'")]) markers++;
+    });
+    if (markers >= 2 && markers >= vietnamese) return "en";
+    if (vietnamese && detect(text) === "vi") return "vi";
+    return "";
+  }
+
+  // What read aloud sends to /tts as `en`: "1" English message, "0" Vietnamese, "" can't tell.
+  function englishFlag(text) {
+    var l = messageLang(text);
+    return l === "en" ? "1" : l === "vi" ? "0" : "";
+  }
+
   function voiceFor(lang, fallback) { return VOICES[lang] || fallback || VOICES.en; }
 
   // One tracker per JavisVoice. `start` is the language to read in before anything is detected.
@@ -89,7 +119,7 @@
     return this._lastVoice;
   };
 
-  var api = { VOICES: VOICES, detect: detect, words: words, voiceFor: voiceFor, Tracker: Tracker };
+  var api = { VOICES: VOICES, detect: detect, messageLang: messageLang, englishFlag: englishFlag, words: words, voiceFor: voiceFor, Tracker: Tracker };
   if (typeof window !== "undefined") window.JavisVoiceLang = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -94,7 +94,7 @@ check("hook boot: _record_boot_version(_read_version()) chạy + đặt last_goo
 # --- /update/status ---
 us.write_state({"phase": "health_check", "result": None})
 (us.STATE_DIR / "update.log").write_text("dong 1\ndong 2\ndong 3\n", encoding="utf-8")
-_s = asyncio.run(main.update_status())
+_s = main.update_status()   # a plain def since 2026-11-08 (thread pool)
 check("/update/status trả state.phase", _s["state"].get("phase") == "health_check")
 check("/update/status trả log_tail", "dong 3" in _s["log_tail"])
 

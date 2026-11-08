@@ -103,7 +103,10 @@ check("push_to_chat ghi vai assistant, không bao giờ là user",
 // của câu họ vừa NÓI do nhà cung cấp trả về - đó là giọng thật của họ, không phải máy tự nhập.
 // Con số này nhích lên là có đường mới đẻ ra tin của người dùng - phải đọc lại xem nó đến từ
 // đâu trước khi sửa test.
-const ghiUser = (server.match(/append_message\([^)]*"user"/g) || []).length;
+// 2026-11-08 (performance stage 3): a write may run in a worker thread, `asyncio.to_thread(store.append_message, sid,
+// "user", ...)`: the same write, so both spellings count.
+const GHI_USER = /append_message(?:\(|, )[^)]*"user"/g;
+const ghiUser = (server.match(GHI_USER) || []).length;
 // 0.64.66 thêm chỗ thứ sáu: lượt nối tiếp sau khi việc chạy nền xong (_start_followup_turn)
 // ghi tin mở lượt, có đánh dấu "[Việc chạy nền đã xong]", để mở lại hội thoại vẫn hiểu vì sao
 // Javis tự nói tiếp. Không phải chữ của mic nên không đụng luật "mic không tự gửi".
@@ -121,10 +124,10 @@ check("chỗ thứ sáu nằm TRONG _start_followup_turn",
   /async def _start_followup_turn[\s\S]{0,1600}store\.append_message\(conv_sid, "user", text\)/.test(server));
 const approvalBody = server.slice(server.indexOf('if action == "wf_resume":'), server.indexOf('if action == "resume_now":'));
 check("đường ghi thứ năm chỉ thuộc thao tác duyệt quy trình",
-  (approvalBody.match(/append_message\([^)]*"user"/g) || []).length === 1
+  (approvalBody.match(GHI_USER) || []).length === 1
   && approvalBody.includes('store.append_message(_sid, "user", _msg)'));
 const liveBody = (server.match(/async def voice_live_ws\([\s\S]*?\n@app\./) || [""])[0];
-check("ba chỗ nằm TRONG voice_live_ws (gõ chữ, câu đã nói, tin có file)", (liveBody.match(/append_message\([^)]*"user"/g) || []).length === 3);
+check("ba chỗ nằm TRONG voice_live_ws (gõ chữ, câu đã nói, tin có file)", (liveBody.match(GHI_USER) || []).length === 3);
 
 // ---- 5. cache-bust ----
 const v = (f) => Number((html.match(new RegExp(f.replace(/\./g, "\\.") + "\\?v=(\\d+)")) || [])[1] || 0);

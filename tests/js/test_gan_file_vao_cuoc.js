@@ -113,7 +113,7 @@ check("có trần số lượng để một cuộc dài không âm thầm phình
   /SESSION_ASSETS_MAX = \d+/.test(PYS) && /SESSION_ASSETS_MAX/.test(PY));
 // Cắt riêng thân hàm rồi soi thứ tự bên trong: đo bằng cửa sổ ký tự thì thêm một dòng chú
 // thích là phép kiểm đỏ oan.
-const themFilePY = (PY.match(/async def sessions_add_file\([\s\S]*?\n\n\n/) || [""])[0];
+const themFilePY = (PY.match(/def sessions_add_file\([\s\S]*?\n\n\n/) || [""])[0];
 check("route thêm file kiểm đường dẫn TRƯỚC khi ghi kho",
   themFilePY.indexOf("_safe_path(b, path)") > 0
   && themFilePY.indexOf("_safe_path(b, path)") < themFilePY.indexOf("add_session_file"));

@@ -138,6 +138,24 @@ Nhóm và trang Hội thoại.
 - Màn nào cố ý để khác thì ghi lý do trong mô tả PR, và nói rõ với chủ.
 - Thêm test cho từng màn đã đổi, để lần sau lệch là CI đỏ.
 
+## Tính năng Zalo mới vào plugin `zalo-extras`, không tạo plugin mới (từ 2026-11-08)
+
+Chủ repo chốt 08/11/2026: "nếu mà update tính năng mới thì cho vào trong plugin của Zalo luôn chứ đừng tạo một plugin
+mới". Lý do: mỗi tính năng Zalo từng đẻ thêm một plugin (gửi ảnh, nhóm, đọc ảnh, kết bạn), trang Plugin bị phân mảnh
+thành bốn mục cho một thứ chủ coi là một. Gói `javis.zalo` 2.0.0 (kho `javis-store`) đã gộp cả bốn thành MỘT plugin.
+
+- Tool Zalo mới mà MCP của javis-zalo chưa có thì viết trong gói `javis.zalo` của `javis-store`, vào plugin
+  `packs/javis.zalo/plugins/zalo-extras/`: thêm hàm vào module đúng mảng (`send_media.py`, `group.py`,
+  `read_images.py`, `friend.py`), hoặc một module mới cạnh đó rồi thêm tên vào `_PARTS` trong `plugin.py`. Thêm tên
+  tool vào `tools` của `plugin.yaml`, nâng số bản của plugin và của gói cùng nhau.
+- **Không tạo thư mục plugin Zalo thứ hai**, trong gói đó hay trong `system/plugins/` của lõi.
+  `tests/javis.zalo/test_zalo_extras.py` của kho đỏ khi gói có thêm thư mục plugin, mất một tool hay một tool bị đổi
+  mức quyền.
+- Mỗi tool tự khai mức quyền khi đăng ký (`min_mode`): đọc là `readonly`, ghi vào brain là `safe`, gửi hay đổi gì trên
+  Zalo là `full`.
+- Không thuộc luật này: phần lõi của kênh Zalo (đăng nhập QR, vòng đọc Hộp thư, bot trả lời) vẫn nằm trong
+  `server/zalo_*.py` như trước. Luật chỉ nói về tool mới cho model gọi.
+
 ## Viết CHANGELOG.md
 
 Chủ repo đọc nhật ký cập nhật trên màn hình dọc (2026-08-12), nên viết CHO NGƯỜI ĐỌC TRÊN ĐIỆN
@@ -181,6 +199,9 @@ Repo mở cho người đóng góp quốc tế, nên phần NGƯỜI NGOÀI Đ�
   bản dịch dùng chung. Chú thích (alt) của hình thì dịch theo từng bản.
 - `tests/python/test_machine_translations.py` canh link chết, anchor lệch và dấu gạch dài trong
   các bản dịch, nên dịch lại xong phải chạy test này.
+- **Giao diện chỉ có tiếng Anh và tiếng Việt** (chủ repo chốt 08/11/2026: "gỡ tiếng Đức, chỉ để tiếng Anh và tiếng
+  Việt"). File `dashboard/i18n/de.json` đã bị gỡ; đừng nhận thêm từ điển giao diện thứ tiếng khác. Cơ chế đọc từ điển
+  chỉ-giao-diện (`dashboard_only_languages`) vẫn để đó, nhưng không có file nào để nó nhận. Mục dưới là lịch sử.
 - Server, giọng đọc và tài liệu hướng dẫn đầy đủ chỉ giữ tiếng Anh và tiếng Việt. Chủ repo chốt
   ngày 2026-10-03: thêm thứ tiếng ĐẦY ĐỦ (lang_registry) khi có người dùng thật cần. Từ 0.99.0
   (chủ chốt 2026-10-12, nhận tiếng Đức của @sirschnake) bản dịch CHỈ DASHBOARD (`dashboard/i18n/xx.json`)

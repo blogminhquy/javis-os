@@ -88,7 +88,7 @@ try:
     _set_env(host="127.0.0.1")   # trần = ổ đĩa
 
     async def _list(path_arg):
-        return await main.files_list(brain="brain", path=path_arg)
+        return main.files_list(brain="brain", path=path_arg)   # a plain def since 2026-11-08 (thread pool)
 
     d0 = asyncio.run(_list(None))   # None = mặc định
     check("list(None) = BRAIN (không phải ổ đĩa)", d0["path"] == main._files_rel(_ANCHOR, BRAIN)

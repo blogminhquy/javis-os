@@ -50,7 +50,9 @@ check("xoay mạch đặt cli.session_id = None (rơi vào gate mạch trống)"
       "cli.session_id = None" in vung)
 
 # 3. Mồi lại phải bỏ message hiện tại ([:-1]) và mang theo tóm tắt nén nếu có.
-check("transcript mồi bỏ message user hiện tại", "store.get_messages(conv_sid)[:-1]" in vung)
+# 2026-11-08: the history is read in a worker thread (performance stage 3); [:-1] still drops the current message.
+check("transcript mồi bỏ message user hiện tại", "store.get_messages(conv_sid)[:-1]" in vung
+      or "(await asyncio.to_thread(store.get_messages, conv_sid))[:-1]" in vung)
 check("mang theo compact_summary khi mồi", 'summary=_row0.get("compact_summary")' in vung)
 
 # 4. Đối chiếu ba nhánh: Codex và Grok vốn đã mồi khi không có mạch - giữ nguyên.

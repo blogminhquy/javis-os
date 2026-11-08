@@ -317,6 +317,14 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
     # (field report 30/10/2026). No engine named in the text, so the caller's hint decides.
     ("sub_extra", "", "",
      re.compile(r"you'?re\s+out\s+of\s+extra\s+usage", re.I)),
+    # "You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message ·
+    # your 5-hour limit resets 7am (UTC)": the plan window is spent and so is the extra-usage cap the owner set.
+    # Unmatched, a customer chatbot sent it to a customer as its reply (field report 08/11/2026). The link's
+    # `cc_cli_limit_message` tag marks any later wording of the same notice. "monthly spend" stays required: an ads
+    # report saying "you've reached your spending limit" is about an ad account, not about Javis's plan. No engine
+    # named, so the hint decides.
+    ("sub_spend", "", "",
+     re.compile(r"(?:hit|reached)\s+your\s+monthly\s+spend\s+limit|cc_cli_limit_message", re.I)),
     # Gemini CLI. Câu chữ lấy từ chính bundle @google/gemini-cli và từ lỗi backend Google trả
     # về ("Quota exceeded for quota metric...", RESOURCE_EXHAUSTED). Gói đăng nhập Google có
     # hạn mức theo NGÀY, nên nói được "hết lượt hôm nay" là đúng chuyện đang xảy ra.
@@ -430,6 +438,12 @@ def _reset_seconds(text: str) -> float:
     return float(hours * 3600 + minutes * 60)
 
 
+def _plain_quotes(text) -> str:
+    """`text` with the typographic apostrophe as a plain one, so "You’ve hit your limit" matches like "You've".
+    One character for one, so a span found here is a span in the original text too."""
+    return str(text or "").replace("’", "'")
+
+
 def subscription_span(text: str) -> tuple[int, int] | None:
     """Vị trí (đầu, cuối) của ĐÚNG câu báo hết lượt trong `text`. None = không có.
 
@@ -438,7 +452,7 @@ def subscription_span(text: str) -> tuple[int, int] | None:
     ở đâu. Dùng CHUNG bộ mẫu với `parse_subscription_limit` (không đẻ bộ nhận dạng thứ hai),
     nên thêm mẫu mới là cả hai hàm cùng biết.
     """
-    raw = str(text or "")
+    raw = _plain_quotes(text)
     if not raw.strip():
         return None
     for _name, _engine, _scope, pattern in _SUB_PATTERNS:
@@ -501,7 +515,7 @@ def parse_subscription_limit(text: str, engine_hint: str = "",
     engine_hint dùng khi câu chữ không tự nói nó là engine nào (vd Codex chỉ in "usage limit
     reached"). Không có hint thì để mẫu tự quyết.
     """
-    raw = str(text or "")
+    raw = _plain_quotes(text)
     if not raw.strip():
         return None
     ts = time.time() if now is None else float(now)

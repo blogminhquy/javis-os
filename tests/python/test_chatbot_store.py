@@ -451,7 +451,7 @@ check("có bot thì rẽ sang đường riêng", "return await _bot_tra_loi(" in
 # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Giao diện không
 # hỏi brain nữa (trang thuộc về brain đang mở), nên server phải tự giữ hai trường bằng nhau -
 # lệch được thì bot trỏ vào Agent nằm ngoài brain nó đọc, và không có gì báo.
-check("trang Chatbot lọc bot theo brain", "async def chatbots_list(brain: str = \"\")" in _SRC)
+check("trang Chatbot lọc bot theo brain", "def chatbots_list(brain: str = \"\")" in _SRC)
 check("bỏ trống brain thì trả tất cả (bộ giám sát cần thấy hết)",
       'if loc and not brain_ident.same_brain(b.get("brain"), loc):' in _SRC)
 check("tạo bot: hai trường brain tự bù cho nhau",

@@ -1295,6 +1295,11 @@ function handleMessage(data) {
     // chat_reaction vẽ lại reaction của tin đó ở mọi bong bóng đang mở, kể cả khi đổi ở tab khác. Không đụng lượt đang chạy
     // (cả hai gói nằm ngoài KHUNG_LUOT nên không dựng lại turns[sid]).
     try { if (window.JavisChatReactions) window.JavisChatReactions.onFrame(data, { bubble: t && t.bubble }); } catch (e) {}
+    // 2026-11-08: a chat answered while another one is on screen (the owner switched away mid-turn): refresh its kept
+    // copy now, so going back draws the answer at once.
+    try {
+      if (data.type === "turn_saved" && sid && sid !== savedSessionId && _phienCache.has(sid)) _taiPhien(sid).catch(() => {});
+    } catch (e) {}
     return;
   }
   if (data.type === "route") {
@@ -1599,6 +1604,9 @@ function handleMessage(data) {
     if (sid) delete turns[sid];
     if (isActive && _tinChoLuot) guiTinCho();   // câu người dùng chen ngang: lượt cũ dừng hẳn rồi thì gửi
     if (isActive) guiCauChoLuot();               // câu nói lúc đang trả lời (cuộc gọi): gửi nếu loa đã im
+    // 2026-11-08: a finished turn may have changed what the console pages show (a skill, a connection, a setting):
+    // forget the copies they would otherwise draw first (fetch-gop.js).
+    try { if (window.JavisFetchGop && window.JavisFetchGop.forget) window.JavisFetchGop.forget(); } catch (e) {}
     notifySessions();
     // Lượt vừa xong có thể đã giao việc nền. Đây là ĐÚNG khoảnh khắc người dùng đọc câu trả
     // lời "em đã giao 3 việc" và tự hỏi nó có chạy thật không - dải phải trả lời được ngay.
@@ -2460,20 +2468,37 @@ let sessionOpenSeq = 0;
 // tới 1-2 giây) rồi mới vẽ. Giờ khúc tin cuối của vài cuộc gần nhất được giữ trong bộ nhớ: mở lại là vẽ NGAY từ đó,
 // đồng thời hỏi máy chủ bản mới; bản mới khác thì vẽ lại, giống thì thôi (không nháy). Rê chuột hay chạm vào một
 // mục trong danh sách cũng hỏi trước (prefetchSession), nên lần mở ĐẦU cũng thường đã có sẵn.
-const _PHIEN_CACHE_MAX = 16;
-const _PHIEN_CACHE_TTL = 5 * 60 * 1000;     // quá hạn thì không vẽ từ cache nữa, chờ bản mới như cũ
+// 2026-11-08 (owner: "chuyển từ hội thoại này sang hội thoại khác bị delay mấy giây"): 50 chats instead of 16, kept
+// in this browser across reloads (chat-cache.js), and no 5-minute limit. The copy is only ever a first paint: the
+// server is asked every time and the chat redrawn when its answer differs, so an old copy cannot stay on screen.
+const _PHIEN_CACHE_MAX = 50;
+const _PHIEN_CACHE_TTL = 7 * 24 * 3600 * 1000;
 const _PREFETCH_TUOI = 15 * 1000;            // bản tải trước còn mới trong khoảng này thì khỏi hỏi lại
+const _WARM_MAX = 8;                      // chats the history list warms by itself once the page is idle
+const _WARM_FRESH_MS = 10 * 60 * 1000;        // ...unless a copy this fresh is already kept
 const _phienCache = new Map();               // id -> { sess, at }
 const _phienDangTai = new Map();             // id -> Promise<sess> (gộp các lượt hỏi trùng)
 let _phienMoLuc = null;                      // { id, len } - độ dài convo lúc mở, để biết cuộc đã đổi khi rời đi
+// The copies kept by earlier visits, read once at start (oldest first, so the newest stay last in the LRU order).
+// openStoredSession waits for this read only while it races the server's answer.
+let _keptChatsLoading = null;
+try {
+  if (window.JavisChatCache) _keptChatsLoading = window.JavisChatCache.all().then((ds) => {
+    for (let i = Math.min(ds.length, _PHIEN_CACHE_MAX) - 1; i >= 0; i--) {
+      if (!_phienCache.has(ds[i].id)) _phienCache.set(ds[i].id, { sess: ds[i].sess, at: ds[i].at });
+    }
+  }).catch(() => {}).finally(() => { _keptChatsLoading = null; });
+} catch (e) {}
 
 // tools=0: the chat view never shows stored tool calls, and they can be most of the payload (see sessions_get).
 function _urlPhien(id) { return `/sessions/${encodeURIComponent(id)}?limit=${TIN_MOI_LUOT}&tools=0`; }
 function _ghiCachePhien(id, sess) {
   if (!id || !sess || sess.error) return;
+  const at = Date.now();
   _phienCache.delete(id);
-  _phienCache.set(id, { sess, at: Date.now() });
+  _phienCache.set(id, { sess, at });
   while (_phienCache.size > _PHIEN_CACHE_MAX) _phienCache.delete(_phienCache.keys().next().value);
+  try { if (window.JavisChatCache) window.JavisChatCache.put(id, sess, at); } catch (e) {}
 }
 function _docCachePhien(id) {
   const e = _phienCache.get(id);
@@ -2503,10 +2528,34 @@ function prefetchSession(id) {
   if (e && Date.now() - e.at < _PREFETCH_TUOI) return;
   _taiPhien(id).catch(() => {});
 }
-// Rời một cuộc mà nó đã có thêm tin (mình gửi, Javis trả lời): bản trong bộ nhớ đã cũ, bỏ đi để lần sau không vẽ
-// lại một khúc thiếu tin rồi mới nhảy.
+// Phones have no hover: once the history list is drawn and the page idle, warm its first chats one at a time
+// (2026-11-08). Skipped on a data-saving connection; a chat with a fresh enough copy is not asked again.
+let _warming = false;
+function prefetchMany(ids) {
+  if (_warming || !Array.isArray(ids)) return;
+  try { if (navigator.connection && navigator.connection.saveData) return; } catch (e) {}
+  const now = Date.now();
+  const todo = ids.filter((id) => {
+    const e = id && _phienCache.get(id);
+    return id && id !== savedSessionId && !_phienDangTai.has(id) && !(e && now - e.at < _WARM_FRESH_MS);
+  }).slice(0, _WARM_MAX);
+  if (!todo.length) return;
+  _warming = true;
+  const whenIdle = (fn) => (typeof requestIdleCallback === "function" ? requestIdleCallback(fn, { timeout: 2000 }) : setTimeout(fn, 400));
+  const next = () => {
+    const id = todo.shift();
+    if (!id) { _warming = false; return; }
+    whenIdle(() => { _taiPhien(id).catch(() => {}).finally(next); });
+  };
+  next();
+}
+// Rời một cuộc mà nó đã có thêm tin (mình gửi, Javis trả lời): bản trong bộ nhớ đã cũ.
+// 2026-11-08: ask for the new copy right away instead of dropping the old one. Dropping it is why going back to the
+// chat being taught always waited for the server; now the copy is usually fresh again before the owner returns.
 function _quenPhienNeuDoi() {
-  if (_phienMoLuc && _phienMoLuc.id === savedSessionId && convo.length !== _phienMoLuc.len) _phienCache.delete(_phienMoLuc.id);
+  if (_phienMoLuc && _phienMoLuc.id === savedSessionId && convo.length !== _phienMoLuc.len) {
+    _taiPhien(_phienMoLuc.id).catch(() => {});
+  }
 }
 
 async function openStoredSession(id, stillCurrent, opts) {
@@ -2524,15 +2573,25 @@ async function openStoredSession(id, stillCurrent, opts) {
     _veLaiPhien(id, rong, ticket, false);
     return;
   }
+  // Stage 2 (2026-11-08): the reads a chat switch makes (messages, model bar, jobs strip, coding and GitHub chips)
+  // leave together in one batch from the second switch on (fetch-gop.js visit).
+  try { if (window.JavisFetchGop && window.JavisFetchGop.visit) window.JavisFetchGop.visit("chat", { sid: id }); } catch (e) {}
   // Có bản trong bộ nhớ: vẽ ngay, rồi so với bản mới.
-  const daCo = _docCachePhien(id);
+  let daCo = _docCachePhien(id);
+  const fresh = _taiPhien(id);   // the server is asked at once, whatever is kept
+  if (!daCo && _keptChatsLoading) {
+    // Just after a reload the kept copies may still be on their way from IndexedDB: take whichever comes first.
+    await Promise.race([_keptChatsLoading, fresh.catch(() => {})]);
+    if (!conHieuLuc()) return;
+    daCo = _docCachePhien(id);
+  }
   let veRoi = "";
   if (daCo) {
     _veLaiPhien(id, daCo.sess, ticket, false);
     veRoi = _vanTayPhien(daCo.sess);
   }
   try {
-    const sess = await _taiPhien(id);
+    const sess = await fresh;
     if (!conHieuLuc() || !sess || sess.error) return;
     // Bản mới y hệt bản đã vẽ: giữ nguyên màn (không nháy, không mất chỗ cuộn).
     if (veRoi && veRoi === _vanTayPhien(sess)) return;
@@ -2637,7 +2696,7 @@ function newChat() {
   try { chatInput.focus(); } catch (e) {}
 }
 window.JavisSessions = { open: openStoredSession, new: newChat, blank: blankChat, brain: () => currentBrainPath(),
-                         current: () => savedSessionId, prefetch: prefetchSession };
+                         current: () => savedSessionId, prefetch: prefetchSession, prefetchMany: prefetchMany };
 // Báo các UI khác (sidebar Lịch sử trong chat workspace) biết phiên/danh sách vừa đổi
 // Performance (2026-11-05): `reason` "open" = only WHICH chat is on screen changed (a switch), no message was added.
 // Listeners that count or list messages (history list, unread and job counts) skip their network round on it.
