@@ -15251,6 +15251,8 @@ async def _start_scheduler():
                              session_probe=_manual_session_probe, session_undo=_manual_session_undo,
                              # 0.433.0: hear what is said in a video a customer sends (same Groq key as voice messages).
                              transcribe=_stt_nghe,
+                             # 2026-11-08: a dedicated bot never polls the token of a running admin bot.
+                             admin_tokens=_admin_bot_tokens,
                              # Lượt bot hỏng: khách không nhận gì, chủ nghe ở chuông thông báo (chủ repo 15/10/2026).
                              # 0.403.0: urgent: a customer is waiting for a person, or got no answer at all.
                              notify=lambda text: _bo_vao_hom_thu("", text, kind="system", source="chatbot",
@@ -20875,20 +20877,26 @@ def sessions_list(brain: str = Query(None), limit: int = Query(50),
     return {"sessions": get_store().list_sessions(limit=limit, brain=_brain_keys(brain),
                                                   project=project or None,
                                                   channel=channel or None,
-                                                  also_channels=_kenh_bot_cua_agent(brain, channel) if bots else [])}
+                                                  also_channels=_agent_history_channels(brain, channel) if bots else [])}
 
 
-def _kenh_bot_cua_agent(brain, channel) -> list:
+def _agent_history_channels(brain, channel) -> list:
     """Lịch sử của một Agent (kênh `agent:<slug>`) gồm cả hội thoại của các bot chuyên trách dùng Agent đó.
 
     Từ 0.65.0 hội thoại bot với khách không hiện ở Trò chuyện mà nằm trong lịch sử của Agent nối với
-    chatbot (chủ dự án 2026-09-30). Kênh của phiên bot là `bot:<slug hoặc id>` (xem `_tg_answer`)."""
+    chatbot (chủ dự án 2026-09-30). Kênh của phiên bot là `bot:<slug hoặc id>` (xem `_tg_answer`).
+
+    2026-11-08 (owner: admin chats on Zalo "không hiện lịch sử chat lên trên Javis, nhất là nối với một agent"): the
+    owner's chats from the admin channels and the CLI join too. Javis Core's history holds the plain ones (Javis Core
+    is who answers there); an agent's holds the ones routed to it, stored as `<channel>@<slug>` (`_owner_store_channel`)."""
     ch = str(channel or "").strip()
     if not ch.startswith("agent:"):
         return []
     slug = ch[len("agent:"):]
+    if javis_core.is_core_channel(ch):
+        return list(OWNER_TURN_CHANNELS)
     keys = {str(k) for k in (_brain_keys(brain) or [])}
-    out = []
+    out = [f"{c}@{slug}" for c in OWNER_TURN_CHANNELS]
     try:
         for b in chatbot_store.list_bots():
             a = b.get("agent") or {}
@@ -20964,7 +20972,7 @@ def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = 
     (ô tìm ở cột lịch sử của một trợ lý / quy trình trên trang Cộng sự)."""
     return {"results": get_store().search(q, limit=limit, brain=_brain_keys(brain),
                                           channel=channel or None,
-                                          also_channels=_kenh_bot_cua_agent(brain, channel) if bots else [])}
+                                          also_channels=_agent_history_channels(brain, channel) if bots else [])}
 
 
 @app.get("/sessions/{session_id}")
@@ -23405,6 +23413,21 @@ def _tg_save_brain_map() -> None:
         print(f"[tg brain map write] {type(e).__name__}: {e}", file=sys.stderr)
 
 
+# 2026-11-08: the channels the owner talks to Javis through outside the dashboard (the Admin channels page and the
+# terminal). Their chats show in Javis Core's history on the Partners page; one routed to an agent is stored as
+# `<channel>@<slug>` and shows in that agent's history instead (`_agent_history_channels`).
+OWNER_TURN_CHANNELS = ("telegram", "zalo", "lark", "discord", "slack", "whatsapp", "cli")
+
+
+def _owner_store_channel(channel, agent) -> str:
+    """The channel label an owner turn's conversation is stored under: `<channel>@<slug>` when an agent answers, so
+    the Partners page finds it under that agent; the plain channel otherwise. The turn itself keeps the plain channel
+    (its reply route, the channel block of the prompt and the hooks all need the real one)."""
+    ch = str(channel or "telegram")
+    slug = str((agent or {}).get("slug") or "")
+    return f"{ch}@{slug}" if slug and "@" not in ch else ch
+
+
 def _agent_sess_key(chat_id, agent) -> str:
     """Session key of one chat's turns with one agent: `<chat>@<slug>`, or the chat itself without an agent.
 
@@ -23590,6 +23613,14 @@ def _tg_conv_sid(store, sess, brain, engine_label, model, channel="telegram"):
                 carry_project = str(row.get("project_id") or "")
                 sid = None      # nghỉ lâu / đã dài → sang khúc mới
     if sid:
+        # 2026-11-08: an agent chat opened before it carried its agent (`telegram`, not `telegram@<slug>`) moves to
+        # the agent's label now, so it shows in that agent's history without waiting for the next rotation.
+        base = str(channel or "").split("@", 1)[0]
+        if channel and base and base != channel and str(row.get("channel") or "") == base:
+            try:
+                store.relabel_channel(sid, base, channel)
+            except Exception as e:  # noqa: BLE001 - a label must never cost the turn
+                print(f"[{channel} relabel] {type(e).__name__}: {e}", file=__import__('sys').stderr)
         # Còn dùng tiếp: đồng bộ engine/model vì người dùng có thể vừa đổi bằng /model.
         sess["sid"] = store.get_or_create(sid, brain=_brain_key(brain), engine=engine_label,
                                           model=model)
@@ -23794,8 +23825,8 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         if not conv_sid and ghi_kho:
             # Chỉ TỰ MỞ phiên khi vỏ này còn là nơi ghi. Không ghi mà vẫn mở là để lại một bản
             # ghi hội thoại rỗng tanh trong thanh Lịch sử - đúng thứ đang phải dọn.
-            conv_sid = _tg_conv_sid(store, sess, brain, engine_label,
-                                    api_model or mcfg.get("claude_model"), channel=channel)
+            conv_sid = _tg_conv_sid(store, sess, brain, engine_label, api_model or mcfg.get("claude_model"),
+                                    channel=channel if bot else _owner_store_channel(channel, agent))
         if conv_sid and project_id:
             store.set_project(conv_sid, project_id)
         if conv_sid and ghi_kho:
@@ -25723,9 +25754,15 @@ def _tg_agent_mention(text, rows, bot_username=""):
 
 
 def _tg_owner_chat(chat) -> bool:
-    """A chat on the owner bot's whitelist. An empty whitelist answers anyone, so it allows no agent."""
+    """A chat on the owner bot's whitelist. An empty whitelist answers anyone, so it allows no agent.
+
+    2026-11-08: the owner's Zalo bot too, by its prefixed key `zalo:<id>` (its empty list allows nobody)."""
+    key = str(chat or "")
+    if key.startswith(ZALO_CHAT_PREFIX):
+        ids = tg_parse_ids((cfgmod.read_settings().get("zalo_bot") or {}).get("chat_id", ""))
+        return key[len(ZALO_CHAT_PREFIX):] in ids
     ids = tg_parse_ids((cfgmod.read_settings().get("telegram") or {}).get("chat_id", ""))
-    return bool(chat) and str(chat) in ids
+    return bool(key) and key in ids
 
 
 def _tg_agent_list_text(rows, head="") -> str:
@@ -25803,8 +25840,10 @@ def _tg_owner_precheck(text, meta):
     return {"reply": r["reply"]} if r["reply"] else None
 
 
-async def _tg_owner_answer(text, meta=None, progress=None):
-    """Answer function of the OWNER's Telegram bot: `_tg_answer`, routed to an agent when asked."""
+async def _tg_owner_answer(text, meta=None, progress=None, channel="telegram"):
+    """Answer function of the OWNER's Telegram bot: `_tg_answer`, routed to an agent when asked.
+
+    2026-11-08: also the owner's Zalo bot (`_zalo_answer`, channel "zalo", chat id already prefixed)."""
     m = meta or {}
     chat = str(m.get("chat_id") or "")
     r = _tg_agent_route(chat, text, m.get("bot_username") or "")
@@ -25812,9 +25851,10 @@ async def _tg_owner_answer(text, meta=None, progress=None):
         return {"text": r["reply"], "files": []}
     ag = r["agent"]
     if not ag:
-        out = await _tg_answer(r["text"], meta, progress)
+        out = await _tg_answer(r["text"], meta, progress, channel=channel)
     else:
-        out = await _tg_answer(r["text"], meta, progress, agent={"brain": ag["brain"], "slug": ag["slug"]})
+        out = await _tg_answer(r["text"], meta, progress, channel=channel,
+                               agent={"brain": ag["brain"], "slug": ag["slug"]})
         try:
             # The agent turn ran in its own session: /retry reads the chat's, and must resend the
             # message as written (mention included) so it reaches the same agent again.
@@ -25832,7 +25872,8 @@ async def _tg_owner_answer(text, meta=None, progress=None):
 
 async def _tg_owner_command(cmd, arg, chat=None, meta=None):
     """Command function of the OWNER's Telegram bot: `_tg_command` plus /agent. Kept out of
-    `_tg_command` because the owner's Zalo bot and owner channels share it and have no agent routing."""
+    `_tg_command` because the owner channels share it and have no agent routing. The owner's Zalo
+    bot uses this one too since 2026-11-08 (`_zalo_command`)."""
     chat_key = str(chat or "default")
     if cmd == "agent":
         if not _tg_owner_chat(chat_key):
@@ -26013,7 +26054,19 @@ async def _zalo_answer(text, meta=None, progress=None, channel="zalo", bot=None)
     m = dict(meta or {})
     goc = str(m.get("chat_id") or "").strip()
     m["chat_id"] = (ZALO_CHAT_PREFIX + goc) if goc else "default"
-    return await _tg_answer(text, m, progress, channel="zalo", bot=bot)
+    if bot:
+        return await _tg_answer(text, m, progress, channel="zalo", bot=bot)
+    # 2026-11-08 (owner: "nối agent với cả bot Zalo đấy"): the owner's Zalo bot routes to an agent like Telegram's,
+    # `@<name> <question>` once or `/agent <name>` for the whole chat, and the agent's chat shows in its history.
+    return await _tg_owner_answer(text, m, progress, channel="zalo")
+
+
+async def _zalo_command(cmd, arg, chat=None, meta=None):
+    """Commands of the owner's Zalo bot, on the SAME prefixed key its turns use (`zalo:<id>`). Before 2026-11-08 the
+    transport's raw id went straight to `_tg_command`, so /brain, /model and /reset changed a session no Zalo turn ever
+    read, and /stop cancelled `telegram:<id>` while the turn ran as `telegram:zalo:<id>`. /agent comes with it."""
+    goc = str(chat or "").strip()
+    return await _tg_owner_command(cmd, arg, (ZALO_CHAT_PREFIX + goc) if goc else "default", meta)
 
 
 def _zalo_precheck(text, meta):
@@ -26026,7 +26079,8 @@ def _zalo_precheck(text, meta):
     ids = tg_parse_ids(z.get("chat_id"))
     cid = str((meta or {}).get("chat_id") or "").strip()
     if cid and cid in ids:
-        return None
+        # An allowed chat: a mention naming no agent, or several, is answered with the list before a turn starts.
+        return _tg_owner_precheck(text, {**(meta or {}), "chat_id": ZALO_CHAT_PREFIX + cid})
     # DANH SÁCH RỖNG = CHƯA AI ĐƯỢC PHÉP, không phải "ai cũng được".
     #
     # Đây là chỗ CỐ Ý khác Telegram, đừng "sửa" cho giống. Bên Telegram ô trống nghĩa là mở
@@ -26040,6 +26094,20 @@ def _zalo_precheck(text, meta):
     return {"reply": _zalo_ghi_cho(meta)}
 
 
+def _admin_bot_tokens() -> dict:
+    """{chatbot channel: token} of the owner's admin bots that are switched on (Telegram, Zalo Bot). A dedicated bot on
+    the Chatbot page never polls one of these (`chatbot_runtime.start_bot`): two pollers on one token split the
+    messages, and the half the dedicated bot took landed in its customer inbox, missing from the owner's chat."""
+    s = cfgmod.read_settings()
+    out = {}
+    for section, channel in (("telegram", "telegram"), ("zalo_bot", "zalo")):
+        c = s.get(section) or {}
+        tok = str(c.get("token") or "").strip()
+        if c.get("enabled") and tok:
+            out[channel] = tok
+    return out
+
+
 def restart_zalo_bot():
     """Bật lại bot Zalo theo cấu hình settings.zalo_bot (tắt bot cũ nếu có)."""
     global _ZALO_BOT
@@ -26050,10 +26118,14 @@ def restart_zalo_bot():
     if z.get("enabled") and z.get("token"):
         # KHÔNG truyền whitelist xuống lớp vận chuyển: `_zalo_precheck` lo phần đó và còn trả
         # về mã ghép nối. Truyền cả hai là người lạ ăn hai câu từ chối cho một tin.
-        _ZALO_BOT = zalo_bot.ZaloBot(z["token"], "", _zalo_answer, _tg_command,
+        _ZALO_BOT = zalo_bot.ZaloBot(z["token"], "", _zalo_answer, _zalo_command,
                                      download_dir=_zalo_inbox_dir,
                                      precheck_fn=_zalo_precheck, stt_fn=_stt_nghe)
         _ZALO_BOT.start()
+        try:
+            chatbot_runtime.release_admin_token("zalo")   # a dedicated bot still polling this token lets go of it
+        except Exception as e:  # noqa: BLE001 - the admin bot runs either way
+            print(f"[zalo release] {type(e).__name__}: {e}", file=sys.stderr)
         return True
     return False
 
@@ -26983,6 +27055,10 @@ def restart_telegram():
         _TG_BOT = TelegramBot(t["token"], t.get("chat_id", ""), _tg_owner_answer, _tg_owner_command, _tg_callback,
                               download_dir=_tg_inbox_dir, stt_fn=_stt_nghe, precheck_fn=_tg_owner_precheck)
         _TG_BOT.start()
+        try:
+            chatbot_runtime.release_admin_token("telegram")   # same as the Zalo admin bot (`restart_zalo_bot`)
+        except Exception as e:  # noqa: BLE001 - the admin bot runs either way
+            print(f"[telegram release] {type(e).__name__}: {e}", file=sys.stderr)
         return True
     return False
 
@@ -27395,6 +27471,7 @@ import routes.conversations as conversations_routes   # noqa: E402
 channels_routes.register(app, channels_routes.ChannelsDeps(
     bot_status=chatbot_runtime.status,
     main_bot_token=lambda: str(cfgmod.read_settings().get("telegram", {}).get("token", "")).strip(),
+    main_zalo_token=lambda: str(cfgmod.read_settings().get("zalo_bot", {}).get("token", "")).strip(),
 ))
 channels_routes._DEPS.restart_bot = chatbot_runtime.start_bot   # đổi token thì poller nạp lại
 # Gỡ tài khoản CUỐI CÙNG của một bot thì bot đó bị tắt: phải dừng poller thật, không thì nó

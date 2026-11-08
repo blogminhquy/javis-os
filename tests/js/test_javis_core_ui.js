@@ -35,7 +35,8 @@ check("blocks: Javis Core alone in the first block, above needs-you and pinned",
 // 2026-11-05 (owner): "keep Javis Core exactly like the other agents; only it is the system one you cannot remove, it
 // starts with my system prompt, and Auto is on and cannot be turned off".
 check("row: System badge, Auto switch always on and locked, no ... menu",
-  /var he = laAgent && !!x\.system;/.test(src) && /\(he \? '<span class="ws-sys">' \+ esc\(t\("ws\.system_badge"\)\)/.test(src)
+  /var he = laAgent && !!x\.system;/.test(src) && /function cardSubInner\(x, he, max\) \{\s*return \(he \? '<span class="ws-sys">' \+ esc\(t\("ws\.system_badge"\)\)/.test(src)
+  && /\(laAgent \? cardSubHtml\(x, he\) : ""\)/.test(src)
   && /rowToggleHtml\(he \? coreAutoRow\(x\) : S\.rs\[x\.slug\],\s*\{ saving: !he && !!S\.rsSaving\[x\.slug\], locked: he \}\)/.test(src)
   && /function coreAutoRow\(x\) \{[\s\S]{0,200}enabled: true, status: "active"/.test(src)
   && /\(he \? "" : '<button type="button" class="ws-item-more"/.test(src));
@@ -52,7 +53,22 @@ check("its Auto panel always shows", /function veAuto\(item\) \{[\s\S]{0,300}!\(
 check("the list asks the server for it (system=1)", /\/agents\?brain=" \+ b \+ "&prompt=0&system=1"/.test(src));
 check("i18n vi/en", vi["ws.system_badge"] === "Hệ thống" && en["ws.system_badge"] === "System");
 check("CSS for the badge", css.includes(".ws-sys {") && !css.includes(".ws-core-card {"));
-check("the separate Core card script is gone", !fs.existsSync(path.join(root, "dashboard", "core-model.js"))
+// 2026-11-08 (owner: "chữ Hệ thống nên cho xuống dòng bên dưới, bên trái, cạnh avatar"): the badge leaves the name's row
+// and opens the line under it, before any tag chips.
+const subSrc = src.slice(src.indexOf("  var CHIP_TOI_DA = 3;"), src.indexOf("  // HTML của MỘT hàng."));
+const vm = require("vm");
+const subCtx = vm.createContext({ t: (k) => k, esc: (s) => String(s), tagsCua: (x) => x.tags || [] });
+vm.runInContext(subSrc + "\nglobalThis.cardSubHtml = cardSubHtml;", subCtx);
+const coreSub = subCtx.cardSubHtml({ name: "Javis Core", tags: ["Ops"] }, true);
+check("Javis Core card: System badge on the line under the name, then its tags",
+  coreSub.startsWith('<span class="ws-item-sub"><span class="ws-sys">ws.system_badge</span><span class="ws-tags"')
+  && coreSub.includes('title="Ops"') && subCtx.cardSubHtml({ name: "X" }, false) === ""
+  && !/<\/strong>' \+\s*\(he \? '<span class="ws-sys">/.test(src), coreSub);
+check("CSS: the sub line is one row, chips shrink, 14px on phones",
+  /\.ws-item-sub \{ display: flex;[^}]*overflow: hidden; \}/.test(css)
+  && /\.ws-item-sub \.ws-tags \{[^}]*flex-wrap: nowrap;/.test(css)
+  && /@media \(max-width: 900px\) \{\s*\.ws-item-sub \.ws-sys, \.ws-item-sub \.ws-tag \{ font-size: 14px;/.test(css));
+check("the separate Core card script is gone",!fs.existsSync(path.join(root, "dashboard", "core-model.js"))
   && !fs.readFileSync(path.join(root, "dashboard", "index.html"), "utf8").includes("core-model.js"));
 
 if (fails) { console.log("\nFAIL " + fails); process.exit(1); }

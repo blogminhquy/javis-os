@@ -3884,11 +3884,24 @@ span.tmp-lead { cursor: default; }
 .ws-item-text { flex: 1 1 auto; }
 .ws-item-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .ws-item-top > strong { flex: 1 1 auto; min-width: 0; }
-/* 0.185.0: Javis Core, the system assistant. A small System badge on its row and on its card; the row keeps the
-   accent edge like a pinned one. */
+/* 0.185.0: Javis Core, the system assistant. A small System badge on its card; the row keeps the accent edge like a
+   pinned one. */
 .ws-sys { flex: 0 0 auto; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600; line-height: 1.5;
   color: var(--accent); background: var(--accent-wash); border: 1px solid var(--accent); }
 .ws-item-wrap.he > .ws-item { border-left: 3px solid var(--accent); border-radius: 9px; }
+/* 2026-11-08 (owner): the card's second line, under the name and beside the avatar: System badge, then tag chips. One
+   line, never wrapping, level with the time and Auto corner on the right. workspace.js fitCardTags sizes it up to that
+   corner and folds the chips that would be cut into "+n"; only the first chip may shrink, and only when it is alone.
+   Before that runs (hidden page) the last line of the text keeps 104px clear for the corner (rule above). */
+.ws-item-sub { display: flex; align-items: center; gap: 4px; min-width: 0; margin-top: 4px; overflow: hidden; }
+.ws-item-sub .ws-sys { font-size: 12px; padding: 0 7px; line-height: 16px; }
+.ws-item-sub .ws-tags { flex: 0 1 auto; flex-wrap: nowrap; margin-top: 0; overflow: hidden; }
+.ws-item-sub .ws-tag { flex: none; font-size: 12px; line-height: 16px; }
+.ws-item-sub .ws-tag:first-child { flex: 0 1 auto; min-width: 2.6em; }
+.ws-item-sub.measure .ws-tag:first-child { flex: none; }
+@media (max-width: 900px) {
+  .ws-item-sub .ws-sys, .ws-item-sub .ws-tag { font-size: 14px; line-height: 20px; }
+}
 .ws-item-time { flex: none; font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; }
 
 /* 0.148.0: tay kéo đổi bề rộng cột (col-resize.js) ở trang đồ thị (cột Vault, cột hội thoại) và trang Trò chuyện (cột
