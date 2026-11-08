@@ -385,7 +385,7 @@ class TasksFeature:
         if self._dispatcher_task:
             await asyncio.gather(self._dispatcher_task, return_exceptions=True)
         self._workers.clear()
-        self.store.close()
+        await asyncio.to_thread(self.store.close)
 
     def wake(self) -> None:
         self._wake.set()
@@ -549,12 +549,9 @@ class TasksFeature:
                 if het_luot:
                     final_task = self._hoan_vi_het_luot(tid, worker_id, het_luot)
                 elif error:
-                    final_task = self.store.block(
-                        tid, worker_id, "transient", error, transient=True
-                    )
+                    final_task = await asyncio.to_thread(self.store.block, tid, worker_id, "transient", error, transient=True)
                 else:
-                    final_task = self.store.prepared(
-                        tid,
+                    final_task = await asyncio.to_thread(self.store.prepared, tid,
                         worker_id,
                         spec["intent"],
                         spec["capability"],
@@ -567,17 +564,14 @@ class TasksFeature:
                             "specifier": spec.get("specifier", "ai"),
                             **({"effort": "light"} if spec.get("effort") == "light" else {}),
                             **({"agent": spec["agent"]} if spec.get("agent") else {}),
-                        },
-                    )
+                        })
                 return
 
             if (
                 task.get("capability") == "external-write"
                 and task.get("execution_mode") != "full"
             ):
-                final_task = self.store.block(
-                    tid, worker_id, "capability", LY_DO_CAN_QUYEN,
-                )
+                final_task = await asyncio.to_thread(self.store.block, tid, worker_id, "capability", LY_DO_CAN_QUYEN)
                 return
 
             # 0.238.0: thao tác ra ngoài của việc ghi sổ theo mã việc (once_ledger.py), nên lần chạy lại không
@@ -585,7 +579,7 @@ class TasksFeature:
             job = f"kanban:{tid}"
             treo = once_ledger.unknowns(job)
             if treo:
-                final_task = self.store.ask(tid, worker_id, self._cau_hoi_ghi_ngoai(treo),
+                final_task = await asyncio.to_thread(self.store.ask, tid, worker_id, self._cau_hoi_ghi_ngoai(treo),
                                             extra_meta={"once_pending": True})
                 return
             tok = turn_context.bind(turn_context.make(
@@ -600,7 +594,7 @@ class TasksFeature:
             treo = once_ledger.unknowns(job)
             if treo:
                 # Một lời gọi ra ngoài hết giờ hay đứt kết nối giữa chừng: chạy lại hay báo xong đều có thể sai.
-                final_task = self.store.ask(tid, worker_id, self._cau_hoi_ghi_ngoai(treo), result=result,
+                final_task = await asyncio.to_thread(self.store.ask, tid, worker_id, self._cau_hoi_ghi_ngoai(treo), result=result,
                                             extra_meta={"once_pending": True})
                 return
             # Soi CẢ result: nhà cung cấp hay in câu hết lượt ngay chỗ câu trả lời chứ không
@@ -609,19 +603,15 @@ class TasksFeature:
             if het_luot:
                 final_task = self._hoan_vi_het_luot(tid, worker_id, het_luot)
             elif error:
-                final_task = self.store.block(
-                    tid,
+                final_task = await asyncio.to_thread(self.store.block, tid,
                     worker_id,
                     "transient",
                     error,
                     result=result,
-                    transient=self._is_transient(error),
-                )
+                    transient=self._is_transient(error))
             elif needs_input:
-                final_task = self.store.ask(
-                    tid, worker_id, self._needs_input_reason(result, task_store.QA_TEXT_MAX),
-                    result=result,
-                )
+                final_task = await asyncio.to_thread(self.store.ask, tid, worker_id, self._needs_input_reason(result, task_store.QA_TEXT_MAX),
+                    result=result)
             else:
                 # The worker ending its session is not the job being done. Check the report
                 # against the acceptance criteria the specifier wrote, and only then mark it
@@ -634,23 +624,19 @@ class TasksFeature:
                             # 0.411.0: how long the run took, shown on the card.
                             "run_seconds": round(time.monotonic() - t_run)}
                 if not passed:
-                    final_task = self.store.ask(
-                        tid,
+                    final_task = await asyncio.to_thread(self.store.ask, tid,
                         worker_id,
                         "Chưa đạt điều kiện hoàn thành: "
                         + (why or "worker báo chưa làm xong.")[:200],
-                        result=result,
-                    )
+                        result=result)
                     return
-                final_task = self.store.complete(
-                    tid,
+                final_task = await asyncio.to_thread(self.store.complete, tid,
                     worker_id,
                     result,
                     needs_approval=bool(task.get("needs_approval")),
                     metadata=metadata,
-                    artifacts=self._artifacts(result, root),
-                )
-                self.store.promote_dependencies(root)
+                    artifacts=self._artifacts(result, root))
+                await asyncio.to_thread(self.store.promote_dependencies, root)
         except asyncio.CancelledError:
             cancel_all(f"dispatch:{tid}")
             if self._closing:
@@ -658,11 +644,11 @@ class TasksFeature:
                 # `cancelled` câm cho việc đang chạy, nên mỗi lần bấm Cập nhật là việc nền dở
                 # dang biến mất, không thông báo, không chạy lại. Trả về ready (không tính lượt)
                 # để dispatcher nhặt lại sau khi khởi động.
-                self.store.block(tid, worker_id, "transient",
+                await asyncio.to_thread(self.store.block, tid, worker_id, "transient",
                                  "Máy chủ khởi động lại giữa chừng, việc sẽ tự chạy lại.",
                                  transient=True, keep_attempt=True)
             else:
-                self.store.cancel_running(tid, "worker cancelled")
+                await asyncio.to_thread(self.store.cancel_running, tid, "worker cancelled")
             raise
         except Exception as exc:
             # Hết giờ (TimeoutError) hay lỗi lạ: GIẾT tiến trình engine của việc này trước khi
@@ -673,13 +659,11 @@ class TasksFeature:
             if het_luot:
                 final_task = self._hoan_vi_het_luot(tid, worker_id, het_luot)
             else:
-                final_task = self.store.block(
-                    tid,
+                final_task = await asyncio.to_thread(self.store.block, tid,
                     worker_id,
                     "transient",
                     f"{type(exc).__name__}: {exc}",
-                    transient=True,
-                )
+                    transient=True)
         finally:
             heartbeat.cancel()
             await asyncio.gather(heartbeat, return_exceptions=True)
@@ -1378,7 +1362,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         # two brains' blocked jobs must not merge into one message.
         chat_id = str(task.get("chat_id") or "") + _BUCKET_SEP + str(task.get("brain_root") or "")
         try:
-            cho = [t["title"] for t in self.store.waiting_on(str(task.get("id") or ""))]
+            cho = [t["title"] for t in await asyncio.to_thread(self.store.waiting_on, str(task.get("id") or ""))]
         except Exception:
             cho = []
         self._ro_bao.setdefault(chat_id, []).append({
@@ -1794,10 +1778,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
     async def followup(self, task_id: str, text: str, brain: str = "", by: str = "owner") -> dict:
         """The owner's extra instruction for a job that is stopped, waiting or finished: it goes back to the queue
         and the next run reads the note on top of its last report (store.followup)."""
-        task = self.store.get_task(task_id)
+        task = await asyncio.to_thread(self.store.get_task, task_id)
         if not task or (brain and task.get("brain_root") != self._ensure(brain)):
             return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
-        done, err = self.store.followup(task_id, text, by=by)
+        done, err = await asyncio.to_thread(self.store.followup, task_id, text, by=by)
         if not done:
             return {"ok": False, "error": {
                 "empty": localefmt.chu("Lời nhắn đang trống", "The message is empty"),
@@ -1809,12 +1793,12 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         await self._asnapshot(str(done["brain_root"]))
         self.wake()
         return {"ok": True, "status": done["status"],
-                "orchestration": self.store.board_mode(str(done["brain_root"]))}
+                "orchestration": await asyncio.to_thread(self.store.board_mode, str(done["brain_root"]))}
 
     async def verify(self, task_id: str, brain: str = "") -> dict:
         """Check a finished job against its completion criteria again, for a job marked done without being checked
         (the checker could not run the first time). Runs in the background; the card shows the outcome."""
-        task = self.store.get_task(task_id)
+        task = await asyncio.to_thread(self.store.get_task, task_id)
         if not task or (brain and task.get("brain_root") != self._ensure(brain)):
             return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
         if task.get("status") not in ("done", "review"):
@@ -1826,19 +1810,19 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         # A check left at "checking" by a restart is not running: only a check alive in this process blocks a new one.
         if task_id in self._verifying:
             return {"ok": True, "started": False}
-        self.store.set_acceptance(task_id, "checking")
+        await asyncio.to_thread(self.store.set_acceptance, task_id, "checking")
         self._verifying.add(task_id)
 
         async def run():
             try:
-                full = self.store.get_task(task_id) or task
+                full = await asyncio.to_thread(self.store.get_task, task_id) or task
                 passed, why, how = await self._check_acceptance(full, str(full.get("result") or ""))
                 state = ("ai" if passed else "failed") if how == "ai" else (
                     "failed" if not passed else "unverified")
-                self.store.set_acceptance(task_id, state, why)
+                await asyncio.to_thread(self.store.set_acceptance, task_id, state, why)
             except Exception as e:   # noqa: BLE001
                 print(f"[kanban] kiểm lại {task_id} lỗi: {type(e).__name__}: {e}", file=sys.stderr)
-                self.store.set_acceptance(task_id, "unverified")
+                await asyncio.to_thread(self.store.set_acceptance, task_id, "unverified")
             finally:
                 self._verifying.discard(task_id)
                 await self._asnapshot(str(task.get("brain_root") or ""))
@@ -1854,7 +1838,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         Một cửa cho cả trang Việc (`POST /kanban/task/answer`) lẫn tool `javis_task` op=answer,
         nên chat web, Telegram hay Zalo đi cùng một đường. `brain` rỗng thì không kiểm brain
         (tool đã tự kiểm theo vault của nó)."""
-        task = self.store.get_task(task_id)
+        task = await asyncio.to_thread(self.store.get_task, task_id)
         if not task or (brain and task.get("brain_root") != self._ensure(brain)):
             return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
         if (task.get("metadata") or {}).get("once_pending") and str(text or "").strip() \
@@ -1862,7 +1846,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             # Câu hỏi "đã gửi chưa" (0.238.0): chốt sổ trước khi việc chạy lại. Chỉ câu mở đầu bằng ý
             # "chưa / làm lại" mới cho làm lại; còn lại coi như đã làm, để không gửi trùng.
             once_ledger.resolve(f"kanban:{task_id}", done=not once_ledger.answer_means_redo(text))
-        done, err = self.store.answer(task_id, text, by=by)
+        done, err = await asyncio.to_thread(self.store.answer, task_id, text, by=by)
         if not done:
             return {"ok": False, "error": {
                 "empty": localefmt.chu("Câu trả lời đang trống", "The answer is empty"),
@@ -1872,7 +1856,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         await self._asnapshot(str(done["brain_root"]))
         self.wake()
         return {"ok": True, "status": done["status"],
-                "orchestration": self.store.board_mode(str(done["brain_root"]))}
+                "orchestration": await asyncio.to_thread(self.store.board_mode, str(done["brain_root"]))}
 
     def _make_router(self) -> APIRouter:
         router = APIRouter()
@@ -1900,7 +1884,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
 
         @router.post("/kanban/hint/dismiss")
         async def kanban_hint_dismiss(key: str = Form(...), brain: str = Form("brain")):
-            self.store.dismiss_hint(self._ensure(brain), key)
+            await asyncio.to_thread(self.store.dismiss_hint, self._ensure(brain), key)
             return {"ok": True}
 
         @router.get("/kanban/health")
@@ -1916,14 +1900,14 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         @router.get("/kanban/task/show")
         async def kanban_show(id: str = Query(...), brain: str = Query("brain")):
             root = self._ensure(brain)
-            task = self.store.get_task(id)
+            task = await asyncio.to_thread(self.store.get_task, id)
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             return {
                 "ok": True,
                 "task": {**task, "calm": self._calm(task), "waits_for_owner": TaskStore.waits_for_owner(task)},
-                "events": self.store.list_events(id, 100),
-                "runs": self.store.list_runs(id, 20),
+                "events": await asyncio.to_thread(self.store.list_events, id, 100),
+                "runs": await asyncio.to_thread(self.store.list_runs, id, 20),
             }
 
         @router.post("/kanban/task")
@@ -1968,12 +1952,12 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             brain: str = Form("brain"),
         ):
             root = self._ensure(brain)
-            task = self.store.get_task(id)
+            task = await asyncio.to_thread(self.store.get_task, id)
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             if status not in VALID_STATUS:
                 return {"ok": False, "error": localefmt.chu("status không hợp lệ", "invalid status")}
-            if not self.store.move(id, status):
+            if not await asyncio.to_thread(self.store.move, id, status):
                 return {"ok": False, "error": localefmt.chu("không thể chuyển task đang chạy", "cannot move a running task")}
             await self._asnapshot(root)
             self.wake()
@@ -1984,10 +1968,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             id: str = Form(...), brain: str = Form("brain")
         ):
             root = self._ensure(brain)
-            task = self.store.get_task(id)
+            task = await asyncio.to_thread(self.store.get_task, id)
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
-            if not self.store.move(id, "archived", "operator archive"):
+            if not await asyncio.to_thread(self.store.move, id, "archived", "operator archive"):
                 return {"ok": False, "error": localefmt.chu("không thể archive task đang chạy", "cannot archive a running task")}
             await self._asnapshot(root)
             return {"ok": True, "archived": True}
@@ -2007,12 +1991,12 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             lại vì lý do gì.
             """
             root = self._ensure(brain)
-            task = self.store.get_task(id)
+            task = await asyncio.to_thread(self.store.get_task, id)
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             if str(task.get("block_kind") or "") != "capability":
                 return {"ok": False, "error": localefmt.chu("việc này không bị chặn vì thiếu quyền", "this job is not blocked for lack of permission")}
-            if not self.store.grant_full(id):
+            if not await asyncio.to_thread(self.store.grant_full, id):
                 return {"ok": False, "error": localefmt.chu("không cấp quyền được cho task đang chạy", "cannot grant permission to a running task")}
             await self._asnapshot(root)
             self.wake()
@@ -2031,12 +2015,11 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             khu = str(panel or "").strip().lower()
             if khu == "attention":
-                removed = self.store.archive_attention(root, owner=True)
+                removed = await asyncio.to_thread(self.store.archive_attention, root, owner=True)
             elif khu == "handled":
-                removed = self.store.archive_attention(root, owner=False)
+                removed = await asyncio.to_thread(self.store.archive_attention, root, owner=False)
             elif khu == "history":
-                removed = self.store.purge_terminal(
-                    root, statuses=("archived", "cancelled", "done"))
+                removed = await asyncio.to_thread(self.store.purge_terminal, root, statuses=("archived", "cancelled", "done"))
             else:
                 return {"ok": False, "error": localefmt.chu("panel phải là 'attention', 'handled' hoặc 'history'", "panel must be 'attention', 'handled' or 'history'")}
             await self._asnapshot(root)
@@ -2052,7 +2035,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             statuses = ("archived", "cancelled")
             if str(include_done).strip() in ("1", "true", "True"):
                 statuses = statuses + ("done",)
-            removed = self.store.purge_terminal(root, statuses=statuses)
+            removed = await asyncio.to_thread(self.store.purge_terminal, root, statuses=statuses)
             await self._asnapshot(root)
             return {"ok": True, "removed": removed}
 
@@ -2060,7 +2043,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         async def kanban_clear(brain: str = Form("brain")):
             """Xoá TRẮNG bảng (trừ việc đang chạy). Dứt khoát, không hoàn tác được."""
             root = self._ensure(brain)
-            removed = self.store.clear_board(root)
+            removed = await asyncio.to_thread(self.store.clear_board, root)
             await self._asnapshot(root)
             return {"ok": True, "removed": removed}
 
@@ -2071,7 +2054,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             if mode not in ("off", "manual", "auto"):
                 return {"ok": False, "error": localefmt.chu("mode không hợp lệ", "invalid mode")}
             root = self._ensure(brain)
-            self.store.set_orchestration(root, mode)
+            await asyncio.to_thread(self.store.set_orchestration, root, mode)
             await self._asnapshot(root)
             self.wake()
             return {"ok": True, "orchestration": mode}
@@ -2095,11 +2078,11 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             id: str = Form(...), brain: str = Form("brain")
         ):
             root = self._ensure(brain)
-            task = self.store.get_task(id)
+            task = await asyncio.to_thread(self.store.get_task, id)
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             if task.get("status") not in ("triage", "ready"):
-                if not self.store.move(id, "ready", "operator run"):
+                if not await asyncio.to_thread(self.store.move, id, "ready", "operator run"):
                     return {"ok": False, "error": localefmt.chu("task đang chạy", "task is running")}
             started = await self._claim_and_spawn(id)
             if not started:
@@ -2117,10 +2100,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             id: str = Form(...), brain: str = Form("brain")
         ):
             root = self._ensure(brain)
-            task = self.store.get_task(id)
+            task = await asyncio.to_thread(self.store.get_task, id)
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
-            if not self.store.move(id, "ready", "operator retry"):
+            if not await asyncio.to_thread(self.store.move, id, "ready", "operator retry"):
                 return {"ok": False, "error": localefmt.chu("task đang chạy", "task is running")}
             await self._asnapshot(root)
             self.wake()
@@ -2131,14 +2114,14 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             id: str = Form(...), brain: str = Form("brain")
         ):
             root = self._ensure(brain)
-            task = self.store.get_task(id)
+            task = await asyncio.to_thread(self.store.get_task, id)
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             worker = self._workers.get(id)
             if worker and not worker.done():
                 cancel_all(f"dispatch:{id}")
                 worker.cancel()
-            elif not self.store.move(id, "cancelled", "operator cancel"):
+            elif not await asyncio.to_thread(self.store.move, id, "cancelled", "operator cancel"):
                 return {"ok": False, "error": localefmt.chu("không thể huỷ", "cannot cancel")}
             await self._asnapshot(root)
             return {"ok": True, "cancelled": True}
@@ -2146,7 +2129,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         @router.post("/kanban/stop")
         async def kanban_stop(brain: str = Form("brain")):
             root = self._ensure(brain)
-            self.store.set_orchestration(root, "off")
+            await asyncio.to_thread(self.store.set_orchestration, root, "off")
             cancelled = 0
             for tid, worker in list(self._workers.items()):
                 if self._worker_brains.get(tid) != root or worker.done():

@@ -110,7 +110,8 @@ code = "\n".join(d for d in src.split("\n") if not d.lstrip().startswith("#"))
 check("dashboard dọn mạch qua clear_native_threads(keep=engine_label)",
       "store.clear_native_threads(conv_sid, keep=engine_label)" in code)
 check("đường tắt dọn CẢ BA mạch bằng một lệnh",
-      "store.clear_native_threads(conv_sid)" in code)
+      # 2026-11-08: the turn hands the call to a worker thread (performance stage 3); same call, same arguments.
+      "store.clear_native_threads(conv_sid)" in code or "asyncio.to_thread(store.clear_native_threads, conv_sid)" in code)
 check("không còn ai gọi set_cli_session_id với chuỗi rỗng để XOÁ",
       'set_cli_session_id(conv_sid, "")' not in code)
 

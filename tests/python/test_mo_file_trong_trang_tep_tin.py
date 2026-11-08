@@ -57,7 +57,7 @@ os.environ.pop("JAVIS_REQUIRE_LOGIN", None)
 
 
 def _list(path):
-    return asyncio.run(main.files_list(brain="brain", path=path))
+    return main.files_list(brain="brain", path=path)   # a plain def since 2026-11-08 (thread pool)
 
 
 d_file = _list("06 - Sources/Ke Hoach SaaS Quan Ly Tai Chinh.md")
