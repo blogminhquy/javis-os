@@ -494,15 +494,36 @@ def doc_tu(tu: str) -> str:
     return am_vi_sang_viet(doan_am_vi(k), tu)
 
 
-def doc_viet(text: str) -> str:
+# English words that never stand alone in Vietnamese. Left out on purpose: "to", "in", "do",
+# "so", "no", "an", "a", "me", "he" ("chữ to", "in hoá đơn", "do đó", "so sánh", "ăn no").
+ENGLISH_MARKERS = frozenset("""
+the is are was were been will would can could should does did have has had not
+of for with from and but if than then that this these those there here
+you your yours we our they their them it's its i'm i've i'll don't doesn't can't
+what when where why how who which please just also very about into over
+""".split())
+
+
+def is_english_text(text: str) -> bool:
+    """Is this message written in English? Decided over the WHOLE message, so an English answer
+    that names a Vietnamese page ("Open the Hội thoại page") is still English, and a Vietnamese
+    answer full of product names ("Bật Dark Mode trong Settings") is still Vietnamese."""
+    tokens = [m.group(0) for m in _TU.finditer(str(text or ""))]
+    vietnamese = sum(1 for w in tokens if _CO_DAU.search(w))
+    markers = sum(1 for w in tokens if w.lower().replace("’", "'") in ENGLISH_MARKERS)
+    return markers >= 2 and markers >= vietnamese
+
+
+def doc_viet(text: str, vietnamese: bool = False) -> str:
     """Câu tiếng Việt xen tiếng Anh -> câu để giọng Việt đọc: từ tiếng Anh thay bằng cách đọc
     kiểu Việt, mọi thứ khác GIỮ NGUYÊN (dấu câu, số, khoảng trắng).
 
     Câu không có chữ tiếng Việt có dấu (câu thuần tiếng Anh) thì trả nguyên: để giọng đọc nó
-    như tiếng Anh.
+    như tiếng Anh. `vietnamese=True`: the caller knows the whole message is Vietnamese (the
+    browser decides it per message), so an English-only piece of it is respelled too.
     """
     s = str(text or "")
-    if not co_tieng_viet(s):
+    if not vietnamese and not co_tieng_viet(s):
         return s
     ra, pos = [], 0
     for m in _TU.finditer(s):
@@ -516,6 +537,69 @@ def doc_viet(text: str) -> str:
             pos = m.end()
     ra.append(s[pos:])
     return "".join(ra)
+
+
+ENGLISH_VOICE = "en-US-EmmaMultilingualNeural"
+# The voice for each language, by the gender of the voice the owner picked (owner, 2026-11-08):
+# "English: the voices that speak English; Vietnamese: the Vietnamese voices". The picked voice
+# is kept when it fits the language, otherwise the same-gender voice of that language reads.
+VOICES_BY_GENDER = {
+    "vi": {"f": "vi-VN-HoaiMyNeural", "m": "vi-VN-NamMinhNeural"},
+    "en": {"f": ENGLISH_VOICE, "m": "en-US-AndrewMultilingualNeural"},
+}
+_MALE_VOICES = ("namminh", "andrew", "brian", "william", "guy", "davis", "christopher", "eric",
+                "roger", "steffan", "ryan", "thomas", "liam")
+_EDGE_VOICE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}-\w+Neural$")
+# Letters only Vietnamese writes (co_tieng_viet also takes any non-ASCII word, kana included).
+_VI_LETTERS = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]", re.I)
+_VI_SHARED = re.compile(r"[àáâãèéêìíòóôõùúý]", re.I)          # also French, Spanish
+_NOT_VI = re.compile(r"[çœëïÿñßüöä¿¡]|[^\x00-\u024f\u1e00-\u1eff\u2000-\u206f]", re.I)
+
+
+def _looks_vietnamese(text: str) -> bool:
+    """Same idea as dashboard/voice-lang.js detect(): Vietnamese-only letters, or the marks it
+    shares with French and Spanish with no letter those have and Vietnamese lacks."""
+    t = str(text or "")
+    return bool(_VI_LETTERS.search(t) or (_VI_SHARED.search(t) and not _NOT_VI.search(t)))
+
+
+def voice_gender(voice: str) -> str:
+    """"m" or "f" for an Edge voice name; unknown names count as female (Emma is the default)."""
+    v = str(voice or "").lower()
+    return "m" if any(name in v for name in _MALE_VOICES) else "f"
+
+
+def _vietnamese_voice(voice: str) -> bool:
+    return str(voice or "").lower().startswith("vi-")
+
+
+def speech_plan(text: str, voice: str, english=None) -> tuple:
+    """What to send to Edge for one chunk, and with which voice (owner, 2026-11-08): an answer
+    written in English is read in English by a voice that speaks English; an answer in Vietnamese
+    is read by a Vietnamese voice (Hoai My, Nam Minh), keeping the Vietnamese way of saying
+    English words. The picked voice decides the gender. This replaces the 0.64.68 rule "the whole
+    answer in the ONE voice picked": that rule was about one sentence switching voices mid-way,
+    which still never happens, since the voice is chosen per message.
+
+    `english` says whether the WHOLE message is English (True/False, the browser decides it per
+    message); None (an older page, a voice note) means decide from this text alone. A voice that
+    is not an Edge voice name is left alone."""
+    if english is None:
+        english_text = is_english_text(text)
+        vietnamese = not english_text and _looks_vietnamese(text)
+        hinted = False
+    else:
+        english_text, vietnamese, hinted = bool(english), not english, True
+    edge = bool(_EDGE_VOICE.match(str(voice or "")))
+    if english_text:
+        if edge and _vietnamese_voice(voice):
+            voice = VOICES_BY_GENDER["en"][voice_gender(voice)]
+        return str(text or ""), voice
+    if not vietnamese:
+        return str(text or ""), voice       # another language (French, Japanese): left as it is
+    if edge and not _vietnamese_voice(voice):
+        voice = VOICES_BY_GENDER["vi"][voice_gender(voice)]
+    return doc_viet(text, vietnamese=hinted), voice
 
 
 def doc_cum(text: str) -> str:

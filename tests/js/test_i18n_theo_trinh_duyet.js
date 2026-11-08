@@ -89,6 +89,14 @@ const cho = (ms = 30) => new Promise((r) => setTimeout(r, ms));
   check("đã lưu vi trên máy -> vẫn tiếng Việt dù trình duyệt tiếng Anh", I.lang() === "vi", I.lang());
   check("đã lưu thì daChon() = true", I.daChon() === true);
 
+  // German was removed on 2026-11-08: a device that saved "de" shows English, tagged English, not "de".
+  let k2;
+  ({ I, kho: k2 } = nap({ trinhDuyet: ["de-DE"], luu: "de" }));
+  await cho();
+  check("saved language with no dictionary any more -> English", I.lang() === "en", I.lang());
+  check("the saved choice is left alone (a failed download must not wipe it)", k2.v === "de", k2.v);
+  check("its text is English", I.t(KHOA) === EN[KHOA], I.t(KHOA));
+
   // Chọn đúng ngôn ngữ đang đoán: vẫn phải ghi lại thành lựa chọn.
   ({ I, kho } = nap({ trinhDuyet: ["en-US"] }));
   await cho();

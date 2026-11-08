@@ -61,6 +61,52 @@ check("số, đường dẫn và khoảng trắng giữ nguyên",
       P.doc_viet("Giá 12.500 đồng,  xem ở trang chủ nhé") == "Giá 12.500 đồng,  xem ở trang chủ nhé")
 check("chuỗi rỗng", P.doc_viet("") == "" and P.doc_viet(None) == "")
 
+# ---- 3b. English answers are read in English (owner, 2026-11-08) ----
+# "When the answer is in English, read it in English, not half English half Vietnamese. When the
+# user talks in Vietnamese, Vinglish is fine." Decided over the whole message.
+EMMA, HOAIMY = "en-US-EmmaMultilingualNeural", "vi-VN-HoaiMyNeural"
+E = "Open the Hội thoại page to see your chats."
+check("an English answer naming a Vietnamese page is English", P.is_english_text(E))
+check("a long English answer is English",
+      P.is_english_text("Sure, here is the summary of today's sales. Revenue went up ten percent."))
+for v in ("Bật Dark Mode trong Settings nhé anh.", C, "Javis hỗ trợ Claude Code, ChatGPT, OpenRouter.",
+          'Câu "The quick brown fox jumps over the lazy dog" nghĩa là gì?',
+          "Anh cứ nói to lên, em in hoá đơn rồi so sánh nhé, do đó ai cũng được."):
+    check(f"Vietnamese stays Vietnamese: {v[:30]!r}", not P.is_english_text(v))
+check("English answer: text untouched, Hoai My swapped for Emma",
+      P.speech_plan(E, HOAIMY, True) == (E, P.ENGLISH_VOICE))
+check("English answer: a multilingual voice the owner picked is kept",
+      P.speech_plan(E, "en-US-AndrewMultilingualNeural", True) == (E, "en-US-AndrewMultilingualNeural"))
+check("English answer with no lang hint (older page) is still read in English",
+      P.speech_plan(E, HOAIMY) == (E, P.ENGLISH_VOICE))
+check("Vietnamese answer keeps Vinglish, read by Hoai My when Emma (female) is picked",
+      P.speech_plan("Mở GitHub Actions nhé", EMMA, False) == ("Mở ghít hắp ác sừn nhé", HOAIMY))
+check("Vietnamese answer with a male English voice picked: Nam Minh",
+      P.speech_plan("Mở GitHub Actions nhé", "en-US-AndrewMultilingualNeural", False)[1] == "vi-VN-NamMinhNeural")
+check("English answer with Nam Minh picked: a male English voice",
+      P.speech_plan(E, "vi-VN-NamMinhNeural", True)[1] == "en-US-AndrewMultilingualNeural")
+check("no hint: a Vietnamese chunk gets the Vietnamese voice",
+      P.speech_plan("Chào anh, em là Javis nhé.", EMMA)[1] == HOAIMY)
+check("no hint: French or Japanese is left alone (text and voice)",
+      P.speech_plan("Ça va très bien, merci.", EMMA) == ("Ça va très bien, merci.", EMMA)
+      and P.speech_plan("今日は晴れです。", EMMA) == ("今日は晴れです。", EMMA))
+check("a voice that is not an Edge name is never swapped", P.speech_plan("Mở GitHub nhé", "alloy", False)[1] == "alloy")
+check("Vietnamese answer: its English-only piece is respelled too",
+      "quick" not in P.speech_plan("The quick brown fox.", EMMA, False)[0])
+import re as _re  # noqa: E402
+_cat = (ROOT / "dashboard" / "voice-catalog.js").read_text(encoding="utf-8")
+_known = {k.lower(): g for k, g in _re.findall(r'"?([A-Za-z-]+)"?:\s*"([fmn])"', _cat)}
+_html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+_edge = _re.findall(r'value="([^"]+Neural)"', _re.search(r'<select id="voiceSel".*?</select>', _html, _re.S).group(0))
+_wrong = [v for v in _edge if _known.get(v.lower()) in ("f", "m") and P.voice_gender(v) != _known[v.lower()]]
+check(f"server voice genders agree with voice-catalog.js for every Edge voice offered {_wrong}", bool(_edge) and not _wrong)
+import voice_note  # noqa: E402
+check("voice note: an English note naming a Vietnamese page is not given Hoai My",
+      not voice_note.pick_voice(E, "", HOAIMY).startswith("vi-"))
+check("voice note: a Vietnamese note keeps Hoai My", voice_note.pick_voice(C, "", HOAIMY) == HOAIMY)
+check("no hint, plain English chunk: unchanged as before",
+      P.speech_plan("The build passed.", EMMA) == ("The build passed.", EMMA))
+
 # ---- 4. Chốt kiểm tra câu diễn giải so âm theo cách đọc ----
 import voice_brain as vb  # noqa: E402
 
@@ -104,13 +150,19 @@ try:
     for giong in ("vi-VN-HoaiMyNeural", "en-US-AndrewMultilingualNeural"):
         _FakeCommunicate.goi = []
         r = client.get("/tts", params={"text": "Mở GitHub Actions nhé", "voice": giong})
-        check(f"/tts {giong}: 200 và gọi Edge MỘT lần đúng giọng đã chọn",
-              r.status_code == 200 and [v for _, v in _FakeCommunicate.goi] == [giong])
+        # Vietnamese text: a Vietnamese voice reads it, same gender as the one picked (2026-11-08).
+        check(f"/tts {giong}: 200 và gọi Edge MỘT lần, giọng Việt cùng giới",
+              r.status_code == 200 and [v for _, v in _FakeCommunicate.goi] == [P.speech_plan("Mở", giong, False)[1]]
+              and _FakeCommunicate.goi[0][1].startswith("vi-"))
         check(f"/tts {giong}: Edge nhận câu đã phiên âm",
               _FakeCommunicate.goi and _FakeCommunicate.goi[0][0] == "Mở ghít hắp ác sừn nhé")
     _FakeCommunicate.goi = []
     client.get("/tts", params={"text": "The build passed.", "voice": "en-US-EmmaMultilingualNeural"})
     check("/tts câu thuần tiếng Anh: giữ nguyên chữ", _FakeCommunicate.goi[0][0] == "The build passed.")
+    _FakeCommunicate.goi = []
+    client.get("/tts", params={"text": E, "voice": HOAIMY, "en": "1"})
+    check("/tts English answer: unchanged text, read by Emma instead of Hoai My",
+          _FakeCommunicate.goi == [(E, P.ENGLISH_VOICE)])
 finally:
     main.cfgmod.read_settings = _cfg_goc
 

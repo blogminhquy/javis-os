@@ -16995,8 +16995,12 @@ async def tts(
     text: str = Query(...),
     voice: str = Query("en-US-EmmaMultilingualNeural"),
     rate: str = Query("+5%"),
+    en: str = Query(""),
 ):
-    """Sinh audio đúng nhà cung cấp đã chọn; lỗi không được âm thầm đổi giọng."""
+    """Sinh audio đúng nhà cung cấp đã chọn; lỗi không được âm thầm đổi giọng.
+
+    `en` ("1" | "0"): whether the whole message is English, decided by the browser. An English
+    answer is read in English, a Vietnamese one keeps the Vietnamese way of saying English words."""
     import sys
     from fastapi import HTTPException, Response
     if voice == "auto":
@@ -17015,8 +17019,10 @@ async def tts(
         # Câu tiếng Việt xen từ tiếng Anh: đọc từ tiếng Anh theo kiểu người Việt nói ("GitHub
         # Actions" -> "ghít hắp ác sừn"), cả câu một giọng người dùng đã chọn. Chỉ đổi chữ ĐƯA
         # CHO LOA; khung chat vẫn hiện chữ gốc. Câu thuần tiếng Anh giữ nguyên. Xem phien_am.py.
-        doc = phien_am.doc_viet(text)
-        _first, gen = await _tts_edge_stream(doc, voice, rate)
+        # Answer written in English (2026-11-08): read in English, a vi-VN voice swapped for Emma.
+        english = {"1": True, "0": False}.get(en)
+        doc, spoken_voice = phien_am.speech_plan(text, voice, english)
+        _first, gen = await _tts_edge_stream(doc, spoken_voice, rate)
         return StreamingResponse(gen, media_type="audio/mpeg", headers=_stream_headers)
 
     audio = b""

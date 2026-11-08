@@ -175,11 +175,15 @@
     var chon = luu ? Promise.resolve(luu) : _doan_tu_trinh_duyet();
     return chon.then(function (lang) {
       var cho = [_tai(GOC), lang !== GOC ? _tai(DU_PHONG) : Promise.resolve({})];
-      if (lang !== GOC && lang !== DU_PHONG) cho.push(_tai(lang));
+      if (lang !== GOC && lang !== DU_PHONG) cho.push(_thu(lang));   // null = no such dictionary
       return Promise.all(cho).then(function (kq) { return [lang, kq]; });
     }).then(function (x) {
       if (luot !== _luot) return _lang;   // đã có lượt init mới hơn, đừng ghi đè nó
       var lang = x[0], kq = x[1];
+      // A saved language whose dictionary is gone (German was removed on 2026-11-08): show English, and tell the
+      // server English too, instead of a page tagged "de" with English text. The saved choice is left alone, so a
+      // dictionary that only failed to load this time comes back on the next load.
+      if (lang !== GOC && lang !== DU_PHONG && !kq[2]) lang = DU_PHONG;
       // Từ điển gốc rỗng = không tải được (vi.json không bao giờ rỗng): chờ máy chủ rồi hồi lại, xem _choMayChu.
       if (!kq[0] || !Object.keys(kq[0]).length) _choMayChu(ma, 0);
       _lang = lang;

@@ -51,5 +51,23 @@ check("index.html offers the auto voice", html.includes('<option value="auto" da
 check("voice-lang.js loads before voice.js", html.indexOf("/static/voice-lang.js") > 0 && html.indexOf("/static/voice-lang.js") < html.indexOf("/static/voice.js"));
 check("voice.js resolves the voice per chunk", /voice=\$\{encodeURIComponent\(this\._voiceFor\(text\)\)\}/.test(voiceJs));
 
+// Read aloud follows the language of the whole message (owner, 2026-11-08): English answer -> English, Vietnamese
+// answer -> Vietnamese way of saying English words. Same rule as phien_am.is_english_text.
+check("messageLang: English answer naming a Vietnamese page is English", L.messageLang("Open the Hội thoại page to see your chats.") === "en");
+check("messageLang: curly apostrophes count", L.messageLang("Sure, here\u2019s what you asked for.") === "en");
+check("messageLang: Vietnamese with product names is Vietnamese", L.messageLang("Bật Dark Mode trong Settings nhé anh.") === "vi");
+check("messageLang: Vietnamese quoting an English sentence is Vietnamese",
+  L.messageLang('Câu "The quick brown fox jumps over the lazy dog" nghĩa là gì?') === "vi");
+check("messageLang: Vietnamese 'to', 'in', 'do' are not English markers",
+  L.messageLang("Anh cứ nói to lên, em in hoá đơn, do đó ai cũng được.") === "vi");
+check("messageLang: too short to tell -> empty (server decides)", L.messageLang("Done.") === "");
+check("englishFlag: 1 for English, 0 for Vietnamese, empty when unsure",
+  L.englishFlag("Open the Hội thoại page to see your chats.") === "1" && L.englishFlag("Bật Dark Mode trong Settings nhé anh.") === "0"
+  && L.englishFlag("Done.") === "");
+check("voice.js sends the English flag of the whole message with each chunk", /_chunkUrl\(text, en = this\._msgEnglish\)/.test(voiceJs)
+  && /this\._msgEnglish = this\._englishFlag\(text\)/.test(voiceJs) && /&en=\$\{encodeURIComponent\(en\)\}/.test(voiceJs));
+check("voice.js preloads the next message with that message's flag",
+  /this\._chunkUrl\(first, this\._englishFlag\(next\)\)/.test(voiceJs));
+
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
 console.log("\nOK - voice-lang");
