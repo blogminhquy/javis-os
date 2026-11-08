@@ -53,8 +53,8 @@ async def start_turn(sid, text):
     return True
 
 
-async def review(prompt, provider):
-    reviews.append((provider, prompt))
+async def review(prompt, provider, model=""):
+    reviews.append((provider, prompt, model))
     if review_answer["fail"]:
         raise RuntimeError("reviewer down")
     return review_answer["text"]
@@ -87,131 +87,220 @@ def change(chat, wt, name, text, msg="đổi"):
     run(w.after_turn(chat, BRAIN, msg))
 
 
-# ---- reviewer choice ----
-check("a Claude author gets a reviewer from another family", w.pick_reviewer("anthropic-cli") == "openai")
-check("an OpenAI author gets Claude", w.pick_reviewer("openai") == "anthropic-cli")
-check("Claude API and Claude Code are the same family", w.pick_reviewer("anthropic-api") == "openai")
+# ---- parsing ----
 check("parse: JSON inside prose is read", w.parse_findings('Here: {"findings":[{"file":"a.py","line":3,"problem":"x"}]}')[0]["line"] == 3)
 check("parse: unreadable answer is None, not 'no findings'", w.parse_findings("looks fine to me") is None)
 check("parse: an empty list is no findings", w.parse_findings('{"findings": []}') == [])
 
-# ---- findings go back to the author; rejection releases the merge ----
+
+def green(chat, fn):
+    fake.set_checks(S().get(chat, fn)["head_sha"], [("test", "completed", "success")])
+
+
+async def _review_now_wait(sid, fn, provider=""):
+    out = w.review_now(sid, fn, provider)
+    t = w._PERSON_REVIEWS.get(w._person_key(sid, fn))
+    if t is not None:
+        await t
+    return out
+
+
+def review_now(sid, fn, provider=""):
+    return run(_review_now_wait(sid, fn, provider))
+
+
+FINDING = '{"findings": [{"file": "src/a.py", "line": 1, "problem": "a phải là số âm", "scenario": "gọi f(2)"}]}'
+
+# ---- owner, 08/11/2026: off by default, the person decides ----
+wts = setup("cc0", ["acme/off"])
+change("cc0", wts["acme/off"], "src/a.py", "a = 10\n")
+green("cc0", "acme/off")
+n = len(reviews)
+run(w.tick())
+check("cross review is off by default: no review, CI green merges", len(reviews) == n
+      and S().get("cc0", "acme/off")["integ"] == "merged")
+check("the repo switch reads off by default", github_repos.review_settings(github_repos.find(BRAIN, "acme/off"))["on"] is False)
+
+# ---- switch on: the chat's own engine reviews, findings wait for the person ----
 wts = setup("cc1", ["acme/app"])
+github_repos.set_review(BRAIN, "acme/app", True)
 wt = wts["acme/app"]
 change("cc1", wt, "src/a.py", "a = 2\n")
-r = S().get("cc1", "acme/app")
-review_answer["text"] = '{"findings": [{"file": "src/a.py", "line": 1, "problem": "a phải là số âm", "scenario": "gọi f(2)"}]}'
-fake.set_checks(r["head_sha"], [("test", "completed", "success")])
+review_answer["text"] = FINDING
+green("cc1", "acme/app")
+nt = len(turns)
 run(w.tick())
 r = S().get("cc1", "acme/app")
-check("spec 10: the diff went to the other engine", reviews and reviews[-1][0] == "openai" and "a = 2" in reviews[-1][1])
-check("spec 10: a finding holds the merge", r["integ"] != "merged" and not fake.pulls["acme/app"][0]["merged"])
-check("spec 10: the finding goes back to the author as a fix round", turns and turns[-1][1].startswith(w.FIX_MARKER + " Review chéo")
-      and "a phải là số âm" in turns[-1][1] and "bác bỏ" in turns[-1][1])
+check("switch on: the diff is reviewed", reviews and "a = 2" in reviews[-1][1])
+check("owner, 08/11/2026: the chat's own engine and model review by default",
+      reviews[-1][0] == "anthropic-cli" and reviews[-1][2] == "m-cc")
+check("a finding holds the merge", r["integ"] != "merged" and not fake.pulls["acme/app"][0]["merged"])
+check("findings are NOT sent to the author on their own", len(turns) == nt)
+check("the chat shows the findings and the two choices", any(sid == "cc1" and "a phải là số âm" in t and "Bỏ qua" in t
+                                                              for sid, t, _ in posted))
+check("the panel lists the open findings", w.session_state("cc1")["repos"][0]["review_open"][0]["problem"] == "a phải là số âm")
 run(w.tick())
-check("the same head is reviewed only once", len(reviews) == 1)
+check("the same head is reviewed only once", sum(1 for x in reviews if "a = 2" in x[1]) == 1)
+out = run(w.review_fix("cc1", "acme/app"))
+check("'Fix them' starts one fix round with the findings", len(turns) == nt + 1
+      and turns[-1][1].startswith(w.FIX_MARKER + " Review chéo") and "a phải là số âm" in turns[-1][1])
 run(w.after_turn("cc1", BRAIN, turns[-1][1]))      # the author looked and changed nothing
-check("an author rejecting the findings releases them", not (S().get("cc1", "acme/app")["gate"] or {}).get("review_open"))
+check("an author rejecting the findings releases them", not w.open_findings(S().get("cc1", "acme/app")))
 run(w.tick())
 check("then the PR merges", S().get("cc1", "acme/app")["integ"] == "merged")
 
-# ---- a finding the author fixes: new push, new review ----
+# ---- 'Skip and merge' ----
 wts = setup("cc2", ["acme/two"])
-wt2 = wts["acme/two"]
-change("cc2", wt2, "src/a.py", "a = 3\n")
-fake.set_checks(S().get("cc2", "acme/two")["head_sha"], [("test", "completed", "success")])
+github_repos.set_review(BRAIN, "acme/two", True)
+change("cc2", wts["acme/two"], "src/a.py", "a = 3\n")
+green("cc2", "acme/two")
 run(w.tick())
-review_answer["text"] = '{"findings": []}'
-change("cc2", wt2, "src/a.py", "a = -3\n", msg=turns[-1][1])
-r = S().get("cc2", "acme/two")
-fake.set_checks(r["head_sha"], [("test", "completed", "success")])
-run(w.tick())
-check("the fixed commit is reviewed again, clean, and merges", S().get("cc2", "acme/two")["integ"] == "merged")
+check("held by a finding", S().get("cc2", "acme/two")["integ"] == "ready" and w.open_findings(S().get("cc2", "acme/two")))
+run(w.review_skip("cc2", "acme/two"))
+check("'Skip and merge' merges at once", S().get("cc2", "acme/two")["integ"] == "merged")
 
-# ---- review findings that keep coming use up the rounds: stuck stays stuck while CI is green ----
-wts = setup("cc9", ["acme/stubborn"])
-wst = wts["acme/stubborn"]
-review_answer["text"] = '{"findings": [{"file": "src/a.py", "line": 1, "problem": "vẫn sai", "scenario": "luôn"}]}'
-for i in range(4):
-    change("cc9", wst, "src/a.py", f"a = {100 + i}\n", msg=turns[-1][1] if i else "làm đi")
-    fake.set_checks(S().get("cc9", "acme/stubborn")["head_sha"], [("test", "completed", "success")])
-    run(w.tick())
-r = S().get("cc9", "acme/stubborn")
-check("review rounds used up: stuck, not merged", r["exec"] == "stuck" and r["integ"] != "merged")
+# ---- a new commit leaves old findings behind ----
+wts = setup("cc8", ["acme/newer"])
+github_repos.set_auto_merge(BRAIN, "acme/newer", False)
+change("cc8", wts["acme/newer"], "src/a.py", "a = 30\n")
+green("cc8", "acme/newer")
 run(w.tick())
-run(w.tick())
-r = S().get("cc9", "acme/stubborn")
-check("green CI on the same commit does not lift the stuck state", r["exec"] == "stuck" and r["stuck_reason"])
-check("the chat icon says it needs attention", github_store.icon(S().for_session("cc9"))["state"] == "broken")
+review_now("cc8", "acme/newer")
+check("a person's review records findings", w.open_findings(S().get("cc8", "acme/newer")))
 review_answer["text"] = '{"findings": []}'
+change("cc8", wts["acme/newer"], "src/a.py", "a = -30\n")
+check("a newer commit: the old findings no longer hold the merge", not w.open_findings(S().get("cc8", "acme/newer")))
+
+# ---- Review now, switch off: the merge waits for it ----
+wts = setup("cc3", ["acme/manual"])
+change("cc3", wts["acme/manual"], "src/a.py", "a = 4\n")
+review_answer["text"] = FINDING
+n = len(reviews)
+
+
+async def start_then_tick():
+    gate = asyncio.Event()
+    orig = w._review
+
+    async def slow(prompt, provider, model=""):
+        await gate.wait()       # the review is still running while CI turns green
+        return await orig(prompt, provider, model)
+
+    w.configure(review=slow)
+    out = w.review_now("cc3", "acme/manual", "gemini")
+    task = w._PERSON_REVIEWS[w._person_key("cc3", "acme/manual")]
+    green("cc3", "acme/manual")
+    await w.tick()        # CI green while the review still runs: no merge past it
+    mid = S().get("cc3", "acme/manual")["integ"]
+    gate.set()
+    await task
+    w.configure(review=orig)
+    return out, mid
+
+
+out, mid = run(start_then_tick())
+check("Review now names the engine a person picked", out["reviewer"].startswith("gemini") and reviews[-1][0] == "gemini")
+check("CI green during a person's review does not merge past it", mid != "merged")
+run(w.tick())
+check("its findings then hold the merge", S().get("cc3", "acme/manual")["integ"] != "merged")
+try:
+    review_now("cc3", "acme/manual", "openai-oauth")
+    bad = ""
+except github_repos.RepoError as e:
+    bad = str(e)
+check("a plan run through a CLI cannot be picked to review", "openai-oauth" in bad)
+run(w.review_skip("cc3", "acme/manual"))
+check("skip after a person's review merges", S().get("cc3", "acme/manual")["integ"] == "merged")
+try:
+    review_now("cc3", "acme/manual")
+    after = ""
+except github_repos.RepoError as e:
+    after = str(e)
+check("nothing to review once merged", bool(after))
+review_answer["text"] = '{"findings": []}'
+
+# ---- a repo can pin its reviewer ----
+wts = setup("cc4", ["acme/pin"])
+github_repos.set_review(BRAIN, "acme/pin", True, "openai")
+change("cc4", wts["acme/pin"], "src/a.py", "a = 5\n")
+green("cc4", "acme/pin")
+run(w.tick())
+check("the repo's pinned reviewer reviews", reviews[-1][0] == "openai" and S().get("cc4", "acme/pin")["integ"] == "merged")
+check("a clean review is said in the chat", any(sid == "cc4" and "review" in t.lower() for sid, t, _ in posted))
 
 # ---- a later job in the same chat: its own request names the PR and guides the review ----
 TASKS = {"cc7": "Đổi lời chào thành tiếng Anh"}
 w.configure(session_info=lambda sid: {"title": "Tiêu đề cũ của cuộc trò chuyện", "task": TASKS.get(sid, ""),
                                       "engine": ENGINES.get(sid[:2], "anthropic-cli"), "model": "m-" + sid[:2]})
 wts = setup("cc7", ["acme/task"])
+github_repos.set_review(BRAIN, "acme/task", True)
 change("cc7", wts["acme/task"], "src/a.py", "a = 11\n")
 pr7 = fake.pulls["acme/task"][0]
 check("the PR is named after the job's own request, not the chat title", pr7["title"] == "Đổi lời chào thành tiếng Anh")
 n = len(reviews)
-fake.set_checks(S().get("cc7", "acme/task")["head_sha"], [("test", "completed", "success")])
+green("cc7", "acme/task")
 run(w.tick())
 check("the reviewer gets the latest request to judge against", len(reviews) == n + 1
       and "Đổi lời chào thành tiếng Anh" in reviews[-1][1])
 w.configure(session_info=lambda sid: {"title": f"Việc {sid}", "engine": ENGINES.get(sid[:2], "anthropic-cli"),
                                       "model": "m-" + sid[:2]})
 
-# ---- no reviewer of another family: noted on the PR, merge goes on ----
-w.configure(reviewers=lambda: ["anthropic-cli"])
-wts = setup("cc3", ["acme/solo"])
-change("cc3", wts["acme/solo"], "src/a.py", "a = 4\n")
-fake.set_checks(S().get("cc3", "acme/solo")["head_sha"], [("test", "completed", "success")])
+# ---- no engine can review: the chat says why, the merge goes on ----
+w.configure(reviewers=lambda: [])
+wts = setup("cc5", ["acme/solo"])
+github_repos.set_review(BRAIN, "acme/solo", True)
+change("cc5", wts["acme/solo"], "src/a.py", "a = 12\n")
+green("cc5", "acme/solo")
 run(w.tick())
-check("one engine family only: the PR says it was not cross-reviewed", any(c[0] == "acme/solo" and "Not cross-reviewed" in c[2]
-                                                                          for c in fake.comments))
-check("one engine family only: the merge is not held", S().get("cc3", "acme/solo")["integ"] == "merged")
-check("one engine family only: the chat says why and what can review",
-      any(sid == "cc3" and ("API key" in t or "API" in t) and "ChatGPT" in t for sid, t, _ in posted))
+check("no reviewer: the merge is not held", S().get("cc5", "acme/solo")["integ"] == "merged")
+check("no reviewer: the chat says why and what can review",
+      any(sid == "cc5" and "API" in t and "ChatGPT" in t for sid, t, _ in posted))
 w.configure(reviewers=lambda: ["anthropic-cli", "openai", "gemini"])
 
 # ---- reviewer broken: skipped, not stuck ----
 review_answer["fail"] = True
-wts = setup("cc4", ["acme/down"])
-change("cc4", wts["acme/down"], "src/a.py", "a = 5\n")
-fake.set_checks(S().get("cc4", "acme/down")["head_sha"], [("test", "completed", "success")])
+wts = setup("ccD", ["acme/down"])
+github_repos.set_review(BRAIN, "acme/down", True)
+change("ccD", wts["acme/down"], "src/a.py", "a = 13\n")
+green("ccD", "acme/down")
 run(w.tick())
-check("a broken reviewer is skipped with a notice and the PR merges", S().get("cc4", "acme/down")["integ"] == "merged"
-      and any("review" in t.lower() for _, t, _ in posted))
-review_answer["fail"] = False
-# Owner, 05/11/2026: "review chéo bằng openai-oauth không chạy được" with no reason, every time.
-fail_note = [t for sid, t, _ in posted if sid == "cc4" and "openai" in t]
+check("a broken reviewer is skipped with a notice and the PR merges", S().get("ccD", "acme/down")["integ"] == "merged")
+fail_note = [t for sid, t, _ in posted if sid == "ccD" and "reviewer down" in t]
 check("every reviewer down: the notice names those tried and why", bool(fail_note)
-      and "gemini" in fail_note[-1] and "reviewer down" in fail_note[-1])
+      and "anthropic-cli" in fail_note[-1] and "openai" in fail_note[-1])
+review_answer["fail"] = False
 
-# ---- the first reviewer fails, the next one of another family reviews ----
+# ---- the chat's engine cannot run: the next one reviews ----
 _orig_review = w._review
 
 
-async def review_first_down(prompt, provider):
-    reviews.append((provider, prompt))
-    if provider == "openai":
-        raise RuntimeError("engine openai-oauth còn công cụ native")
+async def review_first_down(prompt, provider, model=""):
+    reviews.append((provider, prompt, model))
+    if provider == "anthropic-cli":
+        raise RuntimeError("claude down")
     return '{"findings": []}'
 
 
 w.configure(review=review_first_down)
 n0 = len(reviews)
-wts = setup("cc7", ["acme/next"])
-change("cc7", wts["acme/next"], "src/a.py", "a = 8\n")
-fake.set_checks(S().get("cc7", "acme/next")["head_sha"], [("test", "completed", "success")])
+wts = setup("cc9", ["acme/next"])
+github_repos.set_review(BRAIN, "acme/next", True)
+change("cc9", wts["acme/next"], "src/a.py", "a = 14\n")
+green("cc9", "acme/next")
 run(w.tick())
-tried = [p for p, _ in reviews[n0:]]
-check("a reviewer that cannot run hands over to the next one of another family", tried == ["openai", "gemini"], )
-check("the next reviewer's clean review lets the PR merge", S().get("cc7", "acme/next")["integ"] == "merged"
-      and (S().get("cc7", "acme/next")["gate"] or {}).get("reviewer") == "gemini")
+tried = [x[0] for x in reviews[n0:]]
+check("a reviewer that cannot run hands over to the next one", tried == ["anthropic-cli", "openai"], )
+check("the next reviewer's clean review lets the PR merge", S().get("cc9", "acme/next")["integ"] == "merged"
+      and (S().get("cc9", "acme/next")["gate"] or {}).get("reviewer") == "openai")
 check("no 'did not run' notice when the next reviewer ran",
-      not any(sid == "cc7" and "did not run" in t or sid == "cc7" and "không chạy được" in t for sid, t, _ in posted))
+      not any(sid == "cc9" and ("did not run" in t or "không chạy được" in t) for sid, t, _ in posted))
 w.configure(review=_orig_review)
+
+# ---- a restart drops a review in flight: its flag must not hold the merge ----
+r = S().get("cc8", "acme/newer")
+S().update("cc8", "acme/newer", gate=dict(r.get("gate") or {}, review_running=True))
+w.reconcile_on_start()
+check("restart clears a stale 'review running'", not (S().get("cc8", "acme/newer")["gate"] or {}).get("review_running"))
 
 # ---- 13.1 lessons ----
 wts = setup("cc5", ["acme/learn"])
@@ -270,6 +359,47 @@ git_now = {k: v for k, v in os.environ.items() if k.startswith("GIT_")}
 git_before = {k: v for k, v in env_before.items() if k.startswith("GIT_")}
 check("criterion 11: no credential or identity leaks into the process environment",
       git_now == git_before and GOOD_TOKEN not in "".join(os.environ.values()))
+
+# ---- the javis_github tool: "review this PR" and "skip them" from the chat ----
+import importlib.util  # noqa: E402
+
+_spec = importlib.util.spec_from_file_location("javis_github_plugin", ROOT / "system/plugins/javis-github/plugin.py")
+plug = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(plug)
+
+
+class Ctx:
+    vault_root = None
+
+
+async def tool(args):
+    out = plug._chay(args, Ctx())
+    if asyncio.iscoroutine(out):
+        out = await out
+    t = w._PERSON_REVIEWS.get(w._person_key("ccT", "acme/tool"))
+    if t is not None:
+        await t
+    return out
+
+wts = setup("ccT", ["acme/tool"])
+github_repos.set_auto_merge(BRAIN, "acme/tool", False)
+change("ccT", wts["acme/tool"], "src/a.py", "a = 21\n")
+review_answer["text"] = FINDING
+n = len(reviews)
+out = run(tool({"op": "review", "chat_id": "web:ccT"}))
+check("tool review starts a review of the chat's only PR", "Đã bắt đầu review" in out and len(reviews) == n + 1)
+out = run(tool({"op": "status", "chat_id": "web:ccT"}))
+check("tool status lists the findings waiting for the person", "a phải là số âm" in out)
+out = run(tool({"op": "review", "chat_id": "web:ccT", "provider": "grok-cli"}))
+check("tool review refuses an engine that cannot review", out.startswith("ERROR") and "grok-cli" in out)
+out = run(tool({"op": "review", "chat_id": "web:ccT", "repo": "acme/none"}))
+check("tool review names a repo the chat has no PR for", out.startswith("ERROR"))
+green("ccT", "acme/tool")
+run(w.tick())
+out = run(tool({"op": "review_skip", "chat_id": "web:ccT"}))
+check("tool review_skip drops the findings and merges", "merge" in out
+      and S().get("ccT", "acme/tool")["integ"] == "merged")
+review_answer["text"] = '{"findings": []}'
 
 fake.close()
 print()

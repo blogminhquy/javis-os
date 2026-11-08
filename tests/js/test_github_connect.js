@@ -138,6 +138,26 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
   delete global.document; delete global.window;
 }
 
+// Owner, 08/11/2026: cross review is the person's call. A per-repo switch (off by default) with a reviewer picker, and on
+// the PR panel Review now, then Fix them / Skip and merge on the findings.
+{
+  const sheet = js.slice(js.indexOf("function repoSheet(name)"), js.indexOf("// The repos of this brain"));
+  check("the ... sheet has a Cross review item", sheet.includes("data-gh-review") && sheet.includes("gh.review"));
+  const dlg = js.slice(js.indexOf("async function openReview("), js.indexOf("// Local check commands"));
+  check("the review dialog has a switch and a reviewer picker, the chat's model first",
+    dlg.includes('role="switch"') && dlg.includes('data-f="prov"') && js.includes("gh.review_default") && dlg.includes('"/github/local/review"'));
+  const det = js.slice(js.indexOf("function detailHtml(d)"), js.indexOf("function openDetail(id)"));
+  check("Review now only on an open, unmerged PR that is not already being reviewed",
+    /canReview = !!r\.pr_number && r\.integ !== "merged" && !r\.reviewing && !r\.merging/.test(det) && det.includes("data-rv-now"));
+  check("findings come with Fix them and Skip and merge, and hide the plain Merge button",
+    det.includes("data-rv-fix") && det.includes("data-rv-skip") && det.includes("canMerge && !found.length"));
+  const od = js.slice(js.indexOf("function openDetail(id)"), js.indexOf("function init()"));
+  check("the panel follows a running review", /r\.merging \|\| r\.reviewing/.test(od));
+  check("the buttons call the review routes", od.includes('"/review"') && od.includes('"/review/fix"') && od.includes('"/review/skip"'));
+  check("review texts exist in both languages", ["gh.review", "gh.review_how", "gh.review_now", "gh.review_fix", "gh.review_skip",
+    "gh.reviewing", "gh.review_fixing", "gh.review_started", "gh.review_on_meta"].every(function (k) { return vi[k] && en[k]; }));
+}
+
 const keys = Array.from(new Set((js.match(/tw\("(gh\.[a-z_]+)"/g) || []).map(m => m.slice(4, -1))));
 check("every gh.* key used exists in vi.json and en.json", keys.length > 20 && keys.every(k => vi[k] && en[k]));
 check("Vietnamese texts carry diacritics", /Kết nối/.test(vi["gh.connect"]) && /Gỡ khỏi brain/.test(vi["gh.remove_brain"]));

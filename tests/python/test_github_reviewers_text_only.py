@@ -61,6 +61,8 @@ try:
           spec == {"provider": "deepseek", "model": "deepseek-v4-pro", "reasoning": "medium"}, spec)
     check("the chat names the exact model", main._github_reviewer_label("groq") == "groq (openai/gpt-oss-120b)",
           main._github_reviewer_label("groq"))
+    check("the chat's own model is named when it reviews its own work",
+          main._github_reviewer_label("groq", "qwen3-32b") == "groq (qwen3-32b)", main._github_reviewer_label("groq", "qwen3-32b"))
     settings = {"model": {"order": ["anthropic-cli", "gemini"],
                           "auxiliary": {"provider": "openai-oauth", "model": "gpt-5"}}}
     got = main._github_reviewers()

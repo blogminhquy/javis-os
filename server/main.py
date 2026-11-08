@@ -27761,21 +27761,23 @@ def _github_reviewer_spec(provider: str, settings: dict = None) -> dict:
     return {"provider": provider, "model": pr.get("model") or "", "reasoning": pr.get("reasoning") or "off"}
 
 
-def _github_reviewer_label(provider: str) -> str:
+def _github_reviewer_label(provider: str, model: str = "") -> str:
     """"groq (openai/gpt-oss-120b)" for the chat line, so the owner sees the exact model that reviewed or failed."""
     try:
-        mdl = _github_reviewer_spec(provider).get("model") or ""
+        mdl = model or _github_reviewer_spec(provider).get("model") or ""
     except Exception:  # noqa: BLE001 - a label must never break the review
         mdl = ""
     return f"{provider} ({mdl})" if mdl else provider
 
 
-async def _github_review_ask(prompt: str, provider: str) -> str:
+async def _github_review_ask(prompt: str, provider: str, model: str = "") -> str:
     """Cross review (0.366.0, spec 10): ONE text-only turn on exactly `provider`, no tools, empty folder, like the
     group-chat judge. The diff comes from someone else's repo, so the reviewer gets nothing it could act with."""
     base = _reply_policy_sandbox_engine("Bạn là người review code độc lập. Chỉ trả về đúng khuôn JSON được yêu cầu.",
                                         "gh-review", cwd_name="gh_review_cwd")
     spec = _github_reviewer_spec(provider)
+    if model:
+        spec["model"] = model     # the chat's own model when the chat's engine reviews its own work
     eng = aux_engine.strip_tools(
         aux_engine.swap(base, mode="suggest", tag="gh-review", spec=spec, codex_profile=_write_codex_profile), base)
     eng, info = resonance.pick_text_only_link(eng, base, spec, aux_engine._FallbackChain)
@@ -27801,8 +27803,8 @@ def _github_reviewers() -> list:
     m = s.get("model", {}) or {}
     order = []
     try:
-        # The background model leads (owner, 08/11/2026): it is the model the owner set up for work done without
-        # them, so it reviews first whenever it is of another family than the author.
+        # The background model leads (owner, 08/11/2026): after the chat's own engine, it is the model the owner set up
+        # for work done without them.
         order = [model_routing.background_spec(m)["provider"]]
         order += [x for x in (model_routing.stored_order(m) or []) if isinstance(x, str)]
     except Exception:

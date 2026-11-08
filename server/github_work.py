@@ -10,7 +10,9 @@ A background watcher (`tick`, every POLL_FAST_S / POLL_SLOW_S) then reads GitHub
 
     CI red    --> flaky-looking infra failure: rerun the job once; otherwise a fix turn with the failing logs.
                   Red on the base branch too: not this chat's failure, say so and stop.
-    CI green  --> PR ready for review, `integ=ready` (phase G4 adds the merge)
+    CI green  --> PR ready, `integ=ready`, then merged when the repo allows it. A cross review runs first only when
+                  the repo's review switch is on (off by default) or a person asked for one; its findings wait for
+                  the person to pick "fix them" or "skip and merge".
     no checks --> after NO_CI_GRACE_S: `no_ci`, never treated as green
     too long  --> after CI_WAIT_S: stuck, with the reason
 
@@ -48,25 +50,23 @@ FIX_MARKER = "[Javis GitHub]"
 Notify = Callable[[str, str, bool], Awaitable[Any]]
 StartTurn = Callable[[str, str], Awaitable[bool]]
 SessionInfo = Callable[[str], Dict[str, Any]]
-# review(prompt, provider) -> raw text of a text-only turn on THAT provider (phase G5, spec section 10).
-Review = Callable[[str, str], Awaitable[str]]
+# review(prompt, provider, model) -> raw text of a text-only turn on THAT provider (phase G5, spec section 10). Model ""
+# = the model picked on that provider's card of the Models page.
+Review = Callable[[str, str, str], Awaitable[str]]
 _notify: Optional[Notify] = None
 _start_turn: Optional[StartTurn] = None
 _session_info: Optional[SessionInfo] = None
 _review: Optional[Review] = None
 _reviewers: Optional[Callable[[], List[str]]] = None
 # "groq (openai/gpt-oss-120b)": the chat names the exact model that reviewed, not only the provider.
-_reviewer_label: Callable[[str], str] = lambda p: p
+_reviewer_label: Callable[..., str] = lambda p, m="": f"{p} ({m})" if m else p
 _brain_root: Callable[[str], str] = lambda b: b
 REVIEW_DIFF_MAX = 60000
 REVIEW_TIMEOUT_S = 600
-# Reviewers of another family tried for one head before the review is skipped (owner, 05/11/2026: one engine that cannot
-# run used to skip the review outright, with no reason shown).
+# Reviewers tried for one head before the review is skipped (owner, 05/11/2026: one engine that cannot run used to skip
+# the review outright, with no reason shown).
 REVIEW_TRY_MAX = 2
 LESSONS_MAX = 30
-# Provider families: a reviewer from the author's own family is not a second pair of eyes.
-_FAMILY = {"anthropic-cli": "claude", "anthropic-api": "claude", "anthropic-compat": "claude",
-           "openai-oauth": "openai", "openai": "openai"}
 
 # A push or PR that failed after a green gate is retried, never left for the person to notice (owner, 06/11/2026: "once
 # GitHub is connected it must push on its own, like Claude's cloud sessions"). Retries: the next turn of the chat, the
@@ -93,7 +93,7 @@ def configure(notify: Optional[Notify] = None, start_turn: Optional[StartTurn] =
               session_info: Optional[SessionInfo] = None, review: Optional[Review] = None,
               reviewers: Optional[Callable[[], List[str]]] = None,
               brain_root: Optional[Callable[[str], str]] = None,
-              reviewer_label: Optional[Callable[[str], str]] = None) -> None:
+              reviewer_label: Optional[Callable[..., str]] = None) -> None:
     global _notify, _start_turn, _session_info, _review, _reviewers, _brain_root, _reviewer_label
     if notify is not None:
         _notify = notify
@@ -903,7 +903,7 @@ def _merge_blockers(row: Dict[str, Any], pr: Dict[str, Any]) -> List[str]:
         out.append(_c(f"thay đổi cần người xem: {what}", f"changes a person must look at: {what}"))
     if row.get("ci") != "green":
         out.append(_c("chưa có CI xanh trên commit này", "no green CI on this commit"))
-    review = (row.get("gate") or {}).get("review_open") or []
+    review = open_findings(row)
     if review:
         out.append(_c(f"review chéo còn {len(review)} phát hiện mở", f"cross review has {len(review)} open findings"))
     if pr.get("mergeable_state") == "blocked":
@@ -1025,9 +1025,10 @@ async def on_green(row: Dict[str, Any], pr: Dict[str, Any]) -> Dict[str, Any]:
         except (GitHubError, github_repos.RepoError):
             pass
     row = st().update(sid, fn, integ="ready")
-    row = await cross_review(row)
+    if repo_review(row)["on"]:
+        row = await cross_review(row)
     if (row.get("gate") or {}).get("review_running"):
-        return row
+        return row      # a review is running (this repo's switch, or a person pressed Review now): merge after it
     blockers = await asyncio.to_thread(_merge_blockers, row, pr)
     if not blockers:
         return await merge_now(row, pr)
@@ -1166,31 +1167,11 @@ Diff:
 ```"""
 
 
-def _family(provider: str) -> str:
-    return _FAMILY.get(provider or "", provider or "")
-
-
-def pick_reviewers(author_provider: str) -> List[str]:
-    """Available engines of ANOTHER family than the author's, in the Models page order (spec 10)."""
+def _label(provider: str, model: str = "") -> str:
     try:
-        avail = list(_reviewers() if _reviewers else [])
-    except Exception:
-        avail = []
-    fam = _family(author_provider)
-    return [p for p in avail if _family(p) != fam]
-
-
-def pick_reviewer(author_provider: str) -> str:
-    """The first available engine of ANOTHER family than the author's, "" when there is none (spec 10)."""
-    lst = pick_reviewers(author_provider)
-    return lst[0] if lst else ""
-
-
-def _label(provider: str) -> str:
-    try:
-        return str(_reviewer_label(provider) or provider)
+        return str((_reviewer_label(provider, model) if model else _reviewer_label(provider)) or provider)
     except Exception:  # noqa: BLE001 - a label must never break the review
-        return provider
+        return f"{provider} ({model})" if model else provider
 
 
 def _short_reason(e: BaseException) -> str:
@@ -1226,42 +1207,97 @@ def _review_diff(row: Dict[str, Any]) -> str:
     return diff[:REVIEW_DIFF_MAX] + ("\n[... diff cắt bớt ...]" if len(diff) > REVIEW_DIFF_MAX else "")
 
 
-async def cross_review(row: Dict[str, Any]) -> Dict[str, Any]:
-    """Review the head commit once with another engine. Findings go back to the author as a fix round."""
+def repo_review(row: Dict[str, Any]) -> Dict[str, Any]:
+    """The repo's cross-review switch and pinned reviewer (github_repos.review_settings). Off when unknown."""
+    try:
+        rec = github_repos.find(row.get("brain") or "", row["full_name"]) or {}
+    except Exception:  # noqa: BLE001
+        rec = {}
+    return github_repos.review_settings(rec)
+
+
+def open_findings(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Findings still waiting for the person, on the commit they were made on. A newer commit (the fix, or any other
+    change) leaves them behind: they no longer hold the merge."""
+    gate = row.get("gate") or {}
+    found = gate.get("review_open") or []
+    if not found:
+        return []
+    at = gate.get("review_head")
+    return list(found) if not at or at == row.get("head_sha") else []
+
+
+def reviewer_options() -> List[Dict[str, str]]:
+    """Engines a person may pick to review: text-only ones that are ready now, labelled with their model."""
+    return [{"provider": p, "label": _label(p)} for p in _available()]
+
+
+def _available() -> List[str]:
+    try:
+        return list(_reviewers() if _reviewers else [])
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _candidates(row: Dict[str, Any], provider: str) -> Tuple[List[Dict[str, str]], str]:
+    """Who reviews, as [{provider, model}] to try in order, and why nobody can when the list is empty.
+
+    The engine a person named, else the repo's pinned one. Otherwise the chat's own engine on the chat's own model
+    (owner, 08/11/2026: "the model I chat with is fine, it need not be another one"), then the other ready engines in
+    the Models page order, the background model first. Only engines that run text-only can review a repo's diff."""
+    avail = _available()
+    pinned = str(provider or "").strip() or repo_review(row)["provider"]
+    if pinned:
+        if pinned in avail:
+            model = str(row.get("model") or "") if pinned == (row.get("engine") or "") else ""
+            return [{"provider": pinned, "model": model}], ""
+        return [], _c(f"{pinned} chưa review được: chưa kết nối, đang hết hạn mức, hoặc là gói chạy qua CLI (ChatGPT, "
+                      "Grok Build, Antigravity) còn công cụ đọc ghi file.",
+                      f"{pinned} cannot review now: not connected, out of quota, or a plan run through a CLI (ChatGPT, "
+                      "Grok Build, Antigravity) that keeps file tools.")
+    out: List[Dict[str, str]] = []
+    own = row.get("engine") or ""
+    if own and own in avail:
+        out.append({"provider": own, "model": str(row.get("model") or "")})
+    out += [{"provider": p, "model": ""} for p in avail if p != own]
+    if out:
+        return out[:REVIEW_TRY_MAX], ""
+    return [], _c("chưa có engine nào chạy được ở chế độ chỉ chữ: Claude, hoặc một nhà dùng API key (OpenAI, Gemini, "
+                  "DeepSeek, OpenRouter...). Gói ChatGPT, Grok Build và Antigravity chạy qua CLI còn công cụ đọc ghi "
+                  "file nên không được đọc diff của repo.",
+                  "no engine can run text-only: Claude, or a provider on an API key (OpenAI, Gemini, DeepSeek, "
+                  "OpenRouter...). The ChatGPT, Grok Build and Antigravity plans run through a CLI that keeps file "
+                  "tools, so they never read a repo's diff.")
+
+
+async def cross_review(row: Dict[str, Any], provider: str = "", manual: bool = False) -> Dict[str, Any]:
+    """Review the head commit with another engine and show the findings to the person (owner, 08/11/2026).
+
+    Runs only when the repo's switch is on (once per commit, before the merge) or when a person asks (`manual`, any
+    time before the merge, on `provider` when named). Findings hold the merge until the person picks "Fix them" or
+    "Skip and merge"; Javis no longer sends them to the author on its own."""
     sid, fn, head = row["sid"], row["full_name"], row["head_sha"]
     gate = dict(row.get("gate") or {})
-    if gate.get("reviewed_sha") == head:
+    if not manual and gate.get("reviewed_sha") == head:
         return row
-    candidates = pick_reviewers(row.get("engine") or "")[:REVIEW_TRY_MAX]
+    candidates, none_why = _candidates(row, provider)
     if not candidates or _review is None:
         gate["reviewed_sha"] = head
         gate["review_skipped"] = True
+        gate.pop("review_running", None)
         row = st().update(sid, fn, gate=gate)
-        if row.get("pr_number") and st().mark_step(f"noreview:{fn}:{row['pr_number']}"):
-            try:
-                await asyncio.to_thread(github_repos.client().comment, fn, row["pr_number"],
-                                        "Not cross-reviewed: no engine of another family that can review text-only "
-                                        "is ready in Javis.")
-            except Exception:
-                pass
-            # Owner, 05/11/2026: say why in the chat too. A plan run through a CLI (ChatGPT, Grok Build, Antigravity)
-            # keeps its own file and shell tools, and a diff from a repo is untrusted input, so it never reviews.
-            await _say(sid, _c(f"**{fn}**: chưa review chéo được. Review chéo cần một engine khác họ với engine đã viết "
-                               "code, chạy ở chế độ chỉ chữ: Claude, hoặc một nhà dùng API key (OpenAI, Gemini, "
-                               "DeepSeek, OpenRouter...). Gói ChatGPT, Grok Build và Antigravity chạy qua CLI còn "
-                               "công cụ đọc ghi file nên không được dùng để đọc diff của repo.",
-                               f"**{fn}**: not cross-reviewed. A cross review needs an engine of another family than "
-                               "the author, run text-only: Claude, or a provider on an API key (OpenAI, Gemini, "
-                               "DeepSeek, OpenRouter...). The ChatGPT, Grok Build and Antigravity plans run through a "
-                               "CLI that keeps file tools, so they never read a repo's diff."), True,
-                       once=f"noreviewsay:{fn}:{row['pr_number']}")
+        why = none_why or _c("Javis chưa sẵn sàng review.", "Javis is not ready to review.")
+        await _say(sid, _c(f"**{fn}**: chưa review chéo được, {why}", f"**{fn}**: not cross-reviewed, {why}"), True,
+                   once="" if manual else f"noreviewsay:{fn}:{head}")
         return row
-    if not st().mark_step(f"review:{fn}:{head}"):
+    key = f"review:{fn}:{head}" + (f":person:{time.time():.3f}" if manual else "")
+    if not st().mark_step(key):
         return row
     gate["review_running"] = True
     st().update(sid, fn, gate=gate)
     findings: Optional[List[Dict[str, Any]]] = None
     reviewer, why = candidates[0], ""
+    shown = _label(reviewer["provider"], reviewer["model"])
     prompt = ""
     try:
         diff = await asyncio.to_thread(_review_diff, row)
@@ -1271,45 +1307,147 @@ async def cross_review(row: Dict[str, Any]) -> Dict[str, Any]:
         why = _short_reason(e)
         print(f"[github review] {fn}: diff: {type(e).__name__}: {e}")
     for cand in candidates if prompt else []:
-        reviewer = cand
+        reviewer, shown = cand, _label(cand["provider"], cand["model"])
         try:
-            raw = await asyncio.wait_for(_review(prompt, cand), timeout=REVIEW_TIMEOUT_S)
+            raw = await asyncio.wait_for(_review(prompt, cand["provider"], cand["model"]), timeout=REVIEW_TIMEOUT_S)
             findings = parse_findings(raw)
             if findings is not None:
                 break
             why = _c("câu trả lời không đúng khuôn JSON", "the answer was not the JSON asked for")
         except Exception as e:  # noqa: BLE001 - a broken reviewer must not hold the PR forever: try the next one
             why = _short_reason(e)
-            print(f"[github review] {fn}: {cand}: {type(e).__name__}: {e}")
+            print(f"[github review] {fn}: {shown}: {type(e).__name__}: {e}")
     gate = dict((st().get(sid, fn) or row).get("gate") or {})
     gate.pop("review_running", None)
     gate["reviewed_sha"] = head
-    gate["reviewer"] = reviewer
-    shown = _label(reviewer)
+    gate["reviewer"] = shown
     if findings is None:
         gate["review_skipped"] = True
         row = st().update(sid, fn, gate=gate)
-        tried = ", ".join(_label(c) for c in candidates)
+        tried = ", ".join(_label(c["provider"], c["model"]) for c in candidates)
         await _say(sid, _c(f"**{fn}**: review chéo bằng {tried} không chạy được ({why}), bỏ qua lần này.",
                            f"**{fn}**: cross review with {tried} did not run ({why}); skipped this time."), True,
-                   once=f"reviewfail:{fn}:{head}")
+                   once="" if manual else f"reviewfail:{fn}:{head}")
         return row
+    gate.pop("review_skipped", None)
     if not findings:
         gate["review_open"] = []
-        return st().update(sid, fn, gate=gate)
+        row = st().update(sid, fn, gate=gate)
+        await _say(sid, _c(f"**{fn}**: review chéo ({shown}) không thấy lỗi nào.",
+                           f"**{fn}**: cross review ({shown}) found no issue."), True,
+                   once="" if manual else f"reviewclean:{fn}:{head}")
+        return row
     gate["review_open"] = findings
+    gate["review_head"] = head
     gate["review_found"] = int(gate.get("review_found") or 0) + len(findings)
-    row = st().update(sid, fn, gate=gate, integ="pr_open")
-    lines = [f"- `{f['file']}:{f['line']}` {f['problem']}" + (f" (khi: {f['scenario']})" if f["scenario"] else "")
-             for f in findings]
+    row = st().update(sid, fn, gate=gate)
     await _say(sid, _c(f"**{fn}**: review chéo ({shown}) có {len(findings)} phát hiện.",
-                       f"**{fn}**: cross review ({shown}) found {len(findings)} issue(s).") + "\n" + "\n".join(lines),
-               False, once=f"reviewsay:{fn}:{head}")
-    await request_fix(row, f"Review chéo ({shown}) có {len(findings)} phát hiện",
-                      "\n".join(lines) + "\n\nKiểm chứng TỪNG phát hiện bằng cách lần theo đúng đường gây hỏng. Đúng thì "
-                      "sửa (kèm test tái hiện). Sai thì nói rõ vì sao bác bỏ, không sửa gì cho phát hiện đó.",
-                      f"{sid}:{fn}:review:{head}")
+                       f"**{fn}**: cross review ({shown}) found {len(findings)} issue(s).") + "\n" +
+               "\n".join(_finding_lines(findings)) + "\n\n" +
+               _c("Javis chưa merge. Bấm biểu tượng GitHub của cuộc trò chuyện, chọn **Sửa các lỗi này** hoặc **Bỏ qua, "
+                  "merge**, hay nhắn ngay tại đây.",
+                  "Javis has not merged. Open the chat's GitHub icon and pick **Fix them** or **Skip and merge**, or "
+                  "reply right here."),
+               False, once="" if manual else f"reviewsay:{fn}:{head}")
     return st().get(sid, fn) or row
+
+
+def _finding_lines(findings: List[Dict[str, Any]]) -> List[str]:
+    return [f"- `{f['file']}:{f['line']}` {f['problem']}" + (f" (khi: {f['scenario']})" if f.get("scenario") else "")
+            for f in findings]
+
+
+# Reviews a person started, keyed by chat and repo: each runs as its own task so the request (or the chat turn) that
+# asked returns at once, and closing the panel does not stop it.
+_PERSON_REVIEWS: Dict[str, "asyncio.Task[Dict[str, Any]]"] = {}
+
+
+def _review_row(sid: str, full_name: str) -> Dict[str, Any]:
+    row = st().get(sid, full_name)
+    if not row or not row.get("pr_number"):
+        raise github_repos.RepoError(_c("Cuộc này chưa có PR cho repo đó.", "This chat has no PR for that repo."))
+    if row.get("integ") == "merged":
+        raise github_repos.RepoError(_c("PR đã merge, không còn gì để review.", "The PR is merged, nothing to review."))
+    return row
+
+
+def _review_done(key: str, task: "asyncio.Task[Dict[str, Any]]") -> None:
+    if _PERSON_REVIEWS.get(key) is task:
+        _PERSON_REVIEWS.pop(key, None)
+    if task.cancelled():
+        return
+    err = task.exception()
+    if err is not None:
+        print(f"[github review] {key.split(chr(10))[-1]}: {type(err).__name__}: {err}")
+
+
+async def _guarded_review(row: Dict[str, Any], provider: str) -> Dict[str, Any]:
+    try:
+        return await cross_review(row, provider, manual=True)
+    finally:
+        # A crash must never leave "review running" behind: the merge waits for that flag.
+        cur = st().get(row["sid"], row["full_name"]) or {}
+        gate = dict(cur.get("gate") or {})
+        if gate.pop("review_running", None):
+            st().update(row["sid"], row["full_name"], gate=gate)
+
+
+def reviewing(sid: str, full_name: str) -> bool:
+    t = _PERSON_REVIEWS.get(_person_key(sid, full_name))
+    return bool(t is not None and not t.done())
+
+
+def review_now(sid: str, full_name: str, provider: str = "") -> Dict[str, Any]:
+    """A person asked for a review (the Review now button, or the chat). Starts it and returns at once; the findings
+    reach the chat. Must be called on the event loop."""
+    row = _review_row(sid, full_name)
+    key = _person_key(sid, full_name)
+    if reviewing(sid, full_name) or (row.get("gate") or {}).get("review_running"):
+        raise github_repos.RepoError(_c("Đang review PR này rồi, kết quả sẽ hiện trong chat.",
+                                        "This PR is being reviewed already; the result will show in the chat."))
+    cands, why = _candidates(row, provider)
+    if not cands:
+        raise github_repos.RepoError(why)
+    # The flag goes on before the task starts: a watcher tick in between must not merge past the review.
+    gate = dict(row.get("gate") or {})
+    gate["review_running"] = True
+    row = st().update(sid, full_name, gate=gate)
+    task = asyncio.get_running_loop().create_task(_guarded_review(row, provider))
+    _PERSON_REVIEWS[key] = task
+    task.add_done_callback(lambda t, k=key: _review_done(k, t))
+    return {"started": True, "reviewer": _label(cands[0]["provider"], cands[0]["model"])}
+
+
+async def review_fix(sid: str, full_name: str) -> Dict[str, Any]:
+    """"Fix them": the open findings go to the engine that wrote the code, as one fix round."""
+    row = _review_row(sid, full_name)
+    found = open_findings(row)
+    if not found:
+        raise github_repos.RepoError(_c("Không còn phát hiện nào đang chờ.", "No finding is waiting."))
+    shown = (row.get("gate") or {}).get("reviewer") or ""
+    started = await request_fix(row, f"Review chéo ({shown}) có {len(found)} phát hiện",
+                                "\n".join(_finding_lines(found)) + "\n\nNgười dùng đã chọn sửa. Kiểm chứng TỪNG phát "
+                                "hiện bằng cách lần theo đúng đường gây hỏng. Đúng thì sửa (kèm test tái hiện). Sai thì "
+                                "nói rõ vì sao bác bỏ, không sửa gì cho phát hiện đó.",
+                                f"{sid}:{full_name}:review:{row['head_sha']}:person")
+    if not started:
+        raise github_repos.RepoError(_c("Chưa mở được lượt sửa (cuộc trò chuyện đang bận hoặc đã hết vòng sửa).",
+                                        "No fix round started (the chat is busy or out of fix rounds)."))
+    return {"row": _row_view(st().get(sid, full_name) or row)}
+
+
+async def review_skip(sid: str, full_name: str, merge: bool = True) -> Dict[str, Any]:
+    """"Skip and merge": the findings stop holding the PR, and it merges now when CI is green."""
+    row = _review_row(sid, full_name)
+    gate = dict(row.get("gate") or {})
+    if gate.get("review_open"):
+        gate["review_dismissed"] = gate.pop("review_open")
+        row = st().update(sid, full_name, gate=gate)
+    await _say(sid, _c(f"**{full_name}**: đã bỏ qua các phát hiện của review chéo theo lựa chọn của bạn.",
+                       f"**{full_name}**: the cross-review findings were skipped, as you chose."), True)
+    if merge and row.get("integ") == "ready" and row.get("ci") in ("green", "no_ci"):
+        return await merge_by_person(sid, full_name)
+    return {"row": _row_view(row)}
 
 
 def _is_review_turn(user_message: str) -> bool:
@@ -1410,6 +1548,11 @@ def reconcile_on_start() -> None:
     for row in st().running():
         if row["exec"] == "running" and row["ci"] not in ("pending", "running"):
             st().update(row["sid"], row["full_name"], exec="done" if row["head_sha"] else "idle")
+    # A review in flight when Javis stopped never finishes: its flag would hold the merge forever.
+    for row in st().active():
+        gate = dict(row.get("gate") or {})
+        if gate.pop("review_running", None):
+            st().update(row["sid"], row["full_name"], gate=gate)
 
 
 async def run_watcher() -> None:
@@ -1444,6 +1587,9 @@ def session_state(sid: str) -> Dict[str, Any]:
     for r in rows:
         v = _row_view(r)
         v["merging"] = merging(sid, r["full_name"])
+        v["reviewing"] = reviewing(sid, r["full_name"]) or bool((r.get("gate") or {}).get("review_running"))
+        v["review_open"] = open_findings(r)
+        v["review_on"] = repo_review(r)["on"]
         repos.append(v)
     return {"icon": github_store.icon(rows), "repos": repos,
             "queue": [{"id": q["id"], "text": q["text"]} for q in st().queue_list(sid)]}
