@@ -2653,8 +2653,8 @@
     // token field holds the three app keys; Zalo hands back the token pair and the account is saved on its own.
     function veCapQuyen(cb) {
       return '<div class="ht-zo-oauth"><b>' + esc(window.t("ht.zo_oauth_cb")) + '</b> <code>' + esc(cb) + '</code>' +
-        '<div>' + esc(window.t("ht.zo_oauth_hd")) + '</div>' +
-        '<button class="s-btn" id="htZoOauth" type="button">' + esc(window.t("ht.zo_oauth_nut")) + '</button>' +
+        '<div><button class="s-btn" id="htZoOauth" type="button">' + esc(window.t("ht.zo_oauth_nut")) + '</button> ' +
+        infoBtn() + '</div>' + infoBody(esc(window.t("ht.zo_oauth_hd"))) +
         '<div id="htZoOauthNote"></div></div>';
     }
     function noiCapQuyen(o) {
@@ -2801,8 +2801,9 @@
           '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
         '<div class="cb-hint" id="htTokenNote">' + (a.external_id ? esc(window.t("cb.dang_dung")) + " " + esc((a.tien_to_ten || "") + a.external_id) : "") + '</div>' +
         // Zalo OA: a dead refresh token is fixed by granting again, with the keys already saved on the account.
-        (a.channel === "zalo_oa" ? '<div class="cb-hint ht-zo-oauth"><div>' + esc(window.t("ht.zo_oauth_lai_hd")) + '</div>' +
-          '<button class="s-btn-ghost" id="htZoOauth" type="button">' + esc(window.t("ht.zo_oauth_lai")) + '</button>' +
+        (a.channel === "zalo_oa" ? '<div class="cb-hint ht-zo-oauth"><div>' +
+          '<button class="s-btn-ghost" id="htZoOauth" type="button">' + esc(window.t("ht.zo_oauth_lai")) + '</button> ' +
+          infoBtn() + '</div>' + infoBody(esc(window.t("ht.zo_oauth_lai_hd"))) +
           '<div id="htZoOauthNote"></div></div>' : "");
     var box = el('<div class="ht-modal"><div class="ht-form">' +
       '<h3>' + esc(window.t("ht.sua_tk")) + ' - ' + esc(a.label) + '</h3>' +
