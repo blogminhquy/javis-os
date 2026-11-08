@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.503.1] - 2026-11-08
+### Fixed
+- **The Javis home-screen app on iPhone (iOS 26/27) no longer shows a blur strip at the top.** The status bar is now solid and the page starts right below it, so iOS has nothing left to blur.
+- **One-time step:** remove the Javis icon from the Home Screen, then open Safari, tap Share, Add to Home Screen again. iOS only reads the status bar style when the icon is added.
+
 ## [0.503.0] - 2026-11-08
 ### Improved
 - **Opening the app, a page or a chat now asks the server in one trip instead of several waves.** Javis learns what each of these moments reads, then sends it all together next time, and the server streams each answer back as soon as it is ready. Measured over a slow link: app start from 3.5 s to 2.6 s and from 47 requests to 22; a chat switch from 5 requests to 1.
