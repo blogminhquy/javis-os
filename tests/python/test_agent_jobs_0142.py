@@ -374,7 +374,7 @@ for _state in ("archived", "deleted"):
           (_cm.get("minh", {}).get("waiting", 0) + _cm.get("minh", {}).get("running", 0))
           == (_cn0.get("waiting", 0) + _cn0.get("running", 0)), (_cm.get("minh"), _cn0))
 check("marks: the counts route passes the owner's marks",
-      "principal=principal, marks=job_marks.marks(root))" in (ROOT / "server" / "main.py").read_text(encoding="utf-8"))
+      "principal=principal, marks=job_marks.marks(root)," in (ROOT / "server" / "main.py").read_text(encoding="utf-8"))
 
 # ───────────── vai theo đúng mã trợ lý, không theo slug ─────────────
 check("vai: mã đúng của slug thì có vai", "Bạn là Minh" in main._agent_persona(ROOT_B, "minh", keys["minh"]))

@@ -394,6 +394,35 @@ function field(cls, value) { return { classList: { contains: (c) => c === cls },
   check("live: the card goes when the turn ends", hostL.innerHTML.indexOf("aj-live") === -1);
   mL.destroy();
   check("live: destroy stops listening", (winL["javis:chat-turn"] || []).length === 0);
+  // ───────────── workflow runs the assistant took part in (owner, 08/11/2026) ─────────────
+  const wfJob = { id: "workflow:r1", source: "workflow", source_label: "Báo cáo tuần", title: "Báo cáo tuần", bucket: "running",
+    roles: ["worker"], kind: "workflow", progress: { done: 1, total: 4 }, next: { code: "wf_other", n: 2, agent: "Lan" },
+    open: { kind: "workflow", slug: "bao-cao", session_id: "s9", run_id: "r1" }, cancel: null, priority: null, updated_at: 0 };
+  const wh = AJ.jobHtml(wfJob, { canVerify: true });
+  check("workflow card: says which step runs and whose", wh.indexOf(T("ajobs.next.wf_other", { n: 2, agent: "Lan" })) !== -1, wh);
+  check("workflow card: source label and progress", wh.indexOf(T("ajobs.src.workflow")) !== -1
+    && wh.indexOf(T("ajobs.progress", { done: 1, total: 4 })) !== -1, wh);
+  check("workflow card: has Open, no verify, cancel or priority button", wh.indexOf("aj-open") !== -1 && wh.indexOf("aj-verify") === -1
+    && wh.indexOf("aj-cancel") === -1 && wh.indexOf("aj-prio") === -1, wh);
+  check("workflow card: own step and review and stale lines",
+    AJ.nextText({ next: { code: "wf_mine", n: 3 } }) === T("ajobs.next.wf_mine", { n: 3 })
+    && AJ.nextText({ next: { code: "wf_review" } }) === T("ajobs.next.wf_review")
+    && AJ.nextText({ next: { code: "wf_stale" } }) === T("ajobs.next.wf_stale")
+    && AJ.nextText({ next: { code: "wf_other", n: 2, agent: "" } }) === T("ajobs.next.wf_other_plain", { n: 2 }));
+  check("source filter offers Workflows", AJ.toolbarHtml({ source_counts: { workflow: 2 }, counts: {} }, {})
+    .indexOf(T("ajobs.srcf.workflow")) !== -1);
+  const wfOpened = [];
+  respond = () => ({ ok: true, jobs: [wfJob], counts: { running: 1 }, source_counts: { workflow: 1 }, next: null });
+  const hostW = fakeHost();
+  const mW = AJ.mount(hostW, { slug: "minh", name: "Minh", brain: () => "brain", agents: () => [],
+    openWorkflow: (a, b) => wfOpened.push([a, b]) });
+  await flush(); await flush();
+  hostW.fire("click", btn("aj-open", { ajOpen: "workflow:r1" }));
+  check("Open on a workflow card opens that workflow on its run's chat", JSON.stringify(wfOpened) === JSON.stringify([["bao-cao", "s9"]]),
+    JSON.stringify(wfOpened));
+  mW.destroy();
+  check("workspace opens a workflow from the Jobs tab", /openWorkflow: function \(wfSlug, sid\) \{ if \(wfSlug\) openCommand\("workflow"/.test(ws));
+
   check("workspace passes the open chat's turn to the tab", /liveTurn: function \(\) \{ return window\.JavisChatLive/.test(ws));
 
   console.log(fails ? "\nĐỎ " + fails + " mục" : "\nTất cả xanh.");

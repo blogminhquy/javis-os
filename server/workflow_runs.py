@@ -92,7 +92,10 @@ class WorkflowRunStore:
         return rid
 
     def ghi_buoc(self, run_id: str, i: int, **fields: Any) -> None:
-        """Gộp vào bước `i` (tạo mới nếu chưa có). Chỉ nhận agent, task, output, verified, error."""
+        """Gộp vào bước `i` (tạo mới nếu chưa có). Chỉ nhận agent, agent_slug, agent_key, task, output, verified, error.
+
+        `agent` is the display name; `agent_slug` and `agent_key` say WHICH assistant ran the step, so its Jobs tab on
+        the Partners page can list the run (owner, 08/11/2026). Runs recorded before that have the name only."""
         with self._lock:
             row = self._db.execute("SELECT steps_json FROM workflow_runs WHERE id=?", (run_id,)).fetchone()
             if not row:
@@ -103,6 +106,9 @@ class WorkflowRunStore:
             b = steps[int(i)]
             if "agent" in fields:
                 b["agent"] = str(fields["agent"] or "")
+            for k in ("agent_slug", "agent_key"):
+                if fields.get(k):
+                    b[k] = str(fields[k])
             if "task" in fields:
                 b["task"] = _cat(fields["task"], TRAN_TASK)
             if "output" in fields:
@@ -173,6 +179,27 @@ class WorkflowRunStore:
             r = self._db.execute("SELECT * FROM workflow_runs WHERE task_id=? ORDER BY started_at DESC LIMIT 1",
                                  (task_id,)).fetchone()
         return self._row(r, True) if r else None
+
+    def runs_of_agent(self, brain: str, agent_slug: str, *, finished_limit: int = 30,
+                      open_limit: int = 50) -> List[Dict[str, Any]]:
+        """Runs where `agent_slug` ran at least one step, full steps, newest first: every open run (running, waiting) up
+        to `open_limit`, then at most `finished_limit` finished ones (done, error). For the assistant's Jobs tab."""
+        slug = str(agent_slug or "")
+        if not slug:
+            return []
+        esc = slug.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pat = '%"agent_slug": "' + esc + '"%'
+        out: List[Dict[str, Any]] = []
+        with self._lock:
+            for statuses, lim in ((("running", "waiting"), open_limit), (("done", "error"), finished_limit)):
+                if lim <= 0:
+                    continue
+                rows = self._db.execute(
+                    "SELECT * FROM workflow_runs WHERE brain=? AND status IN (?,?) AND steps_json LIKE ? ESCAPE '\\' "
+                    "ORDER BY started_at DESC, rowid DESC LIMIT ?",
+                    (str(brain), statuses[0], statuses[1], pat, int(lim))).fetchall()
+                out += [self._row(r, True) for r in rows]
+        return out
 
     def moc_moi_nhat_theo_slug(self, brain: str) -> Dict[str, float]:
         with self._lock:

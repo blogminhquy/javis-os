@@ -42,17 +42,18 @@
   var RELOAD_MS = 800;
   var POLL_MS = 20000;
   var BUCKETS = ["needs_you", "running", "waiting", "done"];
-  var SOURCES = ["team", "chat", "auto"];
+  var SOURCES = ["team", "chat", "auto", "workflow"];
   var BUCKET_KEY = { needs_you: "ajobs.b.needs_you", running: "ajobs.b.running", waiting: "ajobs.b.waiting",
     done: "ajobs.b.done" };
   // Bốn vai hiển thị. Mã cũ (assignee, owner, reviewer) vẫn đọc được để dữ liệu cũ không hiện mã thô.
   var ROLE_KEY = { coordinator: "ajobs.role.coordinator", worker: "ajobs.role.worker", helper: "ajobs.role.helper",
     verifier: "ajobs.role.verifier", verifier_legacy: "ajobs.role.verifier_legacy",
     assignee: "ajobs.role.worker", owner: "ajobs.role.worker", reviewer: "ajobs.role.verifier_legacy" };
-  var SOURCE_KEY = { team: "ajobs.src.team", chat: "ajobs.src.chat", auto: "ajobs.src.auto" };
-  var SOURCE_CHIP = { team: "ajobs.srcf.team", chat: "ajobs.srcf.chat", auto: "ajobs.srcf.auto" };
+  var SOURCE_KEY = { team: "ajobs.src.team", chat: "ajobs.src.chat", auto: "ajobs.src.auto", workflow: "ajobs.src.workflow" };
+  var SOURCE_CHIP = { team: "ajobs.srcf.team", chat: "ajobs.srcf.chat", auto: "ajobs.srcf.auto",
+    workflow: "ajobs.srcf.workflow" };
   var REASON_KEY = { review_removed: "ajobs.reason.review_removed", paused: "ajobs.reason.paused" };
-  var SOURCE_ICON = { team: "users", chat: "message-circle", auto: "zap" };
+  var SOURCE_ICON = { team: "users", chat: "message-circle", auto: "zap", workflow: "workflow" };
 
   // Tên nhóm đã mở đầu bằng chữ "Nhóm" thì không ghép thêm chữ đó lần nữa ("Nhóm Nhóm kiểm thử"): `teamLabel` cho nhãn
   // "Nhóm {name}", `bareTeam` bỏ chữ đầu khi câu đã có sẵn "nhóm {team}".
@@ -111,6 +112,11 @@
     if (n.code === "agent_busy") return tw("ajobs.next.agent_busy");
     if (n.code === "queued") return tw("ajobs.next.queued");
     if (n.code === "resume") return tw("ajobs.next.resume");
+    // A workflow run the assistant takes part in (owner, 08/11/2026): which step runs now, and whose.
+    if (n.code === "wf_mine") return tw("ajobs.next.wf_mine", { n: n.n });
+    if (n.code === "wf_other") return n.agent ? tw("ajobs.next.wf_other", { n: n.n, agent: n.agent }) : tw("ajobs.next.wf_other_plain", { n: n.n });
+    if (n.code === "wf_review") return tw("ajobs.next.wf_review");
+    if (n.code === "wf_stale") return tw("ajobs.next.wf_stale");
     return "";
   }
 
@@ -141,7 +147,7 @@
         (j.link.open ? '<button type="button" class="ws-btn aj-link-open" data-aj-link="' + esc(j.id) + '">' + esc(tw("ajobs.open")) +
           "</button>" : "") + "</div>";
     }
-    var openable = j.open && (j.open.team_id || j.open.session_id || j.open.task_id);
+    var openable = j.open && (j.open.team_id || j.open.session_id || j.open.task_id || (j.open.kind === "workflow" && j.open.slug));
     var busy = ui.cancelling && ui.cancelling[j.id];
     var working = ui.busy && ui.busy[j.id];
     var acts = (openable ? '<button type="button" class="ws-btn aj-open" data-aj-open="' + esc(j.id) + '">' + ic("external-link") +
@@ -150,7 +156,8 @@
         esc(tw("ajobs.resume")) + "</button>" : "") +
       (j.priority ? '<button type="button" class="ws-btn aj-prio" data-aj-prio="' + esc(j.id) + '"' + (working ? " disabled" : "") + ">" +
         esc(tw(j.priority.on ? "ajobs.prio_on" : "ajobs.prio_off")) + "</button>" : "") +
-      (ui.canVerify && j.kind !== "verify" ? '<button type="button" class="ws-btn aj-verify" data-aj-verify="' + esc(j.id) + '">' +
+      // A workflow run cannot be the subject of a verify job (resolve_link knows goals, team and Kanban jobs only).
+      (ui.canVerify && j.kind !== "verify" && j.source !== "workflow" ? '<button type="button" class="ws-btn aj-verify" data-aj-verify="' + esc(j.id) + '">' +
         esc(tw("ajobs.verify_this")) + "</button>" : "") +
       (j.cancel ? '<button type="button" class="ws-btn aj-cancel" data-aj-cancel="' + esc(j.id) + '"' + (busy ? " disabled" : "") + ">" +
         esc(tw(busy ? "ajobs.cancelling" : "ajobs.cancel")) + "</button>" : "") +
@@ -585,6 +592,7 @@
     function openTarget(open) {
       if (!open) return;
       if (open.kind === "team" && opts.openTeam) opts.openTeam(open.team_id, open.task_id);
+      else if (open.kind === "workflow") { if (opts.openWorkflow) opts.openWorkflow(open.slug, open.session_id || ""); }
       else if (open.kind === "chat" && open.session_id && opts.openChat) opts.openChat(open.session_id);
       else if (opts.openWork) opts.openWork(open.task_id);
     }
