@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.506.1] - 2026-11-08
+### Sửa lỗi
+- **Việc nền trượt lượt tự kiểm không còn hiện ô "Gõ câu trả lời" trống.** Trước đây việc chạy xong mà máy tự kiểm thấy chưa đạt thì chuyển sang "cần bạn trả lời" dù chẳng có câu hỏi nào.
+- **Trượt lần đầu, việc tự quay lại cho người làm sửa** theo đúng lý do máy chấm, bạn không bị làm phiền.
+- **Trượt lần hai mới tới bạn**, thẻ ghi rõ "Máy tự kiểm chưa qua" kèm hai nút: **Sửa rồi chạy lại** hoặc **Chấp nhận như vậy**. Bấm kiểm lại một việc đã xong mà trượt thì cũng hiện hai nút này.
+
 ## [0.506.0] - 2026-11-08
 ### Thêm mới
 - **Gói ChatGPT nghe giọng luôn, không cần key.** Đã nối ChatGPT ở trang Models là mic đọc chữ, cuộc gọi đường Cơ bản và tin thoại Telegram, Zalo được chính gói ChatGPT nghe, câu Việt xen tiếng Anh giữ đúng cả hai thứ tiếng.

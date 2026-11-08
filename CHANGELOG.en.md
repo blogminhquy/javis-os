@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.506.1] - 2026-11-08
+### Fixed
+- **A background job that fails its automatic check no longer shows an empty "Type your answer" box.** Before, a finished job that failed the check moved to "needs your answer" even though there was no question.
+- **On the first miss the job goes back to its worker to fix**, using the checker's reason, without bothering you.
+- **Only a second miss reaches you**, as a card saying "Automatic check did not pass" with two buttons: **Fix and run again** or **Accept as is**. Checking a finished job again and failing shows the same two buttons.
+
 ## [0.506.0] - 2026-11-08
 ### Added
 - **Your ChatGPT plan hears your voice, no key needed.** Once ChatGPT is connected on the Models page, dictation, Basic calls and Telegram or Zalo voice messages are heard by the plan itself, and a Vietnamese sentence with English words keeps both languages.
