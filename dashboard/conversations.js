@@ -2898,7 +2898,6 @@
       var bao = r.so_tin
         ? window.t("ht.da_nhap_cu", { tin: r.so_tin, chat: r.so_cuoc_chat })
         : window.t("ht.khong_co_tin_cu");
-      if (r.bo_qua) bao += "\n" + window.t("ht.nhap_cu_bo_qua", { count: r.bo_qua });
       if (r.het_tran) bao += "\n" + window.t("ht.nhap_cu_het_tran");
       alert(bao);
     } catch (e) { alert(window.t("ht.loi_nhap_cu") + " " + e.message); }

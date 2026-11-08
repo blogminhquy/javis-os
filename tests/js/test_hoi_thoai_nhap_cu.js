@@ -26,10 +26,12 @@ check("kênh đã có bot: chip Zalo trên thẻ bot là nút nhập tin cũ (th
 check("bấm là hỏi lại trước khi chạy", /confirm\(window\.t\("ht\.xn_nhap_cu"/.test(CV));
 check("gọi đúng endpoint import-history kèm kênh", /\/import-history"/.test(CV) && /fd\(\{ channel: a\.channel \}\)/.test(CV));
 check("khoá nút trong lúc chạy, trả lại khi xong", /nut\.disabled = true/.test(CV) && /nut\.disabled = false/.test(CV));
-check("báo kết quả: số tin, cuộc chat bỏ qua, chạm trần",
-  /ht\.da_nhap_cu/.test(CV) && /ht\.nhap_cu_bo_qua/.test(CV) && /ht\.nhap_cu_het_tran/.test(CV));
+check("báo kết quả: số tin, chạm trần",
+  /ht\.da_nhap_cu/.test(CV) && /ht\.nhap_cu_het_tran/.test(CV));
+// 08/11/2026: cuộc chat đã có tin không còn bị bỏ qua (nó nhận phần tin cũ hơn), nên không còn dòng "bỏ qua N cuộc chat".
+check("không còn báo bỏ qua cuộc chat đã có tin", !/nhap_cu_bo_qua/.test(CV) && !("ht.nhap_cu_bo_qua" in VI));
 for (const k of ["ht.nhap_cu", "ht.xn_nhap_cu", "ht.dang_nhap_cu", "ht.da_nhap_cu", "ht.khong_co_tin_cu",
-                 "ht.nhap_cu_bo_qua", "ht.nhap_cu_het_tran", "ht.loi_nhap_cu", "cb.nhap_cu_title"]) {
+                 "ht.nhap_cu_het_tran", "ht.loi_nhap_cu", "cb.nhap_cu_title"]) {
   check("khoá " + k + " có cả vi và en", typeof VI[k] === "string" && typeof EN[k] === "string");
 }
 check("câu hỏi lại nói rõ bot không trả lời và không tính chưa đọc",
