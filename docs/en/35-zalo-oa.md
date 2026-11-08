@@ -35,31 +35,45 @@ Zalo only delivers to an HTTPS address on a verified domain.
 4. Open the app's **Webhook** section, paste the **Webhook address** Javis shows (like `https://<domain>/zalo-oa/webhook`) and enable the events **user_send_text**, **user_send_image**, **user_send_file**, **user_send_audio**, **user_send_sticker**, **user_send_location**.
 5. The Webhook section also shows the **OA secret key**. Copy it: Javis checks the signature of every event with it and drops anything not signed with it.
 
-## 3. Get a refresh token
+## 3. Register the Callback URL for OAuth v4 (once)
 
-A Zalo OA access token lives about 25 hours, so Javis keeps the **refresh token** and refreshes by itself. Each refresh token works **once** and lives about 3 months; every refresh returns a new pair and Javis saves it straight away in the encrypted account store.
+Zalo moved OA authorization to **OAuth v4** (an authorization code with PKCE). Javis runs that flow, so you no longer copy a refresh token by hand.
 
-1. Open **API Explorer** on developers.zalo.me (under Tools).
-2. Pick the **OA Access Token** type, the right app and OA, request the token and allow the app to access the OA.
-3. Copy the **Refresh token** (the long string). You do not need the access token.
+1. In **Add channel**, **Zalo OA**, Javis shows the **Callback URL**, like `https://<domain>/zalo-oa/oauth/callback`.
+2. On developers.zalo.me, in the app, under **Official Account**, paste that address into **Callback URL** and save. The domain must be the one you verified in step 2.
 
 ## 4. Add the Zalo OA account in Javis
 
-1. In **Add channel**, **Zalo OA**, paste four things separated by spaces, in this order:
+### The quick way: Grant access with Zalo (OAuth v4)
+
+1. In the Token field of **Add channel**, **Zalo OA**, paste three things separated by spaces:
 
    ```
-   <App ID> <App secret key> <OA secret key> <Refresh token>
+   <App ID> <App secret key> <OA secret key>
    ```
 
    To be sure about the order of the two short keys, name them: `app_secret=...` and `oa_secret=...`.
-2. Press **Check**. Javis refreshes the token once and reads the OA name, shown when it works.
-3. Press **Save** right after. The check spent the refresh token you pasted; the new pair waits in Javis for about 30 minutes and is written to the account when you save. If Javis restarts between the two steps, get a new refresh token from API Explorer and paste again.
+2. Click **Grant access with Zalo**. A Zalo tab opens: pick the right OA and click **Allow**. The tab closes by itself.
+3. Javis exchanges the grant code for an access token and a refresh token, reads the OA name and saves the channel by itself. No Check or Save needed.
 4. Go to **Chatbot**, **Bots** to create a bot or put an existing one on duty for this channel. Once the bot is on, it answers customers who message the OA.
+
+An access token lives about 25 hours and a refresh token about 3 months, and each works **once**. Javis refreshes by itself and saves every new pair straight away in the encrypted account store, so a bot that keeps running never needs a new grant.
+
+**Grant again:** if the refresh token dies (Javis was off for over 3 months, or you revoked the app), open **Edit** on the Zalo OA channel and click **Grant access again with Zalo**. Javis uses the saved keys, so the Token field can stay empty. A bot on duty restarts with the new pair.
+
+### The old way: paste a refresh token from API Explorer
+
+Still works if you have not registered the Callback URL.
+
+1. Open **API Explorer** on developers.zalo.me (under Tools), pick **OA Access Token**, the right app and OA, request the token, allow the app to access the OA and copy the **Refresh token**.
+2. In the Token field, paste four things: `<App ID> <App secret key> <OA secret key> <Refresh token>`.
+3. Click **Check**, then **Save** right after. The check spent the refresh token you pasted; the new pair waits in Javis for about 30 minutes and is written to the account when you save.
 
 ## 5. When the bot stays silent
 
-- **The bot reports a missing OA secret key:** Javis will not start the bot without it, because every event would fail its signature check unnoticed. Edit the channel and paste all four parts again.
-- **"Zalo could not refresh the token":** the refresh token is wrong, already used, or older than 3 months. Get a new one, edit the channel and paste it.
+- **The bot reports a missing OA secret key:** Javis will not start the bot without it, because every event would fail its signature check unnoticed. Edit the channel and paste the keys again.
+- **The Zalo page reports a wrong redirect_uri / callback:** the Callback URL on the Zalo app must match exactly the address Javis shows on the form (step 3), and you must open Javis through that same domain.
+- **"Zalo could not refresh the token":** the refresh token is wrong, already used, or older than 3 months. Open Edit on the channel and click **Grant access again with Zalo**.
 - **Error -230 or "the customer has not written for too long":** Zalo only lets the OA reply within a window after the customer's last message. It reopens when they write again.
 - **Error -224:** the OA's service package does not allow this through the API. Check the package on [oa.zalo.me](https://oa.zalo.me).
 - **No messages arrive at all:** check the webhook points to Javis's HTTPS address and the user_send_* events are on. Zalo drops a webhook that fails several times in a row; turn it back on in the app page.
