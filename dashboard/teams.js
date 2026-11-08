@@ -2882,7 +2882,12 @@
 
   function loadTeams(append) {
     var url = "/teams" + (append && S.next ? "?before=" + q(S.next) : "");
+    var mine = S, forBrain = brain();
     return call("GET", url).then(function (r) {
+      // A list asked by an earlier draw of this page, or for another brain (the picker changed meanwhile, which redraws
+      // the page), must not replace the current one: an answer arriving late showed another brain's teams here, and a
+      // team opened from it was "not found" (user report, 08/11/2026).
+      if (S !== mine || brain() !== forBrain) return;
       if (r.code !== 200) return fail(r);
       S.teams = append ? S.teams.concat(r.j.teams || []) : (r.j.teams || []);
       S.next = r.j.next || null;

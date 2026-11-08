@@ -3831,9 +3831,32 @@ loadCustomBrains();
   const saved = localStorage.getItem("javis.graphSource");
   if (saved && [...graphSource.options].some(o => o.value === saved)) {
     graphSource.value = saved;
+  } else if (saved && saved.startsWith("path:") && saved.length > 5) {
+    // A brain inside BRAINS_DIR: its option only arrives with GET /brains (brains-ui.js), after every page has already
+    // started. Falling back to Brain Default here sent the first requests of the open page to the wrong brain, and when
+    // /brains failed (the page opened while the server restarted after an update) the whole visit stayed there: the
+    // Teams page listed the other brain's teams and created new ones in it (user report, 08/11/2026). Select the saved
+    // brain under a provisional option instead; brains-ui.js swaps it for the real one, or falls back to Brain Default
+    // out loud when the brain no longer exists.
+    const dir = saved.slice(5);
+    const name = dir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || dir;
+    const opt = document.createElement("option");
+    opt.value = saved;
+    opt.textContent = name;
+    opt.dataset.brain = "1";
+    opt.dataset.pending = "1";
+    opt.dataset.brainName = name;
+    opt.dataset.brainLabel = name;
+    const grp = graphSource.querySelector("optgroup");
+    if (grp) graphSource.insertBefore(opt, grp);
+    else graphSource.appendChild(opt);
+    graphSource.value = saved;
   } else {
     graphSource.value = "brain";
   }
+  // The chat compares every later `change` with this: it must start from the brain really in use, not from the
+  // select's value before this restore (a later switch to Brain Default would otherwise keep the old brain's chat).
+  _lastBrain = currentBrainPath();
 })();
 
 // ============================================
