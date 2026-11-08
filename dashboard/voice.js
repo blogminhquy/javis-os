@@ -841,7 +841,7 @@ class JavisVoice {
     const next = this.speechQueue && this.speechQueue[0];
     if (!next) return;
     const first = this._splitForLatency(next)[0];
-    if (first) this._preloadUrl(this._chunkUrl(first));
+    if (first) this._preloadUrl(this._chunkUrl(first, this._messageLang(next)));
   }
 
   _preloadUrl(url) {
@@ -1223,8 +1223,17 @@ class JavisVoice {
       .trim();
   }
 
-  _chunkUrl(text) {
-    return `${this.ttsBackend}?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(this._voiceFor(text))}&rate=${encodeURIComponent(this.ttsRate)}`;
+  // `lang` = language of the WHOLE message the chunk belongs to (2026-11-08, owner): the server reads an English
+  // answer in English, even with Hoai My picked, and keeps the Vietnamese way of saying English words in a Vietnamese
+  // answer. Decided per message, so one chunk of an English answer that names "Hội thoại" stays English.
+  _chunkUrl(text, lang = this._msgLang) {
+    const l = lang ? `&lang=${encodeURIComponent(lang)}` : "";
+    return `${this.ttsBackend}?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(this._voiceFor(text))}&rate=${encodeURIComponent(this.ttsRate)}${l}`;
+  }
+
+  _messageLang(text) {
+    const L = typeof window !== "undefined" && window.JavisVoiceLang;
+    return L && L.messageLang ? L.messageLang(text) : "";
   }
 
   // "auto" (0.220.0): the Edge voice follows the language of the text being read (voice-lang.js).
@@ -1239,6 +1248,7 @@ class JavisVoice {
   async _speakBackend(text) {
     // KHÔNG stopSpeaking ở đây - hàng đợi (_pumpQueue) điều phối thứ tự đọc.
     // Chunk ĐẦU nhỏ (1 câu) để audio đầu tiên tổng hợp + tải NHANH → bớt khựng; các chunk sau to (liền mạch).
+    this._msgLang = this._messageLang(text);
     this.ttsChunks = this._splitForLatency(text);
     this._preloaded = null;
     this.isPlaying = true;
@@ -1391,14 +1401,15 @@ class JavisVoice {
     const epoch = this._ttsEpoch;
     const done = onDone || (() => this._pumpQueue());
     const chunks = this._splitIntoChunks(text, 200);
+    const english = this._messageLang(text) === "en";   // an English answer: no Vietnamese browser voice
     let idx = 0;
     const playNext = () => {
       if (epoch !== this._ttsEpoch) return;
       if (idx >= chunks.length) { done(); return; }
       const piece = chunks[idx++];
       const utter = new SpeechSynthesisUtterance(piece);
-      utter.lang = this.lang;
-      if (this.vietnameseVoice) utter.voice = this.vietnameseVoice;
+      utter.lang = english ? "en-US" : this.lang;
+      if (this.vietnameseVoice && !english) utter.voice = this.vietnameseVoice;
       utter.rate = 1.05;
       utter.onstart = () => this._audioActuallyStarted(epoch);
       utter.onend = () => { if (epoch !== this._ttsEpoch) return; if (this._countThis) this._wordsDone += JavisVoice.demTu(piece); playNext(); };
@@ -1462,21 +1473,13 @@ class JavisVoice {
   _splitIntoChunks(text, maxLen) {
     const sentences = this._sentences(text);
     const chunks = [];
-    let current = "", currentLang = "";
-    // "auto" voice: the voice is picked per chunk, so an English sentence glued into a Vietnamese chunk would be read
-    // by Hoai My (2026-11-08, "Vinglish" report). Start a new chunk where the language changes. Sentences under
-    // 3 words ("OK.") keep the chunk's language, as the voice tracker would.
-    const L = this.ttsVoice === "auto" && typeof window !== "undefined" && window.JavisVoiceLang;
+    let current = "";
     for (const s of sentences) {
-      const lang = L && L.words(s) >= 3 ? L.detect(s) : "";
-      const switches = !!(lang && currentLang && lang !== currentLang);
-      if (((current + s).length > maxLen || switches) && current) {
+      if ((current + s).length > maxLen && current) {
         chunks.push(current.trim());
         current = s;
-        currentLang = lang || "";
       } else {
         current += s;
-        if (lang && !currentLang) currentLang = lang;
       }
     }
     if (current.trim()) chunks.push(current.trim());

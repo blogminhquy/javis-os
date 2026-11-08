@@ -51,22 +51,20 @@ check("index.html offers the auto voice", html.includes('<option value="auto" da
 check("voice-lang.js loads before voice.js", html.indexOf("/static/voice-lang.js") > 0 && html.indexOf("/static/voice-lang.js") < html.indexOf("/static/voice.js"));
 check("voice.js resolves the voice per chunk", /voice=\$\{encodeURIComponent\(this\._voiceFor\(text\)\)\}/.test(voiceJs));
 
-// "Vinglish" report (2026-11-08): with the auto voice, an English sentence must not share a chunk with Vietnamese,
-// or the chunk's single voice (Hoai My) reads the English. Load voice.js in a sandbox and split a mixed answer.
-const vm = require("vm");
-const box = { window: { JavisVoiceLang: L }, console };
-box.window.window = box.window;
-vm.createContext(box);
-vm.runInContext(voiceJs + "\n;this.JV = JavisVoice;", box);
-const split = (voice, text) => box.JV.prototype._splitIntoChunks.call(
-  Object.assign(Object.create(box.JV.prototype), { ttsVoice: voice }), text, 600);
-const mixed = "Đây là kết quả hôm nay nhé. Here is the summary of the report in English. Còn lại anh xem thêm ở trang chủ.";
-const autoChunks = split("auto", mixed);
-check("auto voice: Vietnamese, English, Vietnamese become three chunks", autoChunks.length === 3
-  && L.detect(autoChunks[0]) === "vi" && L.detect(autoChunks[1]) === "en" && L.detect(autoChunks[2]) === "vi");
-check("auto voice: the English chunk gets the English voice", new L.Tracker("vi").pick(autoChunks[1]) === L.VOICES.en);
-check("auto voice: 'OK.' does not split a chunk", split("auto", "Dạ được ạ. OK. Em làm ngay cho anh.").length === 1);
-check("a fixed voice keeps one chunk (it reads everything anyway)", split(L.VOICES.en, mixed).length === 1);
+// Read aloud follows the language of the whole message (owner, 2026-11-08): English answer -> English, Vietnamese
+// answer -> Vietnamese way of saying English words. Same rule as phien_am.is_english_text.
+check("messageLang: English answer naming a Vietnamese page is English", L.messageLang("Open the Hội thoại page to see your chats.") === "en");
+check("messageLang: curly apostrophes count", L.messageLang("Sure, here\u2019s what you asked for.") === "en");
+check("messageLang: Vietnamese with product names is Vietnamese", L.messageLang("Bật Dark Mode trong Settings nhé anh.") === "vi");
+check("messageLang: Vietnamese quoting an English sentence is Vietnamese",
+  L.messageLang('Câu "The quick brown fox jumps over the lazy dog" nghĩa là gì?') === "vi");
+check("messageLang: Vietnamese 'to', 'in', 'do' are not English markers",
+  L.messageLang("Anh cứ nói to lên, em in hoá đơn, do đó ai cũng được.") === "vi");
+check("messageLang: too short to tell -> empty (server decides)", L.messageLang("Done.") === "");
+check("voice.js sends the message language with each chunk", /_chunkUrl\(text, lang = this\._msgLang\)/.test(voiceJs)
+  && /this\._msgLang = this\._messageLang\(text\)/.test(voiceJs) && /&lang=\$\{encodeURIComponent\(lang\)\}/.test(voiceJs));
+check("voice.js preloads the next message with that message's language",
+  /this\._chunkUrl\(first, this\._messageLang\(next\)\)/.test(voiceJs));
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
 console.log("\nOK - voice-lang");

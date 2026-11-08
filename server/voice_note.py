@@ -34,6 +34,15 @@ def valid_edge_voice(voice) -> bool:
     return v == "auto" or bool(_VOICE_RE.match(v))
 
 
+def _english(text: str) -> bool:
+    """An English note that names a Vietnamese page or person is still English (2026-11-08)."""
+    try:
+        import phien_am
+        return phien_am.is_english_text(text)
+    except Exception:
+        return False
+
+
 def pick_voice(text: str, voice: str = "", chosen: str = "") -> str:
     """The voice the tool named, else the owner's Edge voice from Settings when it can read this text
     (0.298.0), else the language default. A Vietnamese-only voice does not read English text and an
@@ -41,7 +50,7 @@ def pick_voice(text: str, voice: str = "", chosen: str = "") -> str:
     v = str(voice or "").strip()
     if v and _VOICE_RE.match(v):
         return v
-    vi = bool(_VI_CHARS.search(text or ""))
+    vi = bool(_VI_CHARS.search(text or "")) and not _english(text)
     c = str(chosen or "").strip()
     if c != "auto" and _VOICE_RE.match(c):
         if "Multilingual" in c or vi == c.startswith("vi-"):
@@ -129,7 +138,7 @@ async def _edge(text: str, voice: str) -> bytes:
     import edge_tts   # lazy: optional feature, kept off the startup path (see test_khoi_dong_nhe)
     try:
         import phien_am
-        text = phien_am.doc_viet(text, voice)
+        text, voice = phien_am.speech_plan(text, voice)
     except Exception:
         pass
     out = b""

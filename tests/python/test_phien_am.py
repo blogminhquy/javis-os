@@ -61,22 +61,34 @@ check("số, đường dẫn và khoảng trắng giữ nguyên",
       P.doc_viet("Giá 12.500 đồng,  xem ở trang chủ nhé") == "Giá 12.500 đồng,  xem ở trang chủ nhé")
 check("chuỗi rỗng", P.doc_viet("") == "" and P.doc_viet(None) == "")
 
-# ---- 3b. Whole English sentences are not respelled (Vinglish report, 2026-11-08) ----
+# ---- 3b. English answers are read in English (owner, 2026-11-08) ----
+# "When the answer is in English, read it in English, not half English half Vietnamese. When the
+# user talks in Vietnamese, Vinglish is fine." Decided over the whole message.
 EMMA, HOAIMY = "en-US-EmmaMultilingualNeural", "vi-VN-HoaiMyNeural"
-Q = "Mình tóm tắt nhé: Artificial intelligence is transforming how businesses operate every day."
-check("an English sentence inside a Vietnamese answer stays English", P.doc_viet(Q, EMMA) == Q)
-Q2 = "Đây là kết quả. The quick brown fox jumps over the lazy dog."
-check("an English sentence after a Vietnamese one stays English", P.doc_viet(Q2, EMMA) == Q2)
 E = "Open the Hội thoại page to see your chats."
-check("an English answer naming a Vietnamese page stays English", P.doc_viet(E, EMMA) == E)
-check("terms inside Vietnamese are still respelled with a multilingual voice",
-      P.doc_viet("Mở GitHub Actions nhé", EMMA) == "Mở ghít hắp ác sừn nhé"
-      and P.doc_viet(C, EMMA) == P.doc_viet(C))
-N = "Javis hỗ trợ Claude Code, ChatGPT, Grok Build, OpenRouter."
-check("a list of product names is not mistaken for an English sentence",
-      not any(w in P.doc_viet(N, EMMA) for w in ("Claude", "ChatGPT", "OpenRouter")))
-check("a Vietnamese-only voice still respells everything (it cannot speak English)",
-      "quick" not in P.doc_viet(Q2, HOAIMY) and "intelligence" not in P.doc_viet(Q, HOAIMY))
+check("an English answer naming a Vietnamese page is English", P.is_english_text(E))
+check("a long English answer is English",
+      P.is_english_text("Sure, here is the summary of today's sales. Revenue went up ten percent."))
+for v in ("Bật Dark Mode trong Settings nhé anh.", C, "Javis hỗ trợ Claude Code, ChatGPT, OpenRouter.",
+          'Câu "The quick brown fox jumps over the lazy dog" nghĩa là gì?',
+          "Anh cứ nói to lên, em in hoá đơn rồi so sánh nhé, do đó ai cũng được."):
+    check(f"Vietnamese stays Vietnamese: {v[:30]!r}", not P.is_english_text(v))
+check("English answer: text untouched, Hoai My swapped for Emma",
+      P.speech_plan(E, HOAIMY, "en") == (E, P.ENGLISH_VOICE))
+check("English answer: a multilingual voice the owner picked is kept",
+      P.speech_plan(E, "en-US-AndrewMultilingualNeural", "en") == (E, "en-US-AndrewMultilingualNeural"))
+check("English answer with no lang hint (older page) is still read in English",
+      P.speech_plan(E, HOAIMY, "") == (E, P.ENGLISH_VOICE))
+check("Vietnamese answer keeps Vinglish, voice unchanged",
+      P.speech_plan("Mở GitHub Actions nhé", EMMA, "vi") == ("Mở ghít hắp ác sừn nhé", EMMA))
+check("Vietnamese answer: its English-only piece is respelled too",
+      "quick" not in P.speech_plan("The quick brown fox.", EMMA, "vi")[0])
+import voice_note  # noqa: E402
+check("voice note: an English note naming a Vietnamese page is not given Hoai My",
+      not voice_note.pick_voice(E, "", HOAIMY).startswith("vi-"))
+check("voice note: a Vietnamese note keeps Hoai My", voice_note.pick_voice(C, "", HOAIMY) == HOAIMY)
+check("no hint, plain English chunk: unchanged as before",
+      P.speech_plan("The build passed.", EMMA, "") == ("The build passed.", EMMA))
 
 # ---- 4. Chốt kiểm tra câu diễn giải so âm theo cách đọc ----
 import voice_brain as vb  # noqa: E402
@@ -129,8 +141,9 @@ try:
     client.get("/tts", params={"text": "The build passed.", "voice": "en-US-EmmaMultilingualNeural"})
     check("/tts câu thuần tiếng Anh: giữ nguyên chữ", _FakeCommunicate.goi[0][0] == "The build passed.")
     _FakeCommunicate.goi = []
-    client.get("/tts", params={"text": Q2, "voice": "en-US-EmmaMultilingualNeural"})
-    check("/tts English sentence inside Vietnamese reaches Emma unchanged", _FakeCommunicate.goi[0][0] == Q2)
+    client.get("/tts", params={"text": E, "voice": HOAIMY, "lang": "en"})
+    check("/tts English answer: unchanged text, read by Emma instead of Hoai My",
+          _FakeCommunicate.goi == [(E, P.ENGLISH_VOICE)])
 finally:
     main.cfgmod.read_settings = _cfg_goc
 
