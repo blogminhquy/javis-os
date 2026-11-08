@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.501.1] - 2026-11-08
+### Fixed
+- **Private Zalo chats no longer have holes in the inbox.** A private chat could stop at one message while the phone kept going both ways. About every 1.5 minutes Javis now compares the inbox with the Zalo history and writes what is missing, including messages typed on the phone. Recovered messages show as unread, are not handed to the bot for a late reply, do not duplicate what the bot already sent, and never replace the chat's last message.
+
 ## [0.501.0] - 2026-11-08
 ### Improved
 - **Every model time cap is gone.** Grok no longer stops at minute 15, a single Claude Code or ChatGPT command is no longer cut at one hour, and background work and Teams run until done. The Stop button still ends anything at any moment.
