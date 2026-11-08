@@ -1984,6 +1984,13 @@
       listEl.appendChild(more);
     }
     listEl.scrollTop = keepScroll;
+    // 2026-11-08: warm the first chats of the list once the page is idle (app.js prefetchMany), so the first tap on a
+    // phone, which has no hover, finds them ready too.
+    try {
+      if (window.JavisSessions && window.JavisSessions.prefetchMany) {
+        window.JavisSessions.prefetchMany(items.slice(0, 8).map(function (s) { return s.id; }));
+      }
+    } catch (e) {}
   }
 
   async function doSearch(q) {
