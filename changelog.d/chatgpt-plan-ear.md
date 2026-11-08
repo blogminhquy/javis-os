@@ -9,7 +9,7 @@ title: The ChatGPT plan hears your voice, and the ear follows the model in use
 
 ### Cải thiện
 - **Agent nghe bằng tai của chính nó.** Agent chọn model hãng nào thì tin thoại gửi bot chuyên trách và lời đọc trong khung chat của agent đó được hãng ấy nghe, không mượn tai của bộ não chính.
-- **Model nghe tự lên đời theo hãng.** Mỗi ngày Javis hỏi Groq, OpenAI và Google danh sách model rồi tự dùng bản nghe giọng mới nhất, không phải chờ bản cập nhật Javis. Bản mới bị từ chối hay một tai hỏng thì bản cũ hoặc tai kế tiếp nghe thay, câu nói không bị mất.
+- **Model nghe tự lên đời theo hãng, có chấm điểm trước.** Mỗi ngày Javis hỏi Groq, OpenAI và Google danh sách model. Gặp bản mới, Javis cho bản mới và bản đang dùng cùng nghe một bộ câu Việt xen Anh, bản mới không tệ hơn mới được dùng. Một tai hỏng thì tai kế tiếp nghe thay, câu nói không bị mất.
 
 ## en
 ### Added
@@ -18,4 +18,4 @@ title: The ChatGPT plan hears your voice, and the ear follows the model in use
 
 ### Improved
 - **Agents hear with their own ear.** An agent on a vendor's model has its dedicated bot's voice messages and its chat's dictation heard by that vendor, not by the main brain's.
-- **Ears upgrade with the vendor.** Once a day Javis asks Groq, OpenAI and Google for their models and moves to the newest speech-to-text one by itself, no Javis update needed. If a new model is refused or an ear fails, the old model or the next ear hears instead, so the sentence is not lost.
+- **Ears upgrade with the vendor, scored first.** Once a day Javis asks Groq, OpenAI and Google for their models. When a new one appears, it and the model in use hear the same Vietnamese and English sentences, and the new one is used only if it is not worse. When an ear fails the next one hears, so the sentence is not lost.

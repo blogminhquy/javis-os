@@ -507,6 +507,17 @@ async def gemini_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords
         data, ten_file, api_key, mdl, ngon_ngu, hotwords))
 
 
+async def transcribe_with(vendor, data, ten_file, api_key, model, ngon_ngu=None):
+    """One call to one vendor with exactly `model`: no discovery, no retry. stt_gate scores two models with it."""
+    if vendor == "groq":
+        return await _api_transcribe(GROQ_STT_URL, "groq", data, ten_file, api_key, model, ngon_ngu, "")
+    if vendor == "openai":
+        return await _api_transcribe(OPENAI_STT_URL, "openai", data, ten_file, api_key, model, ngon_ngu, "")
+    if vendor == "gemini":
+        return await _gemini_once(data, ten_file, api_key, model, ngon_ngu, "")
+    return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", f"unknown ear {vendor}")}
+
+
 async def _gemini_once(data, ten_file, api_key, mdl, ngon_ngu, hotwords):
     import base64
     import os

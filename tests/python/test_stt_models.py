@@ -7,14 +7,36 @@ Owner: "pick the vendor's best Whisper by itself when they upgrade, no hand upda
   - a sentence never waits for the list (the default is used, the list is fetched in the background);
   - discovery is off in tests (JAVIS_NO_STT_MODEL_DISCOVERY) and a pinned model always wins;
   - a discovered model the vendor refuses is retried with the default, then left aside for a day;
-  - Groq, OpenAI and Gemini ears really send the discovered model.
+  - Groq, OpenAI and Gemini ears really send the discovered model;
+  - SELF-SCORING (stt_gate): a new model is scored against the one in use on the same sentences and taken only when
+    it is not worse; the verdict survives a restart and a model that lost is not scored again for a month.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
+import json
 import os
+import tempfile
+from pathlib import Path
+
+os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-stt-models-")
 
 import stt  # noqa: E402
+import stt_gate  # noqa: E402
 import stt_models as sm  # noqa: E402
+
+STATE = Path(os.environ["JAVIS_STATE_DIR"])
+GATE = {"ok": True, "reason": "not_worse", "current": {}, "candidate": {}}
+GATE_CALLS = []
+
+
+REAL_COMPARE, REAL_CLIPS, REAL_TTS = stt_gate.compare, stt_gate.clips, stt_gate._tts
+
+
+async def fake_compare(vendor, key, current, candidate):
+    GATE_CALLS.append((vendor, current, candidate))
+    return dict(GATE)
+
+stt_gate.compare = fake_compare
 
 _fails = []
 
@@ -136,12 +158,13 @@ stt.httpx.AsyncClient = FakeClient
 try:
     for vendor, want in (("groq", "whisper-large-v4"), ("openai", "gpt-5-transcribe"), ("gemini", "gemini-3.8-flash")):
         got = run(sm.refresh(vendor, "key-" + vendor))
-        check(f"{vendor}: the list is read and the newest ear model kept", got == want
-              and sm.best(vendor, "key-" + vendor) == want, got)
+        check(f"{vendor}: the newest ear model is scored against the one in use, then kept", got == want
+              and sm.best(vendor, "key-" + vendor) == want and GATE_CALLS[-1] == (vendor, sm.DEFAULTS[vendor], want),
+              (got, GATE_CALLS[-1:]))
     check("each vendor is asked with its own key",
           ASKED[0][1].get("Authorization") == "Bearer key-groq" and ASKED[2][1].get("x-goog-api-key") == "key-gemini")
-    check("another key is another account: its own answer",
-          sm.best("groq", "other-key") == "whisper-large-v3")
+    check("another key of the same vendor uses the model already scored for that vendor (no second scoring)",
+          sm.best("groq", "other-key") == "whisper-large-v4")
     check("current() reports the models in use", sm.current().get("openai") == "gpt-5-transcribe")
 
     STATUS["code"] = 503
@@ -201,6 +224,164 @@ finally:
     stt.httpx.AsyncClient = _real_client
     sm._CACHE.clear()
     sm._BAD.clear()
+
+# ============================================================
+# 3. Self-scoring: a new model is taken only when it is not worse
+# ============================================================
+# ---- the verdict (pure) ----
+same = {"wer": 0.10, "terms": 20, "terms_total": 22, "answered": 13, "clips": 13}
+check("not worse (equal) -> the newer model wins", stt_gate.verdict(same, dict(same)) == (True, "not_worse"))
+check("a little noise in WER is tolerated", stt_gate.verdict(same, dict(same, wer=0.11))[0] is True)
+check("clearly more word errors -> keep the model in use",
+      stt_gate.verdict(same, dict(same, wer=0.18)) == (False, "more_word_errors"))
+check("two more command terms lost -> keep", stt_gate.verdict(same, dict(same, terms=18)) == (False, "fewer_terms"))
+check("the new model fails on several clips -> keep",
+      stt_gate.verdict(same, dict(same, answered=9)) == (False, "candidate_fails"))
+check("the model in use no longer answers (retired) -> the working one wins",
+      stt_gate.verdict(dict(same, answered=0, wer=1.0), same) == (True, "current_fails"))
+
+# ---- scoring real rows: an English-tuned model that translates the English terms loses ----
+ITEMS = [{"id": c[0], "text": c[2], "terms": c[3], "data": b"x", "name": c[0] + ".mp3"} for c in stt_gate.SENTENCES]
+ANSWERS = {}
+
+
+async def fake_transcribe_with(vendor, data, name, key, model, lang=None):
+    cid = name.split(".")[0]
+    text = next(i["text"] for i in ITEMS if i["id"] == cid)
+    a = ANSWERS.get(model, {})
+    if a == "down":
+        return {"ok": False, "ly_do": "loi"}
+    return {"ok": True, "text": a.get(cid, text), "model": model}
+
+_real_tw, _real_gap = stt.transcribe_with, dict(stt_gate.GAP_S)
+stt.transcribe_with = fake_transcribe_with
+stt_gate.GAP_S.update({"groq": 0, "openai": 0, "gemini": 0})
+
+
+async def fixed_clips():
+    return list(ITEMS)
+
+stt_gate.clips = fixed_clips
+stt_gate.compare = REAL_COMPARE
+gate_mod = stt_gate
+try:
+    ANSWERS["new-en"] = {"m1": "Mở bảng điều khiển quảng cáo Facebook rồi báo cáo lợi nhuận tuần này",
+                         "m3": "Javis ơi kiểm tra hàng tồn kho của sản phẩm bulong",
+                         "m4": "Tạo một quy trình mới tên là báo cáo hằng ngày",
+                         "m10": "Tăng ngân sách của chiến dịch tiếp thị lại lên hai triệu"}
+    r = run(gate_mod.compare("groq", "k", "whisper-large-v3", "new-en"))
+    check("a new model that translates the English terms into Vietnamese loses the score",
+          r["ok"] is False and r["candidate"]["terms"] < r["current"]["terms"], r)
+    ANSWERS["new-good"] = {}
+    ANSWERS["whisper-large-v3"] = {"m5": "Kết nối MC của Pancake bót"}
+    r = run(gate_mod.compare("groq", "k", "whisper-large-v3", "new-good"))
+    check("a new model that hears the terms the old one missed wins",
+          r["ok"] is True and r["candidate"]["wer"] < r["current"]["wer"], r)
+    ANSWERS["retired"] = "down"
+    r = run(gate_mod.compare("groq", "k", "retired", "new-good"))
+    check("the model in use answers nothing any more -> the new one wins", r["ok"] is True
+          and r["reason"] == "current_fails", r)
+
+    # ---- the clips: made once with the Edge voice, then read from disk ----
+    gate_mod.clips = REAL_CLIPS
+    TTS = []
+
+    async def fake_tts(text, voice):
+        TTS.append(voice)
+        return b"ID3" + b"\0" * 2000
+
+    gate_mod._tts = fake_tts
+    got = run(gate_mod.clips())
+    check("every sentence becomes a clip, English ones read by an English voice",
+          len(got) == len(gate_mod.SENTENCES) and TTS.count(gate_mod.EN_VOICE) == 2, (len(got), TTS[:3]))
+    check("the clips are kept in the state folder", (STATE / "stt_gate" / "m1.mp3").is_file())
+    TTS.clear()
+    run(gate_mod.clips())
+    check("the second time nothing is synthesised again", TTS == [])
+
+    real = STATE / "stt_bench" / "real"
+    real.mkdir(parents=True, exist_ok=True)
+    (real / "anh.ogg").write_bytes(b"OggS" + b"\0" * 100)
+    (real / "refs.tsv").write_text("# file\tsentence\tterms\nanh.ogg\tMở Zalo OA cho anh\tZalo OA\n", encoding="utf-8")
+    got = run(gate_mod.clips())
+    check("the owner's own recordings (stt_bench/real/refs.tsv) join the set",
+          any(c["id"] == "real:anh.ogg" and c["terms"] == ("Zalo OA",) for c in got), [c["id"] for c in got][-2:])
+
+    for f in (STATE / "stt_gate").glob("*.mp3"):
+        f.unlink()
+
+    async def no_tts(text, voice):
+        raise OSError("no network")
+
+    gate_mod._tts = no_tts
+    check("no Edge voice reachable -> no clips, nothing is decided", run(gate_mod.clips()) == []
+          and run(gate_mod.compare("groq", "k", "a", "b"))["ok"] is None)
+finally:
+    stt.transcribe_with = _real_tw
+    stt_gate.clips, stt_gate._tts = REAL_CLIPS, REAL_TTS
+    stt_gate.GAP_S.clear()
+    stt_gate.GAP_S.update(_real_gap)
+
+# ---- refresh() with the score ----
+stt_gate.compare = fake_compare
+sm._CACHE.clear()
+sm._VERDICTS.clear()
+sm._LOADED[0] = False
+(STATE / "stt_models.json").unlink(missing_ok=True)   # the verdicts section 2 wrote
+LIST = {"data": [{"id": "whisper-large-v3"}, {"id": "whisper-large-v4"}]}
+
+
+class ListClient(FakeClient):
+    async def get(self, url, headers=None, params=None):
+        return FakeResponse(200, LIST)
+
+stt.httpx.AsyncClient = ListClient
+try:
+    GATE.update(ok=False, reason="more_word_errors")
+    GATE_CALLS.clear()
+    got = run(sm.refresh("groq", "kg"))
+    check("new model scored worse -> the model in use stays", got == "whisper-large-v3"
+          and sm.best("groq", "kg") == "whisper-large-v3" and len(GATE_CALLS) == 1)
+    saved = json.loads((STATE / "stt_models.json").read_text(encoding="utf-8"))
+    check("... the verdict is written down with its reason",
+          "whisper-large-v4" in saved["groq"]["rejected"] and saved["groq"]["last"]["result"] == "keep"
+          and saved["groq"]["last"]["reason"] == "more_word_errors", saved.get("groq"))
+    sm._CACHE.clear()
+    run(sm.refresh("groq", "kg"))
+    check("the model that lost is not scored again (a month)", len(GATE_CALLS) == 1, GATE_CALLS)
+
+    sm._VERDICTS.clear()
+    (STATE / "stt_models.json").unlink()
+    sm._CACHE.clear()
+    GATE.update(ok=True, reason="not_worse")
+    got = run(sm.refresh("groq", "kg"))
+    check("new model not worse -> switched", got == "whisper-large-v4")
+    sm._CACHE.clear()
+    sm._VERDICTS.clear()
+    sm._LOADED[0] = False
+    check("after a restart the scored model is used at once, read from disk",
+          sm.best("groq", "kg") == "whisper-large-v4" and sm.accepted("groq") == "whisper-large-v4")
+    GATE_CALLS.clear()
+    run(sm.refresh("groq", "kg"))
+    check("... and the same model is not scored again", GATE_CALLS == [])
+
+    sm._VERDICTS.clear()
+    (STATE / "stt_models.json").unlink()
+    sm._CACHE.clear()
+    GATE.update(ok=None, reason="no_clips")
+    got = run(sm.refresh("groq", "kg"))
+    slot = sm._CACHE[("groq", sm._fp("kg"))]
+    check("nothing could be measured -> the model in use stays, scored again in an hour",
+          got == "whisper-large-v3" and slot["next"] - sm.time.time() <= sm.GATE_RETRY + 5)
+    LIST["data"] = [{"id": "whisper-large-v4"}]
+    sm._CACHE.clear()
+    got = run(sm.refresh("groq", "kg"))
+    check("nothing measured but the vendor dropped the model in use -> the listed one is taken",
+          got == "whisper-large-v4" and sm.accepted("groq") == "whisper-large-v4")
+finally:
+    stt.httpx.AsyncClient = _real_client
+    sm._CACHE.clear()
+    sm._VERDICTS.clear()
 
 if _fails:
     print("\nFAIL:", len(_fails), _fails)

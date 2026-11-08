@@ -13,33 +13,44 @@ How a model is chosen, per vendor, from its own model list (refreshed once a day
 The ChatGPT plan's ear needs nothing: its endpoint picks the model server side and upgrades with the plan.
 
 Rails, because "newest" is not always "works":
+  - SCORED BEFORE THE SWITCH (stt_gate): a model Javis has not judged yet hears the same short set of sentences as the
+    model in use (Vietnamese, English, and Vietnamese with English terms) and is taken only when it is not worse. The
+    verdict is kept in <STATE_DIR>/stt_models.json, so a restart does not score again, and a model that lost is not
+    scored again for a month. When nothing can be measured (no Edge voice reachable) the model in use stays, unless
+    the vendor no longer lists it;
   - a sentence never waits for the list: the first call uses the known default and refreshes in the background;
   - a discovered model the vendor refuses is retried once with the default; when the default then hears, the new model
     is set aside for a day (`mark_bad`) and the log says so;
   - the owner's own pin (`voice.stt_model` for Groq) always wins;
   - `JAVIS_NO_STT_MODEL_DISCOVERY=1` turns discovery off (the test runner sets it, so no test calls a vendor).
 Ranking is by the vendor's own naming (version numbers, mini/turbo/preview words), which vendors have kept for years;
-which model hears Vietnamese mixed with English BEST is measured by tools/stt_bench, not guessed here.
+whether the newest one hears Vietnamese mixed with English at least as well is measured by stt_gate, not guessed.
 """
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import os
 import re
 import sys
 import time
+from pathlib import Path
 
 DEFAULTS = {"groq": "whisper-large-v3", "openai": "gpt-4o-transcribe", "gemini": "gemini-2.5-flash"}
 VENDORS = tuple(DEFAULTS)
 TTL = 24 * 3600              # a vendor's model list is asked again after a day
 RETRY_AFTER_FAIL = 3600      # the list could not be read: try again in an hour, keep what we had
 BAD_TTL = 24 * 3600          # a discovered model the vendor refused is left aside this long
+REJECT_TTL = 30 * 24 * 3600  # a model that scored worse than the one in use is not scored again this long
+GATE_RETRY = 3600            # nothing could be measured: try the score again in an hour
 LIST_TIMEOUT = 15.0
 OFF_ENV = "JAVIS_NO_STT_MODEL_DISCOVERY"
 
 _CACHE: dict = {}            # (vendor, key fingerprint) -> {"model": str, "next": epoch}
 _BAD: dict = {}              # (vendor, model) -> epoch until which it is not used
+_VERDICTS: dict = {}         # vendor -> {"accepted": model, "rejected": {model: until}, "last": scores}, on disk
+_LOADED = [False]
 _TASKS: set = set()          # running refreshes (a reference, so the loop does not drop them)
 _RUNNING: set = set()        # (vendor, key fingerprint) being refreshed
 
@@ -142,20 +153,90 @@ async def _list_models(vendor: str, key: str) -> list:
     return [x for x in (rows or []) if isinstance(x, dict)]
 
 
-async def refresh(vendor: str, key: str) -> str:
-    """Ask `vendor` for its models now and remember the best ear model. Returns it, "" when none was found."""
-    slot = (vendor, _fp(key))
-    old = (_CACHE.get(slot) or {}).get("model") or ""
+def _state_file() -> Path:
+    import config as cfgmod
+    return Path(cfgmod.STATE_DIR) / "stt_models.json"
+
+
+def _verdicts() -> dict:
+    if not _LOADED[0]:
+        _LOADED[0] = True
+        try:
+            d = json.loads(_state_file().read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                _VERDICTS.update({k: v for k, v in d.items() if k in DEFAULTS and isinstance(v, dict)})
+        except (OSError, ValueError):
+            pass
+    return _VERDICTS
+
+
+def _save() -> None:
     try:
-        picked = RANKERS[vendor](await _list_models(vendor, key))
+        f = _state_file()
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps(_VERDICTS, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(tmp, f)
+    except OSError as e:
+        print(f"[stt models] save: {e}", file=sys.stderr)
+
+
+def accepted(vendor: str) -> str:
+    """The model that last won (or needed no) scoring for `vendor`, "" when none yet."""
+    return str((_verdicts().get(vendor) or {}).get("accepted") or "")
+
+
+def _rejected(vendor: str, model: str) -> bool:
+    until = ((_verdicts().get(vendor) or {}).get("rejected") or {}).get(model)
+    return bool(until and float(until) > time.time())
+
+
+def _ids(vendor: str, models: list) -> set:
+    return {str(m.get("name") or m.get("id") or "").split("/")[-1] for m in models}
+
+
+async def refresh(vendor: str, key: str) -> str:
+    """Ask `vendor` for its models now; a newer ear model is scored against the one in use (stt_gate) and taken only
+    when it is not worse. Returns the model in use afterwards."""
+    slot = (vendor, _fp(key))
+    in_use = (_CACHE.get(slot) or {}).get("model") or accepted(vendor) or DEFAULTS[vendor]
+    try:
+        models = await _list_models(vendor, key)
     except Exception as e:  # noqa: BLE001 - no list means the model we had, never a lost sentence
         print(f"[stt models] {vendor}: {type(e).__name__}: {str(e)[:160]}", file=sys.stderr)
-        _CACHE[slot] = {"model": old, "next": time.time() + RETRY_AFTER_FAIL}
-        return old
-    _CACHE[slot] = {"model": picked, "next": time.time() + TTL}
-    if picked and picked != old:
-        print(f"[stt models] {vendor}: {old or DEFAULTS[vendor]} -> {picked}", file=sys.stderr)
-    return picked
+        _CACHE[slot] = {"model": in_use, "next": time.time() + RETRY_AFTER_FAIL}
+        return in_use
+    picked = RANKERS[vendor](models)
+    nxt = time.time() + TTL
+    v = _verdicts().setdefault(vendor, {})
+    if not picked or picked == in_use or _rejected(vendor, picked):
+        model = in_use
+    else:
+        import stt_gate
+        try:
+            g = await stt_gate.compare(vendor, key, in_use, picked)
+        except Exception as e:  # noqa: BLE001 - a scoring that breaks decides nothing
+            print(f"[stt gate] {vendor}: {type(e).__name__}: {str(e)[:160]}", file=sys.stderr)
+            g = {"ok": None, "reason": "error"}
+        last = {"at": int(time.time()), "in_use": in_use, "candidate": picked, "reason": g.get("reason"),
+                "scores": {in_use: g.get("current") or {}, picked: g.get("candidate") or {}}}
+        if g.get("ok") is True:
+            model = picked
+            v.update(accepted=picked, last=dict(last, result="switch"))
+        elif g.get("ok") is False:
+            model = in_use
+            v.setdefault("rejected", {})[picked] = int(time.time() + REJECT_TTL)
+            v["last"] = dict(last, result="keep")
+        elif in_use not in _ids(vendor, models):
+            model = picked             # nothing measured, but the vendor no longer lists the model in use
+            v.update(accepted=picked, last=dict(last, result="switch_unmeasured"))
+        else:
+            model, nxt = in_use, time.time() + GATE_RETRY
+            v["last"] = dict(last, result="unmeasured")
+        _save()
+    _CACHE[slot] = {"model": model, "next": nxt}
+    if model != in_use:
+        print(f"[stt models] {vendor}: {in_use} -> {model}", file=sys.stderr)
+    return model
 
 
 def _spawn(vendor: str, key: str) -> None:
@@ -196,7 +277,7 @@ def best(vendor: str, key: str, pinned: str = "") -> str:
     c = _CACHE.get(slot)
     if (not c or time.time() >= c.get("next", 0)) and os.environ.get(OFF_ENV) != "1":
         _spawn(vendor, key)
-    model = (c or {}).get("model") or default
+    model = (c or {}).get("model") or accepted(vendor) or default
     return default if is_bad(vendor, model) else model
 
 
@@ -226,6 +307,6 @@ def current() -> dict:
     """{vendor: model in use} for the keys seen so far (the settings page and logs)."""
     out = {}
     for (vendor, _k), c in _CACHE.items():
-        m = c.get("model") or DEFAULTS.get(vendor, "")
+        m = c.get("model") or accepted(vendor) or DEFAULTS.get(vendor, "")
         out[vendor] = DEFAULTS.get(vendor, "") if is_bad(vendor, m) else m
     return out
