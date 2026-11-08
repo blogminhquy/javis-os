@@ -507,8 +507,10 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
 # định 3 ở đầu file. Nút "Nhập tin cũ" là lựa chọn riêng của chủ, không chạy tự động.
 #
 # Ba rào:
-#   1. Chỉ nhập vào cuộc chat CHƯA có tin nào trong kho. Khung tin xếp theo id, nên tin cũ nhập sau tin mới sẽ hiện SAU tin mới.
-#      Cuộc chat đã có tin thì bỏ qua, nói rõ trong kết quả.
+#   1. Cuộc chat đã có tin thì chỉ nhập các tin CŨ HƠN tin đầu tiên của nó, và đặt chúng lên trên bằng `seq` (conversations.ORDER_KEY):
+#      id của chúng mới hơn nên xếp theo id thì chúng hiện dưới cùng. Tin nằm giữa các tin đã có là việc của phần bắt bù ở dưới.
+#      Trước 08/11/2026 cuộc chat đã có tin bị bỏ qua hẳn. Chủ báo "nhập lịch sử mà vẫn không nhập được": tài khoản đã bật Ghi hội
+#      thoại thì cuộc chat nào đang nói chuyện cũng đã có tin, nên lần nhập không thêm được gì.
 #   2. Không giao cho bot, không cộng số chưa đọc, không đụng đồng hồ "chủ vừa nhắn tay": đây là tin đã qua, ghi để xem lại.
 #   3. Có trần (`NHAP_TOI_DA` tin, `NHAP_NGAY` ngày) để một nick nhiều nhóm không làm kho phình. Nhóm vẫn chỉ giữ
 #      `conversations.GIU_TIN_NHOM` tin gần nhất như mọi lúc.
@@ -519,9 +521,10 @@ _DANG_NHAP: set = set()     # conn_id đang nhập: bấm hai lần liền khôn
 
 
 async def nhap_lich_su(conn_id: str, ngay: int = NHAP_NGAY) -> dict:
-    """Nhập tin cũ javis-zalo đã giữ (tối đa `ngay` ngày, `NHAP_TOI_DA` tin) vào Hộp thư, chỉ cho cuộc chat chưa có tin nào.
+    """Nhập tin cũ javis-zalo đã giữ (tối đa `ngay` ngày, `NHAP_TOI_DA` tin) vào Hộp thư. Cuộc chat đã có tin chỉ nhận các tin cũ
+    hơn tin đầu tiên của nó, xếp lên trên.
 
-    Trả {"ok", "so_tin", "so_cuoc_chat", "bo_qua", "het_tran"} hoặc {"ok": False, "loi"}."""
+    Trả {"ok", "so_tin", "so_cuoc_chat", "het_tran"} hoặc {"ok": False, "loi"}."""
     cid = str(conn_id or "")
     conn = ket_noi_theo_id(cid)
     if not conn:
@@ -557,7 +560,7 @@ async def nhap_lich_su(conn_id: str, ngay: int = NHAP_NGAY) -> dict:
             if not (isinstance(d, dict) and d.get("hasMore") and truoc and trang):
                 break
         if not tin:
-            return {"ok": True, "so_tin": 0, "so_cuoc_chat": 0, "bo_qua": 0, "het_tran": False}
+            return {"ok": True, "so_tin": 0, "so_cuoc_chat": 0, "het_tran": False}
         ten = await _nap_ten(conn, {})
         theo_chat: Dict[str, List[dict]] = {}
         for m in tin:
@@ -565,21 +568,25 @@ async def nhap_lich_su(conn_id: str, ngay: int = NHAP_NGAY) -> dict:
             if ev and ev.get("external_message_id"):
                 ev["metadata"] = dict(ev.get("metadata") or {}, lich_su=True)
                 theo_chat.setdefault(ev["external_chat_id"], []).append(ev)
-        so_tin = so_chat = bo_qua = 0
+        so_tin = so_chat = 0
         for chat, evs in theo_chat.items():
-            if conversations.co_tin(KENH, cid, chat):
-                bo_qua += 1
-                continue
             evs.sort(key=lambda e: float(e.get("created_at") or 0))
+            dau = conversations.first_order(KENH, cid, chat)
+            if dau is not None:
+                # Only what is older than the chat's first message, placed above it in time order: the oldest gets the lowest seq.
+                evs = [e for e in evs if float(e.get("created_at") or 0) < dau["at"]]
             ghi = 0
-            for ev in evs:
-                r = conversations.ghi_su_kien(ev, dem_chua_doc=False)
+            for i, ev in enumerate(evs):
+                if dau is None:
+                    r = conversations.ghi_su_kien(ev, dem_chua_doc=False)
+                else:
+                    r = conversations.ghi_su_kien(ev, dem_chua_doc=False, late=True, seq=dau["key"] - (len(evs) - i))
                 if r.get("ok") and not r.get("trung"):
                     ghi += 1
             if ghi:
                 so_tin += ghi
                 so_chat += 1
-        return {"ok": True, "so_tin": so_tin, "so_cuoc_chat": so_chat, "bo_qua": bo_qua, "het_tran": het_tran}
+        return {"ok": True, "so_tin": so_tin, "so_cuoc_chat": so_chat, "het_tran": het_tran}
     finally:
         _DANG_NHAP.discard(cid)
 

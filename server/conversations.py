@@ -64,6 +64,12 @@ NGAY_GIU_SAO_LUU = 14    # bản sao lưu trước khi cắt nhóm cũ tự xoá
 MAX_TEN = 120
 MAX_DANH_SACH = 200      # trần một trang danh sách hội thoại
 MAX_TIN_MOT_LAN = 500    # trần một trang tin nhắn
+# Display order of a conversation's messages. A live message has no `seq`, so it sorts by its id (written order), as it
+# always did. A message imported from the Zalo history into a chat that already had messages gets a `seq` below the
+# chat's first one (`first_order`), so it shows above them even though its id is newer (owner, 08/11/2026: "Nhập tin
+# cũ" skipped every chat that already had a message, so on an account the inbox already watched it imported nothing).
+# Only ever compared inside one conversation.
+ORDER_KEY = "COALESCE(seq, id)"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS channel_accounts(
@@ -191,6 +197,10 @@ def _nang_cap(db: sqlite3.Connection) -> None:
     # which grows by a thousand rows per busy Zalo group. One range index per access path; built once on an old store.
     db.execute("CREATE INDEX IF NOT EXISTS ix_msg_time ON messages(created_at)")
     db.execute("CREATE INDEX IF NOT EXISTS ix_msg_conv_time ON messages(conversation_id, created_at)")
+    if "seq" not in {r[1] for r in db.execute("PRAGMA table_info(messages)").fetchall()}:
+        # Display order of a message imported from the history into a chat that already had messages (see ORDER_KEY).
+        db.execute("ALTER TABLE messages ADD COLUMN seq REAL")
+    db.execute(f"CREATE INDEX IF NOT EXISTS ix_msg_conv_order ON messages(conversation_id, {ORDER_KEY})")
     cot_hoi_thoai = {r[1] for r in db.execute("PRAGMA table_info(conversations)").fetchall()}
     if "pinned" not in cot_hoi_thoai:
         # 0.223.0: chủ ghim một cuộc chat lên đầu hòm thư, như ghim hội thoại ở trang Trò chuyện.
@@ -328,7 +338,7 @@ def _tai_khoan_id(kenh: str, account_id: str) -> str:
     return f"{kenh}:{account_id}"
 
 
-def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False) -> dict:
+def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Optional[float] = None) -> dict:
     """Đổ MỘT sự kiện chuẩn vào kho: tìm/tạo tài khoản kênh, khách, hội thoại rồi thêm tin.
 
     Trả về {"ok": True, "conversation_id", "message_id", "customer_id", "trung": bool}.
@@ -340,6 +350,9 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False) -> dict
 
     `late=True`: a message written after newer ones may already be stored (recovered from the Zalo history). It only
     becomes the conversation's last message when it is not older than the current one.
+
+    `seq`: the message's place in the conversation when it is not its id (see ORDER_KEY); only the history import sets it,
+    together with `late=True`.
     """
     lt = 1 if late else 0
     e = chuan_hoa(ev)
@@ -412,10 +425,11 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False) -> dict
                                 "message_id": int(cu["id"]), "customer_id": customer_id}
                 cur = db.execute(
                     "INSERT INTO messages(conversation_id, external_message_id, sender_type,"
-                    " sender_id, sender_name, message_type, text, metadata_json, created_at)"
-                    " VALUES(?,?,?,?,?,?,?,?,?)",
+                    " sender_id, sender_name, message_type, text, metadata_json, created_at, seq)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?)",
                     (conv_id, e["external_message_id"], e["sender_type"], e["sender_id"],
-                     e["sender_name"], e["message_type"], e["text"], _json(e["metadata"]), ts))
+                     e["sender_name"], e["message_type"], e["text"], _json(e["metadata"]), ts,
+                     None if seq is None else float(seq)))
                 msg_id = int(cur.lastrowid)
 
                 # 5. Cập nhật hội thoại: tin cuối, số tin, chưa đọc (chỉ đếm tin KHÁCH)
@@ -467,14 +481,28 @@ def co_tin(kenh: str, account_id: str, external_chat_id: str) -> bool:
     return bool(r)
 
 
+def first_order(kenh: str, account_id: str, external_chat_id: str) -> Optional[dict]:
+    """The first message of this chat in display order: `{"key": its ORDER_KEY, "at": the oldest created_at}`, None when
+    the chat has no message. For `zalo_personal_channel.nhap_lich_su`, which puts older messages above it."""
+    with _lock:
+        r = _conn().execute(
+            "SELECT MIN(COALESCE(m.seq, m.id)), MIN(m.created_at) FROM messages m"
+            " JOIN conversations c ON c.id = m.conversation_id WHERE c.channel_account_id=? AND c.external_chat_id=?",
+            (_tai_khoan_id(kenh, account_id), str(external_chat_id))).fetchone()
+    if not r or r[0] is None:
+        return None
+    return {"key": float(r[0]), "at": float(r[1])}
+
+
 def _cat_nhom_mot_cuoc(db, conv_id: int, giu: int = GIU_TIN_NHOM) -> int:
     """Xoá các tin CŨ của một cuộc chat, chỉ giữ `giu` tin mới nhất. Trả số tin đã xoá. Phải gọi trong giao dịch đang mở.
 
-    Mốc cắt là id của tin thứ `giu` tính từ mới nhất (truy vấn theo chỉ mục `ix_msg_conv`, không quét cả bảng); chưa đủ `giu` tin thì
-    không có mốc và không xoá gì."""
+    Mốc cắt là thứ tự (ORDER_KEY) của tin thứ `giu` tính từ mới nhất (theo chỉ mục `ix_msg_conv_order`, không quét cả bảng); chưa đủ
+    `giu` tin thì mốc là NULL, phép so sánh không đúng với tin nào và không xoá gì. Tin nhập từ lịch sử có thể mang thứ tự âm, nên không
+    lấy 0 làm mốc rỗng như trước."""
     cur = db.execute(
-        "DELETE FROM messages WHERE conversation_id=? AND id < COALESCE("
-        "(SELECT id FROM messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1 OFFSET ?), 0)",
+        f"DELETE FROM messages WHERE conversation_id=? AND {ORDER_KEY} < "
+        f"(SELECT {ORDER_KEY} FROM messages WHERE conversation_id=? ORDER BY {ORDER_KEY} DESC LIMIT 1 OFFSET ?)",
         (int(conv_id), int(conv_id), int(giu) - 1))
     return int(cur.rowcount or 0)
 
@@ -563,7 +591,7 @@ def tin_gan_day(channel: str, account_id: str, external_chat_id: str, limit: int
         with _lock:
             rows = _conn().execute(
                 "SELECT m.* FROM messages m JOIN conversations c ON c.id=m.conversation_id"
-                " WHERE c.channel_account_id=? AND c.external_chat_id=? ORDER BY m.id DESC LIMIT ?",
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? ORDER BY COALESCE(m.seq, m.id) DESC LIMIT ?",
                 (_tai_khoan_id(channel, account_id), str(external_chat_id), n)).fetchall()
         return [dict(r) for r in reversed(rows)]
     except Exception as ex:      # noqa: BLE001
@@ -1012,24 +1040,33 @@ def chi_tiet(conversation_id: int) -> Optional[dict]:
     return d
 
 
+# The place (ORDER_KEY) of the message a cursor names; a message gone meanwhile (group trim) falls back to its id, the place
+# it had unless it was imported. Takes the id twice.
+_CHO_CUA = f"COALESCE((SELECT {ORDER_KEY} FROM messages WHERE id=?), ?)"
+
+
 def tin_nhan(conversation_id: int, limit: int = 100, before_id: int = 0, after_id: int = 0) -> List[dict]:
     """Tin của một hội thoại, CŨ TRƯỚC MỚI SAU trong cửa sổ trả về (cửa sổ lấy từ cuối lên).
 
     `before_id` > 0: lấy các tin CŨ HƠN id đó (cuộn ngược để xem thêm).
     `after_id` > 0 (0.65.11): lấy các tin MỚI HƠN id đó, cũ trước mới sau. Nhịp làm mới 5 giây của khung tin chỉ hỏi phần này, thay vì
     tải lại cả trăm tin mỗi lần.
+
+    Thứ tự là ORDER_KEY, không phải id: tin nhập từ lịch sử vào cuộc chat đã có tin có id mới hơn nhưng đứng trên cùng. Hai con trỏ vẫn là
+    id tin (khung tin chỉ biết id): `before_id` lấy các tin đứng TRƯỚC tin đó, `after_id` lấy các tin ghi SAU nó (id lớn hơn) mà cũng đứng
+    sau nó, nên tin cũ vừa nhập không bị nối vào cuối khung đang mở.
     """
     n = max(1, min(int(limit or 100), MAX_TIN_MOT_LAN))
     args: list = [int(conversation_id)]
     sql = "SELECT * FROM messages WHERE conversation_id=?"
     moi = bool(after_id and int(after_id) > 0)
     if moi:
-        sql += " AND id>?"; args.append(int(after_id))
-        sql += " ORDER BY id ASC LIMIT ?"; args.append(n)
+        sql += f" AND id>? AND {ORDER_KEY} > {_CHO_CUA}"; args += [int(after_id)] * 3
+        sql += f" ORDER BY {ORDER_KEY} ASC LIMIT ?"; args.append(n)
     else:
         if before_id and int(before_id) > 0:
-            sql += " AND id<?"; args.append(int(before_id))
-        sql += " ORDER BY id DESC LIMIT ?"; args.append(n)
+            sql += f" AND {ORDER_KEY} < {_CHO_CUA}"; args += [int(before_id)] * 2
+        sql += f" ORDER BY {ORDER_KEY} DESC LIMIT ?"; args.append(n)
     with _lock:
         rows = _conn().execute(sql, args).fetchall()
     out = []
@@ -1041,10 +1078,10 @@ def tin_nhan(conversation_id: int, limit: int = 100, before_id: int = 0, after_i
 
 
 def co_tin_cu(conversation_id: int, tin_id: int) -> bool:
-    """Còn tin nào CŨ HƠN `tin_id` trong hội thoại này không (để khung tin biết có nên hiện nút/tự tải tin cũ)."""
+    """Còn tin nào đứng TRƯỚC `tin_id` trong hội thoại này không (để khung tin biết có nên hiện nút/tự tải tin cũ)."""
     with _lock:
-        r = _conn().execute("SELECT 1 FROM messages WHERE conversation_id=? AND id<? LIMIT 1",
-                            (int(conversation_id), int(tin_id))).fetchone()
+        r = _conn().execute(f"SELECT 1 FROM messages WHERE conversation_id=? AND {ORDER_KEY} < {_CHO_CUA} LIMIT 1",
+                            (int(conversation_id), int(tin_id), int(tin_id))).fetchone()
     return r is not None
 
 
@@ -1354,9 +1391,10 @@ def draft_of(conv: dict) -> Optional[dict]:
 
 
 def last_customer_message_id(conversation_id: int) -> int:
+    """Id of the customer's last message in display order (an old one imported from the history has a newer id)."""
     with _lock:
-        r = _conn().execute("SELECT MAX(id) FROM messages WHERE conversation_id=? AND sender_type='customer'",
-                            (int(conversation_id),)).fetchone()
+        r = _conn().execute(f"SELECT id FROM messages WHERE conversation_id=? AND sender_type='customer'"
+                            f" ORDER BY {ORDER_KEY} DESC LIMIT 1", (int(conversation_id),)).fetchone()
     return int(r[0] or 0) if r else 0
 
 
