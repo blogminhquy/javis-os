@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.505.1] - 2026-11-08
+### Fixed
+- **Bots no longer send "You've hit your monthly spend limit" to customers.** Once the Claude plan's monthly extra-usage cap was spent too, Claude Code printed a new notice Javis did not recognise, so a Zalo bot pasted that English line into its reply to a customer. It now counts as a failed turn like every other plan-limit notice: the customer receives nothing and the owner is told in the notification bell. Chat, Kanban jobs and workflows also read it as the plan running out, with the reset time.
+- **Plan-limit notices with a curly apostrophe (You’ve) are recognised** like the straight one.
+
 ## [0.505.0] - 2026-11-08
 ### Improved
 - **The reading voice follows the language of each answer.** An English answer is read in proper English by an English-speaking voice, no more "Vinglish". A Vietnamese answer is read by Hoai My or Nam Minh, and English words inside it are still said the Vietnamese way.
