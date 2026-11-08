@@ -24,7 +24,7 @@ MAX_ITEMS = 30     # a plan longer than this is a log, not a checklist
 MAX_TEXT = 200     # one line in the chat
 
 # Tools that send the WHOLE list each time. Names as the engines spell them; the short name after "mcp__x__" counts.
-_SET_TOOLS = re.compile(r"^(todowrite|todo_write|write_todos|update_todos|todo_update|update_plan|todo_list)$")
+_SET_TOOLS = re.compile(r"^(todowrite|todo_write|write_todos|update_todos|todo_update|update_plan|todo_list|javis_plan)$")
 _ADD_TOOLS = re.compile(r"^(taskcreate|task_create)$")
 _UPDATE_TOOLS = re.compile(r"^(taskupdate|task_update)$")
 

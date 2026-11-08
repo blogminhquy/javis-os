@@ -3868,6 +3868,16 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
                     inventory_tools, inventory_route = tools, route
         except Exception as e:
             print(f"[mcp discover] {e}", file=__import__('sys').stderr)
+        # The owner's chat turn gets javis_plan (plan_tool.py): the checklist Claude Code, Codex and Grok keep with their
+        # own tools, drawn as the plan card. Not for a customer bot or a background job (no chat to draw in).
+        if (owner_sid or coding_row) and tools:
+            try:
+                import plan_tool
+                if plan_tool.enabled(cfgmod.read_settings()):
+                    tools, route = list(tools), dict(route)   # the hub's lists are cached and shared: copy first
+                    plan_tool.add_to(tools, route)
+            except Exception as e:  # noqa: BLE001
+                print(f"[plan tool] {type(e).__name__}: {e}", file=sys.stderr)
     # Phase 0-1: chỉ đo metadata payload sau khi đã biết tool schema thật. Không lưu content,
     # không chặn quota và không thay danh sách tool. ContextVar giữ trace riêng từng asyncio task.
     _trace = context_runtime.current_trace()
@@ -6510,6 +6520,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # The suggested next message (next_prompt.py): the "+" menu of the composer switches it on and off.
         if "suggest_next" in patch:
             cfg.setdefault("chat", {})["suggest_next"] = bool(patch["suggest_next"])
+        # javis_plan for the API brains (plan_tool.py): the "+" menu of the composer switches it on and off.
+        if "plan_tool" in patch:
+            cfg.setdefault("chat", {})["plan_tool"] = bool(patch["plan_tool"])
     elif section == "general":
         if "workspace_name" in patch:
             cfg["workspace_name"] = patch["workspace_name"] or "Javis OS"
@@ -17144,6 +17157,13 @@ async def stt_fix_route(request: Request):
 def chat_suggest_state():
     """Whether the suggested next message is on (the "+" menu of the composer shows the switch)."""
     return {"enabled": next_prompt.enabled(cfgmod.read_settings())}
+
+
+@app.get("/chat/plan")
+def chat_plan_state():
+    """Whether the API brains get javis_plan (plan_tool.py); the "+" menu of the composer shows the switch."""
+    import plan_tool
+    return {"enabled": plan_tool.enabled(cfgmod.read_settings())}
 
 
 @app.post("/chat/suggest")

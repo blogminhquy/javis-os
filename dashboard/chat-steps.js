@@ -56,7 +56,7 @@
     [/^(webfetch|web_fetch|fetch|read_url_content|fetch_url)$/, "app.step_v_web"],
     [/^(websearch|web_search|web_search_call|google_search|search_web)$/, "app.step_v_search"],
     [/^(task|agent)$/, "app.step_v_agent"],
-    [/^(todowrite|todo_write|update_plan)$/, "app.step_v_todo"],
+    [/^(todowrite|todo_write|update_plan|todo_list|javis_plan|taskcreate|taskupdate)$/, "app.step_v_todo"],
     [/^(skill|javis_use_skill)$/, "app.step_v_skill"]
   ];
   function loaiCongCu(ten) {
@@ -304,4 +304,38 @@
     });
   }
   if (typeof module !== "undefined" && module.exports) module.exports = API;
+
+  /* The switch for javis_plan, the plan tool of the API brains (server/plan_tool.py), in the composer "+" menu.
+     Claude Code, Codex and Grok plan with their own tools and are not affected. Stored on the server
+     (settings.chat.plan_tool), read once. */
+  if (typeof document === "undefined" || typeof window === "undefined" || typeof fetch !== "function" ||
+      typeof document.addEventListener !== "function") return;
+  var planTool = { enabled: true, loaded: false };
+  function loadPlanTool() {
+    if (planTool.loaded) return;
+    planTool.loaded = true;
+    fetch("/chat/plan", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.enabled === false) planTool.enabled = false; }).catch(function () {});
+  }
+  function setPlanTool(on) {
+    var fd = new FormData();
+    fd.append("section", "chat");
+    fd.append("data", JSON.stringify({ plan_tool: !!on }));
+    return fetch("/settings", { method: "POST", body: fd, credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.ok !== false) planTool.enabled = !!on; })
+      .catch(function () {});
+  }
+  function registerPlanMenu() {
+    if (!window.JavisComposerMenu || !window.JavisComposerMenu.register) return false;
+    loadPlanTool();
+    window.JavisComposerMenu.register({
+      id: "plan-tool", order: 91, label: "app.plan_menu",
+      icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 5h8M13 12h8M13 19h8M3 17l2 2 4-4M3 7l2 2 4-4"/></svg>',
+      hint: function () { return tw(planTool.enabled ? "app.plan_menu_on" : "app.plan_menu_off"); },
+      run: function () { setPlanTool(!planTool.enabled); },
+    });
+    return true;
+  }
+  if (!registerPlanMenu()) document.addEventListener("DOMContentLoaded", registerPlanMenu);
 })();
