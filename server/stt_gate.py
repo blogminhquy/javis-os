@@ -28,21 +28,21 @@ VI_VOICE = "vi-VN-HoaiMyNeural"
 EN_VOICE = "en-US-AriaNeural"
 LANG_HINT = "vi"            # what most voice messages carry (reply or interface language); both models get the same
 
-# (id, voice, sentence, terms that must come through for the command to run). From tools/stt_bench/corpus.py.
+# (id, Edge voice, sentence, terms that must come through for the command to run). From tools/stt_bench/corpus.py.
 SENTENCES = (
-    ("v2", "vi", "Nhắc anh đi họp lúc ba giờ chiều", ()),
-    ("v3", "vi", "Doanh thu tuần này tăng so với tuần trước", ()),
-    ("e1", "en", "Open the dashboard and show me the weekly sales report", ()),
-    ("e2", "en", "Send an email to the customer about the new order", ()),
-    ("m1", "vi", "Mở dashboard Facebook ads rồi báo cáo ROAS tuần này", ("dashboard", "Facebook ads", "ROAS")),
-    ("m2", "vi", "Gửi email cho khách hàng về đơn hàng mới", ("email",)),
-    ("m3", "vi", "Javis ơi check inventory của sản phẩm bulong", ("Javis", "check", "inventory")),
-    ("m4", "vi", "Tạo một workflow mới tên là daily report", ("workflow", "daily report")),
-    ("m5", "vi", "Kết nối MCP của Pancake POS", ("MCP", "Pancake POS")),
-    ("m6", "vi", "Đặt reminder họp team lúc ba giờ chiều", ("reminder", "team")),
-    ("m8", "vi", "Sync dữ liệu sang Google Sheets", ("Sync", "Google Sheets")),
-    ("m9", "vi", "Nhắn tin cho John Smith về deadline của dự án", ("John Smith", "deadline")),
-    ("m10", "vi", "Tăng budget của campaign remarketing lên hai triệu", ("budget", "campaign", "remarketing")),
+    ("v2", VI_VOICE, "Nhắc anh đi họp lúc ba giờ chiều", ()),
+    ("v3", VI_VOICE, "Doanh thu tuần này tăng so với tuần trước", ()),
+    ("e1", EN_VOICE, "Open the dashboard and show me the weekly sales report", ()),
+    ("e2", EN_VOICE, "Send an email to the customer about the new order", ()),
+    ("m1", VI_VOICE, "Mở dashboard Facebook ads rồi báo cáo ROAS tuần này", ("dashboard", "Facebook ads", "ROAS")),
+    ("m2", VI_VOICE, "Gửi email cho khách hàng về đơn hàng mới", ("email",)),
+    ("m3", VI_VOICE, "Javis ơi check inventory của sản phẩm bulong", ("Javis", "check", "inventory")),
+    ("m4", VI_VOICE, "Tạo một workflow mới tên là daily report", ("workflow", "daily report")),
+    ("m5", VI_VOICE, "Kết nối MCP của Pancake POS", ("MCP", "Pancake POS")),
+    ("m6", VI_VOICE, "Đặt reminder họp team lúc ba giờ chiều", ("reminder", "team")),
+    ("m8", VI_VOICE, "Sync dữ liệu sang Google Sheets", ("Sync", "Google Sheets")),
+    ("m9", VI_VOICE, "Nhắn tin cho John Smith về deadline của dự án", ("John Smith", "deadline")),
+    ("m10", VI_VOICE, "Tăng budget của campaign remarketing lên hai triệu", ("budget", "campaign", "remarketing")),
 )
 
 MIN_CLIPS = 8           # fewer clips than this (no Edge voice reachable) is no measure: nothing is decided
@@ -157,11 +157,11 @@ async def clips() -> list:
     recordings. [] when fewer than MIN_CLIPS could be had."""
     d = _dir()
     out = []
-    for cid, lang, text, terms in SENTENCES:
+    for cid, voice, text, terms in SENTENCES:
         f = d / f"{cid}.mp3"
         try:
             if not f.is_file() or f.stat().st_size < 1000:
-                audio = await _tts(text, VI_VOICE if lang == "vi" else EN_VOICE)
+                audio = await _tts(text, voice)
                 if len(audio) < 1000:
                     continue
                 f.write_bytes(audio)
