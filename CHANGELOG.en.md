@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.502.0] - 2026-11-08
+### Improved
+- **Going back to a chat shows it at once, even after reloading the page.** Javis keeps the last part of the 50 most recent chats in this browser, draws from it, then asks the server for the newest copy. Measured over a slow link: from about 0.3 s down to 0.03-0.04 s.
+- **The chat you are teaching Javis in no longer loads from scratch.** Leaving a chat with new messages fetches its new copy in the background, and so does a reply that finishes in another chat. The first chats of the list are loaded ahead when the device is idle, phones included.
+- **The Skills, Connections, Channels, Settings, Models, Self-learning, Plugins and Webhooks pages show at once on a return visit.** A page draws the data of the last visit, then updates itself if anything changed, unless you already clicked or typed on it. Measured over a slow link: from 0.3-0.7 s down to 0.02-0.1 s.
+- Signing out clears the chats kept in the browser.
+
 ## [0.501.4] - 2026-11-08
 ### Improved
 - **Private Zalo catch-up no longer runs on a schedule.** Javis only reacts when the Zalo history file actually gets new messages, and only looks at those. A day without messages costs almost nothing (one file size check after each read), with no Zalo call and no scan of quiet chats.
