@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.507.0] - 2026-11-08
+### Added
+- **Zalo OA grants access with OAuth v4.** On Add channel, Zalo OA, paste the App ID, App secret key and OA secret key and click Grant access with Zalo: pick the OA, click Allow and Javis saves the channel by itself. No more copying a refresh token from API Explorer. The form shows the Callback URL to paste into the Zalo app once.
+- **Grant again in one click.** When the refresh token dies, open Edit on the channel and click Grant access again with Zalo; Javis uses the saved keys and the bot on duty restarts.
+
 ## [0.506.3] - 2026-11-08
 ### Fixed
 - **Dictation no longer stops when you switch tab.** Alt Tab or another page while dictating, the computer keeps listening and the words are all there when you come back.
