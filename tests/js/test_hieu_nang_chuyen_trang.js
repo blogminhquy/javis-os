@@ -89,7 +89,7 @@ async function chatCache() {
   };
   vm.createContext(ctx);
   ["_PHIEN_CACHE_MAX", "_PHIEN_CACHE_TTL", "_PREFETCH_TUOI", "_phienCache", "_phienDangTai"].forEach((n) => vm.runInContext(constLine(n), ctx));
-  vm.runInContext("var _phienMoLuc = null;", ctx);
+  vm.runInContext("var _phienMoLuc = null; var _keptChatsLoading = null;", ctx);
   ["_urlPhien", "_ghiCachePhien", "_docCachePhien", "_vanTayPhien", "_taiPhien", "prefetchSession", "_quenPhienNeuDoi",
     "openStoredSession"].forEach((n) => vm.runInContext(fnSrc(n), ctx));
   // The real drawing is the DOM; here it records what was drawn and plays its bookkeeping.
@@ -114,10 +114,15 @@ async function chatCache() {
   drawn.length = 0;
   await ctx.openStoredSession("B");
   check("a newer server answer redraws the chat once more", drawn.length === 2 && drawn[1].n === 2 && drawn[1].capNhat === true);
-  // Leaving a chat that grew (the owner sent a message) forgets it, so it is not drawn short next time.
+  // Leaving a chat that grew (the owner sent a message) asks for its new copy at once (2026-11-08: it used to be
+  // dropped, so going back to the chat being taught always waited for the server).
   ctx.convo.push(msg(5, "e"));
+  answers.B.messages.push(msg(5, "e"));
+  fetches = 0;
   await ctx.openStoredSession("A");
-  check("a chat that grew while open is dropped from the cache when left", !ctx._phienCache.has("B"));
+  await tick(); await tick();
+  check("a chat that grew while open is fetched again when left, and its copy kept",
+    fetches === 2 && ctx._phienCache.has("B") && ctx._phienCache.get("B").sess.messages.length === 3);
   // Prefetch: one request, shared by the click that follows.
   answers.C = { brain: "b", has_more: false, messages: [msg(6, "f")] };
   fetches = 0;
