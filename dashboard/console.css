@@ -2717,6 +2717,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* A channel set up on its own Connections card (Messenger, 0.438.3) hides the token part and Save. */
 #htTokenPart[hidden], .ht-form-acts .ht-save[hidden] { display: none; }
 .ht-card-hint .ht-mo-the { margin-left: 4px; }
+.ht-zo-oauth { margin-top: 12px; line-height: 1.5; }
+.ht-zo-oauth code { word-break: break-all; }
+.ht-zo-oauth .s-btn, .ht-zo-oauth .s-btn-ghost { margin: 8px 0 4px; }
 /* Drag the list column (2026-10-25), wide screens only: width from --ht-list-w (col-resize.js), handle in the 12px gap
    right of the list; snapped into a strip (.ht-mini) the rows show only an initial, with a dot for unread. */
 @media (min-width: 901px) {

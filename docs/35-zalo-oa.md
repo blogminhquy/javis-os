@@ -35,31 +35,45 @@ Zalo chỉ gửi tin vào một địa chỉ HTTPS trên tên miền đã xác t
 4. Vào mục **Webhook** của app, dán **Địa chỉ webhook** Javis hiện (dạng `https://<tên miền>/zalo-oa/webhook`), bật các sự kiện **user_send_text**, **user_send_image**, **user_send_file**, **user_send_audio**, **user_send_sticker**, **user_send_location**.
 5. Ở mục Webhook có **OA secret key** (khóa bí mật của OA). Chép lại: Javis dùng nó để kiểm chữ ký từng tin, tin không đúng chữ ký bị bỏ.
 
-## 3. Lấy Refresh token
+## 3. Khai báo Callback URL cho OAuth v4 (một lần)
 
-Access token của Zalo OA chỉ sống khoảng 25 giờ, nên Javis giữ **refresh token** và tự làm mới. Mỗi refresh token chỉ dùng được **một lần** và sống khoảng 3 tháng; mỗi lần làm mới Zalo trả về một cặp mới và Javis lưu ngay vào kho tài khoản đã mã hoá.
+Zalo đã chuyển việc cấp quyền OA sang **OAuth v4** (mã cấp quyền kèm PKCE). Javis làm đúng luồng đó nên bạn không phải lấy refresh token tay nữa.
 
-1. Mở **API Explorer** trên developers.zalo.me (mục Công cụ).
-2. Chọn loại token **OA Access Token**, chọn đúng app và OA, bấm lấy token, cho phép app truy cập OA.
-3. Chép **Refresh token** (chuỗi dài). Không cần chép access token.
+1. Ở form **Thêm kênh**, **Zalo OA**, Javis hiện **Callback URL** dạng `https://<tên miền>/zalo-oa/oauth/callback`.
+2. Trên developers.zalo.me, trong app, mục **Official Account**, dán địa chỉ đó vào ô **Callback URL** rồi lưu. Tên miền phải là tên miền đã xác thực ở bước 2.
 
 ## 4. Thêm tài khoản Zalo OA trong Javis
 
-1. Ở form **Thêm kênh**, **Zalo OA**, dán bốn thứ cách nhau dấu cách, đúng thứ tự:
+### Cách nhanh: Cấp quyền bằng Zalo (OAuth v4)
+
+1. Ở ô Token của form **Thêm kênh**, **Zalo OA**, dán ba thứ cách nhau dấu cách:
 
    ```
-   <App ID> <App secret key> <OA secret key> <Refresh token>
+   <App ID> <App secret key> <OA secret key>
    ```
 
    Muốn chắc thứ tự hai khoá ngắn thì ghi tên: `app_secret=...` và `oa_secret=...`.
-2. Bấm **Kiểm tra**. Javis làm mới token một lần và đọc tên OA. Đúng thì hiện tên OA.
-3. Bấm **Lưu** ngay sau đó. Lúc kiểm tra, refresh token vừa dán đã bị dùng mất; cặp mới nằm chờ trong Javis khoảng 30 phút và được ghi vào tài khoản khi bạn lưu. Nếu Javis khởi động lại giữa hai bước, lấy refresh token mới ở API Explorer rồi dán lại.
+2. Bấm **Cấp quyền bằng Zalo**. Một tab Zalo mở ra: chọn đúng OA, bấm **Cho phép**. Tab tự đóng.
+3. Javis đổi mã cấp quyền lấy cặp access token và refresh token, đọc tên OA rồi tự lưu kênh. Không cần bấm Kiểm tra hay Lưu.
 4. Vào **Chatbot**, **Bot** để tạo bot hoặc gắn bot có sẵn cho kênh này. Bot bật lên là bắt đầu trả lời khách nhắn OA.
+
+Access token chỉ sống khoảng 25 giờ, refresh token khoảng 3 tháng và mỗi cái chỉ dùng **một lần**. Javis tự làm mới và lưu ngay cặp mới vào kho tài khoản đã mã hoá, nên bot chạy đều thì không bao giờ phải cấp quyền lại.
+
+**Cấp quyền lại:** nếu refresh token chết (Javis tắt quá 3 tháng, hoặc bạn thu hồi quyền của app), mở **Sửa** kênh Zalo OA, bấm **Cấp quyền lại bằng Zalo**. Javis dùng khoá đã lưu, ô Token để trống cũng được. Bot đang trực tự chạy lại với cặp token mới.
+
+### Cách cũ: dán refresh token từ API Explorer
+
+Vẫn dùng được nếu bạn chưa khai báo Callback URL.
+
+1. Mở **API Explorer** trên developers.zalo.me (mục Công cụ), chọn loại **OA Access Token**, đúng app và OA, bấm lấy token, cho phép app truy cập OA, chép **Refresh token**.
+2. Ở ô Token, dán bốn thứ: `<App ID> <App secret key> <OA secret key> <Refresh token>`.
+3. Bấm **Kiểm tra** rồi bấm **Lưu** ngay sau đó. Lúc kiểm tra, refresh token vừa dán đã bị dùng mất; cặp mới nằm chờ trong Javis khoảng 30 phút và được ghi vào tài khoản khi bạn lưu.
 
 ## 5. Khi bot im lặng
 
-- **Bot báo thiếu OA secret key:** Javis không cho bot chạy khi thiếu khoá này, vì mọi tin sẽ bị từ chối chữ ký mà không ai biết. Sửa kênh, dán lại đủ bốn thứ.
-- **"Zalo không làm mới được token":** refresh token sai, đã dùng rồi, hoặc quá 3 tháng. Lấy refresh token mới, sửa kênh và dán lại.
+- **Bot báo thiếu OA secret key:** Javis không cho bot chạy khi thiếu khoá này, vì mọi tin sẽ bị từ chối chữ ký mà không ai biết. Sửa kênh, dán lại đủ khoá.
+- **Trang Zalo báo sai redirect_uri / callback:** Callback URL trên app Zalo phải đúng y địa chỉ Javis hiện ở form (bước 3), và bạn phải mở Javis bằng chính tên miền đó.
+- **"Zalo không làm mới được token":** refresh token sai, đã dùng rồi, hoặc quá 3 tháng. Mở Sửa kênh, bấm **Cấp quyền lại bằng Zalo**.
 - **Lỗi -230 hoặc báo khách lâu không nhắn:** Zalo chỉ cho OA trả lời trong một khung thời gian sau tin cuối của khách. Khách nhắn lại là mở lại.
 - **Lỗi -224:** gói dịch vụ của OA chưa cho dùng tính năng này qua API. Kiểm tra gói ở [oa.zalo.me](https://oa.zalo.me).
 - **Không có tin nào tới:** kiểm tra webhook đúng địa chỉ HTTPS của Javis và đã bật sự kiện user_send_*. Zalo bỏ webhook nếu Javis không trả lời nhiều lần liền, khi đó bật lại ở trang app.

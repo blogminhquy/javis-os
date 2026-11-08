@@ -13,7 +13,8 @@ sends to the OA to one webhook. Two halves:
 Credentials of one OA (developers.zalo.me, the app the OA is linked to):
   - App ID (digits) and App secret key (Settings of the app), used to refresh the access token
   - OA secret key (Official Account -> Webhook settings), used ONLY to verify the webhook signature
-  - Refresh token, from the OAuth v4 grant (API Explorer -> OA access token, or the app's own flow)
+  - Refresh token, from the OAuth v4 grant: Grant access with Zalo on the form (`zalo_oa_oauth`,
+    authorization code + PKCE), or pasted from API Explorer the old way
 
 What makes Zalo OA different from Messenger, and shapes the code:
   1. Tokens ROTATE. An access token lives about 25 hours (`expires_in` 90000) and a refresh token
@@ -242,6 +243,13 @@ class TokenKeeper:
                 _PENDING.pop(_fingerprint(cr["refresh_token"]), None)
             cr = newer
         return cr
+
+    async def replace(self, account_id: str, cr: dict, patch=None) -> tuple:
+        """Store a whole new pair from an OAuth v4 grant, under the account's lock, so a refresh of
+        the old pair already running cannot write it back over the new one. (ok, error)."""
+        import channel_accounts
+        async with self._lock(account_id or "_"):
+            return channel_accounts.update_account(account_id, {**(patch or {}), "token": dump_credentials(cr)})
 
     async def access_token(self, account_id: str, fallback=None, client=None, force: bool = False):
         """(token, credentials, error). Refreshes when the token is missing or close to expiry.

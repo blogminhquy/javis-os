@@ -2616,9 +2616,11 @@
         o.innerHTML = '<b>' + esc(window.t("ht.wh_url")) + '</b> <code>' + esc(r.webhook_url || "") + '</code>' +
           (r.verify_token ? '<br><b>' + esc(window.t("ht.wh_token")) + '</b> <code>' + esc(r.verify_token) + '</code>' : "") +
           (r.https ? "" : '<br><span class="cb-warn">' + esc(window.t(r.site_verify ? "ht.zo_can_https" : "ht.wh_can_https")) + '</span>') +
-          (r.site_verify ? veMaXacThuc(r.site_codes || []) : "");
+          (r.site_verify ? veMaXacThuc(r.site_codes || []) : "") +
+          (r.oauth_redirect ? veCapQuyen(r.oauth_redirect) : "");
         o.hidden = false;
         if (r.site_verify) noiMaXacThuc(o);
+        if (r.oauth_redirect) noiCapQuyen(o);
       } catch (e) {
         o.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>';
         o.hidden = false;
@@ -2645,6 +2647,30 @@
                                                             body: JSON.stringify({ code: v }) });
           note.textContent = window.t("ht.zo_site_da", { file: r.file || "" });
         } catch (e) { note.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>'; }
+      };
+    }
+    // Zalo OA: Grant access with Zalo (OAuth v4 + PKCE) instead of pasting a refresh token from API Explorer. The
+    // token field holds the three app keys; Zalo hands back the token pair and the account is saved on its own.
+    function veCapQuyen(cb) {
+      return '<div class="ht-zo-oauth"><b>' + esc(window.t("ht.zo_oauth_cb")) + '</b> <code>' + esc(cb) + '</code>' +
+        '<div>' + esc(window.t("ht.zo_oauth_hd")) + '</div>' +
+        '<button class="s-btn" id="htZoOauth" type="button">' + esc(window.t("ht.zo_oauth_nut")) + '</button>' +
+        '<div id="htZoOauthNote"></div></div>';
+    }
+    function noiCapQuyen(o) {
+      var nut = o.querySelector("#htZoOauth");
+      if (!nut) return;
+      nut.onclick = function () {
+        var note = o.querySelector("#htZoOauthNote");
+        var t = box.querySelector("#htToken").value.trim();
+        if (!t) { note.textContent = window.t("ht.zo_oauth_can_khoa"); return; }
+        capQuyenZalo({ credentials: t, brain: brain(), label: box.querySelector("#htLabel").value.trim(),
+                       note: note, btn: nut, onDone: function (f) {
+                         dong();
+                         _dauVetTK = "";
+                         taiTK(true);
+                         if (opts.onXong) { try { opts.onXong(f.account || null); } catch (e) {} }
+                       } });
       };
     }
     box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.onclick = function () { apKenh(n.dataset.k); }; });
@@ -2694,6 +2720,48 @@
     };
   }
 
+  // Grant access with Zalo for a Zalo OA account (OAuth v4 + PKCE). Open the tab first (a tab opened after an await is
+  // blocked as a popup), point it at Zalo once the server has the app keys, poll until Zalo sends the browser back,
+  // then save the grant. `o`: credentials, accountId (reconnect), brain, label, note, btn, onDone(finish answer).
+  async function capQuyenZalo(o) {
+    var note = o.note, btn = o.btn;
+    function warn(m) { note.innerHTML = '<span class="cb-warn">' + esc(m) + '</span>'; btn.disabled = false; }
+    var win = null;
+    try { win = window.open("about:blank", "_blank"); } catch (e) { win = null; }
+    btn.disabled = true;
+    note.textContent = window.t("ht.zo_oauth_dang");
+    var json = { method: "POST", headers: { "Content-Type": "application/json" } };
+    var r;
+    try {
+      r = await api("/zalo-oa/oauth/start", Object.assign({ body: JSON.stringify({ credentials: o.credentials || "",
+        account_id: o.accountId || "", brain: o.brain || "", label: o.label || "" }) }, json));
+    } catch (e) {
+      if (win) { try { win.close(); } catch (e2) {} }
+      return warn(e.message);
+    }
+    if (win) { try { win.location.href = r.url; } catch (e) { win = null; } }
+    note.innerHTML = esc(window.t("ht.zo_oauth_cho")) + (win ? "" : ' <a href="' + esc(r.url) +
+      '" target="_blank" rel="noopener">' + esc(window.t("ht.zo_oauth_mo")) + " ↗</a>");
+    var until = Date.now() + 15 * 60 * 1000;
+    while (Date.now() < until && note.isConnected) {
+      await new Promise(function (ok) { setTimeout(ok, 2000); });
+      var st;
+      try { st = await api("/zalo-oa/oauth/result?state=" + encodeURIComponent(r.state)); }
+      catch (e) { return warn(e.message); }
+      if (st.status === "pending") continue;
+      if (st.status !== "ready") return warn(st.error || window.t("ht.zo_oauth_het"));
+      note.textContent = window.t("ht.zo_oauth_luu", { oa: st.oa_name || st.oa_id || "" });
+      var f;
+      try { f = await api("/zalo-oa/oauth/finish", Object.assign({ body: JSON.stringify({ state: r.state }) }, json)); }
+      catch (e) { return warn(e.message); }
+      btn.disabled = false;
+      if (o.onDone) o.onDone(f);
+      return;
+    }
+    btn.disabled = false;
+    if (note.isConnected) note.textContent = window.t("ht.zo_oauth_het");
+  }
+
   // The key of a generated-key channel (internal API, 0.459.0), shown ONCE: Javis keeps only its hash.
   function hienKhoa(khoa) {
     var box = el('<div class="ht-modal"><div class="ht-form">' +
@@ -2731,7 +2799,11 @@
       : '<label>Token ' + esc(k.nhan) + ' ' + esc(window.t("cb.token_de_trong")) + '</label>' +
         '<div class="cb-row"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
           '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
-        '<div class="cb-hint" id="htTokenNote">' + (a.external_id ? esc(window.t("cb.dang_dung")) + " " + esc((a.tien_to_ten || "") + a.external_id) : "") + '</div>';
+        '<div class="cb-hint" id="htTokenNote">' + (a.external_id ? esc(window.t("cb.dang_dung")) + " " + esc((a.tien_to_ten || "") + a.external_id) : "") + '</div>' +
+        // Zalo OA: a dead refresh token is fixed by granting again, with the keys already saved on the account.
+        (a.channel === "zalo_oa" ? '<div class="cb-hint ht-zo-oauth"><div>' + esc(window.t("ht.zo_oauth_lai_hd")) + '</div>' +
+          '<button class="s-btn-ghost" id="htZoOauth" type="button">' + esc(window.t("ht.zo_oauth_lai")) + '</button>' +
+          '<div id="htZoOauthNote"></div></div>' : "");
     var box = el('<div class="ht-modal"><div class="ht-form">' +
       '<h3>' + esc(window.t("ht.sua_tk")) + ' - ' + esc(a.label) + '</h3>' +
       '<label>' + esc(window.t("ht.lb_nhan_tk")) + '</label>' +
@@ -2768,6 +2840,16 @@
         md = (r.account && r.account.meta) || md;
         if (r.secret) hienKhoa(r.secret);
       } catch (e) { alert(window.t("ht.loi_doi") + " " + e.message); }
+    };
+    var nutZo = box.querySelector("#htZoOauth");
+    if (nutZo) nutZo.onclick = function () {
+      capQuyenZalo({ credentials: box.querySelector("#htToken").value.trim(), accountId: a.id,
+                     note: box.querySelector("#htZoOauthNote"), btn: nutZo, onDone: function () {
+                       dong();
+                       _dauVetTK = "";
+                       taiTK(true);
+                       if (_tab === "bot" || _tab === "kenh") veTab();
+                     } });
     };
     if (box.querySelector("#htCheck")) box.querySelector("#htCheck").onclick = async function () {
       var t = box.querySelector("#htToken").value.trim();
