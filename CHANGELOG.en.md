@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.505.0] - 2026-11-08
+### Improved
+- **The reading voice follows the language of each answer.** An English answer is read in proper English by an English-speaking voice, no more "Vinglish". A Vietnamese answer is read by Hoai My or Nam Minh, and English words inside it are still said the Vietnamese way.
+- The voice picked in Settings decides male or female: with Hoai My picked, English answers are read by Emma; with Andrew picked, Vietnamese answers are read by Nam Minh. Voice notes sent on Telegram follow the same rule.
+- **The interface now comes in English and Vietnamese only.** The German translation was removed from the language picker. A device set to German falls back to English.
+
 ## [0.504.0] - 2026-11-08
 ### Added
 - **The Zalo bot on the Admin channels page can call a partner, like Telegram.** Type `@<name> <question>` to ask once, or `/agent <name>` to let that partner answer the whole chat.
