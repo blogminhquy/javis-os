@@ -10,7 +10,7 @@ có thể chạy 30-60 phút.
 
 Trần này là LƯỚI ĐỠ chống fork treo vô hạn chứ không phải quản chi phí (fork đơ có
 idle-timeout riêng bắt sớm hơn), nên nó phải đặt theo việc dài nhất hợp lệ. Nay cả ba nơi
-dùng chung aux_engine.bg_max_wall_s(): mặc định 3600s, env JAVIS_BG_MAX_WALL_S đổi được.
+dùng chung aux_engine.bg_max_wall_s(): từ 2026-11-07 mặc định 0 (không giới hạn), env JAVIS_BG_MAX_WALL_S đặt lại được.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import os
@@ -29,14 +29,21 @@ def check(ten, cond, them=""):
 import aux_engine  # noqa: E402
 
 # ---- 1. Helper: mặc định + env override + chống giá trị rác ----
+# Owner 2026-11-07 ("bỏ hết các trần của các model"): the default is now 0 = no cap.
 os.environ.pop("JAVIS_BG_MAX_WALL_S", None)
-check("mặc định 3600s (1 giờ) - đủ cho việc nền 30-60 phút",
-      aux_engine.bg_max_wall_s() == 3600)
+check("default is 0 = no cap", aux_engine.bg_max_wall_s() == 0)
 os.environ["JAVIS_BG_MAX_WALL_S"] = "7200"
 check("env JAVIS_BG_MAX_WALL_S đổi được trần", aux_engine.bg_max_wall_s() == 7200)
 for rac in ("abc", "-5", "0", ""):
     os.environ["JAVIS_BG_MAX_WALL_S"] = rac
-    check(f"giá trị rác {rac!r} rơi về mặc định", aux_engine.bg_max_wall_s() == 3600)
+    check(f"garbage {rac!r} falls back to the default (no cap)", aux_engine.bg_max_wall_s() == 0)
+os.environ.pop("JAVIS_BG_MAX_WALL_S", None)
+
+# The Kanban worker timeout follows: no engine cap = no worker cap, a set cap = cap + 60 s (never below 900).
+import tasks  # noqa: E402
+check("no cap: the Kanban worker waits without a timeout", tasks.TasksFeature._tran_giay_viec() is None)
+os.environ["JAVIS_BG_MAX_WALL_S"] = "3600"
+check("a set cap: worker cap = cap + 60", tasks.TasksFeature._tran_giay_viec() == 3660.0)
 os.environ.pop("JAVIS_BG_MAX_WALL_S", None)
 
 # ---- 2. Cả ba nơi chạy nền dùng CHUNG helper, không còn số cứng ----

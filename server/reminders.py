@@ -1175,7 +1175,7 @@ class RemindersFeature:
                     cli.mcp_config = mcpf
                     cli.mcp_strict = True
         cli = aux_engine.apply(self.deps, cli, mode=mq, tag="reminder")
-        # Trần chung cho fork nền (mặc định 1 giờ, env JAVIS_BG_MAX_WALL_S). Số cứng 300s cũ
+        # Trần chung cho fork nền (mặc định không giới hạn từ 2026-11-07, env JAVIS_BG_MAX_WALL_S). Số cứng 300s cũ
         # từng giết việc lịch thật đang chạy dở - xem doc tại aux_engine.bg_max_wall_s.
         cli.max_wall_s = aux_engine.bg_max_wall_s()
         if not cli.is_available():

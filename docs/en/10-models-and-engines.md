@@ -148,7 +148,7 @@ A few things worth knowing:
 - **The prompt goes through a file, not the command line** (`--prompt-file`), for the same reason as the Antigravity card: Windows caps a command line at 32767 characters and Javis's system prompt already exceeds 36,000.
 - The model list is asked of the CLI rather than kept as a hand-written table, so xAI renaming models does not make the picker stale.
 - **Javis disables the CLI's auto-updater** on every turn (the `--no-auto-update` flag where the CLI has it, plus `GROK_DISABLE_AUTOUPDATER=1` always). The reason: Javis runs `grok` headless on a VPS and inside containers, and letting it download a new build mid-turn either prints extra text into the result stream and corrupts the answer, or writes to a read-only location and dies. To let it self-update, set `GROK_DISABLE_AUTOUPDATER=0` yourself; Javis respects your value. Upgrading by hand always works: `grok update`.
-- A turn running too long is cut at **900 seconds**; change it with the `JAVIS_GROK_TIMEOUT` environment variable. If the binary lives somewhere unusual, point at it with `JAVIS_GROK_BIN`.
+- A turn has **no time limit** (press Stop to end it); set a cap with the `JAVIS_GROK_TIMEOUT` environment variable (seconds). If the binary lives somewhere unusual, point at it with `JAVIS_GROK_BIN`.
 
 ### B1b. Connecting Antigravity CLI (using your Google plan)
 

@@ -555,7 +555,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
         yield {"type": "session", "session_id": thread_id, "warm": slot is not None}
 
         IDLE = tran_watchdog("JAVIS_CLAUDE_IDLE_TIMEOUT", "0")
-        TOOL_IDLE = tran_watchdog("JAVIS_CLAUDE_TOOL_TIMEOUT", "3600")
+        TOOL_IDLE = tran_watchdog("JAVIS_CLAUDE_TOOL_TIMEOUT", "0")
         last = time.monotonic()
         busy = 0
         final_text = ""

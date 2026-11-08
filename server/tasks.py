@@ -711,7 +711,7 @@ class TasksFeature:
                 cli.mcp_strict = True
         cli = aux_engine.apply(self.deps, cli, mode=mode, tag=cli.tag)
         try:
-            # Trần chung cho fork nền (mặc định 1 giờ, env JAVIS_BG_MAX_WALL_S) - việc Kanban
+            # Trần chung cho fork nền (mặc định không giới hạn từ 2026-11-07, env JAVIS_BG_MAX_WALL_S) - việc Kanban
             # thật có thể chạy 30-60 phút, 600s cũ chặt ngang giữa chừng.
             cli.max_wall_s = aux_engine.bg_max_wall_s()
         except Exception:
@@ -1096,15 +1096,18 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
         )
 
     @staticmethod
-    def _tran_giay_viec() -> float:
+    def _tran_giay_viec() -> Optional[float]:
         """Trần thời gian MỘT lần chạy việc. Phải KHÔNG nhỏ hơn trần của chính engine
-        (`aux_engine.bg_max_wall_s`, mặc định 1 giờ): bản trước cắt cứng ở 900 giây trong khi
+        (`aux_engine.bg_max_wall_s`): bản trước cắt cứng ở 900 giây trong khi
         engine được phép chạy 60 phút, nên việc thật dài 20-30 phút bị TimeoutError ở phút 15,
-        về ready, chạy lại từ đầu, và cháy hết 3 lượt cho một việc vốn đang làm tốt."""
+        về ready, chạy lại từ đầu, và cháy hết 3 lượt cho một việc vốn đang làm tốt.
+
+        None = no cap, when the engine has none either (the default since 2026-11-07)."""
         try:
-            return float(max(WORKER_TIMEOUT_SECONDS, int(aux_engine.bg_max_wall_s()) + 60))
+            cap = int(aux_engine.bg_max_wall_s())
         except Exception:
             return float(WORKER_TIMEOUT_SECONDS)
+        return float(max(WORKER_TIMEOUT_SECONDS, cap + 60)) if cap > 0 else None
 
     @staticmethod
     def _muc_chay(tran, xin) -> str:

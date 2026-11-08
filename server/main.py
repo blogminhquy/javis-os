@@ -47,6 +47,10 @@ from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, Fil
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
+# No time cap on one Claude Code / Codex tool call unless the owner sets one (owner 2026-11-07: remove every model time
+# cap). claude_sdk_engine.py is pinned byte for byte (qualified native profile) and still names "3600" as its default,
+# so the default is set here, before any engine runs; the other engines name "0" in their own source.
+os.environ.setdefault("JAVIS_CLAUDE_TOOL_TIMEOUT", "0")
 
 # 0.197.1: no WebSocket compression, whatever started uvicorn (ws_compat explains the Safari drops it prevents).
 import ws_compat  # noqa: E402
@@ -11806,7 +11810,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
                 # level to check min_mode.
                 c.javis_vault = vault_root
                 c.javis_mode = gated_mode
-            # Trần chung cho fork nền (mặc định 1 giờ, env JAVIS_BG_MAX_WALL_S): một bước
+            # Trần chung cho fork nền (mặc định không giới hạn từ 2026-11-07, env JAVIS_BG_MAX_WALL_S): một bước
             # workflow quét dữ liệu thật cũng có thể chạy quá 300s như việc lịch/Kanban.
             c.max_wall_s = aux_engine.bg_max_wall_s()
         else:
