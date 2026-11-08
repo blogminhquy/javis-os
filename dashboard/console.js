@@ -5933,7 +5933,7 @@
   function openAccountMenu(el, c, con) {
     const m = connModal(mHead(esc(c.label || window.t("cs.cn_account_fallback")))
       + '<div class="conn-menu">'
-      + ((c.connector_id || "custom") === "custom" && c.auth !== "oauth"
+      + ((c.connector_id || "custom") === "custom"
           ? '<button class="conn-menu-btn" data-m="edit">' + ic("settings") + ' ' + esc(window.t("cs.mf_menu_edit")) + '</button>' : "")
       + '<button class="conn-menu-btn" data-m="test">' + ic("rotate-cw") + ' ' + esc(window.t("cs.cn_menu_test")) + '</button>'
       + '<button class="conn-menu-btn" data-m="rekey">' + ic("repeat") + ' ' + esc(window.t("cs.cn_menu_rekey")) + '</button>'
@@ -6496,6 +6496,7 @@
   function openMcpForm(el, server) {
     const P = window.JavisMcpParse;
     let editId = server ? server.id : "";
+    let savedEndpointUrl = server ? (server.url || "") : "";
     // Kết nối đã chuyển sang OAuth thì Lưu phải GIỮ chế độ đó: gửi auth=header là token thôi
     // được gắn, máy chủ trả 401 và người dùng bị đẩy đi đăng nhập lại vô cớ.
     let dangOauth = !!(server && server.auth === "oauth");
@@ -6656,6 +6657,9 @@
       err.textContent = ""; $("#mfKq").innerHTML = "";
       const name = $("#mfTen").value.trim();
       if (!name) { err.textContent = window.t("cs.cn_mcp_need_name"); $("#mfTen").focus(); return; }
+      if (dangOauth && kieu !== "url") {
+        err.textContent = window.t("cs.mf_oauth_origin_locked"); return;
+      }
       const body = { name: name, transport: kieu === "url" ? $("#mfGiao").value : "stdio" };
       const dong = docDong().filter(x => x.k);
       const bang = {};
@@ -6666,6 +6670,20 @@
       if (kieu === "url") {
         body.url = $("#mfUrl").value.trim();
         if (!/^https?:\/\//i.test(body.url)) { err.textContent = window.t("cs.mf_need_url"); $("#mfUrl").focus(); return; }
+        // Existing OAuth credentials must stay on their original server origin.
+        if (dangOauth) {
+          let sameOrigin = false;
+          try {
+            const currentEndpoint = new URL(savedEndpointUrl);
+            const updatedEndpoint = new URL(body.url);
+            sameOrigin = currentEndpoint.origin === updatedEndpoint.origin
+              && !updatedEndpoint.username && !updatedEndpoint.password;
+          } catch (_) { /* Invalid endpoints are rejected before any update. */ }
+          if (!sameOrigin) {
+            err.textContent = window.t("cs.mf_oauth_origin_locked");
+            $("#mfUrl").focus(); return;
+          }
+        }
         body.auth = dangOauth ? "oauth" : "header"; body.headers = bang;
         if (editId) body.env = {};
       } else {
@@ -6691,6 +6709,7 @@
         luu.disabled = false; luu.textContent = window.t("cs.mf_save_test");
         err.textContent = (r && r.error) || window.t("app.err_cap"); return;
       }
+      savedEndpointUrl = body.url || "";
       luu.textContent = window.t("cs.cn_testing");
       let t;
       try { t = await postJson("/connect/test", { id: editId }); } catch (e) { t = { ok: false, error: String(e) }; }
