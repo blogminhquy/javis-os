@@ -236,6 +236,56 @@ def test_route_and_dashboard_are_wired():
     assert ts_mod.ACCEPTANCE_AUTO_FIXES == 1
 
 
+
+def _plugin():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "javis_task_plugin_acceptance", ROOT / "system" / "plugins" / "javis-task" / "plugin.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_chat_tool_accepts_or_fixes_a_failed_job(tmp_path, monkeypatch):
+    # The owner can pick right where the notice landed (Telegram, Zalo, web chat), not only on the Tasks page.
+    import tasks as tasks_mod
+    feature, brain = _feature(tmp_path)
+    monkeypatch.setattr(tasks_mod, "current", lambda: feature)
+    m = _plugin()
+
+    class Ctx:
+        vault_root = brain
+
+    assert "Không có việc nào" in asyncio.run(m._chay({"op": "accept"}, Ctx()))
+    a = _failed_job(feature, brain)
+    listed = asyncio.run(m._chay({"op": "list"}, Ctx()))
+    assert "MÁY TỰ KIỂM CHƯA QUA" in listed and "Only 2 sections" in listed
+
+    # Exactly one job waiting: no id needed.
+    out = asyncio.run(m._chay({"op": "accept"}, Ctx()))
+    assert out.startswith("Đã chấp nhận kết quả của việc " + a), out
+    assert feature.store.get_task(a)["status"] == "done"
+
+    # Two waiting: never guess, list them so the model asks back.
+    b, c = _failed_job(feature, brain), _failed_job(feature, brain)
+    out = asyncio.run(m._chay({"op": "fix"}, Ctx()))
+    assert out.startswith("ERROR") and b in out and c in out
+    out = asyncio.run(m._chay({"op": "fix", "id": b}, Ctx()))
+    assert out.startswith("Đã trả việc " + b), out
+    assert feature.store.get_task(b)["status"] == "ready" and feature.store.get_task(c)["status"] == "blocked"
+    # A job that is not waiting for a pick is refused.
+    assert asyncio.run(m._chay({"op": "accept", "id": a}, Ctx())).startswith("ERROR")
+
+
+def test_failed_check_notice_says_the_pick_can_be_made_in_chat(tmp_path):
+    reports = []
+    feature, brain = _feature(tmp_path, reports)
+    tid = _failed_job(feature, brain)
+    asyncio.run(feature._report(feature.store.get_task(tid)))
+    text = reports[-1][0][1]
+    assert "chấp nhận" in text and "sửa lại" in text and tid in text
+
+
 if __name__ == "__main__":
     import sys
     try:
