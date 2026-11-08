@@ -38,7 +38,7 @@ người:
   Telegram đầu tiên trong whitelist, mà máy chưa đấu Telegram thì MẤT HÚT. Model phải lấy mã
   phiên từ khối "KÊNH HỘI THOẠI HIỆN TẠI" và truyền vào.
 
-Phạm vi: `add`, `list` và `answer` (0.235.0). Chuyển cột, huỷ, duyệt việc chờ phê duyệt vẫn làm
+Phạm vi: `add`, `list`, `answer` (0.235.0), `accept` và `fix` (2026-11-08). Chuyển cột, huỷ, duyệt việc chờ phê duyệt vẫn làm
 ở trang Nhiệm vụ - đó là những thao tác cần nhìn thấy bảng, và mô tả tool nói thẳng như vậy thay vì
 để model đoán.
 
@@ -46,6 +46,11 @@ Phạm vi: `add`, `list` và `answer` (0.235.0). Chuyển cột, huỷ, duyệt 
 người giao việc. Người đó trả lời NGAY trong chat (web, Telegram, Zalo), model chuyển nguyên văn
 vào đây và việc chạy tiếp với câu trả lời. Thiếu `id` mà brain chỉ có đúng MỘT việc đang chờ thì
 dùng việc đó; nhiều hơn thì trả danh sách để model hỏi lại, KHÔNG đoán.
+
+`accept` / `fix` (2026-11-08): việc chạy xong mà máy tự kiểm vẫn chưa qua sau một lần tự sửa thì dừng ở
+`acceptance_failed` và nhắn về chat. Không có câu hỏi nào để trả lời, chỉ có hai lựa chọn: chấp nhận kết quả, hoặc
+trả về cho người làm sửa lại. Chủ chọn ngay trong chat thay vì phải mở trang Nhiệm vụ. Cùng luật chọn việc với
+`answer`: thiếu `id` mà chỉ có một việc đang chờ chọn thì dùng việc đó, nhiều hơn thì trả danh sách để hỏi lại.
 
 `route` (0.107.0): `auto` hoặc `wf:<slug>` của một quy trình CÓ THẬT. Trước bản này tool không
 có tham số này, trong khi mô tả của `javis_workflow` lại bảo "dùng javis_task với route
@@ -300,8 +305,11 @@ def _liet_ke(args, ctx) -> str:
                 con += 1
                 continue
             hoi = _cau_hoi(t)
+            pick = _acceptance_reason(t)
             dong.append(f"[{nhan}] {t.get('id', '')} · {t.get('title', '')}"
-                        + (f" · CHỜ TRẢ LỜI: {hoi[:200]}" if hoi else ""))
+                        + (f" · CHỜ TRẢ LỜI: {hoi[:200]}" if hoi else "")
+                        + (f" · MÁY TỰ KIỂM CHƯA QUA, CHỜ CHỌN (op=accept hoặc op=fix): {pick[:200]}"
+                           if pick is not None else ""))
     if not dong:
         return "Chưa có việc nào trong hàng đợi."
     if con:
@@ -331,6 +339,56 @@ def _dang_cho(f, vault_root) -> list:
     except Exception:
         return []
     return [t for t in (cols.get("blocked") or []) if _cau_hoi(t)]
+
+
+def _acceptance_reason(t: dict):
+    """The checker's reason for a job waiting for the owner's accept/fix pick, None for any other job."""
+    if str(t.get("status") or "") != "blocked" or str(t.get("block_kind") or "") != "acceptance_failed":
+        return None
+    return str(t.get("block_reason") or "").strip()
+
+
+def _acceptance_waiting(f, vault_root) -> list:
+    """This brain's jobs whose result failed the acceptance check and wait for accept or fix."""
+    try:
+        cols = (f.board_view(vault_root).get("columns") or {})
+    except Exception:
+        return []
+    return [t for t in (cols.get("blocked") or []) if _acceptance_reason(t) is not None]
+
+
+async def _resolve_acceptance(args, ctx, decision: str) -> str:
+    """op=accept / op=fix: the owner's pick, said in chat, on a job the acceptance check failed."""
+    if not ctx.vault_root:
+        return "ERROR: chưa biết đang làm việc trên brain nào nên không chọn được cho việc."
+    f, loi = _feature()
+    if loi:
+        return loi
+    waiting = _acceptance_waiting(f, ctx.vault_root)
+    tid = str((args or {}).get("id") or "").strip()
+    if not tid:
+        if len(waiting) == 1:
+            tid = str(waiting[0].get("id") or "")
+        elif not waiting:
+            return "Không có việc nào của brain này đang chờ chọn chấp nhận hay sửa lại."
+        else:
+            return ("ERROR: có " + str(len(waiting)) + " việc đang chờ chọn, chưa biết người dùng nói việc "
+                    "nào. Hỏi lại người dùng rồi gọi lại với id:\n"
+                    + "\n".join(f"- {t.get('id')} · {t.get('title')}: {_acceptance_reason(t)[:160]}"
+                                for t in waiting))
+    if tid not in {str(t.get("id") or "") for t in waiting}:
+        return (f"ERROR: việc {tid} không thuộc brain này hoặc không còn chờ chọn. "
+                "Gọi op=list để xem việc nào MÁY TỰ KIỂM CHƯA QUA.")
+    kq = await f.resolve_acceptance(tid, decision)
+    if not kq.get("ok"):
+        return f"ERROR: {kq.get('error') or 'không ghi được lựa chọn'}."
+    if decision == "accept":
+        return (f"Đã chấp nhận kết quả của việc {tid}: việc được đánh dấu "
+                + ("đã xong." if kq.get("status") == "done" else "xong, đang chờ duyệt như cũ."))
+    ra = [f"Đã trả việc {tid} về cho người làm sửa đúng chỗ máy chấm chưa đạt; kết quả tự về khung chat này."]
+    if not _dieu_phoi_chay(kq.get("orchestration")):
+        ra.append(_CANH_BAO_DIEU_PHOI.format(muc=str(kq.get("orchestration") or "off")))
+    return "\n".join(ra)
 
 
 async def _tra_loi(args, ctx) -> str:
@@ -385,13 +443,15 @@ def register(ctx):
         "op=list: liệt kê việc theo cột, việc đang dừng hỏi có ghi CHỜ TRẢ LỜI. "
         "op=answer: người dùng trả lời câu hỏi của một việc nền đang chờ -> truyền id và answer "
         "(chép nguyên văn); việc chạy tiếp với câu trả lời đó. "
+        "op=accept / op=fix: việc MÁY TỰ KIỂM CHƯA QUA đang chờ người dùng chọn -> họ bảo dùng kết quả "
+        "như vậy thì accept, bảo làm lại cho đạt thì fix; truyền id. "
         "Chuyển cột, huỷ việc và duyệt việc chờ phê duyệt thì làm ở trang Nhiệm vụ, tool này không có.",
         _chay,
         schema={
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["add", "list", "answer"]},
-                "id": {"type": "string", "description": "Mã việc đang chờ trả lời (op=answer)"},
+                "op": {"type": "string", "enum": ["add", "list", "answer", "accept", "fix"]},
+                "id": {"type": "string", "description": "Mã việc đang chờ (op=answer, accept, fix)"},
                 "answer": {"type": "string", "description": "Câu trả lời nguyên văn của người dùng (op=answer)"},
                 "title": {"type": "string", "description": "Tên việc, ngắn gọn (op=add)"},
                 "intent": {"type": "string", "description": "Mô tả đầy đủ hơn nếu tiêu đề chưa đủ"},
@@ -416,5 +476,7 @@ async def _chay(args, ctx) -> str:
         return _liet_ke(args, ctx)
     if op == "answer":
         return await _tra_loi(args, ctx)
-    return ("ERROR: op phải là 'add' (giao việc), 'list' (xem việc đang có) hoặc 'answer' "
-            "(chuyển câu trả lời cho việc đang chờ).")
+    if op in ("accept", "fix"):
+        return await _resolve_acceptance(args, ctx, op)
+    return ("ERROR: op phải là 'add' (giao việc), 'list' (xem việc đang có), 'answer' "
+            "(chuyển câu trả lời cho việc đang chờ), 'accept' hoặc 'fix' (chọn cho việc máy tự kiểm chưa qua).")

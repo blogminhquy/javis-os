@@ -1585,8 +1585,11 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 localefmt.chu(f"🔎 Việc '{title}' chạy xong nhưng máy tự kiểm chưa qua.",
                               f"🔎 Job '{title}' finished but the automatic check does not pass."))
         reason = localefmt.chu("Chỗ chưa đạt: ", "What is missing: ") + (why or localefmt.chu("không rõ", "unknown"))
-        how = localefmt.chu("Ở trang Nhiệm vụ, bấm Sửa rồi chạy lại, hoặc Chấp nhận như vậy nếu kết quả đã dùng được.",
-                            "On the Tasks page, press Fix and run again, or Accept as is if the result is good enough.")
+        how = localefmt.chu(
+            f"Nhắn ngay đây \"chấp nhận\" nếu kết quả đã dùng được, hoặc \"sửa lại\" để trả về cho người làm "
+            f"(mã việc {tid}). Hoặc bấm nút ở trang Nhiệm vụ.",
+            f"Reply here \"accept\" if the result is good enough, or \"fix it\" to send it back (job id {tid}). "
+            "Or press the buttons on the Tasks page.")
         try:
             await self.deps.report(
                 task.get("chat_id", ""),
