@@ -765,6 +765,8 @@
           .map(function (a) { return { slug: a.slug, name: a.name || a.slug }; });
       },
       openChat: function (sid) { var x = dangChon(); if (x) moPhien(x, false, sid); },
+      // The chat beside the tab is this assistant's: its running turn shows at the top of the tab.
+      liveTurn: function () { return window.JavisChatLive ? window.JavisChatLive.turn() : null; },
       openTeam: function (teamId, taskId) {
         // teams.js nạp chậm (nap-cham.js, 0.417.0): chờ nó rồi mở.
         nhom(["congviec", "teams"], function () {

@@ -439,10 +439,14 @@ def collect(agent_key: str, slug: str, root: str, *, brain_keys: Any = None, tea
 
 
 def active_counts(agents: dict, root: str, *, brain_keys: Any = None, teams=None, tasks=None, sessions=None, goals=None,
-                  principal=None, now: Optional[float] = None) -> dict:
+                  principal=None, now: Optional[float] = None, marks: Optional[dict] = None) -> dict:
     """{slug: {"running", "needs_you", "waiting", "done", "failed"}} cho huy hiệu và chấm trạng thái trên thẻ trợ lý;
     "done" và "failed" chỉ đếm việc xong (hay hỏng) trong DONE_FRESH giây gần nhất. Nhẹ: đọc Kanban một lần cho cả brain, mỗi nguồn chỉ vài việc xong mới nhất.
-    Trợ lý không có việc nào thì không có mặt. `agents`: {slug: agent_key hay ""}."""
+    Trợ lý không có việc nào thì không có mặt. `agents`: {slug: agent_key hay ""}.
+
+    `marks` (job_marks): the same owner marks the Jobs tab applies. Without them a finished job the owner pressed Done on
+    (archived) or deleted still lit the green "just finished" dot, or the red one when it failed, while the tab no
+    longer listed it under Done (owner, 08/11/2026: the tab and the card did not agree)."""
     since = (now if now is not None else time.time()) - DONE_FRESH
     rows = tasks.list_tasks(root, include_archived=False, limit=KANBAN_LIMIT) if tasks is not None else []
     live = [t for t in rows if t.get("status") not in ("done", "cancelled", "archived")
@@ -452,7 +456,7 @@ def active_counts(agents: dict, root: str, *, brain_keys: Any = None, teams=None
     for slug, key in agents.items():
         got = collect(key or "", slug, root, brain_keys=brain_keys, teams=teams if key else None, tasks=tasks,
                       sessions=sessions, goals=goals if key else None, principal=principal, history=False,
-                      kanban_rows=live, limit=1, resolve=False, done_since=since)
+                      kanban_rows=live, limit=1, resolve=False, done_since=since, marks=marks)
         c, failed = got["counts"], int(got.get("failed_recent") or 0)
         if c["running"] or c["needs_you"] or c["waiting"] or c["done"]:
             out[slug] = {"running": c["running"], "needs_you": c["needs_you"], "waiting": c["waiting"],

@@ -30087,7 +30087,7 @@ async def agent_jobs_counts(brain: str = "brain"):
         goals, teams, principal = _agent_jobs_sources(root, any(keys.values()))
         counts = agent_jobs.active_counts(keys, root, brain_keys=_brain_keys(brain), teams=teams,
                                           tasks=tasks_feature.store, sessions=get_store(), goals=goals,
-                                          principal=principal)
+                                          principal=principal, marks=job_marks.marks(root))
         return {"ok": True, "counts": counts}
     return await asyncio.to_thread(_do)
 

@@ -313,9 +313,23 @@
       esc(tw(ui.sending ? "ajobs.sending" : "ajobs.confirm")) + "</button></div></div>";
   }
 
+  // The assistant's chat turn running right now (owner, 08/11/2026): a chat turn is not a queued job, so the tab used to
+  // look empty while the assistant was plainly working in the chat beside it. `live`: { running, steps, buoc } from
+  // app.js (JavisChatLive). Shows the step count and the engine's plan when it made one (chat-steps.js planHtml).
+  function liveHtml(live) {
+    if (!live || !live.running) return "";
+    var S = typeof window !== "undefined" ? window.JavisSteps : null;
+    var plan = live.buoc && Array.isArray(live.buoc.plan) && live.buoc.plan.length ? live.buoc.plan : null;
+    var line = live.steps ? tw("ajobs.live_steps", { n: live.steps }) : tw("ajobs.live_thinking");
+    return '<section class="aj-sec aj-live"><h4 class="aj-sec-h">' + esc(tw("ajobs.live_title")) + "</h4>" +
+      '<div class="aj-live-card"><div class="aj-live-line">' + ic("message-circle") + "<span>" + esc(line) + "</span></div>" +
+      (plan && S && S.planHtml ? '<div class="steps-plan aj-live-plan">' + S.planHtml(plan, true) + "</div>" : "") +
+      "</div></section>";
+  }
+
   function html(data, ui) {
     ui = ui || {};
-    var head = '<div class="aj-head">' + assignHtml(ui, data) + "</div>";
+    var head = '<div class="aj-head">' + assignHtml(ui, data) + "</div>" + liveHtml(ui.live);
     if (ui.note) head += '<div class="aj-note" role="status">' + esc(ui.note) + "</div>";
     if (!data) return '<div class="aj">' + head + '<div class="aj-empty">' + esc(tw(ui.error ? "ajobs.load_err" : "ajobs.loading")) +
       (ui.error ? ' <button type="button" class="ws-btn aj-reload">' + esc(tw("ajobs.reload")) + "</button>" : "") + "</div></div>";
@@ -328,7 +342,9 @@
     var body;
     var anyAtAll = SOURCES.some(function (s) { return ((data.source_counts || {})[s] || 0) > 0; }) || (data.jobs || []).length;
     if (!jobs.length) {
-      body = '<div class="aj-empty">' + esc(tw(anyAtAll ? "ajobs.empty_filter" : ui.noAssign ? "ajobs.empty_core" : "ajobs.empty")) + "</div>";
+      // The running chat turn above already says the assistant is working: no "no jobs yet" under it.
+      body = (ui.live && ui.live.running && !anyAtAll) ? "" :
+        '<div class="aj-empty">' + esc(tw(anyAtAll ? "ajobs.empty_filter" : ui.noAssign ? "ajobs.empty_core" : "ajobs.empty")) + "</div>";
     } else if (ui.filter) {
       body = '<ul class="aj-list">' + jobs.map(function (j) { return jobHtml(j, ui); }).join("") + "</ul>";
     } else {
@@ -401,9 +417,13 @@
     function others() {
       try { return (opts.agents ? opts.agents() : []) || []; } catch (e) { return []; }
     }
+    function liveTurn() {
+      try { return opts.liveTurn ? opts.liveTurn() : null; } catch (e) { return null; }
+    }
     function draw() {
       if (!alive || !host.isConnected) return;
       st.ui.agents = others();
+      st.ui.live = liveTurn();
       st.ui.canVerify = st.ui.agents.length > 0;
       var act = typeof document !== "undefined" ? document.activeElement : null;
       var keepId = act && host.contains && host.contains(act) && act.id ? act.id : "";
@@ -638,6 +658,17 @@
     // Performance (2026-11-05): switching to another chat (reason "open") adds no job: no reload for it.
     var onEvent = function (e) { if (e && e.detail && e.detail.reason === "open") return; schedule(); };
     if (hasWin) EVENTS.forEach(function (ev) { window.addEventListener(ev, onEvent); });
+    // A step of the chat turn beside: redraw only (no server call). Not while the owner types in the Assign form.
+    // When the turn ends the card goes and the list reloads, since the turn may have queued a job.
+    var wasLive = false;
+    var onTurn = function () {
+      if (!alive || typing()) return;
+      var lv = liveTurn(), now = !!(lv && lv.running);
+      if (now || wasLive) draw();
+      if (wasLive && !now) schedule();
+      wasLive = now;
+    };
+    if (hasWin) window.addEventListener("javis:chat-turn", onTurn);
     if (typeof setInterval === "function") {
       poll = setInterval(function () {
         if (typeof document !== "undefined" && document.hidden) return;
@@ -653,7 +684,10 @@
         if (host._ajActive === mine) host._ajActive = null;
         if (timer) { clearTimeout(timer); timer = null; }
         if (poll) { clearInterval(poll); poll = null; }
-        if (hasWin && window.removeEventListener) EVENTS.forEach(function (ev) { window.removeEventListener(ev, onEvent); });
+        if (hasWin && window.removeEventListener) {
+          EVENTS.forEach(function (ev) { window.removeEventListener(ev, onEvent); });
+          window.removeEventListener("javis:chat-turn", onTurn);
+        }
       } };
   }
 
@@ -663,7 +697,7 @@
       .then(function (j) { return j && j.ok ? (j.counts || {}) : null; }, function () { return null; });
   }
 
-  var api = { html: html, jobHtml: jobHtml, toolbarHtml: toolbarHtml, assignHtml: assignHtml,
+  var api = { html: html, liveHtml: liveHtml, jobHtml: jobHtml, toolbarHtml: toolbarHtml, assignHtml: assignHtml,
     confirmHtml: confirmHtml, badgeHtml: badgeHtml, archiveHtml: archiveHtml, statusOf: statusOf, statusText: statusText, nextText: nextText, reasonText: reasonText, relTime: relTime, mount: mount, loadCounts: loadCounts,
     RELOAD_MS: RELOAD_MS, setStrings: function (o) { STR = o || {}; } };
   if (typeof window !== "undefined") window.JavisAgentJobs = api;

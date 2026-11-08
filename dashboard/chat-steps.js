@@ -289,7 +289,8 @@
   }
 
   var API = { nhan: nhan, tomTat: tomTat, taoKhoi: taoKhoi, ve: ve, nhanDong: nhanBuoc, TRAN: TRAN,
-              applyPlan: applyPlan, planResult: planResult, planSummary: planSummary, planLine: planLine };
+              applyPlan: applyPlan, planResult: planResult, planSummary: planSummary, planLine: planLine,
+              planHtml: planHtml };
   if (typeof window !== "undefined") window.JavisSteps = API;
   // Mở lại hội thoại (restoreSession) vẽ khối bước TRƯỚC khi từ điển tải xong, lúc đó t() trả
   // về chính cái khoá, nên người dùng thấy chữ thô "app.steps_done" (chủ repo báo 27/09). Từ

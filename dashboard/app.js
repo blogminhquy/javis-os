@@ -13,7 +13,23 @@ function setSessionRunning(sid, on) {
   if (!sid) return;
   if (on) window.JavisRunning.add(sid); else window.JavisRunning.delete(sid);
   try { if (window.JavisChatSide && window.JavisChatSide.refresh) window.JavisChatSide.refresh(); } catch (e) {}
+  emitTurnProgress(sid);
 }
+// A chat turn started, made a step, or ended. The Jobs tab of the Partners page (agent-jobs.js) listens to show the
+// assistant's running chat turn with its plan: a chat turn is not a queued job, so the tab looked empty while the
+// assistant was clearly working (owner, 08/11/2026).
+function emitTurnProgress(sid) {
+  try { window.dispatchEvent(new CustomEvent("javis:chat-turn", { detail: { sid: sid } })); } catch (e) {}
+}
+// { sid, running, steps, buoc } of a chat's turn (the open chat when `sid` is empty), or null when none ran here.
+window.JavisChatLive = {
+  turn: function (sid) {
+    const id = sid || savedSessionId;
+    const t = id ? turns[id] : null;
+    if (!t) return null;
+    return { sid: id, running: !!t.running, steps: (t.buoc && t.buoc.so) || 0, buoc: t.buoc || null };
+  },
+};
 
 // Lưu & khôi phục phiên gần nhất (hội thoại + số liệu + session Claude)
 const SESSION_KEY = "javis.session.v1";
@@ -1417,6 +1433,7 @@ function handleMessage(data) {
     if (isActive) { runActions(turn.turnStart()); showActivity(escapeHtml(data.content || "")); syncActiveUI(); }
   } else if (data.type === "tool_call") {
     if (t && window.JavisSteps) t.buoc = window.JavisSteps.nhan(t.buoc, data);
+    emitTurnProgress(sid);
     if (isActive) {
       runActions(turn.toolCall(data.tool || ""));
       veKhoiBuoc(t, true);
@@ -1429,6 +1446,7 @@ function handleMessage(data) {
     }
   } else if (data.type === "tool_result") {
     if (t && window.JavisSteps) t.buoc = window.JavisSteps.nhan(t.buoc, data);
+    emitTurnProgress(sid);
     if (isActive) { veKhoiBuoc(t, true); showActivity(Icons.msg("check", window.t("app.act_analyzing"), { cls: "ic-ok" })); }
   } else if (data.type === "stream") {
     if (!t) return;
