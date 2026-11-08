@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.506.2] - 2026-11-08
+### Fixed
+- **Updating no longer "loses" teams.** When the page reopened while the server was still starting, Javis silently switched to Brain Default, so the Teams page listed another brain's teams and new teams were created there. Javis now always opens the brain you picked and keeps retrying until the brain list loads.
+- No team data was ever deleted: a team that "vanished" before is in the other brain, pick that brain in the brain selector to see it.
+
 ## [0.506.1] - 2026-11-08
 ### Fixed
 - **A background job that fails its automatic check no longer shows an empty "Type your answer" box.** Before, a finished job that failed the check moved to "needs your answer" even though there was no question.
