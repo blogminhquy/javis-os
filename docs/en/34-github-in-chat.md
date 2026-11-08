@@ -34,14 +34,15 @@ Javis does this on its own:
 2. **Commit, push, open a PR** (as a draft) under your GitHub account.
 3. **Watch CI** on exactly the pushed commit. A new commit never inherits the green result of an older one.
 4. **Red CI**: Javis opens a fix turn in that same conversation, with the logs. At most **3 rounds**, then it reports being stuck with the reason. Red on the base branch too means it is not this job's fault; Javis does not widen the job.
-5. **Cross review**: once CI is green, an engine from **another vendor** than the one that wrote the code reads the diff and reports only issues with a concrete failure path. The author verifies each: fixes what is real, rejects the rest with reasons.
-   - **Who reviews:** the background model (set on the Models page) goes first, as long as it is from another vendor than the author. Otherwise the other cards follow in the Models page order, at most 2 are tried.
-   - **On which model:** exactly the model and reasoning level you picked on that card. For a thorough review pick a strong background model, for example Claude Opus when ChatGPT wrote the code, or DeepSeek V4 Pro or Gemini Pro when Claude did.
-   - **Who never reviews:** the ChatGPT, Grok Build and Antigravity plans run through a CLI that keeps file tools, so they never read a repo's diff. The review runs text-only: Claude, or a provider on an API key.
-   - With no eligible card the PR says "not cross-reviewed". A reviewer that fails is named in the chat with its model and the reason, then skipped for that commit, so the PR is never held forever.
+5. **Cross review (your call, off by default)**: a model reads the diff and reports only bugs with a concrete failure path. Javis no longer reviews on its own unless you say so.
+   - **Turn it on for a repo:** GitHub card, the repo's "..." menu, **Cross review**, switch on **Review before merging**. From then on every commit with green CI is reviewed before the merge.
+   - **Review a PR any time:** press the GitHub icon next to the conversation, pick a model and press **Review now**. Or say "review this PR", "review it with DeepSeek". The PR does not merge until the review is done.
+   - **Reviewer:** by default **the model you are chatting with**; it need not be another vendor. For another model, pick it in **Reviewer** (per repo, or each time you press Review now); it runs on the model and reasoning level picked on its card of the Models page.
+   - **Findings:** Javis stops, does not merge, and lists them with two buttons, **Fix them** (the model that wrote the code checks and fixes each) and **Skip and merge**. Replying in the chat works too. Pushing a new commit leaves the old findings behind.
+   - **Who cannot review:** the ChatGPT, Grok Build and Antigravity plans run through a CLI that keeps file tools, so they never read a repo's diff. Chatting on one of them, Javis uses the next card of the Models page (Claude, or a provider on an API key). A reviewer that fails is named in the chat with the reason, then skipped for that commit.
 6. **Merge**: green CI makes Javis **merge on its own**, with a method the repo allows. It does not merge alone when the repo's switch is off, a flagged change needs a person, the repo has no CI, or the repo still requires a review.
 
-Each repo's local check commands are editable on the GitHub card of the Connections page (**Checks**). The **Auto-merge on green CI** switch is there too, on by default.
+Each repo's local check commands are editable on the GitHub card of the Connections page (**Checks**). The **Auto-merge on green CI** switch is there too, on by default. **Cross review** sits in the repo's "..." menu, off by default.
 
 ## 4. Four icons next to the conversation
 

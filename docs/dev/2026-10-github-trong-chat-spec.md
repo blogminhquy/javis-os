@@ -314,6 +314,13 @@ kèm nguyên nhân, gửi về chat và inbox. Không lặp vô hạn.
 
 ## 10. Review chéo bằng model khác [ĐỀ XUẤT]
 
+> **Cập nhật 08/11/2026 (chủ repo): review chéo do người dùng quyết.** Mặc định TẮT. Bật theo từng repo
+> (thẻ GitHub, dấu ba chấm, Review chéo), hoặc bấm **Review ngay** trên bảng chi tiết PR, hoặc nhắn trong chat
+> (tool `javis_github` op=review). Model review mặc định là chính model đang chat, không bắt buộc khác hãng;
+> chọn model khác theo repo hay mỗi lần review. Phát hiện KHÔNG tự gửi về tác giả: Javis dừng merge và chờ
+> người dùng chọn **Sửa các lỗi này** hoặc **Bỏ qua, merge**. Commit mới làm phát hiện cũ hết hiệu lực.
+> Phần dưới là thiết kế ban đầu, giữ để tham khảo.
+
 Sau khi CI xanh, Javis giao diff cho **một engine khác với engine đã viết** (người dùng chọn ở cài
 đặt repo; mặc định: viết bằng Claude thì review bằng engine API đầu tiên đã kết nối, và ngược lại).
 

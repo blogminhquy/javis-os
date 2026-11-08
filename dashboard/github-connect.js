@@ -155,7 +155,8 @@
     return '<div class="gh-rrow' + (on ? "" : " off") + '"><span class="gh-rav">' + LOGO + "</span>" +
       '<div class="gh-rbody"><span class="gh-rti" title="' + esc(r.full_name) + '">' + (owner ? '<span class="gh-rown">' + esc(owner) + "/</span>" : "") +
       esc(repo) + "</span>" + '<span class="gh-rmeta"><span>' + ic("message-circle") + esc(tw("gh.local_chats", { n: r.chats || 0 })) + "</span>" +
-      '<span data-gh-am class="' + (on ? "gh-on" : "") + '">' + BRANCH + esc(tw(on ? "gh.auto_merge" : "gh.auto_merge_off")) + "</span></span></div>" +
+      '<span data-gh-am class="' + (on ? "gh-on" : "") + '">' + BRANCH + esc(tw(on ? "gh.auto_merge" : "gh.auto_merge_off")) + "</span>" +
+      (r.review && r.review.on ? '<span class="gh-on">' + ic("eye") + esc(tw("gh.review_on_meta")) + "</span>" : "") + "</span></div>" +
       '<button type="button" class="gh-sw" role="switch" aria-checked="' + on + '" aria-label="' + esc(tw("gh.auto_merge")) + '" title="' +
       esc(tw("gh.auto_merge")) + '" data-gh-auto="' + esc(r.full_name) + '"><span></span></button>' +
       '<button type="button" class="gh-dots" aria-label="' + esc(tw("gh.more")) + '" aria-haspopup="dialog" data-gh-menu="' + esc(r.full_name) + '">' +
@@ -171,6 +172,7 @@
     host.innerHTML = '<div class="gh-sheet-scrim" data-gh-close></div><div class="gh-sheet" role="dialog" aria-modal="true" aria-label="' + esc(name) + '">' +
       '<div class="gh-sheet-h"><b>' + esc(name) + '</b><button type="button" class="gh-x" data-gh-close aria-label="' + esc(tw("gh.close")) + '">' + ic("x") + "</button></div>" +
       '<div class="gh-sheet-b"><button type="button" class="gh-mi" data-gh-checks="' + esc(name) + '">' + ic("terminal") + esc(tw("gh.checks")) + "</button>" +
+      '<button type="button" class="gh-mi" data-gh-review="' + esc(name) + '">' + ic("eye") + esc(tw("gh.review")) + "</button>" +
       '<button type="button" class="gh-mi" data-gh-metrics="' + esc(name) + '">' + ic("chart-column") + esc(tw("gh.metrics")) + "</button>" +
       '<button type="button" class="gh-mi danger" data-gh-remove="' + esc(name) + '">' + ic("trash-2") + esc(tw("gh.remove_brain")) + "</button></div></div>";
     document.body.appendChild(host);
@@ -210,6 +212,13 @@
         sh.el.querySelectorAll("[data-gh-checks]").forEach(function (b) {
           b.onclick = function () { sh.close(); openChecks(b.getAttribute("data-gh-checks"), back); };
         });
+        sh.el.querySelectorAll("[data-gh-review]").forEach(function (b) {
+          b.onclick = function () {
+            var name = b.getAttribute("data-gh-review"), rec = local.filter(function (x) { return x.full_name === name; })[0] || {};
+            sh.close();
+            openReview(name, rec, function (rv) { rec.review = rv; openRepos(local); });
+          };
+        });
         sh.el.querySelectorAll("[data-gh-remove]").forEach(function (b) {
           b.onclick = async function () {
             var name = b.getAttribute("data-gh-remove");
@@ -228,6 +237,42 @@
         });
       };
     });
+  }
+  // Engines that can review now, for the reviewer pickers. "" = the chat's own engine and model (the default).
+  function reviewerOptions(selected) {
+    return api("/github/reviewers").then(function (d) {
+      var items = (d && d.items) || [];
+      if (selected && !items.some(function (x) { return x.provider === selected; })) items.push({ provider: selected, label: selected });
+      return '<option value="">' + esc(tw("gh.review_default")) + "</option>" + items.map(function (x) {
+        return '<option value="' + esc(x.provider) + '"' + (x.provider === selected ? " selected" : "") + ">" + esc(x.label) + "</option>";
+      }).join("");
+    });
+  }
+  // Cross review of one repo (owner, 08/11/2026): off by default; on = Javis reviews each green commit before merging.
+  async function openReview(name, rec, back) {
+    var M = window.JavisConnModal;
+    if (!M) return;
+    var cur = rec.review || { on: false, provider: "" };
+    var html = M.head(esc(tw("gh.review_head", { name: name }))) + '<div class="conn-form gh-form">' +
+      '<div class="gh-rv-line"><span>' + esc(tw("gh.review_switch")) + "</span>" + infoBtn() +
+      '<button type="button" class="gh-sw" role="switch" aria-checked="' + !!cur.on + '" aria-label="' + esc(tw("gh.review_switch")) + '" data-f="on"><span></span></button></div>' +
+      infoBody(esc(tw("gh.review_how"))) +
+      '<div class="si-field"><label>' + esc(tw("gh.review_by")) + '</label><select class="js-input" data-f="prov"><option value="">' + esc(tw("gh.loading")) + "</option></select></div>" +
+      '<div class="lv-form-act"><button class="s-btn" type="button" data-f="save">' + esc(tw("gh.save")) + "</button>" +
+      '<button class="s-btn-ghost" type="button" data-f="cancel">' + esc(tw("gh.cancel")) + "</button>" +
+      '<span class="lv-msg" role="status"></span></div></div>';
+    var m = M.open(html, 560);
+    var form = m.querySelector(".gh-form"), sw = form.querySelector('[data-f="on"]'), sel = form.querySelector('[data-f="prov"]'), msg = form.querySelector(".lv-msg");
+    sw.onclick = function () { sw.setAttribute("aria-checked", String(sw.getAttribute("aria-checked") !== "true")); };
+    reviewerOptions(cur.provider || "").then(function (h) { sel.innerHTML = h; });
+    form.querySelector('[data-f="cancel"]').onclick = function () { if (back) back(cur); else M.close(); };
+    form.querySelector('[data-f="save"]').onclick = async function () {
+      msg.textContent = "";
+      var on = sw.getAttribute("aria-checked") === "true";
+      var r = await api("/github/local/review", { brain: pageBrain(), full_name: name, on: on ? "1" : "0", provider: sel.value });
+      if (!r || r.ok === false) { msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
+      if (back) back(r.review || { on: on, provider: sel.value }); else M.close();
+    };
   }
   // Local check commands of one repo (spec 7.2): suggested from its CI, editable, one command per line.
   async function openChecks(name, back) {
@@ -753,15 +798,26 @@
       var canMerge = !r.merging && (r.integ === "ready") && (r.ci === "green" || r.ci === "no_ci");
       // A push or PR that failed after green local checks: Javis retries on its own, this is the shortcut.
       var canPush = !!(r.gate && r.gate.ship_failed);
+      // Cross review is the person's call (owner, 08/11/2026): Review now on an open PR, and Fix / Skip on its findings.
+      var found = r.review_open || [];
+      var canReview = !!r.pr_number && r.integ !== "merged" && !r.reviewing && !r.merging;
+      var review = r.reviewing ? '<div class="lv-meta">' + esc(tw("gh.reviewing")) + "</div>" :
+        found.length ? '<div class="gh-findings"><div class="gh-local-head">' + esc(tw("gh.review_found", { n: found.length })) + "</div><ul>" +
+          found.map(function (f) { return "<li><code>" + esc(f.file + ":" + f.line) + "</code> " + esc(f.problem) + (f.scenario ? " (" + esc(f.scenario) + ")" : "") + "</li>"; }).join("") +
+          "</ul></div>" : "";
       return '<div class="gh-row" data-repo="' + esc(r.full_name) + '"><div class="gh-row-head"><b>' + esc(r.full_name) + "</b>" +
         (r.branch ? ' <code>' + esc(r.branch) + "</code>" : "") + "</div>" +
         '<div class="gh-row-state">' + esc(tw(CI_KEY[r.ci] || "gh.ci_none")) + " · " + esc(tw(INTEG_KEY[r.integ] || "gh.in_no_pr")) +
         (r.post_merge === "red" ? " · " + esc(tw("gh.st_post_red")) : "") + (r.fix_rounds ? " · " + esc(tw("gh.rounds", { n: r.fix_rounds })) : "") + "</div>" +
         (r.stuck_reason ? '<div class="lv-note">' + esc(r.stuck_reason) + "</div>" : "") +
         ((r.merge_block || []).length ? '<div class="lv-note">' + esc(tw("gh.needs_person")) + " " + r.merge_block.map(function (x) { return esc(x.path + " (" + x.kind + ")"); }).join(", ") + "</div>" : "") +
-        (checks ? '<ul class="gh-checks">' + checks + "</ul>" : "") +
+        (checks ? '<ul class="gh-checks">' + checks + "</ul>" : "") + review +
         '<div class="lv-form-act">' + (r.pr_url ? '<a class="s-btn-ghost" href="' + esc(r.pr_url) + '" target="_blank" rel="noopener">' + esc(tw("gh.open_pr", { n: r.pr_number })) + "</a>" : "") +
-        (canMerge ? '<button class="s-btn" type="button" data-merge="' + esc(r.full_name) + '">' + esc(tw("gh.merge")) + "</button>" : "") +
+        (found.length && !r.reviewing ? '<button class="s-btn" type="button" data-rv-fix="' + esc(r.full_name) + '">' + esc(tw("gh.review_fix")) + "</button>" +
+          '<button class="s-btn-ghost" type="button" data-rv-skip="' + esc(r.full_name) + '">' + esc(tw("gh.review_skip")) + "</button>" : "") +
+        (canMerge && !found.length ? '<button class="s-btn" type="button" data-merge="' + esc(r.full_name) + '">' + esc(tw("gh.merge")) + "</button>" : "") +
+        (canReview ? '<span class="gh-rv-now"><select class="js-input" data-rv-prov aria-label="' + esc(tw("gh.review_by")) + '"></select>' +
+          '<button class="s-btn-ghost" type="button" data-rv-now="' + esc(r.full_name) + '">' + esc(tw("gh.review_now")) + "</button></span>" : "") +
         (canPush ? '<button class="s-btn" type="button" data-push="' + esc(r.full_name) + '">' + esc(tw("gh.push_again")) + "</button>" : "") +
         '<span class="lv-msg" role="status">' + (r.merging ? esc(tw("gh.merging")) : "") + "</span></div></div>";
     }).join("") : '<div class="mp-empty">' + esc(tw("gh.no_work")) + "</div>";
@@ -787,7 +843,32 @@
         if (!d || d.ok === false) { body.innerHTML = '<div class="lv-note">' + esc((d && d.error) || tw("gh.err_net")) + "</div>"; return; }
         body.innerHTML = detailHtml(d);
         // A merge started earlier (maybe before this panel was closed) is still running on the server: follow it.
-        if ((d.work || []).some(function (r) { return r.merging; })) setTimeout(function () { if (open()) load(); }, 3000);
+        if ((d.work || []).some(function (r) { return r.merging || r.reviewing; })) setTimeout(function () { if (open()) load(); }, 3000);
+        var provSel = body.querySelectorAll("[data-rv-prov]");
+        if (provSel.length) reviewerOptions("").then(function (h) { provSel.forEach(function (s) { s.innerHTML = h; }); });
+        function act(b, path, name, extra, busyKey) {
+          var msg = b.closest(".lv-form-act").querySelector(".lv-msg");
+          b.disabled = true; msg.textContent = tw(busyKey);
+          api("/github/session/" + encodeURIComponent(id) + path, Object.assign({ full_name: name }, extra || {})).then(function (r) {
+            decorate();
+            if (!open()) return;
+            if (!r || r.ok === false) { b.disabled = false; msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
+            if (r.reviewer) msg.textContent = tw("gh.review_started", { who: r.reviewer });
+            load();
+          });
+        }
+        body.querySelectorAll("[data-rv-now]").forEach(function (b) {
+          b.onclick = function () {
+            var s = b.parentElement.querySelector("[data-rv-prov]");
+            act(b, "/review", b.getAttribute("data-rv-now"), { provider: s ? s.value : "" }, "gh.reviewing");
+          };
+        });
+        body.querySelectorAll("[data-rv-fix]").forEach(function (b) {
+          b.onclick = function () { act(b, "/review/fix", b.getAttribute("data-rv-fix"), null, "gh.review_fixing"); };
+        });
+        body.querySelectorAll("[data-rv-skip]").forEach(function (b) {
+          b.onclick = function () { act(b, "/review/skip", b.getAttribute("data-rv-skip"), null, "gh.merging"); };
+        });
         body.querySelectorAll("[data-merge]").forEach(function (b) {
           b.onclick = function () {
             var msg = b.parentElement.querySelector(".lv-msg");

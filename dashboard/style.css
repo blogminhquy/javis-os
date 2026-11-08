@@ -4818,6 +4818,12 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 .gh-row-head code { font-size: 16px; word-break: break-all; }
 .gh-row-state { color: var(--text2); }
 .gh-checks { margin: 0; padding-left: 18px; color: var(--text2); }
+.gh-findings ul { margin: 4px 0 0; padding-left: 18px; color: var(--text2); }
+.gh-findings li + li { margin-top: 4px; }
+.gh-rv-now { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gh-rv-now select { width: auto; max-width: 220px; font-size: 16px; }
+.gh-rv-line { display: flex; align-items: center; gap: 10px; font-size: 16px; }
+.gh-rv-line .gh-sw { margin-left: auto; }
 .gh-chk-failure, .gh-chk-timed_out { color: var(--danger-ink, #b3261e); }
 .gh-chk-success { color: var(--green, #2c7a4b); }
 .gh-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; cursor: pointer; }

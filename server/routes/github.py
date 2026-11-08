@@ -13,10 +13,16 @@
     GET  /github/local/checks                  the repo's local check commands (saved, or suggested from its CI)
     POST /github/local/checks                  brain, full_name, commands (one per line) or reset=1
     POST /github/local/automerge               brain, full_name, on: the per-repo auto-merge switch (default on)
+    POST /github/local/review                  brain, full_name, on, provider: the per-repo cross-review switch (default
+                                               off) and its pinned reviewer ("" = the chat's own engine)
+    GET  /github/reviewers                     engines that can review now (text-only, ready), labelled with their model
     GET  /github/local/metrics?full_name=      per engine and model: first-push green, fix rounds, review findings
     GET  /github/icons?sids=a,b                status icon per conversation for the chat list
     POST /github/session/{sid}/merge           full_name: a person merges a ready PR
     POST /github/session/{sid}/push            full_name: push again a commit whose push or PR failed
+    POST /github/session/{sid}/review          full_name, provider: a person asks for a cross review now
+    POST /github/session/{sid}/review/fix      full_name: send the open findings to the author as a fix round
+    POST /github/session/{sid}/review/skip     full_name: drop the open findings and merge when CI is green
     POST /github/session/{sid}/next            text: a job to start once this chat's PRs are merged; cancel=<id>
     GET  /github/session/{sid}?brain=          repos attached to a conversation, with its branch and worktree
     POST /github/session/{sid}/repos           brain, repos (comma separated full names): set the chat's repos
@@ -158,6 +164,16 @@ def _make_router() -> APIRouter:
     async def gh_automerge(brain: str = Form(""), full_name: str = Form(...), on: str = Form("1")):
         return await _call(github_repos.set_auto_merge, brain, full_name, str(on).strip() in ("1", "true", "on"))
 
+    @r.post("/github/local/review")
+    async def gh_review_setting(brain: str = Form(""), full_name: str = Form(...), on: str = Form("0"),
+                                provider: str = Form("")):
+        return await _call(github_repos.set_review, brain, full_name, str(on).strip() in ("1", "true", "on"), provider)
+
+    @r.get("/github/reviewers")
+    async def gh_reviewers():
+        import github_work
+        return await _call(lambda: {"items": github_work.reviewer_options()})
+
     @r.get("/github/local/metrics")
     async def gh_metrics(full_name: str = Query("")):
         """Per engine and model: jobs merged, share green on the first push, fix rounds, review findings (spec 13.2)."""
@@ -191,6 +207,31 @@ def _make_router() -> APIRouter:
         try:
             row = await github_work.retry_ship(sid, full_name, by_person=True)
             return {"ok": True, "row": github_work._row_view(row)}
+        except github_repos.RepoError as e:
+            return _err(str(e))
+
+    @r.post("/github/session/{sid}/review")
+    async def gh_review_now(sid: str, full_name: str = Form(...), provider: str = Form("")):
+        """Review now: starts in the background and returns at once; the findings reach the chat."""
+        import github_work
+        try:
+            return {"ok": True, **github_work.review_now(sid, full_name, provider)}
+        except github_repos.RepoError as e:
+            return _err(str(e))
+
+    @r.post("/github/session/{sid}/review/fix")
+    async def gh_review_fix(sid: str, full_name: str = Form(...)):
+        import github_work
+        try:
+            return {"ok": True, **(await github_work.review_fix(sid, full_name))}
+        except github_repos.RepoError as e:
+            return _err(str(e))
+
+    @r.post("/github/session/{sid}/review/skip")
+    async def gh_review_skip(sid: str, full_name: str = Form(...)):
+        import github_work
+        try:
+            return {"ok": True, **(await github_work.review_skip(sid, full_name))}
         except github_repos.RepoError as e:
             return _err(str(e))
 

@@ -781,7 +781,7 @@ def local_view(brain: str) -> List[Dict[str, Any]]:
         users = coding_store.sessions_using(r.get("folder_id") or "")
         out.append({"full_name": r["full_name"], "path": r["path"], "exists": Path(r["path"]).is_dir(),
                     "default_branch": r.get("default_branch") or "", "chats": len(users),
-                    "auto_merge": auto_merge_on(r), "fetched_at": r.get("fetched_at") or 0})
+                    "auto_merge": auto_merge_on(r), "review": review_settings(r), "fetched_at": r.get("fetched_at") or 0})
     return out
 
 
@@ -923,3 +923,19 @@ def set_auto_merge(brain: str, full_name: str, on: bool) -> Dict[str, Any]:
     rec["auto_merge"] = bool(on)
     _put(rec)
     return {"full_name": rec["full_name"], "auto_merge": bool(on)}
+
+
+def review_settings(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """Cross review of one repo (owner, 08/11/2026: "the person decides, not Javis"). Off by default; when on, Javis
+    reviews each green commit before merging, on `provider` when one is pinned, else on the background model."""
+    r = rec.get("review") if isinstance(rec.get("review"), dict) else {}
+    return {"on": r.get("on") is True, "provider": str(r.get("provider") or "")}
+
+
+def set_review(brain: str, full_name: str, on: bool, provider: str = "") -> Dict[str, Any]:
+    rec = find(brain, full_name)
+    if not rec:
+        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+    rec["review"] = {"on": bool(on), "provider": str(provider or "").strip()[:64]}
+    _put(rec)
+    return {"full_name": rec["full_name"], "review": review_settings(rec)}
