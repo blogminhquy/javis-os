@@ -494,20 +494,76 @@ def doc_tu(tu: str) -> str:
     return am_vi_sang_viet(doan_am_vi(k), tu)
 
 
-def doc_viet(text: str) -> str:
+# Short English function words: a stretch holding one of these is an English sentence, not a
+# run of product names or jargon ("Claude Code, ChatGPT, OpenRouter", "build pass").
+_FUNCTION_WORDS = frozenset("""
+a an the is are was were be been am will would can could should do does did have has had not no
+of to in on at for with from by as or and but if so than then that this these those there here
+i you he she it we they me him her us them my your his its our their what when where why how who
+which let lets please just also very more most about into over out up
+""".split())
+
+
+def _english_prose(words: list) -> bool:
+    """A run of words with no Vietnamese between them: is it an English SENTENCE (keep it so a
+    voice that speaks English reads it as English) or a few terms inside Vietnamese (read them
+    the Vietnamese way)? Names and jargon are mostly capitalised and carry no function words."""
+    if len(words) < 4 or sum(1 for w in words if la_tu_tieng_anh(w)) < 3:
+        return False
+    lower = sum(1 for w in words if w[:1].islower())
+    has_function = any(w.lower() in _FUNCTION_WORDS for w in words)
+    return lower >= 3 and (has_function or len(words) >= 6)
+
+
+def _speaks_only_vietnamese(voice: str) -> bool:
+    return str(voice or "").lower().startswith("vi-")
+
+
+def doc_viet(text: str, voice: str = "") -> str:
     """Câu tiếng Việt xen tiếng Anh -> câu để giọng Việt đọc: từ tiếng Anh thay bằng cách đọc
     kiểu Việt, mọi thứ khác GIỮ NGUYÊN (dấu câu, số, khoảng trắng).
 
     Câu không có chữ tiếng Việt có dấu (câu thuần tiếng Anh) thì trả nguyên: để giọng đọc nó
     như tiếng Anh.
+
+    Only TERMS inside Vietnamese are respelled (2026-11-08). A whole English sentence quoted in a
+    Vietnamese answer, or an English answer that mentions a Vietnamese name, used to come out as
+    "The quých bờ rao phóc", which the owner's tester called Vinglish. Now a mostly English text
+    is left alone, and so is every English sentence inside Vietnamese, unless `voice` is a
+    Vietnamese-only voice (vi-VN-*), which cannot speak English anyway.
     """
     s = str(text or "")
     if not co_tieng_viet(s):
         return s
+    tokens = list(_TU.finditer(s))
+    vietnamese = [_CO_DAU.search(m.group(0)) is not None for m in tokens]
+    keep_english = not _speaks_only_vietnamese(voice)
+    # Mostly English (an English answer that names a Vietnamese page or person): count lowercase
+    # English words only, since product names stay capitalised inside Vietnamese too.
+    n_vi = sum(vietnamese)
+    plain = [m.group(0) for m, v in zip(tokens, vietnamese) if not v and m.group(0)[:1].islower()]
+    n_function = sum(1 for w in plain if w in _FUNCTION_WORDS)
+    n_plain_en = sum(1 for w in plain if w in _FUNCTION_WORDS or la_tu_tieng_anh(w))
+    if keep_english and n_function >= 2 and n_plain_en > 2 * n_vi:
+        return s
+    # Runs of tokens with no accented Vietnamese word between them.
+    prose = [False] * len(tokens)
+    if keep_english:
+        i = 0
+        while i < len(tokens):
+            if vietnamese[i]:
+                i += 1
+                continue
+            j = i
+            while j < len(tokens) and not vietnamese[j]:
+                j += 1
+            if _english_prose([m.group(0) for m in tokens[i:j]]):
+                prose[i:j] = [True] * (j - i)
+            i = j
     ra, pos = [], 0
-    for m in _TU.finditer(s):
+    for k, m in enumerate(tokens):
         w = m.group(0)
-        if la_tu_tieng_anh(w):
+        if not prose[k] and la_tu_tieng_anh(w):
             ra.append(s[pos:m.start()])
             try:
                 ra.append(doc_tu(w) or w)

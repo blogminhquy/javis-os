@@ -129,7 +129,7 @@ async def _edge(text: str, voice: str) -> bytes:
     import edge_tts   # lazy: optional feature, kept off the startup path (see test_khoi_dong_nhe)
     try:
         import phien_am
-        text = phien_am.doc_viet(text)
+        text = phien_am.doc_viet(text, voice)
     except Exception:
         pass
     out = b""

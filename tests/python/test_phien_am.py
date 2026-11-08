@@ -61,6 +61,23 @@ check("số, đường dẫn và khoảng trắng giữ nguyên",
       P.doc_viet("Giá 12.500 đồng,  xem ở trang chủ nhé") == "Giá 12.500 đồng,  xem ở trang chủ nhé")
 check("chuỗi rỗng", P.doc_viet("") == "" and P.doc_viet(None) == "")
 
+# ---- 3b. Whole English sentences are not respelled (Vinglish report, 2026-11-08) ----
+EMMA, HOAIMY = "en-US-EmmaMultilingualNeural", "vi-VN-HoaiMyNeural"
+Q = "Mình tóm tắt nhé: Artificial intelligence is transforming how businesses operate every day."
+check("an English sentence inside a Vietnamese answer stays English", P.doc_viet(Q, EMMA) == Q)
+Q2 = "Đây là kết quả. The quick brown fox jumps over the lazy dog."
+check("an English sentence after a Vietnamese one stays English", P.doc_viet(Q2, EMMA) == Q2)
+E = "Open the Hội thoại page to see your chats."
+check("an English answer naming a Vietnamese page stays English", P.doc_viet(E, EMMA) == E)
+check("terms inside Vietnamese are still respelled with a multilingual voice",
+      P.doc_viet("Mở GitHub Actions nhé", EMMA) == "Mở ghít hắp ác sừn nhé"
+      and P.doc_viet(C, EMMA) == P.doc_viet(C))
+N = "Javis hỗ trợ Claude Code, ChatGPT, Grok Build, OpenRouter."
+check("a list of product names is not mistaken for an English sentence",
+      not any(w in P.doc_viet(N, EMMA) for w in ("Claude", "ChatGPT", "OpenRouter")))
+check("a Vietnamese-only voice still respells everything (it cannot speak English)",
+      "quick" not in P.doc_viet(Q2, HOAIMY) and "intelligence" not in P.doc_viet(Q, HOAIMY))
+
 # ---- 4. Chốt kiểm tra câu diễn giải so âm theo cách đọc ----
 import voice_brain as vb  # noqa: E402
 
@@ -111,6 +128,9 @@ try:
     _FakeCommunicate.goi = []
     client.get("/tts", params={"text": "The build passed.", "voice": "en-US-EmmaMultilingualNeural"})
     check("/tts câu thuần tiếng Anh: giữ nguyên chữ", _FakeCommunicate.goi[0][0] == "The build passed.")
+    _FakeCommunicate.goi = []
+    client.get("/tts", params={"text": Q2, "voice": "en-US-EmmaMultilingualNeural"})
+    check("/tts English sentence inside Vietnamese reaches Emma unchanged", _FakeCommunicate.goi[0][0] == Q2)
 finally:
     main.cfgmod.read_settings = _cfg_goc
 

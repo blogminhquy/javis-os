@@ -1462,13 +1462,21 @@ class JavisVoice {
   _splitIntoChunks(text, maxLen) {
     const sentences = this._sentences(text);
     const chunks = [];
-    let current = "";
+    let current = "", currentLang = "";
+    // "auto" voice: the voice is picked per chunk, so an English sentence glued into a Vietnamese chunk would be read
+    // by Hoai My (2026-11-08, "Vinglish" report). Start a new chunk where the language changes. Sentences under
+    // 3 words ("OK.") keep the chunk's language, as the voice tracker would.
+    const L = this.ttsVoice === "auto" && typeof window !== "undefined" && window.JavisVoiceLang;
     for (const s of sentences) {
-      if ((current + s).length > maxLen && current) {
+      const lang = L && L.words(s) >= 3 ? L.detect(s) : "";
+      const switches = !!(lang && currentLang && lang !== currentLang);
+      if (((current + s).length > maxLen || switches) && current) {
         chunks.push(current.trim());
         current = s;
+        currentLang = lang || "";
       } else {
         current += s;
+        if (lang && !currentLang) currentLang = lang;
       }
     }
     if (current.trim()) chunks.push(current.trim());
