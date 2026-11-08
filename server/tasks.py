@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -209,6 +210,11 @@ class TasksFeature:
         self._wake = asyncio.Event()
         self._closing = False
         self._snap_locks: dict[str, asyncio.Lock] = {}
+        # Performance (2026-11-08): snapshots now also run from worker threads (dispatcher scan, finished jobs), so the
+        # read-then-write of one brain's mirror is serialised by a thread lock too: a later snapshot always lands last.
+        self._snap_tlocks: dict[str, threading.Lock] = {}
+        self._snap_tlocks_guard = threading.Lock()
+        self._bg: set[asyncio.Task] = set()
         # Rổ gom thông báo việc KẸT, theo TỪNG người nhận (xem `_gom_bao`).
         self._ro_bao: dict[str, list[dict]] = {}
         self._hen_bao: dict[str, asyncio.Task] = {}
@@ -255,6 +261,12 @@ class TasksFeature:
 
     def _snapshot(self, root: str) -> None:
         """Mirror runtime state to JSON for old builds and brain backup."""
+        with self._snap_tlocks_guard:
+            lock = self._snap_tlocks.setdefault(root, threading.Lock())
+        with lock:
+            self._snapshot_locked(root)
+
+    def _snapshot_locked(self, root: str) -> None:
         try:
             tasks = self.store.list_tasks(root, include_archived=True, limit=5000)
             # MỘT truy vấn cho mọi task thay vì một truy vấn mỗi task (N+1). Với bảng đầy
@@ -384,12 +396,19 @@ class TasksFeature:
         It only registers/migrates boards and wakes the independent dispatcher. It
         never waits for a model run, so reminders and cron cannot be delayed.
         """
-        for brain in brains or []:
-            try:
-                root = self._ensure(brain)
-                self._housekeep(root)
-            except Exception as exc:
-                print(f"[kanban tick] {type(exc).__name__}: {exc}", file=__import__("sys").stderr)
+        brains = list(brains or [])
+        if brains:
+            active = set(self._worker_ids.values())
+
+            def _run() -> None:
+                for brain in brains:
+                    try:
+                        root = self._ensure(brain)
+                        self._housekeep(root, active)
+                    except Exception as exc:
+                        print(f"[kanban tick] {type(exc).__name__}: {exc}", file=__import__("sys").stderr)
+            # Performance (2026-11-08): SQLite writes and file checks, so in a worker thread (see _dispatch_available).
+            await asyncio.to_thread(_run)
         self.wake()
 
     async def _dispatcher_loop(self) -> None:
@@ -413,8 +432,10 @@ class TasksFeature:
             except asyncio.CancelledError:
                 break
 
-    def _housekeep(self, root: str) -> None:
-        active = set(self._worker_ids.values())
+    def _housekeep(self, root: str, active: Optional[set] = None) -> None:
+        # `active` is taken on the event loop by a caller that runs this in a worker thread: the worker maps belong to
+        # the loop. A job claimed after it was taken holds a fresh lease, which reclaim_stale never touches.
+        active = set(self._worker_ids.values()) if active is None else active
         changed = self.store.reclaim_stale(root, active)
         changed += self.store.promote_dependencies(root)
         # Việc một-lần đã xong/huỷ quá hạn tự rời bảng (archived) - bảng Việc chỉ giữ
@@ -423,20 +444,28 @@ class TasksFeature:
         if changed:
             self._snapshot(root)
 
+    def _scan_candidates(self, active: set) -> list[dict]:
+        """The blocking half of one dispatch pass: housekeeping writes and the next job of each auto board."""
+        candidates: list[dict] = []
+        for root in self._brain_roots():
+            self._housekeep(root, active)
+            if self.store.board_mode(root) != "auto":
+                continue
+            task = self.store.next_candidate(root)
+            if task:
+                candidates.append(task)
+        return candidates
+
     async def _dispatch_available(self) -> None:
         self._prune_workers()
         slots = self.max_workers - len(self._workers)
         if slots <= 0:
             return
 
-        candidates: list[dict] = []
-        for root in self._brain_roots():
-            self._housekeep(root)
-            if self.store.board_mode(root) != "auto":
-                continue
-            task = self.store.next_candidate(root)
-            if task:
-                candidates.append(task)
+        # Performance (2026-11-08): this pass runs every 5 seconds and on every wake. Done on the event loop it held the
+        # whole server: `BEGIN IMMEDIATE` waits up to 5 s (busy_timeout) whenever another writer holds the Kanban file,
+        # and every page click and chat switch waited with it (measured: 0.3-1.2 s stalls, a 7 ms request took 1.2 s).
+        candidates = await asyncio.to_thread(self._scan_candidates, set(self._worker_ids.values()))
         candidates.sort(
             key=lambda t: (
                 0 if t.get("status") == "triage" else 1,
@@ -457,14 +486,16 @@ class TasksFeature:
     async def _claim_and_spawn(self, task_id: str) -> bool:
         if task_id in self._workers and not self._workers[task_id].done():
             return False
-        current = self.store.get_task(task_id)
-        if not current:
-            return False
         worker_id = f"worker:{os.getpid()}:{uuid.uuid4().hex[:8]}"
-        provider = str(aux_engine.read_spec().get("provider") or "")
-        claimed = self.store.claim(
-            task_id, worker_id, LEASE_SECONDS, engine_provider=provider
-        )
+
+        def _claim() -> Optional[dict]:
+            if not self.store.get_task(task_id):
+                return None
+            provider = str(aux_engine.read_spec().get("provider") or "")
+            return self.store.claim(task_id, worker_id, LEASE_SECONDS, engine_provider=provider)
+        # Off the event loop (2026-11-08), like the scan above. The claim itself is atomic in the store, so two callers
+        # racing for one job still start it once.
+        claimed = await asyncio.to_thread(_claim)
         if not claimed:
             return False
         root = str(claimed["brain_root"])
@@ -485,13 +516,19 @@ class TasksFeature:
         self._worker_ids.pop(task_id, None)
         self._worker_brains.pop(task_id, None)
         if root:
-            self._snapshot(root)
+            # A done-callback runs on the event loop: the snapshot (whole board read + JSON write) goes to a thread.
+            try:
+                job = asyncio.get_running_loop().create_task(self._asnapshot(root))
+                self._bg.add(job)
+                job.add_done_callback(self._bg.discard)
+            except RuntimeError:   # no running loop (tests calling this directly)
+                self._snapshot(root)
         self.wake()
 
     async def _heartbeat(self, task_id: str, worker_id: str) -> None:
         while True:
             await asyncio.sleep(HEARTBEAT_SECONDS)
-            if not self.store.heartbeat(task_id, worker_id, LEASE_SECONDS):
+            if not await asyncio.to_thread(self.store.heartbeat, task_id, worker_id, LEASE_SECONDS):
                 return
 
     async def _run_worker(self, task: dict, worker_id: str) -> None:
@@ -2041,9 +2078,13 @@ Trả DUY NHẤT một dòng JSON, không markdown:
 
         @router.post("/kanban/nudge")
         async def kanban_nudge(brain: str = Form("brain")):
-            root = self._ensure(brain)
-            self._housekeep(root)
-            candidate = self.store.next_candidate(root)
+            active = set(self._worker_ids.values())
+
+            def _scan():
+                root = self._ensure(brain)
+                self._housekeep(root, active)
+                return self.store.next_candidate(root)
+            candidate = await asyncio.to_thread(_scan)
             if not candidate:
                 return {"ok": True, "started": False, "note": localefmt.chu("không có task sẵn sàng", "no task is ready")}
             started = await self._claim_and_spawn(candidate["id"])

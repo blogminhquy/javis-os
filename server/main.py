@@ -5149,15 +5149,18 @@ def claude_status(refresh: bool = False):
 
 
 async def _cap_nhat_claude(ly_do: str) -> dict:
-    """Chạy `claude update` ở worker, rồi báo model nào MỚI hiện ra nhờ bản vừa lên."""
-    cu = set(claude_cli.list_models() or [])
+    """Chạy `claude update` ở worker, rồi báo model nào MỚI hiện ra nhờ bản vừa lên.
+
+    Performance (2026-11-08): `list_models` regex-scans the whole `claude` binary (about 200 MB) the first time and
+    after every update. On the event loop that froze the server for 3 s (measured), so it runs in a worker thread."""
+    cu = set(await asyncio.to_thread(claude_cli.list_models) or [])
     kq = await asyncio.to_thread(claude_update.cap_nhat, ly_do)
     if kq.get("doi"):
         _PROV_MODELS_CACHE.pop("anthropic-cli", None)
         try:
             ds = (await provider_models_index("anthropic-cli", refresh=True)).get("models") or []
         except Exception:
-            ds = claude_cli.list_models() or []
+            ds = await asyncio.to_thread(claude_cli.list_models) or []
         kq["model_moi"] = [x for x in ds if x not in cu and x.startswith("claude-")]
         print(f"[claude update] {kq.get('truoc')} -> {kq.get('sau')} ({ly_do}); model mới: "
               f"{', '.join(kq['model_moi']) or 'không có'}", file=sys.stderr)
@@ -17149,12 +17152,26 @@ async def voice_options(brains: int = 1):
     m = cfg.get("model", {}) or {}
     v = cfg.get("voice", {}) or {}
     agy_models = None
+    claude_models, grok_models = [], []
     if brains:
-        try:
-            # Luồng phụ: `agy models` có thể mất tới 30 giây, chạy trên loop là cả app đứng theo.
-            agy_models = await asyncio.to_thread(antigravity_cli.list_models)
-        except Exception:
-            agy_models = None
+        def _cli_models():
+            # Performance (2026-11-08): `claude` is a 200 MB binary scan the first time (3 s measured) and `grok models`
+            # a subprocess with a 20 s timeout. Both used to run on the event loop inside the loop below.
+            try:
+                c = claude_cli.list_models() or []
+            except Exception:
+                c = []
+            try:
+                g = (grok_cli.list_models() or []) if grok_cli.find_grok_cli() else []
+            except Exception:
+                g = []
+            return c, g
+        # Luồng phụ: `agy models` có thể mất tới 30 giây, chạy trên loop là cả app đứng theo.
+        r_agy, r_cli = await asyncio.gather(asyncio.to_thread(antigravity_cli.list_models),
+                                            asyncio.to_thread(_cli_models), return_exceptions=True)
+        agy_models = None if isinstance(r_agy, BaseException) else r_agy
+        if not isinstance(r_cli, BaseException):
+            claude_models, grok_models = r_cli
     keys = {k: bool(m.get(k)) for k in ("groq_api_key", "gemini_api_key", "openai_api_key", "openrouter_key")}
     _chatgpt_live_ok = codex_realtime.realtime_available(cfg)
 
@@ -17194,10 +17211,7 @@ async def voice_options(brains: int = 1):
                 item["available"] = bool(_cse.sdk_available() and claude_cli.find_claude_cli())
             except Exception:
                 item["available"] = False
-            try:
-                item["models"] = _models_items(claude_cli.list_models() or [])
-            except Exception:
-                item["models"] = []
+            item["models"] = _models_items(claude_models)
             item["hint"] = (localefmt.chu("Giữ một phiên Claude Code sống suốt lúc nói, không tool, không MCP. "
                                           "Chọn haiku cho nhanh nhất.",
                                           "Keeps one Claude Code session alive while you talk, no tools, no MCP. "
@@ -17209,10 +17223,7 @@ async def voice_options(brains: int = 1):
                 item["available"] = bool(grok_cli.find_grok_cli())
             except Exception:
                 item["available"] = False
-            try:
-                item["models"] = _models_items(grok_cli.list_models() or []) if item["available"] else []
-            except Exception:
-                item["models"] = []
+            item["models"] = _models_items(grok_models) if item["available"] else []
             item["hint"] = (localefmt.chu("Mỗi câu một lượt grok headless, nối lại mạch cũ nên có ký ức. Chữ về "
                                           "từng mẩu nên đọc được ngay khi Grok đang viết.",
                                           "One headless grok turn per sentence, resuming the thread so it remembers. "
