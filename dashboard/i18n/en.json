@@ -248,7 +248,7 @@
   "qs.rate_opt_default": "Slightly fast · 1.10× (default)",
   "qs.rate_opt_fast": "Fast · 1.25×",
   "qs.rate_opt_veryfast": "Very fast · 1.45×",
-  "qs.voice_ml_note": "Multilingual voices support Vietnamese.",
+  "qs.voice_ml_note": "Vietnamese is read by Hoai My or Nam Minh, English by a multilingual voice, same gender as picked.",
   "qs.test_voice": "▶ Preview",
   "qs.avatar": "AVATAR",
   "qs.avatar_upload": "Upload image",

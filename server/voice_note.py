@@ -44,17 +44,21 @@ def _english(text: str) -> bool:
 
 
 def pick_voice(text: str, voice: str = "", chosen: str = "") -> str:
-    """The voice the tool named, else the owner's Edge voice from Settings when it can read this text
-    (0.298.0), else the language default. A Vietnamese-only voice does not read English text and an
-    English-only one does not read Vietnamese; multilingual voices read both."""
+    """The voice the tool named, else the owner's Edge voice from Settings matched to the language
+    of the note (owner, 2026-11-08): Vietnamese is read by a Vietnamese voice, English by a voice
+    that speaks English, of the same gender as the one picked (phien_am.speech_plan). Nothing
+    picked, or "auto": the language default."""
     v = str(voice or "").strip()
     if v and _VOICE_RE.match(v):
         return v
-    vi = bool(_VI_CHARS.search(text or "")) and not _english(text)
     c = str(chosen or "").strip()
     if c != "auto" and _VOICE_RE.match(c):
-        if "Multilingual" in c or vi == c.startswith("vi-"):
+        try:
+            import phien_am
+            return phien_am.speech_plan(text, c)[1]
+        except Exception:
             return c
+    vi = bool(_VI_CHARS.search(text or "")) and not _english(text)
     if vi:
         return VI_VOICE
     return os.getenv("TTS_VOICE", "") or DEFAULT_VOICE
