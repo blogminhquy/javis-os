@@ -372,7 +372,7 @@ class WorkflowCanary:
                 chunk = batch[index:index + policy.max_parallel]
                 for node in chunk:
                     await _emit({"type": "step_start", "i": node.metadata.get("legacy_index", 0),
-                                 "node": node.id, "agent": node.agent,
+                                 "node": node.id, "agent": node.agent, "agent_slug": node.agent,
                                  "task": self._interpolate(node, state, graph)})
                 results = await asyncio.gather(*[
                     self._run_node(node, state, graph, executor, policy, capability_runner)
@@ -391,7 +391,7 @@ class WorkflowCanary:
                         completed.append(node.id)
                     await _emit({"type": "step_done",
                                  "i": node.metadata.get("legacy_index", 0),
-                                 "node": node.id, "agent": node.agent,
+                                 "node": node.id, "agent": node.agent, "agent_slug": node.agent,
                                  "output": result.get("output") or "",
                                  "verified": result.get("verified")})
                 # Checkpoint sau MỖI lô, trước khi chạy lô kế: tiến trình chết ở đây

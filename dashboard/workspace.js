@@ -765,13 +765,17 @@
           .map(function (a) { return { slug: a.slug, name: a.name || a.slug }; });
       },
       openChat: function (sid) { var x = dangChon(); if (x) moPhien(x, false, sid); },
+      // The chat beside the tab is this assistant's: its running turn shows at the top of the tab.
+      liveTurn: function () { return window.JavisChatLive ? window.JavisChatLive.turn() : null; },
       openTeam: function (teamId, taskId) {
         // teams.js nạp chậm (nap-cham.js, 0.417.0): chờ nó rồi mở.
         nhom(["congviec", "teams"], function () {
           if (window.JavisTeams && window.JavisTeams.open) window.JavisTeams.open(teamId, taskId);
         });
       },
-      openWork: function () { if (window.JavisNav && window.JavisNav.go) window.JavisNav.go("kanban"); } });
+      openWork: function () { if (window.JavisNav && window.JavisNav.go) window.JavisNav.go("kanban"); },
+      // A workflow run the assistant took part in: open that workflow on this page, on the run's chat when it has one.
+      openWorkflow: function (wfSlug, sid) { if (wfSlug) openCommand("workflow", wfSlug, sid || ""); } });
   }
 
   // (0.62.0 đã bỏ hàm dongBoNhomForm ở đây. Nó tồn tại chỉ để vá một xung đột tự gây ra:

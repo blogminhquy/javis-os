@@ -356,6 +356,26 @@ old_cn = agent_jobs.active_counts({"minh": keys["minh"]}, ROOT_B, brain_keys=mai
                            sessions=main.get_store(), now=time.time() + 2 * agent_jobs.DONE_FRESH)
 check("0.191.1: việc xong quá 24 giờ thì không còn tính vừa xong", old_cn.get("minh", {}).get("done", 0) == 0, old_cn)
 
+# Owner, 08/11/2026: the card's dot and the Jobs tab must agree. A finished job the owner pressed Done on (archived) or
+# deleted left the tab's Done list but still lit the card's "just finished" dot.
+_done_ids = [j["id"] for j in agent_jobs.collect(keys["minh"], "minh", ROOT_B, brain_keys=main._brain_keys(B), tasks=store,
+                                                 sessions=main.get_store(), limit=100)["jobs"] if j["bucket"] == "done"]
+check("marks: Minh has a finished job to mark", bool(_done_ids), _done_ids)
+_cn0 = agent_jobs.active_counts({"minh": keys["minh"]}, ROOT_B, brain_keys=main._brain_keys(B), tasks=store,
+                                sessions=main.get_store()).get("minh", {})
+check("marks: without marks the finished job counts", _cn0.get("done", 0) >= 1, _cn0)
+for _state in ("archived", "deleted"):
+    _mk = {i: {"state": _state, "at": time.time()} for i in _done_ids}
+    _cm = agent_jobs.active_counts({"minh": keys["minh"]}, ROOT_B, brain_keys=main._brain_keys(B), tasks=store,
+                                   sessions=main.get_store(), marks=_mk)
+    check(f"marks: a {_state} finished job no longer counts as just finished on the card",
+          _cm.get("minh", {}).get("done", 0) == 0, _cm.get("minh"))
+    check(f"marks: {_state} leaves the open jobs counted",
+          (_cm.get("minh", {}).get("waiting", 0) + _cm.get("minh", {}).get("running", 0))
+          == (_cn0.get("waiting", 0) + _cn0.get("running", 0)), (_cm.get("minh"), _cn0))
+check("marks: the counts route passes the owner's marks",
+      "principal=principal, marks=job_marks.marks(root)," in (ROOT / "server" / "main.py").read_text(encoding="utf-8"))
+
 # ───────────── vai theo đúng mã trợ lý, không theo slug ─────────────
 check("vai: mã đúng của slug thì có vai", "Bạn là Minh" in main._agent_persona(ROOT_B, "minh", keys["minh"]))
 check("vai: slug đã sang mã khác (dùng lại slug) thì không có vai",

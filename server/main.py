@@ -111,6 +111,7 @@ import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã ho�
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
 import luot_dang_chay # sổ lượt chat đang chạy theo brain: tool giao việc tự biết khung chat nào hỏi
 import tool_label     # một dòng mô tả lệnh gọi công cụ (lệnh nào, file nào) cho khối tiến trình
+import turn_plan     # the engine's task plan (TodoWrite, update_plan) for the plan card in the chat
 import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
 import transcript_fix  # rewrites what the mic heard at the end of a dictation: the main brain, with the chat as context
 import next_prompt  # suggests the owner's next message after a reply (ghost text, Tab fills it in)
@@ -3521,7 +3522,7 @@ async def _claude_sub_doc(cli, prompt, model):
                 yield {"type": "text", "content": txt}
         elif et == "tool_call":
             yield {"type": "tool_call", "tool": ev.get("name") or "",
-                   "detail": tool_label.chi_tiet(ev),
+                   "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                    "content": f"⚙ {ev.get('name') or 'tool'}"}
         elif et == "final":
             txt = ev.get("content") or ""
@@ -3665,7 +3666,7 @@ async def _cli_sub_doc(g, prompt, model):
                 yield {"type": "text", "content": txt}
         elif et == "tool_call":
             yield {"type": "tool_call", "tool": ev.get("name") or "",
-                   "detail": tool_label.chi_tiet(ev),
+                   "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                    "content": f"⚙ {ev.get('name') or 'tool'}"}
         elif et == "usage":
             yield {"type": "usage", "input": int(ev.get("input_tokens") or 0),
@@ -12485,7 +12486,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         step_extra = workflow_graph.step_tools(step)
         agent_name, sysprompt, agent_model, agent_prov = _agent_sysprompt(agent_slug, "workflow")
         task_f = task.replace("{{input}}", input or "").replace("{{prev}}", prev or "")
-        yield {"type": "step_start", "i": i, "agent": agent_name, "task": task_f}
+        yield {"type": "step_start", "i": i, "agent": agent_name, "agent_slug": agent_slug, "task": task_f}
 
         cur_prompt = task_f
         out = ""
@@ -12614,7 +12615,15 @@ async def _ghi_lich_su(gen, *, brain, slug, name, input, source, session_id, run
             if t == "start":
                 ev = dict(ev, run_id=rid)
             elif t == "step_start":
-                st.ghi_buoc(rid, int(ev.get("i", 0)), agent=ev.get("agent", ""), task=ev.get("task", ""))
+                _aslug = str(ev.get("agent_slug") or "")
+                _akey = ""
+                if _aslug:
+                    try:   # the assistant's lasting key: a later assistant reusing the slug does not inherit the run
+                        _akey = await asyncio.to_thread(_agent_jobs_key, brain, _aslug) or ""
+                    except Exception:  # noqa: BLE001
+                        _akey = ""
+                st.ghi_buoc(rid, int(ev.get("i", 0)), agent=ev.get("agent", ""), task=ev.get("task", ""),
+                            agent_slug=_aslug, agent_key=_akey)
             elif t == "step_done":
                 st.ghi_buoc(rid, int(ev.get("i", 0)), output=ev.get("output", ""), verified=ev.get("verified"))
             elif t == "step_error":
@@ -18718,7 +18727,7 @@ async def _chat_socket(ws):
                         if et == "tool_call":
                             await ws.send_text(json.dumps({
                                 "type": "tool_call", "tool": ev.get("name", ""),
-                                "detail": tool_label.chi_tiet(ev),
+                                "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                                 "content": localefmt.chu(f"⚙ Đang gọi: {ev.get('name', '')}",
                                                          f"⚙ Calling: {ev.get('name', '')}")}))
                         elif et == "delta":
@@ -18801,7 +18810,7 @@ async def _chat_socket(ws):
                         if et == "tool_call":
                             await ws.send_text(json.dumps({
                                 "type": "tool_call", "tool": ev.get("name", ""),
-                                "detail": tool_label.chi_tiet(ev),
+                                "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                                 "content": localefmt.chu(f"⚙ Đang gọi: {ev.get('name', '')}",
                                                          f"⚙ Calling: {ev.get('name', '')}")}))
                         elif et == "delta":
@@ -18941,14 +18950,14 @@ async def _chat_socket(ws):
                                 # 0.86.1 bước chỉ hiện lúc đã xong, lệnh dài trông như treo.
                                 if ev.get("id"):
                                     dang_chay.add(ev["id"])
-                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), "content": f"⚙ {ev.get('name', '')}"}))
+                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev), "content": f"⚙ {ev.get('name', '')}"}))
                             elif et == "tool_call" and ev.get("id") and ev["id"] in dang_chay:
                                 # Bước đã hiện lúc bắt đầu: giờ chỉ đánh dấu xong, không thêm bước đôi.
                                 dang_chay.discard(ev["id"])
                                 out = str((ev.get("item") or {}).get("aggregated_output") or "")
                                 await ws.send_text(json.dumps({"type": "tool_result", "content": out[:200]}))
                             elif et == "tool_call":
-                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), "content": f"⚙ {ev.get('name', '')}"}))
+                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev), "content": f"⚙ {ev.get('name', '')}"}))
                             elif et == "text":
                                 final_text += ev["content"]
                                 await ws.send_text(json.dumps({"type": "stream", "content": ev["content"], "tts": False}))
@@ -19296,7 +19305,7 @@ async def _chat_socket(ws):
                                 elif ev["type"] == "tool_call":
                                     await ws.send_text(json.dumps({
                                         "type": "tool_call", "tool": ev.get("name", ""),
-                                        "detail": tool_label.chi_tiet(ev),
+                                        "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                                         "content": f"⚙ MCP: {ev.get('name', '')}",
                                     }))
                                 elif ev["type"] == "delta":
@@ -19480,7 +19489,7 @@ async def _chat_socket(ws):
                         elif etype in ("final", "error"):
                             _engine_outcome_note(conv_sid, event)
                         if etype == "tool_call":
-                            await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "detail": tool_label.chi_tiet(event),
+                            await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "detail": tool_label.chi_tiet(event), **turn_plan.fields(event),
                                                            "content": localefmt.chu(f"⚙ Đang gọi: {event['name']}",
                                                                                     f"⚙ Calling: {event['name']}")}))
                             # Nhặt mọi thứ trông giống đường dẫn trong tham số tool (Write/Edit có
@@ -29998,6 +30007,36 @@ def _agent_jobs_keys(root):
     return {a["slug"]: keys.get(a["slug"], "") for a in agents_index(root, kem_prompt=False)}
 
 
+def _workflow_runs_store():
+    """The workflow run history (workflow_runs.sqlite3), or None when it cannot open: the Jobs tab then just has no
+    Workflow source instead of failing."""
+    try:
+        import workflow_runs
+        return workflow_runs.get_store()
+    except Exception as e:  # noqa: BLE001
+        print(f"[agents] workflow runs: {type(e).__name__}: {e}", file=sys.stderr)
+        return None
+
+
+def _workflow_steps_of(root):
+    """slug -> step count of a workflow in this brain, read once per slug (the "2/4 steps" line of a run card)."""
+    memo = {}
+
+    def steps_of(wf_slug):
+        if wf_slug not in memo:
+            n = None
+            try:
+                f = _workflows_dir(root) / f"{wf_slug}.md"
+                if f.is_file():
+                    meta, _ = _read_md(f)
+                    n = len(meta.get("steps") or []) or None
+            except Exception:  # noqa: BLE001
+                n = None
+            memo[wf_slug] = n
+        return memo[wf_slug]
+    return steps_of
+
+
 def _agent_jobs_teams(key, root):
     """Nhóm đang hoạt động trong brain mà trợ lý là thành viên đang tham gia: nơi nhận kết quả của Giao việc."""
     if not key or not _TEAM_API.exists():
@@ -30088,7 +30127,8 @@ async def agent_jobs_counts(brain: str = "brain"):
         goals, teams, principal = _agent_jobs_sources(root, any(keys.values()))
         counts = agent_jobs.active_counts(keys, root, brain_keys=_brain_keys(brain), teams=teams,
                                           tasks=tasks_feature.store, sessions=get_store(), goals=goals,
-                                          principal=principal)
+                                          principal=principal, marks=job_marks.marks(root),
+                                          runs=_workflow_runs_store())
         return {"ok": True, "counts": counts}
     return await asyncio.to_thread(_do)
 
@@ -30129,7 +30169,8 @@ async def agent_jobs_list(slug: str, brain: str = "brain", source: str = "all", 
         goals, teams, principal = _agent_jobs_sources(root, key)
         out = agent_jobs.collect(key or "", slug, root, brain_keys=_brain_keys(brain), teams=teams,
                                  tasks=tasks_feature.store, sessions=get_store(), goals=goals, principal=principal,
-                                 source=source, bucket=bucket, cursor=cursor, limit=limit, marks=job_marks.marks(root))
+                                 source=source, bucket=bucket, cursor=cursor, limit=limit, marks=job_marks.marks(root),
+                                 runs=_workflow_runs_store(), steps_of=_workflow_steps_of(root))
         out["board"] = tasks_feature.store.board_mode(root)
         out["max_workers"] = tasks_feature.max_workers
         out["teams"] = _agent_jobs_teams(key, root)

@@ -91,7 +91,86 @@
   function chuanHoa(st) {
     var ds = (st && Array.isArray(st.ds)) ? st.ds : [];
     var so = (st && typeof st.so === "number" && isFinite(st.so)) ? st.so : ds.length;
-    return { ds: ds, so: so };
+    var out = { ds: ds, so: so };
+    if (st && Array.isArray(st.plan) && st.plan.length) out.plan = st.plan;
+    return out;
+  }
+
+  /* ---------- The turn's plan (owner, 08/11/2026) ----------
+     The engine's own checklist for a long task: Claude Code TodoWrite / TaskCreate / TaskUpdate, Codex update_plan,
+     Grok todo_write. The server reads it from the tool call (server/turn_plan.py) and sends one op per frame under
+     `plan`: "set" (the whole list), "add" (one item, its id comes in the tool result), "update" (one item by id).
+     Item: { id, text, st } with st "pending" | "active" | "done". Pure, tested under node. */
+  var PLAN_MAX = 30;
+  var PLAN_ST = { pending: "pending", active: "active", done: "done",
+                  in_progress: "active", inprogress: "active", completed: "done", complete: "done" };
+  function planSt(v, dflt) {
+    return PLAN_ST[String(v || "").toLowerCase()] || dflt;
+  }
+
+  function applyPlan(plan, op) {
+    var cur = Array.isArray(plan) ? plan : [];
+    if (!op || typeof op !== "object") return cur;
+    if (op.op === "set" && Array.isArray(op.items)) {
+      return op.items.slice(0, PLAN_MAX).map(function (x, i) {
+        return { id: String(i + 1), text: String((x && x.text) || ""), st: planSt(x && x.status, "pending") };
+      }).filter(function (x) { return x.text; });
+    }
+    if (op.op === "add" && op.text) {
+      if (cur.length >= PLAN_MAX) return cur;
+      // No id yet: Claude Code names it in the tool result ("Task #3 created"), see planResult.
+      return cur.concat([{ id: "", text: String(op.text), st: "pending", waiting: true }]);
+    }
+    if (op.op === "update" && op.id != null) {
+      var id = String(op.id), hit = false;
+      var next = [];
+      cur.forEach(function (x) {
+        if (x.id !== id) { next.push(x); return; }
+        hit = true;
+        if (op.status === "deleted") return;
+        next.push({ id: x.id, text: op.text ? String(op.text) : x.text,
+                    st: planSt(op.status, x.st) });
+      });
+      // An id this turn never saw (made in an earlier turn) is left alone: there is no text to show for it.
+      return hit ? next : cur;
+    }
+    return cur;
+  }
+
+  // A tool result naming the id of a task created this turn ("Task #3 created successfully: ...").
+  function planResult(plan, content) {
+    var cur = Array.isArray(plan) ? plan : [];
+    var m = String(content || "").match(/task\s*#\s*(\w+)/i);
+    if (!m) return cur;
+    for (var i = 0; i < cur.length; i++) {
+      if (cur[i].waiting) {
+        var next = cur.slice();
+        next[i] = { id: m[1], text: cur[i].text, st: cur[i].st };
+        return next;
+      }
+    }
+    return cur;
+  }
+
+  // { n, done, now }: how many items, how many done, the text of the one running (else the first not done).
+  function planSummary(plan) {
+    var ds = Array.isArray(plan) ? plan : [];
+    var done = 0, now = "", next = "";
+    ds.forEach(function (x) {
+      if (x.st === "done") done++;
+      else if (x.st === "active" && !now) now = x.text;
+      else if (!next) next = x.text;
+    });
+    return { n: ds.length, done: done, now: now || next };
+  }
+
+  // One line for the activity chip under the chat: "Plan 2/5: Write the tests". "" without a plan.
+  function planLine(st) {
+    var p = chuanHoa(st).plan;
+    if (!p) return "";
+    var s = planSummary(p);
+    var head = tw("app.plan_progress", { done: s.done, n: s.n });
+    return s.now && s.done < s.n ? head + ": " + s.now : head;
   }
 
   /* Gop mot su kien WS vao mach buoc. Ham THUAN: tra ve state MOI, khong sua state cu.
@@ -100,23 +179,32 @@
   function nhan(st, ev) {
     var cu = chuanHoa(st);
     var loai = ev && ev.type;
+    var plan = cu.plan;
     if (loai === "tool_call") {
       var ds = cu.ds.concat([{ tool: String((ev && ev.tool) || ""), label: nhanBuoc(ev), xong: false }]);
       if (ds.length > TRAN) ds = ds.slice(ds.length - TRAN);   // giu cac buoc MOI NHAT
-      return { ds: ds, so: cu.so + 1 };
+      if (ev && ev.plan) plan = applyPlan(plan, ev.plan);
+      return withPlan({ ds: ds, so: cu.so + 1 }, plan);
     }
     if (loai === "tool_result") {
+      if (plan) plan = planResult(plan, ev && ev.content);
       // Danh dau buoc dang chay la xong. Khung tool_result lac long (chua co buoc nao) thi bo
       // qua - khong phai loi, chi la engine ban ket qua cua thu khong di qua day.
       for (var i = cu.ds.length - 1; i >= 0; i--) {
         if (!cu.ds[i].xong) {
           var ds2 = cu.ds.slice();
           ds2[i] = { tool: cu.ds[i].tool, label: cu.ds[i].label, xong: true };
-          return { ds: ds2, so: cu.so };
+          return withPlan({ ds: ds2, so: cu.so }, plan);
         }
       }
+      return withPlan({ ds: cu.ds, so: cu.so }, plan);
     }
     return cu;
+  }
+
+  function withPlan(st, plan) {
+    if (Array.isArray(plan) && plan.length) st.plan = plan;
+    return st;
   }
 
   /* Luot KHONG goi cong cu nao thi `hien` = false: app.js khong dung khoi nao ca. Mot dong
@@ -124,6 +212,23 @@
   function tomTat(st) {
     var cu = chuanHoa(st);
     return { hien: cu.ds.length > 0, so: cu.so, nhan: tw("app.steps_done", { n: cu.so }) };
+  }
+
+  function icon(name) {
+    return (typeof ic === "function") ? ic(name) : "";
+  }
+
+  // The plan card: always open, even while the step list is folded, because it is the part worth reading.
+  function planHtml(plan, running) {
+    var s = planSummary(plan);
+    var rows = plan.map(function (x) {
+      var cls = "plan-item plan-" + x.st + (running && x.st === "active" ? " plan-live" : "");
+      var ico = x.st === "done" ? "circle-check" : x.st === "active" ? "circle-dot" : "circle";
+      return '<li class="' + cls + '">' + icon(ico) + '<span class="plan-text">' + esc(x.text) + "</span></li>";
+    }).join("");
+    return '<div class="plan-head">' + icon("list-checks") + "<span>" +
+           esc(tw("app.plan_progress", { done: s.done, n: s.n })) + "</span></div>" +
+           '<ul class="plan-list">' + rows + "</ul>";
   }
 
   function chevron() {
@@ -136,6 +241,7 @@
     el.innerHTML =
       '<button class="steps-sum" type="button">' + chevron() +
       '<span class="steps-sum-text"></span><span class="steps-sum-now"></span></button>' +
+      '<div class="steps-plan" hidden></div>' +
       '<div class="steps-list"></div>';
     var nut = el.querySelector(".steps-sum");
     if (nut) {
@@ -165,6 +271,11 @@
       var cuoi = cu.ds.length ? cu.ds[cu.ds.length - 1] : null;
       now.textContent = (dangChay && cuoi) ? cuoi.label : "";
     }
+    var pl = el.querySelector(".steps-plan");
+    if (pl) {
+      if (cu.plan) { pl.innerHTML = planHtml(cu.plan, !!dangChay); pl.hidden = false; }
+      else { pl.innerHTML = ""; pl.hidden = true; }
+    }
     var ds = el.querySelector(".steps-list");
     if (ds) {
       ds.innerHTML = cu.ds.map(function (b, i) {
@@ -177,7 +288,9 @@
     return el;
   }
 
-  var API = { nhan: nhan, tomTat: tomTat, taoKhoi: taoKhoi, ve: ve, nhanDong: nhanBuoc, TRAN: TRAN };
+  var API = { nhan: nhan, tomTat: tomTat, taoKhoi: taoKhoi, ve: ve, nhanDong: nhanBuoc, TRAN: TRAN,
+              applyPlan: applyPlan, planResult: planResult, planSummary: planSummary, planLine: planLine,
+              planHtml: planHtml };
   if (typeof window !== "undefined") window.JavisSteps = API;
   // Mở lại hội thoại (restoreSession) vẽ khối bước TRƯỚC khi từ điển tải xong, lúc đó t() trả
   // về chính cái khoá, nên người dùng thấy chữ thô "app.steps_done" (chủ repo báo 27/09). Từ
