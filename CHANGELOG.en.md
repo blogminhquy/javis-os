@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.501.3] - 2026-11-08
+### Fixed
+- **Bots hear Zalo voice messages.** A Zalo voice message is bare AAC, which Groq and OpenAI refuse, so the bot said it could not hear it. Javis now detects the format from the file's bytes and converts it to mp3 before sending, on every channel.
+
 ## [0.501.2] - 2026-11-08
 ### Fixed
 - **Pages and chat switches no longer stall for seconds while Javis works in the background.** The Kanban dispatcher (every 5 seconds) wrote its job store on the server's main loop, so whenever that store was busy every click waited too, sometimes over a second. That work now runs on a worker thread.
