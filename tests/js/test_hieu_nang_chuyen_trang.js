@@ -147,7 +147,7 @@ async function workspace() {
   let current = null;
   const reqs = [];
   const ctx = {
-    opening: 0, ready: false, active: true, S: { loai: "agent", sessionCuaPhien: {} },
+    opening: 0, ready: false, active: true, setTimeout, clearTimeout, S: { loai: "agent", sessionCuaPhien: {} },
     _phienGanNhat: { "b|agent:a": "s-old" }, khoaGanNhat: (x) => "b|agent:" + x.slug,
     chatReady(v) { ctx.ready = v; }, veGiua() {}, vePhai() { order.push("vePhai"); }, phaiDaVeCho: () => ctx.drawnFor === "a",
     veBuoc() {}, luuViTri() {}, daDoc() {}, coTinChuaDoc: () => false, ganCongHuong() {},
