@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.509.0] - 2026-11-08
+### Added
+- **The chat shows the engine's task plan as a checklist.** When Claude Code, ChatGPT (Codex) or Grok Build plans a multi-step job, a "Plan 2/5" card appears above the answer: done items ticked and struck through, the running one in bold, the rest open. The activity line under the chat says which step it is on. The card stays after a reload.
+- No extra tokens: Javis only draws the list the engine already made, with no extra model call.
+- **The Jobs tab on the Partners page shows what the assistant is doing in the chat.** The tab only listed queued jobs, so it looked empty while the assistant worked through several steps in the chat beside it. A "Working in the chat" card now shows the step count and the plan, and goes when the turn ends.
+- **The Jobs tab lists the workflow runs the assistant took part in.** One card per run: while it runs it says which step and whose, a run waiting for review sits under Needs you, a failed one is marked failed, and Open goes to that workflow. The source filter gains "Workflows". A run cut off mid-way (the server stopped during it) no longer stays In progress for ever.
+### Fixed
+- **The status dot on an assistant's card agrees with its Jobs tab.** A finished job you pressed Done on (archived) or deleted no longer lights the green "just finished" dot, or the red one when it failed.
+
 ## [0.508.1] - 2026-11-08
 ### Fixed
 - **The Partners page chat box no longer locks.** Since 0.503, clicking a partner (or a reply just finishing) could leave the chat box refusing the cursor, even after Ctrl+Shift+R. Conversations open at once again.
