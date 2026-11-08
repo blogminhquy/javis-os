@@ -1727,6 +1727,7 @@
   "app.step_v_search": "Search the web",
   "app.step_v_agent": "Delegate subtask",
   "app.step_v_todo": "Update task list",
+  "app.plan_progress": "Plan {done}/{n}",
   "app.step_v_skill": "Use skill",
   "viec.st_done": "Background task done",
   "viec.st_review": "Background task done, needs review",

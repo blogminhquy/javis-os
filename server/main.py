@@ -111,6 +111,7 @@ import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã ho�
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
 import luot_dang_chay # sổ lượt chat đang chạy theo brain: tool giao việc tự biết khung chat nào hỏi
 import tool_label     # một dòng mô tả lệnh gọi công cụ (lệnh nào, file nào) cho khối tiến trình
+import turn_plan     # the engine's task plan (TodoWrite, update_plan) for the plan card in the chat
 import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
 import transcript_fix  # rewrites what the mic heard at the end of a dictation: the main brain, with the chat as context
 import next_prompt  # suggests the owner's next message after a reply (ghost text, Tab fills it in)
@@ -3521,7 +3522,7 @@ async def _claude_sub_doc(cli, prompt, model):
                 yield {"type": "text", "content": txt}
         elif et == "tool_call":
             yield {"type": "tool_call", "tool": ev.get("name") or "",
-                   "detail": tool_label.chi_tiet(ev),
+                   "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                    "content": f"⚙ {ev.get('name') or 'tool'}"}
         elif et == "final":
             txt = ev.get("content") or ""
@@ -3665,7 +3666,7 @@ async def _cli_sub_doc(g, prompt, model):
                 yield {"type": "text", "content": txt}
         elif et == "tool_call":
             yield {"type": "tool_call", "tool": ev.get("name") or "",
-                   "detail": tool_label.chi_tiet(ev),
+                   "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                    "content": f"⚙ {ev.get('name') or 'tool'}"}
         elif et == "usage":
             yield {"type": "usage", "input": int(ev.get("input_tokens") or 0),
@@ -18718,7 +18719,7 @@ async def _chat_socket(ws):
                         if et == "tool_call":
                             await ws.send_text(json.dumps({
                                 "type": "tool_call", "tool": ev.get("name", ""),
-                                "detail": tool_label.chi_tiet(ev),
+                                "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                                 "content": localefmt.chu(f"⚙ Đang gọi: {ev.get('name', '')}",
                                                          f"⚙ Calling: {ev.get('name', '')}")}))
                         elif et == "delta":
@@ -18801,7 +18802,7 @@ async def _chat_socket(ws):
                         if et == "tool_call":
                             await ws.send_text(json.dumps({
                                 "type": "tool_call", "tool": ev.get("name", ""),
-                                "detail": tool_label.chi_tiet(ev),
+                                "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                                 "content": localefmt.chu(f"⚙ Đang gọi: {ev.get('name', '')}",
                                                          f"⚙ Calling: {ev.get('name', '')}")}))
                         elif et == "delta":
@@ -18941,14 +18942,14 @@ async def _chat_socket(ws):
                                 # 0.86.1 bước chỉ hiện lúc đã xong, lệnh dài trông như treo.
                                 if ev.get("id"):
                                     dang_chay.add(ev["id"])
-                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), "content": f"⚙ {ev.get('name', '')}"}))
+                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev), "content": f"⚙ {ev.get('name', '')}"}))
                             elif et == "tool_call" and ev.get("id") and ev["id"] in dang_chay:
                                 # Bước đã hiện lúc bắt đầu: giờ chỉ đánh dấu xong, không thêm bước đôi.
                                 dang_chay.discard(ev["id"])
                                 out = str((ev.get("item") or {}).get("aggregated_output") or "")
                                 await ws.send_text(json.dumps({"type": "tool_result", "content": out[:200]}))
                             elif et == "tool_call":
-                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), "content": f"⚙ {ev.get('name', '')}"}))
+                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev), "content": f"⚙ {ev.get('name', '')}"}))
                             elif et == "text":
                                 final_text += ev["content"]
                                 await ws.send_text(json.dumps({"type": "stream", "content": ev["content"], "tts": False}))
@@ -19296,7 +19297,7 @@ async def _chat_socket(ws):
                                 elif ev["type"] == "tool_call":
                                     await ws.send_text(json.dumps({
                                         "type": "tool_call", "tool": ev.get("name", ""),
-                                        "detail": tool_label.chi_tiet(ev),
+                                        "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                                         "content": f"⚙ MCP: {ev.get('name', '')}",
                                     }))
                                 elif ev["type"] == "delta":
@@ -19480,7 +19481,7 @@ async def _chat_socket(ws):
                         elif etype in ("final", "error"):
                             _engine_outcome_note(conv_sid, event)
                         if etype == "tool_call":
-                            await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "detail": tool_label.chi_tiet(event),
+                            await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "detail": tool_label.chi_tiet(event), **turn_plan.fields(event),
                                                            "content": localefmt.chu(f"⚙ Đang gọi: {event['name']}",
                                                                                     f"⚙ Calling: {event['name']}")}))
                             # Nhặt mọi thứ trông giống đường dẫn trong tham số tool (Write/Edit có

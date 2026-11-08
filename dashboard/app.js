@@ -1423,7 +1423,9 @@ function handleMessage(data) {
       // chip = dong dang chay + dong ho, luon nam duoi khoi. Ghi cung nhan RO VIEC nhu khoi
       // ("Chay lenh: git status") thay cho "Dang goi: Bash" (0.64.44).
       const _nhan = window.JavisSteps ? window.JavisSteps.nhanDong(data) : (data.content || "");
-      showActivity(escapeHtml(_nhan));
+      // The engine just updated its plan: the chip says where it is in it ("Plan 2/5: Write the tests").
+      const _plan = (data.plan && window.JavisSteps && window.JavisSteps.planLine) ? window.JavisSteps.planLine(t && t.buoc) : "";
+      showActivity(escapeHtml(_plan || _nhan));
     }
   } else if (data.type === "tool_result") {
     if (t && window.JavisSteps) t.buoc = window.JavisSteps.nhan(t.buoc, data);

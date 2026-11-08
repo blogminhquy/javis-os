@@ -1727,6 +1727,7 @@
   "app.step_v_search": "Tìm trên web",
   "app.step_v_agent": "Giao việc phụ",
   "app.step_v_todo": "Cập nhật danh sách việc",
+  "app.plan_progress": "Kế hoạch {done}/{n}",
   "app.step_v_skill": "Dùng skill",
   "viec.st_done": "Việc nền xong",
   "viec.st_review": "Việc nền xong, chờ duyệt",

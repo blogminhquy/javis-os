@@ -168,5 +168,56 @@ check("chip hoạt động dùng chung nhãn (nhanDong)", S.nhanDong(goiCt("Read
 const doc2 = S.ve(null, S.nhan(null, goiCt("Bash", "echo \"<b>\"")), false).querySelector(".steps-list").innerHTML;
 check("detail cũng được escape", doc2.indexOf("<b>") === -1 && doc2.indexOf("&lt;b&gt;") !== -1, doc2);
 
+// ---- 15. The turn's plan (owner, 08/11/2026: Claude shows a Plan checklist, Javis showed nothing) ----------------
+const todo = (items) => ({ type: "tool_call", tool: "TodoWrite", content: "x",
+  plan: { op: "set", items: items } });
+let ps = S.nhan(null, todo([{ text: "Read the code", status: "completed" },
+  { text: "Write the fix", status: "active" }, { text: "Run the tests", status: "pending" }]));
+check("plan: TodoWrite keeps the list", ps.plan && ps.plan.length === 3, JSON.stringify(ps.plan));
+check("plan: TodoWrite is still a step", ps.ds.length === 1);
+check("plan: summary counts done and names the running item",
+  JSON.stringify(S.planSummary(ps.plan)) === JSON.stringify({ n: 3, done: 1, now: "Write the fix" }),
+  JSON.stringify(S.planSummary(ps.plan)));
+ps = S.nhan(ps, goi("Bash", "x"));
+check("plan: an ordinary step keeps the plan", ps.plan && ps.plan.length === 3);
+ps = S.nhan(ps, { type: "tool_result", content: "ok" });
+check("plan: a tool result keeps the plan", ps.plan && ps.plan.length === 3);
+ps = S.nhan(ps, todo([{ text: "Read the code", status: "done" }, { text: "Write the fix", status: "done" },
+  { text: "Run the tests", status: "active" }]));
+check("plan: a new set replaces the list", S.planSummary(ps.plan).done === 2 && S.planSummary(ps.plan).now === "Run the tests");
+check("plan: chip line says where the turn is", S.planLine(ps) === "Kế hoạch 2/3: Run the tests", S.planLine(ps));
+check("plan: no plan, no chip line", S.planLine(S.nhan(null, goi("Bash", "x"))) === "");
+check("plan: a turn with no plan has no plan field", !("plan" in S.nhan(null, goi("Bash", "x"))));
+
+// Claude Code TaskCreate / TaskUpdate: the id comes in the tool result.
+let tk = S.nhan(null, { type: "tool_call", tool: "TaskCreate", plan: { op: "add", text: "Fix the bug" } });
+tk = S.nhan(tk, { type: "tool_call", tool: "TaskCreate", plan: { op: "add", text: "Add a test" } });
+tk = S.nhan(tk, { type: "tool_result", content: "Task #4 created successfully: Fix the bug" });
+tk = S.nhan(tk, { type: "tool_result", content: "Task #5 created successfully: Add a test" });
+check("plan: TaskCreate ids come from the results, in order",
+  tk.plan[0].id === "4" && tk.plan[1].id === "5" && !tk.plan[0].waiting, JSON.stringify(tk.plan));
+tk = S.nhan(tk, { type: "tool_call", tool: "TaskUpdate", plan: { op: "update", id: "4", status: "done" } });
+check("plan: TaskUpdate marks the item", tk.plan[0].st === "done");
+tk = S.nhan(tk, { type: "tool_call", tool: "TaskUpdate", plan: { op: "update", id: "9", status: "done" } });
+check("plan: an unknown id changes nothing", tk.plan.length === 2 && tk.plan[1].st === "pending");
+tk = S.nhan(tk, { type: "tool_call", tool: "TaskUpdate", plan: { op: "update", id: "5", status: "deleted" } });
+check("plan: deleted removes the item", tk.plan.length === 1);
+check("plan: a bad status falls back to the old one",
+  S.applyPlan([{ id: "1", text: "a", st: "active" }], { op: "update", id: "1", status: "weird" })[0].st === "active");
+check("plan: a long list is capped", S.applyPlan(null, { op: "set",
+  items: Array.from({ length: 50 }, (_, i) => ({ text: "t" + i, status: "pending" })) }).length === 30);
+
+// Drawing: the card shows even while the step list is folded, escapes text, strikes done items.
+const pel = S.ve(null, S.nhan(null, todo([{ text: "<b>x</b>", status: "completed" }, { text: "y", status: "active" }])), true);
+const pbox = pel.querySelector(".steps-plan");
+check("plan card: shown", pbox.hidden === false);
+check("plan card: escapes text", pbox.innerHTML.indexOf("<b>") === -1 && pbox.innerHTML.indexOf("&lt;b&gt;") !== -1);
+check("plan card: done and active classes", pbox.innerHTML.indexOf("plan-done") !== -1 && pbox.innerHTML.indexOf("plan-active plan-live") !== -1);
+check("plan card: header counts", pbox.innerHTML.indexOf("Kế hoạch 1/2") !== -1, pbox.innerHTML.slice(0, 200));
+S.ve(pel, S.nhan(null, todo([{ text: "y", status: "active" }])), false);
+check("plan card: no pulse once the turn ended", pbox.innerHTML.indexOf("plan-live") === -1);
+const nop = S.ve(null, S.nhan(null, goi("Bash", "x")), false).querySelector(".steps-plan");
+check("plan card: hidden without a plan", nop.hidden === true);
+
 console.log(fails.length ? "\n" + fails.length + " FAIL" : "\nTất cả xanh");
 process.exit(fails.length ? 1 : 0);

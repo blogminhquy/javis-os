@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import AsyncIterator, Dict, List, Optional
 
 import steer_inbox
+import turn_plan
 import turn_lane
 import warm_pool
 
@@ -669,6 +670,11 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     yield {"type": "tool_call", "name": cc._codex_tool_name(ei), "item": ei, "id": ei["id"]}
                 elif t and t not in _QUIET_TYPES:
                     yield {"type": "item", "item": exec_item(it)}
+            elif method == "turn/plan/updated":
+                # The plan Codex keeps for this turn (its update_plan tool): the chat draws it as a checklist.
+                pev = turn_plan.from_codex_notification(p)
+                if pev:
+                    yield pev
             elif method == "account/rateLimits/updated":
                 try:   # 0.329.0: the plan's 5-hour and weekly meters, for the composer ring
                     import plan_limits

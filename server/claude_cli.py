@@ -2116,6 +2116,12 @@ class CodexCLI:
                     self.session_id = thread_id
                     # Phát ngay để caller lưu trước cả khi lượt bị ngắt giữa chừng.
                     yield {"type": "session", "session_id": thread_id}
+            elif t in ("item.started", "item.updated", "item.completed") \
+                    and (ev.get("item") or {}).get("type") == "todo_list":
+                # Codex's plan for this turn (update_plan). Each update carries the whole list; the chat draws it as a
+                # checklist (turn_plan.py). It used to fall through every branch and be dropped.
+                it = ev.get("item") or {}
+                yield {"type": "tool_call", "name": "todo_list", "item": it}
             elif t == "item.started":
                 # Codex báo lúc một bước BẮT ĐẦU (đo 08/10, Codex 0.160: lệnh `ping` 5 giây có
                 # item.started ở giây 8,8, item.completed ở giây 14). Trước 0.86.1 Javis chỉ nghe
