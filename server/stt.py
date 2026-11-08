@@ -17,6 +17,8 @@ import sys
 
 import httpx
 
+import stt_models
+
 # ---- Whisper bịa câu kêu gọi đăng ký kênh ----
 # Whisper học chủ yếu từ phụ đề YouTube, nên gặp im lặng, tiếng ồn nền hay một đoạn ngắn không
 # rõ là nó "nhớ lại" mấy câu outro dày đặc trong dữ liệu học. Tiếng Việt nổi tiếng nhất là
@@ -179,7 +181,9 @@ STT_MAC_DINH = "vi"   # gợi ý khi chỗ gọi không chốt gì; "" ở chỗ
 # Bản ĐẦY ĐỦ, không phải turbo (0.64.67): đo thật trên câu Việt xen Anh, turbo chép "GitHub
 # Actions" thành "Youtube Action", "build agent" thành "bill A-Ren"; bản đầy đủ ra đúng. Độ trễ
 # trên Groq gần như bằng nhau (~0,7 giây một câu), giá vẫn rẻ. Đổi được qua `voice.stt_model`.
-STT_MODEL_MAC_DINH = "whisper-large-v3"
+# 2026-11-08: only the starting point now. stt_models asks Groq for its models once a day and moves to a newer full-size
+# Whisper by itself; this one is used until the list arrives, and again when a newer model is refused.
+STT_MODEL_MAC_DINH = stt_models.DEFAULTS["groq"]
 MAX_STT_MB = 24          # Groq chặn ở 25MB; chừa biên cho phần multipart bọc ngoài
 STT_TIMEOUT = 120.0      # tin thoại dài vài phút vẫn phải kịp, mạng VPS có lúc chậm
 
@@ -254,21 +258,22 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords="
                và chưa có căn cứ nào - ép "vi" lúc đó là chủ động làm hỏng tiếng nước ngoài.
       "en"  -> gợi ý đích danh.
     """
-    return await _api_transcribe(GROQ_STT_URL, "groq", data, ten_file, api_key, model or STT_MODEL_MAC_DINH,
-                           ngon_ngu, hotwords)
+    # `model` empty: the newest full-size Whisper Groq lists (stt_models), the default until that is known.
+    return await stt_models.hear_with("groq", api_key, model, lambda mdl: _api_transcribe(
+        GROQ_STT_URL, "groq", data, ten_file, api_key, mdl, ngon_ngu, hotwords))
 
 
 # OpenAI ear (0.231.0). gpt-4o-transcribe is a language model that listens, so a Vietnamese sentence with English
 # product names in it ("mở Claude Code", "hỏi ChatGPT") keeps both languages instead of spelling the English part out
 # in Vietnamese sounds the way Whisper does. Same endpoint shape as Groq (OpenAI-compatible), same `prompt` hint.
 OPENAI_STT_URL = "https://api.openai.com/v1/audio/transcriptions"
-OPENAI_STT_MODEL = "gpt-4o-transcribe"
+OPENAI_STT_MODEL = stt_models.DEFAULTS["openai"]     # starting point; stt_models follows OpenAI's newest transcribe
 
 
 async def openai_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords=""):
     """Same contract as `groq_nghe`, on OpenAI's transcription endpoint."""
-    return await _api_transcribe(OPENAI_STT_URL, "openai", data, ten_file, api_key, model or OPENAI_STT_MODEL,
-                           ngon_ngu, hotwords)
+    return await stt_models.hear_with("openai", api_key, model, lambda mdl: _api_transcribe(
+        OPENAI_STT_URL, "openai", data, ten_file, api_key, mdl, ngon_ngu, hotwords))
 
 
 # Groq and OpenAI decide the format from the FILE NAME and refuse what they do not know. Zalo voice messages are raw
@@ -448,7 +453,7 @@ async def chatgpt_nghe(data, ten_file, access_token, account_id="", ngon_ngu=Non
 # Now `listen_any` tries, in order: Groq, OpenAI, Gemini (keys from the Models page), then the offline Whisper the
 # owner installed from the Tools page (`local_stt`). An ear that is missing or fails hands over to the next one.
 GEMINI_STT_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-GEMINI_STT_MODEL = "gemini-2.5-flash"     # takes audio input; fast and cheap
+GEMINI_STT_MODEL = stt_models.DEFAULTS["gemini"]   # starting point; stt_models follows Google's newest stable flash
 GEMINI_MAX_MB = 18                        # inline audio rides in a request capped at 20MB
 _GEMINI_MIME = {".mp3": "audio/mp3", ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg",
                 ".opus": "audio/ogg", ".flac": "audio/flac", ".aac": "audio/aac", ".aiff": "audio/aiff"}
@@ -495,7 +500,14 @@ async def _as_mp3(data: bytes, ten_file: str) -> bytes:
 
 
 async def gemini_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords=""):
-    """Same contract as `groq_nghe`, with a Gemini API key: the model is asked to write down what is said."""
+    """Same contract as `groq_nghe`, with a Gemini API key: the model is asked to write down what is said.
+
+    `model` empty: Google's newest stable flash (stt_models), the default until that is known."""
+    return await stt_models.hear_with("gemini", api_key, model, lambda mdl: _gemini_once(
+        data, ten_file, api_key, mdl, ngon_ngu, hotwords))
+
+
+async def _gemini_once(data, ten_file, api_key, mdl, ngon_ngu, hotwords):
     import base64
     import os
     if not api_key:
@@ -512,7 +524,7 @@ async def gemini_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords
     if len(data) > GEMINI_MAX_MB * 1024 * 1024:
         ct = f"({_mb(len(data))}MB, trần {GEMINI_MAX_MB}MB)"
         return {"ok": False, "ly_do": "qua_lon", "noi_voi_javis": loi_thanh_dong("qua_lon", ct)}
-    mdl = model or GEMINI_STT_MODEL
+    mdl = mdl or GEMINI_STT_MODEL
     goi_y = STT_MAC_DINH if ngon_ngu is None else ngon_ngu
     prompt = _GEMINI_PROMPT
     if goi_y:

@@ -45,6 +45,8 @@ _os.environ["JAVIS_NO_REAL_REVIEW_ENGINE"] = "1"
 _os.environ["JAVIS_NO_REAL_TEAM_ENGINE"] = "1"
 # A test that boots the real server must not download a real browser on startup (0.375.0).
 _os.environ["JAVIS_SKIP_BROWSER"] = "1"
+# No test asks Groq, OpenAI or Google for their model lists (server/stt_models.py, 2026-11-08).
+_os.environ["JAVIS_NO_STT_MODEL_DISCOVERY"] = "1"
 
 
 # ─────────── Thư mục tạm: một thư mục riêng cho mỗi tiến trình test, tự xoá khi thoát ───────────

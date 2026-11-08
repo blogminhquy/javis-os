@@ -255,7 +255,7 @@ def main() -> int:
     # Chốt trung tâm (review T3 J P2-2): MỌI test chạy qua đây đều không dựng được engine phán xử hay lượt học thật, kể cả
     # test không nạp tests/python/_paths.py. `agent_judge.Judge` từ chối mọi hàm hỏi model chưa đánh dấu là engine giả.
     env = dict(os.environ, PYTHONIOENCODING="utf-8", JAVIS_NO_REAL_JUDGE_ENGINE="1", JAVIS_NO_REAL_REVIEW_ENGINE="1",
-               JAVIS_NO_REAL_TEAM_ENGINE="1")
+               JAVIS_NO_REAL_TEAM_ENGINE="1", JAVIS_NO_STT_MODEL_DISCOVERY="1")
 
     viec = []
     if not chi_js:

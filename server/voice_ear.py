@@ -37,7 +37,8 @@ EARS = {
     "groq": {"label": "Groq Whisper", "kind": "upload", "key_field": "groq_api_key"},
     # 0.231.0: a machine with an OpenAI key but no Groq key used to have no ear at all, so a Vietnamese sentence with
     # English words in it stayed as Chrome heard it ("Claude Code" -> "lót code"). gpt-4o-transcribe keeps both.
-    "openai": {"label": "OpenAI gpt-4o-transcribe", "kind": "upload", "key_field": "openai_api_key"},
+    # The model is OpenAI's newest transcribe model (stt_models), so the label names no version.
+    "openai": {"label": "OpenAI transcribe", "kind": "upload", "key_field": "openai_api_key"},
 }
 
 # Thứ tự khi `auto` mà bộ não chính không có tai cùng hãng. Xếp theo bộ đo tools/stt_bench:
