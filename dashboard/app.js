@@ -2571,6 +2571,9 @@ async function openStoredSession(id, stillCurrent, opts) {
     _veLaiPhien(id, rong, ticket, false);
     return;
   }
+  // Stage 2 (2026-11-08): the reads a chat switch makes (messages, model bar, jobs strip, coding and GitHub chips)
+  // leave together in one batch from the second switch on (fetch-gop.js visit).
+  try { if (window.JavisFetchGop && window.JavisFetchGop.visit) window.JavisFetchGop.visit("chat", { sid: id }); } catch (e) {}
   // Có bản trong bộ nhớ: vẽ ngay, rồi so với bản mới.
   let daCo = _docCachePhien(id);
   const fresh = _taiPhien(id);   // the server is asked at once, whatever is kept

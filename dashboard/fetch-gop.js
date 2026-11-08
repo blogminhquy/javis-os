@@ -66,7 +66,7 @@
     + "remote-access/status|auth/tokens|learn/(config|metrics|review|log)|auto-learning|backup/status|"
     + "usage/(insights|theo-gio|tong-quan)|runtime/muc|cache-keepwarm)(\\?|$)");
   // Posts that change nothing a page shows: a chat marked read on every switch, error and diagnostics reports.
-  var NO_CHANGE_POSTS = /^\/(sessions\/[^/?]+\/read|client-errors|diag\/|star-nudge\/check)(\?|$)/;
+  var NO_CHANGE_POSTS = /^\/(sessions\/[^/?]+\/read|client-errors|diag\/|star-nudge\/check|batch)(\?|$)/;
 
   // Key of a read that may be answered from a kept copy, or "". Like khoaGop, other list; a refresh asked explicitly
   // (`refresh=1`, no-store, reload) always goes to the server. A read with its own timeout (AbortController) is
@@ -90,6 +90,64 @@
     return NO_CHANGE_POSTS.test(path);
   }
 
+  // ── Batched reads (2026-11-08, performance stage 2) ──
+  // Each moment of the app (its start, a console page, a chat switch) makes the same reads every time, but in 3 to 5
+  // waves: a module asks only once the answer before it drew its part. Over a 250 ms tunnel the waves, not the server,
+  // were the cost. So every moment is recorded once (which reads it made in its first REC_MS) and the next time it
+  // happens all of them leave together in ONE request to POST /batch (server/read_batch.py), which streams each answer
+  // back as soon as it is ready. The modules' own fetches then find their answer waiting. Reads the server leaves out,
+  // or a batch that fails, simply go to the server as before. Only plain reads the server also allows (keep this list
+  // in step with ALLOWED_PATHS in server/read_batch.py; tests/python/test_read_batch.py compares them).
+  var BATCH_RE = new RegExp("^/(settings|config|brains|agents|agents/get|agents/unread|agents/jobs/counts|agents/[^/?]+/pulse|"
+    + "skills|workflows|plugins|tools/optional|packs|logins|share/list|webhooks|webhooks/health|connect/catalog|"
+    + "connect/health|github/status|github/icons|github/session/[^/?]+|coding/session/[^/?]+|messenger/setup|"
+    + "threads/setup|(telegram|whatsapp|zalo-bot|discord|slack|lark)/status|claude/status|autostart|domain/status|"
+    + "remote-access/status|auth/status|auth/tokens|ui/order|pet/menu|voice/ear|voice/call|vault/check|files/list|"
+    + "files/md-hong|graph|projects|sessions|sessions/[0-9a-z]{8,64}|sessions/[0-9a-z]{8,64}/meta|background|chat/route|"
+    + "inbox|notifications|notifications/read|resonance/agents|resonance/goals|teams|learn/config|learn/metrics|"
+    + "learn/review|learn/log|auto-learning|backup/status|incidents|kanban|loops/log|my-tasks|my-tasks/calendar|"
+    + "reminders|schedules/this-machine|tasks/bots|viec/all|watch|channels/accounts|conversations|usage/insights|"
+    + "usage/summary|usage/theo-gio|usage/tong-quan|runtime/muc|cache-keepwarm|plan-limits)(\\?[^#]*)?$");
+  var BATCH_MAX = 40;
+
+  function hasHeaders(h) {
+    if (!h) return false;
+    if (typeof h.forEach === "function" && !Array.isArray(h)) { var n = 0; h.forEach(function () { n++; }); return n > 0; }
+    return Object.keys(h).length > 0;
+  }
+  // Path of a read that may travel in a batch, or "". A read with headers of its own is never batched: the batch
+  // carries only the caller's cookie and language.
+  function batchPath(input, init, goc) {
+    if (typeof input !== "string" || laGet(init) !== "GET" || (init && init.body)) return "";
+    if (init && (init.cache === "no-store" || init.cache === "reload")) return "";
+    if (init && hasHeaders(init.headers)) return "";
+    var u;
+    try { u = new URL(input, goc || "http://x"); } catch (e) { return ""; }
+    if (goc && u.origin !== new URL(goc).origin) return "";
+    if (/(^|[?&])(refresh|nocache)=(1|true)(&|$)/i.test(u.search)) return "";
+    var path = u.pathname + u.search;
+    return path.length <= 600 && BATCH_RE.test(path) ? path : "";
+  }
+  // A recorded path made reusable: the moment's own values (the chat id of a switch) become {name}.
+  function toTemplate(path, vars) {
+    var out = path;
+    Object.keys(vars || {}).forEach(function (k) {
+      var v = String(vars[k] || "");
+      if (v.length >= 6) out = out.split(v).join("{" + k + "}");
+    });
+    return out;
+  }
+  // And back, for this moment's values. "" when the template needs a value this moment does not have.
+  function fromTemplate(tpl, vars) {
+    var miss = false;
+    var out = String(tpl).replace(/\{([a-z]+)\}/g, function (m, k) {
+      var v = vars && vars[k];
+      if (!v) { miss = true; return m; }
+      return String(v);
+    });
+    return miss ? "" : out;
+  }
+
   var CHO_THU_LAI = [500, 1000, 2000, 3000, 4000];
 
   // Mã trả về cho thấy máy chủ CHƯA tới được (đang khởi động, đường hầm chập chờn), không phải lỗi của chính yêu cầu.
@@ -107,7 +165,8 @@
   }
 
   var api = { khoaGop: khoaGop, gopDuoc: gopDuoc, thuLaiDuoc: thuLaiDuoc, maTam: maTam, CHO_THU_LAI: CHO_THU_LAI, GIU_MS: GIU_MS,
-    swrKey: swrKey, keepsCopies: keepsCopies, SWR_MAX_AGE_MS: SWR_MAX_AGE_MS };
+    swrKey: swrKey, keepsCopies: keepsCopies, SWR_MAX_AGE_MS: SWR_MAX_AGE_MS,
+    batchPath: batchPath, toTemplate: toTemplate, fromTemplate: fromTemplate, BATCH_MAX: BATCH_MAX };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof window === "undefined" || typeof window.fetch !== "function") return;
 
@@ -176,6 +235,107 @@
     return thu();
   }
 
+  // ── Batched reads: answers on their way (see BATCH_RE above) ──
+  var REC_MS = 2500;        // a moment's reads are the ones it makes this long after it began
+  var PENDING_MS = 8000;    // a batched answer nobody asked for within this time is dropped
+  var pending = {};         // path -> { at, p: Promise<{s, t, b} | null>, res }
+  var recs = [];            // moments being recorded: { kind, vars, until, paths, timer }
+
+  function manifestKey(kind) { return "javis.batch." + kind; }
+  function readManifest(kind) {
+    try { var a = JSON.parse(localStorage.getItem(manifestKey(kind)) || "[]"); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  }
+  function writeManifest(kind, list) {
+    try { localStorage.setItem(manifestKey(kind), JSON.stringify(list.slice(0, BATCH_MAX))); } catch (e) {}
+  }
+  // A recording that ran its whole window replaces the manifest; one cut short (the moment came again) only adds.
+  function endRec(r, whole) {
+    try { clearTimeout(r.timer); } catch (e) {}
+    recs = recs.filter(function (x) { return x !== r; });
+    var tpls = [];
+    r.paths.forEach(function (p) { var t = toTemplate(p, r.vars); if (tpls.indexOf(t) < 0) tpls.push(t); });
+    if (!tpls.length) return;
+    if (!whole) readManifest(r.kind).forEach(function (t) { if (tpls.indexOf(t) < 0) tpls.push(t); });
+    writeManifest(r.kind, tpls);
+  }
+  function record(path) {
+    var now = Date.now();
+    recs.forEach(function (r) { if (now <= r.until && r.paths.indexOf(path) < 0) r.paths.push(path); });
+  }
+
+  // Server-sent events of POST /batch, handed one by one to `each` as they arrive.
+  function readEvents(r, each) {
+    if (!r.body || !r.body.getReader || typeof TextDecoder === "undefined") {
+      return r.text().then(function (t) { splitEvents(t, each); });
+    }
+    var reader = r.body.getReader(), dec = new TextDecoder(), buf = "";
+    function step() {
+      return reader.read().then(function (x) {
+        if (x.done) { splitEvents(buf + "\n\n", each); return; }
+        buf += dec.decode(x.value, { stream: true });
+        var cut = buf.lastIndexOf("\n\n");
+        if (cut >= 0) { splitEvents(buf.slice(0, cut + 2), each); buf = buf.slice(cut + 2); }
+        return step();
+      });
+    }
+    return step();
+  }
+  function splitEvents(text, each) {
+    String(text).split("\n\n").forEach(function (ev) {
+      var line = ev.split("\n").filter(function (l) { return l.indexOf("data: ") === 0; }).map(function (l) { return l.slice(6); }).join("\n");
+      if (!line) return;
+      try { each(JSON.parse(line)); } catch (e) {}
+    });
+  }
+
+  function sendBatch(paths) {
+    var now = Date.now();
+    paths.forEach(function (p) {
+      var d = { at: now, res: null };
+      d.p = new Promise(function (ok) { d.res = ok; });
+      pending[p] = d;
+    });
+    var answer = function (p, x) { var d = pending[p]; if (d && d.res) { d.res(x); d.res = null; } };
+    gocThat("/batch", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ paths: paths }) })
+      .then(function (r) { if (!r.ok) throw new Error("batch " + r.status); return readEvents(r, function (x) { if (x && x.p) answer(x.p, x); }); })
+      .catch(function () {})
+      .then(function () { paths.forEach(function (p) { answer(p, null); }); });
+  }
+
+  // The network, for a read: its batched answer when one is on its way, the server otherwise.
+  function net(input, init) {
+    var bp = batchPath(input, init, location.origin);
+    var d = bp && pending[bp];
+    if (!d || Date.now() - d.at > PENDING_MS) return goc(input, init);
+    return d.p.then(function (x) {
+      if (!x || !x.s || maTam(x.s)) return goc(input, init);
+      return new Response(x.b, { status: x.s, headers: { "Content-Type": x.t || "application/json" } });
+    });
+  }
+
+  // A moment begins: "boot", "page:<id>", "chat" ({sid}). Send what it read last time in one batch, record what it
+  // reads this time.
+  api.visit = function (kind, vars) {
+    kind = String(kind || ""); vars = vars || {};
+    if (!kind) return;
+    recs.filter(function (r) { return r.kind === kind; }).forEach(function (r) { endRec(r, false); });
+    var r = { kind: kind, vars: vars, until: Date.now() + REC_MS, paths: [] };
+    try { r.timer = setTimeout(function () { endRec(r, true); }, REC_MS + 100); } catch (e) {}
+    recs.push(r);
+    var now = Date.now(), list = [];
+    readManifest(kind).forEach(function (t) {
+      var p = fromTemplate(t, vars);
+      if (!p || list.indexOf(p) >= 0) return;
+      var d = pending[p], c = copies[p];
+      if (d && now - d.at <= PENDING_MS) return;
+      if (c && now - c.at <= GIU_MS) return;
+      list.push(p);
+    });
+    if (list.length >= 2) sendBatch(list.slice(0, BATCH_MAX));
+  };
+
   // ── Kept copies for the console pages (see SWR above) ──
   var copies = {};         // key -> { at, text, status, ct }
   var inflight = {};       // key -> Promise<Response>, one request in flight per key
@@ -205,7 +365,7 @@
     if (inflight[key]) return inflight[key];
     var own = {};
     for (var k in (init || {})) if (k !== "signal") own[k] = init[k];
-    var p = goc(input, own).then(function (r) { return keep(key, r); });
+    var p = net(input, own).then(function (r) { return keep(key, r); });
     inflight[key] = p;
     var done = function () { if (inflight[key] === p) delete inflight[key]; };
     p.then(done, done);
@@ -222,26 +382,30 @@
       return Promise.resolve(fromCopy(c));
     }
     // No usable copy: a caller with its own timeout keeps its own request; the others share one.
-    if (init && init.signal) return goc(input, init).then(function (r) { return keep(key, r); }).then(function (r) { return r.clone(); });
+    if (init && init.signal) return net(input, init).then(function (r) { return keep(key, r); }).then(function (r) { return r.clone(); });
     return refetch(key, input, init).then(function (r) { return r.clone(); });
   }
 
   // console.js: a page starts drawing (a visit, or a redraw). Its first read of each key may use a kept copy again.
-  api.pageStart = function (id) { page = String(id || ""); readThisVisit = {}; visitAt = Date.now(); };
+  api.pageStart = function (id) {
+    page = String(id || ""); readThisVisit = {}; visitAt = Date.now();
+    api.visit("page:" + page);
+  };
   // Forget every kept copy (a chat turn ended: Javis may have changed what the pages show).
   api.forget = function () { copies = {}; nho = {}; };
 
   window.fetch = function (input, init) {
     // Một lượt ghi: những gì đã nhớ có thể đã cũ.
-    if (!keepsCopies(input, init, location.origin)) { nho = {}; copies = {}; }
+    if (!keepsCopies(input, init, location.origin)) { nho = {}; copies = {}; pending = {}; }
+    if (recs.length) { var rp = batchPath(input, init, location.origin); if (rp) record(rp); }
     var copyKey = swrKey(input, init, location.origin);
     if (copyKey) return fromCopyOrServer(copyKey, input, init);
     var khoa = khoaGop(input, init, location.origin);
-    if (!khoa) return goc(input, init);
+    if (!khoa) return net(input, init);
     var bay = Date.now();
     var e = nho[khoa];
     if (!e || bay - e.luc > GIU_MS) {
-      e = { luc: bay, p: goc(input, init) };
+      e = { luc: bay, p: net(input, init) };
       nho[khoa] = e;
       // Hỏng thì quên ngay, lần sau gọi lại thật.
       e.p.then(function (r) { if (!r.ok && nho[khoa] === e) delete nho[khoa]; },
@@ -250,4 +414,6 @@
     return e.p.then(function (r) { return r.clone(); });
   };
   window.JavisFetchGop = api;
+  // The app's start is a moment too: its reads leave in one batch from the second start on.
+  api.visit("boot");
 })();
