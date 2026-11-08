@@ -87,17 +87,22 @@ import main  # noqa: E402
 b1, err = chatbot_store.create_bot({"name": "Javis Vũ", "agent_slug": "lan", "brain": "brain"})
 b2, err2 = chatbot_store.create_bot({"name": "Nhi Mai", "agent_slug": "hoa", "brain": "brain"})
 check("(chuẩn bị) tạo hai bot dùng hai Agent khác nhau", b1 and b2 and not err and not err2, (err, err2))
-k = main._kenh_bot_cua_agent("brain", "agent:lan")
+k = main._agent_history_channels("brain", "agent:lan")
 slug1 = chatbot_store.get_bot(b1)["slug"]
-check("kênh bot của Agent lan là đúng kênh phiên của bot đó (bot:<slug>)", k == ["bot:" + slug1], k)
-check("Agent không có bot nào thì không thêm gì", main._kenh_bot_cua_agent("brain", "agent:khong-ai-dung") == [])
-check("kênh không phải agent: thì không gộp gì", main._kenh_bot_cua_agent("brain", "workflow:viet-bai") == []
-      and main._kenh_bot_cua_agent("brain", "") == [] and main._kenh_bot_cua_agent("brain", None) == [])
+bots_of = lambda ks: [c for c in ks if c.startswith("bot:")]
+check("kênh bot của Agent lan là đúng kênh phiên của bot đó (bot:<slug>)", bots_of(k) == ["bot:" + slug1], k)
+# 2026-11-08: the owner's admin-channel chats routed to the agent join too (`<channel>@<slug>`).
+check("agent history also holds the owner's admin chats routed to it",
+      [c for c in k if not c.startswith("bot:")] == [f"{c}@lan" for c in main.OWNER_TURN_CHANNELS], k)
+check("Agent không có bot nào thì không thêm kênh bot nào (chỉ kênh admin gọi nó)",
+      main._agent_history_channels("brain", "agent:khong-ai-dung") == [f"{c}@khong-ai-dung" for c in main.OWNER_TURN_CHANNELS])
+check("kênh không phải agent: thì không gộp gì", main._agent_history_channels("brain", "workflow:viet-bai") == []
+      and main._agent_history_channels("brain", "") == [] and main._agent_history_channels("brain", None) == [])
 b3, err3 = chatbot_store.create_bot({"name": "Bot Brain Riêng", "agent_slug": "lan", "brain": "brain-rieng"})
 check("(chuẩn bị) một bot cùng Agent nhưng ở brain RIÊNG", b3 and not err3, err3)
-k2 = main._kenh_bot_cua_agent("brain", "agent:lan")
-check("bot ở brain khác thì không lẫn vào lịch sử của brain đang mở", k2 == ["bot:" + slug1], k2)
-k3 = main._kenh_bot_cua_agent("brain-rieng", "agent:lan")
+k2 = main._agent_history_channels("brain", "agent:lan")
+check("bot ở brain khác thì không lẫn vào lịch sử của brain đang mở", bots_of(k2) == ["bot:" + slug1], k2)
+k3 = main._agent_history_channels("brain-rieng", "agent:lan")
 check("và lịch sử của brain riêng có kênh bot của nó", "bot:" + chatbot_store.get_bot(b3)["slug"] in k3, k3)
 
 # 5. Endpoint: gộp phiên bot là OPT-IN. Lúc trang Cộng sự chọn "phiên gần nhất để mở tiếp" (limit=1) mà lẫn phiên

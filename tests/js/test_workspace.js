@@ -259,12 +259,20 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   check("agent: thanh loc hien Tat ca agent, khong co nut tao nhom/tag rieng",
     tagBar.includes("ws.tag_all") && !tagBar.includes("cs-proj-add") && !tagBar.includes("cs-proj-x"));
   check("agent: khong chia tieu de theo tag (agent nhieu tag khong hien hai lan)", !tagDs.includes("data-nhom="));
-  // 0.175.0 (chủ repo 16/10/2026: thẻ "nhiều thông tin"): tag KHÔNG vẽ thành chip trên thẻ nữa, đã có ô lọc theo tag ở đầu
-  // cột; tên tag vẫn đọc được ở tooltip của thẻ.
-  check("agent: the khong ve chip tag, ten tag nam o tooltip",
-    !/class="ws-tag"/.test(tagDs) && /title="[^"]*ws\.tags_aria: /.test(tagDs), tagDs.slice(0, 300));
+  // 2026-11-08 (owner): tags are back on the card, as chips on the one line under the name (cardSubHtml), and the full
+  // list still reads in the card's tooltip.
+  check("agent card: tag chips on the line under the name, full list in the tooltip",
+    /<\/strong><\/span><span class="ws-item-sub"><span class="ws-tags"[^>]*><span class="ws-tag" title="Marketing">/.test(tagDs)
+    && /title="[^"]*ws\.tags_aria: /.test(tagDs), tagDs.slice(0, 300));
   ds[0].tags = ["Marketing", "Viết nội dung"]; ds[1].tags = []; ds[2].tags = ["marketing"];
   ctx.veTrai();
+  check("agent card: an assistant without tags gets no empty sub line",
+    nodes["#wsList"].innerHTML.includes("Kế toán</strong></span>")
+    && !nodes["#wsList"].innerHTML.includes("Kế toán</strong></span><span class=\"ws-item-sub\">")
+    && nodes["#wsList"].innerHTML.includes("Người viết</strong></span><span class=\"ws-item-sub\">"));
+  check("agent card: at most two chips on the card, the rest folded into +n",
+    (W.chipTagHtml({ tags: ["A", "B", "C", "D"] }, 2).match(/class="ws-tag"/g) || []).length === 2
+    && /ws-tag-more" title="C, D"/.test(W.chipTagHtml({ tags: ["A", "B", "C", "D"] }, 2)));
   check("agent nhieu tag xuat hien DUNG MOT lan o Tat ca",
     (nodes["#wsList"].innerHTML.match(/<strong>Người viết<\/strong>/g) || []).length === 1);
   ctx.chonNhom("Marketing");
