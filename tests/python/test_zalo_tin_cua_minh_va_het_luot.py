@@ -100,6 +100,11 @@ def _hop_thu():
 en = chatbot_runtime.engine_notice
 check("bắt câu hết lượt Claude đúng như ảnh chụp",
       bool(en("You've hit your session limit · resets 4:40am (UTC)")))
+# Báo cáo 08/11/2026: hết cả hạn mức chi thêm theo tháng, câu này lọt tới khách Zalo vì chưa có trong bộ nhận dạng.
+SPEND = ("You've hit your monthly spend limit · raise it at "
+         "https://claude.ai/settings/usage?from=cc_cli_limit_message · your 5-hour limit resets 7am (UTC)")
+check("bắt câu 'monthly spend limit' đúng như ảnh chụp 08/11", bool(en(SPEND)))
+check("bắt cả khi dấu nháy là dấu cong (You’ve)", bool(en(SPEND.replace("'", "\u2019"))))
 check("bắt lỗi engine kiểu API Error / Credit balance",
       bool(en("API Error: 529 overloaded")) and bool(en("Credit balance is too low")))
 check("không đụng câu trả lời thật", not en("Dạ bên em còn hàng, anh chị cần mấy cái ạ?"))
@@ -129,6 +134,17 @@ async def chay():
     check("hết lượt: khách KHÔNG nhận câu nào, kể cả câu xin lỗi", not any(gui_chu), gui_chu)
     check("Hộp thư không ghi câu hết lượt như lời bot",
           not any("session limit" in t and s == "ai" for s, t in _hop_thu()), _hop_thu())
+    GUI.clear()
+
+    # ---- 2b. câu 'monthly spend limit' (08/11/2026): cũng KHÔNG tới khách -------------
+    TRA_LOI["v"] = SPEND
+    KHO_TIN.append(_tin(text="Còn size M không shop?"))
+    await zc.doc_mot_lan(dict(CONN))
+    await asyncio.sleep(0.3)
+    gui_chu = [g.get("text") for g in GUI]
+    check("CANARY: câu 'monthly spend limit' KHÔNG tới khách", not any(gui_chu), gui_chu)
+    check("Hộp thư không ghi câu 'spend limit' như lời bot",
+          not any("spend limit" in t and s == "ai" for s, t in _hop_thu()), _hop_thu())
     GUI.clear()
     TRA_LOI["v"] = "Dạ còn hàng ạ"
     await asyncio.sleep(0.05)
