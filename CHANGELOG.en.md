@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.503.0] - 2026-11-08
+### Improved
+- **Opening the app, a page or a chat now asks the server in one trip instead of several waves.** Javis learns what each of these moments reads, then sends it all together next time, and the server streams each answer back as soon as it is ready. Measured over a slow link: app start from 3.5 s to 2.6 s and from 47 requests to 22; a chat switch from 5 requests to 1.
+- Anything the server leaves out of a batch is simply asked for on its own, as before, so nothing goes missing.
+
 ## [0.502.0] - 2026-11-08
 ### Improved
 - **Going back to a chat shows it at once, even after reloading the page.** Javis keeps the last part of the 50 most recent chats in this browser, draws from it, then asks the server for the newest copy. Measured over a slow link: from about 0.3 s down to 0.03-0.04 s.
