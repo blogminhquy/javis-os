@@ -3638,7 +3638,7 @@
   "ht.xn_nhap_cu": "Nhập tin nhắn cũ của {ten} vào Hộp thư?\n\nJavis lấy các tin Zalo đã giữ được, khoảng 2 tuần gần nhất (Zalo không cho lấy xa hơn). Cuộc chat đã có tin trong Hộp thư thì chỉ thêm các tin cũ hơn tin đầu tiên của nó, xếp lên trên. Bot không trả lời các tin này và chúng không tính là chưa đọc.\n\nNếu vừa đăng nhập Zalo, đợi vài phút cho Zalo tải xong tin cũ rồi hãy bấm.",
   "ht.dang_nhap_cu": "Đang nhập...",
   "ht.da_nhap_cu": "Đã nhập {tin} tin vào {chat} cuộc chat.",
-  "ht.khong_co_tin_cu": "Không có tin nào cũ hơn những gì Hộp thư đã có. Javis chỉ lấy được các tin Zalo đã tải về máy, khoảng 2 tuần gần nhất. Nếu vừa đăng nhập Zalo, đợi vài phút rồi bấm lại.",
+  "ht.khong_co_tin_cu": "Không có tin nào cũ hơn những gì Hộp thư đã có. Vừa đăng nhập Zalo thì đợi vài phút rồi bấm lại.",
   "ht.nhap_cu_bo_qua.one": "Bỏ qua {count} cuộc chat đã có tin trong Hộp thư.",
   "ht.nhap_cu_bo_qua.other": "Bỏ qua {count} cuộc chat đã có tin trong Hộp thư.",
   "ht.nhap_cu_het_tran": "Đã chạm trần 5.000 tin, chỉ lấy phần mới nhất.",
