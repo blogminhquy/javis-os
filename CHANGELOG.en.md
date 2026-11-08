@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.504.0] - 2026-11-08
+### Added
+- **The Zalo bot on the Admin channels page can call a partner, like Telegram.** Type `@<name> <question>` to ask once, or `/agent <name>` to let that partner answer the whole chat.
+- **Assistant cards on the Partners page show their tags right under the name**, beside the avatar. Javis Core's "System" badge moved to that line too. In a narrow column the extra tags fold into "+n".
+### Fixed
+- **Chats from Zalo and Telegram (Admin channels) now show in Javis Core's history**, and a chat that called a partner shows in that partner's history, labelled TG or zalo.
+- **`/brain`, `/reset`, `/stop` and `/model` on the Zalo admin bot act on the chat you are in.** Before, they changed another session, so the chat could land in the default brain.
+- **A dedicated bot can no longer share the Zalo admin bot's token.** Sharing it split the messages and half of them went to the customer inbox, missing from your chat.
+
 ## [0.503.2] - 2026-11-08
 ### Improved
 - **While Javis answers or runs a Kanban job, other clicks no longer wait in line.** Reading and writing the chat history during each turn (including reading back a long chat to send to the model) and every write of a Kanban job now run on worker threads, off the loop that serves the interface.
