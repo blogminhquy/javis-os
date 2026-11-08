@@ -57,7 +57,7 @@ def kanban_failures(state_dir: Path, since: float) -> List[dict]:
             rows = con.execute(
                 "SELECT id, brain_root, title, block_kind, block_reason, updated_at FROM tasks "
                 "WHERE status IN ('blocked', 'failed') AND updated_at >= ? "
-                "AND block_kind NOT IN ('needs_input', 'limit')", (since,)).fetchall()
+                "AND block_kind NOT IN ('needs_input', 'limit', 'acceptance_failed')", (since,)).fetchall()
         finally:
             con.close()
     except sqlite3.Error:

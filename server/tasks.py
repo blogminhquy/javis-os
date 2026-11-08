@@ -624,11 +624,17 @@ class TasksFeature:
                             # 0.411.0: how long the run took, shown on the card.
                             "run_seconds": round(time.monotonic() - t_run)}
                 if not passed:
-                    final_task = await asyncio.to_thread(self.store.ask, tid,
-                        worker_id,
-                        "Chưa đạt điều kiện hoàn thành: "
-                        + (why or "worker báo chưa làm xong.")[:200],
-                        result=result)
+                    # Owner report 2026-11-08: this used to park the job as a question ("Needs your answer") whose
+                    # only text was the checker's reason, so the owner had nothing to answer. A miss is the
+                    # worker's to fix: the checker's verdict goes back to the worker once, and only a second miss
+                    # (or a worker that says itself it could not finish) waits for the owner, as two buttons.
+                    final_task = await asyncio.to_thread(
+                        self.store.acceptance_failed, tid, worker_id,
+                        why or localefmt.chu("Worker báo chưa làm xong.", "The worker says it did not finish."),
+                        result=result, metadata=metadata, artifacts=self._artifacts(result, root),
+                        needs_approval=bool(task.get("needs_approval")), auto_fix=(how == "ai"))
+                    if final_task and final_task.get("status") == "ready":
+                        self.wake()
                     return
                 final_task = await asyncio.to_thread(self.store.complete, tid,
                     worker_id,
@@ -1011,6 +1017,11 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             return ""
         dong = ["HỎI ĐÁP VỚI CHỦ (câu trả lời là dữ kiện chủ đã chốt, dùng luôn, KHÔNG hỏi lại):"]
         for i, x in enumerate(qa, 1):
+            if x.get("kind") == "acceptance_fix":
+                # 2026-11-08: the acceptance check failed the last run. The worker fixes exactly what it names.
+                dong.append(f"{i}. Lượt nghiệm thu lần trước chấm CHƯA ĐẠT: {x.get('q') or ''}\n"
+                            "   Sửa đúng chỗ này cho đạt điều kiện hoàn thành, giữ nguyên phần đã đạt.")
+                continue
             if x.get("kind") == "followup":
                 # 0.411.0: the owner's follow-up on a stopped or finished job. It is the newest instruction, so it
                 # wins over the original goal where the two differ.
@@ -1562,13 +1573,61 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         except Exception as e:
             print(f"[kanban] báo câu hỏi của việc {tid} lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
+    async def _report_acceptance_failed(self, task: dict) -> None:
+        """Tell whoever asked that a job's result did not pass the acceptance check and what the two choices are.
+        No reply box: the owner picks a button on the Tasks page (2026-11-08)."""
+        tid, title = str(task.get("id") or ""), str(task.get("title") or "")
+        why = str(task.get("block_reason") or "").strip()
+        retried = int((task.get("metadata") or {}).get("acceptance_fixes") or 0) > 0
+        head = (localefmt.chu(f"🔎 Việc '{title}' đã tự sửa một lần nhưng máy tự kiểm vẫn chưa qua.",
+                              f"🔎 Job '{title}' fixed itself once but the automatic check still does not pass.")
+                if retried else
+                localefmt.chu(f"🔎 Việc '{title}' chạy xong nhưng máy tự kiểm chưa qua.",
+                              f"🔎 Job '{title}' finished but the automatic check does not pass."))
+        reason = localefmt.chu("Chỗ chưa đạt: ", "What is missing: ") + (why or localefmt.chu("không rõ", "unknown"))
+        how = localefmt.chu("Ở trang Nhiệm vụ, bấm Sửa rồi chạy lại, hoặc Chấp nhận như vậy nếu kết quả đã dùng được.",
+                            "On the Tasks page, press Fix and run again, or Accept as is if the result is good enough.")
+        try:
+            await self.deps.report(
+                task.get("chat_id", ""),
+                channel_context.strip_control_blocks("\n\n".join([head, reason, how])),
+                quiet=False,
+                ngan=channel_context.strip_control_blocks("\n\n".join([head, reason[:300], how])),
+                viec={"kind": "task", "status": "kiem", "title": title, "id": tid},
+                web=channel_context.strip_control_blocks("\n\n".join([reason, how])),
+                **_report_extra(self.deps.report, task.get("brain_root"),
+                                f"acceptance:{tid}:{task.get('updated_at') or ''}"),
+            )
+        except Exception as e:
+            print(f"[kanban] báo nghiệm thu trượt của việc {tid} lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+    async def resolve_acceptance(self, task_id: str, decision: str, brain: str = "") -> dict:
+        """The owner's button on a job the acceptance check failed: "fix" (run again with the checker's reason) or
+        "accept" (keep the result as done)."""
+        task = await asyncio.to_thread(self.store.get_task, task_id)
+        if not task or (brain and task.get("brain_root") != self._ensure(brain)):
+            return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
+        done, err = await asyncio.to_thread(self.store.resolve_acceptance, task_id, decision)
+        if not done:
+            return {"ok": False, "error": {
+                "bad_decision": localefmt.chu("Lựa chọn không hợp lệ", "Unknown choice"),
+                "not_waiting": localefmt.chu("Việc này không còn chờ bạn chọn",
+                                             "This job is no longer waiting for your choice"),
+            }.get(err, localefmt.chu("Không tìm thấy việc", "Job not found"))}
+        if done["status"] == "done":
+            await asyncio.to_thread(self.store.promote_dependencies, str(done["brain_root"]))
+        await self._asnapshot(str(done["brain_root"]))
+        self.wake()
+        return {"ok": True, "status": done["status"],
+                "orchestration": await asyncio.to_thread(self.store.board_mode, str(done["brain_root"]))}
+
     async def _report(self, task: dict) -> None:
         if not self.deps.report:
             return
         status = str(task.get("status") or "")
         # A job waiting for the owner (needs_input) or for a plan to reopen (limit) is not broken (0.199.0).
         if (status == "blocked" and self.deps.incident_hook
-                and str(task.get("block_kind") or "") not in ("needs_input", "limit")):
+                and str(task.get("block_kind") or "") not in ("needs_input", "limit", task_store.ACCEPTANCE_FAILED)):
             try:
                 self.deps.incident_hook("kanban", str(task.get("id") or ""), brain=str(task.get("brain_root") or ""),
                                         title=str(task.get("title") or ""),
@@ -1579,6 +1638,9 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 pass
         if status == "blocked" and self._cau_hoi_dang_cho(task):
             await self._bao_cau_hoi(task)
+            return
+        if status == "blocked" and str(task.get("block_kind") or "") == task_store.ACCEPTANCE_FAILED:
+            await self._report_acceptance_failed(task)
             return
         if status == "blocked":
             await self._gom_bao(task)
@@ -1668,6 +1730,11 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                                  "Done, waiting for you to look at the result and approve it.")
         if st == "blocked" and kind == "needs_input":
             return ""      # the question itself is shown
+        if st == "blocked" and kind == task_store.ACCEPTANCE_FAILED:
+            return localefmt.chu("Máy tự kiểm chưa qua. Bấm Sửa rồi chạy lại, hoặc Chấp nhận như vậy nếu kết quả đã "
+                                 "dùng được.",
+                                 "The automatic check did not pass. Press Fix and run again, or Accept as is if the "
+                                 "result is good enough.")
         if st == "blocked" and kind == "capability":
             return localefmt.chu("Việc này cần bạn cho phép trước khi tự làm thật ra ngoài. Đồng ý thì bấm Cấp quyền, "
                                  "không thì cứ để đó.",
@@ -1877,6 +1944,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         @router.post("/kanban/task/followup")
         async def kanban_followup(id: str = Form(...), text: str = Form(""), brain: str = Form("")):
             return await self.followup(id, text, brain=brain)
+
+        @router.post("/kanban/task/acceptance")
+        async def kanban_acceptance(id: str = Form(...), decision: str = Form(""), brain: str = Form("brain")):
+            return await self.resolve_acceptance(id, decision, brain=brain)
 
         @router.post("/kanban/task/verify")
         async def kanban_verify(id: str = Form(...), brain: str = Form("brain")):
