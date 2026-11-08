@@ -328,7 +328,7 @@ def _tai_khoan_id(kenh: str, account_id: str) -> str:
     return f"{kenh}:{account_id}"
 
 
-def ghi_su_kien(ev: dict, dem_chua_doc: bool = True) -> dict:
+def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False) -> dict:
     """Đổ MỘT sự kiện chuẩn vào kho: tìm/tạo tài khoản kênh, khách, hội thoại rồi thêm tin.
 
     Trả về {"ok": True, "conversation_id", "message_id", "customer_id", "trung": bool}.
@@ -337,7 +337,11 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True) -> dict:
 
     `dem_chua_doc=False` (0.174.0): tin NHẬP LẠI từ lịch sử (Zalo cá nhân, `nhap_lich_su`) không cộng vào số chưa đọc. Đó là tin
     cũ đã đọc trên điện thoại; đếm vào là hàng trăm cuộc chat đỏ chót ngay sau một lần bấm.
+
+    `late=True`: a message written after newer ones may already be stored (recovered from the Zalo history). It only
+    becomes the conversation's last message when it is not older than the current one.
     """
+    lt = 1 if late else 0
     e = chuan_hoa(ev)
     if e.get("loi"):
         return {"ok": False, "loi": e["loi"]}
@@ -423,13 +427,21 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True) -> dict:
                 # conversation": a customer is never missed). Old messages imported from history (dem_chua_doc=False)
                 # and messages from the bot or the owner leave it hidden.
                 unhide = 1 if e["sender_type"] == "customer" and dem_chua_doc else 0
+                # A message written late (`late`: recovered from the Zalo history, see
+                # `zalo_personal_channel.reconcile_history`) may be older than the last one stored: it must not become the
+                # "last message" of the conversation. Live messages keep the old rule (the last written is the last).
+                newest = "(? = 0 OR last_message_at IS NULL OR ? >= last_message_at)"
                 db.execute(
-                    "UPDATE conversations SET last_message=?, last_message_at=?, last_sender_type=?,"
+                    "UPDATE conversations SET"
+                    f" last_message=CASE WHEN {newest} THEN ? ELSE last_message END,"
+                    f" last_sender_type=CASE WHEN {newest} THEN ? ELSE last_sender_type END,"
+                    f" last_message_at=CASE WHEN {newest} THEN ? ELSE last_message_at END,"
                     " unread_count=unread_count+?, message_count=message_count+1, updated_at=?,"
                     " contact=CASE WHEN ?!='' THEN ? ELSE contact END,"
                     " hidden=CASE WHEN ?=1 THEN 0 ELSE hidden END"
                     " WHERE id=?",
-                    (tom, ts, e["sender_type"], them_chua_doc, now, contact, contact, unhide, conv_id))
+                    (lt, ts, tom, lt, ts, e["sender_type"], lt, ts, ts, them_chua_doc, now, contact, contact, unhide,
+                     conv_id))
                 # 6. NHÓM chỉ giữ GIU_TIN_NHOM tin gần nhất (cùng giao dịch: không có lúc nào kho chứa thừa). `message_count` vẫn là số tin
                 # từng nhận, không giảm theo.
                 if e["chat_type"] == "group":
@@ -601,6 +613,63 @@ def own_messages_without_id(channel: str, account_id: str, external_chat_id: str
         return [dict(r) for r in rows]
     except Exception as ex:      # noqa: BLE001
         print(f"[conversations] đọc tin chưa có mã lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return []
+
+
+def known_message_ids(channel: str, account_id: str, external_chat_id: str, ids) -> Optional[set]:
+    """The ids among `ids` already stored in this chat. None when the chat has no conversation yet. Never raises
+    (a read error answers "all known", so nothing is written twice on a bad read)."""
+    wanted = [str(i) for i in (ids or []) if str(i or "")]
+    try:
+        with _lock:
+            db = _conn()
+            conv = db.execute("SELECT id FROM conversations WHERE channel_account_id=? AND external_chat_id=?",
+                              (_tai_khoan_id(channel, account_id), str(external_chat_id))).fetchone()
+            if not conv:
+                return None
+            found: set = set()
+            for i in range(0, len(wanted), 500):
+                part = wanted[i:i + 500]
+                rows = db.execute(
+                    "SELECT external_message_id FROM messages WHERE conversation_id=? AND external_message_id IN ("
+                    + ",".join("?" * len(part)) + ")", [int(conv["id"])] + part).fetchall()
+                found.update(str(r[0]) for r in rows)
+            return found
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] known ids read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return set(wanted)
+
+
+def first_message_at(channel: str, account_id: str, external_chat_id: str) -> Optional[float]:
+    """Time of the oldest message stored in this chat, None when there is none. Never raises (None on a read error)."""
+    try:
+        with _lock:
+            r = _conn().execute(
+                "SELECT MIN(m.created_at) FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=?",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id))).fetchone()
+        return float(r[0]) if r and r[0] is not None else None
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] first message read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return None
+
+
+def own_messages_between(channel: str, account_id: str, external_chat_id: str, start: float, end: float,
+                         n: int = 50) -> list:
+    """Messages this account sent in a chat (the bot, or the owner from the inbox or the phone) with `start <=
+    created_at <= end`: `[{id, text, external_message_id}]`, newest first. Never raises."""
+    try:
+        with _lock:
+            rows = _conn().execute(
+                "SELECT m.id, m.text, m.external_message_id FROM messages m"
+                " JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? AND m.sender_type IN ('ai', 'human')"
+                " AND m.created_at BETWEEN ? AND ? ORDER BY m.id DESC LIMIT ?",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id), float(start), float(end),
+                 int(n))).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] own messages read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
         return []
 
 
