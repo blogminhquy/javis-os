@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.501.4] - 2026-11-08
+### Improved
+- **Private Zalo catch-up no longer runs on a schedule.** Javis only reacts when the Zalo history file actually gets new messages, and only looks at those. A day without messages costs almost nothing (one file size check after each read), with no Zalo call and no scan of quiet chats.
+
 ## [0.501.3] - 2026-11-08
 ### Fixed
 - **Bots hear Zalo voice messages.** A Zalo voice message is bare AAC, which Groq and OpenAI refuse, so the bot said it could not hear it. Javis now detects the format from the file's bytes and converts it to mp3 before sending, on every channel.
