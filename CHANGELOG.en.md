@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.507.1] - 2026-11-08
+### Improved
+- **Accept or send back right in chat.** When a background job fails its automatic check twice, the notice on Telegram, Zalo or the web chat now lets you just reply "accept" or "fix it", no need to open the Tasks page. With several jobs waiting, Javis asks which one.
+
 ## [0.507.0] - 2026-11-08
 ### Added
 - **Zalo OA grants access with OAuth v4.** On Add channel, Zalo OA, paste the App ID, App secret key and OA secret key and click Grant access with Zalo: pick the OA, click Allow and Javis saves the channel by itself. No more copying a refresh token from API Explorer. The form shows the Callback URL to paste into the Zalo app once.
