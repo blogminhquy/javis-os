@@ -18,7 +18,13 @@
        rồi "Thêm vào MH chính" lại thì iOS mới đọc lại và chạy standalone. -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Status bar "default", NOT "black-translucent" (owner, iOS 27, 2026-11-08). With a see-through bar the page
+       draws under the clock, and iOS 26/27 lays a blur strip over that band in a home-screen app that no CSS turns off:
+       our fixed opaque header was already there and the strip still showed. With "default" the bar is solid and the
+       page starts below it, so nothing sits under it to blur. iOS reads this tag when the app is added to the Home
+       Screen: an icon added before this change keeps the blur until it is removed and added again. The CSS still
+       pads with env(safe-area-inset-*), which is 0 at the top now and still covers the notch in landscape. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Javis OS">
   <meta name="theme-color" content="#ffffff">
   <!-- manifest.json khai icon PNG vuông 192/512 có sizes rõ ràng: đó là điều kiện để
