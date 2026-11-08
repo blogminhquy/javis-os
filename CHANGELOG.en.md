@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.508.0] - 2026-11-08
+### Improved
+- **GitHub cross review is now your call, off by default.** Green CI merges, with no extra model called to review. To review, turn it on per repo (GitHub card, the "..." menu, Cross review), press **Review now** on the chat's GitHub icon, or say "review this PR".
+- **The review runs on the model you are chatting with by default**; it no longer has to be another vendor. Another model can be picked per repo or per review.
+- **Findings wait for your pick.** Javis no longer sends them off to be fixed: it holds the merge and lists them with **Fix them** and **Skip and merge**.
+
 ## [0.507.2] - 2026-11-08
 ### Fixed
 - **GitHub cross review runs on the model you picked.** It used to send an empty model, so a Groq card fell back to `llama-3.3-70b-versatile`, which Groq shut down on 16/08/2026, and every review answered 404 and was skipped. The background model now reviews first (when it is from another vendor than the author), other cards use the model and reasoning level picked on the card, and the chat names the model that reviewed.
