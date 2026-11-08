@@ -23847,6 +23847,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         # shows them under the bot's assistant instead of Javis Core.
         # A plain string, so a hook reading the turn (a shallow copy) cannot edit it for the next reader.
         _luot["bot_id"] = str(bot["id"])
+        # The bot's documents folder (docs_dir), for the read_docs tools: they get the brain from the hub and narrow it
+        # here, so they open exactly what the pre-turn search reads (chatbot_doc_tools.turn_docs_root).
+        if str(bot.get("docs_dir") or "").strip():
+            _luot["docs_dir"] = str(bot["docs_dir"])
         # 0.459.0: an internal API turn opens private documents by the caller's scope list, never by its chat id. The
         # doc tools read it from the turn (chatbot_doc_tools.turn_chat_id).
         import chatbot_grounding
@@ -27473,7 +27477,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           account_label: str = Form(""), reply_policy: str = Form(""),
                           gio_truc: str = Form(""), nhuong_tay_phut: str = Form(""),
                           ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form(""),
-                          nhan_ket_ban: str = Form(""), skip_labels: str = Form("")):
+                          nhan_ket_ban: str = Form(""), skip_labels: str = Form(""),
+                          docs_dir: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -27499,6 +27504,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         # Ngôn ngữ bot trả lời KHÁCH. "auto" = bám theo khách; ghim một mã khi khách của chủ
         # nói cùng một thứ tiếng. Cố ý KHÔNG thừa hưởng ngôn ngữ của chủ, xem chatbot_store.
         "ngon_ngu": ngon_ngu,
+        # Documents folder: a path inside the brain the bot answers from; blank = the whole brain (chatbot_store.docs_root).
+        "docs_dir": docs_dir,
         # Bộ phán xử hội thoại nhóm (0.65.0): JSON, giá trị lạ rơi về phía hẹp nhất (xem merge_config).
         "reply_policy": reply_policy,
         # Giờ trực (0.130.0): JSON {"tu","den"} HH:MM theo múi giờ cài đặt; rỗng = cả ngày.

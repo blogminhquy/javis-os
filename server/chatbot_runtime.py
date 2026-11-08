@@ -1137,7 +1137,7 @@ _RP_BACKOFF_S = 1800
 def _rp_collect(cfg: dict) -> tuple:
     """(nguyên văn Agent, mục lục tài liệu) của bot. Đọc đĩa nên chạy trong thread, không trên vòng sự kiện.
     Tiện thể nhớ brain của bot có tài liệu để tra không: bot không có tài liệu nào thì lời tự nói dựa vào vai."""
-    root = _deps["brain_root"](cfg["brain"])
+    root = _docs_root(cfg)
     linked = []
     try:
         linked = _linked_docs(cfg)["docs"]
@@ -1641,7 +1641,7 @@ async def _tra_tai_lieu(bot_id: str, cfg: dict, text: str, chat_id: str = "") ->
     (see `chatbot_grounding.scoped_docs`). "" searches the shared documents only."""
     tl = {"co": False, "khoi": "", "nguon": []}
     try:
-        root = _deps["brain_root"](cfg["brain"])
+        root = _docs_root(cfg)
         linked = await asyncio.to_thread(_linked_docs, cfg)
         tl = await asyncio.to_thread(chatbot_grounding.thu_thap, root, text, 4, linked["docs"], chat_id)
         if linked["warnings"]:
@@ -1650,6 +1650,13 @@ async def _tra_tai_lieu(bot_id: str, cfg: dict, text: str, chat_id: str = "") ->
     except Exception as e:
         print(f"[chatbot {bot_id}] tra tài liệu lỗi: {e}", file=sys.stderr)
     return tl
+
+
+def _docs_root(cfg: dict):
+    """The folder this bot reads as documents: its brain, or the `docs_dir` folder inside it (see
+    `chatbot_store.docs_root`). Every document path of a turn goes through here, so the pre-turn search, the reply
+    judge's table of contents and the images the bot may send can never disagree on what the bot's documents are."""
+    return chatbot_store.docs_root(_deps["brain_root"](cfg["brain"]), cfg.get("docs_dir"))
 
 
 def _linked_docs(cfg: dict) -> dict:
@@ -1678,7 +1685,7 @@ async def _tra_cho_phan_xu(bot_id: str, cfg: dict, text: str, chat_id: str = "")
     if tl.get("co") or str(cfg.get("muc_quyen") or "").strip().lower() != chatbot_doc_tools.MODE:
         return tl
     try:
-        root = _deps["brain_root"](cfg["brain"])
+        root = _docs_root(cfg)
         ml = await asyncio.to_thread(chatbot_doc_tools.table_of_contents, root, chatbot_doc_tools.INDEX_MAX, chat_id)
     except Exception as e:
         print(f"[chatbot {bot_id}] dựng mục lục lỗi: {e}", file=sys.stderr)
@@ -1985,7 +1992,7 @@ def _make_answer_fn(bot_id: str):
         # channel sends after the text. Only on channels that send files; see bot_images for the gates.
         if not loi_ky_thuat and dap and bot_images.channel_sends_files(kenh_luot):
             try:
-                dap, anh = bot_images.pick(dap, _deps["brain_root"](cfg["brain"]))
+                dap, anh = bot_images.pick(dap, str(_docs_root(cfg)))
             except Exception as e:      # noqa: BLE001 - a broken image pick must not cost the customer the reply
                 anh = []
                 print(f"[chatbot {bot_id}] tách ảnh lỗi: {type(e).__name__}: {e}", file=sys.stderr)

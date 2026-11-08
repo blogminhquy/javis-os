@@ -320,6 +320,57 @@ def _clean_kenh(v: Any) -> str:
     return s if s in KENH else KENH_DEFAULT
 
 
+
+# ============================================================
+# Documents folder of a bot (docs_dir)
+# ============================================================
+# By default a bot's documents are its whole brain, minus Javis' own folders (see chatbot_grounding). An owner who keeps
+# one big brain and two bots in it (one shop branch each) needs each bot to read only its own folder, or one bot quotes
+# the other branch's prices and the owner's internal notes to a customer. `docs_dir` is that folder, a path RELATIVE
+# to the bot's brain. Empty = the whole brain, exactly as before. The Agent file and the bot's memory stay where they
+# are; only what the bot reads as documents (pre-turn search, the read_docs tools, the reply judge's table of contents,
+# the images it may send) is narrowed.
+DOCS_DIR_MAX = 200
+
+
+def clean_docs_dir(v: Any) -> tuple:
+    """(clean relative posix path, error). "" means the whole brain. Refused, never silently "fixed": an absolute path,
+    `..`, a hidden segment, or a backslash trick would point the bot at a folder the owner did not mean, and the only
+    sign would be a customer reading the wrong document."""
+    s = str(v or "").strip().replace("\\", "/")
+    while s.startswith("./"):
+        s = s[2:]
+    s = s.strip("/")
+    if not s:
+        return "", ""
+    parts = [x for x in s.split("/") if x]
+    bad = (len(s) > DOCS_DIR_MAX or str(v or "").strip().startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", s)
+           or any(x in (".", "..") or x.startswith(".") for x in parts))
+    if bad:
+        return "", localefmt.chu("Thư mục tài liệu phải là đường dẫn nằm trong brain của bot, ví dụ bot-sale/HN/tai-lieu",
+                                 "The documents folder must be a path inside the bot's brain, e.g. sales/branch-1/docs")
+    return "/".join(parts), ""
+
+
+def docs_root(brain_root: Any, docs_dir: Any) -> Any:
+    """The folder the bot reads as documents: `brain_root` itself, or `brain_root/docs_dir`. A docs_dir that does not
+    clean up, or that resolves outside the brain (a symlink), gives a path that does not exist, so the bot sees NO
+    document rather than the whole brain (fail closed)."""
+    from pathlib import Path
+    root = Path(str(brain_root))
+    sub, err = clean_docs_dir(docs_dir)
+    if err:
+        return root / ".javis-docs-dir-invalid"
+    if not sub:
+        return root
+    cand = root / sub
+    try:
+        cand.resolve().relative_to(root.resolve())
+    except (OSError, ValueError):
+        return root / ".javis-docs-dir-invalid"
+    return cand
+
+
 def _clean_ngon_ngu(v: Any) -> str:
     """Ngôn ngữ bot trả lời khách: "auto" hoặc một mã trong sổ đăng ký.
 
@@ -632,6 +683,8 @@ def _public(b: dict) -> dict:
     out["channel"] = _clean_kenh(out.get("channel"))
     # Cùng lý do: bot tạo trước bản đa ngôn ngữ không có khoá này.
     out["ngon_ngu"] = _clean_ngon_ngu(out.get("ngon_ngu"))
+    # Bots made before the documents folder existed read the whole brain, as they always did (see `docs_root`).
+    out.setdefault("docs_dir", "")
     # "Bot trả lời ai" (0.64.85). THIẾU khoá = bản ghi cũ = hành vi cũ ("nhom"). CÓ khoá mà hỏng thì
     # về mức HẸP NHẤT, không phải mặc định: xem chú thích ở AUDIENCE.
     if "audience" not in out:
@@ -912,6 +965,9 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
         return None, _loi(LOI_CHUA_XAC_NHAN)
     if can_xac_nhan_doi_tuong(data.get("audience"), data.get("xac_nhan_rui_ro")):
         return None, _loi(LOI_CHUA_XAC_NHAN_DOI_TUONG)
+    docs_dir, loi = clean_docs_dir(data.get("docs_dir"))
+    if loi:
+        return None, loi
     gio_truc, loi = parse_gio_truc(data.get("gio_truc"))
     if loi:
         return None, loi
@@ -957,6 +1013,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "agent": {"brain": str(data.get("agent_brain") or "brain").strip() or "brain",
                       "slug": agent_slug},
             "brain": brain,
+            # Folder of the brain the bot reads as documents, "" = the whole brain (see `docs_root`).
+            "docs_dir": docs_dir,
             "channel": _clean_kenh(data.get("channel")),
             "accounts": acc,
             "bot_username": str(data.get("bot_username") or "").strip().lstrip("@"),
@@ -1019,7 +1077,7 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
-              "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels", "blocked")
+              "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels", "blocked", "docs_dir")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -1058,6 +1116,13 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
             return False, loi
         if can_xac_nhan_ngoai_le(ngoai_le_moi, (get_bot(bot_id) or {}).get("ngoai_le"), patch.get("xac_nhan_ngoai_le")):
             return False, _loi(LOI_CHUA_XAC_NHAN_NGOAI_LE)
+    # A bad documents folder refuses the whole patch (same reason as the Agent slug): saving the rest would show
+    # "saved" while the bot still reads the old folder.
+    docs_moi = None
+    if "docs_dir" in patch:
+        docs_moi, loi = clean_docs_dir(patch.get("docs_dir"))
+        if loi:
+            return False, loi
     acc_moi = None
     if "account_ids" in patch:
         acc_moi, loi = _clean_account_ids(patch.get("account_ids"), exclude_bot=bot_id)
@@ -1126,6 +1191,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["nhan_ket_ban"] = clean_bat(v)
                 elif k == "skip_labels":
                     b["skip_labels"] = clean_skip_labels(v)
+                elif k == "docs_dir":
+                    b["docs_dir"] = docs_moi      # checked at the top
 
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()

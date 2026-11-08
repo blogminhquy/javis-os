@@ -1017,6 +1017,12 @@
             '<label for="cbNgonNgu">' + esc(window.t("cb.lb_ngon_ngu")) + infoBtn() + '</label>' +
             '<select id="cbNgonNgu">' + htmlNgonNgu((b && b.ngon_ngu) || "auto") + '</select>' +
             infoBody(esc(window.t("cb.hint_ngon_ngu"))) +
+            // Documents folder: narrows what the bot reads to one folder of its brain, so several bots can share one
+            // brain without seeing each other's documents. Blank = the whole brain, as before.
+            '<label for="cbDocsDir">' + esc(window.t("cb.lb_docs_dir")) + infoBtn() + '</label>' +
+            '<input id="cbDocsDir" type="text" maxlength="200" autocomplete="off" placeholder="' +
+              esc(window.t("cb.ph_docs_dir")) + '" value="' + esc((b && b.docs_dir) || "") + '">' +
+            infoBody(esc(window.t("cb.hint_docs_dir"))) +
           '</details>' +
         '</div>' +
 
@@ -1473,6 +1479,7 @@
       var chung = { name: ten, agent_slug: ag, agent_brain: br, brain: br,
                     nguon_tra_loi: "agent", muc_quyen: muc, xac_nhan_rui_ro: "1",
                     ngon_ngu: (document.getElementById("cbNgonNgu") || {}).value || "auto",
+                    docs_dir: ((document.getElementById("cbDocsDir") || {}).value || "").trim(),
                     audience: aud, people: ds("private").join("\n"),
                     groups: co ? ds("group").join("\n") : "",
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",

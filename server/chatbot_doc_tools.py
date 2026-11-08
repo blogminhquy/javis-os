@@ -69,6 +69,18 @@ def turn_chat_id():
     return str(t.get("chat_id") or "").strip()
 
 
+def turn_docs_root(vault_root: Path) -> Optional[Path]:
+    """The documents folder of the bot whose turn runs this tool call: `vault_root` itself, or the bot's `docs_dir`
+    inside it. The host writes `docs_dir` on the turn from the bot's saved settings (`main._tg_answer`), never from a
+    tool argument, so a customer cannot widen it. None when that folder does not exist: no document, never the whole
+    brain."""
+    t = turn_context.current() or {}
+    if not str(t.get("docs_dir") or "").strip():
+        return vault_root
+    import chatbot_store
+    return _root(chatbot_store.docs_root(vault_root, t.get("docs_dir")))
+
+
 def allowed_docs(vault_root: Any, chat_id: Any = None) -> List[str]:
     """Relative posix paths of every document the tools may show, in a stable order. `chat_id` adds that chat's
     scoped documents (see `chatbot_grounding.scoped_paths`)."""
@@ -170,7 +182,8 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
     # The chat id is read at CALL time: one tool set serves every turn of the brain (`discover_all` builds it per
     # request, the Claude Code config file is shared), so it must never be captured when the tools are built.
     async def _list(args):
-        hs = _headings(r, turn_chat_id())
+        d = turn_docs_root(r)
+        hs = _headings(d, turn_chat_id()) if d else {}
         if not hs:
             return "(brain này chưa có tài liệu nào)"
         rows, used = [], 0
@@ -188,8 +201,9 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
         if not q:
             return "ERROR: thiếu query"
         chat = turn_chat_id()
-        ok = set(allowed_docs(r, chat))
-        hits = [h for h in chatbot_grounding.tim(r, q, k=SEARCH_K * 3, chat_id=chat)
+        d = turn_docs_root(r)
+        ok = set(allowed_docs(d, chat)) if d else set()
+        hits = [h for h in (chatbot_grounding.tim(d, q, k=SEARCH_K * 3, chat_id=chat) if ok else [])
                 if str(h.get("path") or "").replace("\\", "/") in ok][:SEARCH_K]
         if not hits:
             return (f"Không có đoạn nào chứa các chữ của '{q}'. Thử lại bằng từ khác (từ đồng nghĩa, "
@@ -202,13 +216,14 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
         return "\n\n".join(parts)
 
     async def _read(args):
-        rel = _match(r, (args or {}).get("path"), turn_chat_id())
+        d = turn_docs_root(r)
+        rel = _match(d, (args or {}).get("path"), turn_chat_id()) if d else None
         if not rel:
             return (f"ERROR: không có tài liệu '{(args or {}).get('path')}' trong danh sách được đọc. "
                     f"Gọi javis_docs_list để xem đường dẫn đúng.")
-        p = (r / rel).resolve()
+        p = (d / rel).resolve()
         try:
-            p.relative_to(r)
+            p.relative_to(d)
         except ValueError:
             return "ERROR: tài liệu này nằm ngoài brain nên không đọc được."
         try:
