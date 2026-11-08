@@ -253,7 +253,7 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords="
                và chưa có căn cứ nào - ép "vi" lúc đó là chủ động làm hỏng tiếng nước ngoài.
       "en"  -> gợi ý đích danh.
     """
-    return await _api_nghe(GROQ_STT_URL, "groq", data, ten_file, api_key, model or STT_MODEL_MAC_DINH,
+    return await _api_transcribe(GROQ_STT_URL, "groq", data, ten_file, api_key, model or STT_MODEL_MAC_DINH,
                            ngon_ngu, hotwords)
 
 
@@ -266,11 +266,67 @@ OPENAI_STT_MODEL = "gpt-4o-transcribe"
 
 async def openai_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords=""):
     """Same contract as `groq_nghe`, on OpenAI's transcription endpoint."""
-    return await _api_nghe(OPENAI_STT_URL, "openai", data, ten_file, api_key, model or OPENAI_STT_MODEL,
+    return await _api_transcribe(OPENAI_STT_URL, "openai", data, ten_file, api_key, model or OPENAI_STT_MODEL,
                            ngon_ngu, hotwords)
 
 
-async def _api_nghe(url, ten, data, ten_file, api_key, mdl, ngon_ngu, hotwords):
+# Groq and OpenAI decide the format from the FILE NAME and refuse what they do not know. Zalo voice messages are raw
+# ADTS AAC (no container): sent as ".aac" OpenAI answers "Unsupported file format aac", renamed ".m4a" it answers "Audio
+# file might be corrupted or unsupported" (2026-11-07, a real Zalo voice message). So the first bytes decide: a format
+# these endpoints take goes as is under the right extension, anything else is re-encoded to mp3 by ffmpeg first.
+_API_FORMATS = {".ogg": (".ogg", ".oga", ".opus"), ".m4a": (".m4a", ".mp4"), ".mp3": (".mp3", ".mpga", ".mpeg"),
+                ".wav": (".wav",), ".flac": (".flac",), ".webm": (".webm",)}
+
+
+def _mpeg_frame(data: bytes, at: int) -> str:
+    """".mp3" for an MPEG audio frame at `at`, ".aac" for an ADTS AAC frame, "" for neither."""
+    if len(data) < at + 2 or data[at] != 0xFF or (data[at + 1] & 0xE0) != 0xE0:
+        return ""
+    if (data[at + 1] & 0xF6) == 0xF0:       # 12-bit sync + layer 00: ADTS, i.e. bare AAC
+        return ".aac"
+    return ".mp3" if (data[at + 1] >> 1) & 3 else ""
+
+
+def _sniff_audio(data: bytes) -> str:
+    """The audio format of `data` from its first bytes: a key of `_API_FORMATS`, ".aac", or "" when unknown."""
+    head = bytes(data[:64] or b"")
+    if head[4:8] == b"ftyp":
+        return ".m4a"
+    if head.startswith(b"OggS"):
+        return ".ogg"
+    if head.startswith(b"RIFF") and head[8:12] == b"WAVE":
+        return ".wav"
+    if head.startswith(b"fLaC"):
+        return ".flac"
+    if head.startswith(b"\x1aE\xdf\xa3"):
+        return ".webm"
+    if head.startswith(b"ID3") and len(head) >= 10:
+        # ID3 tag size is four 7-bit bytes; what follows the tag says mp3 or AAC.
+        size = (head[6] << 21) | (head[7] << 14) | (head[8] << 7) | head[9]
+        return _mpeg_frame(data, 10 + size) or ".mp3"
+    return _mpeg_frame(data, 0)
+
+
+async def _api_ready(data: bytes, ten_file: str) -> tuple:
+    """(bytes, file name) Groq/OpenAI will take: right extension for a known format, mp3 for the rest.
+
+    When ffmpeg is missing or cannot read the file, the original goes as before: the vendor's own error is still the
+    most useful thing to report."""
+    import os
+    stem, ext = os.path.splitext(os.path.basename(str(ten_file or ""))) if ten_file else ("voice", "")
+    stem = stem or "voice"
+    kind = _sniff_audio(data)
+    if kind in _API_FORMATS:
+        if ext.lower() in _API_FORMATS[kind]:
+            return data, ten_file
+        return data, stem + kind
+    mp3 = await _as_mp3(data, ten_file or ("voice" + (kind or ".bin")))
+    if mp3:
+        return mp3, stem + ".mp3"
+    return data, ten_file
+
+
+async def _api_transcribe(url, ten, data, ten_file, api_key, mdl, ngon_ngu, hotwords):
     if not api_key:
         return {"ok": False, "ly_do": "thieu_key", "noi_voi_javis": loi_thanh_dong("thieu_key")}
     if not data:
@@ -279,6 +335,7 @@ async def _api_nghe(url, ten, data, ten_file, api_key, mdl, ngon_ngu, hotwords):
         ct = f"({_mb(len(data))}MB, trần {MAX_STT_MB}MB)"
         return {"ok": False, "ly_do": "qua_lon", "noi_voi_javis": loi_thanh_dong("qua_lon", ct)}
 
+    data, ten_file = await _api_ready(data, ten_file)
     form = {"model": mdl, "response_format": "json"}
     goi_y = STT_MAC_DINH if ngon_ngu is None else ngon_ngu
     if goi_y:
