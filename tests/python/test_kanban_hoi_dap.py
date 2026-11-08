@@ -188,7 +188,9 @@ def test_viec_ket_tu_ban_cu_van_tra_loi_duoc(tmp_path):
     store.close()
 
 
-def test_chua_dat_dieu_kien_cung_thanh_cau_hoi_tra_loi_duoc(tmp_path):
+def test_a_failed_acceptance_check_is_not_a_question_for_the_owner(tmp_path):
+    # Owner report 2026-11-08: this used to become a "needs your answer" card holding only the checker's reason.
+    # Now the first miss goes back to the worker, the second waits for the owner's buttons, never a reply box.
     calls, report = _sent()
     feature, brain = _feature(tmp_path, report)
     tid = _new_task(feature, brain)
@@ -198,9 +200,11 @@ def test_chua_dat_dieu_kien_cung_thanh_cau_hoi_tra_loi_duoc(tmp_path):
 
     feature._check_acceptance = accept
     task = _run_once(feature, tid, "Đã viết bài.")
-    assert task["status"] == "blocked" and task["block_kind"] == "needs_input"
-    assert "thiếu ảnh sản phẩm" in task["metadata"]["qa"][-1]["q"]
-    assert asyncio.run(feature.answer(tid, "Dùng ảnh trong attachments/sp1.jpg", brain=str(brain)))["ok"]
+    assert task["status"] == "ready" and task["metadata"]["qa"][-1]["kind"] == "acceptance_fix"
+    task = _run_once(feature, tid, "Đã viết bài.")
+    assert task["status"] == "blocked" and task["block_kind"] == "acceptance_failed"
+    assert "thiếu ảnh sản phẩm" in task["block_reason"]
+    assert not asyncio.run(feature.answer(tid, "Dùng ảnh trong attachments/sp1.jpg", brain=str(brain)))["ok"]
     feature.store.close()
 
 

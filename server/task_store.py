@@ -30,6 +30,11 @@ QA_KEEP = 8
 QA_TEXT_MAX = 1000
 QA_PROGRESS_MAX = 1500
 TERMINAL_STATUS = {"done", "cancelled", "archived"}
+# A finished job the acceptance checker failed, waiting for the owner to pick "fix and run again" or "accept as is".
+# Not `needs_input`: there is no question to answer, the worker missed a criterion (owner report, 2026-11-08).
+ACCEPTANCE_FAILED = "acceptance_failed"
+# How many times a failed check sends the job straight back to its worker before the owner sees it.
+ACCEPTANCE_AUTO_FIXES = 1
 ACTIVE_STATUS = {"triage", "todo", "ready", "running", "review", "blocked"}
 # Trạng thái của làn `team` (nhóm chat). Cố ý KHÔNG nằm trong VALID_STATUS: lệnh kéo thả
 # của bảng Việc (`move`) không thể đặt một việc Kanban vào làn nhóm hay ngược lại.
@@ -255,6 +260,13 @@ class TaskStore:
                     brain_root TEXT NOT NULL, hint_key TEXT NOT NULL, created_at REAL NOT NULL,
                     PRIMARY KEY(brain_root, hint_key));
                 """
+            )
+            # Before the acceptance_failed state, a failed check parked the job as a question with no question in it.
+            # Move those cards to the new state so they get the two buttons instead of an empty reply box.
+            self._db.execute(
+                """UPDATE tasks SET block_kind=? WHERE status='blocked' AND block_kind='needs_input'
+                   AND lane<>'team' AND block_reason LIKE 'Chưa đạt điều kiện hoàn thành:%'""",
+                (ACCEPTANCE_FAILED,),
             )
             self._db.commit()
 
@@ -739,7 +751,7 @@ class TaskStore:
 
     # 0.411.0: a stopped job only the owner can move on (a question, a permission, a result to approve), as opposed
     # to one Javis handles itself (technical hitch, usage limit). The Work page and the notices split on this.
-    OWNER_BLOCK_KINDS = ("needs_input", "capability")
+    OWNER_BLOCK_KINDS = ("needs_input", "capability", ACCEPTANCE_FAILED)
 
     @classmethod
     def waits_for_owner(cls, task: dict) -> bool:
@@ -1267,8 +1279,11 @@ class TaskStore:
                 })
                 meta["qa"] = qa[-QA_KEEP:]
                 meta.pop("once_pending", None)
-                if meta.get("acceptance_check") in ("unverified", "checking"):
+                if meta.get("acceptance_check") in ("unverified", "checking", "failed"):
                     meta.pop("acceptance_check", None)
+                # A new instruction is a new piece of work: it gets its own automatic fix round.
+                meta.pop("acceptance_fixes", None)
+                meta.pop("acceptance_from", None)
                 self._db.execute(
                     """UPDATE tasks SET status='ready', block_kind='', block_reason='', attempts=0,
                        metadata_json=?, claimed_by='', claim_expires_at=0, not_before=0,
@@ -1283,10 +1298,95 @@ class TaskStore:
                 raise
         return self.get_task(task_id), ""
 
+    def acceptance_failed(
+        self, task_id: str, worker_id: str, why: str, result: str = "",
+        metadata: Optional[dict] = None, artifacts: Optional[list] = None, needs_approval: bool = False,
+        auto_fix: bool = True,
+    ) -> Optional[dict]:
+        """A run finished but the acceptance check did not pass. The first `ACCEPTANCE_AUTO_FIXES` times the job goes
+        back to its worker with the checker's reason (a `acceptance_fix` entry in the Q&A log, read by the next run);
+        after that it waits for the owner as `acceptance_failed`. Never a question to the owner: the worker missed a
+        criterion, the owner has nothing to answer (owner report, 2026-11-08). A fix round does not use up an
+        attempt, so a job with `max_attempts=1` can still be fixed once. `auto_fix=False` (the worker said itself
+        it could not finish, so a rerun would most likely stop at the same place) skips the fix round."""
+        meta = dict(metadata or {})
+        reason = (why or "").strip()[:QA_TEXT_MAX]
+        fixes = int(meta.get("acceptance_fixes") or 0)
+        meta["acceptance_from"] = "review" if needs_approval else "done"
+        if auto_fix and fixes < ACCEPTANCE_AUTO_FIXES:
+            qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
+            qa.append({"kind": "acceptance_fix", "q": reason, "a": reason, "by": "checker",
+                       "asked_at": now(), "answered_at": now(),
+                       "progress": (result or "").strip()[:QA_PROGRESS_MAX]})
+            meta["qa"] = qa[-QA_KEEP:]
+            meta["acceptance_fixes"] = fixes + 1
+            meta.pop("acceptance_check", None)
+            return self._finish(
+                task_id, worker_id, "ready", result=result, error=reason, metadata=meta,
+                artifacts=artifacts, event_type="acceptance_retry", keep_attempt=True,
+            )
+        meta["acceptance_check"] = "failed"
+        return self._finish(
+            task_id, worker_id, "blocked", result=result, error=reason, block_kind=ACCEPTANCE_FAILED,
+            block_reason=reason, metadata=meta, artifacts=artifacts, event_type="acceptance_failed",
+        )
+
+    def resolve_acceptance(self, task_id: str, decision: str, by: str = "owner") -> tuple[Optional[dict], str]:
+        """The owner's pick on an `acceptance_failed` job: "fix" sends it back to the worker with the checker's
+        reason and fresh attempts, "accept" closes it as done (or back to review when it was waiting for approval)
+        with `acceptance_check: accepted`. Returns (task, "") or (None, "bad_decision" | "not_found" |
+        "not_waiting")."""
+        if decision not in ("fix", "accept"):
+            return None, "bad_decision"
+        with self._lock:
+            self._tx()
+            try:
+                row = self._db.execute(
+                    "SELECT * FROM tasks WHERE id=? AND lane<>'team'", (task_id,)
+                ).fetchone()
+                if not row:
+                    self._db.rollback()
+                    return None, "not_found"
+                if row["status"] != "blocked" or row["block_kind"] != ACCEPTANCE_FAILED:
+                    self._db.rollback()
+                    return None, "not_waiting"
+                meta = _loads(row["metadata_json"], {})
+                reason = str(row["block_reason"] or "").strip()[:QA_TEXT_MAX]
+                if decision == "fix":
+                    qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
+                    qa.append({"kind": "acceptance_fix", "q": reason, "a": reason, "by": by,
+                               "asked_at": now(), "answered_at": now(),
+                               "progress": str(row["result"] or "").strip()[:QA_PROGRESS_MAX]})
+                    meta["qa"] = qa[-QA_KEEP:]
+                    meta.pop("acceptance_check", None)
+                    meta.pop("acceptance_from", None)
+                    self._db.execute(
+                        """UPDATE tasks SET status='ready', block_kind='', block_reason='', attempts=0,
+                           metadata_json=?, claimed_by='', claim_expires_at=0, not_before=0,
+                           current_run_id='', updated_at=? WHERE id=?""",
+                        (_json(meta), now(), task_id),
+                    )
+                    self._event(task_id, "acceptance_fix", reason[:500], metadata={"by": by})
+                else:
+                    status = "review" if meta.pop("acceptance_from", "") == "review" else "done"
+                    meta["acceptance_check"] = "accepted"
+                    self._db.execute(
+                        """UPDATE tasks SET status=?, block_kind='', block_reason='', metadata_json=?,
+                           claimed_by='', claim_expires_at=0, current_run_id='', updated_at=? WHERE id=?""",
+                        (status, _json(meta), now(), task_id),
+                    )
+                    self._event(task_id, "acceptance_accepted", reason[:500], metadata={"by": by})
+                self._db.commit()
+            except Exception:
+                self._db.rollback()
+                raise
+        return self.get_task(task_id), ""
+
     def set_acceptance(self, task_id: str, state: str, why: str = "") -> Optional[dict]:
         """Record a re-check of a finished job (0.411.0). `state`: "checking" while it runs, "ai" when it passed,
-        "failed" when it did not (the job moves to Needs you with the reason as its question, so the reply box can
-        fix it), "unverified" when the checker could not run again. Only a done or review job is touched."""
+        "failed" when it did not, "unverified" when the checker could not run again. Only a done or review job is
+        touched. A failed re-check goes straight to the owner as `acceptance_failed` (fix and run again, or accept
+        as is): the owner asked for this check, so the job is not rerun behind their back."""
         with self._lock:
             self._tx()
             try:
@@ -1298,15 +1398,13 @@ class TaskStore:
                     return None
                 meta = _loads(row["metadata_json"], {})
                 if state == "failed":
-                    reason = ("Chưa đạt điều kiện hoàn thành: " + (why or "lượt kiểm không nói rõ."))[:QA_TEXT_MAX]
-                    qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
-                    qa.append({"q": reason, "asked_at": now()})
-                    meta["qa"] = qa[-QA_KEEP:]
+                    reason = (why or "").strip()[:QA_TEXT_MAX]
                     meta["acceptance_check"] = "failed"
+                    meta["acceptance_from"] = row["status"]
                     self._db.execute(
-                        """UPDATE tasks SET status='blocked', block_kind='needs_input', block_reason=?,
+                        """UPDATE tasks SET status='blocked', block_kind=?, block_reason=?,
                            metadata_json=?, updated_at=? WHERE id=?""",
-                        (reason, _json(meta), now(), task_id),
+                        (ACCEPTANCE_FAILED, reason, _json(meta), now(), task_id),
                     )
                     self._event(task_id, "acceptance_failed", reason[:500])
                 else:

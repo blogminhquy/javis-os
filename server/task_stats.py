@@ -31,7 +31,7 @@ import work_log
 
 MINUTES = {"kanban": 20, "reminder": 10, "notify": 2, "loop": 5, "watch": 3}
 KINDS = tuple(MINUTES)
-OWNER_KINDS = ("needs_input", "capability")
+OWNER_KINDS = ("needs_input", "capability", "acceptance_failed")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _LOOP_HEAD = re.compile(r"^## \[(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})\] (.+?) · loop", re.M)
 MAX_DAYS = 400

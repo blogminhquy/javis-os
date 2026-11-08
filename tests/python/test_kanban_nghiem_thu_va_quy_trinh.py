@@ -172,8 +172,9 @@ def test_acceptance_checker_verdict_decides(tmp_path):
 
     t = _run(feature, {"brain_root": str(brain), "title": "S07b", "intent": "x",
                        "acceptance": ["Có ảnh vuông 1:1 trong attachments/"]}, execute)
-    assert t["status"] == "blocked"
-    assert "ảnh vuông" in t["block_reason"]
+    # 2026-11-08: the first miss goes back to the worker with the checker's reason, not Done.
+    assert t["status"] == "ready" and t["status"] != "done"
+    assert "ảnh vuông" in t["metadata"]["qa"][-1]["q"]
     assert seen and "Có ảnh vuông 1:1" in seen[0] and "Đã làm xong bài đăng" in seen[0]
 
 
