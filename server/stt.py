@@ -17,6 +17,8 @@ import sys
 
 import httpx
 
+import stt_models
+
 # ---- Whisper bịa câu kêu gọi đăng ký kênh ----
 # Whisper học chủ yếu từ phụ đề YouTube, nên gặp im lặng, tiếng ồn nền hay một đoạn ngắn không
 # rõ là nó "nhớ lại" mấy câu outro dày đặc trong dữ liệu học. Tiếng Việt nổi tiếng nhất là
@@ -179,7 +181,9 @@ STT_MAC_DINH = "vi"   # gợi ý khi chỗ gọi không chốt gì; "" ở chỗ
 # Bản ĐẦY ĐỦ, không phải turbo (0.64.67): đo thật trên câu Việt xen Anh, turbo chép "GitHub
 # Actions" thành "Youtube Action", "build agent" thành "bill A-Ren"; bản đầy đủ ra đúng. Độ trễ
 # trên Groq gần như bằng nhau (~0,7 giây một câu), giá vẫn rẻ. Đổi được qua `voice.stt_model`.
-STT_MODEL_MAC_DINH = "whisper-large-v3"
+# 2026-11-08: only the starting point now. stt_models asks Groq for its models once a day and moves to a newer full-size
+# Whisper by itself; this one is used until the list arrives, and again when a newer model is refused.
+STT_MODEL_MAC_DINH = stt_models.DEFAULTS["groq"]
 MAX_STT_MB = 24          # Groq chặn ở 25MB; chừa biên cho phần multipart bọc ngoài
 STT_TIMEOUT = 120.0      # tin thoại dài vài phút vẫn phải kịp, mạng VPS có lúc chậm
 
@@ -187,8 +191,9 @@ STT_TIMEOUT = 120.0      # tin thoại dài vài phút vẫn phải kịp, mạn
 # một chuyện: thiếu đúng một thứ, và thứ đó nằm ở đúng một chỗ trong dashboard.
 _HD_THIEU_KEY = (
     "[Người dùng vừa gửi TIN THOẠI. Javis chưa nghe được vì chưa có bộ nghe nào - "
-    "thứ chuyển giọng nói thành chữ. Hãy nói với họ: muốn ra lệnh bằng ghi âm thì chọn MỘT trong hai cách: "
-    "vào trang Models trong dashboard dán API key của Groq (lấy ở console.groq.com, có gói miễn phí), "
+    "thứ chuyển giọng nói thành chữ. Hãy nói với họ: muốn ra lệnh bằng ghi âm thì chọn MỘT trong ba cách: "
+    "vào trang Models nối gói ChatGPT đang dùng (đăng nhập là xong, không cần key); hoặc ở trang Models dán "
+    "API key của Groq (lấy ở console.groq.com, có gói miễn phí), "
     "hoặc key OpenAI hay Google Gemini nếu đã có; hoặc vào trang Công cụ bấm cài \"Bộ nghe offline\" "
     "để nghe ngay trên máy, không cần key. Xong là gửi tin thoại dùng được ngay. "
     "Trong lúc chờ thì nhờ họ gõ chữ. Nếu đang đóng vai người thật nói với khách thì CHỈ nhờ "
@@ -253,21 +258,22 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords="
                và chưa có căn cứ nào - ép "vi" lúc đó là chủ động làm hỏng tiếng nước ngoài.
       "en"  -> gợi ý đích danh.
     """
-    return await _api_transcribe(GROQ_STT_URL, "groq", data, ten_file, api_key, model or STT_MODEL_MAC_DINH,
-                           ngon_ngu, hotwords)
+    # `model` empty: the newest full-size Whisper Groq lists (stt_models), the default until that is known.
+    return await stt_models.hear_with("groq", api_key, model, lambda mdl: _api_transcribe(
+        GROQ_STT_URL, "groq", data, ten_file, api_key, mdl, ngon_ngu, hotwords))
 
 
 # OpenAI ear (0.231.0). gpt-4o-transcribe is a language model that listens, so a Vietnamese sentence with English
 # product names in it ("mở Claude Code", "hỏi ChatGPT") keeps both languages instead of spelling the English part out
 # in Vietnamese sounds the way Whisper does. Same endpoint shape as Groq (OpenAI-compatible), same `prompt` hint.
 OPENAI_STT_URL = "https://api.openai.com/v1/audio/transcriptions"
-OPENAI_STT_MODEL = "gpt-4o-transcribe"
+OPENAI_STT_MODEL = stt_models.DEFAULTS["openai"]     # starting point; stt_models follows OpenAI's newest transcribe
 
 
 async def openai_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords=""):
     """Same contract as `groq_nghe`, on OpenAI's transcription endpoint."""
-    return await _api_transcribe(OPENAI_STT_URL, "openai", data, ten_file, api_key, model or OPENAI_STT_MODEL,
-                           ngon_ngu, hotwords)
+    return await stt_models.hear_with("openai", api_key, model, lambda mdl: _api_transcribe(
+        OPENAI_STT_URL, "openai", data, ten_file, api_key, mdl, ngon_ngu, hotwords))
 
 
 # Groq and OpenAI decide the format from the FILE NAME and refuse what they do not know. Zalo voice messages are raw
@@ -374,6 +380,71 @@ async def _api_transcribe(url, ten, data, ten_file, api_key, mdl, ngon_ngu, hotw
         return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", loi[:200])}
 
 
+# ChatGPT plan ear (2026-11-08). Owner: "if the subscription already has a Whisper, use it". Of the four plans Javis
+# signs in with (ChatGPT, Claude, Antigravity, Grok) only ChatGPT gives Javis a way to hear: the dictation endpoint of
+# the ChatGPT and Codex Desktop apps, reached with the same ChatGPT login Javis already holds for chat and images
+# (openai_oauth.valid_creds). No API key, nothing billed apart from the plan. Like the Codex chat endpoint it is not a
+# public API, so the shape below follows what the Codex Desktop app sends (multipart `file` plus an optional `language`,
+# answer {"text": ...}) and every failure hands over to the next ear instead of costing the sentence.
+# Claude, Antigravity and Grok have no such door: Claude's voice needs the login token Javis never reads, `agy` keeps
+# its session in the OS keyring, and xAI's speech-to-text is an API billed apart from SuperGrok.
+CHATGPT_STT_URL = "https://chatgpt.com/backend-api/transcribe"
+CHATGPT_STT_MODEL = "chatgpt-transcribe"     # a label for logs and the browser; the endpoint picks its own model
+CHATGPT_STT_ORIGINATOR = "Codex Desktop"     # the app this endpoint serves
+_CONTENT_TYPES = {".webm": "audio/webm", ".ogg": "audio/ogg", ".m4a": "audio/mp4", ".mp3": "audio/mpeg",
+                  ".wav": "audio/wav", ".flac": "audio/flac"}
+
+
+async def chatgpt_nghe(data, ten_file, access_token, account_id="", ngon_ngu=None, hotwords=""):
+    """Same contract as `groq_nghe`, on the ChatGPT plan. `access_token`/`account_id` from openai_oauth.valid_creds().
+
+    `hotwords` is accepted for the common signature but not sent: the endpoint takes no prompt. The assistant's name
+    is still fixed afterwards by nghe_sua.sua, like every other ear."""
+    import os
+    if not access_token:
+        return {"ok": False, "ly_do": "thieu_key", "noi_voi_javis": loi_thanh_dong("thieu_key")}
+    if not data:
+        return {"ok": False, "ly_do": "rong", "noi_voi_javis": loi_thanh_dong("loi", "file rỗng")}
+    if len(data) > MAX_STT_MB * 1024 * 1024:
+        ct = f"({_mb(len(data))}MB, trần {MAX_STT_MB}MB)"
+        return {"ok": False, "ly_do": "qua_lon", "noi_voi_javis": loi_thanh_dong("qua_lon", ct)}
+    data, ten_file = await _api_ready(data, ten_file)
+    ten_file = ten_file or "voice.webm"
+    ext = os.path.splitext(ten_file.lower())[1]
+    kind = next((k for k, exts in _API_FORMATS.items() if ext in exts), ext)   # ".oga", ".opus" -> ".ogg"
+    mime = _CONTENT_TYPES.get(kind, "application/octet-stream")
+    form = {}
+    goi_y = STT_MAC_DINH if ngon_ngu is None else ngon_ngu
+    if goi_y:
+        form["language"] = goi_y
+    headers = {"Authorization": f"Bearer {access_token}", "originator": CHATGPT_STT_ORIGINATOR,
+               "User-Agent": "javis-os/0.3 (codex)", "Accept": "application/json"}
+    if account_id:
+        headers["ChatGPT-Account-Id"] = account_id
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(STT_TIMEOUT)) as c:
+            r = await c.post(CHATGPT_STT_URL, headers=headers, data=form, files={"file": (ten_file, data, mime)})
+        d = {}
+        try:
+            d = r.json()
+        except Exception:
+            pass
+        if r.status_code != 200:
+            err = d.get("error") if isinstance(d, dict) else None
+            ly = ((err.get("message") if isinstance(err, dict) else err)
+                  or (d.get("detail") if isinstance(d, dict) else "") or f"chatgpt HTTP {r.status_code}")
+            print(f"[stt chatgpt] {ly}", file=sys.stderr)
+            return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", str(ly)[:200])}
+        text = loc_ao_giac(d.get("text") if isinstance(d, dict) else "")
+        if not text:
+            return {"ok": False, "ly_do": "khong_nghe_ro", "noi_voi_javis": loi_thanh_dong("khong_nghe_ro")}
+        return {"ok": True, "text": text, "model": CHATGPT_STT_MODEL}
+    except Exception as e:
+        loi = f"{type(e).__name__}: {e}"
+        print(f"[stt chatgpt] {loi}", file=sys.stderr)
+        return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", loi[:200])}
+
+
 # ============================================================
 # More ears (0.435.0): Gemini, and a chain that tries every ear the owner has
 # ============================================================
@@ -382,7 +453,7 @@ async def _api_transcribe(url, ten, data, ten_file, api_key, mdl, ngon_ngu, hotw
 # Now `listen_any` tries, in order: Groq, OpenAI, Gemini (keys from the Models page), then the offline Whisper the
 # owner installed from the Tools page (`local_stt`). An ear that is missing or fails hands over to the next one.
 GEMINI_STT_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-GEMINI_STT_MODEL = "gemini-2.5-flash"     # takes audio input; fast and cheap
+GEMINI_STT_MODEL = stt_models.DEFAULTS["gemini"]   # starting point; stt_models follows Google's newest stable flash
 GEMINI_MAX_MB = 18                        # inline audio rides in a request capped at 20MB
 _GEMINI_MIME = {".mp3": "audio/mp3", ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg",
                 ".opus": "audio/ogg", ".flac": "audio/flac", ".aac": "audio/aac", ".aiff": "audio/aiff"}
@@ -429,7 +500,25 @@ async def _as_mp3(data: bytes, ten_file: str) -> bytes:
 
 
 async def gemini_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords=""):
-    """Same contract as `groq_nghe`, with a Gemini API key: the model is asked to write down what is said."""
+    """Same contract as `groq_nghe`, with a Gemini API key: the model is asked to write down what is said.
+
+    `model` empty: Google's newest stable flash (stt_models), the default until that is known."""
+    return await stt_models.hear_with("gemini", api_key, model, lambda mdl: _gemini_once(
+        data, ten_file, api_key, mdl, ngon_ngu, hotwords))
+
+
+async def transcribe_with(vendor, data, ten_file, api_key, model, ngon_ngu=None):
+    """One call to one vendor with exactly `model`: no discovery, no retry. stt_gate scores two models with it."""
+    if vendor == "groq":
+        return await _api_transcribe(GROQ_STT_URL, "groq", data, ten_file, api_key, model, ngon_ngu, "")
+    if vendor == "openai":
+        return await _api_transcribe(OPENAI_STT_URL, "openai", data, ten_file, api_key, model, ngon_ngu, "")
+    if vendor == "gemini":
+        return await _gemini_once(data, ten_file, api_key, model, ngon_ngu, "")
+    return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", f"unknown ear {vendor}")}
+
+
+async def _gemini_once(data, ten_file, api_key, mdl, ngon_ngu, hotwords):
     import base64
     import os
     if not api_key:
@@ -446,7 +535,7 @@ async def gemini_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords
     if len(data) > GEMINI_MAX_MB * 1024 * 1024:
         ct = f"({_mb(len(data))}MB, trần {GEMINI_MAX_MB}MB)"
         return {"ok": False, "ly_do": "qua_lon", "noi_voi_javis": loi_thanh_dong("qua_lon", ct)}
-    mdl = model or GEMINI_STT_MODEL
+    mdl = mdl or GEMINI_STT_MODEL
     goi_y = STT_MAC_DINH if ngon_ngu is None else ngon_ngu
     prompt = _GEMINI_PROMPT
     if goi_y:
@@ -482,20 +571,32 @@ async def gemini_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords
         return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", loi[:200])}
 
 
-async def listen_any(data, ten_file, keys: dict, ngon_ngu=None, hotwords="", groq_model="", local=None):
+# Order when the caller gives none. The caller (main._stt_nghe) normally passes voice_ear.order(), which puts the ear
+# of the main brain's own vendor first; the ears it does not know (Gemini) keep this order after it.
+LISTEN_ORDER = ("groq", "chatgpt", "openai", "gemini")
+
+
+async def listen_any(data, ten_file, keys: dict, ngon_ngu=None, hotwords="", groq_model="", local=None, order=()):
     """Try every ear the owner has until one hears something. Same contract as `groq_nghe`, plus `ear` on success.
 
-    `keys`: {"groq": ..., "openai": ..., "gemini": ...} (empty = that ear is skipped). `local`: an async
-    (bytes, file name, language) -> dict like `groq_nghe`, or None when the offline Whisper is not installed.
-    When no ear exists at all the answer is the "thieu_key" line, which names every way to get one."""
+    `keys`: {"groq": ..., "openai": ..., "gemini": ..., "chatgpt": {"access_token", "account_id"}} (empty = that ear
+    is skipped). `order`: ear names to try first, the rest of `LISTEN_ORDER` follows. `local`: an async
+    (bytes, file name, language) -> dict like `groq_nghe`, or None when the offline Whisper is not installed; it is
+    always the last resort. When no ear exists at all the answer is the "thieu_key" line, which names every way to
+    get one."""
     keys = keys or {}
+    gpt = keys.get("chatgpt") if isinstance(keys.get("chatgpt"), dict) else {}
+    runs = {
+        "groq": keys.get("groq") and (lambda: groq_nghe(data, ten_file, keys["groq"], groq_model, ngon_ngu, hotwords)),
+        "chatgpt": gpt.get("access_token") and (lambda: chatgpt_nghe(data, ten_file, gpt["access_token"],
+                                                                     gpt.get("account_id") or "", ngon_ngu, hotwords)),
+        "openai": keys.get("openai") and (lambda: openai_nghe(data, ten_file, keys["openai"], "", ngon_ngu, hotwords)),
+        "gemini": keys.get("gemini") and (lambda: gemini_nghe(data, ten_file, keys["gemini"], "", ngon_ngu, hotwords)),
+    }
     ears = []
-    if keys.get("groq"):
-        ears.append(("groq", lambda: groq_nghe(data, ten_file, keys["groq"], groq_model, ngon_ngu, hotwords)))
-    if keys.get("openai"):
-        ears.append(("openai", lambda: openai_nghe(data, ten_file, keys["openai"], "", ngon_ngu, hotwords)))
-    if keys.get("gemini"):
-        ears.append(("gemini", lambda: gemini_nghe(data, ten_file, keys["gemini"], "", ngon_ngu, hotwords)))
+    for name in list(order or ()) + list(LISTEN_ORDER):
+        if runs.get(name) and name not in [n for n, _ in ears]:
+            ears.append((name, runs[name]))
     if local is not None:
         ears.append(("local", lambda: local(data, ten_file, STT_MAC_DINH if ngon_ngu is None else ngon_ngu)))
     if not ears:

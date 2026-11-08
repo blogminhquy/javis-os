@@ -120,8 +120,12 @@ OKEY = {"openai_api_key": "sk-test"}
 r = voice_ear.select_ear({"model": dict(OKEY), "voice": {}}, "anthropic-cli")
 check("auto, only an OpenAI key -> OpenAI ear, upload kind", r["provider"] == "openai" and r["kind"] == "upload"
       and r["reason"] == voice_ear.REASON_BEST)
-r = voice_ear.select_ear({"model": dict(KEY, **OKEY), "voice": {}}, "openai")
+r = voice_ear.select_ear({"model": dict(KEY, **OKEY), "voice": {}}, "anthropic-cli")
 check("auto with both keys keeps Groq first (the measured ear)", r["provider"] == "groq")
+# 2026-11-08, owner: the ear follows the main brain's vendor, so an OpenAI brain hears with OpenAI's own ear.
+r = voice_ear.select_ear({"model": dict(KEY, **OKEY), "voice": {}}, "openai")
+check("auto, OpenAI brain -> OpenAI ear (same vendor), Groq stays as the fallback",
+      r["provider"] == "openai" and r["reason"] == voice_ear.REASON_SAME_VENDOR and r["fallbacks"] == ["groq"])
 r = voice_ear.select_ear({"model": dict(KEY, **OKEY), "voice": {"ear": "openai"}})
 check("openai can be chosen by hand", r["provider"] == "openai" and r["reason"] == voice_ear.REASON_CHOSEN)
 

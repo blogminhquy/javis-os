@@ -562,6 +562,27 @@ AUDIO_TOI_DA_GIAY = 240      # download + hear every voice message of one turn  
 VIDEO_TOI_DA_GIAY = 180      # download + frames + speech of one video; past this the bot answers without it
 
 
+def _hear_for(cfg: dict):
+    """The ear callable for one bot: `_deps["transcribe"]` told which agent the bot speaks as (2026-11-08), so the
+    agent's own model's vendor hears first (owner: "an agent on a vendor's model uses that vendor's ear, not the main
+    model's"). None when no ear is wired."""
+    hear = _deps.get("transcribe")
+    agent = (cfg or {}).get("agent") if isinstance((cfg or {}).get("agent"), dict) else None
+    if hear is None or not agent:
+        return hear
+    try:
+        import inspect
+        takes_agent = "agent" in inspect.signature(hear).parameters
+    except (TypeError, ValueError):
+        takes_agent = False
+    if not takes_agent:
+        return hear
+
+    async def _hear(data, name):
+        return await hear(data, name, agent=agent)
+    return _hear
+
+
 async def video_cho_bot(meta: dict, root: Path, cfg: dict) -> tuple:
     """(frame paths, note for the model) of the video in this turn (`meta["video_url"]`, 0.433.0).
 
@@ -574,7 +595,7 @@ async def video_cho_bot(meta: dict, root: Path, cfg: dict) -> tuple:
     dest = image_vision.image_gen._attachments_dir(root) / "zalo" / chat
     msg_id = str(meta.get("video_msg") or meta.get("message_id") or "")
     try:
-        res = await asyncio.wait_for(video_vision.look(url, dest, msg_id, _deps.get("transcribe")), VIDEO_TOI_DA_GIAY)
+        res = await asyncio.wait_for(video_vision.look(url, dest, msg_id, _hear_for(cfg)), VIDEO_TOI_DA_GIAY)
     except asyncio.TimeoutError:
         res = {"frames": [], "why": "xử lý video quá lâu"}
     except Exception as e:      # noqa: BLE001 - a video we cannot get must never cost the customer the reply
@@ -590,14 +611,14 @@ async def nghe_cho_bot(meta: dict, cfg: dict) -> str:
 
     Returns the lines that go in front of the customer's typed words: what each message said, or, when it could not be
     heard, a line saying so (the bot then asks the customer to type, never guesses). Uses the same ears as every other
-    voice message (`_deps["transcribe"]`: Groq, OpenAI, Gemini, then the offline Whisper). Files are downloaded to a
-    temporary folder with the size-capped, pinned-IP downloader and deleted right after."""
+    voice message (`_deps["transcribe"]`: the bot's agent's own vendor first, then the other ears). Files are downloaded
+    to a temporary folder with the size-capped, pinned-IP downloader and deleted right after."""
     import tempfile
     import zalo_attachments
     urls = [str(u) for u in (meta.get("audio_urls") or []) if str(u or "").startswith("https://")]
     if not urls:
         return ""
-    hear = _deps.get("transcribe")
+    hear = _hear_for(cfg)
     out = []
 
     async def _one(url: str, i: int) -> str:

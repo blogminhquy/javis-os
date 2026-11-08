@@ -71,7 +71,7 @@ _DEFAULT = {
         # cho `ear` ở đây: khoá thiếu nghĩa là "auto", còn stt_provider = "groq" người dùng đã
         # lưu thì voice_ear.setting vẫn coi là đã chọn Groq. Có mặc định thì mất phân biệt đó.
         "stt_provider": "browser",     # browser (Web Speech) | groq (Whisper, key model.groq_api_key)
-        "stt_model": "",               # rỗng = whisper-large-v3 (stt.STT_MODEL_MAC_DINH)
+        "stt_model": "",               # rỗng = Whisper mới nhất Groq có (stt_models), ghim tên nào thì dùng đúng tên đó
         "live_provider": "gemini",     # gemini | openai (đều cần API key ở trang Models)
         "live_model": "",              # rỗng = gợi ý trong voice_live.PROVIDERS
         "live_voice": "",

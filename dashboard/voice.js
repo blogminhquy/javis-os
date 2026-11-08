@@ -133,6 +133,7 @@ class JavisVoice {
     // onTranscript ở đây để onend của recognition không phải biết gì về chuyện này.
     this.sttUpload = false;                            // app.js bật khi cài đặt stt_provider = groq
     this.sttUrl = "/stt";
+    this.sttSession = null;                            // app.js: () => id of the open chat, so its model's ear hears
     this._rec = null;
     this._recChunks = [];
     const _userTranscript = this.onTranscript;
@@ -279,6 +280,9 @@ class JavisVoice {
       // Bản nháp của Web Speech đi kèm: server đối chiếu, Groq BỊA câu kết video (audio thiếu
       // tiếng) thì trả ok=false và ta giữ bản nháp (0.64.74, stt.khop_ban_nhap).
       fd.append("draft", text);
+      let sid = "";
+      try { sid = typeof this.sttSession === "function" ? String(this.sttSession() || "") : ""; } catch (e) { sid = ""; }
+      if (sid) fd.append("session", sid);
       const r = await fetch(url || this.sttUrl, { method: "POST", body: fd, signal: ctl.signal });
       const d = await r.json();
       return r.ok && d && d.ok && String(d.text || "").trim() ? String(d.text).trim() : text;

@@ -171,6 +171,8 @@
   }
 
   // opts: onText(text, final) gets the WHOLE spoken text so far; onState("listening" | "transcribing" | "idle");
+  // session() (optional) the id of the chat the words go to, sent with the recording so the server hears with the ear
+  // of the model that chat runs on;
   // onError(code) with "unsupported", "denied", "service" (0.419.0: the device's speech service is off), "failed" or "nothing" (0.339.0: the run ended with no word at all,
   // reported only when no other error was); onStream(stream | null) when given also opens the mic for a level meter
   // even without an upload ear (0.230.0). Returns { start, stop, cancel, active, busy }.
@@ -201,6 +203,10 @@
       fd.append("file", blob, "voice." + ext);
       fd.append("lang", "auto");
       fd.append("draft", spoken);
+      // The chat being dictated into (2026-11-08): a partner's chat hears with the ear of that partner's own model.
+      var sid = "";
+      try { sid = typeof opts.session === "function" ? String(opts.session() || "") : ""; } catch (e) { sid = ""; }
+      if (sid) fd.append("session", sid);
       var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
       var t = ctl ? setTimeout(function () { try { ctl.abort(); } catch (e) {} }, STT_WAIT_MS) : 0;
       return fetch("/stt", { method: "POST", body: fd, credentials: "same-origin", signal: ctl ? ctl.signal : undefined })

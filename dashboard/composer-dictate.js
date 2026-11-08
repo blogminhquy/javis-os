@@ -261,6 +261,8 @@
         if (!final && live && S.state === "listening") writeInput(D.joinText(S.base, S.heard));
       },
       context: chatContext,
+      // The open chat: a partner's chat (or one pinned to a model) is heard by that model's vendor (2026-11-08).
+      session: function () { return window.JavisChatApi && window.JavisChatApi.sid ? window.JavisChatApi.sid() : ""; },
       onState: function (st) {
         var was = S.state;
         S.state = st;
