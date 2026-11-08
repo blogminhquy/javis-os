@@ -1179,7 +1179,7 @@ class LoopFeature:
         # ---------- API mới /loops/* ----------
 
         @router.get("/loops")
-        async def loops_list(brain: str = Query("brain")):
+        def loops_list(brain: str = Query("brain")):
             self.ensure_migrated()
             st_all = self.read_state(brain)
             loops = [self.loop_view(brain, lp, st_all) for lp in self.list_loops(brain)]
