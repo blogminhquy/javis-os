@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.505.2] - 2026-11-08
+### Fixed
+- **Zalo messages no longer slip past the inbox after a short connection drop.** Javis uses javis-zalo 1.9.1. When the Zalo connection dropped for under 5 seconds and came back on its own, the messages in between only reached the history, not the inbox or the bot. They now arrive live like any other message. One faulty message also no longer takes the rest of its batch down with it.
+
 ## [0.505.1] - 2026-11-08
 ### Fixed
 - **Bots no longer send "You've hit your monthly spend limit" to customers.** Once the Claude plan's monthly extra-usage cap was spent too, Claude Code printed a new notice Javis did not recognise, so a Zalo bot pasted that English line into its reply to a customer. It now counts as a failed turn like every other plan-limit notice: the customer receives nothing and the owner is told in the notification bell. Chat, Kanban jobs and workflows also read it as the plan running out, with the reset time.
