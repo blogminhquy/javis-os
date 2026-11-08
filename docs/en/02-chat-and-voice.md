@@ -461,7 +461,10 @@ If none is available, spoken turns go to the main brain. Questions that need dat
 
 On the Basic path the browser only hears one language, so a sentence like "Mở dashboard Facebook ads" often comes out as "Mở double Facebook add". The **listening ear** is a multilingual model that listens to the audio of what you just said again before settling the text in the bubble. The browser's interim text still shows instantly while you talk.
 
-- Javis always picks the ear itself: **Groq Whisper** when a Groq key is on the **Models** page, otherwise the browser's text as before.
+- Javis always picks the ear itself, there is nothing to set. The ear of **the main brain's own vendor** goes first: with ChatGPT as the brain your **ChatGPT plan** hears (ChatGPT connected on the **Models** page is enough, no key), with Groq it is **Groq Whisper**, with the OpenAI API it is **gpt-4o-transcribe**.
+- Claude, Antigravity and Grok offer no speech-to-text on their plans, so with one of them as the brain Javis uses the best ear it has, in this order: Groq, the ChatGPT plan, then an OpenAI key. With no ear at all it keeps the browser's text as before.
+- **Agents hear with their own ear**: an agent on a vendor's model has the dictation in its chat and the voice messages to its dedicated bot heard by that vendor. An agent left on Default follows the main brain. The Teams page (several agents at once) and the Conversations page use the main brain's ear.
+- When an ear fails (network, quota, the plan refusing), the next ear hears that sentence. Telegram and Zalo voice messages follow the same order.
 - Measured on 20 Vietnamese-English mixed commands: the browser got 41% of words wrong, the Groq ear 14%. Each sentence takes about 1 second longer.
 - If the ear fails, takes over 8 seconds, or returns a sentence far from the draft (Whisper sometimes invents sentences from noise), Javis keeps the browser's text and the turn is not lost.
 - The message sent is the ear's text when there is an ear, otherwise the browser's text when you finished the sentence. Once sent, the AI does not rewrite the message in history.

@@ -3363,6 +3363,34 @@ def _model_cua_agent(brain: str, slug: str) -> dict:
             "model": mdl}
 
 
+def _ear_brain_provider(cfg, row=None, agent=None) -> str:
+    """The vendor whose ear hears a sentence (voice_ear.order puts that vendor's ear first), 2026-11-08.
+
+    Owner: "the ear follows the model in use", and for agents "the agent's own model's vendor, not the main one's".
+      - `agent` {brain, slug} (a dedicated bot, a voice message to an agent): the model that agent file chose;
+      - `row` (the dashboard chat being dictated into): its pinned model (Javis Core's pin in a Core chat), else, in a
+        partner's chat, that partner's model;
+      - otherwise, or when the agent stays on "Default": the main model.
+    Never raises: a missing agent file or session only means the main model's ear."""
+    try:
+        mcfg = (cfg or {}).get("model") or {}
+        if agent and str(agent.get("slug") or "").strip():
+            g = _model_cua_agent(agent.get("brain") or "brain", agent["slug"])
+            if g:
+                return g["provider"]
+        if row:
+            if str(row.get("pinned_provider") or "").strip() or javis_core.is_core_channel(row.get("channel")):
+                return _chat_provider_for_session(mcfg, row)[0]
+            persona = workflow_chat.persona_cua_phien(row)
+            if persona and persona[0] == "agent":
+                g = _model_cua_agent(row.get("brain") or "brain", persona[1])
+                if g:
+                    return g["provider"]
+    except Exception as e:  # noqa: BLE001 - choosing an ear must never cost the sentence
+        print(f"[stt] ear vendor: {type(e).__name__}: {e}", file=sys.stderr)
+    return _effective_main(cfg or {}).get("provider", "")
+
+
 def _chat_provider_bot(mcfg, bot):
     """Provider cho một lượt của BOT CHUYÊN TRÁCH (chatbot nói với khách ngoài).
 
@@ -17039,7 +17067,8 @@ async def tts(
 # Voice V2 - nghe bằng Groq, tuỳ chọn giọng nói, nghe nói thẳng (Live)
 # ============================================
 @app.post("/stt")
-async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: str = Form("")):
+async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: str = Form(""),
+                    session: str = Form("")):
     """Dashboard gửi file ghi âm (webm/opus) sau khi hết câu -> chữ qua Groq Whisper.
 
     Dùng lại đúng `stt.groq_nghe` của kênh Telegram/Zalo. Trả `{"ok": true, "text": ...}` hoặc
@@ -17047,17 +17076,25 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: s
     """
     cfg = cfgmod.read_settings()
     data = await file.read()
+    # 2026-11-08: `session` is the chat being dictated into. A partner's chat (or a chat pinned to a model) hears with
+    # the ear of that model's vendor, not the main model's (`_ear_brain_provider`).
+    row = None
+    if session.strip():
+        try:
+            row = get_store().get_session(session.strip()[:120])
+        except Exception:  # noqa: BLE001 - an unknown session is the main model's ear
+            row = None
     # Tai đang được chọn (voice_ear.select_ear). Trình duyệt chỉ tải lên khi /voice/ear báo có
     # tai dạng tải lên; chặn thêm ở đây phòng trang cũ còn mở. Không có tai thì trả ok=false,
     # trình duyệt giữ chữ Web Speech như trước.
-    ear = voice_ear.select_ear(cfg, _effective_main(cfg).get("provider", ""))
+    ear = voice_ear.select_ear(cfg, _ear_brain_provider(cfg, row=row))
     if ear["kind"] != "upload":
         return {"ok": False, "text": "", "model": "",
                 "ly_do": "tai_tat" if ear["reason"] == voice_ear.REASON_OFF else "thieu_key"}
     # Mồi từ vựng, sửa tên trợ lý, đối chiếu bản nháp: xem voice_ear.transcribe_upload.
     # WebSocket còn quét nghe_sua.sua thêm lần nữa (cho cả chữ Web Speech); hàm idempotent.
     return await voice_ear.transcribe_upload(cfg, data, file.filename or "voice.webm", lang, draft,
-                                             provider=ear["provider"])
+                                             provider=ear["provider"], fallbacks=ear.get("fallbacks") or ())
 
 
 @app.post("/stt/fix")
@@ -25904,8 +25941,10 @@ def _tg_inbox_dir(chat=None):
     return str(Path(root) / "inbox" / "telegram")
 
 
-async def _stt_nghe(data, ten=""):
+async def _stt_nghe(data, ten="", agent=None):
     """Nghe tin thoại của kênh chat -> chữ. Đọc key Groq TẠI THỜI ĐIỂM GỌI, cố ý.
+
+    `agent` {brain, slug}: the agent the voice is for (a dedicated bot); its own model's vendor hears first.
 
     Dán key ở trang Models xong là tin thoại tiếp theo nghe được ngay, không phải tắt bật lại
     bot. Đọc lúc dựng bot thì key mới dán nằm im tới lần khởi động sau, mà chẳng có gì trên
@@ -25931,13 +25970,19 @@ async def _stt_nghe(data, ten=""):
     _tv = nghe_sua.fix_vocabulary(_cfg)
     # 0.435.0: not Groq only any more. Every ear the owner has is tried in turn (Groq, OpenAI, Gemini, then the
     # offline Whisper from the Tools page); one missing or failing hands over to the next (`stt.listen_any`).
+    # 2026-11-08: plus the ChatGPT plan's own ear, and the ear of the main brain's vendor goes first, same order as
+    # the dashboard mic (voice_ear.order): on ChatGPT the plan hears the voice message, no key needed.
     _m = _cfg.get("model") or {}
     import local_stt
+    _ear = voice_ear.setting(_cfg)
+    _order = voice_ear.order(_cfg, _ear_brain_provider(_cfg, agent=agent), "auto" if _ear == "off" else _ear)
+    _gpt = await voice_ear.chatgpt_creds() if "chatgpt" in _order else {}
     res = await stt.listen_any(data, ten, {"groq": key, "openai": _m.get("openai_api_key") or "",
-                                           "gemini": _m.get("gemini_api_key") or ""},
+                                           "gemini": _m.get("gemini_api_key") or "", "chatgpt": _gpt},
                                ngon_ngu=(lang_registry.get(_ma).stt if _ma else ""),
                                hotwords=nghe_sua.goi_y_whisper(_tv),
-                               local=local_stt.transcribe if local_stt.installed() else None)
+                               local=local_stt.transcribe if local_stt.installed() else None,
+                               order=_order)
     if res.get("ok") and res.get("text"):
         res["text"] = nghe_sua.sua(res["text"], _tv)
     return res

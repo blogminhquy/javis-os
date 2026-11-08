@@ -639,6 +639,8 @@ async function napCaiDatGiong() {
     voice.sttUpload = upload;
   } catch (e) {}
 }
+// 2026-11-08: a call or dictation in a partner's chat is heard by the ear of that partner's own model.
+voice.sttSession = () => savedSessionId || "";
 napCaiDatGiong();
 window.JavisVoiceMode = { refresh: napCaiDatGiong, get: () => voiceMode };
 
