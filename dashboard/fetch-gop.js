@@ -291,25 +291,44 @@
 
   function sendBatch(paths) {
     var now = Date.now();
+    // 2026-11-08, the Partners chat box that stayed locked: answers go to THIS batch's own entries (`mine`), never
+    // looked up in `pending` again. A write in between (POST /seen goes out on every partner click) replaces `pending`
+    // with a fresh object; looking the entry up there found nothing, so a read that had already started waiting on it
+    // (the chat's messages) waited forever, and the chat box unlocks only once those messages are read.
+    var mine = {};
     paths.forEach(function (p) {
       var d = { at: now, res: null };
       d.p = new Promise(function (ok) { d.res = ok; });
       pending[p] = d;
+      mine[p] = d;
     });
-    var answer = function (p, x) { var d = pending[p]; if (d && d.res) { d.res(x); d.res = null; } };
+    var answer = function (p, x) { var d = mine[p]; if (d && d.res) { d.res(x); d.res = null; } };
     gocThat("/batch", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ paths: paths }) })
       .then(function (r) { if (!r.ok) throw new Error("batch " + r.status); return readEvents(r, function (x) { if (x && x.p) answer(x.p, x); }); })
-      .catch(function () {})
+      .catch(function () { batchOff = true; })
       .then(function () { paths.forEach(function (p) { answer(p, null); }); });
   }
 
-  // The network, for a read: its batched answer when one is on its way, the server otherwise.
+  // 2026-11-08 (customer report: after the update the Partners page chat box stayed locked, Ctrl+Shift+R did not help):
+  // the cause is fixed in sendBatch above, and this is the net under it. A read used to wait for its batched answer with
+  // no limit, so anything that kept the answer away (a read stuck on the server, a proxy holding the stream back, a bug
+  // like that one) kept the page waiting for good. A batched answer not there ANSWER_WAIT_MS after the page asked is
+  // given up: the read goes to the server on its own, and this tab stops batching (batchOff) so the next moments do not
+  // wait again. Batching only ever saves a round trip; it must not cost one.
+  var ANSWER_WAIT_MS = 4000;
+  var batchOff = false;
+  api.ANSWER_WAIT_MS = ANSWER_WAIT_MS;
+  api.batchOff = function () { return batchOff; };
+
+  // The network, for a read: its batched answer when one is on its way (for at most ANSWER_WAIT_MS), the server otherwise.
   function net(input, init) {
     var bp = batchPath(input, init, location.origin);
     var d = bp && pending[bp];
     if (!d || Date.now() - d.at > PENDING_MS) return goc(input, init);
-    return d.p.then(function (x) {
+    var late = new Promise(function (ok) { setTimeout(function () { ok("late"); }, ANSWER_WAIT_MS); });
+    return Promise.race([d.p, late]).then(function (x) {
+      if (x === "late") { batchOff = true; if (pending[bp] === d) delete pending[bp]; return goc(input, init); }
       if (!x || !x.s || maTam(x.s)) return goc(input, init);
       return new Response(x.b, { status: x.s, headers: { "Content-Type": x.t || "application/json" } });
     });
@@ -333,7 +352,7 @@
       if (c && now - c.at <= GIU_MS) return;
       list.push(p);
     });
-    if (list.length >= 2) sendBatch(list.slice(0, BATCH_MAX));
+    if (list.length >= 2 && !batchOff) sendBatch(list.slice(0, BATCH_MAX));
   };
 
   // ── Kept copies for the console pages (see SWR above) ──

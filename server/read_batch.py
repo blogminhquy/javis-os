@@ -27,7 +27,9 @@ import web_security
 
 BATCH_MAX = 40
 PATH_MAX = 600
-SUB_TIMEOUT_S = 20.0
+# 2026-11-08: enforced with asyncio.wait_for in handle(). httpx's own timeout does nothing over ASGITransport (no
+# network I/O to time), so before this a read that never finished kept the whole batch open and its page waiting.
+SUB_TIMEOUT_S = 10.0
 
 # Keep in step with BATCH_RE in dashboard/fetch-gop.js (tests/python/test_read_batch.py compares the two).
 ALLOWED_PATHS = (
@@ -97,9 +99,9 @@ async def handle(app, request):
                                      timeout=SUB_TIMEOUT_S) as sub:
             async def one(p):
                 try:
-                    r = await sub.get(p)
+                    r = await asyncio.wait_for(sub.get(p), SUB_TIMEOUT_S)
                     return {"p": p, "s": r.status_code, "t": r.headers.get("content-type", ""), "b": r.text}
-                except Exception:  # noqa: BLE001 - this read is left out; the page asks for it again
+                except Exception:  # noqa: BLE001 - this read (failed or too slow) is left out; the page asks again
                     return None
             jobs = [asyncio.ensure_future(one(p)) for p in paths]
             try:

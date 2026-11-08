@@ -3413,6 +3413,7 @@
   "ws.ph_agent": "Bạn muốn tôi làm điều gì?",
   "ws.ph_workflow": "Mô tả kết quả bạn muốn nhận, mỗi tin là một lần chạy...",
   "ws.err_session": "Không mở được hội thoại",
+  "ws.err_session_slow": "Hội thoại mở lâu quá, bấm Thử lại",
   "ws.agent_settings": "Cài đặt cộng sự",
   "ws.wf_progress": "Tiến độ",
   "ws.edit_steps": "Sửa các bước",

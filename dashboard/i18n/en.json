@@ -3413,6 +3413,7 @@
   "ws.ph_agent": "What would you like me to do?",
   "ws.ph_workflow": "Describe the result you want; each message is one run...",
   "ws.err_session": "Could not open conversation",
+  "ws.err_session_slow": "The conversation is taking too long to open. Press Retry",
   "ws.agent_settings": "Agent settings",
   "ws.wf_progress": "Progress",
   "ws.edit_steps": "Edit steps",

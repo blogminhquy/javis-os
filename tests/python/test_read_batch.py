@@ -8,6 +8,8 @@ route runs them through the app itself and streams each answer back as it finish
   2. The server list and the dashboard list (BATCH_RE in fetch-gop.js) accept the same paths.
   3. The route answers each allowed read with exactly what a direct GET answers, as server-sent events.
   4. It goes through the auth guard like any other route: no session, no answers.
+  5. A read that never finishes is cut at SUB_TIMEOUT_S and the stream ends (httpx's own timeout does nothing over
+     ASGITransport; customer report 2026-11-08: the Partners chat box stayed locked after the update).
 
     python tests/run.py read_batch
 """
@@ -123,6 +125,31 @@ try:
     check("without a session the batch is refused like any route", r.status_code == 401 and "workspace_name" not in r.text, r.status_code)
 finally:
     cfgmod.gate_active = real
+
+# ---- 5. a read that never finishes ----------------------------------------------------------------------------------------
+import asyncio  # noqa: E402
+import time  # noqa: E402
+
+
+async def _never_ends():
+    await asyncio.sleep(3600)
+    return {}
+
+main.app.add_api_route("/batch-test-hang", _never_ends, methods=["GET"])
+real_allowed, real_timeout = read_batch._ALLOWED, read_batch.SUB_TIMEOUT_S
+read_batch._ALLOWED = re.compile(r"^/(settings|batch-test-hang)(\?[^#]*)?$")
+read_batch.SUB_TIMEOUT_S = 0.5
+try:
+    t0 = time.monotonic()
+    r = client.post("/batch", json={"paths": ["/settings", "/batch-test-hang"]})
+    took = time.monotonic() - t0
+    got = events(r.text)
+    check("a read that never finishes is cut and the stream ends", took < 5, round(took, 1))
+    check("the quick read is still answered, the stuck one is left out", set(got) == {"/settings"}, list(got))
+finally:
+    read_batch._ALLOWED, read_batch.SUB_TIMEOUT_S = real_allowed, real_timeout
+check("the cut is a real wait_for, not httpx's timeout", "asyncio.wait_for(sub.get(p), SUB_TIMEOUT_S)"
+      in (ROOT / "server" / "read_batch.py").read_text(encoding="utf-8"))
 
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 check("the route is registered at the end of main.py", src.rstrip().endswith("return await read_batch.handle(app, request)"))

@@ -190,6 +190,29 @@
   var m = moc();
   if (!m) return;              // server chưa nhúng khối này (bản cũ) - im lặng, đừng phá gì
 
+  /* 2026-11-08 (owner: "mỗi khi update load lại trang thì load lại cache luôn được không?"). Code and styles already
+   * refresh by themselves: every .js/.css URL carries its own content hash, and this page itself is never cached. What
+   * a reload did NOT renew is what Javis keeps in localStorage, which Ctrl+Shift+R does not touch either: the list of
+   * reads each moment batches (fetch-gop.js, keys "javis.batch.*"), recorded by the previous version's code. So the
+   * first page opened on a new version drops them and they are recorded again from this version. This file runs before
+   * fetch-gop.js reads them. */
+  var LAST_VERSION_KEY = "javis-fresh-version";
+  function clearVersionCaches() {
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf("javis.batch.") === 0) localStorage.removeItem(k);
+      }
+    } catch (e) { /* noop */ }
+  }
+  try {
+    var seenVersion = localStorage.getItem(LAST_VERSION_KEY);
+    if (seenVersion !== m.version) {
+      if (seenVersion) clearVersionCaches();
+      localStorage.setItem(LAST_VERSION_KEY, String(m.version || ""));
+    }
+  } catch (e) { /* noop */ }
+
   // Vân tay của cả bộ file (tên + crc từng file), đo bằng chính crc32 ở trên.
   var vanTay = "";
   try {
