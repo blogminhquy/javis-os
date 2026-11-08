@@ -17089,7 +17089,7 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: s
     row = None
     if session.strip():
         try:
-            row = get_store().get_session(session.strip()[:120])
+            row = await asyncio.to_thread(lambda: get_store().get_session(session.strip()[:120]))
         except Exception:  # noqa: BLE001 - an unknown session is the main model's ear
             row = None
     # Tai đang được chọn (voice_ear.select_ear). Trình duyệt chỉ tải lên khi /voice/ear báo có

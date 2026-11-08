@@ -152,23 +152,36 @@ def _real_clips() -> list:
     return out
 
 
+def _cached(path: Path) -> bytes:
+    """A clip already on disk, b"" when there is none (or it is too short to be one)."""
+    try:
+        return path.read_bytes() if path.is_file() and path.stat().st_size >= 1000 else b""
+    except OSError:
+        return b""
+
+
+def _keep(path: Path, audio: bytes) -> None:
+    path.write_bytes(audio)
+
+
 async def clips() -> list:
     """[{"id", "text", "terms", "data", "name"}]: the synthetic set (made once, then read from disk) plus real
-    recordings. [] when fewer than MIN_CLIPS could be had."""
-    d = _dir()
+    recordings. [] when fewer than MIN_CLIPS could be had. Disk work runs in a thread, off the event loop."""
+    d = await asyncio.to_thread(_dir)
     out = []
     for cid, voice, text, terms in SENTENCES:
         f = d / f"{cid}.mp3"
         try:
-            if not f.is_file() or f.stat().st_size < 1000:
+            audio = await asyncio.to_thread(_cached, f)
+            if not audio:
                 audio = await _tts(text, voice)
                 if len(audio) < 1000:
                     continue
-                f.write_bytes(audio)
-            out.append({"id": cid, "text": text, "terms": terms, "data": f.read_bytes(), "name": f.name})
+                await asyncio.to_thread(_keep, f, audio)
+            out.append({"id": cid, "text": text, "terms": terms, "data": audio, "name": f.name})
         except Exception as e:  # noqa: BLE001 - a clip we cannot make is one clip less
             print(f"[stt gate] clip {cid}: {type(e).__name__}: {str(e)[:120]}", file=sys.stderr)
-    out += _real_clips()
+    out += await asyncio.to_thread(_real_clips)
     return out if len(out) >= MIN_CLIPS else []
 
 
