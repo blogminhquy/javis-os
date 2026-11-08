@@ -841,7 +841,7 @@ class JavisVoice {
     const next = this.speechQueue && this.speechQueue[0];
     if (!next) return;
     const first = this._splitForLatency(next)[0];
-    if (first) this._preloadUrl(this._chunkUrl(first, this._messageLang(next)));
+    if (first) this._preloadUrl(this._chunkUrl(first, this._englishFlag(next)));
   }
 
   _preloadUrl(url) {
@@ -1223,17 +1223,17 @@ class JavisVoice {
       .trim();
   }
 
-  // `lang` = language of the WHOLE message the chunk belongs to (2026-11-08, owner): the server reads an English
+  // `en` = whether the WHOLE message the chunk belongs to is English (2026-11-08, owner): the server reads an English
   // answer in English, even with Hoai My picked, and keeps the Vietnamese way of saying English words in a Vietnamese
   // answer. Decided per message, so one chunk of an English answer that names "Hội thoại" stays English.
-  _chunkUrl(text, lang = this._msgLang) {
-    const l = lang ? `&lang=${encodeURIComponent(lang)}` : "";
-    return `${this.ttsBackend}?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(this._voiceFor(text))}&rate=${encodeURIComponent(this.ttsRate)}${l}`;
+  _chunkUrl(text, en = this._msgEnglish) {
+    const flag = en ? `&en=${encodeURIComponent(en)}` : "";
+    return `${this.ttsBackend}?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(this._voiceFor(text))}&rate=${encodeURIComponent(this.ttsRate)}${flag}`;
   }
 
-  _messageLang(text) {
+  _englishFlag(text) {
     const L = typeof window !== "undefined" && window.JavisVoiceLang;
-    return L && L.messageLang ? L.messageLang(text) : "";
+    return L && L.englishFlag ? L.englishFlag(text) : "";
   }
 
   // "auto" (0.220.0): the Edge voice follows the language of the text being read (voice-lang.js).
@@ -1248,7 +1248,7 @@ class JavisVoice {
   async _speakBackend(text) {
     // KHÔNG stopSpeaking ở đây - hàng đợi (_pumpQueue) điều phối thứ tự đọc.
     // Chunk ĐẦU nhỏ (1 câu) để audio đầu tiên tổng hợp + tải NHANH → bớt khựng; các chunk sau to (liền mạch).
-    this._msgLang = this._messageLang(text);
+    this._msgEnglish = this._englishFlag(text);
     this.ttsChunks = this._splitForLatency(text);
     this._preloaded = null;
     this.isPlaying = true;
@@ -1401,7 +1401,7 @@ class JavisVoice {
     const epoch = this._ttsEpoch;
     const done = onDone || (() => this._pumpQueue());
     const chunks = this._splitIntoChunks(text, 200);
-    const english = this._messageLang(text) === "en";   // an English answer: no Vietnamese browser voice
+    const english = this._englishFlag(text) === "1";   // an English answer: no Vietnamese browser voice
     let idx = 0;
     const playNext = () => {
       if (epoch !== this._ttsEpoch) return;

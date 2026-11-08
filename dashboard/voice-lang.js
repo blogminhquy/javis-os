@@ -79,6 +79,12 @@
     return "";
   }
 
+  // What read aloud sends to /tts as `en`: "1" English message, "0" Vietnamese, "" can't tell.
+  function englishFlag(text) {
+    var l = messageLang(text);
+    return l === "en" ? "1" : l === "vi" ? "0" : "";
+  }
+
   function voiceFor(lang, fallback) { return VOICES[lang] || fallback || VOICES.en; }
 
   // One tracker per JavisVoice. `start` is the language to read in before anything is detected.
@@ -113,7 +119,7 @@
     return this._lastVoice;
   };
 
-  var api = { VOICES: VOICES, detect: detect, messageLang: messageLang, words: words, voiceFor: voiceFor, Tracker: Tracker };
+  var api = { VOICES: VOICES, detect: detect, messageLang: messageLang, englishFlag: englishFlag, words: words, voiceFor: voiceFor, Tracker: Tracker };
   if (typeof window !== "undefined") window.JavisVoiceLang = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

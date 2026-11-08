@@ -74,21 +74,21 @@ for v in ("Bật Dark Mode trong Settings nhé anh.", C, "Javis hỗ trợ Claud
           "Anh cứ nói to lên, em in hoá đơn rồi so sánh nhé, do đó ai cũng được."):
     check(f"Vietnamese stays Vietnamese: {v[:30]!r}", not P.is_english_text(v))
 check("English answer: text untouched, Hoai My swapped for Emma",
-      P.speech_plan(E, HOAIMY, "en") == (E, P.ENGLISH_VOICE))
+      P.speech_plan(E, HOAIMY, True) == (E, P.ENGLISH_VOICE))
 check("English answer: a multilingual voice the owner picked is kept",
-      P.speech_plan(E, "en-US-AndrewMultilingualNeural", "en") == (E, "en-US-AndrewMultilingualNeural"))
+      P.speech_plan(E, "en-US-AndrewMultilingualNeural", True) == (E, "en-US-AndrewMultilingualNeural"))
 check("English answer with no lang hint (older page) is still read in English",
-      P.speech_plan(E, HOAIMY, "") == (E, P.ENGLISH_VOICE))
+      P.speech_plan(E, HOAIMY) == (E, P.ENGLISH_VOICE))
 check("Vietnamese answer keeps Vinglish, voice unchanged",
-      P.speech_plan("Mở GitHub Actions nhé", EMMA, "vi") == ("Mở ghít hắp ác sừn nhé", EMMA))
+      P.speech_plan("Mở GitHub Actions nhé", EMMA, False) == ("Mở ghít hắp ác sừn nhé", EMMA))
 check("Vietnamese answer: its English-only piece is respelled too",
-      "quick" not in P.speech_plan("The quick brown fox.", EMMA, "vi")[0])
+      "quick" not in P.speech_plan("The quick brown fox.", EMMA, False)[0])
 import voice_note  # noqa: E402
 check("voice note: an English note naming a Vietnamese page is not given Hoai My",
       not voice_note.pick_voice(E, "", HOAIMY).startswith("vi-"))
 check("voice note: a Vietnamese note keeps Hoai My", voice_note.pick_voice(C, "", HOAIMY) == HOAIMY)
 check("no hint, plain English chunk: unchanged as before",
-      P.speech_plan("The build passed.", EMMA, "") == ("The build passed.", EMMA))
+      P.speech_plan("The build passed.", EMMA) == ("The build passed.", EMMA))
 
 # ---- 4. Chốt kiểm tra câu diễn giải so âm theo cách đọc ----
 import voice_brain as vb  # noqa: E402
@@ -141,7 +141,7 @@ try:
     client.get("/tts", params={"text": "The build passed.", "voice": "en-US-EmmaMultilingualNeural"})
     check("/tts câu thuần tiếng Anh: giữ nguyên chữ", _FakeCommunicate.goi[0][0] == "The build passed.")
     _FakeCommunicate.goi = []
-    client.get("/tts", params={"text": E, "voice": HOAIMY, "lang": "en"})
+    client.get("/tts", params={"text": E, "voice": HOAIMY, "en": "1"})
     check("/tts English answer: unchanged text, read by Emma instead of Hoai My",
           _FakeCommunicate.goi == [(E, P.ENGLISH_VOICE)])
 finally:

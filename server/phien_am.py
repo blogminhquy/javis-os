@@ -542,19 +542,22 @@ def doc_viet(text: str, vietnamese: bool = False) -> str:
 ENGLISH_VOICE = "en-US-EmmaMultilingualNeural"
 
 
-def speech_plan(text: str, voice: str, lang: str = "") -> tuple:
+def speech_plan(text: str, voice: str, english=None) -> tuple:
     """What to send to Edge for one chunk, and with which voice (owner, 2026-11-08): an answer
     written in English is read in English, even with a Vietnamese-only voice picked (that voice
     is swapped for Emma for this answer); an answer in Vietnamese keeps the Vietnamese way of
-    saying English words. `lang` is the language of the WHOLE message ("en" or "vi", sent by the
-    browser); empty (an older page, a voice note) means decide from this text alone."""
-    lang = str(lang or "").lower()
-    english = lang == "en" or (lang != "vi" and is_english_text(text))
-    if english:
+    saying English words. `english` says whether the WHOLE message is English (True/False, the
+    browser decides it per message); None (an older page, a voice note) means decide from this
+    text alone."""
+    if english is None:
+        english_text, vietnamese = is_english_text(text), False
+    else:
+        english_text, vietnamese = bool(english), not english
+    if english_text:
         if str(voice or "").lower().startswith("vi-"):
             voice = ENGLISH_VOICE
         return str(text or ""), voice
-    return doc_viet(text, vietnamese=(lang == "vi")), voice
+    return doc_viet(text, vietnamese=vietnamese), voice
 
 
 def doc_cum(text: str) -> str:

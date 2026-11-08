@@ -61,10 +61,13 @@ check("messageLang: Vietnamese quoting an English sentence is Vietnamese",
 check("messageLang: Vietnamese 'to', 'in', 'do' are not English markers",
   L.messageLang("Anh cứ nói to lên, em in hoá đơn, do đó ai cũng được.") === "vi");
 check("messageLang: too short to tell -> empty (server decides)", L.messageLang("Done.") === "");
-check("voice.js sends the message language with each chunk", /_chunkUrl\(text, lang = this\._msgLang\)/.test(voiceJs)
-  && /this\._msgLang = this\._messageLang\(text\)/.test(voiceJs) && /&lang=\$\{encodeURIComponent\(lang\)\}/.test(voiceJs));
-check("voice.js preloads the next message with that message's language",
-  /this\._chunkUrl\(first, this\._messageLang\(next\)\)/.test(voiceJs));
+check("englishFlag: 1 for English, 0 for Vietnamese, empty when unsure",
+  L.englishFlag("Open the Hội thoại page to see your chats.") === "1" && L.englishFlag("Bật Dark Mode trong Settings nhé anh.") === "0"
+  && L.englishFlag("Done.") === "");
+check("voice.js sends the English flag of the whole message with each chunk", /_chunkUrl\(text, en = this\._msgEnglish\)/.test(voiceJs)
+  && /this\._msgEnglish = this\._englishFlag\(text\)/.test(voiceJs) && /&en=\$\{encodeURIComponent\(en\)\}/.test(voiceJs));
+check("voice.js preloads the next message with that message's flag",
+  /this\._chunkUrl\(first, this\._englishFlag\(next\)\)/.test(voiceJs));
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
 console.log("\nOK - voice-lang");
