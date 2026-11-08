@@ -22,6 +22,8 @@ server/usage-events.jsonl*
 server/usage_index.db*
 server/session_brain.db*
 server/metrics_cache.json
+server/stt_models.json
+server/stt_gate/
 server/settings.json
 server/plugins.json
 server/plugins/

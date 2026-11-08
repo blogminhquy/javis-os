@@ -35,7 +35,9 @@
    2026-11-06 (later): the bubble is gone. Owner: in the old version the words appeared right in the chat box, not up
    above like an answer. A computer writes them into the box while speaking again; when the recording ends the main
    brain rewrites the whole sentence in context (dictate.js polish, server/transcript_fix.py) and THAT sentence lands
-   in the box, or is sent when Send or Enter ended the recording. A phone still gets the text only at the end. */
+   in the box, or is sent when Send or Enter ended the recording. A phone still gets the text only at the end.
+
+   2026-11-08: a hidden tab no longer stops the recording (see dictate.js for how the background is handled). */
 (function () {
   "use strict";
 
@@ -261,6 +263,8 @@
         if (!final && live && S.state === "listening") writeInput(D.joinText(S.base, S.heard));
       },
       context: chatContext,
+      // The open chat: a partner's chat (or one pinned to a model) is heard by that model's vendor (2026-11-08).
+      session: function () { return window.JavisChatApi && window.JavisChatApi.sid ? window.JavisChatApi.sid() : ""; },
       onState: function (st) {
         var was = S.state;
         S.state = st;
@@ -338,8 +342,13 @@
         e.preventDefault(); e.stopPropagation(); sendNow();
       }
     }, true);
-    // A phone that locks or a tab switched away cuts the mic: keep what was heard instead of losing it.
-    document.addEventListener("visibilitychange", function () { if (document.hidden) stop(); });
+    // 2026-11-08: switching tab or app no longer stops the recording (owner: Alt Tab cut it off). It keeps going in
+    // the background; dictate.js picks up whatever the browser cut when the page comes back. Here only the level meter
+    // wakes up again: iOS suspends its AudioContext while the page is away.
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden || S.state !== "listening" || !S.ctx) return;
+      try { if (S.ctx.state !== "running" && S.ctx.resume) S.ctx.resume(); } catch (e) {}
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

@@ -8,6 +8,34 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.506.3] - 2026-11-08
+### Fixed
+- **Dictation no longer stops when you switch tab.** Alt Tab or another page while dictating, the computer keeps listening and the words are all there when you come back.
+- **On a phone it picks up again when you return.** A phone cuts the mic while the browser is in the background, so speech said in another app is not heard. What was already recorded is kept, and the mic reopens by itself when you come back to Javis, no new press needed.
+
+## [0.506.2] - 2026-11-08
+### Fixed
+- **Updating no longer "loses" teams.** When the page reopened while the server was still starting, Javis silently switched to Brain Default, so the Teams page listed another brain's teams and new teams were created there. Javis now always opens the brain you picked and keeps retrying until the brain list loads.
+- No team data was ever deleted: a team that "vanished" before is in the other brain, pick that brain in the brain selector to see it.
+
+## [0.506.1] - 2026-11-08
+### Fixed
+- **A background job that fails its automatic check no longer shows an empty "Type your answer" box.** Before, a finished job that failed the check moved to "needs your answer" even though there was no question.
+- **On the first miss the job goes back to its worker to fix**, using the checker's reason, without bothering you.
+- **Only a second miss reaches you**, as a card saying "Automatic check did not pass" with two buttons: **Fix and run again** or **Accept as is**. Checking a finished job again and failing shows the same two buttons.
+
+## [0.506.0] - 2026-11-08
+### Added
+- **Your ChatGPT plan hears your voice, no key needed.** Once ChatGPT is connected on the Models page, dictation, Basic calls and Telegram or Zalo voice messages are heard by the plan itself, and a Vietnamese sentence with English words keeps both languages.
+- **The ear follows the model in use.** With ChatGPT as the main brain the plan hears first; with Groq or OpenAI, that vendor's ear. Claude, Antigravity and Grok offer no ear on their plans, so Javis uses the best one it has.
+### Improved
+- **Agents hear with their own ear.** An agent on a vendor's model has its dedicated bot's voice messages and its chat's dictation heard by that vendor, not by the main brain's.
+- **Ears upgrade with the vendor, scored first.** Once a day Javis asks Groq, OpenAI and Google for their models. When a new one appears, it and the model in use hear the same Vietnamese and English sentences, and the new one is used only if it is not worse. When an ear fails the next one hears, so the sentence is not lost.
+
+## [0.505.2] - 2026-11-08
+### Fixed
+- **Zalo messages no longer slip past the inbox after a short connection drop.** Javis uses javis-zalo 1.9.1. When the Zalo connection dropped for under 5 seconds and came back on its own, the messages in between only reached the history, not the inbox or the bot. They now arrive live like any other message. One faulty message also no longer takes the rest of its batch down with it.
+
 ## [0.505.1] - 2026-11-08
 ### Fixed
 - **Bots no longer send "You've hit your monthly spend limit" to customers.** Once the Claude plan's monthly extra-usage cap was spent too, Claude Code printed a new notice Javis did not recognise, so a Zalo bot pasted that English line into its reply to a customer. It now counts as a failed turn like every other plan-limit notice: the customer receives nothing and the owner is told in the notification bell. Chat, Kanban jobs and workflows also read it as the plan running out, with the reset time.

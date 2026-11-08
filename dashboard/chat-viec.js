@@ -41,6 +41,8 @@
     // 0.411.0: an hourglass, not a warning sign: a paused job is Javis's to handle, not the owner's to fix.
     blocked: { ic: "hourglass", nhan: "viec.st_blocked" },
     hoi: { ic: "circle-help", nhan: "viec.st_hoi" },
+    // 2026-11-08: the acceptance check failed a finished job; the owner picks a button on the Tasks page.
+    kiem: { ic: "circle-alert", nhan: "viec.st_kiem" },
     failed: { ic: "circle-x", nhan: "viec.st_failed" },
     timeout: { ic: "hourglass", nhan: "viec.st_timeout" },
     cancelled: { ic: "circle-stop", nhan: "viec.st_cancelled" },

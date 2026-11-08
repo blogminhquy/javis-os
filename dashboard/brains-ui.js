@@ -44,7 +44,9 @@
   // và entry mà path KHÔNG còn là thư mục (đã xoá khỏi ổ đĩa). Giữ folder ngoài hợp lệ + entry
   // chưa xác định được (tránh xoá nhầm khi server chớp lỗi). Nguồn sự thật là localStorage nên
   // dọn cả nó → lần app.js render sau vẫn đúng, không "sống lại" qua update.
+  // Returns true when it moved the selection off a removed folder (it then fired `change` itself).
   async function pruneCustomBrains(realBrains) {
+    let moved = false;
     let list;
     try { list = JSON.parse(localStorage.getItem("javis.brains") || "[]"); }
     catch (e) { list = []; }
@@ -70,6 +72,7 @@
         sel.value = "brain";
         localStorage.setItem("javis.graphSource", "brain");
         sel.dispatchEvent(new Event("change"));
+        moved = true;
       }
       o.remove();
     });
@@ -78,16 +81,45 @@
     [...sel.querySelectorAll("optgroup")].forEach((g) => {
       if (!g.querySelector || !g.querySelector("option")) g.remove();
     });
+    return moved;
+  }
+
+  // The first load of the list is retried until it arrives: until then the picker only holds Brain Default, the
+  // external folders and the provisional option app.js made for the saved brain, so the owner could not switch brains.
+  // Before 08/11/2026 a failed first load (the page opened while the server restarted after an update) was never
+  // retried, and the saved brain was never restored for the whole visit.
+  const RETRY_MS = [2000, 3000, 5000, 8000, 13000, 20000, 30000];
+  let retries = 0, retryTimer = null;
+
+  async function fetchBrains() {
+    try {
+      const resp = await fetch("/brains");
+      if (!resp || resp.ok === false) return null;
+      const data = await resp.json();
+      return data && Array.isArray(data.brains) ? data : null;
+    } catch (e) {
+      return null;
+    }
   }
 
   async function loadBrains(selectPath, restoreSaved) {
-    let data;
-    try {
-      data = await (await fetch("/brains")).json();
-    } catch (e) {
-      return; // server chưa sẵn sàng → giữ nguyên dropdown, thử lại lần sau
+    const data = await fetchBrains();
+    if (!data) {
+      // server chưa sẵn sàng → giữ nguyên dropdown. The boot load tries again; a reload asked later keeps the list it has.
+      if (restoreSaved && !retryTimer) {
+        const wait = RETRY_MS[Math.min(retries, RETRY_MS.length - 1)];
+        retries += 1;
+        retryTimer = setTimeout(() => { retryTimer = null; loadBrains(selectPath, restoreSaved); }, wait);
+      }
+      return;
     }
-    const brains = (data && data.brains) || [];
+    retries = 0;
+    // Another load got the list while the boot load waited to try again: it finishes the boot's job (restore the saved
+    // brain) instead of a second fetch later.
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; restoreSaved = true; }
+    const brains = data.brains;
+    // Redrawing the list is not a brain switch: the brain in use before is selected again afterwards, silently.
+    const before = sel.value;
     [...sel.querySelectorAll("option[data-brain]")].forEach((o) => o.remove());
 
     const defOpt = sel.querySelector('option[value="brain"]');
@@ -111,7 +143,19 @@
     else sel.appendChild(frag);
 
     // Dọn folder ngoài hỏng/trùng TRƯỚC khi khôi phục lựa chọn (đừng khôi phục về path đã chết).
-    await pruneCustomBrains(brains);
+    const moved = await pruneCustomBrains(brains);
+    const has = (v) => [...sel.options].some((o) => o.value === v);
+    if (!moved) {
+      if (!before || has(before)) {
+        if (before && sel.value !== before) sel.value = before;
+      } else {
+        // The brain in use is gone from the list: deleted (here or on another device), or the saved choice app.js
+        // selected at startup no longer exists. Go to Brain Default and say so, so every page follows.
+        sel.value = "brain";
+        localStorage.setItem("javis.graphSource", "brain");
+        sel.dispatchEvent(new Event("change"));
+      }
+    }
 
     if (selectPath) {
       const want = "path:" + selectPath;

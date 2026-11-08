@@ -6,6 +6,34 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.506.3] - 2026-11-08
+### Sửa lỗi
+- **Chép lời không còn dừng khi chuyển tab.** Đang ghi âm thành chữ mà Alt Tab hay chuyển sang trang khác, máy tính vẫn nghe tiếp, quay lại là chữ vẫn đủ.
+- **Trên điện thoại, quay lại là ghi tiếp.** Điện thoại tắt mic khi trình duyệt chạy nền, nên đoạn nói lúc ở app khác không nghe được. Nhưng đoạn đã ghi không bị mất, và mic tự mở lại khi quay về Javis, không cần bấm lại.
+
+## [0.506.2] - 2026-11-08
+### Sửa lỗi
+- **Cập nhật xong không còn "mất" nhóm.** Trang mở lại đúng lúc máy chủ đang khởi động thì Javis lặng lẽ chuyển sang Brain Default, nên trang Nhóm hiện nhóm của brain khác và nhóm mới tạo cũng rơi vào đó. Nay Javis luôn mở đúng brain anh chị đã chọn, và tự thử lại tới khi lấy được danh sách brain.
+- Dữ liệu nhóm chưa từng bị xoá: nhóm nào "biến mất" trước đây vẫn nằm ở brain còn lại, chọn brain đó ở ô chọn brain là thấy.
+
+## [0.506.1] - 2026-11-08
+### Sửa lỗi
+- **Việc nền trượt lượt tự kiểm không còn hiện ô "Gõ câu trả lời" trống.** Trước đây việc chạy xong mà máy tự kiểm thấy chưa đạt thì chuyển sang "cần bạn trả lời" dù chẳng có câu hỏi nào.
+- **Trượt lần đầu, việc tự quay lại cho người làm sửa** theo đúng lý do máy chấm, bạn không bị làm phiền.
+- **Trượt lần hai mới tới bạn**, thẻ ghi rõ "Máy tự kiểm chưa qua" kèm hai nút: **Sửa rồi chạy lại** hoặc **Chấp nhận như vậy**. Bấm kiểm lại một việc đã xong mà trượt thì cũng hiện hai nút này.
+
+## [0.506.0] - 2026-11-08
+### Thêm mới
+- **Gói ChatGPT nghe giọng luôn, không cần key.** Đã nối ChatGPT ở trang Models là mic đọc chữ, cuộc gọi đường Cơ bản và tin thoại Telegram, Zalo được chính gói ChatGPT nghe, câu Việt xen tiếng Anh giữ đúng cả hai thứ tiếng.
+- **Tai nghe tự theo model đang dùng.** Bộ não chính là ChatGPT thì gói ChatGPT nghe trước, là Groq hay OpenAI thì tai của hãng đó. Claude, Antigravity và Grok không mở cổng nghe cho gói của họ, nên Javis dùng tai tốt nhất đang có.
+### Cải thiện
+- **Agent nghe bằng tai của chính nó.** Agent chọn model hãng nào thì tin thoại gửi bot chuyên trách và lời đọc trong khung chat của agent đó được hãng ấy nghe, không mượn tai của bộ não chính.
+- **Model nghe tự lên đời theo hãng, có chấm điểm trước.** Mỗi ngày Javis hỏi Groq, OpenAI và Google danh sách model. Gặp bản mới, Javis cho bản mới và bản đang dùng cùng nghe một bộ câu Việt xen Anh, bản mới không tệ hơn mới được dùng. Một tai hỏng thì tai kế tiếp nghe thay, câu nói không bị mất.
+
+## [0.505.2] - 2026-11-08
+### Sửa lỗi
+- **Tin Zalo không còn lọt khỏi Hộp thư sau mỗi lần rớt mạng ngắn.** Javis dùng javis-zalo 1.9.1. Trước đây khi kết nối Zalo rớt dưới 5 giây rồi tự nối lại, tin nhắn trong lúc đó chỉ vào kho lịch sử, không tới Hộp thư và bot. Giờ chúng tới ngay như tin thường. Một tin lỗi cũng không còn kéo mất các tin đi cùng lô với nó.
+
 ## [0.505.1] - 2026-11-08
 ### Sửa lỗi
 - **Bot không còn gửi câu "You've hit your monthly spend limit" cho khách.** Khi gói Claude hết cả hạn mức chi thêm theo tháng, Claude Code in ra một câu mới mà Javis chưa nhận ra, nên bot Zalo dán nguyên câu tiếng Anh đó vào tin trả lời khách. Nay câu này được coi là lượt hỏng như mọi câu báo hết lượt khác: khách không nhận gì, chủ được báo ở chuông thông báo. Khung chat, việc Kanban và workflow cũng nhận ra nó là hết lượt gói, kèm giờ mở lại.

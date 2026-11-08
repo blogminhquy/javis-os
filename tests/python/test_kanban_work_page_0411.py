@@ -208,10 +208,12 @@ def test_verify_marks_checked_or_sends_the_job_back_with_the_reason(tmp_path):
     _finish(s, bad_id, metadata=dict(meta))
     _verify(feature, brain, bad_id, (False, "Only 2 sections in a.md", "ai"))
     t = s.get_task(bad_id)
-    assert t["status"] == "blocked" and t["block_kind"] == "needs_input"
+    # 2026-11-08: not a question with no question in it. The owner asked for this check, so the job waits for the
+    # owner's pick (fix and run again, or accept as is) instead of an empty reply box.
+    assert t["status"] == "blocked" and t["block_kind"] == "acceptance_failed"
     assert "Only 2 sections" in t["block_reason"] and t["metadata"]["acceptance_check"] == "failed"
-    # The reply box answers it like any question and the job runs again.
-    got, err = s.answer(bad_id, "Add the missing section")
+    assert TasksFeature._cau_hoi_dang_cho(t) == ""
+    got, err = s.resolve_acceptance(bad_id, "fix")
     assert got and got["status"] == "ready", err
     s.close()
 
