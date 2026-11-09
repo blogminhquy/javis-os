@@ -95,7 +95,9 @@
       "refresh-cw",
       "log-in",
       "unplug",
-      "plug-zap"
+      "plug-zap",
+      "archive",
+      "archive-restore"
     ],
     "dieu-huong": [
       "chevron-down",

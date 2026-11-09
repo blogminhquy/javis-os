@@ -758,9 +758,12 @@ class SessionStore:
                 "VALUES (?, ?, ?, ?, ?, ?)",
                 (session_id, role, stored, now, tc_json, client_msg_id or None),
             )
+            # 2026-11-09: a new message from a person brings an archived chat back to the list (like a mail reply).
+            # Javis's own replies and background reports do not: a report into an archived chat stays out of sight.
             conn.execute(
-                "UPDATE sessions SET msg_count = msg_count + 1, updated_at = ? WHERE id = ?",
-                (now, session_id),
+                "UPDATE sessions SET msg_count = msg_count + 1, updated_at = ?, "
+                "archived = CASE WHEN ? THEN 0 ELSE archived END WHERE id = ?",
+                (now, 1 if role == "user" else 0, session_id),
             )
             if report and report.get("key") and report.get("goal_id"):
                 conn.execute(
@@ -1377,7 +1380,8 @@ class SessionStore:
                       include_archived: bool = False,
                       project: Optional[str] = None,
                       channel: Optional[str] = None,
-                      also_channels: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+                      also_channels: Optional[List[str]] = None,
+                      archived_only: bool = False) -> List[Dict[str, Any]]:
         """Danh sách hội thoại, MỤC GHIM luôn nằm trên đầu.
 
         `project`: bỏ trống = tất cả; "none" = các cuộc chưa xếp vào project nào;
@@ -1395,14 +1399,55 @@ class SessionStore:
         `also_channels` (0.65.0): kênh phụ được gộp vào khi đã chọn `channel`. Lịch sử của một Agent gồm cả
         hội thoại của các bot chuyên trách dùng Agent đó (`bot:<tên>`), nên trang Cộng sự truyền chúng vào đây.
         Mặc định (không chọn kênh) loại cả kênh cộng sự lẫn kênh bot khỏi lịch sử trang Trò chuyện.
+
+        `archived_only` (2026-11-09): only the archived chats (the "Archived" view of the history column).
         """
+        where_sql, params = self._list_where(brain, include_archived, project, channel, also_channels, archived_only)
+        params.append(limit)
+        rows = self._read(
+            f"""
+            SELECT s.id, s.title, s.brain, s.engine, s.model, s.channel, s.cli_session_id,
+                   s.created_at, s.updated_at, s.msg_count,
+                   s.pinned, s.project_id, s.pinned_provider, s.pinned_model, s.archived,
+                   (SELECT substr(content, 1, 80) FROM messages
+                    WHERE session_id = s.id AND role = 'user'
+                    ORDER BY ts, id LIMIT 1) AS preview,
+                   {UNREAD_SQL} AS unread
+            FROM sessions s
+            LEFT JOIN pin_order po ON po.session_id = s.id
+            {where_sql}
+            -- rowid breaks a tie on updated_at (two writes in one time.time() tick): the
+            -- row created later counts as newer, never left to SQLite's scan order.
+            -- 0.454.0: pinned chats keep the order the owner dragged them into (table pin_order),
+            -- unordered pinned ones after them; chats that are not pinned stay newest first.
+            ORDER BY s.pinned DESC,
+                     CASE WHEN s.pinned = 1 THEN (po.pos IS NULL) ELSE 0 END,
+                     CASE WHEN s.pinned = 1 THEN po.pos ELSE 0 END,
+                     s.updated_at DESC, s.rowid DESC
+            LIMIT ?
+            """,
+            tuple(params),
+        )
+        return [{**dict(r), "unread": bool(r["unread"]), "archived": bool(r["archived"])} for r in rows]
+
+    def count_archived(self, brain: Any = None, project: Optional[str] = None, channel: Optional[str] = None,
+                       also_channels: Optional[List[str]] = None) -> int:
+        """How many archived chats the same list would have (the count on the history column's "Archived" row)."""
+        where_sql, params = self._list_where(brain, True, project, channel, also_channels, True)
+        rows = self._read(f"SELECT COUNT(*) AS n FROM sessions s {where_sql}", tuple(params))
+        return int(rows[0]["n"]) if rows else 0
+
+    def _list_where(self, brain, include_archived, project, channel, also_channels, archived_only):
+        """The WHERE of list_sessions and count_archived, so the list and its count never disagree."""
         where = []
         params: list = []
         cond, bparams = loc_brain(brain)
         if cond:
             where.append(cond)
             params += bparams
-        if not include_archived:
+        if archived_only:
+            where.append("s.archived = 1")
+        elif not include_archived:
             where.append("s.archived = 0")
         if project == "none":
             where.append("(s.project_id IS NULL OR s.project_id = '')")
@@ -1423,32 +1468,7 @@ class SessionStore:
                 where.append("s.channel NOT LIKE ?")
                 params.append(tien_to + "%")
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
-        params.append(limit)
-        rows = self._read(
-            f"""
-            SELECT s.id, s.title, s.brain, s.engine, s.model, s.channel, s.cli_session_id,
-                   s.created_at, s.updated_at, s.msg_count,
-                   s.pinned, s.project_id, s.pinned_provider, s.pinned_model,
-                   (SELECT substr(content, 1, 80) FROM messages
-                    WHERE session_id = s.id AND role = 'user'
-                    ORDER BY ts, id LIMIT 1) AS preview,
-                   {UNREAD_SQL} AS unread
-            FROM sessions s
-            LEFT JOIN pin_order po ON po.session_id = s.id
-            {where_sql}
-            -- rowid breaks a tie on updated_at (two writes in one time.time() tick): the
-            -- row created later counts as newer, never left to SQLite's scan order.
-            -- 0.454.0: pinned chats keep the order the owner dragged them into (table pin_order),
-            -- unordered pinned ones after them; chats that are not pinned stay newest first.
-            ORDER BY s.pinned DESC,
-                     CASE WHEN s.pinned = 1 THEN (po.pos IS NULL) ELSE 0 END,
-                     CASE WHEN s.pinned = 1 THEN po.pos ELSE 0 END,
-                     s.updated_at DESC, s.rowid DESC
-            LIMIT ?
-            """,
-            tuple(params),
-        )
-        return [{**dict(r), "unread": bool(r["unread"])} for r in rows]
+        return where_sql, params
 
     def mark_read(self, session_id: str, at: Optional[float] = None) -> bool:
         """The owner has this chat on screen: every message up to now is read. False when no such chat exists yet
@@ -1458,6 +1478,12 @@ class SessionStore:
             "INSERT INTO session_read(session_id, read_at) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM sessions WHERE id = ?) "
             "ON CONFLICT(session_id) DO UPDATE SET read_at = excluded.read_at WHERE session_read.read_at < excluded.read_at",
             (session_id, when, session_id)).rowcount))
+
+    def mark_unread(self, session_id: str) -> bool:
+        """"Mark as unread" from the chat's menu (2026-11-09): forget when it was read, so its replies count as new
+        again and the dot comes back. Only chats whose channel shows a dot at all (UNREAD_SQL) get one."""
+        self._write(lambda c: c.execute("DELETE FROM session_read WHERE session_id = ?", (session_id,)))
+        return self.is_unread(session_id)
 
     def is_unread(self, session_id: str) -> bool:
         rows = self._read(f"SELECT {UNREAD_SQL} AS unread FROM sessions s WHERE s.id = ?", (session_id,))
@@ -1886,9 +1912,11 @@ class SessionStore:
         self._write(_del)
 
     def archive(self, session_id: str, archived: bool = True) -> None:
+        # updated_at stays (2026-11-09): archiving is not activity, so a chat brought back sits at its own date in the
+        # list instead of jumping to the top as if someone had just written in it.
         self._write(lambda c: c.execute(
-            "UPDATE sessions SET archived = ?, updated_at = ? WHERE id = ?",
-            (1 if archived else 0, time.time(), session_id),
+            "UPDATE sessions SET archived = ? WHERE id = ?",
+            (1 if archived else 0, session_id),
         ))
 
     def archive_stale(self, channel: str, before_ts: float) -> int:
@@ -2150,7 +2178,8 @@ class SessionStore:
                 sql = f"""
                     SELECT m.session_id, m.role, m.ts,
                            snippet(messages_fts, 0, '>>>', '<<<', '…', 12) AS snippet,
-                           s.title, s.brain, s.engine, s.updated_at, COALESCE(s.pinned, 0) AS pinned
+                           s.title, s.brain, s.engine, s.updated_at, COALESCE(s.pinned, 0) AS pinned,
+                           COALESCE(s.archived, 0) AS archived, s.project_id, s.channel
                     FROM messages_fts
                     JOIN messages m ON m.id = messages_fts.rowid
                     JOIN sessions s ON s.id = m.session_id
@@ -2169,7 +2198,8 @@ class SessionStore:
         sql = f"""
             SELECT m.session_id, m.role, m.ts,
                    substr(m.content, max(1, instr(m.content, ?) - 30), 120) AS snippet,
-                   s.title, s.brain, s.engine, s.updated_at, COALESCE(s.pinned, 0) AS pinned
+                   s.title, s.brain, s.engine, s.updated_at, COALESCE(s.pinned, 0) AS pinned,
+                   COALESCE(s.archived, 0) AS archived, s.project_id, s.channel
             FROM messages m
             JOIN sessions s ON s.id = m.session_id
             WHERE m.content LIKE ? ESCAPE '\\'{brain_clause}

@@ -396,20 +396,28 @@
     ghi(dinhDangBoNho(r.d));
   }
 
-  async function lenhExport() {
+  // Download one chat as a .md file. Returns the file name, or "" when the chat has no message to export. Shared by
+  // /export (the chat on screen) and "Export as .md" in the history menu (any chat, 2026-11-09).
+  async function xuatHoiThoai(sid) {
+    if (!sid) return "";
     var a = chatApi();
-    var sid = a.sid();
-    if (!sid) return ghi(tw("lenh.ex_none"));
     var r = await layJson("/sessions/" + encodeURIComponent(sid));
-    if (!r.ok || !r.d || !(r.d.messages || []).length) return ghi(tw("lenh.ex_none"));
+    if (!r.ok || !r.d || !(r.d.messages || []).length) return "";
     var ngay = new Date().toISOString().slice(0, 10);
-    var md = dinhDangXuat(r.d, new Date().toLocaleString(), a.sach);
+    var md = dinhDangXuat(r.d, new Date().toLocaleString(), a && a.sach);
     var ten = tenFileXuat(r.d.title, ngay);
     var url = URL.createObjectURL(new Blob([md], { type: "text/markdown;charset=utf-8" }));
     var link = document.createElement("a");
     link.href = url; link.download = ten;
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    return ten;
+  }
+
+  async function lenhExport() {
+    var a = chatApi();
+    var ten = await xuatHoiThoai(a.sid());
+    if (!ten) return ghi(tw("lenh.ex_none"));
     ghi(tw("lenh.ex_done", { ten: ten }));
   }
 
@@ -661,6 +669,7 @@
     },
     docVong: docVong,
     vongHtml: vongHtml,
+    xuatHoiThoai: xuatHoiThoai,
     ketThucMucTieu: ketThucMucTieu,
   };
 
