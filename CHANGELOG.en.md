@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.521.0] - 2026-11-09
+### Improved
+- **Answers stretch across the whole chat instead of leaving a wide gap on the right:** on the Partners page an answer now reaches the right edge of your own messages (on an iPad from about 780px to over 1,000px), so there is much less scrolling. On a very wide monitor it stops at about 120 letters per line so reading stays easy.
+- **The Chat and Teams pages follow the same rule:** answers are as wide as the chat column, and agent replies in a team are no longer held at 680px.
+
 ## [0.520.0] - 2026-11-09
 ### Added
 - **Export and upload a whole brain as one .zip file:** each row of the brain picker has an Export button. The file carries notes, images, agents, skills, workflows and memory, and leaves out tokens, raw chats and git history. "Upload a brain (.zip)" always makes a new brain and never overwrites one. Plugins, loops and reminders that come with the file arrive switched off; turn them on where they live if you want them. There is no fixed size limit: the server takes what its free disk can hold, up to a million files. Packing and unpacking run in the background with progress, and the upload goes in 32MB pieces, so a large brain still gets through Cloudflare Tunnel.
