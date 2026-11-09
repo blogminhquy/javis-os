@@ -22,9 +22,16 @@
 .mk-muted { color: var(--text3); }
 .mk-sp { flex: 1; }
 
+/* Page frame: the tab bar stays put and only the content under it scrolls (the shared page body
+ * stops scrolling while this page is open). */
+.cview-body:has(> .mk-root) { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 0; }
+.cview-body > .mk-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cview-body > .mk-root > #mkBody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: 24px; scrollbar-gutter: stable; }
+
 /* toolbar: one low row */
-.mk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; position: sticky; top: 0; z-index: 3;
-  background: var(--bg); padding: 4px 0 8px; }
+.mk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: none; padding: 0 0 10px;
+  margin-bottom: 4px; border-bottom: 1px solid var(--hairline); }
 .mk-seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 12px; background: var(--surface-2); max-width: 100%; }
 .mk-segb { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 0; border-radius: 9px; background: none;
   color: var(--text2); font-weight: 600; cursor: pointer; white-space: nowrap; }
