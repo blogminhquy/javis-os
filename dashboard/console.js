@@ -619,7 +619,8 @@
     // 0.422.0: the Tasks page carries its own title at the top of its left column (owner's design), no page header.
     if (cv) cv.classList.toggle("cview-nv", id === "tasks");
     // 2026-11-09 (owner): the Account page's own Account | Security tabs sit at the very top, no page header above them.
-    if (cv) cv.classList.toggle("cview-tk", id === "account");
+    // The Webhook page does the same with its Webhook | Token API tabs.
+    if (cv) cv.classList.toggle("cview-tk", id === "account" || id === "webhooks");
     _renderGen++;   // đổi trang → vô hiệu mọi render async đang dở (guard bổ sung cho renderer đã có)
     // 0.417.0: code của trang này có thể chưa nạp (nap-cham.js). Chờ ĐỦ nhóm rồi mới vẽ; trong lúc chờ mà người dùng đã
     // sang trang khác thì dừng hẳn, đừng vẽ (renderWorkspace mượn khung chat: vẽ vào trang đã tháo là mất khung chat).
@@ -2322,6 +2323,7 @@
   // (form, thanh toán), không phải việc chạy theo giờ, nên đứng thành một mục riêng trong nhóm Việc.
   // Phần ruột vẫn là dashboard/webhooks.js (0.198.0).
   // ============================================
+  const WH_TAB_KEY = "javis.webhooks.tab";
   async function renderWebhooks(el) {
     _injectExtraCss();
     const myGen = _renderGen;
@@ -2329,7 +2331,32 @@
       el.innerHTML = placeholder("webhooks", window.t("cs.mod_not_ready", { ten: "webhooks.js" }));
       return;
     }
-    el.innerHTML = `<div class="cview-section"><div id="whSection"></div></div>`;
+    // 2026-11-09 (owner): one page for every door another app uses to call Javis: Webhook | Token API.
+    let whTab = "hooks";
+    try { if (localStorage.getItem(WH_TAB_KEY) === "tokens") whTab = "tokens"; } catch (e) {}
+    el.innerHTML = `
+      <div class="wh-tabs-page">
+        <div class="ach-tabs tabs-top" role="tablist" aria-label="${esc(t("page.webhooks.label"))}">
+          <button type="button" role="tab" data-wh-tab="hooks" aria-controls="whPanelHooks" aria-selected="${whTab === "hooks"}" tabindex="${whTab === "hooks" ? 0 : -1}">${ic("webhook")}<span>Webhook</span></button>
+          <button type="button" role="tab" data-wh-tab="tokens" aria-controls="whPanelTokens" aria-selected="${whTab === "tokens"}" tabindex="${whTab === "tokens" ? 0 : -1}">${ic("key-round")}<span>${esc(t("cs.ac_tk_head"))}</span></button>
+        </div>
+        <div id="whPanelHooks" role="tabpanel" ${whTab === "hooks" ? "" : "hidden"}><div class="cview-section"><div id="whSection"></div></div></div>
+        <div id="whPanelTokens" role="tabpanel" ${whTab === "tokens" ? "" : "hidden"}></div>
+      </div>`;
+    let tokensDrawn = false;
+    const showWhTab = (key) => {
+      try { localStorage.setItem(WH_TAB_KEY, key); } catch (e) {}
+      el.querySelectorAll("[data-wh-tab]").forEach(b => {
+        const on = b.dataset.whTab === key;
+        b.setAttribute("aria-selected", String(on));
+        b.tabIndex = on ? 0 : -1;
+      });
+      el.querySelector("#whPanelHooks").hidden = key !== "hooks";
+      el.querySelector("#whPanelTokens").hidden = key !== "tokens";
+      if (key === "tokens" && !tokensDrawn) { tokensDrawn = true; renderTokenPanel(el.querySelector("#whPanelTokens")); }
+    };
+    el.querySelectorAll("[data-wh-tab]").forEach(b => { b.onclick = () => showWhTab(b.dataset.whTab); });
+    showWhTab(whTab);
     let brains = [];
     try {
       const d = await (await fetch("/brains")).json();
@@ -7056,7 +7083,7 @@
     try { if (localStorage.getItem(AC_TAB_KEY) === "security") acTab = "security"; } catch (e) {}
     el.innerHTML = `
       <div class="ach ac-page">
-      <div class="ach-tabs" role="tablist" aria-label="${esc(t("page.account.label"))}">
+      <div class="ach-tabs tabs-top" role="tablist" aria-label="${esc(t("page.account.label"))}">
         <button type="button" role="tab" data-ac-tab="account" aria-controls="acPanelAccount" aria-selected="${acTab === "account"}" tabindex="${acTab === "account" ? 0 : -1}">${ic("user")}<span>${esc(t("sec.tab_account"))}</span></button>
         <button type="button" role="tab" data-ac-tab="security" aria-controls="acPanelSecurity" aria-selected="${acTab === "security"}" tabindex="${acTab === "security" ? 0 : -1}">${ic("shield")}<span>${esc(t("sec.tab_security"))}</span><i class="ach-dot" id="secTabDot" aria-hidden="true"></i></button>
       </div>
@@ -7082,27 +7109,6 @@
             ${auth.has_password ? '<button class="gcard-btn ghost" id="acLogout">' + esc(window.t("cs.ac_logout")) + '</button><button class="gcard-btn ghost" id="acDisable">' + esc(window.t("cs.ac_disable")) + '</button>' : ""}
           </div>
           <div class="gcard-meta" id="acStatus"></div>
-        </div>
-      </div>
-      <div class="cview-section">
-        <h3>${esc(window.t("cs.ac_tk_head"))}${infoBtn()}</h3>
-        ${infoBody(`${esc(window.t("cs.ac_tk_intro_a"))} <b>Javis CLI</b> ${esc(window.t("cs.ac_tk_intro_b"))}`)}
-        <div class="gcard" style="max-width:560px">
-          <label class="js-lbl">${esc(window.t("cs.ac_tk_name"))}</label>
-          <input class="js-input" id="tkName" placeholder="${esc(window.t("cs.ac_tk_name_ph"))}">
-          <label class="js-lbl">${esc(window.t("cs.ac_tk_scope"))}</label>
-          <select class="js-input" id="tkScope">
-            <option value="chat">${esc(window.t("cs.ac_tk_scope_chat"))}</option>
-            <option value="full">${esc(window.t("cs.ac_tk_scope_full"))}</option>
-          </select>
-          <div class="js-actions"><button class="gcard-btn" id="tkCreate">${esc(window.t("cs.ac_tk_create"))}</button></div>
-          <div class="gcard-meta" id="tkStatus"></div>
-          <div id="tkNew"></div>
-          <div id="tkList" class="tk-list"></div>
-          <div class="tk-docs">
-            <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/24-cli-terminal.md" target="_blank" rel="noopener">${esc(window.t("cs.ac_doc_cli"))} ↗</a>
-            <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/14-bao-mat-tai-khoan.md" target="_blank" rel="noopener">${esc(window.t("cs.ac_doc_sec"))} ↗</a>
-          </div>
         </div>
       </div>
       </div>
@@ -7155,40 +7161,6 @@
       };
     });
     renderSecurity();
-    renderTokens();
-    document.getElementById("tkCreate").onclick = async () => {
-      const st = document.getElementById("tkStatus");
-      st.textContent = window.t("cs.ac_creating");
-      const fd = new FormData();
-      fd.append("name", document.getElementById("tkName").value.trim());
-      fd.append("scope", document.getElementById("tkScope").value);
-      let r;
-      try { r = await (await fetch("/auth/tokens", { method: "POST", body: fd })).json(); }
-      catch (e) { st.innerHTML = WARN_ICON + " " + esc(window.t("cs.ch_net_err")); return; }
-      if (!r.ok) { st.innerHTML = Icons.warn(r.error || window.t("cs.ac_tk_fail")); return; }
-      st.textContent = "";
-      document.getElementById("tkName").value = "";
-      // Bản thô hiện ĐÚNG một lần. Trên đĩa chỉ còn bản băm nên không có đường nào xem lại,
-      // và nói thẳng điều đó ra ngay tại đây thay vì để người dùng phát hiện lúc F5.
-      document.getElementById("tkNew").innerHTML = `
-        <div class="tk-new">
-          <div class="tk-new-hd">${OK_ICON} ${esc(window.t("cs.ac_tk_new_hd"))}</div>
-          <code class="tk-code" id="tkRaw">${esc(r.token || "")}</code>
-          <div class="js-actions">
-            <button class="gcard-btn" id="tkCopy">Copy</button>
-            <button class="gcard-btn ghost" id="tkHide">${esc(window.t("cs.ac_tk_hide"))}</button>
-          </div>
-          <div class="gcard-meta">${esc(window.t("cs.ac_tk_paste"))} <code>javis login ${esc(location.origin)} --token &lt;token&gt;</code></div>
-          <div class="gcard-meta">${esc(window.t("cs.ac_tk_nocli"))} <code>pip install javis-cli</code> · <a class="tk-doclink" href="https://github.com/blogminhquy/javis-os/blob/main/docs/24-cli-terminal.md" target="_blank" rel="noopener">${esc(window.t("cs.ac_tk_seedoc"))} ↗</a></div>
-        </div>`;
-      document.getElementById("tkCopy").onclick = () => {
-        const c = document.getElementById("tkCopy");
-        try { navigator.clipboard.writeText(r.token || ""); c.textContent = window.t("cs.ac_copied"); }
-        catch (e) { c.textContent = window.t("cs.ac_copy_manual"); }
-      };
-      document.getElementById("tkHide").onclick = () => { document.getElementById("tkNew").innerHTML = ""; };
-      renderTokens();
-    };
     const wsStatus = document.getElementById("acWsStatus");
     document.getElementById("acWsSave").onclick = async () => {
       wsStatus.textContent = window.t("settings.saving");
@@ -7513,6 +7485,69 @@
       document.getElementById("tfaCopy").textContent = window.t("cs.ac_copied");
     };
     document.getElementById("tfaDone").onclick = () => location.reload();
+  }
+
+  // ---- Token API (CLI, scripts) ----
+  // 2026-11-09 (owner): moved from the Account page to the Integrations page ("Tích hợp"), tab Token API. A token is a door for
+  // another program (the `javis` CLI, a script, cron) to call Javis, like a webhook, not part of the owner's own sign-in.
+  function renderTokenPanel(box) {
+    if (!box) return;
+    box.innerHTML = `
+      <div class="cview-section">
+        <div class="gcard-meta tk-intro">${infoPair(`${esc(window.t("cs.ac_tk_intro_a"))} <b>Javis CLI</b> ${esc(window.t("cs.ac_tk_intro_b"))}`)}</div>
+        <div class="gcard" style="max-width:560px">
+          <label class="js-lbl">${esc(window.t("cs.ac_tk_name"))}</label>
+          <input class="js-input" id="tkName" placeholder="${esc(window.t("cs.ac_tk_name_ph"))}">
+          <label class="js-lbl">${esc(window.t("cs.ac_tk_scope"))}</label>
+          <select class="js-input" id="tkScope">
+            <option value="chat">${esc(window.t("cs.ac_tk_scope_chat"))}</option>
+            <option value="full">${esc(window.t("cs.ac_tk_scope_full"))}</option>
+          </select>
+          <div class="js-actions"><button class="gcard-btn" id="tkCreate">${esc(window.t("cs.ac_tk_create"))}</button></div>
+          <div class="gcard-meta" id="tkStatus"></div>
+          <div id="tkNew"></div>
+          <div id="tkList" class="tk-list"></div>
+          <div class="tk-docs">
+            <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/24-cli-terminal.md" target="_blank" rel="noopener">${esc(window.t("cs.ac_doc_cli"))} ↗</a>
+            <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/14-bao-mat-tai-khoan.md" target="_blank" rel="noopener">${esc(window.t("cs.ac_doc_sec"))} ↗</a>
+          </div>
+        </div>
+      </div>
+`;
+    renderTokens();
+    document.getElementById("tkCreate").onclick = async () => {
+      const st = document.getElementById("tkStatus");
+      st.textContent = window.t("cs.ac_creating");
+      const fd = new FormData();
+      fd.append("name", document.getElementById("tkName").value.trim());
+      fd.append("scope", document.getElementById("tkScope").value);
+      let r;
+      try { r = await (await fetch("/auth/tokens", { method: "POST", body: fd })).json(); }
+      catch (e) { st.innerHTML = WARN_ICON + " " + esc(window.t("cs.ch_net_err")); return; }
+      if (!r.ok) { st.innerHTML = Icons.warn(r.error || window.t("cs.ac_tk_fail")); return; }
+      st.textContent = "";
+      document.getElementById("tkName").value = "";
+      // Bản thô hiện ĐÚNG một lần. Trên đĩa chỉ còn bản băm nên không có đường nào xem lại,
+      // và nói thẳng điều đó ra ngay tại đây thay vì để người dùng phát hiện lúc F5.
+      document.getElementById("tkNew").innerHTML = `
+        <div class="tk-new">
+          <div class="tk-new-hd">${OK_ICON} ${esc(window.t("cs.ac_tk_new_hd"))}</div>
+          <code class="tk-code" id="tkRaw">${esc(r.token || "")}</code>
+          <div class="js-actions">
+            <button class="gcard-btn" id="tkCopy">Copy</button>
+            <button class="gcard-btn ghost" id="tkHide">${esc(window.t("cs.ac_tk_hide"))}</button>
+          </div>
+          <div class="gcard-meta">${esc(window.t("cs.ac_tk_paste"))} <code>javis login ${esc(location.origin)} --token &lt;token&gt;</code></div>
+          <div class="gcard-meta">${esc(window.t("cs.ac_tk_nocli"))} <code>pip install javis-cli</code> · <a class="tk-doclink" href="https://github.com/blogminhquy/javis-os/blob/main/docs/24-cli-terminal.md" target="_blank" rel="noopener">${esc(window.t("cs.ac_tk_seedoc"))} ↗</a></div>
+        </div>`;
+      document.getElementById("tkCopy").onclick = () => {
+        const c = document.getElementById("tkCopy");
+        try { navigator.clipboard.writeText(r.token || ""); c.textContent = window.t("cs.ac_copied"); }
+        catch (e) { c.textContent = window.t("cs.ac_copy_manual"); }
+      };
+      document.getElementById("tkHide").onclick = () => { document.getElementById("tkNew").innerHTML = ""; };
+      renderTokens();
+    };
   }
 
   // Danh sách token. Chỉ có tiền tố + tên: máy chủ không giữ bản thô nên UI cũng không có gì

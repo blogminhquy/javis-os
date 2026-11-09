@@ -1,4 +1,5 @@
-/* Trang Cài đặt > Token API: chỗ DUY NHẤT tạo được credential cho Javis CLI.
+/* Trang Tích hợp > Token API: chỗ DUY NHẤT tạo được credential cho Javis CLI.
+   (Từ 2026-11-09 nằm ở trang Tích hợp, tab Token API; trước đó ở trang Tài khoản.)
 
        node tests/js/test_token_api_ui.js
 
@@ -28,10 +29,10 @@ const fails = [];
 const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); if (!cond) fails.push(name); };
 
 // ============================================================
-// 1. Có mặt trong trang Tài khoản
+// 1. Có mặt trong trang Tích hợp, tab Token API
 // ============================================================
-check("trang Cài đặt có mục Token API",
-  /<h3>\$\{esc\(window\.t\("cs\.ac_tk_head"\)\)\}(\$\{infoBtn\(\)\})?<\/h3>/.test(CON)
+check("trang Tích hợp có tab Token API",
+  /data-wh-tab="tokens"[^>]*>\$\{ic\("key-round"\)\}<span>\$\{esc\(t\("cs\.ac_tk_head"\)\)\}<\/span>/.test(CON)
   && /Token API/.test(VI["cs.ac_tk_head"] || ""));
 check("có ô đặt tên token", /id="tkName"/.test(CON));
 check("có chọn phạm vi", /id="tkScope"/.test(CON));
@@ -47,7 +48,7 @@ check("thu hồi gọi đúng đường", /fetch\("\/auth\/tokens\/revoke", \{ m
 // 2. Bản thô: hiện một lần, và nói rõ là một lần
 // ============================================================
 const khoiTao = CON.slice(CON.indexOf('document.getElementById("tkCreate").onclick'),
-                          CON.indexOf('const wsStatus = document.getElementById("acWsStatus")'));
+                          CON.indexOf("async function renderTokens()"));
 check("bóc được khối tạo token để soi", khoiTao.length > 200);
 check("bản thô lấy từ phản hồi lệnh TẠO", /esc\(r\.token \|\| ""\)/.test(khoiTao));
 check("CANARY: nói thẳng là đóng trang thì không xem lại được",
@@ -104,10 +105,18 @@ check("danh sách token có kiểu", /\.tk-row \{/.test(CSS));
 // "Cài đặt > Token API", trong khi mục đó do renderAccount() vẽ, tức là trang **Tài khoản**.
 // Người dùng vào Cài đặt, không thấy gì, và kết luận tính năng chưa có. Không một dòng lỗi nào
 // xuất hiện - đây đúng loại sai mà chỉ test mới bắt được, còn người thì đọc mãi vẫn trượt.
-check("mục Token API do renderAccount vẽ (tức là trang Tài khoản)",
-  /Token API/.test(VI["cs.ac_tk_head"] || "")
-  && CON.indexOf("async function renderAccount(") < CON.indexOf('cs.ac_tk_head')
-  && CON.indexOf('cs.ac_tk_head') < CON.indexOf("async function renderTokens("));
+// 2026-11-09 (owner): the token card moved to the Integrations ("Tích hợp") page. renderTokenPanel draws it, renderWebhooks mounts
+// it in the Token API tab, and the Account page no longer carries it.
+const khoiAcc = CON.slice(CON.indexOf("async function renderAccount("), CON.indexOf("async function renderTfa("));
+const khoiWh = CON.slice(CON.indexOf("async function renderWebhooks("), CON.indexOf("// Trang Tự học"));
+check("mục Token API do renderTokenPanel vẽ", /function renderTokenPanel\(box\)/.test(CON) && /id="tkCreate"/.test(
+  CON.slice(CON.indexOf("function renderTokenPanel("), CON.indexOf("async function renderTokens()"))));
+check("trang Tích hợp gắn mục đó vào tab Token API", /renderTokenPanel\(el\.querySelector\("#whPanelTokens"\)\)/.test(khoiWh));
+check("trang Tài khoản không còn mục Token API", khoiAcc.length > 500 && !/tkCreate|cs\.ac_tk_head/.test(khoiAcc));
+// The rail gives a label about 90px: "API & Webhook" was cut to "API & Webh...", so the page is called "Tích hợp"
+// (Integrations) and its sub line names both doors.
+check("tên trang ngắn, phụ đề nói rõ webhook và token API",
+  VI["page.webhooks.label"] === "Tích hợp" && /webhook/i.test(VI["page.webhooks.sub"] || "") && /token API/.test(VI["page.webhooks.sub"] || ""));
 
 const NOI = [
   ["cli/javis_cli/client.py", "thông báo 401 của CLI"],
@@ -120,10 +129,11 @@ for (const [f, ten] of NOI) {
   const t = fs.readFileSync(path.join(ROOT, f), "utf8");
   check(`CANARY: ${ten} không chỉ nhầm sang trang Cài đặt`,
     !/Cài đặt\s*(>|&gt;)\s*Token API/.test(t));
+  check(`${ten} không còn chỉ về chỗ cũ (Tài khoản > Token API)`, !/Tài khoản\*?\*?\s*(>|&gt;)\s*Token API/.test(t));
 }
 // Và phải chỉ ĐÚNG chỗ, chứ không phải chỉ "không sai".
 const DOC = fs.readFileSync(path.join(ROOT, "docs", "24-cli-terminal.md"), "utf8");
-check("tài liệu CLI chỉ đúng trang Tài khoản", /Tài khoản\s*(>|&gt;)?\s*.{0,40}Token API|\*\*Tài khoản\*\*/.test(DOC));
+check("tài liệu CLI chỉ đúng trang Tích hợp", /Tích hợp\*?\*?\s*(>|&gt;)\s*Token API/.test(DOC));
 
 // ============================================================
 // 7. Có đường sang tài liệu, và đường đó phải còn thật

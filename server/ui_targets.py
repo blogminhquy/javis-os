@@ -44,6 +44,9 @@ ALIASES = {
     "tu hoc": "tasks", "self improve": "tasks", "hoc": "learn",
     "viec dinh ky": "tasks", "nhac hen": "tasks",
     "webhook": "webhooks", "webhooks": "webhooks", "hook": "webhooks",
+    # 2026-11-09: the page is labelled "Tích hợp" (Integrations) and also holds the API tokens of the CLI.
+    "tich hop": "webhooks", "integration": "webhooks", "integrations": "webhooks", "token api": "webhooks",
+    "api token": "webhooks", "api": "webhooks",
     "kho dang nhap": "logins", "dang nhap": "logins", "cookie": "logins", "cookies": "logins",
     "logins": "logins", "login vault": "logins", "tai khoan dang nhap": "logins",
     "code": "terminal", "ma": "terminal", "nhat ky": "logs", "log": "logs",
