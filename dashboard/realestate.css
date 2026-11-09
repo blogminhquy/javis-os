@@ -151,3 +151,13 @@
   .re-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .re-kpi-v b, .re-root .re-kpi-v b { font-size: 20px; }
 }
+
+/* quarterly update: draft banner and update panel */
+.re-draft { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin: 10px 0 0; padding: 10px 14px; border-radius: 12px;
+  border: 1px solid var(--warn-line, rgba(210,160,60,.5)); background: var(--warn-wash, rgba(210,160,60,.12)); }
+.re-draft > .ic { color: var(--warn-ink); }
+.re-draft.on { border-color: var(--accent); background: var(--accent-wash, transparent); }
+.re-draft-t { flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.re-upd { margin: 10px 0 0; padding: 10px 14px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface-1); }
+.re-upd-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.re-chip.ok { color: var(--green); }

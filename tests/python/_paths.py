@@ -45,6 +45,8 @@ _os.environ["JAVIS_NO_REAL_REVIEW_ENGINE"] = "1"
 _os.environ["JAVIS_NO_REAL_TEAM_ENGINE"] = "1"
 # A test that boots the real server must not download a real browser on startup (0.375.0).
 _os.environ["JAVIS_SKIP_BROWSER"] = "1"
+# ... nor start the Markets background refresh, which would reach DNSE, Yahoo and CoinGecko.
+_os.environ["JAVIS_MARKET_BACKGROUND"] = "0"
 
 
 # ─────────── Thư mục tạm: một thư mục riêng cho mỗi tiến trình test, tự xoá khi thoát ───────────

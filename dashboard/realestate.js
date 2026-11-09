@@ -14,7 +14,12 @@
 (function () {
   "use strict";
 
-  var DATA_URL = "/static/realestate/data.json?v=1";
+  // The server serves the approved quarterly update when there is one, else the bundled file (realestate_store.py).
+  var DATA_URL = "/realestate/data";
+  var STATIC_URL = "/static/realestate/data.json?v=1";
+  // Quarterly refresh: the 20th of January, April, July and October at 09:00, after CBRE/DKRA/VARS publish.
+  var UPD_CRON = "0 9 20 1,4,7,10 *";
+  var UPD_MARK = "javis_realestate_draft";
   var NOW_YEAR = 2026;
   var SPANS = [20, 15, 10, 5, 2];
   // Colour follows the entity, never its rank: a series key or a region always gets the same slot.
@@ -36,9 +41,9 @@
     });
   }
   var ic = function (n) { return (typeof window !== "undefined" && window.ic) ? window.ic(n) : ""; };
-  function infoPair(html) {
+  function infoPair(html, label) {
     var J = typeof window !== "undefined" && window.JavisInfo;
-    return J ? J.pair(html, tw("info.more")) : '<div class="info-body">' + html + "</div>";
+    return J ? J.pair(html, label || tw("info.more")) : '<div class="info-body">' + html + "</div>";
   }
   function lang() {
     try { return (window.JavisI18n && window.JavisI18n.lang()) || "vi"; } catch (e) { return "vi"; }
@@ -402,6 +407,7 @@
     return '<div class="re-toolbar"><div class="re-seg">' + tabs + "</div><span class=\"re-sp\"></span>"
       + (asOf ? '<span class="re-chip">' + esc(tw("re.as_of", { p: asOf })) + "</span>" : "")
       + infoPair(esc(tw("re.disclaimer")))
+      + '<button type="button" class="re-btn" data-upd aria-expanded="' + (st.updOpen ? "true" : "false") + '">' + ic("refresh-cw") + esc(tw("re.upd.btn")) + "</button>"
       + '<button type="button" class="re-btn pri" data-ask>' + ic("message-circle") + esc(tw("re.ask")) + "</button></div>";
   }
 
@@ -410,7 +416,33 @@
     var regs = data.regions || [];
     var cur = regs.filter(function (r) { return r.id === st.region; })[0];
     var main = st.region === "compare" ? compareHtml(regs, st, lg) : (cur ? regionHtml(cur, st, lg) : "");
-    return '<div class="re-root">' + toolbarHtml(data, st, lg) + '<div class="re-main">' + main + "</div></div>";
+    return '<div class="re-root">' + toolbarHtml(data, st, lg) + draftBanner(st.meta, st.preview) + (st.updOpen ? updPanel(st.meta, st.sched) : "") +
+      '<div class="re-main">' + main + "</div></div>";
+  }
+
+  function fmtDate(ts) {
+    if (!ts) return "";
+    try { return new Date(ts * 1000).toLocaleDateString(locale(), { day: "2-digit", month: "2-digit", year: "numeric" }); } catch (e) { return ""; }
+  }
+  function draftBanner(meta, preview) {
+    var d = meta && meta.draft;
+    if (!d) return "";
+    return '<div class="re-draft' + (preview ? " on" : "") + '">' + ic("file-pen-line") + '<div class="re-draft-t"><b>' +
+      esc(tw(preview ? "re.upd.previewing" : "re.upd.draft", { n: (d.changed || []).length, d: fmtDate(d.at) })) + "</b>" +
+      (d.note ? infoPair(esc(d.note), tw("re.upd.note")) : "") + "</div>" +
+      '<button type="button" class="re-btn" data-upd-preview>' + ic(preview ? "eye-off" : "eye") + esc(tw(preview ? "re.upd.back" : "re.upd.preview")) + "</button>" +
+      '<button type="button" class="re-btn pri" data-upd-approve>' + ic("check") + esc(tw("re.upd.approve")) + "</button>" +
+      '<button type="button" class="re-btn" data-upd-discard>' + ic("x") + esc(tw("re.upd.discard")) + "</button></div>";
+  }
+  function updPanel(meta, sched) {
+    var src = meta && meta.source === "updated" ? tw("re.upd.src_updated", { d: fmtDate(meta.updated_at) }) : tw("re.upd.src_bundled");
+    var sc = sched === null || sched === undefined ? '<span class="re-muted">' + esc(tw("common.loading")) + "</span>"
+      : sched ? '<span class="re-chip ok">' + ic("calendar-check") + esc(tw("re.upd.sched_on", { next: sched.next || "" })) + "</span>" +
+        '<button type="button" class="re-btn" data-upd-unsched="' + esc(sched.id) + '">' + esc(tw("re.upd.sched_off")) + "</button>"
+      : '<button type="button" class="re-btn" data-upd-sched>' + ic("calendar-clock") + esc(tw("re.upd.sched_btn")) + "</button>";
+    return '<div class="re-upd"><div class="re-upd-row"><span class="re-chip">' + esc(src) + "</span>" + sc +
+      '<span class="re-sp"></span><button type="button" class="re-btn pri" data-upd-now>' + ic("sparkles") + esc(tw("re.upd.now")) + "</button>" +
+      infoPair(esc(tw("re.upd.info")), tw("re.upd.how")) + "</div></div>";
   }
 
   function askPrompt(data, st, lg) {
@@ -513,7 +545,81 @@
       _st.cmpKey = t.getAttribute("data-cmpkey"); render();
     } else if (t.hasAttribute("data-ask")) {
       askJavis(askPrompt(_data, _st, lang()));
+    } else if (t.hasAttribute("data-upd")) {
+      _st.updOpen = !_st.updOpen;
+      render();
+      if (_st.updOpen) loadSched();
+    } else if (t.hasAttribute("data-upd-now")) {
+      askJavis(tw("re.upd.prompt"));
+    } else if (t.hasAttribute("data-upd-sched")) {
+      makeSched(t);
+    } else if (t.hasAttribute("data-upd-unsched")) {
+      dropSched(t.getAttribute("data-upd-unsched"));
+    } else if (t.hasAttribute("data-upd-preview")) {
+      _st.preview = !_st.preview;
+      loadData(_el);
+    } else if (t.hasAttribute("data-upd-approve")) {
+      if (!confirm(tw("re.upd.approve_confirm"))) return;
+      post("/realestate/approve").then(function () { _st.preview = false; loadData(_el); });
+    } else if (t.hasAttribute("data-upd-discard")) {
+      if (!confirm(tw("re.upd.discard_confirm"))) return;
+      post("/realestate/discard").then(function () { _st.preview = false; loadData(_el); });
     }
+  }
+
+  function post(url, body) {
+    return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
+  }
+  function brainPath() {
+    try { if (window.currentBrainPath) return window.currentBrainPath(); } catch (e) {}
+    try { if (window.JavisChatApi && window.JavisChatApi.brain) return window.JavisChatApi.brain(); } catch (e) {}
+    return "brain";
+  }
+  // The quarterly job is an ordinary reminder (Tasks page, Recurring list), found again by the tool name in its text.
+  function loadSched() {
+    _st.sched = null;
+    return fetch("/reminders?brain=" + encodeURIComponent(brainPath())).then(function (r) { return r.json(); }).then(function (d) {
+      var all = (d.pending || []).concat(d.paused || []);
+      var hit = all.filter(function (x) { return String(x.text || "").indexOf(UPD_MARK) >= 0; })[0];
+      _st.sched = hit ? { id: hit.id, next: hit.due_human || "" } : false;
+      if (_st.updOpen) render();
+    }).catch(function () { _st.sched = false; if (_st.updOpen) render(); });
+  }
+  function makeSched(btn) {
+    btn.disabled = true;
+    post("/reminders", { text: tw("re.upd.prompt"), cron: UPD_CRON, mode: "task", label: tw("re.upd.label"), brain: brainPath(),
+      created_by: "user", allow_no_channel: true, muc_quyen: "auto" }).then(function (r) {
+      if (!r || !r.ok) { btn.disabled = false; alert((r && r.error) || tw("re.load_error")); return; }
+      loadSched();
+    });
+  }
+  function dropSched(id) {
+    var f = new FormData();
+    f.append("id", id);
+    f.append("brain", brainPath());
+    fetch("/reminders/cancel", { method: "POST", body: f }).then(function () { loadSched(); });
+  }
+  function loadData(el) {
+    return fetch(DATA_URL + (_st.preview ? "?draft=1" : "")).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function (res) {
+      _st.meta = { source: res.source, updated_at: res.updated_at, draft: res.draft };
+      if (!res.draft) _st.preview = false;
+      return res.data;
+    }).catch(function () {
+      return fetch(STATIC_URL).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+    }).then(function (d) {
+      if (_el !== el) return;
+      _data = d || { regions: [] };
+      var ids = (_data.regions || []).map(function (x) { return x.id; });
+      if (_st.region !== "compare" && ids.indexOf(_st.region) < 0) _st.region = ids[0] || "compare";
+      render();
+    }).catch(function () {
+      if (_el !== el) return;
+      el.innerHTML = '<div class="re-root"><div class="re-err">' + ic("triangle-alert") + esc(tw("re.load_error")) + "</div></div>";
+    });
   }
 
   // Opens the chat with the prompt typed in, not sent: the owner may want to add a district or a budget first.
@@ -533,25 +639,14 @@
   function mount(el) {
     _el = el;
     var pref = readPref();
-    _st = { region: pref.region || "", span: SPANS.indexOf(+pref.span) >= 0 ? +pref.span : 10, sort: "potential", cmpKey: "" };
+    _st = { region: pref.region || "", span: SPANS.indexOf(+pref.span) >= 0 ? +pref.span : 10, sort: "potential", cmpKey: "",
+      updOpen: false, preview: false, meta: null, sched: null };
     el.innerHTML = '<div class="re-root"><div class="re-muted">' + esc(tw("common.loading")) + "</div></div>";
     el.addEventListener("click", onClick);
     var timer = null;
     _onResize = function () { clearTimeout(timer); timer = setTimeout(drawCharts, 120); };
     window.addEventListener("resize", _onResize);
-    return fetch(DATA_URL).then(function (r) {
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    }).then(function (d) {
-      if (_el !== el) return;
-      _data = d || { regions: [] };
-      var ids = (_data.regions || []).map(function (x) { return x.id; });
-      if (_st.region !== "compare" && ids.indexOf(_st.region) < 0) _st.region = ids[0] || "compare";
-      render();
-    }).catch(function () {
-      if (_el !== el) return;
-      el.innerHTML = '<div class="re-root"><div class="re-err">' + ic("triangle-alert") + esc(tw("re.load_error")) + "</div></div>";
-    });
+    return loadData(el);
   }
 
   function unmount() {

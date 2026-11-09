@@ -191,3 +191,19 @@
   .mk-modal { padding: 0; }
   .mk-dlg { max-height: 100vh; border-radius: 0; height: 100%; }
 }
+
+/* live prices */
+.mk-live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text3); white-space: nowrap; }
+.mk-live i { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); }
+.mk-live.on { color: var(--mk-up); }
+.mk-live.on i { background: var(--mk-up); animation: mkPulse 2s ease-in-out infinite; }
+@keyframes mkPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mk-up) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.mk-flash-up { animation: mkFlashUp 1.2s ease-out; border-radius: 4px; }
+.mk-flash-down { animation: mkFlashDown 1.2s ease-out; border-radius: 4px; }
+@keyframes mkFlashUp { 0% { background: var(--mk-up-w); box-shadow: 0 0 0 3px var(--mk-up-w); } 100% { background: transparent; box-shadow: none; } }
+@keyframes mkFlashDown { 0% { background: var(--mk-down-w); box-shadow: 0 0 0 3px var(--mk-down-w); } 100% { background: transparent; box-shadow: none; } }
+#mkBg[aria-pressed="true"] .ic { color: var(--mk-up); }
+.mk-sigbox.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mk-sigbox .v.mk-up { color: var(--mk-up); } .mk-sigbox .v.mk-down { color: var(--mk-down); }
+@media (max-width: 900px) { .mk-sigbox.g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mk-live { display: none; } }
+@media (prefers-reduced-motion: reduce) { .mk-live.on i, .mk-flash-up, .mk-flash-down { animation: none; } }

@@ -24,7 +24,7 @@
     { id: "crypto", icon: "bitcoin" }, { id: "outlook", icon: "telescope" },
   ];
   var MARKETS = ["vn", "world", "crypto"];
-  var REFRESH_MS = 3 * 60 * 1000;
+  var LIVE_MS = 5000;
   var LS_TAB = "javis.markets.tab";
 
   var S = {
@@ -32,6 +32,7 @@
     sort: { vn: ["value", -1], world: ["chg_1d", -1], crypto: ["rank", 1] },
     q: { vn: "", world: "", crypto: "" }, filter: { vn: "all", world: "all", crypto: "all" },
     watchOnly: { vn: false, world: false, crypto: false }, outlook: "vn", ro: null, tip: null, modal: null,
+    liveBusy: false, liveOk: false, bg: null, acc: {},
   };
 
   // ------------------------------------------------------------------ formatting
@@ -57,6 +58,11 @@
   function dir(v) { return !fin(v) || Math.abs(v) < 0.005 ? "flat" : (v > 0 ? "up" : "down"); }
   function arrow(v) { var d = dir(v); return d === "up" ? "▲" : (d === "down" ? "▼" : "■"); }
   function chg(v) { return '<span class="mk-' + dir(v) + ' mk-num">' + arrow(v) + " " + pct(v) + "</span>"; }
+  // Cells the live poll updates in place: data-lp holds a price, data-lc a % change, both keyed "kind|id".
+  function lp(key, v) { return '<span data-lp="' + esc(key) + '">' + price(v) + "</span>"; }
+  function lc(key, v, extra) {
+    return '<span data-lc="' + esc(key) + '" class="' + (extra || "") + " mk-num mk-" + dir(v) + '">' + arrow(v) + " " + pct(v) + "</span>";
+  }
   function scorePill(s) {
     if (!fin(s)) return '<span class="mk-muted">-</span>';
     var d = s >= 20 ? "up" : (s <= -20 ? "down" : "flat");
@@ -140,10 +146,9 @@
     el.querySelector("#mkBody").addEventListener("change", onInput);
     drawBody();
     refresh(false);
+    loadBg();
     clearInterval(S.timer);
-    S.timer = setInterval(function () {
-      if (document.visibilityState === "visible" && S.el && document.body.contains(S.el)) refresh(true);
-    }, REFRESH_MS);
+    S.timer = setInterval(pollLive, LIVE_MS);
   }
   function unmount() {
     S.gen++;
@@ -158,10 +163,13 @@
         "<span>" + esc(T("mk.tab." + x.id)) + "</span></button>";
     }).join("");
     return '<div class="mk-bar"><div class="mk-seg" role="tablist">' + tabs + '</div><span class="mk-sp"></span>' +
+      '<span class="mk-live" id="mkLive" title="' + esc(T("mk.live_tip")) + '"><i></i>' + esc(T("mk.live")) + "</span>" +
       '<span class="mk-stamp" id="mkStamp"></span>' +
+      '<button type="button" class="mk-btn ghost" data-act="bg" id="mkBg" aria-pressed="false" title="' + esc(T("mk.bg_tip")) + '">' + IC("activity") +
+      '<span>' + esc(T("mk.bg")) + '</span><span class="mk-chip" id="mkBgState">-</span></button>' +
       '<button type="button" class="mk-btn ghost" data-act="refresh" title="' + esc(T("mk.refresh")) + '">' + IC("refresh-cw") +
       "<span>" + esc(T("mk.refresh")) + "</span></button>" + infoBtn(T("mk.about")) +
-      infoBody(esc(T("mk.info.sources")) + "<br><br>" + esc(T("mk.info.disclaimer"))) + "</div>";
+      infoBody(esc(T("mk.info.sources")) + "<br><br>" + esc(T("mk.info.bg")) + "<br><br>" + esc(T("mk.info.disclaimer"))) + "</div>";
   }
   function setSpin(on) {
     var b = S.el && S.el.querySelector('[data-act="refresh"]');
@@ -183,6 +191,8 @@
       S.gen++;
       drawBody();
       refresh(false);
+    } else if (b.dataset.act === "bg") {
+      toggleBg();
     } else if (b.dataset.act === "refresh") {
       hardRefresh();
     }
@@ -222,6 +232,7 @@
   function afterDraw(b) {
     var heats = b.querySelectorAll("[data-heat]");
     var scat = b.querySelector("[data-scatter]");
+    b.querySelectorAll("[data-acc]").forEach(drawAcc);
     function paint() {
       heats.forEach(function (h) { drawHeat(h); });
       if (scat) drawScatter(scat);
@@ -304,9 +315,10 @@
   function fngKey(v) { return v <= 24 ? "xfear" : v <= 44 ? "fear" : v <= 55 ? "neutral" : v <= 75 ? "greed" : "xgreed"; }
 
   function tile(kind, r, sub) {
-    return '<button type="button" class="mk-tile" data-open="' + kind + "|" + esc(r.id || r.symbol) + '"><span class="mk-tile-n">' +
-      esc(sub || r.name || r.symbol) + '</span><span class="mk-tile-p">' + price(r.price) + '</span><span class="mk-tile-c mk-' + dir(r.chg_1d) + '">' +
-      arrow(r.chg_1d) + " " + pct(r.chg_1d) + "</span>" + spark(r.spark, 150, 28) + "</button>";
+    var key = kind + "|" + (r.id || r.symbol);
+    return '<button type="button" class="mk-tile" data-open="' + esc(key) + '"><span class="mk-tile-n">' +
+      esc(sub || r.name || r.symbol) + '</span><span class="mk-tile-p">' + lp(key, r.price) + "</span>" + lc(key, r.chg_1d, "mk-tile-c") +
+      spark(r.spark, 150, 28) + "</button>";
   }
 
   // ------------------------------------------------------------------ overview
@@ -348,7 +360,7 @@
     function half(r) {
       if (!r) return '<td colspan="2"></td>';
       return '<td class="l" data-open="' + kind + "|" + esc(r.id || r.symbol) + '" title="' + esc(price(r.price)) + '"><b>' + esc(symLabel(kind, r)) +
-        '</b></td><td data-open="' + kind + "|" + esc(r.id || r.symbol) + '">' + chg(r.chg_1d) + "</td>";
+        '</b></td><td data-open="' + kind + "|" + esc(r.id || r.symbol) + '">' + lc(kind + "|" + (r.id || r.symbol), r.chg_1d) + "</td>";
     }
     if (!up.length && !down.length) return '<div class="mk-empty">' + esc(T("mk.empty")) + "</div>";
     var out = [];
@@ -414,8 +426,9 @@
           (kind !== "vn" && r.name && r.name !== r.symbol ? "<small>" + esc(r.name) + "</small>" : "") + "</div>";
       case "sector": return '<span class="mk-muted">' + esc(T("mk.sector." + r.sector)) + "</span>";
       case "group": return '<span class="mk-muted">' + esc(T("mk.group." + r.group)) + " · " + esc(T("mk.region." + r.region)) + "</span>";
-      case "price": return price(r.price);
-      case "chg_1h": case "chg_1d": case "chg_5d": case "chg_1m": case "chg_3m": case "chg_1y": return chg(r[key]);
+      case "price": return lp(kind + "|" + (r.id || r.symbol), r.price);
+      case "chg_1d": return lc(kind + "|" + (r.id || r.symbol), r.chg_1d);
+      case "chg_1h": case "chg_5d": case "chg_1m": case "chg_3m": case "chg_1y": return chg(r[key]);
       case "value": return fin(r.value) ? num(r.value / 1e6, 1) : "-";
       case "vol_ratio": return fin(r.vol_ratio) ? '<span class="' + (r.vol_ratio >= 1.5 ? "mk-flat" : "") + '">' + num(r.vol_ratio, 2) + "x</span>" : "-";
       case "rsi": return fin(r.rsi) ? '<span class="' + (r.rsi >= 70 ? "mk-down" : r.rsi <= 30 ? "mk-up" : "") + '">' + num(r.rsi, 0) + "</span>" : "-";
@@ -663,7 +676,8 @@
       return '<div class="mk-card"><h3>' + IC(icon) + esc(T("mk.list." + key)) + '<span class="mk-sub">' + (ol[key] || []).length + "</span></h3>" +
         listItems((ol[key] || []).map(function (r) { return [S.outlook, r]; })) + "</div>";
     }
-    return head + summary + map + '<div class="mk-grid mk-g2 mk-sec" style="align-items:start">' + lst("potential", "trending-up") + lst("movers", "zap") +
+    var acc = '<div class="mk-card mk-sec" data-acc="' + S.outlook + '"><div class="mk-skel" style="height:160px"></div></div>';
+    return head + summary + map + acc + '<div class="mk-grid mk-g2 mk-sec" style="align-items:start">' + lst("potential", "trending-up") + lst("movers", "zap") +
       lst("risk", "trending-down") + lst("rebound", "rotate-ccw") + "</div>";
   }
   function drawScatter(el) {
@@ -710,6 +724,198 @@
       var c = e.target.closest("circle");
       if (c) { var r = rows[+c.dataset.si]; openDetail(kind, r.id || r.symbol); }
     });
+  }
+
+  // ------------------------------------------------------------------ live prices
+  function liveKinds() { return S.tab === "overview" || S.tab === "outlook" ? MARKETS : [S.tab]; }
+  function setLive(ok) {
+    S.liveOk = ok;
+    var el = S.el && S.el.querySelector("#mkLive");
+    if (el) el.classList.toggle("on", !!ok);
+  }
+  function sectionTime(k) {
+    if (S.tab === "overview" || S.tab === "outlook") {
+      var sec = S.data.overview && S.data.overview.sections && S.data.overview.sections[k];
+      return sec ? (sec.computed_at || 0) : 0;
+    }
+    var d = S.data[k];
+    return d ? (d.computed_at || 0) : 0;
+  }
+  function pollLive() {
+    if (!S.el || !document.body.contains(S.el) || document.visibilityState !== "visible" || S.liveBusy) return;
+    S.liveBusy = true;
+    var gen = S.gen;
+    api("/market/live?kinds=" + liveKinds().join(",")).then(function (d) {
+      S.liveBusy = false;
+      if (gen !== S.gen) return;
+      if (!d || d.ok === false) { setLive(false); return; }
+      setLive(true);
+      applyPrices(d.prices || {});
+      var newer = Object.keys(d.sections || {}).filter(function (k) { var t0 = sectionTime(k); return t0 && d.sections[k] > t0 + 1; });
+      if (newer.length) quietReload();
+    }).catch(function () { S.liveBusy = false; setLive(false); });
+  }
+  function applyPrices(prices) {
+    var b = S.el;
+    if (!b) return;
+    Object.keys(prices).forEach(function (k) {
+      var rows = S.data[k] ? (S.data[k].rows || []).concat(S.data[k].indices || []) : [];
+      rows.forEach(function (r) {
+        var v = prices[k][r.id || r.symbol];
+        if (v && fin(v[0])) { r.price = v[0]; if (fin(v[1])) r.chg_1d = v[1]; }
+      });
+    });
+    b.querySelectorAll("[data-lp]").forEach(function (el) {
+      var p = el.dataset.lp.split("|"), v = prices[p[0]] && prices[p[0]][p.slice(1).join("|")];
+      if (!v || !fin(v[0])) return;
+      var old = el._v != null ? el._v : null, txt = price(v[0]);
+      el._v = v[0];
+      if (el.textContent === txt) return;
+      el.textContent = txt;
+      if (old != null && v[0] !== old) flash(el, v[0] > old ? "up" : "down");
+    });
+    b.querySelectorAll("[data-lc]").forEach(function (el) {
+      var p = el.dataset.lc.split("|"), v = prices[p[0]] && prices[p[0]][p.slice(1).join("|")];
+      if (!v || !fin(v[1])) return;
+      var txt = arrow(v[1]) + " " + pct(v[1]);
+      if (el.textContent === txt) return;
+      el.textContent = txt;
+      el.classList.remove("mk-up", "mk-down", "mk-flat");
+      el.classList.add("mk-" + dir(v[1]));
+    });
+  }
+  function flash(el, d) {
+    el.classList.remove("mk-flash-up", "mk-flash-down");
+    void el.offsetWidth;
+    el.classList.add("mk-flash-" + d);
+  }
+  // A section the server recomputed (new session data, new scores): reload it without moving the reader.
+  function quietReload() {
+    var b = body();
+    if (!b || b.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    var names = needs(S.tab), gen = S.gen;
+    Promise.all(names.map(function (n) { return load(n, true); })).then(function () {
+      if (gen !== S.gen) return;
+      var bb = body(), top = bb ? bb.scrollTop : 0;
+      drawBody();
+      bb = body();
+      if (bb) bb.scrollTop = top;
+    });
+  }
+
+  // ------------------------------------------------------------------ background refresh switch
+  function paintBg() {
+    var btn = S.el && S.el.querySelector("#mkBg"), st = S.el && S.el.querySelector("#mkBgState");
+    if (!btn || !S.bg) return;
+    var on = !!S.bg.enabled;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.disabled = !!S.bg.env_off;
+    st.textContent = T(on ? "mk.bg_on" : "mk.bg_off");
+    st.className = "mk-chip " + (on ? "up" : "");
+    if (S.bg.env_off) btn.title = T("mk.bg_env");
+  }
+  function loadBg() {
+    api("/market/settings").then(function (d) { if (d && d.ok) { S.bg = d; paintBg(); } });
+  }
+  function toggleBg() {
+    if (!S.bg) return;
+    api("/market/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ background: !S.bg.enabled }) }).then(function (d) { if (d && d.ok) { S.bg = Object.assign(S.bg, d); paintBg(); } });
+  }
+
+  // ------------------------------------------------------------------ signal accuracy (Outlook tab)
+  function loadAcc(kind) {
+    var c = S.acc[kind];
+    if (c && Date.now() - c.t < 10 * 60 * 1000) return Promise.resolve(c.d);
+    return api("/market/accuracy?kind=" + kind).then(function (d) { if (d && d.ok) S.acc[kind] = { t: Date.now(), d: d }; return d; });
+  }
+  function drawAcc(el) {
+    var kind = el.dataset.acc, gen = S.gen;
+    loadAcc(kind).then(function (a) {
+      if (gen !== S.gen || !document.body.contains(el)) return;
+      el.innerHTML = accHtml(a || {});
+      var svg = el.querySelector("svg[data-accchart]");
+      if (svg) bindAccHover(svg, a.series || []);
+    });
+  }
+  function accHtml(a) {
+    var head = "<h3>" + IC("target") + esc(T("mk.acc.title")) + '<span class="mk-sub">' +
+      (a.graded ? esc(T("mk.acc.sub", { d: a.days, live: a.live_days || 0 })) : "") + "</span>" + infoBtn(T("mk.acc.title")) + "</h3>" +
+      infoBody(esc(T("mk.info.acc")));
+    if (!a.graded) return head + '<div class="mk-empty">' + esc(T("mk.acc.wait")) + "</div>";
+    var p = a.potential || {}, r = a.risk || {}, mv = a.movers || {};
+    function box(k, v, sub, good) {
+      return '<div><div class="k">' + esc(k) + '</div><div class="v ' + (good == null ? "" : good ? "mk-up" : "mk-down") + '">' + esc(v) +
+        '</div><div class="mk-kicker">' + esc(sub) + "</div></div>";
+    }
+    var boxes = '<div class="mk-sigbox g4">' +
+      box(T("mk.acc.pot"), p.n ? num(p.hit, 0) + "%" : "-", p.n ? T("mk.acc.pot_v", { avg: pct(p.avg), mkt: pct(a.market_avg), n: p.n }) : "", p.n ? p.excess >= 0 : null) +
+      box(T("mk.acc.risk"), r.n ? num(r.hit, 0) + "%" : "-", r.n ? T("mk.acc.risk_v", { avg: pct(r.avg), n: r.n }) : "", r.n ? r.excess <= 0 : null) +
+      box(T("mk.acc.move"), mv.ratio ? "\u00D7" + num(mv.ratio, 2) : "-", mv.n ? T("mk.acc.move_v", { a: num(mv.avg_abs, 1), m: num(mv.market_abs, 1) }) : "", mv.ratio ? mv.ratio >= 1 : null) +
+      box(T("mk.acc.range"), fin(a.range_hit) ? num(a.range_hit, 0) + "%" : "-", T("mk.acc.range_v"), fin(a.range_hit) ? Math.abs(a.range_hit - 68) <= 10 : null) +
+      "</div>";
+    return head + boxes + '<div class="mk-grid mk-g2 mk-sec" style="align-items:start"><div><div class="mk-kicker">' + esc(T("mk.acc.chart")) + "</div>" +
+      accChart(a.series || []) + '<div class="mk-legend"><span><i style="background:var(--mk-s1)"></i>' + esc(T("mk.acc.series_pot")) +
+      '</span><span><i style="background:var(--mk-s2)"></i>' + esc(T("mk.acc.series_mkt")) + "</span></div></div><div>" +
+      '<div class="mk-kicker">' + esc(T("mk.acc.buckets")) + "</div>" + bucketBars(a.buckets || []) + "</div></div>";
+  }
+  var ACC_W = 520, ACC_H = 170, ACC_PL = 6, ACC_PR = 44;
+  function accChart(series) {
+    var pts = series.filter(function (x) { return fin(x.market); });
+    if (pts.length < 2) return '<div class="mk-empty">' + esc(T("mk.acc.wait")) + "</div>";
+    var vals = [];
+    pts.forEach(function (x) { vals.push(x.market); if (fin(x.potential)) vals.push(x.potential); });
+    var mx = Math.max(1, Math.max.apply(null, vals.map(Math.abs)));
+    var x = function (i) { return ACC_PL + i / (pts.length - 1) * (ACC_W - ACC_PL - ACC_PR); };
+    var y = function (v) { return 8 + (mx - v) / (2 * mx) * (ACC_H - 26); };
+    function line(key, col) {
+      var segs = [], cur = [];
+      pts.forEach(function (p, i) {
+        if (fin(p[key])) cur.push(x(i).toFixed(1) + "," + y(p[key]).toFixed(1));
+        else if (cur.length) { segs.push(cur); cur = []; }
+      });
+      if (cur.length) segs.push(cur);
+      return segs.map(function (sg) { return '<polyline points="' + sg.join(" ") + '" style="fill:none;stroke:' + col + ';stroke-width:2;stroke-linejoin:round"/>'; }).join("");
+    }
+    var ticks = niceTicks(-mx, mx, 4).map(function (v) {
+      return '<line class="grid" x1="' + ACC_PL + '" x2="' + (ACC_W - ACC_PR) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"' +
+        (v === 0 ? ' style="stroke:var(--text3)"' : "") + '/><text x="' + (ACC_W - ACC_PR + 4) + '" y="' + (y(v) + 4).toFixed(1) + '">' + pct(v, 0) + "</text>";
+    }).join("");
+    var live = pts.map(function (p, i) { return p.live ? '<circle cx="' + x(i).toFixed(1) + '" cy="' + (ACC_H - 12) + '" r="2.5" style="fill:var(--mk-s3)"/>' : ""; }).join("");
+    var dates = [0, pts.length - 1].map(function (i) {
+      return '<text x="' + x(i).toFixed(1) + '" y="' + (ACC_H - 2) + '" text-anchor="' + (i ? "end" : "start") + '">' + esc(pts[i].d) + "</text>";
+    }).join("");
+    return '<svg class="mk-chart" data-accchart="1" viewBox="0 0 ' + ACC_W + " " + ACC_H + '" style="max-width:' + ACC_W * 1.3 + 'px">'  + ticks + line("market", "var(--mk-s2)") +
+      line("potential", "var(--mk-s1)") + live + dates + '<line class="cross" x1="0" x2="0" y1="8" y2="' + (ACC_H - 18) + '" style="display:none"/>' +
+      '<rect x="0" y="0" width="' + ACC_W + '" height="' + ACC_H + '" style="fill:transparent"/></svg>';
+  }
+  function bindAccHover(svg, series) {
+    var pts = series.filter(function (x) { return fin(x.market); });
+    var cross = svg.querySelector(".cross");
+    svg.addEventListener("mousemove", function (e) {
+      var r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * (ACC_W / r.width);
+      var i = Math.max(0, Math.min(pts.length - 1, Math.round((px - ACC_PL) / (ACC_W - ACC_PL - ACC_PR) * (pts.length - 1))));
+      var xx = ACC_PL + i / (pts.length - 1) * (ACC_W - ACC_PL - ACC_PR);
+      cross.setAttribute("x1", xx); cross.setAttribute("x2", xx); cross.style.display = "";
+      var p = pts[i];
+      showTip(e, "<b>" + esc(p.d) + "</b>" + tipRows([[T("mk.acc.series_pot"), fin(p.potential) ? pct(p.potential) : "-"],
+        [T("mk.acc.series_mkt"), pct(p.market)], [T("mk.acc.kind"), T(p.live ? "mk.acc.kind_live" : "mk.acc.kind_bt")]]));
+    });
+    svg.addEventListener("mouseleave", function () { cross.style.display = "none"; hideTip(); });
+  }
+  function bucketBars(buckets) {
+    var list = buckets.filter(function (b) { return b.n && fin(b.avg); });
+    if (!list.length) return '<div class="mk-empty">' + esc(T("mk.acc.wait")) + "</div>";
+    var mx = Math.max(0.5, Math.max.apply(null, list.map(function (b) { return Math.abs(b.avg); })));
+    var W = 420, lw = 130, rw = 92, rowH = 28, mid = lw + (W - lw - rw) / 2, half = (W - lw - rw) / 2 - 4, H = list.length * rowH + 4;
+    var g = list.map(function (b, i) {
+      var y0 = i * rowH + 4, w = Math.abs(b.avg) / mx * half, up = b.avg >= 0;
+      return '<text x="' + (lw - 8) + '" y="' + (y0 + 15) + '" text-anchor="end" style="fill:var(--text2);font-size:12px">' + esc(T("mk.sig." + b.band)) +
+        '</text><rect x="' + (up ? mid : mid - w).toFixed(1) + '" y="' + (y0 + 5) + '" width="' + Math.max(1, w).toFixed(1) + '" height="' + (rowH - 12) +
+        '" rx="4" style="fill:' + (up ? "var(--mk-up)" : "var(--mk-down)") + '"/><text x="' + (W - 4) + '" y="' + (y0 + 15) +
+        '" text-anchor="end" style="fill:var(--text);font-size:12px">' + pct(b.avg) + " (" + b.n + ")</text>";
+    }).join("");
+    return '<svg class="mk-chart" viewBox="0 0 ' + W + " " + H + '" style="max-width:' + W + 'px"><line class="grid" x1="' + mid + '" x2="' + mid + '" y1="0" y2="' + H + '"/>' + g + "</svg>";
   }
 
   // ------------------------------------------------------------------ tooltip

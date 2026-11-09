@@ -143,7 +143,7 @@ def _key_file(key: str) -> Path:
     return _dir() / "cache" / (re.sub(r"[^A-Za-z0-9_.-]", "_", key)[:120] + ".json")
 
 
-async def _cached(key: str, ttl: float, fetch):
+async def _cached(key: str, ttl: float, fetch, persist: bool | None = None):
     """Return (data, fetched_at, stale). Serves the last good copy when a fetch fails."""
     now = time.time()
     hit = _MEM.get(key)
@@ -173,6 +173,8 @@ async def _cached(key: str, ttl: float, fetch):
             return None, 0.0, True
         at = time.time()
         _MEM[key] = (at, data)
+        if persist is False or (persist is None and key[:4] in ("vnt_", "yht_", "bnt_")):
+            return data, at, False
         try:
             _key_file(key).write_text(json.dumps({"at": at, "data": data}), encoding="utf-8")
         except Exception:
@@ -183,6 +185,7 @@ async def _cached(key: str, ttl: float, fetch):
 def clear_cache() -> int:
     n = len(_MEM)
     _MEM.clear()
+    _SECTION.clear()
     try:
         for f in (_dir() / "cache").glob("*.json"):
             f.unlink()
@@ -211,75 +214,159 @@ def _bars_from_udf(d: dict) -> dict | None:
             "l": d.get("l") or d["c"], "c": d["c"], "v": d.get("v") or [0] * n}
 
 
+# ---- session clock and live tails
+#
+# Each instrument keeps a long daily history (refetched every 6 hours) plus a short "tail" of the last few sessions
+# that is refetched often (25 seconds while the Vietnam market trades). The tail is merged over the history, so a
+# page refresh or the background scheduler only moves a few hundred bytes per symbol.
+LONG_TTL = 6 * 3600
+VN_TZ = 7 * 3600
+
+
+def vn_now(now: float | None = None):
+    import datetime as _dt
+    return _dt.datetime.fromtimestamp((now or time.time()) + VN_TZ, _dt.timezone.utc)
+
+
+def vn_in_session(now: float | None = None) -> bool:
+    """HOSE/HNX hours: 9:00-11:30 and 13:00-14:45 (ATC to 15:00), Monday to Friday, Vietnam time."""
+    d = vn_now(now)
+    if d.weekday() >= 5:
+        return False
+    m = d.hour * 60 + d.minute
+    return 9 * 60 - 5 <= m <= 11 * 60 + 35 or 13 * 60 - 5 <= m <= 15 * 60 + 5
+
+
+def _tail_ttl(kind: str) -> float:
+    if kind == "vn":
+        return 25 if vn_in_session() else 1800
+    if kind == "world":
+        return 120
+    return 30
+
+
+def _merge(long: dict | None, tail: dict | None) -> dict | None:
+    """Tail bars replace history bars with the same timestamp and extend past its end."""
+    if not long:
+        return tail
+    if not tail or not tail.get("t"):
+        return long
+    out = {k: (list(v) if isinstance(v, list) else v) for k, v in long.items()}
+    pos = {t: i for i, t in enumerate(out["t"])}
+    for j, t in enumerate(tail["t"]):
+        i = pos.get(t)
+        if i is None:
+            if t < out["t"][-1]:
+                continue
+            for k in ("t", "o", "h", "l", "c", "v"):
+                out[k].append(tail[k][j])
+            pos[t] = len(out["t"]) - 1
+        else:
+            for k in ("o", "h", "l", "c", "v"):
+                out[k][i] = tail[k][j]
+    return out
+
+
+def _join(long_res, tail_res):
+    (ld, lat, lst), (td, tat, tst) = long_res, tail_res
+    data = _merge(ld, td)
+    if not data:
+        return None
+    if ld and td:
+        for k in ("currency", "name", "tz_off"):
+            if td.get(k) is not None:
+                data[k] = td[k]
+    return _stamp(data, max(lat, tat if td else 0), bool(lst and (tst or not td)))
+
+
 async def vn_bars(symbol: str, is_index: bool | None = None) -> dict | None:
     symbol = symbol.upper().strip()
     if is_index is None:
         is_index = symbol in dict(VN_INDICES)
-    now = int(time.time())
-    frm = now - HISTORY_DAYS * 86400
+    kind = "index" if is_index else "stock"
 
-    async def fetch():
-        kind = "index" if is_index else "stock"
+    async def fetch(days):
+        now = int(time.time())
+        frm = now - days * 86400
         try:
             d = await _get_json(f"https://services.entrade.com.vn/chart-api/v2/ohlcs/{kind}",
                                 {"from": frm, "to": now, "symbol": symbol, "resolution": "1D"})
             b = _bars_from_udf(d)
-            if b and len(b["c"]) > 5:
+            if b and b["c"]:
                 return b
         except Exception:
             pass
         d = await _get_json("https://dchart-api.vndirect.com.vn/dchart/history",
                             {"resolution": "D", "symbol": symbol, "from": frm, "to": now})
-        return _bars_from_udf(d)
+        b = _bars_from_udf(d)
+        if b:  # VNDirect stamps bars at 00:00 UTC; shift to DNSE's 02:00 UTC so the two sources merge cleanly
+            b["t"] = [int(t // 86400 * 86400 + 7200) for t in b["t"]]
+        return b
 
-    data, at, stale = await _cached(f"vn_{symbol}", 600, fetch)
-    return _stamp(data, at, stale)
+    long_res = await _cached(f"vn_{symbol}", LONG_TTL, lambda: fetch(HISTORY_DAYS))
+    if not long_res[0] or len(long_res[0].get("c") or []) < 6:
+        return _stamp(*long_res) if long_res[0] else None
+    tail_res = await _cached(f"vnt_{symbol}", _tail_ttl("vn"), lambda: fetch(8))
+    return _join(long_res, tail_res)
+
+
+def _yahoo_parse(d: dict) -> dict | None:
+    res = (d.get("chart") or {}).get("result") or []
+    if not res:
+        return None
+    r0 = res[0]
+    q = ((r0.get("indicators") or {}).get("quote") or [{}])[0]
+    ts = r0.get("timestamp") or []
+    n = len(ts)
+
+    def col(k):
+        v = q.get(k) or []
+        return v if len(v) == n else [None] * n
+    o, h, low, c, v = col("open"), col("high"), col("low"), col("close"), col("volume")
+    rows = [(ts[i], o[i], h[i], low[i], c[i], v[i]) for i in range(n) if c[i] is not None]
+    meta = r0.get("meta") or {}
+    live = meta.get("regularMarketPrice")
+    if live and rows:
+        t_live = int(meta.get("regularMarketTime") or rows[-1][0])
+        if t_live - rows[-1][0] > 20 * 3600:
+            rows.append((t_live, live, live, live, live, 0))
+        else:
+            t, oo, hh, ll, _, vv = rows[-1]
+            rows[-1] = (t, oo, max(hh or live, live), min(ll or live, live), live, vv)
+    if not rows:
+        return None
+    return {"t": [r[0] for r in rows], "o": [r[1] or r[4] for r in rows], "h": [r[2] or r[4] for r in rows],
+            "l": [r[3] or r[4] for r in rows], "c": [r[4] for r in rows], "v": [r[5] or 0 for r in rows],
+            "currency": meta.get("currency") or "", "name": meta.get("shortName") or meta.get("longName") or "",
+            "tz_off": int(meta.get("gmtoffset") or 0)}
 
 
 async def yahoo_bars(symbol: str) -> dict | None:
-    async def fetch():
+    async def fetch(rng):
         d = await _get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}",
-                            {"range": "2y", "interval": "1d", "includePrePost": "false"})
-        res = (d.get("chart") or {}).get("result") or []
-        if not res:
-            return None
-        r0 = res[0]
-        q = ((r0.get("indicators") or {}).get("quote") or [{}])[0]
-        ts = r0.get("timestamp") or []
-        rows = [(t, q.get("open", [None] * len(ts))[i], q.get("high", [None] * len(ts))[i],
-                 q.get("low", [None] * len(ts))[i], q.get("close", [None] * len(ts))[i],
-                 (q.get("volume") or [0] * len(ts))[i]) for i, t in enumerate(ts)]
-        rows = [r for r in rows if r[4] is not None]
-        if not rows:
-            return None
-        meta = r0.get("meta") or {}
-        # The chart's last bar can lag the live price by a session; trust the live quote.
-        live = meta.get("regularMarketPrice")
-        if live and rows:
-            t_live = int(meta.get("regularMarketTime") or rows[-1][0])
-            if t_live - rows[-1][0] > 20 * 3600:
-                rows.append((t_live, live, live, live, live, 0))
-            else:
-                t, o, h, low, _, v = rows[-1]
-                rows[-1] = (t, o, max(h or live, live), min(low or live, live), live, v)
-        return {"t": [r[0] for r in rows], "o": [r[1] or r[4] for r in rows], "h": [r[2] or r[4] for r in rows],
-                "l": [r[3] or r[4] for r in rows], "c": [r[4] for r in rows], "v": [r[5] or 0 for r in rows],
-                "currency": meta.get("currency") or "", "name": meta.get("shortName") or meta.get("longName") or ""}
+                            {"range": rng, "interval": "1d", "includePrePost": "false"})
+        return _yahoo_parse(d)
 
-    data, at, stale = await _cached(f"yh_{symbol}", 600, fetch)
-    return _stamp(data, at, stale)
+    long_res = await _cached(f"yh_{symbol}", LONG_TTL, lambda: fetch("2y"))
+    if not long_res[0]:
+        return None
+    tail_res = await _cached(f"yht_{symbol}", _tail_ttl("world"), lambda: fetch("5d"))
+    return _join(long_res, tail_res)
 
 
 async def binance_bars(pair: str) -> dict | None:
-    async def fetch():
-        d = await _get_json("https://api.binance.com/api/v3/klines", {"symbol": pair, "interval": "1d", "limit": 400})
+    async def fetch(limit):
+        d = await _get_json("https://api.binance.com/api/v3/klines", {"symbol": pair, "interval": "1d", "limit": limit})
         if not isinstance(d, list) or not d:
             return None
         return {"t": [int(k[0] // 1000) for k in d], "o": [float(k[1]) for k in d], "h": [float(k[2]) for k in d],
                 "l": [float(k[3]) for k in d], "c": [float(k[4]) for k in d], "v": [float(k[7]) for k in d]}
 
-    data, at, stale = await _cached(f"bn_{pair}", 600, fetch)
-    return _stamp(data, at, stale)
+    long_res = await _cached(f"bn_{pair}", LONG_TTL, lambda: fetch(400))
+    if not long_res[0]:
+        return None
+    tail_res = await _cached(f"bnt_{pair}", _tail_ttl("crypto"), lambda: fetch(3))
+    return _join(long_res, tail_res)
 
 
 async def binance_usdt_bases() -> set:
@@ -473,7 +560,19 @@ async def watchlist_add(kind: str, symbol: str) -> dict:
     if sym not in wl[kind]:
         wl[kind].insert(0, sym)
         _save_watchlist(wl)
+    _expire_section(kind)
     return {"ok": True, "symbol": sym, "watchlist": wl}
+
+
+def _expire_section(kind: str) -> None:
+    """The watchlist changed: the next read of that market recomputes it instead of serving the cached copy."""
+    hit = _SECTION.get(kind)
+    if hit:
+        _SECTION[kind] = (0.0, hit[1])
+    try:
+        _section_file(kind).unlink()
+    except Exception:
+        pass
 
 
 def watchlist_remove(kind: str, symbol: str) -> dict:
@@ -482,10 +581,18 @@ def watchlist_remove(kind: str, symbol: str) -> dict:
         sym = normalize_symbol(kind, symbol)
         wl[kind] = [x for x in wl[kind] if x != sym]
         _save_watchlist(wl)
+        _expire_section(kind)
     return {"ok": True, "watchlist": wl}
 
 
 # ---------------------------------------------------------------- sections
+
+def _bar_date(b: dict | None) -> str:
+    import market_store
+    if not b or not b.get("t"):
+        return ""
+    return market_store.bar_date(b["t"][-1], b.get("tz_off") or 0)
+
 
 def _meta(bars: dict | None) -> tuple[float, bool]:
     if not bars:
@@ -500,10 +607,13 @@ async def section_vn() -> dict:
     all_bars = await asyncio.gather(*[vn_bars(s, True) for s in idx_syms],
                                     *[vn_bars(s, False) for s in stocks])
     indices, rows, newest, stale = [], [], 0.0, False
+    series, meta = {}, {}
     for (sym, name), b in zip(VN_INDICES, all_bars[:len(idx_syms)]):
         a = mi.analyze(b, "stock") if b else {}
         if a:
-            indices.append({"symbol": sym, "name": name, **a})
+            indices.append({"symbol": sym, "name": name, "bar_date": _bar_date(b), **a})
+            series[sym] = b
+            meta[sym] = {"symbol": sym, "name": name, "group": "index"}
             at, st = _meta(b)
             newest, stale = max(newest, at), stale or st
     for sym, b in zip(stocks, all_bars[len(idx_syms):]):
@@ -511,14 +621,17 @@ async def section_vn() -> dict:
         if not a:
             continue
         sector, exch = VN_STOCKS.get(sym, ("other", ""))
-        rows.append({"symbol": sym, "name": sym, "sector": sector, "exchange": exch, "watch": sym in wl, **a})
+        rows.append({"symbol": sym, "name": sym, "sector": sector, "exchange": exch, "watch": sym in wl,
+                     "bar_date": _bar_date(b), **a})
+        series[sym] = b
+        meta[sym] = {"symbol": sym, "name": sym, "sector": sector}
         at, st = _meta(b)
         newest, stale = max(newest, at), stale or st
     bench = next((i for i in indices if i["symbol"] == VN_BENCH), None)
     sectors = _sector_table(rows)
     return {"kind": "vn", "indices": indices, "rows": rows, "sectors": sectors,
             "regime": mi.regime(rows, bench), "bench": VN_BENCH, "at": newest, "stale": stale,
-            "currency": "VND", "unit": 1000}
+            "currency": "VND", "unit": 1000, "_series": series, "_meta": meta}
 
 
 def _sector_table(rows: list[dict]) -> list[dict]:
@@ -543,13 +656,16 @@ async def section_world() -> dict:
     syms = list(dict.fromkeys(list(WORLD) + wl))
     all_bars = await asyncio.gather(*[yahoo_bars(s) for s in syms])
     rows, newest, stale = [], 0.0, False
+    series, meta = {}, {}
     for sym, b in zip(syms, all_bars):
         a = mi.analyze(b, "stock") if b else {}
         if not a:
             continue
         name, group, region = WORLD.get(sym, (b.get("name") or sym, "stock", "other"))
         rows.append({"symbol": sym, "name": name, "group": group, "region": region,
-                     "currency": b.get("currency") or "", "watch": sym in wl, **a})
+                     "currency": b.get("currency") or "", "watch": sym in wl, "bar_date": _bar_date(b), **a})
+        series[sym] = b
+        meta[sym] = {"symbol": sym, "name": name, "group": group, "region": region}
         at, st = _meta(b)
         newest, stale = max(newest, at), stale or st
     bench = next((r for r in rows if r["symbol"] == WORLD_BENCH), None)
@@ -560,7 +676,8 @@ async def section_world() -> dict:
         v = vix["price"]
         reg["vix"] = round(v, 2)
         reg["vix_level"] = "calm" if v < 15 else ("normal" if v < 20 else ("elevated" if v < 30 else "stress"))
-    return {"kind": "world", "rows": rows, "regime": reg, "bench": WORLD_BENCH, "at": newest, "stale": stale}
+    return {"kind": "world", "rows": rows, "regime": reg, "bench": WORLD_BENCH, "at": newest, "stale": stale,
+            "_series": series, "_meta": meta}
 
 
 def _from_spark(spark: list) -> dict:
@@ -594,13 +711,18 @@ async def section_crypto() -> dict:
         price = c.get("current_price")
         if price is not None and a:
             a["price"] = price
-        rows.append(_coin_row(c, a, deep, c["id"] in wl))
+        row = _coin_row(c, a, deep, c["id"] in wl)
+        if deep:
+            row["bar_date"] = _bar_date(b)
+            if c["id"] in deep_ids:
+                row["pair"] = (BINANCE_BASE_OVERRIDE.get(c["id"]) or sym_of.get(c["id"], "")) + "USDT"
+        rows.append(row)
     for cid in extra_ids:
         b = hist_by.get(cid)
         a = mi.analyze(b, "crypto") if b else {}
         if a:
             rows.append({"symbol": cid.upper(), "id": cid, "name": cid, "rank": None, "image": "",
-                         "deep": True, "watch": True, **a})
+                         "deep": True, "watch": True, "bar_date": _bar_date(b), **a})
     bench = next((r for r in rows if r.get("id") == CRYPTO_BENCH), None)
     deep_rows = [r for r in rows if r.get("deep")]
     reg = mi.regime(deep_rows or rows, bench)
@@ -615,8 +737,11 @@ async def section_crypto() -> dict:
              "btc_dom": round((glob.get("market_cap_percentage") or {}).get("btc") or 0, 2),
              "eth_dom": round((glob.get("market_cap_percentage") or {}).get("eth") or 0, 2),
              "coins": glob.get("active_cryptocurrencies")}
+    series = {r["id"]: hist_by[r["id"]] for r in rows if r.get("deep") and hist_by.get(r["id"])}
+    meta = {r["id"]: {"symbol": r["symbol"], "id": r["id"], "name": r.get("name"), "image": r.get("image"),
+                      "rank": r.get("rank")} for r in rows if r["id"] in series}
     return {"kind": "crypto", "rows": rows, "global": g, "trending": trend, "fng": fng, "regime": reg,
-            "bench": CRYPTO_BENCH, "at": time.time(), "stale": not mk}
+            "bench": CRYPTO_BENCH, "at": time.time(), "stale": not mk, "_series": series, "_meta": meta}
 
 
 def _coin_row(c: dict, a: dict, deep: bool, watch: bool) -> dict:
@@ -647,11 +772,113 @@ def _coin_row(c: dict, a: dict, deep: bool, watch: bool) -> dict:
 SECTIONS = {"vn": section_vn, "world": section_world, "crypto": section_crypto}
 
 
-async def section(name: str) -> dict:
+# Computed sections, kept so the page opens instantly. The background loop (market_live.py) refreshes them; a
+# request only recomputes when the copy is older than SECTION_TTL (the loop is off, or the server just started).
+SECTION_TTL = {"vn": 90, "world": 360, "crypto": 90}
+_SECTION: dict = {}
+_SECTION_LOCKS: dict = {}
+LAST_VIEW = 0.0
+
+
+def _section_file(name: str) -> Path:
+    return _dir() / f"section_{name}.json"
+
+
+async def refresh_section(name: str) -> dict:
     fn = SECTIONS.get(name)
     if not fn:
         raise ValueError(name)
-    return await fn()
+    lock = _SECTION_LOCKS.setdefault(name, asyncio.Lock())
+    async with lock:
+        data = await fn()
+        series = data.pop("_series", {}) or {}
+        meta = data.pop("_meta", {}) or {}
+        if not data.get("rows"):
+            hit = _SECTION.get(name)
+            if hit:  # every source failed: keep serving the last good copy
+                return hit[1]
+        data["computed_at"] = time.time()
+        _SECTION[name] = (data["computed_at"], data)
+        try:
+            await asyncio.to_thread(_section_file(name).write_text, json.dumps(data), "utf-8")
+        except Exception:
+            pass
+    try:
+        import market_live
+        market_live.after_refresh(name, data, series, meta)
+    except Exception:
+        pass
+    return data
+
+
+async def section(name: str, max_age: float | None = None) -> dict:
+    if name not in SECTIONS:
+        raise ValueError(name)
+    hit = _SECTION.get(name)
+    if not hit:
+        try:
+            d = json.loads(_section_file(name).read_text(encoding="utf-8"))
+            hit = (float(d.get("computed_at") or 0), d)
+            _SECTION[name] = hit
+        except Exception:
+            hit = None
+    ttl = SECTION_TTL[name] if max_age is None else max_age
+    if hit and time.time() - hit[0] < ttl:
+        return hit[1]
+    if hit and _SECTION_LOCKS.get(name) and _SECTION_LOCKS[name].locked():
+        return hit[1]  # a refresh is already running; serve what we have
+    return await refresh_section(name)
+
+
+def mark_view() -> None:
+    global LAST_VIEW
+    LAST_VIEW = time.time()
+
+
+async def binance_live(pairs: list) -> dict:
+    """{pair: [last, open 24h ago]} from one Binance call, cached 4 seconds."""
+    # Binance rejects the whole batch when one symbol has characters outside A-Z, 0-9 and -._ (some tickers are Chinese).
+    pairs = sorted({p for p in pairs if p and re.fullmatch(r"[A-Z0-9._-]{1,50}", p)})[:100]
+    if not pairs:
+        return {}
+
+    async def fetch():
+        d = await _get_json("https://api.binance.com/api/v3/ticker/24hr",
+                            {"symbols": json.dumps(pairs, separators=(",", ":")), "type": "MINI"})
+        return {x["symbol"]: [float(x["lastPrice"]), float(x["openPrice"])] for x in d or []}
+    data, _, _ = await _cached("bn_live", 4, fetch, persist=False)
+    return data or {}
+
+
+async def live(kinds: list) -> dict:
+    """Latest prices for the open page. Crypto comes straight from Binance (seconds old); Vietnam and world come
+    from the computed sections, which the background loop keeps within 30 s to 2 min while someone is watching."""
+    mark_view()
+    out: dict = {"at": time.time(), "sections": {}, "prices": {}}
+    for k in kinds:
+        if k not in SECTIONS:
+            continue
+        hit = _SECTION.get(k)
+        if not hit:
+            continue
+        data = hit[1]
+        out["sections"][k] = hit[0]
+        prices = {}
+        for r in (data.get("indices") or []) + (data.get("rows") or []):
+            key = r.get("id") or r.get("symbol")
+            prices[key] = [r.get("price"), r.get("chg_1d")]
+        if k == "crypto":
+            pair_of = {r["pair"]: r["id"] for r in data.get("rows") or [] if r.get("pair")}
+            try:
+                tick = await binance_live(list(pair_of))
+            except Exception:
+                tick = {}
+            for pair, (last, opn) in tick.items():
+                cid = pair_of.get(pair)
+                if cid and last:
+                    prices[cid] = [last, round((last / opn - 1) * 100, 2) if opn else None]
+        out["prices"][k] = prices
+    return out
 
 
 # ---------------------------------------------------------------- outlook
@@ -683,7 +910,7 @@ def _pick(rows: list[dict], kind: str) -> dict:
 
 
 async def overview() -> dict:
-    vn, world, crypto = await asyncio.gather(section_vn(), section_world(), section_crypto(), return_exceptions=True)
+    vn, world, crypto = await asyncio.gather(section("vn"), section("world"), section("crypto"), return_exceptions=True)
     out: dict = {"at": time.time(), "sections": {}}
     for name, s in (("vn", vn), ("world", world), ("crypto", crypto)):
         if isinstance(s, Exception) or not s:
@@ -699,7 +926,7 @@ async def overview() -> dict:
         def mini(r):
             return {k: r.get(k) for k in ("symbol", "id", "name", "price", "chg_1d", "chg_5d", "score", "signal",
                                           "image", "sector", "group", "spark")}
-        sec = {"regime": s.get("regime"), "at": s.get("at"), "stale": s.get("stale"),
+        sec = {"regime": s.get("regime"), "at": s.get("at"), "stale": s.get("stale"), "computed_at": s.get("computed_at"),
                "top_up": [mini(r) for r in top_up], "top_down": [mini(r) for r in top_dn],
                "outlook": _pick(rows, name)}
         if name == "vn":

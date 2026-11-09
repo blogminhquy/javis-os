@@ -1,0 +1,13 @@
+name: Dữ liệu bất động sản
+name_en: "Real estate data"
+slug: javis-realestate
+version: 1.0.0
+description: Đọc số liệu trang Bất động sản (Đà Nẵng, TP.HCM, Đồng Nai) và ghi bản cập nhật quý dạng nháp để chủ duyệt trên trang.
+description_en: "Reads the Real estate page data (Da Nang, HCMC, Dong Nai) and writes quarterly updates as a draft the owner approves on the page."
+author: Javis (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - javis_realestate
+  - javis_realestate_draft
+hooks: []

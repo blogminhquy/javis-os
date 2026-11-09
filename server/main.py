@@ -13579,6 +13579,93 @@ async def market_refresh():
     return {"ok": True, "cleared": market_data.clear_cache()}
 
 
+@app.get("/market/live")
+async def market_live_prices(kinds: str = "vn,world,crypto"):
+    """Latest prices for the open Markets page, polled every few seconds."""
+    import market_data
+    try:
+        return {"ok": True, **await market_data.live([k for k in kinds.split(",") if k])}
+    except Exception as e:
+        return _market_err(e)
+
+
+@app.get("/market/accuracy")
+async def market_accuracy(kind: str = "vn", horizon: int = 5):
+    """How past Outlook signals turned out (market_store.accuracy)."""
+    import market_store
+    if kind not in ("vn", "world", "crypto"):
+        return _market_err(ValueError(kind), 400)
+    try:
+        return {"ok": True, **await asyncio.to_thread(market_store.accuracy, kind, max(1, min(int(horizon), 20)))}
+    except Exception as e:
+        return _market_err(e)
+
+
+@app.get("/market/settings")
+async def market_settings_get():
+    import market_live
+    import market_store
+    try:
+        archive = await asyncio.to_thread(market_store.stats)
+    except Exception:
+        archive = {}
+    return {"ok": True, **market_live.status(), "archive": archive}
+
+
+@app.post("/market/settings")
+async def market_settings_set(payload: dict = Body(None)):
+    import market_live
+    cur = market_live.save_settings(payload or {})
+    if cur.get("background"):
+        try:
+            market_live.start()
+        except Exception:
+            pass
+    return {"ok": True, **market_live.status()}
+
+
+# ============================================================
+# Real estate page data (realestate_store.py): bundled file, quarterly drafts written by Javis, owner approval.
+# ============================================================
+@app.get("/realestate/data")
+async def realestate_data(draft: int = 0):
+    import realestate_store as rs
+    data, source, at = await asyncio.to_thread(rs.current)
+    meta = await asyncio.to_thread(rs.draft_meta)
+    if draft:
+        d = await asyncio.to_thread(rs.draft)
+        if d:
+            data = d["data"]
+    return {"ok": True, "data": data, "source": source, "updated_at": at, "draft": meta, "preview": bool(draft and meta)}
+
+
+@app.post("/realestate/approve")
+async def realestate_approve():
+    import realestate_store as rs
+    res = await asyncio.to_thread(rs.approve)
+    if not res.get("ok"):
+        res["message"] = localefmt.chu("Không có bản nháp nào để duyệt.", "There is no draft to approve.")
+    return res
+
+
+@app.post("/realestate/discard")
+async def realestate_discard():
+    import realestate_store as rs
+    return await asyncio.to_thread(rs.discard)
+
+
+@app.on_event("startup")
+async def _market_background_start():
+    """Markets page: keep prices fresh and archived even when nobody has the page open (market_live.py).
+    Off with the page toggle or JAVIS_MARKET_BACKGROUND=0 (tests set it)."""
+    try:
+        import market_live
+        if market_live.enabled():
+            market_live.start()
+    except Exception as e:  # noqa: BLE001 - the page still works on demand without the loop
+        print(f"[market] background start failed: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 @app.get("/viec/all")
 async def viec_all():
     """Performance (2026-11-05): the whole scan reads loop files of every brain, so it runs in a worker thread; on the

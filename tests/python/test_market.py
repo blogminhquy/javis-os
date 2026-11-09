@@ -186,7 +186,8 @@ async def run():
     md._MEM.clear()
     b1 = await md.vn_bars("HPG")
     FAIL_URLS.update({"entrade", "vndirect"})
-    md._MEM["vn_HPG"] = (0.0, md._MEM["vn_HPG"][1])  # expire it
+    md._MEM["vn_HPG"] = (0.0, md._MEM["vn_HPG"][1])  # expire the history and the live tail
+    md._MEM["vnt_HPG"] = (0.0, md._MEM["vnt_HPG"][1])
     b2 = await md.vn_bars("HPG")
     FAIL_URLS.clear()
     check("a failed fetch serves the cached copy as stale", b2 and b2["_stale"] and b2["c"] == b1["c"])

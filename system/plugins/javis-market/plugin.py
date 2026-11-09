@@ -120,6 +120,26 @@ async def _symbol(name: str, symbol: str) -> str:
     return "\n".join(lines)
 
 
+async def _accuracy(markets) -> str:
+    import asyncio
+    import market_store as ms
+    out = []
+    for name in markets:
+        a = await asyncio.to_thread(ms.accuracy, name)
+        if not a.get("graded"):
+            out.append(f"{_LABEL[name]}: chưa đủ dữ liệu để chấm (cần ít nhất 5 phiên sau lần chụp đầu tiên).")
+            continue
+        p, r, mv = a.get("potential") or {}, a.get("risk") or {}, a.get("movers") or {}
+        out.append(
+            f"{_LABEL[name]} ({a['days']} phiên đã chấm, {a.get('live_days', 0)} phiên chụp thật, còn lại dựng lại từ lịch sử giá): "
+            f"toàn thị trường TB {_f(a.get('market_avg'), pct=True)} sau 5 phiên. "
+            f"Nhóm tiềm năng: {p.get('hit', '-')}% tăng, TB {_f(p.get('avg'), pct=True)} (hơn thị trường {_f(p.get('excess'), pct=True)}). "
+            f"Nhóm rủi ro: {r.get('hit', '-')}% giảm, TB {_f(r.get('avg'), pct=True)}. "
+            f"Nhóm sắp biến động: biên độ {mv.get('ratio', '-')} lần mức chung. "
+            f"Giá nằm trong khoảng dự kiến {a.get('range_hit', '-')}% số lần (mục tiêu 68%).")
+    return "\n".join(out)
+
+
 def register(ctx):
     async def _market(args, cctx):
         args = args or {}
@@ -141,6 +161,8 @@ def register(ctx):
                 if not sym or market not in _MARKETS:
                     return "ERROR: op=symbol cần symbol và market (vn, world, crypto)."
                 return await _symbol(market, sym)
+            if op == "accuracy":
+                return await _accuracy(markets)
             if op == "watchlist":
                 wl = md.watchlist()
                 return "Danh sách theo dõi: " + "; ".join(f"{_LABEL[k]}: {', '.join(v) or '(trống)'}" for k, v in wl.items())
@@ -156,13 +178,14 @@ def register(ctx):
             "cổ phiếu lớn toàn cầu, và top 100 tiền số. GỌI TOOL NÀY khi người dùng hỏi giá, diễn biến, mã nào "
             "tăng/giảm, mã nào tiềm năng hay sắp biến động. "
             "op: overview (tổng hợp), outlook (danh sách tiềm năng / dễ biến động mạnh / rủi ro / có thể hồi), "
-            "section (bảng một thị trường, sort=score|change|drop|move), symbol (phân tích kỹ một mã), watchlist. "
+            "section (bảng một thị trường, sort=score|change|drop|move), symbol (phân tích kỹ một mã), "
+            "accuracy (tín hiệu các phiên trước đúng tới đâu sau 5 phiên: nêu kèm khi đưa ra nhận định), watchlist. "
             "market: vn | world | crypto. symbol: mã VN (FPT), mã Yahoo (AAPL, ^GSPC, GC=F) hoặc ticker coin (btc). "
             "Điểm xu hướng (-100..100) và 'khả năng biến động mạnh' (0..100) là THỐNG KÊ từ giá quá khứ, không phải "
             "dự báo chắc chắn: khi trả lời phải nói rõ đây là tín hiệu kỹ thuật, không phải khuyến nghị đầu tư."),
         handler=_market, min_mode="readonly", emoji="📈",
         schema={"type": "object", "properties": {
-            "op": {"type": "string", "enum": ["overview", "outlook", "section", "symbol", "watchlist"]},
+            "op": {"type": "string", "enum": ["overview", "outlook", "section", "symbol", "accuracy", "watchlist"]},
             "market": {"type": "string", "enum": ["vn", "world", "crypto"]},
             "symbol": {"type": "string", "description": "Mã cần xem khi op=symbol"},
             "sort": {"type": "string", "enum": ["score", "change", "drop", "move"]},

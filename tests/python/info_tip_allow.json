@@ -1,4 +1,5 @@
 {
+ "re.upd.prompt": "content: the task text Javis runs each quarter, typed into the chat or saved as the reminder",
  "re.ask_prompt": "content: the prompt typed into the chat box when the owner presses Ask Javis",
  "re.ask_prompt_compare": "content: the prompt typed into the chat box when the owner presses Ask Javis",
  "wh.retry_confirm": "confirm: asked before re-running an event that may already have acted",
