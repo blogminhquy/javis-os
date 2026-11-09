@@ -736,7 +736,7 @@ def set_zalo_delivery(message_id: int, state: str, error: str = "") -> bool:
     'accepted' means the channel reported success, NOT that a recipient read it.
     Idempotent: no later call can overwrite a settled receipt.
     """
-    if state not in ("accepted", "failed", "unknown"):
+    if state not in ("accepted", "failed", "unknown", "cancelled"):
         return False
     try:
         with _lock:
