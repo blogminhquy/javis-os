@@ -1619,23 +1619,31 @@ def _bao_hop_thu(bot_id: str, cfg: dict, meta: dict, loi: str) -> None:
         print(f"[chatbot {bot_id}] báo chuông lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None) -> None:
-    """Câu BOT trả lời (hoặc câu xin lỗi khi lượt gãy - vẫn là thứ khách nhìn thấy)."""
+def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None,
+                zalo_sending: bool = False) -> int:
+    """Record a bot answer in the inbox; return its unique message row id.
+
+    For Zalo, the answer has NOT necessarily left the machine at this point.
+    Mark it pending until the transport has returned a channel send outcome.
+    """
     try:
         if not str(text or "").strip() and not files:
-            return
+            return 0
         md = {}
         if loi:
             md["loi"] = str(loi)[:300]
         if files:
             md["files"] = [str((f.get("path") if isinstance(f, dict) else f) or "")[:300]
                            for f in list(files)[:10]]
-        conversations.ghi_su_kien(_su_kien_bot(
+        if zalo_sending:
+            md["zalo_delivery"] = {"state": "sending"}
+        result = conversations.ghi_su_kien(_su_kien_bot(
             cfg, meta, sender_type="ai", sender_name=cfg.get("name") or "",
             message_type="text", text=text, metadata=md))
+        return int((result or {}).get("message_id") or 0)
     except Exception as e:
         print(f"[chatbot conversations] {type(e).__name__}: {e}", file=sys.stderr)
-
+        return 0
 
 async def _tra_tai_lieu(bot_id: str, cfg: dict, text: str, chat_id: str = "") -> dict:
     """Tra brain của bot cho MỘT câu hỏi. Quét đĩa + chấm điểm là việc CHẶN, đẩy sang thread để
@@ -2120,7 +2128,9 @@ def _make_answer_fn(bot_id: str):
                 conversations.save_draft(cid_draft, dap_ghi, conversations.last_customer_message_id(cid_draft))
             return {"text": "", "files": [], "im_lang": True, "draft": True}
         # Câu bot nói vào Hộp thư hội thoại, cạnh tin khách. Lượt gãy thì `dap` rỗng nên không ghi gì: khách không nhận tin nào.
-        ghi_tin_bot(cfg, meta or {}, dap_ghi, loi=loi_ky_thuat, files=(out or {}).get("files"))
+        receipt_row = ghi_tin_bot(
+            cfg, meta or {}, dap_ghi, loi=loi_ky_thuat, files=(out or {}).get("files"),
+            zalo_sending=(kenh_luot == "zalo_personal" and not loi_ky_thuat))
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
             _goi_chu(cfg, str((meta or {}).get("user_name") or chat_id),
@@ -2130,6 +2140,11 @@ def _make_answer_fn(bot_id: str):
         if loi_ky_thuat:
             # `failed`: a transport that answers a caller (internal API) must tell a failed turn from a silent one.
             return {"text": "", "files": [], "im_lang": True, "failed": True}
+        if receipt_row and kenh_luot == "zalo_personal":
+            # Private transport metadata: the channel settles precisely this
+            # inbox message after it attempts the send, not an earlier reply.
+            out = dict(out or {})
+            out["_zalo_delivery_row_id"] = receipt_row
         if reaction:
             out = dict(out or {})
             out["reaction"] = reaction
