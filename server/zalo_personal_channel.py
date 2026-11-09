@@ -1075,7 +1075,10 @@ async def _vong() -> None:
                         print(f"[zalo-personal {conn.get('label')}] {tt['loi']}", file=sys.stderr)
                     else:
                         _nhan_loi_moi(conn)
-                        _history_turn(conn, tt)
+                        # On a worker thread (2026-11-09): up to HISTORY_READ_MAX bytes of the history file read, every
+                        # line JSON-parsed and missed messages written to SQLite. On the loop it froze every request
+                        # for 1.19 s on the owner's VPS (/health/loop: _parse_lines < watch_history < _history_turn).
+                        await asyncio.to_thread(_history_turn, conn, tt)
                     _soi_tranh_phien(conn)
                     # Hạn sớm hơn một nhịp chút ít: vòng ngủ đúng một nhịp thì lần thức sau chắc chắn đã tới hạn.
                     tt["doc_toi"] = luc + _nhip_cua(conn["id"]) * 0.9

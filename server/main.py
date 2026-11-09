@@ -127,6 +127,8 @@ import agent_rules   # mục Luật chủ dặn / Bổ sung (tự học) + chố
 import skill_router   # nguồn chân lý khám phá skill (canonical <brain>/skills) dùng chung mọi engine
 import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng qua javis_use_skill (tín hiệu DƯƠNG một chiều)
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
+import ssl_shared   # one SSL context for every httpx client, built off the event loop (2026-11-09)
+ssl_shared.install()
 import share_store    # link CHIA SẺ CÔNG KHAI của một file trong brain (/s/<token>)
 import share_stats    # view counter of those public links
 import share_render   # dựng trang xem cho link chia sẻ (markdown -> html, khung trang)
@@ -5392,6 +5394,13 @@ async def _widen_io_pool():
             concurrent.futures.ThreadPoolExecutor(max_workers=n, thread_name_prefix="javis-io"))
     except Exception as e:  # noqa: BLE001 - the stock pool still works, only smaller
         print(f"[io pool] kept the default pool: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+@app.on_event("startup")
+async def _warm_shared_ssl():
+    """Build the one SSL context every httpx client shares (ssl_shared.py) on a worker thread, so not even the first
+    client loads the certificate bundle on the event loop."""
+    await asyncio.to_thread(ssl_shared.warm)
 
 
 @app.on_event("startup")

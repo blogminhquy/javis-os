@@ -14,6 +14,7 @@ y hệt, kể cả các chi tiết dễ tưởng là thừa:
 import asyncio
 import json
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -187,26 +188,49 @@ def _make_router() -> APIRouter:
         qp = ws.query_params
         roots = _resolve_graph_roots(qp.get("source", "all"), qp.get("path") or None)
         known = await asyncio.to_thread(_scan_md_mtimes, roots)   # baseline lúc kết nối → chỉ báo cái sinh ra sau đó
-        stop = asyncio.Event()
+        stop = threading.Event()
         queue: asyncio.Queue = asyncio.Queue()
 
         async def _fs_watcher():
+            """The OS watch runs on its OWN thread (2026-11-09). awatch built its RustNotify right on the event loop,
+            and on a big brain that setup (one inotify watch per folder) froze every request for up to 2 s each time
+            the graph screen opened (/health/loop: graph.py _fs_watcher, 3 times, 3.08 s). The sync `watch` builds and
+            waits on that thread instead, and hands each batch to the loop. A plain thread, not to_thread: a socket
+            stays open for hours and must not hold a worker of the pool every other to_thread call shares."""
             live = [r for r in roots if r and os.path.isdir(r)]
             if not live:
                 return
             try:
-                from watchfiles import awatch, Change
+                from watchfiles import watch, Change
             except ImportError:   # môi trường thiếu watchfiles → còn mỗi quét thưa, vẫn chạy được
                 print("[ws_graph] thiếu watchfiles - node mọc theo nhịp quét thưa", file=__import__('sys').stderr)
                 return
-            try:
-                async for changes in awatch(*live, stop_event=stop,
-                                            watch_filter=lambda _c, p: p.endswith(".md")):
-                    paths = {p for c, p in changes if c in (Change.added, Change.modified)}
-                    if paths:
-                        await queue.put(paths)
-            except Exception as e:
-                print(f"[ws_graph watcher] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+            loop = asyncio.get_running_loop()
+            finished = loop.create_future()
+
+            def _hand(paths):
+                try:
+                    loop.call_soon_threadsafe(queue.put_nowait, paths)
+                except RuntimeError:   # the loop is closing: nobody is listening any more
+                    pass
+
+            def _run():
+                try:
+                    for changes in watch(*live, stop_event=stop, raise_interrupt=False,
+                                         watch_filter=lambda _c, p: p.endswith(".md")):
+                        paths = {p for c, p in changes if c in (Change.added, Change.modified)}
+                        if paths:
+                            _hand(paths)
+                except Exception as e:
+                    print(f"[ws_graph watcher] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+                finally:
+                    try:
+                        loop.call_soon_threadsafe(lambda: finished.done() or finished.set_result(None))
+                    except RuntimeError:
+                        pass
+
+            threading.Thread(target=_run, name="ws-graph-watch", daemon=True).start()
+            await finished
 
         async def _sparse_rescan():
             while True:
@@ -275,7 +299,7 @@ def _make_router() -> APIRouter:
             # một socket mồ côi, tới giới hạn ``maxfiles=256`` thì toàn bộ API bắt đầu nổ
             # ``OSError: [Errno 24] Too many open files`` và giao diện tưởng brain biến mất.
             stop.set()
-            # awatch cần nhìn thấy stop_event để tự đóng backend FSEvents. Hủy watcher ngay
+            # Luồng watch cần nhìn thấy stop_event để tự đóng backend FSEvents. Hủy watcher ngay
             # có thể ngắt coroutine trước khi backend kịp thu socket; ngược lại chờ vô hạn sẽ
             # treo disconnect trên một số bản watchfiles. Vì vậy dọn ba task thuần asyncio
             # trước, cho watcher tối đa 2 giây thoát êm rồi mới cưỡng chế hủy.

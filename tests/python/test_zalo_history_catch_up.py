@@ -214,7 +214,8 @@ check("no history file: nothing happens", zc.watch_history(dict(CONN, id="other"
 
 # ---- No MCP call and no schedule: the read loop only runs the turn after each successful read
 src = real_open(os.path.join(SERVER, "zalo_personal_channel.py"), encoding="utf-8").read()
-check("the read loop runs the history turn after each successful read", "_history_turn(conn, tt)" in src)
+check("the read loop runs the history turn after each successful read, on a worker thread",
+      "await asyncio.to_thread(_history_turn, conn, tt)" in src)
 check("the catch-up never calls the MCP", "zalo_search_history" not in src[src.index("# Catching up from the history"):
                                                                           src.index("# Vòng đọc\n")])
 
