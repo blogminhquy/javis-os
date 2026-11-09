@@ -1985,7 +1985,8 @@
     }
     var shown = filterTeams(S.teams, S.tagFilter);
     if (box) box.innerHTML = S.loaded || S.teams.length ? (S.tagFilter && !shown.length ? '<p class="tm-empty">' +
-      esc(tw("teams.tags_none")) + "</p>" : teamListHtml(shown, S.activeId, undefined, S.rowMenu, S.renaming, S.tagMenu)) : "";
+      esc(tw("teams.tags_none")) + "</p>" : teamListHtml(shown, S.activeId, undefined, S.rowMenu, S.renaming, S.tagMenu))
+      : loadingHtml("teams.loading_list");
     bindTagPicker(box);
     if (S.renaming) focusRename(box, rd);
     if (box && S.rowMenu && S.focusRowMenu) {
@@ -2193,6 +2194,11 @@
     return items;
   }
 
+  // A small "Loading..." line with a spinner (.pg-loading in console.css), the same as on the Partners page.
+  function loadingHtml(key) {
+    return '<div class="pg-loading" role="status" aria-live="polite">' + esc(tw(key)) + "</div>";
+  }
+
   function htmlNodes(html) {
     if (!html) return [];
     var t = document.createElement("template");
@@ -2210,7 +2216,9 @@
       { key: "jumped", html: S.jumped !== null && S.jumped !== undefined ? '<div class="tm-jumped">' + esc(tw("teams.search_viewing")) +
         ' <button type="button" class="ws-btn tm-jump-back">' + ic("chevrons-down") + esc(tw("teams.search_back")) + "</button></div>" : "" },
       { key: "older", html: S.hasMore ? '<button type="button" class="ws-btn tm-older">' + esc(tw("teams.older")) + "</button>" : "" },
-      { key: "empty", html: !list.length && !S.hasMore ? '<div class="tm-empty tm-empty-chat">' + esc(tw("teams.chat_empty")) + "</div>" : "" }];
+      // Messages of this team not loaded yet: say so, rather than "no message yet" (2026-11-09, owner).
+      { key: "empty", html: !list.length && !S.hasMore ? (S.msgsFor !== S.activeId ? loadingHtml("teams.loading_chat")
+        : '<div class="tm-empty tm-empty-chat">' + esc(tw("teams.chat_empty")) + "</div>") : "" }];
     list.forEach(function (m) {
       var mm = m;
       if (S.skipped["p" + m.id] && m.meta && m.meta.proposal) mm = Object.assign({}, m, { meta: Object.assign({}, m.meta, { proposal: null }) });
@@ -2235,7 +2243,9 @@
     if (S.team) box.setAttribute("data-seen-team", S.team.team_id); else box.removeAttribute("data-seen-team");
     if (!S.team) {
       S.listCache = null;
-      box.innerHTML = S.teams.length ? '<div class="tm-empty tm-empty-chat">' + esc(tw("teams.pick_team")) + "</div>" : "";
+      // A team being opened, or the list itself still on its way: "Loading", not "pick a team" (2026-11-09, owner).
+      box.innerHTML = S.activeId || !S.loaded ? loadingHtml(S.activeId ? "teams.loading_chat" : "teams.loading_list")
+        : S.teams.length ? '<div class="tm-empty tm-empty-chat">' + esc(tw("teams.pick_team")) + "</div>" : "";
       return;
     }
     var built = listItems();
@@ -2839,6 +2849,7 @@
       : opener.matches(".tm-gear") ? ".tm-gear" : opener.matches(".tm-ava-btn") ? ".tm-ava-btn" : null;
     S.side = true;
     S.tab = tab;
+    rememberSide(true);
     drawSide(true);
     drawHead();
     if (tab === "team") loadAgents().then(function () { if (S.side && S.tab === "team") drawSide(); });
@@ -2867,6 +2878,7 @@
 
   function closeSide() {
     S.side = false;
+    rememberSide(false);
     drawSide(true);
     drawHead();
     var back = S.el.querySelector(S.sideOpener || ".tm-gear") || S.el.querySelector(".tm-gear");
@@ -2998,6 +3010,7 @@
         drawFilterbar();
       }
       S.msgs = older ? got.concat(S.msgs) : got;
+      S.msgsFor = forTeam;
       S.hasMore = !S.filterTask && !!r.j.has_more;
       // Older messages go in above what the owner is reading: keep them on the same message (the main chat does too).
       if (older && S.scroll) S.scroll.keep(function () { drawMsgs(false); });
@@ -3032,7 +3045,7 @@
     var c = TEAM_CACHE[id];
     if (!c || S.filterTask) return false;
     if (Date.now() - c.at > TEAM_CACHE_MS) { delete TEAM_CACHE[id]; return false; }
-    S.team = c.team; S.queue = c.queue; S.msgs = c.msgs.slice(); S.hasMore = c.hasMore; S.pinned = c.pinned;
+    S.team = c.team; S.queue = c.queue; S.msgs = c.msgs.slice(); S.hasMore = c.hasMore; S.pinned = c.pinned; S.msgsFor = id;
     S.taskTitles = Object.assign({}, c.taskTitles);
     return true;
   }
@@ -3042,7 +3055,11 @@
     dropNextSug();
     S.jumped = null; S.searchResults = null; S.searchQuery = ""; S.searchOpen = false;
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
-    S.team = null; S.queue = null; S.msgs = []; S.taskTitles = {}; S.side = false; S.openMember = null; S.turns = [];
+    S.team = null; S.queue = null; S.msgs = []; S.msgsFor = ""; S.taskTitles = {}; S.openMember = null; S.turns = [];
+    // 2026-11-09 (owner): a team opens with its Info tab showing on a wide screen, unless the owner closed the panel
+    // last time (remembered per device). A phone keeps the panel as a drawer that opens on demand.
+    S.side = sideByDefault();
+    if (S.side) S.tab = "info";
     S.picker = null; S.draft = null; S.picked = []; S.retrying = {};
     S.replyTo = null; S.plusOpen = false; S.renamingHead = false; forgetAtts(S.atts); S.atts = []; S.folder = null; S.repos = []; S.ghIcon = null; S.info = null;
     S.typing = []; S.pinned = []; S.pinsOpen = false; S.unclamped = {}; S.listCache = null; S.outbox = []; stopReveal();
@@ -3063,8 +3080,20 @@
       // Drawn from the cache, the chat was already on screen: this redraw reuses the unchanged message nodes.
       drawAll(true);
       keepTeam(); loadFolder(); loadSkills();
+      if (S.side && S.tab === "info") loadInfo();
     });
     markOpened(id);
+  }
+
+  // The side panel's open/closed choice on a wide screen, per device (localStorage). Never stored: open.
+  var SIDE_CLOSED_KEY = "javis.teams.sideClosed";
+  function sideByDefault() {
+    var wide = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(min-width: 1061px)").matches;
+    if (!wide) return false;
+    try { return localStorage.getItem(SIDE_CLOSED_KEY) !== "1"; } catch (e) { return true; }
+  }
+  function rememberSide(open) {
+    try { localStorage.setItem(SIDE_CLOSED_KEY, open ? "0" : "1"); } catch (e) { /* a blocked storage only forgets it */ }
   }
 
   // 0.195.0: the owner works in this team now, so next visit (any device) opens it. Best effort: a failure changes nothing.

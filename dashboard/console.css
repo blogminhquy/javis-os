@@ -2165,6 +2165,14 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   color: var(--text3); margin: 12px 0 6px; }
 .ws-rtitle:first-child { margin-top: 0; }
 .ws-empty { font-size: 12.5px; color: var(--text3); padding: 8px 2px; }
+/* 2026-11-09 (owner): a small "Loading..." line where a list or a chat has not arrived yet (Partners, Teams), so an
+   empty column does not read as a frozen page. The spinner reuses the Teams page's keyframes. */
+.pg-loading { display: flex; align-items: center; gap: 8px; padding: 12px 6px; font-size: 14px; line-height: 1.4; color: var(--text3); }
+.pg-loading::before { content: ""; flex: none; width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid var(--border, rgba(140,140,160,.35)); border-top-color: var(--accent); animation: tm-spin .8s linear infinite; }
+.tm-msgs > .pg-loading, .ws-id > .pg-loading { justify-content: center; }
+@media (prefers-reduced-motion: reduce) { .pg-loading::before { animation: none; } }
+@media (max-width: 760px) { .pg-loading { font-size: 16px; } }
 .ws-form label { display: block; font-size: 12px; color: var(--text3); margin: 8px 0 3px; }
 .ws-form input, .ws-form select, .ws-form textarea { width: 100%; box-sizing: border-box; }
 .ws-form h3 { display: none; }   /* tiêu đề "Sửa Agent" thừa: cột phải đã có nhãn riêng */
@@ -3236,6 +3244,14 @@ body.on-teams .cview-head { display: none; }
 .tm-title-btn:hover strong { text-decoration: underline dotted; text-underline-offset: 3px; }
 .tm-sub { font-size: 12px; color: var(--text3); }
 .tm-icon { flex: none; justify-content: center; min-width: 36px; padding: 0 8px; }
+/* 2026-11-09 (owner: the search, settings and close buttons "look ugly next to the other tabs"): with no vertical
+   padding they were as tall as the icon, so the 8px corners drew a squashed oval. Now square, borderless icon buttons
+   in the same soft wash as the panel tabs, the selected state included. */
+.ws-btn.tm-icon { width: 36px; height: 36px; min-width: 36px; padding: 0; border-radius: 10px; border-color: transparent;
+  color: var(--text2); background: none; }
+.ws-btn.tm-icon:hover, .ws-btn.tm-icon:focus-visible { background: var(--accent-wash); color: var(--text); border-color: transparent; }
+.ws-btn.tm-icon[aria-expanded="true"] { background: var(--accent-wash); color: var(--accent-ink); }
+.ws-btn.tm-icon svg { width: 18px; height: 18px; }
 .tm-jobs-chip { display: inline-flex; align-items: center; gap: 4px; flex: none; border: 1px solid var(--border); border-radius: 999px;
   padding: 4px 10px; background: var(--surface-1); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
 .tm-jobs-chip[hidden] { display: none; }
@@ -4453,6 +4469,8 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
   /* Header: one slim row of plain icon buttons, no boxed borders. */
   .tm-chat-head { min-height: 48px; padding: 2px 4px; gap: 2px; }
   .tm-chat-head .ws-btn.tm-icon, .tm-chat-head .tm-back { border-color: transparent; background: none; box-shadow: none; }
+  /* Square icon buttons (2026-11-09) keep the 44px touch target on a phone. */
+  .ws-btn.tm-icon { width: 44px; height: 44px; min-width: 44px; }
   .tm-chat-head .tm-ava, .tm-chat-head .tm-gava { flex: none; }
   /* Messages: no outline around an assistant's message, tighter spacing, more room for the text. */
   .tm-msgs { padding: 8px 8px 12px; gap: 4px; }
@@ -4512,3 +4530,4 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
   .ro-hint { font-size: 17px; }
   .cside-reorder { width: 34px; height: 30px; }
 }
+

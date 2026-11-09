@@ -119,6 +119,15 @@ def _team_err(ex: Exception, code: int = 400) -> JSONResponse:
     return JSONResponse({"ok": False, "error": str(ex)}, status_code=code)
 
 
+def _regs_of(rs, root: str, members) -> dict:
+    """Registry rows of `members` by agent_key, read in one query when the store can (agents_by_keys), else one by one."""
+    keys = [m["agent_key"] for m in members or []]
+    batch = getattr(rs, "agents_by_keys", None)
+    if callable(batch):
+        return batch(root, keys)
+    return {k: rs.agent_by_key(root, k) for k in keys}
+
+
 class TeamApi:
     def __init__(self, deps: TeamApiDeps):
         self.deps = deps
@@ -262,7 +271,8 @@ class TeamApi:
             return dict(m["identity"])
         return {"slug": slug, "name": m["slug_at_join"] or slug, "avatar": None, "avatar_seed": m["agent_key"]}
 
-    def member_views(self, team: dict, meta: Optional[list] = None) -> list:
+    def member_views(self, team: dict, meta: Optional[list] = None, members: Optional[list] = None,
+                     regs: Optional[dict] = None) -> list:
         """Thành viên đang hoạt động của nhóm kèm tên và ảnh đại diện ĐÚNG ảnh trợ lý đang dùng (`avatar` của file trợ lý;
         trợ lý chưa chọn ảnh thì dashboard tự suy từ slug như trang Cộng sự). Nhân dạng giữ theo agent_key (`_identity`)."""
         root = team["brain_id"]
@@ -270,8 +280,11 @@ class TeamApi:
         by_slug = {m["slug"]: m for m in (meta or [])}
         rs = self.deps.resonance_store()
         out = []
-        for m in self.teams().members(team["team_id"]):
-            reg = rs.agent_by_key(root, m["agent_key"]) or {}
+        # `members`/`regs`: already read by the caller for many teams at once (the Teams list, see teams_list).
+        members = self.teams().members(team["team_id"]) if members is None else members
+        regs = _regs_of(rs, root, members) if regs is None else regs
+        for m in members:
+            reg = regs.get(m["agent_key"]) or {}
             ident = self._identity(team, m, reg, by_slug)
             out.append(dict(ident, agent_key=m["agent_key"], title=str((by_slug.get(ident.get("slug")) or {}).get("title") or "")
                             if reg.get("status") == "active" else "",
@@ -288,12 +301,13 @@ class TeamApi:
         meta = self.deps.agents_meta(root) if meta is None else meta
         by_slug = {m["slug"]: m for m in (meta or [])}
         rs = self.deps.resonance_store()
-        return {m["agent_key"]: self._identity(team, m, rs.agent_by_key(root, m["agent_key"]) or {}, by_slug)
-                for m in self.teams().members(team["team_id"], include_removed=True)}
+        members = self.teams().members(team["team_id"], include_removed=True)
+        regs = _regs_of(rs, root, members)
+        return {m["agent_key"]: self._identity(team, m, regs.get(m["agent_key"]) or {}, by_slug) for m in members}
 
-    def faces(self, team: dict, meta: list) -> dict:
+    def faces(self, team: dict, meta: list, members: Optional[list] = None, regs: Optional[dict] = None) -> dict:
         """Ảnh nhóm ở danh sách: tối đa 4 gương mặt thành viên đang hoạt động (trưởng nhóm trước) và tổng số người."""
-        active = [m for m in self.member_views(team, meta) if m["status"] == "active"]
+        active = [m for m in self.member_views(team, meta, members, regs) if m["status"] == "active"]
         active.sort(key=lambda m: (m["agent_key"] != team.get("leader_key"), m["joined_at"]))
         return {"faces": [{"slug": m["slug"], "name": m["name"], "avatar": m["avatar"]} for m in active[:4]],
                 "member_count": len(active)}
@@ -695,9 +709,14 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if not api.exists():
                 return {"ok": True, "teams": [], "next": None}
             meta = deps.agents_meta(root) or []
+            teams = api.teams().list_teams(root, limit=limit, before=before)
+            # 2026-11-09: the members of every listed team, and their registry rows in ONE query, instead of one
+            # connection per member (225 for 15 teams, most of the list's time).
+            mems = {t["team_id"]: api.teams().members(t["team_id"]) for t in teams}
+            regs = _regs_of(deps.resonance_store(), root, [m for ms in mems.values() for m in ms])
             rows = [dict(t, counts=api.counts(t["team_id"]), last=api.last_message(t), unread=api.unread(t),
-                         **api.faces(t, meta))
-                    for t in api.teams().list_teams(root, limit=limit, before=before)]
+                         **api.faces(t, meta, mems[t["team_id"]], regs))
+                    for t in teams]
             # Con trỏ trang sau chỉ tính nhóm không ghim (nhóm ghim luôn nằm ở trang đầu).
             plain = [t for t in rows if not t.get("pinned_at")]
             nxt = plain[-1]["updated_at"] if len(plain) >= max(1, min(int(limit), 200)) else None
