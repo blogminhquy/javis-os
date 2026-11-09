@@ -43,6 +43,7 @@ import unicodedata
 from typing import Any, Callable, Dict, List, Optional
 
 from config import STATE_DIR
+import localefmt
 
 KHOI_GATE = "[GỬI QUA JAVIS GATE:"
 MAX_TIN = 7000            # steer_inbox.MAX_CHARS là 8000, chừa chỗ cho khối nguồn
@@ -130,10 +131,8 @@ def _gap(s: str) -> str:
 
 
 def _gio(ts: Any) -> str:
-    try:
-        return time.strftime("%Y-%m-%d %H:%M", time.localtime(float(ts)))
-    except (TypeError, ValueError):
-        return ""
+    """A message time in the owner's timezone (Settings), not the server clock: a VPS runs on UTC."""
+    return localefmt.format_ts(ts, "%Y-%m-%d %H:%M")
 
 
 def _sach(m: dict) -> str:
