@@ -1754,8 +1754,23 @@ def _luot_cu(meta) -> bool:
         return False
 
 
+def _compose_started(on_compose) -> None:
+    """Tell the channel the turn WILL be answered (09/11/2026): personal Zalo starts "đang soạn tin" in a group only
+    now, after the judge said reply and the chat is not taken over. A failing hook never costs the turn."""
+    if not callable(on_compose):
+        return
+    try:
+        on_compose()
+    except Exception as e:      # noqa: BLE001
+        print(f"[chatbot] báo bắt đầu soạn lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def _make_answer_fn(bot_id: str):
     async def _answer(text, meta=None, progress=None):
+        # The channel's "compose started" hook rides in meta (`_on_compose`, personal Zalo groups). Taken out first:
+        # a callable must never reach the engine, the inbox or a log.
+        meta = dict(meta or {})
+        on_compose = meta.pop("_on_compose", None)
         cfg = chatbot_store.get_bot(bot_id)
         if not cfg:
             return {"text": "", "files": [], "im_lang": True}
@@ -1836,6 +1851,7 @@ def _make_answer_fn(bot_id: str):
         if conversations.che_do(kenh_luot, aid_luot, chat_id) == "human":
             _rp_retract(rp_dec, "taken_over")
             return {"text": "", "files": [], "im_lang": True}
+        _compose_started(on_compose)
 
         # Tra tài liệu TRƯỚC rồi nhét vào prompt, thay vì trông vào việc model tự chịu mở file.
         # Lượt Tự đánh giá đã tra ở trên rồi, dùng lại kết quả đó chứ không quét đĩa lần hai.
