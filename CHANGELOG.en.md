@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.521.1] - 2026-11-09
+### Improved
+- **Opening the neural graph no longer freezes the whole app.** The graph's file watcher is built on its own thread, so a brain with many folders no longer makes everything else wait up to 2 seconds each time the screen opens.
+- **Every outgoing connection shares one set of security certificates**, loaded once on a background thread at start-up. Before, each outgoing call (community news, Telegram, Zalo, models...) loaded the whole set again, once freezing the app for almost 2 seconds.
+- **Reading the personal Zalo history runs in the background.** After each read, looking for missed messages in the history file no longer blocks anything else.
+
 ## [0.521.0] - 2026-11-09
 ### Improved
 - **Answers stretch across the whole chat instead of leaving a wide gap on the right:** on the Partners page an answer now reaches the right edge of your own messages (on an iPad from about 780px to over 1,000px), so there is much less scrolling. On a very wide monitor it stops at about 120 letters per line so reading stays easy.
