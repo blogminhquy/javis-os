@@ -268,7 +268,7 @@ Mở Javis → bộ cài đặt sẽ dẫn bạn qua:
 
 > 📚 **Tài liệu chi tiết:** xem thư mục **[docs/](../../../docs/README.md)** - hướng dẫn từng chức năng (mở ở đâu, bấm gì, dùng thế nào). Bảng dưới là bản đồ nhanh; cột **Chi tiết** dẫn tới trang hướng dẫn tương ứng.
 
-Thanh điều hướng bên trái gom **22 trang** thành **5 nhóm** (bấm tên nhóm để mở):
+Thanh điều hướng bên trái gom **24 trang** thành **6 nhóm** (bấm tên nhóm để mở):
 
 | Nhóm | Mục | Làm gì | Chi tiết |
 |---|---|---|---|
@@ -285,6 +285,8 @@ Thanh điều hướng bên trái gom **22 trang** thành **5 nhóm** (bấm tê
 | | **Terminal** | **Dòng lệnh thật** của máy chạy Javis, mở ngay trong trình duyệt - khỏi mở SSH. | [Terminal](../../../docs/27-tab-code-terminal.md) |
 | **Việc** | **Việc** | Hàng đợi task nền do AI tự đặc tả và tự chạy; bạn chỉ xử lý ngoại lệ. | [Việc (Kanban)](../../../docs/21-viec-kanban.md) |
 | | **Việc định kỳ** | Nhiều vòng lặp chạy nền + nhắc hẹn theo giờ hoặc cron. | [Việc định kỳ & Nhắc hẹn](../../../docs/08-viec-dinh-ky.md) |
+| **Nghiên cứu** | **Thị trường** | Chứng khoán Việt Nam, thế giới, tiền số: bảng giá, biểu đồ, chỉ báo kỹ thuật và tab Dự báo biến động. | Hỏi Javis trong chat (công cụ `javis_market`) |
+| | **Bất động sản** | Thị trường Đà Nẵng, TP.HCM, Đồng Nai: hiện tại, 20 năm qua và dự báo. | |
 | **Kết nối** | **Kết nối** | Kho dịch vụ ngoài, đa tài khoản cùng một dịch vụ, phân quyền 3 mức. | [Kết nối & số liệu](../../../docs/09-mcp-va-so-lieu.md) |
 | | **Kênh** | Bật bot Telegram, Zalo, Slack, WhatsApp (hỏi Javis qua điện thoại). | [Kênh Telegram](../../../docs/11-telegram.md) · [Kênh Zalo](../../../docs/12-zalo.md) · [Slack và WhatsApp](../../../docs/29-slack-whatsapp.md) |
 | | *(terminal)* | `pip install javis-cli` rồi gõ `javis "..."` - kênh thứ ba, cùng một Javis. | [Javis CLI](../../../docs/24-cli-terminal.md) |
