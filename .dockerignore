@@ -44,6 +44,13 @@ server/settings.json
 server/.sessions.json
 server/.secret_key
 server/.hub_token
+server/.api_tokens.json
+server/auth_audit.jsonl*
+# Account security state (2026-11-09), same list as .gitignore. secret_guard.py refuses the AI these same names.
+server/.sessions_meta.json
+server/.auth_stamp.json
+server/security_log*.jsonl
+server/.login_networks.json
 server/.oauth_mcp.json
 server/.mcp_config.json
 server/.mcp_hub_*.json

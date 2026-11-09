@@ -88,6 +88,9 @@ NHAY_CAM = [
     "server/.secret_key", "server/.hub_token", "server/.oauth_mcp.json",
     "server/.sessions.json", "server/settings.json", "server/mcp_servers.json",
     "server/.mcp_hub_auto.json", "server/mcp_audit.jsonl", ".env",
+    "server/.api_tokens.json", "server/auth_audit.jsonl", "server/.sessions_meta.json",
+    "server/.auth_stamp.json", "server/security_log.jsonl", "server/security_log.1.jsonl",
+    "server/.login_networks.json",
 ]
 CHAY = [
     "server/conversations.db", "server/usage_index.db", "server/session_brain.db",
@@ -114,6 +117,18 @@ def git_ignore(p: str) -> bool:
 sot_git = [p for p in NHAY_CAM + CHAY + NANG if not git_ignore(p)]
 check(f"git bỏ qua hết {len(NHAY_CAM + CHAY + NANG)} đường dẫn trên"
       + (f" (SÓT: {sot_git})" if sot_git else ""), not sot_git)
+
+# Every state file secret_guard.py refuses the AI is a secret by definition, so it must also stay out of git and the
+# image. Read from secret_guard itself: .auth_stamp.json, .sessions_meta.json and the security log were added there
+# (2026-11-09) without ignore entries, and the gap only showed as a flaky "untracked artifact" failure in CI.
+import secret_guard  # noqa: E402
+
+_HOME_ONLY = {".credentials.json", "authorized_keys"}   # live under ~/.claude and ~/.ssh, never in STATE_DIR
+guarded = [f"server/{n}" for n in secret_guard._ALWAYS if n not in _HOME_ONLY]
+guard_leaks = [p for p in guarded if not git_ignore(p) or not docker_loai(p, DOCKERIGNORE)]
+check(f"git and Docker ignore all {len(guarded)} state files in secret_guard._ALWAYS"
+      + (f" (MISSING: {guard_leaks}; add them to .gitignore and .dockerignore, or to _HOME_ONLY if they are"
+         f" not STATE_DIR files)" if guard_leaks else ""), not guard_leaks)
 
 
 # Quy tắc phải nằm trong .gitignore ĐÃ COMMIT, không phải .git/info/exclude của một máy.
