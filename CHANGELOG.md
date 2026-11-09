@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.523.0] - 2026-11-09
+### Sửa lỗi
+- **Nút cài app ở chân menu trái không còn tràn ra ngoài** trên máy tính bảng và laptop cảm ứng: nút gọn bằng nút Tặng sao, ghi "Cài app", thu gọn menu thì chỉ còn biểu tượng.
+### Cải thiện
+- **Điện thoại: nút chọn model về khung nhập, đứng ngay cạnh nút mức suy nghĩ** y như bản máy tính. Bấm vào thì bảng chọn model mở ngay phía trên khung nhập, vừa khít bề ngang màn hình.
+- **Thanh trên cùng gọn hơn:** chỉ còn nút menu, chuông thông báo và nút + hội thoại mới.
+
 ## [0.522.0] - 2026-11-09
 ### Cải thiện
 - **Đổi mật khẩu giờ có thêm ô "Nhập lại mật khẩu mới".** Hai lần gõ phải khớp nhau thì Javis mới lưu, nên lỡ gõ sai một ký tự không còn tự khoá mình ngoài cửa. Áp dụng ở cả trang Tài khoản lẫn khối Tài khoản đăng nhập trong Cài đặt.

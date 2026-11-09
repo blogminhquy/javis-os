@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.523.0] - 2026-11-09
+### Fixed
+- **The install button at the foot of the left menu no longer spills out** on touch tablets and laptops: it is the size of the star button, reads "Install app", and shows only its icon when the menu is folded.
+### Improved
+- **Phone: the model picker moved into the input card, right next to the effort picker**, just like on a computer. Tapping it opens the model list right above the card, never wider than the screen.
+- **A cleaner top bar:** only the menu button, the notification bell and the + for a new conversation remain.
+
 ## [0.522.0] - 2026-11-09
 ### Improved
 - **Changing the password now has a "Confirm new password" box.** Javis saves only when both entries match, so one typo can no longer lock you out. It applies to the Account page and to the login block in Settings.
