@@ -267,6 +267,7 @@ _REGISTRY_SHADOW_TASKS = set()
 # Nén gzip câu trả lời trọn một cục của API (0.225.0, xem nen_phan_hoi.py). Gắn ĐẦU TIÊN để nằm trong cùng: các
 # middleware gắn sau bọc response thành stream, đứng ngoài chúng thì không còn thấy câu trả lời nào là một cục.
 import nen_phan_hoi
+import bot_shield
 app.add_middleware(nen_phan_hoi.NenPhanHoi)
 # CORS KHÔNG dùng '*' nữa: dashboard cùng-origin (không cần CORS). Chống trang web độc ĐỌC API qua trình duyệt;
 # phần chống GHI/CSRF ở _csrf_guard bên dưới.
@@ -292,6 +293,8 @@ if (os.getenv("JAVIS_DEV_CORS", "") or "").strip().lower() in ("1", "true", "yes
 _AUTH_PUBLIC_PREFIX = ("/static/", "/s/", "/hooks/")
 # /brand-logo: hiện trên màn đăng nhập (trước session). /tls-check: Caddy gọi (không đăng nhập được).
 _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/health", "/auth/status", "/auth/login", "/auth/setup",
+                      # /robots.txt (2026-11-09): crawlers must read it with no session, see bot_shield.py.
+                      "/robots.txt",
                       "/brand-logo", "/brand-theme.css", "/tls-check",
                       # /pet-icon: the mascot picture as the tab icon, shown on the login screen too.
                       "/pet-icon",
@@ -603,6 +606,12 @@ async def _server_timing(request: Request, call_next):
     except Exception:  # noqa: BLE001 - header là đồ thêm, không được làm hỏng response
         pass
     return response
+
+
+# Added LAST so it runs FIRST (outermost): X-Robots-Tag noindex on every answer, and a 403 for requests that declare
+# themselves a crawler, AI agent, SEO tool or scanner, before the CSRF and login gates spend anything on them. Keeps a
+# leaked admin link out of search results and away from AI (owner request 2026-11-09). See bot_shield.py.
+app.add_middleware(bot_shield.BotShield)
 
 CLAUDE_MD_PATH = Path(__file__).parent.parent / "CLAUDE.md"
 SYSTEM_PROMPT = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exists() else None
@@ -1868,7 +1877,8 @@ async def auth_logout(request: Request):
     return resp
 
 
-_FORWARD_HEADERS = ("x-forwarded-for", "x-real-ip", "forwarded", "cf-connecting-ip")
+# One list for every local-request check (bot_shield.BotShield exempts local tools the same way).
+_FORWARD_HEADERS = bot_shield.FORWARD_HEADERS
 
 
 def _direct_local_request(request: Request) -> bool:
@@ -17092,6 +17102,13 @@ async def pet_icon():
         return JSONResponse({"error": "no icon"}, status_code=404)
     return FileResponse(str(p), media_type=_ICON_MEDIA.get(p.suffix.lower(), "image/png"),
                         headers={"Cache-Control": "public, max-age=60", "X-Content-Type-Options": "nosniff"})
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    """Tells AI crawlers and unknown robots to fetch nothing (bot_shield.robots_txt explains why the big search engines
+    are let through to a 403 + noindex instead). Public: a crawler has no session."""
+    return PlainTextResponse(bot_shield.robots_txt(), headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/favicon.ico")
