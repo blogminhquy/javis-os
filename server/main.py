@@ -128,6 +128,7 @@ import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chi
 import share_store    # link CHIA SẺ CÔNG KHAI của một file trong brain (/s/<token>)
 import share_stats    # view counter of those public links
 import share_render   # dựng trang xem cho link chia sẻ (markdown -> html, khung trang)
+import local_open     # open a file outside the brain with the owner's own app (chat links)
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
 import usage_parsers as up_parsers   # bảng giá + khớp model, dùng chung với indexer
@@ -9912,6 +9913,45 @@ async def files_raw(brain: str = Query("brain"), path: str = Query(...), dl: int
     tab, mọi file khác có URL tĩnh để mở/tải. Khác /files/download (luôn ép tải về): mặc định
     inline; truyền dl=1 để ép tải. Cùng rào chống traversal (_safe_serve_path)."""
     return raw_file_response(brain, path, dl=bool(dl))
+
+
+_LOCAL_OPEN_MSG = {
+    "not_absolute": ("Đây không phải đường dẫn đầy đủ tới một file trên máy.", "This is not a full path to a file on this computer."),
+    "outside": ("Chỉ mở được file trong thư mục người dùng của máy này.", "Only files inside this computer's home folder can be opened."),
+    "missing": ("Không tìm thấy file. Có thể nó đã bị đổi tên, chuyển chỗ hoặc xoá.", "File not found. It may have been renamed, moved or deleted."),
+}
+
+
+@app.post("/files/open-local")
+async def files_open_local(request: Request, path: str = Form(...), brain: str = Form("brain")):
+    """Open a file OUTSIDE the brain (a full path Javis wrote in chat) with the owner's own app.
+
+    Asks the OS to open it, like a double click in Finder; nothing is served over HTTP, so it is
+    only offered to a browser on this very machine: through a tunnel or proxy, or inside Docker, the
+    file would open on a screen nobody is looking at. Rules on what a click may open or only reveal
+    live in local_open.py."""
+    if not _direct_local_request(request) or os.path.exists("/.dockerenv"):
+        return JSONResponse({"error": localefmt.chu(
+            "Link này chỉ mở được khi bạn dùng Javis ngay trên máy đang chạy nó.",
+            "This link only opens when you use Javis on the computer that runs it.")}, status_code=403)
+    roots = [Path.home()]
+    try:
+        roots.append(Path(_brain_root(brain)))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        target = local_open.resolve_target(path, roots)
+    except local_open.LocalOpenError as e:
+        vi, en = _LOCAL_OPEN_MSG.get(e.code, _LOCAL_OPEN_MSG["missing"])
+        return JSONResponse({"error": localefmt.chu(vi, en), "code": e.code},
+                            status_code=404 if e.code == "missing" else 400)
+    action = local_open.plan(target)
+    try:
+        local_open.launch(action, target)
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": localefmt.chu("Không mở được file: ", "Could not open the file: ") + str(e)},
+                            status_code=500)
+    return {"ok": True, "action": action, "path": str(target)}
 
 
 # ---- CHIA SẺ CÔNG KHAI một file (nút Chia sẻ trong trình sửa) ----
