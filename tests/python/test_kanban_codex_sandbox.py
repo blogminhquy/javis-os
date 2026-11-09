@@ -11,6 +11,7 @@ Pinned here:
   1. Codex at auto, the question says the write was refused: blocked as `sandbox`, no question stored, not retried
   2. the same question on another engine, or from Codex at `suggest` (read-only by design): still a question
   3. an ordinary Codex question: still a question
+  4. questions that only look alike ("sandbox" of a payment gateway, a view-only Google Sheet): still questions
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -85,8 +86,23 @@ def test_ordinary_codex_question_still_asks(tmp_path):
     feature, brain = _feature(tmp_path)
     task = _run(feature, brain, "[[NEEDS_INPUT]] Gửi báo cáo cho anh Minh hay chị Lan?", aux_engine.CODEX, "full")
     assert task["block_kind"] == "needs_input", task
-    assert not sandbox_refused({"provider": aux_engine.CODEX, "execution_mode": "full"}, "Gửi cho ai?")
-    assert sandbox_refused({"provider": aux_engine.CODEX, "execution_mode": "full"}, "EACCES: permission denied")
+    md = {"provider": aux_engine.CODEX, "execution_mode": "full"}
+    assert not sandbox_refused(md, "Gửi cho ai?")
+    assert sandbox_refused(md, "touch reports/a.md: Read-only file system")
+    assert sandbox_refused(md, "Không ghi được file vì sandbox chặn ghi (Access is denied).")
+    feature.store.close()
+
+
+def test_real_questions_that_only_look_alike_still_ask(tmp_path):
+    """Review of the first draft: "sandbox" alone or "read-only" alone are real questions for the owner."""
+    md = {"provider": aux_engine.CODEX, "execution_mode": "full"}
+    assert not sandbox_refused(md, "[[NEEDS_INPUT]] Chạy thử trên sandbox của PayOS hay production luôn?")
+    assert not sandbox_refused(md, "[[NEEDS_INPUT]] Google Sheet đang chỉ đọc, anh cấp quyền sửa cho em nhé?")
+    assert not sandbox_refused(md, "[[NEEDS_INPUT]] API Google báo permission denied, anh cấp quyền tài khoản dịch vụ?")
+    feature, brain = _feature(tmp_path)
+    task = _run(feature, brain, "[[NEEDS_INPUT]] Google Sheet đang chỉ đọc, anh cấp quyền sửa cho em nhé?",
+                aux_engine.CODEX, "auto")
+    assert task["block_kind"] == "needs_input", task
     feature.store.close()
 
 

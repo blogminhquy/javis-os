@@ -130,9 +130,14 @@ EXECUTION_MODES = {"suggest", "auto", "full"}
 # #1133: a Codex worker at `auto`/`full` whose writes were refused by Codex's own sandbox (on Windows, Codex quietly
 # ran `workspace-write` as `read-only`) stopped with a [[NEEDS_INPUT]] about it, and the job sat in "waiting for your answer".
 # No answer can fix a sandbox, so such a job is blocked as an environment problem with what to change instead.
-_SANDBOX_REFUSED_RE = re.compile(
-    r"read[- ]?only|chỉ đọc|sandbox|permission denied|access is denied|operation not permitted|\beacces\b|\beperm\b",
-    re.IGNORECASE)
+# Narrow on purpose: "sandbox" alone is also a payment test environment, and "read-only" alone is also a Google Sheet
+# the owner shared view-only; both are real questions for the owner. It takes Codex's sandbox AND a refusal, or the
+# operating system's own read-only error.
+_SANDBOX_WORD_RE = re.compile(r"\bsandbox\b", re.IGNORECASE)
+_SANDBOX_REFUSAL_RE = re.compile(
+    r"read[- ]?only|chỉ (cho )?đọc|access is denied|permission denied|operation not permitted|\beacces\b|\beperm\b"
+    r"|blocked|bị chặn|chặn ghi|không (thể )?ghi", re.IGNORECASE)
+_READ_ONLY_FS_RE = re.compile(r"read-only file system", re.IGNORECASE)
 SANDBOX_BLOCK_KIND = "sandbox"
 
 
@@ -143,7 +148,8 @@ def sandbox_refused(metadata: dict, result: str) -> bool:
         return False
     if str(md.get("execution_mode") or "") not in ("auto", "full"):
         return False   # `suggest` is read-only by design: asking for a higher level there is a real question
-    return bool(_SANDBOX_REFUSED_RE.search(str(result or "")))
+    text = str(result or "")
+    return bool(_READ_ONLY_FS_RE.search(text) or (_SANDBOX_WORD_RE.search(text) and _SANDBOX_REFUSAL_RE.search(text)))
 
 
 def sandbox_block_reason() -> str:
