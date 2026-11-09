@@ -28,6 +28,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import mcp_catalog
@@ -227,7 +228,11 @@ with tempfile.TemporaryDirectory() as td:
 
         # ─────────────── 7. Cache đổi theo đĩa ───────────────
         shutil.rmtree(kho / "acme.demo")
-        check("xoá thư mục gói thì connector biến mất ở lần load kế (không cần khởi động lại)",
+        # 2026-11-09: a hand edit of the packs folder is trusted-but-unchecked for a moment (packs.SIGNATURE_S,
+        # mcp_catalog.CHECK_S: these checks ran on every tool list and froze a VPS); changes made through Javis
+        # call invalidate() and show at once. So: gone within a couple of seconds, still with no restart.
+        time.sleep(max(packs.SIGNATURE_S, mcp_catalog.CHECK_S) + 0.1)
+        check("xoá thư mục gói thì connector biến mất sau vài giây (không cần khởi động lại)",
               len(mcp_catalog.load()) == so_goc)
 
         # ─────────────── 8. Chốt đường dẫn khi phục vụ file ───────────────
