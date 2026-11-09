@@ -2,8 +2,8 @@
 // brains-ui.js - Nhiều second brain trong 1 thư mục (BRAINS_DIR), nạp TỪ SERVER.
 // Bổ sung cho app.js, KHÔNG sửa app.js (file UTF-16 dễ hỏng). Chỉ thao tác DOM:
 //   - Đổ dropdown #graphSource từ GET /brains (thay vì localStorage).
-//   - Nút #newBrainBtn → POST /brains/new tạo brain mới.
-//   - Nút #delBrainBtn → POST /brains/delete xoá brain ĐANG CHỌN (xác nhận gõ đúng tên).
+//   - window.JavisBrains.create / rename / remove / forget / adopt: what the brain picker panel (brain-picker.js)
+//     calls from each brain's row (POST /brains/new, /brains/label, /brains/delete; delete needs the folder name typed).
 // Vẫn giữ "chọn folder ngoài bất kỳ" (option data-custom do app.js thêm).
 // ============================================================
 (function () {
@@ -173,95 +173,88 @@
     }
   }
 
-  async function newBrain() {
-    const name = (window.prompt(window.t("brains.new_prompt")) || "").trim();
-    if (!name) return;
+  // ---- what the brain picker (brain-picker.js) asks for (2026-11-09) ----
+  // The four buttons beside the picker are gone: create, rename, delete and "outside folder" now live inside the picker
+  // panel, on each brain's row. These functions do the work and RETURN {ok, error}; the panel says the result in its own
+  // words (no alert, no prompt).
+  async function post(url, fields) {
     const fd = new FormData();
-    fd.append("name", name);
-    let r;
-    try { r = await (await fetch("/brains/new", { method: "POST", body: fd })).json(); }
-    catch (e) { alert(window.t("brains.create_net_err")); return; }
-    if (!r || !r.ok) { alert((r && r.error) || window.t("brains.create_failed")); return; }
-    await loadBrains(r.path, false);
+    Object.keys(fields).forEach((k) => fd.append(k, fields[k]));
+    try {
+      const r = await fetch(url, { method: "POST", body: fd });
+      const d = await r.json().catch(() => ({}));
+      return d && typeof d === "object" ? d : {};
+    } catch (e) {
+      return { ok: false, error: window.t("bpick.net_err"), net: true };
+    }
+  }
+  function optionOf(value) {
+    return [...sel.options].find((o) => o.value === value) || null;
   }
 
-  // Gỡ 1 thư mục ngoài khỏi danh sách - CHỈ khỏi menu + localStorage, KHÔNG đụng ổ đĩa.
-  function removeCustomFromList(opt) {
-    const name = opt.textContent.trim();
-    if (!window.confirm(window.t("brains.confirm_remove_custom", { ten: name }))) return;
-    let list;
-    try { list = JSON.parse(localStorage.getItem("javis.brains") || "[]"); } catch (e) { list = []; }
-    if (!Array.isArray(list)) list = [];
-    list = list.filter((b) => b && ("path:" + b.path) !== opt.value);
-    localStorage.setItem("javis.brains", JSON.stringify(list));
-    if (sel.value === opt.value) {
+  async function create(name) {
+    const r = await post("/brains/new", { name: (name || "").trim() });
+    if (!r.ok) return { ok: false, error: r.error || window.t("brains.create_failed") };
+    await loadBrains(r.path, false);   // selects the new brain and tells every page
+    return r;
+  }
+
+  // Rename (0.219.0): only the SHOWN name changes, kept inside the brain (Javis/brain.json). The folder stays, so saved
+  // choices, bots, reminders, background work and /brains/<folder>/... links keep pointing right. Brain Default too.
+  async function rename(value, label) {
+    const r = await post("/brains/label", { brain: value, label: (label || "").trim() });
+    if (!r.ok) return { ok: false, error: r.error || window.t("brains.rename_failed") };
+    await loadBrains(null, false);
+    try { window.dispatchEvent(new CustomEvent("javis:brain-renamed", { detail: { brain: value, label: r.label } })); } catch (e) {}
+    return r;
+  }
+
+  // Delete = to the local trash for 30 days, and the delete spreads to every synced machine. The panel asks for the
+  // folder name typed exactly; the server checks it again.
+  async function remove(value, typed) {
+    const opt = optionOf(value);
+    if (value === "brain") return { ok: false, error: window.t("brains.cannot_delete_default") };
+    if (!opt || !opt.dataset.brain) return { ok: false, error: window.t("brains.only_listed") };
+    const name = opt.dataset.brainName;
+    const r = await post("/brains/delete", { name: name, confirm: (typed || "").trim() });
+    if (!r.ok) return { ok: false, error: r.error || window.t("brains.delete_failed") };
+    const wasCurrent = sel.value === value;
+    if (wasCurrent) {
       sel.value = "brain";
       localStorage.setItem("javis.graphSource", "brain");
     }
-    opt.remove();
-    sel.dispatchEvent(new Event("change"));
-    alert(window.t("brains.removed_custom", { ten: name }));
+    await loadBrains(null, false);
+    if (wasCurrent) sel.dispatchEvent(new Event("change"));
+    return r;
   }
 
-  async function deleteBrain() {
-    const opt = sel.options[sel.selectedIndex];
-    if (sel.value === "brain") { alert(window.t("brains.cannot_delete_default")); return; }
-    if (!opt || !opt.dataset.brain) {
-      // Thư mục ngoài: cho GỠ khỏi danh sách (không xoá ổ đĩa). Trước đây chỉ báo lỗi mà
-      // không có cách gỡ nào → entry kẹt vĩnh viễn kể cả sau khi folder đã bị xoá.
-      if (opt && opt.dataset.custom) { removeCustomFromList(opt); return; }
-      alert(window.t("brains.only_listed"));
-      return;
+  // An outside folder only leaves the list (and this browser's memory); nothing on the disk is touched.
+  function forget(value) {
+    const opt = optionOf(value);
+    if (!opt || !opt.dataset.custom) return { ok: false, error: window.t("brains.only_listed") };
+    let list;
+    try { list = JSON.parse(localStorage.getItem("javis.brains") || "[]"); } catch (e) { list = []; }
+    if (!Array.isArray(list)) list = [];
+    list = list.filter((b) => b && ("path:" + b.path) !== value);
+    localStorage.setItem("javis.brains", JSON.stringify(list));
+    const wasCurrent = sel.value === value;
+    if (wasCurrent) {
+      sel.value = "brain";
+      localStorage.setItem("javis.graphSource", "brain");
     }
-    const name = opt.dataset.brainName;
-    // Xác nhận KỸ: gõ đúng tên - vì đây là TOÀN BỘ tri thức trong não này, mất là không lấy lại được.
-    const typed = window.prompt(window.t("brains.delete_prompt", { ten: name }));
-    if (typed === null) return;
-    if (typed.trim() !== name) { alert(window.t("brains.name_mismatch")); return; }
-    const fd = new FormData();
-    fd.append("name", name);
-    fd.append("confirm", typed.trim());
-    let r;
-    try { r = await (await fetch("/brains/delete", { method: "POST", body: fd })).json(); }
-    catch (e) { alert(window.t("brains.delete_net_err")); return; }
-    if (!r || !r.ok) { alert((r && r.error) || window.t("brains.delete_failed")); return; }
-    // Về brain mặc định rồi nạp lại danh sách
-    sel.value = "brain";
-    localStorage.setItem("javis.graphSource", "brain");
-    await loadBrains(null, false);
-    sel.dispatchEvent(new Event("change"));
-    alert(window.t("brains.deleted", { ten: name }));
+    const grp = opt.parentNode;
+    opt.remove();
+    if (grp && grp.tagName === "OPTGROUP" && !grp.children.length) grp.remove();
+    if (wasCurrent) sel.dispatchEvent(new Event("change"));
+    return { ok: true };
   }
 
-  // Đổi tên (0.219.0): chỉ đổi TÊN HIỂN THỊ, lưu trong chính brain (Javis/brain.json). Thư mục giữ nguyên nên mọi
-  // lựa chọn đã lưu, bot, nhắc việc, việc nền và link /brains/<thư mục>/... trong note vẫn trỏ đúng. Đổi được cả Brain
-  // mặc định (trước đây không có cách nào đổi tên não nào).
-  async function renameBrain() {
-    const opt = sel.options[sel.selectedIndex];
-    if (!opt || (sel.value !== "brain" && !opt.dataset.brain)) { alert(window.t("brains.only_listed")); return; }
-    const cu = opt.dataset.brainLabel || opt.textContent.trim();
-    const moi = window.prompt(window.t("brains.rename_prompt"), cu);
-    if (moi === null || moi.trim() === cu) return;
-    const fd = new FormData();
-    fd.append("brain", sel.value);
-    fd.append("label", moi.trim());
-    let r;
-    try { r = await (await fetch("/brains/label", { method: "POST", body: fd })).json(); }
-    catch (e) { alert(window.t("brains.rename_net_err")); return; }
-    if (!r || !r.ok) { alert((r && r.error) || window.t("brains.rename_failed")); return; }
-    await loadBrains(null, false);
-    // Báo các phần khác (tiêu đề, sidebar) vẽ lại tên mà không đổi brain đang chọn.
-    try { window.dispatchEvent(new CustomEvent("javis:brain-renamed", { detail: { brain: sel.value, label: r.label } })); } catch (e) {}
+  // An uploaded brain (POST /brains/import, done by the panel with upload progress): list it and switch to it.
+  async function adopt(path) {
+    await loadBrains(path, false);
   }
-
-  const rb = document.getElementById("renameBrainBtn");
-  if (rb) rb.addEventListener("click", renameBrain);
-  const nb = document.getElementById("newBrainBtn");
-  if (nb) nb.addEventListener("click", newBrain);
-  const db = document.getElementById("delBrainBtn");
-  if (db) db.addEventListener("click", deleteBrain);
 
   loadBrains(null, true);
 
-  window.JavisBrains = { reload: () => loadBrains(null, false) };
+  window.JavisBrains = { reload: () => loadBrains(null, false), create, rename, remove, forget, adopt };
 })();

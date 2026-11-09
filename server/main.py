@@ -7,6 +7,7 @@ Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling �
 """
 import brain_seed_i18n   # file hạt giống của brain mới theo ngôn ngữ người dùng
 import brain_label   # tên hiển thị của brain, tách khỏi thư mục (0.219.0)
+import brain_export   # xuất/nhập cả bộ não thành một file .zip (2026-11-09)
 import brain_order   # thứ tự brain trong bảng chọn: chủ tự sắp, còn lại theo tên hiển thị (0.431.0)
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import html as html_mod   # escape lời báo lỗi OAuth trên trang callback (biến cục bộ `html` che tên module)
@@ -8510,6 +8511,98 @@ async def delete_brain(name: str = Form(...), confirm: str = Form("")):
         pass
 
     return {"ok": True, "name": safe, "trashed": bool(dest)}
+
+
+# ---- a whole brain as one .zip file, out and back in (2026-11-09, server/brain_export.py) ----
+
+def _managed_brain_dir(brain: str):
+    """The folder of a brain Javis manages ("brain", "path:<folder>" or a folder name), or None. Only brains inside
+    BRAINS_DIR are exported: an external folder may be anything on the disk."""
+    b = (brain or "").strip()
+    if b == "brain" or not b:
+        root = _default_brain_dir()
+    else:
+        raw = b[5:] if b.startswith("path:") else (b if os.path.isabs(b) else str(Path(BRAINS_DIR) / _safe_brain_name(b)))
+        root = Path(raw)
+    try:
+        root = root.resolve()
+        base = Path(BRAINS_DIR).resolve()
+    except OSError:
+        return None
+    if root == base or base not in root.parents or not root.is_dir():
+        return None
+    return root
+
+
+def _brain_zip_name(root) -> str:
+    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "", brain_label.display(root)).strip() or root.name or "brain"
+    return name + ".zip"
+
+
+@app.get("/brains/export")
+async def brain_export_zip(brain: str = Query("brain"), probe: int = Query(0)):
+    """Download a whole brain as one .zip (brain picker: Export on each row). `probe=1` only measures it first (files,
+    bytes) so the page can say what is coming, or why not, before the download starts. Built in a thread into a temp
+    file, sent, then deleted. Private files stay out (brain_export.kept_out)."""
+    import tempfile
+    from starlette.background import BackgroundTask
+    root = _managed_brain_dir(brain)
+    if root is None:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Chỉ xuất được bộ não Javis quản lý", "Only brains Javis manages can be exported")},
+                            status_code=404)
+    too_big = localefmt.chu(f"Bộ não quá lớn để xuất (trần {brain_export.MAX_FILES:,} file hoặc 2GB)",
+                            f"The brain is too large to export (limit {brain_export.MAX_FILES:,} files or 2GB)")
+    if probe:
+        try:
+            files, total = await asyncio.to_thread(brain_export.scan, root)
+        except brain_export.TooBig:
+            return JSONResponse({"ok": False, "error": too_big}, status_code=413)
+        return {"ok": True, "files": files, "bytes": total, "name": _brain_zip_name(root)}
+    fd, tmp = tempfile.mkstemp(prefix="javis-brain-", suffix=".zip")
+    os.close(fd)
+    try:
+        await asyncio.to_thread(brain_export.export_zip, root, tmp, _app_version())
+    except brain_export.TooBig:
+        _rm_quiet(tmp)
+        return JSONResponse({"ok": False, "error": too_big}, status_code=413)
+    except Exception as e:
+        _rm_quiet(tmp)
+        return JSONResponse({"ok": False, "error": localefmt.chu(f"Nén thất bại: {e}", f"Compression failed: {e}")}, status_code=500)
+    return FileResponse(tmp, media_type="application/zip", filename=_brain_zip_name(root),
+                        background=BackgroundTask(_rm_quiet, tmp))
+
+
+@app.post("/brains/import")
+async def brain_import_zip(file: UploadFile = File(...), label: str = Form("")):
+    """Upload a brain file made by Export (brain picker: "Upload a brain"). It always becomes a NEW brain; plugins,
+    loops and pending reminders in it arrive switched off (brain_export.import_zip says why)."""
+    size = getattr(file, "size", None)
+    if size is not None and size > brain_export.MAX_UPLOAD:
+        return JSONResponse({"ok": False, "error": localefmt.chu("File quá lớn (trần 1GB)", "File too large (limit 1GB)")}, status_code=413)
+    work = cfgmod.STATE_DIR / "brain-import"
+    try:
+        res = await asyncio.to_thread(brain_export.import_zip, file.file, BRAINS_DIR, file.filename or "", label, work)
+    except brain_export.TooBig:
+        return JSONResponse({"ok": False, "error": localefmt.chu(f"Bộ não trong file quá lớn (trần {brain_export.MAX_FILES:,} file hoặc 2GB)",
+                                                                 f"The brain in the file is too large (limit {brain_export.MAX_FILES:,} files or 2GB)")},
+                            status_code=413)
+    except brain_export.BadFile:
+        return JSONResponse({"ok": False, "error": localefmt.chu("File này không phải bộ não Javis xuất ra (cần file .zip có ghi chú bên trong)",
+                                                                 "This is not a brain file exported by Javis (a .zip with notes inside)")},
+                            status_code=400)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": localefmt.chu(f"Không nhập được: {e}", f"Could not import: {e}")}, status_code=500)
+    finally:
+        try:
+            await file.close()
+        except Exception:
+            pass
+    git_brain.clear_tombstone(BRAINS_DIR, res["name"])   # a brain once deleted under this name must not be swept again
+    try:
+        await asyncio.to_thread(_ensure_brain_scaffold, Path(res["path"]))
+    except Exception:
+        pass
+    return {"ok": True, **res}
 
 # ============================================================
 # STUDIO - Agents / Skills / Workflows
