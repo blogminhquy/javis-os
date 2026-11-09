@@ -43,7 +43,7 @@ check("tag menu row: Auto on with its count and a bolt icon, only when the Auto 
   && /label: t\("ws\.tag_auto"\), icon: "zap", right: String\(soAuto\)/.test(src) && /S\.nhom === TAG_AUTO \? "zap"/.test(src));
 check("label in vi and en", vi["ws.tag_auto"] === "Đang bật Auto" && en["ws.tag_auto"] === "Auto on");
 
-check("answers on the assistant page keep the main chat's 72ch measure (no 120ch widening)",
+check("answers on the assistant page use the shared answer measure (no page-only 120ch widening)",
   !/max-width: min\(120ch/.test(ccss));
 check("the chat has no sideways scroll from the outline bar's negative margin",
   css.includes(".transcript.cm-co-thanh { padding-right: 34px; overflow-x: hidden; }"));

@@ -3299,7 +3299,7 @@ body.on-teams .cview-head { display: none; }
 .tm-msg[hidden] { display: none; }
 .tm-msg-owner { justify-content: flex-end; }
 .tm-bubble { min-width: 0; flex: 0 1 auto; padding: 8px 12px; border-radius: 16px; background: var(--surface-1); border: 1px solid var(--border); }
-.tm-msg-agent .tm-bubble { border-bottom-left-radius: 6px; max-width: min(680px, calc(100% - 86px)); }
+.tm-msg-agent .tm-bubble { border-bottom-left-radius: 6px; max-width: min(100ch, calc(100% - 86px)); }
 .tm-msg-owner .tm-bubble { background: var(--accent-wash); border-color: var(--accent-line); border-bottom-right-radius: 6px;
   max-width: min(680px, 85%); }
 .tm-msg-late .tm-bubble { opacity: .8; border-style: dashed; }
@@ -3368,7 +3368,7 @@ body.on-teams .cview-head { display: none; }
 /* 0.194.1 (owner, 17/10/2026): the bubble and its action row (time, Reply, Copy, Pin) stack in one column, the row right
    under the bubble on its own side, like the main chat (.msg-acts). Beside the bubble it looked cluttered. */
 .tm-col { display: flex; flex-direction: column; min-width: 0; flex: 0 1 auto; }
-.tm-msg-agent .tm-col { align-items: flex-start; max-width: min(680px, calc(100% - 40px)); }
+.tm-msg-agent .tm-col { align-items: flex-start; max-width: min(100ch, calc(100% - 40px)); }
 .tm-msg-owner .tm-col { align-items: flex-end; max-width: min(680px, 85%); }
 .tm-msg .tm-col > .tm-bubble { max-width: 100%; }
 .tm-hacts { display: flex; align-items: center; gap: 2px; height: 26px; margin-top: 2px; opacity: 0; transition: opacity .12s; }
