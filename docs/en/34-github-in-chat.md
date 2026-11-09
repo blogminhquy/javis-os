@@ -10,6 +10,14 @@ Full design: [docs/dev/2026-10-github-trong-chat-spec.md](../dev/2026-10-github-
 
 Open **Connections**. The **GitHub** card is always first: it is built into Javis, nothing to install.
 
+**git comes first.** Javis downloads repos with git, so pressing **Connect** checks for git on this machine. When it is missing, Javis installs it and then opens the sign-in step, usually within 1 to 3 minutes:
+
+- **Windows:** winget, or the official Git for Windows installer when winget is absent. Both install for the signed-in user only, no admin rights needed.
+- **Mac:** Homebrew when the machine has it, otherwise Apple opens its developer tools dialog: press **Install** and Javis carries on when it is done.
+- **Linux/VPS:** the package manager (apt, dnf, yum, apk, pacman, zypper) when Javis runs as root or has password-less sudo. The official Docker image already ships git.
+
+If the install fails, the dialog shows the exact command to run by hand, **Try again** and **Skip, connect anyway**. A git installed by hand while Javis runs is picked up right away, no restart. A connected card on a machine without git has its own **Install git** button.
+
 1. On github.com: **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
 2. Pick the repos Javis may work on. Grant **Contents**, **Pull requests**, **Workflows** (Read and write); **Checks**, **Actions**, **Commit statuses**, **Metadata** (Read).
 3. Paste the token into the GitHub card and press **Connect**.
