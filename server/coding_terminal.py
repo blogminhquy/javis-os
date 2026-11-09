@@ -200,6 +200,19 @@ def _chuan_dich(t: str) -> str:
     return t
 
 
+def _secret_hit(cmd: str) -> str:
+    """Refusal text when a command touches a secret file of Javis (secret_guard.py), at every permission level."""
+    try:
+        import secret_guard
+        hit = secret_guard.check_text(cmd)
+        if hit:
+            secret_guard.note_blocked("javis_terminal", hit, cmd)
+            return "ERROR: " + secret_guard.refusal(hit)
+    except Exception:  # noqa: BLE001 - the guard failing must not stop ordinary commands
+        pass
+    return ""
+
+
 def kiem_rao_cung(cmd: str, sau: int = 0) -> str:
     """Lý do chặn nếu lệnh thuộc nhóm phá CẢ MÁY, hoặc "" nếu không. Chặn ở MỌI mức quyền."""
     if sau > 4:
@@ -516,6 +529,9 @@ def chay(command: str, sid: str, goc: List[str], timeout: Optional[float] = None
         return "ERROR: lệnh rỗng."
     if not goc:
         return "ERROR: phiên này chưa gắn thư mục làm việc nào."
+    bi_mat = _secret_hit(cmd)
+    if bi_mat:
+        return bi_mat
     ly_do = kiem_rao_cung(cmd)
     if ly_do:
         return (f"ERROR: chặn cứng: {ly_do}. Javis không cho model chạy lệnh có thể phá cả máy, ở "
@@ -684,6 +700,9 @@ def chay_nen(command: str, sid: str, goc: List[str], workdir: str = "", brain_ro
         return "ERROR: lệnh rỗng."
     if not goc:
         return "ERROR: phiên này chưa gắn thư mục làm việc nào."
+    bi_mat = _secret_hit(cmd)
+    if bi_mat:
+        return bi_mat
     ly_do = kiem_rao_cung(cmd)
     if ly_do:
         return (f"ERROR: chặn cứng: {ly_do}. Javis không cho model chạy lệnh có thể phá cả máy, ở "

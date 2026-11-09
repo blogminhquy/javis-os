@@ -3028,6 +3028,29 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ach-dot.st-err { background: var(--red); opacity: 1; }
 .ach-dot.st-start { background: var(--warn-ink); opacity: 1; }
 .ach-panel { min-width: 0; }
+
+/* ---- Account > Security tab (2026-11-09). Rows read on a phone: label left, value right, wrapping under. ---- */
+.ac-page { max-width: 760px; }
+.sec-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 9px 0; border-bottom: 1px solid var(--glass-brd); font-size: 15px; line-height: 1.45; }
+.sec-row:last-of-type { border-bottom: 0; }
+.sec-ico { flex: none; display: inline-flex; }
+.sec-lbl { flex: 1 1 180px; color: var(--text2); }
+.sec-val { flex: 0 1 auto; color: var(--text); text-align: right; overflow-wrap: anywhere; }
+.sec-bad .sec-lbl, .sec-bad .sec-val { color: var(--red); font-weight: 600; }
+.sec-warn .sec-val { color: var(--warn-ink); }
+.sec-list { display: flex; flex-direction: column; }
+.sec-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--glass-brd); }
+.sec-item:last-child { border-bottom: 0; }
+.sec-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 15px; }
+.sec-meta { color: var(--text2); font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.sec-tag { align-self: flex-start; display: inline-block; font-size: 13px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: var(--accent-ink); background: var(--accent-wash-2); }
+.sec-lv-warn .sec-item-main b { color: var(--warn-ink); }
+.sec-lv-alert .sec-item-main b { color: var(--red); }
+.sec-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.sec-chip { border: 1px solid var(--glass-brd); background: transparent; color: var(--text2); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 15px; cursor: pointer; min-height: 36px; }
+.sec-chip[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent-wash-2); border-color: var(--accent-line); }
+@media (max-width: 700px) { .sec-val { text-align: left; } .sec-item { align-items: flex-start; } }
+.sec-item .gcard-btn { margin-top: 0; width: auto; padding: 6px 12px; font-size: 14px; flex: none; }
 .ach-panel:focus-visible { outline: none; }
 .ach-card {
   border: 1px solid var(--glass-brd); border-radius: 14px; background: var(--surface-1);

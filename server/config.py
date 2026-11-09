@@ -1078,7 +1078,133 @@ def _write_settings_full(cfg):
         _giu_secret_khong_giai_duoc(out)
     except Exception as e:      # noqa: BLE001 - tấm che hỏng thì vẫn ghi như cũ, không chặn việc lưu
         print(f"[config] giữ secret khi khoá lệch lỗi: {e}", file=__import__('sys').stderr)
+    try:
+        # Stamp FIRST, then write: a check that runs in between sees the new stamp with the old file for a moment,
+        # which the grace period of auth_guard_check absorbs. Stamping after would leave the same window the other way.
+        _stamp_auth(out.get("auth"))
+    except Exception as e:  # noqa: BLE001 - detection is extra, never a reason to refuse a save
+        print(f"[config] auth stamp: {type(e).__name__}: {e}", file=__import__('sys').stderr)
     _ghi_nguyen_tu(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+# ---- Account block edited outside Javis (owner incident 2026-11-09) ----
+# Someone with a shell on the VPS changed username, password and 2FA by editing settings.json. Every path in Javis that
+# changes a password also ends the other sessions, but an edit of the file ends nothing, so the owner stayed signed in
+# and noticed only by chance. Each write through write_settings records a fingerprint of the account block in
+# .auth_stamp.json; a file whose account block no longer matches was changed by something else (a shell, an editor, an
+# agent writing the file). Javis then ends every session, logs the event and tells the owner.
+# It detects, it does not prevent: whoever can write settings.json can also rewrite the stamp, if they know about it.
+_AUTH_CHECK = {"sig": None, "pending": 0.0}
+AUTH_GUARD_GRACE = 2.0
+
+
+def _stamp_path() -> Path:
+    return SETTINGS_PATH.with_name(".auth_stamp.json")
+
+
+def _auth_parts(a) -> dict:
+    """One hash per part of the raw (on-disk) account block, so a mismatch can say WHAT changed."""
+    a = a if isinstance(a, dict) else {}
+    t = a.get("totp") if isinstance(a.get("totp"), dict) else {}
+    rec = t.get("recovery") if isinstance(t.get("recovery"), list) else []
+
+    def h(*vals):
+        return hashlib.sha256("\x1f".join(str(v or "") for v in vals).encode("utf-8")).hexdigest()[:32]
+    return {"username": h(str(a.get("username") or "").strip().casefold()),
+            "password": h(a.get("password_hash"), a.get("salt")),
+            "2fa": h(bool(t.get("enabled")), t.get("secret"),
+                     *[f"{(m or {}).get('hash')}:{(m or {}).get('salt')}" for m in rec if isinstance(m, dict)])}
+
+
+def _parts_fp(parts: dict) -> str:
+    return hashlib.sha256(json.dumps(parts, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _read_stamp() -> dict:
+    try:
+        d = json.loads(_stamp_path().read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) and d.get("fp") else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _write_stamp(parts: dict) -> None:
+    p = _stamp_path()
+    tmp = p.with_name(f".{p.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_text(json.dumps({"fp": _parts_fp(parts), "parts": parts, "ts": time.time()}), encoding="utf-8")
+    os.replace(tmp, p)
+    try:
+        os.chmod(p, 0o600)
+    except OSError:
+        pass
+
+
+def _stamp_auth(raw_auth) -> None:
+    parts = _auth_parts(raw_auth)
+    if _read_stamp().get("fp") != _parts_fp(parts):
+        _write_stamp(parts)
+
+
+def auth_guard_check(grace: float = None):
+    """Compare the account block on disk with the last one Javis wrote. Returns None when nothing is wrong, or
+    {"changed": [parts]} once, the first time an outside change is confirmed (sessions already ended, event logged).
+
+    Cheap on the hot path: nothing is read again while the file's (mtime, size) stays the same. A mismatch must last
+    `grace` seconds before it counts, so a write by another Javis process (stamp first, file a moment later) is
+    never taken for an attack. No stamp yet (first run of this version) = adopt the current block silently."""
+    grace = AUTH_GUARD_GRACE if grace is None else grace
+    with _SETTINGS_LOCK:
+        try:
+            st = SETTINGS_PATH.stat()
+            sig = (st.st_mtime_ns, st.st_size)
+        except OSError:
+            return None
+        if sig == _AUTH_CHECK["sig"]:
+            return None
+        try:
+            raw = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 - unreadable file: read_settings deals with it, nothing to compare
+            return None
+        if not isinstance(raw, dict):
+            return None
+        parts = _auth_parts(raw.get("auth"))
+        stamp = _read_stamp()
+        if not stamp:
+            try:
+                _write_stamp(parts)
+            except Exception:  # noqa: BLE001
+                return None
+            _AUTH_CHECK.update(sig=sig, pending=0.0)
+            return None
+        if stamp.get("fp") == _parts_fp(parts):
+            _AUTH_CHECK.update(sig=sig, pending=0.0)
+            return None
+        now = time.time()
+        if grace > 0:
+            if not _AUTH_CHECK["pending"]:
+                _AUTH_CHECK["pending"] = now
+                return None
+            if now - _AUTH_CHECK["pending"] < grace:
+                return None
+        old = stamp.get("parts") if isinstance(stamp.get("parts"), dict) else {}
+        changed = [k for k in parts if parts[k] != old.get(k)] or ["auth"]
+        try:
+            _write_stamp(parts)
+        except Exception:  # noqa: BLE001
+            pass
+        _AUTH_CHECK.update(sig=sig, pending=0.0)
+        n = len(SESSIONS)
+        clear_sessions()
+        try:
+            import security_log
+            security_log.record("auth_changed_outside", detail=f"changed={','.join(changed)}; sessions_ended={n}",
+                                source="settings.json")
+            security_log.forget_networks()
+        except Exception:  # noqa: BLE001
+            pass
+        print(f"[auth] settings.json: the account block ({', '.join(changed)}) was changed OUTSIDE Javis. "
+              f"All {n} sessions were ended.", file=__import__('sys').stderr)
+        return {"changed": changed}
 
 
 def _giu_secret_khong_giai_duoc(out):
@@ -1418,31 +1544,131 @@ def _save_sessions():
         pass
 
 
-def new_session():
+def new_session(ip: str = "", ua: str = ""):
     t = secrets.token_urlsafe(32)
     SESSIONS[t] = _time.time()
     _save_sessions()
+    if ip or ua:
+        note_session_device(t, ip, ua)
     return t
 
 
 def valid_session(token):
-    if not token or token not in SESSIONS:
+    if not token:
+        return False
+    try:
+        auth_guard_check()   # an account block edited outside Javis ends every session (see auth_guard_check)
+    except Exception:  # noqa: BLE001
+        pass
+    if token not in SESSIONS:
         return False
     if _time.time() - SESSIONS.get(token, 0) > _SESSION_TTL:
         SESSIONS.pop(token, None)
+        SESSION_META.pop(token, None)
         _save_sessions()
+        _save_session_meta()
         return False
     return True
 
 
 def drop_session(token):
     SESSIONS.pop(token, None)
+    SESSION_META.pop(token, None)
     _save_sessions()
+    _save_session_meta()
 
 
-def clear_sessions():
+def clear_sessions(keep: str = ""):
+    """End every session, or every one but `keep` (the device asking "sign out my other devices")."""
+    kept = SESSIONS.get(keep) if keep else None
+    meta = SESSION_META.get(keep) if keep else None
     SESSIONS.clear()
+    SESSION_META.clear()
+    if kept is not None:
+        SESSIONS[keep] = kept
+        if meta:
+            SESSION_META[keep] = meta
     _save_sessions()
+    _save_session_meta()
+
+
+# ---- Which device each session belongs to (2026-11-09) ----
+# Kept apart from .sessions.json on purpose: that file is {token: created_ts} and older versions read it as such, so a
+# downgrade must not log everyone out. Raw tokens never leave this module: the dashboard sees session_id(token).
+_SESS_META_PATH = STATE_DIR / ".sessions_meta.json"
+_META_SAVE_EVERY = 300.0
+_META_SAVED = [0.0]
+
+
+def _load_session_meta():
+    try:
+        data = json.loads(_SESS_META_PATH.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if isinstance(v, dict) and k in SESSIONS}
+    except Exception:  # noqa: BLE001
+        pass
+    return {}
+
+
+SESSION_META = _load_session_meta()
+
+
+def _save_session_meta():
+    try:
+        _SESS_META_PATH.write_text(json.dumps({k: v for k, v in SESSION_META.items() if k in SESSIONS}),
+                                   encoding="utf-8")
+        os.chmod(_SESS_META_PATH, 0o600)
+    except Exception:  # noqa: BLE001
+        pass
+    _META_SAVED[0] = _time.time()
+
+
+def session_id(token) -> str:
+    return hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()[:16]
+
+
+def note_session_device(token, ip: str = "", ua: str = ""):
+    if not token or token not in SESSIONS:
+        return
+    now = _time.time()
+    SESSION_META[token] = {"ip": str(ip or "")[:64], "ua": str(ua or "")[:200], "last": now,
+                           "last_ip": str(ip or "")[:64]}
+    _save_session_meta()
+
+
+def touch_session(token, ip: str = ""):
+    """Last activity of a session. In memory on every request, on disk at most every few minutes."""
+    m = SESSION_META.get(token)
+    if m is None:
+        if token not in SESSIONS:
+            return
+        m = SESSION_META.setdefault(token, {})
+    m["last"] = _time.time()
+    if ip:
+        m["last_ip"] = str(ip)[:64]
+    if _time.time() - _META_SAVED[0] > _META_SAVE_EVERY:
+        _save_session_meta()
+
+
+def list_sessions(current: str = "") -> list:
+    out = []
+    for tok, created in SESSIONS.items():
+        if _time.time() - float(created or 0) > _SESSION_TTL:
+            continue
+        m = SESSION_META.get(tok) or {}
+        out.append({"id": session_id(tok), "created": float(created or 0), "last": float(m.get("last") or created or 0),
+                    "ip": m.get("ip", ""), "last_ip": m.get("last_ip") or m.get("ip", ""), "ua": m.get("ua", ""),
+                    "current": bool(current) and tok == current})
+    out.sort(key=lambda x: (not x["current"], -x["last"]))
+    return out
+
+
+def drop_session_by_id(sid: str) -> bool:
+    for tok in list(SESSIONS):
+        if session_id(tok) == str(sid or ""):
+            drop_session(tok)
+            return True
+    return False
 
 
 
@@ -1668,3 +1894,36 @@ def provision_admin_from_env():
     write_settings(cfg)
     clear_sessions()
     return "reset"
+
+
+def reset_2fa_from_env():
+    """JAVIS_RESET_2FA=<any value> at boot turns 2FA off ONCE (owner incident 2026-11-09).
+
+    The owner was locked out by a 2FA that someone else had set up, and the only way back was a Python one-liner in a
+    root terminal. With this variable, the same reset is: add it in the Environment box, redeploy, sign in, remove it.
+    Applied once per value: a salted hash of the value is kept, so a variable left behind does not wipe the 2FA the
+    owner sets up next. To use it again, set a new value (today's date, for instance). "0", "false", "no", "off" and
+    empty do nothing. Every other session is ended and the event is logged.
+    Returns "reset", or "" when nothing was done."""
+    raw = str(os.getenv("JAVIS_RESET_2FA", "") or "").strip()
+    if not raw or raw.lower() in ("0", "false", "no", "off"):
+        return ""
+    cfg = read_settings()
+    a = dict(cfg.get("auth") or {})
+    done = a.get("reset_2fa_applied") if isinstance(a.get("reset_2fa_applied"), dict) else {}
+    if done.get("hash") and secrets.compare_digest(hash_password(raw, str(done.get("salt") or ""))[0],
+                                                   str(done["hash"])):
+        return ""
+    m_salt = secrets.token_hex(16)
+    a["reset_2fa_applied"] = {"hash": hash_password(raw, m_salt)[0], "salt": m_salt, "ts": _time.time()}
+    was_on = totp_enabled(cfg) or totp_hong(cfg) or bool(((a.get("totp") or {}) if isinstance(a.get("totp"), dict)
+                                                          else {}).get("enabled"))
+    if was_on:
+        a["totp"] = {"enabled": False, "secret": "", "recovery": [], "last_step": 0}
+    cfg["auth"] = a
+    write_settings(cfg)
+    if not was_on:
+        return ""
+    clear_sessions()
+    return "reset"
+

@@ -63,7 +63,11 @@ services:
     ports:
       # Đường vào dự phòng (nút Open / http://<ip>:7777). Bản thứ hai PHẢI đổi cổng này
       # (JAVIS_HOST_PORT=7778) vì một cổng máy chủ chỉ một container giữ được.
-      - "${JAVIS_HOST_PORT:-7777}:7777"
+      # Bảo mật (sự cố 09/11/2026): ĐÃ đặt DOMAIN_NAME thì cổng này chỉ nghe ở 127.0.0.1. Traefik vào qua mạng Docker,
+      # gateway Caddy vào qua 127.0.0.1, nên HTTPS vẫn chạy như cũ; chỉ còn đường http://<ip>:7777 (không mã hoá,
+      # mật khẩu đi trần qua mạng) là đóng lại. CHƯA đặt DOMAIN_NAME thì cổng vẫn mở ra ngoài như trước, vì đó là
+      # đường vào duy nhất. Tên miền chưa lên HTTPS mà cần vào gấp: xoá DOMAIN_NAME rồi Redeploy là cổng mở lại.
+      - "${DOMAIN_NAME:+127.0.0.1:}${JAVIS_HOST_PORT:-7777}:7777"
     labels:
       # Guide (Documentation / Quick start) trong Docker Manager - trỏ docs GitHub.
       - org.opencontainers.image.documentation=https://github.com/blogminhquy/javis-os/blob/main/docs/README.md
