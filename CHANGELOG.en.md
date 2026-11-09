@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.524.0] - 2026-11-09
+### Added
+- **Connecting GitHub checks for git first and installs it when it is missing, then opens the sign-in step.** Windows uses winget or the official Git installer (no admin rights), Mac uses Homebrew or Apple's tools, Linux uses the package manager when Javis is allowed to.
+- **A connected GitHub card on a machine without git gets an Install git button.** If the install fails, Javis shows the exact command to run by hand, Try again and Skip.
+### Fixed
+- **A git installed while Javis runs is picked up right away, no restart needed.** A server started before git was installed used to keep saying "git is not installed".
+
 ## [0.523.1] - 2026-11-09
 ### Improved
 - **Reopening the neural graph, opening another tab or a phone reconnecting no longer freezes the whole app.** The app shares one file watcher per folder, built once and kept for 15 minutes after the graph screen closes. Before, each opening built it again, once making everything else wait almost 3 seconds.
