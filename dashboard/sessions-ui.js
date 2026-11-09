@@ -155,6 +155,23 @@
     if (cur && cur !== "none" && !projById(cur)) setCurProject("");
     renderProjBar();
     renderProjChip();
+    fillProjTags();
+  }
+
+  // 2026-11-09: each chat row carries a small folder tag with its project's name, so the owner sees which group a
+  // chat belongs to without opening it. The row is drawn before /projects may have answered, so the tag is a
+  // placeholder keyed by project id that this fills in (and refills after a rename, a new icon or a delete).
+  function projTagHtml(pid) {
+    var p = projById(pid);
+    return p ? projIcon(p) + '<span class="ci-proj-name">' + esc(p.name || "") + '</span>' : "";
+  }
+  function fillProjTags() {
+    if (!listEl) return;
+    listEl.querySelectorAll(".ci-proj[data-pid]").forEach(function (tag) {
+      var p = projById(tag.getAttribute("data-pid"));
+      tag.innerHTML = projTagHtml(tag.getAttribute("data-pid"));
+      tag.title = p ? window.t("sess.proj_tag_title", { ten: p.name || "" }) : "";
+    });
   }
 
   function renderProjBar() {
@@ -1885,6 +1902,20 @@
     }
   }
 
+  // 2026-11-09: the engine badge on each chat row names the brain the owner picked, not the internal id ("cli" read
+  // as nothing to the owner; it is Claude Code). Brand names, so no i18n. An id not listed here (a provider added
+  // later) still shows, cut to 10 characters as before.
+  var ENGINE_BADGE = {
+    "cli": "Claude", "claude-code": "Claude", "anthropic-api": "Anthropic",
+    "codex": "Codex", "openai-oauth": "Codex", "openai": "OpenAI",
+    "grok-cli": "Grok", "antigravity-cli": "Antigravity",
+    "openrouter": "OpenRouter", "gemini": "Gemini", "groq": "Groq", "deepseek": "DeepSeek", "ollama": "Ollama",
+  };
+  function engineBadge(engine) {
+    var id = String(engine || "").trim();
+    return ENGINE_BADGE[id.toLowerCase()] || id.slice(0, 10);
+  }
+
   function renderList(items, hasMore) {
     if (!items.length) {
       listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.empty1")) + '<br>' + esc(window.t("sess.empty2")) + '</div>';
@@ -1911,7 +1942,7 @@
         listEl.appendChild(head);
         lastGroup = g;
       }
-      var eng = (s.engine || "").toString().slice(0, 10);
+      var eng = engineBadge(s.engine);
       // Kênh sinh ra hội thoại: web là mặc định nên khỏi ghi, Telegram thì gắn nhãn để
       // khỏi lẫn với cuộc tự mở trên dashboard.
       // Đang LỌC theo kênh thì nhãn kênh là thừa: mọi hàng đều cùng một kênh, in ra chỉ tổ
@@ -1939,6 +1970,10 @@
       // luôn hiện đi theo từng hàng, đúng khuôn danh sách trợ lý / quy trình của trang Cộng sự
       // (chủ dự án chốt 16/09 sau khi dùng bản 0.59.20).
       // Red dot for a chat Javis answered after the owner last looked. The chat open on screen is being read right now.
+      // Project tag: only in the owner's own list (an agent's history has no projects) and only when the list is not
+      // already filtered to that very project, where every row would repeat the same name.
+      var pid = (!kenhLoc && s.project_id && s.project_id !== curProject()) ? String(s.project_id) : "";
+      var pTag = projById(pid);
       var chuaDoc = !!s.unread;
       if (chuaDoc && s.id === cur && chatOnScreen()) { chuaDoc = false; s.unread = false; markRead(s.id); }
       var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + (s.pinned ? " ghim" : "") + (chuaDoc ? " has-unread" : "") + '">' +
@@ -1946,7 +1981,11 @@
         (isRun ? '<span class="ci-run" title="' + esc(window.t("sess.running")) + '">' + ic("loader", { cls: "ic-spin" }) + '</span> ' : '') +
         (tt.dau || "") +
         esc(s.title || s.preview || window.t("sess.untitled")) + '</div>' +
-        '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' + (tt.meta || "") +
+        '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' +
+        (pid ? '<span class="ci-proj" data-pid="' + esc(pid) + '"' +
+          (pTag ? ' title="' + esc(window.t("sess.proj_tag_title", { ten: pTag.name || "" })) + '"' : '') + '>' +
+          projTagHtml(pid) + '</span>' : '') +
+        (tt.meta || "") +
         (chLabel ? '<span class="ci-badge">' + esc(chLabel) + '</span>' : '') +
         (eng ? '<span class="ci-badge">' + esc(eng) + '</span>' : '') +
         '<span>' + esc(window.t("sess.msgs", { count: s.msg_count || 0 })) + '</span>' +
