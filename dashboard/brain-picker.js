@@ -19,6 +19,9 @@
    brains-ui.js (window.JavisBrains); export and upload talk to /brains/export/* and /brains/import/*
    (server/brain_export.py): packing and unpacking run in the background, the upload goes in 32MB pieces.
 
+   Each row's counts read "1920 Node · 2480 Link" on ONE line (2026-11-09, owner: it used to break in two); the same
+   counts for the open brain sit in the graph's top-left corner, no longer beside this button.
+
    The pure part (moveItem, orderFromOptions) is tested in node by tests/js/test_brain_picker.js. No em dash here. */
 (function (root) {
   "use strict";
@@ -80,7 +83,7 @@
     for (var i = 0; i < all.length; i++) if (all[i].value === sel.value) return all[i];
     return all[0] || { label: "", notes: "" };
   }
-  function notesText(n) { return n ? t("bpick.notes", { n: n }, "{n} nodes") : ""; }
+  function notesText(n) { return n ? t("bpick.notes", { n: n }, "{n} Nodes") : ""; }
 
   // Node and link counts as the graph shows them (2026-11-09, owner: "đếm số node và số link ngay ở phần này").
   // Asked only when the picker opens, one brain per request, never at page load; kept for COUNTS_MS on this page.
@@ -111,7 +114,7 @@
   function countText(x) {
     var c = counts[x.value];
     if (!c) return notesText(x.notes);
-    return t("bpick.graph", { n: c.nodes + (c.capped ? "+" : ""), l: c.links }, "{n} nodes · {l} links");
+    return t("bpick.graph", { n: c.nodes + (c.capped ? "+" : ""), l: c.links }, "{n} Nodes · {l} Links");
   }
 
   // ---- the button over the select ----
@@ -249,16 +252,10 @@
     return '<div class="bp-row' + (on ? " on" : "") + '" role="option" tabindex="0" aria-selected="' + on + '" data-value="' + esc(x.value) + '">' +
       '<span class="bp-dot">' + esc((x.label || "?").trim().charAt(0).toUpperCase()) + "</span>" +
       '<span class="bp-name"><span class="bp-label">' + esc(x.label) + "</span>" +
-      (sub ? '<span class="bp-sub">' + subHtml(sub) + "</span>" : "") + "</span>" +
+      (sub ? '<span class="bp-sub">' + esc(sub) + "</span>" : "") + "</span>" +
       '<span class="bp-acts">' + actsHtml(x) + "</span></div>" + formHtml(x);
   }
 
-  // "1.962 node · 9.573 liên kết": two pieces that each stay whole, so a narrow row breaks between them, not inside.
-  function subHtml(sub) {
-    return String(sub).split(" · ").map(function (p, i, a) {
-      return '<span class="bp-sub-part">' + esc(p) + (i < a.length - 1 ? " ·" : "") + "</span>";
-    }).join("");
-  }
   function actBtn(act, ic, label, disabled) {
     return '<button type="button" class="bp-act' + (act === "delete" || act === "forget" ? " bp-act-del" : "") + '" data-act="' + act +
       '" title="' + esc(label) + '" aria-label="' + esc(label) + '"' + (disabled ? " disabled" : "") + ">" + icon(ic) + "</button>";

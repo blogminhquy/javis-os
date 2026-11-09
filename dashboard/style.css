@@ -737,7 +737,8 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
   transition: opacity .24s ease, visibility .24s ease, transform .24s ease;
 }
 .hud-center.brain-overlays-hidden .concept-labels,
-.hud-center.brain-overlays-hidden .brain-stats {
+.hud-center.brain-overlays-hidden .brain-stats,
+.hud-center.brain-overlays-hidden .graph-stats {
   opacity: 0; visibility: hidden; pointer-events: none;
 }
 .hud-center.brain-overlays-hidden .brain-eye-on { display: none; }
@@ -772,7 +773,18 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
   background: var(--bg3); border: 1px solid var(--border);
   color: var(--text); padding: 5px 8px; border-radius: 6px; font-size: 14px;
 }
-.graph-stats { font-size: 13px; color: var(--text2); font-family: var(--font); white-space: nowrap; transition: color .25s, text-shadow .25s; }
+/* Node and link counts in the graph's top-left corner (2026-11-09, owner: out of the top bar, into the graph). Same
+   glass and height as the eye button opposite; it is a label, so clicks and drags go through to the graph. */
+.graph-stats {
+  position: absolute; top: 14px; left: 14px; z-index: 6; box-sizing: border-box;
+  max-width: calc(100% - 78px); height: 36px; padding: 0 12px; line-height: 34px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none;
+  border: 1px solid var(--brain-glass-brd); border-radius: 10px;
+  background: var(--brain-glass); box-shadow: var(--brain-glass-shadow); backdrop-filter: blur(8px);
+  font-family: var(--font); font-size: 13px; letter-spacing: .3px; font-variant-numeric: tabular-nums;
+  color: var(--brain-ink);
+  transition: color .25s, text-shadow .25s, opacity .24s ease, visibility .24s ease;
+}
 .graph-stats.pulse { color: var(--accent2-ink); text-shadow: 0 0 10px rgba(160,120,255,.8); }
 /* Giấy: nhấp nháy bằng ĐẬM CHỮ thay vì bằng quầng sáng. */
 :root[data-theme="light"] .graph-stats.pulse { text-shadow: none; font-weight: 700; }
@@ -5014,11 +5026,11 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 .bp-row.on .bp-dot { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); }
 .bp-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .bp-label { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bp-sub { font-size: 12.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
+/* "1920 Node · 2480 Link" stays on one line (2026-11-09, owner); a very long count ends in "..." instead of wrapping. */
+.bp-sub { font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 2026-11-09: Export, Rename, Delete on each row (shown on the current row, on hover and on focus; always on a phone),
    the forms under a row, the panel footer like the Partners page, and the upload view. */
-.bp-sub { display: flex; flex-wrap: wrap; column-gap: 4px; }
-.bp-sub-part { white-space: nowrap; }
 .bp-acts { flex: none; display: inline-flex; gap: 2px; opacity: 0; transition: opacity .12s; }
 .bp-row:hover .bp-acts, .bp-row.on .bp-acts, .bp-row:focus-within .bp-acts, .bp-row:focus-visible .bp-acts { opacity: 1; }
 @media (hover: none) { .bp-acts { opacity: 1; } }
@@ -5096,7 +5108,7 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   .bp-pop.sheet .bp-hint, .bp-pop.sheet .bp-err { font-size: 14px; }
   .bp-pop.sheet .bp-row { min-height: 58px; padding: 8px 12px; }
   .bp-pop.sheet .bp-label { font-size: 17px; }
-  .bp-pop.sheet .bp-sub { font-size: 14px; }
+  .bp-pop.sheet .bp-sub { font-size: 13px; }
   .bp-pop.sheet .bp-dot { width: 36px; height: 36px; font-size: 16px; }
   .bp-pop.sheet .bp-arrow { width: 42px; height: 42px; }
   .bp-pop.sheet .bp-grip { width: 38px; height: 44px; }

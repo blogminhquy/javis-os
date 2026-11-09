@@ -79,7 +79,6 @@
           <!-- New, rename, delete and "outside folder" live inside the brain picker panel now (brain-picker.js, 2026-11-09).
                This hidden button stays only because app.js opens the outside-folder browser from its click. -->
           <button class="graph-folder-btn" id="pickFolderBtn" hidden tabindex="-1" aria-hidden="true"><i data-ic="folder-open"></i></button>
-          <span class="graph-stats" id="graphStats">-</span>
         </div>
       </div>
       <!-- NHÓM GIỮA: thanh trạng thái đang quá tải nên bỏ tên workspace lẫn ngày tháng theo
@@ -259,13 +258,16 @@
         <canvas id="starfield"></canvas>
         <div id="graph2d"></div>
         <div class="concept-labels" id="conceptLabels"></div>
+        <!-- Node and link counts of the graph, in its top-left corner (2026-11-09, owner: moved here from the top bar,
+             "hiển thị số đó trong đồ thị"). The eye button hides it with the folder labels and the stats bar. -->
+        <span class="graph-stats" id="graphStats">-</span>
         <div class="orb-overlay">
           <div class="orb-state" id="orbState" data-i18n="orb.ready">SẴN SÀNG</div>
           <div class="orb-interim" id="voiceInterim"></div>
         </div>
         <button class="brain-overlay-toggle" id="brainOverlayToggle" type="button"
                 aria-pressed="false" aria-label="Ẩn nhãn và số liệu brain" data-i18n-aria="orb.overlay_aria"
-                title="Ẩn nhãn thư mục và số liệu Agents / Skills / Workflows" data-i18n-title="orb.overlay_title">
+                title="Ẩn nhãn thư mục, số Node / Link và số liệu Agents / Skills / Workflows" data-i18n-title="orb.overlay_title">
           <svg class="brain-eye-on" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
             <circle cx="12" cy="12" r="2.75"></circle>

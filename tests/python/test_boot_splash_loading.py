@@ -66,6 +66,31 @@ def test_graph_counts_show_only_on_the_graph_screen():
     assert 'document.body.classList.toggle("in-console", id !== "home");' in _read("console.js")
 
 
+def test_graph_counts_sit_inside_the_graph_not_the_top_bar():
+    """2026-11-09, owner: the Node / Link counter leaves the top bar and shows inside the graph."""
+    html = _read("index.html")
+    assert html.count('id="graphStats"') == 1
+    top_bar = html.split('<header class="hud-top">', 1)[1].split("</header>", 1)[0]
+    assert 'id="graphStats"' not in top_bar
+    center = html.split('<div class="hud-center">', 1)[1].split('<div class="note-editor"', 1)[0]
+    assert '<span class="graph-stats" id="graphStats">' in center
+    css = _read("style.css")
+    rule = css.split("\n.graph-stats {", 1)[1].split("}", 1)[0]
+    assert "position: absolute;" in rule and "top: 14px; left: 14px;" in rule and "pointer-events: none;" in rule
+    assert ".hud-center.brain-overlays-hidden .graph-stats {" in css     # the eye button hides it with the labels
+    assert ".navbar-brain .graph-stats" not in _read("console.css")
+
+
+def test_brain_picker_counts_stay_on_one_line():
+    """2026-11-09, owner: "1920 Node · 2480 Link" on one line in each picker row, never split in two."""
+    css = _read("style.css")
+    rule = css.split("\n.bp-sub {", 1)[1].split("}", 1)[0]
+    assert "white-space: nowrap;" in rule and "text-overflow: ellipsis;" in rule
+    assert "flex-wrap: wrap" not in rule and ".bp-sub-part" not in css
+    js = _read("brain-picker.js")
+    assert "subHtml(" not in js and "bp-sub-part" not in js
+
+
 def test_new_texts_in_both_languages():
     for lang in ("vi", "en"):
         d = json.loads((DASH / "i18n" / ("%s.json" % lang)).read_text(encoding="utf-8"))
@@ -97,9 +122,12 @@ def test_brain_picker_counts_nodes_and_links_only_when_opened(tmp_path, monkeypa
     assert '"/graph/counts?"' in js
     route = (SERVER / "routes" / "graph.py").read_text(encoding="utf-8")
     assert '@router.get("/graph/counts")' in route and "await asyncio.to_thread(_counts" in route
-    for lang, word in (("vi", "node"), ("en", "nodes")):
+    # 2026-11-09, owner: "Node" and "Link", capitalised, instead of "node" and "liên kết".
+    for lang, node, link in (("vi", "Node", "Link"), ("en", "Nodes", "Links")):
         d = json.loads((DASH / "i18n" / ("%s.json" % lang)).read_text(encoding="utf-8"))
-        assert word in d["bpick.notes"] and word in d["bpick.graph"] and word in d["app.graph_stats"]
+        assert node in d["bpick.notes"] and node in d["bpick.graph"] and node in d["app.graph_stats"]
+        assert link in d["bpick.graph"] and link in d["app.graph_stats"]
+        assert "liên kết" not in d["bpick.graph"] + d["app.graph_stats"]
 
 
 if __name__ == "__main__":

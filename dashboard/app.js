@@ -3452,9 +3452,10 @@ function compactToolLabel(toolName) {
 // Knowledge graph (2D canvas)
 // ============================================
 const graphStats = document.getElementById("graphStats");
-// Số note/liên kết hiện ở thanh trên. Nhớ số cuối cùng để vẽ lại khi từ điển i18n về sau: số liệu
-// đồ thị thường về TRƯỚC từ điển trên máy vừa cập nhật, và t() khi đó trả về chính cái khoá
-// (`app.graph_stats`) rồi kẹt mãi ở đó. Lỗi (models.err) là chuỗi đã ghép nên không nhớ.
+// Node / Link counts, shown in the graph's top-left corner (moved out of the top bar 2026-11-09). The last numbers
+// are kept so the text can be redrawn when the i18n dictionary arrives: on a freshly updated machine the graph often
+// loads BEFORE the dictionary, t() then returns the bare key (`app.graph_stats`) and it would stay stuck there.
+// An error (models.err) is an already joined string, so it is not kept.
 let _graphStatsCuoi = null;
 function veGraphStats(n, l) {
   _graphStatsCuoi = { n: n, l: l };
@@ -3610,9 +3611,8 @@ function _oManChinh() {
 function capNhatManChinh() {
   if (!_oManChinh()) {
     _cockpitCho = true;
-    // Ô đếm note nằm ngay cạnh ô chọn brain nên NHÌN THẤY ĐƯỢC cả ở trang quản lý: để nguyên
-    // con số của brain cũ là nói dối. Về gạch ngang cho tới lúc đếm thật (số note của từng
-    // brain vẫn có sẵn trong chính tên từng dòng của ô chọn).
+    // The counter now sits inside the graph, hidden on this page, but the old brain's numbers must never show for
+    // the new one when the user comes back: reset to a dash until the real count arrives.
     graphStats.textContent = "-";
     return;
   }
