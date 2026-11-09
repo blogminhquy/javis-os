@@ -135,7 +135,7 @@ def make_bot(cfg):
     t = zp.Transport(CID, [], answer, cfg_fn=lambda: cfg)
     zc._BOTS[CID] = t
 
-    async def fake_send(thread, cau, chat_type="private", meta=None):
+    async def fake_send(thread, cau, chat_type="private", meta=None, receipt_row=0):
         n = len(TYPING)
         await asyncio.sleep(0.05)       # a slow send: the indicator must keep going meanwhile
         SENT.append((thread, cau, chat_type, n, len(TYPING)))
