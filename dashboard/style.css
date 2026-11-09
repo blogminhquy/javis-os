@@ -2418,7 +2418,6 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    trong danh sách hội thoại cũng là một cuộc trò chuyện. */
 .cs-menu-ico, .cs-proj-name .ic { display: inline-flex; flex: none; color: var(--text2); }
 .cs-menu-row.on .cs-menu-ico, .cs-proj-name .ic { color: inherit; }
-.ci-meta .act .pin.on { color: var(--accent); }
 .cside-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding-right: 2px; }
 .cside-list::-webkit-scrollbar { width: 4px; }
 .cside-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -2428,16 +2427,12 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   border: 1px solid transparent; margin-bottom: 2px; }
 .cside-item:hover { background: var(--info-wash); border-color: var(--info-line); }
 .cside-item.active { background: var(--accent-wash-2); border-color: var(--accent-line); }
-/* HÀNG ĐÃ GHIM. Nhóm "Đã ghim" trên đầu chỉ nói được thứ tự: cuộn xuống giữa danh sách là
-   không còn thấy cái nhãn ấy, và dấu ghim thì nằm trong .act nên chờ rê chuột mới hiện. Nay
-   mỗi hàng ghim tự mang vạch màu bên trái và một dấu ghim luôn thấy, đúng khuôn danh sách
-   trợ lý / quy trình của trang Cộng sự (chủ dự án chốt 16/09).
-   Không thể để .act trong suốt rồi tô riêng dấu ghim: con không bao giờ rõ hơn cha trong
-   opacity, nên mở .act ra và giấu HAI nút còn lại cho tới lúc rê chuột. */
-.cside-item.ghim { border-left: 3px solid var(--accent); }
-.cside-item.ghim .act { opacity: 1; }
-.cside-item.ghim .act > :not(.pin) { opacity: 0; transition: opacity .15s; }
-.cside-item.ghim:hover .act > :not(.pin) { opacity: 1; }
+/* 2026-11-09 (owner approved the mock-up): a pinned row carries a small pin before its title, always visible, instead
+   of a bar on its left; every other action moved into the row's "..." menu. */
+.ci-pin { display: inline-flex; vertical-align: -1px; margin-right: 5px; color: var(--accent); }
+.ci-pin .ic, .ci-pin svg { width: 13px; height: 13px; }
+.cside-item.menu-on { background: var(--info-wash); border-color: var(--info-line); }
+.cside-item.archived .ci-title { color: var(--text2); font-weight: 500; }
 .ci-title { color: var(--text); font-size: 14px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 0.491.0: a chat Javis answered after the owner last looked at it: red dot before the title, title in full weight. */
@@ -2446,37 +2441,83 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cside-item.has-unread .ci-title { font-weight: 800; }
 .ci-meta { display: flex; gap: 8px; align-items: center; font-size: 12px;
   color: var(--text3); margin-top: 3px; }
-.ci-badge { border: 1px solid var(--border); border-radius: 8px; padding: 0 6px; font-size: 11px; }
+.ci-badge { font-size: 12px; color: var(--text3); }
 /* 2026-11-09: small folder tag with the chat's project name. It is the one meta item allowed to shrink, so a long
    project name ends in "..." instead of pushing the time and message count off a narrow column. Empty until
    /projects answers (the row is drawn first), and an empty tag takes no room. */
 .ci-meta > * { flex: none; }
 .ci-meta > .ci-proj { flex: 0 1 auto; min-width: 0; max-width: 55%; display: inline-flex; align-items: center; gap: 3px;
-  padding: 0 6px; border-radius: 8px; border: 1px solid var(--accent-line); color: var(--accent); font-size: 11px;
-  font-weight: 600; line-height: 16px; }
+  color: var(--accent); font-size: 12px; font-weight: 400; line-height: 16px; }
 .ci-proj:empty { display: none; }
-.ci-proj .ic, .ci-proj svg { flex: none; width: 11px; height: 11px; }
+.ci-proj .ic, .ci-proj svg { flex: none; width: 13px; height: 13px; }
 .ci-proj-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.ci-meta .act { margin-left: auto; display: flex; gap: 7px; opacity: 0; transition: opacity 0.15s; }
-.cside-item:hover .act { opacity: 1; }
-.ci-meta .act span { cursor: pointer; }
-/* Màn cảm ứng KHÔNG có rê chuột: ghim/chuyển/đổi tên/xoá của hàng hội thoại và nút chép mã
-   ẩn theo hover là vĩnh viễn không thấy trên điện thoại (vẫn nhận chạm, nên hay bấm nhầm). */
+/* The row's "..." (2026-11-09): right of the meta line. A mouse shows it on hover, on the open chat and while its menu
+   is open; a touch screen always shows it (no hover there). Its icon takes no pointer events, a second guard for the
+   tap-on-the-svg bug the row's click handler already handles by ancestor. */
+.ci-more { margin-left: auto; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px;
+  height: 24px; margin-top: -3px; margin-bottom: -3px; padding: 0; border: 0; border-radius: 7px; background: none;
+  color: var(--text2); cursor: pointer; opacity: 0; transition: opacity .15s; }
+.ci-more .ic, .ci-more svg { width: 17px; height: 17px; pointer-events: none; }
+.cside-item:hover .ci-more, .cside-item.active .ci-more, .cside-item.menu-on .ci-more, .ci-more:focus-visible { opacity: 1; }
+.ci-more:hover, .cside-item.menu-on .ci-more { background: var(--bg2); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+.ci-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Màn cảm ứng KHÔNG có rê chuột: nút "..." của hàng hội thoại và nút chép mã ẩn theo hover là vĩnh viễn không thấy
+   trên điện thoại. */
 @media (hover: none) {
-  .ci-meta .act, .cside-item.ghim .act > :not(.pin), .code-wrap .code-copy { opacity: .75; }
+  .ci-more { opacity: 1; width: 34px; height: 30px; }
+  .code-wrap .code-copy { opacity: .75; }
 }
-.ci-meta .act span:hover { color: var(--text-hi); }
-/* Lớp chắn thứ hai cho cùng lỗi bấm-trượt: icon không nhận chuột thì e.target luôn là cái
-   span, kể cả khi ai đó lỡ viết lại handler theo kiểu so classList. */
-.ci-meta .act span .ic { pointer-events: none; }
+.ci-arch-tag { display: inline-flex; align-items: center; gap: 3px; color: var(--text3); }
+.ci-arch-tag .ic, .ci-arch-tag svg { width: 12px; height: 12px; }
+/* Rename right on the row. */
+.cside-item.renaming { cursor: default; background: var(--info-wash); }
+.ci-ren { display: flex; gap: 6px; align-items: center; }
+.ci-ren-in { flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 9px; border-radius: 8px; border: 1px solid var(--accent);
+  background: var(--bg2); color: var(--text); font: inherit; font-size: 14px; outline: none; }
+.ci-ren-b { flex: none; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg2);
+  color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.ci-ren-ok { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); font-weight: 600; }
+/* The "delete for good" question inside the row menu. */
+.cs-rm-del { padding: 8px 10px 6px; border-radius: 9px; background: var(--danger-wash, rgba(220,38,38,.08)); }
+.cs-rm-del p { margin: 0 0 8px; font-size: 15px; line-height: 1.45; color: var(--text2); overflow-wrap: anywhere; }
+.cs-rm-btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.cs-rmenu .cs-rm-b { width: auto; min-height: 36px; padding: 0 12px; border: 1px solid var(--border); background: var(--bg2); font-size: 15px; }
+.cs-rmenu .cs-rm-red { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
+.cs-rmenu .cs-rm-red:hover, .cs-rmenu .cs-rm-red:focus-visible { background: var(--red); filter: brightness(1.08); }
+.cs-rmenu .ht-rm-it.danger, .cs-rmenu .ht-rm-it.danger .ht-rm-ic { color: var(--red); }
+/* Archived chats: the row pinned at the bottom of the column, and the header of their view. */
+.cside-arch { flex: none; display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 8px; border: 0;
+  border-top: 1px solid var(--border); background: none; color: var(--text2); font: inherit; font-size: 14px;
+  text-align: left; cursor: pointer; }
+.cside-arch[hidden] { display: none; }
+.cside-arch:hover { color: var(--text); background: var(--info-wash); }
+.cside-arch .ic, .cside-arch svg { width: 16px; height: 16px; flex: none; }
+.cside-arch .t { flex: 1 1 auto; }
+.cside-arch .n { color: var(--text3); font-size: 13px; font-variant-numeric: tabular-nums; }
+.cside-arch-top { display: flex; align-items: center; gap: 6px; padding: 2px 4px 8px 0; }
+.cside-arch-top b { font-size: 14.5px; }
+.cside-arch-top .n { color: var(--text3); font-size: 13px; }
+.cside-arch-back { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 0;
+  border-radius: 8px; background: none; color: var(--text2); cursor: pointer; }
+.cside-arch-back:hover { background: var(--info-wash); color: var(--text); }
+/* The chat on screen is archived: a chip in its title bar, with the way back. */
+.cs-arch-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font: inherit; font-size: 12.5px; cursor: pointer; }
+.cs-arch-chip .ic, .cs-arch-chip svg { width: 14px; height: 14px; }
+.cs-arch-chip b { color: var(--accent); font-weight: 600; }
+.cs-arch-chip:hover { border-color: var(--accent-line); }
+@media (max-width: 860px) {
+  .cside-arch { padding: 13px 10px; font-size: 16px; }
+  .cs-arch-chip { font-size: 14px; height: 30px; }
+  .ci-ren-in { height: 40px; font-size: 16px; }
+  .ci-ren-b { height: 40px; font-size: 15px; }
+}
 .ci-snip { font-size: 12.5px; color: var(--text2); margin-top: 2px; }
 .ci-snip b { color: var(--warn-ink); }
 .cside-empty { color: var(--text3); text-align: center; padding: 26px 8px; font-size: 13.5px; }
-.cside-more { display: block; width: 100%; margin: 8px 0 4px; padding: 8px 10px;
-  border: 1px solid var(--border); border-radius: 9px; background: transparent;
-  color: var(--text2); font-size: 13px; cursor: pointer; }
-.cside-more:hover { background: var(--info-wash); border-color: var(--info-line);
-  color: var(--text); }
+/* The loading line at the end of the list (2026-11-09: replaces the "Xem thêm" button; it loads when it scrolls into
+   view). */
+.cside-list .cside-more { display: flex; justify-content: center; padding: 10px 6px; }
 
 /* Nút Lịch sử và nút Reset hội thoại ở thanh trên cùng đã bỏ (06/11/2026, chủ repo: "không cần thiết").
    #resetBtn vẫn nằm trong DOM nhưng ẩn: nút "+" hội thoại mới trên điện thoại (mobile-chat.js) bấm hộ nó. */

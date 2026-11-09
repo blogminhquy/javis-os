@@ -21316,17 +21316,23 @@ async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Quer
 # mà màn hình đứng yên - chủ repo gặp đúng cảnh này 23/09. Kho phiên đã có khoá riêng.
 @app.get("/sessions")
 def sessions_list(brain: str = Query(None), limit: int = Query(50),
-                        project: str = Query(""), channel: str = Query(""), bots: int = Query(0)):
+                        project: str = Query(""), channel: str = Query(""), bots: int = Query(0),
+                        archived: int = Query(0)):
     """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project.
     channel: bỏ trống = loại các kênh cộng sự (agent:/workflow:); có giá trị = đúng kênh đó
     (trang Cộng sự mở một trợ lý/quy trình).
     bots: 1 = với kênh `agent:<slug>`, gộp cả hội thoại của các bot chuyên trách dùng Agent đó (CHỈ cột lịch sử
     xin cái này). Mặc định 0: lúc trang Cộng sự chọn "phiên gần nhất để mở tiếp" (limit=1) mà lẫn phiên của khách
-    vào thì tin chủ gõ sẽ rơi vào cuộc chat của khách."""
-    return {"sessions": get_store().list_sessions(limit=limit, brain=_brain_keys(brain),
-                                                  project=project or None,
-                                                  channel=channel or None,
-                                                  also_channels=_agent_history_channels(brain, channel) if bots else [])}
+    vào thì tin chủ gõ sẽ rơi vào cuộc chat của khách.
+    archived: 1 = only the archived chats (the history column's "Archived" view, 2026-11-09). Every answer also carries
+    `archived_count`, the number behind the "Archived" row at the bottom of the column."""
+    keys = _brain_keys(brain)
+    also = _agent_history_channels(brain, channel) if bots else []
+    store = get_store()
+    return {"sessions": store.list_sessions(limit=limit, brain=keys, project=project or None, channel=channel or None,
+                                            also_channels=also, archived_only=bool(archived)),
+            "archived_count": store.count_archived(brain=keys, project=project or None, channel=channel or None,
+                                                   also_channels=also)}
 
 
 def _agent_history_channels(brain, channel) -> list:
@@ -21841,6 +21847,22 @@ def sessions_pin(session_id: str, pinned: str = Form("1")):
     """Ghim hội thoại lên đầu danh sách (hoặc bỏ ghim khi pinned=0)."""
     get_store().set_pinned(session_id, str(pinned).strip() not in ("0", "false", ""))
     return {"ok": True}
+
+
+@app.post("/sessions/{session_id}/archive")
+def sessions_archive(session_id: str, archived: str = Form("1")):
+    """Archive a chat (history menu, 2026-11-09): it leaves the list but keeps every message, so Javis still remembers
+    it and search still finds it. archived=0 brings it back. A new message from a person also brings it back
+    (SessionStore.append_message)."""
+    on = str(archived).strip() not in ("0", "false", "")
+    get_store().archive(session_id, on)
+    return {"ok": True, "archived": on}
+
+
+@app.post("/sessions/{session_id}/unread")
+def sessions_unread(session_id: str):
+    """"Mark as unread" from the history menu (2026-11-09): the red dot comes back until the chat is opened again."""
+    return {"ok": True, "unread": get_store().mark_unread(session_id)}
 
 
 @app.post("/sessions/{session_id}/read")

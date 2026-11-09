@@ -4,6 +4,12 @@
 // module này render nội dung: + Hội thoại mới, tìm kiếm, danh sách nhóm theo thời gian,
 // đổi tên/xoá, highlight phiên đang mở. Mở phiên qua window.JavisSessions (app.js).
 // (Thay panel trượt bên phải cũ - nút "Lịch sử" góc phải giờ mở thẳng workspace.)
+//
+// 2026-11-09 (owner, design approved as an HTML mock-up): the four icons on each row (pin, move to project, rename,
+// delete) fold into one "..." menu, the same menu as the bot inbox rows (conversations.js, classes ht-rmenu/ht-rm-*):
+// a dropdown on a wide screen, a bottom sheet on a phone; right click or a long press opens it too. It adds share,
+// export as .md, mark as unread and ARCHIVE. Archived chats leave the list but keep every message; the "Archived"
+// row pinned at the bottom of the column opens them. "Xem thêm" is gone: the list loads more by itself at its end.
 // ============================================================
 (function () {
   "use strict";
@@ -362,7 +368,7 @@
   var pdFormFile = false, pdFileMode = "search", pdFormLink = false;
   // "project" = khung của project | "cuoc" = của cuộc trò chuyện | "agent" = của MỘT trợ lý
   var pdCheDo = "project";
-  var phienProj = { sid: "", pid: "", title: "" };     // cache "phiên đang mở thuộc project nào"
+  var phienProj = { sid: "", pid: "", title: "", archived: false };     // cache "phiên đang mở thuộc project nào"
 
   function pdT(k, bien) { return (window.t ? window.t(k, bien) : k); }
 
@@ -375,23 +381,24 @@
     // project đang lọc, nên chip báo trước điều đó là đúng chứ không phải đoán.
     if (!sid) return locThat;
     if (phienProj.sid === sid) return phienProj.pid;
-    var pid = "", title = "";
+    var pid = "", title = "", archived = false;
     try {
       var r = await fetch("/sessions/" + encodeURIComponent(sid) + "/meta");
       if (r.ok) {
         var d = await r.json();
         pid = (d && d.project_id) || "";
         title = (d && d.title) || "";
+        archived = !!(d && d.archived);
       } else {
         // 404 = id đã mint ở client nhưng chưa gửi tin nào, hàng trong DB chưa tồn tại.
         pid = locThat;
       }
     } catch (e) { return locThat; }   // mạng hỏng: đừng ghi cache một câu trả lời sai
-    phienProj = { sid: sid, pid: pid, title: title };
+    phienProj = { sid: sid, pid: pid, title: title, archived: archived };
     return pid;
   }
 
-  function quenPhienProj() { phienProj = { sid: "", pid: "", title: "" }; }
+  function quenPhienProj() { phienProj = { sid: "", pid: "", title: "", archived: false }; }
 
   // ── Conversation title (0.251.0) ─────────────────────────────────────────────
   // The open conversation's name, next to the collapse button on the Chat and Code pages. It
@@ -462,8 +469,16 @@
                '<span class="pc-dot"></span>' +
              '</button>';
     }
+    // 2026-11-09: the chat on screen is archived. Say it in the title bar, with the way back to the list.
+    var sidNay = currentId();
+    if (sidNay && phienProj.sid === sidNay && phienProj.archived) {
+      html = '<button class="cs-arch-chip" type="button" title="' + esc(pdT("sess.arch_back")) + '">' + ic("archive") +
+        '<span>' + esc(pdT("sess.arch_chip")) + '</span><b>' + esc(pdT("sess.arch_back")) + '</b></button>' + html;
+    }
     hosts.forEach(function (h) {
       h.innerHTML = html;
+      var ab = h.querySelector(".cs-arch-chip");
+      if (ab) ab.onclick = function () { luuTru({ id: sidNay }, false); };
       var b = h.querySelector(".proj-chip");
       if (b) b.onclick = function () { openProjDrawer(pid); };
       var c = h.querySelector(".cts-btn:not(.cts-share)");
@@ -501,8 +516,8 @@
     if (!r.ok || !d.ok) throw new Error((d && d.error) || pdT("cts.share_fail"));
     return d;
   }
-  async function moChiaSeHoiThoai(nut) {
-    var sid = currentId();
+  async function moChiaSeHoiThoai(nut, sidMenu) {
+    var sid = sidMenu || currentId();
     if (!sid) return;
     dongChiaSe();
     var pop = el('<div class="cts-share-pop" role="dialog" aria-label="' + esc(pdT("cts.share_head")) + '">' +
@@ -1687,16 +1702,21 @@
   // NGAY từ cache (fetch mới vẫn chạy nền đè lên sau) - trước đây mở panel mới bắt đầu
   // debounce 150ms + fetch nên user thấy "Đang tải…" delay rõ.
   var cached = null;   // {brain, items}
+  // 2026-11-09: the column shows the archived chats instead of the list (the "Archived" row at its bottom), and how many
+  // there are (every /sessions answer carries `archived_count`).
+  var archView = false, archCount = 0;
 
   async function fetchList() {
-    var b = brain(), p = kenhLoc ? "" : curProject();
+    var b = brain(), p = kenhLoc ? "" : curProject(), arch = archView;
     var r = await fetch("/sessions?brain=" + encodeURIComponent(b) + "&limit=" + (shown + 1) +
                         (p ? "&project=" + encodeURIComponent(p) : "") +
-                        (kenhLoc ? "&channel=" + encodeURIComponent(kenhLoc) + (kenhLoc.indexOf("agent:") === 0 ? "&bots=1" : "") : ""));
+                        (kenhLoc ? "&channel=" + encodeURIComponent(kenhLoc) + (kenhLoc.indexOf("agent:") === 0 ? "&bots=1" : "") : "") +
+                        (arch ? "&archived=1" : ""));
     var data = await r.json();
+    archCount = Number(data.archived_count) || 0;
     // `kenh` nằm trong khoá cache: thiếu nó thì lần mở trang Cộng sự kế tiếp vẽ tạm bằng danh
     // sách hội thoại thường của trang Trò chuyện, rồi mới thay - một nhịp nháy nội dung sai.
-    cached = { brain: b, project: p, kenh: kenhLoc, items: data.sessions || [] };
+    cached = { brain: b, project: p, kenh: kenhLoc, arch: arch, items: data.sessions || [] };
     return cached;
   }
 
@@ -1715,6 +1735,7 @@
     var o = opts || {};
     side = container;
     shown = PAGE;
+    archView = false;
     lastBrain = brain();
     kenhLoc = o.kenh || "";
     hamTaoMoi = typeof o.onNew === "function" ? o.onNew : null;
@@ -1732,6 +1753,7 @@
         '</div>';
       listEl = side.querySelector(".cside-list");
       ganTaiTruoc(listEl);
+      ganChanLuuTru();
       searchEl = side.querySelector(".cside-search");
       projBar = null;
       cayEl = null;
@@ -1758,6 +1780,7 @@
       '<div class="cside-pane" data-pane="files"></div>';
     listEl = side.querySelector(".cside-list");
     ganTaiTruoc(listEl);
+    ganChanLuuTru();
     searchEl = side.querySelector(".cside-search");
     projBar = side.querySelector(".cside-proj");
     cayEl = side.querySelector('[data-pane="files"]');
@@ -1815,7 +1838,7 @@
     if (!side) return;
     var b = brain();
     if (b !== lastBrain) {
-      lastBrain = b; shown = PAGE;
+      lastBrain = b; shown = PAGE; archView = false;
       // Project gắn theo brain, nên đổi brain là danh sách project đổi theo. Không nạp lại thì
       // thanh trên đầu còn treo tên project của brain cũ mà bộ lọc lại đang trỏ vào id lạ.
       if (projBar) { renderProjBar(); loadProjects(); }
@@ -1885,7 +1908,7 @@
     // Khung đang trống: vẽ ngay từ cache prefetch (nếu đúng brain) cho hết cảm giác delay;
     // không có cache mới hiện "Đang tải…". Các lần sau giữ danh sách cũ cho khỏi nháy.
     if (!listEl.querySelector(".cside-item")) {
-      if (cached && cached.brain === brain() && cached.kenh === kenhLoc &&
+      if (cached && cached.brain === brain() && cached.kenh === kenhLoc && cached.arch === archView &&
           cached.project === (kenhLoc ? "" : curProject()) && cached.items.length) {
         renderList(cached.items.slice(0, shown), cached.items.length > shown);
       } else {
@@ -1917,13 +1940,18 @@
   }
 
   function renderList(items, hasMore) {
+    veChanLuuTru();
     if (!items.length) {
-      listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.empty1")) + '<br>' + esc(window.t("sess.empty2")) + '</div>';
+      listEl.innerHTML = archView
+        ? '<div class="cside-empty">' + esc(window.t("sess.arch_empty")) + '</div>'
+        : '<div class="cside-empty">' + esc(window.t("sess.empty1")) + '<br>' + esc(window.t("sess.empty2")) + '</div>';
+      if (archView) listEl.insertBefore(dauLuuTru(), listEl.firstChild);
       return;
     }
-    // Bấm "Xem thêm" render lại từ đầu → giữ chỗ cuộn để không bị nhảy lên trên.
+    // Tải thêm khi cuộn tới cuối vẽ lại từ đầu → giữ chỗ cuộn để không bị nhảy lên trên.
     var keepScroll = listEl.scrollTop;
     listEl.innerHTML = "";
+    if (archView) listEl.appendChild(dauLuuTru());
     var cur = currentId(), lastGroup = null;
     var pins = items.filter(function (s) { return s.pinned; });
     items.forEach(function (s) {
@@ -1976,9 +2004,12 @@
       var pTag = projById(pid);
       var chuaDoc = !!s.unread;
       if (chuaDoc && s.id === cur && chatOnScreen()) { chuaDoc = false; s.unread = false; markRead(s.id); }
-      var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + (s.pinned ? " ghim" : "") + (chuaDoc ? " has-unread" : "") + '">' +
+      // 2026-11-09: a pinned row shows a small pin before its title (no bar on the left any more); every other action
+      // is in the row's "..." menu (moMenuDong).
+      var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + (s.pinned ? " ghim" : "") + (chuaDoc ? " has-unread" : "") + (s.archived ? " archived" : "") + '">' +
         '<div class="ci-title">' + (chuaDoc ? '<span class="ci-unread" role="img" title="' + esc(window.t("sess.unread")) + '" aria-label="' + esc(window.t("sess.unread")) + '"></span>' : '') +
         (isRun ? '<span class="ci-run" title="' + esc(window.t("sess.running")) + '">' + ic("loader", { cls: "ic-spin" }) + '</span> ' : '') +
+        (s.pinned ? '<span class="ci-pin" title="' + esc(window.t("sess.grp_pinned")) + '">' + ic("pin") + '</span>' : '') +
         (tt.dau || "") +
         esc(s.title || s.preview || window.t("sess.untitled")) + '</div>' +
         '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' +
@@ -1989,43 +2020,32 @@
         (chLabel ? '<span class="ci-badge">' + esc(chLabel) + '</span>' : '') +
         (eng ? '<span class="ci-badge">' + esc(eng) + '</span>' : '') +
         '<span>' + esc(window.t("sess.msgs", { count: s.msg_count || 0 })) + '</span>' +
-        '<span class="act">' +
-          '<span class="pin' + (s.pinned ? " on" : "") + '" title="' + esc(s.pinned ? window.t("proj.pin_off") : window.t("sess.pin_top")) + '">' + ic("pin") + '</span>' +
-          // "Xếp vào nhóm" chỉ có nghĩa với hội thoại của NGƯỜI DÙNG. Hội thoại của một trợ
-          // lý đã thuộc về trợ lý đó rồi, nhét thêm vào một project là hai cách xếp chồng lên
-          // nhau mà cột này không hiện project nào cả.
-          (kenhLoc ? "" : '<span class="mov" title="' + esc(window.t("sess.move_to")) + '">' + ic("folder") + '</span>') +
-          '<span class="ren" title="' + esc(window.t("cs.fm_rename_title")) + '">' + ic("pencil") + '</span>' +
-          '<span class="del" title="' + esc(window.t("common.delete")) + '">' + ic("trash-2") + '</span>' +
-        '</span>' +
+        nutBaCham() +
         '</div></div>');
-      // Hai nút mới gắn handler RIÊNG kèm stopPropagation, không nhét thêm nhánh vào
-      // item.onclick bên dưới. Handler đó là thứ test_chat_side_actions.js bóc ra chạy thật
-      // với đúng năm tham số của nó; thêm tên hàm lạ vào là test nổ ReferenceError.
-      item.querySelector(".pin").onclick = function (ev) { ev.stopPropagation(); togglePin(s); };
-      var nutXep = item.querySelector(".mov");
-      if (nutXep) nutXep.onclick = function (ev) { ev.stopPropagation(); moveMenu(ev.currentTarget, s); };
-      // Bấm phải dò theo TỔ TIÊN, không so class của đúng node bị bấm. Nội dung .ren/.del là
-      // một <svg> (ic() trả chuỗi SVG), nên chạm vào icon thì e.target LÀ cái svg chứ không
-      // phải cái span - so classList kiểu cũ luôn trượt và click rơi xuống openSession.
-      // Đó chính là lỗi "hover vào không xoá/đổi tên được": nút có hiện, bấm lại mở hội thoại.
+      // The "..." opens the row's menu; anywhere else on the row opens the chat. Matched by ANCESTOR: the button's
+      // content is an <svg>, so a tap on the icon has the svg as e.target (the 0.12.3 bug, test_chat_side_actions.js).
+      // A long press already opened the menu: the tap that ends it must not open the chat as well.
       item.onclick = function (e) {
-        var hit = e.target && e.target.closest ? e.target.closest(".ren, .del") : null;
-        if (hit && hit.classList.contains("del")) { e.stopPropagation(); delSession(s); return; }
-        if (hit && hit.classList.contains("ren")) { e.stopPropagation(); renSession(s); return; }
+        var hit = e.target && e.target.closest ? e.target.closest(".ci-more") : null;
+        if (hit) { e.stopPropagation(); toggleMenuDong(item, s, false); return; }
+        if (item._nhanGiu) { item._nhanGiu = false; return; }
         openSession(s.id);
       };
+      ganMenuDong(item, s);
       item.setAttribute("data-sid", s.id);
       listEl.appendChild(item);
     });
     // GitHub status icon per conversation (0.365.0, github-connect.js). Only chats with GitHub work get one.
     try { if (window.JavisGithubRepos && window.JavisGithubRepos.decorate) window.JavisGithubRepos.decorate(listEl); } catch (e) {}
+    // Endless list (2026-11-09, replaces "Xem thêm"): a loading line at the end; when it scrolls into view the next
+    // PAGE loads by itself.
     if (hasMore) {
-      var more = el('<button class="cside-more" type="button">' + esc(window.t("sess.more", { so: PAGE })) + '</button>');
-      more.onclick = function () { shown += PAGE; loadList(); };
-      listEl.appendChild(more);
+      var cuoi = el('<div class="cside-more pg-loading">' + esc(window.t("sess.loading_more")) + '</div>');
+      listEl.appendChild(cuoi);
+      theoDoiCuoiDanhSach(cuoi);
     }
     listEl.scrollTop = keepScroll;
+    if (_sm && _sm.list) danhDauDongMo();
     // 2026-11-08: warm the first chats of the list once the page is idle (app.js prefetchMany), so the first tap on a
     // phone, which has no hover, finds them ready too.
     try {
@@ -2047,31 +2067,40 @@
       listEl.innerHTML = "";
       hits.forEach(function (h) {
         var snip = esc(h.snippet || "").replace(/&gt;&gt;&gt;/g, "<b>").replace(/&lt;&lt;&lt;/g, "</b>");
-        // Kết quả tìm cũng có nút ghim (0.223.0, chủ dự án: "trong phần tìm và chọn hội thoại thêm nút ghim"):
-        // tìm ra hội thoại cần giữ thì ghim luôn tại chỗ, khỏi xoá ô tìm rồi lục lại trong danh sách.
-        var item = el('<div class="cside-item' + (h.pinned ? " ghim" : "") + '">' +
-          '<div class="ci-title">' + esc(h.title || window.t("sess.untitled")) + '</div>' +
+        // A hit carries what its "..." menu needs (2026-11-09): pinned, archived and project, like a list row.
+        var s = { id: h.session_id, title: h.title, pinned: !!h.pinned, archived: !!h.archived,
+                  project_id: h.project_id || "", channel: h.channel || "", unread: false, timKiem: q };
+        var item = el('<div class="cside-item' + (h.pinned ? " ghim" : "") + (h.archived ? " archived" : "") + '">' +
+          '<div class="ci-title">' + (h.pinned ? '<span class="ci-pin" title="' + esc(window.t("sess.grp_pinned")) + '">' + ic("pin") + '</span>' : '') +
+            esc(h.title || window.t("sess.untitled")) + '</div>' +
           '<div class="ci-snip">' + snip + '</div>' +
           '<div class="ci-meta"><span>' + fmtT(h.ts) + '</span>' +
-          '<span class="act"><span class="pin' + (h.pinned ? " on" : "") + '" title="' +
-            esc(h.pinned ? window.t("proj.pin_off") : window.t("sess.pin_top")) + '">' + ic("pin") + '</span></span>' +
+          (h.archived ? '<span class="ci-arch-tag">' + ic("archive") + esc(window.t("sess.arch_title")) + '</span>' : '') +
+          nutBaCham() +
           '</div></div>');
-        item.querySelector(".pin").onclick = function (ev) {
-          ev.stopPropagation();
-          togglePin({ id: h.session_id, pinned: h.pinned }, q);
+        item.onclick = function (e) {
+          var hit = e.target && e.target.closest ? e.target.closest(".ci-more") : null;
+          if (hit) { e.stopPropagation(); toggleMenuDong(item, s, false); return; }
+          if (item._nhanGiu) { item._nhanGiu = false; return; }
+          openSession(s.id);
         };
-        item.onclick = function () { openSession(h.session_id); };
+        ganMenuDong(item, s);
         item.setAttribute("data-sid", h.session_id);
         listEl.appendChild(item);
       });
     } catch (e) { listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.search_err")) + '</div>'; }
   }
 
-  async function delSession(s) {
-    if (!confirm(window.t("sess.del_q", { ten: s.title || s.preview || window.t("sess.untitled") }))) return;
-    try { await fetch("/sessions/" + encodeURIComponent(s.id) + "/delete", { method: "POST" }); } catch (e) {}
+  // Delete for good (the menu asked first, in its own "delete" view: no confirm() any more).
+  async function xoaHan(s) {
+    var r = {};
+    try { r = await (await fetch("/sessions/" + encodeURIComponent(s.id) + "/delete", { method: "POST" })).json(); }
+    catch (e) { r = { error: String(e) }; }
+    if (r && r.error) return r;
     if (s.id === currentId() && window.JavisSessions) window.JavisSessions.new();
-    refresh();
+    cached = null;
+    taiLaiSau(s);
+    return { ok: true };
   }
 
   async function renSession(s) {
@@ -2091,6 +2120,341 @@
     await post("/sessions/" + encodeURIComponent(s.id) + "/pin", { pinned: s.pinned ? "0" : "1" });
     cached = null;   // thứ tự vừa đổi → cache cũ vẽ ra danh sách sai thứ tự
     if (q) doSearch(q); else loadList();
+  }
+  function taiLaiSau(s) {
+    var q = (s && s.timKiem) || (searchEl && searchEl.value.trim());
+    if (q) doSearch(q); else loadList();
+  }
+
+  // Archive (on=true) or bring back (on=false). The chat on screen stays open; its title bar says it is archived.
+  async function luuTru(s, on) {
+    var r = await post("/sessions/" + encodeURIComponent(s.id) + "/archive", { archived: on ? "1" : "0" });
+    if (r && r.error) return r;
+    cached = null;
+    if (s.id === currentId()) { quenPhienProj(); renderProjChip(); }
+    taiLaiSau(s);
+    return { ok: true };
+  }
+
+  // ── The "..." menu of a history row (2026-11-09) ──────────────────────────────
+  // Same look and behaviour as the bot inbox row menu (conversations.js): one element on <body> so the list's scrolling
+  // never clips it; a bottom sheet on a phone; Escape, arrows, Home/End inside it. Views: "main", "proj" (move to a
+  // project), "del" (delete for good, asked in place).
+  var _sm = null;            // {s, view, err, kb, list}
+  var SM_PHONE = "(max-width: 640px)";
+  function smPhone() { try { return window.matchMedia(SM_PHONE).matches; } catch (e) { return false; } }
+  function smEl() { return document.getElementById("csRowMenu"); }
+  function nutBaCham() {
+    return '<button class="ci-more" type="button" aria-haspopup="menu" aria-expanded="false" title="' +
+      esc(window.t("sess.more_acts")) + '" aria-label="' + esc(window.t("sess.more_acts")) + '">' + ic("ellipsis") + '</button>';
+  }
+  function dongCuaMenu() {
+    if (!_sm || !listEl) return null;
+    var rows = listEl.querySelectorAll(".cside-item[data-sid]");
+    for (var i = 0; i < rows.length; i++) if (rows[i].getAttribute("data-sid") === _sm.s.id) return rows[i];
+    return null;
+  }
+  function danhDauDongMo() {
+    if (!listEl) return;
+    listEl.querySelectorAll(".cside-item").forEach(function (x) {
+      var on = !!(_sm && x.getAttribute("data-sid") === _sm.s.id);
+      x.classList.toggle("menu-on", on);
+      var b = x.querySelector(".ci-more");
+      if (b) b.setAttribute("aria-expanded", String(on));
+    });
+  }
+  function toggleMenuDong(row, s, kb) {
+    if (_sm && _sm.s.id === s.id) return dongMenuDong(true);
+    moMenuDong(row, s, kb);
+  }
+  function moMenuDong(row, s, kb) {
+    dongMenuDong(false);
+    closeMenu();
+    _sm = { s: s, view: "main", err: "", kb: !!kb, list: true };
+    danhDauDongMo();
+    veMenuDong(true);
+    theoDoiNgoaiMenu();
+  }
+  function dongMenuDong(refocus) {
+    var m = smEl(), bg = document.getElementById("csRowMenuBg");
+    if (m) m.parentNode.removeChild(m);
+    if (bg) bg.parentNode.removeChild(bg);
+    if (!_sm) return;
+    var row = refocus ? dongCuaMenu() : null;
+    _sm = null;
+    danhDauDongMo();
+    var b = row && row.querySelector(".ci-more");
+    if (b && b.focus) b.focus();
+  }
+  function ganMenuDong(item, s) {
+    // Right click, and a long press where the phone reports it as a context menu (Android), open the same menu.
+    item.oncontextmenu = function (e) { e.preventDefault(); moMenuDong(item, s, false); };
+    // iPhone has no context menu for a long press: time it here (moving the finger cancels it, that is a scroll).
+    var hen = null;
+    item.addEventListener("touchstart", function () {
+      clearTimeout(hen);
+      hen = setTimeout(function () { item._nhanGiu = true; moMenuDong(item, s, false); }, 550);
+    }, { passive: true });
+    ["touchmove", "touchend", "touchcancel"].forEach(function (ev) {
+      item.addEventListener(ev, function () { clearTimeout(hen); }, { passive: true });
+    });
+    var b = item.querySelector(".ci-more");
+    if (b) b.onkeydown = function (e) {
+      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); toggleMenuDong(item, s, true); }
+    };
+  }
+  function smItem(act, icon, key, o) {
+    o = o || {};
+    return '<button type="button" class="ht-rm-it' + (o.on ? " on" : "") + (o.danger ? " danger" : "") + '" role="menuitem" data-act="' + esc(act) + '"' +
+      (o.more ? ' aria-haspopup="menu"' : "") + '>' +
+      '<span class="ht-rm-ic">' + ic(icon) + '</span>' +
+      '<span class="ht-rm-t"><span>' + esc(o.label || window.t(key)) + '</span></span>' +
+      (o.more ? '<span class="ht-rm-end">' + ic("chevron-right") + '</span>' : o.on ? '<span class="ht-rm-end">' + ic("check") + '</span>' : "") +
+      '</button>';
+  }
+  function smSep() { return '<div class="ht-rm-sep" role="separator"></div>'; }
+  function noiDungMenu(s) {
+    var v = _sm.view;
+    if (v === "proj") {
+      var h = smItem("back", "chevron-left", "sess.move_to");
+      if (s.project_id) h += smItem("move:", "x", "sess.move_none");
+      h += smSep();
+      projects.forEach(function (p) {
+        h += smItem("move:" + p.id, p.icon && window.Icons && window.Icons.has && window.Icons.has(p.icon) ? p.icon : "folder", "",
+                    { label: p.name || "", on: s.project_id === p.id });
+      });
+      if (!projects.length) h += smItem("newproj", "plus", "sess.proj_new");
+      return h;
+    }
+    if (v === "del") {
+      return '<div class="cs-rm-del"><p>' + esc(window.t("sess.del_ask", { ten: s.title || s.preview || window.t("sess.untitled") })) + '</p>' +
+        '<div class="cs-rm-btns">' +
+        '<button type="button" class="ht-rm-it cs-rm-b" data-act="del_no">' + esc(window.t("common.cancel")) + '</button>' +
+        (s.archived ? "" : '<button type="button" class="ht-rm-it cs-rm-b" data-act="archive">' + esc(window.t("sess.archive")) + '</button>') +
+        '<button type="button" class="ht-rm-it cs-rm-b cs-rm-red" data-act="del_yes">' + esc(window.t("sess.del_forever")) + '</button>' +
+        '</div></div>';
+    }
+    if (s.archived) {
+      return smItem("restore", "archive-restore", "sess.arch_back") +
+        smItem("export", "download", "sess.export_md") + smSep() +
+        smItem("delete", "trash-2", "sess.del_forever", { danger: true });
+    }
+    var h2 = smItem("pin", s.pinned ? "pin-off" : "pin", s.pinned ? "proj.pin_off" : "sess.pin_top");
+    if (!kenhLoc) h2 += smItem("proj", "folder", "sess.move_to", { more: true });
+    h2 += smItem("rename", "pencil", "sess.rename") + smSep() +
+      smItem("share", "share-2", "sess.share_link") +
+      smItem("export", "download", "sess.export_md");
+    if (s.unread) h2 += smItem("read", "mail-open", "sess.mark_read");
+    else if (s.id !== currentId()) h2 += smItem("unread", "mail", "sess.mark_unread");
+    h2 += smSep() + smItem("archive", "archive", "sess.archive") +
+      smItem("delete", "trash-2", "common.delete", { danger: true });
+    return h2;
+  }
+  function veMenuDong(focusFirst) {
+    if (!_sm) return;
+    var phone = smPhone(), m = smEl(), s = _sm.s;
+    if (!m) {
+      m = document.createElement("div");
+      m.id = "csRowMenu";
+      m.addEventListener("click", onMenuDongClick);
+      m.addEventListener("keydown", onMenuDongKey);
+      document.body.appendChild(m);
+    }
+    if (phone && !document.getElementById("csRowMenuBg")) {
+      var bg = document.createElement("div");
+      bg.id = "csRowMenuBg";
+      bg.className = "ht-rsheet-bg";
+      bg.onclick = function () { dongMenuDong(false); };
+      document.body.insertBefore(bg, m);
+    }
+    var ten = s.title || s.preview || window.t("sess.untitled");
+    m.className = "ht-rmenu cs-rmenu" + (phone ? " ht-rsheet" : "");
+    m.setAttribute("role", "menu");
+    m.setAttribute("aria-label", ten);
+    m.innerHTML = (phone ? '<div class="ht-rsheet-h"><span class="ht-rsheet-grip" aria-hidden="true"></span><b>' + esc(ten) + '</b></div>' : "") +
+      noiDungMenu(s) + (_sm.err ? '<div class="ht-rm-err" role="alert">' + ic("triangle-alert") + ' <span>' + esc(_sm.err) + '</span></div>' : "");
+    datMenuDong();
+    if (focusFirst) {
+      var first = m.querySelector(".ht-rm-it");
+      if (first && (_sm.kb || phone)) first.focus();
+      else { m.tabIndex = -1; m.focus(); }
+    }
+  }
+  // Desktop: under the row's "...", right edges aligned; above it when there is no room below; inside the window.
+  function datMenuDong() {
+    var m = smEl();
+    if (!m || !_sm) return;
+    if (m.classList.contains("ht-rsheet")) { m.style.left = m.style.top = ""; return; }
+    var row = dongCuaMenu(), a = row ? (row.querySelector(".ci-more") || row) : null;
+    if (!a) return;
+    var r = a.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    var w = m.offsetWidth, h = m.offsetHeight;
+    var left = Math.max(8, Math.min(r.right - w, vw - w - 8));
+    var top = r.bottom + 4;
+    if (top + h > vh - 8 && r.top - h - 4 >= 8) top = r.top - h - 4;
+    top = Math.max(8, Math.min(top, vh - h - 8));
+    m.style.left = left + "px";
+    m.style.top = top + "px";
+  }
+  var _smNgoai = false;
+  function theoDoiNgoaiMenu() {
+    if (_smNgoai) return;
+    _smNgoai = true;
+    document.addEventListener("mousedown", function (ev) {
+      if (!_sm) return;
+      var m = smEl();
+      if (m && m.contains(ev.target)) return;
+      var more = ev.target.closest && ev.target.closest(".ci-more");
+      var row = more && more.closest(".cside-item");
+      if (row && row.getAttribute("data-sid") === _sm.s.id) return;   // its own "..." closes it through the click
+      if (ev.target.id === "csRowMenuBg") return;
+      dongMenuDong(false);
+    }, true);
+    document.addEventListener("scroll", function () { if (_sm) datMenuDong(); }, true);
+    window.addEventListener("resize", function () { if (_sm) veMenuDong(false); });
+  }
+  function onMenuDongKey(e) {
+    var m = smEl();
+    if (!m) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); return dongMenuDong(true); }
+    if (e.key === "Tab") { dongMenuDong(false); return; }
+    var its = [].slice.call(m.querySelectorAll(".ht-rm-it"));
+    if (!its.length) return;
+    var i = its.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); its[(i + 1) % its.length].focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); its[(i - 1 + its.length) % its.length].focus(); }
+    else if (e.key === "Home") { e.preventDefault(); its[0].focus(); }
+    else if (e.key === "End") { e.preventDefault(); its[its.length - 1].focus(); }
+    else if (e.key === "ArrowRight" && document.activeElement && document.activeElement.dataset.act === "proj") { e.preventDefault(); document.activeElement.click(); }
+    else if (e.key === "ArrowLeft" && _sm && _sm.view !== "main") { e.preventDefault(); _sm.view = "main"; _sm.kb = true; veMenuDong(true); }
+  }
+  async function onMenuDongClick(e) {
+    var b = e.target.closest && e.target.closest(".ht-rm-it");
+    if (!b || !_sm) return;
+    e.stopPropagation();
+    var act = b.dataset.act, s = _sm.s, mine = _sm;
+    _sm.err = "";
+    var ketQua = function (r) {
+      if (r && r.error) { if (_sm === mine) { _sm.err = window.t("sess.act_err", { err: r.error }); veMenuDong(false); } return; }
+      if (_sm === mine) dongMenuDong(false);
+    };
+    if (act === "proj") { _sm.view = "proj"; _sm.kb = true; return veMenuDong(true); }
+    if (act === "back" || act === "del_no") { _sm.view = "main"; _sm.kb = true; return veMenuDong(true); }
+    if (act === "delete") { _sm.view = "del"; return veMenuDong(true); }
+    if (act === "newproj") { dongMenuDong(false); return newProject(); }
+    if (act.indexOf("move:") === 0) { dongMenuDong(false); return moveTo(s, act.slice(5)); }
+    if (act === "rename") { dongMenuDong(false); return doiTenTaiDong(s); }
+    if (act === "share") {
+      var row = dongCuaMenu(), nut = row && row.querySelector(".ci-more");
+      dongMenuDong(false);
+      return moChiaSeHoiThoai(nut || document.body, s.id);
+    }
+    if (act === "export") {
+      dongMenuDong(false);
+      if (window.JavisLenh && window.JavisLenh.xuatHoiThoai) window.JavisLenh.xuatHoiThoai(s.id);
+      return;
+    }
+    if (act === "pin") { dongMenuDong(false); return togglePin(s, s.timKiem); }
+    if (act === "read") { dongMenuDong(false); markRead(s.id); clearDot(s.id); return; }
+    if (act === "unread") {
+      return ketQua(await post("/sessions/" + encodeURIComponent(s.id) + "/unread", {}).then(function (r) {
+        cached = null; taiLaiSau(s); return r;
+      }));
+    }
+    if (act === "archive") return ketQua(await luuTru(s, true));
+    if (act === "restore") return ketQua(await luuTru(s, false));
+    if (act === "del_yes") return ketQua(await xoaHan(s));
+  }
+
+  // Rename right on the row (2026-11-09): the row turns into a box; Enter saves, Escape puts it back.
+  function doiTenTaiDong(s) {
+    var row = null;
+    if (listEl) listEl.querySelectorAll(".cside-item[data-sid]").forEach(function (x) { if (x.getAttribute("data-sid") === s.id) row = x; });
+    if (!row) return renSession(s);
+    var cu = s.title || s.preview || "";
+    row.classList.add("renaming");
+    row.innerHTML = '<div class="ci-ren"><input class="ci-ren-in" maxlength="120" value="' + esc(cu) + '" aria-label="' + esc(window.t("sess.rename")) + '">' +
+      '<button type="button" class="ci-ren-b" data-ren="x">' + esc(window.t("common.cancel")) + '</button>' +
+      '<button type="button" class="ci-ren-b ci-ren-ok" data-ren="ok">' + esc(window.t("sess.save")) + '</button></div>';
+    row.onclick = function (e) { e.stopPropagation(); };
+    row.oncontextmenu = null;
+    var o = row.querySelector(".ci-ren-in");
+    var xong = false;
+    var huy = function () { if (xong) return; xong = true; taiLaiSau(s); };
+    var luu = async function () {
+      if (xong) return;
+      var t = o.value.trim();
+      if (!t || t === cu) return huy();
+      xong = true;
+      try {
+        var fd = new FormData(); fd.append("title", t);
+        await fetch("/sessions/" + encodeURIComponent(s.id) + "/rename", { method: "POST", body: fd });
+      } catch (e) {}
+      quenPhienProj();      // the title in the chat header reads this cache
+      renderProjChip();
+      cached = null;
+      taiLaiSau(s);
+    };
+    row.querySelector('[data-ren="ok"]').onclick = luu;
+    row.querySelector('[data-ren="x"]').onclick = huy;
+    o.onkeydown = function (e) {
+      if (e.key === "Enter") { e.preventDefault(); luu(); }
+      else if (e.key === "Escape") { e.preventDefault(); huy(); }
+    };
+    o.focus();
+    o.select();
+  }
+
+  // ── Archived chats: the row at the bottom of the column, and the header of their view ──
+  var chanEl = null;
+  function ganChanLuuTru() {
+    var pane = listEl && listEl.parentNode;
+    if (!pane) return;
+    chanEl = el('<button class="cside-arch" type="button" hidden>' + ic("archive") + '<span class="t">' +
+      esc(window.t("sess.arch_title")) + '</span><span class="n"></span>' + ic("chevron-right") + '</button>');
+    chanEl.onclick = function () { moLuuTru(true); };
+    pane.insertBefore(chanEl, listEl.nextSibling);
+  }
+  function veChanLuuTru() {
+    if (!chanEl) return;
+    chanEl.hidden = archView || !archCount;
+    chanEl.querySelector(".t").textContent = window.t("sess.arch_title");
+    chanEl.querySelector(".n").textContent = archCount ? String(archCount) : "";
+  }
+  function dauLuuTru() {
+    var h = el('<div class="cside-arch-top"><button class="cside-arch-back" type="button" title="' + esc(window.t("sess.arch_leave")) +
+      '" aria-label="' + esc(window.t("sess.arch_leave")) + '">' + ic("chevron-left") + '</button><b>' +
+      esc(window.t("sess.arch_title")) + '</b><span class="n">' + (archCount || "") + '</span></div>');
+    h.querySelector(".cside-arch-back").onclick = function () { moLuuTru(false); };
+    return h;
+  }
+  function moLuuTru(on) {
+    archView = !!on;
+    shown = PAGE;
+    cached = null;
+    if (searchEl && searchEl.value) searchEl.value = "";
+    if (listEl) { listEl.innerHTML = ""; listEl.scrollTop = 0; }
+    loadList();
+  }
+
+  // The loading line at the end of the list: when it scrolls into view, the next PAGE loads.
+  var _cuoiObs = null, _dangTaiThem = false;
+  function theoDoiCuoiDanhSach(node) {
+    if (!("IntersectionObserver" in window)) {
+      node.onclick = function () { shown += PAGE; loadList(); };
+      return;
+    }
+    if (_cuoiObs && _cuoiObs.root !== listEl) { _cuoiObs.disconnect(); _cuoiObs = null; }   // the column was mounted again
+    if (!_cuoiObs) {
+      _cuoiObs = new IntersectionObserver(function (ents) {
+        if (_dangTaiThem || !ents.some(function (x) { return x.isIntersecting; })) return;
+        _dangTaiThem = true;
+        shown += PAGE;
+        Promise.resolve(loadList()).then(function () { _dangTaiThem = false; }, function () { _dangTaiThem = false; });
+      }, { root: listEl, rootMargin: "120px" });
+    }
+    _cuoiObs.disconnect();
+    _cuoiObs.observe(node);
   }
 
   function moveMenu(anchor, s) {

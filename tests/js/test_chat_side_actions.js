@@ -1,4 +1,4 @@
-/* Hover vào một hội thoại phải ĐỔI TÊN / XOÁ được.
+/* Hover vào một hội thoại phải mở được menu "..." (đổi tên, xoá, ghim...), và bấm chỗ khác thì mở hội thoại.
 
        node tests/js/test_chat_side_actions.js
 
@@ -11,7 +11,10 @@
    thực tế của span gần như chỉ còn viền 1-2px quanh icon - tức là hầu như không bấm trúng.
 
    Đây là lỗi CHỈ lộ ra khi chạy thật: đọc code thấy "có xử lý xoá" là tưởng xong. Nên test này
-   chạy CHÍNH handler lấy từ source, với cây node mô phỏng đúng chỗ icon nằm trong span. */
+   chạy CHÍNH handler lấy từ source, với cây node mô phỏng đúng chỗ icon nằm trong nút.
+
+   2026-11-09 (owner, mock-up approved): the four icons of a row (pin, move, rename, delete) folded into one "..."
+   button that opens the row menu. The same trap stands: the button's content is an <svg>. */
 const fs = require("fs");
 const path = require("path");
 
@@ -53,79 +56,67 @@ if (!m) { console.log("\nFAIL - test_chat_side_actions: không đọc được h
 
 let calls = [];
 const fn = new Function(
-  "e", "s", "delSession", "renSession", "openSession",
+  "e", "s", "item", "toggleMenuDong", "openSession",
   m[1] + "\n"
 );
-function bam(target) {
+function bam(target, rowState) {
   calls = [];
   const e = {
     target: target,
     stopPropagation: () => calls.push("stop"),
   };
-  fn(e, { id: "sess-1" },
-     () => calls.push("del"), () => calls.push("ren"), () => calls.push("open"));
+  const row = rowState || {};
+  fn(e, { id: "sess-1" }, row, () => calls.push("menu"), () => calls.push("open"));
   return calls;
 }
 
-// Cây node đúng như renderList dựng: .cside-item > .ci-meta > .act > span.del > svg.ic
+// Cây node đúng như renderList dựng: .cside-item > .ci-meta > button.ci-more > svg.ic
 const item = node("cside-item");
 const meta = node("ci-meta", item);
-const act = node("act", meta);
-const spanDel = node("del", act);
-const svgDel = node("ic", spanDel);       // <svg> do ic("trash-2") sinh ra
-const spanRen = node("ren", act);
-const svgRen = node("ic", spanRen);
+const more = node("ci-more", meta);
+const svgMore = node("ic", more);          // <svg> do ic("ellipsis") sinh ra
 const title = node("ci-title", item);
 
-// ---- 1. Bấm THẲNG vào span (viền quanh icon) - vốn đã chạy từ trước ----
-check("bấm span Xoá → gọi xoá", bam(spanDel).indexOf("del") !== -1);
-check("bấm span Đổi tên → gọi đổi tên", bam(spanRen).indexOf("ren") !== -1);
+// ---- 1. Bấm THẲNG vào nút "..." ----
+check("bấm nút ... → mở menu của hàng", bam(more).indexOf("menu") !== -1);
 
-// ---- 2. ĐÂY MỚI LÀ LỖI THẬT: bấm trúng icon bên trong span ----
-// Icon choán gần hết vùng nút, nên đây là cú bấm mà người dùng thực hiện gần như MỌI lần.
-check("CANARY: bấm vào ICON Xoá (svg trong span) → vẫn gọi xoá",
-      bam(svgDel).indexOf("del") !== -1);
-check("CANARY: bấm vào ICON Đổi tên (svg trong span) → vẫn gọi đổi tên",
-      bam(svgRen).indexOf("ren") !== -1);
-check("bấm icon Xoá KHÔNG được mở hội thoại", bam(svgDel).indexOf("open") === -1);
-check("bấm icon Đổi tên KHÔNG được mở hội thoại", bam(svgRen).indexOf("open") === -1);
+// ---- 2. Lỗi thật cũ: bấm trúng icon bên trong nút ----
+check("CANARY: bấm vào ICON ... (svg trong nút) → vẫn mở menu", bam(svgMore).indexOf("menu") !== -1);
+check("bấm icon ... KHÔNG được mở hội thoại", bam(svgMore).indexOf("open") === -1);
+check("mở menu thì chặn nổi bọt (hàng cha không nuốt cú bấm)", bam(svgMore).indexOf("stop") !== -1);
 
-// ---- 3. Không được bắt nhầm: bấm chỗ khác vẫn phải mở hội thoại ----
+// ---- 3. Bấm chỗ khác vẫn phải mở hội thoại ----
 check("bấm tiêu đề → mở hội thoại", bam(title).indexOf("open") !== -1);
-check("bấm tiêu đề KHÔNG gọi xoá/đổi tên",
-      bam(title).indexOf("del") === -1 && bam(title).indexOf("ren") === -1);
+check("bấm tiêu đề KHÔNG mở menu", bam(title).indexOf("menu") === -1);
 check("bấm vào chính hàng → mở hội thoại", bam(item).indexOf("open") !== -1);
 
-// ---- 4. Chặn nổi bọt: hàng cha và drawer đều có handler riêng ----
-check("xoá thì chặn nổi bọt (drawer/hàng cha không nuốt cú bấm)",
-      bam(svgDel).indexOf("stop") !== -1);
-check("đổi tên thì chặn nổi bọt", bam(svgRen).indexOf("stop") !== -1);
+// ---- 4. Nhấn giữ đã mở menu: cú chạm kết thúc nhấn giữ không mở thêm hội thoại ----
+const giu = { _nhanGiu: true };
+check("sau nhấn giữ, cú chạm kết thúc KHÔNG mở hội thoại", bam(title, giu).indexOf("open") === -1);
+check("cờ nhấn giữ chỉ nuốt đúng một cú chạm", giu._nhanGiu === false && bam(title, giu).indexOf("open") !== -1);
 
 // ---- 5. Không quay lại cách so class của ĐÚNG node bị bấm ----
-check("CANARY: không còn so e.target.classList (cách cũ luôn trượt khi bấm icon)",
-      SRC.indexOf('e.target.classList.contains("del")') === -1
-      && SRC.indexOf('e.target.classList.contains("ren")') === -1);
+check("CANARY: không so e.target.classList (cách cũ luôn trượt khi bấm icon)",
+      SRC.indexOf("e.target.classList.contains(") === -1);
 
 // ---- 6. Lớp chắn thứ hai bên CSS ----
-// Icon không nhận chuột thì e.target luôn là span, kể cả nếu ai đó viết lại handler kiểu cũ.
-check("CSS cho icon trong nút thôi nhận chuột",
-      /\.ci-meta \.act span \.ic \{[^}]*pointer-events:\s*none/.test(CSS));
+check("CSS cho icon trong nút ... thôi nhận chuột",
+      /\.ci-more \.ic, \.ci-more svg \{[^}]*pointer-events:\s*none/.test(CSS));
 
-// ---- 7. Nút phải THẤY được: hover mới hiện là chủ ý, nhưng phải có rule đó ----
-check("hover vào hàng thì nút hiện ra", /\.cside-item:hover \.act \{[^}]*opacity:\s*1/.test(CSS));
+// ---- 7. Nút phải THẤY được ----
+check("hover vào hàng thì nút ... hiện ra", /\.cside-item:hover \.ci-more[^{]*\{[^}]*opacity:\s*1/.test(CSS));
+check("màn cảm ứng (không có hover) luôn thấy nút ...", /@media \(hover: none\) \{\s*\.ci-more \{[^}]*opacity:\s*1/.test(CSS));
+check("chuột phải và nhấn giữ cũng mở menu",
+      SRC.indexOf("item.oncontextmenu = function (e) { e.preventDefault(); moMenuDong(item, s, false); };") !== -1
+      && SRC.indexOf('item.addEventListener("touchstart"') !== -1);
 
-// ---- 8. HÀNG ĐÃ GHIM nhìn ra được, không chờ rê chuột (0.59.21) ----
-// Chủ dự án chốt 16/09: mang đúng bộ mặt của danh sách trợ lý / quy trình sang cột hội thoại.
-// Nhóm "Đã ghim" trên đầu chỉ nói được thứ tự - cuộn xuống giữa danh sách là mất dấu.
+// ---- 8. HÀNG ĐÃ GHIM nhìn ra được, không chờ rê chuột ----
+// 2026-11-09 (owner): a small pin before the title, always visible; no bar on the left any more.
 check("hàng ghim mang lớp riêng", /\(s\.pinned \? " ghim" : ""\)/.test(SRC));
-check("hàng ghim có vạch màu bên trái",
-      /\.cside-item\.ghim \{[^}]*border-left:\s*3px solid var\(--accent\)/.test(CSS));
-check("dấu ghim của hàng ghim LUÔN hiện", /\.cside-item\.ghim \.act \{[^}]*opacity:\s*1/.test(CSS));
-// Con không bao giờ rõ hơn cha trong opacity, nên mở .act ra rồi giấu hai nút còn lại - chứ
-// không phải bày cả ba nút trên mọi hàng đã ghim.
-check("CANARY: hai nút kia vẫn chờ rê chuột mới hiện",
-      /\.cside-item\.ghim \.act > :not\(\.pin\) \{[^}]*opacity:\s*0/.test(CSS)
-      && /\.cside-item\.ghim:hover \.act > :not\(\.pin\) \{[^}]*opacity:\s*1/.test(CSS));
+check("hàng ghim có dấu ghim trước tiêu đề", SRC.indexOf('(s.pinned ? \'<span class="ci-pin"') !== -1);
+check("dấu ghim tô màu nhấn", /\.ci-pin \{[^}]*color:\s*var\(--accent\)/.test(CSS));
+check("CANARY: bỏ vạch màu bên trái của hàng ghim (chủ dự án duyệt bản thiết kế 09/11)",
+      !/\.cside-item\.ghim \{[^}]*border-left/.test(CSS));
 
 if (fails.length) {
   console.log("\nFAIL - test_chat_side_actions: " + fails.length + " lỗi: " + fails.join(", "));
