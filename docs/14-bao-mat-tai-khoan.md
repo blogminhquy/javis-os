@@ -21,11 +21,20 @@ Javis xử lý việc này theo 6 lớp:
 
 Mọi thao tác tài khoản nằm ở mục **Tài khoản** trong nhóm **Hệ thống** trên thanh nav bên trái (phụ đề "Đăng nhập, workspace, token API"). Trang **Cài đặt** có một khối rút gọn làm được ba việc hay dùng nhất (đổi mật khẩu, đăng xuất, tắt đăng nhập) cùng một dòng trạng thái xác thực 2 lớp; những thứ còn lại như bật 2 lớp hay token API chỉ có ở trang **Tài khoản**.
 
-Trang **Tài khoản** có 3 khối:
+Trang **Tài khoản** có 2 tab.
+
+Tab **Tài khoản**:
 
 - **Workspace**: đổi tên workspace hiển thị.
 - **Tài khoản đăng nhập**: đặt mật khẩu, đăng xuất, tắt đăng nhập.
 - **Token API (cho CLI)**: tạo và thu hồi token để [Javis CLI](24-cli-terminal.md) hay script gọi được Javis. Nằm cùng trang vì token cũng là một cách đăng nhập, chỉ khác là dành cho máy chứ không cho trình duyệt.
+
+Tab **Bảo mật** (từ bản sau sự cố 09/11/2026):
+
+- **Tổng quan**: 2FA bật hay chưa, số thiết bị đang đăng nhập, lần đăng nhập gần nhất (giờ, IP, thiết bị), số lần đăng nhập sai trong 7 ngày, số token API. Dòng đỏ khi file cài đặt từng bị sửa từ ngoài Javis, dòng vàng khi `JAVIS_ADMIN_PASSWORD` hay `JAVIS_RESET_2FA` còn nằm trong biến môi trường.
+- **Xác thực 2 lớp**: bật, tắt, tạo lại mã khôi phục.
+- **Thiết bị đang đăng nhập**: mỗi trình duyệt một dòng (thiết bị, IP, lần hoạt động cuối). Đăng xuất từng cái, hoặc bấm **Đăng xuất mọi thiết bị khác** mà không cần đổi mật khẩu.
+- **Lịch sử đăng nhập và bảo mật**: mọi lần đăng nhập đúng và sai, đăng xuất, đổi tên hay mật khẩu, bật tắt 2FA, tạo token, đặt lại qua biến môi trường, file cài đặt bị sửa từ ngoài, lần trợ lý AI bị chặn khi định đụng file bí mật. Lọc theo Đăng nhập, Thay đổi, Cảnh báo.
 
 ## Khi nào Javis bắt buộc đăng nhập
 
@@ -125,6 +134,45 @@ Lưu ý: nếu server vẫn đang chạy public (hoặc bạn đặt `JAVIS_REQU
 1. Vào **Tài khoản**.
 2. Ở khối **Workspace**, sửa **Tên workspace**.
 3. Bấm **Lưu**. Tên mới hiển thị ngay trên đầu dashboard.
+
+## Nhật ký bảo mật và báo động
+
+Javis ghi mỗi sự kiện bảo mật thành một dòng trong `security_log.jsonl` ở thư mục state (Docker: `/data/state`), nên nhật ký **còn nguyên sau khi cập nhật hay Redeploy**, khác với log của container. Mỗi dòng có giờ, IP, trình duyệt, tên đăng nhập đã gõ và chi tiết. Không bao giờ ghi mật khẩu, mã 2FA hay token. Đằng sau Caddy hoặc Traefik, IP là địa chỉ thật của người truy cập chứ không phải của proxy.
+
+Các sự kiện sau được **báo ngay cho chủ** (chuông, thông báo đẩy, Telegram của chủ):
+
+- Đăng nhập từ một mạng chưa từng thấy (cùng dải /24 thì không tính là mới, để điện thoại đổi trạm không báo liên tục).
+- Đăng nhập bằng mã khôi phục 2FA.
+- Đổi tên đăng nhập, đổi mật khẩu, bật hay tắt 2FA, tạo lại mã khôi phục, tạo token API, tắt đăng nhập.
+- Tài khoản được tạo hoặc đặt lại từ biến môi trường, 2FA bị gỡ bằng `JAVIS_RESET_2FA`.
+- **File cài đặt bị sửa từ bên ngoài Javis** (xem dưới).
+
+### Phát hiện file cài đặt bị sửa từ ngoài
+
+Mỗi lần Javis tự ghi tài khoản (đổi mật khẩu, bật 2FA...), nó lưu một dấu vân tay của khối tài khoản vào `.auth_stamp.json`. Nếu tên đăng nhập, mật khẩu hay 2FA trong `settings.json` đổi mà KHÔNG qua Javis (ai đó vào terminal của máy chủ rồi sửa file), Javis thấy dấu vân tay lệch trong vòng vài giây, **đăng xuất mọi thiết bị**, ghi sự kiện và báo cho chủ. Trước đây sửa file kiểu này không đăng xuất ai, nên chủ máy có thể không hay biết.
+
+Đây là lớp phát hiện, không phải lớp chặn: người đã có quyền ghi file trên máy chủ vẫn sửa được. Nó cho bạn biết NGAY để xử lý theo mục "Khi nghi bị chiếm quyền" bên dưới. Chính bạn sửa file qua SSH (ví dụ gỡ 2FA bằng tay) thì cũng bị đăng xuất một lần, đăng nhập lại là xong.
+
+### Trợ lý AI không được đụng file bí mật
+
+Trợ lý chạy lệnh được bên trong máy chủ và đọc tin nhắn từ bên ngoài (Zalo, Telegram, webhook). Một tin nhắn cài bẫy có thể xúi nó sửa file cài đặt. Vì vậy ở **mọi mức quyền**, Javis từ chối lệnh shell hay lời gọi công cụ chạm vào: `settings.json` trong thư mục state, `.secret_key`, các file phiên đăng nhập và token, nhật ký bảo mật, `~/.claude/.credentials.json`, `~/.codex/auth.json`, `authorized_keys`. Áp dụng cho Claude Code (chặn trước khi công cụ chạy) và terminal của các engine API. Mỗi lần chặn được ghi vào nhật ký. Codex, Grok Build và Antigravity chạy trong sandbox riêng của chúng nên chưa có lớp này.
+
+Lớp này chặn yêu cầu thẳng, không phải bức tường: mã chạy cùng quyền hệ điều hành vẫn có thể ghép đường dẫn từng mảnh. Cần đọc hay sửa các file đó thì dùng trang Tài khoản hoặc terminal thật của máy chủ (SSH, hPanel).
+
+## Khi nghi bị chiếm quyền
+
+Dấu hiệu: tên đăng nhập lạ, mật khẩu đúng mà báo sai, mã 2FA của bạn không còn đúng, báo động "file cài đặt bị sửa từ ngoài", hoặc thiết bị lạ trong tab Bảo mật. Làm theo thứ tự:
+
+1. **Lấy lại tài khoản.** Trên Hostinger: thêm `JAVIS_ADMIN_USER` và `JAVIS_ADMIN_PASSWORD` (mật khẩu MỚI) vào ô Environment rồi Redeploy. Javis đặt lại tài khoản, giữ 2FA và đăng xuất mọi phiên cũ.
+2. **2FA không phải của bạn?** Thêm `JAVIS_RESET_2FA=1` cùng lúc ở bước 1. Javis gỡ 2FA đúng một lần khi khởi động. Biến chỉ có tác dụng một lần cho mỗi giá trị; lần sau cần lại thì đặt giá trị khác, ví dụ ngày hôm đó (`JAVIS_RESET_2FA=2026-11-09`).
+3. **Đăng nhập, mở Tài khoản > Bảo mật.** Xem lịch sử đăng nhập (IP, thiết bị, giờ) và bấm **Đăng xuất mọi thiết bị khác**.
+4. **Bật lại 2FA** bằng điện thoại của bạn, cất 8 mã khôi phục vào nơi an toàn.
+5. **Xoá `JAVIS_ADMIN_PASSWORD` và `JAVIS_RESET_2FA` khỏi ô Environment** rồi Redeploy. Tài khoản không bị ảnh hưởng. Mật khẩu nằm ở ô đó dạng chữ thường nên đừng để lâu.
+6. **Tìm đường vào của kẻ lạ.** Người sửa được file cài đặt đã vào được máy chủ: kiểm tra SSH key lạ (`cat /root/.ssh/authorized_keys`), đổi mật khẩu root (`passwd`), đổi mật khẩu và bật 2FA cho tài khoản Hostinger, chặn cổng 7777 ở tường lửa nếu đã có tên miền HTTPS.
+7. **Đổi các khoá kết nối** lưu trong Javis (POS, Cloudflare, Gmail, Zalo, API key), ưu tiên cái chạm tới tiền và dữ liệu khách: người vào được máy chủ có thể đã đọc chúng.
+8. **Rà xem có để lại gì không**: việc định kỳ, nhắc hẹn, agent, plugin, MCP lạ; trên máy chủ chạy `crontab -l`.
+
+Từ bản này, compose Hostinger tự đóng cổng 7777 ra Internet khi đã đặt `DOMAIN_NAME` (chỉ còn HTTPS qua tên miền). Chưa đặt tên miền thì cổng vẫn mở như cũ vì đó là đường vào duy nhất.
 
 ## Chặn CSRF và DNS-rebinding
 

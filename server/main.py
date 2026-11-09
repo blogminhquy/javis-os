@@ -103,6 +103,7 @@ import cred_exchange   # đổi credential hộ user (vd App Password -> Google 
 import ops_index_watch   # keeps every brain's Javis/index.md current, cheaply
 import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm tool/hook cho mọi engine qua hub
 import web_security   # chống CSRF-to-localhost + DNS-rebinding cho web API cục bộ
+import security_log   # account security log: sign-ins, account changes, outside edits (2026-11-09)
 import image_gen      # tạo ảnh bằng gói ChatGPT (OAuth) - Codex Responses + tool image_generation
 import media_gc       # dọn vùng cache media (attachments/ + inbox/) theo hạn tuổi + trần dung lượng
 import inbox         # hòm thư: mọi kết quả chạy nền để lại một mẩu thư bền ở server
@@ -413,6 +414,12 @@ async def _auth_guard(request: Request, call_next):
                 return JSONResponse({"error": "unauthorized", "auth_required": True,
                                      "setup_required": not cfgmod.auth_enabled()},
                                     status_code=401)
+        elif not public:
+            try:
+                # "last active" in the device list of Account > Security
+                cfgmod.touch_session(request.cookies.get("javis_session", ""), security_log.client_ip(request))
+            except Exception:  # noqa: BLE001
+                pass
     return await call_next(request)
 
 
@@ -1429,6 +1436,27 @@ def _session_cookie(resp, token, request=None):
     return resp
 
 
+def _sec(request, event: str, **kw) -> None:
+    """One line in the security log (security_log.py) with where the request came from."""
+    try:
+        ip, ua = security_log.request_meta(request)
+        security_log.record(event, ip=ip, ua=ua, **kw)
+    except Exception as e:  # noqa: BLE001
+        print(f"[security_log] {event}: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def _new_login_session(request, user: str = "", how: str = "") -> str:
+    """A session for a successful sign-in, recorded with its device; a network never seen before is an alert."""
+    ip, ua = security_log.request_meta(request)
+    tok = cfgmod.new_session(ip, ua)
+    try:
+        new_net = security_log.note_login_network(ip)
+        security_log.record("login_new_network" if new_net else "login_ok", ip=ip, ua=ua, user=user, detail=how)
+    except Exception as e:  # noqa: BLE001
+        print(f"[security_log] login: {type(e).__name__}: {e}", file=sys.stderr)
+    return tok
+
+
 def _env_bat(ten: str) -> bool:
     """Biến môi trường có đang bật không (1/true/yes/on). Dùng cho cờ gợi ý, không phải rào."""
     return (os.getenv(ten, "") or "").strip().lower() in ("1", "true", "yes", "on")
@@ -1476,7 +1504,9 @@ async def auth_setup(request: Request, username: str = Form(...), password: str 
     cfg["auth"] = {**cfgmod.kept_totp(cfg), "username": username.strip() or "admin",
                    "password_hash": h, "salt": salt}
     cfgmod.write_settings(cfg)
-    return _session_cookie(JSONResponse({"ok": True}), cfgmod.new_session(), request)
+    _sec(request, "setup", user=username.strip() or "admin")
+    return _session_cookie(JSONResponse({"ok": True}), _new_login_session(request, username.strip() or "admin", "setup"),
+                           request)
 
 
 # Rate-limit đăng nhập (chống brute-force) - đếm theo IP, khoá tạm sau N lần sai.
@@ -1509,11 +1539,14 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
     """
     ip = request.client.host if request.client else "?"
     if _login_locked(ip):
+        _sec(request, "login_locked", user=username)
         return JSONResponse({"ok": False, "error": localefmt.chu("Quá nhiều lần sai - thử lại sau ít phút.", "Too many failed attempts - try again in a few minutes.")}, status_code=429)
     cfg = cfgmod.read_settings()
     if not cfgmod.auth_enabled(cfg):
         return {"ok": True, "note": localefmt.chu("auth chưa bật", "auth is not enabled")}
     if not cfgmod.username_matches(username, cfg) or not cfgmod.verify_password(password, cfg):
+        _sec(request, "login_fail", user=username,
+             detail="unknown username" if not cfgmod.username_matches(username, cfg) else "wrong password")
         _login_fail(ip)
         await asyncio.sleep(0.5)   # làm chậm brute-force online
         loi = localefmt.chu("Sai tài khoản hoặc mật khẩu.", "Wrong username or password.")
@@ -1553,7 +1586,9 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
         elif cfgmod.totp_dung_ma_khoi_phuc(ma):
             con = cfgmod.totp_recovery_left()
             print(f"[auth] đăng nhập bằng MÃ KHÔI PHỤC, còn {con} mã", file=__import__('sys').stderr)
+            _sec(request, "login_recovery_code", user=username, detail=f"recovery codes left={con}")
         else:
+            _sec(request, "login_2fa_fail", user=username)
             _login_fail(ip)
             await asyncio.sleep(0.5)
             return JSONResponse({"ok": False, "needs_2fa": True,
@@ -1572,7 +1607,8 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
                                                               "The code is wrong or has already been used."))},
                                 status_code=401)
     _LOGIN_FAILS.pop(ip, None)
-    return _session_cookie(JSONResponse({"ok": True}), cfgmod.new_session(), request)
+    _how = "password+2fa" if (cfgmod.totp_enabled(cfg) or _tfa_hong) else "password"
+    return _session_cookie(JSONResponse({"ok": True}), _new_login_session(request, username.strip(), _how), request)
 
 
 # ---- Xác thực 2 lớp: bật / xác nhận / tắt ----
@@ -1645,6 +1681,7 @@ async def auth_2fa_enable(request: Request, code: str = Form(...)):
     ma_khoi_phuc = totp.sinh_ma_khoi_phuc()
     cfgmod.totp_set(secret=cho["secret"], enabled=True, recovery=ma_khoi_phuc, last_step=buoc)
     _TOTP_CHO.clear()
+    _sec(request, "2fa_enabled")
     return {"ok": True, "recovery": ma_khoi_phuc}
 
 
@@ -1667,6 +1704,7 @@ async def auth_2fa_disable(request: Request, password: str = Form(...), code: st
             and not cfgmod.totp_dung_ma_khoi_phuc(ma):
         return JSONResponse({"ok": False, "error": localefmt.chu("Mã xác thực không đúng.", "Wrong verification code.")}, status_code=401)
     cfgmod.totp_tat()
+    _sec(request, "2fa_disabled")
     return {"ok": True}
 
 
@@ -1682,6 +1720,7 @@ async def auth_2fa_recovery(request: Request, password: str = Form(...)):
         return JSONResponse({"ok": False, "error": localefmt.chu("Sai mật khẩu.", "Wrong password.")}, status_code=401)
     ma_khoi_phuc = totp.sinh_ma_khoi_phuc()
     cfgmod.totp_set(secret=None, recovery=ma_khoi_phuc)
+    _sec(request, "2fa_recovery_regenerated")
     return {"ok": True, "recovery": ma_khoi_phuc}
 
 
@@ -1719,12 +1758,17 @@ async def auth_password(request: Request, current_password: str = Form(""),
     # GHI ĐÈ TỪNG KHOÁ, không thay cả object `auth`: 2FA cũng nằm trong đó, gán đè nguyên cục
     # là lặng lẽ tắt xác thực 2 lớp của người ta ngay lúc họ vừa đổi mật khẩu.
     a = dict(cfg.get("auth") or {})
+    ten_cu = str(a.get("username") or "")
     if ten:
         a["username"] = ten
     if password:
         a["password_hash"], a["salt"] = cfgmod.hash_password(password)
     cfg["auth"] = a
     cfgmod.write_settings(cfg)
+    if ten and ten != ten_cu:
+        _sec(request, "username_changed", user=ten, detail=f"from {ten_cu}")
+    if password:
+        _sec(request, "password_changed", user=a.get("username", ""))
     if not password:
         return {"ok": True, "username": a.get("username", "")}
     # Đổi mật khẩu = hạ MỌI phiên cũ (máy khác, trình duyệt khác) rồi cấp lại phiên cho chính
@@ -1732,7 +1776,7 @@ async def auth_password(request: Request, current_password: str = Form(""),
     # 30 ngày, và việc đổi coi như không có tác dụng.
     cfgmod.clear_sessions()
     return _session_cookie(JSONResponse({"ok": True, "username": a.get("username", "")}),
-                           cfgmod.new_session(), request)
+                           cfgmod.new_session(*security_log.request_meta(request)), request)
 
 
 @app.get("/auth/tokens")
@@ -1756,14 +1800,19 @@ async def auth_tokens_create(request: Request, name: str = Form(""), scope: str 
             "Creating a token requires signing in from a browser "
             "(a token cannot create another token).")},
                             status_code=403)
-    return {"ok": True, **cfgmod.create_api_token(name, scope)}
+    made = cfgmod.create_api_token(name, scope)
+    _sec(request, "token_created", detail=f"{made.get('name', '')} ({made.get('scope', '')}, {made.get('prefix', '')})")
+    return {"ok": True, **made}
 
 
 @app.post("/auth/tokens/revoke")
 async def auth_tokens_revoke(request: Request, id: str = Form(...)):
     """Thu hồi. Cho phép dùng chính token đang cầm để tự thu hồi mình: mất máy thì phải hạ
     được credential ngay, kể cả khi không mở nổi trình duyệt."""
-    return {"ok": cfgmod.revoke_api_token(id)}
+    ok = cfgmod.revoke_api_token(id)
+    if ok:
+        _sec(request, "token_revoked", detail=str(id)[:40])
+    return {"ok": ok}
 
 
 @app.post("/auth/logout")
@@ -1774,6 +1823,8 @@ async def auth_logout(request: Request):
         webpush.huy_theo_phien(_phien_bam(tok))
     except Exception as e:  # noqa: BLE001
         print(f"[webpush] logout cleanup: {type(e).__name__}: {e}", file=sys.stderr)
+    if tok and cfgmod.valid_session(tok):
+        _sec(request, "logout")
     cfgmod.drop_session(tok)
     resp = JSONResponse({"ok": True})
     resp.delete_cookie("javis_session", path="/")
@@ -1872,7 +1923,64 @@ async def auth_disable(request: Request, password: str = Form(""), code: str = F
     cfg["auth"] = a
     cfgmod.write_settings(cfg)
     cfgmod.clear_sessions()
+    _sec(request, "login_disabled")
     return {"ok": True}
+
+
+# ---- Security tab of the Account page (2026-11-09) ----
+# Session-only like /auth/2fa/*: a leaked API token must not list or end the owner's devices.
+@app.get("/auth/security")
+async def auth_security(request: Request, limit: int = 100):
+    """Everything the Security tab shows: account state, devices signed in, and the security log."""
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cfg = cfgmod.read_settings()
+    tok = request.cookies.get("javis_session", "")
+    events = security_log.recent(max(1, min(int(limit or 100), 500)))
+    last_ok = next((e for e in events if e.get("event") in ("login_ok", "login_new_network")), None)
+    since = time.time() - 7 * 86400
+    fails_7d = sum(1 for e in events if e.get("event") in ("login_fail", "login_2fa_fail", "login_locked")
+                   and float(e.get("ts") or 0) >= since)
+    outside = next((e for e in events if e.get("event") == "auth_changed_outside"), None)
+    return {"ok": True,
+            "username": (cfg.get("auth") or {}).get("username", ""),
+            "has_password": cfgmod.auth_enabled(cfg),
+            "totp_enabled": cfgmod.totp_enabled(cfg),
+            "totp_broken": cfgmod.totp_hong(cfg),
+            "public": cfgmod.require_login(),
+            "env_password_set": bool(cfgmod.clean_password(os.getenv("JAVIS_ADMIN_PASSWORD", ""))),
+            "reset_2fa_env_set": bool(str(os.getenv("JAVIS_RESET_2FA", "") or "").strip()),
+            "tokens": len(cfgmod.list_api_tokens()),
+            "sessions": cfgmod.list_sessions(tok),
+            "last_login": last_ok,
+            "fails_7d": fails_7d,
+            "outside_change": outside,
+            "events": events}
+
+
+@app.post("/auth/sessions/revoke")
+async def auth_sessions_revoke(request: Request, id: str = Form(""), others: str = Form("")):
+    """Sign out one device (`id` from /auth/security), or every device but this one (`others=1`).
+    No password needed: ending sessions only takes access away, it never hands any out."""
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    tok = request.cookies.get("javis_session", "")
+    if others:
+        n = max(0, len(cfgmod.SESSIONS) - (1 if tok in cfgmod.SESSIONS else 0))
+        cfgmod.clear_sessions(keep=tok)
+        _sec(request, "sessions_revoked", detail=f"all other devices ({n})")
+        return {"ok": True, "ended": n}
+    if not id:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Thiếu thiết bị cần đăng xuất.",
+                                                                 "No device given.")}, status_code=400)
+    if tok and cfgmod.session_id(tok) == id:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Đây là thiết bị đang dùng: bấm Đăng xuất.",
+                                                                 "This is the device you are using: use Log out.")},
+                            status_code=400)
+    ok = cfgmod.drop_session_by_id(id)
+    if ok:
+        _sec(request, "sessions_revoked", detail=f"one device ({id[:8]})")
+    return {"ok": ok, "ended": 1 if ok else 0}
 
 
 # ============================================================
@@ -12900,6 +13008,53 @@ READONLY_TOOLS = ["Read", "Glob", "Grep", "LS"]
 import self_improve
 
 
+_SECURITY_ALERT_TEXT = {
+    "login_new_network": ("Đăng nhập Javis từ một mạng mới", "Javis sign-in from a new network"),
+    "login_recovery_code": ("Có người đăng nhập Javis bằng MÃ KHÔI PHỤC 2FA", "Someone signed in to Javis with a 2FA RECOVERY CODE"),
+    "setup": ("Tài khoản quản trị Javis vừa được tạo", "The Javis admin account was just created"),
+    "username_changed": ("Tên đăng nhập Javis vừa bị đổi", "The Javis username was just changed"),
+    "password_changed": ("Mật khẩu Javis vừa bị đổi", "The Javis password was just changed"),
+    "2fa_enabled": ("Xác thực 2 lớp vừa được BẬT", "Two-factor authentication was just turned ON"),
+    "2fa_disabled": ("Xác thực 2 lớp vừa bị TẮT", "Two-factor authentication was just turned OFF"),
+    "2fa_recovery_regenerated": ("Bộ mã khôi phục 2FA vừa được tạo lại", "The 2FA recovery codes were just regenerated"),
+    "token_created": ("Một token API mới vừa được tạo", "A new API token was just created"),
+    "login_disabled": ("Yêu cầu đăng nhập vừa bị tắt", "The login requirement was just turned off"),
+    "env_account_created": ("Tài khoản admin được tạo từ biến môi trường", "Admin account created from the environment"),
+    "env_account_reset": ("Tài khoản admin được đặt lại từ biến môi trường (Redeploy)", "Admin account reset from the environment (redeploy)"),
+    "env_2fa_reset": ("2FA được gỡ bằng JAVIS_RESET_2FA", "2FA removed with JAVIS_RESET_2FA"),
+    "auth_changed_outside": ("CẢNH BÁO: file cài đặt bị sửa tài khoản từ BÊN NGOÀI Javis. Mọi phiên đã bị đăng xuất.",
+                             "WARNING: the account in the settings file was changed OUTSIDE Javis. Every session was signed out."),
+}
+
+
+def _security_alert_text(ev: dict) -> str:
+    """The owner's notice for one security event: what happened, from where, and what to do if it was not them."""
+    vi, en = _SECURITY_ALERT_TEXT.get(ev.get("event", ""), (ev.get("event", ""), ev.get("event", "")))
+    head = localefmt.chu(vi, en)
+    bits = [f"[{localefmt.chu('Bảo mật', 'Security')}] {head}."]
+    from datetime import datetime as _dtm
+    when = _dtm.fromtimestamp(float(ev.get("ts") or time.time())).strftime("%d/%m %H:%M")
+    where = " · ".join(x for x in (when, ev.get("ip", ""), _ua_short(ev.get("ua", "")), ev.get("detail", "")) if x)
+    if where:
+        bits.append(where)
+    bits.append(localefmt.chu("Không phải anh/chị? Mở Tài khoản > Bảo mật để đăng xuất thiết bị lạ và đổi mật khẩu.",
+                              "Not you? Open Account > Security to sign out unknown devices and change the password."))
+    return "\n".join(bits)
+
+
+def _ua_short(ua: str) -> str:
+    """A readable device name from a user agent: "Chrome · Windows". Only for notices; the full string is logged."""
+    ua = str(ua or "")
+    if not ua:
+        return ""
+    br = next((n for k, n in (("Edg/", "Edge"), ("OPR/", "Opera"), ("Zalo", "Zalo"), ("Chrome/", "Chrome"),
+                               ("Firefox/", "Firefox"), ("Safari/", "Safari"), ("curl/", "curl"),
+                               ("python", "Python")) if k.lower() in ua.lower()), "")
+    os_ = next((n for k, n in (("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"), ("Windows", "Windows"),
+                                ("Mac OS", "macOS"), ("Linux", "Linux")) if k in ua), "")
+    return " · ".join(x for x in (br, os_) if x) or ua[:40]
+
+
 async def _loop_notify(text: str, source: str = "loop", level: str = "important") -> None:
     """A restricted system notice: a loop paused itself, the AI engine is down (0.186.0).
 
@@ -15101,17 +15256,47 @@ async def _start_scheduler():
     except Exception as e:
         print(f"[connect health start] {e}", file=_sys.stderr)
     try:
+        # Account block edited while Javis was stopped: caught here, before the env reset below re-stamps the file.
+        cfgmod.auth_guard_check(grace=0)
+    except Exception as e:
+        print(f"[auth guard] {e}", file=_sys.stderr)
+    try:
         _env_admin = cfgmod.provision_admin_from_env()
         if _env_admin == "created":
             print("[auth] Đã tạo tài khoản admin từ JAVIS_ADMIN_PASSWORD (env).", file=_sys.stderr)
+            security_log.record("env_account_created", user=os.getenv("JAVIS_ADMIN_USER", "admin"), source="env")
         elif _env_admin == "reset":
             print("[auth] JAVIS_ADMIN_PASSWORD/JAVIS_ADMIN_USER đổi so với lần trước: đã đặt lại "
                   "tài khoản admin theo env (giữ 2FA, huỷ các phiên cũ).", file=_sys.stderr)
+            security_log.record("env_account_reset", user=os.getenv("JAVIS_ADMIN_USER", "admin"), source="env",
+                                detail="2FA kept, all sessions ended")
+        if cfgmod.reset_2fa_from_env() == "reset":
+            print("[auth] JAVIS_RESET_2FA: đã TẮT xác thực 2 lớp và huỷ mọi phiên. Đăng nhập lại, bật 2FA mới, "
+                  "rồi xoá biến JAVIS_RESET_2FA.", file=_sys.stderr)
+            security_log.record("env_2fa_reset", source="env", detail="2FA turned off, all sessions ended")
+        if str(os.getenv("JAVIS_ADMIN_PASSWORD", "") or "").strip():
+            print("[auth] Nhắc: JAVIS_ADMIN_PASSWORD vẫn nằm trong biến môi trường dạng chữ thường. Tài khoản đã "
+                  "được đặt, có thể xoá biến này rồi Redeploy (tài khoản không bị ảnh hưởng).", file=_sys.stderr)
         # Mã thiết lập đã bỏ (0.64.47): dọn file .setup_token còn sót từ bản cũ, để không còn
         # một "chìa khoá" nằm trong thư mục state mà không ai dùng tới.
         cfgmod.clear_setup_token()
     except Exception as e:
         print(f"[auth bootstrap] {e}", file=_sys.stderr)
+    async def _security_alert_loop():
+        """Security events of level alert (security_log.EVENTS) to the owner: bell, web push, own Telegram.
+        Also re-checks the account block every few seconds, so an outside edit is reported even when nobody
+        has the dashboard open."""
+        while True:
+            try:
+                await asyncio.sleep(10)
+                await asyncio.to_thread(cfgmod.auth_guard_check)
+                for ev in security_log.drain_alerts():
+                    await _loop_notify(_security_alert_text(ev), source="security", level="urgent")
+            except asyncio.CancelledError:
+                raise
+            except Exception as se:  # noqa: BLE001
+                print(f"[security alert] {type(se).__name__}: {se}", file=_sys.stderr)
+    asyncio.create_task(_security_alert_loop())
     async def _scheduler_loop():
         while True:
             try:

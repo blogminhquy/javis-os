@@ -1209,6 +1209,12 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
         plan_limits.cai_vao_claude_sdk()
     except Exception:  # noqa: BLE001 - a meter must never stop a turn
         pass
+    try:
+        # 2026-11-09 (owner incident): every Claude turn refuses tool calls on Javis' secret files (secret_guard.py).
+        import claude_secret_hook
+        claude_secret_hook.install()
+    except Exception as e:  # noqa: BLE001 - the guard must never stop a turn
+        print(f"[secret guard] Claude hook not installed: {type(e).__name__}: {e}", file=sys.stderr)
     eng = ClaudeSDK(system_prompt=system_prompt, cwd=cwd, tag=tag,
                     allowed_tools=allowed_tools, model=model)
     # Every run (chat, loops, reminders, bots) skips the repo CLAUDE.md and compacts at ~180k;

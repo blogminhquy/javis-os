@@ -7049,7 +7049,16 @@
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
     const auth = s.auth || {};
+    // 2026-11-09 (owner): Security has its own tab: account state, 2FA, devices signed in, sign-in history.
+    let acTab = "account";
+    try { if (localStorage.getItem(AC_TAB_KEY) === "security") acTab = "security"; } catch (e) {}
     el.innerHTML = `
+      <div class="ach ac-page">
+      <div class="ach-tabs" role="tablist" aria-label="${esc(t("page.account.label"))}">
+        <button type="button" role="tab" data-ac-tab="account" aria-controls="acPanelAccount" aria-selected="${acTab === "account"}" tabindex="${acTab === "account" ? 0 : -1}">${ic("user")}<span>${esc(t("sec.tab_account"))}</span></button>
+        <button type="button" role="tab" data-ac-tab="security" aria-controls="acPanelSecurity" aria-selected="${acTab === "security"}" tabindex="${acTab === "security" ? 0 : -1}">${ic("shield")}<span>${esc(t("sec.tab_security"))}</span><i class="ach-dot" id="secTabDot" aria-hidden="true"></i></button>
+      </div>
+      <div id="acPanelAccount" role="tabpanel" ${acTab === "account" ? "" : "hidden"}>
       <div class="cview-section">
         <h3>Workspace</h3>
         <div class="gcard" style="max-width:560px">
@@ -7073,15 +7082,6 @@
           <div class="gcard-meta" id="acStatus"></div>
         </div>
       </div>
-      ${auth.has_password ? `
-      <div class="cview-section">
-        <h3>${esc(window.t("cs.ac_2fa_head"))} <span style="opacity:.5">${esc(window.t("cs.ac_2fa_sub"))}</span></h3>
-        <div class="gcard tfa-card" style="max-width:560px" id="tfaCard">
-          <div class="gcard-meta" id="tfaHead">${esc(window.t("settings.checking"))}</div>
-          <div id="tfaBody"></div>
-          <div class="gcard-meta" id="tfaStatus"></div>
-        </div>
-      </div>` : ""}
       <div class="cview-section">
         <h3>${esc(window.t("cs.ac_tk_head"))}${infoBtn()}</h3>
         ${infoBody(`${esc(window.t("cs.ac_tk_intro_a"))} <b>Javis CLI</b> ${esc(window.t("cs.ac_tk_intro_b"))}`)}
@@ -7102,7 +7102,57 @@
             <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/14-bao-mat-tai-khoan.md" target="_blank" rel="noopener">${esc(window.t("cs.ac_doc_sec"))} ↗</a>
           </div>
         </div>
+      </div>
+      </div>
+      <div id="acPanelSecurity" role="tabpanel" ${acTab === "security" ? "" : "hidden"}>
+        <div class="cview-section">
+          <div class="gcard sec-card" style="max-width:560px" id="secOverview"><div class="gcard-meta">${esc(t("common.loading"))}</div></div>
+        </div>
+        ${auth.has_password ? `
+        <div class="cview-section">
+          <h3>${esc(window.t("cs.ac_2fa_head"))} <span style="opacity:.5">${esc(window.t("cs.ac_2fa_sub"))}</span></h3>
+          <div class="gcard tfa-card" style="max-width:560px" id="tfaCard">
+            <div class="gcard-meta" id="tfaHead">${esc(window.t("settings.checking"))}</div>
+            <div id="tfaBody"></div>
+            <div class="gcard-meta" id="tfaStatus"></div>
+          </div>
+        </div>` : ""}
+        <div class="cview-section">
+          <h3 id="secDevHead">${esc(t("sec.devices_head"))}${infoBtn()}</h3>
+          ${infoBody(esc(t("sec.devices_info")))}
+          <div class="gcard" style="max-width:560px">
+            <div id="secSessions" class="sec-list"></div>
+            <div class="js-actions"><button class="gcard-btn ghost" id="secRevokeOthers">${esc(t("sec.revoke_others"))}</button></div>
+            <div class="gcard-meta" id="secSessStatus"></div>
+          </div>
+        </div>
+        <div class="cview-section">
+          <h3>${esc(t("sec.log_head"))}${infoBtn()}</h3>
+          ${infoBody(esc(t("sec.log_info")))}
+          <div class="gcard" style="max-width:560px">
+            <div class="sec-filters" role="group" aria-label="${esc(t("sec.log_head"))}">
+              ${[["all", t("sec.filter_all")], ["login", t("sec.filter_login")], ["change", t("sec.filter_change")], ["warn", t("sec.filter_warn")]].map(([f, label]) => `<button type="button" class="sec-chip" data-sec-filter="${f}" aria-pressed="${f === "all"}">${esc(label)}</button>`).join("")}
+            </div>
+            <div id="secLog" class="sec-list"></div>
+          </div>
+        </div>
+      </div>
       </div>`;
+    el.querySelectorAll("[data-ac-tab]").forEach(b => {
+      b.onclick = () => {
+        const key = b.dataset.acTab;
+        try { localStorage.setItem(AC_TAB_KEY, key); } catch (e) {}
+        el.querySelectorAll("[data-ac-tab]").forEach(x => {
+          const on = x.dataset.acTab === key;
+          x.setAttribute("aria-selected", String(on));
+          x.tabIndex = on ? 0 : -1;
+        });
+        document.getElementById("acPanelAccount").hidden = key !== "account";
+        document.getElementById("acPanelSecurity").hidden = key !== "security";
+        if (key === "security") renderSecurity();
+      };
+    });
+    renderSecurity();
     renderTokens();
     document.getElementById("tkCreate").onclick = async () => {
       const st = document.getElementById("tkStatus");
@@ -7204,6 +7254,133 @@
       };
     }
     renderTfa(el);
+  }
+
+  // ---- Security tab (2026-11-09, owner incident) ----
+  // Account state at a glance, the devices signed in (sign out one or all others) and the security log: every sign-in,
+  // failed attempt and account change, with IP and device. Data: GET /auth/security (browser session only).
+  const AC_TAB_KEY = "javis.account.tab";
+  const SEC_EVENT_GROUP = {
+    login_ok: "login", login_new_network: "login", login_fail: "login", login_2fa_fail: "login",
+    login_recovery_code: "login", login_locked: "login", logout: "login", sessions_revoked: "login",
+    setup: "change", username_changed: "change", password_changed: "change", "2fa_enabled": "change",
+    "2fa_disabled": "change", "2fa_recovery_regenerated": "change", token_created: "change", token_revoked: "change",
+    login_disabled: "change", env_account_created: "change", env_account_reset: "change", env_2fa_reset: "change",
+    auth_changed_outside: "change", agent_secret_blocked: "change",
+  };
+  let _secFilter = "all";
+
+  function secDevice(ua) {
+    ua = String(ua || "");
+    if (!ua) return t("sec.dev_unknown");
+    const has = (k) => ua.toLowerCase().includes(k.toLowerCase());
+    const br = [["Edg/", "Edge"], ["OPR/", "Opera"], ["Zalo", "Zalo"], ["Chrome/", "Chrome"], ["Firefox/", "Firefox"],
+      ["Safari/", "Safari"], ["curl/", "curl"], ["python", "Python"]].find(([k]) => has(k));
+    const os = [["iPhone", "iPhone"], ["iPad", "iPad"], ["Android", "Android"], ["Windows", "Windows"],
+      ["Mac OS", "macOS"], ["Linux", "Linux"]].find(([k]) => ua.includes(k));
+    return [br && br[1], os && os[1]].filter(Boolean).join(" · ") || ua.slice(0, 40);
+  }
+  const secWhen = (ts) => {
+    if (!(Number(ts) > 0)) return "";
+    const d = new Date(Number(ts) * 1000);
+    const other = d.getFullYear() !== new Date().getFullYear();
+    if (String(LOC()).startsWith("vi")) {
+      const p2 = (n) => String(n).padStart(2, "0");
+      return `${p2(d.getHours())}:${p2(d.getMinutes())} ${p2(d.getDate())}/${p2(d.getMonth() + 1)}${other ? "/" + d.getFullYear() : ""}`;
+    }
+    const o = { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" };
+    if (other) o.year = "numeric";
+    return d.toLocaleString(LOC(), o);
+  };
+  // Details the server writes as short English codes (security_log is read by people of any language).
+  const SEC_DETAIL = {
+    "unknown username": "sec.d_unknown_user", "wrong password": "sec.d_wrong_pw", "password": "sec.d_pw",
+    "password+2fa": "sec.d_pw_2fa", "setup": "sec.d_setup",
+  };
+  const secDetail = (v) => (SEC_DETAIL[v] ? t(SEC_DETAIL[v]) : (v || ""));
+
+  async function renderSecurity() {
+    const box = document.getElementById("secOverview");
+    if (!box) return;
+    let d;
+    try { d = await (await fetch("/auth/security")).json(); }
+    catch (e) { box.innerHTML = `<div class="gcard-meta">${WARN_ICON} ${esc(t("cs.ch_net_err"))}</div>`; return; }
+    if (!d || !d.ok) { box.innerHTML = `<div class="gcard-meta">${WARN_ICON} ${esc((d && d.error) || t("sec.read_err"))}</div>`; return; }
+    const rows = [];
+    const row = (ok, label, value) => rows.push(`<div class="sec-row ${ok === false ? "sec-bad" : ok === null ? "sec-warn" : ""}">
+      <span class="sec-ico">${ok === false ? WARN_ICON : ok === null ? ic("triangle-alert") : OK_ICON}</span>
+      <span class="sec-lbl">${esc(label)}</span><span class="sec-val">${value}</span></div>`);
+    if (d.outside_change) row(false, t("sec.ov_outside"), esc(secWhen(d.outside_change.ts)));
+    if (!d.has_password) row(false, t("sec.ov_password"), esc(t("sec.ov_password_none")));
+    row(d.totp_broken ? false : d.totp_enabled ? true : (d.public ? false : null), t("sec.ov_2fa"),
+      esc(t(d.totp_broken ? "sec.ov_2fa_broken" : d.totp_enabled ? "sec.ov_on" : "sec.ov_off")));
+    const ss = d.sessions || [];
+    row(true, t("sec.ov_devices"), `<b>${ss.length}</b>`);
+    const last = d.last_login;
+    row(true, t("sec.ov_last"), last ? esc([secWhen(last.ts), last.ip, secDevice(last.ua)].filter(Boolean).join(" · ")) : esc(t("sec.none")));
+    row(d.fails_7d > 0 ? null : true, t("sec.ov_fails"), `<b>${Number(d.fails_7d || 0)}</b>`);
+    row(true, t("sec.ov_tokens"), `<b>${Number(d.tokens || 0)}</b>`);
+    if (d.env_password_set) row(null, t("sec.ov_env_pw"), esc(t("sec.ov_env_pw_v")));
+    if (d.reset_2fa_env_set) row(null, t("sec.ov_env_reset"), esc(t("sec.ov_env_reset_v")));
+    box.innerHTML = rows.join("") + `<div class="gcard-meta">${infoPair(esc(t("sec.ov_info")))}</div>`;
+    const dot = document.getElementById("secTabDot");
+    const bad = !!d.outside_change || d.totp_broken || (d.public && !d.totp_enabled);
+    if (dot) dot.className = "ach-dot " + (bad ? "st-err" : d.totp_enabled ? "st-run" : "st-start");
+
+    // Devices
+    const sb = document.getElementById("secSessions");
+    if (sb) {
+      sb.innerHTML = ss.length ? ss.map(x => `<div class="sec-item">
+          <div class="sec-item-main"><b>${esc(secDevice(x.ua))}</b>${x.current ? ` <span class="sec-tag">${esc(t("sec.this_device"))}</span>` : ""}
+            <span class="sec-meta">${esc([x.last_ip || x.ip, t("sec.last_active") + " " + secWhen(x.last), t("sec.signed_in") + " " + secWhen(x.created)].filter(Boolean).join(" · "))}</span></div>
+          ${x.current ? "" : `<button class="gcard-btn ghost sec-end" data-id="${esc(x.id)}">${esc(t("sec.end_one"))}</button>`}
+        </div>`).join("") : `<div class="gcard-meta">${esc(t("sec.no_devices"))}</div>`;
+      sb.querySelectorAll(".sec-end").forEach(b => {
+        b.onclick = async () => {
+          const fd = new FormData(); fd.append("id", b.dataset.id || "");
+          try { await fetch("/auth/sessions/revoke", { method: "POST", body: fd }); } catch (e) {}
+          renderSecurity();
+        };
+      });
+    }
+    const ro = document.getElementById("secRevokeOthers");
+    if (ro) {
+      ro.disabled = ss.filter(x => !x.current).length === 0;
+      ro.onclick = async () => {
+        if (!confirm(t("sec.revoke_others_confirm"))) return;
+        const st = document.getElementById("secSessStatus");
+        const fd = new FormData(); fd.append("others", "1");
+        try {
+          const r = await (await fetch("/auth/sessions/revoke", { method: "POST", body: fd })).json();
+          if (st) st.innerHTML = r.ok ? OK_ICON + " " + esc(t("sec.revoked_n", { n: Number(r.ended || 0) })) : Icons.warn(r.error || t("cs.ac_err_dot"));
+        } catch (e) { if (st) st.innerHTML = WARN_ICON + " " + esc(t("cs.ch_net_err")); }
+        renderSecurity();
+      };
+    }
+
+    // Log
+    const paintLog = () => {
+      const lb = document.getElementById("secLog");
+      if (!lb) return;
+      const evs = (d.events || []).filter(e => _secFilter === "all"
+        || (_secFilter === "warn" ? e.level !== "info" : SEC_EVENT_GROUP[e.event] === _secFilter));
+      lb.innerHTML = evs.length ? evs.slice(0, 100).map(e => {
+        const key = "sec.ev." + e.event;
+        const name = t(key) === key ? e.event : t(key);
+        const meta = [secWhen(e.ts), e.ip, e.ua ? secDevice(e.ua) : "", e.user, secDetail(e.detail)].filter(Boolean).join(" · ");
+        return `<div class="sec-item sec-lv-${esc(e.level || "info")}">
+          <div class="sec-item-main"><b>${e.level === "info" ? "" : WARN_ICON + " "}${esc(name)}</b><span class="sec-meta">${esc(meta)}</span></div></div>`;
+      }).join("") : `<div class="gcard-meta">${esc(t("sec.log_empty"))}</div>`;
+    };
+    document.querySelectorAll("[data-sec-filter]").forEach(b => {
+      b.setAttribute("aria-pressed", String(b.dataset.secFilter === _secFilter));
+      b.onclick = () => {
+        _secFilter = b.dataset.secFilter;
+        document.querySelectorAll("[data-sec-filter]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+        paintLog();
+      };
+    });
+    paintLog();
   }
 
   // ---- Xác thực 2 lớp (TOTP) ----
@@ -7452,15 +7629,15 @@
     row.innerHTML = a.totp_broken
       ? `${ic("shield")} ${esc(window.t("cs.ac_2fa_head"))}: <b class="tfa-low">${esc(window.t("cs.tfa_row_broken"))}</b>`
         + ` ${esc(window.t("cs.tfa_row_broken_b"))}`
-        + ` <button class="s-btn" data-settings-go="account">${esc(window.t("cs.tfa_row_fix"))}</button>`
+        + ` <button class="s-btn" data-settings-go="account" data-ac-open="security">${esc(window.t("cs.tfa_row_fix"))}</button>`
       : a.totp_enabled
       ? `${ic("shield")} ${esc(window.t("cs.ac_2fa_head"))}: <b class="tfa-on">${esc(window.t("cs.tfa_row_on"))}</b>`
         + ` · ${esc(window.t("cs.tfa_row_left", { so: con }))}`
         + (con <= 2 ? ` <b class="tfa-low">${esc(window.t("cs.tfa_row_low"))}</b>` : "")
-        + ` <button class="s-btn-ghost" data-settings-go="account">${esc(window.t("cs.tfa_row_manage"))}</button>`
+        + ` <button class="s-btn-ghost" data-settings-go="account" data-ac-open="security">${esc(window.t("cs.tfa_row_manage"))}</button>`
       : `${ic("shield")} ${esc(window.t("cs.ac_2fa_head"))}: <b class="tfa-off">${esc(window.t("cs.tfa_row_off"))}</b>`
         + ` ${esc(window.t("cs.tfa_off_note2"))}`
-        + ` <button class="s-btn" data-settings-go="account">${esc(window.t("cs.tfa_row_enable"))}</button>`;
+        + ` <button class="s-btn" data-settings-go="account" data-ac-open="security">${esc(window.t("cs.tfa_row_enable"))}</button>`;
   }
 
   // ---- Thẻ GIỌNG NÓI (0.65.19, docs/dev/2026-10-voice-call-spec.md mục 5) ----
@@ -8470,7 +8647,11 @@
     if (tab === "voice") renderVoiceCard();
 
     el.querySelectorAll("[data-settings-go]").forEach(btn => {
-      btn.onclick = () => navigateTo(btn.dataset.settingsGo);
+      btn.onclick = () => {
+        // 2FA now lives in Account > Security: open that tab, not the one visited last.
+        if (btn.dataset.acOpen) { try { localStorage.setItem(AC_TAB_KEY, btn.dataset.acOpen); } catch (e) {} }
+        navigateTo(btn.dataset.settingsGo);
+      };
     });
     const refreshSettings = () => { if (gen !== _renderGen) return; _settings = null; renderPage("settings"); };
     const graphToggle = document.getElementById("setGraphToggle");
