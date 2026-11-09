@@ -8,7 +8,7 @@ Trang này giải thích cách Javis OS tự bảo vệ khi bạn đưa nó lên
 
 Javis chạy bộ não AI với **toàn quyền trên máy/VPS** của bạn: nó đọc được tệp, chạy lệnh, gọi công cụ. Vì thế nếu để dashboard hở ra Internet mà không có mật khẩu thì bất kỳ ai biết địa chỉ cũng điều khiển được máy của bạn.
 
-Javis xử lý việc này theo 6 lớp:
+Javis xử lý việc này theo 7 lớp:
 
 1. **Tự bắt buộc đăng nhập khi chạy public.** Khi server nghe ra ngoài (không phải chỉ máy này), Javis chặn mọi chức năng cho tới khi bạn đăng nhập. Chạy trên máy cá nhân (localhost) thì không ép, dùng thẳng như cũ.
 2. **Đặt admin sớm, rồi bật xác thực 2 lớp.** Màn chạy lần đầu chỉ hỏi tên đăng nhập và mật khẩu, nên trên server public **ai mở link trước khi có admin sẽ tạo được admin**. Đặt sẵn admin qua biến môi trường (hoặc tạo tài khoản ngay sau khi deploy), rồi bật 2FA (TOTP) ở trang **Tài khoản**.
@@ -16,6 +16,7 @@ Javis xử lý việc này theo 6 lớp:
 4. **Chặn trang web lạ sai khiến Javis (CSRF) và chặn tên miền lạ trỏ về máy bạn (DNS-rebinding).** Xem mục riêng bên dưới.
 5. **Mã hoá khoá bí mật lưu trong `settings.json`.** API key, token Telegram, token GitHub... không nằm dạng chữ thô trên đĩa.
 6. **Token API cho CLI và script, mặc định KHÔNG có cái nào.** Cookie đăng nhập chỉ hợp với trình duyệt; muốn gọi Javis từ terminal thì phải tự tay tạo token, chọn phạm vi, và thu hồi được bất cứ lúc nào. Xem mục riêng bên dưới.
+7. **Chặn công cụ tìm kiếm và bot AI.** Lỡ lộ link quản trị ra ngoài thì Google không đưa lên kết quả tìm kiếm, bot AI không đọc được gì, kể cả màn hình đăng nhập. Xem mục riêng bên dưới.
 
 ## Mở ở đâu trong Javis
 
@@ -193,6 +194,30 @@ Allowlist gồm: `localhost`, `127.0.0.1`, `::1`, `0.0.0.0`, cộng tên miền 
 
 Khi nào bạn cần đụng tới: chạy Javis sau một reverse proxy với tên miền chưa khai trong app, mà lại **chưa** đặt mật khẩu. Lúc đó Javis coi tên miền đó là lạ và trả 403. Cách sửa: đặt mật khẩu (bật cổng đăng nhập là bước kiểm Host tự bỏ qua), hoặc thêm tên miền vào `JAVIS_ALLOWED_HOSTS`.
 
+## Chặn công cụ tìm kiếm và bot AI
+
+Lớp này cũng chạy ngầm, không cần bật. Nó dành cho lúc đường link quản trị lộ ra ngoài: dán nhầm vào nhóm chat, nằm trong nhật ký chứng chỉ SSL công khai, hay bị máy quét Internet tìm thấy. Khi đó Google không đưa trang lên kết quả tìm kiếm, và bot AI không đọc được gì, kể cả màn hình đăng nhập.
+
+| Lớp | Làm gì |
+|---|---|
+| Header `X-Robots-Tag: noindex` | Gắn vào MỌI câu trả lời của Javis (trang đăng nhập, link chia sẻ, trang lỗi), nên trang nào lỡ bị công cụ tìm kiếm ghé cũng bị loại khỏi kết quả. |
+| `/robots.txt` | Cấm bot AI (GPTBot, ClaudeBot, PerplexityBot, CCBot...), công cụ SEO và mọi bot lạ đọc bất cứ thứ gì. |
+| Trả 403 | Request tự xưng là bot AI, máy tìm kiếm, công cụ SEO, máy quét (Shodan, Censys) hoặc ký tên bot (`Signature-Agent`) nhận 403, không thấy chữ nào của trang. |
+
+Không bị chặn: trình duyệt của người thật (kể cả trình duyệt trong Zalo, Facebook, Cốc Cốc), khung xem trước khi dán link vào Zalo, Telegram, Facebook, Slack, Discord, webhook và cửa OAuth của dịch vụ bên ngoài, Javis Gate (ChatGPT và Claude gọi vào Javis), CLI, `curl` và các công cụ chạy ngay trên máy này.
+
+Vì sao `robots.txt` không cấm Google: Google chỉ gỡ được trang mà nó đọc được. Bị cấm trong `robots.txt` thì Google không đọc, không thấy `noindex`, và vẫn có thể hiện link trần trong kết quả nếu chỗ khác trỏ tới. Cho Google ghé rồi trả 403 kèm `noindex` mới gỡ hẳn link khỏi kết quả.
+
+Kiểm tra nhanh trên máy chủ của bạn (đổi tên miền):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -A GPTBot https://ten-mien-cua-ban/
+```
+
+Phải ra `403`. Mở bằng trình duyệt thì vẫn vào bình thường.
+
+Lớp này chỉ bắt bot TỰ KHAI tên. Bot giả làm Chrome thì vẫn chỉ thấy màn hình đăng nhập, nên mật khẩu và 2FA vẫn là lớp bảo vệ chính. Một dịch vụ bạn dùng bị chặn nhầm vì tên trùng danh sách thì đặt `JAVIS_BLOCK_BOTS=0` rồi khởi động lại: chỉ lớp 403 tắt, header `noindex` và `robots.txt` vẫn giữ.
+
 ## Token API - cửa cho CLI và script
 
 Cookie đăng nhập chỉ hợp với trình duyệt. Khi bạn muốn [Javis CLI](24-cli-terminal.md) hay một script gọi được Javis, cần một credential khác: **token API**, tạo ở **Tích hợp > Token API (cho CLI)** (nhóm Việc, cùng trang với webhook: cả hai đều là cửa để chương trình khác gọi vào Javis).
@@ -251,6 +276,7 @@ Hệ quả vận hành phải nhớ:
 | Cookie an toàn khi HTTPS | Khi bạn truy cập qua **tên miền riêng** đã bật HTTPS (Caddy On-Demand TLS), cookie được đánh dấu `secure` (chỉ gửi qua HTTPS). |
 | CORS | Chỉ mở cho `localhost` / `127.0.0.1` / `::1` (tiện lúc dev). Trang web khác không đọc được API qua trình duyệt. |
 | Cổng gác CSRF | Chặn request ghi từ nguồn gốc chéo, và chặn Host lạ khi chưa bật đăng nhập (xem mục riêng ở trên). |
+| Chặn bot | `noindex` trên mọi câu trả lời, `/robots.txt`, và 403 cho bot AI, máy tìm kiếm, công cụ SEO, máy quét tự khai tên (xem mục riêng ở trên). |
 | Secret trên đĩa | API key và token trong `settings.json` mã hoá Fernet bằng `.secret_key` trong thư mục state. |
 
 Về cookie `secure`: mặc định Javis **không** ép cookie `secure` để chạy được cả HTTP lẫn HTTPS (tránh kẹt vòng đăng nhập sau proxy HTTP như đường dẫn dạng `http://host/PORT/`). Nếu bạn chắc chắn chạy HTTPS đầu-cuối, bật `JAVIS_SECURE_COOKIE=1` trong biến môi trường (xem [Cấu hình .env](16-cau-hinh-env.md)). Truy cập qua đúng tên miền riêng thì Javis tự bật `secure` mà không cần đặt biến này (dựa vào Host khớp tên miền, không suy từ `X-Forwarded-Proto`).

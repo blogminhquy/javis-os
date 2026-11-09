@@ -154,6 +154,8 @@ line each, grouped by area.
 - `config.py`: `STATE_DIR`, `settings.json` read/write with secret fields encrypted, admin auth.
 - `secrets_store.py`: Fernet encryption at rest (`enc:` prefix), key in `STATE_DIR/.secret_key`.
 - `web_security.py`: CSRF and DNS-rebinding protection for the local API.
+- `bot_shield.py`: outermost middleware; `noindex` on every answer, `/robots.txt`, 403 for
+  self-declared crawlers, AI agents and scanners, so a leaked admin link is neither listed nor read.
 - `totp.py`: two-factor login codes (pure math, no config access).
 - `routes/`: route groups split out of `main.py` (`channels`, `coding`, `conversations`,
   `domain`, `graph`, `packs`, `tools`); each has `register(app, deps)` and never imports `main`.
