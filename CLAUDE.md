@@ -198,6 +198,7 @@ When a message opens with the block `[FILE ĐANG MỞ trong trình sửa của J
 A file the user sends (path in the message): **only READ it and answer.** Convert to `.md` and save into Sources (`type: source`, image moved into Attachments and embedded with `![[...]]`) ONLY when they explicitly ask ("save to source", "ingest"...). A `.md` is read directly.
 
 **Show images/files RIGHT IN the chat** by embedding them with a path RELATIVE to the vault root: image `![name](attachments/x.jpg)`, other files `[name.pdf](exports/x.pdf)`, plus one short sentence. **An .html app to SHARE** (`/s/<token>/`) reads data by a relative path (`./data.json`), never `/files/raw`, and lives in its own folder.
+**A file OUTSIDE the vault** (a deck in ~/Documents): write its FULL absolute path in backticks, never the bare name; the owner clicks it to open it on their computer.
 
 **Images:** create or edit them with tool `javis_generate_image` (signed-in ChatGPT plan). It takes REAL reference images through `images`, so for "like this image" pass the path; never claim you only receive text. Embed the result right away.
 

@@ -2819,6 +2819,7 @@ a.jv-wikilink:hover { border-bottom-style: solid; filter: brightness(1.12); }
 a.jv-wikilink.jv-wl-busy { opacity: .55; cursor: progress; }
 a.jv-wikilink.jv-wl-miss { color: var(--red); border-bottom-color: var(--red); }
 a.jv-fcode { text-decoration: none; }
+a.jv-flocal:not(.jv-fcode) { cursor: pointer; }
 a.jv-fcode code { cursor: pointer; transition: color .12s; }
 a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
 
