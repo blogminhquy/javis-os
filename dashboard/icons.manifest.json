@@ -26,6 +26,15 @@
   "groups": {
     "nav": [
       "hexagon",
+      "building-2",
+      "telescope",
+      "chart-candlestick",
+      "refresh-cw",
+      "activity",
+      "layout-dashboard",
+      "flag",
+      "bitcoin",
+      "rotate-ccw",
       "code-xml",
       "message-circle",
       "bot",

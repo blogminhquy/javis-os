@@ -41,6 +41,7 @@
     { id: "terminal", label: "page.terminal.label", fb: "Terminal", page: true, sub: "page.terminal.sub" },
     { id: "tasks", label: "page.tasks.label", fb: "Tasks", page: true, sub: "page.tasks.sub" },
     { id: "webhooks", label: "page.webhooks.label", fb: "Webhooks", page: true, sub: "page.webhooks.sub" },
+    { id: "markets", label: "page.markets.label", fb: "Markets", page: true, sub: "page.markets.sub" },
     { id: "mcp", label: "page.mcp.label", fb: "Connections", page: true, sub: "page.mcp.sub" },
     { id: "packs", label: "page.packs.label", fb: "Javis Store", page: true, sub: "page.packs.sub" },
     { id: "channels", label: "page.channels.label", fb: "Admin channels", page: true, sub: "page.channels.sub" },

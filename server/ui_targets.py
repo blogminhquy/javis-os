@@ -20,7 +20,7 @@ import unicodedata
 PAGES = (
     "home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "tasks", "webhooks", "learn", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage", "logins", "pet", "share",
+    "packs", "logs", "account", "usage", "markets", "realestate", "logins", "pet", "share",
 )
 
 # Bí danh người dùng hay nói, ánh xạ về id trang. Thường hoá không dấu trước khi tra, nên viết
@@ -44,6 +44,11 @@ ALIASES = {
     "tu hoc": "tasks", "self improve": "tasks", "hoc": "learn",
     "viec dinh ky": "tasks", "nhac hen": "tasks",
     "webhook": "webhooks", "webhooks": "webhooks", "hook": "webhooks",
+    "thi truong": "markets", "markets": "markets", "market": "markets", "chung khoan": "markets",
+    "co phieu": "markets", "tien so": "markets", "tien ma hoa": "markets", "crypto": "markets",
+    "bang gia": "markets", "du bao thi truong": "markets",
+    "bat dong san": "realestate", "bds": "realestate", "nha dat": "realestate", "real estate": "realestate",
+    "realestate": "realestate", "thi truong bat dong san": "realestate", "thi truong nha dat": "realestate",
     "kho dang nhap": "logins", "dang nhap": "logins", "cookie": "logins", "cookies": "logins",
     "logins": "logins", "login vault": "logins", "tai khoan dang nhap": "logins",
     "code": "terminal", "ma": "terminal", "nhat ky": "logs", "log": "logs",
@@ -85,7 +90,7 @@ _EXACT_PAGE = {"nhom": "teams"}
 # Nhóm trên thanh bên = RAIL_GROUPS trong dashboard/console.js (khoá `id`) và GROUPS trong
 # dashboard/ui-actions.js. Mở NHÓM khác mở TRANG: người dùng hay muốn bung phần đang gập để
 # nhìn xem trong đó có gì, chứ chưa chọn trang nào.
-GROUPS = ("bo_nao", "nang_luc", "viec", "ket_noi", "he_thong")
+GROUPS = ("bo_nao", "nang_luc", "viec", "nghien_cuu", "ket_noi", "he_thong")
 
 GROUP_ALIASES = {
     # Nhóm "Trợ lý" đã bỏ ở 0.58.0 (gộp vào Bộ não); giữ bí danh cũ trỏ sang Bộ não để
@@ -97,6 +102,7 @@ GROUP_ALIASES = {
     "code": "nang_luc", "lap trinh": "nang_luc",
     "nang luc": "nang_luc", "kha nang": "nang_luc", "capability": "nang_luc",
     "viec": "viec", "cong viec": "viec", "task": "viec",
+    "nghien cuu": "nghien_cuu", "research": "nghien_cuu", "theo doi thi truong": "nghien_cuu",
     "ket noi": "ket_noi", "connect": "ket_noi", "ket noi va model": "ket_noi",
     "he thong": "he_thong", "system": "he_thong", "cai dat chung": "he_thong",
 }

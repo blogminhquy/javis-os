@@ -16,12 +16,12 @@
   // Cùng danh sách với RAIL_ITEMS trong console.js và PAGES trong plugin javis-ui.
   var PAGES = ["home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
                "terminal", "coding", "tasks", "webhooks", "learn", "models", "channels", "mcp", "plugins",
-               "packs", "logs", "account", "usage", "logins", "pet", "share"];
+               "packs", "logs", "account", "usage", "markets", "realestate", "logins", "pet", "share"];
   // Nhóm trên thanh bên (accordion). Cùng danh sách với RAIL_GROUPS trong console.js và GROUPS
   // trong plugin javis-ui. Mở một NHÓM khác với mở một TRANG: người dùng hay muốn bung phần
   // đang gập lại để nhìn xem có gì, chứ chưa chọn trang nào.
   // "code" left the rail in 0.347.0 (Terminal moved into nang_luc); an old "code" still opens nang_luc.
-  var GROUPS = ["bo_nao", "nang_luc", "viec", "ket_noi", "he_thong"];
+  var GROUPS = ["bo_nao", "nang_luc", "viec", "nghien_cuu", "ket_noi", "he_thong"];
   var ACTIONS = ["open_page", "open_file", "open_task", "scroll", "open_group", "sidebar"];
   // Phạm vi cuộn. Cùng danh sách với SCROLL_TARGETS trong server/ui_targets.py. `top`/`bottom` để
   // TRANG NÀY tự chọn (xem khungCuonTrang): người nói "cuộn xuống" muốn cuộn thứ họ đang nhìn, mà chỉ

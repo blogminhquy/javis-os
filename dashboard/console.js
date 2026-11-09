@@ -64,6 +64,10 @@
     share: "share-2",
     // 0.251.0: login vault, the owner's stored sign-ins (login-vault.js). 0.261.0: renamed Cookies, cookie icon.
     logins: "cookie",
+    // Markets page (markets.js): Vietnam and world stocks, crypto, outlook.
+    markets: "chart-candlestick",
+    // Real-estate research page (realestate.js): Da Nang, Ho Chi Minh City, Dong Nai.
+    realestate: "building-2",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -79,6 +83,7 @@
     viec: ic("clipboard-check"),
     ket_noi: ic("link"),
     he_thong: ic("sliders-horizontal"),
+    nghien_cuu: ic("telescope"),
   };
   // Icon nút thu/mở sidebar: kiểu "panel sidebar". Tĩnh, không xoay.
   const COLLAPSE_ICON = ic("panel-left");
@@ -108,7 +113,7 @@
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "tasks", "webhooks", "learn", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage", "logins", "pet", "share",
+    "packs", "logs", "account", "usage", "markets", "realestate", "logins", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -129,6 +134,8 @@
     // page (old links, voice commands) but is hidden from the rail, see RAIL_AN.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON.nang_luc,    ids: ["workspace", "teams", "conversations", "skills", "plugins", "terminal"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON.viec,        ids: ["tasks", "webhooks"] },
+    // Research group: market monitoring pages (Markets, Real estate).
+    { id: "nghien_cuu", get label() { return t("nav.group.nghien_cuu"); }, icon: GICON.nghien_cuu, ids: ["markets", "realestate"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON.ket_noi,     ids: ["mcp", "packs", "channels", "logins"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON.he_thong,    ids: ["models", "settings", "share", "account"], foot: true },
   ];
@@ -185,7 +192,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "tasks", "webhooks", "chatbots", "conversations", "learn", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share", "logins"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "tasks", "webhooks", "chatbots", "conversations", "learn", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "markets", "realestate", "pet", "share", "logins"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -544,7 +551,7 @@
   // Trang nào cần nhóm code nạp chậm nào (nap-cham.js, khối javis-lazy trong index.html).
   const NHOM_TRANG = {
     workspace: ["congviec"], teams: ["congviec", "teams"], packs: ["packs"], plugins: ["packs"], mcp: ["packs"],
-    conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"],
+    conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"], markets: ["markets"], realestate: ["batdongsan"],
     tasks: ["nhiemvu"],
   };
   // Performance (2026-11-05): pointing at (or touching) a page in the side rail starts loading that page's code, so by the
@@ -625,6 +632,24 @@
       return window.JavisTasks.mount(el);
     }
     if (id === "webhooks") return renderWebhooks(el);
+    if (id === "markets") {
+      // Markets page lives in markets.js (lazy group "markets").
+      if (!window.JavisMarkets) {
+        el.innerHTML = placeholder("markets", window.t("cs.mod_not_ready", { ten: "markets.js" }));
+        return;
+      }
+      _pageLeave = () => { try { window.JavisMarkets.unmount(); } catch (e) {} };
+      return window.JavisMarkets.mount(el);
+    }
+    if (id === "realestate") {
+      // Real-estate research page, realestate.js (lazy group "batdongsan").
+      if (!window.JavisRealEstate) {
+        el.innerHTML = placeholder("realestate", window.t("cs.mod_not_ready", { ten: "realestate.js" }));
+        return;
+      }
+      _pageLeave = () => { try { window.JavisRealEstate.unmount(); } catch (e) {} };
+      return window.JavisRealEstate.mount(el);
+    }
     if (id === "logins") {
       // 0.251.0: the Login vault page lives in login-vault.js, delegated like the Packs page.
       if (window.JavisLoginVault) return window.JavisLoginVault.mount(el);

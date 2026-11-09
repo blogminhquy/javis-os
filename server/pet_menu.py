@@ -25,7 +25,7 @@ DEFAULT_ITEMS = ("chat", "agent", "workflow", "mic", "pet", "teams")
 # Every action a save may ADD. Must match CATALOG in dashboard/pet-menu.js (tests/js/test_pet_menu.js checks).
 # Pages are the ids JavisNav.go() opens; "agent"/"workflow" open a tab of the Partners page, "mic" presses the mic.
 KNOWN_ACTIONS = DEFAULT_ITEMS + (
-    "home", "files", "learn", "conversations", "skills", "plugins", "terminal", "tasks", "webhooks",
+    "home", "files", "learn", "conversations", "skills", "plugins", "terminal", "tasks", "webhooks", "markets",
     "mcp", "packs", "channels", "logins", "models", "settings", "share", "account", "usage", "logs",
 )
 # An id saved by an older Javis may no longer be known. It is kept (never lost), so it only has to look like an id.
