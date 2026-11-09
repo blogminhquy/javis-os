@@ -245,6 +245,10 @@ check("Hostinger compose binds 7777 to 127.0.0.1 when DOMAIN_NAME is set",
 # ============================================================
 js = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 check("Account page has a Security tab", 'data-ac-tab="security"' in js and "renderSecurity" in js)
+css = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
+check("Account page hides the page header so its tabs sit at the top (owner, 2026-11-09)",
+      'cv.classList.toggle("cview-tk", id === "account" || id === "webhooks")' in js
+      and ".cview.cview-tk .cview-head { display: none; }" in css)
 check("Security tab reads /auth/security and can sign out other devices",
       'fetch("/auth/security")' in js and "/auth/sessions/revoke" in js)
 vi = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))

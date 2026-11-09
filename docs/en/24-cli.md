@@ -35,7 +35,7 @@ That gives you the `javis` command. Check it with `javis --help`.
 
 The Javis server accepts no outside commands without a token. **No token exists by default**, so until you create one by hand this door is closed.
 
-1. Open the Javis dashboard, go to **Account** (the **System** group at the bottom of the left rail) and scroll to **API tokens (for the CLI)**. It shares the page with the login password, because a token is also a way of signing in.
+1. Open the Javis dashboard, go to **Integrations** (the **Work** group in the left rail) and pick the **API token (for the CLI)** tab. It shares the page with webhooks, because both are doors for another program to call Javis.
 2. Give it a memorable name, "my laptop" for example, so a later revocation is unambiguous.
 3. Choose the scope:
    - **Chat only** - reaches `/chat`, `/version`, `/health`, `/sessions`. Enough for asking questions and viewing history. Choose it if all you plan to do is ask.
@@ -156,7 +156,7 @@ When it cannot find an install it says so plainly: **`javis up` does not contain
 
 ## Managing tokens
 
-Go to **Account > API tokens** in the dashboard. The list shows the name, the first 12 characters, the scope, and the **last used** time; a token you do not recognise being used regularly is the sign to revoke it right away.
+Go to **Integrations > API tokens** in the dashboard (Work group). The list shows the name, the first 12 characters, the scope, and the **last used** time; a token you do not recognise being used regularly is the sign to revoke it right away.
 
 Clicking **Revoke** kills the token instantly, any machine using it loses its connection at once, and it cannot be undone.
 
@@ -171,7 +171,7 @@ A few things worth knowing about how Javis keeps tokens:
 
 **"Not connected to any Javis"** - run `javis login <address>` first.
 
-**A 401 or "invalid token"** - the token is wrong or was revoked. Create a new one at Account > API tokens then `javis login` again.
+**A 401 or "invalid token"** - the token is wrong or was revoked. Create a new one at Integrations > API tokens then `javis login` again.
 
 **A 403 on `javis task add` or `javis brain ls`** - your token is the **chat only** kind. Create a **full power** token for these commands.
 
