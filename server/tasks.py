@@ -36,6 +36,7 @@ import channel_context
 import localefmt          # giờ hiển thị theo múi giờ người dùng, không phải giờ máy chủ
 import limit_learner      # nhận diện "gói thuê bao hết lượt" - CÙNG bộ mẫu với khung chat
 import limit_resume       # mượn hằng trừ hao / trần chờ của khung chat, không đẻ bộ số thứ hai
+import memory_control
 import plugins_host
 import once_ledger
 import task_store
@@ -125,6 +126,42 @@ def asks_for_input(result: str) -> bool:
 
 
 EXECUTION_MODES = {"suggest", "auto", "full"}
+
+# #1133: a Codex worker at `auto`/`full` whose writes were refused by Codex's own sandbox (on Windows, Codex quietly
+# ran `workspace-write` as `read-only`) stopped with a [[NEEDS_INPUT]] about it, and the job sat in "waiting for your answer".
+# No answer can fix a sandbox, so such a job is blocked as an environment problem with what to change instead.
+# Narrow on purpose: "sandbox" alone is also a payment test environment, and "read-only" alone is also a Google Sheet
+# the owner shared view-only; both are real questions for the owner. It takes Codex's sandbox AND a refusal, or the
+# operating system's own read-only error.
+_SANDBOX_WORD_RE = re.compile(r"\bsandbox\b", re.IGNORECASE)
+_SANDBOX_REFUSAL_RE = re.compile(
+    r"read[- ]?only|chỉ (cho )?đọc|access is denied|permission denied|operation not permitted|\beacces\b|\beperm\b"
+    r"|blocked|bị chặn|chặn ghi|không (thể )?ghi", re.IGNORECASE)
+_READ_ONLY_FS_RE = re.compile(r"read-only file system", re.IGNORECASE)
+SANDBOX_BLOCK_KIND = "sandbox"
+
+
+def sandbox_refused(metadata: dict, result: str) -> bool:
+    """A Codex run at a level that may write, whose question to the owner is really "the sandbox refused my write"."""
+    md = metadata or {}
+    if str(md.get("provider") or "") != aux_engine.CODEX:
+        return False
+    if str(md.get("execution_mode") or "") not in ("auto", "full"):
+        return False   # `suggest` is read-only by design: asking for a higher level there is a real question
+    text = str(result or "")
+    return bool(_READ_ONLY_FS_RE.search(text) or (_SANDBOX_WORD_RE.search(text) and _SANDBOX_REFUSAL_RE.search(text)))
+
+
+def sandbox_block_reason() -> str:
+    return localefmt.chu(
+        "Codex (ChatGPT) không ghi được file vì rào sandbox của chính Codex đang chỉ cho đọc, dù việc này chạy ở mức "
+        "được ghi. Đây là lỗi môi trường, trả lời câu hỏi không sửa được. Trên Windows, xem mục [windows] sandbox "
+        "trong config.toml của Codex (để trống thì Javis tự đặt \"unelevated\"), hoặc chuyển việc nền sang bộ não "
+        "khác, rồi chạy lại việc.",
+        "Codex (ChatGPT) could not write files because its own sandbox only allowed reading, although this job runs "
+        "at a level that may write. This is an environment problem that no answer can fix. On Windows, check "
+        "[windows] sandbox in Codex's config.toml (left empty, Javis sets \"unelevated\"), or move background work "
+        "to another brain, then run the job again.")
 # Gom thông báo việc KẸT: chờ ngần này giây kể từ việc kẹt đầu tiên rồi mới bắn MỘT tin cho
 # cả chùm. Điều phối lấy việc ra chạy theo lô nên việc kẹt hay kẹt thành chùm trong cùng một
 # phút; mỗi việc một tiếng chuông là kể lại cùng một sự kiện năm lần. 120 giây đủ rộng để hứng
@@ -586,9 +623,11 @@ class TasksFeature:
                 "kanban", chat_id=str(task.get("chat_id") or ""), job=job))
             t_run = time.monotonic()
             try:
-                result, error, needs_input, metadata = await asyncio.wait_for(
-                    self._execute(task), timeout=self._tran_giay_viec()
-                )
+                # #1165: a memory this job writes while a chat turn runs is not stamped with that chat as its source.
+                with memory_control.background_writer(task.get("brain_root"), str(task.get("execution_mode") or "auto")):
+                    result, error, needs_input, metadata = await asyncio.wait_for(
+                        self._execute(task), timeout=self._tran_giay_viec()
+                    )
             finally:
                 turn_context.reset(tok)
             treo = once_ledger.unknowns(job)
@@ -609,6 +648,9 @@ class TasksFeature:
                     error,
                     result=result,
                     transient=self._is_transient(error))
+            elif needs_input and sandbox_refused(metadata, result):
+                final_task = await asyncio.to_thread(self.store.block, tid, worker_id, SANDBOX_BLOCK_KIND,
+                                                     sandbox_block_reason(), result=result, transient=False)
             elif needs_input:
                 final_task = await asyncio.to_thread(self.store.ask, tid, worker_id, self._needs_input_reason(result, task_store.QA_TEXT_MAX),
                     result=result)

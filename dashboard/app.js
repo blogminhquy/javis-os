@@ -2533,11 +2533,17 @@ function _vanTayPhien(sess) {
     `${m.id}:${m.content_sha || (m.content || "").length}:${m.reaction ? JSON.stringify(m.reaction) : ""}:${m.pinned ? 1 : 0}`)).join("|");
 }
 function _taiPhien(id) {
-  if (_phienDangTai.has(id)) return _phienDangTai.get(id);
+  // #1213: a load still in flight after STALE_MS is not handed out again. Retry on the Partners page used to join the
+  // very read that was hanging, so it hung too; now it asks the server afresh (the old read, if it ever answers, still
+  // fills the cache).
+  const STALE_MS = 10 * 1000;
+  const cur = _phienDangTai.get(id);
+  if (cur && Date.now() - (cur.at || 0) < STALE_MS) return cur;
   const p = fetch(_urlPhien(id)).then(r => r.json()).then(sess => {
     if (sess && !sess.error) _ghiCachePhien(id, sess);
     return sess;
-  }).finally(() => { _phienDangTai.delete(id); });
+  }).finally(() => { if (_phienDangTai.get(id) === p) _phienDangTai.delete(id); });
+  p.at = Date.now();
   _phienDangTai.set(id, p);
   return p;
 }

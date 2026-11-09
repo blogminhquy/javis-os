@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sys
 import threading
 import time
 import unicodedata
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -350,6 +352,51 @@ def claude_deny_rules(vault_root) -> List[str]:
     return out
 
 
+# Background work that may write files, per brain: [brain key, start, end (0.0 while running)] (#1165). A chat turn
+# stamps the memories changed while it ran with its own source; a memory a Kanban job, reminder or loop wrote at the
+# same moment used to get that chat's source too. While such work runs in the same brain, a memory changed in the
+# overlap is left without a source: none is better than a wrong one.
+_WRITER_SPANS: List[list] = []
+WRITER_SPAN_KEEP_S = 3600
+_WRITER_SLACK_S = 1.0     # mtime resolution and the instant between a write and the span's own clock reading
+
+
+def _brain_key(root) -> str:
+    try:
+        return os.path.normcase(str(Path(root).expanduser().resolve()))
+    except Exception:  # noqa: BLE001
+        return os.path.normcase(str(root))
+
+
+@contextmanager
+def background_writer(root, mode: str = "full"):
+    """Mark background work in brain `root` that may write files (`auto` and `full`; `suggest` only reads)."""
+    if not root or str(mode or "full").strip().lower() not in ("auto", "full"):
+        yield
+        return
+    span = [_brain_key(root), time.time(), 0.0]
+    with _LOCK:
+        cutoff = time.time() - WRITER_SPAN_KEEP_S
+        _WRITER_SPANS[:] = [s for s in _WRITER_SPANS if not s[2] or s[2] >= cutoff]
+        _WRITER_SPANS.append(span)
+    try:
+        yield
+    finally:
+        span[2] = time.time()
+
+
+def _writer_spans(mem_dir, since: float) -> List[tuple]:
+    """(start, end) of background writers in the brain holding `mem_dir` that overlap `since`..now."""
+    mem = _brain_key(mem_dir)
+    now = time.time()
+    out = []
+    with _LOCK:
+        for key, start, end in _WRITER_SPANS:
+            if (mem == key or mem.startswith(key.rstrip(os.sep) + os.sep)) and (end or now) >= since:
+                out.append((start, end or now))
+    return out
+
+
 def stamp_new_facts(mem_dir, *, source: str, since: float) -> List[str]:
     """Give a source to memories written during a turn that did not record one (spec 12.3): the chat and the date.
     The model is asked to, but the server makes sure. Returns the slugs it stamped."""
@@ -357,10 +404,14 @@ def stamp_new_facts(mem_dir, *, source: str, since: float) -> List[str]:
     if not facts.is_dir() or not source:
         return []
     done = []
+    others = _writer_spans(mem_dir, since)
     for f in facts.glob("*.md"):
         try:
-            if f.stat().st_mtime < since:
+            mtime = f.stat().st_mtime
+            if mtime < since:
                 continue
+            if any(start - _WRITER_SLACK_S <= mtime <= end + _WRITER_SLACK_S for start, end in others):
+                continue   # background work in this brain was writing at that moment: whose memory it is, is unknown
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
