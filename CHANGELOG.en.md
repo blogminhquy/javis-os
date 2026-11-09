@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.517.1] - 2026-11-09
+### Fixed
+- **Opening a chat on the Partners page no longer says "taking too long" by mistake.** No error while the page is reconnecting. A Javis Core open that hangs shows the error with Retry, and Retry really loads again instead of waiting on the stuck load.
+- **Background work on ChatGPT (Codex) that was refused file writes now says it is an environment problem**, with what to change, instead of sitting in "waiting for your answer".
+- **Memories written by background work no longer get the source of a chat** that happened to be open at the same time.
+
 ## [0.517.0] - 2026-11-09
 ### Improved
 - **A tidier Account page.** The page header is gone, the Account and Security tabs sit right at the top.
