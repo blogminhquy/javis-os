@@ -13655,6 +13655,36 @@ async def realestate_discard():
 
 
 # ============================================================
+# Investment compass page data (compass_store.py): bundled outlook, monthly drafts written by Javis, owner approval.
+# ============================================================
+@app.get("/compass/data")
+async def compass_data(draft: int = 0):
+    import compass_store as cs
+    data, source, at = await asyncio.to_thread(cs.current)
+    meta = await asyncio.to_thread(cs.draft_meta)
+    if draft:
+        d = await asyncio.to_thread(cs.draft)
+        if d:
+            data = d["data"]
+    return {"ok": True, "data": data, "source": source, "updated_at": at, "draft": meta, "preview": bool(draft and meta)}
+
+
+@app.post("/compass/approve")
+async def compass_approve():
+    import compass_store as cs
+    res = await asyncio.to_thread(cs.approve)
+    if not res.get("ok"):
+        res["message"] = localefmt.chu("Không có bản nháp nào để duyệt.", "There is no draft to approve.")
+    return res
+
+
+@app.post("/compass/discard")
+async def compass_discard():
+    import compass_store as cs
+    return await asyncio.to_thread(cs.discard)
+
+
+# ============================================================
 # Paper trading (market_paper.py): three virtual accounts trading by fixed rules on live prices.
 # ============================================================
 def _paper_kind(kind: str):

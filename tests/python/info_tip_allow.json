@@ -1,5 +1,9 @@
 {
+ "cp.upd.prompt": "content: the task text Javis runs each month, typed into the chat or saved as the reminder",
  "mk.pp.ask_prompt": "content: the prompt typed into the chat box when the owner presses Ask Javis to review",
+ "cp.ask_prompt": "content: the prompt typed into the chat box when the owner presses Ask Javis",
+ "cp.ask_prompt_alloc": "content: the prompt typed into the chat box when the owner presses Ask Javis",
+ "cp.ask_prompt_asset": "content: the prompt typed into the chat box when the owner presses Ask Javis",
  "re.upd.prompt": "content: the task text Javis runs each quarter, typed into the chat or saved as the reminder",
  "re.ask_prompt": "content: the prompt typed into the chat box when the owner presses Ask Javis",
  "re.ask_prompt_compare": "content: the prompt typed into the chat box when the owner presses Ask Javis",
