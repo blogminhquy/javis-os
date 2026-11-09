@@ -155,6 +155,19 @@ check("có style cho nút, ẩn trên máy tính", css.indexOf(".rail-foot .rf-i
   && /@media \(min-width: 861px\) and \(pointer: fine\) \{ \.rail-foot \.rf-install \{ display: none; \} \}/.test(css));
 check("install-nudge.js đã bump ?v= (>= 2)", v("install-nudge.js") >= 2, v("install-nudge.js"));
 
+// 2026-11-09 (owner: "nút install app bị vỡ"): a touch tablet or laptop gets the button in the 160px computer rail, where
+// "Install on phone" ran past the edge. There it shows a short label in the "Give a star" mould, and only the icon once
+// the rail folds; the phone drawer keeps the long label.
+const wideRail = (css.match(/@media \(min-width: 861px\) \{\n  \.rail-foot \.rf-install \{[\s\S]*?\n\}/) || [""])[0];
+check("computer-width rail: short label, star-sized, icon only when folded",
+  /rf-install-short">' \+ window\.t\("instl\.rail_short"\)/.test(nudge)
+  && goiKhoa("instl.rail_short") && cauLa("instl.rail_short", "Cài app")
+  && css.includes(".rail-foot .rf-install .rf-install-short { display: none; }")
+  && /\.rail-foot \.rf-install \{ min-width: 0; min-height: 32px; gap: 6px; font-size: 13px; \}/.test(wideRail)
+  && /\.rail-foot \.rf-install \.rf-install-chu \{ display: none; \}/.test(wideRail)
+  && /\.rail-foot \.rf-install \.rf-install-short \{ display: inline; \}/.test(wideRail)
+  && /\.rail\.collapsed \.rail-foot \.rf-install \{ flex: 0 0 auto; width: 32px; padding: 0; \}/.test(wideRail));
+
 console.log();
 if (fails.length) {
   console.log("THAT BAI " + fails.length + ": " + fails.join(", "));

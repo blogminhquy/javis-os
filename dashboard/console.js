@@ -7106,6 +7106,7 @@
           <label class="js-lbl">${esc(window.t("common.account"))}</label><input class="js-input" id="acUser" value="${esc(auth.username || "")}" placeholder="${esc(window.t("cs.ac_user_ph"))}">
           ${auth.has_password ? '<label class="js-lbl">' + esc(window.t("cs.ac_cur_pw")) + '</label><input class="js-input" id="acCur" type="password" placeholder="' + esc(window.t("cs.ac_cur_pw_ph")) + '" autocomplete="current-password">' : ""}
           <label class="js-lbl">${esc(window.t(auth.has_password ? "cs.ac_new_pw" : "cs.ac_pw"))}</label><input class="js-input" id="acPass" type="password" autocomplete="new-password" placeholder="${esc(window.t(auth.has_password ? "cs.ac_new_pw_ph" : "cs.ac_pw_ph"))}">
+          <label class="js-lbl">${esc(window.t(auth.has_password ? "cs.ac_new_pw2" : "cs.ac_pw2"))}</label><input class="js-input" id="acPass2" type="password" autocomplete="new-password" placeholder="${esc(window.t("cs.ac_pw2_ph"))}">
           <div class="js-actions">
             <button class="gcard-btn" id="acSave">${esc(window.t(auth.has_password ? "cs.ac_change_pw" : "cs.ac_set_pw"))}</button>
             ${auth.has_password ? '<button class="gcard-btn ghost" id="acLogout">' + esc(window.t("cs.ac_logout")) + '</button><button class="gcard-btn ghost" id="acDisable">' + esc(window.t("cs.ac_disable")) + '</button>' : ""}
@@ -7177,11 +7178,14 @@
     document.getElementById("acSave").onclick = async () => {
       const user = document.getElementById("acUser").value.trim() || "admin";
       const pass = document.getElementById("acPass").value;
+      // Owner 2026-11-09: the new password is typed twice, so one typo cannot lock the owner out.
+      const pass2 = document.getElementById("acPass2").value;
       const curEl = document.getElementById("acCur");
       if (auth.has_password) {
         const cur = curEl ? curEl.value : "";
         if (!cur) { acStatus.innerHTML = WARN_ICON + " " + esc(window.t("cs.ac_need_cur")); return; }
         if (pass && pass.length < 8) { acStatus.innerHTML = WARN_ICON + " " + esc(window.t("cs.ac_pw_min_new")); return; }
+        if (pass !== pass2) { acStatus.innerHTML = WARN_ICON + " " + esc(window.t("cs.ac_pw_mismatch")); return; }
         if (!pass && user === (auth.username || "")) { acStatus.innerHTML = WARN_ICON + " " + esc(window.t("cs.ac_nochange")); return; }
         acStatus.textContent = window.t("settings.saving");
         const fd = new FormData();
@@ -7195,6 +7199,7 @@
           auth.username = r.username || user;
           if (curEl) curEl.value = "";
           document.getElementById("acPass").value = "";
+          document.getElementById("acPass2").value = "";
           document.getElementById("acUser").value = auth.username;
           const meta = document.getElementById("acAuthMeta");
           if (meta) meta.innerHTML = ic("lock") + " " + esc(window.t("cs.ac_pw_set")) + " <b>" + esc(auth.username) + "</b>";
@@ -7203,6 +7208,7 @@
         return;
       }
       if (!pass || pass.length < 8) { acStatus.innerHTML = WARN_ICON + " " + esc(window.t("cs.ac_pw_min")); return; }
+      if (pass !== pass2) { acStatus.innerHTML = WARN_ICON + " " + esc(window.t("cs.ac_pw_mismatch")); return; }
       acStatus.textContent = window.t("settings.saving");
       // /auth/setup cấp cookie ngay → tránh tự khoá khi bật auth lần đầu
       const fd = new FormData(); fd.append("username", user); fd.append("password", pass);

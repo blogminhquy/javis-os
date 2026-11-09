@@ -5312,6 +5312,9 @@ if (document.getElementById("settingsBtn")) {
   document.getElementById("savePassword").addEventListener("click", async (e) => {
     const user = document.getElementById("setAuthUser").value.trim();
     const pass = document.getElementById("setAuthPass").value;
+    // Owner 2026-11-09: the new password is typed twice, so one typo cannot lock the owner out.
+    const pass2El = document.getElementById("setAuthPass2");
+    const pass2 = pass2El ? pass2El.value : pass;
     const curEl = document.getElementById("setAuthCur");
     const btn = e.target; const old = btn.textContent;
     const bao = (ok, msg) => {
@@ -5328,11 +5331,12 @@ if (document.getElementById("settingsBtn")) {
     if (!hasPw) {
       // Lần đầu đặt mật khẩu → /auth/setup (cấp cookie luôn)
       if (!pass || pass.length < 8) { bao(false, window.t("app.pw_min8")); return; }
+      if (pass !== pass2) { bao(false, window.t("app.pw_mismatch")); return; }
       const fd = new FormData(); fd.append("username", user || "admin"); fd.append("password", pass);
       try {
         const d = await (await fetch("/auth/setup", { method: "POST", body: fd })).json();
         bao(!!d.ok, d.ok ? window.t("app.pw_set_ok") : (d.error || window.t("app.err_low")));
-        if (d.ok) { document.getElementById("setAuthPass").value = ""; openSettings(); }
+        if (d.ok) { document.getElementById("setAuthPass").value = ""; if (pass2El) pass2El.value = ""; openSettings(); }
       } catch (err) { bao(false, window.t("app.err_net_low")); }
       return;
     }
@@ -5341,6 +5345,7 @@ if (document.getElementById("settingsBtn")) {
     const cur = curEl ? curEl.value : "";
     if (!cur) { bao(false, window.t("app.pw_need_cur")); return; }
     if (pass && pass.length < 8) { bao(false, window.t("app.pw_new_min8")); return; }
+    if (pass !== pass2) { bao(false, window.t("app.pw_mismatch")); return; }
     if (!pass && !user) { bao(false, window.t("app.nothing_changed")); return; }
     const fd = new FormData();
     fd.append("current_password", cur); fd.append("username", user);
@@ -5350,6 +5355,7 @@ if (document.getElementById("settingsBtn")) {
       bao(!!d.ok, d.ok ? (pass ? window.t("app.pw_changed") : window.t("app.user_changed")) : (d.error || window.t("app.err_low")));
       if (d.ok) {
         document.getElementById("setAuthPass").value = "";
+        if (pass2El) pass2El.value = "";
         if (curEl) curEl.value = "";
         refreshAuthRow();
       }

@@ -956,6 +956,8 @@
           <label id="setAuthCurLbl" hidden data-i18n="setm.cur_pass">Mật khẩu hiện tại</label>
           <input id="setAuthCur" type="password" autocomplete="current-password" placeholder="Mật khẩu đang dùng" data-i18n-ph="setm.cur_pass_ph" hidden>
           <label data-i18n="common.password">Mật khẩu</label><input id="setAuthPass" type="password" autocomplete="new-password" placeholder="Đặt mật khẩu (để trống nếu không đổi)" data-i18n-ph="setm.pass_ph">
+          <!-- Owner 2026-11-09: the new password is typed twice; app.js refuses to save when they differ. -->
+          <label data-i18n="setm.pass2">Nhập lại mật khẩu</label><input id="setAuthPass2" type="password" autocomplete="new-password" placeholder="Gõ lại đúng mật khẩu ở trên" data-i18n-ph="setm.pass2_ph">
           <div class="set-actions">
             <button class="s-btn" id="savePassword" data-i18n="setm.save_auth">Lưu tài khoản</button>
             <button class="s-btn-ghost" id="logoutBtn" data-i18n="setm.logout">Đăng xuất</button>

@@ -1,5 +1,6 @@
 // Wiring giao diện chat trên điện thoại (mobile-only, <=860px):
-//  - dời chip model (#mbOpen + #mbPop) và nút + (#newChatBtn) lên header khi mobile, trả về khi desktop
+//  - phone: the notification bell and the + button (#newChatBtn) move into the header, a computer gets them back
+//    (the model chip stays in the composer next to the Effort chip on every width since 2026-11-09)
 //  - dời nhóm Hệ thống (chọn brain, đổi tông, loa, dải HỆ THỐNG) vào đáy ngăn kéo
 //  - nút + = hội thoại mới (reset) + focus ô nhập
 //  - ngăn kéo điều hướng: nút menu mở/đóng, backdrop / Esc / chọn mục thì đóng
@@ -9,14 +10,11 @@
     var mq = window.matchMedia("(max-width: 860px)");
     var railEl = document.querySelector(".rail");
 
-    // ---- 1) Header mobile: dời chip model + nút + lên header; desktop trả về chỗ cũ ----
-    var mbOpen = document.getElementById("mbOpen");
-    var mbPop = document.getElementById("mbPop");
-    // Since 0.153.0 the model chip lives in the composer's button row (#cpChips); its picker (#mbPop) is a child of the card.
-    var chipHost = document.getElementById("cpChips");
-    var mbPopHome = mbPop ? mbPop.parentElement : null;
+    // ---- 1) Phone header: the bell and the + button move up into it; a computer gets them back ----
+    // The model chip (#mbOpen) and its picker (#mbPop) are NOT moved: owner, 2026-11-09, "chuyển khung lựa chọn model về
+    // cạnh lựa chọn mức suy luận ở bản điện thoại, làm giống bản máy tính". From 0.182.0 to then a phone carried the chip
+    // in the header; now the composer is compact enough to hold it next to the Effort chip, as on a computer.
     var headerRoot = document.querySelector(".hud-top");
-    var headerCenter = document.querySelector(".hud-center-title");
     var newChatBtn = document.getElementById("newChatBtn");
     var origNewChatParent = newChatBtn ? newChatBtn.parentElement : null;
     var notificationTrigger = document.getElementById("notificationTrigger");
@@ -30,18 +28,8 @@
           if (navToggle && navToggle.parentElement === headerRoot) headerRoot.insertBefore(notificationTrigger, navToggle.nextSibling);
           else headerRoot.insertBefore(notificationTrigger, headerRoot.firstChild);
         }
-        // 0.182.0: back in the header on a phone (0.180.0 had moved it into the composer; the owner found that worse).
-        if (mbOpen && mbOpen.parentElement !== headerRoot) {
-          if (headerCenter && headerCenter.parentElement === headerRoot) headerRoot.insertBefore(mbOpen, headerCenter.nextSibling);
-          else headerRoot.appendChild(mbOpen);
-          if (mbPop) headerRoot.insertBefore(mbPop, mbOpen.nextSibling);
-        }
         if (newChatBtn && newChatBtn.parentElement !== headerRoot) headerRoot.appendChild(newChatBtn);  // + về cuối header
       } else {
-        if (mbOpen && chipHost && mbOpen.parentElement !== chipHost) {
-          chipHost.insertBefore(mbOpen, document.getElementById("effBtn"));
-          if (mbPop && mbPopHome) mbPopHome.appendChild(mbPop);
-        }
         if (newChatBtn && origNewChatParent && newChatBtn.parentElement !== origNewChatParent) origNewChatParent.appendChild(newChatBtn);
         if (notificationTrigger && origNotificationParent && notificationTrigger.parentElement !== origNotificationParent) {
           if (origNotificationNext && origNotificationNext.parentElement === origNotificationParent) {

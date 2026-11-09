@@ -1001,20 +1001,20 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     --topbar-h: calc(46px + env(safe-area-inset-top, 0px));
   }   /* header thấp hơn trên mobile nhưng vẫn chừa tai thỏ khi chạy full-screen */
 
-  /* Header mobile: chỉ nút menu, chip model, nút thêm. Ẩn phần rườm rà. */
+  /* Phone header: menu, bell and the + button only (the model chip stays in the composer since 2026-11-09). */
   .nav-toggle-btn, .new-chat-btn { display: inline-flex; }
-  /* Header CỐ ĐỊNH trên cùng: luôn thấy nút menu, chip model, nút thêm ở mọi trang, không bị cuộn trôi mất. */
+  /* Header CỐ ĐỊNH trên cùng: luôn thấy nút menu, chuông, nút thêm ở mọi trang, không bị cuộn trôi mất. */
   .hud-top { position: fixed; top: 0; left: 0; right: 0; height: 46px; z-index: 55;
     background: var(--bg2); border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 6px; padding: 0 8px; }
-  .hud-top-left, .hud-top-right { display: none; }    /* rỗng ở mobile: nút menu, chip model, nút thêm là con trực tiếp header */
+  .hud-top-left, .hud-top-right { display: none; }    /* rỗng ở mobile: nút menu, chuông, nút thêm là con trực tiếp header */
   .hud-top .brand, .hud-top .navbar-brain,
   .hud-top #themeToggle, .hud-top #soundToggle, .hud-top #studioOpenBtn,
   .hud-top #settingsBtn, .hud-top #ttsToggle, .hud-top #resetBtn { display: none; }
-  .hud-center-title { display: none; }                /* mobile: ẩn tên workspace + ngày; chip model làm giữa header */
-  /* 0.182.0 (owner: putting the chip in the composer on a phone "là sai lầm"): back to the top bar, centred, as before 0.180.0.
-     It keeps the short model name and the pin icon from 0.180.0, so it stays narrow. */
-  .hud-top #mbOpen { display: inline-flex; margin-left: auto; margin-right: auto; max-width: 56vw; }  /* chip model căn giữa, đẩy ＋ sang phải */
+  .hud-center-title { display: none; }                /* mobile: ẩn tên workspace + ngày */
+  /* 2026-11-09 (owner): the model chip left the header for the composer, next to the Effort chip as on a computer. The
+     header centre is empty now, so the + button pushes itself to the right edge. */
+  .hud-top .new-chat-btn { margin-left: auto; }
   .hud-top .notification-trigger {
     flex: 0 0 34px; width: 34px; min-width: 34px; height: 34px; padding: 0;
   }
@@ -1031,8 +1031,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .notification-shade { background: var(--scrim); backdrop-filter: blur(2px); }
   .noti-head { padding: 14px 13px 12px; }
   .noti-list { padding: 7px; }
-  .hud-top #mbPop { position: fixed; top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; transform: translateX(-50%);
-    width: min(340px, 92vw); z-index: 200; max-height: 70vh; }
   .model-bar { display: none; }                       /* hàng model gốc ẩn; chip bên trong dời đi (JS) */
 
   /* Rail: từ thanh đáy → ngăn kéo trượt từ trái */

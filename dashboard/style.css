@@ -1780,7 +1780,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .send-btn:hover { opacity: 0.85; }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ===== Mobile: same card with tighter padding; the model chip moves to the page header (mobile-chat.js, back there in 0.182.0) ===== */
+/* ===== Mobile: same card with tighter padding. Since 2026-11-09 the model chip stays in it next to the Effort chip, as on
+   a computer (it sat in the page header from 0.182.0); its picker opens above the card and never runs past the screen. ===== */
 @media (max-width: 860px) {
   .hud-voice {
     margin: 6px 10px 8px; padding: 8px 8px 6px; gap: 2px;
@@ -1788,6 +1789,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
     align-items: flex-end;
   }
   .hud-voice .voice-input { min-height: 36px; max-height: 40vh; padding: 6px 6px; font-size: 16px; }
+  .hud-voice .mb-pop { width: min(340px, calc(100vw - 32px)); }
 }
 
 .stop-btn {
@@ -5084,5 +5086,17 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   font: 600 15px/1.2 var(--font);
 }
 .rail-foot .rf-install .ic { width: 17px; height: 17px; flex: none; }
-.rail-foot .rf-install .rf-install-chu { overflow: hidden; text-overflow: ellipsis; }
+.rail-foot .rf-install .rf-install-chu, .rail-foot .rf-install .rf-install-short { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rail-foot .rf-install .rf-install-short { display: none; }
 @media (min-width: 861px) and (pointer: fine) { .rail-foot .rf-install { display: none; } }
+/* 2026-11-09: a touch tablet or laptop (pointer: coarse) gets the button in the 160px computer rail, where it ran past the
+   edge (164px in a 143px foot) and sat off screen once the rail folded. There it takes the "Give a star" mould below it
+   with a short label, and only the icon in the folded rail. */
+@media (min-width: 861px) {
+  .rail-foot .rf-install { min-width: 0; min-height: 32px; gap: 6px; font-size: 13px; }
+  .rail-foot .rf-install .ic { width: 14px; height: 14px; }
+  .rail-foot .rf-install .rf-install-chu { display: none; }
+  .rail-foot .rf-install .rf-install-short { display: inline; }
+  .rail.collapsed .rail-foot .rf-install { flex: 0 0 auto; width: 32px; padding: 0; }
+  .rail.collapsed .rail-foot .rf-install .rf-install-short { display: none; }
+}
