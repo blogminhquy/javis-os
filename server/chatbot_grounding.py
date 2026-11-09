@@ -25,6 +25,7 @@ import math
 import re
 import sys
 import threading
+import os
 import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -163,11 +164,40 @@ def _dau_van(root: Path) -> tuple:
     return (n, round(moi, 3))
 
 
+def _walk(root: Path) -> list:
+    """Every file under `root` that `_ung_vien` might keep, without entering a folder it would drop anyway.
+
+    2026-11-09: this used `root.rglob("*")`, which lists the WHOLE brain (`.git`, attachments, memory...) before the
+    filters below throw most of it away. On the owner's VPS that took 6 to 7 s per customer question. Pruned here with
+    the same rules as `_ung_vien` (a dot folder anywhere, a `BO_QUA` folder outside `rieng-theo-nhom/`, `agents/` and
+    `workflows/` at the root), so the result is the same set of files; `_ung_vien` still applies every rule itself."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root, onerror=None):
+        parts = Path(dirpath).relative_to(root).parts
+        scoped = bool(parts) and parts[0].lower() == SCOPED_DIR
+        keep = []
+        for d in dirnames:
+            low = d.lower()
+            if d.startswith("."):
+                continue
+            if not parts and low == SCOPED_DIR:
+                keep.append(d)
+                continue
+            if not scoped and (low in BO_QUA or (not parts and low in BO_QUA_GOC)):
+                continue
+            keep.append(d)
+        dirnames[:] = keep
+        for f in filenames:
+            if os.path.splitext(f)[1].lower() in DUOI:
+                out.append(Path(dirpath) / f)
+    return out
+
+
 def _ung_vien(root: Path):
     """Every file that may be a document of the bot, as (path, scope). `scope` is None for a document every chat
     may see, else the tuple of chat ids that may see it (empty: nobody). See `file_scope` and `SCOPED_DIR`."""
     try:
-        it = sorted(root.rglob("*"))
+        it = sorted(_walk(root))
     except OSError:
         return
     for p in it:

@@ -50,7 +50,7 @@ def _visible(vault_root) -> bool:
         import turn_context
         if not vault_root or not _store_exists():
             return False
-        store, bid = RS.GoalStore(), _brain_id(vault_root)
+        store, bid = RS.shared(), _brain_id(vault_root)
         t = turn_context.current()
         if t is not None:
             ag = t.get("agent") or {}
@@ -165,7 +165,7 @@ def _turn(vault_root):
         return "ERROR: Lượt này không có id tin nhắn của người dùng." + _PLAIN
     if not _store_exists():
         return "ERROR: Chưa có trợ lý nào bật Cộng hưởng." + _PLAIN
-    store = RS.GoalStore()
+    store = RS.shared()
     _a, why = R.agent_gate(store, _brain_id(vault_root), ag["key"], ag.get("config_version"))
     if why:
         return (f"ERROR: Cộng hưởng của trợ lý này đang tắt hoặc vừa đổi ({why}). Chủ dự án bật lại ở trang Cộng sự "
@@ -341,7 +341,7 @@ async def javis_submit_deliverable(args, ctx):
         return "ERROR: Chưa có trợ lý nào bật Cộng hưởng."
     deps = R.deps_for(_brain_id(vault))
     if deps is None:
-        deps = R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=RS.GoalStore(),
+        deps = R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=RS.shared(),
                           principal=RS.Principal("agent", "javis", _brain_id(vault)), brain_root=_brain_id(vault))
     # Ghi file nháp, bằng chứng và SQLite chạy ở luồng phụ (thiết kế A4 mục 11), không giữ event loop. Danh tính lượt
     # đọc NGAY ở đây rồi truyền vào, không dựa vào việc chép ngữ cảnh.

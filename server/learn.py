@@ -1129,7 +1129,10 @@ class LearnFeature:
         mcpf = _empty_mcp_file()
         if not mcpf:
             return ""   # không tạo được file MCP rỗng → từ chối spawn (không để nuốt MCP máy)
-        gcli = claude_engine(system_prompt=self.deps.build_system_prompt(brain),
+        # 2026-11-09: built on a worker thread. It reads every skill, agent and plugin of the brain; on the event loop it
+        # froze the whole server for 2 to 5 s on the owner's VPS (GET /health/loop).
+        sysprompt = await asyncio.to_thread(self.deps.build_system_prompt, brain)
+        gcli = claude_engine(system_prompt=sysprompt,
                          cwd=self.deps.brain_root(brain), tag=tag,
                          allowed_tools=self.deps.readonly_tools)
         gcli.model = self._model(cfg)

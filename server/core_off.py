@@ -121,4 +121,9 @@ def dat(loai: str, cid: str, off: bool) -> bool:
             print(f"[core_off] ghi {STORE.name}: {e}", file=sys.stderr)
             raise
         _cache.update(sig=None, data={})   # buộc đọc lại ở lượt sau
+        try:
+            import mcp_catalog
+            mcp_catalog.invalidate()      # the catalog trusts its last check for a moment (mcp_catalog.CHECK_S)
+        except Exception:  # noqa: BLE001
+            pass
         return off

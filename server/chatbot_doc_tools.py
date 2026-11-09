@@ -28,6 +28,8 @@ So this module is the WHOLE tool set of that level, and it is deliberately tiny:
 """
 from __future__ import annotations
 
+import asyncio
+
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -169,8 +171,14 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
 
     # The chat id is read at CALL time: one tool set serves every turn of the brain (`discover_all` builds it per
     # request, the Claude Code config file is shared), so it must never be captured when the tools are built.
+    # 2026-11-09: each tool body runs on a worker thread. They walk the whole brain (`rglob`), which froze the server
+    # for 6 to 7 s on the owner's VPS while a bot answered a customer. The chat id is read here, on the turn's own
+    # context, then handed over (asyncio.to_thread also copies the context).
     async def _list(args):
-        hs = _headings(r, turn_chat_id())
+        return await asyncio.to_thread(_list_sync, turn_chat_id())
+
+    def _list_sync(chat):
+        hs = _headings(r, chat)
         if not hs:
             return "(brain này chưa có tài liệu nào)"
         rows, used = [], 0
@@ -187,7 +195,9 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
         q = str((args or {}).get("query") or "").strip()
         if not q:
             return "ERROR: thiếu query"
-        chat = turn_chat_id()
+        return await asyncio.to_thread(_search_sync, q, turn_chat_id())
+
+    def _search_sync(q, chat):
         ok = set(allowed_docs(r, chat))
         hits = [h for h in chatbot_grounding.tim(r, q, k=SEARCH_K * 3, chat_id=chat)
                 if str(h.get("path") or "").replace("\\", "/") in ok][:SEARCH_K]
@@ -202,9 +212,12 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
         return "\n\n".join(parts)
 
     async def _read(args):
-        rel = _match(r, (args or {}).get("path"), turn_chat_id())
+        return await asyncio.to_thread(_read_sync, (args or {}).get("path"), turn_chat_id())
+
+    def _read_sync(path, chat):
+        rel = _match(r, path, chat)
         if not rel:
-            return (f"ERROR: không có tài liệu '{(args or {}).get('path')}' trong danh sách được đọc. "
+            return (f"ERROR: không có tài liệu '{path}' trong danh sách được đọc. "
                     f"Gọi javis_docs_list để xem đường dẫn đúng.")
         p = (r / rel).resolve()
         try:
