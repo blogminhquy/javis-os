@@ -72,7 +72,39 @@
     for (var i = 0; i < all.length; i++) if (all[i].value === sel.value) return all[i];
     return all[0] || { label: "", notes: "" };
   }
-  function notesText(n) { return n ? t("bpick.notes", { n: n }, "{n} notes") : ""; }
+  function notesText(n) { return n ? t("bpick.notes", { n: n }, "{n} nodes") : ""; }
+
+  // Node and link counts as the graph shows them (2026-11-09, owner: "đếm số node và số link ngay ở phần này").
+  // Asked only when the picker opens, one brain per request, never at page load; kept for COUNTS_MS on this page.
+  // Until a count arrives the row shows the file count the brain list already carries.
+  var COUNTS_MS = 60000;
+  var counts = {};          // value -> {nodes, links, capped, at}
+  var asking = {};
+  function countsUrl(value) {
+    var v = String(value || "");
+    return "/graph/counts?" + (v.indexOf("path:") === 0 ? "path=" + encodeURIComponent(v.slice(5)) : "source=" + encodeURIComponent(v));
+  }
+  function askCounts(value) {
+    var c = counts[value];
+    if (asking[value] || (c && Date.now() - c.at < COUNTS_MS) || !root.fetch) return;
+    asking[value] = true;
+    root.fetch(countsUrl(value), { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && typeof d.nodes === "number") {
+          counts[value] = { nodes: d.nodes, links: d.links || 0, capped: !!d.capped, at: Date.now() };
+          drawButton();
+          if (open && !reorder) drawList();
+        }
+      })
+      .catch(function () { /* the row keeps its file count */ })
+      .then(function () { delete asking[value]; });
+  }
+  function countText(x) {
+    var c = counts[x.value];
+    if (!c) return notesText(x.notes);
+    return t("bpick.graph", { n: c.nodes + (c.capped ? "+" : ""), l: c.links }, "{n} nodes · {l} links");
+  }
 
   // ---- the button over the select ----
   sel.classList.add("bp-native");
@@ -86,10 +118,11 @@
   sel.parentNode.insertBefore(btn, sel.nextSibling);
   function drawButton() {
     var c = current();
+    var k = counts[c.value], n = k ? k.nodes + (k.capped ? "+" : "") : c.notes;
     btn.innerHTML = '<span class="bp-btn-name">' + esc(c.label) + "</span>" +
-      (c.notes ? '<span class="bp-btn-n">' + esc(c.notes) + "</span>" : "") +
+      (n ? '<span class="bp-btn-n">' + esc(n) + "</span>" : "") +
       '<span class="bp-btn-chev">' + icon("chevron-down") + "</span>";
-    btn.title = c.label + (c.notes ? " · " + notesText(c.notes) : "");
+    btn.title = c.label + (n ? " · " + countText(c) : "");
     btn.setAttribute("aria-label", t("bpick.title", null, "Choose a brain") + ": " + c.label);
   }
   drawButton();
@@ -166,7 +199,7 @@
 
   function rowHtml(x, i, n) {
     var on = x.value === sel.value;
-    var sub = notesText(x.notes);
+    var sub = countText(x);
     if (reorder) {
       return '<div class="bp-row bp-move" data-i="' + i + '" data-value="' + esc(x.value) + '">' +
         '<span class="bp-grip" title="' + esc(t("bpick.drag", null, "Drag to move")) + '">' + icon("arrow-up-down") + "</span>" +
@@ -227,6 +260,10 @@
     }
     var cur = listEl.querySelector(".bp-row.on");
     if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" });
+    // The counts: the current brain first, then the others (each answer redraws the list).
+    var all = entries();
+    askCounts(sel.value);
+    all.forEach(function (x) { if (x.value !== sel.value) askCounts(x.value); });
   }
   function close() {
     if (!open) return;

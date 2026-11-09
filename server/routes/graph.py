@@ -161,6 +161,16 @@ def _make_router() -> APIRouter:
         body = await asyncio.to_thread(json.dumps, data, ensure_ascii=False, separators=(",", ":"))
         return Response(body, media_type="application/json", headers=hdr)
 
+    @router.get("/graph/counts")
+    async def graph_counts(
+        source: str = Query("brain", description="all | brain | vault"),
+        path: str = Query(None, description="A brain folder (the picker's path:<folder> value)"),
+    ):
+        """Note and link counts of one brain, as its graph shows them (2026-11-09, the brain picker). Asked only when the
+        picker opens, never at page load, and counted from the per-file link cache on a worker thread."""
+        from graph_builder import graph_counts as _counts
+        return await asyncio.to_thread(_counts, _resolve_graph_roots(source, path))
+
     @router.websocket("/ws/graph")
     async def ws_graph(ws: WebSocket):
         """Đẩy realtime khi note .md sinh ra / đổi. Nghe SỰ KIỆN file từ HĐH qua watchfiles

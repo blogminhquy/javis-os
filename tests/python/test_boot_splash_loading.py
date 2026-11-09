@@ -72,6 +72,36 @@ def test_new_texts_in_both_languages():
         assert d.get("boot.starting") and d.get("boot.just_started"), lang
 
 
+def test_brain_picker_counts_nodes_and_links_only_when_opened(tmp_path, monkeypatch):
+    """The picker shows each brain's node and link counts as its graph shows them, asked when the picker opens."""
+    import graph_builder as G
+    monkeypatch.setenv("JAVIS_STATE_DIR", str(tmp_path / "state"))
+    b = tmp_path / "brain"
+    (b / "notes").mkdir(parents=True)
+    (b / "notes" / "A.md").write_text("[[B]] [[C]] [[missing]]", encoding="utf-8")
+    (b / "notes" / "B.md").write_text("[[A]]", encoding="utf-8")
+    (b / "C.md").write_text("alone", encoding="utf-8")
+    (b / ".hidden").mkdir()
+    (b / ".hidden" / "D.md").write_text("[[A]]", encoding="utf-8")
+    G._COUNTS.clear()
+    got = G.graph_counts([str(b)])
+    stats = G.graph_with_etag([str(b)], include_orphans=True)[1]["stats"]
+    assert got == {"nodes": stats["total_notes"], "links": stats["total_links"], "capped": False} == \
+        {"nodes": 3, "links": 2, "capped": False}
+    assert G.graph_counts([str(b)], max_files=2)["capped"] is True
+    js = _read("brain-picker.js")
+    show = js.split("function show() {", 1)[1].split("\n  function close()", 1)[0]
+    assert "askCounts(sel.value);" in show                     # asked when the picker opens...
+    init = js.split("function show() {", 1)[0]
+    assert "askCounts(" not in init.split("function askCounts(", 1)[0]   # ...and nowhere at page load
+    assert '"/graph/counts?"' in js
+    route = (SERVER / "routes" / "graph.py").read_text(encoding="utf-8")
+    assert '@router.get("/graph/counts")' in route and "await asyncio.to_thread(_counts" in route
+    for lang, word in (("vi", "node"), ("en", "nodes")):
+        d = json.loads((DASH / "i18n" / ("%s.json" % lang)).read_text(encoding="utf-8"))
+        assert word in d["bpick.notes"] and word in d["bpick.graph"] and word in d["app.graph_stats"]
+
+
 if __name__ == "__main__":
     import sys
     try:

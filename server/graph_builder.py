@@ -7,6 +7,7 @@ import json
 import os
 import re
 import threading
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -209,6 +210,46 @@ def graph_with_etag(roots: List[str], max_files: int = 2000, include_orphans: bo
         _result_cache.pop(next(iter(_result_cache)))
     _result_cache[key] = (etag, data)
     return etag, data
+
+
+_COUNTS: Dict[tuple, Tuple[float, dict]] = {}   # (roots, max_files) -> (when, counts)
+COUNTS_TTL_S = 60.0
+
+
+def graph_counts(roots: List[str], max_files: int = 2000) -> Dict:
+    """{nodes, links, capped}: the numbers the graph screen shows with orphans on (`stats.total_notes`,
+    `stats.total_links`), without building the graph (2026-11-09, the brain picker's counts).
+
+    Reads the same per-file wikilink cache as `graph_with_etag` (only new or changed files are read), counts notes by
+    their lower-cased file name as the graph does, and links as unique pairs of existing notes. `capped`: the brain has
+    at least `max_files` notes, the graph's own limit, so the count is a floor. Kept COUNTS_TTL_S seconds: the picker
+    may open often, and a fresh count only needs to walk the folders again after that."""
+    key = (tuple(roots), int(max_files))
+    hit = _COUNTS.get(key)
+    if hit and time.monotonic() - hit[0] < COUNTS_TTL_S:
+        return dict(hit[1])
+    nodes, ordered, left = set(), [], max_files
+    for root in roots:
+        if not root or not os.path.isdir(root) or left <= 0:
+            continue
+        files = _collect(root, left)
+        left -= len(files)
+        for rel, _fp, _mt, _size, _born, targets in files:
+            node_id = rel.rsplit("/", 1)[-1][:-3].lower()
+            if node_id in nodes:
+                continue
+            nodes.add(node_id)
+            ordered.append((node_id, targets))
+    pairs = set()
+    for node_id, targets in ordered:
+        for t in targets:
+            if t in nodes and t != node_id:
+                pairs.add((node_id, t) if node_id < t else (t, node_id))
+    out = {"nodes": len(nodes), "links": len(pairs), "capped": left <= 0}
+    if len(_COUNTS) >= 64:
+        _COUNTS.pop(next(iter(_COUNTS)))
+    _COUNTS[key] = (time.monotonic(), out)
+    return dict(out)
 
 
 def build_graph(roots: List[str], max_files: int = 2000, include_orphans: bool = False) -> Dict:
