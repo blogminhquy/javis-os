@@ -175,6 +175,9 @@
 
   // ── Dải "Đang kết nối lại máy chủ" ──
   var dangThu = 0, dai = null;
+  // True while at least one read waits to be tried again (the reconnect band is on screen). The Partners page holds its
+  // "taking too long" error meanwhile: the band already says what is going on (#1213).
+  api.retrying = function () { return dangThu > 0; };
   function veDai(hien) {
     try {
       if (hien) {

@@ -1616,7 +1616,15 @@
     // 2026-11-08 (customer report: "chỉ bấm vào chat là không được"): the chat box stays locked until this open ends,
     // so an open that hangs (a read that never answers) left a locked box with no word on screen. Past OPEN_WAIT_MS the
     // error and its Retry show; the box still unlocks by itself if the open finishes after all.
-    var slow = setTimeout(function () { if (still() && !ready) veLoi(t("ws.err_session_slow")); }, OPEN_WAIT_MS);
+    // #1213: while fetch-gop.js is trying reads again its reconnect band is on screen, so the error waits for the
+    // retries to end instead of firing in the middle of them (they alone can take about 10 s).
+    var slow;
+    var slowCheck = function () {
+      if (!still() || ready) return;
+      if (reconnecting()) { slow = setTimeout(slowCheck, OPEN_RECHECK_MS); return; }
+      veLoi(t("ws.err_session_slow"));
+    };
+    slow = setTimeout(slowCheck, OPEN_WAIT_MS);
     try {
       // Performance (2026-11-05): the right column (settings form, Auto block, history list) belongs to the PARTNER, not
       // to one chat. New conversation and a history click keep the same partner, so it is not rebuilt: rebuilding it
@@ -1627,7 +1635,10 @@
       var b = encodeURIComponent(brain()), ch = kenh(item), id = sidChiDinh || null;
       if (!id && !moiHan && item.system) {
         // Javis Core: open the brain's default chat, the one reports land in (the server makes it when missing).
-        var c = await api("/javis-core/session", { method: "POST", body: fd({ brain: brain() }) });
+        // A POST is never retried by fetch-gop.js and had no limit: a connection that hung kept the open waiting for
+        // good (#1213). Past CORE_SESSION_WAIT_MS it is cut and the error with its Retry shows.
+        var c = await api("/javis-core/session", { method: "POST", body: fd({ brain: brain() }),
+                                                   signal: abortAfter(CORE_SESSION_WAIT_MS) });
         if (!still()) return false;
         id = c && c.id;
       }
@@ -1676,7 +1687,21 @@
       clearTimeout(slow);
     }
   }
-  var OPEN_WAIT_MS = 12000;
+  // 16 s: a batched read may wait ANSWER_WAIT_MS (4 s) before going to the server on its own, and the open makes a few
+  // reads in a row. 12 s showed the error on opens that were only slow, never stuck (#1213).
+  var OPEN_WAIT_MS = 16000;
+  var OPEN_RECHECK_MS = 2000;
+  var CORE_SESSION_WAIT_MS = 15000;
+  function reconnecting() {
+    try { return !!(window.JavisFetchGop && window.JavisFetchGop.retrying && window.JavisFetchGop.retrying()); }
+    catch (e) { return false; }
+  }
+  function abortAfter(ms) {
+    if (typeof AbortController !== "function") return undefined;
+    var c = new AbortController();
+    setTimeout(function () { try { c.abort(); } catch (e) {} }, ms);
+    return c.signal;
+  }
   function clearOpenError() {
     var el = S.el && S.el.querySelector("#wsIdentity"); if (!el) return;
     el.querySelectorAll(".ws-err, #wsRetry").forEach(function (n) { n.remove(); });
