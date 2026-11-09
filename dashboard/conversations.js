@@ -1346,6 +1346,29 @@
         var cuoi = _msgs.length ? _msgs[_msgs.length - 1].id : 0;
         moi = (d.messages || []).filter(function (m) { return m.id > cuoi; });
         _msgs = _msgs.concat(moi);
+        // Metadata on an existing AI message changes after the Zalo send.
+        // An "after=id" poll returns no such edits; refresh only while pending,
+        // and repaint once the transport has reported an outcome.
+        if (_msgs.some(function (m) {
+          return m.metadata && m.metadata.zalo_delivery && m.metadata.zalo_delivery.state === "sending";
+        })) {
+          var receiptData = await api("/conversations/" + id + "/messages?limit=30");
+          if (_chon !== id) return;
+          var byId = {};
+          (receiptData.messages || []).forEach(function (m) { byId[m.id] = m; });
+          var updatedReceipt = false;
+          _msgs = _msgs.map(function (m) {
+            var fresh = byId[m.id];
+            var oldState = m.metadata && m.metadata.zalo_delivery && m.metadata.zalo_delivery.state;
+            var newState = fresh && fresh.metadata && fresh.metadata.zalo_delivery && fresh.metadata.zalo_delivery.state;
+            if (oldState === "sending" && newState && newState !== oldState) {
+              updatedReceipt = true;
+              return fresh;
+            }
+            return m;
+          });
+          if (updatedReceipt) _dauVetTin = "";
+        }
       }
     } catch (e) {
       // A chat shown from the cache that no longer answers (deleted elsewhere): forget it, so the next open asks afresh.
@@ -2318,6 +2341,20 @@
         ' ' + esc(t.message_type) + '</span>' : "";
     var loi = t.metadata && t.metadata.loi
       ? '<div class="ht-msg-loi">' + ic("triangle-alert") + ' ' + esc(t.metadata.loi) + '</div>' : "";
+    // A bot answer in the inbox is not proof of successful Zalo transmission.
+    // These statuses come from the transport's result, not the model output.
+    var dl = t.sender_type === "ai" && _conv && _conv.channel === "zalo_personal"
+           && t.metadata && t.metadata.zalo_delivery;
+    var deliveryText = dl ? ({
+      sending: "⏳ Đang gửi tới Zalo, chưa được xác nhận",
+      accepted: "✓ Cổng Zalo báo gửi thành công (chưa xác nhận người nhận đã thấy)",
+      failed: "⚠ Gửi Zalo thất bại",
+      unknown: "⚠ Không rõ Zalo đã nhận tin chưa; không tự gửi lại để tránh trùng",
+      cancelled: "↩ Chưa gửi: lượt này đã bị hủy hoặc thay bằng câu trả lời mới"
+    }[dl.state] || "") : "";
+    var deliveryHtml = deliveryText
+      ? '<div class="' + ((dl.state === "failed" || dl.state === "unknown") ? "ht-msg-loi" : "ht-msg-h") +
+        '">' + esc(deliveryText) + (dl.error ? ' · ' + esc(dl.error) : '') + '</div>' : "";
     if (t.metadata && t.metadata.private_reply_to) {
       var ig = isInstagram(_conv);
       loai = '<span class="ht-loai ht-priv-tag">' + (ig ? badgeOf({ channel: "messenger", external_chat_id: "ig:" }, "13px") :
@@ -2327,7 +2364,7 @@
     // group shows who wrote each message.
     if (lop === "khach" && _conv && _conv.chat_type !== "group") ai = "";
     return '<div class="ht-msg ' + lop + '">' +
-      '<div class="ht-bubble">' + loai + than + '</div>' + loi +
+      '<div class="ht-bubble">' + loai + than + '</div>' + loi + deliveryHtml +
       '<div class="ht-msg-h">' + esc(ai) + (ai ? ' · ' : '') + esc(gio(t.created_at)) + '</div>' +
     '</div>';
   }
