@@ -1902,6 +1902,20 @@
     }
   }
 
+  // 2026-11-09: the engine badge on each chat row names the brain the owner picked, not the internal id ("cli" read
+  // as nothing to the owner; it is Claude Code). Brand names, so no i18n. An id not listed here (a provider added
+  // later) still shows, cut to 10 characters as before.
+  var ENGINE_BADGE = {
+    "cli": "Claude", "claude-code": "Claude", "anthropic-api": "Anthropic",
+    "codex": "Codex", "openai-oauth": "Codex", "openai": "OpenAI",
+    "grok-cli": "Grok", "antigravity-cli": "Antigravity",
+    "openrouter": "OpenRouter", "gemini": "Gemini", "groq": "Groq", "deepseek": "DeepSeek", "ollama": "Ollama",
+  };
+  function engineBadge(engine) {
+    var id = String(engine || "").trim();
+    return ENGINE_BADGE[id.toLowerCase()] || id.slice(0, 10);
+  }
+
   function renderList(items, hasMore) {
     if (!items.length) {
       listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.empty1")) + '<br>' + esc(window.t("sess.empty2")) + '</div>';
@@ -1928,7 +1942,7 @@
         listEl.appendChild(head);
         lastGroup = g;
       }
-      var eng = (s.engine || "").toString().slice(0, 10);
+      var eng = engineBadge(s.engine);
       // Kênh sinh ra hội thoại: web là mặc định nên khỏi ghi, Telegram thì gắn nhãn để
       // khỏi lẫn với cuộc tự mở trên dashboard.
       // Đang LỌC theo kênh thì nhãn kênh là thừa: mọi hàng đều cùng một kênh, in ra chỉ tổ
