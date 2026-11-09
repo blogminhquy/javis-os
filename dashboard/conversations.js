@@ -2347,15 +2347,15 @@
       ? '<div class="ht-msg-loi">' + ic("triangle-alert") + ' ' + esc(t.metadata.loi) + '</div>' : "";
     // A bot answer in the inbox is not proof of successful Zalo transmission.
     // These statuses come from the transport's result, not the model output.
-    var dl = t.sender_type === "ai" && _conv && _conv.channel === "zalo_personal"
-           && t.metadata && t.metadata.zalo_delivery;
-    var deliveryText = dl ? ({
-      sending: "⏳ Đang gửi tới Zalo, chưa được xác nhận",
-      accepted: "✓ Cổng Zalo báo gửi thành công (chưa xác nhận người nhận đã thấy)",
-      failed: "⚠ Gửi Zalo thất bại",
-      unknown: "⚠ Không rõ Zalo đã nhận tin chưa; không tự gửi lại để tránh trùng",
-      cancelled: "↩ Chưa gửi: lượt này đã bị hủy hoặc thay bằng câu trả lời mới"
-    }[dl.state] || "") : "";
+    var dl = t.sender_type === "ai" && t.metadata && t.metadata.zalo_delivery;
+    var deliveryKey = dl && ({
+      sending: "ht.zalo_sending",
+      accepted: "ht.zalo_accepted",
+      failed: "ht.zalo_failed",
+      unknown: "ht.zalo_unknown",
+      cancelled: "ht.zalo_cancelled"
+    }[dl.state] || "");
+    var deliveryText = deliveryKey ? window.t(deliveryKey) : "";
     var deliveryHtml = deliveryText
       ? '<div class="' + ((dl.state === "failed" || dl.state === "unknown") ? "ht-msg-loi" : "ht-msg-h") +
         '">' + esc(deliveryText) + (dl.error ? ' · ' + esc(dl.error) : '') + '</div>' : "";
