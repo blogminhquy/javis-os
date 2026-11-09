@@ -724,6 +724,46 @@ def set_message_id(row_id: int, external_message_id: str) -> bool:
         return False
 
 
+
+def set_zalo_delivery(message_id: int, state: str, error: str = "") -> bool:
+    """Set the send outcome for exactly one pending Zalo AI reply.
+
+    The inbox initially records a bot answer BEFORE transport runs. That is
+    *not* a delivered message. Only the transport may advance it from
+    'sending' to 'accepted', 'failed' or 'unknown' (e.g. CLI timeout).
+    'accepted' means the channel reported success, NOT that a recipient read it.
+    Idempotent: no later call can overwrite a settled receipt.
+    """
+    if state not in ("accepted", "failed", "unknown"):
+        return False
+    try:
+        with _lock:
+            db = _conn()
+            row = db.execute(
+                "SELECT m.metadata_json FROM messages m "
+                "JOIN conversations c ON c.id=m.conversation_id "
+                "WHERE m.id=? AND m.sender_type='ai' "
+                "AND c.channel_account_id LIKE 'zalo_personal:%'",
+                (int(message_id),)).fetchone()
+            if not row:
+                return False
+            md = _loads(row["metadata_json"], {})
+            delivery = md.get("zalo_delivery") if isinstance(md, dict) else None
+            if not isinstance(delivery, dict) or delivery.get("state") != "sending":
+                return False
+            md["zalo_delivery"] = {
+                "state": state,
+                "error": str(error or "")[:300] if state != "accepted" else "",
+            }
+            db.execute("UPDATE messages SET metadata_json=? WHERE id=?",
+                       (_json(md), int(message_id)))
+            db.commit()
+        return True
+    except Exception as ex:  # noqa: BLE001 - failed receipt never interrupts sending
+        print(f"[conversations] set_zalo_delivery failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return False
+
+
 # ============================================================
 # Đọc
 # ============================================================
