@@ -35,6 +35,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import brain_ident
 import coding_store
 import localefmt
 import winproc
@@ -380,14 +381,27 @@ def clone_path(brain_root: str, full_name: str) -> Path:
     return REPOS_DIR / _brain_slug(brain_root) / owner / name
 
 
+def _same_brain(stored: Any, brain: str) -> bool:
+    """A record belongs to `brain` whichever spelling either side uses (#1109). A chat turn passes the alias "brain"
+    for the default brain while the dashboard saved the record with its folder ("/brains/Brain Default"); comparing
+    the strings hid the record, so the gate ran CI's commands instead of the saved ones and the GitHub card listed
+    nothing. brain_ident never folds an unknown folder into the default brain."""
+    return stored == brain or brain_ident.same_brain(stored, brain)
+
+
 def list_local(brain: str = "") -> List[Dict[str, Any]]:
-    return [dict(r) for r in _load()["repos"] if not brain or r.get("brain") == brain]
+    return [dict(r) for r in _load()["repos"] if not brain or _same_brain(r.get("brain"), brain)]
 
 
 def find(brain: str, full_name: str) -> Optional[Dict[str, Any]]:
     fn = norm_full_name(full_name).lower()
-    for r in _load()["repos"]:
-        if r.get("brain") == brain and str(r.get("full_name") or "").lower() == fn:
+    same_name = [r for r in _load()["repos"] if str(r.get("full_name") or "").lower() == fn]
+    # The exact spelling first: an older install may hold one record per spelling of the same brain.
+    for r in same_name:
+        if r.get("brain") == brain:
+            return dict(r)
+    for r in same_name:
+        if _same_brain(r.get("brain"), brain):
             return dict(r)
     return None
 

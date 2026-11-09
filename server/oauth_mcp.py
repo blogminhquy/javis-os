@@ -138,6 +138,33 @@ async def _meta_longlive(token_endpoint, client_id, client_secret, token):
         return None
 
 
+def _prm_candidates(url):
+    """RFC 9728 well-known URIs of a protected resource: the path-inserted one first, then the root one."""
+    p = urllib.parse.urlparse(url)
+    if p.scheme not in ("http", "https") or not p.netloc:
+        return []
+    origin = f"{p.scheme}://{p.netloc}"
+    path = p.path.rstrip("/")
+    return ([origin + "/.well-known/oauth-protected-resource" + path] if path else []) + \
+        [origin + "/.well-known/oauth-protected-resource"]
+
+
+async def _protected_resource(client, metadata_url):
+    """(issuer, scopes_supported, resource) from protected resource metadata, or None when there is none. The issuer is
+    "" when the metadata names no authorization server."""
+    r = await client.get(metadata_url)
+    if r.status_code != 200:
+        return None
+    rm = r.json()
+    if not isinstance(rm, dict):
+        return None
+    servers = rm.get("authorization_servers") or []
+    prm_scopes = [str(x) for x in (rm.get("scopes_supported") or []) if str(x).strip()]
+    # #939: the canonical resource identifier (RFC 9728) can differ from the transport URL
+    # (Spacemail: server https://mcp.spacemail.com/mcp, resource https://mcp.spacemail.com/).
+    return (str(servers[0]) if servers else ""), prm_scopes, str(rm.get("resource") or "").strip()
+
+
 async def _discover(url):
     """Tìm authorization server metadata cho 1 MCP url. Trả dict metadata hoặc None."""
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
@@ -163,16 +190,24 @@ async def _discover(url):
                 mp = urllib.parse.urlparse(m)
                 up = urllib.parse.urlparse(url)
                 if mp.scheme in ("http", "https") and mp.netloc == up.netloc:
-                    rm = (await client.get(m)).json()
-                    prm_scopes = [str(x) for x in (rm.get("scopes_supported") or []) if str(x).strip()]
-                    # #939: the canonical resource identifier (RFC 9728) can differ from the transport URL
-                    # (Spacemail: server https://mcp.spacemail.com/mcp, resource https://mcp.spacemail.com/).
-                    prm_resource = str(rm.get("resource") or "").strip()
-                    servers = rm.get("authorization_servers") or []
-                    if servers:
-                        issuer = servers[0]
+                    prm = await _protected_resource(client, m)
+                    if prm:
+                        issuer, prm_scopes, prm_resource = prm
+                        issuer = issuer or None
         except Exception:
             pass
+        if not issuer:
+            # No `resource_metadata` hint (CapCut answers `initialize` with 200 and no WWW-Authenticate), or the hint
+            # failed: probe the RFC 9728 well-known URIs, as the MCP auth spec (2025-06-18) tells clients to (#1217).
+            # Built from the MCP url itself, so the request stays on the origin the owner typed in (same SSRF rule).
+            for cand in _prm_candidates(url):
+                try:
+                    prm = await _protected_resource(client, cand)
+                except Exception:
+                    continue
+                if prm and prm[0]:
+                    issuer, prm_scopes, prm_resource = prm
+                    break
         def _wk(base):
             """Ứng viên .well-known cho 1 issuer/URL. Issuer CÓ PATH (vd Meta
             https://mcp.facebook.com/ads) thì RFC 8414 đặt metadata dạng CHÈN GIỮA

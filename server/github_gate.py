@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -134,6 +135,26 @@ def runner_os(job: Dict[str, Any]) -> set:
 _WIN_SHELLS = ("pwsh", "powershell", "cmd")
 
 
+def _default_dir(node: Any) -> str:
+    """`defaults.run.working-directory` of a workflow or a job, or ""."""
+    d = node.get("defaults") if isinstance(node, dict) else None
+    run = d.get("run") if isinstance(d, dict) else None
+    return str(run.get("working-directory") or "").strip() if isinstance(run, dict) else ""
+
+
+def _in_dir(run: str, wd: str, host: str) -> str:
+    """`run` started from `wd` the way CI starts it (#1109). An app in a subfolder (`working-directory: web`) used to
+    run its `npm ci` at the repo root, fail every time, and block the push from chat. Bash (`run_checks` uses
+    `bash -e`) stops on a failed `cd`; cmd gets one line with `/d` for another drive."""
+    wd = wd.strip()
+    if wd in ("", ".", "./", ".\\"):
+        return run
+    if host == "windows":
+        return f'cd /d "{wd}" && {run}'
+    q = shlex.quote(wd)
+    return f"cd {q} && {run}" if "\n" not in run else f"cd {q}\n{run}"
+
+
 def commands_from_workflow(text: str, host: Optional[str] = None) -> List[Dict[str, str]]:
     """`run:` steps of a workflow that make sense on this machine, in order. Each item: {name, run}.
 
@@ -156,6 +177,7 @@ def commands_from_workflow(text: str, host: Optional[str] = None) -> List[Dict[s
     jobs = doc.get("jobs") or {}
     if not isinstance(jobs, dict):
         return []
+    workflow_dir = _default_dir(doc)
     for job in jobs.values():
         if not isinstance(job, dict):
             continue
@@ -164,6 +186,7 @@ def commands_from_workflow(text: str, host: Optional[str] = None) -> List[Dict[s
         fams = runner_os(job)
         if fams and host not in fams:
             continue
+        job_dir = _default_dir(job) or workflow_dir
         for step in job.get("steps") or []:
             if not isinstance(step, dict) or not step.get("run"):
                 continue
@@ -174,7 +197,10 @@ def commands_from_workflow(text: str, host: Optional[str] = None) -> List[Dict[s
                 continue
             if step.get("env") and "${{" in str(step.get("env")):
                 continue
-            item = {"name": str(step.get("name") or run.splitlines()[0])[:80], "run": run}
+            wd = str(step.get("working-directory") or "").strip() or job_dir
+            if "${{" in wd:
+                continue   # an expression only CI can fill in
+            item = {"name": str(step.get("name") or run.splitlines()[0])[:80], "run": _in_dir(run, wd, host)}
             if item not in out:
                 out.append(item)
     return out
