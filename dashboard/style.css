@@ -4850,6 +4850,12 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   font-weight: 700; letter-spacing: 4px; border: 1px dashed var(--border); border-radius: 12px; user-select: all; overflow-wrap: anywhere; }
 .gh-form .lv-form-act a.s-btn, .gh-card a.conn-chip { text-decoration: none; display: inline-flex; align-items: center; }
 @media (max-width: 480px) { .gh-code { font-size: 26px; letter-spacing: 2px; } }
+/* The git step before connecting (09/11/2026): the command to run by hand, and the "git is installed" line. */
+.gh-git-cmd { margin: 8px 0 4px; padding: 10px 12px; font-family: var(--mono, ui-monospace, monospace); font-size: 16px; line-height: 1.45;
+  white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2); }
+.gh-git-ok { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; color: var(--green, #2c7a4b); }
+.gh-git-ok .cp-ic { width: 18px; height: 18px; flex: none; }
+.gh-git .lv-form-act a.s-btn-ghost { text-decoration: none; display: inline-flex; align-items: center; }
 /* GitHub status icon per conversation (0.365.0, spec 12.1): right of the title in the chat list, and in the repo chip. */
 .cside-item.has-gh { position: relative; }
 .cside-item.has-gh .ci-title { padding-right: 36px; }

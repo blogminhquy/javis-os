@@ -147,7 +147,7 @@ Khi hai máy sửa cùng một file giữa hai lần đồng bộ, bạn sẽ th
 
 | Triệu chứng | Nguyên nhân / cách xử lý |
 |---|---|
-| "máy chưa cài git" | Cài git trên máy/VPS. Docker image chính thức đã có sẵn. |
+| "máy chưa cài git" | Vào **Kết nối**, bấm **Kết nối** (hoặc **Cài git**) ở thẻ GitHub: Javis tự cài git. Hoặc cài tay trên máy/VPS. Docker image chính thức đã có sẵn. |
 | Kiểm tra kết nối báo lỗi 403 | Token thiếu quyền Contents: Read and write, hoặc chưa chọn đúng repo. |
 | Đẩy được nhưng trên GitHub không thấy file ở nhánh quen thuộc | Ô **Nhánh** đang khác nhánh mặc định của repo (mặc định Javis dùng `main`). Sửa ô Nhánh cho khớp rồi Lưu cấu hình và đồng bộ lại. |
 | "push liên tục bị vượt" | Nhiều máy đồng bộ cùng lúc liên tục. Bấm lại sau ít phút - cơ chế tự hoà sẽ khớp. |

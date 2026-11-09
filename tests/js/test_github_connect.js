@@ -158,6 +158,38 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
     "gh.reviewing", "gh.review_fixing", "gh.review_started", "gh.review_on_meta"].every(function (k) { return vi[k] && en[k]; }));
 }
 
+// Owner, 09/11/2026: check for git before connecting GitHub, and install it first when the machine has none.
+{
+  check("git step: an answer with git is ready", gh.gitPhase({ ok: true, has_git: true, install: "idle" }) === "ready");
+  check("git step: a running install keeps polling",
+    gh.gitPhase({ ok: true, has_git: false, install: "installing" }) === "installing" &&
+    gh.gitPhase({ ok: true, has_git: false, install: "installing", wait_user: true }) === "wait_user");
+  check("git step: a failed install shows retry", gh.gitPhase({ ok: true, has_git: false, install: "failed", can_install: true }) === "failed");
+  check("git step: no way to install here shows the manual command", gh.gitPhase({ ok: true, has_git: false, install: "idle", can_install: false }) === "manual");
+  check("git step: a network error is its own phase", gh.gitPhase(null) === "error" && gh.gitPhase({ ok: false }) === "error");
+  const of = js.slice(js.indexOf("function openForm(st)"), js.indexOf("async function setupGit"));
+  check("Connect goes through the git step when the machine has no git, then opens the sign-in form",
+    /st\.has_git === false\) \{ setupGit\(function \(g\) \{ connectForm\(st, g\); \}\)/.test(of) && of.includes("connectForm(st);"));
+  const sg = js.slice(js.indexOf("async function setupGit"), js.indexOf("function connectForm"));
+  check("the git step asks the server to install, then polls GET /github/git",
+    sg.includes('api("/github/git/install", {})') && sg.includes('api("/github/git")') && /setTimeout\(res, 2500\)/.test(sg));
+  check("the git step stops polling once the dialog is closed or replaced", (sg.match(/if \(!open\(\)\) return;/g) || []).length >= 3);
+  check("a failure offers Try again, the manual command and a way on", sg.includes('data-f="retry"') && sg.includes("g.manual") &&
+    sg.includes('data-f="skip"') && sg.includes("then(null)"));
+  check("the installing line uses the shared loading look", sg.includes('class="pg-loading"'));
+  const card = js.slice(js.indexOf("function cardHtml"), js.indexOf("async function loadCard"));
+  check("the card says Connect installs git first; a connected card gets an Install git button",
+    card.includes('"gh.no_git_auto"') && card.includes("data-gh-git") && js.includes('cardHost.querySelector("[data-gh-git]")'));
+  const gitKeys = ["gh.no_git", "gh.no_git_auto", "gh.git_install", "gh.git_head", "gh.git_checking", "gh.git_installing",
+    "gh.git_wait_apple", "gh.git_bg", "gh.git_ok", "gh.git_failed", "gh.git_manual", "gh.git_cmd", "gh.git_retry",
+    "gh.git_recheck", "gh.git_page", "gh.git_skip"];
+  check("git step texts exist in both languages", gitKeys.every(k => vi[k] && en[k]));
+  check("git step texts keep the {v} slot in both languages", vi["gh.git_ok"].includes("{v}") && en["gh.git_ok"].includes("{v}"));
+  check("the manual-install line names the button actually shown", vi["gh.git_cmd"].includes("{btn}") && en["gh.git_cmd"].includes("{btn}") &&
+    sg.includes('tw("gh.git_cmd", { btn: again })') && sg.includes("esc(again)"));
+  check("git step texts have no em or en dash", gitKeys.every(k => !/[\u2013\u2014]/.test(vi[k] + en[k])));
+}
+
 const keys = Array.from(new Set((js.match(/tw\("(gh\.[a-z_]+)"/g) || []).map(m => m.slice(4, -1))));
 check("every gh.* key used exists in vi.json and en.json", keys.length > 20 && keys.every(k => vi[k] && en[k]));
 check("Vietnamese texts carry diacritics", /Kết nối/.test(vi["gh.connect"]) && /Gỡ khỏi brain/.test(vi["gh.remove_brain"]));

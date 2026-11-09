@@ -10,6 +10,14 @@ Thiết kế đầy đủ: [docs/dev/2026-10-github-trong-chat-spec.md](dev/2026
 
 Mở **Kết nối**. Thẻ **GitHub** luôn nằm đầu danh sách, có sẵn trong Javis, không phải cài gói nào.
 
+**Git đi trước.** Javis tải repo về bằng git, nên bấm **Kết nối** là Javis kiểm tra máy có git chưa. Thiếu thì Javis tự cài rồi mới mở bước đăng nhập, thường mất 1 đến 3 phút:
+
+- **Windows:** winget, không có winget thì bộ cài chính thức của Git for Windows. Cả hai cài cho riêng người dùng đang đăng nhập, không cần quyền quản trị.
+- **Mac:** Homebrew nếu máy có, không thì Apple mở hộp thoại cài công cụ dành cho lập trình viên: bấm **Cài đặt**, Javis tự đi tiếp khi xong.
+- **Linux/VPS:** trình quản lý gói (apt, dnf, yum, apk, pacman, zypper) khi Javis chạy bằng root hoặc có sudo không cần mật khẩu. Docker image chính thức đã có sẵn git.
+
+Không cài được thì hộp thoại hiện đúng lệnh để cài tay, nút **Thử lại** và nút **Bỏ qua, kết nối luôn**. Git cài tay trong lúc Javis đang chạy cũng được nhận ngay, không phải khởi động lại. Thẻ đã kết nối mà máy thiếu git có nút **Cài git** riêng.
+
 1. Trên github.com: **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
 2. Chọn các repo cho Javis làm việc. Bật quyền: **Contents**, **Pull requests**, **Workflows** (Read and write); **Checks**, **Actions**, **Commit statuses**, **Metadata** (Read).
 3. Dán token vào thẻ GitHub, bấm **Kết nối**.

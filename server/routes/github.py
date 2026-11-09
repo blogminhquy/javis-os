@@ -3,6 +3,8 @@
     GET  /github/status                        the built-in connection (no token ever leaves the server)
     POST /github/connect                       token=...  or  use_backup=1 (reuse the brain-backup token after a check)
     POST /github/disconnect
+    GET  /github/git                           is git on this machine, and how its install (if any) is going
+    POST /github/git/install                   install git when it is missing ("Connect" runs this first, 09/11/2026)
     POST /github/oauth/start                   "Sign in with GitHub": a device code to type at github.com/login/device
     POST /github/oauth/poll                    one poll; on success the token is stored and status comes back
     POST /github/oauth/cancel                  drop a pending sign-in
@@ -87,6 +89,18 @@ def _make_router() -> APIRouter:
     async def gh_status():
         # 0.444.4: status() may ask api.github.com (installs, up to its 20 s timeout): off the event loop.
         return {"ok": True, **(await run_in_threadpool(github_repos.status))}
+
+    @r.get("/github/git")
+    async def gh_git():
+        import git_setup
+        return {"ok": True, **(await run_in_threadpool(git_setup.state))}
+
+    @r.post("/github/git/install")
+    async def gh_git_install():
+        """Cloning a repo needs git, so the card checks it before connecting and installs it when it is missing. The
+        install runs in its own thread (minutes); the dashboard polls GET /github/git."""
+        import git_setup
+        return {"ok": True, **(await run_in_threadpool(git_setup.start))}
 
     @r.post("/github/connect")
     async def gh_connect(token: str = Form(""), use_backup: str = Form("")):

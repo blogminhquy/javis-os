@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional
 
 import brain_ident
 import coding_store
+import git_setup
 import localefmt
 import winproc
 from config import STATE_DIR
@@ -245,7 +246,8 @@ def status() -> Dict[str, Any]:
         # Never for an app sign-in: it has no scopes, and a stale flag stored by 0.430.0 to 0.432.1 is dropped here.
         "missing": [] if conn.get("source") == "app" else list(conn.get("missing") or []),
         "backup_token": bool(backup_token()),
-        "has_git": shutil.which("git") is not None,
+        # git_setup also finds a git installed after this server started (PATH of a running process never updates).
+        "has_git": git_setup.available(),
         # "Sign in with GitHub": where to pick repos, and how many accounts the app is on (-1 unknown).
         "install_url": _oauth_install_url(),
         "installs": _installs(tok) if (tok and conn.get("source") == "app") else -1,

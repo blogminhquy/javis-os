@@ -44,7 +44,9 @@ def _no_window():
 
 
 def has_git() -> bool:
-    return shutil.which("git") is not None
+    # git_setup also finds a git installed after this server started, and adds its folder to PATH (09/11/2026).
+    import git_setup
+    return git_setup.available()
 
 
 def _git_env() -> dict:

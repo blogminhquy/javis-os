@@ -41,7 +41,20 @@
       subKey: ic.merged_warning ? "gh.st_post_red" : (ic.sub ? "gh.sub_" + ic.sub : "") };
   }
 
-  var pure = { chipText: chipText, toggle: toggle, sameSet: sameSet, iconSpec: iconSpec, addToConnCount: addToConnCount };
+  // The git step before connecting (owner, 09/11/2026): one answer of /github/git -> what the dialog shows.
+  //   ready      git is here, go on to the sign-in form
+  //   installing / wait_user (macOS: Apple's dialog waits for a press on Install)
+  //   failed     Javis tried and could not; manual  Javis cannot install here (Linux without root or sudo)
+  function gitPhase(g) {
+    if (!g || g.ok === false) return "error";
+    if (g.has_git) return "ready";
+    if (g.install === "installing") return g.wait_user ? "wait_user" : "installing";
+    if (!g.can_install) return "manual";
+    return "failed";
+  }
+
+  var pure = { chipText: chipText, toggle: toggle, sameSet: sameSet, iconSpec: iconSpec, addToConnCount: addToConnCount,
+    gitPhase: gitPhase };
   if (typeof module !== "undefined" && module.exports) module.exports = pure;
   if (typeof document === "undefined") return;
 
@@ -97,7 +110,8 @@
     var warn = st.connected && st.missing && st.missing.length
       ? '<div class="lv-note">' + esc(tw("gh.missing_scopes", { scopes: st.missing.join(", ") })) + "</div>" : "";
     if (st.connected && st.source === "app" && st.installs === 0) warn += '<div class="lv-note">' + esc(tw("gh.no_install")) + "</div>";
-    var noGit = st.has_git === false ? '<div class="lv-note">' + esc(tw("gh.no_git")) + "</div>" : "";
+    // No git: Connect installs it first (setupGit), so the note only says so; a card already connected gets a button.
+    var noGit = st.has_git === false ? '<div class="lv-note">' + esc(tw(st.connected ? "gh.no_git" : "gh.no_git_auto")) + "</div>" : "";
     // The repo list opens in a popup (owner, 28/10/2026, same as the bot cards on the Chatbot page): a brain can hold many
     // repos, and listing them inline stretched the Connections page. The card keeps one compact row with the counts.
     var repos = "";
@@ -117,6 +131,7 @@
       ? '<span class="conn-chip gh-acc"><span class="cdot hok">●</span> ' + esc(st.login ? "@" + st.login : "GitHub") + "</span>" +
         (st.source === "app" && st.install_url && st.installs === 0 ? '<a class="conn-chip add" target="_blank" rel="noopener" href="' +
           esc(st.install_url) + '">' + esc(tw("gh.pick_repos")) + "</a>" : "") +
+        (st.has_git === false ? '<button class="conn-chip add" type="button" data-gh-git>' + esc(tw("gh.git_install")) + "</button>" : "") +
         '<button class="conn-chip" type="button" data-gh-open>' + esc(tw(st.source === "app" ? "gh.change_account" : "gh.change_token")) + "</button>" +
         '<button class="conn-chip" type="button" data-gh-off>' + esc(tw("gh.disconnect")) + "</button>"
       : '<button class="conn-chip add" type="button" data-gh-open>＋ ' + esc(tw("gh.connect")) + "</button>") + "</div>";
@@ -147,6 +162,8 @@
     };
     var more = cardHost.querySelector("[data-gh-repos]");
     if (more) more.onclick = function () { openRepos(local); };
+    var gitBtn = cardHost.querySelector("[data-gh-git]");
+    if (gitBtn) gitBtn.onclick = function () { setupGit(function () { window.JavisConnModal && window.JavisConnModal.close(); }); };
   }
   // One row per repo in the look of the Tasks page (owner, 06/11/2026): a card row with the repo, a meta line, the
   // auto-merge switch and a "..." menu for Checks, Numbers and Remove (the same sheet the Tasks page opens).
@@ -320,12 +337,57 @@
     var bk = m.querySelector('[data-f="back"]');
     if (bk) bk.onclick = back;
   }
-  // The connect dialog (0.430.0): "Sign in with GitHub" first (the device flow of the Javis OS GitHub App, no token to
-  // make or copy), a pasted token below it for whoever prefers that, and the brain-backup token when there is one.
+  // Connect checks git first (owner, 09/11/2026): repos are cloned with git, so a machine without it gets git installed
+  // before the sign-in form opens, instead of a card that connects and then cannot download a single repo.
   function openForm(st) {
+    if (st && st.has_git === false) { setupGit(function (g) { connectForm(st, g); }); return; }
+    connectForm(st);
+  }
+
+  // The git step. Asks the server to install git when it is missing (it answers at once when git is already there),
+  // polls while the install runs, then calls `then(answer)`. Closing the dialog does not stop the install: pressing
+  // Connect again picks up the same install. A failure shows the command to run by hand, Try again, and a way on.
+  async function setupGit(then) {
     var M = window.JavisConnModal;
     if (!M) return;
-    var html = M.head(esc(tw("gh.dialog_head"))) + '<div class="conn-form gh-form">' +
+    var m = M.open(M.head(esc(tw("gh.git_head"))) + '<div class="conn-form gh-form gh-git"><div class="pg-loading" role="status">' +
+      esc(tw("gh.git_checking")) + "</div></div>", 560);
+    var form = m.querySelector(".gh-git");
+    function open() { return form.isConnected && m.classList.contains("open"); }
+    var g = await api("/github/git/install", {}), phase = gitPhase(g);
+    while (phase === "installing" || phase === "wait_user") {
+      if (!open()) return;
+      form.innerHTML = '<div class="pg-loading" role="status" aria-live="polite">' +
+        esc(tw(phase === "wait_user" ? "gh.git_wait_apple" : "gh.git_installing")) + "</div>" +
+        '<div class="lv-meta">' + esc(tw("gh.git_bg")) + "</div>";
+      await new Promise(function (res) { setTimeout(res, 2500); });
+      if (!open()) return;
+      g = await api("/github/git");
+      phase = gitPhase(g);
+    }
+    if (!open()) return;
+    if (phase === "ready") { loadCard(); then(g); return; }
+    var why = phase === "manual" ? tw("gh.git_manual") : ((g && g.error) || tw(phase === "error" ? "gh.err_net" : "gh.git_failed"));
+    // One button for both: the server checks for git before installing, so after a manual install it just finds it.
+    var again = tw(phase === "manual" ? "gh.git_recheck" : "gh.git_retry");
+    form.innerHTML = '<div class="lv-note">' + esc(why) + "</div>" +
+      (g && g.manual ? '<div class="lv-meta">' + esc(tw("gh.git_cmd", { btn: again })) + '</div><pre class="gh-git-cmd">' + esc(g.manual) + "</pre>" : "") +
+      '<div class="lv-form-act"><button class="s-btn" type="button" data-f="retry">' + esc(again) + "</button>" +
+      (g && g.manual_url ? '<a class="s-btn-ghost" target="_blank" rel="noopener" href="' + esc(g.manual_url) + '">' + esc(tw("gh.git_page")) + "</a>" : "") +
+      '<button class="s-btn-ghost" type="button" data-f="skip">' + esc(tw("gh.git_skip")) + "</button></div>";
+    form.querySelector('[data-f="retry"]').onclick = function () { setupGit(then); };
+    form.querySelector('[data-f="skip"]').onclick = function () { then(null); };
+  }
+
+  // The connect dialog (0.430.0): "Sign in with GitHub" first (the device flow of the Javis OS GitHub App, no token to
+  // make or copy), a pasted token below it for whoever prefers that, and the brain-backup token when there is one.
+  // `git`: the answer of the git step when it ran; "git x.y is installed" heads the form when this visit installed it.
+  function connectForm(st, git) {
+    var M = window.JavisConnModal;
+    if (!M) return;
+    var gitOk = git && git.install === "ok" && git.has_git
+      ? '<div class="lv-meta gh-git-ok">' + CHECK + "<span>" + esc(tw("gh.git_ok", { v: git.version ? " " + git.version : "" })) + "</span></div>" : "";
+    var html = M.head(esc(tw("gh.dialog_head"))) + '<div class="conn-form gh-form">' + gitOk +
       '<div class="gh-signin"><button class="s-btn gh-signin-btn" type="button" data-f="signin">' + LOGO + "<span>" +
       esc(tw("gh.signin")) + "</span></button>" + infoBtn() + "</div>" + infoBody(esc(tw("gh.signin_how"))) +
       '<div class="lv-meta">' + esc(tw("gh.signin_sub")) + "</div>" +
