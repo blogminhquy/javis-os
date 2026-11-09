@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.519.0] - 2026-11-09
+### Bảo mật
+- **Lỡ lộ link quản trị thì Google không đưa lên kết quả tìm kiếm.** Mọi trang của Javis giờ mang lệnh `noindex`, kể cả màn hình đăng nhập và link chia sẻ.
+- **Bot AI không đọc được Javis.** GPTBot, ClaudeBot, PerplexityBot, công cụ SEO và máy quét như Shodan, Censys nhận lỗi 403, không thấy chữ nào. Javis cũng có `/robots.txt` cấm chúng.
+- Trình duyệt thật, khung xem trước link khi dán vào Zalo hay Telegram, webhook và Javis Gate vẫn chạy như cũ. Cần tắt lớp chặn thì đặt `JAVIS_BLOCK_BOTS=0`.
+
 ## [0.518.1] - 2026-11-09
 ### Bảo mật
 - **Các file bảo mật tài khoản không còn lọt vào git hay image Docker.** Dấu vân tay tài khoản, nhật ký bảo mật, danh sách mạng đã đăng nhập và thông tin phiên giờ nằm trong danh sách bỏ qua, nên `git add -A` hay `docker build` trên máy không mang chúng theo nữa.
