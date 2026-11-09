@@ -125,6 +125,25 @@ def list_accounts(channel: str = "", brain: str = "") -> List[dict]:
     return out
 
 
+def keys_of_other_brains(brain: str) -> List[str]:
+    """Conversation account keys ("<channel>:<id>") of the bot accounts assigned to a brain OTHER than `brain` (#1243).
+
+    The Conversations list of a brain leaves these out. It is a deny list on purpose, the same rule as `list_accounts`:
+    an account with no brain, a Zalo personal connection (not in this store, it belongs to no brain) and the chats of an
+    account deleted since stay visible everywhere, so moving a Page to another brain never makes a chat disappear from
+    every screen. Empty `brain` = no filter."""
+    br = _clean_brain(brain)
+    if not br:
+        return []
+    out = []
+    with _lock:
+        for a in _load()["accounts"]:
+            mine = _clean_brain(a.get("brain"))
+            if mine and mine != br and not brain_ident.same_brain(mine, br):
+                out.append(f"{a.get('channel')}:{a.get('id')}")
+    return out
+
+
 def _ao_cua(conn_id: str, label: str = "") -> dict:
     """Bản ảo của một tài khoản kênh kiểu "account" (Zalo cá nhân), cùng hình với `_public`."""
     s = channels.spec("zalo_personal")
