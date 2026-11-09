@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.526.0] - 2026-11-09
+### Added
+- **Every chat in the history column has a "..." button** in place of the four separate icons (pin, move to project, rename, delete). Its menu: Pin to top, Move to project, Rename (right on the row), Share a link, Export as .md, Mark as unread, Archive and Delete. A right click, or a long press on a phone, opens it too; on a phone it slides up from the bottom with large rows.
+- **Archive a chat:** it leaves the list but keeps every message, so Javis still remembers it and search still finds it. The "Archived" row at the bottom of the column lists them; an archived chat that is open shows "Back to the list" in its title bar. Writing in an archived chat brings it back to the list.
+### Improved
+- **Delete asks again inside the menu**, suggesting Archive when the goal is only a tidier list, instead of the browser's dialog.
+- **No more "Show more" button:** the list loads more by itself at its end.
+- **Tidier rows:** a pinned chat shows a small pin before its title, the project name has a folder icon in normal weight, the AI brain name is in light grey.
+
 ## [0.525.3] - 2026-11-09
 ### Fixed
 - **Notice times now match the timezone in Settings.** On a VPS, security alerts and the "System notice" card in Javis Core printed the server's clock (UTC), seven hours off Vietnam time. They now follow the timezone you picked.
