@@ -538,9 +538,11 @@
       : st.tab === "alloc" ? allocHtml(data, st, lg)
       : st.tab === "playbook" ? playbookHtml(data, st, lg)
       : overviewHtml(data, st, lg);
-    return '<div class="cp-root">' + toolbarHtml(data, st, lg) + draftBanner(st.meta, st.preview) + (st.updOpen ? updPanel(st.meta, st.sched) : "")
+    // The tab bar takes the place of the shared page header and stays put; only .cp-scroll scrolls.
+    return '<div class="cp-root">' + toolbarHtml(data, st, lg)
+      + '<div class="cp-scroll">' + draftBanner(st.meta, st.preview) + (st.updOpen ? updPanel(st.meta, st.sched) : "")
       + '<div class="cp-main">' + main + sourcesBlock(data)
-      + '<div class="cp-foot cp-muted">' + ic("shield") + "<span>" + esc(tw("cp.not_advice")) + "</span></div></div></div>";
+      + '<div class="cp-foot cp-muted">' + ic("shield") + "<span>" + esc(tw("cp.not_advice")) + "</span></div></div></div></div>";
   }
 
   // ---------- monthly update: draft banner and update panel ----------
@@ -603,17 +605,24 @@
   function savePref() {
     try { localStorage.setItem("javis.compass", JSON.stringify({ tab: _st.tab, asset: _st.asset, profile: _st.profile, capital: _st.capital, scope: _st.scope })); } catch (e) {}
   }
-  function render() {
+  // Re-rendering rebuilds the scroller, so keep its position while the tab stays the same (filters, live numbers)
+  // and start from the top on a new tab.
+  var _lastTab = null;
+  function render(toTop) {
     if (!_el || !_data) return;
+    var prev = _el.querySelector(".cp-scroll");
+    var y = prev && !toTop && _lastTab === _st.tab ? prev.scrollTop : 0;
     _el.innerHTML = pageHtml(_data, _st);
+    _lastTab = _st.tab;
+    var sc = _el.querySelector(".cp-scroll");
+    if (sc) sc.scrollTop = y;
   }
   function onClick(e) {
     var t = e.target.closest ? e.target.closest("button") : null;
     if (!t || !_el || !_el.contains(t)) return;
     if (t.hasAttribute("data-tab")) { _st.tab = t.getAttribute("data-tab"); savePref(); render(); }
     else if (t.hasAttribute("data-asset")) {
-      _st.asset = t.getAttribute("data-asset"); _st.tab = "assets"; savePref(); render();
-      var top = _el.querySelector(".cp-root"); if (top && top.scrollIntoView) top.scrollIntoView({ block: "start" });
+      _st.asset = t.getAttribute("data-asset"); _st.tab = "assets"; savePref(); render(true);
     }
     else if (t.hasAttribute("data-scope")) { _st.scope = t.getAttribute("data-scope"); savePref(); render(); }
     else if (t.hasAttribute("data-profile")) { _st.profile = t.getAttribute("data-profile"); savePref(); render(); }

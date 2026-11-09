@@ -218,3 +218,16 @@ span.cp-im { display: inline-block; margin: 0 4px; padding: 0 8px; }
 .cp-draft-t { flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--text); }
 .cp-upd { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border: 1px solid var(--hairline);
   border-radius: 12px; background: var(--surface-1); }
+
+/* Page frame (owner, 09/11/2026): no shared title row on this page; the tab bar sits in its place and stays fixed,
+ * only the content below it scrolls. */
+.cview:has(.cview-body > .cp-root) .cview-head { display: none; }
+.cview-body:has(> .cp-root) { overflow: hidden; display: flex; flex-direction: column; padding: 0; }
+.cview-body > .cp-root { flex: 1; min-height: 0; gap: 0; }
+.cp-root > .cp-toolbar { flex: none; padding: 10px 26px; border-bottom: 1px solid var(--glass-brd, var(--hairline)); }
+.cp-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
+  display: flex; flex-direction: column; gap: 14px; padding: 16px 26px 24px; }
+@media (max-width: 860px) {
+  .cp-root > .cp-toolbar { padding: 8px 16px; }
+  .cp-scroll { padding: 12px 16px 20px; }
+}
