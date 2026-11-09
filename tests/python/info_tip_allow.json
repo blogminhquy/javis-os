@@ -5,7 +5,6 @@
  "app.disable_auth_confirm": "confirm: confirm() before turning off login (says 2FA is kept)",
  "auth.reset_server": "content: reset steps shown after clicking Forgot password",
  "bgs.warn_xep_hang": "status: stall warning inside the popover the user opened",
- "brains.delete_prompt": "confirm: delete-brain prompt",
  "cb.can_ack": "error: alert when ack box not ticked",
  "cb.xn_bat_auto": "confirm: confirm() before raising level",
  "cb.xn_bat_full": "confirm: confirm() before raising level",
@@ -87,5 +86,7 @@
  "star.step3": "content: a step of the star guide, inside a <details> the person opens on a phone",
  "star.wait_body": "content: the GitHub star invitation card is a message the owner wrote for this card (2026-10-25), not an explanation to fold into (i)",
  "star.thanks_body": "content: the thank-you shown after the person says they gave a star",
- "kanban.hint_msg": "content: the message sent to Javis in chat for the owner, never shown as page text"
+ "kanban.hint_msg": "content: the message sent to Javis in chat for the owner, never shown as page text",
+ "bpick.delete_msg": "confirm: inline delete-brain confirmation under the row the user chose to delete",
+ "bpick.import_lead": "content: the upload view the user opened from the brain picker"
 }
