@@ -36,4 +36,21 @@ check("brain-picker.js loads after brains-ui.js", () => {
   const at = html.indexOf("/static/brain-picker.js?v=");
   assert.ok(at > html.indexOf("/static/brains-ui.js?v=") && at > html.indexOf("/static/app.js?v="));
 });
+check("every other brain has a star that makes it the default; the default shows a filled star", () => {
+  const src = read("brain-picker.js");
+  assert.ok(src.includes('actBtn("default", "star", t("bpick.make_default"'), "a star button on non-default rows");
+  assert.ok(src.includes('icon("star", { cls: "ic-fill" })'), "a filled star mark on the default row");
+  assert.ok(src.includes("root.JavisBrains.setDefault(edit.value)"), "the form calls brains-ui's setDefault");
+  assert.ok(src.includes(': t("bpick.delete", null, "Delete"), isDefault);'), "the default row's delete stays disabled");
+});
+check("the delete form says what a delete would stop", () => {
+  const src = read("brain-picker.js");
+  assert.ok(src.includes('fetch("/brains/ties?brain=" + encodeURIComponent(mine.value))'));
+  assert.ok(src.includes("tiesHtml(edit.ties)"));
+});
+check("brains-ui exposes setDefault and posts it to the server", () => {
+  const src = read("brains-ui.js");
+  assert.ok(src.includes('post("/brains/default", { brain: value })'));
+  assert.ok(/window\.JavisBrains = \{[^}]*setDefault/.test(src));
+});
 if (process.exitCode) process.exit(process.exitCode);

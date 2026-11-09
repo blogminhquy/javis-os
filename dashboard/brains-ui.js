@@ -134,6 +134,7 @@
       }
       opt.textContent = label(b);
       opt.dataset.brainName = b.name; // tên folder để xoá chính xác, và là khoá của thứ tự đã sắp
+      opt.dataset.brainPath = b.path || "";
       opt.dataset.brainLabel = b.label || b.name;
       opt.dataset.notes = String(b.notes || 0) + (b.notes_capped ? "+" : "");
       frag.appendChild(opt);
@@ -228,6 +229,25 @@
     return r;
   }
 
+  // Make another brain the default (2026-11-09): the old default becomes an ordinary brain that can be deleted. The
+  // picker's "brain" entry now names the new default, so someone looking at the old default is moved to that same
+  // folder by its path: the screen keeps showing the brain it showed.
+  async function setDefault(value) {
+    const opt = optionOf(value);
+    if (!opt || !opt.dataset.brain) return { ok: false, error: window.t("brains.only_listed") };
+    const def = optionOf("brain");
+    const stayOn = sel.value === "brain" && def && def.dataset.brainPath ? "path:" + def.dataset.brainPath : "";
+    const r = await post("/brains/default", { brain: value });
+    if (!r.ok) return { ok: false, error: r.error || window.t("brains.default_failed") };
+    await loadBrains(null, false);
+    if (stayOn && optionOf(stayOn)) {
+      sel.value = stayOn;
+      localStorage.setItem("javis.graphSource", stayOn);
+      sel.dispatchEvent(new Event("change"));
+    }
+    return r;
+  }
+
   // An outside folder only leaves the list (and this browser's memory); nothing on the disk is touched.
   function forget(value) {
     const opt = optionOf(value);
@@ -256,5 +276,5 @@
 
   loadBrains(null, true);
 
-  window.JavisBrains = { reload: () => loadBrains(null, false), create, rename, remove, forget, adopt };
+  window.JavisBrains = { reload: () => loadBrains(null, false), create, rename, remove, forget, adopt, setDefault };
 })();
