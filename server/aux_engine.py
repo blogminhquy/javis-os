@@ -264,6 +264,11 @@ def api_key_for(provider: str, settings: dict = None) -> str:
         return (m.get(field) or "none") if (m.get("openai_compat_base") or "").strip() else ""
     if provider == "anthropic-compat":
         return (m.get(field) or "none") if (m.get("anthropic_compat_base") or "").strip() else ""
+    if provider == "ollama-local":
+        # Ollama at home has no auth: an empty key is normal. Same placeholder as the chat path (main.py, the key of a
+        # routed provider) and `ollama_local_chat_with_mcp`. Before this, `_ApiAuxEngine` read "" as "no key", so a
+        # Team turn said "engine ollama-local is not ready" and background work answered "no API key" (#1218).
+        return ((m.get(field) or "").strip() or "local") if (m.get("ollama_local_endpoint") or "").strip() else ""
     return m.get(field) or ""
 
 

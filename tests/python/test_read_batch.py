@@ -10,6 +10,8 @@ route runs them through the app itself and streams each answer back as it finish
   4. It goes through the auth guard like any other route: no session, no answers.
   5. A read that never finishes is cut at SUB_TIMEOUT_S and the stream ends (httpx's own timeout does nothing over
      ASGITransport; customer report 2026-11-08: the Partners chat box stayed locked after the update).
+  6. Behind a reverse proxy, a batched read sees the same X-Forwarded-Proto/Host as a direct GET: /messenger/setup
+     answers https, so the Facebook sign-in button is not locked (#1226). X-Forwarded-For is not passed on.
 
     python tests/run.py read_batch
 """
@@ -150,6 +152,22 @@ finally:
     read_batch._ALLOWED, read_batch.SUB_TIMEOUT_S = real_allowed, real_timeout
 check("the cut is a real wait_for, not httpx's timeout", "asyncio.wait_for(sub.get(p), SUB_TIMEOUT_S)"
       in (ROOT / "server" / "read_batch.py").read_text(encoding="utf-8"))
+
+# ---- 6. behind a reverse proxy ---------------------------------------------------------------------------------------------
+proxy = {"X-Forwarded-Proto": "https", "X-Forwarded-Host": "javis.example.com"}
+direct = client.get("/messenger/setup?brain=brain", headers=proxy).json()
+r = client.post("/batch", json={"paths": ["/messenger/setup?brain=brain", "/threads/setup?brain=brain"]}, headers=proxy)
+got = events(r.text)
+ms = json.loads(got.get("/messenger/setup?brain=brain", {}).get("b") or "{}")
+th = json.loads(got.get("/threads/setup?brain=brain", {}).get("b") or "{}")
+check("a direct GET behind the proxy answers https", direct.get("https") is True, direct.get("webhook_url"))
+check("the batched /messenger/setup answers https too", ms.get("https") is True, ms.get("webhook_url"))
+check("its webhook address is the public one", str(ms.get("webhook_url") or "").startswith("https://javis.example.com/"),
+      ms.get("webhook_url"))
+check("the batched answer equals the direct one", ms == direct)
+check("the batched /threads/setup builds https addresses",
+      "http://" not in json.dumps(th) and "https://javis.example.com" in json.dumps(th), th)
+check("X-Forwarded-For is still not passed on", "x-forwarded-for" not in read_batch._FORWARD)
 
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 check("the route is registered at the end of main.py", src.rstrip().endswith("return await read_batch.handle(app, request)"))

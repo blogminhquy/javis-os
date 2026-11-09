@@ -396,7 +396,7 @@ def _args(cli, turn_key: Optional[str]) -> List[str]:
     _acct_home = getattr(cli, "codex_home", None)   # extra ChatGPT account (plan_accounts, 0.353.0)
     overrides = profile_overrides(cli.profile, Path(_acct_home) if _acct_home else cc._codex_home())
     args = [cli.cli_path]
-    for c in overrides + list(cli.extra_config or []):
+    for c in overrides + list(cli.extra_config or []) + cc.codex_windows_sandbox_config(cli.sandbox, _acct_home):
         args += ["-c", c]
     if turn_key:
         args += ["-c", turn_key]
@@ -765,10 +765,13 @@ def _recipe(cli, args: List[str], acct_home, thread_id: str):
     """How to reopen this process for a prewarm: same argv, same thread, resumed. The instructions live on the thread."""
     cwd, params = cli.cwd, {**_thread_params(cli), "threadId": thread_id, "excludeTurns": True}
     tag = str(getattr(cli, "tag", "") or "")
-    lane_arg = next((a for a in args if a.startswith("mcp_servers.javis.http_headers.")), None)
+    import turn_context
+    # Match the turn header ONLY. The flattened hub profile also puts `...http_headers.Authorization=` (and
+    # `X-Javis-Mode`, `X-Javis-Vault`) in args, ahead of the turn key: matching the bare `http_headers.` prefix swapped
+    # the hub Bearer for the lane key, so every prewarmed process got 401 from /hub/mcp and ran without Javis tools (#1220).
+    lane_arg = next((a for a in args if a.startswith(turn_context.CODEX_HEADER_KEY + "=")), None)
 
     async def _open() -> CodexHandle:
-        import turn_context
         lane = turn_lane.Lane() if lane_arg else None
         argv = [(f'{turn_context.CODEX_HEADER_KEY}="{lane.key}"' if (lane and a == lane_arg) else a) for a in args]
         proc = _spawn(argv, cwd, acct_home, tag)

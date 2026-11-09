@@ -50,8 +50,12 @@ ALLOWED_PATHS = (
 _ALLOWED = re.compile(r"^/(" + "|".join(ALLOWED_PATHS) + r")(\?[^#]*)?$")
 _REFRESH = re.compile(r"(^|[?&])(refresh|nocache)=(1|true)(&|$)", re.I)
 
-# Headers a read needs to be the caller's own read: who (cookie, API token) and in which language.
-_FORWARD = ("cookie", "authorization", "accept-language", "user-agent")
+# Headers a read needs to be the caller's own read: who (cookie, API token), in which language, and the address the
+# person sees. Behind Caddy or another reverse proxy the app itself runs on http: without X-Forwarded-Proto/Host a
+# batched /messenger/setup or /threads/setup built http:// addresses, said "not over HTTPS" and locked the Facebook
+# sign-in button (#1226). These only shape public URLs (web_security.external_base), never who is calling, and
+# X-Forwarded-For still stays out.
+_FORWARD = ("cookie", "authorization", "accept-language", "user-agent", "x-forwarded-proto", "x-forwarded-host")
 
 
 def allowed(path) -> bool:

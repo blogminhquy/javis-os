@@ -1662,6 +1662,32 @@ def _codex_home() -> Path:
     return Path(home) if home else _home_dir() / ".codex"
 
 
+def _windows() -> bool:
+    return os.name == "nt"
+
+
+def codex_windows_sandbox_config(sandbox: Optional[str], codex_home=None) -> list:
+    """`-c` overrides that make `--sandbox` mean what it says on Windows (#1133).
+
+    On Windows, with no `[windows] sandbox` in config.toml, Codex quietly downgrades `workspace-write` to `read-only`:
+    every background job at `auto` could read but not write, and stopped as if waiting for the owner. Javis asks for the
+    unelevated Windows sandbox (no admin prompt) whenever it sets a sandbox. A choice already made in config.toml of
+    that Codex home (for example `elevated`) is kept: an override would beat it. Nothing on other systems, nothing when
+    no sandbox is set (full access)."""
+    if not sandbox or not _windows():
+        return []
+    try:
+        import tomllib
+        cfg = Path(codex_home or _codex_home()) / "config.toml"
+        if cfg.is_file():
+            with open(cfg, "rb") as f:
+                if ((tomllib.load(f) or {}).get("windows") or {}).get("sandbox"):
+                    return []
+    except Exception:  # noqa: BLE001 - an unreadable config: still ask for the sandbox that makes writes work
+        pass
+    return ['windows.sandbox="unelevated"']
+
+
 # Báo lỗi khách 04/10/2026 (Windows, 0.71.0): mọi lượt chat ChatGPT chết với "Codex lỗi (exit 1):
 # WARNING: proceeding, even though we could not create PATH aliases: Could not find home
 # directory". Codex tự tìm home bằng `dirs::home_dir()`: trên Windows hàm đó hỏi thẳng hồ sơ người
@@ -1904,6 +1930,8 @@ class CodexCLI:
         if self.profile:
             args += ["-p", self.profile]
         for c in (self.extra_config or []):
+            args += ["-c", c]
+        for c in codex_windows_sandbox_config(self.sandbox, self.codex_home):
             args += ["-c", c]
         if self.hub_turn:
             # Built per query, inside the turn: the same CodexCLI serves many turns (and several
