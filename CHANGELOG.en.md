@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.519.0] - 2026-11-09
+### Security
+- **A leaked admin link stays out of Google.** Every Javis page now carries `noindex`, the login screen and share links included.
+- **AI bots cannot read Javis.** GPTBot, ClaudeBot, PerplexityBot, SEO tools and scanners such as Shodan and Censys get a 403 and see nothing. Javis also serves a `/robots.txt` that forbids them.
+- Real browsers, link previews in Zalo or Telegram, webhooks and Javis Gate work as before. To turn the blocking off, set `JAVIS_BLOCK_BOTS=0`.
+
 ## [0.518.1] - 2026-11-09
 ### Security
 - **Account security files stay out of git and Docker images.** The account fingerprint, security log, sign-in networks and session details are now ignored, so `git add -A` or a local `docker build` no longer picks them up.
