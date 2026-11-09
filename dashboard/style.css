@@ -1780,7 +1780,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .send-btn:hover { opacity: 0.85; }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ===== Mobile: same card with tighter padding; the model chip moves to the page header (mobile-chat.js, back there in 0.182.0) ===== */
+/* ===== Mobile: same card with tighter padding. Since 2026-11-09 the model chip stays in it next to the Effort chip, as on
+   a computer (it sat in the page header from 0.182.0); its picker opens above the card and never runs past the screen. ===== */
 @media (max-width: 860px) {
   .hud-voice {
     margin: 6px 10px 8px; padding: 8px 8px 6px; gap: 2px;
@@ -1788,6 +1789,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
     align-items: flex-end;
   }
   .hud-voice .voice-input { min-height: 36px; max-height: 40vh; padding: 6px 6px; font-size: 16px; }
+  .hud-voice .mb-pop { width: min(340px, calc(100vw - 32px)); }
 }
 
 .stop-btn {

@@ -362,7 +362,7 @@ The row under the text box holds three controls side by side:
 
 The badge next to **CONVERSATION** (and in the top right of the Chat page) shows the **real** engine and model of the last turn, taken from the server rather than from what the model claims about itself. If the badge disagrees with what you expected, trust the badge.
 
-On phones, the model chip moves into the header and the picker opens in the middle of the screen.
+On phones, the model chip stays in the input card next to the Effort chip, just as on a computer, and the picker opens right above the card.
 
 ### Pin a working folder
 
@@ -532,7 +532,7 @@ A Pro/Max plan keeps Claude Code's prompt cache for one hour. After a longer bre
 Below 860px wide, the interface changes to fit the screen:
 
 - Navigation collapses into a drawer: tap **☰** to open it, then tap the dimmed background, pick an item or press Esc to close.
-- The **model chip** and the **+** button (new conversation) move into the header.
+- The **+** button (new conversation) moves into the header. The model chip stays in the input card next to the Effort chip, as on a computer.
 - The **System** group (brain picker, light/dark toggle, the SYSTEM and MCP strips) moves to the bottom of the navigation drawer.
 - The input shortens its placeholder to "Speak or type to Javis…".
 - The **🕘 History** button in the header is hidden (the **Chat** page has the history built in).

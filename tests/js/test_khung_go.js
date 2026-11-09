@@ -41,9 +41,10 @@ check("CHAT_NODE_IDS drops attachBar (it lives inside the card)",
   consoleJs.indexOf('const CHAT_NODE_IDS = ["callBar", "chatArea", "bgStrip", "goalBar", "modelBar", "hudVoice"];') !== -1);
 check("Chat page cp-css uses 24px corners", consoleJs.indexOf(".chatpage-slot .hud-voice{ background:var(--bg2); border:1px solid var(--border); border-radius:24px; }") !== -1);
 
-check("phone to desktop: the model chip goes back into #cpChips before #effBtn",
-  mobile.indexOf('chipHost.insertBefore(mbOpen, document.getElementById("effBtn"))') !== -1
-  && mobile.indexOf("mbPopHome.appendChild(mbPop)") !== -1);
+// 2026-11-09 (owner): the model chip stays in #cpChips right before #effBtn on every width; a phone no longer moves it.
+check("the model chip sits in #cpChips right before #effBtn, and the phone script leaves it there",
+  /<div class="cp-chips" id="cpChips">\s*<button type="button" class="mb-chip" id="mbOpen"[\s\S]*?<\/button>\s*<button type="button" class="cp-eff" id="effBtn"/.test(card)
+  && !/getElementById\("mb(Open|Pop)"\)|insertBefore\(mb(Open|Pop)/.test(mobile));
 check("app.js no longer calls #attachBtn directly", app.indexOf('document.getElementById("attachBtn").addEventListener') === -1);
 check("Sources come from the first attachment that has sources (brain files have none)",
   app.indexOf("(atts.find(a => a.sources) || {}).sources") !== -1);
