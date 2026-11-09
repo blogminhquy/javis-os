@@ -989,16 +989,19 @@ class Transport:
                             zc.bo_do_gui(self.conn_id, thread, cu["texts"], int(cu.get("n") or 0))
                         raise
                     anh = []
+                    receipt_row = int(out.get("_zalo_delivery_row_id") or 0) if isinstance(out, dict) else 0
                     if isinstance(out, dict):
                         if out.get("khach_nhan_them"):
                             # Soạn xong mà khách đã nhắn thêm: không gửi câu cũ, giữ chữ khách cho lượt kế tiếp (đang chờ khoá).
                             for f in da_tai:
                                 f.unlink(missing_ok=True)
                             zc.bo_do_gui(self.conn_id, thread, list(cu.get("texts") or []) + [chu_khach], int(cu.get("n") or 0) + 1)
+                            self._set_delivery(receipt_row, "cancelled", "A newer customer message superseded this reply.")
                             return
                         if out.get("reaction") and zc._BOTS.get(self.conn_id) is self:
                             await self._react(thread, loai, meta, str(out["reaction"]))
                         if out.get("im_lang"):
+                            self._set_delivery(receipt_row, "cancelled", "The bot did not send this turn.")
                             return
                         cau = str(out.get("text") or "").strip()
                         # 0.84.3: images the Agent asked to send, already checked by `bot_images.pick`.
@@ -1007,12 +1010,18 @@ class Transport:
                     else:
                         cau = str(out or "").strip()
                     if (cau or anh) and zc._BOTS.get(self.conn_id) is self:
+                        sent = None
                         if cau:
-                            await self._gui(thread, cau, loai, meta)
+                            sent = await self._gui(thread, cau, loai, meta, receipt_row=receipt_row)
                         if anh:
-                            await self._gui_anh(thread, anh, loai)
-                        if cau and nhom and self.policy is not None:
+                            image_sent = await self._gui_anh(thread, anh, loai)
+                            if not cau:
+                                self._set_delivery(receipt_row, "accepted" if image_sent else "unknown",
+                                                   "" if image_sent else "Image send was not confirmed.")
+                        if cau and nhom and self.policy is not None and sent is not False:
                             self.policy.replied(meta, cau)
+                    elif receipt_row:
+                        self._set_delivery(receipt_row, "cancelled", "Bot stopped before delivery.")
                 finally:
                     # Kept until the reply (and its images) has gone out, so the group never sees a gap between the
                     # indicator and the message.
@@ -1041,18 +1050,40 @@ class Transport:
             self.last_error = localefmt.chu(f"Thả cảm xúc Zalo lỗi: {err}", f"Zalo reaction failed: {err}")[:300]
             print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)
 
-    async def _gui(self, thread: str, cau: str, chat_type: str = "private", meta: Optional[dict] = None):
+    @staticmethod
+    def _set_delivery(receipt_row: int, state: str, error: str = "") -> None:
+        if not receipt_row:
+            return
+        try:
+            import conversations
+            conversations.set_zalo_delivery(receipt_row, state, error)
+        except Exception as e:  # noqa: BLE001 - a receipt failure must not resend a message
+            print(f"[zalo-personal] storing delivery receipt failed: {type(e).__name__}: {e}", file=sys.stderr)
+
+    async def _gui(self, thread: str, cau: str, chat_type: str = "private",
+                   meta: Optional[dict] = None, receipt_row: int = 0):
         import zalo_personal_channel as zc
-        # Nhớ TRƯỚC khi gửi: tiếng vọng có thể về vòng đọc ngay trong nhịp kế tiếp.
+        # Remember BEFORE sending, so a Zalo echo isn't misread as the owner typing.
         zc.ghi_da_gui(self.conn_id, thread, cau)
-        # Trong nhóm, bot trả lời ai thì tag đúng người đó (0.65.6). Chat riêng không cần tag.
         tag = {"uid": (meta or {}).get("user_id"), "name": (meta or {}).get("user_name")} if chat_type == "group" else None
-        ok, loi = await gui({"id": self.conn_id}, thread, cau, chat_type, tag)
-        if not ok:
+        try:
+            ok, loi = await gui({"id": self.conn_id}, thread, cau, chat_type, tag)
+        except asyncio.CancelledError:
+            self._set_delivery(receipt_row, "unknown", "The send was interrupted: delivery is not confirmed.")
+            raise
+        except Exception as e:  # noqa: BLE001 - a clear exception is a failed attempt, never auto-retry
+            ok, loi = False, f"{type(e).__name__}: {e}"
+        if ok:
+            # Provider/adapter accepted the send; does NOT prove recipient display or read.
+            self._set_delivery(receipt_row, "accepted")
+        else:
+            uncertain = any(x in str(loi or "").lower() for x in (
+                "không rõ", "timeout", "timed out", "hết giờ", "đoạn "))
+            self._set_delivery(receipt_row, "unknown" if uncertain else "failed", str(loi or ""))
             self.last_error = localefmt.chu(f"Gửi Zalo lỗi: {loi}", f"Zalo send failed: {loi}")[:300]
             print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)
             self._ghi_loi_gui(thread, cau, loi, chat_type)
-
+        return bool(ok)
     async def _gui_anh(self, thread: str, anh: list, chat_type: str = "private"):
         import zalo_personal_channel as zc
         # Remember BEFORE sending, like _gui: each image comes back in the read loop as the account's own message.
@@ -1062,6 +1093,7 @@ class Transport:
             self.last_error = localefmt.chu(f"Gửi ảnh Zalo lỗi: {loi}", f"Zalo image send failed: {loi}")[:300]
             print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)
             self._ghi_loi_gui(thread, localefmt.chu(f"({len(anh)} ảnh)", f"({len(anh)} image(s))"), loi, chat_type)
+        return bool(ok)
 
     def _ghi_loi_gui(self, thread: str, cau: str, loi: str, chat_type: str):
         """Để lại dấu ở nhật ký bot khi gửi lỗi.
