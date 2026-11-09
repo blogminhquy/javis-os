@@ -1,0 +1,13 @@
+name: La bàn đầu tư
+name_en: "Investment compass"
+slug: javis-compass
+version: 1.0.0
+description: Đọc nhận định trang La bàn đầu tư (nên nghiêng về nhà đất, chứng khoán, vàng, tiền số hay tiết kiệm) và ghi bản cập nhật tháng dạng nháp để chủ duyệt trên trang.
+description_en: "Reads the Investment compass outlook (property, stocks, gold, crypto or savings) and writes monthly updates as a draft the owner approves on the page."
+author: Javis (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - javis_compass
+  - javis_compass_draft
+hooks: []

@@ -1,0 +1,2293 @@
+{
+ "updated": "2026-11-09",
+ "as_of": "11/2026",
+ "verdict": {
+  "vi": "Giai đoạn phòng thủ có chọn lọc: giữ nhiều tiền gửi kỳ hạn dài, gom chứng khoán Việt Nam từng phần, chưa vay để mua nhà đất, chưa mua thêm tiền số.",
+  "en": "A selective defensive phase: hold plenty of long-term deposits, build Vietnam stocks in small steps, no borrowing for property, no new crypto buying."
+ },
+ "summary": {
+  "vi": "Thế giới đang ở pha đình lạm: cú sốc dầu từ chiến sự Iran đẩy lạm phát Mỹ lên 3,7%, Fed tăng lãi suất trở lại (3,75-4,00%), cổ phiếu AI lao dốc, vàng và Bitcoin là hai tài sản tệ nhất năm. Việt Nam tăng trưởng gần 10% nhưng lạm phát vượt 5%, lãi vay mua nhà 13-15%, khối ngoại bán ròng kỷ lục. Tín hiệu tốt dần xuất hiện: dầu rơi dưới 95 USD, USD yếu đi, ngân hàng được yêu cầu hạ lãi huy động.",
+  "en": "The world is in a stagflation phase: an oil shock from the Iran war lifted US inflation to 3.7%, the Fed is hiking again (3.75-4.00%), AI stocks are sliding, and gold and Bitcoin are the year's worst assets. Vietnam grows close to 10% but inflation is above 5%, mortgages cost 13-15% and foreigners are selling at a record pace. Better signs are appearing: oil below $95, a softer dollar, banks told to cut deposit rates."
+ },
+ "actions": [
+  {
+   "vi": "Khoá tiền gửi 12-24 tháng ở mức 6-7% trước khi lãi suất huy động giảm.",
+   "en": "Lock 12-24 month deposits at 6-7% before deposit rates come down."
+  },
+  {
+   "vi": "Mua cổ phiếu Việt Nam đều đặn mỗi tháng trong 6-9 tháng, không dùng margin.",
+   "en": "Buy Vietnam stocks every month for 6-9 months, without margin."
+  },
+  {
+   "vi": "Hoãn mua nhà đất bằng vốn vay cho tới khi lãi vay thả nổi về dưới 11%.",
+   "en": "Hold off on property bought with loans until floating mortgage rates fall below 11%."
+  }
+ ],
+ "pulse": [
+  {
+   "name": {
+    "vi": "VN-Index",
+    "en": "VN-Index"
+   },
+   "ref": "vn:idx:VNINDEX",
+   "digits": 2
+  },
+  {
+   "name": {
+    "vi": "Thị trường Việt Nam",
+    "en": "Vietnam market"
+   },
+   "ref": "vn:regime",
+   "kind": "regime"
+  },
+  {
+   "name": {
+    "vi": "S&P 500",
+    "en": "S&P 500"
+   },
+   "ref": "world:key:^GSPC",
+   "digits": 0
+  },
+  {
+   "name": {
+    "vi": "Tâm lý Mỹ",
+    "en": "US mood"
+   },
+   "ref": "world:regime",
+   "kind": "regime"
+  },
+  {
+   "name": {
+    "vi": "Vàng (USD/oz)",
+    "en": "Gold (USD/oz)"
+   },
+   "ref": "world:key:GC=F",
+   "digits": 0,
+   "prefix": "$"
+  },
+  {
+   "name": {
+    "vi": "Dầu WTI",
+    "en": "WTI oil"
+   },
+   "ref": "world:key:CL=F",
+   "digits": 2,
+   "prefix": "$"
+  },
+  {
+   "name": {
+    "vi": "Chỉ số USD",
+    "en": "US dollar index"
+   },
+   "ref": "world:key:DX-Y.NYB",
+   "digits": 2
+  },
+  {
+   "name": {
+    "vi": "Lợi suất Mỹ 10 năm",
+    "en": "US 10-year yield"
+   },
+   "ref": "world:key:^TNX",
+   "digits": 2,
+   "suffix": "%"
+  },
+  {
+   "name": {
+    "vi": "USD/VND",
+    "en": "USD/VND"
+   },
+   "ref": "world:key:USDVND=X",
+   "digits": 0
+  },
+  {
+   "name": {
+    "vi": "Bitcoin",
+    "en": "Bitcoin"
+   },
+   "ref": "crypto:key:bitcoin",
+   "digits": 0,
+   "prefix": "$"
+  },
+  {
+   "name": {
+    "vi": "Tham lam và sợ hãi (crypto)",
+    "en": "Crypto Fear & Greed"
+   },
+   "ref": "crypto:fng",
+   "kind": "fng"
+  }
+ ],
+ "clock": {
+  "info": {
+   "vi": "Đồng hồ đầu tư chia chu kỳ kinh tế theo hai trục: tăng trưởng đang nhanh lên hay chậm lại, lạm phát đang tăng hay giảm. Mỗi góc có một nhóm tài sản thường thắng: Suy giảm thì trái phiếu và tiền gửi dài hạn, Phục hồi thì cổ phiếu, Tăng nóng thì hàng hoá và nhà đất, Đình lạm thì tiền mặt và vàng. Vị trí trên hình là nhận định của Javis dựa trên số liệu đầu tháng 11/2026, không phải phép đo chính xác.",
+   "en": "The investment clock places the economy on two axes: is growth speeding up or slowing, is inflation rising or falling. Each quarter has assets that tend to win: Slowdown favours bonds and long deposits, Recovery favours stocks, Overheat favours commodities and property, Stagflation favours cash and gold. The positions are Javis's reading of early November 2026 data, not an exact measurement."
+  },
+  "phases": [
+   {
+    "key": "reflation",
+    "name": {
+     "vi": "Suy giảm",
+     "en": "Slowdown"
+    },
+    "lead": {
+     "vi": "Trái phiếu, tiết kiệm",
+     "en": "Bonds, deposits"
+    }
+   },
+   {
+    "key": "recovery",
+    "name": {
+     "vi": "Phục hồi",
+     "en": "Recovery"
+    },
+    "lead": {
+     "vi": "Cổ phiếu",
+     "en": "Stocks"
+    }
+   },
+   {
+    "key": "overheat",
+    "name": {
+     "vi": "Tăng nóng",
+     "en": "Overheat"
+    },
+    "lead": {
+     "vi": "Hàng hoá, nhà đất",
+     "en": "Commodities, property"
+    }
+   },
+   {
+    "key": "stagflation",
+    "name": {
+     "vi": "Đình lạm",
+     "en": "Stagflation"
+    },
+    "lead": {
+     "vi": "Tiền mặt, vàng",
+     "en": "Cash, gold"
+    }
+   }
+  ],
+  "markers": [
+   {
+    "badge": "TG",
+    "name": {
+     "vi": "Thế giới",
+     "en": "World"
+    },
+    "phase": "stagflation",
+    "x": -0.35,
+    "y": 0.55,
+    "note": {
+     "vi": "Lạm phát Mỹ 3,7% do dầu, Fed tăng lãi, Nasdaq điều chỉnh hơn 10%. Nếu dầu giữ dưới 95 USD, lạm phát có thể đạt đỉnh trong quý 4 và đồng hồ dịch dần sang Suy giảm rồi Phục hồi trong 2027.",
+     "en": "US inflation 3.7% on oil, the Fed hiking, the Nasdaq more than 10% off its high. If oil stays below $95, inflation may peak in Q4 and the clock drifts to Slowdown, then Recovery, in 2027."
+    }
+   },
+   {
+    "badge": "VN",
+    "name": {
+     "vi": "Việt Nam",
+     "en": "Vietnam"
+    },
+    "phase": "overheat",
+    "x": 0.55,
+    "y": 0.5,
+    "note": {
+     "vi": "GDP quý 3 tăng 9,95%, CPI 5,09%, tín dụng chạy nhanh hơn huy động nên lãi suất bị đẩy lên. Đang ở cuối pha Tăng nóng: nhà đất và dòng vốn ngoại đã yếu, Ngân hàng Nhà nước bắt đầu kéo lãi huy động xuống.",
+     "en": "Q3 GDP +9.95%, CPI 5.09%, credit outrunning deposits so rates were pushed up. Late Overheat: property and foreign flows have weakened, and the central bank has started pulling deposit rates down."
+    }
+   }
+  ]
+ },
+ "assets": [
+  {
+   "id": "re_vn",
+   "name": {
+    "vi": "Bất động sản Việt Nam",
+    "en": "Vietnam real estate"
+   },
+   "short": {
+    "vi": "Nhà đất",
+    "en": "Property"
+   },
+   "stance": "reduce",
+   "score": -1,
+   "horizon": {
+    "vi": "Chờ 2-4 quý",
+    "en": "Wait 2-4 quarters"
+   },
+   "one_liner": {
+    "vi": "Lãi vay 13-15% cao hơn mọi mức cho thuê, thanh khoản sụt mạnh, giá sơ cấp bắt đầu giảm.",
+    "en": "Mortgages at 13-15% beat any rental yield, sales have collapsed and new-launch prices are starting to fall."
+   },
+   "verdict": {
+    "vi": "Không vay để mua mới lúc này. Giữ nhà để ở hoặc tài sản đang cho thuê có dòng tiền; ai có tiền mặt nhàn rỗi có thể bắt đầu săn hàng bán gấp từ người vay nợ cao, nhưng không vội.",
+    "en": "Do not borrow to buy now. Keep homes you live in and rentals with cash flow; buyers with idle cash can start looking for forced sales from over-leveraged owners, without hurrying."
+   },
+   "thesis": [
+    {
+     "vi": "Lãi vay thả nổi 13-15%, có lúc trên 15% (DXS-FERI), trong khi lợi suất cho thuê căn hộ chỉ khoảng 3-5%.",
+     "en": "Floating mortgage rates of 13-15%, at times above 15% (DXS-FERI), against apartment rental yields of about 3-5%."
+    },
+    {
+     "vi": "Hà Nội quý 3/2026: giá sơ cấp khoảng 86 triệu/m², giảm 9% so với quý trước; số căn bán được giảm 66% so với cùng kỳ (CBRE).",
+     "en": "Hanoi Q3 2026: primary prices about VND 86m/m², down 9% q/q; units sold down 66% y/y (CBRE)."
+    },
+    {
+     "vi": "TP.HCM: nguồn cung mới giảm 53%, tỷ lệ hấp thụ chỉ 45%.",
+     "en": "Ho Chi Minh City: new supply down 53%, absorption only 45%."
+    },
+    {
+     "vi": "Thuế chuyển nhượng mới 2% trên giá bán từ 1/7/2026 và bảng giá đất mới làm chi phí giao dịch tăng.",
+     "en": "A new 2% transfer tax on the sale price from 1 Jul 2026 and new land price tables raise transaction costs."
+    }
+   ],
+   "bull": [
+    {
+     "vi": "GDP gần 10%, FDI giải ngân cao nhất 5 năm: nhu cầu nhà ở thật và bất động sản công nghiệp vẫn lớn.",
+     "en": "GDP near 10% and FDI disbursement at a 5-year high: real housing demand and industrial property stay strong."
+    },
+    {
+     "vi": "Hạ tầng lớn sắp xong (sân bay Long Thành, vành đai) nâng giá vùng ven về dài hạn.",
+     "en": "Big infrastructure nearing completion (Long Thanh airport, ring roads) lifts outer areas over the long run."
+    },
+    {
+     "vi": "Ngân hàng đã được yêu cầu hạ lãi huy động, lãi vay có thể giảm theo sau 1-2 quý.",
+     "en": "Banks were told to cut deposit rates; mortgage rates may follow in 1-2 quarters."
+    }
+   ],
+   "bear": [
+    {
+     "vi": "Khoảng 24% dư nợ tín dụng nằm ở bất động sản: siết thêm là áp lực bán tháo.",
+     "en": "About 24% of all credit is in real estate: further tightening means forced selling."
+    },
+    {
+     "vi": "Giá thứ cấp Hà Nội đã giảm 8% so với cùng kỳ, có thể giảm tiếp nếu lãi suất neo cao.",
+     "en": "Hanoi secondary prices are down 8% y/y and may fall further if rates stay high."
+    },
+    {
+     "vi": "Đất nền vùng ven sốt giá trước đây kém thanh khoản nhất khi thị trường đi xuống.",
+     "en": "Outer-area land plots that boomed earlier are the hardest to sell in a downturn."
+    }
+   ],
+   "enter_when": [
+    {
+     "text": {
+      "vi": "Lãi vay mua nhà thả nổi về dưới 11%/năm.",
+      "en": "Floating mortgage rates fall below 11% a year."
+     }
+    },
+    {
+     "text": {
+      "vi": "Tỷ lệ hấp thụ dự án mới trên 60% hai quý liền.",
+      "en": "Absorption of new launches above 60% for two quarters in a row."
+     }
+    },
+    {
+     "text": {
+      "vi": "Ngân hàng Nhà nước giảm lãi suất điều hành.",
+      "en": "The State Bank cuts its policy rates."
+     }
+    },
+    {
+     "text": {
+      "vi": "Lạm phát Mỹ giảm, Fed ngừng tăng lãi (tiền rẻ quay lại thì nhà đất hưởng lợi sau cùng).",
+      "en": "US inflation falls and the Fed stops hiking (cheap money reaches property last)."
+     }
+    }
+   ],
+   "exit_when": [
+    {
+     "text": {
+      "vi": "Tỷ lệ cho thuê sinh lời thấp hơn lãi tiết kiệm 12 tháng quá 3 điểm %.",
+      "en": "Rental yield trails the 12-month deposit rate by more than 3 points."
+     }
+    },
+    {
+     "text": {
+      "vi": "Khoản trả nợ hàng tháng vượt 40% thu nhập.",
+      "en": "Monthly loan payments exceed 40% of income."
+     }
+    },
+    {
+     "text": {
+      "vi": "Giá chào bán khu vực bạn giữ giảm hai quý liền mà giao dịch vẫn thưa.",
+      "en": "Asking prices in your area fall two quarters in a row while deals stay thin."
+     }
+    }
+   ],
+   "how": [
+    {
+     "vi": "Ưu tiên nhà có sổ, gần việc làm và hạ tầng đã chạy, không mua đất nền theo tin đồn quy hoạch.",
+     "en": "Prefer homes with full title, near jobs and working infrastructure; never buy land plots on zoning rumours."
+    },
+    {
+     "vi": "Nếu bắt buộc vay: chọn gói cố định dài, tính kịch bản lãi 15% vẫn trả được.",
+     "en": "If you must borrow: pick a long fixed rate and check you can still pay at 15%."
+    },
+    {
+     "vi": "Xem chi tiết từng khu ở trang Bất động sản.",
+     "en": "See each region on the Real estate page."
+    }
+   ]
+  },
+  {
+   "id": "stocks_vn",
+   "name": {
+    "vi": "Chứng khoán Việt Nam",
+    "en": "Vietnam stocks"
+   },
+   "short": {
+    "vi": "CK Việt Nam",
+    "en": "VN stocks"
+   },
+   "stance": "accumulate",
+   "score": 1,
+   "horizon": {
+    "vi": "Gom 6-9 tháng, giữ 2-3 năm",
+    "en": "Build over 6-9 months, hold 2-3 years"
+   },
+   "one_liner": {
+    "vi": "Rẻ (P/E khoảng 11 lần) với tăng trưởng gần 10%, nhưng margin kỷ lục và khối ngoại bán mạnh nên chỉ gom từng phần.",
+    "en": "Cheap (P/E about 11x) with growth near 10%, but record margin and heavy foreign selling mean buying in steps."
+   },
+   "verdict": {
+    "vi": "Gom dần theo tháng, không vay margin. Ưu tiên ngân hàng tốt, bán lẻ, khu công nghiệp, đầu tư công. Tạm dừng mua nếu VN-Index thủng đáy tháng 10 trong khi margin vẫn cao.",
+    "en": "Buy monthly, without margin. Favour strong banks, retail, industrial parks and public-investment names. Pause if the VN-Index breaks its October low while margin stays high."
+   },
+   "thesis": [
+    {
+     "vi": "P/E khoảng 11,2 lần (khoảng 10 lần nếu bỏ nhóm Vingroup), P/E dự phóng 2026 khoảng 11,7 lần: rẻ so với lịch sử và khu vực.",
+     "en": "P/E about 11.2x (about 10x excluding the Vingroup names), 2026 forward P/E about 11.7x: cheap against history and the region."
+    },
+    {
+     "vi": "GDP quý 3 tăng 9,95%, FDI giải ngân 10 tháng 24,1 tỷ USD (+13%), PMI 52,3.",
+     "en": "Q3 GDP +9.95%, 10-month FDI disbursement $24.1bn (+13%), PMI 52.3."
+    },
+    {
+     "vi": "FTSE Russell nâng hạng thị trường mới nổi từ 21/9/2026, giải ngân theo 4 đợt tới 9/2027.",
+     "en": "FTSE Russell's emerging-market upgrade took effect on 21 Sep 2026, phased in four tranches through Sep 2027."
+    }
+   ],
+   "bull": [
+    {
+     "vi": "Lãi huy động bắt đầu giảm: tiền rời tiết kiệm có thể quay lại cổ phiếu.",
+     "en": "Deposit rates are starting to fall: money leaving deposits may return to stocks."
+    },
+    {
+     "vi": "Khối ngoại đảo chiều mua ròng sẽ là cú hích lớn sau gần 122 nghìn tỷ bán ròng.",
+     "en": "Foreigners turning buyers would be a big lift after nearly VND 122,000bn of net selling."
+    },
+    {
+     "vi": "Mục tiêu tăng trưởng 10% kéo theo đầu tư công và tín dụng doanh nghiệp.",
+     "en": "The 10% growth target drives public investment and business credit."
+    }
+   ],
+   "bear": [
+    {
+     "vi": "Dư nợ margin kỷ lục khoảng 457 nghìn tỷ trong khi thanh khoản thấp nhất từ đầu 2025: dễ bán giải chấp dây chuyền.",
+     "en": "Record margin debt of about VND 457,000bn while liquidity is the lowest since early 2025: forced-selling cascades are easy."
+    },
+    {
+     "vi": "Khối ngoại bán ròng 10 tháng liền, chưa có tháng mua ròng nào trong 2026.",
+     "en": "Foreigners have net sold every month of 2026."
+    },
+    {
+     "vi": "Chứng khoán Mỹ điều chỉnh và thuế quan 12,5% của Mỹ có thể kéo theo.",
+     "en": "A US equity correction and the 12.5% US tariff can drag it down."
+    }
+   ],
+   "enter_when": [
+    {
+     "text": {
+      "vi": "VN-Index trở lại xu hướng tăng (giá trên đường trung bình 20 và 50 phiên).",
+      "en": "The VN-Index is back in an uptrend (above its 20- and 50-day averages)."
+     },
+     "live": {
+      "ref": "vn:idx:VNINDEX:trend",
+      "op": "==",
+      "value": "up"
+     }
+    },
+    {
+     "text": {
+      "vi": "Tâm lý thị trường Việt Nam không còn ở trạng thái né rủi ro.",
+      "en": "The Vietnam market is no longer in risk-off mode."
+     },
+     "live": {
+      "ref": "vn:regime:label",
+      "op": "!=",
+      "value": "risk_off"
+     }
+    },
+    {
+     "text": {
+      "vi": "Lãi tiết kiệm 12 tháng ở các ngân hàng lớn giảm về dưới 5%.",
+      "en": "12-month deposit rates at big banks fall below 5%."
+     }
+    },
+    {
+     "text": {
+      "vi": "Khối ngoại mua ròng 4 tuần liền.",
+      "en": "Foreigners net buy for 4 weeks in a row."
+     }
+    }
+   ],
+   "exit_when": [
+    {
+     "text": {
+      "vi": "VN-Index ở xu hướng giảm (dưới đường 20 và 50 phiên).",
+      "en": "The VN-Index is in a downtrend (below its 20- and 50-day averages)."
+     },
+     "live": {
+      "ref": "vn:idx:VNINDEX:trend",
+      "op": "==",
+      "value": "down"
+     }
+    },
+    {
+     "text": {
+      "vi": "VN-Index thủng vùng 1.677-1.700 điểm trong khi margin vẫn kỷ lục.",
+      "en": "The VN-Index breaks the 1,677-1,700 zone while margin is still at a record."
+     }
+    },
+    {
+     "text": {
+      "vi": "P/E thị trường vượt 16 lần mà lợi nhuận không theo kịp.",
+      "en": "Market P/E above 16x without earnings keeping up."
+     }
+    }
+   ],
+   "how": [
+    {
+     "vi": "Mua chứng chỉ quỹ ETF (VN30, VNDiamond) hoặc quỹ mở nếu không có thời gian chọn mã.",
+     "en": "Buy ETFs (VN30, VNDiamond) or open-ended funds if you have no time to pick stocks."
+    },
+    {
+     "vi": "Chia vốn làm 6-9 phần, mua cố định ngày đầu mỗi tháng.",
+     "en": "Split the money into 6-9 parts and buy on a fixed day each month."
+    },
+    {
+     "vi": "Theo dõi mã cụ thể ở trang Thị trường.",
+     "en": "Track individual stocks on the Markets page."
+    }
+   ],
+   "live_ref": "vn:idx:VNINDEX"
+  },
+  {
+   "id": "stocks_world",
+   "name": {
+    "vi": "Chứng khoán thế giới",
+    "en": "World stocks"
+   },
+   "short": {
+    "vi": "CK thế giới",
+    "en": "World stocks"
+   },
+   "stance": "hold",
+   "score": 0,
+   "horizon": {
+    "vi": "Giữ, xem lại sau Fed tháng 12",
+    "en": "Hold, review after the December Fed"
+   },
+   "one_liner": {
+    "vi": "Định giá đã hạ nhưng Fed còn tăng lãi, lợi suất 10 năm gần 4,9% và cổ phiếu AI đang bị bán.",
+    "en": "Valuations have eased but the Fed is still hiking, the 10-year yield is near 4.9% and AI stocks are being sold."
+   },
+   "verdict": {
+    "vi": "Giữ phần đang có, giảm bớt tỷ trọng tập trung vào vài cổ phiếu AI lớn. Mua thêm khi Fed ngừng tăng hoặc khi sợ hãi đẩy VIX lên trên 30.",
+    "en": "Keep what you hold and trim concentration in a few big AI stocks. Add when the Fed stops hiking or when fear pushes the VIX above 30."
+   },
+   "thesis": [
+    {
+     "vi": "S&P 500 khoảng 7.350 điểm, P/E dự phóng 18,7 lần (từ 22,1 lần hồi tháng 1).",
+     "en": "S&P 500 about 7,350, forward P/E 18.7x (from 22.1x in January)."
+    },
+    {
+     "vi": "Fed tăng 25 điểm cơ bản hôm 16/9, giữ 3,75-4,00% hôm 28/10, thị trường đoán khả năng cao tăng tiếp ngày 9/12.",
+     "en": "The Fed hiked 25bp on 16 Sep, held at 3.75-4.00% on 28 Oct, and markets see a likely hike on 9 Dec."
+    },
+    {
+     "vi": "Đảng Dân chủ thắng cả hai viện: rủi ro chính sách với làn sóng xây trung tâm dữ liệu AI.",
+     "en": "Democrats won both houses: policy risk for the AI data-centre build-out."
+    }
+   ],
+   "bull": [
+    {
+     "vi": "Dầu giảm mạnh, lạm phát có thể đạt đỉnh trong quý 4.",
+     "en": "Oil has dropped hard; inflation may peak in Q4."
+    },
+    {
+     "vi": "Việc làm vẫn tốt (thất nghiệp 4,1%), chưa có suy thoái.",
+     "en": "Jobs are still solid (4.1% unemployment); no recession."
+    }
+   ],
+   "bear": [
+    {
+     "vi": "Nasdaq vào vùng điều chỉnh, có thể thành thị trường gấu nếu giảm quá 20%.",
+     "en": "The Nasdaq is in correction and could become a bear market below -20%."
+    },
+    {
+     "vi": "BoJ có thể tăng lãi, gỡ giao dịch vay yên giá rẻ gây bán tháo toàn cầu.",
+     "en": "The BoJ may hike, unwinding the cheap-yen carry trade and triggering global selling."
+    }
+   ],
+   "enter_when": [
+    {
+     "text": {
+      "vi": "S&P 500 trở lại xu hướng tăng.",
+      "en": "The S&P 500 is back in an uptrend."
+     },
+     "live": {
+      "ref": "world:key:^GSPC:trend",
+      "op": "==",
+      "value": "up"
+     }
+    },
+    {
+     "text": {
+      "vi": "VIX trên 30 (sợ hãi cao, thường là vùng mua dài hạn tốt).",
+      "en": "The VIX above 30 (high fear, often a good long-term entry)."
+     },
+     "live": {
+      "ref": "world:regime:vix",
+      "op": ">",
+      "value": 30
+     }
+    },
+    {
+     "text": {
+      "vi": "Fed bỏ qua đợt tăng tháng 12 và CPI Mỹ về gần 3%.",
+      "en": "The Fed skips in December and US CPI falls toward 3%."
+     }
+    }
+   ],
+   "exit_when": [
+    {
+     "text": {
+      "vi": "Thị trường Mỹ ở trạng thái né rủi ro.",
+      "en": "The US market is in risk-off mode."
+     },
+     "live": {
+      "ref": "world:regime:label",
+      "op": "==",
+      "value": "risk_off"
+     }
+    },
+    {
+     "text": {
+      "vi": "Lợi suất Mỹ 10 năm vượt 5%.",
+      "en": "The US 10-year yield above 5%."
+     },
+     "live": {
+      "ref": "world:key:^TNX:price",
+      "op": ">",
+      "value": 5
+     }
+    },
+    {
+     "text": {
+      "vi": "Chênh lệch lãi trái phiếu doanh nghiệp nới rộng nhanh (dấu hiệu khủng hoảng tín dụng).",
+      "en": "Corporate bond spreads widen fast (a sign of credit stress)."
+     }
+    }
+   ],
+   "how": [
+    {
+     "vi": "Từ Việt Nam: quỹ mở hoặc ETF theo dõi chỉ số nước ngoài (nếu có trong nước), hoặc tài khoản môi giới quốc tế hợp pháp.",
+     "en": "From Vietnam: open-ended funds or ETFs tracking foreign indices where available at home, or a legal international brokerage account."
+    },
+    {
+     "vi": "Ưu tiên quỹ chỉ số rộng (S&P 500, toàn cầu) hơn cổ phiếu đơn lẻ.",
+     "en": "Prefer broad index funds (S&P 500, global) over single stocks."
+    }
+   ],
+   "live_ref": "world:key:^GSPC"
+  },
+  {
+   "id": "gold",
+   "name": {
+    "vi": "Vàng",
+    "en": "Gold"
+   },
+   "short": {
+    "vi": "Vàng",
+    "en": "Gold"
+   },
+   "stance": "hold",
+   "score": 0,
+   "horizon": {
+    "vi": "Tài sản phòng thủ dài hạn",
+    "en": "Long-term hedge"
+   },
+   "one_liner": {
+    "vi": "Đã giảm khoảng 27% từ đỉnh tháng 1, là lớp bảo hiểm địa chính trị, nhưng lãi suất thực cao đang đè giá.",
+    "en": "About 27% below its January peak and a geopolitical hedge, but high real yields weigh on it."
+   },
+   "verdict": {
+    "vi": "Giữ 5-10% danh mục. Mua thêm từng phần khi giá giảm, ưu tiên vàng nhẫn hoặc kênh bám giá thế giới vì vàng miếng SJC đang đắt hơn thế giới khoảng 10%.",
+    "en": "Keep 5-10% of the portfolio. Add in small steps on dips, preferring plain rings or world-price-linked gold, since SJC bars cost about 10% above the world price."
+   },
+   "thesis": [
+    {
+     "vi": "Vàng thế giới khoảng 4.070-4.150 USD/oz, đỉnh 5.608 USD hồi tháng 1/2026.",
+     "en": "World gold about $4,070-4,150/oz, against a $5,608 peak in January 2026."
+    },
+    {
+     "vi": "SJC 138-141 triệu đồng/lượng, chênh với giá thế giới quy đổi khoảng 13 triệu (tính toán của Javis).",
+     "en": "SJC bars VND 138-141m per tael, about VND 13m above the converted world price (Javis's calculation)."
+    },
+    {
+     "vi": "Fed tăng lãi và lợi suất 10 năm 4,86% làm vàng (không trả lãi) kém hấp dẫn.",
+     "en": "Fed hikes and a 4.86% 10-year yield make non-yielding gold less attractive."
+    }
+   ],
+   "bull": [
+    {
+     "vi": "Fed ngừng tăng hoặc quay lại giảm lãi: vàng thường bật mạnh.",
+     "en": "The Fed stops hiking or cuts again: gold usually rebounds hard."
+    },
+    {
+     "vi": "USD đang yếu đi và rủi ro chiến sự chưa hết.",
+     "en": "The dollar is softening and war risk has not gone away."
+    }
+   ],
+   "bear": [
+    {
+     "vi": "Hoà bình Iran và Ukraine thành công làm mất phần bù rủi ro.",
+     "en": "Successful Iran and Ukraine peace deals remove the risk premium."
+    },
+    {
+     "vi": "Chênh lệch SJC có thể thu hẹp khi có thêm nhà sản xuất vàng miếng (Nghị định 232): người mua SJC giá cao chịu lỗ kép.",
+     "en": "The SJC premium may shrink as new bar producers arrive (Decree 232): buyers at today's premium lose twice."
+    }
+   ],
+   "enter_when": [
+    {
+     "text": {
+      "vi": "Vàng thế giới trở lại xu hướng tăng.",
+      "en": "World gold back in an uptrend."
+     },
+     "live": {
+      "ref": "world:key:GC=F:trend",
+      "op": "==",
+      "value": "up"
+     }
+    },
+    {
+     "text": {
+      "vi": "Lợi suất Mỹ 10 năm giảm dưới 4,3%.",
+      "en": "The US 10-year yield below 4.3%."
+     },
+     "live": {
+      "ref": "world:key:^TNX:price",
+      "op": "<",
+      "value": 4.3
+     }
+    },
+    {
+     "text": {
+      "vi": "Chênh lệch vàng miếng SJC so với thế giới thu hẹp dưới 5%.",
+      "en": "The SJC bar premium over world gold narrows below 5%."
+     }
+    }
+   ],
+   "exit_when": [
+    {
+     "text": {
+      "vi": "Vàng đã chiếm quá 15% tài sản sau một đợt tăng mạnh.",
+      "en": "Gold grows above 15% of your assets after a big rally."
+     }
+    },
+    {
+     "text": {
+      "vi": "Lợi suất Mỹ 10 năm vượt 5%.",
+      "en": "The US 10-year yield above 5%."
+     },
+     "live": {
+      "ref": "world:key:^TNX:price",
+      "op": ">",
+      "value": 5
+     }
+    }
+   ],
+   "how": [
+    {
+     "vi": "Vàng nhẫn 9999 của thương hiệu lớn có chênh mua bán thấp hơn vàng miếng.",
+     "en": "Plain 9999 rings from big brands have a narrower buy/sell spread than bars."
+    },
+    {
+     "vi": "Mua nhỏ, nhiều lần; giữ hoá đơn và mua ở nơi uy tín.",
+     "en": "Buy small amounts, many times; keep receipts and buy from reputable dealers."
+    }
+   ],
+   "live_ref": "world:key:GC=F"
+  },
+  {
+   "id": "crypto",
+   "name": {
+    "vi": "Tiền số",
+    "en": "Crypto"
+   },
+   "short": {
+    "vi": "Tiền số",
+    "en": "Crypto"
+   },
+   "stance": "hold",
+   "score": -1,
+   "horizon": {
+    "vi": "Đầu cơ, tối đa 5% tài sản",
+    "en": "Speculative, 5% of assets at most"
+   },
+   "one_liner": {
+    "vi": "31 tháng sau halving, lịch sử cho thấy đây thường là pha gấu; quỹ ETF rút tiền, sàn Binance bị hack.",
+    "en": "31 months after the halving, history says this is usually a bear phase; ETFs are seeing outflows and Binance was hacked."
+   },
+   "verdict": {
+    "vi": "Giữ phần nhỏ đang có, chưa mua thêm. Chỉ gom lại khi sợ hãi cực độ (chỉ số dưới 15-20) hoặc khi dòng tiền ETF quay lại ít nhất 2 tuần.",
+    "en": "Keep a small position, do not add yet. Rebuild only on extreme fear (index below 15-20) or when ETF inflows return for at least 2 weeks."
+   },
+   "thesis": [
+    {
+     "vi": "Bitcoin khoảng 75-78 nghìn USD, tháng 10 giảm 7,3% (tháng 10 tệ nhất từ 2016), từ đỉnh khoảng 126 nghìn USD tháng 10/2025.",
+     "en": "Bitcoin about $75-78k, October -7.3% (worst October since 2016), from a peak of about $126k in October 2025."
+    },
+    {
+     "vi": "Quỹ ETF Bitcoin giao ngay tại Mỹ liên tục rút ròng hàng trăm triệu USD mỗi phiên đầu tháng 11.",
+     "en": "US spot Bitcoin ETFs saw net outflows of hundreds of millions a day in early November."
+    },
+    {
+     "vi": "Luật cấu trúc thị trường crypto Mỹ (CLARITY) bị kẹt tại Thượng viện; Việt Nam chưa cấp phép sàn nào theo Nghị quyết 05/2025.",
+     "en": "The US crypto market-structure bill (CLARITY) is stuck in the Senate; Vietnam has not licensed any exchange under Resolution 05/2025."
+    }
+   ],
+   "bull": [
+    {
+     "vi": "Sợ hãi lan rộng thường tạo đáy; USD yếu đi hỗ trợ tài sản rủi ro.",
+     "en": "Widespread fear often makes bottoms; a weaker dollar helps risky assets."
+    },
+    {
+     "vi": "Khi sàn trong nước được cấp phép, người Việt có kênh mua hợp pháp.",
+     "en": "Once domestic exchanges are licensed, Vietnamese buyers get a legal channel."
+    }
+   ],
+   "bear": [
+    {
+     "vi": "Các chu kỳ trước, năm thứ 2-3 sau halving giảm 60-80% từ đỉnh.",
+     "en": "In past cycles, years 2-3 after a halving fell 60-80% from the peak."
+    },
+    {
+     "vi": "Fed còn tăng lãi; rủi ro sàn (hack, phá sản) và pháp lý cao với người ở Việt Nam.",
+     "en": "The Fed is still hiking; exchange risk (hacks, failures) and legal risk are high for residents of Vietnam."
+    }
+   ],
+   "enter_when": [
+    {
+     "text": {
+      "vi": "Chỉ số Tham lam và sợ hãi dưới 20 (sợ hãi cực độ).",
+      "en": "Fear & Greed index below 20 (extreme fear)."
+     },
+     "live": {
+      "ref": "crypto:fng:value",
+      "op": "<",
+      "value": 20
+     }
+    },
+    {
+     "text": {
+      "vi": "Bitcoin trở lại xu hướng tăng.",
+      "en": "Bitcoin back in an uptrend."
+     },
+     "live": {
+      "ref": "crypto:key:bitcoin:trend",
+      "op": "==",
+      "value": "up"
+     }
+    },
+    {
+     "text": {
+      "vi": "Quỹ ETF Bitcoin mua ròng liên tục 2 tuần.",
+      "en": "Bitcoin ETFs see net inflows for 2 weeks straight."
+     }
+    }
+   ],
+   "exit_when": [
+    {
+     "text": {
+      "vi": "Chỉ số Tham lam và sợ hãi trên 75 (tham lam cực độ): chốt bớt.",
+      "en": "Fear & Greed above 75 (extreme greed): take some profit."
+     },
+     "live": {
+      "ref": "crypto:fng:value",
+      "op": ">",
+      "value": 75
+     }
+    },
+    {
+     "text": {
+      "vi": "Bitcoin ở xu hướng giảm.",
+      "en": "Bitcoin in a downtrend."
+     },
+     "live": {
+      "ref": "crypto:key:bitcoin:trend",
+      "op": "==",
+      "value": "down"
+     }
+    },
+    {
+     "text": {
+      "vi": "Tiền số vượt 5% tổng tài sản.",
+      "en": "Crypto grows above 5% of total assets."
+     }
+    }
+   ],
+   "how": [
+    {
+     "vi": "Chỉ dùng tiền có thể mất hết. Ưu tiên Bitcoin, hạn chế coin nhỏ.",
+     "en": "Only money you can afford to lose. Prefer Bitcoin, avoid small coins."
+    },
+    {
+     "vi": "Không để tài sản lâu trên sàn; dùng ví tự giữ khoá nếu nắm giữ dài.",
+     "en": "Do not leave coins on exchanges; use a self-custody wallet for long holds."
+    }
+   ],
+   "live_ref": "crypto:key:bitcoin"
+  },
+  {
+   "id": "savings",
+   "name": {
+    "vi": "Tiết kiệm và trái phiếu",
+    "en": "Savings and bonds"
+   },
+   "short": {
+    "vi": "Tiết kiệm",
+    "en": "Savings"
+   },
+   "stance": "accumulate",
+   "score": 2,
+   "horizon": {
+    "vi": "Khoá 12-24 tháng",
+    "en": "Lock 12-24 months"
+   },
+   "one_liner": {
+    "vi": "Lãi 12 tháng 5,1-7% bằng hoặc cao hơn lạm phát, rủi ro thấp nhất khi nhà đất và cổ phiếu còn điều chỉnh.",
+    "en": "12-month deposits at 5.1-7% match or beat inflation, the lowest risk while property and stocks correct."
+   },
+   "verdict": {
+    "vi": "Khoá kỳ hạn dài ngay khi lãi còn cao vì ngân hàng đang được yêu cầu giảm lãi huy động. Đây cũng là quỹ chờ để mua cổ phiếu và nhà đất khi tín hiệu đẹp.",
+    "en": "Lock long terms while rates are still high, since banks are being told to cut. This is also the reserve for buying stocks and property when signals turn."
+   },
+   "thesis": [
+    {
+     "vi": "Lãi 12 tháng: Vietcombank 5,1%, các ngân hàng lớn khác 5,3%, nhiều ngân hàng tư nhân 6-7% (tháng 10 có nơi trên 9%).",
+     "en": "12-month rates: Vietcombank 5.1%, other big state banks 5.3%, many private banks 6-7% (some above 9% in October)."
+    },
+    {
+     "vi": "CPI tháng 10 tăng 5,09%: lãi thực ở ngân hàng tư nhân vẫn dương.",
+     "en": "October CPI +5.09%: real rates at private banks are still positive."
+    },
+    {
+     "vi": "Ngân hàng Nhà nước yêu cầu giảm lãi huy động ít nhất 0,5 điểm: mức hiện tại có thể là cao nhất chu kỳ.",
+     "en": "The central bank asked banks to cut deposit rates by at least 0.5 points: today's rates may be the cycle high."
+    }
+   ],
+   "bull": [
+    {
+     "vi": "An toàn, có bảo hiểm tiền gửi, thanh khoản tốt khi cần vốn mua tài sản rẻ.",
+     "en": "Safe, deposit-insured, and liquid when cheap assets appear."
+    }
+   ],
+   "bear": [
+    {
+     "vi": "Nếu lạm phát vượt 6%, lãi thực âm.",
+     "en": "If inflation rises above 6%, real rates turn negative."
+    },
+    {
+     "vi": "Trái phiếu doanh nghiệp lợi suất cao đi kèm rủi ro vỡ nợ (bài học 2022).",
+     "en": "High-yield corporate bonds carry default risk (the 2022 lesson)."
+    }
+   ],
+   "enter_when": [
+    {
+     "text": {
+      "vi": "Lãi 12 tháng cao hơn lạm phát ít nhất 1 điểm %.",
+      "en": "The 12-month rate beats inflation by at least 1 point."
+     }
+    },
+    {
+     "text": {
+      "vi": "Tâm lý thị trường Việt Nam đang né rủi ro.",
+      "en": "The Vietnam market is in risk-off mode."
+     },
+     "live": {
+      "ref": "vn:regime:label",
+      "op": "==",
+      "value": "risk_off"
+     }
+    }
+   ],
+   "exit_when": [
+    {
+     "text": {
+      "vi": "Lãi 12 tháng ở ngân hàng lớn giảm dưới 4,5%: chuyển dần sang cổ phiếu.",
+      "en": "Big-bank 12-month rates below 4.5%: rotate gradually into stocks."
+     }
+    },
+    {
+     "text": {
+      "vi": "CPI vượt 6% (lãi thực âm).",
+      "en": "CPI above 6% (negative real rates)."
+     }
+    }
+   ],
+   "how": [
+    {
+     "vi": "Chia nhiều sổ ở các kỳ hạn khác nhau (bậc thang) để luôn có sổ sắp đáo hạn.",
+     "en": "Split into several deposits with staggered terms (a ladder) so one always matures soon."
+    },
+    {
+     "vi": "Ưu tiên ngân hàng lành mạnh, chia tiền qua nhiều ngân hàng; trái phiếu Chính phủ an toàn hơn trái phiếu doanh nghiệp.",
+     "en": "Prefer healthy banks and spread money across several; government bonds are safer than corporate bonds."
+    }
+   ]
+  },
+  {
+   "id": "usd",
+   "name": {
+    "vi": "Đô la Mỹ",
+    "en": "US dollar"
+   },
+   "short": {
+    "vi": "USD",
+    "en": "USD"
+   },
+   "stance": "hold",
+   "score": 0,
+   "horizon": {
+    "vi": "Phòng hộ nhỏ",
+    "en": "Small hedge"
+   },
+   "one_liner": {
+    "vi": "Chỉ số USD yếu đi sau bầu cử giữa kỳ, tỷ giá trung tâm giảm 5 phiên liền; gửi USD ở Việt Nam lãi gần 0%.",
+    "en": "The dollar index softened after the midterms and the VND central rate fell five sessions in a row; USD deposits in Vietnam earn about 0%."
+   },
+   "verdict": {
+    "vi": "Giữ một phần nhỏ nếu có nhu cầu chi tiêu bằng USD (du học, du lịch, nhập hàng); không nên mua thêm để đầu cơ.",
+    "en": "Keep a small amount if you spend in dollars (study abroad, travel, imports); do not buy more to speculate."
+   },
+   "thesis": [
+    {
+     "vi": "DXY khoảng 101,4, thấp nhất từ tháng 9.",
+     "en": "DXY about 101.4, the lowest since September."
+    },
+    {
+     "vi": "Tỷ giá trung tâm 25.630, Vietcombank bán ra 25.810 (6/11).",
+     "en": "Central rate 25,630, Vietcombank selling at 25,810 (6 Nov)."
+    },
+    {
+     "vi": "Fed tăng lãi giữ USD không giảm quá sâu.",
+     "en": "Fed hikes stop the dollar from falling too far."
+    }
+   ],
+   "bull": [
+    {
+     "vi": "Khủng hoảng toàn cầu, dòng tiền chạy về USD.",
+     "en": "A global crisis sends money into the dollar."
+    }
+   ],
+   "bear": [
+    {
+     "vi": "Fed quay lại giảm lãi, chênh lệch lãi suất có lợi cho đồng nội tệ.",
+     "en": "The Fed cuts again and the rate gap favours the dong."
+    }
+   ],
+   "enter_when": [
+    {
+     "text": {
+      "vi": "Chỉ số USD vượt 103.",
+      "en": "The dollar index above 103."
+     },
+     "live": {
+      "ref": "world:key:DX-Y.NYB:price",
+      "op": ">",
+      "value": 103
+     }
+    },
+    {
+     "text": {
+      "vi": "USD/VND vượt 26.300.",
+      "en": "USD/VND above 26,300."
+     },
+     "live": {
+      "ref": "world:key:USDVND=X:price",
+      "op": ">",
+      "value": 26300
+     }
+    }
+   ],
+   "exit_when": [
+    {
+     "text": {
+      "vi": "Chỉ số USD dưới 100.",
+      "en": "The dollar index below 100."
+     },
+     "live": {
+      "ref": "world:key:DX-Y.NYB:price",
+      "op": "<",
+      "value": 100
+     }
+    },
+    {
+     "text": {
+      "vi": "Chỉ số USD ở xu hướng giảm.",
+      "en": "The dollar index in a downtrend."
+     },
+     "live": {
+      "ref": "world:key:DX-Y.NYB:trend",
+      "op": "==",
+      "value": "down"
+     }
+    }
+   ],
+   "how": [
+    {
+     "vi": "Mua qua ngân hàng với nhu cầu hợp pháp; không mua chợ đen.",
+     "en": "Buy through banks for a legal purpose; never on the black market."
+    }
+   ],
+   "live_ref": "world:key:USDVND=X"
+  }
+ ],
+ "factors": [
+  {
+   "id": "fed",
+   "scope": "world",
+   "name": {
+    "vi": "Lãi suất Fed",
+    "en": "Fed rate"
+   },
+   "reading": {
+    "vi": "3,75-4,00%, có thể tăng 9/12",
+    "en": "3.75-4.00%, may rise on 9 Dec"
+   },
+   "trend": "up",
+   "impact": {
+    "re_vn": -1,
+    "stocks_vn": -1,
+    "stocks_world": -2,
+    "gold": -2,
+    "crypto": -2,
+    "savings": 1,
+    "usd": 1
+   },
+   "why": {
+    "vi": "Fed tăng lãi lần đầu từ 2023 (16/9) vì lạm phát do dầu. Tiền đắt hút vốn khỏi tài sản rủi ro và tài sản không trả lãi (vàng, tiền số), làm USD mạnh và gây áp lực tỷ giá lên Việt Nam.",
+    "en": "The Fed hiked for the first time since 2023 (16 Sep) on oil-driven inflation. Dear money pulls capital out of risky and non-yielding assets (gold, crypto), firms the dollar and pressures the dong."
+   },
+   "as_of": "28/10/2026",
+   "source": "Federal Reserve"
+  },
+  {
+   "id": "us10y",
+   "scope": "world",
+   "name": {
+    "vi": "Lợi suất Mỹ 10 năm",
+    "en": "US 10-year yield"
+   },
+   "reading": {
+    "vi": "4,86%",
+    "en": "4.86%"
+   },
+   "trend": "up",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": -1,
+    "stocks_world": -1,
+    "gold": -2,
+    "crypto": -1,
+    "savings": 0,
+    "usd": 1
+   },
+   "why": {
+    "vi": "Lợi suất gần 5% là mức sinh lời gần như không rủi ro bằng USD, nên định giá cổ phiếu và vàng bị kéo xuống.",
+    "en": "A yield near 5% is an almost risk-free dollar return, which pulls down stock and gold valuations."
+   },
+   "as_of": "06/11/2026",
+   "source": "Advisor Perspectives"
+  },
+  {
+   "id": "oil",
+   "scope": "world",
+   "name": {
+    "vi": "Giá dầu",
+    "en": "Oil price"
+   },
+   "reading": {
+    "vi": "Brent dưới 95 USD, giảm 16% trong 1 tuần",
+    "en": "Brent below $95, down 16% in a week"
+   },
+   "trend": "down",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": 1,
+    "stocks_world": 1,
+    "gold": -1,
+    "crypto": 0,
+    "savings": 1,
+    "usd": -1
+   },
+   "why": {
+    "vi": "Dầu giảm là tin tốt cho Việt Nam (nước nhập khẩu xăng dầu ròng) và giúp lạm phát hạ, mở đường cho các ngân hàng trung ương ngừng tăng lãi. Nếu chiến sự bùng lại, dầu vượt 110 USD thì đảo ngược toàn bộ.",
+    "en": "Falling oil is good for Vietnam (a net fuel importer) and cools inflation, opening the way for central banks to stop hiking. A flare-up taking oil above $110 would reverse all of it."
+   },
+   "as_of": "04/11/2026",
+   "source": "Nation Thailand, Reuters"
+  },
+  {
+   "id": "geo",
+   "scope": "world",
+   "name": {
+    "vi": "Chiến sự và địa chính trị",
+    "en": "War and geopolitics"
+   },
+   "reading": {
+    "vi": "Iran, Ukraine: kỳ vọng hoà đàm tăng",
+    "en": "Iran, Ukraine: hopes for talks rising"
+   },
+   "trend": "flat",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": -1,
+    "stocks_world": -1,
+    "gold": 2,
+    "crypto": -1,
+    "savings": 0,
+    "usd": 1
+   },
+   "why": {
+    "vi": "Chiến tranh Iran từ 28/2/2026 và phí qua eo Hormuz đẩy dầu lên 120 USD. Đàm phán Nga - Ukraine - Mỹ ngày 10-11/11. Rủi ro cao thì vàng và USD được trú ẩn; hoà bình thì ngược lại.",
+    "en": "The Iran war since 28 Feb 2026 and Hormuz tolls took oil to $120. Russia-Ukraine-US talks on 10-11 Nov. High risk sends money to gold and the dollar; peace does the reverse."
+   },
+   "as_of": "11/2026",
+   "source": "CP24, Nation Thailand"
+  },
+  {
+   "id": "tariff",
+   "scope": "world",
+   "name": {
+    "vi": "Thuế quan Mỹ với Việt Nam",
+    "en": "US tariffs on Vietnam"
+   },
+   "reading": {
+    "vi": "12,5% (Mục 301), thoả thuận chưa ký",
+    "en": "12.5% (Section 301), deal unsigned"
+   },
+   "trend": "flat",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": -1,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 0,
+    "usd": 1
+   },
+   "why": {
+    "vi": "Thấp hơn nhiều mức 20-46% từng lo ngại, nhưng còn hai cuộc điều tra Mục 301 và thoả thuận thương mại chưa ký: rủi ro với nhóm xuất khẩu (dệt may, thuỷ sản, gỗ).",
+    "en": "Far below the 20-46% once feared, but two more Section 301 probes are pending and the trade deal is unsigned: a risk for exporters (textiles, seafood, wood)."
+   },
+   "as_of": "04/11/2026",
+   "source": "VnEconomy"
+  },
+  {
+   "id": "ai",
+   "scope": "world",
+   "name": {
+    "vi": "Cổ phiếu công nghệ, AI",
+    "en": "Tech and AI stocks"
+   },
+   "reading": {
+    "vi": "Nasdaq điều chỉnh hơn 10%, VIX tăng vọt",
+    "en": "Nasdaq down more than 10%, VIX spiked"
+   },
+   "trend": "down",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": -1,
+    "stocks_world": -2,
+    "gold": 0,
+    "crypto": -1,
+    "savings": 0,
+    "usd": 0
+   },
+   "why": {
+    "vi": "Lo ngại chi đầu tư AI không sinh lời đủ nhanh, cộng với Quốc hội mới, khiến nhóm dẫn dắt bị bán. Tâm lý lan sang tiền số và các thị trường mới nổi.",
+    "en": "Fears that AI spending will not pay off fast enough, plus the new Congress, hit the market leaders. The mood spills into crypto and emerging markets."
+   },
+   "as_of": "05/11/2026",
+   "source": "Kitco, Zacks"
+  },
+  {
+   "id": "dxy",
+   "scope": "world",
+   "name": {
+    "vi": "Sức mạnh đồng USD",
+    "en": "Dollar strength"
+   },
+   "reading": {
+    "vi": "DXY khoảng 101,4",
+    "en": "DXY about 101.4"
+   },
+   "trend": "down",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": 1,
+    "stocks_world": 0,
+    "gold": 1,
+    "crypto": 1,
+    "savings": 0,
+    "usd": -1
+   },
+   "why": {
+    "vi": "USD yếu giảm áp lực tỷ giá, giúp Ngân hàng Nhà nước có dư địa hạ lãi suất và hỗ trợ vàng, tiền số.",
+    "en": "A weaker dollar eases pressure on the dong, gives the central bank room to cut rates, and supports gold and crypto."
+   },
+   "as_of": "04/11/2026",
+   "source": "Trading Economics"
+  },
+  {
+   "id": "china",
+   "scope": "world",
+   "name": {
+    "vi": "Kinh tế Trung Quốc",
+    "en": "China's economy"
+   },
+   "reading": {
+    "vi": "Quý 3 tăng 4,5%, chưa có kích thích lớn",
+    "en": "Q3 +4.5%, no big stimulus"
+   },
+   "trend": "flat",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": 0,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 0,
+    "usd": 0
+   },
+   "why": {
+    "vi": "Trung Quốc yếu cầu trong nước nhưng xuất khẩu mạnh: hàng giá rẻ cạnh tranh với hàng Việt; một gói kích thích lớn sẽ đẩy giá hàng hoá (thép, đồng) lên.",
+    "en": "China has weak home demand but strong exports: cheap goods compete with Vietnam's; a big stimulus would lift commodity prices (steel, copper)."
+   },
+   "as_of": "19/10/2026",
+   "source": "Al Jazeera"
+  },
+  {
+   "id": "gdp",
+   "scope": "vn",
+   "name": {
+    "vi": "Tăng trưởng GDP Việt Nam",
+    "en": "Vietnam GDP growth"
+   },
+   "reading": {
+    "vi": "Quý 3: 9,95%; 9 tháng: 9,01%",
+    "en": "Q3: 9.95%; 9 months: 9.01%"
+   },
+   "trend": "up",
+   "impact": {
+    "re_vn": 1,
+    "stocks_vn": 2,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 0,
+    "usd": -1
+   },
+   "why": {
+    "vi": "Tăng nhanh nhất từ 2022, mục tiêu cả năm ít nhất 10%. Lợi nhuận doanh nghiệp và nhu cầu nhà ở thật được hỗ trợ.",
+    "en": "The fastest since 2022, with a full-year target of at least 10%. It supports company profits and real housing demand."
+   },
+   "as_of": "10/2026",
+   "source": "VietnamPlus, NSO"
+  },
+  {
+   "id": "cpi",
+   "scope": "vn",
+   "name": {
+    "vi": "Lạm phát Việt Nam",
+    "en": "Vietnam inflation"
+   },
+   "reading": {
+    "vi": "CPI tháng 10: 5,09%",
+    "en": "October CPI: 5.09%"
+   },
+   "trend": "up",
+   "impact": {
+    "re_vn": 1,
+    "stocks_vn": -1,
+    "stocks_world": 0,
+    "gold": 1,
+    "crypto": 0,
+    "savings": -1,
+    "usd": 1
+   },
+   "why": {
+    "vi": "Vượt mục tiêu khoảng 4,5%. Lạm phát cao ăn mòn tiền gửi lãi thấp, khiến người dân tìm tới vàng và nhà đất để giữ giá trị, nhưng cũng buộc lãi suất neo cao.",
+    "en": "Above the roughly 4.5% target. High inflation erodes low-rate deposits and pushes people to gold and property to store value, but also keeps rates high."
+   },
+   "as_of": "10/2026",
+   "source": "NSO"
+  },
+  {
+   "id": "vnrates",
+   "scope": "vn",
+   "name": {
+    "vi": "Lãi suất trong nước",
+    "en": "Domestic interest rates"
+   },
+   "reading": {
+    "vi": "Gửi 12 tháng 5,1-7%, vay mua nhà 13-15%",
+    "en": "12-month deposits 5.1-7%, mortgages 13-15%"
+   },
+   "trend": "up",
+   "impact": {
+    "re_vn": -2,
+    "stocks_vn": -1,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 2,
+    "usd": 0
+   },
+   "why": {
+    "vi": "Tín dụng tăng nhanh hơn huy động (tỷ lệ cho vay trên tiền gửi khoảng 110-112%) nên ngân hàng đua lãi. Đây là yếu tố mạnh nhất với nhà đất: chừng nào lãi vay còn trên 11-12%, mua bằng vốn vay khó có lời.",
+    "en": "Credit grew faster than deposits (loan-to-deposit about 110-112%) so banks bid for deposits. This is the strongest factor for property: while mortgages stay above 11-12%, buying with debt rarely pays."
+   },
+   "as_of": "11/2026",
+   "source": "CafeF, VnBusiness"
+  },
+  {
+   "id": "foreign",
+   "scope": "vn",
+   "name": {
+    "vi": "Dòng vốn ngoại",
+    "en": "Foreign flows"
+   },
+   "reading": {
+    "vi": "Bán ròng khoảng 122 nghìn tỷ trong 10 tháng",
+    "en": "About VND 122,000bn net sold in 10 months"
+   },
+   "trend": "down",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": -2,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 0,
+    "usd": 1
+   },
+   "why": {
+    "vi": "Kỷ lục, vượt cả năm 2025, không có tháng nào mua ròng dù đã được FTSE nâng hạng. Khi chiều bán dừng lại, áp lực cung lớn nhất trên sàn biến mất.",
+    "en": "A record, above all of 2025, with no net-buying month despite the FTSE upgrade. When the selling stops, the biggest source of supply disappears."
+   },
+   "as_of": "10/2026",
+   "source": "Vietstock"
+  },
+  {
+   "id": "margin",
+   "scope": "vn",
+   "name": {
+    "vi": "Đòn bẩy margin",
+    "en": "Margin leverage"
+   },
+   "reading": {
+    "vi": "Kỷ lục khoảng 457 nghìn tỷ",
+    "en": "Record about VND 457,000bn"
+   },
+   "trend": "up",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": -1,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 0,
+    "usd": 0
+   },
+   "why": {
+    "vi": "Margin tăng 14% so với cuối 2025 trong khi thanh khoản giảm: nếu chỉ số gãy hỗ trợ, bán giải chấp có thể kéo thị trường xuống sâu và nhanh.",
+    "en": "Margin is up 14% from end-2025 while liquidity falls: if the index breaks support, forced selling can drive it down fast."
+   },
+   "as_of": "Q3/2026",
+   "source": "FiinTrade, TCBS"
+  },
+  {
+   "id": "fdi",
+   "scope": "vn",
+   "name": {
+    "vi": "Vốn FDI",
+    "en": "FDI"
+   },
+   "reading": {
+    "vi": "Giải ngân 24,1 tỷ USD, cao nhất 5 năm",
+    "en": "$24.1bn disbursed, a 5-year high"
+   },
+   "trend": "up",
+   "impact": {
+    "re_vn": 1,
+    "stocks_vn": 1,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 0,
+    "usd": -1
+   },
+   "why": {
+    "vi": "FDI đăng ký 54,9 tỷ USD (+74%) cao nhất từ 2009: tốt cho bất động sản công nghiệp, nhà ở quanh khu công nghiệp và nguồn cung ngoại tệ.",
+    "en": "Registered FDI of $54.9bn (+74%) is the highest since 2009: good for industrial property, housing near factories and the supply of dollars."
+   },
+   "as_of": "10/2026",
+   "source": "CafeF"
+  },
+  {
+   "id": "vnd",
+   "scope": "vn",
+   "name": {
+    "vi": "Tỷ giá USD/VND",
+    "en": "USD/VND rate"
+   },
+   "reading": {
+    "vi": "Trung tâm 25.630, giảm 5 phiên liền",
+    "en": "Central 25,630, down 5 sessions"
+   },
+   "trend": "down",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": 1,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 0,
+    "usd": -1
+   },
+   "why": {
+    "vi": "Tỷ giá hạ nhiệt giảm lo ngại vốn ngoại rút vì rủi ro tiền tệ và cho phép hạ lãi suất trong nước.",
+    "en": "A calmer exchange rate reduces foreign worries about currency risk and allows domestic rates to fall."
+   },
+   "as_of": "05/11/2026",
+   "source": "Thị trường Tài chính Tiền tệ"
+  },
+  {
+   "id": "relaw",
+   "scope": "vn",
+   "name": {
+    "vi": "Thuế và pháp lý nhà đất",
+    "en": "Property tax and law"
+   },
+   "reading": {
+    "vi": "Thuế chuyển nhượng 2%, bảng giá đất mới",
+    "en": "2% transfer tax, new land price tables"
+   },
+   "trend": "flat",
+   "impact": {
+    "re_vn": -1,
+    "stocks_vn": 0,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 0,
+    "usd": 0
+   },
+   "why": {
+    "vi": "Bảng giá đất mới theo Luật Đất đai 2024 cho 34 tỉnh sau sáp nhập và thuế 2% trên giá bán từ 1/7/2026 làm chi phí lướt sóng tăng, hạn chế đầu cơ ngắn hạn.",
+    "en": "New land price tables under the 2024 Land Law for the 34 merged provinces and a 2% tax on the sale price from 1 Jul 2026 make flipping costlier and curb short-term speculation."
+   },
+   "as_of": "07/2026",
+   "source": "Thư viện Pháp luật"
+  },
+  {
+   "id": "cryptolaw",
+   "scope": "vn",
+   "name": {
+    "vi": "Pháp lý tiền số Việt Nam",
+    "en": "Vietnam crypto rules"
+   },
+   "reading": {
+    "vi": "Chưa sàn nào được cấp phép",
+    "en": "No exchange licensed yet"
+   },
+   "trend": "flat",
+   "impact": {
+    "re_vn": 0,
+    "stocks_vn": 0,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": -1,
+    "savings": 0,
+    "usd": 0
+   },
+   "why": {
+    "vi": "Nghị quyết 05/2025 thí điểm tối đa 5 sàn, vốn tối thiểu 10.000 tỷ; đến 18/10/2026 chưa sàn nào được cấp phép, chế tài xử phạt áp dụng từ 1/9/2026. Người Việt vẫn giao dịch qua sàn nước ngoài, rủi ro pháp lý cao.",
+    "en": "Resolution 05/2025 pilots up to 5 exchanges with VND 10,000bn minimum capital; as of 18 Oct 2026 none is licensed and penalties apply from 1 Sep 2026. Vietnamese still trade on foreign exchanges, with high legal risk."
+   },
+   "as_of": "18/10/2026",
+   "source": "Tiền Phong"
+  },
+  {
+   "id": "publicinv",
+   "scope": "vn",
+   "name": {
+    "vi": "Đầu tư công, hạ tầng",
+    "en": "Public investment"
+   },
+   "reading": {
+    "vi": "Giải ngân khoảng 54% kế hoạch, Long Thành dự kiến cuối 2026",
+    "en": "About 54% of plan disbursed, Long Thanh due late 2026"
+   },
+   "trend": "up",
+   "impact": {
+    "re_vn": 1,
+    "stocks_vn": 1,
+    "stocks_world": 0,
+    "gold": 0,
+    "crypto": 0,
+    "savings": 0,
+    "usd": 0
+   },
+   "why": {
+    "vi": "Sân bay Long Thành, đường sắt cao tốc Bắc Nam (dự kiến khởi công cuối 2026) và các vành đai hỗ trợ nhóm xây dựng, vật liệu và giá đất vùng hưởng lợi. Số giải ngân chưa được xác minh từ nguồn chính thức.",
+    "en": "Long Thanh airport, the North-South high-speed rail (groundbreaking planned for late 2026) and ring roads support builders, materials and land prices nearby. The disbursement figure is not yet verified officially."
+   },
+   "as_of": "10/2026",
+   "source": "VCCI, Tuổi Trẻ"
+  }
+ ],
+ "sentiment": [
+  {
+   "name": {
+    "vi": "Tham lam và sợ hãi (crypto)",
+    "en": "Crypto Fear & Greed"
+   },
+   "reading": {
+    "vi": "34 (sợ hãi), 4/11",
+    "en": "34 (fear), 4 Nov"
+   },
+   "zone": "fear",
+   "live_ref": "crypto:fng:value",
+   "zones": [
+    25,
+    75
+   ],
+   "text": {
+    "vi": "Dưới 25 là sợ hãi cực độ, thường là vùng gom dài hạn; trên 75 là tham lam cực độ, nên chốt bớt. Một tháng trước chỉ số còn khoảng 70.",
+    "en": "Below 25 is extreme fear, often a long-term buying zone; above 75 is extreme greed, time to trim. A month ago it was about 70."
+   }
+  },
+  {
+   "name": {
+    "vi": "VIX (độ sợ hãi Phố Wall)",
+    "en": "VIX (Wall Street fear)"
+   },
+   "reading": {
+    "vi": "Tăng 48% trong phiên 5/11, vùng 20-30",
+    "en": "Up 48% intraday on 5 Nov, 20-30 range"
+   },
+   "zone": "fear",
+   "live_ref": "world:regime:vix",
+   "zones": [
+    15,
+    25
+   ],
+   "invert": true,
+   "text": {
+    "vi": "VIX dưới 15 là chủ quan, trên 30 là hoảng loạn. Mua khi VIX cao thường cho lợi nhuận dài hạn tốt hơn mua khi VIX thấp.",
+    "en": "VIX below 15 is complacent, above 30 is panic. Buying when VIX is high has usually paid better over time than buying when it is low."
+   }
+  },
+  {
+   "name": {
+    "vi": "Nhà đầu tư cá nhân Việt Nam",
+    "en": "Vietnamese retail investors"
+   },
+   "reading": {
+    "vi": "252 nghìn tài khoản mới tháng 10, margin kỷ lục",
+    "en": "252k new accounts in October, record margin"
+   },
+   "zone": "greed",
+   "text": {
+    "vi": "Người mới vẫn vào và vay margin nhiều dù thanh khoản giảm: chưa có dấu hiệu buông xuôi, nghĩa là đáy thật có thể chưa tới.",
+    "en": "Newcomers keep arriving and borrowing on margin even as liquidity falls: no capitulation yet, so the real bottom may still be ahead."
+   }
+  },
+  {
+   "name": {
+    "vi": "Khối ngoại",
+    "en": "Foreign investors"
+   },
+   "reading": {
+    "vi": "Bán ròng 10 tháng liền",
+    "en": "Net sellers 10 months running"
+   },
+   "zone": "fear",
+   "text": {
+    "vi": "Khối ngoại bi quan kéo dài thường tạo cơ hội cho người mua kiên nhẫn khi họ quay lại.",
+    "en": "Long foreign pessimism often rewards patient buyers once they come back."
+   }
+  },
+  {
+   "name": {
+    "vi": "Người mua nhà",
+    "en": "Home buyers"
+   },
+   "reading": {
+    "vi": "Hà Nội: số căn bán được giảm 66%",
+    "en": "Hanoi: units sold down 66%"
+   },
+   "zone": "fear",
+   "text": {
+    "vi": "Thị trường nhà đất đang đóng băng về giao dịch, người bán chịu áp lực lãi vay: người có tiền mặt bắt đầu có lợi thế đàm phán.",
+    "en": "Property deals have frozen and sellers feel the interest burden: cash buyers are gaining bargaining power."
+   }
+  }
+ ],
+ "commodities": [
+  {
+   "name": {
+    "vi": "Vàng thế giới",
+    "en": "World gold"
+   },
+   "live_ref": "world:key:GC=F",
+   "prefix": "$",
+   "digits": 0,
+   "reading": {
+    "vi": "Khoảng 4.100 USD/oz",
+    "en": "About $4,100/oz"
+   },
+   "trend": "down",
+   "impact": {
+    "vi": "Thấp hơn đỉnh tháng 1 khoảng 27%. Fed ngừng tăng lãi sẽ là chất xúc tác chính cho đợt tăng tiếp theo.",
+    "en": "About 27% below the January peak. A Fed pause would be the main trigger for the next rally."
+   }
+  },
+  {
+   "name": {
+    "vi": "Vàng miếng SJC",
+    "en": "SJC gold bars"
+   },
+   "reading": {
+    "vi": "138-141 triệu đồng/lượng (7/11)",
+    "en": "VND 138-141m per tael (7 Nov)"
+   },
+   "trend": "down",
+   "impact": {
+    "vi": "Đắt hơn giá thế giới quy đổi khoảng 10%: mua lúc này là trả thêm một khoản phí có thể mất khi chênh lệch thu hẹp.",
+    "en": "About 10% above the converted world price: buying now means paying a premium that may vanish as the gap narrows."
+   }
+  },
+  {
+   "name": {
+    "vi": "Dầu WTI",
+    "en": "WTI oil"
+   },
+   "live_ref": "world:key:CL=F",
+   "prefix": "$",
+   "digits": 2,
+   "reading": {
+    "vi": "Brent dưới 95 USD",
+    "en": "Brent below $95"
+   },
+   "trend": "down",
+   "impact": {
+    "vi": "Dầu rẻ giúp Việt Nam giảm lạm phát và chi phí vận tải; đỉnh chiến sự từng khoảng 120 USD.",
+    "en": "Cheap oil lowers Vietnam's inflation and transport costs; the wartime peak was about $120."
+   }
+  },
+  {
+   "name": {
+    "vi": "Đồng (LME)",
+    "en": "Copper (LME)"
+   },
+   "reading": {
+    "vi": "13.774 USD/tấn (6/11)",
+    "en": "$13,774/t (6 Nov)"
+   },
+   "trend": "down",
+   "impact": {
+    "vi": "Giảm tuần mạnh nhất từ tháng 3 sau đỉnh tháng 9: tín hiệu nhu cầu công nghiệp toàn cầu chững lại.",
+    "en": "Its biggest weekly drop since March after a September record: a sign global industrial demand is cooling."
+   }
+  }
+ ],
+ "profiles": [
+  {
+   "id": "safe",
+   "name": {
+    "vi": "Thận trọng",
+    "en": "Cautious"
+   },
+   "desc": {
+    "vi": "Ưu tiên giữ vốn, chấp nhận lời thấp. Hợp với người sắp cần tiền trong 1-3 năm hoặc không chịu được sụt giảm quá 10%.",
+    "en": "Capital first, lower returns accepted. Suits money needed within 1-3 years or anyone who cannot stand a drop above 10%."
+   },
+   "neutral": {
+    "savings": 50,
+    "gold": 10,
+    "stocks_vn": 15,
+    "re_vn": 15,
+    "usd": 5,
+    "stocks_world": 5,
+    "crypto": 0
+   },
+   "now": {
+    "savings": 58,
+    "gold": 10,
+    "stocks_vn": 15,
+    "re_vn": 7,
+    "usd": 5,
+    "stocks_world": 5,
+    "crypto": 0
+   }
+  },
+  {
+   "id": "balanced",
+   "name": {
+    "vi": "Cân bằng",
+    "en": "Balanced"
+   },
+   "desc": {
+    "vi": "Cân bằng giữa tăng trưởng và an toàn, chịu được sụt giảm 15-20% trong năm xấu, tầm nhìn 3-5 năm.",
+    "en": "Growth balanced with safety, can take a 15-20% drop in a bad year, 3-5 year horizon."
+   },
+   "neutral": {
+    "savings": 25,
+    "re_vn": 20,
+    "stocks_vn": 25,
+    "stocks_world": 10,
+    "gold": 10,
+    "crypto": 5,
+    "usd": 5
+   },
+   "now": {
+    "savings": 32,
+    "re_vn": 12,
+    "stocks_vn": 28,
+    "stocks_world": 9,
+    "gold": 10,
+    "crypto": 3,
+    "usd": 6
+   }
+  },
+  {
+   "id": "growth",
+   "name": {
+    "vi": "Tăng trưởng",
+    "en": "Growth"
+   },
+   "desc": {
+    "vi": "Ưu tiên lợi nhuận dài hạn, chịu được sụt giảm 30% trở lên, tầm nhìn trên 5 năm và có thu nhập ổn định.",
+    "en": "Long-term returns first, can take drops of 30% or more, horizon above 5 years and a steady income."
+   },
+   "neutral": {
+    "savings": 10,
+    "re_vn": 20,
+    "stocks_vn": 35,
+    "stocks_world": 15,
+    "gold": 5,
+    "crypto": 10,
+    "usd": 5
+   },
+   "now": {
+    "savings": 18,
+    "re_vn": 12,
+    "stocks_vn": 38,
+    "stocks_world": 13,
+    "gold": 7,
+    "crypto": 6,
+    "usd": 6
+   }
+  }
+ ],
+ "rules": [
+  {
+   "vi": "Để riêng quỹ dự phòng bằng 6 tháng chi tiêu trước khi đầu tư bất cứ thứ gì.",
+   "en": "Set aside an emergency fund of 6 months of spending before investing anything."
+  },
+  {
+   "vi": "Không vay margin hay vay tiêu dùng để đầu tư khi lãi suất đang cao.",
+   "en": "No margin or consumer loans to invest while rates are high."
+  },
+  {
+   "vi": "Chia nhỏ và mua đều theo tháng: không ai bắt đúng đáy.",
+   "en": "Split purchases and buy monthly: nobody catches the exact bottom."
+  },
+  {
+   "vi": "Tái cân bằng mỗi 6 tháng, hoặc khi một kênh lệch quá 5 điểm % so với tỷ trọng mục tiêu.",
+   "en": "Rebalance every 6 months, or when an asset drifts more than 5 points from its target."
+  },
+  {
+   "vi": "Tài sản đầu cơ (tiền số, cổ phiếu nhỏ) không quá 5-10% tổng tài sản.",
+   "en": "Speculative assets (crypto, small caps) stay within 5-10% of total assets."
+  },
+  {
+   "vi": "Mua nhà bằng vốn vay chỉ khi khoản trả nợ không quá 40% thu nhập ở kịch bản lãi 15%.",
+   "en": "Buy property with debt only if payments stay under 40% of income at a 15% rate."
+  }
+ ],
+ "calendar": [
+  {
+   "date": "2026-11-10",
+   "date_label": {
+    "vi": "10/11/2026",
+    "en": "10 Nov 2026"
+   },
+   "title": {
+    "vi": "Lạm phát Mỹ tháng 10",
+    "en": "US October CPI"
+   },
+   "why": {
+    "vi": "Nếu CPI hạ nhờ giá dầu, khả năng Fed tăng lãi tháng 12 giảm: tốt cho cổ phiếu, vàng, tiền số.",
+    "en": "If CPI eases on oil, a December Fed hike becomes less likely: good for stocks, gold and crypto."
+   },
+   "assets": [
+    "stocks_world",
+    "gold",
+    "crypto"
+   ]
+  },
+  {
+   "date": "2026-11-11",
+   "date_label": {
+    "vi": "10-11/11/2026",
+    "en": "10-11 Nov 2026"
+   },
+   "title": {
+    "vi": "Đàm phán Nga - Ukraine - Mỹ tại Abu Dhabi",
+    "en": "Russia-Ukraine-US talks in Abu Dhabi"
+   },
+   "why": {
+    "vi": "Hoà đàm tiến triển làm giảm giá dầu và phần bù rủi ro của vàng.",
+    "en": "Progress would lower oil and gold's risk premium."
+   },
+   "assets": [
+    "gold",
+    "stocks_world"
+   ]
+  },
+  {
+   "date": "2026-12-09",
+   "date_label": {
+    "vi": "8-9/12/2026",
+    "en": "8-9 Dec 2026"
+   },
+   "title": {
+    "vi": "Fed họp chính sách",
+    "en": "Fed policy meeting"
+   },
+   "why": {
+    "vi": "Sự kiện quan trọng nhất quý. Bỏ qua đợt tăng là tín hiệu nới lỏng đầu tiên; tăng tiếp thì tài sản rủi ro chịu thêm áp lực.",
+    "en": "The key event of the quarter. A skip is the first easing signal; another hike adds pressure on risky assets."
+   },
+   "assets": [
+    "stocks_world",
+    "stocks_vn",
+    "gold",
+    "crypto",
+    "usd"
+   ]
+  },
+  {
+   "date": "2026-12-17",
+   "date_label": {
+    "vi": "17/12/2026",
+    "en": "17 Dec 2026"
+   },
+   "title": {
+    "vi": "ECB họp chính sách",
+    "en": "ECB policy meeting"
+   },
+   "why": {
+    "vi": "ECB có thể tăng lãi; ảnh hưởng tới chỉ số USD và dòng vốn toàn cầu.",
+    "en": "The ECB may hike, which moves the dollar index and global flows."
+   },
+   "assets": [
+    "usd"
+   ]
+  },
+  {
+   "date": "2026-12-31",
+   "date_label": {
+    "vi": "Cuối 2026",
+    "en": "Late 2026"
+   },
+   "title": {
+    "vi": "Sân bay Long Thành vận hành, khởi công đường sắt cao tốc",
+    "en": "Long Thanh airport opens, high-speed rail groundbreaking"
+   },
+   "why": {
+    "vi": "Mốc hạ tầng lớn cho Đồng Nai và vùng ven TP.HCM, cùng nhóm cổ phiếu xây dựng, vật liệu. Cả hai mốc đã từng bị lùi, nên chờ xác nhận.",
+    "en": "Big infrastructure milestones for Dong Nai, outer HCMC and builders. Both have slipped before, so wait for confirmation."
+   },
+   "assets": [
+    "re_vn",
+    "stocks_vn"
+   ]
+  },
+  {
+   "date": "2027-01-06",
+   "date_label": {
+    "vi": "Đầu 01/2027",
+    "en": "Early Jan 2027"
+   },
+   "title": {
+    "vi": "Số liệu GDP và CPI cả năm 2026 của Việt Nam",
+    "en": "Vietnam full-year 2026 GDP and CPI"
+   },
+   "why": {
+    "vi": "Cho biết mục tiêu 10% có đạt không và lạm phát có vượt trần không, từ đó đoán hướng lãi suất 2027.",
+    "en": "Shows whether the 10% target was hit and whether inflation broke the ceiling, which hints at 2027 rates."
+   },
+   "assets": [
+    "stocks_vn",
+    "savings",
+    "re_vn"
+   ]
+  },
+  {
+   "date": "2027-02-06",
+   "date_label": {
+    "vi": "Tết Đinh Mùi 06/02/2027",
+    "en": "Lunar New Year, 6 Feb 2027"
+   },
+   "title": {
+    "vi": "Nhu cầu tiền mặt cuối năm âm lịch",
+    "en": "Year-end cash demand"
+   },
+   "why": {
+    "vi": "Trước Tết thanh khoản ngân hàng thường căng, lãi huy động ngắn hạn nhích lên; giao dịch nhà đất chậm lại.",
+    "en": "Before Tet bank liquidity usually tightens, short-term deposit rates tick up and property deals slow."
+   },
+   "assets": [
+    "savings",
+    "re_vn"
+   ]
+  },
+  {
+   "date": "2027-09-30",
+   "date_label": {
+    "vi": "Đến 09/2027",
+    "en": "Through Sep 2027"
+   },
+   "title": {
+    "vi": "Các đợt giải ngân FTSE Russell",
+    "en": "FTSE Russell inclusion tranches"
+   },
+   "why": {
+    "vi": "Nâng hạng được giải ngân theo 4 đợt; mỗi đợt là dịp quỹ ngoại phải mua cổ phiếu Việt Nam.",
+    "en": "The upgrade is phased in four tranches; each one forces index funds to buy Vietnam stocks."
+   },
+   "assets": [
+    "stocks_vn"
+   ]
+  }
+ ],
+ "playbook": [
+  {
+   "if": {
+    "vi": "Fed bỏ qua tăng lãi tháng 12 và CPI Mỹ hạ về gần 3%",
+    "en": "The Fed skips in December and US CPI falls toward 3%"
+   },
+   "then": {
+    "vi": "Tăng dần cổ phiếu thế giới và vàng; bắt đầu gom tiền số với phần nhỏ.",
+    "en": "Raise world stocks and gold gradually; start a small crypto position."
+   }
+  },
+  {
+   "if": {
+    "vi": "Dầu quay lại trên 110 USD vì chiến sự",
+    "en": "Oil back above $110 on war"
+   },
+   "then": {
+    "vi": "Giữ tiền mặt, vàng; hoãn mua cổ phiếu; lạm phát Việt Nam sẽ tăng và lãi suất neo cao lâu hơn.",
+    "en": "Hold cash and gold; delay stock buying; Vietnam inflation rises and rates stay high longer."
+   }
+  },
+  {
+   "if": {
+    "vi": "VN-Index thủng 1.677 điểm trong khi margin còn kỷ lục",
+    "en": "The VN-Index breaks 1,677 while margin is at a record"
+   },
+   "then": {
+    "vi": "Tạm dừng mua 2-4 tuần, chờ bán giải chấp kết thúc rồi mới mua tiếp với phần lớn hơn.",
+    "en": "Pause buying 2-4 weeks, let forced selling finish, then resume with bigger tranches."
+   }
+  },
+  {
+   "if": {
+    "vi": "Khối ngoại mua ròng 4 tuần liền",
+    "en": "Foreigners net buy for 4 weeks"
+   },
+   "then": {
+    "vi": "Đẩy nhanh tốc độ gom cổ phiếu Việt Nam, ưu tiên nhóm vốn hoá lớn họ thường mua.",
+    "en": "Speed up buying Vietnam stocks, favouring the large caps they usually buy."
+   }
+  },
+  {
+   "if": {
+    "vi": "Lãi vay mua nhà về dưới 11% và tỷ lệ hấp thụ trên 60%",
+    "en": "Mortgages below 11% and absorption above 60%"
+   },
+   "then": {
+    "vi": "Bắt đầu xem nhà đất để ở hoặc cho thuê ở khu đã có hạ tầng; vẫn tránh đất nền đầu cơ.",
+    "en": "Start looking at homes to live in or rent out where infrastructure already works; still avoid speculative land plots."
+   }
+  },
+  {
+   "if": {
+    "vi": "Lãi tiết kiệm 12 tháng ở ngân hàng lớn giảm dưới 4,5%",
+    "en": "Big-bank 12-month rates drop below 4.5%"
+   },
+   "then": {
+    "vi": "Các sổ đáo hạn chuyển dần sang cổ phiếu và quỹ, không tái tục toàn bộ.",
+    "en": "Move maturing deposits gradually into stocks and funds instead of rolling them all over."
+   }
+  },
+  {
+   "if": {
+    "vi": "Chỉ số Tham lam và sợ hãi crypto dưới 15",
+    "en": "Crypto Fear & Greed below 15"
+   },
+   "then": {
+    "vi": "Mua Bitcoin từng phần nhỏ, giữ tổng tiền số dưới 5% tài sản.",
+    "en": "Buy Bitcoin in small pieces, keeping all crypto under 5% of assets."
+   }
+  }
+ ],
+ "history": [
+  {
+   "period": "2007-2009",
+   "title": {
+    "vi": "Bong bóng và lạm phát phi mã",
+    "en": "Bubble and runaway inflation"
+   },
+   "text": {
+    "vi": "VN-Index lên khoảng 1.170 điểm (3/2007) rồi về khoảng 235 điểm (2/2009); lạm phát Việt Nam lên trên 20% năm 2008, nhà đất đóng băng.",
+    "en": "The VN-Index hit about 1,170 (Mar 2007), then about 235 (Feb 2009); Vietnam inflation went above 20% in 2008 and property froze."
+   },
+   "lesson": {
+    "vi": "Khi lạm phát và lãi suất cùng tăng nhanh, giữ tiền mặt và vàng; đừng mua vì sợ lỡ.",
+    "en": "When inflation and rates rise fast together, hold cash and gold; do not buy out of fear of missing out."
+   }
+  },
+  {
+   "period": "2011-2013",
+   "title": {
+    "vi": "Lãi suất 20%, nhà đất đóng băng",
+    "en": "20% rates, frozen property"
+   },
+   "text": {
+    "vi": "Lãi vay có lúc trên 20%, nhiều dự án dừng, giá nhà giảm kéo dài vài năm; người gửi tiết kiệm và giữ vàng thắng.",
+    "en": "Lending rates topped 20% at times, many projects stalled, home prices fell for years; savers and gold holders won."
+   },
+   "lesson": {
+    "vi": "Nhà đất phục hồi chậm nhất: phải chờ lãi suất hạ hẳn mới quay lại.",
+    "en": "Property recovers last: it needs rates to come down for good."
+   }
+  },
+  {
+   "period": "2020-2021",
+   "title": {
+    "vi": "Tiền rẻ, mọi tài sản cùng tăng",
+    "en": "Cheap money lifts everything"
+   },
+   "text": {
+    "vi": "Lãi suất thấp kỷ lục sau Covid, VN-Index vượt 1.500 điểm, hàng triệu nhà đầu tư mới, nhà đất và tiền số cùng lập đỉnh.",
+    "en": "Record-low rates after Covid, the VN-Index above 1,500, millions of new investors, property and crypto all at records."
+   },
+   "lesson": {
+    "vi": "Khi ai cũng mở tài khoản và vay để mua, đó là lúc chốt bớt.",
+    "en": "When everyone opens an account and borrows to buy, it is time to trim."
+   }
+  },
+  {
+   "period": "2022",
+   "title": {
+    "vi": "Lãi suất tăng, trái phiếu doanh nghiệp đổ vỡ",
+    "en": "Rates up, corporate bonds collapse"
+   },
+   "text": {
+    "vi": "Fed tăng lãi mạnh nhất 40 năm; VN-Index giảm từ khoảng 1.500 xuống dưới 900 điểm, Bitcoin giảm khoảng 64%, thị trường trái phiếu doanh nghiệp và nhà đất tê liệt.",
+    "en": "The Fed's fastest hikes in 40 years; the VN-Index fell from about 1,500 to below 900, Bitcoin about -64%, corporate bonds and property seized up."
+   },
+   "lesson": {
+    "vi": "Lợi suất cao bất thường thường đi kèm rủi ro vỡ nợ; tiền gửi ngân hàng lớn là nơi trú ẩn.",
+    "en": "Unusually high yields usually mean default risk; big-bank deposits are the shelter."
+   }
+  },
+  {
+   "period": "2024-2025",
+   "title": {
+    "vi": "Vàng và Bitcoin lập đỉnh",
+    "en": "Gold and Bitcoin at records"
+   },
+   "text": {
+    "vi": "Sau halving 4/2024, Bitcoin lên khoảng 126 nghìn USD (10/2025); vàng tăng liên tục và lập đỉnh 5.608 USD tháng 1/2026; Việt Nam được FTSE thông báo nâng hạng.",
+    "en": "After the April 2024 halving, Bitcoin reached about $126k (Oct 2025); gold kept rising to a $5,608 record in January 2026; FTSE announced Vietnam's upgrade."
+   },
+   "lesson": {
+    "vi": "Khoảng 18 tháng sau halving thường là vùng đỉnh của tiền số; ai chốt lời theo lịch đã tránh được đợt giảm 2026.",
+    "en": "About 18 months after a halving is usually crypto's peak zone; those who took profit on schedule avoided the 2026 drop."
+   }
+  },
+  {
+   "period": "2026",
+   "title": {
+    "vi": "Cú sốc dầu và Fed tăng lãi trở lại",
+    "en": "Oil shock and the Fed hiking again"
+   },
+   "text": {
+    "vi": "Chiến tranh Iran đẩy dầu lên 120 USD, lạm phát quay lại, Fed tăng lãi tháng 9; vàng và Bitcoin là tài sản tệ nhất năm, cổ phiếu AI điều chỉnh.",
+    "en": "The Iran war took oil to $120, inflation returned and the Fed hiked in September; gold and Bitcoin were the year's worst assets and AI stocks corrected."
+   },
+   "lesson": {
+    "vi": "Không có tài sản nào luôn là nơi trú ẩn: phân bổ nhiều kênh và giữ tiền mặt giúp vượt qua cú sốc bất ngờ.",
+    "en": "No asset is always a safe haven: spreading across assets and keeping cash gets you through surprises."
+   }
+  }
+ ],
+ "sources": [
+  {
+   "name": "Federal Reserve: FOMC statement 28/10/2026",
+   "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20261028a.htm"
+  },
+  {
+   "name": "The National: Fed raises rates 16/09/2026",
+   "url": "https://www.thenationalnews.com/business/economy/2026/09/16/fed-rate-rise-25-basis-points-hike/"
+  },
+  {
+   "name": "investingLive: US September CPI",
+   "url": "https://investinglive.com/news/us-september-cpi-vs-3-6-expected-0/"
+  },
+  {
+   "name": "ABC11: US October jobs report",
+   "url": "https://abc11.com/story/us-employers-added-surprising-165000-jobs-october-unemployment-rate-dipped-41/20020018/"
+  },
+  {
+   "name": "Advisor Perspectives: Treasury yields 06/11/2026",
+   "url": "https://www.advisorperspectives.com/dshort/updates/2026/11/06/treasury-yields-snapshot-november-6-2026"
+  },
+  {
+   "name": "Al Jazeera: China Q3 GDP",
+   "url": "https://www.aljazeera.com/economy/2026/10/19/chinas-economy-grows-4-5-percent-in-q3-beating-forecasts"
+  },
+  {
+   "name": "VnEconomy: US 12.5% tariff on Vietnam",
+   "url": "https://en.vneconomy.vn/us-imposes-125-additional-tariff-on-many-export-items-from-vietnam.htm"
+  },
+  {
+   "name": "Nation Thailand: oil and peace talks",
+   "url": "https://www.nationthailand.com/news/world/40073076"
+  },
+  {
+   "name": "Trading Economics: gold",
+   "url": "https://tradingeconomics.com/commodity/gold"
+  },
+  {
+   "name": "Trading Economics: US dollar index",
+   "url": "https://tradingeconomics.com/united-states/currency/news/597320"
+  },
+  {
+   "name": "Zacks: stock market news 06/11/2026",
+   "url": "https://www.zacks.com/stock/news/3025392/stock-market-news-for-nov-6-2026"
+  },
+  {
+   "name": "Kitco: VIX jumps 05/11/2026",
+   "url": "https://www.kitco.com/news/off-the-wire/2026-11-05/wall-street-fear-gauge-jumps-most-liberation-day-ai-trade-stumbles"
+  },
+  {
+   "name": "Cointelegraph: Bitcoin price",
+   "url": "https://cointelegraph.com/markets/bitcoin-price-bottom-this-week-btc-down-20-percent-november"
+  },
+  {
+   "name": "Brave New Coin: Fear index after Binance hack",
+   "url": "https://bravenewcoin.com/insights/crypto-fear-index-drops-to-30-after-binance-hack-as-ethereum-etfs-see-1b-in-outflows"
+  },
+  {
+   "name": "Orrick: CLARITY Act stalls",
+   "url": "https://www.orrick.com/Insights/2026/10/The-CLARITY-Act-Stalls-in-the-Senate-Whats-Next-for-Digital-Asset-Regulation"
+  },
+  {
+   "name": "Tiền Phong: sàn tài sản mã hoá sau một năm thí điểm",
+   "url": "https://tienphong.vn/cuoc-dua-san-tai-san-ma-hoa-sau-mot-nam-thi-diem-nguoi-tang-toc-ben-rut-lui-post1873655.tpo"
+  },
+  {
+   "name": "VietnamPlus: GDP Q3 9.95%",
+   "url": "https://en.vietnamplus.vn/vietnam-posts-gdp-growth-of-995-in-q3-post353039.vnp"
+  },
+  {
+   "name": "Tổng cục Thống kê: CPI tháng 10/2026",
+   "url": "https://www.nso.gov.vn/wp-content/uploads/2026/11/CPI-chi-so-gia-vang-va-chi-so-gia-do-la-My-thang-Muoi-va-10-thang-nam-2026.pdf"
+  },
+  {
+   "name": "CafeF: FDI 10 tháng 2026",
+   "url": "https://cafef.vn/von-fdi-dang-ky-vao-viet-nam-cao-nhat-tu-nam-2009-188261103135738172.chn"
+  },
+  {
+   "name": "VIR: PMI tháng 10",
+   "url": "https://vir.com.vn/vietnam-manufacturing-growth-eases-in-october-as-export-orders-fall-164214.html"
+  },
+  {
+   "name": "CafeF: lãi suất huy động 06/11/2026",
+   "url": "https://cafef.vn/ngay-6-11-mot-ngan-hang-cong-them-lai-suat-cao-nhat-len-toi-91-nam-18826110614422182.chn"
+  },
+  {
+   "name": "VnBusiness: lãi suất thả nổi vượt 15%",
+   "url": "https://vnbusiness.vn/lai-suat-tha-noi-vuot-15-tin-dung-mua-nha-bat-dau-giam-nhiet.html"
+  },
+  {
+   "name": "Thị trường Tài chính Tiền tệ: tỷ giá trung tâm",
+   "url": "https://thitruongtaichinhtiente.vn/ngay-5-11-ty-gia-trung-tam-giam-phien-thu-5-lien-tiep-86808.html"
+  },
+  {
+   "name": "Vietstock: khối ngoại bán ròng 10 tháng",
+   "url": "https://vietstock.vn/2026/11/khoi-ngoai-ban-rong-gan-122-ngan-ty-dong-trong-10-thang-ky-luc-2025-bi-xo-do-830-1511407.htm"
+  },
+  {
+   "name": "Người Đưa Tin: SSI dự báo đáy VN-Index",
+   "url": "https://www.nguoiduatin.vn/ssi-research-du-bao-thoi-diem-vn-index-tao-day-cung-11-co-phieu-dan-dat-thang-11-204261108160013983.htm"
+  },
+  {
+   "name": "Doanh nhân: dư nợ margin kỷ lục",
+   "url": "https://doanhnhan.baophapluat.vn/du-no-margin-lap-ky-luc-hon-457-500-ty-dong-khi-thanh-khoan-giam-hon-60-chuyen-gia-canh-bao-rui-ro-giai-chap.html"
+  },
+  {
+   "name": "The Investor: FTSE Russell nâng hạng từ 21/9",
+   "url": "https://theinvestor.vn/ftse-russell-confirms-vietnams-market-status-upgrade-to-secondary-emerging-from-sept-21-d18799.html"
+  },
+  {
+   "name": "VnEconomy: 252 nghìn tài khoản mới tháng 10",
+   "url": "https://vneconomy.vn/thanh-khoan-cuc-thap-nha-dau-tu-ca-nhan-van-mo-moi-252000-tai-khoan-chung-khoan-trong-thang-10.htm"
+  },
+  {
+   "name": "Vietnam.vn: giá vàng 07/11/2026",
+   "url": "https://www.vietnam.vn/gia-vang-hom-nay-7-11-2026-gia-vang-sjc-btmc-pnj-phu-quy-va-vang-quoc-te"
+  },
+  {
+   "name": "Doanh nhân: căn hộ Hà Nội quý 3/2026",
+   "url": "https://doanhnhan.baophapluat.vn/nguon-cung-can-ho-ha-noi-quy-iii-2026-giam-40-thanh-khoan-di-xuong.html"
+  },
+  {
+   "name": "VOV: căn hộ TP.HCM quý 3/2026",
+   "url": "http://vov.vn/kinh-te/thi-truong-can-ho-tai-tphcm-quy-iii2026-suc-mua-giam-thanh-khoan-thap-post1342202.vov"
+  },
+  {
+   "name": "Thư viện Pháp luật: bảng giá đất 2026",
+   "url": "https://thuvienphapluat.vn/phap-luat-nha-dat/nhung-tinh-thanh-da-thong-qua-bang-gia-dat-2026-cap-nhat-moi-nhat-12757.html"
+  },
+  {
+   "name": "Tuổi Trẻ: đường sắt cao tốc khởi công cuối 2026",
+   "url": "https://news.tuoitre.vn/saigontimes/work-on-north-south-high-speed-rail-to-start-in-late-2026-105450540.htm"
+  }
+ ]
+}
