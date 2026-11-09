@@ -8,6 +8,27 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.515.0] - 2026-11-09
+### Security
+- **New Security tab on the Account page.** See 2FA, the devices signed in (IP, browser, last activity) and the history of successful and failed sign-ins and every account change. Sign out one device or all others without changing the password.
+- **Instant alerts on account changes.** Username, password or 2FA changes and sign-ins from a new network reach the owner's bell and Telegram right away. If the settings file is edited outside Javis, every device is signed out and a red warning shows.
+- **The AI assistant can no longer touch secret files** (settings, encryption key, sessions) at any permission level. To remove 2FA when locked out, add `JAVIS_RESET_2FA=1` and redeploy.
+- **Hostinger: port 7777 closes to the Internet once an HTTPS domain is set**, leaving only the encrypted way in.
+
+## [0.514.0] - 2026-11-09
+### Added
+- **File editors save by themselves, like Google Docs.** About a second after you stop typing the file is saved, and the Save button shows "Saving…" then "Saved". Closing, switching files, reloading or a stray Back swipe no longer loses typed text.
+- **Text survives a lost connection.** Unsaved text is kept in the browser and restored the next time the file opens.
+- **A dictation mic in the .md and .txt editors.** Press, speak, and the words land at the cursor, rewritten in context, like the mic in the chat box.
+### Fixed
+- **Text blocks (such as an email draft's TEXT block) wrap** instead of running off to the right. While editing, a sideways touchpad swipe no longer sends the browser Back.
+
+## [0.513.0] - 2026-11-09
+### Improved
+- **The app opens noticeably faster.** The ~110 interface files loaded at startup now travel as one bundle. With 150 ms of network delay the Partners list shows after about 2 seconds instead of nearly 5.
+- **No stall on the first page after a restart or an update.** Minified files are kept on disk, so the server does not redo them from scratch; only files that just changed are minified again.
+- **The Partners page no longer waits in a queue.** The reads for the list, the Resonance status and background work now run off the main loop and stop holding up other requests.
+
 ## [0.512.0] - 2026-11-09
 ### Added
 - **Personal Zalo bots show "typing..." in groups.** It starts only after the bot has decided to answer (it was called, or the judge chose to speak up) and lasts until the reply is sent, so a group no longer sits in silence for 20-30 seconds. A message the bot leaves alone shows nothing.

@@ -21,9 +21,13 @@ JAVIS_MINIFY=0.
 """
 from __future__ import annotations
 
+import gzip
+import hashlib
 import os
+import threading
 import zlib
 from pathlib import Path
+from typing import Optional
 
 # Sau các từ khoá này, dấu "/" mở một regex chứ không phải phép chia.
 _TU_TRUOC_REGEX = {
@@ -276,6 +280,93 @@ def nen_duoc(rel: str) -> bool:
 
 _NHO: dict = {}   # đường dẫn tuyệt đối -> (khoá (mtime_ns, size, bat), bytes đã phục vụ, crc)
 
+# Disk cache of minified output (2026-11-09). The owner measured the first page after a restart on the VPS: the
+# minifier above is pure Python and holds the GIL, so while it ran over ~150 files every other request (static files,
+# the Partners page lists) waited behind it. The output depends only on the file's bytes and on this module's code, so
+# it is kept on disk keyed by both: a restart reads it back in milliseconds, and after an update only the files that
+# really changed are minified again. Set by main.py (STATE_DIR/cache/static-min); None = memory only (tests, CLI).
+_DISK_DIR: Optional[Path] = None
+_DISK_USED: set = set()          # cache file names read or written by this process (prune keeps them)
+_GZ: dict = {}                   # absolute path -> (crc of the served bytes, gzip bytes)
+_LOCKS: dict = {}                # absolute path -> lock, so two threads never minify the same file at once
+_LOCKS_GUARD = threading.Lock()
+GZIP_LEVEL = 9                   # computed once per file version, so the best ratio costs nothing per request
+
+
+def _code_tag() -> str:
+    """crc32 of this module's own source: a change to the minifier invalidates every cached output."""
+    try:
+        return format(zlib.crc32(Path(__file__).read_bytes()) & 0xFFFFFFFF, "08x")
+    except OSError:
+        return "0"
+
+
+_CODE_TAG = _code_tag()
+
+
+def set_cache_dir(path) -> None:
+    """Where minified outputs persist between runs. Missing or unwritable directory = memory only."""
+    global _DISK_DIR
+    try:
+        p = Path(path)
+        p.mkdir(parents=True, exist_ok=True)
+        _DISK_DIR = p
+    except (OSError, TypeError):
+        _DISK_DIR = None
+
+
+def _disk_name(rel: str, raw: bytes) -> str:
+    h = hashlib.sha1(_CODE_TAG.encode())
+    h.update(rel.replace("\\", "/").encode("utf-8", "surrogatepass"))
+    h.update(b"\0")
+    h.update(raw)
+    return h.hexdigest()[:32] + (".js" if rel.endswith(".js") else ".css")
+
+
+def _disk_read(name: str) -> Optional[bytes]:
+    if _DISK_DIR is None:
+        return None
+    try:
+        data = (_DISK_DIR / name).read_bytes()
+    except OSError:
+        return None
+    _DISK_USED.add(name)
+    return data
+
+
+def _disk_write(name: str, data: bytes) -> None:
+    if _DISK_DIR is None:
+        return
+    try:
+        tmp = _DISK_DIR / (name + f".{os.getpid()}.{threading.get_ident()}.tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, _DISK_DIR / name)
+        _DISK_USED.add(name)
+    except OSError:
+        pass   # a full or read-only disk only costs the next restart a re-minify
+
+
+def _lock_for(key: str) -> threading.Lock:
+    with _LOCKS_GUARD:
+        lk = _LOCKS.get(key)
+        if lk is None:
+            lk = _LOCKS[key] = threading.Lock()
+        return lk
+
+
+def _minified(rel: str, goc: bytes) -> bytes:
+    name = _disk_name(rel, goc)
+    hit = _disk_read(name)
+    if hit is not None:
+        return hit
+    try:
+        text = goc.decode("utf-8")
+        data = (nen_js(text) if rel.endswith(".js") else nen_css(text)).encode("utf-8")
+    except Exception:   # noqa: BLE001 - hỏng gì cũng phục vụ bản gốc, không bao giờ làm vỡ trang
+        return goc
+    _disk_write(name, data)
+    return data
+
 
 def ban_phuc_vu(path: Path, rel: str) -> tuple[bytes, str]:
     """Bytes sẽ gửi cho trình duyệt (bản nén nếu nén được, không thì bản gốc) và crc32 của CHÍNH các bytes đó.
@@ -285,18 +376,47 @@ def ban_phuc_vu(path: Path, rel: str) -> tuple[bytes, str]:
     ent = _NHO.get(str(path))
     if ent and ent[0] == khoa:
         return ent[1], ent[2]
-    goc = path.read_bytes()
-    data = goc
-    if bat() and nen_duoc(rel):
-        try:
-            text = goc.decode("utf-8")
-            gon = nen_js(text) if rel.endswith(".js") else nen_css(text)
-            data = gon.encode("utf-8")
-        except Exception:   # noqa: BLE001 - hỏng gì cũng phục vụ bản gốc, không bao giờ làm vỡ trang
-            data = goc
-    crc = format(zlib.crc32(data) & 0xFFFFFFFF, "08x")
-    _NHO[str(path)] = (khoa, data, crc)
-    return data, crc
+    with _lock_for(str(path)):
+        ent = _NHO.get(str(path))
+        if ent and ent[0] == khoa:
+            return ent[1], ent[2]
+        goc = path.read_bytes()
+        data = _minified(rel, goc) if bat() and nen_duoc(rel) else goc
+        crc = format(zlib.crc32(data) & 0xFFFFFFFF, "08x")
+        _NHO[str(path)] = (khoa, data, crc)
+        return data, crc
+
+
+def gzip_of(path: Path, rel: str) -> tuple[bytes, bytes, str]:
+    """(served bytes, their gzip, crc): the gzip is made once per file version instead of on every request, which
+    Starlette's GZipMiddleware did on the event loop for each of the ~150 files a page load asks for."""
+    data, crc = ban_phuc_vu(path, rel)
+    ent = _GZ.get(str(path))
+    if ent and ent[0] == crc:
+        return data, ent[1], crc
+    gz = gzip.compress(data, GZIP_LEVEL, mtime=0)
+    _GZ[str(path)] = (crc, gz)
+    return data, gz, crc
+
+
+def prune_disk_cache() -> int:
+    """Delete cached outputs this process never used (files changed or removed by an update). Call only after every
+    current file has been served or warmed once, or the cache of a file not yet asked for is lost. Returns the count."""
+    if _DISK_DIR is None:
+        return 0
+    n = 0
+    try:
+        for f in _DISK_DIR.iterdir():
+            if f.name in _DISK_USED:
+                continue
+            try:
+                f.unlink()
+                n += 1
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return n
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@ def test_github_status_and_optional_tools_leave_the_loop():
 
 def test_minify_and_fingerprints_leave_the_loop():
     main = SERVER / "main.py"
-    assert "to_thread(tinh_gon.ban_phuc_vu" in _src(main, "get_response")
+    assert "to_thread(tinh_gon.gzip_of" in _src(main, "get_response")   # minify + gzip, 2026-11-09
     assert "to_thread(_asset_fps, html)" in _src(main, "app_version")
     assert "to_thread(_asset_fps, html)" in _src(main, "root")
 

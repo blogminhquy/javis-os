@@ -303,8 +303,11 @@ def register_agents(app, deps: ResonanceApiDeps):
                 "enabled": bool(rv.get("enabled")), "pair_version": pr.get("config_version")}
 
 
+    # Plain `def` (2026-11-09): this read opens SQLite several times per assistant and reads every assistant file. As
+    # `async def` it ran on the event loop, so on the owner's VPS the whole Partners page (and every static file) waited
+    # behind it; FastAPI runs a `def` route on a worker thread.
     @app.get("/resonance/agents")
-    async def resonance_agents(brain: str = "brain", slug: str = "", session_id: str = ""):
+    def resonance_agents(brain: str = "brain", slug: str = "", session_id: str = ""):
         """Trợ lý của brain kèm trạng thái Cộng hưởng. Đọc không tạo kho: chưa có kho thì mọi trợ lý đều chưa đăng ký.
 
         Có `slug` và `session_id` (phiên đang mở ở trang Cộng sự) thì trả thêm `session`: ready, needs_new_session

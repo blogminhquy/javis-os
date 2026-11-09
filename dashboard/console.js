@@ -9288,6 +9288,17 @@
   let _neOpenRel = "";         // file đang mở trong trình sửa (đường dẫn theo TRẦN DUYỆT)
   let _neLayNoiDung = null;    // () -> nội dung ĐANG soạn (markdown nếu là .md ở chế độ Sửa)
   let _neGocText = null;       // nội dung lúc VỪA MỞ, để biết có sửa gì chưa (xem _neCoSuaChua)
+  // Autosave and the dictation mic of the open text file (editor-autosave.js, editor-dictate.js, 2026-11-09).
+  let _neAuto = null;
+  let _neMic = null;
+  // Detach both from the file being left. The mic first, so words still being heard land in the text that close()
+  // writes. `discard` (the file was deleted) writes nothing.
+  function _neDropAssist(discard) {
+    const auto = _neAuto, mic = _neMic;
+    _neAuto = null; _neMic = null;
+    if (mic) { try { mic.destroy(); } catch (e) {} }
+    return auto ? auto.close(discard) : Promise.resolve(true);
+  }
   // Vệt đường đi giữa các note, y hệt lịch sử trình duyệt: bấm [[wikilink]] là đi tới, Lùi là
   // quay lại chỗ vừa đọc. Một mảng + một con trỏ, không phải hai ngăn xếp - dễ đọc hơn và
   // đúng ngữ nghĩa "đi tới giữa chừng thì cắt nhánh tiến".
@@ -9402,6 +9413,7 @@
   }
   async function _vtDelete(rel, name, isDir) {
     if (!confirm(window.t(isDir ? "cs.vt_del_dir" : "cs.vt_del_file", { ten: name }))) return;
+    if (_vtActivePath === rel || (_neOpenRel && (_neOpenRel === rel || _neOpenRel.startsWith(rel + "/")))) await _neDropAssist(true);
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
     try { await fetch("/files/delete", { method: "POST", body: fd }); } catch (e) {}
     if (_vtActivePath === rel) closeNote();
@@ -9776,6 +9788,7 @@
     // Đóng trình sửa ở trang Trò chuyện = trả chỗ lại cho khung chat. Không trả thì khung chat
     // vẫn bị ẩn và người dùng nhìn vào một trang trống, tưởng chat hỏng.
     _returnNoteEditor();
+    _neDropAssist();   // closing writes what is still unsaved (2026-11-09), read before the editor is emptied
     document.getElementById("neBody").innerHTML = ""; document.getElementById("neActions").innerHTML = "";
     // Thanh link chia se cua file VUA DONG khong duoc dinh sang file mo ke tiep.
     const _neSh = document.getElementById("neShare");
@@ -9812,6 +9825,7 @@
   async function _neDeleteCur(rel, it) {
     const name = (it && it.name) || rel.split("/").pop();
     if (!confirm(window.t("cs.vt_del_file", { ten: name }))) return;
+    await _neDropAssist(true);   // a pending autosave must not recreate the file after it is deleted
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
     try { await fetch("/files/delete", { method: "POST", body: fd }); } catch (e) {}
     // Ghim trỏ tới file vừa xoá thì bỏ, đừng để Javis đi mở một đường dẫn không còn tồn tại.
@@ -10176,6 +10190,8 @@
     if (_neOpenRel && _neOpenRel !== (rel || "") && _neCoSuaChua()) {
       if ((await _neSaveFn()) === false) return;   // lưu hỏng thì ở lại, lỗi hiện trên nút Lưu
     }
+    // Write what the old file still has pending (also when this same file is opened again, before it is read back).
+    await _neDropAssist();
     const laLichSu = _neDangDiLichSu;
     _neDangDiLichSu = false;
     if (!laLichSu) _neDayLichSu(rel, it);
@@ -10248,6 +10264,10 @@
         : `<div class="ne-src"><textarea id="neText" spellcheck="false"></textarea></div>`;
       const ta = document.getElementById("neText"); ta.value = d.content || "";
       let mdGetter = null;
+      let auto = null;                                 // this file's autosave, created below
+      const pokeAuto = () => { if (auto) auto.poke(); };
+      let applyText = (txt) => { ta.value = txt; };    // puts a restored draft into the editor
+      let micTarget = () => ({ kind: "ta", el: ta });
       if (isMd) {
         const wys = document.getElementById("neWys");
         // Thu muc chua CHINH file nay: de ![](anh.jpg) trong note nam o thu muc con tim anh
@@ -10261,9 +10281,11 @@
         wys.addEventListener("jv-task-toggle", () => { if (_neSaveFn) _neSaveFn(); });
         const wysToSrc = () => { const md = _mdFromHtml(wys.innerHTML); if (md != null) ta.value = md; };
         const srcToWys = () => { wys.innerHTML = window.mdToHtml ? window.mdToHtml(ta.value, null, { trinhSua: true, thuMuc: neThuMuc }) : esc(ta.value); };
+        applyText = (txt) => { ta.value = txt; srcToWys(); if (demLai) demLai(); };
+        micTarget = () => (curMode === "wys" ? { kind: "wys", el: wys } : { kind: "ta", el: ta });
         let demLai = null;
         _neBuildToolbar(body.querySelector(".ne-fmt"), { mode: () => curMode, ta, wys,
-          onChange: () => { if (demLai) demLai(); } });   // thanh công cụ chạy cả 2 chế độ
+          onChange: () => { if (demLai) demLai(); pokeAuto(); } });   // thanh công cụ chạy cả 2 chế độ
         // Đếm chữ HIỆN RA: chế độ Sửa lấy chữ của bản render, chế độ Mã nguồn bỏ cú pháp markdown.
         demLai = _neGanDemTu(body.querySelector(".ne-fmt"),
           () => (curMode === "wys" ? { text: wys.innerText, md: false } : { text: ta.value, md: true }), [ta, wys]);
@@ -10299,27 +10321,61 @@
       const saveBtn = document.createElement("button"); saveBtn.innerHTML = SAVE_ICON + " " + esc(window.t("common.save")); saveBtn.title = window.t("cs.ne_save_title");
       // Mốc so sánh "đã sửa gì chưa": lấy SAU khi dựng xong khung soạn, tức là bản đã vòng
       // qua markdown một lượt - xem chú thích ở `_neCoSuaChua`.
-      _neLayNoiDung = () => (mdGetter ? mdGetter() : ta.value);
+      const getter = () => (mdGetter ? mdGetter() : ta.value);
+      _neLayNoiDung = getter;
       try { _neGocText = _neLayNoiDung(); } catch (e) { _neGocText = null; }
-      // Trả true/false chứ không nuốt kết quả: chỗ gọi tự động (rời file, bấm Lùi) phải biết
-      // lưu có ăn không để quyết định có đi tiếp hay ở lại.
-      _neSaveFn = async () => {
-        const content = _neLayNoiDung();
+      // One write of the file. Autosave, Save, Ctrl+S and every "save before leaving" path go through it. Returns
+      // true/false: the automatic callers (leaving the file, Back) decide from it whether to go on or stay.
+      const write = async (content, o) => {
         const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("content", content);
         try {
-          const r = await (await fetch("/files/write", { method: "POST", body: fd })).json();
+          const r = await (await fetch("/files/write", { method: "POST", body: fd, keepalive: !!(o && o.keepalive) })).json();
           if (r.ok) {
-            saveBtn.innerHTML = CHECK_ICON + " " + esc(window.t("cs.ne_saved")); saveBtn.classList.add("ne-saved");
-            setTimeout(() => { saveBtn.innerHTML = SAVE_ICON + " " + esc(window.t("common.save")); saveBtn.classList.remove("ne-saved"); }, 1400);
-            _neGocText = content;   // vừa lưu = mốc mới, không thì rời file lại lưu lần nữa
+            if (_neLayNoiDung === getter) _neGocText = content;   // vừa lưu = mốc mới, không thì rời file lại lưu lần nữa
             return true;
           }
-          saveBtn.innerHTML = WARN_ICON + " " + esc(window.t("app.err_cap"));
-        } catch (e) { saveBtn.innerHTML = WARN_ICON + " " + esc(window.t("app.err_cap")); }
+        } catch (e) { /* the autosave keeps the words and tries again */ }
         return false;
       };
-      saveBtn.onclick = _neSaveFn;
+      // The button shows the autosave state, like Google Docs: Save, Saving..., Saved, or the error.
+      const paintSave = (st) => {
+        saveBtn.classList.toggle("ne-saved", st === "saved");
+        saveBtn.classList.toggle("ne-save-err", st === "error");
+        saveBtn.innerHTML = st === "saved" ? CHECK_ICON + " " + esc(window.t("cs.ne_saved"))
+          : st === "saving" ? SAVE_ICON + " " + esc(window.t("cs.ne_saving"))
+          : st === "error" ? WARN_ICON + " " + esc(window.t("cs.ne_save_err"))
+          : SAVE_ICON + " " + esc(window.t("common.save"));
+        saveBtn.title = window.t(st === "error" ? "cs.ne_save_err_title" : "cs.ne_save_title");
+      };
+      if (window.JavisAutosave) {
+        auto = window.JavisAutosave.attach({
+          key: fbrain() + "::" + rel,
+          original: d.content || "",
+          get: getter,
+          baseline: _neGocText,
+          save: write,
+          sources: [ta, document.getElementById("neWys")],
+          apply: applyText,
+          onStatus: paintSave,
+          onRestored: () => { try { toast(window.t("cs.ne_draft_restored")); } catch (e) {} },
+        });
+        _neAuto = auto;
+        _neSaveFn = () => auto.flush();
+      } else {
+        _neSaveFn = async () => { const ok = await write(getter()); paintSave(ok ? "saved" : "error"); return ok; };
+      }
+      saveBtn.onclick = () => _neSaveFn();
       actions.appendChild(saveBtn);
+      // Mic: speak and the words land at the cursor (editor-dictate.js), same recorder as the chat box. Prose files
+      // only (.md, .txt): dictating into JSON or code is not something anyone asked for.
+      if (window.JavisEditorDictate && (isMd || ext === ".txt")) {
+        _neMic = window.JavisEditorDictate.attach({
+          host: body.querySelector(".ne-fmt") || actions,
+          target: micTarget,
+          onChange: pokeAuto,
+        });
+        if (!body.querySelector(".ne-fmt")) actions.insertBefore(_neMic.button, saveBtn);
+      }
       _neCommonBtns(actions, rel, it);
       _vtMarkActive(isMd ? rel : null);
       if (!body.classList.contains("mode-preview")) ta.focus();   // a preview needs no keyboard (phones)
