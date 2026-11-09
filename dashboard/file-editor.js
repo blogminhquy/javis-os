@@ -173,6 +173,15 @@
   // ---------------------------------------------------------------- modal (dung 1 lan, tai su dung)
   var modal = null, card = null, elTitle = null, elActions = null, elBody = null, curSave = null;
   var daDayLichSu = false;   // da chen mot buoc lich su cho nut Back chua
+  // Autosave and dictation mic of the open text file (editor-autosave.js, editor-dictate.js, 2026-11-09).
+  var curAuto = null, curMic = null;
+  // Detach both from the file being left: the mic first, so words still being heard are in what close() writes.
+  function dropAssist() {
+    var a = curAuto, m = curMic;
+    curAuto = null; curMic = null;
+    if (m) { try { m.destroy(); } catch (e) {} }
+    if (a) { try { a.close(); } catch (e) {} }
+  }
   var elShareModal = null;   // thanh hien link chia se CUA MODAL nay (an mac dinh)
 
   function build() {
@@ -216,6 +225,8 @@
   function isOpen() { return modal && modal.classList.contains("open"); }
   function close() {
     if (!modal) return;
+    // Closing (X, Esc, the backdrop, a Back swipe) writes the words typed since the last autosave first.
+    dropAssist();
     modal.classList.remove("open");
     elBody.innerHTML = ""; elActions.innerHTML = ""; curSave = null;   // don iframe/textarea
     if (elShareModal) { elShareModal.innerHTML = ""; elShareModal.hidden = true; }
@@ -239,6 +250,7 @@
   function moModal(tieuDe) {
     build();
     elTitle.innerHTML = esc(tieuDe);
+    dropAssist();
     elActions.innerHTML = ""; elBody.innerHTML = '<div class="jvfe-note">' + esc(tw("fedit.opening")) + "</div>";
     curSave = null;
     if (elShareModal) { elShareModal.innerHTML = ""; elShareModal.hidden = true; }
@@ -494,30 +506,62 @@
   }
 
   // Nut Luu (dung getContent de lay noi dung THAT theo che do dang mo) + Tai + Dong.
-  function appendSaveAndClose(b, ceil, getContent) {
+  // 2026-11-09: the file also saves itself a moment after typing stops (editor-autosave.js), and the button shows
+  // that state. `o`: original (the file as read), sources (input elements), apply(text) for a restored draft,
+  // mic {host, target} for the dictation button (prose files only).
+  function appendSaveAndClose(b, ceil, getContent, o) {
+    o = o || {};
     var save = document.createElement("button");
     save.className = "jvfe-btn"; save.innerHTML = ic("save") + " " + esc(tw("common.save")); save.title = tw("fedit.save_title");
-    curSave = function () {
+    function write(content, opt) {
       var fd = new FormData();
-      fd.append("brain", b); fd.append("path", ceil); fd.append("content", getContent());
-      save.textContent = "…"; save.disabled = true;
-      fetch("/files/write", { method: "POST", body: fd })
+      fd.append("brain", b); fd.append("path", ceil); fd.append("content", content);
+      return fetch("/files/write", { method: "POST", body: fd, keepalive: !!(opt && opt.keepalive) })
         .then(function (r) { return r.json().catch(function () { return {}; }); })
-        .then(function (r) {
-          save.disabled = false;
-          if (r && r.ok) {
-            save.innerHTML = ic("check", { cls: "ic-ok" }) + " " + esc(tw("fedit.saved")); save.classList.add("saved");
-            setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); save.classList.remove("saved"); }, 1400);
-          } else { save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("app.err_cap")); setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); }, 1600); }
-        })
-        .catch(function () { save.disabled = false; save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("app.err_cap")); setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); }, 1600); });
-    };
-    save.onclick = curSave;
+        .then(function (r) { return !!(r && r.ok); }, function () { return false; });
+    }
+    function paint(st) {
+      save.classList.toggle("saved", st === "saved");
+      save.disabled = false;
+      save.innerHTML = st === "saved" ? ic("check", { cls: "ic-ok" }) + " " + esc(tw("fedit.saved"))
+        : st === "saving" ? ic("save") + " " + esc(tw("cs.ne_saving"))
+        : st === "error" ? ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("cs.ne_save_err"))
+        : ic("save") + " " + esc(tw("common.save"));
+      save.title = tw(st === "error" ? "cs.ne_save_err_title" : "fedit.save_title");
+    }
+    var AS = typeof window !== "undefined" && window.JavisAutosave;
+    curSave = function () { paint("saving"); return write(getContent()).then(function (ok) { paint(ok ? "saved" : "error"); return ok; }); };
+    // Started at once, or by the caller once the editor shows its final form (`deferAuto`, the .md editor switching to
+    // the rendered view): the text counted as saved must be read in that form, or opening and closing a note would
+    // rewrite it.
+    function startAuto() {
+      if (!AS || o.original == null || curAuto || !save.isConnected) return;
+      var auto = AS.attach({
+        key: b + "::" + ceil,
+        original: o.original,
+        get: getContent,
+        baseline: typeof o.baseline === "function" ? o.baseline() : o.baseline,
+        save: write,
+        sources: o.sources || [],
+        apply: o.apply,
+        onStatus: paint,
+      });
+      curAuto = auto;
+      curSave = function () { return auto.flush(); };
+    }
+    save.onclick = function () { if (curSave) curSave(); };
     elActions.appendChild(save);
+    var ED = typeof window !== "undefined" && window.JavisEditorDictate;
+    if (ED && o.mic) {
+      curMic = ED.attach({ host: o.mic.host, target: o.mic.target, onChange: function () { if (curAuto) curAuto.poke(); } });
+      if (o.mic.host === elActions) { curMic.button.classList.add("jvfe-btn", "icon"); elActions.insertBefore(curMic.button, save); }
+    }
     elActions.appendChild(shareBtn(b, ceil));
     elActions.appendChild(openLink(b, ceil));
     elActions.appendChild(dlLink(b, ceil));
     elActions.appendChild(closeBtn());
+    if (!o.deferAuto) startAuto();
+    return startAuto;
   }
 
   function renderEditor(b, ceil, brainRel, d) {
@@ -562,7 +606,8 @@
       seg.appendChild(btn);
     });
     elActions.appendChild(seg);
-    appendSaveAndClose(b, ceil, function () { return ta.value; });
+    appendSaveAndClose(b, ceil, function () { return ta.value; },
+      { original: d.content || "", sources: [ta], apply: function (t) { ta.value = t; } });
     draw();
   }
 
@@ -581,7 +626,10 @@
     // Bo dem tu + ky tu (0.65.32), dung chung ham cua trinh sua dinh (console.js).
     var NE0 = window.JavisNoteEditor;
     if (NE0 && NE0.ganDemTu) NE0.ganDemTu(elActions, function () { return { text: ta.value, md: false }; }, [ta]);
-    appendSaveAndClose(b, ceil, function () { return ta.value; });
+    appendSaveAndClose(b, ceil, function () { return ta.value; }, {
+      original: d.content || "", sources: [ta], apply: function (t) { ta.value = t; },
+      mic: extOf(ceil) === ".txt" ? { host: elActions, target: function () { return { kind: "ta", el: ta }; } } : null,
+    });
     focusNeuDuocPhep(ta);
   }
 
@@ -635,16 +683,31 @@
 
     var demLai = null;
     NE.buildToolbar(neBody.querySelector(".ne-fmt"), { mode: function () { return curMode; }, ta: ta, wys: wys,
-      onChange: function () { if (demLai) demLai(); } });
+      onChange: function () { if (demLai) demLai(); if (curAuto) curAuto.poke(); } });
     // Bo dem tu + ky tu (0.65.32): dem chu HIEN RA, giong trinh sua dinh.
     if (NE.ganDemTu) demLai = NE.ganDemTu(neBody.querySelector(".ne-fmt"), function () {
       return curMode === "wys" ? { text: wys.innerText, md: false } : { text: ta.value, md: true };
     }, [ta, wys]);
-    appendSaveAndClose(b, ceil, mdGetter);
+    var typedEarly = false;
+    ta.addEventListener("input", function () { typedEarly = true; });
+    var startAuto = appendSaveAndClose(b, ceil, mdGetter, {
+      original: d.content || "", sources: [ta, wys], deferAuto: true,
+      // Typed before the rendered view took over: those words still count as unsaved.
+      baseline: function () { return typedEarly ? (d.content || "") : null; },
+      apply: function (t) { ta.value = t; srcToWys(); if (demLai) demLai(); },
+      mic: { host: neBody.querySelector(".ne-fmt"), target: function () {
+        return curMode === "wys" ? { kind: "wys", el: wys } : { kind: "ta", el: ta };
+      } },
+    });
 
     // Vao che do Sua (WYSIWYG) khi Turndown san sang; offline khong nap duoc thi o lai Nguon (van sua tot).
-    if (window.TurndownService) { setMode("wys"); focusNeuDuocPhep(wys); }
-    else NE.ensureTurndown().then(function () { if (isOpen() && window.TurndownService) { setMode("wys"); focusNeuDuocPhep(wys); } });
+    // Autosave starts once the mode is settled (see appendSaveAndClose), also when Turndown cannot load.
+    if (window.TurndownService) { setMode("wys"); focusNeuDuocPhep(wys); startAuto(); }
+    else NE.ensureTurndown().then(function () {
+      if (!neBody.isConnected) return;
+      if (isOpen() && window.TurndownService) { setMode("wys"); focusNeuDuocPhep(wys); }
+      startAuto();
+    }, function () { if (neBody.isConnected) startAuto(); });
   }
 
   // Xem mot PDF tu URL (link trong chat tren iPhone/iPad, chat-render.js goi). Cung khung voi
