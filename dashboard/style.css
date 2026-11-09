@@ -5082,5 +5082,17 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   font: 600 15px/1.2 var(--font);
 }
 .rail-foot .rf-install .ic { width: 17px; height: 17px; flex: none; }
-.rail-foot .rf-install .rf-install-chu { overflow: hidden; text-overflow: ellipsis; }
+.rail-foot .rf-install .rf-install-chu, .rail-foot .rf-install .rf-install-short { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rail-foot .rf-install .rf-install-short { display: none; }
 @media (min-width: 861px) and (pointer: fine) { .rail-foot .rf-install { display: none; } }
+/* 2026-11-09: a touch tablet or laptop (pointer: coarse) gets the button in the 160px computer rail, where it ran past the
+   edge (164px in a 143px foot) and sat off screen once the rail folded. There it takes the "Give a star" mould below it
+   with a short label, and only the icon in the folded rail. */
+@media (min-width: 861px) {
+  .rail-foot .rf-install { min-width: 0; min-height: 32px; gap: 6px; font-size: 13px; }
+  .rail-foot .rf-install .ic { width: 14px; height: 14px; }
+  .rail-foot .rf-install .rf-install-chu { display: none; }
+  .rail-foot .rf-install .rf-install-short { display: inline; }
+  .rail.collapsed .rail-foot .rf-install { flex: 0 0 auto; width: 32px; padding: 0; }
+  .rail.collapsed .rail-foot .rf-install .rf-install-short { display: none; }
+}
