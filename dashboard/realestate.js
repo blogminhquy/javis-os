@@ -368,7 +368,8 @@
     }).join("");
     if (rows) {
       h += card(esc(tw("re.cmp_growth_title")), '<div class="re-tbl-wrap"><table class="re-tbl re-tbl-num"><thead><tr><th></th>'
-        + SPANS.map(function (s) { return "<th>" + esc(tw("re.span_years", { n: s })) + "</th>"; }).join("") + "</tr></thead><tbody>" + rows + "</tbody></table></div>");
+        // Columns read as year ranges (owner, 09/11/2026); the span in years stays as the hover hint.
+        + SPANS.map(function (s) { return '<th title="' + esc(tw("re.span_years", { n: s })) + '">' + (NOW_YEAR - s) + "-" + NOW_YEAR + "</th>"; }).join("") + "</tr></thead><tbody>" + rows + "</tbody></table></div>");
     }
     // Side by side: character, outlook, scores.
     var cols = regions.map(function (r) {
