@@ -121,9 +121,6 @@ body.in-console .hud-actions { display: none; }
 /* Icon bộ não đứng trước dropdown chọn brain - đi theo khối .navbar-brain kể cả
    khi mobile-chat.js dời cả khối vào rail, nên không cần rule riêng cho mobile. */
 .navbar-brain .brain-select-ico { color: var(--accent); font-size: 17px; }
-@media (max-width: 860px) {
-  .hud-top .navbar-brain .graph-stats { display: none; }   /* mobile: ẩn stats cho gọn */
-}
 
 /* Form trong card (Channels / Account / provider key) */
 .js-lbl { display: block; font-size: 13px; color: var(--text2); margin: 12px 0 5px; font-family: var(--font); }
@@ -1193,6 +1190,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
      Xếp lại tường minh, mỗi nút một hàng. */
   .graph-timelapse-btn { top: 46px; }
   .brain-max-btn { top: 85px; }
+  /* Node / Link counter: a small pill in the top-left corner. The nearest folder label is centred at 19% of a 210px
+     view (its top edge at 32px), so the pill ends at 26px to leave a gap. */
+  .graph-stats { top: 6px; left: 7px; height: 20px; line-height: 18px; padding: 0 7px; border-radius: 7px;
+    font-size: 10.5px; letter-spacing: .2px; max-width: calc(100% - 56px); }
 
   /* Agents / Skills / Workflows thành một thanh mỏng thay vì một card lớn che neuron.
      Số và nhãn nằm CÙNG MỘT DÒNG: xếp chồng như desktop thì dải cao ~56px, tức một phần tư
