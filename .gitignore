@@ -41,6 +41,12 @@ server/.setup_token
 # Token API của CLI: file chứa bản BĂM + tên token, vẫn là bí mật vận hành, không vào repo.
 server/.api_tokens.json
 server/auth_audit.jsonl*
+# Account security state (2026-11-09): sign-in metadata, the account-block fingerprint that spots an outside edit of
+# settings.json, the security log and the networks seen at sign-in. secret_guard.py refuses the AI these same names.
+server/.sessions_meta.json
+server/.auth_stamp.json
+server/security_log*.jsonl
+server/.login_networks.json
 server/.oauth_mcp.json
 server/mcp_audit.jsonl*
 # Thư mục CHỨA CREDENTIAL do kết nối sinh ra lúc chạy. connector-cred là kho token mà một số
