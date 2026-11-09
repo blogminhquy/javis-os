@@ -69,6 +69,13 @@ check("browser extensions and other sites are ignored",
   !L.nenGui("boom", "chrome-extension://abc/x.js", O) && !L.nenGui("boom", "https://ads.example.com/x.js", O));
 check("well-known noise is ignored", !L.nenGui("Script error.", "", O) && !L.nenGui("ResizeObserver loop limit exceeded", "", O));
 check("at most 20 errors per page load", L.TOI_DA === 20);
+// 2026-11-09: startup scripts arrive as one bundle (server/static_bundle.py); errors map back to file and line.
+const MAPS = { ab12cd34: [[2, "app.js"], [40, "console.js"]] };
+check("an error inside the bundle maps back to its file and line",
+  JSON.stringify(L.mapBundle(O + "/static/_bundle/ab12cd34.js?v=9", 45, MAPS)) === JSON.stringify(["/static/console.js", 6])
+  && JSON.stringify(L.mapBundle("/static/_bundle/ab12cd34.js", 2, MAPS)) === JSON.stringify(["/static/app.js", 1]));
+check("a non-bundle file or an unknown bundle is left as it is",
+  L.mapBundle(O + "/static/app.js?v=1", 5, MAPS) === null && L.mapBundle("/static/_bundle/ffffffff.js", 5, MAPS) === null);
 const lmk = read("dashboard/loi-may-khach.js");
 check("it posts to /client-errors with keepalive", /fetch\("\/client-errors", \{[\s\S]{0,200}keepalive: true/.test(lmk));
 check("a failed image or script load is not reported as a code error", /e\.target && e\.target !== window/.test(lmk));

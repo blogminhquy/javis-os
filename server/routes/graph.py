@@ -157,7 +157,8 @@ def _make_router() -> APIRouter:
         hdr = {"ETag": tag, "Cache-Control": "no-cache"}
         if tag in (request.headers.get("if-none-match") or ""):
             return Response(status_code=304, headers=hdr)
-        body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+        # 2026-11-09: on a worker thread too: the graph of a 2000-note brain is ~1 MB of JSON.
+        body = await asyncio.to_thread(json.dumps, data, ensure_ascii=False, separators=(",", ":"))
         return Response(body, media_type="application/json", headers=hdr)
 
     @router.websocket("/ws/graph")

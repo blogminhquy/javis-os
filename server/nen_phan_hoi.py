@@ -15,9 +15,11 @@ thành stream, đứng sau chúng thì không còn thấy câu trả lời nào 
 """
 from __future__ import annotations
 
+import asyncio
 import gzip
 
 MIN_SIZE = 1400          # dưới một gói TCP thì nén không lợi gì
+OFF_LOOP_SIZE = 64 * 1024   # from this size the gzip runs on a worker thread
 _NEN_DUOC = ("application/json", "text/html", "text/plain", "text/markdown", "text/css", "text/csv",
              "application/javascript", "text/javascript", "image/svg+xml", "application/xml", "text/xml")
 
@@ -74,7 +76,12 @@ class NenPhanHoi:
                     await send(start)
                     await send(message)
                     return
-                z = gzip.compress(body, self.level)
+                # 2026-11-09: a big body (the graph of a 2000-note brain is ~1 MB) is compressed on a worker thread, not
+                # on the event loop, where it held up every other request while it ran; zlib releases the GIL.
+                if len(body) >= OFF_LOOP_SIZE:
+                    z = await asyncio.to_thread(gzip.compress, body, self.level)
+                else:
+                    z = gzip.compress(body, self.level)
                 h = [(k, v) for k, v in (start.get("headers") or []) if k.lower() not in (b"content-length", b"vary")]
                 vary = _header(start.get("headers") or [], b"vary")
                 h += [(b"content-encoding", b"gzip"), (b"content-length", str(len(z)).encode()),

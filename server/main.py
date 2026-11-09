@@ -453,6 +453,11 @@ for _mt, _ext in (("application/vnd.openxmlformats-officedocument.spreadsheetml.
                   ("application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptx")):
     mimetypes.add_type(_mt, _ext)
 import tinh_gon  # noqa: E402
+import static_bundle  # noqa: E402
+
+# Minified scripts and styles survive a restart (tinh_gon.set_cache_dir, 2026-11-09): outside the code tree, so an update
+# never ships a stale copy, and keyed by each file's bytes, so an update re-minifies only what it changed.
+tinh_gon.set_cache_dir(Path(cfgmod.STATE_DIR) / "cache" / "static-min")
 
 
 class _TinhGonStatic(StaticFiles):
@@ -462,6 +467,11 @@ class _TinhGonStatic(StaticFiles):
     ngày sửa file (ngày đó nói về bản gốc, không phải bản nén). Mọi thứ khác (ảnh, json, file .min.*) đi đường cũ."""
 
     async def get_response(self, path, scope):
+        rel = str(path).replace("\\", "/")
+        bundle = static_bundle.get(rel)
+        if bundle is not None:
+            # The startup scripts as one file (static_bundle.py): built by root(), served from memory.
+            return self._send(scope, bundle[0], bundle[1], bundle[2], "application/javascript")
         resp = await super().get_response(path, scope)
         if resp.status_code != 200 or not tinh_gon.nen_duoc(path):
             return resp
@@ -471,14 +481,25 @@ class _TinhGonStatic(StaticFiles):
         try:
             # 0.444.4: the first serve after a restart minifies in pure Python (1.5 s for all files on a fast CPU,
             # several seconds on a 1 vCPU VPS): a worker thread, so /health and other pages keep answering.
-            data, crc = await asyncio.to_thread(tinh_gon.ban_phuc_vu, Path(full), path)
+            # 2026-11-09: the gzip comes from the same cache (made once per file version, not per request on the loop).
+            data, gz, crc = await asyncio.to_thread(tinh_gon.gzip_of, Path(full), path)
         except OSError:
             return resp
-        etag = '"' + crc + '"'
+        return self._send(scope, data, gz, crc, resp.media_type)
+
+    @staticmethod
+    def _send(scope, data: bytes, gz: bytes, crc: str, media_type: str) -> Response:
+        """ETag answer, or the bytes: already gzipped when the browser takes gzip (the `/static/` gzip middleware leaves
+        a response that carries Content-Encoding alone)."""
         from starlette.datastructures import Headers as _Headers
-        if _Headers(scope=scope).get("if-none-match") == etag:
+        h = _Headers(scope=scope)
+        etag = '"' + crc + '"'
+        if h.get("if-none-match") == etag:
             return Response(status_code=304, headers={"etag": etag})
-        return Response(data, media_type=resp.media_type, headers={"etag": etag})
+        if "gzip" in (h.get("accept-encoding") or "").lower() and len(gz) < len(data):
+            return Response(gz, media_type=media_type,
+                            headers={"etag": etag, "content-encoding": "gzip", "vary": "Accept-Encoding"})
+        return Response(data, media_type=media_type, headers={"etag": etag, "vary": "Accept-Encoding"})
 
 
 app.mount("/static", _TinhGonStatic(directory=str(DASHBOARD_PATH)), name="static")
@@ -1334,6 +1355,18 @@ async def app_version():
     return {"version": _app_version() or "0", "assets": await asyncio.to_thread(_asset_fps, html)}
 
 
+def _stamp_asset_keys(html: str, fps: dict, ver: str) -> str:
+    """Every /static/ .js/.css URL keyed by its file's fingerprint (see root()), the app version when it has none."""
+    return re.sub(r'(/static/([\w./-]+\.(?:js|css)))\?v=[\w.]+',
+                  lambda m: m.group(1) + "?v=" + (fps.get(m.group(2)) or ver), html)
+
+
+def _warm_bundle() -> None:
+    """Build the startup bundle the way root() will ask for it, so the first page finds it ready (static_bundle.py)."""
+    html = (DASHBOARD_PATH / "index.html").read_text(encoding="utf-8")
+    static_bundle.apply(_stamp_asset_keys(html, _asset_fps(html), _app_version() or "0"), DASHBOARD_PATH)
+
+
 @app.get("/")
 async def root():
     html = (DASHBOARD_PATH / "index.html").read_text(encoding="utf-8")
@@ -1356,8 +1389,12 @@ async def root():
     # `fps` ngay dòng trên đã có sẵn crc32 từng file (dùng cho freshness.js), nên đổi khoá
     # sang nó là miễn phí. File nào thật sự đổi mới đổi URL; file không đổi giữ nguyên cache.
     # Rơi về `ver` khi không băm được (file lạ, lỗi đọc) - thà bể cache còn hơn phục vụ đồ cũ.
-    html = re.sub(r'(/static/([\w./-]+\.(?:js|css)))\?v=[\w.]+',
-                  lambda m: m.group(1) + "?v=" + (fps.get(m.group(2)) or ver), html)
+    html = _stamp_asset_keys(html, fps, ver)
+    # 2026-11-09: the ~110 startup scripts go out as one bundle (static_bundle.py); javis-fresh then lists the bundle in
+    # place of the files it holds, so freshness.js checks exactly what the browser ran.
+    html, swap = await asyncio.to_thread(static_bundle.apply, html, DASHBOARD_PATH)
+    if swap:
+        fps = {k: v for k, v in {**fps, **swap}.items() if v}
     # /brand-logo cũng phải bể cache theo phiên bản. Nó KHÔNG nằm dưới /static nên không lọt
     # vào regex trên, và nó được phục vụ kèm max-age=60 - nghĩa là đổi logo mặc định trong
     # một bản cập nhật xong người dùng vẫn thấy logo cũ cho tới khi tự bấm Ctrl+Shift+R.
@@ -8030,7 +8067,7 @@ def _migrate_legacy_brain():
         print(f"[brain migrate] {e}", file=__import__('sys').stderr)
 
 @app.get("/vault/check")
-async def vault_check(brain: str = Query("brain")):
+def vault_check(brain: str = Query("brain")):
     """Kiểm tra cấu trúc chuẩn của vault đang chọn."""
     root = Path(_brain_root(brain))
     items = _check_structure(root)
@@ -8169,7 +8206,7 @@ def _bad_order():
 
 
 @app.get("/ui/order")
-async def ui_order_get():
+def ui_order_get():
     """0.454.0: the owner's order of the tag lists (ui_order.py), one list of tag keys per page."""
     import ui_order
     return {"ok": True, "orders": ui_order.read(cfgmod.read_settings() or {})}
@@ -8188,7 +8225,7 @@ async def ui_order_set(scope: str = Form(...), order: str = Form("[]")):
 
 
 @app.get("/pet/menu")
-async def pet_menu_get():
+def pet_menu_get():
     """The mascot menu the owner arranged (pet_menu.py): {state, rev, items}. Never customised = the default six."""
     import pet_menu
     return {"ok": True, "menu": pet_menu.read(cfgmod.read_settings() or {})}
@@ -10755,7 +10792,7 @@ def load_workflow_graph(brain: str, slug: str):
 
 
 @app.get("/workflows")
-async def list_workflows(brain: str = Query("brain")):
+def list_workflows(brain: str = Query("brain")):
     return {"workflows": workflows_index(brain)}
 
 @app.post("/workflows")
@@ -14201,7 +14238,7 @@ def _viec_nen_view(brain: str, chat_id: str = "") -> dict:
 
 
 @app.get("/background")
-async def background_active(brain: str = Query("brain"), chat_id: str = Query("")):
+def background_active(brain: str = Query("brain"), chat_id: str = Query("")):
     """Việc nền đang sống, cho dải trạng thái trong khung chat.
 
     `chat_id`: "web:<mã phiên>" khi gọi từ dashboard. Việc khớp chat_id được đánh dấu `mine`
@@ -16495,7 +16532,7 @@ async def _notifications_data():
 
 
 @app.get("/notifications/read")
-async def notifications_read_get():
+def notifications_read_get():
     """This account's read set of the shared news (0.187.0): kept on the server, the same on every device."""
     return inbox.news_state()
 
@@ -16585,7 +16622,7 @@ async def javis_core_cite(payload: dict = Body(None)):
 # đếm giống nhau giữa điện thoại và máy tính, và không được bay mất khi xoá dữ liệu duyệt web.
 # ============================================
 @app.get("/inbox")
-async def inbox_list(limit: int = 50):
+def inbox_list(limit: int = 50):
     items = inbox.danh_sach(limit)
     for it in items:
         # 0.188.0: opening an item first switches the dashboard to the brain it belongs to.
@@ -17181,14 +17218,14 @@ async def chat_suggest(request: Request):
 
 
 @app.get("/voice/call")
-async def voice_call_route():
+def voice_call_route():
     """Đường gọi của nút mic (voice_call.select_call_engine). Nhẹ, không hỏi mạng: dashboard gọi
     mỗi lần nạp cài đặt giọng để biết bấm mic là mở ChatGPT Live, Live API hay đường Cơ bản."""
     return {"ok": True, **voice_call.select_call_engine(cfgmod.read_settings())}
 
 
 @app.get("/voice/ear")
-async def voice_ear_route():
+def voice_ear_route():
     """Tai nghe lại đang dùng cho lượt nói (voice_ear.select_ear). Nhẹ, không hỏi mạng: dashboard
     gọi mỗi lần nạp cài đặt giọng, khác /voice/options (có thể mất tới 30 giây vì `agy models`)."""
     cfg = cfgmod.read_settings()
@@ -31077,6 +31114,25 @@ async def share_qr(token: str = Query(...), origin: str = Query(...), fmt: str =
 
 
 # ── Event loop watchdog (0.194.0, owner 17/10/2026: "Mất kết nối tới máy chủ" more and more often) ──
+_STATIC_WARM: list = []   # strong ref to the warm-up task (asyncio keeps only a weak one)
+
+
+@app.on_event("startup")
+async def _warm_static_files():
+    """Minify, gzip and bundle the dashboard right after startup (2026-11-09), so the first page opened after a restart
+    or an update does not wait for it: that work is pure Python and held up every other request while it ran. With the
+    disk cache (tinh_gon) a plain restart only reads files back; an update re-minifies the files it changed."""
+    async def run():
+        try:
+            r = await asyncio.to_thread(static_bundle.warm, DASHBOARD_PATH)
+            await asyncio.to_thread(_warm_bundle)
+            print(f"[static] warmed {r.get('files')} files, pruned {r.get('pruned')} stale cache entries",
+                  file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 - the page builds all of it on demand anyway
+            print(f"[static] warm-up skipped: {type(e).__name__}: {e}", file=sys.stderr)
+    _STATIC_WARM.append(asyncio.create_task(run()))
+
+
 # Synchronous work on the event loop freezes every socket at once; the watchdog names the code (loop_watch.py).
 import loop_watch  # noqa: E402
 

@@ -26,7 +26,20 @@
     return src.indexOf(goc + "/") === 0 || src.charAt(0) === "/";
   }
 
-  var api = { nenGui: nenGui, TOI_DA: TOI_DA };
+  // 2026-11-09: the startup scripts reach the browser as one bundle (/static/_bundle/<id>.js, server/static_bundle.py).
+  // Its first line holds a table of where each file starts ([[first line, file], ...]), and the minifier keeps every
+  // file's line count, so an error at bundle line L maps back to the original file and line. Returns [src, line] or null.
+  function mapBundle(src, line, maps) {
+    var m = /\/static\/_bundle\/([\w]+)\.js/.exec(String(src || ""));
+    var table = m && maps && maps[m[1]];
+    if (!table || !line) return null;
+    for (var i = table.length - 1; i >= 0; i--) {
+      if (line >= table[i][0]) return ["/static/" + table[i][1], line - table[i][0] + 1];
+    }
+    return null;
+  }
+
+  var api = { nenGui: nenGui, mapBundle: mapBundle, TOI_DA: TOI_DA };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof window === "undefined") return;
 
@@ -55,6 +68,8 @@
   function them(loai, msg, src, dong, cot, stack) {
     try {
       if (!nenGui(msg, src, location.origin)) return;
+      var goc = mapBundle(src, dong, window.__javisBundleMap);
+      if (goc) { src = goc[0]; dong = goc[1]; }
       src = String(src || "").replace(location.origin, "").replace(/\?v=[\w.]+/, "");
       var khoa = msg + "|" + src + "|" + dong;
       if (daGui[khoa] || dem >= TOI_DA) return;

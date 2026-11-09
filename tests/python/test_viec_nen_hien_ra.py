@@ -175,7 +175,7 @@ check("đính chính vẫn chỉ được việc cần làm tiếp",
 MAIN = (SERVER / "main.py").read_text(encoding="utf-8")
 check("main.py có endpoint /background", '@app.get("/background")' in MAIN)
 check("/background nhận chat_id để đánh dấu việc của đúng khung chat",
-      re.search(r"async def background_active\(.*?chat_id: str = Query", MAIN, re.S) is not None)
+      re.search(r"def background_active\(.*?chat_id: str = Query", MAIN, re.S) is not None)
 check("dashboard: lượt xong thì kiểm lời hứa rồi đẩy đính chính vào đúng phiên",
       "_canh_bao_hua_suong(" in MAIN and "await push_to_chat(conv_sid, _canh_bao)" in MAIN)
 check("telegram: đính chính nối vào cuối tin nhắn (tin chưa gửi đi)",
