@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.518.1] - 2026-11-09
+### Security
+- **Account security files stay out of git and Docker images.** The account fingerprint, security log, sign-in networks and session details are now ignored, so `git add -A` or a local `docker build` no longer picks them up.
+
 ## [0.518.0] - 2026-11-09
 ### Improved
 - **The Partners and Teams pages show "Loading…"** where a list or a conversation has not arrived yet, instead of an empty space that looked frozen.
