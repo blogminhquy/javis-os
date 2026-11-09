@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.525.2] - 2026-11-09
+### Fixed
+- **Workflows run by a Claude agent can use every Javis connection.** Jobs routed to a workflow (even at Full access) and workflows run from chat no longer report "missing tool" when they need Gmail, Sheets, Zalo or another MCP.
+- **Chatbot, the Conversations tab shows only the open brain's chats.** Pages and bots moved to another brain no longer show in the old one, counts included. Turn on "every brain" in the Channels tab to see them all.
+
 ## [0.525.1] - 2026-11-09
 ### Fixed
 - **The automated check is green again.** Two updates added server routes at the same time, so the reference table had stale positions. Nothing changes for users.
