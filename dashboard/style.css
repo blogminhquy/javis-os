@@ -3013,6 +3013,21 @@ body.ne-full-on .cview { z-index: 250; }
    grip floats (position:fixed) at the bottom-right corner. The grip and the status toast sit at z-index 3100 so they stay above the full-screen editor
    (.ne-full, 1000) and the file-editor modal (3000). */
 .ne-wys img.chat-img { max-width: 100%; height: auto; }
+/* 2026-11-09 (customer report: a touchpad swipe went Back and the email being rewritten was lost):
+   - html.jv-editing is set while a file editor is open (editor-autosave.js). No horizontal overscroll there means a
+     sideways two-finger swipe no longer turns into the browser's Back gesture (Chrome, Edge).
+   - A code block in the editor wraps at the edge of the frame instead of running on to the right. Typing a long line
+     used to need a sideways scroll to get back, and that scroll is the gesture that went Back. Only the display
+     wraps: the saved markdown keeps its real line breaks. */
+html.jv-editing, html.jv-editing body { overscroll-behavior-x: none; }
+.ne-wys, .ne-src textarea, .ne-wys pre { overscroll-behavior-x: contain; }
+.ne-wys .code-block { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden; }
+/* Mic in the editors (editor-dictate.js): red while recording; the words being heard are underlined until they land. */
+.ne-mic { display: inline-flex; align-items: center; justify-content: center; }
+.ne-mic.is-rec { color: var(--red); border-color: var(--red); animation: orb-blink 1.2s ease-in-out infinite; }
+.ne-mic:disabled { opacity: .6; cursor: progress; }
+.ne-dict-live { color: var(--text2); border-bottom: 1px dashed var(--accent); }
+.ne-actions button.ne-save-err { color: var(--warn-ink); border-color: var(--red); }
 .ni-grip { position: fixed; z-index: 3100; width: 14px; height: 14px; border-radius: 4px; display: none;
   background: var(--accent-solid); border: 2px solid var(--bg); cursor: ew-resize; }
 .ni-grip.show { display: block; }
