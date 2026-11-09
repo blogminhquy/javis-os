@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse, Response
 
 import chatbot_doc_tools
 import coding_files
+import default_brain
 import config
 import doc_text
 import hub_trace
@@ -1745,14 +1746,14 @@ def _brain_tu_phien(ung) -> str:
     currentBrainPath). Kiểm nó như đường dẫn thô thì "brain" không resolve được (#610), còn một
     giá trị TƯƠNG ĐỐI như "." resolve theo cwd của tiến trình thành /app hay gốc repo - một thư
     mục có thật nhưng không phải brain nào cả, tức đúng kiểu chạy nhầm brain mà luật fail-closed
-    sinh ra để chặn. Nên: "brain" -> Brain Default (cùng quy ước `main._brain_root`), đường dẫn
+    sinh ra để chặn. Nên: "brain" -> brain mặc định (cùng quy ước `main._brain_root`), đường dẫn
     TUYỆT ĐỐI có thật -> chính nó, mọi thứ khác -> "" để rơi về các nấc suy luận sau.
     """
     raw = str(ung or "").strip()
     if not raw:
         return ""
     if raw == "brain":
-        p = _brains_dir() / "Brain Default"
+        p = default_brain.path(_brains_dir())   # the default brain the owner chose, `Brain Default` until then
     else:
         p = Path(raw).expanduser()
         if not p.is_absolute():

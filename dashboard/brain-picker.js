@@ -56,7 +56,7 @@
     } catch (e) {}
     return String(fallback || key).replace(/\{(\w+)\}/g, function (_, k) { return vars && vars[k] != null ? vars[k] : ""; });
   }
-  function icon(name) { try { return root.ic ? root.ic(name) : ""; } catch (e) { return ""; } }
+  function icon(name, opts) { try { return root.ic ? root.ic(name, opts) : ""; } catch (e) { return ""; } }
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
@@ -263,15 +263,35 @@
     return '<button type="button" class="bp-act' + (act === "delete" || act === "forget" ? " bp-act-del" : "") + '" data-act="' + act +
       '" title="' + esc(label) + '" aria-label="' + esc(label) + '"' + (disabled ? " disabled" : "") + ">" + icon(ic) + "</button>";
   }
-  // Export, Rename, Delete on a brain Javis manages; only "remove from the list" on an outside folder.
+  // Export, Rename, Default, Delete on a brain Javis manages; only "remove from the list" on an outside folder.
+  // The star (2026-11-09): filled on the default brain, a button on every other one that makes it the default. That is
+  // the way to delete the old default: it becomes an ordinary brain once another one is the default.
   function actsHtml(x) {
     if (x.custom) return actBtn("forget", "x", t("bpick.forget", null, "Remove from the list"));
     if (!x.managed) return "";
     var isDefault = x.value === "brain";
+    var star = isDefault
+      ? '<span class="bp-act bp-act-star on" role="img" title="' + esc(t("bpick.is_default", null, "Default brain")) + '" aria-label="' +
+        esc(t("bpick.is_default", null, "Default brain")) + '">' + icon("star", { cls: "ic-fill" }) + "</span>"
+      : actBtn("default", "star", t("bpick.make_default", null, "Make this the default brain"));
     return actBtn("export", "download", t("bpick.export", null, "Export as a .zip file")) +
-      actBtn("rename", "pencil", t("bpick.rename", null, "Rename")) +
-      actBtn("delete", "trash-2", isDefault ? t("bpick.no_delete_default", null, "The default brain cannot be deleted")
+      actBtn("rename", "pencil", t("bpick.rename", null, "Rename")) + star +
+      actBtn("delete", "trash-2", isDefault ? t("bpick.no_delete_default", null, "The default brain cannot be deleted. Star another brain first.")
         : t("bpick.delete", null, "Delete"), isDefault);
+  }
+  // What a delete stops (GET /brains/ties), drawn in the delete form once the server answers.
+  function tiesHtml(d) {
+    if (!d) return "";
+    var parts = [], out = "";
+    if (d.loops) parts.push(t("bpick.off_loops", { n: d.loops }, "{n} loops"));
+    if (d.reminders) parts.push(t("bpick.off_reminders", { n: d.reminders }, "{n} reminders"));
+    if (parts.length) out += '<div class="bp-form-msg">' + esc(t("bpick.ties_work", { what: parts.join(", ") }, "Stops with it: {what}.")) + "</div>";
+    var bots = (d.bots || []).map(function (b) { return b && b.name; }).filter(Boolean);
+    if (bots.length) {
+      out += '<div class="bp-form-msg bp-warn">' + esc(t("bpick.ties_bots", { names: bots.join(", ") },
+        "Bots using this brain: {names}. Move them to another brain first.")) + "</div>";
+    }
+    return out;
   }
   function btnPair(cancelAct, goAct, goLabel, goClass, goDisabled) {
     return '<div class="bp-form-btns"><button type="button" class="bp-ibtn" data-act="' + cancelAct + '">' + esc(t("bpick.cancel", null, "Cancel")) +
@@ -288,10 +308,18 @@
         '<div class="bp-form-msg">' + esc(t("bpick.rename_hint", null, "The folder and links stay the same; only the shown name changes.")) + "</div>" + err +
         btnPair("cancel", "save", t("bpick.save", null, "Save"), "primary", busy) + "</div>";
     }
+    if (edit.kind === "default") {
+      var cur = entryOf("brain");
+      return '<div class="bp-form">' +
+        '<div class="bp-form-msg">' + esc(t("bpick.default_msg", { name: x.label, old: cur ? cur.label : "" },
+          "{name} becomes the default brain: work that names no brain runs there. {old} becomes an ordinary brain you can delete.")) + "</div>" + err +
+        btnPair("cancel", "make-default", t("bpick.default_go", null, "Make default"), "primary", busy) + "</div>";
+    }
     if (edit.kind === "delete") {
       var ok = edit.text.trim() === x.brainName;
       return '<div class="bp-form danger">' +
         '<div class="bp-form-msg">' + esc(t("bpick.delete_msg", { name: x.label }, "{name} goes to the trash for 30 days, then it is gone; other synced machines delete it too. Export it first if in doubt.")) + "</div>" +
+        tiesHtml(edit.ties) +
         '<div class="bp-form-msg">' + esc(t("bpick.delete_type", null, "Type the folder name to confirm:")) + " <b>" + esc(x.brainName) + "</b></div>" +
         '<input class="bp-in" data-in="confirm" autocomplete="off" spellcheck="false" placeholder="' + esc(x.brainName) + '" value="' + esc(edit.text) + '">' + err +
         btnPair("cancel", "really", t("bpick.delete_go", null, "Delete brain"), "red", busy || !ok) + "</div>";
@@ -479,7 +507,11 @@
     if (act === "cancel") { edit = null; drawList(); return; }
     if (act === "export" && x) { exportBrain(x); return; }
     if (act === "rename" && x) { toggleEdit("rename", x.value, x.label); return; }
-    if ((act === "delete" || act === "forget") && x) { toggleEdit(act, x.value, ""); return; }
+    if ((act === "delete" || act === "forget" || act === "default") && x) {
+      toggleEdit(act, x.value, "");
+      if (act === "delete" && edit && edit.kind === "delete") loadTies(edit);
+      return;
+    }
     if (act === "import-cancel") { if (!imp.busy) { view = "list"; drawList(); } return; }
     if (act === "import-go") { uploadBrain(); return; }
     if (!edit) return;
@@ -489,6 +521,12 @@
     if (act === "save") run(root.JavisBrains && root.JavisBrains.rename(edit.value, edit.text), function (r) {
       return t("bpick.renamed", { name: r.label || edit.text.trim() }, "Renamed to {name}.");
     });
+    if (act === "make-default") {
+      var e1 = entryOf(edit.value), newName = e1 ? e1.label : "";
+      run(root.JavisBrains && root.JavisBrains.setDefault && root.JavisBrains.setDefault(edit.value), function (r) {
+        return t("bpick.default_done", { name: r.label || newName }, "{name} is now the default brain.");
+      });
+    }
     if (act === "really") {
       var e0 = entryOf(edit.value), name = e0 ? e0.label : "";
       if (edit.kind === "forget") run(root.JavisBrains && root.JavisBrains.forget(edit.value), function () {
@@ -498,6 +536,15 @@
         return t("bpick.deleted", { name: name }, "Deleted {name} (kept in the trash for 30 days).");
       });
     }
+  }
+  // Ask the server what a delete would stop; the form redraws when the answer lands (typing is kept by drawList).
+  function loadTies(mine) {
+    if (typeof fetch !== "function") return;
+    fetch("/brains/ties?brain=" + encodeURIComponent(mine.value)).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.ok) return;
+      mine.ties = d;
+      if (edit === mine) drawList();
+    }).catch(function () {});
   }
   function toggleEdit(kind, value, text) {
     edit = (edit && edit.kind === kind && edit.value === value) ? null : { kind: kind, value: value, text: text || "", err: "", busy: false };

@@ -142,6 +142,47 @@ await new Promise((r) => setTimeout(r, 50));
 const stored2 = JSON.parse(store2["javis.brains"]);
 check("fail-safe: endpoint 404 → GIỮ nguyên entry (không xoá nhầm)", stored2.length === 1 && sel2.querySelectorAll("option[data-custom]").length === 1);
 
+// ---- Test 3 (2026-11-09): make another brain the default. Someone looking at the old default keeps looking at it ----
+// Before: Brain Default is the default ("brain") and is on screen. After POST /brains/default the server lists Shop as
+// the default, so the "brain" entry now means Shop; the screen must move to the old default by its path, not silently
+// show Shop under the same value.
+const P_OLD = "D:\\j\\brains\\Brain Default", P_SHOP = "D:\\j\\brains\\Shop";
+let lista = [
+  { name: "Brain Default", path: P_OLD, notes: 3, is_default: true },
+  { name: "Shop", path: P_SHOP, notes: 5, is_default: false },
+];
+const sel3 = new Select();
+sel3.appendChild(new Opt("brain", "Brain Default"));
+let changes3 = 0;
+sel3.dispatchEvent = () => { changes3 += 1; return true; };
+const store3 = { "javis.brains": "[]", "javis.graphSource": "brain" };
+const posted = [];
+global.document.getElementById = (id) => id === "graphSource" ? sel3 : (btns[id] || (btns[id] = { addEventListener() {} }));
+global.localStorage = { getItem: (k) => (k in store3 ? store3[k] : null), setItem: (k, v) => { store3[k] = String(v); } };
+global.FormData = class { constructor() { this.f = {}; } append(k, v) { this.f[k] = v; } };
+global.window = { t: (k) => k };
+global.fetch = async (url, opts) => {
+  if (url === "/brains") return { json: async () => ({ brains: lista }) };
+  if (url === "/brains/default") {
+    posted.push(opts.body.f.brain);
+    lista = [{ ...lista[0], is_default: false }, { ...lista[1], is_default: true }];
+    return { json: async () => ({ ok: true, name: "Shop", label: "Shop", previous: "Brain Default" }) };
+  }
+  throw new Error("fetch chưa mock: " + url);
+};
+eval(SRC);
+await new Promise((r) => setTimeout(r, 50));
+check("set default: the old default carries its folder path", sel3.querySelector('option[value="brain"]').dataset.brainPath === P_OLD);
+changes3 = 0;
+const r3 = await global.window.JavisBrains.setDefault("path:" + P_SHOP);
+check("set default: posts the chosen brain", r3.ok === true && posted[0] === "path:" + P_SHOP);
+check("set default: the 'brain' entry now carries Shop", sel3.querySelector('option[value="brain"]').dataset.brainName === "Shop");
+check("set default: the old default is listed by its path", sel3.options.some((o) => o.value === "path:" + P_OLD));
+check("set default: the screen stays on the old default", sel3.value === "path:" + P_OLD && store3["javis.graphSource"] === "path:" + P_OLD);
+check("set default: pages are told once", changes3 === 1);
+check("set default: refuses an entry that is not a listed brain",
+  (await global.window.JavisBrains.setDefault("brain")).ok === false && posted.length === 1);
+
 console.log();
 if (fails.length) { console.log(`${fails.length} FAIL: ${fails.join(", ")}`); process.exit(1); }
 console.log("TẤT CẢ PASS");

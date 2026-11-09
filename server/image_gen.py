@@ -213,7 +213,8 @@ def extract_image_b64(value: Any, *, include_partial: bool = True) -> Optional[s
 
 
 def _default_vault() -> str:
-    return str(Path(os.getenv("BRAINS_DIR", str(Path(__file__).parent.parent / "brains"))) / "Brain Default")
+    import default_brain
+    return str(default_brain.path(default_brain.brains_dir_from_env()))
 
 
 def _resolve_vault(vault_root: Optional[str]) -> Path:

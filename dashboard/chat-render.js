@@ -148,7 +148,16 @@
   }
   function currentBrainBase() {
     var b = String(brainPath() || "").replace(/\\/g, "/").replace(/\/+$/, "");
-    return b === "brain" ? "Brain Default" : (b.split("/").pop() || "");
+    return b === "brain" ? defaultBrainFolder() : (b.split("/").pop() || "");
+  }
+  // Folder of the default brain: the owner can choose another brain as the default (2026-11-09), so "brain" no longer
+  // always means "Brain Default". brains-ui.js puts the folder on the picker's default entry.
+  function defaultBrainFolder() {
+    try {
+      var o = document.querySelector('#graphSource option[value="brain"]');
+      if (o && o.dataset && o.dataset.brainName) return o.dataset.brainName;
+    } catch (e) {}
+    return "Brain Default";
   }
   function currentBrainMatches(name) {
     return String(currentBrainBase() || "").toLowerCase() === String(name || "").toLowerCase();
