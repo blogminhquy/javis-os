@@ -251,7 +251,7 @@
       + '<button type="button" class="ts-range" data-act="st-range" aria-haspopup="dialog" aria-label="' + esc(tw("dr.title")) + '">' + ic("calendar") + "<span>" + esc(label(r)) + "</span>" + ic("chevron-down") + "</button></div>";
     var c = cache[key(ctx)];
     fetchStats(ctx, false);
-    if (!c) return head + '<div class="nv-empty">' + esc(tw("common.loading")) + "</div>";
+    if (!c) return head + '<div class="nv-empty pg-loading">' + esc(tw("common.loading")) + "</div>";
     if (!c.data || !c.data.ok) return head + '<div class="nv-empty">' + esc(tw("nv.sta.error")) + "</div>";
     return '<div class="ts ' + (ctx.tab === "me" ? "me" : "ai") + '">' + head + (ctx.tab === "me" ? mineHtml(c.data, ctx) : aiHtml(c.data, ctx)) + "</div>";
   }

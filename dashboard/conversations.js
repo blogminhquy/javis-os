@@ -1277,7 +1277,7 @@
       veThread();
     } else {
       var th = _host.querySelector(".ht-thread");
-      if (th) th.innerHTML = '<div class="ht-empty ht-thread-empty">' + esc(window.t("common.loading")) + '</div>';
+      if (th) th.innerHTML = '<div class="ht-empty ht-thread-empty pg-loading">' + esc(window.t("common.loading")) + '</div>';
     }
     // `read=1`: the same request marks it read first, so an opened chat leaves "Needs you" (owner, 2026-10-28) and the bar
     // above it does not still say it, without a round trip of its own.

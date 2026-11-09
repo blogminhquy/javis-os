@@ -776,6 +776,9 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 .graph-stats.pulse { color: var(--accent2-ink); text-shadow: 0 0 10px rgba(160,120,255,.8); }
 /* Giấy: nhấp nháy bằng ĐẬM CHỮ thay vì bằng quầng sáng. */
 :root[data-theme="light"] .graph-stats.pulse { text-shadow: none; font-weight: 700; }
+/* 2026-11-09 (owner): the note and link counts describe the neural graph, so they show only on that screen (home);
+   console.js puts .in-console on <body> on every other page. */
+body.in-console .graph-stats { display: none; }
 .graph-folder-btn {
   background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
   width: 30px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 15px;
@@ -4929,7 +4932,7 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 
 .bp-shade { position: fixed; inset: 0; z-index: 1000; display: none; }
 .bp-shade.open { display: block; }
-.bp-pop { position: fixed; z-index: 1001; display: none; flex-direction: column; max-height: min(70vh, 520px);
+.bp-pop { position: fixed; z-index: 1001; display: none; flex-direction: column; max-height: min(80vh, 640px);
   background: var(--bg2); color: var(--text); border: 1px solid var(--border); border-radius: 14px;
   box-shadow: 0 18px 50px var(--shadow-veil, rgba(0,0,0,.35)); overflow: hidden; }
 .bp-pop.open { display: flex; }
@@ -4964,8 +4967,52 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 .bp-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .bp-label { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bp-sub { font-size: 12.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
-.bp-check { flex: none; width: 20px; color: var(--accent); display: inline-flex; }
-.bp-check svg { width: 18px; height: 18px; }
+/* 2026-11-09: Export, Rename, Delete on each row (shown on the current row, on hover and on focus; always on a phone),
+   the forms under a row, the panel footer like the Partners page, and the upload view. */
+.bp-sub { display: flex; flex-wrap: wrap; column-gap: 4px; }
+.bp-sub-part { white-space: nowrap; }
+.bp-acts { flex: none; display: inline-flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+.bp-row:hover .bp-acts, .bp-row.on .bp-acts, .bp-row:focus-within .bp-acts, .bp-row:focus-visible .bp-acts { opacity: 1; }
+@media (hover: none) { .bp-acts { opacity: 1; } }
+.bp-act { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--text2);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.bp-act svg { width: 17px; height: 17px; }
+.bp-act:hover:not(:disabled), .bp-act:focus-visible { background: var(--bg2); color: var(--accent); box-shadow: inset 0 0 0 1px var(--border); outline: none; }
+.bp-act.bp-act-del:hover:not(:disabled) { color: var(--red, #e5484d); }
+.bp-act:disabled { opacity: .3; cursor: not-allowed; }
+.bp-form { margin: 2px 4px 8px 50px; display: flex; flex-direction: column; gap: 8px; }
+.bp-form.danger { margin-left: 4px; padding: 10px 12px; border-radius: 10px; background: var(--danger-wash, rgba(220,38,38,.08)); }
+.bp-form-new { margin: 4px 6px 10px; }
+.bp-form-msg { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--text2); overflow-wrap: anywhere; }
+.bp-form-err { font-size: 13.5px; color: var(--red, #e5484d); }
+.bp-in { width: 100%; box-sizing: border-box; height: 38px; padding: 0 11px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font: inherit; font-size: 14.5px; outline: none; }
+.bp-in:focus { border-color: var(--accent); }
+.bp-form.danger .bp-in:focus { border-color: var(--red, #e5484d); }
+.bp-form-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.bp-ibtn { height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg2);
+  color: var(--text); font: inherit; font-size: 13.5px; cursor: pointer; }
+.bp-ibtn:hover:not(:disabled) { border-color: var(--accent); }
+.bp-ibtn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); font-weight: 600; }
+.bp-ibtn.red { background: var(--red, #e5484d); border-color: var(--red, #e5484d); color: #fff; font-weight: 600; }
+.bp-ibtn:disabled { opacity: .45; cursor: not-allowed; }
+.bp-hint.bp-note { color: var(--text); }
+.bp-foot { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; border-top: 1px solid var(--border); }
+.bp-foot[hidden] { display: none; }
+.bp-fbtn { display: flex; align-items: center; justify-content: center; gap: 8px; height: 38px; border-radius: 9px;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+.bp-fbtn svg { width: 16px; height: 16px; }
+.bp-fbtn:hover, .bp-fbtn:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+.bp-import { display: flex; flex-direction: column; gap: 12px; padding: 2px 8px 6px; }
+.bp-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 12px; border: 2px dashed var(--border);
+  border-radius: 12px; background: var(--bg3); color: var(--text2); font-size: 14px; text-align: center; cursor: pointer; }
+.bp-drop svg { width: 26px; height: 26px; color: var(--accent); }
+.bp-drop.over, .bp-drop:hover { border-color: var(--accent); }
+.bp-drop input { display: none; }
+.bp-file { margin-top: 4px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg2);
+  color: var(--text); font-size: 13.5px; overflow-wrap: anywhere; }
+.bp-field { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--text2); }
+.bp-progress { color: var(--accent); font-weight: 600; }
 .bp-empty { padding: 18px 12px; text-align: center; color: var(--text3); font-size: 14px; }
 .bp-move { cursor: default; }
 .bp-grip { flex: none; width: 30px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
@@ -5001,6 +5048,14 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   .bp-pop.sheet .bp-dot { width: 36px; height: 36px; font-size: 16px; }
   .bp-pop.sheet .bp-arrow { width: 42px; height: 42px; }
   .bp-pop.sheet .bp-grip { width: 38px; height: 44px; }
+  .bp-pop.sheet .bp-act { width: 40px; height: 40px; }
+  .bp-pop.sheet .bp-act svg { width: 19px; height: 19px; }
+  .bp-pop.sheet .bp-acts { opacity: 1; }
+  .bp-pop.sheet .bp-form { margin-left: 4px; }
+  .bp-pop.sheet .bp-form-msg, .bp-pop.sheet .bp-form-err, .bp-pop.sheet .bp-field, .bp-pop.sheet .bp-drop { font-size: 16px; }
+  .bp-pop.sheet .bp-in { height: 46px; font-size: 16px; }
+  .bp-pop.sheet .bp-ibtn { height: 42px; font-size: 16px; padding: 0 18px; }
+  .bp-pop.sheet .bp-fbtn { height: 48px; font-size: 16px; }
 }
 
 /* Meta connection card (0.446.0): the apps one connection covers, and Disconnect on each Page */

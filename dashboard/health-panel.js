@@ -123,7 +123,7 @@
     async function scan() {
       var host = q("#hpIssues");
       if (!host) return;
-      host.innerHTML = '<div class="dim">' + esc(tw("common.loading")) + "</div>";
+      host.innerHTML = '<div class="dim pg-loading">' + esc(tw("common.loading")) + "</div>";
       var d = await getJson("/sentinel/scan");
       var issues = d.issues || [];
       host.innerHTML = '<h3 style="font-size:14px;color:var(--text)">' + esc(tw("hp.issues_head", { h: d.window_h || 24 })) + "</h3>"

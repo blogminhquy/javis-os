@@ -2167,12 +2167,31 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-empty { font-size: 12.5px; color: var(--text3); padding: 8px 2px; }
 /* 2026-11-09 (owner): a small "Loading..." line where a list or a chat has not arrived yet (Partners, Teams), so an
    empty column does not read as a frozen page. The spinner reuses the Teams page's keyframes. */
-.pg-loading { display: flex; align-items: center; gap: 8px; padding: 12px 6px; font-size: 14px; line-height: 1.4; color: var(--text3); }
-.pg-loading::before { content: ""; flex: none; width: 13px; height: 13px; border-radius: 50%;
-  border: 2px solid var(--border, rgba(140,140,160,.35)); border-top-color: var(--accent); animation: tm-spin .8s linear infinite; }
-.tm-msgs > .pg-loading, .ws-id > .pg-loading { justify-content: center; }
+.pg-loading { padding: 12px 6px; font-size: 14px; line-height: 1.4; color: var(--text3); }
+/* An inline-block spinner, so the line works on its own and when the class is added to an existing empty-state
+   element (2026-11-09: every "Loading..." spot of the dashboard), whatever that element's display or alignment. */
+.pg-loading::before { content: ""; display: inline-block; vertical-align: -2px; margin-right: 8px; width: 13px; height: 13px;
+  border-radius: 50%; border: 2px solid var(--border, rgba(140,140,160,.35)); border-top-color: var(--accent);
+  animation: tm-spin .8s linear infinite; }
+.tm-msgs > .pg-loading, .ws-id > .pg-loading { text-align: center; }
+/* A whole page waiting for its data: a bigger spinner in the middle of the view. */
+.pg-loading.pg-page { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  min-height: 40vh; padding: 24px; font-size: 15px; text-align: center; }
+.pg-loading.pg-page::before { width: 28px; height: 28px; border-width: 3px; margin: 0; }
 @media (prefers-reduced-motion: reduce) { .pg-loading::before { animation: none; } }
 @media (max-width: 760px) { .pg-loading { font-size: 16px; } }
+/* Start-up screen (2026-11-09, boot-splash.js): covers the app from the first paint until the first page has its data. */
+.boot-splash { position: fixed; inset: 0; z-index: 100000; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; padding: 24px; text-align: center; background: var(--bg, #f7f5f2); color: var(--text2);
+  transition: opacity .25s ease; }
+.boot-splash.boot-out { opacity: 0; pointer-events: none; }
+.boot-logo { width: 64px; height: 64px; border-radius: 16px; object-fit: contain; }
+.boot-spin { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--border, rgba(140,140,160,.35));
+  border-top-color: var(--accent); animation: tm-spin .8s linear infinite; }
+.boot-text { font-size: 16px; font-weight: 600; color: var(--text); min-height: 1.4em; }
+.boot-sub { font-size: 14px; max-width: 320px; line-height: 1.5; }
+@media (max-width: 760px) { .boot-text { font-size: 17px; } .boot-sub { font-size: 16px; } }
+@media (prefers-reduced-motion: reduce) { .boot-spin { animation: none; } .boot-splash { transition: none; } }
 .ws-form label { display: block; font-size: 12px; color: var(--text3); margin: 8px 0 3px; }
 .ws-form input, .ws-form select, .ws-form textarea { width: 100%; box-sizing: border-box; }
 .ws-form h3 { display: none; }   /* tiêu đề "Sửa Agent" thừa: cột phải đã có nhãn riêng */

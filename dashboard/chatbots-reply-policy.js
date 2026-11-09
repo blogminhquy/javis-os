@@ -78,7 +78,7 @@
   async function openPanel(bot) {
     var box = el('<div class="cb-modal"><div class="cb-form cb-rp-form">' +
       '<h3>' + esc(tt("rp.title", { name: bot.name })) + '</h3>' +
-      '<div class="cb-rp-body">' + esc(tt("common.loading")) + '</div>' +
+      '<div class="cb-rp-body"><div class="pg-loading">' + esc(tt("common.loading")) + '</div></div>' +
       '<div class="cb-form-acts">' +
         '<button class="s-btn-ghost" id="rpForget" type="button">' + esc(tt("rp.forget")) + '</button>' +
         '<button class="s-btn" id="rpClose" type="button">' + esc(tt("common.close")) + '</button>' +

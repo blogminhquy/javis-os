@@ -1353,7 +1353,7 @@
   function reorderTags(ids) { return act(mine({ __url: "/my-tasks/project", order_ids: ids }), tw("nv.t.moved")); }
   function noteResults(sh) {
     if (!sh.q) return "";
-    if (!sh.res) return '<div class="nv-empty">' + esc(tw("common.loading")) + "</div>";
+    if (!sh.res) return '<div class="nv-empty pg-loading">' + esc(tw("common.loading")) + "</div>";
     if (!sh.res.length) return '<div class="nv-empty">' + esc(tw("nv.ln.none")) + "</div>";
     return sh.res.map(function (r) {
       return '<button type="button" class="nv-mi" data-act="nlpick" data-id="' + esc(sh.id) + '" data-v="' + esc(r.target) + '">' + ic("file-text") + '<span class="nv-lbl">' + esc(r.name) + '<small class="nv-nlp">' + esc(r.path) + "</small></span></button>";

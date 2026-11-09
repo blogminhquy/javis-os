@@ -638,7 +638,7 @@
     var el = document.createElement("div");
     el.className = "rs-card";
     el.setAttribute("data-goal", card.goal_id);
-    el.innerHTML = '<div class="rs-note">' + esc(tw("resonance.loading")) + "</div>";
+    el.innerHTML = '<div class="rs-note pg-loading">' + esc(tw("resonance.loading")) + "</div>";
     var bubble = msgEl.querySelector(".bubble");
     (bubble || msgEl).appendChild(el);
     load(el);

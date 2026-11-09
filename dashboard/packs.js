@@ -1304,7 +1304,7 @@
   }
 
   async function veLai(el) {
-    el.innerHTML = '<div class="cview-placeholder">' + tw("sess.loading") + '</div>';
+    el.innerHTML = '<div class="pg-loading pg-page">' + esc(tw("sess.loading")) + '</div>';
     let d;
     try { d = await (await fetch("/packs")).json(); }
     catch (e) {

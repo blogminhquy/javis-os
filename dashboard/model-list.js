@@ -123,7 +123,7 @@
       }
       return h;
     };
-    const dangTai = `<div class="mb-empty">${esc(T("mpick.loading"))}</div>`;
+    const dangTai = `<div class="mb-empty pg-loading">${esc(T("mpick.loading"))}</div>`;
 
     let html = `<input class="mb-search" id="${esc(o.searchId || "mlSearch")}" `
       + `placeholder="${esc(T("mpick.search_ph"))}" value="${esc(o.filter || "")}">`;
