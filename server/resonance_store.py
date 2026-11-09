@@ -748,6 +748,22 @@ class GoalStore:
                           (str(agent_key or ""), brain_id)).fetchone()
             return self._agent(r) if r else None
 
+    def agents_by_keys(self, brain_id: str, agent_keys) -> dict:
+        """`agent_by_key` for many keys in ONE connection: {agent_key: row}, keys of another brain left out (2026-11-09).
+        The Teams list asked for every member of every team one by one, a new connection each: 225 for 15 teams, 80%
+        of the list's time."""
+        keys = sorted({str(k or "") for k in (agent_keys or ()) if k})
+        if not keys:
+            return {}
+        out = {}
+        with closing(self._conn()) as c:
+            for i in range(0, len(keys), 500):
+                part = keys[i:i + 500]
+                for r in c.execute("SELECT * FROM resonance_agents WHERE brain_id=? AND agent_key IN (%s)"
+                                   % ",".join("?" * len(part)), (brain_id, *part)).fetchall():
+                    out[r["agent_key"]] = self._agent(r)
+        return out
+
     def agent_any(self, agent_key: str) -> Optional[dict]:
         """Dòng sổ đăng ký theo mã, không lọc brain (host dùng khi chỉ có mã do chính host ghi, vd. reaction chat riêng)."""
         with closing(self._conn()) as c:

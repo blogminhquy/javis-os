@@ -522,6 +522,11 @@
     return true;
   }
 
+  // A small "Loading..." line with a spinner (.pg-loading in console.css), shared look with the Teams page.
+  function dangTaiHtml(key) {
+    return '<div class="pg-loading" role="status" aria-live="polite">' + esc(t(key)) + '</div>';
+  }
+
   // ---------- dựng khung ----------
   function render(el, opts) {
     // Đọc TRƯỚC khi vẽ gì: khung bên dưới dùng t() ngay lúc dựng. Thiếu JavisI18n thì không bao giờ
@@ -564,7 +569,9 @@
             // thì Esc ở đây đóng mất file đang mở thay vì xoá chữ đang gõ.
             '<input class="ws-search" id="wsSearch" data-esc' + (S.q ? "" : " hidden") + ' value="' + esc(S.q) + '" placeholder="' + esc(t("ws.search_ph")) + '">' +
           '</div>' +
-          '<div class="ws-list" id="wsList"></div>' +
+          // 2026-11-09 (owner): "Đang tải" while the list is on its way, instead of an empty column people took for
+          // a frozen page. veDanhSach replaces it with the list (or the empty-state text once loaded).
+          '<div class="ws-list" id="wsList">' + dangTaiHtml("ws.loading_list") + '</div>' +
           '<div class="ws-resize ws-resize-left" data-resize="left" role="separator" aria-orientation="vertical" tabindex="0" ' +
             'aria-label="' + esc(t("ws.resize_list")) + '" title="' + esc(t("ws.resize_hint")) + '"></div>' +
           '<div class="ws-left-foot"><button type="button" class="ws-btn" id="wsNew">' + ic("plus") + ' ' + esc(t("ws.new_item")) + '</button>' +
@@ -580,7 +587,7 @@
             // phải chạy gen_icons tải mạng - lật gương panel-left bằng CSS rẻ hơn mà cùng nghĩa.
             '<button type="button" class="ws-ico lat" id="wsRightBtn" title="' + esc(t("ws.toggle_panel")) + '">' + ic("panel-left") + '</button>' +
           '</div>' +
-          '<div class="ws-id" id="wsIdentity"></div>' +
+          '<div class="ws-id" id="wsIdentity">' + dangTaiHtml("ws.loading_chat") + '</div>' +
           // Màn khởi đầu: danh sách rỗng thì không có phiên nào để mở, ô nhập bị khoá, nên
           // chỗ khung chat là hai nút tạo. Nằm TRƯỚC #wsSlot trong DOM cho thuận mắt, còn
           // khung chat thì ẩn đi bằng lớp .onboard-on (xem console.css).
@@ -1035,6 +1042,8 @@
     var ds = loc(danhSach(), S.q, S.nhom, laTag, S.rs), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
     var trong = (S.q || S.nhom || laTag) ? [] : docNhomTrong();
+    // Not loaded yet (a tab switch or a toggle before the first list arrived): still loading, not "nothing here".
+    if (!daTai && !ds.length) { host.innerHTML = dangTaiHtml("ws.loading_list"); return; }
     if (!ds.length && !trong.length) {
       var nhomTrong = !laTag && !!(S.nhom && !S.q && docNhomTrong().indexOf(S.nhom) >= 0);
       host.innerHTML = '<div class="ws-empty">' + esc(t(nhomTrong ? "ws.group_empty_hint" : "ws.empty")) + '</div>';

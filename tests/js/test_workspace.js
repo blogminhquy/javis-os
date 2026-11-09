@@ -208,6 +208,8 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     khoaTag: W.khoaTag, dongChonTag: W.dongChonTag, TAG_NONE: W.TAG_NONE, TAG_AUTO: W.TAG_AUTO, laLocGia: W.laLocGia, autoBat: W.autoBat,
     TAB_PHAI: ["cai", "lichsu", "viec"],
     luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
+    // 2026-11-09: `daTai` (the list arrived at least once) and the "Loading..." line live outside the cut too.
+    daTai: true, dangTaiHtml: (k) => '<div class="pg-loading">' + k + "</div>",
     // The avatar strip's name card (0.191.0) lives in the edge-drag block, outside the cut: same as above.
     anTheMini() {}, hienTheMini() {},
     // 0.205.0: the unread pill and the muted mark are drawn by helpers outside the cut too.
@@ -232,6 +234,14 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
 
   // ---- Bộ chọn nhóm là THANH + bảng nổi cùng khuôn thanh project bên Trò chuyện (0.59.47) ----
   // Từ 0.100.0 NHÓM chỉ còn ở QUY TRÌNH; agent dùng tag (kiểm riêng ngay dưới khối này).
+  // 2026-11-09 (owner): before the first list arrives the column says "Loading", not "nothing here".
+  ctx.daTai = false; const _ds = ctx.danhSach; ctx.danhSach = () => [];
+  ctx.veDanhSach();
+  check("chua tai xong danh sach thi cot trai bao dang tai, khong bao trong",
+    nodes["#wsList"].innerHTML.includes("ws.loading_list") && !nodes["#wsList"].innerHTML.includes("ws.empty"));
+  ctx.daTai = true; ctx.veDanhSach();
+  check("tai xong ma rong that thi moi bao trong", nodes["#wsList"].innerHTML.includes("ws.empty"));
+  ctx.danhSach = _ds;
   ctx.S.loai = "workflow";
   ctx.veTrai();
   const html = nodes["#wsGroup"].innerHTML;
