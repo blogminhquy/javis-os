@@ -1152,7 +1152,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .msg-javis .bubble {
   background: var(--surface-1); border: 1px solid var(--hairline);
   padding: 16px 18px; border-radius: 3px 12px 12px 12px;
-  line-height: 1.75; font-size: 16px; max-width: 72ch; font-family: var(--font-chat);
+  line-height: 1.75; font-size: 16px; max-width: 100ch; font-family: var(--font-chat);
 }
 .msg-javis .bubble strong { color: var(--accent); font-weight: 600; }
 .msg-javis .bubble code { font-family: var(--mono); font-size: 13.5px; background: var(--surface-2); padding: 2px 5px; border-radius: 4px; color: var(--accent2-ink); }
@@ -1167,7 +1167,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    khung: khối lệnh đã có thanh cuộn ngang riêng, việc của nó là cuộn chứ không đẩy khung ra. */
 .msg-javis .bubble code, .msg-user .bubble code { word-break: break-word; }
 .msg-javis .bubble pre, .msg-javis .bubble .code-wrap { max-width: 100%; min-width: 0; }
-.msg-javis .bubble { max-width: min(72ch, 100%); }
+/* Answer width (owner, 2026-11-09, iPad screenshot of the Cộng sự page: "khoảng trống bên phải rất lớn, kéo rộng ra để
+   tận dụng"). An answer now grows to the width of its chat column, the same right edge as your own messages, up to 100ch.
+   72ch (0.26.1) left about 290px empty beside every answer on that page. 100ch is about 120 letters of Vietnamese prose,
+   the line length 0.26.1 named as where reading starts to tire, so it fills an iPad or a laptop pane and stops only on a
+   very wide monitor. One rule for every chat: the Chat and Coding pages reach their 900px column, Cộng sự its full pane. */
+.msg-javis .bubble { max-width: min(100ch, 100%); }
+/* A full-width answer reaches the column's right edge, and its reaction corner (.jr-rx, right: -6px) would hang past it
+   and be cut off by the chat's overflow-x: hidden. On a computer the chat keeps an 8px gutter for it; the outline bar's
+   34px (.transcript.cm-co-thanh below) wins when that bar shows. Phones put the corner inside the bubble instead. */
+@media (min-width: 861px) { .transcript { padding-right: 8px; } }
 
 /* Hàng nút dưới mỗi tin: giờ gửi + gửi lại / sửa lại / sao chép.
    Ẩn sẵn, hiện khi rê chuột (máy tính) hoặc khi chạm vào tin (điện thoại, .acts-on).
@@ -1199,20 +1208,10 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    bubble's bottom-right edge: the chosen emoji, or an outline thumbs-up that always shows on the latest answer and on hover
    for older ones. Pressing it likes; hovering it opens six native emoji in a floating pill; a long press does the same on a
    phone. No reasons, axis or comment panel any more. */
-.msg-javis > .jr-chat { display: block; max-width: min(72ch, 100%); font-size: 16px; font-family: var(--font-chat); min-width: 0; }
-/* Wide tables on the Chat page (0.444.0, idea from PR #958 by @hwangrin). At 72ch a table of 4 or more columns
-   is squeezed into ~600px and has to be scrolled sideways while half the pane is empty. On a desktop such an answer,
-   and the reaction row under it, may grow to 1200px; the prose inside keeps its 72ch measure (0.26.1: long lines tire
-   the eye) and only the table uses the extra room. Narrow tables and every other answer stay exactly as before. */
-@media (min-width: 861px) {
-  #chatPage .msg-javis > .bubble:has(.md-table tr > :nth-child(4)),
-  #chatPage .msg-javis:has(> .bubble .md-table tr > :nth-child(4)) > .jr-chat {
-    max-width: min(1200px, 100%);
-  }
-  #chatPage .msg-javis > .bubble:has(.md-table tr > :nth-child(4)) > :not(.md-tablewrap):not(pre):not(.code-wrap) {
-    max-width: 72ch;
-  }
-}
+.msg-javis > .jr-chat { display: block; max-width: min(100ch, 100%); font-size: 16px; font-family: var(--font-chat); min-width: 0; }
+/* The 0.444.0 rule that let an answer with a wide table (4+ columns) grow past 72ch on the Chat page is gone: every answer
+   now reaches the whole 900px column there, so a table already gets that room, and its 72ch clamp on the prose would have
+   made table answers narrower to read than all the others. */
 .jr-chat[hidden] { display: none; }
 .jr-anchor { position: relative; height: 0; }
 .jr-rx { position: absolute; right: -6px; top: -16px; z-index: 3; }
@@ -4075,7 +4074,7 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .viec-head .viec-mo svg { width: 16px; height: 16px; }
 /* Dòng "Đang làm nền: ..." dưới câu xác nhận của giọng nói. */
 .msg-javis .viec-giao {
-  display: flex; align-items: center; gap: 8px; margin: 6px 0 0 4px; max-width: 72ch;
+  display: flex; align-items: center; gap: 8px; margin: 6px 0 0 4px; max-width: 100ch;
   font-family: var(--font); font-size: 16px; color: var(--text2);
 }
 .msg-javis .viec-giao svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--accent); }

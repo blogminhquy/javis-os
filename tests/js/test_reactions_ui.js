@@ -363,7 +363,7 @@ check("bỏ hết reaction: emoji biến mất, nút Thích còn", !hist.row().i
         pos("reactions.js?v=") > 0 && pos("reactions.js") < pos("chat-reactions.js") && pos("chat-reactions.js") < pos("app.js")
         && napTruoc("reactions.js", ["teams.js", "mobile-chat.js"]));
   check("0.177 CSS: corner sits on the bubble's bottom-right edge, anchor as wide as the bubble",
-        /\.msg-javis > \.jr-chat \{ display: block; max-width: min\(72ch, 100%\); font-size: 16px; font-family: var\(--font-chat\);/.test(css)
+        /\.msg-javis > \.jr-chat \{ display: block; max-width: min\(100ch, 100%\); font-size: 16px; font-family: var\(--font-chat\);/.test(css)
         && /\.jr-anchor \{ position: relative; height: 0; \}/.test(css) && /\.jr-rx \{ position: absolute; right: -6px; top: -16px;/.test(css));
   // 0.182.0: keyboard focus (:focus-visible) shows the pill; the focus a tap gives the button no longer does.
   check("0.177 CSS: latest answer always shows Like, others on hover; pill on hover, keyboard focus or long press",

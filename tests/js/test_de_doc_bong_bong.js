@@ -61,7 +61,9 @@ const mw = bub.match(/max-width:\s*(\d+)ch/);
 check("bong bóng có trần độ dài dòng tính bằng 'ch' (đo theo CHỮ, không theo pixel)", !!mw);
 if (mw) {
   const ch = parseInt(mw[1], 10);
-  check("trần nằm trong khoảng đọc được (60-90 ch)", ch >= 60 && ch <= 90);
+  // 2026-11-09 (owner, Cộng sự page): answers should use the empty space on the right, so the cap went 72ch -> 100ch.
+  // 100ch is about 120 letters of Vietnamese prose, the line length 0.26.1 named as where reading starts to tire.
+  check("trần nằm trong khoảng đọc được (60-100 ch)", ch >= 60 && ch <= 100);
 }
 // Trần đặt trên BONG BÓNG chứ không trên từng đoạn: chặn từng đoạn thì nền bong bóng vẫn rộng
 // nguyên, chừa một mảng trống bên phải trông như lỗi hiển thị.
