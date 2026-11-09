@@ -98,7 +98,7 @@
       "@media(max-width:700px){" +
         // 0.65.30: dan kin man thi chua VUNG AN TOAN cua iPhone mo tu man hinh chinh (thanh
         // trang thai trong suot de len dau the, che mat nut Dong).
-        ".jvfe-modal{padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) " +
+        ".jvfe-modal{padding:var(--safe-top,env(safe-area-inset-top,0px)) env(safe-area-inset-right,0px) " +
         "env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);align-items:stretch;justify-content:stretch}" +
         // Cao theo khung (da tru vung an toan) chu khong 100dvh, keo the tran xuong duoi day.
         ".jvfe-card{width:100%;max-width:none;height:auto;align-self:stretch;max-height:none;" +

@@ -101,7 +101,7 @@ check("con trỏ zoom-in trên ảnh chat vẫn đúng nghĩa", /cursor:\s*zoom-
 // đè lên đúng chỗ nút X; mà vuốt cạnh trái để Back thì lớp phủ không nghe, nên không còn đường
 // nào ra. Hai vế phải cùng có mặt thì mới hết bẫy.
 check("lớp phủ chừa vùng an toàn phía trên (nút X không chui dưới thanh trạng thái)",
-      /padding:\s*env\(safe-area-inset-top/.test(than(".jv-lb")), than(".jv-lb"));
+      /padding:\s*var\(--safe-top\)/.test(than(".jv-lb")), than(".jv-lb"));
 check("chừa cả bốn cạnh (máy xoay ngang thì tai thỏ sang bên hông)",
       /safe-area-inset-right/.test(than(".jv-lb")) && /safe-area-inset-bottom/.test(than(".jv-lb"))
       && /safe-area-inset-left/.test(than(".jv-lb")), than(".jv-lb"));

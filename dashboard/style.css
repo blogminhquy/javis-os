@@ -244,6 +244,23 @@
   --brain-ink2: #6f6486;
   --brain-ink-hot: #c2410c;
 }
+/* Top edge everything on screen clears: the notch or status bar, plus room for iOS's blur in a home-screen app.
+   Use var(--safe-top) wherever env(safe-area-inset-top) would go.
+   2026-11-09 (owner, iOS 27 screenshot): iOS 26/27 lays a soft Liquid Glass blur over the top of a home-screen web app
+   whenever the page draws under the clock, and it reaches about 30pt below the status bar, right over the header
+   buttons. On iPhone WebKit drops that blur only for a solid strip it was told is covered (Safari's own toolbars), which
+   a home-screen app never gets, so no CSS turns it off and our solid fixed header was blurred anyway. The status bar
+   "default" (index.html) avoids it, but only for icons added after that change and not on every phone. So when the
+   app does draw under the clock (inset above 0) the header grows by --ios-edge-blur of plain header colour, where the
+   blur has nothing to smear, and the buttons sit below it. min(inset * 100, band) is 0 when the inset is 0, so a phone
+   where "default" works, landscape, Android and desktop keep the old height. ios-app is set in index.html. */
+:root {
+  --ios-edge-blur: 30px;
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+:root.ios-app {
+  --safe-top: calc(env(safe-area-inset-top, 0px) + min(env(safe-area-inset-top, 0px) * 100, var(--ios-edge-blur)));
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html {
   /* Lớp chặn zoom thứ hai: viewport meta user-scalable=no đủ khi chạy dạng app màn hình
@@ -2663,7 +2680,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
      X - lop phu bien thanh cai bay khong thoat ra duoc. Trang da co viewport-fit=cover nen
      env() tra ve so that; dem o CHINH lop phu de ca thanh cong cu lan khung anh cung lui vao,
      va vi box-sizing:border-box la mac dinh toan cuc nen inset:0 van phu kin man hinh. */
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+  padding: var(--safe-top) env(safe-area-inset-right, 0px)
            env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 body.jv-lb-open { overflow: hidden; }        /* khoá cuộn nền để lăn chuột là lăn trong ảnh */
 .jv-lb-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -2933,8 +2950,9 @@ body.jv-artpanel-open { overflow: hidden; }
      dưới đồng hồ và vạch pin. Đệm ở chính lớp này; box-sizing border-box toàn cục nên inset:0
      vẫn phủ kín màn hình. Máy không có tai thỏ thì env() bằng 0, không đổi gì.
      2026-11-08: the bar is "default" now (index.html), so the top inset is 0 in portrait; the padding stays for
-     icons added before that change and for the notch in landscape. */
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+     icons added before that change and for the notch in landscape. 2026-11-09: var(--safe-top) also clears iOS's
+     edge blur when the app draws under the clock (see :root.ios-app). */
+  padding: var(--safe-top) env(safe-area-inset-right, 0px)
            env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 /* Phóng to = phủ KÍN màn hình, kể cả rail bên trái.
    Vì sao phải thêm luật cho .cview: nó là position:fixed + z-index:40 nên TẠO MỘT

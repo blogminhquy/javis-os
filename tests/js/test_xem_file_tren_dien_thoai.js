@@ -56,9 +56,9 @@ check("CANARY: thẻ chiếm trọn chiều cao khung (giãn theo nền), không
   /\.jvfe-card\{[^"]*height:auto;align-self:stretch;max-height:none/.test(mq)
   && /align-items:stretch/.test(mq));
 check("nền chỉ chừa đúng vùng an toàn để thẻ dán vào bốn cạnh",
-  /\.jvfe-modal\{padding:env\(safe-area-inset-top,0px\) env\(safe-area-inset-right,0px\) " \+\s*\n\s*"env\(safe-area-inset-bottom,0px\) env\(safe-area-inset-left,0px\)/.test(mq));
+  /\.jvfe-modal\{padding:var\(--safe-top,env\(safe-area-inset-top,0px\)\) env\(safe-area-inset-right,0px\) " \+\s*\n\s*"env\(safe-area-inset-bottom,0px\) env\(safe-area-inset-left,0px\)/.test(mq));
 check("trình sửa phóng to (màn hẹp luôn phóng to) chừa vùng an toàn của iPhone",
-  /\.note-editor\.ne-full \{[^}]*padding: env\(safe-area-inset-top, 0px\)/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "style.css"), "utf8")));
+  /\.note-editor\.ne-full \{[^}]*padding: var\(--safe-top\)/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "style.css"), "utf8")));
 check("đầu thẻ dính ở trên khi thân cuộn", /position:sticky/.test(mq));
 check("nút biểu tượng đủ to cho ngón tay (>=40px)", /\.jvfe-btn\.icon\{width:40px/.test(mq));
 

@@ -79,6 +79,25 @@ check("khung chính điện thoại cao theo --app-h, thiếu thì 100dvh",
 check("iOS status bar is solid (default), so iOS 26/27 has no page under it to blur",
       'name="apple-mobile-web-app-status-bar-style" content="default"' in INDEX
       and "black-translucent" not in re.sub(r"<!--[\s\S]*?-->", "", INDEX))
+# 2026-11-09 (owner, iOS 27 screenshot): "default" did not clear the blur on every phone (the header buttons were still
+# smeared). Whenever a home-screen app still draws under the clock, the header grows by a plain band the blur can cover.
+_root = re.search(r":root \{\s*--ios-edge-blur: (\d+)px;\s*--safe-top: env\(safe-area-inset-top, 0px\);\s*\}", STYLE)
+check("--safe-top defaults to the plain safe-area inset", _root is not None)
+check("the blur band is wide enough to clear the ~30pt iOS blur", _root is not None and int(_root.group(1)) >= 28)
+check("home-screen app adds the band only when the page draws under the clock (inset above 0)",
+      ":root.ios-app {\n  --safe-top: calc(env(safe-area-inset-top, 0px) + min(env(safe-area-inset-top, 0px) * 100, "
+      "var(--ios-edge-blur)));" in STYLE)
+check("ios-app is set before the first paint, from iOS's own standalone flag",
+      "if(navigator.standalone===true)document.documentElement.classList.add('ios-app');" in INDEX
+      and INDEX.index("classList.add('ios-app')") < INDEX.index("<body>"))
+_live_css = re.sub(r"/\*[\s\S]*?\*/", "", CSS + STYLE)
+check("phone header, drawer, pages and overlays clear --safe-top, not the bare inset",
+      "--topbar-h: calc(46px + var(--safe-top));" in CSS
+      and "height: calc(46px + var(--safe-top));\n    padding-top: var(--safe-top);" in CSS
+      and "padding-top: calc(46px + var(--safe-top));" in CSS
+      and "top: calc(52px + var(--safe-top));" in CSS
+      and "padding: max(10px, var(--safe-top)) 8px" in CSS
+      and _live_css.count("env(safe-area-inset-top") == 3)  # the three inside the --safe-top definitions
 check("trang quản lý không cộng chồng hai lề đáy dưới ô nhập", ".cview .hud-voice { margin-bottom: 0; }" in CSS)
 check("Android co trang theo bàn phím", "interactive-widget=resizes-content" in INDEX)
 _cd = re.search(r"\.cd-menu \{[^}]*\}", CSS)

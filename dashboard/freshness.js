@@ -112,7 +112,7 @@
       "color:var(--on-accent,#1a1a1a);font-weight:700}" +
       "#javis-fresh-bar .jf-x{background:var(--btn-fill,transparent);color:var(--text,#e8eaf0)}" +
       "#javis-fresh-bar .jf-x:hover{background:var(--btn-fill-hover,transparent)}" +
-      "@media(max-width:600px){#javis-fresh-bar{flex-wrap:wrap;gap:10px;top:max(12px,env(safe-area-inset-top))}" +
+      "@media(max-width:600px){#javis-fresh-bar{flex-wrap:wrap;gap:10px;top:max(12px,var(--safe-top,env(safe-area-inset-top,0px)))}" +
       "#javis-fresh-bar .jf-txt{flex:1 0 100%}#javis-fresh-bar button{white-space:nowrap}}";
     var bar = document.createElement("div");
     bar.id = "javis-fresh-bar";

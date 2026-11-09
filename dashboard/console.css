@@ -998,7 +998,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 @media (max-width: 860px) {
   :root {
     --rail-w: 0px;
-    --topbar-h: calc(46px + env(safe-area-inset-top, 0px));
+    --topbar-h: calc(46px + var(--safe-top));
   }   /* header thấp hơn trên mobile nhưng vẫn chừa tai thỏ khi chạy full-screen */
 
   /* Phone header: menu, bell and the + button only (the model chip stays in the composer since 2026-11-09). */
@@ -1023,7 +1023,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     position: absolute; top: -4px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px;
   }
   .notification-panel {
-    top: calc(52px + env(safe-area-inset-top, 0px)); right: 8px;
+    top: calc(52px + var(--safe-top)); right: 8px;
     width: calc(100vw - 16px);
     max-height: min(72dvh, calc(100dvh - 76px - env(safe-area-inset-bottom, 0px)));
     border-radius: 14px;
@@ -1038,7 +1038,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     top: 0; left: 0; bottom: 0; right: auto; width: min(280px, 82vw); height: 100vh;
     height: 100dvh;
     flex-direction: column;
-    padding: max(10px, env(safe-area-inset-top, 0px)) 8px max(10px, env(safe-area-inset-bottom, 0px));
+    padding: max(10px, var(--safe-top)) 8px max(10px, env(safe-area-inset-bottom, 0px));
     gap: 4px;
     border-top: 0; border-right: 1px solid var(--glass-brd);
     z-index: 60; overflow-y: auto;
@@ -1110,11 +1110,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     /* --app-h: chiều cao vùng nhìn thấy lúc không gõ (mobile-chat.js, 0.359.0); 100dvh của app cài trên iPhone có khi lệch. */
     height: 100vh; height: var(--app-h, 100dvh);
     grid-template-rows: minmax(0, 1fr) auto auto;
-    padding-top: calc(46px + env(safe-area-inset-top, 0px));
+    padding-top: calc(46px + var(--safe-top));
   }  /* header fixed; ba hàng còn lại = body + đính kèm + ô nhập */
   .hud-top {
-    height: calc(46px + env(safe-area-inset-top, 0px));
-    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(46px + var(--safe-top));
+    padding-top: var(--safe-top);
   }
   .hud-body { display: flex; flex-direction: column; overflow: hidden; min-height: 0; }  /* cockpit: quả cầu trên, chat dưới, không trôi */
   .hud-left { display: none; }              /* số liệu KD ẩn trên mobile (xem ở Console) */

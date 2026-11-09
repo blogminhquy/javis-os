@@ -185,7 +185,7 @@
           dai = document.createElement("div");
           dai.id = "javisKetNoiLai";
           dai.setAttribute("role", "status");
-          dai.style.cssText = "position:fixed;left:50%;top:max(10px,env(safe-area-inset-top));transform:translateX(-50%);"
+          dai.style.cssText = "position:fixed;left:50%;top:max(10px,var(--safe-top,env(safe-area-inset-top,0px)));transform:translateX(-50%);"
             + "z-index:99998;padding:8px 16px;border-radius:999px;font-size:15px;line-height:1.4;"
             + "background:var(--bg2,#1b1f2a);color:var(--text,#e8eaf0);border:1px solid var(--yellow,#e0a800);"
             + "box-shadow:0 6px 20px rgba(0,0,0,.3);pointer-events:none";

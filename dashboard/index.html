@@ -27,6 +27,9 @@
        page starts below it, so nothing sits under it to blur. iOS reads this tag when the app is added to the Home
        Screen: an icon added before this change keeps the blur until it is removed and added again. The CSS still
        pads with env(safe-area-inset-*), which is 0 at the top now and still covers the notch in landscape. -->
+  <!-- 2026-11-09 (owner, iOS 27): "default" did not clear the blur on every phone, so the header also makes room for
+       it whenever the app still draws under the clock (--safe-top in style.css, switched on by the ios-app class
+       below). Re-adding the icon gives that room back on a phone where "default" takes. -->
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Javis OS">
   <meta name="theme-color" content="#ffffff">
@@ -46,6 +49,9 @@
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chưa chọn gì thì SÁNG (2026-11-05; trước đó là "auto"). Chế độ "auto" (0.74.0) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
        theme.js (vắt qua nửa đêm được, hai mốc trùng là tối): sửa một bên thì sửa cả bên kia. -->
+  <!-- Home-screen app on iPhone/iPad (navigator.standalone is iOS-only): lets --safe-top in style.css leave room for
+       iOS's edge blur. Set before the first paint so the header never jumps. -->
+  <script>try{if(navigator.standalone===true)document.documentElement.classList.add('ios-app');}catch(e){}</script>
   <script>(function(){try{var m=localStorage.getItem('javis.theme'),L=m!=='dark'&&m!=='dim';if(m==='auto'){var p=/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(localStorage.getItem('javis.theme.schedule')||'')||[0,6,0,18,0],a=p[1]*60+ +p[2],b=p[3]*60+ +p[4],d=new Date(),n=d.getHours()*60+d.getMinutes();L=a!==b&&(a<b?n>=a&&n<b:n>=a||n<b);}if(L)document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 </head>
 <body>
