@@ -1780,7 +1780,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .send-btn:hover { opacity: 0.85; }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ===== Mobile: same card with tighter padding; the model chip moves to the page header (mobile-chat.js, back there in 0.182.0) ===== */
+/* ===== Mobile: same card with tighter padding. Since 2026-11-09 the model chip stays in it next to the Effort chip, as on
+   a computer (it sat in the page header from 0.182.0); its picker opens above the card and never runs past the screen. ===== */
 @media (max-width: 860px) {
   .hud-voice {
     margin: 6px 10px 8px; padding: 8px 8px 6px; gap: 2px;
@@ -1788,6 +1789,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
     align-items: flex-end;
   }
   .hud-voice .voice-input { min-height: 36px; max-height: 40vh; padding: 6px 6px; font-size: 16px; }
+  .hud-voice .mb-pop { width: min(340px, calc(100vw - 32px)); }
 }
 
 .stop-btn {
@@ -4889,6 +4891,12 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   font-weight: 700; letter-spacing: 4px; border: 1px dashed var(--border); border-radius: 12px; user-select: all; overflow-wrap: anywhere; }
 .gh-form .lv-form-act a.s-btn, .gh-card a.conn-chip { text-decoration: none; display: inline-flex; align-items: center; }
 @media (max-width: 480px) { .gh-code { font-size: 26px; letter-spacing: 2px; } }
+/* The git step before connecting (09/11/2026): the command to run by hand, and the "git is installed" line. */
+.gh-git-cmd { margin: 8px 0 4px; padding: 10px 12px; font-family: var(--mono, ui-monospace, monospace); font-size: 16px; line-height: 1.45;
+  white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2); }
+.gh-git-ok { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; color: var(--green, #2c7a4b); }
+.gh-git-ok .cp-ic { width: 18px; height: 18px; flex: none; }
+.gh-git .lv-form-act a.s-btn-ghost { text-decoration: none; display: inline-flex; align-items: center; }
 /* GitHub status icon per conversation (0.365.0, spec 12.1): right of the title in the chat list, and in the repo chip. */
 .cside-item.has-gh { position: relative; }
 .cside-item.has-gh .ci-title { padding-right: 36px; }
@@ -5020,11 +5028,15 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 .bp-act:hover:not(:disabled), .bp-act:focus-visible { background: var(--bg2); color: var(--accent); box-shadow: inset 0 0 0 1px var(--border); outline: none; }
 .bp-act.bp-act-del:hover:not(:disabled) { color: var(--red, #e5484d); }
 .bp-act:disabled { opacity: .3; cursor: not-allowed; }
+/* The default brain's star is a mark, not a button; on other rows the star button makes that brain the default. */
+.bp-act-star.on { color: var(--accent); cursor: default; }
+.bp-act-star.on:hover { background: none; box-shadow: none; }
 .bp-form { margin: 2px 4px 8px 50px; display: flex; flex-direction: column; gap: 8px; }
 .bp-form.danger { margin-left: 4px; padding: 10px 12px; border-radius: 10px; background: var(--danger-wash, rgba(220,38,38,.08)); }
 .bp-form-new { margin: 4px 6px 10px; }
 .bp-form-msg { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--text2); overflow-wrap: anywhere; }
 .bp-form-err { font-size: 13.5px; color: var(--red, #e5484d); }
+.bp-form-msg.bp-warn { color: var(--warn-ink, var(--text)); font-weight: 600; }
 .bp-in { width: 100%; box-sizing: border-box; height: 38px; padding: 0 11px; border-radius: 9px; border: 1px solid var(--border);
   background: var(--bg); color: var(--text); font: inherit; font-size: 14.5px; outline: none; }
 .bp-in:focus { border-color: var(--accent); }
@@ -5121,5 +5133,17 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   font: 600 15px/1.2 var(--font);
 }
 .rail-foot .rf-install .ic { width: 17px; height: 17px; flex: none; }
-.rail-foot .rf-install .rf-install-chu { overflow: hidden; text-overflow: ellipsis; }
+.rail-foot .rf-install .rf-install-chu, .rail-foot .rf-install .rf-install-short { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rail-foot .rf-install .rf-install-short { display: none; }
 @media (min-width: 861px) and (pointer: fine) { .rail-foot .rf-install { display: none; } }
+/* 2026-11-09: a touch tablet or laptop (pointer: coarse) gets the button in the 160px computer rail, where it ran past the
+   edge (164px in a 143px foot) and sat off screen once the rail folded. There it takes the "Give a star" mould below it
+   with a short label, and only the icon in the folded rail. */
+@media (min-width: 861px) {
+  .rail-foot .rf-install { min-width: 0; min-height: 32px; gap: 6px; font-size: 13px; }
+  .rail-foot .rf-install .ic { width: 14px; height: 14px; }
+  .rail-foot .rf-install .rf-install-chu { display: none; }
+  .rail-foot .rf-install .rf-install-short { display: inline; }
+  .rail.collapsed .rail-foot .rf-install { flex: 0 0 auto; width: 32px; padding: 0; }
+  .rail.collapsed .rail-foot .rf-install .rf-install-short { display: none; }
+}

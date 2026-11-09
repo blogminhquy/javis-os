@@ -147,8 +147,11 @@
   // ---- Nút "Cài lên điện thoại" ở chân menu ----
   function veNutMenu(b) {
     var chu = window.t("instl.rail");
+    // A touch tablet or laptop shows this in the 160px computer rail, where "Install on phone" does not fit (owner,
+    // 2026-11-09: "nút install app bị vỡ"). CSS shows the short label there and the long one in the phone drawer.
     b.innerHTML = (typeof window.ic === "function" ? window.ic("download") : "")
-      + '<span class="rf-install-chu">' + chu + "</span>";
+      + '<span class="rf-install-chu">' + chu + "</span>"
+      + '<span class="rf-install-short">' + window.t("instl.rail_short") + "</span>";
     b.title = chu;
     b.setAttribute("aria-label", chu);
   }

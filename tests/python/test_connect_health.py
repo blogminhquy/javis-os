@@ -57,7 +57,7 @@ class _FakePool:
         self.raise_error = raise_error
         self.calls = 0
 
-    async def list_tools(self, spec):
+    async def list_tools(self, spec, fresh=False):
         self.calls += 1
         if self.raise_error:
             raise self.raise_error
@@ -114,7 +114,7 @@ def test_sweep_mot_conn_loi_khong_giet_ca_vong(monkeypatch):
         return [_conn("ok1"), _conn("die1"), _conn("ok2")]
 
     class _PickyPool(_FakePool):
-        async def list_tools(self, spec):
+        async def list_tools(self, spec, fresh=False):
             self.calls += 1
             if spec["key"] == "die1":
                 raise RuntimeError("timed out")

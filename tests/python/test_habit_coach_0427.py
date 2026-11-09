@@ -173,7 +173,7 @@ class FakePool:
     def __init__(self, raw):
         self.raw, self.calls = raw, []
 
-    async def list_tools(self, spec):
+    async def list_tools(self, spec, fresh=False):
         return tools
 
     async def call_tool(self, spec, name, args):

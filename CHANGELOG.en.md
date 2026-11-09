@@ -8,6 +8,44 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.525.2] - 2026-11-09
+### Fixed
+- **Workflows run by a Claude agent can use every Javis connection.** Jobs routed to a workflow (even at Full access) and workflows run from chat no longer report "missing tool" when they need Gmail, Sheets, Zalo or another MCP.
+- **Chatbot, the Conversations tab shows only the open brain's chats.** Pages and bots moved to another brain no longer show in the old one, counts included. Turn on "every brain" in the Channels tab to see them all.
+
+## [0.525.1] - 2026-11-09
+### Fixed
+- **The automated check is green again.** Two updates added server routes at the same time, so the reference table had stale positions. Nothing changes for users.
+
+## [0.525.0] - 2026-11-09
+### Added
+- **Choose which brain is the default.** In the brain picker, tap the star on a brain to make it the default. Work that names no brain runs there, and every synced machine follows.
+- **The old Brain Default can be deleted.** Once another brain is the default, Brain Default is an ordinary brain and deletes like any other (still kept in the trash for 30 days). It no longer comes back on its own.
+- **Know before you delete.** The delete box now says how many loops and reminders stop with the brain, and which bots answer from it so you can move them first.
+
+## [0.524.0] - 2026-11-09
+### Added
+- **Connecting GitHub checks for git first and installs it when it is missing, then opens the sign-in step.** Windows uses winget or the official Git installer (no admin rights), Mac uses Homebrew or Apple's tools, Linux uses the package manager when Javis is allowed to.
+- **A connected GitHub card on a machine without git gets an Install git button.** If the install fails, Javis shows the exact command to run by hand, Try again and Skip.
+### Fixed
+- **A git installed while Javis runs is picked up right away, no restart needed.** A server started before git was installed used to keep saying "git is not installed".
+
+## [0.523.1] - 2026-11-09
+### Improved
+- **Reopening the neural graph, opening another tab or a phone reconnecting no longer freezes the whole app.** The app shares one file watcher per folder, built once and kept for 15 minutes after the graph screen closes. Before, each opening built it again, once making everything else wait almost 3 seconds.
+- **The tool list of each MCP connection is remembered for 10 minutes** instead of asking every server again each minute, so far fewer one or two second freezes while chatting. The Test button and the health check still ask the server directly, and a connection that announces new tools is asked again at once.
+
+## [0.523.0] - 2026-11-09
+### Fixed
+- **The install button at the foot of the left menu no longer spills out** on touch tablets and laptops: it is the size of the star button, reads "Install app", and shows only its icon when the menu is folded.
+### Improved
+- **Phone: the model picker moved into the input card, right next to the effort picker**, just like on a computer. Tapping it opens the model list right above the card, never wider than the screen.
+- **A cleaner top bar:** only the menu button, the notification bell and the + for a new conversation remain.
+
+## [0.522.0] - 2026-11-09
+### Improved
+- **Changing the password now has a "Confirm new password" box.** Javis saves only when both entries match, so one typo can no longer lock you out. It applies to the Account page and to the login block in Settings.
+
 ## [0.521.1] - 2026-11-09
 ### Improved
 - **Opening the neural graph no longer freezes the whole app.** The graph's file watcher is built on its own thread, so a brain with many folders no longer makes everything else wait up to 2 seconds each time the screen opens.

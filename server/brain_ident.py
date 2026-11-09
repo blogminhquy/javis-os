@@ -12,9 +12,10 @@ another brain's records under Brain Default.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any, Callable, Optional
+
+import default_brain
 
 DEFAULT_ALIAS = "brain"
 _default_dir_fn: Optional[Callable[[], Any]] = None
@@ -29,8 +30,7 @@ def set_default_dir(fn: Callable[[], Any]) -> None:
 def default_dir() -> Path:
     if _default_dir_fn is not None:
         return Path(_default_dir_fn())
-    root = Path(__file__).resolve().parent.parent
-    return Path(os.getenv("BRAINS_DIR", str(root / "brains"))) / "Brain Default"
+    return default_brain.path(default_brain.brains_dir_from_env())
 
 
 def canonical(value: Any) -> str:

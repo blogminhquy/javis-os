@@ -147,7 +147,7 @@ When two machines edit the same file between syncs, you get an extra file such a
 
 | Symptom | Cause / what to do |
 |---|---|
-| "git is not installed on this machine" | Install git on the machine or VPS. The official Docker image already has it. |
+| "git is not installed on this machine" | Open **Connections** and press **Connect** (or **Install git**) on the GitHub card: Javis installs git itself. Or install it by hand on the machine or VPS. The official Docker image already has it. |
 | Test connection reports a 403 | The token lacks Contents: Read and write, or the right repo was not selected. |
 | The push succeeds but GitHub shows no files on the branch you expected | The **Branch** field differs from the repo's default branch (Javis defaults to `main`). Fix the Branch field to match, Save configuration and sync again. |
 | "the push keeps being overtaken" | Several machines are syncing at once, continuously. Click again in a few minutes and the merge mechanism will settle it. |

@@ -2193,6 +2193,9 @@
     var hen = null;
     item.addEventListener("touchstart", function () {
       clearTimeout(hen);
+      // A new touch starts clean: a long press that no click followed (Android after its context menu) must not
+      // leave the flag set and swallow this tap.
+      item._nhanGiu = false;
       hen = setTimeout(function () { item._nhanGiu = true; moMenuDong(item, s, false); }, 550);
     }, { passive: true });
     ["touchmove", "touchend", "touchcancel"].forEach(function (ev) {

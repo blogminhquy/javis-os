@@ -9,6 +9,7 @@ import brain_seed_i18n   # file hạt giống của brain mới theo ngôn ngữ
 import brain_label   # tên hiển thị của brain, tách khỏi thư mục (0.219.0)
 import brain_export   # xuất/nhập cả bộ não thành một file .zip (2026-11-09)
 import brain_order   # thứ tự brain trong bảng chọn: chủ tự sắp, còn lại theo tên hiển thị (0.431.0)
+import default_brain   # which brain is the default: a choice since 2026-11-09, `Brain Default` until one is made
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import html as html_mod   # escape lời báo lỗi OAuth trên trang callback (biến cục bộ `html` che tên module)
 import posixpath
@@ -7682,8 +7683,11 @@ def _default_brain_dir() -> Path:
     """Brain mặc định = <BRAINS_DIR>/Brain Default. BRAINS_DIR = thư mục CHA chứa mọi brain
     (mỗi folder con = 1 brain). Docker = /brains (mount riêng, ghi được, git-backup được).
     Local = <project>/brains. Đây là 'bộ não khởi đầu' - user vẫn chọn brain khác trong danh
-    sách hoặc folder ngoài bất kỳ qua 'path:<thư mục>'. KHÔNG hardcode vault cá nhân nào."""
-    p = Path(BRAINS_DIR) / "Brain Default"
+    sách hoặc folder ngoài bất kỳ qua 'path:<thư mục>'. KHÔNG hardcode vault cá nhân nào.
+
+    Since 2026-11-09 the owner can make another brain the default (POST /brains/default, server/default_brain.py);
+    `Brain Default` is only the folder used until they do."""
+    p = default_brain.path(BRAINS_DIR)
     try:
         p.mkdir(parents=True, exist_ok=True)
     except Exception:
@@ -8486,7 +8490,8 @@ async def delete_brain(name: str = Form(...), confirm: str = Form("")):
     if root == base or base not in root.parents:
         return JSONResponse({"ok": False, "error": localefmt.chu("Brain ngoài phạm vi quản lý", "Brain is outside the managed area")}, status_code=400)
     if root == _default_brain_dir().resolve():
-        return JSONResponse({"ok": False, "error": localefmt.chu("Không thể xoá Brain mặc định", "The default Brain cannot be deleted")}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không thể xoá Brain mặc định. Đặt brain khác làm mặc định trước.",
+                                                                 "The default Brain cannot be deleted. Make another brain the default first.")}, status_code=400)
     if not root.is_dir():
         return JSONResponse({"ok": False, "error": localefmt.chu("Brain không tồn tại", "Brain does not exist")}, status_code=404)
     trash_dir = str(cfgmod.STATE_DIR / "brain-trash")
@@ -8509,7 +8514,13 @@ async def delete_brain(name: str = Form(...), confirm: str = Form("")):
         return JSONResponse({"ok": False, "error": localefmt.chu(f"Không xoá được (brain đang bận?): {e}", f"Could not delete (is the brain busy?): {e}")},
                             status_code=500)
 
-    # Eager sync (nền, best-effort): đẩy lệnh xoá + tombstone lên remote NGAY thay vì chờ chu kỳ 6h.
+    _eager_brain_sync()   # đẩy lệnh xoá + tombstone lên remote NGAY thay vì chờ chu kỳ 6h
+    return {"ok": True, "name": safe, "trashed": bool(dest)}
+
+
+def _eager_brain_sync() -> None:
+    """Push a brain-level change (a delete, a new default brain) to the GitHub backup now instead of at the next
+    6-hour round, so the other machines learn it before they can undo it. Background and best effort."""
     try:
         _b = cfgmod.read_settings().get("backup", {}) or {}
         if _b.get("enabled") and _b.get("repo_url") and _b.get("token") and git_brain.has_git():
@@ -8519,7 +8530,90 @@ async def delete_brain(name: str = Form(...), confirm: str = Form("")):
     except Exception:
         pass
 
-    return {"ok": True, "name": safe, "trashed": bool(dest)}
+
+def _top_brain_dir(brain: str):
+    """A brain folder DIRECTLY inside BRAINS_DIR, named "brain", "path:<folder>" or a folder name; None otherwise.
+    Only such a folder can be the default brain or be deleted (POST /brains/delete takes a folder name too)."""
+    root = _managed_brain_dir(brain)
+    if root is None:
+        return None
+    try:
+        if root.parent != Path(BRAINS_DIR).resolve():
+            return None
+    except OSError:
+        return None
+    return root
+
+
+@app.post("/brains/default")
+async def brain_set_default(brain: str = Form(...)):
+    """Make another brain the default one (2026-11-09, owner: "đặt làm mặc định cái khác thì xoá được cái mặc định
+    hiện tại"). The choice is a file at the top of BRAINS_DIR (server/default_brain.py), so it travels with the GitHub
+    backup and every synced machine agrees on it.
+
+    What follows the default: everything that names the default brain by its short name "brain" (the brain picker's
+    "default" entry, records saved that way, a chat turn whose brain folder is gone). What stays with its folder: the
+    brain's own files, loops and reminders, and anything saved with the folder's path. The old default becomes an
+    ordinary brain and can be deleted like any other."""
+    root = _top_brain_dir(brain)
+    if root is None:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Brain không tồn tại hoặc nằm ngoài phạm vi quản lý",
+                                                                 "Brain does not exist or is outside the managed area")},
+                            status_code=404)
+    try:
+        old = _default_brain_dir().resolve()
+    except OSError:
+        old = None
+    if old is not None and root == old:
+        return {"ok": True, "name": root.name, "label": brain_label.display(root), "unchanged": True}
+    ok, why = await asyncio.to_thread(default_brain.set_folder, BRAINS_DIR, root.name)
+    if not ok:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không đặt được brain này làm mặc định",
+                                                                 "Could not make this brain the default")},
+                            status_code=400 if why == "invalid" else 404)
+    # The loop scheduler visits the default brain on its own, other brains only once registered: register the old
+    # default so its loops keep running now that it is an ordinary brain.
+    if old is not None and old.is_dir():
+        try:
+            loop_feature.register_brain(str(old))
+        except Exception:
+            pass
+    _eager_brain_sync()
+    return {"ok": True, "name": root.name, "label": brain_label.display(root),
+            "previous": old.name if old is not None else ""}
+
+
+def _brain_ties_sync(root: Path) -> dict:
+    """What stops or loses its brain when `root` is deleted: its loops and pending reminders (they go to the trash
+    with the folder) and the bots that answer from it or use one of its agents."""
+    path = str(root)
+    try:
+        loops = len(loop_feature.list_loops(path))
+    except Exception:
+        loops = 0
+    try:
+        reminders = len(reminders_feature.live_views(path))
+    except Exception:
+        reminders = 0
+    bots = []
+    try:
+        for b in chatbot_store.list_bots():
+            agent_brain = (b.get("agent") or {}).get("brain")
+            if brain_ident.same_brain(b.get("brain"), path) or brain_ident.same_brain(agent_brain, path):
+                bots.append({"id": b.get("id") or "", "name": b.get("name") or b.get("id") or ""})
+    except Exception:
+        pass
+    return {"loops": loops, "reminders": reminders, "bots": bots}
+
+
+@app.get("/brains/ties")
+async def brain_ties(brain: str = Query(...)):
+    """The delete form asks this first, so it can say what a delete would stop (2026-11-09)."""
+    root = _top_brain_dir(brain)
+    if root is None:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Brain không tồn tại", "Brain does not exist")},
+                            status_code=404)
+    return {"ok": True, **(await asyncio.to_thread(_brain_ties_sync, root))}
 
 
 # ---- a whole brain as one .zip file, out and back in (2026-11-09, server/brain_export.py) ----
@@ -12100,11 +12194,16 @@ def _workflow_agent_helpers(brain, tools, mode=None):
     Tương đương giữa hai đường phải đến từ việc dùng chung code, không phải từ việc
     chép cho giống. Mọi thay đổi ở đây tự động áp cho cả hai.
 
-    `mode`: permission level of a GATED run (tools is not None), e.g. the Kanban job's
-    execution_mode. Plugin tools a step declares are checked against it; None = "auto".
+    `mode`: permission level of the run, e.g. the Kanban job's execution_mode. A GATED run (tools is not None) checks
+    the plugin tools a step declares against it (None = "auto"); an UNGATED one gets the hub at it (None = "full").
     """
     vault_root = str(_brain_root(brain))
     gated_mode = str(mode or "auto") if str(mode or "auto") in ("suggest", "auto") else "auto"
+    # Level of an UNGATED run (tools is None): Kanban passes its execution_mode ("full" there); a run started from chat
+    # passes nothing and is the owner's own, so "full", as a chat turn.
+    ungated_mode = str(mode or "full").strip().lower()
+    if ungated_mode not in ("suggest", "auto", "full"):
+        ungated_mode = "suggest"
 
     def _mk(sysprompt, model=None, provider="", extra_tools=()):
         # An interactive step whose agent pins no model runs on the owner's MAIN model, like a chat turn
@@ -12152,6 +12251,11 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             # workflow quét dữ liệu thật cũng có thể chạy quá 300s như việc lịch/Kanban.
             c.max_wall_s = aux_engine.bg_max_wall_s()
         else:
+            # #1252: an ungated step (a workflow run from chat, or a Kanban `wf:` job at `full`) gets the Javis hub at
+            # the run's level, like the Codex branch above (_apply_codex_hub) and like route `auto`. Before, only
+            # javis_vault was set: in-process plugins worked, every MCP registered in Javis did not, so the agent
+            # reported "missing tool" and the job stopped at its acceptance check.
+            _apply_mcp(c, mode=ungated_mode, brain=vault_root)
             c.javis_vault = vault_root
         # `tools is not None` = workflow chạy NỀN ở chế độ giới hạn công cụ. Ở đó agent luôn
         # phải là Claude Code, y như nhánh Codex ngay trên: giới hạn an toàn nằm ở
@@ -31570,7 +31674,7 @@ improvement_api.register(app, improvement_api.ImprovementApiDeps(
     read_store=_improvement_read_store,
     write_store=_improvement_write_store,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
-        default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
+        default_root=default_brain.path(BRAINS_DIR), brains_root=Path(BRAINS_DIR)),
     agent_key=lambda root, slug: _agent_jobs_key(root, slug, register=True),
 ))
 
@@ -31981,7 +32085,7 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
         _improvement_write_store(), principal, ids, version=_read_version()),
     review_proposals=_agent_review_proposals,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
-        default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
+        default_root=default_brain.path(BRAINS_DIR), brains_root=Path(BRAINS_DIR)),
 ))
 
 
@@ -32064,7 +32168,7 @@ improvement_trial_api.register(app, improvement_trial_api.TrialApiDeps(
     read_store=_improvement_read_store,
     write_store=_improvement_write_store,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
-        default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
+        default_root=default_brain.path(BRAINS_DIR), brains_root=Path(BRAINS_DIR)),
     owner_session=_doi_phien_that,
     capture_host=_improvement_trial_host,
     service=_improvement_trial_service,
@@ -32115,7 +32219,7 @@ improvement_candidate_api.register(app, improvement_candidate_api.CandidateApiDe
     read_store=_improvement_read_store,
     write_store=_improvement_write_store,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
-        default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
+        default_root=default_brain.path(BRAINS_DIR), brains_root=Path(BRAINS_DIR)),
     owner_session=_doi_phien_that,
     operations=_improvement_candidate_operations,
     pack_state_dir=lambda: Path(cfgmod.STATE_DIR) / "packs-state",
@@ -32130,7 +32234,7 @@ improvement_experiment_api.register(app, improvement_experiment_api.ExperimentAp
     read_store=_improvement_read_store,
     write_store=_improvement_write_store,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
-        default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
+        default_root=default_brain.path(BRAINS_DIR), brains_root=Path(BRAINS_DIR)),
     owner_session=_doi_phien_that,
     service=_improvement_experiment_service,
     after_report=_improvement_after_report,

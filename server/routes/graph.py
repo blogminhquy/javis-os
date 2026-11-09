@@ -15,6 +15,7 @@ import asyncio
 import json
 import os
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -135,6 +136,105 @@ def _hidden_in_roots(fpath, roots):
     return False
 
 
+# ---- One OS file watcher per folder, shared by every graph socket (2026-11-09) ----
+# watchfiles builds its RustNotify (one inotify watch per folder) while HOLDING the GIL, so moving it to its own thread
+# (0.521.1) did not free the event loop: in a test, a 60 000-folder tree froze the loop 0.54 s of the 0.60 s build, and
+# the owner's /health/loop after that release still showed graph.py _fs_watcher 4 times, up to 2.74 s, the latest one
+# right after a phone reconnected. Every graph tab and every reconnect built its own watcher. Now the first socket
+# builds the watcher of each folder, later sockets join it, and it lingers after the last one leaves, so a reload, a
+# second tab or a phone waking up costs nothing.
+_WATCH_LINGER_S = 900   # seconds a watcher outlives its last graph socket
+
+
+class _SharedWatch:
+    def __init__(self, root: str):
+        self.root = root
+        self.subscribers = set()          # (loop, asyncio.Queue) of each graph socket listening
+        self.stop = threading.Event()
+        self.idle_since = None            # monotonic time the last socket left, None while one listens
+
+
+_shared_watches: dict = {}                # root -> _SharedWatch, only watchers whose thread is starting or running
+_shared_lock = threading.Lock()
+
+
+def _watch_roots(roots) -> list:
+    """Existing roots, normalised, without a root that sits inside another one (it would be watched twice)."""
+    live = sorted({os.path.normpath(os.path.abspath(r)) for r in roots if r and os.path.isdir(r)})
+    out = []
+    for r in live:
+        if not any(r == o or r.startswith(o.rstrip(os.sep) + os.sep) for o in out):
+            out.append(r)
+    return out
+
+
+def _watch_run(w: _SharedWatch) -> None:
+    """Thread body: watch one folder and hand each batch of changed notes to every socket listening."""
+    try:
+        from watchfiles import watch, Change
+        for changes in watch(w.root, stop_event=w.stop, raise_interrupt=False,
+                             watch_filter=lambda _c, p: p.endswith(".md")):
+            paths = frozenset(p for c, p in changes if c in (Change.added, Change.modified))
+            if not paths:
+                continue
+            with _shared_lock:
+                listeners = list(w.subscribers)
+            for loop, queue in listeners:
+                try:
+                    loop.call_soon_threadsafe(queue.put_nowait, paths)
+                except RuntimeError:   # that loop is closing: nobody is listening there any more
+                    pass
+    except Exception as e:
+        print(f"[ws_graph watcher] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+    finally:
+        with _shared_lock:
+            if _shared_watches.get(w.root) is w:
+                del _shared_watches[w.root]
+
+
+def _watch_join(roots, loop, queue) -> list:
+    """Join the shared watcher of each root, starting the ones that do not run yet. Returns the watchers joined."""
+    try:
+        import watchfiles  # noqa: F401
+    except ImportError:   # môi trường thiếu watchfiles → còn mỗi quét thưa, vẫn chạy được
+        print("[ws_graph] thiếu watchfiles - node mọc theo nhịp quét thưa", file=__import__('sys').stderr)
+        return []
+    joined = []
+    for root in _watch_roots(roots):
+        with _shared_lock:
+            w = _shared_watches.get(root)
+            new = w is None
+            if new:
+                w = _shared_watches[root] = _SharedWatch(root)
+            w.subscribers.add((loop, queue))
+            w.idle_since = None
+        if new:
+            threading.Thread(target=_watch_run, args=(w,), name="ws-graph-watch", daemon=True).start()
+        joined.append(w)
+    return joined
+
+
+def _watch_leave(joined, loop, queue) -> None:
+    """Leave the watchers joined; one left with no socket stops after _WATCH_LINGER_S unless a socket joins again."""
+    for w in joined:
+        with _shared_lock:
+            w.subscribers.discard((loop, queue))
+            if w.subscribers or _shared_watches.get(w.root) is not w:
+                continue
+            w.idle_since = time.monotonic()
+        loop.call_later(_WATCH_LINGER_S, _watch_reap, w)
+
+
+def _watch_reap(w: _SharedWatch) -> None:
+    with _shared_lock:
+        if w.subscribers or w.idle_since is None or _shared_watches.get(w.root) is not w:
+            return
+        if time.monotonic() - w.idle_since < _WATCH_LINGER_S - 0.5:
+            return   # a later leave restarted the clock and set its own reap
+        del _shared_watches[w.root]
+    w.stop.set()
+
+
 def _make_router() -> APIRouter:
     router = APIRouter()
 
@@ -188,56 +288,17 @@ def _make_router() -> APIRouter:
         qp = ws.query_params
         roots = _resolve_graph_roots(qp.get("source", "all"), qp.get("path") or None)
         known = await asyncio.to_thread(_scan_md_mtimes, roots)   # baseline lúc kết nối → chỉ báo cái sinh ra sau đó
-        stop = threading.Event()
         queue: asyncio.Queue = asyncio.Queue()
-
-        async def _fs_watcher():
-            """The OS watch runs on its OWN thread (2026-11-09). awatch built its RustNotify right on the event loop,
-            and on a big brain that setup (one inotify watch per folder) froze every request for up to 2 s each time
-            the graph screen opened (/health/loop: graph.py _fs_watcher, 3 times, 3.08 s). The sync `watch` builds and
-            waits on that thread instead, and hands each batch to the loop. A plain thread, not to_thread: a socket
-            stays open for hours and must not hold a worker of the pool every other to_thread call shares."""
-            live = [r for r in roots if r and os.path.isdir(r)]
-            if not live:
-                return
-            try:
-                from watchfiles import watch, Change
-            except ImportError:   # môi trường thiếu watchfiles → còn mỗi quét thưa, vẫn chạy được
-                print("[ws_graph] thiếu watchfiles - node mọc theo nhịp quét thưa", file=__import__('sys').stderr)
-                return
-            loop = asyncio.get_running_loop()
-            finished = loop.create_future()
-
-            def _hand(paths):
-                try:
-                    loop.call_soon_threadsafe(queue.put_nowait, paths)
-                except RuntimeError:   # the loop is closing: nobody is listening any more
-                    pass
-
-            def _run():
-                try:
-                    for changes in watch(*live, stop_event=stop, raise_interrupt=False,
-                                         watch_filter=lambda _c, p: p.endswith(".md")):
-                        paths = {p for c, p in changes if c in (Change.added, Change.modified)}
-                        if paths:
-                            _hand(paths)
-                except Exception as e:
-                    print(f"[ws_graph watcher] {type(e).__name__}: {e}", file=__import__('sys').stderr)
-                finally:
-                    try:
-                        loop.call_soon_threadsafe(lambda: finished.done() or finished.set_result(None))
-                    except RuntimeError:
-                        pass
-
-            threading.Thread(target=_run, name="ws-graph-watch", daemon=True).start()
-            await finished
+        loop = asyncio.get_running_loop()
+        # The OS watch of each folder is shared with every other graph socket (see _SharedWatch): only the first
+        # socket after a quiet spell pays for building it.
+        joined = _watch_join(roots, loop, queue)
 
         async def _sparse_rescan():
             while True:
                 await asyncio.sleep(_GRAPH_SPARSE_RESCAN)
                 await queue.put(None)   # None = hiệu lệnh quét lại toàn bộ
 
-        watcher = asyncio.create_task(_fs_watcher())
         sparse = asyncio.create_task(_sparse_rescan())
         # Client không bao giờ gửi gì lên socket này - task receive sống CHỈ để báo disconnect
         # (mô hình poll cũ phát hiện disconnect nhờ send định kỳ lỗi; giờ im lặng dài nên phải nghe).
@@ -294,39 +355,23 @@ def _make_router() -> APIRouter:
         except Exception as e:
             print(f"[ws_graph] {type(e).__name__}: {e}", file=__import__('sys').stderr)
         finally:
-            # Tắt watcher và CHỜ mọi task thoát hẳn. Chỉ gọi ``cancel()`` rồi rời handler sẽ
-            # để luồng FSEvents/watchfiles còn giữ Unix socket trên macOS; mỗi lần F5 tạo thêm
-            # một socket mồ côi, tới giới hạn ``maxfiles=256`` thì toàn bộ API bắt đầu nổ
-            # ``OSError: [Errno 24] Too many open files`` và giao diện tưởng brain biến mất.
-            stop.set()
-            # Luồng watch cần nhìn thấy stop_event để tự đóng backend FSEvents. Hủy watcher ngay
-            # có thể ngắt coroutine trước khi backend kịp thu socket; ngược lại chờ vô hạn sẽ
-            # treo disconnect trên một số bản watchfiles. Vì vậy dọn ba task thuần asyncio
-            # trước, cho watcher tối đa 2 giây thoát êm rồi mới cưỡng chế hủy.
+            # Leave the shared watchers first: nothing may be handed to this socket's queue any more. The watcher
+            # itself keeps running for the next graph socket and stops through its stop_event after
+            # _WATCH_LINGER_S, so a reload (F5) no longer builds a new one. On macOS each new watcher used to leave an
+            # FSEvents Unix socket behind when it was only cancelled, until ``maxfiles=256`` turned every API call into
+            # ``OSError: [Errno 24] Too many open files``; one long-lived watcher per folder, stopped by its event,
+            # cannot pile up like that.
+            _watch_leave(joined, loop, queue)
             auxiliaries = (sparse, recv, item)
             for t in auxiliaries:
                 if not t.done():
                     t.cancel()
             try:
                 await asyncio.gather(*auxiliaries, return_exceptions=True)
-                done, pending = await asyncio.wait({watcher}, timeout=2.0)
-                if pending:
-                    watcher.cancel()
-                    # wait_for() chờ coroutine thực sự hủy xong, có thể treo vô hạn
-                    # khi backend watchfiles đang chặn trong luồng native. Giới hạn
-                    # cả thời gian dọn sau cancel để WebSocket đóng được.
-                    done, pending = await asyncio.wait({watcher}, timeout=2.0)
-                if pending:
-                    print("[ws_graph watcher] không dừng sau khi hủy; đóng WebSocket",
-                          file=__import__('sys').stderr)
-                for task in done:
-                    if not task.cancelled():
-                        task.exception()  # tiêu thụ exception để tránh warning
             except asyncio.CancelledError:
-                # Proxy/TestClient có thể hủy task ngay sau khi gửi disconnect, đúng lúc
-                # ta đang chờ watcher. stop_event và cancel ở trên đã phát tín hiệu dọn;
-                # không để CancelledError biến một lần đóng socket bình thường thành lỗi.
-                watcher.cancel()
+                # Proxy/TestClient có thể hủy task ngay sau khi gửi disconnect. Không để
+                # CancelledError biến một lần đóng socket bình thường thành lỗi.
+                pass
 
     return router
 

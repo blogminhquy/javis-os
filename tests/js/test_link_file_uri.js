@@ -95,5 +95,12 @@ check("_goFileUri gọi JavisFileRef, có đường lui khi chat-render chưa n�
   /function _goFileUri\(p\)[\s\S]{0,400}window\.JavisFileRef[\s\S]{0,300}replace\(\/\^file:/.test(CONSOLE));
 
 console.log("");
+// The default brain is a choice since 2026-11-09: "brain" is the folder the picker's default entry names, not always
+// "Brain Default". brains-ui.js puts that folder on the entry (data-brain-name).
+global.document = { querySelector: (q) => q === '#graphSource option[value="brain"]' ? { dataset: { brainName: "Shop" } } : null };
+check("default brain chosen by the owner: its own folder is cut from the link",
+  vaultPath("[x](file:///brains/Shop/wiki/a.md)") === "wiki/a.md");
+delete global.document;
+
 if (fails.length) { console.log(fails.length + " test HỎNG: " + fails.join(", ")); process.exit(1); }
 console.log("Tất cả test link_file_uri đã qua.");
