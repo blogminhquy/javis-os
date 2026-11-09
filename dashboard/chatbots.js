@@ -161,7 +161,7 @@
   async function tai(im) {
     var box = _host && _host.querySelector(".cb-grid");
     if (!box) return;
-    if (!im) box.innerHTML = '<div class="cb-empty">' + esc(window.t("common.loading")) + '</div>';
+    if (!im) box.innerHTML = '<div class="cb-empty pg-loading">' + esc(window.t("common.loading")) + '</div>';
     try {
       // Lọc theo brain đang mở: trang này thuộc về một brain, y như trang Agents và Skills.
       // console.js tự gọi lại renderPage khi đổi brain nên không cần lắng nghe gì thêm.
@@ -513,7 +513,7 @@
         '<button class="cb-tab on" data-t="gaps" type="button">' + esc(window.t("cb.tab_bi")) + '</button>' +
         '<button class="cb-tab" data-t="turns" type="button">' + esc(window.t("cb.tab_hoi_thoai")) + '</button>' +
       '</div>' +
-      '<div class="cb-log-body">' + esc(window.t("common.loading")) + '</div>' +
+      '<div class="cb-log-body"><div class="pg-loading">' + esc(window.t("common.loading")) + '</div></div>' +
       '<div class="cb-form-acts"><button class="s-btn" id="cbLogClose" type="button">' +
         esc(window.t("common.close")) + '</button></div>' +
       '</div></div>');

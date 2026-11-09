@@ -3541,7 +3541,7 @@
           esc(r.full_name) + (r.branch ? ' <span class="tm-sub">' + esc(r.branch) + "</span>" : "") + "</span></div>";
       }).join("") + '<button type="button" class="ws-btn" data-gh-open="1">' + esc(tw("teams.change")) + "</button>"
       : '<button type="button" class="ws-btn" data-gh-open="1">' + ghLogo() + " " + esc(tw("teams.gh_attach")) + "</button>") + "</section>";
-    if (!I) return h + '<p class="tm-sub">' + esc(tw("common.loading")) + "</p>";
+    if (!I) return h + '<p class="tm-sub pg-loading">' + esc(tw("common.loading")) + "</p>";
     var imgs = I.files.filter(function (f) { return f.image; });
     var docs = I.files.filter(function (f) { return !f.image; });
     if (imgs.length) {

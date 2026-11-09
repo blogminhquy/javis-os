@@ -255,7 +255,7 @@ check("đang mở form thì không vẽ lại dưới chân người dùng",
 // Nạp NGẦM khác nạp do người bấm: không được xoá lưới đang hiện để thay bằng "Đang tải…", và
 // mạng hỏng một nhịp thì giữ nguyên màn hình cũ. Nhấp nháy mỗi 5 giây tệ hơn số cũ vài giây.
 check("nạp ngầm không nhấp nháy màn hình", /async function tai\(im\)/.test(CB) &&
-  /if \(!im\) box\.innerHTML = '<div class="cb-empty">' \+ esc\(window\.t\("common\.loading"\)\)/.test(CB)
+  /if \(!im\) box\.innerHTML = '<div class="cb-empty pg-loading">' \+ esc\(window\.t\("common\.loading"\)\)/.test(CB)
   && tu("common.loading", "Đang tải"));
 
 // ============================================================

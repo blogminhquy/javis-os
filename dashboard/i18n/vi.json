@@ -129,6 +129,8 @@
   "settings.ui_lang.beta": "Đang dịch dần. Phần chưa dịch vẫn hiện tiếng Việt.",
   "settings.save_failed": "Lưu không được",
   "common.loading": "Đang tải...",
+  "boot.starting": "Đang khởi động Javis…",
+  "boot.just_started": "Javis vừa khởi động lại, lần mở đầu có thể lâu hơn một chút.",
   "common.save": "Lưu",
   "common.cancel": "Huỷ",
   "common.close": "Đóng",

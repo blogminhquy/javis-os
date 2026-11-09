@@ -158,7 +158,7 @@
   }
 
   function chatRows(a) {
-    if (_chatsFor !== a.account_key) return '<div class="ht-empty small">' + esc(t("common.loading")) + '</div>';
+    if (_chatsFor !== a.account_key) return '<div class="ht-empty small pg-loading">' + esc(t("common.loading")) + '</div>';
     var V = window.JavisInboxV5;
     if (!_chats.length) return '<div class="ht-empty small">' + esc(t(_chatQ ? "ht.khong_khop" : "ib.kn_no_chats")) + '</div>';
     return _chats.map(function (c) {

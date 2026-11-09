@@ -79,7 +79,7 @@
   // Ticking attaches at once and unticking detaches (like the main composer); a tick made while a request is in flight
   // rides on the next one, so the server always ends on the last state shown.
   function panel(box, opts) {
-    box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.loading")) + "</div>";
+    box.innerHTML = '<div class="cp-empty pg-loading">' + esc(tw("gh.loading")) + "</div>";
     api("/github/status").then(function (st) {
       if (!box.isConnected) return;
       if (!st || !st.connected) {

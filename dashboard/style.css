@@ -776,6 +776,9 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 .graph-stats.pulse { color: var(--accent2-ink); text-shadow: 0 0 10px rgba(160,120,255,.8); }
 /* Giấy: nhấp nháy bằng ĐẬM CHỮ thay vì bằng quầng sáng. */
 :root[data-theme="light"] .graph-stats.pulse { text-shadow: none; font-weight: 700; }
+/* 2026-11-09 (owner): the note and link counts describe the neural graph, so they show only on that screen (home);
+   console.js puts .in-console on <body> on every other page. */
+body.in-console .graph-stats { display: none; }
 .graph-folder-btn {
   background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
   width: 30px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 15px;

@@ -91,7 +91,7 @@ check("quay lại cuộc đã mở: hiện ngay từ bộ nhớ, rồi chỉ h�
   /_msgs = cu\.msgs\.slice\(\)/.test(CV) && /_vetMeta = metaSig\(\); _dauVetTin = "x";/.test(CV));
 check("bộ nhớ có trần: 30 cuộc, 60 tin mỗi cuộc, cắt bớt thì còn đánh dấu có tin cũ", /var CACHE_CHAT = 30, CACHE_TIN = 60;/.test(CV) &&
   /conCu: _conCu \|\| cat/.test(CV) && /while \(_cacheThu\.length > CACHE_CHAT\) delete _cacheTin\[_cacheThu\.shift\(\)\];/.test(CV));
-check("cuộc mới chưa có trong bộ nhớ thì hiện dòng Đang tải ngay, không để khung cũ đứng đó", /th\.innerHTML = '<div class="ht-empty ht-thread-empty">' \+ esc\(window\.t\("common\.loading"\)\)/.test(CV));
+check("cuộc mới chưa có trong bộ nhớ thì hiện dòng Đang tải ngay, không để khung cũ đứng đó", /th\.innerHTML = '<div class="ht-empty ht-thread-empty pg-loading">' \+ esc\(window\.t\("common\.loading"\)\)/.test(CV));
 check("xoá cuộc chat hoặc tải hỏng thì bỏ khỏi bộ nhớ", /dongThread\(\);\s*boCache\(id\);/.test(CV) && /if \(docLuon\) boCache\(id\);/.test(CV));
 check("danh sách cùng thứ tự thì chỉ thay dòng đổi, và gắn lại sự kiện cho dòng mới", /if \(rows\[ri\] === _rowHtml\[ri\]\) continue;/.test(CV) &&
   /box\.replaceChild\(neu, cur\[ri\]\);\s*ganDong\(neu\);/.test(CV) && /box\.querySelectorAll\("\.ht-item"\)\.forEach\(ganDong\);/.test(CV) &&

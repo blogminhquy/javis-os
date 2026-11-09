@@ -308,7 +308,7 @@
     // DOM. Không chặn ở đây thì mọi lời gọi còn sót (nút cũ, onSaved mặc định) ném TypeError
     // giữa chừng và nuốt luôn phần việc đứng sau nó.
     if (!panel) return;
-    panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
+    panel.innerHTML = `<div class="empty pg-loading">${esc(t("common.loading"))}</div>`;
     const d = await api(`/workflows?brain=${encodeURIComponent(brain())}`);
     _wfState.wfs = d.workflows || [];
     _sel.workflow.clear();   // nạp lại trang là làm mới lựa chọn (danh sách có thể đã đổi)
@@ -655,7 +655,7 @@
     _injectStudioCss();
     const panel = document.getElementById("panel-agents");
     if (!panel) return;   // cùng lý do với loadWorkflows: trang Trợ lý riêng đã gộp vào Cộng sự
-    panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
+    panel.innerHTML = `<div class="empty pg-loading">${esc(t("common.loading"))}</div>`;
     // Bản NHẸ: lưới thẻ chỉ hiện tên/vai/nhóm; bấm Sửa thì layAgentDay() lấy prompt.
     const d = await api(`/agents?brain=${encodeURIComponent(brain())}&prompt=0`);
     _agState.agents = d.agents || [];
@@ -721,7 +721,7 @@
     // Nói "đang tải" ngay: ở cột phải trang Cộng sự, khung này trống trơn suốt lúc chờ mạng
     // trông y như app bị treo.
     if (opts.host && opts.host.isConnected && !opts.host.childElementCount) {
-      opts.host.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
+      opts.host.innerHTML = `<div class="empty pg-loading">${esc(t("common.loading"))}</div>`;
     }
     // Song song, không nối đuôi: hai lượt của form và một lượt lấy prompt cùng đi một nhịp.
     const [dsForm, day] = await Promise.all([duLieuForm(), layAgentDay(a)]);
@@ -1219,7 +1219,7 @@
   async function loadSkills() {
     _injectStudioCss();
     const panel = document.getElementById("panel-skills");
-    panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
+    panel.innerHTML = `<div class="empty pg-loading">${esc(t("common.loading"))}</div>`;
     let d; try { d = await api(`/skills?brain=${encodeURIComponent(brain())}`); } catch (e) { panel.innerHTML = `<div class="empty">${esc(t("studio.sk_load_err"))}</div>`; return; }
     refreshStats();
     _sel.skill.clear();   // nạp lại là làm mới lựa chọn (danh sách có thể đã đổi)
@@ -1494,7 +1494,7 @@
       <section class="sk3-d-sec" id="skWhen" hidden><h5>${esc(t("studio.sk_when_h"))}</h5><ul></ul></section>
       <section class="sk3-d-sec"><h5>${esc(t("studio.sk_activity_h"))}</h5><p>${esc(used)}</p>
         <p class="sk3-path">${esc(t("studio.sk_file"))}: <code>${esc(duongDan)}</code></p></section>
-      <details class="sk3-full"><summary>${esc(t("studio.sk_full"))}</summary><div class="sk3-md" id="skMd">${esc(t("common.loading"))}</div></details>
+      <details class="sk3-full"><summary>${esc(t("studio.sk_full"))}</summary><div class="sk3-md" id="skMd"><div class="pg-loading">${esc(t("common.loading"))}</div></div></details>
       <div class="sk3-d-act"><button type="button" class="pri" id="skDEdit">${ic("pencil")} ${esc(t("common.edit"))}</button>${s.system
         ? ""
         : `<button type="button" id="skDExp" title="${esc(t("studio.export_title"))}">${ic("download")} ${esc(t("studio.sk_export_one"))}</button><button type="button" class="del" id="skDDel">${ic("trash-2")} ${esc(t("common.delete"))}</button>`}</div>`;

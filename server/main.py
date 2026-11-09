@@ -453,6 +453,7 @@ def _token_ok(request, path: str) -> bool:
     return False
 
 DASHBOARD_PATH = Path(__file__).parent.parent / "dashboard"
+_PROCESS_STARTED = time.time()   # when this server process started (start-up screen, see root())
 # Windows/mimetypes không biết .webp -> StaticFiles trả text/plain; khai rõ để logo webp đúng kiểu ảnh.
 import mimetypes
 mimetypes.add_type("image/webp", ".webp")
@@ -1430,7 +1431,9 @@ async def root():
     # Operator theme (STATE_DIR/branding/theme.css): outside the code tree, survives updates.
     html = _inject_brand_theme(html)
     moc = ('<script id="javis-fresh" type="application/json">'
-           + json.dumps({"version": ver, "assets": fps}, ensure_ascii=False)
+           # `up` (2026-11-09): seconds since this server process started; the start-up screen says a fresh restart
+           # can take a little longer (boot-splash.js).
+           + json.dumps({"version": ver, "assets": fps, "up": int(time.time() - _PROCESS_STARTED)}, ensure_ascii=False)
            + "</script>\n</head>")
     html = html.replace("</head>", moc, 1)
     return HTMLResponse(html, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})

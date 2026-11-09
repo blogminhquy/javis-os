@@ -269,7 +269,7 @@
     if (verify && !ui.verifyFor) {
       var opts = ui.targets || [];
       linkSel = '<label class="aj-field-label" for="ajLink">' + esc(tw("ajobs.link_pick")) + "</label>" +
-        (ui.targetsLoading ? '<div class="aj-help">' + esc(tw("ajobs.loading")) + "</div>"
+        (ui.targetsLoading ? '<div class="aj-help pg-loading">' + esc(tw("ajobs.loading")) + "</div>"
           : '<select id="ajLink" class="aj-sel aj-link-sel"><option value="">' + esc(tw("ajobs.link_none")) + "</option>" +
             opts.map(function (x) {
               return '<option value="' + esc(x.id) + '"' + (x.id === ui.link ? " selected" : "") + ">" +

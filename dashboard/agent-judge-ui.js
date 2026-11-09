@@ -223,7 +223,7 @@
       var getView = function () { return (cache[key] || {}).view; };
       bind(host, slug, key, getView, true);
       if (hit && Date.now() - hit.at < CACHE_MS) { paint(host, key, hit.view, true); return; }
-      host.innerHTML = '<div class="agj-sub">' + esc(tw("judge.loading")) + "</div>";
+      host.innerHTML = '<div class="agj-sub pg-loading">' + esc(tw("judge.loading")) + "</div>";
       window.fetch(viewUrl(slug, brain(), ctx), { credentials: "same-origin" }).then(function (r) {
         return r.json().then(function (j) { return { code: r.status, j: j || {} }; });
       }).then(function (r) {

@@ -517,7 +517,7 @@
   // menu "Change repo / Change branch" once repos are attached, a repo list split into "Selected" and "Repos", and a
   // branch list per repo. Three views in the same box; each one has a back row to the menu.
   function panel(box, menuApi) {
-    box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.loading")) + "</div>";
+    box.innerHTML = '<div class="cp-empty pg-loading">' + esc(tw("gh.loading")) + "</div>";
     // The + menu stops clicks from bubbling to the page, so the shared (i) handler of info-tip.js never sees them.
     box.addEventListener("click", function (e) {
       var b = e.target.closest ? e.target.closest("button.info-i") : null;

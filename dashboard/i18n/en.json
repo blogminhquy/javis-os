@@ -129,6 +129,8 @@
   "settings.ui_lang.beta": "Being translated. Anything not yet translated stays in Vietnamese.",
   "settings.save_failed": "Could not save",
   "common.loading": "Loading...",
+  "boot.starting": "Starting Javis…",
+  "boot.just_started": "Javis just restarted, so this first open can take a little longer.",
   "common.save": "Save",
   "common.cancel": "Cancel",
   "common.close": "Close",

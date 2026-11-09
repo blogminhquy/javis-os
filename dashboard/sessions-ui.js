@@ -945,7 +945,7 @@
     veThanhTab();
     veNutGhimPhien();
     var body = pdEl.querySelector(".pd-body");
-    if (p.dangTai) { body.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.loading")) + "…</div>"; return; }
+    if (p.dangTai) { body.innerHTML = '<div class="pd-empty pg-loading">' + esc(pdT("proj.loading")) + "…</div>"; return; }
     if (p.loi) { body.innerHTML = '<div class="pd-empty">' + esc(pdT(pdK("err_load"))) + "</div>"; return; }
     body.innerHTML =
       (pdOnboard
@@ -1889,7 +1889,7 @@
           cached.project === (kenhLoc ? "" : curProject()) && cached.items.length) {
         renderList(cached.items.slice(0, shown), cached.items.length > shown);
       } else {
-        listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.loading")) + '</div>';
+        listEl.innerHTML = '<div class="cside-empty pg-loading">' + esc(window.t("sess.loading")) + '</div>';
       }
     }
     try {

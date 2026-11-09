@@ -49,6 +49,14 @@
   <script>(function(){try{var m=localStorage.getItem('javis.theme'),L=m!=='dark'&&m!=='dim';if(m==='auto'){var p=/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(localStorage.getItem('javis.theme.schedule')||'')||[0,6,0,18,0],a=p[1]*60+ +p[2],b=p[3]*60+ +p[4],d=new Date(),n=d.getHours()*60+d.getMinutes();L=a!==b&&(a<b?n>=a&&n<b:n>=a||n<b);}if(L)document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 </head>
 <body>
+  <!-- Start-up screen (2026-11-09, boot-splash.js): on screen from the first paint, gone once the first page has its
+       data. Text comes from the dictionary (data-i18n); before it loads only the logo and the spinner show. -->
+  <div id="bootSplash" class="boot-splash" role="status" aria-live="polite" aria-busy="true">
+    <img class="boot-logo" src="/brand-logo?v=5" alt="" width="64" height="64">
+    <div class="boot-spin" aria-hidden="true"></div>
+    <div class="boot-text" data-i18n="boot.starting"></div>
+    <div class="boot-sub" id="bootSub" data-i18n="boot.just_started" hidden></div>
+  </div>
   <div class="hud">
 
     <!-- ===== TOP BAR ===== -->
@@ -1032,6 +1040,8 @@
   <script src="/static/nap-cham.js?v=1"></script>
   <script src="/static/auto-domain.js?v=1"></script>
   <script src="/static/i18n/index.js?v=2"></script>
+  <!-- Start-up screen logic (2026-11-09): right after the dictionary, before the page modules. -->
+  <script src="/static/boot-splash.js?v=1"></script>
   <script src="/static/vendor/lucide-icons.js?v=18"></script>
   <script src="/static/icons.js?v=3"></script>
   <script src="/static/info-tip.js?v=2"></script>
