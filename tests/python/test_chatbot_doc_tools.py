@@ -126,6 +126,13 @@ for bad in ("memory/facts/bi-mat.md", "memory/MEMORY.md", "inbox/khach-gui.md", 
 check("never MORE than the keyword search sees", set(docs) <= set(chatbot_grounding.ds_tai_lieu(BRAIN)))
 
 tools, route = dt.build(BRAIN)
+# 2026-11-09: a bot reads its Agent's documents (chatbot_doc_tools.turn_files). This bot's Agent lists the two real
+# documents AND every file that must never be shown, to prove that listing one does not open it: operating folders,
+# customer uploads, the owner's memory and a symlink out of the brain stay closed even when pinned.
+PINNED = ("faq/chinh-sach.md", "huong-dan/cai-vps.md", "memory/facts/bi-mat.md", "memory/MEMORY.md",
+          "inbox/khach-gui.md", "agents/cskh.md", "workflows/quy-trinh.md", "CLAUDE.md", "faq/lien-ket.md",
+          "../" + OUTSIDE.name + "/ngoai.md")
+dt.turn_files = lambda: PINNED
 NAMES = {"javis_docs_search", "javis_docs_list", "javis_docs_read"}
 check("exactly the three document tools", {t["fn"] for t in tools} == NAMES and set(route) == NAMES)
 check("every tool is marked read-only", all(r["effect"] == "read" and r["required_mode"] == "readonly"
@@ -283,6 +290,7 @@ check("read_docs: and can let the bot speak", d.verdict == "reply", d)
 
 # The runtime wrapper adds the table of contents for read_docs bots only.
 chatbot_runtime._deps["brain_root"] = lambda name: str(BRAIN)
+chatbot_runtime.bot_doc_files = lambda cfg: PINNED      # the bot's Agent lists the documents (see PINNED above)
 t_docs = run(chatbot_runtime._tra_cho_phan_xu("b", {"brain": "shop", "muc_quyen": "read_docs"}, "xyzqwv abcdef"))
 t_sugg = run(chatbot_runtime._tra_cho_phan_xu("b", {"brain": "shop", "muc_quyen": "suggest"}, "xyzqwv abcdef"))
 check("runtime: read_docs bot hands the judge a table of contents", "faq/chinh-sach.md" in (t_docs.get("muc_luc") or ""))

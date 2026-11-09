@@ -115,8 +115,15 @@ BRAIN = Path(tempfile.mkdtemp(prefix="brain-zpnhom-"))
     "bộ nhớ của Javis.\n",
     encoding="utf-8")
 
+def _pin_all():
+    """The Agent's Documents section (2026-11-09: a bot reads only what its Agent lists): every .md of this test brain.
+    The grounding rules still drop operating folders and scoped files, so this test checks the same as before."""
+    return {"assets": {"files": [{"id": str(i), "path": p} for i, p in enumerate(
+        sorted(x.relative_to(BRAIN).as_posix() for x in BRAIN.rglob("*.md")))]}}
+
+
 chatbot_runtime.wire(answer=_engine, brain_root=lambda b: str(BRAIN),
-                     read_agent=lambda br, slug: ({"name": "Lan", "role": "Trợ lý lớp Javis OS"},
+                     read_agent=lambda br, slug: ({**_pin_all(), "name": "Lan", "role": "Trợ lý lớp Javis OS"},
                                                   "Trả lời ngắn gọn, thân thiện."))
 
 # ============================================================

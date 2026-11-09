@@ -147,6 +147,10 @@ check("linked Google docs and the chat's file search together",
 # 4. The three tools, in-process (API engines): the chat comes from the bound turn
 # ============================================================
 tools, route = dt.build(BRAIN)
+# 2026-11-09: the document tools read the bot's Agent documents (dt.turn_files). This bot's Agent lists the price list
+# and the files whose frontmatter scopes them (a scoped file outside `rieng-theo-nhom/` is reachable only when listed).
+dt.turn_files = lambda: ("faq/bang-gia.md", "khach/ho-so-minh.md", "khach/ho-so-tuan.md", "khach/rong.md",
+                         "cu/rieng-theo-nhom/ho-so-cu.md")
 call = lambda name, args=None: run(route[name]["call"](args or {}))  # noqa: E731
 
 
