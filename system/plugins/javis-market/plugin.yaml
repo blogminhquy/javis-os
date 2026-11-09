@@ -1,0 +1,13 @@
+name: Thị trường tài chính
+name_en: "Financial markets"
+slug: javis-market
+version: 1.0.0
+description: Số liệu chứng khoán Việt Nam, chứng khoán thế giới, hàng hoá, tỷ giá và tiền số kèm chỉ báo kỹ thuật, điểm xu hướng và dự kiến biến động. Nguồn công khai, không cần API key.
+description_en: "Vietnam and world stocks, commodities, FX and crypto with technical indicators, a trend score and expected volatility. Public sources, no API key."
+author: Javis (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - javis_market
+  - javis_market_watch
+hooks: []

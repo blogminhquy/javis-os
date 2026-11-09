@@ -13512,6 +13512,73 @@ async def cache_keepwarm_set(payload: dict = Body(None)):
     return {"ok": True, **cur}
 
 
+# ============================================================
+# Markets page (market_data.py): Vietnam and world stocks, crypto, indicators and an outlook.
+# The module is imported inside each handler so `import main` stays light.
+# ============================================================
+def _market_err(e: Exception, status: int = 502):
+    return JSONResponse({"ok": False, "error": localefmt.chu(
+        "Không lấy được dữ liệu thị trường, thử lại sau ít phút.",
+        "Could not load market data, try again in a few minutes."), "detail": str(e)[:200]}, status_code=status)
+
+
+@app.get("/market/overview")
+async def market_overview():
+    import market_data
+    try:
+        return {"ok": True, **await market_data.overview()}
+    except Exception as e:
+        return _market_err(e)
+
+
+@app.get("/market/section")
+async def market_section(name: str = "vn"):
+    import market_data
+    if name not in market_data.SECTIONS:
+        return _market_err(ValueError(name), 400)
+    try:
+        return {"ok": True, **await market_data.section(name)}
+    except Exception as e:
+        return _market_err(e)
+
+
+@app.get("/market/history")
+async def market_history(kind: str = "vn", symbol: str = ""):
+    import market_data
+    if kind not in market_data.SECTIONS or not symbol.strip():
+        return _market_err(ValueError(kind), 400)
+    try:
+        return await market_data.history(kind, symbol)
+    except Exception as e:
+        return _market_err(e)
+
+
+@app.get("/market/watchlist")
+async def market_watchlist_get():
+    import market_data
+    return {"ok": True, "watchlist": market_data.watchlist()}
+
+
+@app.post("/market/watchlist")
+async def market_watchlist_set(payload: dict = Body(None)):
+    import market_data
+    p = payload or {}
+    kind, sym = str(p.get("kind") or ""), str(p.get("symbol") or "")
+    if p.get("op") == "remove":
+        return market_data.watchlist_remove(kind, sym)
+    res = await market_data.watchlist_add(kind, sym)
+    if not res.get("ok"):
+        res["message"] = localefmt.chu(f"Không tìm thấy mã '{sym}' trên nguồn dữ liệu.",
+                                       f"Symbol '{sym}' was not found at the data source.")
+    return res
+
+
+@app.post("/market/refresh")
+async def market_refresh():
+    import market_data
+    return {"ok": True, "cleared": market_data.clear_cache()}
+
+
 @app.get("/viec/all")
 async def viec_all():
     """Performance (2026-11-05): the whole scan reads loop files of every brain, so it runs in a worker thread; on the
