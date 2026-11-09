@@ -1,4 +1,6 @@
 {
+ "re.ask_prompt": "content: the prompt typed into the chat box when the owner presses Ask Javis",
+ "re.ask_prompt_compare": "content: the prompt typed into the chat box when the owner presses Ask Javis",
  "wh.retry_confirm": "confirm: asked before re-running an event that may already have acted",
  "settings.vc_mic_silent": "status: the mic test verdict, shown only after the person pressed Test mic",
  "app.login_cookie_lost": "error: login failure reason",

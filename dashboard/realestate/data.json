@@ -1,0 +1,3953 @@
+{
+ "updated": "2026-11",
+ "regions": [
+  {
+   "id": "danang",
+   "name": {
+    "vi": "Đà Nẵng",
+    "en": "Da Nang"
+   },
+   "as_of": "Q3/2026",
+   "tagline": {
+    "vi": "Căn hộ cao cấp ven biển, IFC và cảng Liên Chiểu: giá neo cao, thanh khoản chậm lại",
+    "en": "Luxury coastal condos, IFC and Lien Chieu port: high prices, cooling liquidity"
+   },
+   "summary": {
+    "vi": "Sau năm 2025 bùng nổ (giá sơ cấp căn hộ khoảng 83-85 triệu đ/m² theo CBRE), quý III/2026 thị trường Đà Nẵng chững lại: sức cầu căn hộ giảm 25% so với quý trước, tỷ lệ tiêu thụ đất nền chỉ khoảng 4% (DKRA). Giá sơ cấp neo cao nhờ chi phí đầu vào, thứ cấp giảm 3-10% tùy phân khúc. Nghỉ dưỡng, condotel vẫn đóng băng vì vướng pháp lý. Động lực dài hạn: IFC, khu thương mại tự do, cảng Liên Chiểu, du lịch tăng gần 29%.",
+    "en": "After a 2025 boom (primary condo prices about VND 83-85m/m² per CBRE), Da Nang cooled in Q3/2026: condo demand fell 25% QoQ and land-plot absorption was only about 4% (DKRA). Primary prices hold on input costs while secondary prices slip 3-10% by segment. Resort and condotel stay frozen on legal issues. Long-run drivers: the IFC, the free trade zone, Lien Chieu port and international arrivals up nearly 29%."
+   },
+   "kpis": [
+    {
+     "label": {
+      "vi": "Giá sơ cấp căn hộ bình quân",
+      "en": "Avg primary condo price"
+     },
+     "value": {
+      "vi": "83",
+      "en": "83"
+     },
+     "unit": {
+      "vi": "triệu đ/m² thông thủy",
+      "en": "million VND/m² net"
+     },
+     "change": {
+      "vi": "+12% so cùng kỳ",
+      "en": "+12% YoY"
+     },
+     "trend": "up",
+     "source": "CBRE Q1/2026"
+    },
+    {
+     "label": {
+      "vi": "Giá bán bình quân căn hộ (VARS)",
+      "en": "Avg condo price (VARS)"
+     },
+     "value": {
+      "vi": "68,9",
+      "en": "68.9"
+     },
+     "unit": {
+      "vi": "triệu đ/m²",
+      "en": "million VND/m²"
+     },
+     "change": {
+      "vi": "0% so quý trước",
+      "en": "0% QoQ"
+     },
+     "trend": "flat",
+     "source": "VARS Q3/2026"
+    },
+    {
+     "label": {
+      "vi": "Căn hộ tiêu thụ trong quý",
+      "en": "Condo units absorbed in quarter"
+     },
+     "value": {
+      "vi": "2.099",
+      "en": "2,099"
+     },
+     "unit": {
+      "vi": "căn",
+      "en": "units"
+     },
+     "change": {
+      "vi": "-25% so quý trước, -24% so cùng kỳ",
+      "en": "-25% QoQ, -24% YoY"
+     },
+     "trend": "down",
+     "source": "DKRA Q3/2026"
+    },
+    {
+     "label": {
+      "vi": "Tỷ lệ tiêu thụ đất nền sơ cấp",
+      "en": "Land-plot primary absorption"
+     },
+     "value": {
+      "vi": "~4",
+      "en": "~4"
+     },
+     "unit": {
+      "vi": "% nguồn cung (1.547 nền)",
+      "en": "% of supply (1,547 plots)"
+     },
+     "change": {
+      "vi": "Giá sơ cấp -7% so quý trước",
+      "en": "Primary price -7% QoQ"
+     },
+     "trend": "down",
+     "source": "DKRA Q3/2026"
+    },
+    {
+     "label": {
+      "vi": "Giá sơ cấp nhà phố, biệt thự",
+      "en": "Primary townhouse/villa price"
+     },
+     "value": {
+      "vi": "4.950",
+      "en": "4,950"
+     },
+     "unit": {
+      "vi": "USD/m²",
+      "en": "USD/m²"
+     },
+     "change": {
+      "vi": "Thanh khoản ~25%, giảm so quý trước",
+      "en": "Absorption ~25%, down QoQ"
+     },
+     "trend": "flat",
+     "source": "Avison Young Q3/2026"
+    },
+    {
+     "label": {
+      "vi": "Khách quốc tế 9 tháng 2026",
+      "en": "International visitors, 9M 2026"
+     },
+     "value": {
+      "vi": "7,73",
+      "en": "7.73"
+     },
+     "unit": {
+      "vi": "triệu lượt",
+      "en": "million"
+     },
+     "change": {
+      "vi": "+28,7% so cùng kỳ",
+      "en": "+28.7% YoY"
+     },
+     "trend": "up",
+     "source": "Sở VH-TT&DL Đà Nẵng qua VietnamPlus, 10/2026"
+    },
+    {
+     "label": {
+      "vi": "Tăng trưởng GRDP 9 tháng 2026",
+      "en": "GRDP growth, 9M 2026"
+     },
+     "value": {
+      "vi": "10,31",
+      "en": "10.31"
+     },
+     "unit": {
+      "vi": "%",
+      "en": "%"
+     },
+     "change": {
+      "vi": "Riêng Q3 đạt 11,83%",
+      "en": "Q3 alone 11.83%"
+     },
+     "trend": "up",
+     "source": "Thống kê Đà Nẵng, 10/2026"
+    },
+    {
+     "label": {
+      "vi": "Giá đất cao nhất bảng giá nhà nước",
+      "en": "Top official land price"
+     },
+     "value": {
+      "vi": "341",
+      "en": "341"
+     },
+     "unit": {
+      "vi": "triệu đ/m² (Bạch Đằng)",
+      "en": "million VND/m² (Bach Dang)"
+     },
+     "change": {
+      "vi": "~x3,5 so với bảng 2021",
+      "en": "~x3.5 vs the 2021 table"
+     },
+     "trend": "up",
+     "source": "UBND TP Đà Nẵng, bảng giá điều chỉnh 2025"
+    }
+   ],
+   "price_series": {
+    "unit": {
+     "vi": "triệu đồng/m²",
+     "en": "million VND/m²"
+    },
+    "series": [
+     {
+      "key": "apartment",
+      "name": {
+       "vi": "Căn hộ sơ cấp (trung bình)",
+       "en": "Primary condos (avg)"
+      },
+      "points": [
+       [
+        2006,
+        null
+       ],
+       [
+        2007,
+        null
+       ],
+       [
+        2008,
+        null
+       ],
+       [
+        2009,
+        null
+       ],
+       [
+        2010,
+        35
+       ],
+       [
+        2011,
+        null
+       ],
+       [
+        2012,
+        null
+       ],
+       [
+        2013,
+        null
+       ],
+       [
+        2014,
+        null
+       ],
+       [
+        2015,
+        null
+       ],
+       [
+        2016,
+        36
+       ],
+       [
+        2017,
+        null
+       ],
+       [
+        2018,
+        null
+       ],
+       [
+        2019,
+        29
+       ],
+       [
+        2020,
+        32
+       ],
+       [
+        2021,
+        34
+       ],
+       [
+        2022,
+        null
+       ],
+       [
+        2023,
+        null
+       ],
+       [
+        2024,
+        67
+       ],
+       [
+        2025,
+        85
+       ],
+       [
+        2026,
+        83
+       ]
+      ]
+     },
+     {
+      "key": "land",
+      "name": {
+       "vi": "Đất nền sơ cấp (trung bình)",
+       "en": "Primary land plots (avg)"
+      },
+      "points": [
+       [
+        2006,
+        null
+       ],
+       [
+        2007,
+        null
+       ],
+       [
+        2008,
+        null
+       ],
+       [
+        2009,
+        null
+       ],
+       [
+        2010,
+        null
+       ],
+       [
+        2011,
+        null
+       ],
+       [
+        2012,
+        null
+       ],
+       [
+        2013,
+        null
+       ],
+       [
+        2014,
+        null
+       ],
+       [
+        2015,
+        null
+       ],
+       [
+        2016,
+        null
+       ],
+       [
+        2017,
+        null
+       ],
+       [
+        2018,
+        null
+       ],
+       [
+        2019,
+        null
+       ],
+       [
+        2020,
+        null
+       ],
+       [
+        2021,
+        null
+       ],
+       [
+        2022,
+        null
+       ],
+       [
+        2023,
+        null
+       ],
+       [
+        2024,
+        45
+       ],
+       [
+        2025,
+        51.5
+       ],
+       [
+        2026,
+        50
+       ]
+      ]
+     }
+    ],
+    "note": {
+     "vi": "Độ tin cậy thấp cho chuỗi dài. 2010 và 2016 chỉ là giá căn hộ cao cấp (1.842 và 1.623 USD/m²) quy đổi. 2019-2021 suy ra từ CBRE (1.475 USD/m² năm 2021, CAGR 8%). 2024 suy ra từ mức 85 triệu tháng 6/2025 tăng 27%. 2025-2026 là số CBRE. Đất nền: 2025 là giá sơ cấp tháng 8/2025 của DKRA, 2024 và 2026 suy ra từ biến động % của DKRA. Trước 2010 thị trường căn hộ gần như chưa hình thành.",
+     "en": "Low confidence for the long series. 2010 and 2016 are high-end condo prices only (USD 1,842 and 1,623/m²) converted. 2019-2021 derived from CBRE (USD 1,475/m² in 2021, 8% CAGR). 2024 derived from VND 85m in June 2025 being +27% YoY. 2025-2026 are CBRE figures. Land: 2025 is DKRA's Aug-2025 primary average; 2024 and 2026 derived from DKRA % changes. Before 2010 there was barely a condo market."
+    },
+    "sources": [
+     "CBRE Vietnam, Da Nang Figures 2026 (Q1/2026)",
+     "CBRE qua Nhà Đầu tư 23/7/2025",
+     "CBRE qua báo chí 2010, 2016, 2021",
+     "DKRA Consulting 2025-2026"
+    ],
+    "confidence": "low",
+    "confidence_label": {
+     "vi": "Chuỗi dài là ước tính",
+     "en": "Long series estimated"
+    }
+   },
+   "periods": [
+    {
+     "span": 20,
+     "range": "2006-2026",
+     "title": {
+      "vi": "Từ đô thị đất nền thành thị trường căn hộ cao cấp",
+      "en": "From a land-plot town to a luxury condo market"
+     },
+     "text": {
+      "vi": "Hai thập kỷ qua Đà Nẵng mở rộng đô thị bằng giải tỏa, phân lô và bán đất nền; căn hộ chỉ thực sự xuất hiện quanh 2010 với vài tòa ven sông Hàn. Sau các chu kỳ sốt và vỡ đất nền, nghỉ dưỡng bùng nổ rồi đóng băng, thị trường từ 2024 chuyển trọng tâm sang căn hộ cao cấp với giá sơ cấp bình quân khoảng 83 triệu đ/m² (CBRE).",
+      "en": "Over two decades Da Nang grew by clearing land and selling subdivided plots; condos only really appeared around 2010 with a few Han riverside towers. After land booms and busts and a resort boom that froze, the market since 2024 has pivoted to luxury condos with average primary prices near VND 83m/m² (CBRE)."
+     },
+     "change": {
+      "vi": "Căn hộ cao cấp ~35 (2010) -> ~83 tr/m² (2026)",
+      "en": "High-end apartments ~35 (2010) -> ~83m/m² (2026)"
+     },
+     "milestones": [
+      {
+       "year": 2010,
+       "text": {
+        "vi": "Căn hộ cao cấp chào bán khoảng 1.842 USD/m²",
+        "en": "High-end condos offered near USD 1,842/m²"
+       }
+      },
+      {
+       "year": 2017,
+       "text": {
+        "vi": "Đà Nẵng đăng cai APEC, kéo theo làn sóng đầu tư nghỉ dưỡng",
+        "en": "Da Nang hosts APEC, spurring resort investment"
+       }
+      },
+      {
+       "year": 2020,
+       "text": {
+        "vi": "Covid: khách lưu trú giảm 63%, thị trường đóng băng",
+        "en": "Covid: overnight guests down 63%, market freezes"
+       }
+      },
+      {
+       "year": 2025,
+       "text": {
+        "vi": "Sáp nhập Quảng Nam từ 1/7, lập khu thương mại tự do 1.881 ha",
+        "en": "Merger with Quang Nam on 1 July; 1,881 ha free trade zone"
+       }
+      },
+      {
+       "year": 2026,
+       "text": {
+        "vi": "Khai trương IFC (9/1), khởi công bến container Liên Chiểu (25/4)",
+        "en": "IFC opens (9 Jan); Lien Chieu container port breaks ground (25 Apr)"
+       }
+      }
+     ]
+    },
+    {
+     "span": 15,
+     "range": "2011-2026",
+     "title": {
+      "vi": "Trầm lắng, bùng nổ nghỉ dưỡng rồi tái cấu trúc",
+      "en": "Slump, resort boom, then restructuring"
+     },
+     "text": {
+      "vi": "Giai đoạn 2011-2013 thị trường trầm lắng, giá căn hộ cao cấp giảm nhẹ và tỷ lệ hấp thụ giảm. Từ 2015 condotel và biệt thự biển bùng nổ nhờ du lịch (Savills: giá condotel sơ cấp tăng 19% lên 2.100 USD/m² nửa đầu 2015). Sau 2019, pháp lý condotel bế tắc, Covid và siết tín dụng đẩy thị trường vào đáy trước khi phục hồi mạnh từ 2024.",
+      "en": "In 2011-2013 the market slumped, high-end condo prices dipped and absorption fell. From 2015 condotels and beach villas boomed on tourism (Savills: primary condotel prices +19% to USD 2,100/m² in H1 2015). After 2019 condotel legal deadlock, Covid and credit tightening pushed the market to a trough before a strong rebound from 2024."
+     },
+     "change": {
+      "vi": "Chu kỳ: trầm lắng - sốt - đáy - phục hồi",
+      "en": "Cycle: quiet - boom - bottom - recovery"
+     },
+     "milestones": [
+      {
+       "year": 2013,
+       "text": {
+        "vi": "Tỷ lệ hấp thụ căn hộ quý II giảm so với 2012",
+        "en": "Q2 condo absorption below 2012"
+       }
+      },
+      {
+       "year": 2015,
+       "text": {
+        "vi": "Condotel sơ cấp 2.100 USD/m², +19% (Savills)",
+        "en": "Primary condotels USD 2,100/m², +19% (Savills)"
+       }
+      },
+      {
+       "year": 2024,
+       "text": {
+        "vi": "Luật Đất đai, Nhà ở, Kinh doanh BĐS mới hiệu lực 1/8",
+        "en": "New Land, Housing and Real Estate Business laws take effect 1 Aug"
+       }
+      }
+     ]
+    },
+    {
+     "span": 10,
+     "range": "2016-2026",
+     "title": {
+      "vi": "Sốt đất, vỡ bong bóng, Covid và hồi sinh",
+      "en": "Land fever, bust, Covid and revival"
+     },
+     "text": {
+      "vi": "Cuối 2017 đến đầu 2018 đất nền sốt nóng: đất bờ Đông sông Hàn tăng gấp đôi theo tin hầm chui, lô Golden Hills từ 700 triệu lên 1,5 tỷ. Từ cuối 2018 giá hạ nhiệt, nhiều dự án 'ma' bị cảnh báo. Năm 2020 Covid làm khách lưu trú giảm 63%, giá thứ cấp đất giảm 5-20%. Từ 2024, nguồn cung căn hộ mới trên 8.000 căn trong 2 năm (CBRE).",
+      "en": "From late 2017 to early 2018 land fever hit: east-bank Han river plots doubled on tunnel rumours and Golden Hills plots rose from VND 700m to 1.5bn. Prices cooled from late 2018 amid warnings on 'ghost' projects. In 2020 Covid cut overnight guests 63% and secondary land prices fell 5-20%. Since 2024 over 8,000 new condos launched in two years (CBRE)."
+     },
+     "change": {
+      "vi": "Đất nền: sốt 2018, giảm 5-20% năm 2020, hồi 2024-2025",
+      "en": "Land: 2018 boom, -5-20% in 2020, recovery 2024-2025"
+     },
+     "milestones": [
+      {
+       "year": 2018,
+       "text": {
+        "vi": "Đỉnh sốt đất nền, lô đất tăng gấp đôi trong vài tháng",
+        "en": "Land fever peaks, plots double within months"
+       }
+      },
+      {
+       "year": 2019,
+       "text": {
+        "vi": "Đà Nẵng cảnh báo người dân cẩn trọng với cơn sốt đất",
+        "en": "City warns residents about land speculation"
+       }
+      },
+      {
+       "year": 2020,
+       "text": {
+        "vi": "Giá thứ cấp đất nền giảm 5-10%, nơi bán cắt lỗ 15-20%",
+        "en": "Secondary land prices -5-10%, distressed sales -15-20%"
+       }
+      }
+     ]
+    },
+    {
+     "span": 5,
+     "range": "2021-2026",
+     "title": {
+      "vi": "Giá căn hộ sơ cấp tăng hơn gấp đôi",
+      "en": "Primary condo prices more than double"
+     },
+     "text": {
+      "vi": "Năm 2021 giá sơ cấp căn hộ khoảng 1.475 USD/m² thông thủy (khoảng 34 triệu đ/m²). Đến quý I/2026, nhờ làn sóng dự án hạng sang ven sông Hàn và biển Mỹ Khê, giá bình quân đạt khoảng 83 triệu đ/m² (CBRE). Trước 2024 mỗi năm chưa tới 1.000 căn mở bán; nay dự kiến khoảng 5.000 căn mỗi năm. Nghỉ dưỡng và condotel thì gần như không phục hồi.",
+      "en": "In 2021 primary condo prices were about USD 1,475/m² net (around VND 34m/m²). By Q1/2026 a wave of luxury launches along the Han river and My Khe beach lifted the average to about VND 83m/m² (CBRE). Before 2024 fewer than 1,000 units launched a year; about 5,000 a year are now expected. Resort and condotel product barely recovered."
+     },
+     "change": {
+      "vi": "Căn hộ ~34 -> ~83 tr/m² (ước tính)",
+      "en": "Apartments ~34 -> ~83m/m² (estimate)"
+     },
+     "milestones": [
+      {
+       "year": 2023,
+       "text": {
+        "vi": "Đáy chu kỳ: thứ cấp đất nền giảm 8-10% (DKRA Q3)",
+        "en": "Cycle trough: secondary land -8-10% (DKRA Q3)"
+       }
+      },
+      {
+       "year": 2025,
+       "text": {
+        "vi": "Giá sơ cấp căn hộ 85 triệu đ/m², +27% YoY (CBRE, 6/2025)",
+        "en": "Primary condos VND 85m/m², +27% YoY (CBRE, Jun 2025)"
+       }
+      }
+     ]
+    },
+    {
+     "span": 2,
+     "range": "2024-2026",
+     "title": {
+      "vi": "Bùng nổ 2025, hạ nhiệt 2026",
+      "en": "Boom in 2025, cooling in 2026"
+     },
+     "text": {
+      "vi": "Năm 2025 đất nền tiêu thụ gấp 6 lần 2024, giá sơ cấp tăng khoảng 14%, thứ cấp tăng 31%; căn hộ tiêu thụ tăng 94% (DKRA). Sang 2026, giá neo cao nhưng sức mua yếu dần: quý III sức cầu căn hộ giảm 25% so với quý trước, giá sơ cấp đất nền giảm 7%, thứ cấp nhà phố, biệt thự giảm 10%. Đầu tư lướt sóng dùng đòn bẩy chịu áp lực.",
+      "en": "In 2025 land-plot sales were 6x 2024, primary prices rose about 14% and secondary 31%; condo absorption rose 94% (DKRA). In 2026 prices stayed high but demand faded: in Q3 condo demand fell 25% QoQ, primary land prices fell 7% and secondary townhouse/villa prices 10%. Leveraged short-term investors are under pressure."
+     },
+     "change": {
+      "vi": "2025 sốt, Q3/2026 cầu -25% QoQ",
+      "en": "Hot 2025, Q3/2026 demand -25% QoQ"
+     },
+     "milestones": [
+      {
+       "year": 2025,
+       "text": {
+        "vi": "Nghị quyết 222/2025/QH15 về Trung tâm tài chính quốc tế",
+        "en": "Resolution 222/2025/QH15 on the International Financial Centre"
+       }
+      },
+      {
+       "year": 2026,
+       "text": {
+        "vi": "Vinhomes Hải Vân Bay (512 ha) mở bán 800 sản phẩm thấp tầng",
+        "en": "Vinhomes Hai Van Bay (512 ha) launches 800 landed units"
+       }
+      }
+     ]
+    }
+   ],
+   "segments": [
+    {
+     "name": {
+      "vi": "Căn hộ",
+      "en": "Apartments"
+     },
+     "price": {
+      "vi": "60-70 triệu đ/m² (dự án mới bán chạy); bình quân 69-83 triệu tùy nguồn; hạng sang 120-200 triệu",
+      "en": "VND 60-70m/m² (best-selling launches); average 69-83m by source; luxury 120-200m"
+     },
+     "trend": "flat",
+     "note": {
+      "vi": "Q3/2026: 4.385 căn sơ cấp, tiêu thụ 2.099 căn, giảm 25% QoQ; thứ cấp giảm 3-5% (DKRA). Hạng B chiếm 68% giao dịch, Ngũ Hành Sơn chiếm 43%.",
+      "en": "Q3/2026: 4,385 primary units, 2,099 absorbed, -25% QoQ; secondary -3-5% (DKRA). Grade B took 68% of sales, Ngu Hanh Son 43%."
+     }
+    },
+    {
+     "name": {
+      "vi": "Đất nền",
+      "en": "Land plots"
+     },
+     "price": {
+      "vi": "Hội An Đông 45,6-61,6; Hội An Tây 29,3-47; Điện Bàn Đông 17,4-26 triệu đ/m² (sơ cấp)",
+      "en": "Hoi An Dong 45.6-61.6; Hoi An Tay 29.3-47; Dien Ban Dong 17.4-26 million VND/m² (primary)"
+     },
+     "trend": "down",
+     "note": {
+      "vi": "Q3/2026: 1.547 nền sơ cấp, tiêu thụ khoảng 4%, giảm 16% QoQ; giá sơ cấp -7%, thứ cấp -3% (DKRA). Năm 2025 từng tăng 14% sơ cấp, 31% thứ cấp.",
+      "en": "Q3/2026: 1,547 primary plots, about 4% absorbed, -16% QoQ; primary -7%, secondary -3% (DKRA). In 2025 primary rose 14% and secondary 31%."
+     }
+    },
+    {
+     "name": {
+      "vi": "Nhà phố, biệt thự",
+      "en": "Townhouses and villas"
+     },
+     "price": {
+      "vi": "Bình quân 4.950 USD/m²; ven sông Hàn, biển Mỹ Khê 7.000-8.500 USD/m² (Avison Young)",
+      "en": "Avg USD 4,950/m²; Han riverside or My Khe beachfront USD 7,000-8,500/m² (Avison Young)"
+     },
+     "trend": "down",
+     "note": {
+      "vi": "CBRE Q1/2026: bình quân 147 triệu đ/m² đất, có sản phẩm tới 430 triệu. Q3/2026 tiêu thụ giảm 68%, thứ cấp giảm 10% (DKRA).",
+      "en": "CBRE Q1/2026: avg VND 147m/m² of land, some up to 430m. Q3/2026 absorption -68%, secondary -10% (DKRA)."
+     }
+    },
+    {
+     "name": {
+      "vi": "Biệt thự nghỉ dưỡng",
+      "en": "Resort villas"
+     },
+     "price": {
+      "vi": "Khoảng 86 triệu đ/m² đất (CBRE, giữa 2025)",
+      "en": "About VND 86m/m² of land (CBRE, mid-2025)"
+     },
+     "trend": "down",
+     "note": {
+      "vi": "Giao dịch Q3/2026 giảm 89% so với quý trước (VARS). Tồn kho khoảng 88% tổng cung năm 2025 (DKRA).",
+      "en": "Q3/2026 transactions -89% QoQ (VARS). Inventory about 88% of supply in 2025 (DKRA)."
+     }
+    },
+    {
+     "name": {
+      "vi": "Condotel",
+      "en": "Condotels"
+     },
+     "price": {
+      "vi": "Khoảng 70 triệu đ/m² thông thủy (CBRE, giữa 2025)",
+      "en": "About VND 70m/m² net (CBRE, mid-2025)"
+     },
+     "trend": "down",
+     "note": {
+      "vi": "Giao dịch giảm 87% Q1 và hơn 94% Q2/2026; tồn kho trên 96%. Thiếu khung pháp lý sở hữu; một số dự án xin chuyển sang căn hộ.",
+      "en": "Sales -87% in Q1 and over -94% in Q2/2026; inventory above 96%. Ownership rules still unclear; some projects seek conversion to apartments."
+     }
+    },
+    {
+     "name": {
+      "vi": "Shophouse",
+      "en": "Shophouses"
+     },
+     "price": {
+      "vi": "Shophouse nghỉ dưỡng sơ cấp 7,1-16,3 tỷ/căn (DKRA Q3/2023, số cũ)",
+      "en": "Resort shophouses VND 7.1-16.3bn/unit (DKRA Q3/2023, dated)"
+     },
+     "trend": "down",
+     "note": {
+      "vi": "Q3/2026 không ghi nhận giao dịch shophouse nghỉ dưỡng (VARS). Shophouse trong khu đô thị lớn phụ thuộc mật độ dân cư thực.",
+      "en": "No resort-shophouse sales recorded in Q3/2026 (VARS). Shophouses inside large townships depend on real occupancy."
+     }
+    }
+   ],
+   "subareas": [
+    {
+     "name": {
+      "vi": "Hải Châu",
+      "en": "Hai Chau"
+     },
+     "type": {
+      "vi": "Lõi trung tâm, ven sông Hàn",
+      "en": "CBD, Han riverside"
+     },
+     "price": {
+      "vi": "Căn hộ hạng sang ven sông 130-200 triệu đ/m²; bảng giá đất Bạch Đằng 341 triệu đ/m²",
+      "en": "Riverside luxury condos VND 130-200m/m²; official Bach Dang land price VND 341m/m²"
+     },
+     "highlight": {
+      "vi": "Quỹ đất khan hiếm, văn phòng và bán lẻ tập trung, giá thuê VP trung tâm khoảng 16 USD/m²/tháng (CBRE).",
+      "en": "Scarce land, offices and retail cluster here; CBD office rent about USD 16/m²/month (CBRE)."
+     },
+     "potential": 4,
+     "risk": 2,
+     "lat": 16.047,
+     "lng": 108.221
+    },
+    {
+     "name": {
+      "vi": "Sơn Trà (An Hải)",
+      "en": "Son Tra (An Hai)"
+     },
+     "type": {
+      "vi": "Ven biển Mỹ Khê, bờ Đông sông Hàn",
+      "en": "My Khe beach, east bank"
+     },
+     "price": {
+      "vi": "Nhà phố, biệt thự ven biển 7.000-8.500 USD/m² (Avison Young)",
+      "en": "Beachfront townhouses/villas USD 7,000-8,500/m² (Avison Young)"
+     },
+     "highlight": {
+      "vi": "Tâm điểm căn hộ cho khách nước ngoài và cho thuê ngắn hạn; nhiều dự án mới quý IV/2026.",
+      "en": "Core for foreign buyers and short-stay rentals; several new launches due in Q4/2026."
+     },
+     "potential": 4,
+     "risk": 3,
+     "lat": 16.072,
+     "lng": 108.239
+    },
+    {
+     "name": {
+      "vi": "Ngũ Hành Sơn",
+      "en": "Ngu Hanh Son"
+     },
+     "type": {
+      "vi": "Ven biển phía Nam, căn hộ và nghỉ dưỡng",
+      "en": "Southern coast, condos and resorts"
+     },
+     "price": {
+      "vi": "Căn hộ mở bán mới khoảng 60-70 triệu đ/m² (DKRA)",
+      "en": "New condo launches about VND 60-70m/m² (DKRA)"
+     },
+     "highlight": {
+      "vi": "Chiếm 40% nguồn cung và 43% giao dịch căn hộ Q3/2026; nhiều condotel tồn kho.",
+      "en": "40% of condo supply and 43% of sales in Q3/2026; large condotel overhang."
+     },
+     "potential": 4,
+     "risk": 3,
+     "lat": 16.002,
+     "lng": 108.255
+    },
+    {
+     "name": {
+      "vi": "Thanh Khê",
+      "en": "Thanh Khe"
+     },
+     "type": {
+      "vi": "Nội thành dân cư, ven biển Tây Bắc",
+      "en": "Inner residential, northwest beach"
+     },
+     "price": {
+      "vi": "Chưa có số liệu khảo sát riêng tin cậy",
+      "en": "No reliable district-level survey"
+     },
+     "highlight": {
+      "vi": "Nhu cầu ở thực, nhà phố hẻm và căn hộ trung cấp, gần sân bay.",
+      "en": "End-user demand, alley houses and mid-range condos, near the airport."
+     },
+     "potential": 3,
+     "risk": 2,
+     "lat": 16.066,
+     "lng": 108.188
+    },
+    {
+     "name": {
+      "vi": "Liên Chiểu (Hải Vân)",
+      "en": "Lien Chieu (Hai Van)"
+     },
+     "type": {
+      "vi": "Cảng, khu thương mại tự do, đại đô thị",
+      "en": "Port, FTZ, mega township"
+     },
+     "price": {
+      "vi": "Đất Golden Hills rao khoảng 20-21 triệu đ/m² (tin rao); Vinhomes Hải Vân Bay giá cao hơn nhiều",
+      "en": "Golden Hills plots listed about VND 20-21m/m²; Vinhomes Hai Van Bay far higher"
+     },
+     "highlight": {
+      "vi": "Cảng Liên Chiểu, phần lớn khu thương mại tự do 1.881 ha, Vinhomes Hải Vân Bay 512 ha; 37% nguồn cung đất nền Q3/2026 ở Hải Vân.",
+      "en": "Lien Chieu port, most of the 1,881 ha FTZ, Vinhomes Hai Van Bay 512 ha; Hai Van held 37% of Q3/2026 plot supply."
+     },
+     "potential": 5,
+     "risk": 4,
+     "lat": 16.085,
+     "lng": 108.135
+    },
+    {
+     "name": {
+      "vi": "Cẩm Lệ (Hòa Xuân)",
+      "en": "Cam Le (Hoa Xuan)"
+     },
+     "type": {
+      "vi": "Đô thị mới phía Nam",
+      "en": "Southern new town"
+     },
+     "price": {
+      "vi": "Đất nền khoảng 33-45 triệu đ/m² (khảo sát báo chí cuối 2024)",
+      "en": "Land about VND 33-45m/m² (press survey, late 2024)"
+     },
+     "highlight": {
+      "vi": "Đất nền ở thực, hạ tầng hoàn chỉnh; từng là điểm nóng sốt đất 2018-2019.",
+      "en": "End-user land with finished infrastructure; a 2018-2019 land-fever hotspot."
+     },
+     "potential": 3,
+     "risk": 3,
+     "lat": 16.003,
+     "lng": 108.213
+    },
+    {
+     "name": {
+      "vi": "Hòa Vang",
+      "en": "Hoa Vang"
+     },
+     "type": {
+      "vi": "Vùng ven, nông thôn mới, khu TMTD",
+      "en": "Peri-urban, FTZ sites"
+     },
+     "price": {
+      "vi": "Chưa có số liệu trung bình tin cậy; thấp hơn nội thành",
+      "en": "No reliable average; below inner city"
+     },
+     "highlight": {
+      "vi": "Có vị trí khu thương mại tự do và tái định cư đường sắt tốc độ cao (Hòa Tiến); rủi ro thanh khoản và quy hoạch.",
+      "en": "Hosts FTZ sites and high-speed rail resettlement (Hoa Tien); liquidity and zoning risk."
+     },
+     "potential": 3,
+     "risk": 4,
+     "lat": 15.995,
+     "lng": 108.1
+    },
+    {
+     "name": {
+      "vi": "Hội An (Hội An Đông, Hội An Tây)",
+      "en": "Hoi An (Hoi An Dong, Hoi An Tay)"
+     },
+     "type": {
+      "vi": "Di sản, du lịch, nghỉ dưỡng",
+      "en": "Heritage, tourism, resort"
+     },
+     "price": {
+      "vi": "Đất nền sơ cấp Hội An Đông 45,6-61,6; Hội An Tây 29,3-47 triệu đ/m² (DKRA Q3/2026)",
+      "en": "Primary plots Hoi An Dong 45.6-61.6; Hoi An Tay 29.3-47 million VND/m² (DKRA Q3/2026)"
+     },
+     "highlight": {
+      "vi": "Bảng giá đất mới tăng 30-35%; homestay, villa cho thuê hưởng lợi du lịch.",
+      "en": "New land price table up 30-35%; homestays and rental villas ride tourism."
+     },
+     "potential": 4,
+     "risk": 3,
+     "lat": 15.88,
+     "lng": 108.335
+    },
+    {
+     "name": {
+      "vi": "Điện Bàn Đông (Điện Ngọc)",
+      "en": "Dien Ban Dong (Dien Ngoc)"
+     },
+     "type": {
+      "vi": "Ven biển giáp Ngũ Hành Sơn",
+      "en": "Coast next to Ngu Hanh Son"
+     },
+     "price": {
+      "vi": "Đất nền sơ cấp 17,4-26 triệu đ/m² (DKRA Q3/2026)",
+      "en": "Primary plots VND 17.4-26m/m² (DKRA Q3/2026)"
+     },
+     "highlight": {
+      "vi": "36,6% nguồn cung đất nền Q3/2026; nhiều dự án tồn đọng từ thời sốt 2018.",
+      "en": "36.6% of Q3/2026 plot supply; many projects stalled since the 2018 fever."
+     },
+     "potential": 3,
+     "risk": 4,
+     "lat": 15.95,
+     "lng": 108.27
+    },
+    {
+     "name": {
+      "vi": "Tam Kỳ, Chu Lai (Núi Thành)",
+      "en": "Tam Ky, Chu Lai (Nui Thanh)"
+     },
+     "type": {
+      "vi": "Đô thị, công nghiệp, sân bay phía Nam",
+      "en": "Southern town, industry, airport"
+     },
+     "price": {
+      "vi": "Chưa có số liệu khảo sát tin cậy",
+      "en": "No reliable survey data"
+     },
+     "highlight": {
+      "vi": "Khu kinh tế mở Chu Lai, công nghiệp ô tô; xa lõi Đà Nẵng nên thanh khoản thấp.",
+      "en": "Chu Lai open economic zone, auto industry; far from the core so liquidity is thin."
+     },
+     "potential": 3,
+     "risk": 4,
+     "lat": 15.57,
+     "lng": 108.48
+    }
+   ],
+   "infrastructure": [
+    {
+     "name": {
+      "vi": "Bến cảng container Liên Chiểu",
+      "en": "Lien Chieu container port"
+     },
+     "status": {
+      "vi": "Khởi công 25/4/2026; Hateco và APM Terminals, hơn 1,7 tỷ USD",
+      "en": "Broke ground 25 Apr 2026; Hateco and APM Terminals, USD 1.7bn+"
+     },
+     "eta": "2028",
+     "impact": {
+      "vi": "2 bến đầu khai thác dự kiến 2028; 8 bến, 5,2-5,8 triệu TEU/năm đến 2036. Kéo logistics, nhà ở công nhân phía Tây Bắc.",
+      "en": "First 2 berths due 2028; 8 berths, 5.2-5.8m TEU/yr by 2036. Lifts logistics and worker housing in the northwest."
+     }
+    },
+    {
+     "name": {
+      "vi": "Khu thương mại tự do Đà Nẵng",
+      "en": "Da Nang Free Trade Zone"
+     },
+     "status": {
+      "vi": "Thành lập theo QĐ 1142/QĐ-TTg ngày 13/6/2025, khoảng 1.881 ha, 7 vị trí",
+      "en": "Set up by Decision 1142/QD-TTg on 13 Jun 2025, about 1,881 ha, 7 sites"
+     },
+     "eta": "2026-2030",
+     "impact": {
+      "vi": "Tập trung ở Liên Chiểu, Hòa Vang; thúc đẩy đất công nghiệp, kho bãi, nhà ở chuyên gia.",
+      "en": "Concentrated in Lien Chieu and Hoa Vang; supports industrial land, warehousing and expat housing."
+     }
+    },
+    {
+     "name": {
+      "vi": "Trung tâm tài chính quốc tế (IFC) Đà Nẵng",
+      "en": "Da Nang International Financial Centre"
+     },
+     "status": {
+      "vi": "Khai trương 9/1/2026 theo Nghị định 323/2025; quy mô khoảng 300 ha (CBRE)",
+      "en": "Opened 9 Jan 2026 under Decree 323/2025; about 300 ha (CBRE)"
+     },
+     "eta": "2026-2030",
+     "impact": {
+      "vi": "Kỳ vọng kéo hơn 100.000 m² văn phòng mới đến 2028 và nhu cầu căn hộ cao cấp cho chuyên gia.",
+      "en": "Expected to drive 100,000+ m² of new offices by 2028 and demand for premium expat housing."
+     }
+    },
+    {
+     "name": {
+      "vi": "Đường sắt tốc độ cao Bắc - Nam (đoạn Đà Nẵng)",
+      "en": "North-South high-speed rail (Da Nang section)"
+     },
+     "status": {
+      "vi": "Đang giải phóng mặt bằng, cần khoảng 19.500 tỷ; đang đề xuất điều chỉnh vị trí ga",
+      "en": "Land clearance underway, about VND 19.5trn needed; station site under review"
+     },
+     "eta": "Sau 2030",
+     "impact": {
+      "vi": "Tạo cực mới quanh ga và các khu tái định cư (Hòa Tiến...); vị trí ga chưa chốt nên tránh mua theo tin đồn.",
+      "en": "Will create new nodes around the station and resettlement areas (Hoa Tien...); station not final, avoid rumour buying."
+     }
+    },
+    {
+     "name": {
+      "vi": "Mở rộng nhà ga T1 sân bay Đà Nẵng",
+      "en": "Da Nang airport T1 expansion"
+     },
+     "status": {
+      "vi": "Tổng vốn khoảng 11.282 tỷ; dự kiến khởi công 8/2027",
+      "en": "About VND 11.28trn; groundbreaking planned Aug 2027"
+     },
+     "eta": "2029",
+     "impact": {
+      "vi": "Nâng công suất T1 lên khoảng 14 triệu khách/năm, hỗ trợ du lịch và lưu trú.",
+      "en": "Raises T1 capacity to about 14m passengers/yr, supporting tourism and lodging."
+     }
+    },
+    {
+     "name": {
+      "vi": "Đại đô thị Vinhomes Hải Vân Bay",
+      "en": "Vinhomes Hai Van Bay township"
+     },
+     "status": {
+      "vi": "Mở bán 800 sản phẩm thấp tầng quý I/2026 (CBRE)",
+      "en": "800 landed units launched in Q1/2026 (CBRE)"
+     },
+     "eta": "2026-2030",
+     "impact": {
+      "vi": "Quy mô hơn 512 ha, chiếm phần lớn nguồn cung nhà phố mới; định hình lại mặt bằng giá Tây Bắc.",
+      "en": "Over 512 ha, most of the new townhouse supply; resets northwest price levels."
+     }
+    }
+   ],
+   "policy": [
+    {
+     "title": {
+      "vi": "Nghị quyết 136/2024/QH15",
+      "en": "Resolution 136/2024/QH15"
+     },
+     "text": {
+      "vi": "Cơ chế đặc thù cho Đà Nẵng, làm cơ sở lập khu thương mại tự do và phân cấp mạnh cho thành phố về đầu tư, đất đai.",
+      "en": "Special mechanisms for Da Nang; legal basis for the free trade zone and wider local powers on investment and land."
+     }
+    },
+    {
+     "title": {
+      "vi": "Nghị quyết 222/2025/QH15 và Nghị định 323/2025",
+      "en": "Resolution 222/2025/QH15 and Decree 323/2025"
+     },
+     "text": {
+      "vi": "Khung pháp lý cho Trung tâm tài chính quốc tế tại TP.HCM và Đà Nẵng; IFC Đà Nẵng khai trương 9/1/2026 tại Công viên phần mềm số 2.",
+      "en": "Legal framework for the IFC in HCMC and Da Nang; Da Nang IFC opened 9 Jan 2026 at Software Park No. 2."
+     }
+    },
+    {
+     "title": {
+      "vi": "Sáp nhập Quảng Nam từ 1/7/2025",
+      "en": "Merger with Quang Nam from 1 Jul 2025"
+     },
+     "text": {
+      "vi": "TP. Đà Nẵng mới gồm Hội An, Tam Kỳ, Điện Bàn, Núi Thành... Số liệu thị trường sau mốc này có thể khác phạm vi, cần xem rõ 'Đà Nẵng cũ' hay 'mới'.",
+      "en": "New Da Nang includes Hoi An, Tam Ky, Dien Ban, Nui Thanh... Market data after this date may differ in scope; check old vs new Da Nang."
+     }
+    },
+    {
+     "title": {
+      "vi": "Bảng giá đất 2026",
+      "en": "2026 land price tables"
+     },
+     "text": {
+      "vi": "NQ 32/2025/NQ-HĐND áp dụng từ 1/1/2026 cho Đà Nẵng cũ; bảng giá chung (thông qua 29/5/2026) giữ nguyên Đà Nẵng cũ, tăng 9-70% ở 78 xã, phường Quảng Nam cũ (Hội An 30-35%).",
+      "en": "Resolution 32/2025 applies from 1 Jan 2026 to old Da Nang; the unified table (passed 29 May 2026) keeps old Da Nang flat and raises 78 former Quang Nam communes 9-70% (Hoi An 30-35%)."
+     }
+    },
+    {
+     "title": {
+      "vi": "Luật Đất đai, Nhà ở, Kinh doanh BĐS 2024",
+      "en": "2024 Land, Housing and Real Estate Business laws"
+     },
+     "text": {
+      "vi": "Hiệu lực từ 1/8/2024: siết phân lô bán nền tại phường thuộc đô thị loại đặc biệt, I, II, III; bảng giá đất sát thị trường làm tăng chi phí tiền sử dụng đất.",
+      "en": "Effective 1 Aug 2024: curbs on plot subdivision in larger cities; market-linked land tables raise land-use fees."
+     }
+    },
+    {
+     "title": {
+      "vi": "Condotel và người nước ngoài",
+      "en": "Condotels and foreign buyers"
+     },
+     "text": {
+      "vi": "Condotel vẫn thiếu khung sở hữu rõ ràng; Bộ Xây dựng cho rằng cần hoàn thiện đến 2026-2027. Người nước ngoài mua căn hộ theo Luật Nhà ở (trần 30% mỗi tòa), không có ưu đãi riêng cho Đà Nẵng.",
+      "en": "Condotels still lack clear ownership rules; the Construction Ministry says fixes run into 2026-2027. Foreigners buy condos under the Housing Law (30% cap per building), with no Da Nang-specific exemption."
+     }
+    }
+   ],
+   "forecast": {
+    "horizon": "2027-2030",
+    "scenarios": [
+     {
+      "key": "base",
+      "name": {
+       "vi": "Cơ sở",
+       "en": "Base"
+      },
+      "price_change": {
+       "vi": "+5-10%/năm (căn hộ sơ cấp)",
+       "en": "+5-10%/yr (primary apartments)"
+      },
+      "text": {
+       "vi": "Giá sơ cấp neo cao do chi phí đất và xây dựng, thanh khoản phân hóa về dự án pháp lý sạch, vị trí trung tâm. Mức này là ước tính của người tổng hợp, thấp hơn dự báo của CBRE do sức cầu 2026 suy yếu.",
+       "en": "Primary prices held up by land and build costs; liquidity concentrates in clean-title, central projects. This is the compiler's estimate, below CBRE's forecast given weaker 2026 demand."
+      },
+      "estimate": true
+     },
+     {
+      "key": "bull",
+      "name": {
+       "vi": "Lạc quan",
+       "en": "Bull"
+      },
+      "price_change": {
+       "vi": "+10-15%/năm",
+       "en": "+10-15%/yr"
+      },
+      "text": {
+       "vi": "IFC, khu thương mại tự do và cảng Liên Chiểu kéo dòng vốn, chuyên gia nước ngoài; khớp dự báo CBRE (10-12%/năm, và CAGR khoảng 15% giai đoạn 2024-2027 công bố 7/2025).",
+       "en": "IFC, FTZ and Lien Chieu port draw capital and expats; matches CBRE forecasts (10-12%/yr, and about 15% CAGR for 2024-2027 published Jul 2025)."
+      }
+     },
+     {
+      "key": "bear",
+      "name": {
+       "vi": "Bi quan",
+       "en": "Bear"
+      },
+      "price_change": {
+       "vi": "0 đến -10% (thứ cấp)",
+       "en": "0 to -10% (secondary)"
+      },
+      "text": {
+       "vi": "Lãi suất thả nổi 12-15%/năm, nguồn cung khoảng 5.000 căn mỗi năm vượt sức hấp thụ; nhà đầu tư đòn bẩy bán cắt lỗ như quý III/2026 (thứ cấp căn hộ -3-5%, nhà phố -10%).",
+       "en": "Floating rates of 12-15%/yr and about 5,000 units a year outpace absorption; leveraged investors cut losses as in Q3/2026 (secondary condos -3-5%, townhouses -10%)."
+      },
+      "estimate": true
+     }
+    ],
+    "drivers": [
+     {
+      "vi": "Du lịch: 7,73 triệu khách quốc tế 9 tháng 2026, +28,7%",
+      "en": "Tourism: 7.73m international visitors in 9M 2026, +28.7%"
+     },
+     {
+      "vi": "IFC, khu thương mại tự do 1.881 ha, cảng Liên Chiểu",
+      "en": "IFC, 1,881 ha FTZ, Lien Chieu port"
+     },
+     {
+      "vi": "Quỹ đất trung tâm khan hiếm, chi phí đầu vào tăng",
+      "en": "Scarce central land and rising input costs"
+     },
+     {
+      "vi": "GRDP tăng 10,31% 9 tháng 2026",
+      "en": "GRDP up 10.31% in 9M 2026"
+     },
+     {
+      "vi": "Chủ đầu tư lớn và thương hiệu vận hành quốc tế gia nhập",
+      "en": "Arrival of top developers and international operators"
+     }
+    ],
+    "risks": [
+     {
+      "vi": "Nguồn cung dồn dập (khoảng 5.000 căn/năm theo CBRE) so với sức hấp thụ đang giảm",
+      "en": "Heavy supply (about 5,000 units/yr per CBRE) vs falling absorption"
+     },
+     {
+      "vi": "Lãi suất vay thả nổi 12-15%/năm (Avison Young)",
+      "en": "Floating mortgage rates of 12-15%/yr (Avison Young)"
+     },
+     {
+      "vi": "Pháp lý condotel, nghỉ dưỡng chưa gỡ",
+      "en": "Unresolved condotel and resort legal status"
+     },
+     {
+      "vi": "Bảng giá đất tăng làm đội giá thành dự án",
+      "en": "Higher land price tables raise project costs"
+     },
+     {
+      "vi": "Đầu cơ theo tin quy hoạch (ga đường sắt, khu TMTD) như thời 2018",
+      "en": "Speculation on zoning rumours (rail station, FTZ) as in 2018"
+     }
+    ],
+    "sources": [
+     "CBRE Việt Nam (họp báo 22/7/2025; Da Nang Figures 2026)",
+     "DKRA Consulting (báo cáo Q3/2026, dự báo Q4/2026)",
+     "Avison Young Q3/2026",
+     "Kịch bản cơ sở và bi quan: người tổng hợp ước tính, độ tin cậy thấp"
+    ]
+   },
+   "potential": [
+    {
+     "vi": "Căn hộ cho thuê gần biển Mỹ Khê, sông Hàn phục vụ khách ngắn ngày và chuyên gia IFC",
+     "en": "Rental condos near My Khe and the Han river for short-stay guests and IFC staff"
+    },
+    {
+     "vi": "Nhà ở, kho bãi quanh cảng Liên Chiểu và các vị trí khu thương mại tự do",
+     "en": "Housing and warehousing around Lien Chieu port and FTZ sites"
+    },
+    {
+     "vi": "Văn phòng hạng A khi IFC hình thành (hơn 100.000 m² mới đến 2028)",
+     "en": "Grade A offices as the IFC forms (100,000+ m² new by 2028)"
+    },
+    {
+     "vi": "Homestay, villa cho thuê tại Hội An khi khách quốc tế tăng gần 29%",
+     "en": "Homestays and rental villas in Hoi An as foreign arrivals grow nearly 29%"
+    },
+    {
+     "vi": "Nhà ở xã hội: hơn 101.000 căn theo kế hoạch (Avison Young)",
+     "en": "Social housing: over 101,000 units planned (Avison Young)"
+    }
+   ],
+   "playbook": [
+    {
+     "vi": "Ưu tiên căn hộ đã bàn giao, có sổ, ở vị trí trung tâm hoặc ven biển; tránh condotel chưa rõ quyền sở hữu.",
+     "en": "Favour handed-over, titled condos in central or beachfront spots; avoid condotels without clear ownership."
+    },
+    {
+     "vi": "Đàm phán mạnh ở thứ cấp: quý III/2026 nhà phố, biệt thự giảm 10%, căn hộ 3-5%, nhiều người bán dùng đòn bẩy.",
+     "en": "Negotiate hard on resale: in Q3/2026 townhouses fell 10% and condos 3-5%, with many leveraged sellers."
+    },
+    {
+     "vi": "Luôn ghi rõ 'Đà Nẵng cũ' hay 'mới' khi so số liệu; báo cáo DKRA, CBRE, VARS khác phạm vi và cách tính.",
+     "en": "Always state old or new Da Nang when comparing; DKRA, CBRE and VARS differ in scope and method."
+    },
+    {
+     "vi": "Không xuống tiền theo tin đồn ga đường sắt tốc độ cao hay khu TMTD; kiểm tra quy hoạch 1/500 và pháp lý dự án.",
+     "en": "Do not buy on high-speed rail or FTZ rumours; verify 1/500 zoning and project legal status."
+    },
+    {
+     "vi": "Tính lợi suất cho thuê thực tế và kịch bản lãi suất 12-15%/năm trước khi vay.",
+     "en": "Model real rental yields and a 12-15%/yr rate scenario before borrowing."
+    },
+    {
+     "vi": "Với đất nền Hội An, Điện Bàn: dùng bảng giá mới (tăng 30-35% ở Hội An) để ước chi phí thuế, phí khi sang tên.",
+     "en": "For Hoi An and Dien Ban plots, use the new land table (Hoi An +30-35%) to estimate transfer taxes and fees."
+    }
+   ],
+   "sources": [
+    {
+     "name": "CBRE Vietnam - Da Nang Figures 2026 (Q1/2026)",
+     "url": "https://mktgdocs.cbre.com/2299/1fa98c84-3719-4467-9de5-cb62b60ec144-2051156003/CBRE_Vietnam_Da_Nang_Figures_2.pdf"
+    },
+    {
+     "name": "Báo Pháp Luật VN - DKRA Q3/2026 đất nền, căn hộ Đà Nẵng",
+     "url": "https://doanhnhan.baophapluat.vn/dat-nen-da-nang-khan-nguon-cung-gia-thu-cap-tiep-tuc-chiu-ap-luc-giam.html"
+    },
+    {
+     "name": "Báo Đấu thầu - Thị trường BĐS Đà Nẵng: Giá cao, người mua thận trọng (DKRA, VARS Q3/2026)",
+     "url": "https://baodauthau.vn/thi-truong-bat-dong-san-da-nang-gia-cao-nguoi-mua-than-trong-post210871.html"
+    },
+    {
+     "name": "Thị trường Tài chính Tiền tệ - Avison Young Q3/2026",
+     "url": "https://thitruongtaichinhtiente.vn/chuyen-dong-moi-tai-thi-truong-bat-dong-san-da-nang-86232.html"
+    },
+    {
+     "name": "Vietbao - VARS Q3/2026 giá căn hộ Đà Nẵng",
+     "url": "https://vietbao.vn/bat-dong-san-da-nang-gia-can-ho-di-ngang-nhieu-du-an-hut-khach-613408.html"
+    },
+    {
+     "name": "Nhà Đầu tư - CBRE: căn hộ Đà Nẵng 85 triệu/m2 (7/2025)",
+     "url": "https://nhadautu.vn/can-ho-da-nang-bung-no-gia-trung-binh-cao-hon-tphcm-d97865.html"
+    },
+    {
+     "name": "Báo Đấu thầu - BĐS nhà ở Đà Nẵng 2026 (DKRA năm 2025)",
+     "url": "https://baodauthau.vn/bat-dong-san-nha-o-da-nang-2026-phuc-hoi-den-dau-phan-hoa-toi-muc-nao-post192948.html"
+    },
+    {
+     "name": "VnBusiness - DKRA Q1/2026",
+     "url": "https://vnbusiness.vn/bat-dong-san-da-nang-lech-pha-trong-quy-12026-dat-nen-nong-len-nghi-duong-dong-bang.html"
+    },
+    {
+     "name": "VietnamFinance - Condotel giảm hơn 94% giao dịch",
+     "url": "https://vietnamfinance.vn/condotel-giam-hon-94-giao-dich-bat-dong-san-nghi-duong-da-nang-dong-cung-d148414.html"
+    },
+    {
+     "name": "VnEconomy - Công bố QĐ thành lập Khu thương mại tự do Đà Nẵng",
+     "url": "https://vneconomy.vn/da-nang-cong-bo-quyet-dinh-cua-thu-tuong-ve-thanh-lap-khu-thuong-mai-tu-do.htm"
+    },
+    {
+     "name": "VnEconomy - Khai trương Trung tâm Tài chính quốc tế Đà Nẵng",
+     "url": "https://vneconomy.vn/khai-truong-trung-tam-tai-chinh-quoc-te-da-nang.htm"
+    },
+    {
+     "name": "Bộ Xây dựng - Khởi công bến cảng container Liên Chiểu",
+     "url": "https://moc.gov.vn/vn/tin-tuc/1173/93661/pho-thu-tuong-thuong-truc-chinh-phu-pham-gia-tuc-du-khoi-cong-ben-cang-container-lien-chieu.aspx"
+    },
+    {
+     "name": "VietnamPlus - Đà Nẵng đón gần 16 triệu lượt khách lưu trú 9 tháng 2026",
+     "url": "https://www.vietnamplus.vn/da-nang-don-gan-16-trieu-luot-khach-luu-tru-trong-9-thang-nam-2026-post1140183.vnp"
+    },
+    {
+     "name": "Doanh nghiệp và Hội nhập - Bảng giá đất mới: Quảng Nam cũ tăng 9-70%",
+     "url": "https://doanhnghiephoinhap.vn/bang-gia-dat-moi-cua-da-nang-78-xa-phuong-thuoc-quang-nam-cu-tang-tu-9-70-138159.html"
+    },
+    {
+     "name": "Báo Đầu tư - Hệ lụy buồn sau sốt đất ở miền Trung",
+     "url": "https://baodautu.vn/he-luy-buon-sau-sot-dat-o-mien-trung-d101066.html"
+    }
+   ]
+  },
+  {
+   "id": "hcm",
+   "name": {
+    "vi": "TP. Hồ Chí Minh",
+    "en": "Ho Chi Minh City"
+   },
+   "as_of": "Q3/2026",
+   "tagline": {
+    "vi": "Giá sơ cấp neo cao, thanh khoản chững lại, nguồn cung dịch ra Bình Dương cũ",
+    "en": "Primary prices stay high, sales stall, supply shifts to former Binh Duong"
+   },
+   "summary": {
+    "vi": "Quý III/2026, giá căn hộ sơ cấp toàn TP.HCM mới (gồm Bình Dương, Bà Rịa - Vũng Tàu cũ) khoảng 75 triệu đồng/m² thông thủy (CBRE), riêng lõi TP.HCM cũ khoảng 110 triệu đồng/m² (Knight Frank). Thanh khoản yếu: tỷ lệ hấp thụ hàng mới 45%, DKRA ghi nhận tiêu thụ sơ cấp giảm khoảng 66% so với quý II. Lãi vay tăng từ cuối 2025 khiến người mua thận trọng, giá thứ cấp bắt đầu giảm, trong khi chủ đầu tư giữ giá niêm yết.",
+    "en": "In Q3/2026 the average primary apartment price across the enlarged HCMC was about VND 75m/m² net (CBRE); the old HCMC core was about VND 110m/m² (Knight Frank). Liquidity is weak: 45% absorption of new launches, and DKRA saw primary sales fall about 66% QoQ. Higher lending rates since late 2025 keep buyers cautious; resale prices are softening while developers hold list prices."
+   },
+   "kpis": [
+    {
+     "label": {
+      "vi": "Giá căn hộ sơ cấp TB (TP.HCM mới)",
+      "en": "Avg primary apartment price (enlarged HCMC)"
+     },
+     "value": {
+      "vi": "75",
+      "en": "75"
+     },
+     "unit": {
+      "vi": "triệu đ/m² thông thủy",
+      "en": "million VND/m² net"
+     },
+     "change": {
+      "vi": "~-1% so quý trước (Q2: 76)",
+      "en": "~-1% QoQ (Q2: 76)"
+     },
+     "trend": "flat",
+     "source": "CBRE Q3/2026 (qua VOV)"
+    },
+    {
+     "label": {
+      "vi": "Giá chào bán sơ cấp lõi TP.HCM cũ",
+      "en": "Primary asking price, old HCMC core"
+     },
+     "value": {
+      "vi": "110",
+      "en": "110"
+     },
+     "unit": {
+      "vi": "triệu đ/m² (4.210 USD)",
+      "en": "million VND/m² (USD 4,210)"
+     },
+     "change": {
+      "vi": "+3% so quý trước",
+      "en": "+3% QoQ"
+     },
+     "trend": "up",
+     "source": "Knight Frank Q3/2026"
+    },
+    {
+     "label": {
+      "vi": "Giá căn hộ thứ cấp TB",
+      "en": "Avg resale apartment price"
+     },
+     "value": {
+      "vi": "60",
+      "en": "60"
+     },
+     "unit": {
+      "vi": "triệu đ/m² thông thủy",
+      "en": "million VND/m² net"
+     },
+     "change": {
+      "vi": "~-3% so quý trước (Q2: 62)",
+      "en": "~-3% QoQ (Q2: 62)"
+     },
+     "trend": "down",
+     "source": "VOV Q3/2026; CBRE Q2/2026"
+    },
+    {
+     "label": {
+      "vi": "Tỷ lệ hấp thụ hàng mở bán mới",
+      "en": "Absorption of new launches"
+     },
+     "value": {
+      "vi": "45",
+      "en": "45"
+     },
+     "unit": {
+      "vi": "%",
+      "en": "%"
+     },
+     "change": {
+      "vi": "thấp hơn Q3/2025",
+      "en": "below Q3/2025"
+     },
+     "trend": "down",
+     "source": "CBRE, Knight Frank Q3/2026"
+    },
+    {
+     "label": {
+      "vi": "Căn hộ mở bán mới trong quý",
+      "en": "New apartment launches in quarter"
+     },
+     "value": {
+      "vi": "3.267",
+      "en": "3,267"
+     },
+     "unit": {
+      "vi": "căn",
+      "en": "units"
+     },
+     "change": {
+      "vi": "-53% so cùng kỳ",
+      "en": "-53% YoY"
+     },
+     "trend": "down",
+     "source": "CBRE Q3/2026"
+    },
+    {
+     "label": {
+      "vi": "Tiêu thụ căn hộ sơ cấp (vùng TP.HCM)",
+      "en": "Primary apartment sales (HCMC region)"
+     },
+     "value": {
+      "vi": "-66",
+      "en": "-66"
+     },
+     "unit": {
+      "vi": "% so với quý trước",
+      "en": "% QoQ"
+     },
+     "change": {
+      "vi": "-66% so quý trước",
+      "en": "-66% QoQ"
+     },
+     "trend": "down",
+     "source": "DKRA Q3/2026"
+    },
+    {
+     "label": {
+      "vi": "Giá sơ cấp nhà liền thổ (TP.HCM cũ)",
+      "en": "Primary landed price (old HCMC)"
+     },
+     "value": {
+      "vi": "214",
+      "en": "214"
+     },
+     "unit": {
+      "vi": "triệu đ/m² đất",
+      "en": "million VND/m² land"
+     },
+     "change": {
+      "vi": "-29% so cùng kỳ (do cơ cấu nguồn cung)",
+      "en": "-29% YoY (supply mix)"
+     },
+     "trend": "down",
+     "source": "CBRE Q3/2026"
+    },
+    {
+     "label": {
+      "vi": "Lãi suất cho vay mới bình quân",
+      "en": "Avg rate on new loans"
+     },
+     "value": {
+      "vi": "8,93",
+      "en": "8.93"
+     },
+     "unit": {
+      "vi": "%/năm",
+      "en": "%/yr"
+     },
+     "change": {
+      "vi": "+0,85 điểm % so cuối 2025",
+      "en": "+0.85 pt vs end-2025"
+     },
+     "trend": "up",
+     "source": "Bộ Tài chính, 20/8/2026"
+    }
+   ],
+   "price_series": {
+    "unit": {
+     "vi": "triệu đồng/m²",
+     "en": "million VND/m²"
+    },
+    "series": [
+     {
+      "key": "apartment",
+      "name": {
+       "vi": "Căn hộ sơ cấp TP.HCM cũ (trung bình)",
+       "en": "Primary apartments, old HCMC (avg)"
+      },
+      "points": [
+       [
+        2006,
+        13
+       ],
+       [
+        2007,
+        22
+       ],
+       [
+        2008,
+        26
+       ],
+       [
+        2009,
+        24
+       ],
+       [
+        2010,
+        28
+       ],
+       [
+        2011,
+        25
+       ],
+       [
+        2012,
+        19
+       ],
+       [
+        2013,
+        18
+       ],
+       [
+        2014,
+        20
+       ],
+       [
+        2015,
+        24
+       ],
+       [
+        2016,
+        30
+       ],
+       [
+        2017,
+        35
+       ],
+       [
+        2018,
+        40
+       ],
+       [
+        2019,
+        44
+       ],
+       [
+        2020,
+        50
+       ],
+       [
+        2021,
+        53
+       ],
+       [
+        2022,
+        58
+       ],
+       [
+        2023,
+        61
+       ],
+       [
+        2024,
+        76
+       ],
+       [
+        2025,
+        92
+       ],
+       [
+        2026,
+        null
+       ]
+      ]
+     },
+     {
+      "key": "apartment_merged",
+      "name": {
+       "vi": "Căn hộ sơ cấp TP.HCM mới (sau sáp nhập)",
+       "en": "Primary apartments, enlarged HCMC"
+      },
+      "points": [
+       [
+        2006,
+        null
+       ],
+       [
+        2007,
+        null
+       ],
+       [
+        2008,
+        null
+       ],
+       [
+        2009,
+        null
+       ],
+       [
+        2010,
+        null
+       ],
+       [
+        2011,
+        null
+       ],
+       [
+        2012,
+        null
+       ],
+       [
+        2013,
+        null
+       ],
+       [
+        2014,
+        null
+       ],
+       [
+        2015,
+        null
+       ],
+       [
+        2016,
+        null
+       ],
+       [
+        2017,
+        null
+       ],
+       [
+        2018,
+        null
+       ],
+       [
+        2019,
+        null
+       ],
+       [
+        2020,
+        null
+       ],
+       [
+        2021,
+        null
+       ],
+       [
+        2022,
+        null
+       ],
+       [
+        2023,
+        null
+       ],
+       [
+        2024,
+        null
+       ],
+       [
+        2025,
+        65
+       ],
+       [
+        2026,
+        75
+       ]
+      ]
+     }
+    ],
+    "note": {
+     "vi": "Mốc cuối năm/cả năm, triệu đồng/m² thông thủy, chưa VAT. 2017-2021 quy đổi từ USD của CBRE (1.558; ~1.730; 1.902; 2.150; 2.306 USD/m²). 2023, 2025 là số CBRE; 2022, 2024 suy ra (2024 = 92/1,21). 2006-2016 là ước tính độ tin cậy THẤP từ báo chí (đỉnh 2008, Vnrea 34 xuống 18 triệu năm 2012). 2026 đổi phạm vi sau sáp nhập nên tách chuỗi riêng. Liền thổ 2023, 2025 suy ra từ % YoY.",
+     "en": "Year-end/annual values, million VND/m² net, ex-VAT. 2017-2021 converted from CBRE USD figures; 2023 and 2025 are CBRE; 2022 and 2024 are derived (2024 = 92/1.21). 2006-2016 are LOW-confidence estimates from press reports (2008 peak, Vnrea 34 to 18m by 2012). The 2026 boundary change means a separate series. Landed 2023 and 2025 derived from YoY %."
+    },
+    "sources": [
+     "CBRE Vietnam quarterly HCMC residential reports (qua VTC News, Báo Đầu tư, Pháp luật Doanh nhân, VOV, Thời báo Tài chính)",
+     "DKRA Vietnam 2015-2019 (VnExpress 16/9/2019)",
+     "Vnrea, Nhà Đầu tư 19/12/2024 (giai đoạn 2012-2013)",
+     "Báo chí 2007-2008 (VnExpress, VnEconomy) cho giai đoạn sốt đất"
+    ],
+    "confidence": "low",
+    "confidence_label": {
+     "vi": "Trước 2017 là ước tính",
+     "en": "Pre-2017 estimated"
+    }
+   },
+   "periods": [
+    {
+     "span": 20,
+     "range": "2006-2026",
+     "title": {
+      "vi": "Hai thập kỷ, ba chu kỳ",
+      "en": "Two decades, three cycles"
+     },
+     "text": {
+      "vi": "Từ cơn sốt 2007 tới 2026, thị trường đi qua ba chu kỳ: bong bóng 2007-2008, đóng băng 2011-2013, bùng nổ 2015-2018, nghẽn pháp lý và Covid 2019-2021, khủng hoảng trái phiếu 2022-2023 rồi phục hồi 2024-2026. Giá căn hộ sơ cấp TB tăng từ khoảng 13 triệu đồng/m² (ước tính 2006) lên 92 triệu đồng/m² (CBRE, Q4/2025) ở TP.HCM cũ.",
+      "en": "From the 2007 frenzy to 2026 the market went through boom-bust 2007-2008, freeze 2011-2013, boom 2015-2018, legal bottleneck plus Covid 2019-2021, bond crisis 2022-2023 and recovery 2024-2026. The average primary apartment price rose from about VND 13m/m² (2006 estimate) to VND 92m/m² (CBRE, Q4/2025) in old HCMC."
+     },
+     "change": {
+      "vi": "giá căn hộ sơ cấp ~x7 (độ tin cậy thấp cho mốc 2006)",
+      "en": "primary apartments ~x7 (2006 point low confidence)"
+     },
+     "milestones": [
+      {
+       "year": 2008,
+       "text": {
+        "vi": "Đỉnh sốt đầu năm, cuối năm lao dốc; một số dự án giảm trên 30%",
+        "en": "Peak early in the year, crash by year-end; some projects down over 30%"
+       }
+      },
+      {
+       "year": 2012,
+       "text": {
+        "vi": "Đóng băng, tồn kho khoảng 28.000 căn hộ (Vnrea)",
+        "en": "Freeze, about 28,000 unsold apartments (Vnrea)"
+       }
+      },
+      {
+       "year": 2015,
+       "text": {
+        "vi": "Luật Nhà ở 2014 mở cửa cho người nước ngoài mua nhà",
+        "en": "Housing Law 2014 opens home buying to foreigners"
+       }
+      },
+      {
+       "year": 2022,
+       "text": {
+        "vi": "Khủng hoảng trái phiếu doanh nghiệp, tín dụng BĐS bị siết",
+        "en": "Corporate bond crisis, property credit squeezed"
+       }
+      },
+      {
+       "year": 2025,
+       "text": {
+        "vi": "Sáp nhập Bình Dương, Bà Rịa - Vũng Tàu vào TP.HCM từ 1/7",
+        "en": "Binh Duong and Ba Ria - Vung Tau merged into HCMC from 1 July"
+       }
+      }
+     ]
+    },
+    {
+     "span": 15,
+     "range": "2011-2026",
+     "title": {
+      "vi": "Từ đóng băng tới mặt bằng giá mới",
+      "en": "From freeze to a new price level"
+     },
+     "text": {
+      "vi": "2011-2013 lãi suất cao, tín dụng siết, giá căn hộ giảm còn khoảng 18-25 triệu đồng/m² và hơn chục nghìn căn tồn kho. Gói 30.000 tỷ (2013) và Luật Nhà ở 2014 mở đường phục hồi. Sau 2015 nhà phát triển lớn tung nguồn cung kỷ lục ở khu Đông, khu Nam. Đến 2025 giá TP.HCM cũ đạt 92 triệu đồng/m², gấp khoảng 4-5 lần đáy 2013.",
+      "en": "In 2011-2013 high rates and tight credit pushed apartment prices down to about VND 18-25m/m² with a large unsold stock. The VND 30,000bn package (2013) and the 2014 Housing Law enabled recovery. After 2015 big developers launched record supply in the East and South. By 2025 old-HCMC prices reached VND 92m/m², roughly 4-5x the 2013 trough."
+     },
+     "change": {
+      "vi": "căn hộ sơ cấp ~x4-5 từ đáy 2013",
+      "en": "primary apartments ~x4-5 from the 2013 bottom"
+     },
+     "milestones": [
+      {
+       "year": 2013,
+       "text": {
+        "vi": "Gói tín dụng 30.000 tỷ hỗ trợ nhà ở xã hội, nhà thu nhập thấp",
+        "en": "VND 30,000bn credit package for social and low-income housing"
+       }
+      },
+      {
+       "year": 2015,
+       "text": {
+        "vi": "Phục hồi; căn hộ hạng A khoảng 40, hạng B 21 triệu đồng/m² (DKRA)",
+        "en": "Recovery; Class A about VND 40m, Class B 21m/m² (DKRA)"
+       }
+      },
+      {
+       "year": 2018,
+       "text": {
+        "vi": "Đỉnh nguồn cung chu kỳ, giá hạng A 57 triệu đồng/m² (DKRA)",
+        "en": "Cycle supply peak; Class A VND 57m/m² (DKRA)"
+       }
+      },
+      {
+       "year": 2024,
+       "text": {
+        "vi": "Ba luật Đất đai, Nhà ở, KDBĐS có hiệu lực từ 1/8; Metro số 1 chạy 22/12",
+        "en": "Land, Housing and Real Estate Business laws effective 1 Aug; Metro Line 1 opens 22 Dec"
+       }
+      }
+     ]
+    },
+    {
+     "span": 10,
+     "range": "2016-2026",
+     "title": {
+      "vi": "Bùng nổ, tắc pháp lý, khan cung",
+      "en": "Boom, legal gridlock, scarce supply"
+     },
+     "text": {
+      "vi": "2016-2018 là thời bùng nổ căn hộ khu Đông (Q2, Q9) và đất nền vùng ven. Từ 2019 hàng trăm dự án kẹt pháp lý, nguồn cung giảm 5 năm liền; năm 2020 chỉ 17.272 căn (CBRE), không có căn hộ bình dân. Covid 2020-2021 và khủng hoảng trái phiếu 2022 kéo dài khan cung tới 2025, đẩy giá căn hộ tăng gần gấp ba sau 10 năm.",
+      "en": "2016-2018 saw an apartment boom in the East (D2, D9) and land-plot fever on the fringe. From 2019 hundreds of projects stalled on legal issues and supply fell five years running; 2020 had only 17,272 launches (CBRE) and no affordable units. Covid and the 2022 bond crisis prolonged the shortage to 2025, nearly tripling apartment prices over the decade."
+     },
+     "change": {
+      "vi": "căn hộ sơ cấp ~x3 (30 lên 92 triệu/m², 2016-2025)",
+      "en": "primary apartments ~x3 (30 to 92m/m², 2016-2025)"
+     },
+     "milestones": [
+      {
+       "year": 2019,
+       "text": {
+        "vi": "Giá TB 1.902 USD/m², +10% năm (CBRE); nghẽn pháp lý bắt đầu",
+        "en": "Avg USD 1,902/m², +10% YoY (CBRE); legal bottleneck begins"
+       }
+      },
+      {
+       "year": 2020,
+       "text": {
+        "vi": "Nguồn cung 17.272 căn, thấp nhất 6 năm; cao cấp chiếm 76%",
+        "en": "17,272 launches, 6-year low; high-end 76% of supply"
+       }
+      },
+      {
+       "year": 2021,
+       "text": {
+        "vi": "Giãn cách Covid; giá Q4 2.306 USD/m² (CBRE)",
+        "en": "Covid lockdowns; Q4 price USD 2,306/m² (CBRE)"
+       }
+      },
+      {
+       "year": 2023,
+       "text": {
+        "vi": "Nguồn cung thấp nhất 10 năm; Nghị quyết 98 cơ chế đặc thù TP.HCM",
+        "en": "Lowest supply in 10 years; Resolution 98 special mechanisms for HCMC"
+       }
+      }
+     ]
+    },
+    {
+     "span": 5,
+     "range": "2021-2026",
+     "title": {
+      "vi": "Khủng hoảng niềm tin rồi phục hồi lệch pha",
+      "en": "Confidence crisis, then uneven recovery"
+     },
+     "text": {
+      "vi": "Cuối 2022 vụ việc trái phiếu và lãi suất tăng làm thị trường gần như tê liệt, nguồn cung 2023 thấp nhất 10 năm. Từ 2024 luật mới có hiệu lực, lãi suất giảm, giá sơ cấp tăng mạnh: CBRE ghi nhận Q3/2025 87 triệu (+31% YoY), Q4/2025 92 triệu đồng/m² (+21% YoY) ở TP.HCM cũ, chủ yếu do tỷ trọng hàng cao cấp và hạng sang.",
+      "en": "In late 2022 the bond scandal and rising rates nearly froze the market; 2023 supply was a 10-year low. From 2024 new laws, lower rates and scarce supply lifted primary prices: CBRE recorded VND 87m in Q3/2025 (+31% YoY) and VND 92m/m² in Q4/2025 (+21% YoY) in old HCMC, driven mainly by a high share of luxury stock."
+     },
+     "change": {
+      "vi": "căn hộ sơ cấp +~75% (53 lên 92 triệu/m², 2021-2025)",
+      "en": "primary apartments +~75% (53 to 92m/m², 2021-2025)"
+     },
+     "milestones": [
+      {
+       "year": 2022,
+       "text": {
+        "vi": "Siết trái phiếu, lãi vay mua nhà vượt 12%",
+        "en": "Bond squeeze, mortgage rates above 12%"
+       }
+      },
+      {
+       "year": 2023,
+       "text": {
+        "vi": "Nghị định 08 giãn nợ trái phiếu; gói 120.000 tỷ nhà ở xã hội",
+        "en": "Decree 08 eases bond repayment; VND 120,000bn social housing package"
+       }
+      },
+      {
+       "year": 2024,
+       "text": {
+        "vi": "Luật mới có hiệu lực 1/8; Metro Bến Thành - Suối Tiên vận hành",
+        "en": "New laws effective 1 Aug; Ben Thanh - Suoi Tien metro opens"
+       }
+      },
+      {
+       "year": 2025,
+       "text": {
+        "vi": "Giá TP.HCM cũ 92 triệu đồng/m² Q4 (CBRE); sáp nhập tỉnh",
+        "en": "Old HCMC VND 92m/m² in Q4 (CBRE); province merger"
+       }
+      }
+     ]
+    },
+    {
+     "span": 2,
+     "range": "2024-2026",
+     "title": {
+      "vi": "Đỉnh giá và nhịp chững 2026",
+      "en": "Price peak and the 2026 pause"
+     },
+     "text": {
+      "vi": "Sau sáp nhập, nguồn cung mới dồn về Bình Dương cũ (hơn 8.400/14.028 căn mở bán 9 tháng 2026, CBRE). Giá sơ cấp TP.HCM mới tăng lên 76 triệu (Q2/2026, +16% YoY) rồi đi ngang 75 triệu đồng/m² ở Q3. Lãi vay mới tăng lên 8,93% bình quân, vay mua nhà 12-14%, khiến hấp thụ rơi về 32-45% và giá thứ cấp giảm 4-7% theo quý (DKRA).",
+      "en": "After the merger, new supply shifted to former Binh Duong (8,400+ of 14,028 units launched in 9M/2026, CBRE). Enlarged-HCMC primary prices rose to VND 76m (Q2/2026, +16% YoY) then flattened at VND 75m/m² in Q3. New-loan rates averaged 8.93% and mortgages 12-14%, cutting absorption to 32-45%; resale prices fell 4-7% QoQ (DKRA)."
+     },
+     "change": {
+      "vi": "sơ cấp +16% YoY (Q2/2026) rồi đi ngang; thứ cấp -4-7% QoQ",
+      "en": "primary +16% YoY (Q2/2026) then flat; secondary -4-7% QoQ"
+     },
+     "milestones": [
+      {
+       "year": 2025,
+       "text": {
+        "vi": "Nguồn cung nhà thấp tầng 4.400 căn, gấp gần 18 lần 2024, chủ yếu đại đô thị Cần Giờ",
+        "en": "4,400 low-rise launches, nearly 18x 2024, mostly the Can Gio megaproject"
+       }
+      },
+      {
+       "year": 2026,
+       "text": {
+        "vi": "Bảng giá đất mới theo Luật Đất đai 2024 áp dụng từ 1/1; Metro số 2 khởi công 15/1",
+        "en": "First land price table under the 2024 Land Law from 1 Jan; Metro Line 2 starts 15 Jan"
+       }
+      },
+      {
+       "year": 2026,
+       "text": {
+        "vi": "Q3: tiêu thụ sơ cấp giảm 66% QoQ (DKRA), giá thứ cấp nhà phố giảm",
+        "en": "Q3: primary sales down 66% QoQ (DKRA), landed resale prices fall"
+       }
+      }
+     ]
+    }
+   ],
+   "segments": [
+    {
+     "name": {
+      "vi": "Căn hộ bình dân (hạng C)",
+      "en": "Affordable apartments (Class C)"
+     },
+     "price": {
+      "vi": "35-50 triệu/m² (chủ yếu Bình Dương, Vũng Tàu cũ)",
+      "en": "VND 35-50m/m² (mostly former Binh Duong, Vung Tau)"
+     },
+     "trend": "up",
+     "note": {
+      "vi": "Gần như biến mất ở TP.HCM cũ; hàng dưới 50 triệu chỉ khoảng 12% nguồn cung mới. Nhu cầu ở thực lớn nhất, thanh khoản tốt nhất.",
+      "en": "Nearly extinct in old HCMC; units under VND 50m are only about 12% of new supply. Strongest owner-occupier demand and liquidity."
+     }
+    },
+    {
+     "name": {
+      "vi": "Căn hộ trung cấp (hạng B)",
+      "en": "Mid-range apartments (Class B)"
+     },
+     "price": {
+      "vi": "50-90 triệu/m² vùng ven; 85-175 triệu/m² nội đô",
+      "en": "VND 50-90m/m² fringe; VND 85-175m/m² inner city"
+     },
+     "trend": "flat",
+     "note": {
+      "vi": "Dòng tiền dịch ra vùng ven và Bình Dương cũ. CBRE cảnh báo căn hộ vùng ven kém hấp dẫn nếu giá vượt 70 triệu/m².",
+      "en": "Demand is moving to the fringe and former Binh Duong. CBRE warns fringe apartments lose appeal above VND 70m/m²."
+     }
+    },
+    {
+     "name": {
+      "vi": "Căn hộ cao cấp (hạng A)",
+      "en": "High-end apartments (Class A)"
+     },
+     "price": {
+      "vi": "100-200 triệu/m²",
+      "en": "VND 100-200m/m²"
+     },
+     "trend": "flat",
+     "note": {
+      "vi": "Chiếm phần lớn hàng mới ở TP.HCM cũ (80% hàng sơ cấp trên 100 triệu/m², Savills Q2/2026). Chủ đầu tư giữ giá, hỗ trợ lãi suất thay vì giảm niêm yết.",
+      "en": "Dominates old-HCMC launches (80% of primary stock above VND 100m/m², Savills Q2/2026). Developers hold prices and subsidise interest instead of cutting list prices."
+     }
+    },
+    {
+     "name": {
+      "vi": "Căn hộ hạng sang, siêu sang",
+      "en": "Luxury and super-luxury apartments"
+     },
+     "price": {
+      "vi": "200-470 triệu/m²",
+      "en": "VND 200-470m/m²"
+     },
+     "trend": "up",
+     "note": {
+      "vi": "Tập trung Q1, Thủ Thiêm; Metropole Thủ Thiêm rao 330-448 triệu/m², siêu sang tiệm cận 18.000 USD/m² (Avison Young). Là động lực chính kéo giá trung bình lên.",
+      "en": "Concentrated in D1 and Thu Thiem; Metropole Thu Thiem listed at VND 330-448m/m², super-luxury near USD 18,000/m² (Avison Young). Main driver of rising averages."
+     }
+    },
+    {
+     "name": {
+      "vi": "Nhà phố, biệt thự dự án",
+      "en": "Townhouses and villas in projects"
+     },
+     "price": {
+      "vi": "~214 triệu/m² đất sơ cấp; ~159 triệu thứ cấp (TP.HCM cũ)",
+      "en": "~VND 214m/m² land primary; ~159m resale (old HCMC)"
+     },
+     "trend": "down",
+     "note": {
+      "vi": "Q3/2026 giá sơ cấp -29% YoY do đại đô thị Cần Giờ bán thấp hơn mặt bằng khoảng 40%; thứ cấp giảm 6% QoQ (CBRE), DKRA ghi giảm bình quân 13%.",
+      "en": "Q3/2026 primary -29% YoY because the Can Gio megaproject sells about 40% below market; resale -6% QoQ (CBRE), DKRA reports an average 13% drop."
+     }
+    },
+    {
+     "name": {
+      "vi": "Đất nền",
+      "en": "Land plots"
+     },
+     "price": {
+      "vi": "Biến động mạnh theo vị trí; vùng ven 15-60 triệu/m² (ước tính)",
+      "en": "Highly location-specific; fringe VND 15-60m/m² (estimate)"
+     },
+     "trend": "flat",
+     "note": {
+      "vi": "Luật KDBĐS 2023 cấm phân lô bán nền ở phường đô thị loại đặc biệt, I-III nên nguồn cung ở TP.HCM rất ít; giá sơ cấp đi ngang, thứ cấp -2% QoQ (DKRA). Giá vùng ven là ước tính, độ tin cậy thấp.",
+      "en": "The 2023 Real Estate Business Law bans plot subdivision sales in wards of top-tier cities, so HCMC supply is thin; primary flat, resale -2% QoQ (DKRA). Fringe price range is a low-confidence estimate."
+     }
+    },
+    {
+     "name": {
+      "vi": "Shophouse, khối đế thương mại",
+      "en": "Shophouses and retail podiums"
+     },
+     "price": {
+      "vi": "Theo dự án, thường cao hơn nhà phố cùng khu 20-50% (ước tính)",
+      "en": "Project-specific, often 20-50% above nearby townhouses (estimate)"
+     },
+     "trend": "down",
+     "note": {
+      "vi": "Chịu áp lực khi lãi vay cao và khách thuê bán lẻ yếu; chỉ nên chọn nơi có lưu lượng thật. Số liệu tổng hợp thiếu, độ tin cậy thấp.",
+      "en": "Under pressure from high rates and weak retail tenants; pick only sites with real foot traffic. Aggregate data is lacking, low confidence."
+     }
+    },
+    {
+     "name": {
+      "vi": "Condotel, nghỉ dưỡng (Vũng Tàu, Hồ Tràm)",
+      "en": "Condotels and resort homes (Vung Tau, Ho Tram)"
+     },
+     "price": {
+      "vi": "Theo dự án; căn hộ Bà Rịa - Vũng Tàu cũ TB ~35 triệu/m² (Q1/2026)",
+      "en": "Project-specific; former Ba Ria - Vung Tau apartments avg ~VND 35m/m² (Q1/2026)"
+     },
+     "trend": "flat",
+     "note": {
+      "vi": "Pháp lý condotel còn vướng, cam kết lợi nhuận nhiều nơi vỡ sau 2020. Giá TB căn hộ BR-VT 1.373 USD/m² (Cushman & Wakefield).",
+      "en": "Condotel titling still murky; many guaranteed-return schemes broke after 2020. Former BR-VT apartment avg USD 1,373/m² (Cushman & Wakefield)."
+     }
+    }
+   ],
+   "subareas": [
+    {
+     "name": {
+      "vi": "Lõi trung tâm (Q1, Q3 cũ)",
+      "en": "CBD core (old D1, D3)"
+     },
+     "type": {
+      "vi": "Căn hộ hạng sang, nhà phố mặt tiền",
+      "en": "Luxury apartments, street-front houses"
+     },
+     "price": {
+      "vi": "~185 triệu/m² TB căn hộ sơ cấp (Q1/2026); siêu sang tới ~470 triệu",
+      "en": "~VND 185m/m² avg primary apartment (Q1/2026); super-luxury up to ~470m"
+     },
+     "highlight": {
+      "vi": "Giá sơ cấp lập kỷ lục +53% YoY (Cushman & Wakefield Q1/2026); bảng giá đất cao nhất ~687 triệu/m² (Nguyễn Huệ, Lê Lợi, Đồng Khởi).",
+      "en": "Record primary price, +53% YoY (Cushman & Wakefield Q1/2026); top land-table value ~VND 687m/m² (Nguyen Hue, Le Loi, Dong Khoi)."
+     },
+     "potential": 3,
+     "risk": 3,
+     "lat": 10.776,
+     "lng": 106.701
+    },
+    {
+     "name": {
+      "vi": "Thủ Thiêm (Thủ Đức)",
+      "en": "Thu Thiem (Thu Duc)"
+     },
+     "type": {
+      "vi": "Khu đô thị mới, căn hộ hạng sang",
+      "en": "New CBD, luxury apartments"
+     },
+     "price": {
+      "vi": "~250-450 triệu/m² (Metropole 330-448 triệu)",
+      "en": "~VND 250-450m/m² (Metropole 330-448m)"
+     },
+     "highlight": {
+      "vi": "Trung tâm tài chính mới, nối Q1 qua hầm Thủ Thiêm, cầu Ba Son, cầu Thủ Thiêm 4 dự kiến khởi công. Thanh khoản hẹp, khách giàu.",
+      "en": "The new financial centre, linked to D1 by tunnel and Ba Son bridge; Thu Thiem 4 bridge planned. Narrow, wealthy buyer pool."
+     },
+     "potential": 4,
+     "risk": 3,
+     "lat": 10.772,
+     "lng": 106.718
+    },
+    {
+     "name": {
+      "vi": "Thủ Đức - Q2 cũ (Thảo Điền, An Phú)",
+      "en": "Thu Duc - old D2 (Thao Dien, An Phu)"
+     },
+     "type": {
+      "vi": "Căn hộ cao cấp, biệt thự, cộng đồng nước ngoài",
+      "en": "High-end apartments, villas, expat hub"
+     },
+     "price": {
+      "vi": "~100-180 triệu/m² căn hộ mới (ước tính, độ tin cậy thấp)",
+      "en": "~VND 100-180m/m² new apartments (estimate, low confidence)"
+     },
+     "highlight": {
+      "vi": "Hưởng lợi Metro số 1 và Vành đai 2, 3; khu Đông chiếm khoảng một nửa nguồn cung 2026-2028 (Savills).",
+      "en": "Benefits from Metro Line 1 and Ring Roads 2 and 3; the East takes about half of 2026-2028 supply (Savills)."
+     },
+     "potential": 4,
+     "risk": 2,
+     "lat": 10.803,
+     "lng": 106.74
+    },
+    {
+     "name": {
+      "vi": "Thủ Đức - Q9 cũ (Long Bình, Vinhomes Grand Park)",
+      "en": "Thu Duc - old D9 (Long Binh, Vinhomes Grand Park)"
+     },
+     "type": {
+      "vi": "Đại đô thị, căn hộ trung cấp",
+      "en": "Megaprojects, mid-range apartments"
+     },
+     "price": {
+      "vi": "~50-80 triệu/m² (ước tính)",
+      "en": "~VND 50-80m/m² (estimate)"
+     },
+     "highlight": {
+      "vi": "Đầu Metro số 1 (Suối Tiên), Vành đai 3 đoạn qua Vinhomes Grand Park đã xong; gần cao tốc Long Thành - Dầu Giây và sân bay Long Thành.",
+      "en": "Metro Line 1 terminus (Suoi Tien); Ring Road 3 segment via Vinhomes Grand Park done; near the Long Thanh expressway and airport."
+     },
+     "potential": 4,
+     "risk": 2,
+     "lat": 10.842,
+     "lng": 106.835
+    },
+    {
+     "name": {
+      "vi": "Q7, Nhà Bè (khu Nam)",
+      "en": "D7, Nha Be (South)"
+     },
+     "type": {
+      "vi": "Căn hộ trung - cao cấp, nhà phố",
+      "en": "Mid to high-end apartments, townhouses"
+     },
+     "price": {
+      "vi": "69-300 triệu/m² (dự án mới tháng 9/2026; Phú Mỹ Hưng ~300 triệu)",
+      "en": "VND 69-300m/m² (Sept 2026 launches; Phu My Hung ~300m)"
+     },
+     "highlight": {
+      "vi": "Ngày càng khó tìm căn dưới 100 triệu/m²; chiếm khoảng 20% nguồn cung khu trung tâm Q1/2026. Hưởng lợi cầu Cần Giờ, Phú Mỹ 2.",
+      "en": "Units under VND 100m/m² are increasingly rare; about 20% of central supply in Q1/2026. Gains from Can Gio and Phu My 2 bridges."
+     },
+     "potential": 3,
+     "risk": 2,
+     "lat": 10.729,
+     "lng": 106.721
+    },
+    {
+     "name": {
+      "vi": "Bình Chánh (Tây Nam)",
+      "en": "Binh Chanh (South-west)"
+     },
+     "type": {
+      "vi": "Căn hộ bình dân - trung cấp, đất nền",
+      "en": "Affordable to mid-range apartments, land"
+     },
+     "price": {
+      "vi": "~40-60 triệu/m² căn hộ (ước tính, độ tin cậy thấp)",
+      "en": "~VND 40-60m/m² apartments (estimate, low confidence)"
+     },
+     "highlight": {
+      "vi": "Cửa ngõ miền Tây, Vành đai 3 và Vành đai 4 đi qua; quỹ đất lớn cho nhà ở xã hội.",
+      "en": "Gateway to the Mekong Delta on Ring Roads 3 and 4; large land bank for social housing."
+     },
+     "potential": 3,
+     "risk": 3,
+     "lat": 10.69,
+     "lng": 106.59
+    },
+    {
+     "name": {
+      "vi": "Hóc Môn, Củ Chi (Tây Bắc)",
+      "en": "Hoc Mon, Cu Chi (North-west)"
+     },
+     "type": {
+      "vi": "Đất nền, nhà vườn, công nghiệp",
+      "en": "Land plots, garden homes, industrial"
+     },
+     "price": {
+      "vi": "Đất thổ cư ~15-40 triệu/m² (ước tính, độ tin cậy thấp)",
+      "en": "Residential land ~VND 15-40m/m² (estimate, low confidence)"
+     },
+     "highlight": {
+      "vi": "Đón cao tốc TP.HCM - Mộc Bài và Vành đai 3, 4; dư địa tăng dài hạn nhưng pháp lý thổ cư, quy hoạch cần soi kỹ.",
+      "en": "On the HCMC - Moc Bai expressway and Ring Roads 3 and 4; long-run upside, but check zoning and residential land titles carefully."
+     },
+     "potential": 4,
+     "risk": 4,
+     "lat": 10.95,
+     "lng": 106.52
+    },
+    {
+     "name": {
+      "vi": "Cần Giờ",
+      "en": "Can Gio"
+     },
+     "type": {
+      "vi": "Đại đô thị lấn biển, nghỉ dưỡng",
+      "en": "Coastal megaproject, resort"
+     },
+     "price": {
+      "vi": "Nhà thấp tầng mở bán thấp hơn mặt bằng TP.HCM cũ ~40% (CBRE)",
+      "en": "Low-rise priced ~40% below the old-HCMC average (CBRE)"
+     },
+     "highlight": {
+      "vi": "Đại đô thị Cần Giờ đóng góp phần lớn 4.400 căn thấp tầng 2025. Phụ thuộc cầu Cần Giờ (mục tiêu 6/2029), cầu - hầm Cần Giờ - Vũng Tàu và cảng trung chuyển.",
+      "en": "The Can Gio megaproject supplied most of 2025's 4,400 low-rise units. Depends on Can Gio bridge (target 6/2029), the Can Gio - Vung Tau sea link and the transshipment port."
+     },
+     "potential": 4,
+     "risk": 5,
+     "lat": 10.41,
+     "lng": 106.95
+    },
+    {
+     "name": {
+      "vi": "Thuận An, Dĩ An (Bình Dương cũ)",
+      "en": "Thuan An, Di An (former Binh Duong)"
+     },
+     "type": {
+      "vi": "Căn hộ trung cấp giáp ranh",
+      "en": "Mid-range apartments on the border"
+     },
+     "price": {
+      "vi": "TB Bình Dương cũ ~48 triệu/m² (Q1/2026); sát TP.HCM 60-75 triệu",
+      "en": "Former Binh Duong avg ~VND 48m/m² (Q1/2026); border areas 60-75m"
+     },
+     "highlight": {
+      "vi": "Hơn 55% nguồn cung mới Q3/2026 nằm ở Bình Dương cũ (Savills), dọc QL13 và tuyến metro đề xuất; cạnh tranh giá gay gắt.",
+      "en": "Over 55% of Q3/2026 new supply is in former Binh Duong (Savills), along NH13 and a proposed metro line; stiff price competition."
+     },
+     "potential": 4,
+     "risk": 3,
+     "lat": 10.9,
+     "lng": 106.75
+    },
+    {
+     "name": {
+      "vi": "Thủ Dầu Một, Bình Dương mới",
+      "en": "Thu Dau Mot, Binh Duong New City"
+     },
+     "type": {
+      "vi": "Đô thị công nghiệp, căn hộ, nhà phố",
+      "en": "Industrial city, apartments, townhouses"
+     },
+     "price": {
+      "vi": "~40-55 triệu/m² căn hộ (ước tính, độ tin cậy thấp)",
+      "en": "~VND 40-55m/m² apartments (estimate, low confidence)"
+     },
+     "highlight": {
+      "vi": "Nhu cầu ở thực từ chuyên gia, công nhân KCN; Vành đai 3, 4 cải thiện kết nối. Rủi ro dư cung cục bộ.",
+      "en": "Real demand from industrial-park workers and managers; Ring Roads 3 and 4 improve access. Local oversupply risk."
+     },
+     "potential": 3,
+     "risk": 3,
+     "lat": 10.98,
+     "lng": 106.65
+    },
+    {
+     "name": {
+      "vi": "Vũng Tàu, Bà Rịa (BR-VT cũ)",
+      "en": "Vung Tau, Ba Ria (former BR-VT)"
+     },
+     "type": {
+      "vi": "Nghỉ dưỡng, căn hộ biển, cảng",
+      "en": "Resort, beach apartments, port"
+     },
+     "price": {
+      "vi": "Căn hộ TB ~35 triệu/m² (1.373 USD, Q1/2026)",
+      "en": "Apartment avg ~VND 35m/m² (USD 1,373, Q1/2026)"
+     },
+     "highlight": {
+      "vi": "Giá thấp nhất vùng, tăng cả QoQ và YoY (Cushman & Wakefield). Động lực: cảng Cái Mép - Thị Vải, sân bay Long Thành, cầu - hầm Cần Giờ - Vũng Tàu.",
+      "en": "Lowest prices in the region, rising QoQ and YoY (Cushman & Wakefield). Drivers: Cai Mep - Thi Vai port, Long Thanh airport, Can Gio - Vung Tau link."
+     },
+     "potential": 4,
+     "risk": 3,
+     "lat": 10.346,
+     "lng": 107.084
+    }
+   ],
+   "infrastructure": [
+    {
+     "name": {
+      "vi": "Metro số 1 Bến Thành - Suối Tiên",
+      "en": "Metro Line 1 Ben Thanh - Suoi Tien"
+     },
+     "status": {
+      "vi": "Vận hành thương mại từ 22/12/2024",
+      "en": "In commercial service since 22/12/2024"
+     },
+     "eta": "2024",
+     "impact": {
+      "vi": "Nâng giá trị căn hộ dọc trục Xa lộ Hà Nội (Thảo Điền, An Phú, Thủ Đức, Suối Tiên); mở đầu mô hình TOD.",
+      "en": "Lifts apartment values along the Hanoi Highway corridor (Thao Dien, An Phu, Thu Duc, Suoi Tien); first TOD showcase."
+     }
+    },
+    {
+     "name": {
+      "vi": "Metro số 2 Bến Thành - Tham Lương",
+      "en": "Metro Line 2 Ben Thanh - Tham Luong"
+     },
+     "status": {
+      "vi": "Khởi công 15/1/2026, đang thi công ga ngầm, đã xong mặt bằng",
+      "en": "Started 15/1/2026; underground stations under way, land fully cleared"
+     },
+     "eta": "2030",
+     "impact": {
+      "vi": "11,3 km nối Q1, Q3, Q10, Tân Bình, Q12; hỗ trợ khu Tây Bắc, các phường dọc Cách Mạng Tháng 8, Trường Chinh.",
+      "en": "11.3 km linking D1, D3, D10, Tan Binh, D12; supports the north-west and the CMT8 / Truong Chinh corridor."
+     }
+    },
+    {
+     "name": {
+      "vi": "Vành đai 3 TP.HCM",
+      "en": "HCMC Ring Road 3"
+     },
+     "status": {
+      "vi": "Mục tiêu 38,6 km cao tốc trước 30/9/2026, toàn tuyến chính ~70 km trước 30/12/2026",
+      "en": "Target: 38.6 km by 30/9/2026, full ~70 km main line by 30/12/2026"
+     },
+     "eta": "2026",
+     "impact": {
+      "vi": "Kết nối Thủ Đức, Bình Dương, Đồng Nai, Long An; đẩy nhu cầu nhà ở vùng ven và kho bãi.",
+      "en": "Links Thu Duc, Binh Duong, Dong Nai and Long An; boosts fringe housing and logistics demand."
+     }
+    },
+    {
+     "name": {
+      "vi": "Vành đai 4 TP.HCM",
+      "en": "HCMC Ring Road 4"
+     },
+     "status": {
+      "vi": "Đang GPMB; phần cao tốc dự kiến khởi công từ 2/9/2026, đoạn Tây Ninh khởi động 15/10; kế hoạch 2026-2028",
+      "en": "Land clearance; expressway core slated to start from 2/9/2026, Tay Ninh packages launched 15/10; 2026-2028 plan"
+     },
+     "eta": "2028-2029",
+     "impact": {
+      "vi": "Vành đai liên vùng hơn 200 km qua Bình Dương cũ, Củ Chi, Long An; mở quỹ đất công nghiệp, đô thị vệ tinh.",
+      "en": "200+ km regional ring through former Binh Duong, Cu Chi, Long An; opens industrial and satellite-town land."
+     }
+    },
+    {
+     "name": {
+      "vi": "Sân bay quốc tế Long Thành",
+      "en": "Long Thanh International Airport"
+     },
+     "status": {
+      "vi": "Đã đón chuyến bay đầu tiên 19/12/2025; dự kiến khai thác thương mại từ 0h 24/12/2026",
+      "en": "First ceremonial flight 19/12/2025; commercial operations planned from 24/12/2026"
+     },
+     "eta": "2026",
+     "impact": {
+      "vi": "Tăng sức hút khu Đông (Thủ Đức), Nhơn Trạch, Bà Rịa; cần các tuyến kết nối như cao tốc Long Thành - Dầu Giây mở rộng, metro TP.HCM - Long Thành.",
+      "en": "Pulls demand to the East (Thu Duc), Nhon Trach and Ba Ria; relies on links such as the widened Long Thanh expressway and a planned metro."
+     }
+    },
+    {
+     "name": {
+      "vi": "Cầu Cần Giờ",
+      "en": "Can Gio Bridge"
+     },
+     "status": {
+      "vi": "Động thổ 15/1/2026; thi công chính dự kiến quý IV/2026",
+      "en": "Groundbreaking 15/1/2026; main works expected Q4/2026"
+     },
+     "eta": "2029",
+     "impact": {
+      "vi": "Thay phà Bình Khánh, nối Nhà Bè với Cần Giờ; điều kiện then chốt cho đại đô thị lấn biển Cần Giờ.",
+      "en": "Replaces the Binh Khanh ferry, linking Nha Be to Can Gio; a key precondition for the Can Gio coastal megaproject."
+     }
+    },
+    {
+     "name": {
+      "vi": "Cao tốc TP.HCM - Mộc Bài",
+      "en": "HCMC - Moc Bai Expressway"
+     },
+     "status": {
+      "vi": "Đã chọn nhà đầu tư BOT, bàn giao hơn 75% mặt bằng (5/2026); thi công chính lùi nhiều lần trong 2026",
+      "en": "BOT investor selected, over 75% of land handed over (5/2026); main works delayed several times in 2026"
+     },
+     "eta": "2028",
+     "impact": {
+      "vi": "Mở trục Tây Bắc qua Củ Chi tới Tây Ninh, Campuchia; hỗ trợ đất nền, công nghiệp Củ Chi, Hóc Môn.",
+      "en": "Opens the north-west axis via Cu Chi to Tay Ninh and Cambodia; supports Cu Chi and Hoc Mon land and industry."
+     }
+    },
+    {
+     "name": {
+      "vi": "Cảng trung chuyển quốc tế Cần Giờ",
+      "en": "Can Gio International Transshipment Port"
+     },
+     "status": {
+      "vi": "Vốn khoảng 4,5-5,5 tỷ USD; mốc khởi công lùi nhiều lần, chưa xác nhận thi công",
+      "en": "About USD 4.5-5.5bn; start date slipped repeatedly, construction not confirmed"
+     },
+     "eta": "2030+",
+     "impact": {
+      "vi": "Nếu thành hình, tạo việc làm và nhu cầu nhà ở cho Cần Giờ, Nhà Bè; hiện còn mang tính kỳ vọng.",
+      "en": "If built, creates jobs and housing demand in Can Gio and Nha Be; still speculative today."
+     }
+    },
+    {
+     "name": {
+      "vi": "Cầu - hầm vượt biển Cần Giờ - Vũng Tàu",
+      "en": "Can Gio - Vung Tau sea bridge-tunnel"
+     },
+     "status": {
+      "vi": "Tổng vốn khoảng 93.000 tỷ đồng, dự kiến khởi công 7/2026 (chưa xác nhận)",
+      "en": "About VND 93,000bn; start planned for 7/2026 (unconfirmed)"
+     },
+     "eta": "2030+",
+     "impact": {
+      "vi": "Nối hai cực biển của TP.HCM mới, rút ngắn đường tới Vũng Tàu; kỳ vọng cho BĐS nghỉ dưỡng hai đầu.",
+      "en": "Links the two coastal poles of the new HCMC and shortens trips to Vung Tau; upside for resort property at both ends."
+     }
+    }
+   ],
+   "policy": [
+    {
+     "title": {
+      "vi": "Luật Đất đai 2024",
+      "en": "Land Law 2024"
+     },
+     "text": {
+      "vi": "Hiệu lực 1/8/2024: bỏ khung giá đất, bảng giá đất ban hành theo nguyên tắc thị trường. Nghị quyết 254/2025/QH15 (hiệu lực 1/1/2026) và Nghị định 50/2026 tháo gỡ thêm về tiền sử dụng đất, thu hồi đất. Chi phí đất cho dự án tăng, đẩy giá thành.",
+      "en": "Effective 1/8/2024: removes the state land price frame; land tables follow market principles. Resolution 254/2025/QH15 (from 1/1/2026) and Decree 50/2026 further ease land-use fees and land recovery. Higher land costs push up project costs."
+     }
+    },
+    {
+     "title": {
+      "vi": "Luật Kinh doanh BĐS 2023",
+      "en": "Real Estate Business Law 2023"
+     },
+     "text": {
+      "vi": "Đặt cọc nhà hình thành trong tương lai tối đa 5% giá bán và chỉ khi dự án đủ điều kiện; cấm phân lô bán nền tại phường của đô thị loại đặc biệt, I, II, III; môi giới phải hành nghề qua sàn hoặc có chứng chỉ.",
+      "en": "Deposits on off-plan homes capped at 5% and allowed only once the project qualifies; plot subdivision sales banned in wards of top-tier cities; brokers must be certified or work through exchanges."
+     }
+    },
+    {
+     "title": {
+      "vi": "Luật Nhà ở 2023 và nhà ở xã hội",
+      "en": "Housing Law 2023 and social housing"
+     },
+     "text": {
+      "vi": "Nới điều kiện mua nhà ở xã hội, Nghị quyết 201/2025 và Nghị định 261/2025 rút ngắn thủ tục. Giữa 8/2026 TP.HCM có 22 dự án với khoảng 19.878 căn đang thi công, gần 70% chỉ tiêu 2026 (Sở Xây dựng).",
+      "en": "Eases social housing eligibility; Resolution 201/2025 and Decree 261/2025 shorten procedures. By mid-Aug 2026 HCMC had 22 projects with about 19,878 units under construction, nearly 70% of the 2026 target (Department of Construction)."
+     }
+    },
+    {
+     "title": {
+      "vi": "Sáp nhập tỉnh từ 1/7/2025",
+      "en": "Province merger from 1/7/2025"
+     },
+     "text": {
+      "vi": "TP.HCM mới gồm Bình Dương và Bà Rịa - Vũng Tàu cũ, chính quyền 2 cấp, 168 phường xã. Số liệu thị trường từ 2026 tính trên phạm vi mới nên giá trung bình thấp hơn TP.HCM cũ; khi so sánh cần ghi rõ phạm vi.",
+      "en": "The new HCMC includes former Binh Duong and Ba Ria - Vung Tau, with two-tier government and 168 wards and communes. 2026 market data uses the new scope, so averages are lower than old HCMC; always state the scope when comparing."
+     }
+    },
+    {
+     "title": {
+      "vi": "Bảng giá đất áp dụng từ 1/1/2026",
+      "en": "Land price table from 1/1/2026"
+     },
+     "text": {
+      "vi": "Bảng giá đất đầu tiên theo Luật Đất đai 2024, chia 3 khu vực (TP.HCM, Bình Dương, BR-VT cũ). Giá cao nhất khoảng 687 triệu/m² (Nguyễn Huệ, Lê Lợi, Đồng Khởi theo dự thảo). Ảnh hưởng thuế, phí chuyển mục đích, bồi thường.",
+      "en": "First table under the 2024 Land Law, split into 3 zones (old HCMC, Binh Duong, BR-VT). Top value about VND 687m/m² (Nguyen Hue, Le Loi, Dong Khoi per the draft). Affects taxes, conversion fees and compensation."
+     }
+    },
+    {
+     "title": {
+      "vi": "Nghị quyết 98/2023 và TOD",
+      "en": "Resolution 98/2023 and TOD"
+     },
+     "text": {
+      "vi": "Cơ chế đặc thù cho TP.HCM về đầu tư, đất đai, BOT; cùng cơ chế phát triển đường sắt đô thị theo mô hình TOD cho phép thành phố khai thác quỹ đất quanh nhà ga để tạo vốn hạ tầng.",
+      "en": "Special mechanisms for HCMC on investment, land and BOT; together with the urban-rail TOD mechanism, the city can monetise land around stations to fund infrastructure."
+     }
+    },
+    {
+     "title": {
+      "vi": "Tín dụng và lãi suất",
+      "en": "Credit and interest rates"
+     },
+     "text": {
+      "vi": "Lãi suất cho vay mới bình quân 8,93%/năm đến 20/8/2026, tăng 0,85 điểm % so cuối 2025; vay mua nhà sau ưu đãi 12-14%. Tín dụng BĐS được kiểm soát; HoREA kiến nghị lãi vay người mua nhà thấp hơn Big 4 1,5-2 điểm %.",
+      "en": "Average new-loan rate 8.93% to 20/8/2026, up 0.85 pt from end-2025; mortgages after teaser periods 12-14%. Property credit is controlled; HoREA proposes home-buyer rates 1.5-2 pts below the Big 4 average."
+     }
+    },
+    {
+     "title": {
+      "vi": "Đề xuất thuế và trung tâm giao dịch",
+      "en": "Proposed tax and state trading centres"
+     },
+     "text": {
+      "vi": "Dự thảo Luật Thuế TNCN sửa đổi đề xuất thuế 20% trên lãi chuyển nhượng BĐS (chưa ban hành). Thí điểm trung tâm giao dịch BĐS do nhà nước quản lý 2026-2027 nhằm minh bạch giá, có thể hạn chế lướt sóng.",
+      "en": "A draft PIT law proposes a 20% tax on property transfer gains (not yet enacted). A 2026-2027 pilot of state-run property trading centres aims at price transparency and may curb flipping."
+     }
+    }
+   ],
+   "forecast": {
+    "horizon": "2027-2030",
+    "scenarios": [
+     {
+      "key": "base",
+      "name": {
+       "vi": "Cơ sở: đi ngang rồi tăng chậm",
+       "en": "Base: flat, then slow growth"
+      },
+      "price_change": {
+       "vi": "+3-6%/năm",
+       "en": "+3-6%/yr"
+      },
+      "text": {
+       "vi": "Theo Savills, 6-12 tháng tới giá chung khó giảm mạnh, điều chỉnh chỉ cục bộ qua chính sách bán hàng. Nguồn cung tăng (CBRE: 45.000 căn 2026, 48.000 căn 2027) giữ giá sơ cấp đi ngang trong 2027, tăng lại khi hạ tầng lớn hoàn thành. Biên độ % là ước tính của Javis, không phải số của các hãng.",
+       "en": "Savills says prices are unlikely to fall sharply in 6-12 months; adjustments stay local via sales terms. Rising supply (CBRE: 45,000 units in 2026, 48,000 in 2027) keeps primary prices flat in 2027, rising again as big infrastructure completes. The % range is Javis's estimate, not a firm's figure."
+      },
+      "estimate": true
+     },
+     {
+      "key": "bull",
+      "name": {
+       "vi": "Lạc quan: lãi suất hạ, hạ tầng về đích",
+       "en": "Bull: lower rates, infrastructure delivered"
+      },
+      "price_change": {
+       "vi": "+8-12%/năm",
+       "en": "+8-12%/yr"
+      },
+      "text": {
+       "vi": "Nếu lãi suất giảm lại, Vành đai 3, sân bay Long Thành, Metro 2 đúng hạn và pháp lý dự án thông, nhu cầu dồn nén trở lại như 2024-2025 (khi giá tăng 16-31%/năm). Khu Đông, Bình Dương cũ và Cần Giờ hưởng lợi nhiều nhất.",
+       "en": "If rates fall again, Ring Road 3, Long Thanh airport and Metro 2 arrive on time and project approvals flow, pent-up demand returns as in 2024-2025 (when prices rose 16-31% a year). The East, former Binh Duong and Can Gio gain most."
+      },
+      "estimate": true
+     },
+     {
+      "key": "bear",
+      "name": {
+       "vi": "Bi quan: lãi suất cao kéo dài",
+       "en": "Bear: high rates persist"
+      },
+      "price_change": {
+       "vi": "-5-10% thứ cấp; sơ cấp đi ngang",
+       "en": "-5-10% secondary; primary flat"
+      },
+      "text": {
+       "vi": "Lãi vay 12-14% kéo dài, hấp thụ dưới 40%, nhà đầu tư dùng đòn bẩy phải bán: giá thứ cấp tiếp tục giảm như Q3/2026 (DKRA: -4-7% QoQ căn hộ, -13% nhà phố), chủ đầu tư chiết khấu sâu hơn, dự án yếu pháp lý chậm bàn giao.",
+       "en": "With 12-14% mortgages persisting and absorption under 40%, leveraged investors must sell: resale prices keep falling as in Q3/2026 (DKRA: -4-7% QoQ apartments, -13% landed), developers discount harder and weak projects delay handover."
+      },
+      "estimate": true
+     }
+    ],
+    "drivers": [
+     {
+      "vi": "Hạ tầng liên vùng hoàn thành: Vành đai 3 (2026), sân bay Long Thành (12/2026), Vành đai 4, Metro 2 (2030)",
+      "en": "Regional infrastructure: Ring Road 3 (2026), Long Thanh airport (12/2026), Ring Road 4, Metro 2 (2030)"
+     },
+     {
+      "vi": "Nhu cầu ở thực lớn của hơn 14 triệu dân TP.HCM mới và lao động nhập cư",
+      "en": "Large owner-occupier demand from 14m+ residents of the enlarged city and migrants"
+     },
+     {
+      "vi": "Chi phí đất, vốn tăng theo Luật Đất đai 2024 khiến giá sơ cấp khó giảm",
+      "en": "Higher land and capital costs under the 2024 Land Law keep primary prices sticky"
+     },
+     {
+      "vi": "Nguồn cung phục hồi: 21.165 căn đủ điều kiện bán 7 tháng 2026, +133% so cả 2025 (Sở Xây dựng)",
+      "en": "Supply rebound: 21,165 units cleared for sale in 7M/2026, +133% vs all of 2025 (Department of Construction)"
+     }
+    ],
+    "risks": [
+     {
+      "vi": "Lãi suất vay mua nhà 12-14% và kiểm soát tín dụng BĐS",
+      "en": "12-14% mortgage rates and controlled property credit"
+     },
+     {
+      "vi": "Dư cung cục bộ ở Bình Dương cũ khi hơn 55% hàng mới dồn về đây",
+      "en": "Local oversupply in former Binh Duong, which takes over 55% of new launches"
+     },
+     {
+      "vi": "Giá vượt xa thu nhập: 80% hàng sơ cấp trên 100 triệu/m² (Savills)",
+      "en": "Prices far above incomes: 80% of primary stock above VND 100m/m² (Savills)"
+     },
+     {
+      "vi": "Hạ tầng trễ hẹn (Vành đai 4, cao tốc Mộc Bài, cảng Cần Giờ lùi nhiều lần)",
+      "en": "Infrastructure delays (Ring Road 4, Moc Bai expressway, Can Gio port repeatedly postponed)"
+     },
+     {
+      "vi": "Thuế 20% trên lãi chuyển nhượng nếu được thông qua sẽ giảm đầu cơ, thanh khoản",
+      "en": "A 20% tax on transfer gains, if enacted, would cut speculation and liquidity"
+     }
+    ],
+    "sources": [
+     "Savills Việt Nam (Cao Thị Thanh Hương, 10/2026)",
+     "CBRE Việt Nam (dự báo nguồn cung 2026-2027)",
+     "Knight Frank Việt Nam Q3/2026 (42.593 căn tới cuối 2027)",
+     "DKRA Q3/2026 (nguồn cung Q4/2026 7.000-10.000 căn)",
+     "Sở Xây dựng TP.HCM"
+    ]
+   },
+   "potential": [
+    {
+     "vi": "Thị trường lớn nhất cả nước, sau sáp nhập có quỹ đất và giá vào cửa rẻ hơn ở Bình Dương, Vũng Tàu cũ",
+     "en": "The country's largest market; after the merger, cheaper entry points and land in former Binh Duong and Vung Tau"
+    },
+    {
+     "vi": "Làn sóng hạ tầng 2026-2030 (Vành đai 3, 4, Long Thành, Metro 2, cầu Cần Giờ) tái định giá vùng ven",
+     "en": "The 2026-2030 infrastructure wave (Ring Roads 3 and 4, Long Thanh, Metro 2, Can Gio bridge) re-rates the fringe"
+    },
+    {
+     "vi": "Khan hiếm căn hộ dưới 50 triệu/m² ở TP.HCM cũ giữ thanh khoản cho hàng vừa túi tiền",
+     "en": "Scarcity of sub-VND 50m/m² apartments in old HCMC keeps affordable stock liquid"
+    },
+    {
+     "vi": "Nhịp chững 2026 mở cơ hội mua thứ cấp chiết khấu từ nhà đầu tư đòn bẩy",
+     "en": "The 2026 slowdown offers discounted resale units from leveraged investors"
+    },
+    {
+     "vi": "TOD quanh ga Metro 1, 2 và các trục mới tạo cực tăng trưởng dài hạn",
+     "en": "TOD around Metro 1 and 2 stations and new corridors creates long-run growth nodes"
+    }
+   ],
+   "playbook": [
+    {
+     "vi": "Ưu tiên căn hộ trung cấp, bình dân đã có sổ hoặc sắp bàn giao gần Metro 1, Vành đai 3; tránh hàng hình thành tương lai của chủ đầu tư yếu tài chính.",
+     "en": "Prefer titled or near-handover mid-range and affordable apartments near Metro 1 and Ring Road 3; avoid off-plan stock from financially weak developers."
+    },
+    {
+     "vi": "Săn hàng thứ cấp cắt lỗ trong lúc lãi vay cao (cuối 2026 - 2027); thương lượng mạnh với nhà phố, biệt thự đang giảm 6-13%.",
+     "en": "Hunt distressed resale while rates are high (late 2026 - 2027); negotiate hard on landed homes now down 6-13%."
+    },
+    {
+     "vi": "Kiểm tra pháp lý: quyết định giao đất, giấy phép xây dựng, văn bản đủ điều kiện bán của Sở Xây dựng, bảo lãnh ngân hàng; cọc không quá 5%.",
+     "en": "Legal checks: land allocation decision, building permit, Department of Construction sale-eligibility letter, bank guarantee; deposit no more than 5%."
+    },
+    {
+     "vi": "Tính dòng tiền với lãi suất thả nổi 12-14%, không dựa vào gói ân hạn; chỉ dùng đòn bẩy dưới 50%.",
+     "en": "Model cash flow at 12-14% floating rates, not teaser periods; keep leverage below 50%."
+    },
+    {
+     "vi": "Khi so sánh giá luôn ghi rõ phạm vi (TP.HCM cũ hay mới), cách tính (thông thủy, VAT) và hãng nghiên cứu.",
+     "en": "When quoting prices always state the scope (old or enlarged HCMC), basis (net area, VAT) and research firm."
+    },
+    {
+     "vi": "Đất nền vùng ven (Củ Chi, Hóc Môn, Cần Giờ) chỉ nên dùng vốn nhàn rỗi dài hạn, soát quy hoạch 1/2000 và đất thổ cư.",
+     "en": "Fringe land plots (Cu Chi, Hoc Mon, Can Gio) only with long-term spare capital; verify the 1/2000 zoning and residential land status."
+    }
+   ],
+   "sources": [
+    {
+     "name": "VOV - Thị trường căn hộ TP.HCM quý III/2026 (CBRE, Savills)",
+     "url": "https://vov.vn/kinh-te/thi-truong-can-ho-tai-tphcm-quy-iii2026-suc-mua-giam-thanh-khoan-thap-post1342202.vov"
+    },
+    {
+     "name": "CafeF - DKRA Q3/2026: tiêu thụ căn hộ, đất nền giảm 66%",
+     "url": "https://cafef.vn/luong-tieu-thu-can-ho-dat-nen-o-tphcm-va-vung-phu-can-giam-den-66-188261012122754748.chn"
+    },
+    {
+     "name": "CafeF - Knight Frank Q3/2026: giá chung cư TP.HCM",
+     "url": "https://cafef.vn/gia-ban-chung-cu-tphcm-tiep-tuc-tang-vi-dieu-nay-188261008211528513.chn"
+    },
+    {
+     "name": "Thời báo Tài chính VN - CBRE Q3/2026 nhà liền thổ giảm 29%",
+     "url": "https://thoibaotaichinhvietnam.vn/bat-dong-san-gan-lien-voi-dat-tai-tp-ho-chi-minh-giam-gia-so-cap-29-205379.html"
+    },
+    {
+     "name": "CafeF - Savills: giá chung cư khó giảm mạnh (10/2026)",
+     "url": "https://cafef.vn/chuyen-gia-du-bao-gia-chung-cu-kho-giam-manh-188261014125758542.chn"
+    },
+    {
+     "name": "CafeF - CBRE dự báo nguồn cung 2026-2027, Sở Xây dựng",
+     "url": "https://cafef.vn/het-thoi-khan-hang-gia-can-ho-tphcm-the-nao-188260911191737798.chn"
+    },
+    {
+     "name": "The Leader - Cushman & Wakefield Q1/2026 giá theo khu vực",
+     "url": "https://theleader.vn/gia-can-ho-trung-tam-tphcm-cao-ky-luc-day-dong-tien-ra-vung-ven-d46238.html"
+    },
+    {
+     "name": "Thị trường Tài chính Tiền tệ - Căn hộ khu Nam dưới 100 triệu/m² (9/2026)",
+     "url": "https://thitruongtaichinhtiente.vn/ngay-cang-kho-tim-can-ho-gia-can-ho-duoi-100-trieu-dong-m2-tai-khu-nam-tp-ho-chi-minh-85781.html"
+    },
+    {
+     "name": "VTC News - CBRE: giá căn hộ TP.HCM tăng 10% năm 2019",
+     "url": "https://vtcnews.vn/gia-can-ho-tphcm-tang-10-nam-2019-ar521279.html"
+    },
+    {
+     "name": "VnExpress - DKRA: giá nhà TP.HCM leo thang 5 năm (2015-2019)",
+     "url": "https://vnexpress.net/gia-nha-tai-tp-hcm-leo-thang-trong-5-nam-3982506.html"
+    },
+    {
+     "name": "Nhà Đầu tư - Giá BĐS tăng chóng mặt sau hơn thập kỷ",
+     "url": "https://nhadautu.vn/gia-bat-dong-san-tang-chong-mat-sau-hon-thap-ky-d92067.html"
+    },
+    {
+     "name": "VnEconomy - Bất động sản 2008: đầu năm cực nóng, cuối năm cực lạnh",
+     "url": "https://vneconomy.vn/bat-dong-san-2008-dau-nam-cuc-nong-cuoi-nam-cuc-lanh.htm"
+    },
+    {
+     "name": "Tuổi Trẻ - Vành đai 3 TP.HCM vào chặng cuối (8/2026)",
+     "url": "https://tuoitre.vn/vanh-dai-3-tphcm-vao-chang-cuoi-dien-mao-tuyen-phia-dong-da-ro-net-100260810234359736.htm"
+    },
+    {
+     "name": "CafeF - Sân bay Long Thành khai thác thương mại từ 24/12/2026",
+     "url": "https://cafef.vn/san-bay-long-thanh-du-kien-khai-thac-thuong-mai-tu-ngay-24-12-18826103020161464.chn"
+    },
+    {
+     "name": "VnBusiness - Địa ốc cuối năm 2026 trước ẩn số lãi suất",
+     "url": "https://vnbusiness.vn/dia-oc-cuoi-nam-2026-truoc-an-so-lai-suat.html"
+    }
+   ]
+  },
+  {
+   "id": "dongnai",
+   "name": {
+    "vi": "Đồng Nai",
+    "en": "Dong Nai"
+   },
+   "as_of": "Q3/2026",
+   "tagline": {
+    "vi": "Thành phố trực thuộc TW thứ 7, sắp có sân bay Long Thành",
+    "en": "Vietnam's 7th centrally-run city, on the eve of Long Thanh airport"
+   },
+   "summary": {
+    "vi": "Đồng Nai thành thành phố trực thuộc Trung ương từ 30/4/2026 (sau khi sáp nhập Bình Phước từ 1/7/2025), sân bay Long Thành dự kiến khai thác thương mại 24/12/2026. Hạ tầng bứt tốc nhưng thanh khoản quý 3/2026 chững lại: DKRA ghi nhận tiêu thụ đất nền khu vực TP.HCM và vùng phụ cận giảm khoảng 66% so với quý trước do lãi vay cao. Đất vườn đầu cơ ở vùng ven vẫn phải cắt lỗ sâu.",
+    "en": "Dong Nai became a centrally-run city on 30/4/2026 (after absorbing Binh Phuoc on 1/7/2025); Long Thanh airport targets commercial operation on 24/12/2026. Infrastructure is accelerating, but Q3/2026 liquidity stalled: DKRA saw land-plot sales in HCMC and surrounding areas fall about 66% QoQ on high mortgage rates. Speculative garden land on the fringe still sells at deep losses."
+   },
+   "kpis": [
+    {
+     "label": {
+      "vi": "Giá căn hộ sơ cấp TB",
+      "en": "Avg primary apartment price"
+     },
+     "value": {
+      "vi": "37",
+      "en": "37"
+     },
+     "unit": {
+      "vi": "triệu đ/m²",
+      "en": "million VND/m²"
+     },
+     "change": {
+      "vi": "+2-6% so tháng trước (8/2025)",
+      "en": "+2-6% MoM (8/2025)"
+     },
+     "trend": "up",
+     "source": "DKRA 8/2025 (newest Dong Nai-specific figure found)"
+    },
+    {
+     "label": {
+      "vi": "Giá thuê đất KCN",
+      "en": "Industrial land rent"
+     },
+     "value": {
+      "vi": "189,6",
+      "en": "189.6"
+     },
+     "unit": {
+      "vi": "USD/m²/chu kỳ thuê",
+      "en": "USD/m²/lease term"
+     },
+     "change": {
+      "vi": "+1,9% so cùng kỳ",
+      "en": "+1.9% YoY"
+     },
+     "trend": "up",
+     "source": "Cushman & Wakefield Q2/2026"
+    },
+    {
+     "label": {
+      "vi": "Tỷ lệ lấp đầy KCN",
+      "en": "Industrial park occupancy"
+     },
+     "value": {
+      "vi": "94,3",
+      "en": "94.3"
+     },
+     "unit": {
+      "vi": "%",
+      "en": "%"
+     },
+     "change": {
+      "vi": "cao nhất phía Nam",
+      "en": "highest in the South"
+     },
+     "trend": "flat",
+     "source": "Cushman & Wakefield Q2/2026"
+    },
+    {
+     "label": {
+      "vi": "FDI 9 tháng 2026",
+      "en": "FDI, 9M 2026"
+     },
+     "value": {
+      "vi": "2,35-2,5",
+      "en": "2.35-2.5"
+     },
+     "unit": {
+      "vi": "tỷ USD",
+      "en": "billion USD"
+     },
+     "change": {
+      "vi": "đạt 78-86% mục tiêu 3 tỷ USD",
+      "en": "78-86% of the USD 3bn target"
+     },
+     "trend": "up",
+     "source": "VOV, VietnamPlus 9/2026"
+    },
+    {
+     "label": {
+      "vi": "Tăng trưởng GRDP 9 tháng",
+      "en": "GRDP growth, 9M 2026"
+     },
+     "value": {
+      "vi": "10,01",
+      "en": "10.01"
+     },
+     "unit": {
+      "vi": "%",
+      "en": "%"
+     },
+     "change": {
+      "vi": "so với 8,86% cùng kỳ 2025",
+      "en": "vs 8.86% in 9M 2025"
+     },
+     "trend": "up",
+     "source": "UBND TP. Dong Nai via VOV 9/2026"
+    },
+    {
+     "label": {
+      "vi": "Giá đất ở cao nhất bảng giá 2026",
+      "en": "Top official residential land price 2026"
+     },
+     "value": {
+      "vi": "49,5",
+      "en": "49.5"
+     },
+     "unit": {
+      "vi": "triệu đ/m²",
+      "en": "million VND/m²"
+     },
+     "change": {
+      "vi": "bình quân đô thị x3,6 (dự thảo)",
+      "en": "urban avg x3.6 in draft"
+     },
+     "trend": "up",
+     "source": "NQ 28/2025/NQ-HDND via muaban.net; VietnamFinance 10/2025"
+    },
+    {
+     "label": {
+      "vi": "Tiêu thụ đất nền sơ cấp vùng TP.HCM",
+      "en": "Primary land-plot sales, HCMC region"
+     },
+     "value": {
+      "vi": "-66",
+      "en": "-66"
+     },
+     "unit": {
+      "vi": "% so với quý trước",
+      "en": "% QoQ"
+     },
+     "change": {
+      "vi": "giá thứ cấp -2%",
+      "en": "secondary price -2%"
+     },
+     "trend": "down",
+     "source": "DKRA Q3/2026 (region, not Dong Nai only)"
+    },
+    {
+     "label": {
+      "vi": "Lãi vay mua nhà cố định 12-24 tháng",
+      "en": "Fixed 12-24m mortgage rate"
+     },
+     "value": {
+      "vi": "10,9",
+      "en": "10.9"
+     },
+     "unit": {
+      "vi": "%/năm",
+      "en": "%/year"
+     },
+     "change": {
+      "vi": "thả nổi 13-15%",
+      "en": "floating 13-15%"
+     },
+     "trend": "up",
+     "source": "DKRA 8/2026; DXS-FERI"
+    }
+   ],
+   "price_series": {
+    "unit": {
+     "vi": "triệu đồng/m²",
+     "en": "million VND/m²"
+    },
+    "series": [
+     {
+      "key": "land",
+      "name": {
+       "vi": "Đất nền hành lang Long Thành - Nhơn Trạch (chỉ báo)",
+       "en": "Land plots, Long Thanh - Nhon Trach corridor (indicative)"
+      },
+      "points": [
+       [
+        2006,
+        null
+       ],
+       [
+        2007,
+        null
+       ],
+       [
+        2008,
+        null
+       ],
+       [
+        2009,
+        null
+       ],
+       [
+        2010,
+        null
+       ],
+       [
+        2011,
+        null
+       ],
+       [
+        2012,
+        null
+       ],
+       [
+        2013,
+        null
+       ],
+       [
+        2014,
+        null
+       ],
+       [
+        2015,
+        null
+       ],
+       [
+        2016,
+        null
+       ],
+       [
+        2017,
+        null
+       ],
+       [
+        2018,
+        9
+       ],
+       [
+        2019,
+        13
+       ],
+       [
+        2020,
+        18
+       ],
+       [
+        2021,
+        22
+       ],
+       [
+        2022,
+        24
+       ],
+       [
+        2023,
+        20
+       ],
+       [
+        2024,
+        17
+       ],
+       [
+        2025,
+        19
+       ],
+       [
+        2026,
+        20
+       ]
+      ]
+     },
+     {
+      "key": "apartment",
+      "name": {
+       "vi": "Căn hộ sơ cấp (chủ yếu Biên Hòa)",
+       "en": "Primary apartments (mostly Bien Hoa)"
+      },
+      "points": [
+       [
+        2006,
+        null
+       ],
+       [
+        2007,
+        null
+       ],
+       [
+        2008,
+        null
+       ],
+       [
+        2009,
+        null
+       ],
+       [
+        2010,
+        null
+       ],
+       [
+        2011,
+        null
+       ],
+       [
+        2012,
+        null
+       ],
+       [
+        2013,
+        null
+       ],
+       [
+        2014,
+        null
+       ],
+       [
+        2015,
+        null
+       ],
+       [
+        2016,
+        null
+       ],
+       [
+        2017,
+        null
+       ],
+       [
+        2018,
+        25
+       ],
+       [
+        2019,
+        null
+       ],
+       [
+        2020,
+        null
+       ],
+       [
+        2021,
+        null
+       ],
+       [
+        2022,
+        null
+       ],
+       [
+        2023,
+        null
+       ],
+       [
+        2024,
+        null
+       ],
+       [
+        2025,
+        37
+       ],
+       [
+        2026,
+        40
+       ]
+      ]
+     }
+    ],
+    "note": {
+     "vi": "Độ tin cậy thấp. Chưa có chuỗi giá chính thức theo năm cho Đồng Nai. Mốc có nguồn: đất Nhơn Trạch 6-12 triệu/m² (DKRA 4/2018), căn hộ 37 triệu/m² (DKRA 8/2025). Các năm còn lại là ước tính của Javis từ tin báo chí (DKRA: thứ cấp giảm 13-17% so với 2022; Batdongsan: tăng 10-15%/năm 2025, +11,8% ở Long Thọ). Trước 2018 bỏ trống vì không có số liệu đáng tin.",
+     "en": "Low confidence. No official annual price series exists for Dong Nai. Sourced anchors: Nhon Trach land 6-12m/m² (DKRA 4/2018), apartments 37m/m² (DKRA 8/2025). Other years are Javis estimates derived from press (DKRA: secondary -13-17% vs 2022; Batdongsan: +10-15% YoY in 2025, +11.8% in Long Tho). Pre-2018 left blank for lack of reliable data."
+    },
+    "sources": [
+     "DKRA via VnExpress (4/2018)",
+     "DKRA via Bao Dau thau (9/2025)",
+     "VnBusiness (5/2025)",
+     "Batdongsan.com.vn wiki (1/2024)",
+     "Batdongsan.com.vn listing data (2026)",
+     "VnExpress (5/2026)"
+    ],
+    "confidence": "low",
+    "confidence_label": {
+     "vi": "Phần lớn là ước tính",
+     "en": "Mostly estimated"
+    }
+   },
+   "periods": [
+    {
+     "span": 20,
+     "range": "2006-2026",
+     "title": {
+      "vi": "Từ tỉnh công nghiệp thành đô thị trực thuộc TW",
+      "en": "From industrial province to centrally-run city"
+     },
+     "text": {
+      "vi": "Hai thập kỷ qua, Đồng Nai đi từ thủ phủ khu công nghiệp sang cửa ngõ hàng không của vùng. Đất quanh Long Thành từng chỉ khoảng 0,3 triệu/m² (2015) trước khi dự án sân bay được duyệt, rồi tăng gấp nhiều lần qua các cơn sốt 2018 và 2021-2022. Năm 2026, Đồng Nai lên thành phố trực thuộc Trung ương và chuẩn bị đón sân bay.",
+      "en": "Over two decades Dong Nai shifted from an industrial-park hub to the region's aviation gateway. Land around Long Thanh was about 0.3m VND/m² in 2015 before the airport was approved, then multiplied through the 2018 and 2021-2022 fevers. In 2026 it became a centrally-run city as the airport nears opening."
+     },
+     "change": {
+      "vi": "Đất Long Thành ~0,3 (2015) lên 8-15 triệu/m² (2025)",
+      "en": "Long Thanh land ~0.3m (2015) to 8-15m VND/m² (2025)"
+     },
+     "milestones": [
+      {
+       "year": 2015,
+       "text": {
+        "vi": "Quốc hội thông qua chủ trương sân bay Long Thành; cao tốc TP.HCM - Long Thành - Dầu Giây thông xe",
+        "en": "National Assembly approves Long Thanh airport; HCMC - Long Thanh - Dau Giay expressway opens"
+       }
+      },
+      {
+       "year": 2018,
+       "text": {
+        "vi": "Sốt đất quanh sân bay khi phương án thu hồi đất được duyệt (11/2018)",
+        "en": "Land fever near the airport after the land-clearance plan was approved (11/2018)"
+       }
+      },
+      {
+       "year": 2021,
+       "text": {
+        "vi": "Khởi công sân bay Long Thành (1/2021)",
+        "en": "Long Thanh airport groundbreaking (1/2021)"
+       }
+      },
+      {
+       "year": 2025,
+       "text": {
+        "vi": "Sáp nhập Bình Phước vào Đồng Nai (1/7/2025)",
+        "en": "Binh Phuoc merged into Dong Nai (1/7/2025)"
+       }
+      },
+      {
+       "year": 2026,
+       "text": {
+        "vi": "Thành lập TP. Đồng Nai trực thuộc TW (30/4/2026)",
+        "en": "Dong Nai City established as centrally-run city (30/4/2026)"
+       }
+      }
+     ]
+    },
+    {
+     "span": 15,
+     "range": "2011-2026",
+     "title": {
+      "vi": "Từ khu đô thị bỏ hoang đến hạ tầng đồng bộ",
+      "en": "From ghost towns to connected infrastructure"
+     },
+     "text": {
+      "vi": "Đầu thập niên 2010, Nhơn Trạch là ví dụ về khu đô thị bỏ hoang: khu Long Thọ - Phước An quy hoạch cho hơn 23.000 dân nhưng rất ít căn có người ở (VnExpress). Bước ngoặt đến khi cao tốc TP.HCM - Long Thành - Dầu Giây thông xe (2015) và sân bay được duyệt, kéo dòng vốn về Biên Hòa, Long Thành, Nhơn Trạch.",
+      "en": "In the early 2010s Nhon Trach was a byword for ghost urban areas: Long Tho - Phuoc An was planned for 23,000+ residents yet few units were occupied (VnExpress). The turn came with the HCMC - Long Thanh - Dau Giay expressway (2015) and airport approval, pulling capital into Bien Hoa, Long Thanh and Nhon Trach."
+     },
+     "change": {
+      "vi": "Cầu chuyển từ ở thực sang đầu cơ",
+      "en": "Demand shifted from idle to speculative"
+     },
+     "milestones": [
+      {
+       "year": 2015,
+       "text": {
+        "vi": "Cao tốc TP.HCM - Long Thành - Dầu Giây thông xe toàn tuyến",
+        "en": "HCMC - Long Thanh - Dau Giay expressway fully opens"
+       }
+      },
+      {
+       "year": 2018,
+       "text": {
+        "vi": "Biên Hòa đón làn sóng căn hộ: quý 1/2018 cụm Biên Hòa - Dĩ An có hơn 3.200 căn chào bán",
+        "en": "Apartment wave in Bien Hoa: Q1/2018 Bien Hoa - Di An cluster launched 3,200+ units"
+       }
+      }
+     ]
+    },
+    {
+     "span": 10,
+     "range": "2016-2026",
+     "title": {
+      "vi": "Hai cơn sốt và một cú sập",
+      "en": "Two fevers and a crash"
+     },
+     "text": {
+      "vi": "Đầu 2018 Đồng Nai cho tách thửa trở lại, kéo theo phân lô quanh sân bay; DKRA ghi đất Nhơn Trạch 6-12 triệu/m² (4/2018). Sốt lan rộng lần hai từ cuối 2021 (CBRE ghi giá đất tăng trên diện rộng quý 1/2022). Từ cuối 2022, thắt chặt tín dụng làm thị trường rơi tự do, DKRA ghi giá thứ cấp vùng TP.HCM giảm 13-17% so với 2022.",
+      "en": "Early 2018 Dong Nai reopened plot splitting, fuelling subdivision near the airport; DKRA put Nhon Trach land at 6-12m VND/m² (4/2018). A second fever spread from late 2021 (CBRE noted broad land price rises in Q1/2022). From late 2022 credit tightening triggered a crash; DKRA saw HCMC-region secondary prices 13-17% below 2022."
+     },
+     "change": {
+      "vi": "Sốt rồi vỡ; thứ cấp -13-17% so 2022 (toàn vùng)",
+      "en": "Boom-bust; secondary -13-17% vs 2022 (region)"
+     },
+     "milestones": [
+      {
+       "year": 2018,
+       "text": {
+        "vi": "Cho tách thửa lại, sốt đất Long Thành - Nhơn Trạch",
+        "en": "Plot splitting reopened, Long Thanh - Nhon Trach land fever"
+       }
+      },
+      {
+       "year": 2019,
+       "text": {
+        "vi": "Long Khánh lên thành phố",
+        "en": "Long Khanh upgraded to city"
+       }
+      },
+      {
+       "year": 2022,
+       "text": {
+        "vi": "Đỉnh sốt đất, sau đó thị trường đóng băng",
+        "en": "Land fever peaks, then market freezes"
+       }
+      },
+      {
+       "year": 2023,
+       "text": {
+        "vi": "Khởi công Vành đai 3 và cao tốc Biên Hòa - Vũng Tàu",
+        "en": "Ring Road 3 and Bien Hoa - Vung Tau expressway break ground"
+       }
+      }
+     ]
+    },
+    {
+     "span": 5,
+     "range": "2021-2026",
+     "title": {
+      "vi": "Đỉnh, đáy và phục hồi chọn lọc",
+      "en": "Peak, trough and selective recovery"
+     },
+     "text": {
+      "vi": "Sau đỉnh 2022, đất vườn đầu cơ phải giảm sâu: một sàn môi giới Đồng Nai cho biết người bán chấp nhận giảm 10-15% (2023-2024), 25-30% (2025), có lô tới 50% đầu 2026 mà vẫn khó bán (VnExpress 5/2026). Ngược lại, đất có sổ gần hạ tầng tăng lại 10-15% năm 2025 ở Nhơn Trạch; Aqua City được gỡ pháp lý.",
+      "en": "After the 2022 peak, speculative garden land fell hard: a Dong Nai brokerage said sellers cut 10-15% (2023-2024), 25-30% (2025) and up to 50% in early 2026, often without buyers (VnExpress 5/2026). Titled land near infrastructure rebounded 10-15% in Nhon Trach in 2025; Aqua City's legal issues were resolved."
+     },
+     "change": {
+      "vi": "Hai tốc độ: vùng ven -25-50%, đất có sổ khu lõi +10-15%",
+      "en": "Two-speed: fringe -25-50%, core titled land +10-15%"
+     },
+     "milestones": [
+      {
+       "year": 2023,
+       "text": {
+        "vi": "Đáy thanh khoản, nhiều dự án đứng hình",
+        "en": "Liquidity trough, many projects stalled"
+       }
+      },
+      {
+       "year": 2025,
+       "text": {
+        "vi": "Cầu Nhơn Trạch (Vành đai 3) thông xe 19/8/2025; khởi công mở rộng cao tốc TP.HCM - Long Thành",
+        "en": "Nhon Trach bridge (Ring Road 3) opens 19/8/2025; HCMC - Long Thanh expressway widening starts"
+       }
+      },
+      {
+       "year": 2026,
+       "text": {
+        "vi": "Bảng giá đất mới áp dụng 1/1/2026",
+        "en": "New land price table in force 1/1/2026"
+       }
+      }
+     ]
+    },
+    {
+     "span": 2,
+     "range": "2024-2026",
+     "title": {
+      "vi": "Hạ tầng về đích, lãi suất ghìm cầu",
+      "en": "Infrastructure delivers, rates cap demand"
+     },
+     "text": {
+      "vi": "2025-2026 là giai đoạn hạ tầng về đích: cao tốc Biên Hòa - Vũng Tàu khai thác tạm toàn tuyến 18/5/2026, Bến Lức - Long Thành thông toàn tuyến 1/10/2026, sân bay dự kiến khai thác 24/12/2026. Nhưng lãi vay thả nổi 13-15% khiến quý 3/2026 tiêu thụ giảm mạnh, giá thứ cấp đất nền vùng TP.HCM giảm khoảng 2%.",
+      "en": "2025-2026 is delivery time: Bien Hoa - Vung Tau expressway temporarily opened end to end 18/5/2026, Ben Luc - Long Thanh fully opened 1/10/2026, the airport targets 24/12/2026. Yet floating mortgage rates of 13-15% cut Q3/2026 sales sharply; HCMC-region secondary land prices slipped about 2%."
+     },
+     "change": {
+      "vi": "Tâm lý theo hạ tầng, Q3/2026 tiêu thụ -66% so quý trước (toàn vùng)",
+      "en": "Infra-led sentiment, Q3/2026 sales -66% QoQ (region)"
+     },
+     "milestones": [
+      {
+       "year": 2025,
+       "text": {
+        "vi": "Sáp nhập Bình Phước; Aqua City được tháo gỡ pháp lý",
+        "en": "Binh Phuoc merger; Aqua City legal blockers lifted"
+       }
+      },
+      {
+       "year": 2026,
+       "text": {
+        "vi": "Lên TP trực thuộc TW; Vành đai 4 đoạn Đồng Nai khởi công (9/2026)",
+        "en": "Centrally-run city status; Ring Road 4 Dong Nai section starts (9/2026)"
+       }
+      }
+     ]
+    }
+   ],
+   "segments": [
+    {
+     "name": {
+      "vi": "Đất nền, đất thổ cư",
+      "en": "Land plots"
+     },
+     "price": {
+      "vi": "Rao phổ biến 8-30 triệu/m² quanh Long Thành, Nhơn Trạch; 19-25 triệu/m² trong khu dân cư Biên Hòa",
+      "en": "Asking mostly 8-30m VND/m² around Long Thanh, Nhon Trach; 19-25m in Bien Hoa neighborhoods"
+     },
+     "trend": "flat",
+     "note": {
+      "vi": "Đất có sổ gần hạ tầng giữ giá, tăng 10-15%/năm ở Nhơn Trạch (2025). Đất vườn tách thửa vùng ven phải giảm 25-50%. Nguồn cung dự án mới khan hiếm.",
+      "en": "Titled plots near infrastructure hold value, +10-15% YoY in Nhon Trach (2025). Subdivided garden land on the fringe trades 25-50% down. New project supply is scarce."
+     }
+    },
+    {
+     "name": {
+      "vi": "Căn hộ thương mại",
+      "en": "Commercial apartments"
+     },
+     "price": {
+      "vi": "TB sơ cấp khoảng 37 triệu/m² (DKRA 8/2025); dự án mới Biên Hòa từ khoảng 42-50 triệu/m²",
+      "en": "Primary avg about 37m VND/m² (DKRA 8/2025); new Bien Hoa launches about 42-50m"
+     },
+     "trend": "up",
+     "note": {
+      "vi": "Nguồn cung mỏng, chủ yếu Biên Hòa (Fresia Riverside, Centria Island, Bcons Central Park). Giá rao thứ cấp Biên Hòa 16-67 triệu/m².",
+      "en": "Thin supply, mostly in Bien Hoa (Fresia Riverside, Centria Island, Bcons Central Park). Bien Hoa secondary asking 16-67m VND/m²."
+     }
+    },
+    {
+     "name": {
+      "vi": "Nhà phố, biệt thự dự án",
+      "en": "Townhouses and villas"
+     },
+     "price": {
+      "vi": "Khoảng 4-20 tỷ đồng/căn tùy vị trí (2025)",
+      "en": "About 4-20 billion VND per unit by location (2025)"
+     },
+     "trend": "down",
+     "note": {
+      "vi": "DKRA quý 3/2026: giá thứ cấp nhà phố, biệt thự vùng TP.HCM giảm bình quân khoảng 13% do áp lực lãi vay. Aqua City mở bán lại từ 31/10/2026.",
+      "en": "DKRA Q3/2026: HCMC-region secondary townhouse/villa prices fell about 13% on interest pressure. Aqua City reopened sales from 31/10/2026."
+     }
+    },
+    {
+     "name": {
+      "vi": "Bất động sản công nghiệp",
+      "en": "Industrial real estate"
+     },
+     "price": {
+      "vi": "189,6 USD/m²/chu kỳ thuê, lấp đầy 94,3% (C&W quý 2/2026)",
+      "en": "189.6 USD/m²/term, 94.3% occupancy (C&W Q2/2026)"
+     },
+     "trend": "up",
+     "note": {
+      "vi": "Giá thuê cao nhất phía Nam. Đồng Nai chiếm khoảng 17% trong 5.347 ha nguồn cung KCN mới phía Nam 2026-2029.",
+      "en": "Highest rents in the South. Dong Nai holds about 17% of the 5,347 ha of new southern industrial supply in 2026-2029."
+     }
+    },
+    {
+     "name": {
+      "vi": "Nhà ở xã hội",
+      "en": "Social housing"
+     },
+     "price": {
+      "vi": "Khoảng 20-25,6 triệu/m² (Biên Hòa cũ); khoảng 8,5-9,7 triệu/m² (Đồng Xoài)",
+      "en": "About 20-25.6m VND/m² (former Bien Hoa); about 8.5-9.7m (Dong Xoai)"
+     },
+     "trend": "up",
+     "note": {
+      "vi": "Năm 2025 hoàn thành hơn 4.600 căn; mục tiêu hơn 8.000 căn năm 2026 và trên 60.000 căn giai đoạn 2026-2030. Thanh tra TP (6/2026) chỉ ra sai sót trong xét duyệt.",
+      "en": "4,600+ units completed in 2025; target 8,000+ in 2026 and 60,000+ for 2026-2030. A city inspection (6/2026) flagged flaws in buyer vetting and pricing."
+     }
+    }
+   ],
+   "subareas": [
+    {
+     "name": {
+      "vi": "Biên Hòa cũ (Trấn Biên, Tam Hiệp, Long Hưng...)",
+      "en": "Former Bien Hoa (Tran Bien, Tam Hiep, Long Hung...)"
+     },
+     "type": {
+      "vi": "Đô thị lõi, căn hộ",
+      "en": "Urban core, apartments"
+     },
+     "price": {
+      "vi": "Lô 100 m² khoảng 1,9-2,5 tỷ; căn hộ rao 16-67 triệu/m²",
+      "en": "100 m² lots about 1.9-2.5bn VND; apartments asking 16-67m/m²"
+     },
+     "highlight": {
+      "vi": "Nơi có giá bảng cao nhất thành phố (49,5 triệu/m², Võ Thị Sáu). Hưởng lợi cao tốc Biên Hòa - Vũng Tàu, cầu nối TP.HCM.",
+      "en": "Holds the city's top official land price (49.5m/m², Vo Thi Sau). Benefits from Bien Hoa - Vung Tau expressway and HCMC bridges."
+     },
+     "potential": 4,
+     "risk": 2,
+     "lat": 10.957,
+     "lng": 106.843
+    },
+    {
+     "name": {
+      "vi": "Long Thành",
+      "en": "Long Thanh"
+     },
+     "type": {
+      "vi": "Vệ tinh sân bay",
+      "en": "Airport satellite"
+     },
+     "price": {
+      "vi": "Rao phổ biến 8-15 triệu/m²; dự án KDC 26-40 triệu/m²",
+      "en": "Asking mostly 8-15m VND/m²; project plots 26-40m"
+     },
+     "highlight": {
+      "vi": "Sân bay dự kiến khai thác 24/12/2026; Bến Lức - Long Thành thông tuyến 1/10/2026; đường 25B, 25C, ĐT769 đang làm.",
+      "en": "Airport targets 24/12/2026; Ben Luc - Long Thanh opened 1/10/2026; roads 25B, 25C, DT769 under way."
+     },
+     "potential": 5,
+     "risk": 3,
+     "lat": 10.785,
+     "lng": 106.95
+    },
+    {
+     "name": {
+      "vi": "Nhơn Trạch",
+      "en": "Nhon Trach"
+     },
+     "type": {
+      "vi": "Đô thị mới, khu đô thị lớn",
+      "en": "New town, large townships"
+     },
+     "price": {
+      "vi": "Rao 5-30 triệu/m², phổ biến 13-14 triệu/m²",
+      "en": "Asking 5-30m VND/m², typical 13-14m"
+     },
+     "highlight": {
+      "vi": "Aqua City gỡ pháp lý, Swan Bay, khu đô thị HUD; Vành đai 3 và cầu Nhơn Trạch nối TP.HCM. Giá rao Long Thọ +11,8%/năm.",
+      "en": "Aqua City cleared, Swan Bay, HUD new town; Ring Road 3 and Nhon Trach bridge to HCMC. Long Tho asking +11.8% YoY."
+     },
+     "potential": 5,
+     "risk": 3,
+     "lat": 10.72,
+     "lng": 106.89
+    },
+    {
+     "name": {
+      "vi": "Trảng Bom",
+      "en": "Trang Bom"
+     },
+     "type": {
+      "vi": "Vành đai công nghiệp",
+      "en": "Industrial belt"
+     },
+     "price": {
+      "vi": "Thổ cư rao phổ biến 5-9 triệu/m², trung tâm 14-25 triệu/m²",
+      "en": "Residential asking mostly 5-9m VND/m², center 14-25m"
+     },
+     "highlight": {
+      "vi": "KCN Bàu Xéo, Giang Điền; nằm trên tuyến Vành đai 4 và QL1A, cầu nhà ở công nhân.",
+      "en": "Bau Xeo and Giang Dien parks; on Ring Road 4 and NH1A, worker housing demand."
+     },
+     "potential": 4,
+     "risk": 2,
+     "lat": 10.953,
+     "lng": 107.005
+    },
+    {
+     "name": {
+      "vi": "Long Khánh",
+      "en": "Long Khanh"
+     },
+     "type": {
+      "vi": "Đô thị phía Đông",
+      "en": "Eastern town"
+     },
+     "price": {
+      "vi": "Chưa có giá thị trường xác minh; bảng giá đất ở tới khoảng 20,3 triệu/m² (Hùng Vương)",
+      "en": "No verified market price; official table up to about 20.3m/m² (Hung Vuong)"
+     },
+     "highlight": {
+      "vi": "Đầu mối QL1A, cao tốc Dầu Giây - Phan Thiết; nhu cầu chủ yếu ở thực.",
+      "en": "Hub on NH1A and Dau Giay - Phan Thiet expressway; mostly owner-occupier demand."
+     },
+     "potential": 3,
+     "risk": 2,
+     "lat": 10.93,
+     "lng": 107.24
+    },
+    {
+     "name": {
+      "vi": "Thống Nhất, Dầu Giây",
+      "en": "Thong Nhat, Dau Giay"
+     },
+     "type": {
+      "vi": "Nút giao cao tốc",
+      "en": "Expressway junction"
+     },
+     "price": {
+      "vi": "Chưa có số liệu xác minh",
+      "en": "No verified data"
+     },
+     "highlight": {
+      "vi": "Giao điểm cao tốc TP.HCM - Long Thành - Dầu Giây và Dầu Giây - Phan Thiết; có đấu giá đất tại phường Dầu Giây (11/2026).",
+      "en": "Junction of HCMC - Long Thanh - Dau Giay and Dau Giay - Phan Thiet expressways; state land auctions in Dau Giay ward (11/2026)."
+     },
+     "potential": 3,
+     "risk": 3,
+     "lat": 10.97,
+     "lng": 107.14
+    },
+    {
+     "name": {
+      "vi": "Cẩm Mỹ, Xuân Lộc",
+      "en": "Cam My, Xuan Loc"
+     },
+     "type": {
+      "vi": "Nông nghiệp, đất vườn",
+      "en": "Agricultural, garden land"
+     },
+     "price": {
+      "vi": "Chưa có số liệu xác minh",
+      "en": "No verified data"
+     },
+     "highlight": {
+      "vi": "Vùng đất vườn từng bị đầu cơ tách thửa 2021-2022; nay thanh khoản thấp, nhiều lô cắt lỗ.",
+      "en": "Garden land heavily subdivided by speculators in 2021-2022; now illiquid with many loss sales."
+     },
+     "potential": 2,
+     "risk": 4,
+     "lat": 10.85,
+     "lng": 107.33
+    },
+    {
+     "name": {
+      "vi": "Định Quán, Tân Phú",
+      "en": "Dinh Quan, Tan Phu"
+     },
+     "type": {
+      "vi": "Nông thôn phía Bắc",
+      "en": "Northern rural"
+     },
+     "price": {
+      "vi": "Chưa có số liệu xác minh",
+      "en": "No verified data"
+     },
+     "highlight": {
+      "vi": "Dự thảo bảng giá 2026 nâng đất ở nông thôn Tân Phú tới 6,8 lần, nhưng thị trường mỏng.",
+      "en": "Draft 2026 table raised rural residential land in Tan Phu up to 6.8x, but the market is thin."
+     },
+     "potential": 2,
+     "risk": 3,
+     "lat": 11.19,
+     "lng": 107.35
+    },
+    {
+     "name": {
+      "vi": "Đồng Xoài (Bình Phước cũ)",
+      "en": "Dong Xoai (former Binh Phuoc)"
+     },
+     "type": {
+      "vi": "Đô thị hành chính phía Bắc",
+      "en": "Northern administrative town"
+     },
+     "price": {
+      "vi": "Rao khoảng 2-18 triệu/m² (độ tin cậy thấp)",
+      "en": "Asking about 2-18m VND/m² (low confidence)"
+     },
+     "highlight": {
+      "vi": "Dự thảo bảng giá 2026 giảm 10-20% một số tuyến chính phường Bình Phước. NOXH chỉ khoảng 8,9 triệu/m².",
+      "en": "Draft 2026 table cut some main-road values in Binh Phuoc ward by 10-20%. Social housing only about 8.9m/m²."
+     },
+     "potential": 3,
+     "risk": 3,
+     "lat": 11.535,
+     "lng": 106.89
+    },
+    {
+     "name": {
+      "vi": "Chơn Thành (Bình Phước cũ)",
+      "en": "Chon Thanh (former Binh Phuoc)"
+     },
+     "type": {
+      "vi": "Đô thị công nghiệp",
+      "en": "Industrial town"
+     },
+     "price": {
+      "vi": "Chưa có số liệu xác minh",
+      "en": "No verified data"
+     },
+     "highlight": {
+      "vi": "Cửa ngõ QL13, QL14 giáp TP.HCM (Bình Dương cũ), cụm KCN Becamex Bình Phước; được đánh giá có giá cao nhất vùng Bình Phước cũ cùng Đồng Xoài.",
+      "en": "Gateway on NH13/NH14 next to former Binh Duong, Becamex Binh Phuoc parks; with Dong Xoai rated the priciest of former Binh Phuoc."
+     },
+     "potential": 4,
+     "risk": 3,
+     "lat": 11.43,
+     "lng": 106.66
+    }
+   ],
+   "infrastructure": [
+    {
+     "name": {
+      "vi": "Sân bay quốc tế Long Thành (giai đoạn 1)",
+      "en": "Long Thanh International Airport (phase 1)"
+     },
+     "status": {
+      "vi": "Đã vận hành thử từ 9/2026; ACV dự kiến khai thác thương mại 0h ngày 24/12/2026 (lùi từ 6/2026 và 1/12/2026)",
+      "en": "Trial runs since 9/2026; ACV targets commercial ops at 0:00 on 24/12/2026 (slipped from 6/2026 and 1/12/2026)"
+     },
+     "eta": "2026-12",
+     "impact": {
+      "vi": "Động lực lớn nhất cho Long Thành, Nhơn Trạch: ban đầu khoảng 366 chuyến/tuần. Ngày khai thác có thể còn thay đổi.",
+      "en": "Biggest driver for Long Thanh, Nhon Trach: about 366 flights/week initially. Opening date may still move."
+     }
+    },
+    {
+     "name": {
+      "vi": "Cao tốc Biên Hòa - Vũng Tàu",
+      "en": "Bien Hoa - Vung Tau expressway"
+     },
+     "status": {
+      "vi": "Khai thác tạm toàn tuyến chính 54 km từ 18/5/2026, chỉ xe dưới 9 chỗ, 80 km/h",
+      "en": "Whole 54 km main line temporarily open since 18/5/2026, cars under 9 seats only, 80 km/h"
+     },
+     "eta": "2026",
+     "impact": {
+      "vi": "Nối Biên Hòa, Long Thành với Bà Rịa - Vũng Tàu và cảng Cái Mép, giảm tải QL51.",
+      "en": "Links Bien Hoa, Long Thanh with Vung Tau and Cai Mep port, relieves NH51."
+     }
+    },
+    {
+     "name": {
+      "vi": "Mở rộng cao tốc TP.HCM - Long Thành - Dầu Giây",
+      "en": "HCMC - Long Thanh - Dau Giay expressway widening"
+     },
+     "status": {
+      "vi": "Khởi công 19/8/2025, khoảng 22 km, gần 15.000 tỷ; mục tiêu cơ bản xong 12/2026, cầu Long Thành quý 1/2027; tiến độ báo cáo khác nhau (54-69%)",
+      "en": "Started 19/8/2025, about 22 km, nearly 15,000bn VND; basic completion targeted 12/2026, Long Thanh bridge Q1/2027; reported progress varies (54-69%)"
+     },
+     "eta": "2027",
+     "impact": {
+      "vi": "Trục chính từ TP.HCM về sân bay, giảm ùn tắc giờ cao điểm.",
+      "en": "Main HCMC-to-airport artery, eases peak congestion."
+     }
+    },
+    {
+     "name": {
+      "vi": "Vành đai 3 TP.HCM đoạn Đồng Nai",
+      "en": "HCMC Ring Road 3, Dong Nai section"
+     },
+     "status": {
+      "vi": "Cầu Nhơn Trạch thông xe 19/8/2025; 5 km tuyến chính thông xe kỹ thuật 19/12/2025; nút Vĩnh Thanh chậm, chấm dứt hợp đồng nhà thầu 27/10/2026",
+      "en": "Nhon Trach bridge open 19/8/2025; 5 km main line technically opened 19/12/2025; Vinh Thanh interchange delayed, contractor terminated 27/10/2026"
+     },
+     "eta": "2027",
+     "impact": {
+      "vi": "Nối Nhơn Trạch với TP Thủ Đức cũ và cao tốc Bến Lức - Long Thành.",
+      "en": "Connects Nhon Trach with former Thu Duc and Ben Luc - Long Thanh expressway."
+     }
+    },
+    {
+     "name": {
+      "vi": "Cao tốc Bến Lức - Long Thành",
+      "en": "Ben Luc - Long Thanh expressway"
+     },
+     "status": {
+      "vi": "Thông xe kỹ thuật và khai thác toàn tuyến từ 1/10/2026",
+      "en": "Fully opened from 1/10/2026"
+     },
+     "eta": "2026",
+     "impact": {
+      "vi": "Nối miền Tây với Nhơn Trạch, Long Thành và sân bay, không qua nội đô TP.HCM.",
+      "en": "Links the Mekong Delta to Nhon Trach, Long Thanh and the airport bypassing central HCMC."
+     }
+    },
+    {
+     "name": {
+      "vi": "Vành đai 4 TP.HCM đoạn Đồng Nai (dự án 2-2)",
+      "en": "HCMC Ring Road 4, Dong Nai section (component 2-2)"
+     },
+     "status": {
+      "vi": "Khởi công khoảng 30/9/2026; dài hơn 46 km (cầu Châu Đức - cầu Thủ Biên), hơn 16.000 tỷ, theo PPP",
+      "en": "Started around 30/9/2026; 46+ km (Chau Duc bridge - Thu Bien bridge), 16,000bn+ VND, PPP"
+     },
+     "eta": "2028",
+     "impact": {
+      "vi": "Mở quỹ đất mới cho Trảng Bom, Long Thành, Cẩm Mỹ phía Đông và logistics.",
+      "en": "Opens new land banks in Trang Bom, eastern Long Thanh, Cam My and logistics."
+     }
+    },
+    {
+     "name": {
+      "vi": "Đường 25B, 25C, ĐT769, ĐT770B, ĐT773",
+      "en": "Roads 25B, 25C, DT769, DT770B, DT773"
+     },
+     "status": {
+      "vi": "25B khoảng 66%; 25C giai đoạn 1 mục tiêu 10/2026; ĐT769 (30 km, 6.200 tỷ) đang thi công; ĐT770B, ĐT773 thi công khoảng 2 năm",
+      "en": "25B about 66%; 25C phase 1 targeted 10/2026; DT769 (30 km, 6,200bn) under construction; DT770B, DT773 about 2-year builds"
+     },
+     "eta": "2027-2028",
+     "impact": {
+      "vi": "Kết nối nội vùng quanh sân bay, nâng giá trị quỹ đất ven tuyến.",
+      "en": "Local links around the airport, lifting land value along the routes."
+     }
+    }
+   ],
+   "policy": [
+    {
+     "title": {
+      "vi": "TP. Đồng Nai trực thuộc Trung ương",
+      "en": "Dong Nai becomes centrally-run city"
+     },
+     "text": {
+      "vi": "Quốc hội thông qua Nghị quyết 30/2026/QH16 ngày 24/4/2026, hiệu lực 30/4/2026: thành phố thứ 7 trực thuộc TW, 12.737 km², khoảng 4,49 triệu dân, 95 đơn vị cấp xã; giữ các cơ chế đặc thù hiện hành.",
+      "en": "Resolution 30/2026/QH16, passed 24/4/2026, effective 30/4/2026: 7th centrally-run city, 12,737 km², about 4.49m people, 95 commune-level units; existing special mechanisms retained."
+     }
+    },
+    {
+     "title": {
+      "vi": "Sáp nhập Bình Phước",
+      "en": "Binh Phuoc merger"
+     },
+     "text": {
+      "vi": "Từ 1/7/2025, Bình Phước nhập vào Đồng Nai. Giá đất tại xã, phường mới vẫn xác định theo ranh giới hành chính cũ trong giai đoạn chuyển tiếp; tra cứu cần dùng tên đơn vị mới.",
+      "en": "From 1/7/2025 Binh Phuoc merged into Dong Nai. Land prices in new wards/communes still follow old boundaries during transition; searches need the new unit names."
+     }
+    },
+    {
+     "title": {
+      "vi": "Bảng giá đất 2026 và hệ số K",
+      "en": "2026 land price table and K coefficient"
+     },
+     "text": {
+      "vi": "Nghị quyết 28/2025/NQ-HĐND hiệu lực 1/1/2026. Dự thảo tăng đất ở đô thị bình quân 3,6 lần (1,6-9 lần), nông thôn 3,2 lần. Giá đất ở cao nhất được trích dẫn 49,5 triệu/m². Hệ số điều chỉnh theo QĐ 03/2026/QĐ-UBND (11/5/2026). Chi phí chuyển mục đích, thuế tăng mạnh.",
+      "en": "Resolution 28/2025/NQ-HDND in force 1/1/2026. Draft raised urban residential values 3.6x on average (1.6-9x), rural 3.2x. Top cited residential price 49.5m/m². Adjustment coefficient per Decision 03/2026/QD-UBND (11/5/2026). Land-use conversion costs and taxes rise sharply."
+     }
+    },
+    {
+     "title": {
+      "vi": "Quy định tách thửa",
+      "en": "Plot-splitting rules"
+     },
+     "text": {
+      "vi": "QĐ 63/2024/QĐ-UBND: tối thiểu 60 m² đất ở đô thị (kể cả Biên Hòa), 80 m² đất ở nông thôn; sau sáp nhập tiếp tục áp dụng cùng QĐ 30/2024 của Bình Phước cho đến khi có văn bản mới. Việc mở lại tách thửa đầu 2018 từng châm ngòi sốt phân lô.",
+      "en": "Decision 63/2024/QD-UBND: minimum 60 m² urban residential (incl. Bien Hoa), 80 m² rural; still applied with Binh Phuoc's Decision 30/2024 after the merger until replaced. Reopening splits in early 2018 sparked the subdivision fever."
+     }
+    },
+    {
+     "title": {
+      "vi": "Nhà ở xã hội",
+      "en": "Social housing push"
+     },
+     "text": {
+      "vi": "Chỉ tiêu Chính phủ giao hơn 60.000 căn giai đoạn 2026-2030; mục tiêu hơn 8.000 căn hoàn thành 2026. Dự án cho thuê đầu tiên khởi công tại Long Bình (6/2026). Vay ưu đãi 6,5%/năm theo NQ 33 (Agribank) đến 31/12/2026.",
+      "en": "Government quota of 60,000+ units for 2026-2030; 8,000+ completions targeted in 2026. First rental scheme started in Long Binh (6/2026). Preferential loans at 6.5%/year under Resolution 33 (Agribank) to 31/12/2026."
+     }
+    },
+    {
+     "title": {
+      "vi": "Tháo gỡ dự án tồn đọng (Aqua City)",
+      "en": "Unblocking stalled projects (Aqua City)"
+     },
+     "text": {
+      "vi": "Aqua City (Novaland) được tháo gỡ pháp lý; sổ hồng đầu tiên trao 23/7/2026, gần 2.400 sản phẩm đủ điều kiện ký HĐMB, mở bán lại từ 31/10/2026. Số liệu chủ yếu từ thông cáo doanh nghiệp, cần đối chiếu Sở Xây dựng.",
+      "en": "Aqua City (Novaland) legal issues lifted; first pink books handed over 23/7/2026, nearly 2,400 units cleared for sale contracts, sales reopened 31/10/2026. Figures mostly from company releases, verify with the Construction Department."
+     }
+    }
+   ],
+   "forecast": {
+    "horizon": "2027-2030",
+    "scenarios": [
+     {
+      "key": "base",
+      "name": {
+       "vi": "Cơ sở",
+       "en": "Base"
+      },
+      "price_change": {
+       "vi": "+3-8%/năm",
+       "en": "+3-8%/yr"
+      },
+      "text": {
+       "vi": "Sân bay khai thác cuối 2026, các trục cao tốc hoàn thiện 2027; lãi suất giảm chậm. Đất có sổ gần hạ tầng và căn hộ Biên Hòa tăng vừa phải, đất vườn vùng ven đi ngang.",
+       "en": "Airport opens end-2026, expressways complete in 2027; rates ease slowly. Titled land near infrastructure and Bien Hoa apartments rise moderately; fringe garden land stays flat."
+      },
+      "estimate": true
+     },
+     {
+      "key": "bull",
+      "name": {
+       "vi": "Tích cực",
+       "en": "Bull"
+      },
+      "price_change": {
+       "vi": "+10-15%/năm quanh sân bay",
+       "en": "+10-15%/yr near the airport"
+      },
+      "text": {
+       "vi": "Sân bay vận hành trơn tru, lãi vay về dưới 10%, FDI công nghệ cao tăng mạnh kéo nhà ở chuyên gia, công nhân; Long Thành, Nhơn Trạch dẫn dắt.",
+       "en": "Smooth airport ramp-up, mortgage rates below 10%, strong high-tech FDI lifts expat and worker housing; Long Thanh, Nhon Trach lead."
+      },
+      "estimate": true
+     },
+     {
+      "key": "bear",
+      "name": {
+       "vi": "Tiêu cực",
+       "en": "Bear"
+      },
+      "price_change": {
+       "vi": "-5-10%",
+       "en": "-5-10%"
+      },
+      "text": {
+       "vi": "Sân bay lùi tiếp, lãi suất thả nổi neo 13-15%, nhà đầu tư dùng đòn bẩy bán tháo; đất phân lô vùng ven có thể giảm sâu hơn.",
+       "en": "Further airport delay, floating rates stuck at 13-15%, leveraged investors dump; fringe subdivided land could fall further."
+      },
+      "estimate": true
+     }
+    ],
+    "drivers": [
+     {
+      "vi": "Sân bay Long Thành khai thác từ 24/12/2026 (mục tiêu ACV)",
+      "en": "Long Thanh airport operations from 24/12/2026 (ACV target)"
+     },
+     {
+      "vi": "Vị thế thành phố trực thuộc TW, cơ chế đặc thù, đầu tư công lớn",
+      "en": "Centrally-run city status, special mechanisms, large public investment"
+     },
+     {
+      "vi": "FDI và KCN lấp đầy 94,3%, nhu cầu nhà ở công nhân, chuyên gia",
+      "en": "FDI and 94.3% industrial occupancy drive worker and expat housing"
+     },
+     {
+      "vi": "Mạng cao tốc, vành đai hoàn thiện 2026-2028",
+      "en": "Expressway and ring-road network completing 2026-2028"
+     }
+    ],
+    "risks": [
+     {
+      "vi": "Lãi vay cao: thả nổi 13-15%, khó giảm sâu trước cuối 2026",
+      "en": "High rates: floating 13-15%, unlikely to fall much before end-2026"
+     },
+     {
+      "vi": "Tiến độ hạ tầng hay lùi (sân bay, nút Vĩnh Thanh, mở rộng cao tốc)",
+      "en": "Recurring infrastructure delays (airport, Vinh Thanh interchange, expressway widening)"
+     },
+     {
+      "vi": "Bảng giá đất mới đẩy chi phí chuyển mục đích, thuế; đất vườn tách thửa khó thanh khoản",
+      "en": "New price table raises conversion costs and taxes; subdivided garden land illiquid"
+     },
+     {
+      "vi": "Rủi ro pháp lý dự án và chủ đầu tư yếu tài chính",
+      "en": "Project legal risk and financially weak developers"
+     }
+    ],
+    "sources": [
+     "DKRA Consulting Q3/2026 outlook: Q4/2026 about 200-300 new land plots and 7,000-10,000 apartments in HCMC region, demand unlikely to surge",
+     "Cushman & Wakefield: Dong Nai about 17% of 5,347 ha southern industrial supply 2026-2029",
+     "Expert view via VnBusiness/CafeF: mortgage rates hard to fall sharply by end-2026",
+     "Price-change scenarios are Javis estimates, not from any research house"
+    ]
+   },
+   "potential": [
+    {
+     "vi": "Cửa ngõ hàng không quốc tế của vùng TP.HCM khi Long Thành vận hành",
+     "en": "International aviation gateway for the HCMC region once Long Thanh runs"
+    },
+    {
+     "vi": "Thủ phủ công nghiệp: giá thuê đất KCN cao nhất phía Nam, lấp đầy 94,3%",
+     "en": "Industrial capital: highest southern industrial rents, 94.3% occupancy"
+    },
+    {
+     "vi": "Quỹ đất lớn sau sáp nhập (12.737 km²) và vai trò đô thị trực thuộc TW",
+     "en": "Large land bank after the merger (12,737 km²) and centrally-run status"
+    },
+    {
+     "vi": "Nhơn Trạch, Long Thành nối TP.HCM qua Vành đai 3, Bến Lức - Long Thành",
+     "en": "Nhon Trach, Long Thanh tied to HCMC via Ring Road 3 and Ben Luc - Long Thanh"
+    },
+    {
+     "vi": "Nhu cầu nhà ở thực của khoảng 4,49 triệu dân và lực lượng lao động KCN",
+     "en": "Real housing demand from about 4.49m residents and industrial workforce"
+    }
+   ],
+   "playbook": [
+    {
+     "vi": "Ưu tiên đất có sổ riêng, thổ cư, đủ diện tích tách thửa (60 m² đô thị, 80 m² nông thôn); tránh đất vườn phân lô vùng ven.",
+     "en": "Favor individually titled residential plots meeting split minimums (60 m² urban, 80 m² rural); avoid subdivided fringe garden land."
+    },
+    {
+     "vi": "Tra bảng giá 2026 và hệ số K trước khi chốt: phí chuyển mục đích, thuế có thể tăng nhiều lần so với 2025.",
+     "en": "Check the 2026 table and K coefficient before closing: conversion fees and taxes can be multiples of 2025."
+    },
+    {
+     "vi": "Theo dõi mốc sân bay 24/12/2026 và tiến độ nút Vĩnh Thanh, 25B; mua theo hạ tầng đã thông, không theo quy hoạch trên giấy.",
+     "en": "Track the 24/12/2026 airport date and Vinh Thanh, 25B progress; buy on opened infrastructure, not paper plans."
+    },
+    {
+     "vi": "Dùng tên xã, phường mới sau sáp nhập khi tra cứu quy hoạch, giá, pháp lý; đối chiếu ranh giới cũ.",
+     "en": "Use post-merger ward/commune names when checking zoning, prices and title; cross-check old boundaries."
+    },
+    {
+     "vi": "Hạn chế đòn bẩy: lãi thả nổi 13-15%; tính dòng tiền khi hết ưu đãi lãi suất.",
+     "en": "Limit leverage: floating rates 13-15%; model cash flow after teaser rates expire."
+    },
+    {
+     "vi": "Săn hàng cắt lỗ của nhà đầu tư đòn bẩy (giảm 25-50%) nhưng chỉ ở khu có hạ tầng và pháp lý sạch.",
+     "en": "Hunt leveraged sellers' discounts (25-50% off) only where infrastructure and title are clean."
+    },
+    {
+     "vi": "Với khách ở thực và công nhân, giới thiệu NOXH (20-25,6 triệu/m²) và căn hộ Biên Hòa gần KCN.",
+     "en": "For end-users and workers, pitch social housing (20-25.6m/m²) and Bien Hoa apartments near industrial parks."
+    }
+   ],
+   "sources": [
+    {
+     "name": "CafeF/VTV: Sân bay Long Thành dự kiến khai thác thương mại 24/12 (30/10/2026)",
+     "url": "https://cafef.vn/san-bay-long-thanh-du-kien-khai-thac-thuong-mai-tu-ngay-24-12-18826103020161464.chn"
+    },
+    {
+     "name": "Báo Đấu thầu: Quốc hội thông qua Nghị quyết thành lập TP. Đồng Nai",
+     "url": "https://baodauthau.vn/quoc-hoi-thong-qua-nghi-quyet-thanh-lap-thanh-pho-dong-nai-truc-thuoc-trung-uong-hieu-luc-tu-3042026-post197848.html"
+    },
+    {
+     "name": "CafeF: DKRA Q3/2026, tiêu thụ căn hộ, đất nền giảm đến 66%",
+     "url": "https://cafef.vn/luong-tieu-thu-can-ho-dat-nen-o-tphcm-va-vung-phu-can-giam-den-66-188261012122754748.chn"
+    },
+    {
+     "name": "Báo Đấu thầu: Thị trường BĐS Đồng Nai ấm dần (DKRA 8/2025)",
+     "url": "https://baodauthau.vn/thi-truong-bat-dong-san-dong-nai-am-dan-sau-tphcm-post184972.html"
+    },
+    {
+     "name": "VietnamFinance: Giá đất mới Đồng Nai 2026 tăng tới 9 lần",
+     "url": "https://vietnamfinance.vn/gia-dat-moi-tinh-dong-nai-nam-2026-tang-cao-toi-9-lan-d134241.html"
+    },
+    {
+     "name": "VnExpress: Đất nền phía Nam giảm cả tỷ đồng vẫn ế (5/2026)",
+     "url": "https://vnexpress.net/dat-nen-phia-nam-giam-ca-ty-dong-van-e-5072400.html"
+    },
+    {
+     "name": "VnBusiness: Đất nền vùng ven sân bay Long Thành (5/2025)",
+     "url": "https://vnbusiness.vn/ong-lon-do-bo-tay-to-ruc-rich-tro-lai-dat-nen-vung-ven-san-bay-long-thanh-nong-ham-hap.html"
+    },
+    {
+     "name": "VnExpress: Giá đất Nhơn Trạch trên đà tăng (DKRA 2018)",
+     "url": "https://vnexpress.net/gia-dat-nhon-trach-tren-da-tang-3747095.html"
+    },
+    {
+     "name": "Cushman & Wakefield: Southern industrial RE (8/2026)",
+     "url": "https://www.cushmanwakefield.com/vi-vn/vietnam/news/2026/08/southern-vietnam-industrial-real-estate-maintains-stable-fundamentals"
+    },
+    {
+     "name": "CafeF: Vành đai 3 đoạn qua Đồng Nai sau hơn 3 năm thi công (29/10/2026)",
+     "url": "https://cafef.vn/can-canh-vanh-dai-3-tphcm-doan-qua-dong-nai-sau-hon-3-nam-thi-cong-18826102913335996.chn"
+    },
+    {
+     "name": "Đại biểu Nhân dân: Thông xe toàn tuyến cao tốc Biên Hòa - Vũng Tàu",
+     "url": "https://daibieunhandan.vn/tp-dong-nai-chieu-nay-thong-xe-toan-tuyen-cao-toc-bien-hoa-vung-tau-10417254.html"
+    },
+    {
+     "name": "Báo Đấu thầu: Khai thác toàn tuyến Bến Lức - Long Thành từ 1/10/2026",
+     "url": "https://baodauthau.vn/thong-xe-ky-thuat-va-dua-vao-khai-thac-toan-tuyen-cao-toc-ben-luc-long-thanh-tu-ngay-1102026-post208546.html"
+    },
+    {
+     "name": "CafeLand: Tiến độ 5 tuyến đường lớn Đồng Nai (9/2026)",
+     "url": "https://cafeland.vn/tin-tuc/dong-nai-thuc-tien-do-5-tuyen-duong-lon-bat-dong-san-quanh-tuyen-nao-dang-chu-y-154937.html"
+    },
+    {
+     "name": "VietnamPlus: Đồng Nai hút vốn trong nước và FDI 9 tháng 2026",
+     "url": "https://www.vietnamplus.vn/dong-nai-hut-manh-dong-von-dau-tu-trong-nuoc-va-fdi-post1139703.vnp"
+    },
+    {
+     "name": "Thư viện Nhà đất: Điều kiện tách thửa Đồng Nai sau sáp nhập",
+     "url": "https://thuviennhadat.vn/phap-luat/dieu-kien-tach-thua-dat-o-tai-dong-nai-sau-sap-nhap-tinh-720806.html"
+    }
+   ]
+  }
+ ]
+}
