@@ -88,7 +88,7 @@ const main = fs.readFileSync(path.join(ROOT, "server/main.py"), "utf8");
 check("static files go through _TinhGonStatic", /app\.mount\("\/static", _TinhGonStatic\(directory=str\(DASHBOARD_PATH\)\), name="static"\)/.test(main));
 check("the ?v= key is the crc of the served bytes", /_data, crc = tinh_gon\.ban_phuc_vu\(f, rel\)/.test(main));
 const tg = fs.readFileSync(path.join(ROOT, "server/tinh_gon.py"), "utf8");
-check("any minifier error falls back to the original file", /except Exception:[^\n]*\n\s+data = goc/.test(tg));
+check("any minifier error falls back to the original file", /except Exception:[^\n]*\n\s+(data = goc|return goc)/.test(tg));
 check("JAVIS_MINIFY=0 turns it off", /JAVIS_MINIFY/.test(tg));
 
 fs.rmSync(out, { recursive: true, force: true });

@@ -309,7 +309,9 @@ try:
                              _aio.run(main.root()).body.decode("utf-8")))
     check("sửa console.js thì RIÊNG nó đổi khoá",
           _sau.get("console.js") != _truoc.get("console.js"))
-    _lay = [k for k in _truoc if k != "console.js" and _sau.get(k) != _truoc[k]]
+    # 2026-11-09: the startup scripts also ship as one bundle (static_bundle.py), whose key follows any file in it; the
+    # bundle is one gzip download, and every file keeps its own key for the fallback and the lazily loaded pages.
+    _lay = [k for k in _truoc if k != "console.js" and not k.startswith("_bundle/") and _sau.get(k) != _truoc[k]]
     check("và mọi file khác GIỮ NGUYÊN khoá (cache vẫn ăn qua bản cập nhật)", not _lay)
 finally:
     _cjs.write_bytes(_goc)
