@@ -2442,7 +2442,7 @@ async def validate_connection(conn_id):
     spec = mcp_client._conn_spec(conn)
     try:
         spec["headers"].update(await mcp_client._oauth_headers(conn))
-        tools = await mcp_client.pool.list_tools(spec)
+        tools = await mcp_client.pool.list_tools(spec, fresh=True)   # the Test button reaches the server
     except Exception as e:
         if conn.get("connector_id") == "composio":
             import connect_health
