@@ -12100,11 +12100,16 @@ def _workflow_agent_helpers(brain, tools, mode=None):
     Tương đương giữa hai đường phải đến từ việc dùng chung code, không phải từ việc
     chép cho giống. Mọi thay đổi ở đây tự động áp cho cả hai.
 
-    `mode`: permission level of a GATED run (tools is not None), e.g. the Kanban job's
-    execution_mode. Plugin tools a step declares are checked against it; None = "auto".
+    `mode`: permission level of the run, e.g. the Kanban job's execution_mode. A GATED run (tools is not None) checks
+    the plugin tools a step declares against it (None = "auto"); an UNGATED one gets the hub at it (None = "full").
     """
     vault_root = str(_brain_root(brain))
     gated_mode = str(mode or "auto") if str(mode or "auto") in ("suggest", "auto") else "auto"
+    # Level of an UNGATED run (tools is None): Kanban passes its execution_mode ("full" there); a run started from chat
+    # passes nothing and is the owner's own, so "full", as a chat turn.
+    ungated_mode = str(mode or "full").strip().lower()
+    if ungated_mode not in ("suggest", "auto", "full"):
+        ungated_mode = "suggest"
 
     def _mk(sysprompt, model=None, provider="", extra_tools=()):
         # An interactive step whose agent pins no model runs on the owner's MAIN model, like a chat turn
@@ -12152,6 +12157,11 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             # workflow quét dữ liệu thật cũng có thể chạy quá 300s như việc lịch/Kanban.
             c.max_wall_s = aux_engine.bg_max_wall_s()
         else:
+            # #1252: an ungated step (a workflow run from chat, or a Kanban `wf:` job at `full`) gets the Javis hub at
+            # the run's level, like the Codex branch above (_apply_codex_hub) and like route `auto`. Before, only
+            # javis_vault was set: in-process plugins worked, every MCP registered in Javis did not, so the agent
+            # reported "missing tool" and the job stopped at its acceptance check.
+            _apply_mcp(c, mode=ungated_mode, brain=vault_root)
             c.javis_vault = vault_root
         # `tools is not None` = workflow chạy NỀN ở chế độ giới hạn công cụ. Ở đó agent luôn
         # phải là Claude Code, y như nhánh Codex ngay trên: giới hạn an toàn nằm ở
