@@ -27,7 +27,7 @@ def _composio():
 
 
 class _RejectedPool:
-    async def list_tools(self, spec):
+    async def list_tools(self, spec, fresh=False):
         raise mcp_client.McpHttpError(REJECTED)
 
 

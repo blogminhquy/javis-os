@@ -133,7 +133,10 @@ async def _kich_ban():
 
     may.song.clear()          # Pancake deploy lại / phiên hết hạn
     may.rpc.clear()
-    t = await mcp_client.pool.list_tools(SPEC)
+    # fresh=True: since 2026-11-09 a plain list_tools answers from the live session's recent list
+    # (SessionPool.cached_tools) and never reaches the server. The health check and the Test button
+    # ask for real, which is the request that meets the deleted session here.
+    t = await mcp_client.pool.list_tools(SPEC, fresh=True)
     check("CANARY: máy chủ vừa xoá phiên -> VẪN đủ tool (tự bắt tay lại)", len(t) == 3, len(t))
     check("và đúng là đã gửi initialize mới chứ không phải may rủi",
           "initialize" in may.rpc, may.rpc)

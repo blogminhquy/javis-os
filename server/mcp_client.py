@@ -56,6 +56,12 @@ PROTOCOL = "2025-06-18"
 # session ấm: một tiến trình sống lâu thay vì đẻ mới mỗi 10 phút. Vụ VPS Hostinger
 # 15/08: 100 tiến trình mcp-google-sheets, ăn 6,9 GB RAM.
 _IDLE_TTL = 900          # đóng session không dùng > 15 phút
+# A tools/list answer is reused this long on the same live session (2026-11-09). The hub keeps one tool list per mode,
+# plugin set, bot or coding session, and each of those refreshed every 60 s by asking EVERY server for its whole tool
+# list again and parsing it on the event loop: /health/loop showed `mcp_client _rpc < list_tools` 6 times in half an
+# hour, up to 1.37 s. A server's tools change when its process or config changes, both of which give a new session,
+# or when it says so (`notifications/tools/list_changed`). The health check and the Test button still ask for real.
+_TOOLS_TTL = 600
 _DOWN_TTL = 60           # nguồn vừa khởi động hỏng: trả lỗi ngay trong chừng này giây (SessionPool.call_tool)
 _INTERNAL = {"botcake": "botcake_mcp", "substack": "substack_mcp"}   # transport internal → tên module
 
@@ -324,6 +330,7 @@ class McpStdioSession:
         self.label = label or command
         self.proc = None
         self._id = 0
+        self.tools_changed = False    # the server sent notifications/tools/list_changed since the last tools/list
         self._lock = asyncio.Lock()   # NDJSON tuần tự - serialize request/response
         # 50 dòng: traceback Python lồng nhau (uvx crash lúc import) dễ vượt 20 dòng,
         # mà dòng NGUYÊN NHÂN nằm cuối cùng - thiếu chỗ chứa là mất đúng dòng đó.
@@ -480,6 +487,8 @@ class McpStdioSession:
                 continue   # noise (log npx...) → bỏ qua
             if obj.get("id") == msg["id"]:
                 return obj
+            if obj.get("method") == "notifications/tools/list_changed":
+                self.tools_changed = True   # the pool's cached tool list is stale (SessionPool.cached_tools)
             # notification/request từ server → bỏ qua (Javis không hỗ trợ sampling)
 
     async def ensure_init(self):
@@ -562,6 +571,7 @@ class McpStdioSession:
     async def list_tools(self):
         await self.ensure_init()
         async with self._lock:
+            self.tools_changed = False   # a list_changed read during this request sets it again
             res = await self._rpc("tools/list", timeout=60)
         return ((res or {}).get("result") or {}).get("tools", []) or []
 
@@ -742,6 +752,25 @@ class SessionPool:
         ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
         return bool(ent and ent.get("ban"))
 
+    def cached_tools(self, spec):
+        """The last tools/list answer of the live session for this spec while it is recent, else None.
+
+        None when there is no session, it was replaced or marked stale, its config changed, its process died, it
+        said its tools changed, or the answer is older than _TOOLS_TTL. A hit counts as use of the session, as the
+        real tools/list it replaces did, so the idle sweep keeps treating discovery as activity."""
+        ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
+        if not ent or ent.get("stale") or ent["hash"] != _spec_hash(spec):
+            return None
+        tools = ent.get("tools")
+        if not tools or time.time() - ent.get("tools_at", 0) > _TOOLS_TTL:
+            return None
+        obj = ent["obj"]
+        alive = getattr(obj, "alive", None)
+        if getattr(obj, "tools_changed", False) or (callable(alive) and not alive()):
+            return None
+        ent["last"] = time.time()
+        return tools
+
     def tool_da_biet(self, spec):
         """Danh sách tool của lần dò gần nhất trên phiên này (None nếu chưa dò được lần nào)."""
         ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
@@ -887,7 +916,13 @@ class SessionPool:
                 raise                      # no new token (refresh token revoked): sign in again
             return await run(again)
 
-    async def list_tools(self, spec):
+    async def list_tools(self, spec, fresh=False):
+        """Tool list of the server behind `spec`. Reuses the live session's recent answer (`cached_tools`) unless
+        `fresh`: a health check or the Test button must reach the server, not a copy."""
+        if not fresh:
+            cached = self.cached_tools(spec)
+            if cached is not None:
+                return cached
         tools = await self._with_oauth(
             spec, lambda sp: self._retry(sp, lambda s: s.list_tools(), idempotent=True))
         # Dò được là nguồn đã sống lại (nút Kiểm tra, vòng quét sức khoẻ): bỏ dấu "vừa hỏng" ngay.
@@ -897,6 +932,7 @@ class SessionPool:
         ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
         if ent is not None and tools:
             ent["tools"] = tools
+            ent["tools_at"] = time.time()
         return tools
 
     async def call_tool(self, spec, tool, arguments):

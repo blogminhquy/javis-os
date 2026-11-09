@@ -180,7 +180,7 @@ async def check_one(conn, pool=None) -> dict:
     spec = mcp_client._conn_spec(conn)
     try:
         spec["headers"].update(await mcp_client._oauth_headers(conn))
-        tools = await asyncio.wait_for(pool.list_tools(spec), timeout=_CHECK_TIMEOUT)
+        tools = await asyncio.wait_for(pool.list_tools(spec, fresh=True), timeout=_CHECK_TIMEOUT)
         rec.update(ok=True, tools=len(tools))
         # Nối được nhưng hộp công cụ RỖNG thì không được tô xanh. Đèn xanh ghi "Hoạt động
         # bình thường (0 công cụ)" là câu nói dối tai hại nhất trang này: người dùng tin là
