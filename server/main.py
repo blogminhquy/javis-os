@@ -7103,7 +7103,7 @@ def _do_backup(brain: str = "") -> dict:
         if res.get("restored"):
             bits.append("khôi phục từ backup")
         detail = (" · " + ", ".join(bits)) if bits else ""
-        cfg["backup"]["last_status"] = "✓ Đồng bộ 2 chiều " + time.strftime("%H:%M %d/%m") + detail
+        cfg["backup"]["last_status"] = "✓ Đồng bộ 2 chiều " + localefmt.now().strftime("%H:%M %d/%m") + detail
     else:
         cfg["backup"]["last_status"] = "✗ " + (res.get("error") or "lỗi")[:150]
     cfg["backup"]["last_report"] = {
@@ -13317,8 +13317,7 @@ def _security_alert_text(ev: dict) -> str:
     vi, en = _SECURITY_ALERT_TEXT.get(ev.get("event", ""), (ev.get("event", ""), ev.get("event", "")))
     head = localefmt.chu(vi, en)
     bits = [f"[{localefmt.chu('Bảo mật', 'Security')}] {head}."]
-    from datetime import datetime as _dtm
-    when = _dtm.fromtimestamp(float(ev.get("ts") or time.time())).strftime("%d/%m %H:%M")
+    when = localefmt.format_ts(ev.get("ts") or time.time(), "%d/%m %H:%M")
     where = " · ".join(x for x in (when, ev.get("ip", ""), _ua_short(ev.get("ua", "")), ev.get("detail", "")) if x)
     if where:
         bits.append(where)
@@ -16989,9 +16988,8 @@ def _cite_text(src: str, item: dict, brain: str) -> str:
 
     Written as data with its source and time, and said to be a snapshot: Javis must check live state with tools
     before talking about "now". The marker lets a second click reuse it instead of posting it twice."""
-    import datetime as _dt
     ts = item.get("ts") or 0
-    when = item.get("published_at") or (_dt.datetime.fromtimestamp(float(ts)).strftime("%d/%m/%Y %H:%M") if ts else "")
+    when = item.get("published_at") or (localefmt.format_ts(ts, "%d/%m/%Y %H:%M") if ts else "")
     title = str(item.get("title") or "").strip()
     body = str(item.get("body") or item.get("summary") or "").strip()
     if src == "news" and item.get("summary") and item.get("body"):
@@ -17997,7 +17995,7 @@ def _voice_quota_frame(prov) -> dict:
         print(f"[chatgpt live] rest: {type(e).__name__}: {e}", file=sys.stderr)
     when = ""
     if reset > time.time():
-        when = time.strftime("%H:%M", time.localtime(reset))
+        when = localefmt.format_ts(reset, "%H:%M")
     vi = "ChatGPT Live đã hết lượt của gói ChatGPT" + (f" (mở lại lúc {when})" if when else "") + \
         ". Javis chuyển sang tài khoản hoặc đường gọi kế tiếp."
     en = "ChatGPT Live is out of quota on the ChatGPT plan" + (f" (back at {when})" if when else "") + \
@@ -27496,7 +27494,7 @@ async def threads_check(request: Request):
                            "Turn on a bot for this channel so Javis renews the token, or log in to Threads again.")))
     last = float(meta.get("last_webhook") or 0)
     items.append(item("webhook", True if last else None, ("Threads đã gửi bình luận về Javis", "Threads has sent replies to Javis"),
-                      time.strftime("%Y-%m-%d %H:%M", time.localtime(last)) if last else localefmt.chu("chưa nhận lần nào", "none received yet"),
+                      localefmt.format_ts(last, "%Y-%m-%d %H:%M") if last else localefmt.chu("chưa nhận lần nào", "none received yet"),
                       ("Trong App Dashboard, Threads API, Webhooks: dán Địa chỉ webhook và Mã xác minh ở thẻ này, đăng ký "
                        "trường replies, rồi chuyển app sang Live. Thử bình luận một bài của bạn để kiểm tra.",
                        "In the App Dashboard, Threads API, Webhooks: paste this card's Webhook address and Verify token, "

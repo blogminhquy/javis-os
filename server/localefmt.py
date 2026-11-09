@@ -155,6 +155,19 @@ def today_str() -> str:
     return now().strftime("%Y-%m-%d")
 
 
+def format_ts(ts, fmt: str) -> str:
+    """An epoch timestamp as text in the owner's timezone (Settings), never the server clock.
+
+    A VPS or Docker container runs on UTC, so `datetime.fromtimestamp(ts)` without a zone printed 14:47 on a notice the
+    owner received at 21:47 in Vietnam (2026-11-09). Every clock time a person reads goes through here. Returns "" for
+    an empty or broken value instead of raising: a notice must not fail over its timestamp.
+    """
+    try:
+        return datetime.fromtimestamp(float(ts), tz()).strftime(fmt)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return ""
+
+
 def doi_mui(moc: datetime) -> datetime:
     """Đưa một mốc thời gian về múi giờ đang cấu hình. Mốc không mang múi giờ được coi là UTC,
     cùng quy ước với `usage_parsers`."""

@@ -414,7 +414,7 @@ def _reset_clock_epoch(text: str, now: float) -> float:
         return 0.0
     tz = _zone(m.group("tz") or "")
     # Naive local datetimes when no tz: `.timestamp()` then applies the local DST rules.
-    base = datetime.fromtimestamp(now, tz) if tz else datetime.fromtimestamp(now)
+    base = datetime.fromtimestamp(now, tz) if tz else datetime.fromtimestamp(now)  # server clock on purpose
     cand = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
     try:
         if m.group("mon"):

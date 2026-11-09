@@ -171,7 +171,7 @@ def event_prompt(hook: dict, payload: str, received_at: float, fields: Optional[
         body = body[:PAYLOAD_PROMPT_CHARS] + (f"\n... (đã cắt: dữ liệu dài {len(payload)} ký tự, đây là "
                                               f"{PAYLOAD_PROMPT_CHARS} ký tự đầu; bản đầy đủ ở trang Sự kiện)")
     body = body.replace("<<<", "< < <").replace(">>>", "> > >")
-    when = time.strftime("%Y-%m-%d %H:%M", time.localtime(received_at))
+    when = localefmt.format_ts(received_at, "%Y-%m-%d %H:%M")   # the owner's clock, not the server's UTC
     head = f"SỰ KIỆN WEBHOOK \"{hook.get('name') or hook.get('id')}\" vừa tới lúc {when}."
     if ids and ids.get("event"):
         head += f" Mã sự kiện {ids['event']}" + (f", mã giao {ids['delivery']}" if ids.get("delivery") else "") + "."
