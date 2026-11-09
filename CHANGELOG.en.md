@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.525.0] - 2026-11-09
+### Added
+- **Choose which brain is the default.** In the brain picker, tap the star on a brain to make it the default. Work that names no brain runs there, and every synced machine follows.
+- **The old Brain Default can be deleted.** Once another brain is the default, Brain Default is an ordinary brain and deletes like any other (still kept in the trash for 30 days). It no longer comes back on its own.
+- **Know before you delete.** The delete box now says how many loops and reminders stop with the brain, and which bots answer from it so you can move them first.
+
 ## [0.524.0] - 2026-11-09
 ### Added
 - **Connecting GitHub checks for git first and installs it when it is missing, then opens the sign-in step.** Windows uses winget or the official Git installer (no admin rights), Mac uses Homebrew or Apple's tools, Linux uses the package manager when Javis is allowed to.

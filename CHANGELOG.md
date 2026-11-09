@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.525.0] - 2026-11-09
+### Thêm mới
+- **Chọn bộ não nào làm mặc định.** Trong bảng chọn bộ não, bấm ngôi sao ở một bộ não để đặt nó làm mặc định. Việc chưa chọn bộ não riêng sẽ chạy ở đó, và mọi máy đồng bộ cũng đổi theo.
+- **Xoá được Brain Default cũ.** Đổi mặc định sang bộ não khác xong, Brain Default thành bộ não thường và xoá được như mọi bộ não khác (vẫn vào thùng rác 30 ngày). Nó không tự sống lại nữa.
+- **Biết trước khi xoá.** Ô xoá bộ não giờ nói rõ bao nhiêu vòng lặp, nhắc việc sẽ dừng theo, và bot nào đang trả lời từ bộ não đó để chuyển đi trước.
+
 ## [0.524.0] - 2026-11-09
 ### Thêm mới
 - **Bấm Kết nối GitHub, Javis kiểm tra máy có git chưa, thiếu thì tự cài rồi mới mở bước đăng nhập.** Windows cài bằng winget hoặc bộ cài chính thức của Git (không cần quyền quản trị), Mac dùng Homebrew hoặc công cụ của Apple, Linux dùng trình quản lý gói khi Javis có quyền.
