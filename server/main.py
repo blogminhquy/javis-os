@@ -27473,7 +27473,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           account_label: str = Form(""), reply_policy: str = Form(""),
                           gio_truc: str = Form(""), nhuong_tay_phut: str = Form(""),
                           ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form(""),
-                          nhan_ket_ban: str = Form(""), skip_labels: str = Form("")):
+                          nhan_ket_ban: str = Form(""), skip_labels: str = Form(""),
+                          group_typing: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -27513,6 +27514,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "nhan_ket_ban": nhan_ket_ban,
         # Zalo labels the bot stays out of (0.281.0, personal Zalo): JSON list of label names.
         "skip_labels": skip_labels,
+        # "Đang soạn tin" in groups once the bot decided to answer (personal Zalo): "0" = off, blank = on.
+        "group_typing": group_typing,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)

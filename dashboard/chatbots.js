@@ -944,6 +944,13 @@
                 esc(window.t("cb2.rw_tg")) + '</div>' +
               // Chỉ hiện khi chọn "Tự đánh giá": một dòng giải thích, không ô cài đặt nào (bộ phán xử tự vận hành).
               (RP ? RP.formHtml() : '') +
+              // "Đang soạn tin..." in groups (personal Zalo, 09/11/2026): shown only once the bot decided to answer.
+              // Unset = on, so only an explicit false leaves the box unticked.
+              '<div id="cbGtBox" style="display:none">' +
+                '<label class="cb-gio-truc" for="cbGroupTyping"><input type="checkbox" id="cbGroupTyping"' +
+                  (!b || b.group_typing !== false ? " checked" : "") + '> ' + esc(window.t("cb.group_typing")) + infoBtn() + '</label>' +
+                infoBody(esc(window.t("cb.hint_group_typing"))) +
+              '</div>' +
             '</div>' +
           '</div>' +
 
@@ -1330,6 +1337,7 @@
       });
       box.querySelector("#cbRwBox").style.display = co ? "" : "none";
       box.querySelector("#cbKbBox").style.display = coZaloCaNhan() ? "" : "none";
+      box.querySelector("#cbGtBox").style.display = co && coZaloCaNhan() ? "" : "none";
       box.querySelector("#cbTagBox").style.display = coZaloCaNhan() ? "" : "none";
       if (coZaloCaNhan()) taiTag();
       // Không có nhóm thì nói vì sao, thay vì ẩn im lặng (0.102.1): chủ tưởng phải đưa bot vào nhóm mới hiện.
@@ -1480,6 +1488,7 @@
                     gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "",
                     nhuong_tay_phut: nhuong, ngoai_le: JSON.stringify(nlDs),
                     nhan_ket_ban: coZaloCaNhan() && (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0",
+                    group_typing: (box.querySelector("#cbGroupTyping") || {}).checked === false ? "0" : "1",
                     skip_labels: coZaloCaNhan() ? tagLuu() : "[]" };
       if (nang.length) chung.xac_nhan_ngoai_le = "1";
       try {

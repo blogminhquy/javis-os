@@ -94,8 +94,14 @@ _TAG_STATE: dict = {}       # conn_id -> {"fails": số lần hỏng liên tiế
 TYPING_TOOL = "zalo_send_typing"
 TYPING_DELAY = 1.5          # seconds: a turn that ends quickly (silence, takeover) never shows the indicator
 TYPING_EVERY = 4.0          # Zalo drops the indicator after a few seconds without a new event
-TYPING_OFF = 3600           # seconds without trying again once the MCP lacks the tool or refuses it
+TYPING_OFF = 3600           # seconds without trying again once the MCP lacks the tool
 _TYPING_OFF_UNTIL: dict = {}  # conn_id -> time the indicator may be tried again
+# Groups (owner request 09/11/2026, a bot used as an advisor in a company group: 20 to 30 seconds of silence read as
+# "the bot did not hear"): the indicator starts only once the turn is really going to be answered, i.e. after the
+# reply-policy judge said "reply" and the chat is not taken over (`chatbot_runtime` calls `meta["_on_compose"]`), and
+# lasts until the reply is sent. Most group messages end in silence by design, so it never starts before that point.
+# Each bot can switch it off on the Chatbot page (`group_typing`, on when never set).
+_TOOL_MISSING = ("not found", "unknown tool", "no such tool")
 _UID_RE = re.compile(r"\d{3,25}")
 
 
@@ -407,8 +413,11 @@ async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=
 
 async def send_typing(conn_id: str, chat_id: str, chat_type: str = "private") -> bool:
     """Show "đang soạn tin" in one chat (0.413.0, `zalo_send_typing` of javis-zalo >= 1.9.0). True when Zalo took it.
-    Never raises: the indicator is a nicety, and a connection whose MCP lacks the tool is not asked again for
-    TYPING_OFF seconds."""
+
+    Never raises: the indicator is a nicety. Only an MCP WITHOUT the tool mutes the whole connection for TYPING_OFF
+    seconds. Any other failure (Zalo refused this one chat, the MCP was restarting, a timeout) only ends the indicator
+    for the current turn: before 09/11/2026 one refused chat switched typing off in every chat of the account for an
+    hour, and a group that refused would have done the same to every private chat."""
     import zalo_personal_channel
     cid = str(conn_id or "")
     if time.time() < float(_TYPING_OFF_UNTIL.get(cid) or 0):
@@ -419,23 +428,49 @@ async def send_typing(conn_id: str, chat_id: str, chat_type: str = "private") ->
     try:
         d = await zalo_personal_channel._goi(conn, TYPING_TOOL, {
             "threadId": str(chat_id), "threadType": 1 if str(chat_type or "") == "group" else 0})
+    except asyncio.CancelledError:
+        raise
     except Exception as e:      # noqa: BLE001 - older javis-zalo: "Tool zalo_send_typing not found"
-        _TYPING_OFF_UNTIL[cid] = time.time() + TYPING_OFF
-        print(f"[zalo-personal] không bật được \"đang soạn tin\" ({str(e)[:120]}), thử lại sau "
-              f"{TYPING_OFF // 60} phút", file=sys.stderr)
+        msg = str(e)
+        if any(k in msg.lower() for k in _TOOL_MISSING):
+            _TYPING_OFF_UNTIL[cid] = time.time() + TYPING_OFF
+            print(f"[zalo-personal] không bật được \"đang soạn tin\" ({msg[:120]}), thử lại sau "
+                  f"{TYPING_OFF // 60} phút", file=sys.stderr)
+        else:
+            print(f"[zalo-personal] \"đang soạn tin\" lỗi ở {chat_type} {chat_id}: {msg[:120]}", file=sys.stderr)
         return False
     if isinstance(d, dict) and d.get("success") is False:
-        _TYPING_OFF_UNTIL[cid] = time.time() + TYPING_OFF
         return False
     return True
 
 
-async def keep_typing(conn_id: str, chat_id: str, chat_type: str = "private") -> None:
-    """Run while a reply is being written; the caller cancels it. Starts after TYPING_DELAY, repeats every
-    TYPING_EVERY seconds, stops for good as soon as one attempt fails."""
-    await asyncio.sleep(TYPING_DELAY)
+async def keep_typing(conn_id: str, chat_id: str, chat_type: str = "private", delay: float = None) -> None:
+    """Run while a reply is being written; the caller cancels it. Starts after `delay` (TYPING_DELAY when not given),
+    repeats every TYPING_EVERY seconds, stops for the turn as soon as one attempt fails."""
+    await asyncio.sleep(TYPING_DELAY if delay is None else max(0.0, float(delay)))
     while await send_typing(conn_id, chat_id, chat_type):
         await asyncio.sleep(TYPING_EVERY)
+
+
+class TypingHandle:
+    """The indicator of one turn: `start` at most once (a second call is a no-op), `stop` always safe."""
+
+    def __init__(self, conn_id: str, chat_id: str, chat_type: str):
+        self.conn_id, self.chat_id, self.chat_type = conn_id, chat_id, chat_type
+        self.task = None
+
+    def start(self, delay: float = None) -> None:
+        if self.task is not None:
+            return
+        try:
+            self.task = asyncio.get_running_loop().create_task(
+                keep_typing(self.conn_id, self.chat_id, self.chat_type, delay))
+        except RuntimeError:        # no running loop (a sync test caller): nothing to show
+            self.task = None
+
+    def stop(self) -> None:
+        if self.task is not None:
+            self.task.cancel()
 
 
 async def send_reaction(tk: dict, chat_id: str, msg_id: str, name: str, chat_type: str = "private",
@@ -523,6 +558,11 @@ class Transport:
         """True when the owner saved a yield time on this bot. Only then do groups get the 0.172.0 logic (tags answered
         during the window, held messages released afterwards); otherwise groups stay silent as before."""
         return self._nhuong_phut() is not None
+
+    def group_typing(self) -> bool:
+        """Show "đang soạn tin" in groups once the bot has decided to answer (on when the owner never set it)."""
+        import chatbot_store
+        return chatbot_store.group_typing_on((self.cfg_fn() if self.cfg_fn else {}) or {})
 
     def nhan_ket_ban(self) -> bool:
         """Bot này tự nhận lời mời kết bạn và đọc lời giới thiệu kèm theo (0.172.0, `zalo_friend_intake`)."""
@@ -930,45 +970,53 @@ class Transport:
                                                + " / ".join(cu["texts"]) + ". Hãy trả lời MỘT lần cho các tin này cùng tin mới "
                                                "bên dưới, đừng hỏi lại điều khách đã nói. Việc lượt trước đã làm bằng công cụ (ghi file, gửi tin, "
                                                "đặt lịch) là ĐÃ xong, đừng làm lại.]")
-                # "Đang soạn tin" while the reply is written (0.413.0), private chats only: in a group most turns end
-                # in silence by design, and an indicator followed by nothing reads as a person who changed their mind.
-                go = None if nhom else asyncio.create_task(keep_typing(self.conn_id, thread, loai))
+                # "Đang soạn tin" while the reply is written. Private chat (0.413.0): from the start of the turn, after
+                # TYPING_DELAY so a quick silent turn shows nothing. Group: only once `chatbot_runtime` knows the turn
+                # will be answered (judge said reply, not taken over), with no delay: most group turns end in silence
+                # by design, and an indicator followed by nothing reads as a person who changed their mind.
+                go = TypingHandle(self.conn_id, thread, loai)
+                if not nhom:
+                    go.start()
+                elif self.group_typing():
+                    meta["_on_compose"] = lambda: go.start(0)
                 try:
-                    out = await self.answer_fn(text, meta, None)
-                except BaseException:
-                    for f in da_tai:
-                        f.unlink(missing_ok=True)
-                    if cu:
-                        zc.bo_do_gui(self.conn_id, thread, cu["texts"], int(cu.get("n") or 0))
-                    raise
-                finally:
-                    if go is not None:
-                        go.cancel()
-                anh = []
-                if isinstance(out, dict):
-                    if out.get("khach_nhan_them"):
-                        # Soạn xong mà khách đã nhắn thêm: không gửi câu cũ, giữ chữ khách cho lượt kế tiếp (đang chờ khoá).
+                    try:
+                        out = await self.answer_fn(text, meta, None)
+                    except BaseException:
                         for f in da_tai:
                             f.unlink(missing_ok=True)
-                        zc.bo_do_gui(self.conn_id, thread, list(cu.get("texts") or []) + [chu_khach], int(cu.get("n") or 0) + 1)
-                        return
-                    if out.get("reaction") and zc._BOTS.get(self.conn_id) is self:
-                        await self._react(thread, loai, meta, str(out["reaction"]))
-                    if out.get("im_lang"):
-                        return
-                    cau = str(out.get("text") or "").strip()
-                    # 0.84.3: images the Agent asked to send, already checked by `bot_images.pick`.
-                    anh = [str((f.get("path") if isinstance(f, dict) else f) or "") for f in (out.get("files") or [])]
-                    anh = [x for x in anh if x]
-                else:
-                    cau = str(out or "").strip()
-                if (cau or anh) and zc._BOTS.get(self.conn_id) is self:
-                    if cau:
-                        await self._gui(thread, cau, loai, meta)
-                    if anh:
-                        await self._gui_anh(thread, anh, loai)
-                    if cau and nhom and self.policy is not None:
-                        self.policy.replied(meta, cau)
+                        if cu:
+                            zc.bo_do_gui(self.conn_id, thread, cu["texts"], int(cu.get("n") or 0))
+                        raise
+                    anh = []
+                    if isinstance(out, dict):
+                        if out.get("khach_nhan_them"):
+                            # Soạn xong mà khách đã nhắn thêm: không gửi câu cũ, giữ chữ khách cho lượt kế tiếp (đang chờ khoá).
+                            for f in da_tai:
+                                f.unlink(missing_ok=True)
+                            zc.bo_do_gui(self.conn_id, thread, list(cu.get("texts") or []) + [chu_khach], int(cu.get("n") or 0) + 1)
+                            return
+                        if out.get("reaction") and zc._BOTS.get(self.conn_id) is self:
+                            await self._react(thread, loai, meta, str(out["reaction"]))
+                        if out.get("im_lang"):
+                            return
+                        cau = str(out.get("text") or "").strip()
+                        # 0.84.3: images the Agent asked to send, already checked by `bot_images.pick`.
+                        anh = [str((f.get("path") if isinstance(f, dict) else f) or "") for f in (out.get("files") or [])]
+                        anh = [x for x in anh if x]
+                    else:
+                        cau = str(out or "").strip()
+                    if (cau or anh) and zc._BOTS.get(self.conn_id) is self:
+                        if cau:
+                            await self._gui(thread, cau, loai, meta)
+                        if anh:
+                            await self._gui_anh(thread, anh, loai)
+                        if cau and nhom and self.policy is not None:
+                            self.policy.replied(meta, cau)
+                finally:
+                    # Kept until the reply (and its images) has gone out, so the group never sees a gap between the
+                    # indicator and the message.
+                    go.stop()
         except asyncio.CancelledError:
             raise
         except Exception as e:
