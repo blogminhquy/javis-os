@@ -1957,6 +1957,7 @@
   "sess.proj_del_n.one": "{count} conversation in it will be removed from the group but NOT deleted.",
   "sess.proj_del_n.other": "{count} conversations in it will be removed from the group but NOT deleted.",
   "sess.proj_del_empty": "This project has no conversations yet.",
+  "sess.proj_tag_title": "In project: {ten}",
   "sess.icon_ph": "Filter by icon name (star, folder…)",
   "sess.icon_clear": "Clear icon",
   "sess.icon_none": "No icon name contains \"{q}\".",

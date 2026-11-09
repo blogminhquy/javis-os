@@ -155,6 +155,23 @@
     if (cur && cur !== "none" && !projById(cur)) setCurProject("");
     renderProjBar();
     renderProjChip();
+    fillProjTags();
+  }
+
+  // 2026-11-09: each chat row carries a small folder tag with its project's name, so the owner sees which group a
+  // chat belongs to without opening it. The row is drawn before /projects may have answered, so the tag is a
+  // placeholder keyed by project id that this fills in (and refills after a rename, a new icon or a delete).
+  function projTagHtml(pid) {
+    var p = projById(pid);
+    return p ? projIcon(p) + '<span class="ci-proj-name">' + esc(p.name || "") + '</span>' : "";
+  }
+  function fillProjTags() {
+    if (!listEl) return;
+    listEl.querySelectorAll(".ci-proj[data-pid]").forEach(function (tag) {
+      var p = projById(tag.getAttribute("data-pid"));
+      tag.innerHTML = projTagHtml(tag.getAttribute("data-pid"));
+      tag.title = p ? window.t("sess.proj_tag_title", { ten: p.name || "" }) : "";
+    });
   }
 
   function renderProjBar() {
@@ -1939,6 +1956,10 @@
       // luôn hiện đi theo từng hàng, đúng khuôn danh sách trợ lý / quy trình của trang Cộng sự
       // (chủ dự án chốt 16/09 sau khi dùng bản 0.59.20).
       // Red dot for a chat Javis answered after the owner last looked. The chat open on screen is being read right now.
+      // Project tag: only in the owner's own list (an agent's history has no projects) and only when the list is not
+      // already filtered to that very project, where every row would repeat the same name.
+      var pid = (!kenhLoc && s.project_id && s.project_id !== curProject()) ? String(s.project_id) : "";
+      var pTag = projById(pid);
       var chuaDoc = !!s.unread;
       if (chuaDoc && s.id === cur && chatOnScreen()) { chuaDoc = false; s.unread = false; markRead(s.id); }
       var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + (s.pinned ? " ghim" : "") + (chuaDoc ? " has-unread" : "") + '">' +
@@ -1946,7 +1967,11 @@
         (isRun ? '<span class="ci-run" title="' + esc(window.t("sess.running")) + '">' + ic("loader", { cls: "ic-spin" }) + '</span> ' : '') +
         (tt.dau || "") +
         esc(s.title || s.preview || window.t("sess.untitled")) + '</div>' +
-        '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' + (tt.meta || "") +
+        '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' +
+        (pid ? '<span class="ci-proj" data-pid="' + esc(pid) + '"' +
+          (pTag ? ' title="' + esc(window.t("sess.proj_tag_title", { ten: pTag.name || "" })) + '"' : '') + '>' +
+          projTagHtml(pid) + '</span>' : '') +
+        (tt.meta || "") +
         (chLabel ? '<span class="ci-badge">' + esc(chLabel) + '</span>' : '') +
         (eng ? '<span class="ci-badge">' + esc(eng) + '</span>' : '') +
         '<span>' + esc(window.t("sess.msgs", { count: s.msg_count || 0 })) + '</span>' +

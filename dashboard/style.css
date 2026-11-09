@@ -2445,6 +2445,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .ci-meta { display: flex; gap: 8px; align-items: center; font-size: 12px;
   color: var(--text3); margin-top: 3px; }
 .ci-badge { border: 1px solid var(--border); border-radius: 8px; padding: 0 6px; font-size: 11px; }
+/* 2026-11-09: small folder tag with the chat's project name. It is the one meta item allowed to shrink, so a long
+   project name ends in "..." instead of pushing the time and message count off a narrow column. Empty until
+   /projects answers (the row is drawn first), and an empty tag takes no room. */
+.ci-meta > * { flex: none; }
+.ci-meta > .ci-proj { flex: 0 1 auto; min-width: 0; max-width: 55%; display: inline-flex; align-items: center; gap: 3px;
+  padding: 0 6px; border-radius: 8px; border: 1px solid var(--accent-line); color: var(--accent); font-size: 11px;
+  font-weight: 600; line-height: 16px; }
+.ci-proj:empty { display: none; }
+.ci-proj .ic, .ci-proj svg { flex: none; width: 11px; height: 11px; }
+.ci-proj-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ci-meta .act { margin-left: auto; display: flex; gap: 7px; opacity: 0; transition: opacity 0.15s; }
 .cside-item:hover .act { opacity: 1; }
 .ci-meta .act span { cursor: pointer; }

@@ -1957,6 +1957,7 @@
   "sess.proj_del_n.one": "{count} hội thoại trong đó sẽ được gỡ khỏi nhóm chứ KHÔNG bị xoá.",
   "sess.proj_del_n.other": "{count} hội thoại trong đó sẽ được gỡ khỏi nhóm chứ KHÔNG bị xoá.",
   "sess.proj_del_empty": "Project này chưa có hội thoại nào.",
+  "sess.proj_tag_title": "Thuộc project: {ten}",
   "sess.icon_ph": "Lọc theo tên icon (star, folder…)",
   "sess.icon_clear": "Xoá icon",
   "sess.icon_none": "Không có icon nào tên chứa \"{q}\".",
