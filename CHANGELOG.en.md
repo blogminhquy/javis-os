@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.523.1] - 2026-11-09
+### Improved
+- **Reopening the neural graph, opening another tab or a phone reconnecting no longer freezes the whole app.** The app shares one file watcher per folder, built once and kept for 15 minutes after the graph screen closes. Before, each opening built it again, once making everything else wait almost 3 seconds.
+- **The tool list of each MCP connection is remembered for 10 minutes** instead of asking every server again each minute, so far fewer one or two second freezes while chatting. The Test button and the health check still ask the server directly, and a connection that announces new tools is asked again at once.
+
 ## [0.523.0] - 2026-11-09
 ### Fixed
 - **The install button at the foot of the left menu no longer spills out** on touch tablets and laptops: it is the size of the star button, reads "Install app", and shows only its icon when the menu is folded.
