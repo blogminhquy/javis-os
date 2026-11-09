@@ -38,7 +38,9 @@ _RESERVED = {"javis_connections", "javis_read_file", "javis_list_dir", "javis_wr
 _GOAL_FILE = Path(__file__).resolve().parent.parent / "system" / "plugins" / "javis-goal" / "plugin.py"
 # Pin the audited data-only branch; a coherent edited source+cache is still not
 # authority to reinterpret an arbitrary predicate as the ordinary-owner result.
-_GOAL_SOURCE_HASH = "4f68b2d4229506ae74598d8bb73db801ed0e465d8dd15605ab248586bbdf760d"
+# Re-pinned 2026-11-09 after an audit of the diff: the plugin opens the store with `RS.shared()` instead of
+# `RS.GoalStore()` (one opened store per file); `_visible`'s branches and what they return are unchanged.
+_GOAL_SOURCE_HASH = "cf2eb26b4198cadcd067aa036a1aa129b6db4e1456098fdb34014542c858406e"
 
 
 def _plain(value):

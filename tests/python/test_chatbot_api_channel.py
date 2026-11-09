@@ -98,8 +98,14 @@ async def _engine(text, meta, progress, *, channel="", bot=None, **_kw):
     return {"text": ENGINE["reply"], "files": []}
 
 
+# 2026-11-09: a bot reads the documents listed on its Agent. This Agent lists the shared doc and every file scoped by
+# frontmatter outside `rieng-theo-nhom/`, so the scope rules below are what keeps each one private.
+AGENT_FILES = ["huong-dan/concept-khu-vuon.md", "quy-trinh/noi-bo.md", "luong/quan-ly.md", "khach/ho-so-mgr.md",
+               "khach/vai-tran.md"]
 chatbot_runtime.wire(answer=_engine, brain_root=lambda b: str(BRAIN),
-                     read_agent=lambda br, slug: ({"name": "Trợ lý", "role": "Nội bộ"}, "Trả lời nhân viên."))
+                     read_agent=lambda br, slug: ({"name": "Trợ lý", "role": "Nội bộ", "assets": {
+                         "files": [{"id": str(i), "path": f} for i, f in enumerate(AGENT_FILES)]}},
+                         "Trả lời nhân viên."))
 
 # ============================================================
 # 1. Registry and the account form contract
@@ -232,7 +238,9 @@ async def main():
 
     async def tool(meta, name, args=None):
         # Bound the way main._tg_answer_engine binds a bot turn.
-        tk = turn_context.bind(chatbot_grounding.add_turn_scopes(turn_context.from_meta("api", meta, la_chu=False), meta))
+        turn = chatbot_grounding.add_turn_scopes(turn_context.from_meta("api", meta, la_chu=False), meta)
+        turn["bot_id"] = bid        # main._tg_answer_engine stamps the bot of the turn the same way
+        tk = turn_context.bind(turn)
         try:
             return await route[name]["call"](args or {})
         finally:

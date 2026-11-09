@@ -123,7 +123,8 @@ check("xoá nói rõ brain và Agent KHÔNG bị xoá",
 check("form nói rõ bot tạo ra ở trạng thái tắt",
   /<b>' \+\s*\n?\s*esc\(window\.t\("cb\.tao_xong_tat"\)\) \+ '<\/b>/.test(CB)
   && VI["cb.tao_xong_tat"] === "TẮT" && tu("cb.tao_xong_1", "trạng thái"));
-check("form nói rõ bot đọc tài liệu của brain nào", noi("cb2.s_ai_hint", "chỉ đọc tài liệu trong brain"));
+// 2026-11-09 (owner): a bot reads the documents listed on its Agent, not the whole brain; the form says so.
+check("form nói rõ bot đọc tài liệu nào", noi("cb2.s_ai_hint", "chỉ đọc tài liệu ghim ở mục Tài liệu của Agent"));
 // 0.352.0 (owner): the "what does the bot answer from" choice is gone. Every bot answers from its Agent and the
 // brain's documents, so the form shows no choice and always sends "agent".
 check("form không còn mục chọn nguồn trả lời", !/cbNguon/.test(CB) && !/cb2\.s_nguon/.test(CB));

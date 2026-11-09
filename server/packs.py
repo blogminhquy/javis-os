@@ -52,6 +52,7 @@ import json
 import os
 import re
 import sys
+import time
 import threading
 from pathlib import Path
 
@@ -422,7 +423,27 @@ def _so_cai_dat() -> dict:
         return {}
 
 
+# A signature computed less than this long ago is reused without touching the disk (2026-11-09, see
+# mcp_catalog.CHECK_S for the measurement). `invalidate()` drops it, and every install, removal or consent in
+# pack_install calls that, so a change made through Javis is seen at once.
+SIGNATURE_S = 2.0
+_sig_memo: dict = {"at": 0.0, "dir": None, "value": None}
+
+
 def signature():
+    """Chữ ký để `mcp_catalog.load()` gộp vào khoá cache của nó. Nhớ trong SIGNATURE_S giây (xem trên)."""
+    if tat_het():
+        return "off"
+    now = time.monotonic()
+    m = _sig_memo
+    if m["dir"] == str(PACKS_DIR) and m["at"] and 0 <= now - m["at"] < SIGNATURE_S:
+        return m["value"]
+    value = _signature_now()
+    _sig_memo.update(at=now, dir=str(PACKS_DIR), value=value)
+    return value
+
+
+def _signature_now():
     """Chữ ký để `mcp_catalog.load()` gộp vào khoá cache của nó.
 
     Gộp mtime của THƯ MỤC gói và của từng manifest, không quét sâu: thêm hoặc bớt một thư mục
@@ -535,3 +556,9 @@ def page_path(pid: str, rel: str):
 def invalidate():
     with _lock:
         _cache.update(sig=None, packs=[], connectors={})
+        _sig_memo.update(at=0.0, value=None)
+    try:
+        import mcp_catalog
+        mcp_catalog.invalidate()
+    except Exception:  # noqa: BLE001 - the catalog re-checks by itself within mcp_catalog.CHECK_S
+        pass

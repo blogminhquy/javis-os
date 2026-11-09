@@ -1059,12 +1059,15 @@ class LoopFeature:
         if loop.get("agent") and self.deps.build_agent_prompt:
             # made in a partner chat -> this round runs as that assistant. Assistant gone -> plain Javis.
             try:
-                sysprompt, as_agent = self.deps.build_agent_prompt(brain, loop["agent"]), loop["agent"]
+                sysprompt = await asyncio.to_thread(self.deps.build_agent_prompt, brain, loop["agent"])
+                as_agent = loop["agent"]
             except Exception as _e:
                 print(f"[loops] {slug}: assistant '{loop['agent']}' unavailable, running as Javis: "
                       f"{type(_e).__name__}: {_e}", file=sys.stderr)
         if sysprompt is None:
-            sysprompt = self.deps.build_system_prompt(brain)
+            # 2026-11-09: built on a worker thread. It reads every skill, agent and plugin of the brain; on the event loop it
+            # froze the whole server for 2 to 5 s on the owner's VPS (GET /health/loop).
+            sysprompt = await asyncio.to_thread(self.deps.build_system_prompt, brain)
         gcli = self._make_cli(loop, cwd, sysprompt, brain=brain)
         if gcli is None:
             return _finish("Lỗi: không tạo được file MCP rỗng để cô lập (profile code từ chối chạy)", "", True)

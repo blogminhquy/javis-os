@@ -28,6 +28,8 @@ So this module is the WHOLE tool set of that level, and it is deliberately tiny:
 """
 from __future__ import annotations
 
+import asyncio
+
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -69,14 +71,26 @@ def turn_chat_id():
     return str(t.get("chat_id") or "").strip()
 
 
-def allowed_docs(vault_root: Any, chat_id: Any = None) -> List[str]:
+def turn_files() -> tuple:
+    """The documents of the bot running this tool call (2026-11-09, owner: a bot reads its Agent's documents, never the
+    whole brain): the files of its Agent's Documents section. No bot on the turn: no document (fail closed)."""
+    t = turn_context.current() or {}
+    try:
+        import chatbot_runtime
+        return chatbot_runtime.bot_doc_files_by_id(str(t.get("bot_id") or ""))
+    except Exception:   # noqa: BLE001
+        return ()
+
+
+def allowed_docs(vault_root: Any, chat_id: Any = None, files: Optional[tuple] = None) -> List[str]:
     """Relative posix paths of every document the tools may show, in a stable order. `chat_id` adds that chat's
-    scoped documents (see `chatbot_grounding.scoped_paths`)."""
+    scoped documents (see `chatbot_grounding.scoped_paths`); `files` limits them to the bot's Agent documents
+    (`turn_files`, None = the whole brain, kept for callers outside a bot turn)."""
     r = _root(vault_root)
     if r is None:
         return []
     out = []
-    for rel in chatbot_grounding.ds_tai_lieu(r, chat_id):
+    for rel in chatbot_grounding.ds_tai_lieu(r, chat_id, files):
         parts = rel.split("/")
         if any(p.lower() in EXTRA_SKIP for p in parts[:-1]):
             continue
@@ -96,13 +110,13 @@ def _norm(p: Any) -> str:
     return s.lstrip("/")
 
 
-def _match(vault_root: Any, requested: Any, chat_id: Any = None) -> Optional[str]:
+def _match(vault_root: Any, requested: Any, chat_id: Any = None, files: Optional[tuple] = None) -> Optional[str]:
     """The listed document the request names, or None. Exact first, then case-insensitive, then
     a unique file-name match (models often drop the folder)."""
     want = _norm(requested)
     if not want:
         return None
-    docs = allowed_docs(vault_root, chat_id)
+    docs = allowed_docs(vault_root, chat_id, files)
     if want in docs:
         return want
     low = want.lower()
@@ -113,14 +127,15 @@ def _match(vault_root: Any, requested: Any, chat_id: Any = None) -> Optional[str
     return by_name[0] if len(by_name) == 1 else None
 
 
-def _headings(vault_root: Any, chat_id: Any = None) -> Dict[str, List[str]]:
+def _headings(vault_root: Any, chat_id: Any = None, files: Optional[tuple] = None) -> Dict[str, List[str]]:
     """{path: [section titles]} from the cached keyword index (no extra disk scan)."""
     r = _root(vault_root)
     if r is None:
         return {}
-    ok = set(allowed_docs(r, chat_id))
+    ok = set(allowed_docs(r, chat_id, files))
     out: Dict[str, List[str]] = {}
-    for m in chatbot_grounding.chi_muc(r, chatbot_grounding.scoped_docs(r, chat_id) or None).get("manh") or []:
+    scoped = chatbot_grounding.scoped_docs(r, chat_id, files) or None
+    for m in chatbot_grounding.chi_muc(r, scoped, files).get("manh") or []:
         path = str(m.get("path") or "").replace("\\", "/")
         if path not in ok:
             continue
@@ -133,12 +148,13 @@ def _headings(vault_root: Any, chat_id: Any = None) -> Dict[str, List[str]]:
     return out
 
 
-def table_of_contents(vault_root: Any, max_chars: int = INDEX_MAX, chat_id: Any = None) -> str:
+def table_of_contents(vault_root: Any, max_chars: int = INDEX_MAX, chat_id: Any = None,
+                      files: Optional[tuple] = None) -> str:
     """One line per document ("path: heading · heading"), cut at `max_chars`. Empty when the brain
     has no documents. Used by the reply judge: a bot that can open documents itself should not be
     silenced just because the customer's words missed the keyword search."""
     rows, used = [], 0
-    for path, hs in sorted(_headings(vault_root, chat_id).items()):
+    for path, hs in sorted(_headings(vault_root, chat_id, files).items()):
         line = path + (": " + " · ".join(hs[:8]) if hs else "")
         if used + len(line) + 1 > max_chars:
             rows.append("…")
@@ -169,8 +185,14 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
 
     # The chat id is read at CALL time: one tool set serves every turn of the brain (`discover_all` builds it per
     # request, the Claude Code config file is shared), so it must never be captured when the tools are built.
+    # 2026-11-09: each tool body runs on a worker thread. They walk the whole brain (`rglob`), which froze the server
+    # for 6 to 7 s on the owner's VPS while a bot answered a customer. The chat id is read here, on the turn's own
+    # context, then handed over (asyncio.to_thread also copies the context).
     async def _list(args):
-        hs = _headings(r, turn_chat_id())
+        return await asyncio.to_thread(_list_sync, turn_chat_id())
+
+    def _list_sync(chat):
+        hs = _headings(r, chat, turn_files())
         if not hs:
             return "(brain này chưa có tài liệu nào)"
         rows, used = [], 0
@@ -187,9 +209,12 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
         q = str((args or {}).get("query") or "").strip()
         if not q:
             return "ERROR: thiếu query"
-        chat = turn_chat_id()
-        ok = set(allowed_docs(r, chat))
-        hits = [h for h in chatbot_grounding.tim(r, q, k=SEARCH_K * 3, chat_id=chat)
+        return await asyncio.to_thread(_search_sync, q, turn_chat_id())
+
+    def _search_sync(q, chat):
+        files = turn_files()
+        ok = set(allowed_docs(r, chat, files))
+        hits = [h for h in chatbot_grounding.tim(r, q, k=SEARCH_K * 3, chat_id=chat, files=files)
                 if str(h.get("path") or "").replace("\\", "/") in ok][:SEARCH_K]
         if not hits:
             return (f"Không có đoạn nào chứa các chữ của '{q}'. Thử lại bằng từ khác (từ đồng nghĩa, "
@@ -202,9 +227,12 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
         return "\n\n".join(parts)
 
     async def _read(args):
-        rel = _match(r, (args or {}).get("path"), turn_chat_id())
+        return await asyncio.to_thread(_read_sync, (args or {}).get("path"), turn_chat_id())
+
+    def _read_sync(path, chat):
+        rel = _match(r, path, chat, turn_files())
         if not rel:
-            return (f"ERROR: không có tài liệu '{(args or {}).get('path')}' trong danh sách được đọc. "
+            return (f"ERROR: không có tài liệu '{path}' trong danh sách được đọc. "
                     f"Gọi javis_docs_list để xem đường dẫn đúng.")
         p = (r / rel).resolve()
         try:

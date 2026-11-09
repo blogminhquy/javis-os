@@ -25,9 +25,10 @@ import math
 import re
 import sys
 import threading
+import os
 import unicodedata
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 DUOI = (".md", ".txt", ".markdown")
 
@@ -149,12 +150,12 @@ _CACHE: Dict[str, dict] = {}
 _CACHE_MAX = 64     # one slot per brain, plus one per chat with scoped documents (0.338.0); oldest dropped first
 
 
-def _dau_van(root: Path) -> tuple:
+def _dau_van(root: Path, files: Optional[Iterable[str]] = None) -> tuple:
     """Vân tay rẻ tiền của cây thư mục: (số file, mtime lớn nhất). Đổi một trong hai là dựng
     lại chỉ mục. Không băm nội dung - sửa file mà giữ nguyên mtime là ca không đáng trả giá
     quét toàn bộ mỗi tin nhắn."""
     n, moi = 0, 0.0
-    for p in _duyet(root):
+    for p in _duyet(root, files):
         n += 1
         try:
             moi = max(moi, p.stat().st_mtime)
@@ -163,11 +164,74 @@ def _dau_van(root: Path) -> tuple:
     return (n, round(moi, 3))
 
 
-def _ung_vien(root: Path):
+def _walk(root: Path) -> list:
+    """Every file under `root` that `_ung_vien` might keep, without entering a folder it would drop anyway.
+
+    2026-11-09: this used `root.rglob("*")`, which lists the WHOLE brain (`.git`, attachments, memory...) before the
+    filters below throw most of it away. On the owner's VPS that took 6 to 7 s per customer question. Pruned here with
+    the same rules as `_ung_vien` (a dot folder anywhere, a `BO_QUA` folder outside `rieng-theo-nhom/`, `agents/` and
+    `workflows/` at the root), so the result is the same set of files; `_ung_vien` still applies every rule itself."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root, onerror=None):
+        parts = Path(dirpath).relative_to(root).parts
+        scoped = bool(parts) and parts[0].lower() == SCOPED_DIR
+        keep = []
+        for d in dirnames:
+            low = d.lower()
+            if d.startswith("."):
+                continue
+            if not parts and low == SCOPED_DIR:
+                keep.append(d)
+                continue
+            if not scoped and (low in BO_QUA or (not parts and low in BO_QUA_GOC)):
+                continue
+            keep.append(d)
+        dirnames[:] = keep
+        for f in filenames:
+            if os.path.splitext(f)[1].lower() in DUOI:
+                out.append(Path(dirpath) / f)
+    return out
+
+
+def _bot_paths(root: Path, files: Iterable[str]) -> list:
+    """The paths a bot may read when it is limited to its Agent's documents (owner, 2026-11-09): the files listed in
+    the Agent's Documents section, plus the chat-scoped folder `rieng-theo-nhom/`. Nothing else of the brain is walked.
+
+    A listed path that leaves the brain (`..`, a symlink out) is dropped here; `_ung_vien` then applies the same rules
+    as for a whole-brain walk (text files only, no operating folder or file, `chat_scope` keeps a file private)."""
+    out, seen = [], set()
+    try:
+        base = root.resolve()
+    except OSError:
+        return out
+    for rel in files or ():
+        rel = str(rel or "").replace("\\", "/").strip().lstrip("/")
+        if not rel or rel in seen or ".." in rel.split("/"):
+            continue
+        seen.add(rel)
+        p = root / rel
+        try:
+            p.resolve().relative_to(base)
+        except (OSError, ValueError):
+            continue
+        out.append(p)
+    try:
+        for e in os.scandir(root):
+            if e.name.lower() == SCOPED_DIR and e.is_dir(follow_symlinks=False):
+                # Inside the scoped folder only dot folders are skipped (the same rule `_walk` applies there).
+                for dirpath, dirnames, filenames in os.walk(e.path):
+                    dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+                    out.extend(Path(dirpath) / f for f in filenames if os.path.splitext(f)[1].lower() in DUOI)
+    except OSError:
+        pass
+    return out
+
+
+def _ung_vien(root: Path, files: Optional[Iterable[str]] = None):
     """Every file that may be a document of the bot, as (path, scope). `scope` is None for a document every chat
     may see, else the tuple of chat ids that may see it (empty: nobody). See `file_scope` and `SCOPED_DIR`."""
     try:
-        it = sorted(root.rglob("*"))
+        it = sorted(_walk(root) if files is None else _bot_paths(root, files))
     except OSError:
         return
     for p in it:
@@ -193,12 +257,12 @@ def _ung_vien(root: Path):
         yield p, file_scope(p)
 
 
-def _duyet(root: Path):
+def _duyet(root: Path, files: Optional[Iterable[str]] = None):
     """The documents every chat may see, capped at `MAX_FILE`. A file whose frontmatter carries `chat_scope` is
     never one of them, wherever it lies: the owner marked it private, so it must not leak through the general
     index just because it sits outside `rieng-theo-nhom/`."""
     dem = 0
-    for p, scope in _ung_vien(root):
+    for p, scope in _ung_vien(root, files):
         if scope is not None:
             continue
         if dem >= MAX_FILE:
@@ -313,7 +377,7 @@ def add_turn_scopes(turn: dict, meta: Any) -> dict:
     return turn
 
 
-def scoped_paths(root: Any, chat_id: Any) -> List[str]:
+def scoped_paths(root: Any, chat_id: Any, files: Optional[Iterable[str]] = None) -> List[str]:
     """Relative posix paths of the scoped documents of ONE chat (or of a scope list, see `_scope_ids`). Empty without
     one."""
     ids = _scope_ids(chat_id)
@@ -322,7 +386,7 @@ def scoped_paths(root: Any, chat_id: Any) -> List[str]:
     r = Path(str(root))
     out = []
     try:
-        for n, (p, scope) in enumerate(_ung_vien(r)):
+        for n, (p, scope) in enumerate(_ung_vien(r, files)):
             if n >= MAX_FILE + MAX_SCOPED_FILES:
                 break
             if scope and ids.intersection(scope):
@@ -333,21 +397,21 @@ def scoped_paths(root: Any, chat_id: Any) -> List[str]:
     return out
 
 
-def has_scoped_docs(root: Any) -> bool:
+def has_scoped_docs(root: Any, files: Optional[Iterable[str]] = None) -> bool:
     """True when some chat has at least one scoped document, so a brain whose only documents are scoped still counts
     as a brain with documents (the reply judge then grounds on documents, not on the role alone)."""
     try:
-        return any(scope for _, scope in _ung_vien(Path(str(root))))
+        return any(scope for _, scope in _ung_vien(Path(str(root)), files))
     except Exception:
         return False
 
 
-def scoped_docs(root: Any, chat_id: Any) -> List[dict]:
+def scoped_docs(root: Any, chat_id: Any, files: Optional[Iterable[str]] = None) -> List[dict]:
     """The scoped documents of ONE chat as extra documents ({path, title, text}) for `chi_muc`/`tim`/`thu_thap`,
     frontmatter stripped. Empty without a chat id."""
     r = Path(str(root))
     out = []
-    for rel in scoped_paths(r, chat_id):
+    for rel in scoped_paths(r, chat_id, files):
         try:
             raw = (r / rel).read_text(encoding="utf-8", errors="replace")[:MAX_BYTES]
         except OSError:
@@ -357,7 +421,7 @@ def scoped_docs(root: Any, chat_id: Any) -> List[dict]:
     return out
 
 
-def ds_tai_lieu(root: Any, chat_id: Any = None) -> List[str]:
+def ds_tai_lieu(root: Any, chat_id: Any = None, files: Optional[Iterable[str]] = None) -> List[str]:
     """Đường dẫn tương đối (dạng posix) của mọi file được tính là tài liệu của bot. Bộ công cụ đọc
     tài liệu ở mức "Đọc tài liệu" (`chatbot_doc_tools`) chỉ mở được đúng những file trong danh sách
     này, nên nó không bao giờ thấy nhiều hơn phần tra sẵn đã thấy.
@@ -365,7 +429,7 @@ def ds_tai_lieu(root: Any, chat_id: Any = None) -> List[str]:
     `chat_id` (0.338.0): add the scoped documents of that chat (see `scoped_docs`). None or "" adds none."""
     r = Path(str(root))
     try:
-        return [p.relative_to(r).as_posix() for p in _duyet(r)] + scoped_paths(r, chat_id)
+        return [p.relative_to(r).as_posix() for p in _duyet(r, files)] + scoped_paths(r, chat_id, files)
     except Exception as e:
         print(f"[chatbot grounding] liệt kê {r} lỗi: {e}", file=sys.stderr)
         return []
@@ -395,7 +459,7 @@ def _cat_manh(text: str, tieu_de: str) -> List[dict]:
     return [p for p in phan if p["text"]]
 
 
-def _dung_chi_muc(root: Path, extra: Optional[List[dict]] = None) -> dict:
+def _dung_chi_muc(root: Path, extra: Optional[List[dict]] = None, files: Optional[Iterable[str]] = None) -> dict:
     manh: List[dict] = []
     # Documents that are not files of the brain (Google Docs/Sheets linked from the bot's Agent, see
     # bot_linked_docs). Indexed together with the files so IDF weighs a word against everything the
@@ -406,7 +470,7 @@ def _dung_chi_muc(root: Path, extra: Optional[List[dict]] = None) -> dict:
             m["path"] = str(d.get("path") or ten)
             m["cap"] = _tach_cap(m["ten"] + " " + ten + " " + m["text"])
             manh.append(m)
-    for p in _duyet(root):
+    for p in _duyet(root, files):
         try:
             raw = p.read_text(encoding="utf-8", errors="replace")[:MAX_BYTES]
         except OSError:
@@ -442,8 +506,11 @@ def _van_extra(extra: Optional[List[dict]]) -> tuple:
         "utf-8", "replace")).hexdigest()) for d in (extra or []))
 
 
-def chi_muc(root: Any, extra: Optional[List[dict]] = None) -> dict:
+def chi_muc(root: Any, extra: Optional[List[dict]] = None, files: Optional[Iterable[str]] = None) -> dict:
     """Chỉ mục của một brain, dựng lười và dùng lại cho tới khi file đổi.
+
+    `files` (2026-11-09): the bot's Agent documents (see `_bot_paths`); None indexes the whole brain. Each set of files
+    gets its own cache slot, like `extra`.
 
     `extra`: documents that are not files (see `_dung_chi_muc`). A brain with extras gets its own
     cache slot per SET of extras, so two bots on one brain with different Agents never see each
@@ -453,8 +520,11 @@ def chi_muc(root: Any, extra: Optional[List[dict]] = None) -> dict:
     ve = _van_extra(extra)
     if ve:
         key += "|extra:" + "|".join(sorted(p for p, _ in ve))
+    fs = None if files is None else tuple(sorted({str(f) for f in files}))
+    if fs is not None:
+        key += "|files:" + hashlib.sha1("\0".join(fs).encode("utf-8", "replace")).hexdigest()
     try:
-        van = (_dau_van(r), ve)
+        van = (_dau_van(r, fs), ve)
     except Exception as e:
         print(f"[chatbot grounding] quét {r} lỗi: {e}", file=sys.stderr)
         return {"manh": [], "idf": {}}
@@ -462,7 +532,7 @@ def chi_muc(root: Any, extra: Optional[List[dict]] = None) -> dict:
         c = _CACHE.get(key)
         if c and c.get("van") == van:
             return c["ix"]
-    ix = _dung_chi_muc(r, extra)
+    ix = _dung_chi_muc(r, extra, fs)
     with _lock:
         _CACHE.pop(key, None)
         while len(_CACHE) >= _CACHE_MAX:
@@ -481,15 +551,15 @@ def xoa_cache() -> None:
 # Tìm
 # ============================================================
 def tim(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None,
-        chat_id: Any = None) -> List[dict]:
+        chat_id: Any = None, files: Optional[Iterable[str]] = None) -> List[dict]:
     """Các mảnh tài liệu khớp nhất với câu hỏi, sắp theo điểm giảm dần.
 
     `chat_id` (0.338.0): also search the scoped documents of that chat, and only that chat."""
     cap = _tach_cap(cau_hoi)
     if not cap:
         return []
-    scoped = scoped_docs(root, chat_id)
-    ix = chi_muc(root, list(extra or []) + scoped if scoped else extra)
+    scoped = scoped_docs(root, chat_id, files)
+    ix = chi_muc(root, list(extra or []) + scoped if scoped else extra, files)
     idf = ix["idf"]
     # Một từ bỏ dấu có thể ứng với nhiều dạng có dấu trong CÙNG câu hỏi; giữ tất cả để chỉ cần
     # tài liệu khớp một dạng là tính khớp thật.
@@ -537,7 +607,7 @@ def tim(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None,
 
 
 def thu_thap(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None,
-             chat_id: Any = None) -> dict:
+             chat_id: Any = None, files: Optional[Iterable[str]] = None) -> dict:
     """Khối tài liệu nhét vào prompt cho MỘT câu hỏi.
 
     Trả `{"co": bool, "khoi": str, "nguon": [path...]}`. `co=False` nghĩa là brain không có gì
@@ -545,7 +615,7 @@ def thu_thap(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = 
     lặng thì model tự lấp bằng trí nhớ chung của nó.
     """
     try:
-        hit = tim(root, cau_hoi, k, extra, chat_id)
+        hit = tim(root, cau_hoi, k, extra, chat_id, files)
     except Exception as e:
         print(f"[chatbot grounding] tìm lỗi: {e}", file=sys.stderr)
         return {"co": False, "khoi": "", "nguon": []}

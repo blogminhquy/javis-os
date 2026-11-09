@@ -1127,7 +1127,8 @@ class RemindersFeature:
             # a reminder made in a partner chat does its job as that assistant (role, file body, memory,
             # owner rules). The assistant deleted since -> plain Javis, so the job still runs.
             try:
-                sysprompt = self.deps.build_agent_prompt(brain, agent)
+                # Worker thread, like build_system_prompt below (2026-11-09).
+                sysprompt = await asyncio.to_thread(self.deps.build_agent_prompt, brain, agent)
                 as_agent = True
             except Exception as e:
                 print(f"[reminders] assistant '{agent}' unavailable, running as Javis: {type(e).__name__}: {e}",
@@ -1135,7 +1136,9 @@ class RemindersFeature:
                 sysprompt = None
         if sysprompt is None:
             try:
-                sysprompt = self.deps.build_system_prompt(brain)
+                # 2026-11-09: built on a worker thread. It reads every skill, agent and plugin of the brain; on the event loop it
+                # froze the whole server for 2 to 5 s on the owner's VPS (GET /health/loop).
+                sysprompt = await asyncio.to_thread(self.deps.build_system_prompt, brain)
             except Exception:
                 sysprompt = ""
         if mq == "full":
