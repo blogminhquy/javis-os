@@ -1635,8 +1635,6 @@
       var b = encodeURIComponent(brain()), ch = kenh(item), id = sidChiDinh || null;
       if (!id && !moiHan && item.system) {
         // Javis Core: open the brain's default chat, the one reports land in (the server makes it when missing).
-        // A POST is never retried by fetch-gop.js and had no limit: a connection that hung kept the open waiting for
-        // good (#1213). Past CORE_SESSION_WAIT_MS it is cut and the error with its Retry shows.
         var c = await api("/javis-core/session", { method: "POST", body: fd({ brain: brain() }),
                                                    signal: abortAfter(CORE_SESSION_WAIT_MS) });
         if (!still()) return false;
@@ -1691,6 +1689,8 @@
   // reads in a row. 12 s showed the error on opens that were only slow, never stuck (#1213).
   var OPEN_WAIT_MS = 16000;
   var OPEN_RECHECK_MS = 2000;
+  // The Javis Core POST is never retried by fetch-gop.js and had no limit: a connection that hung kept the open waiting
+  // for good (#1213). Past this it is cut and the error with its Retry shows.
   var CORE_SESSION_WAIT_MS = 15000;
   function reconnecting() {
     try { return !!(window.JavisFetchGop && window.JavisFetchGop.retrying && window.JavisFetchGop.retrying()); }
