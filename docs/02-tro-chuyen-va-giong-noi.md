@@ -379,7 +379,7 @@ Hàng nút dưới ô gõ có ba thứ đứng cạnh nhau:
 
 Badge cạnh chữ **HỘI THOẠI** (và ở góc phải trang Trò chuyện) hiện engine + model **thật** của lượt vừa chạy, lấy từ server chứ không phải model tự khai. Nếu badge khác cái bạn tưởng, tin badge.
 
-Trên điện thoại, chip model dời lên header và bảng chọn mở ra giữa màn hình.
+Trên điện thoại, chip model nằm trong khung nhập cạnh chip Effort giống hệt máy tính, bảng chọn mở ngay phía trên khung nhập.
 
 ### Ghim thư mục làm việc
 
@@ -549,7 +549,7 @@ Gói Pro/Max giữ bộ nhớ đệm của Claude Code 1 giờ. Nghỉ quá 1 gi
 Dưới 860px chiều ngang, giao diện đổi hẳn cho vừa màn hình:
 
 - Điều hướng thu thành ngăn kéo: bấm nút **☰** để mở, bấm nền mờ, chọn một mục hoặc nhấn Esc để đóng.
-- **Chip model** và nút **+** (hội thoại mới) dời lên header.
+- Nút **+** (hội thoại mới) dời lên header. Chip model vẫn ở trong khung nhập, cạnh chip Effort, như trên máy tính.
 - Nhóm **Hệ thống** (chọn brain, nút đổi tông sáng/tối, dải HỆ THỐNG và MCP) dời xuống đáy ngăn kéo điều hướng.
 - Ô nhập rút gọn lời nhắc thành "Nói hoặc gõ cho Javis…".
 - Nút **🕘 Lịch sử** ở header bị ẩn (trang **Trò chuyện** có sẵn lịch sử).

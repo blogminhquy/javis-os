@@ -151,8 +151,8 @@
           "</div>" +
           // Chỗ đứng của dải chip trên MÀN HẸP. Trên máy tính dải chip nằm trong #modelBar
           // (một hàng đọc từ trái sang: thư mục, nhánh, worktree, điểm hồi, chế độ, model),
-          // nhưng điện thoại ẩn hẳn #modelBar (`.model-bar{display:none}` trong console.css)
-          // và JS dời chip model lên header. Dải chip ở lại trong một node display:none nên
+          // nhưng điện thoại ẩn hẳn #modelBar (`.model-bar{display:none}` trong console.css).
+          // Dải chip ở lại trong một node display:none nên
           // chủ repo không thấy chỗ thêm thư mục lẫn chỗ đổi chế độ (báo 23/09, đã dựng lại
           // ở 390px: parent = modelBar, display = none). Nên màn hẹp cho nó hàng riêng.
           '<div class="cd-chips-hep" id="cdChipsHep"></div>' +
