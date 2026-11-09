@@ -2,7 +2,9 @@
 
     python tests/run.py xuat_nhap_bo_nao      (KHÔNG mạng)
 
-Owner: "có thể xuất bộ não đấy ra thành file và tải lên chỗ khác, icon xuất sửa xóa cũng ở bên cạnh luôn". The export
+Owner: "có thể xuất bộ não đấy ra thành file và tải lên chỗ khác, icon xuất sửa xóa cũng ở bên cạnh luôn", then "20.000
+file ... file text 1gb sẽ được rất nhiều": no fixed size cap, the free disk decides; packing and unpacking run in the
+background and the upload goes in pieces, so Cloudflare Tunnel's per-request limits never bite. The export
 leaves private files out (raw chats, run logs, hub tokens, git), the upload always makes a NEW brain, refuses unsafe
 names, and switches off what would run on its own (plugins, loops, pending reminders). The picker carries the buttons.
 """
@@ -65,20 +67,62 @@ for rel, txt in files.items():
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(txt, encoding="utf-8")
 
-r = cl.get("/brains/export", params={"brain": "path:" + str(src), "probe": 1}).json()
-check("đo trước: số file và tên file zip", r.get("ok") and r["files"] > 0 and r["name"] == "Não Kho.zip", r)
-r = cl.get("/brains/export", params={"brain": "path:" + str(src)})
-check("xuất ra file zip", r.status_code == 200 and r.headers.get("content-type") == "application/zip", r.status_code)
+import time  # noqa: E402
+
+bx.CHUNK = 4096   # small pieces, so the test sends several and can resume
+
+
+def export(brain):
+    r = cl.post("/brains/export/start", data={"brain": brain})
+    if r.status_code != 200:
+        return r, None
+    jid = r.json()["id"]
+    for _ in range(200):
+        st = cl.get("/brains/export/status", params={"id": jid}).json()
+        if st.get("status") in ("done", "error"):
+            break
+        time.sleep(0.05)
+    return st, cl.get("/brains/export/file", params={"id": jid})
+
+
+def upload(data, name="x.zip", label="", resume_test=False):
+    r = cl.post("/brains/import/start", data={"size": len(data), "name": name}).json()
+    if not r.get("ok"):
+        return r
+    uid, piece, at = r["id"], r["chunk"], 0
+    if resume_test:   # a piece sent for the wrong place: the server says where it stands
+        bad = cl.post("/brains/import/chunk", params={"id": uid, "offset": 5}, content=data[:10])
+        check("mảnh sai chỗ: 409 kèm vị trí đúng", bad.status_code == 409 and bad.json().get("received") == 0, bad.text)
+    while at < len(data):
+        c = cl.post("/brains/import/chunk", params={"id": uid, "offset": at}, content=data[at:at + piece]).json()
+        at = c["received"]
+    f = cl.post("/brains/import/finish", data={"id": uid, "label": label}).json()
+    if not f.get("ok"):
+        return f
+    for _ in range(200):
+        st = cl.get("/brains/import/status", params={"id": uid}).json()
+        if st.get("status") in ("done", "error"):
+            break
+        time.sleep(0.05)
+    return dict(st.get("result") or {}, ok=st.get("status") == "done", error=st.get("error"))
+
+
+st, r = export("path:" + str(src))
+check("xuất chạy nền: xong, đếm đủ file", st.get("status") == "done" and st["total"] > 0 and st["done"] == st["total"], st)
+check("xuất ra file zip, tên theo tên bộ não", r.status_code == 200 and r.headers.get("content-type") == "application/zip"
+      and "N%C3%A3o%20Kho.zip" in r.headers.get("content-disposition", ""), r.headers)
 zdata = r.content
 names = zipfile.ZipFile(io.BytesIO(zdata)).namelist()
 check("zip có ghi chú, ảnh và manifest", "Kho Hang/wiki/hang.md" in names and "Kho Hang/attachments/anh.png" in names
       and "Kho Hang/javis-brain.json" in names, names)
 check("zip KHÔNG có chat thô và token", not any("conversations" in n or ".grok" in n for n in names), names)
-r = cl.get("/brains/export", params={"brain": "path:" + tempfile.gettempdir(), "probe": 1})
+r = cl.post("/brains/export/start", data={"brain": "path:" + tempfile.gettempdir()})
 check("thư mục ngoài BRAINS_DIR: không xuất", r.status_code == 404)
+check("mã việc lạ: 404", cl.get("/brains/export/file", params={"id": "../../etc"}).status_code == 404)
 
-r = cl.post("/brains/import", files={"file": ("Não Kho.zip", zdata, "application/zip")}).json()
-check("tải lên: tạo bộ não MỚI, không đè", r.get("ok") and r["name"] == "Kho Hang (2)" and Path(r["path"]).is_dir(), r)
+check("đủ nhiều mảnh để thử gửi từng phần", len(zdata) > 2 * bx.CHUNK, len(zdata))
+r = upload(zdata, "Não Kho.zip", resume_test=True)
+check("tải lên từng phần: tạo bộ não MỚI, không đè", r.get("ok") and r["name"] == "Kho Hang (2)" and Path(r["path"]).is_dir(), r)
 check("giữ tên trong file, thêm (2) khi trùng", r.get("label") == "Não Kho (2)", r)
 check("báo đã tắt 1 plugin, 1 vòng lặp, 1 nhắc việc", r.get("paused") == {"plugins": 1, "loops": 1, "reminders": 1}, r)
 dst = Path(r["path"])
@@ -88,12 +132,14 @@ check("vòng lặp về ở trạng thái tắt", "enabled: false" in (dst / "Ja
 rem = json.loads((dst / "Javis/reminders.json").read_text(encoding="utf-8"))["reminders"]
 check("nhắc việc đang chờ thành tạm dừng, việc đã xong giữ nguyên", [x["status"] for x in rem] == ["paused", "done"], rem)
 check("bộ não gốc không bị đụng", "enabled: true" in (src / "plugins/p1/plugin.yaml").read_text(encoding="utf-8"))
+check("dựng sẵn cấu trúc chuẩn cho bộ não mới", (dst / "Javis" / "README.md").is_file())
 names = [b["name"] for b in cl.get("/brains").json()["brains"]]
 check("bộ não mới hiện trong danh sách", "Kho Hang (2)" in names, names)
-check("không còn thư mục tạm trong BRAINS_DIR", not any(n.startswith(".") for n in os.listdir(os.environ["BRAINS_DIR"])
-                                                         if n.startswith(".javis-import-")))
+work = Path(_STATE) / "brain-import"
+check("dọn sạch mảnh tải lên và thư mục tạm", not list(work.glob("*.part")) and not list(work.glob(".javis-import-*")),
+      list(work.iterdir()))
 
-r = cl.post("/brains/import", files={"file": ("x.zip", zdata, "application/zip")}, data={"label": "Tên riêng"}).json()
+r = upload(zdata, label="Tên riêng")
 check("tải lên với tên tự đặt", r.get("ok") and r["label"] == "Tên riêng", r)
 
 buf = io.BytesIO()
@@ -102,21 +148,32 @@ with zipfile.ZipFile(buf, "w") as zf:
     zf.writestr("/tuyet-doi.md", "x")
     zf.writestr("C:/win.md", "x")
     zf.writestr("goc/ok.md", "an toàn")
-r = cl.post("/brains/import", files={"file": ("doc.zip", buf.getvalue(), "application/zip")}).json()
+r = upload(buf.getvalue(), "doc.zip")
 got = sorted(p.name for p in Path(r["path"]).rglob("*.md")) if r.get("ok") else []
 check("zip có đường dẫn nguy hiểm: chỉ lấy file an toàn", r.get("ok") and r["files"] == 1 and "ok.md" in got
       and not any(n in got for n in ("ngoai.md", "tuyet-doi.md", "win.md")), r)
 check("không ghi được ra ngoài", not (Path(os.environ["BRAINS_DIR"]).parent / "ngoai.md").exists())
 
-r = cl.post("/brains/import", files={"file": ("x.zip", b"khong phai zip", "application/zip")})
-check("không phải zip: báo lỗi 400", r.status_code == 400 and not r.json().get("ok"))
+r = upload(b"khong phai zip")
+check("không phải zip: báo lỗi rõ", not r.get("ok") and "zip" in (r.get("error") or ""), r)
+
+# ---- No fixed size cap: the free disk decides ----
+_real_free = bx.free_bytes
+bx.free_bytes = lambda path: bx.KEEP_FREE + 100
+r = cl.post("/brains/import/start", data={"size": 10_000, "name": "to.zip"})
+check("không đủ chỗ trống: 507 kèm số cần và số còn", r.status_code == 507 and "GB" in r.json().get("error", ""), r.text)
+st, _f = export("path:" + str(src))
+check("xuất khi không đủ chỗ: báo lỗi, không nén dở", st.get("status") == "error" and "GB" in st.get("error", ""), st)
+bx.free_bytes = _real_free
+check("trần số file là 1 triệu, không còn trần 20.000", bx.MAX_FILES >= 1_000_000)
 
 # ---- 3. Picker ----
 bp = (ROOT / "dashboard" / "brain-picker.js").read_text(encoding="utf-8")
 check("mỗi dòng có Xuất, Đổi tên, Xoá", all(f'actBtn("{a}"' in bp for a in ("export", "rename", "delete")))
 check("cuối khung có Tạo, Tải lên, Thư mục ngoài", all(f'data-foot="{a}"' in bp for a in ("new", "import", "folder")))
-check("xuất đo trước rồi mới tải", '"/brains/export?probe=1&"' in bp)
-check("tải lên có tiến độ", "xhr.upload.onprogress" in bp and 'xhr.open("POST", "/brains/import")' in bp)
+check("xuất chạy nền rồi mới tải", '"/brains/export/start"' in bp and '"/brains/export/file?id="' in bp)
+check("tải lên từng phần, có tiến độ, gửi lại từ chỗ máy chủ báo",
+      '"/brains/import/chunk?id="' in bp and "xhr.upload.onprogress" in bp and "r.d.received" in bp)
 html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
 check("thanh trên cùng không còn nút tạo, sửa, xoá rời",
       not any(f'id="{i}"' in html for i in ("newBrainBtn", "renameBrainBtn", "delBrainBtn")))

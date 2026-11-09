@@ -11,11 +11,22 @@ secrets anywhere (.env, private keys, .mcp.json).
 
 An upload is a file from elsewhere, so it is treated as such:
 - every name is checked (no absolute path, no "..", no symlink) and the private names above are dropped on the way in;
-- size and file count are capped while extracting (the sizes a zip announces can lie);
+- it needs the room it will take on the disk, with KEEP_FREE left over, and stops if the sizes it announced lie;
 - it always becomes a NEW brain folder, never written over an existing one, extracted into a work folder first and
   moved into place only once complete;
 - whatever would run on its own is switched off: plugins (real Python), loops and pending reminders. The owner switches
   back on what they want, on this machine, knowingly.
+
+Limits (owner, same day: "20.000 file ... file text 1gb sẽ được rất nhiều"): no fixed size cap. What protects the server
+is its free disk: a job starts only when the disk keeps KEEP_FREE after it. The file count cap is a million, only there
+to stop a zip of countless empty entries.
+
+Sized for Cloudflare Tunnel, the HTTPS path DEPLOY.md recommends, which cuts a request body past about 100MB and a reply
+that has not started within about 100 seconds:
+- an export is packed in the background (start, then poll the progress) and downloaded once ready, so the download
+  starts at once whatever the size;
+- an upload is sent in CHUNK pieces and put together on the server; a piece that fails is sent again from where the
+  server says it stopped.
 """
 from __future__ import annotations
 
@@ -23,6 +34,7 @@ import json
 import os
 import re
 import shutil
+import threading
 import time
 import uuid
 import zipfile
@@ -30,13 +42,16 @@ from pathlib import Path
 from typing import Optional
 
 import brain_label
+import fastyaml
 import git_brain
+import localefmt
 
-MAX_FILES = 20000                      # same caps as a folder download (/files/zip)
-MAX_BYTES = 2 * 1024 * 1024 * 1024     # 2GB of raw data
-MAX_UPLOAD = 1024 * 1024 * 1024        # 1GB compressed file
+MAX_FILES = 1_000_000                  # only against a zip of countless empty entries
+KEEP_FREE = 1024 * 1024 * 1024         # the disk keeps at least this much free after an export or an import
+CHUNK = 32 * 1024 * 1024               # one upload piece: well under Cloudflare's ~100MB per request
 MANIFEST = "javis-brain.json"
 IMPORT_PREFIX = ".javis-import-"
+_ID = re.compile(r"^[0-9a-f]{32}$")
 
 _SECRET_NAMES = {".env", ".mcp.json", ".mcp_hub.json", ".javis-learn.lock", ".ds_store"}
 _SECRET_PREFIXES = ("id_rsa", "id_dsa", "id_ecdsa", "id_ed25519")
@@ -45,7 +60,45 @@ _SKIP_DIRS = {".git", ".trash"}
 
 
 class TooBig(Exception):
-    """Over MAX_FILES or MAX_BYTES."""
+    """Over MAX_FILES."""
+
+
+class NoSpace(Exception):
+    """The disk would keep less than KEEP_FREE. Carries what is needed and what is free, in bytes."""
+
+    def __init__(self, need: int, free: int):
+        super().__init__(f"need {need}, free {free}")
+        self.need, self.free = need, free
+
+
+def free_bytes(path) -> int:
+    p = Path(path)
+    while not p.exists() and p.parent != p:
+        p = p.parent
+    try:
+        return shutil.disk_usage(str(p)).free
+    except OSError:
+        return 0
+
+
+def need_space(path, need: int) -> None:
+    """Raise NoSpace unless `need` bytes fit under `path` with KEEP_FREE left over."""
+    free = free_bytes(path)
+    if need + KEEP_FREE > free:
+        raise NoSpace(int(need) + KEEP_FREE, free)
+
+
+def gb(n) -> str:
+    return f"{max(0, n) / 1024 / 1024 / 1024:.1f} GB"
+
+
+def no_space_text(e: "NoSpace") -> str:
+    return localefmt.chu(f"Máy chủ không đủ chỗ trống: cần khoảng {gb(e.need)}, còn {gb(e.free)}.",
+                         f"Not enough free disk on the server: about {gb(e.need)} needed, {gb(e.free)} free.")
+
+
+def too_many_text() -> str:
+    return localefmt.chu(f"Quá nhiều file (trần {MAX_FILES:,}).", f"Too many files (limit {MAX_FILES:,}).")
 
 
 class BadFile(Exception):
@@ -97,7 +150,7 @@ def _walk(root: Path):
 
 
 def scan(root) -> tuple:
-    """(files, bytes) the export of this brain would hold. Raises TooBig past the caps."""
+    """(files, bytes) the export of this brain would hold. Raises TooBig past MAX_FILES."""
     root = Path(root)
     files = total = 0
     for p, _rel in _walk(root):
@@ -106,14 +159,15 @@ def scan(root) -> tuple:
         except OSError:
             continue
         files += 1
-        if files > MAX_FILES or total > MAX_BYTES:
+        if files > MAX_FILES:
             raise TooBig()
     return files, total
 
 
-def export_zip(root, dst: str, app_version: str = "") -> tuple:
+def export_zip(root, dst: str, app_version: str = "", progress=None) -> tuple:
     """Write the brain at `root` into the zip `dst`, under one top folder named like the brain's folder, with a small
-    manifest (label, folder, date) at the top so an import keeps the name. Returns (files, bytes)."""
+    manifest (label, folder, date) at the top so an import keeps the name. Returns (files, bytes).
+    `progress(files_done)` is called every few hundred files."""
     root = Path(root)
     top = root.name or "brain"
     files = total = 0
@@ -129,12 +183,16 @@ def export_zip(root, dst: str, app_version: str = "") -> tuple:
                 continue
             files += 1
             total += size
-            if files > MAX_FILES or total > MAX_BYTES:
+            if files > MAX_FILES:
                 raise TooBig()
             try:
                 zf.write(p, top + "/" + rel)
             except (OSError, ValueError):
                 continue
+            if progress and files % 200 == 0:
+                progress(files)
+    if progress:
+        progress(files)
     return files, total
 
 
@@ -183,14 +241,14 @@ def _unique_label(brains_dir: Path, label: str, root: Path) -> str:
 
 
 def _off_plugins(root: Path) -> int:
-    import yaml
+    import yaml   # writing only; reading goes through fastyaml like every other module
     n = 0
     for d in (root / "plugins", root / "Javis" / "plugins"):
         if not d.is_dir():
             continue
         for f in list(d.glob("*/plugin.yaml")) + list(d.glob("*/plugin.yml")):
             try:
-                m = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+                m = fastyaml.safe_load(f.read_text(encoding="utf-8")) or {}
             except Exception:
                 m = None
             if not isinstance(m, dict):
@@ -293,6 +351,8 @@ def import_zip(fileobj, brains_dir, filename: str = "", label: str = "", work_di
                 break
         if not isinstance(manifest, dict):
             manifest = {}
+        declared = sum(i.file_size for i, _rel in members)
+        need_space(brains_dir, declared)
 
         stem = Path(str(filename or "")).stem
         folder = safe_name(str(manifest.get("folder") or "")) or safe_name(prefix.rstrip("/")) or safe_name(stem) or "Brain"
@@ -320,8 +380,8 @@ def import_zip(fileobj, brains_dir, filename: str = "", label: str = "", work_di
                         if not chunk:
                             break
                         total += len(chunk)
-                        if total > MAX_BYTES:
-                            raise TooBig()
+                        if total > declared:
+                            raise BadFile("sizes lie")   # more data than the zip announced: stop before the disk fills
                         out.write(chunk)
             if not files:
                 raise BadFile("empty")
@@ -337,16 +397,225 @@ def import_zip(fileobj, brains_dir, filename: str = "", label: str = "", work_di
     return {"name": final.name, "path": str(final), "label": shown, "files": files, "paused": paused}
 
 
-def sweep_leftovers(work_dir, older_than_s: int = 3600) -> None:
-    """Remove import folders a crash left behind."""
+# ---- export in the background: start, poll, download ----
+
+_JOBS: dict = {}
+_LOCK = threading.Lock()
+_DONE_KEEP_S = 1800      # a finished file waits this long for its download (a retry included), then is swept
+
+
+def _sweep_exports(out_dir: Path) -> None:
+    now = time.time()
+    with _LOCK:
+        for jid, j in list(_JOBS.items()):
+            if j["status"] in ("done", "error") and now - j.get("finished", now) > _DONE_KEEP_S:
+                _JOBS.pop(jid, None)
+                if j.get("path"):
+                    try:
+                        os.unlink(j["path"])
+                    except OSError:
+                        pass
+        live = {j.get("path") for j in _JOBS.values()}
     try:
-        now = time.time()
-        for p in Path(work_dir).iterdir():
-            if p.name.startswith(IMPORT_PREFIX) and p.is_dir():
-                try:
-                    if now - p.stat().st_mtime > older_than_s:
-                        shutil.rmtree(p, ignore_errors=True)
-                except OSError:
-                    pass
+        for p in Path(out_dir).glob("*.zip"):
+            if str(p) not in live and now - p.stat().st_mtime > _DONE_KEEP_S:
+                p.unlink()
     except OSError:
         pass
+
+
+def _run_export(job: dict, root: Path, app_version: str) -> None:
+    def set_(**kw):
+        with _LOCK:
+            job.update(kw)
+    try:
+        files, total = scan(root)
+        set_(total=files, status="pack")
+        need_space(Path(job["path"]).parent, total)   # deflate never makes the file bigger than the raw data
+        export_zip(root, job["path"], app_version, progress=lambda n: set_(done=n))
+        set_(status="done", done=files, finished=time.time())
+    except TooBig:
+        set_(status="error", error=too_many_text(), finished=time.time())
+    except NoSpace as e:
+        set_(status="error", error=no_space_text(e), finished=time.time())
+    except Exception as e:  # noqa: BLE001
+        set_(status="error", error=localefmt.chu(f"Nén thất bại: {e}", f"Compression failed: {e}"), finished=time.time())
+    if job["status"] == "error":
+        try:
+            os.unlink(job["path"])
+        except OSError:
+            pass
+
+
+def export_start(root, out_dir, name: str, app_version: str = "") -> dict:
+    """Start packing `root` in a background thread (or join the run already packing it). Returns the job's view."""
+    root = Path(root)
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    _sweep_exports(out)
+    with _LOCK:
+        for j in _JOBS.values():
+            if j["root"] == str(root) and j["status"] in ("scan", "pack"):
+                return _view(j)
+        jid = uuid.uuid4().hex
+        job = {"id": jid, "root": str(root), "name": name, "status": "scan", "done": 0, "total": 0, "error": "",
+               "path": str(out / (jid + ".zip")), "started": time.time()}
+        _JOBS[jid] = job
+    threading.Thread(target=_run_export, args=(job, root, app_version), name="brain-export", daemon=True).start()
+    return _view(job)
+
+
+def _view(j: dict) -> dict:
+    return {"id": j["id"], "status": j["status"], "done": j["done"], "total": j["total"], "error": j["error"],
+            "name": j["name"]}
+
+
+def export_status(jid: str) -> Optional[dict]:
+    with _LOCK:
+        j = _JOBS.get(jid) if _ID.match(str(jid or "")) else None
+        return _view(j) if j else None
+
+
+def export_file(jid: str) -> Optional[tuple]:
+    """(path, download name) of a finished export, or None."""
+    with _LOCK:
+        j = _JOBS.get(jid) if _ID.match(str(jid or "")) else None
+        if not j or j["status"] != "done" or not os.path.isfile(j["path"]):
+            return None
+        return j["path"], j["name"]
+
+
+# ---- upload in pieces: start, send each piece, finish ----
+
+class Offset(Exception):
+    """A piece arrived for another place in the file than where the server stands. Carries where it stands."""
+
+    def __init__(self, received: int):
+        super().__init__(str(received))
+        self.received = received
+
+
+def _part(work: Path, uid: str) -> tuple:
+    if not _ID.match(str(uid or "")):
+        raise BadFile("bad id")
+    return work / (uid + ".part"), work / (uid + ".json")
+
+
+def sweep_uploads(work, older_than_s: int = 86400) -> None:
+    """Remove pieces of uploads nobody finished, and import folders a crash left behind."""
+    now = time.time()
+    try:
+        for p in Path(work).iterdir():
+            try:
+                if now - p.stat().st_mtime <= older_than_s:
+                    continue
+                if p.is_dir() and p.name.startswith(IMPORT_PREFIX):
+                    shutil.rmtree(p, ignore_errors=True)
+                elif p.suffix in (".part", ".json"):
+                    p.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def upload_start(work, size: int, filename: str = "") -> dict:
+    """Open an upload of `size` bytes. The disk must hold the file and, later, about as much again unpacked."""
+    work = Path(work)
+    work.mkdir(parents=True, exist_ok=True)
+    sweep_uploads(work)
+    size = int(size or 0)
+    if size <= 0:
+        raise BadFile("empty")
+    need_space(work, size * 2)
+    uid = uuid.uuid4().hex
+    part, meta = _part(work, uid)
+    part.write_bytes(b"")
+    meta.write_text(json.dumps({"size": size, "filename": str(filename or "")[:200], "started": time.time()}),
+                    encoding="utf-8")
+    return {"id": uid, "chunk": CHUNK}
+
+
+def upload_chunk(work, uid: str, offset: int, data: bytes) -> int:
+    """Append one piece at `offset`. Returns the bytes received so far. Raises Offset when `offset` is not where the
+    file stands (the client then resends from there), BadFile for an unknown upload or a piece too big."""
+    part, meta = _part(Path(work), uid)
+    try:
+        m = json.loads(meta.read_text(encoding="utf-8"))
+        have = part.stat().st_size
+    except (OSError, ValueError):
+        raise BadFile("unknown upload")
+    if int(offset) != have:
+        raise Offset(have)
+    if len(data) > CHUNK or have + len(data) > int(m.get("size") or 0):
+        raise BadFile("piece too big")
+    with open(part, "ab") as f:
+        f.write(data)
+    return have + len(data)
+
+
+def bad_file_text() -> str:
+    return localefmt.chu("File này không phải bộ não Javis xuất ra (cần file .zip có ghi chú bên trong).",
+                         "This is not a brain file exported by Javis (a .zip with notes inside).")
+
+
+_IMPORTS: dict = {}
+
+
+def upload_finish(work, uid: str, brains_dir, label: str = "", after=None) -> dict:
+    """Unpack a complete upload into a new brain, in a background thread (a big brain takes longer than a proxy waits
+    for a reply). `after(result)` runs in that thread once the brain is in place. Poll with import_status(uid).
+    Raises Offset while pieces are missing (nothing is dropped then, so the client can resume)."""
+    work = Path(work)
+    part, meta = _part(work, uid)
+    try:
+        m = json.loads(meta.read_text(encoding="utf-8"))
+        have = part.stat().st_size
+    except (OSError, ValueError):
+        raise BadFile("unknown upload")
+    if have != int(m.get("size") or 0):
+        raise Offset(have)
+    with _LOCK:
+        if uid in _IMPORTS:
+            return dict(_IMPORTS[uid])
+        job = {"status": "unpack", "error": "", "result": None}
+        _IMPORTS[uid] = job
+
+    def run():
+        res, err = None, ""
+        try:
+            with open(part, "rb") as f:
+                res = import_zip(f, brains_dir, m.get("filename") or "", label, work)
+            if after:
+                try:
+                    after(res)
+                except Exception:  # noqa: BLE001 - the brain is in place; a later scaffold step is not fatal
+                    pass
+        except TooBig:
+            err = too_many_text()
+        except NoSpace as e:
+            err = no_space_text(e)
+        except BadFile:
+            err = bad_file_text()
+        except Exception as e:  # noqa: BLE001
+            err = localefmt.chu(f"Không nhập được: {e}", f"Could not import: {e}")
+        finally:
+            for p in (part, meta):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+        with _LOCK:
+            job.update(status="error" if err else "done", error=err, result=res, finished=time.time())
+            for k, j in list(_IMPORTS.items()):   # forget answers nobody came back for
+                if j.get("finished") and time.time() - j["finished"] > _DONE_KEEP_S:
+                    _IMPORTS.pop(k, None)
+
+    threading.Thread(target=run, name="brain-import", daemon=True).start()
+    return dict(job)
+
+
+def import_status(uid: str) -> Optional[dict]:
+    with _LOCK:
+        j = _IMPORTS.get(uid) if _ID.match(str(uid or "")) else None
+        return dict(j) if j else None

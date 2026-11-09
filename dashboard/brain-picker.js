@@ -16,7 +16,8 @@
    2026-11-09, owner: the four buttons beside the picker (new, rename, delete, outside folder) move INTO the panel, "giống
    phần tạo cộng sự": each brain's row carries Export (.zip), Rename and Delete, done right on the row (no prompt or alert),
    and the panel ends with New brain, Upload a brain (.zip) and Open an outside folder. The work itself is in
-   brains-ui.js (window.JavisBrains); export and upload talk to /brains/export and /brains/import (server/brain_export.py).
+   brains-ui.js (window.JavisBrains); export and upload talk to /brains/export/* and /brains/import/*
+   (server/brain_export.py): packing and unpacking run in the background, the upload goes in 32MB pieces.
 
    The pure part (moveItem, orderFromOptions) is tested in node by tests/js/test_brain_picker.js. No em dash here. */
 (function (root) {
@@ -557,50 +558,118 @@
     }
   }
 
-  // Export: measure first (the server says how many files, or why not), then let the browser download the file.
+  // Export (2026-11-09): the server packs in the background and the page polls the progress, then downloads the
+  // finished file. A big brain takes longer to pack than a proxy such as Cloudflare Tunnel waits for a reply; this way
+  // the download starts at once. Polling goes on with the panel closed, so the file still arrives.
+  function getJson(url, opts) {
+    return fetch(url, Object.assign({ credentials: "same-origin" }, opts || {}))
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { d = d || {}; d._status = r.status; d._ok = r.ok && !!d.ok; return d; }); });
+  }
+  function form(fields) {
+    var fd = new FormData();
+    Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });
+    return { method: "POST", body: fd };
+  }
+  function tell(text, isErr) {
+    if (!open) return;
+    if (isErr) { note = ""; drawList(); fail(text); } else say(text);
+  }
   function exportBrain(x) {
-    var q = "brain=" + encodeURIComponent(x.value);
-    say(t("bpick.export_wait", { name: x.label }, "Measuring {name}..."));
-    fetch("/brains/export?probe=1&" + q, { credentials: "same-origin" })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok && d && d.ok, d: d || {} }; }); })
-      .then(function (res) {
-        if (!res.ok) { note = ""; drawList(); fail(res.d.error || t("bpick.export_err", null, "Could not export.")); return; }
-        say(t("bpick.export_started", { name: x.label, n: res.d.files }, "Packing {name} ({n} files); the download starts by itself."));
-        var a = document.createElement("a");
-        a.href = "/brains/export?" + q;
-        a.download = res.d.name || "";
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function () { a.remove(); }, 1000);
-      }, function () { note = ""; drawList(); fail(t("bpick.net_err", null, "Connection lost, try again.")); });
+    tell(t("bpick.export_wait", { name: x.label }, "Getting {name} ready..."));
+    getJson("/brains/export/start", form({ brain: x.value })).then(function (d) {
+      if (!d._ok) { tell(d.error || t("bpick.export_err", null, "Could not export."), true); return; }
+      var id = d.id, misses = 0;
+      (function poll() {
+        getJson("/brains/export/status?id=" + encodeURIComponent(id)).then(function (j) {
+          if (!j._ok) {
+            if (j._status === 404 || ++misses > 5) { tell(j.error || t("bpick.export_err", null, "Could not export."), true); return; }
+            setTimeout(poll, 1500); return;
+          }
+          misses = 0;
+          if (j.status === "error") { tell(j.error || t("bpick.export_err", null, "Could not export."), true); return; }
+          if (j.status === "done") {
+            tell(t("bpick.export_ready", { name: x.label, n: j.total }, "{name} is packed ({n} files); the download is starting."));
+            var a = document.createElement("a");
+            a.href = "/brains/export/file?id=" + encodeURIComponent(id);
+            a.download = j.name || "";
+            a.style.display = "none";
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () { a.remove(); }, 1000);
+            return;
+          }
+          tell(j.status === "pack" && j.total
+            ? t("bpick.packing", { name: x.label, done: Number(j.done).toLocaleString(), total: Number(j.total).toLocaleString() }, "Packing {name}: {done}/{total} files...")
+            : t("bpick.export_wait", { name: x.label }, "Getting {name} ready..."));
+          setTimeout(poll, 800);
+        }, function () { if (++misses > 5) tell(t("bpick.net_err", null, "Connection lost, try again."), true); else setTimeout(poll, 1500); });
+      })();
+    }, function () { tell(t("bpick.net_err", null, "Connection lost, try again."), true); });
   }
 
-  // Upload with progress (a brain file can weigh hundreds of MB): XHR, because fetch does not report upload progress.
+  // Upload (2026-11-09): sent in pieces the server sizes (32MB), each one under the ~100MB a request may carry through
+  // Cloudflare Tunnel. A piece that fails is sent again from where the server says it stands (a 409 carries
+  // `received`), up to 5 tries in a row. Then the server unpacks in the background and the page polls.
+  function sendPiece(id, offset, blob, onProgress) {
+    return new Promise(function (resolve) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "/brains/import/chunk?id=" + encodeURIComponent(id) + "&offset=" + offset);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.upload.onprogress = function (e) { if (e.lengthComputable) onProgress(e.loaded); };
+      xhr.onload = function () {
+        var d = {};
+        try { d = JSON.parse(xhr.responseText || "{}") || {}; } catch (e) {}
+        resolve({ status: xhr.status, d: d });
+      };
+      xhr.onerror = function () { resolve({ status: 0, d: {} }); };
+      xhr.send(blob);
+    });
+  }
   function uploadBrain() {
     if (!imp.file || imp.busy) return;
-    imp.busy = true; imp.err = false; imp.msg = t("bpick.uploading", { p: 0 }, "Uploading... {p}%");
-    drawList();
-    var fd = new FormData();
-    fd.append("file", imp.file, imp.file.name);
-    fd.append("label", imp.name.trim());
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "/brains/import");
+    var file = imp.file, size = file.size;
+    imp.busy = true; imp.err = false;
     function show(text, isErr) {
       imp.msg = text; imp.err = !!isErr;
       if (open && view === "import") drawList();
     }
-    xhr.upload.onprogress = function (e) {
-      if (!e.lengthComputable) return;
-      var p = Math.round(e.loaded * 100 / e.total);
-      show(p >= 100 ? t("bpick.unpacking", null, "Unpacking...") : t("bpick.uploading", { p: p }, "Uploading... {p}%"));
-    };
-    xhr.upload.onload = function () { show(t("bpick.unpacking", null, "Unpacking...")); };
-    xhr.onload = function () {
-      var d = {};
-      try { d = JSON.parse(xhr.responseText || "{}") || {}; } catch (e) {}
-      imp.busy = false;
-      if (xhr.status >= 300 || !d.ok) { show(d.error || t("bpick.import_err", null, "Upload failed."), true); return; }
+    function stop(text) { imp.busy = false; show(text || t("bpick.import_err", null, "Upload failed."), true); }
+    show(t("bpick.uploading", { p: 0 }, "Uploading... {p}%"));
+    getJson("/brains/import/start", form({ size: size, name: file.name })).then(function (d) {
+      if (!d._ok) { stop(d.error); return; }
+      var id = d.id, piece = d.chunk || 32 * 1024 * 1024, at = 0, tries = 0;
+      function next() {
+        if (at >= size) { finish(); return; }
+        var end = Math.min(size, at + piece);
+        sendPiece(id, at, file.slice(at, end), function (loaded) {
+          show(t("bpick.uploading", { p: Math.min(99, Math.floor((at + loaded) * 100 / size)) }, "Uploading... {p}%"));
+        }).then(function (r) {
+          if (r.status === 200 && r.d.ok) { at = r.d.received; tries = 0; next(); return; }
+          if (r.status === 409 && typeof r.d.received === "number") { at = r.d.received; }
+          else if (r.status && r.status !== 502 && r.status !== 503 && r.status !== 504 && r.status !== 524) { stop(r.d.error); return; }
+          if (++tries > 5) { stop(t("bpick.net_err", null, "Connection lost, try again.")); return; }
+          setTimeout(next, 1000 * tries);
+        });
+      }
+      function finish() {
+        show(t("bpick.unpacking", null, "Unpacking..."));
+        getJson("/brains/import/finish", form({ id: id, label: imp.name.trim() })).then(function (f) {
+          if (!f._ok) { stop(f.error); return; }
+          var misses = 0;
+          (function poll() {
+            getJson("/brains/import/status?id=" + encodeURIComponent(id)).then(function (j) {
+              if (!j._ok) { if (j._status === 404 || ++misses > 5) stop(j.error); else setTimeout(poll, 1500); return; }
+              if (j.status === "error") { stop(j.error); return; }
+              if (j.status !== "done") { setTimeout(poll, 1000); return; }
+              done(j.result || {});
+            }, function () { if (++misses > 5) stop(t("bpick.net_err", null, "Connection lost, try again.")); else setTimeout(poll, 1500); });
+          })();
+        }, function () { stop(t("bpick.net_err", null, "Connection lost, try again.")); });
+      }
+      next();
+    }, function () { stop(t("bpick.net_err", null, "Connection lost, try again.")); });
+
+    function done(d) {
       var off = [], pz = d.paused || {};
       if (pz.plugins) off.push(t("bpick.off_plugins", { n: pz.plugins }, "{n} plugin(s)"));
       if (pz.loops) off.push(t("bpick.off_loops", { n: pz.loops }, "{n} loop(s)"));
@@ -611,9 +680,7 @@
       view = "list";
       Promise.resolve(root.JavisBrains && root.JavisBrains.adopt ? root.JavisBrains.adopt(d.path) : null)
         .then(function () { if (open) say(text); });
-    };
-    xhr.onerror = function () { imp.busy = false; show(t("bpick.net_err", null, "Connection lost, try again."), true); };
-    xhr.send(fd);
+    }
   }
 
   // ---- reorder ----

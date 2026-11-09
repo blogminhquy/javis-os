@@ -8539,70 +8539,99 @@ def _brain_zip_name(root) -> str:
     return name + ".zip"
 
 
-@app.get("/brains/export")
-async def brain_export_zip(brain: str = Query("brain"), probe: int = Query(0)):
-    """Download a whole brain as one .zip (brain picker: Export on each row). `probe=1` only measures it first (files,
-    bytes) so the page can say what is coming, or why not, before the download starts. Built in a thread into a temp
-    file, sent, then deleted. Private files stay out (brain_export.kept_out)."""
-    import tempfile
-    from starlette.background import BackgroundTask
+def _brain_io_dir(kind: str) -> Path:
+    return cfgmod.STATE_DIR / kind
+
+
+@app.post("/brains/export/start")
+async def brain_export_start(brain: str = Form("brain")):
+    """Pack a whole brain into one .zip in the background (brain picker: Export on each row). Poll
+    /brains/export/status, then download /brains/export/file: a big brain takes longer to pack than a proxy such as
+    Cloudflare Tunnel waits for a reply, and this way the download starts at once. Private files stay out
+    (brain_export.kept_out); the disk must keep brain_export.KEEP_FREE free."""
     root = _managed_brain_dir(brain)
     if root is None:
         return JSONResponse({"ok": False, "error": localefmt.chu("Chỉ xuất được bộ não Javis quản lý", "Only brains Javis manages can be exported")},
                             status_code=404)
-    too_big = localefmt.chu(f"Bộ não quá lớn để xuất (trần {brain_export.MAX_FILES:,} file hoặc 2GB)",
-                            f"The brain is too large to export (limit {brain_export.MAX_FILES:,} files or 2GB)")
-    if probe:
-        try:
-            files, total = await asyncio.to_thread(brain_export.scan, root)
-        except brain_export.TooBig:
-            return JSONResponse({"ok": False, "error": too_big}, status_code=413)
-        return {"ok": True, "files": files, "bytes": total, "name": _brain_zip_name(root)}
-    fd, tmp = tempfile.mkstemp(prefix="javis-brain-", suffix=".zip")
-    os.close(fd)
-    try:
-        await asyncio.to_thread(brain_export.export_zip, root, tmp, _app_version())
-    except brain_export.TooBig:
-        _rm_quiet(tmp)
-        return JSONResponse({"ok": False, "error": too_big}, status_code=413)
-    except Exception as e:
-        _rm_quiet(tmp)
-        return JSONResponse({"ok": False, "error": localefmt.chu(f"Nén thất bại: {e}", f"Compression failed: {e}")}, status_code=500)
-    return FileResponse(tmp, media_type="application/zip", filename=_brain_zip_name(root),
-                        background=BackgroundTask(_rm_quiet, tmp))
+    job = await asyncio.to_thread(brain_export.export_start, root, _brain_io_dir("brain-export"),
+                                  _brain_zip_name(root), _app_version())
+    return {"ok": True, **job}
 
 
-@app.post("/brains/import")
-async def brain_import_zip(file: UploadFile = File(...), label: str = Form("")):
-    """Upload a brain file made by Export (brain picker: "Upload a brain"). It always becomes a NEW brain; plugins,
-    loops and pending reminders in it arrive switched off (brain_export.import_zip says why)."""
-    size = getattr(file, "size", None)
-    if size is not None and size > brain_export.MAX_UPLOAD:
-        return JSONResponse({"ok": False, "error": localefmt.chu("File quá lớn (trần 1GB)", "File too large (limit 1GB)")}, status_code=413)
-    work = cfgmod.STATE_DIR / "brain-import"
-    try:
-        res = await asyncio.to_thread(brain_export.import_zip, file.file, BRAINS_DIR, file.filename or "", label, work)
-    except brain_export.TooBig:
-        return JSONResponse({"ok": False, "error": localefmt.chu(f"Bộ não trong file quá lớn (trần {brain_export.MAX_FILES:,} file hoặc 2GB)",
-                                                                 f"The brain in the file is too large (limit {brain_export.MAX_FILES:,} files or 2GB)")},
-                            status_code=413)
-    except brain_export.BadFile:
-        return JSONResponse({"ok": False, "error": localefmt.chu("File này không phải bộ não Javis xuất ra (cần file .zip có ghi chú bên trong)",
-                                                                 "This is not a brain file exported by Javis (a .zip with notes inside)")},
-                            status_code=400)
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": localefmt.chu(f"Không nhập được: {e}", f"Could not import: {e}")}, status_code=500)
-    finally:
-        try:
-            await file.close()
-        except Exception:
-            pass
+@app.get("/brains/export/status")
+def brain_export_status(id: str = Query("")):
+    j = brain_export.export_status(id)
+    if not j:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không thấy việc nén này (máy chủ vừa khởi động lại?)",
+                                                                 "This export is gone (did the server restart?)")}, status_code=404)
+    return {"ok": True, **j}
+
+
+@app.get("/brains/export/file")
+def brain_export_file(id: str = Query("")):
+    f = brain_export.export_file(id)
+    if not f:
+        return JSONResponse({"ok": False, "error": localefmt.chu("File chưa sẵn sàng hoặc đã hết hạn", "The file is not ready or has expired")},
+                            status_code=404)
+    return FileResponse(f[0], media_type="application/zip", filename=f[1])
+
+
+def _after_brain_import(res: dict) -> None:
     git_brain.clear_tombstone(BRAINS_DIR, res["name"])   # a brain once deleted under this name must not be swept again
+    _ensure_brain_scaffold(Path(res["path"]))
+
+
+def _brain_import_error(e: Exception):
+    if isinstance(e, brain_export.Offset):
+        return JSONResponse({"ok": False, "received": e.received}, status_code=409)
+    if isinstance(e, brain_export.NoSpace):
+        return JSONResponse({"ok": False, "error": brain_export.no_space_text(e)}, status_code=507)
+    if isinstance(e, brain_export.BadFile):
+        return JSONResponse({"ok": False, "error": brain_export.bad_file_text()}, status_code=400)
+    return JSONResponse({"ok": False, "error": localefmt.chu(f"Không nhập được: {e}", f"Could not import: {e}")}, status_code=500)
+
+
+@app.post("/brains/import/start")
+async def brain_import_start(size: int = Form(0), name: str = Form("")):
+    """Open an upload of a brain file made by Export (brain picker: "Upload a brain"). The file then comes in pieces of
+    `chunk` bytes (POST /brains/import/chunk), well under the ~100MB a request may carry through Cloudflare Tunnel, and
+    /brains/import/finish unpacks it into a NEW brain in the background."""
     try:
-        await asyncio.to_thread(_ensure_brain_scaffold, Path(res["path"]))
-    except Exception:
-        pass
-    return {"ok": True, **res}
+        return {"ok": True, **await asyncio.to_thread(brain_export.upload_start, _brain_io_dir("brain-import"), size, name)}
+    except Exception as e:  # noqa: BLE001
+        return _brain_import_error(e)
+
+
+@app.post("/brains/import/chunk")
+async def brain_import_chunk(request: Request, id: str = Query(""), offset: int = Query(0)):
+    """One piece, raw bytes in the body, at `offset`. A 409 carries `received`: where the server stands, to resume."""
+    data = await request.body()
+    try:
+        got = await asyncio.to_thread(brain_export.upload_chunk, _brain_io_dir("brain-import"), id, offset, data)
+    except Exception as e:  # noqa: BLE001
+        return _brain_import_error(e)
+    return {"ok": True, "received": got}
+
+
+@app.post("/brains/import/finish")
+async def brain_import_finish(id: str = Form(""), label: str = Form("")):
+    """All pieces are in: unpack in the background. Poll /brains/import/status. Plugins, loops and pending reminders in
+    the file arrive switched off (brain_export.import_zip says why)."""
+    try:
+        j = await asyncio.to_thread(brain_export.upload_finish, _brain_io_dir("brain-import"), id, BRAINS_DIR, label,
+                                    _after_brain_import)
+    except Exception as e:  # noqa: BLE001
+        return _brain_import_error(e)
+    return {"ok": True, **j}
+
+
+@app.get("/brains/import/status")
+def brain_import_status(id: str = Query("")):
+    j = brain_export.import_status(id)
+    if not j:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không thấy việc nhập này (máy chủ vừa khởi động lại?)",
+                                                                 "This import is gone (did the server restart?)")}, status_code=404)
+    return {"ok": True, **j}
 
 # ============================================================
 # STUDIO - Agents / Skills / Workflows
