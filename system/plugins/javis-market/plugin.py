@@ -140,6 +140,43 @@ async def _accuracy(markets) -> str:
     return "\n".join(out)
 
 
+async def _portfolio(markets) -> str:
+    import asyncio
+    import market_paper as mp
+    out = ["Tài khoản đầu tư ẢO (giao dịch giả lập bằng giá thật, không có tiền thật):"]
+    for name in markets:
+        try:
+            data = await md.section(name)
+        except Exception:
+            data = {}
+        rep = await asyncio.to_thread(mp.report, name, data)
+        ccy = mp.PARAMS[name]["ccy"]
+        if not rep.get("started"):
+            out.append(f"{_LABEL[name]}: chưa bắt đầu (bấm Bắt đầu ở tab Đầu tư ảo của trang Thị trường).")
+            continue
+        st = rep["stats"]
+        out.append(
+            f"== {_LABEL[name]} ({'đang chạy' if rep['running'] else 'tạm dừng'}, {st['days']:.0f} ngày) == "
+            f"giá trị {_f(st['equity'], 0)} {ccy}, lãi/lỗ {_f(st['pnl'], 0)} {ccy} ({_f(st['pnl_pct'], pct=True)}), "
+            f"chỉ số chuẩn {_f(st['bench_return'], pct=True)}, tiền mặt {_f(st['cash'], 0)}, đang đầu tư {st['exposure']:.0f}%, "
+            f"{st['closed']} lệnh đã đóng, tỉ lệ thắng {_f(st['win_rate'], 0)}%, sụt giảm tối đa {_f(st['max_drawdown'], pct=True)}, "
+            f"phí {_f(st['fees'], 0)} {ccy}.")
+        for x in rep["positions"][:10]:
+            out.append(f"  - giữ {x['symbol_label']}: {x['qty']:g} @ {_f(x['avg'])} -> {_f(x['price'])} "
+                       f"({_f(x['pnl_pct'], pct=True)}), tỷ trọng {x['weight']:.1f}%, cắt lỗ {_f(x['stop'])}")
+        for t in rep["trades"][:6]:
+            out.append(f"  - lệnh {t['side']} {t['symbol']} {t['qty']:g} @ {_f(t['price'])} ({t['reason']})"
+                       + (f", lãi/lỗ {_f(t['pnl'], 0)} {ccy}" if t.get("pnl") is not None else ""))
+        if rep["log"]:
+            w = rep["log"][0].get("watch") or []
+            if w:
+                out.append("  Đang chờ điểm mua: " + ", ".join(
+                    f"{x['symbol']} ({x['why']}" + (f", vùng {_f(x['zone'][0])}-{_f(x['zone'][1])}" if x.get("zone") else "") + ")"
+                    for x in w[:8]))
+    out.append("Đây là mô phỏng theo quy tắc cố định; không bảo đảm lợi nhuận.")
+    return "\n".join(out)
+
+
 def register(ctx):
     async def _market(args, cctx):
         args = args or {}
@@ -163,6 +200,8 @@ def register(ctx):
                 return await _symbol(market, sym)
             if op == "accuracy":
                 return await _accuracy(markets)
+            if op == "portfolio":
+                return await _portfolio(markets)
             if op == "watchlist":
                 wl = md.watchlist()
                 return "Danh sách theo dõi: " + "; ".join(f"{_LABEL[k]}: {', '.join(v) or '(trống)'}" for k, v in wl.items())
@@ -179,13 +218,15 @@ def register(ctx):
             "tăng/giảm, mã nào tiềm năng hay sắp biến động. "
             "op: overview (tổng hợp), outlook (danh sách tiềm năng / dễ biến động mạnh / rủi ro / có thể hồi), "
             "section (bảng một thị trường, sort=score|change|drop|move), symbol (phân tích kỹ một mã), "
-            "accuracy (tín hiệu các phiên trước đúng tới đâu sau 5 phiên: nêu kèm khi đưa ra nhận định), watchlist. "
+            "accuracy (tín hiệu các phiên trước đúng tới đâu sau 5 phiên: nêu kèm khi đưa ra nhận định), "
+            "portfolio (tài khoản ĐẦU TƯ ẢO: VN 1 tỷ đ, coin 20.000 USD, thế giới 20.000 USD; giá trị, lãi lỗ, so với "
+            "chỉ số chuẩn, vị thế, lệnh gần nhất kèm lý do), watchlist. "
             "market: vn | world | crypto. symbol: mã VN (FPT), mã Yahoo (AAPL, ^GSPC, GC=F) hoặc ticker coin (btc). "
             "Điểm xu hướng (-100..100) và 'khả năng biến động mạnh' (0..100) là THỐNG KÊ từ giá quá khứ, không phải "
             "dự báo chắc chắn: khi trả lời phải nói rõ đây là tín hiệu kỹ thuật, không phải khuyến nghị đầu tư."),
         handler=_market, min_mode="readonly", emoji="📈",
         schema={"type": "object", "properties": {
-            "op": {"type": "string", "enum": ["overview", "outlook", "section", "symbol", "accuracy", "watchlist"]},
+            "op": {"type": "string", "enum": ["overview", "outlook", "section", "symbol", "accuracy", "portfolio", "watchlist"]},
             "market": {"type": "string", "enum": ["vn", "world", "crypto"]},
             "symbol": {"type": "string", "description": "Mã cần xem khi op=symbol"},
             "sort": {"type": "string", "enum": ["score", "change", "drop", "move"]},

@@ -13654,6 +13654,128 @@ async def realestate_discard():
     return await asyncio.to_thread(rs.discard)
 
 
+# ============================================================
+# Paper trading (market_paper.py): three virtual accounts trading by fixed rules on live prices.
+# ============================================================
+def _paper_kind(kind: str):
+    import market_paper
+    return kind if kind in market_paper.KINDS else None
+
+
+async def _paper_section(kind: str) -> dict:
+    import market_data
+    try:
+        return await market_data.section(kind)
+    except Exception:
+        return {}
+
+
+@app.get("/market/paper")
+async def market_paper_get(kind: str = "vn"):
+    import market_data
+    import market_paper
+    if not _paper_kind(kind):
+        return _market_err(ValueError(kind), 400)
+    data = await _paper_section(kind)
+    live = None
+    if kind == "crypto":
+        try:
+            live = (await market_data.live(["crypto"])).get("prices", {}).get("crypto")
+        except Exception:
+            live = None
+    return {"ok": True, **await asyncio.to_thread(market_paper.report, kind, data, live)}
+
+
+@app.post("/market/paper/start")
+async def market_paper_start(payload: dict = Body(None)):
+    import market_paper
+    kind = _paper_kind(str((payload or {}).get("kind") or ""))
+    if not kind:
+        return _market_err(ValueError("kind"), 400)
+    data = await _paper_section(kind)
+    bench = next((r.get("price") for r in (data.get("indices") or []) + (data.get("rows") or [])
+                  if (r.get("id") or r.get("symbol")) == market_paper.PARAMS[kind]["bench"]), None)
+    await asyncio.to_thread(market_paper.start, kind, bench)
+    log = await asyncio.to_thread(market_paper.run, kind, data, None, True) if data else {}
+    return {"ok": True, "log": log}
+
+
+@app.post("/market/paper/pause")
+async def market_paper_pause(payload: dict = Body(None)):
+    import market_paper
+    p = payload or {}
+    kind = _paper_kind(str(p.get("kind") or ""))
+    if not kind:
+        return _market_err(ValueError("kind"), 400)
+    return {"ok": True, "account": await asyncio.to_thread(market_paper.set_running, kind, bool(p.get("running")))}
+
+
+@app.post("/market/paper/reset")
+async def market_paper_reset(payload: dict = Body(None)):
+    import market_paper
+    kind = _paper_kind(str((payload or {}).get("kind") or ""))
+    if not kind:
+        return _market_err(ValueError("kind"), 400)
+    await asyncio.to_thread(market_paper.reset, kind)
+    return {"ok": True}
+
+
+@app.post("/market/paper/run")
+async def market_paper_run(payload: dict = Body(None)):
+    """Run one decision pass now, inside or outside the account's usual decision window."""
+    import market_paper
+    kind = _paper_kind(str((payload or {}).get("kind") or ""))
+    if not kind:
+        return _market_err(ValueError("kind"), 400)
+    data = await _paper_section(kind)
+    if not data:
+        return _market_err(RuntimeError("no data"))
+    return {"ok": True, "log": await asyncio.to_thread(market_paper.run, kind, data, None, True)}
+
+
+@app.post("/market/paper/close")
+async def market_paper_close(payload: dict = Body(None)):
+    import market_paper
+    p = payload or {}
+    kind = _paper_kind(str(p.get("kind") or ""))
+    sym = str(p.get("symbol") or "")
+    if not kind or not sym:
+        return _market_err(ValueError("kind"), 400)
+    data = await _paper_section(kind)
+    row = next((r for r in data.get("rows") or [] if (r.get("id") or r.get("symbol")) == sym), None)
+    if not row:
+        return {"ok": False, "error": localefmt.chu("Chưa có giá hiện tại của mã này.", "No current price for this symbol.")}
+    try:
+        ok = await asyncio.to_thread(market_paper.close_position, kind, sym, row["price"])
+    except ValueError:
+        return {"ok": False, "error": localefmt.chu("Cổ phiếu chưa về tài khoản (T+2), chưa bán được.",
+                                                    "The shares have not settled yet (T+2) and cannot be sold.")}
+    return {"ok": ok}
+
+
+_PAPER_SIM: dict = {}
+
+
+@app.post("/market/paper/simulate")
+async def market_paper_simulate(payload: dict = Body(None)):
+    """Replay the rules over the archived history (cached for an hour per market and length)."""
+    import market_paper
+    p = payload or {}
+    kind = _paper_kind(str(p.get("kind") or ""))
+    if not kind:
+        return _market_err(ValueError("kind"), 400)
+    days = max(30, min(int(p.get("days") or 120), 400))
+    key = (kind, days)
+    hit = _PAPER_SIM.get(key)
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    await _paper_section(kind)
+    res = await asyncio.to_thread(market_paper.simulate, kind, days)
+    if res.get("ok"):
+        _PAPER_SIM[key] = (time.time(), res)
+    return res
+
+
 @app.on_event("startup")
 async def _market_background_start():
     """Markets page: keep prices fresh and archived even when nobody has the page open (market_live.py).

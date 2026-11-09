@@ -95,6 +95,7 @@ WORLD: dict[str, tuple[str, str, str]] = {
     "USDJPY=X": ("USD/JPY", "fx", "global"), "USDCNY=X": ("USD/CNY", "fx", "global"),
     "USDVND=X": ("USD/VND", "fx", "global"),
     "^TNX": ("US 10Y yield", "rate", "us"), "^IRX": ("US 3M yield", "rate", "us"),
+    "SPY": ("S&P 500 ETF (SPY)", "etf", "us"), "QQQ": ("Nasdaq 100 ETF (QQQ)", "etf", "us"),
     "AAPL": ("Apple", "stock", "us"), "MSFT": ("Microsoft", "stock", "us"), "NVDA": ("Nvidia", "stock", "us"),
     "GOOGL": ("Alphabet", "stock", "us"), "AMZN": ("Amazon", "stock", "us"), "META": ("Meta", "stock", "us"),
     "TSLA": ("Tesla", "stock", "us"), "AVGO": ("Broadcom", "stock", "us"), "AMD": ("AMD", "stock", "us"),

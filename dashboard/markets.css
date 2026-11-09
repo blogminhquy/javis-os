@@ -207,3 +207,14 @@
 .mk-sigbox .v.mk-up { color: var(--mk-up); } .mk-sigbox .v.mk-down { color: var(--mk-down); }
 @media (max-width: 900px) { .mk-sigbox.g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mk-live { display: none; } }
 @media (prefers-reduced-motion: reduce) { .mk-live.on i, .mk-flash-up, .mk-flash-down { animation: none; } }
+
+/* paper trading */
+.mk-plan { margin: 0; padding-left: 18px; line-height: 1.7; }
+.mk-sum { cursor: pointer; font-weight: 600; list-style-position: inside; }
+details.mk-card > .mk-sum { font-size: 15px; }
+.mk-tbl tr.open td { background: var(--surface-2); }
+.mk-tbl tr.mk-detail td { white-space: normal; text-align: left; background: var(--surface-2); padding: 10px 14px 14px; cursor: default; }
+.mk-tbl tr.mk-detail:hover { background: none; }
+.mk-analysis p { margin: 0 0 8px; line-height: 1.55; }
+.mk-btn.sm { min-height: 30px; padding: 0 10px; font-size: 13.5px; }
+.mk-tbl [data-pptrade] { cursor: pointer; }

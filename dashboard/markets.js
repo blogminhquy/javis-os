@@ -21,7 +21,7 @@
 
   var TABS = [
     { id: "overview", icon: "layout-dashboard" }, { id: "vn", icon: "flag" }, { id: "world", icon: "globe" },
-    { id: "crypto", icon: "bitcoin" }, { id: "outlook", icon: "telescope" },
+    { id: "crypto", icon: "bitcoin" }, { id: "outlook", icon: "telescope" }, { id: "paper", icon: "target" },
   ];
   var MARKETS = ["vn", "world", "crypto"];
   var LIVE_MS = 5000;
@@ -33,6 +33,7 @@
     q: { vn: "", world: "", crypto: "" }, filter: { vn: "all", world: "all", crypto: "all" },
     watchOnly: { vn: false, world: false, crypto: false }, outlook: "vn", ro: null, tip: null, modal: null,
     liveBusy: false, liveOk: false, bg: null, acc: {},
+    ppKind: "vn", pp: {}, ppSim: {}, ppOpen: {},
   };
 
   // ------------------------------------------------------------------ formatting
@@ -116,6 +117,7 @@
     return p;
   }
   function needs(tab) {
+    if (tab === "paper") return [];
     if (tab === "overview") return ["overview"];
     if (tab === "outlook") return ["overview", S.outlook];
     return [tab];
@@ -219,8 +221,10 @@
     else if (S.tab === "vn") html = viewVN(S.data.vn);
     else if (S.tab === "world") html = viewWorld(S.data.world);
     else if (S.tab === "crypto") html = viewCrypto(S.data.crypto);
+    else if (S.tab === "paper") html = viewPaper();
     else html = viewOutlook(S.data.overview, S.data[S.outlook]);
     b.innerHTML = html;
+    if (S.tab === "paper") { setStamp(0); drawPaper(); return; }
     var d = S.tab === "overview" || S.tab === "outlook" ? S.data.overview : S.data[S.tab];
     var stale = false;
     if (d && d.sections) MARKETS.forEach(function (m) { if (d.sections[m] && d.sections[m].stale) stale = true; });
@@ -726,8 +730,304 @@
     });
   }
 
+  // ------------------------------------------------------------------ paper trading (virtual accounts)
+  var PP_KINDS = ["vn", "crypto", "world"];
+  function ppCcy(kind) { return kind === "vn" ? "VND" : "USD"; }
+  function money(v, kind, nd) {
+    if (!fin(v)) return "-";
+    if (ppCcy(kind) === "VND") return T("mk.pp.vnd", { v: num(v, 0) });
+    return "$" + num(v, nd == null ? 2 : nd);
+  }
+  function signedMoney(v, kind) { return fin(v) ? (v > 0 ? "+" : "") + money(v, kind) : "-"; }
+  function qtyFmt(q, kind) { return fin(q) ? (kind === "crypto" ? new Intl.NumberFormat(loc(), { maximumFractionDigits: 6 }).format(q) : num(q, 0)) : "-"; }
+  function dt(ts) {
+    if (!ts) return "-";
+    try { return new Date(ts * 1000).toLocaleString(loc(), { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; }
+  }
+  function viewPaper() {
+    var seg = '<div class="mk-seg">' + PP_KINDS.map(function (k) {
+      return '<button type="button" class="mk-segb' + (S.ppKind === k ? " on" : "") + '" data-ppk="' + k + '">' + esc(T("mk.pp.acc." + k)) + "</button>";
+    }).join("") + "</div>";
+    return '<div class="mk-tools">' + seg + '<span class="mk-sp"></span><span class="mk-chip flat">' + IC("triangle-alert") + esc(T("mk.pp.virtual")) +
+      "</span>" + infoBtn(T("mk.pp.how")) + infoBody(esc(T("mk.pp.info"))) + '</div><div id="mkPP"><div class="mk-skel" style="height:300px"></div></div>';
+  }
+  function drawPaper(force) {
+    var box = S.el && S.el.querySelector("#mkPP"), kind = S.ppKind, gen = S.gen;
+    if (!box) return;
+    if (S.pp[kind] && !force) box.innerHTML = paperHtml(S.pp[kind]);
+    api("/market/paper?kind=" + kind).then(function (d) {
+      if (gen !== S.gen || S.ppKind !== kind) return;
+      var b = S.el && S.el.querySelector("#mkPP");
+      if (!b) return;
+      if (!d || d.ok === false) { b.innerHTML = '<div class="mk-err">' + esc((d && d.error) || T("mk.err.load")) + "</div>"; return; }
+      S.pp[kind] = d;
+      var top = body() ? body().scrollTop : 0;
+      b.innerHTML = paperHtml(d);
+      if (body()) body().scrollTop = top;
+      var svg = b.querySelector("svg[data-ppcurve]");
+      if (svg) bindCurveHover(svg, svg._pts || ppCurvePoints(d.curve || [], d.stats && d.stats.start_cash));
+      var sim = S.ppSim[kind];
+      if (sim) paintSim(sim);
+    });
+  }
+  function planHtml(plan) {
+    var k = plan.kind, e = plan.entry || {}, ex = plan.exposure || {};
+    var lines = [
+      T("mk.pp.plan.capital", { v: money(plan.cash, k, 0) }),
+      T("mk.pp.plan.style_" + (k === "world" ? "core" : "pullback")),
+      T("mk.pp.plan.positions", { n: plan.max_pos, w: Math.round(plan.max_w * 100) }),
+      T("mk.pp.plan.risk", { r: num(plan.risk * 100, 1) }),
+      T("mk.pp.plan.stop", { a: num(plan.stop_atr, 1), lo: Math.round(plan.stop_min * 100), hi: Math.round(plan.stop_max * 100) }),
+      T("mk.pp.plan.trail", { a: num(plan.trail_atr, 1), r: num(e.take_profit_r, 0) }),
+      T("mk.pp.plan.exposure", { on: Math.round(ex.risk_on * 100), ne: Math.round(ex.neutral * 100) }),
+      T("mk.pp.plan.timing"),
+      T("mk.pp.plan.fees_" + k),
+      T("mk.pp.plan.schedule_" + k),
+    ];
+    return '<ul class="mk-plan">' + lines.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
+  }
+  function simCard(kind) {
+    return '<div class="mk-card mk-sec" id="mkSim"><h3>' + IC("history") + esc(T("mk.pp.sim.title")) + infoBtn(T("mk.pp.sim.title")) + "</h3>" +
+      infoBody(esc(T("mk.pp.sim.info"))) + '<div class="mk-tools">' +
+      [120, 250].map(function (n) { return '<button type="button" class="mk-btn" data-ppsim="' + n + '">' + esc(T("mk.pp.sim.run", { n: n })) + "</button>"; }).join("") +
+      '</div><div id="mkSimOut"></div></div>';
+  }
+  function paperHtml(d) {
+    var kind = d.kind;
+    if (!d.started) {
+      return '<div class="mk-card"><h3>' + IC("list-checks") + esc(T("mk.pp.plan.title", { a: T("mk.pp.acc." + kind) })) + "</h3>" + planHtml(d.plan) +
+        '<div class="mk-tools mk-sec"><button type="button" class="mk-btn pri" data-pp="start">' + IC("play") + "<span>" + esc(T("mk.pp.start")) +
+        "</span></button></div></div>" + simCard(kind);
+    }
+    var st = d.stats || {}, pos = d.positions || [], log = d.log || [];
+    var head = '<div class="mk-tools"><span class="mk-chip ' + (d.running ? "up" : "") + '">' + IC(d.running ? "play" : "pause") +
+      esc(T(d.running ? "mk.pp.running" : "mk.pp.paused")) + '</span><span class="mk-muted">' + esc(T("mk.pp.since", { d: dt(d.started_at), n: num(st.days, 0) })) +
+      '</span><span class="mk-sp"></span><button type="button" class="mk-btn" data-pp="run">' + IC("zap") + "<span>" + esc(T("mk.pp.run")) + "</span></button>" +
+      '<button type="button" class="mk-btn" data-pp="' + (d.running ? "pause" : "resume") + '">' + IC(d.running ? "pause" : "play") + "<span>" +
+      esc(T(d.running ? "mk.pp.pause" : "mk.pp.resume")) + '</span></button><button type="button" class="mk-btn ghost" data-pp="reset">' + IC("rotate-ccw") +
+      "<span>" + esc(T("mk.pp.reset")) + '</span></button><button type="button" class="mk-btn pri" data-pp="ask">' + IC("sparkles") + "<span>" +
+      esc(T("mk.pp.ask")) + "</span></button></div>";
+    function box(k, v, sub, good) {
+      return '<div><div class="k">' + esc(k) + '</div><div class="v ' + (good == null ? "" : good ? "mk-up" : "mk-down") + '">' + esc(v) +
+        '</div><div class="mk-kicker">' + esc(sub || "") + "</div></div>";
+    }
+    var kpi = '<div class="mk-sigbox g4 mk-sec">' +
+      box(T("mk.pp.k.equity"), money(st.equity, kind, 0), T("mk.pp.k.start", { v: money(st.start_cash, kind, 0) })) +
+      box(T("mk.pp.k.pnl"), signedMoney(st.pnl, kind), pct(st.pnl_pct), st.pnl >= 0) +
+      box(T("mk.pp.k.bench"), pct(st.bench_return), fin(st.alpha) ? T("mk.pp.k.alpha", { a: pct(st.alpha) }) : "", fin(st.alpha) ? st.alpha >= 0 : null) +
+      box(T("mk.pp.k.cash"), money(st.cash, kind, 0), T("mk.pp.k.exposure", { p: num(st.exposure, 0) })) +
+      box(T("mk.pp.k.realized"), signedMoney(st.realized, kind), T("mk.pp.k.unrealized", { v: signedMoney(st.unrealized, kind) }), (st.realized || 0) >= 0) +
+      box(T("mk.pp.k.trades"), String(st.trades || 0), T("mk.pp.k.closed", { n: st.closed || 0 })) +
+      box(T("mk.pp.k.win"), fin(st.win_rate) ? num(st.win_rate, 0) + "%" : "-", fin(st.profit_factor) ? T("mk.pp.k.pf", { v: num(st.profit_factor, 2) }) : "", fin(st.profit_factor) ? st.profit_factor >= 1 : null) +
+      box(T("mk.pp.k.mdd"), pct(st.max_drawdown), T("mk.pp.k.fees", { v: money(st.fees, kind) }), null) + "</div>";
+    var curve = '<div class="mk-grid mk-sec" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);align-items:start"><div class="mk-card"><h3>' +
+      esc(T("mk.pp.curve")) + '<span class="mk-sub">' + esc(T("mk.pp.curve_sub")) + "</span></h3>" + curveSvg(d) +
+      '<div class="mk-legend"><span><i style="background:var(--mk-s1)"></i>' + esc(T("mk.pp.series.port")) + '</span><span><i style="background:var(--mk-s2)"></i>' +
+      esc(T("mk.pp.series.bench", { b: T("mk.pp.bench." + kind) })) + '</span></div></div><div class="mk-card"><h3>' + esc(T("mk.pp.alloc")) + "</h3>" + allocHtml(d) + "</div></div>";
+    var watch = (log[0] && log[0].watch) || [];
+    return head + kpi + curve +
+      '<div class="mk-card mk-sec"><h3>' + IC("shield") + esc(T("mk.pp.positions")) + '<span class="mk-sub">' + pos.length + "</span></h3>" + positionsHtml(d) + "</div>" +
+      '<div class="mk-card mk-sec"><h3>' + IC("hourglass") + esc(T("mk.pp.watch")) + '<span class="mk-sub">' + esc(T("mk.pp.watch_sub")) + "</span></h3>" + watchHtml(kind, watch) + "</div>" +
+      '<div class="mk-card mk-sec"><h3>' + IC("list") + esc(T("mk.pp.trades")) + '<span class="mk-sub">' + esc(T("mk.pp.trades_sub")) + "</span></h3>" + tradesHtml(d) + "</div>" +
+      '<div class="mk-card mk-sec"><h3>' + IC("clock") + esc(T("mk.pp.log")) + "</h3>" + logHtml(d) + "</div>" +
+      '<details class="mk-card mk-sec"><summary class="mk-sum">' + esc(T("mk.pp.plan.title", { a: T("mk.pp.acc." + kind) })) + "</summary>" + planHtml(d.plan) + "</details>" + simCard(kind);
+  }
+  function ppCurvePoints(curve, start) {
+    var b0 = null;
+    return curve.filter(function (c) { return fin(c.equity); }).map(function (c) {
+      if (b0 == null && fin(c.bench)) b0 = c.bench;
+      return { t: c.ts || c.d, p: c.equity / (start || curve[0].equity) * 100, b: fin(c.bench) && b0 ? c.bench / b0 * 100 : null, eq: c.equity };
+    });
+  }
+  var CV_W = 640, CV_H = 220, CV_PL = 6, CV_PR = 48;
+  function curveSvg(d, pts) {
+    pts = pts || ppCurvePoints(d.curve || [], d.stats && d.stats.start_cash);
+    if (pts.length < 2) return '<div class="mk-empty">' + esc(T("mk.pp.curve_wait")) + "</div>";
+    var vals = [100];
+    pts.forEach(function (x) { vals.push(x.p); if (fin(x.b)) vals.push(x.b); });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo) * 0.1 || 1;
+    lo -= pad; hi += pad;
+    var x = function (i) { return CV_PL + i / (pts.length - 1) * (CV_W - CV_PL - CV_PR); };
+    var y = function (v) { return 8 + (hi - v) / (hi - lo) * (CV_H - 30); };
+    function line(key, col) {
+      var a = [];
+      pts.forEach(function (p, i) { if (fin(p[key])) a.push(x(i).toFixed(1) + "," + y(p[key]).toFixed(1)); });
+      return a.length > 1 ? '<polyline points="' + a.join(" ") + '" style="fill:none;stroke:' + col + ';stroke-width:2;stroke-linejoin:round"/>' : "";
+    }
+    var ticks = niceTicks(lo, hi, 4).map(function (v) {
+      return '<line class="grid" x1="' + CV_PL + '" x2="' + (CV_W - CV_PR) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"' + (v === 100 ? ' style="stroke:var(--text3)"' : "") +
+        '/><text x="' + (CV_W - CV_PR + 4) + '" y="' + (y(v) + 4).toFixed(1) + '">' + num(v, 0) + "</text>";
+    }).join("");
+    var lbl = function (t) { return typeof t === "number" ? dt(t) : t; };
+    var dates = '<text x="' + CV_PL + '" y="' + (CV_H - 4) + '">' + esc(lbl(pts[0].t)) + '</text><text x="' + (CV_W - CV_PR) + '" y="' + (CV_H - 4) + '" text-anchor="end">' + esc(lbl(pts[pts.length - 1].t)) + "</text>";
+    return '<svg class="mk-chart" data-ppcurve="1" viewBox="0 0 ' + CV_W + " " + CV_H + '" style="max-width:' + CV_W * 1.4 + 'px">'  + ticks + line("b", "var(--mk-s2)") + line("p", "var(--mk-s1)") + dates +
+      '<line class="cross" x1="0" x2="0" y1="8" y2="' + (CV_H - 22) + '" style="display:none"/><rect x="0" y="0" width="' + CV_W + '" height="' + CV_H + '" style="fill:transparent"/></svg>';
+  }
+  function bindCurveHover(svg, pts) {
+    if (!pts || pts.length < 2) return;
+    var cross = svg.querySelector(".cross");
+    svg.addEventListener("mousemove", function (e) {
+      var r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * (CV_W / r.width);
+      var i = Math.max(0, Math.min(pts.length - 1, Math.round((px - CV_PL) / (CV_W - CV_PL - CV_PR) * (pts.length - 1))));
+      var xx = CV_PL + i / (pts.length - 1) * (CV_W - CV_PL - CV_PR);
+      cross.setAttribute("x1", xx); cross.setAttribute("x2", xx); cross.style.display = "";
+      var p = pts[i], kind = S.ppKind;
+      showTip(e, "<b>" + esc(typeof p.t === "number" ? dt(p.t) : p.t) + "</b>" + tipRows([[T("mk.pp.series.port"), pct(p.p - 100)],
+        [T("mk.pp.series.bench", { b: T("mk.pp.bench." + kind) }), fin(p.b) ? pct(p.b - 100) : "-"], [T("mk.pp.k.equity"), money(p.eq, kind, 0)]]));
+    });
+    svg.addEventListener("mouseleave", function () { cross.style.display = "none"; hideTip(); });
+  }
+  function allocHtml(d) {
+    var st = d.stats || {}, pos = d.positions || [];
+    if (!st.equity) return "";
+    var cols = ["var(--mk-s1)", "var(--mk-s2)", "var(--mk-s3)", "#1baf7a", "#e87ba4", "#eda100", "#008300", "#e34948"];
+    var seg = pos.map(function (x, i) { return '<i style="width:' + x.weight.toFixed(2) + "%;background:" + cols[i % cols.length] + '" title="' + esc(x.symbol_label) + " " + num(x.weight, 1) + '%"></i>'; }).join("");
+    var cashW = Math.max(0, 100 - pos.reduce(function (a, x) { return a + x.weight; }, 0));
+    seg += '<i style="width:' + cashW.toFixed(2) + '%;background:var(--mk-neutral)" title="' + esc(T("mk.pp.cash")) + '"></i>';
+    var legend = pos.map(function (x, i) {
+      return '<span><i class="sq" style="background:' + cols[i % cols.length] + '"></i>' + esc(x.symbol_label) + " " + num(x.weight, 1) + "%</span>";
+    }).join("") + '<span><i class="sq" style="background:var(--mk-neutral)"></i>' + esc(T("mk.pp.cash")) + " " + num(cashW, 1) + "%</span>";
+    return '<div class="mk-breadth" style="height:14px">' + seg + '</div><div class="mk-legend" style="flex-direction:column;align-items:flex-start;gap:4px">' + legend + "</div>";
+  }
+  function positionsHtml(d) {
+    var kind = d.kind, pos = d.positions || [];
+    if (!pos.length) return '<div class="mk-empty">' + esc(T("mk.pp.no_pos")) + "</div>";
+    var now = Date.now() / 1000;
+    return '<div class="mk-tblw"><table class="mk-tbl"><thead><tr><th class="l">' + esc(T("mk.col.symbol")) + "</th><th>" + esc(T("mk.pp.c.qty")) + "</th><th>" +
+      esc(T("mk.pp.c.avg")) + "</th><th>" + esc(T("mk.pp.c.price")) + "</th><th>" + esc(T("mk.pp.c.value")) + "</th><th>" + esc(T("mk.pp.c.pnl")) + "</th><th>%</th><th>" +
+      esc(T("mk.pp.c.weight")) + "</th><th>" + esc(T("mk.pp.c.stop")) + "</th><th>" + esc(T("mk.pp.c.opened")) + '</th><th class="c"></th></tr></thead><tbody>' +
+      pos.map(function (x) {
+        var locked = x.sellable && x.sellable > now;
+        return '<tr data-open="' + kind + "|" + esc(x.symbol) + '"><td class="l"><div class="mk-sym">' + (x.image ? '<img src="' + esc(x.image) + '" alt="">' : "") + esc(x.symbol_label) +
+          (x.partial ? '<span class="mk-chip up">' + esc(T("mk.pp.partial")) + "</span>" : "") + "</div></td><td>" + qtyFmt(x.qty, kind) + "</td><td>" + price(x.avg) + "</td><td>" +
+          lp(kind + "|" + x.symbol, x.price) + "</td><td>" + money(x.value, kind, 0) + '</td><td class="mk-' + dir(x.pnl) + '">' + signedMoney(x.pnl, kind) + "</td><td>" + chg(x.pnl_pct) +
+          "</td><td>" + num(x.weight, 1) + "%</td><td>" + price(x.stop) + "</td><td>" + esc(dt(x.opened)) + '</td><td class="c">' +
+          (locked ? '<span class="mk-chip" title="' + esc(T("mk.pp.tplus_tip", { d: dt(x.sellable) })) + '">T+2</span>'
+            : '<button type="button" class="mk-btn sm ghost" data-ppclose="' + esc(x.symbol) + '">' + esc(T("mk.pp.sell")) + "</button>") + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+  }
+  function watchHtml(kind, watch) {
+    if (!watch.length) return '<div class="mk-empty">' + esc(T("mk.pp.no_watch")) + "</div>";
+    return '<div class="mk-tblw"><table class="mk-tbl"><thead><tr><th class="l">' + esc(T("mk.col.symbol")) + "</th><th>" + esc(T("mk.pp.c.price")) + "</th><th>" +
+      esc(T("mk.pp.c.zone")) + '</th><th class="l">' + esc(T("mk.pp.c.why")) + "</th><th>" + esc(T("mk.col.score")) + "</th><th>RSI</th></tr></thead><tbody>" +
+      watch.map(function (w) {
+        return '<tr data-open="' + kind + "|" + esc(w.symbol) + '"><td class="l"><b>' + esc(w.name && kind !== "crypto" ? w.symbol : (w.name || w.symbol)) + "</b></td><td>" +
+          lp(kind + "|" + w.symbol, w.price) + "</td><td>" + (w.zone ? price(w.zone[0]) + " - " + price(w.zone[1]) : "-") + '</td><td class="l">' + esc(T("mk.pp.why." + w.why)) +
+          "</td><td>" + scorePill(w.score) + "</td><td>" + num(w.rsi, 0) + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+  }
+  function tradesHtml(d) {
+    var kind = d.kind, tr = d.trades || [];
+    if (!tr.length) return '<div class="mk-empty">' + esc(T("mk.pp.no_trades")) + "</div>";
+    return '<div class="mk-tblw"><table class="mk-tbl"><thead><tr><th class="l">' + esc(T("mk.pp.c.time")) + '</th><th class="l">' + esc(T("mk.pp.c.side")) + '</th><th class="l">' +
+      esc(T("mk.col.symbol")) + "</th><th>" + esc(T("mk.pp.c.qty")) + "</th><th>" + esc(T("mk.pp.c.price")) + "</th><th>" + esc(T("mk.pp.c.value")) + "</th><th>" + esc(T("mk.pp.c.fee")) +
+      "</th><th>" + esc(T("mk.pp.c.pnl")) + '</th><th>%</th><th class="l">' + esc(T("mk.pp.c.reason")) + "</th></tr></thead><tbody>" +
+      tr.map(function (t) {
+        var open = S.ppOpen[t.id];
+        var row = '<tr data-pptrade="' + t.id + '" class="' + (open ? "open" : "") + '"><td class="l">' + esc(dt(t.at)) + '</td><td class="l"><span class="mk-chip ' +
+          (t.side === "buy" ? "up" : "down") + '">' + esc(T("mk.pp.side." + t.side)) + '</span></td><td class="l"><b>' + esc(t.symbol) + "</b></td><td>" + qtyFmt(t.qty, kind) +
+          "</td><td>" + price(t.price) + "</td><td>" + money(t.value, kind, 0) + "</td><td>" + money(t.fee, kind) + '</td><td class="mk-' + dir(t.pnl) + '">' +
+          (t.pnl == null ? "" : signedMoney(t.pnl, kind)) + "</td><td>" + (t.pnl_pct == null ? "" : chg(t.pnl_pct)) + '</td><td class="l">' + esc(T("mk.pp.reason." + t.reason)) +
+          " " + IC(open ? "chevron-down" : "chevron-right") + "</td></tr>";
+        if (open) row += '<tr class="mk-detail"><td colspan="10">' + analysisHtml(kind, t) + "</td></tr>";
+        return row;
+      }).join("") + "</tbody></table></div>";
+  }
+  function analysisHtml(kind, t) {
+    var a = t.analysis || {};
+    var kv = [
+      [T("mk.pp.a.regime"), a.regime ? T("mk.regime." + a.regime) + (fin(a.regime_score) ? " (" + a.regime_score + ")" : "") : "-"],
+      [T("mk.pp.a.bench"), a.bench_up == null ? "-" : T(a.bench_up ? "mk.pp.a.bench_up" : "mk.pp.a.bench_down")],
+      [T("mk.score"), fin(a.score) ? String(a.score) + " · " + T("mk.sig." + (a.signal || sigOf(a.score))) : "-"],
+      ["RSI", num(a.rsi, 1)], ["MA20 / MA50 / MA200", [a.sma20, a.sma50, a.sma200].map(price).join(" / ")],
+      ["ATR", fin(a.atr_pct) ? num(a.atr_pct, 2) + "%" : "-"], [T("mk.col.exp5"), fin(a.exp_move_5d) ? "±" + num(a.exp_move_5d, 1) + "%" : "-"],
+      [T("mk.pp.a.stop"), fin(a.stop) ? price(a.stop) + (fin(a.stop_pct) ? " (" + pct(a.stop_pct) + ")" : "") : "-"],
+    ];
+    if (fin(a.risk_amount)) kv.push([T("mk.pp.a.risk"), money(a.risk_amount, kind)]);
+    if (fin(a.weight)) kv.push([T("mk.pp.c.weight"), num(a.weight, 1) + "%"]);
+    if (fin(a.target_r3)) kv.push([T("mk.pp.a.target"), price(a.target_r3)]);
+    if (fin(a.r_multiple)) kv.push([T("mk.pp.a.r"), num(a.r_multiple, 2) + "R"]);
+    if (fin(a.held_days)) kv.push([T("mk.pp.a.held"), T("mk.pp.a.days", { n: num(a.held_days, 1) })]);
+    if (fin(a.chg_1m)) kv.push([T("mk.col.m1"), pct(a.chg_1m)]);
+    var why = T("mk.pp.explain." + t.reason, {
+      s: t.symbol, score: fin(a.score) ? a.score : "-", rsi: num(a.rsi, 0), stop: price(a.stop),
+    });
+    return '<div class="mk-analysis"><p>' + esc(why) + '</p><div class="mk-stats">' + kv.map(function (p) { return "<div><span>" + esc(p[0]) + "</span><b>" + esc(p[1]) + "</b></div>"; }).join("") +
+      '</div><div class="mk-chips mk-sec">' + reasonChips(a.reasons) + "</div></div>";
+  }
+  function logHtml(d) {
+    var log = d.log || [];
+    if (!log.length) return '<div class="mk-empty">' + esc(T("mk.pp.no_log")) + "</div>";
+    return '<div class="mk-list">' + log.slice(0, 12).map(function (l) {
+      var counts = {};
+      (l.skipped || []).forEach(function (s) { counts[s.why] = (counts[s.why] || 0) + 1; });
+      var sk = Object.keys(counts).map(function (k) { return T("mk.pp.why." + k) + " (" + counts[k] + ")"; }).join(", ");
+      var acts = (l.actions || []).map(function (a) { return T("mk.pp.side." + a.side) + " " + a.symbol; }).join(", ");
+      return '<details class="mk-item" style="display:block"><summary class="mk-sum"><b>' + esc(dt(l.at)) + "</b> · " + esc(T("mk.regime." + (l.regime || "unknown"))) +
+        (l.bench_up === false ? " · " + esc(T("mk.pp.a.bench_down")) : "") + " · " + esc(T("mk.pp.invested", { p: num(l.invested_pct, 0) })) + " · " +
+        esc(acts || T("mk.pp.no_action")) + (l.forced ? " · " + esc(T("mk.pp.forced")) : "") + "</summary>" +
+        '<div class="mk-kicker" style="margin-top:6px">' + esc(T("mk.pp.considered", { n: (l.considered || []).length })) + " " +
+        esc((l.considered || []).slice(0, 12).map(function (c) { return c.symbol + " (" + c.score + ", " + T("mk.pp.why." + c.why) + ")"; }).join("; ")) + "</div>" +
+        (sk ? '<div class="mk-kicker">' + esc(T("mk.pp.skipped", { v: sk })) + "</div>" : "") + "</details>";
+    }).join("") + "</div>";
+  }
+  function paintSim(r) {
+    var out = S.el && S.el.querySelector("#mkSimOut");
+    if (!out) return;
+    if (!r || !r.ok) { out.innerHTML = '<div class="mk-empty">' + esc(T("mk.pp.sim.none")) + "</div>"; return; }
+    var kind = r.kind;
+    function box(k, v, good) { return '<div><div class="k">' + esc(k) + '</div><div class="v ' + (good == null ? "" : good ? "mk-up" : "mk-down") + '">' + esc(v) + "</div></div>"; }
+    var pts = (r.curve || []).map(function (c, i, arr) {
+      var b0 = arr.filter(function (x) { return fin(x.bench); })[0];
+      return { t: c.d, p: c.equity / r.start_equity * 100, b: fin(c.bench) && b0 ? c.bench / b0.bench * 100 : null, eq: c.equity };
+    });
+    out.innerHTML = '<p class="mk-kicker">' + esc(T("mk.pp.sim.range", { a: r.from, b: r.to, n: r.days })) + "</p>" +
+      '<div class="mk-sigbox g4">' + box(T("mk.pp.sim.ret"), pct(r.return_pct), r.return_pct >= 0) +
+      box(T("mk.pp.series.bench", { b: T("mk.pp.bench." + kind) }), pct(r.bench_return), null) +
+      box(T("mk.pp.k.mdd"), pct(r.max_drawdown), null) +
+      box(T("mk.pp.k.win"), (fin(r.win_rate) ? num(r.win_rate, 0) + "%" : "-") + (fin(r.profit_factor) ? " · PF " + num(r.profit_factor, 2) : ""), fin(r.profit_factor) ? r.profit_factor >= 1 : null) +
+      "</div>" + curveSvg(null, pts) + '<div class="mk-legend"><span><i style="background:var(--mk-s1)"></i>' + esc(T("mk.pp.series.port")) +
+      '</span><span><i style="background:var(--mk-s2)"></i>' + esc(T("mk.pp.series.bench", { b: T("mk.pp.bench." + kind) })) + "</span><span>" +
+      esc(T("mk.pp.sim.trades", { n: r.trades, c: r.closed })) + "</span></div>";
+    var svg = out.querySelector("svg[data-ppcurve]");
+    if (svg) bindCurveHover(svg, pts);
+  }
+  function runSim(n, btn) {
+    var kind = S.ppKind;
+    btn.disabled = true;
+    btn.classList.add("spin");
+    var out = S.el.querySelector("#mkSimOut");
+    if (out) out.innerHTML = '<div class="mk-skel" style="height:140px"></div><p class="mk-muted">' + esc(T("mk.pp.sim.wait")) + "</p>";
+    api("/market/paper/simulate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: kind, days: n }) }).then(function (r) {
+      btn.disabled = false;
+      btn.classList.remove("spin");
+      S.ppSim[kind] = r;
+      if (S.ppKind === kind) paintSim(r);
+    });
+  }
+  function ppAction(act) {
+    var kind = S.ppKind;
+    if (act === "ask") { askJavis(T("mk.pp.ask_prompt", { a: T("mk.pp.acc." + kind), k: kind })); return; }
+    if (act === "reset" && !confirm(T("mk.pp.reset_confirm"))) return;
+    var url = { start: "/market/paper/start", run: "/market/paper/run", pause: "/market/paper/pause", resume: "/market/paper/pause", reset: "/market/paper/reset" }[act];
+    var body = { kind: kind };
+    if (act === "pause") body.running = false;
+    if (act === "resume") body.running = true;
+    api(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
+      if (r && r.ok === false && r.error) alert(r.error);
+      drawPaper(true);
+    });
+  }
+  function ppClose(sym) {
+    if (!confirm(T("mk.pp.sell_confirm", { s: sym }))) return;
+    api("/market/paper/close", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: S.ppKind, symbol: sym }) }).then(function (r) {
+      if (r && r.ok === false && r.error) alert(r.error);
+      drawPaper(true);
+    });
+  }
+
   // ------------------------------------------------------------------ live prices
-  function liveKinds() { return S.tab === "overview" || S.tab === "outlook" ? MARKETS : [S.tab]; }
+  function liveKinds() { return S.tab === "overview" || S.tab === "outlook" ? MARKETS : S.tab === "paper" ? [S.ppKind] : [S.tab]; }
   function setLive(ok) {
     S.liveOk = ok;
     var el = S.el && S.el.querySelector("#mkLive");
@@ -751,6 +1051,11 @@
       if (!d || d.ok === false) { setLive(false); return; }
       setLive(true);
       applyPrices(d.prices || {});
+      if (S.tab === "paper") {
+        // the account itself changes when the server runs a pass: refresh its report every minute
+        if (!S.ppAt || Date.now() - S.ppAt > 60000) { S.ppAt = Date.now(); drawPaper(true); }
+        return;
+      }
       var newer = Object.keys(d.sections || {}).filter(function (k) { var t0 = sectionTime(k); return t0 && d.sections[k] > t0 + 1; });
       if (newer.length) quietReload();
     }).catch(function () { S.liveBusy = false; setLive(false); });
@@ -953,6 +1258,17 @@
     if (go) { S.tab = go.dataset.go; if (S.tab === "outlook") S.outlook = S.outlook || "vn"; syncTabs(); drawBody(); refresh(false); return; }
     var ol = t.closest("[data-outlook]");
     if (ol) { S.outlook = ol.dataset.outlook; drawBody(); refresh(false); return; }
+    var ppk = t.closest("[data-ppk]");
+    if (ppk) { S.ppKind = ppk.dataset.ppk; S.ppAt = 0; drawBody(); return; }
+    var ppa = t.closest("[data-pp]");
+    if (ppa) { ppAction(ppa.dataset.pp); return; }
+    var pps = t.closest("[data-ppsim]");
+    if (pps) { runSim(+pps.dataset.ppsim, pps); return; }
+    var ppc = t.closest("[data-ppclose]");
+    if (ppc) { e.stopPropagation(); ppClose(ppc.dataset.ppclose); return; }
+    var ppt = t.closest("[data-pptrade]");
+    if (ppt) { S.ppOpen[ppt.dataset.pptrade] = !S.ppOpen[ppt.dataset.pptrade]; if (S.pp[S.ppKind]) { var bx = S.el.querySelector("#mkPP"); var top = body().scrollTop; bx.innerHTML = paperHtml(S.pp[S.ppKind]); body().scrollTop = top; var sv = bx.querySelector("svg[data-ppcurve]"); if (sv) bindCurveHover(sv, ppCurvePoints(S.pp[S.ppKind].curve || [], S.pp[S.ppKind].stats && S.pp[S.ppKind].stats.start_cash)); if (S.ppSim[S.ppKind]) paintSim(S.ppSim[S.ppKind]); } return; }
+    if (t.closest("summary")) return;
     var ask = t.closest("[data-ask]");
     if (ask) { askJavis(T("mk.ask_prompt", { m: T("mk.tab." + ask.dataset.ask), k: ask.dataset.ask })); return; }
     var add = t.closest("[data-add]");

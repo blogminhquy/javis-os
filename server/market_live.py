@@ -152,8 +152,31 @@ def _archive(kind: str, data: dict, series: dict, meta: dict) -> None:
         ms.meta_set("bt_" + kind, today)
 
 
+_PAPER_PENDING: set = set()
+
+
+def _paper(kind: str, data: dict) -> None:
+    import market_paper
+    market_paper.run(kind, data)
+
+
 def after_refresh(kind: str, data: dict, series: dict, meta: dict) -> None:
-    """Called by market_data.refresh_section. Runs the archive work off the event loop, one job per market at a time."""
+    """Called by market_data.refresh_section. Runs the paper-trading pass and the archive work off the event loop,
+    one job of each kind per market at a time."""
+    if kind not in _PAPER_PENDING:
+        _PAPER_PENDING.add(kind)
+
+        async def paper():
+            try:
+                await asyncio.to_thread(_paper, kind, data)
+            except Exception as e:  # noqa: BLE001 - one failed pass must not stop the next refresh
+                print(f"[market] paper {kind}: {type(e).__name__}: {e}", file=sys.stderr)
+            finally:
+                _PAPER_PENDING.discard(kind)
+        try:
+            asyncio.get_running_loop().create_task(paper())
+        except RuntimeError:
+            _PAPER_PENDING.discard(kind)
     if kind in _PENDING or not series:
         return
     _PENDING.add(kind)
