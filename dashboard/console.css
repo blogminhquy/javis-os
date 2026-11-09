@@ -3031,6 +3031,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
 /* ---- Account > Security tab (2026-11-09). Rows read on a phone: label left, value right, wrapping under. ---- */
 .ac-page { max-width: 760px; }
+/* The Account page has no page header (owner, 2026-11-09): its Account | Security tabs take that place, flush at the top. */
+.cview.cview-tk .cview-head { display: none; }
+.cview.cview-tk .cview-body { padding-top: 0; }
+.cview.cview-tk .ac-page > .ach-tabs { padding-top: 12px; }
 .sec-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 9px 0; border-bottom: 1px solid var(--glass-brd); font-size: 15px; line-height: 1.45; }
 .sec-row:last-of-type { border-bottom: 0; }
 .sec-ico { flex: none; display: inline-flex; }
