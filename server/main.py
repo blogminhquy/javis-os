@@ -14583,12 +14583,30 @@ async def _send_voice_file(chat_id, path, brain) -> tuple:
     """The voice note as an audio message where the channel needs the file itself. Telegram: the asking chat, or the
     owner's own chat when the reminder has none (same rule as _report_route). The web chat plays the link already."""
     cid = str(chat_id or "").strip()
-    if cid.startswith(("web:", "zalo:")) or _TG_BOT is None:
+    if cid.startswith("zalo:"):
+        return await _zalo_send_file_to(cid[len("zalo:"):], path)
+    if cid.startswith("web:") or _TG_BOT is None:
         return False, "no file channel"
     cid = cid or _owner_telegram_id()
     if not cid:
         return False, "no Telegram chat"
     return await _TG_BOT.send_file(path, chat=cid)
+
+
+async def _zalo_send_file_to(chat_id, path) -> tuple:
+    """One image to ONE chat of the owner's Zalo bot (#1285: a scheduled report that comes as a picture). Same gate as
+    `_zalo_send_to`: bot on, and only a chat on its allow-list. Zalo Bot has `sendPhoto` and nothing else, so a
+    file that is not an image comes back as (False, reason) from `ZaloBot.send_file`, never silently dropped."""
+    z = cfgmod.read_settings().get("zalo_bot", {})
+    ids = tg_parse_ids(z.get("chat_id"))
+    cid = str(chat_id or "").strip()
+    if not (z.get("enabled") and z.get("token")):
+        return False, localefmt.chu("Bot Zalo chưa bật", "The Zalo bot is off")
+    if not cid or (ids and cid not in ids):
+        return False, localefmt.chu("Chat Zalo này không nằm trong danh sách được phép",
+                                    "This Zalo chat is not on the allow-list")
+    bot = _ZALO_BOT or zalo_bot.ZaloBot(z["token"], "", None)
+    return await bot.send_file(path, chat=cid)
 
 
 import my_tasks as my_tasks_mod

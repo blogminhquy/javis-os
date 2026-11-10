@@ -133,6 +133,10 @@ LIVE_STATUSES = ("pending", "paused")
 MAX_KEEP = 500                 # trần số bản ghi giữ lại mỗi brain
 SCRIPT_TIMEOUT_S = 120         # trần thời gian chạy 1 job script
 SCRIPT_OUT_CAP = 3500          # trần ký tự stdout đẩy về Telegram
+# Pictures a `task` run made, sent to the asking chat on channels that need the file itself (#1285).
+RUN_IMAGES_MAX = 4
+RUN_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+RUN_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 # "Remember the last run" (0.198.0, idea from OpenMausBot routines): a task-mode reminder can start from
 # its previous result, so a watcher knows what it already reported. Capped so one long report
 # cannot eat the next run's context.
@@ -984,6 +988,8 @@ class RemindersFeature:
                                               str(Path(self.deps.brain_root(brain)) / voice_rel), brain)
                 except Exception as e:
                     print(f"[reminders] voice note not sent: {type(e).__name__}: {e}", file=sys.stderr)
+            if mode == "task" and ok and not loi and self.deps.send_file:
+                await self._send_run_images(brain, rem, body, t0)
 
         work_log.append(str(self.deps.brain_root(brain)), "reminder", str(rem.get("id") or ""), head,
                         "stopped" if stopped else "retry" if retry_at else "fail" if (run_failed or not ok) else "ok",
@@ -1125,6 +1131,37 @@ class RemindersFeature:
         out = (out_b or b"").decode("utf-8", "replace")
         err = (err_b or b"").decode("utf-8", "replace")
         return out, err, (proc.returncode if proc.returncode is not None else -1)
+
+    async def _send_run_images(self, brain: str, rem: dict, body: str, t0: float) -> int:
+        """Send the pictures a `task` run made to the chat that asked, where the channel needs the file itself
+        (#1285: a scheduled ads report drawn as an image reached Zalo as text only, the picture stayed in the brain).
+
+        Only images the answer itself names and that were written during THIS run, so an old picture mentioned in
+        passing is not sent again; at most RUN_IMAGES_MAX of them, each under RUN_IMAGE_MAX_BYTES. The web chat shows
+        the embedded image already and `send_file` answers "no file channel" for it. A failed image never fails the
+        reminder: the text has gone out, the reason goes to the log. Returns how many were sent."""
+        try:
+            root = str(self.deps.brain_root(brain))
+            files = channel_context.collect_turn_files(body or "", [], t0, cwd=root, vault_root=root)
+        except Exception as e:  # noqa: BLE001
+            print(f"[reminders] collecting run images failed: {type(e).__name__}: {e}", file=sys.stderr)
+            return 0
+        sent = 0
+        for f in files:
+            path = str((f.get("path") if isinstance(f, dict) else f) or "")
+            if sent >= RUN_IMAGES_MAX or Path(path).suffix.lower() not in RUN_IMAGE_EXTS:
+                continue
+            try:
+                if Path(path).stat().st_size > RUN_IMAGE_MAX_BYTES:
+                    continue
+                res = await self.deps.send_file(rem.get("chat_id", ""), path, brain)
+                if isinstance(res, tuple) and res and res[0]:
+                    sent += 1
+                elif isinstance(res, tuple) and len(res) > 1 and res[1] not in ("no file channel", "no Telegram chat"):
+                    print(f"[reminders] image {Path(path).name} not sent: {res[1]}", file=sys.stderr)
+            except Exception as e:  # noqa: BLE001
+                print(f"[reminders] image {Path(path).name} not sent: {type(e).__name__}: {e}", file=sys.stderr)
+        return sent
 
     async def _run_task(self, brain: str, text: str, muc_quyen: str = "", previous: str = "",
                         late_s: float = 0.0, intro: str = "", agent: str = ""):
