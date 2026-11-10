@@ -25,7 +25,9 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
 import time
+from collections import OrderedDict
 from typing import Any, Optional
 
 import tool_result_shaper as shaper
@@ -410,7 +412,64 @@ def describe(schema: dict, db, max_chars: int = 2500) -> dict:
     return out
 
 
-def run_sql(loaded: dict, ref: str, sql: str, max_chars: int = OUTPUT_CHARS_DEFAULT) -> str:
+# A follow-up question on the same stored result reuses its database instead of loading 40,000 records again
+# (measured: about 1.1 s to build, 15 ms to query). Small and short-lived on purpose: this is a convenience for the
+# next question, not a second store.
+DB_CACHE_ITEMS = 2
+DB_CACHE_TTL_S = 180
+DB_CACHE_MIN_RECORDS = 1000          # below this, building is quicker than it is worth remembering
+DB_CACHE_MAX_RECORDS = 80_000        # all cached databases together
+_db_cache: "OrderedDict[str, dict]" = OrderedDict()
+_db_cache_lock = threading.Lock()
+
+
+def _open_database(records: list, cache_key: str = "") -> dict:
+    """{'db', 'schema', 'notes', 'lock', 'cached'} for these records, locked down for reading only."""
+    now = time.time()
+    if cache_key:
+        with _db_cache_lock:
+            for key in [k for k, e in _db_cache.items() if now - e["ts"] > DB_CACHE_TTL_S and e["lock"].acquire(False)]:
+                ent = _db_cache.pop(key)
+                ent["db"].close()
+                ent["lock"].release()
+            hit = _db_cache.get(cache_key)
+            if hit is not None and hit["n"] == len(records):
+                hit["ts"] = now
+                _db_cache.move_to_end(cache_key)
+                return hit
+    db, schema, notes = build_database(records)
+    _limit(db)
+    db.set_authorizer(_authorizer)
+    ent = {"db": db, "schema": schema, "notes": notes, "lock": threading.Lock(), "ts": now, "n": len(records),
+           "cached": False}
+    if cache_key and DB_CACHE_MIN_RECORDS <= len(records) <= DB_CACHE_MAX_RECORDS:
+        with _db_cache_lock:
+            _db_cache[cache_key] = ent
+            ent["cached"] = True
+            # evict the oldest while over either limit, never one that is answering a query right now
+            for key in list(_db_cache):
+                over = len(_db_cache) > DB_CACHE_ITEMS or sum(e["n"] for e in _db_cache.values()) > DB_CACHE_MAX_RECORDS
+                if not over or key == cache_key:
+                    continue
+                old = _db_cache[key]
+                if old["lock"].acquire(False):
+                    del _db_cache[key]
+                    old["db"].close()
+                    old["lock"].release()
+    return ent
+
+
+def clear_database_cache() -> None:
+    with _db_cache_lock:
+        for ent in _db_cache.values():
+            try:
+                ent["db"].close()
+            except sqlite3.Error:
+                pass
+        _db_cache.clear()
+
+
+def run_sql(loaded: dict, ref: str, sql: str, max_chars: int = OUTPUT_CHARS_DEFAULT, cache_key: str = "") -> str:
     sql = str(sql or "").strip().rstrip(";").strip()
     if not sql:
         raise QueryError("sql is empty.")
@@ -420,53 +479,58 @@ def run_sql(loaded: dict, ref: str, sql: str, max_chars: int = OUTPUT_CHARS_DEFA
         raise QueryError("one statement only (no ';').")
     if not re.match(r"(?is)^\s*(select|with)\b", sql):
         raise QueryError("only SELECT (or WITH ... SELECT) is allowed.")
-    db, schema, notes = build_database(loaded["records"])
-    try:
-        deadline = time.time() + SQL_TIMEOUT_S
-        db.set_progress_handler(lambda: 1 if time.time() > deadline else 0, _PROGRESS_STEPS)
-        _limit(db)
-        db.set_authorizer(_authorizer)
+    ent = _open_database(loaded["records"], cache_key)
+    db, schema, notes = ent["db"], ent["schema"], ent["notes"]
+    with ent["lock"]:                      # one query at a time on one database
         try:
-            cur = db.execute(sql)
-            names = [d[0] for d in (cur.description or [])]
-            rows, room, truncated = [], max_chars - 500 - sum(len(n) + 3 for n in names), False
-            for row in cur:
-                item = list(row)
-                size = len(_dumps(item)) + 1
-                if size > room or len(rows) >= MAX_ROWS_OUT:
-                    truncated = True
-                    break
-                rows.append(item)
-                room -= size
-        except sqlite3.Error as e:
-            msg = str(e)
-            db.set_authorizer(None)
-            if "interrupted" in msg.lower():
-                raise QueryError(f"the query ran longer than {int(SQL_TIMEOUT_S)} seconds; make it simpler.")
-            if "too big" in msg.lower() or "too large" in msg.lower():
-                raise QueryError("the query builds a value that is too large; select fewer or shorter columns.")
-            if "not authorized" in msg.lower() or "prohibited" in msg.lower():
-                raise QueryError("only reading is allowed here (SELECT over the tables below). "
-                                 + _dumps({"tables": describe(schema, db)}))
-            raise QueryError(f"SQL error: {msg}. " + _dumps({"tables": describe(schema, db)}))
-        head = {"ref": ref, "total_records": len(loaded["records"]), "row_count": len(rows)}
-        head.update(notes)
-        if truncated:
-            head["truncated"] = True
-            head["hint"] = "More rows exist than fit. Aggregate (GROUP BY), select fewer columns, or add LIMIT/OFFSET."
-        return _dumps({"javis_query": head, "columns": names, "rows": rows})
-    finally:
-        db.close()
+            deadline = time.time() + SQL_TIMEOUT_S
+            db.set_progress_handler(lambda: 1 if time.time() > deadline else 0, _PROGRESS_STEPS)
+            try:
+                cur = db.execute(sql)
+                names = [d[0] for d in (cur.description or [])]
+                rows, room, truncated = [], max_chars - 500 - sum(len(n) + 3 for n in names), False
+                for row in cur:
+                    item = list(row)
+                    size = len(_dumps(item)) + 1
+                    if size > room or len(rows) >= MAX_ROWS_OUT:
+                        truncated = True
+                        break
+                    rows.append(item)
+                    room -= size
+                cur.close()
+            except sqlite3.Error as e:
+                msg = str(e)
+                db.set_progress_handler(None, 0)       # the listing below must not be stopped by the spent deadline
+                if "interrupted" in msg.lower():
+                    raise QueryError(f"the query ran longer than {int(SQL_TIMEOUT_S)} seconds; make it simpler.")
+                if "too big" in msg.lower() or "too large" in msg.lower():
+                    raise QueryError("the query builds a value that is too large; select fewer or shorter columns.")
+                if "not authorized" in msg.lower() or "prohibited" in msg.lower():
+                    raise QueryError("only reading is allowed here (SELECT over the tables below). "
+                                     + _dumps({"tables": describe(schema, db)}))
+                raise QueryError(f"SQL error: {msg}. " + _dumps({"tables": describe(schema, db)}))
+            head = {"ref": ref, "total_records": len(loaded["records"]), "row_count": len(rows)}
+            head.update(notes)
+            if truncated:
+                head["truncated"] = True
+                head["hint"] = "More rows exist than fit. Aggregate (GROUP BY), select fewer columns, or add LIMIT/OFFSET."
+            return _dumps({"javis_query": head, "columns": names, "rows": rows})
+        finally:
+            db.set_progress_handler(None, 0)
+            if not ent["cached"]:
+                db.close()
 
 
-def schema_view(loaded: dict, ref: str, max_chars: int = OUTPUT_CHARS_DEFAULT) -> str:
-    db, schema, notes = build_database(loaded["records"])
-    try:
-        return _dumps({"javis_query": {"ref": ref, "total_records": len(loaded["records"]),
-                                       "records_at": loaded["pointer"], **notes},
-                       "tables": describe(schema, db, max_chars - 400)})
-    finally:
-        db.close()
+def schema_view(loaded: dict, ref: str, max_chars: int = OUTPUT_CHARS_DEFAULT, cache_key: str = "") -> str:
+    ent = _open_database(loaded["records"], cache_key)
+    with ent["lock"]:
+        try:
+            return _dumps({"javis_query": {"ref": ref, "total_records": len(loaded["records"]),
+                                           "records_at": loaded["pointer"], **ent["notes"]},
+                           "tables": describe(ent["schema"], ent["db"], max_chars - 400)})
+        finally:
+            if not ent["cached"]:
+                ent["db"].close()
 
 
 # ---------------------------------------------------------------- datasets (several pages as one result)

@@ -298,7 +298,7 @@ async def fetch_dataset(route: dict, specs: dict, name: str, args: dict, *, page
     return "", loaded, ref, meta
 
 
-def _view(loaded: dict, ref: str, args: dict, source: Optional[dict]) -> str:
+def _view(loaded: dict, ref: str, args: dict, source: Optional[dict], scope: str = "") -> str:
     max_chars = query.clamp_chars(args.get("max_chars"))
     kind = loaded["kind"]
     if kind == "text":
@@ -319,10 +319,12 @@ def _view(loaded: dict, ref: str, args: dict, source: Optional[dict]) -> str:
             if len(text) <= max_chars:
                 return text
         return text[:max_chars]
+    # the next question on the same stored result reuses its database (scope in the key: a ref is per brain)
+    cache_key = f"{store.norm_scope(scope)}|{ref}|{loaded.get('pointer')}" if ref else ""
     if args.get("sql"):
-        out = query.run_sql(loaded, ref, args["sql"], max_chars=max_chars)
+        out = query.run_sql(loaded, ref, args["sql"], max_chars=max_chars, cache_key=cache_key)
     elif args.get("describe"):
-        out = query.schema_view(loaded, ref, max_chars=max_chars)
+        out = query.schema_view(loaded, ref, max_chars=max_chars, cache_key=cache_key)
     else:
         out = query.slice_records(loaded, ref, fields=args.get("fields"), offset=args.get("offset") or 0,
                                   limit=args.get("limit") or 50, max_chars=max_chars)
@@ -375,7 +377,8 @@ def build(route_ref: dict, specs_ref: dict, scope: str) -> tuple:
                 return _err("pass `ref` (a stored result) or `tool`+`args` (a read-only connection tool).")
             # SQL runs in its own small pool: a slow query waits behind other queries, never in front of the
             # server's general worker threads.
-            answer = await asyncio.get_running_loop().run_in_executor(_QUERY_POOL, _view, loaded, ref, args, source)
+            answer = await asyncio.get_running_loop().run_in_executor(
+                _QUERY_POOL, _view, loaded, ref, args, source, scope)
             try:
                 import mcp_hub
                 await asyncio.to_thread(mcp_hub.note_query_answer, name or TOOL, len(answer))

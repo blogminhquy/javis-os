@@ -9,6 +9,7 @@ Quyền: mcp_catalog.allowed(connector, perm_connection, mode_lượt_chạy, to
 Mode đến từ header X-Javis-Mode (Claude/Codex) hoặc tham số (engine API).
 """
 import asyncio
+import contextvars
 import hashlib
 import json
 import os
@@ -18,6 +19,7 @@ import sys
 import threading
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote, unquote
@@ -386,6 +388,7 @@ def _sizes_append(rec):
 # what tools/loop_audit.py exists to stop). They are tallied here and ride along on the next line that is written.
 _small_tally = {"calls": 0, "chars": 0}
 _small_lock = threading.Lock()
+_SHAPE_POOL = ThreadPoolExecutor(max_workers=3, thread_name_prefix="javis-shape")
 
 
 def _shape_and_log(text, fn, conn, tool, scope):
@@ -444,7 +447,11 @@ def _shaped_call(call, ent, fn, scope):
                 _small_tally["calls"] += 1
                 _small_tally["chars"] += len(text)
         else:
-            shaped = await asyncio.to_thread(_shape_and_log, text, fn, conn, tool, scope)
+            # Its own small pool, not the general one: parsing holds the interpreter lock, and two dozen results
+            # parsed at once on thirty threads starved the event loop for 200 ms (measured, test_tool_result_scale).
+            ctx = contextvars.copy_context()
+            shaped = await asyncio.get_running_loop().run_in_executor(
+                _SHAPE_POOL, ctx.run, _shape_and_log, text, fn, conn, tool, scope)
         if shaped.kind in tool_result_shaper.MODEL_KINDS:
             # A recurring job's read calls are what its recipe replays (job_recipes.py). No job, no recording.
             job = str((turn_context.current() or {}).get("job") or "")

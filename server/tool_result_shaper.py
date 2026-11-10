@@ -208,16 +208,34 @@ def find_records(data: Any, max_depth: int = 4):
     """(json_pointer, list) of the largest list of records (objects or rows), or None.
 
     Only object keys are followed, never list items, so the pointer is always usable as is."""
-    best = None            # (size, pointer, list)
+    best = _find_records_sized(data, max_depth)
+    return None if best is None else (best[1], best[2])
+
+
+def _estimate_chars(items: list) -> int:
+    """Serialised size of a list, from a sample: exact for a short list, proportional for a long one. A result of
+    megabytes must not be serialised once per candidate list just to learn which list is the big one."""
+    n = len(items)
+    try:
+        if n <= 24:
+            return len(_dumps(items))
+        step = max(1, n // 16)
+        sample = items[::step][:16]
+        return int(len(_dumps(sample)) * n / len(sample))
+    except (TypeError, ValueError, RecursionError):
+        return 0
+
+
+def _find_records_sized(data: Any, max_depth: int = 4):
+    """(estimated size, json_pointer, list) of the largest list of records, or None."""
+    best = None
     stack = [("", data, 0)]
     while stack:
         pointer, node, depth = stack.pop()
         if isinstance(node, list):
-            if node and sum(1 for x in node if isinstance(x, (dict, list))) >= max(1, int(len(node) * 0.8)):
-                try:
-                    size = len(_dumps(node))
-                except (TypeError, ValueError, RecursionError):
-                    size = 0
+            head = node[:200]
+            if node and sum(1 for x in head if isinstance(x, (dict, list))) >= max(1, int(len(head) * 0.8)):
+                size = _estimate_chars(node)
                 if best is None or size > best[0]:
                     best = (size, pointer, node)
             continue
@@ -225,9 +243,7 @@ def find_records(data: Any, max_depth: int = 4):
             for k, v in node.items():
                 if isinstance(v, (dict, list)):
                     stack.append((pointer + "/" + str(k).replace("~", "~0").replace("/", "~1"), v, depth + 1))
-    if best is None:
-        return None
-    return best[1], best[2]
+    return best
 
 
 def resolve_pointer(data: Any, pointer: str):
@@ -326,6 +342,7 @@ TABLE_FORMAT = ("table: `columns` once, then one row per record, values in colum
                 "nested field. null = empty or absent in that record.")
 _TABLE_MAX_COLUMNS = 160
 _TABLE_GAIN = 0.85               # use the table form only when it is at least 15% smaller than the records as objects
+_TABLE_TRY_FACTOR = 12           # a result more than this many times the inline cap is never tried as a whole table
 
 
 def _flat_record(rec: dict, prefix: str, depth: int, out: dict) -> bool:
@@ -408,17 +425,26 @@ def build_table(lean: Any, ref: str, raw_chars: int, limit: int, prefix: str = "
     return text if len(text) <= limit else None
 
 
-def build_preview(parsed: Parsed, lean: Any, ref: str, raw_chars: int, budget: int) -> str:
-    """The view a model reads in place of a large JSON result. Always valid JSON."""
+_PREVIEW_SAMPLE = 500            # records looked at to build a view: field names, the table test, the rows shown
+
+
+def build_preview(parsed: Parsed, data: Any, ref: str, raw_chars: int, budget: int, total_size: int = 0) -> str:
+    """The view a model reads in place of a large JSON result. Always valid JSON.
+
+    `data` is the parsed result as it came. Only the first records are cleaned and looked at: the cost of a view
+    must not grow with a result that is megabytes long. total_size: its compact size, when the caller has it."""
     head = {"ref": ref, "original_chars": raw_chars, "note": _how_to(ref)}
     if parsed.prefix.strip():
         head["text_before_result"] = parsed.prefix.strip()[:_PREFIX_MAX]
-    found = find_records(lean)
-    total_size = len(_dumps(lean))
-    if found and len(_dumps(found[1])) * 2 >= total_size:
-        pointer, records = found
+    sized = _find_records_sized(data)
+    total_size = total_size or len(_dumps(data))
+    lean = None
+    if sized and sized[0] * 2 >= total_size:
+        pointer, all_records = sized[1], sized[2]
+        records = lean_copy(all_records[:_PREVIEW_SAMPLE], True)
+        lean = data
         names, more = field_names(records)
-        head.update({"records_at": pointer or "/", "records_in_result": len(records)})
+        head.update({"records_at": pointer or "/", "records_in_result": len(all_records)})
         if names:
             head["fields"] = names
             if more:
@@ -432,7 +458,7 @@ def build_preview(parsed: Parsed, lean: Any, ref: str, raw_chars: int, budget: i
         sizes = [len(_dumps(r)) for r in records[:50]]
         avg = sum(sizes) / max(1, len(sizes))
         shown, mode = [], "full"
-        table = to_table(records[:400])
+        table = to_table(records)
         if table is not None and avg * 2 <= room:
             columns, rows = table
             sample = min(len(rows), 50)
@@ -483,6 +509,7 @@ def build_preview(parsed: Parsed, lean: Any, ref: str, raw_chars: int, budget: i
         doc["records"] = shown
         return _dumps(doc)
     # No dominant record list: show the shape of the whole document.
+    lean = lean_copy(data)
     for depth, text_max in ((3, 200), (2, 160), (1, 100), (0, 60)):
         doc = {"javis_stored_result": dict(head, shown_as="outline"), "document": outline(lean, 0, depth, text_max)}
         text = _dumps(doc)
@@ -577,7 +604,7 @@ def shape(result: Any, *, tool: str = "", conn_id: str = "", scope: str = "", ca
             if not ref:
                 return Shaped(text, raw_chars, "same")
             return Shaped(build_text_preview(text, ref, budget), raw_chars, "text_preview", ref)
-        if _has_error(parsed.data) and raw_chars <= inline:
+        if raw_chars <= inline and _has_error(parsed.data):      # only a result that fits is ever walked for this
             return Shaped(text, raw_chars, "error")
         # A result that fits is only re-serialised without indentation: every field, empty or not, is still
         # there, so a document the model reads, edits and writes back (a workflow, a config) loses nothing.
@@ -590,11 +617,12 @@ def shape(result: Any, *, tool: str = "", conn_id: str = "", scope: str = "", ca
         if not ref:
             return Shaped(compact, raw_chars, "compact")
         # Views (a table or a partial view) drop empty fields inside records and say so; the stored copy has them.
-        lean = lean_copy(parsed.data)
-        whole = build_table(lean, ref, raw_chars, inline, parsed.prefix)
-        if whole is not None:
-            return Shaped(whole, raw_chars, "table", ref)
-        preview = build_preview(parsed, lean, ref, raw_chars, budget)
+        # A table cannot shrink a result more than about tenfold, so a much larger one goes straight to a view.
+        if len(compact) <= inline * _TABLE_TRY_FACTOR:
+            whole = build_table(lean_copy(parsed.data), ref, raw_chars, inline, parsed.prefix)
+            if whole is not None:
+                return Shaped(whole, raw_chars, "table", ref)
+        preview = build_preview(parsed, parsed.data, ref, raw_chars, budget, len(compact))
         if len(preview) > inline:                   # should not happen; never trade a cut for a cut
             tool_result_store.delete(ref)
             return Shaped(compact, raw_chars, "compact")
