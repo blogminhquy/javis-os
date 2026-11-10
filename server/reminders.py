@@ -74,6 +74,7 @@ def _nhan_kw(fn, ten: str) -> bool:
     return any(p.name == ten or p.kind is p.VAR_KEYWORD for p in ps)
 from claude_cli import claude_engine, cancel_all, _empty_mcp_file
 import aux_engine   # engine viec nen theo model phu nguoi dung chon
+import job_scorecard
 
 # Múi giờ để tính giờ nhắc hẹn. Đọc từ cấu hình, KHÔNG còn ghim Việt Nam.
 #
@@ -846,8 +847,21 @@ class RemindersFeature:
                     rid_tok = _RUN_RID.set(str(rem.get("id") or ""))
                     try:
                         # #1165: memories this reminder writes are not stamped with a chat open at the same time.
-                        with memory_control.background_writer(self.deps.brain_root(brain), muc_quyen_cua(rem)):
+                        # The scorecard (job_scorecard.py): this reminder finds, from its own runs, the lightest
+                        # model that gets it done. "Ran and returned nothing" counts against the model; an engine or
+                        # connection error does not; a run the owner stopped says nothing either way.
+                        with memory_control.background_writer(self.deps.brain_root(brain), muc_quyen_cua(rem)), \
+                                job_scorecard.run(f"reminder:{rem.get('id') or ''}", "reminder",
+                                                  " ".join(str(text or "").split())[:80]) as _score:
                             body, err = await self._run_task(brain, text, muc_quyen_cua(rem), **extra)
+                            if rem.get("id") in self._stopped:
+                                pass
+                            elif (body or "").strip():
+                                _score.ok()
+                            elif err:
+                                _score.fail(job_scorecard.CAUSE_OTHER, str(err)[:120])
+                            else:
+                                _score.fail(job_scorecard.CAUSE_MODEL, "chạy xong mà không trả gì")
                     finally:
                         _RUN_RID.reset(rid_tok)
                 finally:

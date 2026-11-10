@@ -319,12 +319,53 @@ def account_for_key(m: dict, provider: str, key: str, key_field: str = ""):
 
 # ---------------------------------------------------------------- background chain
 
-def background_spec(m: dict) -> dict:
-    """{'provider','model','reasoning'} of the background model. Unset = Claude Code (pre-0.350.0 rule)."""
-    aux = (m or {}).get("auxiliary") or {}
+# Automatic background model (owner, 10/11/2026). `auxiliary.auto` true = Javis picks: the background
+# provider follows MAIN, and the model is one of two picks stored per provider in `auto_background`
+# (auto_background.py chooses them from the provider's own model list):
+#   light - work Javis starts on its own (self-learning, next-message suggestion, judges, triage);
+#   mid   - work the owner handed over (reminders, loops, Kanban, workflows).
+# A provider with no pick yet runs MAIN's own model, which is what background work did before.
+TIERS = ("light", "mid")
+
+
+def background_auto(m: dict) -> bool:
+    """Is the background model on Automatic?
+
+    The flag is explicit once written. Settings from before it existed have none, and the 0.350.0 migration
+    filled `auxiliary` with the first provider's starting config, so "provider is set" does not mean the owner
+    chose it. Without the flag, Automatic applies when the background model is unset or is still exactly that
+    starting config of MAIN's provider; anything else was picked by hand and is never replaced.
+    """
+    m = m or {}
+    aux = m.get("auxiliary") or {}
+    if "auto" in aux:
+        return aux.get("auto") is True
+    prov, model = aux.get("provider") or "", aux.get("model") or ""
+    if not prov and not model:
+        return True
+    return prov == main_provider(m) and model == default_profile(m, prov)["model"]
+
+
+def background_picks(m: dict, provider: str) -> dict:
+    p = ((m or {}).get("auto_background") or {}).get(provider)
+    return p if isinstance(p, dict) else {}
+
+
+def background_spec(m: dict, tier: str = "mid") -> dict:
+    """{'provider','model','reasoning','auto'} of the background model. Unset = Claude Code (pre-0.350.0 rule).
+
+    `tier` only matters on Automatic: which of the two picks to run (see TIERS)."""
+    m = m or {}
+    aux = m.get("auxiliary") or {}
     r = aux.get("reasoning")
+    r = r if r in LEVELS else "off"
+    if background_auto(m):
+        prov = main_provider(m) or "anthropic-cli"
+        picks = background_picks(m, prov)
+        model = str(picks.get(tier if tier in TIERS else "mid") or "") or profile(m, prov)["model"]
+        return {"provider": prov, "model": model, "reasoning": r, "auto": True}
     return {"provider": aux.get("provider") or "anthropic-cli", "model": aux.get("model") or "",
-            "reasoning": r if r in LEVELS else "off"}
+            "reasoning": r, "auto": False}
 
 
 def background_chain(m: dict, connected=None, first: dict = None, once=()) -> list:

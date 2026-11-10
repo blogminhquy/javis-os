@@ -276,6 +276,28 @@ def muc(pct: float) -> str:
     return "bad" if pct >= SAT else ("warn" if pct >= CANH_BAO else "ok")
 
 
+# Provider ids of the Models page -> brain keys here.
+BRAIN_THEO_PROVIDER = {"anthropic-cli": "claude", "openai-oauth": "codex", "grok-cli": "grok",
+                       "antigravity-cli": "agy"}
+
+
+def side_pause(provider: str, now: float = None) -> dict:
+    """Should the work Javis starts on its own (self-learning, suggestions, judges) wait on this plan?
+
+    {"paused": bool, "pct": int, "resets_at": epoch or 0}. Paused while the 5-hour window is at SAT percent or
+    more, or while the plan has refused a turn; it lifts by itself when the window resets. That work is the
+    first thing to give up when the allowance runs low: the owner's own chat needs what is left (10/11/2026).
+    A provider with no meter (an API key, a plan that reports none) is never paused here.
+    """
+    brain = BRAIN_THEO_PROVIDER.get(str(provider or ""))
+    r = (doc(now).get(brain) if brain else None) or {}
+    w = r.get(NAM_GIO) or {}
+    pct = int(w.get("pct") or 0)
+    if "het" in r:
+        return {"paused": True, "pct": 100, "resets_at": int((r["het"] or {}).get("reset") or 0)}
+    return {"paused": pct >= SAT, "pct": pct, "resets_at": int(w.get("resets_at") or 0)}
+
+
 def doc(now: float = None) -> dict:
     """What the ring draws, per brain: each window's % (0 once its reset has passed), the worst level,
     and `het` while a refusal for plan quota is still in force. None when nothing is known yet."""

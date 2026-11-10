@@ -91,6 +91,7 @@ import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - t
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import model_routing   # 0.350.0: provider order, per-card model/effort, several accounts per provider
+import plan_limits     # the plan's 5-hour and weekly meters (side work pauses near the limit)
 import plan_accounts   # 0.353.0: several accounts on one subscription plan card (Codex, Grok, Claude Code)
 import adv_keys   # gateway lists: Advanced API key (OpenAI route) and Claude Compatible (Anthropic route)
 import mcp_store
@@ -119,6 +120,8 @@ import turn_plan     # the engine's task plan (TodoWrite, update_plan) for the p
 import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
 import transcript_fix  # rewrites what the mic heard at the end of a dictation: the main brain, with the chat as context
 import next_prompt  # suggests the owner's next message after a reply (ghost text, Tab fills it in)
+import auto_background  # picks the light and mid model an Automatic background model runs on
+import job_scorecard    # each background job finds the lightest model that gets it done
 import phien_am       # từ tiếng Anh -> cách đọc kiểu Việt (đọc loa + so âm câu nghe được)
 import voice_privacy
 voice_privacy.install()
@@ -2388,12 +2391,13 @@ def _routing_key_saved(m, key_field, label: str = "") -> None:
     model_routing.add_to_order(m, d["id"])
 
 
-def _aux_model():
+def _aux_model(tag: str = ""):
     """Model việc nền khi provider là Claude. '' = không đổi (mặc định CLI).
 
     Provider khác Claude thì model KHÔNG phải alias Claude, trả '' để nhánh cũ đừng gán
-    nhầm vào engine Claude - việc chọn engine đúng do _aux_swap lo."""
-    spec = aux_engine.read_spec()
+    nhầm vào engine Claude - việc chọn engine đúng do _aux_swap lo.
+    `tag`: the job, so an Automatic background model answers with the right tier (aux_engine.tier_for_tag)."""
+    spec = aux_engine.read_spec(tag=tag)
     return spec["model"] if aux_engine.is_claude(spec) else ""
 
 
@@ -2403,9 +2407,168 @@ def _aux_swap(cli, mode=None, tag=None):
     return aux_engine.swap(cli, mode=mode, tag=tag, codex_profile=_write_codex_profile)
 
 
-def _reply_policy_sandbox_engine(system_prompt: str, tag: str, cwd_name: str = "reply_policy_cwd"):
+def _side_work_paused() -> str:
+    """A short reason while the work Javis starts on its own (self-learning, the next-message suggestion,
+    auto-learning) must wait, "" otherwise. It waits when the plan that work would run on has used most of
+    its 5-hour allowance (plan_limits.side_pause) and resumes by itself after the reset. Never raises."""
+    try:
+        st = plan_limits.side_pause(aux_engine.read_spec(tag="learn").get("provider"))
+    except Exception:   # noqa: BLE001 - a broken meter must not stop that work for good
+        return ""
+    if not st.get("paused"):
+        return ""
+    return localefmt.chu("hạn mức 5 giờ của gói đã dùng {pct}%, việc Javis tự làm nghỉ tới lúc hạn mức mở lại",
+                         "the plan's 5-hour allowance is {pct}% used, Javis's own background work waits for the reset",
+                         pct=st.get("pct") or 0)
+
+
+# ---- Automatic background model (auto_background.py) -------------------------------------------------------------
+_AUTO_BG_BUSY = [False]
+
+
+def _scorecard_changed(ch: dict) -> None:
+    """A background job moved to another model on its own (job_scorecard.py): one quiet notice in the bell, with
+    the reason and the way back. Called from wherever the run finished, so it only schedules the notice."""
+    why = {"failed": localefmt.chu("lần chạy vừa rồi không đạt", "its last run did not pass"),
+           "probe": localefmt.chu("đã chạy tốt nhiều lần liền nên thử model nhẹ hơn",
+                                  "it ran well several times in a row, so a lighter model gets a try"),
+           "probe_failed": localefmt.chu("model nhẹ hơn không làm được việc này",
+                                         "the lighter model could not do this job")}.get(ch.get("why"), "")
+    text = localefmt.chu(
+        "Việc nền \"{ten}\" chuyển từ {cu} sang {moi}: {ly_do}. Muốn quay lại thì nhắn Javis \"hoàn lại thay đổi "
+        "model số {ma}\".",
+        "Background job \"{ten}\" moved from {cu} to {moi}: {ly_do}. To go back, tell Javis \"undo model change "
+        "{ma}\".",
+        ten=ch.get("label") or ch.get("job") or "", cu=ch.get("from_model") or "mặc định",
+        moi=ch.get("to_model") or "mặc định", ly_do=why, ma=ch.get("id") or "")
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return                      # no loop here (a worker thread): the change is still in `javis_tune op=status`
+    loop.create_task(_notify_owner("", text, kind="system", source="models", level="info", group="cost",
+                                   dedup=f"scorecard:{ch.get('job')}:{ch.get('to_model')}:{ch.get('id')}"))
+
+
+job_scorecard.on_change = _scorecard_changed
+
+
+async def _auto_background_ask(prompt: str) -> str:
+    """One text-only turn on the MAIN brain: read the provider's model list and pick the light and mid model.
+    Same sandbox as the judges (empty folder, no MCP, no tool), so the list is only read, never acted on."""
+    base = _reply_policy_sandbox_engine("You configure an assistant app. Answer with the JSON asked for, nothing else.",
+                                        "auto-background", cwd_name="auto_background_cwd")
+    cli = aux_engine.strip_tools(aux_engine.swap(base, mode="suggest", tag="auto-background",
+                                                 spec=aux_engine.main_spec(), codex_profile=_write_codex_profile), base)
+    if not cli.is_available():
+        raise RuntimeError("main brain not ready")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "engine error")[:200])
+    if aux_engine.final_loi_dang_nhap(final):
+        raise RuntimeError("main brain signed out")
+    return final
+
+
+async def _auto_background_models(provider: str) -> list:
+    """The provider's model list for this account, with the provider's own description where it sends one."""
+    idx = await provider_models_index(provider, refresh=True)
+    out = []
+    for mid in idx.get("models") or []:
+        desc = codex_models.description_for(mid) if provider == "openai-oauth" else ""
+        out.append({"id": mid, "description": desc})
+    return out
+
+
+def _auto_background_save(provider: str, state: dict) -> None:
+    cfg = cfgmod.read_settings()
+    cfg.setdefault("model", {}).setdefault("auto_background", {})[provider] = state
+    cfgmod.write_settings(cfg)
+
+
+def _auto_background_notice(provider: str, picks: dict, before: str) -> str:
+    label = (_provider_def(provider) or {}).get("label") or provider
+    light = picks.get("light") or picks.get("mid") or ""
+    mid = picks.get("mid") or before or ""
+    return localefmt.chu(
+        "Model việc nền đang ở chế độ Tự động ({nha}). Việc Javis tự làm (tự học, gợi ý câu tiếp) chạy bằng "
+        "{nhe}; việc bạn giao chạy nền (nhắc hẹn, loop, Kanban) chạy bằng {giua}. Mục đích là đỡ tốn hạn mức. "
+        "Muốn dùng model khác thì đổi ở trang Models, khối Model việc nền.",
+        "The background model is on Automatic ({nha}). Javis's own work (self-learning, next-message suggestions) "
+        "runs on {nhe}; the jobs you hand over (reminders, loops, Kanban) run on {giua}. This saves plan allowance. "
+        "To use another model, change it on the Models page, Background model block.",
+        nha=label, nhe=light or (before or label), giua=mid or label)
+
+
+async def _auto_background_tick(force: bool = False) -> dict:
+    """Keep the picks of an Automatic background model current. Called every scheduler tick; it only does
+    work when MAIN's provider has no pick yet or its model list is due for a look (once a day), and it asks the
+    main brain only when that list really changed. A background model chosen by hand is never touched."""
+    if _AUTO_BG_BUSY[0]:
+        return {"ok": False, "reason": "busy"}
+    cfg = cfgmod.read_settings()
+    m = cfg.get("model") or {}
+    auto = model_routing.background_auto(m)
+    if "auto" not in (m.get("auxiliary") or {}):
+        # Written once, so the choice no longer depends on a comparison with the starting config.
+        cfg.setdefault("model", {}).setdefault("auxiliary", {})["auto"] = auto
+        cfgmod.write_settings(cfg)
+    if not auto:
+        return {"ok": True, "reason": "manual"}
+    prov = model_routing.main_provider(m)
+    state = dict(model_routing.background_picks(m, prov))
+    now = time.time()
+    if not prov or (not force and not auto_background.due(state, now)):
+        return {"ok": True, "reason": "not_due"}
+    _AUTO_BG_BUSY[0] = True
+    try:
+        try:
+            models = await _auto_background_models(prov)
+        except Exception as e:   # noqa: BLE001
+            print(f"[auto background] model list of {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+            models = []
+        sig = auto_background.signature(models) if models else ""
+        if models and state.get("sig") == sig:
+            _auto_background_save(prov, {**state, "checked": now})
+            return {"ok": True, "reason": "unchanged"}
+        picks = None
+        if models:
+            try:
+                picks = await auto_background.choose(
+                    (_provider_def(prov) or {}).get("label") or prov, models,
+                    model_routing.profile(m, prov)["model"], _auto_background_ask)
+            except Exception as e:   # noqa: BLE001 - engine down, signed out, timeout: try again later
+                print(f"[auto background] choosing for {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+        if picks is None:
+            # No list or no usable answer: keep what was picked before and look again in an hour.
+            _auto_background_save(prov, {**state, "retry_at": now + auto_background.RETRY_S,
+                                         "checked": now - auto_background.RECHECK_S + auto_background.RETRY_S})
+            return {"ok": False, "reason": "no_answer"}
+        _auto_background_save(prov, {"light": picks["light"], "mid": picks["mid"],
+                                     "ladder": list(picks.get("ladder") or []), "sig": sig,
+                                     "checked": now, "at": now})
+        if auto_background.changed(state, picks) and (picks["light"] or picks["mid"]):
+            await _notify_owner("", _auto_background_notice(prov, picks, model_routing.profile(m, prov)["model"]),
+                                kind="system", source="models", level="info", group="cost",
+                                dedup=f"auto-background:{prov}:{sig}")
+        return {"ok": True, "reason": "picked", "picks": picks}
+    finally:
+        _AUTO_BG_BUSY[0] = False
+
+
+def _reply_policy_sandbox_engine(system_prompt: str, tag: str, cwd_name: str = "reply_policy_cwd",
+                                 bare: bool = True):
     """Engine Claude trong thư mục TRỐNG, không MCP, không công cụ: dùng chung cho người phán xử, vòng tự soát
-    và lượt chỉ chữ của Resonance. `cwd_name` tách thư mục trống theo nơi gọi để phiên Claude của chúng không lẫn nhau."""
+    và lượt chỉ chữ của Resonance. `cwd_name` tách thư mục trống theo nơi gọi để phiên Claude của chúng không lẫn nhau.
+
+    `bare` (on by default): a text-only turn carries neither the claude_code preset nor one tool schema. No tool
+    can run here anyway (the gate below refuses every call), yet until now each of these turns still sent the preset
+    and the schemas: 27,665 input tokens against 183 for the same question, measured in `_claude_sub_stream`. The
+    next-message suggestion alone spent that after EVERY chat turn. The named deny list stays as the second wall;
+    "*" only takes the schemas out of the request. Pass bare=False for a turn whose session or pinned evidence
+    depends on the preset."""
     cwd = cfgmod.STATE_DIR / cwd_name
     cwd.mkdir(parents=True, exist_ok=True)
     cli = claude_engine(system_prompt=system_prompt, cwd=str(cwd), tag=tag,
@@ -2416,6 +2579,12 @@ def _reply_policy_sandbox_engine(system_prompt: str, tag: str, cwd_name: str = "
         cli.mcp_strict = True
     cli.disallowed_tools = list(BOT_CAM_NATIVE) + ["PowerShell", "Skill", "SlashCommand", "TodoWrite", "MultiEdit",
                                                     "ExitPlanMode", "NotebookRead"]
+    if bare:
+        cli.disallowed_tools = ["*"] + cli.disallowed_tools
+        if system_prompt:
+            cli.system_prompt_raw = True
+            if hasattr(cli, "_options") and hasattr(cli, "_write_sysprompt_file"):
+                _raw_prompt_through_file(cli)   # a long prompt as one argv entry dies on Linux (#871)
     return cli
 
 
@@ -2474,6 +2643,8 @@ async def _next_prompt_ask(prompt: str) -> str:
 
     A suggestion is a side job, so it runs on the background model, not the main brain. Same sandbox as the group chat
     judge: an empty folder, no MCP, every tool refused, so a chat that reads like an order is only guessed at."""
+    if _side_work_paused():
+        raise RuntimeError("paused: the plan allowance is nearly used up")
     base = _reply_policy_sandbox_engine(next_prompt.SYSTEM, "next-prompt", cwd_name="next_prompt_cwd")
     cli = aux_engine.strip_tools(_aux_swap(base, mode="suggest", tag="next-prompt"), base)
     if not cli.is_available():
@@ -2551,7 +2722,7 @@ def _resonance_engine(system_prompt: str, tag: str = "resonance"):
     swap ở mức dưới full tự thêm Claude, bộ não chính, OpenRouter free làm mắt sau, và Resonance không được tự đổi
     provider. Trả (engine | None, info). Resonance mặc định tắt: ngoài test, chưa có đường chạy nào gọi hàm này.
     """
-    base = _reply_policy_sandbox_engine(system_prompt, tag, cwd_name="resonance_cwd")
+    base = _reply_policy_sandbox_engine(system_prompt, tag, cwd_name="resonance_cwd", bare=False)
     spec = aux_engine.read_spec()
     eng = aux_engine.strip_tools(
         aux_engine.swap(base, mode="suggest", tag=tag, spec=spec, codex_profile=_write_codex_profile), base)
@@ -6676,8 +6847,12 @@ def _routing_view(mcfg, providers) -> dict:
         until = _pin_limited_until(p)
         if until:
             limited[p] = int(until)
+    background = model_routing.background_spec(mcfg)
+    if background.get("auto"):
+        # Automatic: the page names both models, the one for Javis's own work and the one for handed-over jobs.
+        background["light"] = model_routing.background_spec(mcfg, "light")["model"]
     return {"order": o, "profiles": {p: model_routing.profile(mcfg, p) for p in o}, "limited": limited,
-            "background": model_routing.background_spec(mcfg), "chat_in_use": chat, "bg_in_use": bg,
+            "background": background, "chat_in_use": chat, "bg_in_use": bg,
             "multi_key": list(_routing_key_fields()), "multi_plan": [p for p in plan_accounts.KIND if plan_accounts.available(p)],
             "defaults": {p["id"]: d for p in providers if (d := _default_model_name(mcfg, p["id"]))}}
 
@@ -6795,6 +6970,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 # Thiếu provider (client cũ) = Claude, đúng hành vi trước khi mở nhiều provider.
                 prov = aux_patch.get("provider") or aux_engine.CLAUDE
                 aux["provider"] = prov if _provider_def(prov) else aux_engine.CLAUDE
+                aux["auto"] = False      # a model picked by hand: Automatic never replaces it
+            if aux_patch.get("auto") is True:
+                aux["auto"] = True       # back to Automatic (model_routing.background_spec)
             if "reasoning" in aux_patch:   # 0.350.0: the background model keeps its own effort
                 r = aux_patch["reasoning"]
                 aux["reasoning"] = r if r in engine.REASONING_LEVELS else "off"
@@ -14017,13 +14195,14 @@ learn_feature = learn_mod.register(app, learn_mod.LearnDeps(
     brain_root=_brain_root,
     brain_memory_dir=_brain_memory_dir,
     resolve_subfolder=_resolve_subfolder,
-    aux_model=_aux_model,
+    aux_model=lambda: _aux_model("learn"),
     aux_swap=_aux_swap,
     atomic_write_text=_atomic_write_text,
     sessions_store=get_store(),
     state_dir=cfgmod.STATE_DIR,
     readonly_tools=READONLY_TOOLS,
     stage_agent_procedure=lambda brain, slug, text: _stage_learned_procedure(brain, slug, text),
+    side_work_paused=lambda: _side_work_paused(),
 ))
 
 
@@ -15685,6 +15864,10 @@ async def _start_scheduler():
                 #      flag; hard daily caps live in auto_learning.
                 if not _AUTO_LEARNING_BUSY[0]:
                     asyncio.create_task(_auto_learning_tick())
+                # 3b6) Automatic background model: picks for MAIN's provider, re-made when its model list changed.
+                #      A settings read on most ticks; the main brain is asked only when the list really changed.
+                if not _AUTO_BG_BUSY[0] and os.environ.get("JAVIS_AUTO_BACKGROUND_PAUSED") != "1":
+                    asyncio.create_task(_auto_background_tick())
                 # 3c) Ngân sách token + báo cáo tuần. Nhịp RIÊNG 10 phút chứ không theo 30s:
                 #     mỗi lượt kiểm là một truy vấn sqlite cả tháng, chạy 30 giây một lần thì
                 #     chính cái đồng hồ đo tiền lại thành thứ tốn tài nguyên nhất.
@@ -25198,6 +25381,12 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # nêu đường dẫn thư mục thật của brain - kiến thức vận hành, không phải thứ đưa cho
         # một con bot đang nói chuyện với người lạ.
         _sys_bot = chatbot_runtime.build_bot_prompt(bot)
+        try:
+            # A customer talking to a bot is activity in this brain: a waiting self-learning batch
+            # starts its quiet time over (it runs 15 minutes after the LAST event, owner 10/11/2026).
+            learn_feature.touch(brain)
+        except Exception:   # noqa: BLE001
+            pass
         # Mức quyền đọc từ BẢN GHI, và giá trị lạ (file sửa tay, bản ghi cũ) rơi về Chỉ đọc.
         # Fail-closed là bắt buộc ở đây: đoán sai theo hướng kia là cấp tool cho một con bot
         # đang nói chuyện với người lạ.
@@ -29659,7 +29848,8 @@ def _team_engine_for(team, agent_key, role):
             # Chốt của bộ test (review T3 vòng 2 P3): test quên thay engine thì lượt nhóm (và lượt quét, lượt học, cùng
             # nhà máy này) dừng ở đây, không dựng CLI thật. Test thay `team_engine.build` bằng engine giả thì qua.
             raise team_runner.EngineUnavailable("JAVIS_NO_REAL_TEAM_ENGINE: không dựng engine nhóm thật")
-        base = _reply_policy_sandbox_engine(system, tag, cwd_name="team_cwd")
+        # bare=False: a team member turn keeps the preset its sessions and gate hooks were qualified with.
+        base = _reply_policy_sandbox_engine(system, tag, cwd_name="team_cwd", bare=False)
         try:
             eng = team_engine.build(spec, base, tag, settings)
         except team_engine.TeamEngineUnavailable as ex:
@@ -32005,7 +32195,7 @@ def _improvement_text_call(system, prompt, tag, spec=None):
     settings = cfgmod.read_settings() or {}
     spec = spec or team_engine.choose_spec("", "", _effective_main(settings), _agent_model_provider,
                                            lambda sp: aux_engine.availability(sp, settings))
-    base = _reply_policy_sandbox_engine(system, tag, cwd_name="improvement_loop_cwd")
+    base = _reply_policy_sandbox_engine(system, tag, cwd_name="improvement_loop_cwd", bare=False)
     eng = team_engine.build(spec, base, tag, settings)
     prompt = _team_reasoning(eng, (settings.get("model") or {}).get("reasoning") or AGENT_REASONING_DEFAULT, prompt)
 
@@ -32100,7 +32290,7 @@ def _auto_learning_spec():
     main = _effective_main(settings)
     if team_engine.text_only_supported(main.get("provider")):
         return None  # _improvement_text_call's own choice: the main engine
-    background = aux_engine.read_spec(settings)
+    background = aux_engine.read_spec(settings, tag="auto-learning")
     if team_engine.text_only_supported(background.get("provider")) and aux_engine.availability(background, settings)[0]:
         return {"provider": background["provider"], "model": background.get("model") or "", "source": "aux", "note": ""}
     return None
@@ -32110,7 +32300,7 @@ def _auto_learning_background_spec():
     """Judging, writing cases, grading and writing revisions run on the background model ("Mô hình nền", the one
     the Models page sets for loops, Kanban and learning); when it cannot run text-only, on the learning engine."""
     settings = cfgmod.read_settings() or {}
-    background = aux_engine.read_spec(settings)
+    background = aux_engine.read_spec(settings, tag="auto-learning")
     if team_engine.text_only_supported(background.get("provider")) and aux_engine.availability(background, settings)[0]:
         return {"provider": background["provider"], "model": background.get("model") or "", "source": "aux", "note": ""}
     return _auto_learning_spec()
@@ -32285,6 +32475,8 @@ def _auto_learning_note_tool(brain, conv_sid, event):
 async def _auto_learning_tick():
     """Scheduler: one unit of learning work (judge a few turns, or one learning run) in a worker thread."""
     if _AUTO_LEARNING_BUSY[0] or os.environ.get("JAVIS_AUTO_LEARNING_PAUSED") == "1":
+        return
+    if _side_work_paused():      # the plan allowance is nearly used up: this work waits for the reset
         return
     _AUTO_LEARNING_BUSY[0] = True
     try:
