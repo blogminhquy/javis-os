@@ -97,8 +97,55 @@ try:
 
     cancel_id, _ = save_ai("Superseded answer")
     check("old turn cancelled without calling provider",
-          conversations.set_zalo_delivery(cancel_id, "cancelled"))
+          conversations.set_zalo_delivery(cancel_id, "cancelled", reason="superseded"))
     check("cancelled state stays in inbox", latest_state(cancel_id).get("state") == "cancelled")
+    check("the reason is a code the inbox translates, not a sentence",
+          latest_state(cancel_id).get("reason") == "superseded" and latest_state(cancel_id).get("error") == "")
+
+    odd_id, _ = save_ai("Odd reason")
+    conversations.set_zalo_delivery(odd_id, "cancelled", reason="A sentence written in one language.")
+    check("a reason outside the known codes is dropped", latest_state(odd_id).get("reason") == "")
+
+    # The transport passes codes, never prose: every code it uses is one the store keeps and the inbox translates.
+    import re
+    src = (SERVER / "channels" / "zalo_personal.py").read_text(encoding="utf-8")
+    used = set(re.findall(r'_set_delivery\([^)]*reason="([a-z_]+)"', src))
+    check("the transport uses reason codes (%s)" % ", ".join(sorted(used)),
+          used and used <= set(conversations.ZALO_DELIVERY_REASONS))
+    check("the transport no longer writes English sentences into a receipt",
+          not re.search(r'_set_delivery\(receipt_row, "[a-z]+", "[A-Z]', src))
+    js = (ROOT / "dashboard" / "conversations.js").read_text(encoding="utf-8")
+    import json
+    for lang in ("vi", "en"):
+        words = json.loads((ROOT / "dashboard" / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
+        for code in conversations.ZALO_DELIVERY_REASONS + ("stale",):
+            key = "ht.zalo_why." + code
+            check(f"{lang}: reason '{code}' has words and the inbox maps it", bool(words.get(key)) and key in js)
+        check(f"{lang}: no line for a reply that went out", "ht.zalo_accepted" not in words)
+    check("the inbox draws nothing for an accepted reply", "ht.zalo_accepted" not in js)
+
+    # Partial and uncertain sends, in both languages of `gui`.
+    check("a timeout is uncertain", zp.send_uncertain("MCP call timed out") and zp.send_uncertain("hết giờ chờ Zalo"))
+    check("part 2 of 3 failing is uncertain (part 1 arrived)",
+          zp.send_uncertain("part 2/3: Zalo refused") and zp.send_uncertain("đoạn 2/3: Zalo từ chối"))
+    check("part 1 failing with a clear refusal is a plain failure",
+          not zp.send_uncertain("part 1/3: Zalo refused") and not zp.send_uncertain("đoạn 1/3: Zalo từ chối"))
+    check("a refusal that merely contains the word 'part' is a plain failure",
+          not zp.send_uncertain("You are not part of this group"))
+
+    # A reply left on "sending" (server stopped mid-send, transport never ran) must not say "sending" for ever.
+    stuck_id, _ = save_ai("Stuck answer")
+    check("a fresh pending reply still reads as sending", latest_state(stuck_id).get("state") == "sending")
+    with conversations._lock:
+        db = conversations._conn()
+        db.execute("UPDATE messages SET created_at=created_at-? WHERE id=?",
+                   (conversations.ZALO_SENDING_STALE + 5, stuck_id))
+        db.commit()
+    st = latest_state(stuck_id)
+    check("after ZALO_SENDING_STALE it reads as unknown with reason 'stale'",
+          st.get("state") == "unknown" and st.get("reason") == "stale")
+    check("a transport that settles late still wins", asyncio.run(run_send(stuck_id, accepted)) is True
+          and latest_state(stuck_id).get("state") == "accepted")
 finally:
     zp.gui = real_gui
 
@@ -113,6 +160,8 @@ check("cannot settle a different channel's message",
 frontend = (ROOT / "dashboard" / "conversations.js").read_text(encoding="utf-8")
 check("inbox renders receipts", "zalo_delivery" in frontend and "deliveryHtml" in frontend)
 check("poll refreshes metadata on existing message IDs", 'messages?limit=30' in frontend)
+check("only a pending reply inside the refreshed window keeps the second request going",
+      '_msgs.slice(-30).some(' in frontend)
 
 if fail:
     sys.exit(1)
