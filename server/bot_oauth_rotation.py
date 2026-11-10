@@ -15,6 +15,7 @@ import asyncio
 import sys
 
 import config as cfgmod
+import localefmt
 import model_routing
 import openai_oauth
 import plan_accounts
@@ -137,8 +138,9 @@ async def stream(factory, access_token: str, account_id: str):
         # quota-exhausted account 3 times. 429 is not a brief network failure.
         last_quota.pop("tam_thoi", None)
         last_quota.pop("cho", None)
-        last_quota["content"] = (str(last_quota.get("content") or "ChatGPT usage limit")
-                                  + f" (đã thử {attempts} tài khoản ChatGPT khả dụng)")
+        last_quota["content"] = (str(last_quota.get("content") or "ChatGPT usage limit") + " " + localefmt.chu(
+            f"(đã thử {attempts} tài khoản ChatGPT khả dụng)", f"(tried {attempts} usable ChatGPT account(s))"))
         yield last_quota
     else:
-        yield {"type": "error", "content": "ChatGPT: Không có tài khoản đã đăng nhập và còn lượt sử dụng."}
+        yield {"type": "error", "content": "ChatGPT: " + localefmt.chu(
+            "Không có tài khoản đã đăng nhập và còn lượt sử dụng.", "No signed-in account with usage left.")}
