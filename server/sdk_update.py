@@ -40,6 +40,7 @@ import claude_update
 import config as cfgmod
 import deploy_info
 import localefmt
+import winproc
 
 PACKAGE = "claude-agent-sdk"
 PYPI_URL = "https://pypi.org/pypi/claude-agent-sdk/json"
@@ -218,11 +219,8 @@ def _run(cmd: list, timeout: int):
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
     env["PIP_NO_INPUT"] = "1"
-    kw = {}
-    if os.name == "nt":
-        kw["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                          timeout=timeout, env=env, stdin=subprocess.DEVNULL, **kw)
+                          timeout=timeout, env=env, stdin=subprocess.DEVNULL, creationflags=winproc.no_window())
 
 
 def _pip_install(version: str, constraints: str) -> tuple:
