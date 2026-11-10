@@ -78,6 +78,7 @@ import borrowed_eyes   # mắt mượn: bộ não khác xem hộ ảnh khi model
 import image_vision
 import openai_oauth
 import claude_update   # tự chạy `claude update` hằng ngày để model mới hiện ra
+import sdk_update      # same daily tick: the claude-agent-sdk package moves to newer releases of its series
 import agy_update      # cùng việc đó cho Antigravity CLI: `agy update` hằng ngày (0.137.0)
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
 import winproc         # chạy lệnh con câm lặng trên Windows (không nháy console đen)
@@ -2056,8 +2057,8 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     # rồi tới id đầy đủ để `_claude_api_model` dịch được alias sang tên thật.
     {"id": "anthropic-cli", "label": "Claude Code", "kind": "cli", "key_field": None,          "catalog_key": "claude",
      "default_models": ["fable", "opus", "sonnet", "haiku",
-                        "claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1",
-                        "claude-opus-5", "claude-sonnet-5",
+                        "claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5",
+                        "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
                         "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"]},
     {"id": "openai-oauth",  "label": "OpenAI OAuth (ChatGPT)",  "kind": "oauth", "key_field": None,             "catalog_key": "openai-oauth",
      "default_models": []},  # model/list của Codex app-server là nguồn chân lý; không ghim version ở đây
@@ -2080,8 +2081,8 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     {"id": "openrouter",    "label": "OpenRouter",              "kind": "api", "key_field": "openrouter_key",    "catalog_key": "openrouter",
      "default_models": ["openai/gpt-4o-mini"]},
     {"id": "anthropic-api", "label": "Anthropic (API)",         "kind": "api", "key_field": "anthropic_api_key", "catalog_key": "anthropic-api",
-     "default_models": ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1",
-                        "claude-opus-5", "claude-sonnet-5",
+     "default_models": ["claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5",
+                        "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
                         "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"]},
     {"id": "openai",        "label": "OpenAI (ChatGPT API)",    "kind": "api", "key_field": "openai_api_key",    "catalog_key": "openai",
      "default_models": ["gpt-4o", "gpt-4o-mini", "o3-mini"]},
@@ -5350,6 +5351,8 @@ def claude_status(refresh: bool = False):
     # The daily-update switch on the card: its state, and whether the env var forces it off.
     d["auto_update"] = claude_update.bat()
     d["auto_update_env_off"] = claude_update.env_off()
+    # 2026-11-10: the Claude Agent SDK package follows the same switch (sdk_update.py). A file read, no subprocess.
+    d["sdk"] = sdk_update.status()
     return d
 
 
@@ -5376,8 +5379,28 @@ async def _cap_nhat_claude(ly_do: str) -> dict:
 
 @app.post("/claude/update")
 async def claude_update_now():
-    """Nút "Cập nhật Claude Code" trên trang Models: chạy ngay, không chờ vòng hằng ngày."""
-    return await _cap_nhat_claude("tay")
+    """Nút "Cập nhật Claude Code" trên trang Models: chạy ngay, không chờ vòng hằng ngày.
+
+    2026-11-10: the same press also looks for a newer Claude Agent SDK (sdk_update.py); its result rides along under
+    `sdk` and never changes whether the Claude Code update itself counts as done."""
+    kq = await _cap_nhat_claude("tay")
+    kq = dict(kq or {})
+    kq["sdk"] = await _update_sdk("manual")
+    return kq
+
+
+async def _update_sdk(reason: str) -> dict:
+    """One SDK update attempt on a worker thread (pip and a check process: minutes, never on the event loop)."""
+    try:
+        r = await asyncio.to_thread(sdk_update.update, reason)
+    except Exception as e:  # noqa: BLE001 - reported, never a broken request or a dead loop
+        r = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    if r.get("changed"):
+        print(f"[sdk update] claude-agent-sdk {r.get('from')} -> {r.get('to')} ({reason}); in use after the next restart",
+              file=sys.stderr)
+    elif not r.get("ok") and not r.get("docker"):
+        print(f"[sdk update] not updated ({reason}): {r.get('error')}", file=sys.stderr)
+    return {**r, **{k: v for k, v in sdk_update.status().items() if k in ("installed", "loaded", "restart_needed")}}
 
 
 @app.on_event("startup")
@@ -5442,6 +5465,11 @@ async def _tu_cap_nhat_claude():
             except Exception as e:
                 print(f"[claude update] vòng tự cập nhật lỗi: {type(e).__name__}: {e}",
                       file=sys.stderr)
+            try:
+                if sdk_update.enabled() and sdk_update.due():
+                    await _update_sdk("auto")
+            except Exception as e:  # noqa: BLE001
+                print(f"[sdk update] daily pass failed: {type(e).__name__}: {e}", file=sys.stderr)
             await asyncio.sleep(3600)
     asyncio.create_task(_vong())
 
@@ -6009,7 +6037,14 @@ async def mcp_oauth_auth(request: Request):
 # ============================================================
 @app.post("/hub/mcp")
 async def hub_mcp(request: Request):
-    """Endpoint MCP hub - Claude Code/Codex đấu vào đây (auth bằng Bearer hub_token riêng)."""
+    """Endpoint MCP hub - Claude Code/Codex đấu vào đây (auth bằng Bearer hub_token riêng).
+
+    Security fix (2026-11-10): only a caller on this machine is answered. Every engine reaches the hub at
+    `mcp_hub.hub_url()`, which is always 127.0.0.1, so nothing legitimate arrives through a tunnel, a reverse proxy or
+    the LAN. Before this the bearer alone opened the hub from the Internet, and the bearer is a long-lived value that
+    engine configs keep on disk (some inside a brain). The bearer check in `handle_http` stays as the second lock."""
+    if not _direct_local_request(request):
+        return JSONResponse({"error": "forbidden", "detail": "the hub only answers this machine"}, status_code=403)
     return await mcp_hub.handle_http(request)
 
 
@@ -7403,7 +7438,12 @@ async def _fetch_provider_models(provider, m):
         if ids:
             return ids
         # Chạy ở worker: quét file binary ~200MB, cỡ 0,3 giây lần đầu rồi nhớ theo mtime.
-        return await asyncio.to_thread(claude_cli.list_models)
+        ids = await asyncio.to_thread(claude_cli.list_models)
+        if not ids:
+            return None
+        # The binary's catalog is only as new as the installed Claude Code. Union it with the models this Javis
+        # release ships, so a new model reaches a machine whose CLI has not updated yet (Fable 5.2, 2026-11-10).
+        return claude_cli.merge_models(ids, (_provider_def(provider) or {}).get("default_models"))
     return None
 
 
@@ -7636,14 +7676,16 @@ async def reflect(brain: str = Form("brain")):
 
 
 @app.get("/health")
-async def health():
+async def health(request: Request):
     cli = find_claude_cli()
-    return {
-        "status": "ok",
-        "claude_cli": cli or "NOT FOUND",
-        "claude_cli_available": cli is not None,
-        "cwd": CLAUDE_CWD,
-    }
+    out = {"status": "ok", "claude_cli_available": cli is not None}
+    # 2026-11-10: the probe is public (watchdog, uptime checks, the CLI). The two absolute paths, which usually give
+    # away the OS user and the install folder, go only to a signed-in session or to this machine itself.
+    if (not cfgmod.gate_active() or _direct_local_request(request)
+            or cfgmod.valid_session(request.cookies.get("javis_session", ""))):
+        out["claude_cli"] = cli or "NOT FOUND"
+        out["cwd"] = CLAUDE_CWD
+    return out
 
 
 # Đồ thị note (GET /graph + WS /ws/graph) đã bóc sang routes/graph.py ở 0.9.243.
@@ -10358,6 +10400,19 @@ def _ung_vien_tai_nguyen(duong_dan_file: str, p: str):
     return ra
 
 
+def _share_private_zone(x, brain_root) -> bool:
+    """inbox/ (files customers and the owner's Telegram send), memory/, or any dot folder, relative to the brain.
+
+    Vá bảo mật 2026-11-05: a note shared from the brain root made "its folder" the whole brain, so the token served
+    every image or audio file in it, inbox photos named by sequential message id included. 2026-11-10: shared by
+    `_share_asset` and `_share_sibling`; the sibling route of a shared .html page had been left without it."""
+    try:
+        parts = Path(x).resolve().relative_to(brain_root).parts
+    except (ValueError, OSError):
+        return False
+    return bool(parts) and (parts[0].lower() in ("inbox", "memory") or any(s.startswith(".") for s in parts[:-1]))
+
+
 def _share_asset(ban, p: str):
     """File TÀI NGUYÊN kèm theo (ảnh trong .md, css/js cạnh file .html).
 
@@ -10383,15 +10438,7 @@ def _share_asset(ban, p: str):
     goc_brain = Path(_brain_root(brain)).resolve()
 
     def _vung_rieng(x) -> bool:
-        """inbox/ (files customers and the owner's Telegram send), memory/, or any dot folder, relative to the brain.
-
-        Vá bảo mật 2026-11-05: a note shared from the brain root made "its folder" the whole brain, so the token served
-        every image or audio file in it, inbox photos named by sequential message id included."""
-        try:
-            parts = x.resolve().relative_to(goc_brain).parts
-        except (ValueError, OSError):
-            return False
-        return bool(parts) and (parts[0].lower() in ("inbox", "memory") or any(s.startswith(".") for s in parts[:-1]))
+        return _share_private_zone(x, goc_brain)
 
     def _qua_cong(f) -> bool:
         """Đúng hai hàng rào ở trên, hỏi cho MỘT ứng viên (cộng vùng riêng của brain, trừ khi chính file chia sẻ nằm ở đó)."""
@@ -10690,6 +10737,11 @@ def _share_sibling(ban, p: str):
         return None
     thu_muc = goc.parent
     if not (f.parent == thu_muc or thu_muc in f.parents):
+        return None
+    # A page shared from the brain root has the whole brain as "its folder": the private zones stay closed to it, unless
+    # the shared page itself lives in one (same rule as _share_asset).
+    goc_brain_rieng = Path(_brain_root(brain)).resolve()
+    if _share_private_zone(f, goc_brain_rieng) and not _share_private_zone(goc, goc_brain_rieng):
         return None
     duoi = f.suffix.lower()
     if duoi in share_render.DUOI_TAI_NGUYEN:
@@ -26859,8 +26911,8 @@ async def whatsapp_webhook_verify(request: Request):
 async def whatsapp_webhook(request: Request):
     """Inbound WhatsApp messages. Public URL, so nothing is trusted before the signature check;
     a request no known app secret signed is dropped with 401 and never parsed further."""
-    raw = await request.body()
-    if len(raw) > 2_000_000:
+    raw = await _read_capped_body(request)
+    if raw is None:
         return PlainTextResponse("too large", status_code=413)
     sig = request.headers.get("x-hub-signature-256", "")
     if not whatsapp_bot.verify_signature(raw, sig, owner_channels.whatsapp_app_secrets(_wa_account_secrets())):
@@ -26904,6 +26956,29 @@ async def chatbot_api_turn(request: Request):
 # Messenger (0.134.0): customer bots on a Facebook Page. Meta calls one webhook for every Page;
 # `messenger_bot.handle_webhook` routes by Page id. No owner control channel here.
 # ============================================================
+WEBHOOK_BODY_MAX = 2_000_000
+
+
+async def _read_capped_body(request: Request, limit: int = WEBHOOK_BODY_MAX):
+    """The request body, or None when it is larger than `limit`. Never holds more than `limit` bytes.
+
+    Security fix (2026-11-10): the channel webhooks are public routes and called `await request.body()` before their
+    size check, so the whole body was already in memory when the check ran. A few multi-gigabyte POSTs from anybody were
+    enough to exhaust a small VPS, with no login and no valid signature. The length the client declares is checked
+    first, then the stream is read up to the cap and dropped the moment it passes it."""
+    try:
+        if int(request.headers.get("content-length") or 0) > limit:
+            return None
+    except ValueError:
+        return None
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw.extend(chunk)
+        if len(raw) > limit:
+            return None
+    return bytes(raw)
+
+
 def _ms_verify_token() -> str:
     """The handshake string Meta echoes when the Messenger webhook is set up. Generated once."""
     m = cfgmod.read_settings().get("messenger", {}) or {}
@@ -26964,8 +27039,8 @@ async def messenger_webhook_verify(request: Request):
 async def messenger_webhook(request: Request):
     """Inbound Messenger events. Public URL, so nothing is trusted before the signature check;
     a request no known app secret signed is dropped with 401 and never parsed further."""
-    raw = await request.body()
-    if len(raw) > 2_000_000:
+    raw = await _read_capped_body(request)
+    if raw is None:
         return PlainTextResponse("too large", status_code=413)
     sig = request.headers.get("x-hub-signature-256", "")
     if not messenger_bot.verify_signature(raw, sig, _ms_account_secrets()):
@@ -27357,8 +27432,8 @@ async def threads_webhook(request: Request):
     """New replies under the owner's Threads posts. Nothing is trusted before the signature check under the
     Threads app secret of a connected account."""
     import threads_bot
-    raw = await request.body()
-    if len(raw) > 2_000_000:
+    raw = await _read_capped_body(request)
+    if raw is None:
         return PlainTextResponse("too large", status_code=413)
     if not threads_bot.verify_signature(raw, request.headers.get("x-hub-signature-256", ""), _th_account_secrets()):
         return PlainTextResponse("bad signature", status_code=401)
@@ -27579,8 +27654,8 @@ def _zo_account_secrets() -> list:
 async def zalo_oa_webhook(request: Request):
     """Inbound Zalo OA events. Public URL, so nothing is trusted before the signature check; a
     request no known OA secret key signed is dropped with 401 and never handed to a bot."""
-    raw = await request.body()
-    if len(raw) > 2_000_000:
+    raw = await _read_capped_body(request)
+    if raw is None:
         return PlainTextResponse("too large", status_code=413)
     sig = request.headers.get("x-zevent-signature", "") or request.headers.get("mac", "")
     if not zalo_oa_bot.verify_signature(raw, sig, _zo_account_secrets()):

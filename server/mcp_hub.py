@@ -35,6 +35,7 @@ import mcp_catalog
 import mcp_client
 import mcp_store
 import once_ledger
+import secret_guard
 import skill_router
 import skill_usage
 import team_gate
@@ -55,6 +56,17 @@ _CACHE_TTL_THIEU = 10
 # keeps the short synchronous rule above; any change to the connection store (mtime) or invalidate_cache() still
 # drops the entry at once.
 _CACHE_STALE_MAX = 900
+# 2026-11-10: a source that stays down. The short rule above makes every turn dial again after 10 s, and a source that
+# accepts the connection but never answers holds that dial for the full timeout: measured 20 s added to EVERY chat turn
+# for as long as it stays down. Once two dials in a row came back missing the SAME sources, the partial list is served
+# as it is (up to this age) while the next dial runs in the background. The first miss still gets its synchronous
+# second chance, so a source that was only slow once is not written off; a source that recovers shows up one refresh
+# later instead of making everybody wait for it in the meantime.
+_CACHE_STALE_THIEU_MAX = 300
+# Entries of the module cache. One entry is a whole tool table (100 KB to 1 MB), and keys that end in a session id
+# (coding sessions, API-engine background work) never repeat, so without a cap the table of every session that ever
+# ran stayed in memory. Past the cap the oldest entries go; nothing is lost but one dial.
+_CACHE_MAX = 48
 _refreshing: set = set()
 _cache = {}          # (mode, vault_root) -> {"tools", "route", "ts", "mtime"}
 _cache_epoch = 0
@@ -98,6 +110,52 @@ def hub_port():
 
 def hub_url():
     return f"http://127.0.0.1:{hub_port()}/hub/mcp"
+
+
+def hide_hub_token(text):
+    """`text` without the hub bearer (security fix, 2026-11-10).
+
+    Engine configs that Javis writes carry the bearer, and some of them live inside a brain (`.grok/config.toml`,
+    `.agents/mcp_config.json`). A file tool that returned one of them handed the model, and whoever steers it, the key
+    of the whole hub. The tools still read those files; the key itself never leaves in a tool result."""
+    if not isinstance(text, str) or not text:
+        return text
+    try:
+        tok = hub_token()
+    except Exception:  # noqa: BLE001
+        return text
+    return text.replace(tok, "[hub token hidden]") if tok and tok in text else text
+
+
+def vault_header_refused(p) -> bool:
+    """True when a client-sent vault path points at Javis's own state instead of a brain (security fix, 2026-11-10).
+
+    The X-Javis-Vault header used to accept any directory that exists. With the state directory (or a folder above it)
+    as the "brain", the file tools of the hub read `.sessions.json` and wrote `plugins/<x>/plugin.yaml`, which the
+    server loads as Python. A brain is never the state directory, never a plugin or pack folder inside it, and never a
+    folder that contains it. Brains kept under BRAINS_DIR stay valid even when BRAINS_DIR sits inside the state
+    directory."""
+    try:
+        p = Path(p).resolve()
+        st = Path(STATE_DIR).resolve()
+    except (OSError, ValueError):
+        return True
+    if p == st or p in st.parents:
+        return True
+    if st not in p.parents:
+        return False
+    try:
+        br = _brains_dir().resolve()
+        if br != st and (p == br or br in p.parents) and (br == st or st in br.parents):
+            return p == br          # a brain under BRAINS_DIR is fine; BRAINS_DIR itself is not a brain
+    except (OSError, ValueError):
+        pass
+    try:
+        top = p.relative_to(st).parts[0].lower()
+    except (ValueError, IndexError):
+        return True
+    # Folders of the state directory that hold code the server runs, or its secrets and stores.
+    return top in ("plugins", "packs", ".staging", "__pycache__") or top.startswith(".")
 
 
 def allow_patterns():
@@ -739,6 +797,11 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                     f"dùng vừa đính kèm vào khung chat.")
         if not p.is_file():
             return f"ERROR: không có file '{rel}'"
+        # Security (2026-11-10): the secret tripwire of the shell and of Claude Code's own tools also covers this tool.
+        bi_mat = secret_guard.check_text(str(p))
+        if bi_mat:
+            secret_guard.note_blocked("javis_read_file", bi_mat, str(rel or ""))
+            return secret_guard.refusal(bi_mat)
         if p.suffix.lower() in _IMAGE_SUFFIXES:
             # Reading a photo as text hands the model a page of mojibake it then "describes" with confidence. Say what the
             # file is and how to actually see it (0.73.0).
@@ -750,6 +813,7 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
             text = await asyncio.to_thread(doc_text.extract, p)
         else:
             text = p.read_text(encoding="utf-8", errors="replace")
+        text = hide_hub_token(text)
         # 0.256.0: đọc theo đoạn có số dòng "N|..." khi xin offset/limit, hoặc khi file nằm trong
         # thư mục làm việc của phiên Coding (ở đó số dòng là thứ model cần để sửa từng đoạn).
         # Chat thường không xin thì GIỮ NGUYÊN output cũ: chatbot và luồng brain dựa vào nó.
@@ -1505,7 +1569,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             task_scope.manifests(lang)  # fresh enabled/source checks on a private cache hit
         return ent["tools"], ent["route"]
     if (not force_refresh and ent and task_scope is None and ent["mtime"] == mt and ent.get("epoch") == epoch
-            and ent.get("ttl", _CACHE_TTL) == _CACHE_TTL and time.time() - ent["ts"] < _CACHE_STALE_MAX):
+            and _stale_servable(ent)):
         if key not in _refreshing:
             _refreshing.add(key)
 
@@ -1621,10 +1685,47 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         # invalidate_cache() ran while this dial was out (0.382.0: a background refresh makes that likelier): the
         # list may predate the change, so hand it to this caller only and do not store it.
         return tools_spec, route
+    missing = frozenset(str(x) for x in bo_qua)
+    prev = cache.get(key)
+    streak = 0
+    if missing:
+        same = bool(prev and prev.get("missing") == missing and prev.get("mtime") == mt and prev.get("epoch") == epoch)
+        streak = (int(prev.get("missing_streak") or 0) + 1) if same else 1
     cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt, 'epoch': epoch,
                    "ttl": _CACHE_TTL_THIEU if bo_qua else _CACHE_TTL,
+                   "missing": missing, "missing_streak": streak,
                    "inventory_tools": inventory_tools, "inventory_route": inventory_route}
+    if cache is _cache:
+        _prune_cache()
     return tools_spec, route
+
+
+def _stale_servable(ent) -> bool:
+    """May this expired entry be answered now while a refresh runs in the background?
+
+    A complete list: yes, up to _CACHE_STALE_MAX (0.382.0). A partial list: only when the same sources have been
+    missing for two dials in a row, and up to _CACHE_STALE_THIEU_MAX (see the constants)."""
+    age = time.time() - ent["ts"]
+    ttl = ent.get("ttl", _CACHE_TTL)
+    if ttl == _CACHE_TTL:
+        return age < _CACHE_STALE_MAX
+    return int(ent.get("missing_streak") or 0) >= 2 and age < _CACHE_STALE_THIEU_MAX
+
+
+def _prune_cache() -> int:
+    """Keep the module cache at _CACHE_MAX entries: drop what is too old to ever be served, then the oldest."""
+    if len(_cache) <= _CACHE_MAX:
+        return 0
+    now, n = time.time(), 0
+    for k in [k for k, e in list(_cache.items()) if now - float(e.get("ts") or 0) >= _CACHE_STALE_MAX]:
+        if _cache.pop(k, None) is not None:
+            n += 1
+    over = len(_cache) - _CACHE_MAX
+    if over > 0:
+        for k, _e in sorted(list(_cache.items()), key=lambda kv: float(kv[1].get("ts") or 0))[:over]:
+            if k not in _refreshing and _cache.pop(k, None) is not None:
+                n += 1
+    return n
 
 
 def registry_inventory(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
@@ -1812,7 +1913,7 @@ def resolve_vault(raw_vault):
         for thu in dict.fromkeys(ung):
             try:
                 p = Path(thu).expanduser().resolve()
-                if p.is_dir():
+                if p.is_dir() and not vault_header_refused(p):
                     return str(p), "header", ""
             except Exception:
                 pass

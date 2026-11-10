@@ -98,7 +98,8 @@ User docs: [docs/en/10-models-and-engines.md](docs/en/10-models-and-engines.md).
 ## The MCP Hub and permissions
 
 `server/mcp_hub.py` is the single tool gateway. CLI engines see it as one MCP server named
-`javis` (`POST /hub/mcp`, authenticated by `STATE_DIR/.hub_token`); API engines call
+`javis` (`POST /hub/mcp`, answered only for a caller on this machine and authenticated by
+`STATE_DIR/.hub_token`); API engines call
 `discover_all()` in process. Either way the same rules apply:
 
 - **Connector vs connection.** `system/mcp-catalog.json` (read by `mcp_catalog.py`) holds
@@ -162,9 +163,15 @@ line each, grouped by area.
 - `share_store.py`, `share_render.py`: public share links (`/s/<token>/`) rendered server side.
 - `updater.py`, `update_state.py`, `deploy_info.py`, `claude_update.py`: self-update with
   rollback, deploy detection, keeping the `claude` binary current.
+- `sdk_update.py`: the same daily tick moves the `claude-agent-sdk` package to newer releases of
+  its series (cooled down, checked in a fresh process, rolled back when the check fails).
+- `secret_guard.py`, `claude_secret_hook.py`, `claude_write_scope_hook.py`: keep engines away from
+  Javis's secret files at every level, and keep Claude Code's own Write/Edit inside the brain on
+  a run below Full access.
 - `purge.py`, `core_off.py`: delete a connection cleanly; make default capabilities removable.
 - `fastyaml.py`, `winproc.py`, `bench_hotpath.py`: C YAML loader, silent Windows subprocesses,
   hot-path benchmarks.
+- `sqlite_tune.py`: the durability level shared by the SQLite stores (WAL + `synchronous=NORMAL`).
 
 **Engines**
 - `claude_sdk_engine.py`: the only Claude engine (official Agent SDK); defines the event contract.

@@ -32,6 +32,23 @@
   }
 
   var OPEN = String.fromCharCode(0xE000), CLOSE = String.fromCharCode(0xE001);   // sentinel placeholder (private-use, khong xuat hien trong text)
+  // Security (2026-11-10): a placeholder also carries a random tag drawn for each render. The source text, and anything
+  // decoded from it later (%EE%80%80 in a link target, a \uE000 escape in a card's JSON), can hold the two sentinel
+  // characters but can never name the tag, so it cannot make the last pass splice a finished fragment into the middle
+  // of an attribute value. Before this, `[a](x%EE%80%801%EE%80%81) [b](https://e.com/onmouseover=...)` put a working
+  // event handler on the first link. Sentinels found in the source are dropped as well: they are never text.
+  var SENTINEL_RE = new RegExp("[" + OPEN + CLOSE + "]", "g");
+  var _phTag = "", _phSeq = 0;
+  function newPlaceholderTag() {
+    var rnd = "";
+    try {
+      var c = (typeof crypto !== "undefined" && crypto.getRandomValues) ? crypto : null;
+      if (c) { var a = new Uint32Array(2); c.getRandomValues(a); rnd = a[0].toString(36) + a[1].toString(36); }
+    } catch (e) { rnd = ""; }
+    if (!rnd) rnd = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    _phSeq = (_phSeq + 1) % 1679616;
+    return rnd + _phSeq.toString(36) + "z";
+  }
 
   // ---------------------------------------------------------------- helpers
   // File này chạy hai chế độ: trong trình duyệt và dưới node (test require nó).
@@ -570,7 +587,7 @@
   function blockParse(text) {
     var lines = text.split("\n"), out = [], i = 0, n = lines.length, para = [];
     function flushPara() { if (para.length) { out.push("<p>" + inline(para.join("\n")) + "</p>"); para = []; } }
-    var BLOCK_ONLY = new RegExp("^\\s*" + OPEN + "\\d+" + CLOSE + "\\s*$");
+    var BLOCK_ONLY = new RegExp("^\\s*" + OPEN + _phTag + "\\d+" + CLOSE + "\\s*$");
     while (i < n) {
       var line = lines[i];
       if (/^\s*$/.test(line)) { flushPara(); i++; continue; }
@@ -629,7 +646,9 @@
 
   function _mdToHtmlThan(raw) {
     var ph = [];
-    function put(html) { ph.push(html); return OPEN + (ph.length - 1) + CLOSE; }
+    var tag = _phTag = newPlaceholderTag();
+    function put(html) { ph.push(html); return OPEN + tag + (ph.length - 1) + CLOSE; }
+    raw = String(raw == null ? "" : raw).replace(SENTINEL_RE, "");
     // 0.201.0: JAVIS_CARD blocks (charts, number tiles, buttons) are drawn in place before hidden comments go (chat-card.js).
     if (typeof window !== "undefined" && window.JavisCard) raw = window.JavisCard.replaceIn(raw, put);
     raw = visibleMarkdown(raw);
@@ -738,8 +757,8 @@
     var html = blockParse(raw);
 
     // 7) tra lai placeholder (lap vai lan vi co the long: link trong bang, ...)
-    var reIns = new RegExp(OPEN + "(\\d+)" + CLOSE, "g");
-    var reHas = new RegExp(OPEN + "\\d+" + CLOSE);
+    var reIns = new RegExp(OPEN + tag + "(\\d+)" + CLOSE, "g");
+    var reHas = new RegExp(OPEN + tag + "\\d+" + CLOSE);
     for (var pass = 0; pass < 6 && reHas.test(html); pass++) {
       html = html.replace(reIns, function (_m, idx) { return ph[+idx] != null ? ph[+idx] : ""; });
     }

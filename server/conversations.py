@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import STATE_DIR
+import sqlite_tune
 
 DB_PATH = STATE_DIR / "customer_conversations.sqlite3"
 
@@ -177,6 +178,7 @@ def _conn() -> sqlite3.Connection:
         db = sqlite3.connect(str(path), timeout=10, check_same_thread=False)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA journal_mode=WAL")
+        sqlite_tune.normal_if_wal(db)   # 2026-11-10: no fsync per commit, see sqlite_tune.py
         db.execute("PRAGMA busy_timeout=5000")
         db.executescript(_SCHEMA)
         _nang_cap(db)

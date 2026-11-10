@@ -175,11 +175,11 @@ _DEFAULT = {
             # Alias đứng trước vì alias luôn trỏ bản mới nhất của dòng; id đầy đủ đứng sau để
             # `_claude_api_model` dịch được alias sang tên thật.
             "claude": ["fable", "opus", "sonnet", "haiku",
-                       "claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1",
-                       "claude-opus-5", "claude-sonnet-5",
+                       "claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5",
+                       "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
                        "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
-            "anthropic-api": ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1",
-                              "claude-opus-5", "claude-sonnet-5",
+            "anthropic-api": ["claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5",
+                              "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
                               "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
             "openai": ["gpt-4o", "gpt-4o-mini", "o3-mini"],                        # OpenAI API
             "gemini": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],  # Google Gemini API (picker load động)

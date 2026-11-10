@@ -221,6 +221,58 @@ check("copy giữa stream bỏ metadata đã đóng",
 check("copy giữa stream bỏ metadata chưa đóng",
   visibleMarkdown("Nội dung\n<!-- JAVIS_METRICS: {") === "Nội dung\n");
 
+// ---- Security: source text cannot forge a placeholder (2026-11-10) ----
+// The last pass swaps placeholders for finished HTML. A link target that decoded to the two sentinel characters used
+// to be swapped INSIDE an attribute value, so the second link's quotes closed it and `onmouseover=` became real.
+(function () {
+  const O = String.fromCharCode(0xE000), C = String.fromCharCode(0xE001);
+  // Attribute names the way a browser tokenizes start tags (no DOM under node). Returns every `on*` attribute except
+  // the renderer's own image fallback, the one handler it writes itself.
+  function handlers(html) {
+    const found = [];
+    let i = 0;
+    const ws = (c) => c === " " || c === "\n" || c === "\t" || c === "\r" || c === "\f";
+    while ((i = html.indexOf("<", i)) !== -1) {
+      i++;
+      if (!/[a-zA-Z]/.test(html[i] || "")) continue;
+      while (i < html.length && !ws(html[i]) && html[i] !== ">" && html[i] !== "/") i++;
+      for (;;) {
+        while (i < html.length && (ws(html[i]) || html[i] === "/")) i++;
+        if (i >= html.length || html[i] === ">") break;
+        let name = "";
+        while (i < html.length && !ws(html[i]) && html[i] !== "/" && html[i] !== ">" && html[i] !== "=") name += html[i++];
+        while (i < html.length && ws(html[i])) i++;
+        let value = "";
+        if (html[i] === "=") {
+          i++;
+          while (i < html.length && ws(html[i])) i++;
+          const q = html[i];
+          if (q === '"' || q === "'") {
+            const end = html.indexOf(q, i + 1);
+            value = html.slice(i + 1, end === -1 ? html.length : end);
+            i = end === -1 ? html.length : end + 1;
+          } else {
+            while (i < html.length && !ws(html[i]) && html[i] !== ">") value += html[i++];
+          }
+        }
+        if (/^on/i.test(name) && !(name === "onerror" && value === "jvImgGone(this)")) found.push(name);
+      }
+    }
+    return found.length > 0;
+  }
+  let x = mdToHtml("[a](notes/x%EE%80%801%EE%80%81.md) [b](https://e.com/onmouseover=alert(1)//)");
+  check("forged placeholder (percent-encoded): no event handler attribute", !handlers(x));
+  check("forged placeholder (percent-encoded): both links still drawn", (x.match(/<a /g) || []).length === 2);
+  x = mdToHtml("[a](notes/x" + O + "1" + C + ".md) [b](https://e.com/onmouseover=alert(1)//)");
+  check("forged placeholder (raw sentinels): no event handler attribute", !handlers(x));
+  x = mdToHtml("![p" + O + "1" + C + "](a.png) [b](https://e.com/onerror=alert(1)//)");
+  check("forged placeholder in image alt: no event handler attribute", !handlers(x));
+  x = mdToHtml("text " + O + "0" + C + " and `code`");
+  check("stray sentinels in the source are dropped", x.indexOf(O) === -1 && x.indexOf(C) === -1);
+  check("real placeholders still resolve", has(mdToHtml("a `b` [c](https://d.com)\n\n| x |\n|---|\n| `y` |"), "<code>b</code>"));
+  check("no placeholder is left in the output", !/[]/.test(mdToHtml("# T\n\n- `a`\n- [b](https://c.com)\n\n```js\n1\n```")));
+})();
+
 if (fails.length) {
   console.log("\nFAIL - " + fails.length + " test: " + fails.join(", "));
   process.exit(1);
