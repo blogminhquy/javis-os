@@ -18,13 +18,16 @@ def register(ctx):
         "javis_tune",
         "Cách việc nền (tự học, nhắc hẹn, loop, Kanban) tự chọn model, làm theo lời NGƯỜI DÙNG trong chat. Dùng khi "
         "họ than tốn token hay hết hạn mức nhanh, bảo tiết kiệm, bảo làm cho kỹ hay cho chắc, hỏi việc nền đang chạy "
-        "model gì và vì sao, hoặc chê hay khen kết quả một việc nền. "
+        "model gì và vì sao, chê hay khen kết quả một việc nền, hoặc dặn Javis nên tự học thế nào. "
         "op=status: ý định chung, model từng việc đang dùng kèm số lần chạy và hỏng, các thay đổi gần đây. "
         "op=intent {level, job?}: ghi ý định. level=save (ưu tiên tiết kiệm), balanced (để Javis tự cân), sure (ưu "
         "tiên chắc ăn). Không truyền job = mọi việc nền; có job = riêng việc đó. "
         "op=feedback {job, good, note?}: người dùng nói kết quả một việc sai (good=false, lần sau việc đó dùng model "
         "mạnh hơn một bậc) hoặc đúng (good=true). "
-        "op=undo {id}: hoàn lại một lần đổi model (id trong op=status). "
+        "op=teach {text}: người dùng dặn một điều về CÁCH TỰ HỌC (vd 'đừng ghi doanh thu từng ngày thành ghi nhớ', "
+        "'chỉ ghi nhớ quyết định đã chốt'); Javis Core giữ bài học này và mọi mẻ tự học đọc nó trước. "
+        "op=set {knob, value}: đặt thẳng một núm Javis Core đang tự chỉnh (tên núm trong op=status). "
+        "op=undo {id}: hoàn lại một thay đổi (id trong op=status, dạng số hoặc k12). "
         "job là tên việc theo lời người dùng; nhiều việc khớp thì hỏi lại. Chỉ gọi khi người dùng nói về việc nền, "
         "không gọi cho câu trả lời trong chat.",
         _run,
@@ -36,7 +39,10 @@ def register(ctx):
                 "job": {"type": "string", "description": "tên việc theo lời người dùng, hoặc mã việc từ op=status"},
                 "good": {"type": "boolean"},
                 "note": {"type": "string", "description": "người dùng chê hay khen điều gì"},
-                "id": {"type": "integer", "description": "mã thay đổi cần hoàn lại"},
+                "text": {"type": "string", "description": "bài học về cách tự học, một câu ngắn"},
+                "knob": {"type": "string", "description": "tên núm, vd learn.min_turns"},
+                "value": {"type": "integer"},
+                "id": {"type": "string", "description": "mã thay đổi cần hoàn lại, vd 7 hoặc k12"},
             },
             "required": ["op"],
         },
@@ -46,4 +52,4 @@ def register(ctx):
 
 
 async def _run(args, ctx) -> str:
-    return await asyncio.to_thread(job_tune.run, args or {})
+    return await asyncio.to_thread(job_tune.run, args or {}, getattr(ctx, "vault_root", "") or "")

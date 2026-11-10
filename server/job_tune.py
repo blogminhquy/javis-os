@@ -8,9 +8,18 @@ from __future__ import annotations
 
 import json
 
+import core_loop
 import job_scorecard
 
-OPS = ("status", "intent", "feedback", "undo")
+OPS = ("status", "intent", "feedback", "teach", "set", "undo")
+# Set by main.py: how to store and list the lessons about learning that Javis Core holds for a brain.
+_TEACH = [None]
+_LESSONS = [None]
+
+
+def wire(*, teach=None, lessons=None) -> None:
+    _TEACH[0], _LESSONS[0] = teach, lessons
+
 _INTENT_WORDS = {"save": "tiết kiệm", "balanced": "cân bằng", "sure": "chắc chắn"}
 
 
@@ -27,7 +36,7 @@ def _one_job(text: str):
     return found[0]["job"], None
 
 
-def run(args: dict) -> str:
+def run(args: dict, vault_root: str = "") -> str:
     args = args or {}
     op = str(args.get("op") or "").strip().lower()
     if op not in OPS:
@@ -37,8 +46,43 @@ def run(args: dict) -> str:
         st["intent_label"] = _INTENT_WORDS.get(st["intent"], st["intent"])
         st["ok"] = True
         st["note"] = ("Mỗi việc nền tự tìm model nhẹ nhất làm được việc: hỏng do model thì lần sau leo một bậc, chạy tốt "
-                      "nhiều lần thì thử xuống một bậc. `fails` chỉ đếm lần hỏng do model.")
+                      "nhiều lần thì thử xuống một bậc. `fails` chỉ đếm lần hỏng do model. `knobs` là các núm Javis "
+                      "Core tự chỉnh; mã thay đổi dạng k12 hay số đều hoàn lại được bằng op=undo.")
+        st.update(core_loop.status())
+        if _LESSONS[0] and vault_root:
+            try:
+                st["learning_lessons"] = _LESSONS[0](vault_root)
+            except Exception:   # noqa: BLE001
+                st["learning_lessons"] = []
         return json.dumps(st, ensure_ascii=False)
+    if op == "teach":
+        text = " ".join(str(args.get("text") or "").split())
+        if not text:
+            return json.dumps({"ok": False, "error": "teach cần text: một câu ngắn về cách tự học"}, ensure_ascii=False)
+        if not _TEACH[0] or not vault_root:
+            return json.dumps({"ok": False, "error": "kho bài học chưa sẵn sàng, thử lại sau vài giây"}, ensure_ascii=False)
+        try:
+            lid = _TEACH[0](vault_root, text[:300])
+        except Exception as e:   # noqa: BLE001
+            return json.dumps({"ok": False, "error": f"không lưu được bài học: {type(e).__name__}"}, ensure_ascii=False)
+        return json.dumps({"ok": True, "lesson": f"L{lid}", "text": text[:300],
+                           "effect": "mẻ tự học kế tiếp của brain này đọc bài học này trước khi quyết định ghi gì",
+                           "revoke": "javis_memory op=lesson_revoke agent=javis-core id=L%s" % lid}, ensure_ascii=False)
+    if op == "set":
+        knob = str(args.get("knob") or "").strip()
+        known = {k.id: k for k in core_loop.knobs()}
+        if knob not in known:
+            return json.dumps({"ok": False, "error": "không có núm này", "knobs": sorted(known)}, ensure_ascii=False)
+        try:
+            value = int(args.get("value"))
+        except (TypeError, ValueError):
+            return json.dumps({"ok": False, "error": "value phải là số nguyên"}, ensure_ascii=False)
+        k = known[knob]
+        if not (k.lo <= value <= k.hi):
+            return json.dumps({"ok": False, "error": f"giá trị phải trong khoảng {k.lo} đến {k.hi}"}, ensure_ascii=False)
+        ch = core_loop.change(knob, value, "owner", str(args.get("note") or "chủ dặn")[:200])
+        return json.dumps({"ok": True, "knob": knob, "label": k.title_vi, "value": value,
+                           "changed": bool(ch), "id": (ch or {}).get("id", "")}, ensure_ascii=False)
     if op == "intent":
         level = str(args.get("level") or "").strip().lower()
         if level not in job_scorecard.INTENTS:
@@ -66,11 +110,11 @@ def run(args: dict) -> str:
         return json.dumps({"ok": True, "job": job, "good": good, "model_next_run": now.get("model") or "",
                            "effect": "đã ghi nhận" if good else "lần chạy tới dùng model mạnh hơn một bậc (nếu còn bậc)"},
                           ensure_ascii=False)
-    try:
-        cid = int(args.get("id"))
-    except (TypeError, ValueError):
-        return json.dumps({"ok": False, "error": "thiếu id của thay đổi (xem op=status, mục changes)"}, ensure_ascii=False)
-    back = job_scorecard.undo(cid)
+    cid = str(args.get("id") if args.get("id") is not None else "").strip()
+    if not cid:
+        return json.dumps({"ok": False, "error": "thiếu id của thay đổi (xem op=status, mục changes và knob_changes)"},
+                          ensure_ascii=False)
+    back = core_loop.undo(cid)
     if not back:
         return json.dumps({"ok": False, "error": "không có thay đổi mang id này, hoặc nó đã được hoàn lại"},
                           ensure_ascii=False)

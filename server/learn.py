@@ -416,6 +416,9 @@ class LearnDeps:
     # side_work_paused() -> a short reason when work Javis starts on its own must wait (the plan's 5-hour
     # allowance is nearly used up), "" otherwise. None = never paused (tests with minimal deps).
     side_work_paused: Optional[Callable] = None
+    # learning_lessons(brain) -> the lessons about HOW to learn that Javis Core holds for this brain (what the
+    # owner said, later what Core concluded), as ready prompt text; "" when there are none. None = not wired.
+    learning_lessons: Optional[Callable] = None
 
 
 ALLOWED_WRITE_PREFIXES = ["memory", "Memory", "Wiki", "skills", ".claude/skills", "Javis",
@@ -451,7 +454,9 @@ class LearnFeature:
             # messages. A day with no event learns nothing at all.
             # max_wait_min is a bound, not a rhythm: a shop whose bot talks to customers all day is never
             # quiet for 15 minutes, and without it the owner's own chats would wait forever.
-            "debounce": {"idle_min": 15, "max_wait_min": 120},
+            # min_turns is a knob of Javis Core's loop (core_loop.py), moved by `min_turns_rule` from how many
+            # recent batches learned nothing; nobody sets it by hand.
+            "debounce": {"idle_min": 15, "max_wait_min": 120, "min_turns": 1},
             # No daily cap (owner, 10/11/2026): "some people use a lot, some a little". fork_count and
             # token_est in _state are still counted, for the figures on the Tự học page only.
             "rate": {"min_interval_s": 90},
@@ -670,7 +675,38 @@ class LearnFeature:
         longest = max(idle, int(deb.get("max_wait_min", 120)) * 60)
         if p.get("first_ts") and now - float(p["first_ts"]) >= longest:
             return True                 # the brain was never quiet: learn what is queued anyway
+        if p.get("count", 0) < max(1, int(deb.get("min_turns", 1))):
+            return False                # too little to be worth a batch yet; it stays queued (see min_turns_rule)
         return since >= idle
+
+    # ── a knob of Javis Core's loop: how many turns worth learning must be queued before a batch ──
+    MIN_TURNS_LO, MIN_TURNS_HI, MIN_TURNS_DEFAULT = 1, 4, 1
+    YIELD_KEEP = 12       # automatic batches remembered (1 = it learned something, 0 = nothing)
+    YIELD_NEED = 6        # batches needed before the rule says anything
+
+    def min_turns(self) -> int:
+        return int(self.read_config().get("debounce", {}).get("min_turns", self.MIN_TURNS_DEFAULT))
+
+    def set_min_turns(self, value: int) -> None:
+        cfg = self.read_config()
+        cfg.setdefault("debounce", {})["min_turns"] = max(self.MIN_TURNS_LO, min(self.MIN_TURNS_HI, int(value)))
+        cfg.setdefault("_state", {})["yield"] = []      # the evidence was about the old value: start over
+        self.write_config(cfg)
+
+    def min_turns_rule(self, current: int):
+        """(new value, why) or None, from the last automatic batches. Three in four came back empty: a batch
+        is being spent on conversations too short to hold anything, so wait for one more turn. Nearly all of them
+        learned something and the bar was raised earlier: lower it again. Nothing is lost either way, the turns
+        stay queued; "ghi nhớ giúp" and the 2-hour bound ignore this knob."""
+        y = [int(bool(v)) for v in (self.read_config().get("_state", {}).get("yield") or [])]
+        if len(y) < self.YIELD_NEED:
+            return None
+        empty = y.count(0)
+        if empty * 4 >= len(y) * 3 and current < self.MIN_TURNS_HI:
+            return (current + 1, f"{empty}/{len(y)} mẻ học gần nhất không rút ra được gì")
+        if empty * 4 <= len(y) and current > self.MIN_TURNS_DEFAULT:
+            return (current - 1, f"{len(y) - empty}/{len(y)} mẻ học gần nhất đều rút ra được điều mới")
+        return None
 
     def touch(self, brain: str) -> None:
         """Something just happened in this brain (the owner wrote again, a bot is answering a customer):
@@ -1954,6 +1990,15 @@ class LearnFeature:
                                                              "The conversation is too short, skipped.")}
 
             prompt = self._build_prompt(caps, brain, digest)
+            if self.deps.learning_lessons:
+                # Lessons about HOW to learn (what the owner told Javis Core, later what Core concluded) go
+                # first: they decide what is worth writing down at all.
+                try:
+                    lessons = str(await asyncio.to_thread(self.deps.learning_lessons, brain) or "").strip()
+                except Exception:   # noqa: BLE001 - a broken lesson store must not stop learning
+                    lessons = ""
+                if lessons:
+                    prompt = lessons + "\n\n" + prompt
             out = await self._spawn_readonly(brain, prompt, cfg)
             if not out or out.startswith("__ERROR__"):
                 if _score:
@@ -2042,6 +2087,11 @@ class LearnFeature:
                 st["fork_count"] = int(st.get("fork_count", 0)) + 1
                 st["last_fork_ts"] = time.time()
 
+            if reason == "auto":
+                # What min_turns_rule reads: did this automatic batch learn anything at all?
+                st = cfg.setdefault("_state", {})
+                learned = any(report.get(k) for k in ("facts", "wiki", "skills", "agents", "workflows", "tasks"))
+                st["yield"] = (list(st.get("yield") or []) + [1 if learned else 0])[-self.YIELD_KEEP:]
             # token của lượt đã cộng ngay trong _spawn_readonly (usage thật của engine)
             cfg["last_run"] = time.time()
             summary = manifest.get("notes", "") or "Đã học."
