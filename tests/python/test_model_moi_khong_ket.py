@@ -109,6 +109,27 @@ finally:
 
 
 # ============================================================
+# 1b. An old Claude Code binary must not hide a model this Javis release ships
+# ============================================================
+# Owner report 2026-11-10: Fable 5.2 was out, Javis did not list it. The binary's catalog was the only list shown.
+_cu_lm = claude_cli.list_models
+try:
+    claude_cli.list_models = lambda: list(_ids)          # an installed CLI that stops at Fable 5.1
+    main._PROV_MODELS_CACHE.clear()
+    _m = asyncio.run(main._fetch_provider_models("anthropic-cli", {"anthropic_api_key": ""}))
+finally:
+    claude_cli.list_models = _cu_lm
+    main._PROV_MODELS_CACHE.clear()
+check("CANARY: Fable 5.2 shows although the installed CLI only knows 5.1", "claude-fable-5-2" in (_m or []), _m)
+check("the CLI's own models stay in the list", {"claude-fable-5-1", "claude-opus-4-1-20250805"} <= set(_m or []))
+check("newest first after the merge", (_m or []).index("claude-fable-5-2") < (_m or []).index("claude-fable-5-1"))
+check("aliases still lead and nothing repeats", (_m or [])[:1] == ["fable"] and len(_m) == len(set(_m)), _m)
+check("merge_models drops strings that are not model ids",
+      claude_cli.merge_models(["opus", "claude-code-20250219"], ["claude-opus-5-5"]) == ["opus", "claude-opus-5-5"])
+check("Fable 5.2 has its own price row", up._khoa_gia("claude-fable-5-2", up.load_prices()) == "claude-fable-5-2")
+
+
+# ============================================================
 # 2. Catalog đã nhớ KHÔNG được đè danh sách mặc định của app
 # ============================================================
 # Dựng lại đúng hiện trường: một máy chạy từ lâu, `settings.json` còn giữ danh sách live của
