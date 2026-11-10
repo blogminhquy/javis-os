@@ -646,6 +646,40 @@ def own_messages_without_id(channel: str, account_id: str, external_chat_id: str
         return []
 
 
+def group_images_between(channel: str, account_id: str, chat_ids, start: float, end: float, n: int = 500) -> list:
+    """Photos other people sent to these GROUP chats with `start <= created_at <= end`, oldest first:
+    `[{external_chat_id, chat_title, external_message_id, sender_id, sender_name, text, created_at, metadata}]`.
+    Only inbound customer photos that carry a message id (the catch-up of bill photos after the machine was off,
+    `zalo_group_catchup`). Never raises."""
+    ids = [str(c) for c in (chat_ids or []) if str(c or "")]
+    if not ids:
+        return []
+    try:
+        with _lock:
+            marks = ",".join("?" * len(ids))
+            rows = _conn().execute(
+                "SELECT c.external_chat_id, c.title, m.external_message_id, m.sender_id, m.sender_name, m.text,"
+                " m.created_at, m.metadata_json FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.chat_type='group' AND c.external_chat_id IN (" + marks + ")"
+                " AND m.sender_type='customer' AND m.message_type='image' AND m.external_message_id != ''"
+                " AND m.created_at>=? AND m.created_at<=? ORDER BY m.created_at, m.id LIMIT ?",
+                [_tai_khoan_id(channel, account_id)] + ids + [float(start), float(end), int(n)]).fetchall()
+        out = []
+        for r in rows:
+            try:
+                md = json.loads(r["metadata_json"] or "{}")
+            except ValueError:
+                md = {}
+            out.append({"external_chat_id": r["external_chat_id"], "chat_title": r["title"],
+                        "external_message_id": r["external_message_id"], "sender_id": r["sender_id"],
+                        "sender_name": r["sender_name"], "text": r["text"], "created_at": float(r["created_at"]),
+                        "metadata": md if isinstance(md, dict) else {}})
+        return out
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] group images read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return []
+
+
 def known_message_ids(channel: str, account_id: str, external_chat_id: str, ids) -> Optional[set]:
     """The ids among `ids` already stored in this chat. None when the chat has no conversation yet. Never raises
     (a read error answers "all known", so nothing is written twice on a bad read)."""

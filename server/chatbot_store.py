@@ -502,6 +502,32 @@ def clean_bat(v: Any) -> bool:
     return v is True or str(v if v is not None else "").strip().lower() in ("1", "true", "yes", "on")
 
 
+CATCHUP_MAX_HOURS = 48
+CATCHUP_MAX_PER_RUN = 100
+
+
+def clean_catchup(v: Any) -> dict:
+    """`catchup_group_images` (10/11/2026): after the machine was off, read back the BILL PHOTOS sent to the listed groups
+    meanwhile. Off by default; an empty `group_ids` means no group (never "all groups"). Junk is cleaned, not rejected."""
+    v = v if isinstance(v, dict) else {}
+    ids: list = []
+    raw = v.get("group_ids")
+    for g in (raw if isinstance(raw, (list, tuple)) else []):
+        g = str(g if g is not None else "").strip()
+        if g.isdigit() and g not in ids:
+            ids.append(g)
+
+    def _so(x: Any, mac_dinh: int, toi_da: int) -> int:
+        try:
+            n = int(float(x))
+        except (TypeError, ValueError):
+            return mac_dinh
+        return max(1, min(n, toi_da))
+    return {"on": clean_bat(v.get("on")), "group_ids": ids,
+            "max_hours": _so(v.get("max_hours"), 24, CATCHUP_MAX_HOURS),
+            "max_per_run": _so(v.get("max_per_run"), 30, CATCHUP_MAX_PER_RUN)}
+
+
 def group_typing_on(cfg: dict) -> bool:
     """Personal Zalo: show "đang soạn tin" in groups once the bot has decided to answer (09/11/2026). On when the
     owner never set it, so existing bots get it without a visit to the form."""
@@ -635,6 +661,7 @@ def _public(b: dict) -> dict:
     # None, và None rơi vào nhánh mặc định của người gọi chứ không phải nhánh mình chọn - ở đây
     # nhánh đó quyết định bot CÓ TOOL hay không, nên đoán sai một lần là cấp nhầm quyền.
     out.setdefault("muc_quyen", MUC_QUYEN_DEFAULT)
+    out["catchup_group_images"] = clean_catchup(out.get("catchup_group_images"))     # missing = off
     # Cùng lý do: bot tạo trước 0.26.5 luôn là bot Telegram, và trường này lúc đó ghim cứng.
     out["channel"] = _clean_kenh(out.get("channel"))
     # Cùng lý do: bot tạo trước bản đa ngôn ngữ không có khoá này.
@@ -1029,7 +1056,7 @@ _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "han
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
               "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels", "blocked",
-              "group_typing", "accept_group_images", "ignore_reactions")
+              "group_typing", "accept_group_images", "ignore_reactions", "catchup_group_images")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -1134,6 +1161,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["ngoai_le"] = ngoai_le_moi     # checked at the top, risk gate included
                 elif k in ("nhan_ket_ban", "accept_group_images", "ignore_reactions"):
                     b[k] = clean_bat(v)
+                elif k == "catchup_group_images":
+                    b["catchup_group_images"] = clean_catchup(v)
                 elif k == "group_typing":
                     b["group_typing"] = group_typing_on({"group_typing": v})
                 elif k == "skip_labels":

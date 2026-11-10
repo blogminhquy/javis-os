@@ -821,7 +821,11 @@ class Transport:
         # bot's yield time (`zc.tay_im_cua`, default `CHO_CHU_TRA_LOI`) has passed since the owner's LAST hand-typed
         # message; in groups this happens only when the bot's yield time was saved explicitly (`zc.yield_explicit`).
         sau_chu_im = bool((ev.get("metadata") or {}).get("sau_chu_im"))
-        if time.time() - float(ev.get("created_at") or 0) > zc.TUOI_TOI_DA and not sau_chu_im:
+        # Đọc bù (zalo_group_catchup, G8): the age gate opens ONLY for a message the catch-up registered in RAM, never for a
+        # flag that arrived inside the event, so old chat can not reach the bot by carrying `doc_bu` in its metadata.
+        import zalo_group_catchup as zgc
+        doc_bu = zgc.is_registered(self.conn_id, str(ev.get("external_message_id") or ""))
+        if time.time() - float(ev.get("created_at") or 0) > zc.TUOI_TOI_DA and not sau_chu_im and not doc_bu:
             return
         # With a 0-minute yield the bot does not go quiet, but a private message the owner has already answered by
         # hand is not answered again under the owner's name (held turns are filtered the same way in `xa_cho_chu`).
@@ -984,9 +988,20 @@ class Transport:
                     go.start()
                 elif self.group_typing():
                     meta["_on_compose"] = lambda: go.start(0)
+                if doc_bu:
+                    from datetime import datetime
+                    meta["doc_bu"] = True
+                    meta["doc_bu_sent_at"] = float(ev.get("created_at") or 0)
+                    dau = ("[Đọc bù sau khi máy bật lại: tin gửi lúc "
+                           + datetime.fromtimestamp(float(ev.get("created_at") or 0), localefmt.tz()).strftime("%H:%M %d/%m") + "]")
+                    meta["ghi_chu_dau"] = (str(meta.get("ghi_chu_dau") or "") + chr(10) + dau).strip()
+                if nhom and co_anh:
+                    zgc.mark_delivered(self.conn_id, meta["message_id"], persist=True)
                 try:
                     try:
                         out = await self.answer_fn(text, meta, None)
+                        if doc_bu:
+                            zgc.note(self.conn_id, meta["message_id"], answered=True)
                     except BaseException:
                         for f in da_tai:
                             f.unlink(missing_ok=True)
@@ -1001,7 +1016,7 @@ class Transport:
                                 f.unlink(missing_ok=True)
                             zc.bo_do_gui(self.conn_id, thread, list(cu.get("texts") or []) + [chu_khach], int(cu.get("n") or 0) + 1)
                             return
-                        if out.get("reaction") and zc._BOTS.get(self.conn_id) is self:
+                        if out.get("reaction") and not doc_bu and zc._BOTS.get(self.conn_id) is self:
                             await self._react(thread, loai, meta, str(out["reaction"]))
                         if out.get("im_lang"):
                             return
@@ -1011,6 +1026,11 @@ class Transport:
                         anh = [x for x in anh if x]
                     else:
                         cau = str(out or "").strip()
+                    if doc_bu:
+                        # G7: a catch-up turn only runs the bill tool; whatever it wanted to say is NOT sent, only reported.
+                        if (cau and cau != "[IM_LANG]") or anh:
+                            zgc.note(self.conn_id, meta["message_id"], blocked_text=cau[:300] or "(ảnh)")
+                        return
                     if (cau or anh) and zc._BOTS.get(self.conn_id) is self:
                         if cau:
                             await self._gui(thread, cau, loai, meta)

@@ -1004,6 +1004,12 @@ async def doc_mot_lan(conn: dict) -> dict:
     tt["drained"] = drained
     tt.setdefault("first_read", bat_dau)
     tt["lan_cuoi"] = time.time()
+    try:        # đọc bù ảnh bill nhóm (zalo_group_catchup): nhịp sống + hẹn quét sau lần đọc ĐẦU của mỗi lần chạy
+        import zalo_group_catchup as zgc
+        zgc.heartbeat(conn["id"], tt["lan_cuoi"])
+        zgc.on_first_read(conn["id"], float(tt["first_read"]))
+    except Exception as e:      # noqa: BLE001 - tính năng phụ không được làm hỏng vòng đọc
+        print(f"[zalo-personal] đọc bù: {type(e).__name__}: {e}", file=sys.stderr)
     tt["loi"] = ""
     tt["so_tin"] = int(tt.get("so_tin") or 0) + moi
     # Chỉ xả sau một lượt đọc THÀNH CÔNG: lượt này vừa xác nhận khách không nhắn thêm gì tới `bat_dau`.
@@ -1212,6 +1218,11 @@ def stop() -> None:
     try:
         import zalo_friend_intake
         zalo_friend_intake.cancel_all()
+    except Exception:       # noqa: BLE001
+        pass
+    try:
+        import zalo_group_catchup
+        zalo_group_catchup.cancel()
     except Exception:       # noqa: BLE001
         pass
 
