@@ -25,6 +25,8 @@ import sys
 import urllib.parse
 from pathlib import Path
 
+import winproc
+
 # Types a click OPENS with the default app. Kept to documents and media on purpose: adding a type
 # here means a link in chat can launch whatever app owns it.
 OPEN_EXTS = frozenset({
@@ -112,5 +114,6 @@ def launch(action: str, target: Path) -> None:
         cmd = ["explorer", "/select," + s]
     else:
         cmd = ["xdg-open", s if action == "open" else str(target.parent)]
+    # Javis on Windows runs with no console: without the flag a child can flash a black console window (winproc.py).
     subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     close_fds=True)
+                     close_fds=True, creationflags=winproc.no_window())
