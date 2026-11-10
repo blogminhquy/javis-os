@@ -1110,6 +1110,9 @@ async function _checkLoginAfterRefusal() {
   const err = document.getElementById("authErr");
   if (err && authOverlay && authOverlay.classList.contains("open")) err.textContent = window.t("app.ws_login_lost");
 }
+// The same check when an HTTP call gets 401 while the socket is still open (fetch-gop.js raises the event): the
+// session expired mid-use, so chat still answered but images and lists failed silently (2026-11-10).
+window.addEventListener("javis:unauthorized", () => { _checkLoginAfterRefusal(); });
 function _baoDutVeMayChu() {
   if (!_wsDut.length) return;
   const body = { ua: navigator.userAgent, down_s: _wsDutTu ? (Date.now() - _wsDutTu) / 1000 : 0, drops: _wsDut };

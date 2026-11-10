@@ -408,6 +408,7 @@ async def _auth_guard(request: Request, call_next):
     """Chặn endpoint khi CẦN đăng nhập (đã đặt mật khẩu HOẶC chạy public) mà chưa có session.
     Khi chạy public (0.0.0.0) lần đầu chưa có mật khẩu → vẫn chặn để ÉP tạo tài khoản trước
     (setup_required), tránh hở dashboard điều khiển Claude full quyền ra Internet."""
+    renewed = ""
     if cfgmod.gate_active():
         path = duong_dan_router(request)   # KHÔNG phải request.url.path - xem duong_dan_router
         public = (path in _AUTH_PUBLIC_EXACT
@@ -432,9 +433,17 @@ async def _auth_guard(request: Request, call_next):
             try:
                 # "last active" in the device list of Account > Security
                 cfgmod.touch_session(request.cookies.get("javis_session", ""), security_log.client_ip(request))
+                # Sliding expiry: a session in use stays alive (see renew_session in config.py).
+                if cfgmod.renew_session(request.cookies.get("javis_session", "")):
+                    renewed = request.cookies.get("javis_session", "")
             except Exception:  # noqa: BLE001
                 pass
-    return await call_next(request)
+    resp = await call_next(request)
+    # Re-issue the 30-day cookie for a renewed session. Checked after call_next: this request may be /auth/logout,
+    # which ends the session, and the cookie must not come back then.
+    if renewed and cfgmod.valid_session(renewed):
+        _session_cookie(resp, renewed, request)
+    return resp
 
 
 def _bearer(request) -> str:

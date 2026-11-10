@@ -1571,6 +1571,26 @@ def valid_session(token):
     return True
 
 
+# Sliding expiry (2026-11-10). A session used to die exactly 30 days after login however often it was used, and the
+# browser dropped the cookie at the same moment (max_age 30 days). An open tab kept chatting over its WebSocket while
+# every HTTP call, chat images included, got 401 with no visible sign. Now a session in use stays alive: at most once
+# a day _auth_guard moves its timestamp forward and re-issues the cookie. One left unused for 30 days still expires.
+# .sessions.json stays {token: ts}, so older versions read it unchanged; the login time moves to SESSION_META.
+_SESSION_RENEW_AFTER = 86400
+
+
+def renew_session(token) -> bool:
+    """Extend a live session whose timestamp is over a day old. True = renewed, the caller re-issues the cookie."""
+    ts = SESSIONS.get(token) if token else None
+    if ts is None or _time.time() - ts < _SESSION_RENEW_AFTER or _time.time() - ts > _SESSION_TTL:
+        return False
+    SESSION_META.setdefault(token, {}).setdefault("created", ts)
+    SESSIONS[token] = _time.time()
+    _save_sessions()
+    _save_session_meta()
+    return True
+
+
 def drop_session(token):
     SESSIONS.pop(token, None)
     SESSION_META.pop(token, None)
@@ -1656,7 +1676,7 @@ def list_sessions(current: str = "") -> list:
         if _time.time() - float(created or 0) > _SESSION_TTL:
             continue
         m = SESSION_META.get(tok) or {}
-        out.append({"id": session_id(tok), "created": float(created or 0), "last": float(m.get("last") or created or 0),
+        out.append({"id": session_id(tok), "created": float(m.get("created") or created or 0), "last": float(m.get("last") or created or 0),
                     "ip": m.get("ip", ""), "last_ip": m.get("last_ip") or m.get("ip", ""), "ua": m.get("ua", ""),
                     "current": bool(current) and tok == current})
     out.sort(key=lambda x: (not x["current"], -x["last"]))
