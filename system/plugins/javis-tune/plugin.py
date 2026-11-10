@@ -26,7 +26,8 @@ def register(ctx):
         "mạnh hơn một bậc) hoặc đúng (good=true). "
         "op=teach {text}: người dùng dặn một điều về CÁCH TỰ HỌC (vd 'đừng ghi doanh thu từng ngày thành ghi nhớ', "
         "'chỉ ghi nhớ quyết định đã chốt'); Javis Core giữ bài học này và mọi mẻ tự học đọc nó trước. "
-        "op=set {knob, value}: đặt thẳng một núm Javis Core đang tự chỉnh (tên núm trong op=status). "
+        "op=set {knob, value}: đặt thẳng một núm Javis Core đang tự chỉnh (tên núm trong op=status). Người dùng "
+        "bảo đừng ghim công cụ nữa thì đặt tools.pin_limit về 0; hỏi đang ghim công cụ nào thì xem op=status. "
         "op=undo {id}: hoàn lại một thay đổi (id trong op=status, dạng số hoặc k12). "
         "job là tên việc theo lời người dùng; nhiều việc khớp thì hỏi lại. Chỉ gọi khi người dùng nói về việc nền, "
         "không gọi cho câu trả lời trong chat.",
@@ -40,7 +41,7 @@ def register(ctx):
                 "good": {"type": "boolean"},
                 "note": {"type": "string", "description": "người dùng chê hay khen điều gì"},
                 "text": {"type": "string", "description": "bài học về cách tự học, một câu ngắn"},
-                "knob": {"type": "string", "description": "tên núm, vd learn.min_turns"},
+                "knob": {"type": "string", "description": "tên núm, vd learn.min_turns, tools.pin_limit"},
                 "value": {"type": "integer"},
                 "id": {"type": "string", "description": "mã thay đổi cần hoàn lại, vd 7 hoặc k12"},
             },

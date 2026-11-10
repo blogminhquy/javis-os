@@ -180,6 +180,17 @@ This list is generated from the figures of the period you are viewing. The thres
 
 Each card carries a specific suggested action, for example the low-cache suggestion recommends `/compact` or splitting the session, and the opus suggestion recommends downgrading the model for light work. The 200,000-token threshold on the cache warning exists so the page does not shout after you have used it for a few minutes.
 
+## Most-used tools are pinned
+
+When a brain has many sources connected, Javis hides most tools and looks one up only when needed, so each question stays light. The price: a tool you use every day costs one extra "search, then call" round each time.
+
+From this version Javis counts which tools each brain calls most and **pins** a few of them (up to 4 by default; Javis Core widens that up to 8 when needed). A pinned tool is called directly, one round fewer each time. Background work such as loops gains the most.
+
+- Nothing to set up. The first pins and every added pin get a notice in the bell.
+- A tool you stop using leaves the list on its own. One brain's list changes at most once a day.
+- Ask Javis "which tools are pinned" to see them. Say "stop pinning tools" to turn it off.
+- Permissions do not change: a pinned tool still follows the permission level of its connection and of the job running.
+
 ## Where these figures come from
 
 Javis calls no provider API for statistics. It **re-reads the raw logs on your own machine** then builds its own index:

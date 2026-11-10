@@ -23,6 +23,7 @@ Vòng làm phần còn lại, giống nhau cho mọi núm:
 | Núm chủ đang tự giữ (`frozen`) thì luật không đụng | Lựa chọn tay luôn thắng |
 | Mỗi lần dời ghi lại ai dời, vì sao, từ đâu sang đâu, và báo một lần | Giải thích được |
 | Hoàn lại bằng mã số; sau khi hoàn lại, luật để yên núm đó 14 ngày | Không làm lại ngay điều chủ vừa bỏ |
+| Giá trị chủ đặt bằng lời (`javis_tune op=set`) thì luật để yên núm đó 30 ngày, qua cả lần khởi động lại | Điều chủ nói phải đứng vững |
 | Một luật lỗi không làm dừng luật khác | Vòng không chết vì một phần |
 
 Ba loại tác nhân, theo chi phí tăng dần:
@@ -83,8 +84,8 @@ không nói gì về người học.
    cách học bằng lời; mỗi đề nghị dẫn bằng chứng. Cần vài ngày dữ liệu thật từ mục 1 đến 4 mới đáng một lượt gọi model.
 2. **Tự hoàn tác theo số đo.** Vòng tự soát của chatbot hoàn tác cả lần soát khi tỉ lệ sai tệ đi. Núm ở đây chưa có số
    đo chung kiểu đó; hiện dựa vào bước nhỏ, nhịp một ngày và việc chủ hoàn lại.
-3. **Thêm núm:** mức suy nghĩ của từng việc nền, công cụ ghim sẵn theo brain (giảm số vòng của lượt chat), ghi nhớ nào
-   luôn nạp, bật lại học skill khi thấy quy trình lặp lại.
+3. **Thêm núm:** mức suy nghĩ của từng việc nền, ghi nhớ nào luôn nạp, bật lại học skill khi thấy quy trình lặp lại.
+   Núm "công cụ ghim sẵn theo brain" ĐÃ LÀM ở bước kế, xem `2026-11-ghim-cong-cu-theo-brain-spec.md`.
 4. **Thêm tín hiệu:** cảm xúc chủ thả vào kết quả việc nền, tin nhắn kế tiếp của chủ sau một kết quả, gợi ý câu tiếp
    theo có được dùng không.
 5. **Chuyển hai vòng sẵn có về chung vòng này:** mức thông báo (`notify_policy`) và ngưỡng lên tiếng của chatbot

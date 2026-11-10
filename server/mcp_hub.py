@@ -39,6 +39,7 @@ import secret_guard
 import skill_router
 import skill_usage
 import team_gate
+import tool_pins
 import turn_context
 from config import STATE_DIR
 
@@ -1382,8 +1383,25 @@ _MO_TA_DAY_DU = 4000
 _MO_TA_GON = 400
 
 
+def _tool_chars(t) -> int:
+    """Characters one tool costs when it is shown directly: its name, description and schema."""
+    try:
+        return (len(str(t.get("fn") or "")) + len(str(t.get("description") or ""))
+                + len(json.dumps(t.get("schema") or {}, ensure_ascii=False)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _counted(call, pins_key, fn, size):
+    """A pinned tool's call, counted: it keeps its place only while it is really called (tool_pins)."""
+    async def _call(args):
+        tool_pins.note_run(pins_key, fn, size, direct=True)
+        return await call(args)
+    return _call
+
+
 def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k, ambient=None,
-                          hidden=None):
+                          hidden=None, pins_key=""):
     """Dựng (tools_spec, route) chế độ lazy: builtins/plugin hiện trực tiếp + 2 meta-tool.
     _search đóng gói `pool` (full tools_spec để xếp hạng); _run đóng gói `full_route` (dispatch
     qua call_route → giữ nguyên _guard quyền/audit/rate-limit).
@@ -1391,9 +1409,12 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
     (chúng KHÔNG nằm trong pool nên _run không gọi được; phải gọi thẳng)."""
     ambient = ambient or []
     menu = _connector_menu(pool, ambient)
+    by_fn = {t.get("fn"): t for t in pool} if pins_key else {}
 
     async def _search(args):
         q = (args or {}).get("query") or ""
+        if pins_key:
+            tool_pins.note_search(pins_key)
         hits = _rank_tools(pool, q, top_k)
         amb = _match_ambient(ambient, q)
         if not hits and not amb:
@@ -1443,6 +1464,9 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
         if name not in full_route:
             return (f"ERROR: không có tool '{name}'. Dùng {_LAZY_SEARCH} để lấy đúng tên "
                     "(phải khớp y hệt kết quả tìm).")
+        if name in by_fn:
+            # One call that needed a search round first: the count that earns a tool its pin (tool_pins).
+            tool_pins.note_run(pins_key, name, _tool_chars(by_fn[name]))
         result = await mcp_client.call_route(full_route, name, targs)
         # Projection follows the same permission/audit/plugin route and executes only once.
         from tool_result_view import project_result
@@ -1479,12 +1503,15 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
     return tools, route
 
 
-def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=False):
+def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=False, pins_key="", pins=()):
     """Nếu bật lazy: giấu tool sau meta-tool search/run; không bật → trả nguyên.
     Pool = MỌI tool trừ nhóm hạt nhân CORE_TOOL_FNS - gồm cả builtin và plugin, không riêng
     tool MCP. Xem chú thích ở CORE_TOOL_FNS về lý do không suy pool ra từ 'conn'.
     include_ambient (đường engine Claude): kèm connector tài khoản Claude vào menu/search để
-    model biết còn nhóm tool native mcp__* ngoài pool của hub."""
+    model biết còn nhóm tool native mcp__* ngoài pool của hub.
+    pins_key, pins (tool_pins): the brain's counter and the tools it calls most. A pinned tool is shown directly,
+    after the core tools, so the model calls it without a search round; it stays in the pool too, so a search
+    still finds it. A pin that this permission level or this pool does not hold is simply not shown."""
     pool = [t for t in tools_spec if t["fn"] not in CORE_TOOL_FNS
             and not (route.get(t["fn"]) or {}).get("hat_nhan")]
     if not force and not _lazy_on(len(pool), _pool_chars(pool)):
@@ -1492,9 +1519,25 @@ def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=Fal
     pool_fns = {t["fn"] for t in pool}
     visible_tools = [t for t in tools_spec if t["fn"] not in pool_fns]
     visible_route = {fn: ent for fn, ent in route.items() if fn not in pool_fns}
+    if pins:
+        by_fn = {t["fn"]: t for t in pool}
+        used = 0
+        for fn in pins:
+            ent = route.get(fn) or {}
+            if fn not in by_fn or not ent.get("call"):
+                continue
+            # The size bounds hold on EVERY request, not only when the list was chosen: a description can grow
+            # afterwards (a tool that lists what the user installed), and the tightest models must still fit.
+            size = _tool_chars(by_fn[fn])
+            if size > tool_pins.MAX_TOOL_CHARS or used + size > tool_pins.BUDGET_CHARS:
+                continue
+            used += size
+            visible_tools.append(by_fn[fn])
+            visible_route[fn] = {**ent, "call": _counted(ent["call"], pins_key, fn, size)}
     _, _, top_k = _lazy_config()
     ambient = _ambient_servers() if include_ambient else []
-    return _lazy_tools_and_route(visible_tools, visible_route, pool, route, top_k, ambient, hidden)
+    return _lazy_tools_and_route(visible_tools, visible_route, pool, route, top_k, ambient, hidden,
+                                 pins_key=pins_key)
 
 
 # ============================================================
@@ -1556,9 +1599,14 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # phiên (cwd, biến môi trường, tiến trình nền). Hai phiên cùng repo cùng chip mà dùng chung
     # cache là phiên này chạy lệnh trong terminal của phiên kia.
     _sid_ctx = getattr(coding_ctx_cua_phien, "session_id", "") if workspace_root else ""
+    # The brain's pinned tools (tool_pins) are part of the list, so they are part of the key: when the pins change
+    # (at most once a day) the next turn builds a new list and the old entry ages out. The session id stays LAST,
+    # `bo_cache_phien` reads it there.
+    pins_key = tool_pins.key(vault_root, bot=for_bot)
+    pins = tool_pins.pinned(pins_key)
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
            bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx, bool(for_bot),
-           str(_sid_ctx or ""))
+           pins, str(_sid_ctx or ""))
     from improvement_task_skill_scope import current, ScopeUnavailable
     task_scope = current(vault_root or '')
     cache = task_scope._hub_cache if task_scope is not None else _cache
@@ -1678,7 +1726,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # LAZY: đông tool MCP thì giấu pool sau meta-tool search/run (giữ full route để dispatch).
     # Đặt SAU builtin+plugin để chúng luôn hiện; cache lưu bản ĐÃ biến đổi (route lazy vẫn dispatch
     # được vì _run đóng gói route đầy đủ). Đổi setting → làm mới theo TTL cache (60s) hoặc invalidate.
-    tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden, force=force_lazy)
+    tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden, force=force_lazy,
+                                    pins_key=pins_key, pins=pins)
     if task_scope is not None:
         if current(vault_root) is not task_scope or _cache_epoch != epoch:
             raise ScopeUnavailable('task_skill_discovery_changed')
@@ -1747,6 +1796,7 @@ def registry_inventory(mode="full", vault_root=None, include_plugins=True, inclu
         key = ((mode or 'full').strip().lower(), str(vault_root or ''), bool(include_plugins),
             bool(include_ambient), bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root),
             getattr(coding_ctx_cua_phien, 'permission_mode', '') or '', False,
+            tool_pins.pinned(tool_pins.key(vault_root)),
             str((getattr(coding_ctx_cua_phien, 'session_id', '') if workspace_root else '') or ''))
         ent = task_scope._hub_cache.get(key) or {}
         if ent.get('epoch') != _cache_epoch:
