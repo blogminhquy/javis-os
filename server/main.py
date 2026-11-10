@@ -5237,7 +5237,7 @@ def _apply_step_reasoning(eng, reasoning, codex=False) -> None:
         return
     try:
         if codex:
-            muc = codex_models.muc_cho(getattr(eng, "model", "") or "", reasoning)
+            muc = _codex_effort(getattr(eng, "model", "") or "", reasoning)
             if muc:
                 eng.extra_config[:] = [x for x in eng.extra_config if not str(x).startswith("model_reasoning_effort=")]
                 eng.extra_config.append(f"model_reasoning_effort={muc}")
@@ -5414,18 +5414,40 @@ def _codex_fast(cli):
         pass
 
 
+# The three levels every Codex model with reasoning accepts. The `model/list` ladder lives in RAM only, so after each
+# restart, until someone opens the Models page, a background bot fell back to the config.toml default (measured
+# 10/11/2026: a bot set to medium ran at high). With no ladder known yet, these three are still passed as they are;
+# the rarer levels (minimal, xhigh, ultra) keep waiting for the real ladder. Reported and first fixed in #1291.
+_CODEX_COMMON_EFFORTS = ("low", "medium", "high")
+
+
+def _codex_effort(model, reasoning) -> str:
+    """Javis level -> the Codex effort to pass for this model, "" = pass nothing. From the model's own ladder when it
+    is known; one of the three common levels when no ladder has been read yet."""
+    model, reasoning = str(model or ""), str(reasoning or "")
+    try:
+        level = codex_models.muc_cho(model, reasoning)
+    except Exception:  # noqa: BLE001 - a failed lookup must not break the turn
+        return ""
+    if level or reasoning not in _CODEX_COMMON_EFFORTS:
+        return level
+    try:
+        ladder_unknown = not codex_models.efforts_for(model)
+    except Exception:  # noqa: BLE001
+        ladder_unknown = False
+    return reasoning if ladder_unknown else ""
+
+
 def _codex_do_sau(cli, reasoning, message):
     """Độ sâu suy nghĩ cho Codex CLI: `-c model_reasoning_effort=<mức>`.
 
     Mức KHÔNG do Javis chọn theo một bảng chép tay mà lấy từ thang chính Codex khai cho đúng
     model đang chạy (`model/list` -> `supported_reasoning_efforts`), nên không bao giờ gửi một
-    giá trị model không hiểu. Chưa hỏi được danh sách model lần nào thì `muc_cho` trả rỗng và
-    lượt chạy bằng mặc định của Codex, y như trước - kèm câu nhắc trong prompt cho đỡ phí.
+    giá trị model không hiểu. Chưa hỏi được danh sách model lần nào thì ba nấc phổ thông vẫn
+    được truyền (`_codex_effort`); nấc khác thì lượt chạy bằng mặc định của Codex, kèm câu nhắc
+    trong prompt cho đỡ phí.
     """
-    try:
-        muc = codex_models.muc_cho(getattr(cli, "model", "") or "", reasoning or "")
-    except Exception:  # noqa: BLE001 - tra cứu hỏng không được phá lượt chat
-        muc = ""
+    muc = _codex_effort(getattr(cli, "model", "") or "", reasoning)
     if not muc:
         return _nhac_suy_nghi(reasoning, message)
     override = f"model_reasoning_effort={muc}"
