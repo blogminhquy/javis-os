@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.530.3] - 2026-11-11
+### Fixed
+- Lazy Hub tools accept JSON-encoded arguments so compatible gateways can preserve dynamic fields. Invalid arguments are rejected before dispatch, with existing permission checks preserved.
+
 ## [0.530.2] - 2026-11-11
 ### Fixed
 - **Chat images no longer turn blank after 30 days.** A sign-in used to expire exactly 30 days after login however often it was used; chat kept working while images and lists silently failed. A session in use now renews itself.
