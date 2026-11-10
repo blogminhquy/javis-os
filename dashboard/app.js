@@ -3233,12 +3233,45 @@ function scrollBottom(force) { chatScroll.toBottom(force); }
 // phần dựng chuỗi đã 1,6 giây CPU, cộng trình duyệt vẽ lại thì máy yếu đứng hình (khách báo 03/11/2026 "đơ cả máy").
 // Giờ vẽ ngay mẩu đầu, sau đó gom: tối đa một lần mỗi 60-300 ms tuỳ độ dài bài. Chữ vẫn chảy đều, máy nhẹ hơn hàng trăm lần.
 const _VE_STREAM_MS = (n) => (n < 2000 ? 60 : n < 8000 ? 150 : 300);
+// 2026-11-10: and only the part still being written. Blocks that are finished (JavisStreamCut in chat-render.js) are
+// rendered ONCE and stay in the bubble; each flush replaces just the nodes after a marker comment. Before, every flush
+// parsed the whole answer and rebuilt the whole bubble, so the browser laid out 20,000 characters again each time
+// (throttled phone: 43 long tasks for one long answer, none with this). The final `response` render still replaces
+// the bubble with one full render, so what stays on screen is exactly what it was before.
+function _streamFragment(html) {
+  const r = document.createRange();
+  r.selectNodeContents(document.body);
+  return r.createContextualFragment(html);
+}
 function _veStreamNgay(t) {
   t._veLuc = Date.now();
   if (!t.bubble) return;
   const b = t.bubble.querySelector(".bubble");
   if (!b) return;
-  b.innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV);
+  const text = t.text || "", anhV = t.bubble.dataset.anhV;
+  const cutOf = typeof window !== "undefined" ? window.JavisStreamCut : null;
+  if (typeof cutOf !== "function") {     // chat-render.js not loaded: the old whole-bubble render
+    b.innerHTML = markdownToHtml(text, undefined, anhV);
+    if (t.bubble.isConnected) scrollBottom();
+    return;
+  }
+  let st = b._jvStream;
+  // Start over when the bubble was redrawn by someone else (the marker is gone) or the text is not the settled text
+  // plus more (a new turn reusing the bubble, a rewrite).
+  if (!st || st.mark.parentNode !== b || text.length < st.len || text.slice(0, st.len) !== st.src) {
+    b.textContent = "";
+    st = b._jvStream = { len: 0, src: "", mark: document.createComment("jv-stream-tail") };
+    b.appendChild(st.mark);
+  }
+  const cut = cutOf(text, st.len);
+  if (cut > st.len) {
+    b.insertBefore(_streamFragment(markdownToHtml(text.slice(st.len, cut), undefined, anhV)), st.mark);
+    st.len = cut;
+    st.src = text.slice(0, cut);
+  }
+  while (st.mark.nextSibling) b.removeChild(st.mark.nextSibling);
+  const tail = text.slice(st.len);
+  if (tail.trim()) b.appendChild(_streamFragment(markdownToHtml(tail, undefined, anhV)));
   if (t.bubble.isConnected) scrollBottom();
 }
 function henVeStream(t) {
@@ -3473,7 +3506,9 @@ function _ensure2DLib() {               // force-graph + d3-force, self-hosted v
   if (_lib2dPromise) return _lib2dPromise;
   _lib2dPromise = new Promise((resolve) => {
     const s = document.createElement("script");
-    s.src = "/static/vendor/force-graph-1.51.4.min.js";   // self-host: unpkg đo được ~0.7s trên đường boot
+    // self-host: unpkg đo được ~0.7s trên đường boot. `?v=` (2026-11-10): the release is in the file name, so the
+    // browser may keep it for good; without the key every start asked the server again before drawing the graph.
+    s.src = "/static/vendor/force-graph-1.51.4.min.js?v=1.51.4";
     s.onload = resolve; s.onerror = resolve;
     document.head.appendChild(s);
   });
@@ -3945,7 +3980,12 @@ window.addEventListener("resize", () => { if (javisGraph) javisGraph.resize(); }
 
 let _stopBtnTick = 0;
 function pumpAudioLevel() {
-  if (javisGraph) javisGraph.setLevel(voice.getLevel());
+  // Only while there is a level to show or the last one is still fading out: with silence on both sides the graph
+  // has nothing to redraw, and this runs on every frame.
+  if (javisGraph) {
+    const _lvl = voice.getLevel();
+    if (_lvl > 0 || (javisGraph.level || 0) > 0.001) javisGraph.setLevel(_lvl);
+  }
   // Cập nhật hiển thị nút stop ~6 lần/giây (theo dõi cả lúc Javis đang đọc)
   if (_theoLoi && (_stopBtnTick % 3) === 0) nhipTheoLoi();   // V3: chữ theo lời ~20 lần/giây
   if ((_stopBtnTick++ % 10) === 0) {
@@ -4000,6 +4040,9 @@ function initStarfield() {
   let stars = [];
   let sky = SKY_DARK;
   let cssW = 0, cssH = 0, dpr = 1, lastDraw = 0;
+  const STAR_IDLE_MS = 250;
+  let watchingSize = false;  // a ResizeObserver tells us when the panel changes size
+  let sizeDirty = true;      // the panel's size may have changed: measure once at the next draw
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
   function paintStars() {
@@ -4034,6 +4077,9 @@ function initStarfield() {
   }
   resize();
   window.addEventListener("resize", resize);
+  if (typeof ResizeObserver === "function") {
+    try { new ResizeObserver(() => { sizeDirty = true; }).observe(cv.parentElement); watchingSize = true; } catch (e) { /* measured each draw */ }
+  }
   // Nghe thẳng sự kiện thay vì javisTheme.on(): hàm này có thể chạy trước khi theme.js
   // kịp dựng window.javisTheme, khi đó đăng ký sẽ hụt im lặng và nền kẹt ở bảng tối.
   function syncSky(light) { sky = light ? SKY_LIGHT : SKY_DARK; paintStars(); }
@@ -4049,14 +4095,26 @@ function initStarfield() {
     // Nền 2D từng tự dựng gradient + grid ở 60 FPS dù não đứng yên. 15 FPS lúc nghỉ vẫn
     // đủ cho sao nhấp nháy chậm; khi có giọng/đang nghĩ nâng lên 30 FPS.
     const lvl = voice.getLevel();
-    const interval = (lvl > 0.01 || _thinkingActive) ? 33 : 66;
+    const active = lvl > 0.01 || _thinkingActive;
+    // 2026-11-10: at rest the only thing that moves is the twinkle, and one twinkle takes 9 to 69 seconds. Drawing it 15
+    // times a second cost about half of the home screen's idle main-thread time on a throttled phone (measured: 228 ms
+    // busy per second, 77 with this canvas off). Four frames a second look the same; the twinkle below advances by
+    // elapsed time, so its tempo does not change with the frame rate. Voice or thinking still gets 30 frames.
+    const interval = active ? 33 : STAR_IDLE_MS;
     if (now && now - lastDraw < interval) return;
+    const dt = (now && lastDraw) ? Math.min(now - lastDraw, 1000) : (active ? 33 : 66);
     lastDraw = now || 0;
-    // Tự đo lại kích thước (sửa lỗi nền dồn 1 góc khi layout chưa xong lúc boot)
-    const rect = cv.parentElement.getBoundingClientRect();
-    const pw = Math.round(rect.width), ph = Math.round(rect.height);
-    if (pw > 0 && (cssW !== pw || cssH !== ph)) resize();
+    // Tự đo lại kích thước (sửa lỗi nền dồn 1 góc khi layout chưa xong lúc boot). The size comes from a
+    // ResizeObserver where there is one; measuring here forced a layout on every draw.
+    if (sizeDirty) {
+      sizeDirty = !watchingSize;
+      const rect = cv.parentElement.getBoundingClientRect();
+      const pw = Math.round(rect.width), ph = Math.round(rect.height);
+      if (pw > 0 && (cssW !== pw || cssH !== ph)) resize();
+    }
     if (!cssW) return;
+    // The twinkle used to advance one step per draw: one step per 66 ms at rest, per 33 ms with voice or thinking.
+    const twStep = dt / (active ? 33 : 66);
     ctx.clearRect(0, 0, cssW, cssH);
 
     // Quầng ở TRUNG TÂM - phồng nhẹ theo giọng
@@ -4109,7 +4167,7 @@ function initStarfield() {
     // Sao mờ rải đều (tông sáng: hạt bụi giấy)
     ctx.globalCompositeOperation = sky.starOp;
     stars.forEach(s => {
-      s.tw += s.sp;
+      s.tw += s.sp * twStep;
       const tw = (Math.sin(s.tw) * 0.35 + 0.45) * (1 + lvl * 0.6);
       ctx.globalAlpha = Math.min(sky.starMax, tw);
       ctx.fillStyle = s.c;
