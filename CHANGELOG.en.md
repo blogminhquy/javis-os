@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.530.1] - 2026-11-10
+### Fixed
+- **A recreated assistant can confirm its Auto again.** The card said "Auto: Needs confirmation", but the right column had neither "Same assistant" nor "This is a new assistant", so Auto could never be turned back on. Both buttons now show right under the assistant's settings.
+
 ## [0.530.0] - 2026-11-10
 ### Added
 - **Each brain pins the tools it uses most.** When a brain has many sources connected, a tool must be searched for before it is called, one extra round each time. Javis now counts which tools each brain calls most and pins a few of them (up to 4 by default; Javis Core widens that up to 8 when needed): a pinned tool is called directly. Background work such as loops gains the most, because it had to search again on every run. Nothing to set up, and a notice in the bell tells you when tools are pinned.
