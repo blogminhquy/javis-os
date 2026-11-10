@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.530.7] - 2026-11-11
+### Fixed
+- **A group bot no longer teaches itself to answer reactions.** An owner's heart on a customer's message, or two reactions in a row from one person, used to count as the bot having missed the earlier message, which made it talk more in exactly the groups where staying quiet was right.
+- "up" inside an ordinary sentence and "ask again" inside a long instruction are no longer read as a customer asking again.
+- A label the bot inferred from an owner's message no longer weighs as much as something the owner taught it directly.
+
 ## [0.530.6] - 2026-11-11
 ### Fixed
 - **A workflow step now runs at its assistant's reasoning level.** The level set on an assistant only applied to its chat and team turns; a workflow step, including a Kanban job routed to a workflow, always ran at the model's default. A step whose assistant set no level runs as before.
