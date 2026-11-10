@@ -69,6 +69,8 @@ _GIT_BAD = ("--output", "--ext-diff", "--textconv", "-o")
 PROTECTED_PARTS = ("plugins", ".claude", ".git", ".grok", ".codex", ".agents", ".gemini", ".antigravity", "Javis",
                    ".javis")
 PROTECTED_FILES = (".mcp.json", ".mcp_hub.json", "CLAUDE.md", "AGENTS.md", "GEMINI.md")
+_PROTECTED_PARTS_CF = frozenset(x.casefold() for x in PROTECTED_PARTS)
+_PROTECTED_FILES_CF = frozenset(x.casefold() for x in PROTECTED_FILES)
 _FIND_ACT = frozenset({"-exec", "-execdir", "-delete", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"})
 _SHELL_CHARS = set(">|&;<`$\n")
 # 0.267.0 (a user's team, 21/10/2026): a step that only read three files was stopped for approval, because the command
@@ -260,10 +262,13 @@ def bash_readonly(command: str) -> bool:
 
 def protected_rel(rel: Any) -> bool:
     """A path (relative to a step folder) that runs or configures code: plugins/, .claude/, .git/, Javis/..."""
-    parts = [x for x in Path(str(rel or "")).parts if x not in ("", ".")]
+    # Compared without case and without trailing dots or spaces (2026-11-10): macOS and Windows open `Plugins/`,
+    # `javis/loops` and `claude.md` as the protected folders and file, so an exact match let those spellings through.
+    parts = [x.rstrip(". ").casefold() for x in Path(str(rel or "")).parts if x not in ("", ".")]
+    parts = [x for x in parts if x]
     if not parts:
         return False
-    return parts[0] in PROTECTED_PARTS or parts[-1] in PROTECTED_FILES or ".git" in parts
+    return parts[0] in _PROTECTED_PARTS_CF or parts[-1] in _PROTECTED_FILES_CF or ".git" in parts
 
 
 def _inside(path: str, roots: list) -> bool:

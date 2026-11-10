@@ -183,6 +183,68 @@ for lang in ("vi", "en"):
     need = [k for k in set(__import__("re").findall(r't\("(bpick\.[a-z_]+)"', bp)) if not dd.get(k)]
     check(f"{lang}: đủ chữ cho khung chọn não", not need, need)
 
+# ---- 2026-11-10: a brain file from somebody else arrives with nothing armed, however it is spelled ----
+import fastyaml  # noqa: E402
+
+_LOOPS = {
+    "exact": "---\nname: a\nenabled: true\nmode: full\n---\nx\n",
+    "comment": "---\nname: a\nenabled: true # on\nmode: full\n---\nx\n",
+    "one": "---\nname: a\nenabled: 1\nmode: full\n---\nx\n",
+    "quoted-value": "---\nname: a\nenabled: \"true\"\nmode: full\n---\nx\n",
+    "quoted-key": "---\nname: a\n\"enabled\": true\nmode: full\n---\nx\n",
+    "upper": "---\nname: a\nEnabled: True\nenabled: yes\nmode: full\n---\nx\n",
+    "flow": "---\n{name: a, enabled: true, mode: full}\n---\nx\n",
+    "off-already": "---\nname: a\nenabled: false\nmode: full\n---\nx\n",
+}
+buf = io.BytesIO()
+with zipfile.ZipFile(buf, "w") as zf:
+    zf.writestr("goc/wiki/a.md", "note")
+    for k, v in _LOOPS.items():
+        zf.writestr(f"goc/Javis/loops/{k}.md", v)
+    zf.writestr("goc/plugins/p2/plugin.yaml", "name: p2\nslug: p2\nenabled: true\n")
+    zf.writestr("goc/plugins/p2/plugin.py", "def register(ctx): pass\n")
+    zf.writestr("goc/.claude/settings.json", '{"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "id"}]}]}}')
+    zf.writestr("goc/.claude/settings.local.json", "{}")
+    zf.writestr("goc/.claude/hooks/run.sh", "id")
+    zf.writestr("goc/.claude/skills/s1/SKILL.md", "---\nname: s1\n---\nhow to")
+    zf.writestr("goc/.codex/config.toml", "x = 1")
+    zf.writestr("goc/.agents/hooks.json", "{}")
+    zf.writestr("goc/.agents/skills/s2/SKILL.md", "---\nname: s2\n---\nhow to")
+    zf.writestr("goc/.gemini/settings.json", "{}")
+    zf.writestr("goc/sub/.grok/config.toml", "x = 1")
+r = bx.import_zip(io.BytesIO(buf.getvalue()), Path(os.environ["BRAINS_DIR"]), filename="la.zip",
+                  work_dir=Path(_STATE) / "brain-import")
+dst2 = Path(r["path"])
+still_on = []
+for f in sorted((dst2 / "Javis" / "loops").iterdir()):
+    if f.suffix != ".md":
+        continue
+    m = __import__("self_improve")._FM_RE.match(f.read_text(encoding="utf-8"))
+    fm = fastyaml.safe_load(m.group(1)) if m else None
+    if isinstance(fm, dict) and bool(fm.get("enabled", False)):
+        still_on.append(f.name)
+check("no imported loop is on when read the way the loop loader reads it", not still_on, still_on)
+check("seven of the eight loops were on and are reported as switched off", r["paused"]["loops"] == 7, r["paused"])
+check("a loop that could not be edited safely is set aside, not deleted",
+      (dst2 / "Javis/loops/flow.md.off").is_file() and not (dst2 / "Javis/loops/flow.md").exists())
+check("a loop already off is left as it was",
+      (dst2 / "Javis/loops/off-already.md").read_text(encoding="utf-8") == _LOOPS["off-already"])
+check("the body and the other keys of a loop survive",
+      "mode: full" in (dst2 / "Javis/loops/comment.md").read_text(encoding="utf-8")
+      and (dst2 / "Javis/loops/comment.md").read_text(encoding="utf-8").endswith("---\nx\n"))
+check("the plugin comes in switched off", "enabled: false" in (dst2 / "plugins/p2/plugin.yaml").read_text(encoding="utf-8"))
+check("Claude Code settings and hooks do not come in",
+      not (dst2 / ".claude/settings.json").exists() and not (dst2 / ".claude/settings.local.json").exists()
+      and not (dst2 / ".claude/hooks").exists())
+check("skills kept under .claude do come in", (dst2 / ".claude/skills/s1/SKILL.md").is_file())
+check("other engines' config folders do not come in",
+      not any((dst2 / d).exists() for d in (".codex", ".agents/hooks.json", ".gemini", "sub/.grok")))
+check("skills kept under .agents do come in", (dst2 / ".agents/skills/s2/SKILL.md").is_file())
+check("import_kept_out: spellings of the same folders", bx.import_kept_out(".Codex/config.toml")
+      and bx.import_kept_out(".CLAUDE/Settings.json") and not bx.import_kept_out("wiki/.claude-notes.md")
+      and not bx.import_kept_out(".claude/skills/a/SKILL.md") and not bx.import_kept_out(".agents/skills/a/SKILL.md")
+      and bx.import_kept_out(".agents/skills") and bx.import_kept_out(".claude/hooks/x.sh"))
+
 if _fails:
     print(f"\nFAIL {len(_fails)}: " + ", ".join(_fails))
     sys.exit(1)

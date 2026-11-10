@@ -17,6 +17,7 @@ from pathlib import Path
 
 from capability_registry import brain_scope
 from context_compiler import ContextItem, HeuristicTokenizer
+import sqlite_tune
 
 STATE_SCHEMA_VERSION = "conversation-state-v1"
 STATE_POLICY_VERSION = "deterministic-state-projector-v1"
@@ -115,6 +116,7 @@ class ConversationStateStore:
             db = sqlite3.connect(str(self.path), timeout=10, check_same_thread=False)
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA journal_mode=WAL")
+            sqlite_tune.normal_if_wal(db)   # 2026-11-10: no fsync per commit, see sqlite_tune.py
             db.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS conversation_states(

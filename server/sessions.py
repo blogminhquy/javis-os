@@ -36,6 +36,7 @@ import weakref
 import reaction_values as RV
 import team_migration
 import subscription_context_store
+import sqlite_tune
 
 # DB nằm cùng nơi settings.json/.sessions.json (JAVIS_STATE_DIR, mặc định server/).
 _STATE_DIR = Path(os.getenv("JAVIS_STATE_DIR", str(Path(__file__).parent)))
@@ -511,6 +512,7 @@ class SessionStore:
     def _apply_wal(self) -> None:
         try:
             self._conn.execute("PRAGMA journal_mode=WAL")
+            sqlite_tune.normal_if_wal(self._conn)   # 2026-11-10: no fsync per message, see sqlite_tune.py
         except sqlite3.OperationalError:
             try:
                 self._conn.execute("PRAGMA journal_mode=DELETE")

@@ -960,12 +960,62 @@ _JOB_LEVEL_ARG = {"javis_schedule": "muc_quyen", "javis_task": "mode"}
 _JOB_LEVEL_RANK = {"suggest": 0, "auto": 1, "full": 2}
 
 
+# Tools through which a turn leaves work for LATER (security fix, 2026-11-10).
+_QUEUE_TOOLS = frozenset({"javis_schedule", "javis_task", "javis_job"})
+
+
+def _chatbot_turn() -> bool:
+    """True when the turn being served belongs to a dedicated chatbot, i.e. somebody who is not the owner is steering
+    the model. The host stamps `bot_id` on the turn (main.py), the model never does."""
+    try:
+        import turn_context
+        return bool(str((turn_context.current() or {}).get("bot_id") or "").strip())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _chatbot_queue_refusal(name: str, args: dict, mode: str) -> str:
+    """Refusal text when a chatbot below Full access tries to leave AI-run work for later, "" otherwise.
+
+    Capping the level of that work (`_cap_job_level`) was not enough. The job a customer queued through a "can write"
+    bot ran later as one of the OWNER's background jobs: Claude Code's own Read / Write / Edit (not confined to the
+    bot's brain), and every tool a bot never sees (the login vault, web fetch, memory). One message was a way out of the
+    bot's sandbox. A bot below Full access now leaves exactly one kind of thing for later: a reminder that only SAYS
+    its text at the set time (`notify_only`), with no model and no tool behind it. A bot the owner raised to Full access
+    keeps queueing work as before, and so does every turn of the owner."""
+    if name not in _QUEUE_TOOLS or not _chatbot_turn():
+        return ""
+    m = str(mode or "").strip().lower()
+    if m == "gated":
+        return ""
+    try:
+        import mcp_catalog
+        if mcp_catalog.effective_perm("full", m) == "full":
+            return ""
+    except Exception:  # noqa: BLE001
+        if m in ("", "full"):
+            return ""
+    a = args or {}
+    op = str(a.get("op") or ("create" if name == "javis_schedule" else "")).strip().lower()
+    if op == "list":
+        return ""
+    if name == "javis_schedule" and op == "create" and a.get("notify_only") in (True, "true", "True", 1, "1"):
+        return ""
+    return ("ERROR: chatbot trả lời khách ở mức dưới Toàn quyền không được giao việc cho AI chạy sau (việc nền, loop, "
+            "nhắc hẹn có AI làm hộ) và không được sửa, huỷ hay trả lời việc đã có. Đây là rào bảo mật: việc đó sẽ chạy "
+            "bằng quyền của chủ, ngoài phạm vi của bot. Vẫn làm được: tạo lời nhắc CHỈ NHẮC bằng javis_schedule với "
+            "notify_only=true. Việc cần AI làm thì ghi lại để chủ tự giao, hoặc chủ nâng bot này lên Toàn quyền.")
+
+
 def _cap_job_level(name: str, args: dict, mode: str):
     """(args, refusal). A run below Full access may only queue work at its own level or lighter.
 
     Full-access runs and gated Team steps (they go through the owner's approval) pass unchanged. Below Full, the level
     argument is set to the weaker of what was asked (missing = the tool's default, Full) and the run's own level, and
     `javis_schedule op=update` is refused: it would rewrite the prompt of a job the owner may have made at Full."""
+    why = _chatbot_queue_refusal(name, args, mode)
+    if why:
+        return args, why
     field = _JOB_LEVEL_ARG.get(name)
     m = str(mode or "").strip().lower()
     if not field or m == "gated":

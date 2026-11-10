@@ -27,6 +27,7 @@ from typing import Any, Callable, Optional
 
 import config
 import quota_scheduler        # sổ cái TPM dùng chung cho MỌI nguồn gọi model
+import sqlite_tune
 
 
 RUNTIME_VERSION = "adaptive-v7"
@@ -266,6 +267,7 @@ class ObserveRuntime:
             db = sqlite3.connect(str(self.path), check_same_thread=False, timeout=10)
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA journal_mode=WAL")
+            sqlite_tune.normal_if_wal(db)   # 2026-11-10: no fsync per commit, see sqlite_tune.py
             db.execute("PRAGMA foreign_keys=ON")
             db.executescript(
                 """

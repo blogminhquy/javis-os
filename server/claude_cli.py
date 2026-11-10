@@ -1236,6 +1236,13 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
     except Exception:  # noqa: BLE001 - a meter must never stop a turn
         pass
     try:
+        # 2026-11-10: a whitelisted run below Full access writes only ordinary files inside its brain. Installed BEFORE
+        # the secret hook: that one must stay the outermost wrapper of _options, it looks for its mark only there.
+        import claude_write_scope_hook
+        claude_write_scope_hook.install()
+    except Exception as e:  # noqa: BLE001 - reported, never a broken turn
+        print(f"[write scope] Claude hook not installed: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
         # 2026-11-09 (owner incident): every Claude turn refuses tool calls on Javis' secret files (secret_guard.py).
         import claude_secret_hook
         claude_secret_hook.install()
