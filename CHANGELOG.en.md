@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.530.4] - 2026-11-11
+### Fixed
+- **Chatbots on a ChatGPT plan now move to the next account when one runs out.** A dedicated bot always called with account 1 and ignored the account order on the Models page, so it failed with a 429 while another account still had usage.
+- A bot only switches accounts before it has said anything or called any tool, so customers never get a duplicate message.
+
 ## [0.530.3] - 2026-11-11
 ### Fixed
 - Lazy Hub tools accept JSON-encoded arguments so compatible gateways can preserve dynamic fields. Invalid arguments are rejected before dispatch, with existing permission checks preserved.
