@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.529.1] - 2026-11-10
+### Fixed
+- **Claude answers again on Windows machines that installed it with npm.** After an update every Claude chat turn failed with "Refusing to execute batch script ...claude.CMD". Javis now finds the real `claude.exe` next to that file (or the native install, or the one bundled with the SDK), so nothing needs reinstalling. Codex was not affected.
+
 ## [0.529.0] - 2026-11-10
 ### Added
 - **Javis Core runs one improvement loop.** Any part of Javis that wants to tune itself registers a "knob" with Javis Core. The loop moves every knob the same way: one step at a time, inside its bounds, at most once a day, with its reason logged, a notice in the bell, and a way back by talking. The loop is plain code: it calls no model and does not touch a chat turn.
