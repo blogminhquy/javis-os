@@ -1757,9 +1757,19 @@ def _codex_input(messages):
 
 
 async def openai_responses_stream(access_token, account_id, model, messages, reasoning="off"):
-    """ChatGPT plan (OAuth) through the Codex Responses backend; Fast mode with one retry (0.164.0)."""
-    async for ev in _fast_retry("openai-oauth", fast_mode.current(), lambda fast: _openai_responses_stream_once(
-            access_token, account_id, model, messages, reasoning, fast)):
+    """ChatGPT plan through Codex Responses; chatbot calls rotate plan accounts.
+
+    Rotation is scoped to the trusted chatbot turn context. Owner turns and
+    single-account installations keep precisely the existing behavior.
+    """
+    import bot_oauth_rotation
+
+    async def one(token, aid):
+        async for ev in _fast_retry("openai-oauth", fast_mode.current(), lambda fast: _openai_responses_stream_once(
+                token, aid, model, messages, reasoning, fast)):
+            yield ev
+
+    async for ev in bot_oauth_rotation.stream(one, access_token, account_id):
         yield ev
 
 
@@ -2842,6 +2852,19 @@ async def openrouter_chat_with_mcp(api_key, model, messages, reasoning, mcp_tool
 
 
 async def responses_with_mcp(access_token, account_id, model, messages, reasoning, mcp_tools, mcp_route):
+    """Use account rotation for bot tool loops only; preserve the hub's exact permissions."""
+    import bot_oauth_rotation
+
+    async def one(token, aid):
+        async for ev in _responses_with_mcp_account(
+                token, aid, model, messages, reasoning, mcp_tools, mcp_route):
+            yield ev
+
+    async for ev in bot_oauth_rotation.stream(one, access_token, account_id):
+        yield ev
+
+
+async def _responses_with_mcp_account(access_token, account_id, model, messages, reasoning, mcp_tools, mcp_route):
     """ChatGPT OAuth (Codex Responses API) + tool MCP. EXPERIMENTAL (backend Codex).
 
     "EXPERIMENTAL" ở đây KHÔNG phải lời rào đón: tới 0.24.0 hàm này chưa từng được gọi từ đâu
