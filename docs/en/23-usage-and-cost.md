@@ -198,14 +198,14 @@ A data source often returns far more than a model should read. Measured on a rea
 From this version the hub shapes a result before the model reads it, the same way for every brain:
 
 - **Errors and small results** are passed on word for word.
-- **Medium results** lose their indentation and empty fields. If writing the column names once makes them fit, every record is shown as a table.
+- **Medium results** lose only their indentation, never a field. A somewhat larger one that fits once the column names are written a single time is shown whole, as a table.
 - **Large results** are stored whole (encrypted, deleted after 24 hours). The model gets a view: the totals, the field names, a few whole records and a reference.
 - **Reading back or computing** is done with the `javis_query` tool: pick fields, page through, or run one read-only SQL query over all records. It can also page through a read tool by itself and compute, so a full month report no longer has to pass through the context.
 
 Two features come with it:
 
 - **Scout (`javis_scout`).** The main model can hand a read across several sources to the **background model** you chose on the Models page. A scout can only read, and only its findings return to the chat. If it cannot run, the main model does the reading itself as before.
-- **Recipes for recurring jobs.** After the same run on two different days, Javis fetches the data itself before the model starts. It does so only when every reading of the dates gives the same result that day; otherwise the job runs as before. Each recipe is a file in `<brain>/Javis/recipes/`; delete the file to forget it.
+- **Recipes for recurring jobs.** After the same run on two different days, Javis fetches the data itself before the model starts. It does so only when every reading of the dates gives the same result that day; otherwise the job runs as before. Only calls that are plainly reads are repeated, and a job whose period is not written as `YYYY-MM-DD` (a month `2026-11`, a week number, `01/11/2026`) is never turned into a recipe. If the model still has to call a source again after the data was fetched for it, the recipe is dropped after two such runs. Each recipe is a file in `<brain>/Javis/recipes/`; delete the file to forget it.
 
 The **Suggestions** section at the bottom has a line saying what share of tool results stayed out of the conversation in the last 7 days. To turn this off: choose the **Off** saving level, or see `JAVIS_TOOL_RESULT_*`, `JAVIS_SCOUT` and `JAVIS_RECIPES` in [Environment configuration](16-env-configuration.md).
 

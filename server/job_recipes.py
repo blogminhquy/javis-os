@@ -16,8 +16,16 @@ What makes it safe to do unattended:
   (the first Monday, the first of a month), the job runs the normal way, and that run is the new
   evidence that removes the wrong explanations.
 
-  Read only. Only calls the hub classified as reads are recorded, and each is classified again at
-  replay time; anything else stops the replay.
+  Read only, and plainly so. Only calls that are DECLARED reads are recorded (the catalogue lists
+  them, or the tool's own name says get/list/search/report...), and each is checked again at replay
+  time; anything else stops the replay. A tool nobody described is never repeated by Javis.
+
+  Only what it understands. Dates are understood in the form YYYY-MM-DD. A chain whose arguments
+  carry a period in any other form (a month "2026-11", a week number, "01/11/2026", a timestamp) is
+  never learned, because Javis could not move it to the next day.
+
+  Self-correcting. If the model calls one of the recipe's own tools again after a replay, the
+  prefetch was not what the job needed: that counts against the recipe like a failed replay.
 
   Fail open. A replayed step that errors, a changed task text, a tool that is gone: the job runs
   exactly as it did before recipes existed. Two failed replays in a row delete the recipe.
@@ -119,6 +127,11 @@ def explain(found: date, run_day: date) -> list:
             out.append(["year_start", k])
         if found == date(run_day.year + k, 12, 31):
             out.append(["year_end", k])
+    for name, ks in (("quarter_start", range(-5, 2)), ("quarter_end", range(-5, 2)),
+                     ("month_same_day", range(-12, 0)), ("prev_business_day", (0,))):
+        for k in ks:
+            if evaluate([name, k], run_day) == found:
+                out.append([name, k])
     return out
 
 
@@ -144,6 +157,21 @@ def evaluate(explanation: list, run_day: date) -> Optional[date]:
             return date(run_day.year + int(k), 1, 1)
         if kind == "year_end":
             return date(run_day.year + int(k), 12, 31)
+        if kind in ("quarter_start", "quarter_end"):
+            q_first = date(run_day.year, 3 * ((run_day.month - 1) // 3) + 1, 1)
+            start = _add_months(q_first, 3 * int(k))
+            if kind == "quarter_start":
+                return start
+            last = _add_months(start, 2)
+            return last.replace(day=calendar.monthrange(last.year, last.month)[1])
+        if kind == "month_same_day":          # the same day of an earlier month, held to that month's last day
+            start = _add_months(first, int(k))
+            return start.replace(day=min(run_day.day, calendar.monthrange(start.year, start.month)[1]))
+        if kind == "prev_business_day":       # the last Monday-to-Friday day before the run day
+            d = run_day - timedelta(days=1)
+            while d.weekday() >= 5:
+                d -= timedelta(days=1)
+            return d
     except (ValueError, TypeError, OverflowError):
         return None
     return None
@@ -160,18 +188,67 @@ def skeleton(steps: list) -> tuple:
     return _DATE_RE.sub(sub, text), found
 
 
+_PERIOD_KEY_RE = re.compile(
+    r"(^|_)(month|year|week|quarter|day|date|period|thang|nam|tuan|quy|ngay|ky|since|until|from|to|start|end|"
+    r"after|before)(_|$)", re.I)
+_PERIOD_TEXT_RES = (
+    re.compile(r"(?<![\d-])20\d\d[-/.](0?[1-9]|1[0-2])(?![\d-])"),            # 2026-11, 2026/11
+    re.compile(r"(?<!\d)\d{1,2}[/.]\d{1,2}[/.](20)?\d\d(?!\d)"),             # 01/11/2026, 1.11.26
+    re.compile(r"(?<!\d)20\d\d[/.]\d{1,2}[/.]\d{1,2}(?!\d)"),                # 2026/11/01
+    re.compile(r"(?<!\d)20\d\d(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)"),   # 20261110
+    re.compile(r"(?<!\d)1[6-9]\d{8}(\d{3})?(?!\d)"),                         # a Unix time, seconds or ms
+    re.compile(r"(?<![\w-])W?(0?[1-9]|[1-4]\d|5[0-3])[-/]20\d\d(?![\w-])"),   # 46/2026
+)
+
+
+def unmovable_period(steps: list) -> str:
+    """"" when every period in the arguments is a YYYY-MM-DD date. Otherwise what was found: a period Javis
+    cannot recompute for another day, so the chain must not become a recipe."""
+    def walk(node, key=""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                found = walk(v, str(k))
+                if found:
+                    return found
+            return ""
+        if isinstance(node, list):
+            for v in node:
+                found = walk(v, key)
+                if found:
+                    return found
+            return ""
+        if isinstance(node, bool) or node is None:
+            return ""
+        if isinstance(node, (int, float)):
+            # a bare number under a period-like key: month 11, year 2026, week 46, a timestamp
+            if key and _PERIOD_KEY_RE.search(key):
+                return f"{key}={node}"
+            return f"{key}={node}" if _PERIOD_TEXT_RES[4].fullmatch(str(int(node))) else ""
+        text = _DATE_RE.sub("", str(node))
+        for rx in _PERIOD_TEXT_RES:
+            if rx.search(text):
+                return f"{key}={str(node)[:40]}"
+        if key and _PERIOD_KEY_RE.search(key) and re.fullmatch(r"\s*\d{1,4}\s*", text):
+            return f"{key}={text.strip()}"
+        return ""
+    return walk([s.get("args") for s in steps if isinstance(s, dict)])
+
+
 def fill(skel: str, dates: list) -> list:
     return json.loads(_SLOT_RE.sub(lambda m: dates[int(m.group(1))].isoformat(), skel))
 
 
 # ---------------------------------------------------------------- recording a live run
 
-def begin(job: str) -> None:
+def begin(job: str, run_day: Optional[date] = None) -> None:
+    """Start recording one run. The run day is fixed HERE: a job that starts at 23:58 and ends after midnight
+    asked for its dates on the day it started."""
     key = base_job(job)
     if key and enabled():
         with _lock:
             _live[key] = {"steps": [], "refs": {}, "replayed": False, "bad": False, "paused": False,
-                          "replay_failed": False}
+                          "replay_failed": False, "recalled": False, "recipe_tools": set(),
+                          "run_day": run_day or today()}
 
 
 def _swap_refs(args: Any, refs: dict, state: dict) -> Any:
@@ -194,7 +271,14 @@ def note_call(job: str, tool: str, args: Any, *, ok: bool, ref: str = "") -> Non
         return
     with _lock:
         st = _live.get(key)
-        if st is None or st["replayed"] or st["paused"]:
+        if st is None or st["paused"]:
+            return
+        if st["replayed"]:
+            # The data was prefetched, and the model still called one of those sources itself: the prefetch
+            # was not what this run needed (a wrong period, a missing page).
+            called = (args or {}).get("tool") if tool == QUERY_TOOL and isinstance(args, dict) else tool
+            if called and called in st["recipe_tools"]:
+                st["recalled"] = True
             return
         if not ok:
             return                                  # a failed attempt is not part of what worked
@@ -220,9 +304,10 @@ def pause(job: str) -> None:
             _live[key]["paused"] = True
 
 
-def replay_done(vault_root: str, job: str, ok: bool) -> None:
+def replay_done(vault_root: str, job: str, ok: bool, reason: str = "", steps: Optional[list] = None) -> None:
     """After a replay attempt: a good one makes this a replayed run; a failed one counts against the recipe and the
-    run goes on the normal way, recorded from scratch."""
+    run goes on the normal way, recorded from scratch. reason="too_big": the data does not fit in a prompt, which
+    is not a failure and will not change tomorrow, so the recipe is switched off instead of retried."""
     key = base_job(job)
     with _lock:
         st = _live.get(key)
@@ -231,10 +316,20 @@ def replay_done(vault_root: str, job: str, ok: bool) -> None:
         st["paused"] = False
         if ok:
             st["replayed"] = True
+            for step in steps or []:
+                st["recipe_tools"].add(str(step.get("tool") or ""))
+                inner = (step.get("args") or {}).get("tool") if step.get("tool") == QUERY_TOOL else None
+                if inner:
+                    st["recipe_tools"].add(str(inner))
+            st["recipe_tools"].discard(QUERY_TOOL)
             return
-        st.update(steps=[], refs={}, bad=False, replay_failed=True)
+        st.update(steps=[], refs={}, bad=False, replay_failed=reason != "too_big")
     old = load(vault_root, job)
     if old is not None:
+        if reason == "too_big":
+            old["disabled"] = "too_big"
+            _save(vault_root, key, old)
+            return
         old["fails"] = int(old.get("fails") or 0) + 1
         if old["fails"] >= MAX_FAILS:
             forget(vault_root, job)
@@ -287,25 +382,32 @@ def finish(vault_root: str, job: str, *, ok: bool, task: str, mode: str, run_day
         st = _live.pop(key, None) if key else None
     if not key or st is None or not vault_root or not enabled():
         return ""
-    run_day = run_day or today()
+    run_day = run_day or st.get("run_day") or today()
     sha = task_sha(task, mode)
     old = load(vault_root, job)
     if st["replayed"]:
         if old is not None:
             old["replays"] = int(old.get("replays") or 0) + 1
             old["last_replay"] = run_day.isoformat()
-            old["fails"] = 0 if ok else int(old.get("fails") or 0) + 1
+            good = ok and not st["recalled"]
+            old["fails"] = 0 if good else int(old.get("fails") or 0) + 1
             if old["fails"] >= MAX_FAILS:
                 forget(vault_root, job)
                 return "dropped"
             _save(vault_root, key, old)
-        return "replayed"
+        return "replayed" if not st["recalled"] else "recalled"
     if not ok or st["bad"] or not st["steps"]:
         return ""
+    why = unmovable_period(st["steps"])
+    if why:
+        forget(vault_root, job)               # an older recipe of this job must not outlive what was just seen
+        return "skipped"
     skel, dates = skeleton(st["steps"])
     slots = [explain(d, run_day) for d in dates]
     if (old is not None and old.get("task_sha") == sha and old.get("skeleton") == skel
             and len(old.get("slots") or []) == len(slots)):
+        if old.get("disabled"):
+            return ""                                           # same chain, still too big to hand over
         if run_day.isoformat() in (old.get("days") or []):
             return ""                                           # a second run on the same day proves nothing
         merged = []
@@ -341,7 +443,7 @@ def plan(recipe: Optional[dict], task: str, mode: str, run_day: Optional[date] =
         return None
     if recipe.get("task_sha") != task_sha(task, mode) or int(recipe.get("observations") or 0) < MIN_OBSERVATIONS:
         return None
-    if int(recipe.get("fails") or 0) >= MAX_FAILS:
+    if int(recipe.get("fails") or 0) >= MAX_FAILS or recipe.get("disabled"):
         return None
     run_day = run_day or today()
     dates = []
@@ -360,19 +462,17 @@ def plan(recipe: Optional[dict], task: str, mode: str, run_day: Optional[date] =
 def _is_read(route: dict, tool: str, args: dict) -> bool:
     if tool == QUERY_TOOL:
         return True                                            # javis_query checks its own source
-    ent = route.get(tool) or {}
-    conn = ent.get("conn")
-    if not conn or not ent.get("tool"):
-        return False
     try:
-        import mcp_catalog
-        return mcp_catalog.classify(mcp_catalog.get(conn.get("connector_id")), ent["tool"], args) == "read"
-    except Exception:  # noqa: BLE001
+        import tool_result_tools
+        return tool_result_tools.is_plain_read(route.get(tool) or {}, args)
+    except Exception:  # noqa: BLE001 - cannot prove it is a read: do not run it
         return False
 
 
-async def replay(steps: list, route: dict) -> Optional[list]:
-    """Run the steps through the guarded route. [(tool, args, result)] or None when any step fails."""
+async def replay(steps: list, route: dict) -> tuple:
+    """Run the steps through the guarded route. ([(tool, args, result)], "") on success, else (None, reason)
+    with reason "failed" (a step is gone, is not a plain read, or errored) or "too_big" (the results do not fit
+    in a prompt: no failure, and no point retrying tomorrow)."""
     import mcp_client
     import tool_result_shaper
     # the tool search may hide a recorded tool: javis_query's entry carries every route of this tool list
@@ -383,26 +483,25 @@ async def replay(steps: list, route: dict) -> Optional[list]:
         text = json.dumps(step.get("args") or {}, ensure_ascii=False)
         missing = [m for m in re.findall(r"\{\{ref(\d+)\}\}", text) if int(m) not in refs]
         if missing:
-            return None
+            return None, "failed"
         args = json.loads(re.sub(r"\{\{ref(\d+)\}\}", lambda m: refs[int(m.group(1))], text))
         if tool not in route or not _is_read(route, tool, args):
-            return None
+            return None, "failed"
         try:
             with tool_result_shaper.for_model():
                 result = str(await mcp_client.call_route(route, tool, args))
         except Exception:  # noqa: BLE001
-            return None
+            return None, "failed"
         if result.lstrip().startswith("ERROR:"):
-            return None
+            return None, "failed"
         found = _REF_RE.search(result[:600])
         if found:
             refs[i] = found.group(0)
-        shown = result if len(result) <= PREFETCH_STEP_CHARS else result[:PREFETCH_STEP_CHARS]
-        used += len(shown)
-        if used > PREFETCH_TOTAL_CHARS:
-            return None                                         # too much to hand over: run the normal way
-        out.append((tool, args, shown))
-    return out
+        used += len(result)
+        if len(result) > PREFETCH_STEP_CHARS or used > PREFETCH_TOTAL_CHARS:
+            return None, "too_big"                              # never hand over a result cut in the middle
+        out.append((tool, args, result))
+    return out, ""
 
 
 def prompt_block(results: list, run_day: Optional[date] = None) -> str:

@@ -198,8 +198,8 @@ line each, grouped by area.
 - `run_command.py`: `javis_run_command`, one fenced shell command for engines without a shell.
 - `tool_label.py`: short human labels for tool calls in the progress panel.
 - `tool_result_shaper.py`, `tool_result_store.py`: what a connection tool's result looks like when a
-  MODEL reads it. Errors and small results pass word for word, JSON loses indentation and empty
-  fields, a large result is stored whole (encrypted, 24 h, scoped to its brain) and replaced by a
+  MODEL reads it. Errors and small results pass word for word, JSON that fits loses only its
+  indentation, a large result is stored whole (encrypted, 24 h, scoped to its brain) and replaced by a
   view of whole records with a reference. Applied as the outermost layer of a route
   (`mcp_hub._shaped_call`), outside the permission guard and plugin hooks; internal callers of a
   route get the untouched text.

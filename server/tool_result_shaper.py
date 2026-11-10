@@ -10,7 +10,7 @@ This module is the one place that decides what leaves the hub, for every engine:
 
   1. An error is returned word for word.
   2. A small result is returned word for word.
-  3. JSON is re-serialised without indentation, and empty fields inside records are dropped.
+  3. JSON that fits is re-serialised without indentation and nothing else: every field survives.
   4. A result that is still large is stored in full (`tool_result_store`). If its records fit once
      their key names are written a single time (a table), ALL of them are shown that way. Otherwise
      it is replaced by a view: the envelope (totals, paging markers), the field names, as many
@@ -48,8 +48,7 @@ QUERY_TOOL = "javis_query"
 #   "model"  a model's tool loop: shaped
 #   "raw"    javis_query reading whole pages for itself, inside a model's turn: untouched
 _audience = contextvars.ContextVar("javis_tool_result_audience", default="")
-_settings_cache = {"ts": 0.0, "on": True, "inline": INLINE_MAX_DEFAULT, "budget": PREVIEW_BUDGET_DEFAULT,
-                   "lean": True}
+_settings_cache = {"ts": 0.0, "on": True, "inline": INLINE_MAX_DEFAULT, "budget": PREVIEW_BUDGET_DEFAULT}
 
 
 @contextmanager
@@ -117,14 +116,14 @@ def _env_int(name: str, default: int, low: int, high: int) -> int:
 
 
 def settings(force: bool = False) -> dict:
-    """{'on', 'inline', 'budget', 'lean'}, re-read at most every few seconds.
+    """{'on', 'inline', 'budget'}, re-read at most every few seconds.
 
     `mcp.result_shaping`: "auto" (default) | true | false. Auto is on unless the owner chose the Off
     saving level themselves ("Full mode: send everything"). JAVIS_TOOL_RESULT_SHAPING=0|1 wins."""
     now = time.time()
     if not force and now - _settings_cache["ts"] < 5:
         return _settings_cache
-    on, lean = True, True
+    on = True
     try:
         import config
         cfg = config.read_settings()
@@ -138,7 +137,6 @@ def settings(force: bool = False) -> dict:
         else:
             choice = ((cfg.get("context_runtime") or {}).get("preset_choice") or {})
             on = not (str(choice.get("source") or "") == "user" and str(choice.get("level") or "") == "off")
-        lean = mcp.get("result_drop_empty", True) is not False
     except Exception:  # noqa: BLE001 - unreadable settings: keep the default
         pass
     env = _env_flag("JAVIS_TOOL_RESULT_SHAPING")
@@ -146,7 +144,7 @@ def settings(force: bool = False) -> dict:
         on = env
     inline = _env_int("JAVIS_TOOL_RESULT_INLINE_CHARS", INLINE_MAX_DEFAULT, 2000, 200_000)
     budget = min(_env_int("JAVIS_TOOL_RESULT_PREVIEW_CHARS", PREVIEW_BUDGET_DEFAULT, 1500, 100_000), inline - 500)
-    _settings_cache.update(ts=now, on=on, inline=inline, budget=budget, lean=lean)
+    _settings_cache.update(ts=now, on=on, inline=inline, budget=budget)
     return _settings_cache
 
 
@@ -325,18 +323,24 @@ def _how_to(ref: str) -> str:
 
 
 TABLE_FORMAT = ("table: `columns` once, then one row per record, values in column order. A dotted column is a "
-                "nested field. null = the record has no value there.")
+                "nested field. null = empty or absent in that record.")
 _TABLE_MAX_COLUMNS = 160
 _TABLE_GAIN = 0.85               # use the table form only when it is at least 15% smaller than the records as objects
 
 
-def _flat_record(rec: dict, prefix: str, depth: int, out: dict) -> None:
+def _flat_record(rec: dict, prefix: str, depth: int, out: dict) -> bool:
+    """Flatten into `out`. False when two different fields would land on the same dotted name (a key that itself
+    contains a dot next to a nested object): a table could not tell them apart, so none is made."""
     for k, v in rec.items():
         key = prefix + str(k)
         if isinstance(v, dict) and v and depth < 2:
-            _flat_record(v, key + ".", depth + 1, out)
+            if not _flat_record(v, key + ".", depth + 1, out):
+                return False
+        elif key in out:
+            return False
         else:
             out[key] = v
+    return True
 
 
 def to_table(records: list) -> Optional[tuple]:
@@ -350,7 +354,8 @@ def to_table(records: list) -> Optional[tuple]:
     columns, flats = {}, []
     for rec in records:
         flat = {}
-        _flat_record(rec, "", 0, flat)
+        if not _flat_record(rec, "", 0, flat):
+            return None
         flats.append(flat)
         for k in flat:
             if k not in columns:
@@ -375,7 +380,7 @@ def _swap_at(data: Any, pointer: str, value: Any) -> Any:
     return root
 
 
-def build_table(lean: Any, ref: str, raw_chars: int, limit: int) -> Optional[str]:
+def build_table(lean: Any, ref: str, raw_chars: int, limit: int, prefix: str = "") -> Optional[str]:
     """The WHOLE result with its record list as a table, or None when that is not smaller or does not fit.
 
     This is the step between "compact JSON fits" and "show a partial view": every record is still there, so
@@ -395,6 +400,8 @@ def build_table(lean: Any, ref: str, raw_chars: int, limit: int) -> Optional[str
     head = {"ref": ref, "view": "complete", "original_chars": raw_chars, "records_at": pointer or "/",
             "records_in_result": len(records), "format": TABLE_FORMAT,
             "note": f"All records are shown. To compute over them use {QUERY_TOOL}(ref=\"{ref}\", sql=\"SELECT ...\")."}
+    if prefix.strip():
+        head["text_before_result"] = prefix.strip()[:_PREFIX_MAX]
     body = _swap_at(lean, pointer, {"columns": columns, "rows": rows})
     doc = {"javis_stored_result": head, "result": body}
     text = _dumps(doc)
@@ -404,6 +411,8 @@ def build_table(lean: Any, ref: str, raw_chars: int, limit: int) -> Optional[str
 def build_preview(parsed: Parsed, lean: Any, ref: str, raw_chars: int, budget: int) -> str:
     """The view a model reads in place of a large JSON result. Always valid JSON."""
     head = {"ref": ref, "original_chars": raw_chars, "note": _how_to(ref)}
+    if parsed.prefix.strip():
+        head["text_before_result"] = parsed.prefix.strip()[:_PREFIX_MAX]
     found = find_records(lean)
     total_size = len(_dumps(lean))
     if found and len(_dumps(found[1])) * 2 >= total_size:
@@ -483,9 +492,28 @@ def build_preview(parsed: Parsed, lean: Any, ref: str, raw_chars: int, budget: i
     return _dumps({"javis_stored_result": dict(head, shown_as="keys"), "document": keys})
 
 
+SOFT_LINE_CHARS = 1200
+
+
+def soft_lines(text: str, width: int = SOFT_LINE_CHARS) -> list:
+    """Lines of `text`, with any line longer than `width` split at a space near the limit.
+
+    The preview and javis_query both number lines this way, so a result that is one enormous line (minified
+    HTML, a JSON-less export) can still be read from start to end by line number."""
+    out = []
+    for line in text.splitlines():
+        while len(line) > width:
+            cut = line.rfind(" ", width // 2, width)
+            cut = cut + 1 if cut > 0 else width
+            out.append(line[:cut])
+            line = line[cut:]
+        out.append(line)
+    return out
+
+
 def build_text_preview(text: str, ref: str, budget: int) -> str:
     """Whole first and last lines of a large non-JSON result, plus the reference."""
-    lines = text.splitlines()
+    lines = soft_lines(text)
     header = (f"[javis_stored_result ref={ref} original_chars={len(text)} lines={len(lines)}] Partial view. "
               f"The FULL text is stored. Read more with {QUERY_TOOL}(ref=\"{ref}\", search=\"words\") or "
               f"{QUERY_TOOL}(ref=\"{ref}\", offset=LINE, limit=N). Do not call the source tool again for the "
@@ -497,7 +525,7 @@ def build_text_preview(text: str, ref: str, budget: int) -> str:
         head.append(lines[i])
         used += len(lines[i]) + 1
         i += 1
-    if not head:                                   # one enormous line: cut by characters
+    if not head:                                   # cannot happen with soft lines; kept as a guard
         return header + "\n--- start ---\n" + text[:head_room] + "\n--- end ---\n" + text[-tail_room:]
     tail, used, j = [], 0, len(lines) - 1
     while j >= i and used + len(lines[j]) + 1 <= tail_room:
@@ -551,8 +579,9 @@ def shape(result: Any, *, tool: str = "", conn_id: str = "", scope: str = "", ca
             return Shaped(build_text_preview(text, ref, budget), raw_chars, "text_preview", ref)
         if _has_error(parsed.data) and raw_chars <= inline:
             return Shaped(text, raw_chars, "error")
-        lean = lean_copy(parsed.data) if cfg["lean"] else parsed.data
-        compact = parsed.prefix + _dumps(lean)
+        # A result that fits is only re-serialised without indentation: every field, empty or not, is still
+        # there, so a document the model reads, edits and writes back (a workflow, a config) loses nothing.
+        compact = parsed.prefix + _dumps(parsed.data)
         if len(compact) >= raw_chars:
             compact = text
         if len(compact) <= inline or not can_read_back:
@@ -560,7 +589,9 @@ def shape(result: Any, *, tool: str = "", conn_id: str = "", scope: str = "", ca
         ref = tool_result_store.put(text, scope=scope, tool=tool, conn_id=conn_id, kind="json")
         if not ref:
             return Shaped(compact, raw_chars, "compact")
-        whole = build_table(lean, ref, raw_chars, inline)
+        # Views (a table or a partial view) drop empty fields inside records and say so; the stored copy has them.
+        lean = lean_copy(parsed.data)
+        whole = build_table(lean, ref, raw_chars, inline, parsed.prefix)
         if whole is not None:
             return Shaped(whole, raw_chars, "table", ref)
         preview = build_preview(parsed, lean, ref, raw_chars, budget)

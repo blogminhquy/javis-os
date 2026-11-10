@@ -20,7 +20,9 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional
 
 import tool_result_query as query
@@ -28,6 +30,7 @@ import tool_result_shaper as shaper
 import tool_result_store as store
 
 TOOL = shaper.QUERY_TOOL
+_QUERY_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="javis-query")
 PAGES_DEFAULT_MAX = 200           # measured: a shop source pages ten orders at a time, a month is hundreds of pages
 FETCH_SECONDS = 240
 DATASET_CHARS_MAX = 20_000_000
@@ -129,16 +132,44 @@ def detect_paging(schema: dict, args: dict, explicit: str = "") -> tuple:
     return "", ""
 
 
-def _is_read(ent: dict, args: dict) -> bool:
+_READ_NAME_RE = re.compile(
+    r"(^|[_\-.])(get|list|search|find|read|fetch|query|lookup|show|view|count|stats?|statistics?|analytics|report|"
+    r"summary|describe|export|check|browse|history)([_\-.]|$)", re.I)
+
+
+def is_plain_read(ent: dict, args: dict) -> bool:
+    """Is this call a read that Javis may repeat BY ITSELF (paging, a recipe replay)?
+
+    Stricter than the hub's permission class. `mcp_catalog.classify` answers "read" for any tool nobody
+    described that has no write word in its name (`trigger_workflow`, `apply_migration`, `checkout`), which is the
+    right default for a call a model makes once under the owner's eyes, and the wrong one for a call Javis makes
+    again on its own. So on top of the hub's class, the read must be DECLARED: the catalogue lists the tool or
+    this argument value as a read, or the tool's own name says so (get, list, search, report...)."""
     conn = ent.get("conn")
-    if not conn or not ent.get("tool"):
+    tool = str(ent.get("tool") or "")
+    if not conn or not tool:
         return False
     try:
         import mcp_catalog
-        connector = mcp_catalog.get(conn.get("connector_id"))
-        return mcp_catalog.classify(connector, ent["tool"], args) == "read"
+        from fnmatch import fnmatch
+        connector = mcp_catalog.get(conn.get("connector_id")) or {}
+        if mcp_catalog.classify(connector, tool, args) != "read":
+            return False
+        meta = connector.get("tool_meta") or {}
+        if any(fnmatch(tool.lower(), str(p).lower()) for p in (meta.get("read") or [])):
+            return True
+        rules = connector.get("arg_rules") or {}
+        param = rules.get("param")
+        if param and isinstance(args, dict) and args.get(param) is not None:
+            return True                       # classify() said read, and only its declared read values can
+        if mcp_catalog.call_rule(connector, tool) is not None:
+            return True                       # a gateway tool: classify() judged every sub-action by its rules
+        return bool(_READ_NAME_RE.search(tool))
     except Exception:  # noqa: BLE001 - cannot prove it is a read: refuse
         return False
+
+
+_is_read = is_plain_read
 
 
 async def fetch_dataset(route: dict, specs: dict, name: str, args: dict, *, pages: int = 1, page_param: str = "",
@@ -148,14 +179,15 @@ async def fetch_dataset(route: dict, specs: dict, name: str, args: dict, *, page
     ent = route.get(name)
     if not ent or name == TOOL:
         return _err(f"no tool named '{name}'. Use the exact name from the tool list or the tool search."), None, "", {}
-    if not _is_read(ent, args):
-        return (_err(f"'{name}' is not a read-only connection tool (or this call would write). {TOOL} only reads. "
-                     "Call the tool directly; if its answer is large the notice gives a ref to use here."),
+    if not is_plain_read(ent, args):
+        return (_err(f"'{name}' is not a tool {TOOL} may call by itself: it must be a connection tool that is clearly "
+                     "a read. Call the tool directly; if its answer is large, the notice gives a ref to use here."),
                 None, "", {})
     pages = max(1, min(max_pages(), int(pages or 1)))
     style, param = detect_paging((specs.get(name) or {}).get("schema") or {}, args, page_param)
     records, info, pointer, used = [], {}, (path or None), 0
     last_sig, note, complete, chars = "", "", False, 0
+    total_seen = None
     cur_args = json.loads(json.dumps(args or {}))
     started = time.time()
     first_text = ""
@@ -170,7 +202,9 @@ async def fetch_dataset(route: dict, specs: dict, name: str, args: dict, *, page
         if n == 0:
             first_text = text
         recs, envelope, pointer = await asyncio.to_thread(query.records_of_page, text, pointer)
-        info = query.page_info(envelope) or info
+        info = query.page_info(envelope)       # this page's own markers, never the previous page's
+        if isinstance(info.get("total"), int) and not isinstance(info.get("total"), bool):
+            total_seen = info["total"]
         if not recs:
             if n == 0:
                 break                      # not a record list: handled below as a plain stored result
@@ -195,13 +229,16 @@ async def fetch_dataset(route: dict, specs: dict, name: str, args: dict, *, page
         # where is the next page?
         if style == "page":
             cur = _get_arg(cur_args, param)
+            if cur is None:                    # first call without the argument: the source says where it is
+                reported = info.get("page")
+                cur = reported if isinstance(reported, int) and not isinstance(reported, bool) else 1
             try:
-                cur = int(cur if cur is not None else info.get("page") or 1)
+                cur = int(cur)                 # 0 is a real page number on a zero-based source
             except (TypeError, ValueError):
                 cur = 1
             total_pages = info.get("total_pages")
             if isinstance(total_pages, int) and not isinstance(total_pages, bool) and cur >= total_pages:
-                complete = True
+                complete = True                # checked against the reported total below
                 break
             if info.get("has_more") is False:
                 complete = True
@@ -238,9 +275,14 @@ async def fetch_dataset(route: dict, specs: dict, name: str, args: dict, *, page
                                       conn_id=str((ent.get("conn") or {}).get("id") or ""),
                                       kind="text" if loaded["kind"] == "text" else "json")
         return "", loaded, ref, {"source_tool": name, "pages_read": 1}
-    total = info.get("total")
-    if not complete and isinstance(total, int) and not isinstance(total, bool) and len(records) >= total:
-        complete = True
+    total = total_seen
+    if isinstance(total, int):
+        # The source's own count has the last word: fewer records than it reports is never "complete".
+        if len(records) >= total:
+            complete = True
+        elif complete:
+            complete = False
+            note = note or f"read {len(records)} of the {total} records the source reports"
     meta = {"source_tool": name, "pages_read": used, "records": len(records), "complete": bool(complete),
             "fetched_at": int(time.time())}
     if isinstance(total, int) and not isinstance(total, bool):
@@ -331,10 +373,12 @@ def build(route_ref: dict, specs_ref: dict, scope: str) -> tuple:
                     source["ref_unavailable"] = "this dataset could not be stored; repeat `tool`+`args` to query again"
             else:
                 return _err("pass `ref` (a stored result) or `tool`+`args` (a read-only connection tool).")
-            answer = await asyncio.to_thread(_view, loaded, ref, args, source)
+            # SQL runs in its own small pool: a slow query waits behind other queries, never in front of the
+            # server's general worker threads.
+            answer = await asyncio.get_running_loop().run_in_executor(_QUERY_POOL, _view, loaded, ref, args, source)
             try:
                 import mcp_hub
-                mcp_hub.note_query_answer(name or TOOL, len(answer))
+                await asyncio.to_thread(mcp_hub.note_query_answer, name or TOOL, len(answer))
                 # part of a recurring job's read chain (job_recipes.py): recorded like any other read call
                 import job_recipes
                 import turn_context

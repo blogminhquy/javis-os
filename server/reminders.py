@@ -1197,14 +1197,14 @@ class RemindersFeature:
                 return ""
             import mcp_hub
             job_recipes.pause(job)
-            results = None
+            results, reason = None, "failed"
             try:
                 _tools, route = await mcp_hub.discover_all(mq, vault_root=root)
-                results = await asyncio.wait_for(job_recipes.replay(steps, route), timeout=PREFETCH_TIMEOUT_S)
+                results, reason = await asyncio.wait_for(job_recipes.replay(steps, route), timeout=PREFETCH_TIMEOUT_S)
             except Exception as e:  # noqa: BLE001 - any trouble: run the normal way
                 print(f"[recipes] replay failed for {job_recipes.base_job(job)}: {type(e).__name__}: {e}",
                       file=sys.stderr)
-            await asyncio.to_thread(job_recipes.replay_done, root, job, bool(results))
+            await asyncio.to_thread(job_recipes.replay_done, root, job, bool(results), reason, steps)
             return job_recipes.prompt_block(results) if results else ""
         except Exception as e:  # noqa: BLE001 - a recipe is an optimisation, never a reason to fail the job
             print(f"[recipes] prefetch skipped: {type(e).__name__}: {e}", file=sys.stderr)

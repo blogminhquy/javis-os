@@ -70,6 +70,12 @@ check("put returns a reference", ref.startswith(store.REF_PREFIX), ref)
 got = store.get(ref, "/brain-a")
 check("the stored text comes back byte for byte", bool(got) and got["text"] == raw)
 check("another brain cannot read it", store.get(ref, "/brain-b") is None)
+_real_dir = tempfile.mkdtemp(prefix="scope-real-")
+_link = _real_dir + "-link"
+os.symlink(_real_dir, _link)
+_r = store.put("x" * 3000, scope=_link + "/")
+check("the same brain reached by another spelling of its path reads its own result",
+      _r and store.get(_r, _real_dir) is not None and store.get(_r, _real_dir + "/") is not None)
 check("an unknown reference reads as nothing", store.get("tr_" + "0" * 24, "/brain-a") is None)
 check("a malformed reference reads as nothing", store.get("../../etc/passwd", "/brain-a") is None)
 with open(os.path.join(os.environ["JAVIS_STATE_DIR"], "results-test.sqlite3"), "rb") as f:
@@ -109,8 +115,8 @@ with shaper.for_model():
     s = shaper.shape(mid)
     doc = json.loads(s.text)
     check("a medium result is compacted, not stored", s.kind == "compact" and not s.ref and s.sent_chars < s.raw_chars / 2)
-    check("empty fields inside records are dropped, zero and false are kept", doc["data"][0] == {"a": 1, "e": 0, "f": False})
-    check("the envelope keeps its empty values", "next" in doc and doc["items"] == [])
+    check("a result that fits loses NOTHING but its indentation: a read-edit-write round trip stays whole",
+          doc == json.loads(mid) and "\n" not in s.text)
 
     s = shaper.shape(raw, tool="pos_order", conn_id="c1", scope="/brain-a")
     doc = json.loads(s.text)
@@ -152,6 +158,10 @@ with shaper.for_model():
           and len(doc["rows"]) == doc["javis_stored_result"]["shown_records"] and s.sent_chars <= shaper.INLINE_MAX_DEFAULT,
           (s.kind, doc["javis_stored_result"].get("shown_as"), len(doc.get("rows") or [])))
 
+    check("no table when two fields would share one column name", shaper.to_table([{"a.b": 1, "a": {"b": 2}}]) is None)
+    check("a field that is a value in one record and an object in another keeps both columns",
+          shaper.to_table([{"a": 1}, {"a": {"b": 2}}]) == (["a", "a.b"], [[1, None], [None, 2]]))
+
     huge = page(10, big=True)
     s = shaper.shape(huge, scope="/brain-a")
     doc = json.loads(s.text)
@@ -159,6 +169,10 @@ with shaper.for_model():
           s.kind == "preview" and doc["javis_stored_result"]["shown_as"] == "outline" and len(doc["records"]) >= 1
           and "more items" in json.dumps(doc["records"][0]) and s.sent_chars <= shaper.INLINE_MAX_DEFAULT)
 
+    pre = shaper.shape("page 1 of 37, next_cursor=abc123\n" + json.dumps({"data": [order(i) for i in range(30)]}, indent=2),
+                       scope="/brain-a")
+    check("text a server prints before its JSON is kept in the view",
+          json.loads(pre.text)["javis_stored_result"]["text_before_result"] == "page 1 of 37, next_cursor=abc123", pre.text[:160])
     lines = "\n".join(f"line {i}: GET /pkg/{i} 200 (cache {'miss' if i % 7 == 0 else 'hit'})" for i in range(4000))
     s = shaper.shape(lines, scope="/brain-a")
     check("large text gets whole first and last lines plus a reference",
@@ -248,6 +262,41 @@ try:
     check("a wrong column answers with the real tables", False)
 except query.QueryError as e:
     check("a wrong column answers with the real tables", "records_items" in str(e) and "customer_name" in str(e))
+for big in ("SELECT zeroblob(900000000)", "SELECT randomblob(100000000)",
+            "SELECT replace(printf('%.*c', 3000000, 'x'), 'x', 'yyyyyyyyyy')",
+            "SELECT length(replace(printf('%.*c', 900000, 'x'), 'x', 'yyyyyyyyyy'))"):
+    try:
+        got = query.run_sql(loaded, "tr_x", big)
+        check(f"a query cannot build one enormous value: {big[:32]}", len(got) < 2000 and "9000000" not in got, got[:120])
+    except query.QueryError:
+        check(f"a query cannot build one enormous value: {big[:32]}", True)
+
+# The time limit must hold when single steps are expensive, not only when there are many cheap ones (review
+# 2026-11-10: with a check every 20,000 steps this query ran 133 s against an 8 s limit).
+heavy = {"kind": "records", "pointer": "/", "records": [{"a": i} for i in range(2000)]}
+terms = "+".join(["length(replace(s,'0','1'))"] * 150)
+slow_sql = f"WITH p(s) AS (SELECT printf('%0900000d', 1)) SELECT sum({terms}) FROM p, records"
+query.SQL_TIMEOUT_S, _keep = 1.0, query.SQL_TIMEOUT_S
+t0 = time.time()
+try:
+    query.run_sql(heavy, "tr_x", slow_sql)
+    check("a query of few but costly steps is stopped on time", time.time() - t0 < 6, time.time() - t0)
+except query.QueryError as e:
+    check("a query of few but costly steps is stopped on time", time.time() - t0 < 6, (time.time() - t0, str(e)[:80]))
+query.SQL_TIMEOUT_S = _keep
+
+# Column names: a real field keeps its own name when a generated or flattened one would collide with it.
+clash = {"kind": "records", "pointer": "/", "records": [
+    {"comments": [{"t": 1}, {"t": 2}], "comments_count": 120, "customer": {"name": "nested"}, "customer_name": "flat",
+     "big": 2 ** 70}] * 3}
+out = json.loads(query.run_sql(clash, "tr_x", "SELECT SUM(comments_count), MAX(customer_name) FROM records"))
+check("a real comments_count is not replaced by the generated list length", out["rows"] == [[360, "flat"]], out["rows"])
+cols = json.loads(query.schema_view(clash, "tr_x"))["tables"]["records"]["columns"]
+check("the generated and flattened twins are kept under a suffixed name",
+      "comments_count_2" in cols and "customer_name_2" in cols, cols)
+out = json.loads(query.run_sql(clash, "tr_x", "SELECT comments_count_2, customer_name_2, big FROM records LIMIT 1"))
+check("...with their own values, and an integer too large for SQLite kept as text",
+      out["rows"] == [[2, "nested", str(2 ** 70)]], out["rows"])
 old_timeout = query.SQL_TIMEOUT_S
 query.SQL_TIMEOUT_S = 0.2
 try:
@@ -269,9 +318,32 @@ check("spreadsheet rows: the header row names the columns",
       out["rows"])
 desc = json.loads(query.schema_view(ld, "tr_x"))
 check("describe lists tables and columns", desc["tables"]["records"]["rows"] == 400 and "Doanh_thu" in desc["tables"]["records"]["columns"])
+check("the answer says which row was taken as the header", desc["javis_query"]["header_row_used"] == ["Ngày", "Kênh", "Doanh thu"])
+texty = query.load(json.dumps({"values": [["An", "Hà Nội", "khách mới"], ["Bình", "Huế", "khách cũ"], ["Chi", "Vinh", "vip"]]}))
+out = json.loads(query.run_sql(texty, "tr_x", "SELECT COUNT(*), MIN(c1) FROM records"))
+check("rows of text only: NO row is eaten as a header, every row counts", out["rows"] == [[3, "An"]], out)
+check("...and the answer says the columns are positional", "no row was taken" in out["javis_query"]["columns"])
 
 txt = query.text_view(lines, "tr_x", search="line 3997")
 check("text search returns the matching line with its number", "3998: line 3997:" in txt, txt[:200])
+one_line = " ".join(f"<p>block {i} with some words</p>" for i in range(6000))       # one line, about 190,000 chars
+soft = shaper.soft_lines(one_line)
+check("one enormous line is split into numbered pieces, nothing lost",
+      len(soft) > 100 and "".join(soft) == one_line and max(len(x) for x in soft) <= shaper.SOFT_LINE_CHARS)
+seen_txt, off, pages = [], 0, 0
+while off is not None and pages < 400:
+    part = query.text_view(one_line, "tr_x", offset=off, limit=200)
+    head_line, _, body = part.partition("\n")
+    seen_txt.append(body.replace("\n", ""))
+    nxt = head_line.split("next_offset=")[1].rstrip("]")
+    off = None if nxt == "None" else int(nxt)
+    pages += 1
+check("...so the whole text can be read back page by page", "".join(seen_txt) == one_line, (pages, len("".join(seen_txt))))
+found_txt = query.text_view(one_line, "tr_x", search="block 5999")
+check("...and a search shows the whole matching piece", "block 5999 with some words</p>" in found_txt, found_txt[-120:])
+with shaper.for_model():
+    s1 = shaper.shape(one_line, scope="/brain-a")
+check("the view of a one-line result counts the same pieces", s1.kind == "text_preview" and f"lines={len(soft)}" in s1.text, s1.text[:120])
 txt = query.text_view(lines, "tr_x", offset=100, limit=5)
 check("text can be read by line range", "lines 101-105 of 4000 next_offset=105" in txt and "line 104:" in txt, txt[:120])
 check("paging markers are found in an envelope",
@@ -290,6 +362,13 @@ class _Pool:
         _calls.append((tool, dict(args or {})))
         if tool == "list_orders":
             return PAGES.get(int((args or {}).get("page_number") or 1), page(0))
+        if tool == "list_zero_based":
+            n = int((args or {}).get("page") or 0)
+            rows = [{"id": n * 10 + i} for i in range(10)] if n < 5 else []
+            return json.dumps({"data": rows, "page": n, "total_pages": 5, "total": 50})
+        if tool == "list_short":
+            n = int((args or {}).get("page") or 1)
+            return json.dumps({"data": [{"id": n * 10 + i} for i in range(10)] if n <= 2 else [], "page": n, "total": 90})
         if tool == "get_report":
             return json.dumps({"summary": {"revenue": 123, "orders": 4}}, indent=2)
         if tool == "get_page_text":
@@ -306,6 +385,8 @@ class _Pool:
 CONN = {"id": "shop1", "connector_id": "custom-test-shop", "label": "Shop", "slug": "shop", "namespace": "shop",
         "perm": "full", "deny_tools": []}
 TOOLS = [("list_orders", {"page_number": {"type": "integer"}, "status": {"type": "string"}}),
+         ("list_zero_based", {"page": {"type": "integer"}}), ("list_short", {"page": {"type": "integer"}}),
+         ("trigger_sync", {}),
          ("get_report", {}), ("get_page_text", {}), ("same_page_always", {"page": {"type": "integer"}}),
          ("create_order", {"name": {"type": "string"}}), ("broken", {})]
 
@@ -401,6 +482,24 @@ _calls.clear()
 out = json.loads(run(as_model("javis_query", {"tool": "shop__same_page_always", "args": {}, "pages": 5, "describe": True})))
 check("a source that ignores the page argument is read once, not five times",
       len(_calls) == 2 and "same page again" in out["javis_query"]["source"]["note"], (len(_calls), out["javis_query"]))
+_calls.clear()
+out = json.loads(run(as_model("javis_query", {"tool": "shop__list_zero_based", "args": {}, "pages": 10,
+                                              "sql": "SELECT COUNT(*), COUNT(DISTINCT id) FROM records"})))
+check("a zero-based source is read from page 0 with no page skipped",
+      out["rows"] == [[50, 50]] and [c[1].get("page") for c in _calls][:3] == [None, 1, 2]
+      and out["javis_query"]["source"]["complete"] is True, (out.get("rows"), [c[1] for c in _calls]))
+_calls.clear()
+out = json.loads(run(as_model("javis_query", {"tool": "shop__list_short", "args": {}, "pages": 10, "describe": True})))
+check("fewer records than the source reports is never called complete",
+      out["javis_query"]["source"]["complete"] is False and "of the 90" in out["javis_query"]["source"]["note"],
+      out["javis_query"]["source"])
+_calls.clear()
+refused = run(as_model("javis_query", {"tool": "shop__trigger_sync", "args": {}, "pages": 3}))
+check("a tool nobody described as a read is never called by javis_query on its own",
+      refused.startswith("ERROR:") and not _calls, refused[:120])
+check("...although the hub's permission class alone would have let it through",
+      mcp_catalog.classify(SHOP, "trigger_sync", {}) == "read" and not tool_result_tools.is_plain_read(
+          {"conn": CONN, "tool": "trigger_sync"}, {}))
 _calls.clear()
 refused = run(as_model("javis_query", {"tool": "shop__create_order", "args": {"name": "x"}, "pages": 3}))
 check("a tool that writes can never be a source", refused.startswith("ERROR:") and not _calls, refused[:100])

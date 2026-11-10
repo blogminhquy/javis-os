@@ -83,7 +83,7 @@ TASK, MODE = "Báo cáo doanh thu tuần này", "full"
 
 
 def observe(day, steps_of_day, job=JOB, task=TASK, ok=True, mode=MODE):
-    jr.begin(job)
+    jr.begin(job, run_day=day)
     for s in steps_of_day:
         jr.note_call(job, s["tool"], s["args"], ok=True, ref=s.get("ref", ""))
     return jr.finish(BRAIN, job, ok=ok, task=task, mode=mode, run_day=day)
@@ -125,13 +125,61 @@ fixed = lambda day: [{"tool": "shop__stats", "args": {"from": "2026-10-01", "to"
 observe(TUE, fixed(TUE), job=JOB2)
 observe(WED, fixed(WED), job=JOB2)
 r2 = jr.load(BRAIN, JOB2)
-check("a campaign start date is also explained as 'start of last month'",
-      sorted(e[0] for e in r2["slots"][0]) == ["literal", "month_start"], r2["slots"][0])
+check("a campaign start date is also explained as 'start of last month' and 'start of this quarter'",
+      sorted(e[0] for e in r2["slots"][0]) == ["literal", "month_start", "quarter_start"], r2["slots"][0])
 check("...so it replays in November", jr.plan(r2, TASK, MODE, date(2026, 11, 20))[0]["args"]["from"] == "2026-10-01")
 check("...and refuses to guess on the first of December", jr.plan(r2, TASK, MODE, date(2026, 12, 1)) is None)
 observe(date(2026, 12, 1), fixed(date(2026, 12, 1)), job=JOB2)
-check("the December run proves it was a fixed date",
+check("the December run rules out 'start of last month', not yet 'start of this quarter'",
+      sorted(e[0] for e in jr.load(BRAIN, JOB2)["slots"][0]) == ["literal", "quarter_start"], jr.load(BRAIN, JOB2)["slots"][0])
+check("...so December replays", jr.plan(jr.load(BRAIN, JOB2), TASK, MODE, date(2026, 12, 20))[0]["args"]["from"] == "2026-10-01")
+check("...and the first run of the new quarter is not guessed", jr.plan(jr.load(BRAIN, JOB2), TASK, MODE, date(2027, 1, 4)) is None)
+observe(date(2027, 1, 4), fixed(date(2027, 1, 4)), job=JOB2)
+check("the January run proves it was a fixed date",
       jr.load(BRAIN, JOB2)["slots"][0] == [["literal", "2026-10-01"]], jr.load(BRAIN, JOB2)["slots"][0])
+
+# "the same day last month" must not be learned as "31 days ago"
+JOB5 = "reminder:r_same_day:1"
+same_day = lambda day: [{"tool": "shop__stats", "args": {"day": jr.evaluate(["month_same_day", -1], day).isoformat()}}]  # noqa: E731
+observe(date(2026, 11, 10), same_day(date(2026, 11, 10)), job=JOB5)
+observe(date(2026, 11, 11), same_day(date(2026, 11, 11)), job=JOB5)
+r5 = jr.load(BRAIN, JOB5)
+check("'31 days ago' and 'same day last month' both survive two November days",
+      sorted(e[0] for e in r5["slots"][0]) == ["day", "month_same_day"], r5["slots"][0])
+check("...they agree on Nov 20", jr.plan(r5, TASK, MODE, date(2026, 11, 20))[0]["args"]["day"] == "2026-10-20")
+check("...and disagree on Dec 1, so nothing is guessed", jr.plan(r5, TASK, MODE, date(2026, 12, 1)) is None)
+
+# "the last business day" must not be learned as "yesterday"
+JOB6 = "reminder:r_bizday:1"
+biz = lambda day: [{"tool": "shop__stats", "args": {"day": jr.evaluate(["prev_business_day", 0], day).isoformat()}}]  # noqa: E731
+observe(TUE, biz(TUE), job=JOB6)
+observe(WED, biz(WED), job=JOB6)
+r6 = jr.load(BRAIN, JOB6)
+check("Tuesday and Wednesday cannot tell 'yesterday' from 'last business day'",
+      sorted(e[0] for e in r6["slots"][0]) == ["day", "prev_business_day"], r6["slots"][0])
+check("...Thursday replays", jr.plan(r6, TASK, MODE, THU)[0]["args"]["day"] == "2026-11-11")
+check("...Monday is not guessed (Sunday or Friday?)", jr.plan(r6, TASK, MODE, NEXT_MON) is None)
+
+# periods Javis cannot move: never learned
+for label, args in (("a year-month", {"month": "2026-11"}), ("a month number", {"month": 11, "year": 2026}),
+                    ("a slashed date", {"from": "01/11/2026"}), ("a week number", {"week": 46}),
+                    ("a Unix time", {"since": 1794300000}), ("a compact date", {"d": "20261110"}),
+                    ("a date inside SQL text", {"sql": "SELECT 1 WHERE m = '2026-11'"})):
+    j = "reminder:r_period_" + label.replace(" ", "_") + ":1"
+    got = observe(TUE, [{"tool": "shop__stats", "args": args}], job=j)
+    check(f"{label} is a period Javis cannot recompute: the chain is not learned", got == "skipped" and jr.load(BRAIN, j) is None, got)
+check("plain arguments and ISO dates are not mistaken for such a period",
+      jr.unmovable_period([{"tool": "t", "args": {"shop_id": 714317363, "limit": 50, "status": "done", "page_size": 100,
+                                                  "from": "2026-11-09", "to": "2026-11-10T23:59:59", "ids": [12, 13]}}]) == "",
+      jr.unmovable_period([{"tool": "t", "args": {"shop_id": 714317363, "limit": 50, "from": "2026-11-09"}}]))
+
+# a job that starts before midnight and ends after it asked for its dates on the day it started
+JOB7 = "reminder:r_midnight:1"
+jr.begin(JOB7, run_day=TUE)
+jr.note_call(JOB7, "shop__stats", {"day": TUE.isoformat()}, ok=True)
+jr.finish(BRAIN, JOB7, ok=True, task=TASK, mode=MODE)          # finishes "the next day": no run_day passed
+check("the run day is the day the run STARTED", jr.load(BRAIN, JOB7)["days"] == [TUE.isoformat()]
+      and ["day", 0] in jr.load(BRAIN, JOB7)["slots"][0], jr.load(BRAIN, JOB7))
 
 # a chain that changes is not a recipe
 JOB3 = "reminder:r_changing:1"
@@ -175,6 +223,10 @@ class _Pool:
             return _calls and _fail_next.pop() if _fail_next else stats_page(args or {})
         if tool == "send_message":
             return "sent"
+        if tool == "trigger_sync":
+            return "started"
+        if tool == "get_big":
+            return json.dumps({"data": [{"i": i, "blob": "z" * 3000} for i in range(3)]})
         if tool == "describe_tools":
             return "how to call"
         return "OK"
@@ -191,7 +243,7 @@ mcp_catalog.get = lambda cid: ({"id": cid, "name": "Shop", "tool_meta": {"read":
 async def _fake_discover(conns, bo_qua=None):
     spec = {"transport": "http", "url": "https://shop.test/mcp", "headers": {}}
     tools, route = [], {}
-    for name in ("get_stats", "send_message", "describe_tools"):
+    for name in ("get_stats", "send_message", "describe_tools", "trigger_sync", "get_big"):
         fn = f"shop__{name}"
         route[fn] = {"spec": spec, "tool": name, "conn": dict(CONN)}
         tools.append({"fn": fn, "server": "shop", "name": name, "description": name,
@@ -224,6 +276,7 @@ async def model_run(day):
                                                  {"name": "shop__get_stats", "args": {"from": y, "to": y}})
         ref = json.loads(seen)["javis_stored_result"]["ref"]
         await engine._call_tool_for_model(route, "javis_query", {"ref": ref, "sql": "SELECT SUM(revenue) FROM records"})
+        await engine._call_tool_for_model(route, mcp_hub._LAZY_RUN, {"name": "shop__trigger_sync", "args": {}})
         await engine._call_tool_for_model(route, mcp_hub._LAZY_RUN, {"name": "shop__send_message", "args": {"text": "hi"}})
     finally:
         turn_context.reset(tok)
@@ -234,7 +287,7 @@ check("day one through the hub: learned", run(model_run(TUE)) == "learned")
 check("day two through the hub: confirmed", run(model_run(WED)) == "confirmed")
 hr = jr.load(HUB_BRAIN, HJOB)
 skel_steps = json.loads(hr["skeleton"])
-check("only the reads were recorded: no describe call, no send",
+check("only plain reads were recorded: no describe call, no send, no tool that merely lacks a write word",
       [s["tool"] for s in skel_steps] == ["shop__get_stats", "javis_query"], [s["tool"] for s in skel_steps])
 check("the query step points at the step that produced its data, not at a dead reference",
       skel_steps[1]["args"]["ref"] == "{{ref0}}", skel_steps[1])
@@ -242,14 +295,18 @@ plan = jr.plan(hr, HTASK, "full", THU)
 check("day three: yesterday is recomputed", plan[0]["args"] == {"from": "2026-11-11", "to": "2026-11-11"}, plan)
 
 
+_last_reason = [""]
+
+
 async def do_replay(steps):
     tools, route = await mcp_hub.discover_all("full", vault_root=HUB_BRAIN, include_plugins=False)
     tok = turn_context.bind(turn_context.make("reminder", job=HJOB))
     try:
-        jr.begin(HJOB)
+        jr.begin(HJOB, run_day=THU)
         jr.pause(HJOB)
-        results = await jr.replay(steps, route)
-        jr.replay_done(HUB_BRAIN, HJOB, bool(results))
+        results, reason = await jr.replay(steps, route)
+        _last_reason[0] = reason
+        jr.replay_done(HUB_BRAIN, HJOB, bool(results), reason, steps)
         return results
     finally:
         turn_context.reset(tok)
@@ -277,6 +334,10 @@ run(do_replay(plan))
 check("two failed replays in a row delete the recipe", jr.load(HUB_BRAIN, HJOB) is None)
 jr.finish(HUB_BRAIN, HJOB, ok=True, task=HTASK, mode="full", run_day=THU)
 
+_calls.clear()
+check("a recipe step calling a tool nobody described as a read is refused, even though the hub would allow it",
+      run(do_replay([{"tool": "shop__trigger_sync", "args": {}}])) is None and not _calls, _calls)
+jr.finish(HUB_BRAIN, HJOB, ok=False, task=HTASK, mode="full", run_day=THU)
 check("a recipe step that is not a read is refused at replay time",
       run(do_replay([{"tool": "shop__send_message", "args": {"text": "x"}}])) is None and all(c[0] != "send_message" for c in _calls))
 check("a recipe step whose tool is gone is refused", run(do_replay([{"tool": "shop__gone", "args": {}}])) is None)
@@ -357,6 +418,42 @@ check("a failed prefetch: the job runs the normal way, nothing half-injected",
       body == "xong" and "DỮ LIỆU JAVIS ĐÃ LẤY SẴN" not in _GOT["prompt"])
 jr.finish(HUB_BRAIN, HJOB, ok=True, task=HTASK, mode="full", run_day=THU)
 jr.today = _real_today
+
+# ============================================================
+# 5. Self-correction and size
+# ============================================================
+jr.forget(HUB_BRAIN, HJOB)
+run(model_run(TUE))
+run(model_run(WED))
+plan = jr.plan(jr.load(HUB_BRAIN, HJOB), HTASK, "full", THU)
+for expected in ("recalled", "dropped"):
+    run(do_replay(plan))
+    # the data was prefetched, and the model still called the same source itself
+    jr.note_call(HJOB, "shop__get_stats", {"from": "2026-11-01", "to": "2026-11-12"}, ok=True)
+    got = jr.finish(HUB_BRAIN, HJOB, ok=True, task=HTASK, mode="full", run_day=THU)
+    check(f"the model re-reading a prefetched source counts against the recipe ({expected})", got == expected, got)
+check("...and twice in a row forgets it", jr.load(HUB_BRAIN, HJOB) is None)
+
+run(model_run(TUE))
+run(model_run(WED))
+plan = jr.plan(jr.load(HUB_BRAIN, HJOB), HTASK, "full", THU)
+run(do_replay(plan))
+jr.note_call(HJOB, "javis_query", {"ref": "tr_" + "b" * 24, "sql": "SELECT 1"}, ok=True)   # more analysis on the data
+check("querying the prefetched data further is NOT a re-read",
+      jr.finish(HUB_BRAIN, HJOB, ok=True, task=HTASK, mode="full", run_day=THU) == "replayed"
+      and jr.load(HUB_BRAIN, HJOB)["fails"] == 0)
+
+_keep_total = jr.PREFETCH_TOTAL_CHARS
+jr.PREFETCH_TOTAL_CHARS = 2000
+check("results too large for a prompt cancel the replay without counting a failure",
+      run(do_replay(plan)) is None and _last_reason[0] == "too_big" and jr.load(HUB_BRAIN, HJOB)["fails"] == 0
+      and jr.load(HUB_BRAIN, HJOB)["disabled"] == "too_big", (_last_reason[0], jr.load(HUB_BRAIN, HJOB)))
+jr.PREFETCH_TOTAL_CHARS = _keep_total
+jr.finish(HUB_BRAIN, HJOB, ok=True, task=HTASK, mode="full", run_day=THU)
+check("...and the recipe is switched off rather than retried every day",
+      jr.plan(jr.load(HUB_BRAIN, HJOB), HTASK, "full", date(2026, 11, 13)) is None)
+check("...the same chain seen again does not switch it back on", run(model_run(date(2026, 11, 13))) == ""
+      and jr.load(HUB_BRAIN, HJOB)["disabled"] == "too_big")
 
 if _fails:
     raise SystemExit(f"{len(_fails)} FAIL: " + "; ".join(_fails))

@@ -156,7 +156,9 @@ def slice_records(loaded: dict, ref: str, fields=None, offset=0, limit=50, max_c
 # ---------------------------------------------------------------- text
 
 def text_view(text: str, ref: str, search: str = "", offset=0, limit=80, max_chars=OUTPUT_CHARS_DEFAULT) -> str:
-    lines = text.splitlines()
+    """Lines of a text result, by search or by range. A line longer than `shaper.SOFT_LINE_CHARS` (minified HTML, a
+    one-line document) counts as several lines, so every character stays reachable by line number."""
+    lines = shaper.soft_lines(text)
     room = max_chars - 300
     out = []
     if search:
@@ -166,17 +168,18 @@ def text_view(text: str, ref: str, search: str = "", offset=0, limit=80, max_cha
         if not hits:
             hits = [i for i, ln in enumerate(lines) if any(w in ln.lower() for w in words)]
             mode = "any word"
-        shown, last = 0, -2
+        shown, last = 0, -1
         for i in hits:
-            block = []
-            for j in (i - 1, i, i + 1):
-                if 0 <= j < len(lines) and j > last:
-                    block.append(f"{j + 1}: {lines[j][:600]}")
-                    last = j
-            size = sum(len(b) + 1 for b in block)
-            if size > room:
-                break
-            out += block
+            block = [(j, f"{j + 1}: {lines[j]}") for j in (i - 1, i, i + 1) if last < j < len(lines) and j >= 0]
+            if sum(len(t) + 1 for _j, t in block) > room:
+                block = [(i, f"{i + 1}: {lines[i]}")] if i > last else []     # the matching line alone
+            size = sum(len(t) + 1 for _j, t in block)
+            if not block or size > room:
+                if i > last:
+                    break
+                continue
+            out += [t for _j, t in block]
+            last = block[-1][0]
             room -= size
             shown += 1
         header = (f"[javis_query ref={ref} search={search!r} matched_lines={len(hits)} ({mode}) shown={shown} "
@@ -191,9 +194,6 @@ def text_view(text: str, ref: str, search: str = "", offset=0, limit=80, max_cha
     while i < min(len(lines), offset + limit):
         ln = lines[i]
         if len(ln) + 1 > room:
-            if not out:
-                out.append(ln[:room])
-                i += 1
             break
         out.append(ln)
         room -= len(ln) + 1
@@ -218,14 +218,20 @@ def _col(name: str, taken: set) -> str:
     return out
 
 
-def _flatten(record: dict, prefix: str, depth: int, out: dict, children: dict) -> None:
+_LEAD = "\x00lead"            # the row's own position / its parent's, never a data key
+_COUNT = "\x00count"          # marks the generated "<list field>_count" column
+
+
+def _flatten(record: dict, path: tuple, depth: int, out: dict, children: dict) -> None:
+    """Flatten one record into {path tuple: value}. Paths, not joined names: `customer.name` and a real
+    `customer_name` field, or a list `comments` next to a real `comments_count`, must stay two columns."""
     for k, v in record.items():
-        key = f"{prefix}{k}"
+        key = path + (str(k),)
         if isinstance(v, dict) and depth < 3:
-            _flatten(v, key + "_", depth + 1, out, children)
+            _flatten(v, key, depth + 1, out, children)
         elif isinstance(v, list):
             out[key] = _dumps(v) if v else None
-            out[key + "_count"] = len(v)
+            out[key + (_COUNT,)] = len(v)
             if depth == 0 and v and all(isinstance(x, dict) for x in v):
                 children.setdefault(str(k), []).append(v)
         elif isinstance(v, dict):
@@ -236,14 +242,29 @@ def _flatten(record: dict, prefix: str, depth: int, out: dict, children: dict) -
             out[key] = v
 
 
-def _row_records(records: list) -> list:
-    """Rows that are plain lists (a spreadsheet range) as objects: header names when the first row
-    looks like a header, else c1..cN."""
+def _is_number(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _row_records(records: list) -> tuple:
+    """Rows that are plain lists (a spreadsheet range) as objects. Returns (records, header row used or None).
+
+    The first row names the columns ONLY when the data proves it is a header: it is all text while some column
+    below it is mostly numbers. A range of text-only rows keeps every row as data under c1..cN, because eating a
+    real first row would make every count and total silently wrong."""
     width = max((len(r) for r in records if isinstance(r, list)), default=0)
     first = records[0] if records and isinstance(records[0], list) else []
-    header_ok = (len(records) > 1 and len(first) >= 2 and len(first) >= width * 0.6
-                 and all(isinstance(x, str) and x.strip() and len(x) <= 60 for x in first)
-                 and len({str(x).strip().lower() for x in first}) == len(first))
+    looks = (len(records) > 1 and len(first) >= 2 and len(first) >= width * 0.6
+             and all(isinstance(x, str) and x.strip() and len(x) <= 60 for x in first)
+             and len({str(x).strip().lower() for x in first}) == len(first))
+    header_ok = False
+    if looks:
+        below = [r for r in records[1:200] if isinstance(r, list)]
+        for j in range(len(first)):
+            values = [r[j] for r in below if j < len(r) and r[j] not in ("", None)]
+            if values and sum(1 for v in values if _is_number(v)) >= len(values) * 0.6:
+                header_ok = True
+                break
     names = [str(x).strip() for x in first] if header_ok else []
     names += [f"c{i + 1}" for i in range(len(names), width)]
     out = []
@@ -252,33 +273,50 @@ def _row_records(records: list) -> list:
             out.append({names[i]: (None if v == "" else v) for i, v in enumerate(r[:width])})
         elif isinstance(r, dict):
             out.append(r)
-    return out
+    return out, (list(first) if header_ok else None)
+
+
+def _display(key) -> str:
+    return "_".join("count" if part == _COUNT else part for part in key)
+
+
+def _sql_value(v):
+    if isinstance(v, bool):
+        return int(v)
+    if isinstance(v, int):
+        return v if -(2 ** 63) <= v < 2 ** 63 else str(v)      # SQLite integers are 64-bit
+    if isinstance(v, (float, str)) or v is None:
+        return v
+    return _dumps(v)
 
 
 def _create(db, table: str, rows: list, lead: str) -> list:
-    """Create `table` from flat dict rows. Returns [(column, original key)]."""
+    """Create `table` from flattened rows. Returns [(column, key)]."""
     keys, seen = [], set()
     for r in rows:
         for k in r:
-            if k != "\x00lead" and k not in seen:
+            if k != _LEAD and k not in seen:
                 seen.add(k)
                 keys.append(k)
     extra = keys[MAX_COLUMNS:]
     keys = keys[:MAX_COLUMNS]
     taken = {lead.lower(), "_extra"}
-    cols = [(_col(k, taken), k) for k in keys]
+    # A real field keeps its own name; a generated or flattened column that would collide gets the suffix.
+    names = {}
+    for k in sorted(keys, key=lambda k: (_COUNT in k, len(k))):
+        names[k] = _col(_display(k), taken)
+    cols = [(names[k], k) for k in keys]
     ddl = ", ".join([f'"{lead}" INTEGER'] + [f'"{c}"' for c, _ in cols] + (['"_extra"'] if extra else []))
     db.execute(f'CREATE TABLE "{table}" ({ddl})')
     marks = ",".join("?" * (1 + len(cols) + (1 if extra else 0)))
 
     def gen():
         for r in rows:
-            vals = [r.get("\x00lead")]
+            vals = [r.get(_LEAD)]
             for _c, k in cols:
-                v = r.get(k)
-                vals.append(v if isinstance(v, (int, float, str)) or v is None else _dumps(v))
+                vals.append(_sql_value(r.get(k)))
             if extra:
-                rest = {k: r[k] for k in extra if r.get(k) is not None}
+                rest = {_display(k): r[k] for k in extra if r.get(k) is not None}
                 vals.append(_dumps(rest) if rest else None)
             yield vals
     db.executemany(f'INSERT INTO "{table}" VALUES ({marks})', gen())
@@ -286,18 +324,23 @@ def _create(db, table: str, rows: list, lead: str) -> list:
 
 
 def build_database(records: list) -> tuple:
-    """(connection, schema) with the records loaded. schema = {table: [column names]}."""
+    """(connection, schema, notes) with the records loaded. schema = {table: [column names]}."""
     db = sqlite3.connect(":memory:", check_same_thread=False)
+    notes = {}
     if records and sum(1 for r in records[:50] if isinstance(r, list)) > len(records[:50]) / 2:
-        records = _row_records(records)
+        records, header = _row_records(records)
+        if header is not None:
+            notes["header_row_used"] = [str(x)[:40] for x in header[:60]]
+        else:
+            notes["columns"] = "c1..cN by position; no row was taken as a header"
     main, children = [], {}
     for i, rec in enumerate(records, 1):
-        flat = {"\x00lead": i}
+        flat = {_LEAD: i}
         kids = {}
         if isinstance(rec, dict):
-            _flatten(rec, "", 0, flat, kids)
+            _flatten(rec, (), 0, flat, kids)
         else:
-            flat["value"] = rec if isinstance(rec, (int, float, str)) or rec is None else _dumps(rec)
+            flat[("value",)] = rec
         for k, lists in kids.items():
             children.setdefault(k, []).extend((i, item) for item in lists[0])
         main.append(flat)
@@ -308,17 +351,37 @@ def build_database(records: list) -> tuple:
     for name, items in sorted(children.items(), key=lambda kv: -len(kv[1]))[:MAX_CHILD_TABLES]:
         rows = []
         for parent, item in items:
-            flat = {"\x00lead": parent}
-            _flatten(item, "", 1, flat, {})
+            flat = {_LEAD: parent}
+            _flatten(item, (), 1, flat, {})
             rows.append(flat)
         table = "records_" + _col(name, taken)
         ccols = _create(db, table, rows, "_record")
         schema[table] = ["_record"] + [c for c, _ in ccols]
     db.commit()
-    return db, schema
+    return db, schema, notes
 
 
 _ALLOWED = None
+# Functions that reach outside the database, or that build one huge value in a single step (the time limit only
+# stops work that takes many steps).
+_DENIED_FUNCTIONS = frozenset({"load_extension", "readfile", "writefile", "edit", "fts3_tokenizer",
+                               "zeroblob", "randomblob"})
+_VALUE_BYTES_MAX = 1_000_000     # one string or blob built by a query
+# The time limit is checked every this many VM steps. One step can be a costly function call on a large value, so
+# the gap must be small: at 20,000 a crafted query ran 133 s against an 8 s limit (review, 2026-11-10).
+_PROGRESS_STEPS = 200
+
+
+def _limit(db) -> None:
+    """Bound what one query can build. Missing on an old Python or SQLite: the time limit still applies."""
+    try:
+        db.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, _VALUE_BYTES_MAX)
+        db.setlimit(sqlite3.SQLITE_LIMIT_SQL_LENGTH, MAX_SQL_CHARS * 4)
+        db.setlimit(sqlite3.SQLITE_LIMIT_EXPR_DEPTH, 200)
+        db.setlimit(sqlite3.SQLITE_LIMIT_COMPOUND_SELECT, 50)
+        db.setlimit(sqlite3.SQLITE_LIMIT_ATTACHED, 0)
+    except (AttributeError, sqlite3.Error):
+        pass
 
 
 def _authorizer(action, arg1, arg2, dbname, source):
@@ -326,8 +389,7 @@ def _authorizer(action, arg1, arg2, dbname, source):
     if _ALLOWED is None:
         _ALLOWED = {sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION,
                     getattr(sqlite3, "SQLITE_RECURSIVE", 33)}
-    if action == sqlite3.SQLITE_FUNCTION and str(arg2 or "").lower() in ("load_extension", "readfile",
-                                                                          "writefile", "edit", "fts3_tokenizer"):
+    if action == sqlite3.SQLITE_FUNCTION and str(arg2 or "").lower() in _DENIED_FUNCTIONS:
         return sqlite3.SQLITE_DENY
     return sqlite3.SQLITE_OK if action in _ALLOWED else sqlite3.SQLITE_DENY
 
@@ -358,10 +420,11 @@ def run_sql(loaded: dict, ref: str, sql: str, max_chars: int = OUTPUT_CHARS_DEFA
         raise QueryError("one statement only (no ';').")
     if not re.match(r"(?is)^\s*(select|with)\b", sql):
         raise QueryError("only SELECT (or WITH ... SELECT) is allowed.")
-    db, schema = build_database(loaded["records"])
+    db, schema, notes = build_database(loaded["records"])
     try:
         deadline = time.time() + SQL_TIMEOUT_S
-        db.set_progress_handler(lambda: 1 if time.time() > deadline else 0, 20_000)
+        db.set_progress_handler(lambda: 1 if time.time() > deadline else 0, _PROGRESS_STEPS)
+        _limit(db)
         db.set_authorizer(_authorizer)
         try:
             cur = db.execute(sql)
@@ -380,11 +443,14 @@ def run_sql(loaded: dict, ref: str, sql: str, max_chars: int = OUTPUT_CHARS_DEFA
             db.set_authorizer(None)
             if "interrupted" in msg.lower():
                 raise QueryError(f"the query ran longer than {int(SQL_TIMEOUT_S)} seconds; make it simpler.")
+            if "too big" in msg.lower() or "too large" in msg.lower():
+                raise QueryError("the query builds a value that is too large; select fewer or shorter columns.")
             if "not authorized" in msg.lower() or "prohibited" in msg.lower():
                 raise QueryError("only reading is allowed here (SELECT over the tables below). "
                                  + _dumps({"tables": describe(schema, db)}))
             raise QueryError(f"SQL error: {msg}. " + _dumps({"tables": describe(schema, db)}))
         head = {"ref": ref, "total_records": len(loaded["records"]), "row_count": len(rows)}
+        head.update(notes)
         if truncated:
             head["truncated"] = True
             head["hint"] = "More rows exist than fit. Aggregate (GROUP BY), select fewer columns, or add LIMIT/OFFSET."
@@ -394,10 +460,10 @@ def run_sql(loaded: dict, ref: str, sql: str, max_chars: int = OUTPUT_CHARS_DEFA
 
 
 def schema_view(loaded: dict, ref: str, max_chars: int = OUTPUT_CHARS_DEFAULT) -> str:
-    db, schema = build_database(loaded["records"])
+    db, schema, notes = build_database(loaded["records"])
     try:
         return _dumps({"javis_query": {"ref": ref, "total_records": len(loaded["records"]),
-                                       "records_at": loaded["pointer"]},
+                                       "records_at": loaded["pointer"], **notes},
                        "tables": describe(schema, db, max_chars - 400)})
     finally:
         db.close()

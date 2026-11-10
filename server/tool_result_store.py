@@ -127,6 +127,19 @@ def available() -> bool:
         return False
 
 
+def norm_scope(scope) -> str:
+    """One spelling per brain. The hub, a scout and a recipe replay each learn the brain's folder their own way
+    (a request header, the open brain, a reminder's brain), so the same folder can arrive as a symlink, with a
+    trailing slash or in another letter case; a result stored under one spelling must be readable under another."""
+    raw = str(scope or "").strip()
+    if not raw:
+        return ""
+    try:
+        return os.path.normcase(os.path.realpath(raw))
+    except (OSError, ValueError):
+        return raw
+
+
 def _pack(text: str) -> str:
     packed = base64.b64encode(zlib.compress(text.encode("utf-8", errors="replace"), 6)).decode("ascii")
     return _codec()[0](packed)
@@ -157,7 +170,7 @@ def put(text: str, *, scope: str = "", tool: str = "", conn_id: str = "", kind: 
             db.execute(
                 "INSERT INTO results(ref, scope, tool, conn_id, kind, created, expires, chars, stored_bytes, "
                 "sha256, meta, body) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (ref, str(scope or ""), str(tool or "")[:200], str(conn_id or "")[:200], str(kind or "result")[:40],
+                (ref, norm_scope(scope), str(tool or "")[:200], str(conn_id or "")[:200], str(kind or "result")[:40],
                  now, now + max(60, int(ttl or ttl_seconds())), len(text), len(body), digest,
                  json.dumps(meta or {}, ensure_ascii=False, default=str)[:20_000], body))
             db.commit()
@@ -182,7 +195,7 @@ def get(ref: str, scope: str = "") -> Optional[dict]:
             row = _conn().execute(
                 "SELECT scope, tool, conn_id, kind, created, expires, chars, meta, body FROM results WHERE ref=?",
                 (ref,)).fetchone()
-        if not row or row[0] != str(scope or "") or row[5] <= time.time():
+        if not row or row[0] != norm_scope(scope) or row[5] <= time.time():
             return None
         try:
             meta = json.loads(row[7] or "{}")

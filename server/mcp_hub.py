@@ -449,11 +449,8 @@ def _shaped_call(call, ent, fn, scope):
             # A recurring job's read calls are what its recipe replays (job_recipes.py). No job, no recording.
             job = str((turn_context.current() or {}).get("job") or "")
             if job:
-                try:
-                    is_read = mcp_catalog.classify(mcp_catalog.get(conn.get("connector_id")), tool, args) == "read"
-                except Exception:  # noqa: BLE001 - cannot prove it is a read: do not record it
-                    is_read = False
-                if is_read:
+                # only a call that is plainly a read may ever be repeated by Javis (tool_result_tools.is_plain_read)
+                if tool_result_tools.is_plain_read(ent, args):
                     job_recipes.note_call(job, fn, args, ok=not text.lstrip().startswith("ERROR:"), ref=shaped.ref)
         return shaped.text if shaped.kind in tool_result_shaper.CHANGED_KINDS else result
 
@@ -1517,19 +1514,22 @@ def _rank_tools(pool, query, top_k):
         hay = own + " " + str(t.get("description") or "").lower()
         score = 5 if q in hay else 0
         score += sum(1 for w in terms if w in hay)
-        score += sum(1 for w in terms if w in own)
+        in_name = sum(1 for w in terms if w in own)
+        score += in_name
         if q == str(t.get("fn") or "").lower() or q == str(t.get("name") or "").lower():
             score += 100                                   # asked for by exact name: always first
         ns = str(t.get("namespace") or "").lower()
         if ns and ns in q:
             score += 3
         if score > 0:
-            scored.append((score, t))
+            scored.append((score, t, in_name))
     scored.sort(key=lambda x: x[0], reverse=True)
     if scored:
         floor = scored[0][0] / 2
-        scored = [x for x in scored if x[0] >= floor]
-    return [t for _s, t in scored[:top_k]]
+        # ...unless the tool's own name carries two of the words asked for: that is a real match even when
+        # another tool's description happens to contain the whole phrase and takes the top score.
+        scored = [x for x in scored if x[0] >= floor or x[2] >= 2]
+    return [t for _s, t, _n in scored[:top_k]]
 
 
 def _hidden_hint(hidden, only_ns=None):
