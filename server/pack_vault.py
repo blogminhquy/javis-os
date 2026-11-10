@@ -349,6 +349,26 @@ def con_lai(pack_id: str) -> dict:
     return {"placed": len(items), "present": sum(1 for m in items.values() if _where(m) is not None)}
 
 
+def brain_of(pack_id: str, open_root: str = "") -> dict:
+    """Which brain holds the items this pack placed (#1308).
+
+    A pack's ledger keeps ONE brain, the one that was open at install time, while the pack itself (connector, plugin,
+    the "Installed" mark) is for the whole machine. Seen from another brain the Store said "Installed" although none
+    of the pack's assistants or skills were there, and Uninstall removed them from a brain the user was not looking
+    at. `{"brain", "name", "present", "other"}`: `other` is True when items are still there AND `open_root` is a
+    different brain."""
+    so = doc_so(pack_id)
+    brain = str(so.get("brain") or "")
+    present = con_lai(pack_id)["present"]
+    other = False
+    if brain and present and open_root:
+        try:
+            other = Path(brain).resolve() != Path(open_root).resolve()
+        except OSError:
+            other = brain != str(open_root)
+    return {"brain": brain, "name": Path(brain).name if brain else "", "present": present, "other": other}
+
+
 def ke_hoach_go(pack_id: str) -> dict:
     """Gỡ gói này thì mất năng lực nào, và giữ lại cái nào vì người dùng đã sửa."""
     so = doc_so(pack_id)
