@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.534.0] - 2026-11-11
+### Added
+- **The inbox says when a bot reply did not reach the customer on personal Zalo.** A reply used to show in the inbox as sent as soon as the bot had written it, even when Zalo refused it or the send timed out. A reply that went out now shows nothing extra. One that was not sent, one whose outcome is unclear, or one dropped because the customer wrote again gets a small line under it, with the reason. A reply stuck on sending for more than 5 minutes turns into outcome unclear. Thanks to hwangrin for this contribution.
+
 ## [0.533.0] - 2026-11-11
 ### Added
 - **Large tool results no longer lose their middle.** Javis stores the full copy, hands the model a compact view with a reference, and the model reads back exactly what it needs. Reports stop missing orders and cost fewer tokens on every brain.
