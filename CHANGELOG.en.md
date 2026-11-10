@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.535.0] - 2026-11-11
+### Added
+- **Click a file Javis made outside the brain to open it.** For example, a deck in ~/Documents. The chat used to show the file name as plain text. Now the full path is a link that opens the file in its default app on the computer, like a double click in Finder.
+- The link appears only when you use Javis on the computer that runs it. On a VPS, through a domain or in Docker, the path stays plain text you can copy, as before. Links only open files inside the home folder. Programs and scripts never run; Javis only shows the folder that holds them. Thanks to mminhthu0304-gif for this contribution.
+
 ## [0.534.0] - 2026-11-11
 ### Added
 - **The inbox says when a bot reply did not reach the customer on personal Zalo.** A reply used to show in the inbox as sent as soon as the bot had written it, even when Zalo refused it or the send timed out. A reply that went out now shows nothing extra. One that was not sent, one whose outcome is unclear, or one dropped because the customer wrote again gets a small line under it, with the reason. A reply stuck on sending for more than 5 minutes turns into outcome unclear. Thanks to hwangrin for this contribution.
