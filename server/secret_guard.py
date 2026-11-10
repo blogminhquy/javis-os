@@ -27,9 +27,11 @@ _ALWAYS = (
     "security_log.jsonl", "security_log.1.jsonl", "auth_audit.jsonl", ".login_networks.json",
     ".credentials.json",            # ~/.claude login of the Claude Code plan
     "authorized_keys",              # SSH keys of the machine (bare-metal installs)
-    # 2026-11-10: the per-run MCP configs Javis writes for Claude Code hold the hub bearer, like .hub_token itself.
-    ".mcp_hub_",
 )
+# Name PREFIXES refused the same way. Kept apart from _ALWAYS, which lists whole file names (tests/python/
+# test_ignore_files.py checks each of those against .gitignore). 2026-11-10: the per-run MCP configs Javis writes for
+# Claude Code (`.mcp_hub_<mode>[_<hash>][_bot].json`) hold the hub bearer, like .hub_token itself.
+_ALWAYS_PREFIXES = (".mcp_hub_",)
 # ~/.codex/auth.json holds the ChatGPT plan login.
 _HOME_FILES = ((".codex", "auth.json"), (".claude", ".credentials.json"))
 # Tools whose inputs name paths (Claude Code). Bash is checked as a command.
@@ -68,7 +70,7 @@ def check_text(text: str) -> str:
     if not t:
         return ""
     low = t.lower()
-    for name in _ALWAYS:
+    for name in _ALWAYS + _ALWAYS_PREFIXES:
         if name in low:
             return name
     for home, name in _HOME_FILES:
