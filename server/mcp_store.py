@@ -547,6 +547,16 @@ def resolved(enabled_only=True):
                     env[of["env"]] = str(fp)
             except Exception as e:
                 print(f"[mcp_store] oauth file {c['id']}: {e}", file=sys.stderr)
+        if c.get("connector_id") == "zalo" and (c.get("transport") or "http") == "stdio":
+            # Live push (2026-11-10): javis-zalo 1.10.0 wakes Javis when a message arrives, so the read loop stops
+            # asking on a timer. Set HERE, not where the loop builds its spec: the session's identity includes its
+            # env, and every caller of this connection (loop, hub tools, health check) must hand over the same one.
+            try:
+                import zalo_push
+                for k, v in zalo_push.env_for(c["id"]).items():
+                    env.setdefault(k, v)
+            except Exception as e:  # noqa: BLE001 - without the variables the account is read on the timer
+                print(f"[mcp_store] zalo push env {c['id']}: {type(e).__name__}: {e}", file=sys.stderr)
         out.append({
             "id": c["id"], "connector_id": c["connector_id"], "label": c.get("label"),
             "slug": c.get("slug"), "namespace": ns,

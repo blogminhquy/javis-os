@@ -48,6 +48,7 @@ from typing import Any, Dict, List, Optional
 import config as cfgmod
 import localefmt
 import conversations
+import zalo_push
 
 CONNECTOR_ID = "zalo"
 KENH = "zalo_personal"
@@ -140,6 +141,8 @@ def tai_khoan() -> List[dict]:
             "theo_doi": bool(cfg.get(c["id"])),
             "lan_cuoi": tt.get("lan_cuoi") or 0, "loi": tt.get("loi") or "",
             "so_tin": int(tt.get("so_tin") or 0),
+            # True: javis-zalo tells Javis when a message arrives, so "last read" is not a heartbeat any more.
+            "push": push_active(c["id"]),
         })
     return out
 
@@ -1065,6 +1068,14 @@ async def _vong() -> None:
                     # hạn thì để yên, khỏi tăng số lần gọi MCP của mọi tài khoản theo một cuộc chat.
                     if luc < float(tt.get("doc_toi") or 0):
                         continue
+                    # Live push (2026-11-10): an account whose javis-zalo pushes is read when a wake-up is waiting
+                    # and NOT otherwise. `take` comes before the read, so a wake-up that lands while the read runs
+                    # is still pending afterwards.
+                    woken = zalo_push.take(conn["id"])
+                    if not woken and push_active(conn["id"]):
+                        await _idle_turn(conn, tt, luc)
+                        tt["doc_toi"] = luc + min(NHIP, _nhip_cua(conn["id"])) * 0.9
+                        continue
                     try:
                         await doc_mot_lan(conn)
                     except asyncio.CancelledError:
@@ -1081,16 +1092,87 @@ async def _vong() -> None:
                         await asyncio.to_thread(_history_turn, conn, tt)
                     _soi_tranh_phien(conn)
                     # Hạn sớm hơn một nhịp chút ít: vòng ngủ đúng một nhịp thì lần thức sau chắc chắn đã tới hạn.
-                    tt["doc_toi"] = luc + _nhip_cua(conn["id"]) * 0.9
+                    # A wake-up that arrived during this read: read again on the next pass, no wait. The interval
+                    # never goes past NHIP, so an account that pushed and then lost its process is looked at again
+                    # within one tick (`push_active` is false then, and the read restarts javis-zalo).
+                    tt["doc_toi"] = 0 if zalo_push.pending(conn["id"]) else luc + min(NHIP, _nhip_cua(conn["id"])) * 0.9
         except asyncio.CancelledError:
             raise
         except Exception as e:
             print(f"[zalo-personal vòng] {type(e).__name__}: {e}", file=sys.stderr)
         try:
-            await asyncio.sleep(_nhip_vong())
+            await _sleep_or_wake(_nhip_vong())
         except asyncio.CancelledError:
             raise
     print("[zalo-personal] vòng đọc dừng", file=sys.stderr)
+
+
+# ============================================================
+# Live push: read when javis-zalo says a message arrived (2026-11-10, see zalo_push.py)
+# ============================================================
+_WAKE: Optional[asyncio.Event] = None       # set by a wake-up, waited on by the loop between two passes
+
+
+def push_active(conn_id: str) -> bool:
+    """This account's javis-zalo pushes: a wake-up came from the MCP session that is alive right now. False for an
+    older javis-zalo, a process that died (the next pass reads, which restarts it), or with live push switched off."""
+    try:
+        import mcp_client
+        cid = str(conn_id or "")
+        if not mcp_client.pool.session_pid(cid):
+            return False
+        return zalo_push.active(cid, int(mcp_client.pool.epoch({"key": cid}) or 0))
+    except Exception:       # noqa: BLE001 - unsure means "read on the timer", the behavior before live push
+        return False
+
+
+def on_push(conn_id: str, body: dict) -> dict:
+    """A wake-up from javis-zalo for one connection (POST /zalo/push, checked there). Marks the account as due and
+    wakes the loop. Returns {"ok", "known"}; an unknown or disabled connection is answered ok so javis-zalo stops
+    retrying, and nothing is recorded for it."""
+    cid = str(conn_id or "").strip()
+    conn = ket_noi_theo_id(cid) if cid else None
+    if conn is None:
+        return {"ok": True, "known": False}
+    zalo_push.note(cid, body, _epoch(conn))
+    _TT.setdefault(cid, {})["doc_toi"] = 0
+    if _WAKE is not None:
+        _WAKE.set()
+    return {"ok": True, "known": True}
+
+
+async def _sleep_or_wake(seconds: float) -> None:
+    """Sleep one tick, or less when a wake-up arrives. The event is cleared BEFORE the wait is set up and every
+    wake-up also leaves its account `pending`, so one that lands between two passes is never lost."""
+    global _WAKE
+    if _WAKE is None:
+        _WAKE = asyncio.Event()
+    if any(zalo_push.pending(cid) for cid in list(_TT)):
+        return
+    _WAKE.clear()
+    if any(zalo_push.pending(cid) for cid in list(_TT)):
+        return
+    try:
+        await asyncio.wait_for(_WAKE.wait(), timeout=max(0.05, float(seconds)))
+    except asyncio.TimeoutError:
+        pass
+
+
+async def _idle_turn(conn: dict, tt: dict, now: float) -> None:
+    """One pass over a pushing account with no wake-up waiting: everything a read used to do on the side, without
+    calling javis-zalo. No wake-up since the last read means no message since then, which is what releasing a held
+    turn needs to know (a customer who stopped typing, an owner who did not answer by hand)."""
+    cid = conn["id"]
+    try:
+        xa_hang_cho(cid, now)
+        xa_cho_chu(cid, now)
+        if tt.get("history_pending"):
+            await asyncio.to_thread(_history_turn, conn, tt)
+        _soi_tranh_phien(conn)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:      # noqa: BLE001
+        print(f"[zalo-personal {conn.get('label')}] idle pass: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 # ============================================================
@@ -1199,6 +1281,8 @@ def start() -> bool:
     except RuntimeError:
         return False
     _stop = False
+    global _WAKE
+    _WAKE = asyncio.Event()     # a fresh one per loop lifetime: an Event belongs to the event loop that first waits on it
     _task = loop.create_task(_vong())
     return True
 
@@ -2036,7 +2120,8 @@ def _nhip_cua(conn_id: str, now: Optional[float] = None) -> int:
     if any(k[0] == cid for k in _GOM):
         return NHIP_NHANH
     now = time.time() if now is None else now
-    if CHO_KHACH_IM > 0 and now - float(_NONG.get(cid) or 0) < NONG_GIAY:
+    # The hot window exists to hear the customer's NEXT message quickly. A pushing account hears it at once.
+    if CHO_KHACH_IM > 0 and now - float(_NONG.get(cid) or 0) < NONG_GIAY and not push_active(cid):
         return NHIP_NHANH
     return NHIP
 
