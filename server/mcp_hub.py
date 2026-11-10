@@ -2413,10 +2413,20 @@ CODEX_REQUIRED_KEY = "mcp_servers.javis.required"
 CODEX_APPS_KEY = "features.apps"
 
 
+# A required hub gets a longer wait than the profile's 20 seconds (#1306). With `required = true` a hub that answers
+# `tools/list` late no longer costs the tools, it costs the WHOLE run: Codex exits before it calls the model. Field
+# report 2026-11-10: 8 scheduled runs lost in ten days, mostly when several schedules opened a Codex session in the
+# same minute. Chat keeps the profile's 20 seconds; codex_steer.START_TIMEOUT_S (120) leaves room for this.
+CODEX_REQUIRED_TIMEOUT_KEY = "mcp_servers.javis.startup_timeout_sec"
+CODEX_REQUIRED_TIMEOUT_S = 45
+
+
 def dat_codex_hub_bat_buoc(extra_config):
     """Gắn `required = true` cho entry hub vào `-c` của MỘT CodexCLI, THAY bản cũ nếu có."""
-    extra_config[:] = [x for x in extra_config if not str(x).startswith(CODEX_REQUIRED_KEY + "=")]
+    extra_config[:] = [x for x in extra_config
+                       if not str(x).startswith((CODEX_REQUIRED_KEY + "=", CODEX_REQUIRED_TIMEOUT_KEY + "="))]
     extra_config.append(f"{CODEX_REQUIRED_KEY}=true")
+    extra_config.append(f"{CODEX_REQUIRED_TIMEOUT_KEY}={CODEX_REQUIRED_TIMEOUT_S}")
     return extra_config
 
 
