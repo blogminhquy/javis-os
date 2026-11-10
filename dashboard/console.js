@@ -4253,12 +4253,16 @@
       return { pop: pop, body: pop.querySelector(".ord-sheet-body"), sheet: true, back: back };
     };
     el._ordClose = closePop;
-    if (!el._ordDocBound) {
-      el._ordDocBound = true;
+    // One pair of document listeners for every visit of the page (2026-11-10): `el` is a new element each time, and
+    // a pair bound per element stayed on the document with its old page for good. They act on the page drawn last.
+    MO._closeOwner = el;
+    if (!MO._closeBound) {
+      MO._closeBound = true;
       document.addEventListener("pointerdown", (e) => {
-        if (el._ordClose && !(e.target.closest && e.target.closest(".ord-chips, .ord-pop"))) el._ordClose();
+        const o = MO._closeOwner;
+        if (o && o._ordClose && !(e.target.closest && e.target.closest(".ord-chips, .ord-pop"))) o._ordClose();
       }, true);
-      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && el._ordClose) el._ordClose(); });
+      document.addEventListener("keydown", (e) => { const o = MO._closeOwner; if (e.key === "Escape" && o && o._ordClose) o._ordClose(); });
     }
     const opened = (btn, sh, slider, onClose) => {
       openPop = { el: sh.pop, btn: btn || null, slider: slider || null, back: sh.back || null, onClose: onClose || null };
