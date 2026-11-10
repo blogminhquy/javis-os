@@ -94,6 +94,9 @@ Không có màn hình và không có ô cài đặt nào mới.
 
 ## 7. Chưa làm, theo thứ tự đáng làm
 
+Cập nhật: mục 2 dưới đây và phần luật bằng mã của mục 1 đã làm ở bước kế, xem
+`2026-11-vong-cai-tien-javis-core-spec.md`. Phần Javis Core suy xét bằng model mạnh vẫn chưa làm.
+
 1. **Vòng tự soát bằng model mạnh cho CÁCH HỌC**, theo đúng khuôn `chatbot_reply_policy_review.py`: gom báo cáo từ sổ
    điểm và nhật ký học, hỏi model chính, nhận tối đa vài thay đổi từ một danh sách núm đóng (thời gian chờ yên, học
    loại gì, ngưỡng thử hạ bậc), mỗi thay đổi dẫn bằng chứng, tự hoàn tác nếu số đo tệ đi. Đây là phần "tự cải tiến

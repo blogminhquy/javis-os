@@ -122,6 +122,8 @@ import transcript_fix  # rewrites what the mic heard at the end of a dictation: 
 import next_prompt  # suggests the owner's next message after a reply (ghost text, Tab fills it in)
 import auto_background  # picks the light and mid model an Automatic background model runs on
 import job_scorecard    # each background job finds the lightest model that gets it done
+import core_loop        # Javis Core's improvement loop: one loop, many knobs
+import job_tune         # the owner's side of that loop, from chat (tool javis_tune)
 import phien_am       # từ tiếng Anh -> cách đọc kiểu Việt (đọc loa + so âm câu nghe được)
 import voice_privacy
 voice_privacy.install()
@@ -2424,6 +2426,7 @@ def _side_work_paused() -> str:
 
 # ---- Automatic background model (auto_background.py) -------------------------------------------------------------
 _AUTO_BG_BUSY = [False]
+_MAIN_LOOP = [None]            # the server's event loop, for notices raised from a worker thread (core_loop.tick)
 
 
 def _scorecard_changed(ch: dict) -> None:
@@ -2450,6 +2453,86 @@ def _scorecard_changed(ch: dict) -> None:
 
 
 job_scorecard.on_change = _scorecard_changed
+
+# ---- Javis Core keeps the lessons about HOW to learn (core_loop.py) ----------------------------------------------
+# They are ordinary lessons of Javis Core in the scoped lesson store (agent_lessons), tagged so the learner loads
+# only these and not Core's lessons about how to talk. The owner sees and revokes them like any assistant's lessons.
+LEARNING_LESSON_TAG = "learning"
+LEARNING_LESSON_HEAD = ("=== BÀI HỌC VỀ CÁCH HỌC (chủ dặn Javis Core hoặc Javis Core rút ra; áp dụng khi quyết định "
+                        "điều gì đáng ghi lại, luật này đứng trên các hướng dẫn bên dưới) ===")
+
+
+def _core_lesson_key(brain, register=False):
+    return _agent_jobs_key(_brain_key(_brain_root(brain)), javis_core.SLUG, register=register)
+
+
+def _learning_lessons(brain) -> list:
+    """Active lessons about how to learn that Javis Core holds for this brain: [{id, text, source}]."""
+    try:
+        store = _pulse_store()
+        key = _core_lesson_key(brain) if store is not None else None
+        if not key:
+            return []
+        return [{"id": r["id"], "text": r["text"], "source": r["source"]}
+                for r in agent_lessons.lessons(store, key, status="active", scope="*")
+                if LEARNING_LESSON_TAG in (r.get("source_refs") or [])]
+    except Exception as e:   # noqa: BLE001 - lessons are an extra, never a reason to fail
+        print(f"[learning lessons] {type(e).__name__}: {e}", file=sys.stderr)
+        return []
+
+
+def _learning_lessons_block(brain) -> str:
+    rows = _learning_lessons(brain)[:agent_lessons.PROMPT_LIMIT]
+    return (LEARNING_LESSON_HEAD + "\n" + "\n".join("- " + r["text"] for r in rows)) if rows else ""
+
+
+def _teach_learning(root, text, source="owner") -> int:
+    """Store one lesson about how to learn on Javis Core of this brain. Returns its id."""
+    store = _resonance_store()
+    key = _core_lesson_key(root, register=True)
+    return agent_lessons.add(store, agent_key=key, scope="*", kind="method", text=text, source=source,
+                             source_refs=[LEARNING_LESSON_TAG], by=source)
+
+
+def _memory_forgotten(mem_dir, info: dict) -> None:
+    """The owner removed a memory. When Javis had learned it on its own, that batch got it wrong: it counts
+    against the model that learns, so the next batch runs one rung up (job_scorecard)."""
+    if info.get("learned"):
+        job_scorecard.feedback("learn", False, note="chủ xoá ghi nhớ: " + str(info.get("title") or "")[:80])
+
+
+memory_control.on_forget = _memory_forgotten
+
+
+def _knob_changed(ch: dict) -> None:
+    """A knob of Javis Core's loop moved: one quiet notice, with the reason and the way back."""
+    if ch.get("actor") == "owner":
+        return                      # the owner just asked for it in chat: no need to tell them again
+    text = localefmt.chu(
+        "Javis Core vừa chỉnh \"{ten}\" từ {cu} sang {moi}: {ly_do}. Muốn quay lại thì nhắn Javis \"hoàn lại thay "
+        "đổi {ma}\".",
+        "Javis Core changed \"{ten_en}\" from {cu} to {moi}: {ly_do}. To go back, tell Javis \"undo change {ma}\".",
+        ten=ch.get("title_vi") or ch.get("knob") or "", ten_en=ch.get("title_en") or ch.get("knob") or "",
+        cu=ch.get("old"), moi=ch.get("new"), ly_do=ch.get("why") or "", ma=ch.get("id") or "")
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        try:
+            loop = _MAIN_LOOP[0]
+        except Exception:   # noqa: BLE001
+            loop = None
+        if loop is None or not loop.is_running():
+            return
+        asyncio.run_coroutine_threadsafe(
+            _notify_owner("", text, kind="system", source="models", level="info", group="cost",
+                          dedup=f"knob:{ch.get('id')}"), loop)
+        return
+    loop.create_task(_notify_owner("", text, kind="system", source="models", level="info", group="cost",
+                                   dedup=f"knob:{ch.get('id')}"))
+
+
+core_loop.on_change = _knob_changed
+job_tune.wire(teach=_teach_learning, lessons=_learning_lessons)
 
 
 async def _auto_background_ask(prompt: str) -> str:
@@ -14203,7 +14286,17 @@ learn_feature = learn_mod.register(app, learn_mod.LearnDeps(
     readonly_tools=READONLY_TOOLS,
     stage_agent_procedure=lambda brain, slug, text: _stage_learned_procedure(brain, slug, text),
     side_work_paused=lambda: _side_work_paused(),
+    learning_lessons=lambda brain: _learning_lessons_block(brain),
 ))
+
+# The first knob of Javis Core's loop that is not a model: how many turns worth learning must be queued before an
+# automatic batch. Moved by plain code from how many recent batches learned nothing (learn.min_turns_rule).
+core_loop.register(core_loop.Knob(
+    id="learn.min_turns", title_vi="Số lượt tối thiểu trước một mẻ tự học",
+    title_en="Turns needed before a learning batch",
+    lo=learn_mod.LearnFeature.MIN_TURNS_LO, hi=learn_mod.LearnFeature.MIN_TURNS_HI,
+    default=learn_mod.LearnFeature.MIN_TURNS_DEFAULT,
+    read=learn_feature.min_turns, write=learn_feature.set_min_turns, rule=learn_feature.min_turns_rule))
 
 
 # ============================================================
@@ -15874,6 +15967,10 @@ async def _start_scheduler():
                 try:
                     if time.time() - _NGAN_SACH_LAST[0] >= 600:
                         _NGAN_SACH_LAST[0] = time.time()
+                        # Javis Core's improvement loop: every knob's rule looks at its counters once. Plain code, in
+                        # a worker thread; a rule moves its knob at most once a day.
+                        _MAIN_LOOP[0] = asyncio.get_running_loop()
+                        await asyncio.to_thread(core_loop.tick)
                         await _kiem_ngan_sach(nhac=True)
                         await _bao_cao_tuan_neu_toi_gio()
                 except Exception as nse:
@@ -31878,7 +31975,8 @@ agent_review.wire(agent_review.ReviewHost(agent_review.ReviewDeps(
 agent_review.register_with_pulse()
 memory_chat.wire(memory_chat.Deps(
     memory_dir=lambda root: _brain_memory_dir(root),
-    agents=lambda root: [{"slug": a.get("slug"), "name": a.get("name")} for a in agents_index(root, kem_prompt=False)],
+    agents=lambda root: ([{"slug": a.get("slug"), "name": a.get("name")} for a in agents_index(root, kem_prompt=False)]
+                         + [{"slug": javis_core.SLUG, "name": javis_core.NAME}]),
     agent_key=lambda root, slug, reg: _agent_jobs_key(_brain_key(root), slug, register=reg),
     lesson_store=lambda: _pulse_store() or _resonance_store(),
     agent_memory_file=lambda root, slug: _brain_memory_dir(root) / "agents" / slug / "MEMORY.md"))

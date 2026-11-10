@@ -112,6 +112,10 @@ You do not have to click anything. After each chat turn, Javis classifies it the
 
 Javis starts a learning batch once the brain has been **quiet for 15 minutes after its last event** and turns are still waiting (since 11/2026). So it learns **once per conversation**, after you are done, not in the middle of it. Earlier versions also fired after every 3 turns, so a 12-turn chat opened four batches that each re-read much the same messages. The one exception: an **urgent** turn (you said "remember this") is learned after 30 seconds. A day with no event learns nothing and costs nothing.
 
+**Javis tunes when a batch starts.** When most recent batches learned nothing (common when you ask one or two quick questions), Javis Core raises the number of turns a batch needs, up to 4; when batches are useful again it lowers it. Turns below the bar stay queued and are learned with the next ones. Each adjustment leaves a notice in the bell with its reason.
+
+**Tell Javis how to learn.** Say it in chat, for example "do not turn each day's revenue into a memory" or "only remember decisions that are settled". Javis Core keeps it as a lesson, and every learning batch reads it before deciding what to write. Ask Javis for "Javis Core's lessons" to review or revoke them. A memory Javis learned by itself that you ask it to forget counts as a learning mistake, and the next batch runs one model stronger.
+
 Each batch reads exactly **the turns since the previous batch** of each conversation, oldest first, so every message is read once however long the chat ran. One batch holds about 48,000 characters; what does not fit is queued again and learned by the next batch right after, never dropped. **▶ Learn now** reads the last 12 messages of the most recent session, as before.
 
 ### Javis also learns from the work it does itself (since 0.55.64)

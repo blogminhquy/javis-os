@@ -119,6 +119,10 @@ Bạn không phải bấm gì. Mỗi lượt chat xong, Javis phân loại lư�
 
 Javis mở một mẻ học khi brain đã **yên 15 phút kể từ sự kiện cuối cùng** và hàng chờ còn lượt chưa học (từ 11/2026). Tức là học **một lần cho cả cuộc trò chuyện**, sau khi bạn đã xong việc, chứ không chen vào giữa chừng. Bản cũ còn mở mẻ sau mỗi 3 lượt, nên một cuộc 12 lượt mở 4 mẻ đọc lại gần như cùng một đoạn. Ngoại lệ duy nhất: lượt **gấp** (bạn nói "ghi nhớ giúp") được học sau 30 giây. Cả ngày không có sự kiện nào thì Javis không học gì và không tốn gì.
 
+**Javis tự chỉnh ngưỡng mở mẻ.** Nếu phần lớn các mẻ gần đây không rút ra được gì (thường gặp khi bạn hay hỏi nhanh một hai câu), Javis Core tự nâng số lượt cần có trước khi mở một mẻ, tối đa 4; các mẻ có ích trở lại thì tự hạ xuống. Lượt chưa đủ ngưỡng vẫn nằm trong hàng chờ và được học cùng các lượt sau. Mỗi lần chỉnh có một thông báo ở chuông kèm lý do.
+
+**Dặn Javis nên học thế nào.** Nói thẳng trong chat, ví dụ "đừng ghi doanh thu từng ngày thành ghi nhớ" hay "chỉ ghi nhớ những quyết định đã chốt". Javis Core giữ điều đó thành một bài học, và mọi mẻ tự học đọc nó trước khi quyết định ghi gì. Xem lại hay thu hồi bằng cách hỏi Javis "bài học của Javis Core". Ghi nhớ Javis tự học mà bạn bảo xoá thì được tính là một lần học sai, mẻ học sau tự dùng model mạnh hơn một bậc.
+
 Mỗi mẻ đọc đúng **các lượt mới kể từ mẻ trước** của từng cuộc trò chuyện, từ cũ tới mới, nên mỗi tin nhắn chỉ được đọc một lần dù cuộc chat dài bao nhiêu. Tổng nội dung một mẻ cắt ở khoảng 48.000 ký tự; phần chưa đọc hết được xếp lại và học ở mẻ kế ngay sau đó, không bị bỏ. Bấm **▶ Học ngay** thì đọc 12 tin cuối của phiên gần nhất như trước.
 
 ### Javis học cả từ việc nó tự làm (từ 0.55.64)

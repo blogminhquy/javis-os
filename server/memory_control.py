@@ -272,6 +272,11 @@ def edit_memory(mem_dir: Path, slug: str, body: str, type_: Optional[str] = None
     return {"slug": slug, "updated": meta["updated"]}
 
 
+# Set by main.py: called with (memory dir, {slug, title, learned}) after a memory was forgotten. A memory Javis
+# had learned on its own and the owner then removed is the clearest sign there is that the learner got it wrong.
+on_forget = None
+
+
 def forget_memory(mem_dir: Path, slug: str) -> dict:
     """Delete one memory and keep only its fingerprint, so it is not learnt again. Returns what was removed."""
     if not valid_slug(slug):
@@ -295,7 +300,14 @@ def forget_memory(mem_dir: Path, slug: str) -> dict:
                 idx.write_text("".join(keep), encoding="utf-8")
         except OSError:
             pass
-    return {"slug": slug, "title": title, "index_line_removed": removed_line}
+    out = {"slug": slug, "title": title, "index_line_removed": removed_line}
+    if on_forget is not None:
+        try:
+            # `learned`: the self-learning loop wrote this memory (origin: javis-learned), not the owner or a chat.
+            on_forget(mem_dir, {**out, "learned": str(meta.get("origin") or "") == "javis-learned"})
+        except Exception as e:   # noqa: BLE001 - a listener must not undo the forgetting
+            print(f"[memory forget] listener: {type(e).__name__}: {e}", file=sys.stderr)
+    return out
 
 
 # ── person profile shared by every brain ──────────────────────────────────────
