@@ -10716,6 +10716,19 @@ _LOCAL_OPEN_MSG = {
 }
 
 
+def _local_open_here(request: Request) -> bool:
+    """The browser sits on the machine that runs Javis: no tunnel, no proxy, not inside Docker."""
+    return _direct_local_request(request) and not os.path.exists("/.dockerenv")
+
+
+@app.get("/files/open-local")
+async def files_open_local_available(request: Request):
+    """Whether a click on a file outside the brain can open it for THIS browser. The chat asks once per page and
+    draws such links only on a yes: on a VPS, through a tunnel or in Docker the path stays the plain text it was,
+    instead of a link that can only answer "not on this computer"."""
+    return {"available": _local_open_here(request) and local_open.can_launch()}
+
+
 @app.post("/files/open-local")
 async def files_open_local(request: Request, path: str = Form(...), brain: str = Form("brain")):
     """Open a file OUTSIDE the brain (a full path Javis wrote in chat) with the owner's own app.
@@ -10724,7 +10737,7 @@ async def files_open_local(request: Request, path: str = Form(...), brain: str =
     only offered to a browser on this very machine: through a tunnel or proxy, or inside Docker, the
     file would open on a screen nobody is looking at. Rules on what a click may open or only reveal
     live in local_open.py."""
-    if not _direct_local_request(request) or os.path.exists("/.dockerenv"):
+    if not _local_open_here(request):
         return JSONResponse({"error": localefmt.chu(
             "Link này chỉ mở được khi bạn dùng Javis ngay trên máy đang chạy nó.",
             "This link only opens when you use Javis on the computer that runs it.")}, status_code=403)
