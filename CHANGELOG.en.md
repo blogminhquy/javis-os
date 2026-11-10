@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.532.2] - 2026-11-11
+### Fixed
+- **A connector that cannot start is no longer reported as "sign-in expired".** Javis recognised a sign-in error by looking for 401 in the error text, so when the install path happened to contain 401, a "file not found" error was shown as a prompt to Reconnect. 401 (and 502, 503, 504) now count only when they stand alone as a status code.
+
 ## [0.532.1] - 2026-11-11
 ### Fixed
 - **Uninstalling a Store pack now says which brain its items are in.** A pack's assistants and skills go into the brain that was open at install time. Uninstalling from another brain removed them there, and the confirmation did not say which brain that was.
