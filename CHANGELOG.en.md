@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.532.0] - 2026-11-11
+### Improved
+- **Personal Zalo: a message is read the moment it arrives, no more scan every 20 seconds.** Javis used to ask Zalo all day even when nothing came in, and a group message waited up to 20 seconds before a bot saw it. A message is now read when it arrives; on a day with no message nothing is read.
+- With no message Javis runs no timer for Zalo at all. When the Zalo process stops, Javis restarts it at once and catches up. A machine still on the older Zalo version keeps the timer and loses nothing.
+
 ## [0.531.1] - 2026-11-11
 ### Fixed
 - **A group bot drops the wrong "missed" labels it learned before 0.530.7.** That version stopped new wrong labels, but the old ones stayed in the store and kept pushing the bot to talk. The first time the store opens after the update, Javis removes "missed" labels put on reactions, gives the affected groups their threshold back, and stops treating labels it inferred from an owner's message as something the owner taught.
