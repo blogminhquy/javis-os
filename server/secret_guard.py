@@ -27,6 +27,8 @@ _ALWAYS = (
     "security_log.jsonl", "security_log.1.jsonl", "auth_audit.jsonl", ".login_networks.json",
     ".credentials.json",            # ~/.claude login of the Claude Code plan
     "authorized_keys",              # SSH keys of the machine (bare-metal installs)
+    # 2026-11-10: the per-run MCP configs Javis writes for Claude Code hold the hub bearer, like .hub_token itself.
+    ".mcp_hub_",
 )
 # ~/.codex/auth.json holds the ChatGPT plan login.
 _HOME_FILES = ((".codex", "auth.json"), (".claude", ".credentials.json"))

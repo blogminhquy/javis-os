@@ -6009,7 +6009,14 @@ async def mcp_oauth_auth(request: Request):
 # ============================================================
 @app.post("/hub/mcp")
 async def hub_mcp(request: Request):
-    """Endpoint MCP hub - Claude Code/Codex đấu vào đây (auth bằng Bearer hub_token riêng)."""
+    """Endpoint MCP hub - Claude Code/Codex đấu vào đây (auth bằng Bearer hub_token riêng).
+
+    Security fix (2026-11-10): only a caller on this machine is answered. Every engine reaches the hub at
+    `mcp_hub.hub_url()`, which is always 127.0.0.1, so nothing legitimate arrives through a tunnel, a reverse proxy or
+    the LAN. Before this the bearer alone opened the hub from the Internet, and the bearer is a long-lived value that
+    engine configs keep on disk (some inside a brain). The bearer check in `handle_http` stays as the second lock."""
+    if not _direct_local_request(request):
+        return JSONResponse({"error": "forbidden", "detail": "the hub only answers this machine"}, status_code=403)
     return await mcp_hub.handle_http(request)
 
 

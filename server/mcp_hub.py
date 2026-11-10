@@ -35,6 +35,7 @@ import mcp_catalog
 import mcp_client
 import mcp_store
 import once_ledger
+import secret_guard
 import skill_router
 import skill_usage
 import team_gate
@@ -98,6 +99,52 @@ def hub_port():
 
 def hub_url():
     return f"http://127.0.0.1:{hub_port()}/hub/mcp"
+
+
+def hide_hub_token(text):
+    """`text` without the hub bearer (security fix, 2026-11-10).
+
+    Engine configs that Javis writes carry the bearer, and some of them live inside a brain (`.grok/config.toml`,
+    `.agents/mcp_config.json`). A file tool that returned one of them handed the model, and whoever steers it, the key
+    of the whole hub. The tools still read those files; the key itself never leaves in a tool result."""
+    if not isinstance(text, str) or not text:
+        return text
+    try:
+        tok = hub_token()
+    except Exception:  # noqa: BLE001
+        return text
+    return text.replace(tok, "[hub token hidden]") if tok and tok in text else text
+
+
+def vault_header_refused(p) -> bool:
+    """True when a client-sent vault path points at Javis's own state instead of a brain (security fix, 2026-11-10).
+
+    The X-Javis-Vault header used to accept any directory that exists. With the state directory (or a folder above it)
+    as the "brain", the file tools of the hub read `.sessions.json` and wrote `plugins/<x>/plugin.yaml`, which the
+    server loads as Python. A brain is never the state directory, never a plugin or pack folder inside it, and never a
+    folder that contains it. Brains kept under BRAINS_DIR stay valid even when BRAINS_DIR sits inside the state
+    directory."""
+    try:
+        p = Path(p).resolve()
+        st = Path(STATE_DIR).resolve()
+    except (OSError, ValueError):
+        return True
+    if p == st or p in st.parents:
+        return True
+    if st not in p.parents:
+        return False
+    try:
+        br = _brains_dir().resolve()
+        if br != st and (p == br or br in p.parents) and (br == st or st in br.parents):
+            return p == br          # a brain under BRAINS_DIR is fine; BRAINS_DIR itself is not a brain
+    except (OSError, ValueError):
+        pass
+    try:
+        top = p.relative_to(st).parts[0].lower()
+    except (ValueError, IndexError):
+        return True
+    # Folders of the state directory that hold code the server runs, or its secrets and stores.
+    return top in ("plugins", "packs", ".staging", "__pycache__") or top.startswith(".")
 
 
 def allow_patterns():
@@ -739,6 +786,11 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                     f"dùng vừa đính kèm vào khung chat.")
         if not p.is_file():
             return f"ERROR: không có file '{rel}'"
+        # Security (2026-11-10): the secret tripwire of the shell and of Claude Code's own tools also covers this tool.
+        bi_mat = secret_guard.check_text(str(p))
+        if bi_mat:
+            secret_guard.note_blocked("javis_read_file", bi_mat, str(rel or ""))
+            return secret_guard.refusal(bi_mat)
         if p.suffix.lower() in _IMAGE_SUFFIXES:
             # Reading a photo as text hands the model a page of mojibake it then "describes" with confidence. Say what the
             # file is and how to actually see it (0.73.0).
@@ -750,6 +802,7 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
             text = await asyncio.to_thread(doc_text.extract, p)
         else:
             text = p.read_text(encoding="utf-8", errors="replace")
+        text = hide_hub_token(text)
         # 0.256.0: đọc theo đoạn có số dòng "N|..." khi xin offset/limit, hoặc khi file nằm trong
         # thư mục làm việc của phiên Coding (ở đó số dòng là thứ model cần để sửa từng đoạn).
         # Chat thường không xin thì GIỮ NGUYÊN output cũ: chatbot và luồng brain dựa vào nó.
@@ -1812,7 +1865,7 @@ def resolve_vault(raw_vault):
         for thu in dict.fromkeys(ung):
             try:
                 p = Path(thu).expanduser().resolve()
-                if p.is_dir():
+                if p.is_dir() and not vault_header_refused(p):
                     return str(p), "header", ""
             except Exception:
                 pass

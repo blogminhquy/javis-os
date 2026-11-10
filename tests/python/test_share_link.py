@@ -168,6 +168,12 @@ check("và tài nguyên của nó cũng chết theo",
 md = share_render.md_to_html
 check("HTML thô trong .md bị escape, không cho chạy",
       "&lt;script&gt;" in md("<script>alert(1)</script>", "/s/T/asset"))
+# 2026-11-10: \x00 and \x01 are the renderer's own placeholder marks. Written literally in a note they used to pull a
+# stored fragment into the middle of an attribute value (`alt="a<a href="#/onerror=...`).
+_forged = md("![a\x001\x00b](x.png) [t](#/onerror=alert(1))", "/s/T/asset")
+check("a note cannot forge the renderer's placeholder marks",
+      'alt="a1b"' in _forged and "<a href" not in _forged.split('loading="lazy"')[0], _forged)
+check("no placeholder mark is left in the page", "\x00" not in _forged and "\x01" not in md("\x010\x01\n\n```\na\n```"))
 check("link javascript: bị bỏ, chỉ còn lại chữ",
       "javascript:" not in md("[bấm](javascript:alert(1))", "/s/T/asset"))
 check("link ngoài vẫn đi được và mang rel an toàn",

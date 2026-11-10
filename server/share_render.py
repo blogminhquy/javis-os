@@ -156,6 +156,9 @@ def _inline(s: str, goc_asset: str) -> str:
     ngược thì dấu sao không còn là cú pháp - không cất trước thì `*` trong một đoạn mã bị
     hiểu thành in nghiêng và đoạn mã vỡ.
     """
+    # Security (2026-11-10): \x00 is this function's own placeholder mark. A note that carried it literally could have a
+    # stored <code>/<img>/<a> fragment swapped into the middle of an attribute value on the last line. Never text: drop it.
+    s = s.replace("\x00", "")
     giu = []
 
     def _cat(hm):
@@ -221,6 +224,8 @@ def _bang(khoi: list, goc_asset: str) -> str:
 def md_to_html(src: str, goc_asset: str = "") -> str:
     """Markdown -> HTML (chỉ phần thân, không kèm khung trang)."""
     src = str(src or "").replace("\r\n", "\n").replace("\r", "\n")
+    # \x00 and \x01 are the placeholder marks of this renderer (see _inline); a note must not be able to write one.
+    src = src.replace("\x00", "").replace("\x01", "")
     giu_khoi = []
 
     def _cat_khoi(hm):
