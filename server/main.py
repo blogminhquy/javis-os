@@ -7643,14 +7643,16 @@ async def reflect(brain: str = Form("brain")):
 
 
 @app.get("/health")
-async def health():
+async def health(request: Request):
     cli = find_claude_cli()
-    return {
-        "status": "ok",
-        "claude_cli": cli or "NOT FOUND",
-        "claude_cli_available": cli is not None,
-        "cwd": CLAUDE_CWD,
-    }
+    out = {"status": "ok", "claude_cli_available": cli is not None}
+    # 2026-11-10: the probe is public (watchdog, uptime checks, the CLI). The two absolute paths, which usually give
+    # away the OS user and the install folder, go only to a signed-in session or to this machine itself.
+    if (not cfgmod.gate_active() or _direct_local_request(request)
+            or cfgmod.valid_session(request.cookies.get("javis_session", ""))):
+        out["claude_cli"] = cli or "NOT FOUND"
+        out["cwd"] = CLAUDE_CWD
+    return out
 
 
 # Đồ thị note (GET /graph + WS /ws/graph) đã bóc sang routes/graph.py ở 0.9.243.
@@ -10365,6 +10367,19 @@ def _ung_vien_tai_nguyen(duong_dan_file: str, p: str):
     return ra
 
 
+def _share_private_zone(x, brain_root) -> bool:
+    """inbox/ (files customers and the owner's Telegram send), memory/, or any dot folder, relative to the brain.
+
+    Vá bảo mật 2026-11-05: a note shared from the brain root made "its folder" the whole brain, so the token served
+    every image or audio file in it, inbox photos named by sequential message id included. 2026-11-10: shared by
+    `_share_asset` and `_share_sibling`; the sibling route of a shared .html page had been left without it."""
+    try:
+        parts = Path(x).resolve().relative_to(brain_root).parts
+    except (ValueError, OSError):
+        return False
+    return bool(parts) and (parts[0].lower() in ("inbox", "memory") or any(s.startswith(".") for s in parts[:-1]))
+
+
 def _share_asset(ban, p: str):
     """File TÀI NGUYÊN kèm theo (ảnh trong .md, css/js cạnh file .html).
 
@@ -10390,15 +10405,7 @@ def _share_asset(ban, p: str):
     goc_brain = Path(_brain_root(brain)).resolve()
 
     def _vung_rieng(x) -> bool:
-        """inbox/ (files customers and the owner's Telegram send), memory/, or any dot folder, relative to the brain.
-
-        Vá bảo mật 2026-11-05: a note shared from the brain root made "its folder" the whole brain, so the token served
-        every image or audio file in it, inbox photos named by sequential message id included."""
-        try:
-            parts = x.resolve().relative_to(goc_brain).parts
-        except (ValueError, OSError):
-            return False
-        return bool(parts) and (parts[0].lower() in ("inbox", "memory") or any(s.startswith(".") for s in parts[:-1]))
+        return _share_private_zone(x, goc_brain)
 
     def _qua_cong(f) -> bool:
         """Đúng hai hàng rào ở trên, hỏi cho MỘT ứng viên (cộng vùng riêng của brain, trừ khi chính file chia sẻ nằm ở đó)."""
@@ -10697,6 +10704,11 @@ def _share_sibling(ban, p: str):
         return None
     thu_muc = goc.parent
     if not (f.parent == thu_muc or thu_muc in f.parents):
+        return None
+    # A page shared from the brain root has the whole brain as "its folder": the private zones stay closed to it, unless
+    # the shared page itself lives in one (same rule as _share_asset).
+    goc_brain_rieng = Path(_brain_root(brain)).resolve()
+    if _share_private_zone(f, goc_brain_rieng) and not _share_private_zone(goc, goc_brain_rieng):
         return None
     duoi = f.suffix.lower()
     if duoi in share_render.DUOI_TAI_NGUYEN:
@@ -26864,8 +26876,8 @@ async def whatsapp_webhook_verify(request: Request):
 async def whatsapp_webhook(request: Request):
     """Inbound WhatsApp messages. Public URL, so nothing is trusted before the signature check;
     a request no known app secret signed is dropped with 401 and never parsed further."""
-    raw = await request.body()
-    if len(raw) > 2_000_000:
+    raw = await _read_capped_body(request)
+    if raw is None:
         return PlainTextResponse("too large", status_code=413)
     sig = request.headers.get("x-hub-signature-256", "")
     if not whatsapp_bot.verify_signature(raw, sig, owner_channels.whatsapp_app_secrets(_wa_account_secrets())):
@@ -26909,6 +26921,29 @@ async def chatbot_api_turn(request: Request):
 # Messenger (0.134.0): customer bots on a Facebook Page. Meta calls one webhook for every Page;
 # `messenger_bot.handle_webhook` routes by Page id. No owner control channel here.
 # ============================================================
+WEBHOOK_BODY_MAX = 2_000_000
+
+
+async def _read_capped_body(request: Request, limit: int = WEBHOOK_BODY_MAX):
+    """The request body, or None when it is larger than `limit`. Never holds more than `limit` bytes.
+
+    Security fix (2026-11-10): the channel webhooks are public routes and called `await request.body()` before their
+    size check, so the whole body was already in memory when the check ran. A few multi-gigabyte POSTs from anybody were
+    enough to exhaust a small VPS, with no login and no valid signature. The length the client declares is checked
+    first, then the stream is read up to the cap and dropped the moment it passes it."""
+    try:
+        if int(request.headers.get("content-length") or 0) > limit:
+            return None
+    except ValueError:
+        return None
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw.extend(chunk)
+        if len(raw) > limit:
+            return None
+    return bytes(raw)
+
+
 def _ms_verify_token() -> str:
     """The handshake string Meta echoes when the Messenger webhook is set up. Generated once."""
     m = cfgmod.read_settings().get("messenger", {}) or {}
@@ -26969,8 +27004,8 @@ async def messenger_webhook_verify(request: Request):
 async def messenger_webhook(request: Request):
     """Inbound Messenger events. Public URL, so nothing is trusted before the signature check;
     a request no known app secret signed is dropped with 401 and never parsed further."""
-    raw = await request.body()
-    if len(raw) > 2_000_000:
+    raw = await _read_capped_body(request)
+    if raw is None:
         return PlainTextResponse("too large", status_code=413)
     sig = request.headers.get("x-hub-signature-256", "")
     if not messenger_bot.verify_signature(raw, sig, _ms_account_secrets()):
@@ -27362,8 +27397,8 @@ async def threads_webhook(request: Request):
     """New replies under the owner's Threads posts. Nothing is trusted before the signature check under the
     Threads app secret of a connected account."""
     import threads_bot
-    raw = await request.body()
-    if len(raw) > 2_000_000:
+    raw = await _read_capped_body(request)
+    if raw is None:
         return PlainTextResponse("too large", status_code=413)
     if not threads_bot.verify_signature(raw, request.headers.get("x-hub-signature-256", ""), _th_account_secrets()):
         return PlainTextResponse("bad signature", status_code=401)
@@ -27584,8 +27619,8 @@ def _zo_account_secrets() -> list:
 async def zalo_oa_webhook(request: Request):
     """Inbound Zalo OA events. Public URL, so nothing is trusted before the signature check; a
     request no known OA secret key signed is dropped with 401 and never handed to a bot."""
-    raw = await request.body()
-    if len(raw) > 2_000_000:
+    raw = await _read_capped_body(request)
+    if raw is None:
         return PlainTextResponse("too large", status_code=413)
     sig = request.headers.get("x-zevent-signature", "") or request.headers.get("mac", "")
     if not zalo_oa_bot.verify_signature(raw, sig, _zo_account_secrets()):
