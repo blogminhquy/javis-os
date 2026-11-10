@@ -206,6 +206,7 @@ import brain_ident       # one brain, many spellings ("brain", absolute path), #
 import channels          # sổ đăng ký kênh của Hộp thư hội thoại (0.61.0)
 import conversations     # Hộp thư hội thoại khách: kho khách -> hội thoại -> tin (Chatbot V2)
 import zalo_personal_channel   # Hộp thư hội thoại: đọc tin Zalo cá nhân từ MCP theo cursor
+import zalo_push               # javis-zalo wakes the read loop when a message arrives (no timer)
 import deploy_info              # Javis đang đứng ở đâu (docker/native) - xem _deploy_mode
 import node_security            # News item when this machine's Node.js misses a security release
 import ollama_catalog           # danh mục model để gợi ý + tìm kiếm
@@ -332,6 +333,10 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/health", "/auth/status", "/auth/log
                       # /zalo-oa/webhook (0.412.0): Zalo calls it with no cookie; the route checks
                       # X-ZEvent-Signature under the OA secret keys of the Zalo OA accounts.
                       "/zalo-oa/webhook",
+                      # /zalo/push (2026-11-10): javis-zalo on this machine calls it with no cookie when a personal
+                      # Zalo message arrives. The route takes direct local requests only and checks this server
+                      # process's own bearer (zalo_push.token_ok).
+                      "/zalo/push",
                       # /zalo-oa/oauth/callback: Zalo sends the browser back here after the OA admin allows the
                       # app (OAuth v4); the unguessable `state` from an authenticated /zalo-oa/oauth/start is the check.
                       "/zalo-oa/oauth/callback",
@@ -27177,6 +27182,30 @@ def restart_zalo_bot():
             print(f"[zalo release] {type(e).__name__}: {e}", file=sys.stderr)
         return True
     return False
+
+
+ZALO_PUSH_MAX_BODY = 4096
+
+
+@app.post(zalo_push.PATH)
+async def zalo_push_wake(request: Request, conn: str = Query("")):
+    """A wake-up from a javis-zalo process this server started: "something landed in my live buffer" or "my Zalo
+    connection went up or down" (zalo_push.py). It carries no message; the read loop fetches those through the MCP
+    tool as always. Refused unless it comes straight from this machine (no tunnel, no proxy) with this server
+    process's bearer, so a page on the Internet or a javis-zalo of an earlier lifetime cannot make Javis do anything,
+    and all a valid call can do is make the loop read one account now."""
+    if not _direct_local_request(request):
+        return JSONResponse({"ok": False}, status_code=403)
+    if not zalo_push.token_ok(request.headers.get("authorization", "")):
+        return JSONResponse({"ok": False}, status_code=401)
+    raw = await request.body()
+    if len(raw) > ZALO_PUSH_MAX_BODY:
+        return JSONResponse({"ok": False}, status_code=413)
+    try:
+        body = json.loads(raw.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        body = {}
+    return zalo_personal_channel.on_push(conn, body if isinstance(body, dict) else {})
 
 
 @app.get("/zalo-bot/status")

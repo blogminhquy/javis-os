@@ -373,6 +373,14 @@ class McpStdioSession:
                 self._stderr.append(line.decode("utf-8", "replace").rstrip())
         except Exception:
             pass
+        finally:
+            # The pipe closed: the process ended (or was closed by us). Whoever keeps state per process is told now
+            # instead of finding out at its next call (2026-11-10: the Zalo read loop restarts javis-zalo at once).
+            for fn in list(STDIO_EXIT_LISTENERS):
+                try:
+                    fn(self.key)
+                except Exception as e:      # noqa: BLE001 - a listener must never break the session
+                    print(f"[mcp stdio exit] listener: {type(e).__name__}: {e}", file=sys.stderr)
 
     def alive(self):
         return self.proc is not None and self.proc.returncode is None
@@ -648,6 +656,10 @@ def _spec_hash(spec):
         core = (spec.get("url"), tuple(sorted(hdr.items())))
     return hash(core)
 
+
+# Callables told when a stdio MCP process ends, each called with the session key (the connection id). Plain
+# functions, called on the event loop; they must return fast and not raise.
+STDIO_EXIT_LISTENERS: list = []
 
 # Số hiệu phiên MCP, tăng dần và KHÔNG bao giờ tái dùng (khác `id(obj)`, bị tái dùng sau khi GC).
 _EPOCH = itertools.count(1)

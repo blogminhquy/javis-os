@@ -125,9 +125,19 @@ def _hub_on():
         return True
 
 
+# Callables run after every save of the connection list (a connection added, edited, switched on or off). Plain
+# functions with no argument; they may be called from a worker thread and must return fast.
+ON_SAVE: list = []
+
+
 def _save(d):
     with _LOCK:
         STORE.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    for fn in list(ON_SAVE):
+        try:
+            fn()
+        except Exception as e:      # noqa: BLE001 - a listener must never fail a save
+            print(f"[mcp_store] on-save listener: {type(e).__name__}: {e}", file=sys.stderr)
     # Hub bật (mặc định): KHÔNG sinh file fallback .mcp_config.json - file đó chứa header/env
     # ĐÃ GIẢI MÃ (plaintext), để nằm lại là vô hiệu hoá mã hoá at-rest. Xoá bản cũ nếu có.
     if _hub_on():
@@ -547,6 +557,16 @@ def resolved(enabled_only=True):
                     env[of["env"]] = str(fp)
             except Exception as e:
                 print(f"[mcp_store] oauth file {c['id']}: {e}", file=sys.stderr)
+        if c.get("connector_id") == "zalo" and (c.get("transport") or "http") == "stdio":
+            # Live push (2026-11-10): javis-zalo 1.10.0 wakes Javis when a message arrives, so the read loop stops
+            # asking on a timer. Set HERE, not where the loop builds its spec: the session's identity includes its
+            # env, and every caller of this connection (loop, hub tools, health check) must hand over the same one.
+            try:
+                import zalo_push
+                for k, v in zalo_push.env_for(c["id"]).items():
+                    env.setdefault(k, v)
+            except Exception as e:  # noqa: BLE001 - without the variables the account is read on the timer
+                print(f"[mcp_store] zalo push env {c['id']}: {type(e).__name__}: {e}", file=sys.stderr)
         out.append({
             "id": c["id"], "connector_id": c["connector_id"], "label": c.get("label"),
             "slug": c.get("slug"), "namespace": ns,
