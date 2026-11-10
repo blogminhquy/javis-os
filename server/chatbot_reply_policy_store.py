@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -111,6 +112,10 @@ def _conn():
                     con.execute(sql)
                 except sqlite3.OperationalError:
                     pass        # column already there
+            try:
+                _repair_inferred_labels(con)
+            except sqlite3.Error as e:      # a failed clean-up must never keep the store from opening
+                print(f"[reply policy store] label clean-up skipped: {type(e).__name__}: {e}", file=sys.stderr)
             _ready.add(str(p))
         yield con
         con.commit()
@@ -221,6 +226,56 @@ def hesitant_chats(since_ts: float, limit: int = 200) -> List[tuple]:
             f" AND ts>=? AND silence_code IN ({ph}) ORDER BY ts DESC LIMIT ?",
             [float(since_ts), *HESITANT_CODES, max(1, min(int(limit), 500))]).fetchall()
     return [(str(r["bot_id"]), str(r["chat_id"])) for r in rows]
+
+
+# One-time clean-up of labels written before the labeler fix of 0.530.7 (#1286). That fix stops NEW wrong labels;
+# the old ones stayed in the store and kept feeding the error rate, self-review and the per-chat thresholds.
+# Two kinds can be told apart from what the store holds, and only those are touched:
+#   1. A case with source `owner` that was only INFERRED from an owner's message (`label:missed` / `label:correct`
+#      below the 1.5 a real thumb carries). It becomes `auto`: no more 100x weight, and it ages out like the others.
+#   2. A `missed` label on a silent decision whose own text is a reaction line. Staying quiet on a heart was right:
+#      the label and its cases are removed, and the chat's threshold gets back what the label took (never above 0).
+# A `missed` label on a real text message is left alone: the store cannot tell an owner's reaction from a real answer.
+REPAIR_1286_KEY = "repair:1286"
+OWNER_THUMB_WEIGHT = 1.5
+MISSED_OFFSET_STEP = 0.05      # what one `missed` label of weight 1.0 took off a chat's threshold (DELTA_MISSED)
+_REACTION_LINE = re.compile(r"^\[[^\]\n]{0,200}?(thả cảm xúc|bỏ cảm xúc|reacted |removed the reaction)", re.I)
+
+
+def _repair_inferred_labels(con: sqlite3.Connection, now: Optional[float] = None) -> dict:
+    """Runs once per store (marker row in `tuning`, bot_id ''). Returns what it changed, {} when already done."""
+    if con.execute("SELECT 1 FROM tuning WHERE bot_id='' AND key=?", (REPAIR_1286_KEY,)).fetchone():
+        return {}
+    now = time.time() if now is None else now
+    demoted = con.execute(
+        "UPDATE cases SET source='auto' WHERE source='owner' AND reason IN ('label:missed','label:correct') "
+        "AND weight<?", (OWNER_THUMB_WEIGHT,)).rowcount
+    cleared, give_back = 0, {}
+    rows = con.execute("SELECT id, bot_id, chat_id, text, label_weight FROM decisions "
+                       "WHERE label='missed' AND verdict='silent' AND text LIKE '[%'").fetchall()
+    for r in rows:
+        if not _REACTION_LINE.match(str(r["text"] or "")):
+            continue
+        con.execute("DELETE FROM cases WHERE decision_id=? AND reason='label:missed'", (int(r["id"]),))
+        con.execute("UPDATE decisions SET label=NULL, label_weight=NULL, label_ts=NULL WHERE id=?", (int(r["id"]),))
+        key = (str(r["bot_id"]), str(r["chat_id"]))
+        give_back[key] = give_back.get(key, 0.0) + MISSED_OFFSET_STEP * float(r["label_weight"] or 0.0)
+        cleared += 1
+    for (bot_id, chat_id), amount in give_back.items():
+        o = con.execute("SELECT offset, updated_ts FROM threshold_offsets WHERE bot_id=? AND chat_id=?",
+                        (bot_id, chat_id)).fetchone()
+        if not o:
+            continue
+        cur = float(o["offset"]) * (0.5 ** (max(0.0, now - float(o["updated_ts"])) / OFFSET_HALF_LIFE_S))
+        if cur < 0:
+            con.execute("UPDATE threshold_offsets SET offset=?, updated_ts=? WHERE bot_id=? AND chat_id=?",
+                        (min(0.0, cur + amount), now, bot_id, chat_id))
+    con.execute("INSERT OR REPLACE INTO tuning(bot_id, key, value, updated_ts) VALUES('', ?, ?, ?)",
+                (REPAIR_1286_KEY, f"demoted={demoted};cleared={cleared}", now))
+    if demoted or cleared:
+        print(f"[reply policy store] #1286 clean-up: {demoted} inferred case(s) no longer count as owner-taught, "
+              f"{cleared} wrong `missed` label(s) on reactions removed.", file=sys.stderr)
+    return {"demoted": demoted, "cleared": cleared}
 
 
 def set_label(decision_id: int, label: str, weight: float, now: Optional[float] = None) -> Optional[dict]:
