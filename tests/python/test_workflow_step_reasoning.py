@@ -54,6 +54,7 @@ saved_read = main.cfgmod.read_settings
 saved_auth = main.openai_oauth.write_codex_auth
 saved_co_co = main.claude_cli.co_co
 saved_muc = main.codex_models.muc_cho
+saved_efforts = main.codex_models.efforts_for
 try:
     main.CodexCLI = FakeCodex
     main.find_codex_cli = lambda: "/usr/bin/codex"
@@ -96,9 +97,15 @@ try:
     check("Codex step gets the level from the model's ladder, replacing the earlier value",
           isinstance(cc, FakeCodex) and [x for x in cc.extra_config if x.startswith("model_reasoning_effort=")]
           == ["model_reasoning_effort=high"], getattr(cc, "extra_config", None))
+    main.codex_models.efforts_for = lambda model: ["high", "xhigh"]
     cc = mk("prompt", "gpt-5-codex", "openai-oauth", (), reasoning="medium")
-    check("a level the Codex ladder does not answer leaves the config as it was",
+    check("a level a KNOWN Codex ladder does not answer leaves the config as it was",
           [x for x in cc.extra_config if x.startswith("model_reasoning_effort=")] == ["model_reasoning_effort=low"],
+          cc.extra_config)
+    main.codex_models.efforts_for = lambda model: []
+    cc = mk("prompt", "gpt-5-codex", "openai-oauth", (), reasoning="medium")
+    check("with no ladder read yet (after a restart) a common level is still passed",
+          [x for x in cc.extra_config if x.startswith("model_reasoning_effort=")] == ["model_reasoning_effort=medium"],
           cc.extra_config)
     cc = mk("prompt", "gpt-5-codex", "openai-oauth", ())
     check("without a level the Codex step is untouched",
@@ -120,6 +127,7 @@ finally:
     main.openai_oauth.write_codex_auth = saved_auth
     main.claude_cli.co_co = saved_co_co
     main.codex_models.muc_cho = saved_muc
+    main.codex_models.efforts_for = saved_efforts
     for name, value in saved.items():
         setattr(main, name, value)
 
