@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.530.9] - 2026-11-11
+### Fixed
+- Restore Edit configuration for custom MCP connections signed in with OAuth. URL edits retain authentication and prevent forwarding OAuth credentials to another origin.
+
 ## [0.530.8] - 2026-11-11
 ### Fixed
 - **Codex runs at the chosen reasoning level right after Javis restarts.** Until someone opened the Models page, bots and background jobs on Codex fell back to Codex's own default (usually high) even when low or medium was set, which was slower and used more of the plan.
