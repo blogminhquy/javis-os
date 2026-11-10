@@ -300,7 +300,7 @@ def _binary_da_nho(ten: str) -> Optional[str]:
     return p
 
 
-def tim_binary(ten: str) -> Optional[str]:
+def _tim_binary_raw(ten: str) -> Optional[str]:
     """`shutil.which` nhưng soi thêm thư mục cài quen thuộc, và nhớ chỗ đã từng thấy."""
     p = shutil.which(ten) or shutil.which(ten, path=_duong_dan_tim_binary())
     if p:
@@ -309,7 +309,111 @@ def tim_binary(ten: str) -> Optional[str]:
     return _binary_da_nho(ten)
 
 
+def tim_binary(ten: str) -> Optional[str]:
+    """Find a binary by name. For `claude` on Windows the answer is one the Claude Agent SDK will run.
+
+    claude_sdk_engine.py asks exactly `tim_binary("claude")` for its cli_path and is pinned byte
+    for byte (the native qualification evidence hashes it), so the Windows batch-script fix has
+    to live here rather than there. See native_claude_exe for the why."""
+    p = _tim_binary_raw(ten)
+    if ten != "claude" or not p or not _is_windows() or not is_batch_script(p):
+        return p
+    exe = native_claude_exe(p)
+    if exe and not is_batch_script(exe):
+        return exe
+    # Only npm's shim on this machine. The SDK's Windows wheel bundles a claude.exe; the engine
+    # drops any "_bundled" path and the SDK then picks that same file itself, which works where
+    # the shim is refused.
+    return _sdk_bundled_claude() or p
+
+
+def _sdk_bundled_claude() -> Optional[str]:
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("claude_agent_sdk")
+        exe = Path(spec.origin).parent / "_bundled" / "claude.exe"
+        return str(exe) if exe.is_file() else None
+    except Exception:
+        return None
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def is_batch_script(path: str) -> bool:
+    """A .cmd/.bat file, which Windows runs through cmd.exe (PATHEXT may hand it back as `.CMD`)."""
+    return str(path or "").rstrip(". ").lower().endswith((".cmd", ".bat"))
+
+
+# A real Claude Code executable is tens of MB. The npm package also ships a tiny placeholder
+# `bin/claude.exe` that its postinstall replaces, so anything this small is not the CLI.
+_NATIVE_EXE_MIN_BYTES = 1 << 20
+_RX_SHIM_EXE = re.compile(r'%~?dp0%?[\\/]([^"\r\n%]*?claude[^"\\/\r\n%]*\.exe)', re.I)
+
+
+def native_claude_exe(cli: Optional[str]) -> Optional[str]:
+    """The native `claude.exe` to run instead of npm's `claude.cmd` shim on Windows, else `cli` unchanged.
+
+    claude-agent-sdk refuses to spawn a .cmd/.bat as the CLI (cmd.exe re-parses the command line,
+    so arguments can inject commands: the "BatBadBut" class). Javis handed the SDK whatever PATH
+    resolved, and `npm install -g` puts `claude.cmd` there, so once the SDK updated itself every
+    Claude turn on such a machine died with "Refusing to execute batch script" (owner, 2026-11-10).
+    The executable is nearly always on the machine already: recent npm packages ship it next to
+    the shim, and the native installer puts one in ~/.local/bin. Returns the shim itself when no
+    executable is found, so callers that spawn it directly keep working as before."""
+    if not cli or not _is_windows() or not is_batch_script(cli):
+        return cli
+    shim = Path(cli)
+    cands = []
+    try:
+        text = shim.read_text(encoding="utf-8", errors="ignore")[:8192]
+        for m in _RX_SHIM_EXE.finditer(text):
+            cands.append(shim.parent / m.group(1).replace("\\", "/"))
+    except Exception:
+        pass
+    pkg = shim.parent / "node_modules" / "@anthropic-ai"
+    cands += [pkg / "claude-code" / "bin" / "claude.exe",
+              pkg / "claude-code-win32-x64" / "claude.exe",
+              pkg / "claude-code-win32-arm64" / "claude.exe",
+              shim.parent / "claude.exe",
+              _home_dir() / ".local" / "bin" / "claude.exe"]
+    for path in (None, _duong_dan_tim_binary()):
+        try:
+            hit = shutil.which("claude.exe", path=path)
+        except Exception:
+            hit = None
+        if hit and hit.lower().endswith(".exe"):      # PATHEXT can answer "claude.exe.cmd"
+            cands.append(Path(hit))
+    for c in cands:
+        try:
+            if c.is_file() and c.stat().st_size >= _NATIVE_EXE_MIN_BYTES:
+                return str(c)
+        except Exception:
+            pass
+    return cli
+
+
+def claude_cli_for_sdk() -> str:
+    """The `cli_path` to hand claude-agent-sdk, or "" to let the SDK pick its own bundled binary.
+
+    Never a .cmd/.bat on Windows: the SDK refuses those, while its Windows wheel bundles a
+    claude.exe that works. Never the SDK's own `_bundled` binary either (see claude_sdk_engine)."""
+    cli = (os.environ.get("JAVIS_CLAUDE_CLI") or "").strip() or (tim_binary("claude") or "")
+    if not cli or "_bundled" in cli.replace("\\", "/"):
+        return ""
+    cli = native_claude_exe(cli) or ""
+    if _is_windows() and is_batch_script(cli):
+        return ""
+    return cli
+
+
 def find_claude_cli() -> Optional[str]:
+    """Find the claude CLI. On Windows a native claude.exe wins over npm's claude.cmd shim."""
+    return native_claude_exe(_find_claude_cli_raw())
+
+
+def _find_claude_cli_raw() -> Optional[str]:
     """Tìm claude CLI trên máy. Cửa thoát JAVIS_CLAUDE_BIN cho máy cài chỗ lạ.
 
     Có env override để ĐỒNG BỘ với `grok` (JAVIS_GROK_BIN), `agy` (JAVIS_AGY_BIN) và `codex`
@@ -322,7 +426,7 @@ def find_claude_cli() -> Optional[str]:
                 return envp
         except Exception:
             pass
-    cli = tim_binary("claude")
+    cli = _tim_binary_raw("claude")
     if cli:
         return cli
     if os.name == "nt":
