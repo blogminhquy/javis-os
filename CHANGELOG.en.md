@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.527.1] - 2026-11-10
+### Fixed
+- **Teams no longer stay stuck on an account that ran out.** With several accounts on a Claude Code, ChatGPT or Grok Build card, a team member's turn now runs on the account that still has quota, like chat and background work. Before, teams always ran on account 1, so once it hit its weekly limit the whole team answered "You've hit your weekly limit" while the other account still had quota.
+- **A team turn that runs out of quota runs again on the next account.** When the account refuses before any tool call, Javis rests it and runs the turn again at once, and the reply says which account answered. A step that already called a tool is not run again, so nothing is sent or posted twice.
+- **The out-of-quota sentence is no longer posted as a member's reply.** Claude Code sometimes prints it as a normal answer; teams now recognise it and treat it as an out-of-quota error.
+- **Workflows rotate accounts too.** A workflow step on Claude Code or ChatGPT starts on the account that still has quota; when the account runs out before the step did anything, the step runs again on the next account and the run carries on. Before, the whole run stopped with "the plan is out of quota" while the other account still had quota.
+- **The card on the Models page names the account in use.** Its first line shows the name, e-mail and plan of the account that is running. Before, it always showed account 1, so a card running on a Max account still read "Pro".
+
 ## [0.527.0] - 2026-11-10
 ### Added
 - **The Claude Agent SDK updates itself.** The "Update Claude Code automatically every day" switch on the Models page now also keeps the Claude Agent SDK package on the newest release of its series. Javis only takes a release at least three days old, checks it before keeping it and puts the old one back if the check fails. The new version is used from the next restart. The Docker build still gets it with each Javis image.
