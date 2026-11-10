@@ -5211,14 +5211,48 @@ def _reasoning_level(mcfg):
 
 
 # 0.193.0 (owner, 16/10/2026: "agent hiện tại không lựa chọn được mức suy luận, cần bổ sung ngay và mặc định là trung
-# bình"): each assistant keeps its own reasoning level in its frontmatter (`reasoning`), used by its chat, its team turns
-# and nothing else. An assistant that never set one thinks at "medium", not at the main chat's level.
+# bình"): each assistant keeps its own reasoning level in its frontmatter (`reasoning`), used by its chat and its team
+# turns. An assistant that never set one thinks at "medium" there, not at the main chat's level. A workflow step uses
+# the level only when the assistant set one (#1302, see _agent_own_reasoning).
 AGENT_REASONING_DEFAULT = "medium"
 
 
 def _agent_reasoning(meta) -> str:
     r = str((meta or {}).get("reasoning") or "").strip()
     return r if r in engine.REASONING_LEVELS else AGENT_REASONING_DEFAULT
+
+
+def _agent_own_reasoning(meta) -> str:
+    """The level an assistant set for ITSELF in its frontmatter, "" when it set none (or "off"). A workflow step uses
+    this one (#1302), not `_agent_reasoning`: a step whose assistant never picked a level keeps the engine's own
+    default as before, instead of every existing workflow dropping to "medium" overnight."""
+    r = str((meta or {}).get("reasoning") or "").strip()
+    return r if r in engine.REASONING_LEVELS and r != "off" else ""
+
+
+def _apply_step_reasoning(eng, reasoning, codex=False) -> None:
+    """Set a workflow step engine's thinking depth from its assistant's own level (#1302). The step's prompt is never
+    touched: an engine that cannot take the level as a real setting just runs at its default."""
+    if not reasoning:
+        return
+    try:
+        if codex:
+            muc = codex_models.muc_cho(getattr(eng, "model", "") or "", reasoning)
+            if muc:
+                eng.extra_config[:] = [x for x in eng.extra_config if not str(x).startswith("model_reasoning_effort=")]
+                eng.extra_config.append(f"model_reasoning_effort={muc}")
+        elif _CLI_EFFORT.get(reasoning) and claude_cli.co_co("--effort"):
+            eng.effort = _CLI_EFFORT[reasoning]
+    except Exception as e:  # noqa: BLE001 - the depth setting must never cost the step
+        print(f"[workflow] step reasoning {reasoning}: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def _step_reasoning_kw(agent_sysprompt, slug) -> dict:
+    """Keyword arguments for a step's `mk(...)`: `reasoning` when the assistant set a level, nothing otherwise, so a
+    caller that passes its own plain `mk` (tests, older runners) is called exactly as before."""
+    read = getattr(agent_sysprompt, "own_reasoning", None)
+    r = read(slug) if callable(read) else ""
+    return {"reasoning": r} if r else {}
 
 
 def _core_reasoning(mcfg) -> str:
@@ -12438,7 +12472,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
     reason = ""
     step_extra = tuple((node.metadata or {}).get("tools") or ())
     while True:
-        gcli = mk(sysprompt, agent_model, agent_prov, step_extra)
+        gcli = mk(sysprompt, agent_model, agent_prov, step_extra, **_step_reasoning_kw(agent_sysprompt, node.agent))
         out = ""
         loi_engine = ""
         async for ev in gcli.query(cur_prompt):
@@ -12481,7 +12515,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
             f"KẾT QUẢ CẦN KIỂM CHỨNG:\n{out}\n\n"
             "Đánh giá kết quả có ĐẠT nhiệm vụ không. Trả JSON như hướng dẫn."
         )
-        vcli = mk(v_sys, v_model, v_prov)
+        vcli = mk(v_sys, v_model, v_prov, **_step_reasoning_kw(agent_sysprompt, node.verify_agent))
         v_out = ""
         v_err = ""
         async for ev in vcli.query(v_prompt):
@@ -12559,7 +12593,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
     if ungated_mode not in ("suggest", "auto", "full"):
         ungated_mode = "suggest"
 
-    def _mk(sysprompt, model=None, provider="", extra_tools=()):
+    def _mk(sysprompt, model=None, provider="", extra_tools=(), reasoning=""):
         # An interactive step whose agent pins no model runs on the owner's MAIN model, like a chat turn
         # (owner report 2026-11-06, PR #1125): before this it always fell back to Claude, whatever brain was picked
         # on the Models page. A pinned agent keeps its pin; the gated background run (tools is not None) stays on
@@ -12579,6 +12613,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             # Fast mode (0.164.0): workflow steps run in the background, so force the normal tier.
             cc.extra_config[:] = [x for x in cc.extra_config if not str(x).startswith("service_tier=")]
             cc.extra_config.append('service_tier="default"')
+            _apply_step_reasoning(cc, reasoning, codex=True)
             return _step_engine(cc, "openai-oauth")   # the ChatGPT account with quota, the next one when it runs out
         allowed, natives = (_step_grant(extra_tools) if tools is not None else ([], []))
         gated_tools = (list(tools) + allowed) if tools is not None else None
@@ -12588,6 +12623,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
         # khác mà nhét vào đây là Claude nhận một tên nó không hiểu (bug tới 0.47.8: agent
         # chọn Gemini/OpenRouter vẫn chạy Claude, im lặng, không ai biết).
         c.model = ((model if prov == "anthropic-cli" else "") or _aux_model() or None)
+        _apply_step_reasoning(c, reasoning)
         if tools is not None:
             _mcpf = _empty_mcp_file()
             if _mcpf:
@@ -12667,6 +12703,15 @@ def _workflow_agent_helpers(brain, tools, mode=None):
         return (ameta.get("name", aslug), sysprompt,
                 (ameta.get("model") or "").strip() or None,
                 (ameta.get("model_provider") or "").strip())
+
+    def _own_reasoning(aslug):
+        try:
+            return _agent_own_reasoning(_read_md(_agents_dir(brain) / f"{aslug}.md")[0])
+        except Exception:  # noqa: BLE001 - an unreadable assistant file means "no level set"
+            return ""
+    # Read by _step_reasoning_kw at the step call sites. An attribute, not a fifth return value: the 4-tuple of
+    # _agent_sysprompt is unpacked in a dozen places (chat, team, Kanban) that have their own reasoning rule.
+    _agent_sysprompt.own_reasoning = _own_reasoning
 
     def _log_run(aslug, task, out):
         _log_agent_run(brain, aslug, task, out)
@@ -13257,7 +13302,8 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         reason = ""
         loi_buoc = ""      # bước này HỎNG vì sao. "" = bước chạy được.
         while True:
-            gcli = _mk(sysprompt, agent_model, agent_prov, step_extra)   # áp model agent đã chọn
+            gcli = _mk(sysprompt, agent_model, agent_prov, step_extra,   # áp model agent đã chọn
+                       **_step_reasoning_kw(_agent_sysprompt, agent_slug))
             out = ""
             loi_engine = ""
             async for ev in gcli.query(cur_prompt):
@@ -13297,7 +13343,8 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
                 f"KẾT QUẢ CẦN KIỂM CHỨNG:\n{out}\n\n"
                 "Đánh giá kết quả có ĐẠT nhiệm vụ không. Trả JSON như hướng dẫn."
             )
-            vcli = _mk(v_sys, v_model, v_prov)   # agent kiểm chứng cũng dùng model của nó
+            vcli = _mk(v_sys, v_model, v_prov,   # agent kiểm chứng cũng dùng model của nó
+                       **_step_reasoning_kw(_agent_sysprompt, verify_slug))
             v_out = ""
             v_err = ""
             async for ev in vcli.query(v_prompt):
