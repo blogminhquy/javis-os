@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.527.2] - 2026-11-10
+### Improved
+- **Long answers stream without stutter.** While text is arriving, Javis only redraws the block being written and leaves the finished ones alone. Measured with a 20,000 character answer on a slow phone: render time from 5.4 seconds down to 1 second, and no more freezes.
+- **The home screen rests lighter.** The starfield behind the sphere draws less often when nobody is speaking and Javis is not thinking, and looks the same. A phone left open runs cooler and uses less battery.
+### Fixed
+- **The Models page no longer slows the app down over time.** Every visit left a set of drag listeners behind that was never removed. One shared set remains.
+
 ## [0.527.1] - 2026-11-10
 ### Fixed
 - **Teams no longer stay stuck on an account that ran out.** With several accounts on a Claude Code, ChatGPT or Grok Build card, a team member's turn now runs on the account that still has quota, like chat and background work. Before, teams always ran on account 1, so once it hit its weekly limit the whole team answered "You've hit your weekly limit" while the other account still had quota.
