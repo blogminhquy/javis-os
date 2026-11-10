@@ -3,8 +3,49 @@
 Spec này viết ngày 10/11/2026 (bản 0.526.1), sau khi nhiều người dùng báo Javis "ngày càng đốt token": mở hạn mức
 được 40 phút, gần như không làm gì mà hết 30%. Phần 1 đến 4 là điều tra, phần 5 trở đi là thiết kế.
 
-Mỗi con số đều ghi rõ là **đo** (có nguồn) hay **ước** (suy từ số đo, chưa chạy thật). Chưa có dòng mã nào được sửa
-trong PR chứa tài liệu này.
+Mỗi con số đều ghi rõ là **đo** (có nguồn) hay **ước** (suy từ số đo, chưa chạy thật).
+
+**Trạng thái (10/11/2026):** chủ repo đã chốt hướng đi sau khi đọc bản đầu. Mục 0 ghi các quyết định đó và phần đã
+làm trong cùng PR. Mục 5 trở đi là bản thiết kế gốc; chỗ nào bị quyết định ở mục 0 thay thế thì mục 0 thắng.
+
+## 0. Đã chốt và đã làm
+
+Nguyên tắc chủ repo đặt ra: **không cắt chữ trong prompt của lượt chat** (sợ ảnh hưởng chất lượng trả lời), và
+**không thêm cài đặt nào cho người dùng**. Vì vậy phần "làn nhẹ L1" ở mục 5.3 và "prompt ăn kiêng" ở mục 5.6 KHÔNG
+nằm trong lộ trình chính nữa; chi phí được cắt ở ba thừa số còn lại: việc nền, model của việc nền, và các lượt chỉ
+cần chữ.
+
+Đã làm trong PR này:
+
+| Việc | Ở đâu | Thay cho mục |
+|---|---|---|
+| Model việc nền có chế độ **Tự động**, là mặc định. Nhà cung cấp theo MAIN; hai model: `light` cho việc Javis tự làm, `mid` cho việc chủ giao | `server/auto_background.py`, `server/model_routing.py` (`background_spec`), `server/aux_engine.py` (`tier_for_tag`) | 5.4.2 |
+| Chọn hai model đó KHÔNG theo bảng tên: model chính đọc danh sách (kèm mô tả) của chính nhà cung cấp một lần, được phép trả "không chắc"; id ngoài danh sách bị bỏ; không chọn được thì dùng model của MAIN | `auto_background.choose`, `main._auto_background_tick` | mới |
+| Chỉ chọn lại khi danh sách model của nhà đó đổi (chữ ký danh sách, so mỗi ngày và lúc khởi động). Model chủ tự tay chọn không bao giờ bị ghi đè | `auto_background.signature`, `model_routing.background_auto` | mới |
+| Tự học mặc định chỉ ký ức và wiki; máy đã cài được tắt skill một lần | `server/learn.py` (`DEFAULT`, `_MIGRATIONS`) | 5.4.3 (một phần) |
+| Tự học nổ **15 phút sau sự kiện cuối cùng** của brain (lượt chat, việc nền xong, khách nhắn chatbot), một mẻ cho cả cuộc trò chuyện; bỏ luật "sau mỗi 3 lượt". Mỗi mẻ đọc đúng các lượt mới kể từ mẻ trước, phần vượt ngân sách xếp lại cho mẻ kế | `learn.LearnFeature._should_fire`, `touch`, `_build_digest`, `run_once` | 5.4.3 |
+| **Bỏ trần ngày** của tự học (40 mẻ, 15 triệu token): chủ repo chốt "người dùng nhiều người dùng ít", một con số chung không hợp | `learn.LearnFeature._rate_check` | thay P0.2 |
+| Lượt chỉ cần chữ đi trần: prompt riêng, `disallowed_tools` có `"*"` | `main._reply_policy_sandbox_engine(bare=True)` | P0.1, 5.4.1 |
+| Cửa sổ 5 giờ của gói dùng từ 80% thì việc Javis tự làm nghỉ tới lúc reset | `plan_limits.side_pause`, `main._side_work_paused` | thay ngân sách nền 5.4.4 |
+
+Vì sao bỏ ý "khớp theo tên dòng model": bản nháp đầu đề nghị tìm `mini`, `haiku` trong tên. Chủ repo chỉ ra ngay là
+dòng model của gói ChatGPT đã mang tên khác, tức luật theo tên sai từ ngày đầu và sẽ sai lại mỗi lần hãng đổi tên.
+Tín hiệu duy nhất không lỗi thời là danh sách và mô tả do chính nhà cung cấp trả về cho tài khoản đó.
+
+Ba lượt chỉ cần chữ vẫn giữ preset (`bare=False`): lượt của thành viên nhóm, lượt Resonance, và vòng cải tiến skill.
+Phiên và bằng chứng kiểm định của chúng được dựng trên preset nên chưa đổi trong đợt này.
+
+Còn mở, theo thứ tự đáng làm:
+
+1. **Việc nền chỉ ăn hạn mức thừa:** dồn việc Javis tự làm về cuối cửa sổ 5 giờ, khi còn dư.
+2. **Giảm số vòng thay vì giảm chữ:** ghim tool hay dùng, gọi trước tool chỉ-đọc khi bộ dò đoán chắc.
+3. **Một tiền tố cache chung** cho mọi phiên của một brain (mục P0.3), và dòng giờ rời đầu prompt biên dịch (P0.4).
+4. **Tách "chat, việc bạn giao, Javis tự làm"** trong vòng tròn hạn mức, cần ghi tên việc vào usage event trước (P0.5).
+5. **Mẻ tự học thành một lượt chữ** thay cho phiên agentic đọc file (mục 5.4.3), để mỗi mẻ rẻ hơn nữa.
+
+Chưa đo trên engine thật (môi trường viết mã không có `claude` hay `codex` đăng nhập): lượt chỉ cần chữ sau khi đi
+trần, và câu trả lời của model chính khi đọc danh sách model thật. Cả hai đều có đường lui: lỗi hay trả lời không
+dùng được thì việc nền chạy model của MAIN như trước.
 
 ## 1. Kết luận ngắn
 
@@ -283,12 +324,12 @@ dashboard, đo chất lượng bằng Quality Gate và bằng tỉ lệ leo than
 Thứ tự này đặt phần chắc ăn và ít rủi ro lên trước: Pha 0 và Pha 1 đã xử lý nguyên nhân khớp nhất với lời phàn nàn
 (N1, N4, N5) mà chưa đụng tới chất lượng câu trả lời.
 
-## 8. Việc cần chủ repo quyết
+## 8. Việc cần chủ repo quyết (đã trả lời 10/11/2026, xem mục 0)
 
-1. Model việc nền mặc định chuyển sang model rẻ nhất của gói (ảnh hưởng: tự học và chấm điểm kém sắc hơn một chút).
-2. Tự học đổi từ "sau mỗi 3 lượt" sang "khi brain yên 30 phút, tối đa 4 mẻ một ngày".
-3. Gợi ý câu tiếp theo: giữ bật mặc định sau khi đã đi trần, hay tắt mặc định trên máy không có key nhanh.
-4. Chấp nhận làn L1 làm mặc định cho gói thuê bao sau canary, với nút ghim "Đầy đủ" cho từng hội thoại.
+1. Model việc nền mặc định: **đã chốt** Tự động, hai bậc, chọn theo danh sách của nhà cung cấp.
+2. Nhịp tự học: **đã chốt** 15 phút sau sự kiện cuối cùng, không có trần ngày.
+3. Gợi ý câu tiếp theo: **giữ bật**, đã đi trần và chạy trên model nhẹ.
+4. Làn L1 làm mặc định: **không làm**, vì cắt luật của lượt chat có thể ảnh hưởng chất lượng trả lời.
 
 ## 9. Điều chưa chắc và cách đo
 

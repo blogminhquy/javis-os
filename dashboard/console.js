@@ -3823,6 +3823,10 @@
 
     const swapRow = (i) => `<div class="ord-swap-row"><button type="button" class="ord-swap" data-swap="${i}" aria-label="${esc(t("models.ord_swap_aria", { a: connList[i - 1].label, b: connList[i].label }))}">${ORD_SWAP} ${esc(t("models.ord_swap"))}</button></div>`;
     const bgName = bgCfg.model || defName(bgCfg.provider);
+    // Automatic (10/11/2026): Javis picks two models of MAIN's provider, one for its own work, one for handed-over jobs.
+    const bgAuto = !!bgCfg.auto;
+    const bgAutoSub = bgAuto ? t("models.bg_auto_sub", { nha: bgP.label || bgCfg.provider,
+      nhe: bgCfg.light || defName(bgCfg.provider), giua: bgName }) : "";
     const useP = bgUse ? (pById(bgUse.provider) || {}) : {};
     const bgLine = !bgUse ? `<div class="aux-note warn">${WARN_ICON} ${esc(t("models.bg_none"))}</div>`
       : bgUse.step !== "background" ? `<div class="aux-note">${esc(t("models.bg_using", { bg: bgName,
@@ -3852,8 +3856,8 @@
           <div class="aux-now">
             <span class="prov-logo ic-tile aux-ic">${ic("cpu")}</span>
             <div class="aux-now-txt">
-              <div class="aux-now-model">${esc(bgName)}</div>
-              <div class="aux-now-prov">${esc(bgP.label || bgCfg.provider)}</div>
+              <div class="aux-now-model">${esc(bgAuto ? t("models.bg_auto") : bgName)}</div>
+              <div class="aux-now-prov">${esc(bgAuto ? bgAutoSub : (bgP.label || bgCfg.provider))}</div>
             </div>
             <div class="aux-now-act ord-chips" data-p="__bg">
               ${effChip("__bg", bgCfg.reasoning)}
@@ -4791,11 +4795,15 @@
       const st = { expanded: c.bgCfg.provider, filter: "" };
       const draw = async () => {
         const o = { providers: c.connList, connectedOnly: true, expanded: st.expanded, filter: st.filter, noWait: true,
-                    selected: { provider: c.bgCfg.provider, model: c.bgCfg.model }, searchId: "ordBgSearch" };
+                    selected: c.bgCfg.auto ? { provider: "", model: "" } : { provider: c.bgCfg.provider, model: c.bgCfg.model },
+                    searchId: "ordBgSearch" };
         const html = await window.JavisModelList.render(o);
         if (!openPop || openPop.el !== pop) return;
         const typing = document.activeElement && document.activeElement.id === "ordBgSearch";
-        sh.body.innerHTML = html;
+        // First row: back to Automatic. Picking any model below is a choice by hand, which Javis then never replaces.
+        const autoRow = `<div class="mb-item ${c.bgCfg.auto ? "cur" : ""}" data-bgauto="1" role="option"><span class="tick">`
+          + `${c.bgCfg.auto ? ic("check", { cls: "ic-ok" }) : ""}</span><span>${esc(t("models.bg_auto_pick"))}</span></div>`;
+        sh.body.innerHTML = autoRow + html;
         const inp = sh.body.querySelector("#ordBgSearch");
         if (inp) {
           inp.oninput = () => { st.filter = inp.value; draw(); };
@@ -4804,6 +4812,7 @@
         if (o.cho.length) Promise.all(o.cho).then(() => { if (openPop && openPop.el === pop) draw(); });
       };
       sh.body.onclick = (e) => {
+        if (e.target.closest("[data-bgauto]")) { closePop(); save({ auxiliary: { auto: true } }); return; }
         const it = e.target.closest(".mb-item[data-model]");
         if (it) { closePop(); save({ auxiliary: { provider: it.dataset.prov, model: it.dataset.model } }); return; }
         const h = e.target.closest(".mb-prov[data-prov]");

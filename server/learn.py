@@ -60,6 +60,7 @@ def _roll_day(cfg: dict) -> dict:
     today = _today()
     if st.get("day") != today:
         st["day"] = today; st["fork_count"] = 0; st["token_est"] = 0
+        st["hold_logged"] = ""
     return st
 
 
@@ -412,6 +413,9 @@ class LearnDeps:
     # overlay (its additions then wait for the owner instead of going live), None otherwise. Raises ValueError
     # when the host checks refuse the text.
     stage_agent_procedure: Optional[Callable] = None
+    # side_work_paused() -> a short reason when work Javis starts on its own must wait (the plan's 5-hour
+    # allowance is nearly used up), "" otherwise. None = never paused (tests with minimal deps).
+    side_work_paused: Optional[Callable] = None
 
 
 ALLOWED_WRITE_PREFIXES = ["memory", "Memory", "Wiki", "skills", ".claude/skills", "Javis",
@@ -434,14 +438,21 @@ class LearnFeature:
             # lớn (hiện thẳng trong Studio) nên mặc định TẮT, chủ bật ở trang Tự học. Khác
             # quyết định 16/08 (cấm loop nền quét-nâng-cấp hàng loạt): đây chỉ học từ batch
             # hội thoại vừa diễn ra, tạo MỚI không ghi đè, và có vòng verify như skill.
-            "capabilities": {"memory": True, "wiki": True, "skill": True, "task": False,
+            # skill=False (owner, 10/11/2026): out of the box Javis learns memories and wiki notes only.
+            # Skill learning adds a second verify session per batch and switches on the whole
+            # auto-learning judge (auto_learning follows this switch), which is where much of the
+            # plan allowance went while nobody was typing. One switch on the Tự học page brings it back.
+            "capabilities": {"memory": True, "wiki": True, "skill": False, "task": False,
                              "agent": False, "workflow": False},
-            "debounce": {"k": 3, "idle_min": 10, "dense_idle_min": 3},
-            # token_day counts REAL tokens since 0.107.0 (input + cache + output, as the engine
-            # reports them), not len(text)/4: the old estimate said 395k for a day that really
-            # used 12.5M (field report 2026-10-13), so the cap never meant anything. 15M sits
-            # above a normal day (fork_day is the everyday limiter) and stops a runaway one.
-            "rate": {"min_interval_s": 90, "fork_day": 40, "token_day": TOKEN_DAY_DEFAULT},
+            # WHEN a batch runs (owner, 10/11/2026): once the brain has been quiet for idle_min minutes
+            # after its last event (a chat turn, a finished background job, a customer talking to a
+            # bot). One conversation is then learned in one pass. Before, a batch also fired after
+            # every 3 turns, so a 12-turn chat opened four sessions that each re-read much the same
+            # messages. A day with no event learns nothing at all.
+            "debounce": {"idle_min": 15},
+            # No daily cap (owner, 10/11/2026): "some people use a lot, some a little". fork_count and
+            # token_est in _state are still counted, for the figures on the Tự học page only.
+            "rate": {"min_interval_s": 90},
             # stale_days: brain im lặng quá ngần này ngày thì curator BỎ QUA (0 = không lọc).
             # Danh sách brains chỉ có thêm chứ không bớt (mỗi brain từng chat một lần là nằm đó
             # mãi), nên không có mốc này thì curator cứ 24h lại chạy LINT Wiki - một phiên agent
@@ -458,6 +469,8 @@ class LearnFeature:
         }
         self.lock = asyncio.Lock()             # serialize batch trong-process
         self._pending: Dict[str, dict] = {}    # brain -> {count, dense, urgent, last_ts, convs:set, jobs:list}
+        self._turns: Dict[tuple, int] = {}     # (brain, conversation) -> turns since the last batch read it
+        self._leftover: Dict[str, int] = {}    # conversation -> turns the last digest had no room for
         self._pending_lock = asyncio.Lock()
         self.router = self._make_router()
 
@@ -467,7 +480,13 @@ class LearnFeature:
     _MIGRATIONS = {"task_autocreate_off": ("capabilities", "task", False),
                    # The unit of token_day changed (estimate -> real usage); a value set in
                    # the old unit would stop learning after one fork.
-                   "token_day_real_usage": ("rate", "token_day", TOKEN_DAY_DEFAULT)}
+                   "token_day_real_usage": ("rate", "token_day", TOKEN_DAY_DEFAULT),
+                   # 10/11/2026: skill learning was on by default, so nobody chose it; off once, the
+                   # switch on the Tự học page still turns it back on.
+                   "skill_learning_off": ("capabilities", "skill", False),
+                   # 10/11/2026: the quiet time before a batch is 15 minutes (it was 10, next to a
+                   # "3 turns" rule that is gone).
+                   "idle_15_minutes": ("debounce", "idle_min", 15)}
 
     def read_config(self) -> dict:
         cfg = json.loads(json.dumps(self.DEFAULT))
@@ -504,17 +523,15 @@ class LearnFeature:
 
     # ── rate limit / budget ──
     def _rate_check(self, cfg: dict) -> dict:
-        """Kiểm tra trần ngày + min-interval. Trả {allow_promote, reason}. KHÔNG chặn phân tích
-        (dry-run luôn cho phép để user vẫn thấy 'sẽ học gì'); chỉ chặn GHI file khi vượt trần."""
+        """The minimum gap between two written batches. Returns {allow_promote, reason}.
+
+        The daily caps (40 batches, 15M tokens) are gone (owner, 10/11/2026): a heavy user and a light one
+        cannot share one number, and the 15-minute quiet rule already bounds how often a batch runs."""
         st = _roll_day(cfg)
         rate = cfg.get("rate", {})
         now = time.time()
         if now - float(st.get("last_fork_ts", 0)) < float(rate.get("min_interval_s", 90)):
             return {"allow_promote": False, "reason": "min-interval chưa đủ (chống spam fork)"}
-        if int(st.get("fork_count", 0)) >= int(rate.get("fork_day", 40)):
-            return {"allow_promote": False, "reason": "đã chạm trần fork/ngày → hạ dry-run (backpressure)"}
-        if int(st.get("token_est", 0)) >= int(rate.get("token_day", TOKEN_DAY_DEFAULT)):
-            return {"allow_promote": False, "reason": "đã chạm trần token/ngày → hạ dry-run (backpressure)"}
         return {"allow_promote": True, "reason": ""}
 
     # ── gate tầng-1 (Python, miễn phí) ──
@@ -551,6 +568,11 @@ class LearnFeature:
                     return
             except Exception:
                 pass
+            if conv_sid:
+                # Every turn, the short ones too: the batch reads the conversation from where the last
+                # batch stopped, and a skipped greeting still sits between the turns worth learning.
+                self._turns[(brain, conv_sid)] = self._turns.get((brain, conv_sid), 0) + 1
+            self.touch(brain)       # activity: an already waiting batch starts its quiet time over
             kind = self._classify_turn(user, assistant)
             if kind == "low":
                 return
@@ -631,20 +653,26 @@ class LearnFeature:
             print(f"[learn enqueue_job] {e}", file=__import__('sys').stderr)
 
     def _should_fire(self, cfg: dict, p: dict) -> bool:
-        deb = cfg.get("debounce", {})
-        k = max(2, int(deb.get("k", 3)))           # K>=2 kể cả dense (review)
-        idle = int(deb.get("idle_min", 10)) * 60
-        dense_idle = int(deb.get("dense_idle_min", 3)) * 60
+        """A batch runs when the brain has been quiet for idle_min minutes after its last event and has
+        something queued. The one exception is an explicit "ghi nhớ giúp": that is the owner asking, so
+        it is learned 30 seconds later instead of at the end of the conversation."""
+        idle = max(1, int(cfg.get("debounce", {}).get("idle_min", 15))) * 60
         since = time.time() - float(p.get("last_ts", 0))
-        if p.get("count", 0) >= k:
+        if p.get("count", 0) <= 0:
+            return False
+        if p.get("urgent") and since >= 30:
             return True
-        if p.get("urgent") and since >= 30:        # 'ghi nhớ' gộp vào batch kế, không tức thì
-            return True
-        if p.get("dense") and since >= dense_idle:
-            return True
-        if since >= idle and p.get("count", 0) > 0:
-            return True
-        return False
+        return since >= idle
+
+    def touch(self, brain: str) -> None:
+        """Something just happened in this brain (the owner wrote again, a bot is answering a customer):
+        a batch that is waiting starts its quiet time over. Creates nothing: activity alone is not
+        something to learn from."""
+        now = time.time()
+        for key in {str(brain or ""), self._ten_brain(str(brain or ""))}:
+            p = self._pending.get(key)
+            if p:
+                p["last_ts"] = now
 
     async def tick(self) -> None:
         """Scheduler gọi định kỳ (~30s): với mỗi brain pending đủ điều kiện → chạy 1 batch."""
@@ -658,34 +686,78 @@ class LearnFeature:
                     target = brain
                     break
         if target:
+            hold = self._auto_hold(cfg)
+            if hold:
+                # Pending turns stay queued: they are learned once the cap or the pause lifts.
+                st = _roll_day(cfg)
+                if st.get("hold_logged") != hold:
+                    st["hold_logged"] = hold
+                    self.write_config(cfg)
+                    self._log(target, "learn", "tạm nghỉ học tự động", hold)
+                return
             await self.run_once(target, reason="auto")
 
+    def _auto_hold(self, cfg: dict) -> str:
+        """Why an AUTOMATIC batch must wait, "" when it may run: the plan it would run on has used most of
+        its 5-hour allowance (the host decides, see LearnDeps.side_work_paused). The manual "Học ngay"
+        button is not held: that run is the owner's own choice."""
+        paused = self.deps.side_work_paused
+        if not paused:
+            return ""
+        try:
+            return str(paused() or "")
+        except Exception:   # noqa: BLE001 - a broken meter must not stop learning for good
+            return ""
+
     # ── DIGEST (full text từ SQLite, KHÔNG dùng bản .md đã clip) ──
-    def _build_digest(self, brain: str, convs: List[str], jobs: Optional[List[str]] = None) -> str:
+    # Characters of conversation one batch reads. A whole conversation is now learned in one pass, so
+    # this is twice the old 24,000; what does not fit is read by the next batch (see _leftover).
+    DIGEST_MAX = 48000
+    _TAIL_TURNS = 6       # turns read from a conversation whose count is unknown (manual run, after a restart)
+
+    def _build_digest(self, brain: str, convs: List[str], jobs: Optional[List[str]] = None,
+                      turns: Optional[Dict[str, int]] = None) -> str:
+        """The text one batch learns from.
+
+        `turns` = {conversation: turns since the last batch read it}: each conversation gives exactly
+        those turns, oldest first, so a message is read once however long the chat ran. Without it (a
+        manual run) each of the 3 newest conversations gives its last 12 messages, as before.
+        When the budget runs out, the turns left over are recorded in `self._leftover` for the caller
+        to queue again."""
         store = self.deps.sessions_store
         parts: List[str] = []
         seen = 0
+        self._leftover = {}
         # Việc nền đứng TRƯỚC hội thoại: nó là thứ Javis tự làm, và cũng là phần dễ bị cắt
-        # nhất nếu xếp sau (ngân sách 24k ký tự tiêu gần hết cho chat). Đã tính vào `seen` nên
+        # nhất nếu xếp sau (ngân sách ký tự tiêu gần hết cho chat). Đã tính vào `seen` nên
         # không làm digest phình quá trần.
         for khoi in (jobs or [])[:self._JOB_MAX]:
             parts.append(khoi)
             seen += len(khoi)
-        for sid in (convs or [])[:3]:
+        budget = self.DIGEST_MAX if turns is not None else 24000
+        full = False
+        for sid in (list(convs or []) if turns is not None else (convs or [])[:3]):
+            n_turns = int((turns or {}).get(sid) or 0) or self._TAIL_TURNS
+            if full:
+                if turns is not None:
+                    self._leftover[sid] = n_turns
+                continue
             try:
                 msgs = store.get_messages(sid)
             except Exception:
                 msgs = []
-            tail = [m for m in msgs if m.get("role") in ("user", "assistant") and m.get("content")][-12:]
-            for m in tail:
+            tail = [m for m in msgs if m.get("role") in ("user", "assistant") and m.get("content")][-2 * n_turns:]
+            for i, m in enumerate(tail):
                 who = "NGƯỜI DÙNG" if m["role"] == "user" else "JAVIS(assistant)"
                 txt = str(m["content"])[:3000]
                 parts.append(f"[{who}] {txt}")
                 seen += len(txt)
-                if seen > 24000:
+                if seen > budget:
+                    full = True
+                    rest = len(tail) - (i + 1)
+                    if turns is not None and rest > 0:
+                        self._leftover[sid] = (rest + 1) // 2
                     break
-            if seen > 24000:
-                break
         digest = "\n\n".join(parts)
         return sanitize_source(digest)
 
@@ -1837,7 +1909,20 @@ class LearnFeature:
             if not convs and not jobs:
                 return {"ok": True, "summary": localefmt.chu("Không có hội thoại để học.", "No conversation to learn from.")}
 
-            digest = self._build_digest(brain, convs, jobs)
+            # Automatic batch: read each conversation from where the last batch stopped. A manual run keeps
+            # the old "last 12 messages" window (turns=None).
+            turns = ({sid: self._turns.pop((brain, sid), 0) for sid in convs} if p else None)
+            digest = self._build_digest(brain, convs, jobs, turns)
+            if turns is not None and self._leftover:
+                # More than one batch can hold: the rest is queued again and runs on the next tick.
+                for sid, n in self._leftover.items():
+                    self._turns[(brain, sid)] = self._turns.get((brain, sid), 0) + n
+                async with self._pending_lock:
+                    q = self._pending.setdefault(brain, {"count": 0, "dense": False, "urgent": False,
+                                                         "last_ts": 0.0, "convs": set()})
+                    q["count"] += sum(self._leftover.values())
+                    q["convs"].update(self._leftover)
+                self._leftover = {}
             if len(digest.strip()) < 40:
                 return {"ok": True, "summary": localefmt.chu("Hội thoại quá ngắn, bỏ qua.",
                                                              "The conversation is too short, skipped.")}
@@ -1845,6 +1930,7 @@ class LearnFeature:
             prompt = self._build_prompt(caps, brain, digest)
             out = await self._spawn_readonly(brain, prompt, cfg)
             if not out or out.startswith("__ERROR__"):
+                self.write_config(cfg)      # keep the tokens this failed session used in today's count
                 self._log(brain, "learn", f"fork lỗi/không phản hồi ({reason})", out[:200] if out else "")
                 return {"ok": False, "error": localefmt.chu("Fork học lỗi: ", "Learning fork failed: ")
                         + (out[:160] if out else localefmt.chu("rỗng", "empty"))}

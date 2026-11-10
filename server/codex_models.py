@@ -45,6 +45,22 @@ def tiers_for(model: str) -> list:
     return list(_TIERS.get(str(model or "").strip()) or [])
 
 
+# What Codex says each model is, in its own words (`description` of model/list). Kept so the automatic
+# background picker (auto_background.py) can read it without starting another app-server.
+_DESCRIPTIONS: dict = {}
+
+
+def description_for(model: str) -> str:
+    return str(_DESCRIPTIONS.get(str(model or "").strip()) or "")
+
+
+def _nho_mo_ta(items) -> None:
+    for x in items or []:
+        if x.get("id"):
+            _DESCRIPTIONS[x["id"]] = " ".join(str(x.get("display_name") or "").split() + ["-"]
+                                              + str(x.get("description") or "").split()).strip(" -")
+
+
 def _nho_tiers(items) -> None:
     for x in items or []:
         if x.get("id"):
@@ -226,6 +242,7 @@ def list_models(timeout: float = 20.0, cli_path: Optional[str] = None,
             return None
         _nho_efforts(models)
         _nho_tiers(models)
+        _nho_mo_ta(models)
         default = next((x["id"] for x in models if x["is_default"]), models[0]["id"])
         return {
             "models": [x["id"] for x in models],

@@ -173,7 +173,19 @@ async def pick_openrouter_free(key: str = "") -> str:
     return best
 
 
-def read_spec(settings: dict = None) -> dict:
+# Tags of the work Javis starts on its own. On an Automatic background model these run on the LIGHT pick;
+# everything else (reminder, loop, Kanban dispatch, workflow, ingest) is work the owner handed over and runs
+# on the MID pick. See model_routing.background_spec.
+LIGHT_TAGS = ("next-prompt", "learn", "reply-policy", "habit-coach", "web-watch-summary", "incident-triage",
+              "agent-judge", "auto-learning", "curator")
+
+
+def tier_for_tag(tag) -> str:
+    t = str(tag or "")
+    return "light" if any(t == x or t.startswith(x + "-") or t.startswith(x + ":") for x in LIGHT_TAGS) else "mid"
+
+
+def read_spec(settings: dict = None, tag: str = None) -> dict:
     """{'provider','model'} của model việc nền. Cấu hình cũ chỉ có 'model' (luôn là alias
     Claude) nên thiếu provider = anthropic-cli - giữ nguyên hành vi bản cũ.
 
@@ -184,8 +196,9 @@ def read_spec(settings: dict = None) -> dict:
     phần tiêu tiền lúc người ta không ngồi nhìn.
     """
     s = settings if settings is not None else cfgmod.read_settings()
-    aux = (s.get("model", {}) or {}).get("auxiliary") or {}
-    spec = {"provider": (aux.get("provider") or CLAUDE), "model": (aux.get("model") or "")}
+    # `tag` names the job, and with it the tier an Automatic background model runs (tier_for_tag).
+    bg = model_routing.background_spec(s.get("model", {}) or {}, tier_for_tag(tag))
+    spec = {"provider": (bg.get("provider") or CLAUDE), "model": (bg.get("model") or "")}
     if spec["provider"] not in API_PROVIDERS:
         return spec                      # gói thuê bao: không tính tiền theo token, kệ phanh
     try:
@@ -1148,7 +1161,7 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
     try:
         s = settings if settings is not None else cfgmod.read_settings()
         m = s.get("model", {}) or {}
-        sp = spec if spec is not None else read_spec(s)
+        sp = spec if spec is not None else read_spec(s, tag=tag)
         first = {"provider": sp.get("provider") or CLAUDE, "model": sp.get("model") or "",
                  "reasoning": (sp.get("reasoning") if sp.get("reasoning") in model_routing.LEVELS
                                else model_routing.background_spec(m)["reasoning"] if spec is None else "off")}
@@ -1162,6 +1175,16 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         # cost another failed call, so each plan provider appears once.
         for st in model_routing.background_chain(m, conn, first=first, once=(CLAUDE, CODEX, GROK_CLI, ANTIGRAVITY)):
             chain.extend(_links_for_step(st, cli, mode, tag, codex_profile, s, claude_used))
+        # Automatic background model on a plan: the pick is a model Javis chose from the provider's list, and a
+        # plan provider appears only once above. If the provider refuses that model (the plan does not carry it,
+        # it was withdrawn), the job must still run: one last link on MAIN's own model, as before Automatic.
+        if spec is None and first["provider"] in (CLAUDE, CODEX, GROK_CLI, ANTIGRAVITY) \
+                and model_routing.background_auto(m):
+            main_prof = model_routing.profile(m, first["provider"])
+            if (main_prof["model"] or "") != (first["model"] or ""):
+                chain.extend(_links_for_step({"provider": first["provider"], "model": main_prof["model"],
+                                              "reasoning": first["reasoning"], "step": "main"},
+                                             cli, mode, tag, codex_profile, s, claude_used))
         if not chain:
             return cli
         return chain[0] if len(chain) == 1 else _FallbackChain(chain)
