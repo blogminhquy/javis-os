@@ -6790,6 +6790,12 @@ async def connect_audit(limit: int = Query(80), id: str = Query("")):
     return {"entries": mcp_hub.audit_tail(limit=min(int(limit or 80), 500), conn_id=(id or None))}
 
 
+@app.get("/connect/result-stats")
+async def connect_result_stats(days: int = Query(7)):
+    """How large tool results were and how much of them the model was handed (tool_result_shaper)."""
+    return await asyncio.to_thread(mcp_hub.result_size_stats, days)
+
+
 # ---- Zalo: đăng nhập QR ngay trong UI ----
 @app.post("/connect/zalo/start")
 async def connect_zalo_start(request: Request):
@@ -11909,9 +11915,52 @@ async def usage_insights(period: str = "this_month", refresh: int = 0):
     if refresh:
         await _usage_refresh_once()
     try:
-        return {"items": await asyncio.to_thread(usage_index.insights, period=period)}
+        items = await asyncio.to_thread(usage_index.insights, period=period)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+    try:
+        extra = await asyncio.to_thread(_tool_result_insight)
+        if extra:
+            items = list(items or []) + [extra]
+    except Exception:  # noqa: BLE001 - one extra line must never take the whole list down
+        pass
+    return {"items": items}
+
+
+def _tool_result_insight():
+    """One line for the Usage page from the hub's own meter (mcp_hub.result_size_stats): how much of what the
+    connected sources returned in the last 7 days a model actually had to read. None when there is nothing to say."""
+    st = mcp_hub.result_size_stats(7)
+    if not st.get("calls") or int(st.get("raw_chars") or 0) < 50_000:
+        return None
+    raw, sent = int(st["raw_chars"]), int(st["sent_chars"])
+    vi = localefmt.ngon_ngu_giao_dien() == "vi"
+
+    def num(n):
+        text = f"{int(n):,}"
+        return text.replace(",", ".") if vi else text
+    heavy = (st.get("by_tool") or [{}])[0]
+    name = " ".join(x for x in (str(heavy.get("source") or ""), str(heavy.get("tool") or "")) if x)
+    if not st.get("shaping_on"):
+        if not st.get("over_cap"):
+            return None
+        return {"level": "warn",
+                "title": localefmt.chu("Làm gọn kết quả tool đang tắt", "Tool result shaping is off"),
+                "detail": localefmt.chu(
+                    f"7 ngày qua có {num(st['over_cap'])} kết quả tool vượt 8.000 ký tự, model phải nhận nguyên "
+                    f"hoặc bị cắt. Nặng nhất: {name}.",
+                    f"In the last 7 days {num(st['over_cap'])} tool results were over 8,000 characters; the model "
+                    f"got them whole or cut. Heaviest: {name}.")}
+    if st.get("saved_pct", 0) < 5:
+        return None
+    return {"level": "info",
+            "title": localefmt.chu(f"Kết quả tool: giữ {st['saved_pct']}% ngoài hội thoại",
+                                   f"Tool results: {st['saved_pct']}% kept out of the conversation"),
+            "detail": localefmt.chu(
+                f"7 ngày qua các nguồn trả về {num(raw)} ký tự, model chỉ phải đọc {num(sent)} (ước khoảng "
+                f"{num(st['saved_tokens_est'])} token). Bản đầy đủ vẫn được cất để tra lại. Nặng nhất: {name}.",
+                f"In the last 7 days the sources returned {num(raw)} characters and the model read {num(sent)} "
+                f"(about {num(st['saved_tokens_est'])} tokens saved). Full copies stay stored. Heaviest: {name}.")}
 
 
 @app.post("/usage/refresh")
@@ -14648,6 +14697,47 @@ my_tasks_feature = my_tasks_mod.register(app, my_tasks_mod.MyTasksDeps(
     tz=reminders_mod.VN_TZ,
     # 0.427.0: habit lines written by Core, and read-only Google Calendar events.
     ask=_habit_coach_ask, calendar=gcal_read.events))
+async def _scout_run(vault_root: str, prompt: str, tag: str, wall_s: int) -> dict:
+    """Run ONE read-only scout on the background model (scout.py) and return its report.
+
+    Built exactly like a reminder at the `suggest` level, the one background path that is already read-only by
+    construction: an allowlist of read tools plus the Javis hub, the hub enforcing `suggest` (no write, no outside
+    action, whatever the prompt says), then the engine the owner chose for background work. The scout gets its own
+    short system prompt instead of the brain's full one: it needs to know how to read, not who Javis is."""
+    import scout as scout_mod
+    tools = list(READONLY_TOOLS)
+    try:
+        tools += list(_loop_mcp_allow() or [])
+    except Exception:  # noqa: BLE001 - no connection yet: the scout can still read files
+        pass
+    root = vault_root if vault_root and os.path.isdir(vault_root) else _brain_root("brain")
+    cli = claude_engine(system_prompt=scout_mod.SYSTEM_PROMPT, cwd=root, tag=tag, allowed_tools=tools)
+    _apply_mcp(cli, mode="suggest", brain=root)
+    cli = _aux_swap(cli, mode="suggest", tag=tag)
+    cli.max_wall_s = int(wall_s)
+    if not cli.is_available():
+        return {"text": "", "error": "the background engine is not ready (Models page)"}
+    spec = aux_engine.read_spec(tag=tag)
+    out, err, usage = "", "", {"input": 0, "output": 0}
+    async for ev in cli.query(prompt):
+        kind = ev.get("type")
+        if kind == "final":
+            out = ev.get("content", "") or out
+            usage["input"] += int(ev.get("tokens_in") or 0)
+            usage["output"] += int(ev.get("tokens_out") or 0)
+        elif kind == "usage":
+            usage["input"] += int(ev.get("input") or 0)
+            usage["output"] += int(ev.get("output") or 0)
+        elif kind == "error":
+            err = str(ev.get("content") or "") or err
+    label = " ".join(x for x in (str(spec.get("provider") or ""), str(spec.get("model") or "")) if x)
+    return {"text": out, "error": err, "model": label, "usage": usage}
+
+
+import scout as _scout_mod   # noqa: E402 - the hub lists javis_scout only once a runner exists
+_scout_mod.configure(_scout_run)
+
+
 reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,
@@ -29638,6 +29728,10 @@ async def _warm_mcp_hub():
     async def _w():
         try:
             await asyncio.to_thread(_EVIDENCE_STORE.cleanup)
+            # Stored tool results (tool_result_store) expire on their own clock; drop the ones that died while
+            # the server was down. During the day the store sweeps itself as it is written to.
+            import tool_result_store
+            await asyncio.to_thread(tool_result_store.sweep)
             # Phase 9 restart reconciliation: write còn RUNNING sau khi tiến trình chết
             # KHÔNG được chạy lại; chuyển UNKNOWN và giữ resource lock cho tới khi có
             # kết luận. Chạy trước khi nhận lượt chat đầu tiên.

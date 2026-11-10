@@ -177,7 +177,9 @@ async def pick_openrouter_free(key: str = "") -> str:
 # everything else (reminder, loop, Kanban dispatch, workflow, ingest) is work the owner handed over and runs
 # on the MID pick. See model_routing.background_spec.
 LIGHT_TAGS = ("next-prompt", "learn", "reply-policy", "habit-coach", "web-watch-summary", "incident-triage",
-              "agent-judge", "auto-learning", "curator")
+              "agent-judge", "auto-learning", "curator",
+              # javis_scout with effort="quick" (scout.py). A "careful" scout carries the tag "scout" and runs MID.
+              "scout-quick")
 
 
 def tier_for_tag(tag) -> str:

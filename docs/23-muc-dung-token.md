@@ -193,6 +193,24 @@ Từ bản này Javis tự đếm công cụ nào mỗi brain gọi nhiều nh�
 - Hỏi Javis "đang ghim công cụ nào" để xem. Nói "đừng ghim công cụ nữa" để tắt.
 - Quyền không đổi: công cụ ghim vẫn theo đúng mức quyền của kết nối và của việc đang chạy.
 
+## Kết quả tool lớn: cất nguyên vẹn, model chỉ đọc phần cần
+
+Nguồn dữ liệu thường trả về nhiều hơn mức model nên đọc. Đo trên một máy thật: mười đơn hàng POS dài 99.000 đến 183.000 ký tự, mười bài viết website dài 242.000. Trước đây model chạy bằng API key bị cắt còn 8.000 ký tự (giữ đầu và cuối, bỏ phần giữa), nên thấy tổng số đơn mà không thấy trọn đơn nào. Các bộ não dùng gói thì nhận nguyên, và trả bằng hạn mức.
+
+Từ bản này, hub xử lý kết quả trước khi model đọc, giống nhau cho mọi bộ não:
+
+- **Lỗi và kết quả nhỏ** được đưa nguyên văn.
+- **Kết quả vừa** được bỏ thụt dòng và trường rỗng. Nếu viết tên cột một lần là đủ chỗ thì mọi bản ghi được đưa dưới dạng bảng.
+- **Kết quả lớn** được cất nguyên vẹn (mã hoá, tự xoá sau 24 giờ). Model nhận phần gọn: tổng số, tên các trường, vài bản ghi trọn vẹn và một mã tham chiếu.
+- **Đọc lại hoặc tính toán** bằng tool `javis_query`: chọn trường, lật trang, hoặc chạy một câu SQL chỉ đọc trên toàn bộ bản ghi. Nó cũng tự lật nhiều trang của một tool đọc rồi tính, nên báo cáo cả tháng không còn phải đi qua ngữ cảnh.
+
+Hai tính năng đi kèm:
+
+- **Trinh sát (`javis_scout`).** Việc đọc nhiều nguồn có thể được model chính giao cho **model việc nền** bạn đã chọn ở trang Models. Trinh sát chỉ được đọc, và chỉ kết luận quay về khung chat. Không chạy được thì model chính tự làm như trước.
+- **Công thức cho việc định kỳ.** Sau hai lần chạy giống nhau ở hai ngày khác nhau, Javis tự lấy sẵn dữ liệu trước khi model bắt đầu. Javis chỉ làm vậy khi mọi cách hiểu về ngày tháng đều cho cùng một kết quả trong hôm đó, còn không thì chạy như cũ. Mỗi công thức là một file trong `<brain>/Javis/recipes/`, xoá file là quên.
+
+Mục **Đề xuất** cuối trang có một dòng cho biết 7 ngày qua kết quả tool đã giữ được bao nhiêu phần trăm ngoài hội thoại. Muốn tắt: chọn mức tiết kiệm **Tắt**, hoặc xem các biến `JAVIS_TOOL_RESULT_*`, `JAVIS_SCOUT`, `JAVIS_RECIPES` ở [Cấu hình .env](16-cau-hinh-env.md).
+
 ## Số liệu này lấy từ đâu
 
 Javis không gọi API nào của nhà cung cấp để lấy thống kê. Nó **đọc lại log thô trên chính máy bạn** rồi dựng chỉ mục riêng:

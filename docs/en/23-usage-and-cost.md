@@ -191,6 +191,24 @@ From this version Javis counts which tools each brain calls most and **pins** a 
 - Ask Javis "which tools are pinned" to see them. Say "stop pinning tools" to turn it off.
 - Permissions do not change: a pinned tool still follows the permission level of its connection and of the job running.
 
+## Large tool results: stored whole, the model reads only what it needs
+
+A data source often returns far more than a model should read. Measured on a real install: ten shop orders are 99,000 to 183,000 characters, ten website posts 242,000. A model running on an API key used to get this cut to 8,000 characters (head and tail kept, the middle dropped), so it saw the total number of orders and not one whole order. Subscription brains received everything, and paid for it in plan allowance.
+
+From this version the hub shapes a result before the model reads it, the same way for every brain:
+
+- **Errors and small results** are passed on word for word.
+- **Medium results** lose their indentation and empty fields. If writing the column names once makes them fit, every record is shown as a table.
+- **Large results** are stored whole (encrypted, deleted after 24 hours). The model gets a view: the totals, the field names, a few whole records and a reference.
+- **Reading back or computing** is done with the `javis_query` tool: pick fields, page through, or run one read-only SQL query over all records. It can also page through a read tool by itself and compute, so a full month report no longer has to pass through the context.
+
+Two features come with it:
+
+- **Scout (`javis_scout`).** The main model can hand a read across several sources to the **background model** you chose on the Models page. A scout can only read, and only its findings return to the chat. If it cannot run, the main model does the reading itself as before.
+- **Recipes for recurring jobs.** After the same run on two different days, Javis fetches the data itself before the model starts. It does so only when every reading of the dates gives the same result that day; otherwise the job runs as before. Each recipe is a file in `<brain>/Javis/recipes/`; delete the file to forget it.
+
+The **Suggestions** section at the bottom has a line saying what share of tool results stayed out of the conversation in the last 7 days. To turn this off: choose the **Off** saving level, or see `JAVIS_TOOL_RESULT_*`, `JAVIS_SCOUT` and `JAVIS_RECIPES` in [Environment configuration](16-env-configuration.md).
+
 ## Where these figures come from
 
 Javis calls no provider API for statistics. It **re-reads the raw logs on your own machine** then builds its own index:
