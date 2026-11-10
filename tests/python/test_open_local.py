@@ -85,6 +85,26 @@ check("missing file: 404", r.status_code == 404 and r.json().get("code") == "mis
 r = local.post("/files/open-local", data={"path": str(deck)}, headers={"origin": "http://evil.example"})
 check("cross-origin POST is blocked", r.status_code == 403 and len(launched) == n, r.status_code)
 
+# ---- GET: is the link worth drawing for this browser? ----
+local_open.can_launch = lambda: True
+tunnel = {"cf-connecting-ip": "198.51.100.7"}
+check("on this machine: available", local.get("/files/open-local").json() == {"available": True})
+check("through a tunnel: not available", local.get("/files/open-local", headers=tunnel).json() == {"available": False})
+check("from another machine: not available", remote.get("/files/open-local").json() == {"available": False})
+local_open.can_launch = lambda: False
+check("a machine with nothing to open files with: not available",
+      local.get("/files/open-local").json() == {"available": False})
+real_exists = main.os.path.exists
+main.os.path.exists = lambda p: True if str(p) == "/.dockerenv" else real_exists(p)
+local_open.can_launch = lambda: True
+try:
+    check("inside Docker: not available", local.get("/files/open-local").json() == {"available": False})
+    r = local.post("/files/open-local", data={"path": str(deck)})
+    check("inside Docker: a click is refused too", r.status_code == 403 and len(launched) == n, r.status_code)
+finally:
+    main.os.path.exists = real_exists
+check("asking never launched anything", len(launched) == n)
+
 if _fails:
     raise SystemExit(f"\nFAIL - test_open_local: {len(_fails)} check(s) failed")
 print("\nOK - test_open_local: all pass")

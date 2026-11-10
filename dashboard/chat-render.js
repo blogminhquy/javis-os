@@ -257,6 +257,51 @@
     }
     return { local: p };
   }
+  // Such a link is drawn ONLY where a click can work: a browser on the machine that runs Javis. On a VPS, through a
+  // tunnel or a domain, or with Javis in Docker, the path stays the text it always was (and can still be copied
+  // whole), instead of a link that could only answer "not on this computer".
+  //   - Not at a loopback address: never, and the server is not even asked.
+  //   - At a loopback address: yes, until the server says otherwise (GET /files/open-local: Docker, or a Linux box
+  //     with no desktop). It is asked once per page, the first time such a path is drawn. A "no" is remembered for
+  //     the next visits and turns the links already on screen back into plain paths.
+  var LOCAL_OPEN_KEY = "jv_local_open_off";
+  var _localOpen = null;        // null: not looked at yet. true / false: what is known for this page.
+  function onLoopback() {
+    try { return /^(?:localhost|127\.0\.0\.1|\[::1\])$/i.test(location.hostname); } catch (e) { return false; }
+  }
+  function canOpenLocal() {
+    if (_localOpen != null) return _localOpen;
+    if (!onLoopback()) { _localOpen = false; return false; }
+    var off = false;
+    try { off = localStorage.getItem(LOCAL_OPEN_KEY) === "1"; } catch (e) {}
+    _localOpen = !off;
+    try {
+      fetch("/files/open-local").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        if (!j || typeof j.available !== "boolean") return;
+        _localOpen = j.available;
+        try { j.available ? localStorage.removeItem(LOCAL_OPEN_KEY) : localStorage.setItem(LOCAL_OPEN_KEY, "1"); } catch (e) {}
+        if (!j.available) plainLocalLinks();
+      }).catch(function () {});
+    } catch (e) {}
+    return _localOpen;
+  }
+  // The server said no after some links were drawn: put the whole path back as text.
+  function plainLocalLinks() {
+    try {
+      var list = document.querySelectorAll("a.jv-flocal");
+      for (var i = 0; i < list.length; i++) {
+        var a = list[i], p = a.getAttribute("data-local-path") || "";
+        if (a.classList.contains("jv-fcode")) {
+          var code = document.createElement("code");
+          code.textContent = p;
+          a.parentNode.replaceChild(code, a);
+        } else {
+          a.removeAttribute("href"); a.removeAttribute("data-local-path"); a.removeAttribute("title");
+          a.classList.remove("jv-flocal");
+        }
+      }
+    } catch (e) {}
+  }
   // Inline code is stricter than a markdown link: `/Users/a/bin/tool --x` is a command, not a file.
   // Needs a file extension, or a trailing "/" for a folder.
   function codeLocalTarget(c) {
@@ -779,7 +824,7 @@
       var code = "<code>" + esc(c) + "</code>";
       // Full path outside the brain: show just the name, the whole path sits in the tooltip.
       var lt = codeLocalTarget(c);
-      if (lt && lt.local) return put("<a " + localLinkAttrs(lt.local, "jv-fcode") + "><code>" + esc(localName(lt.local)) + "</code></a>");
+      if (lt && lt.local && canOpenLocal()) return put("<a " + localLinkAttrs(lt.local, "jv-fcode") + "><code>" + esc(localName(lt.local)) + "</code></a>");
       if (lt && lt.vault) return put("<a " + vaultLink(lt.vault, "jv-fcode") + ">" + code + "</a>");
       var p = codeFilePath(c);
       if (p) return put("<a " + vaultLink(p, "jv-fcode") + ">" + code + "</a>");
@@ -824,7 +869,7 @@
       href = href.replace(/\s+(["']).*\1\s*$/, "").trim();
       if (/^<.*>$/.test(href)) href = href.slice(1, -1).trim();   // [x](</path with spaces/a.html>)
       var lt = localTarget(href);
-      if (lt && lt.local) return put('<a ' + localLinkAttrs(lt.local) + ">" + chuLink(t) + "</a>");
+      if (lt && lt.local && canOpenLocal()) return put('<a ' + localLinkAttrs(lt.local) + ">" + chuLink(t) + "</a>");
       if (lt && lt.vault) return put('<a ' + vaultLink(lt.vault) + ">" + chuLink(t) + "</a>");
       var appRef = appFileRef(href);
       if (appRef) return put('<a ' + vaultLink(appRef.path, "", appRef.brain) + ">" + chuLink(t) + "</a>");
@@ -1869,6 +1914,8 @@
       highlight: highlight, wkResolve: wkResolve,
       appFilePath: appFilePath, appFileRef: appFileRef, fileUriPath: fileUriPath,
       localTarget: localTarget, codeLocalTarget: codeLocalTarget,
+      // Tests: set what the page knows about opening local files (true, false, or null to look again).
+      setLocalOpen: function (v) { _localOpen = v; },
       isDownloadFile: isDownloadFile, imageSize: imageSize,
       laLinkTaiFile: laLinkTaiFile, laIOS: laIOS,
       // Xuat them de test chay THAT chuoi du phong cua anh (xem ungVienAnh / imgGone).

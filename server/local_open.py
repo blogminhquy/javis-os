@@ -19,6 +19,7 @@ The rules that keep a click from becoming "run anything":
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import urllib.parse
@@ -89,6 +90,14 @@ def plan(target: Path) -> str:
     if target.is_dir():
         return "reveal" if ext in BUNDLE_EXTS else "open"
     return "open" if ext in OPEN_EXTS else "reveal"
+
+
+def can_launch() -> bool:
+    """This machine has something to open a file with. macOS and Windows always do. A Linux box needs `xdg-open`
+    AND a desktop session: a server reached over SSH has neither, and a link there would open nothing."""
+    if sys.platform == "darwin" or sys.platform.startswith("win"):
+        return True
+    return bool(shutil.which("xdg-open")) and bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
 def launch(action: str, target: Path) -> None:
