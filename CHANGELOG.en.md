@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.526.2] - 2026-11-10
+### Fixed
+- **Claude Fable 5.2 is in the model picker.** The Claude model list used to come only from the installed Claude Code, so a machine whose Claude Code had not updated yet missed new models even after updating Javis. The list now also includes the models this Javis release knows, newest first.
+- **Claude Haiku 5.5 joins the fallback list and the cost estimates are corrected** for Fable 5.2, Opus 5.5, Sonnet 5.5 and Haiku 5.5 on the Usage page.
+
 ## [0.526.1] - 2026-11-10
 ### Improved
 - **Node and Link counts sit inside the graph.** The line beside the brain picker is gone; the counts now show in the graph's top-left corner, and the eye button hides them with the other labels.

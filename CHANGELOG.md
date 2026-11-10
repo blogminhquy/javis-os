@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.526.2] - 2026-11-10
+### Sửa lỗi
+- **Claude Fable 5.2 đã có trong ô chọn model.** Trước đây danh sách model Claude chỉ lấy từ bản Claude Code đang cài, nên máy nào Claude Code chưa lên bản mới thì không thấy model mới dù đã cập nhật Javis. Nay danh sách gộp cả model mà bản Javis biết, bản mới nhất đứng trên.
+- **Thêm Claude Haiku 5.5 vào danh sách dự phòng và sửa giá quy đổi** của Fable 5.2, Opus 5.5, Sonnet 5.5, Haiku 5.5 trên trang Mức dùng.
+
 ## [0.526.1] - 2026-11-10
 ### Cải thiện
 - **Số Node và Link nằm gọn trong đồ thị.** Dòng số cạnh nút chọn bộ não đã bỏ, giờ hiện ở góc trên bên trái của đồ thị, nút con mắt ẩn nó cùng các nhãn khác.
