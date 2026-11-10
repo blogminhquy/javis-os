@@ -48,7 +48,12 @@
 
     function mounted() { return !!btn.parentNode; }
     // Two looks: only reading back (a small round arrow), or something new arrived meanwhile ("New messages").
-    function draw(hasNew) {
+    // Called on every streamed flush while following the end. The button's markup is only rewritten when its look
+    // changes (2026-11-10): writing the same innerHTML again still dirtied the layout the next line had to read.
+    var drawn = null;
+    function draw(hasNew, force) {
+      if (!force && drawn === !!hasNew) return;
+      drawn = !!hasNew;
       btn.classList.toggle("has-new", !!hasNew);
       btn.innerHTML = hasNew ? icon + " " + tw("app.new_msg") : icon;
       btn.title = hasNew ? tw("app.new_msg_title") : tw("app.scroll_bottom");
@@ -148,7 +153,7 @@
     function onMove(e) { if (e.target && e.target.closest && e.target.closest(msgSel)) st.movedAt = now(); }
     function onLeave() { st.movedAt = 0; }
     function onClick() { toBottom(true); }
-    function onLang() { draw(btn.classList.contains("has-new")); }
+    function onLang() { draw(btn.classList.contains("has-new"), true); }
     area.addEventListener("scroll", onScroll);
     area.addEventListener("load", onLoad, true);   // load does not bubble: capture
     area.addEventListener("mousemove", onMove);

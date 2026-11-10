@@ -638,6 +638,75 @@
     try { return _mdToHtmlThan(raw); }
     finally { _brainForRender = truoc; _choTrinhSua = truocTS; _thuMucForRender = truocTM; _anhVForRender = truocAV; }
   }
+  // ---------------------------------------------------------------- streaming: how much is settled
+  // While an answer streams, app.js used to render the WHOLE text again on every flush and replace the bubble. For a
+  // 20,000 character answer that is over a hundred full parses, each followed by a layout of the whole bubble
+  // (measured on a throttled phone: 43 long tasks). Most of that text is finished: only the last block is still
+  // growing. streamCut says how much of the text can be rendered once and left alone.
+  //
+  // streamCut(text, from) -> an index >= from. text.slice(from, index) is a run of COMPLETE top-level blocks and
+  // text.slice(index) is what may still change. `from` must be an index returned earlier (or 0). The rule is
+  // conservative, because a wrong cut shows until the final full render replaces the bubble:
+  //   - never inside a code fence (counted the way the renderer finds them: every ``` toggles), an HTML comment
+  //     (JAVIS_CARD, JAVIS_ASK) or the frontmatter of the first block;
+  //   - only at a blank line, and only when the line before it and the line after it are plain text or headings.
+  //     Lists (numbering continues across blank lines), tables, quotes and indented text stay in the growing part
+  //     until something plain follows them;
+  //   - only before a line that is complete (ends in a newline), so a half-written "- " or "```" is never judged.
+  var _ST_STRUCT = /^(\s*([-*+]|\d+[.)])\s|\s{2,}\S|\t|\s*\||\s*>|\s*-{3,}\s*$|\s*<!--)/;
+  // Fence state after one line, the way the renderer's own pattern reads it: outside a fence the first ``` on a line
+  // opens one and the rest of that line is its info string; inside, the first ``` closes it wherever it stands, and
+  // what follows on the line is ordinary text again (so it may open the next one). Returns [inFence, touched].
+  function _fenceAfter(line, fence) {
+    var pos = 0, touched = false;
+    for (;;) {
+      var at = line.indexOf("```", pos);
+      if (at === -1) return [fence, touched || fence];
+      touched = true;
+      if (!fence) return [true, true];
+      fence = false;
+      pos = at + 3;
+    }
+  }
+  function streamCut(text, from) {
+    text = String(text == null ? "" : text);
+    var n = text.length, i = Math.max(0, from | 0), cut = i;
+    if (i === 0 && /^\uFEFF?---[ \t]*\r?\n/.test(text)) {
+      var fm = FRONTMATTER_RE.exec(text);
+      if (!fm || fm[0].charAt(fm[0].length - 1) !== "\n") return 0;   // frontmatter still open: nothing is settled
+      i = fm[0].length;
+    }
+    var fence = false, comment = false, blank = false, prevPlain = false, seen = false;
+    while (i < n) {
+      var nl = text.indexOf("\n", i);
+      if (nl === -1) break;                    // the last line is still being written
+      var line = text.slice(i, nl), start = i;
+      i = nl + 1;
+      var wasFence = fence;
+      var fa = _fenceAfter(line, fence);
+      fence = fa[0];
+      if (wasFence) {
+        prevPlain = false; blank = false; seen = true;
+        continue;
+      }
+      if (comment) {
+        fence = false;                          // a ``` inside a hidden comment is not a fence
+        if (line.indexOf("-->") !== -1) comment = false;
+        prevPlain = false; blank = false; seen = true;
+        continue;
+      }
+      if (!line.trim()) { blank = true; continue; }
+      var plain = !fa[1] && !_ST_STRUCT.test(line);
+      if (plain && blank && prevPlain && seen) cut = start;
+      if (!fence) {
+        var oc = line.lastIndexOf("<!--");
+        if (oc !== -1 && line.indexOf("-->", oc) === -1) { comment = true; plain = false; }
+      }
+      prevPlain = plain; blank = false; seen = true;
+    }
+    return cut;
+  }
+
   function visibleMarkdown(raw) {
     raw = String(raw == null ? "" : raw);
     // Bo HTML comment (khoi dieu khien JAVIS_* luon vo hinh), ke ca comment chua dong luc stream
@@ -1701,6 +1770,7 @@
   if (typeof window !== "undefined") {
     window.mdToHtml = mdToHtml;
     window.JavisVisibleMarkdown = visibleMarkdown;
+    window.JavisStreamCut = streamCut;
     // Bo to mau chung: code-hl.js goi lai cho cac ngon ngu kieu C (js/py/sh...) de mot luat
     // chi nam o mot cho. Markup/CSS/JSON thi code-hl tu doc lay (xem chu thich ben do).
     window.JavisHighlight = highlight;
@@ -1713,7 +1783,7 @@
     window.JavisFileRef = appFileRef;
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { mdToHtml: mdToHtml, visibleMarkdown: visibleMarkdown,
+    module.exports = { mdToHtml: mdToHtml, visibleMarkdown: visibleMarkdown, streamCut: streamCut,
       highlight: highlight, wkResolve: wkResolve,
       appFilePath: appFilePath, appFileRef: appFileRef, fileUriPath: fileUriPath,
       isDownloadFile: isDownloadFile, imageSize: imageSize,

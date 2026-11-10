@@ -3233,12 +3233,45 @@ function scrollBottom(force) { chatScroll.toBottom(force); }
 // phần dựng chuỗi đã 1,6 giây CPU, cộng trình duyệt vẽ lại thì máy yếu đứng hình (khách báo 03/11/2026 "đơ cả máy").
 // Giờ vẽ ngay mẩu đầu, sau đó gom: tối đa một lần mỗi 60-300 ms tuỳ độ dài bài. Chữ vẫn chảy đều, máy nhẹ hơn hàng trăm lần.
 const _VE_STREAM_MS = (n) => (n < 2000 ? 60 : n < 8000 ? 150 : 300);
+// 2026-11-10: and only the part still being written. Blocks that are finished (JavisStreamCut in chat-render.js) are
+// rendered ONCE and stay in the bubble; each flush replaces just the nodes after a marker comment. Before, every flush
+// parsed the whole answer and rebuilt the whole bubble, so the browser laid out 20,000 characters again each time
+// (throttled phone: 43 long tasks for one long answer, none with this). The final `response` render still replaces
+// the bubble with one full render, so what stays on screen is exactly what it was before.
+function _streamFragment(html) {
+  const r = document.createRange();
+  r.selectNodeContents(document.body);
+  return r.createContextualFragment(html);
+}
 function _veStreamNgay(t) {
   t._veLuc = Date.now();
   if (!t.bubble) return;
   const b = t.bubble.querySelector(".bubble");
   if (!b) return;
-  b.innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV);
+  const text = t.text || "", anhV = t.bubble.dataset.anhV;
+  const cutOf = typeof window !== "undefined" ? window.JavisStreamCut : null;
+  if (typeof cutOf !== "function") {     // chat-render.js not loaded: the old whole-bubble render
+    b.innerHTML = markdownToHtml(text, undefined, anhV);
+    if (t.bubble.isConnected) scrollBottom();
+    return;
+  }
+  let st = b._jvStream;
+  // Start over when the bubble was redrawn by someone else (the marker is gone) or the text is not the settled text
+  // plus more (a new turn reusing the bubble, a rewrite).
+  if (!st || st.mark.parentNode !== b || text.length < st.len || text.slice(0, st.len) !== st.src) {
+    b.textContent = "";
+    st = b._jvStream = { len: 0, src: "", mark: document.createComment("jv-stream-tail") };
+    b.appendChild(st.mark);
+  }
+  const cut = cutOf(text, st.len);
+  if (cut > st.len) {
+    b.insertBefore(_streamFragment(markdownToHtml(text.slice(st.len, cut), undefined, anhV)), st.mark);
+    st.len = cut;
+    st.src = text.slice(0, cut);
+  }
+  while (st.mark.nextSibling) b.removeChild(st.mark.nextSibling);
+  const tail = text.slice(st.len);
+  if (tail.trim()) b.appendChild(_streamFragment(markdownToHtml(tail, undefined, anhV)));
   if (t.bubble.isConnected) scrollBottom();
 }
 function henVeStream(t) {
