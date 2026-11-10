@@ -48,15 +48,32 @@ check("right column: the same agent editor as every assistant, without Export an
   && /if \(!item\.system\) \{\s*host\.querySelector\("#wsExport"\)/.test(src));
 check("opening it goes to the brain's default chat (where reports land)",
   /if \(!id && !moiHan && item\.system\) \{[\s\S]{0,300}api\("\/javis-core\/session", \{ method: "POST"/.test(src));
-check("its Auto panel always shows", /function veAuto\(item\) \{[\s\S]{0,300}!\(item\.system \|\| autoBat\(S\.rs, item\.slug\)\)\) \{ box\.innerHTML = ""; return; \}/.test(src)
+// veAuto run for real: cut out of the source and given a fake #wsAuto box plus the rows the server would send.
+const vm = require("vm");
+function autoShown(item, rs) {
+  const box = { innerHTML: "", querySelector: () => null };
+  const ctx = vm.createContext({ window: { JavisResonanceAgent: {} }, ganCongHuong() {}, autoBat: W.autoBat,
+    autoBlocked: W.autoBlocked, S: { rs: rs, el: { querySelector: (q) => (q === "#wsAuto" ? box : null) } } });
+  vm.runInContext(src.slice(src.indexOf("  function veAuto(item) {"), src.indexOf("  function ganCongHuong(")) + "\nveAuto(" + JSON.stringify(item) + ");", ctx);
+  return box.innerHTML.includes('id="wsResonance"');
+}
+check("its Auto panel always shows", autoShown({ slug: "javis-core", system: true }, {})
   && !/!item \|\| item\.system\) return;/.test(src));
+check("Auto panel: shown while on, hidden while off or unregistered",
+  autoShown({ slug: "a" }, { a: { enabled: true, status: "active" } })
+  && !autoShown({ slug: "a" }, { a: { enabled: false, status: "active" } }) && !autoShown({ slug: "a" }, {}));
+// 0.521.0 (reported by a user): a recreated assistant said "Auto: needs confirming", but the block holding the two
+// confirm buttons only drew for an assistant whose Auto was already on, which a `missing` one can never be.
+check("Auto panel: a missing or retired assistant shows it, so the confirm buttons are reachable",
+  autoShown({ slug: "a" }, { a: { enabled: true, status: "missing" } })
+  && autoShown({ slug: "a" }, { a: { enabled: false, status: "missing" } })
+  && autoShown({ slug: "a" }, { a: { enabled: false, status: "retired" } }));
 check("the list asks the server for it (system=1)", /\/agents\?brain=" \+ b \+ "&prompt=0&system=1"/.test(src));
 check("i18n vi/en", vi["ws.system_badge"] === "Hệ thống" && en["ws.system_badge"] === "System");
 check("CSS for the badge", css.includes(".ws-sys {") && !css.includes(".ws-core-card {"));
 // 2026-11-08 (owner: "chữ Hệ thống nên cho xuống dòng bên dưới, bên trái, cạnh avatar"): the badge leaves the name's row
 // and opens the line under it, before any tag chips.
 const subSrc = src.slice(src.indexOf("  var CHIP_TOI_DA = 3;"), src.indexOf("  // HTML của MỘT hàng."));
-const vm = require("vm");
 const subCtx = vm.createContext({ t: (k) => k, esc: (s) => String(s), tagsCua: (x) => x.tags || [] });
 vm.runInContext(subSrc + "\nglobalThis.cardSubHtml = cardSubHtml;", subCtx);
 const coreSub = subCtx.cardSubHtml({ name: "Javis Core", tags: ["Ops"] }, true);
