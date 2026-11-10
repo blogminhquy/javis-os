@@ -123,6 +123,7 @@ import next_prompt  # suggests the owner's next message after a reply (ghost tex
 import auto_background  # picks the light and mid model an Automatic background model runs on
 import job_scorecard    # each background job finds the lightest model that gets it done
 import core_loop        # Javis Core's improvement loop: one loop, many knobs
+import tool_pins        # the tools a brain calls most are shown directly (one knob of that loop)
 import job_tune         # the owner's side of that loop, from chat (tool javis_tune)
 import phien_am       # từ tiếng Anh -> cách đọc kiểu Việt (đọc loa + so âm câu nghe được)
 import voice_privacy
@@ -2504,6 +2505,21 @@ def _memory_forgotten(mem_dir, info: dict) -> None:
 memory_control.on_forget = _memory_forgotten
 
 
+def _improve_notice(text: str, dedup: str) -> None:
+    """One quiet notice from Javis Core's improvement loop, from the event loop or from its worker thread."""
+    coro = _notify_owner("", text, kind="system", source="models", level="info", group="cost", dedup=dedup)
+    try:
+        asyncio.get_running_loop().create_task(coro)
+        return
+    except RuntimeError:
+        pass
+    loop = _MAIN_LOOP[0]
+    if loop is None or not loop.is_running():
+        coro.close()                # nobody to tell right now: the change is still in `javis_tune op=status`
+        return
+    asyncio.run_coroutine_threadsafe(coro, loop)
+
+
 def _knob_changed(ch: dict) -> None:
     """A knob of Javis Core's loop moved: one quiet notice, with the reason and the way back."""
     if ch.get("actor") == "owner":
@@ -2514,25 +2530,41 @@ def _knob_changed(ch: dict) -> None:
         "Javis Core changed \"{ten_en}\" from {cu} to {moi}: {ly_do}. To go back, tell Javis \"undo change {ma}\".",
         ten=ch.get("title_vi") or ch.get("knob") or "", ten_en=ch.get("title_en") or ch.get("knob") or "",
         cu=ch.get("old"), moi=ch.get("new"), ly_do=ch.get("why") or "", ma=ch.get("id") or "")
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        try:
-            loop = _MAIN_LOOP[0]
-        except Exception:   # noqa: BLE001
-            loop = None
-        if loop is None or not loop.is_running():
-            return
-        asyncio.run_coroutine_threadsafe(
-            _notify_owner("", text, kind="system", source="models", level="info", group="cost",
-                          dedup=f"knob:{ch.get('id')}"), loop)
-        return
-    loop.create_task(_notify_owner("", text, kind="system", source="models", level="info", group="cost",
-                                   dedup=f"knob:{ch.get('id')}"))
+    _improve_notice(text, f"knob:{ch.get('id')}")
 
 
 core_loop.on_change = _knob_changed
 job_tune.wire(teach=_teach_learning, lessons=_learning_lessons)
+
+
+def _pins_changed(ch: dict) -> None:
+    """A brain's list of pinned tools changed (tool_pins.py): one quiet notice when tools were added. A tool that
+    only left the list went back behind search, nothing is lost, so that alone is not worth a notice."""
+    if not ch.get("added"):
+        return
+    text = localefmt.chu(
+        "Javis ghim sẵn công cụ hay dùng của brain {brain}{bot}: {tools}. Từ giờ các công cụ này được gọi thẳng, bớt "
+        "một vòng tìm mỗi lần dùng. Không muốn thì nhắn Javis \"đừng ghim công cụ nữa\".",
+        "Javis pinned the tools brain {brain}{bot_en} uses most: {tools}. They are now called directly, one search "
+        "round fewer each time. To stop, tell Javis \"stop pinning tools\".",
+        brain=ch.get("brain") or "", bot=" (chatbot)" if ch.get("bot") else "",
+        bot_en=" (chatbot)" if ch.get("bot") else "", tools=", ".join(ch.get("added") or []))
+    _improve_notice(text, f"pins:{ch.get('key')}:{','.join(ch.get('added') or [])}")
+
+
+tool_pins.on_change = _pins_changed
+# How many tools one brain may pin is a knob of Javis Core's loop; which tools is decided by use (tool_pins.py).
+core_loop.register(core_loop.Knob(
+    id="tools.pin_limit", title_vi="Số công cụ ghim sẵn tối đa mỗi brain", title_en="Tools one brain may pin",
+    lo=tool_pins.LIMIT_LO, hi=tool_pins.LIMIT_HI, default=tool_pins.LIMIT_DEFAULT,
+    read=tool_pins.limit, write=tool_pins.set_limit, rule=tool_pins.limit_rule))
+
+
+def _improve_tick() -> None:
+    """Javis Core's improvement loop, one pass, in a worker thread: pinned tools follow use, then every knob's
+    rule looks at its counters once. Plain code, no model."""
+    tool_pins.tick()
+    core_loop.tick()
 
 
 async def _auto_background_ask(prompt: str) -> str:
@@ -15970,7 +16002,7 @@ async def _start_scheduler():
                         # Javis Core's improvement loop: every knob's rule looks at its counters once. Plain code, in
                         # a worker thread; a rule moves its knob at most once a day.
                         _MAIN_LOOP[0] = asyncio.get_running_loop()
-                        await asyncio.to_thread(core_loop.tick)
+                        await asyncio.to_thread(_improve_tick)
                         await _kiem_ngan_sach(nhac=True)
                         await _bao_cao_tuan_neu_toi_gio()
                 except Exception as nse:

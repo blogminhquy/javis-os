@@ -182,6 +182,17 @@ Danh sách này tự sinh từ chính số liệu của kỳ đang xem. Các ng�
 
 Mỗi thẻ kèm một dòng gợi ý hành động cụ thể, ví dụ đề xuất cache thấp khuyên dùng `/compact` hoặc chia phiên, đề xuất opus khuyên hạ model cho việc nhẹ. Ngưỡng 200.000 token cho cảnh báo cache là để trang không kêu ầm lên khi bạn mới dùng vài phút.
 
+## Công cụ hay dùng được ghim sẵn
+
+Khi một brain đấu nhiều nguồn, Javis giấu bớt công cụ và chỉ tìm ra khi cần, để mỗi câu hỏi nhẹ đi. Đổi lại, công cụ nào bạn dùng hằng ngày cũng tốn thêm một vòng "tìm rồi mới gọi".
+
+Từ bản này Javis tự đếm công cụ nào mỗi brain gọi nhiều nhất và **ghim sẵn** vài cái (mặc định tối đa 4, Javis Core tự nới tới 8 khi cần). Công cụ đã ghim được gọi thẳng, bớt một vòng mỗi lần dùng. Việc nền như loop được lợi nhiều nhất.
+
+- Không phải cài gì. Lần đầu ghim và mỗi lần ghim thêm có một thông báo ở chuông.
+- Công cụ lâu không dùng tự rời danh sách. Danh sách của một brain đổi nhiều nhất một lần mỗi ngày.
+- Hỏi Javis "đang ghim công cụ nào" để xem. Nói "đừng ghim công cụ nữa" để tắt.
+- Quyền không đổi: công cụ ghim vẫn theo đúng mức quyền của kết nối và của việc đang chạy.
+
 ## Số liệu này lấy từ đâu
 
 Javis không gọi API nào của nhà cung cấp để lấy thống kê. Nó **đọc lại log thô trên chính máy bạn** rồi dựng chỉ mục riêng:

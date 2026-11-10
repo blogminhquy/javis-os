@@ -72,14 +72,17 @@ check("an unknown knob or actor is refused", cl.change("no.such", 2, "rule") is 
 check("setting the value it already has is not a change", cl.change("t.knob", 1, "owner") is None)
 
 box["want"] = (2, "lên")
-up = cl.tick(now=T0 + 6 * cl.COOLDOWN_S)
+check("what the owner set stands: no rule touches that knob for a month",
+      cl.tick(now=T0 + 6 * cl.COOLDOWN_S) == [] and box["v"] == 1)
+up = cl.tick(now=time.time() + cl.HOLD_AFTER_OWNER_S + 6 * cl.COOLDOWN_S)
 back = cl.undo(up[0]["id"])
 check("a move can be undone by its number", back and box["v"] == 1 and back["value"] == 1, back)
 check("the same move cannot be undone twice", cl.undo(up[0]["id"]) is None)
 check("after an undo the rule leaves that knob alone for two weeks",
       cl.tick(now=T0 + 8 * cl.COOLDOWN_S) == [] and box["v"] == 1)
 check("and may move it again once the hold is over",
-      len(cl.tick(now=time.time() + cl.HOLD_AFTER_UNDO_S + 9 * cl.COOLDOWN_S)) == 1 and box["v"] == 2)
+      len(cl.tick(now=time.time() + cl.HOLD_AFTER_OWNER_S + cl.HOLD_AFTER_UNDO_S + 9 * cl.COOLDOWN_S)) == 1
+      and box["v"] == 2)
 box["v"], box["want"] = 1, None
 
 st = cl.status()

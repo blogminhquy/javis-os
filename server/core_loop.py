@@ -10,7 +10,8 @@ keeps and proposes one step. This module does the rest the same way for every kn
   - a rule may move its knob one step at a time, never out of bounds, never while the owner holds it, and
     not again before a cool-down has passed (so two moves do not chase each other);
   - every move is logged with who made it and why, announced once, and can be undone by its number;
-  - undoing a move holds the knob still for a while, so the same rule does not redo it the next minute.
+  - undoing a move holds the knob still for a while, so the same rule does not redo it the next minute;
+  - a value the owner set in chat stands: no rule touches that knob for a month.
 
 Three kinds of actor, in rising cost:
   rule   plain code looking at counters (this file's `tick`): no model, no tokens;
@@ -38,6 +39,7 @@ import job_scorecard
 ACTORS = ("rule", "core", "owner")
 COOLDOWN_S = 24 * 3600            # a rule moves one knob at most once a day
 HOLD_AFTER_UNDO_S = 14 * 86400    # an undone move is not tried again by a rule for two weeks
+HOLD_AFTER_OWNER_S = 30 * 86400   # what the owner set by hand is left alone by every rule for a month
 
 _lock = threading.RLock()
 _KNOBS: Dict[str, "Knob"] = {}
@@ -98,6 +100,8 @@ def _ensure_table() -> None:
                     _last_move[knob] = float(ts or 0)
                 if reverted and float(reverted) + HOLD_AFTER_UNDO_S > now:
                     _held[knob] = max(_held.get(knob, 0), float(reverted) + HOLD_AFTER_UNDO_S)
+                elif actor == "owner" and not reverted and float(ts or 0) + HOLD_AFTER_OWNER_S > now:
+                    _held[knob] = max(_held.get(knob, 0), float(ts or 0) + HOLD_AFTER_OWNER_S)
         except Exception as e:   # noqa: BLE001 - a broken log must not stop the loop
             print(f"[core loop] table: {type(e).__name__}: {e}", file=sys.stderr)
         _loaded[0] = True
@@ -137,6 +141,8 @@ def change(knob_id: str, new, actor: str, why: str = "", now: float = None) -> O
     with _lock:
         if actor == "rule":
             _last_move[k.id] = now
+        elif actor == "owner":
+            _held[k.id] = max(_held.get(k.id, 0), now + HOLD_AFTER_OWNER_S)
         try:
             cur = job_scorecard._db().execute(
                 "INSERT INTO knob_changes(ts, knob, old, new, actor, why) VALUES(?,?,?,?,?,?)",

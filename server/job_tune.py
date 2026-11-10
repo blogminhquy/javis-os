@@ -10,6 +10,7 @@ import json
 
 import core_loop
 import job_scorecard
+import tool_pins
 
 OPS = ("status", "intent", "feedback", "teach", "set", "undo")
 # Set by main.py: how to store and list the lessons about learning that Javis Core holds for a brain.
@@ -49,6 +50,10 @@ def run(args: dict, vault_root: str = "") -> str:
                       "nhiều lần thì thử xuống một bậc. `fails` chỉ đếm lần hỏng do model. `knobs` là các núm Javis "
                       "Core tự chỉnh; mã thay đổi dạng k12 hay số đều hoàn lại được bằng op=undo.")
         st.update(core_loop.status())
+        st["pinned_tools"] = tool_pins.status()
+        st["pinned_tools_note"] = ("Công cụ mỗi brain hay gọi được hiện thẳng, khỏi một vòng tìm. calls_direct là số "
+                                   "lần gọi thẳng (đã bớt vòng tìm), calls_after_search là số lần còn phải tìm trước. "
+                                   "Tắt: op=set knob=tools.pin_limit value=0.")
         if _LESSONS[0] and vault_root:
             try:
                 st["learning_lessons"] = _LESSONS[0](vault_root)
