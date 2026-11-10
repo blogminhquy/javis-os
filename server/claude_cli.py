@@ -503,6 +503,50 @@ def _file_co_danh_muc() -> Optional[Path]:
     return p if p.is_file() else None
 
 
+_FAMILY_TIERS = ("fable", "mythos", "opus", "sonnet", "haiku")
+
+
+def sort_models(ids) -> list:
+    """Full model ids -> family aliases first, then the ids NEWEST first. Anything that is not a model id is dropped.
+
+    Families go strongest tier first; inside a family the newer version comes first, and the
+    undated id sits above the dated one (`claude-haiku-4-5` before `claude-haiku-4-5-20251001`) because that is the
+    name people type. Aliases in the input are ignored and rebuilt from the ids, so the result has no duplicates.
+    """
+    hop, seen = [], set()
+    for mid in ids or []:
+        v = tach_phien_ban(mid)
+        if v and mid not in seen:
+            seen.add(mid)
+            hop.append((v[0], v[1], v[2], mid))
+    if not hop:
+        return []
+    moi_nhat = {}
+    for fam, ver, _, _ in hop:
+        if ver > moi_nhat.get(fam, ()):
+            moi_nhat[fam] = ver
+    # Known families go by tier, strongest first: by version alone Haiku 5.5 would sit above Fable 5.2. A family this
+    # code has never heard of follows them, newest version first, so a new line still shows without a code change.
+    def _tier(fam):
+        return _FAMILY_TIERS.index(fam) if fam in _FAMILY_TIERS else len(_FAMILY_TIERS)
+    hop.sort(key=lambda x: (_tier(x[0]), bac_phien_ban(moi_nhat[x[0]]), x[0], bac_phien_ban(x[1]), x[2], x[3]))
+    alias = []
+    for fam, _, _, _ in hop:
+        if fam not in alias:
+            alias.append(fam)
+    return alias + [mid for _, _, _, mid in hop]
+
+
+def merge_models(live, shipped) -> list:
+    """The catalog read from the installed `claude` binary, plus the models this Javis release ships with.
+
+    Owner report 2026-11-10: Fable 5.2 was out and Javis did not list it. The binary's catalog was the ONLY list
+    shown, so a machine whose Claude Code had not updated yet (Docker waits for a new image, the daily updater can
+    fail) never saw a model that the Javis release already knew. The union means either side can bring a new model.
+    """
+    return sort_models(list(live or []) + list(shipped or []))
+
+
 def list_models() -> Optional[list]:
     """Model của gói Claude Code: alias đứng trước, rồi id đầy đủ MỚI NHẤT trước.
 
@@ -526,28 +570,10 @@ def list_models() -> Optional[list]:
         tho = _doc_id_model(p)
     except Exception:
         return None
-    hop = []
-    for mid in tho:
-        v = tach_phien_ban(mid)
-        if v:
-            hop.append((v[0], v[1], v[2], mid))
-    if not hop:
+    ket_qua = sort_models(tho)[:40]
+    if not ket_qua:
         _MODELS_CACHE.update(sig=sig, ids=None)
         return None
-    # Dòng nào có bản mới nhất thì đứng trước; trong một dòng, bản mới trước, và bản KHÔNG
-    # gắn ngày đứng trên bản gắn ngày (`claude-haiku-4-5` trước `claude-haiku-4-5-20251001`)
-    # vì đó mới là tên người dùng gõ.
-    moi_nhat = {}
-    for fam, ver, _, _ in hop:
-        if ver > moi_nhat.get(fam, ()):
-            moi_nhat[fam] = ver
-    hop.sort(key=lambda x: (bac_phien_ban(moi_nhat[x[0]]), x[0], bac_phien_ban(x[1]), x[2], x[3]))
-    ids = [mid for _, _, _, mid in hop]
-    alias = []
-    for fam, _, _, _ in hop:
-        if fam not in alias:
-            alias.append(fam)
-    ket_qua = (alias + ids)[:40]
     _MODELS_CACHE.update(sig=sig, ids=list(ket_qua))
     return ket_qua
 
