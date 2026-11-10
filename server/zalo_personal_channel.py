@@ -51,7 +51,7 @@ import conversations
 
 CONNECTOR_ID = "zalo"
 KENH = "zalo_personal"
-NHIP = 20               # giây giữa hai lần đọc
+NHIP = 5                # giây giữa hai lần đọc (20 tới 10/11/2026; hạ để bill nhóm vào nhanh hơn, lệnh đọc chỉ chạm bộ đệm MCP trên máy)
 NHIP_NHANH = 2          # giây giữa hai lần đọc khi tài khoản có chat riêng vừa có tin khách (xem `_nhip_cua`)
 NONG_GIAY = 60          # tin khách chat riêng mới hơn chừng này giây thì tài khoản còn đọc theo NHIP_NHANH
 NHIP_LOI = 90           # nghỉ dài hơn khi một tài khoản vừa lỗi (MCP chết, chưa đăng nhập)

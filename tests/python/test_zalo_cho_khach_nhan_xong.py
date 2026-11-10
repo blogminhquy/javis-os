@@ -105,7 +105,7 @@ def don():
 
 async def chay():
     check("mặc định chờ 5 giây, đọc dày 2 giây khi có khách vừa nhắn",
-          zc.CHO_KHACH_IM == 5 and zc.NHIP_NHANH == 2 and zc.NHIP == 20)
+          zc.CHO_KHACH_IM == 5 and zc.NHIP_NHANH == 2 and zc.NHIP == 5)
     tb = lam_bot()
     tb.start()
 
@@ -200,9 +200,9 @@ async def chay():
 
     # ---- 7. nhịp đọc: chỉ tài khoản nóng, hết nóng thì về 20 giây -------------------------------
     zc._NONG["zalo-1"] = time.time() - zc.NONG_GIAY - 1
-    check("khách im quá 60 giây và không còn gì chờ: về nhịp 20 giây", zc._nhip_cua("zalo-1") == zc.NHIP)
+    check("khách im quá 60 giây và không còn gì chờ: về nhịp đọc thường", zc._nhip_cua("zalo-1") == zc.NHIP)
     check("tài khoản không có bot không bao giờ đọc dày", zc._nhip_cua("zalo-khac") == zc.NHIP)
-    check("vòng ngủ 20 giây khi không tài khoản nào nóng", zc._nhip_vong() == zc.NHIP)
+    check("vòng ngủ nhịp thường khi không tài khoản nào nóng", zc._nhip_vong() == zc.NHIP)
 
     # ---- 8. vòng đọc thật (nhịp thu nhỏ): chỉ tài khoản nóng đọc dày ---------------------------
     # zalo-1 có bot và vừa có tin khách chat riêng; zalo-2 chỉ bật ghi Hộp thư, không bot.

@@ -5085,6 +5085,13 @@ def _codex_fast(cli):
         pass
 
 
+# Ba nấc mọi model Codex có reasoning đều nhận. Thang `model/list` chỉ nằm trong RAM, nên sau mỗi
+# lần khởi động lại, tới khi có ai mở trang Models, bot chạy nền rơi về mặc định config.toml (đo
+# 10/11/2026: bot học phí chọn medium mà Codex chạy high). Chưa biết thang thì vẫn truyền đúng ba
+# nấc này; nấc lạ hơn (minimal, xhigh, ultra) vẫn chờ thang thật.
+_CODEX_MUC_PHO_THONG = ("low", "medium", "high")
+
+
 def _codex_do_sau(cli, reasoning, message):
     """Độ sâu suy nghĩ cho Codex CLI: `-c model_reasoning_effort=<mức>`.
 
@@ -5097,6 +5104,13 @@ def _codex_do_sau(cli, reasoning, message):
         muc = codex_models.muc_cho(getattr(cli, "model", "") or "", reasoning or "")
     except Exception:  # noqa: BLE001 - tra cứu hỏng không được phá lượt chat
         muc = ""
+    if not muc and (reasoning or "") in _CODEX_MUC_PHO_THONG:
+        try:
+            chua_biet = not codex_models.efforts_for(getattr(cli, "model", "") or "")
+        except Exception:  # noqa: BLE001
+            chua_biet = False
+        if chua_biet:
+            muc = reasoning
     if not muc:
         return _nhac_suy_nghi(reasoning, message)
     override = f"model_reasoning_effort={muc}"

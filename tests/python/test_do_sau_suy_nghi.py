@@ -191,6 +191,14 @@ _c4 = _EngineGia2("chua-hoi-bao-gio")
 _m4 = srv._codex_do_sau(_c4, "ultra", "hỏi")
 check("chưa biết thang của model thì KHÔNG truyền gì, rơi về câu nhắc",
       _c4.extra_config == [] and _m4 != "hỏi", _c4.extra_config)
+_c6 = _EngineGia2("chua-hoi-bao-gio")
+check("chưa biết thang mà chọn medium thì VẪN truyền medium (bot nền sau khởi động lại)",
+      srv._codex_do_sau(_c6, "medium", "hỏi") == "hỏi"
+      and _c6.extra_config == ["model_reasoning_effort=medium"], _c6.extra_config)
+_c7 = _EngineGia2("hep-gia")
+srv._codex_do_sau(_c7, "medium", "hỏi")
+check("đã biết thang thì vẫn theo thang, không dùng nấc phổ thông",
+      _c7.extra_config == ["model_reasoning_effort=low"], _c7.extra_config)
 _c5 = _EngineGia2("gpt-5.5-gia")
 check("nấc off thì không đặt gì cả",
       srv._codex_do_sau(_c5, "off", "hỏi") == "hỏi" and _c5.extra_config == [])

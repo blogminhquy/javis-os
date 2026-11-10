@@ -65,6 +65,46 @@ BO_QUA_GOC = {"agents", "workflows"}
 BO_QUA_FILE = {"claude.md", "agents.md", "readme.md", "index.md", "log.md",
                "_open-questions.md", "_session-handoff.md", "memory.md"}
 
+# Per-brain hiding list (0.491.0): `.botignore` at the brain root, one root-relative folder or file per line, `#` for
+# comments. A brain that is also a work folder (repair notes, old copies of the bot's own Agent, test logs) otherwise
+# hands those to the bot as "documents": field report 2026-11-09, a tuition bot searched its brain on every message
+# and pulled four stale copies of its own rules from `repairs/` and `handoff/`. A dot file, so `_ung_vien` never
+# reads the list itself as a document.
+BOTIGNORE = ".botignore"
+_IGNORE_CACHE: Dict[str, tuple] = {}    # root -> (sig, tuple of lowercase "a/b" prefixes)
+
+
+def _ignored_prefixes(root: Path) -> tuple:
+    p = root / BOTIGNORE
+    try:
+        st = p.stat()
+    except OSError:
+        return ()
+    sig = (st.st_mtime_ns, st.st_size)
+    with _lock:
+        hit = _IGNORE_CACHE.get(str(root))
+    if hit and hit[0] == sig:
+        return hit[1]
+    out = []
+    try:
+        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            v = line.split("#", 1)[0].strip().replace("\\", "/").strip("/").casefold()
+            if v and v not in out and ".." not in v.split("/"):
+                out.append(v)
+    except OSError:
+        return ()
+    with _lock:
+        _IGNORE_CACHE[str(root)] = (sig, tuple(out))
+    return tuple(out)
+
+
+def _bi_an(rel_parts: tuple, prefixes: tuple) -> bool:
+    if not prefixes:
+        return False
+    rel = "/".join(rel_parts).casefold()
+    return any(rel == x or rel.startswith(x + "/") for x in prefixes)
+
+
 MAX_FILE = 400          # trần số file quét, tránh brain khổng lồ làm chậm từng tin nhắn
 MAX_BYTES = 120_000     # trần đọc mỗi file
 CHUNK_MAX = 1_400       # cỡ một mảnh tài liệu đưa vào prompt
@@ -234,8 +274,11 @@ def _ung_vien(root: Path, files: Optional[Iterable[str]] = None):
         it = sorted(_walk(root) if files is None else _bot_paths(root, files))
     except OSError:
         return
+    an = _ignored_prefixes(root)
     for p in it:
         if p.suffix.lower() not in DUOI or not p.is_file():
+            continue
+        if _bi_an(p.relative_to(root).parts, an):
             continue
         thu_muc = p.relative_to(root).parts[:-1]
         if thu_muc and thu_muc[0].lower() == SCOPED_DIR:

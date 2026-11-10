@@ -1029,7 +1029,7 @@ _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "han
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
               "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels", "blocked",
-              "group_typing")
+              "group_typing", "accept_group_images", "ignore_reactions")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -1132,8 +1132,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                             b["nhuong_tay_phut"] = n
                 elif k == "ngoai_le":
                     b["ngoai_le"] = ngoai_le_moi     # checked at the top, risk gate included
-                elif k == "nhan_ket_ban":
-                    b["nhan_ket_ban"] = clean_bat(v)
+                elif k in ("nhan_ket_ban", "accept_group_images", "ignore_reactions"):
+                    b[k] = clean_bat(v)
                 elif k == "group_typing":
                     b["group_typing"] = group_typing_on({"group_typing": v})
                 elif k == "skip_labels":

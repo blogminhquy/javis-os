@@ -780,6 +780,10 @@ class Transport:
         thread = str(ev.get("external_chat_id") or "")
         if not thread:
             return
+        group_images = False
+        if co_anh and nhom and self.cfg_fn:
+            group_cfg = self.cfg_fn() or {}
+            group_images = bool(group_cfg.get("accept_group_images")) and group_cfg.get("reply_when") == "always"
         if not text:
             # Ảnh TRƠN trong nhóm (không chú thích) không gọi bot, nhưng phải được NHỚ: cách gửi hay gặp nhất là
             # gửi ảnh rồi nhắn "@bot xem giúp". Trước 0.88.3 ảnh trơn bị bỏ ngay ở đây, trước cả bước nhớ ảnh
@@ -788,7 +792,8 @@ class Transport:
             # nhịp đọc thì ảnh đã được nhớ trước khi lượt của câu tag cần tới nó.
             if co_anh and loai == "group" and self.policy is not None:
                 self._nho_anh_tron(ev, thread)
-                return
+                if not group_images:
+                    return
             # Chat riêng: ảnh không kèm chữ vẫn là người ta đang nhờ xem ảnh (gửi đề, gửi bài làm). Trước đây bị bỏ hẳn
             # ở đây, nên bot không bao giờ thấy ảnh gửi trơn (15/10/2026). Đưa cho bot kèm ảnh, Agent tự quyết hỏi gì.
             if audio_urls and not co_anh and not video_url:
@@ -797,7 +802,7 @@ class Transport:
             elif video_url and not co_anh:
                 import chatbot_runtime
                 text = chatbot_runtime.VIDEO_TRON
-            elif not (co_anh and loai == "private" and (ev.get("metadata") or {}).get("image_url")):
+            elif not (co_anh and (loai == "private" or group_images) and (ev.get("metadata") or {}).get("image_url")):
                 return
             else:
                 text = "[Khách gửi một ảnh, không kèm lời nhắn]"

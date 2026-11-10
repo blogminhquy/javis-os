@@ -1286,6 +1286,11 @@ def _make_precheck_fn(bot_id: str):
         cfg = chatbot_store.get_bot(bot_id)
         if not cfg:
             return {}
+        if (meta or {}).get("reaction") and cfg.get("ignore_reactions"):
+            # 0.491.0: the owner turned emoji reactions off for this bot. A group bot set to answer every message
+            # spent a full engine turn (10 to 60 s) on each heart only to decide to stay silent (field report
+            # 2026-11-09: about 20 such turns a day on one tuition bot). Dropped here, before any engine call.
+            return {}
         meta = _rp_named_meta(cfg, text, meta)      # gọi tên trơn ("nhi mai ơi") cũng là gọi bot
         _nho_neu_khong_goi(bot_id, cfg, meta, text)
         ly_do = _ly_do_im(cfg, meta or {})
