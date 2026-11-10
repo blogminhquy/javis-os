@@ -125,9 +125,19 @@ def _hub_on():
         return True
 
 
+# Callables run after every save of the connection list (a connection added, edited, switched on or off). Plain
+# functions with no argument; they may be called from a worker thread and must return fast.
+ON_SAVE: list = []
+
+
 def _save(d):
     with _LOCK:
         STORE.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    for fn in list(ON_SAVE):
+        try:
+            fn()
+        except Exception as e:      # noqa: BLE001 - a listener must never fail a save
+            print(f"[mcp_store] on-save listener: {type(e).__name__}: {e}", file=sys.stderr)
     # Hub bật (mặc định): KHÔNG sinh file fallback .mcp_config.json - file đó chứa header/env
     # ĐÃ GIẢI MÃ (plaintext), để nằm lại là vô hiệu hoá mã hoá at-rest. Xoá bản cũ nếu có.
     if _hub_on():

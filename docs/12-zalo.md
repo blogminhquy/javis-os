@@ -105,10 +105,14 @@ khi có tin (hoặc khi kết nối Zalo rớt, nối lại), và Javis chỉ đ
 - Tín hiệu chỉ đi trong máy (`127.0.0.1`), kèm một mã riêng của lần chạy Javis hiện tại, và không mang
   nội dung tin. Tin vẫn được đọc qua tool `zalo_get_messages` như cũ.
 - Javis chỉ coi một tài khoản là "tự báo" sau khi nhận được tín hiệu đầu tiên từ đúng tiến trình
-  `javis-zalo` đang chạy. Chưa có tín hiệu (bản javis-zalo cũ, tiến trình vừa chết) thì Javis đọc theo
-  nhịp 20 giây như trước, và lượt đọc đó cũng là lúc tiến trình được dựng lại.
-- Tin đang chờ khách nhắn xong, hay chờ chủ trả lời tay, vẫn được nhả đúng giờ: việc đó không cần hỏi
-  `javis-zalo`.
+  `javis-zalo` đang chạy. Chưa có tín hiệu (bản javis-zalo cũ, tiến trình vừa dựng lại) thì Javis đọc
+  theo nhịp 20 giây như trước.
+- Khi mọi tài khoản đều tự báo và không có tin nào đang giữ, vòng đọc ngủ hẳn, không chạy theo nhịp
+  nào. Nó chỉ thức khi có việc: `javis-zalo` báo có tin, tiến trình `javis-zalo` thoát (Javis đọc ngay
+  một lượt, lượt đó dựng lại tiến trình), một bot nhận hay rời vị trí, một tài khoản được bật, hoặc một
+  kết nối được lưu ở trang Kết nối.
+- Trong lúc có tin đang giữ (chờ khách nhắn xong, chờ chủ trả lời tay), vòng đọc chạy nhịp ngắn để
+  nhả đúng giờ rồi ngủ lại. Việc đó không gọi `javis-zalo`.
 - Tắt cho cả máy: đặt biến môi trường `JAVIS_ZALO_PUSH=0` rồi khởi động lại Javis.
 
 ## Duyệt người xin vào nhóm

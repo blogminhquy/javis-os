@@ -105,6 +105,7 @@ def bat(conn_id: str, on: bool) -> dict:
         # Bật là bắt đầu từ BÂY GIỜ: bỏ cursor cũ để không kéo lại bộ đệm cũ của một lần bật trước.
         _TT.pop(cid, None)
         start()
+    wake()
     return {"ok": True, "id": cid, "theo_doi": bool(on)}
 
 
@@ -1052,12 +1053,16 @@ def mo_ta_loi(raw: str, cap: int = 300) -> str:
 async def _vong() -> None:
     print("[zalo-personal] vòng đọc bắt đầu", file=sys.stderr)
     while not _stop:
+        if _WAKE is not None:
+            _WAKE.clear()       # before the pass: whatever calls wake() from here on is seen by the next sleep
         try:
             cfg = _cau_hinh()
             # Có bot trực thì đọc dù công tắc Ghi hội thoại tắt: bot không đọc thì không trả lời được.
             bat_ids = {k for k, v in cfg.items() if v} | set(_BOTS)
+            conns = _ket_noi() if bat_ids else []
+            wait = _loop_wait([], set())        # the answer if this pass dies half way: nothing to read, sleep till woken
             if bat_ids:
-                for conn in _ket_noi():
+                for conn in conns:
                     if _stop or conn["id"] not in bat_ids:
                         continue
                     tt = _TT.setdefault(conn["id"], {})
@@ -1096,12 +1101,14 @@ async def _vong() -> None:
                     # never goes past NHIP, so an account that pushed and then lost its process is looked at again
                     # within one tick (`push_active` is false then, and the read restarts javis-zalo).
                     tt["doc_toi"] = 0 if zalo_push.pending(conn["id"]) else luc + min(NHIP, _nhip_cua(conn["id"])) * 0.9
+            wait = _loop_wait(conns, bat_ids)
         except asyncio.CancelledError:
             raise
         except Exception as e:
             print(f"[zalo-personal vòng] {type(e).__name__}: {e}", file=sys.stderr)
+            wait = NHIP         # a pass that broke is tried again on the old tick, never left asleep
         try:
-            await _sleep_or_wake(_nhip_vong())
+            await _sleep_or_wake(wait)
         except asyncio.CancelledError:
             raise
     print("[zalo-personal] vòng đọc dừng", file=sys.stderr)
@@ -1111,6 +1118,65 @@ async def _vong() -> None:
 # Live push: read when javis-zalo says a message arrived (2026-11-10, see zalo_push.py)
 # ============================================================
 _WAKE: Optional[asyncio.Event] = None       # set by a wake-up, waited on by the loop between two passes
+_LOOP: Optional[asyncio.AbstractEventLoop] = None       # the event loop the read loop runs on (set in `start`)
+
+
+def wake() -> None:
+    """Make the read loop run a pass now. Safe from any thread and before the loop exists.
+
+    With live push the loop does not tick while there is nothing to do, so everything that gives it something to do
+    calls this: a wake-up from javis-zalo, a javis-zalo process that exited, a turn put on hold, a bot that took or
+    left its post, an account switched on, a connection saved on the Connections page."""
+    ev, loop = _WAKE, _LOOP
+    if ev is None or loop is None:
+        return
+    try:
+        if asyncio.get_running_loop() is loop:
+            ev.set()
+            return
+    except RuntimeError:
+        pass
+    try:
+        loop.call_soon_threadsafe(ev.set)
+    except RuntimeError:        # that loop is closed: nothing is waiting
+        pass
+
+
+def _on_mcp_exit(key: Any) -> None:
+    """A stdio MCP process ended (mcp_client.STDIO_EXIT_LISTENERS). When it is one of our accounts, read it now: the
+    read starts javis-zalo again and picks up what Zalo replays, instead of waiting for anything."""
+    cid = str(key or "")
+    if cid and (cid in _TT or cid in _BOTS):
+        _TT.setdefault(cid, {})["doc_toi"] = 0
+        wake()
+
+
+def _loop_wait(conns: List[dict], on_ids: set, now: Optional[float] = None) -> Optional[float]:
+    """How long the loop may sleep after a pass; None = until `wake()`.
+
+    An account whose javis-zalo pushes needs no tick at all: a message, a dead process and a config change each wake
+    the loop. It gets a short tick only WHILE a turn of its own is on hold (released by time, not by an event) or a
+    history check is queued. An account that does not push (older javis-zalo, process not started yet) keeps the
+    timer it always had, and a failed account is retried when its rest ends."""
+    now = time.time() if now is None else float(now)
+    waits: List[float] = []
+    for conn in conns:
+        cid = conn["id"]
+        if cid not in on_ids:
+            continue
+        tt = _TT.get(cid) or {}
+        rest = float(tt.get("nghi_toi") or 0)
+        if rest > now:
+            waits.append(rest - now)
+        elif zalo_push.pending(cid):
+            return 0.0
+        elif not push_active(cid):
+            waits.append(float(_nhip_cua(cid)))
+        elif any(k[0] == cid for k in _GOM):
+            waits.append(float(NHIP_NHANH))
+        elif any(k[0] == cid for k in _CHO_CHU) or tt.get("history_pending"):
+            waits.append(float(NHIP))
+    return min(waits) if waits else None
 
 
 def push_active(conn_id: str) -> bool:
@@ -1136,21 +1202,19 @@ def on_push(conn_id: str, body: dict) -> dict:
         return {"ok": True, "known": False}
     zalo_push.note(cid, body, _epoch(conn))
     _TT.setdefault(cid, {})["doc_toi"] = 0
-    if _WAKE is not None:
-        _WAKE.set()
+    wake()
     return {"ok": True, "known": True}
 
 
-async def _sleep_or_wake(seconds: float) -> None:
-    """Sleep one tick, or less when a wake-up arrives. The event is cleared BEFORE the wait is set up and every
-    wake-up also leaves its account `pending`, so one that lands between two passes is never lost."""
+async def _sleep_or_wake(seconds: Optional[float]) -> None:
+    """Sleep `seconds`, or until `wake()`; None = until `wake()` only. The pass that just ended cleared the event at
+    its START, so a `wake()` that came while it ran is still set here and the wait returns at once: nothing that
+    happens during a pass is lost."""
     global _WAKE
     if _WAKE is None:
         _WAKE = asyncio.Event()
-    if any(zalo_push.pending(cid) for cid in list(_TT)):
-        return
-    _WAKE.clear()
-    if any(zalo_push.pending(cid) for cid in list(_TT)):
+    if seconds is None:
+        await _WAKE.wait()
         return
     try:
         await asyncio.wait_for(_WAKE.wait(), timeout=max(0.05, float(seconds)))
@@ -1281,10 +1345,29 @@ def start() -> bool:
     except RuntimeError:
         return False
     _stop = False
-    global _WAKE
+    global _WAKE, _LOOP
     _WAKE = asyncio.Event()     # a fresh one per loop lifetime: an Event belongs to the event loop that first waits on it
+    _LOOP = loop
+    _listen_for_wake_sources()
     _task = loop.create_task(_vong())
     return True
+
+
+def _listen_for_wake_sources() -> None:
+    """Ask the two modules that change things behind the loop's back to call it: a stdio MCP process that ends, and a
+    connection saved on the Connections page. Registered once; each is a plain list of callables there."""
+    try:
+        import mcp_client
+        if _on_mcp_exit not in mcp_client.STDIO_EXIT_LISTENERS:
+            mcp_client.STDIO_EXIT_LISTENERS.append(_on_mcp_exit)
+    except Exception as e:      # noqa: BLE001
+        print(f"[zalo-personal] exit listener not set: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
+        import mcp_store
+        if wake not in mcp_store.ON_SAVE:
+            mcp_store.ON_SAVE.append(wake)
+    except Exception as e:      # noqa: BLE001
+        print(f"[zalo-personal] connection listener not set: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def stop() -> None:
@@ -1535,6 +1618,7 @@ def quoted_file(conn_id: str, thread: str, md: dict) -> list:
 
 def dang_ky_bot(conn_id: str, tb: Any) -> None:
     _BOTS[str(conn_id)] = tb
+    wake()
     start()
 
 
@@ -1547,6 +1631,7 @@ def huy_dang_ky_bot(conn_id: str, tb: Any = None) -> None:
         # thì `xa_hang_cho` tự bỏ hàng chờ khi không còn bot trực, và tin quá `TUOI_TOI_DA` cũng bị
         # bỏ, nên bật lại sau đó không giao tin cũ.
         _NONG.pop(cid, None)
+        wake()
 
 
 def co_bot(conn_id: str) -> bool:
@@ -1809,6 +1894,7 @@ def _xep_cho(conn_id: str, ev: dict, now: Optional[float] = None) -> None:
     if now - ts > TUOI_TOI_DA:
         return      # tin cũ của bộ đệm: `xu_ly` cũng bỏ, đừng để nó giữ tài khoản ở nhịp đọc dày
     o = _GOM.setdefault((str(conn_id), str(ev.get("external_chat_id") or "")), {"evs": [], "cuoi": 0.0})
+    wake()      # a turn is on hold from now: the loop ticks until it is released (see _loop_wait)
     if len(o["evs"]) >= MAX_GOM_TIN:
         o["evs"][-1] = ev       # giữ mấy tin đầu (câu hỏi thật) và tin CUỐI (mã tin, giờ tin của lượt)
     else:
@@ -2008,6 +2094,7 @@ def _giu_cho_chu(conn_id: str, ev: dict, now: Optional[float] = None) -> None:
     if now - ts > TUOI_TOI_DA:
         return      # tin cũ của bộ đệm lúc mới bật, như `_xep_cho`
     o = _CHO_CHU.setdefault((str(conn_id), str(ev.get("external_chat_id") or "")), {"evs": [], "dau": ts})
+    wake()      # held for the owner from now: the loop ticks until the yield time is over (see _loop_wait)
     if len(o["evs"]) >= MAX_GOM_TIN:
         o["evs"][-1] = ev
     else:

@@ -10,7 +10,9 @@ How it works (javis-zalo 1.10.0, `src/mcp/live-push.js`):
   - javis-zalo POSTs a wake-up there when its live buffer changes or its Zalo connection goes up or down. No message
     content travels this way: the read loop still fetches messages through the MCP tool.
   - The read loop (`zalo_personal_channel._vong`) reads an account at once when a wake-up is pending, and makes NO
-    call to javis-zalo for an account that pushes and has nothing pending.
+    call to javis-zalo for an account that pushes and has nothing pending. When every account pushes and no turn
+    is on hold the loop does not tick either: it sleeps until `zalo_personal_channel.wake()` (a wake-up, a
+    javis-zalo process that ended, a turn put on hold, a bot or connection change).
 
 What makes an account "pushing" is proof, not configuration: a wake-up that arrived from the MCP session that is
 alive right now (`note` stores that session's epoch). An older javis-zalo ignores the variables and never calls, a

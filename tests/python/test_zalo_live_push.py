@@ -9,9 +9,11 @@ javis-zalo for an account that pushes and has nothing pending.
 Contract:
   1. zalo_push: the two variables per connection, the per-process token, `active` only for the live MCP session.
   2. Read loop: an account that does not push is read every tick, exactly as before.
-  3. A pushing account with nothing pending is NOT read; held turns are still released on the tick.
+  3. A pushing account with nothing pending is NOT read, and the loop does not tick at all: it sleeps until woken.
+     It ticks only while a turn is on hold (released by time), and stops once that turn is released.
   4. A wake-up is read at once (well inside one tick), and a wake-up that lands during a read causes one more read.
-  5. A pushing account whose process died is read again on the next tick (that read restarts javis-zalo).
+  5. A pushing account whose process ended is read at once (the exit listener wakes the loop; that read restarts
+     javis-zalo). A bot taking or leaving its post and a saved connection wake the loop too.
   6. /zalo/push: local requests with this process's bearer only; an unknown connection records nothing.
   7. `JAVIS_ZALO_PUSH=0` turns everything off.
 """
@@ -31,6 +33,8 @@ try:
 except Exception:
     pass
 
+import mcp_client  # noqa: E402
+import mcp_store  # noqa: E402
 import zalo_push  # noqa: E402
 import zalo_personal_channel as zc  # noqa: E402
 
@@ -94,7 +98,15 @@ saved = {n: getattr(zc, n) for n in ("doc_mot_lan", "_ket_noi", "_cau_hinh", "pu
 real_push_active = zc.push_active
 zc.doc_mot_lan = fake_read
 zc._ket_noi = lambda: [dict(CONN)]
-zc._cau_hinh = lambda: {"zalo-1": True}
+passes = [0]
+
+
+def fake_cfg():
+    passes[0] += 1          # the loop reads the settings once per pass, so this counts passes
+    return {"zalo-1": True}
+
+
+zc._cau_hinh = fake_cfg
 zc._epoch = lambda conn: state["epoch"] if state["alive"] else 0
 zc.push_active = lambda cid: state["alive"] and zalo_push.active(cid, state["epoch"])
 zc._history_turn = lambda conn, tt, now=None: None
@@ -109,6 +121,8 @@ zc.NHIP, zc.NHIP_NHANH = TICK, 0.05
 async def loop_tests():
     zalo_push.forget()
     zc._TT.clear()
+    zc._GOM.clear()
+    zc._CHO_CHU.clear()
     zc.start()
     try:
         # 2. No wake-up ever came: read on the timer, as before.
@@ -118,18 +132,18 @@ async def loop_tests():
         check("on the timer the held turns are released by the read, not by the idle pass", flushes == {"khach": 0, "chu": 0},
               flushes)
 
-        # 3 and 4. The first wake-up ("ready") makes it a pushing account: one read for the wake-up, then silence.
+        # 3 and 4. The first wake-up ("ready") makes it a pushing account: one read for the wake-up, then NOTHING.
         t0 = time.time()
         r = zc.on_push("zalo-1", {"events": ["ready"], "version": "1.10.0", "connected": True})
         check("a wake-up for a known connection is accepted", r == {"ok": True, "known": True}, r)
         await asyncio.sleep(0.08)
         check("the wake-up is read at once, well inside one tick",
               len(reads) == n_timer + 1 and reads[-1] - t0 < TICK / 2, (len(reads) - n_timer, reads[-1] - t0))
-        n = len(reads)
-        await asyncio.sleep(TICK * 5)
+        n, p0 = len(reads), passes[0]
+        await asyncio.sleep(TICK * 6)
         check("a pushing account with nothing pending is not read at all", len(reads) == n, len(reads) - n)
-        check("held turns are still released on the tick, without a read", flushes["khach"] >= 3 and flushes["chu"] >= 3,
-              flushes)
+        check("and the loop itself does not run: no tick while there is nothing to do", passes[0] == p0, passes[0] - p0)
+        check("with nothing on hold nothing is flushed either", flushes == {"khach": 0, "chu": 0}, flushes)
 
         t0 = time.time()
         zc.on_push("zalo-1", {"events": ["messages"], "cursor": 9})
@@ -143,29 +157,74 @@ async def loop_tests():
         zc.on_push("zalo-1", {"events": ["messages"], "cursor": 9})
         await asyncio.sleep(0.15)
         check("a wake-up during a read is followed by exactly one more read", len(reads) == n + 2, len(reads) - n)
+        p0 = passes[0]
         await asyncio.sleep(TICK * 3)
-        check("and then the account is quiet again", len(reads) == n + 2, len(reads) - n)
+        check("and then the loop is asleep again", len(reads) == n + 2 and passes[0] == p0, (len(reads) - n, passes[0] - p0))
 
-        # 5. The process died: no longer "pushing", so the next tick reads (which restarts javis-zalo).
+        # A turn put on hold (from anywhere, here outside the loop): the loop ticks only until it is released.
+        n = len(reads)
+        zc._xep_cho("zalo-1", {"external_chat_id": "u9", "created_at": time.time(), "text": "alo"})
+        check("a held turn is in the queue", ("zalo-1", "u9") in zc._GOM)
+        await asyncio.sleep(0.3)
+        check("a turn on hold makes the loop tick and flush, with no read", flushes["khach"] >= 2 and len(reads) == n,
+              (flushes, len(reads) - n))
+        zc._GOM.clear()                         # released
+        await asyncio.sleep(0.15)
+        p0, f0 = passes[0], dict(flushes)
+        await asyncio.sleep(TICK * 3)
+        check("once it is released the loop sleeps again", passes[0] == p0 and flushes == f0, (passes[0] - p0, flushes))
+
+        zc._giu_cho_chu("zalo-1", {"external_chat_id": "u7", "created_at": time.time(), "text": "anh ơi"})
+        await asyncio.sleep(TICK * 2.5)
+        check("a turn held for the owner makes the loop tick on the normal interval", flushes["chu"] > f0["chu"], flushes)
+        zc._CHO_CHU.clear()
+        await asyncio.sleep(TICK * 1.5)
+
+        # Other things that give the loop work wake it at once.
+        for name, fn in (("a bot taking its post", lambda: zc.dang_ky_bot("zalo-9", object())),
+                         ("a bot leaving its post", lambda: zc.huy_dang_ky_bot("zalo-9")),
+                         ("a connection saved on the Connections page", lambda: [f() for f in list(mcp_store.ON_SAVE)])):
+            await asyncio.sleep(0.05)
+            p0 = passes[0]
+            fn()
+            await asyncio.sleep(0.05)
+            check(f"{name} wakes the loop", passes[0] > p0, passes[0] - p0)
+        check("the loop asked to be told about saved connections and ended MCP processes",
+              zc.wake in mcp_store.ON_SAVE and zc._on_mcp_exit in mcp_client.STDIO_EXIT_LISTENERS)
+
+        # 5. The process died: the exit listener wakes the loop, which reads at once (that read restarts javis-zalo).
+        await asyncio.sleep(0.1)
         n = len(reads)
         state["alive"] = False
-        await asyncio.sleep(TICK * 2.5)
-        check("a pushing account whose process died is read again on the next tick", len(reads) >= n + 1, len(reads) - n)
+        t0 = time.time()
+        for f in list(mcp_client.STDIO_EXIT_LISTENERS):
+            f("zalo-1")
+        await asyncio.sleep(0.08)
+        check("a pushing account whose process ended is read at once, not on a tick",
+              len(reads) >= n + 1 and reads[n] - t0 < TICK / 2, (len(reads) - n, reads[-1] - t0))
+        p0 = passes[0]
+        zc._on_mcp_exit("some-other-mcp")
+        await asyncio.sleep(0.05)
+        check("another MCP server's process ending does not wake the Zalo loop", passes[0] == p0, passes[0] - p0)
         state["alive"], state["epoch"] = True, 4       # restarted: a new session that has not called yet
         n = len(reads)
         await asyncio.sleep(TICK * 2.5)
         check("the restarted process is read on the timer until its own wake-up arrives", len(reads) >= n + 2, len(reads) - n)
         zc.on_push("zalo-1", {"events": ["ready"]})
         await asyncio.sleep(0.1)
-        n = len(reads)
+        n, p0 = len(reads), passes[0]
         await asyncio.sleep(TICK * 3)
-        check("after its wake-up it is a pushing account again", len(reads) == n, len(reads) - n)
+        check("after its wake-up it is a pushing account again: no read, no tick", len(reads) == n and passes[0] == p0,
+              (len(reads) - n, passes[0] - p0))
 
         r = zc.on_push("no-such-conn", {"events": ["messages"]})
         check("a wake-up for an unknown connection records nothing", r == {"ok": True, "known": False}
               and zalo_push.state("no-such-conn") == {}, (r, zalo_push.state("no-such-conn")))
     finally:
         zc.stop()
+        zc._GOM.clear()
+        zc._CHO_CHU.clear()
+        zc._BOTS.pop("zalo-9", None)
 
 
 asyncio.run(loop_tests())
