@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.530.6] - 2026-11-11
+### Fixed
+- **A workflow step now runs at its assistant's reasoning level.** The level set on an assistant only applied to its chat and team turns; a workflow step, including a Kanban job routed to a workflow, always ran at the model's default. A step whose assistant set no level runs as before.
+
 ## [0.530.5] - 2026-11-11
 ### Fixed
 - **A scheduled Codex job is no longer dropped because the tool hub came up late.** A hub that took over 20 seconds used to cost the whole reminder or recurring run until its next slot. Javis now waits up to 45 seconds and tries once more after 30 seconds. The failure happens before the model is called, so the retry costs no turn and repeats no action.
