@@ -185,7 +185,7 @@ try:
         orig_home = plan_accounts.home
         orig_extra_creds = openai_oauth.valid_creds_for
         plan_accounts.home = lambda provider, aid, create=False: folder if aid == "assistant" else None
-        openai_oauth.valid_creds_for = orig_extra_creds
+        openai_oauth.valid_creds_for = orig_creds
         try:
             def jwt(exp):
                 payload = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).decode().rstrip("=")
