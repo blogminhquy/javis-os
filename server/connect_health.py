@@ -11,6 +11,7 @@ nói thẳng nguyên nhân là một tính năng, không phải trang trí.
 """
 import asyncio
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -84,7 +85,7 @@ def _hien(rec: dict) -> dict:
 
 # Thứ tự các nhánh CÓ Ý NGHĨA: auth soi trước (chuỗi 401/unauthorized đặc trưng),
 # spawn trước net (lỗi spawn stdio hay kèm chữ chung chung như "connection closed").
-_AUTH_HINTS = ("401", "unauthorized", "invalid_grant", "oauth session expired",
+_AUTH_HINTS = ("unauthorized", "invalid_grant", "oauth session expired",
                "token expired", "invalid token", "invalid_token", "authentication",
                "hết phiên đăng nhập")
 _SPAWN_HINTS = ("filenotfounderror", "no such file", "not recognized", "enoent",
@@ -92,7 +93,19 @@ _SPAWN_HINTS = ("filenotfounderror", "no such file", "not recognized", "enoent",
 _BROKEN_INSTALL_HINTS = ("module_not_found", "cannot find module", "err_module_not_found")
 _NET_HINTS = ("timeout", "timed out", "getaddrinfo", "connection refused",
               "connecterror", "connectionerror", "ssl", "network", "unreachable",
-              "connection closed", "server disconnected", "502", "503", "504")
+              "connection closed", "server disconnected")
+_NET_STATUS = ("502", "503", "504")
+
+
+def _has_status(low: str, *codes: str) -> bool:
+    """One of these HTTP status codes stands in the error text AS a code, not as digits inside something else.
+
+    The codes used to be plain substrings. An error text often carries a path, and a path can hold any digits: a
+    missing binary under `/tmp/jt-24013-x/` read as "401", so "could not start" was shown as "sign-in expired, click
+    Reconnect" (found 2026-11-10 through a CI run whose runner pid contained 401; the same happens to a user whose
+    install path does). A code counts only when no letter, digit, path separator, dot, dash or underscore touches it:
+    "HTTP 401", "(401)", "status_code=401" and "401 Unauthorized" still match."""
+    return any(re.search(r"(?<![\w/\\.\-])" + c + r"(?![\w/\\.\-])", low) for c in codes)
 
 
 def _is_npx(conn) -> bool:
@@ -110,13 +123,13 @@ def classify_error(err: str, conn=None) -> tuple[str, str]:
     (nút Kết nối lại) nên thà bỏ sót (rơi vào unknown) còn hơn bắt nhầm."""
     low = (err or "").lower()
     if (conn or {}).get("connector_id") == "composio" and (
-            "401" in low or "bearer token rejected" in low):
+            _has_status(low, "401") or "bearer token rejected" in low):
         message = ("Composio từ chối consumer key mà Javis đang dùng. Vào Composio "
                    "For You → Connect my agent, lấy key ck_*, nhập vào thẻ Composio "
                    "trong Javis rồi bấm Kết nối hoặc Kết nối lại. Kết nối lại riêng "
                    "Calendar không thay đổi key này.")
         return "auth", message
-    if any(s in low for s in _AUTH_HINTS):
+    if _has_status(low, "401") or any(s in low for s in _AUTH_HINTS):
         return "auth", "Hết phiên đăng nhập - bấm Kết nối lại để đăng nhập lại."
     # Node cannot load a module of the connector's own package: an install that was cut short
     # (see npx_cache). Checked before the generic spawn hints, which would only say "could not
@@ -128,7 +141,7 @@ def classify_error(err: str, conn=None) -> tuple[str, str]:
                            "phút rồi bấm Kiểm tra để Javis dọn bản hỏng và cài lại.")
     if any(s in low for s in _SPAWN_HINTS):
         return "spawn", "Không khởi động được trình kết nối trên máy chạy Javis."
-    if any(s in low for s in _NET_HINTS):
+    if _has_status(low, *_NET_STATUS) or any(s in low for s in _NET_HINTS):
         return "net", "Dịch vụ không phản hồi - có thể do mạng hoặc máy chủ dịch vụ."
     return "unknown", (err or "Lỗi không rõ").strip()[:160]
 
