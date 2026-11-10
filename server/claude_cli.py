@@ -300,31 +300,13 @@ def _binary_da_nho(ten: str) -> Optional[str]:
     return p
 
 
-def _tim_binary_raw(ten: str) -> Optional[str]:
+def tim_binary(ten: str) -> Optional[str]:
     """`shutil.which` nhưng soi thêm thư mục cài quen thuộc, và nhớ chỗ đã từng thấy."""
     p = shutil.which(ten) or shutil.which(ten, path=_duong_dan_tim_binary())
     if p:
         _nho_binary(ten, p)
         return p
     return _binary_da_nho(ten)
-
-
-def tim_binary(ten: str) -> Optional[str]:
-    """Find a binary by name. For `claude` on Windows the answer is one the Claude Agent SDK will run.
-
-    claude_sdk_engine.py asks exactly `tim_binary("claude")` for its cli_path and is pinned byte
-    for byte (the native qualification evidence hashes it), so the Windows batch-script fix has
-    to live here rather than there. See native_claude_exe for the why."""
-    p = _tim_binary_raw(ten)
-    if ten != "claude" or not p or not _is_windows() or not is_batch_script(p):
-        return p
-    exe = native_claude_exe(p)
-    if exe and not is_batch_script(exe):
-        return exe
-    # Only npm's shim on this machine. The SDK's Windows wheel bundles a claude.exe; the engine
-    # drops any "_bundled" path and the SDK then picks that same file itself, which works where
-    # the shim is refused.
-    return _sdk_bundled_claude() or p
 
 
 def _sdk_bundled_claude() -> Optional[str]:
@@ -408,6 +390,36 @@ def claude_cli_for_sdk() -> str:
     return cli
 
 
+_SDK_CLI_ENV = {"set": ""}      # the value Javis itself put in JAVIS_CLAUDE_CLI, never the user's
+
+
+def use_native_claude_for_sdk() -> None:
+    """Windows: point JAVIS_CLAUDE_CLI at a native claude.exe when PATH resolves npm's shim.
+
+    Why an environment variable: claude_sdk_engine.py and `tim_binary` are both pinned (the
+    native qualification evidence hashes the first, improvement_trial_selection the second), and
+    the one thing both read before PATH is JAVIS_CLAUDE_CLI. Setting it keeps the chat engine and
+    the trial resolver on the same executable. With only the shim on the machine it is set to the
+    SDK's bundled claude.exe: the engine drops a "_bundled" path and the SDK picks that file.
+    A value the user set is respected, unless it names a batch script the SDK would refuse."""
+    if not _is_windows():
+        return
+    cur = (os.environ.get("JAVIS_CLAUDE_CLI") or "").strip()
+    ours = _SDK_CLI_ENV["set"]
+    base = cur if (cur and cur != ours) else (tim_binary("claude") or "")
+    if not is_batch_script(base):
+        if cur and cur == ours:           # PATH now resolves a real executable: step out of the way
+            os.environ.pop("JAVIS_CLAUDE_CLI", None)
+            _SDK_CLI_ENV["set"] = ""
+        return
+    exe = native_claude_exe(base) or ""
+    want = exe if (exe and not is_batch_script(exe)) else (_sdk_bundled_claude() or "")
+    if want and want != cur:
+        os.environ["JAVIS_CLAUDE_CLI"] = want
+        _SDK_CLI_ENV["set"] = want
+        print(f"[claude] the SDK refuses batch scripts, using {want} instead of {base}", file=sys.stderr)
+
+
 def find_claude_cli() -> Optional[str]:
     """Find the claude CLI. On Windows a native claude.exe wins over npm's claude.cmd shim."""
     return native_claude_exe(_find_claude_cli_raw())
@@ -426,7 +438,7 @@ def _find_claude_cli_raw() -> Optional[str]:
                 return envp
         except Exception:
             pass
-    cli = _tim_binary_raw("claude")
+    cli = tim_binary("claude")
     if cli:
         return cli
     if os.name == "nt":
@@ -1352,6 +1364,11 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
         claude_secret_hook.install()
     except Exception as e:  # noqa: BLE001 - the guard must never stop a turn
         print(f"[secret guard] Claude hook not installed: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
+        # 2026-11-10 (owner incident): the SDK refuses npm's claude.cmd on Windows; hand it a native claude.exe.
+        use_native_claude_for_sdk()
+    except Exception as e:  # noqa: BLE001 - reported, never a broken turn
+        print(f"[claude] native CLI lookup failed: {type(e).__name__}: {e}", file=sys.stderr)
     eng = ClaudeSDK(system_prompt=system_prompt, cwd=cwd, tag=tag,
                     allowed_tools=allowed_tools, model=model)
     # Every run (chat, loops, reminders, bots) skips the repo CLAUDE.md and compacts at ~180k;
