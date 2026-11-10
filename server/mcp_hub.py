@@ -1436,7 +1436,8 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
                                      :(_MO_TA_DAY_DU if i < _SO_KQ_DAY_DU else _MO_TA_GON)],
                                  "schema": t.get("schema") or {"type": "object", "properties": {}}}
                                 for i, t in enumerate(hits)]
-            payload["goi_the_nao"] = f"Gọi tool bằng {_LAZY_RUN}(name=<name>, args={{...}})."
+            payload["goi_the_nao"] = (f"Gọi tool bằng {_LAZY_RUN}(name=<name>, args={{...}}). "
+                                     "Nếu cổng làm mất khoá trong args, dùng args_json là chuỗi JSON object thay args.")
         if amb:
             # Connector tài khoản Claude: tool native đã có sẵn trong danh sách tool của engine.
             payload["tai_khoan_claude"] = [
@@ -1450,12 +1451,21 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
     async def _run(args):
         name = str((args or {}).get("name") or "").strip()
         targs = (args or {}).get("args")
+        encoded_args = (args or {}).get("args_json")
+        if encoded_args is not None:
+            if not isinstance(encoded_args, str):
+                return "ERROR: args_json must be a JSON object encoded as a string."
+            if targs not in (None, {}):
+                return "ERROR: use either args or args_json, not both."
+            targs = encoded_args
         if isinstance(targs, str):          # vài model gói args thành chuỗi JSON
             try:
                 targs = json.loads(targs)
             except (ValueError, TypeError):
-                targs = {}
+                return "ERROR: invalid JSON arguments; pass an object or args_json containing a JSON object."
         if not isinstance(targs, dict):
+            if targs is not None:
+                return "ERROR: tool arguments must be a JSON object."
             targs = {}
         if not name:
             return f"ERROR: thiếu 'name'. Dùng {_LAZY_SEARCH} để tìm tên tool trước."
@@ -1487,10 +1497,12 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
     tools.append({"fn": _LAZY_RUN, "server": "javis", "name": _LAZY_RUN,
                   "description": (f"GỌI một tool MCP đã tìm được qua {_LAZY_SEARCH}. name = tên tool (đúng "
                                   "y hệt kết quả tìm), args = tham số (object). Quyền/audit/giới hạn tần "
-                                  "suất áp y như gọi trực tiếp."),
+                                  "suất áp y như gọi trực tiếp. Nếu backend làm mất khoá trong args, "
+                                  "dùng args_json là chuỗi JSON đầy đủ, ví dụ {\"op\":\"pending\"}."),
                   "schema": {"type": "object", "properties": {
                       "name": {"type": "string", "description": f"Tên tool lấy từ {_LAZY_SEARCH}"},
                       "args": {"type": "object", "description": "Tham số tool (object)"},
+                      "args_json": {"type": "string", "description": "Tham số tool dưới dạng chuỗi JSON object; dùng thay args để giữ nguyên các khoá động, ví dụ {\"op\":\"pending\"}."},
                       "result_view": {"type": "object", "description": "Optional explicit JSON view after execution. Keeps errors and source IDs. Does not cache or replay tools.",
                           "properties": {"pointer": {"type": "string", "description": "JSON pointer, e.g. /data/tasks"},
                               "fields": {"type": "array", "items": {"type": "string"}},
