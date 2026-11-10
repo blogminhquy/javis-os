@@ -1865,6 +1865,19 @@ async def _openai_responses_stream_once(access_token, account_id, model, message
 # ============================================================
 # MCP đa-model - vòng tool-calling để model API/OAuth dùng MCP của Javis (qua mcp_client)
 # ============================================================
+async def _call_tool_for_model(mcp_route, fn, args):
+    """One tool call whose result a MODEL reads next. The hub shapes a connection's result for that reader
+    (tool_result_shaper): a large one is stored whole and replaced by a view with a reference, so the cut below
+    no longer has anything to cut. Internal callers of `call_route` keep getting the untouched result."""
+    import mcp_client
+    try:
+        import tool_result_shaper
+    except Exception:  # noqa: BLE001 - never let an optimisation stop a tool call
+        return await mcp_client.call_route(mcp_route, fn, args)
+    with tool_result_shaper.for_model():
+        return await mcp_client.call_route(mcp_route, fn, args)
+
+
 def _clip_tool_result(result, max_chars: int = 0, head_ratio: float = 0.6, ten: str = "") -> str:
     """Cắt kết quả tool quá dài kiểu head+tail KÈM marker, thay cho hard-cut `[:max]`.
     Tail của kết quả MCP (POS/Ads) hay chứa total/summary/pagination → cắt cụt đầu là
@@ -2303,8 +2316,12 @@ def _gon_ket_qua_cu(hoi_thoai, ngan_sach: int | None = None) -> int:
         cu = d[k]
         if len(cu) <= GON_DAU * 2 or _GON_DAU_HIEU in cu:
             continue
+        # A stored result keeps its reference in the first lines, so the model reads it back instead of calling
+        # the source again (a second call is slow, and for a tool that acts it would act twice).
+        cach_lay_lai = ("Cần lại thì đọc bằng javis_query(ref=...) với ref ở trên, đừng gọi lại tool nguồn."
+                        if "javis_stored_result" in cu[:GON_DAU] else "Cần lại thì gọi lại tool.")
         moi = (cu[:GON_DAU] + f"\n\n… {_GON_DAU_HIEU} để lượt dài không tràn ngữ cảnh: bỏ "
-               f"{len(cu) - GON_DAU:,} ký tự. Cần lại thì gọi lại tool.] …")
+               f"{len(cu) - GON_DAU:,} ký tự. {cach_lay_lai}] …")
         tong -= len(cu) - len(moi)
         d[k] = moi
         da_gon += 1
@@ -2529,7 +2546,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                     args = {}
                 if _schedule_tool_allowed(messages, fn, args):
                     yield {"type": "tool_call", "name": fn, "input": args}
-                    result = await mcp_client.call_route(mcp_route, fn, args)
+                    result = await _call_tool_for_model(mcp_route, fn, args)
                 else:
                     result = _schedule_tool_blocked_result()
                 msgs.append({"role": "tool", "tool_call_id": tc.get("id"), "content": _clip_tool_result(result, ten=fn)})
@@ -2609,7 +2626,9 @@ TRAN_CHU_TOI_DA = 2000
 KHONG_TRAN = 1_000_000      # biến = 0: không đặt trần, vòng chỉ dừng khi model chốt hoặc _LapGuard cắt
 CAT_KET_QUA_CODING = 60_000
 CAT_RONG = frozenset({"javis_read_file", "javis_terminal", "javis_process", "javis_search_files",
-                      "javis_edit_file", "javis_web_fetch", "javis_web_search", "javis_run_command"})
+                      "javis_edit_file", "javis_web_fetch", "javis_web_search", "javis_run_command",
+                      # pages its own answer by whole records and honours `max_chars` (tool_result_tools)
+                      "javis_query"})
 # Còn ngần này vòng thì nhắc model chốt việc, để lượt kết thúc bằng một bản tóm tắt chứ không bị
 # cắt ngang giữa chừng.
 NHAC_KHI_CON = 10
@@ -3008,7 +3027,7 @@ async def _responses_with_mcp_account(access_token, account_id, model, messages,
                         args = {}
                     if _schedule_tool_allowed(messages, fc.get("name"), args):
                         yield {"type": "tool_call", "name": fc.get("name"), "input": args}
-                        result = await mcp_client.call_route(mcp_route, fc.get("name"), args)
+                        result = await _call_tool_for_model(mcp_route, fc.get("name"), args)
                     else:
                         result = _schedule_tool_blocked_result()
                     items.append({"type": "function_call_output", "call_id": fc.get("call_id"), "output": _clip_tool_result(result, ten=fc.get("name") or "")})
@@ -3158,7 +3177,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                     args = tu.get("input") or {}
                     if _schedule_tool_allowed(messages, tu.get("name"), args):
                         yield {"type": "tool_call", "name": tu.get("name"), "input": args}
-                        res = await mcp_client.call_route(mcp_route, tu.get("name"), args)
+                        res = await _call_tool_for_model(mcp_route, tu.get("name"), args)
                     else:
                         res = _schedule_tool_blocked_result()
                     results.append({"type": "tool_result", "tool_use_id": tu.get("id"),

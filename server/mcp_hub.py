@@ -9,6 +9,7 @@ Quyền: mcp_catalog.allowed(connector, perm_connection, mode_lượt_chạy, to
 Mode đến từ header X-Javis-Mode (Claude/Codex) hoặc tham số (engine API).
 """
 import asyncio
+import contextvars
 import hashlib
 import json
 import os
@@ -18,7 +19,8 @@ import sys
 import threading
 import time
 from collections import deque
-from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote, unquote
 
@@ -30,16 +32,20 @@ import default_brain
 import config
 import doc_text
 import hub_trace
+import job_recipes
 import localefmt
 import mcp_catalog
 import mcp_client
 import mcp_store
 import once_ledger
+import scout
 import secret_guard
 import skill_router
 import skill_usage
 import team_gate
 import tool_pins
+import tool_result_shaper
+import tool_result_tools
 import turn_context
 from config import STATE_DIR
 
@@ -277,6 +283,72 @@ def audit_tail(limit=50, conn_id=None):
         return []
 
 
+def note_query_answer(tool: str, sent_chars: int) -> None:
+    """One javis_query answer: the characters a model read in place of the pages it queried."""
+    _sizes_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": "javis-query",
+                   "label": "javis_query", "tool": tool or "javis_query",
+                   "raw_chars": 0, "sent_chars": int(sent_chars or 0), "shape": "query"})
+
+
+def result_size_stats(days: int = 7, top: int = 10) -> dict:
+    """How large connection results were and how much of them a model was handed, from the sizes log.
+
+    Only calls a model read are counted (shape in tool_result_shaper.MODEL_KINDS), plus pages javis_query read
+    for itself and the answers it gave. The log is two files of 5 MB at most, so on a busy install this covers
+    less than `days`; `since` says how far it goes."""
+    days = max(1, min(90, int(days or 7)))
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")   # same clock as the log's `ts`
+    counted = tool_result_shaper.MODEL_KINDS | {"raw", "query"}
+    total = {"calls": 0, "raw_chars": 0, "sent_chars": 0, "stored": 0, "over_cap": 0}
+    by_tool, since = {}, ""
+    for path in (_SIZES_PATH.with_suffix(".jsonl.1"), _SIZES_PATH):
+        try:
+            if not path.exists():
+                continue
+            with path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        rec = json.loads(line)
+                    except ValueError:
+                        continue
+                    ts = str(rec.get("ts") or "")
+                    if ts < cutoff or rec.get("shape") not in counted:
+                        continue
+                    since = ts if not since or ts < since else since
+                    raw, sent = int(rec.get("raw_chars") or 0), int(rec.get("sent_chars") or 0)
+                    key = (str(rec.get("label") or rec.get("conn_id") or ""), str(rec.get("tool") or ""))
+                    row = by_tool.setdefault(key, {"calls": 0, "raw_chars": 0, "sent_chars": 0})
+                    for acc in (total, row):
+                        acc["calls"] += 1
+                        acc["raw_chars"] += raw
+                        acc["sent_chars"] += sent
+                    # small results tallied since the previous line: handed over whole
+                    total["calls"] += int(rec.get("small_calls") or 0)
+                    total["raw_chars"] += int(rec.get("small_chars") or 0)
+                    total["sent_chars"] += int(rec.get("small_chars") or 0)
+                    if rec.get("shape") in ("table", "preview", "text_preview"):
+                        total["stored"] += 1
+                    if raw > tool_result_shaper.INLINE_MAX_DEFAULT:
+                        total["over_cap"] += 1
+        except OSError:
+            continue
+    with _small_lock:                               # not yet written anywhere
+        total["calls"] += _small_tally["calls"]
+        total["raw_chars"] += _small_tally["chars"]
+        total["sent_chars"] += _small_tally["chars"]
+    saved = max(0, total["raw_chars"] - total["sent_chars"])
+    rows = sorted(by_tool.items(), key=lambda kv: kv[1]["raw_chars"] - kv[1]["sent_chars"], reverse=True)[:top]
+    try:
+        per_token = float((config.read_settings().get("context_runtime") or {}).get("estimate_chars_per_token") or 3.0)
+    except Exception:  # noqa: BLE001
+        per_token = 3.0
+    return {"days": days, "since": since, **total, "saved_chars": saved,
+            "saved_pct": round(saved * 100 / total["raw_chars"], 1) if total["raw_chars"] else 0.0,
+            "saved_tokens_est": int(saved / max(1.0, per_token)),
+            "shaping_on": bool(tool_result_shaper.settings().get("on")),
+            "by_tool": [{"source": k[0], "tool": k[1], **v} for k, v in rows]}
+
+
 # ============================================================
 # Rate limit (catalog rate_limit.calls_per_min - vd Zalo chống spam/ban)
 # ============================================================
@@ -297,6 +369,101 @@ def _rate_ok(conn_id, connector):
 # ============================================================
 # Guarded call - lớp quyền CỨNG + audit quanh mọi tool call
 # ============================================================
+_SIZES_PATH = STATE_DIR / "tool_result_sizes.jsonl"
+
+
+def _sizes_append(rec):
+    """One line per connection result: how large it was and how much of it a model was handed. A file of its own,
+    so the audit log keeps its meaning (who called what, allowed or not) and its size."""
+    try:
+        if _SIZES_PATH.exists() and _SIZES_PATH.stat().st_size > 5_000_000:
+            _SIZES_PATH.replace(_SIZES_PATH.with_suffix(".jsonl.1"))
+        with _SIZES_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception as e:  # noqa: BLE001 - a meter never fails a tool call
+        print(f"[hub sizes] {e}", file=sys.stderr)
+
+
+# Small results are not written to the sizes log one by one (a file write per call on the event loop is exactly
+# what tools/loop_audit.py exists to stop). They are tallied here and ride along on the next line that is written.
+_small_tally = {"calls": 0, "chars": 0}
+_small_lock = threading.Lock()
+_SHAPE_POOL = ThreadPoolExecutor(max_workers=3, thread_name_prefix="javis-shape")
+
+
+def _shape_and_log(text, fn, conn, tool, scope):
+    """Worker-thread half of `_shaped_call`: parse, maybe store, and write the sizes line."""
+    shaped = tool_result_shaper.shape(text, tool=fn, conn_id=conn["id"], scope=scope)
+    with _small_lock:
+        small_calls, small_chars = _small_tally["calls"], _small_tally["chars"]
+        _small_tally["calls"] = _small_tally["chars"] = 0
+    rec = {"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
+           "label": conn.get("label"), "tool": tool, "raw_chars": shaped.raw_chars,
+           # "raw" = pages javis_query read for itself: none of it reached a model
+           "sent_chars": 0 if shaped.kind == "raw" else shaped.sent_chars, "shape": shaped.kind}
+    if small_calls:
+        rec["small_calls"], rec["small_chars"] = small_calls, small_chars
+    _sizes_append(rec)
+    return shaped
+
+
+# One line in the tool search's description when a scout is available: the model must know it exists to decide to
+# use it, and a line costs far less per turn than listing the whole tool.
+SCOUT_HINT = (" javis_scout(task): giao model nền ĐỌC dữ liệu nặng (nhiều nguồn, nhiều trang, kỳ dài) rồi chỉ trả "
+              "về kết luận; gọi qua {run}.")
+
+
+def _shape_view(result, name, scope):
+    """An explicit `result_view` of javis_run_tool, shaped like any result and counted as what the model read (the
+    inner call was logged as read-for-itself, with nothing sent)."""
+    shaped = tool_result_shaper.shape(result, tool=name, scope=scope)
+    _sizes_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": "javis-view", "label": "result_view",
+                   "tool": name, "raw_chars": 0, "sent_chars": shaped.sent_chars, "shape": "query"})
+    return shaped.text
+
+
+def _shaped_call(call, ent, fn, scope):
+    """The OUTERMOST layer of a connection tool's route: shape the result for whoever reads it.
+
+    Outside the permission guard and outside plugin hooks on purpose: a `post_tool_call` hook must keep seeing what
+    the tool really returned, not the view made for a model. What happens to a result (tool_result_shaper): an
+    internal caller gets it untouched; a model's tool loop gets errors and small results word for word, JSON
+    without indentation or empty fields, and a large result stored whole and replaced by a view with a
+    reference. Large results are parsed and stored off the event loop.
+
+    scope: the brain this tool list was built for. A stored result can be read back only by a turn of that brain."""
+    conn = ent["conn"]
+    tool = ent["tool"]
+
+    async def _call(args):
+        result = await call(args)
+        if tool_result_shaper.audience() == "":
+            return result                       # an internal caller: exactly as before, and not measured
+        text = result if isinstance(result, str) else str(result)
+        if len(text) < tool_result_shaper.MIN_SHAPE_CHARS:
+            # nothing to parse or store: decided inline, counted in memory
+            shaped = tool_result_shaper.shape(text, tool=fn, conn_id=conn["id"], scope=scope)
+            with _small_lock:
+                _small_tally["calls"] += 1
+                _small_tally["chars"] += len(text)
+        else:
+            # Its own small pool, not the general one: parsing holds the interpreter lock, and two dozen results
+            # parsed at once on thirty threads starved the event loop for 200 ms (measured, test_tool_result_scale).
+            ctx = contextvars.copy_context()
+            shaped = await asyncio.get_running_loop().run_in_executor(
+                _SHAPE_POOL, ctx.run, _shape_and_log, text, fn, conn, tool, scope)
+        if shaped.kind in tool_result_shaper.MODEL_KINDS:
+            # A recurring job's read calls are what its recipe replays (job_recipes.py). No job, no recording.
+            job = str((turn_context.current() or {}).get("job") or "")
+            if job:
+                # only a call that is plainly a read may ever be repeated by Javis (tool_result_tools.is_plain_read)
+                if tool_result_tools.is_plain_read(ent, args):
+                    job_recipes.note_call(job, fn, args, ok=not text.lstrip().startswith("ERROR:"), ref=shaped.ref)
+        return shaped.text if shaped.kind in tool_result_shaper.CHANGED_KINDS else result
+
+    return _call
+
+
 def _guard(ent, fn, mode):
     """Bọc 1 route entry MCP thành async call có kiểm quyền + audit."""
     conn = ent["conn"]
@@ -1336,24 +1503,40 @@ def _connector_menu(pool, ambient=None):
 
 def _rank_tools(pool, query, top_k):
     """Xếp hạng pool theo độ khớp query: khớp cả cụm (+5), đếm từ khoá (+1/từ), boost khi
-    query nhắc thẳng namespace (+3). Trả top_k tool điểm > 0; query rỗng → [] (handler trả menu)."""
+    query nhắc thẳng namespace (+3). Trả top_k tool điểm > 0; query rỗng → [] (handler trả menu).
+
+    2026-11-10, two changes so a search stops costing 10,000 to 25,000 characters:
+      - A word found in the tool's own NAME (fn, name, namespace, label) counts twice. Counting every word
+        once favoured whichever description was longest: a search for shop orders came back with the skill
+        loader on top, because its description lists dozens of skills and so contains nearly any word.
+      - A hit that scores under half of the best one is dropped. It was only there because top_k had room."""
     q = (query or "").strip().lower()
     if not q:
         return []
     terms = set(_WORD_RE.findall(q))
     scored = []
     for t in pool:
-        hay = " ".join([str(t.get("fn") or ""), str(t.get("name") or ""), str(t.get("description") or ""),
+        own = " ".join([str(t.get("fn") or ""), str(t.get("name") or ""),
                         str(t.get("namespace") or ""), str(t.get("label") or "")]).lower()
+        hay = own + " " + str(t.get("description") or "").lower()
         score = 5 if q in hay else 0
         score += sum(1 for w in terms if w in hay)
+        in_name = sum(1 for w in terms if w in own)
+        score += in_name
+        if q == str(t.get("fn") or "").lower() or q == str(t.get("name") or "").lower():
+            score += 100                                   # asked for by exact name: always first
         ns = str(t.get("namespace") or "").lower()
         if ns and ns in q:
             score += 3
         if score > 0:
-            scored.append((score, t))
+            scored.append((score, t, in_name))
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [t for _s, t in scored[:top_k]]
+    if scored:
+        floor = scored[0][0] / 2
+        # ...unless the tool's own name carries two of the words asked for: that is a real match even when
+        # another tool's description happens to contain the whole phrase and takes the top score.
+        scored = [x for x in scored if x[0] >= floor or x[2] >= 2]
+    return [t for _s, t, _n in scored[:top_k]]
 
 
 def _hidden_hint(hidden, only_ns=None):
@@ -1381,6 +1564,11 @@ def _hidden_hint(hidden, only_ns=None):
 _SO_KQ_DAY_DU = 3
 _MO_TA_DAY_DU = 4000
 _MO_TA_GON = 400
+# Whole answer of one tool search, in characters. Hits are listed in full (description + schema) while they fit;
+# the rest are named with one line each, and a search by exact name returns the schema of any of them. The best
+# hit is always given in full, whatever its size.
+_SEARCH_BUDGET_CHARS = 9000
+_MO_TA_TEN = 160
 
 
 def _tool_chars(t) -> int:
@@ -1401,7 +1589,7 @@ def _counted(call, pins_key, fn, size):
 
 
 def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k, ambient=None,
-                          hidden=None, pins_key=""):
+                          hidden=None, pins_key="", scope=""):
     """Dựng (tools_spec, route) chế độ lazy: builtins/plugin hiện trực tiếp + 2 meta-tool.
     _search đóng gói `pool` (full tools_spec để xếp hạng); _run đóng gói `full_route` (dispatch
     qua call_route → giữ nguyên _guard quyền/audit/rate-limit).
@@ -1431,11 +1619,23 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
             # từng nuốt mất thông tin sống còn: mô tả COMPOSIO_SEARCH_TOOLS ghi "User has
             # manually connected the apps: gmail, googlecalendar..." ở quãng ký tự 1000, nên
             # model không bao giờ biết người dùng đã nối những app nào (vụ 24/09).
-            payload["tools"] = [{"name": t.get("fn"),
-                                 "description": (t.get("description") or "")[
-                                     :(_MO_TA_DAY_DU if i < _SO_KQ_DAY_DU else _MO_TA_GON)],
-                                 "schema": t.get("schema") or {"type": "object", "properties": {}}}
-                                for i, t in enumerate(hits)]
+            full, brief, used = [], [], 0
+            for i, t in enumerate(hits):
+                item = {"name": t.get("fn"),
+                        "description": (t.get("description") or "")[
+                            :(_MO_TA_DAY_DU if i < _SO_KQ_DAY_DU else _MO_TA_GON)],
+                        "schema": t.get("schema") or {"type": "object", "properties": {}}}
+                size = len(json.dumps(item, ensure_ascii=False))
+                if full and (brief or used + size > _SEARCH_BUDGET_CHARS):
+                    brief.append({"name": t.get("fn"), "description": (t.get("description") or "")[:_MO_TA_TEN]})
+                    continue
+                full.append(item)
+                used += size
+            payload["tools"] = full
+            if brief:
+                payload["more_tools"] = brief
+                payload["more_tools_note"] = (f"Also match, listed without their arguments. Call {_LAZY_SEARCH} "
+                                              "with the exact name to get the schema of one.")
             payload["goi_the_nao"] = (f"Gọi tool bằng {_LAZY_RUN}(name=<name>, args={{...}}). "
                                      "Nếu cổng làm mất khoá trong args, dùng args_json là chuỗi JSON object thay args.")
         if amb:
@@ -1477,10 +1677,30 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
         if name in by_fn:
             # One call that needed a search round first: the count that earns a tool its pin (tool_pins).
             tool_pins.note_run(pins_key, name, _tool_chars(by_fn[name]))
-        result = await mcp_client.call_route(full_route, name, targs)
-        # Projection follows the same permission/audit/plugin route and executes only once.
+        view = (args or {}).get("result_view")
+        if not view:
+            return await mcp_client.call_route(full_route, name, targs)
+        # An explicit view is cut from the WHOLE result, so the inner call runs unshaped; what the view leaves is
+        # then shaped like any other result. Same permission/audit/plugin route, executed only once.
         from tool_result_view import project_result
-        return project_result(result, (args or {}).get("result_view"), tool_name=name)
+        audience = tool_result_shaper.audience()
+        with tool_result_shaper.raw_results():
+            result = await mcp_client.call_route(full_route, name, targs)
+        projected = project_result(result, view, tool_name=name)
+        if projected is result and isinstance(result, str):
+            # Some servers print a status line before the JSON ("HTTP 200 OK\n---\n{...}"): the view then found
+            # no JSON to cut. Take the view from the JSON part.
+            parsed = tool_result_shaper.parse_document(result)
+            if parsed is not None and parsed.prefix.strip() and not parsed.multi:
+                body = json.dumps(parsed.data, ensure_ascii=False)
+                cut = project_result(body, view, tool_name=name)
+                if cut is not body:
+                    projected = cut
+        result = projected
+        if audience != "model":
+            return result
+        with tool_result_shaper.for_model():
+            return await asyncio.to_thread(_shape_view, result, name, scope)
 
     tools = list(visible_tools)
     route = dict(visible_route)
@@ -1489,7 +1709,9 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
                                   "ngữ cảnh khi cần). query = mô tả việc cần làm hoặc tên nguồn. Nguồn "
                                   "đang đấu: " + (menu or "(chưa có nguồn nào)") + f". Kết quả trả tên + "
                                   f"tham số tool để gọi tiếp qua {_LAZY_RUN}; nếu khớp nguồn tài khoản "
-                                  "Claude thì trả hướng dẫn gọi thẳng tool native mcp__<tên>__*."),
+                                  "Claude thì trả hướng dẫn gọi thẳng tool native mcp__<tên>__*."
+                                  + (SCOUT_HINT.format(run=_LAZY_RUN)
+                                     if any(t.get("fn") == scout.TOOL for t in pool) else "")),
                   "schema": {"type": "object", "properties": {
                       "query": {"type": "string",
                                 "description": "Việc cần làm / nguồn / từ khoá, vd 'doanh thu POS hôm nay'"}},
@@ -1515,7 +1737,8 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
     return tools, route
 
 
-def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=False, pins_key="", pins=()):
+def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=False, pins_key="", pins=(),
+                scope=""):
     """Nếu bật lazy: giấu tool sau meta-tool search/run; không bật → trả nguyên.
     Pool = MỌI tool trừ nhóm hạt nhân CORE_TOOL_FNS - gồm cả builtin và plugin, không riêng
     tool MCP. Xem chú thích ở CORE_TOOL_FNS về lý do không suy pool ra từ 'conn'.
@@ -1549,7 +1772,7 @@ def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=Fal
     _, _, top_k = _lazy_config()
     ambient = _ambient_servers() if include_ambient else []
     return _lazy_tools_and_route(visible_tools, visible_route, pool, route, top_k, ambient, hidden,
-                                 pins_key=pins_key)
+                                 pins_key=pins_key, scope=scope)
 
 
 # ============================================================
@@ -1701,6 +1924,23 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         bo_qua, workspace_root=workspace_root, coding_ctx_cua_phien=coding_ctx_cua_phien, for_bot=for_bot)
     tools_spec += b_tools
     route.update(b_route)
+    # javis_query: reads a stored large result back, or computes over a read-only tool's pages, so the data
+    # never has to pass through the model. Its two dicts are filled further down, once every route is final.
+    # Only a brain with a connected source gets it: without one nothing is ever stored, and a core tool costs
+    # its description on every turn.
+    query_route, query_specs = {}, {}
+    if any(ent.get("conn") for ent in route.values()):
+        q_spec, q_entry = tool_result_tools.build(query_route, query_specs, str(vault_root or ""))
+        q_entry["full_route"] = query_route      # every route behind the tool search too (job_recipes.replay)
+        tools_spec.append(q_spec)
+        route[q_spec["fn"]] = q_entry
+    # javis_scout: a read-only run on the background model that returns only its findings (scout.py). Never for a
+    # customer bot (it starts a run on the owner's background model), and absent when no runner is configured.
+    # Not in OWNER_ONLY_TOOLS on purpose: that set lists tools every owner session HAS, and this one is optional.
+    if scout.available() and not for_bot:
+        s_spec, s_entry = scout.build(vault_root, mode)
+        tools_spec.append(s_spec)
+        route[s_spec["fn"]] = s_entry
 
     # PLUGIN: tool do plugin đăng ký (bundled + vault) → mọi engine, tôn trọng min_mode.
     # Trùng tên tool đã có (MCP/builtin) → BỎ QUA (không cho plugin shadow tool lõi).
@@ -1732,14 +1972,20 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
 
     # Snapshot ĐẦY ĐỦ trước lazy cho Capability Registry Phase 2. Registry chỉ dùng metadata;
     # model vẫn nhận đúng danh sách sau lazy như trước.
+    # Shaping is the outermost layer of every connection tool (see _shaped_call), added after the hooks above.
+    for fn, ent in route.items():
+        if ent.get("conn") and ent.get("tool") and ent.get("call"):
+            ent["call"] = _shaped_call(ent["call"], ent, fn, str(vault_root or ""))
     inventory_tools = list(tools_spec)
     inventory_route = dict(route)
+    query_route.update(route)
+    query_specs.update({t["fn"]: t for t in tools_spec})
 
     # LAZY: đông tool MCP thì giấu pool sau meta-tool search/run (giữ full route để dispatch).
     # Đặt SAU builtin+plugin để chúng luôn hiện; cache lưu bản ĐÃ biến đổi (route lazy vẫn dispatch
     # được vì _run đóng gói route đầy đủ). Đổi setting → làm mới theo TTL cache (60s) hoặc invalidate.
     tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden, force=force_lazy,
-                                    pins_key=pins_key, pins=pins)
+                                    scope=str(vault_root or ""), pins_key=pins_key, pins=pins)
     if task_scope is not None:
         if current(vault_root) is not task_scope or _cache_epoch != epoch:
             raise ScopeUnavailable('task_skill_discovery_changed')
@@ -2079,7 +2325,8 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
                 }}
         _, route = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
                                       include_ambient=include_ambient, for_bot=for_bot)
-        result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
+        with tool_result_shaper.for_model():
+            result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
         if ghi_chu:
             result += "\n\n" + ghi_chu
