@@ -449,7 +449,9 @@ class LearnFeature:
             # bot). One conversation is then learned in one pass. Before, a batch also fired after
             # every 3 turns, so a 12-turn chat opened four sessions that each re-read much the same
             # messages. A day with no event learns nothing at all.
-            "debounce": {"idle_min": 15},
+            # max_wait_min is a bound, not a rhythm: a shop whose bot talks to customers all day is never
+            # quiet for 15 minutes, and without it the owner's own chats would wait forever.
+            "debounce": {"idle_min": 15, "max_wait_min": 120},
             # No daily cap (owner, 10/11/2026): "some people use a lot, some a little". fork_count and
             # token_est in _state are still counted, for the figures on the Tự học page only.
             "rate": {"min_interval_s": 90},
@@ -584,6 +586,7 @@ class LearnFeature:
                 p["dense"] = p["dense"] or (kind == "dense")
                 p["urgent"] = p["urgent"] or urgent
                 p["last_ts"] = time.time()
+                p.setdefault("first_ts", p["last_ts"])
                 if conv_sid:
                     p["convs"].add(conv_sid)
         except Exception as e:
@@ -656,12 +659,17 @@ class LearnFeature:
         """A batch runs when the brain has been quiet for idle_min minutes after its last event and has
         something queued. The one exception is an explicit "ghi nhớ giúp": that is the owner asking, so
         it is learned 30 seconds later instead of at the end of the conversation."""
-        idle = max(1, int(cfg.get("debounce", {}).get("idle_min", 15))) * 60
-        since = time.time() - float(p.get("last_ts", 0))
+        deb = cfg.get("debounce", {})
+        idle = max(1, int(deb.get("idle_min", 15))) * 60
+        now = time.time()
+        since = now - float(p.get("last_ts", 0))
         if p.get("count", 0) <= 0:
             return False
         if p.get("urgent") and since >= 30:
             return True
+        longest = max(idle, int(deb.get("max_wait_min", 120)) * 60)
+        if p.get("first_ts") and now - float(p["first_ts"]) >= longest:
+            return True                 # the brain was never quiet: learn what is queued anyway
         return since >= idle
 
     def touch(self, brain: str) -> None:
@@ -1234,6 +1242,13 @@ class LearnFeature:
         # rough estimate rather than counting zero.
         st = _roll_day(cfg)
         st["token_est"] = int(st.get("token_est", 0)) + (real or (len(prompt) + len(out)) // 4)
+        try:
+            import job_scorecard
+            _score = job_scorecard.active()
+            if _score and not isinstance(gcli, aux_engine._FallbackChain):
+                _score.add_tokens(real)
+        except Exception:   # noqa: BLE001
+            pass
         return out
 
     # ── VERIFY skill (spawn thứ 2 độc lập, chỉ cho skill - blast radius lớn nhất) ──
@@ -1884,8 +1899,19 @@ class LearnFeature:
     # ── 1 batch học ──
     async def run_once(self, brain: str, reason: str = "manual",
                        force_write: bool = False, caps_override: Optional[dict] = None) -> dict:
+        """One learning batch, scored: the scorecard (job_scorecard.py) learns from each batch which model is
+        enough for learning. A batch whose answer could not be read as the JSON asked for counts against the
+        model; an engine that would not start does not."""
+        import job_scorecard
+        with job_scorecard.run("learn", "learn", "Tự học"):
+            return await self._run_once_inner(brain, reason, force_write, caps_override)
+
+    async def _run_once_inner(self, brain: str, reason: str = "manual",
+                              force_write: bool = False, caps_override: Optional[dict] = None) -> dict:
         """force_write=True (nút thủ công /reflect): ghi bất kể mode/rate, NHƯNG vẫn fail-closed
         qua git + secret-scan. caps_override: bộ capability riêng cho lần chạy (không lưu config)."""
+        import job_scorecard
+        _score = job_scorecard.active()
         if self.lock.locked():
             return {"ok": False, "error": localefmt.chu("Đang chạy batch khác", "Another batch is running")}
         async with self.lock:
@@ -1930,12 +1956,16 @@ class LearnFeature:
             prompt = self._build_prompt(caps, brain, digest)
             out = await self._spawn_readonly(brain, prompt, cfg)
             if not out or out.startswith("__ERROR__"):
+                if _score:
+                    _score.fail(job_scorecard.CAUSE_OTHER, "phiên học không chạy được")
                 self.write_config(cfg)      # keep the tokens this failed session used in today's count
                 self._log(brain, "learn", f"fork lỗi/không phản hồi ({reason})", out[:200] if out else "")
                 return {"ok": False, "error": localefmt.chu("Fork học lỗi: ", "Learning fork failed: ")
                         + (out[:160] if out else localefmt.chu("rỗng", "empty"))}
             manifest = _extract_json(out)
             if not manifest:
+                if _score:
+                    _score.fail(job_scorecard.CAUSE_MODEL, "trả lời không đúng khuôn JSON")
                 self._log(brain, "learn", f"không parse được manifest ({reason})", out[:300])
                 return {"ok": False, "error": localefmt.chu("Không parse được JSON từ fork",
                                                             "Could not parse JSON from the fork")}
@@ -2030,6 +2060,8 @@ class LearnFeature:
                       + (f" task={report['tasks']}" if report.get("tasks") else "")
                       + (f" · commit {report['commit']}" if report.get("commit") else ""),
                       summary + ("\n\n**Bị chặn:** " + "; ".join(report["blocked"]) if report.get("blocked") else ""))
+            if _score:
+                _score.ok()
             return {"ok": True, "summary": summary, "report": report, "status": status}
 
     # ── CURATOR (định kỳ - bảo trì, KHÔNG xoá) ──

@@ -68,6 +68,7 @@ from fastapi import APIRouter, Form, Query
 
 from claude_cli import claude_engine, cancel_all, _empty_mcp_file
 import aux_engine   # engine viec nen theo model phu nguoi dung chon
+import job_scorecard
 import memory_control   # #1165: background writers are not stamped with a chat source
 import channel_context   # bóc khối JAVIS_* trước khi báo Telegram - kênh chữ, không phải web
 
@@ -935,7 +936,10 @@ class LoopFeature:
             try:
                 # #1165: memories this loop writes are not stamped with a chat open at the same time.
                 with memory_control.background_writer(self.deps.brain_root(brain), loop.get("mode") or "full"):
-                    return await self._run_cycle_inner(brain, slug, loop, reason)
+                    # Scored per loop (job_scorecard.py): its verify run is what tells a model that is too
+                    # weak for THIS loop from one that is enough.
+                    with job_scorecard.run(f"loop:{slug}@{brain}", "loop", str(loop.get("name") or slug)[:80]):
+                        return await self._run_cycle_inner(brain, slug, loop, reason)
             finally:
                 self._running = None
 
@@ -1143,6 +1147,14 @@ class LoopFeature:
                         verify_line = "Kiểm chứng: không parse được"
 
         failed = (not summary) or summary.startswith("Lỗi:") or verify_failed
+        _score = job_scorecard.active()
+        if _score:
+            if verify_failed:
+                _score.fail(job_scorecard.CAUSE_MODEL, verify_line[:120])      # the work did not pass its own check
+            elif failed:
+                _score.fail(job_scorecard.CAUSE_OTHER, (summary or "không phản hồi")[:120])
+            else:
+                _score.ok()
         return _finish(summary or "Lỗi: fork không phản hồi", verify_line, failed)
 
     # ══════════════════════ helpers cho API/automations ══════════════════════

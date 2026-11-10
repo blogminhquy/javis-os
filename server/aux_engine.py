@@ -185,6 +185,63 @@ def tier_for_tag(tag) -> str:
     return "light" if any(t == x or t.startswith(x + "-") or t.startswith(x + ":") for x in LIGHT_TAGS) else "mid"
 
 
+def _rung_model(m: dict, provider: str, tier: str, start_model: str) -> str:
+    """The model an Automatic background job runs NOW (job_scorecard.py): the job's own rung on the provider's
+    ladder when a job is running, else the starting rung of its tier, moved by what the owner asked for.
+    No ladder yet (nothing picked, or the brain was not sure) -> `start_model`, as before the scorecard."""
+    try:
+        import job_scorecard
+        ladder = [x for x in (model_routing.background_picks(m, provider).get("ladder") or []) if x]
+        if not ladder:
+            return start_model
+        main_model = model_routing.profile(m, provider)["model"]
+        rungs = ladder + ([main_model] if main_model not in ladder else [])
+        job_scorecard.remember_ladder(provider, rungs)
+        r = job_scorecard.active()
+        if r is not None:
+            return r.choose(provider, ladder, tier, main_model, start_model)
+        base = rungs.index(start_model) if start_model in rungs else None
+        return rungs[job_scorecard.start_index(tier, len(rungs), job_scorecard.intent(), base)]
+    except Exception as e:   # noqa: BLE001 - the scorecard must never stop a background job
+        print(f"[aux] scorecard: {type(e).__name__}: {e}", file=sys.stderr)
+        return start_model
+
+
+def _score_link(e, error=None) -> None:
+    """Tell the running job's scorecard which link answered, or why one did not."""
+    try:
+        import job_scorecard
+        r = job_scorecard.active()
+        if r is None:
+            return
+        model = getattr(e, "model", None) or ""
+        if error is None:
+            r.link_answered(model)
+            return
+        low = str(error).lower()
+        # The model itself is not usable here (the plan does not carry it, it was withdrawn) or it gave nothing
+        # usable: that is about the rung. A sign-in, a spent quota or an outage is not.
+        about_model = "model" in low and any(k in low for k in ("not found", "does not exist", "not supported",
+                                                                "no access", "unknown model", "invalid model"))
+        r.link_failed(model, quota=not about_model and cooldown_for(error) > 0)
+    except Exception:   # noqa: BLE001
+        pass
+
+
+def _score_tokens(ev) -> None:
+    try:
+        import job_scorecard
+        r = job_scorecard.active()
+        if r is None or not isinstance(ev, dict):
+            return
+        if ev.get("type") == "final":
+            r.add_tokens((ev.get("tokens_in") or 0) + (ev.get("tokens_out") or 0))
+        elif ev.get("type") == "usage":
+            r.add_tokens((ev.get("input") or 0) + (ev.get("output") or 0))
+    except Exception:   # noqa: BLE001
+        pass
+
+
 def read_spec(settings: dict = None, tag: str = None) -> dict:
     """{'provider','model'} của model việc nền. Cấu hình cũ chỉ có 'model' (luôn là alias
     Claude) nên thiếu provider = anthropic-cli - giữ nguyên hành vi bản cũ.
@@ -199,6 +256,8 @@ def read_spec(settings: dict = None, tag: str = None) -> dict:
     # `tag` names the job, and with it the tier an Automatic background model runs (tier_for_tag).
     bg = model_routing.background_spec(s.get("model", {}) or {}, tier_for_tag(tag))
     spec = {"provider": (bg.get("provider") or CLAUDE), "model": (bg.get("model") or "")}
+    if bg.get("auto"):
+        spec["model"] = _rung_model(s.get("model", {}) or {}, spec["provider"], tier_for_tag(tag), spec["model"])
     if spec["provider"] not in API_PROVIDERS:
         return spec                      # gói thuê bao: không tính tiền theo token, kệ phanh
     try:
@@ -789,13 +848,16 @@ class _FallbackChain:
                         got_error = ((ev.get("content") or "").strip()[:300]
                                      or f"{self._name(e)} kết thúc lỗi ({ev.get('subtype') or 'final'})")
                         break
+                    _score_tokens(ev)
                     yield ev
                     if t == "final":
                         got_final = True
                 if got_final:
                     _COOLDOWN.pop(_cool_key(e), None)            # it works again: no more rest
+                    _score_link(e)
                     return                                       # mắt này chạy ngon → xong
                 fail = got_error or f"{self._name(e)} kết thúc mà không có final"
+                _score_link(e, fail)
                 self._rest(e, fail)
                 if acted:
                     # 0.350.0 (spec 2.7): this link already called a tool before it broke. Running the prompt again on
@@ -807,6 +869,7 @@ class _FallbackChain:
                     return
             except Exception as exc:
                 fail = f"{self._name(e)}: {type(exc).__name__}: {exc}"
+                _score_link(e, fail)
                 self._rest(e, fail)
             print(f"[aux router] {self._name(e)} lỗi → thử mắt xích kế tiếp. Lý do: {str(fail)[:300]}",
                   file=sys.stderr)

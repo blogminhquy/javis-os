@@ -67,11 +67,24 @@ check("this module holds no model name of its own",
       not any(w in open(ab.__file__, encoding="utf-8").read().lower() for w in ("haiku", "sonnet", "mini\"", "nano")))
 
 check("a clean answer is read", ab.parse('{"light": "gpt-9-luna", "mid": "gpt-9-vela"}', LIST)
-      == {"light": "gpt-9-luna", "mid": "gpt-9-vela"})
+      == {"light": "gpt-9-luna", "mid": "gpt-9-vela", "ladder": ["gpt-9-luna", "gpt-9-vela"]})
 check("JSON inside a sentence or a code fence is read",
-      ab.parse('Here:\n```json\n{"light": "gpt-9-luna", "mid": null}\n```', LIST) == {"light": "gpt-9-luna", "mid": ""})
+      ab.parse('Here:\n```json\n{"light": "gpt-9-luna", "mid": null}\n```', LIST)
+      == {"light": "gpt-9-luna", "mid": "", "ladder": ["gpt-9-luna"]})
 check("an id the provider did not list is dropped, not repaired",
-      ab.parse('{"light": "gpt-9-mini", "mid": "gpt-9-vela"}', LIST) == {"light": "", "mid": "gpt-9-vela"})
+      ab.parse('{"light": "gpt-9-mini", "mid": "gpt-9-vela"}', LIST)
+      == {"light": "", "mid": "gpt-9-vela", "ladder": ["gpt-9-vela"]})
+_lad = ab.parse('{"ladder": ["gpt-9-luna", "gpt-9-zzz", "gpt-9-vela", "gpt-9-luna", "gpt-9-terra"], "light": null, '
+                '"mid": null}', LIST)
+check("the ladder keeps the brain's order, without unknown ids or repeats",
+      _lad["ladder"] == ["gpt-9-luna", "gpt-9-vela", "gpt-9-terra"])
+check("with a ladder and no starting points, they are read off the ladder (bottom, middle)",
+      (_lad["light"], _lad["mid"]) == ("gpt-9-luna", "gpt-9-vela"))
+check("'light' above 'mid' is a contradiction: the ladder's order wins",
+      ab.parse('{"ladder": ["gpt-9-luna", "gpt-9-vela"], "light": "gpt-9-vela", "mid": "gpt-9-luna"}', LIST)["light"]
+      == "gpt-9-luna")
+check("the prompt asks for the ladder, lightest first, no higher than the main model",
+      '"ladder"' in prompt and "lightest to heaviest" in prompt and "stopping at the main chat model" in prompt)
 check("no JSON at all is no answer", ab.parse("I think luna is the light one", LIST) is None)
 check("JSON about something else is no answer", ab.parse('{"verdict": "ok"}', LIST) is None)
 
@@ -83,14 +96,14 @@ async def fake_ask(p):
     return '{"light": "gpt-9-luna", "mid": "gpt-9-vela"}'
 
 
-check("choose asks the main brain once", asyncio.run(ab.choose("ChatGPT", LIST, "gpt-9-terra", fake_ask))
-      == {"light": "gpt-9-luna", "mid": "gpt-9-vela"} and len(asked) == 1)
+_ch = asyncio.run(ab.choose("ChatGPT", LIST, "gpt-9-terra", fake_ask))
+check("choose asks the main brain once", (_ch["light"], _ch["mid"]) == ("gpt-9-luna", "gpt-9-vela") and len(asked) == 1)
 asked.clear()
 check("one model in the list: nothing to pick, nothing asked",
-      asyncio.run(ab.choose("X", ["only"], "only", fake_ask)) == {"light": "", "mid": ""} and not asked)
+      asyncio.run(ab.choose("X", ["only"], "only", fake_ask)) == {"light": "", "mid": "", "ladder": []} and not asked)
 check("a marketplace-sized list is not ranked",
       asyncio.run(ab.choose("X", [f"m{i}" for i in range(ab.MAX_MODELS + 1)], "m0", fake_ask))
-      == {"light": "", "mid": ""} and not asked)
+      == {"light": "", "mid": "", "ladder": []} and not asked)
 check("an empty list gives no answer", asyncio.run(ab.choose("X", [], "", fake_ask)) is None and not asked)
 
 now = time.time()
@@ -318,6 +331,10 @@ check("15 minutes after the last event: the batch runs", lf._should_fire(cfg, _p
 check("nothing queued: a quiet day learns nothing", not lf._should_fire(cfg, _p(0, 24 * 3600)))
 check("an explicit 'ghi nhớ giúp' is learned after 30 seconds", lf._should_fire(cfg, _p(1, 31, urgent=True))
       and not lf._should_fire(cfg, _p(1, 10, urgent=True)))
+
+busy = dict(_p(2, 60), first_ts=time.time() - 121 * 60)
+check("a brain that is never quiet (a bot with customers all day) still learns after 2 hours", lf._should_fire(cfg, busy))
+check("but not before", not lf._should_fire(cfg, dict(_p(2, 60), first_ts=time.time() - 60 * 60)))
 
 lf._pending.clear()
 lf._pending["brain"] = _p(2, 16 * 60)

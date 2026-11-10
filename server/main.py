@@ -121,6 +121,7 @@ import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javi
 import transcript_fix  # rewrites what the mic heard at the end of a dictation: the main brain, with the chat as context
 import next_prompt  # suggests the owner's next message after a reply (ghost text, Tab fills it in)
 import auto_background  # picks the light and mid model an Automatic background model runs on
+import job_scorecard    # each background job finds the lightest model that gets it done
 import phien_am       # từ tiếng Anh -> cách đọc kiểu Việt (đọc loa + so âm câu nghe được)
 import voice_privacy
 voice_privacy.install()
@@ -2425,6 +2426,32 @@ def _side_work_paused() -> str:
 _AUTO_BG_BUSY = [False]
 
 
+def _scorecard_changed(ch: dict) -> None:
+    """A background job moved to another model on its own (job_scorecard.py): one quiet notice in the bell, with
+    the reason and the way back. Called from wherever the run finished, so it only schedules the notice."""
+    why = {"failed": localefmt.chu("lần chạy vừa rồi không đạt", "its last run did not pass"),
+           "probe": localefmt.chu("đã chạy tốt nhiều lần liền nên thử model nhẹ hơn",
+                                  "it ran well several times in a row, so a lighter model gets a try"),
+           "probe_failed": localefmt.chu("model nhẹ hơn không làm được việc này",
+                                         "the lighter model could not do this job")}.get(ch.get("why"), "")
+    text = localefmt.chu(
+        "Việc nền \"{ten}\" chuyển từ {cu} sang {moi}: {ly_do}. Muốn quay lại thì nhắn Javis \"hoàn lại thay đổi "
+        "model số {ma}\".",
+        "Background job \"{ten}\" moved from {cu} to {moi}: {ly_do}. To go back, tell Javis \"undo model change "
+        "{ma}\".",
+        ten=ch.get("label") or ch.get("job") or "", cu=ch.get("from_model") or "mặc định",
+        moi=ch.get("to_model") or "mặc định", ly_do=why, ma=ch.get("id") or "")
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return                      # no loop here (a worker thread): the change is still in `javis_tune op=status`
+    loop.create_task(_notify_owner("", text, kind="system", source="models", level="info", group="cost",
+                                   dedup=f"scorecard:{ch.get('job')}:{ch.get('to_model')}:{ch.get('id')}"))
+
+
+job_scorecard.on_change = _scorecard_changed
+
+
 async def _auto_background_ask(prompt: str) -> str:
     """One text-only turn on the MAIN brain: read the provider's model list and pick the light and mid model.
     Same sandbox as the judges (empty folder, no MCP, no tool), so the list is only read, never acted on."""
@@ -2519,7 +2546,8 @@ async def _auto_background_tick(force: bool = False) -> dict:
             _auto_background_save(prov, {**state, "retry_at": now + auto_background.RETRY_S,
                                          "checked": now - auto_background.RECHECK_S + auto_background.RETRY_S})
             return {"ok": False, "reason": "no_answer"}
-        _auto_background_save(prov, {"light": picks["light"], "mid": picks["mid"], "sig": sig,
+        _auto_background_save(prov, {"light": picks["light"], "mid": picks["mid"],
+                                     "ladder": list(picks.get("ladder") or []), "sig": sig,
                                      "checked": now, "at": now})
         if auto_background.changed(state, picks) and (picks["light"] or picks["mid"]):
             await _notify_owner("", _auto_background_notice(prov, picks, model_routing.profile(m, prov)["model"]),

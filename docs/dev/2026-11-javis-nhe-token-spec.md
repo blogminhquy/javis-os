@@ -35,6 +35,10 @@ Tín hiệu duy nhất không lỗi thời là danh sách và mô tả do chính
 Ba lượt chỉ cần chữ vẫn giữ preset (`bare=False`): lượt của thành viên nhóm, lượt Resonance, và vòng cải tiến skill.
 Phiên và bằng chứng kiểm định của chúng được dựng trên preset nên chưa đổi trong đợt này.
 
+**Bước tiếp theo đã làm trong cùng PR:** hai bậc "nhẹ" và "giữa" ở bảng trên chỉ còn là điểm xuất phát. Mỗi việc nền
+tự leo hay tự hạ bậc theo kết quả của chính nó và theo ý định chủ nói trong chat. Thiết kế ở
+`2026-11-so-diem-viec-nen-spec.md`.
+
 Còn mở, theo thứ tự đáng làm:
 
 1. **Việc nền chỉ ăn hạn mức thừa:** dồn việc Javis tự làm về cuối cửa sổ 5 giờ, khi còn dư.
