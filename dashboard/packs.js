@@ -432,7 +432,7 @@
   async function caiGoiKho(id, tuy) {
     tuy = tuy || {};
     let ds;
-    try { ds = await (await fetch("/packs/store")).json(); } catch (e) { ds = null; }
+    try { ds = await (await fetch("/packs/store" + brainQuery("?"))).json(); } catch (e) { ds = null; }
     const g = ((ds && ds.packs) || []).find(x => x && x.id === id && x.nguon !== "app");
     if (!g || !g.download || !g.download.url) return "khong_co";
     if (g.installed) return g.enabled === false ? "da_tat" : "da_cai";
@@ -531,6 +531,13 @@
   // sẽ khoá người dùng ở đúng cái bản vừa bị rút.
   //
   // Connector đi kèm app không bao giờ tính: chúng không tải từ đâu cả (`download.url` rỗng).
+  // The brain open now, as a query string for the Store routes (#1308): a pack's assistants and skills live in ONE
+  // brain, and the server says so when that is not this one.
+  function brainQuery(prefix) {
+    const b = (typeof currentBrainPath === "function" ? currentBrainPath() : "") || "";
+    return b ? prefix + "brain=" + encodeURIComponent(b) : "";
+  }
+
   function coBanMoi(g) {
     return !!(g && g.nguon !== "app" && g.installed && g.installed_version && g.version
               && g.installed_version !== g.version);
@@ -564,15 +571,22 @@
     }
     if (g.nguon === "app" || !g.installed_version) {
       return '<div class="kho-daicai">' + ic("check") + ' ' + tw("store.installed_here")
-        + '</div>';
+        + '</div>' + dongBrainKhac(g);
     }
     if (coBanMoi(g)) {
       return '<div class="kho-daicai moi">' + ic("arrow-up") + ' '
         + tw("store.running_store_has",
-             { cai: esc(g.installed_version), kho: esc(g.version) }) + '</div>';
+             { cai: esc(g.installed_version), kho: esc(g.version) }) + '</div>' + dongBrainKhac(g);
     }
     return '<div class="kho-daicai">' + ic("check") + ' '
-      + tw("store.installed_latest", { ver: esc(g.installed_version) }) + '</div>';
+      + tw("store.installed_latest", { ver: esc(g.installed_version) }) + '</div>' + dongBrainKhac(g);
+  }
+
+  // #1308: installed for the machine, but the pack's assistants and skills are in another brain than the one open.
+  function dongBrainKhac(g) {
+    return g.items_brain
+      ? '<div class="kho-daicai">' + ic("info") + ' '
+        + tw("store.items_other_brain", { brain: esc(g.items_brain) }) + '</div>' : "";
   }
 
   // "Updated from the author" line: the author's GitHub repo as a link, and the day the Store last took a new
@@ -666,7 +680,7 @@
   async function veKho(el, host, lamMoi, loaiDau, timDau) {
     host.innerHTML = '<div class="mp-empty">' + tw("store.catalog_loading") + '</div>';
     let d;
-    try { d = await (await fetch("/packs/store" + (lamMoi ? "?refresh=1" : ""))).json(); }
+    try { d = await (await fetch("/packs/store" + (lamMoi ? "?refresh=1" + brainQuery("&") : brainQuery("?")))).json(); }
     catch (e) { d = { ok: false, error: String(e) }; }
     if (!d || !d.ok) {
       // Kho không tới được thì KHÔNG phải là hỏng cả trang: cài từ tệp vẫn chạy như thường.
@@ -693,7 +707,7 @@
     // bản về sau không đè lên thứ mới hơn.
     const tuoi = d.fetched_at ? (Date.now() / 1000 - Number(d.fetched_at)) : 0;
     if (!lamMoi && tuoi > CU_QUA) {
-      fetch("/packs/store?refresh=1")
+      fetch("/packs/store?refresh=1" + brainQuery("&"))
         .then(r => r.json())
         .then(d2 => {
           if (d2 && d2.ok && _kho.dl === d) { _kho.dl = d2; veLuoi(el, host); }
@@ -1232,7 +1246,7 @@
     dangCho(tw("store.rm.title"), tw("store.rm.checking"));
     let d;
     try {
-      d = await (await fetch("/packs/uninstall-plan?id=" + encodeURIComponent(pid))).json();
+      d = await (await fetch("/packs/uninstall-plan?id=" + encodeURIComponent(pid) + brainQuery("&"))).json();
     } catch (e) { d = { ok: false, error: String(e) }; }
     if (!d || !d.ok) {
       manHinhLoi(tw("store.rm.title"), (d && d.error) || tw("store.rm.read_failed"), d && d.stage);
@@ -1240,6 +1254,7 @@
     }
     const kn = d.connections || [];
     const xoa = (d.vault || {}).xoa || [];
+    const vaultBrain = String((d.vault || {}).brain_name || "");
     const giu = (d.vault || {}).giu || [];
     modal(pkmDau(d, tw("store.rm.heading", { ten: esc(nn(d.name, d.id)) }),
                  '<code>' + esc(d.id) + '</code>')
@@ -1258,9 +1273,14 @@
             + '<div class="pkm-o-phu">' + tw("store.rm.conns_note") + '</div>'
             + '</li>' : "")
       + (xoa.length
-          ? '<li>' + tw("store.rm.vault", { count: xoa.length })
+          ? '<li>' + (vaultBrain ? tw("store.rm.vault_in", { count: xoa.length, brain: esc(vaultBrain) })
+                                 : tw("store.rm.vault", { count: xoa.length }))
             + ' <span style="opacity:.65">('
-            + xoa.map(x => esc(x.slug)).join(", ") + ')</span></li>' : "")
+            + xoa.map(x => esc(x.slug)).join(", ") + ')</span>'
+            // Another brain than the one open: the items go from a place the user is not looking at. Say it.
+            + ((d.vault || {}).other_brain
+                ? '<div class="pkm-o-phu"><b>' + tw("store.rm.vault_other") + '</b></div>' : "")
+            + '</li>' : "")
       + '</ul></div>'
       // Thứ người dùng đã sửa thì KHÔNG bị xoá, và phải nói ra - nếu không họ sẽ tưởng mất.
       + (giu.length

@@ -140,6 +140,16 @@ def _gone_from_brain(pid: str, hang: dict, g: dict) -> bool:
         return False
 
 
+def _items_brain(pid: str, brain: str) -> dict:
+    """pack_vault.brain_of for the brain the dashboard has open (`brain` as the dashboard sends it). Never raises:
+    a Store page must not fail over a label."""
+    try:
+        import pack_vault
+        return pack_vault.brain_of(pid, _DEPS.brain_root(str(brain or "brain")) if brain else "")
+    except Exception:       # noqa: BLE001
+        return {"brain": "", "name": "", "present": 0, "other": False}
+
+
 def _tu_choi():
     return JSONResponse({"ok": False, "error": localefmt.chu("Cần đăng nhập vào Javis để quản lý gói.",
                                                          "Sign in to Javis to manage packs.")},
@@ -210,10 +220,17 @@ def _make_router() -> APIRouter:
         return r if r.get("ok") else JSONResponse(r, status_code=400)
 
     @router.get("/packs/uninstall-plan")
-    async def packs_uninstall_plan(request: Request, id: str = ""):
+    async def packs_uninstall_plan(request: Request, id: str = "", brain: str = ""):
         if not _DEPS.co_phien(request):
             return _tu_choi()
-        return pack_install.ke_hoach_go(id.strip())
+        plan = pack_install.ke_hoach_go(id.strip())
+        # #1308: the items sit in the brain that was open at install time. Name it, and say when that is not the
+        # brain open now, so nobody removes assistants from a brain they are not looking at without being told.
+        if isinstance(plan, dict) and plan.get("ok") and isinstance(plan.get("vault"), dict):
+            w = _items_brain(id.strip(), brain)
+            plan["vault"]["brain_name"] = w["name"]
+            plan["vault"]["other_brain"] = w["other"]
+        return plan
 
     @router.post("/packs/uninstall")
     async def packs_uninstall(request: Request):
@@ -228,7 +245,7 @@ def _make_router() -> APIRouter:
         return r if r.get("ok") else JSONResponse(r, status_code=409)
 
     @router.get("/packs/store")
-    async def packs_store_list(request: Request, refresh: int = 0):
+    async def packs_store_list(request: Request, refresh: int = 0, brain: str = ""):
         """Danh mục gói trong kho. Fetch ở PHÍA SERVER, không ở trình duyệt.
 
         Ba lý do: chốt SSRF nằm ở server nên đường tải phải đi qua đó mới được gác; trình
@@ -270,6 +287,12 @@ def _make_router() -> APIRouter:
             if hang and _gone_from_brain(g.get("replaces_installed") or g["id"], hang, g):
                 g["installed"] = False
                 g["removed_from_brain"] = True
+            elif hang:
+                # #1308: installed for the machine, but its assistants and skills are in another brain than the
+                # one open now. The card says which, instead of a bare "Installed".
+                w = _items_brain(g.get("replaces_installed") or g["id"], brain)
+                if w["other"]:
+                    g["items_brain"] = w["name"]
             # Thẻ cần biết gói đang bật hay tắt để vẽ đúng nút. Gói thả tay vào thư mục (không
             # có hàng trong sổ) mặc định là BẬT - người vận hành đã tự đặt nó vào rồi.
             g["enabled"] = bool(hang.get("enabled", True)) if hang else True
