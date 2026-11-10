@@ -41,6 +41,9 @@ SQL_TIMEOUT_S = 8.0
 MAX_SQL_CHARS = 8000
 DATASET_KEY = "javis_dataset"
 _NAME_RE = re.compile(r"[^A-Za-z0-9_]+")
+_SQL_STRING_RE = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"")
+_SQL_COMMENT_RE = re.compile(r"--[^\n]*|/\*.*?\*/", re.S)
+_UNQUOTED_DATE_RE = re.compile(r"(?<![\w.])20\d\d-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?![\w.])")
 
 
 class QueryError(Exception):
@@ -479,6 +482,12 @@ def run_sql(loaded: dict, ref: str, sql: str, max_chars: int = OUTPUT_CHARS_DEFA
         raise QueryError("one statement only (no ';').")
     if not re.match(r"(?is)^\s*(select|with)\b", sql):
         raise QueryError("only SELECT (or WITH ... SELECT) is allowed.")
+    bare = _UNQUOTED_DATE_RE.search(_SQL_COMMENT_RE.sub(" ", _SQL_STRING_RE.sub("''", sql)))
+    if bare:
+        # Seen with a real model: `WHERE day = 2026-10-15` is arithmetic (2026 minus 10 minus 15 = 2001), matches
+        # nothing, and the model then reported "no orders that day" for a day that had ten.
+        raise QueryError(f"the date {bare.group(0)} is not in quotes, so SQL reads it as a subtraction. "
+                         f"Write it as a text value: '{bare.group(0)}'.")
     ent = _open_database(loaded["records"], cache_key)
     db, schema, notes = ent["db"], ent["schema"], ent["notes"]
     with ent["lock"]:                      # one query at a time on one database
@@ -511,6 +520,10 @@ def run_sql(loaded: dict, ref: str, sql: str, max_chars: int = OUTPUT_CHARS_DEFA
                 raise QueryError(f"SQL error: {msg}. " + _dumps({"tables": describe(schema, db)}))
             head = {"ref": ref, "total_records": len(loaded["records"]), "row_count": len(rows)}
             head.update(notes)
+            if not rows and re.search(r"(?i)\bwhere\b|\bhaving\b|\bjoin\b", sql):
+                head["warning"] = ("No row matched the filter. That is not yet proof that nothing exists: check the "
+                                   "filter's values and their format against the data first, e.g. SELECT DISTINCT "
+                                   "<column> FROM records LIMIT 20, before reporting zero.")
             if truncated:
                 head["truncated"] = True
                 head["hint"] = "More rows exist than fit. Aggregate (GROUP BY), select fewer columns, or add LIMIT/OFFSET."

@@ -297,6 +297,21 @@ check("the generated and flattened twins are kept under a suffixed name",
 out = json.loads(query.run_sql(clash, "tr_x", "SELECT comments_count_2, customer_name_2, big FROM records LIMIT 1"))
 check("...with their own values, and an integer too large for SQLite kept as text",
       out["rows"] == [[2, "nested", str(2 ** 70)]], out["rows"])
+# A real model once dropped the quotes around a date: SQL then subtracts, matches nothing, and "no orders" is reported.
+try:
+    query.run_sql(loaded, "tr_x", "SELECT COUNT(*) FROM records WHERE substr(created_at, 1, 10) = 2026-10-05")
+    check("an unquoted date is refused with the fix, not answered with zero rows", False)
+except query.QueryError as e:
+    check("an unquoted date is refused with the fix, not answered with zero rows", "'2026-10-05'" in str(e), str(e))
+out = json.loads(query.run_sql(loaded, "tr_x", "SELECT COUNT(*), 'day 2026-10-05' FROM records "
+                                             "WHERE substr(created_at, 1, 10) = '2026-10-05' /* 2026-10-05 */ -- 2026-10-05"))
+check("a quoted date, a date inside a string and a date in a comment are left alone",
+      out["rows"][0][0] >= 1 and "warning" not in out["javis_query"], out)
+out = json.loads(query.run_sql(loaded, "tr_x", "SELECT id FROM records WHERE status = 'no-such-status'"))
+check("a filter that matches nothing says so and asks to check the values before reporting zero",
+      out["rows"] == [] and "not yet proof" in out["javis_query"]["warning"], out["javis_query"])
+out = json.loads(query.run_sql(loaded, "tr_x", "SELECT id FROM records LIMIT 0"))
+check("an empty answer without a filter carries no such warning", "warning" not in out["javis_query"])
 old_timeout = query.SQL_TIMEOUT_S
 query.SQL_TIMEOUT_S = 0.2
 try:
