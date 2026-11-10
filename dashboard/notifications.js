@@ -655,7 +655,7 @@
       anRow.hidden = !on;
       if (!an.dataset.wired) {
         an.dataset.wired = "1";
-        try { var st = await (await fetch("/settings", { cache: "no-store" })).json(); an.checked = !!(st.push && st.push.preview === "hidden"); } catch (e) {}
+        try { var st = await (await fetch("/settings")).json();   /* shares the start-up read (fetch-gop.js); a save clears it */ an.checked = !!(st.push && st.push.preview === "hidden"); } catch (e) {}
         an.addEventListener("change", function () {
           var f = new FormData(); f.append("section", "push"); f.append("data", JSON.stringify({ preview: an.checked ? "hidden" : "full" }));
           fetch("/settings", { method: "POST", body: f }).catch(function () {});

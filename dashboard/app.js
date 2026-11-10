@@ -3506,7 +3506,9 @@ function _ensure2DLib() {               // force-graph + d3-force, self-hosted v
   if (_lib2dPromise) return _lib2dPromise;
   _lib2dPromise = new Promise((resolve) => {
     const s = document.createElement("script");
-    s.src = "/static/vendor/force-graph-1.51.4.min.js";   // self-host: unpkg đo được ~0.7s trên đường boot
+    // self-host: unpkg đo được ~0.7s trên đường boot. `?v=` (2026-11-10): the release is in the file name, so the
+    // browser may keep it for good; without the key every start asked the server again before drawing the graph.
+    s.src = "/static/vendor/force-graph-1.51.4.min.js?v=1.51.4";
     s.onload = resolve; s.onerror = resolve;
     document.head.appendChild(s);
   });
