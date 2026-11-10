@@ -374,7 +374,7 @@ async def run_once(conn_id: str, *, reason: str = "manual", now: Optional[float]
                     conversations.ghi_su_kien(ev, dem_chua_doc=False, late=True)
                 except Exception as e:      # noqa: BLE001 - the inbox row is a convenience, never a reason to stop
                     print(f"[zalo-catchup] inbox write: {type(e).__name__}: {e}", file=sys.stderr)
-                mark_delivered(cid, mid, persist=True)
+                mark_delivered(cid, mid)
                 try:
                     await asyncio.wait_for(tb.xu_ly(ev), TURN_TIMEOUT)
                 except asyncio.TimeoutError:
@@ -386,6 +386,7 @@ async def run_once(conn_id: str, *, reason: str = "manual", now: Optional[float]
                     stats["blocked_text"].append({"msg_id": mid, "text": str(oc["blocked_text"])[:300]})
                 if oc.get("answered"):
                     stats["given"] += 1
+                    mark_delivered(cid, mid, persist=True)      # a turn that did not finish (restart, error) is tried again
                 else:
                     skip(str(oc.get("stopped") or "not_processed"))
             finally:

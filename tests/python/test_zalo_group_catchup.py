@@ -256,6 +256,24 @@ check("gate: old photo with only a metadata flag is dropped (G8)", calls == [] a
 zgc.register("zalo-1", "OLD2")
 asyncio.run(real.xu_ly(mk_ev("OLD2")))
 check("gate: registered old photo reaches the bot", len(calls) == 1 and calls[0].get("doc_bu") is True, calls)
+zgc.flush("zalo-1")
+check("done book: a photo whose turn finished is written down", "OLD2" in zgc._load_done("zalo-1"))
+
+
+async def boom(text, meta, _x):
+    raise RuntimeError("turn cut")
+
+
+bad = T2("zalo-1", [], boom, cfg_fn=lambda: BOT)
+zc._BOTS["zalo-1"] = bad
+zgc.register("zalo-1", "OLD3")
+try:
+    asyncio.run(bad.xu_ly(mk_ev("OLD3")))
+except RuntimeError:
+    pass
+zgc.flush("zalo-1")
+check("done book: a turn cut midway is NOT written down, so it is read again", "OLD3" not in zgc._load_done("zalo-1"))
+zc._BOTS["zalo-1"] = real
 check("catch-up turn: marker with the send time in the note",
       bool(calls) and "Đọc bù" in str(calls[0].get("ghi_chu_dau")), calls[0].get("ghi_chu_dau") if calls else "")
 check("catch-up turn: free text is NOT sent (G7)", sent == [], sent)

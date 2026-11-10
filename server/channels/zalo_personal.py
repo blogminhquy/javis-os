@@ -996,12 +996,14 @@ class Transport:
                            + datetime.fromtimestamp(float(ev.get("created_at") or 0), localefmt.tz()).strftime("%H:%M %d/%m") + "]")
                     meta["ghi_chu_dau"] = (str(meta.get("ghi_chu_dau") or "") + chr(10) + dau).strip()
                 if nhom and co_anh:
-                    zgc.mark_delivered(self.conn_id, meta["message_id"], persist=True)
+                    zgc.mark_delivered(self.conn_id, meta["message_id"])
                 try:
                     try:
                         out = await self.answer_fn(text, meta, None)
                         if doc_bu:
                             zgc.note(self.conn_id, meta["message_id"], answered=True)
+                        if nhom and co_anh:      # persisted only AFTER the turn ran: a turn cut by a restart is read again
+                            zgc.mark_delivered(self.conn_id, meta["message_id"], persist=True)
                     except BaseException:
                         for f in da_tai:
                             f.unlink(missing_ok=True)
