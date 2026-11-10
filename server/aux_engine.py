@@ -807,7 +807,7 @@ class _FallbackChain:
                     fail = f"{self._name(e)} không sẵn sàng"
                     continue
                 got_final, got_error, acted = False, None, False
-                async for ev in e.query(prompt):
+                async for ev in _query_retrying_hub(e, prompt, self._name(e)):
                     t = (ev or {}).get("type")
                     if t == "tool_call":
                         acted = True
@@ -975,6 +975,42 @@ def _hub_bat_buoc_hong(text) -> bool:
         return codex_loi_hub_bat_buoc(text)
     except Exception:
         return False
+
+
+# One more try when the required hub was late (#1306). Codex exits on that error BEFORE it calls the model, so running
+# the same link again costs no model turn and cannot repeat an action. Without it the run was dropped until the
+# schedule's next slot. The pause lets the hub finish whatever made it slow (connector discovery for several sessions
+# opening in the same minute). A second failure goes up unchanged and stops the chain as before.
+HUB_RETRY_WAIT_S = 30.0
+
+
+async def _query_retrying_hub(e, prompt, name=""):
+    """`e.query(prompt)`, run a second time when its first event of substance is the required-hub failure."""
+    import asyncio
+    for attempt in (0, 1):
+        stream = e.query(prompt)
+        started, late_hub = False, False
+        try:
+            async for ev in stream:
+                t = (ev or {}).get("type")
+                if t == "error" and attempt == 0 and not started and _hub_bat_buoc_hong(ev.get("content")):
+                    late_hub = True
+                    break
+                if t in ("text", "tool_call", "tool_result", "final"):
+                    started = True
+                yield ev
+        finally:
+            close = getattr(stream, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:  # noqa: BLE001 - a stream that will not close must not hide the run's own result
+                    pass
+        if not late_hub:
+            return
+        print(f"[aux router] {name or type(e).__name__}: required hub was late, one more try in "
+              f"{int(HUB_RETRY_WAIT_S)} s.", file=sys.stderr)
+        await asyncio.sleep(HUB_RETRY_WAIT_S)
 
 
 def _build_grok(spec, claude_cli_obj, mode, tag):
