@@ -337,6 +337,7 @@ Thẻ của ba nhà chạy bằng gói **ChatGPT (Codex)**, **Grok Build** và *
 - **Hết lượt giữa chừng** (đã viết được một đoạn): câu trả lời dừng ở đó, kèm thẻ **Chạy lại ngay**. Bấm vào là hỏi lại câu đó bằng đường còn lượt, câu trả lời dở được thay bằng câu mới. Javis không tự chạy lại trường hợp này.
 - **Đã gọi công cụ rồi mới hết lượt**: Javis dừng và báo, không chạy lại ở đường khác, để không gửi tin hay đăng bài hai lần.
 - Telegram cũng tự đổi đường như vậy, dòng "Đang dùng..." hiện ở tin trạng thái. Bot chuyên trách nói với khách thì không đổi: nó luôn chạy model của Agent nó trỏ tới.
+- **Nhóm (Team) cũng xoay tài khoản của cùng thẻ.** Lượt của cộng sự trong nhóm bắt đầu trên tài khoản còn lượt; tài khoản đang chạy báo hết lượt trước khi gọi công cụ nào thì Javis cho nó nghỉ và chạy lại ngay bằng tài khoản kế của cùng gói, tin trả lời ghi thêm dòng "Đang dùng Claude Code (tài khoản 2) vì tài khoản 1 hết lượt." Lượt nhóm không nhảy sang thẻ khác: nó chạy model riêng của cộng sự hoặc MAIN. Mọi tài khoản của gói đều hết thì nhóm báo lỗi như trước và bước của việc nhóm tự chờ tới giờ gói mở lại.
 - Đổi đường không sửa thứ tự hay model đã lưu. Lượt sau bắt đầu lại từ MAIN, trừ khi MAIN vẫn đang nghỉ.
 
 ### E. Chọn model việc nền

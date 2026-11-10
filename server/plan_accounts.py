@@ -8,6 +8,8 @@ the CLI at it (`CODEX_HOME`, `GROK_HOME`, `CLAUDE_CONFIG_DIR`). The CLI keeps an
 Rotation is sequential: the first account switched on, signed in and not resting runs; one out of quota rests
 (model_routing.mark_rest) and the next takes over; a rested account comes back first once its reset time passes.
 All accounts of a card are used before the next card in the usage order.
+Chat turns, background work and team turns all pick the account this way (team turns since 10/11/2026: before, they
+always ran on account 1, so a team kept answering "You've hit your weekly limit" while the card's other account had quota).
 
 What an extra account does NOT carry (stated plainly in the guide): the plan usage meters, image generation and
 the HTTP-only ChatGPT paths (chat without tools, bots) still read account 1. ChatGPT Live calls DO rotate (06/11/2026):

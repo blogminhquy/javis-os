@@ -29337,6 +29337,71 @@ def _team_record_usage(provider: str, model: str, outcome, *, execution=None, st
         print(f"[team usage] {type(e).__name__}: {e}", file=sys.stderr)
 
 
+def _team_plan_account(eng, provider: str) -> str:
+    """Point a team turn's engine at the plan account that should run now, as a chat turn and background work do.
+
+    Team turns built their engine without this step until 10/11/2026, so they always ran on account 1 of the card: once
+    account 1 hit its weekly limit every member answered "You've hit your weekly limit" while the card's other account,
+    the one chat was already running on, still had quota (customer report, 10/11/2026). An API engine or a card with
+    one account is left as it is. Returns the account id; choosing an account never stops a turn."""
+    try:
+        return plan_accounts.apply(eng, provider, cfgmod.read_settings().get("model") or {})
+    except Exception as e:  # noqa: BLE001
+        print(f"[plan accounts] team {provider}: {type(e).__name__}: {e}", file=sys.stderr)
+        return plan_accounts.MAIN
+
+
+def _team_limit_hit(provider: str, text: str):
+    """(True, reset epoch) when an engine's error text says the subscription plan ran out of quota, else (False, 0).
+    Same detector as a chat turn; only the four plan CLIs have a plan to run out of."""
+    hint = _NHA_SANG_ENGINE.get(str(provider or ""), "")
+    if not hint or not str(text or "").strip():
+        return False, 0.0
+    try:
+        hit = limit_learner.parse_subscription_limit(text, engine_hint=hint)
+        if hit is not None:
+            return True, float(getattr(hit, "reset_epoch", 0) or 0)
+        if hint == "grok-cli":   # Grok prints no fixed sentence for it, plain quota words count (as in chat)
+            import plan_limits
+            return bool(plan_limits.la_het_han_muc(text)), 0.0
+    except Exception as e:  # noqa: BLE001 - the detector must never turn one failure into two
+        print(f"[plan accounts] team limit {provider}: {type(e).__name__}: {e}", file=sys.stderr)
+    return False, 0.0
+
+
+def _team_quota_next(provider: str, eng, error) -> dict:
+    """A team turn failed. When its engine error says the plan account ran out of quota, that account rests (so chat,
+    background work and the next team turns skip it too) and the next account of the SAME card that can run comes back
+    as {"id", "status"}; {} when the error is something else or no other account can run. Never another card: a team
+    turn runs on the member's own model or on MAIN, with no fallback chain (team_engine)."""
+    if not isinstance(error, team_runner.EngineOutcomeError) or error.kind not in ("final_error", "error_event"):
+        return {}
+    prov = str(provider or "")
+    hit, reset = _team_limit_hit(prov, error.detail)
+    if not hit:
+        return {}
+    ran = getattr(eng, "account_id", None)
+    ran = ran if isinstance(ran, str) and ran else plan_accounts.MAIN
+    _note_pin_limit(_NHA_SANG_ENGINE[prov], reset, account=ran)
+    try:
+        m = cfgmod.read_settings().get("model") or {}
+        if not (plan_accounts.in_use(prov) and plan_accounts.has_extra(m, prov)):
+            return {}
+        nxt = plan_accounts.pick(m, prov)
+        if not nxt or nxt["id"] == ran:
+            return {}
+        old_no, old_lab = _route_account_no(m, prov, ran)
+        new_no, new_lab = _route_account_no(m, prov, nxt["id"])
+        return {"id": nxt["id"], "status": localefmt.chu(
+            f"Đang dùng {_route_name(prov)} ({new_lab or f'tài khoản {new_no}'}) vì "
+            f"{old_lab or f'tài khoản {old_no}'} hết lượt.",
+            f"Using {_route_name(prov)} ({new_lab or f'account {new_no}'}) because "
+            f"{old_lab or f'account {old_no}'} is out of quota.")}
+    except Exception as e:  # noqa: BLE001 - the turn then reports the provider's own error, as before
+        print(f"[plan accounts] team next {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+        return {}
+
+
 def _team_engine_for(team, agent_key, role):
     """Engine CHỈ CHỮ cho một lượt nhóm (phán quyết R3 của kế hoạch T1): thư mục trống, không MCP, cổng từ chối mọi công
     cụ. Model theo hợp đồng chat tương tác và giao việc (`team_engine`, 0.142.0): model riêng của trợ lý, thiếu hay chưa
@@ -29410,6 +29475,7 @@ def _team_engine_for(team, agent_key, role):
                 openai_oauth.write_codex_auth()
             except Exception:  # noqa: BLE001 - Codex reports its own sign-in error
                 pass
+        _team_plan_account(eng, prov)   # the plan account that should run now (rotation, as in chat)
         avail = getattr(eng, "is_available", None)
         if callable(avail) and not avail():
             raise team_runner.EngineUnavailable(f"engine {tool_spec['provider']} chưa sẵn sàng (kiểm tra trang Models)")
@@ -29425,6 +29491,7 @@ def _team_engine_for(team, agent_key, role):
             eng = team_engine.build(spec, base, tag, settings)
         except team_engine.TeamEngineUnavailable as ex:
             raise team_runner.EngineUnavailable(ex.reason)
+        _team_plan_account(eng, str(spec.get("provider") or aux_engine.CLAUDE))   # as in chat: the account with quota
         avail = getattr(eng, "is_available", None)
         if callable(avail) and not avail():
             raise team_runner.EngineUnavailable(f"engine {spec['provider']} chưa sẵn sàng (kiểm tra trang Models)")
@@ -29437,51 +29504,72 @@ def _team_engine_for(team, agent_key, role):
         tag = f"team-{str(req['team_id'])[-8:]}-{str(req.get('turn_id') or '')[-10:]}"
         tools_on = bool(req.get("tool_turn"))
         used = tool_spec if tools_on else spec
-        if tools_on:
-            eng = await asyncio.to_thread(_build_tools, req["system"], tag, str(req.get("team_gate") or ""))
-        else:
-            eng = await asyncio.to_thread(_build, req["system"], tag)
-        prompt = _team_reasoning(eng, info.get("reasoning") or AGENT_REASONING_DEFAULT, req["prompt"])
-        if tools_on:
-            # The tool spec can differ from the text one (Grok Build, Antigravity run tool turns): mark the real engine.
-            await req["engine_started"](used["provider"], used["model"])
-        else:
-            await req["engine_started"]()
-        outcome = team_runner.ToolTurnOutcome() if tools_on else team_runner.TextOnlyOutcome()
-        execution = dict((turn_context.current() or {}).get("execution") or {})
-        session_before = getattr(eng, "session_id", None)
-        stream = eng.query(prompt)
-        usage_status = "error"
-        try:
-            async for ev in stream:
-                outcome.note(ev)
-            res = outcome.result()
-            usage_status = "completed"
-        except Exception as ex:
-            # 0.436.0 (team_retry): a failed turn tells the runner how many tools it called. Zero is the only count that
-            # lets a Work/Help step run again on its own; a text-only turn has no tools at all.
+        prov = str(used.get("provider") or aux_engine.CLAUDE)
+        # 10/11/2026: a plan account out of quota rests and the turn runs again at once on the card's next account, as
+        # a chat turn does (spec 6.4). `moved` is the line the message carries when that happened.
+        hops, moved = 0, ""
+        while True:
+            if tools_on:
+                eng = await asyncio.to_thread(_build_tools, req["system"], tag, str(req.get("team_gate") or ""))
+            else:
+                eng = await asyncio.to_thread(_build, req["system"], tag)
+            prompt = _team_reasoning(eng, info.get("reasoning") or AGENT_REASONING_DEFAULT, req["prompt"])
+            if tools_on:
+                # The tool spec can differ from the text one (Grok Build, Antigravity run tool turns): mark the real engine.
+                await req["engine_started"](used["provider"], used["model"])
+            else:
+                await req["engine_started"]()
+            outcome = team_runner.ToolTurnOutcome() if tools_on else team_runner.TextOnlyOutcome()
+            execution = dict((turn_context.current() or {}).get("execution") or {})
+            session_before = getattr(eng, "session_id", None)
+            stream = eng.query(prompt)
+            usage_status = "error"
+            failed = None
             try:
-                ex.team_tool_calls = int(getattr(outcome, "tool_calls", 0) or 0)
-            except Exception:  # noqa: BLE001 - some exception types refuse new attributes: then it stays unknown
-                pass
-            raise
-        except asyncio.CancelledError:
-            usage_status = "cancelled"
-            try:
-                await asyncio.to_thread(claude_cli.cancel_all, tag)
-            finally:
+                async for ev in stream:
+                    outcome.note(ev)
+                res = outcome.result()
+                # Claude Code sometimes prints the out-of-quota sentence as the ANSWER, not as an error (see the chat
+                # turn). Left alone it was posted as the member's reply and no other account ever got the turn.
+                if _het_luot_ap_dao(res["text"]) and _team_limit_hit(prov, res["text"])[0]:
+                    raise team_runner.EngineOutcomeError("final_error", res["text"].strip()[:200])
+                usage_status = "completed"
+            except Exception as ex:
+                # 0.436.0 (team_retry): a failed turn tells the runner how many tools it called. Zero is the only count that
+                # lets a Work/Help step run again on its own; a text-only turn has no tools at all.
                 try:
-                    await stream.aclose()
-                except BaseException:  # noqa: BLE001 - generator đang bị huỷ
+                    ex.team_tool_calls = int(getattr(outcome, "tool_calls", 0) or 0)
+                except Exception:  # noqa: BLE001 - some exception types refuse new attributes: then it stays unknown
                     pass
-            raise
-        finally:
-            execution["cli_session_id"] = getattr(eng, "session_id", None)
-            execution["cli_session_new"] = not session_before
-            # Usage survives failure and cancellation; telemetry can never determine execution policy.
-            _team_record_usage(used["provider"], getattr(eng, "model", None) or used.get("model") or "", outcome,
-                               execution=execution, status=usage_status,
-                               expected_requests=getattr(eng, "usage_request_count", None))
+                failed = ex
+            except asyncio.CancelledError:
+                usage_status = "cancelled"
+                try:
+                    await asyncio.to_thread(claude_cli.cancel_all, tag)
+                finally:
+                    try:
+                        await stream.aclose()
+                    except BaseException:  # noqa: BLE001 - generator đang bị huỷ
+                        pass
+                raise
+            finally:
+                execution["cli_session_id"] = getattr(eng, "session_id", None)
+                execution["cli_session_new"] = not session_before
+                # Usage survives failure and cancellation; telemetry can never determine execution policy.
+                _team_record_usage(used["provider"], getattr(eng, "model", None) or used.get("model") or "", outcome,
+                                   execution=execution, status=usage_status,
+                                   expected_requests=getattr(eng, "usage_request_count", None))
+            if failed is None:
+                break
+            # The account that ran out rests whatever happens next. The turn itself runs again only when it called no
+            # tool (a refusal comes before any work; running a step twice could send or post something twice).
+            nxt = await asyncio.to_thread(_team_quota_next, prov, eng, failed)
+            if not nxt or hops >= REROUTE_MAX_HOPS or int(getattr(outcome, "tool_calls", 0) or 0):
+                raise failed
+            hops += 1
+            moved = nxt["status"]
+            print(f"[plan accounts] team {tag}: {prov} account out of quota, running again on {nxt['id']}",
+                  file=sys.stderr)
         slug = info.get("slug") or ""
         # JAVIS_RULE trong lượt nhóm không có chủ nói trực tiếp với agent: hạ thành bài học (như bước workflow).
         rules, text = agent_rules.extract_rules(res["text"])
@@ -29507,7 +29595,8 @@ def _team_engine_for(team, agent_key, role):
 
         return {"text": clean, "tokens_in": res["tokens_in"], "tokens_out": res["tokens_out"],
                 "cost_usd": res.get("cost_usd"),
-                "lessons": lessons, "commit": commit, "engine_note": used.get("note") or ""}
+                "lessons": lessons, "commit": commit,
+                "engine_note": " ".join(x for x in (used.get("note") or "", moved) if x)}
 
     async def run(req):
         # Bind before asyncio.to_thread: constructors and CLI correlation inherit the host execution.
