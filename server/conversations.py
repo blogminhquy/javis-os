@@ -727,7 +727,29 @@ def set_message_id(row_id: int, external_message_id: str) -> bool:
 
 
 
-def set_zalo_delivery(message_id: int, state: str, error: str = "") -> bool:
+# Why a reply is not shown as sent, as a short code the inbox translates (never a sentence: the screen has two
+# languages). `stale` is never stored: `_zalo_delivery_view` gives it to a reply left on "sending" for too long.
+ZALO_DELIVERY_REASONS = ("superseded", "silent", "image_unconfirmed", "bot_stopped", "interrupted")
+# A send takes seconds. A reply still "sending" after this long was never settled (the server stopped mid-send, or
+# the transport never ran): the inbox then says the outcome is unknown instead of "sending" for ever.
+ZALO_SENDING_STALE = 300.0
+
+
+def _zalo_delivery_view(md, created_at, now: float):
+    """The receipt as the inbox should show it: a "sending" older than ZALO_SENDING_STALE reads as unknown. The
+    stored row is left alone, so a transport that does settle late still wins on the next read."""
+    dl = md.get("zalo_delivery") if isinstance(md, dict) else None
+    if not isinstance(dl, dict) or dl.get("state") != "sending":
+        return
+    try:
+        old = float(now) - float(created_at or 0) > ZALO_SENDING_STALE
+    except (TypeError, ValueError):
+        old = False
+    if old:
+        md["zalo_delivery"] = {"state": "unknown", "error": "", "reason": "stale"}
+
+
+def set_zalo_delivery(message_id: int, state: str, error: str = "", reason: str = "") -> bool:
     """Set the send outcome for exactly one pending Zalo AI reply.
 
     The inbox initially records a bot answer BEFORE transport runs. That is
@@ -735,6 +757,9 @@ def set_zalo_delivery(message_id: int, state: str, error: str = "") -> bool:
     'sending' to 'accepted', 'failed' or 'unknown' (e.g. CLI timeout).
     'accepted' means the channel reported success, NOT that a recipient read it.
     Idempotent: no later call can overwrite a settled receipt.
+
+    `error` is what the gateway said, word for word. `reason` is one of ZALO_DELIVERY_REASONS, for an outcome Javis
+    itself decided; anything else is dropped.
     """
     if state not in ("accepted", "failed", "unknown", "cancelled"):
         return False
@@ -756,6 +781,7 @@ def set_zalo_delivery(message_id: int, state: str, error: str = "") -> bool:
             md["zalo_delivery"] = {
                 "state": state,
                 "error": str(error or "")[:300] if state != "accepted" else "",
+                "reason": reason if state != "accepted" and reason in ZALO_DELIVERY_REASONS else "",
             }
             db.execute("UPDATE messages SET metadata_json=? WHERE id=?",
                        (_json(md), int(message_id)))
@@ -1126,9 +1152,11 @@ def tin_nhan(conversation_id: int, limit: int = 100, before_id: int = 0, after_i
     with _lock:
         rows = _conn().execute(sql, args).fetchall()
     out = []
+    now = time.time()
     for r in (rows if moi else reversed(rows)):
         d = _row(r)
         d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
+        _zalo_delivery_view(d["metadata"], d.get("created_at"), now)
         out.append(d)
     return out
 

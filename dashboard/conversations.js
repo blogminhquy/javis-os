@@ -1352,8 +1352,9 @@
         _msgs = _msgs.concat(moi);
         // Metadata on an existing AI message changes after the Zalo send.
         // An "after=id" poll returns no such edits; refresh only while pending,
-        // and repaint once the transport has reported an outcome.
-        if (_msgs.some(function (m) {
+        // and repaint once the transport has reported an outcome. Only the last 30 are asked for, so an older one
+        // must not keep this second request going on every beat.
+        if (_msgs.slice(-30).some(function (m) {
           return m.metadata && m.metadata.zalo_delivery && m.metadata.zalo_delivery.state === "sending";
         })) {
           var receiptData = await api("/conversations/" + id + "/messages?limit=30");
@@ -2318,6 +2319,14 @@
     if (ta2) ta2.focus();
   }
 
+  // Zalo send receipt of a bot reply (`conversations.set_zalo_delivery`). "accepted" is absent on purpose: a sent
+  // reply shows no line. The reasons are the codes of `conversations.ZALO_DELIVERY_REASONS`, plus "stale".
+  var ZALO_RECEIPT = { sending: "ht.zalo_sending", failed: "ht.zalo_failed", unknown: "ht.zalo_unknown",
+    cancelled: "ht.zalo_cancelled" };
+  var ZALO_WHY = { superseded: "ht.zalo_why.superseded", silent: "ht.zalo_why.silent",
+    image_unconfirmed: "ht.zalo_why.image_unconfirmed", bot_stopped: "ht.zalo_why.bot_stopped",
+    interrupted: "ht.zalo_why.interrupted", stale: "ht.zalo_why.stale" };
+
   function veTin(t) {
     var lop = t.sender_type === "customer" ? "khach" : t.sender_type === "ai" ? "bot"
             : t.sender_type === "human" ? "nguoi" : "hethong";
@@ -2345,20 +2354,17 @@
         ' ' + esc(t.message_type) + '</span>' : "";
     var loi = t.metadata && t.metadata.loi
       ? '<div class="ht-msg-loi">' + ic("triangle-alert") + ' ' + esc(t.metadata.loi) + '</div>' : "";
-    // A bot answer in the inbox is not proof of successful Zalo transmission.
-    // These statuses come from the transport's result, not the model output.
+    // A bot answer in the inbox is not proof of successful Zalo transmission: the receipt comes from the transport's
+    // result, not the model output. A reply that went out shows nothing (the normal case needs no line); only one
+    // still going out, not sent, or of unknown outcome says so, with the reason.
     var dl = t.sender_type === "ai" && t.metadata && t.metadata.zalo_delivery;
-    var deliveryKey = dl && ({
-      sending: "ht.zalo_sending",
-      accepted: "ht.zalo_accepted",
-      failed: "ht.zalo_failed",
-      unknown: "ht.zalo_unknown",
-      cancelled: "ht.zalo_cancelled"
-    }[dl.state] || "");
-    var deliveryText = deliveryKey ? window.t(deliveryKey) : "";
-    var deliveryHtml = deliveryText
-      ? '<div class="' + ((dl.state === "failed" || dl.state === "unknown") ? "ht-msg-loi" : "ht-msg-h") +
-        '">' + esc(deliveryText) + (dl.error ? ' · ' + esc(dl.error) : '') + '</div>' : "";
+    var deliveryHtml = "";
+    if (dl && ZALO_RECEIPT[dl.state]) {
+      var why = ZALO_WHY[dl.reason] ? window.t(ZALO_WHY[dl.reason]) : (dl.error || "");
+      var bad = dl.state === "failed" || dl.state === "unknown";
+      deliveryHtml = '<div class="' + (bad ? "ht-msg-loi" : "ht-msg-h") + '">' + (bad ? ic("triangle-alert") + ' ' : '') +
+        esc(window.t(ZALO_RECEIPT[dl.state])) + (why ? ' · ' + esc(why) : '') + '</div>';
+    }
     if (t.metadata && t.metadata.private_reply_to) {
       var ig = isInstagram(_conv);
       loai = '<span class="ht-loai ht-priv-tag">' + (ig ? badgeOf({ channel: "messenger", external_chat_id: "ig:" }, "13px") :

@@ -377,6 +377,21 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
     return True, ""
 
 
+# What `gui` says when it cannot tell whether Zalo took the message: a call that ran out of time, or a styled or
+# tagged send whose answer never came back. Matched in both languages: `gui` answers in the machine's language.
+_UNCERTAIN_SEND = ("không rõ", "timeout", "timed out", "hết giờ")
+# A long reply that stopped at part 2 or later: the earlier parts did arrive ("đoạn 2/3: ...", "part 2/3: ...").
+_PART_SENT = re.compile(r"^(?:đoạn|part) (\d+)/\d+:")
+
+
+def send_uncertain(err) -> bool:
+    """True when a failed send may still have reached the customer, wholly or in part, so the inbox must not call
+    it "not sent"."""
+    low = str(err or "").strip().lower()
+    m = _PART_SENT.match(low)
+    return bool(m and int(m.group(1)) > 1) or any(x in low for x in _UNCERTAIN_SEND)
+
+
 async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=None):
     """Gửi MỘT tin (đã vừa trần `TIN_TOI_DA`). `(ok, lỗi)`.
 
@@ -996,12 +1011,12 @@ class Transport:
                             for f in da_tai:
                                 f.unlink(missing_ok=True)
                             zc.bo_do_gui(self.conn_id, thread, list(cu.get("texts") or []) + [chu_khach], int(cu.get("n") or 0) + 1)
-                            self._set_delivery(receipt_row, "cancelled", "A newer customer message superseded this reply.")
+                            self._set_delivery(receipt_row, "cancelled", reason="superseded")
                             return
                         if out.get("reaction") and zc._BOTS.get(self.conn_id) is self:
                             await self._react(thread, loai, meta, str(out["reaction"]))
                         if out.get("im_lang"):
-                            self._set_delivery(receipt_row, "cancelled", "The bot did not send this turn.")
+                            self._set_delivery(receipt_row, "cancelled", reason="silent")
                             return
                         cau = str(out.get("text") or "").strip()
                         # 0.84.3: images the Agent asked to send, already checked by `bot_images.pick`.
@@ -1015,13 +1030,14 @@ class Transport:
                             sent = await self._gui(thread, cau, loai, meta, receipt_row=receipt_row)
                         if anh:
                             image_sent = await self._gui_anh(thread, anh, loai)
-                            if not cau:
-                                self._set_delivery(receipt_row, "accepted" if image_sent else "unknown",
-                                                   "" if image_sent else "Image send was not confirmed.")
+                            if not cau and image_sent:
+                                self._set_delivery(receipt_row, "accepted")
+                            elif not cau:
+                                self._set_delivery(receipt_row, "unknown", reason="image_unconfirmed")
                         if cau and nhom and self.policy is not None and sent is not False:
                             self.policy.replied(meta, cau)
                     elif receipt_row:
-                        self._set_delivery(receipt_row, "cancelled", "Bot stopped before delivery.")
+                        self._set_delivery(receipt_row, "cancelled", reason="bot_stopped")
                 finally:
                     # Kept until the reply (and its images) has gone out, so the group never sees a gap between the
                     # indicator and the message.
@@ -1051,12 +1067,14 @@ class Transport:
             print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)
 
     @staticmethod
-    def _set_delivery(receipt_row: int, state: str, error: str = "") -> None:
+    def _set_delivery(receipt_row: int, state: str, error: str = "", reason: str = "") -> None:
+        """Settle one inbox reply. `error`: the gateway's own words. `reason`: a code of
+        `conversations.ZALO_DELIVERY_REASONS` the inbox translates, for an outcome decided here."""
         if not receipt_row:
             return
         try:
             import conversations
-            conversations.set_zalo_delivery(receipt_row, state, error)
+            conversations.set_zalo_delivery(receipt_row, state, error, reason)
         except Exception as e:  # noqa: BLE001 - a receipt failure must not resend a message
             print(f"[zalo-personal] storing delivery receipt failed: {type(e).__name__}: {e}", file=sys.stderr)
 
@@ -1069,7 +1087,7 @@ class Transport:
         try:
             ok, loi = await gui({"id": self.conn_id}, thread, cau, chat_type, tag)
         except asyncio.CancelledError:
-            self._set_delivery(receipt_row, "unknown", "The send was interrupted: delivery is not confirmed.")
+            self._set_delivery(receipt_row, "unknown", reason="interrupted")
             raise
         except Exception as e:  # noqa: BLE001 - a clear exception is a failed attempt, never auto-retry
             ok, loi = False, f"{type(e).__name__}: {e}"
@@ -1077,13 +1095,12 @@ class Transport:
             # Provider/adapter accepted the send; does NOT prove recipient display or read.
             self._set_delivery(receipt_row, "accepted")
         else:
-            uncertain = any(x in str(loi or "").lower() for x in (
-                "không rõ", "timeout", "timed out", "hết giờ", "đoạn "))
-            self._set_delivery(receipt_row, "unknown" if uncertain else "failed", str(loi or ""))
+            self._set_delivery(receipt_row, "unknown" if send_uncertain(loi) else "failed", str(loi or ""))
             self.last_error = localefmt.chu(f"Gửi Zalo lỗi: {loi}", f"Zalo send failed: {loi}")[:300]
             print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)
             self._ghi_loi_gui(thread, cau, loi, chat_type)
         return bool(ok)
+
     async def _gui_anh(self, thread: str, anh: list, chat_type: str = "private"):
         import zalo_personal_channel as zc
         # Remember BEFORE sending, like _gui: each image comes back in the read loop as the account's own message.
