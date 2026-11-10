@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.529.0] - 2026-11-10
+### Added
+- **Javis Core runs one improvement loop.** Any part of Javis that wants to tune itself registers a "knob" with Javis Core. The loop moves every knob the same way: one step at a time, inside its bounds, at most once a day, with its reason logged, a notice in the bell, and a way back by talking. The loop is plain code: it calls no model and does not touch a chat turn.
+- **Self-learning tunes when a batch starts.** When most recent batches learned nothing (common when you ask one or two quick questions), Javis Core raises the number of turns a batch needs; when batches are useful again it lowers it. Turns below the bar stay queued and are learned with the next ones.
+- **Tell Javis how to learn, by talking.** Say "do not turn each day's revenue into a memory" or "only remember settled decisions": Javis Core keeps it as a lesson and every learning batch reads it first. Review and revoke it like any assistant's lessons.
+### Improved
+- **A wrongly learned memory counts.** A memory Javis learned by itself that you ask it to forget counts as a learning mistake, so the next batch runs one model stronger. Forgetting a memory you wrote yourself changes nothing.
+- **One place to look and to undo.** Ask Javis "what is background work and learning adjusting": one answer with the model of each background job, the knobs being tuned, the recent changes and the lessons about learning.
+
 ## [0.528.1] - 2026-11-10
 ### Fixed
 - **Connecting Google Ads no longer demands a developer token.** The box is optional now and the guide follows the Google Cloud path: enable the Google Ads API, apply for Explorer access inside the project, then create the OAuth client. New users are no longer stuck asking for a token Google no longer requires.
