@@ -322,6 +322,7 @@ Thẻ của ba nhà chạy bằng gói **ChatGPT (Codex)**, **Grok Build** và *
 
 **Giới hạn cần biết:**
 
+- Dòng trạng thái đầu thẻ ghi tên, email và gói của **tài khoản đang được dùng** (tài khoản đầu tiên đang bật, đã đăng nhập và không nghỉ). Tài khoản thêm mà CLI của nó chưa ghi lại email hay gói thì dòng đó chỉ hiện tên bạn đặt.
 - Đổi tài khoản giữa cuộc trò chuyện thì lượt đó mở một mạch CLI mới, Javis tự nạp lại lịch sử.
 - Đồng hồ hạn mức, tạo ảnh, giọng nói và những đường ChatGPT không đi qua Codex CLI vẫn dùng tài khoản 1.
 - Antigravity vẫn chỉ một tài khoản (token nằm trong keyring của hệ điều hành).
@@ -337,6 +338,8 @@ Thẻ của ba nhà chạy bằng gói **ChatGPT (Codex)**, **Grok Build** và *
 - **Hết lượt giữa chừng** (đã viết được một đoạn): câu trả lời dừng ở đó, kèm thẻ **Chạy lại ngay**. Bấm vào là hỏi lại câu đó bằng đường còn lượt, câu trả lời dở được thay bằng câu mới. Javis không tự chạy lại trường hợp này.
 - **Đã gọi công cụ rồi mới hết lượt**: Javis dừng và báo, không chạy lại ở đường khác, để không gửi tin hay đăng bài hai lần.
 - Telegram cũng tự đổi đường như vậy, dòng "Đang dùng..." hiện ở tin trạng thái. Bot chuyên trách nói với khách thì không đổi: nó luôn chạy model của Agent nó trỏ tới.
+- **Nhóm (Team) cũng xoay tài khoản của cùng thẻ.** Lượt của cộng sự trong nhóm bắt đầu trên tài khoản còn lượt; tài khoản đang chạy báo hết lượt trước khi gọi công cụ nào thì Javis cho nó nghỉ và chạy lại ngay bằng tài khoản kế của cùng gói, tin trả lời ghi thêm dòng "Đang dùng Claude Code (tài khoản 2) vì tài khoản 1 hết lượt." Lượt nhóm không nhảy sang thẻ khác: nó chạy model riêng của cộng sự hoặc MAIN. Mọi tài khoản của gói đều hết thì nhóm báo lỗi như trước và bước của việc nhóm tự chờ tới giờ gói mở lại.
+- **Bước của workflow cũng vậy.** Bước chạy bằng Claude Code hay ChatGPT bắt đầu trên tài khoản còn lượt. Tài khoản báo hết lượt khi bước chưa viết gì và chưa gọi công cụ nào thì Javis cho nó nghỉ rồi chạy lại ngay bước đó bằng tài khoản kế của cùng gói, lần chạy đi tiếp như thường. Bước đã làm dở thì dừng và báo như trước, tài khoản đó vẫn được cho nghỉ, nên bấm chạy lại workflow là sang tài khoản kế. Workflow nền ở chế độ giới hạn công cụ vẫn luôn là Claude Code, chỉ đổi tài khoản.
 - Đổi đường không sửa thứ tự hay model đã lưu. Lượt sau bắt đầu lại từ MAIN, trừ khi MAIN vẫn đang nghỉ.
 
 ### E. Chọn model việc nền

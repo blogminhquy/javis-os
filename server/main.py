@@ -12277,7 +12277,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             # Fast mode (0.164.0): workflow steps run in the background, so force the normal tier.
             cc.extra_config[:] = [x for x in cc.extra_config if not str(x).startswith("service_tier=")]
             cc.extra_config.append('service_tier="default"')
-            return cc
+            return _step_engine(cc, "openai-oauth")   # the ChatGPT account with quota, the next one when it runs out
         allowed, natives = (_step_grant(extra_tools) if tools is not None else ([], []))
         gated_tools = (list(tools) + allowed) if tools is not None else None
         c = claude_engine(system_prompt=sysprompt, cwd=vault_root, tag="workflow",
@@ -12320,11 +12320,13 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             # (nhà đã chọn chết giữa chừng thì lùi về Claude/bộ não chính, không chết lặng).
             # Gọi SAU khi đã gắn javis_vault/system_prompt vì _build_* đọc lại từ engine này.
             try:
-                c = aux_engine.swap(c, tag="workflow", codex_profile=_write_codex_profile,
-                                    spec={"provider": prov, "model": (model or "")})
+                return aux_engine.swap(c, tag="workflow", codex_profile=_write_codex_profile,
+                                       spec={"provider": prov, "model": (model or "")})   # rotates accounts itself
             except Exception as e:
                 print(f"[agent engine] {prov}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
-        return c
+        # Claude Code runs this step (the agent's own choice, a gated background run, or a card that could not be
+        # built): on the Claude account that has quota. Only the account moves, never the provider.
+        return _step_engine(c, "anthropic-cli")
 
     def _agent_sysprompt(aslug, surface=None, agent_key=None, session_created_at=None, skill_served=False):
         """`surface` (dm, team, kanban, workflow): where this prompt runs, known by the host. Only with it can an
@@ -29412,6 +29414,167 @@ def _team_record_usage(provider: str, model: str, outcome, *, execution=None, st
         print(f"[team usage] {type(e).__name__}: {e}", file=sys.stderr)
 
 
+def _step_plan_account(eng, provider: str) -> str:
+    """Point the engine of a team turn or a workflow step at the plan account that should run now, as a chat turn and
+    background work do.
+
+    Team turns built their engine without this step until 10/11/2026, so they always ran on account 1 of the card: once
+    account 1 hit its weekly limit every member answered "You've hit your weekly limit" while the card's other account,
+    the one chat was already running on, still had quota (customer report, 10/11/2026). Workflow steps had the same
+    gap. An API engine or a card with one account is left as it is. Returns the account id; choosing an account never
+    stops a turn."""
+    try:
+        return plan_accounts.apply(eng, provider, cfgmod.read_settings().get("model") or {})
+    except Exception as e:  # noqa: BLE001
+        print(f"[plan accounts] step {provider}: {type(e).__name__}: {e}", file=sys.stderr)
+        return plan_accounts.MAIN
+
+
+def _step_limit_hit(provider: str, text: str):
+    """(True, reset epoch) when an engine's error text says the subscription plan ran out of quota, else (False, 0).
+    Same detector as a chat turn; only the four plan CLIs have a plan to run out of."""
+    hint = _NHA_SANG_ENGINE.get(str(provider or ""), "")
+    if not hint or not str(text or "").strip():
+        return False, 0.0
+    try:
+        hit = limit_learner.parse_subscription_limit(text, engine_hint=hint)
+        if hit is not None:
+            return True, float(getattr(hit, "reset_epoch", 0) or 0)
+        if hint == "grok-cli":   # Grok prints no fixed sentence for it, plain quota words count (as in chat)
+            import plan_limits
+            return bool(plan_limits.la_het_han_muc(text)), 0.0
+    except Exception as e:  # noqa: BLE001 - the detector must never turn one failure into two
+        print(f"[plan accounts] step limit {provider}: {type(e).__name__}: {e}", file=sys.stderr)
+    return False, 0.0
+
+
+def _step_quota_next(provider: str, eng, text: str) -> dict:
+    """The engine of a team turn or a workflow step failed with `text`. When it says the plan account ran out of quota,
+    that account rests (so chat, background work and the next steps skip it too) and the next account of the SAME card
+    that can run comes back as {"id", "status"}; {} when the error is something else or no other account can run.
+    Never another card: these turns run on the model chosen for them, with no fallback chain."""
+    prov = str(provider or "")
+    hit, reset = _step_limit_hit(prov, text)
+    if not hit:
+        return {}
+    ran = getattr(eng, "account_id", None)
+    ran = ran if isinstance(ran, str) and ran else plan_accounts.MAIN
+    _note_pin_limit(_NHA_SANG_ENGINE[prov], reset, account=ran)
+    try:
+        m = cfgmod.read_settings().get("model") or {}
+        if not (plan_accounts.in_use(prov) and plan_accounts.has_extra(m, prov)):
+            return {}
+        nxt = plan_accounts.pick(m, prov)
+        if not nxt or nxt["id"] == ran:
+            return {}
+        old_no, old_lab = _route_account_no(m, prov, ran)
+        new_no, new_lab = _route_account_no(m, prov, nxt["id"])
+        return {"id": nxt["id"], "status": localefmt.chu(
+            f"Đang dùng {_route_name(prov)} ({new_lab or f'tài khoản {new_no}'}) vì "
+            f"{old_lab or f'tài khoản {old_no}'} hết lượt.",
+            f"Using {_route_name(prov)} ({new_lab or f'account {new_no}'}) because "
+            f"{old_lab or f'account {old_no}'} is out of quota.")}
+    except Exception as e:  # noqa: BLE001 - the turn then reports the provider's own error, as before
+        print(f"[plan accounts] step next {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+        return {}
+
+
+def _team_quota_next(provider: str, eng, error) -> dict:
+    """`_step_quota_next` for a failed team turn: only an error the ENGINE reported counts, never a tool call the
+    text-only contract refused or an empty answer."""
+    if not isinstance(error, team_runner.EngineOutcomeError) or error.kind not in ("final_error", "error_event"):
+        return {}
+    return _step_quota_next(provider, eng, error.detail)
+
+
+# Text a workflow step's engine wrote is held back while it is shorter than this, or while it reads as the provider's
+# out-of-quota sentence: Claude Code prints that sentence as text first, then as the answer.
+PLAN_ROTATION_HOLD_CHARS = 80
+
+
+class _PlanRotation:
+    """The engine of ONE workflow step on a plan card that holds several accounts (10/11/2026).
+
+    Before, a step always ran on account 1 of the card and stopped the whole run with "the plan is out of quota" while
+    the card's next account still had quota. Now the account that ran out rests, and when the step had not written or
+    called anything yet it runs again at once on the next account of the same card. A step that already called a tool
+    or wrote real text is never run twice: its error comes out as before and the account still rests, so running the
+    workflow again lands on the next account. The provider never changes, so the limits of a gated run stay in place.
+
+    Reads and writes of attributes go to the wrapped engine, so callers use it as the engine it holds."""
+
+    def __init__(self, engine, provider: str):
+        object.__setattr__(self, "_engine", engine)
+        object.__setattr__(self, "_provider", str(provider or ""))
+
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, "_engine"), name)
+
+    def __setattr__(self, name, value):
+        setattr(object.__getattribute__(self, "_engine"), name, value)
+
+    def _is_limit(self, text: str, whole: bool = False) -> bool:
+        """`whole`: the text is the engine's own error; otherwise it must be nothing but the sentence."""
+        return (whole or _het_luot_ap_dao(text)) and _step_limit_hit(self._provider, text)[0]
+
+    async def query(self, prompt):
+        eng, prov = object.__getattribute__(self, "_engine"), self._provider
+        hops = 0
+        while True:
+            thread = getattr(eng, "session_id", None)
+            held, written, live, nxt = [], "", False, None
+            stream = eng.query(prompt)
+            async for ev in stream:
+                t = (ev or {}).get("type")
+                if t == "text" and not live:
+                    held.append(ev)
+                    written += str(ev.get("content") or "")
+                    if len(written.strip()) < PLAN_ROTATION_HOLD_CHARS or self._is_limit(written):
+                        continue
+                elif t in ("final", "error") and not ev.get("resume_failed"):
+                    raw = str(ev.get("content") or "")
+                    if self._is_limit(raw, whole=(t == "error" or bool(ev.get("is_error")))):
+                        nxt = await asyncio.to_thread(_step_quota_next, prov, eng, raw)
+                        if nxt and not live and hops < REROUTE_MAX_HOPS:
+                            break
+                        nxt = None
+                if not live:
+                    live = True
+                    for h in held:
+                        if h is not ev:
+                            yield h
+                    held = []
+                yield ev
+            if not nxt:
+                for h in held:      # the engine stopped with no answer: what it wrote is still shown
+                    yield h
+                return
+            try:
+                await stream.aclose()
+            except Exception:  # noqa: BLE001 - the refused run is over either way
+                pass
+            hops += 1
+            if hasattr(eng, "session_id"):
+                eng.session_id = thread      # the refused run's thread belongs to the account that ran out
+            await asyncio.to_thread(plan_accounts.use, eng, prov, nxt["id"])
+            print(f"[plan accounts] workflow step: {prov} account out of quota, running again on {nxt['id']}",
+                  file=sys.stderr)
+
+
+def _step_engine(eng, provider: str):
+    """A workflow step's plan engine, started on the account that should run now. On a card with several accounts it
+    comes back wrapped (`_PlanRotation`); a card with one account, or Claude Code on an API key, gets the engine itself,
+    exactly as before."""
+    _step_plan_account(eng, provider)
+    try:
+        m = cfgmod.read_settings().get("model") or {}
+        if plan_accounts.in_use(provider) and plan_accounts.has_extra(m, provider):
+            return _PlanRotation(eng, provider)
+    except Exception as e:  # noqa: BLE001 - rotation must never cost the step
+        print(f"[plan accounts] step engine {provider}: {type(e).__name__}: {e}", file=sys.stderr)
+    return eng
+
+
 def _team_engine_for(team, agent_key, role):
     """Engine CHỈ CHỮ cho một lượt nhóm (phán quyết R3 của kế hoạch T1): thư mục trống, không MCP, cổng từ chối mọi công
     cụ. Model theo hợp đồng chat tương tác và giao việc (`team_engine`, 0.142.0): model riêng của trợ lý, thiếu hay chưa
@@ -29485,6 +29648,7 @@ def _team_engine_for(team, agent_key, role):
                 openai_oauth.write_codex_auth()
             except Exception:  # noqa: BLE001 - Codex reports its own sign-in error
                 pass
+        _step_plan_account(eng, prov)   # the plan account that should run now (rotation, as in chat)
         avail = getattr(eng, "is_available", None)
         if callable(avail) and not avail():
             raise team_runner.EngineUnavailable(f"engine {tool_spec['provider']} chưa sẵn sàng (kiểm tra trang Models)")
@@ -29500,6 +29664,7 @@ def _team_engine_for(team, agent_key, role):
             eng = team_engine.build(spec, base, tag, settings)
         except team_engine.TeamEngineUnavailable as ex:
             raise team_runner.EngineUnavailable(ex.reason)
+        _step_plan_account(eng, str(spec.get("provider") or aux_engine.CLAUDE))   # as in chat: the account with quota
         avail = getattr(eng, "is_available", None)
         if callable(avail) and not avail():
             raise team_runner.EngineUnavailable(f"engine {spec['provider']} chưa sẵn sàng (kiểm tra trang Models)")
@@ -29512,51 +29677,72 @@ def _team_engine_for(team, agent_key, role):
         tag = f"team-{str(req['team_id'])[-8:]}-{str(req.get('turn_id') or '')[-10:]}"
         tools_on = bool(req.get("tool_turn"))
         used = tool_spec if tools_on else spec
-        if tools_on:
-            eng = await asyncio.to_thread(_build_tools, req["system"], tag, str(req.get("team_gate") or ""))
-        else:
-            eng = await asyncio.to_thread(_build, req["system"], tag)
-        prompt = _team_reasoning(eng, info.get("reasoning") or AGENT_REASONING_DEFAULT, req["prompt"])
-        if tools_on:
-            # The tool spec can differ from the text one (Grok Build, Antigravity run tool turns): mark the real engine.
-            await req["engine_started"](used["provider"], used["model"])
-        else:
-            await req["engine_started"]()
-        outcome = team_runner.ToolTurnOutcome() if tools_on else team_runner.TextOnlyOutcome()
-        execution = dict((turn_context.current() or {}).get("execution") or {})
-        session_before = getattr(eng, "session_id", None)
-        stream = eng.query(prompt)
-        usage_status = "error"
-        try:
-            async for ev in stream:
-                outcome.note(ev)
-            res = outcome.result()
-            usage_status = "completed"
-        except Exception as ex:
-            # 0.436.0 (team_retry): a failed turn tells the runner how many tools it called. Zero is the only count that
-            # lets a Work/Help step run again on its own; a text-only turn has no tools at all.
+        prov = str(used.get("provider") or aux_engine.CLAUDE)
+        # 10/11/2026: a plan account out of quota rests and the turn runs again at once on the card's next account, as
+        # a chat turn does (spec 6.4). `moved` is the line the message carries when that happened.
+        hops, moved = 0, ""
+        while True:
+            if tools_on:
+                eng = await asyncio.to_thread(_build_tools, req["system"], tag, str(req.get("team_gate") or ""))
+            else:
+                eng = await asyncio.to_thread(_build, req["system"], tag)
+            prompt = _team_reasoning(eng, info.get("reasoning") or AGENT_REASONING_DEFAULT, req["prompt"])
+            if tools_on:
+                # The tool spec can differ from the text one (Grok Build, Antigravity run tool turns): mark the real engine.
+                await req["engine_started"](used["provider"], used["model"])
+            else:
+                await req["engine_started"]()
+            outcome = team_runner.ToolTurnOutcome() if tools_on else team_runner.TextOnlyOutcome()
+            execution = dict((turn_context.current() or {}).get("execution") or {})
+            session_before = getattr(eng, "session_id", None)
+            stream = eng.query(prompt)
+            usage_status = "error"
+            failed = None
             try:
-                ex.team_tool_calls = int(getattr(outcome, "tool_calls", 0) or 0)
-            except Exception:  # noqa: BLE001 - some exception types refuse new attributes: then it stays unknown
-                pass
-            raise
-        except asyncio.CancelledError:
-            usage_status = "cancelled"
-            try:
-                await asyncio.to_thread(claude_cli.cancel_all, tag)
-            finally:
+                async for ev in stream:
+                    outcome.note(ev)
+                res = outcome.result()
+                # Claude Code sometimes prints the out-of-quota sentence as the ANSWER, not as an error (see the chat
+                # turn). Left alone it was posted as the member's reply and no other account ever got the turn.
+                if _het_luot_ap_dao(res["text"]) and _step_limit_hit(prov, res["text"])[0]:
+                    raise team_runner.EngineOutcomeError("final_error", res["text"].strip()[:200])
+                usage_status = "completed"
+            except Exception as ex:
+                # 0.436.0 (team_retry): a failed turn tells the runner how many tools it called. Zero is the only count that
+                # lets a Work/Help step run again on its own; a text-only turn has no tools at all.
                 try:
-                    await stream.aclose()
-                except BaseException:  # noqa: BLE001 - generator đang bị huỷ
+                    ex.team_tool_calls = int(getattr(outcome, "tool_calls", 0) or 0)
+                except Exception:  # noqa: BLE001 - some exception types refuse new attributes: then it stays unknown
                     pass
-            raise
-        finally:
-            execution["cli_session_id"] = getattr(eng, "session_id", None)
-            execution["cli_session_new"] = not session_before
-            # Usage survives failure and cancellation; telemetry can never determine execution policy.
-            _team_record_usage(used["provider"], getattr(eng, "model", None) or used.get("model") or "", outcome,
-                               execution=execution, status=usage_status,
-                               expected_requests=getattr(eng, "usage_request_count", None))
+                failed = ex
+            except asyncio.CancelledError:
+                usage_status = "cancelled"
+                try:
+                    await asyncio.to_thread(claude_cli.cancel_all, tag)
+                finally:
+                    try:
+                        await stream.aclose()
+                    except BaseException:  # noqa: BLE001 - generator đang bị huỷ
+                        pass
+                raise
+            finally:
+                execution["cli_session_id"] = getattr(eng, "session_id", None)
+                execution["cli_session_new"] = not session_before
+                # Usage survives failure and cancellation; telemetry can never determine execution policy.
+                _team_record_usage(used["provider"], getattr(eng, "model", None) or used.get("model") or "", outcome,
+                                   execution=execution, status=usage_status,
+                                   expected_requests=getattr(eng, "usage_request_count", None))
+            if failed is None:
+                break
+            # The account that ran out rests whatever happens next. The turn itself runs again only when it called no
+            # tool (a refusal comes before any work; running a step twice could send or post something twice).
+            nxt = await asyncio.to_thread(_team_quota_next, prov, eng, failed)
+            if not nxt or hops >= REROUTE_MAX_HOPS or int(getattr(outcome, "tool_calls", 0) or 0):
+                raise failed
+            hops += 1
+            moved = nxt["status"]
+            print(f"[plan accounts] team {tag}: {prov} account out of quota, running again on {nxt['id']}",
+                  file=sys.stderr)
         slug = info.get("slug") or ""
         # JAVIS_RULE trong lượt nhóm không có chủ nói trực tiếp với agent: hạ thành bài học (như bước workflow).
         rules, text = agent_rules.extract_rules(res["text"])
@@ -29582,7 +29768,8 @@ def _team_engine_for(team, agent_key, role):
 
         return {"text": clean, "tokens_in": res["tokens_in"], "tokens_out": res["tokens_out"],
                 "cost_usd": res.get("cost_usd"),
-                "lessons": lessons, "commit": commit, "engine_note": used.get("note") or ""}
+                "lessons": lessons, "commit": commit,
+                "engine_note": " ".join(x for x in (used.get("note") or "", moved) if x)}
 
     async def run(req):
         # Bind before asyncio.to_thread: constructors and CLI correlation inherit the host execution.

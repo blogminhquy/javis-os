@@ -3413,6 +3413,7 @@
     const accts = m.accounts || {};
     ACCT_NAMES = {};
     ACCT_ITEMS = {};
+    ACCT_KEYED = { "anthropic-cli": claudeP.auth_mode === "api_key" };
     PLAN_CLI.forEach(pid => {
       const l = accts[pid] || [];
       ACCT_ITEMS[pid] = l;
@@ -3634,7 +3635,7 @@
       };
       if (p.kind === "oauth") {
         const st = on
-          ? t("models.st_connected") + esc(acctNameTag(p.id)) + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
+          ? t("models.st_connected") + esc(acctLine(p.id, [p.plan])) + " · " + p.models.length + " model"
           : t("models.st_not_connected") + " · " + p.models.length + " model";
         return `${cardOpen(p, ord)}
           ${provHead(p, on, "Device code", st, false, ord)}
@@ -3657,8 +3658,7 @@
         // 0.30-0.32.1 từng thử (và tắc trên Windows vì không có pseudo-terminal).
         const dn = p.dang_nhap || {};
         const st = on
-          ? t("models.st_logged_in") + esc(acctNameTag(p.id)) + (p.account ? " · " + esc(p.account) : "")
-            + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
+          ? t("models.st_logged_in") + esc(acctLine(p.id, [p.account, p.plan])) + " · " + p.models.length + " model"
           : (p.cli_found ? t("models.st_cli_no_login") : t("models.st_no_cli", { ten: "Grok Build CLI" }));
         return `${cardOpen(p, ord)}
           ${provHead(p, on, "MCP/skill", st, true, ord)}
@@ -4170,6 +4170,7 @@
   // card keeps it as account 1's label (plan_accounts), an API card as its first key's label. Filled on every draw.
   let ACCT_NAMES = {};      // plan card id -> account 1's label
   let ACCT_ITEMS = {};      // plan card id -> its account list, so saving a name keeps order and on/off
+  let ACCT_KEYED = {};      // plan card id -> true while it runs on an API key (no plan account is in use)
   const acctNameField = (pid) => `<input class="js-input prov-acname" data-acname="${esc(pid)}" maxlength="60" autocomplete="off"
     spellcheck="false" placeholder="${esc(t("models.acname_ph"))}" value="${esc(ACCT_NAMES[pid] || "")}">`;
   // The typed name, "" when the card has no name box, or null after pointing at the empty box: the sign-in waits.
@@ -4195,6 +4196,22 @@
   }
   // " · name" for a plan card's status line, "" when account 1 has none yet.
   const acctNameTag = (pid) => ACCT_NAMES[pid] ? " · " + ACCT_NAMES[pid] : "";
+  // The EXTRA account a plan card runs on now (the first one switched on, signed in and not resting), or null while
+  // account 1 runs. The status line then names that account, its e-mail and its plan: it used to keep showing account
+  // 1's, so a card running on a Max account still read "Pro" (owner's video, 10/11/2026).
+  const acctInUse = (pid) => {
+    const nowS = Date.now() / 1000;
+    const l = ACCT_KEYED[pid] ? [] : (ACCT_ITEMS[pid] || []);
+    const cur = l.length > 1 ? l.find(a => a.enabled && a.signed_in && !(a.resting_until > nowS)) : null;
+    return cur && !(cur.main || cur.id === "main") ? cur : null;
+  };
+  // " · name · e-mail · plan" of the account in use. `own` is what the card's own login (account 1) reports.
+  const acctLine = (pid, own) => {
+    const cur = acctInUse(pid);
+    if (!cur) return acctNameTag(pid) + (own || []).filter(Boolean).map(x => " · " + x).join("");
+    const no = (ACCT_ITEMS[pid] || []).indexOf(cur) + 1;
+    return [cur.label || t("models.pacct_n", { n: no }), cur.email, cur.plan].filter(Boolean).map(x => " · " + x).join("");
+  };
   // A subscription CLI with nothing set picks its own model by plan, which Javis cannot read: say so instead of "default".
   const PLAN_CLI = ["anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli"];
   const defName = (pid) => MODEL_DEFAULTS[pid] ? t("models.mp_default_is", { m: MODEL_DEFAULTS[pid] })
@@ -4922,7 +4939,7 @@
     }
     if (d.connected) {
       st.className = "prov-status on";
-      st.textContent = t("models.st_connected") + acctNameTag("anthropic-cli") + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "")
+      st.textContent = t("models.st_connected") + acctLine("anthropic-cli", [d.email, d.plan])
         + (d.stale ? " · " + t("models.st_stale") : "");
       // A card in the usage order has Disconnect in its own button row (and its ⋯ sheet), so none here.
       if (act.closest && act.closest(".ord-card")) { act.innerHTML = ""; return; }

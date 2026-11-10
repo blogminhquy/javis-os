@@ -343,6 +343,43 @@ check("saving the list keeps order and labels",
       == [("acc_b", "Plus phụ"), ("main", "Pro chính")])
 check("the plan card is never dropped from the usage order by its list", True)
 
+# ---- the card names the account in use: e-mail and plan of an EXTRA account (owner's video, 10/11/2026) ----------
+# The Claude card kept showing account 1's e-mail and plan ("Pro") while chat ran on a Max account. The page needs
+# each extra account's own e-mail and plan, read from what its CLI wrote in its folder: no CLI started, no token read.
+import base64  # noqa: E402
+
+mi = {}
+P.add(mi, "anthropic-cli", "acc_i", "TuanFernel-Max100")
+fi = P.home("anthropic-cli", "acc_i")
+(fi / ".credentials.json").write_text("{}", encoding="utf-8")
+check("account 1 gets no identity here: the card reads its own login", P.identity("anthropic-cli", "main") == {})
+check("an extra Claude account with no profile yet: unknown, never a guess",
+      P.identity("anthropic-cli", "acc_i") == {"email": "", "plan": ""})
+(fi / ".claude.json").write_text(json.dumps({"mcpServers": {}, "oauthAccount": {
+    "emailAddress": "tuan@example.com", "planDisplayName": "Max"}}), encoding="utf-8")
+check("an extra Claude account's e-mail and plan come from its own .claude.json",
+      P.identity("anthropic-cli", "acc_i") == {"email": "tuan@example.com", "plan": "Max"})
+rows = {a["id"]: a for a in P.view(mi, "anthropic-cli")}
+check("the Models page gets them on the account's row", rows["acc_i"].get("email") == "tuan@example.com"
+      and rows["acc_i"].get("plan") == "Max" and "email" not in rows["main"], rows)
+(fi / ".claude.json").write_text(json.dumps({"oauthAccount": {"emailAddress": "tuan@example.com",
+                                                              "planDisplayName": "<script>"}}), encoding="utf-8")
+check("a plan name that is not a plain name is dropped", P.identity("anthropic-cli", "acc_i")["plan"] == "")
+P.add(mi, "anthropic-cli", "acc_out", "Chưa đăng nhập")
+check("an account that is not signed in carries no identity",
+      "email" not in {a["id"]: a for a in P.view(mi, "anthropic-cli")}["acc_out"])
+P.add(mi, "openai-oauth", "acc_j", "Plus phụ")
+fj = P.home("openai-oauth", "acc_j")
+claims = {"email": "plus@example.com", "https://api.openai.com/auth": {"chatgpt_plan_type": "plus"}}
+idt = "x." + base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=") + ".y"
+(fj / "auth.json").write_text(json.dumps({"tokens": {"access_token": "a", "id_token": idt}}), encoding="utf-8")
+ij = P.identity("openai-oauth", "acc_j")
+check("an extra ChatGPT account's e-mail and plan come from its own sign-in", ij["email"] == "plus@example.com"
+      and ij["plan"].lower() == "plus", ij)
+(fj / "auth.json").write_text("not json", encoding="utf-8")
+check("an unreadable folder gives an unknown identity, not an error",
+      P.identity("openai-oauth", "acc_j") == {"email": "", "plan": ""})
+
 print()
 if _fails:
     print(f"ĐỎ {len(_fails)}: " + "; ".join(_fails))

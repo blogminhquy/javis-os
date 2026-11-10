@@ -8,6 +8,9 @@ the CLI at it (`CODEX_HOME`, `GROK_HOME`, `CLAUDE_CONFIG_DIR`). The CLI keeps an
 Rotation is sequential: the first account switched on, signed in and not resting runs; one out of quota rests
 (model_routing.mark_rest) and the next takes over; a rested account comes back first once its reset time passes.
 All accounts of a card are used before the next card in the usage order.
+Chat turns, background work, team turns and workflow steps all pick the account this way (team turns and workflow
+steps since 10/11/2026: before, they always ran on account 1, so a team kept answering "You've hit your weekly limit"
+while the card's other account had quota).
 
 What an extra account does NOT carry (stated plainly in the guide): the plan usage meters, image generation and
 the HTTP-only ChatGPT paths (chat without tools, bots) still read account 1. ChatGPT Live calls DO rotate (06/11/2026):
@@ -287,13 +290,59 @@ def remove_folder(provider: str, account_id: str) -> None:
         pass
 
 
+def identity(provider: str, account_id: str) -> dict:
+    """{'email', 'plan'} of an EXTRA account, as its own CLI recorded them in its folder; a value is "" when unknown.
+
+    The card's status line names the account a turn runs on now. It used to show account 1's e-mail and plan whatever
+    account was in use, so a card running on a Max account still read "Pro" (owner's video, 10/11/2026). Account 1 is
+    the card's own login, which the card already reads, so it gets {}. No CLI is started and nothing is guessed."""
+    out = {"email": "", "plan": ""}
+    if account_id == MAIN:
+        return {}
+    folder = home(provider, account_id, create=False)
+    if not folder or not folder.exists():
+        return out
+    try:
+        import plan_limits
+        kind = KIND[provider]
+        if kind == "claude":
+            # `.claude.json` holds the profile Claude Code fetched for this login (no token in it).
+            for f in plan_limits._file_claude_json(folder):
+                try:
+                    acc = (json.loads(f.read_text(encoding="utf-8")) or {}).get("oauthAccount") or {}
+                except (OSError, ValueError, AttributeError):
+                    continue
+                if isinstance(acc, dict) and acc.get("emailAddress"):
+                    out["email"] = str(acc["emailAddress"]).strip()[:120]
+                    break
+            out["plan"] = plan_limits.ten_goi_claude(folder, out["email"])
+        elif kind == "codex":
+            import openai_oauth
+            tok = (json.loads((folder / "auth.json").read_text(encoding="utf-8")) or {}).get("tokens") or {}
+            claims = openai_oauth._decode_jwt_claims(str(tok.get("id_token") or ""))
+            out["email"] = str(claims.get("email") or "").strip()[:120]
+            code = (claims.get("https://api.openai.com/auth") or {}).get("chatgpt_plan_type") or ""
+            out["plan"] = plan_limits.ten_goi(str(code), "codex")
+        elif kind == "grok":
+            import grok_cli
+            st = grok_cli.auth_status(home=folder)
+            out["email"] = str(st.get("account") or "").strip()[:120]
+            out["plan"] = plan_limits.ten_goi(str(st.get("plan") or ""), "grok")
+    except Exception as e:  # noqa: BLE001 - a missing name only shortens the status line
+        print(f"[plan accounts] identity {provider}: {type(e).__name__}: {e}", file=sys.stderr)
+    return out
+
+
 def view(m: dict, provider: str) -> list:
     """What the Models page draws for a plan card's account list."""
     out = []
     for a in accounts(m, provider):
-        out.append({"id": a["id"], "label": a["label"], "enabled": a["enabled"], "main": a["id"] == MAIN,
-                    "signed_in": signed_in(provider, a["id"]),
-                    "resting_until": model_routing.resting_until(provider, a["id"])})
+        row = {"id": a["id"], "label": a["label"], "enabled": a["enabled"], "main": a["id"] == MAIN,
+               "signed_in": signed_in(provider, a["id"]),
+               "resting_until": model_routing.resting_until(provider, a["id"])}
+        if row["signed_in"]:
+            row.update(identity(provider, a["id"]))
+        out.append(row)
     return out
 
 
