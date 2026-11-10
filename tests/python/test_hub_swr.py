@@ -75,6 +75,36 @@ async def main():
     before = len(calls)
     await mcp_hub.discover_all("suggest", vault_root=str(BRAIN))
     check("a partial list keeps the short synchronous rule", len(calls) == before + 1)
+    # 2026-11-10: the same source missing on two dials in a row is a source that stays down. From then on the partial
+    # list is answered at once and the dial moves to the background, instead of every turn waiting out its timeout.
+    age_all(30)
+    before = len(calls)
+    await mcp_hub.discover_all("suggest", vault_root=str(BRAIN))
+    check("same source missing twice in a row: the partial list comes back at once", len(calls) == before)
+    for _ in range(50):
+        await asyncio.sleep(0.01)
+    check("and one dial runs in the background", len(calls) == before + 1 and not mcp_hub._refreshing)
+    age_all(mcp_hub._CACHE_STALE_THIEU_MAX + 5)
+    before = len(calls)
+    await mcp_hub.discover_all("suggest", vault_root=str(BRAIN))
+    check("a partial list too old to serve dials synchronously", len(calls) == before + 1)
+    # the source recovers: the background dial stores a complete list, and the streak is gone
+    age_all(30)
+    partial["on"] = False
+    before = len(calls)
+    await mcp_hub.discover_all("suggest", vault_root=str(BRAIN))
+    for _ in range(50):
+        await asyncio.sleep(0.01)
+    check("recovery is picked up by the background dial", len(calls) == before + 1
+          and all(not e.get("missing") and e.get("missing_streak") == 0 for e in mcp_hub._cache.values()),
+          [(e.get("missing"), e.get("missing_streak")) for e in mcp_hub._cache.values()])
+    partial["on"] = True
+    mcp_hub.invalidate_cache()
+    await mcp_hub.discover_all("suggest", vault_root=str(BRAIN))
+    age_all(30)
+    before = len(calls)
+    await mcp_hub.discover_all("suggest", vault_root=str(BRAIN))
+    check("after a recovery the first new miss gets its synchronous second chance again", len(calls) == before + 1)
     partial["on"] = False
     age_all(120)
     before = len(calls)
@@ -82,6 +112,23 @@ async def main():
     check("force_refresh always dials", len(calls) == before + 1)
 
 asyncio.run(main())
+
+# 2026-11-10: the module cache is capped. Keys that end in a session id never repeat, and one entry is a whole tool table.
+mcp_hub._cache.clear()
+for i in range(mcp_hub._CACHE_MAX + 40):
+    mcp_hub._cache[("full", "v", True, False, False, "", False, "", "", False, f"s{i}")] = {
+        "tools": [], "route": {}, "ts": 1_000_000 + i, "mtime": 0, "epoch": 0}
+import time as _time  # noqa: E402
+_real_time = mcp_hub.time.time
+mcp_hub.time.time = lambda: 1_000_000 + 500
+try:
+    dropped = mcp_hub._prune_cache()
+finally:
+    mcp_hub.time.time = _real_time
+check("the cache is cut back to its cap", len(mcp_hub._cache) == mcp_hub._CACHE_MAX and dropped == 40, len(mcp_hub._cache))
+check("the oldest entries are the ones dropped",
+      min(e["ts"] for e in mcp_hub._cache.values()) == 1_000_000 + 40)
+mcp_hub._cache.clear()
 check("no long dashes in mcp_hub.py", not any(c in (SERVER / "mcp_hub.py").read_text(encoding="utf-8") for c in "–—"))
 
 print()

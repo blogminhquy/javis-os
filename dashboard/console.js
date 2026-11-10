@@ -4971,7 +4971,13 @@
     const parts = [];
     if (cn.sau) parts.push(t("models.cc_upd_ver", { v: cn.sau }));
     if (cn.ts) parts.push(t("models.cc_upd_last", { luc: new Date(cn.ts * 1000).toLocaleString(LOC(), { dateStyle: "short", timeStyle: "short" }) }));
-    box.innerHTML = `${parts.length ? `<div>${esc(parts.join(" · "))}</div>` : ""}
+    // The Claude Agent SDK package follows the same switch (server/sdk_update.py). The running server keeps the
+    // version it started with, so a newer one on disk is announced as waiting for a restart.
+    const sdk = d.sdk || {};
+    const sdkRun = sdk.loaded || sdk.installed;
+    if (sdkRun) parts.push(t("models.cc_sdk_ver", { v: sdkRun }));
+    const sdkWait = sdk.restart_needed && sdk.installed ? `<div>${esc(t("models.cc_sdk_restart", { v: sdk.installed }))}</div>` : "";
+    box.innerHTML = `${parts.length ? `<div>${esc(parts.join(" · "))}</div>` : ""}${sdkWait}
       <div class="cc-auto-row" style="display:flex;align-items:center;gap:10px;margin-top:8px;font-size:16px">
         <label for="cliAutoUpd" style="flex:1;cursor:pointer">${esc(t("models.cc_auto_label"))}${infoBtn()}</label>
         <label class="toggle"><input type="checkbox" id="cliAutoUpd"${autoOn ? " checked" : ""}${envOff ? " disabled" : ""}><span></span></label>
@@ -5003,11 +5009,15 @@
       try { r = await (await fetch("/claude/update", { method: "POST" })).json(); }
       catch (e) { btn.disabled = false; msg.textContent = t("common.net_err"); return; }
       btn.disabled = false;
-      if (!r.ok) { msg.innerHTML = Icons.warn(t("models.cc_upd_fail") + " " + (r.error || "")); return; }
-      if (!r.doi) { msg.textContent = t("models.cc_upd_same", { v: r.sau || "" }); return; }
+      // The same press also looked for a newer Agent SDK: say so after the Claude Code result, whatever that was.
+      const sk = r.sdk || {};
+      const sdkNote = sk.changed ? " " + t("models.cc_sdk_done", { truoc: sk.from || "?", sau: sk.to || "" })
+        : (sk.ok === false && !sk.docker && sk.error ? " " + t("models.cc_sdk_fail") + " " + sk.error : "");
+      if (!r.ok) { msg.innerHTML = Icons.warn(t("models.cc_upd_fail") + " " + (r.error || "") + sdkNote); return; }
+      if (!r.doi) { msg.textContent = t("models.cc_upd_same", { v: r.sau || "" }) + sdkNote; return; }
       const moi = (r.model_moi || []).join(", ");
       msg.innerHTML = CHECK_ICON + " " + esc(t("models.cc_upd_done", { truoc: r.truoc || "?", sau: r.sau })
-        + (moi ? " " + t("models.cc_upd_new", { ds: moi }) : ""));
+        + (moi ? " " + t("models.cc_upd_new", { ds: moi }) : "") + sdkNote);
     };
   }
 

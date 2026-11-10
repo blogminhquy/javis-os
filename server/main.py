@@ -78,6 +78,7 @@ import borrowed_eyes   # mắt mượn: bộ não khác xem hộ ảnh khi model
 import image_vision
 import openai_oauth
 import claude_update   # tự chạy `claude update` hằng ngày để model mới hiện ra
+import sdk_update      # same daily tick: the claude-agent-sdk package moves to newer releases of its series
 import agy_update      # cùng việc đó cho Antigravity CLI: `agy update` hằng ngày (0.137.0)
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
 import winproc         # chạy lệnh con câm lặng trên Windows (không nháy console đen)
@@ -5350,6 +5351,8 @@ def claude_status(refresh: bool = False):
     # The daily-update switch on the card: its state, and whether the env var forces it off.
     d["auto_update"] = claude_update.bat()
     d["auto_update_env_off"] = claude_update.env_off()
+    # 2026-11-10: the Claude Agent SDK package follows the same switch (sdk_update.py). A file read, no subprocess.
+    d["sdk"] = sdk_update.status()
     return d
 
 
@@ -5376,8 +5379,28 @@ async def _cap_nhat_claude(ly_do: str) -> dict:
 
 @app.post("/claude/update")
 async def claude_update_now():
-    """Nút "Cập nhật Claude Code" trên trang Models: chạy ngay, không chờ vòng hằng ngày."""
-    return await _cap_nhat_claude("tay")
+    """Nút "Cập nhật Claude Code" trên trang Models: chạy ngay, không chờ vòng hằng ngày.
+
+    2026-11-10: the same press also looks for a newer Claude Agent SDK (sdk_update.py); its result rides along under
+    `sdk` and never changes whether the Claude Code update itself counts as done."""
+    kq = await _cap_nhat_claude("tay")
+    kq = dict(kq or {})
+    kq["sdk"] = await _update_sdk("manual")
+    return kq
+
+
+async def _update_sdk(reason: str) -> dict:
+    """One SDK update attempt on a worker thread (pip and a check process: minutes, never on the event loop)."""
+    try:
+        r = await asyncio.to_thread(sdk_update.update, reason)
+    except Exception as e:  # noqa: BLE001 - reported, never a broken request or a dead loop
+        r = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    if r.get("changed"):
+        print(f"[sdk update] claude-agent-sdk {r.get('from')} -> {r.get('to')} ({reason}); in use after the next restart",
+              file=sys.stderr)
+    elif not r.get("ok") and not r.get("docker"):
+        print(f"[sdk update] not updated ({reason}): {r.get('error')}", file=sys.stderr)
+    return {**r, **{k: v for k, v in sdk_update.status().items() if k in ("installed", "loaded", "restart_needed")}}
 
 
 @app.on_event("startup")
@@ -5442,6 +5465,11 @@ async def _tu_cap_nhat_claude():
             except Exception as e:
                 print(f"[claude update] vòng tự cập nhật lỗi: {type(e).__name__}: {e}",
                       file=sys.stderr)
+            try:
+                if sdk_update.enabled() and sdk_update.due():
+                    await _update_sdk("auto")
+            except Exception as e:  # noqa: BLE001
+                print(f"[sdk update] daily pass failed: {type(e).__name__}: {e}", file=sys.stderr)
             await asyncio.sleep(3600)
     asyncio.create_task(_vong())
 

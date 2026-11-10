@@ -56,6 +56,17 @@ _CACHE_TTL_THIEU = 10
 # keeps the short synchronous rule above; any change to the connection store (mtime) or invalidate_cache() still
 # drops the entry at once.
 _CACHE_STALE_MAX = 900
+# 2026-11-10: a source that stays down. The short rule above makes every turn dial again after 10 s, and a source that
+# accepts the connection but never answers holds that dial for the full timeout: measured 20 s added to EVERY chat turn
+# for as long as it stays down. Once two dials in a row came back missing the SAME sources, the partial list is served
+# as it is (up to this age) while the next dial runs in the background. The first miss still gets its synchronous
+# second chance, so a source that was only slow once is not written off; a source that recovers shows up one refresh
+# later instead of making everybody wait for it in the meantime.
+_CACHE_STALE_THIEU_MAX = 300
+# Entries of the module cache. One entry is a whole tool table (100 KB to 1 MB), and keys that end in a session id
+# (coding sessions, API-engine background work) never repeat, so without a cap the table of every session that ever
+# ran stayed in memory. Past the cap the oldest entries go; nothing is lost but one dial.
+_CACHE_MAX = 48
 _refreshing: set = set()
 _cache = {}          # (mode, vault_root) -> {"tools", "route", "ts", "mtime"}
 _cache_epoch = 0
@@ -1558,7 +1569,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             task_scope.manifests(lang)  # fresh enabled/source checks on a private cache hit
         return ent["tools"], ent["route"]
     if (not force_refresh and ent and task_scope is None and ent["mtime"] == mt and ent.get("epoch") == epoch
-            and ent.get("ttl", _CACHE_TTL) == _CACHE_TTL and time.time() - ent["ts"] < _CACHE_STALE_MAX):
+            and _stale_servable(ent)):
         if key not in _refreshing:
             _refreshing.add(key)
 
@@ -1674,10 +1685,47 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         # invalidate_cache() ran while this dial was out (0.382.0: a background refresh makes that likelier): the
         # list may predate the change, so hand it to this caller only and do not store it.
         return tools_spec, route
+    missing = frozenset(str(x) for x in bo_qua)
+    prev = cache.get(key)
+    streak = 0
+    if missing:
+        same = bool(prev and prev.get("missing") == missing and prev.get("mtime") == mt and prev.get("epoch") == epoch)
+        streak = (int(prev.get("missing_streak") or 0) + 1) if same else 1
     cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt, 'epoch': epoch,
                    "ttl": _CACHE_TTL_THIEU if bo_qua else _CACHE_TTL,
+                   "missing": missing, "missing_streak": streak,
                    "inventory_tools": inventory_tools, "inventory_route": inventory_route}
+    if cache is _cache:
+        _prune_cache()
     return tools_spec, route
+
+
+def _stale_servable(ent) -> bool:
+    """May this expired entry be answered now while a refresh runs in the background?
+
+    A complete list: yes, up to _CACHE_STALE_MAX (0.382.0). A partial list: only when the same sources have been
+    missing for two dials in a row, and up to _CACHE_STALE_THIEU_MAX (see the constants)."""
+    age = time.time() - ent["ts"]
+    ttl = ent.get("ttl", _CACHE_TTL)
+    if ttl == _CACHE_TTL:
+        return age < _CACHE_STALE_MAX
+    return int(ent.get("missing_streak") or 0) >= 2 and age < _CACHE_STALE_THIEU_MAX
+
+
+def _prune_cache() -> int:
+    """Keep the module cache at _CACHE_MAX entries: drop what is too old to ever be served, then the oldest."""
+    if len(_cache) <= _CACHE_MAX:
+        return 0
+    now, n = time.time(), 0
+    for k in [k for k, e in list(_cache.items()) if now - float(e.get("ts") or 0) >= _CACHE_STALE_MAX]:
+        if _cache.pop(k, None) is not None:
+            n += 1
+    over = len(_cache) - _CACHE_MAX
+    if over > 0:
+        for k, _e in sorted(list(_cache.items()), key=lambda kv: float(kv[1].get("ts") or 0))[:over]:
+            if k not in _refreshing and _cache.pop(k, None) is not None:
+                n += 1
+    return n
 
 
 def registry_inventory(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
