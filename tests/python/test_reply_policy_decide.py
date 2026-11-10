@@ -561,6 +561,55 @@ run(_crt._rp_profile_job({"id": "bot_backoff", "name": "X", "brain": "b", "agent
 check("soạn hỏng và chưa có hồ sơ: lùi ít nhất 25 phút mới thử lại",
       _crt._RP_CHECKED["bot_backoff"] + _crt._RP_CHECK_EVERY_S - _time.time() >= 25 * 60, _crt._RP_CHECKED)
 
+# ---- #1286: reactions and ordinary words must not label an earlier silence `missed` ----------------------------
+_p86 = mk_profile(bot_id="bot_86")
+
+
+def _silent(text, sender="u1", name="Nam"):
+    return {"verdict": "silent", "text": text, "sender": name, "sender_id": sender, "address_level": "none"}
+
+
+_q = "Chị Lan ơi kiểm tra giúp em lịch ngày 15 tháng 11 còn chỗ không"
+_heart = ev('[Chủ shop thả cảm xúc ❤️ vào tin của Nam: "' + _q + '"]', sender=BOSS, name="Chủ shop", ts=NOW + 5,
+            is_reaction=True)
+check("#1286 an owner's reaction on the question is not 'the owner answered'",
+      rp.assign_label(_silent(_q), _heart, "none", _p86) is None)
+_real = ev("Ngày 15 tháng 11 còn chỗ nhé em, chị kiểm tra lịch rồi", sender=BOSS, name="Chủ shop", ts=NOW + 5)
+check("#1286 the owner's real answer on the same topic is still a light missed",
+      rp.assign_label(_silent(_q), _real, "none", _p86) == ("missed", 0.5))
+_r1 = "[u1 thả cảm xúc ❤️ vào một tin nhắn]"
+check("#1286 two reactions in a row from one person are not a re-ask",
+      rp.assign_label(_silent(_r1), ev(_r1, ts=NOW + 5, is_reaction=True), "none", _p86) is None)
+check("#1286 'up ảnh' is an ordinary sentence, not a re-ask",
+      rp.assign_label(_silent("[Nam gửi một sticker]"), ev("chị up ảnh hôm qua lên nhóm giúp em", ts=NOW + 5),
+                      "none", _p86) is None)
+check("#1286 a bare 'up' (or 'up up') is still a re-ask",
+      rp.assign_label(_silent("cho em hỏi giá tour"), ev("up", ts=NOW + 5), "none", _p86) == ("missed", 1.0)
+      and rp.assign_label(_silent("cho em hỏi giá tour"), ev("Up up!", ts=NOW + 5), "none", _p86) == ("missed", 1.0))
+check("#1286 'hỏi lại' inside a long instruction is not a re-ask",
+      rp.assign_label(_silent("[Nam thả cảm xúc 😆 vào một tin nhắn]"),
+                      ev("lát nữa khách nhắn thì em nhớ nhắc hỏi lại số điện thoại giúp anh", ts=NOW + 5),
+                      "none", _p86) is None)
+check("#1286 a short 'em hỏi lại ạ' is still a re-ask",
+      rp.assign_label(_silent("cho em hỏi giá tour"), ev("em hỏi lại ạ", ts=NOW + 5), "none", _p86) == ("missed", 1.0))
+check("#1286 a long specific phrase still counts anywhere",
+      rp.assign_label(_silent("cho em hỏi giá tour"), ev("mọi người ơi sao không ai trả lời em hết vậy ạ", ts=NOW + 5),
+                      "none", _p86) == ("missed", 1.0))
+
+_st86 = st
+_dec86 = st.log_decision({"bot_id": "bot_86", "chat_id": "g86", "ts": NOW, "text": _q, "sender": "Nam",
+                          "sender_id": "u1", "verdict": "silent", "address_level": "none", "mode": "on"}, NOW)
+st.add_watch(_dec86, "bot_86", "g86", NOW + 3600, 5)
+_out86 = rp.observe(ev('[Chủ shop thả cảm xúc ❤️ vào tin của Nam: "' + _q + '"]', bot_id="bot_86", chat="g86",
+                       sender=BOSS, name="Chủ shop", ts=NOW + 5, is_reaction=True), _p86, _st86, now=NOW + 5)
+check("#1286 observe: the owner's reaction labels nothing and leaves the chat threshold alone",
+      _out86 == [] and not _st86.get_decision(_dec86).get("label"), (_out86, _st86.get_decision(_dec86)))
+_out86 = rp.observe(ev("Ngày 15 tháng 11 còn chỗ nhé em, chị kiểm tra lịch rồi", bot_id="bot_86", chat="g86",
+                       sender=BOSS, name="Chủ shop", ts=NOW + 9), _p86, _st86, now=NOW + 9)
+check("#1286 observe: a label inferred from the owner's answer is an automatic case, not an owner-taught one",
+      [(x[1], x[2]) for x in _out86] == [("missed", 0.5)] and _st86.count_cases("bot_86", "owner") == 0
+      and _st86.count_cases("bot_86", "auto") == 1, (_out86, _st86.list_cases("bot_86")))
+
 print()
 if _fails:
     print(f"{len(_fails)} FAIL")
