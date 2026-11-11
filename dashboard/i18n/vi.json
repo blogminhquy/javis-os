@@ -481,6 +481,7 @@
   "wz.user_ph": "Ví dụ: admin",
   "wz.pass_ph": "Để trống nếu không đặt mật khẩu",
   "wz.s2_req": "(bắt buộc)",
+  "wz.pass2_ph": "Gõ lại đúng mật khẩu ở trên",
   "wz.pass_ph_req": "Tối thiểu 8 ký tự",
   "app.login_cookie_lost": "Mật khẩu đúng, nhưng trình duyệt không giữ được phiên đăng nhập nên chưa vào được. Thường do một trong ba điều: mở Javis bằng http:// trong khi tên miền đã có https (hãy mở bằng https://), trình duyệt hoặc chế độ ẩn danh đang chặn cookie, hoặc máy chủ chạy hai bản Javis cùng địa chỉ khác cổng và bạn đăng nhập cả hai trong cùng một trình duyệt.",
   "wz.s3": "3. Nhà cung cấp AI (bộ não)",
