@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.538.0] - 2026-11-11
+### Improved
+- **Welcome screen: the password is typed twice.** When the two boxes differ Javis says so at once and takes you to the box to fix, before any account is created. One mistyped character no longer locks you out of a fresh install.
+- **An eye button shows the password.** One tap shows both boxes so they are easy to compare, another tap hides them again.
+
 ## [0.537.0] - 2026-11-11
 ### Improved
 - **A tidier composer on a phone.** The plan usage ring, the model name and the effort level are now one pill (for example "Opus 5.5 Medium"), and the model name is no longer cut down to "Op...".
