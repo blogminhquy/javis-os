@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.537.0] - 2026-11-11
+### Improved
+- **A tidier composer on a phone.** The plan usage ring, the model name and the effort level are now one pill (for example "Opus 5.5 Medium"), and the model name is no longer cut down to "Op...".
+- **Tapping the pill opens one sheet from the bottom** with all three: plan usage (one line per window), the effort slider with Fast mode, and the model list with its search box. Picking a model closes the sheet; so do X, the dimmed area and pulling it down.
+- A computer keeps its three buttons and three small popovers as before.
+
 ## [0.536.0] - 2026-11-11
 ### Added
 - **A "Same assistants, confirm all" button per pack** on the Collaborators page. When Javis still has to ask about several assistants of one pack, one click answers for all of them.
