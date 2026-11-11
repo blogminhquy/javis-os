@@ -1,0 +1,13 @@
+name: Theo dõi TikTok đối thủ (Apify)
+name_en: "TikTok competitor watch (Apify)"
+slug: tiktok-monitor-apify
+version: 1.0.0
+description: Quét video mới của kênh TikTok công khai, chỉ ra video vượt hẳn mức thường của kênh, rồi nhờ Gemini mổ xẻ hook, nhịp dựng, cách bán để áp dụng cho kênh mình. Dùng token Apify sẵn có, không đụng tài khoản TikTok.
+description_en: "Scans the latest videos of public TikTok channels, flags the ones far above the channel's usual views, then has Gemini break down their hook, pacing and pitch so you can reuse the pattern. Uses your Apify token, never a TikTok account."
+author: Javis (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - tiktok_monitor
+  - tiktok_analyze_video
+hooks: []
