@@ -70,6 +70,8 @@
     realestate: "building-2",
     // Investment compass page (compass.js): when to tilt toward property, stocks, crypto, gold or savings.
     compass: "compass",
+    // Disk cleanup page (cleanup.js): duplicates and look-alike photos on drives, mapped drives and NAS.
+    cleanup: "brush-cleaning",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -115,7 +117,7 @@
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "tasks", "webhooks", "learn", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage", "markets", "realestate", "compass", "logins", "pet", "share",
+    "packs", "logs", "account", "usage", "markets", "realestate", "compass", "cleanup", "logins", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -134,7 +136,7 @@
     // 0.347.0: the "Code" group is gone (owner, 27/10/2026): every chat now works in a folder and
     // can code, so a separate Coding area is redundant. Terminal lives here; Coding stays a real
     // page (old links, voice commands) but is hidden from the rail, see RAIL_AN.
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON.nang_luc,    ids: ["workspace", "teams", "conversations", "skills", "plugins", "terminal"] },
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON.nang_luc,    ids: ["workspace", "teams", "conversations", "skills", "plugins", "terminal", "cleanup"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON.viec,        ids: ["tasks", "webhooks"] },
     // Research group: market monitoring pages (Markets, Real estate).
     { id: "nghien_cuu", get label() { return t("nav.group.nghien_cuu"); }, icon: GICON.nghien_cuu, ids: ["markets", "realestate", "compass"] },
@@ -194,7 +196,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "tasks", "webhooks", "chatbots", "conversations", "learn", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "markets", "realestate", "compass", "pet", "share", "logins"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "tasks", "webhooks", "chatbots", "conversations", "learn", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "markets", "realestate", "compass", "cleanup", "pet", "share", "logins"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -553,7 +555,7 @@
   // Trang nào cần nhóm code nạp chậm nào (nap-cham.js, khối javis-lazy trong index.html).
   const NHOM_TRANG = {
     workspace: ["congviec"], teams: ["congviec", "teams"], packs: ["packs"], plugins: ["packs"], mcp: ["packs"],
-    conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"], markets: ["markets"], realestate: ["batdongsan"], compass: ["labandautu"],
+    conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"], markets: ["markets"], realestate: ["batdongsan"], compass: ["labandautu"], cleanup: ["donodia"],
     tasks: ["nhiemvu"],
   };
   // Performance (2026-11-05): pointing at (or touching) a page in the side rail starts loading that page's code, so by the
@@ -660,6 +662,15 @@
       }
       _pageLeave = () => { try { window.JavisCompass.unmount(); } catch (e) {} };
       return window.JavisCompass.mount(el);
+    }
+    if (id === "cleanup") {
+      // Disk cleanup page, cleanup.js (lazy group "donodia").
+      if (!window.JavisCleanup) {
+        el.innerHTML = placeholder("cleanup", window.t("cs.mod_not_ready", { ten: "cleanup.js" }));
+        return;
+      }
+      _pageLeave = () => { try { window.JavisCleanup.unmount(); } catch (e) {} };
+      return window.JavisCleanup.mount(el);
     }
     if (id === "logins") {
       // 0.251.0: the Login vault page lives in login-vault.js, delegated like the Packs page.

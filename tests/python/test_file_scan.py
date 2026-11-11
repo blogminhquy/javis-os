@@ -82,6 +82,19 @@ if os.name == "nt":
     check("a folder at the top of a drive is a top folder", fs._is_top("E:\\Windows") and not fs._is_top("E:\\a\\Windows"))
 else:
     check("a folder at the top of the filesystem is a top folder", fs._is_top("/proc") and not fs._is_top("/home/proc"))
+check("mount escapes are decoded", fs._unescape_mount(r"E:\134") == "E:\\" and fs._unescape_mount(r"/mnt/my\040disk") == "/mnt/my disk")
+gh = fs.classify_mount("E:\\", "/github", "9p", "ro,noatime,aname=drvfs;path=E:\\;uid=0")
+check("a Docker Desktop bind mount reads as the host drive, read-only",
+      gh == {"path": "/github", "kind": "local", "host": "E:\\", "fs": "9p", "readonly": True}, gh)
+nas = fs.classify_mount("//nas/share", "/mnt/nas", "cifs", "rw,vers=3.0")
+check("a cifs mount is a network drive with its share", nas and nas["kind"] == "network" and nas["unc"] == "//nas/share"
+      and "readonly" not in nas, nas)
+check("system and hidden mounts are not offered",
+      all(fs.classify_mount(s, m, t, "rw") is None for s, m, t in (
+          ("/dev/sde", "/etc/hostname", "ext4"), ("/dev/sde", "/home/javis/.claude", "ext4"), ("proc", "/proc", "proc"),
+          ("E:\\", "/certs", "9p"), ("overlay", "/", "overlay"))))
+check("a USB disk under /media is removable",
+      fs.classify_mount("/dev/sdb1", "/media/usb", "vfat", "rw")["kind"] == "removable")
 drives = fs.list_drives()
 check("drives are listed with a kind", isinstance(drives, list) and all("path" in d and "kind" in d for d in drives))
 
@@ -224,8 +237,129 @@ try:
 finally:
     fs.scan = orig_scan
 
+# ---- quarantine: move, refuse the last copy, restore, purge
+clean = base / "clean"
+doc = os.urandom(150_000)
+write(clean / "A" / "report.pdf", doc, mtime=1_600_000_000)
+write(clean / "B" / "report.pdf", doc, mtime=1_650_000_000)
+write(clean / "C" / "report.pdf", doc, mtime=1_700_000_000)
+solo = os.urandom(90_000)
+write(clean / "pair1.bin", solo)
+write(clean / "pair2.bin", solo)
+fs.scan([str(clean)], images=False)
+qa, qb, qc = (str(clean / x / "report.pdf") for x in "ABC")
+p1, p2 = str(clean / "pair1.bin"), str(clean / "pair2.bin")
+
+res = fs.quarantine([p1, p2])
+check("choosing every copy refuses all of them (the last copy always stays)",
+      not res["moved"] and {r["reason"] for r in res["refused"]} == {"last_copy"} and os.path.exists(p1) and os.path.exists(p2), res)
+check("a cleanup that moved nothing leaves no batch", res["batch"] == "" and not [b for b in fs.batches() if b["files"]])
+check("an unknown path is refused", fs.quarantine([str(clean / "nope.txt")])["refused"][0]["reason"] == "not_indexed")
+
+res = fs.quarantine([qb, qc], note="test")
+batch = res["batch"]
+qdir = clean / fs.QUARANTINE_DIR / batch
+check("two of three copies move into quarantine", len(res["moved"]) == 2 and res["bytes"] == 2 * len(doc), res)
+check("moved files sit under .javis-quarantine with the same relative path",
+      (qdir / "B" / "report.pdf").exists() and (qdir / "C" / "report.pdf").exists() and not os.path.exists(qb))
+check("the keeper stays where it was", os.path.exists(qa) and res["moved"][0]["keeper"] == qa)
+check("quarantined copies leave the duplicate list",
+      not any(os.path.basename(g["keep"]) == "report.pdf" for g in fs.duplicates([str(clean)])))
+bl = fs.batches()
+check("the batch is listed with its files and note", bl and bl[0]["id"] == batch and bl[0]["files"] == 2
+      and bl[0]["note"] == "test" and bl[0]["state"] == "quarantined", bl[:1])
+res2 = fs.scan([str(clean)], images=False)
+check("a rescan skips the quarantine folder", res2["files"] == 3, res2)
+check("after a rescan there are still no report duplicates",
+      not any(os.path.basename(g["keep"]) == "report.pdf" for g in fs.duplicates([str(clean)])))
+
+# A copy that changed after the scan is refused.
+write(clean / "D" / "x.txt", b"same text here")
+write(clean / "E" / "x.txt", b"same text here")
+fs.scan([str(clean)], images=False)
+write(clean / "E" / "x.txt", b"edited text!!!", mtime=1_800_000_000)
+check("a copy edited since the scan is refused",
+      fs.quarantine([str(clean / "E" / "x.txt")])["refused"][0]["reason"] == "changed")
+
+out = fs.restore(batch)
+check("restore puts every file back", sorted(out["restored"]) == sorted([qb, qc]) and os.path.exists(qb) and os.path.exists(qc), out)
+check("restore removes the empty quarantine folders", not (clean / fs.QUARANTINE_DIR).exists())
+check("restored files are back in the duplicate list",
+      any(os.path.basename(g["keep"]) == "report.pdf" and g["count"] == 3 for g in fs.duplicates([str(clean)])))
+check("a restored batch is marked restored", fs.batches()[0]["state"] == "restored")
+try:
+    fs.restore(batch)
+    check("restoring twice says there is nothing left", False)
+except fs.QuarantineError:
+    check("restoring twice says there is nothing left", True)
+
+res = fs.quarantine([qc])
+write(Path(qc), b"someone put a new file here")
+out = fs.restore(res["batch"])
+check("a restore never overwrites a file that took the old place",
+      out["kept"] and out["kept"][0]["reason"] == "taken" and Path(qc).read_bytes() == b"someone put a new file here", out)
+check("the copy that could not go back stays in quarantine", fs.batches()[0]["state"] == "quarantined")
+out = fs.purge(res["batch"])
+check("purge deletes only the quarantined copy", out["deleted"] == 1 and out["bytes"] == len(doc)
+      and Path(qc).read_bytes() == b"someone put a new file here" and os.path.exists(qa), out)
+check("purge removes the empty quarantine folders", not (clean / fs.QUARANTINE_DIR).exists())
+check("a purged batch is marked purged", fs.batches()[0]["state"] == "purged")
+
+# ---- look-alike photos (needs Pillow)
+if fs.pillow_ready():
+    from PIL import Image, ImageDraw
+    pics = base / "pics"
+    pics.mkdir()
+    big = Image.new("RGB", (1200, 900))
+    d = ImageDraw.Draw(big)
+    for i in range(0, 1200, 40):
+        d.rectangle([i, 0, i + 20, 900], fill=(i % 255, 90, 200 - i % 150))
+    d.ellipse([300, 200, 900, 700], fill=(250, 220, 40))
+    big.save(pics / "original.jpg", quality=95)
+    big.resize((600, 450)).save(pics / "small copy.jpg", quality=70)
+    other = Image.new("RGB", (1200, 900), (20, 20, 20))
+    ImageDraw.Draw(other).rectangle([0, 0, 600, 900], fill=(240, 240, 240))
+    other.save(pics / "other.jpg", quality=90)
+    res = fs.scan([str(pics)])
+    check("photos get a fingerprint during the scan", res.get("images") == 3, res)
+    sim = fs.similar([str(pics)])
+    check("a resized copy is found as a look-alike", len(sim) == 1 and sim[0]["count"] == 2, sim)
+    check("the larger picture is suggested to keep", sim and sim[0]["keep"].endswith("original.jpg") and sim[0]["files"][0]["w"] == 1200)
+    check("a different picture is not grouped", not any(f["path"].endswith("other.jpg") for g in sim for f in g["files"]))
+    check("a thumbnail is a small JPEG of an indexed photo", (fs.thumbnail(str(pics / "original.jpg")) or b"")[:2] == b"\xff\xd8")
+    check("no thumbnail for a file outside the index", fs.thumbnail(str(base / "nope.jpg")) is None
+          and fs.thumbnail(str(root / "Docs" / "note.txt")) is None)
+    small = str(pics / "small copy.jpg")
+    check("a look-alike is refused unless look-alikes are allowed", fs.quarantine([small])["refused"][0]["reason"] == "last_copy")
+    res = fs.quarantine([small], allow_similar=True)
+    check("with look-alikes allowed the smaller copy moves", len(res["moved"]) == 1 and not os.path.exists(small), res)
+    fs.restore(res["batch"])
+    check("and comes back on restore", os.path.exists(small))
+    check("byte-identical photos stay in duplicates, not look-alikes",
+          not any(os.path.basename(g["keep"]) == "beach.jpg" for g in fs.similar()))
+else:
+    print("skip look-alike photo checks: Pillow not installed")
+
+# ---- plugin ops for cleanup
+check("quarantine and restore need full, similar and batches are read-only",
+      tool["op_modes"]["quarantine"] == "full" and tool["op_modes"]["restore"] == "full"
+      and tool["op_modes"]["similar"] == "readonly" and tool["op_modes"]["batches"] == "readonly")
+check("there is no delete-for-good op in the tool", "purge" not in m.OPS and "delete" not in m.OPS)
+out = asyncio.run(h({"op": "quarantine", "paths": [qb]}, ctx))
+check("quarantine through the tool names the batch and how to restore", "cách ly" in out and "op=restore" in out, out)
+bid = fs.batches()[0]["id"]
+out = asyncio.run(h({"op": "batches"}, ctx))
+check("batches through the tool lists the batch", bid in out, out)
+out = asyncio.run(h({"op": "restore", "batch": bid}, ctx))
+check("restore through the tool", "Đã khôi phục 1 file" in out and os.path.exists(qb), out)
+check("restore without a batch -> clear error", asyncio.run(h({"op": "restore"}, ctx)).startswith("ERROR"))
+check("quarantine without paths -> clear error", asyncio.run(h({"op": "quarantine"}, ctx)).startswith("ERROR"))
+if fs.pillow_ready():
+    out = asyncio.run(h({"op": "similar"}, ctx))
+    check("similar through the tool lists the look-alike group", "original.jpg" in out and "gần giống" in out, out)
+
 for f in (Path(__file__), ROOT / "server/file_scan.py", ROOT / "system/plugins/javis-files/plugin.py",
-          ROOT / "system/plugins/javis-files/plugin.yaml"):
+          ROOT / "system/plugins/javis-files/plugin.yaml", ROOT / "dashboard/cleanup.js", ROOT / "dashboard/cleanup.css"):
     check(f"no em dash in {f.name}", "\u2014" not in f.read_text(encoding="utf-8"))
 
 print(f"\n{len(_fails)} failed" if _fails else "\nall passed")

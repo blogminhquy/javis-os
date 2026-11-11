@@ -268,7 +268,7 @@ Mở Javis → bộ cài đặt sẽ dẫn bạn qua:
 
 > 📚 **Tài liệu chi tiết:** xem thư mục **[docs/](../../../docs/README.md)** - hướng dẫn từng chức năng (mở ở đâu, bấm gì, dùng thế nào). Bảng dưới là bản đồ nhanh; cột **Chi tiết** dẫn tới trang hướng dẫn tương ứng.
 
-Thanh điều hướng bên trái gom **25 trang** thành **6 nhóm** (bấm tên nhóm để mở):
+Thanh điều hướng bên trái gom **26 trang** thành **6 nhóm** (bấm tên nhóm để mở):
 
 | Nhóm | Mục | Làm gì | Chi tiết |
 |---|---|---|---|
@@ -283,6 +283,7 @@ Thanh điều hướng bên trái gom **25 trang** thành **6 nhóm** (bấm tê
 | | **Chatbot** | Đem Agent ra trả lời khách qua bot Telegram/Zalo/Slack/WhatsApp/Lark riêng, brain riêng. | [Chatbot](../../../docs/25-chatbot.md) |
 | | **Hội thoại** | Hộp thư gom mọi cuộc chat khách nhắn cho bot và Zalo cá nhân; đọc lại, tiếp quản khi cần người thật. | [Hội thoại khách](../../../docs/28-hoi-thoai-khach.md) |
 | | **Terminal** | **Dòng lệnh thật** của máy chạy Javis, mở ngay trong trình duyệt - khỏi mở SSH. | [Terminal](../../../docs/27-tab-code-terminal.md) |
+| | **Dọn ổ đĩa** | Quét ổ máy, ổ mạng map và NAS; gom file trùng và ảnh gần giống; chuyển bản thừa vào cách ly, khôi phục được. | |
 | **Việc** | **Việc** | Hàng đợi task nền do AI tự đặc tả và tự chạy; bạn chỉ xử lý ngoại lệ. | [Việc (Kanban)](../../../docs/21-viec-kanban.md) |
 | | **Việc định kỳ** | Nhiều vòng lặp chạy nền + nhắc hẹn theo giờ hoặc cron. | [Việc định kỳ & Nhắc hẹn](../../../docs/08-viec-dinh-ky.md) |
 | **Nghiên cứu** | **Thị trường** | Chứng khoán Việt Nam, thế giới, tiền số: bảng giá, biểu đồ, chỉ báo kỹ thuật và tab Dự báo biến động. | Hỏi Javis trong chat (công cụ `javis_market`) |

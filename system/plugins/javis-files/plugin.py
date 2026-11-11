@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Bundled plugin: `javis_files`, scan drives (local, mapped, NAS) and find duplicate files, for every engine.
+"""Bundled plugin: `javis_files`, scan drives (local, mapped, NAS), find duplicates and look-alike photos, quarantine.
 
-Version 1 is read-only on the owner's files. The work lives in server/file_scan.py; this file only turns tool calls
-into scans and readable answers.
+The work lives in server/file_scan.py; this file only turns tool calls into scans and readable answers. The Disk
+cleanup page (dashboard/cleanup.js) shares the same index and the same background scan.
 
   drives      readonly  local, removable and network drives (mapped letters with their UNC path, NAS mounts)
   scan        readonly  starts a background scan, waits up to `wait` seconds, then answers with progress
@@ -11,6 +11,12 @@ into scans and readable answers.
   duplicates  readonly  groups of identical files from the index, biggest waste first
   stats       readonly  space by file type, heaviest folders, biggest files
   report      safe      writes the full Markdown report into the brain's exports/ folder
+  similar     readonly  look-alike photo groups (needs Pillow)
+  batches     readonly  quarantine batches and what is in them
+  quarantine  full      MOVES chosen copies into <scanned folder>/.javis-quarantine/<batch>/ (refuses the last copy)
+  restore     full      puts a quarantine batch back
+
+There is deliberately no tool to delete for good: emptying quarantine is a button on the Disk cleanup page.
 
 A finished scan that outlived its chat turn leaves a note in the bell (inbox), so the result is never lost.
 Tool text sent to the model stays Vietnamese (docs/dev/them-mot-ngon-ngu.md).
@@ -24,7 +30,11 @@ from pathlib import Path
 
 import file_scan as fs
 
-OPS = ("drives", "scan", "status", "cancel", "duplicates", "stats", "report")
+OPS = ("drives", "scan", "status", "cancel", "duplicates", "stats", "report", "similar", "batches", "quarantine",
+       "restore")
+_REFUSED_VI = {"not_indexed": "chưa có trong chỉ mục (quét lại)", "changed": "đã thay đổi từ lần quét trước",
+               "last_copy": "là bản cuối cùng, không còn bản nào khác giữ lại", "outside_root": "nằm ngoài thư mục đã quét",
+               "os_error": "lỗi khi di chuyển"}
 _KIND_VI = {"local": "ổ trong máy", "removable": "ổ rời/USB", "network": "ổ mạng/NAS", "optical": "ổ đĩa quang",
             "ramdisk": "ổ RAM", "unknown": "không rõ"}
 _CAT_VI = {"image": "Ảnh", "video": "Video", "audio": "Âm thanh", "document": "Tài liệu", "archive": "File nén",
@@ -71,7 +81,10 @@ def _summary_text(res: dict) -> str:
         lines.append(f"{res['errors']:,} thư mục hoặc file không đọc được (thiếu quyền hoặc mạng chập chờn).")
     for g in groups[:5]:
         lines.append(f"- {os.path.basename(g['keep'])}: {g['count']} bản, thừa {fs.human_size(g['wasted'])}")
-    lines.append("Chưa di chuyển hay xoá file nào. Dùng op=duplicates để xem chi tiết, op=report để lưu báo cáo đầy đủ.")
+    if res.get("images"):
+        lines.append(f"Đã lập dấu vân tay cho {res['images']:,} ảnh; op=similar để xem ảnh gần giống.")
+    lines.append("Chưa di chuyển hay xoá file nào. Dùng op=duplicates để xem chi tiết, op=report để lưu báo cáo đầy đủ, "
+                 "hoặc mở trang Dọn ổ đĩa để chọn và dọn.")
     return "\n".join(lines)
 
 
@@ -116,6 +129,10 @@ def register(ctx):
                 s = f"- `{d['path']}` ({_KIND_VI.get(d['kind'], d['kind'])})"
                 if d.get("unc"):
                     s += f", trỏ tới `{d['unc']}`"
+                if d.get("host"):
+                    s += f", là `{d['host']}` của máy chủ Docker"
+                if d.get("readonly"):
+                    s += ", CHỈ ĐỌC (quét được, không dọn được)"
                 if d.get("label"):
                     s += f", tên \"{d['label']}\""
                 if d.get("total"):
@@ -187,7 +204,8 @@ def register(ctx):
                     out.append(f"   trùng: {c}")
                 if len(g["copies"]) > 10:
                     out.append(f"   ... và {len(g['copies']) - 10} bản nữa")
-            out.append("Phiên bản này CHỈ ĐỌC: không có lệnh xoá. Nếu người dùng muốn dọn, hướng dẫn họ tự kiểm tra rồi xoá.")
+            out.append("Muốn dọn: op=quarantine với paths là các bản 'trùng' người dùng đã đồng ý (chuyển vào cách ly, "
+                       "hoàn tác được), hoặc chỉ họ sang trang Dọn ổ đĩa.")
             return "\n".join(out)
 
         if op == "stats":
@@ -217,6 +235,67 @@ def register(ctx):
             return (f"Đã lưu báo cáo: exports/{name}. Gửi người dùng link [{name}](exports/{name}) để mở. "
                     "Báo cáo chỉ liệt kê, chưa đụng tới file nào.")
 
+        if op == "similar":
+            if not fs.pillow_ready():
+                return "ERROR: máy chưa cài Pillow nên chưa tìm được ảnh gần giống (pip install Pillow rồi khởi động lại Javis)."
+            limit = max(1, min(int(args.get("limit") or 15), 60))
+            groups = await asyncio.to_thread(fs.similar, roots)
+            if not groups:
+                return "Không có nhóm ảnh gần giống nào (hoặc chưa quét ảnh: op=scan)."
+            out = [f"{len(groups):,} nhóm ảnh gần giống (đổi cỡ, nén lại, chỉnh nhẹ). Bản đề xuất giữ là ảnh lớn nhất:"]
+            for i, g in enumerate(groups[:limit], 1):
+                out.append(f"{i}. {g['count']} ảnh, các bản phụ chiếm {fs.human_size(g['bytes'])}")
+                for f in g["files"][:8]:
+                    tag = "giữ" if f["path"] == g["keep"] else "phụ"
+                    out.append(f"   {tag}: {f['path']} ({f['w']}x{f['h']}, {fs.human_size(f['size'])})")
+            out.append("Ảnh gần giống KHÔNG giống hệt: chỉ dọn khi người dùng đã xem và đồng ý (op=quarantine, similar=true).")
+            return "\n".join(out)
+
+        if op == "batches":
+            bs = await asyncio.to_thread(fs.batches)
+            live = [b for b in bs if b["state"] == "quarantined"]
+            if not bs:
+                return "Chưa có lần dọn nào."
+            out = [f"{len(live)} lần dọn còn file trong cách ly:"]
+            for b in bs[:20]:
+                out.append(f"- {b['id']}: {b['files']} file, {fs.human_size(b['bytes'])}, trạng thái {b['state']}"
+                           + (f", ghi chú: {b['note']}" if b["note"] else ""))
+            out.append("Khôi phục: op=restore batch=<mã>. Xoá hẳn chỉ làm được trên trang Dọn ổ đĩa.")
+            return "\n".join(out)
+
+        if op == "quarantine":
+            paths = args.get("paths") or []
+            if isinstance(paths, str):
+                paths = [x for x in paths.replace("\n", ";").split(";")]
+            paths = [str(x).strip() for x in paths if str(x or "").strip()]
+            if not paths:
+                return "ERROR: cần paths, danh sách các bản trùng muốn chuyển vào cách ly."
+            if fs.JOB.running():
+                return "ERROR: đang có lượt quét chạy, đợi xong rồi hãy dọn."
+            res = await asyncio.to_thread(fs.quarantine, paths, bool(args.get("similar")), str(args.get("note") or ""))
+            out = []
+            if res["moved"]:
+                out.append(f"Đã chuyển {len(res['moved'])} file ({fs.human_size(res['bytes'])}) vào cách ly, mã lần dọn "
+                           f"{res['batch']}. File nằm trong thư mục .javis-quarantine ngay trong thư mục đã quét, khôi "
+                           f"phục được bằng op=restore batch={res['batch']} hoặc trên trang Dọn ổ đĩa.")
+            for r in res["refused"][:20]:
+                out.append(f"Không chuyển {r['path']}: {_REFUSED_VI.get(r['reason'], r['reason'])}.")
+            return "\n".join(out) or "Không chuyển file nào."
+
+        if op == "restore":
+            batch = str(args.get("batch") or "").strip()
+            if not batch:
+                return "ERROR: cần batch (mã lần dọn, xem op=batches)."
+            try:
+                res = await asyncio.to_thread(fs.restore, batch)
+            except fs.QuarantineError:
+                return f"ERROR: lần dọn {batch} không còn file nào trong cách ly."
+            out = [f"Đã khôi phục {len(res['restored'])} file về chỗ cũ."]
+            for k in res["kept"][:20]:
+                why = {"taken": "chỗ cũ đã có file khác", "missing": "không còn trong cách ly"}.get(k["reason"], k["reason"])
+                out.append(f"Chưa khôi phục {k['path']}: {why}.")
+            return "\n".join(out)
+
         return "ERROR: op phải là một trong " + ", ".join(OPS) + "."
 
     ctx.register_tool(
@@ -224,13 +303,16 @@ def register(ctx):
         description=(
             "Quét file trên máy chạy Javis: ổ trong máy, USB, ổ mạng map (Z:\\) hoặc NAS (\\\\ten-nas\\thu-muc, hoặc "
             "thư mục đã mount trên Linux/macOS); tìm file TRÙNG GIỐNG HỆT (so dung lượng, rồi băm đầu cuối, rồi băm toàn "
-            "bộ), thống kê dung lượng theo loại và thư mục. CHỈ ĐỌC: không di chuyển, không xoá. "
+            "bộ), ảnh GẦN GIỐNG (op=similar), thống kê dung lượng. "
             "op=drives (liệt kê ổ, gồm ổ mạng), op=scan (roots=[...], exclude=[...], min_size_kb, wait giây; chạy nền, "
             "lần sau chỉ băm file đã đổi), op=status, op=cancel, op=duplicates (limit, roots để lọc), op=stats, "
-            "op=report (lưu báo cáo Markdown vào exports/ của brain). Chưa rõ quét chỗ nào thì hỏi người dùng."),
+            "op=report (lưu báo cáo Markdown vào exports/ của brain). Dọn: op=quarantine paths=[bản trùng] (similar=true "
+            "cho ảnh gần giống) CHUYỂN file vào thư mục cách ly, từ chối bản cuối cùng; op=batches, op=restore batch=<mã>. "
+            "Không có lệnh xoá hẳn (chỉ trên trang Dọn ổ đĩa). Chưa rõ quét chỗ nào thì hỏi người dùng."),
         handler=_handle, min_mode="readonly", emoji="🗂️",
         op_modes={"drives": "readonly", "scan": "readonly", "status": "readonly", "cancel": "readonly",
-                  "duplicates": "readonly", "stats": "readonly", "report": "safe"},
+                  "duplicates": "readonly", "stats": "readonly", "report": "safe", "similar": "readonly",
+                  "batches": "readonly", "quarantine": "full", "restore": "full"},
         schema={"type": "object", "properties": {
             "op": {"type": "string", "enum": list(OPS)},
             "roots": {"type": "array", "items": {"type": "string"},
@@ -238,6 +320,10 @@ def register(ctx):
             "exclude": {"type": "array", "items": {"type": "string"}, "description": "Thư mục bỏ qua"},
             "min_size_kb": {"type": "integer", "description": "Bỏ qua file nhỏ hơn (KB) khi tìm trùng"},
             "wait": {"type": "number", "description": "Số giây chờ lượt quét (mặc định 45, tối đa 110)"},
-            "limit": {"type": "integer", "description": "Số nhóm trùng trả về (mặc định 20)"}},
+            "limit": {"type": "integer", "description": "Số nhóm trùng trả về (mặc định 20)"},
+            "paths": {"type": "array", "items": {"type": "string"}, "description": "op=quarantine: các bản cần chuyển vào cách ly"},
+            "similar": {"type": "boolean", "description": "op=quarantine: cho phép dọn ảnh gần giống (không giống hệt)"},
+            "note": {"type": "string", "description": "op=quarantine: ghi chú cho lần dọn"},
+            "batch": {"type": "string", "description": "op=restore: mã lần dọn"}},
             "required": ["op"]},
     )

@@ -20,7 +20,7 @@ import unicodedata
 PAGES = (
     "home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "tasks", "webhooks", "learn", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage", "markets", "realestate", "compass", "logins", "pet", "share",
+    "packs", "logs", "account", "usage", "markets", "realestate", "compass", "cleanup", "logins", "pet", "share",
 )
 
 # Bí danh người dùng hay nói, ánh xạ về id trang. Thường hoá không dấu trước khi tra, nên viết
@@ -51,6 +51,9 @@ ALIASES = {
     "realestate": "realestate", "thi truong bat dong san": "realestate", "thi truong nha dat": "realestate",
     "la ban dau tu": "compass", "compass": "compass", "investment compass": "compass", "chien luoc dau tu": "compass",
     "nen dau tu gi": "compass", "dau tu vao dau": "compass", "phan bo von": "compass", "phan bo tai san": "compass",
+    "don o dia": "cleanup", "don dep o dia": "cleanup", "file trung": "cleanup", "tep trung": "cleanup",
+    "anh trung": "cleanup", "anh gan giong": "cleanup", "cach ly": "cleanup", "disk cleanup": "cleanup",
+    "duplicate files": "cleanup", "cleanup": "cleanup", "quet o dia": "cleanup",
     "kho dang nhap": "logins", "dang nhap": "logins", "cookie": "logins", "cookies": "logins",
     "logins": "logins", "login vault": "logins", "tai khoan dang nhap": "logins",
     "code": "terminal", "ma": "terminal", "nhat ky": "logs", "log": "logs",

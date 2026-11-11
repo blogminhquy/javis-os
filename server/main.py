@@ -13685,6 +13685,150 @@ async def compass_discard():
 
 
 # ============================================================
+# Disk cleanup page (file_scan.py): scan drives, mapped drives and NAS, identical duplicates, look-alike photos,
+# quarantine with undo. Scans run on file_scan.JOB, shared with the javis_files tool, so a scan started from the chat
+# shows its progress here too.
+# ============================================================
+def _fs_scan_state() -> dict:
+    import file_scan as fsn
+    st = dict(fsn.JOB.state)
+    st["running"] = fsn.JOB.running()
+    st["pillow"] = fsn.pillow_ready()
+    return st
+
+
+@app.get("/filescan/drives")
+async def filescan_drives():
+    import file_scan as fsn
+    return {"ok": True, "drives": await asyncio.to_thread(fsn.list_drives)}
+
+
+@app.get("/filescan/status")
+async def filescan_status():
+    return {"ok": True, **_fs_scan_state()}
+
+
+@app.post("/filescan/scan")
+async def filescan_scan(request: Request):
+    import file_scan as fsn
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    roots = [str(r).strip() for r in (body.get("roots") or []) if str(r or "").strip()]
+    if not roots:
+        return {"ok": False, "message": localefmt.chu("Chọn ổ hoặc nhập thư mục cần quét.", "Pick a drive or type a folder to scan.")}
+    for r in roots:
+        if not await asyncio.to_thread(os.path.isdir, fsn.normalize_root(r)):
+            return {"ok": False, "message": localefmt.chu(
+                f"Không mở được {r}. Ổ mạng hoặc NAS: kiểm tra đã bật và đã đăng nhập thư mục chia sẻ.",
+                f"Cannot open {r}. For a network drive or NAS: check it is on and the share is signed in.")}
+    excludes = [str(x) for x in (body.get("exclude") or []) if str(x or "").strip()]
+    if not fsn.JOB.start(roots, excludes, images=bool(body.get("images", True))):
+        return {"ok": False, "message": localefmt.chu("Đang có một lượt quét chạy.", "A scan is already running.")}
+    return {"ok": True, **_fs_scan_state()}
+
+
+@app.post("/filescan/cancel")
+async def filescan_cancel():
+    import file_scan as fsn
+    return {"ok": fsn.JOB.cancel()}
+
+
+@app.get("/filescan/overview")
+async def filescan_overview():
+    import file_scan as fsn
+
+    def build():
+        st = fsn.stats(None, 10)
+        groups = fsn.duplicates(None)
+        st["dup_groups"] = len(groups)
+        st["dup_wasted"] = sum(g["wasted"] for g in groups)
+        return st
+    return {"ok": True, **(await asyncio.to_thread(build))}
+
+
+@app.get("/filescan/duplicates")
+async def filescan_duplicates(min_kb: int = 0, limit: int = 50, offset: int = 0):
+    import file_scan as fsn
+    groups = await asyncio.to_thread(fsn.duplicates, None, max(1, int(min_kb) * 1024))
+    limit = max(1, min(int(limit), 200))
+    offset = max(0, int(offset))
+    return {"ok": True, "total": len(groups), "wasted": sum(g["wasted"] for g in groups),
+            "groups": groups[offset:offset + limit]}
+
+
+@app.get("/filescan/similar")
+async def filescan_similar(limit: int = 40, offset: int = 0):
+    import file_scan as fsn
+    if not fsn.pillow_ready():
+        return {"ok": False, "pillow": False, "groups": [], "total": 0}
+    groups = await asyncio.to_thread(fsn.similar, None)
+    limit = max(1, min(int(limit), 200))
+    offset = max(0, int(offset))
+    return {"ok": True, "pillow": True, "total": len(groups), "groups": groups[offset:offset + limit]}
+
+
+@app.get("/filescan/thumb")
+async def filescan_thumb(path: str = Query("")):
+    import file_scan as fsn
+    data = await asyncio.to_thread(fsn.thumbnail, path)
+    if not data:
+        return Response(status_code=404)
+    return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@app.get("/filescan/quarantine")
+async def filescan_batches():
+    import file_scan as fsn
+    return {"ok": True, "batches": await asyncio.to_thread(fsn.batches)}
+
+
+@app.post("/filescan/quarantine")
+async def filescan_quarantine(request: Request):
+    import file_scan as fsn
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    paths = [str(p) for p in (body.get("paths") or []) if str(p or "").strip()]
+    if not paths:
+        return {"ok": False, "message": localefmt.chu("Chưa chọn file nào.", "No file selected.")}
+    if fsn.JOB.running():
+        return {"ok": False, "message": localefmt.chu("Đợi lượt quét xong rồi hãy dọn.", "Wait for the scan to finish first.")}
+    res = await asyncio.to_thread(fsn.quarantine, paths, bool(body.get("similar")), str(body.get("note") or ""))
+    return {"ok": True, **res}
+
+
+@app.post("/filescan/restore")
+async def filescan_restore(request: Request):
+    import file_scan as fsn
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        return {"ok": True, **(await asyncio.to_thread(fsn.restore, str(body.get("batch") or "")))}
+    except fsn.QuarantineError:
+        return {"ok": False, "message": localefmt.chu("Không còn file nào của lần dọn này trong cách ly.",
+                                                      "Nothing from this cleanup is left in quarantine.")}
+
+
+@app.post("/filescan/purge")
+async def filescan_purge(request: Request):
+    import file_scan as fsn
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        return {"ok": True, **(await asyncio.to_thread(fsn.purge, str(body.get("batch") or "")))}
+    except fsn.QuarantineError:
+        return {"ok": False, "message": localefmt.chu("Không còn file nào của lần dọn này trong cách ly.",
+                                                      "Nothing from this cleanup is left in quarantine.")}
+
+
+# ============================================================
 # Paper trading (market_paper.py): three virtual accounts trading by fixed rules on live prices.
 # ============================================================
 def _paper_kind(kind: str):
