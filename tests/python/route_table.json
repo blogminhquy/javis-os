@@ -8346,5 +8346,15 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 838,
+  "type": "APIRoute",
+  "path": "/zalo/send-group-text",
+  "name": "zalo_send_group_text",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

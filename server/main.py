@@ -361,7 +361,8 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/health", "/auth/status", "/auth/log
 # script mode, full permission level) or push a file to Telegram without logging in. _auth_guard now asks
 # _direct_local_request(), which also refuses requests carrying a forwarding header. The in-process callers
 # (javis_schedule, the curl recipes the engines run) call 127.0.0.1 directly and send no such header.
-_AUTH_LOCAL_EXACT = ("/telegram/send-file", "/reminders", "/reminders/cancel", "/reminders/update")
+_AUTH_LOCAL_EXACT = ("/telegram/send-file", "/reminders", "/reminders/cancel", "/reminders/update",
+                     "/zalo/send-group-text")
 
 
 def duong_dan_router(request) -> str:
@@ -33200,3 +33201,30 @@ async def plan_limits_get(goi: int = 0):
 async def batch_reads(request: Request):
     import read_batch
     return await read_batch.handle(app, request)
+
+
+@app.post("/zalo/send-group-text")
+async def zalo_send_group_text(payload: dict = Body(...)):
+    """Send ONE text to ONE Zalo GROUP through a Zalo connection of this machine.
+
+    Called by the owner's class website (Send All on the attendance page) with curl-style localhost access, so it is
+    login-exempt through `_AUTH_LOCAL_EXACT` + `_local_tool_call` (a browser page cannot reach it).
+    Body: {"conn_id": "<Zalo connection id>", "thread_id": "<group id>", "text": "<message>"}.
+    GROUPS ONLY by design: the owner never writes to students in private chats, so this route has no private mode.
+    Returns {"ok": true} only when Zalo took the message, else {"ok": false, "error": "..."}; never raises."""
+    b = payload or {}
+    conn_id = str(b.get("conn_id") or "").strip()
+    thread_id = str(b.get("thread_id") or "").strip()
+    text = str(b.get("text") or "").strip()
+    if not (conn_id and thread_id and text):
+        return {"ok": False, "error": "conn_id, thread_id and text are all required"}
+    if not thread_id.isdigit():
+        return {"ok": False, "error": "thread_id must be a Zalo group id (digits only)"}
+    if len(text) > 4000:
+        return {"ok": False, "error": "text is longer than 4000 characters"}
+    from channels import zalo_personal
+    try:
+        ok, err = await zalo_personal.gui({"id": conn_id}, thread_id, text, "group")
+    except Exception as e:  # noqa: BLE001 - the caller shows this to the owner, so never a 500
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"[:300]}
+    return {"ok": bool(ok), "error": "" if ok else str(err or "Zalo refused")[:300]}
