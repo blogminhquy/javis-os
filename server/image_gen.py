@@ -372,6 +372,11 @@ def _image_account_order() -> list:
         m = (config.read_settings().get("model") or {})
         if plan_accounts.has_extra(m, "openai-oauth"):
             return [a["id"] for a in plan_accounts.usable(m, "openai-oauth")]
+        # On one-account installations keep the original credential path, but
+        # honour an explicit owner choice to disable that sole account.
+        if not any(a["id"] == "main" and a["enabled"]
+                   for a in plan_accounts.accounts(m, "openai-oauth")):
+            return []
     except Exception:
         pass
     return ["main"]
