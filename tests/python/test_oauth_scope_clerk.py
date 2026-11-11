@@ -41,15 +41,15 @@ CLERK = ["openid", "profile", "email", "public_metadata", "private_metadata", "o
 
 # ---- 1. Chọn phạm vi
 check("CANARY: không có nguồn nào khác thì vẫn dùng danh sách máy chủ đăng nhập",
-      oauth_mcp._chon_scopes({"scopes_supported": CLERK}, {}) == CLERK)
+      oauth_mcp._pick_scopes({"scopes_supported": CLERK}, {}) == CLERK)
 check("protected resource metadata thắng danh sách máy chủ đăng nhập",
-      oauth_mcp._chon_scopes({"scopes_supported": CLERK, "_prm_scopes": ["openid", "email"]}, {}) == ["openid", "email"])
+      oauth_mcp._pick_scopes({"scopes_supported": CLERK, "_prm_scopes": ["openid", "email"]}, {}) == ["openid", "email"])
 check("scope trong WWW-Authenticate thắng tất cả",
-      oauth_mcp._chon_scopes({"scopes_supported": CLERK, "_prm_scopes": ["openid"], "_www_scope": "mcp:tools email"}, {})
+      oauth_mcp._pick_scopes({"scopes_supported": CLERK, "_prm_scopes": ["openid"], "_www_scope": "mcp:tools email"}, {})
       == ["mcp:tools", "email"])
 check("phạm vi đã bị từ chối thì bỏ ở mọi nguồn",
-      "private_metadata" not in oauth_mcp._chon_scopes({"scopes_supported": CLERK}, {"blocked_scopes": ["private_metadata"]}))
-check("scope_omit: không gửi phạm vi nào", oauth_mcp._chon_scopes({"scopes_supported": CLERK}, {"scope_omit": True}) == [])
+      "private_metadata" not in oauth_mcp._pick_scopes({"scopes_supported": CLERK}, {"blocked_scopes": ["private_metadata"]}))
+check("scope_omit: không gửi phạm vi nào", oauth_mcp._pick_scopes({"scopes_supported": CLERK}, {"scope_omit": True}) == [])
 check("đọc được tên phạm vi trong lời báo của Clerk",
       oauth_mcp._scope_bi_tu_choi("OAuth 2.0 Client is not allowed to request scope 'private_metadata'.") == ["private_metadata"])
 
