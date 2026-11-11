@@ -21,9 +21,10 @@ gì được nạp) rồi trả về đúng cái sắp xảy ra kèm `sha256`. `
 người gọi đưa lại đúng sha256 đó - ràng buộc này làm cái đã hiện ra trên màn hình phải chính là
 cái được cài.
 """
+import inspect
 import sys
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -48,6 +49,9 @@ class PacksDeps:
     co_phien: Callable[[Request], bool]
     lam_moi_hub: Callable[[], None]
     brain_root: Callable[[str], str]
+    # 2026-11-11: a pack just placed or removed assistant files in this brain root. main brings the Auto registry in
+    # step (agent_presence.sync) and tells the open tabs. May be async. Default: nothing (tests, tools).
+    agents_changed: Callable[[str], Any] = lambda root: None
 
 
 _DEPS: PacksDeps = None
@@ -150,6 +154,27 @@ def _items_brain(pid: str, brain: str) -> dict:
         return {"brain": "", "name": "", "present": 0, "other": False}
 
 
+async def _agents_changed(root: str) -> None:
+    """Tell main that the assistant files of brain `root` changed. Never fails the install or uninstall it follows."""
+    if not root:
+        return
+    try:
+        res = _DEPS.agents_changed(root)
+        if inspect.isawaitable(res):
+            await res
+    except Exception as e:  # noqa: BLE001
+        print(f"[packs] agents_changed: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def _pack_brain(pid: str) -> str:
+    """The brain root that holds the items pack `pid` placed, "" when it placed none."""
+    try:
+        import pack_vault
+        return str(pack_vault.doc_so(pid).get("brain") or "")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _tu_choi():
     return JSONResponse({"ok": False, "error": localefmt.chu("Cần đăng nhập vào Javis để quản lý gói.",
                                                          "Sign in to Javis to manage packs.")},
@@ -201,12 +226,16 @@ def _make_router() -> APIRouter:
         # Brain ĐANG MỞ lúc bấm Cài. Agent/workflow/skill thuộc về một brain cụ thể (khác
         # connector và plugin vốn dùng chung mọi brain), nên "cài vào tất cả" là áp đặt: người
         # dùng có brain việc và brain cá nhân, và họ không muốn mọi thứ ở cả hai nơi.
+        root = _DEPS.brain_root(str(d.get("brain") or "brain"))
         r = pack_install.cai(str(d.get("staging_id") or ""),
                              str(d.get("consent_sha256") or ""),
                              enable=bool(d.get("enable")), nguon=ng,
-                             brain_root=_DEPS.brain_root(str(d.get("brain") or "brain")))
+                             brain_root=root)
         if r.get("ok"):
             _DEPS.lam_moi_hub()
+            # The pack's assistants are back in the brain: the Auto registry takes its own back at once, so nobody
+            # has to open the Partners page (or confirm 17 cards) before a team or a goal can use them again.
+            await _agents_changed(root)
         return r if r.get("ok") else JSONResponse(r, status_code=400)
 
     @router.post("/packs/toggle")
@@ -237,11 +266,16 @@ def _make_router() -> APIRouter:
         if not _DEPS.co_phien(request):
             return _tu_choi()
         d = await request.json()
+        # BEFORE the files go: the registry records that these assistants are this pack's own (their origin), which
+        # is what lets it take them back without asking when the pack is installed again. AFTER: it sees them gone.
+        root = _pack_brain(str(d.get("id") or "").strip())
+        await _agents_changed(root)
         r = await pack_install.go(str(d.get("id") or ""),
                                   purge_data=bool(d.get("purge_data")),
                                   purge_audit=bool(d.get("purge_audit")))
         if r.get("ok"):
             _DEPS.lam_moi_hub()
+            await _agents_changed(root)
         return r if r.get("ok") else JSONResponse(r, status_code=409)
 
     @router.get("/packs/store")

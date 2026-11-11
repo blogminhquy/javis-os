@@ -21,6 +21,7 @@ Spec: [2026-10-13-team-chat-design.md](../superpowers/specs/2026-10-13-team-chat
   - `app.js` đổi gói thành sự kiện `javis:resonance-agents-changed`; trang Cộng sự, bảng bên phải và trang Cài đặt tải lại trạng thái thật.
 - **`.gitignore`:** thêm `server/resonance.sqlite3*` và `server/team.sqlite3*`, vì server chạy từ worktree mà không đặt `JAVIS_STATE_DIR` sẽ ghi các kho này vào `server/`.
 - **Hợp đồng A1 giữ nguyên:** chỉ chủ đổi được; `missing` cần xác nhận; tắt luôn được; trạng thái của phiên đang mở vẫn do bảng bên phải hỏi host (`session_id` ở `GET`).
+  Từ 2026-11-11 host tự nhận lại mã `missing` trong hai trường hợp không có gì để quyết, xem [auto-agent-restore.md](auto-agent-restore.md).
 
 ## Kiểm
 

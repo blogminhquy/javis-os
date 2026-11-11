@@ -369,6 +369,34 @@ def brain_of(pack_id: str, open_root: str = "") -> dict:
     return {"brain": brain, "name": Path(brain).name if brain else "", "present": present, "other": other}
 
 
+def agent_packs(brain_root: str) -> dict:
+    """{agent slug: pack id} for the agent files of this brain that a pack placed and nobody changed since.
+
+    The Auto registry asks this to tell "the pack put its own agent back" from "some file showed up under an old
+    name" (owner report 2026-11-11). Only an untouched file counts: one the user edited, or wrote by hand over the
+    pack's, is the user's and says nothing about where the agent came from. Never raises."""
+    out = {}
+    try:
+        root = Path(brain_root).resolve()
+        ledgers = sorted(HIEU_UNG_DIR.glob("*.json")) if HIEU_UNG_DIR.is_dir() else []
+    except OSError:
+        return out
+    for f in ledgers:
+        try:
+            so = json.loads(f.read_text(encoding="utf-8"))
+            if not isinstance(so, dict) or not so.get("brain") or Path(so["brain"]).resolve() != root:
+                continue
+            for m in (so.get("items") or {}).values():
+                if not isinstance(m, dict) or m.get("loai") != "agents":
+                    continue
+                p = _where(m)
+                if p is not None and p.is_file() and m.get("hash") and _hash(p) == m.get("hash"):
+                    out.setdefault(p.stem, f.stem)
+        except (OSError, ValueError):
+            continue
+    return out
+
+
 def ke_hoach_go(pack_id: str) -> dict:
     """Gỡ gói này thì mất năng lực nào, và giữ lại cái nào vì người dùng đã sửa."""
     so = doc_so(pack_id)

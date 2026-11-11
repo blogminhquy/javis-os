@@ -23,6 +23,7 @@ from typing import Any, Callable, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+import agent_presence
 import localefmt
 import resonance as R
 import resonance_store as RS
@@ -291,6 +292,12 @@ def register_agents(app, deps: ResonanceApiDeps):
                 if reg else 0,
                 "reviewer": _reviewer_of(store, root, reg)}
 
+    def _pack_of(packs: dict, slug: str) -> dict:
+        """The Store pack that placed this assistant's file, untouched since (`pack` "" when it is the user's own).
+        The Partners page groups the assistants that need confirmation by it, to confirm a whole pack at once."""
+        pid = packs.get(slug) or ""
+        return {"pack": pid, "pack_name": agent_presence.pack_name(pid) if pid else ""}
+
     def _reviewer_of(store, root: str, reg: Optional[dict]) -> Optional[dict]:
         """A5: người review đang chọn cho agent làm này (theo mã bền), hay None. Không suy từ tag hay slug."""
         if reg is None or not hasattr(store, "team_pair"):
@@ -321,16 +328,18 @@ def register_agents(app, deps: ResonanceApiDeps):
             return {"ok": True, "agents": [{"slug": m["slug"], "name": m.get("name") or m["slug"],
                                             "support": R.engine_support(m.get("provider") or ""), "registered": False,
                                             "agent_key": None, "enabled": False, "status": "unregistered",
-                                            "config_version": None, "goals_open": 0, "reviewer": None} for m in metas],
+                                            "config_version": None, "goals_open": 0, "reviewer": None,
+                                            "pack": "", "pack_name": ""} for m in metas],
                     "orphans": [], "unassigned": 0, "legacy_brain_switch": R.enabled_for(root),
                     "session": "needs_new_session" if slug and session_id else None}
         store = deps.store()
         have = {m["slug"] for m in metas}
         # Mã còn `active` mà file đã mất: chốt `missing` ngay khi host thấy (review A1 tích hợp, P1-2), như cổng chung.
-        for a in store.agents(root):
-            if a["status"] == "active" and a["slug"] not in have:
-                store.agent_mark_missing(root, a["agent_key"])
-        rows = [_agent_row(store, root, m) for m in metas]
+        # 2026-11-11: the same pass records which Store pack an assistant's file comes from, and puts a `missing`
+        # assistant back without asking when there is nothing to decide (agent_presence).
+        packs = agent_presence.pack_map(root)
+        agent_presence.sync(store, root, have, packs)
+        rows = [dict(_agent_row(store, root, m), **_pack_of(packs, m["slug"])) for m in metas]
         # Mã còn sống mà file không còn (xoá tay, đổi tên tay): hiện riêng để chủ dự án thấy, kèm mục tiêu đang kẹt.
         orphans = [{"slug": a["slug"], "agent_key": a["agent_key"], "status": a["status"], "enabled": a["enabled"],
                     "goals_open": len(store.list_open(owner, agent_key=a["agent_key"]))}
@@ -402,6 +411,8 @@ def register_agents(app, deps: ResonanceApiDeps):
             return _err(404, "Chưa có trợ lý nào đăng ký", "No registered assistant")
         body = await _body(request)
         store = deps.store()
+        if str(body.get("pack") or "").strip():
+            return await _confirm_pack(store, root, owner, str(body.get("pack")).strip())
         cur = store.agent_by_key(root, str(body.get("agent_key") or ""))
         if cur is None:
             return _err(404, "Không có trợ lý này trong brain", "No such assistant in this brain")
@@ -416,6 +427,30 @@ def register_agents(app, deps: ResonanceApiDeps):
             store.wake_agent_goals(root, a["agent_key"], "chủ dự án xác nhận trợ lý")
         await _announce_agents(deps)
         return {"ok": True, "agent": a}
+
+    async def _confirm_pack(store, root: str, owner, pack_id: str):
+        """`pack` in the body of /resonance/agents/confirm (2026-11-11): the owner says "same assistant" for EVERY
+        assistant of one Store pack that is waiting, in one click. The set is worked out here, never taken from the
+        client: `missing` keys whose file is back and is that pack's own untouched file. Always "same": a new
+        identity is a per-assistant decision and stays on the assistant's own panel."""
+        def _run():
+            packs = agent_presence.pack_map(root)
+            done = []
+            for a in store.agents(root):
+                if a["status"] != "missing" or packs.get(a["slug"]) != pack_id \
+                        or deps.agent_file(root, a["slug"]) is None:
+                    continue
+                try:
+                    got = store.agent_confirm(owner, a["agent_key"], True)
+                except RS.AgentStateError:
+                    continue
+                if got["enabled"]:
+                    store.wake_agent_goals(root, got["agent_key"], "chủ dự án xác nhận trợ lý")
+                done.append(got)
+            return done
+        done = await asyncio.to_thread(_run)
+        await _announce_agents(deps)
+        return {"ok": True, "agents": done, "confirmed": len(done)}
 
     @app.post("/goals/{goal_id}/assign")
     async def goal_assign(goal_id: str, request: Request, brain: str = "brain"):

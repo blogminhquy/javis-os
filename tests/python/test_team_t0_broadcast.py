@@ -47,6 +47,9 @@ sent.clear()
 
 
 # Xác nhận trợ lý `missing` cũng phát gói: file mất (host đánh dấu missing khi đọc), có lại, chủ bấm "Đúng trợ lý cũ".
+# 2026-11-11: Auto is turned back on first. With Auto off and no open goal the host restores the assistant by itself
+# when the file is back (nothing to decide), so there would be nothing left to confirm.
+c.post(f"/resonance/agents/toggle?brain={BR}", json={"slug": "viet-bai", "enabled": True})
 f = BR / "agents" / "viet-bai.md"
 tmp = BR / "viet-bai.tmp"
 f.rename(tmp)

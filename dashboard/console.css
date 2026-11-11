@@ -2107,6 +2107,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-tag-note.loi { background: var(--warn-wash, rgba(255, 122, 60, .12)); color: var(--text); }
 .ws-tag-note-x { flex: none; margin-left: auto; background: none; border: 0; color: inherit; cursor: pointer; padding: 0; }
 .ws-tag-note-x svg { width: 13px; height: 13px; }
+/* 2026-11-11: assistants of one Store pack waiting for "same assistant?": the count, then one button for all of them. */
+.ws-pack-confirm { flex-wrap: wrap; align-items: center; background: var(--warn-wash, rgba(255, 122, 60, .12)); color: var(--text); }
+.ws-pack-confirm-text { flex: 1 1 160px; min-width: 0; }
+.ws-pack-confirm-btn { flex: none; min-height: 32px; }
+@media (max-width: 600px) { .ws-pack-confirm-btn { min-height: 44px; flex: 1 1 100%; justify-content: center; } }
 .ws-tag-new { display: flex; gap: 6px; padding: 4px 6px 6px; }
 .ws-tag-new .ws-tag-in { flex: 1 1 auto; min-width: 0; padding: 6px 8px; border-radius: 7px;
   border: 1px solid var(--line, var(--surface-2)); background: var(--surface-1); color: var(--text); font: inherit; font-size: 13px; }
