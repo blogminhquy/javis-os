@@ -160,6 +160,7 @@ import agent_runtime           # Phase 11: agent = workflow có quyền replan t
 import resonance               # Javis Resonance MVP: một lượt engine chỉ chữ + receipt do host quan sát
 import resonance_store         # Javis Resonance MVP: kho mục tiêu SQLite có revision (M2)
 import resonance_api           # Javis Resonance MVP: API thẻ mục tiêu và phản hồi (M4)
+import agent_presence          # Auto registry in step with the assistant files (pack reinstall, 2026-11-11)
 import limit_learner          # học hạn mức từ chính lỗi nhà cung cấp trả về
 import limit_resume           # tự chạy lại lượt chat khi gói thuê bao mở lại hạn mức
 import quota_scheduler        # sổ cái TPM dùng chung (Việc 6)
@@ -3181,6 +3182,22 @@ def _resonance_agents_meta_core(root):
     except Exception as e:  # noqa: BLE001
         print(f"[resonance meta core] {type(e).__name__}: {e}", file=sys.stderr)
     return out + _resonance_agents_meta(root)
+
+
+async def _pack_agents_changed(root: str) -> None:
+    """A Store pack just placed or removed assistant files in brain `root` (2026-11-11): bring the Auto registry in
+    step right away (agent_presence.sync) and tell the open tabs when a state changed. No registry yet: nothing to do,
+    and none is created just for this."""
+    if _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+        return
+    bkey = _brain_key(root)
+
+    def _run():
+        slugs = [m["slug"] for m in _resonance_agents_meta_core(bkey)]
+        return agent_presence.sync(_resonance_store(), bkey, slugs)
+    res = await asyncio.to_thread(_run)
+    if res["missing"] or res["restored"]:
+        await _CHAT_RUNTIME.publish({"type": "resonance_agents"})
 
 
 _RESONANCE_API_DEPS = resonance_api.ResonanceApiDeps(
@@ -6449,6 +6466,7 @@ packs_routes.register(app, packs_routes.PacksDeps(
     # main.py, mà lời gọi register phải nằm đúng chỗ này để giữ thứ tự route. Lambda hoãn
     # việc tra tên tới lúc thật sự gọi, khi đó hàm đã tồn tại.
     brain_root=lambda b: _brain_root(b),
+    agents_changed=lambda root: _pack_agents_changed(root),
 ))
 
 # Công cụ TUỲ CHỌN (trình duyệt cho Javis tự kiểm thử giao diện). Đăng ký NGAY SAU trang Gói vì
