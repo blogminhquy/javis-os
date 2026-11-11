@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.536.0] - 2026-11-11
+### Added
+- **A "Same assistants, confirm all" button per pack** on the Collaborators page. When Javis still has to ask about several assistants of one pack, one click answers for all of them.
+### Fixed
+- **Reinstalling a Store pack no longer asks to confirm Auto for each assistant.** Uninstall a pack and install it again (for example ECC: Engineering team) and Javis takes its assistants back as the same ones: Auto switch, goals and conversations stay. A file you wrote yourself under an old assistant's name is still asked about, as before.
+- **An assistant with Auto off and no open goal no longer shows "Needs confirmation"** when its file goes missing and comes back.
+
 ## [0.535.0] - 2026-11-11
 ### Added
 - **Click a file Javis made outside the brain to open it.** For example, a deck in ~/Documents. The chat used to show the file name as plain text. Now the full path is a link that opens the file in its default app on the computer, like a double click in Finder.
