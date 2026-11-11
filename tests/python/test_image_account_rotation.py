@@ -105,6 +105,12 @@ image_gen._mot_luot = success
 result = asyncio.run(image_gen.generate_chatgpt("single account"))
 check("single account behaviour remains unchanged", result.get("ok") and calls == ["primary"])
 
+# An explicitly disabled sole login must not generate any images.
+settings["model"]["accounts"]["openai-oauth"][0]["enabled"] = False
+calls.clear()
+result = asyncio.run(image_gen.generate_chatgpt("owner disabled the only account"))
+check("disabled sole account is never used", not result.get("ok") and calls == [])
+
 print()
 if failures:
     print(f"{len(failures)} FAIL")
