@@ -9484,17 +9484,34 @@
     ]);
   }
 
+  // Everything one row can do, in ONE menu behind its "..." button (owner, 2026-11-11: "there are getting to be many
+  // functions and the row is hard to read; gather them into a three-dot button that opens a pop-up"). Five buttons
+  // per row left the name half its width on a phone; now a row is its name and one button, and a new action is one
+  // more line here, not one more icon on every row.
+  function _vtRowMenu(button, rel, it, isDir) {
+    _vtMenu(button, [
+      { icon: "file-text", label: window.t(isDir ? "cs.vt_create_file" : "cs.vt_create_file_here"), run: () => _vtAddFile(rel, isDir) },
+      { icon: "folder-plus", label: window.t(isDir ? "cs.vt_create_dir" : "cs.vt_create_dir_here"), run: () => _vtAddFolder(rel, isDir) },
+      ..._vtPinItems(rel, isDir),
+      { sep: true },
+      { icon: "download", label: window.t(isDir ? "cs.fm_zip_btn" : "common.download"), run: () => { if (isDir) _dlFolder(rel, it.name); else _dlFile(rel); } },
+      { icon: "pencil", label: window.t("cs.fm_rename"), run: () => _vtRename(rel, it.name) },
+      { icon: "trash-2", label: window.t("common.delete"), danger: true, run: () => _vtDelete(rel, it.name, isDir) },
+    ]);
+  }
+
   // Pin a folder to the top of the tree, or have it open when the tree loads (2026-11-11). Both are saved per brain
-  // on the server (vault-pins.js), so every device shows the same tree.
-  function _vtPinMenu(button, rel) {
+  // on the server (vault-pins.js), so every device shows the same tree. Only a folder of the brain gets them.
+  function _vtPinItems(rel, isDir) {
     const pins = window.JavisVaultPins;
-    const path = pins.toBrain(rel, _vtHome || ""); if (!path) return;
+    const path = isDir ? pins.toBrain(rel, _vtHome || "") : null; if (!path) return [];
     const prefs = pins.current(fbrain());
     const pinned = pins.has(prefs.pinned, path), keptOpen = pins.has(prefs.open, path);
-    _vtMenu(button, [
+    return [
+      { sep: true },
       { icon: pinned ? "pin-off" : "pin", label: window.t(pinned ? "cs.vt_unpin" : "cs.vt_pin"), run: () => _vtTogglePref(rel, path, "pinned") },
       { icon: keptOpen ? "folder" : "folder-open", label: window.t(keptOpen ? "cs.vt_open_off" : "cs.vt_open_on"), run: () => _vtTogglePref(rel, path, "open") },
-    ]);
+    ];
   }
 
   async function _vtTogglePref(rel, path, field) {
@@ -9511,20 +9528,26 @@
     }
   }
 
+  // The small pop-up of the Vault tree. An item is { icon, label, run, danger } or { sep: true } (a thin line between
+  // groups). It opens under the button, or above it when there is no room below, and never leaves the screen.
   function _vtMenu(button, items) {
     document.getElementById("vtCreateMenu")?.remove();
     const menu = document.createElement("div");
     menu.id = "vtCreateMenu"; menu.className = "vt-create-menu";
     menu.setAttribute("popover", "auto");
-    menu.innerHTML = items.map(item => `<button type="button">${ic(item.icon)} ${esc(item.label)}</button>`).join("");
-    menu.querySelectorAll("button").forEach((item, index) => {
-      item.onclick = () => { menu.remove(); items[index].run(); };
+    menu.setAttribute("role", "menu");
+    menu.innerHTML = items.map((item, index) => item.sep ? '<hr>'
+      : `<button type="button" role="menuitem" data-i="${index}"${item.danger ? ' class="danger"' : ""}>${ic(item.icon)} ${esc(item.label)}</button>`).join("");
+    menu.querySelectorAll("button").forEach(item => {
+      item.onclick = () => { menu.remove(); items[Number(item.dataset.i)].run(); };
     });
     document.body.appendChild(menu);
-    const rect = button.getBoundingClientRect();
-    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 220)) + "px";
-    menu.style.top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 110)) + "px";
     menu.showPopover();
+    const rect = button.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
+    const below = rect.bottom + 4;
+    const top = below + h <= window.innerHeight - 8 ? below : rect.top - h - 4;
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8)) + "px";
+    menu.style.top = Math.max(8, Math.min(top, window.innerHeight - h - 8)) + "px";
     menu.querySelector("button").focus();
     menu.addEventListener("toggle", () => { if (!menu.matches(":popover-open")) menu.remove(); });
   }
@@ -9587,8 +9610,7 @@
     const isDir = it.type === "dir";
     const pins = window.JavisVaultPins;
     const brainPath = isDir ? pins.toBrain(rel, _vtHome || "") : null;   // null: not a folder of this brain
-    const prefs = brainPath ? pins.current(fbrain()) : null;
-    const pinned = !!prefs && pins.has(prefs.pinned, brainPath);
+    const pinned = !!brainPath && pins.has(pins.current(fbrain()).pinned, brainPath);
     const wrap = document.createElement("div"); wrap.className = "vt-branch";
     const node = document.createElement("div");
     node.className = "vt-node"; node.dataset.rel = rel; node.dataset.name = it.name;
@@ -9597,20 +9619,10 @@
       + `<span class="vt-ico">${isDir ? ic("folder") : _fileIcon(it.ext)}</span>`
       + `<span class="vt-name">${esc(it.name)}${pinnedFrom ? ` <span class="vt-from">${esc(pinnedFrom)}</span>` : ""}</span>`
       + (pinned ? `<span class="vt-pinmark" title="${esc(window.t("cs.vt_pinned"))}">${ic("pin")}</span>` : "")
-      + `<span class="vt-act"><button data-a="add" title="${esc(window.t(isDir ? "cs.vt_add_in" : "cs.vt_add_same"))}">＋</button>`
-      + (brainPath ? `<button data-a="pin"${pinned || pins.has(prefs.open, brainPath) ? ' class="on"' : ""} title="${esc(window.t("cs.vt_pin_title"))}">${ic("pin")}</button>` : "")
-      + `<button data-a="dl" title="${esc(window.t(isDir ? "cs.fm_zipfolder_title" : "cs.fm_dl_title"))}">⤓</button>`
-      + `<button data-a="ren" title="${esc(window.t("cs.fm_rename"))}">${ic("pencil")}</button><button data-a="del" title="${esc(window.t("common.delete"))}">${ic("trash-2")}</button></span>`;
+      + `<span class="vt-act"><button type="button" data-a="more" aria-haspopup="menu" title="${esc(window.t("cs.vt_more"))}" aria-label="${esc(window.t("cs.vt_more"))}">${ic("ellipsis")}</button></span>`;
     if (!isDir && rel === _vtActivePath) node.classList.add("active");
-    node.querySelectorAll(".vt-act button").forEach(b => b.onclick = (e) => {
-      e.stopPropagation();
-      const a = b.dataset.a;
-      if (a === "add") _vtCreateMenu(b, rel, isDir);
-      else if (a === "pin") _vtPinMenu(b, rel);
-      else if (a === "dl") { if (isDir) _dlFolder(rel, it.name); else _dlFile(rel); }
-      else if (a === "ren") _vtRename(rel, it.name);
-      else _vtDelete(rel, it.name, isDir);
-    });
+    const more = node.querySelector('.vt-act button[data-a="more"]');
+    more.onclick = (e) => { e.stopPropagation(); _vtRowMenu(more, rel, it, isDir); };
     wrap.appendChild(node);
     if (isDir) {
       const childBox = document.createElement("div"); childBox.className = "vt-children vt-hidden";

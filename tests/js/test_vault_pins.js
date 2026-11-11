@@ -142,11 +142,25 @@ function makeEnv() {
   check("pinning redraws from the listings already loaded, without asking the server for every open folder",
     /if \(!keepCache\) \{ _vtCache\.clear\(\); _vtIndex = null; \}/.test(rebuild)
     && /await _vtRebuildReExpand\(field === "open" && turnedOn \? rel : null, true\)/.test(fn("_vtTogglePref")));
+  // One "..." button per row; every action of the row is in the pop-up it opens (owner, 2026-11-11).
   const row = fn("_vtRowEl");
-  check("only a folder of the brain gets the pin button", /brainPath \? `<button data-a="pin"/.test(row)
-    && /const brainPath = isDir \? pins\.toBrain\(rel, _vtHome \|\| ""\) : null/.test(row));
-  check("the pin button opens the menu", /else if \(a === "pin"\) _vtPinMenu\(b, rel\)/.test(row));
-  const menu = fn("_vtPinMenu");
+  const buttons = (row.match(/<button /g) || []).length;
+  check("a row carries exactly one button, the three dots", buttons === 1 && /data-a="more"/.test(row) && /ic\("ellipsis"\)/.test(row), buttons);
+  check("the three dots open the row menu and do not unfold the folder under them",
+    /more\.onclick = \(e\) => \{ e\.stopPropagation\(\); _vtRowMenu\(more, rel, it, isDir\); \}/.test(row));
+  check("the button says what it is to a screen reader", /aria-label="\$\{esc\(window\.t\("cs\.vt_more"\)\)\}"/.test(row) && /aria-haspopup="menu"/.test(row));
+  const rowMenu = fn("_vtRowMenu");
+  check("the row menu holds every action the row buttons had: create file, create folder, download, rename, delete",
+    /_vtAddFile\(rel, isDir\)/.test(rowMenu) && /_vtAddFolder\(rel, isDir\)/.test(rowMenu) && /_dlFolder\(rel, it\.name\); else _dlFile\(rel\)/.test(rowMenu)
+    && /_vtRename\(rel, it\.name\)/.test(rowMenu) && /_vtDelete\(rel, it\.name, isDir\)/.test(rowMenu));
+  check("delete is the last line and is marked as dangerous",
+    /danger: true, run: \(\) => _vtDelete\(rel, it\.name, isDir\) \},\s*\]\);/.test(rowMenu));
+  check("a file row words its create lines as \"here\", a folder row as \"inside\"",
+    /isDir \? "cs\.vt_create_file" : "cs\.vt_create_file_here"/.test(rowMenu) && /isDir \? "cs\.vt_create_dir" : "cs\.vt_create_dir_here"/.test(rowMenu));
+  const menu = fn("_vtPinItems");
+  check("the pin lines are part of the row menu", /\.\.\._vtPinItems\(rel, isDir\)/.test(rowMenu));
+  check("only a folder of the brain gets the pin lines",
+    /const path = isDir \? pins\.toBrain\(rel, _vtHome \|\| ""\) : null; if \(!path\) return \[\];/.test(menu));
   check("the menu offers both switches, worded by their current state",
     /pinned \? "cs\.vt_unpin" : "cs\.vt_pin"/.test(menu) && /keptOpen \? "cs\.vt_open_off" : "cs\.vt_open_on"/.test(menu));
   const toggle = fn("_vtTogglePref");
@@ -157,11 +171,47 @@ function makeEnv() {
     && /await _vtReloadPins\(\);\s*await _vtRebuildReExpand\(null\);/.test(fn("_vtDelete")));
 
   const vi = JSON.parse(read("i18n/vi.json")), en = JSON.parse(read("i18n/en.json"));
-  const keys = ["cs.vt_pin_title", "cs.vt_pin", "cs.vt_unpin", "cs.vt_open_on", "cs.vt_open_off", "cs.vt_pinned"];
+  const keys = ["cs.vt_more", "cs.vt_create_file_here", "cs.vt_create_dir_here", "cs.vt_pin", "cs.vt_unpin", "cs.vt_open_on",
+    "cs.vt_open_off", "cs.vt_pinned", "cs.vt_create_file", "cs.vt_create_dir", "cs.fm_zip_btn", "common.download", "cs.fm_rename", "common.delete"];
   check("every label exists in Vietnamese and in English", keys.every((k) => vi[k] && en[k] && vi[k] !== en[k]),
     keys.filter((k) => !vi[k] || !en[k]));
   const css = read("style.css");
-  check("the pinned zone, the lit button and the mark are styled", /\.vt-pins \{/.test(css) && /\.vt-act button\.on \{/.test(css) && /\.vt-pinmark \{/.test(css));
+  check("the pinned zone and the pin mark are styled", /\.vt-pins \{/.test(css) && /\.vt-pinmark \{/.test(css));
+  check("the pin mark stays visible on a touch screen and under the pointer (the row no longer has a lit pin button)",
+    !/\.vt-pinmark \{ display: none; \}/.test(css));
+
+  // ---- the pop-up itself, run for real with a small fake DOM ----
+  const menuFn = fn("_vtMenu");
+  const mk = (vw, vh, rect, size) => {
+    const el = { style: {}, attrs: {}, buttons: [], removed: false, open: false, focused: false,
+      setAttribute(k, v) { this.attrs[k] = v; }, set innerHTML(h) {
+        this.html = h;
+        this.buttons = [...h.matchAll(/<button [^>]*data-i="(\d+)"[^>]*>/g)].map((m) => ({ dataset: { i: m[1] }, cls: m[0], focus: () => { el.focused = m[1]; } }));
+      },
+      querySelectorAll() { return this.buttons; }, querySelector() { return this.buttons[0]; },
+      showPopover() { this.open = true; }, matches() { return this.open; }, addEventListener() {}, remove() { this.removed = true; },
+      get offsetWidth() { return size.w; }, get offsetHeight() { return size.h; } };
+    const doc = { getElementById: () => null, createElement: () => el, body: { appendChild() {} } };
+    const run = new Function("document", "window", "ic", "esc", menuFn + "; return _vtMenu;")(doc, { innerWidth: vw, innerHeight: vh }, (n) => "[" + n + "]", (x) => x);
+    return { el, open: (items) => run({ getBoundingClientRect: () => rect }, items) };
+  };
+  const ran = [];
+  const ITEMS = [{ icon: "file-text", label: "New", run: () => ran.push("new") }, { sep: true },
+    { icon: "trash-2", label: "Delete", danger: true, run: () => ran.push("del") }];
+  let m = mk(1200, 800, { left: 300, top: 100, bottom: 120 }, { w: 220, h: 300 });
+  m.open(ITEMS);
+  check("the pop-up opens just under the button", m.el.open && m.el.style.top === "124px" && m.el.style.left === "300px", m.el.style);
+  check("a separator is a line, not a button; the dangerous line is marked",
+    m.el.buttons.length === 2 && /<hr>/.test(m.el.html) && /class="danger"/.test(m.el.buttons[1].cls) && !/class="danger"/.test(m.el.buttons[0].cls));
+  check("the first line takes the focus, for the keyboard", m.el.focused === "0");
+  m.el.buttons[1].onclick();
+  check("choosing a line closes the pop-up and runs that line, counting past the separator", m.el.removed && same(ran, ["del"]), ran);
+  m = mk(1200, 800, { left: 300, top: 700, bottom: 720 }, { w: 220, h: 300 });
+  m.open(ITEMS);
+  check("with no room below, the pop-up opens above the button", m.el.style.top === "396px", m.el.style);
+  m = mk(390, 500, { left: 350, top: 250, bottom: 270 }, { w: 220, h: 480 });
+  m.open(ITEMS);
+  check("on a small screen it never leaves the screen, left or top", m.el.style.left === "162px" && m.el.style.top === "8px", m.el.style);
 
   if (fails) { console.log("\nFAIL - test_vault_pins: " + fails); process.exit(1); }
   console.log("\nOK - test_vault_pins");

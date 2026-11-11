@@ -145,8 +145,13 @@ try:
           console_js.count('data-act="dl"') >= 2
           and console_js.count('title="${window.t("cs.fm_dl_title")}"') >= 2
           and VI.get("cs.fm_dl_title") == "Tải file về máy")
+    # 2026-11-11: the tree row keeps ONE "..." button; download is a line of the menu it opens (_vtRowMenu), worded
+    # "Download" for a file and "Download folder" for a folder.
     check("UI cây file Javis có nút tải cạnh file và trong editor",
-          'data-a="dl"' in console_js and '"cs.fm_dl_title"' in console_js
+          '{ icon: "download", label: window.t(isDir ? "cs.fm_zip_btn" : "common.download"), '
+          'run: () => { if (isDir) _dlFolder(rel, it.name); else _dlFile(rel); } }' in console_js
+          and VI.get("common.download") == "Tải về" and VI.get("cs.fm_zip_btn") == "Tải thư mục"
+          and '"cs.fm_dl_title"' in console_js
           and 'mk("⤓ " + esc(window.t("cs.fm_dl")), window.t("cs.fm_dl_title")' in console_js
           and VI.get("cs.fm_dl") == "Tải" and VI.get("cs.fm_dl_title") == "Tải file về máy")
     check("UI có nút tải CẢ thư mục (nén .zip): danh sách, thanh công cụ, cây file",
