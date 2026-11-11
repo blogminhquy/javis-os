@@ -357,18 +357,24 @@
     }
   }
 
+  // Đang gõ trong ô chat mà bấm chip model: hạ bàn phím xuống trước, kẻo bàn phím che bảng.
+  function dropKeyboard() {
+    if (!camUng()) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && typeof a.blur === "function") a.blur();
+  }
   function open() {
     const pop = $("mbPop");
     if (!pop) return;
+    if (sheetMode()) { sheetOpen(); return; }
     effClose(); closePlus(); closeLimit();
-    // Đang gõ trong ô chat mà bấm chip model: hạ bàn phím xuống trước, kẻo bàn phím che bảng.
-    if (camUng()) {
-      const a = document.activeElement;
-      if (a && a !== document.body && typeof a.blur === "function") a.blur();
-    }
+    dropKeyboard();
     pop.hidden = false; renderPop();
   }
-  function close() { const pop = $("mbPop"); if (pop) pop.hidden = true; }
+  function close() {
+    if (sheetIsOpen()) { sheetClose(); return; }
+    const pop = $("mbPop"); if (pop) pop.hidden = true;
+  }
   function isOpen() { const pop = $("mbPop"); return pop && !pop.hidden; }
 
   // Where the slider's level goes: the assistant's own level, the fallback card's own effort while one answers (its card
@@ -387,12 +393,14 @@
 
   // Effort chip (0.153.0): split from the model picker, opens a small popover with a slider.
   let effSlider = null;
-  function effOpen() {
+  // Draws the slider into #effPop. Shared by the popover of a computer and the sheet of a phone.
+  function effMount() {
     const pop = $("effPop"), btn = $("effBtn");
-    if (!pop || !window.JavisEffortSlider) return;
-    close(); closePlus(); closeLimit();
+    if (!pop || !window.JavisEffortSlider) return false;
+    if (effSlider) { effSlider.destroy(); effSlider = null; }
     const eff = shown();
     pop.hidden = false;
+    pop.style.left = "";
     const locked = window.JavisEffortSlider.isLocked(eff.provider, eff.model);
     if (btn) btn.setAttribute("aria-expanded", "true");
     const fn = fastNote(eff.provider, eff.model);
@@ -407,6 +415,13 @@
       lockedValue: locked ? window.JavisEffortSlider.lockedLevel(eff.model) : "",
       onChange: saveEffort,
     });
+    return true;
+  }
+  function effOpen() {
+    const pop = $("effPop"), btn = $("effBtn");
+    if (sheetMode()) { sheetOpen(); return; }
+    close(); closePlus(); closeLimit();
+    if (!effMount()) return;
     // Keep the popover inside the card: on a narrow phone the chip sits far enough right that a
     // popover opened at its left edge would spill past the screen.
     const card = pop.offsetParent;
@@ -414,13 +429,100 @@
     pop.style.left = (btn ? Math.min(btn.offsetLeft, maxLeft) : 8) + "px";
     if (effSlider.focus) effSlider.focus();
   }
-  function effClose() {
+  function effUnmount() {
     const pop = $("effPop"), btn = $("effBtn");
     if (effSlider) { effSlider.destroy(); effSlider = null; }
     if (pop) pop.hidden = true;
     if (btn) btn.setAttribute("aria-expanded", "false");
   }
+  function effClose() {
+    if (sheetIsOpen()) { sheetClose(); return; }
+    effUnmount();
+  }
   function effIsOpen() { const pop = $("effPop"); return pop && !pop.hidden; }
+
+  // SHEET_BEGIN
+  // Phone sheet (owner, 11/11/2026: "sắp xếp lại mức suy luận và lựa chọn mô hình cũng như hiển thị mức dùng của gói được
+  // gọn hơn"): up to 860px the ring, the model chip and the Effort chip read as ONE pill (style.css), and a tap on any
+  // of them opens ONE sheet from the bottom with the three panels stacked: plan usage, Effort, model list. The panels
+  // are the same elements a computer opens one by one (#limitPop, #effPop, #mbPop), so both widths share every rule.
+  const sheetMq = (() => { try { return window.matchMedia("(max-width: 860px)"); } catch (e) { return null; } })();
+  const sheetMode = () => !!(sheetMq && sheetMq.matches && $("cpSheet"));
+  const sheetIsOpen = () => { const s = $("cpSheet"); return !!(s && s.classList.contains("is-open")); };
+  const SHEET_CHIPS = ["mbOpen", "effBtn", "limitBtn"];
+  let sheetHome = null;   // where #cpSheet lives in the card, to put it back on close
+  function sheetOpen() {
+    const s = $("cpSheet"), pop = $("mbPop"), card = $("cpSheetCard");
+    if (!s || !pop || sheetIsOpen()) return;
+    closePlus();
+    dropKeyboard();
+    // The sheet covers the whole screen, so it leaves the card for <body> while open: an ancestor that clips or
+    // transforms (the Chat page slot, a sliding page) cannot cut it or drag it along.
+    sheetHome = { parent: s.parentNode, next: s.nextSibling };
+    document.body.appendChild(s);
+    s.classList.add("is-open");
+    if (card) {
+      card.setAttribute("role", "dialog");
+      card.setAttribute("aria-modal", "true");
+      card.setAttribute("aria-labelledby", "cpSheetTitle");
+      card.style.transform = "";
+    }
+    pop.hidden = false;
+    // The list scrolls inside its panel: bring the model in use into view, it is rarely among the first rows.
+    renderPop().then(() => {
+      const cur = sheetIsOpen() && pop.querySelector(".mb-item.cur");
+      if (cur) pop.scrollTop = Math.max(0, cur.offsetTop - pop.offsetTop - (pop.clientHeight - cur.offsetHeight) / 2);
+    }).catch(() => {});
+    effMount();
+    try { if (window.JavisPlanLimit && window.JavisPlanLimit.showInSheet) window.JavisPlanLimit.showInSheet(); } catch (e) {}
+    SHEET_CHIPS.forEach((id) => { const b = $(id); if (b) b.setAttribute("aria-expanded", "true"); });
+    const x = $("cpSheetClose");
+    if (x && !camUng()) { try { x.focus({ preventScroll: true }); } catch (e) {} }
+  }
+  function sheetClose() {
+    const s = $("cpSheet"), pop = $("mbPop"), card = $("cpSheetCard");
+    if (!s || !sheetIsOpen()) return;
+    s.classList.remove("is-open");
+    if (pop) pop.hidden = true;
+    effUnmount();
+    closeLimit();
+    if (card) { ["role", "aria-modal", "aria-labelledby"].forEach((a) => card.removeAttribute(a)); card.style.transform = ""; }
+    SHEET_CHIPS.forEach((id) => { const b = $(id); if (b) b.setAttribute("aria-expanded", "false"); });
+    if (sheetHome && sheetHome.parent) {
+      const next = sheetHome.next && sheetHome.next.parentNode === sheetHome.parent ? sheetHome.next : null;
+      sheetHome.parent.insertBefore(s, next);
+    }
+    sheetHome = null;
+    filter = "";
+  }
+  // A phone turned sideways past 860px, or a window dragged wider: the sheet goes away, the popovers take over.
+  if (sheetMq) {
+    const onMq = () => { if (sheetIsOpen() && !sheetMq.matches) sheetClose(); };
+    if (sheetMq.addEventListener) sheetMq.addEventListener("change", onMq); else if (sheetMq.addListener) sheetMq.addListener(onMq);
+  }
+  // Pull the sheet down by its head to close it (the grabber says so). A short pull springs back.
+  (function () {
+    let y0 = null, dy = 0;
+    const end = (shut) => {
+      const card = $("cpSheetCard");
+      y0 = null;
+      if (card) { card.classList.remove("is-dragging"); card.style.transform = ""; }
+      if (shut) sheetClose();
+    };
+    document.addEventListener("pointerdown", (e) => {
+      if (!sheetIsOpen() || !e.target.closest || !e.target.closest("#cpSheetHead") || e.target.closest("#cpSheetClose")) return;
+      y0 = e.clientY; dy = 0;
+      const card = $("cpSheetCard"); if (card) card.classList.add("is-dragging");
+    });
+    document.addEventListener("pointermove", (e) => {
+      if (y0 == null) return;
+      dy = Math.max(0, e.clientY - y0);
+      const card = $("cpSheetCard"); if (card) card.style.transform = "translateY(" + dy + "px)";
+    });
+    document.addEventListener("pointerup", () => { if (y0 != null) end(dy > 70); });
+    document.addEventListener("pointercancel", () => { if (y0 != null) end(false); });
+  })();
+  // SHEET_END
   function closeLimit() { try { if (window.JavisPlanLimit) window.JavisPlanLimit.close(); } catch (e) {} }
   function closePlus() { try { if (window.JavisComposerMenu) window.JavisComposerMenu.close(); } catch (e) {} }
 
@@ -445,7 +547,9 @@
       sessionPin = null;
     }
     await loadState(); await refreshRoute(); renderBar();   // the route too: picking a card lifts its out-of-quota mark
-    if (effIsOpen()) { effClose(); effOpen(); }   // the new model may lock or unlock the slider
+    // The new model may lock or unlock the slider.
+    if (sheetIsOpen()) effMount();
+    else if (effIsOpen()) { effClose(); effOpen(); }
   }
 
   // `/model <tên>`: tìm trong model của các nhà ĐÃ KẾT NỐI. Khớp NGUYÊN id thì thắng ngay; nếu
@@ -474,10 +578,19 @@
   }
 
   document.addEventListener("click", async (e) => {
-    if (e.target.closest("#mbOpen")) { isOpen() ? close() : open(); return; }
-    if (e.target.closest("#effBtn")) { effIsOpen() ? effClose() : effOpen(); return; }
-    if (!e.target.closest("#effPop") && effIsOpen()) effClose();
-    if (!e.target.closest("#mbPop") && !e.target.closest("#mbOpen")) { if (isOpen()) close(); return; }
+    if (sheetMode() || sheetIsOpen()) {
+      // Phone: the three chips are one pill and one sheet. Only a tap on the dim part or on X closes it.
+      const up = sheetIsOpen();
+      if (e.target.closest("#mbOpen, #effBtn, #limitBtn")) { up ? sheetClose() : sheetOpen(); return; }
+      if (!up) return;
+      if (e.target.closest("#cpSheetClose") || !e.target.closest("#cpSheetCard")) { sheetClose(); return; }
+      if (!e.target.closest("#mbPop")) return;
+    } else {
+      if (e.target.closest("#mbOpen")) { isOpen() ? close() : open(); return; }
+      if (e.target.closest("#effBtn")) { effIsOpen() ? effClose() : effOpen(); return; }
+      if (!e.target.closest("#effPop") && effIsOpen()) effClose();
+      if (!e.target.closest("#mbPop") && !e.target.closest("#mbOpen")) { if (isOpen()) close(); return; }
+    }
 
     const goto = e.target.closest("[data-goto]");
     if (goto) {
@@ -510,6 +623,7 @@
 
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
+    if (sheetIsOpen()) { sheetClose(); const m = $("mbOpen"); if (m) m.focus(); return; }
     if (isOpen()) close();
     if (effIsOpen()) { effClose(); const b = $("effBtn"); if (b) b.focus(); }
   });
@@ -549,6 +663,8 @@
       return line;
     },
     closeAll: function () { close(); effClose(); closePlus(); },
+    // plan-limit.js asks: true while the three chips open the phone sheet, so the ring does not open its own popover.
+    sheetOwns: function () { return sheetMode() || sheetIsOpen(); },
     hienTai: function () {
       const eff = shown();
       const p = state.providers.find((x) => x.id === eff.provider);

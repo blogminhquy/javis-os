@@ -443,6 +443,8 @@
   "fast.state_fallback": "The provider did not accept Fast mode last turn, so it ran at normal speed.",
   "fast.state_credits": "Fast mode is off: turn on usage credits in your Claude account.",
   "fast.state_off": "Fast mode is off ({reason}).",
+  "cps.title": "Model and effort",
+  "cps.close": "Close",
   "lim.title": "Plan usage limits",
   "lim.session": "5-hour session",
   "lim.week": "Weekly",

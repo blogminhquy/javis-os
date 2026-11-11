@@ -443,6 +443,8 @@
   "fast.state_fallback": "Lượt trước nhà cung cấp không nhận Fast mode nên đã chạy tốc độ thường.",
   "fast.state_credits": "Fast mode đang tắt: cần bật usage credits trong tài khoản Claude.",
   "fast.state_off": "Fast mode đang tắt ({reason}).",
+  "cps.title": "Model và mức suy nghĩ",
+  "cps.close": "Đóng",
   "lim.title": "Hạn mức gói",
   "lim.session": "Phiên 5 giờ",
   "lim.week": "Tuần",
