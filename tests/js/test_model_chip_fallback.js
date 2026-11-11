@@ -83,7 +83,7 @@ check("composer follows the running model: shown() is the fallback card, else th
 check("picker tick, effort lock, Fast bolt, plan ring and /model use the running model",
   /selected: shown\(\),/.test(mp) && /const effM = shown\(\);/.test(mp)
   && /function renderFast\(\) \{\s*const eff = shown\(\);/.test(mp) && /function fastTitle\(on\) \{\s*const eff = shown\(\);/.test(mp)
-  && /hienTai: function \(\) \{\s*const eff = shown\(\);/.test(mp) && /closeLimit\(\);\s*const eff = shown\(\);/.test(mp));
+  && /hienTai: function \(\) \{\s*const eff = shown\(\);/.test(mp) && /function effMount\(\) \{[\s\S]{0,300}?const eff = shown\(\);/.test(mp));
 // Owner, 05/11/2026: "Effort cũng theo model dự phòng luôn".
 check("Effort chip and slider show the fallback card's own level (an assistant's chat keeps its own)",
   /const shownEffort = \(\) => \(agentEff \? agentEff\.level : onFallback\(\) \? route\.reasoning : state\.reasoning\);/.test(mp)
