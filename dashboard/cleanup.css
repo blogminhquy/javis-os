@@ -90,7 +90,15 @@
 .cl-batch details summary { cursor: pointer; color: var(--text2); }
 .cl-batch details .cl-list { margin-top: 8px; }
 
+/* organize */
+.cl-lbl { min-width: 110px; color: var(--text2); font-weight: 600; }
+.cl-btn.sm { min-height: 34px; padding: 0 10px; font-weight: 500; }
+.cl-org-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; border-top: 1px solid var(--hairline); padding-top: 6px; }
+.cl-org-row > .cl-file { flex: 1 1 260px; min-width: 0; }
+.cl-org-files { flex-basis: 100%; display: flex; flex-direction: column; gap: 2px; padding-left: 26px; max-height: 360px; overflow-y: auto; }
+
 @media (max-width: 760px) {
+  .cl-lbl { min-width: 0; flex-basis: 100%; }
   .cl-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cl-2col { grid-template-columns: 1fr; }
   .cl-bar-row { grid-template-columns: 90px minmax(0, 1fr) auto; }

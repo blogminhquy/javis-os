@@ -64,6 +64,27 @@ check("a live batch offers restore and delete for good, a restored one does not"
 check("idle with no roots disables Scan", page("overview", { roots: [], status: { running: false } }).indexOf('data-act="scan" disabled') > 0);
 check("text is escaped", page("dups", { dups: { total: 1, wasted: 0, groups: [{ keep: "<b>x", copies: ["y"], size: 1, count: 2, wasted: 1 }] } }).indexOf("<b>x") < 0);
 
+// ---------- organize tab ----------
+const drives = [{ path: "/host/e", readonly: true }, { path: "/host/sort" }, { path: "E:\\", kind: "local" }];
+check("a path finds its drive by the longest mount", CL._driveOf("/host/e/Data/x", drives).path === "/host/e"
+  && CL._driveOf("/host/sort", drives).path === "/host/sort" && CL._driveOf("e:\\Data", drives).path === "E:\\"
+  && CL._driveOf("/elsewhere", drives) === null && CL._driveOf("/host/eee", drives) === null);
+const org = { source: "/host/e/Data", target: "", mode: "type_year", scope: "all", open: {}, excl: {}, exclFolders: {}, busy: false,
+  plan: { id: "p1", by: "rules", source: "/host/e/Data", target: "/host/e/Data", mode: "type_year", files: 5, bytes: 500, folder_count: 2,
+    folders: [{ folder: "Tài liệu/PDF/2024", files: 3, bytes: 300 }, { folder: "Video/2025", files: 2, bytes: 200 }],
+    skipped: { project: 4, in_place: 1 }, projects: [], truncated: false, note: "" } };
+h = page("organize", { drives: drives, org: org, batches: [{ id: "o1", kind: "organize", state: "organized", at: 1700000000, files: 3, bytes: 30, note: "type", items: [] },
+  { id: "q1", kind: "quarantine", state: "quarantined", at: 1700000000, files: 1, bytes: 1, note: "", items: [] }] });
+check("organize shows the form with the chosen mode and a read-only warning",
+  h.indexOf('data-act="orgmode" data-mode="type_year"') > 0 && /cl-chipb on" data-act="orgmode" data-mode="type_year"/.test(h) && h.indexOf("cl.org.ro_note") > 0);
+check("the plan lists destination folders with checkboxes and Carry out", (h.match(/data-role="orgfolder"/g) || []).length === 2
+  && h.indexOf('data-act="orgapply"') > 0 && h.indexOf("cl.org.skip_project") > 0);
+check("organize history offers undo, and quarantine batches stay out of it",
+  (h.match(/data-act="restore" data-batch="o1"/g) || []).length === 1 && h.indexOf('data-batch="q1"') < 0);
+const h2 = page("organize", { drives: drives, org: Object.assign({}, org, { exclFolders: { "Tài liệu/PDF/2024": true }, excl: {} }) });
+check("leaving a folder out lowers the count", h2.indexOf('cl.selected') > 0 && !/data-folder="Tài liệu\/PDF\/2024" checked/.test(h2));
+check("quarantine tab hides organize batches", page("quarantine", { batches: [{ id: "o1", kind: "organize", state: "organized", at: 1, files: 1, bytes: 1, items: [] }] }).indexOf("o1") < 0);
+
 // ---------- strings ----------
 const src = read("dashboard/cleanup.js");
 const keys = Array.from(new Set((src.match(/"cl\.[a-z_.]+"/g) || []).map(s => s.slice(1, -1))));

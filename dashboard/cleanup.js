@@ -1,5 +1,6 @@
 /* Disk cleanup page: scan drives, mapped network drives and a NAS, then tidy up identical duplicates and look-alike
- * photos by moving the extra copies into a quarantine the owner can restore.
+ * photos by moving the extra copies into a quarantine the owner can restore, and organize a folder by type, date or
+ * topic (server/file_organize.py) from a plan the owner reviews first, undoable like a quarantine batch.
  *
  * Server side is server/file_scan.py behind the /filescan/* routes, shared with the `javis_files` tool, so a scan
  * started from the chat shows its progress here. Nothing is deleted from this page except by "Delete for good" on a
@@ -11,9 +12,15 @@
 (function () {
   "use strict";
 
-  var TABS = ["overview", "dups", "similar", "quarantine"];
-  var TAB_ICON = { overview: "chart-pie", dups: "copy", similar: "image", quarantine: "shield" };
-  var TAB_KEY = { overview: "cl.tab.overview", dups: "cl.tab.dups", similar: "cl.tab.similar", quarantine: "cl.tab.quarantine" };
+  var TABS = ["overview", "dups", "similar", "organize", "quarantine"];
+  var TAB_ICON = { overview: "chart-pie", dups: "copy", similar: "image", organize: "folder", quarantine: "shield" };
+  var TAB_KEY = { overview: "cl.tab.overview", dups: "cl.tab.dups", similar: "cl.tab.similar", organize: "cl.tab.organize",
+    quarantine: "cl.tab.quarantine" };
+  var ORG_MODES = ["type", "type_year", "type_month", "date"];
+  var ORG_MODE_KEY = { type: "cl.org.mode.type", type_year: "cl.org.mode.type_year", type_month: "cl.org.mode.type_month",
+    date: "cl.org.mode.date", topic: "cl.org.mode.topic" };
+  var ORG_SKIP_KEY = { changed: "cl.org.skip.changed", missing: "cl.org.skip.missing", os_error: "cl.org.skip.os_error",
+    outside_target: "cl.org.skip.outside_target" };
   var CAT_KEY = { image: "cl.cat.image", video: "cl.cat.video", audio: "cl.cat.audio", document: "cl.cat.document",
     archive: "cl.cat.archive", installer: "cl.cat.installer", code: "cl.cat.code", other: "cl.cat.other" };
   var KIND_KEY = { local: "cl.kind.local", removable: "cl.kind.removable", network: "cl.kind.network",
@@ -92,6 +99,16 @@
     });
     return { count: n, bytes: bytes, unsafe: unsafe };
   }
+  // The drive a path sits on, by the longest matching mount path; read-only drives can be planned but not changed.
+  function driveOf(path, drives) {
+    var p = String(path || "").replace(/\\/g, "/").toLowerCase();
+    var best = null;
+    (drives || []).forEach(function (d) {
+      var r = String(d.path || "").replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "");
+      if (r && (p === r || p.indexOf(r + "/") === 0) && (!best || r.length > best.r.length)) best = { r: r, d: d };
+    });
+    return best ? best.d : null;
+  }
   function progressText(st) {
     var p = (st && st.progress) || {};
     if (p.phase === "walk") return p.files != null ? tw("cl.prog.walk_n", { n: fmtInt(p.files), size: fmtSize(p.bytes) }) : tw("cl.prog.walk");
@@ -148,6 +165,7 @@
       dups: st.overview ? st.overview.dup_groups : null,
       similar: st.sim ? st.sim.total : null,
       quarantine: st.batches ? st.batches.filter(function (b) { return b.state === "quarantined"; }).length : null,
+      organize: st.org && st.org.plan ? st.org.plan.files : null,
     };
     return '<div class="cl-seg" role="tablist">' + TABS.map(function (t) {
       var c = counts[t];
@@ -240,7 +258,7 @@
   }
 
   function quarantineHtml(st) {
-    var bs = st.batches;
+    var bs = st.batches ? st.batches.filter(function (b) { return (b.kind || "quarantine") === "quarantine"; }) : null;
     if (!bs) return '<div class="cl-muted">' + esc(tw("common.loading")) + "</div>";
     if (!bs.length) return '<div class="cl-empty">' + ic("shield") + "<span>" + esc(tw("cl.no_batches")) + "</span></div>";
     var help = '<div class="cl-row">' + infoPair("<p>" + esc(tw("cl.help.quarantine")) + "</p>", tw("cl.help.label")) + "</div>";
@@ -259,9 +277,89 @@
     }).join("");
   }
 
+
+  function organizeHtml(st) {
+    var o = st.org || {};
+    var drv = driveOf(o.source, st.drives);
+    var tdrv = o.target ? driveOf(o.target, st.drives) : drv;
+    var ro = (drv && drv.readonly) || (tdrv && tdrv.readonly);
+    var help = infoPair("<p>" + esc(tw("cl.org.help.what")) + "</p><p>" + esc(tw("cl.org.help.safe")) + "</p><p>" +
+      esc(tw("cl.org.help.docker")) + "</p>", tw("cl.help.label"));
+    var modes = ORG_MODES.map(function (m) {
+      return '<button class="cl-chipb' + (o.mode === m ? " on" : "") + '" data-act="orgmode" data-mode="' + m + '">' + esc(tw(ORG_MODE_KEY[m])) + "</button>";
+    }).join("");
+    var scopes = ["all", "top"].map(function (sc) {
+      return '<button class="cl-chipb' + (o.scope === sc ? " on" : "") + '" data-act="orgscope" data-scope="' + sc + '">' +
+        esc(tw(sc === "top" ? "cl.org.scope.top" : "cl.org.scope.all")) + "</button>";
+    }).join("");
+    var form = '<div class="cl-card cl-scan">' +
+      '<div class="cl-row"><span class="cl-lbl">' + esc(tw("cl.org.source")) + "</span>" +
+      '<input class="cl-input" data-role="orgsource" type="text" spellcheck="false" value="' + esc(o.source || "") + '" placeholder="' + esc(tw("cl.org.source_ph")) + '">' +
+      (ro ? '<span class="cl-chip warn">' + esc(tw("cl.readonly")) + "</span>" : "") + help + "</div>" +
+      '<div class="cl-row"><span class="cl-lbl">' + esc(tw("cl.org.target")) + "</span>" +
+      '<input class="cl-input" data-role="orgtarget" type="text" spellcheck="false" value="' + esc(o.target || "") + '" placeholder="' + esc(tw("cl.org.target_ph")) + '"></div>' +
+      '<div class="cl-row"><span class="cl-lbl">' + esc(tw("cl.org.how")) + "</span>" + modes + "</div>" +
+      '<div class="cl-row"><span class="cl-lbl">' + esc(tw("cl.org.which")) + "</span>" + scopes + "</div>" +
+      '<div class="cl-row"><span class="cl-sp"></span>' +
+      '<button class="cl-btn" data-act="orgask"' + (o.source ? "" : " disabled") + ">" + ic("sparkles") + esc(tw("cl.org.ask")) + "</button>" +
+      '<button class="cl-btn pri" data-act="orgplan"' + (o.source && !o.busy ? "" : " disabled") + ">" +
+      ic(o.busy ? "loader-circle" : "search") + esc(tw(o.busy ? "cl.org.planning" : "cl.org.make_plan")) + "</button></div>" +
+      (ro ? '<div class="cl-muted">' + esc(tw("cl.org.ro_note")) + "</div>" : "") + "</div>";
+    var plan = o.plan;
+    var planHtml = "";
+    if (plan && plan.files) {
+      var excF = o.exclFolders || {}, exc = o.excl || {};
+      var chosen = 0, chosenBytes = 0;
+      plan.folders.forEach(function (g) { if (!excF[g.folder]) { chosen += g.files; chosenBytes += g.bytes; } });
+      Object.keys(exc).forEach(function (k) { if (exc[k]) { chosen--; chosenBytes -= exc[k]; } });
+      var sk = plan.skipped || {};
+      var notes = [];
+      if (sk.project) notes.push(tw("cl.org.skip_project", { n: fmtInt(sk.project) }));
+      if (sk.in_place) notes.push(tw("cl.org.skip_in_place", { n: fmtInt(sk.in_place) }));
+      if (sk.rejected) notes.push(tw("cl.org.skip_rejected", { n: fmtInt(sk.rejected) }));
+      if (plan.truncated) notes.push(tw("cl.org.truncated"));
+      var rows = plan.folders.map(function (g) {
+        var open = o.open && o.open[g.folder];
+        var files = "";
+        if (open) {
+          files = '<div class="cl-org-files">' + open.map(function (it) {
+            return '<label class="cl-file' + (exc[it.src] ? "" : " on") + '"><input type="checkbox" data-role="orgfile" data-path="' + esc(it.src) +
+              '" data-size="' + (it.size || 0) + '"' + (exc[it.src] ? "" : " checked") + '><span class="cl-path">' + esc(it.src) +
+              '</span><span class="cl-muted">' + esc(fmtSize(it.size)) + "</span></label>";
+          }).join("") + (open.length < g.files ? '<div class="cl-muted">' + esc(tw("cl.org.first_n", { n: open.length })) + "</div>" : "") + "</div>";
+        }
+        return '<div class="cl-org-row"><label class="cl-file' + (excF[g.folder] ? "" : " on") + '"><input type="checkbox" data-role="orgfolder" data-folder="' +
+          esc(g.folder) + '"' + (excF[g.folder] ? "" : " checked") + '><span class="cl-path"><b>' + esc(g.folder) + "</b></span>" +
+          '<span class="cl-muted">' + esc(tw("cl.batch_meta", { n: fmtInt(g.files), size: fmtSize(g.bytes) })) + "</span></label>" +
+          '<button class="cl-btn sm" data-act="orgopen" data-folder="' + esc(g.folder) + '">' + esc(tw(open ? "cl.org.hide" : "cl.org.show")) + "</button>" + files + "</div>";
+      }).join("");
+      planHtml = '<div class="cl-card cl-group"><div class="cl-gh"><b>' +
+        esc(tw("cl.org.plan_head", { n: fmtInt(plan.files), size: fmtSize(plan.bytes), folders: fmtInt(plan.folder_count) })) + "</b>" +
+        '<span class="cl-chip">' + esc(tw(ORG_MODE_KEY[plan.mode] || "cl.org.mode.type")) + "</span>" +
+        '<span class="cl-muted cl-path">' + esc(plan.source) + (plan.target !== plan.source ? " → " + esc(plan.target) : "") + "</span></div>" +
+        (plan.note ? '<div class="cl-muted">' + esc(plan.note) + "</div>" : "") +
+        (notes.length ? '<div class="cl-muted">' + esc(notes.join(" · ")) + "</div>" : "") +
+        (plan.folder_count > plan.folders.length ? '<div class="cl-muted">' + esc(tw("cl.org.more_folders", { n: fmtInt(plan.folder_count - plan.folders.length) })) + "</div>" : "") +
+        rows +
+        '<div class="cl-selbar"><button class="cl-btn" data-act="orgdiscard">' + ic("x") + esc(tw("cl.org.discard")) + "</button>" +
+        '<span class="cl-sp"></span><span class="cl-selinfo">' + esc(tw("cl.selected", { n: fmtInt(Math.max(0, chosen)), size: fmtSize(Math.max(0, chosenBytes)) })) + "</span>" +
+        '<button class="cl-btn pri" data-act="orgapply"' + (chosen > 0 ? "" : " disabled") + ">" + ic("check") + esc(tw("cl.org.apply")) + "</button></div></div>";
+    } else if (plan) {
+      planHtml = '<div class="cl-empty">' + ic("check") + "<span>" + esc(tw("cl.org.nothing")) + "</span></div>";
+    }
+    var hist = (st.batches || []).filter(function (b) { return b.kind === "organize"; });
+    var histHtml = hist.length ? '<div class="cl-card"><div class="cl-h">' + esc(tw("cl.org.history")) + "</div>" + hist.slice(0, 20).map(function (b) {
+      var live = b.state === "organized";
+      return '<div class="cl-gh"><b>' + esc(fmtTime(b.at)) + '</b><span class="cl-chip">' + esc(tw(live ? "cl.state.organized" : "cl.state.restored")) + "</span>" +
+        '<span class="cl-muted">' + esc(tw("cl.batch_meta", { n: fmtInt(b.files), size: fmtSize(b.bytes) })) + '</span><span class="cl-muted cl-path">' + esc(b.note || "") +
+        '</span><span class="cl-sp"></span>' + (live ? '<button class="cl-btn" data-act="restore" data-batch="' + esc(b.id) + '">' + ic("undo-2") + esc(tw("cl.org.undo")) + "</button>" : "") + "</div>";
+    }).join("") + "</div>" : "";
+    return form + planHtml + histHtml;
+  }
+
   function pageHtml(st) {
     var body = st.tab === "dups" ? dupsHtml(st) : st.tab === "similar" ? similarHtml(st)
-      : st.tab === "quarantine" ? quarantineHtml(st) : overviewHtml(st.overview);
+      : st.tab === "quarantine" ? quarantineHtml(st) : st.tab === "organize" ? organizeHtml(st) : overviewHtml(st.overview);
     return '<div class="cl-root">' + scanBar(st) + tabsHtml(st) + '<div class="cl-main">' + body + "</div></div>";
   }
 
@@ -284,7 +382,10 @@
     if (again && typed) again.value = typed;
   }
   function savePref() {
-    try { localStorage.setItem(PREF_KEY, JSON.stringify({ tab: _st.tab, roots: _st.roots, images: _st.images, minKb: _st.minKb })); } catch (e) {}
+    try {
+      localStorage.setItem(PREF_KEY, JSON.stringify({ tab: _st.tab, roots: _st.roots, images: _st.images, minKb: _st.minKb,
+        orgSource: _st.org.source, orgTarget: _st.org.target, orgMode: _st.org.mode, orgScope: _st.org.scope }));
+    } catch (e) {}
   }
   function readPref() {
     try { return JSON.parse(localStorage.getItem(PREF_KEY) || "{}") || {}; } catch (e) { return {}; }
@@ -313,7 +414,28 @@
   function loadBatches() {
     return getJson("/filescan/quarantine").then(function (d) { if (_st) { _st.batches = d.batches || []; render(); } }).catch(function () {});
   }
+  function loadPlan() {
+    return getJson("/filescan/organize/plan").then(function (d) {
+      if (!_st) return;
+      _st.org.plan = d.plan; _st.org.open = {}; _st.org.excl = {}; _st.org.exclFolders = {};
+      if (d.plan && !_st.org.source) { _st.org.source = d.plan.source; _st.org.target = d.plan.target !== d.plan.source ? d.plan.target : ""; }
+      render();
+    }).catch(function () {});
+  }
+  function askJavis(text) {
+    if (window.JavisNav && window.JavisNav.go) window.JavisNav.go("chat");
+    var tries = 0;
+    (function fill() {
+      var inp = document.getElementById("chatInput");
+      if (!inp && tries++ < 20) return setTimeout(fill, 100);
+      if (!inp) return;
+      inp.value = text;
+      try { inp.dispatchEvent(new Event("input", { bubbles: true })); } catch (e) {}
+      inp.focus();
+    })();
+  }
   function loadTab() {
+    if (_st.tab === "organize") { loadBatches(); return loadPlan(); }
     if (_st.tab === "dups") return loadDups(false);
     if (_st.tab === "similar") return loadSimilar(false);
     if (_st.tab === "quarantine") return loadBatches();
@@ -394,6 +516,46 @@
       });
       return;
     }
+    if (act === "orgmode") { _st.org.mode = b.getAttribute("data-mode"); savePref(); render(); return; }
+    if (act === "orgscope") { _st.org.scope = b.getAttribute("data-scope"); savePref(); render(); return; }
+    if (act === "orgplan") {
+      _st.org.busy = true; _st.msg = ""; render();
+      postJson("/filescan/organize/plan", { source: _st.org.source, target: _st.org.target, mode: _st.org.mode, scope: _st.org.scope }).then(function (d) {
+        _st.org.busy = false;
+        if (!d.ok) { _st.msg = d.message || ""; render(); return; }
+        _st.org.plan = d.plan; _st.org.open = {}; _st.org.excl = {}; _st.org.exclFolders = {};
+        render();
+      }).catch(function () { _st.org.busy = false; render(); });
+      return;
+    }
+    if (act === "orgask") { askJavis(tw("cl.org.ask_prompt", { source: _st.org.source, target: _st.org.target || _st.org.source })); return; }
+    if (act === "orgopen") {
+      var f = b.getAttribute("data-folder");
+      if (_st.org.open[f]) { delete _st.org.open[f]; render(); return; }
+      getJson("/filescan/organize/plan?folder=" + encodeURIComponent(f)).then(function (d) { _st.org.open[f] = d.items || []; render(); });
+      return;
+    }
+    if (act === "orgdiscard") {
+      postJson("/filescan/organize/discard").then(function () { _st.org.plan = null; render(); });
+      return;
+    }
+    if (act === "orgapply") {
+      var pl = _st.org.plan;
+      if (!pl || !confirm(tw("cl.org.confirm", { target: pl.target }))) return;
+      b.disabled = true;
+      var ex = Object.keys(_st.org.excl).filter(function (k) { return _st.org.excl[k]; });
+      var exf = Object.keys(_st.org.exclFolders).filter(function (k) { return _st.org.exclFolders[k]; });
+      postJson("/filescan/organize/apply", { id: pl.id, exclude: ex, exclude_folders: exf }).then(function (d) {
+        if (!d.ok) { _st.msg = d.message || ""; render(); return; }
+        var lines = [tw("cl.org.done", { n: fmtInt(d.moved), size: fmtSize(d.bytes) })];
+        (d.skipped || []).slice(0, 5).forEach(function (r) { lines.push(baseName(r.path) + ": " + tw(ORG_SKIP_KEY[r.reason] || "cl.org.skip.os_error")); });
+        if ((d.skipped || []).length > 5) lines.push(tw("cl.refused_more", { n: d.skipped.length - 5 }));
+        _st.msg = lines.join(" · ");
+        _st.org.plan = null;
+        loadBatches(); loadOverview();
+      });
+      return;
+    }
     if (act === "restore") {
       postJson("/filescan/restore", { batch: b.getAttribute("data-batch") }).then(function (d) {
         _st.msg = d.ok ? tw("cl.done_restore", { n: fmtInt((d.restored || []).length) }) + ((d.kept || []).length ? " · " + tw("cl.kept", { n: d.kept.length }) : "") : (d.message || "");
@@ -424,6 +586,23 @@
       if (bar) bar.outerHTML = selBar(_st, groups, similar);
     }
     else if (role === "images") { _st.images = t.checked; savePref(); }
+    else if (role === "orgfolder") {
+      var fol = t.getAttribute("data-folder");
+      _st.org.exclFolders[fol] = !t.checked;
+      // A whole folder left out already removes its files from the count: forget single files picked out inside it.
+      (_st.org.open[fol] || []).forEach(function (it) { delete _st.org.excl[it.src]; });
+      render();
+    }
+    else if (role === "orgfile") { _st.org.excl[t.getAttribute("data-path")] = t.checked ? 0 : (+t.getAttribute("data-size") || 1); render(); }
+  }
+  function onInput(e) {
+    var role = e.target && e.target.getAttribute && e.target.getAttribute("data-role");
+    if (role === "orgsource" || role === "orgtarget") {
+      _st.org[role === "orgsource" ? "source" : "target"] = e.target.value.trim();
+      savePref();
+      var btns = _el.querySelectorAll('[data-act="orgplan"], [data-act="orgask"]');
+      for (var i = 0; i < btns.length; i++) btns[i].disabled = !_st.org.source || !!_st.org.busy;
+    }
   }
   function onKey(e) {
     if (e.key === "Enter" && e.target && e.target.getAttribute && e.target.getAttribute("data-role") === "path") {
@@ -437,10 +616,13 @@
     var pref = readPref();
     _st = { tab: TABS.indexOf(pref.tab) >= 0 ? pref.tab : "overview", roots: Array.isArray(pref.roots) ? pref.roots : [],
       images: pref.images !== false, minKb: MIN_KB.indexOf(+pref.minKb) >= 0 ? +pref.minKb : 0,
-      drives: [], status: null, overview: null, dups: null, sim: null, batches: null, sel: {}, msg: "" };
+      drives: [], status: null, overview: null, dups: null, sim: null, batches: null, sel: {}, msg: "",
+      org: { source: pref.orgSource || "", target: pref.orgTarget || "", mode: ORG_MODES.indexOf(pref.orgMode) >= 0 ? pref.orgMode : "type",
+        scope: pref.orgScope === "top" ? "top" : "all", plan: null, open: {}, excl: {}, exclFolders: {}, busy: false } };
     el.addEventListener("click", onClick);
     el.addEventListener("change", onChange);
     el.addEventListener("keydown", onKey);
+    el.addEventListener("input", onInput);
     render();
     getJson("/filescan/drives").then(function (d) { if (_st) { _st.drives = d.drives || []; render(); } }).catch(function () {});
     pollStatus();
@@ -450,7 +632,7 @@
   }
   function unmount() {
     if (_poll) { clearInterval(_poll); _poll = null; }
-    if (_el) { _el.removeEventListener("click", onClick); _el.removeEventListener("change", onChange); _el.removeEventListener("keydown", onKey); }
+    if (_el) { _el.removeEventListener("click", onClick); _el.removeEventListener("change", onChange); _el.removeEventListener("keydown", onKey); _el.removeEventListener("input", onInput); }
     _el = null; _st = null;
   }
 
@@ -458,7 +640,7 @@
     mount: mount, unmount: unmount,
     // pure helpers, for tests
     _fmtSize: fmtSize, _suggestedDups: suggestedDups, _suggestedSimilar: suggestedSimilar, _selectionInfo: selectionInfo,
-    _progressText: progressText, _pageHtml: pageHtml, TABS: TABS,
+    _progressText: progressText, _pageHtml: pageHtml, _driveOf: driveOf, TABS: TABS,
   };
   if (typeof window !== "undefined") window.JavisCleanup = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

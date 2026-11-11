@@ -13814,6 +13814,69 @@ async def filescan_restore(request: Request):
                                                       "Nothing from this cleanup is left in quarantine.")}
 
 
+_ORG_ERR = {
+    "no_source": ("Không mở được thư mục cần sắp xếp.", "Cannot open the folder to organize."),
+    "no_target": ("Không mở được thư mục đích.", "Cannot open the destination folder."),
+    "bad_mode": ("Cách sắp xếp không hợp lệ.", "Unknown way to organize."),
+    "no_plan": ("Kế hoạch đã cũ hoặc không còn. Lập lại kế hoạch.", "The plan is gone or outdated. Make it again."),
+    "scan_running": ("Đợi lượt quét xong rồi hãy sắp xếp.", "Wait for the scan to finish first."),
+}
+
+
+def _org_err(code: str) -> dict:
+    vi, en = _ORG_ERR.get(code, ("Lỗi.", "Error."))
+    return {"ok": False, "code": code, "message": localefmt.chu(vi, en)}
+
+
+@app.get("/filescan/organize/plan")
+async def filescan_organize_get(folder: str = Query(None)):
+    import file_organize as fo
+    plan = await asyncio.to_thread(fo.current_plan)
+    if not plan:
+        return {"ok": True, "plan": None}
+    if folder is not None:
+        return {"ok": True, "items": fo.plan_items(plan, folder)}
+    return {"ok": True, "plan": fo.plan_summary(plan, top=500)}
+
+
+@app.post("/filescan/organize/plan")
+async def filescan_organize_build(request: Request):
+    import file_organize as fo
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        plan = await asyncio.to_thread(
+            fo.build_plan, str(body.get("source") or ""), str(body.get("mode") or "type"), str(body.get("target") or ""),
+            "top" if body.get("scope") == "top" else "all", body.get("names") or None, bool(body.get("doc_sub", True)))
+    except fo.OrganizeError as e:
+        return _org_err(str(e))
+    return {"ok": True, "plan": fo.plan_summary(plan, top=500)}
+
+
+@app.post("/filescan/organize/apply")
+async def filescan_organize_apply(request: Request):
+    import file_organize as fo
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        res = await asyncio.to_thread(fo.apply_plan, str(body.get("id") or ""), None,
+                                      [str(x) for x in body.get("exclude") or []],
+                                      [str(x) for x in body.get("exclude_folders") or []])
+    except fo.OrganizeError as e:
+        return _org_err(str(e))
+    return {"ok": True, **res}
+
+
+@app.post("/filescan/organize/discard")
+async def filescan_organize_discard():
+    import file_organize as fo
+    return {"ok": await asyncio.to_thread(fo.discard_plan)}
+
+
 @app.post("/filescan/purge")
 async def filescan_purge(request: Request):
     import file_scan as fsn

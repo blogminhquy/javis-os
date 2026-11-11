@@ -14,7 +14,12 @@ cleanup page (dashboard/cleanup.js) shares the same index and the same backgroun
   similar     readonly  look-alike photo groups (needs Pillow)
   batches     readonly  quarantine batches and what is in them
   quarantine  full      MOVES chosen copies into <scanned folder>/.javis-quarantine/<batch>/ (refuses the last copy)
-  restore     full      puts a quarantine batch back
+  restore     full      puts a quarantine or organize batch back
+  organize_list     readonly  files under a folder (relative path, size, date) for Javis to sort by topic
+  organize_plan     readonly  builds a plan by rules (type, type+year, type+month, date); moves nothing
+  organize_propose  readonly  saves Javis's own plan by topic [{src, folder}]; moves nothing
+  organize_show     readonly  the waiting plan, grouped by destination folder
+  organize_apply    full      carries out the waiting plan (undo with restore)
 
 There is deliberately no tool to delete for good: emptying quarantine is a button on the Disk cleanup page.
 
@@ -24,6 +29,7 @@ Tool text sent to the model stays Vietnamese (docs/dev/them-mot-ngon-ngu.md).
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
 from pathlib import Path
@@ -31,7 +37,31 @@ from pathlib import Path
 import file_scan as fs
 
 OPS = ("drives", "scan", "status", "cancel", "duplicates", "stats", "report", "similar", "batches", "quarantine",
-       "restore")
+       "restore", "organize_list", "organize_plan", "organize_propose", "organize_show", "organize_apply")
+_ORG_ERR_VI = {"no_source": "không mở được thư mục cần sắp xếp", "no_target": "không mở được thư mục đích",
+               "bad_mode": "mode phải là type, type_year, type_month hoặc date",
+               "no_plan": "kế hoạch không còn hoặc sai mã, lập lại kế hoạch", "scan_running": "đang có lượt quét chạy"}
+
+
+def _plan_text(sm: dict) -> str:
+    import file_organize as fo  # noqa: F401
+    lines = [f"Kế hoạch {sm['id']} ({'Javis tự xếp theo chủ đề' if sm['by'] == 'javis' else 'theo quy tắc ' + str(sm['mode'])}): "
+             f"chuyển {sm['files']:,} file ({fs.human_size(sm['bytes'])}) từ `{sm['source']}` vào {sm['folder_count']} "
+             f"thư mục trong `{sm['target']}`. CHƯA chuyển file nào."]
+    for g in sm["folders"][:25]:
+        lines.append(f"- {g['folder']}: {g['files']:,} file, {fs.human_size(g['bytes'])}")
+    sk = sm.get("skipped") or {}
+    if sk.get("project"):
+        lines.append(f"Giữ nguyên {sk['project']:,} file nằm trong thư mục dự án (có .git, package.json...) để không làm hỏng dự án.")
+    if sk.get("in_place"):
+        lines.append(f"{sk['in_place']:,} file đã đúng chỗ.")
+    if sk.get("rejected"):
+        lines.append(f"Bỏ {sk['rejected']:,} dòng không hợp lệ (không phải file trong thư mục nguồn, hoặc thư mục đích ra ngoài).")
+    if sm.get("truncated"):
+        lines.append("Kế hoạch dừng ở 50.000 file; chạy lại sau khi thực hiện để xếp tiếp.")
+    lines.append(f"Người dùng xem và bỏ chọn trên trang Dọn ổ đĩa, tab Sắp xếp; hoặc khi họ đã đồng ý: "
+                 f"op=organize_apply plan_id={sm['id']}. Hoàn tác được bằng op=restore.")
+    return "\n".join(lines)
 _REFUSED_VI = {"not_indexed": "chưa có trong chỉ mục (quét lại)", "changed": "đã thay đổi từ lần quét trước",
                "last_copy": "là bản cuối cùng, không còn bản nào khác giữ lại", "outside_root": "nằm ngoài thư mục đã quét",
                "os_error": "lỗi khi di chuyển"}
@@ -256,9 +286,10 @@ def register(ctx):
             live = [b for b in bs if b["state"] == "quarantined"]
             if not bs:
                 return "Chưa có lần dọn nào."
-            out = [f"{len(live)} lần dọn còn file trong cách ly:"]
+            out = [f"{len(live)} lần dọn còn file trong cách ly; {sum(1 for b in bs if b['state'] == 'organized')} lần sắp xếp hoàn tác được:"]
             for b in bs[:20]:
-                out.append(f"- {b['id']}: {b['files']} file, {fs.human_size(b['bytes'])}, trạng thái {b['state']}"
+                out.append(f"- {b['id']} ({'sắp xếp' if b.get('kind') == 'organize' else 'cách ly'}): {b['files']} file, "
+                           f"{fs.human_size(b['bytes'])}, trạng thái {b['state']}"
                            + (f", ghi chú: {b['note']}" if b["note"] else ""))
             out.append("Khôi phục: op=restore batch=<mã>. Xoá hẳn chỉ làm được trên trang Dọn ổ đĩa.")
             return "\n".join(out)
@@ -296,6 +327,54 @@ def register(ctx):
                 out.append(f"Chưa khôi phục {k['path']}: {why}.")
             return "\n".join(out)
 
+        if op.startswith("organize_"):
+            import file_organize as fo
+            try:
+                if op == "organize_list":
+                    src = (roots or [""])[0]
+                    off = max(0, int(args.get("offset") or 0))
+                    res = await asyncio.to_thread(fo.list_files, src, off, max(1, min(int(args.get("limit") or 300), 1000)))
+                    out = [f"{res['total']:,} file trong `{res['source']}` (không tính thư mục dự án), từ {off + 1}:"]
+                    out += [f"{f['rel']} | {fs.human_size(f['size'])} | {f['date']}" for f in res["files"]]
+                    if off + len(res["files"]) < res["total"]:
+                        out.append(f"Còn tiếp: op=organize_list offset={off + len(res['files'])}.")
+                    out.append("Xếp theo chủ đề: op=organize_propose roots=[thư mục] moves=[{src: đường dẫn tương đối, "
+                               "folder: thư mục đích tương đối}].")
+                    return "\n".join(out)
+                if op == "organize_plan":
+                    src = (roots or [""])[0]
+                    plan = await asyncio.to_thread(fo.build_plan, src, str(args.get("mode") or "type"),
+                                                   str(args.get("target") or ""),
+                                                   "top" if args.get("scope") == "top" else "all")
+                    return _plan_text(fo.plan_summary(plan))
+                if op == "organize_propose":
+                    src = (roots or [""])[0]
+                    moves = args.get("moves") or []
+                    if isinstance(moves, str):
+                        moves = json.loads(moves)
+                    plan = await asyncio.to_thread(fo.propose_plan, src, moves, str(args.get("target") or ""),
+                                                   str(args.get("note") or ""))
+                    return _plan_text(fo.plan_summary(plan))
+                if op == "organize_show":
+                    plan = fo.current_plan()
+                    return _plan_text(fo.plan_summary(plan)) if plan else "Không có kế hoạch sắp xếp nào đang chờ."
+                if op == "organize_apply":
+                    plan_id = str(args.get("plan_id") or "").strip()
+                    if not plan_id:
+                        return "ERROR: cần plan_id (xem op=organize_show)."
+                    res = await asyncio.to_thread(fo.apply_plan, plan_id)
+                    out = [f"Đã chuyển {res['moved']:,} file ({fs.human_size(res['bytes'])}) vào chỗ mới, mã lần sắp xếp "
+                           f"{res['batch']}. Hoàn tác: op=restore batch={res['batch']} hoặc trên trang Dọn ổ đĩa."]
+                    reasons = {"changed": "đã đổi từ lúc lập kế hoạch", "missing": "không còn ở chỗ cũ",
+                               "os_error": "không di chuyển được (thư mục chỉ đọc?)", "outside_target": "đích ra ngoài"}
+                    for r in res["skipped"][:15]:
+                        out.append(f"Bỏ qua {r['path']}: {reasons.get(r['reason'], r['reason'])}.")
+                    return "\n".join(out)
+            except fo.OrganizeError as e:
+                return "ERROR: " + _ORG_ERR_VI.get(str(e), str(e)) + "."
+            except (ValueError, TypeError) as e:
+                return f"ERROR: dữ liệu không hợp lệ ({e})."
+
         return "ERROR: op phải là một trong " + ", ".join(OPS) + "."
 
     ctx.register_tool(
@@ -308,11 +387,17 @@ def register(ctx):
             "lần sau chỉ băm file đã đổi), op=status, op=cancel, op=duplicates (limit, roots để lọc), op=stats, "
             "op=report (lưu báo cáo Markdown vào exports/ của brain). Dọn: op=quarantine paths=[bản trùng] (similar=true "
             "cho ảnh gần giống) CHUYỂN file vào thư mục cách ly, từ chối bản cuối cùng; op=batches, op=restore batch=<mã>. "
-            "Không có lệnh xoá hẳn (chỉ trên trang Dọn ổ đĩa). Chưa rõ quét chỗ nào thì hỏi người dùng."),
+            "Không có lệnh xoá hẳn (chỉ trên trang Dọn ổ đĩa). SẮP XẾP thư mục (roots=[thư mục]): op=organize_plan "
+            "mode=type|type_year|type_month|date (theo loại/năm/tháng), hoặc theo CHỦ ĐỀ: op=organize_list rồi "
+            "op=organize_propose moves=[{src, folder}]; cả hai chỉ LẬP kế hoạch, người dùng duyệt trên trang (tab Sắp xếp) "
+            "hoặc op=organize_apply plan_id=<mã> khi họ đã đồng ý; hoàn tác op=restore. Thư mục dự án (.git, "
+            "package.json...) được giữ nguyên. Chưa rõ quét chỗ nào thì hỏi người dùng."),
         handler=_handle, min_mode="readonly", emoji="🗂️",
         op_modes={"drives": "readonly", "scan": "readonly", "status": "readonly", "cancel": "readonly",
                   "duplicates": "readonly", "stats": "readonly", "report": "safe", "similar": "readonly",
-                  "batches": "readonly", "quarantine": "full", "restore": "full"},
+                  "batches": "readonly", "quarantine": "full", "restore": "full", "organize_list": "readonly",
+                  "organize_plan": "readonly", "organize_propose": "readonly", "organize_show": "readonly",
+                  "organize_apply": "full"},
         schema={"type": "object", "properties": {
             "op": {"type": "string", "enum": list(OPS)},
             "roots": {"type": "array", "items": {"type": "string"},
@@ -324,6 +409,15 @@ def register(ctx):
             "paths": {"type": "array", "items": {"type": "string"}, "description": "op=quarantine: các bản cần chuyển vào cách ly"},
             "similar": {"type": "boolean", "description": "op=quarantine: cho phép dọn ảnh gần giống (không giống hệt)"},
             "note": {"type": "string", "description": "op=quarantine: ghi chú cho lần dọn"},
-            "batch": {"type": "string", "description": "op=restore: mã lần dọn"}},
+            "batch": {"type": "string", "description": "op=restore: mã lần dọn hoặc lần sắp xếp"},
+            "mode": {"type": "string", "enum": ["type", "type_year", "type_month", "date"],
+                     "description": "op=organize_plan: theo loại, loại+năm, loại+tháng, hoặc theo ngày"},
+            "scope": {"type": "string", "enum": ["all", "top"], "description": "op=organize_plan: all (mọi cấp) hoặc top (file nằm lẻ)"},
+            "target": {"type": "string", "description": "op=organize_*: thư mục đích (mặc định chính thư mục nguồn)"},
+            "moves": {"type": "array", "items": {"type": "object", "properties": {
+                "src": {"type": "string"}, "folder": {"type": "string"}}},
+                      "description": "op=organize_propose: [{src: đường dẫn tương đối trong nguồn, folder: thư mục đích tương đối}]"},
+            "plan_id": {"type": "string", "description": "op=organize_apply: mã kế hoạch"},
+            "offset": {"type": "integer", "description": "op=organize_list: bắt đầu từ file thứ mấy"}},
             "required": ["op"]},
     )

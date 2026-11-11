@@ -140,6 +140,11 @@ def connect(path: Optional[Path] = None) -> sqlite3.Connection:
         batch TEXT NOT NULL, src TEXT NOT NULL, dst TEXT NOT NULL, root TEXT NOT NULL, size INTEGER NOT NULL,
         mtime REAL NOT NULL, ext TEXT NOT NULL, edge_hash TEXT, full_hash TEXT, dhash INTEGER, img_w INTEGER,
         img_h INTEGER, state TEXT NOT NULL, at REAL NOT NULL, PRIMARY KEY (batch, src))""")
+    bcols = {r[1] for r in con.execute("PRAGMA table_info(batches)")}
+    if "kind" not in bcols:
+        con.execute("ALTER TABLE batches ADD COLUMN kind TEXT NOT NULL DEFAULT 'quarantine'")
+    if "base" not in bcols:
+        con.execute("ALTER TABLE batches ADD COLUMN base TEXT NOT NULL DEFAULT ''")
     return con
 
 
@@ -933,11 +938,12 @@ def batches(con: Optional[sqlite3.Connection] = None) -> List[dict]:
     con = con or connect()
     try:
         out = []
-        for bid, at, note, n, b, state in con.execute(
-                "SELECT id, at, note, files, bytes, state FROM batches ORDER BY at DESC"):
+        for bid, at, note, n, b, state, kind, base in con.execute(
+                "SELECT id, at, note, files, bytes, state, kind, base FROM batches ORDER BY at DESC"):
             files = [{"src": s, "dst": d, "size": z, "state": st} for s, d, z, st in con.execute(
                 "SELECT src, dst, size, state FROM moves WHERE batch = ? ORDER BY src", (bid,))]
-            out.append({"id": bid, "at": at, "note": note, "files": n, "bytes": b, "state": state, "items": files})
+            out.append({"id": bid, "at": at, "note": note, "files": n, "bytes": b, "state": state, "items": files,
+                        "kind": kind, "base": base})
         return out
     finally:
         if own:
@@ -957,15 +963,18 @@ def _prune_empty(folder: str, stop: str) -> None:
 
 
 def restore(batch: str, con: Optional[sqlite3.Connection] = None) -> dict:
-    """Put a batch back where each file came from. A file whose original place is taken again stays in quarantine."""
+    """Put a batch back where each file came from (a quarantine or an organize batch). A file whose original place is
+    taken again stays where it is."""
     own = con is None
     con = con or connect()
     restored, kept = [], []
     try:
         rows = con.execute("""SELECT src, dst, root, size, mtime, ext, edge_hash, full_hash, dhash, img_w, img_h
-                              FROM moves WHERE batch = ? AND state IN ('quarantined', 'moving')""", (batch,)).fetchall()
+                              FROM moves WHERE batch = ? AND state IN ('quarantined', 'organized', 'moving')""",
+                           (batch,)).fetchall()
         if not rows:
             raise QuarantineError("no_batch")
+        brow = con.execute("SELECT kind, base FROM batches WHERE id = ?", (batch,)).fetchone() or ("quarantine", "")
         for src, dst, root, size, mtime, ext, edge, full, dh, w, h in rows:
             if not os.path.exists(dst):
                 if os.path.exists(src):  # a move that never happened (crash between journal and rename)
@@ -988,10 +997,13 @@ def restore(batch: str, con: Optional[sqlite3.Connection] = None) -> dict:
                 kept.append({"path": src, "reason": "os_error", "detail": str(e)[:200]})
                 continue
             con.execute("UPDATE moves SET state = 'restored' WHERE batch = ? AND src = ?", (batch, src))
-            con.execute("""INSERT OR REPLACE INTO files(path, root, size, mtime, ext, offline, edge_hash, full_hash, seen,
-                           dhash, img_w, img_h) VALUES(?,?,?,?,?,0,?,?,?,?,?,?)""",
-                        (src, root, size, mtime, ext, edge, full, time.time(), dh, w, h))
-            _prune_empty(os.path.dirname(dst), root)
+            # An organized file kept its index row under the new path; a quarantined one lost it. Put either back.
+            moved_row = con.execute("UPDATE files SET path = ? WHERE path = ?", (src, dst)).rowcount
+            if not moved_row and root:
+                con.execute("""INSERT OR REPLACE INTO files(path, root, size, mtime, ext, offline, edge_hash, full_hash,
+                               seen, dhash, img_w, img_h) VALUES(?,?,?,?,?,0,?,?,?,?,?,?)""",
+                            (src, root, size, mtime, ext, edge, full, time.time(), dh, w, h))
+            _prune_empty(os.path.dirname(dst), brow[1] or root)
             restored.append(src)
         _close_batch(con, batch)
         con.commit()
@@ -1002,11 +1014,15 @@ def restore(batch: str, con: Optional[sqlite3.Connection] = None) -> dict:
 
 
 def purge(batch: str, con: Optional[sqlite3.Connection] = None) -> dict:
-    """Delete for good the files of one batch that are still in quarantine. Nothing outside quarantine is touched."""
+    """Delete for good the files of one batch that are still in quarantine. Nothing outside quarantine is touched, and
+    an organize batch can never be purged (its files are the owner's live files in their new place)."""
     own = con is None
     con = con or connect()
     deleted, failed, freed = [], [], 0
     try:
+        kind = (con.execute("SELECT kind FROM batches WHERE id = ?", (batch,)).fetchone() or ("quarantine",))[0]
+        if kind != "quarantine":
+            raise QuarantineError("not_quarantine")
         rows = con.execute("SELECT src, dst, root, size FROM moves WHERE batch = ? AND state = 'quarantined'",
                            (batch,)).fetchall()
         if not rows:
@@ -1035,10 +1051,10 @@ def purge(batch: str, con: Optional[sqlite3.Connection] = None) -> dict:
 
 
 def _close_batch(con: sqlite3.Connection, batch: str) -> None:
-    left = con.execute("SELECT COUNT(*), COALESCE(SUM(size), 0) FROM moves WHERE batch = ? AND state = 'quarantined'",
-                       (batch,)).fetchone()
+    left = con.execute("""SELECT COUNT(*), COALESCE(SUM(size), 0), MAX(state) FROM moves
+                          WHERE batch = ? AND state IN ('quarantined', 'organized')""", (batch,)).fetchone()
     states = {r[0] for r in con.execute("SELECT DISTINCT state FROM moves WHERE batch = ?", (batch,))}
-    state = "quarantined" if left[0] else ("purged" if "purged" in states else "restored")
+    state = left[2] if left[0] else ("purged" if "purged" in states else "restored")
     con.execute("UPDATE batches SET files = ?, bytes = ?, state = ? WHERE id = ?", (left[0], left[1], state, batch))
 
 

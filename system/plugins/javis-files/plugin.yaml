@@ -1,9 +1,9 @@
 name: Quét file và tìm file trùng
 name_en: "File scan and duplicates"
 slug: javis-files
-version: 1.1.0
-description: Quét ổ đĩa, thư mục, ổ mạng map hoặc NAS, tìm file trùng giống hệt và ảnh gần giống, thống kê dung lượng, chuyển bản thừa vào thư mục cách ly (khôi phục được). Không bao giờ tự xoá hẳn.
-description_en: "Scans drives, folders, mapped network drives or a NAS, finds identical duplicates and look-alike photos, sums up space, and moves extra copies into a quarantine you can restore. Never deletes for good on its own."
+version: 1.2.0
+description: Quét ổ đĩa, thư mục, ổ mạng map hoặc NAS, tìm file trùng giống hệt và ảnh gần giống, thống kê dung lượng, chuyển bản thừa vào thư mục cách ly, sắp xếp thư mục theo loại, ngày hoặc chủ đề (đều hoàn tác được). Không bao giờ tự xoá hẳn.
+description_en: "Scans drives, folders, mapped network drives or a NAS, finds identical duplicates and look-alike photos, sums up space, moves extra copies into a quarantine, and organizes folders by type, date or topic, all undoable. Never deletes for good on its own."
 author: Javis (bundled)
 enabled: true
 min_mode: readonly
