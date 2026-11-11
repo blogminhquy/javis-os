@@ -40,7 +40,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=170">
+  <link rel="stylesheet" href="/static/style.css?v=171">
   <link rel="stylesheet" href="/static/console.css?v=138">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -843,8 +843,21 @@
         <div class="set-sec">
           <h4><span data-i18n="wz.s2">2. Tài khoản admin</span> <span class="dim" data-i18n="wz.s2_rec">(khuyến nghị)</span></h4>
           <div class="set-note" data-i18n="wz.pass_note">Đặt mật khẩu để chặn người lạ - quan trọng nếu đưa lên VPS. Bỏ trống nếu chỉ chạy máy cá nhân.</div>
-          <label data-i18n="common.account">Tài khoản</label><input id="wzUser" placeholder="Ví dụ: admin" data-i18n-ph="wz.user_ph">
-          <label data-i18n="common.password">Mật khẩu</label><input id="wzPass" type="password" placeholder="Để trống nếu không đặt mật khẩu" data-i18n-ph="wz.pass_ph">
+          <label for="wzUser" data-i18n="common.account">Tài khoản</label><input id="wzUser" placeholder="Ví dụ: admin" data-i18n-ph="wz.user_ph" autocomplete="username">
+          <!-- 2026-11-11 (owner): the password is typed twice and each box has an eye to read it back, so a typo on a
+               phone keyboard cannot lock the owner out of a fresh install. Same eye as the sign-in box (.auth-pw). -->
+          <label for="wzPass" data-i18n="common.password">Mật khẩu</label>
+          <div class="auth-pw">
+            <input id="wzPass" type="password" placeholder="Để trống nếu không đặt mật khẩu" data-i18n-ph="wz.pass_ph" autocomplete="new-password">
+            <button type="button" class="auth-pw-eye wz-pw-eye" aria-pressed="false"
+                    title="Hiện/ẩn mật khẩu" data-i18n-title="auth.show_pw" aria-label="Hiện/ẩn mật khẩu" data-i18n-aria="auth.show_pw"><i data-ic="eye"></i></button>
+          </div>
+          <label for="wzPass2" data-i18n="setm.pass2">Nhập lại mật khẩu</label>
+          <div class="auth-pw">
+            <input id="wzPass2" type="password" placeholder="Gõ lại đúng mật khẩu ở trên" data-i18n-ph="wz.pass2_ph" autocomplete="new-password">
+            <button type="button" class="auth-pw-eye wz-pw-eye" aria-pressed="false"
+                    title="Hiện/ẩn mật khẩu" data-i18n-title="auth.show_pw" aria-label="Hiện/ẩn mật khẩu" data-i18n-aria="auth.show_pw"><i data-ic="eye"></i></button>
+          </div>
         </div>
         <div class="set-sec">
           <h4 data-i18n="wz.s3">3. Nhà cung cấp AI (bộ não)</h4>
@@ -1147,7 +1160,7 @@
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/incoming-call.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=161"></script>
+  <script src="/static/app.js?v=162"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và

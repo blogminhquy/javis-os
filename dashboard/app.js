@@ -5173,6 +5173,8 @@ async function initAuthGate() {
       swap(wz.querySelector('[data-i18n="wz.pass_note"]'), "data-i18n", "app.wz_mandatory");
       const pass = document.getElementById("wzPass");
       if (pass) { pass.required = true; swap(pass, "data-i18n-ph", "wz.pass_ph_req"); }
+      const pass2 = document.getElementById("wzPass2");
+      if (pass2) pass2.required = true;
     }
     wz.classList.add("open");
   } else {
@@ -5218,6 +5220,25 @@ document.getElementById("authSubmit").addEventListener("click", async () => {
     inp.type = show ? "text" : "password";
     eye.setAttribute("aria-pressed", show ? "true" : "false");
   });
+})();
+// Welcome wizard: one eye state for the two password boxes, so both can be read side by side to compare.
+(() => {
+  const boxes = ["wzPass", "wzPass2"].map((id) => document.getElementById(id)).filter(Boolean);
+  const eyes = Array.from(document.querySelectorAll("#setupWizard .wz-pw-eye"));
+  if (!boxes.length || !eyes.length) return;
+  eyes.forEach((eye) => {
+    eye.addEventListener("mousedown", (e) => e.preventDefault());
+    eye.addEventListener("click", () => {
+      const show = boxes[0].type === "password";
+      boxes.forEach((b) => { b.type = show ? "text" : "password"; });
+      eyes.forEach((b) => b.setAttribute("aria-pressed", show ? "true" : "false"));
+    });
+  });
+  // Typing again clears the "do not match" line, so it never sits there after the fix.
+  boxes.forEach((b) => b.addEventListener("input", () => {
+    const err = document.getElementById("wzErr");
+    if (err && err.textContent === window.t("app.pw_mismatch")) err.textContent = "";
+  }));
 })();
 ["authPass", "authCode"].forEach((id) => {
   const el = document.getElementById(id);
@@ -5505,6 +5526,12 @@ if (document.getElementById("wzFinish")) {
     if (_wizardMandatory && !pass) {
       return _soiOTrong(document.getElementById("wzPass"),
                         window.t("app.wz_pw_required"));
+    }
+    // 2026-11-11 (owner): the password is typed twice. Checked before anything is sent, so a typo never becomes the
+    // password of a fresh install. A password left empty on purpose (personal machine) needs both boxes empty.
+    const pass2El = document.getElementById("wzPass2");
+    if (pass2El && pass !== pass2El.value) {
+      return _soiOTrong(pass ? pass2El : document.getElementById("wzPass"), window.t("app.pw_mismatch"));
     }
     try {
       if (pass) {

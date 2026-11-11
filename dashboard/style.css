@@ -885,6 +885,9 @@ body.in-console .graph-stats { display: none; }
 .auth-pw-eye:hover { color: var(--text); }
 .auth-pw-eye[aria-pressed="true"] { color: var(--accent); }
 .auth-pw-eye svg { width: 18px; height: 18px; }
+/* The welcome wizard's two password boxes sit in a .set-sec, whose input rule comes later and would take the room
+   the eye needs back. */
+.set-sec .auth-pw input { padding-right: 44px; }
 .auth-err { color: var(--red); font-size: 14px; min-height: 16px; }
 .auth-help { font-size: 14px; }
 .auth-help span { color: var(--accent); cursor: pointer; text-decoration: underline; }
