@@ -9,6 +9,7 @@ import brain_seed_i18n   # file hạt giống của brain mới theo ngôn ngữ
 import brain_label   # tên hiển thị của brain, tách khỏi thư mục (0.219.0)
 import brain_export   # xuất/nhập cả bộ não thành một file .zip (2026-11-09)
 import brain_order   # thứ tự brain trong bảng chọn: chủ tự sắp, còn lại theo tên hiển thị (0.431.0)
+import vault_tree_prefs   # pinned folders and folders open by default in the Vault tree (2026-11-11)
 import default_brain   # which brain is the default: a choice since 2026-11-09, `Brain Default` until one is made
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import html as html_mod   # escape lời báo lỗi OAuth trên trang callback (biến cục bộ `html` che tên module)
@@ -10177,6 +10178,30 @@ def files_list(brain: str = Query("brain"), path: str = Query(None), subdirs: in
             "items": items}
 
 
+@app.get("/files/tree-prefs")
+async def files_tree_prefs(brain: str = Query("brain")):
+    """The folders this brain's Vault tree pins to the top (`pinned`) and unfolds on load (`open`), as paths relative
+    to the brain root (vault_tree_prefs.py). Folders that are gone are left out."""
+    def _read():
+        return vault_tree_prefs.read(cfgmod.read_settings(), _brain_root(brain))
+    return {"ok": True, **(await asyncio.to_thread(_read))}
+
+
+@app.post("/files/tree-prefs")
+async def files_tree_prefs_save(brain: str = Form("brain"), pinned: str = Form("[]"),
+                                open_dirs: str = Form("[]", alias="open")):
+    """Save both lists of the Vault tree for this brain. Each is a JSON list of brain-relative folder paths; the
+    whole pair is replaced, so the client sends what it shows."""
+    try:
+        raw = {"pinned": json.loads(pinned or "[]"), "open": json.loads(open_dirs or "[]")}
+    except json.JSONDecodeError:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Danh sách thư mục không hợp lệ", "Invalid folder list")},
+                            status_code=400)
+    root = _brain_root(brain)
+    await asyncio.to_thread(cfgmod.update_settings, vault_tree_prefs.patch(root, raw))
+    return {"ok": True, **vault_tree_prefs.clean(raw)}
+
+
 _AN_THU_MUC = (".", "node_modules", "__pycache__")
 
 
@@ -10482,6 +10507,7 @@ async def files_delete(brain: str = Form("brain"), path: str = Form(...)):
             p.unlink()
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+    await asyncio.to_thread(_tree_prefs_follow, brain, p, None)
     return {"ok": True}
 
 
@@ -10496,7 +10522,19 @@ async def files_rename(brain: str = Form("brain"), path: str = Form(...), newnam
     if not p.exists():
         return JSONResponse({"error": localefmt.chu("Không tìm thấy", "Not found")}, status_code=404)
     p.rename(dst)
+    await asyncio.to_thread(_tree_prefs_follow, brain, p, dst)
     return {"ok": True}
+
+
+def _tree_prefs_follow(brain: str, old: Path, new) -> None:
+    """A folder pinned or open by default in the Vault tree keeps that after a rename and loses it on delete
+    (vault_tree_prefs.moved). Never fails the file operation that just succeeded."""
+    try:
+        change = vault_tree_prefs.moved(cfgmod.read_settings(), _brain_root(brain), old, new)
+        if change:
+            cfgmod.update_settings(change)
+    except Exception as e:
+        print(f"[vault_tree_prefs] could not follow {old} -> {new}: {e}", file=sys.stderr)
 
 
 # Tên LOGIC của thư mục -> (regex nhận diện, tên tạo mới nếu chưa có). Có bảng này để client

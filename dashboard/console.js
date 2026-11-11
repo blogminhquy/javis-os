@@ -9428,31 +9428,46 @@
 
   // Dựng lại cây nhưng GIỮ NGUYÊN các thư mục đang mở (thêm/sửa/xoá không làm sập cây).
   // revealDir (tuỳ chọn) = thư mục cần mở thêm để thấy file vừa tạo.
-  async function _vtRebuildReExpand(revealDir) {
+  // keepCache (2026-11-11): redraw from the listings already loaded. Pinning a folder moves rows around but changes
+  // nothing on disk, so it must not cost one /files/list per open folder on a VPS.
+  async function _vtRebuildReExpand(revealDir, keepCache) {
     const tree = document.getElementById("vaultTree"); if (!tree) return;
-    const escSel = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : s.replace(/"/g, '\\"');
-    // 1. Ghi lại các thư mục đang mở (childBox không ẩn).
-    const wanted = new Set();
+    // 1. Ghi lại các thư mục đang mở (childBox không ẩn). A pinned folder can show twice (its row at the top and
+    // its usual place), so each one is remembered with the zone it was open in.
+    const wanted = new Map();
+    const want = (rel, pin) => { const key = (pin == null ? "" : pin ? "p:" : "t:") + rel; if (!wanted.has(key)) wanted.set(key, { rel, pin }); };
     tree.querySelectorAll(".vt-branch > .vt-children:not(.vt-hidden)").forEach(box => {
       const node = box.previousElementSibling;
-      if (node && node.dataset && node.dataset.rel) wanted.add(node.dataset.rel);
+      if (node && node.dataset && node.dataset.rel) want(node.dataset.rel, !!node.closest(".vt-pins"));
     });
+    const fresh = !tree.querySelector(".vt-node");   // never drawn yet: the folders open by default still apply
     // 2. Thêm chuỗi thư mục cha của revealDir (để thấy file mới dù thư mục đó đang đóng).
     if (revealDir != null && revealDir !== "") {
       let inner;
       if (_vtHome && revealDir.indexOf(_vtHome + "/") === 0) inner = revealDir.slice(_vtHome.length + 1);
       else if (!_vtHome) inner = revealDir;
       else inner = (revealDir === _vtHome ? "" : revealDir);
-      const segs = inner ? inner.split("/") : [];
-      let acc = _vtHome || "";
-      for (const seg of segs) { acc = acc ? acc + "/" + seg : seg; wanted.add(acc); }
+      // The chain starts at the nearest pinned folder on the way (its row at the top), else at the brain root.
+      const pins = window.JavisVaultPins;
+      pins.chain(inner, pins.current(fbrain()), _vtHome || "").forEach(rel => want(rel, null));
     }
     // 3. Dựng lại (tươi) rồi mở lại từ NÔNG tới SÂU (cha trước con).
-    _vtCache.clear(); _vtIndex = null;
-    await renderVaultTree();
-    const list = [...wanted].sort((a, b) => a.split("/").length - b.split("/").length);
-    for (const rel of list) {
-      const node = tree.querySelector(`.vt-node[data-rel="${escSel(rel)}"]`);
+    if (!keepCache) { _vtCache.clear(); _vtIndex = null; }
+    await renderVaultTree({ keepState: !fresh });
+    await _vtOpenPaths([...wanted.values()].sort((a, b) => a.rel.split("/").length - b.rel.split("/").length));
+  }
+
+  // Unfold these folders, in the order given (parents first). An entry is a tree path, or { rel, pin } to ask for
+  // the copy in the pinned zone (pin true) or in the tree below it (false); the other copy is the fallback, so a
+  // folder that was just pinned or unpinned stays open.
+  async function _vtOpenPaths(list) {
+    const tree = document.getElementById("vaultTree"); if (!tree) return;
+    const escSel = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : s.replace(/"/g, '\\"');
+    for (const entry of list) {
+      const rel = typeof entry === "string" ? entry : entry.rel;
+      const pin = typeof entry === "string" ? null : entry.pin;
+      const nodes = [...tree.querySelectorAll(`.vt-node[data-rel="${escSel(rel)}"]`)];
+      const node = (pin == null ? null : nodes.find(n => !!n.closest(".vt-pins") === pin)) || nodes[0];
       if (!node) continue;
       const box = node.parentElement && node.parentElement.querySelector(":scope > .vt-children");
       if (box && box.classList.contains("vt-hidden")) {
@@ -9463,14 +9478,47 @@
   }
 
   function _vtCreateMenu(button, rel, isDir) {
+    _vtMenu(button, [
+      { icon: "file-text", label: window.t("cs.vt_create_file"), run: () => _vtAddFile(rel, isDir) },
+      { icon: "folder", label: window.t("cs.vt_create_dir"), run: () => _vtAddFolder(rel, isDir) },
+    ]);
+  }
+
+  // Pin a folder to the top of the tree, or have it open when the tree loads (2026-11-11). Both are saved per brain
+  // on the server (vault-pins.js), so every device shows the same tree.
+  function _vtPinMenu(button, rel) {
+    const pins = window.JavisVaultPins;
+    const path = pins.toBrain(rel, _vtHome || ""); if (!path) return;
+    const prefs = pins.current(fbrain());
+    const pinned = pins.has(prefs.pinned, path), keptOpen = pins.has(prefs.open, path);
+    _vtMenu(button, [
+      { icon: pinned ? "pin-off" : "pin", label: window.t(pinned ? "cs.vt_unpin" : "cs.vt_pin"), run: () => _vtTogglePref(rel, path, "pinned") },
+      { icon: keptOpen ? "folder" : "folder-open", label: window.t(keptOpen ? "cs.vt_open_off" : "cs.vt_open_on"), run: () => _vtTogglePref(rel, path, "open") },
+    ]);
+  }
+
+  async function _vtTogglePref(rel, path, field) {
+    const pins = window.JavisVaultPins, brain = fbrain();
+    const next = pins.toggled(pins.current(brain), field, path);
+    const turnedOn = pins.has(next[field], path);
+    const saving = pins.save(brain, next);   // the tree redraws from the new lists right away, the request follows
+    await _vtRebuildReExpand(field === "open" && turnedOn ? rel : null, true);
+    const tree = document.getElementById("vaultTree");
+    if (tree && field === "pinned" && turnedOn) tree.scrollTop = 0;   // show where the folder went
+    if (!(await saving)) {
+      alert(window.t("app.err_net"));
+      await _vtRebuildReExpand(null, true);   // the lists went back to what the server has
+    }
+  }
+
+  function _vtMenu(button, items) {
     document.getElementById("vtCreateMenu")?.remove();
     const menu = document.createElement("div");
     menu.id = "vtCreateMenu"; menu.className = "vt-create-menu";
     menu.setAttribute("popover", "auto");
-    menu.innerHTML = `<button type="button">${ic("file-text")} ${esc(window.t("cs.vt_create_file"))}</button>`
-      + `<button type="button">${ic("folder")} ${esc(window.t("cs.vt_create_dir"))}</button>`;
+    menu.innerHTML = items.map(item => `<button type="button">${ic(item.icon)} ${esc(item.label)}</button>`).join("");
     menu.querySelectorAll("button").forEach((item, index) => {
-      item.onclick = () => { menu.remove(); if (index) _vtAddFolder(rel, isDir); else _vtAddFile(rel, isDir); };
+      item.onclick = () => { menu.remove(); items[index].run(); };
     });
     document.body.appendChild(menu);
     const rect = button.getBoundingClientRect();
@@ -9513,6 +9561,7 @@
     if (!nn || nn === oldname) return;
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("newname", nn);
     try { await fetch("/files/rename", { method: "POST", body: fd }); } catch (e) {}
+    await _vtReloadPins();
     await _vtRebuildReExpand(null);   // giữ nguyên các thư mục đang mở
   }
   async function _vtDelete(rel, name, isDir) {
@@ -9521,20 +9570,35 @@
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
     try { await fetch("/files/delete", { method: "POST", body: fd }); } catch (e) {}
     if (_vtActivePath === rel) closeNote();
+    await _vtReloadPins();
     await _vtRebuildReExpand(null);   // giữ nguyên các thư mục đang mở
   }
+  // A rename or a delete moves or drops the pinned / open-by-default entries on the server (vault_tree_prefs.moved):
+  // read them again, but only when this brain has any.
+  async function _vtReloadPins() {
+    const pins = window.JavisVaultPins, prefs = pins.current(fbrain());
+    if (prefs.pinned.length || prefs.open.length) await pins.load(fbrain(), true);
+  }
 
-  function _vtRowEl(it, parentPath, depth) {
+  // `pinnedFrom` (2026-11-11): this row is a pinned folder drawn at the top of the tree; the value is the brain path
+  // of the folder holding it ("" at the brain root), shown dimmed so two pinned folders of the same name tell apart.
+  function _vtRowEl(it, parentPath, depth, pinnedFrom) {
     const rel = parentPath ? parentPath + "/" + it.name : it.name;
     const isDir = it.type === "dir";
+    const pins = window.JavisVaultPins;
+    const brainPath = isDir ? pins.toBrain(rel, _vtHome || "") : null;   // null: not a folder of this brain
+    const prefs = brainPath ? pins.current(fbrain()) : null;
+    const pinned = !!prefs && pins.has(prefs.pinned, brainPath);
     const wrap = document.createElement("div"); wrap.className = "vt-branch";
     const node = document.createElement("div");
     node.className = "vt-node"; node.dataset.rel = rel; node.dataset.name = it.name;
     node.style.paddingLeft = (6 + depth * 13) + "px";
     node.innerHTML = `<span class="vt-chev ${isDir ? "" : "leaf"}">▸</span>`
       + `<span class="vt-ico">${isDir ? ic("folder") : _fileIcon(it.ext)}</span>`
-      + `<span class="vt-name">${esc(it.name)}</span>`
+      + `<span class="vt-name">${esc(it.name)}${pinnedFrom ? ` <span class="vt-from">${esc(pinnedFrom)}</span>` : ""}</span>`
+      + (pinned ? `<span class="vt-pinmark" title="${esc(window.t("cs.vt_pinned"))}">${ic("pin")}</span>` : "")
       + `<span class="vt-act"><button data-a="add" title="${esc(window.t(isDir ? "cs.vt_add_in" : "cs.vt_add_same"))}">＋</button>`
+      + (brainPath ? `<button data-a="pin"${pinned || pins.has(prefs.open, brainPath) ? ' class="on"' : ""} title="${esc(window.t("cs.vt_pin_title"))}">${ic("pin")}</button>` : "")
       + `<button data-a="dl" title="${esc(window.t(isDir ? "cs.fm_zipfolder_title" : "cs.fm_dl_title"))}">⤓</button>`
       + `<button data-a="ren" title="${esc(window.t("cs.fm_rename"))}">${ic("pencil")}</button><button data-a="del" title="${esc(window.t("common.delete"))}">${ic("trash-2")}</button></span>`;
     if (!isDir && rel === _vtActivePath) node.classList.add("active");
@@ -9542,6 +9606,7 @@
       e.stopPropagation();
       const a = b.dataset.a;
       if (a === "add") _vtCreateMenu(b, rel, isDir);
+      else if (a === "pin") _vtPinMenu(b, rel);
       else if (a === "dl") { if (isDir) _dlFolder(rel, it.name); else _dlFile(rel); }
       else if (a === "ren") _vtRename(rel, it.name);
       else _vtDelete(rel, it.name, isDir);
@@ -9810,16 +9875,30 @@
     if (ve) ve.onclick = () => datVaultThu(false);
   }
 
-  async function renderVaultTree() {
+  // Pinned folders come first, in a zone of their own (.vt-pins), then the brain root as it is on disk. The folders
+  // marked "open by default" unfold on a fresh draw; `keepState` (a redraw after an edit) leaves that to the caller,
+  // which reopens exactly what was open, so a folder the user just closed does not spring back.
+  // A fresh draw (page load, Refresh, another brain, a change made on the Files page) also asks the server for the
+  // two lists again, so a pin made on another device or a folder renamed elsewhere shows without reloading the page.
+  async function renderVaultTree(opts) {
     const tree = document.getElementById("vaultTree"); if (!tree) return;
     _vtWire();
     tree.hidden = false;
     const results = document.getElementById("vaultResults"); if (results) results.hidden = true;
     tree.innerHTML = `<div class="vt-info pg-loading">${esc(window.t("common.loading"))}</div>`;
-    const items = await _vtList(null);
+    const pins = window.JavisVaultPins, fresh = !(opts && opts.keepState);
+    const [items, prefs] = await Promise.all([_vtList(null), pins.load(fbrain(), fresh)]);
     tree.innerHTML = "";
     if (!items.length) { tree.innerHTML = `<div class="vt-info">${esc(window.t("cs.vt_vault_empty"))}</div>`; return; }
-    items.forEach(it => tree.appendChild(_vtRowEl(it, _vtHome || "", 0)));
+    const home = _vtHome || "";
+    const parts = pins.splitRoot(items, prefs, home);
+    if (parts.pinned.length) {
+      const zone = document.createElement("div"); zone.className = "vt-pins";
+      parts.pinned.forEach(p => zone.appendChild(_vtRowEl(p.item, p.parent, 0, pins.toBrain(p.parent, home) || "")));
+      tree.appendChild(zone);
+    }
+    parts.rest.forEach(it => tree.appendChild(_vtRowEl(it, home, 0)));
+    if (fresh) await _vtOpenPaths(pins.openPlan(prefs, home));
   }
 
   function _vtMarkActive(rel) {
@@ -9828,7 +9907,7 @@
     tree.querySelectorAll(".vt-node.active").forEach(n => n.classList.remove("active"));
     if (rel) {
       const sel = (window.CSS && CSS.escape) ? CSS.escape(rel) : rel.replace(/"/g, '\\"');
-      const n = tree.querySelector(`.vt-node[data-rel="${sel}"]`); if (n) n.classList.add("active");
+      tree.querySelectorAll(`.vt-node[data-rel="${sel}"]`).forEach(n => n.classList.add("active"));
     }
   }
 
