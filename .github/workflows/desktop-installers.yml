@@ -119,13 +119,14 @@ jobs:
       # Real install of THIS commit on a clean runner, all four CLI brains included: bootstrap
       # clones the checkout and runs install.ps1 (venv, deps, Claude Code, Codex, Antigravity,
       # Grok, autostart). Then the server's own finders must see all four brains, and Javis
-      # must answer /health.
+      # must answer /health. Installed where the wizard installs (%USERPROFILE%\JavisOS), so the
+      # next step can run the real Setup.exe over it.
       - name: Smoke test - full install, four brains, Javis starts
         shell: pwsh
         timeout-minutes: 45
         run: |
           git branch -f smoke-install HEAD
-          $dir = Join-Path $env:RUNNER_TEMP "JavisOS"
+          $dir = Join-Path $env:USERPROFILE "JavisOS"
           powershell -NoProfile -ExecutionPolicy Bypass -File packaging\windows\bootstrap.ps1 -Dir $dir -Repo $env:GITHUB_WORKSPACE -Branch smoke-install -NoPause -LogFile (Join-Path $env:RUNNER_TEMP "install.log")
           if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $env:RUNNER_TEMP "install.log") -Tail 80; exit 1 }
           $vpy = Join-Path $dir ".venv\Scripts\python.exe"
@@ -142,6 +143,30 @@ jobs:
           if (-not $ok) { Get-Content (Join-Path $dir "server\javis.log") -Tail 80 -ErrorAction SilentlyContinue; throw "Javis did not answer /health" }
           Write-Host "Javis is up after a fresh install"
           & (Join-Path $dir "stop-javis.bat")
+
+      # The wizard itself: JavisOS-Setup.exe runs bootstrap.ps1 HIDDEN and shows its lines in the
+      # Setup window (no black console). Silent mode runs the same [Code], so this proves on a real
+      # Windows that the hidden run starts, its lines reach the wizard and it ends on its own. The
+      # clone from the step above is already there, so this takes about a minute.
+      - name: Smoke test - Setup.exe runs the bootstrap hidden and reads its output
+        shell: pwsh
+        timeout-minutes: 20
+        run: |
+          $p = Start-Process -FilePath dist\JavisOS-Setup.exe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$env:RUNNER_TEMP\setup.log`"" -PassThru
+          $null = $p.Handle
+          if (-not $p.WaitForExit(15 * 60000)) { taskkill /PID $p.Id /T /F; throw "Setup.exe did not end within 15 minutes" }
+          $log = Join-Path $env:LOCALAPPDATA "Programs\JAVIS OS\install.log"
+          if (-not (Test-Path $log)) { Get-Content "$env:RUNNER_TEMP\setup.log" -Tail 60; throw "the wizard wrote no install.log" }
+          $text = Get-Content $log -Raw
+          Write-Host "---- install.log as the wizard captured it ----"
+          Write-Host $text
+          if ($p.ExitCode -ne 0) { throw "Setup.exe exit code $($p.ExitCode)" }
+          foreach ($want in @("[A] Kiem tra Git", "[2] Cai thu vien Python", "BO NAO SAN SANG", "Xong. Lan sau mo Javis")) {
+            if (-not $text.Contains($want)) { throw "install.log misses: $want" }
+          }
+          if ($text.Contains("[LOI]")) { throw "the bootstrap reported an error" }
+          if ($text.Contains("CLIXML")) { throw "CLIXML leaked into the wizard log" }
+          if (-not (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\JAVIS OS\bootstrap.ps1"))) { throw "bootstrap.ps1 not installed" }
 
       - uses: actions/upload-artifact@v4
         with:

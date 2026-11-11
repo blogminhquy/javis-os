@@ -19,6 +19,10 @@
 # QUAN TRONG: Javis doc PATH LUC NO BAT. Cai them CLI sau khi server dang chay thi phai
 # khoi dong lai Javis moi thay (stop-javis.bat roi start-javis.vbs).
 #
+# KHONG DUOC DUNG CHO BAN PHIM: JavisOS-Setup.exe chay file nay AN (khong co cua so den) va
+# hien tung dong ngay trong man hinh Setup. Moi chuong trinh ngoai (winget, npm, pip, script
+# cai cua nha cung cap) di qua Invoke-Capped: cho dung tien trinh do, co gioi han thoi gian.
+#
 # KHONG dung ky tu co dau trong file .ps1: PowerShell tren Windows doc file khong BOM bang
 # ANSI codepage, chu co dau se thanh rac ngay tren man hinh nguoi dung.
 # ============================================================
@@ -29,6 +33,9 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+# The Windows PowerShell 5.1 progress bar makes Invoke-WebRequest about 10x slower: the Python
+# and Node downloads below looked like a hang on machines without winget.
+$ProgressPreference = "SilentlyContinue"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 
@@ -59,6 +66,52 @@ function Refresh-Path {
 }
 
 function Have($cmd) { return [bool](Get-Command $cmd -ErrorAction SilentlyContinue) }
+
+# Runs one outside program and waits for THAT process only, at most $Minutes.
+#   - `tool | Out-Null` and `-Wait` also wait for every helper process the tool leaves behind
+#     (they hold the output pipe), so one leftover background helper froze the whole install.
+#   - Without a cap, an installer stuck on a question nobody can see never returns.
+#   - The program writes straight to the screen (or to the Setup window), so its lines show
+#     up live and its warnings are not dressed up as red PowerShell errors.
+# -Quiet sends the output to a temp file: winget redraws its progress bar thousands of times.
+# Returns the exit code, -1 when the program could not start, -2 when it ran out of time.
+# The same function lives in packaging/windows/bootstrap.ps1 (that file runs before the clone).
+function Invoke-Capped {
+  param([string]$File, [string]$Arguments, [int]$Minutes = 20, [switch]$Quiet)
+  $sp = @{ FilePath = $File; ArgumentList = $Arguments; NoNewWindow = $true; PassThru = $true }
+  $tmp = @()
+  if ($Quiet) {
+    $tmp = @([IO.Path]::GetTempFileName(), [IO.Path]::GetTempFileName())
+    $sp.RedirectStandardOutput = $tmp[0]
+    $sp.RedirectStandardError = $tmp[1]
+  }
+  $code = -1
+  try {
+    $p = Start-Process @sp
+    $null = $p.Handle   # PS 5.1 leaves ExitCode empty unless the handle was read before the exit
+    if ($p.WaitForExit($Minutes * 60000)) {
+      $code = $p.ExitCode
+    } else {
+      & taskkill.exe /PID $p.Id /T /F 2>&1 | Out-Null
+      Warn "Qua $Minutes phut chua xong, da dung buoc nay: $File"
+      $code = -2
+    }
+  } catch {
+    Warn "Khong chay duoc $File ($($_.Exception.Message))"
+  }
+  foreach ($t in $tmp) { Remove-Item $t -Force -ErrorAction SilentlyContinue }
+  return $code
+}
+
+function Winget-Install($id, $extra) {
+  Line "    Neu Windows hien bang hoi quyen thi bam Yes."
+  # --source winget: without it winget also searches the Microsoft Store source, which fails
+  # or asks to accept its terms on a PC that never opened the Store.
+  $a = "install -e --id $id --source winget --accept-source-agreements --accept-package-agreements"
+  if ($extra) { $a = "$a $extra" }
+  Invoke-Capped -File (Get-Command winget).Source -Arguments $a -Quiet | Out-Null
+  Refresh-Path
+}
 
 Line ""
 Line " =========================================="
@@ -97,19 +150,19 @@ function Find-Python {
 Step 1 "Kiem tra Python"
 if (-not (Find-Python)) {
   if (Have "winget") {
-    Line "    Chua co Python, dang cai bang winget..."
-    winget install -e --id Python.Python.3.12 --scope user --accept-source-agreements --accept-package-agreements | Out-Null
-    Refresh-Path
+    Line "    Chua co Python, dang cai bang winget (1-3 phut)..."
+    Winget-Install "Python.Python.3.12" "--scope user"
   }
 }
 if (-not (Find-Python)) {
   # No winget (older Windows 10 without App Installer) or winget failed: the official per-user
   # installer needs no admin rights and puts python on the user PATH.
   try {
-    Line "    Dang tai Python 3.12 tu python.org..."
+    Line "    Dang tai Python 3.12 tu python.org (khoang 27 MB)..."
     $pyInst = Join-Path $env:TEMP "python-3.12-amd64.exe"
     Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe" -OutFile $pyInst -UseBasicParsing
-    Start-Process -FilePath $pyInst -ArgumentList "/quiet InstallAllUsers=0 PrependPath=1 Include_launcher=1" -Wait
+    Line "    Dang cai Python..."
+    Invoke-Capped -File $pyInst -Arguments "/quiet InstallAllUsers=0 PrependPath=1 Include_launcher=1" | Out-Null
     Refresh-Path
   } catch {
     Warn "Khong tai duoc Python: $($_.Exception.Message)"
@@ -130,9 +183,10 @@ if (-not (Test-Path ".venv")) {
 }
 $vpy = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $vpy)) { Err "Thieu .venv\Scripts\python.exe - xoa thu muc .venv roi chay lai."; exit 1 }
-& $vpy -m pip install --upgrade pip -q
-& $vpy -m pip install -r requirements.txt
-if ($LASTEXITCODE -ne 0) {
+Line "    Dang tai va cai thu vien, buoc nay lau nhat (2-5 phut)..."
+Invoke-Capped -File $vpy -Arguments "-m pip install --upgrade pip -q --disable-pip-version-check" -Minutes 15 | Out-Null
+$pipCode = Invoke-Capped -File $vpy -Arguments "-m pip install -r requirements.txt --disable-pip-version-check" -Minutes 60
+if ($pipCode -ne 0) {
   Err "pip install THAT BAI. Server se bao 'thieu claude-agent-sdk' neu bo qua buoc nay."
   Line "    Thu lai: .venv\Scripts\python.exe -m pip install -r requirements.txt"
   Line "    Hay gap loi UnicodeDecodeError thi may dang thieu Visual C++ Build Tools / mang chan pypi."
@@ -147,23 +201,23 @@ if ($SkipCli) {
   Step 3 "Cai 4 bo nao CLI (chay bang goi thue bao, khong can mua API key)"
   if (-not (Have "npm")) {
     if (Have "winget") {
-      Line "    Chua co Node.js, dang cai bang winget..."
-      winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements | Out-Null
-      Refresh-Path
+      Line "    Chua co Node.js, dang cai bang winget (1-3 phut)..."
+      Winget-Install "OpenJS.NodeJS.LTS" ""
     }
   }
   if (-not (Have "npm")) {
     # No winget: take the current 22 LTS MSI straight from nodejs.org. The file name carries
     # the patch number, so read it from SHASUMS256.txt instead of hardcoding one that goes stale.
     try {
-      Line "    Dang tai Node.js 22 LTS tu nodejs.org..."
+      Line "    Dang tai Node.js 22 LTS tu nodejs.org (khoang 30 MB)..."
       $base = "https://nodejs.org/dist/latest-v22.x/"
       $sums = (Invoke-WebRequest -Uri ($base + "SHASUMS256.txt") -UseBasicParsing).Content
       $msi = ([regex]::Match($sums, "node-v22\.[0-9]+\.[0-9]+-x64\.msi")).Value
       if ($msi) {
         $out = Join-Path $env:TEMP $msi
         Invoke-WebRequest -Uri ($base + $msi) -OutFile $out -UseBasicParsing
-        Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$out`" /passive /norestart" -Wait
+        Line "    Dang cai Node.js (neu Windows hoi quyen thi bam Yes)..."
+        Invoke-Capped -File "msiexec.exe" -Arguments "/i `"$out`" /passive /norestart" | Out-Null
         Refresh-Path
       }
     } catch {
@@ -177,7 +231,7 @@ if ($SkipCli) {
     )) {
       if (Have $it.bin) { Ok "$($it.ten): da co san"; continue }
       Line "    $($it.ten): dang cai (npm install -g $($it.pkg))..."
-      cmd /c "npm install -g $($it.pkg)" | Out-Null
+      Invoke-Capped -File $env:ComSpec -Arguments "/d /c npm install -g $($it.pkg)" -Minutes 15 | Out-Null
       Refresh-Path
       if (Have $it.bin) { Ok "$($it.ten)" } else { Warn "$($it.ten) cai chua duoc. Cai tay: npm install -g $($it.pkg)" }
     }
@@ -196,17 +250,15 @@ if ($SkipCli) {
     try {
       # In a CHILD PowerShell, not Invoke-Expression here: a vendor script that ends with
       # `exit` would otherwise end THIS script too, and Python deps, .env and auto-start
-      # (the steps below) would silently never run. Capped at 10 minutes so a script that
-      # waits on a prompt cannot hang the whole install.
-      $cmd = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm '$($it.url)' | iex"
+      # (the steps below) would silently never run. Invoke-Capped stops it after 10 minutes,
+      # helper processes included, so a script that waits on a prompt cannot hang the install.
+      $cmd = "`$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm '$($it.url)' | iex"
       # -EncodedCommand: Start-Process joins its arguments without quoting, so a plain
       # -Command string with spaces, quotes and a pipe would reach the child mangled.
       $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
-      $p = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $enc" -NoNewWindow -PassThru
-      if (-not $p.WaitForExit(600000)) {
-        try { $p.Kill() } catch { }
-        Warn "$($it.ten): trinh cai chay qua 10 phut, da dung."
-      }
+      # -OutputFormat Text: with -EncodedCommand a child PowerShell answers in CLIXML, which put
+      # "#< CLIXML" and one 400,000 character line of XML on the screen.
+      Invoke-Capped -File (Join-Path $PSHOME "powershell.exe") -Arguments "-NoProfile -ExecutionPolicy Bypass -OutputFormat Text -EncodedCommand $enc" -Minutes 10 | Out-Null
       Refresh-Path
       if (Have $it.bin) { Ok "$($it.ten)" } else { Warn "$($it.ten): script chay xong nhung chua thay binary. Mo PowerShell moi roi thu: irm $($it.url) | iex" }
     } catch {
@@ -268,8 +320,8 @@ Line ""
 if (-not $NoAutostart) {
   $as = Join-Path $Root "javis-autostart.ps1"
   if (Test-Path $as) {
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $as install | Out-Null
-    if ($LASTEXITCODE -eq 0) { Ok "Tu khoi dong cung Windows: BAT (dang nhap may la Javis tu mo)" }
+    $asCode = Invoke-Capped -File (Join-Path $PSHOME "powershell.exe") -Arguments "-NoProfile -ExecutionPolicy Bypass -File `"$as`" install" -Minutes 2 -Quiet
+    if ($asCode -eq 0) { Ok "Tu khoi dong cung Windows: BAT (dang nhap may la Javis tu mo)" }
     else { Warn "Chua bat duoc tu khoi dong. Bat sau: javis-autostart.bat install" }
   }
 }
