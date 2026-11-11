@@ -1,0 +1,12 @@
+name: Quét file và tìm file trùng
+name_en: "File scan and duplicates"
+slug: javis-files
+version: 1.0.0
+description: Quét ổ đĩa, thư mục, ổ mạng map hoặc NAS, tìm file trùng giống hệt, thống kê dung lượng theo loại và thư mục, xuất báo cáo vào brain. Chỉ đọc, không di chuyển hay xoá file nào.
+description_en: "Scans drives, folders, mapped network drives or a NAS, finds identical duplicate files, sums up space by type and folder, and saves a report into the brain. Read-only: it never moves or deletes a file."
+author: Javis (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - javis_files
+hooks: []
