@@ -8,7 +8,7 @@ Chạy Javis OS trong vài phút. Chi tiết từng phần: [docs/](docs/README.
 
 Cài Javis như một ứng dụng bình thường: tải một file, bấm mở, xong thì có biểu tượng JAVIS OS để bấm vào mỗi ngày. Bộ cài tự kiểm tra máy còn thiếu gì (Git, Python, Node, các bộ não AI) và tự cài phần thiếu.
 
-- **Windows 10/11:** tải [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe), bấm đúp, bấm Next tới hết. Một cửa sổ đen hiện tiến trình cài (vài phút). Xong thì có biểu tượng JAVIS OS trên Desktop và Start menu.
+- **Windows 10/11:** tải [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe), bấm đúp, bấm Next tới hết. Tiến trình cài hiện ngay trong cửa sổ Setup, từng bước một (vài phút), không còn cửa sổ đen riêng. Xong thì có biểu tượng JAVIS OS trên Desktop và Start menu.
 - **macOS 11 trở lên:** tải [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg), mở ra, kéo **JAVIS OS** vào **Applications**, rồi mở từ Launchpad. Lần đầu Terminal mở ra để cài (có thể hỏi đặt tài khoản quản trị Javis và mật khẩu máy Mac một lần).
 
 Bấm vào biểu tượng là Javis mở thành cửa sổ riêng (không thanh địa chỉ), Javis tự chạy cùng máy, nút **Cập nhật** trong app dùng được như thường. Dữ liệu nằm ở thư mục `JavisOS` trong thư mục người dùng; gỡ app không xoá thư mục này.

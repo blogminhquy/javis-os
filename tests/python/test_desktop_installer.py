@@ -92,7 +92,7 @@ for name, src in (("bootstrap.ps1", boot), ("bootstrap.sh", boot_sh)):
     check(f"{name} leaves an existing clone alone (it holds the brain)", ".git" in src and "giu nguyen" in src)
     check(f"{name} refuses to clone over a non-empty folder", "khong phai ban Javis" in src)
 check("bootstrap.ps1 hands over to install.ps1 -NoStart and checks its exit code",
-      '"-NoStart"' in boot and "$LASTEXITCODE -ne 0" in boot.split("install.ps1")[-1])
+      '-File `"$inst`" -NoStart"' in boot and "if ($instCode -ne 0)" in boot.split("install.ps1")[-1])
 check("bootstrap.sh runs install.sh", "bash ./install.sh" in boot_sh)
 
 # ---- uninstall ----
@@ -114,7 +114,7 @@ check("install.sh node tarball fallback picks darwin on a Mac", '-${nos}-${na}' 
 check("CANARY: install.ps1 runs the agy/grok vendor scripts in a child PowerShell (an `exit` in them "
       "must not end install.ps1 before deps, .env and autostart)",
       not any("Invoke-Expression" in ln and not ln.lstrip().startswith("#") for ln in install_ps1.splitlines())
-      and "-EncodedCommand $enc" in install_ps1 and "WaitForExit(600000)" in install_ps1)
+      and "-EncodedCommand $enc" in install_ps1 and "-EncodedCommand $enc\" -Minutes 10" in install_ps1)
 check("install.ps1 still installs all four brains (claude, codex, agy, grok)",
       all(x in install_ps1 for x in ('"@anthropic-ai/claude-code"', '"@openai/codex"',
                                      "antigravity.google/cli/install.ps1", "x.ai/cli/install.ps1")))
@@ -132,6 +132,56 @@ check("CI runs the macOS first-run path and checks all four brains",
       "packaging/macos/bootstrap.sh" in mac_job and "check_brains.py" in mac_job)
 check("macOS launcher has a fallback when Terminal automation is denied",
       "if ! osascript" in launcher and "pbcopy" in launcher and "printf 'JAVIS_HOME=%q bash %q" in launcher)
+
+# ---- no black window, nothing that can wait forever (2026-11-11) ----
+# The owner's screenshot: wizard at 100%, nothing moving, the console that held the answer
+# hidden behind it. The bootstrap now runs hidden and the wizard shows its lines.
+code = iss.split("[Code]", 1)[1]
+boot_exec = code.split("procedure CurStepChanged", 1)[1].split("procedure CurPageChanged", 1)[0]
+check("CANARY: the wizard runs bootstrap.ps1 hidden and reads its output (no separate console)",
+      "ExecAndLogOutput(PowerShellExe, args" in boot_exec and "@BootLine" in boot_exec)
+check("CANARY: the hidden bootstrap gets -NoPause (nobody can press Enter in it)",
+      "-NoPause'" in boot_exec and "Read-Host" in boot and "if (-not $NoPause) { Read-Host" in boot)
+check("the wizard shows the lines in a box on the Installing page",
+      "BootMemo.Parent := WizardForm.InstallingPage" in code and "BootMemo.Lines.Add(" in code)
+check("the bar keeps moving while the bootstrap runs (it used to sit at 100%)",
+      "ProgressGauge.Style := npbstMarquee" in boot_exec and "ProgressGauge.Style := npbstNormal" in boot_exec)
+check("the wizard keeps the log on disk and names it when the bootstrap fails",
+      "SaveStringsToUTF8File(BootLogFile" in code and "[why, BootLogFile]" in boot_exec)
+check("no wizard text still sends people to a black window",
+      "black window" not in iss.split("[CustomMessages]")[1].split("[Tasks]")[0]
+      and "cửa sổ đen" not in iss.split("[CustomMessages]")[1].split("[Tasks]")[0])
+step_keys = ("StepGit", "StepClone", "StepPython", "StepLibs", "StepBrains", "StepFinish", "Bootstrapping",
+             "BootstrapFailed", "BootstrapNoDetail", "NotFinishedTitle", "NotFinishedText")
+check("every wizard step line exists in English and Vietnamese",
+      all(f"en.{k}=" in iss and f"vi.{k}=" in iss for k in step_keys))
+check("the step markers the wizard reads are the ones the scripts print",
+      all(f"Pos('[{m}]', U) = 1" in code for m in "AB12345")
+      and 'Step "A"' in boot and 'Step "B"' in boot
+      and all(f"Step {n} " in install_ps1 for n in (1, 2, 3, 4, 5)))
+for name, src in (("bootstrap.ps1", boot), ("install.ps1", install_ps1)):
+    live = [ln for ln in src.splitlines() if not ln.lstrip().startswith("#")]
+    check(f"{name} turns off the PS 5.1 progress bar (10x slower downloads)",
+          '$ProgressPreference = "SilentlyContinue"' in src)
+    check(f"{name} has Invoke-Capped: waits for one process, with a time cap, and stops its helpers",
+          "function Invoke-Capped" in src and "$p.WaitForExit($Minutes * 60000)" in src
+          and "taskkill.exe /PID $p.Id /T /F" in src and "$null = $p.Handle" in src)
+    check(f"CANARY: {name} never waits with Start-Process -Wait (it also waits for leftover helpers)",
+          not any("Start-Process" in ln and re.search(r"-Wait\b", ln) for ln in live),
+          [ln for ln in live if "Start-Process" in ln and "-Wait" in ln])
+    check(f"CANARY: {name} never pipes winget, npm or the next script into Out-Null / Out-Host "
+          "(a pipe waits for every helper process that keeps it open)",
+          not any(re.search(r"^\s*(&\s+)?(winget|cmd|powershell)\b.*\|\s*Out-(Null|Host)", ln) for ln in live),
+          [ln for ln in live if re.search(r"^\s*(&\s+)?(winget|cmd|powershell)\b.*\|\s*Out-(Null|Host)", ln)])
+check("winget installs skip the Microsoft Store source and run quietly under a cap",
+      "--id $id --source winget" in install_ps1 and "function Winget-Install" in install_ps1
+      and "--source winget" in boot and "-Quiet" in boot)
+check("vendor installers answer in plain text, not CLIXML", "-OutputFormat Text -EncodedCommand $enc" in install_ps1)
+check("CI runs the real Setup.exe and checks the lines the wizard captured",
+      "dist\\JavisOS-Setup.exe -ArgumentList \"/VERYSILENT" in wf and "the wizard wrote no install.log" in wf
+      and 'Join-Path $env:USERPROFILE "JavisOS"' in wf)
+check("get-javis.ps1 says the rest happens in the Setup window",
+      "JAVIS OS Setup" in (PK / "windows" / "get-javis.ps1").read_text(encoding="utf-8"))
 
 # ---- Javis logo in the installers, optional signing (0.439.1) ----
 import struct  # noqa: E402
