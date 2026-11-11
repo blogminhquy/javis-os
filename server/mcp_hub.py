@@ -11,6 +11,7 @@ Mode đến từ header X-Javis-Mode (Claude/Codex) hoặc tham số (engine API
 import asyncio
 import contextvars
 import hashlib
+import fnmatch
 import json
 import os
 import re
@@ -1796,9 +1797,19 @@ def _store_mtime():
     return tong
 
 
+def _scope_tools(tools, route, allowlist):
+    if allowlist is None:
+        return tools, route
+    selected = {name for name in route
+                if name not in ("javis_run_tool", "javis_search_tools")
+                and any(fnmatch.fnmatchcase(name, pattern) for pattern in allowlist)}
+    return ([tool for tool in tools if tool["fn"] in selected],
+            {name: entry for name, entry in route.items() if name in selected})
+
+
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
                        force_refresh=False, force_lazy=False, staging=False, workspace_root=None,
-                       coding_ctx_cua_phien=None, for_bot=False):
+                       coding_ctx_cua_phien=None, for_bot=False, tool_allowlist=None):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Javis-No-Plugins) để model không thấy tool trùng chức năng.
@@ -1816,7 +1827,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # connection, no builtin, no plugin, no lazy tier. Returned before any of those are discovered so
     # a later change to them cannot leak into this level. See chatbot_doc_tools.
     if mode == chatbot_doc_tools.MODE:
-        return chatbot_doc_tools.build(vault_root)
+        return _scope_tools(*chatbot_doc_tools.build(vault_root), tool_allowlist)
     # Ngôn ngữ đọc từ CẤU HÌNH, không truyền từ lượt chat: danh sách tool được cache dùng chung
     # cho mọi lượt, nên nó không thể mang ngôn ngữ dò được của riêng một câu. Đổi lại, ngôn ngữ
     # phải nằm TRONG khoá cache - thiếu nó thì đổi ngôn ngữ ở trang Cài đặt xong vẫn nhận danh
@@ -1842,6 +1853,9 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
            bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx, bool(for_bot),
            pins, str(_sid_ctx or ""))
+    if tool_allowlist is not None:
+        tool_allowlist = tuple(sorted(set(tool_allowlist)))
+        key = key[:-1] + (tool_allowlist,) + key[-1:]
     from improvement_task_skill_scope import current, ScopeUnavailable
     task_scope = current(vault_root or '')
     cache = task_scope._hub_cache if task_scope is not None else _cache
@@ -1862,7 +1876,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
                 try:
                     await discover_all(mode, vault_root, include_plugins, include_ambient, force_refresh=True,
                                        force_lazy=force_lazy, staging=staging, workspace_root=workspace_root,
-                                       coding_ctx_cua_phien=coding_ctx_cua_phien, for_bot=for_bot)
+                                       coding_ctx_cua_phien=coding_ctx_cua_phien, for_bot=for_bot,
+                                       tool_allowlist=tool_allowlist)
                 except Exception as e:  # noqa: BLE001 - the next caller simply dials again
                     print(f"[hub] background refresh failed: {type(e).__name__}: {e}", file=sys.stderr)
                 finally:
@@ -1984,8 +1999,13 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # LAZY: đông tool MCP thì giấu pool sau meta-tool search/run (giữ full route để dispatch).
     # Đặt SAU builtin+plugin để chúng luôn hiện; cache lưu bản ĐÃ biến đổi (route lazy vẫn dispatch
     # được vì _run đóng gói route đầy đủ). Đổi setting → làm mới theo TTL cache (60s) hoặc invalidate.
-    tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden, force=force_lazy,
-                                    scope=str(vault_root or ""), pins_key=pins_key, pins=pins)
+    if tool_allowlist is None:
+        tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden, force=force_lazy,
+                                        scope=str(vault_root or ""), pins_key=pins_key, pins=pins)
+    else:
+        # Filter BEFORE a lazy dispatcher can capture the full route table. A missing name
+        # fails at call_route too, so a forged tools/call cannot bypass the advertised list.
+        tools_spec, route = _scope_tools(tools_spec, route, tool_allowlist)
     if task_scope is not None:
         if current(vault_root) is not task_scope or _cache_epoch != epoch:
             raise ScopeUnavailable('task_skill_discovery_changed')
@@ -2277,7 +2297,7 @@ def _chan_doan_thieu_brain(header_hong):
 
 
 async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, vault_root=None,
-                      vault_nguon="", vault_header_hong="", for_bot=False, gate=None):
+                      vault_nguon="", vault_header_hong="", for_bot=False, gate=None, tool_allowlist=None):
     mid = msg.get("id")
     method = msg.get("method") or ""
     params = msg.get("params") or {}
@@ -2303,17 +2323,24 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
     if method == "tools/list":
         tools, _ = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
                                       include_ambient=include_ambient,
-                                      for_bot=for_bot)   # Claude/Codex có tool file native → không builtin file
+                                      for_bot=for_bot, **({"tool_allowlist": tool_allowlist}
+                                                         if tool_allowlist is not None else {}))
         if gate is not None:
             # Javis Gate (0.440.0): bốn tool chat CHỈ có ở cửa cho AI bên ngoài (chat_bridge.py).
             import chat_bridge
             tools = chat_bridge.tool_specs(mode) + list(tools)
+        if tool_allowlist is not None:
+            tools, _ = _scope_tools(tools, {t["fn"]: {} for t in tools}, tool_allowlist)
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": [
             {"name": t["fn"], "description": (t.get("description") or t["fn"]),
              "inputSchema": t.get("schema") or {"type": "object", "properties": {}}}
             for t in tools]}}
     if method == "tools/call":
         name = params.get("name") or ""
+        if tool_allowlist is not None and not _scope_tools([], {name: {}}, tool_allowlist)[1]:
+            return {"jsonrpc": "2.0", "id": mid, "result": {
+                "content": [{"type": "text", "text": "ERROR: Tool is outside this workflow's allowed list."}],
+                "isError": True}}
         if gate is not None:
             import chat_bridge
             if name in chat_bridge.TOOLS:
@@ -2324,7 +2351,8 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
                     "isError": result.startswith("ERROR:"),
                 }}
         _, route = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
-                                      include_ambient=include_ambient, for_bot=for_bot)
+                                      include_ambient=include_ambient, for_bot=for_bot,
+                                      **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
         with tool_result_shaper.for_model():
             result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
@@ -2362,6 +2390,18 @@ async def handle_http(request):
     # A dedicated bot's Claude Code config carries X-Javis-Bot: 1 (see `claude_config_path(bot=True)`), so the hub
     # hides OWNER_ONLY_TOOLS from it. The header can only take tools AWAY; leaving it out grants nothing new.
     for_bot = (request.headers.get("x-javis-bot") or "").strip() == "1"
+    tool_allowlist = None
+    raw_allowlist = request.headers.get("x-javis-tool-allowlist")
+    if raw_allowlist is not None:
+        try:
+            tool_allowlist = json.loads(raw_allowlist)
+            if (len(raw_allowlist) > 16000 or not isinstance(tool_allowlist, list)
+                    or len(tool_allowlist) > 256
+                    or any(not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.*-]{1,200}", name)
+                           for name in tool_allowlist)):
+                raise ValueError("invalid tool allowlist")
+        except (ValueError, TypeError):
+            return JSONResponse({"error": "invalid_tool_allowlist"}, status_code=400)
     # Who is talking (`turn` for tool hooks). The CLI engine of a chat turn sends the opaque key
     # that turn issued; the header names nobody by itself, so a forged or stale key is just None.
     # ALWAYS bind, even to None: this request must never inherit a turn from whatever context
@@ -2374,7 +2414,8 @@ async def handle_http(request):
         with improvement_activation.cli_transport():
             return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
                                          include_ambient=include_ambient,
-                                         raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot)
+                                         raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot,
+                                         **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
     finally:
         turn_context.reset(tok)
 
@@ -2392,7 +2433,7 @@ async def _handle_one_traced(msg, *args, **kwargs):
 
 
 async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=False,
-                          raw_vault=None, for_bot=False, gate=None):
+                          raw_vault=None, for_bot=False, gate=None, tool_allowlist=None):
     """Đọc thân JSON-RPC của `request`, chạy qua hub, trả Response. KHÔNG xác thực gì cả.
 
     Tách khỏi `handle_http` để một cửa khác (ví dụ plugin tự lo OAuth qua `register_http`) đi
@@ -2418,13 +2459,16 @@ async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=F
         if isinstance(body, list):
             out = [r for r in [await _handle_one_traced(m, mode, include_plugins, include_ambient,
                                                         vault_root, vault_nguon, vault_header_hong,
-                                                        for_bot=for_bot, gate=gate)
+                                                        for_bot=for_bot, gate=gate,
+                                                        **({"tool_allowlist": tool_allowlist}
+                                                           if tool_allowlist is not None else {}))
                                for m in body] if r is not None]
             if not out:
                 return Response(status_code=202)
             return JSONResponse(out)
         res = await _handle_one_traced(body, mode, include_plugins, include_ambient, vault_root,
-                                       vault_nguon, vault_header_hong, for_bot=for_bot, gate=gate)
+                                       vault_nguon, vault_header_hong, for_bot=for_bot, gate=gate,
+                                       **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
         if res is None:
             return Response(status_code=202)
         return JSONResponse(res)

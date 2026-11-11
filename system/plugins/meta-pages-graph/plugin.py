@@ -122,6 +122,8 @@ async def _delete(path, token):
 
 
 def _fmt(d):
+    from graph_output import sanitize_graph_output
+    d = sanitize_graph_output(d)
     if isinstance(d, dict) and d.get("error"):
         e = d["error"]
         msg = e.get("message") if isinstance(e, dict) else str(e)

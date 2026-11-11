@@ -12752,6 +12752,16 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             provider = str(main_spec.get("provider") or "")
             from_main = True
         prov = _agent_model_provider(model, provider)
+        if prov == "openai-oauth" and tools is not None:
+            import workflow_codex
+            allowed, _ = _step_grant(extra_tools)
+            cc = workflow_codex.build(
+                cwd=vault_root, model=_codex_safe_model(model) if model else None,
+                instructions=sysprompt, allowed=list(tools) + allowed, mode=gated_mode,
+                apply_hub=_apply_codex_hub, extra_servers=_codex_user_mcp_servers())
+            openai_oauth.write_codex_auth()
+            _apply_step_reasoning(cc, reasoning, codex=True)
+            return cc
         if prov == "openai-oauth" and (model or from_main) and tools is None and find_codex_cli():
             openai_oauth.write_codex_auth()
             cc = CodexCLI(cwd=vault_root, tag="workflow", model=_codex_safe_model(model),
