@@ -102,6 +102,13 @@ const upd = page("overview", { updOpen: true, sched: false, meta: { source: "upd
 check("the update panel offers update now and the monthly schedule", upd.includes("cp-upd") && upd.includes("data-upd-now") && upd.includes("data-upd-sched"));
 check("a running schedule offers to turn it off", page("overview", { updOpen: true, sched: { id: "r1", next: "08/12" } }).includes('data-upd-unsched="r1"'));
 check("the toolbar has the update button", page("overview").includes("data-upd "));
+const frame = page("overview", { meta: { source: "bundled", draft: { changed: ["verdict"], at: 1 } }, updOpen: true, sched: false });
+check("the tab bar sits above the scroller, banner and content scroll inside it",
+  frame.indexOf("cp-toolbar") < frame.indexOf('class="cp-scroll"') && frame.indexOf('class="cp-scroll"') < frame.indexOf("cp-draft")
+  && frame.indexOf('class="cp-scroll"') < frame.indexOf("cp-upd") && frame.indexOf('class="cp-scroll"') < frame.indexOf('class="cp-main"'));
+const css = read("dashboard/compass.css");
+check("the page hides the shared title row and only the content scrolls",
+  /\.cview:has\(\.cview-body > \.cp-root\) \.cview-head \{ display: none; \}/.test(css) && /\.cview-body:has\(> \.cp-root\) \{ overflow: hidden;/.test(css) && /\.cp-scroll \{[^}]*overflow-y: auto/.test(css));
 check("the page reads the approved outlook first, then the bundled file", /DATA_URL = "\/compass\/data"/.test(read("dashboard/compass.js")) && /UPD_MARK = "javis_compass_draft"/.test(read("dashboard/compass.js")));
 check("page text is escaped", !CP._pageHtml({ assets: [{ id: "re_vn", name: { vi: "<script>", en: "<script>" }, stance: "hold", score: 0 }] }, { tab: "overview" }).includes("<script>"));
 global.window = { t: (k) => en[k] || k };
