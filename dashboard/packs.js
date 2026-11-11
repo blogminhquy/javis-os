@@ -192,8 +192,9 @@
   // Loại năng lực, thứ chia lưới kho thành các tab. Thứ tự ở đây LÀ thứ tự chip trên màn
   // hình, đi từ thứ người dùng hiểu nhanh nhất (trợ lý) tới thứ kỹ thuật nhất (kết nối).
   //
-  // `bundle` cố ý KHÔNG có chip riêng: nó là chỗ rơi của mục khai loại lạ, và một chip tên
-  // "Khác" chỉ mời người ta bấm vào để thấy lưới rỗng. Mục bundle vẫn hiện ở tab Tất cả.
+  // `bundle` (a pack made of several kinds, and where an unknown kind lands) gets its tab only while the list
+  // holds such a pack: an always-on tab would mostly open an empty grid. Until 2026-11-11 it had no
+  // tab at all, so `javis.crm`, the one bundle in the Store, could not be found or installed from this page.
   //
   // Icon lấy ĐÚNG icon trang tương ứng ở thanh bên (`console.js` VIEW_ICON), không chọn lại
   // cho đẹp: người dùng nhận ra "cái này là kỹ năng" bằng hình họ đã thấy hàng ngày.
@@ -213,6 +214,9 @@
   const THU_TU_LOAI = ["agent", "skill", "workflow", "tool", "connector"];
   const theoGoc = g => !!(g && g.upstream && g.upstream.repo);
   const trongTab = (g, loai) => loai === "repo" ? theoGoc(g) : (g.kind || "bundle") === loai;
+  // The tabs to draw for this catalog, in screen order: Recommended first and Bundle last, each only when it has a pack.
+  const tabKinds = ds => (ds.some(theoGoc) ? ["repo"] : []).concat(THU_TU_LOAI,
+    ds.some(g => trongTab(g, "bundle")) ? ["bundle"] : []);
 
   // Trần dung lượng tệp .zip, do server nói (`/packs` trả `max_mb`). Giữ ở module để hộp thoại
   // chọn tệp nói đúng con số ngay cả khi nó mở lại sau một lần lỗi, lúc không còn `d` trong tay.
@@ -757,7 +761,8 @@
   function veLuoi(el, host) {
     const d = _kho.dl || { packs: [] };
     const ds = d.packs || [];
-    if (_kho.loai === "repo" && !ds.some(theoGoc)) _kho.loai = "skill";
+    const dsLoai = tabKinds(ds);
+    if (!dsLoai.includes(_kho.loai)) _kho.loai = "skill";
     const cungLoai = ds.filter(g => trongTab(g, _kho.loai));
     const daCai = cungLoai.filter(g => g.installed);
     // Đếm bản mới trên MỌI loại, không chỉ tab đang mở. Đây là chỗ sửa cái lỗi nặng nhất của
@@ -802,7 +807,6 @@
     _kho.trang = trang;
     const hienThi = hop.slice((trang - 1) * MOI_TRANG, trang * MOI_TRANG);
 
-    const dsLoai = (ds.some(theoGoc) ? ["repo"] : []).concat(THU_TU_LOAI);
     // The same kinds as a <select> for phones (owner, 2026-10-28: a dropdown fits a phone better
     // than six squeezed buttons). Each option keeps its count and its "N new" badge as text.
     const chonLoai = dsLoai.map(k => {
@@ -837,7 +841,7 @@
       ? '<div class="kho-bao-moi">' + ic("arrow-up")
         + '<span><b>' + tw("store.updates_count", { count: capNhat.length }) + '</b> '
         + tw("store.updates_tail") + '</span>'
-        + THU_TU_LOAI.filter(k => capNhat.some(g => (g.kind || "bundle") === k))
+        + dsLoai.filter(k => k !== "repo" && capNhat.some(g => (g.kind || "bundle") === k))
             .map(k => '<button class="kho-chip" data-kho-moi="' + k + '">'
               + esc(tw(LOAI[k].nhan)) + ' ('
               + capNhat.filter(g => (g.kind || "bundle") === k).length + ')</button>').join("")

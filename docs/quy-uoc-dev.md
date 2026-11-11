@@ -135,6 +135,9 @@ Nhóm và trang Hội thoại.
 - Các màn hiện có: chat chính (`app.js`, `composer-dictate.js`), Nhóm (`teams.js`), Hội thoại/Chatbot
   (`conversations.js`). Mic đọc chữ dùng chung `dictate.js`: tìm mọi chỗ gọi bằng `grep -n "JavisDictate" dashboard/*.js`.
   Có màn chat mới thì thêm tên vào danh sách này.
+- Tự nhảy số thứ tự khi xuống dòng (`chat-list.js`, từ 11/11/2026) chạy bằng MỘT bộ nghe chung, nhận ô chat qua danh
+  sách `BOXES` trong file đó. Có ô chat mới thì thêm selector của nó vào `BOXES`, kèm một dòng kiểm trong
+  `tests/js/test_chat_list_continue.js`.
 - Màn nào cố ý để khác thì ghi lý do trong mô tả PR, và nói rõ với chủ.
 - Thêm test cho từng màn đã đổi, để lần sau lệch là CI đỏ.
 
