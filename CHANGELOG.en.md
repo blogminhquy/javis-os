@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.539.0] - 2026-11-11
+### Added
+- **Chat boxes continue a numbered list.** Under a line like `1. ...`, a new line starts with `2. `, as in Claude. A new line is Enter on a phone and Shift+Enter on a computer (Enter on a computer still sends). Works in the main chat, Teams, Conversations and the chatbot trial box.
+- A new line on an item that is still empty removes the number and ends the list. A line added in the middle moves the numbers below it up.
+### Fixed
+- **Javis Store shows "Bundle" packs.** A pack made of several kinds, such as Customer management (CRM), sat under no tab, so it could not be found or installed from the Store page. There is now a "Bundle" tab at the end of the tab row.
+
 ## [0.538.0] - 2026-11-11
 ### Improved
 - **Welcome screen: the password is typed twice.** When the two boxes differ Javis says so at once and takes you to the box to fix, before any account is created. One mistyped character no longer locks you out of a fresh install.
