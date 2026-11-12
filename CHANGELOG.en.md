@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.547.2] - 2026-11-12
+### Fixed
+- **The "SDK engine: ProcessError... Check stderr output for details" error now gives the reason.** When Claude Code exits before answering, the chat shows what it printed instead of a line nobody can act on.
+- **Three common cases come with the fix:** Javis running as root, a broken data source (MCP) configuration, and an outdated Claude Code on the machine.
+
 ## [0.547.1] - 2026-11-12
 ### Fixed
 - **The usage ring stops being red as soon as the plan works again.** Before, after you reset the plan on the provider's site the ring stayed red at 100% and Javis's own work stayed paused until the old reset time.
