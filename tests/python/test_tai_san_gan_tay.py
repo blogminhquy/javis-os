@@ -89,8 +89,13 @@ check("đường dẫn trèo ra ngoài trần bị chặn",
 # ca đó gửi đường dẫn THẬT nên vẫn vào tới hàm.
 check("đường dẫn rỗng bị từ chối",
       c.post(API + "/files", data={"path": ""}).status_code in (404, 422))
-check("thư mục cũng bị từ chối",
-      c.post(API + "/files", data={"path": "06 - Sources"}).status_code == 404)
+# 2026-11-12 (owner: "chọn được cả thư mục"): a real folder is accepted, as ONE row whose path ends in "/". The full
+# behaviour is measured in test_folder_documents.py; here it is added and removed so the counts below stay as they were.
+_dir = c.post(API + "/files", data={"path": "06 - Sources"})
+check("a folder is accepted and stored with a trailing slash",
+      _dir.status_code == 200 and _dir.json().get("dir") is True
+      and [f["path"] for f in st.list_session_files(SID) if f["id"] == _dir.json().get("id")] == ["06 - Sources/"], _dir.text)
+c.post(API + "/files/" + str(_dir.json().get("id")) + "/delete")
 check("phiên không tồn tại trả 404",
       c.post("/sessions/khong-co-that/assets/files",
              data={"path": "06 - Sources/bang-gia.md"}).status_code == 404)

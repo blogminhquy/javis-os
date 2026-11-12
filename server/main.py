@@ -929,7 +929,9 @@ def _liet_ke_tai_lieu(brain: str, files: list, links: list):
     for item in files[:PROJECT_FILES_LIET_KE]:
         prepared = None
         path = item.get("path") or ""
-        if item.get("pinned") and os.path.splitext(path)[1].lower() in PROJECT_GHIM_DUOI:
+        if item.get("pinned") and path.endswith("/"):
+            prepared = _folder_asset_text(brain, path)
+        elif item.get("pinned") and os.path.splitext(path)[1].lower() in PROJECT_GHIM_DUOI:
             try:
                 # Read policy includes the serving ceiling, as in the legacy path.
                 text = _safe_serve_path(brain, path).read_text(encoding="utf-8", errors="replace")
@@ -941,6 +943,44 @@ def _liet_ke_tai_lieu(brain: str, files: list, links: list):
     return main_attachment_rendering.render_attachment_lists(
         files, links, loaded, list_max=PROJECT_FILES_LIET_KE, allowed_suffixes=PROJECT_GHIM_DUOI,
         file_max=PROJECT_GHIM_FILE_MAX, total_max=PROJECT_GHIM_TONG_MAX)
+
+
+def _folder_asset_text(brain: str, path: str):
+    """What a PINNED folder loads into the prompt (2026-11-12): a short tree of what it holds, so the model knows which
+    files are there without listing the folder first. None when the folder is gone (the row then says it cannot be
+    read). The tree is the one a team's working folder shows (team_docs.tree: two levels, capped)."""
+    import team_docs
+    try:
+        folder = _safe_serve_path(brain, path)
+        if not folder.is_dir():
+            return None
+        lines = team_docs.tree(str(folder))
+    except Exception:  # noqa: BLE001 - an unreadable folder is a row that says so, never a broken turn
+        return None
+    text = ("Thư mục này gồm (hai tầng đầu; mở file bên trong bằng tool đọc file khi cần):\n" + "\n".join(lines)
+            if lines else "(thư mục đang trống)")
+    return main_attachment_rendering.PreparedAttachmentText(text[:PROJECT_GHIM_FILE_MAX], len(text))
+
+
+def _asset_target(brain: str, path: str):
+    """(stored path, name, is_dir) of a brain file or folder about to be attached to a project, a chat or an agent, or
+    None when nothing is there. Raises ValueError when the path leaves the allowed area (`_safe_path`).
+
+    A folder is stored with ONE trailing "/" (2026-11-12, owner: "chọn được cả thư mục"): that slash is the whole
+    marker, read by the prompt renderer and by the dashboard, so no table and no frontmatter key had to change. The
+    empty path is refused: it resolves to the browse ceiling itself, which is not something to attach."""
+    target = _safe_path(brain, path)
+    rel = (path or "").strip().replace("\\", "/").strip("/")
+    if rel and target.is_dir():
+        return rel + "/", target.name, True
+    if target.is_file():
+        return path, target.name, False
+    return None
+
+
+def _asset_missing():
+    return JSONResponse({"error": localefmt.chu("Không tìm thấy file hay thư mục này trong brain",
+                                                "No such file or folder in this brain")}, status_code=404)
 
 
 def _session_block(session_id: str) -> str:
@@ -9926,16 +9966,17 @@ async def agent_assets_add_file(slug: str, path: str = Form(...), name: str = Fo
     try:
         # Kiểm đường dẫn TRƯỚC khi ghi vào frontmatter: không có bước này thì lưu được một
         # path trèo ra ngoài brain rồi mới vỡ lúc nạp nội dung vào prompt.
-        alo = _safe_path(brain, path)
+        # 2026-11-12: a folder is accepted too (`_asset_target`), stored with a trailing "/". The empty path, which
+        # resolves to the browse ceiling itself, is still refused there.
+        found = _asset_target(brain, path)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    # `is_file` chứ không phải `exists`: một đường dẫn rỗng giải ra chính thư mục trần, mà
-    # thư mục thì "có tồn tại" - gắn được một hàng trỏ vào thư mục, ghim vào là đọc lỗi.
-    if not alo.is_file():
-        return JSONResponse({"error": localefmt.chu("Không tìm thấy file trong brain này", "File not found in this brain")}, status_code=404)
+    if not found:
+        return _asset_missing()
+    stored, real_name, is_dir = found
     fid, loi = await asyncio.to_thread(
-        _agent_assets_sua, brain, slug, lambda m: agent_assets.them_file(m, path, name or alo.name))
-    return loi or {"ok": True, "id": fid}
+        _agent_assets_sua, brain, slug, lambda m: agent_assets.them_file(m, stored, name or real_name))
+    return loi or {"ok": True, "id": fid, "dir": is_dir}
 
 
 @app.post("/agents/{slug}/assets/files/{file_id}/delete")
@@ -22673,29 +22714,33 @@ def _cuoc_tai_lieu_tay(session_id: str, sess: dict):
     ra_f = []
     for f in store.list_session_files(session_id):
         duong = f.get("path") or ""
+        is_dir = duong.endswith("/")           # 2026-11-12: a whole folder, stored with a trailing "/"
         rp, co = None, False
         try:
             # `_safe_serve_path` (không phải `_safe_path`): đây là đường ĐỌC, và trần duyệt có
             # thể cao hơn gốc brain nên đường dẫn lưu theo trần lẫn theo gốc đều phải giải
             # được. Cùng lý do như chỗ nạp file ghim của project.
             rp = Path(_safe_serve_path(brain, duong))
-            co = rp.is_file()
+            co = rp.is_dir() if is_dir else rp.is_file()
         except Exception:
             rp = None
-        ten = f.get("name") or duong.replace("\\", "/").split("/")[-1]
+        ten = f.get("name") or duong.replace("\\", "/").rstrip("/").split("/")[-1]
         # Trần duyệt có thể CAO hơn gốc brain, nên file gắn tay chưa chắc nằm trong gốc brain.
         # `_files_rel` ném ValueError ở đúng ca đó; rơi về đường dẫn đã lưu là đủ để hiện.
         try:
             hien = _files_rel(broot, rp) if rp else duong
         except ValueError:
             hien = duong
+        if is_dir and hien and not hien.endswith("/"):
+            hien += "/"                        # the slash is what tells a folder from a file with no extension
         ra_f.append({
             "id": f.get("id"),
             "path": duong,
             "brain_path": hien,
             "name": rp.name if rp else ten,
             "label": ten,
-            "image": os.path.splitext(duong)[1].lower() in IMG_EXTS,
+            "image": not is_dir and os.path.splitext(duong)[1].lower() in IMG_EXTS,
+            "dir": is_dir,
             "exists": co,
             "size": 0,
             "ts": f.get("added_at") or 0,
@@ -22732,22 +22777,21 @@ def sessions_add_file(session_id: str, path: str = Form(...), name: str = Form("
         return err
     b = (sess.get("brain") or "brain").strip() or "brain"
     try:
-        alo = _safe_path(b, path)
+        # 2026-11-12: a file or a whole folder (`_asset_target`; a folder is stored with a trailing "/"). The EMPTY
+        # path, which resolves to the browse ceiling itself, is still refused there.
+        found = _asset_target(b, path)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    # `is_file()` chứ không phải `exists()`: đường dẫn RỖNG giải ra chính thư mục trần, mà thư
-    # mục thì "có tồn tại" - thế là gắn được một hàng trỏ vào một cái thư mục, ghim vào thì
-    # đọc lỗi. Ở đây chỉ nhận đúng file.
-    if not alo.is_file():
-        return JSONResponse({"error": localefmt.chu("Không tìm thấy file trong brain này",
-                                                    "File not found in this brain")}, status_code=404)
-    fid = get_store().add_session_file(session_id, path, name or alo.name)
+    if not found:
+        return _asset_missing()
+    stored, real_name, is_dir = found
+    fid = get_store().add_session_file(session_id, stored, name or real_name)
     if not fid:
         return JSONResponse(
             {"error": localefmt.chu(f"Cuộc này đã gắn đủ {sessions.SESSION_ASSETS_MAX} tài liệu",
                                     f"This chat already has the maximum of {sessions.SESSION_ASSETS_MAX} documents")},
             status_code=400)
-    return {"ok": True, "id": fid}
+    return {"ok": True, "id": fid, "dir": is_dir}
 
 
 @app.post("/sessions/{session_id}/assets/files/{file_id}/delete")
@@ -23086,16 +23130,17 @@ def projects_add_file(project_id: str, path: str = Form(...), name: str = Form("
     try:
         # Kiểm đường dẫn TRƯỚC khi ghi DB. Kho không biết brain nào nên không tự kiểm được;
         # bỏ bước này là lưu được một path trèo ra ngoài brain rồi mới vỡ lúc đọc.
-        alo = _safe_path(p.get("brain") or "brain", path)
+        # 2026-11-12: a file or a whole folder (`_asset_target`; a folder is stored with a trailing "/").
+        found = _asset_target(p.get("brain") or "brain", path)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    if not alo.exists():
-        return JSONResponse({"error": localefmt.chu("Không tìm thấy file trong brain này",
-                                                    "File not found in this brain")}, status_code=404)
-    fid = get_store().add_project_file(project_id, path, name or alo.name)
+    if not found:
+        return _asset_missing()
+    stored, real_name, is_dir = found
+    fid = get_store().add_project_file(project_id, stored, name or real_name)
     if not fid:
         return JSONResponse({"error": localefmt.chu("thiếu đường dẫn", "missing path")}, status_code=400)
-    return {"ok": True, "id": fid}
+    return {"ok": True, "id": fid, "dir": is_dir}
 
 
 @app.post("/projects/{project_id}/files/{file_id}/delete")

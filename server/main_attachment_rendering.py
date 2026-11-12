@@ -30,15 +30,19 @@ def render_attachment_lists(files, links, loaded, *, list_max, allowed_suffixes,
     lines, sections, remaining = [], [], total_max
     for index, item in enumerate(files if preserve_full_protected else files[:list_max]):
         name, path = item.get("name") or "", item.get("path") or ""
+        # A stored path ending in "/" is a whole folder (2026-11-12). Pinned, its `loaded` text is a short tree of
+        # what it holds, prepared by the caller; every file row renders exactly as before.
+        is_dir = path.endswith("/")
+        kind = "thư mục" if is_dir else "file"
         if not item.get("pinned"):
-            lines.append(f"- [file] {name} - {path}")
+            lines.append(f"- [{kind}] {name} - {path}")
             continue
-        if os.path.splitext(path)[1].lower() not in allowed_suffixes:
+        if not is_dir and os.path.splitext(path)[1].lower() not in allowed_suffixes:
             lines.append(f"- [file, đã ghim nhưng là tệp nhị phân - tự mở khi cần] {name} - {path}")
             continue
         content = loaded[index] if index < len(loaded) else None
         if content is None:
-            lines.append(f"- [file, đã ghim nhưng đọc không được] {name} - {path}")
+            lines.append(f"- [{kind}, đã ghim nhưng đọc không được] {name} - {path}")
             continue
         if isinstance(content, PreparedAttachmentText):
             original_length = content.original_char_length
@@ -49,7 +53,7 @@ def render_attachment_lists(files, links, loaded, *, list_max, allowed_suffixes,
             original_length = len(content)
         chunk = content if preserve_full_protected else content[:min(file_max, max(0, remaining))]
         if not chunk and not preserve_full_protected:
-            lines.append(f"- [file, đã ghim nhưng hết chỗ nạp trong lượt này] {name} - {path}")
+            lines.append(f"- [{kind}, đã ghim nhưng hết chỗ nạp trong lượt này] {name} - {path}")
             continue
         remaining -= len(chunk)
         clipped = " (đã cắt bớt)" if len(chunk) < original_length else ""

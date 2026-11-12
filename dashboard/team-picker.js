@@ -137,7 +137,7 @@
   }
 
   // ───────────── documents picked in the create box (2026-11-12) ─────────────
-  // st.docs:  [{ name, brain_path }] for a file already in the brain, [{ name, path, uid, busy, err }] for an upload
+  // st.docs:  [{ name, brain_path, dir }] for a file or a whole folder (`dir`) of the brain, [{ name, path, uid, busy, err }] for an upload
   //           (`path` is the staged path /upload returned; empty while it uploads or when it failed).
   // st.links: ["https://..."]
   var DOCS_MAX = 10;         // files, and links: the server takes at most this many at creation (team_api.CREATE_DOCS_MAX)
@@ -198,6 +198,15 @@
     };
   }
 
+  // /files/search rows as the box keeps them. A folder's path gets ONE trailing "/": the spelling the server stores for
+  // a folder document, so "already added" is one string comparison, here and in the team's Info tab.
+  function searchRows(items) {
+    return (items || []).map(function (it) {
+      var dir = it.type === "dir";
+      return { path: dir ? String(it.path || "").replace(/\/+$/, "") + "/" : it.path, name: it.name, dir: dir };
+    });
+  }
+
   function docsCount(st) { return (st.docs || []).length + (st.links || []).length; }
 
   function docChipsHtml(st) {
@@ -205,7 +214,8 @@
     if (!docs.length && !links.length) return "";
     return docs.map(function (d, i) {
       var state = d.busy ? tw("teams.pick.doc_uploading") : d.err ? tw("teams.pick.doc_failed") : "";
-      return '<span class="tmp-doc' + (d.err ? " is-err" : "") + (d.busy ? " is-busy" : "") + '">' + ic(d.brain_path ? "file-text" : "upload-cloud") +
+      return '<span class="tmp-doc' + (d.err ? " is-err" : "") + (d.busy ? " is-busy" : "") + '">' +
+        ic(d.dir ? "folder" : d.brain_path ? "file-text" : "upload-cloud") +
         '<span class="tmp-doc-name" title="' + esc(d.brain_path || d.name) + '">' + esc(d.name) + "</span>" +
         (state ? '<span class="tmp-doc-state">' + esc(state) + "</span>" : "") +
         '<button type="button" class="tmp-sel-x" data-doc-del="' + i + '" aria-label="' + esc(tw("teams.pick.doc_remove", { name: d.name })) +
@@ -217,7 +227,8 @@
     }).join("");
   }
 
-  // Search results: files of the brain whose name matches. One already picked says so and cannot be added twice.
+  // Search results: files and folders of the brain whose name matches (a folder row has `dir`, and its path ends in
+  // "/"). One already picked says so and cannot be added twice.
   function docResultsHtml(st) {
     if (!String(st.docQuery || "").trim()) return "";
     if (st.docState === "searching") return '<div class="tmp-doc-note" role="status">' + esc(tw("teams.pick.doc_searching")) + "</div>";
@@ -226,7 +237,7 @@
     var full = (st.docs || []).length >= DOCS_MAX;
     return rows.map(function (r, i) {
       var have = hasDoc(st, r.path);
-      return '<div class="tmp-doc-res">' + ic("file-text") + '<span class="tmp-doc-res-text"><b>' + esc(r.name) + "</b><i>" + esc(r.path) +
+      return '<div class="tmp-doc-res">' + ic(r.dir ? "folder" : "file-text") + '<span class="tmp-doc-res-text"><b>' + esc(r.name) + "</b><i>" + esc(r.path) +
         '</i></span><button type="button" class="ws-btn tmp-doc-pick" data-doc-add="' + i + '"' + (have || full ? " disabled" : "") + ">" +
         esc(tw(have ? "teams.pick.doc_added" : "teams.pick.doc_add")) + "</button></div>";
     }).join("");
@@ -388,7 +399,7 @@
     leaderHtml: leaderHtml, footerHtml: footerHtml, previewHtml: previewHtml, setLeader: setLeader, NO_TAG: NO_TAG,
     DOCS_MAX: DOCS_MAX, docsBusy: docsBusy, hasDoc: hasDoc, addDoc: addDoc, removeDoc: removeDoc, cleanLink: cleanLink,
     addLink: addLink, removeLink: removeLink, docPayload: docPayload, docsCount: docsCount, docsHtml: docsHtml,
-    docChipsHtml: docChipsHtml, docResultsHtml: docResultsHtml, docsSummaryHtml: docsSummaryHtml,
+    docChipsHtml: docChipsHtml, docResultsHtml: docResultsHtml, docsSummaryHtml: docsSummaryHtml, searchRows: searchRows,
     setStrings: function (o) { FALLBACK = o || {}; } };
   if (typeof window !== "undefined") window.JavisTeamPicker = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

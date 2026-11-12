@@ -83,7 +83,8 @@ def save(attachments: Iterable[dict], *, staging: Path, brain_root: Path, dest_d
     A staged upload is copied into `dest_dir` (inside the brain: the staging area is swept after a few days). A file
     already in the brain stays where it is. Every file becomes a document row of the team's conversation; text files are
     pinned so team turns read them; a PDF or Word file gets a pinned `.txt` copy. Anything outside the staging area and
-    the brain is refused. Returns [{name, path, image}] for the files kept."""
+    the brain is refused. A folder of the brain is kept as one row, pinned (its tree is what turns read). Returns
+    [{name, path, image}] for the files kept."""
     staging, brain_root = Path(staging).resolve(), Path(brain_root).resolve()
     readable = {s.lower() for s in readable}
     extract_suffixes = {s.lower() for s in extract_suffixes}
@@ -94,6 +95,21 @@ def save(attachments: Iterable[dict], *, staging: Path, brain_root: Path, dest_d
         try:
             src = Path(str(a.get("path") or "")).resolve()
         except (OSError, RuntimeError):
+            continue
+        if src.is_dir():
+            # 2026-11-12 (owner: "chọn được cả thư mục"): a folder of the brain joins as ONE document, stored with a
+            # trailing "/". It is pinned, which loads a short tree of what it holds: a text-only team turn cannot list a
+            # folder, so the tree is all it can read of it. A staged folder does not exist, and the brain root itself
+            # is not something to attach.
+            if src == brain_root or not _inside(src, brain_root):
+                continue
+            name = _safe_name(a.get("name") or src.name)
+            rel = to_rel(src).rstrip("/") + "/"
+            fid = add(rel, name)
+            if not fid:
+                continue
+            pin(fid)
+            out.append({"name": name, "path": rel, "image": False, "dir": True})
             continue
         if not src.is_file():
             continue
