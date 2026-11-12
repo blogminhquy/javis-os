@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.552.0] - 2026-11-12
+### Added
+- **New Claude models show up in the model picker on their own.** Javis also reads the model catalog Claude Code downloads from Anthropic, so a model released after the installed CLI was built appears right away instead of waiting for a Javis release to add its name.
+
 ## [0.551.3] - 2026-11-12
 ### Fixed
 - **The Reply judge item is always in the "..." menu of a bot card.** It used to appear only for a bot in Auto-judge mode, so many people could not find it.
