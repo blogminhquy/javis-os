@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.543.0] - 2026-11-12
+### Added
+- **Chatbots now answer on WeChat.** Chatbot, Add channel has a new **WeChat** entry: a dedicated bot answers the followers of your WeChat Official Account, every chat lands in the shared Inbox and you can take over as on the other channels.
+- **Short setup.** The form shows the webhook address and the Token to paste into WeChat; on the Javis side you paste only the AppID and AppSecret. Check tells you right away which IP to add to the whitelist.
+- **Good to know:** WeChat lets only a verified account (or the sandbox test account) reply through the API, only within 48 hours of the follower's last message, with text and images. Step-by-step guide in doc 36.
+### Security
+- **Forged WeChat messages stop at the door.** Javis checks the signature of every message, refuses a request more than 15 minutes old, and an account in Safe mode accepts encrypted messages only.
+
 ## [0.542.0] - 2026-11-12
 ### Added
 - **The official Zalo bot receives files.** When Zalo passes a file to the bot, Javis downloads it and reads PDF, Word, Excel and plain-text files, so a question sent with it is answered from the file.
