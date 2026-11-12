@@ -168,6 +168,12 @@ check("và tài nguyên của nó cũng chết theo",
 md = share_render.md_to_html
 check("HTML thô trong .md bị escape, không cho chạy",
       "&lt;script&gt;" in md("<script>alert(1)</script>", "/s/T/asset"))
+# 2026-11-10: \x00 and \x01 are the renderer's own placeholder marks. Written literally in a note they used to pull a
+# stored fragment into the middle of an attribute value (`alt="a<a href="#/onerror=...`).
+_forged = md("![a\x001\x00b](x.png) [t](#/onerror=alert(1))", "/s/T/asset")
+check("a note cannot forge the renderer's placeholder marks",
+      'alt="a1b"' in _forged and "<a href" not in _forged.split('loading="lazy"')[0], _forged)
+check("no placeholder mark is left in the page", "\x00" not in _forged and "\x01" not in md("\x010\x01\n\n```\na\n```"))
 check("link javascript: bị bỏ, chỉ còn lại chữ",
       "javascript:" not in md("[bấm](javascript:alert(1))", "/s/T/asset"))
 check("link ngoài vẫn đi được và mang rel an toàn",
@@ -292,6 +298,16 @@ if _tg:
     check("CANARY: app ở gốc brain KHÔNG đọc được .json/.txt ở gốc",
           cl.get(f"/s/{_tg}/ghi.txt").status_code == 404)
     check("và không đọc được thư mục riêng tư", cl.get(f"/s/{_tg}/rieng/kin.md").status_code == 404)
+    # 2026-11-10: the sibling route had been left without the private-zone rule of /asset. A page shared from the
+    # brain root has the whole brain as its folder, so its token served inbox/ photos (named by message id) and memory/.
+    for _d, _n in (("inbox", "1234.jpg"), ("memory", "anh.png"), ("inbox/telegram", "a.mp3")):
+        os.makedirs(os.path.join(BRAIN, _d), exist_ok=True)
+        with open(os.path.join(BRAIN, _d, _n), "wb") as _f:
+            _f.write(b"\x89PNG\r\n\x1a\n" + b"0" * 20)
+        check(f"app at the brain root does NOT serve {_d}/{_n}", cl.get(f"/s/{_tg}/{_d}/{_n}").status_code == 404)
+        check(f"and /asset keeps refusing {_d}/{_n}",
+              cl.get(f"/s/{_tg}/asset", params={"p": f"{_d}/{_n}"}).status_code == 404)
+    check("an image in attachments/ is still served to it", cl.get(f"/s/{_tg}/attachments/a.png").status_code == 200)
 # Link chia sẻ của .md KHÔNG mở đường này: ghi chú lấy ảnh qua /asset với luật riêng.
 _tm = cl.post("/share/create", json={"brain": BRAIN, "path": "06 - Sources/bai-viet.md"}).json().get("token")
 if _tm:

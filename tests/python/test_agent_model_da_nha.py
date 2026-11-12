@@ -151,7 +151,9 @@ check("mọi chỗ bóc tuple đều lấy cả provider",
       src.count("agent_model, agent_prov = ") + src.count("v_model, v_prov = ") == 4)
 check("mọi chỗ dựng engine đều truyền provider xuống",
       # 0.107.0: the step engine also gets the step's own `tools:` as a 4th argument.
-      src.count("mk(sysprompt, agent_model, agent_prov, step_extra)") + src.count("mk(v_sys, v_model, v_prov)") == 4)
+      # #1302: each call continues with the assistant's own reasoning level (`**_step_reasoning_kw(...)`), so the
+      # argument list no longer closes right after the provider.
+      src.count("mk(sysprompt, agent_model, agent_prov, step_extra,") + src.count("mk(v_sys, v_model, v_prov,") == 4)
 check("router đổi model thì bỏ nhà cũ (không ép model Claude qua nhà khác)",
       'agent_prov = ""' in src)
 

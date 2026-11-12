@@ -175,11 +175,11 @@ _DEFAULT = {
             # Alias đứng trước vì alias luôn trỏ bản mới nhất của dòng; id đầy đủ đứng sau để
             # `_claude_api_model` dịch được alias sang tên thật.
             "claude": ["fable", "opus", "sonnet", "haiku",
-                       "claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-2", "claude-fable-5-1",
-                       "claude-opus-5", "claude-sonnet-5",
+                       "claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5",
+                       "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
                        "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
-            "anthropic-api": ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1",
-                              "claude-opus-5", "claude-sonnet-5",
+            "anthropic-api": ["claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5",
+                              "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
                               "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
             "openai": ["gpt-4o", "gpt-4o-mini", "o3-mini"],                        # OpenAI API
             "gemini": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],  # Google Gemini API (picker load động)
@@ -236,6 +236,10 @@ _DEFAULT = {
     # Zalo OA (0.412.0): customer bots only, credentials live in the channel-account store. This
     # holds the domain verification codes Zalo gives (served as /zalo_verifier<code>.html).
     "zalo_oa": {"site_codes": []},
+    # WeChat Official Account (customer bots only, credentials live in the channel-account store). This holds the
+    # `Token` of WeChat's server configuration: generated once, pasted into WeChat by the owner, and the key every
+    # webhook signature is checked with, so it is stored as a secret.
+    "wechat": {"webhook_token": ""},
     "discord": {"enabled": False, "bot_token": "", "allow": ""},
     "lark": {"enabled": False, "app_id": "", "app_secret": "", "domain": "lark", "allow": ""},
     # Backup brain lên GitHub (repo RIÊNG TƯ). token = GitHub PAT (fine-grained, quyền Contents).
@@ -539,7 +543,7 @@ _SECRET_PATHS = (
     # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.
     "telegram.token", "zalo_bot.token", "backup.token", "voice.elevenlabs_key",
     "slack.bot_token", "slack.app_token", "whatsapp.access_token", "whatsapp.app_secret",
-    "discord.bot_token", "lark.app_secret",
+    "discord.bot_token", "lark.app_secret", "wechat.webhook_token",
     # Secret TOTP là thứ SINH RA mã đăng nhập, nên nó ngang hàng mật khẩu chứ không phải một
     # tuỳ chọn. Ai đọc được nó thì tự sinh mã 2FA mãi mãi, và chủ máy không hề hay biết.
     "auth.totp.secret",
@@ -1571,6 +1575,26 @@ def valid_session(token):
     return True
 
 
+# Sliding expiry (2026-11-10). A session used to die exactly 30 days after login however often it was used, and the
+# browser dropped the cookie at the same moment (max_age 30 days). An open tab kept chatting over its WebSocket while
+# every HTTP call, chat images included, got 401 with no visible sign. Now a session in use stays alive: at most once
+# a day _auth_guard moves its timestamp forward and re-issues the cookie. One left unused for 30 days still expires.
+# .sessions.json stays {token: ts}, so older versions read it unchanged; the login time moves to SESSION_META.
+_SESSION_RENEW_AFTER = 86400
+
+
+def renew_session(token) -> bool:
+    """Extend a live session whose timestamp is over a day old. True = renewed, the caller re-issues the cookie."""
+    ts = SESSIONS.get(token) if token else None
+    if ts is None or _time.time() - ts < _SESSION_RENEW_AFTER or _time.time() - ts > _SESSION_TTL:
+        return False
+    SESSION_META.setdefault(token, {}).setdefault("created", ts)
+    SESSIONS[token] = _time.time()
+    _save_sessions()
+    _save_session_meta()
+    return True
+
+
 def drop_session(token):
     SESSIONS.pop(token, None)
     SESSION_META.pop(token, None)
@@ -1656,7 +1680,7 @@ def list_sessions(current: str = "") -> list:
         if _time.time() - float(created or 0) > _SESSION_TTL:
             continue
         m = SESSION_META.get(tok) or {}
-        out.append({"id": session_id(tok), "created": float(created or 0), "last": float(m.get("last") or created or 0),
+        out.append({"id": session_id(tok), "created": float(m.get("created") or created or 0), "last": float(m.get("last") or created or 0),
                     "ip": m.get("ip", ""), "last_ip": m.get("last_ip") or m.get("ip", ""), "ua": m.get("ua", ""),
                     "current": bool(current) and tok == current})
     out.sort(key=lambda x: (not x["current"], -x["last"]))

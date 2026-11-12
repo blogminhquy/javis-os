@@ -322,6 +322,7 @@ Thẻ của ba nhà chạy bằng gói **ChatGPT (Codex)**, **Grok Build** và *
 
 **Giới hạn cần biết:**
 
+- Dòng trạng thái đầu thẻ ghi tên, email và gói của **tài khoản đang được dùng** (tài khoản đầu tiên đang bật, đã đăng nhập và không nghỉ). Tài khoản thêm mà CLI của nó chưa ghi lại email hay gói thì dòng đó chỉ hiện tên bạn đặt.
 - Đổi tài khoản giữa cuộc trò chuyện thì lượt đó mở một mạch CLI mới, Javis tự nạp lại lịch sử.
 - Đồng hồ hạn mức, tạo ảnh, giọng nói và những đường ChatGPT không đi qua Codex CLI vẫn dùng tài khoản 1.
 - Antigravity vẫn chỉ một tài khoản (token nằm trong keyring của hệ điều hành).
@@ -337,6 +338,8 @@ Thẻ của ba nhà chạy bằng gói **ChatGPT (Codex)**, **Grok Build** và *
 - **Hết lượt giữa chừng** (đã viết được một đoạn): câu trả lời dừng ở đó, kèm thẻ **Chạy lại ngay**. Bấm vào là hỏi lại câu đó bằng đường còn lượt, câu trả lời dở được thay bằng câu mới. Javis không tự chạy lại trường hợp này.
 - **Đã gọi công cụ rồi mới hết lượt**: Javis dừng và báo, không chạy lại ở đường khác, để không gửi tin hay đăng bài hai lần.
 - Telegram cũng tự đổi đường như vậy, dòng "Đang dùng..." hiện ở tin trạng thái. Bot chuyên trách nói với khách thì không đổi: nó luôn chạy model của Agent nó trỏ tới.
+- **Nhóm (Team) cũng xoay tài khoản của cùng thẻ.** Lượt của cộng sự trong nhóm bắt đầu trên tài khoản còn lượt; tài khoản đang chạy báo hết lượt trước khi gọi công cụ nào thì Javis cho nó nghỉ và chạy lại ngay bằng tài khoản kế của cùng gói, tin trả lời ghi thêm dòng "Đang dùng Claude Code (tài khoản 2) vì tài khoản 1 hết lượt." Lượt nhóm không nhảy sang thẻ khác: nó chạy model riêng của cộng sự hoặc MAIN. Mọi tài khoản của gói đều hết thì nhóm báo lỗi như trước và bước của việc nhóm tự chờ tới giờ gói mở lại.
+- **Bước của workflow cũng vậy.** Bước chạy bằng Claude Code hay ChatGPT bắt đầu trên tài khoản còn lượt. Tài khoản báo hết lượt khi bước chưa viết gì và chưa gọi công cụ nào thì Javis cho nó nghỉ rồi chạy lại ngay bước đó bằng tài khoản kế của cùng gói, lần chạy đi tiếp như thường. Bước đã làm dở thì dừng và báo như trước, tài khoản đó vẫn được cho nghỉ, nên bấm chạy lại workflow là sang tài khoản kế. Workflow nền ở chế độ giới hạn công cụ vẫn luôn là Claude Code, chỉ đổi tài khoản.
 - Đổi đường không sửa thứ tự hay model đã lưu. Lượt sau bắt đầu lại từ MAIN, trừ khi MAIN vẫn đang nghỉ.
 
 ### E. Chọn model việc nền
@@ -352,7 +355,10 @@ Không còn nút **Về mặc định** (bỏ ở 0.351.0). Muốn quay về mod
 
 Vài điều cần biết:
 
-- **Model việc nền không chạy theo MAIN.** Lần đầu (máy mới, hoặc nâng cấp mà chưa từng đặt) Javis chọn sẵn cấu hình mặc định của nhà cung cấp: model mặc định và mức Effort mặc định của nó. Sau đó model nền **giữ cố định** tới khi bạn tự đổi; kéo thẻ khác lên làm MAIN không kéo model nền đổi theo.
+- **Mặc định là Tự động (từ 11/2026).** Ở chế độ này model nền dùng nhà cung cấp của MAIN, và Javis chọn sẵn hai model từ danh sách của chính nhà đó: một model nhẹ cho việc Javis tự làm (tự học, gợi ý câu tiếp theo, chấm điểm) và một model bậc giữa cho việc bạn giao chạy nền (nhắc hẹn, loop, Kanban). Dòng lớn ghi **Tự động**, dòng nhỏ ghi tên hai model đang dùng. Javis chọn bằng cách cho model chính đọc danh sách model của nhà đó một lần, và chỉ chọn lại khi danh sách ấy thay đổi (nhà ra model mới, bạn nâng gói); chưa chọn được thì dùng model của MAIN như trước. Mỗi lần chọn hoặc đổi, chuông có một thông báo ghi rõ hai model.
+- **Mỗi việc nền tự tìm model vừa đủ cho nó.** Hai model ở trên chỉ là điểm xuất phát. Một nhắc hẹn, một loop hay một loại việc Kanban hỏng vì model yếu thì lần chạy sau tự dùng model mạnh hơn một bậc; chạy tốt nhiều lần liền thì thử model nhẹ hơn, không được thì quay lại. Lỗi do hết hạn mức, mất đăng nhập hay đứt kết nối không làm đổi model. Mỗi lần đổi có một thông báo ở chuông ghi lý do.
+- **Muốn chỉnh thì nói với Javis, không có nút gạt.** "Tiết kiệm token giúp anh", "việc gửi báo cáo phải thật chắc", "báo cáo sáng nay sai rồi" hay "việc nền đang chạy model gì": Javis ghi lại ý định của bạn (cho mọi việc hoặc riêng một việc), điều chỉnh theo, và hoàn lại được một lần đổi khi bạn bảo.
+- **Tự chọn thì Javis không đổi nữa.** Bấm **Đổi model ▾** và chọn một model cụ thể: model nền giữ cố định ở đó, kể cả khi bạn đổi MAIN. Muốn về Tự động thì chọn dòng **Tự động (khuyên dùng)** ở đầu danh sách. Máy nâng cấp từ bản cũ: nếu model nền vẫn là cấu hình mặc định Javis đặt sẵn thì chuyển sang Tự động; nếu bạn từng chọn một model khác thì giữ nguyên.
 - **Chọn được MỌI nhà bạn đã kết nối**, không riêng Claude: Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic API... Chọn nhà cung cấp khác thì việc nền chạy bằng gói hoặc khoá của nhà đó, không ăn vào hạn mức Claude nữa.
 - **Hết lượt thì đi theo Thứ tự dùng (từ 0.350.0, gắn với Thứ tự dùng từ 0.351.0).** Việc nền chạy model nền trước; model nền hết lượt thì lần lượt sang **Dự phòng 1, Dự phòng 2...**, và **MAIN sau cùng**, mỗi nhà chạy cấu hình mặc định của nó (không phải model bạn chọn cho chat). Một nhà có nhiều API key thì thử từng key trước khi sang nhà kế, và thẻ gói có nhiều tài khoản cũng thử từng tài khoản trước (xem mục D1). Javis không tự chen một nhà bạn chưa kết nối vào.
 - **Trang chỉ lên tiếng khi cần.** Chuỗi thứ tự trên không hiện ra thường xuyên. Chỉ khi model nền hết lượt mới có một dòng, ví dụ "Haiku 5.5 đang hết lượt, việc nền chạy tạm ChatGPT · GPT-5.5." Nhà của model nền chưa kết nối thì có dòng cảnh báo "Nhà cung cấp này chưa kết nối, việc nền bắt đầu từ Dự phòng 1." Không còn nhà nào chạy được thì báo "Không còn tài khoản nào chạy được việc nền."

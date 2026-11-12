@@ -132,8 +132,10 @@ check("the sign-in waits for the name and saves it as account 1's label before t
   && /label: a\.id === "main" \? name :/.test(JS));
 check("an API card's first key is saved under the typed name",
   /\{ \[KEYFIELD\[pid\]\]: val, key_label: name \}/.test(JS));
-check("the card's status line carries account 1's name",
-  (CL.match(/esc\(acctNameTag\(p\.id\)\)/g) || []).length === 3 && /acctNameTag\("anthropic-cli"\)/.test(RC));
+check("the card's status line carries the name of the account in use (account 1's while it runs)",
+  (CL.match(/esc\(acctLine\(p\.id, /g) || []).length === 2 && (CL.match(/esc\(acctNameTag\(p\.id\)\)/g) || []).length === 1
+  && /acctLine\("anthropic-cli", \[d\.email, d\.plan\]\)/.test(RC)
+  && /if \(!cur\) return acctNameTag\(pid\)/.test(JS));
 check("adding another plan account needs its name; every plan account can be renamed, account 1 too",
   /if \(!box\.dataset\.re && !needLabel\(box\)\) return;/.test(B)
   && (B.match(/!needLabel\(box\)/g) || []).length === 2

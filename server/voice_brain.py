@@ -769,8 +769,8 @@ class ClaudeVoiceBrain(VoiceBrain):
             kw["model"] = self.model
         try:
             import claude_cli
-            _cli = (os.environ.get("JAVIS_CLAUDE_CLI") or "").strip() or (claude_cli.tim_binary("claude") or "")
-            if _cli and "_bundled" not in _cli.replace("\\", "/") and "cli_path" in fields:
+            _cli = claude_cli.claude_cli_for_sdk()
+            if _cli and "cli_path" in fields:
                 kw["cli_path"] = _cli
         except Exception:
             pass

@@ -36,7 +36,14 @@
 fastapi==0.141.1
 uvicorn[standard]==0.51.0
 httpx==0.27.2
-claude-agent-sdk==0.2.116
+# claude-agent-sdk: a floor and a ceiling instead of an exact pin (2026-11-10).
+#   - Floor 0.2.121: fixes CVE-2026-96620 (the `resume` value was passed to the CLI unchecked).
+#   - Ceiling <0.3: the same series only. server/sdk_update.py moves an install to newer 0.2.x releases once a day
+#     (cooled down three days, checked in a fresh process, rolled back if the check fails), and an exact pin here would
+#     put the old version back at every Javis update (`pip install -r requirements.txt`). The next minor series is
+#     where the SDK changes its interface, so that step stays a deliberate edit of this line.
+#   A fresh install and the Docker image take the newest 0.2.x of the day they are built.
+claude-agent-sdk>=0.2.121,<0.3
 # Native release inventory parses installed wheel dependency metadata directly.
 packaging==26.2
 starlette==1.6.0
@@ -85,4 +92,6 @@ yt-dlp>=2026.8.19
 # pypdf: bóc chữ PDF cho tool javis_read_file (server/doc_text.py, 0.92.2), để engine API và Ollama máy nhà đọc được PDF
 # đính kèm thay vì một đống mã nhị phân. Thuần Python, giấy phép BSD, không kéo dependency nào. Thiếu nó app VẪN chạy: đọc PDF
 # trả một câu báo thiếu thư viện thay cho chữ.
-pypdf==6.18.1
+# 6.21.4 (2026-11-10): 6.18.1 had 21 advisories, all of the same kind: a crafted PDF sends the parser into an endless
+# loop or makes it allocate without bound. Javis reads PDFs that strangers control (web pages, files customers send).
+pypdf==6.21.4

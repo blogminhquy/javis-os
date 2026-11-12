@@ -98,7 +98,8 @@ User docs: [docs/en/10-models-and-engines.md](docs/en/10-models-and-engines.md).
 ## The MCP Hub and permissions
 
 `server/mcp_hub.py` is the single tool gateway. CLI engines see it as one MCP server named
-`javis` (`POST /hub/mcp`, authenticated by `STATE_DIR/.hub_token`); API engines call
+`javis` (`POST /hub/mcp`, answered only for a caller on this machine and authenticated by
+`STATE_DIR/.hub_token`); API engines call
 `discover_all()` in process. Either way the same rules apply:
 
 - **Connector vs connection.** `system/mcp-catalog.json` (read by `mcp_catalog.py`) holds
@@ -111,6 +112,8 @@ User docs: [docs/en/10-models-and-engines.md](docs/en/10-models-and-engines.md).
 - **Transports.** `mcp_client.py` keeps a long-lived session pool over HTTP/SSE, stdio (local
   servers such as `javis-zalo`) and "internal" Python bridges (`botcake_mcp.py`,
   `substack_mcp.py`). `oauth_mcp.py` does MCP OAuth 2.1 so no engine needs a terminal login.
+- **Result shaping.** A connection result read by a model is shaped by `tool_result_shaper.py`
+  (see the module map); `javis_query` reads the stored full copy back or computes over it.
 - **Plugins.** `plugins_host.py` loads Python plugin folders (`plugin.yaml` + `plugin.py`) from,
   in order: `system/plugins/` (bundled), installed packs, `STATE_DIR/plugins/` (global user
   plugins) and `<brain>/plugins/`. User plugins load by default when their manifest is enabled;
@@ -162,9 +165,15 @@ line each, grouped by area.
 - `share_store.py`, `share_render.py`: public share links (`/s/<token>/`) rendered server side.
 - `updater.py`, `update_state.py`, `deploy_info.py`, `claude_update.py`: self-update with
   rollback, deploy detection, keeping the `claude` binary current.
+- `sdk_update.py`: the same daily tick moves the `claude-agent-sdk` package to newer releases of
+  its series (cooled down, checked in a fresh process, rolled back when the check fails).
+- `secret_guard.py`, `claude_secret_hook.py`, `claude_write_scope_hook.py`: keep engines away from
+  Javis's secret files at every level, and keep Claude Code's own Write/Edit inside the brain on
+  a run below Full access.
 - `purge.py`, `core_off.py`: delete a connection cleanly; make default capabilities removable.
 - `fastyaml.py`, `winproc.py`, `bench_hotpath.py`: C YAML loader, silent Windows subprocesses,
   hot-path benchmarks.
+- `sqlite_tune.py`: the durability level shared by the SQLite stores (WAL + `synchronous=NORMAL`).
 
 **Engines**
 - `claude_sdk_engine.py`: the only Claude engine (official Agent SDK); defines the event contract.
@@ -188,11 +197,24 @@ line each, grouped by area.
 - `botcake_mcp.py`, `substack_mcp.py`, `youtube_read.py`, `zalo_cli.py`: built-in bridges.
 - `run_command.py`: `javis_run_command`, one fenced shell command for engines without a shell.
 - `tool_label.py`: short human labels for tool calls in the progress panel.
+- `tool_result_shaper.py`, `tool_result_store.py`: what a connection tool's result looks like when a
+  MODEL reads it. Errors and small results pass word for word, JSON that fits loses only its
+  indentation, a large result is stored whole (encrypted, 24 h, scoped to its brain) and replaced by a
+  view of whole records with a reference. Applied as the outermost layer of a route
+  (`mcp_hub._shaped_call`), outside the permission guard and plugin hooks; internal callers of a
+  route get the untouched text.
+- `tool_result_query.py`, `tool_result_tools.py`: the `javis_query` tool. Reads a stored result
+  back by fields and pages, or runs one read-only SQL query over all its records in an in-memory
+  SQLite database; with `tool` + `pages` it pages a READ-ONLY connection tool itself.
+- `tool_result_view.py`: the older explicit `result_view` of `javis_run_tool`.
+- `scout.py`: the `javis_scout` tool, a read-only run on the background model that returns only
+  its findings (the runner is `main._scout_run`).
 
 **Background work**: `tasks.py`, `task_store.py`, `self_improve.py`, `reminders.py`,
 `cron_util.py`, `inbox.py`, `webpush.py`, `background_status.py`, `tien_trinh_nen.py`,
 `luot_dang_chay.py`, `workflow_runs.py`, `workflow_chat.py` (chatting with an agent or a
-workflow on the Collaborators page), `chat_runtime.py`.
+workflow on the Collaborators page), `chat_runtime.py`, `job_recipes.py` (a recurring reminder
+replays its own read chain before the model starts, once two runs on different days agree).
 
 **Memory, brain and learning**
 - `learn.py`, `git_brain.py`: self-learning and the git safety net it relies on.
@@ -320,7 +342,8 @@ There are three separate places. Mixing them up is a classic mistake.
 **`JAVIS_STATE_DIR`** contains, among others: `settings.json` (secret fields stored `enc:`),
 `.secret_key`, `.sessions.json` (login sessions), `.hub_token`, `conversations.db` (chat
 history), `kanban.sqlite3`, `customer_conversations.sqlite3`, `mcp_servers.json`,
-`mcp_audit.jsonl`, `.oauth_mcp.json`, `chatbots.json`, `channel_accounts.json`, `inbox.json`,
+`mcp_audit.jsonl`, `tool_results.sqlite3` (full tool results, encrypted, short-lived),
+`tool_result_sizes.jsonl` (how large results were and how much a model read), `.oauth_mcp.json`, `chatbots.json`, `channel_accounts.json`, `inbox.json`,
 `usage*.json*`, `runtime.db`, `plugins/`, `plugins.json`, `packs/`, `branding/`, `javis.log`.
 Anything Javis writes at runtime goes here, never into the code tree.
 

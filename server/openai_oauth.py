@@ -41,6 +41,7 @@ import json
 import base64
 import hashlib
 import secrets
+import threading
 import httpx
 from pathlib import Path
 from urllib.parse import urlencode, urlparse, parse_qs
@@ -448,6 +449,111 @@ def valid_creds():
         return {"access_token": o["access_token"], "account_id": o.get("account_id", ""), "stale": True}
     return None
 
+
+
+# Bot Responses API uses tokens directly; unlike Codex CLI it does not
+# automatically choose CODEX_HOME or refresh an extra account's auth.json.
+# Keep extra-account tokens in their own Codex login, never in model settings.
+_EXTRA_CREDS_LOCK = threading.Lock()
+
+
+def valid_creds_for(account_key: str):
+    """Valid ChatGPT OAuth credentials for ONE account in the Models list.
+
+    Extra logins are stored in STATE_DIR/accounts/<id>/codex/auth.json.
+    The owner may reorder them without changing account 1's settings.json.
+    Refresh is serialized inside Javis and written atomically, preserving the
+    same Codex auth file; do not swap accounts when a refresh fails.
+    """
+    import plan_accounts
+
+    if not account_key or account_key == plan_accounts.MAIN:
+        return valid_creds()
+    folder = plan_accounts.home("openai-oauth", account_key, create=False)
+    if not folder:
+        return None
+    path = Path(folder) / "auth.json"
+    if path.is_symlink():  # an auth file must never redirect outside its own login folder
+        return None
+
+    def read_auth():
+        try:
+            blob = json.loads(path.read_text(encoding="utf-8"))
+            tok = blob.get("tokens")
+            if isinstance(blob, dict) and isinstance(tok, dict):
+                return blob, tok
+        except (OSError, ValueError, AttributeError):
+            pass
+        return {}, {}
+
+    def fresh(tok):
+        access = str(tok.get("access_token") or "")
+        if not access:
+            return None
+        exp = _decode_jwt_claims(access).get("exp")
+        if exp:
+            try:
+                if float(exp) <= time.time() + 75:
+                    return None
+            except (TypeError, ValueError):
+                return None
+        return {"access_token": access, "account_id": str(tok.get("account_id") or "")}
+
+    with _EXTRA_CREDS_LOCK:
+        blob, tok = read_auth()
+        ready = fresh(tok)
+        if ready:
+            return ready
+        rt = str(tok.get("refresh_token") or "")
+        if not rt:
+            return None
+        try:
+            r = httpx.post(OAUTH_TOKEN_URL, data={
+                "grant_type": "refresh_token", "client_id": CLIENT_ID, "refresh_token": rt,
+            }, headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA}, timeout=30)
+            r.raise_for_status()
+            updated = r.json()
+            at = str(updated.get("access_token") or "")
+            if not at:
+                return None
+
+            # Codex CLI can also refresh its token. Never replace its newer
+            # login with a token derived from an already-replaced refresh key.
+            latest, latest_tok = read_auth()
+            if str(latest_tok.get("refresh_token") or "") != rt:
+                return fresh(latest_tok)
+            old_account = str(tok.get("account_id") or "")
+            claims = _decode_jwt_claims(str(updated.get("id_token") or "")).get(
+                "https://api.openai.com/auth") or {}
+            new_account = str(claims.get("chatgpt_account_id") or old_account)
+            if old_account and new_account and old_account != new_account:
+                return None
+
+            latest_tok.update({
+                "access_token": at,
+                "refresh_token": str(updated.get("refresh_token") or rt),
+                "id_token": str(updated.get("id_token") or latest_tok.get("id_token") or ""),
+                "account_id": new_account,
+            })
+            latest["tokens"] = latest_tok
+            latest["last_refresh"] = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+            tmp = path.with_name("auth.json.tmp-" + secrets.token_hex(8))
+            try:
+                fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    json.dump(latest, fh, ensure_ascii=False)
+                    fh.flush()
+                    os.fsync(fh.fileno())
+                os.replace(tmp, path)
+            finally:
+                try:
+                    tmp.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            return {"access_token": at, "account_id": new_account}
+        except Exception:
+            # Never expose access/refresh tokens in logs or mutate account 1.
+            return None
 
 def write_codex_auth():
     """Đồng bộ token ChatGPT giữa settings.json và ~/.codex/auth.json. Gọi mỗi lượt chat.

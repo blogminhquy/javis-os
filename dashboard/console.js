@@ -3413,6 +3413,7 @@
     const accts = m.accounts || {};
     ACCT_NAMES = {};
     ACCT_ITEMS = {};
+    ACCT_KEYED = { "anthropic-cli": claudeP.auth_mode === "api_key" };
     PLAN_CLI.forEach(pid => {
       const l = accts[pid] || [];
       ACCT_ITEMS[pid] = l;
@@ -3634,7 +3635,7 @@
       };
       if (p.kind === "oauth") {
         const st = on
-          ? t("models.st_connected") + esc(acctNameTag(p.id)) + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
+          ? t("models.st_connected") + esc(acctLine(p.id, [p.plan])) + " · " + p.models.length + " model"
           : t("models.st_not_connected") + " · " + p.models.length + " model";
         return `${cardOpen(p, ord)}
           ${provHead(p, on, "Device code", st, false, ord)}
@@ -3657,8 +3658,7 @@
         // 0.30-0.32.1 từng thử (và tắc trên Windows vì không có pseudo-terminal).
         const dn = p.dang_nhap || {};
         const st = on
-          ? t("models.st_logged_in") + esc(acctNameTag(p.id)) + (p.account ? " · " + esc(p.account) : "")
-            + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
+          ? t("models.st_logged_in") + esc(acctLine(p.id, [p.account, p.plan])) + " · " + p.models.length + " model"
           : (p.cli_found ? t("models.st_cli_no_login") : t("models.st_no_cli", { ten: "Grok Build CLI" }));
         return `${cardOpen(p, ord)}
           ${provHead(p, on, "MCP/skill", st, true, ord)}
@@ -3823,6 +3823,10 @@
 
     const swapRow = (i) => `<div class="ord-swap-row"><button type="button" class="ord-swap" data-swap="${i}" aria-label="${esc(t("models.ord_swap_aria", { a: connList[i - 1].label, b: connList[i].label }))}">${ORD_SWAP} ${esc(t("models.ord_swap"))}</button></div>`;
     const bgName = bgCfg.model || defName(bgCfg.provider);
+    // Automatic (10/11/2026): Javis picks two models of MAIN's provider, one for its own work, one for handed-over jobs.
+    const bgAuto = !!bgCfg.auto;
+    const bgAutoSub = bgAuto ? t("models.bg_auto_sub", { nha: bgP.label || bgCfg.provider,
+      nhe: bgCfg.light || defName(bgCfg.provider), giua: bgName }) : "";
     const useP = bgUse ? (pById(bgUse.provider) || {}) : {};
     const bgLine = !bgUse ? `<div class="aux-note warn">${WARN_ICON} ${esc(t("models.bg_none"))}</div>`
       : bgUse.step !== "background" ? `<div class="aux-note">${esc(t("models.bg_using", { bg: bgName,
@@ -3852,8 +3856,8 @@
           <div class="aux-now">
             <span class="prov-logo ic-tile aux-ic">${ic("cpu")}</span>
             <div class="aux-now-txt">
-              <div class="aux-now-model">${esc(bgName)}</div>
-              <div class="aux-now-prov">${esc(bgP.label || bgCfg.provider)}</div>
+              <div class="aux-now-model">${esc(bgAuto ? t("models.bg_auto") : bgName)}</div>
+              <div class="aux-now-prov">${esc(bgAuto ? bgAutoSub : (bgP.label || bgCfg.provider))}</div>
             </div>
             <div class="aux-now-act ord-chips" data-p="__bg">
               ${effChip("__bg", bgCfg.reasoning)}
@@ -4170,6 +4174,7 @@
   // card keeps it as account 1's label (plan_accounts), an API card as its first key's label. Filled on every draw.
   let ACCT_NAMES = {};      // plan card id -> account 1's label
   let ACCT_ITEMS = {};      // plan card id -> its account list, so saving a name keeps order and on/off
+  let ACCT_KEYED = {};      // plan card id -> true while it runs on an API key (no plan account is in use)
   const acctNameField = (pid) => `<input class="js-input prov-acname" data-acname="${esc(pid)}" maxlength="60" autocomplete="off"
     spellcheck="false" placeholder="${esc(t("models.acname_ph"))}" value="${esc(ACCT_NAMES[pid] || "")}">`;
   // The typed name, "" when the card has no name box, or null after pointing at the empty box: the sign-in waits.
@@ -4195,6 +4200,22 @@
   }
   // " · name" for a plan card's status line, "" when account 1 has none yet.
   const acctNameTag = (pid) => ACCT_NAMES[pid] ? " · " + ACCT_NAMES[pid] : "";
+  // The EXTRA account a plan card runs on now (the first one switched on, signed in and not resting), or null while
+  // account 1 runs. The status line then names that account, its e-mail and its plan: it used to keep showing account
+  // 1's, so a card running on a Max account still read "Pro" (owner's video, 10/11/2026).
+  const acctInUse = (pid) => {
+    const nowS = Date.now() / 1000;
+    const l = ACCT_KEYED[pid] ? [] : (ACCT_ITEMS[pid] || []);
+    const cur = l.length > 1 ? l.find(a => a.enabled && a.signed_in && !(a.resting_until > nowS)) : null;
+    return cur && !(cur.main || cur.id === "main") ? cur : null;
+  };
+  // " · name · e-mail · plan" of the account in use. `own` is what the card's own login (account 1) reports.
+  const acctLine = (pid, own) => {
+    const cur = acctInUse(pid);
+    if (!cur) return acctNameTag(pid) + (own || []).filter(Boolean).map(x => " · " + x).join("");
+    const no = (ACCT_ITEMS[pid] || []).indexOf(cur) + 1;
+    return [cur.label || t("models.pacct_n", { n: no }), cur.email, cur.plan].filter(Boolean).map(x => " · " + x).join("");
+  };
   // A subscription CLI with nothing set picks its own model by plan, which Javis cannot read: say so instead of "default".
   const PLAN_CLI = ["anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli"];
   const defName = (pid) => MODEL_DEFAULTS[pid] ? t("models.mp_default_is", { m: MODEL_DEFAULTS[pid] })
@@ -4253,12 +4274,16 @@
       return { pop: pop, body: pop.querySelector(".ord-sheet-body"), sheet: true, back: back };
     };
     el._ordClose = closePop;
-    if (!el._ordDocBound) {
-      el._ordDocBound = true;
+    // One pair of document listeners for every visit of the page (2026-11-10): `el` is a new element each time, and
+    // a pair bound per element stayed on the document with its old page for good. They act on the page drawn last.
+    MO._closeOwner = el;
+    if (!MO._closeBound) {
+      MO._closeBound = true;
       document.addEventListener("pointerdown", (e) => {
-        if (el._ordClose && !(e.target.closest && e.target.closest(".ord-chips, .ord-pop"))) el._ordClose();
+        const o = MO._closeOwner;
+        if (o && o._ordClose && !(e.target.closest && e.target.closest(".ord-chips, .ord-pop"))) o._ordClose();
       }, true);
-      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && el._ordClose) el._ordClose(); });
+      document.addEventListener("keydown", (e) => { const o = MO._closeOwner; if (e.key === "Escape" && o && o._ordClose) o._ordClose(); });
     }
     const opened = (btn, sh, slider, onClose) => {
       openPop = { el: sh.pop, btn: btn || null, slider: slider || null, back: sh.back || null, onClose: onClose || null };
@@ -4770,11 +4795,15 @@
       const st = { expanded: c.bgCfg.provider, filter: "" };
       const draw = async () => {
         const o = { providers: c.connList, connectedOnly: true, expanded: st.expanded, filter: st.filter, noWait: true,
-                    selected: { provider: c.bgCfg.provider, model: c.bgCfg.model }, searchId: "ordBgSearch" };
+                    selected: c.bgCfg.auto ? { provider: "", model: "" } : { provider: c.bgCfg.provider, model: c.bgCfg.model },
+                    searchId: "ordBgSearch" };
         const html = await window.JavisModelList.render(o);
         if (!openPop || openPop.el !== pop) return;
         const typing = document.activeElement && document.activeElement.id === "ordBgSearch";
-        sh.body.innerHTML = html;
+        // First row: back to Automatic. Picking any model below is a choice by hand, which Javis then never replaces.
+        const autoRow = `<div class="mb-item ${c.bgCfg.auto ? "cur" : ""}" data-bgauto="1" role="option"><span class="tick">`
+          + `${c.bgCfg.auto ? ic("check", { cls: "ic-ok" }) : ""}</span><span>${esc(t("models.bg_auto_pick"))}</span></div>`;
+        sh.body.innerHTML = autoRow + html;
         const inp = sh.body.querySelector("#ordBgSearch");
         if (inp) {
           inp.oninput = () => { st.filter = inp.value; draw(); };
@@ -4783,6 +4812,7 @@
         if (o.cho.length) Promise.all(o.cho).then(() => { if (openPop && openPop.el === pop) draw(); });
       };
       sh.body.onclick = (e) => {
+        if (e.target.closest("[data-bgauto]")) { closePop(); save({ auxiliary: { auto: true } }); return; }
         const it = e.target.closest(".mb-item[data-model]");
         if (it) { closePop(); save({ auxiliary: { provider: it.dataset.prov, model: it.dataset.model } }); return; }
         const h = e.target.closest(".mb-prov[data-prov]");
@@ -4922,7 +4952,7 @@
     }
     if (d.connected) {
       st.className = "prov-status on";
-      st.textContent = t("models.st_connected") + acctNameTag("anthropic-cli") + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "")
+      st.textContent = t("models.st_connected") + acctLine("anthropic-cli", [d.email, d.plan])
         + (d.stale ? " · " + t("models.st_stale") : "");
       // A card in the usage order has Disconnect in its own button row (and its ⋯ sheet), so none here.
       if (act.closest && act.closest(".ord-card")) { act.innerHTML = ""; return; }
@@ -4971,7 +5001,13 @@
     const parts = [];
     if (cn.sau) parts.push(t("models.cc_upd_ver", { v: cn.sau }));
     if (cn.ts) parts.push(t("models.cc_upd_last", { luc: new Date(cn.ts * 1000).toLocaleString(LOC(), { dateStyle: "short", timeStyle: "short" }) }));
-    box.innerHTML = `${parts.length ? `<div>${esc(parts.join(" · "))}</div>` : ""}
+    // The Claude Agent SDK package follows the same switch (server/sdk_update.py). The running server keeps the
+    // version it started with, so a newer one on disk is announced as waiting for a restart.
+    const sdk = d.sdk || {};
+    const sdkRun = sdk.loaded || sdk.installed;
+    if (sdkRun) parts.push(t("models.cc_sdk_ver", { v: sdkRun }));
+    const sdkWait = sdk.restart_needed && sdk.installed ? `<div>${esc(t("models.cc_sdk_restart", { v: sdk.installed }))}</div>` : "";
+    box.innerHTML = `${parts.length ? `<div>${esc(parts.join(" · "))}</div>` : ""}${sdkWait}
       <div class="cc-auto-row" style="display:flex;align-items:center;gap:10px;margin-top:8px;font-size:16px">
         <label for="cliAutoUpd" style="flex:1;cursor:pointer">${esc(t("models.cc_auto_label"))}${infoBtn()}</label>
         <label class="toggle"><input type="checkbox" id="cliAutoUpd"${autoOn ? " checked" : ""}${envOff ? " disabled" : ""}><span></span></label>
@@ -5003,11 +5039,15 @@
       try { r = await (await fetch("/claude/update", { method: "POST" })).json(); }
       catch (e) { btn.disabled = false; msg.textContent = t("common.net_err"); return; }
       btn.disabled = false;
-      if (!r.ok) { msg.innerHTML = Icons.warn(t("models.cc_upd_fail") + " " + (r.error || "")); return; }
-      if (!r.doi) { msg.textContent = t("models.cc_upd_same", { v: r.sau || "" }); return; }
+      // The same press also looked for a newer Agent SDK: say so after the Claude Code result, whatever that was.
+      const sk = r.sdk || {};
+      const sdkNote = sk.changed ? " " + t("models.cc_sdk_done", { truoc: sk.from || "?", sau: sk.to || "" })
+        : (sk.ok === false && !sk.docker && sk.error ? " " + t("models.cc_sdk_fail") + " " + sk.error : "");
+      if (!r.ok) { msg.innerHTML = Icons.warn(t("models.cc_upd_fail") + " " + (r.error || "") + sdkNote); return; }
+      if (!r.doi) { msg.textContent = t("models.cc_upd_same", { v: r.sau || "" }) + sdkNote; return; }
       const moi = (r.model_moi || []).join(", ");
       msg.innerHTML = CHECK_ICON + " " + esc(t("models.cc_upd_done", { truoc: r.truoc || "?", sau: r.sau })
-        + (moi ? " " + t("models.cc_upd_new", { ds: moi }) : ""));
+        + (moi ? " " + t("models.cc_upd_new", { ds: moi }) : "") + sdkNote);
     };
   }
 
@@ -5893,7 +5933,7 @@
   function openAccountMenu(el, c, con) {
     const m = connModal(mHead(esc(c.label || window.t("cs.cn_account_fallback")))
       + '<div class="conn-menu">'
-      + ((c.connector_id || "custom") === "custom" && c.auth !== "oauth"
+      + ((c.connector_id || "custom") === "custom"
           ? '<button class="conn-menu-btn" data-m="edit">' + ic("settings") + ' ' + esc(window.t("cs.mf_menu_edit")) + '</button>' : "")
       + '<button class="conn-menu-btn" data-m="test">' + ic("rotate-cw") + ' ' + esc(window.t("cs.cn_menu_test")) + '</button>'
       + '<button class="conn-menu-btn" data-m="rekey">' + ic("repeat") + ' ' + esc(window.t("cs.cn_menu_rekey")) + '</button>'
@@ -6456,6 +6496,7 @@
   function openMcpForm(el, server) {
     const P = window.JavisMcpParse;
     let editId = server ? server.id : "";
+    let savedEndpointUrl = server ? (server.url || "") : "";
     // Kết nối đã chuyển sang OAuth thì Lưu phải GIỮ chế độ đó: gửi auth=header là token thôi
     // được gắn, máy chủ trả 401 và người dùng bị đẩy đi đăng nhập lại vô cớ.
     let dangOauth = !!(server && server.auth === "oauth");
@@ -6616,6 +6657,9 @@
       err.textContent = ""; $("#mfKq").innerHTML = "";
       const name = $("#mfTen").value.trim();
       if (!name) { err.textContent = window.t("cs.cn_mcp_need_name"); $("#mfTen").focus(); return; }
+      if (dangOauth && kieu !== "url") {
+        err.textContent = window.t("cs.mf_oauth_origin_locked"); return;
+      }
       const body = { name: name, transport: kieu === "url" ? $("#mfGiao").value : "stdio" };
       const dong = docDong().filter(x => x.k);
       const bang = {};
@@ -6626,6 +6670,20 @@
       if (kieu === "url") {
         body.url = $("#mfUrl").value.trim();
         if (!/^https?:\/\//i.test(body.url)) { err.textContent = window.t("cs.mf_need_url"); $("#mfUrl").focus(); return; }
+        // Existing OAuth credentials must stay on their original server origin.
+        if (dangOauth) {
+          let sameOrigin = false;
+          try {
+            const currentEndpoint = new URL(savedEndpointUrl);
+            const updatedEndpoint = new URL(body.url);
+            sameOrigin = currentEndpoint.origin === updatedEndpoint.origin
+              && !updatedEndpoint.username && !updatedEndpoint.password;
+          } catch (_) { /* Invalid endpoints are rejected before any update. */ }
+          if (!sameOrigin) {
+            err.textContent = window.t("cs.mf_oauth_origin_locked");
+            $("#mfUrl").focus(); return;
+          }
+        }
         body.auth = dangOauth ? "oauth" : "header"; body.headers = bang;
         if (editId) body.env = {};
       } else {
@@ -6651,6 +6709,7 @@
         luu.disabled = false; luu.textContent = window.t("cs.mf_save_test");
         err.textContent = (r && r.error) || window.t("app.err_cap"); return;
       }
+      savedEndpointUrl = body.url || "";
       luu.textContent = window.t("cs.cn_testing");
       let t;
       try { t = await postJson("/connect/test", { id: editId }); } catch (e) { t = { ok: false, error: String(e) }; }
@@ -9369,31 +9428,46 @@
 
   // Dựng lại cây nhưng GIỮ NGUYÊN các thư mục đang mở (thêm/sửa/xoá không làm sập cây).
   // revealDir (tuỳ chọn) = thư mục cần mở thêm để thấy file vừa tạo.
-  async function _vtRebuildReExpand(revealDir) {
+  // keepCache (2026-11-11): redraw from the listings already loaded. Pinning a folder moves rows around but changes
+  // nothing on disk, so it must not cost one /files/list per open folder on a VPS.
+  async function _vtRebuildReExpand(revealDir, keepCache) {
     const tree = document.getElementById("vaultTree"); if (!tree) return;
-    const escSel = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : s.replace(/"/g, '\\"');
-    // 1. Ghi lại các thư mục đang mở (childBox không ẩn).
-    const wanted = new Set();
+    // 1. Ghi lại các thư mục đang mở (childBox không ẩn). A pinned folder can show twice (its row at the top and
+    // its usual place), so each one is remembered with the zone it was open in.
+    const wanted = new Map();
+    const want = (rel, pin) => { const key = (pin == null ? "" : pin ? "p:" : "t:") + rel; if (!wanted.has(key)) wanted.set(key, { rel, pin }); };
     tree.querySelectorAll(".vt-branch > .vt-children:not(.vt-hidden)").forEach(box => {
       const node = box.previousElementSibling;
-      if (node && node.dataset && node.dataset.rel) wanted.add(node.dataset.rel);
+      if (node && node.dataset && node.dataset.rel) want(node.dataset.rel, !!node.closest(".vt-pins"));
     });
+    const fresh = !tree.querySelector(".vt-node");   // never drawn yet: the folders open by default still apply
     // 2. Thêm chuỗi thư mục cha của revealDir (để thấy file mới dù thư mục đó đang đóng).
     if (revealDir != null && revealDir !== "") {
       let inner;
       if (_vtHome && revealDir.indexOf(_vtHome + "/") === 0) inner = revealDir.slice(_vtHome.length + 1);
       else if (!_vtHome) inner = revealDir;
       else inner = (revealDir === _vtHome ? "" : revealDir);
-      const segs = inner ? inner.split("/") : [];
-      let acc = _vtHome || "";
-      for (const seg of segs) { acc = acc ? acc + "/" + seg : seg; wanted.add(acc); }
+      // The chain starts at the nearest pinned folder on the way (its row at the top), else at the brain root.
+      const pins = window.JavisVaultPins;
+      pins.chain(inner, pins.current(fbrain()), _vtHome || "").forEach(rel => want(rel, null));
     }
     // 3. Dựng lại (tươi) rồi mở lại từ NÔNG tới SÂU (cha trước con).
-    _vtCache.clear(); _vtIndex = null;
-    await renderVaultTree();
-    const list = [...wanted].sort((a, b) => a.split("/").length - b.split("/").length);
-    for (const rel of list) {
-      const node = tree.querySelector(`.vt-node[data-rel="${escSel(rel)}"]`);
+    if (!keepCache) { _vtCache.clear(); _vtIndex = null; }
+    await renderVaultTree({ keepState: !fresh });
+    await _vtOpenPaths([...wanted.values()].sort((a, b) => a.rel.split("/").length - b.rel.split("/").length));
+  }
+
+  // Unfold these folders, in the order given (parents first). An entry is a tree path, or { rel, pin } to ask for
+  // the copy in the pinned zone (pin true) or in the tree below it (false); the other copy is the fallback, so a
+  // folder that was just pinned or unpinned stays open.
+  async function _vtOpenPaths(list) {
+    const tree = document.getElementById("vaultTree"); if (!tree) return;
+    const escSel = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : s.replace(/"/g, '\\"');
+    for (const entry of list) {
+      const rel = typeof entry === "string" ? entry : entry.rel;
+      const pin = typeof entry === "string" ? null : entry.pin;
+      const nodes = [...tree.querySelectorAll(`.vt-node[data-rel="${escSel(rel)}"]`)];
+      const node = (pin == null ? null : nodes.find(n => !!n.closest(".vt-pins") === pin)) || nodes[0];
       if (!node) continue;
       const box = node.parentElement && node.parentElement.querySelector(":scope > .vt-children");
       if (box && box.classList.contains("vt-hidden")) {
@@ -9404,20 +9478,76 @@
   }
 
   function _vtCreateMenu(button, rel, isDir) {
+    _vtMenu(button, [
+      { icon: "file-text", label: window.t("cs.vt_create_file"), run: () => _vtAddFile(rel, isDir) },
+      { icon: "folder", label: window.t("cs.vt_create_dir"), run: () => _vtAddFolder(rel, isDir) },
+    ]);
+  }
+
+  // Everything one row can do, in ONE menu behind its "..." button (owner, 2026-11-11: "there are getting to be many
+  // functions and the row is hard to read; gather them into a three-dot button that opens a pop-up"). Five buttons
+  // per row left the name half its width on a phone; now a row is its name and one button, and a new action is one
+  // more line here, not one more icon on every row.
+  function _vtRowMenu(button, rel, it, isDir) {
+    _vtMenu(button, [
+      { icon: "file-text", label: window.t(isDir ? "cs.vt_create_file" : "cs.vt_create_file_here"), run: () => _vtAddFile(rel, isDir) },
+      { icon: "folder-plus", label: window.t(isDir ? "cs.vt_create_dir" : "cs.vt_create_dir_here"), run: () => _vtAddFolder(rel, isDir) },
+      ..._vtPinItems(rel, isDir),
+      { sep: true },
+      { icon: "download", label: window.t(isDir ? "cs.fm_zip_btn" : "common.download"), run: () => { if (isDir) _dlFolder(rel, it.name); else _dlFile(rel); } },
+      { icon: "pencil", label: window.t("cs.fm_rename"), run: () => _vtRename(rel, it.name) },
+      { icon: "trash-2", label: window.t("common.delete"), danger: true, run: () => _vtDelete(rel, it.name, isDir) },
+    ]);
+  }
+
+  // Pin a folder to the top of the tree, or have it open when the tree loads (2026-11-11). Both are saved per brain
+  // on the server (vault-pins.js), so every device shows the same tree. Only a folder of the brain gets them.
+  function _vtPinItems(rel, isDir) {
+    const pins = window.JavisVaultPins;
+    const path = isDir ? pins.toBrain(rel, _vtHome || "") : null; if (!path) return [];
+    const prefs = pins.current(fbrain());
+    const pinned = pins.has(prefs.pinned, path), keptOpen = pins.has(prefs.open, path);
+    return [
+      { sep: true },
+      { icon: pinned ? "pin-off" : "pin", label: window.t(pinned ? "cs.vt_unpin" : "cs.vt_pin"), run: () => _vtTogglePref(rel, path, "pinned") },
+      { icon: keptOpen ? "folder" : "folder-open", label: window.t(keptOpen ? "cs.vt_open_off" : "cs.vt_open_on"), run: () => _vtTogglePref(rel, path, "open") },
+    ];
+  }
+
+  async function _vtTogglePref(rel, path, field) {
+    const pins = window.JavisVaultPins, brain = fbrain();
+    const next = pins.toggled(pins.current(brain), field, path);
+    const turnedOn = pins.has(next[field], path);
+    const saving = pins.save(brain, next);   // the tree redraws from the new lists right away, the request follows
+    await _vtRebuildReExpand(field === "open" && turnedOn ? rel : null, true);
+    const tree = document.getElementById("vaultTree");
+    if (tree && field === "pinned" && turnedOn) tree.scrollTop = 0;   // show where the folder went
+    if (!(await saving)) {
+      alert(window.t("app.err_net"));
+      await _vtRebuildReExpand(null, true);   // the lists went back to what the server has
+    }
+  }
+
+  // The small pop-up of the Vault tree. An item is { icon, label, run, danger } or { sep: true } (a thin line between
+  // groups). It opens under the button, or above it when there is no room below, and never leaves the screen.
+  function _vtMenu(button, items) {
     document.getElementById("vtCreateMenu")?.remove();
     const menu = document.createElement("div");
     menu.id = "vtCreateMenu"; menu.className = "vt-create-menu";
     menu.setAttribute("popover", "auto");
-    menu.innerHTML = `<button type="button">${ic("file-text")} ${esc(window.t("cs.vt_create_file"))}</button>`
-      + `<button type="button">${ic("folder")} ${esc(window.t("cs.vt_create_dir"))}</button>`;
-    menu.querySelectorAll("button").forEach((item, index) => {
-      item.onclick = () => { menu.remove(); if (index) _vtAddFolder(rel, isDir); else _vtAddFile(rel, isDir); };
+    menu.setAttribute("role", "menu");
+    menu.innerHTML = items.map((item, index) => item.sep ? '<hr>'
+      : `<button type="button" role="menuitem" data-i="${index}"${item.danger ? ' class="danger"' : ""}>${ic(item.icon)} ${esc(item.label)}</button>`).join("");
+    menu.querySelectorAll("button").forEach(item => {
+      item.onclick = () => { menu.remove(); items[Number(item.dataset.i)].run(); };
     });
     document.body.appendChild(menu);
-    const rect = button.getBoundingClientRect();
-    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 220)) + "px";
-    menu.style.top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 110)) + "px";
     menu.showPopover();
+    const rect = button.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
+    const below = rect.bottom + 4;
+    const top = below + h <= window.innerHeight - 8 ? below : rect.top - h - 4;
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8)) + "px";
+    menu.style.top = Math.max(8, Math.min(top, window.innerHeight - h - 8)) + "px";
     menu.querySelector("button").focus();
     menu.addEventListener("toggle", () => { if (!menu.matches(":popover-open")) menu.remove(); });
   }
@@ -9454,6 +9584,7 @@
     if (!nn || nn === oldname) return;
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("newname", nn);
     try { await fetch("/files/rename", { method: "POST", body: fd }); } catch (e) {}
+    await _vtReloadPins();
     await _vtRebuildReExpand(null);   // giữ nguyên các thư mục đang mở
   }
   async function _vtDelete(rel, name, isDir) {
@@ -9462,31 +9593,36 @@
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
     try { await fetch("/files/delete", { method: "POST", body: fd }); } catch (e) {}
     if (_vtActivePath === rel) closeNote();
+    await _vtReloadPins();
     await _vtRebuildReExpand(null);   // giữ nguyên các thư mục đang mở
   }
+  // A rename or a delete moves or drops the pinned / open-by-default entries on the server (vault_tree_prefs.moved):
+  // read them again, but only when this brain has any.
+  async function _vtReloadPins() {
+    const pins = window.JavisVaultPins, prefs = pins.current(fbrain());
+    if (prefs.pinned.length || prefs.open.length) await pins.load(fbrain(), true);
+  }
 
-  function _vtRowEl(it, parentPath, depth) {
+  // `pinnedFrom` (2026-11-11): this row is a pinned folder drawn at the top of the tree; the value is the brain path
+  // of the folder holding it ("" at the brain root), shown dimmed so two pinned folders of the same name tell apart.
+  function _vtRowEl(it, parentPath, depth, pinnedFrom) {
     const rel = parentPath ? parentPath + "/" + it.name : it.name;
     const isDir = it.type === "dir";
+    const pins = window.JavisVaultPins;
+    const brainPath = isDir ? pins.toBrain(rel, _vtHome || "") : null;   // null: not a folder of this brain
+    const pinned = !!brainPath && pins.has(pins.current(fbrain()).pinned, brainPath);
     const wrap = document.createElement("div"); wrap.className = "vt-branch";
     const node = document.createElement("div");
     node.className = "vt-node"; node.dataset.rel = rel; node.dataset.name = it.name;
     node.style.paddingLeft = (6 + depth * 13) + "px";
     node.innerHTML = `<span class="vt-chev ${isDir ? "" : "leaf"}">▸</span>`
       + `<span class="vt-ico">${isDir ? ic("folder") : _fileIcon(it.ext)}</span>`
-      + `<span class="vt-name">${esc(it.name)}</span>`
-      + `<span class="vt-act"><button data-a="add" title="${esc(window.t(isDir ? "cs.vt_add_in" : "cs.vt_add_same"))}">＋</button>`
-      + `<button data-a="dl" title="${esc(window.t(isDir ? "cs.fm_zipfolder_title" : "cs.fm_dl_title"))}">⤓</button>`
-      + `<button data-a="ren" title="${esc(window.t("cs.fm_rename"))}">${ic("pencil")}</button><button data-a="del" title="${esc(window.t("common.delete"))}">${ic("trash-2")}</button></span>`;
+      + `<span class="vt-name">${esc(it.name)}${pinnedFrom ? ` <span class="vt-from">${esc(pinnedFrom)}</span>` : ""}</span>`
+      + (pinned ? `<span class="vt-pinmark" title="${esc(window.t("cs.vt_pinned"))}">${ic("pin")}</span>` : "")
+      + `<span class="vt-act"><button type="button" data-a="more" aria-haspopup="menu" title="${esc(window.t("cs.vt_more"))}" aria-label="${esc(window.t("cs.vt_more"))}">${ic("ellipsis")}</button></span>`;
     if (!isDir && rel === _vtActivePath) node.classList.add("active");
-    node.querySelectorAll(".vt-act button").forEach(b => b.onclick = (e) => {
-      e.stopPropagation();
-      const a = b.dataset.a;
-      if (a === "add") _vtCreateMenu(b, rel, isDir);
-      else if (a === "dl") { if (isDir) _dlFolder(rel, it.name); else _dlFile(rel); }
-      else if (a === "ren") _vtRename(rel, it.name);
-      else _vtDelete(rel, it.name, isDir);
-    });
+    const more = node.querySelector('.vt-act button[data-a="more"]');
+    more.onclick = (e) => { e.stopPropagation(); _vtRowMenu(more, rel, it, isDir); };
     wrap.appendChild(node);
     if (isDir) {
       const childBox = document.createElement("div"); childBox.className = "vt-children vt-hidden";
@@ -9751,16 +9887,30 @@
     if (ve) ve.onclick = () => datVaultThu(false);
   }
 
-  async function renderVaultTree() {
+  // Pinned folders come first, in a zone of their own (.vt-pins), then the brain root as it is on disk. The folders
+  // marked "open by default" unfold on a fresh draw; `keepState` (a redraw after an edit) leaves that to the caller,
+  // which reopens exactly what was open, so a folder the user just closed does not spring back.
+  // A fresh draw (page load, Refresh, another brain, a change made on the Files page) also asks the server for the
+  // two lists again, so a pin made on another device or a folder renamed elsewhere shows without reloading the page.
+  async function renderVaultTree(opts) {
     const tree = document.getElementById("vaultTree"); if (!tree) return;
     _vtWire();
     tree.hidden = false;
     const results = document.getElementById("vaultResults"); if (results) results.hidden = true;
     tree.innerHTML = `<div class="vt-info pg-loading">${esc(window.t("common.loading"))}</div>`;
-    const items = await _vtList(null);
+    const pins = window.JavisVaultPins, fresh = !(opts && opts.keepState);
+    const [items, prefs] = await Promise.all([_vtList(null), pins.load(fbrain(), fresh)]);
     tree.innerHTML = "";
     if (!items.length) { tree.innerHTML = `<div class="vt-info">${esc(window.t("cs.vt_vault_empty"))}</div>`; return; }
-    items.forEach(it => tree.appendChild(_vtRowEl(it, _vtHome || "", 0)));
+    const home = _vtHome || "";
+    const parts = pins.splitRoot(items, prefs, home);
+    if (parts.pinned.length) {
+      const zone = document.createElement("div"); zone.className = "vt-pins";
+      parts.pinned.forEach(p => zone.appendChild(_vtRowEl(p.item, p.parent, 0, pins.toBrain(p.parent, home) || "")));
+      tree.appendChild(zone);
+    }
+    parts.rest.forEach(it => tree.appendChild(_vtRowEl(it, home, 0)));
+    if (fresh) await _vtOpenPaths(pins.openPlan(prefs, home));
   }
 
   function _vtMarkActive(rel) {
@@ -9769,7 +9919,7 @@
     tree.querySelectorAll(".vt-node.active").forEach(n => n.classList.remove("active"));
     if (rel) {
       const sel = (window.CSS && CSS.escape) ? CSS.escape(rel) : rel.replace(/"/g, '\\"');
-      const n = tree.querySelector(`.vt-node[data-rel="${sel}"]`); if (n) n.classList.add("active");
+      tree.querySelectorAll(`.vt-node[data-rel="${sel}"]`).forEach(n => n.classList.add("active"));
     }
   }
 

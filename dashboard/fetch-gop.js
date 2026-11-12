@@ -26,7 +26,8 @@
   var GIU_MS = 1500;
   // Đường đọc an toàn để dùng chung: trả JSON nhỏ, không có tác dụng phụ.
   // 2026-11-05: + `sessions/<id>/meta`, asked twice on every chat switch (model bar and project chip).
-  var DUONG = /^\/(settings|config|brains|agents|skills|workflows|connect\/health|auth\/status|voice\/ear|voice\/call|plan-limits|sessions\/[^/?]+\/meta)(\?|$)/;
+  // 2026-11-10: + `chat/route`, asked twice at start by the model bar (a plain read of where a new chat would run).
+  var DUONG = /^\/(settings|config|brains|agents|skills|workflows|connect\/health|auth\/status|voice\/ear|voice\/call|plan-limits|chat\/route|sessions\/[^/?]+\/meta)(\?|$)/;
 
   function laGet(init) {
     var m = init && init.method ? String(init.method).toUpperCase() : "GET";
@@ -164,7 +165,19 @@
     return u.pathname.indexOf("/static/") !== 0 && !/stream|events|sse/i.test(u.pathname);
   }
 
+  // A session that expires while the tab is open (2026-11-10): chat keeps running over the WebSocket opened earlier,
+  // but every HTTP call gets 401, so chat images turn into blank boxes and lists stop loading with no visible sign.
+  // A 401 from this server outside /auth/* raises "javis:unauthorized"; app.js asks /auth/status and shows sign-in.
+  function isSessionLost(status, input, origin) {
+    if (status !== 401) return false;
+    var u;
+    try { u = new URL(typeof input === "string" ? input : (input && input.url) || "", origin || "http://x"); } catch (e) { return false; }
+    if (origin && u.origin !== new URL(origin).origin) return false;
+    return u.pathname.indexOf("/auth/") !== 0;
+  }
+
   var api = { khoaGop: khoaGop, gopDuoc: gopDuoc, thuLaiDuoc: thuLaiDuoc, maTam: maTam, CHO_THU_LAI: CHO_THU_LAI, GIU_MS: GIU_MS,
+    isSessionLost: isSessionLost,
     swrKey: swrKey, keepsCopies: keepsCopies, SWR_MAX_AGE_MS: SWR_MAX_AGE_MS,
     batchPath: batchPath, toTemplate: toTemplate, fromTemplate: fromTemplate, BATCH_MAX: BATCH_MAX };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -200,6 +213,11 @@
     } catch (e) { /* dải báo không bao giờ được làm hỏng lời gọi */ }
   }
 
+  function reportSessionLost(input, r) {
+    if (!r || !isSessionLost(r.status, input, location.origin)) return;
+    try { window.dispatchEvent(new Event("javis:unauthorized")); } catch (e) { /* never break the call */ }
+  }
+
   function ngu(ms) { return new Promise(function (xong) { setTimeout(xong, ms); }); }
   // 0.444.4: lệch ngẫu nhiên ±30%. Không có nó, mọi lượt đọc của mọi tab thử lại ĐÚNG cùng nhịp và dồn một lúc vào
   // máy chủ vừa chậm lại, làm nó càng chậm.
@@ -210,6 +228,7 @@
     if (!thuLaiDuoc(input, init, location.origin)) {
       return gocThat(input, init).then(function (r) {
         if (dangThu === 0 && dai && r.ok) veDai(false);
+        reportSessionLost(input, r);
         return r;
       });
     }
@@ -225,6 +244,7 @@
           return ngu(lech(CHO_THU_LAI[lan++])).then(thu);
         }
         bao(false);
+        reportSessionLost(input, r);
         return r;
       }, function (loi) {
         if (lan < CHO_THU_LAI.length) {

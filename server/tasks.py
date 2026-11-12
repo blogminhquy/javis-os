@@ -32,6 +32,7 @@ from fastapi import APIRouter, Form, Query
 
 from claude_cli import claude_engine, cancel_all, _empty_mcp_file
 import aux_engine
+import job_scorecard
 import channel_context
 import localefmt          # giờ hiển thị theo múi giờ người dùng, không phải giờ máy chủ
 import limit_learner      # nhận diện "gói thuê bao hết lượt" - CÙNG bộ mẫu với khung chat
@@ -624,7 +625,12 @@ class TasksFeature:
             t_run = time.monotonic()
             try:
                 # #1165: a memory this job writes while a chat turn runs is not stamped with that chat as its source.
-                with memory_control.background_writer(task.get("brain_root"), str(task.get("execution_mode") or "auto")):
+                # Scored by route (job_scorecard.py): a Kanban job runs once, so what learns is the KIND of job
+                # ("auto", a workflow, an assistant). The verdict comes after the acceptance check below, which
+                # is a separate engine and must not run on the job's own rung.
+                with memory_control.background_writer(task.get("brain_root"), str(task.get("execution_mode") or "auto")), \
+                        job_scorecard.run(f"kanban:{str(task.get('route') or 'auto')[:60]}", "kanban",
+                                          "Kanban " + str(task.get("route") or "auto")[:60], settle=False) as score:
                     result, error, needs_input, metadata = await asyncio.wait_for(
                         self._execute(task), timeout=self._tran_giay_viec()
                     )
@@ -639,6 +645,10 @@ class TasksFeature:
             # Soi CẢ result: nhà cung cấp hay in câu hết lượt ngay chỗ câu trả lời chứ không
             # báo lỗi, và bản trước coi đó là việc XONG với "kết quả" là một câu tiếng Anh.
             het_luot = self._het_luot(error, "" if error else result)
+            if het_luot or error:
+                # Out of plan quota, a connection, a tool that failed: none of it is about the model.
+                score.fail(job_scorecard.CAUSE_OTHER, str(error or het_luot)[:120])
+                job_scorecard.settle(score)
             if het_luot:
                 final_task = self._hoan_vi_het_luot(tid, worker_id, het_luot)
             elif error:
@@ -665,6 +675,13 @@ class TasksFeature:
                 metadata = {**(task.get("metadata") or {}), **(metadata or {}), "acceptance_check": how,
                             # 0.411.0: how long the run took, shown on the card.
                             "run_seconds": round(time.monotonic() - t_run)}
+                if how in ("ai", "heuristic"):
+                    # A check that could not run says nothing; one that ran is the strongest signal there is.
+                    if passed:
+                        score.ok()
+                    else:
+                        score.fail(job_scorecard.CAUSE_MODEL, str(why or "")[:120])
+                    job_scorecard.settle(score)
                 if not passed:
                     # Owner report 2026-11-08: this used to park the job as a question ("Needs your answer") whose
                     # only text was the checker's reason, so the owner had nothing to answer. A miss is the

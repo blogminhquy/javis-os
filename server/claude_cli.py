@@ -309,7 +309,123 @@ def tim_binary(ten: str) -> Optional[str]:
     return _binary_da_nho(ten)
 
 
+def _sdk_bundled_claude() -> Optional[str]:
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("claude_agent_sdk")
+        exe = Path(spec.origin).parent / "_bundled" / "claude.exe"
+        return str(exe) if exe.is_file() else None
+    except Exception:
+        return None
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def is_batch_script(path: str) -> bool:
+    """A .cmd/.bat file, which Windows runs through cmd.exe (PATHEXT may hand it back as `.CMD`)."""
+    return str(path or "").rstrip(". ").lower().endswith((".cmd", ".bat"))
+
+
+# A real Claude Code executable is tens of MB. The npm package also ships a tiny placeholder
+# `bin/claude.exe` that its postinstall replaces, so anything this small is not the CLI.
+_NATIVE_EXE_MIN_BYTES = 1 << 20
+_RX_SHIM_EXE = re.compile(r'%~?dp0%?[\\/]([^"\r\n%]*?claude[^"\\/\r\n%]*\.exe)', re.I)
+
+
+def native_claude_exe(cli: Optional[str]) -> Optional[str]:
+    """The native `claude.exe` to run instead of npm's `claude.cmd` shim on Windows, else `cli` unchanged.
+
+    claude-agent-sdk refuses to spawn a .cmd/.bat as the CLI (cmd.exe re-parses the command line,
+    so arguments can inject commands: the "BatBadBut" class). Javis handed the SDK whatever PATH
+    resolved, and `npm install -g` puts `claude.cmd` there, so once the SDK updated itself every
+    Claude turn on such a machine died with "Refusing to execute batch script" (owner, 2026-11-10).
+    The executable is nearly always on the machine already: recent npm packages ship it next to
+    the shim, and the native installer puts one in ~/.local/bin. Returns the shim itself when no
+    executable is found, so callers that spawn it directly keep working as before."""
+    if not cli or not _is_windows() or not is_batch_script(cli):
+        return cli
+    shim = Path(cli)
+    cands = []
+    try:
+        text = shim.read_text(encoding="utf-8", errors="ignore")[:8192]
+        for m in _RX_SHIM_EXE.finditer(text):
+            cands.append(shim.parent / m.group(1).replace("\\", "/"))
+    except Exception:
+        pass
+    pkg = shim.parent / "node_modules" / "@anthropic-ai"
+    cands += [pkg / "claude-code" / "bin" / "claude.exe",
+              pkg / "claude-code-win32-x64" / "claude.exe",
+              pkg / "claude-code-win32-arm64" / "claude.exe",
+              shim.parent / "claude.exe",
+              _home_dir() / ".local" / "bin" / "claude.exe"]
+    for path in (None, _duong_dan_tim_binary()):
+        try:
+            hit = shutil.which("claude.exe", path=path)
+        except Exception:
+            hit = None
+        if hit and hit.lower().endswith(".exe"):      # PATHEXT can answer "claude.exe.cmd"
+            cands.append(Path(hit))
+    for c in cands:
+        try:
+            if c.is_file() and c.stat().st_size >= _NATIVE_EXE_MIN_BYTES:
+                return str(c)
+        except Exception:
+            pass
+    return cli
+
+
+def claude_cli_for_sdk() -> str:
+    """The `cli_path` to hand claude-agent-sdk, or "" to let the SDK pick its own bundled binary.
+
+    Never a .cmd/.bat on Windows: the SDK refuses those, while its Windows wheel bundles a
+    claude.exe that works. Never the SDK's own `_bundled` binary either (see claude_sdk_engine)."""
+    cli = (os.environ.get("JAVIS_CLAUDE_CLI") or "").strip() or (tim_binary("claude") or "")
+    if not cli or "_bundled" in cli.replace("\\", "/"):
+        return ""
+    cli = native_claude_exe(cli) or ""
+    if _is_windows() and is_batch_script(cli):
+        return ""
+    return cli
+
+
+_SDK_CLI_ENV = {"set": ""}      # the value Javis itself put in JAVIS_CLAUDE_CLI, never the user's
+
+
+def use_native_claude_for_sdk() -> None:
+    """Windows: point JAVIS_CLAUDE_CLI at a native claude.exe when PATH resolves npm's shim.
+
+    Why an environment variable: claude_sdk_engine.py and `tim_binary` are both pinned (the
+    native qualification evidence hashes the first, improvement_trial_selection the second), and
+    the one thing both read before PATH is JAVIS_CLAUDE_CLI. Setting it keeps the chat engine and
+    the trial resolver on the same executable. With only the shim on the machine it is set to the
+    SDK's bundled claude.exe: the engine drops a "_bundled" path and the SDK picks that file.
+    A value the user set is respected, unless it names a batch script the SDK would refuse."""
+    if not _is_windows():
+        return
+    cur = (os.environ.get("JAVIS_CLAUDE_CLI") or "").strip()
+    ours = _SDK_CLI_ENV["set"]
+    base = cur if (cur and cur != ours) else (tim_binary("claude") or "")
+    if not is_batch_script(base):
+        if cur and cur == ours:           # PATH now resolves a real executable: step out of the way
+            os.environ.pop("JAVIS_CLAUDE_CLI", None)
+            _SDK_CLI_ENV["set"] = ""
+        return
+    exe = native_claude_exe(base) or ""
+    want = exe if (exe and not is_batch_script(exe)) else (_sdk_bundled_claude() or "")
+    if want and want != cur:
+        os.environ["JAVIS_CLAUDE_CLI"] = want
+        _SDK_CLI_ENV["set"] = want
+        print(f"[claude] the SDK refuses batch scripts, using {want} instead of {base}", file=sys.stderr)
+
+
 def find_claude_cli() -> Optional[str]:
+    """Find the claude CLI. On Windows a native claude.exe wins over npm's claude.cmd shim."""
+    return native_claude_exe(_find_claude_cli_raw())
+
+
+def _find_claude_cli_raw() -> Optional[str]:
     """Tìm claude CLI trên máy. Cửa thoát JAVIS_CLAUDE_BIN cho máy cài chỗ lạ.
 
     Có env override để ĐỒNG BỘ với `grok` (JAVIS_GROK_BIN), `agy` (JAVIS_AGY_BIN) và `codex`
@@ -537,6 +653,50 @@ def _catalog_cache_ids(files) -> list:
     return out
 
 
+_FAMILY_TIERS = ("fable", "mythos", "opus", "sonnet", "haiku")
+
+
+def sort_models(ids) -> list:
+    """Full model ids -> family aliases first, then the ids NEWEST first. Anything that is not a model id is dropped.
+
+    Families go strongest tier first; inside a family the newer version comes first, and the
+    undated id sits above the dated one (`claude-haiku-4-5` before `claude-haiku-4-5-20251001`) because that is the
+    name people type. Aliases in the input are ignored and rebuilt from the ids, so the result has no duplicates.
+    """
+    hop, seen = [], set()
+    for mid in ids or []:
+        v = tach_phien_ban(mid)
+        if v and mid not in seen:
+            seen.add(mid)
+            hop.append((v[0], v[1], v[2], mid))
+    if not hop:
+        return []
+    moi_nhat = {}
+    for fam, ver, _, _ in hop:
+        if ver > moi_nhat.get(fam, ()):
+            moi_nhat[fam] = ver
+    # Known families go by tier, strongest first: by version alone Haiku 5.5 would sit above Fable 5.2. A family this
+    # code has never heard of follows them, newest version first, so a new line still shows without a code change.
+    def _tier(fam):
+        return _FAMILY_TIERS.index(fam) if fam in _FAMILY_TIERS else len(_FAMILY_TIERS)
+    hop.sort(key=lambda x: (_tier(x[0]), bac_phien_ban(moi_nhat[x[0]]), x[0], bac_phien_ban(x[1]), x[2], x[3]))
+    alias = []
+    for fam, _, _, _ in hop:
+        if fam not in alias:
+            alias.append(fam)
+    return alias + [mid for _, _, _, mid in hop]
+
+
+def merge_models(live, shipped) -> list:
+    """The catalog read from the installed `claude` binary, plus the models this Javis release ships with.
+
+    Owner report 2026-11-10: Fable 5.2 was out and Javis did not list it. The binary's catalog was the ONLY list
+    shown, so a machine whose Claude Code had not updated yet (Docker waits for a new image, the daily updater can
+    fail) never saw a model that the Javis release already knew. The union means either side can bring a new model.
+    """
+    return sort_models(list(live or []) + list(shipped or []))
+
+
 def list_models() -> Optional[list]:
     """Model của gói Claude Code: alias đứng trước, rồi id đầy đủ MỚI NHẤT trước.
 
@@ -577,28 +737,10 @@ def list_models() -> Optional[list]:
     for mid in _catalog_cache_ids(catalog_files):
         if mid not in tho:
             tho.append(mid)
-    hop = []
-    for mid in tho:
-        v = tach_phien_ban(mid)
-        if v:
-            hop.append((v[0], v[1], v[2], mid))
-    if not hop:
+    ket_qua = sort_models(tho)[:40]
+    if not ket_qua:
         _MODELS_CACHE.update(sig=sig, ids=None)
         return None
-    # Dòng nào có bản mới nhất thì đứng trước; trong một dòng, bản mới trước, và bản KHÔNG
-    # gắn ngày đứng trên bản gắn ngày (`claude-haiku-4-5` trước `claude-haiku-4-5-20251001`)
-    # vì đó mới là tên người dùng gõ.
-    moi_nhat = {}
-    for fam, ver, _, _ in hop:
-        if ver > moi_nhat.get(fam, ()):
-            moi_nhat[fam] = ver
-    hop.sort(key=lambda x: (bac_phien_ban(moi_nhat[x[0]]), x[0], bac_phien_ban(x[1]), x[2], x[3]))
-    ids = [mid for _, _, _, mid in hop]
-    alias = []
-    for fam, _, _, _ in hop:
-        if fam not in alias:
-            alias.append(fam)
-    ket_qua = (alias + ids)[:40]
     _MODELS_CACHE.update(sig=sig, ids=list(ket_qua))
     return ket_qua
 
@@ -1261,11 +1403,23 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
     except Exception:  # noqa: BLE001 - a meter must never stop a turn
         pass
     try:
+        # 2026-11-10: a whitelisted run below Full access writes only ordinary files inside its brain. Installed BEFORE
+        # the secret hook: that one must stay the outermost wrapper of _options, it looks for its mark only there.
+        import claude_write_scope_hook
+        claude_write_scope_hook.install()
+    except Exception as e:  # noqa: BLE001 - reported, never a broken turn
+        print(f"[write scope] Claude hook not installed: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
         # 2026-11-09 (owner incident): every Claude turn refuses tool calls on Javis' secret files (secret_guard.py).
         import claude_secret_hook
         claude_secret_hook.install()
     except Exception as e:  # noqa: BLE001 - the guard must never stop a turn
         print(f"[secret guard] Claude hook not installed: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
+        # 2026-11-10 (owner incident): the SDK refuses npm's claude.cmd on Windows; hand it a native claude.exe.
+        use_native_claude_for_sdk()
+    except Exception as e:  # noqa: BLE001 - reported, never a broken turn
+        print(f"[claude] native CLI lookup failed: {type(e).__name__}: {e}", file=sys.stderr)
     eng = ClaudeSDK(system_prompt=system_prompt, cwd=cwd, tag=tag,
                     allowed_tools=allowed_tools, model=model)
     # Every run (chat, loops, reminders, bots) skips the repo CLAUDE.md and compacts at ~180k;

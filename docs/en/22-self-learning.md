@@ -62,7 +62,7 @@ The **What to learn** box has six switches. A filled dot `●` is on, a hollow d
 | --- | --- | --- |
 | **Memories (Memory)** | On | Durable facts about you and your business, written into files under `memory/facts/` plus a line added to `MEMORY.md` |
 | **Knowledge (Wiki)** | On | Reusable concepts, frameworks and procedures, written as notes in the brain's Wiki folder |
-| **Skills (Skill)** | On | Multi-step procedures Javis just performed and judged repeatable, written as `skills/<slug>/SKILL.md`. An existing skill that just revealed a flaw is **edited in place** (since 0.55.65) rather than copied |
+| **Skills (Skill)** | **Off** | Multi-step procedures Javis just performed and judged repeatable, written as `skills/<slug>/SKILL.md`. An existing skill that just revealed a flaw is **edited in place**, not duplicated. Off by default since 11/2026: skill learning adds a second verify pass to every batch and switches on the background skill judging, the costliest part for a plan; existing installs were switched off once too, turn it back on here if you need it |
 | **Roles (Agent)** | **Off** | Specialist roles you asked for repeatedly in conversation, written as `agents/<slug>.md`. An existing role needing improvement is **edited in place** rather than copied |
 | **Step chains (Workflow)** | **Off** | Chains of 2 or more steps across roles you have repeated, written as `workflows/<slug>.md` in a disabled state so you review before enabling. An existing chain missing a step, carrying a redundant one or in the wrong order is **edited in place** |
 | **Work (Kanban)** | **Off** | Proposals for background work, pushed onto the board on the **Work** page |
@@ -107,12 +107,16 @@ If no chat turn is waiting, Javis takes that brain's most recent conversation se
 You do not have to click anything. After each chat turn, Javis classifies it then adds it to a per-brain queue:
 
 - A turn that is too short or is only a greeting, "ok" or "thanks" is dropped immediately and does not count.
-- A turn with **knowledge-dense** signals (questions like "what is", "how many steps", "formula", "principle", "procedure", "concept", "how to") is flagged separately.
+- Every new event in the brain (you ask again, a background job finishes, a customer is talking to a chatbot) starts the waiting time over.
 - Saying "remember", "keep this in mind", "save this" flags the turn as **urgent**.
 
-Roughly every 30 seconds, Javis checks the queue and fires a learning batch when one of these holds: **3 turns** accumulated, or an urgent turn plus 30 seconds elapsed, or a knowledge-dense turn plus **3 minutes of silence**, or **10 minutes of silence** with turns still unlearned.
+Javis starts a learning batch once the brain has been **quiet for 15 minutes after its last event** and turns are still waiting (since 11/2026). So it learns **once per conversation**, after you are done, not in the middle of it. Earlier versions also fired after every 3 turns, so a 12-turn chat opened four batches that each re-read much the same messages. The one exception: an **urgent** turn (you said "remember this") is learned after 30 seconds. A day with no event learns nothing and costs nothing.
 
-Each batch reads at most the 3 most recent conversation sessions, taking the last 12 messages of each, with the total content cut at about 24,000 characters. So it learns from what **just happened**, not by digging through the whole history.
+**Javis tunes when a batch starts.** When most recent batches learned nothing (common when you ask one or two quick questions), Javis Core raises the number of turns a batch needs, up to 4; when batches are useful again it lowers it. Turns below the bar stay queued and are learned with the next ones. Each adjustment leaves a notice in the bell with its reason.
+
+**Tell Javis how to learn.** Say it in chat, for example "do not turn each day's revenue into a memory" or "only remember decisions that are settled". Javis Core keeps it as a lesson, and every learning batch reads it before deciding what to write. Ask Javis for "Javis Core's lessons" to review or revoke them. A memory Javis learned by itself that you ask it to forget counts as a learning mistake, and the next batch runs one model stronger.
+
+Each batch reads exactly **the turns since the previous batch** of each conversation, oldest first, so every message is read once however long the chat ran. One batch holds about 48,000 characters; what does not fit is queued again and learned by the next batch right after, never dropped. **▶ Learn now** reads the last 12 messages of the most recent session, as before.
 
 ### Javis also learns from the work it does itself (since 0.55.64)
 
@@ -158,17 +162,17 @@ Everything blocked appears in the Learning log under **Blocked**, with a specifi
 
 Self-learning runs on the **background work model**, not the main model. You choose that on the **Models** page (the **Connections** group), where the "◆ Background work model" block states plainly that it serves "loops · Kanban work · reminders · self-learning · digesting sources". Choosing a cheap model there makes self-learning cheap.
 
-Javis also sets three hard ceilings itself, per day and independent of the turn-batching rhythm:
+Javis sets **no daily ceiling** (since 11/2026): some people use a lot, some a little, and one number fits neither. What keeps self-learning cheap is the rhythm above (one batch per conversation, after 15 quiet minutes) plus these two:
 
-| Ceiling | Default | What happens at the ceiling |
+| Limit | Value | Effect |
 | --- | --- | --- |
-| Minimum gap between two batches | 90 seconds | That batch writes no files |
-| Batches per day | 40 | Drops to dry run |
-| Estimated tokens per day | 300,000 | Drops to dry run |
+| Minimum gap between two batches | 90 seconds | A batch that comes sooner writes no files |
+| The plan is nearly used up | 5-hour window 80% used | Automatic batches wait for the reset; what is left is kept for your chat |
 
-When downgraded, Javis still analyses and still logs "what would be learned", it just writes no files. The status in the log states the reason, for example "dry-run (daily fork ceiling reached → dropped to dry-run (backpressure))".
+When an automatic batch has to wait for the plan, the log gets one line with the reason, and the chat turns stay queued. The "batches today" and "tokens today" figures are still counted (tokens are real usage as the engine reports it, cache reads included) but only for you to read.
 
-Clicking **▶ Learn now** is subject to exactly the same ceilings: the analysis always runs, but producing files requires being in Write automatically mode **and** not having hit any ceiling.
+Clicking **▶ Learn now** runs at once: it does not wait 15 minutes and is not held by the plan allowance, because you chose to run it.
+
 
 ## Curator: periodic maintenance that deletes nothing
 
@@ -223,8 +227,8 @@ How to read it:
 | **Memories** | The file count in `memory/facts/` |
 | **Wiki** | The note count in the Wiki folder (excluding `index`, `log` and files starting with an underscore) |
 | **MEMORY.md** | The memory index's size in bytes. This number is loaded into every chat turn, so smaller is cheaper |
-| **Forks today** | Learning batches that wrote today, against the ceiling of 40 |
-| **Estimated tokens** | Tokens self-learning spent today (a rough estimate), against the ceiling of 300,000 |
+| **Forks today** | Learning batches that wrote today (for reading only, there is no ceiling) |
+| **Estimated tokens** | Tokens self-learning spent today, real usage as the engine reports it (for reading only, there is no ceiling) |
 | **Learning commits** | Learning commits found in the brain's git history (counting at most the 50 most recent commits) |
 
 ## The "What Javis taught itself (latest commits)" block
@@ -273,7 +277,7 @@ Once git is installed, turn self-learning off and back on once so Javis git-init
 
 ## Tips
 
-- **To make Javis remember something for certain, say "remember ..." plainly in chat.** A sentence with "remember", "keep this in mind", "save this" is flagged urgent and learned in the very next batch instead of waiting for 3 turns.
+- **To make Javis remember something for certain, say "remember ..." plainly in chat.** A sentence with "remember", "keep this in mind", "save this" is flagged urgent and learned after 30 seconds instead of waiting for the conversation to go quiet for 15 minutes.
 - **Check that Javis learned correctly through `MEMORY.md` itself.** Open the **Files** page and go to `memory/MEMORY.md`. Each line is one memory. Fix or delete a wrong line right there, which is faster than undoing a whole commit.
 - **Keep `MEMORY.md` compact.** This file is loaded into every chat turn. Once the metric passes about 150 lines, it is time to merge small memories into a larger one.
 - **For quality Wiki knowledge, state the source.** Anything Javis merely inferred does not enter the Wiki. It is written only when you assert it or cite a named source.
@@ -283,7 +287,7 @@ Once git is installed, turn self-learning off and back on once so Javis git-init
 ## Common problems
 
 **Self-learning is on, you chatted all afternoon, and nothing was learned.**
-Check in order: is the write mode **Write automatically** (Dry run and Suggest create no files); did the chat turns have "substance" (greetings, "ok", "thanks" are dropped); have 3 turns accumulated or 10 minutes of silence passed; and on the Metrics line, has "Forks today" hit 40. The Learning log always has the exact answer.
+Check in order: is the write mode **Write automatically** (Dry run and Suggest create no files); did the chat turns have "substance" (greetings, "ok", "thanks" are dropped); has the brain been quiet for 15 minutes since its last event; and is the plan close to its 5-hour limit (automatic batches then wait for the reset). The Learning log always has the exact answer.
 
 **The log says it learned but no new file appeared.**
 Read the **Blocked** section of that very log entry. Common reasons: the memory duplicated an existing file so nothing was overwritten, the Wiki note was rejected because Javis said it with no source, the concept duplicated an existing note, or the skill's name collided or its `description` ran over 150 characters.

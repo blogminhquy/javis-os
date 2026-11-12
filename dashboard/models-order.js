@@ -51,42 +51,78 @@
     pop.style.maxHeight = Math.max(160, (up ? above : below) - 6) + "px";
   }
 
+  // One set of document listeners and one drop line for the whole page, whatever root is being dragged (2026-11-10).
+  // The Models page builds a new root on every visit. Binding the document listeners per root left a set behind on each
+  // visit (pointermove, pointerup, pointercancel and a non-passive touchmove), each holding its old page alive: a cycle
+  // through 17 pages kept 6,400 detached nodes and 314 listeners. `cur` is the state of the root last pressed.
+  let cur = null, line = null, docBound = false;
+
+  function begin(st, ev) {
+    const item = st.pend.item, key = item.dataset.dnd;
+    const items = Array.prototype.slice.call(st.root.querySelectorAll('[data-dnd="' + key + '"]'));
+    st.drag = { key: key, item: item, from: items.indexOf(item), others: items.filter((x) => x !== item),
+                y0: st.pend.y0, s0: window.scrollY, to: null };
+    item.classList.remove("ord-pressing"); item.classList.add("ord-dragging");
+    document.body.classList.add("ord-is-dragging");
+    try { item.setPointerCapture(st.pend.id); } catch (e) {}
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
+    at(st, ev ? ev.clientY : st.pend.y0);
+  }
+  function at(st, y) {
+    const d = st.drag;
+    d.item.style.transform = "translateY(" + (y - d.y0 + window.scrollY - d.s0) + "px)";
+    const rects = d.others.map((x) => x.getBoundingClientRect());
+    d.to = rects.filter((r) => r.top + r.height / 2 < y).length;
+    if (!rects.length) return;
+    const box = d.item.getBoundingClientRect();
+    const ly = d.to < rects.length ? rects[d.to].top - 6 : rects[rects.length - 1].bottom + 4;
+    line.style.top = ly + "px"; line.style.left = box.left + "px"; line.style.width = box.width + "px";
+    line.hidden = false;
+  }
+  function forget(st) {
+    if (st.pend && st.pend.timer) clearTimeout(st.pend.timer);
+    if (st.pend && st.pend.item) st.pend.item.classList.remove("ord-pressing");
+    st.pend = null;
+  }
+  function end() {
+    const st = cur;
+    if (!st) return;
+    if (!st.drag) { forget(st); return; }
+    const d = st.drag;
+    d.item.style.transform = ""; d.item.classList.remove("ord-dragging");
+    document.body.classList.remove("ord-is-dragging");
+    line.hidden = true; st.drag = null; forget(st);
+    st.swallow = true; setTimeout(() => { st.swallow = false; }, 0);
+    if (d.to != null && d.to !== d.from && st.opt.onDrop) st.opt.onDrop(d.key, d.from, d.to);
+  }
+  function bindDocument() {
+    if (docBound) return;
+    docBound = true;
+    line = document.createElement("div");
+    line.className = "ord-drop-line"; line.hidden = true;
+    document.body.appendChild(line);
+    document.addEventListener("pointermove", (ev) => {
+      const st = cur;
+      if (!st) return;
+      if (st.drag) {
+        if (ev.clientY < 80) window.scrollBy(0, -14); else if (ev.clientY > window.innerHeight - 80) window.scrollBy(0, 14);
+        at(st, ev.clientY); return;
+      }
+      if (!st.pend) return;
+      const d = Math.hypot(ev.clientX - st.pend.x0, ev.clientY - st.pend.y0);
+      if (st.pend.touch) { if (d > 8) forget(st); } else if (d > 5) begin(st, ev);
+    });
+    document.addEventListener("touchmove", (ev) => { if (cur && cur.drag) ev.preventDefault(); }, { passive: false });
+    document.addEventListener("pointerup", end);
+    document.addEventListener("pointercancel", end);
+  }
+
   /** Binds drag once on `root`. Items carry data-dnd="<group>"; opt.onDrop(group, from, to) saves the new order.
    *  A drop swallows the click that follows, so letting go on a chip does not also open it. */
   function bindDrag(root, opt) {
     if (root._ordDrag) { root._ordDrag.opt = opt; return; }
-    const st = root._ordDrag = { opt: opt, pend: null, drag: null, swallow: false };
-    const line = document.createElement("div");
-    line.className = "ord-drop-line"; line.hidden = true;
-    document.body.appendChild(line);
-
-    function begin(ev) {
-      const item = st.pend.item, key = item.dataset.dnd;
-      const items = Array.prototype.slice.call(root.querySelectorAll('[data-dnd="' + key + '"]'));
-      st.drag = { key: key, item: item, from: items.indexOf(item), others: items.filter((x) => x !== item),
-                  y0: st.pend.y0, s0: window.scrollY, to: null };
-      item.classList.remove("ord-pressing"); item.classList.add("ord-dragging");
-      document.body.classList.add("ord-is-dragging");
-      try { item.setPointerCapture(st.pend.id); } catch (e) {}
-      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
-      at(ev ? ev.clientY : st.pend.y0);
-    }
-    function at(y) {
-      const d = st.drag;
-      d.item.style.transform = "translateY(" + (y - d.y0 + window.scrollY - d.s0) + "px)";
-      const rects = d.others.map((x) => x.getBoundingClientRect());
-      d.to = rects.filter((r) => r.top + r.height / 2 < y).length;
-      if (!rects.length) return;
-      const box = d.item.getBoundingClientRect();
-      const ly = d.to < rects.length ? rects[d.to].top - 6 : rects[rects.length - 1].bottom + 4;
-      line.style.top = ly + "px"; line.style.left = box.left + "px"; line.style.width = box.width + "px";
-      line.hidden = false;
-    }
-    function forget() {
-      if (st.pend && st.pend.timer) clearTimeout(st.pend.timer);
-      if (st.pend && st.pend.item) st.pend.item.classList.remove("ord-pressing");
-      st.pend = null;
-    }
+    const st = root._ordDrag = { opt: opt, pend: null, drag: null, swallow: false, root: root };
+    bindDocument();
     root.addEventListener("pointerdown", (ev) => {
       if (ev.button > 0) return;
       const grip = ev.target.closest(".ord-grip");
@@ -96,38 +132,19 @@
       const item = zone.closest("[data-dnd]");
       if (!item || !root.contains(item)) return;
       if (item.parentElement.querySelectorAll('[data-dnd="' + item.dataset.dnd + '"]').length < 2) return;
+      if (cur && cur !== st) { if (cur.drag) end(); else forget(cur); }   // a press left open on another root
+      cur = st;
       st.pend = { item: item, id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, touch: ev.pointerType !== "mouse", timer: null };
-      if (grip) { ev.preventDefault(); begin(null); return; }
+      if (grip) { ev.preventDefault(); begin(st, null); return; }
       if (st.pend.touch) {
         item.classList.add("ord-pressing");
-        st.pend.timer = setTimeout(() => { if (st.pend) begin(null); }, 350);
+        st.pend.timer = setTimeout(() => { if (st.pend) begin(st, null); }, 350);
       }
     });
-    document.addEventListener("pointermove", (ev) => {
-      if (st.drag) {
-        if (ev.clientY < 80) window.scrollBy(0, -14); else if (ev.clientY > window.innerHeight - 80) window.scrollBy(0, 14);
-        at(ev.clientY); return;
-      }
-      if (!st.pend) return;
-      const d = Math.hypot(ev.clientX - st.pend.x0, ev.clientY - st.pend.y0);
-      if (st.pend.touch) { if (d > 8) forget(); } else if (d > 5) begin(ev);
-    });
-    document.addEventListener("touchmove", (ev) => { if (st.drag) ev.preventDefault(); }, { passive: false });
     root.addEventListener("contextmenu", (ev) => { if (st.drag || st.pend) ev.preventDefault(); });
     root.addEventListener("click", (ev) => {
       if (st.swallow) { st.swallow = false; ev.preventDefault(); ev.stopPropagation(); }
     }, true);
-    const end = () => {
-      if (!st.drag) { forget(); return; }
-      const d = st.drag;
-      d.item.style.transform = ""; d.item.classList.remove("ord-dragging");
-      document.body.classList.remove("ord-is-dragging");
-      line.hidden = true; st.drag = null; forget();
-      st.swallow = true; setTimeout(() => { st.swallow = false; }, 0);
-      if (d.to != null && d.to !== d.from && st.opt.onDrop) st.opt.onDrop(d.key, d.from, d.to);
-    };
-    document.addEventListener("pointerup", end);
-    document.addEventListener("pointercancel", end);
   }
 
   api.place = place;

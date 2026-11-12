@@ -62,7 +62,7 @@ Bấm nút một lần nữa để tắt. Lúc tắt, Javis lưu ngay trạng th
 | --- | --- | --- |
 | **Ký ức (Memory)** | Bật | Sự thật bền vững về chính bạn và doanh nghiệp bạn, ghi thành file trong `memory/facts/` và thêm một dòng vào `MEMORY.md` |
 | **Tri thức (Wiki)** | Bật | Khái niệm, framework, quy trình tái dùng được, ghi thành note trong thư mục Wiki của brain |
-| **Kỹ năng (Skill)** | Bật | Quy trình nhiều bước Javis vừa tự làm và thấy lặp lại được, ghi thành `skills/<slug>/SKILL.md`. Skill đã có mà vừa lộ ra chỗ sai thì **sửa tại chỗ** (từ 0.55.65), không đẻ bản sao |
+| **Kỹ năng (Skill)** | **Tắt** | Quy trình nhiều bước Javis vừa tự làm và thấy lặp lại được, ghi thành `skills/<slug>/SKILL.md`. Skill đã có mà vừa lộ ra chỗ sai thì **sửa tại chỗ** (từ 0.55.65), không đẻ bản sao. Mặc định tắt từ 11/2026 vì học skill mở thêm một lượt phản biện mỗi mẻ và kéo theo cả phần chấm điểm skill chạy ngầm, là chỗ tốn hạn mức nhất; máy đã cài cũng được tắt một lần, bật lại ở đây nếu bạn cần |
 | **Vai (Agent)** | **Tắt** | Vai chuyên môn bạn nhờ đi nhờ lại trong hội thoại, ghi thành `agents/<slug>.md`. Vai đã có mà cần cải tiến thì **sửa tại chỗ**, không đẻ bản sao |
 | **Chuỗi bước (Workflow)** | **Tắt** | Chuỗi từ 2 bước nhiều vai bạn đã làm lặp lại, ghi thành `workflows/<slug>.md` ở trạng thái tắt để bạn xem trước rồi tự bật. Chuỗi đã có mà thiếu bước, thừa bước hay sai thứ tự thì **sửa tại chỗ** |
 | **Việc (Kanban)** | **Tắt** | Đề xuất việc nền, đẩy vào bảng ở trang **Việc** |
@@ -114,12 +114,16 @@ Nếu chưa có lượt chat nào đang chờ, Javis lấy phiên hội thoại 
 Bạn không phải bấm gì. Mỗi lượt chat xong, Javis phân loại lượt đó rồi cộng vào một hàng chờ theo brain:
 
 - Lượt quá ngắn hoặc chỉ là chào hỏi, "ok", "cảm ơn" thì bị bỏ ngay, không tính.
-- Lượt có dấu hiệu **đặc tri thức** (câu hỏi "là gì", "gồm mấy bước", "công thức", "nguyên lý", "quy trình", "khái niệm", "cách làm") được đánh dấu riêng.
+- Mỗi sự kiện mới trong brain (bạn hỏi thêm, một việc nền chạy xong, khách đang nhắn với chatbot) đều tính lại thời gian chờ từ đầu.
 - Bạn nói "ghi nhớ", "nhớ giúp", "lưu lại" thì lượt đó được đánh dấu **gấp**.
 
-Cứ khoảng 30 giây, Javis kiểm tra hàng chờ và bắn một mẻ học khi thoả một trong các điều kiện: đủ **3 lượt** tích luỹ, hoặc lượt gấp và đã trôi qua 30 giây, hoặc lượt đặc tri thức và đã **im 3 phút**, hoặc **im 10 phút** mà vẫn còn lượt chưa học.
+Javis mở một mẻ học khi brain đã **yên 15 phút kể từ sự kiện cuối cùng** và hàng chờ còn lượt chưa học (từ 11/2026). Tức là học **một lần cho cả cuộc trò chuyện**, sau khi bạn đã xong việc, chứ không chen vào giữa chừng. Bản cũ còn mở mẻ sau mỗi 3 lượt, nên một cuộc 12 lượt mở 4 mẻ đọc lại gần như cùng một đoạn. Ngoại lệ duy nhất: lượt **gấp** (bạn nói "ghi nhớ giúp") được học sau 30 giây. Cả ngày không có sự kiện nào thì Javis không học gì và không tốn gì.
 
-Mỗi mẻ học đọc tối đa 3 phiên hội thoại gần nhất, mỗi phiên lấy 12 tin cuối, tổng nội dung cắt ở khoảng 24.000 ký tự. Nghĩa là nó học từ đoạn **vừa xảy ra**, không đào lại toàn bộ lịch sử.
+**Javis tự chỉnh ngưỡng mở mẻ.** Nếu phần lớn các mẻ gần đây không rút ra được gì (thường gặp khi bạn hay hỏi nhanh một hai câu), Javis Core tự nâng số lượt cần có trước khi mở một mẻ, tối đa 4; các mẻ có ích trở lại thì tự hạ xuống. Lượt chưa đủ ngưỡng vẫn nằm trong hàng chờ và được học cùng các lượt sau. Mỗi lần chỉnh có một thông báo ở chuông kèm lý do.
+
+**Dặn Javis nên học thế nào.** Nói thẳng trong chat, ví dụ "đừng ghi doanh thu từng ngày thành ghi nhớ" hay "chỉ ghi nhớ những quyết định đã chốt". Javis Core giữ điều đó thành một bài học, và mọi mẻ tự học đọc nó trước khi quyết định ghi gì. Xem lại hay thu hồi bằng cách hỏi Javis "bài học của Javis Core". Ghi nhớ Javis tự học mà bạn bảo xoá thì được tính là một lần học sai, mẻ học sau tự dùng model mạnh hơn một bậc.
+
+Mỗi mẻ đọc đúng **các lượt mới kể từ mẻ trước** của từng cuộc trò chuyện, từ cũ tới mới, nên mỗi tin nhắn chỉ được đọc một lần dù cuộc chat dài bao nhiêu. Tổng nội dung một mẻ cắt ở khoảng 48.000 ký tự; phần chưa đọc hết được xếp lại và học ở mẻ kế ngay sau đó, không bị bỏ. Bấm **▶ Học ngay** thì đọc 12 tin cuối của phiên gần nhất như trước.
 
 ### Javis học cả từ việc nó tự làm (từ 0.55.64)
 
@@ -165,19 +169,19 @@ Mọi thứ bị chặn đều xuất hiện trong Nhật ký học ở phần *
 
 Tự học chạy bằng **model việc nền** chứ không phải model chính. Bạn chọn model đó ở trang **Models** (nhóm **Kết nối**), khối "◆ Model việc nền" có ghi rõ nó phục vụ "loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn". Chọn model rẻ ở đó là tự học rẻ theo.
 
-Ngoài ra Javis tự đặt ba cái trần cứng, tính theo ngày và độc lập với nhịp gom lượt:
+Javis **không đặt trần theo ngày** (từ 11/2026): người dùng nhiều, người dùng ít, một con số chung không hợp với ai. Thứ giữ cho tự học không tốn là nhịp ở trên (một mẻ cho mỗi cuộc trò chuyện, sau 15 phút yên) cùng hai điều sau:
 
-| Trần | Giá trị mặc định | Chạm trần thì sao |
+| Giới hạn | Giá trị | Tác dụng |
 | --- | --- | --- |
-| Khoảng cách tối thiểu giữa hai mẻ | 90 giây | Mẻ đó không được ghi file |
-| Số mẻ học mỗi ngày | 40 | Hạ về chạy thử |
-| Token mỗi ngày | 15.000.000 | Hạ về chạy thử |
+| Khoảng cách tối thiểu giữa hai mẻ | 90 giây | Mẻ tới sớm hơn thì không được ghi file |
+| Gói thuê bao sắp hết hạn mức | cửa sổ 5 giờ đã dùng từ 80% | Mẻ tự động chờ tới lúc hạn mức mở lại, phần còn lại để dành cho chat của bạn |
 
-Từ 0.107.0 trần token đếm token THẬT engine báo về (gồm cả phần đọc cache) của mọi lượt học, kể cả lượt phản biện và curator. Bản cũ ước tính bằng độ dài chữ chia bốn nên lệch khoảng 30 lần (ghi 395 nghìn cho một ngày thật ra dùng 12,5 triệu), và trần 300.000 cũ không bao giờ có nghĩa. Vì đơn vị đã đổi, lần cập nhật lên 0.107.0 đặt lại trần này về mặc định mới một lần.
+Hai chỉ số "mẻ hôm nay" và "token hôm nay" ở dòng Chỉ số vẫn được đếm (token là số THẬT engine báo về, gồm cả phần đọc cache), nhưng chỉ để bạn xem, không còn chặn gì.
 
-Khi bị hạ, Javis vẫn phân tích và vẫn ghi nhật ký "sẽ học gì", chỉ là không ghi file. Trạng thái trong nhật ký ghi rõ lý do, ví dụ "dry-run (đã chạm trần fork/ngày → hạ dry-run (backpressure))".
+Khi mẻ tự động phải chờ vì hạn mức gói, nhật ký ghi một dòng "tạm nghỉ học tự động" kèm lý do, và các lượt chat vẫn nằm trong hàng chờ.
 
-Bấm **▶ Học ngay** cũng chịu đúng các trần này: phần phân tích luôn chạy, nhưng muốn ra file thì phải đang ở chế độ Tự ghi **và** chưa chạm trần nào.
+Bấm **▶ Học ngay** thì chạy ngay, không chờ 15 phút và không bị hạn mức gói giữ lại, vì đó là bạn chủ động chạy.
+
 
 ## Curator: bảo trì định kỳ, không xoá gì
 
@@ -232,8 +236,8 @@ Ngay dưới hàng nút là một dòng tóm tắt sức khoẻ bộ não, dạn
 | **Ký ức** | Số file trong `memory/facts/` |
 | **Wiki** | Số note trong thư mục Wiki (không tính `index`, `log` và file bắt đầu bằng gạch dưới) |
 | **MEMORY.md** | Kích thước chỉ mục bộ nhớ, tính bằng byte. Con số này nạp vào mọi lượt chat nên càng nhỏ càng rẻ |
-| **Fork hôm nay** | Số mẻ học đã ghi được trong ngày, so với trần 40 |
-| **Token ước tính** | Token tự học đã tiêu trong ngày (ước lượng thô), so với trần 300.000 |
+| **Fork hôm nay** | Số mẻ học đã ghi được trong ngày (chỉ để xem, không còn trần) |
+| **Token ước tính** | Token tự học đã tiêu trong ngày, số thật engine báo về (chỉ để xem, không còn trần) |
 | **Commit học** | Số commit học tìm thấy trong lịch sử git của brain (đếm tối đa 50 commit gần nhất) |
 
 ## Khối "Javis đã tự học gì (commit gần nhất)"
@@ -282,7 +286,7 @@ Cài git rồi thì tắt tự học và bật lại một lần để Javis git
 
 ## Mẹo
 
-- **Muốn Javis nhớ chắc chắn một điều, nói thẳng "ghi nhớ ..." trong chat.** Câu có "ghi nhớ", "nhớ giúp", "lưu lại", "nhớ là" được đánh dấu gấp và học ở mẻ ngay sau đó thay vì phải chờ đủ 3 lượt.
+- **Muốn Javis nhớ chắc chắn một điều, nói thẳng "ghi nhớ ..." trong chat.** Câu có "ghi nhớ", "nhớ giúp", "lưu lại", "nhớ là" được đánh dấu gấp và học sau 30 giây thay vì chờ cuộc trò chuyện yên 15 phút.
 - **Kiểm tra Javis học đúng chưa bằng chính `MEMORY.md`.** Mở trang **Tệp tin**, vào `memory/MEMORY.md`. Mỗi dòng là một ký ức. Dòng nào sai thì sửa hoặc xoá thẳng ở đó, nhanh hơn hoàn tác cả một commit.
 - **Giữ `MEMORY.md` gọn.** File này nạp vào mọi lượt chat. Chỉ số vượt khoảng 150 dòng là lúc nên gộp các ký ức vụn thành một ký ức lớn hơn.
 - **Muốn tri thức Wiki chất lượng, hãy nói ra nguồn.** Điều gì chỉ do Javis tự suy ra sẽ không được vào Wiki. Bạn khẳng định hoặc dẫn nguồn có tên thì nó mới được ghi.
@@ -292,7 +296,7 @@ Cài git rồi thì tắt tự học và bật lại một lần để Javis git
 ## Sự cố thường gặp
 
 **Bật tự học rồi, chat cả buổi mà chẳng thấy gì học.**
-Kiểm tra theo thứ tự: chế độ ghi có đang là **Tự ghi** không (Chạy thử và Đề xuất đều không tạo file); các lượt chat có "đủ chất" không (chào hỏi, "ok", "cảm ơn" bị bỏ); đã đủ 3 lượt hoặc đã im 10 phút chưa; và dòng Chỉ số xem "Fork hôm nay" đã chạm 40 chưa. Nhật ký học luôn có câu trả lời chính xác.
+Kiểm tra theo thứ tự: chế độ ghi có đang là **Tự ghi** không (Chạy thử và Đề xuất đều không tạo file); các lượt chat có "đủ chất" không (chào hỏi, "ok", "cảm ơn" bị bỏ); brain đã yên 15 phút kể từ sự kiện cuối chưa; và gói thuê bao có đang gần hết hạn mức 5 giờ không (khi đó mẻ tự động chờ tới lúc hạn mức mở lại). Nhật ký học luôn có câu trả lời chính xác.
 
 **Nhật ký ghi đã học nhưng không thấy file mới.**
 Đọc mục **Bị chặn** trong đúng mục nhật ký đó. Lý do hay gặp: ký ức trùng file đã có nên không đè, note Wiki bị loại vì Javis tự nói không có nguồn, note trùng khái niệm đã có, skill trùng tên hoặc `description` dài quá 150 ký tự.

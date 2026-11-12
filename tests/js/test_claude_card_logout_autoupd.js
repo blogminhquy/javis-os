@@ -71,6 +71,7 @@ function load(opts) {
     renderModelsCloudTab: () => {},
     startClaudeLogin: () => {},
     acctNameTag: () => "",
+    acctLine: (pid, own) => (own || []).filter(Boolean).map((x) => " · " + x).join(""),
     acctNameField: () => "",
     confirm: (msg) => { calls.confirm.push(msg); return opts.confirm; },
     saveSetting: async (section, data) => { calls.save.push([section, data]); return opts.save || { ok: true }; },

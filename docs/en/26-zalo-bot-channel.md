@@ -77,6 +77,21 @@ A few things to know:
 - If it cannot be transcribed, the file is too large, or Groq returns an error, the bot states the reason. There is no silent path.
 - **One risk specific to Zalo:** Zalo has not published the data shape of voice messages, so Javis may fail to find the audio file's URL in the message Zalo sends. In that case the bot says outright that it could not download the file, and the server logs a line `[zalo voice] could not find the voice file path in the payload` with a data sample. Sending that line to the developer gets it fixed quickly. Telegram has no such risk because its data shape is clearly published.
 
+### Sending a file to the bot (PDF, Word, Excel, video)
+
+Zalo passes photos, stickers and voice messages to a bot as usual. **Documents and videos have no message type of their own for bots yet**: Zalo sends an event named `message.unsupported.received`, and Zalo's documentation says that event carries no content.
+
+Javis handles both cases:
+
+- **Zalo includes a file link:** Javis downloads the file into the brain's inbox (20MB at most) and reads the content of PDF, Word (.docx), Excel (.xlsx) and plain-text files (.txt, .csv, .md...). Send a file with a question and Javis answers from that file. A photo sent as a file goes the photo way.
+- **Zalo includes nothing:** the bot says plainly that the content did not arrive and asks you to paste the text or send a screenshot. Before, the bot stayed silent in this case.
+
+To see what Zalo sends to your bot: send it a file, then read the server log. A line `[zalo file] no file link in the payload of ...` means Zalo included no link, and that line prints a sample of what Zalo sent. Send it to the developer if the sample holds a link Javis did not recognise.
+
+If you need documents to travel both ways often, two paths are more certain today: [Telegram](11-telegram.md), or [personal Zalo](12-zalo-agent-mcp.md) (reads the PDF, Word and Excel files customers send).
+
+On the owner's bot, nothing is downloaded for someone **not allowed yet**: Javis only fetches the photos, voice messages and files of a chat on the allow-list.
+
 ## Four places where Zalo does less than Telegram
 
 Stated up front so you do not mistake them for bugs.

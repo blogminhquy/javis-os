@@ -222,6 +222,34 @@ try:
     sig = "sha256=" + hmac.new(("a" * 32).encode(), payload, hashlib.sha256).hexdigest()
     r = client.post("/whatsapp/webhook", content=payload, headers={"X-Hub-Signature-256": sig})
     check("POST signed with the control number's app secret is accepted", r.status_code == 200, r.status_code)
+    # 2026-11-10: the body is read up to a cap, never whole. Before, `await request.body()` ran ahead of the size
+    # check on these public routes, so anybody could make the server hold gigabytes.
+    for _route in ("/whatsapp/webhook", "/messenger/webhook", "/threads/webhook", "/zalo-oa/webhook", "/wechat/webhook"):
+        r = client.post(_route, content=b"x" * (main.WEBHOOK_BODY_MAX + 1))
+        check(f"{_route}: a body over the cap is refused with 413", r.status_code == 413, r.status_code)
+
+    async def _chunks(n, size=65536):
+        for _ in range(n):
+            yield b"y" * size
+
+    class _Stream:
+        """A chunked upload with no Content-Length: counts how much the server pulled before it stopped."""
+        def __init__(self, total_chunks):
+            self.total, self.sent, self.headers = total_chunks, 0, {}
+
+        async def stream(self):
+            async for c in _chunks(self.total):
+                self.sent += len(c)
+                yield c
+
+    import asyncio as _aio
+    _s = _Stream(2000)   # 131 MB offered
+    check("a chunked body is dropped as soon as it passes the cap",
+          _aio.run(main._read_capped_body(_s)) is None and _s.sent <= main.WEBHOOK_BODY_MAX + 2 * 65536, _s.sent)
+    _s = _Stream(3)
+    check("a small chunked body is read whole", len(_aio.run(main._read_capped_body(_s)) or b"") == 3 * 65536)
+    check("no public webhook reads the body whole any more",
+          "raw = await request.body()\n    if len(raw) > 2_000_000" not in (ROOT / "server" / "main.py").read_text(encoding="utf-8"))
     r = client.get("/whatsapp/status")
     d = r.json()
     check("status shows the webhook URL and verify token to paste into Meta",

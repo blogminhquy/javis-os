@@ -1,0 +1,12 @@
+name: Việc nền tự điều chỉnh
+name_en: "Self-tuning background work"
+slug: javis-tune
+version: 1.2.0
+description: Cho Javis xem và chỉnh cách việc nền tự chọn model theo lời người dùng trong chat (tiết kiệm token, làm cho chắc, việc này làm sai). Chỉ phiên của chủ thấy tool này.
+description_en: "Lets Javis show and adjust how background jobs pick their model from what the person says in chat (save tokens, be thorough, this job got it wrong). Only the owner's own sessions see this tool."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_tune
+hooks: []

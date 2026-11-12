@@ -1350,6 +1350,30 @@
         var cuoi = _msgs.length ? _msgs[_msgs.length - 1].id : 0;
         moi = (d.messages || []).filter(function (m) { return m.id > cuoi; });
         _msgs = _msgs.concat(moi);
+        // Metadata on an existing AI message changes after the Zalo send.
+        // An "after=id" poll returns no such edits; refresh only while pending,
+        // and repaint once the transport has reported an outcome. Only the last 30 are asked for, so an older one
+        // must not keep this second request going on every beat.
+        if (_msgs.slice(-30).some(function (m) {
+          return m.metadata && m.metadata.zalo_delivery && m.metadata.zalo_delivery.state === "sending";
+        })) {
+          var receiptData = await api("/conversations/" + id + "/messages?limit=30");
+          if (_chon !== id) return;
+          var byId = {};
+          (receiptData.messages || []).forEach(function (m) { byId[m.id] = m; });
+          var updatedReceipt = false;
+          _msgs = _msgs.map(function (m) {
+            var fresh = byId[m.id];
+            var oldState = m.metadata && m.metadata.zalo_delivery && m.metadata.zalo_delivery.state;
+            var newState = fresh && fresh.metadata && fresh.metadata.zalo_delivery && fresh.metadata.zalo_delivery.state;
+            if (oldState === "sending" && newState && newState !== oldState) {
+              updatedReceipt = true;
+              return fresh;
+            }
+            return m;
+          });
+          if (updatedReceipt) _dauVetTin = "";
+        }
       }
     } catch (e) {
       // A chat shown from the cache that no longer answers (deleted elsewhere): forget it, so the next open asks afresh.
@@ -2295,6 +2319,14 @@
     if (ta2) ta2.focus();
   }
 
+  // Zalo send receipt of a bot reply (`conversations.set_zalo_delivery`). "accepted" is absent on purpose: a sent
+  // reply shows no line. The reasons are the codes of `conversations.ZALO_DELIVERY_REASONS`, plus "stale".
+  var ZALO_RECEIPT = { sending: "ht.zalo_sending", failed: "ht.zalo_failed", unknown: "ht.zalo_unknown",
+    cancelled: "ht.zalo_cancelled" };
+  var ZALO_WHY = { superseded: "ht.zalo_why.superseded", silent: "ht.zalo_why.silent",
+    image_unconfirmed: "ht.zalo_why.image_unconfirmed", bot_stopped: "ht.zalo_why.bot_stopped",
+    interrupted: "ht.zalo_why.interrupted", stale: "ht.zalo_why.stale" };
+
   function veTin(t) {
     var lop = t.sender_type === "customer" ? "khach" : t.sender_type === "ai" ? "bot"
             : t.sender_type === "human" ? "nguoi" : "hethong";
@@ -2322,6 +2354,17 @@
         ' ' + esc(t.message_type) + '</span>' : "";
     var loi = t.metadata && t.metadata.loi
       ? '<div class="ht-msg-loi">' + ic("triangle-alert") + ' ' + esc(t.metadata.loi) + '</div>' : "";
+    // A bot answer in the inbox is not proof of successful Zalo transmission: the receipt comes from the transport's
+    // result, not the model output. A reply that went out shows nothing (the normal case needs no line); only one
+    // still going out, not sent, or of unknown outcome says so, with the reason.
+    var dl = t.sender_type === "ai" && t.metadata && t.metadata.zalo_delivery;
+    var deliveryHtml = "";
+    if (dl && ZALO_RECEIPT[dl.state]) {
+      var why = ZALO_WHY[dl.reason] ? window.t(ZALO_WHY[dl.reason]) : (dl.error || "");
+      var bad = dl.state === "failed" || dl.state === "unknown";
+      deliveryHtml = '<div class="' + (bad ? "ht-msg-loi" : "ht-msg-h") + '">' + (bad ? ic("triangle-alert") + ' ' : '') +
+        esc(window.t(ZALO_RECEIPT[dl.state])) + (why ? ' · ' + esc(why) : '') + '</div>';
+    }
     if (t.metadata && t.metadata.private_reply_to) {
       var ig = isInstagram(_conv);
       loai = '<span class="ht-loai ht-priv-tag">' + (ig ? badgeOf({ channel: "messenger", external_chat_id: "ig:" }, "13px") :
@@ -2331,7 +2374,7 @@
     // group shows who wrote each message.
     if (lop === "khach" && _conv && _conv.chat_type !== "group") ai = "";
     return '<div class="ht-msg ' + lop + '">' +
-      '<div class="ht-bubble">' + loai + than + '</div>' + loi +
+      '<div class="ht-bubble">' + loai + than + '</div>' + loi + deliveryHtml +
       '<div class="ht-msg-h">' + esc(ai) + (ai ? ' · ' : '') + esc(gio(t.created_at)) + '</div>' +
     '</div>';
   }
@@ -2620,6 +2663,8 @@
         o.innerHTML = '<b>' + esc(window.t("ht.wh_url")) + '</b> <code>' + esc(r.webhook_url || "") + '</code>' +
           (r.verify_token ? '<br><b>' + esc(window.t("ht.wh_token")) + '</b> <code>' + esc(r.verify_token) + '</code>' : "") +
           (r.https ? "" : '<br><span class="cb-warn">' + esc(window.t(r.site_verify ? "ht.zo_can_https" : "ht.wh_can_https")) + '</span>') +
+          // A warning the server words itself, for a channel whose rule is not "HTTPS only" (WeChat: port 443 or 80).
+          (r.warning ? '<br><span class="cb-warn">' + esc(r.warning) + '</span>' : "") +
           (r.site_verify ? veMaXacThuc(r.site_codes || []) : "") +
           (r.oauth_redirect ? veCapQuyen(r.oauth_redirect) : "");
         o.hidden = false;

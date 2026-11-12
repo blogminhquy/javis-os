@@ -139,7 +139,7 @@ Nhờ vậy:
 - 🧰 **Plugins** - thả một thư mục Python vào là có thêm **tool/hook native** cho MỌI engine, không phải sửa lõi.
 - 🧑‍🤝‍🧑 **Cộng sự** (trang Partners) - mỗi cộng sự AI một vai trò, một model, prompt và skill riêng; bật **Auto** là cộng sự tự làm tiếp không cần bạn.
 - 👥 **Nhóm (Teams)** - gom nhiều cộng sự vào một phòng chat: trưởng nhóm chia việc, các thành viên trả lời nhau, và cả nhóm chia sẻ được bằng một file.
-- 💬 **Chatbot đa kênh** - đặt một cộng sự chăm khách trên WhatsApp, Messenger, Instagram, Telegram, Slack, Lark, Threads, Zalo và Zalo OA, chung một hộp thư bạn nhảy vào trả lời được.
+- 💬 **Chatbot đa kênh** - đặt một cộng sự chăm khách trên WhatsApp, Messenger, Instagram, Telegram, Slack, Lark, Threads, WeChat, Zalo và Zalo OA, chung một hộp thư bạn nhảy vào trả lời được.
 - 🤖 **Agents & Workflows** - tạo trợ lý chuyên biệt (có bộ nhớ riêng) + chuỗi tự động nhiều bước, có bước kiểm chứng.
 - ♻️ **Việc định kỳ & nhắc hẹn** - nhiều vòng lặp chạy nền song song, mỗi vòng làm đúng một việc bạn mô tả rồi tự kiểm chứng; kèm nhắc hẹn theo giờ cố định hoặc cron.
 - 🗃️ **Việc (Kanban)** - giao một "goal" bằng lời, AI tự đặc tả, chọn worker, chạy nền và chỉ gọi bạn khi có ngoại lệ.

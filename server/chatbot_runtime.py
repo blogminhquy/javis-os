@@ -765,6 +765,53 @@ def ngu_canh_nhom(meta: dict, kenh: str, tai_khoan: str) -> str:
 
 
 # ============================================================
+# Private chat history read back from the inbox
+# ============================================================
+_HISTORY_ROLES = {"customer": "user", "ai": "assistant", "human": "assistant"}
+
+
+def private_history(cfg: dict, meta: dict, limit: int) -> list:
+    """Up to `limit` earlier messages of this PRIVATE chat as engine history (`role`/`content`), oldest first, or [].
+
+    The bot keeps the history of a private chat in RAM only, so every server restart (each update is one) emptied
+    it and a returning customer was met as a stranger. The inbox keeps the whole private chat, including what the
+    owner answered by hand, so the first turn after a restart reads the history back from there.
+
+    Groups return []: `ngu_canh_nhom` already hands them the messages before the question on every turn. The message
+    being answered is left out (the turn wrote it to the inbox before the engine ran). Customer messages become
+    `user`; the bot's and the owner's become `assistant`, which is who the customer heard them from. Neighbours of
+    one role are joined and the list starts with a `user` message, as some providers require. Never raises."""
+    m = meta or {}
+    try:
+        n = int(limit or 0)
+        if n <= 0 or _rp_is_group(m) or not m.get("chat_id"):
+            return []
+        aid, kenh = _tai_khoan_cua(cfg or {}, m)
+        msgs = conversations.tin_gan_day(kenh, aid, str(m["chat_id"]), n + 1)
+        mid = str(m.get("message_id") or "")
+        if mid:
+            msgs = [x for x in msgs if str(x.get("external_message_id") or "") != mid]
+        elif msgs and msgs[-1].get("sender_type") == "customer":
+            msgs = msgs[:-1]       # id unknown: the last customer message is the one this turn just recorded
+        out = []
+        for x in msgs[-n:]:
+            role = _HISTORY_ROLES.get(str(x.get("sender_type") or ""))
+            text = chatbot_reply_policy.strip_hidden(x.get("text")).strip()
+            if not role or not text:
+                continue
+            if out and out[-1]["role"] == role:
+                out[-1]["content"] += "\n" + text
+            else:
+                out.append({"role": role, "content": text})
+        while out and out[0]["role"] != "user":
+            out.pop(0)
+        return out
+    except Exception as e:      # noqa: BLE001 - no history is better than no answer
+        print(f"[chatbot private history] {type(e).__name__}: {e}", file=sys.stderr)
+        return []
+
+
+# ============================================================
 # Plugin context of a turn (hook `chatbot_turn_context`)
 # ============================================================
 # Operator-provided context, not something the person typed: a plugin on the owner's server computed it from
@@ -1619,23 +1666,31 @@ def _bao_hop_thu(bot_id: str, cfg: dict, meta: dict, loi: str) -> None:
         print(f"[chatbot {bot_id}] báo chuông lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None) -> None:
-    """Câu BOT trả lời (hoặc câu xin lỗi khi lượt gãy - vẫn là thứ khách nhìn thấy)."""
+def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None,
+                zalo_sending: bool = False) -> int:
+    """Record a bot answer in the inbox; return its unique message row id.
+
+    For Zalo, the answer has NOT necessarily left the machine at this point.
+    Mark it pending until the transport has returned a channel send outcome.
+    """
     try:
         if not str(text or "").strip() and not files:
-            return
+            return 0
         md = {}
         if loi:
             md["loi"] = str(loi)[:300]
         if files:
             md["files"] = [str((f.get("path") if isinstance(f, dict) else f) or "")[:300]
                            for f in list(files)[:10]]
-        conversations.ghi_su_kien(_su_kien_bot(
+        if zalo_sending:
+            md["zalo_delivery"] = {"state": "sending"}
+        result = conversations.ghi_su_kien(_su_kien_bot(
             cfg, meta, sender_type="ai", sender_name=cfg.get("name") or "",
             message_type="text", text=text, metadata=md))
+        return int((result or {}).get("message_id") or 0)
     except Exception as e:
         print(f"[chatbot conversations] {type(e).__name__}: {e}", file=sys.stderr)
-
+        return 0
 
 async def _tra_tai_lieu(bot_id: str, cfg: dict, text: str, chat_id: str = "") -> dict:
     """Tra brain của bot cho MỘT câu hỏi. Quét đĩa + chấm điểm là việc CHẶN, đẩy sang thread để
@@ -2120,7 +2175,9 @@ def _make_answer_fn(bot_id: str):
                 conversations.save_draft(cid_draft, dap_ghi, conversations.last_customer_message_id(cid_draft))
             return {"text": "", "files": [], "im_lang": True, "draft": True}
         # Câu bot nói vào Hộp thư hội thoại, cạnh tin khách. Lượt gãy thì `dap` rỗng nên không ghi gì: khách không nhận tin nào.
-        ghi_tin_bot(cfg, meta or {}, dap_ghi, loi=loi_ky_thuat, files=(out or {}).get("files"))
+        receipt_row = ghi_tin_bot(
+            cfg, meta or {}, dap_ghi, loi=loi_ky_thuat, files=(out or {}).get("files"),
+            zalo_sending=(kenh_luot == "zalo_personal" and not loi_ky_thuat))
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
             _goi_chu(cfg, str((meta or {}).get("user_name") or chat_id),
@@ -2130,6 +2187,11 @@ def _make_answer_fn(bot_id: str):
         if loi_ky_thuat:
             # `failed`: a transport that answers a caller (internal API) must tell a failed turn from a silent one.
             return {"text": "", "files": [], "im_lang": True, "failed": True}
+        if receipt_row and kenh_luot == "zalo_personal":
+            # Private transport metadata: the channel settles precisely this
+            # inbox message after it attempts the send, not an earlier reply.
+            out = dict(out or {})
+            out["_zalo_delivery_row_id"] = receipt_row
         if reaction:
             out = dict(out or {})
             out["reaction"] = reaction

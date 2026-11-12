@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import STATE_DIR
+import sqlite_tune
 
 DB_PATH = STATE_DIR / "customer_conversations.sqlite3"
 
@@ -177,6 +178,7 @@ def _conn() -> sqlite3.Connection:
         db = sqlite3.connect(str(path), timeout=10, check_same_thread=False)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA journal_mode=WAL")
+        sqlite_tune.normal_if_wal(db)   # 2026-11-10: no fsync per commit, see sqlite_tune.py
         db.execute("PRAGMA busy_timeout=5000")
         db.executescript(_SCHEMA)
         _nang_cap(db)
@@ -724,6 +726,72 @@ def set_message_id(row_id: int, external_message_id: str) -> bool:
         return False
 
 
+
+# Why a reply is not shown as sent, as a short code the inbox translates (never a sentence: the screen has two
+# languages). `stale` is never stored: `_zalo_delivery_view` gives it to a reply left on "sending" for too long.
+ZALO_DELIVERY_REASONS = ("superseded", "silent", "image_unconfirmed", "bot_stopped", "interrupted")
+# A send takes seconds. A reply still "sending" after this long was never settled (the server stopped mid-send, or
+# the transport never ran): the inbox then says the outcome is unknown instead of "sending" for ever.
+ZALO_SENDING_STALE = 300.0
+
+
+def _zalo_delivery_view(md, created_at, now: float):
+    """The receipt as the inbox should show it: a "sending" older than ZALO_SENDING_STALE reads as unknown. The
+    stored row is left alone, so a transport that does settle late still wins on the next read."""
+    dl = md.get("zalo_delivery") if isinstance(md, dict) else None
+    if not isinstance(dl, dict) or dl.get("state") != "sending":
+        return
+    try:
+        old = float(now) - float(created_at or 0) > ZALO_SENDING_STALE
+    except (TypeError, ValueError):
+        old = False
+    if old:
+        md["zalo_delivery"] = {"state": "unknown", "error": "", "reason": "stale"}
+
+
+def set_zalo_delivery(message_id: int, state: str, error: str = "", reason: str = "") -> bool:
+    """Set the send outcome for exactly one pending Zalo AI reply.
+
+    The inbox initially records a bot answer BEFORE transport runs. That is
+    *not* a delivered message. Only the transport may advance it from
+    'sending' to 'accepted', 'failed' or 'unknown' (e.g. CLI timeout).
+    'accepted' means the channel reported success, NOT that a recipient read it.
+    Idempotent: no later call can overwrite a settled receipt.
+
+    `error` is what the gateway said, word for word. `reason` is one of ZALO_DELIVERY_REASONS, for an outcome Javis
+    itself decided; anything else is dropped.
+    """
+    if state not in ("accepted", "failed", "unknown", "cancelled"):
+        return False
+    try:
+        with _lock:
+            db = _conn()
+            row = db.execute(
+                "SELECT m.metadata_json FROM messages m "
+                "JOIN conversations c ON c.id=m.conversation_id "
+                "WHERE m.id=? AND m.sender_type='ai' "
+                "AND c.channel_account_id LIKE 'zalo_personal:%'",
+                (int(message_id),)).fetchone()
+            if not row:
+                return False
+            md = _loads(row["metadata_json"], {})
+            delivery = md.get("zalo_delivery") if isinstance(md, dict) else None
+            if not isinstance(delivery, dict) or delivery.get("state") != "sending":
+                return False
+            md["zalo_delivery"] = {
+                "state": state,
+                "error": str(error or "")[:300] if state != "accepted" else "",
+                "reason": reason if state != "accepted" and reason in ZALO_DELIVERY_REASONS else "",
+            }
+            db.execute("UPDATE messages SET metadata_json=? WHERE id=?",
+                       (_json(md), int(message_id)))
+            db.commit()
+        return True
+    except Exception as ex:  # noqa: BLE001 - failed receipt never interrupts sending
+        print(f"[conversations] set_zalo_delivery failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return False
+
+
 # ============================================================
 # Đọc
 # ============================================================
@@ -1084,9 +1152,11 @@ def tin_nhan(conversation_id: int, limit: int = 100, before_id: int = 0, after_i
     with _lock:
         rows = _conn().execute(sql, args).fetchall()
     out = []
+    now = time.time()
     for r in (rows if moi else reversed(rows)):
         d = _row(r)
         d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
+        _zalo_delivery_view(d["metadata"], d.get("created_at"), now)
         out.append(d)
     return out
 

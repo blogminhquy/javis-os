@@ -195,6 +195,57 @@ check("xoá bot A không đụng bot B", st.count_cases("B") == 1)
 
 check("kho nằm trong thư mục state, không phải trong repo", str(st.db_path()).startswith(os.environ["JAVIS_STATE_DIR"]))
 
+# ---- #1286: one-time clean-up of labels written before the labeler fix ----------------------------------------
+import sqlite3  # noqa: E402
+
+with st._conn() as _c:
+    check("#1286 a store opened by this version is marked as cleaned once",
+          _c.execute("SELECT 1 FROM tuning WHERE bot_id='' AND key=?", (st.REPAIR_1286_KEY,)).fetchone() is not None)
+    check("#1286 a second run changes nothing", st._repair_inferred_labels(_c) == {})
+
+RB = "R86"
+_heart = st.log_decision({"bot_id": RB, "chat_id": "g1", "ts": NOW, "text": "[u1 thả cảm xúc ❤️ vào một tin nhắn]",
+                          "sender": "Nam", "sender_id": "u1", "verdict": "silent", "mode": "on"}, NOW)
+_heart_en = st.log_decision({"bot_id": RB, "chat_id": "g1", "ts": NOW, "text": '[Nam reacted ❤️ to our message: "ok"]',
+                             "verdict": "silent", "mode": "on"}, NOW)
+_real = st.log_decision({"bot_id": RB, "chat_id": "g1", "ts": NOW, "text": "cho em hỏi giá tour ngày 15",
+                         "verdict": "silent", "mode": "on"}, NOW)
+_brack = st.log_decision({"bot_id": RB, "chat_id": "g1", "ts": NOW, "text": "[Khách gửi một ảnh, không kèm lời nhắn]",
+                          "verdict": "silent", "mode": "on"}, NOW)
+_other = st.log_decision({"bot_id": RB, "chat_id": "g2", "ts": NOW, "text": "[u9 thả cảm xúc 😆 vào một tin nhắn]",
+                          "verdict": "silent", "mode": "on"}, NOW)
+for _d, _w in ((_heart, 1.0), (_heart_en, 1.0), (_real, 0.5), (_brack, 1.0), (_other, 1.0)):
+    st.set_label(_d, "missed", _w, NOW)
+c_heart = st.add_case(RB, "g1", "tim", F0, "reply", "label:missed", "auto", 1.0, now=NOW, decision_id=_heart)
+c_inferred = st.add_case(RB, "g1", "chủ trả lời", F0, "reply", "label:missed", "owner", 0.5, now=NOW, decision_id=_real)
+c_inferred_ok = st.add_case(RB, "g1", "khách cảm ơn", F0, "reply", "label:correct", "owner", 0.8, now=NOW)
+c_thumb = st.add_case(RB, "g1", "chủ bấm 👎", F0, "reply", "label:missed", "owner", 1.5, now=NOW)
+c_stop = st.add_case(RB, "g1", "chủ bảo im", F0, "silent", "label:intruded", "owner", 1.0, now=NOW)
+c_taught = st.add_case(RB, "g1", "chủ dạy trong chat", F0, "reply", "chủ dạy", "owner", 1.0, now=NOW)
+st.adjust_offset(RB, "g1", -0.17, NOW)      # pushed down by the wrong labels
+st.adjust_offset(RB, "g2", -0.02, NOW)
+
+with st._conn() as _c:
+    _c.execute("DELETE FROM tuning WHERE bot_id='' AND key=?", (st.REPAIR_1286_KEY,))    # a store from before the fix
+    _res = st._repair_inferred_labels(_c, now=NOW)
+check("#1286 clean-up reports what it changed", _res == {"demoted": 2, "cleared": 3}, _res)
+_src = {c["id"]: c["source"] for c in st.list_cases(RB, 100)}
+check("#1286 a case inferred from an owner's message no longer counts as owner-taught",
+      _src.get(c_inferred) == "auto" and _src.get(c_inferred_ok) == "auto", _src)
+check("#1286 a real thumb, an explicit stop and a lesson taught in chat stay the owner's",
+      _src.get(c_thumb) == "owner" and _src.get(c_stop) == "owner" and _src.get(c_taught) == "owner", _src)
+check("#1286 a `missed` label on a reaction line is removed, in both languages",
+      st.get_decision(_heart)["label"] is None and st.get_decision(_heart_en)["label"] is None
+      and st.get_decision(_other)["label"] is None)
+check("#1286 the case built from that label is gone", c_heart not in _src, _src)
+check("#1286 a `missed` label on a real message is kept", st.get_decision(_real)["label"] == "missed")
+check("#1286 another bracketed note (a photo) is not mistaken for a reaction", st.get_decision(_brack)["label"] == "missed")
+check("#1286 the chat's threshold gets back what the two labels took (-0.17 + 0.10)",
+      abs(st.get_offset(RB, "g1", NOW) - (-0.07)) < 1e-6, st.get_offset(RB, "g1", NOW))
+check("#1286 the repair never lifts a threshold above zero", st.get_offset(RB, "g2", NOW) == 0.0, st.get_offset(RB, "g2", NOW))
+with st._conn() as _c:
+    check("#1286 the clean-up is not run a second time", st._repair_inferred_labels(_c, now=NOW) == {})
+
 print()
 if _fails:
     print(f"{len(_fails)} FAIL")

@@ -57,6 +57,22 @@ _SECRET_NAMES = {".env", ".mcp.json", ".mcp_hub.json", ".javis-learn.lock", ".ds
 _SECRET_PREFIXES = ("id_rsa", "id_dsa", "id_ecdsa", "id_ed25519")
 _SECRET_SUFFIXES = (".tmp", ".pem", ".key", ".p12", ".pfx")
 _SKIP_DIRS = {".git", ".trash"}
+# Import only (2026-11-10). These hold what an engine RUNS, not knowledge: hooks and permissions in .claude/settings*.json,
+# MCP servers and commands in the other engines' folders. Javis writes its own copies when it needs them, so a brain file
+# from somebody else never brings one in. Skills kept under those folders (`.claude/skills`, `.agents/skills`) and the
+# rest of `.claude` are content and stay.
+_ENGINE_CONFIG_DIRS = {".codex", ".grok", ".agents", ".gemini", ".antigravity", ".antigravitycli", ".javis"}
+_CLAUDE_CONFIG = re.compile(r"^\.claude/(settings[^/]*\.json|hooks(/.*)?)$")
+
+
+def import_kept_out(rel: str) -> bool:
+    """True for a path an imported brain file may not bring in, on top of `kept_out`."""
+    r = str(rel or "").replace("\\", "/").strip("/")
+    parts = [x.rstrip(". ").casefold() for x in r.split("/") if x]
+    for i, x in enumerate(parts[:-1]):
+        if x in _ENGINE_CONFIG_DIRS and (i + 2 >= len(parts) or parts[i + 1] != "skills"):
+            return True
+    return bool(_CLAUDE_CONFIG.match("/".join(parts)))
 
 
 class TooBig(Exception):
@@ -240,23 +256,49 @@ def _unique_label(brains_dir: Path, label: str, root: Path) -> str:
     return want
 
 
+def _children(d: Path, name: str) -> list:
+    """Folders of `d` called `name` whatever the case: macOS and Windows open `Plugins/` as `plugins/`."""
+    try:
+        return [c for c in d.iterdir() if c.is_dir() and c.name.casefold() == name]
+    except OSError:
+        return []
+
+
+def _plugin_dirs(root: Path) -> list:
+    out = _children(root, "plugins")
+    for j in _children(root, "javis"):
+        out += _children(j, "plugins")
+    return out
+
+
+def _plugin_manifests(d: Path) -> list:
+    out = []
+    try:
+        subs = [c for c in d.iterdir() if c.is_dir()]
+    except OSError:
+        return out
+    for sub in subs:
+        try:
+            out += [f for f in sub.iterdir() if f.is_file() and f.name.casefold() in ("plugin.yaml", "plugin.yml")]
+        except OSError:
+            continue
+    return out
+
+
 def _off_plugins(root: Path) -> int:
     import yaml   # writing only; reading goes through fastyaml like every other module
     n = 0
-    for d in (root / "plugins", root / "Javis" / "plugins"):
-        if not d.is_dir():
-            continue
-        for f in list(d.glob("*/plugin.yaml")) + list(d.glob("*/plugin.yml")):
+    for d in _plugin_dirs(root):
+        for f in _plugin_manifests(d):
             try:
                 m = fastyaml.safe_load(f.read_text(encoding="utf-8")) or {}
             except Exception:
                 m = None
             if not isinstance(m, dict):
                 # A manifest we cannot read cannot be switched off by editing it: take the plugin's code out instead.
-                for entry in ("plugin.py", "__init__.py"):
-                    e = f.parent / entry
-                    if e.is_file():
-                        e.rename(e.with_name(entry + ".off"))
+                for e in list(f.parent.iterdir()):
+                    if e.is_file() and e.name.casefold() in ("plugin.py", "__init__.py"):
+                        e.rename(e.with_name(e.name + ".off"))
                 n += 1
                 continue
             if m.get("enabled"):
@@ -266,29 +308,59 @@ def _off_plugins(root: Path) -> int:
     return n
 
 
-_ENABLED_LINE = re.compile(r"^(enabled\s*:\s*)(true|yes|on)\s*$", re.IGNORECASE | re.MULTILINE)
+# Any `enabled:` line of the frontmatter, whatever its value, quoting or trailing comment.
+_ENABLED_LINE = re.compile(r"^([ \t]*[\"']?enabled[\"']?[ \t]*:[ \t]*).*$", re.IGNORECASE | re.MULTILINE)
+_LOOP_FM = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)   # the loader's own pattern (self_improve._FM_RE)
+
+
+def _loop_enabled(text: str):
+    """True/False as the loop loader will read it (`bool(frontmatter["enabled"])`), None when it reads no loop here."""
+    m = _LOOP_FM.match(text)
+    if not m:
+        return None
+    try:
+        fm = fastyaml.safe_load(m.group(1))
+    except Exception:  # noqa: BLE001
+        return None
+    return bool(fm.get("enabled", False)) if isinstance(fm, dict) else None
 
 
 def _off_loops(root: Path) -> int:
-    d = root / "Javis" / "loops"
+    """Switch off every loop of an imported brain. Returns how many were on.
+
+    Security fix (2026-11-10): the old rule rewrote only a line that was exactly `enabled: true|yes|on`, while the loader
+    takes `bool()` of whatever YAML gives. `enabled: true # x`, `enabled: 1`, `enabled: "true"` and `"enabled": true` all
+    came through an import still on, at whatever `mode` the file asked for. Now the frontmatter is read the way the loader
+    reads it, every `enabled:` line is rewritten, and the result is read again: a file that still says on, or that can no
+    longer be judged, is set aside as `<name>.md.off`, which the loader does not open."""
     n = 0
-    if not d.is_dir():
-        return 0
-    for f in d.glob("*.md"):
-        try:
-            text = f.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if not text.startswith("---"):
-            continue
-        end = text.find("\n---", 3)
-        if end < 0:
-            continue
-        head, rest = text[:end], text[end:]
-        new_head, k = _ENABLED_LINE.subn(r"\1false", head)
-        if k:
-            f.write_text(new_head + rest, encoding="utf-8")
-            n += 1
+    dirs = []
+    for j in _children(root, "javis"):
+        dirs += _children(j, "loops")
+    for d in dirs:
+        for f in sorted(d.iterdir()):
+            if not f.is_file() or f.suffix.casefold() != ".md":
+                continue
+            try:
+                text = f.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                f.rename(f.with_name(f.name + ".off"))
+                n += 1
+                continue
+            if _loop_enabled(text) is False:
+                continue
+            m = _LOOP_FM.match(text)
+            if m:
+                head = _ENABLED_LINE.sub(lambda k: k.group(1) + "false", m.group(1))
+                new = text[:m.start(1)] + head + text[m.end(1):]
+                if _loop_enabled(new) is False:
+                    f.write_text(new, encoding="utf-8")
+                    n += 1
+                    continue
+            if text.lstrip().startswith("---"):
+                # Frontmatter we could not switch off by editing it (flow style, broken YAML): keep the file, unloaded.
+                f.rename(f.with_name(f.name + ".off"))
+                n += 1
     return n
 
 
@@ -365,7 +437,7 @@ def import_zip(fileobj, brains_dir, filename: str = "", label: str = "", work_di
             files = total = 0
             for i, rel in members:
                 inner = rel[len(prefix):] if prefix else rel
-                if not inner or inner == MANIFEST or kept_out(inner):
+                if not inner or inner == MANIFEST or kept_out(inner) or import_kept_out(inner):
                     continue
                 dest = (tmp / inner).resolve()
                 if tmp_res not in dest.parents:

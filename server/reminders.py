@@ -74,6 +74,8 @@ def _nhan_kw(fn, ten: str) -> bool:
     return any(p.name == ten or p.kind is p.VAR_KEYWORD for p in ps)
 from claude_cli import claude_engine, cancel_all, _empty_mcp_file
 import aux_engine   # engine viec nen theo model phu nguoi dung chon
+import job_recipes   # a recurring job replays its own read chain before the model starts
+import job_scorecard
 
 # Múi giờ để tính giờ nhắc hẹn. Đọc từ cấu hình, KHÔNG còn ghim Việt Nam.
 #
@@ -86,6 +88,9 @@ import aux_engine   # engine viec nen theo model phu nguoi dung chon
 def VN_TZ():
     return localefmt.tz()
 VALID_MODE = {"notify", "task", "script"}
+PREFETCH_TIMEOUT_S = 120      # a recipe's read calls, all together, before the model starts (job_recipes.py)
+# The recurring job whose recipe `_run_task` may replay; "" for a one-off reminder and for every other caller.
+_RECIPE_JOB: contextvars.ContextVar = contextvars.ContextVar("javis_reminder_recipe_job", default="")
 
 # Mức quyền của nhắc hẹn kiểu "task". Cùng bộ từ với loop để người dùng chỉ phải học một lần.
 VALID_MUC_QUYEN = {"suggest", "auto", "full"}
@@ -132,6 +137,10 @@ LIVE_STATUSES = ("pending", "paused")
 MAX_KEEP = 500                 # trần số bản ghi giữ lại mỗi brain
 SCRIPT_TIMEOUT_S = 120         # trần thời gian chạy 1 job script
 SCRIPT_OUT_CAP = 3500          # trần ký tự stdout đẩy về Telegram
+# Pictures a `task` run made, sent to the asking chat on channels that need the file itself (#1285).
+RUN_IMAGES_MAX = 4
+RUN_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+RUN_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 # "Remember the last run" (0.198.0, idea from OpenMausBot routines): a task-mode reminder can start from
 # its previous result, so a watcher knows what it already reported. Capped so one long report
 # cannot eat the next run's context.
@@ -846,8 +855,40 @@ class RemindersFeature:
                     rid_tok = _RUN_RID.set(str(rem.get("id") or ""))
                     try:
                         # #1165: memories this reminder writes are not stamped with a chat open at the same time.
-                        with memory_control.background_writer(self.deps.brain_root(brain), muc_quyen_cua(rem)):
-                            body, err = await self._run_task(brain, text, muc_quyen_cua(rem), **extra)
+                        # The scorecard (job_scorecard.py): this reminder finds, from its own runs, the lightest
+                        # model that gets it done. "Ran and returned nothing" counts against the model; an engine or
+                        # connection error does not; a run the owner stopped says nothing either way.
+                        with memory_control.background_writer(self.deps.brain_root(brain), muc_quyen_cua(rem)), \
+                                job_scorecard.run(f"reminder:{rem.get('id') or ''}", "reminder",
+                                                  " ".join(str(text or "").split())[:80]) as _score:
+                            # A RECURRING job learns its read chain and replays it before the model starts
+                            # (job_recipes.py). A one-off reminder has nothing to learn from.
+                            recurring = bool(rem.get("cron") or float(rem.get("repeat_min") or 0) > 0)
+                            # Passed through the context, not as an argument: `_run_task` has other callers and
+                            # stand-ins with the old signature, and none of them must learn a new keyword.
+                            recipe_tok = _RECIPE_JOB.set(job if recurring else "")
+                            try:
+                                body, err = await self._run_task(brain, text, muc_quyen_cua(rem), **extra)
+                            finally:
+                                _RECIPE_JOB.reset(recipe_tok)
+                            if recurring:
+                                try:
+                                    learned = await asyncio.to_thread(
+                                        job_recipes.finish, self.deps.brain_root(brain), job,
+                                        ok=bool((body or "").strip()) and rem.get("id") not in self._stopped,
+                                        task=text, mode=muc_quyen_cua(rem))
+                                    if learned:
+                                        print(f"[recipes] {job_recipes.base_job(job)}: {learned}", file=sys.stderr)
+                                except Exception as e:  # noqa: BLE001 - a recipe is an optimisation, never a failure
+                                    print(f"[recipes] finish failed: {type(e).__name__}: {e}", file=sys.stderr)
+                            if rem.get("id") in self._stopped:
+                                pass
+                            elif (body or "").strip():
+                                _score.ok()
+                            elif err:
+                                _score.fail(job_scorecard.CAUSE_OTHER, str(err)[:120])
+                            else:
+                                _score.fail(job_scorecard.CAUSE_MODEL, "chạy xong mà không trả gì")
                     finally:
                         _RUN_RID.reset(rid_tok)
                 finally:
@@ -970,6 +1011,8 @@ class RemindersFeature:
                                               str(Path(self.deps.brain_root(brain)) / voice_rel), brain)
                 except Exception as e:
                     print(f"[reminders] voice note not sent: {type(e).__name__}: {e}", file=sys.stderr)
+            if mode == "task" and ok and not loi and self.deps.send_file:
+                await self._send_run_images(brain, rem, body, t0)
 
         work_log.append(str(self.deps.brain_root(brain)), "reminder", str(rem.get("id") or ""), head,
                         "stopped" if stopped else "retry" if retry_at else "fail" if (run_failed or not ok) else "ok",
@@ -1112,6 +1155,61 @@ class RemindersFeature:
         err = (err_b or b"").decode("utf-8", "replace")
         return out, err, (proc.returncode if proc.returncode is not None else -1)
 
+    async def _send_run_images(self, brain: str, rem: dict, body: str, t0: float) -> int:
+        """Send the pictures a `task` run made to the chat that asked, where the channel needs the file itself
+        (#1285: a scheduled ads report drawn as an image reached Zalo as text only, the picture stayed in the brain).
+
+        Only images the answer itself names and that were written during THIS run, so an old picture mentioned in
+        passing is not sent again; at most RUN_IMAGES_MAX of them, each under RUN_IMAGE_MAX_BYTES. The web chat shows
+        the embedded image already and `send_file` answers "no file channel" for it. A failed image never fails the
+        reminder: the text has gone out, the reason goes to the log. Returns how many were sent."""
+        try:
+            root = str(self.deps.brain_root(brain))
+            files = channel_context.collect_turn_files(body or "", [], t0, cwd=root, vault_root=root)
+        except Exception as e:  # noqa: BLE001
+            print(f"[reminders] collecting run images failed: {type(e).__name__}: {e}", file=sys.stderr)
+            return 0
+        sent = 0
+        for f in files:
+            path = str((f.get("path") if isinstance(f, dict) else f) or "")
+            if sent >= RUN_IMAGES_MAX or Path(path).suffix.lower() not in RUN_IMAGE_EXTS:
+                continue
+            try:
+                if Path(path).stat().st_size > RUN_IMAGE_MAX_BYTES:
+                    continue
+                res = await self.deps.send_file(rem.get("chat_id", ""), path, brain)
+                if isinstance(res, tuple) and res and res[0]:
+                    sent += 1
+                elif isinstance(res, tuple) and len(res) > 1 and res[1] not in ("no file channel", "no Telegram chat"):
+                    print(f"[reminders] image {Path(path).name} not sent: {res[1]}", file=sys.stderr)
+            except Exception as e:  # noqa: BLE001
+                print(f"[reminders] image {Path(path).name} not sent: {type(e).__name__}: {e}", file=sys.stderr)
+        return sent
+
+    async def _prefetch(self, brain: str, text: str, mq: str, job: str) -> str:
+        """Replay the recipe of a recurring job (job_recipes.py). Returns the block to add to the prompt, "" when
+        there is no usable recipe today or any step failed (the run then goes the normal way, recorded afresh)."""
+        try:
+            root = self.deps.brain_root(brain)
+            job_recipes.begin(job)
+            steps = job_recipes.plan(await asyncio.to_thread(job_recipes.load, root, job), text, mq)
+            if not steps:
+                return ""
+            import mcp_hub
+            job_recipes.pause(job)
+            results, reason = None, "failed"
+            try:
+                _tools, route = await mcp_hub.discover_all(mq, vault_root=root)
+                results, reason = await asyncio.wait_for(job_recipes.replay(steps, route), timeout=PREFETCH_TIMEOUT_S)
+            except Exception as e:  # noqa: BLE001 - any trouble: run the normal way
+                print(f"[recipes] replay failed for {job_recipes.base_job(job)}: {type(e).__name__}: {e}",
+                      file=sys.stderr)
+            await asyncio.to_thread(job_recipes.replay_done, root, job, bool(results), reason, steps)
+            return job_recipes.prompt_block(results) if results else ""
+        except Exception as e:  # noqa: BLE001 - a recipe is an optimisation, never a reason to fail the job
+            print(f"[recipes] prefetch skipped: {type(e).__name__}: {e}", file=sys.stderr)
+            return ""
+
     async def _run_task(self, brain: str, text: str, muc_quyen: str = "", previous: str = "",
                         late_s: float = 0.0, intro: str = "", agent: str = ""):
         """mode 'task': tới giờ chạy engine làm việc user đã hẹn. Trả (kết_quả, lỗi).
@@ -1211,6 +1309,9 @@ class RemindersFeature:
             "Việc cần làm:\n" + text
             + task_context_note(previous, late_s)
         )
+        recipe_job = _RECIPE_JOB.get()
+        if recipe_job:
+            prompt += await self._prefetch(brain, text, mq, recipe_job)
         out, err = "", ""
         try:
             async for ev in cli.query(prompt):

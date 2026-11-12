@@ -901,6 +901,7 @@
   "test_webhook_store_m1.py": 3.2,
   "test_webhook_triggers_0198.py": 1.7,
   "test_webpush.py": 0.2,
+  "test_wechat.py": 2.0,
   "test_wiki_chong_trung_va_nen_tinh.py": 1.9,
   "test_wikilink_bo_khoi_ma.py": 0.1,
   "test_windows_child_utf8_0271.py": 0.1,

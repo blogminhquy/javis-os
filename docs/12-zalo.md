@@ -96,6 +96,25 @@ chỉ thấy được nếu phần gửi lại mang nó về.
 - Tin tới lúc mất kết nối mà phần gửi lại mang về được đưa vào luồng tin mới, đánh dấu
   `recovered: true`, nên Hộp thư cũng có.
 
+### Tin tới là Javis đọc ngay, không quét theo giờ (javis-zalo 1.10.0)
+
+Trước đây cứ 20 giây Javis hỏi `javis-zalo` một lần xem có tin mới không, kể cả những ngày không có tin
+nào, và tin nhóm vẫn chờ tới 20 giây bot mới thấy. Từ javis-zalo 1.10.0, `javis-zalo` báo cho Javis ngay
+khi có tin (hoặc khi kết nối Zalo rớt, nối lại), và Javis chỉ đọc lúc đó.
+
+- Tín hiệu chỉ đi trong máy (`127.0.0.1`), kèm một mã riêng của lần chạy Javis hiện tại, và không mang
+  nội dung tin. Tin vẫn được đọc qua tool `zalo_get_messages` như cũ.
+- Javis chỉ coi một tài khoản là "tự báo" sau khi nhận được tín hiệu đầu tiên từ đúng tiến trình
+  `javis-zalo` đang chạy. Chưa có tín hiệu (bản javis-zalo cũ, tiến trình vừa dựng lại) thì Javis đọc
+  theo nhịp 20 giây như trước.
+- Khi mọi tài khoản đều tự báo và không có tin nào đang giữ, vòng đọc ngủ hẳn, không chạy theo nhịp
+  nào. Nó chỉ thức khi có việc: `javis-zalo` báo có tin, tiến trình `javis-zalo` thoát (Javis đọc ngay
+  một lượt, lượt đó dựng lại tiến trình), một bot nhận hay rời vị trí, một tài khoản được bật, hoặc một
+  kết nối được lưu ở trang Kết nối.
+- Trong lúc có tin đang giữ (chờ khách nhắn xong, chờ chủ trả lời tay), vòng đọc chạy nhịp ngắn để
+  nhả đúng giờ rồi ngủ lại. Việc đó không gọi `javis-zalo`.
+- Tắt cho cả máy: đặt biến môi trường `JAVIS_ZALO_PUSH=0` rồi khởi động lại Javis.
+
 ## Duyệt người xin vào nhóm
 
 Từ Javis 0.84.7 (javis-zalo 1.2.0), với nhóm bật "duyệt thành viên":

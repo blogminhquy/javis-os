@@ -198,6 +198,18 @@
         '-1.36-1.62-1.52-1.89-.16-.27-.02-.42.12-.56.12-.12.27-.32.41-.48.14-.16.18-.27.27-.46.09' +
         '-.18.05-.34-.02-.48-.07-.14-.6-1.5-.84-2.04z"/>',
     },
+    // WeChat: two green speech bubbles, the large one behind and the small one in front, each with two eyes.
+    wechat: {
+      nhan: "WeChat",
+      mau: "#07C160",
+      than:
+        '<path fill="#07C160" d="M9.2 3.6c-3.9 0-7 2.6-7 5.9 0 1.9 1.05 3.55 2.7 4.65l-.7 2.1 2.5-1.25c.8.22 ' +
+        '1.63.35 2.5.35 3.9 0 7-2.6 7-5.85s-3.1-5.9-7-5.9z"/>' +
+        '<circle cx="6.9" cy="8.3" r="1" fill="#fff"/><circle cx="11.5" cy="8.3" r="1" fill="#fff"/>' +
+        '<path fill="#07C160" stroke="#fff" stroke-width="1" d="M16 10.4c-3.2 0-5.8 2.15-5.8 4.85s2.6 4.85 5.8 ' +
+        '4.85c.68 0 1.33-.1 1.94-.27l2.06 1.07-.57-1.75c1.42-.9 2.37-2.3 2.37-3.9 0-2.7-2.6-4.85-5.8-4.85z"/>' +
+        '<circle cx="14.1" cy="14.5" r=".85" fill="#fff"/><circle cx="17.9" cy="14.5" r=".85" fill="#fff"/>',
+    },
     // Messenger (0.134.0): blue speech bubble with the lightning zigzag.
     messenger: {
       nhan: "Messenger",

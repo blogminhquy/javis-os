@@ -155,6 +155,9 @@
   // Auto is on right now. Same leading-space trick as TAG_NONE, so it never clashes with a real tag.
   var TAG_AUTO = " auto";
   function autoBat(rs, slug) { var r = rs && rs[slug]; return !!(r && r.enabled && r.status === "active"); }
+  // An assistant whose file went away (`missing`) or that was retired can never be "on", yet its Auto block is the only
+  // place holding the two confirm buttons ("same assistant" / "new assistant") and its old goals. So it counts as shown.
+  function autoBlocked(rs, slug) { var r = rs && rs[slug]; return !!(r && (r.status === "missing" || r.status === "retired")); }
   // Javis Core's Auto is always on (owner, 05/11/2026): its row shows the switch on even before the server's list is in.
   function coreAutoRow(x) {
     var r = S.rs[x.slug] || {};
@@ -309,7 +312,7 @@
   var S = { loai: "agent", q: "", nhom: "", thu: docThu(), agents: [], workflows: [], chon: { agent: null, workflow: null },
             el: null, tienDo: {}, sessionCuaPhien: {}, tabPhai: "lichsu",
             // T0 nhóm chat team: trạng thái Cộng hưởng theo slug, và các dòng đang chờ server trả lời.
-            rs: {}, rsSaving: {},
+            rs: {}, rsSaving: {}, packSaving: {},
             // Huy hiệu việc theo slug (Đang làm, Cần bạn), tách khỏi công tắc Auto: Auto tắt vẫn có thể có việc Đang làm.
             jc: {},
             // 0.205.0: unread count, newest message time and mute per partner (GET /agents/unread).
@@ -499,6 +502,12 @@
     S.tagNote = result && result.ok ? null
       : { loi: true, msg: t("resonance.t0_failed", { error: (result && result.error) || "" }) };
   }
+  // The Auto state of the brain just arrived: the cards, and the line under the filter bar that asks about a whole
+  // pack (it appears and goes with that state, so it is redrawn with the cards).
+  function drawAutoState() {
+    if (S.el) veThanhNhom(S.el);
+    veDanhSach();
+  }
   async function taiDanhSach() {
     var lan = lanDung, b0 = brain();
     var b = encodeURIComponent(b0);
@@ -513,7 +522,7 @@
     }
     // T0 nhóm chat team: trạng thái Cộng hưởng của MỌI trợ lý trong một request riêng (không gọi theo từng dòng), đọc
     // SAU khi danh sách đã có: tới đâu vẽ lại tới đó. Chưa về hay lỗi thì dòng không có công tắc (không đoán).
-    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { veDanhSach(); veAuto(dangChon()); } });
+    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { drawAutoState(); veAuto(dangChon()); } });
     loadJobCounts().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
     loadUnread().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
     S.agents = sapXep(r[0].agents, "last_chat_at");
@@ -911,10 +920,36 @@
       // Kết quả thao tác tag (gộp tag, lỗi một phần) nằm ngay dưới thanh, sống tới lần thao tác kế.
       (S.tagNote ? '<div class="ws-tag-note' + (S.tagNote.loi ? " loi" : "") + '" role="status">' +
         esc(S.tagNote.msg) + '<button type="button" class="ws-tag-note-x" title="' + esc(t("common.close")) + '">' +
-        ic("x") + '</button></div>' : '');
+        ic("x") + '</button></div>' : '') +
+      // 2026-11-11: assistants of one Store pack that wait for "same assistant?" are answered with one button here,
+      // not card by card (resonance-agent.js draws the line; nothing waits, nothing is drawn).
+      packConfirmHtml();
     var cur = bar.querySelector(".cs-proj-cur"); if (cur) cur.onclick = function (e) { moBangTag(e.currentTarget); };
     var x = bar.querySelector(".cs-proj-x"); if (x) x.onclick = function () { chonNhom(""); };
     var nx = bar.querySelector(".ws-tag-note-x"); if (nx) nx.onclick = function () { S.tagNote = null; veThanhTag(bar); };
+    bar.querySelectorAll("[data-pack-confirm]").forEach(function (b) {
+      b.onclick = function () { confirmPackAuto(b.getAttribute("data-pack-confirm"), bar); };
+    });
+  }
+  function packConfirmHtml() {
+    var RA = window.JavisResonanceAgent;
+    if (!RA || !RA.packConfirmHtml) return "";
+    var rows = Object.keys(S.rs || {}).map(function (k) { return S.rs[k]; });
+    return RA.packConfirmHtml(RA.missingByPack(rows), S.packSaving);
+  }
+  // One click answers "same assistant" for the whole pack. Locked while the request is out; a failure says why under
+  // the bar. The reload of the real state comes from the event confirmPack always fires.
+  function confirmPackAuto(packId, bar) {
+    var RA = window.JavisResonanceAgent;
+    if (!RA || !RA.confirmPack || !packId || S.packSaving[packId]) return false;
+    S.packSaving[packId] = true; veThanhTag(bar);
+    RA.confirmPack(packId).then(function (result) {
+      delete S.packSaving[packId];
+      S.tagNote = result && result.ok ? null
+        : { loi: true, msg: t("resonance.pack_confirm_failed", { error: (result && result.error) || "" }) };
+      if (active && S.el) veThanhNhom(S.el);
+    });
+    return true;
   }
   function moBangTag(neo) {
     var cs = window.JavisChatSide; if (!cs || !cs.menu) return;
@@ -2029,12 +2064,14 @@
   }
   // Khối Cộng hưởng của trợ lý (resonance-agent.js). Biết phiên đang mở để server nói được phiên này dùng được mã
   // hiện tại không; "Mở cuộc trò chuyện mới" đi đúng đường mở phiên của trang (moPhien), không tự chuyển phiên cũ.
-  // The Auto block of one assistant: goals and pulse, only while its Auto switch (left row) is on. Off means nothing to
-  // show, so the column stays the plain settings form.
+  // The Auto block of one assistant: goals and pulse, while its Auto switch (left row) is on. Off means nothing to
+  // show, so the column stays the plain settings form. A `missing` or `retired` assistant shows it too: the row's
+  // "Auto: needs confirming" button opens this column, and the confirm buttons live in this block (0.521.0 hid them).
   function veAuto(item) {
     var box = S.el && S.el.querySelector("#wsAuto");
     if (!box || !item) return;
-    if (!window.JavisResonanceAgent || !(item.system || autoBat(S.rs, item.slug))) { box.innerHTML = ""; return; }
+    var show = item.system || autoBat(S.rs, item.slug) || autoBlocked(S.rs, item.slug);
+    if (!window.JavisResonanceAgent || !show) { box.innerHTML = ""; return; }
     if (box.querySelector("#wsResonance")) return;
     box.innerHTML = '<div class="rsa-panel" id="wsResonance"></div><div class="rsa-panel pulse-panel" id="wsPulse"></div>';
     ganCongHuong(item);
@@ -2257,7 +2294,7 @@
   window.JavisWorkspace = { gioNgan: gioNgan, render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, dungKhiChuaCoTuDien: function () { return dungKhiChuaCoTuDien; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
     dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, nhomHtml: nhomHtml, chonNhom: chonNhom, state: function () { return S; },
     tagsCua: tagsCua, tagCap: tagCap, laKhoa: laKhoa, demTag: demTag, coTag: coTag, khoaTag: khoaTag,
-    dongChonTag: dongChonTag, chipTagHtml: chipTagHtml, TAG_NONE: TAG_NONE, TAG_AUTO: TAG_AUTO, laLocGia: laLocGia, autoBat: autoBat,
+    dongChonTag: dongChonTag, chipTagHtml: chipTagHtml, TAG_NONE: TAG_NONE, TAG_AUTO: TAG_AUTO, laLocGia: laLocGia, autoBat: autoBat, autoBlocked: autoBlocked,
     resonanceMap: resonanceMap, afterToggle: afterToggle, tinHtml: tinHtml, tatDen: tatDen };
   // Sidebar lịch sử mở phiên trực tiếp qua JavisSessions.open, ngoài đường moPhien ở trên.
   // Ghi lại sau khi nó mở xong để lần dựng trang sau vẫn ở đúng cuộc đã chọn.
@@ -2270,7 +2307,7 @@
   window.addEventListener("javis:order-changed", function () { if (active && ready) veDanhSach(); });
   window.addEventListener("javis:resonance-agents-changed", function () {
     if (!active) return;
-    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { veDanhSach(); veAuto(dangChon()); } });
+    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { drawAutoState(); veAuto(dangChon()); } });
     henDemViec();
   });
   // Huy hiệu việc trên thẻ trợ lý theo cùng các sự kiện với tab Công việc (gộp nhịp 800ms).

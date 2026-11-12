@@ -309,12 +309,13 @@ check("payload KHÔNG kèm tool nào", all("tool" not in str(k).lower() for m in
 
 # Nhớ mạch hội thoại, và cắt lịch sử để không phình vô hạn.
 _sess = {"last": None, "sent": set()}
-for i in range(15):
+_turns = main.BOT_HISTORY_MAX_MESSAGES // 2 + 10      # more turns than the ceiling holds, so the cut really runs
+for i in range(_turns):
     chay("openrouter", "api", _sess, hoi=f"câu {i}")
 check("bot nhớ mạch hội thoại", len(_sess["bot"]) > 2)
-check("lịch sử bị cắt, không phình vô hạn", len(_sess["bot"]) <= main.BOT_LICH_SU_MAX)
+check("lịch sử bị cắt, không phình vô hạn", len(_sess["bot"]) == main.BOT_HISTORY_MAX_MESSAGES)
 check("cắt xong vẫn còn câu hỏi gần nhất",
-      _sess["bot"][-2] == {"role": "user", "content": "câu 14"})
+      _sess["bot"][-2] == {"role": "user", "content": f"câu {_turns - 1}"})
 
 # Lượt hỏng thì không để câu hỏi treo lơ lửng không có câu trả lời.
 def _stream_hong(prov, key, model, messages, reasoning="off"):

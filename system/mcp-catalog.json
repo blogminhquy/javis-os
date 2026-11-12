@@ -148,7 +148,7 @@
       "status": "beta",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.9.1", "mcp", "start"],
+      "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.10.0", "mcp", "start"],
       "lenh_cu": [
         { "command": "npx", "args": ["-y", "zalo-agent-cli", "mcp", "start"] },
         { "command": "npx", "args": ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"] },
@@ -162,7 +162,8 @@
         { "command": "npx", "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.6.1", "mcp", "start"] },
         { "command": "npx", "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.7.0", "mcp", "start"] },
         { "command": "npx", "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.8.0", "mcp", "start"] },
-        { "command": "npx", "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.9.0", "mcp", "start"] }
+        { "command": "npx", "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.9.0", "mcp", "start"] },
+        { "command": "npx", "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.9.1", "mcp", "start"] }
       ],
       "ngoai_le_ban_chinh_thuc": "Zalo KHÔNG đi theo bản gốc nữa (chủ repo chốt 2026-10-05): Javis chạy bản CLI riêng javis-zalo (github.com/blogminhquy/javis-zalo), cài từ tarball của tag phát hành, chỉ thư viện zca-js bên dưới đi theo bản chính thức trên npm. Ghim theo tag vì đăng nhập QR (zalo_login.py), gửi ảnh/tag/ghi chú nhóm (zalo_cli.py) và gói javis.zalo đọc thẳng định dạng của đúng bản đó. Ba chỗ ghim (ở đây, zalo_cli.py, zalo_login.py) phải luôn trùng nhau; --prefer-offline vì tag không đổi nên khỏi hỏi lại GitHub mỗi lần khởi động.",
       "requires": { "node": ">=20" },
@@ -453,7 +454,7 @@
       "name": "Google Ads",
       "icon": "/static/logos/google-ads.webp",
       "category": "Quảng cáo",
-      "description": "Số liệu Google Ads qua MCP chính chủ của Google (chỉ đọc): chiến dịch, chi phí, chuyển đổi, từ khoá qua truy vấn GAQL. Chạy local; cần developer token + Google Cloud, cài 1 lần hơi kỹ thuật.",
+      "description": "Số liệu Google Ads qua MCP chính chủ của Google: chiến dịch, chi phí, chuyển đổi, từ khoá, lịch sử thay đổi qua truy vấn GAQL. Mặc định chỉ đọc. Chạy local; cần Google Cloud project + OAuth client, không cần developer token, cài 1 lần khoảng 10 phút.",
       "status": "beta",
       "transport": "stdio",
       "command": "uvx",
@@ -489,9 +490,10 @@
           },
           {
             "key": "developer_token",
-            "label": "Developer token (Google Ads API Center)",
-            "placeholder": "Chuỗi 22 ký tự, lấy ở tài khoản quản lý MCC",
-            "env": "GOOGLE_ADS_DEVELOPER_TOKEN"
+            "label": "Developer token (tuỳ chọn - chỉ điền khi bạn còn token cũ, Google không còn yêu cầu)",
+            "placeholder": "Bỏ trống nếu không có",
+            "env": "GOOGLE_ADS_DEVELOPER_TOKEN",
+            "optional": true
           },
           {
             "key": "login_customer_id",
@@ -510,8 +512,8 @@
             "optional": true
           }
         ],
-        "guide": "Cần trước: không cài thêm gì. Javis tự tải bản chính thức mới nhất của Google (PyPI) mỗi lần khởi động.\n\nLàm 1 lần, khoảng 10 phút:\n1. Google Ads > tài khoản quản lý MCC > Công cụ > API Center: lấy developer token, mức Explorer đủ để đọc.\n2. Vào console.cloud.google.com, tạo project rồi bật Google Ads API.\n3. Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.\n4. Thông tin xác thực > Tạo OAuth client ID loại 'Ứng dụng web'.\n5. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n6. Điền các ô bên dưới rồi bấm nút đăng nhập. Trình duyệt sẽ mở để bạn cho phép Javis đọc Google Ads.\n\nJavis tự dựng file đăng nhập, KHÔNG cần cài Google Cloud CLI và không phải chạy lệnh nào.\n\nGặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\n\nĐã tự chạy gcloud rồi thì dán nội dung file application_default_credentials.json vào ô cuối, Javis sẽ dùng luôn.",
-        "guide_url": "https://console.cloud.google.com/apis/credentials"
+        "guide": "Cần trước: không cài thêm gì. Javis tự tải bản chính thức mới nhất của Google (PyPI) mỗi lần khởi động.\n\nLàm 1 lần, khoảng 10 phút:\n1. Vào console.cloud.google.com, tạo project rồi bật Google Ads API.\n2. Mở trang Google Ads API của project đó (nút bên dưới), bấm 'Apply for access' để lên mức Explorer.\nMức Test mặc định chỉ đọc được tài khoản thử nghiệm. Explorer đọc được tài khoản thật, thường được duyệt trong vài phút.\n3. Google Auth Platform > Audience: chọn External, thêm email của bạn vào Test users.\n4. Google Auth Platform > Clients > Tạo OAuth client ID loại 'Ứng dụng web'.\n5. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n6. Điền Client ID và Client Secret bên dưới rồi bấm nút đăng nhập. Trình duyệt sẽ mở để bạn cho phép Javis đọc Google Ads.\n\nKHÔNG cần developer token và không cần tài khoản quản lý MCC: quyền truy cập giờ gắn với Google Cloud project.\nÔ developer token chỉ dành cho ai còn token cũ.\n\nJavis tự dựng file đăng nhập, KHÔNG cần cài Google Cloud CLI và không phải chạy lệnh nào.\n\nGặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\n\nKhi app còn ở trạng thái Testing, Google thu hồi đăng nhập sau 7 ngày: bấm đăng nhập lại là xong, hoặc vào Audience > Publish app để dùng lâu dài.\n\nĐã tự chạy gcloud rồi thì dán nội dung file application_default_credentials.json vào ô cuối, Javis sẽ dùng luôn.",
+        "guide_url": "https://console.cloud.google.com/google/ads-apis/overview"
       },
       "validate": {
         "tool": "customers_list_accessible_customers",
@@ -519,9 +521,12 @@
       },
       "oauth_file": { "format": "google_adc", "env": "GOOGLE_APPLICATION_CREDENTIALS", "ext": ".json" },
       "tool_meta": {
-        "read": ["customers_*", "metadata_*", "search_*"]
+        "read": ["customers_*", "metadata_*", "search_*"],
+        "write": ["assets_create_asset"],
+        "danger": ["labels_*", "assets_upload_video_asset"]
       },
-      "default_perm": "readonly"
+      "default_perm": "readonly",
+      "risk": "Mức Chỉ đọc (mặc định) chỉ đọc số liệu, không sửa được gì trong tài khoản quảng cáo.\n\nMức Ghi nháp cho Javis TẠO asset mới (tiêu đề, ảnh, sitelink, chú thích) trong tài khoản Google Ads.\n\nMức Toàn quyền thêm quyền TẠO, SỬA, XOÁ nhãn, gắn hoặc gỡ nhãn khỏi chiến dịch và nhóm quảng cáo, và TẢI VIDEO từ máy lên YouTube để làm asset.\nXoá nhãn không hoàn tác được; video đã tải lên nằm trên kênh YouTube của bạn.\n\nBản MCP 0.0.6 của Google chưa có tool nào sửa ngân sách, giá thầu hay bật tắt chiến dịch. Bản sau có thêm tool thì mức quyền sẽ được khai lại."
     },
     {
       "id": "google-analytics",

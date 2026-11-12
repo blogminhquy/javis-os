@@ -173,7 +173,78 @@ async def pick_openrouter_free(key: str = "") -> str:
     return best
 
 
-def read_spec(settings: dict = None) -> dict:
+# Tags of the work Javis starts on its own. On an Automatic background model these run on the LIGHT pick;
+# everything else (reminder, loop, Kanban dispatch, workflow, ingest) is work the owner handed over and runs
+# on the MID pick. See model_routing.background_spec.
+LIGHT_TAGS = ("next-prompt", "learn", "reply-policy", "habit-coach", "web-watch-summary", "incident-triage",
+              "agent-judge", "auto-learning", "curator",
+              # javis_scout with effort="quick" (scout.py). A "careful" scout carries the tag "scout" and runs MID.
+              "scout-quick")
+
+
+def tier_for_tag(tag) -> str:
+    t = str(tag or "")
+    return "light" if any(t == x or t.startswith(x + "-") or t.startswith(x + ":") for x in LIGHT_TAGS) else "mid"
+
+
+def _rung_model(m: dict, provider: str, tier: str, start_model: str) -> str:
+    """The model an Automatic background job runs NOW (job_scorecard.py): the job's own rung on the provider's
+    ladder when a job is running, else the starting rung of its tier, moved by what the owner asked for.
+    No ladder yet (nothing picked, or the brain was not sure) -> `start_model`, as before the scorecard."""
+    try:
+        import job_scorecard
+        ladder = [x for x in (model_routing.background_picks(m, provider).get("ladder") or []) if x]
+        if not ladder:
+            return start_model
+        main_model = model_routing.profile(m, provider)["model"]
+        rungs = ladder + ([main_model] if main_model not in ladder else [])
+        job_scorecard.remember_ladder(provider, rungs)
+        r = job_scorecard.active()
+        if r is not None:
+            return r.choose(provider, ladder, tier, main_model, start_model)
+        base = rungs.index(start_model) if start_model in rungs else None
+        return rungs[job_scorecard.start_index(tier, len(rungs), job_scorecard.intent(), base)]
+    except Exception as e:   # noqa: BLE001 - the scorecard must never stop a background job
+        print(f"[aux] scorecard: {type(e).__name__}: {e}", file=sys.stderr)
+        return start_model
+
+
+def _score_link(e, error=None) -> None:
+    """Tell the running job's scorecard which link answered, or why one did not."""
+    try:
+        import job_scorecard
+        r = job_scorecard.active()
+        if r is None:
+            return
+        model = getattr(e, "model", None) or ""
+        if error is None:
+            r.link_answered(model)
+            return
+        low = str(error).lower()
+        # The model itself is not usable here (the plan does not carry it, it was withdrawn) or it gave nothing
+        # usable: that is about the rung. A sign-in, a spent quota or an outage is not.
+        about_model = "model" in low and any(k in low for k in ("not found", "does not exist", "not supported",
+                                                                "no access", "unknown model", "invalid model"))
+        r.link_failed(model, quota=not about_model and cooldown_for(error) > 0)
+    except Exception:   # noqa: BLE001
+        pass
+
+
+def _score_tokens(ev) -> None:
+    try:
+        import job_scorecard
+        r = job_scorecard.active()
+        if r is None or not isinstance(ev, dict):
+            return
+        if ev.get("type") == "final":
+            r.add_tokens((ev.get("tokens_in") or 0) + (ev.get("tokens_out") or 0))
+        elif ev.get("type") == "usage":
+            r.add_tokens((ev.get("input") or 0) + (ev.get("output") or 0))
+    except Exception:   # noqa: BLE001
+        pass
+
+
+def read_spec(settings: dict = None, tag: str = None) -> dict:
     """{'provider','model'} của model việc nền. Cấu hình cũ chỉ có 'model' (luôn là alias
     Claude) nên thiếu provider = anthropic-cli - giữ nguyên hành vi bản cũ.
 
@@ -184,8 +255,11 @@ def read_spec(settings: dict = None) -> dict:
     phần tiêu tiền lúc người ta không ngồi nhìn.
     """
     s = settings if settings is not None else cfgmod.read_settings()
-    aux = (s.get("model", {}) or {}).get("auxiliary") or {}
-    spec = {"provider": (aux.get("provider") or CLAUDE), "model": (aux.get("model") or "")}
+    # `tag` names the job, and with it the tier an Automatic background model runs (tier_for_tag).
+    bg = model_routing.background_spec(s.get("model", {}) or {}, tier_for_tag(tag))
+    spec = {"provider": (bg.get("provider") or CLAUDE), "model": (bg.get("model") or "")}
+    if bg.get("auto"):
+        spec["model"] = _rung_model(s.get("model", {}) or {}, spec["provider"], tier_for_tag(tag), spec["model"])
     if spec["provider"] not in API_PROVIDERS:
         return spec                      # gói thuê bao: không tính tiền theo token, kệ phanh
     try:
@@ -735,7 +809,7 @@ class _FallbackChain:
                     fail = f"{self._name(e)} không sẵn sàng"
                     continue
                 got_final, got_error, acted = False, None, False
-                async for ev in e.query(prompt):
+                async for ev in _query_retrying_hub(e, prompt, self._name(e)):
                     t = (ev or {}).get("type")
                     if t == "tool_call":
                         acted = True
@@ -776,13 +850,16 @@ class _FallbackChain:
                         got_error = ((ev.get("content") or "").strip()[:300]
                                      or f"{self._name(e)} kết thúc lỗi ({ev.get('subtype') or 'final'})")
                         break
+                    _score_tokens(ev)
                     yield ev
                     if t == "final":
                         got_final = True
                 if got_final:
                     _COOLDOWN.pop(_cool_key(e), None)            # it works again: no more rest
+                    _score_link(e)
                     return                                       # mắt này chạy ngon → xong
                 fail = got_error or f"{self._name(e)} kết thúc mà không có final"
+                _score_link(e, fail)
                 self._rest(e, fail)
                 if acted:
                     # 0.350.0 (spec 2.7): this link already called a tool before it broke. Running the prompt again on
@@ -794,6 +871,7 @@ class _FallbackChain:
                     return
             except Exception as exc:
                 fail = f"{self._name(e)}: {type(exc).__name__}: {exc}"
+                _score_link(e, fail)
                 self._rest(e, fail)
             print(f"[aux router] {self._name(e)} lỗi → thử mắt xích kế tiếp. Lý do: {str(fail)[:300]}",
                   file=sys.stderr)
@@ -899,6 +977,42 @@ def _hub_bat_buoc_hong(text) -> bool:
         return codex_loi_hub_bat_buoc(text)
     except Exception:
         return False
+
+
+# One more try when the required hub was late (#1306). Codex exits on that error BEFORE it calls the model, so running
+# the same link again costs no model turn and cannot repeat an action. Without it the run was dropped until the
+# schedule's next slot. The pause lets the hub finish whatever made it slow (connector discovery for several sessions
+# opening in the same minute). A second failure goes up unchanged and stops the chain as before.
+HUB_RETRY_WAIT_S = 30.0
+
+
+async def _query_retrying_hub(e, prompt, name=""):
+    """`e.query(prompt)`, run a second time when its first event of substance is the required-hub failure."""
+    import asyncio
+    for attempt in (0, 1):
+        stream = e.query(prompt)
+        started, late_hub = False, False
+        try:
+            async for ev in stream:
+                t = (ev or {}).get("type")
+                if t == "error" and attempt == 0 and not started and _hub_bat_buoc_hong(ev.get("content")):
+                    late_hub = True
+                    break
+                if t in ("text", "tool_call", "tool_result", "final"):
+                    started = True
+                yield ev
+        finally:
+            close = getattr(stream, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:  # noqa: BLE001 - a stream that will not close must not hide the run's own result
+                    pass
+        if not late_hub:
+            return
+        print(f"[aux router] {name or type(e).__name__}: required hub was late, one more try in "
+              f"{int(HUB_RETRY_WAIT_S)} s.", file=sys.stderr)
+        await asyncio.sleep(HUB_RETRY_WAIT_S)
 
 
 def _build_grok(spec, claude_cli_obj, mode, tag):
@@ -1148,7 +1262,7 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
     try:
         s = settings if settings is not None else cfgmod.read_settings()
         m = s.get("model", {}) or {}
-        sp = spec if spec is not None else read_spec(s)
+        sp = spec if spec is not None else read_spec(s, tag=tag)
         first = {"provider": sp.get("provider") or CLAUDE, "model": sp.get("model") or "",
                  "reasoning": (sp.get("reasoning") if sp.get("reasoning") in model_routing.LEVELS
                                else model_routing.background_spec(m)["reasoning"] if spec is None else "off")}
@@ -1162,6 +1276,16 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         # cost another failed call, so each plan provider appears once.
         for st in model_routing.background_chain(m, conn, first=first, once=(CLAUDE, CODEX, GROK_CLI, ANTIGRAVITY)):
             chain.extend(_links_for_step(st, cli, mode, tag, codex_profile, s, claude_used))
+        # Automatic background model on a plan: the pick is a model Javis chose from the provider's list, and a
+        # plan provider appears only once above. If the provider refuses that model (the plan does not carry it,
+        # it was withdrawn), the job must still run: one last link on MAIN's own model, as before Automatic.
+        if spec is None and first["provider"] in (CLAUDE, CODEX, GROK_CLI, ANTIGRAVITY) \
+                and model_routing.background_auto(m):
+            main_prof = model_routing.profile(m, first["provider"])
+            if (main_prof["model"] or "") != (first["model"] or ""):
+                chain.extend(_links_for_step({"provider": first["provider"], "model": main_prof["model"],
+                                              "reasoning": first["reasoning"], "step": "main"},
+                                             cli, mode, tag, codex_profile, s, claude_used))
         if not chain:
             return cli
         return chain[0] if len(chain) == 1 else _FallbackChain(chain)

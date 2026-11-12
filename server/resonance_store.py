@@ -885,6 +885,78 @@ class GoalStore:
             new = self._insert_agent(c, p.brain_id, r["slug"], False, p.by, now, {"replaces": r["agent_key"]})
             return self._agent(new)
 
+    # ───────────── origin of an agent file, and restoring without asking (2026-11-11) ─────────────
+    # Owner report: 17 agents of one Store pack all asked "same assistant?" after the pack was uninstalled and installed
+    # again, one card at a time, every time. The host asks because a file that comes back under an old name may be a
+    # different agent that would inherit a running Auto. Two cases have nothing to decide, so the host settles them:
+    # the same Store pack put its own file back (`origin`), or Auto is off and no goal is open (nothing can start).
+
+    @staticmethod
+    def _origin_of(c, agent_key: str) -> str:
+        r = c.execute("SELECT payload_json FROM resonance_agent_events WHERE agent_key=? AND kind='origin' "
+                      "ORDER BY id DESC LIMIT 1", (str(agent_key or ""),)).fetchone()
+        try:
+            return str((json.loads(r["payload_json"] or "{}") if r else {}).get("origin") or "")
+        except (TypeError, ValueError):
+            return ""
+
+    def agent_origins(self, brain_id: str) -> dict:
+        """{agent_key: origin} for the brain's agents that have one, in one connection. An origin is what the host saw
+        the agent's file to be while the key was `active`, for example `pack:javis.ecc-engineering-team`."""
+        out = {}
+        with closing(self._conn()) as c:
+            for r in c.execute("SELECT agent_key, payload_json FROM resonance_agent_events WHERE brain_id=? AND "
+                               "kind='origin' ORDER BY id", (brain_id,)).fetchall():
+                try:
+                    v = str((json.loads(r["payload_json"] or "{}")).get("origin") or "")
+                except (TypeError, ValueError):
+                    v = ""
+                if v:
+                    out[r["agent_key"]] = v
+                else:
+                    out.pop(r["agent_key"], None)
+        return out
+
+    def agent_set_origin(self, brain_id: str, agent_key: str, origin: str, by: str = "host") -> bool:
+        """Host records where the file of an `active` agent comes from ("" = the user's own file). Kept as an event,
+        written only when it changes; `config_version` is untouched, so no gate of this key moves. A key that is not
+        `active` is left alone: its origin is what it was when the host last saw its file."""
+        origin = str(origin or "")
+        with self._Tx(self) as c:
+            r = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                          (str(agent_key or ""), brain_id)).fetchone()
+            if r is None or r["status"] != "active" or self._origin_of(c, r["agent_key"]) == origin:
+                return False
+            self._agent_event(c, r, "origin", by, int(r["config_version"]), {"origin": origin})
+            return True
+
+    def agent_restore(self, brain_id: str, agent_key: str, origin: str = "", by: str = "host") -> Optional[dict]:
+        """Host puts a `missing` agent back to `active` under the SAME key without asking the owner, in the only two
+        cases with nothing to decide. Returns the row when restored, None when the owner still has to answer.
+
+        - `origin` is given and equals the origin recorded while the key was active: the same Store pack put its own
+          file back under the same name. Switch, goals and conversations carry on as after "same assistant".
+        - Auto is off and the agent has no open goal: nothing starts on its own whichever answer is given, and turning
+          Auto on later is the owner's own decision about the file that is there.
+        The caller checks the file is really back, as for `agent_confirm`."""
+        now = time.time()
+        with self._Tx(self) as c:
+            r = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                          (str(agent_key or ""), brain_id)).fetchone()
+            if r is None or r["status"] != "missing":
+                return None
+            if origin and self._origin_of(c, r["agent_key"]) == str(origin):
+                why = {"reason": "same_origin", "origin": str(origin)}
+            elif not r["enabled"] and not c.execute(
+                    "SELECT 1 FROM goals g JOIN goal_agents a ON a.goal_id=g.id WHERE a.agent_key=? AND g.brain_id=? "
+                    "AND g.status='active' LIMIT 1", (r["agent_key"], brain_id)).fetchone():
+                why = {"reason": "nothing_open"}
+            else:
+                return None
+            if r["enabled"]:
+                self._mark_resumed(c, r["agent_key"], now)
+            return self._bump_agent(c, r, "restored", by, now, why, status="active")
+
     def session_agent(self, brain_id: str, session_id: str, slug: str, session_created_at: float,
                       pin: bool = True) -> Optional[dict]:
         """Agent của một phiên trò chuyện `agent:<slug>`, GHIM theo phiên (review PR #590, P1-1).

@@ -77,6 +77,21 @@ Vài điều nên biết:
 - Nghe không ra chữ, file quá lớn, hay Groq trả lỗi thì bot nói rõ lý do. Không có ngả nào im lặng.
 - **Một rủi ro riêng của Zalo:** Zalo chưa công bố khuôn dữ liệu của tin thoại, nên có khả năng Javis không tìm thấy đường dẫn file ghi âm trong tin Zalo gửi về. Gặp ca đó, bot nói thẳng là không tải được file, và server ghi một dòng `[zalo voice] không tìm ra đường dẫn file thoại trong payload` kèm mẫu dữ liệu. Gửi dòng đó cho người phát triển là sửa được ngay. Bên Telegram không có rủi ro này vì khuôn dữ liệu đã công bố rõ.
 
+### Gửi file cho bot (PDF, Word, Excel, video)
+
+Ảnh, sticker và tin thoại thì Zalo chuyển cho bot bình thường. **File tài liệu và video thì Zalo chưa có loại tin riêng cho bot**: Zalo gửi về một sự kiện tên là `message.unsupported.received`, và theo tài liệu của Zalo thì sự kiện đó không mang nội dung.
+
+Javis xử lý cả hai khả năng:
+
+- **Zalo có kèm đường dẫn file:** Javis tải file về hộp thư của brain (tối đa 20MB) và đọc luôn nội dung PDF, Word (.docx), Excel (.xlsx) và file chữ (.txt, .csv, .md...). Bạn gửi file kèm một câu hỏi là Javis trả lời dựa trên file đó. Ảnh gửi dưới dạng file thì đi đường ảnh.
+- **Zalo không kèm gì:** bot nói thẳng là chưa nhận được nội dung và nhờ bạn dán chữ hoặc gửi ảnh chụp. Trước đây gặp ca này bot im lặng.
+
+Muốn biết Zalo đang gửi gì cho bot của bạn: gửi thử một file, rồi xem log server. Nếu có dòng `[zalo file] no file link in the payload of ...` thì Zalo không kèm đường dẫn, và dòng đó in luôn mẫu dữ liệu Zalo gửi về. Gửi dòng đó cho người phát triển nếu trong mẫu có đường dẫn mà Javis chưa nhận ra.
+
+Cần đưa file tài liệu qua lại thường xuyên thì hiện có hai đường chắc chắn hơn: [Telegram](11-telegram.md), hoặc [Zalo cá nhân](12-zalo.md) (đọc được PDF, Word, Excel khách gửi).
+
+Với bot của chủ, người **chưa được Cho phép** gửi gì cũng không được tải về: Javis chỉ tải ảnh, tin thoại và file của chat đã nằm trong danh sách được phép.
+
 ## Bốn chỗ Zalo làm được ít hơn Telegram
 
 Nói trước để bạn không tưởng là lỗi.
