@@ -11,6 +11,42 @@ Never returns a token or an app secret.
 from __future__ import annotations
 
 import json
+from urllib.parse import urlsplit, urlunsplit
+
+
+def _expected_webhook_url(stored: str) -> str:
+    """Follow the active quick tunnel while retaining the receiver selected for this account."""
+    try:
+        old = urlsplit(stored)
+        if (old.scheme != "https" or not old.hostname
+                or not old.hostname.endswith(".trycloudflare.com")
+                or old.username or old.password):
+            return stored
+        import remote_tunnel
+        state = remote_tunnel.MANAGER.status()
+        live = urlsplit(str(state.get("url") or ""))
+        if (state.get("enabled") is not True or state.get("mode") != "quick"
+                or state.get("state") != "running" or live.scheme != "https"
+                or not live.hostname or not live.hostname.endswith(".trycloudflare.com")
+                or live.username or live.password or live.port not in (None, 443)
+                or live.path not in ("", "/") or live.query or live.fragment):
+            return stored
+        return urlunsplit((live.scheme, live.netloc, old.path, old.query, old.fragment))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return stored
+
+
+async def _webhook_reachable(client, url: str) -> dict:
+    """An unsigned GET must reach the receiver. Its normal verification failure is HTTP 403."""
+    import httpx
+    if not url.startswith("https://"):
+        return {"ok": False, "detail": "HTTPS callback required"}
+    try:
+        response = await client.get(url, timeout=8, follow_redirects=False)
+    except httpx.RequestError:
+        return {"ok": False, "detail": "HTTPS callback unreachable (DNS, TLS or network)"}
+    status = response.status_code
+    return {"ok": status in (200, 400, 403, 405), "detail": f"HTTP {status}; no verification token or message sent"}
 
 
 def _accounts(page: str = ""):
@@ -37,6 +73,7 @@ async def _run(args, repair: bool):
                                                  "(card Facebook Messenger) first."}, ensure_ascii=False)
     verify = str((cfgmod.read_settings().get("messenger") or {}).get("verify_token") or "")
     results = []
+    reachability = {}
     async with httpx.AsyncClient(timeout=25) as c:
         for a in accs:
             cr = messenger_bot.split_credentials(channel_accounts.get_token(a["id"]))
@@ -45,7 +82,8 @@ async def _run(args, repair: bool):
             if not app_id:
                 info = await messenger_setup.debug_token(c, cr["access_token"])
                 app_id = info.get("app_id", "") if info.get("ok") else ""
-            url = meta.get("webhook_url", "")
+            stored_url = str(meta.get("webhook_url") or "")
+            url = _expected_webhook_url(stored_url)
             errs = []
             if repair:
                 if not app_id or not verify:
@@ -57,6 +95,20 @@ async def _run(args, repair: bool):
                        or any(b.get("enabled") for b in chatbot_store.bots_using_account(a["id"])))
             chk = await messenger_setup.run_checks(c, cr["page_id"], cr["access_token"], cr["app_secret"],
                                                    app_id, url, running)
+            if url not in reachability:
+                reachability[url] = await _webhook_reachable(c, url)
+            reach = reachability[url]
+            chk.setdefault("items", []).append({
+                "label": "Đường HTTPS webhook truy cập được", "ok": reach["ok"],
+                "detail": reach["detail"],
+                "fix": "Kiểm tra tunnel hoặc tên miền, rồi kiểm lại trước khi sửa đăng ký Meta."})
+            if reach["ok"] is not True:
+                chk["ok"] = False
+            if repair and not errs and chk.get("ok") is True and url != stored_url:
+                saved, _ = channel_accounts.update_account(a["id"], {"meta": {"webhook_url": url}})
+                if not saved:
+                    errs.append("Meta callback updated, but the expected callback could not be saved locally.")
+                    chk["ok"] = False
             results.append({"account": a.get("label"), "page_id": cr["page_id"], "page_name": chk.get("page_name"),
                             "ok": chk.get("ok"), "repair_errors": errs,
                             "items": [{"check": i["label"], "status": {True: "ok", False: "FAIL", None: "warn"}[i["ok"]],
@@ -82,7 +134,8 @@ def register(ctx):
         name="messenger_check",
         description=("Kiểm tra kết nối bot Messenger của Fanpage: token có phải token Trang, đủ quyền, hết hạn chưa, "
                      "App secret khớp, webhook của app trỏ về Javis và có nhận messages, Trang đã gắn app, có bot đang "
-                     "trực. Dùng khi bot Messenger không trả lời khách. Trả từng dòng ok/FAIL/warn kèm cách sửa."),
+                     "trực, và đường HTTPS còn truy cập được. Link nhanh dùng địa chỉ tunnel đang chạy, giữ đường dẫn nhận tin. "
+                     "Dùng khi bot Messenger không trả lời khách. Trả từng dòng ok/FAIL/warn kèm cách sửa."),
         handler=_check, min_mode="readonly", schema=_SCHEMA,
     )
     ctx.register_tool(
