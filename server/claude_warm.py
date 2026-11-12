@@ -571,7 +571,9 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
             print(f"[claude init timeout] tag={cli.tag} sau={time.time() - started:.0f}s chan_doan={chan_doan}",
                   file=sys.stderr)
         clean = False
-        yield {"type": "error", "content": eng.loi_de_hieu(e, tran_init, chan_doan)}
+        import claude_exit_reason   # 12/11/2026: an exit code names the reason `claude` printed
+        yield claude_exit_reason.rewrite({"type": "error", "content": eng.loi_de_hieu(e, tran_init, chan_doan)},
+                                         cli._stderr_tail)
     finally:
         if handle is not None and handle.client is not None:
             with eng._LOCK:
