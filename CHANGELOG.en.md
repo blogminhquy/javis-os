@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.542.0] - 2026-11-12
+### Added
+- **The official Zalo bot receives files.** When Zalo passes a file to the bot, Javis downloads it and reads PDF, Word, Excel and plain-text files, so a question sent with it is answered from the file.
+- **No more silence.** Zalo has no file message type for bots yet, so when Zalo includes no content the bot says plainly that it did not arrive and asks for a screenshot or pasted text. Before, the bot stayed silent.
+### Security
+- **The owner's bot fetches nothing from strangers.** Photos, voice messages and files are downloaded only for a chat that has been allowed.
+
 ## [0.541.1] - 2026-11-12
 ### Fixed
 - **Dictating in English no longer comes back translated into Vietnamese.** After you press stop, Javis asks a model to tidy the sentence, and the model sometimes returned a Vietnamese translation instead of the English you spoke (mostly on longer sentences, such as a second recording). A sentence now stays in the language it was spoken in. If the model still translates, Javis drops the translation and keeps the words as heard. This covers the mic in the main chat, Teams, Conversations and the note editor.
