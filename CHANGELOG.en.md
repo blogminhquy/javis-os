@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.546.1] - 2026-11-12
+### Fixed
+- **A new Claude Code chat no longer rewrites the whole prompt cache at token-saving levels.** A clock that changed every minute, and the memories picked for each question, sat inside the cached part of the prompt, so every new chat rewrote about 25 thousand tokens. They now travel with the first message of the chat, and the prompt stays the same between chats.
+
 ## [0.546.0] - 2026-11-12
 ### Added
 - **Zalo messages can quote the message they answer.** When you ask Javis to reply to one specific message, the message goes out with the quoted original above it, like tapping "Reply" in Zalo. Only text messages can be quoted. The Zalo connection moves to javis-zalo 1.11.0 on its next start.
