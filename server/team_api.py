@@ -748,6 +748,21 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             return out
         return await api.io(_do)
 
+    def _left_out_note(team: dict, n: int) -> tuple:
+        """(vi, en) for `n` attached files the team did not keep: the list is full, or the file did not arrive."""
+        import sessions as _sessions
+        cap = _sessions.SESSION_ASSETS_MAX
+        try:
+            full = len(deps.session_store().list_session_files(team.get("session_id") or "")) >= cap
+        except Exception:  # noqa: BLE001 - the note must never fail the send
+            full = False
+        if full:
+            return (f"{n} file chưa vào được team: team đã đủ {cap} tài liệu. Gỡ bớt tài liệu ở tab Thông tin rồi gửi lại.",
+                    f"{n} file(s) did not get into the team: it already holds {cap} documents. Remove some in the Info "
+                    "tab, then send again.")
+        return (f"{n} file chưa vào được team (file không còn ở chỗ tải lên). Chọn lại file rồi gửi lại.",
+                f"{n} file(s) did not get into the team (the upload is no longer there). Pick the file again and resend.")
+
     def _add_files(team: dict, attachments: Any) -> list:
         """Files (uploaded, or already in the brain) become documents of the team; pictures get described."""
         if api.deps.attach is None:
@@ -1125,13 +1140,18 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             # 0.195.0: the owner works here now; the Teams page opens this team next time, on any device.
             api.teams().mark_owner(team_id)
             text = str(body.get("text") or "").strip()
-            files = []
+            files, left_out = [], 0
             if body.get("attachments") and api.deps.attach is not None:
                 # 0.191.0: the files become the team's documents (text ones are read by every member turn); the
                 # message keeps their names so everyone in the chat sees what was sent.
-                files = api.deps.attach(team, list(body.get("attachments") or []))
+                asked = [a for a in list(body.get("attachments") or []) if isinstance(a, dict)]
+                files = api.deps.attach(team, asked)
+                left_out = max(0, len(asked) - len(files))
                 if files:
                     text = (text + "\n\n" if text else "") + "📎 " + ", ".join(f["name"] for f in files)
+                elif left_out and not text:
+                    # Nothing to send at all: say why instead of "the message is empty".
+                    return _err(400, _left_out_note(team, left_out)[0], _left_out_note(team, left_out)[1])
             try:
                 sub = runner.submit(team_id, text, mentions=list(body.get("mentions") or []),
                                     as_job=bool(body.get("as_job")),
@@ -1152,7 +1172,13 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
                 runner._on_loop(lambda: api._spawn(_described_then(api, team, pics, text, None)))
             if sub.get("task_id") and sub["created"]:
                 api.kick()
-            return dict(sub, ok=True)
+            out = dict(sub, ok=True)
+            if left_out:
+                # 2026-11-12: a file the team could not keep used to vanish without a word (a customer: "up hình tới
+                # một lúc nó không cho up nữa"). The page shows a note that is not a bare code.
+                vi, en = _left_out_note(team, left_out)
+                out["notes"] = list(out.get("notes") or []) + [localefmt.chu(vi, en)]
+            return out
         return await api.io(_do)
 
     @app.post("/teams/{team_id}/files")
