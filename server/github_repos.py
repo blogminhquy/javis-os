@@ -536,6 +536,31 @@ def git_out(args: List[str], cwd: str, **kw) -> str:
     return (git(args, cwd, **kw).stdout or "").strip()
 
 
+def identity() -> Dict[str, str]:
+    """Who Javis commits as: the connected GitHub account, with its noreply address."""
+    login = str(_read_conn().get("login") or "") or "javis"
+    uid = user_id()
+    email = f"{uid}+{login}@users.noreply.github.com" if uid else f"{login}@users.noreply.github.com"
+    return {"name": login, "email": email}
+
+
+def ensure_identity(cwd: str) -> None:
+    """Give the clone `cwd` belongs to a commit identity of its own, when it has none: the one Javis commits with.
+
+    Javis names itself through the environment of its own commits, so the clone never needed `user.name`. The chat's
+    engine runs git in the worktree too (`git merge` in a conflict fix round, `git stash`, a commit of its own), and
+    there git falls back on the machine: with no global identity, as in a container or on a fresh server, it stops
+    with "empty ident name" or "unable to auto-detect email address" before doing anything. A value the clone already
+    holds is kept. Best effort: a failure here must not stop the caller.
+    """
+    try:
+        for key, value in (("user.name", identity()["name"]), ("user.email", identity()["email"])):
+            if not git_out(["config", "--local", "--get", key], cwd, check=False):
+                git(["config", "--local", key, value], cwd, check=False)
+    except (RepoError, OSError):
+        pass
+
+
 def is_dirty(path: str) -> bool:
     try:
         return bool(git_out(["status", "--porcelain"], path))
@@ -797,6 +822,7 @@ def _worktree_dir(rec: Dict[str, Any], sid: str) -> Path:
 
 def ensure_worktree(sid: str, rec: Dict[str, Any]) -> Dict[str, str]:
     """This conversation's worktree of the repo, created on `javis/<session>` from origin's default branch."""
+    ensure_identity(rec["path"])       # the engine runs git in the worktree: merge and stash need a committer
     existing = coding_store.worktree_thu_muc(sid, rec["folder_id"])
     if existing and Path(existing).is_dir():
         return {"worktree": existing, "branch": coding_store.nhanh_hien_tai(existing)}
