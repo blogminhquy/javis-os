@@ -96,7 +96,7 @@ Gửi tay ở một cuộc chat đang **A.I. tự trả lời** là bạn **ti�
 
 ## Bảng Thông tin
 
-- **Khách**: tên, nick hay Page, số điện thoại hoặc email khách để lại, **thẻ** (thêm, bớt, tạo thẻ mới ngay tại chỗ) và **ghi chú** chỉ bạn thấy (lưu khi bạn bấm ra ngoài ô; ghi chú theo khách, sang cuộc chat khác của cùng khách vẫn thấy).
+- **Khách**: tên, nick hay Page, số điện thoại hoặc email khách để lại, **thẻ** (thêm, bớt, tạo thẻ mới ngay tại chỗ) và, ở chat riêng, **hồ sơ khách hàng** (từ 12/11/2026, trước đó là ô ghi chú): A.I. tự ghi những gì cần nhớ về khách sau mỗi lần chat và bot đọc nó khi trả lời, bạn vẫn sửa hay ghi thêm được (lưu khi bạn bấm ra ngoài ô; hồ sơ theo khách, sang cuộc chat khác của cùng khách vẫn thấy). Chi tiết ở [Chatbot](25-chatbot.md), mục "Bot có nhớ khách lâu dài không?". Nhóm thì vẫn là ô **ghi chú** chỉ bạn thấy.
 - **A.I. ở cuộc chat này**: Ai trả lời (tắt ở đây, hoặc một trong ba chế độ); với nhóm thì **A.I. lên tiếng khi** (được gọi tên, khi thấy cần, mọi tin); **Bạn nhắn tay thì A.I. nhường** bao lâu. Hai ô sau là cài đặt chung của cả bot, bảng nói rõ điều này. Có lối **Mở cài đặt bot**.
 - **Kênh**: logo, tên kênh và nick hay Page.
 

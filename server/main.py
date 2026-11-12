@@ -209,6 +209,7 @@ import channel_accounts  # tài khoản kênh dạng token (0.61.0), bot chỉ t
 import brain_ident       # one brain, many spellings ("brain", absolute path), #716
 import channels          # sổ đăng ký kênh của Hộp thư hội thoại (0.61.0)
 import conversations     # Hộp thư hội thoại khách: kho khách -> hội thoại -> tin (Chatbot V2)
+import customer_profile  # what a bot remembers about one customer, written by the background model (2026-11-12)
 import zalo_personal_channel   # Hộp thư hội thoại: đọc tin Zalo cá nhân từ MCP theo cursor
 import zalo_push               # javis-zalo wakes the read loop when a message arrives (no timer)
 import deploy_info              # Javis đang đứng ở đâu (docker/native) - xem _deploy_mode
@@ -14963,6 +14964,27 @@ async def _watch_summarize(prompt: str) -> str:
     return final
 
 
+async def _customer_profile_ask(prompt: str) -> str:
+    """One turn of the BACKGROUND model for a customer profile (`customer_profile.py`): text only, empty folder, no
+    MCP. The prompt holds a stranger's chat messages, so the engine is the judge's sandbox: whatever a message says,
+    the model has nothing to act with."""
+    if os.environ.get("JAVIS_NO_REAL_JUDGE_ENGINE") == "1":
+        raise RuntimeError("JAVIS_NO_REAL_JUDGE_ENGINE")
+    cli = _reply_policy_sandbox_engine(customer_profile.SYSTEM_PROMPT, "customer-profile",
+                                       cwd_name="customer_profile_cwd")
+    base = cli
+    cli = aux_engine.strip_tools(_aux_swap(cli, mode="suggest", tag="customer-profile"), base)
+    if not cli.is_available():
+        raise RuntimeError("background engine not ready")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "engine error")[:200])
+    return final
+
+
 watch_feature = web_watch.register(app, web_watch.WebWatchDeps(
     state_dir=lambda: cfgmod.STATE_DIR,
     brain_root=lambda b: str(Path(_brain_root(b)).resolve()),
@@ -16454,6 +16476,11 @@ async def _start_scheduler():
         chatbot_reply_policy.wire(ask=_reply_policy_ask)
         chatbot_reply_policy_review.wire(ask=_reply_policy_review_ask, notify=_reply_policy_notify,
                                          write_feedback=_reply_policy_write_feedback, get_bot=chatbot_store.get_bot)
+        # 2026-11-12: after a private chat goes quiet, the background model writes down what the bot should remember
+        # about that customer (the note of the Info panel), and the bot reads it on later turns.
+        customer_profile.wire(ask=_customer_profile_ask, get_bot=chatbot_store.get_bot,
+                              is_notice=chatbot_runtime.engine_notice)
+        customer_profile.start()
         kq = chatbot_runtime.sync_all()
         if kq.get("errors"):
             print(f"[chatbot] bật lỗi: {kq['errors']}", file=__import__('sys').stderr)

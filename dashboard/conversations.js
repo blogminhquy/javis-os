@@ -1396,7 +1396,7 @@
   function metaSig() {
     var c = _conv || {}, u = _msgs[_msgs.length - 1] || {};
     return JSON.stringify([c.id, c.mode, c.bot_id, c.bot_name, c.title, c.customer_name, c.channel, c.chat_type, c.account_name,
-      c.tags || [], c.contact || "", c.note || "", c.who, c.who_code, c.ai_allowed, c.ai_pending, c.draft || null, c.reply_when,
+      c.tags || [], c.contact || "", c.note || "", c.profile_at || 0, c.who, c.who_code, c.ai_allowed, c.ai_pending, c.draft || null, c.reply_when,
       c.yield_min, _silence, _running, u.sender_type]);
   }
 
@@ -1661,6 +1661,15 @@
         '<button type="button" class="s-btn ib-make-bot">' + ic("plus") + ' ' + esc(t("ib.make_bot")) + '</button></div>';
     }
     var mail = c.contact && String(c.contact).indexOf("@") > 0;
+    // A private chat: the note box IS the customer profile (owner, 2026-11-12: nobody types notes by hand). The background
+    // model rewrites it after the chat goes quiet and the bot reads it on later turns; the owner can still fix or empty
+    // it here. A group has no one customer, so it keeps the plain note.
+    var prof = c.chat_type !== "group", JI = window.JavisInfo;
+    var noteBox = '<textarea class="ib-notebox"' + (prof ? ' data-profile="1" rows="8"' : ' rows="3"') + ' maxlength="4000" placeholder="' +
+      esc(t(prof ? "ib.i_profile_ph" : "ib.i_note_ph")) + '" aria-label="' + esc(t(prof ? "ib.i_profile" : "ib.i_note")) + '"></textarea>';
+    var profSec = !prof ? "" : '<div class="ib-sec ib-prof"><h4>' + ic("brain") + ' <span>' + esc(t("ib.i_profile")) + '</span>' +
+      (JI ? JI.btn(t("info.more")) : "") + '</h4>' + (JI ? JI.body(esc(t("ib.i_profile_info"))) : "") + noteBox +
+      (c.profile_at ? '<p class="ib-hint ib-prof-at">' + esc(t("ib.i_profile_at", { time: gio(c.profile_at) })) + '</p>' : "") + '</div>';
     p.innerHTML =
       '<div class="ib-ih">' + ic("user-round") + ' <span>' + esc(t("ib.info")) + '</span>' +
         '<button type="button" class="s-btn-ghost ib-x" aria-label="' + esc(t("common.close")) + '">' + ic("x") + '</button></div>' +
@@ -1669,10 +1678,8 @@
         // A group has no one customer to call back: the contact line is for private chats (or a group that left one).
         (c.chat_type !== "group" || c.contact ? '<div class="ib-line">' + ic(mail ? "mail" : "phone") + (c.contact ? '<span>' + esc(c.contact) + '</span>'
           : '<span class="ib-muted">' + esc(t("ib.i_no_contact")) + '</span>') + '</div>' : "") +
-        '<div class="ht-tagrow"></div>' +
-        '<textarea class="ib-notebox" rows="3" maxlength="4000" placeholder="' + esc(t("ib.i_note_ph")) + '" aria-label="' +
-          esc(t("ib.i_note")) + '"></textarea></div>' +
-      ai +
+        '<div class="ht-tagrow"></div>' + (prof ? "" : noteBox) + '</div>' +
+      profSec + ai +
       '<div class="ib-sec"><h4>' + ic("plug") + ' ' + esc(t("ib.i_channel")) + '</h4><div class="ib-line">' + logoKenh(c.channel) + ' <span>' +
         esc(k.nhan) + (accLabel(c) ? ' · ' + esc(accLabel(c)) : "") + '</span></div></div>';
     veTagRow();
@@ -1703,7 +1710,7 @@
       if (_noteEdit && _noteEdit.id === id && _noteEdit.text === text) _noteEdit = null;
       if (_conv && _conv.id === id && d.conversation) _conv.note = d.conversation.note;
       _vetMeta = metaSig();
-      toast(window.t("ib.t_note"));
+      toast(window.t(_conv && _conv.id === id && _conv.chat_type !== "group" ? "ib.t_profile" : "ib.t_note"));
     } catch (e) { toast(window.t("ht.act_fail", { err: e.message })); }
   }
 
