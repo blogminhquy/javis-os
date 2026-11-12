@@ -31046,6 +31046,25 @@ def _team_learning():
     return _TEAM_LEARNING[0]
 
 
+def _team_doc_adder(store, sid, team_dir_rel):
+    """`add(rel, name)` for a team's documents that makes room when the list is full (team_docs.rows_to_drop): the
+    oldest picture or picture description of the team leaves the list, then the new document goes in. Returns None
+    only when nothing may leave (the list is full of documents the owner attached)."""
+    import team_docs
+
+    def add(rel, name):
+        fid = store.add_session_file(sid, rel, name)
+        if fid:
+            return fid
+        gone = team_docs.rows_to_drop(store.list_session_files(sid), team_dir_rel, 1)
+        if not gone:
+            return None
+        for rid in gone:
+            store.remove_session_file(sid, rid)
+        return store.add_session_file(sid, rel, name)
+    return add
+
+
 def _team_attach(team, attachments):
     """Files attached in a team chat (composer or the team info panel) become the team's documents (0.191.0)."""
     import doc_text
@@ -31067,10 +31086,11 @@ def _team_attach(team, attachments):
                 continue
         picked.append(a)
     attachments = picked
+    dest_dir = broot / "attachments" / "teams" / str(team.get("team_id") or "team")
     return team_docs.save(attachments, staging=STAGING, brain_root=broot,
-                          dest_dir=broot / "attachments" / "teams" / str(team.get("team_id") or "team"),
+                          dest_dir=dest_dir,
                           to_rel=lambda p: _files_rel(root, Path(p)),
-                          add=lambda rel, name: store.add_session_file(sid, rel, name),
+                          add=_team_doc_adder(store, sid, _files_rel(root, dest_dir)),
                           pin=lambda fid: store.set_session_file_pinned(sid, fid, True),
                           readable=PROJECT_GHIM_DUOI, extract=doc_text.extract, extract_suffixes=doc_text.SUFFIXES)
 
@@ -31097,11 +31117,12 @@ async def _team_describe(team, pics, caption):
     broot = Path(_brain_root(brain)).resolve()
     root = _files_root(brain)
     store = get_store()
+    dest_dir = broot / "attachments" / "teams" / str(team.get("team_id") or "team")
     await asyncio.to_thread(
         team_docs.save_description, [f.get("name") or "" for f in pics], mo_ta, who,
-        dest_dir=broot / "attachments" / "teams" / str(team.get("team_id") or "team"),
+        dest_dir=dest_dir,
         to_rel=lambda p: _files_rel(root, Path(p)),
-        add=lambda rel, name: store.add_session_file(sid, rel, name),
+        add=_team_doc_adder(store, sid, _files_rel(root, dest_dir)),
         pin=lambda fid: store.set_session_file_pinned(sid, fid, True))
 
 

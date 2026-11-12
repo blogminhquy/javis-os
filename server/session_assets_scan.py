@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -33,6 +34,12 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import channel_context
 
 MAX_SESSIONS = 24          # entries kept; the one used longest ago goes first
+# A full read of a long conversation is a second or more of pure Python on a worker thread. It holds the interpreter
+# between its own steps, so every other request waited for it (measured on 3,000 messages: the first page of messages
+# took up to 640 ms instead of 8 ms while the read ran). Every YIELD_EVERY messages the read sleeps YIELD_S, which
+# hands the interpreter to whoever is waiting.
+YIELD_EVERY = 25
+YIELD_S = 0.003
 
 _LOCK = threading.Lock()   # one scan at a time: three opens of a long team used to run three full scans side by side
 _CACHE: "OrderedDict[Tuple[str, str], _Entry]" = OrderedDict()
@@ -64,7 +71,9 @@ def _absorb(ent: _Entry, rows, broot: Path, in_brain: Callable[[Path, Path], Opt
                 seen[k] = in_brain(broot, Path(raw))
         return seen[k]
 
-    for r in rows:
+    for n, r in enumerate(rows):
+        if n and n % YIELD_EVERY == 0:
+            time.sleep(YIELD_S)
         text = r[2] or ""
         if not text:
             continue
