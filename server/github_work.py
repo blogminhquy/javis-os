@@ -223,7 +223,7 @@ def commit_all(worktree: str, message: str) -> str:
     import winproc
     github_repos.git(["add", "-A"], worktree)
     if github_repos.git_out(["diff", "--cached", "--name-only"], worktree):
-        env = dict(github_repos.git_env(""), **_identity_env())
+        env = dict(github_repos.git_env(), **_identity_env())
         p = subprocess.run(["git", "commit", "-q", "-F", "-"], cwd=worktree, input=message, text=True,
                            capture_output=True, env=env, encoding="utf-8", errors="replace",
                            creationflags=winproc.no_window())
