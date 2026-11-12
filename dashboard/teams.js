@@ -3061,7 +3061,7 @@
     S.side = sideByDefault();
     if (S.side) S.tab = "info";
     S.picker = null; S.draft = null; S.picked = []; S.retrying = {};
-    S.replyTo = null; S.plusOpen = false; S.renamingHead = false; forgetAtts(S.atts); S.atts = []; S.folder = null; S.repos = []; S.ghIcon = null; S.info = null;
+    S.replyTo = null; S.plusOpen = false; S.renamingHead = false; forgetAtts(S.atts); S.atts = []; S.folder = null; S.repos = []; S.ghIcon = null; S.info = null; S.infoFind = null;
     S.typing = []; S.pinned = []; S.pinsOpen = false; S.unclamped = {}; S.listCache = null; S.outbox = []; stopReveal();
     closeFolderPanel();
     closeGithubPanel();
@@ -3479,6 +3479,57 @@
       }).catch(function () { S.info = { files: [], links: [], err: tw("teams.err_network") }; if (S.side && S.tab === "info") drawSide(true); });
   }
 
+  // 2026-11-12: a file already in the brain joins the team without being uploaded again. S.infoFind keeps what was
+  // typed and found, so a redraw of the panel (a new message, the list reloading) puts both back.
+  var infoFindTimer = null;
+  function infoFindRows() {
+    var F = S.infoFind;
+    if (!F || !String(F.q || "").trim()) return "";
+    if (F.state === "searching") return '<p class="tm-sub" role="status">' + esc(tw("teams.pick.doc_searching")) + "</p>";
+    if (!(F.items || []).length) return '<p class="tm-sub">' + esc(tw("teams.pick.doc_none")) + "</p>";
+    var have = {};
+    ((S.info && S.info.files) || []).forEach(function (f) { have[f.path] = true; });
+    return '<ul class="tm-info-list tm-info-found">' + F.items.map(function (it, i) {
+      var on = !!have[it.path] || !!(F.added || {})[it.path];
+      return "<li><span>" + ic("file-text") + '<span title="' + esc(it.path) + '">' + esc(it.name) + "</span></span>" +
+        '<button type="button" class="ws-btn" data-info-pick="' + i + '"' + (on ? " disabled" : "") + ">" +
+        esc(tw(on ? "teams.pick.doc_added" : "teams.pick.doc_add")) + "</button></li>";
+    }).join("") + "</ul>";
+  }
+  function drawInfoFind() {
+    var box = S.el && S.el.querySelector(".tm-info-fresults");
+    if (box) box.innerHTML = infoFindRows();
+  }
+  function infoFind(text) {
+    var F = S.infoFind = S.infoFind || { q: "", items: [], state: "idle", seq: 0, added: {} };
+    F.q = text;
+    clearTimeout(infoFindTimer);
+    var words = String(text || "").trim(), seq = ++F.seq;
+    if (!words) { F.items = []; F.state = "idle"; drawInfoFind(); return; }
+    F.state = "searching";
+    drawInfoFind();
+    infoFindTimer = setTimeout(function () {
+      call("GET", "/files/search?mode=name&limit=20&q=" + q(words)).then(function (r) {
+        return r.code === 200 ? (r.j.items || []) : [];
+      }, function () { return []; }).then(function (items) {
+        if (S.infoFind !== F || F.seq !== seq) return;
+        F.items = items.map(function (it) { return { path: it.path, name: it.name }; });
+        F.state = "done";
+        drawInfoFind();
+      });
+    }, 280);
+  }
+  function infoPick(i) {
+    var F = S.infoFind, it = F && (F.items || [])[i];
+    if (!it || !S.team) return;
+    F.added[it.path] = true;
+    drawInfoFind();
+    call("POST", teamUrl("/files"), { attachments: [{ brain_path: it.path, name: it.name }] }).then(function (r) {
+      if (r.code !== 200) { delete F.added[it.path]; setNote((r.j && r.j.error) || tw("teams.attach_err")); drawInfoFind(); }
+      loadInfo();
+    }, function () { delete F.added[it.path]; setNote(tw("teams.err_network")); drawInfoFind(); });
+  }
+
   function assetPost(path, form) {
     var sid = sessionId();
     if (!sid) return Promise.resolve();
@@ -3556,6 +3607,9 @@
     h += '<section class="tm-info-sec"><div class="tm-info-sechead"><h4>' + esc(tw("teams.info_files", { n: docs.length })) + infoBtn() + "</h4>" +
       '<button type="button" class="ws-btn" data-info-add-file="1">' + ic("plus") + " " + esc(tw("teams.info_add_file")) + "</button></div>" +
       infoBody(esc(tw("teams.info_files_help"))) +
+      '<div class="tm-info-addlink"><input type="search" class="tm-info-fsearch" value="' + esc((S.infoFind && S.infoFind.q) || "") +
+      '" placeholder="' + esc(tw("teams.pick.doc_search_ph")) + '" aria-label="' + esc(tw("teams.pick.doc_search_ph")) + '"></div>' +
+      '<div class="tm-info-fresults">' + infoFindRows() + "</div>" +
       (docs.length ? '<ul class="tm-info-list">' + docs.map(function (f) {
         return '<li><a href="' + esc(rawUrl(f.brain_path || f.path)) + '" target="_blank" rel="noopener">' + ic("file-text") + "<span>" +
           esc(f.label || f.name) + "</span></a>" + (f.manual && f.id ? '<button type="button" class="tm-chip-x" data-info-del-file="' + esc(f.id) +
@@ -4038,6 +4092,8 @@
     // `reqId`: một mã cho mỗi lần mở hộp Tạo nhóm. Bấm Tạo hai lần hay mạng chậm gửi lại thì server trả lại nhóm đã tạo.
     S.pickSt = { mode: mode, query: "", tag: "", selected: [], leader: "", leaderTouched: false, leaderDropped: false, name: "",
       desc: "", descOpen: false, exclude: exclude, saving: false, error: "", rosterState: (S.roster || []).length ? "ok" : "loading",
+      // 2026-11-12: documents picked in the create box (team-picker.js: docs, links and the brain file search).
+      docs: [], links: [], docQuery: "", docResults: [], docState: "idle", docsOpen: false, linkDraft: "", linkBad: false,
       reqId: newClientId() };
     S.pickOpener = opener || null;
     document.removeEventListener("keydown", pickEsc, true);
@@ -4117,21 +4173,106 @@
     drawPicker("all");
   }
 
+  // ───────────── documents in the create box (2026-11-12, owner: "thêm file và thêm link tài liệu khi tạo team") ─────────────
+  // Nothing is attached while the box is open: picks live in S.pickSt and go out with POST /teams. Only the parts that
+  // changed are redrawn, so the search box and the link box keep their cursor.
+  function drawPickDocs(whole) {
+    var P = TP(), st = S.pickSt, host = S.pickHost;
+    if (!P || !st || !host) return;
+    var put = function (sel, h) { var box = host.querySelector(sel); if (box) box.innerHTML = h; };
+    if (whole) put(".tmp-docs-box", P.docsHtml(st));
+    else {
+      put(".tmp-docs-chips", P.docChipsHtml(st));
+      put(".tmp-doc-results", P.docResultsHtml(st));
+      put(".tmp-docs-sum", P.docsSummaryHtml(st));
+    }
+    put(".tmp-foot-box", P.footerHtml(st));
+  }
+
+  var pickDocTimer = null;
+  function pickDocSearch(text) {
+    var st = S.pickSt;
+    if (!st) return;
+    st.docQuery = text;
+    clearTimeout(pickDocTimer);
+    var words = String(text || "").trim();
+    var seq = st.docSeq = (st.docSeq || 0) + 1;
+    if (!words) { st.docResults = []; st.docState = "idle"; drawPickDocs(); return; }
+    st.docState = "searching";
+    drawPickDocs();
+    pickDocTimer = setTimeout(function () {
+      call("GET", "/files/search?mode=name&limit=20&q=" + q(words)).then(function (r) {
+        return r.code === 200 ? (r.j.items || []) : [];
+      }, function () { return []; }).then(function (items) {
+        if (!S.pickSt || S.pickSt.docSeq !== seq) return;      // an older search, or the box is gone
+        S.pickSt.docResults = items.map(function (it) { return { path: it.path, name: it.name }; });
+        S.pickSt.docState = "done";
+        drawPickDocs();
+      });
+    }, 280);
+  }
+
+  function pickAddDoc(i) {
+    var P = TP(), st = S.pickSt;
+    var r = st && (st.docResults || [])[i];
+    if (!P || !r) return;
+    S.pickSt = P.addDoc(st, { name: r.name, brain_path: r.path });
+    drawPickDocs();
+  }
+
+  function pickUploadDocs(files) {
+    var P = TP();
+    if (!P || !S.pickSt || !files.length) return;
+    files.slice(0, P.DOCS_MAX).forEach(function (f) {
+      if (!S.pickSt || (S.pickSt.docs || []).length >= P.DOCS_MAX) return;
+      var doc = { name: f.name, path: "", uid: newClientId(), busy: true, err: "" };
+      S.pickSt = P.addDoc(S.pickSt, doc);
+      upload(f).then(function (r) { return r.code === 200 && r.j.staged ? r.j.staged : ""; }, function () { return ""; })
+        .then(function (staged) {
+          // The box may be closed, or this file taken off, while it uploaded.
+          if (!S.pickSt || (S.pickSt.docs || []).indexOf(doc) < 0) return;
+          doc.busy = false; doc.path = staged; doc.err = staged ? "" : "1";
+          drawPickDocs();
+        });
+    });
+    S.pickSt.docsOpen = true;
+    drawPickDocs();
+  }
+
+  function pickAddLink() {
+    var P = TP(), host = S.pickHost;
+    if (!P || !S.pickSt) return;
+    var inp = host && host.querySelector(".tmp-link-input");
+    var got = P.addLink(S.pickSt, inp ? inp.value : S.pickSt.linkDraft);
+    S.pickSt = got.st;
+    if (!got.ok) S.pickSt.linkDraft = inp ? inp.value : S.pickSt.linkDraft;
+    drawPickDocs(true);
+    var back = host && host.querySelector(".tmp-link-input");
+    if (back) { try { back.focus({ preventScroll: true }); } catch (e) {} }
+  }
+
   function submitPicker() {
     var P = TP(), st = S.pickSt;
     if (!P || !st || !P.canSubmit(st)) return;
+    if (st.mode === "create" && (st.docs || []).some(function (d) { return d.err; })) return pickFail(tw("teams.pick.doc_fix"));
     st.saving = true; st.error = "";
     drawPicker("pick");
     if (st.mode === "create") {
       var name = String(st.name || "").trim() || P.autoName(st, S.roster || []);
+      var docs = P.docPayload(st);
       call("POST", "/teams", { name: name, description: st.desc || "", members: st.selected.slice(), leader_slug: st.leader || "",
-        client_req_id: st.reqId })
+        client_req_id: st.reqId, attachments: docs.attachments, links: docs.links })
         .then(function (r) {
           if (r.code !== 200) return pickFail((r.j && r.j.error) || tw("teams.err", { e: r.code }));
           // Tạo xong: vào thẳng khung chat của nhóm mới, con trỏ đặt sẵn ở khung soạn.
           closePicker();
+          // The team exists either way; a document the server could not take is said once, with where to add it.
+          var missed = (r.j.documents && r.j.documents.failed) || 0;
           S.focusComposer = true;
-          loadTeams(false).then(function () { openTeam(r.j.team.team_id); });
+          loadTeams(false).then(function () {
+            openTeam(r.j.team.team_id);
+            if (missed) setNote(tw("teams.pick.docs_partial", { n: missed }));
+          });
         }, function () { pickFail(tw("teams.pick.err_network")); });
       return;
     }
@@ -4256,6 +4397,7 @@
       return;
     }
     if (d.infoAddFile) return pickFiles(addTeamFiles);
+    if (d.infoPick !== undefined) return infoPick(Number(d.infoPick));
     if (d.infoDelFile) return assetPost("/files/" + q(d.infoDelFile) + "/delete");
     if (d.infoDelLink) return assetPost("/links/" + q(d.infoDelLink) + "/delete");
     if (d.infoAddLink) return addTeamLink();
@@ -4320,6 +4462,12 @@
     if (d.pickLeader) { S.pickSt = TP().setLeader(S.pickSt, d.pickLeader); drawPicker("pick"); return; }
     if (t.classList.contains("tmp-reload")) { loadRoster().then(function () { if (S.pickSt) drawPicker("all"); }); drawPicker("filter"); return; }
     if (t.classList.contains("tmp-desc-sum")) { var dd = t.parentNode; if (S.pickSt) S.pickSt.descOpen = !(dd && dd.open); return; }
+    if (t.classList.contains("tmp-docs-sum")) { var dz = t.parentNode; if (S.pickSt) S.pickSt.docsOpen = !(dz && dz.open); return; }
+    if (t.classList.contains("tmp-doc-upload")) return pickFiles(pickUploadDocs);
+    if (t.classList.contains("tmp-link-add")) return pickAddLink();
+    if (d.docAdd !== undefined) return pickAddDoc(Number(d.docAdd));
+    if (d.docDel !== undefined) { if (S.pickSt) { S.pickSt = TP().removeDoc(S.pickSt, d.docDel); drawPickDocs(); } return; }
+    if (d.linkDel !== undefined) { if (S.pickSt) { S.pickSt = TP().removeLink(S.pickSt, d.linkDel); drawPickDocs(); } return; }
     if (t.classList.contains("tmp-cancel")) return closePicker();
     if (t.classList.contains("tmp-submit")) return submitPicker();
     if (t.classList.contains("tm-more-teams")) return loadTeams(true);
@@ -4802,6 +4950,9 @@
     if (e.key === "Escape" && S.pickSt) { closePicker(); return; }
     if (e.target.classList && e.target.classList.contains("tm-input") && sugKey(e)) return;
     if (e.target.classList && e.target.classList.contains("tm-input") && teamSuggest && teamSuggest.onKeydown(e)) return;
+    // Enter in the link box adds the link; in the file search it does nothing (it must never press Create).
+    if (e.target.classList && e.target.classList.contains("tmp-link-input") && e.key === "Enter") { e.preventDefault(); pickAddLink(); return; }
+    if (e.target.classList && e.target.classList.contains("tmp-doc-search") && e.key === "Enter") { e.preventDefault(); return; }
     if (e.target.classList && e.target.classList.contains("tmp-name-input") && e.key === "Enter") {
       e.preventDefault();
       var srch = S.pickHost && S.pickHost.querySelector(".tmp-search-input");
@@ -4847,6 +4998,9 @@
     }
     if (S.pickSt && e.target.classList.contains("tmp-name-input")) { S.pickSt.name = e.target.value; return; }
     if (S.pickSt && e.target.classList.contains("tmp-desc-input")) { S.pickSt.desc = e.target.value; return; }
+    if (S.pickSt && e.target.classList.contains("tmp-doc-search")) { pickDocSearch(e.target.value); return; }
+    if (S.pickSt && e.target.classList.contains("tmp-link-input")) { S.pickSt.linkDraft = e.target.value; return; }
+    if (e.target.classList.contains("tm-info-fsearch")) { infoFind(e.target.value); return; }
     if (e.target.classList.contains("tm-input")) {
       S.pending = S.pending && (S.pending.typed || S.pending.text) === e.target.value.trim() ? S.pending : null;
       grow(e.target);

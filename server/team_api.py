@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import sys
 import threading
 import time
@@ -37,6 +38,7 @@ REMIND_EVERY_S = 3600.0     # nhịp nhắc việc bị chặn quá 24 giờ
 RECONCILE_EVERY_S = 60.0    # nhịp đối soát sổ lượt chung với team_turns (T2, thiết kế 9.1)
 FINISHED_SHOWN = 30          # việc đã xong hiện ở tab Việc của nhóm (0.193.0)
 PINNED_SHOWN = 20            # tin đã ghim hiện ở dải trên khung chat (0.192.0), như Sổ quyết định của lượt
+CREATE_DOCS_MAX = 10         # files, and links, a team may be given in its create box (team_docs.MAX_PER_SEND)
 
 
 # Performance (2026-11-05): the usage block of GET /teams/{id} reads the usage index, its events log and two more
@@ -738,8 +740,35 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             out = {"ok": True, "team": api.view(got["team"])}
             if got["duplicate"]:
                 out["duplicate"] = True
+            elif body.get("attachments") or body.get("links"):
+                # 2026-11-12 (owner): documents and links picked in the create box. A resend of the same request finds
+                # the team already made (duplicate) and adds nothing twice. A document that cannot be added never
+                # undoes the team: the answer says how many were asked and how many went in.
+                out["documents"] = _add_documents(got["team"], body.get("attachments"), body.get("links"))
             return out
         return await api.io(_do)
+
+    def _add_files(team: dict, attachments: Any) -> list:
+        """Files (uploaded, or already in the brain) become documents of the team; pictures get described."""
+        if api.deps.attach is None:
+            return []
+        files = api.deps.attach(team, [a for a in list(attachments or []) if isinstance(a, dict)])
+        pics = [f for f in files if f.get("image")] if api.deps.describe is not None else []
+        if pics:
+            api.runner()._on_loop(lambda: api._spawn(_described_then(api, team, pics, "", None)))
+        return files
+
+    def _add_documents(team: dict, attachments: Any, links: Any) -> dict:
+        asked_files = [a for a in list(attachments or []) if isinstance(a, dict)][:CREATE_DOCS_MAX]
+        asked_links = [str(u or "").strip() for u in list(links or []) if str(u or "").strip()][:CREATE_DOCS_MAX]
+        files = _add_files(team, asked_files) if asked_files else []
+        added_links, sid = 0, team.get("session_id") or ""
+        for u in dict.fromkeys(asked_links):
+            # http and https only, the rule of POST /sessions/{id}/assets/links: nothing else may become a link to click.
+            if sid and re.match(r"^https?://", u, re.I) and deps.session_store().add_session_link(sid, u, ""):
+                added_links += 1
+        return {"files": files, "links": added_links,
+                "failed": (len(asked_files) - len(files)) + (len(dict.fromkeys(asked_links)) - added_links)}
 
     @app.get("/teams/{team_id}")
     async def teams_get(team_id: str, brain: str = "brain"):
@@ -1137,12 +1166,9 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
                 return err
             if api.deps.attach is None:
                 return _err(501, "Máy chủ chưa hỗ trợ tài liệu nhóm", "Team documents are not supported here")
-            files = api.deps.attach(team, list(body.get("attachments") or []))
+            files = _add_files(team, body.get("attachments"))
             if not files:
                 return _err(400, "Không thêm được file nào", "No file could be added")
-            pics = [f for f in files if f.get("image")] if api.deps.describe is not None else []
-            if pics:
-                api.runner()._on_loop(lambda: api._spawn(_described_then(api, team, pics, "", None)))
             return {"ok": True, "files": files, "session_id": team["session_id"]}
         return await api.io(_do)
 
