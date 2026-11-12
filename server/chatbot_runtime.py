@@ -765,6 +765,53 @@ def ngu_canh_nhom(meta: dict, kenh: str, tai_khoan: str) -> str:
 
 
 # ============================================================
+# Private chat history read back from the inbox
+# ============================================================
+_HISTORY_ROLES = {"customer": "user", "ai": "assistant", "human": "assistant"}
+
+
+def private_history(cfg: dict, meta: dict, limit: int) -> list:
+    """Up to `limit` earlier messages of this PRIVATE chat as engine history (`role`/`content`), oldest first, or [].
+
+    The bot keeps the history of a private chat in RAM only, so every server restart (each update is one) emptied
+    it and a returning customer was met as a stranger. The inbox keeps the whole private chat, including what the
+    owner answered by hand, so the first turn after a restart reads the history back from there.
+
+    Groups return []: `ngu_canh_nhom` already hands them the messages before the question on every turn. The message
+    being answered is left out (the turn wrote it to the inbox before the engine ran). Customer messages become
+    `user`; the bot's and the owner's become `assistant`, which is who the customer heard them from. Neighbours of
+    one role are joined and the list starts with a `user` message, as some providers require. Never raises."""
+    m = meta or {}
+    try:
+        n = int(limit or 0)
+        if n <= 0 or _rp_is_group(m) or not m.get("chat_id"):
+            return []
+        aid, kenh = _tai_khoan_cua(cfg or {}, m)
+        msgs = conversations.tin_gan_day(kenh, aid, str(m["chat_id"]), n + 1)
+        mid = str(m.get("message_id") or "")
+        if mid:
+            msgs = [x for x in msgs if str(x.get("external_message_id") or "") != mid]
+        elif msgs and msgs[-1].get("sender_type") == "customer":
+            msgs = msgs[:-1]       # id unknown: the last customer message is the one this turn just recorded
+        out = []
+        for x in msgs[-n:]:
+            role = _HISTORY_ROLES.get(str(x.get("sender_type") or ""))
+            text = chatbot_reply_policy.strip_hidden(x.get("text")).strip()
+            if not role or not text:
+                continue
+            if out and out[-1]["role"] == role:
+                out[-1]["content"] += "\n" + text
+            else:
+                out.append({"role": role, "content": text})
+        while out and out[0]["role"] != "user":
+            out.pop(0)
+        return out
+    except Exception as e:      # noqa: BLE001 - no history is better than no answer
+        print(f"[chatbot private history] {type(e).__name__}: {e}", file=sys.stderr)
+        return []
+
+
+# ============================================================
 # Plugin context of a turn (hook `chatbot_turn_context`)
 # ============================================================
 # Operator-provided context, not something the person typed: a plugin on the owner's server computed it from

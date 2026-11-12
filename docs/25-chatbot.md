@@ -704,7 +704,7 @@ Vì sao theo Agent chứ không theo model chính: bot vốn đã mượn nguyê
 
 **Bot nói "chưa có thông tin" mà tài liệu rõ ràng có nói?** Thường là do file dài không chia tiêu đề, hoặc tài liệu dùng từ khác hẳn từ người ta hỏi (tài liệu ghi "hoàn trả", người hỏi gõ "đổi trả"). Thêm tiêu đề cho file, hoặc viết thêm cách gọi mà người ta hay dùng vào chính đoạn đó.
 
-**Bot có nhớ người đã nhắn không?** Có, mỗi người một mạch hội thoại riêng trong brain của bot.
+**Bot có nhớ người đã nhắn không?** Có, mỗi người một mạch hội thoại riêng trong brain của bot. Ở chat riêng bot xem lại tối đa 100 tin gần nhất của cuộc chat (tính cả tin khách lẫn tin bot; trước 12/11/2026 là 20 tin). Javis khởi động lại hay cập nhật thì bot đọc lại các tin đó từ Hộp thư, gồm cả câu bạn tự trả lời tay, nên khách quay lại không phải kể lại từ đầu. Cuộc chat có tin rất dài thì bot bớt từ tin cũ nhất để vừa sức model. Trong nhóm bot xem 30 tin ngay trước tin đang hỏi, như mô tả ở trên. Bot mức Toàn quyền chạy như kênh admin nên giữ mạch theo cách của kênh admin (phần cũ được tóm tắt lại).
 
 **Tôi thả bot vào nhóm, tag tên nó mà nó không trả lời, nhưng nhắn riêng thì được?** Gõ **`/id`** trong chính nhóm đó - bot sẽ trả lời và nói luôn nguyên nhân. Ba nguyên nhân cho ra đúng một triệu chứng này: nhóm chưa được bật (bấm **Cho phép nhóm này** trên thẻ bot), chế độ riêng tư của Telegram còn bật (xem mục [Chế độ riêng tư](#chế-độ-riêng-tư-của-telegram-đọc-mục-này-nếu-bot-im-trong-nhóm)), hoặc bot chưa hỏi được danh tính của chính nó (tắt bật lại bot). Nếu ngay cả `/id` cũng không có phản hồi thì bot đang không chạy - xem chấm trạng thái trên thẻ.
 

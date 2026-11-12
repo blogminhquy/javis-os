@@ -24900,9 +24900,10 @@ def _tg_conv_sid(store, sess, brain, engine_label, model, channel="telegram"):
     return sess["sid"]
 
 
-# Số TIN (không phải lượt) mồi lại tối đa khi dựng lịch sử từ transcript. Bằng
-# BOT_LICH_SU_MAX bên dưới cho dễ nhớ: ~10 lượt hỏi-đáp, đủ để "cái đó", "như lần trước" còn
-# nghĩa, mà không thổi phồng lượt đầu sau mỗi lần restart.
+# Số TIN (không phải lượt) mồi lại tối đa khi dựng lịch sử từ transcript: ~10 lượt hỏi-đáp, đủ
+# để "cái đó", "như lần trước" còn nghĩa, mà không thổi phồng lượt đầu sau mỗi lần restart. Phần
+# cũ hơn đi theo bản tóm tắt nén của phiên. (Bot chuyên trách không có bản tóm tắt nên có trần
+# riêng, rộng hơn: BOT_HISTORY_MAX_MESSAGES bên dưới.)
 _TG_MOI_LAI_MAX = 20
 
 
@@ -25220,6 +25221,11 @@ def _manual_session_undo(key: str, keep: int) -> None:
     lich = s.get("bot")
     if isinstance(lich, list) and len(lich) > keep:
         del lich[keep:]
+    if not keep:
+        # Nothing was in RAM before the draft, so the draft turn itself read the history back from the inbox
+        # (`chatbot_runtime.private_history`). Back to "not loaded": the next real turn reads it again, instead of
+        # starting from the empty list this cut would leave.
+        s["bot"] = None
     _tg_ngat_mach(s)
 
 
@@ -25244,10 +25250,17 @@ def _tg_ket(clean_out, files, canh_bao="", loi=(), khach=False):
     return {"text": txt, "files": files or []}
 
 
-# Số lượt hội thoại (user+assistant) giữ lại cho một người nói chuyện với bot. Cắt cứng thay
-# vì nén như đường chat của chủ: nén là thêm một lượt gọi model nữa, mà bot trả lời người lạ
-# thì cần nhanh và rẻ hơn là cần nhớ dai.
-BOT_LICH_SU_MAX = 20
+# How many MESSAGES (customer and bot counted separately) a bot keeps of its chat with one person. A hard cut, not
+# a summary as on the owner's chat: a summary is one more model call, and a bot answering strangers has to stay
+# fast and cheap.
+#
+# 20 until 2026-11-12. The owner then found the bot answering customers on too little: ten exchanges are gone
+# within one sales conversation, and the bot asks again for what the customer already said. 100 covers a whole
+# conversation. A chat message is short, so this stays a few thousand tokens; BOT_HISTORY_MAX_CHARS is the ceiling
+# for the chat that is not short (pasted documents, 8,000-character messages), where 100 messages would no longer
+# fit a model's context and every turn would fail.
+BOT_HISTORY_MAX_MESSAGES = 100
+BOT_HISTORY_MAX_CHARS = 60_000
 
 # Danh sách tool cho phép của bot khi phải chạy qua CLI: một chuỗi KHÔNG khớp tool nào.
 #
@@ -25265,15 +25278,22 @@ BOT_KHONG_TOOL = ["__javis_bot_khong_tool__"]
 # ghim đường đo, đọc stream, tính usage, cắt lịch sử) phải giống hệt nhau, nên chúng nằm ở đây
 # chứ không chép hai bản. Chép hai bản là cách chắc chắn để một hôm nào đó `usage_store.record`
 # có ở đường này mà thiếu ở đường kia - hoá đơn thiếu, và không ai nhìn ra được từ bên ngoài.
-def _bot_lich_su(sess):
+def _bot_history(sess):
     if sess.get("bot") is None:
         sess["bot"] = []
     return sess["bot"]
 
 
-def _bot_cat_lich_su(lich_su):
-    if len(lich_su) > BOT_LICH_SU_MAX:
-        del lich_su[:len(lich_su) - BOT_LICH_SU_MAX]
+def _trim_bot_history(history):
+    """Cut `history` in place to both ceilings, oldest first. The newest message always stays, and the list never
+    opens with an assistant message (some providers refuse a conversation that does)."""
+    if len(history) > BOT_HISTORY_MAX_MESSAGES:
+        del history[:len(history) - BOT_HISTORY_MAX_MESSAGES]
+    total = sum(len(str(m.get("content") or "")) for m in history)
+    while len(history) > 1 and total > BOT_HISTORY_MAX_CHARS:
+        total -= len(str(history.pop(0).get("content") or ""))
+    while len(history) > 1 and history[0].get("role") == "assistant":
+        history.pop(0)
 
 
 def _bot_ghim_duong(runtime_trace, prov, api_model, messages, tools=()):
@@ -25325,7 +25345,7 @@ async def _bot_doc_stream(stream, *, progress, runtime_trace, prov, api_model):
 def _bot_ket(out, lich_su):
     """Đóng gói câu trả lời của một lượt bot đã chạy được."""
     lich_su.append({"role": "assistant", "content": out})
-    _bot_cat_lich_su(lich_su)   # cắt SAU khi thêm, không thì trần bị vượt đúng một lượt mỗi vòng
+    _trim_bot_history(lich_su)   # cắt SAU khi thêm, không thì trần bị vượt đúng một lượt mỗi vòng
     return {"text": channel_context.strip_control_blocks(out), "files": []}
 
 
@@ -25478,9 +25498,9 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
     `_bot_tra_loi_co_tool`. Hai đường tách hẳn nhau CÓ CHỦ Ý: đường này phải soi được bằng mắt
     là không có tool nào, và một test canh đúng thân hàm này (test_chatbot_cach_ly.py mục B2).
     """
-    lich_su = _bot_lich_su(sess)
+    lich_su = _bot_history(sess)
     lich_su.append({"role": "user", "content": _bot_lich_su_chu(text, images)})
-    _bot_cat_lich_su(lich_su)
+    _trim_bot_history(lich_su)
 
     # System dựng LẠI mỗi lượt: tài liệu tra được đổi theo từng câu hỏi. Giữ system cũ là bot
     # trả lời câu này bằng tài liệu của câu trước.
@@ -25643,9 +25663,9 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     rò tài liệu: hỏi một câu vu vơ đúng lúc có file khác vừa sinh ra là nhận được nó. Bot muốn
     đưa file cho khách thì nói đường dẫn trong câu trả lời.
     """
-    lich_su = _bot_lich_su(sess)
+    lich_su = _bot_history(sess)
     lich_su.append({"role": "user", "content": _bot_lich_su_chu(text, images)})
-    _bot_cat_lich_su(lich_su)
+    _trim_bot_history(lich_su)
     messages = [{"role": "system", "content": sysprompt}] + lich_su
     gui, co_anh = _bot_gan_anh(messages, prov, text, images)
     canh_bao_anh = ""
@@ -25837,6 +25857,11 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # gốc, MCP hub, kết nối của tài khoản Claude/ChatGPT, kỹ năng), chỉ khác hai chỗ: prompt mang
         # VAI của Agent, và brain là brain của bot. Đường tắt, nguồn chọn lọc và gateway huỷ lịch của
         # chủ bị bỏ qua vì chúng thay prompt bằng giọng Javis.
+        if _muc != "full" and sess.get("bot") is None:
+            # First turn of this chat since the server started: the history lived in RAM only, so read a private
+            # chat back from the inbox instead of meeting a returning customer as a stranger. Full-access bots
+            # take the owner's engine branches below, which rebuild their own history from the session store.
+            sess["bot"] = chatbot_runtime.private_history(bot, meta, BOT_HISTORY_MAX_MESSAGES)
         if _muc == "full":
             _bot_full = True
             _sys_bot_full = _sys_bot
