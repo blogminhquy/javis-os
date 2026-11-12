@@ -135,14 +135,25 @@ wt2, row2 = setup("c2", "acme/offline")
 move_base("acme/offline")
 clone2 = github_repos.session_repos("c2", BRAIN)[0]["clone"]
 real_url = git(["remote", "get-url", "origin"], clone2).stdout.strip()
-git(["remote", "set-url", "origin", "http://127.0.0.1:9/acme__offline.git"], clone2)
+# The outage is on the MACHINE's side: its own git config (here the process environment, which git reads as config)
+# sends GitHub's host to a dead port. Rewriting `origin` inside the clone would test something else: Javis refuses
+# to use the token in a clone whose origin was changed (test_github_token_isolation).
+slot = int(os.environ.get("GIT_CONFIG_COUNT") or 0)
+outage = {"GIT_CONFIG_COUNT": str(slot + 1), f"GIT_CONFIG_KEY_{slot}": "url.http://127.0.0.1:9/.insteadOf",
+          f"GIT_CONFIG_VALUE_{slot}": real_url.rsplit("/", 1)[0] + "/"}
+before_outage = {k: os.environ.get(k) for k in outage}
+os.environ.update(outage)
 n = len(turns)
 conflict_tick("acme/offline", row2)
 r2 = S().get("c2", "acme/offline")
 check("no fix round is spent while the base cannot be downloaded", len(turns) == n)
 check("the job stays on the watcher's list", any(a["sid"] == "c2" for a in S().active()))
 check("the card says why", "git fetch" in (r2.get("stuck_reason") or ""))
-git(["remote", "set-url", "origin", real_url], clone2)
+for k, v in before_outage.items():
+    if v is None:
+        os.environ.pop(k, None)
+    else:
+        os.environ[k] = v
 run(w.tick())
 check("the fix round starts once GitHub answers again", len(turns) == n + 1 and "git merge origin/main" in turns[-1][1]
       and S().get("c2", "acme/offline")["integ"] == "conflict")
