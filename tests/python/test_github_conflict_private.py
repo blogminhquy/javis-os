@@ -86,6 +86,11 @@ def move_base(repo):
     fake.push_to_default(repo, "docs/guide.md", "guide v2\n")
 
 
+def engine_git(args, cwd):
+    """git as the engine's shell runs it: no token. The identity is spelled out, a CI runner has none of its own."""
+    return git(["-c", "user.name=Engine", "-c", "user.email=engine@test"] + args, cwd, check=False)
+
+
 def conflict_tick(repo, row):
     fake.pulls[repo][0]["mergeable"] = False
     fake.set_checks(row["head_sha"], [("test", "completed", "success")])
@@ -104,7 +109,7 @@ check("the fix round does not ask the engine to fetch (its shell has no token)",
 
 # ---- 2. what the engine's shell can do: `git` here carries no token ----
 requests_before = len(fake.git_requests)
-merge = git(["merge", "origin/main"], wt, check=False)
+merge = engine_git(["merge", "origin/main"], wt)
 said = merge.stdout + merge.stderr
 check(f"the merge needs nothing from GitHub: {said.strip().splitlines()[-1] if said.strip() else ''}",
       "promisor" not in said and "could not read" not in said)
@@ -119,7 +124,7 @@ check("files only the base changed arrive with their contents",
       and (wt / "docs" / "guide.md").read_text() == "guide v2\n")
 (wt / "src" / "a.py").write_text("a = 'both'\n", encoding="utf-8")
 git(["add", "-A"], wt)
-done = git(["-c", "user.name=Engine", "-c", "user.email=engine@test", "commit", "-q", "--no-edit"], wt, check=False)
+done = engine_git(["commit", "-q", "--no-edit"], wt)
 parents = git(["rev-list", "--parents", "-n", "1", "HEAD"], wt).stdout.split()
 check("the merge is completed without a token", done.returncode == 0 and len(parents) == 3
       and parents[2] == fake.branch_sha("acme/secret", "main"))
@@ -143,7 +148,7 @@ check("the fix round starts once GitHub answers again", len(turns) == n + 1 and 
       and S().get("c2", "acme/offline")["integ"] == "conflict")
 run(w.tick())
 check("and only once", len(turns) == n + 1)
-merge2 = git(["merge", "origin/main"], wt2, check=False)
+merge2 = engine_git(["merge", "origin/main"], wt2)
 check("that merge needs nothing from GitHub either", "CONFLICT" in merge2.stdout + merge2.stderr
       and "promisor" not in merge2.stdout + merge2.stderr)
 
