@@ -72,7 +72,7 @@ Dán nhầm token của kênh này vào kênh kia thì Javis nói thẳng ra ch�
 | Bot gửi ảnh cho khách | Có | Đang thử nghiệm |
 | Bot gửi file tài liệu (PDF, bảng tính) | Có | **Chưa được** (Zalo chưa mở API) |
 | Khách gửi ảnh cho bot đọc | Có | Có |
-| Khách gửi file tài liệu cho bot đọc | Có | Chưa |
+| Khách gửi file tài liệu cho bot đọc | Có | Khi Zalo chuyển file thì bot đọc, không thì bot báo lại ([chi tiết](26-kenh-zalo-bot.md#gửi-file-cho-bot-pdf-word-excel-video)) |
 | Trần một tin nhắn | 4096 ký tự | 2000 ký tự |
 | Bot hiện menu lệnh `/` | Có | Không, phải gõ tay |
 
