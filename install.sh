@@ -31,6 +31,91 @@ esac
 
 SUDO=""; [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
 
+# --- 0. Which account runs Javis ---
+#
+# A FRESH install started by root on Linux no longer runs Javis as root (owner, 2026-11-12). At Full access Javis
+# lets Claude Code run any command without asking, and Claude Code refuses that mode under root: every turn died with
+# "SDK engine: ProcessError: Command failed with exit code 1" (customer report, 2026-11-12). Its way around, the
+# IS_SANDBOX=1 flag, would hand a model that reads Zalo, mail and web pages the whole machine. So root only does what
+# needs root (system packages, the systemd unit), and the service runs as a regular account that owns this folder.
+#
+# An install that ALREADY exists is never moved to another account: its Claude sign-in, brains and state live under
+# the account it has run as. The unit's User= (or, with no unit, the owner of .env) decides, so a second run of this
+# script keeps whatever the first one chose.
+#   JAVIS_USER=name        the account to create or use (default: javis)
+#   JAVIS_INSTALL_DIR=/x   where to move a clone the account cannot reach, e.g. one under /root (default: /opt/<folder>)
+#   JAVIS_RUN_AS_ROOT=1    keep the old behaviour and run as root
+RUN_AS=""                               # set = root installs on behalf of this regular account
+RUN_USER="$(whoami)"; RUN_HOME="$HOME"  # the account the service runs as, and its home
+UNIT_FILE="${UNIT_FILE:-/etc/systemd/system/$SVC.service}"
+
+# Run a command as the service account, with ITS home: installers that write to ~/.local/bin must not land in /root.
+as_user() {
+  if [ -n "$RUN_AS" ]; then runuser -u "$RUN_AS" -- env HOME="$RUN_HOME" USER="$RUN_AS" LOGNAME="$RUN_AS" "$@"
+  else "$@"; fi
+}
+# Hand files root just wrote to the service account. A no-op unless root installs for another account.
+own() { [ -z "$RUN_AS" ] || chown -R "$RUN_AS": "$@"; }
+
+pick_run_user() {
+  local want fresh=0 dest
+  [ "$(id -u)" -eq 0 ] && [ "$(uname -s)" = "Linux" ] || return 0
+  if [ "${JAVIS_RUN_AS_ROOT:-0}" = "1" ]; then want=root
+  elif [ -f "$UNIT_FILE" ]; then want="$(sed -n 's/^User=//p' "$UNIT_FILE" | head -1)"; want="${want:-root}"
+  elif [ -f .env ]; then want="$(stat -c %U .env 2>/dev/null || echo root)"
+  else
+    want="${JAVIS_USER:-javis}"; fresh=1
+    case "$want" in
+      *[!a-z0-9_-]*|[!a-z_]*|"") err "JAVIS_USER must be a plain account name such as 'javis' (got: $want)"; exit 1;;
+    esac
+  fi
+  if [ "$want" != root ] && ! command -v runuser >/dev/null 2>&1; then
+    warn "'runuser' is missing, so this install cannot hand Javis to a regular account."; want=root
+  fi
+  if [ "$want" != root ] && ! id -u "$want" >/dev/null 2>&1; then
+    if command -v useradd >/dev/null 2>&1; then
+      log "Creating the account '$want' to run Javis (not root)..."
+      useradd --create-home --shell /bin/bash "$want"
+    else
+      warn "'useradd' is missing, so the account '$want' cannot be created."; want=root
+    fi
+  fi
+  if [ "$want" = root ]; then
+    warn "Javis will run as root. Claude Code refuses Full access under root, so Claude chats fail unless"
+    warn "IS_SANDBOX=1 is in .env. Only add it on a machine dedicated to Javis: it gives the AI the whole machine."
+    return 0
+  fi
+  RUN_AS="$want"; RUN_USER="$want"; RUN_HOME="$(getent passwd "$want" | cut -d: -f6)"
+  [ -n "$RUN_HOME" ] || { err "The account '$want' has no home folder."; exit 1; }
+  # A clone under /root (mode 700) cannot be entered by any other account. A fresh clone holds no data yet, so move it.
+  if ! as_user test -x "$(dirname "$APP_DIR")"; then
+    dest="${JAVIS_INSTALL_DIR:-/opt/$(basename "$APP_DIR")}"
+    if [ "$fresh" != 1 ]; then
+      err "The account '$RUN_AS' cannot reach $APP_DIR. Move the folder somewhere it can (for example /opt) and re-run."
+      exit 1
+    fi
+    if [ -e "$dest" ]; then
+      err "The account '$RUN_AS' cannot reach $APP_DIR, and $dest already exists."
+      err "Set JAVIS_INSTALL_DIR=<another folder> and re-run, or JAVIS_RUN_AS_ROOT=1 to run as root."
+      exit 1
+    fi
+    mkdir -p "$(dirname "$dest")"
+    as_user test -x "$(dirname "$dest")" || { err "The account '$RUN_AS' cannot reach $(dirname "$dest") either."; exit 1; }
+    warn "The account '$RUN_AS' cannot enter $(dirname "$APP_DIR"), so this install moves to $dest"
+    mv "$APP_DIR" "$dest"
+    chown -R "$RUN_AS": "$dest"
+    cd "$dest"
+    exec bash "$dest/install.sh" "$@"
+  fi
+  own "$APP_DIR"
+  ok "Javis will run as the regular account '$RUN_AS' (home $RUN_HOME), not as root"
+}
+pick_run_user "$@"
+
+# A Node.js tarball and the links to it go where the service account can reach them.
+if [ -n "$RUN_AS" ]; then NODE_DIR=/opt/javis-node; LINK_DIR=/usr/local/bin; TAR_OWNER="--no-same-owner"
+else NODE_DIR="$HOME/.javis/node"; LINK_DIR="$HOME/.local/bin"; TAR_OWNER=""; fi
+
 # --- 1. python3 >= 3.10 + venv + pip ---
 # HARD FLOOR 3.10: uvicorn pinned in requirements.txt needs >=3.10 (every release from
 # 0.40 up dropped 3.9). Do NOT trust a bare `python3` here - macOS ships /usr/bin/python3
@@ -125,13 +210,13 @@ if need_node; then
     nos=linux; [ "$(uname -s)" = "Darwin" ] && nos=darwin
     tb=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/ | grep -oE "node-v22\.[0-9]+\.[0-9]+-${nos}-${na}\.tar\.xz" | head -1)
     tmp=$(mktemp -d); curl -fsSL "https://nodejs.org/dist/latest-v22.x/${tb}" -o "$tmp/n.tar.xz"
-    mkdir -p "$HOME/.javis"; rm -rf "$HOME/.javis/node"
-    tar xf "$tmp/n.tar.xz" -C "$tmp"; mv "$tmp"/node-v22* "$HOME/.javis/node"; rm -rf "$tmp"
-    mkdir -p "$HOME/.local/bin"
-    ln -sf "$HOME/.javis/node/bin/node" "$HOME/.local/bin/node"
-    ln -sf "$HOME/.javis/node/bin/npm"  "$HOME/.local/bin/npm"
-    ln -sf "$HOME/.javis/node/bin/npx"  "$HOME/.local/bin/npx"
-    export PATH="$HOME/.local/bin:$PATH"
+    mkdir -p "$(dirname "$NODE_DIR")"; rm -rf "$NODE_DIR"
+    tar xf "$tmp/n.tar.xz" $TAR_OWNER -C "$tmp"; mv "$tmp"/node-v22* "$NODE_DIR"; rm -rf "$tmp"
+    mkdir -p "$LINK_DIR"
+    ln -sf "$NODE_DIR/bin/node" "$LINK_DIR/node"
+    ln -sf "$NODE_DIR/bin/npm"  "$LINK_DIR/npm"
+    ln -sf "$NODE_DIR/bin/npx"  "$LINK_DIR/npx"
+    export PATH="$LINK_DIR:$PATH"
   fi
 fi
 case "$(node_status)" in
@@ -172,6 +257,13 @@ cai_them_cli() {   # <gói npm> <tên binary> <tên hiển thị>
 }
 # Engine Gemini CLI đã GỠ HẲN ở 0.50.0 (Google ngắt mọi tài khoản cá nhân từ 18/06/2026).
 cai_them_cli @openai/codex@latest codex "Codex CLI"
+# With a tarball Node, npm keeps its global binaries inside that Node's own bin/. Link them next to node, where the
+# service account looks.
+if [ -n "$RUN_AS" ] && [ -d "$NODE_DIR/bin" ]; then
+  for b in claude codex; do
+    if [ -x "$NODE_DIR/bin/$b" ]; then ln -sf "$NODE_DIR/bin/$b" "$LINK_DIR/$b"; fi
+  done
+fi
 
 # --- 4c. agy (Antigravity CLI, đường Google) + grok (Grok Build, đường xAI) ---
 #
@@ -183,16 +275,21 @@ cai_them_cli @openai/codex@latest codex "Codex CLI"
 # BEST-EFFORT tuyệt đối: chạy script của nhà thứ ba nên hỏng là chuyện bình thường (mạng, máy
 # lạ, nhà cung cấp đổi URL) - hỏng thì nói một dòng rồi đi tiếp, không được giết lần cài.
 # ĐĂNG NHẬP thì vẫn là việc của người dùng, làm ở trang Models sau khi Javis chạy.
+# These installers write into the HOME of whoever runs them, so they run as the service account, and "is it there"
+# is asked as that account too: a binary in /root/.local/bin is out of its reach.
+user_has() { as_user env PATH="$RUN_HOME/.local/bin:$PATH" bash -c 'command -v "$1" >/dev/null 2>&1' _ "$1"; }
+# The command to install one by hand, written for the account that must run it.
+by_hand() { if [ -n "$RUN_AS" ]; then echo "su - $RUN_AS -c 'curl -fsSL $1 | bash'"; else echo "curl -fsSL $1 | bash"; fi; }
 cai_cli_script() {   # <tên binary> <tên hiển thị> <URL script cài>
-  if command -v "$1" >/dev/null 2>&1; then ok "$2 da co san"; return 0; fi
+  if user_has "$1"; then ok "$2 da co san"; return 0; fi
   log "Installing $2 (best-effort, script cua nha cung cap)..."
-  if curl -fsSL "$3" | bash >/dev/null 2>&1; then
+  if curl -fsSL "$3" | as_user bash >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
-    if command -v "$1" >/dev/null 2>&1; then ok "$2"; else
-      warn "$2: the installer finished but binary '$1' is not on PATH yet. Open a new terminal and retry: curl -fsSL $3 | bash"
+    if user_has "$1"; then ok "$2"; else
+      warn "$2: the installer finished but binary '$1' is not on PATH yet. Open a new terminal and retry: $(by_hand "$3")"
     fi
   else
-    warn "Could not install $2 - that engine will not show on the Models page. Install it by hand: curl -fsSL $3 | bash"
+    warn "Could not install $2 - that engine will not show on the Models page. Install it by hand: $(by_hand "$3")"
   fi
 }
 cai_cli_script agy "Antigravity CLI (Google)" https://antigravity.google/cli/install.sh
@@ -213,15 +310,21 @@ ok "Python deps installed"
 
 # --- 6. .env (chmod 600 - holds tokens) ---
 if [ ! -f .env ]; then cp env.example .env; chmod 600 .env; ok "Created .env from template"; else chmod 600 .env 2>/dev/null || true; ok ".env exists"; fi
+# Owned by the service account from its first second: a re-run after a failure reads the account off this file.
+own .env
 
 # --- 7. minimal config prompt ---
 if [ -t 0 ]; then
   read -rp "Vault path [blank = in-repo vault/]: " VP || true
   if [ -n "${VP:-}" ]; then
     if grep -q '^OBSIDIAN_VAULT_PATH=' .env; then sed -i.bak "s|^OBSIDIAN_VAULT_PATH=.*|OBSIDIAN_VAULT_PATH=$VP|" .env && rm -f .env.bak; else echo "OBSIDIAN_VAULT_PATH=$VP" >> .env; fi
+    if [ -n "$RUN_AS" ] && [ -e "$VP" ] && ! as_user test -w "$VP"; then
+      warn "The account '$RUN_AS' cannot write to $VP. Give it access (chown -R $RUN_AS: \"$VP\") or Javis cannot use that vault."
+    fi
   fi
 fi
 grep -q '^JAVIS_HOST=' .env || echo "JAVIS_HOST=127.0.0.1" >> .env
+own .env
 
 # --- 7b. Tài khoản quản trị: ĐẶT SẴN ngay lúc cài ---
 #
@@ -319,11 +422,22 @@ if ! _env_has JAVIS_SETUP_2FA && [ -t 0 ]; then
   esac
 fi
 
+own .env
+
 # --- 8. one-time Claude auth reminder ---
-if ! claude auth status >/dev/null 2>&1; then
-  warn "Claude CLI is not logged in. Run this ONCE (opens a browser-login URL):"
-  echo "      claude auth login --claudeai"
+# The sign-in belongs to the account that runs Javis: one made as root would sit in /root, out of its reach.
+if ! as_user claude auth status >/dev/null 2>&1; then
+  if [ -n "$RUN_AS" ]; then
+    warn "Claude is not signed in for the account '$RUN_AS'. Sign in on the Models page of the dashboard, or run ONCE:"
+    echo "      su - $RUN_AS -c 'claude auth login --claudeai'"
+  else
+    warn "Claude CLI is not logged in. Run this ONCE (opens a browser-login URL):"
+    echo "      claude auth login --claudeai"
+  fi
 fi
+
+# Everything root wrote into this folder above (venv, .env) now belongs to the account that runs Javis.
+own "$APP_DIR"
 
 # --- 9. service: systemd if available, else nohup ---
 PY="$APP_DIR/.venv/bin/python"
@@ -346,7 +460,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=$(whoami)
+User=$RUN_USER
 WorkingDirectory=$APP_DIR/server
 Environment="JAVIS_HOST=127.0.0.1"
 Environment="JAVIS_PORT=$PORT"
@@ -364,15 +478,31 @@ WantedBy=multi-user.target
 UNIT
   $SUDO systemctl daemon-reload
   $SUDO systemctl enable --now "$SVC.service"
+  # The Update button of a service that is not root restarts Javis through the account's own systemd manager
+  # (server/updater.py), which only exists while nobody is logged in if the account lingers.
+  if [ -n "$RUN_AS" ]; then loginctl enable-linger "$RUN_AS" >/dev/null 2>&1 || warn "Could not enable linger for '$RUN_AS': the Update button may ask for a manual restart."; fi
   ok "Service installed. Logs: journalctl -u $SVC -f"
 else
   warn "systemd not available - starting under nohup..."
-  ( cd "$APP_DIR/server" && JAVIS_STATE_DIR="$APP_DIR/server" JAVIS_PORT="$PORT" nohup "$PY" -m uvicorn main:app --host 127.0.0.1 --port "$PORT" > "$APP_DIR/server/javis.log" 2>&1 & )
+  if [ -n "$RUN_AS" ]; then
+    # runuser stays behind as the parent of the server. setsid takes it out of this terminal's session, so closing
+    # the SSH window does not hang it up and take Javis with it. The subshell hands its place to it (exec) with its
+    # own output going nowhere, so `./install.sh | tee` still ends. The log redirect sits inside the account's own
+    # shell: javis.log is not left owned by root.
+    DETACH=""; command -v setsid >/dev/null 2>&1 && DETACH="setsid"
+    ( cd "$APP_DIR/server" && export JAVIS_STATE_DIR="$APP_DIR/server" JAVIS_PORT="$PORT" && \
+      exec $DETACH runuser -u "$RUN_AS" -- env HOME="$RUN_HOME" USER="$RUN_AS" LOGNAME="$RUN_AS" \
+        bash -c 'exec nohup "$0" -m uvicorn main:app --host 127.0.0.1 --port "$1" > "$2" 2>&1' \
+        "$PY" "$PORT" "$APP_DIR/server/javis.log" ) </dev/null >/dev/null 2>&1 &
+  else
+    ( cd "$APP_DIR/server" && JAVIS_STATE_DIR="$APP_DIR/server" JAVIS_PORT="$PORT" nohup "$PY" -m uvicorn main:app --host 127.0.0.1 --port "$PORT" > "$APP_DIR/server/javis.log" 2>&1 & )
+  fi
   ok "Started. Logs: $APP_DIR/server/javis.log"
 fi
 
 echo ""
 ok "Javis OS is up at: http://127.0.0.1:$PORT"
+if [ -n "$RUN_AS" ]; then log "Installed in $APP_DIR, running as the regular account '$RUN_AS' (not root). Update later with: $APP_DIR/update.sh"; fi
 log "Remote access (SSH tunnel): ssh -L $PORT:localhost:$PORT $(whoami)@<vps-ip>"
 
 # Mật khẩu tự sinh chỉ in ra ĐÚNG chỗ này, đúng một lần. Không ghi vào log service, không in
