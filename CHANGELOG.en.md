@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.547.0] - 2026-11-12
+### Added
+- **An agent set to ChatGPT now really runs on ChatGPT in restricted background workflows.** Those steps always ran on Claude Code, whatever you picked. The step can call only its own tool list, at the job's permission level, with no shell, web or sub-agents.
+- Without Codex installed the step still runs on Claude Code as before, with no error.
+
 ## [0.546.3] - 2026-11-12
 ### Fixed
 - **The Messenger check now detects a webhook that cannot be reached.** Every line used to say fine while the HTTPS address was dead, so the bot stayed silent with no visible reason.
