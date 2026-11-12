@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.548.0] - 2026-11-12
+### Added
+- **Create a team with its documents from the start.** The Create team box has a new "Add documents for the team (files, links)" block: find a file already in the brain by name, upload one from the device, or paste a link. Team members can read them from the first message.
+- **No need to upload a file the brain already has.** The Info tab of each team has a box that searches the brain, and Add is one press. The file stays where it is, no copy is made.
+### Improved
+- **Finding a file by name hits more often.** Several words such as "bang gia" now find `bang-gia-dich-vu.md`: the name only has to hold all the words, whatever the dashes or the order. This applies to every search of files by name, including the Documents drawer of a chat.
+
 ## [0.547.3] - 2026-11-12
 ### Fixed
 - **A root install on Linux no longer breaks Claude with "exit code 1".** A fresh install creates a regular account `javis` and runs Javis under it, because Claude Code refuses Full access under root.
