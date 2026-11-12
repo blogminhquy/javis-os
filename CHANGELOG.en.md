@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.546.0] - 2026-11-12
+### Added
+- **Zalo messages can quote the message they answer.** When you ask Javis to reply to one specific message, the message goes out with the quoted original above it, like tapping "Reply" in Zalo. Only text messages can be quoted. The Zalo connection moves to javis-zalo 1.11.0 on its next start.
+
 ## [0.545.5] - 2026-11-12
 ### Fixed
 - **Opening a team with hours of chat no longer slows the whole app.** Since 0.518.0, opening a team on a wide screen also opened its Info tab, and the server read every message of the team again to look for files and links. The longer the team, the slower, and meanwhile loading messages, switching teams and sending all had to wait. The server now keeps the result and reads only new messages. Measured on a team with 3,000 messages: from 1.5 seconds per open to 0.003 seconds.
