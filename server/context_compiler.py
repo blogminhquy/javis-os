@@ -109,6 +109,11 @@ def dong_ho(now=None, lang: str = "") -> str:
 
 _NHAN_GIO_GUI = {"vi": "Giờ gửi tin này", "en": "This message was sent at"}
 
+# Stable prompt (0.445.0, #975): the clock line points at the per-message header instead of holding the time.
+# Lives here since #1329 so the compiled (token-saving) path can use the same line as `build_system_prompt`.
+STABLE_CLOCK_NOTE = ("Giờ hiện tại ghi ở dòng `[Giờ gửi tin này: ...]` đầu tin nhắn mới nhất của user; "
+                     "dùng đúng giờ đó cho \"bây giờ\", \"hôm nay\", \"hôm qua\".")
+
 
 def dong_ho_ngan(now=None, lang: str = "") -> str:
     """Một dòng ngắn "tin này gửi lúc mấy giờ", đặt ở ĐẦU tin nhắn của lượt nối phiên Claude Code.
@@ -206,6 +211,13 @@ class CompileRequest:
     #
     # Mặc định "" giữ mọi hợp đồng Phase 4-7 và mọi adapter nhà cung cấp giống hệt từng byte.
     lang: str = ""
+    # #1329: a lane that appends the system prompt as ONE cached block (Claude Code) needs a system prompt that is
+    # byte-identical across new chats of one brain. With `stable_system` the clock line points at the per-message
+    # header, and every context item NOT named in `stable_context_ids` is handed back in
+    # `ContextCapsule.turn_context` for the caller to put at the head of the user message. The budget and the
+    # estimates still count everything. Off by default: every other path renders exactly as before.
+    stable_system: bool = False
+    stable_context_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -221,6 +233,10 @@ class ContextCapsule:
     budget: ContextBudget
     rendered_request: dict
     capsule_hash: str
+    # #1329, only filled when the request asked for `stable_system`: the part of the system prompt that does not
+    # change from one new chat to the next, and the per-turn context blocks that go with the user message instead.
+    stable_system: str = ""
+    turn_context: str = ""
 
 
 @dataclass(frozen=True)
@@ -520,7 +536,9 @@ class ContextCompiler:
             )
         # Đồng hồ đi cùng capsule và là món BẮT BUỘC: đường tắt không phát tool nào, nên
         # thiếu dòng này là model không có cách nào biết bây giờ mấy giờ.
-        time_text = dong_ho(lang=request.lang)
+        # #1329: a stable lane carries the time in the user message (`dong_ho_ngan`), so the clock here must not
+        # change by the minute: this line sits ~1,200 characters in, and everything after it missed the cache.
+        time_text = STABLE_CLOCK_NOTE if request.stable_system else dong_ho(lang=request.lang)
         base_system = (CORE_CONTRACT.rstrip() + "\n" + identity_text + "\n" + channel_text +
                   "\n" + time_text + "\n" + output_text +
                   ("\n" + planner_text if planner_text else ""))
@@ -574,6 +592,9 @@ class ContextCompiler:
         selected_context: list[ContextItem] = []
         excluded_context: dict[str, str] = {}
         system = base_system
+        # #1329: the same text as `system`, split in two for a stable lane (see CompileRequest.stable_system).
+        stable_text = base_system
+        turn_blocks: list[str] = []
         context_candidates = [x for x in request.context_items if isinstance(x, ContextItem) and x.content]
 
         def _rank_score(item: ContextItem) -> float:
@@ -604,6 +625,10 @@ class ContextCompiler:
             )
             if candidate_estimate.input_tokens <= budget.max_input_tokens:
                 system = candidate_system
+                if request.stable_system and item.id not in request.stable_context_ids:
+                    turn_blocks.append(block)
+                else:
+                    stable_text += block
                 selected_context.append(item)
                 seen_content_hashes.setdefault(content_key, item.id)
                 continue
@@ -636,10 +661,15 @@ class ContextCompiler:
         })
         if unresolved_conflicts:
             lines = "\n".join(f"- {a} và {b}" for a, b in unresolved_conflicts)
-            system += (
+            conflict_block = (
                 "\n\n# Context: conflict\nCác nguồn dưới đây MÂU THUẪN nhau và chưa được "
                 f"giải quyết. Nêu rõ cả hai và nói là đang mâu thuẫn, đừng tự chọn một bên:\n{lines}"
             )
+            system += conflict_block
+            if request.stable_system:
+                turn_blocks.append(conflict_block)   # it names per-turn sources, so it travels with them
+            else:
+                stable_text += conflict_block
 
         selected_refs = resolution.get("selected") or []
         selected_ids = list(dict.fromkeys(
@@ -712,6 +742,8 @@ class ContextCompiler:
             capabilities=tuple(tools), output_contract=output_contract,
             source_map=source_map, budget=budget, rendered_request=rendered,
             capsule_hash=capsule_hash,
+            stable_system=stable_text if request.stable_system else "",
+            turn_context="".join(turn_blocks).strip() if request.stable_system else "",
         )
         preflight = QuotaPreflight.observe(final_estimate, budget)
         report = {

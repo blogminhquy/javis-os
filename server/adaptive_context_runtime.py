@@ -100,6 +100,9 @@ class AdaptiveContextPlan:
     compiler_report: dict = field(default_factory=dict)
     # Câu nói cho người dùng khi action == "reject". Rỗng ở mọi action khác.
     rejection_message: str = ""
+    # #1329: per-turn context (conversation state, retrieved memory, the selected skill) of a plan prepared with
+    # `stable_system=True`. It is NOT in `system_prompt` then; the caller puts it at the head of the user message.
+    turn_context: str = ""
 
 
 class AdaptiveContextCanary:
@@ -288,19 +291,23 @@ class AdaptiveContextCanary:
     def prepare(self, trace: context_runtime.TurnTrace | None, objective: str,
                 brain: str | Path, session_id: str, messages: list[dict], channel: str,
                 provider: str, model: str, provider_kind: str,
-                base_prompt_builder: Callable[[bool, bool], str]) -> AdaptiveContextPlan:
+                base_prompt_builder: Callable[[bool, bool], str],
+                stable_system: bool = False) -> AdaptiveContextPlan:
+        """`stable_system` (#1329): the lane appends the system prompt as one cached block, so the plan's
+        `system_prompt` must not change between new chats; what does change comes back in `turn_context`."""
         # Ranh giới fallback cuối: bất kỳ lỗi nào ngoài các block per-source (compile,
         # settings, event ghi trace...) đều phải trả legacy, không được phá lượt chat.
         try:
             return self._prepare(trace, objective, brain, session_id, messages, channel,
-                                 provider, model, provider_kind, base_prompt_builder)
+                                 provider, model, provider_kind, base_prompt_builder, stable_system)
         except Exception as exc:  # noqa: BLE001 - fallback-per-turn invariant
             return AdaptiveContextPlan("legacy", f"prepare_error:{type(exc).__name__}")
 
     def _prepare(self, trace: context_runtime.TurnTrace | None, objective: str,
                  brain: str | Path, session_id: str, messages: list[dict], channel: str,
                  provider: str, model: str, provider_kind: str,
-                 base_prompt_builder: Callable[[bool, bool], str]) -> AdaptiveContextPlan:
+                 base_prompt_builder: Callable[[bool, bool], str],
+                 stable_system: bool = False) -> AdaptiveContextPlan:
         try:
             settings = self.settings_reader() or {}
         except Exception:  # noqa: BLE001 - settings failure must fail closed to legacy
@@ -439,6 +446,7 @@ class AdaptiveContextCanary:
                 hard_max_input_tokens=quota["hard_input"],
                 reserved_output_tokens=quota["reserved"], execution_mode="canary",
                 context_items=tuple([base_item] + items),
+                stable_system=bool(stable_system), stable_context_ids=(base_item.id,),
             ),
             {"selected": [], "selected_count": 0, "candidate_count": 0, "miss_class": ""},
         )
@@ -496,6 +504,11 @@ class AdaptiveContextCanary:
         if not system_prompt:
             return AdaptiveContextPlan("legacy", "compiled_system_missing", feature_status=status,
                                        compiler_report=report)
+        turn_context = ""
+        if stable_system and compiled.capsule.stable_system:
+            # #1329: hand out the part that stays the same between new chats; the rest rides with the message.
+            system_prompt = compiled.capsule.stable_system
+            turn_context = compiled.capsule.turn_context
         if trace:
             # Ghim TÊN đường chạy. Không ghim thì lượt này vẫn bị đếm là "legacy", nên trang
             # Tiết kiệm token không phân biệt nổi lượt đã tiết kiệm với lượt gửi nguyên
@@ -515,5 +528,5 @@ class AdaptiveContextCanary:
             })
         return AdaptiveContextPlan(
             "use", "compiled", system_prompt, state_applied, memory_applied, skill_applied,
-            status, report,
+            status, report, turn_context=turn_context,
         )
