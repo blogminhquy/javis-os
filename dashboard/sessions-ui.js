@@ -1074,6 +1074,11 @@
     return "file";
   }
 
+  // 2026-11-12 (owner: "chọn được cả thư mục"): a row whose stored path ends in "/" is a whole folder. The server
+  // marks the rows of a chat with `dir`; project and agent rows come back as stored, so the slash is read here.
+  function isFolderRow(f) { return !!(f && (f.dir || /\/$/.test(String(f.path || "")))); }
+  function folderPath(p) { return String(p == null ? "" : p).replace(/\/+$/, "") + "/"; }
+
   /** Nút CHÉP ĐƯỜNG DẪN của một hàng. Có ở MỌI hàng, kể cả hàng tự dò và hàng file đã mất:
    *  chủ dự án hay cần đúng chuỗi đường dẫn để dán sang chỗ khác làm tiếp, và với file đã đổi
    *  chỗ thì đường dẫn CŨ chính là thứ cần chép đi tra. Đường dẫn nằm sẵn ở dòng mô tả nhưng
@@ -1110,7 +1115,7 @@
         // <button> là HTML sai và trình duyệt nuốt mất cú bấm vào link.
         (o.moDuoc
           ? '<button class="pd-row-body mo-duoc" type="button" title="' +
-              esc(pdT("proj.open_file")) + '">'
+              esc(o.moTitle || pdT("proj.open_file")) + '">'
           : '<span class="pd-row-body">') +
           '<span class="pd-row-name">' + esc(o.ten) + "</span>" +
           '<span class="pd-row-sub">' + (o.subHtml || esc(o.sub || "")) + "</span>" +
@@ -1134,6 +1139,7 @@
    *  dưới khung chat (app.js reopenPinnedNote): trình sửa đính -> khung sửa bung giữa màn
    *  (điện thoại) -> trang Tệp tin. */
   function moFile(f) {
+    if (isFolderRow(f)) { openFolderRow(f); return; }
     var ten = f.name || String(f.path || "").split("/").pop();
     closeProjDrawer();          // trình sửa hiện ra SAU ngăn kéo, không đóng thì che mất
     try {
@@ -1141,6 +1147,22 @@
     } catch (e) {}
     if (typeof window.JavisEditFile === "function") { window.JavisEditFile(f.path); return; }
     if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(f.path);
+  }
+
+  /** A folder row opens on the Files page. That page takes a path relative to the BRAIN root, while project and agent
+   *  rows are stored relative to the browse ceiling, which may sit above the brain (localhost): the brain's own
+   *  prefix (`home` of /files/list) is taken off first. Chat rows already carry `brain_path`. */
+  async function openFolderRow(f) {
+    var duong = String(f.brain_path || f.path || "");
+    closeProjDrawer();
+    if (!f.brain_path) {
+      try {
+        var d = await (await fetch("/files/list?brain=" + encodeURIComponent(brain()))).json();
+        var home = d && d.home ? String(d.home).replace(/\/+$/, "") + "/" : "";
+        if (home && duong.indexOf(home) === 0) duong = duong.slice(home.length);
+      } catch (e) {}
+    }
+    if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(folderPath(duong));
   }
 
   function dsFileHtml(p) {
@@ -1156,14 +1178,19 @@
       // Ở chế độ cuộc, file đã dời/đổi tên vẫn ở lại danh sách - chỉ mờ đi và nói rõ. Im lặng
       // bỏ đi thì người dùng tưởng thao tác gắn của mình bị nuốt.
       var con = !laCuoc || f.exists !== false;
+      var dir = isFolderRow(f);
       return hangMuc({ id: f.id, ten: f.label || f.name || f.path,
                        sub: con ? (laCuoc ? (f.brain_path || f.path) : f.path) : pdT("cts.file_gone"),
                        // Chép đường dẫn TRONG BRAIN (brain_path), không phải đường dẫn tuyệt
                        // đối trên máy chủ: đó mới là chuỗi mọi nơi khác của Javis nhận vào
                        // (chat, wikilink, tool đọc file).
                        sao: f.brain_path || f.path,
-                       icon: f.image ? "image" : icoFile(f.name || f.path), pinned: !!f.pinned,
-                       ghimTitle: pdT("proj.pin_on"), moDuoc: con, xoaDuoc: con, mat: !con });
+                       // A folder: its own icon, a pin that loads its file list, and NO "delete from the brain"
+                       // button: one tap here must never remove a whole folder from disk.
+                       icon: dir ? "folder" : f.image ? "image" : icoFile(f.name || f.path), pinned: !!f.pinned,
+                       ghimTitle: pdT(dir ? "proj.pin_on_dir" : "proj.pin_on"),
+                       moTitle: dir ? pdT("proj.open_dir") : "",
+                       moDuoc: con, xoaDuoc: con && !dir, mat: !con });
     };
     var veTuDong = function (f) {
       return hangMuc({ tuDong: true, duong: f.path, ten: f.label || f.name,
@@ -1317,15 +1344,19 @@
     box.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.searching")) + "…</div>";
     var items = [];
     try {
+      // include_dirs (2026-11-12): folders whose name matches are offered too, so a whole folder can be added.
       var d = await (await fetch("/files/search?brain=" + encodeURIComponent(brain()) +
-                                 "&mode=name&limit=20&q=" + encodeURIComponent(q))).json();
+                                 "&mode=name&include_dirs=true&limit=20&q=" + encodeURIComponent(q))).json();
       items = d.items || [];
     } catch (e) {}
     if (!items.length) { box.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.search_none")) + "</div>"; return; }
     box.innerHTML = items.map(function (it) {
-      return '<div class="pd-res" data-path="' + esc(it.path) + '" data-name="' + esc(it.name) + '">' +
-        '<span class="pd-res-ico">' + ic(icoFile(it.name)) + "</span>" +
-        '<span class="pd-res-n"><b>' + esc(it.name) + "</b><i>" + esc(it.path) + "</i></span>" +
+      // A folder goes by its path with a trailing "/": the same spelling the server stores, so the Add / Remove
+      // button below finds the row again.
+      var dir = it.type === "dir", duong = dir ? folderPath(it.path) : it.path;
+      return '<div class="pd-res" data-path="' + esc(duong) + '" data-name="' + esc(it.name) + '">' +
+        '<span class="pd-res-ico">' + ic(dir ? "folder" : icoFile(it.name)) + "</span>" +
+        '<span class="pd-res-n"><b>' + esc(it.name) + "</b><i>" + esc(duong) + "</i></span>" +
         '<button class="pd-res-add" type="button"></button></div>';
     }).join("");
     veNutKetQua();

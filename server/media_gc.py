@@ -41,6 +41,8 @@ def plan_deletions(entries, now, max_age_days, max_mb, keep_md=True, giu_path=No
                    Đặt False cho thư mục THUẦN trung chuyển (staging), nơi một file .md chỉ là
                    thứ user vừa dán vào chat, không phải note.
     giu_path     : set đường dẫn TUYỆT ĐỐI không bao giờ được xoá, bất kể tuổi hay trần.
+                   A path ending in "/" (or "\\") is a FOLDER attached as a document (2026-11-12): every file
+                   under it is kept.
 
     Vì sao có giu_path: vùng cache "cái gì cũng biến mất được" chỉ đúng khi KHÔNG AI trỏ vào
     nó. Một tài liệu gắn vào project thì có người trỏ - xoá nó đi là để lại một hàng trong
@@ -50,9 +52,15 @@ def plan_deletions(entries, now, max_age_days, max_mb, keep_md=True, giu_path=No
     Trả list path theo ĐÚNG thứ tự xoá: nhóm quá hạn trước, rồi nhóm bị trần cắt (cũ tới mới).
     """
     khoa = {os.path.normcase(os.path.abspath(x)) for x in (giu_path or ())}
+    kept_dirs = tuple(os.path.normcase(os.path.abspath(x)) + os.sep
+                      for x in (giu_path or ()) if str(x).endswith(("/", "\\")))
+
+    def _kept(path):
+        full = os.path.normcase(os.path.abspath(str(path)))
+        return full in khoa or bool(kept_dirs and full.startswith(kept_dirs))
+
     giu = [t for t in entries
-           if not (keep_md and str(t[0]).lower().endswith(DUOI_VAN_BAN))
-           and os.path.normcase(os.path.abspath(str(t[0]))) not in khoa]
+           if not (keep_md and str(t[0]).lower().endswith(DUOI_VAN_BAN)) and not _kept(t[0])]
     xoa, con_lai = [], []
     if max_age_days and max_age_days > 0:
         han = now - max_age_days * 86400.0

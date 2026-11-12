@@ -187,8 +187,12 @@ _add_route = _main.split("def projects_add_file", 1)[1].split("\n@app.", 1)[0]
 check("CANARY: the add-file route takes the brain from the PROJECT, not from the client",
       'p.get("brain")' in _add_route and "brain: str = Form" not in _add_route,
       _add_route[:200])
+# 2026-11-12: the fence moved one call down. The three add routes (project, chat, agent) share `_asset_target`, which
+# takes a file or a whole folder; it must still go through `_safe_path` before anything is stored.
+_target_fn = _main.split("def _asset_target", 1)[1].split("\ndef ", 1)[0]
 check("CANARY: and checks the path with _safe_path before writing the store",
-      "_safe_path(" in _add_route, _add_route[:200])
+      "_asset_target(" in _add_route and "_safe_path(" in _target_fn
+      and _add_route.index("_asset_target(") < _add_route.index("add_project_file("), _add_route[:200])
 # ── Uploaded documents must land somewhere DURABLE, not in the cache area (owner, 02/09) ────
 # attachments/ is pruned by media_gc by age (30 days by default) and by a size cap. A project's
 # documents are attached for long-term use, so they must go to Sources.

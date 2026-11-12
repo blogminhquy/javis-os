@@ -82,13 +82,33 @@ check("the request carries brain files by brain_path, uploads by path, and the l
     { path: "/staging/b.pdf", name: "b.pdf" }], links: ["https://a.vn"] }), JSON.stringify(P.docPayload(mix)));
 check("the summary counts files and links together", P.docsCount(mix) === 3 && P.docsSummaryHtml(mix).includes(">3<"));
 
+// ---- a whole folder (2026-11-12, owner: "chọn được cả thư mục") ----
+const found = P.searchRows([{ path: "docs/hop-dong", name: "hop-dong", type: "dir" }, { path: "docs/hop-dong.md", name: "hop-dong.md" }]);
+check("a folder found by the search goes by its path with one trailing slash", JSON.stringify(found) === JSON.stringify([
+  { path: "docs/hop-dong/", name: "hop-dong", dir: true }, { path: "docs/hop-dong.md", name: "hop-dong.md", dir: false }]), JSON.stringify(found));
+check("a path that already ends in a slash keeps exactly one", P.searchRows([{ path: "docs/x//", name: "x", type: "dir" }])[0].path === "docs/x/");
+let fd = Object.assign({}, base, { docQuery: "hop", docState: "done", docResults: found });
+check("the folder is offered with its slash, beside the file of the same name", P.docResultsHtml(fd).includes("<i>docs/hop-dong/</i>")
+  && P.docResultsHtml(fd).includes("<i>docs/hop-dong.md</i>"), P.docResultsHtml(fd));
+fd = P.addDoc(fd, { name: found[0].name, brain_path: found[0].path, dir: true });
+check("a picked folder cannot be added twice, the file of the same name still can",
+  /data-doc-add="0" disabled/.test(P.docResultsHtml(fd)) && /data-doc-add="1">/.test(P.docResultsHtml(fd)), P.docResultsHtml(fd));
+check("the folder goes to the server by brain_path, slash kept", JSON.stringify(P.docPayload(fd).attachments) ===
+  JSON.stringify([{ brain_path: "docs/hop-dong/", name: "hop-dong" }]), JSON.stringify(P.docPayload(fd)));
+
 // ---- teams.js wiring ----
 const tm = read("teams.js");
 check("Create sends the picked documents with the team", /client_req_id: st\.reqId, attachments: docs\.attachments, links: docs\.links \}/.test(tm));
 check("a failed upload stops Create with a clear line", tm.includes('return pickFail(tw("teams.pick.doc_fix"))'));
 check("the server's count of documents left out is told once, after the team opens", tm.includes('setNote(tw("teams.pick.docs_partial", { n: missed }))'));
-check("the brain search asks /files/search by name, with a pause while typing",
-  tm.split('"/files/search?mode=name&limit=20&q="').length === 3 && /\}, 280\);/.test(tm));
+// 2026-11-12: both searches (the create box, the Info tab) ask for folders too, so a whole folder can be picked.
+check("the brain search asks /files/search by name, folders included, with a pause while typing",
+  tm.split('"/files/search?mode=name&include_dirs=true&limit=20&q="').length === 3 && /\}, 280\);/.test(tm));
+check("both searches keep folder rows through team-picker's one rule, and a pick remembers it is a folder",
+  tm.includes("F.items = searchRows(items);") && tm.includes("S.pickSt.docResults = searchRows(items);")
+  && tm.includes("brain_path: r.path, dir: !!r.dir"));
+check("a folder document in the Info tab opens on the Files page, it is never served as a raw file",
+  tm.includes('data-info-open-dir="') && tm.includes("window.JavisOpenFiles(d.infoOpenDir)"));
 check("Enter in the link box adds the link and never presses Create",
   /contains\("tmp-link-input"\) && e\.key === "Enter"\) \{ e\.preventDefault\(\); pickAddLink\(\); return; \}/.test(tm)
   && /contains\("tmp-doc-search"\) && e\.key === "Enter"\) \{ e\.preventDefault\(\); return; \}/.test(tm));

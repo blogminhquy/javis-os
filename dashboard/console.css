@@ -4217,9 +4217,11 @@ button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-s
 .tm-info-members li > span:not(.tm-ava):not(.tm-info-badge) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-info-badge { margin-left: auto; font-size: 12.5px; color: var(--accent-ink, var(--accent)); background: var(--accent-wash, rgba(255, 122, 60, .12));
   border-radius: 999px; padding: 1px 8px; }
-.tm-info-list a { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; color: var(--text); text-decoration: none; }
-.tm-info-list a:hover span { text-decoration: underline; }
-.tm-info-list a span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-info-list a, .tm-info-dir { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; color: var(--text); text-decoration: none; }
+/* A folder document (2026-11-12) is a button that opens the Files page; it reads like the file links beside it. */
+.tm-info-dir { background: none; border: 0; padding: 0; font: inherit; text-align: left; cursor: pointer; }
+.tm-info-list a:hover span, .tm-info-dir:hover span { text-decoration: underline; }
+.tm-info-list a span, .tm-info-dir span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-info-list svg { width: 16px; height: 16px; flex: none; color: var(--text2); }
 .tm-info-row { display: flex; align-items: center; gap: 8px; font-size: 15px; }
 .tm-info-row svg { width: 16px; height: 16px; color: var(--accent); flex: none; }

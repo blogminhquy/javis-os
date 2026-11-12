@@ -3491,6 +3491,12 @@
   // 2026-11-12: a file already in the brain joins the team without being uploaded again. S.infoFind keeps what was
   // typed and found, so a redraw of the panel (a new message, the list reloading) puts both back.
   var infoFindTimer = null;
+  // /files/search rows with a folder's path ending in "/" (team-picker.js owns the rule; the fallback keeps files).
+  function searchRows(items) {
+    var P = TP();
+    return P && P.searchRows ? P.searchRows(items) : (items || []).filter(function (it) { return it.type !== "dir"; })
+      .map(function (it) { return { path: it.path, name: it.name }; });
+  }
   function infoFindRows() {
     var F = S.infoFind;
     if (!F || !String(F.q || "").trim()) return "";
@@ -3500,7 +3506,7 @@
     ((S.info && S.info.files) || []).forEach(function (f) { have[f.path] = true; });
     return '<ul class="tm-info-list tm-info-found">' + F.items.map(function (it, i) {
       var on = !!have[it.path] || !!(F.added || {})[it.path];
-      return "<li><span>" + ic("file-text") + '<span title="' + esc(it.path) + '">' + esc(it.name) + "</span></span>" +
+      return "<li><span>" + ic(it.dir ? "folder" : "file-text") + '<span title="' + esc(it.path) + '">' + esc(it.name) + "</span></span>" +
         '<button type="button" class="ws-btn" data-info-pick="' + i + '"' + (on ? " disabled" : "") + ">" +
         esc(tw(on ? "teams.pick.doc_added" : "teams.pick.doc_add")) + "</button></li>";
     }).join("") + "</ul>";
@@ -3518,11 +3524,12 @@
     F.state = "searching";
     drawInfoFind();
     infoFindTimer = setTimeout(function () {
-      call("GET", "/files/search?mode=name&limit=20&q=" + q(words)).then(function (r) {
+      // include_dirs (2026-11-12): a whole folder of the brain can join the team as one document.
+      call("GET", "/files/search?mode=name&include_dirs=true&limit=20&q=" + q(words)).then(function (r) {
         return r.code === 200 ? (r.j.items || []) : [];
       }, function () { return []; }).then(function (items) {
         if (S.infoFind !== F || F.seq !== seq) return;
-        F.items = items.map(function (it) { return { path: it.path, name: it.name }; });
+        F.items = searchRows(items);
         F.state = "done";
         drawInfoFind();
       });
@@ -3620,8 +3627,12 @@
       '" placeholder="' + esc(tw("teams.pick.doc_search_ph")) + '" aria-label="' + esc(tw("teams.pick.doc_search_ph")) + '"></div>' +
       '<div class="tm-info-fresults">' + infoFindRows() + "</div>" +
       (docs.length ? '<ul class="tm-info-list">' + docs.map(function (f) {
-        return '<li><a href="' + esc(rawUrl(f.brain_path || f.path)) + '" target="_blank" rel="noopener">' + ic("file-text") + "<span>" +
-          esc(f.label || f.name) + "</span></a>" + (f.manual && f.id ? '<button type="button" class="tm-chip-x" data-info-del-file="' + esc(f.id) +
+        // 2026-11-12: a folder document opens on the Files page; there is no raw file to serve for it.
+        // It is a <button>: the page's one click handler only looks at buttons.
+        return "<li>" + (f.dir ? '<button type="button" class="tm-info-dir" data-info-open-dir="' + esc(f.brain_path || f.path) + '" title="' +
+          esc(f.brain_path || f.path) + '">' + ic("folder") + "<span>" + esc(f.label || f.name) + "</span></button>"
+          : '<a href="' + esc(rawUrl(f.brain_path || f.path)) + '" target="_blank" rel="noopener">' + ic("file-text") + "<span>" +
+          esc(f.label || f.name) + "</span></a>") + (f.manual && f.id ? '<button type="button" class="tm-chip-x" data-info-del-file="' + esc(f.id) +
           '" aria-label="' + esc(tw("teams.info_remove")) + '" title="' + esc(tw("teams.info_remove")) + '">' + ic("x") + "</button>" : "") + "</li>";
       }).join("") + "</ul>" : '<p class="tm-sub">' + esc(tw("teams.info_no_files")) + "</p>") + "</section>";
     h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_links", { n: I.links.length })) + infoBtn() + "</h4>" +
@@ -4210,11 +4221,11 @@
     st.docState = "searching";
     drawPickDocs();
     pickDocTimer = setTimeout(function () {
-      call("GET", "/files/search?mode=name&limit=20&q=" + q(words)).then(function (r) {
+      call("GET", "/files/search?mode=name&include_dirs=true&limit=20&q=" + q(words)).then(function (r) {
         return r.code === 200 ? (r.j.items || []) : [];
       }, function () { return []; }).then(function (items) {
         if (!S.pickSt || S.pickSt.docSeq !== seq) return;      // an older search, or the box is gone
-        S.pickSt.docResults = items.map(function (it) { return { path: it.path, name: it.name }; });
+        S.pickSt.docResults = searchRows(items);
         S.pickSt.docState = "done";
         drawPickDocs();
       });
@@ -4225,7 +4236,7 @@
     var P = TP(), st = S.pickSt;
     var r = st && (st.docResults || [])[i];
     if (!P || !r) return;
-    S.pickSt = P.addDoc(st, { name: r.name, brain_path: r.path });
+    S.pickSt = P.addDoc(st, { name: r.name, brain_path: r.path, dir: !!r.dir });
     drawPickDocs();
   }
 
@@ -4407,6 +4418,7 @@
     }
     if (d.infoAddFile) return pickFiles(addTeamFiles);
     if (d.infoPick !== undefined) return infoPick(Number(d.infoPick));
+    if (d.infoOpenDir) { if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(d.infoOpenDir); return; }
     if (d.infoDelFile) return assetPost("/files/" + q(d.infoDelFile) + "/delete");
     if (d.infoDelLink) return assetPost("/links/" + q(d.infoDelLink) + "/delete");
     if (d.infoAddLink) return addTeamLink();
