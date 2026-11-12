@@ -1106,9 +1106,12 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
             mem = idx.read_text(encoding="utf-8")
     except Exception:
         mem = ""
-    if include_memory:
-        # 0.188.0: the person's own profile (every brain) BEFORE the brain's memory, which wins where they differ.
-        base += memory_control.profile_block()
+    # 0.188.0: the person's own profile (every brain) BEFORE the brain's memory, which wins where they differ.
+    # #1349: NOT tied to `include_memory`. The token-saving levels build this prompt without the memory index to
+    # load memories selectively, and the profile went with it, so a rule written once on the Profile page reached
+    # the model only with saving switched off. It is a behaviour contract (at most 4,000 characters), like the
+    # project instructions, not a memory to retrieve.
+    base += memory_control.profile_block()
     if include_memory and mem.strip():
         base += main_prompt_rendering.render_memory_block(mem, memory_cap=MEMORY_INDEX_MAX)
     if not memory_control.learning_enabled(_brain_memory_dir(brain)):
@@ -1279,6 +1282,9 @@ def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = Fa
         f"Agent files: {ag}/<slug>.md; workflow files: {wf}/<slug>.md; "
         f"loop files: {loops}/<slug>.md; skill files: {skills}/<slug>/SKILL.md.",
     ]
+    # #1349: the person's profile rides along on the small base too, whatever `include_memory` says (see
+    # build_system_prompt). Before the memory fallback, which wins where they differ.
+    parts.append(memory_control.profile_block().strip())
     if include_memory:
         try:
             idx = _brain_memory_dir(brain) / "MEMORY.md"
