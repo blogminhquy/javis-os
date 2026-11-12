@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.553.0] - 2026-11-12
+### Added
+- **A whole folder can be a document.** The search box under Add file for a project, a partner, a chat and a team (the create box and the Info tab) now lists folders whose name matches, with their own folder icon. Press Add to attach the whole folder instead of picking files one by one.
+- **Javis knows what the folder holds.** An unpinned folder gives Javis its path, and it opens the files inside when it needs them. A pinned folder has its file list loaded into every turn. A folder added to a team is pinned at once.
+- **Safer rows for folders.** A folder row has no delete-from-brain button, only remove from the list. Tapping the folder's name opens it on the Files page.
+
 ## [0.552.1] - 2026-11-12
 ### Fixed
 - **Attaching a private repo to a chat no longer fails once its main branch has new files.** A private repo used to attach only the first time; as soon as the main branch gained or changed a file, a new chat stopped with `could not fetch ... from promisor remote`.
