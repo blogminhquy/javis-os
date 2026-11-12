@@ -8,6 +8,9 @@
  *   chọn, bỏ người đang Điều phối thì báo rõ, không âm thầm giao cho người khác;
  * - Thêm thành viên: người đã ở nhóm hiện "Đã tham gia", không chọn lại được, không tính vào số người mới;
  * - footer cố định: số đã chọn, Huỷ, nút chính.
+ * - Create only (2026-11-12): a "documents" block under the name. Files already in the brain (found by name), files from
+ *   the device and links are picked here and go to the server with the create request, so the team has them from
+ *   its first message. Nothing is attached before Create is pressed.
  *
  * File này chỉ có hàm THUẦN (trạng thái vào, HTML ra). teams.js giữ trạng thái, gọi API và gắn sự kiện.
  */
@@ -129,7 +132,122 @@
   // khi chủ chọn lại, thay vì tạo một nhóm mà mọi tin chung đều không ai trả lời.
   function canSubmit(st) {
     if (st.saving || !(st.selected || []).length) return false;
+    if (docsBusy(st)) return false;          // a file still uploading would be left out of the team
     return st.mode !== "create" || !!st.leader;
+  }
+
+  // ───────────── documents picked in the create box (2026-11-12) ─────────────
+  // st.docs:  [{ name, brain_path }] for a file already in the brain, [{ name, path, uid, busy, err }] for an upload
+  //           (`path` is the staged path /upload returned; empty while it uploads or when it failed).
+  // st.links: ["https://..."]
+  var DOCS_MAX = 10;         // files, and links: the server takes at most this many at creation (team_api.CREATE_DOCS_MAX)
+
+  function docsBusy(st) { return (st.docs || []).some(function (d) { return d.busy; }); }
+
+  function hasDoc(st, brainPath) {
+    return (st.docs || []).some(function (d) { return d.brain_path && d.brain_path === brainPath; });
+  }
+
+  // Add one file. The same brain file twice, or one more than DOCS_MAX, changes nothing. Returns the NEW state.
+  function addDoc(st, doc) {
+    var docs = (st.docs || []).slice();
+    if (!doc || docs.length >= DOCS_MAX || (doc.brain_path && hasDoc(st, doc.brain_path))) return st;
+    docs.push(doc);
+    return Object.assign({}, st, { docs: docs });
+  }
+
+  function removeDoc(st, i) {
+    var docs = (st.docs || []).slice();
+    docs.splice(Number(i), 1);
+    return Object.assign({}, st, { docs: docs });
+  }
+
+  // A typed address as a link the server accepts: "example.com/a" gets https://. "" when it cannot be one.
+  function cleanLink(raw) {
+    var u = String(raw == null ? "" : raw).trim();
+    if (!u || /\s/.test(u)) return "";
+    if (!/^https?:\/\//i.test(u)) {
+      if (/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(u)) return "";      // another scheme (mailto:, javascript:); "host:8080" is not one
+      u = "https://" + u;
+    }
+    return /^https?:\/\/[^\/.]+(\.[^\/.]+)+(\/.*)?$/i.test(u) || /^https?:\/\/localhost(:\d+)?(\/.*)?$/i.test(u) ? u : "";
+  }
+
+  // { st, ok }: ok false when the text is not a link (the state then carries `linkBad` so the box can say so).
+  function addLink(st, raw) {
+    var u = cleanLink(raw);
+    var links = (st.links || []).slice();
+    if (!u) return { st: Object.assign({}, st, { linkBad: !!String(raw || "").trim() }), ok: false };
+    if (links.indexOf(u) < 0 && links.length < DOCS_MAX) links.push(u);
+    return { st: Object.assign({}, st, { links: links, linkDraft: "", linkBad: false }), ok: true };
+  }
+
+  function removeLink(st, i) {
+    var links = (st.links || []).slice();
+    links.splice(Number(i), 1);
+    return Object.assign({}, st, { links: links });
+  }
+
+  // What goes to POST /teams: files that have somewhere to come from (a failed upload is left out), and the links.
+  function docPayload(st) {
+    return {
+      attachments: (st.docs || []).filter(function (d) { return d.brain_path || d.path; }).map(function (d) {
+        return d.brain_path ? { brain_path: d.brain_path, name: d.name } : { path: d.path, name: d.name };
+      }),
+      links: (st.links || []).slice()
+    };
+  }
+
+  function docsCount(st) { return (st.docs || []).length + (st.links || []).length; }
+
+  function docChipsHtml(st) {
+    var docs = st.docs || [], links = st.links || [];
+    if (!docs.length && !links.length) return "";
+    return docs.map(function (d, i) {
+      var state = d.busy ? tw("teams.pick.doc_uploading") : d.err ? tw("teams.pick.doc_failed") : "";
+      return '<span class="tmp-doc' + (d.err ? " is-err" : "") + (d.busy ? " is-busy" : "") + '">' + ic(d.brain_path ? "file-text" : "upload-cloud") +
+        '<span class="tmp-doc-name" title="' + esc(d.brain_path || d.name) + '">' + esc(d.name) + "</span>" +
+        (state ? '<span class="tmp-doc-state">' + esc(state) + "</span>" : "") +
+        '<button type="button" class="tmp-sel-x" data-doc-del="' + i + '" aria-label="' + esc(tw("teams.pick.doc_remove", { name: d.name })) +
+        '">' + ic("x") + "</button></span>";
+    }).join("") + links.map(function (u, i) {
+      return '<span class="tmp-doc">' + ic("link") + '<span class="tmp-doc-name" title="' + esc(u) + '">' + esc(u.replace(/^https?:\/\//i, "")) +
+        '</span><button type="button" class="tmp-sel-x" data-link-del="' + i + '" aria-label="' + esc(tw("teams.pick.doc_remove", { name: u })) +
+        '">' + ic("x") + "</button></span>";
+    }).join("");
+  }
+
+  // Search results: files of the brain whose name matches. One already picked says so and cannot be added twice.
+  function docResultsHtml(st) {
+    if (!String(st.docQuery || "").trim()) return "";
+    if (st.docState === "searching") return '<div class="tmp-doc-note" role="status">' + esc(tw("teams.pick.doc_searching")) + "</div>";
+    var rows = st.docResults || [];
+    if (!rows.length) return '<div class="tmp-doc-note">' + esc(tw("teams.pick.doc_none")) + "</div>";
+    var full = (st.docs || []).length >= DOCS_MAX;
+    return rows.map(function (r, i) {
+      var have = hasDoc(st, r.path);
+      return '<div class="tmp-doc-res">' + ic("file-text") + '<span class="tmp-doc-res-text"><b>' + esc(r.name) + "</b><i>" + esc(r.path) +
+        '</i></span><button type="button" class="ws-btn tmp-doc-pick" data-doc-add="' + i + '"' + (have || full ? " disabled" : "") + ">" +
+        esc(tw(have ? "teams.pick.doc_added" : "teams.pick.doc_add")) + "</button></div>";
+    }).join("");
+  }
+
+  function docsSummaryHtml(st) {
+    var n = docsCount(st);
+    return esc(tw("teams.pick.docs_add")) + (n ? ' <span class="tmp-chip-n">' + n + "</span>" : "");
+  }
+
+  function docsHtml(st) {
+    var open = !!(st.docsOpen || docsCount(st) || st.docQuery || st.linkDraft);
+    return '<details class="tmp-desc tmp-docs"' + (open ? " open" : "") + '><summary class="tmp-docs-sum">' + docsSummaryHtml(st) +
+      '</summary><p class="tmp-docs-help">' + esc(tw("teams.pick.docs_help")) + '</p><div class="tmp-docs-chips">' + docChipsHtml(st) +
+      '</div><div class="tmp-docs-row"><input class="tmp-doc-search" type="search" value="' + esc(st.docQuery || "") + '" placeholder="' +
+      esc(tw("teams.pick.doc_search_ph")) + '" aria-label="' + esc(tw("teams.pick.doc_search_ph")) + '">' +
+      '<button type="button" class="ws-btn tmp-doc-upload">' + ic("upload-cloud") + " " + esc(tw("teams.pick.doc_upload")) + "</button></div>" +
+      '<div class="tmp-doc-results">' + docResultsHtml(st) + '</div><div class="tmp-docs-row"><input class="tmp-link-input" type="url" value="' +
+      esc(st.linkDraft || "") + '" placeholder="' + esc(tw("teams.pick.link_ph")) + '" aria-label="' + esc(tw("teams.pick.link_ph")) + '">' +
+      '<button type="button" class="ws-btn tmp-link-add">' + esc(tw("teams.pick.link_add")) + "</button></div>" +
+      (st.linkBad ? '<div class="tmp-doc-note tmp-doc-warn" role="alert">' + esc(tw("teams.pick.link_bad")) + "</div>" : "") + "</details>";
   }
 
   function face(a, size) {
@@ -252,7 +370,7 @@
       esc(tw("teams.pick.name_ph")) + '"></label><details class="tmp-desc"' + (descOpen ? " open" : "") + '>' +
       '<summary class="tmp-desc-sum">' + esc(tw("teams.pick.desc_add")) + '</summary><input class="tmp-desc-input" maxlength="2000" value="' +
       esc(st.desc || "") + '" placeholder="' + esc(tw("teams.pick.desc_ph")) + '" aria-label="' + esc(tw("teams.description")) +
-      '"></details></div></div>' : "";
+      '"></details></div></div>' + '<div class="tmp-docs-box">' + docsHtml(st) + "</div>" : "";
     var err = st.error ? '<div class="tmp-error" role="alert">' + esc(st.error) + "</div>" : "";
     return '<div class="tmp-layer"><div class="tmp-scrim tmp-cancel"></div><div class="tmp-dialog" role="dialog" aria-modal="true" ' +
       'aria-labelledby="tmp-title">' + head + '<div class="tmp-body">' + name +
@@ -268,6 +386,9 @@
   var api = { fold: fold, tagsOf: tagsOf, visible: visible, toggle: toggle, normalize: normalize, autoName: autoName,
     canSubmit: canSubmit, html: html, listHtml: listHtml, selectedHtml: selectedHtml, tagsHtml: tagsHtml,
     leaderHtml: leaderHtml, footerHtml: footerHtml, previewHtml: previewHtml, setLeader: setLeader, NO_TAG: NO_TAG,
+    DOCS_MAX: DOCS_MAX, docsBusy: docsBusy, hasDoc: hasDoc, addDoc: addDoc, removeDoc: removeDoc, cleanLink: cleanLink,
+    addLink: addLink, removeLink: removeLink, docPayload: docPayload, docsCount: docsCount, docsHtml: docsHtml,
+    docChipsHtml: docChipsHtml, docResultsHtml: docResultsHtml, docsSummaryHtml: docsSummaryHtml,
     setStrings: function (o) { FALLBACK = o || {}; } };
   if (typeof window !== "undefined") window.JavisTeamPicker = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

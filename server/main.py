@@ -10288,6 +10288,15 @@ async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: i
     except (TypeError, ValueError):
         limit = 50
     SKIP_DIRS = {".git", "node_modules", "__pycache__", ".obsidian", ".trash", ".venv", ".pytest_cache"}
+    # 2026-11-12: several words match a name that holds all of them, in any order and with anything between: typing
+    # "bảng giá" finds `bang-gia-dich-vu.md`. One word, or the words as typed, match as before.
+    words = qf.split()
+
+    def _name_hit(name: str) -> bool:
+        if ql in name.lower():
+            return True
+        folded = _fold_accents(name)
+        return qf in folded or (len(words) > 1 and all(w in folded for w in words))
 
     def _walk():
         out = []
@@ -10297,7 +10306,7 @@ async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: i
                 for dn in sorted(dirnames):
                     if len(out) >= limit:
                         return out
-                    if ql not in dn.lower() and qf not in _fold_accents(dn):
+                    if not _name_hit(dn):
                         continue
                     try:
                         rel = _files_rel(root, Path(dirpath) / dn)
@@ -10312,7 +10321,7 @@ async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: i
                     return out
                 p = Path(dirpath) / fn
                 ext = p.suffix.lower()
-                name_hit = mode in ("name", "all") and (ql in fn.lower() or qf in _fold_accents(fn))
+                name_hit = mode in ("name", "all") and _name_hit(fn)
                 content_hit = False
                 snippet, line_no = "", 0
                 if mode in ("content", "all") and ext in _TEXT_EXTS:
@@ -31047,6 +31056,17 @@ def _team_attach(team, attachments):
     store, sid = get_store(), team.get("session_id") or ""
     if not sid:
         return []
+    # 2026-11-12: a file picked from the brain (the create-team box, the Info tab's search) comes as `brain_path`, the
+    # path /files/search returns. It is resolved here, inside the brain's own fence; a path that escapes it is dropped.
+    picked = []
+    for a in list(attachments or []):
+        if isinstance(a, dict) and a.get("brain_path") and not a.get("path"):
+            try:
+                a = dict(a, path=str(_safe_path(brain, str(a.get("brain_path") or ""))))
+            except ValueError:
+                continue
+        picked.append(a)
+    attachments = picked
     return team_docs.save(attachments, staging=STAGING, brain_root=broot,
                           dest_dir=broot / "attachments" / "teams" / str(team.get("team_id") or "team"),
                           to_rel=lambda p: _files_rel(root, Path(p)),
