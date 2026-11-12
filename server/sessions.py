@@ -27,6 +27,7 @@ import sqlite3
 import threading
 import time
 import uuid
+import zlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -1339,6 +1340,31 @@ class SessionStore:
             (session_id,),
         )
         return [self._tin(r) for r in rows]
+
+    def messages_fingerprint(self, session_id: str, upto_id: Optional[int] = None) -> Tuple[int, int, int, int]:
+        """(how many messages, the highest id, the id of the newest message, a checksum of its text) of a conversation,
+        or of its messages up to `upto_id`. Tells a reader whether the messages changed since it last looked without
+        loading them (session_assets_scan.py): it costs two index lookups and one message, however long the chat is.
+
+        It covers every way this store changes messages today: an append and a rewind move the count or the highest
+        id, a delete moves the count, and the one in-place edit (`replace_last_message`) changes the newest message.
+        A NEW method that rewrites the text of an older message must be reflected here, or those readers go stale."""
+        where, params = "session_id = ?", [session_id]
+        if upto_id is not None:
+            where += " AND id <= ?"
+            params.append(int(upto_id))
+        rows = self._read(f"SELECT COUNT(*), COALESCE(MAX(id), 0) FROM messages WHERE {where}", tuple(params))
+        n, top = (int(rows[0][0] or 0), int(rows[0][1] or 0)) if rows else (0, 0)
+        last = self._read(f"SELECT id, content FROM messages WHERE {where} ORDER BY ts DESC, id DESC LIMIT 1",
+                          tuple(params))
+        if not last:
+            return (n, top, 0, 0)
+        return (n, top, int(last[0][0]), zlib.crc32(str(last[0][1] or "").encode("utf-8", "replace")))
+
+    def messages_after(self, session_id: str, after_id: int = 0) -> List[sqlite3.Row]:
+        """Rows (id, role, content, ts) of the messages with an id above `after_id`, oldest first."""
+        return self._read("SELECT id, role, content, ts FROM messages WHERE session_id = ? AND id > ? ORDER BY ts, id",
+                          (session_id, int(after_id or 0)))
 
     def count_messages(self, session_id: str) -> int:
         rows = self._read("SELECT COUNT(*) AS n FROM messages WHERE session_id = ?",

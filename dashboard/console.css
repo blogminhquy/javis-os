@@ -2189,7 +2189,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Start-up screen (2026-11-09, boot-splash.js): covers the app from the first paint until the first page has its data. */
 .boot-splash { position: fixed; inset: 0; z-index: 100000; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 14px; padding: 24px; text-align: center; background: var(--bg, #f7f5f2); color: var(--text2);
-  transition: opacity .25s ease; }
+  transition: opacity .15s ease; }
 .boot-splash.boot-out { opacity: 0; pointer-events: none; }
 .boot-logo { width: 64px; height: 64px; border-radius: 16px; object-fit: contain; }
 .boot-spin { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--border, rgba(140,140,160,.35));

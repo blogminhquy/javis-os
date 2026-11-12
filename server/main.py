@@ -498,6 +498,7 @@ for _mt, _ext in (("application/vnd.openxmlformats-officedocument.spreadsheetml.
     mimetypes.add_type(_mt, _ext)
 import tinh_gon  # noqa: E402
 import static_bundle  # noqa: E402
+import session_assets_scan  # noqa: E402
 
 # Minified scripts and styles survive a restart (tinh_gon.set_cache_dir, 2026-11-09): outside the code tree, so an update
 # never ships a stale copy, and keyed by each file's bytes, so an update re-minifies only what it changed.
@@ -22386,55 +22387,45 @@ def sessions_assets(session_id: str, brain: str = Query("")):
     broot = Path(_brain_root(b)).resolve()
     ceil = _files_root(b)
 
-    files, links = {}, {}
-    for m in store.get_messages(session_id):
-        noi_dung = m.get("content") or ""
-        if not noi_dung:
-            continue
-        ts = m.get("ts") or 0
-        for tg in channel_context.markdown_targets(noi_dung):
-            raw = tg["raw"]
-            if "://" in raw or raw.startswith(("#", "mailto:", "data:", "tel:")):
-                continue
-            cand = channel_context._vault_markdown_candidate(raw, str(broot))
-            rp = _ts_trong_brain(broot, cand) if cand else None
-            if not rp:
-                continue
-            files.setdefault(os.path.normcase(str(rp)),
-                             {"p": rp, "nhan": tg["nhan"], "hinh": tg["hinh"], "ts": ts})["ts"] = ts
-        for raw in channel_context.extract_paths(noi_dung):
-            rp = _ts_trong_brain(broot, Path(raw))
-            if not rp or not rp.is_file():
-                continue
-            files.setdefault(os.path.normcase(str(rp)),
-                             {"p": rp, "nhan": "", "hinh": False, "ts": ts})["ts"] = ts
-        for u in channel_context.extract_urls(noi_dung):
-            links.setdefault(u, {"url": u, "ts": ts, "vai": m.get("role") or ""})
+    # What the messages mention is kept between calls and only new messages are read (session_assets_scan.py,
+    # 2026-11-12): the Info tab of a team asks this on every open, and reading a long team again each time took
+    # seconds of pure Python that slowed every other request. Whether a file exists is still asked here, every call.
+    seen = session_assets_scan.mentions(store, session_id, broot, _ts_trong_brain)
 
     ra_file = []
-    for v in files.values():
-        rp = v["p"]
+    for k in set(seen.linked) | set(seen.bare):
+        lk, br = seen.linked.get(k), seen.bare.get(k)
+        rp = (lk or br)["p"]
         co = rp.is_file()
+        if not co:
+            br = None             # a bare path counts only while its file exists
+        if not lk and not br:
+            continue
         try:
             st = rp.stat() if co else None
         except OSError:
             co, st = False, None
+        # The label is the one of the FIRST mention, as when the messages were read in order: a bare path named
+        # before the link leaves the row without a label.
+        first_is_link = bool(lk) and (not br or lk["first"] < br["first"])
         ra_file.append({
             "path": _files_rel(ceil, rp),                 # theo TRẦN: đúng khuôn JavisOpenNoteAt nhận
             "brain_path": _files_rel(broot, rp),          # theo GỐC BRAIN: để hiện cho người đọc
             "name": rp.name,
-            "label": v["nhan"],
-            "image": v["hinh"],
+            "label": lk["label"] if first_is_link else "",
+            "image": lk["image"] if first_is_link else False,
             "exists": co,
             "size": st.st_size if st else 0,
-            "ts": v["ts"],
+            "ts": max(x["last"] for x in (lk, br) if x)[0],
             "manual": False,
             "_that": str(rp),
+            "_first": min(x["first"] for x in (lk, br) if x),
         })
-    ra_file.sort(key=lambda x: x["ts"], reverse=True)
-    ra_link = sorted(links.values(), key=lambda x: x["ts"], reverse=True)
-    for l in ra_link:
-        l["manual"] = False
+    ra_file.sort(key=lambda x: (-(x["ts"] or 0), x["_first"]))
+    for f in ra_file:
+        f.pop("_first", None)
+    ra_link = [{"url": l["url"], "ts": l["ts"], "vai": l["role"], "manual": False}
+               for l in sorted(seen.links.values(), key=lambda x: (-(x["ts"] or 0), x["first"]))]
 
     # ── Phần NGƯỜI DÙNG tự gắn ────────────────────────────────────────────────
     # Trộn lúc ĐỌC chứ không ghi đè: máy vẫn đoán như cũ, người vẫn thêm được thứ máy không
