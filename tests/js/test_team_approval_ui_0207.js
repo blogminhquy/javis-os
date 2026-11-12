@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const ROOT = path.join(__dirname, "..", "..");
 const TM = require(path.join(ROOT, "dashboard", "teams.js"));
+const CR = require(path.join(ROOT, "dashboard", "chat-render.js"));
 const vi = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 const en = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "en.json"), "utf8"));
 const css = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
@@ -25,6 +26,29 @@ let h = TM.messageHtml(msg, {});
 check("a pending card renders as an approval card, not a plain system line", h.includes("tm-ap ") && !h.includes("tm-sys"), h);
 check("card text is escaped", h.includes("Gửi tin &lt;b&gt;ưu đãi&lt;/b&gt;") && !h.includes("<b>ưu đãi"), h);
 check("card shows the exact call and the evidence", h.includes("zalo_send_message") && h.includes("khach.csv"), h);
+const oldWindow = global.window;
+global.window = { JAVIS_BRAIN: "brains/Brain Default", mdToHtml: CR.mdToHtml };
+const absoluteMd = "/Users/quantran/javis/brains/Brain Default/teams/tm_1/result.md";
+const fileAp = Object.assign({}, ap, {
+  action: "Duyệt [result.md](" + absoluteMd + ")",
+  evidence: ["`" + absoluteMd + "`"]
+});
+const fileCard = TM.approvalCardHtml({ id: 42, meta: { approval: fileAp } });
+check("approval result renders Markdown files as internal links",
+  (fileCard.match(/data-vault-path="teams\/tm_1\/result\.md"/g) || []).length === 2 &&
+  !fileCard.includes('target="_blank"'), fileCard);
+const systemCard = TM.messageHtml({ id: 43, author_kind: "system", content: "[result.md](" + absoluteMd + ")", meta: {} }, {});
+check("generic Team system result also opens Markdown internally",
+  systemCard.includes('data-vault-path="teams/tm_1/result.md"'), systemCard);
+const acceptanceCard = TM.acceptanceCardHtml({ id: 44, meta: { acceptance: { status: "review", task_id: "t1", revision: 1,
+  rounds: 1, criteria: [{ label: "[result.md](" + absoluteMd + ")" }], last: [{ idx: 0, verdict: "pass", evidence: {} }] } } });
+check("acceptance evidence keeps result files clickable",
+  acceptanceCard.includes('data-vault-path="teams/tm_1/result.md"'), acceptanceCard);
+const opportunityCard = TM.opportunityCardHtml({ id: 45, meta: { opportunity: { status: "proposed", opp_id: "o1",
+  reason: "Xem [result.md](" + absoluteMd + ")", evidence: ["`" + absoluteMd + "`"] } } });
+check("opportunity result keeps Markdown files clickable",
+  (opportunityCard.match(/data-vault-path="teams\/tm_1\/result\.md"/g) || []).length === 2, opportunityCard);
+global.window = oldWindow;
 check("pending card has Approve, Ask for changes, Reject bound to the request and its revision",
   ["approve", "changes", "reject"].every(function (d) { return h.includes('data-ap-decide="' + d + '"'); })
   && h.includes('data-ap="ap_1"') && h.includes('data-ap-rev="2"'), h);

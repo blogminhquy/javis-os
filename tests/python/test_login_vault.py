@@ -360,6 +360,66 @@ def test_bots_never_get_the_tool():
     assert "javis_login" in mcp_hub.OWNER_ONLY_TOOLS
 
 
+# ---------------------------------------------------------------- operate fields (can_act, approval)
+
+
+@pytest.mark.parametrize("domains,want", [
+    (["shopee.vn"], "ask"), (["banhang.shopee.vn"], "ask"), ([".tiktok.com"], "ask"), (["lazada.vn"], "ask"),
+    (["business.facebook.com"], "ask"), (["ads.google.com"], "ask"), (["sapo.vn"], "ask"),
+    (["myblog.vn", "momo.vn"], "ask"), (["myblog.vn"], "auto"), (["myshopee-blog.com"], "auto"),
+    (["facebook.com"], "auto"), ([], "auto")])
+def test_default_approval_by_domain(domains, want):
+    assert lv.default_approval(domains) == want
+
+
+def test_new_login_view_has_operate_fields(tmp_path):
+    v = _vault(tmp_path)
+    shop = v.create("Shopee", COOKIE_EDITOR)
+    blog = v.create("Blog", json.dumps([{"name": "a", "value": "1", "domain": ".myblog.vn"}]))
+    assert shop["can_act"] is True and shop["approval"] == "ask"
+    assert blog["can_act"] is True and blog["approval"] == "auto"
+    v.store.close()
+
+
+def test_control_act_and_approval_actions(tmp_path):
+    v = _vault(tmp_path)
+    lg = v.create("Shopee", COOKIE_EDITOR)
+    assert v.control(lg["id"], "act_off")["can_act"] is False
+    assert v.control(lg["id"], "act_on")["can_act"] is True
+    assert v.control(lg["id"], "approval_auto")["approval"] == "auto"
+    assert v.control(lg["id"], "approval_ask")["approval"] == "ask"
+    with pytest.raises(lv.VaultError) as e:
+        v.control(lg["id"], "nope")
+    assert "act_off" in str(e.value) and "approval_auto" in str(e.value)
+    v.store.close()
+
+
+def test_old_database_gets_operate_columns_with_domain_defaults(tmp_path):
+    import sqlite3
+    db = sqlite3.connect(str(tmp_path / "login_vault.sqlite3"))
+    db.execute("CREATE TABLE logins (id TEXT PRIMARY KEY, name TEXT NOT NULL, domains TEXT NOT NULL DEFAULT '[]',"
+               " cookies_enc TEXT NOT NULL, origins_enc TEXT NOT NULL DEFAULT '', count INTEGER NOT NULL DEFAULT 0,"
+               " allow_ai INTEGER NOT NULL DEFAULT 1, test_url TEXT NOT NULL DEFAULT '',"
+               " status TEXT NOT NULL DEFAULT 'unknown', status_note TEXT NOT NULL DEFAULT '',"
+               " checked_at REAL NOT NULL DEFAULT 0, used_at REAL NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0,"
+               " expires_at REAL NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL)")
+    for i, doms in (("old1", ["shopee.vn"]), ("old2", ["myblog.vn"])):
+        db.execute("INSERT INTO logins(id, name, domains, cookies_enc, created_at, updated_at) VALUES (?,?,?,?,1,1)",
+                   (i, i, json.dumps(doms), "x"))
+    db.commit()
+    db.close()
+    v = _vault(tmp_path)
+    assert (v.store.get("old1")["can_act"], v.store.get("old1")["approval"]) == (1, "ask")
+    assert (v.store.get("old2")["can_act"], v.store.get("old2")["approval"]) == (1, "auto")
+    v.store.close()
+    again = _vault(tmp_path)                       # second start: migration is a no-op, nothing is reset
+    again.control("old1", "approval_auto")
+    again.store.close()
+    third = _vault(tmp_path)
+    assert third.store.get("old1")["approval"] == "auto"
+    third.store.close()
+
+
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main([__file__, "-q"]))

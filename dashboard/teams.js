@@ -231,6 +231,19 @@
     return { html: out, me: me };
   }
 
+  // Render dynamic Team text through the shared Markdown renderer. Team has several result
+  // surfaces besides normal chat bubbles (approval, acceptance, opportunity and system cards).
+  // A collaborator can return a file in any of them, so all of those surfaces need the same
+  // vault-link normalization and click contract.
+  function teamRichHtml(text) {
+    var raw = String(text == null ? "" : text);
+    var md = typeof window !== "undefined" && window.mdToHtml;
+    if (md) {
+      try { return md(raw, brain()); } catch (e) { /* fall through to escaped text */ }
+    }
+    return esc(raw).replace(/\n/g, "<br>");
+  }
+
   // `open`: the owner opened this long message with "Show more" (kept across redraws of the list).
   function bodyHtml(m, mine, open) {
     var text = String(m.content == null ? "" : m.content);
@@ -262,6 +275,42 @@
   }
 
   function rawUrl(path) { return "/files/raw?brain=" + q(brain()) + "&path=" + q(path); }
+  // 2026-11-09: an .html file from an assistant opens INSIDE the team chat (a sheet over the chat frame), like the main
+  // chat's artifact, instead of a new browser tab (where the page lost its stylesheet). htmlAttr marks the link; the
+  // click handler in onClick calls openHtmlSheet. The page draws through html-preview.js (sandboxed iframe, relative
+  // CSS and images inlined with the session). "Open in new tab" stays in the sheet's header.
+  function isHtmlFile(path) { return /\.html?$/i.test(String(path || "").split(/[?#]/)[0]); }
+  function htmlAttr(path) { return isHtmlFile(path) ? ' data-tm-html="' + esc(path) + '"' : ""; }
+  function closeHtmlSheet() {
+    var old = S.el && S.el.querySelector ? S.el.querySelector(".tm-htmlsheet") : null;  // lives in .tm-page, so a redraw of the shell drops it
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+  function openHtmlSheet(path) {
+    var HP = typeof window !== "undefined" && window.JavisHtmlPreview;
+    if (!HP || !S.el) return false;
+    closeHtmlSheet();
+    var name = String(path).split("/").pop();
+    var sheet = document.createElement("div");
+    sheet.className = "tm-htmlsheet";
+    sheet.innerHTML = '<div class="tm-htmlsheet-head"><b title="' + esc(path) + '">' + esc(name) + '</b>' +
+      '<a class="ws-btn" href="' + esc(rawUrl(path)) + '" target="_blank" rel="noopener">' + esc(tw("teams.html_newtab")) + '</a>' +
+      '<button type="button" class="ws-btn" data-tm-html-close="1">' + esc(tw("teams.html_close")) + '</button></div>' +
+      '<div class="tm-htmlsheet-body"><p class="tm-sub">' + esc(tw("common.loading")) + "</p></div>";
+    var page = S.el.querySelector(".tm-page"), list = S.el.querySelector(".tm-list");
+    if (!page) return false;
+    sheet.style.left = (list ? list.offsetWidth : 0) + "px";   // covers the chat and info columns, the team list stays usable
+    page.appendChild(sheet);
+    var body = sheet.querySelector(".tm-htmlsheet-body");
+    fetch(rawUrl(path), { credentials: "same-origin" }).then(function (r) {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.text();
+    }).then(function (code) {
+      if (sheet.isConnected) return HP.render(body, code, path, rawUrl);
+    }).catch(function () {
+      if (sheet.isConnected) body.innerHTML = '<p class="tm-sub">' + esc(tw("teams.html_fail")) + "</p>";
+    });
+    return true;
+  }
   // A file sent with an owner's message. A picture opens in the in-app viewer (chat-render.js lightbox, a.jv-img-link,
   // named by data-img-ten) like every other picture in the chats, and a picture that cannot load any more becomes the
   // main chat's "not available" box (jvImgGone) instead of a broken icon. `ver` (the message time) is the picture's
@@ -275,7 +324,15 @@
         '" target="_blank" rel="noopener" title="' + esc(tw("chat.att_zoom")) + '"><img src="' + esc(url) + '" alt="' + esc(name) +
         '" loading="lazy" onerror="jvImgGone(this)"><span>' + esc(name) + "</span></a>";
     }
-    return '<a class="tm-file" href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(name) + '">' + ic("file-text") +
+    // Markdown sent to a Team is a document to review, not a binary download.
+    // Route it through the same vault link as assistant-written Markdown so the
+    // workspace editor opens it instead of showing a raw browser tab.
+    if (/\.md$/i.test(String(f.path || ""))) {
+      return '<a class="tm-file jv-floc" href="#open=' + esc(encodeURIComponent(String(f.path || ""))) +
+        '" data-vault-path="' + esc(String(f.path || "")) + '" title="' + esc(name) + '">' + ic("file-text") +
+        "<span>" + esc(name) + "</span></a>";
+    }
+    return '<a class="tm-file"' + htmlAttr(f.path) + ' href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(name) + '">' + ic("file-text") +
       "<span>" + esc(name) + "</span></a>";
   }
 
@@ -711,8 +768,8 @@
       return acceptanceCardHtml(m);
     }
     if (m.author_kind !== "owner" && m.author_kind !== "agent") {
-      return '<div class="tm-sys' + (hit ? " tm-msg-hit" : "") + '" data-mid="' + esc(m.id) + '">' +
-        esc(m.content).replace(/\n/g, "<br>") + "</div>";
+      return '<div class="tm-sys tm-rich' + (hit ? " tm-msg-hit" : "") + '" data-mid="' + esc(m.id) + '">' +
+        teamRichHtml(m.content) + "</div>";
     }
     var mine = m.author_kind === "owner";
     // Tác giả tra theo thành viên đang hoạt động rồi tới sổ tác giả (cả người đã rời): tin cũ giữ đúng tên và ảnh.
@@ -742,7 +799,9 @@
     }
     // "Xong" là bình thường nên không hiện; chỉ báo khi câu trả lời KHÔNG được áp dụng.
     var lateLine = late ? '<div class="tm-late">' + ic("triangle-alert") + esc(tw(STATUS_KEY[meta.status])) + "</div>" : "";
-    var notes = (meta.notes || []).map(function (n) { return '<div class="tm-note-line">' + esc(n) + "</div>"; }).join("");
+    var notes = (meta.notes || []).map(function (n) {
+      return '<div class="tm-note-line tm-rich">' + teamRichHtml(n) + "</div>";
+    }).join("");
     // "Sao em không trả lời?": máy chủ chỉ GỢI Ý quyết định im gần nhất (T3 phần J); bấm mở lịch sử quyết định để sửa.
     if (mine && meta.judge_hint && meta.judge_hint.agent_key) {
       var hm = memberOf(ctx.members, meta.judge_hint.agent_key);
@@ -882,8 +941,9 @@
       var c = (a.criteria || [])[x.idx] || {};
       var what = c.label || c.path || c.command || c.kind || "";
       var ev = x.evidence || {};
-      return "<li><b>" + esc(tw(ACC_V_KEY[x.verdict] || ACC_V_KEY.unknown)) + "</b> · " + esc(what) +
-        (ev.detail ? " · " + esc(ev.detail) : "") + (ev.sha256 ? ' <code>' + esc(String(ev.sha256).slice(0, 12)) + "</code>" : "") + "</li>";
+      var detail = what + (ev.detail ? " · " + ev.detail : "");
+      return '<li><b>' + esc(tw(ACC_V_KEY[x.verdict] || ACC_V_KEY.unknown)) + '</b><div class="tm-rich">' +
+        teamRichHtml(detail) + "</div>" + (ev.sha256 ? ' <code>' + esc(String(ev.sha256).slice(0, 12)) + "</code>" : "") + "</li>";
     }).join("");
     var waiting = a.status === "review";
     return '<div class="tm-ap tm-acc tm-ap-' + esc(a.status || "") + '" data-mid="' + esc(m.id) + '" role="group"><div class="tm-ap-head">' +
@@ -1724,7 +1784,9 @@
   function opportunityCardHtml(m) {
     var o = (m.meta || {}).opportunity || {};
     var st = o.status || "proposed";
-    var ev = (o.evidence || []).map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("");
+    var ev = (o.evidence || []).map(function (e) {
+      return '<li class="tm-rich">' + teamRichHtml(e) + "</li>";
+    }).join("");
     var foot = (st === "proposed" || st === "open") ?
       '<div class="tm-actions"><button type="button" class="ws-btn tm-primary" data-opp-decide="accept" data-opp="' +
         esc(o.opp_id) + '">' + esc(tw("teams.md.accept")) + '</button><button type="button" class="ws-btn" data-opp-decide="reject" data-opp="' +
@@ -1732,8 +1794,9 @@
       '<div class="tm-ap-state">' + esc(tw(OPP_ST_KEY[st] || OPP_ST_KEY.proposed)) + "</div>";
     return '<div class="tm-ap tm-opp tm-ap-' + esc(st) + '" data-mid="' + esc(m.id) + '" role="group"><div class="tm-ap-head">' +
       ic("lightbulb") + "<b>" + esc(tw("teams.md.opp_title")) + "</b></div>" +
-      '<div>' + esc(o.reason || "") + "</div>" +
-      (o.benefit ? '<div class="tm-ap-row"><span class="tm-ap-k">' + esc(tw("teams.md.benefit")) + "</span><span>" + esc(o.benefit) + "</span></div>" : "") +
+      '<div class="tm-rich">' + teamRichHtml(o.reason || "") + "</div>" +
+      (o.benefit ? '<div class="tm-ap-row"><span class="tm-ap-k">' + esc(tw("teams.md.benefit")) +
+        '</span><div class="tm-rich">' + teamRichHtml(o.benefit) + "</div></div>" : "") +
       (ev ? '<div class="tm-ap-k">' + esc(tw("teams.ap.evidence")) + '</div><ul class="tm-ap-ev">' + ev + "</ul>" : "") +
       '<div class="tm-sub"><code>' + esc((o.source || "") + ":" + (o.ref || "") + " @ " + (o.version_key || "")) + "</code></div>" +
       foot + "</div>";
@@ -1784,14 +1847,16 @@
     if (ap.scope) rows.push(["teams.ap.scope", ap.scope]);
     if (ap.impact) rows.push(["teams.ap.impact", ap.impact]);
     var body = rows.map(function (r) {
-      return '<div class="tm-ap-row"><span class="tm-ap-k">' + esc(tw(r[0])) + "</span><span>" +
-        esc(r[1]).replace(/\n/g, "<br>") + "</span></div>";
+      return '<div class="tm-ap-row"><span class="tm-ap-k">' + esc(tw(r[0])) +
+        '</span><div class="tm-rich">' + teamRichHtml(r[1]) + "</div></div>";
     }).join("");
     var acts = (ap.actions || []).map(function (a) {
       return '<li><code>' + esc(a.call || a.label) + "</code>" + (a.used ? " · " + esc(tw("teams.ap.used")) : "") + "</li>";
     }).join("");
     if (acts) body += '<div class="tm-ap-k">' + esc(tw("teams.ap.calls")) + '</div><ul class="tm-ap-calls">' + acts + "</ul>";
-    var ev = (ap.evidence || []).map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("");
+    var ev = (ap.evidence || []).map(function (e) {
+      return '<li class="tm-rich">' + teamRichHtml(e) + "</li>";
+    }).join("");
     if (ev) body += '<div class="tm-ap-k">' + esc(tw("teams.ap.evidence")) + '</div><ul class="tm-ap-ev">' + ev + "</ul>";
     if (ap.deadline_at) {
       body += '<div class="tm-ap-row"><span class="tm-ap-k">' + esc(tw("teams.ap.deadline")) + "</span><span>" +
@@ -1806,7 +1871,14 @@
         return '<button type="button" class="ws-btn' + (cls || "") + '" data-ap-decide="' + d + '" data-ap="' +
           esc(ap.approval_id) + '" data-ap-rev="' + esc(ap.team_rev) + '">' + esc(tw(k)) + "</button>";
       };
-      foot = '<div class="tm-actions">' + b("approve", "teams.ap.approve", " tm-primary") + b("changes", "teams.ap.changes") +
+      // 0.539.0: optional destination. Picked here, the approval hands the job to that team (no model decides it).
+      var others = (S.teams || []).filter(function (x) { return x && x.team_id && x.team_id !== S.activeId; });
+      var pick = '<label class="tm-ap-handoff-row"><span class="tm-ap-k">' + esc(tw("teams.ap.handoff")) + "</span>" +
+        '<select class="tm-ap-handoff" data-ap="' + esc(ap.approval_id) + '">' +
+        '<option value="">' + esc(tw("teams.ap.handoff_none")) + "</option>" +
+        others.map(function (x) { return '<option value="' + esc(x.team_id) + '">' + esc(x.name || x.team_id) + "</option>"; }).join("") +
+        "</select></label>";
+      foot = pick + '<div class="tm-actions">' + b("approve", "teams.ap.approve", " tm-primary") + b("changes", "teams.ap.changes") +
         b("reject", "teams.ap.reject") + "</div>";
     } else {
       foot = '<div class="tm-ap-state tm-ap-' + esc(st) + '">' + esc(tw(AP_ST_KEY[st] || AP_ST_KEY.pending)) +
@@ -3557,7 +3629,7 @@
       '<button type="button" class="ws-btn" data-info-add-file="1">' + ic("plus") + " " + esc(tw("teams.info_add_file")) + "</button></div>" +
       infoBody(esc(tw("teams.info_files_help"))) +
       (docs.length ? '<ul class="tm-info-list">' + docs.map(function (f) {
-        return '<li><a href="' + esc(rawUrl(f.brain_path || f.path)) + '" target="_blank" rel="noopener">' + ic("file-text") + "<span>" +
+        return '<li><a' + htmlAttr(f.brain_path || f.path) + ' href="' + esc(rawUrl(f.brain_path || f.path)) + '" target="_blank" rel="noopener">' + ic("file-text") + "<span>" +
           esc(f.label || f.name) + "</span></a>" + (f.manual && f.id ? '<button type="button" class="tm-chip-x" data-info-del-file="' + esc(f.id) +
           '" aria-label="' + esc(tw("teams.info_remove")) + '" title="' + esc(tw("teams.info_remove")) + '">' + ic("x") + "</button>" : "") + "</li>";
       }).join("") + "</ul>" : '<p class="tm-sub">' + esc(tw("teams.info_no_files")) + "</p>") + "</section>";
@@ -4157,6 +4229,31 @@
   }
 
   function onClick(e) {
+    // Team co own delegated click handler before the shared chat renderer. Keep Markdown review
+    // links working even when the Team page is mounted without the main chat click bridge.
+    var vaultLink = e.target.closest ? e.target.closest("a.jv-floc") : null;
+    if (vaultLink && S.el.contains(vaultLink) && vaultLink.getAttribute("data-vault-path") != null) {
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
+      e.preventDefault();
+      // The shared renderer also listens on document. Stop here so one click does not open the
+      // editor twice after the Team-specific bridge has handled it.
+      e.stopPropagation();
+      var vaultPath = vaultLink.getAttribute("data-vault-path") || "";
+      // Team is a full-screen surface. The wide-screen vault editor lives behind that surface,
+      // so JavisOpenVaultPath can load a file successfully while leaving the user staring at
+      // the unchanged chat. Always use the self-contained file modal here so the result is
+      // visibly opened inside Team; keep the general router only as a compatibility fallback.
+      if (typeof window.JavisEditFile === "function") window.JavisEditFile(vaultPath);
+      else if (typeof window.JavisOpenVaultPath === "function") window.JavisOpenVaultPath(vaultPath);
+      else if (typeof window.JavisOpenNote === "function") window.JavisOpenNote(vaultPath);
+      return;
+    }
+    if (e.target.closest && e.target.closest("[data-tm-html-close]")) { closeHtmlSheet(); return; }
+    var ha = e.target.closest ? e.target.closest("a[data-tm-html]") : null;
+    if (ha && !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) && openHtmlSheet(ha.getAttribute("data-tm-html"))) {
+      e.preventDefault();
+      return;
+    }
     var t = e.target.closest ? e.target.closest("button, [data-team], summary, .tm-scrim, .tmp-scrim") : null;
     // Bấm ở bất cứ đâu ngoài menu ghim thì đóng menu.
     if (S.rowMenu && !(e.target.closest && e.target.closest(".tm-row-menu")) && !(t && t.dataset && t.dataset.pinTeam)) {
@@ -4444,8 +4541,10 @@
       var kk = d.ap + "|" + dec;
       var dkey = S.apKeys[kk] || (S.apKeys[kk] = "ap-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10));
       t.disabled = true;
+      var hsel = document.querySelector('select.tm-ap-handoff[data-ap="' + d.ap + '"]');
+      var handoffTo = dec === "approve" && hsel ? hsel.value : "";
       return call("POST", teamUrl("/approvals/" + q(d.ap) + "/decide"), { decision: dec, note: (note || "").trim(),
-        decision_key: dkey, expected_rev: d.apRev ? Number(d.apRev) : null }).then(function (r) {
+        decision_key: dkey, expected_rev: d.apRev ? Number(d.apRev) : null, handoff_to: handoffTo }).then(function (r) {
         if (r.code !== 200) { t.disabled = false; fail(r); }
         loadMsgs(false); loadQueue();
       }).catch(function () { t.disabled = false; setNote(tw("teams.err_network")); });

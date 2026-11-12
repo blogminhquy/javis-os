@@ -59,7 +59,8 @@ check("model riêng chưa cấu hình được: theo model chính, kèm ghi chú
 
 # Máy để Codex làm model VIỆC NỀN, model chính Claude: lượt nhóm theo model chính, không bị chặn bởi hợp đồng Cộng hưởng.
 SETTINGS = {"model": {"main": {"provider": "anthropic-cli", "model": "sonnet"},
-                      "auxiliary": {"provider": "openai-oauth", "model": "gpt-5.5"}}}
+                      "auxiliary": {"provider": "openai-oauth", "model": "gpt-5.5"},
+                      "catalog": {"openai-oauth": ["gpt-5.6-luna"]}}}
 INFO = {"agent-one": {"slug": "one", "name": "One", "system": "You are One.", "model": "", "model_provider": ""},
         "agent-two": {"slug": "two", "name": "Two", "system": "You are Two.", "model": "", "model_provider": ""},
         "agent-dup": {"slug": "one-2", "name": "One", "system": "You are One too.", "model": "gpt-5.5",
@@ -78,8 +79,8 @@ with patch.object(main.cfgmod, "read_settings", return_value=SETTINGS), \
     check("model việc nền là Codex: lượt nhóm KHÔNG dùng model việc nền, chạy model chính",
           prov == "anthropic-cli" and model == "sonnet", (prov, model))
     prov, model, fn = main._team_engine_for({"brain_id": "b", "team_id": "tm_x"}, "agent-dup", "leader_reply")
-    check("trợ lý có model Codex riêng: lượt nhóm chạy Codex của trợ lý", prov == "openai-oauth" and model == "gpt-5.5",
-          (prov, model))
+    check("trợ lý có model Codex riêng: lượt nhóm dùng model còn trong catalog",
+          prov == "openai-oauth" and model == "gpt-5.6-luna", (prov, model))
 
 # ───────────── 2. dựng engine chỉ chữ theo provider ─────────────
 

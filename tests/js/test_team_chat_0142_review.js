@@ -9,6 +9,7 @@ const path = require("path");
 const ROOT = path.join(__dirname, "..", "..");
 const TM = require(path.join(ROOT, "dashboard", "teams.js"));
 const TP = require(path.join(ROOT, "dashboard", "team-picker.js"));
+const CR = require(path.join(ROOT, "dashboard", "chat-render.js"));
 const vi = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 const en = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "en.json"), "utf8"));
 const appJs = fs.readFileSync(path.join(ROOT, "dashboard", "app.js"), "latin1");
@@ -68,6 +69,22 @@ check("khung soạn: phím lên/xuống/Enter/Tab/Escape cho gợi ý, không g�
   /classList\.contains\("tm-input"\) && sugKey\(e\)\) return;/.test(teamsJs) &&
   teamsJs.indexOf('contains("tm-input") && sugKey(e)') < teamsJs.indexOf('if (e.key === "Escape" && S.side)'));
 check("gợi ý là listbox có aria-activedescendant", teamsJs.includes('role="listbox"') && teamsJs.includes("aria-activedescendant"));
+check("file Markdown Team mở editor nội bộ thay vì tab tải xuống",
+  /if \(\/\\\.md\$\/i\.test\(String\(f\.path \|\| \"\"\)\)\)[\s\S]{0,300}jv-floc[\s\S]{0,180}data-vault-path/.test(teamsJs) &&
+  !/if \(\/\\\.md\$\/i\.test\(String\(f\.path \|\| \"\"\)\)\)[\s\S]{0,300}target="_blank"/.test(teamsJs));
+const oldWindow = global.window;
+global.window = { JAVIS_BRAIN: "brains/Brain Default", mdToHtml: CR.mdToHtml };
+const teamMdBody = TM.bodyHtml({ content: "[Bản duyệt](/Users/quantran/javis/brains/Brain Default/tmp/ban-duyet.md)", ts: 42 }, false);
+global.window = oldWindow;
+check("kết quả do cộng sự viết trong thân chat Team thành link mở đúng file",
+  teamMdBody.includes('class="jv-floc"') && teamMdBody.includes('data-vault-path="tmp/ban-duyet.md"') &&
+  !teamMdBody.includes('target="_blank"'), teamMdBody);
+check("Team chặn cú bấm tại khung nhóm để file chỉ mở một lần",
+  /vaultLink[\s\S]{0,500}preventDefault\(\)[\s\S]{0,180}stopPropagation\(\)/.test(teamsJs));
+check("Team toàn màn mở file bằng modal nhìn thấy được, không nạp vào editor ẩn phía sau",
+  teamsJs.includes('typeof window.JavisEditFile === "function"') &&
+  teamsJs.indexOf('typeof window.JavisEditFile === "function"') <
+    teamsJs.indexOf('typeof window.JavisOpenVaultPath === "function"', teamsJs.indexOf("function onClick")));
 
 // ───────────── nút xử lý theo từng loại lỗi ─────────────
 const members = [{ agent_key: "ag_lan", slug: "lan", name: "Lan", status: "active" }];

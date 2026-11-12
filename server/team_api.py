@@ -101,6 +101,8 @@ class TeamApiDeps:
     # 0.357.0: report a job Javis Core gave the team back where it was asked (main._notify_owner):
     # (owner_chat, text, *, kind, label, source, ngan, brain, dedup) -> (ok, error), sync or async. None: no reports.
     report: Optional[Callable[..., Any]] = None
+    # () -> my_tasks.MyTasks: jobs waiting for the owner are mirrored into "Việc của tôi" (team_owner_tasks.py).
+    my_tasks: Optional[Callable[[], Any]] = None
 
 
 async def _body(request: Request) -> dict:
@@ -132,6 +134,7 @@ class TeamApi:
     def __init__(self, deps: TeamApiDeps):
         self.deps = deps
         self._teams = None
+        self.handoff_hook = None   # TeamOps gắn vào: chủ duyệt một lượt chuyển việc sang nhóm khác
         self._runner = None
         self._loop_task = None
         self._loop = None
@@ -178,6 +181,11 @@ class TeamApi:
                 self._bg.add(task)
                 task.add_done_callback(self._bg.discard)
 
+    def _handoff_call(self, team: dict, h: dict, ap: dict) -> dict:
+        if self.handoff_hook is None:
+            raise RuntimeError("chưa nối đường chuyển việc giữa các nhóm")
+        return self.handoff_hook(team, h, ap)
+
     def runner(self) -> TeamRunner:
         with self._init_lock:
             return self._make_runner()
@@ -214,6 +222,7 @@ class TeamApi:
                 contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block,
                 check_command=self.deps.check_command, brain_root=self.deps.brain_root,
                 work_dir=self.deps.work_dir, job_done=self.deps.job_done, skill_block=self.deps.skill_block)
+            self._runner.handoff_hook = lambda team, h, ap: self._handoff_call(team, h, ap)
             if self._loop is not None:
                 self._runner._loop, self._runner._loop_thread = self._loop, self._loop_thread
         return self._runner
@@ -378,6 +387,28 @@ class TeamApi:
         self._last_remind = 0.0
         self._last_reconcile = 0.0
 
+    async def _sync_owner_tasks(self, r) -> None:
+        """Every 30 s: jobs that wait for the owner become items of "Việc của tôi", and tick done when they stop waiting."""
+        if self.deps.my_tasks is None:
+            return
+        t_now = time.monotonic()
+        if t_now - getattr(self, "_last_owner_sync", -1e9) < 30:
+            return
+        self._last_owner_sync = t_now
+        try:
+            import team_owner_tasks
+            mt = self.deps.my_tasks()
+            teams = self.teams()
+            blocked = await r._io(lambda: self.deps.task_store().team_tasks_by_status("team_blocked"))
+            wanted = team_owner_tasks.wanted_for(blocked, teams.get)
+            brains = set(wanted) | set(await r._io(teams.brain_ids))
+            today = time.strftime("%Y-%m-%d")
+            for brain in brains:
+                async with mt._io:
+                    await asyncio.to_thread(team_owner_tasks.sync, mt, brain, wanted.get(brain, []), today)
+        except Exception as ex:  # noqa: BLE001 - mirroring must never break team dispatch
+            print(f"[team owner tasks] {type(ex).__name__}: {ex}", file=sys.stderr)
+
     async def tick(self) -> None:
         """Một vòng: phục hồi (một lần, nếu cần), nhận việc đầu hàng, mỗi giờ nhắc việc chặn quá 24 giờ."""
         if not hasattr(self, "_recovered"):
@@ -396,6 +427,7 @@ class TeamApi:
                 self._spawn(r.recheck(tid))
         # 0.207.0: approval requests past their deadline close before dispatch, so their jobs stay stopped with the reason.
         await r._io(r.expire_approvals)
+        await self._sync_owner_tasks(r)
         # 0.208.0: department mandates observe their granted sources when due (code only, no model).
         # In the background with no overlap (review 0.208.0): a slow check command must not hold up team dispatch.
         me = self.mandate_engine()
@@ -492,6 +524,36 @@ class TeamOps:
     def __init__(self, api: "TeamApi"):
         self.api = api
         self.deps = api.deps
+        api.handoff_hook = self.handoff
+
+    def handoff_target(self, team: dict, ref: str) -> dict:
+        """Tìm nhóm đích của một lượt chuyển việc (theo mã hoặc tên, trong cùng brain). Sai thì ném DispatchError, để
+        chủ biết TRƯỚC khi duyệt, không duyệt xong mới phát hiện nhóm không có."""
+        import team_dispatch
+        ref = str(ref or "").strip()
+        teams = self.api.teams()
+        dest = teams.get(ref)
+        if not dest or dest["brain_id"] != team["brain_id"]:
+            hits = [t for t in teams.list_teams(team["brain_id"], limit=200, include_archived=True)
+                    if str(t.get("name") or "").strip().lower() == ref.lower()]
+            if len(hits) != 1:
+                raise team_dispatch.DispatchError(f"không tìm được nhóm '{ref}' trong brain này (hoặc trùng tên)")
+            dest = hits[0]
+        if dest["team_id"] == team["team_id"]:
+            raise team_dispatch.DispatchError("không chuyển việc sang chính nhóm này")
+        return dest
+
+    def handoff(self, team: dict, h: dict, ap: dict) -> dict:
+        """Chủ đã duyệt một lượt chuyển việc từ nhóm `team` sang nhóm khác (`h` = {team, objective}). Giao ĐÚNG MỘT việc
+        cho nhóm đích bằng đường giao của Javis Core (`team_dispatch.dispatch`) với lượt của chủ, nên hàng đợi, nghiệm
+        thu và báo kết quả của nhóm đích như khi chủ tự giao. Mã đối chiếu theo mã yêu cầu duyệt: duyệt lại không tạo
+        việc thứ hai. Không chạy lại `check_caller`: người duyệt là chủ, và bước của nhóm vẫn không tự mở việc được."""
+        import team_dispatch
+        dest = self.handoff_target(team, h.get("team"))
+        text = f"[Chuyển từ nhóm {team['name']}] {h.get('objective') or ''}".strip()
+        turn = {"kenh": "approval", "la_chu": True, "chat_id": ""}
+        out = team_dispatch.dispatch(self, team["brain_id"], dest, text, turn, request_id=f"handoff-{ap['approval_id']}")
+        return {"team_name": dest["name"], "task_id": out["task_id"], "created": out["created"]}
 
     # ───────────── tra cứu ─────────────
 
@@ -1321,6 +1383,7 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
         decision = str(body.get("decision") or "").strip().lower()
         note = str(body.get("note") or "")[:2000]
         key = str(body.get("decision_key") or "").strip()[:80]
+        handoff_to = str(body.get("handoff_to") or "").strip()[:120]
         try:
             rev = int(body["expected_rev"]) if body.get("expected_rev") not in (None, "") else None
         except (TypeError, ValueError):
@@ -1336,8 +1399,14 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
                 return _err(400, "Thiếu mã lần bấm", "Missing decision key")
             if decision in ("reject", "changes") and not note.strip():
                 return _err(400, "Ghi lý do để trợ lý biết hướng sửa", "Add a reason so the assistant knows what to change")
+            if decision == "approve" and handoff_to:
+                try:
+                    api.handoff_target(team, handoff_to)
+                except Exception as ex:  # noqa: BLE001 - a wrong destination is refused before anything is approved
+                    return _err(400, f"Không chuyển được sang nhóm này: {ex}", f"Cannot hand off: {ex}")
             out = api.runner().decide_approval(team_id, approval_id, decision, note=note, decision_key=key,
-                                               expected_rev=rev, by="owner")
+                                               expected_rev=rev, by="owner",
+                                               handoff_to=handoff_to if decision == "approve" else "")
             if not out.get("ok"):
                 code = 404 if out.get("error") == "not_found" else 409
                 msgs = {"not_found": ("Không có yêu cầu này", "No such request"),

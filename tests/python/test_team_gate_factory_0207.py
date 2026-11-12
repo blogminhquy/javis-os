@@ -173,8 +173,10 @@ check("grok gated: refused before the engine (shared config file), with the reas
 with patch.object(main, "_codex_user_mcp_servers", return_value=["github"]), \
         patch.object(main.claude_cli, "codex_sandbox_cho_mode", return_value="workspace-write"):
     seen, task, tm, t = one_job("codex-extra", aux_engine.CODEX)
-check("codex gated with the user's own MCP servers: refused, named", not seen and "github" in (task["block_reason"] or ""),
-      task["block_reason"])
+extra_engine = seen[0]["eng"] if seen else None
+check("codex gated with the user's own MCP servers: ambient server is disabled",
+      seen and task["status"] == "done" and "mcp_servers.github.enabled=false" in extra_engine.extra_config,
+      getattr(extra_engine, "extra_config", None))
 
 # Antigravity: cannot pre-block its own tools -> refused with an explanation, nothing built
 seen, task, tm, t = one_job("agy", aux_engine.ANTIGRAVITY)

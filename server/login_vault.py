@@ -48,6 +48,14 @@ _SAMESITE = {"strict": "Strict", "lax": "Lax", "none": "None", "no_restriction":
 # segments only: a blog post slug like "/mau-trang-login-dep" is not a sign-in page.
 _SIGNED_OUT_SEGMENTS = frozenset({"login", "log-in", "log_in", "signin", "sign-in", "sign_in", "dang-nhap",
                                   "dangnhap", "checkpoint", "servicelogin", "authenticate"})
+# Sites where a click can spend money or touch customers (marketplaces, ads, payment). A login whose domains
+# include one of these starts with approval="ask": important browse actions wait for the owner. A single word
+# matches a whole host label ("shopee" is shopee.vn and banhang.shopee.vn, not myshopee-blog.com); a dotted entry
+# matches that host or anything under it ("ads.google" is ads.google.com).
+MONEY_HOSTS = ("shopee", "tiktok", "lazada", "tiki", "sendo", "business.facebook", "adsmanager.facebook",
+               "ads.google", "sapo", "momo", "zalopay")
+APPROVALS = ("ask", "auto")
+APPROVAL_TTL = 30 * 60       # seconds an approval stays usable
 _SIGNED_OUT_TITLE = re.compile(r"\b(log ?in|sign ?in)\b|đăng nhập|dang nhap", re.I)
 
 
@@ -202,6 +210,17 @@ def domains_of(cookies: list) -> list:
     return sorted({c["domain"].lstrip(".") for c in cookies})
 
 
+def default_approval(domains: list) -> str:
+    """'ask' when any domain looks like a marketplace, ads or payment site, else 'auto'."""
+    for d in domains or []:
+        labels = str(d).lower().lstrip(".").split(".")
+        joined = "." + ".".join(labels) + "."
+        for m in MONEY_HOSTS:
+            if ("." in m and ("." + m + ".") in joined) or ("." not in m and m in labels):
+                return "ask"
+    return "auto"
+
+
 def last_expiry(cookies: list) -> float:
     """When the LAST cookie expires (0 = all are session cookies). Past this the sign-in is surely gone."""
     exps = [c["expires"] for c in cookies if c.get("expires", -1) > 0]
@@ -245,6 +264,8 @@ def matches(cookies: list, url: str) -> bool:
 def looks_signed_out(final_url: str, title: str = "", status: int = 0) -> bool:
     """Best guess from the outside: a 401/403, a sign-in address or a 'Log in' page title."""
     if status in (401, 403):
+        if "__cf_chl" in str(final_url or ""):
+            return False
         return True
     p = urlparse(str(final_url or ""))
     for seg in (p.path or "").lower().split("/"):
@@ -258,7 +279,8 @@ def looks_signed_out(final_url: str, title: str = "", status: int = 0) -> bool:
 # Store
 # ============================================================
 _COLS = ("id", "name", "domains", "cookies_enc", "origins_enc", "count", "allow_ai", "test_url", "status",
-         "status_note", "checked_at", "used_at", "uses", "expires_at", "created_at", "updated_at")
+         "status_note", "checked_at", "used_at", "uses", "expires_at", "created_at", "updated_at", "can_act",
+         "approval")
 STATUSES = ("unknown", "ok", "signed_out", "error")
 
 
@@ -282,7 +304,13 @@ class Store:
                 used_at REAL NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0,
                 expires_at REAL NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS browse_approvals (
+                id TEXT PRIMARY KEY, login_id TEXT NOT NULL, op TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '',
+                args_hash TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', scope TEXT NOT NULL DEFAULT 'once',
+                created_at REAL NOT NULL, decided_at REAL NOT NULL DEFAULT 0
+            );
             """)
+        self._migrate()
         self._db.commit()
         try:
             import os
@@ -290,11 +318,30 @@ class Store:
         except OSError:
             pass
 
+    def _migrate(self) -> None:
+        """Old databases lack can_act and approval: add them, and set approval from the login's domains."""
+        have = {r["name"] for r in self._db.execute("PRAGMA table_info(logins)").fetchall()}
+        if "can_act" not in have:
+            self._db.execute("ALTER TABLE logins ADD COLUMN can_act INTEGER NOT NULL DEFAULT 1")
+        if "approval" not in have:
+            self._db.execute("ALTER TABLE logins ADD COLUMN approval TEXT NOT NULL DEFAULT 'ask'")
+            for r in self._db.execute("SELECT id, domains FROM logins").fetchall():
+                try:
+                    doms = json.loads(r["domains"] or "[]")
+                except ValueError:
+                    doms = []
+                self._db.execute("UPDATE logins SET approval=? WHERE id=?", (default_approval(doms), r["id"]))
+
     def close(self):
         with self._lock:
             self._db.close()
 
     def add(self, row: dict) -> dict:
+        if "approval" not in row:
+            try:
+                row = dict(row, approval=default_approval(json.loads(row.get("domains") or "[]")))
+            except ValueError:
+                row = dict(row, approval="ask")
         with self._lock:
             keys = [k for k in _COLS if k in row]
             self._db.execute(f"INSERT INTO logins({','.join(keys)}) VALUES ({','.join('?' * len(keys))})",
@@ -343,6 +390,8 @@ class LoginVaultDeps:
     has_session: Callable[[Request], bool]
     # async fetch(url, cookies) -> (final_url, title, text); raises web_watch.FetchError
     fetch: Optional[Callable] = None
+    # notify(title, body): tell the owner an action waits for approval (bell inbox). Best effort, may be None.
+    notify: Optional[Callable] = None
 
 
 def _encrypt(obj) -> str:
@@ -386,7 +435,8 @@ class LoginVault:
                 "status": row.get("status") or "unknown", "status_note": row.get("status_note") or "",
                 "checked_at": row.get("checked_at") or 0, "used_at": row.get("used_at") or 0,
                 "uses": row.get("uses") or 0, "expires_at": exp, "expired": bool(exp and exp <= now),
-                "created_at": row.get("created_at") or 0, "updated_at": row.get("updated_at") or 0}
+                "created_at": row.get("created_at") or 0, "updated_at": row.get("updated_at") or 0,
+                "can_act": bool(row.get("can_act", 1)), "approval": row.get("approval") or "ask"}
 
     def cookies(self, lid: str) -> list:
         row = self.store.get(lid)
@@ -468,6 +518,10 @@ class LoginVault:
         action = str(action or "").strip().lower()
         if action in ("allow", "deny"):
             return self.view(self.store.update(lid, allow_ai=int(action == "allow"), updated_at=time.time()))
+        if action in ("act_on", "act_off"):
+            return self.view(self.store.update(lid, can_act=int(action == "act_on"), updated_at=time.time()))
+        if action in ("approval_ask", "approval_auto"):
+            return self.view(self.store.update(lid, approval=action[len("approval_"):], updated_at=time.time()))
         if action == "rename":
             name = str(p.get("name") or "").strip()[:MAX_NAME]
             if not name:
@@ -484,8 +538,10 @@ class LoginVault:
         if action == "delete":
             self.store.delete(lid)
             return {"id": lid, "deleted": True}
-        raise VaultError(localefmt.chu("Thao tác chỉ nhận: allow, deny, rename, test_url, replace, delete, check",
-                                       "Action must be allow, deny, rename, test_url, replace, delete or check"))
+        raise VaultError(localefmt.chu("Thao tác chỉ nhận: allow, deny, act_on, act_off, approval_ask, approval_auto, rename, "
+                                       "test_url, replace, delete, check",
+                                       "Action must be allow, deny, act_on, act_off, approval_ask, approval_auto, "
+                                       "rename, test_url, replace, delete or check"))
 
     # ---------- using ----------
     def mark(self, lid: str, status: str, note: str = "", used: bool = False) -> None:
@@ -534,6 +590,108 @@ class LoginVault:
         await self.open(row["test_url"], lid, only_allowed=False, check_only=True)
         return self.view(self.store.get(lid))
 
+    # ---------- approvals for browse actions ----------
+    # Only the dashboard routes below call approval_decide(). The tool never does: an agent cannot approve itself.
+    def _expire_approvals(self, now: float) -> None:
+        with self.store._lock:
+            db = self.store._db
+            db.execute("UPDATE browse_approvals SET status='expired' WHERE status='pending' AND created_at<?",
+                       (now - APPROVAL_TTL,))
+            db.execute("UPDATE browse_approvals SET status='expired' WHERE status='approved' AND decided_at<?",
+                       (now - APPROVAL_TTL,))
+            db.commit()
+
+    def approval_get(self, aid: str, now: Optional[float] = None) -> Optional[dict]:
+        self._expire_approvals(now or time.time())
+        with self.store._lock:
+            r = self.store._db.execute("SELECT * FROM browse_approvals WHERE id=?", (str(aid or ""),)).fetchone()
+        return dict(r) if r else None
+
+    def approval_request(self, login_id: str, op: str, summary: str, args_hash: str,
+                         now: Optional[float] = None) -> dict:
+        """The pending (or already approved) approval for this exact action; a new pending one if none exists."""
+        now = now or time.time()
+        self._expire_approvals(now)
+        with self.store._lock:
+            db = self.store._db
+            r = db.execute("SELECT * FROM browse_approvals WHERE login_id=? AND op=? AND args_hash=? "
+                           "AND status IN ('pending','approved') ORDER BY created_at DESC LIMIT 1",
+                           (login_id, op, args_hash)).fetchone()
+            if r:
+                return dict(r)
+            aid = "ap_" + secrets.token_hex(4)
+            db.execute("INSERT INTO browse_approvals(id, login_id, op, summary, args_hash, status, scope, created_at) "
+                       "VALUES (?,?,?,?,?,'pending','once',?)", (aid, login_id, op, str(summary)[:600], args_hash, now))
+            db.commit()
+        row = self.approval_get(aid, now)
+        if self.deps.notify:
+            try:
+                self.deps.notify(localefmt.chu("Agent chờ bạn duyệt một thao tác trên trình duyệt",
+                                               "An agent is waiting for you to approve a browser action"), row["summary"])
+            except Exception:
+                pass
+        return row
+
+    def approvals_pending(self, now: Optional[float] = None) -> list:
+        self._expire_approvals(now or time.time())
+        with self.store._lock:
+            rows = self.store._db.execute("SELECT * FROM browse_approvals WHERE status='pending' "
+                                          "ORDER BY created_at").fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            lg = self.store.get(d["login_id"])
+            d["login_name"] = lg["name"] if lg else ""
+            d.pop("args_hash", None)
+            out.append(d)
+        return out
+
+    def approval_decide(self, aid: str, decision: str, now: Optional[float] = None) -> dict:
+        """Owner's decision: once, always (this login becomes auto and this action is approved) or deny."""
+        now = now or time.time()
+        row = self.approval_get(aid, now)
+        if not row:
+            raise VaultError(localefmt.chu("Không thấy yêu cầu duyệt này", "Approval request not found"))
+        if row["status"] != "pending":
+            raise VaultError(localefmt.chu("Yêu cầu này đã được xử lý hoặc hết hạn",
+                                           "This request was already decided or has expired"))
+        decision = str(decision or "").strip().lower()
+        if decision not in ("once", "always", "deny"):
+            raise VaultError(localefmt.chu("Quyết định phải là once, always hoặc deny",
+                                           "Decision must be once, always or deny"))
+        if decision == "always" and self.store.get(row["login_id"]):
+            self.store.update(row["login_id"], approval="auto", updated_at=now)
+        with self.store._lock:
+            self.store._db.execute("UPDATE browse_approvals SET status=?, decided_at=? WHERE id=?",
+                                   ("denied" if decision == "deny" else "approved", now, aid))
+            self.store._db.commit()
+        return self.approval_get(aid, now)
+
+    def approval_consume(self, aid: str, login_id: str, op: str, args_hash: str,
+                         now: Optional[float] = None) -> tuple[bool, str]:
+        """Single use: approved, same login, same op, same args, not expired. Returns (ok, reason in Vietnamese)."""
+        now = now or time.time()
+        row = self.approval_get(aid, now)
+        if not row or row["login_id"] != login_id or row["op"] != op:
+            return False, "Mã duyệt không tồn tại hoặc không thuộc thao tác này."
+        if row["args_hash"] != args_hash:
+            return False, ("Mã duyệt này dành cho một thao tác khác (nội dung hoặc trang đã đổi). "
+                           "Gọi lại không kèm approval_id để xin duyệt mới.")
+        st = row["status"]
+        if st == "pending":
+            return False, "Chủ chưa duyệt. Đừng thử lại cho tới khi được báo đã duyệt."
+        if st == "denied":
+            return False, "Chủ đã TỪ CHỐI thao tác này. Đừng thử lại hay tìm đường vòng."
+        if st == "used":
+            return False, "Mã duyệt này đã dùng rồi (mỗi mã chỉ chạy một lần)."
+        if st != "approved":
+            return False, "Mã duyệt đã hết hạn. Gọi lại không kèm approval_id để xin duyệt mới."
+        with self.store._lock:
+            n = self.store._db.execute("UPDATE browse_approvals SET status='used' WHERE id=? AND status='approved'",
+                                       (aid,)).rowcount
+            self.store._db.commit()
+        return (True, "") if n else (False, "Mã duyệt này đã dùng rồi (mỗi mã chỉ chạy một lần).")
+
     # ---------- routes ----------
     def _make_router(self) -> APIRouter:
         router = APIRouter()
@@ -575,6 +733,24 @@ class LoginVault:
                 return {"ok": True, "login": self.control(str(p.get("id") or ""), str(p.get("action") or ""), p)}
             except VaultError as e:
                 return bad(e)
+
+        @router.get("/logins/approvals")
+        async def approvals_list(request: Request):
+            if not self.deps.has_session(request):
+                return denied()
+            return {"ok": True, "approvals": self.approvals_pending()}
+
+        @router.post("/logins/approvals/decide")
+        async def approvals_decide(request: Request, payload: dict = Body(None)):
+            if not self.deps.has_session(request):
+                return denied()
+            p = payload or {}
+            try:
+                r = self.approval_decide(str(p.get("id") or ""), str(p.get("decision") or ""))
+            except VaultError as e:
+                return bad(e)
+            r.pop("args_hash", None)
+            return {"ok": True, "approval": r}
 
         return router
 

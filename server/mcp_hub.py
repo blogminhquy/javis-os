@@ -180,6 +180,8 @@ def allow_patterns():
 # `javis_login` (0.251.0) opens pages signed in as the owner (login vault): a customer must never browse as them.
 OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "javis_team", "javis_memory",
                               "javis_watch", "javis_login",
+                              # 2026-11-11: clicks and types on pages signed in as the owner. Not a customer's call.
+                              "javis_browse",
                               # 0.403.0: changes which notices reach the owner. A customer must never mute the owner.
                               "javis_notify",
                               # 2026-11-04: renames Javis Core in the owner's brain. Not a customer's call.

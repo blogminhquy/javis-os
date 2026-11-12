@@ -941,6 +941,12 @@ async def cancel_wave():
     await r.wait_jobs()
     return jj, peak
 
+
+# Skill khai trong frontmatter phải được host nạp cùng skill gọi rõ, không lặp và không vượt trần lượt.
+r.skill_block = lambda _team, slugs: "|".join(slugs)
+loaded = r._skills(T, "[SKILL: explicit]", agent_skills=["declared", "declared"])
+check("0.449.1 skill frontmatter tự nạp trong Team", loaded == "declared|explicit", loaded)
+
 jj, peak = run(cancel_wave())
 check("0.260.0 hai bước Làm của một việc chạy cùng lúc", peak == 2, peak)
 check("0.260.0 huỷ giữa đợt: việc huỷ, hai lượt đang chạy đều bị ngắt và tính một lần",

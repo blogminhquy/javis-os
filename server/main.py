@@ -213,6 +213,7 @@ import customer_profile  # what a bot remembers about one customer, written by t
 import zalo_personal_channel   # Hộp thư hội thoại: đọc tin Zalo cá nhân từ MCP theo cursor
 import zalo_push               # javis-zalo wakes the read loop when a message arrives (no timer)
 import deploy_info              # Javis đang đứng ở đâu (docker/native) - xem _deploy_mode
+import link_hub                 # zero-token link hub: save links without invoking the AI model
 import node_security            # News item when this machine's Node.js misses a security release
 import ollama_catalog           # danh mục model để gợi ý + tìm kiếm
 import ollama_local             # dò/tải/gỡ model trên máy chạy Ollama
@@ -15023,7 +15024,20 @@ login_vault.register(app, login_vault.LoginVaultDeps(
     state_dir=lambda: cfgmod.STATE_DIR,
     has_session=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
     fetch=web_watch.fetch,
+    notify=lambda title, body: _login_approval_notice(title, body),
 ))
+
+
+def _login_approval_notice(title: str, body: str) -> None:
+    """An agent filed a browse action that waits for the owner: one urgent bell notice (Javis Core may still mute it)."""
+    import inbox
+    import notify_policy
+    dec = notify_policy.decide("agent", "urgent", title)
+    if dec["verdict"] == "drop":
+        return
+    inbox.add(body, kind="system", title=title, label="Cookies", source="login-approval",
+              dedup="login-approval:" + body[:200], group=dec["group"], level=dec["level"], sig=dec["sig"],
+              filtered=dec["verdict"] != "loud", why=dec["why"])
 
 
 # ============================================================
@@ -21909,6 +21923,28 @@ async def _chat_socket(ws):
                     if _pending_voice_receipt:
                         await send_client(_pending_voice_receipt)
                     continue
+                # Link hub: messages that are just URLs (with an optional short
+                # note) get appended to the reference hub table without invoking
+                # any AI model.  The user sees a short confirmation and nothing
+                # else runs.  This saves the full cost of a model turn for what
+                # is essentially a bookmark.
+                _hub_urls, _hub_note = link_hub.detect(user_message)
+                if _hub_urls:
+                    _hub_confirm = link_hub.save(
+                        _brain_root(brain), _hub_urls, _hub_note, "Dashboard")
+                    _hub_mid = store.append_message(
+                        conv_sid, "assistant", _hub_confirm)
+                    await send_raw({"type": "response",
+                                    "content": _hub_confirm,
+                                    "session_id": conv_sid})
+                    await send_raw({"type": "turn_saved",
+                                    "session_id": conv_sid,
+                                    "message_id": int(_hub_mid),
+                                    "content_sha": sessions.content_sha(
+                                        _hub_confirm)})
+                    await send_raw({"type": "turn_done",
+                                    "session_id": conv_sid})
+                    continue
                 has_attachments = bool(payload.get("attachments") or payload.get("files"))
                 # Voice V2: tin đến từ MIC (`voice: true`) và cài đặt ở chế độ Làn nhanh có bộ não
                 # giọng riêng thì đi run_voice_turn; còn lại đi run_turn như cũ.
@@ -27137,6 +27173,13 @@ def _tg_owner_precheck(text, meta):
     """Owner bot precheck: a mention that names no agent, or several, is answered with the list
     BEFORE a turn starts (no "Javis is working" message, no turn spent on a guess)."""
     m = meta or {}
+    # Link hub: save links without invoking the AI model.
+    hub_urls, hub_note = link_hub.detect(text)
+    if hub_urls:
+        chat_key = str(m.get("chat_id") or "default")
+        root = _brain_root(_tg_brain(chat_key))
+        confirm = link_hub.save(root, hub_urls, hub_note, "Telegram")
+        return {"reply": confirm}
     r = _tg_agent_route(m.get("chat_id"), text, m.get("bot_username") or "")
     return {"reply": r["reply"]} if r["reply"] else None
 
@@ -30047,28 +30090,28 @@ import team_gate  # noqa: E402
 
 
 def _team_agent_info(root, agent_key, surface=None):
-    """Thành viên theo mã bền: slug hiện tại, tên, lời nhắc hệ thống của agent (vai, bộ nhớ, luật chủ dặn, bài học) và
-    model riêng. None khi mã đã nghỉ, file mất hay chưa có sổ danh tính: bộ chạy coi như thành viên đã rời."""
+    """Thành viên theo mã bền: slug hiện tại, tên, lời nhắc hệ thống của agent, model và skill khai trong frontmatter."""
     try:
         if _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
             return None
         reg = _resonance_store().agent_by_key(root, agent_key)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     if not reg or reg.get("status") != "active" or not _agent_md_path(root, reg["slug"]):
         return None
-    # `surface="team"` only from the team runner: pulse scans and self-review reuse this persona and are not a
-    # surface the owner can choose for a procedure overlay (M5).
     name, system, model, provider = _workflow_agent_helpers(root, None)[1](reg["slug"], surface, agent_key)
-    role, reasoning = "", AGENT_REASONING_DEFAULT
+    role, reasoning, skills = "", AGENT_REASONING_DEFAULT, []
     try:
         meta, _b = _read_md(_agent_md_path(root, reg["slug"]))
         role = str((meta or {}).get("role") or "")
+        skills = (meta or {}).get("skills", []) or []
+        if isinstance(skills, str):
+            skills = [skills]
         reasoning = _agent_reasoning(meta)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
     return {"slug": reg["slug"], "name": name, "system": system, "model": model or "", "model_provider": provider or "",
-            "role": role, "reasoning": reasoning}
+            "role": role, "reasoning": reasoning, "skills": skills}
 
 
 def _team_reasoning(eng, level, prompt):
@@ -30106,6 +30149,22 @@ def _codex_user_mcp_servers():
     return sorted(n for n in names if n != "javis")
 
 
+
+def _codex_gate_mcp_overrides() -> list[str]:
+    """Disable ambient Codex MCP servers for a gated Team process.
+
+    Codex profiles overlay the user's global config, so a profile containing only Javis
+    does not remove servers the user added separately. Gated Team turns must keep those
+    servers present but disabled, otherwise they can bypass the approval gate.
+    """
+    overrides = []
+    for name in _codex_user_mcp_servers():
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+            continue
+        overrides.append(f"mcp_servers.{name}.enabled=false")
+    return overrides
+
+
 def _team_gate_support(provider):
     """Can a gated Team step run on this provider (team_gate.provider_support), with this machine's real flags."""
     prov = str(provider or aux_engine.CLAUDE)
@@ -30118,11 +30177,10 @@ def _team_gate_support(provider):
         if not _hub_enabled():
             return {"ok": False, "approved_actions": False,
                     "reason": "MCP Hub đang tắt nên Codex gọi thẳng các kết nối, không qua cổng duyệt của Javis"}
-        extra = _codex_user_mcp_servers()
-        if extra:
-            return {"ok": False, "approved_actions": False,
-                    "reason": ("Codex trên máy này có MCP riêng ngoài Javis (" + ", ".join(extra[:5]) + ") mà Javis không "
-                               "chặn được trước khi chạy")}
+        # Gated Codex turns append explicit enabled=false overrides for ambient
+        # servers after building the Javis profile. The profile is additive over
+        # the user's config, so the isolation belongs to the process argv, not a
+        # preflight refusal.
     deny = True
     if prov == aux_engine.GROK_CLI:
         try:
@@ -30353,11 +30411,17 @@ def _team_engine_for(team, agent_key, role):
     root = team["brain_id"]
     info = _team_agent_info(root, agent_key) or {}
     settings = cfgmod.read_settings() or {}
+    agent_model = str(info.get("model") or "")
+    agent_provider = str(info.get("model_provider") or "")
+    if _agent_model_provider(agent_model, agent_provider) == aux_engine.CODEX:
+        # Agent files can outlive the live Codex catalog. Never send a stale model id
+        # such as gpt-5.5 or gpt-5.6-lunar to a ChatGPT account.
+        agent_model = _codex_safe_model(agent_model)
     spec = team_engine.choose_spec(
-        info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+        agent_model, agent_provider, _effective_main(settings),
         _agent_model_provider, lambda sp: aux_engine.availability(sp, settings))
     tool_spec = team_engine.choose_spec(
-        info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+        agent_model, agent_provider, _effective_main(settings),
         _agent_model_provider, lambda sp: aux_engine.availability(sp, settings), tools=True)
 
     def _build_tools(system, tag, gate_id=""):
@@ -30399,6 +30463,12 @@ def _team_engine_for(team, agent_key, role):
                                           codex_profile=_write_codex_profile)
         except team_engine.TeamEngineUnavailable as ex:
             raise team_runner.EngineUnavailable(ex.reason)
+        if gate_id and prov == aux_engine.CODEX:
+            # The Javis profile is additive over ~/.codex/config.toml. Disable every
+            # ambient server explicitly so only the Javis hub can cross this gate.
+            for override in _codex_gate_mcp_overrides():
+                if override not in eng.extra_config:
+                    eng.extra_config.append(override)
         if gate_id and prov == aux_engine.CODEX:
             # Natives stay in Codex's own `auto` sandbox (no network); hub tools get the gated level and the turn key,
             # so an approved outside action can pass the gate and nothing else can.
@@ -31179,7 +31249,8 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     check_command=lambda cmd, cwd: _MandateDeps().run_test(cmd, cwd),
     brain_root=lambda team: Path(_brain_root(team["brain_id"])),
     work_dir=lambda team: coding_store.cwd_cua_phien(team.get("session_id") or "") if team.get("session_id") else "",
-    report=_notify_owner, job_done=_team_job_done, skill_block=_team_skill_block))
+    report=_notify_owner, job_done=_team_job_done, skill_block=_team_skill_block,
+    my_tasks=lambda: my_tasks_feature))
 
 
 # ============================================================
@@ -32634,6 +32705,13 @@ async def _start_loop_watch():
 @app.on_event("shutdown")
 async def _stop_loop_watch():
     loop_watch.stop()
+
+
+@app.on_event("shutdown")
+async def _close_browse_sessions():
+    """Close the headless browsers javis_browse keeps open for signed-in pages (browse_ops)."""
+    import browse_ops
+    await browse_ops.shutdown()
 
 
 @app.on_event("shutdown")

@@ -222,6 +222,15 @@
       var rel = decodeQueryPart(direct[2]).replace(/\\/g, "/").replace(/^\/+/, "");
       if (rel && currentBrainMatches(brainName)) return { path: rel, brain: brainPath() };
     }
+    // Agent replies sometimes contain the absolute vault path copied from the local machine
+    // (`/Users/.../brains/Brain Default/tmp/draft.md`). Treat the matching brain root like
+    // `/brains/<brain>/...`, otherwise the link falls through as an ordinary web URL.
+    var absBrain = /\/brains\/([^/]+)\/(.+)$/i.exec(href);
+    if (absBrain) {
+      var absBrainName = decodeQueryPart(absBrain[1]);
+      var absRel = decodeQueryPart(absBrain[2]).replace(/\\/g, "/").replace(/^\/+/, "");
+      if (absRel && currentBrainMatches(absBrainName)) return { path: absRel, brain: brainPath() };
+    }
     var legacy = /^\/brain\/(.+)$/i.exec(href);
     if (legacy && brainPath() === "brain") {
       var legacyRel = decodeQueryPart(legacy[1]).replace(/\\/g, "/").replace(/^\/+/, "");
@@ -360,8 +369,14 @@
   // Chi nhan khi trong giong path that: co duoi file + (co thu muc / la .md tran), khong ky tu cam cua ten file
   // Windows (":" loai luon URL va lenh co cong cu), khong leo thang "..".
   function codeFilePath(c) {
-    var t = String(c == null ? "" : c).trim().replace(/\\/g, "/").replace(/^\.?\//, "");
-    if (fileUriPath(t) != null) { var fr = appFileRef(t); if (!fr) return ""; t = fr.path; }
+    var raw = String(c == null ? "" : c).trim().replace(/\\/g, "/");
+    var ref = appFileRef(raw);
+    // A collaborator often quotes the absolute server path in backticks. Strip the matching
+    // brain root before rendering the link. An absolute path outside this brain is not a vault
+    // file and must stay plain code instead of becoming a guaranteed 404.
+    if (ref) raw = ref.path;
+    else if (fileUriPath(raw) != null || /^\/?[A-Za-z]:\//.test(raw) || /^\//.test(raw)) return "";
+    var t = raw.replace(/^\.?\//, "");
     if (t.length < 4 || t.length > 240) return "";
     if (!isVaultRel(t)) return "";
     if (/[:<>"|?*\[\]]/.test(t)) return "";

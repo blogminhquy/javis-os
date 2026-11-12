@@ -114,6 +114,24 @@ h = mdToHtml("Ho so o `07 - Wiki/_entities/Chi Nga - Khach Coaching.md` nhe");
 check("code path co space: bat dung ca duong dan",
   has(h, 'data-vault-path="07 - Wiki/_entities/Chi Nga - Khach Coaching.md"'));
 
+// ---- 20b. Team collaborators often return the absolute server path of the file they wrote ----
+const absTeamMd = "/Users/quantran/javis/brains/Brain Default/tmp/team-draft.md";
+h = mdToHtml("[team draft](" + absTeamMd + ")", "brains/Brain Default");
+check("absolute Markdown link in current brain: strip machine path and open internal editor",
+  has(h, 'class="jv-floc"') && has(h, 'data-vault-path="tmp/team-draft.md"') && !has(h, "Users/quantran"));
+
+h = mdToHtml("[team draft](/Users/quantran/javis/brains/Brain%20Default/tmp/team%20draft.md)", "brains/Brain Default");
+check("encoded absolute Markdown link: decode brain and filename",
+  has(h, 'data-vault-path="tmp/team draft.md"'));
+
+h = mdToHtml("Da xong `" + absTeamMd + "`", "brains/Brain Default");
+check("absolute path in inline code: open the real file inside current brain",
+  has(h, "jv-fcode") && has(h, 'data-vault-path="tmp/team-draft.md"') && !has(h, 'data-vault-path="Users/'));
+
+h = mdToHtml("Khong mo `/private/outside/team-draft.md`");
+check("absolute path outside current brain: stay plain code instead of linking to a false vault path",
+  has(h, "<code>/private/outside/team-draft.md</code>") && !has(h, "jv-floc"));
+
 // ---- 21. Checkbox task "- [ ]": tick duoc (khong disabled), giu trang thai checked ----
 h = mdToHtml("- [ ] viec chua xong\n- [x] viec da xong");
 check("task: input md-cb khong disabled", has(h, 'class="md-cb"') && !has(h, "disabled"));

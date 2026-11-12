@@ -1,0 +1,12 @@
+name: Browse
+name_en: "Browse"
+slug: javis-browse
+version: 1.0.0
+description: Thao tác trang web cần đăng nhập (bấm, gõ, nhấn phím, chụp màn hình) bằng phiên đăng nhập chủ đã cất ở trang Cookies. Thao tác quan trọng trên sàn và trang quảng cáo phải chờ chủ duyệt.
+description_en: "Operates web pages behind a sign-in (click, type, press keys, screenshot) using a sign-in the owner stored on the Cookies page. Important actions on marketplace and ads sites wait for the owner's approval."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_browse
+hooks: []

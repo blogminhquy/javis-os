@@ -460,7 +460,7 @@ finally:
 blocked = team_gate.close_gate(g.gate_id)["blocked"]
 check("plugin: with a gate it is refused and recorded", str(pres).startswith("ERROR") and len(blocked) == 1
       and blocked[0]["name"] == "dang_bai", (pres, blocked))
-roots = [str(STATE / "brain")]
+roots = [str((STATE / "brain").resolve())]
 cases = [("Bash", {"command": "ls -la"}, "free"), ("Bash", {"command": "git status"}, "free"),
          ("Bash", {"command": "rm -rf /"}, "outside"), ("Bash", {"command": "cat a > b"}, "outside"),
          ("Bash", {"command": "python -c 'print(1)'"}, "outside"), ("Bash", {"command": "find . -delete"}, "outside"),

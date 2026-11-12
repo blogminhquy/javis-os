@@ -213,7 +213,9 @@ APPROVAL_HINT = ('Cần chủ nhóm quyết trước khi làm tiếp (phương �
                  'xin duyệt bằng một khối: <!-- JAVIS_TEAM: {"op": "ask_approval", "title": "<xin gì, một dòng>", '
                  '"action": "<sẽ làm chính xác gì>", "scope": "<phạm vi>", "impact": "<ảnh hưởng, chi phí>", '
                  '"evidence": ["<dữ kiện hay đường dẫn>"]} -->. Bước sẽ dừng chờ chủ bấm Duyệt, Từ chối hay Yêu cầu sửa; '
-                 'chưa được duyệt thì chưa làm.')
+                 'chưa được duyệt thì chưa làm. Muốn chuyển việc sang nhóm khác thì thêm vào cùng khối '
+                 '"handoff": {"team": "<tên hoặc mã nhóm kia>", "objective": "<việc nhóm đó làm, kèm kết quả đã có>"}; '
+                 'chủ duyệt thì Javis giao đúng một việc cho nhóm đó.')
 # Gated tool step (teams.work_mode = gated, 0.207.0): what runs freely and what waits for the owner.
 GATED_NOTE = ("# QUYỀN CỦA NHÓM: CẦN DUYỆT\nNhóm này đang ở quyền 'cần duyệt'. Trong phạm vi bước bạn làm tự do: đọc, tìm, ghi "
               "file trong bộ não và thư mục của nhóm, đọc kết nối, chạy lệnh chỉ đọc (ls, cat, grep, git status...). Hành động "
@@ -539,6 +541,8 @@ class TeamRunner:
         # tác làm đầu ra hết hợp lệ (bỏ thành viên, đổi trưởng nhóm, huỷ, sửa yêu cầu, xoá agent). Không có khe nào giữa
         # lúc kiểm và lúc ghi để một thao tác như vậy chen vào.
         self.accept_lock = threading.RLock()
+        # Đường chuyển việc sang nhóm khác sau khi chủ duyệt (TeamOps.handoff gắn vào); None thì báo lỗi, không giao.
+        self.handoff_hook = None
 
     # ───────────── tiện ích ─────────────
 
@@ -676,12 +680,15 @@ class TeamRunner:
                 log.warning("job_done hook: %s: %s", type(ex).__name__, ex)
         self._on_loop(go)
 
-    def _skills(self, team: dict, *texts: str) -> str:
-        """The skills named by `[SKILL: slug` blocks (the /skill command of the team composer) in the turn's own text and
-        its job, as one prompt block from the host. "" when none, or when the host gives no `skill_block`."""
+    def _skills(self, team: dict, *texts: str, agent_skills: Optional[list] = None) -> str:
+        """Nạp skill khai trong frontmatter của cộng sự và skill được gọi rõ bằng [SKILL: slug]."""
         if self.skill_block is None:
             return ""
         slugs: list = []
+        for raw in agent_skills or []:
+            slug = str(raw or "").strip().lower()
+            if slug and slug not in slugs:
+                slugs.append(slug)
         for t in texts:
             for m in SKILL_BLOCK_RE.finditer(str(t or "")):
                 slug = m.group(1).lower()
@@ -2587,16 +2594,12 @@ class TeamRunner:
         info = self.agent_info(team["brain_id"], agent_key)
         if pre == "done" and info is None:
             pre = "member_left"
-        # Tạm dừng hay lưu trữ nhóm: lượt trả lời chưa tới engine thì không chạy (spec 11.4). Lượt đã chạy thì chạy hết;
-        # bước của việc dừng ở điểm điều phối trong run_job.
         if pre == "done" and role in REPLY_ROLES and team.get("status") != "active":
             pre = "team_paused"
         if pre != "done":
             return {"pre": pre}
         engine, model, fn = self.engine_for(team, agent_key, role)
         pin = (self.teams.turn(turn_id) or {}).get("authority_id")
-        # 0.194.0: a Work/Help step of a job gets the member's own toolkit (`tool_turn`, `tools: None` = the normal set of
-        # a private chat); every other team turn stays text only (`tools: []`).
         tool_turn = role in TOOL_ROLES and task is not None
         note = WORK_TOOLS_NOTE if tool_turn else TEXT_ONLY_NOTE
         work_mode = team.get("work_mode") or team_gate.GATED
@@ -2606,7 +2609,8 @@ class TeamRunner:
                "system": (str(info.get("system") or "").rstrip() + "\n\n" + note + "\n\n" +
                           "\n".join(INTERNAL_GROUP_NOTE)).lstrip(),
                "prompt": (self._context(team, agent_key, role, task, step, authority_pin=pin)
-                          + self._skills(team, body, (task or {}).get("title") or "", (task or {}).get("intent") or "")
+                          + self._skills(team, body, (task or {}).get("title") or "", (task or {}).get("intent") or "",
+                                         agent_skills=info.get("skills") or [])
                           + self._docs(team, tool_turn) + "\n\n" + body),
                "thread": f"teammate:{team_id}:{agent_key}", "task_id": task["id"] if task else None,
                "step_id": step["step_id"] if step else None, "turn_id": turn_id,
@@ -3104,6 +3108,13 @@ class TeamRunner:
                                task_id=task_id, meta={"kind": "job_blocked", "block_kind": kind})
                 except Exception:  # noqa: BLE001 - tin báo không được làm hỏng việc chặn
                     pass
+            hs = self.approvals.pending_handoffs(task_id) if (post and self.approvals is not None) else []
+            if hs and team and team.get("status") != "archived":
+                # The owner approved a hop that has not gone out yet: say so, it goes once the job finishes.
+                names = ", ".join(f"\"{h.get('team')}\"" for h in hs)
+                self._post(team, f"Chưa chuyển việc sang nhóm {names} vì việc đang dừng: {reason}. Khi việc chạy xong "
+                                 "Javis mới chuyển.", author_kind="system", task_id=task_id,
+                           meta={"kind": "handoff_waiting"})
             self._state(task["team_id"])
         return "team_blocked"
 
@@ -3209,6 +3220,7 @@ class TeamRunner:
         if self.tasks.team_finish(task_id, text, expected_rev=rev) is not None:
             self._judge_job_changed(task_id, team["team_id"])
             self._job_done(team, task_id)
+            self._fire_handoffs(team, task_id, text)
             self.sessions.update_team_message_meta(team["session_id"], msg_id, {"job_result": True})
             self._publish({"type": "team_message", "team_id": team["team_id"],
                            "message": self.sessions.team_message(team["session_id"], msg_id)})
@@ -4273,7 +4285,8 @@ class TeamRunner:
                     fps.append({"fp": fp, "label": label, "call": self._call_text(kind, tool, args)})
             return {"kind": "action" if fps else "plan", "title": req["title"], "action": req["action"],
                     "scope": req.get("scope", ""), "impact": req.get("impact", ""), "evidence": req.get("evidence", []),
-                    "deadline_at": req.get("deadline_at"), "fingerprints": fps[:team_gate.MAX_BLOCKED]}
+                    "deadline_at": req.get("deadline_at"), "fingerprints": fps[:team_gate.MAX_BLOCKED],
+                    "handoff": req.get("handoff")}
         if fps:
             labels = "; ".join(f["label"] for f in fps)
             return {"kind": "action", "title": f"{self._name(team, step['agent_key'])} cần làm {len(fps)} hành động ra "
@@ -4302,6 +4315,9 @@ class TeamRunner:
         if step["kind"] == "plan":
             held = [{"kind": "work", "agent": a["agent"], "brief": a["brief"], "inputs": [mid] if mid else []}
                     for a in out.get("ops") or []]
+        if need.get("handoff"):
+            # Việc chuyển sang nhóm khác chỉ đi khi chủ duyệt, đúng như các việc đã giữ ở trên.
+            held = held + [{"kind": "handoff", **need["handoff"]}]
         ap = self.approvals.create(team_id=team["team_id"], task_id=task["id"], step_id=sid,
                                    team_rev=int(step["job_revision"]), requested_by=step["agent_key"],
                                    kind=need["kind"], title=need["title"], action=need["action"], scope=need["scope"],
@@ -4352,7 +4368,7 @@ class TeamRunner:
         return [team_approval.view(a) for a in rows if a["team_id"] == team_id]
 
     def decide_approval(self, team_id: str, approval_id: str, decision: str, *, note: str = "", decision_key: str = "",
-                        expected_rev: Optional[int] = None, by: str = "owner") -> dict:
+                        expected_rev: Optional[int] = None, by: str = "owner", handoff_to: str = "") -> dict:
         """The owner's click on an approval card (route POST /teams/{id}/approvals/{aid}/decide), the ONLY way a request
         is decided. `approve` opens the exact request for a new step of the same member, `reject` keeps the job stopped
         with the owner's reason, `changes` sends the owner's note back to the member for a new proposal, `revoke` takes
@@ -4397,6 +4413,12 @@ class TeamRunner:
             ap = res["approval"]
             step = self.teams.step(ap["step_id"]) or {}
             if res["status"] == "approved":
+                if handoff_to:
+                    # 0.539.0: the owner picked the destination on the card. Deterministic: no model decides the hop. It
+                    # waits in the request until the job is done, so the destination gets the revised result, not the
+                    # action as first written (`_fire_handoffs`).
+                    self.approvals.add_handoff(approval_id, {"team": handoff_to,
+                                                             "objective": ap.get("action") or ap["title"]})
                 self._open_approved(team, task, step, ap)
             elif res["status"] == "rejected":
                 self.teams.set_step_status(ap["step_id"], "cancelled", f"rejected:{approval_id}")
@@ -4435,7 +4457,9 @@ class TeamRunner:
         """Approve = a NEW step (the asking step stays as the record of the request). A plan's held assignments become
         work steps; any other step runs again for the same member with the exact approved calls in its brief. Then the
         job goes back to the queue. Called in `accept_lock`."""
-        held = list(ap.get("held_ops") or [])
+        # A handoff in held_ops does not go out here: it waits for the job's result (`_fire_handoffs`), so the step the
+        # owner approved runs first and the destination gets what that step produced.
+        held = [h for h in (ap.get("held_ops") or []) if h.get("kind") != "handoff"]
         self.teams.set_step_status(ap["step_id"], "done" if held else "continued", f"approved:{ap['approval_id']}")
         if held:
             # Through the step cap like any plan (review 0.207.0): over it, the job stops at cap_reached with these
@@ -4462,6 +4486,29 @@ class TeamRunner:
             # A job opened by the department mandate waited before its first step: approval just lets it start.
             self.approvals.consume(ap["approval_id"], "job_opened")
         self.tasks.team_unblock(task["id"])
+
+    def _fire_handoffs(self, team: dict, task_id: str, result: str) -> None:
+        """Việc đã xong: mỗi lượt chuyển việc đã duyệt đi MỘT lần, với KẾT QUẢ CUỐI của việc làm mục tiêu (brief đã sửa).
+        Gọi trong `accept_lock` (từ `_finish`)."""
+        task = self.tasks.get_task(task_id) or {}
+        for aid, h in self.approvals.take_handoffs(task_id):
+            ap = self.approvals.get(aid) or {"approval_id": aid, "title": "", "action": ""}
+            self._handoff_out(team, task, ap, dict(h, objective=(result or "").strip() or h.get("objective") or ""))
+
+    def _handoff_out(self, team: dict, task: dict, ap: dict, h: dict) -> None:
+        """Chủ đã duyệt một lượt chuyển việc sang nhóm khác: giao cho nhóm đích qua `handoff_hook` (Javis Core). Lỗi thì
+        báo ngay trong chat nhóm này; việc của nhóm này vẫn đi tiếp. Gọi trong `accept_lock`."""
+        try:
+            if self.handoff_hook is None:
+                raise RuntimeError("chưa nối đường chuyển việc giữa các nhóm")
+            res = self.handoff_hook(team, h, ap)
+        except Exception as ex:  # noqa: BLE001 - a failed hop is reported to the owner, never swallowed
+            self._post(team, f"Chưa chuyển được việc sang nhóm \"{h.get('team')}\": {ex}", author_kind="system",
+                       task_id=task.get("id"), meta={"kind": "handoff_failed", "approval_id": ap["approval_id"]})
+            return
+        self._post(team, f"Đã chuyển việc sang nhóm \"{res['team_name']}\" theo lệnh chủ đã duyệt.", author_kind="system",
+                   task_id=task.get("id"), meta={"kind": "handoff_sent", "approval_id": ap["approval_id"],
+                                                 "dest_task_id": res.get("task_id")})
 
     def _after_dead_request(self, team: dict, task: dict, ap: Optional[dict]) -> None:
         """A request that expired or went stale while the job waited for it: the job stays stopped with that reason."""
@@ -4663,6 +4710,14 @@ class TeamRunner:
             self.teams.cancel_open_steps(task_id, "việc đã huỷ")
             if self.approvals is not None:
                 # 0.207.0: a cancelled job's requests (waiting or approved, not used) can never open anything.
+                # A hop the owner approved but the job never finished: cancelled with the job, and the chat says so.
+                dropped = self.approvals.pending_handoffs(task_id)
+                if dropped and (self.tasks.get_task(task_id) or {}).get("team_id"):
+                    tm0 = self.teams.get(self.tasks.get_task(task_id)["team_id"])
+                    if tm0 and tm0.get("status") != "archived":
+                        names = ", ".join(f"\"{h.get('team')}\"" for h in dropped)
+                        self._post(tm0, f"Đã bỏ chuyển việc sang nhóm {names} vì việc đã huỷ.", author_kind="system",
+                                   task_id=task_id, meta={"kind": "handoff_dropped"})
                 for aid in self.approvals.close_task(task_id, "cancelled", reason or "việc đã huỷ"):
                     t_ = self.tasks.get_task(task_id) or {}
                     tm_ = self.teams.get(t_.get("team_id") or "")

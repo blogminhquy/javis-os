@@ -82,6 +82,12 @@
       + (lg.status !== "ok" && lg.status_note ? '<div class="lv-note">' + esc(lg.status_note) + "</div>" : "")
       + '<label class="lv-allow"><input type="checkbox" data-act="toggle"' + (lg.allow_ai ? " checked" : "") + ">"
       + '<span class="lv-sw"></span>' + esc(tw("lv.allow")) + "</label>"
+      + '<label class="lv-allow"><input type="checkbox" data-act="canact"' + (lg.can_act !== false ? " checked" : "") + ">"
+      + '<span class="lv-sw"></span>' + esc(tw("lv.can_act")) + "</label>"
+      + '<label class="lv-appr"><span>' + esc(tw("lv.approval")) + '</span><select data-act="approval">'
+      + '<option data-v="ask"' + (lg.approval !== "auto" ? " selected" : "") + ">" + esc(tw("lv.approval_ask")) + "</option>"
+      + '<option data-v="auto"' + (lg.approval === "auto" ? " selected" : "") + ">" + esc(tw("lv.approval_auto")) + "</option>"
+      + "</select></label>"
       + '<div class="lv-actions">'
       + '<button class="s-btn-ghost" data-act="check">' + ic("rotate-cw") + " " + esc(tw("lv.check")) + "</button>"
       + '<button class="s-btn-ghost" data-act="replace">' + ic("clipboard-paste") + " " + esc(tw("lv.update")) + "</button>"
@@ -89,6 +95,19 @@
       + "</div>"
       + '<div class="lv-slot"></div>'
       + "</div>";
+  }
+
+  /* The "waiting for you" panel: one row per pending browse action, three buttons each. Empty list = no panel. */
+  function approvalsHtml(list) {
+    if (!list || !list.length) return "";
+    return '<div class="lv-pending"><b>' + esc(tw("lv.pending_title", { n: list.length })) + "</b>"
+      + list.map(function (a) {
+        return '<div class="lv-ap" data-ap="' + esc(a.id) + '"><div class="lv-ap-txt">' + esc(a.summary || "") + "</div>"
+          + '<div class="lv-ap-btns">'
+          + '<button class="s-btn" data-d="once">' + esc(tw("lv.ap_once")) + "</button>"
+          + '<button class="s-btn-ghost" data-d="always">' + esc(tw("lv.ap_always")) + "</button>"
+          + '<button class="s-btn-ghost lv-del" data-d="deny">' + esc(tw("lv.ap_deny")) + "</button></div></div>";
+      }).join("") + "</div>";
   }
 
   function pasteFormHtml(withName) {
@@ -215,6 +234,7 @@
       + '<div class="lv-head-act"><button class="s-btn-ghost lv-upload" type="button">' + ic("file-up") + " " + esc(tw("lv.upload")) + "</button>"
       + '<button class="s-btn lv-add" type="button">' + ic("plus") + " " + esc(tw("lv.add")) + "</button></div></div>"
       + '<div class="lv-warn" hidden></div>'
+      + '<div class="lv-approvals"></div>'
       + '<div class="lv-new"></div>'
       + '<div class="lv-list"></div></div>';
     var q = function (s) { return el.querySelector(s); };
@@ -286,6 +306,12 @@
         card.querySelector('[data-act="toggle"]').onchange = function () {
           act(lg.id, this.checked ? "allow" : "deny");
         };
+        card.querySelector('[data-act="canact"]').onchange = function () {
+          act(lg.id, this.checked ? "act_on" : "act_off");
+        };
+        card.querySelector('[data-act="approval"]').onchange = function () {
+          act(lg.id, this.selectedOptions[0].dataset.v === "auto" ? "approval_auto" : "approval_ask");
+        };
         card.querySelector('[data-act="check"]').onclick = function () { act(lg.id, "check"); };
         card.querySelector('[data-act="more"]').onclick = function () { moreMenu(card, lg); };
         card.querySelector('[data-act="replace"]').onclick = function () {
@@ -299,6 +325,25 @@
             return r;
           }, function () { slot.innerHTML = ""; slot.dataset.open = ""; });
         };
+      });
+    }
+
+    /* Pending browse approvals. Polled while the page is on screen so a waiting agent shows up without a reload. */
+    async function loadApprovals() {
+      var d = await api("/logins/approvals");
+      var host = q(".lv-approvals");
+      if (!host) return;
+      host.innerHTML = d.ok ? approvalsHtml(d.approvals) : "";
+      host.querySelectorAll(".lv-ap").forEach(function (row) {
+        row.querySelectorAll("[data-d]").forEach(function (b) {
+          b.onclick = async function () {
+            row.classList.add("busy");
+            var r = await api("/logins/approvals/decide", { id: row.dataset.ap, decision: b.dataset.d });
+            if (!r.ok) alert(r.error || tw("lv.err_net"));
+            await loadApprovals();
+            if (b.dataset.d === "always") await load();
+          };
+        });
       });
     }
 
@@ -317,10 +362,15 @@
     }
 
     load();
+    loadApprovals();
+    var timer = setInterval(function () {
+      if (!el.isConnected) { clearInterval(timer); return; }
+      loadApprovals();
+    }, 15000);
   }
 
   var api_ = { mount: mount, introHtml: introHtml, cardHtml: cardHtml, expiryText: expiryText, needsSite: needsSite, pasteFormHtml: pasteFormHtml,
-    nameFromFile: nameFromFile };
+    approvalsHtml: approvalsHtml, nameFromFile: nameFromFile };
   if (typeof window !== "undefined") window.JavisLoginVault = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

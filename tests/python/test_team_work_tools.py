@@ -126,6 +126,11 @@ check("the tool engine has the hub attached at the private chat level (full) and
       and not getattr(tb, "allowed_tools", None), (getattr(tb, "javis_mode", None), getattr(tb, "allowed_tools", None)))
 check("the tool engine is not the empty team sandbox", tb is not None and "team_cwd" not in str(tb.cwd))
 check("Codex tool turns get the Javis MCP profile", seen["tools"] and seen["tools"][0]["codex_profile"] is main._write_codex_profile)
+with patch.object(main, "_codex_user_mcp_servers", return_value=["codex", "computer-use", "hermes", "meta-ads", "muse"]):
+    overrides = main._codex_gate_mcp_overrides()
+check("gated Codex disables ambient MCP servers instead of refusing the step",
+      overrides == [f"mcp_servers.{name}.enabled=false" for name in
+                    ("codex", "computer-use", "hermes", "meta-ads", "muse")], overrides)
 check("the Work prompt carries the tool note, not the text-only note",
       tb is not None and TR.WORK_TOOLS_NOTE in (tb.system_prompt or "") and TR.TEXT_ONLY_NOTE not in (tb.system_prompt or ""))
 turns = tm.turns(t["team_id"])

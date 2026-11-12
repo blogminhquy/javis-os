@@ -405,6 +405,10 @@ class TeamStore:
             r = c.execute("SELECT * FROM teams WHERE session_id=? LIMIT 1", (sid,)).fetchone()
             return self._team(r) if r else None
 
+    def brain_ids(self) -> list:
+        with closing(self._conn()) as c:
+            return [r[0] for r in c.execute("SELECT DISTINCT brain_id FROM teams").fetchall()]
+
     def list_teams(self, brain_id: str, limit: int = 50, before: Optional[float] = None,
                    include_archived: bool = False) -> list:
         """Nhóm của brain, mới cập nhật trước. Trang đầu (`before` trống) mở bằng các nhóm đã ghim (ghim sau đứng trước);

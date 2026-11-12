@@ -135,7 +135,19 @@ def parse_request(op: dict) -> Optional[dict]:
     except (TypeError, ValueError):
         deadline = None
     return {"title": title or action[:200], "action": action or title, "scope": _clip(op.get("scope"), 600),
-            "impact": _clip(op.get("impact"), 600), "evidence": evidence, "deadline_at": deadline, "actions": actions}
+            "impact": _clip(op.get("impact"), 600), "evidence": evidence, "deadline_at": deadline, "actions": actions,
+            "handoff": _parse_handoff(op.get("handoff"))}
+
+
+def _parse_handoff(v: Any) -> Optional[dict]:
+    """`handoff` của một `ask_approval`: giao việc sang nhóm khác SAU khi chủ duyệt. Thiếu nhóm hoặc việc thì bỏ qua."""
+    if not isinstance(v, dict):
+        return None
+    team = _clip(v.get("team"), 120).strip()
+    objective = _clip(v.get("objective")).strip()
+    if not (team and objective):
+        return None
+    return {"team": team, "objective": objective}
 
 
 class ApprovalStore:
@@ -364,6 +376,45 @@ class ApprovalStore:
             if n:
                 self._event(c, aid, "consumed", "host", {"reason": reason})
             return n == 1
+
+    def add_handoff(self, aid: str, h: dict) -> bool:
+        """Chủ chọn nhóm đích trên thẻ khi duyệt: ghi lượt chuyển việc vào yêu cầu đã duyệt. Lượt này KHÔNG phát ngay;
+        `take_handoffs` lấy ra khi việc xong, để nhóm đích nhận kết quả cuối (brief đã sửa)."""
+        with self._Tx(self) as c:
+            row = c.execute("SELECT held_ops_json FROM team_approvals WHERE approval_id=? AND status='approved'",
+                            (aid,)).fetchone()
+            if row is None:
+                return False
+            held = json.loads(row[0] or "[]") + [{"kind": "handoff", **h}]
+            c.execute("UPDATE team_approvals SET held_ops_json=?, updated_at=? WHERE approval_id=?",
+                      (_j(held), self.clock(), aid))
+            return True
+
+    def pending_handoffs(self, task_id: str) -> list:
+        """Lượt chuyển việc đã duyệt mà việc chưa xong (chỉ đọc, không lấy ra). Dùng để báo chủ khi việc dừng hay bị huỷ."""
+        out = []
+        for a in self.for_task(task_id):
+            if a["status"] in ("approved", "consumed"):
+                out += [h for h in a.get("held_ops") or [] if h.get("kind") == "handoff"]
+        return out
+
+    def take_handoffs(self, task_id: str) -> list:
+        """Lấy MỘT lần các lượt chuyển việc đã duyệt của việc này (gọi khi việc xong). Trả về [(approval_id, h)].
+        Gọi lại thì không còn gì, nên một lượt không bao giờ giao hai lần."""
+        out = []
+        with self._Tx(self) as c:
+            rows = c.execute("SELECT approval_id, held_ops_json FROM team_approvals WHERE task_id=? "
+                             "AND status IN ('approved','consumed')", (task_id,)).fetchall()
+            for aid, raw in rows:
+                held = json.loads(raw or "[]")
+                hs = [h for h in held if h.get("kind") == "handoff"]
+                if not hs:
+                    continue
+                rest = [h for h in held if h.get("kind") != "handoff"]
+                c.execute("UPDATE team_approvals SET held_ops_json=?, updated_at=? WHERE approval_id=?",
+                          (_j(rest), self.clock(), aid))
+                out += [(aid, h) for h in hs]
+        return out
 
     # ---- invalidate ----
     def close_task(self, task_id: str, status: str, reason: str, from_statuses: tuple = LIVE) -> list:

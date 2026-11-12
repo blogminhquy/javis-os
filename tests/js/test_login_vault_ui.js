@@ -60,6 +60,21 @@ const lvSrc = D("login-vault.js");
 check("page has an Upload file button wired to the picker", lvSrc.includes('class="s-btn-ghost lv-upload"') && /q\("\.lv-upload"\)\.onclick/.test(lvSrc));
 check("upload refuses files over 1 MB", /MAX_FILE = 1024 \* 1024/.test(lvSrc) && /file\.size > MAX_FILE/.test(lvSrc));
 
+// Operate controls (can_act, approval) and the "waiting for you" panel.
+h = LV.cardHtml(Object.assign({}, base, { can_act: true, approval: "ask" }), NOW);
+check("card has the operate switch, on", /data-act="canact" checked/.test(h) && h.includes("Cho agent thao tác"));
+check("card approval select defaults to Ask me", /<option data-v="ask" selected>Hỏi tôi/.test(h) && /<option data-v="auto">Tự động/.test(h));
+h = LV.cardHtml(Object.assign({}, base, { can_act: false, approval: "auto" }), NOW);
+check("operate switch off and approval auto are shown", !/data-act="canact" checked/.test(h) && /<option data-v="auto" selected>/.test(h));
+check("old server view without the fields still renders as operate on, ask", /data-act="canact" checked/.test(LV.cardHtml(base, NOW))
+  && /<option data-v="ask" selected>/.test(LV.cardHtml(base, NOW)));
+check("no pending approvals draws nothing", LV.approvalsHtml([]) === "" && LV.approvalsHtml(null) === "");
+const pend = LV.approvalsHtml([{ id: "ap_1", summary: "Shopee · https://x.vn/ · bấm <img src=x onerror=1>" }, { id: "ap_2", summary: "Lazada" }]);
+check("pending panel counts them and escapes the summary", pend.includes("Chờ bạn duyệt (2)") && !pend.includes("<img") && pend.includes("&lt;img"));
+check("each pending row has once, always and deny", ["once", "always", "deny"].every((d) => (pend.match(new RegExp('data-d="' + d + '"', "g")) || []).length === 2)
+  && pend.includes("Duyệt lần này") && pend.includes("Duyệt toàn quyền") && pend.includes("Từ chối"));
+check("page polls approvals and posts decisions", /api\("\/logins\/approvals"\)/.test(lvSrc) && /\/logins\/approvals\/decide/.test(lvSrc));
+
 const cons = D("console.js");
 check("sidebar: Connections group has logins", /ids: \["mcp", "packs", "channels", "logins"\]/.test(cons));
 // Owner, 2026-10-28: choosing the brain is Javis's own setting, not an outside connection: Models sits under System.

@@ -5259,3 +5259,10 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   .rail.collapsed .rail-foot .rf-install { flex: 0 0 auto; width: 32px; padding: 0; }
   .rail.collapsed .rail-foot .rf-install .rf-install-short { display: none; }
 }
+.lv-appr { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; font-size: 16px; }
+.lv-appr select { font-size: 16px; min-height: 36px; }
+.lv-pending { margin: 6px 0 12px; padding: 12px; border: 1px solid var(--accent2-line); border-radius: 12px; background: var(--bg2); }
+.lv-ap { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.lv-ap.busy { opacity: .55; pointer-events: none; }
+.lv-ap-txt { font-size: 16px; line-height: 1.5; word-break: break-word; }
+.lv-ap-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
