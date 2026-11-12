@@ -144,8 +144,23 @@ check("the profile is in every brain's prompt", "Gọi tôi là anh" in p and "G
 check("the profile sits before the brain's own memory (which wins where they differ)",
       p.index("HỒ SƠ NGƯỜI DÙNG") < p.index("BỘ NHỚ DÀI HẠN"))
 check("GET /profile returns it", client.get("/profile").json()["text"].startswith("Gọi tôi là anh"))
+# #1349: the token-saving levels build the prompt WITHOUT the memory index; the profile must still be there.
+lean = main.build_system_prompt(str(B), include_memory=False)
+check("#1349 the profile stays when the memory index is left out (token-saving levels)",
+      "Gọi tôi là anh" in lean and "BỘ NHỚ DÀI HẠN" not in lean)
+small = main.build_adaptive_source_prompt(str(B), include_memory=False, include_skills=False)
+check("#1349 the profile is on the small adaptive base too", "Gọi tôi là anh" in small and "HỒ SƠ NGƯỜI DÙNG" in small)
+small_mem = main.build_adaptive_source_prompt(str(B), include_memory=True, include_skills=False)
+check("#1349 on the small base the profile comes before the memory fallback",
+      "Gọi tôi là anh" in small_mem
+      and ("# Bộ nhớ fallback" not in small_mem
+           or small_mem.index("HỒ SƠ NGƯỜI DÙNG") < small_mem.index("# Bộ nhớ fallback")))
+check("#1349 the profile appears once, not twice", lean.count("HỒ SƠ NGƯỜI DÙNG") == 1 and small.count("HỒ SƠ NGƯỜI DÙNG") == 1)
 client.post("/profile", json={"text": ""})
 check("an empty profile adds nothing to the prompt", "HỒ SƠ NGƯỜI DÙNG" not in main.build_system_prompt(str(B)))
+check("#1349 an empty profile adds nothing to the lean prompts either",
+      "HỒ SƠ NGƯỜI DÙNG" not in main.build_system_prompt(str(B), include_memory=False)
+      and "HỒ SƠ NGƯỜI DÙNG" not in main.build_adaptive_source_prompt(str(B), include_memory=False, include_skills=False))
 check("the profile survives a model change: it is a file, not a session",
       Path(STATE, "user_profile.md").exists())
 

@@ -128,9 +128,10 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
             mem = idx.read_text(encoding="utf-8")
     except Exception:
         mem = ""
-    if include_memory:
-        # 0.188.0: the person's own profile (every brain) BEFORE the brain's memory, which wins where they differ.
-        base += memory_control.profile_block()
+    # 0.188.0: the person's own profile (every brain) BEFORE the brain's memory, which wins where they differ.
+    # #1349 (the one deliberate change to this oracle since extraction): the profile no longer hangs on
+    # `include_memory`, so it reaches the model at the token-saving levels too.
+    base += memory_control.profile_block()
     if include_memory and mem.strip():
         base += "\n\n# === BỘ NHỚ DÀI HẠN (nạp sẵn) ===\n" + _fit_memory_index(mem)
     if not memory_control.learning_enabled(_brain_memory_dir(brain)):
@@ -385,7 +386,9 @@ class MainRenderingTests(unittest.TestCase):
                   "NĂNG LỰC JAVIS HIỆN CÓ", "SKILL KHẢ DỤNG", "BÂY GIỜ", "NGÔN NGỮ", "MỨC DÙNG HÔM NAY"]
         self.assertEqual([prompt.index(block) for block in blocks], sorted(prompt.index(block) for block in blocks))
         without_memory = main.build_system_prompt(str(self.brain), include_memory=False)
-        self.assertNotIn("Use anh/em", without_memory)
+        # #1349: the profile is a behaviour contract and stays; only the brain's memory index is left out.
+        self.assertIn("Use anh/em", without_memory)
+        self.assertLess(without_memory.index("HỒ SƠ NGƯỜI DÙNG"), without_memory.index("GHI NHỚ MỚI ĐANG TẮT"))
         self.assertNotIn("Owner rule.", without_memory)
         self.assertIn("GHI NHỚ MỚI ĐANG TẮT", without_memory)
 
