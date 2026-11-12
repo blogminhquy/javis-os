@@ -237,22 +237,13 @@ jobs:
         with:
           path: out
           merge-multiple: true
+      # The .dmg is replaced every time. The unsigned .exe only when something inside it
+      # changed, so its file hash (all that Edge, SmartScreen and antivirus engines know it by)
+      # stays the same between installer changes. "Run workflow" by hand always replaces it.
+      # The reasons are in the header of packaging/publish-desktop.sh.
       - name: Publish on the "desktop" release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-          v="$(tr -d ' \r\n' < VERSION)"
-          notes="Desktop installers for JAVIS OS (built from ${v}). They install the newest Javis on first run.
-
-          - Windows 10/11: JavisOS-Setup.exe
-          - macOS 11+: JavisOS-macOS.dmg
-
-          Steps: QUICKSTART.md (Tiếng Việt) or QUICKSTART.en.md (English)."
-          if ! gh release view desktop >/dev/null 2>&1; then
-            gh release create desktop --title "JAVIS OS - Windows & macOS installers" --notes "$notes" --latest=false
-          else
-            gh release edit desktop --notes "$notes"
-          fi
-          gh release upload desktop out/JavisOS-Setup.exe out/JavisOS-macOS.dmg --clobber
-          echo "Published installers from ${v}" >> "$GITHUB_STEP_SUMMARY"
+          SIGNED: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' }}
+        run: bash packaging/publish-desktop.sh out
