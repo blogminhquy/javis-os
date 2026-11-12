@@ -1119,6 +1119,8 @@ def chi_tiet(conversation_id: int) -> Optional[dict]:
     d["tags"] = conversation_tags([d["id"]]).get(int(d["id"]), [])
     meta = d.get("metadata") if isinstance(d.get("metadata"), dict) else {}
     d["note"] = str(d.get("customer_note") or "") if d.get("customer_id") else str(meta.get("note") or "")
+    # When the A.I. last rewrote the customer profile (the note), 0 when it never has: the Info panel says so.
+    d["profile_at"] = float(_profile_mark(meta).get("at") or 0)
     return d
 
 
@@ -2055,6 +2057,128 @@ def dat_ghi_chu_khach(customer_id: int, note: str) -> bool:
                          (_s(note, MAX_GHI_CHU), int(customer_id)))
         db.commit()
     return cur.rowcount > 0
+
+
+# ============================================================
+# Customer profile (2026-11-12): what a bot remembers about one person
+# ============================================================
+# The profile text IS the customer's note (`customers.note`): the owner asked for the note box of the Info panel to
+# become the profile, since nobody types notes by hand. `customer_profile.py` rewrites it in the background from the
+# messages it has not read yet; how far it has read is kept on the conversation (`metadata.profile.upto`, a message
+# row id), because messages belong to a conversation and a private chat has exactly one.
+def _profile_mark(meta) -> dict:
+    m = (meta or {}).get("profile") if isinstance(meta, dict) else None
+    return m if isinstance(m, dict) else {}
+
+
+def profile_of_chat(channel: str, account_id: str, external_chat_id: str) -> str:
+    """The customer profile of a PRIVATE chat by its channel key, "" when there is none (a group, an unknown chat, a
+    store error). Read on every bot turn of a private chat, so it never raises."""
+    try:
+        with _lock:
+            r = _conn().execute(
+                "SELECT k.note FROM conversations c JOIN customers k ON k.id=c.customer_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? AND c.chat_type='private'",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id))).fetchone()
+        return str(r["note"] or "").strip() if r else ""
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] profile read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return ""
+
+
+def profile_read(conversation_id: int) -> Optional[dict]:
+    """What the profile writer needs to know about one conversation, None when it is not a private chat with a known
+    customer: `{conversation_id, customer_id, bot_id, name, note, upto, last_id, has_ai}`. `upto` is the row id of the
+    last message already read into the profile (0 = never), `last_id` the newest message, `has_ai` whether a bot has
+    ever answered in this chat."""
+    with _lock:
+        db = _conn()
+        r = db.execute(
+            "SELECT c.id, c.customer_id, c.bot_id, c.metadata_json, k.note, k.name FROM conversations c"
+            " JOIN customers k ON k.id=c.customer_id WHERE c.id=? AND c.chat_type='private'",
+            (int(conversation_id),)).fetchone()
+        if r is None:
+            return None
+        last = db.execute("SELECT MAX(id) FROM messages WHERE conversation_id=?", (int(conversation_id),)).fetchone()[0]
+        ai = db.execute("SELECT 1 FROM messages WHERE conversation_id=? AND sender_type='ai' LIMIT 1",
+                        (int(conversation_id),)).fetchone()
+    mark = _profile_mark(_loads(r["metadata_json"], {}))
+    return {"conversation_id": int(r["id"]), "customer_id": int(r["customer_id"]), "bot_id": str(r["bot_id"] or ""),
+            "name": str(r["name"] or ""), "note": str(r["note"] or ""), "upto": int(mark.get("upto") or 0),
+            "last_id": int(last or 0), "has_ai": bool(ai)}
+
+
+def profile_candidates(since: float, limit: int = 5000) -> List[dict]:
+    """Private chats a bot has answered in, active since `since`, that hold messages the profile has not read yet,
+    least recently active first: `[{conversation_id, bot_id, last_message_at, upto, last_id}]`. A chat where no bot
+    ever spoke is left out here already: a watched personal account holds hundreds of them (family, friends)."""
+    n = max(1, min(int(limit or 5000), 20000))
+    with _lock:
+        rows = _conn().execute(
+            "SELECT c.id, c.bot_id, c.last_message_at, c.metadata_json,"
+            " (SELECT MAX(m.id) FROM messages m WHERE m.conversation_id=c.id) AS last_id"
+            " FROM conversations c WHERE c.chat_type='private' AND c.bot_id != '' AND c.customer_id IS NOT NULL"
+            " AND c.last_message_at >= ?"
+            " AND EXISTS(SELECT 1 FROM messages a WHERE a.conversation_id=c.id AND a.sender_type='ai')"
+            " ORDER BY c.last_message_at ASC LIMIT ?", (float(since or 0), n)).fetchall()
+    out = []
+    for r in rows:
+        upto = int(_profile_mark(_loads(r["metadata_json"], {})).get("upto") or 0)
+        last = int(r["last_id"] or 0)
+        if last > upto:
+            out.append({"conversation_id": int(r["id"]), "bot_id": str(r["bot_id"] or ""),
+                        "last_message_at": float(r["last_message_at"] or 0), "upto": upto, "last_id": last})
+    return out
+
+
+def profile_pending(conversation_id: int, after_id: int) -> int:
+    """How many messages of a conversation the profile has not read yet (row id above `after_id`)."""
+    with _lock:
+        return int(_conn().execute("SELECT COUNT(*) FROM messages WHERE conversation_id=? AND id>?",
+                                   (int(conversation_id), int(after_id or 0))).fetchone()[0])
+
+
+def profile_messages(conversation_id: int, after_id: int = 0, limit: int = 80, newest: bool = False) -> List[dict]:
+    """Messages of a conversation with a row id above `after_id`, oldest first, at most `limit`:
+    `[{id, sender_type, message_type, text, created_at}]`. `newest=True` takes the LAST `limit` of them instead of the
+    first (the first profile of a long chat starts from its recent end, not from years ago)."""
+    n = max(1, min(int(limit or 80), MAX_TIN_MOT_LAN))
+    sql = ("SELECT id, sender_type, message_type, text, created_at FROM messages WHERE conversation_id=? AND id>?"
+           f" ORDER BY id {'DESC' if newest else 'ASC'} LIMIT ?")
+    with _lock:
+        rows = _conn().execute(sql, (int(conversation_id), int(after_id or 0), n)).fetchall()
+    out = [dict(r) for r in rows]
+    return list(reversed(out)) if newest else out
+
+
+def profile_save(conversation_id: int, upto: int, text: Optional[str] = None, expect_note: Optional[str] = None) -> bool:
+    """Record that the profile has read this conversation up to message `upto`, and with `text` replace the profile.
+
+    `expect_note`: the note the writer started from. When the note is no longer that (the owner edited it while the
+    model was writing), nothing is saved and False comes back: the owner's words win, the writer tries again later
+    from what they wrote. `text=None` only moves the mark (nothing in those messages was worth keeping). Neither
+    write touches `updated_at`: a profile refresh is not activity, and must not reorder the inbox or the customer list."""
+    with _lock:
+        db = _conn()
+        r = db.execute("SELECT c.customer_id, c.metadata_json, k.note FROM conversations c"
+                       " JOIN customers k ON k.id=c.customer_id WHERE c.id=?", (int(conversation_id),)).fetchone()
+        if r is None:
+            return False
+        if text is not None:
+            if expect_note is not None and str(r["note"] or "") != str(expect_note):
+                return False
+            db.execute("UPDATE customers SET note=? WHERE id=?", (_s(str(text).strip(), MAX_GHI_CHU), int(r["customer_id"])))
+        meta = _loads(r["metadata_json"], {})
+        if not isinstance(meta, dict):
+            meta = {}
+        mark = dict(_profile_mark(meta))
+        mark["upto"] = max(int(mark.get("upto") or 0), int(upto or 0))
+        if text is not None:
+            mark["at"] = _now()
+        meta["profile"] = mark
+        db.execute("UPDATE conversations SET metadata_json=? WHERE id=?", (_json(meta), int(conversation_id)))
+        db.commit()
+    return True
 
 
 def tim_tin(q: str, channel: str = "", limit: int = 50) -> List[dict]:

@@ -205,6 +205,8 @@
 .ht-info .ht-tagrow { padding: 0; border: 0; flex-wrap: wrap; }
 .ib-notebox { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; min-height: 64px; resize: vertical;
   background: var(--bg3); color: var(--text); font: inherit; font-size: 16px; }
+.ib-notebox[data-profile] { min-height: 190px; line-height: 1.5; }
+.ib-prof-at { margin: 0; }
 .ib-fld { display: flex; flex-direction: column; gap: 4px; }
 .ib-fld label { color: var(--text2); }
 .ib-fld select { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--bg3); color: var(--text);

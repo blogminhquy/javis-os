@@ -99,6 +99,17 @@ check("bot-wide settings say so once, and go through the bot's own update route"
   /api\("\/chatbots\/" \+ encodeURIComponent\(botId\) \+ "\/update"/.test(CV));
 check("the note is saved when the box loses focus, and typing survives the 5-second redraw", /note\.onblur = function \(\) \{ saveNote\(c\.id\); \};/.test(PI) &&
   /_noteEdit && _noteEdit\.id === c\.id \? _noteEdit\.text/.test(PI) && /\/note", \{ method: "POST", body: fd\(\{ note: text \}\) \}/.test(CV));
+// 2026-11-12: in a private chat the note box IS the customer profile (the background model writes it, the bot reads it).
+check("Info: a private chat shows the customer profile in its own section, a group keeps the plain note",
+  /var prof = c\.chat_type !== "group"/.test(PI) && /class="ib-sec ib-prof"/.test(PI) && /\(prof \? "" : noteBox\)/.test(PI) &&
+  /t\(prof \? "ib\.i_profile_ph" : "ib\.i_note_ph"\)/.test(PI) && /data-profile="1" rows="8"/.test(PI) && /maxlength="4000"/.test(PI));
+check("the profile's explanation sits behind the (i) button, and the panel says when the A.I. last wrote it",
+  /JI\.body\(esc\(t\("ib\.i_profile_info"\)\)\)/.test(PI) && /c\.profile_at \? '<p class="ib-hint ib-prof-at">'/.test(PI) &&
+  /c\.note \|\| "", c\.profile_at \|\| 0/.test(CV));
+check("profile strings exist in both languages and name the bot's 30 messages",
+  VI["ib.i_profile"] === "Hồ sơ khách hàng" && EN["ib.i_profile"] === "Customer profile" && /30 tin/.test(VI["ib.i_profile_info"]) &&
+  /30 messages/.test(EN["ib.i_profile_info"]) && !!VI["ib.i_profile_ph"] && !!EN["ib.i_profile_ph"] && !!VI["ib.t_profile"] && !!EN["ib.t_profile"] &&
+  /\{time\}/.test(VI["ib.i_profile_at"]) && /\{time\}/.test(EN["ib.i_profile_at"]));
 check("'Open the settings of bot X' asks the Bot tab to open that bot, which says so when it lives in another brain",
   /javis:chatbot-open", \{ detail: \{ bot_id: c\.bot_id \} \}/.test(CV) && /addEventListener\("javis:chatbot-open"/.test(CB) && /ib\.bot_other_brain/.test(CB));
 check("every change from the chat or Info shows a toast; Undo where it can be put back", /function toast\(text, undo\)/.test(CV) &&
