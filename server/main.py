@@ -78,6 +78,7 @@ import vision_input
 import borrowed_eyes   # mắt mượn: bộ não khác xem hộ ảnh khi model của bot không xem được (0.94.0)
 import image_vision
 import openai_oauth
+import signin_loss   # a plan card that lost its sign-in moves the turn on, like one out of quota (2026-11-12)
 import claude_update   # tự chạy `claude update` hằng ngày để model mới hiện ra
 import sdk_update      # same daily tick: the claude-agent-sdk package moves to newer releases of its series
 import agy_update      # cùng việc đó cho Antigravity CLI: `agy update` hằng ngày (0.137.0)
@@ -3374,7 +3375,8 @@ def _provider_key(mcfg, d):
 
 def _route_ready(mcfg, prov) -> bool:
     """Whether a card can take a chat turn right now: an API card needs a key that is not resting, a plan card must
-    not be known to be out of quota. Unknown means yes: the turn itself reports the provider's own error."""
+    not be known to be out of quota or signed out (`_SIGNED_OUT`, 2026-11-12). Unknown means yes: the turn itself
+    reports the provider's own error."""
     d = _provider_def(prov)
     if not d:
         return False
@@ -3384,7 +3386,7 @@ def _route_ready(mcfg, prov) -> bool:
         if d.get("key_field") and d["id"] not in _ROUTING_SINGLE_KEY:
             return bool(model_routing.usable_accounts(mcfg, prov, d["key_field"]))
         return bool(_provider_key(mcfg, d))
-    if _pin_limited_until(prov):
+    if _pin_limited_until(prov) or _signed_out_until(prov):
         return False
     if plan_accounts.in_use(prov) and plan_accounts.has_extra(mcfg, prov):
         return plan_accounts.pick(mcfg, prov) is not None   # every account of the plan off, resting or signed out
@@ -3509,6 +3511,8 @@ def _plan_main_signed_in(provider: str) -> None:
     except Exception as e:  # noqa: BLE001 - a sign-in must never fail on this
         print(f"[plan accounts] clear rest {provider}: {type(e).__name__}: {e}", file=sys.stderr)
     _PIN_LIMITED.pop(provider, None)
+    _SIGNED_OUT.pop(provider, None)        # 2026-11-12: a fresh sign-in lifts the signed-out mark at once
+    _SIGNED_OUT_TOLD.pop(provider, None)   # and the next loss is worth telling the owner again
 
 
 def _clear_pin_limit(provider: str) -> bool:
@@ -3527,7 +3531,96 @@ def _clear_pin_limit(provider: str) -> bool:
             model_routing.clear_rest(prov, plan_accounts.MAIN)   # one account: its rest IS the card's rest
     except Exception as e:  # noqa: BLE001 - lifting a mark must never fail the owner's click
         print(f"[routing] clear limit {prov}: {type(e).__name__}: {e}", file=sys.stderr)
-    return had
+    return _SIGNED_OUT.pop(prov, None) is not None or had
+
+
+# A plan card that lost its SIGN-IN (owner's report 12/11/2026, a customer's bot on an agent set to ChatGPT): provider ->
+# epoch until which turns skip the card, exactly as they skip a plan out of quota. Before, only a quota refusal moved
+# a turn on; a signed-out plan refused every turn while another model was signed in. Kept apart from `_PIN_LIMITED` so
+# the page never says "out of quota until 12:40" about a card that needs a sign-in. In memory only: after a restart the
+# first turn finds out again, at the cost of one quick refusal. Lifted by signing in, by choosing the card on purpose
+# (`_clear_pin_limit`), or by itself after `signin_loss.RETRY_S`, when one turn tries the card again.
+_SIGNED_OUT: dict = {}
+# provider -> time the owner was last told, so a card that stays signed out rings the bell once a day, not every window.
+_SIGNED_OUT_TOLD: dict = {}
+SIGNED_OUT_NOTICE_EVERY_S = 24 * 3600
+
+
+def _signed_out_until(provider: str, now: float = None) -> float:
+    """Epoch until which `provider` is known to be signed out, 0 when it is not (or the window ran out)."""
+    prov = str(provider or "")
+    now = time.time() if now is None else now
+    until = float(_SIGNED_OUT.get(prov, 0) or 0)
+    if until <= now:
+        _SIGNED_OUT.pop(prov, None)
+        return 0.0
+    return until
+
+
+def _signin_lost_text(provider: str, text, answer: bool = False) -> bool:
+    """Whether an engine's error (or, with `answer`, its whole answer) says the plan card `provider` lost its sign-in.
+    Only the four plan cards have a sign-in to lose; a quota sentence is never one."""
+    prov = str(provider or "")
+    if prov not in _ROUTING_PLAN_PROVIDERS or not str(text or "").strip():
+        return False
+    try:
+        if _subscription_limit_event(str(text), _NHA_SANG_ENGINE.get(prov, ""))[0]:
+            return False
+    except Exception:  # noqa: BLE001 - the detector below still decides
+        pass
+    return signin_loss.is_signin_error(text, answer=answer)
+
+
+def _signin_lost_message(provider: str, raw="") -> str:
+    """What the owner reads when a plan card lost its sign-in and no other route took the turn."""
+    name = _route_name(provider)
+    detail = " ".join(str(raw or "").split())[:200]
+    return localefmt.chu(
+        f"⚠ {name} mất đăng nhập nên lượt này chưa chạy. Vào trang Models đăng nhập lại {name}, hoặc chọn model khác."
+        + (f" (Chi tiết: {detail})" if detail else ""),
+        f"⚠ {name} lost its sign-in, so this turn did not run. Sign in to {name} again on the Models page, or pick "
+        "another model." + (f" (Details: {detail})" if detail else ""))
+
+
+def _note_signin_lost(provider: str, account: str = None, now: float = None) -> None:
+    """A turn on plan card `provider` was refused for a lost sign-in: turns skip the card for `signin_loss.RETRY_S`.
+
+    On a card with several accounts the account that was refused rests, and the card itself is only marked when no
+    other account can run (as `_note_pin_limit` does for quota). The owner is told once through the inbox. Never
+    raises: a mark must not turn one failure into two."""
+    prov = str(provider or "")
+    if prov not in _ROUTING_PLAN_PROVIDERS:
+        return
+    now = time.time() if now is None else now
+    until = now + signin_loss.RETRY_S
+    try:
+        if plan_accounts.in_use(prov):
+            m = cfgmod.read_settings().get("model") or {}
+            if plan_accounts.has_extra(m, prov):
+                aid = account or _PLAN_ACCOUNT_LAST.get(prov, plan_accounts.MAIN)
+                model_routing.mark_rest(prov, aid, until=until)
+                if plan_accounts.usable(m, prov, now):
+                    return
+    except Exception as e:  # noqa: BLE001
+        print(f"[routing] signed out {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+    first = not _signed_out_until(prov, now)
+    _SIGNED_OUT[prov] = until
+    if first:
+        print(f"[routing] {prov} lost its sign-in: turns use the next card for {int(signin_loss.RETRY_S)} s",
+              file=sys.stderr)
+    if now - float(_SIGNED_OUT_TOLD.get(prov, 0) or 0) < SIGNED_OUT_NOTICE_EVERY_S:
+        return
+    _SIGNED_OUT_TOLD[prov] = now
+    try:
+        name = _route_name(prov)
+        inbox.add(localefmt.chu(
+            f"{name} mất đăng nhập. Javis đang chạy bằng model khác đã kết nối (nếu có). "
+            f"Vào trang Models đăng nhập lại {name} để dùng lại model này.",
+            f"{name} lost its sign-in. Javis is running on another connected model (if there is one). "
+            f"Sign in to {name} again on the Models page to use this model again."),
+            kind="system", dedup=f"signed-out:{prov}:{time.strftime('%Y-%m-%d', time.localtime(now))}")
+    except Exception as e:  # noqa: BLE001 - a missed notice never fails the turn
+        print(f"[routing] signed-out notice {prov}: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def _note_api_limit(mcfg, prov: str, key: str, raw: str = "", seconds: float = 0.0) -> None:
@@ -3593,8 +3686,12 @@ def _route_account_no(mcfg, prov: str, key: str = ""):
         return 0, ""
 
 
-def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_account: str = None) -> dict:
+def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_account: str = None,
+                     reason: str = "quota") -> dict:
     """Where a chat turn that ran out of quota goes next (0.354.0), or {} when nothing is left.
+
+    `reason="signin"` (2026-11-12): the card lost its sign-in instead (`_note_signin_lost` already marked it); the
+    route is chosen the same way and only the status line says why.
 
     The failing account is already resting (`_note_pin_limit`, `_note_api_limit`), so `_route_ready` and the
     account pickers skip it. Same card first while it still has an account that can run, then the usage order,
@@ -3631,15 +3728,17 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_a
         old_no, old_lab = _route_account_no(mcfg, prov, failed_key if kind == "api" else
                                             (failed_account or _PLAN_ACCOUNT_LAST.get(prov, plan_accounts.MAIN)))
         new_no, new_lab = _route_account_no(mcfg, prov, ref)
+        why_vi, why_en = (("mất đăng nhập", "lost its sign-in") if reason == "signin"
+                          else ("hết lượt", "is out of quota"))
         if kind == "api":
             new_s, old_s = (new_lab or f"key {new_no}"), (old_lab or f"key {old_no}")
-            vi = f"Đang dùng {_route_name(prov)} ({new_s}) vì {old_s} hết lượt."
-            en = f"Using {_route_name(prov)} ({new_s}) because {old_s} is out of quota."
+            vi = f"Đang dùng {_route_name(prov)} ({new_s}) vì {old_s} {why_vi}."
+            en = f"Using {_route_name(prov)} ({new_s}) because {old_s} {why_en}."
         else:
             vi = (f"Đang dùng {_route_name(prov)} ({new_lab or f'tài khoản {new_no}'}) vì "
-                  f"{old_lab or f'tài khoản {old_no}'} hết lượt.")
+                  f"{old_lab or f'tài khoản {old_no}'} {why_vi}.")
             en = (f"Using {_route_name(prov)} ({new_lab or f'account {new_no}'}) because "
-                  f"{old_lab or f'account {old_no}'} is out of quota.")
+                  f"{old_lab or f'account {old_no}'} {why_en}.")
         return {"route": (prov, kind, key, model), "status": localefmt.chu(vi, en), "tried": tried}
     try:
         signed_in = set(_routing_connected_ids(cfgmod.read_settings()))
@@ -3654,8 +3753,12 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_a
             model = _effective_main({"model": mcfg}).get("model") or model
         if cand == "openrouter":
             model = model or mcfg.get("openrouter_model")
-        vi = f"Đang dùng {_route_name(cand)} vì {_route_name(failed)} hết lượt."
-        en = f"Using {_route_name(cand)} because {_route_name(failed)} is out of quota."
+        if reason == "signin":
+            vi = f"Đang dùng {_route_name(cand)} vì {_route_name(failed)} mất đăng nhập."
+            en = f"Using {_route_name(cand)} because {_route_name(failed)} lost its sign-in."
+        else:
+            vi = f"Đang dùng {_route_name(cand)} vì {_route_name(failed)} hết lượt."
+            en = f"Using {_route_name(cand)} because {_route_name(failed)} is out of quota."
         return {"route": (cand, cd.get("kind", "cli"), _provider_key(mcfg, cd), model),
                 "status": localefmt.chu(vi, en), "tried": tried}
     return {}
@@ -3705,8 +3808,9 @@ def _chat_provider_for_session(mcfg, row):
         return _chat_provider(mcfg)
     if pprov == "antigravity-cli" and antigravity_cli.javis_off():
         return _chat_provider(mcfg)   # 05/11/2026: the owner disconnected that card; a pin to it must not keep using it
-    if _pin_limited_until(pprov):
+    if _pin_limited_until(pprov) or _signed_out_until(pprov):
         # The pinned model's plan is out of quota: run on the main chat's model until it resets (0.285.0).
+        # 2026-11-12: the same while the plan is known to be signed out (an agent or a bot pinned to ChatGPT).
         main_route = _chat_provider(mcfg)
         if main_route[0] != pprov:
             return main_route
@@ -3775,17 +3879,25 @@ def _route_view(mcfg, row, run=None, now: float = None) -> dict:
            # Effort of the card running (owner, 05/11/2026: the Effort chip follows a fallback card too). An assistant's
            # or Javis Core's chat thinks at its own level whatever the card; the composer shows that level there.
            "reasoning": _chat_reasoning(mcfg or {}, prov) if prov else "off"}
-    limited = {}
+    limited, signed_out = {}, []
     for p in _uniq_ids([sel["provider"], *model_routing.order(mcfg or {})]):
+        if _signed_out_until(p, now):
+            signed_out.append(p)     # 2026-11-12: needs a sign-in, not a wait; never shown as "out of quota until"
+            continue
         until = _route_rest_until(mcfg, p, now)
         if until and not _route_ready(mcfg, p):
             limited[p] = until
     out["limited"] = limited
+    out["signed_out"] = signed_out
     if out["fallback"]:
-        until = limited.get(sel["provider"]) or _pin_limited_until(sel["provider"], now)
-        out["reason"] = "quota" if until else "unavailable"
+        lost = sel["provider"] in signed_out
+        until = 0 if lost else (limited.get(sel["provider"]) or _pin_limited_until(sel["provider"], now))
+        out["reason"] = "signin" if lost else "quota" if until else "unavailable"
         out["until"] = float(until or 0)
-        if until:
+        if lost:
+            vi = f"{out['selected_name']} mất đăng nhập → đang dùng {out['name']}."
+            en = f"{out['selected_name']} lost its sign-in → using {out['name']}."
+        elif until:
             vi = f"{out['selected_name']} hết lượt → đang dùng {out['name']}."
             en = f"{out['selected_name']} is out of quota → using {out['name']}."
         else:
@@ -12697,10 +12809,12 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
     reason = ""
     step_extra = tuple((node.metadata or {}).get("tools") or ())
     while True:
-        gcli = mk(sysprompt, agent_model, agent_prov, step_extra, **_step_reasoning_kw(agent_sysprompt, node.agent))
         out = ""
         loi_engine = ""
-        async for ev in gcli.query(cur_prompt):
+        # `_step_run` builds the engine itself: a plan card that lost its sign-in runs the step again elsewhere.
+        async for ev in _step_run(
+                lambda: mk(sysprompt, agent_model, agent_prov, step_extra,
+                           **_step_reasoning_kw(agent_sysprompt, node.agent)), cur_prompt):
             if ev["type"] == "text":
                 await sink({"type": "step_text", "i": index, "node": node.id,
                             "content": ev["content"]})
@@ -12831,7 +12945,21 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             provider = str(main_spec.get("provider") or "")
             from_main = True
         prov = _agent_model_provider(model, provider)
-        if prov == "openai-oauth" and tools is not None:
+        signed_out = bool(_signed_out_until(prov))
+        if signed_out and tools is None:
+            # 2026-11-12: this step's card (the agent's own model, or MAIN) is known to have lost its sign-in. An
+            # ungated step then runs where a chat turn would run right now (`_chat_provider`: MAIN, or the next card
+            # of the usage order that can run), with that card's own model, instead of failing on every run until the
+            # owner signs in again. Nothing saved changes; the agent's model is used again once its card is back.
+            try:
+                route = _chat_provider(cfgmod.read_settings().get("model", {}) or {})
+                if route[0] and route[0] != prov:
+                    print(f"[workflow] {prov} is signed out: this step runs on {route[0]}", file=sys.stderr)
+                    model, provider, from_main = str(route[3] or ""), route[0], True
+                    prov, signed_out = _agent_model_provider(model, provider), False
+            except Exception as e:  # noqa: BLE001 - the step then reports the provider's own error, as before
+                print(f"[workflow] signed-out route {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+        if prov == "openai-oauth" and tools is not None and not signed_out:
             # Gated background step of an agent set to ChatGPT (owner decision 2026-11-12, from PR #1333): run it on
             # Codex instead of silently on Claude Code. The safety rail moves with it: read-only sandbox, no native
             # shell, web, sub-agent or app tools, and the Javis hub answers only the step's own tool list at the
@@ -12839,7 +12967,8 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             # no exec, web or multi-agent tool.
             # When that environment cannot be built (no Codex CLI, no hub profile, a tool the list cannot express)
             # the step falls back to the gated Claude Code path below, which is what every such step ran on before,
-            # so a workflow that works today keeps working.
+            # so a workflow that works today keeps working. The same while ChatGPT is known to be signed out
+            # (`signed_out`, 2026-11-12).
             try:
                 import workflow_codex
                 allowed, _ = _step_grant(extra_tools)
@@ -13552,11 +13681,13 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         reason = ""
         loi_buoc = ""      # bước này HỎNG vì sao. "" = bước chạy được.
         while True:
-            gcli = _mk(sysprompt, agent_model, agent_prov, step_extra,   # áp model agent đã chọn
-                       **_step_reasoning_kw(_agent_sysprompt, agent_slug))
             out = ""
             loi_engine = ""
-            async for ev in gcli.query(cur_prompt):
+            # áp model agent đã chọn. `_step_run` builds the engine itself: a plan card that lost its sign-in runs the
+            # step again elsewhere (2026-11-12).
+            async for ev in _step_run(
+                    lambda: _mk(sysprompt, agent_model, agent_prov, step_extra,
+                                **_step_reasoning_kw(_agent_sysprompt, agent_slug)), cur_prompt):
                 if ev["type"] == "text":
                     yield {"type": "step_text", "i": i, "content": ev["content"]}
                 elif ev["type"] == "tool_call":
@@ -19552,8 +19683,9 @@ async def _chat_socket(ws):
 
         def untouched(self) -> bool:
             """Nothing the owner could lose: no tool ran and no word was written (a streamed out-of-quota sentence
-            is not a word of the answer)."""
-            return not self.acted and (not self.said.strip() or _het_luot_ap_dao(self.said))
+            is not a word of the answer, nor is a "Not logged in" line, 2026-11-12)."""
+            return not self.acted and (not self.said.strip() or _het_luot_ap_dao(self.said)
+                                       or signin_loss.is_signin_error(self.said, answer=True))
 
         async def flush(self):
             held, self._held = self._held, None
@@ -19664,6 +19796,15 @@ async def _chat_socket(ws):
                             _note_pin_limit("grok-cli", account=_turn_acc.get("grok-cli"))   # 0.353.0: that account rests
                 except Exception:  # noqa: BLE001 - a meter must never break a turn
                     pass
+                # 2026-11-12: the plan refused because its sign-in is gone. The card is marked, so this turn may run
+                # again on the next route (below, as for quota) and the next turns skip the card.
+                _lost = _LIMIT_ENGINE_PROVIDER.get(str(engine_hint or ""), "")
+                if not noi and not _limit_state.get("quota") and _signin_lost_text(_lost, raw):
+                    _limit_state["signin"] = True
+                    _note_signin_lost(_lost, account=_turn_acc.get(_lost))
+                    _CONTEXT_RUNTIME.record_runtime_event(
+                        runtime_trace, "subscription.signed_out", {"engine": engine_hint, "model": model or ""})
+                    frame["content"] = _signin_lost_message(_lost, raw)
                 return json.dumps(frame)
             # NGÔN NGỮ chốt MỘT LẦN cho cả lượt, ngay đây. Chốt sớm và chốt một chỗ là để câu
             # trả lời, giọng đọc và các cổng chặn không bao giờ hiểu khác nhau trong cùng một
@@ -20834,6 +20975,12 @@ async def _chat_socket(ws):
                     await ws.send_text(_limit_frame(final_text, "claude-code",
                                                     cli.model or mcfg.get("claude_model") or ""))
                     final_text = ""      # khối _limit_state bên dưới lưu câu báo + hẹn chạy lại
+                elif final_text and not ws.acted and _signin_lost_text("anthropic-cli", final_text, answer=True):
+                    # 2026-11-12: Claude Code prints "Not logged in · Please run /login" as the ANSWER too. It is
+                    # not one: the card is marked signed out and the turn may run on the next route.
+                    await ws.send_text(_limit_frame(final_text, "claude-code",
+                                                    cli.model or mcfg.get("claude_model") or ""))
+                    final_text = ""
                 # Link file → dạng khung chat mở được, ưu tiên file vừa ghi trong lượt này.
                 try:
                     final_text = _chuan_hoa_link_file(
@@ -20860,10 +21007,12 @@ async def _chat_socket(ws):
 
             # 0.354.0 (spec 6.4): out of quota before a single word or tool call -> run_turn reruns this turn at once on
             # the next route (next account of the card, then the next card). Nothing of this run is kept or shown.
-            if (_limit_state.get("quota") and _hops_left > 0 and ws.untouched()
+            # 2026-11-12: the same when the plan refused because its sign-in is gone (`_limit_frame` marked the card).
+            if ((_limit_state.get("quota") or _limit_state.get("signin")) and _hops_left > 0 and ws.untouched()
                     and (not final_text or (kind == "api" and not ws.said.strip()))):
                 _nxt = _chat_next_route(mcfg, prov, api_key if kind == "api" else "", _tried,
-                                        failed_account=_turn_acc.get(prov))
+                                        failed_account=_turn_acc.get(prov),
+                                        reason="quota" if _limit_state.get("quota") else "signin")
                 if _nxt:
                     ws.drop()
                     _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "routing.reroute",
@@ -25037,6 +25186,15 @@ def _tg_quota_out(out: str, prov: str, kind: str, api_key: str, mcfg, account: s
     return True
 
 
+def _tg_signin_out(out: str, prov: str, account: str = None) -> bool:
+    """Whether a channel turn's error string says its plan card lost its sign-in (2026-11-12). When it does, the card
+    is marked signed out, so the next route and the next turns skip it (`_note_signin_lost`)."""
+    if not _signin_lost_text(prov, out):
+        return False
+    _note_signin_lost(prov, account=account)
+    return True
+
+
 def _tg_turn_account(sess, prov: str):
     """The plan account a channel turn just ran on: plan_accounts.use left it on that chat's engine object."""
     eng = (sess or {}).get({"openai-oauth": "codex", "grok-cli": "grok", "anthropic-cli": "cli"}.get(prov, ""))
@@ -25184,12 +25342,21 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             mcfg=mcfg, prov=prov, kind=kind, api_key=api_key, api_model=api_model,
             store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
         # 0.354.0 (spec 6.4): out of quota before any tool ran -> the same message again on the next route, with
-        # one progress line saying why. Customer bots keep their own model and never hop.
+        # one progress line saying why. Customer bots keep their own model and never hop on quota.
+        # 2026-11-12: a plan that lost its SIGN-IN hops too, and here a customer bot hops as well: its agent's model
+        # cannot answer anyone until the owner signs in again, and `_chat_provider_bot` sends the bot's next turns to
+        # the main route anyway once the card is marked. The customer never sees the routing line.
         _tried = []
-        while (isinstance(out, str) and not bot and not _hop_acted[0] and len(_tried) < REROUTE_MAX_HOPS
-               and _tg_quota_out(out, prov, kind, api_key, mcfg, account=_tg_turn_account(sess, prov))):
+        while isinstance(out, str) and not _hop_acted[0] and len(_tried) < REROUTE_MAX_HOPS:
+            _acc = _tg_turn_account(sess, prov)
+            if not bot and _tg_quota_out(out, prov, kind, api_key, mcfg, account=_acc):
+                _why = "quota"
+            elif _tg_signin_out(out, prov, account=_acc):
+                _why = "signin"
+            else:
+                break
             _nxt = _chat_next_route(mcfg, prov, api_key if kind == "api" else "", _tried,
-                                    failed_account=_tg_turn_account(sess, prov))
+                                    failed_account=_acc, reason=_why)
             if not _nxt:
                 break
             _tried = _nxt["tried"]
@@ -25197,7 +25364,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             _tg_ngat_mach(sess, tru=("codex" if prov == "openai-oauth" else prov if prov in ("grok-cli", "antigravity-cli")
                                      else prov if ((kind == "api" and api_key) or kind == "oauth") else "cli"))
             _CONTEXT_RUNTIME.set_route(runtime_trace, prov, api_model or mcfg.get("claude_model") or "mặc định")
-            if progress:
+            if progress and not bot:
                 try:
                     await progress("↻ " + _nxt["status"])
                 except Exception:  # noqa: BLE001
@@ -30293,10 +30460,28 @@ def _step_quota_next(provider: str, eng, text: str) -> dict:
         return {}
 
 
+def _agent_spec_available(spec: dict, settings: dict = None) -> tuple:
+    """`aux_engine.availability` for an assistant's own model, plus the signed-out mark (2026-11-12): a plan card known
+    to have lost its sign-in is not usable, so `team_engine.choose_spec` runs the turn on the main model and says so
+    on the message, as it already does for a card with no key or no CLI. The reason is part of that Vietnamese note."""
+    prov = str((spec or {}).get("provider") or "")
+    if _signed_out_until(prov):
+        return False, f"{_route_name(prov)} mất đăng nhập, cần đăng nhập lại ở trang Models"
+    return aux_engine.availability(spec, settings)
+
+
 def _team_quota_next(provider: str, eng, error) -> dict:
     """`_step_quota_next` for a failed team turn: only an error the ENGINE reported counts, never a tool call the
-    text-only contract refused or an empty answer."""
+    text-only contract refused or an empty answer.
+
+    2026-11-12: an error that says the plan lost its sign-in marks the card (`_note_signin_lost`). The turn itself is
+    not moved here (a team turn has no fallback chain); run again, by the runner's own retry or by the owner, it is
+    built on the main model while the mark stands (`_agent_spec_available`)."""
     if not isinstance(error, team_runner.EngineOutcomeError) or error.kind not in ("final_error", "error_event"):
+        return {}
+    if _signin_lost_text(provider, error.detail):
+        acc = getattr(eng, "account_id", None)
+        _note_signin_lost(provider, account=acc if isinstance(acc, str) and acc else None)
         return {}
     return _step_quota_next(provider, eng, error.detail)
 
@@ -30375,6 +30560,76 @@ class _PlanRotation:
                   file=sys.stderr)
 
 
+# Events of a step's engine that say nothing yet about whether it could run.
+_STEP_RUN_QUIET = ("session", "retry")
+
+
+async def _step_run(build, prompt):
+    """Events of ONE workflow step, whose engine `build()` returns (`_mk` of `_workflow_agent_helpers`).
+
+    2026-11-12 (owner's report: an agent set to ChatGPT failed every run after ChatGPT lost its sign-in). When the
+    engine's plan card refuses because the sign-in is gone, before the step wrote or called anything, the card is marked
+    (`_note_signin_lost`) and the step runs once more on the engine `build()` returns now: `_mk` sends an ungated step
+    to the route a chat turn would use, a gated ChatGPT step back to gated Claude Code, and a card with several
+    accounts to its next account. A step that already called a tool or wrote real text is never run twice (spec 2.7).
+    No other route: the refusal comes out as before. An engine that is not a plan card passes through untouched."""
+    eng = build()
+    prov = getattr(eng, "account_provider", None)
+    if not (isinstance(prov, str) and prov in _ROUTING_PLAN_PROVIDERS):
+        async for ev in eng.query(prompt):
+            yield ev
+        return
+    held, written, live, lost = [], "", False, False
+    stream = eng.query(prompt)
+    async for ev in stream:
+        if live:
+            yield ev
+            continue
+        t = (ev or {}).get("type")
+        raw = str((ev or {}).get("content") or "")
+        held.append(ev)
+        if ((t == "error" and not ev.get("resume_failed") and _signin_lost_text(prov, raw))
+                or (t == "final" and _signin_lost_text(prov, raw, answer=True))):
+            lost = True
+            break
+        if t == "text":
+            written += raw
+            if len(written.strip()) < PLAN_ROTATION_HOLD_CHARS:
+                continue
+        elif t in _STEP_RUN_QUIET:
+            continue
+        live = True
+        for h in held:
+            yield h
+        held = []
+    nxt = None
+    if lost:
+        try:
+            await stream.aclose()
+        except Exception:  # noqa: BLE001 - the refused run is over either way
+            pass
+        acc = getattr(eng, "account_id", None)
+        acc = acc if isinstance(acc, str) and acc else None
+        await asyncio.to_thread(_note_signin_lost, prov, acc)
+        try:
+            nxt = build()
+            nxt_acc = getattr(nxt, "account_id", None)
+            if getattr(nxt, "account_provider", None) == prov and (nxt_acc if isinstance(nxt_acc, str) else None) == acc:
+                nxt = None      # nowhere else to go: the same card on the same account
+        except Exception as e:  # noqa: BLE001 - then the refusal stands
+            print(f"[workflow] step after sign-in loss on {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+            nxt = None
+    if nxt is None:
+        for h in held:      # the engine stopped with no answer (or has no other route): what it said is still shown
+            yield h
+        return
+    print(f"[workflow] step: {prov} lost its sign-in, running again on "
+          f"{getattr(nxt, 'account_provider', None) or getattr(nxt, 'provider', None) or type(nxt).__name__}",
+          file=sys.stderr)
+    async for ev in nxt.query(prompt):
+        yield ev
+
+
 def _step_engine(eng, provider: str):
     """A workflow step's plan engine, started on the account that should run now. On a card with several accounts it
     comes back wrapped (`_PlanRotation`); a card with one account, or Claude Code on an API key, gets the engine itself,
@@ -30407,10 +30662,10 @@ def _team_engine_for(team, agent_key, role):
     settings = cfgmod.read_settings() or {}
     spec = team_engine.choose_spec(
         info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
-        _agent_model_provider, lambda sp: aux_engine.availability(sp, settings))
+        _agent_model_provider, lambda sp: _agent_spec_available(sp, settings))
     tool_spec = team_engine.choose_spec(
         info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
-        _agent_model_provider, lambda sp: aux_engine.availability(sp, settings), tools=True)
+        _agent_model_provider, lambda sp: _agent_spec_available(sp, settings), tools=True)
 
     def _build_tools(system, tag, gate_id=""):
         # 0.194.0: a Work/Help step of a job runs like a private chat with this member: cwd is the team's working folder

@@ -253,8 +253,9 @@ def main_test(mp, tmp):
           dt.index("_chat_next_route(") < dt.index("_persist_limit_notice(store, conv_sid"))
     check("lượt không đổi đường thì nhả các khung đã giữ", "await ws.flush()" in dt)
     tg = src[src.index("async def _tg_answer(text"):src.index("async def _tg_answer_engine(")]
-    check("Telegram: bot chuyên trách không đổi đường, đã gọi công cụ cũng không",
-          "not bot and not _hop_acted[0]" in tg)
+    # 2026-11-12: the loop also hops on a lost sign-in (tests/python/test_signin_loss_route.py), where a bot hops too.
+    check("Telegram: bot chuyên trách không đổi đường khi hết lượt, đã gọi công cụ thì không ai đổi đường",
+          "if not bot and _tg_quota_out(" in tg and "not _hop_acted[0] and len(_tried) < REROUTE_MAX_HOPS" in tg)
 
 
 def test_chat_doi_duong(monkeypatch, tmp_path):

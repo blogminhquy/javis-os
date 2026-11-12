@@ -187,7 +187,7 @@
   function fallbackTitle(r, selP, runP) {
     const why = r.reason === "quota"
       ? (r.until ? window.t("mpick.route_quota_until", { time: hhmm(r.until) }) : window.t("mpick.route_quota"))
-      : window.t("mpick.route_unavailable");
+      : r.reason === "signin" ? window.t("mpick.route_signin") : window.t("mpick.route_unavailable");
     const sel = (selP ? selP.label : r.selected_name || r.selected_provider) + " · "
       + (r.selected_model || defText(r.selected_provider));
     const run = (runP ? runP.label : r.name || r.provider) + " · " + (r.model || defText(r.provider));
@@ -202,12 +202,18 @@
     if (d.fallback) return prev && prev.fallback && prev.provider === d.provider ? "" : (d.content || "");
     return prev && prev.fallback ? window.t("mpick.route_back", { nha: d.name || d.provider }) : "";
   }
-  // Tags in the picker: a card resting out of quota, and the card a fallback turn really runs on.
+  // Tags in the picker: a card resting out of quota, a card that lost its sign-in, and the card a fallback turn
+  // really runs on.
   function routeTags(pid) {
     let h = "";
     if (route && route.limited && route.limited[pid]) {
       h += ' <span class="mb-tag is-limited" title="' + escAttr(route.limited[pid] ? window.t("mpick.route_quota_until",
         { time: hhmm(route.limited[pid]) }) : "") + '">' + escAttr(window.t("mpick.tag_limited")) + "</span>";
+    }
+    // A card that lost its sign-in needs the owner, not a wait: its own tag, never "out of quota until".
+    if (route && Array.isArray(route.signed_out) && route.signed_out.indexOf(pid) >= 0) {
+      h += ' <span class="mb-tag is-limited" title="' + escAttr(window.t("mpick.tag_signed_out_tip")) + '">'
+        + escAttr(window.t("mpick.tag_signed_out")) + "</span>";
     }
     if (route && route.fallback && route.provider === pid) {
       h += ' <span class="mb-tag is-running">' + escAttr(window.t("mpick.tag_running")) + "</span>";
