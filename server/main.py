@@ -1021,8 +1021,27 @@ def _javis_core_block(session_id: str) -> str:
 
 
 # Stable prompt (0.445.0, #975): the clock line points at the per-message header instead of holding the time.
-_STABLE_CLOCK_NOTE = ("Giờ hiện tại ghi ở dòng `[Giờ gửi tin này: ...]` đầu tin nhắn mới nhất của user; "
-                      "dùng đúng giờ đó cho \"bây giờ\", \"hôm nay\", \"hôm qua\".")
+# The text lives in context_compiler since #1329, so the token-saving path writes the very same line.
+_STABLE_CLOCK_NOTE = context_compiler.STABLE_CLOCK_NOTE
+
+
+def _with_turn_context(cli, plan, prompt, sysprompt):
+    """(prompt, system prompt) of a Claude Code turn, with the plan's per-turn context where the model reads it (#1329).
+
+    What the token-saving path used to append to the system prompt (conversation state, retrieved memory, the selected
+    skill) changes with every message, so it made every new chat rewrite the whole cached block. It now opens the
+    FIRST message of a thread instead. A resumed thread keeps the system prompt of its first turn, so later turns never
+    saw this context before either; leaving it out there keeps the thread from growing by it every turn.
+    A prompt that is not plain text cannot carry it: the context then stays in the system prompt for that turn, as
+    before, rather than get lost."""
+    ctx = getattr(plan, "turn_context", "") if not getattr(cli, "session_id", None) else ""
+    if not ctx:
+        return prompt, sysprompt
+    if isinstance(prompt, str):
+        return ctx + "\n\n" + prompt, sysprompt
+    sysprompt = sysprompt + "\n\n" + ctx
+    cli.system_prompt = sysprompt
+    return prompt, sysprompt
 
 
 def _turn_facts_header(brain: str, session_id: str, lang: str = "", first: bool = True) -> str:
@@ -19753,6 +19772,7 @@ async def _chat_socket(ws):
                         runtime_trace, user_message, _brain_root(brain), conv_sid,
                         store.get_messages(conv_sid), "dashboard", route_provider,
                         route_model, route_kind, _base,
+                        stable_system=stable,   # #1329: the compiled prompt stays the same between new chats too
                     )
                 except Exception as _exc:   # noqa: BLE001 - không được phá lượt chat
                     _CONTEXT_RUNTIME.record_runtime_event(
@@ -20628,6 +20648,7 @@ async def _chat_socket(ws):
                 if _stable_sp:
                     _cli_prompt = _cli_do_sau(cli, reasoning, user_message)
                     _hdr = _turn_facts_header(brain, conv_sid or "", _lang_qd.lang, first=not cli.session_id)
+                    _cli_prompt, sysprompt = _with_turn_context(cli, _sub_plan, _cli_prompt, sysprompt)   # #1329
                     if _hdr and isinstance(_cli_prompt, str):
                         _cli_prompt = _hdr + "\n" + _cli_prompt
                 else:
