@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.549.0] - 2026-11-12
+### Cải thiện
+- **Theo dõi Facebook (Apify) không còn nằm sẵn trong Javis, nó đi cùng gói trong Kho cài đặt.** Công cụ quét qua Apify là phần cài thêm, không phải ai cũng dùng. Anh chị đang dùng thì vào Kho cài đặt, bấm cập nhật gói "Theo dõi Facebook (Apify)" là có lại tool `fb_monitor`; token Apify đã dán vẫn giữ nguyên.
+
 ## [0.548.1] - 2026-11-12
 ### Sửa lỗi
 - **Việc nền chạy dự phòng bằng đúng model anh chị chọn trên thẻ.** Trước đây lựa chọn đó bị bỏ qua: khi model việc nền hết lượt và việc rơi sang Claude Code, nó chạy model mặc định của CLI, thường là model tốn hạn mức nhất. Thẻ chưa chọn model thì vẫn chạy như cũ.
