@@ -1,4 +1,4 @@
-"""A bot remembers a private chat: 100 messages, and the history survives a server restart.
+"""A bot remembers a private chat: 30 messages, and the history survives a server restart.
 
     python tests/run.py bot_private_history      (NO network)
 
@@ -8,7 +8,7 @@ The owner, 12/11/2026: the Zalo bot answers customers on far too little context.
   - that history lived in RAM only. Every server restart (each update is one) emptied it, and unlike the owner's
     Telegram chat nothing read it back, so a returning customer was met as a stranger.
 
-Now the ceiling is 100 messages (with a character ceiling for chats that are not short), and the first turn after a
+Now the ceiling is 30 messages (with a character ceiling for chats that are not short), and the first turn after a
 restart reads the private chat back from the inbox, which keeps every message of it, the owner's hand-typed replies
 included.
 """
@@ -141,7 +141,7 @@ def turn(sess, chat, text, mid="", level=""):
         prov="openrouter", kind="api", api_key="k", api_model="m", bot=bot))
 
 
-check("the ceiling is 100 messages", main.BOT_HISTORY_MAX_MESSAGES == 100, main.BOT_HISTORY_MAX_MESSAGES)
+check("the ceiling is 30 messages", main.BOT_HISTORY_MAX_MESSAGES == 30, main.BOT_HISTORY_MAX_MESSAGES)
 
 # A fresh RAM session is what a restart leaves behind.
 sess = {"last": None, "sent": set()}
@@ -176,11 +176,11 @@ main._manual_session_undo("bot:bot_h:c1x", 2)
 check("undo keeps a history that was there before the draft", len(main._tg_session("bot:bot_h:c1x")["bot"]) == 2)
 
 # ============================================================
-# 3. Trimming: 100 messages, a character ceiling, never an assistant first
+# 3. Trimming: the message ceiling, a character ceiling, never an assistant first
 # ============================================================
 hist = [{"role": "user" if i % 2 == 0 else "assistant", "content": f"m{i}"} for i in range(131)]
 main._trim_bot_history(hist)
-check("more than 100 messages are cut to 100", len(hist) <= main.BOT_HISTORY_MAX_MESSAGES, len(hist))
+check("more messages than the ceiling are cut to it", len(hist) <= main.BOT_HISTORY_MAX_MESSAGES, len(hist))
 check("the newest message stays", hist[-1]["content"] == "m130", hist[-1])
 check("the cut never leaves an assistant message first", hist[0]["role"] == "user", hist[0])
 
@@ -189,8 +189,8 @@ hist = [{"role": "user" if i % 2 == 0 else "assistant", "content": big} for i in
 main._trim_bot_history(hist)
 total = sum(len(m["content"]) for m in hist)
 check("very long messages are cut by characters, oldest first", total <= main.BOT_HISTORY_MAX_CHARS, total)
-check("a normal chat of 100 short messages is NOT cut by the character ceiling",
-      100 * 400 <= main.BOT_HISTORY_MAX_CHARS)
+check("a normal chat of short messages is NOT cut by the character ceiling",
+      main.BOT_HISTORY_MAX_MESSAGES * 400 <= main.BOT_HISTORY_MAX_CHARS)
 one = [{"role": "user", "content": "y" * (main.BOT_HISTORY_MAX_CHARS + 5)}]
 main._trim_bot_history(one)
 check("the message being answered is never dropped, however long", len(one) == 1)

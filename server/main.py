@@ -25254,12 +25254,12 @@ def _tg_ket(clean_out, files, canh_bao="", loi=(), khach=False):
 # a summary as on the owner's chat: a summary is one more model call, and a bot answering strangers has to stay
 # fast and cheap.
 #
-# 20 until 2026-11-12. The owner then found the bot answering customers on too little: ten exchanges are gone
-# within one sales conversation, and the bot asks again for what the customer already said. 100 covers a whole
-# conversation. A chat message is short, so this stays a few thousand tokens; BOT_HISTORY_MAX_CHARS is the ceiling
-# for the chat that is not short (pasted documents, 8,000-character messages), where 100 messages would no longer
-# fit a model's context and every turn would fail.
-BOT_HISTORY_MAX_MESSAGES = 100
+# 20 until 2026-11-12. The owner then found the bot answering customers on too little and settled on 30, the same
+# number a group gets (`chatbot_runtime.NGU_CANH_TIN`). Not more on purpose: older messages are mostly small talk,
+# and what is worth keeping from them belongs in a per-customer profile, not in a longer transcript.
+# BOT_HISTORY_MAX_CHARS is the ceiling for the chat that is not short (pasted documents, 8,000-character messages),
+# where even 30 messages could outgrow a model's context and every turn would fail.
+BOT_HISTORY_MAX_MESSAGES = 30
 BOT_HISTORY_MAX_CHARS = 60_000
 
 # Danh sách tool cho phép của bot khi phải chạy qua CLI: một chuỗi KHÔNG khớp tool nào.
