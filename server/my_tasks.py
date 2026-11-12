@@ -913,7 +913,11 @@ class MyTasks:
                 data = self.load(brain)
                 # Owner, 06/11/2026: everything in "Mine" reaches the bell (and Telegram, push), not only habits and the
                 # appointments that had a reminder set. Once a day, the morning list of today.
-                if AGENDA_AT <= hm < AGENDA_UNTIL and data.get("agenda_sent") != today:
+                # Opt out of the standalone 07:30 agenda per brain when a
+                # separate morning brief already covers the owner's tasks.
+                # This never disables timed task, appointment or habit nudges.
+                if (data.get("agenda_enabled") is not False
+                        and AGENDA_AT <= hm < AGENDA_UNTIL and data.get("agenda_sent") != today):
                     data["agenda_sent"] = today
                     agenda_msg = agenda_text(*agenda(data.get("tasks", []), today))
                     due_save = True
