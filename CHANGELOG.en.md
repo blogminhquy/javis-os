@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.553.1] - 2026-11-12
+### Fixed
+- **A conflicting PR on a private repo is merged back by Javis again.** The conflict fix round used to stop at downloading the main branch, because the AI's shell has no access to GitHub. Javis now downloads the main branch first, and the AI only merges and resolves the conflict.
+- **If GitHub is unreachable at that moment, Javis waits and tries again.** A fix round is no longer spent on a merge that cannot work; the repo card says why it is waiting.
+
 ## [0.553.0] - 2026-11-12
 ### Added
 - **A whole folder can be a document.** The search box under Add file for a project, a partner, a chat and a team (the create box and the Info tab) now lists folders whose name matches, with their own folder icon. Press Add to attach the whole folder instead of picking files one by one.
