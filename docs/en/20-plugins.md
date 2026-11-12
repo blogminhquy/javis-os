@@ -112,7 +112,6 @@ These ship with the app (the **Bundled** label). All are on by default except `t
 | Read YouTube videos | `youtube-read` | `javis_youtube_read` | read only | On |
 | Meta Ads (Graph API) | `meta-ads-graph` | `meta_ads_accounts`, `meta_ads_insights`, `meta_ads_campaigns`, `meta_ads_get` | read only | On |
 | Facebook Pages (Graph API) | `meta-pages-graph` | `fb_pages_list`, `fb_page_posts`, `fb_page_comments`, `fb_page_post`, `fb_page_photo`, `fb_page_album`, `fb_page_video`, `fb_page_edit`, `fb_page_delete`, `fb_page_reply` | full power | On |
-| Facebook monitoring (Apify) | `fb-monitor-apify` | `fb_monitor` | read only | On |
 | Tool usage log | `tool-audit` | `javis_tool_stats` + the `post_tool_call` hook | read only | **Off** |
 
 What each one does:
@@ -128,7 +127,7 @@ What each one does:
 - **Safe Zalo sending**: sends Zalo messages in place of the raw tool. It locks onto the listening account and can only send to chats on the watch list; when a name matches several people it refuses and forces a question back. The two Zalo plugins are shared with [the Zalo channel](12-zalo-agent-mcp.md).
 - **Meta Ads (Graph API)**: reads Facebook/Instagram advertising figures (ad accounts, campaigns, performance). **Read only, spends no money.** Requires the "Meta Ads (Facebook & Instagram)" connection on the Connections page.
 - **Facebook Pages (Graph API)**: manages Pages. Reading the Page list, posts and comments is read-only; posting, uploading photos, albums and videos, editing text, deleting posts and replying to comments are **real, public** actions and need the full-power level. Uses the Pages connected on the Facebook Messenger card on the Connections page (or the store's Facebook Pages connection if installed earlier).
-- **Facebook monitoring (Apify)**: monitors **public** Pages and Groups to find heavily shared posts, through the Apify service. Read only, does not touch a personal account, and works on a VPS. Requires pasting an apify.com Personal API token into the "Facebook monitoring (Apify)" connection.
+- **Facebook monitoring (Apify)** no longer ships inside Javis (since 2026-11-12): the `fb_monitor` tool comes with the **Facebook monitor (Apify)** pack in the Store. If you installed that pack before, update it and the tool is back; otherwise install the pack and paste your apify.com Personal API token on the Connections page.
 - **Tool usage log**: counts how many times **each** tool is called by the engine (through the `post_tool_call` hook) and lets you see the most-used ones. It is a demonstration of the hook mechanism, so it is off by default; enable it on the Plugins page, chat a few turns that call tools, then ask Javis which tool is used most.
 
 A note about the "Minimum level" column: that is the level declared for the **whole plugin** and what the card shows. Each tool inside still has its own level. For example `meta-pages-graph` says "full power" on the card, but its three post/comment reading tools only need read-only, and only the posting and deleting tools need full power.
