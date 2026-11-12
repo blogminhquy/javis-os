@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.549.1] - 2026-11-12
+### Fixed
+- **A team no longer stops taking pictures after a while.** A team holds at most 50 documents, and every picture sent in a team takes two places (the picture and the description written for the assistants). The list was full after about 25 picture messages, and from then on files were dropped without a word. Now, when the list is full, the oldest picture and its description leave the list to let the new one in. The file stays on disk and the message stays in the chat.
+- **Documents you attached yourself never leave by themselves.** A price list, a contract, a PDF and its text copy stay.
+- **A file that cannot get into the team is said.** When the list is full of documents you attached, Javis gives the reason and where to remove some, instead of dropping the file in silence.
+### Improved
+- **The first open of a long team after Javis restarts no longer makes everything else wait.** While Javis reads the history again to build the Documents list, loading messages stays as fast as usual.
+
 ## [0.549.0] - 2026-11-12
 ### Improved
 - **Facebook monitor (Apify) no longer ships inside Javis; it comes with its pack in the Store.** Scanning through Apify is an add-on that not everyone uses. If you use it, open the Store and update the "Facebook monitor (Apify)" pack to get the `fb_monitor` tool back; the Apify token you pasted stays as it is.

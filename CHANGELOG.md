@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.549.1] - 2026-11-12
+### Sửa lỗi
+- **Team không còn chặn gửi ảnh sau một thời gian dùng.** Mỗi team giữ tối đa 50 tài liệu, và mỗi ảnh gửi vào team chiếm hai chỗ (ảnh và bản mô tả ảnh cho cộng sự đọc). Sau khoảng 25 lần gửi ảnh là đầy, và từ đó file gửi thêm bị bỏ đi mà không báo gì. Giờ khi đầy, ảnh cũ nhất và bản mô tả của nó rời danh sách tài liệu để nhường chỗ cho ảnh mới. File vẫn còn trên máy và tin nhắn vẫn còn trong chat.
+- **Tài liệu bạn tự gắn không bao giờ tự rời danh sách.** Bảng giá, hợp đồng, file PDF và bản chữ của nó vẫn giữ nguyên.
+- **File không vào được team thì có báo.** Khi danh sách đã đầy toàn tài liệu bạn tự gắn, Javis nói rõ lý do và chỉ chỗ gỡ bớt, thay vì im lặng bỏ file.
+### Cải thiện
+- **Lần mở đầu tiên của một team dài sau khi Javis khởi động lại không còn làm các thao tác khác chờ.** Trong lúc Javis đọc lại lịch sử để dựng mục Tài liệu, tải tin nhắn vẫn nhanh như thường.
+
 ## [0.549.0] - 2026-11-12
 ### Cải thiện
 - **Theo dõi Facebook (Apify) không còn nằm sẵn trong Javis, nó đi cùng gói trong Kho cài đặt.** Công cụ quét qua Apify là phần cài thêm, không phải ai cũng dùng. Anh chị đang dùng thì vào Kho cài đặt, bấm cập nhật gói "Theo dõi Facebook (Apify)" là có lại tool `fb_monitor`; token Apify đã dán vẫn giữ nguyên.
