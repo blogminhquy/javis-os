@@ -312,6 +312,15 @@ def git(args: List[str], cwd: str, *, timeout: int = GIT_TIMEOUT, auth: bool = F
     return p
 
 
+# Keyword arguments for every git call of Javis that puts files of ANOTHER commit on disk (worktree add, checkout).
+# The clone is a partial one (`--filter=blob:none`): a fetch brings commits and trees, never file contents, so the
+# first checkout of a commit that arrived later makes git download the missing contents from origin by itself, in the
+# middle of the command. That hidden fetch needs the token like any other, and its size follows the repo, not
+# GIT_TIMEOUT. Without the token a private repo answered "could not fetch <sha> from promisor remote" and attaching the
+# repo to a chat failed as soon as the base branch had moved (owner, 12/11/2026).
+CHECKOUT: Dict[str, Any] = {"auth": True, "timeout": 300}
+
+
 def git_out(args: List[str], cwd: str, **kw) -> str:
     return (git(args, cwd, **kw).stdout or "").strip()
 
@@ -593,7 +602,7 @@ def ensure_worktree(sid: str, rec: Dict[str, Any]) -> Dict[str, str]:
                     timeout=300)
             base = f"origin/{base_name}"
             args = ["worktree", "add", str(dest), branch] if have else ["worktree", "add", "-b", branch, str(dest), base]
-            git(args, clone)
+            git(args, clone, **CHECKOUT)
             # The branch tracks nothing yet; the first push sets its upstream.
             git(["config", f"branch.{branch}.javisBase", base_name], clone, check=False)
     coding_store.dat_worktree_thu_muc(sid, rec["folder_id"], str(dest))
@@ -781,7 +790,7 @@ def set_base(sid: str, brain: str, full_name: str, base: str) -> Dict[str, Any]:
                                "(or start a new chat) before changing branch."))
         git(["fetch", "origin", f"+refs/heads/{base}:refs/remotes/origin/{base}"], wt, auth=True, timeout=300)
         cur = coding_store.nhanh_hien_tai(wt) or session_branch(sid)
-        git(["checkout", "-q", "-B", cur, f"origin/{base}"], wt)
+        git(["checkout", "-q", "-B", cur, f"origin/{base}"], wt, **CHECKOUT)
         git(["config", f"branch.{cur}.javisBase", base], wt, check=False)
     _set_session_base(sid, fn, "" if base == (repo.get("default_branch") or "main") else base)
     return session_view(sid, brain)

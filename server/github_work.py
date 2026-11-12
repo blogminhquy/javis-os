@@ -996,7 +996,7 @@ def _restart_branch(row: Dict[str, Any]) -> None:
         while github_repos.git(["rev-parse", "--verify", "--quiet", f"refs/heads/{stem}-r{n}"], wt,
                                check=False).returncode == 0:
             n += 1
-        github_repos.git(["checkout", "-q", "-b", f"{stem}-r{n}", base], wt)
+        github_repos.git(["checkout", "-q", "-b", f"{stem}-r{n}", base], wt, **github_repos.CHECKOUT)
     except github_repos.RepoError:
         pass
 
