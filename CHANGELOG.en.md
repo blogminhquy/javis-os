@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.545.4] - 2026-11-12
+### Security
+- **Facebook and Meta Ads tools no longer hand access tokens to the model.** Facebook's "next page" links and error messages carry the access token; Javis now strips it before the result reaches the model. Posts, comments and paging cursors are unchanged.
+
 ## [0.545.3] - 2026-11-12
 ### Fixed
 - **ChatGPT image generation no longer says "no account" while every account rests after a chat limit.** Javis still tries the first switched-on account, as it did before account rotation. Switched-off accounts stay unused.
