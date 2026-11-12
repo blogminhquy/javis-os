@@ -1365,6 +1365,13 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
     except Exception as e:  # noqa: BLE001 - the guard must never stop a turn
         print(f"[secret guard] Claude hook not installed: {type(e).__name__}: {e}", file=sys.stderr)
     try:
+        # 2026-11-12 (customer report): a `claude` that exits before answering names the reason it printed, in place
+        # of the SDK's "Check stderr output for details".
+        import claude_exit_reason
+        claude_exit_reason.install()
+    except Exception as e:  # noqa: BLE001 - reported, never a broken turn
+        print(f"[claude] exit reason wrapper not installed: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
         # 2026-11-10 (owner incident): the SDK refuses npm's claude.cmd on Windows; hand it a native claude.exe.
         use_native_claude_for_sdk()
     except Exception as e:  # noqa: BLE001 - reported, never a broken turn
