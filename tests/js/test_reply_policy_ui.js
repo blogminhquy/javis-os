@@ -5,7 +5,7 @@
    Chạy dưới node với DOM giả tối thiểu. Ba thứ được canh:
      1. Hàm thuần (`formHtml`, `summary`) chạy thật. Từ 0.65.1 form KHÔNG còn ô cài đặt nào: chỉ một dòng giải thích,
         và không còn đường nào để form ghi đè cấu hình của bot.
-     2. Hợp đồng với chatbots.js: dòng giải thích chỉ hiện khi chọn Tự đánh giá, có mục menu, lưu bot không gửi reply_policy.
+     2. Hợp đồng với chatbots.js: dòng giải thích chỉ hiện khi chọn Tự đánh giá, mục menu LUÔN có (12/11/2026), lưu bot không gửi reply_policy.
      3. Từ điển: mọi khoá `rp.*` dùng trong module đều có ở cả vi và en, các khoá của ô đã bỏ không còn, mọi mã im có nhãn.
 */
 const fs = require("fs");
@@ -46,8 +46,20 @@ check("chatbots.js dựng dòng giải thích trong phần chọn khi nào lên 
 check("dòng giải thích chỉ hiện khi chọn Tự đánh giá (veRw)", /rpBox\.style\.display = v === "auto" \? "" : "none"/.test(CB));
 check("lưu bot KHÔNG gửi reply_policy nữa (form không được ghi đè aliases và người được dạy)",
   CB.indexOf("chung.reply_policy") < 0 && CB.indexOf("RP.read") < 0 && CB.indexOf("RP.bind") < 0);
-check("thẻ bot có mục menu Bộ phán xử (chỉ khi Tự đánh giá) và mở panel",
-  /b\.reply_when === "auto"\s*\?\s*'<button class="cb-rp"/.test(CB) && /JavisReplyPolicy\.openPanel\(b\)/.test(CB));
+// Owner, 12/11/2026: "em bật nó luôn hiện cho anh". The item used to appear only in Auto-judge mode and people kept asking where it was.
+check("the bot card lists the judge menu item for every bot, whatever its reply mode",
+  /\(window\.JavisReplyPolicy\s*\?\s*'<button class="cb-rp"/.test(CB) && !/b\.reply_when === "auto"\s*\?\s*'<button class="cb-rp"/.test(CB));
+check("the card opens the panel telling it whether the judge is idle, and how to reach the bot form",
+  /JavisReplyPolicy\.openPanel\(b, \{ idle: b\.reply_when !== "auto", onEdit: function \(\) \{ moForm\(b\); \} \}\)/.test(CB));
+check("an idle panel says so in one short line, with the how-to behind (i) and an Edit button",
+  /if \(!opts\.idle\) return "";/.test(MOD) && /tt\("rp\.idle"\)\) \+ infoBtn\(\)/.test(MOD)
+  && /infoBody\(esc\(tt\("rp\.idle_h"\)\)\)/.test(MOD) && /class="s-btn-ghost rp-edit"/.test(MOD)
+  && VI["rp.idle"].length <= 100 && EN["rp.idle"].length <= 100);
+check("the Edit button closes the panel before it opens the bot form",
+  /edit\.onclick = function \(\) \{ dong\(\); opts\.onEdit\(\); \}/.test(MOD));
+check("an idle panel does not promise that posting in the group starts the log",
+  /opts\.idle \? tt\("rp\.empty_idle"\) : tt\("rp\.empty"\)/.test(MOD));
+check("the panel opened from the inbox (no opts) draws no idle line", /opts = opts \|\| \{\};/.test(MOD));
 check("dòng tóm tắt của thẻ dùng JavisReplyPolicy.summary", /JavisReplyPolicy\.summary\(b\)/.test(CB));
 check("index.html nạp module TRƯỚC chatbots.js", HTML.indexOf("chatbots-reply-policy.js") > 0
   && HTML.indexOf("chatbots-reply-policy.js") < HTML.indexOf("/static/chatbots.js"));

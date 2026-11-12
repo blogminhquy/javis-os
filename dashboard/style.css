@@ -4525,6 +4525,11 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
   font-weight: 500; cursor: pointer; }
 .cb-rp-form { width: min(820px, 96vw); }
 .cb-rp-body { max-height: 64vh; overflow-y: auto; }
+/* Judge idle for this bot (not in Auto-judge mode): one line plus the Edit button, 16px text and a 44px tap target. */
+.cb-rp-idle { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap;
+  margin-bottom: 10px; padding: 8px 12px; font-size: 16px; line-height: 1.5; color: var(--warn-ink);
+  background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 9px; }
+.cb-rp-idle .rp-edit { min-height: 44px; }
 /* Thử bot (0.78.0) */
 .cb-try-form textarea { width: 100%; background: var(--field-bg); border: 1px solid var(--border); color: var(--text);
   border-radius: 8px; padding: 9px 11px; font-size: 15px; font-family: inherit; resize: vertical; min-height: 72px; }
