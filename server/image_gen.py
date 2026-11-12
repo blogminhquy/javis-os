@@ -360,6 +360,34 @@ def _headers(token: str, account_id: str) -> dict:
 # ---------------------------------------------------------------------------
 # Gọi thật
 # ---------------------------------------------------------------------------
+def _image_account_order() -> list:
+    """Enabled, signed-in ChatGPT accounts, preserving the Models card order.
+
+    Image generation is an HTTP-only Codex call, so the normal CLI account
+    rotation does not cover it. Keep single-account behaviour unchanged.
+    """
+    try:
+        import config
+        import plan_accounts
+        m = (config.read_settings().get("model") or {})
+        if plan_accounts.has_extra(m, "openai-oauth"):
+            return [a["id"] for a in plan_accounts.usable(m, "openai-oauth")]
+        # On one-account installations keep the original credential path, but
+        # honour an explicit owner choice to disable that sole account.
+        if not any(a["id"] == "main" and a["enabled"]
+                   for a in plan_accounts.accounts(m, "openai-oauth")):
+            return []
+    except Exception:
+        pass
+    return ["main"]
+
+
+def _image_quota_error(status: int, error: Optional[str]) -> bool:
+    """Only rotate for definite quota failures, never arbitrary image errors."""
+    text = str(error or "").lower()
+    return status == 429 or "usage_limit_reached" in text or "quota_exceeded" in text
+
+
 async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: str = "medium",
                            vault_root: Optional[str] = None, timeout_s: float = 300.0,
                            images: Optional[list] = None) -> dict:
@@ -379,10 +407,10 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
     if quality not in _QUALITIES:
         quality = "medium"
 
-    creds = openai_oauth.valid_creds()
-    if not creds or not creds.get("access_token"):
-        return {"ok": False, "error": localefmt.chu("Chưa kết nối ChatGPT (OAuth). Vào trang Model đăng nhập ChatGPT rồi thử lại.",
-                                                "ChatGPT (OAuth) is not connected. Sign in to ChatGPT on the Models page and try again.")}
+    accounts = _image_account_order()
+    if not accounts:
+        return {"ok": False, "error": localefmt.chu("Không có tài khoản ChatGPT nào sẵn sàng.",
+                                                "No signed-in ChatGPT account is available.")}
 
     # Đọc ảnh mẫu TRƯỚC khi gọi mạng: ảnh sai đường dẫn thì báo ngay và nói rõ ảnh nào,
     # thay vì đốt một lượt gọi rồi trả về một tấm vẽ từ mô tả suông mà người dùng tưởng là
@@ -399,33 +427,62 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
         data_urls.append(r["data_url"])
 
     size = resolve_size(aspect)
-    headers = _headers(creds["access_token"], creds.get("account_id") or "")
-
     b64: Optional[str] = None
     err: Optional[str] = None
     da_thu: list = []
-    hang_doi = host_model_candidates()
-    da_hoi_live = False
-    while True:
-        if not hang_doi and not da_hoi_live and err and model_rejected(0, err) and not _HOST_ENV:
-            # Mọi model trong danh mục đã lưu đều bị từ chối: danh mục có thể đã cũ (gói vừa đổi).
-            # Hỏi lại danh sách LIVE của tài khoản đúng một lần rồi thử các model chưa thử.
-            da_hoi_live = True
-            live = await _live_models(creds)
-            hang_doi = [m for m in host_model_candidates(live) if m not in da_thu]
-        if not hang_doi or len(da_thu) >= MAX_HOST_TRIES + 2:
-            break
-        model = hang_doi.pop(0)
-        da_thu.append(model)
-        payload = build_payload(prompt, size, quality, data_urls, model=model)
-        b64, err, status = await _mot_luot(payload, headers, timeout_s)
+    creds = None
+    had_credential = False
+    for account_key in accounts:
+        try:
+            creds = (openai_oauth.valid_creds() if account_key == "main"
+                     else openai_oauth.valid_creds_for(account_key))
+        except Exception:
+            creds = None
+        if not creds or not creds.get("access_token") or creds.get("stale"):
+            continue
+        had_credential = True
+        headers = _headers(creds["access_token"], creds.get("account_id") or "")
+        da_thu = []
+        hang_doi = host_model_candidates()
+        da_hoi_live = False
+        status = 0
+        while True:
+            if not hang_doi and not da_hoi_live and err and model_rejected(0, err) and not _HOST_ENV:
+                # All known host models were denied. Refresh the supported list once.
+                da_hoi_live = True
+                live = await _live_models(creds)
+                hang_doi = [m for m in host_model_candidates(live) if m not in da_thu]
+            if not hang_doi or len(da_thu) >= MAX_HOST_TRIES + 2:
+                break
+            model = hang_doi.pop(0)
+            da_thu.append(model)
+            payload = build_payload(prompt, size, quality, data_urls, model=model)
+            b64, err, status = await _mot_luot(payload, headers, timeout_s)
+            if b64:
+                _host_ok[0] = model
+                break
+            if not (err and model_rejected(status, err)):
+                break
+            if _host_ok[0] == model:
+                _host_ok[0] = ""
         if b64:
-            _host_ok[0] = model
             break
-        if not (err and model_rejected(status, err)):
-            break                     # lỗi khác (mạng, token, nội dung...): đổi model cũng vô ích
-        if _host_ok[0] == model:
-            _host_ok[0] = ""
+        if _image_quota_error(status, err):
+            # An exhausted account must not strand other signed-in plans.
+            # No image was returned, so retrying on the next account is safe.
+            try:
+                import model_routing
+                model_routing.mark_rest("openai-oauth", account_key, seconds=300)
+            except Exception:
+                pass
+            continue
+        # Authentication, invalid prompt, model support and transport errors
+        # are not evidence that another account would solve the problem.
+        break
+
+    if not had_credential:
+        return {"ok": False, "error": localefmt.chu("Chưa kết nối ChatGPT (OAuth). Vào trang Model đăng nhập ChatGPT rồi thử lại.",
+                                                "ChatGPT (OAuth) is not connected. Sign in to ChatGPT on the Models page and try again.")}
 
     if not b64 and err and model_rejected(0, err) and len(da_thu) > 0:
         ds = ", ".join(da_thu)
