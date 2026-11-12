@@ -38,13 +38,14 @@ def settings() -> dict:
         d = json.loads(_settings_path().read_text(encoding="utf-8"))
     except Exception:
         d = {}
-    return {"background": bool(d.get("background", True))}
+    return {"background": bool(d.get("background", True)), "paper_telegram": bool(d.get("paper_telegram", True))}
 
 
 def save_settings(patch: dict) -> dict:
     cur = settings()
-    if "background" in (patch or {}):
-        cur["background"] = bool(patch["background"])
+    for k in ("background", "paper_telegram"):
+        if k in (patch or {}):
+            cur[k] = bool(patch[k])
     _settings_path().write_text(json.dumps(cur), encoding="utf-8")
     return cur
 

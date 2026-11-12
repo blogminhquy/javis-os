@@ -749,11 +749,29 @@
       return '<button type="button" class="mk-segb' + (S.ppKind === k ? " on" : "") + '" data-ppk="' + k + '">' + esc(T("mk.pp.acc." + k)) + "</button>";
     }).join("") + "</div>";
     return '<div class="mk-tools">' + seg + '<span class="mk-sp"></span><span class="mk-chip flat">' + IC("triangle-alert") + esc(T("mk.pp.virtual")) +
-      "</span>" + infoBtn(T("mk.pp.how")) + infoBody(esc(T("mk.pp.info"))) + '</div><div id="mkPP"><div class="mk-skel" style="height:300px"></div></div>';
+      '</span><button type="button" class="mk-btn ghost" data-pptg id="mkPPTg" aria-pressed="false">' + IC("send") + "<span>" + esc(T("mk.pp.tg")) +
+      '</span><span class="mk-chip" id="mkPPTgState">-</span></button>' + infoBtn(T("mk.pp.how")) + infoBody(esc(T("mk.pp.info"))) +
+      '</div><div id="mkPP"><div class="mk-skel" style="height:300px"></div></div>';
+  }
+  function paintPPTg() {
+    var btn = S.el && S.el.querySelector("#mkPPTg"), st = S.el && S.el.querySelector("#mkPPTgState");
+    if (!btn || !S.bg) return;
+    var on = !(S.bg.settings && S.bg.settings.paper_telegram === false), ready = !!S.bg.telegram_ready;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    st.textContent = T(!on ? "mk.bg_off" : ready ? "mk.bg_on" : "mk.pp.tg_none");
+    st.className = "mk-chip " + (on && ready ? "up" : "");
+    btn.title = T(on && !ready ? "mk.pp.tg_need" : "mk.pp.tg_tip");
+  }
+  function togglePPTg() {
+    if (!S.bg) return;
+    var on = !(S.bg.settings && S.bg.settings.paper_telegram === false);
+    api("/market/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paper_telegram: !on }) }).then(function (d) { if (d && d.ok) { S.bg = Object.assign(S.bg, d); paintPPTg(); } });
   }
   function drawPaper(force) {
     var box = S.el && S.el.querySelector("#mkPP"), kind = S.ppKind, gen = S.gen;
     if (!box) return;
+    paintPPTg();
     if (S.pp[kind] && !force) box.innerHTML = paperHtml(S.pp[kind]);
     api("/market/paper?kind=" + kind).then(function (d) {
       if (gen !== S.gen || S.ppKind !== kind) return;
@@ -1118,6 +1136,7 @@
     st.textContent = T(on ? "mk.bg_on" : "mk.bg_off");
     st.className = "mk-chip " + (on ? "up" : "");
     if (S.bg.env_off) btn.title = T("mk.bg_env");
+    paintPPTg();
   }
   function loadBg() {
     api("/market/settings").then(function (d) { if (d && d.ok) { S.bg = d; paintBg(); } });
@@ -1260,6 +1279,7 @@
     if (ol) { S.outlook = ol.dataset.outlook; drawBody(); refresh(false); return; }
     var ppk = t.closest("[data-ppk]");
     if (ppk) { S.ppKind = ppk.dataset.ppk; S.ppAt = 0; drawBody(); return; }
+    if (t.closest("[data-pptg]")) { togglePPTg(); return; }
     var ppa = t.closest("[data-pp]");
     if (ppa) { ppAction(ppa.dataset.pp); return; }
     var pps = t.closest("[data-ppsim]");

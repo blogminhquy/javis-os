@@ -13609,7 +13609,7 @@ async def market_settings_get():
         archive = await asyncio.to_thread(market_store.stats)
     except Exception:
         archive = {}
-    return {"ok": True, **market_live.status(), "archive": archive}
+    return {"ok": True, **market_live.status(), "archive": archive, "telegram_ready": bool(_paper_tg_target())}
 
 
 @app.post("/market/settings")
@@ -13621,7 +13621,7 @@ async def market_settings_set(payload: dict = Body(None)):
             market_live.start()
         except Exception:
             pass
-    return {"ok": True, **market_live.status()}
+    return {"ok": True, **market_live.status(), "telegram_ready": bool(_paper_tg_target())}
 
 
 # ============================================================
@@ -14013,10 +14013,48 @@ async def market_paper_simulate(payload: dict = Body(None)):
     return res
 
 
+def _paper_tg_target() -> str:
+    """The owner's Telegram chat for paper-trade notices, or "" when the bot is off or the owner is not known."""
+    try:
+        tg = cfgmod.read_settings().get("telegram", {}) or {}
+        return _owner_telegram_id() if (tg.get("enabled") and tg.get("token")) else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+async def _paper_tg_send(kind: str, fills: list) -> None:
+    import market_paper
+    target = _paper_tg_target()
+    if not target:
+        return
+    for f in fills:
+        ok, err = await _tg_send_to(target, market_paper.fill_message(kind, f))
+        if not ok:
+            print(f"[paper] telegram {kind} {f.get('symbol')}: {err}", file=sys.stderr)
+
+
+def _paper_notifier(loop):
+    """Every committed buy or sell of a virtual account goes straight to the owner's Telegram (owner, 2026-11-12).
+
+    It bypasses Javis Core's notice policy on purpose: the owner asked for every trade, and the policy's default
+    ("urgent only") and repeat rule would hold most of them back. Off with the switch on the Paper trading tab."""
+    def notify(kind, fills):
+        import market_live
+        if not market_live.settings().get("paper_telegram", True) or not _paper_tg_target():
+            return
+        asyncio.run_coroutine_threadsafe(_paper_tg_send(kind, list(fills)), loop)
+    return notify
+
+
 @app.on_event("startup")
 async def _market_background_start():
     """Markets page: keep prices fresh and archived even when nobody has the page open (market_live.py).
     Off with the page toggle or JAVIS_MARKET_BACKGROUND=0 (tests set it)."""
+    try:
+        import market_paper
+        market_paper.set_notifier(_paper_notifier(asyncio.get_running_loop()))
+    except Exception as e:  # noqa: BLE001
+        print(f"[market] paper notifier: {type(e).__name__}: {e}", file=sys.stderr)
     try:
         import market_live
         if market_live.enabled():

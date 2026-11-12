@@ -55,6 +55,24 @@ ENTRY = {"score": 35, "rsi_lo": 45, "rsi_hi": 70, "cooldown_days": 5, "take_prof
          "style": None, "pb_score": 0, "pb_rsi_lo": 38, "pb_rsi_hi": 55, "ma_exit": True, "timing": True}
 KINDS = tuple(PARAMS)
 _LOCK = threading.Lock()
+# Called as notifier(kind, fills) after every committed live buy or sell (main.py sends it to the owner's Telegram).
+# Runs in the worker thread that made the trade; it must not block and must not raise into the trade.
+_NOTIFIER = None
+
+
+def set_notifier(fn) -> None:
+    global _NOTIFIER
+    _NOTIFIER = fn
+
+
+def _notify(kind: str, fills: list) -> None:
+    if not fills or not _NOTIFIER:
+        return
+    try:
+        _NOTIFIER(kind, fills)
+    except Exception as e:  # noqa: BLE001 - a broken channel must never undo or block a trade
+        import sys
+        print(f"[paper] notify {kind}: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def _db() -> sqlite3.Connection:
@@ -423,7 +441,7 @@ def _apply(con, kind: str, orders: list, now: float) -> list:
             con.execute("INSERT INTO paper_trades (kind, symbol, side, qty, price, value, fee, at, reason, pnl, pnl_pct, analysis) "
                         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (kind, sym, "buy", o["qty"], price, value, fee, now, "entry", None, None, json.dumps(o.get("analysis") or {})))
-            done.append(o)
+            done.append(dict(o, fill=price, value=value, fee=fee, cash=cash, at=now))
         elif o["side"] == "sell":
             pos = positions.get(sym)
             if not pos:
@@ -447,7 +465,8 @@ def _apply(con, kind: str, orders: list, now: float) -> list:
                         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (kind, sym, "sell", qty, price, value, fee, now, o["reason"], pnl, pnl / cost * 100 if cost else None,
                          json.dumps(an)))
-            done.append(o)
+            done.append(dict(o, qty=qty, fill=price, value=value, fee=fee, pnl=pnl, pnl_pct=pnl / cost * 100 if cost else None,
+                             left=max(left, 0.0), cash=cash, at=now, name=pos.get("name") or sym))
     con.execute("UPDATE paper_accounts SET cash=? WHERE kind=?", (cash, kind))
     return done
 
@@ -530,9 +549,10 @@ def run(kind: str, data: dict, now: float | None = None, force: bool = False, li
                 con.execute("DELETE FROM paper_log WHERE kind=? AND id NOT IN (SELECT id FROM paper_log WHERE kind=? ORDER BY id DESC LIMIT 300)", (kind, kind))
             _equity_point(con, kind, now, prices, bench)
             con.commit()
-            return res["log"]
         finally:
             con.close()
+    _notify(kind, done)
+    return res["log"]
 
 
 def close_position(kind: str, symbol: str, price: float, now: float | None = None) -> bool:
@@ -545,12 +565,77 @@ def close_position(kind: str, symbol: str, price: float, now: float | None = Non
                 return False
             if now < (pos.get("sellable") or 0):
                 raise ValueError("t_plus")
-            _apply(con, kind, [{"side": "sell", "symbol": symbol, "qty": pos["qty"], "price": price, "reason": "manual",
-                                "analysis": {"price": price}}], now)
+            done = _apply(con, kind, [{"side": "sell", "symbol": symbol, "qty": pos["qty"], "price": price, "reason": "manual",
+                                       "analysis": {"price": price}}], now)
             con.commit()
-            return True
         finally:
             con.close()
+    _notify(kind, done)
+    return True
+
+
+# ---------------------------------------------------------------- trade notice (Telegram)
+
+_REASONS = {
+    "entry": ("Tín hiệu vào lệnh", "Signal entry"), "core": ("Mua phần lõi chỉ số", "Core index buy"),
+    "stop": ("Chạm cắt lỗ", "Stop hit"), "trail": ("Chạm cắt lỗ đuổi (giữ lãi)", "Trailing stop (gain kept)"),
+    "trend": ("Gãy xu hướng", "Trend broke"), "take_profit": ("Chốt lời một nửa", "Half take-profit"),
+    "core_exit": ("Thoát phần lõi (dưới MA200)", "Core exit (below MA200)"), "manual": ("Bán tay trên trang", "Sold by hand"),
+}
+_ACCOUNTS = {"vn": ("Chứng khoán VN", "Vietnam stocks"), "crypto": ("Tiền số", "Crypto"),
+             "world": ("Chứng khoán thế giới", "World stocks")}
+
+
+def fill_message(kind: str, f: dict) -> str:
+    """One plain-text Telegram notice for a committed buy or sell of a virtual account."""
+    import localefmt
+    chu = localefmt.chu
+    vi = chu("vi", "en") == "vi"
+    p = PARAMS[kind]
+    unit = p["unit"]
+
+    def n(v, nd=0):
+        t = f"{v:,.{nd}f}"
+        return t.translate(str.maketrans(",.", ".,")) if vi else t
+
+    def money(v):
+        return (n(v) + " đ") if p["ccy"] == "VND" else ("$" + n(v, 2))
+
+    def price(v):
+        if p["ccy"] == "VND":
+            return n(v * unit) + " đ"
+        return "$" + n(v, 6 if v < 1 else 2)
+
+    def qty(v):
+        if kind != "crypto":
+            return n(v)
+        t, dec = n(v, 6), ("," if vi else ".")
+        return t.rstrip("0").rstrip(dec) if dec in t else t
+
+    sym = f.get("symbol") or ""
+    name = f.get("name") or sym
+    label = sym if name == sym else f"{sym} ({name})"
+    acc = chu(*_ACCOUNTS.get(kind, (kind, kind)))
+    buy = f.get("side") == "buy"
+    head = ("🟢 " + chu("MUA", "BUY") if buy else "🔴 " + chu("BÁN", "SELL")) + f" {label}"
+    lines = [head, chu("Tài khoản ảo: {a}", "Virtual account: {a}", a=acc),
+             chu("Khối lượng: {q} @ {p}", "Quantity: {q} @ {p}", q=qty(f.get("qty") or 0), p=price(f.get("fill") or 0)),
+             chu("Giá trị: {v} (phí {fee})", "Value: {v} (fee {fee})", v=money(f.get("value") or 0), fee=money(f.get("fee") or 0))]
+    why = _REASONS.get(str(f.get("reason") or ""))
+    if why:
+        lines.append(chu("Lý do: {r}", "Reason: {r}", r=chu(*why)))
+    if buy and f.get("stop"):
+        lines.append(chu("Cắt lỗ đặt ở: {s}", "Stop set at: {s}", s=price(f["stop"])))
+    if not buy and f.get("pnl") is not None:
+        pct = f.get("pnl_pct")
+        sign = "+" if f["pnl"] > 0 else ""
+        lines.append(chu("Lãi/lỗ: {v}{p}", "P&L: {v}{p}", v=sign + money(f["pnl"]),
+                         p=f" ({sign}{n(pct, 2)}%)" if pct is not None else ""))
+        if f.get("left"):
+            lines.append(chu("Còn giữ: {q}", "Still held: {q}", q=qty(f["left"])))
+    if f.get("cash") is not None:
+        lines.append(chu("Tiền mặt còn: {c}", "Cash left: {c}", c=money(f["cash"])))
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- report

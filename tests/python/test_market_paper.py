@@ -99,9 +99,17 @@ check("crypto quantities can be fractional", mp._lot("crypto", 0.1234567) == 0.1
 
 # ---------------------------------------------------------------- order book, report
 data = {"rows": [row("AAA"), row("BBB", score=-10)], "indices": [{"symbol": "VNINDEX", "price": 1700, "sma50": 1650}], "regime": {"label": "risk_on"}}
+sent = []
+mp.set_notifier(lambda kind, fills: sent.append((kind, list(fills))))
 mp.start("vn", 1700)
 mp.run("vn", data, now=NOW, force=True)
 rep = mp.report("vn", data)
+check("a committed buy reaches the notifier once", len(sent) == 1 and sent[0][0] == "vn" and [f["side"] for f in sent[0][1]] == ["buy"])
+fb = sent[0][1][0]
+check("the buy notice carries the fill price, fees and cash left", fb["fill"] > 100 and fb["fee"] > 0 and abs(fb["cash"] - rep["stats"]["cash"]) < 1)
+msg = mp.fill_message("vn", fb)
+check("the buy message names the symbol, quantity, stop and VND price", "AAA" in msg and ("MUA" in msg or "BUY" in msg)
+      and "đ" in msg and ("Cắt lỗ" in msg or "Stop" in msg), msg)
 check("a forced run buys and records the trade", rep["started"] and len(rep["trades"]) == 1 and rep["positions"][0]["symbol"] == "AAA")
 check("cash plus positions equals the starting capital minus fees", abs(rep["stats"]["equity"] - (1e9 - rep["stats"]["fees"] - rep["positions"][0]["qty"] * 100 * 1000 * 0.001)) < 1)
 check("the decision log keeps what was considered", rep["log"] and rep["log"][0]["considered"])
@@ -111,14 +119,26 @@ try:
     check("T+2 blocks a manual sell too", False)
 except ValueError:
     check("T+2 blocks a manual sell too", True)
+check("a blocked manual sell sends nothing", len(sent) == 1)
 mp.run("vn", data2, now=NOW + 5 * 86400, force=True)
 rep = mp.report("vn", data2)
 sell = [t for t in rep["trades"] if t["side"] == "sell"]
+fs = sent[-1][1][0] if len(sent) == 2 else {}
+check("the stop-out reaches the notifier with its P&L", fs.get("side") == "sell" and fs.get("reason") == "stop"
+      and abs(fs.get("pnl", 0) - sell[0]["pnl"]) < 1e-6)
+msg = mp.fill_message("vn", fs)
+check("the sell message shows the loss and the reason", ("BÁN" in msg or "SELL" in msg) and ("Lãi/lỗ: -" in msg or "P&L: -" in msg)
+      and ("Chạm cắt lỗ" in msg or "Stop hit" in msg), msg)
+cm = mp.fill_message("crypto", {"side": "buy", "symbol": "bitcoin", "name": "Bitcoin", "qty": 0.0125, "fill": 64000.5, "value": 800,
+                                "fee": 0.8, "reason": "entry", "stop": 58000, "cash": 19199.2})
+check("crypto messages keep fractional quantities and dollars", ("0.0125" in cm or "0,0125" in cm) and "$" in cm, cm)
+mp.set_notifier(lambda kind, fills: 1 / 0)
 check("the stop sells after settlement", sell and sell[0]["reason"] == "stop" and sell[0]["pnl"] < 0)
 check("the loss stays near the planned risk (a gap through the stop can add to it)", -0.02e9 < sell[0]["pnl"] < 0, sell[0]["pnl"])
 check("report: win rate, drawdown and benchmark", rep["stats"]["win_rate"] == 0 and rep["stats"]["max_drawdown"] <= 0
       and round(rep["stats"]["bench_return"], 2) == round((1600 / 1700 - 1) * 100, 2))
 check("the sell keeps its R multiple and holding time", sell[0]["analysis"]["r_multiple"] < 0 and sell[0]["analysis"]["held_days"] >= 5)
+mp.set_notifier(None)
 mp.set_running("vn", False)
 check("a paused account does not trade", mp.run("vn", data, now=NOW + 6 * 86400, force=True) == {})
 mp.reset("vn")
