@@ -30,18 +30,43 @@ def test_splash_is_in_the_page_from_the_first_paint_and_hides_after_the_first_pa
     assert '"up": int(time.time() - _PROCESS_STARTED)' in root
 
 
-def test_splash_helpers():
+def _node_json(expr):
     node = shutil.which("node")
     if not node:
-        return
-    js = ("const b=require(%s);console.log(JSON.stringify([b.justStarted({up:30}),b.justStarted({up:500}),"
-          "b.justStarted({}),b.loaderVisible([{getClientRects:()=>[1],closest:()=>null}]),"
-          "b.loaderVisible([{getClientRects:()=>[],closest:()=>null}]),"
-          "b.loaderVisible([{getClientRects:()=>[1],closest:()=>({})}]),b.MAX_MS<=15000]))") % json.dumps(str(DASH / "boot-splash.js"))
+        return None
+    js = "const b=require(%s);console.log(JSON.stringify(%s))" % (json.dumps(str(DASH / "boot-splash.js")), expr)
     out = subprocess.run([node, "-e", js], capture_output=True, text=True, timeout=30)
     assert out.returncode == 0, out.stderr
+    return json.loads(out.stdout)
+
+
+def test_splash_helpers():
+    got = _node_json("[b.justStarted({up:30}),b.justStarted({up:500}),"
+                     "b.justStarted({}),b.loaderVisible([{getClientRects:()=>[1],closest:()=>null}]),"
+                     "b.loaderVisible([{getClientRects:()=>[],closest:()=>null}]),"
+                     "b.loaderVisible([{getClientRects:()=>[1],closest:()=>({})}]),b.MAX_MS<=15000]")
+    if got is None:
+        return
     # just restarted, long up, no info, a visible loader, a hidden one, one inside the splash itself, a cap.
-    assert json.loads(out.stdout) == [True, False, False, True, False, False, True]
+    assert got == [True, False, False, True, False, False, True]
+
+
+def test_splash_goes_soon_after_the_data_and_never_waits_long_for_a_slow_list():
+    """2026-11-12: a customer read the splash of a slow machine as "Javis loads slowly". The wait for the first page's
+    data has its own, shorter cap; a healthy page hands over within a tenth of a second of its last loader."""
+    got = _node_json("[b.shouldHide(5000,0,1000),"                              # no page opened yet: stay
+                     "b.shouldHide(1000,900,0),"                                # a loader is visible: stay
+                     "b.shouldHide(1000,900,1000-b.QUIET_MS+1),"                # quiet, but not for long enough
+                     "b.shouldHide(1000,900,1000-b.QUIET_MS),"                  # quiet long enough: go
+                     "b.shouldHide(900+b.DATA_MAX_MS-1,900,0),"                 # a slow list, cap not reached
+                     "b.shouldHide(900+b.DATA_MAX_MS,900,0),"                   # a slow list, cap reached: go
+                     "b.DATA_MAX_MS<=5000,b.DATA_MAX_MS<b.MAX_MS,b.QUIET_MS<=100,b.FADE_MS]")
+    if got is None:
+        return
+    assert got[:9] == [False, False, False, True, False, True, True, True, True]
+    # The fade in the stylesheet is the one the script waits for before it removes the splash.
+    rule = _read("console.css").split("\n.boot-splash {", 1)[1].split("}", 1)[0]
+    assert "transition: opacity .%ds ease;" % (got[9] // 10) in rule
 
 
 def test_waiting_screens_share_the_loading_look():
