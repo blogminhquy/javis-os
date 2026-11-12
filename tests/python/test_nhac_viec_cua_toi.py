@@ -108,6 +108,36 @@ asyncio.run(feat.tick())
 check("nothing is sent twice", len(sent) == 2, [d for _, d, _ in sent])
 check("the day is remembered in the store", feat.load("brain").get("agenda_sent") == today)
 
+# A separate morning briefing may replace only the standalone 07:30 agenda.
+# The per-brain opt-out must leave the timed task reminder unaffected.
+feat.save("brain", {"rev": 0, "projects": [], "agenda_enabled": False,
+                     "agenda_sent": "", "tasks": [
+    {"id": "opt1", "kind": "task", "title": "Việc có giờ",
+     "date": today, "time": "08:00", "status": "open"},
+    {"id": "opt2", "kind": "task", "title": "Việc không có giờ",
+     "date": today, "time": "", "status": "open"},
+]})
+sent.clear()
+asyncio.run(feat.tick())
+keys = [d for _, d, _ in sent]
+check("disabled morning agenda does not ring or set agenda_sent",
+      keys == [f"task:opt1:{today}"] and feat.load("brain").get("agenda_sent") != today, keys)
+check("timed task reminder still rings with agenda disabled",
+      sent and sent[0][2] == "mytask" and "Việc có giờ" in sent[0][0], sent)
+sent.clear()
+asyncio.run(feat.tick())
+check("opted-out task's due reminder is not duplicated", not sent, sent)
+feat.save("brain", {"rev": 0, "projects": [], "agenda_enabled": True,
+                     "agenda_sent": "", "tasks": [
+    {"id": "re1", "kind": "task", "title": "Bật lại",
+     "date": today, "time": "", "status": "open"},
+]})
+sent.clear()
+asyncio.run(feat.tick())
+check("enabling agenda restores one morning notice", [d for _, d, _ in sent] == [f"agenda:{today}"],
+      sent)
+check("agenda opt-out survives regular store saves", feat.load("brain").get("agenda_enabled") is True)
+
 print()
 if fails:
     print(f"ĐỎ {len(fails)} mục")
