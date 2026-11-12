@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.553.2] - 2026-11-12
+### Bảo mật
+- **Hook và cấu hình git trong repo không còn đọc được token GitHub.** Trước đây một hook nằm trong bản clone (ví dụ do `npm install` kiểu husky cài, hoặc do model tạo) chạy đúng lúc Javis tải về hay đẩy code và thấy được token. Giờ các lệnh git có mang token của Javis bỏ qua mọi hook của repo.
+- **Token chỉ đi tới đúng repo trên GitHub.** Nếu cấu hình git của bản clone bị sửa để lái kết nối sang nơi khác (đổi `origin`, `insteadOf`, proxy), Javis dừng lại và nói rõ dòng nào cần gỡ, thay vì gửi token đi.
+- **Thay đổi cần biết:** hook `pre-push` của repo không còn chạy khi Javis đẩy code (bộ kiểm tra của Javis và CI vẫn chạy như cũ). Repo dùng Git LFS: file LFS mới tạo trong chat chưa được tải lên theo lần đẩy.
+
 ## [0.553.1] - 2026-11-12
 ### Sửa lỗi
 - **PR của repo riêng tư bị xung đột giờ được Javis tự gộp lại.** Trước đây vòng sửa xung đột dừng ngay ở bước tải nhánh chính, vì phần chạy lệnh của AI không có quyền vào GitHub. Giờ Javis tự tải nhánh chính về trước, AI chỉ còn việc gộp và giải quyết xung đột.
