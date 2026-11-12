@@ -209,12 +209,9 @@ def _slug(text: str) -> str:
 
 
 def _identity_env() -> Dict[str, str]:
-    conn = github_repos.status()
-    login = conn.get("login") or "javis"
-    uid = github_repos.user_id()
-    email = f"{uid}+{login}@users.noreply.github.com" if uid else f"{login}@users.noreply.github.com"
-    return {"GIT_AUTHOR_NAME": login, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": login,
-            "GIT_COMMITTER_EMAIL": email}
+    who = github_repos.identity()
+    return {"GIT_AUTHOR_NAME": who["name"], "GIT_AUTHOR_EMAIL": who["email"], "GIT_COMMITTER_NAME": who["name"],
+            "GIT_COMMITTER_EMAIL": who["email"]}
 
 
 def commit_all(worktree: str, message: str) -> str:
@@ -982,6 +979,9 @@ def _download_base_for_merge(row: Dict[str, Any]) -> str:
         return ""
     name = row.get("base_branch") or "main"
     base = f"origin/{name}"
+    # `git merge` asks who the committer is before it does anything. A worktree made before clones got an identity
+    # of their own would stop the engine right there on a machine that has none.
+    github_repos.ensure_identity(wt)
     try:
         github_repos.git(["fetch", "origin", f"+refs/heads/{name}:refs/remotes/{base}"], wt, auth=True, timeout=300)
         # Usually one merge base; none (unrelated histories) leaves nothing to download.
