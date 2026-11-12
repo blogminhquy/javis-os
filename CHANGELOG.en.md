@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.545.1] - 2026-11-12
+### Fixed
+- **Zalo group @mentions keep targeting the bot after a Javis restart.** Retain an account ID verified from its own outgoing group messages, restore it after restart, and fail closed on conflicting identities.
+
 ## [0.545.0] - 2026-11-12
 ### Added
 - **Customer profile.** After a private chat has been quiet for about 15 minutes, the background model writes down what is worth remembering about the customer: name, how to address them, contact details, what they are interested in, what was agreed, what is still open. The bot then reads this profile along with the last 30 messages, so it does not ask again, even when the customer comes back months later.
