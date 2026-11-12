@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.549.0] - 2026-11-12
+### Improved
+- **Facebook monitor (Apify) no longer ships inside Javis; it comes with its pack in the Store.** Scanning through Apify is an add-on that not everyone uses. If you use it, open the Store and update the "Facebook monitor (Apify)" pack to get the `fb_monitor` tool back; the Apify token you pasted stays as it is.
+
 ## [0.548.1] - 2026-11-12
 ### Fixed
 - **Background fallback runs the model you picked on the card.** That choice was ignored before: when the background model ran out and the work moved to Claude Code, it ran the CLI's own default model, usually the one that uses the plan up fastest. A card with no model picked runs as before.
