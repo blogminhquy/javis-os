@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.544.1] - 2026-11-12
+### Fixed
+- **MCP servers with OAuth metadata on another host sign in (impact.com).** The card used to say the server declares no standard MCP OAuth. Javis now reads that metadata when it is on public https, returned by the MCP URL that was entered, and names that URL.
+### Security
+- **Read-only connections stop asking for `mcp:write` style scopes.** On a discovered sign-in where the server offers a read scope (for example `mcp:read`), a connection set to read-only leaves out scopes whose name ends in `write`. The hub's tool-name check stays the main guard. Raising the level later needs a new sign-in.
+
 ## [0.544.0] - 2026-11-12
 ### Fixed
 - **Bots no longer forget a customer after every update.** A bot kept the history of a private chat in temporary memory only, so a restart of Javis made it meet a returning customer as a stranger. It now reads the chat back from the inbox, including what you answered by hand.
