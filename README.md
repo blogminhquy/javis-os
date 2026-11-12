@@ -183,7 +183,7 @@ Every brain can call your connected MCP servers, read and write the brain, run s
 - **Coworkers** (the Partners page): give each AI coworker a role, its own model, prompt and skills, and switch on **Auto** so it keeps working without you.
 - **Teams**: put several coworkers in one team chat. A leader hands out the work, members answer each other, and you can share a whole team as one file.
 - **Agents and workflows**: specialist assistants with their own memory, chained into multi-step workflows with verification.
-- **Multi-channel chatbots**: put a coworker in front of your customers on WhatsApp, Messenger, Instagram, Telegram, Slack, Lark, Threads, Zalo and Zalo OA, with one shared inbox you can take over.
+- **Multi-channel chatbots**: put a coworker in front of your customers on WhatsApp, Messenger, Instagram, Telegram, Slack, Lark, Threads, WeChat, Zalo and Zalo OA, with one shared inbox you can take over.
 
 ### 🔌 Connect anything
 - **MCP connection store** with several accounts per service and three permission levels that Javis **hard-enforces**.

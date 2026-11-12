@@ -122,7 +122,7 @@ check("robots.txt has no em or en dash", "\u2014" not in bs.robots_txt() and "\u
 # ---- 3. which paths are never blocked --------------------------------------------------------
 for path in ("/robots.txt", "/hooks/abc123", "/ext/javis.gate/mcp", "/.well-known/oauth-authorization-server",
              "/hub/mcp", "/chatbot-api/v1/turn", "/whatsapp/webhook", "/messenger/webhook", "/zalo-oa/webhook",
-             "/threads/webhook", "/connect/oauth/callback", "/messenger/privacy", "/zalo_verifier123.html", "/health"):
+             "/threads/webhook", "/wechat/webhook", "/connect/oauth/callback", "/messenger/privacy", "/zalo_verifier123.html", "/health"):
     check(f"machine endpoint exempt: {path}", bs.exempt(path))
 for path in ("/", "/s/abc/", "/static/app.js", "/auth/login", "/agents", "/hub/other", "/hooksx",
              "/zalo_verifier/../agents.html", "/health/loop", "/robots.txt.bak"):
