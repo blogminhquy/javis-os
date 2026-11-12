@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.546.3] - 2026-11-12
+### Fixed
+- **The Messenger check now detects a webhook that cannot be reached.** Every line used to say fine while the HTTPS address was dead, so the bot stayed silent with no visible reason.
+- **When the quick tunnel gets a new address, automatic repair points the webhook at the running one**, keeps the receiver path, and saves it only after Meta verifies it.
+
 ## [0.546.2] - 2026-11-12
 ### Fixed
 - **Rules written on the Profile page now reach the model at token-saving levels too.** At the saving levels (the default one included) the profile was dropped together with the memory index, so a form of address or a layout preference set once for every brain only worked with saving switched off.
