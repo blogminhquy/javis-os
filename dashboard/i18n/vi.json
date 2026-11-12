@@ -4793,7 +4793,7 @@
   "teams.usage_today": "Hôm nay đã dùng {n}/{cap} lần trả lời.",
   "teams.usage_today_unl": "Hôm nay đã dùng {n} lần trả lời (không giới hạn).",
   "teams.advanced": "Nâng cao",
-  "teams.advanced_note": "Các con số giới hạn, quyền chi tiết của người điều phối và sổ lần trả lời.",
+  "teams.advanced_note": "Nghiệm thu, mức dùng, các con số giới hạn, quyền chi tiết của người điều phối và sổ lần trả lời.",
   "teams.archive_confirm": "Lưu trữ team? Team sẽ chỉ còn xem lại được.",
   "teams.reply.queued": "Đang chờ",
   "teams.reply.answering": "Đang trả lời",
