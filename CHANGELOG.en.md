@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.545.2] - 2026-11-12
+### Fixed
+- **ChatGPT image generation can use another signed-in account after quota exhaustion.** On a confirmed quota error, Javis retries on the next enabled account in Models order. Other errors do not trigger a retry, and disabled accounts remain unused.
+
 ## [0.545.1] - 2026-11-12
 ### Fixed
 - **Zalo group @mentions keep targeting the bot after a Javis restart.** Retain an account ID verified from its own outgoing group messages, restore it after restart, and fail closed on conflicting identities.
