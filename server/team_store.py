@@ -35,7 +35,7 @@ DEFAULT_CAPS = {
     "no_progress": 2,          # lượt không tiến triển liên tiếp của một bước
     "mentions": 3,             # @ mỗi tin
     "daily_turns": 100,        # lượt mỗi nhóm mỗi ngày
-    "running_jobs": 1,         # việc chạy cùng lúc mỗi nhóm
+    "running_jobs": 3,         # việc chạy cùng lúc mỗi nhóm (2026-11-12: 3, was 1; see FIXED_CAPS)
     "busy_wait_s": 1800,       # chờ khoá bận trước khi báo chặn
     # T3 phần J (0.156.0, thiết kế mục 9): lượt phán xử theo lô mỗi nhóm mỗi ngày (tách khỏi daily_turns), số người tự lên
     # tiếng mỗi tin (`K`, 0 = tắt), chế độ phán xử khi Cộng hưởng của agent tắt (1 = lọc code + lô, 0 = chỉ lọc code).
@@ -61,7 +61,11 @@ OWNER_CAPS = ("task_turns", "task_steps", "help_depth", "daily_turns", "mentions
 UNLIMITED_CAPS = ("task_turns", "task_steps", "help_depth", "daily_turns", "judge_daily")
 # Giá trị lớn nhất của các ô không phải trần lượt (T3 J): K tối đa 5 người, chế độ phán xử là 0 hay 1.
 CAP_MAX = {"volunteer_k": 5, "judge_off_batch": 1, "reply_parallel": 1, "auto_jobs": 50}
-FIXED_CAPS = {"running_jobs": 1, "no_progress": 2}
+# 2026-11-12 (a customer: two assistants with two different jobs ran one after the other): a team now runs up to three
+# jobs at once, each with a different assistant in charge (team_runner._next_job). It stays a SERVER limit, not one more
+# number for the owner to set: who may run together is decided by who the jobs belong to. JAVIS_TEAM_JOBS=1 gives the
+# old one-job-at-a-time team back.
+FIXED_CAPS = {"running_jobs": 3, "no_progress": 2}
 TEAM_STATUS = ("active", "paused", "archived")
 STEP_KINDS = ("plan", "work", "help", "synthesize", "reply")
 # A step that waits for every step before it (a sequential plan), see `TeamStore.add_step(held=...)`.

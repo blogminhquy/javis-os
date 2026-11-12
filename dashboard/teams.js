@@ -1003,7 +1003,8 @@
   function jobStripHtml(q) {
     q = q || {};
     var running = q.running || [], blocked = q.blocked || [];
-    var h = running.length ? runningRowHtml(running[0], false) : "";
+    // 2026-11-12: a team runs up to three jobs at once (different assistants), so every running job has its line.
+    var h = running.slice(0, 3).map(function (t) { return runningRowHtml(t, false); }).join("");
     h += blocked.slice(0, 2).map(blockedCardHtml).join("");
     if (blocked.length > 2) {
       h += '<button type="button" class="ws-btn tm-jmore" data-open-jobs="1">' +

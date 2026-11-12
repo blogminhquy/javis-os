@@ -387,11 +387,12 @@ try:
 except team_store.TeamError:
     refused = True
 check("G4 chủ không đặt được running_jobs (giới hạn máy chủ, trước đây nhận mà không có tác dụng)", refused)
-with tm._Tx(tm) as c:   # dòng cũ từng lưu running_jobs=3 trước bản này
-    c.execute("UPDATE teams SET caps_json=? WHERE team_id=?", (json.dumps({"running_jobs": 3, "no_progress": 5}),
+with tm._Tx(tm) as c:   # dòng cũ từng lưu running_jobs=9 trước bản này
+    c.execute("UPDATE teams SET caps_json=? WHERE team_id=?", (json.dumps({"running_jobs": 9, "no_progress": 5}),
                                                                 T["team_id"]))
-check("G4 dòng cũ vẫn hiện giá trị đang áp (1 việc, 2 lần không tiến triển)",
-      tm.get(T["team_id"])["caps"]["running_jobs"] == 1 and tm.get(T["team_id"])["caps"]["no_progress"] == 2)
+# 2026-11-12: the server limit is 3 jobs per team (was 1); a number an old row stored is still not what applies.
+check("G4 dòng cũ vẫn hiện giá trị đang áp (3 việc, 2 lần không tiến triển)",
+      tm.get(T["team_id"])["caps"]["running_jobs"] == 3 and tm.get(T["team_id"])["caps"]["no_progress"] == 2)
 r.max_parallel_teams = 3
 for n in ("R1", "R2"):
     r.submit(T["team_id"], n, mentions=["ag_minh"], as_job=True, client_msg_id=n)
@@ -409,7 +410,7 @@ check("G4 nhóm có hai việc chờ, pool 3: chỉ một việc chạy, kick l�
       len(claimed) == 1 and running_n == 1 and again == [], (claimed, running_n, again))
 lim = {(x["category"], x["key"]): x for x in limits(r, T)}
 check("G4 bảng giới hạn: running_jobs và no_progress thuộc máy chủ, không thuộc trần của chủ",
-      ("server", "running_jobs") in lim and lim[("server", "running_jobs")]["value"] == 1 and lim[("server", "no_progress")]["value"] == 2
+      ("server", "running_jobs") in lim and lim[("server", "running_jobs")]["value"] == 3 and lim[("server", "no_progress")]["value"] == 2
       and ("owner", "running_jobs") not in lim and ("owner", "no_progress") not in lim, sorted(lim))
 
 # ═════ G5: bảng giới hạn, Không giới hạn cho trần của chủ ═════

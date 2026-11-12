@@ -1772,12 +1772,16 @@ class TaskStore:
             self._db.commit()
 
     def claim_team_next(
-        self, team_id: str, worker_id: str, lease_s: int = 90, max_running: int = 1,
+        self, team_id: str, worker_id: str, lease_s: int = 90, max_running: int = 1, task_id: Optional[str] = None,
     ) -> Optional[dict]:
         """Nhận việc đầu hàng của nhóm nếu nhóm còn chỗ chạy (mặc định một việc mỗi nhóm).
 
         Kiểm chỗ chạy, chọn việc, đặt `team_running`, ghi `task_runs` và tăng version trong MỘT
-        giao dịch `BEGIN IMMEDIATE`: không bao giờ có hai việc cùng chạy trong một nhóm."""
+        giao dịch `BEGIN IMMEDIATE`: không bao giờ có hai việc cùng chạy trong một nhóm.
+
+        2026-11-12: `task_id` names the waiting job to take instead of the head of the queue. The team runner picks it
+        when a team may run several jobs at once (`max_running` > 1) and the head belongs to an assistant that is
+        already working. A job that is no longer waiting, or of another team, gives None."""
         team_id = str(team_id)
         # Cross-store preparation deliberately precedes the claim transaction. A crash leaves the task unready.
         if self.quality_prepare:
@@ -1794,11 +1798,17 @@ class TaskStore:
                 if int(running) >= max(1, int(max_running)):
                     self._db.rollback()
                     return None
-                row = self._db.execute(
-                    f"""SELECT * FROM tasks WHERE lane='team' AND team_id=? AND status='team_queued'
-                        ORDER BY {_TEAM_ORDER} LIMIT 1""",
-                    (team_id,),
-                ).fetchone()
+                if task_id:
+                    row = self._db.execute(
+                        "SELECT * FROM tasks WHERE id=? AND lane='team' AND team_id=? AND status='team_queued'",
+                        (str(task_id), team_id),
+                    ).fetchone()
+                else:
+                    row = self._db.execute(
+                        f"""SELECT * FROM tasks WHERE lane='team' AND team_id=? AND status='team_queued'
+                            ORDER BY {_TEAM_ORDER} LIMIT 1""",
+                        (team_id,),
+                    ).fetchone()
                 if not row:
                     self._db.rollback()
                     return None
