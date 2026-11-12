@@ -370,19 +370,27 @@ def background_spec(m: dict, tier: str = "mid") -> dict:
 
 def background_chain(m: dict, connected=None, first: dict = None, once=()) -> list:
     """Background order (spec 2.4.3): background model (or `first`, e.g. an assistant's own model), then
-    fallback 1, 2, ... each on its provider's starting config, then MAIN last on its starting config.
-    Same provider + model only once; providers in `once` (plans, whose quota belongs to the account, not to
-    the model) only once at all."""
+    fallback 1, 2, ... each on the model picked on its card (its starting config when the card has none), then
+    MAIN last on its starting config. Same provider + model only once; providers in `once` (plans, whose quota
+    belongs to the account, not to the model) only once at all."""
     o = order(m, connected)
     steps = [dict(first or background_spec(m), step="background")]
     tail = o[1:] + o[:1]
     known = (m or {}).get("defaults") or {}
     for p in tail:
-        # The provider's starting config; settings from before 0.350.0 never recorded one, so the card's own
-        # profile stands in (an empty model would not run on an API card).
-        d = default_profile(m, p) if p in known else profile(m, p)
+        is_main = bool(o) and p == o[0]
+        card = profile(m, p)
+        if card["model"] and not is_main:
+            # A fallback runs what the owner picked on that card. The starting config of a plan card is an empty
+            # model (the 0.350.0 migration recorded one for every provider), and with it the CLI ran its own
+            # default, usually its most expensive model, whatever the card said.
+            d = card
+        else:
+            # The provider's starting config; settings from before 0.350.0 never recorded one, so the card's own
+            # profile stands in (an empty model would not run on an API card).
+            d = default_profile(m, p) if p in known else card
         steps.append({"provider": p, "model": d["model"], "reasoning": d["reasoning"],
-                      "step": "main" if o and p == o[0] else "fallback"})
+                      "step": "main" if is_main else "fallback"})
     out, seen = [], set()
     for s in steps:
         k = (s["provider"], "" if s["provider"] in once else s["model"])
