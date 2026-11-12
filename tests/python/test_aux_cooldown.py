@@ -10,11 +10,14 @@ from _paths import ROOT, SERVER  # noqa: F401
 import asyncio
 import os
 import tempfile
+import time
 import unittest
 
 os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-auxcool-"))
 
 import aux_engine  # noqa: E402
+import model_routing  # noqa: E402
+import plan_limits  # noqa: E402
 
 
 class Link:
@@ -109,6 +112,75 @@ class ChainTests(unittest.TestCase):
         x.provider = None
         run(aux_engine._FallbackChain([x, Link("openrouter", events=[FINAL])]))
         self.assertEqual(list(aux_engine._COOLDOWN), [])
+
+
+class CodexCLI(Link):
+    """Stands in for the real plan link: the router knows a plan link by its class name."""
+
+    def __init__(self, events=None):
+        super().__init__(None, events=events)
+
+
+class GrokCLI(CodexCLI):
+    pass
+
+
+CODEX_LIMIT = "You've hit your usage limit. Upgrade to Pro or try again at 8:42 AM."
+
+
+class PlanLimitTests(unittest.TestCase):
+    """Issue 1334: a background job refused for plan quota turns the usage ring red, as a refused chat turn does.
+    Before, only the chat path recorded it, so background work could run a plan dry while the ring stayed green."""
+
+    def setUp(self):
+        aux_engine._COOLDOWN.clear()
+        plan_limits._file().unlink(missing_ok=True)
+
+    def test_refused_plan_link_turns_the_ring_red(self):
+        before = time.time()
+        out = run(aux_engine._FallbackChain([CodexCLI(events=[err(CODEX_LIMIT)]), Link("openrouter", events=[FINAL])]))
+        self.assertEqual(out[-1], FINAL, "the next link still runs the job")
+        codex = plan_limits.doc().get("codex") or {}
+        self.assertIn("het", codex, "the refusal is recorded for the ring")
+        self.assertEqual((codex["muc"], codex["max"]), ("bad", 100))
+        self.assertGreater(codex["het"]["reset"], before, "with the reset time the plan stated")
+        self.assertTrue(plan_limits.side_pause("openai-oauth")["paused"], "and Javis's own work waits")
+
+    def test_final_flagged_as_error_counts_too(self):
+        refused = {"type": "final", "is_error": True, "content": "You've hit your limit · resets 1:50am (Asia/Bangkok)"}
+        link = Link(None, events=[refused])
+        link.account_provider, link.account_id = "anthropic-cli", "acc2"   # a plan link pointed at one account
+        try:
+            run(aux_engine._FallbackChain([link, Link("openrouter", events=[FINAL])]))
+        finally:
+            model_routing.clear_rest("anthropic-cli", "acc2")
+        self.assertIn("het", plan_limits.doc().get("claude") or {})
+
+    def test_grok_plain_quota_words_count(self):
+        run(aux_engine._FallbackChain([GrokCLI(events=[err("xAI API error 429 Too Many Requests")]),
+                                       Link("openrouter", events=[FINAL])]))
+        self.assertIn("het", plan_limits.doc().get("grok") or {})
+
+    def test_api_key_and_unrelated_errors_record_nothing(self):
+        run(aux_engine._FallbackChain([Link("groq", events=[err("429 quota exceeded")]),
+                                       CodexCLI(events=[err("tool javis_read_file failed: no such file")]),
+                                       CodexCLI(events=[err("503 UNAVAILABLE")]),
+                                       Link("openrouter", events=[FINAL])]))
+        self.assertEqual(set(plan_limits.doc().values()), {None}, "an API key has no plan, a broken tool is no refusal")
+
+    def test_a_broken_meter_never_breaks_the_routing(self):
+        real = plan_limits.ghi_het
+
+        def boom(*a, **k):
+            raise RuntimeError("disk full")
+        plan_limits.ghi_het = boom
+        try:
+            good = Link("openrouter", events=[FINAL])
+            out = run(aux_engine._FallbackChain([CodexCLI(events=[err(CODEX_LIMIT)]), good]))
+        finally:
+            plan_limits.ghi_het = real
+        self.assertEqual((out[-1], good.ran), (FINAL, 1))
+        self.assertIn("CodexCLI:m", aux_engine._COOLDOWN, "the refused link still rests")
 
 
 if __name__ == "__main__":

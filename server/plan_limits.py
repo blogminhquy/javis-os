@@ -127,8 +127,28 @@ def tu_codex(snap: dict) -> dict:
     return out
 
 
+def _usable_again(snap: dict, merged: dict, now: float) -> bool:
+    """Does this report say the plan takes requests again? Claude Code states it in `status`.
+
+    Codex sends no status, so its numbers decide: every window still running must read below the red mark (SAT).
+    Usage inside a window only grows, so a low number after a refusal means the plan was reset. Merely "below
+    100%" is not enough: the last report before the refusal reads just under it, and a rollout file can carry
+    that report with a later timestamp."""
+    status = str(snap.get("status") or "")
+    if status:
+        return status in ("allowed", "allowed_warning")
+    live = [w for w in (merged.get(k) for k in (NAM_GIO, TUAN))
+            if isinstance(w, dict) and not (w.get("resets_at") and w["resets_at"] <= now)]
+    return bool(live) and all(float(w.get("pct") or 0) < SAT for w in live)
+
+
 def ghi(brain: str, snap: dict, now: float = None):
-    """Store one brain's snapshot. A window the report leaves out keeps its last value."""
+    """Store one brain's snapshot. A window the report leaves out keeps its last value.
+
+    A report measured AFTER a refusal that shows the plan usable again lifts that refusal (`het`): the owner
+    reset the plan on the provider's site, or the window reopened early. Otherwise the ring stayed red and
+    Javis's own work stayed paused until the reset time the old refusal named. A report measured before the
+    refusal, or in the same second, never lifts it."""
     if not any(k in snap for k in (NAM_GIO, TUAN)):
         return
     now = time.time() if now is None else now
@@ -138,6 +158,9 @@ def ghi(brain: str, snap: dict, now: float = None):
         moi = dict(cu)
         moi.update({k: v for k, v in snap.items() if v not in (None, "")})
         moi["at"] = int(now)
+        h = moi.get("het")
+        if isinstance(h, dict) and int(now) > int(h.get("at") or 0) and _usable_again(snap, moi, now):
+            moi.pop("het", None)
         d[brain] = moi
         _ghi_file(d)
 
