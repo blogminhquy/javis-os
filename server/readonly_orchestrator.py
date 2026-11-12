@@ -423,6 +423,8 @@ class ReadonlyOrchestrator:
             hard_max_input_tokens=rule["hard_max_input_tokens"],
             reserved_output_tokens=rule["reserved_output_tokens"],
             execution_mode="canary",
+            # #1349: rendered by the final round only (the answer); planner and argument rounds leave it out.
+            profile=context_compiler.owner_profile(),
         )
 
     async def prepare(self, trace: context_runtime.TurnTrace | None, objective: str,

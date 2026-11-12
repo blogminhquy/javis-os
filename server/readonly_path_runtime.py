@@ -339,6 +339,9 @@ class ReadonlyPathCanary:
             hard_max_input_tokens=rule.hard_max_input_tokens,
             reserved_output_tokens=rule.reserved_output_tokens,
             execution_mode="canary",
+            # #1349: rendered by the final round (the answer), not by the arguments round. The placeholder
+            # compile below reserves budget with it.
+            profile=context_compiler.owner_profile(),
         )
         compiled = self.compiler.compile_canary(request, resolution)
         report = compiled.trace_report
