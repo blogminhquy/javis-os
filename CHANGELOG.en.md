@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.551.2] - 2026-11-12
+### Fixed
+- **Rules on the Profile page now apply to shortcut answers too.** 0.546.2 brought the profile to the saving levels, but one gap was left: a greeting or a thank-you (at every level) and a simple question at the Max saving level were still answered without it, so Javis could get your form of address wrong on the very first hello.
+- Answers written from data Javis has just read (on API-key brains) follow the profile as well.
+- An empty profile changes nothing. The longest profile (4,000 characters) adds about 1,400 tokens to a shortcut turn.
+
 ## [0.551.1] - 2026-11-12
 ### Fixed
 - **When ChatGPT (or Claude, Grok) loses its sign-in, Javis moves to another connected model by itself.** Before, only running out of quota moved a turn on; a lost sign-in failed every turn until you signed in again.
