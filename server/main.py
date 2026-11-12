@@ -12813,7 +12813,8 @@ def _workflow_agent_helpers(brain, tools, mode=None):
         # An interactive step whose agent pins no model runs on the owner's MAIN model, like a chat turn
         # (owner report 2026-11-06, PR #1125): before this it always fell back to Claude, whatever brain was picked
         # on the Models page. A pinned agent keeps its pin; the gated background run (tools is not None) stays on
-        # Claude Code by design, see the comment further down.
+        # Claude Code by design, see the comment further down, with one exception since 2026-11-12: an agent set to
+        # ChatGPT runs on Codex under the step's own tool list (the branch right below).
         from_main = False
         if tools is None and not str(model or "").strip() and not str(provider or "").strip():
             main_spec = _effective_main(cfgmod.read_settings())
@@ -12821,6 +12822,28 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             provider = str(main_spec.get("provider") or "")
             from_main = True
         prov = _agent_model_provider(model, provider)
+        if prov == "openai-oauth" and tools is not None:
+            # Gated background step of an agent set to ChatGPT (owner decision 2026-11-12, from PR #1333): run it on
+            # Codex instead of silently on Claude Code. The safety rail moves with it: read-only sandbox, no native
+            # shell, web, sub-agent or app tools, and the Javis hub answers only the step's own tool list at the
+            # run's level (`workflow_codex`). Checked on Codex CLI 0.167.2: with these overrides the request carries
+            # no exec, web or multi-agent tool.
+            # When that environment cannot be built (no Codex CLI, no hub profile, a tool the list cannot express)
+            # the step falls back to the gated Claude Code path below, which is what every such step ran on before,
+            # so a workflow that works today keeps working.
+            try:
+                import workflow_codex
+                allowed, _ = _step_grant(extra_tools)
+                cc = workflow_codex.build(
+                    cwd=vault_root, model=_codex_safe_model(model) if model else None,
+                    instructions=sysprompt, allowed=list(tools) + allowed, mode=gated_mode,
+                    apply_hub=_apply_codex_hub, extra_servers=_codex_user_mcp_servers())
+            except ValueError as e:
+                print(f"[workflow] restricted ChatGPT step runs on Claude Code instead: {e}", file=sys.stderr)
+            else:
+                openai_oauth.write_codex_auth()
+                _apply_step_reasoning(cc, reasoning, codex=True)
+                return _step_engine(cc, "openai-oauth")   # the ChatGPT account with quota, the next one when it runs out
         if prov == "openai-oauth" and (model or from_main) and tools is None and find_codex_cli():
             openai_oauth.write_codex_auth()
             cc = CodexCLI(cwd=vault_root, tag="workflow", model=_codex_safe_model(model),
@@ -12868,6 +12891,8 @@ def _workflow_agent_helpers(brain, tools, mode=None):
         # allowed_tools + disallowed_tools của chính CLI đó, engine nhà khác lấy tool từ hub
         # nên không mang theo được rào ấy. Đây là hành vi đã hứa trong docs/07, không phải
         # bỏ sót - đổi nó là nới quyền cho việc chạy nền mà không ai yêu cầu.
+        # Since 2026-11-12 ChatGPT is the one exception (branch at the top of this function): its rail is the hub
+        # allowlist plus the read-only Codex sandbox. Every other provider still runs gated steps on Claude Code.
         if tools is None and prov not in ("anthropic-cli", "openai-oauth"):
             # Nhà khác Claude/Codex: mượn ĐÚNG bộ dựng engine của việc nền thay vì viết bản
             # thứ hai - aux_engine.swap lo cả key, khả dụng, tool qua hub và chuỗi dự phòng
