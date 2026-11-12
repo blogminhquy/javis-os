@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.550.0] - 2026-11-12
+### Thêm mới
+- **Một team chạy được nhiều việc cùng lúc.** Trước đây mỗi team chỉ chạy một việc tại một thời điểm, nên việc của cộng sự này phải chờ việc của cộng sự kia xong. Giờ tối đa 3 việc chạy song song khi chúng thuộc các cộng sự khác nhau.
+- **Việc của cùng một cộng sự vẫn chạy lần lượt** theo đúng thứ tự trong hàng chờ. Các việc do người điều phối lên kế hoạch cũng vậy.
+- **Muốn việc sau chờ kết quả việc trước thì nói rõ trong yêu cầu.** Việc có câu như "sau khi ... xong", "lần lượt" hay "theo thứ tự" sẽ chờ mọi việc đứng trước nó xong rồi mới chạy, và không việc nào phía sau chen lên trước.
+### Cải thiện
+- **Dải việc đầu khung chat hiện đủ các việc đang chạy**, không chỉ một việc.
+- Cần quay về kiểu từng việc một thì đặt biến môi trường `JAVIS_TEAM_JOBS=1`.
+
 ## [0.549.1] - 2026-11-12
 ### Sửa lỗi
 - **Team không còn chặn gửi ảnh sau một thời gian dùng.** Mỗi team giữ tối đa 50 tài liệu, và mỗi ảnh gửi vào team chiếm hai chỗ (ảnh và bản mô tả ảnh cho cộng sự đọc). Sau khoảng 25 lần gửi ảnh là đầy, và từ đó file gửi thêm bị bỏ đi mà không báo gì. Giờ khi đầy, ảnh cũ nhất và bản mô tả của nó rời danh sách tài liệu để nhường chỗ cho ảnh mới. File vẫn còn trên máy và tin nhắn vẫn còn trong chat.
