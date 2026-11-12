@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.547.1] - 2026-11-12
+### Fixed
+- **The usage ring stops being red as soon as the plan works again.** Before, after you reset the plan on the provider's site the ring stayed red at 100% and Javis's own work stayed paused until the old reset time.
+- **A reset time that includes the year is read.** A notice like "try again at Nov 13th, 2026 3:32 PM" used to count as "no reset time given"; the real time now shows.
+- **Background work refused for quota turns the usage ring red too.** Only chat turns recorded it before, so background work could use up the plan while the ring stayed green.
+
 ## [0.547.0] - 2026-11-12
 ### Added
 - **An agent set to ChatGPT now really runs on ChatGPT in restricted background workflows.** Those steps always ran on Claude Code, whatever you picked. The step can call only its own tool list, at the job's permission level, with no shell, web or sub-agents.
