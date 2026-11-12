@@ -111,6 +111,22 @@ calls.clear()
 result = asyncio.run(image_gen.generate_chatgpt("owner disabled the only account"))
 check("disabled sole account is never used", not result.get("ok") and calls == [])
 
+# Every account resting (chat quota) must still try one, as before account rotation existed.
+settings["model"]["accounts"]["openai-oauth"] = [{"id": "main", "enabled": True},
+                                                 {"id": "assistant", "enabled": True}]
+plan_accounts.usable = lambda model, provider: []
+plan_accounts.fallback = lambda model, provider: {"id": "main"}
+calls.clear()
+image_gen._mot_luot = success
+result = asyncio.run(image_gen.generate_chatgpt("all accounts resting"))
+check("all accounts resting still tries the first signed-in one", result.get("ok") and calls == ["primary"])
+
+# With every account switched off there is nothing to fall back to.
+plan_accounts.fallback = lambda model, provider: None
+calls.clear()
+result = asyncio.run(image_gen.generate_chatgpt("all accounts off"))
+check("no fallback account means no image call", not result.get("ok") and calls == [])
+
 print()
 if failures:
     print(f"{len(failures)} FAIL")
