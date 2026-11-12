@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.553.4] - 2026-11-13
+### Fixed
+- **The conflict fix round works on a machine where git has no name and email.** On a fresh server or in Docker, the AI's merge command stopped at once with `empty ident name`. Each repo attached to a chat now has an identity of its own, the GitHub account you connected.
+- **Commits the AI makes itself in that repo now carry the same author as Javis's commits.** A name and email you set for the repo yourself are kept.
+
 ## [0.553.3] - 2026-11-13
 ### Fixed
 - **The automated tests pass again.** Two GitHub updates landed at the same moment and made one test fail for the wrong reason; that test is rewritten. Nothing changes in how Javis runs.
