@@ -209,7 +209,6 @@
   "test_fast_mode_cli.py": 2.4,
   "test_fast_path_phase5.py": 2.4,
   "test_fastyaml.py": 0.6,
-  "test_fb_monitor.py": 0.1,
   "test_feedback_projector.py": 2.1,
   "test_feedback_wake.py": 1.8,
   "test_files_root.py": 1.8,
