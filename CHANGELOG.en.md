@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.541.1] - 2026-11-12
+### Fixed
+- **Dictating in English no longer comes back translated into Vietnamese.** After you press stop, Javis asks a model to tidy the sentence, and the model sometimes returned a Vietnamese translation instead of the English you spoke (mostly on longer sentences, such as a second recording). A sentence now stays in the language it was spoken in. If the model still translates, Javis drops the translation and keeps the words as heard. This covers the mic in the main chat, Teams, Conversations and the note editor.
+
 ## [0.541.0] - 2026-11-11
 ### Improved
 - **No separate black window when installing on Windows.** The progress shows inside the Setup window: a "Step 2 of 5" line, a bar that keeps moving and a box listing what is being done.
