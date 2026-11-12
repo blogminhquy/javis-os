@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.551.3] - 2026-11-12
+### Fixed
+- **The Reply judge item is always in the "..." menu of a bot card.** It used to appear only for a bot in Auto-judge mode, so many people could not find it.
+- **For a bot not in Auto-judge mode the panel says the judge is idle**, with an Edit button to turn it on, instead of an empty list.
+
 ## [0.551.2] - 2026-11-12
 ### Fixed
 - **Rules on the Profile page now apply to shortcut answers too.** 0.546.2 brought the profile to the saving levels, but one gap was left: a greeting or a thank-you (at every level) and a simple question at the Max saving level were still answered without it, so Javis could get your form of address wrong on the very first hello.
