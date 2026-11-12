@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.551.0] - 2026-11-12
+### Improved
+- **The Team settings tab is simpler.** What is in view is only what you decide for a team: its members, its goal, how far the coordinator decides alone, whether outside actions need approval, its name and status.
+- **Acceptance and the usage figures moved into Advanced**, next to the limit numbers and the detailed rights. Nothing was removed: open Advanced and it is all there as before.
+- **The team's goal now sits right under the member list.**
+### Added
+- **A new team runs a job to its end.** Teams created from this version on have no cap on the replies and steps of one job, so a job no longer stops halfway to wait for "Give more turns". In exchange a hard job can use more tokens. The team's daily reply cap stays, and a job still stops by itself at two identical results.
+- Teams created before keep their limits. To change them, open Advanced, Team limits, and tick "Unlimited" or type a number.
+
 ## [0.550.0] - 2026-11-12
 ### Added
 - **One team can run several jobs at once.** A team used to run one job at a time, so one assistant's job waited for another assistant's job to end. Now up to 3 jobs run side by side when they belong to different assistants.
