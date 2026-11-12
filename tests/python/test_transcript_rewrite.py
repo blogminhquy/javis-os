@@ -10,6 +10,11 @@ the main brain's CLI last); an answer that is not a rewrite (an answer to the
 question, a much longer text, empty) or a failure falls through to the quick API and then the rules; results are
 cached; POST /stt/fix with `final` runs the rewrite and still never errors; main.py wires the main brain in a
 sandbox with no tools; the Whisper prompt keeps "Javis" at its end.
+
+2026-11-12 (owner report, iPad, English user): an English dictation came back translated into Vietnamese. Pins: the
+prompt says to keep the language and marks a sentence that is not Vietnamese; a rewrite that turned such a sentence
+into Vietnamese is refused, the next model is tried, and with none left the words stay as heard; Vietnamese sounds
+turned back into English stay allowed.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -167,6 +172,78 @@ check("main_is_cli: Claude Code, Codex, Grok, Antigravity are CLIs; OpenRouter i
       all(transcript_fix.main_is_cli({"model": {"main": {"provider": p}}})
           for p in ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli"))
       and not transcript_fix.main_is_cli({"model": {"main": {"provider": "openrouter"}}}))
+
+# ---- a sentence comes back in the language it was spoken in (2026-11-12) ----
+EN_HEARD = ("but every time i read the first time then i press stop and after that i continue reading the second "
+            "time i read even though i speak in english it automatically translates into vietnamese")
+EN_MEANT = ("But every time I read the first time, then I press stop, and after that I continue reading, the second "
+            "time I read, even though I speak in English, it automatically translates into Vietnamese.")
+VI_TRANSLATED = ("Nhưng mỗi lần tôi đọc lần đầu, rồi tôi bấm dừng, và sau đó tôi tiếp tục đọc, thì lần thứ hai tôi "
+                 "đọc, mặc dù tôi nói bằng tiếng Anh, nó tự động dịch sang tiếng Việt.")
+
+
+async def translates(prompt):
+    order.append("main")
+    return VI_TRANSLATED
+
+
+async def main_keeps(prompt):
+    order.append("main")
+    return EN_MEANT
+
+
+async def quick_translates(pick, prompt, sentence):
+    order.append(pick[0])
+    return VI_TRANSLATED
+
+
+check("the translation would have passed the size check alone", transcript_fix.is_safe_rewrite(EN_HEARD, VI_TRANSLATED))
+transcript_fix._ASK = translates
+transcript_fix._ask_quick_api = None
+order.clear()
+res = run({}, EN_HEARD)
+check("English heard, the model answers in Vietnamese: refused, the words stay as heard",
+      res == {"text": EN_HEARD, "source": "rules", "ai": False})
+transcript_fix._ask_quick_api = quick_translates
+order.clear()
+res = run(CLI_GROQ, EN_HEARD)
+check("the quick key translates: the main brain is tried next, and refused too",
+      order == ["groq", "main"] and res["text"] == EN_HEARD and res["source"] == "rules")
+transcript_fix._ASK = main_keeps
+order.clear()
+res = run(CLI_GROQ, EN_HEARD)
+check("the quick key translates, the main brain keeps English: the main brain's sentence",
+      order == ["groq", "main"] and res == {"text": EN_MEANT, "source": "main", "ai": True})
+transcript_fix._ASK = fake_main
+seen.clear()
+run({}, EN_HEARD)
+check("prompt: a sentence that is not Vietnamese is marked right above it",
+      transcript_fix.KEEP_LANGUAGE_NOTE in seen[-1]
+      and seen[-1].index(transcript_fix.KEEP_LANGUAGE_NOTE) < seen[-1].index("<cau_may_chep>")
+      and "<cau_may_chep>" not in seen[-1][:seen[-1].index(transcript_fix.KEEP_LANGUAGE_NOTE)])
+seen.clear()
+run({}, HEARD)
+check("prompt: a Vietnamese sentence gets no such mark", transcript_fix.KEEP_LANGUAGE_NOTE not in seen[-1])
+check("prompt: the rules name the language, whatever language they are written in",
+      "bằng đúng ngôn ngữ đó" in transcript_fix.REWRITE_RULES and "KHÔNG dịch" in transcript_fix.REWRITE_SYSTEM
+      and "thường là tiếng Việt" not in transcript_fix.REWRITE_SYSTEM)
+kl = transcript_fix.keeps_language
+check("keeps_language: English fixed in English", kl(EN_HEARD, EN_MEANT))
+check("keeps_language: English turned into Vietnamese is a translation", not kl(EN_HEARD, VI_TRANSLATED))
+check("keeps_language: a short English sentence too", not kl("thank you very much", "Cảm ơn rất nhiều."))
+check("keeps_language: German and Japanese count as not Vietnamese",
+      not kl("ich weiß nicht warum es dieses Problem gibt", "Tôi không biết vì sao có vấn đề này.")
+      and not kl("なぜこの問題があるのか分かりません", "Tôi không biết vì sao có vấn đề này."))
+check("keeps_language: Vietnamese fixed in Vietnamese", kl(HEARD, MEANT))
+check("keeps_language: Vietnamese with few marked words is still Vietnamese",
+      kl("cho tôi xem doanh thu hôm nay", "Cho tôi xem doanh thu hôm nay của cửa hàng.")
+      and not transcript_fix.not_vietnamese("cho tôi xem doanh thu hôm nay"))
+check("keeps_language: Vietnamese sounds turned back into English stay allowed",
+      kl("mở lót code giúp anh", "Open Claude Code for me."))
+check("keeps_language: an English sentence may gain a Vietnamese name",
+      kl("send this report to quy and mister nguyen please", "Send this report to Quý and Mr. Nguyễn, please."))
+check("keeps_language: letters written as base plus combining marks count the same",
+      not kl("thank you very much", __import__("unicodedata").normalize("NFD", "Cảm ơn rất nhiều.")))
 
 transcript_fix._ASK = wrapped
 res = run({}, "mở trang mo đồ giúp anh")

@@ -4,7 +4,8 @@
 
 No network: the model call (`transcript_fix._ask_model`) is replaced by fakes. Pins: rules always run (Jarvis ->
 Javis, Groq kept), Groq wins when its key is set, otherwise the background model only when it is an API with a key,
-a model that rewrites the sentence or fails falls back to the rules, and the route never errors.
+a model that rewrites the sentence or fails falls back to the rules, and the route never errors. 2026-11-12: a model
+that turns an English sentence into Vietnamese is refused too.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -74,6 +75,17 @@ async def fake_rewrite(pick, sentence, terms):
 transcript_fix._ask_model = fake_rewrite
 r = fix({"model": {"groq_api_key": "gk"}}, "báo cáo hôm nay")
 check("model rewrites the sentence: rules kept", r == {"text": "báo cáo hôm nay", "source": "rules", "ai": False})
+
+
+async def fake_translate(pick, sentence, terms):
+    return "Tôi không biết vì sao vấn đề này tồn tại"
+
+
+transcript_fix._ask_model = fake_translate
+r = fix({"model": {"groq_api_key": "gk"}}, "i don't know why this problem exists")
+check("model translates English into Vietnamese: rules kept",
+      r == {"text": "i don't know why this problem exists", "source": "rules", "ai": False})
+check("the system prompt says to keep the language", "không dịch" in transcript_fix.SYSTEM_PROMPT)
 
 
 async def fake_fail(pick, sentence, terms):
