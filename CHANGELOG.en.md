@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.552.1] - 2026-11-12
+### Fixed
+- **Attaching a private repo to a chat no longer fails once its main branch has new files.** A private repo used to attach only the first time; as soon as the main branch gained or changed a file, a new chat stopped with `could not fetch ... from promisor remote`.
+- **Changing a chat's base branch works on private repos too.** The same fault broke Change branch and the fresh branch Javis starts after a merge; both are fixed.
+
 ## [0.552.0] - 2026-11-12
 ### Added
 - **New Claude models show up in the model picker on their own.** Javis also reads the model catalog Claude Code downloads from Anthropic, so a model released after the installed CLI was built appears right away instead of waiting for a Javis release to add its name.
