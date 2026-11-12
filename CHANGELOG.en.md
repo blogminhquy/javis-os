@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.547.3] - 2026-11-12
+### Fixed
+- **A root install on Linux no longer breaks Claude with "exit code 1".** A fresh install creates a regular account `javis` and runs Javis under it, because Claude Code refuses Full access under root.
+- **A clone inside `/root` is moved to `/opt`**, since no other account can enter `/root`. The installer says where it went.
+- **A machine installed earlier keeps the account it has.** `./update.sh` run as root works as before.
+
 ## [0.547.2] - 2026-11-12
 ### Fixed
 - **The "SDK engine: ProcessError... Check stderr output for details" error now gives the reason.** When Claude Code exits before answering, the chat shows what it printed instead of a line nobody can act on.
