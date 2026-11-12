@@ -15,8 +15,9 @@ Fix, for the scheduled background lanes only (reminder, loop, Kanban dispatch):
     engine, which would reach the same hub and run blind;
   - claude_cli.codex_error_text puts the reason first: Codex's stderr starts with long rmcp log
     lines, and the chat card keeps 300 characters, reminders.json 400.
-Chat never goes through `_build_codex`; workflow Codex agents are built by
-main._workflow_agent_helpers. Both must stay unchanged.
+Chat never goes through `_build_codex`; unrestricted workflow Codex agents are built by
+main._workflow_agent_helpers. Restricted workflow steps use workflow_codex with a required
+scoped hub and native tools disabled; unrestricted workflow behavior stays unchanged.
 Since 0.117.0 every `_build_codex` lane also pins the job's own permission level
 (`mcp_hub.dat_codex_mode`), so the mode checks expect the job's level.
 
@@ -422,8 +423,8 @@ check("reminder healthy run: result kept, no error, card done",
 # ---- 10. Scope: only the background router sets these overrides --------------------------------
 SRC = {p.name: p.read_text(encoding="utf-8") for p in SERVER.glob("*.py")}
 users = sorted(n for n, s in SRC.items() if "dat_codex_hub_bat_buoc(" in s or "dat_codex_tat_app(" in s)
-check("only mcp_hub (definition) and aux_engine (_build_codex) use the overrides",
-      users == ["aux_engine.py", "mcp_hub.py"], users)
+check("only hub helpers, background router and restricted workflow builder use the overrides",
+      users == ["aux_engine.py", "mcp_hub.py", "workflow_codex.py"], users)
 callers = sorted(n for n, s in SRC.items() if re.search(r"\b_build_codex\(", s))
 # 0.194.0: team Work/Help turns build Codex through the same builder (team_engine.build_tools). Their tag
 # ("team-<id>-<turn>") is not a scheduled background lane, so the hub-required and no-app overrides stay off for them.
@@ -438,7 +439,7 @@ check('reminders still route with tag="reminder"', 'aux_engine.apply(self.deps, 
 check("Kanban runs still route with tag dispatch:<id>:<suffix>",
       "tag=f\"dispatch:{task['id']}:" in TASK_SRC and "aux_engine.apply(self.deps, cli, mode=mode, tag=cli.tag)" in TASK_SRC)
 check('loops still route with tag="loop"', 'tag="loop")' in LOOP_SRC and "aux_engine.apply(self.deps, cli" in LOOP_SRC)
-check("workflow Codex agents still built directly, without the background overrides",
+check("unrestricted workflow Codex agents still built directly, without the background overrides",
       "CodexCLI(cwd=vault_root, tag=\"workflow\"" in SRC.get("main.py", "")
       and "CODEX_REQUIRED_KEY" not in SRC.get("main.py", "") and "dat_codex_tat_app" not in SRC.get("main.py", ""))
 

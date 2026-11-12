@@ -72,7 +72,14 @@ check("the stored text comes back byte for byte", bool(got) and got["text"] == r
 check("another brain cannot read it", store.get(ref, "/brain-b") is None)
 _real_dir = tempfile.mkdtemp(prefix="scope-real-")
 _link = _real_dir + "-link"
-os.symlink(_real_dir, _link)
+try:
+    os.symlink(_real_dir, _link, target_is_directory=True)
+except OSError as exc:
+    if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+        raise
+    # Directory junctions exercise path canonicalization without Windows symlink privileges.
+    import _winapi
+    _winapi.CreateJunction(_real_dir, _link)
 _r = store.put("x" * 3000, scope=_link + "/")
 check("the same brain reached by another spelling of its path reads its own result",
       _r and store.get(_r, _real_dir) is not None and store.get(_r, _real_dir + "/") is not None)
