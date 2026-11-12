@@ -4793,7 +4793,7 @@
   "teams.usage_today": "Used today: {n} of {cap} replies.",
   "teams.usage_today_unl": "Used today: {n} replies (no limit).",
   "teams.advanced": "Advanced",
-  "teams.advanced_note": "Limit numbers, detailed permissions of the coordinator, and the reply log.",
+  "teams.advanced_note": "Acceptance, usage figures, limit numbers, detailed permissions of the coordinator, and the reply log.",
   "teams.archive_confirm": "Archive the team? It will be read only.",
   "teams.reply.queued": "Waiting",
   "teams.reply.answering": "Answering",

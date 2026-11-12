@@ -3343,6 +3343,8 @@ body.on-teams .cview-head { display: none; }
 /* Nhãn việc dài: cắt bằng dấu ba chấm ở phần chữ (inline-flex không tự cắt). */
 .tm-tag-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-levels { border: none; margin: 0; padding: 0; min-width: 0; }
+/* 2026-11-12: the goal block now sits right above this one; a legend takes no top margin, so the space is given here. */
+.tm-md + .tm-sec > .tm-levels { margin-top: 14px; }
 .tm-levels > legend { padding: 0; }
 .tm-tag-new { cursor: default; border: none; padding: 0; }
 .tm-text { overflow-wrap: anywhere; font-size: 14px; color: var(--text); line-height: 1.45; }

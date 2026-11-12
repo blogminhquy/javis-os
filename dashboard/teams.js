@@ -1822,22 +1822,30 @@
   }
 
   // Tab Nhóm: thành viên, mức tự quyết, số lần đã dùng hôm nay, tên và trạng thái; mọi con số trong Nâng cao (đóng sẵn).
+  //
+  // 2026-11-12 (a customer: "cài đặt của team khá phức tạp, nhiều thông số quá, cần đơn giản hơn, tập trung vào mục tiêu
+  // thôi"). What an owner decides for a team stays in view, in this order: who is in
+  // it, what it is for (the goal), how far the coordinator decides alone, whether outside actions need approval, its
+  // name and status. Acceptance, the usage figures, every limit, the detailed rights and the reply log sit in Advanced,
+  // closed by default. Nothing was removed and no handler changed: the blocks only moved.
   function teamTabHtml(team, agents, ui) {
     ui = ui || {};
     var nAct = (team.members || []).filter(function (m) { return !m.status || m.status === "active"; }).length;
     return '<section class="tm-sec"><div class="tm-qhead">' + esc(tw("teams.tab_members")) + " · " +
       esc(tw("teams.head_people", { n: nAct })) + "</div>" +
       membersHtml(team, agents, ui.openMember) + "</section>" +
-      '<section class="tm-sec">' + levelsHtml(team) + usageHtml(team) + "</section>" +
-      workModeHtml(team) + qualityPolicyHtml(team) + qualityUsageHtml(team.quality_usage, (team.quality_policy || {}).reference_usd) +
       mandateHtml(team, ui.mandateEdit) +
+      '<section class="tm-sec">' + levelsHtml(team) + usageHtml(team) + "</section>" +
+      workModeHtml(team) +
       '<section class="tm-sec"><div class="tm-qhead">' + esc(tw("teams.tab_team")) + "</div>" +
       '<label class="tm-rs tm-pin-row"><input type="checkbox" class="tm-pin-toggle"' + (team.pinned_at ? " checked" : "") +
       "><span>" + esc(tw("teams.pin_top")) + "</span></label>" + settingsFormHtml(team) + "</section>" +
       '<details class="tm-adv"' + (ui.advOpen ? " open" : "") + '><summary class="tm-adv-sum">' + esc(tw("teams.advanced")) +
       // The (i) may sit inside <summary>: info-tip.js cancels the click's default action, so it opens the note without
       // folding or unfolding the section.
-      infoBtn() + "</summary>" + infoBody(esc(tw("teams.advanced_note"))) + capsFormHtml(team) + authorityHtml(team) +
+      infoBtn() + "</summary>" + infoBody(esc(tw("teams.advanced_note"))) +
+      qualityPolicyHtml(team) + qualityUsageHtml(team.quality_usage, (team.quality_policy || {}).reference_usd) +
+      capsFormHtml(team) + authorityHtml(team) +
       limitsHtml(team) + turnsHtml(ui.turns || [], team) + "</details>";
   }
 

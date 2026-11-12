@@ -39,6 +39,7 @@ RECONCILE_EVERY_S = 60.0    # nhịp đối soát sổ lượt chung với team_
 FINISHED_SHOWN = 30          # việc đã xong hiện ở tab Việc của nhóm (0.193.0)
 PINNED_SHOWN = 20            # tin đã ghim hiện ở dải trên khung chat (0.192.0), như Sổ quyết định của lượt
 CREATE_DOCS_MAX = 10         # files, and links, a team may be given in its create box (team_docs.MAX_PER_SEND)
+NEW_TEAM_UNCAPPED = ("task_turns", "task_steps")   # caps a new team starts without (TeamOps.create)
 
 
 # Performance (2026-11-05): the usage block of GET /teams/{id} reads the usage index, its events log and two more
@@ -564,6 +565,15 @@ class TeamOps:
             # Hai yêu cầu cùng mã chạy song song: yêu cầu kia thắng, phiên vừa mở không gắn nhóm nào thì bỏ.
             self._drop_session(sid)
             return {"team": team, "duplicate": True}
+        # 2026-11-12 (owner, after a customer: "tốn token xíu cũng ok, mục tiêu đã ghép team là phải giải quyết được
+        # việc"): a NEW team has no cap on the replies and steps of one job, so a job runs to its end instead of
+        # stopping at 12 replies or 8 steps to wait for "Cho thêm lượt". The daily cap of the team, the stop at two
+        # identical results and the engine limits still hold. Teams made before keep what they had; the owner sets
+        # a number again under Advanced.
+        try:
+            team = teams.set_caps(tid, {k: None for k in NEW_TEAM_UNCAPPED}, by="host")
+        except Exception as ex:  # noqa: BLE001 - the team exists; it only keeps the default caps
+            print(f"[team] new team {tid}: per-job caps kept at their defaults ({type(ex).__name__}: {ex})", file=sys.stderr)
         return {"team": team, "duplicate": False}
 
     def update(self, root: str, team_id: str, **fields) -> dict:
