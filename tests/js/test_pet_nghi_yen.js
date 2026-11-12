@@ -4,9 +4,9 @@
 
    Measured on a simulated phone (Team page, app idle): the pet's JS loop at 30 frames a second kept the main thread
    busy about 26% of the time and forced a layout every frame; without the pet, 13%. Sitting still, the pet only spins
-   its ring, glances now and then, blinks and dozes off. So the JS loop now stops ("rest"): the ring spins with the
-   petVanh CSS animation (10 steps a second), the glance is a CSS transition, blinks and dozing are timers. Measured
-   again: 14%. Anything (pointer, state change, a reaction, new words) calls chay(), which leaves the rest and restarts
+   its ring, glances now and then, blinks and dozes off. So the JS loop now stops ("rest"): the ring moves on a slow
+   timer (2026-11-12; a CSS animation before, which the browser ticked on every frame), the glance is a CSS transition,
+   blinks and dozing are timers. Measured again: 14%. Anything (pointer, state change, a reaction, new words) calls chay(), which leaves the rest and restarts
    the loop. Run for real with the fake DOM of test_pet_huong_liec.js: reading the source would stay green if the loop
    never stopped or never woke up. */
 const path = require("path");
@@ -89,16 +89,30 @@ check("the pet exists and runs its loop", !!P && !!khungCho);
 chayKhung(2000);   // up to 32 s of frames
 check("sitting still, the JS loop stops by itself (no frame requested)", khungCho === null);
 check("and the pet is marked resting (CSS takes over)", lop.has("pet-nghi"));
-check("the ring spins with the petVanh CSS animation, 10 steps a second", /^petVanh [\d.]+s steps\(\d+\) infinite$/.test(nut[".pet-ring"].style.animation || "")
-  && (() => { const m = /petVanh ([\d.]+)s steps\((\d+)\)/.exec(nut[".pet-ring"].style.animation); return Math.abs(Number(m[2]) - Number(m[1]) * 10) <= 1; })());
-check("the ring animation starts where the ring stands (--vanh0)", typeof nut[".pet-ring"].style["--vanh0"] === "string");
+// 2026-11-12: the resting ring moves on a timer. A running CSS animation is ticked by the browser on every frame
+// whatever its steps() say (measured: 60 style recalculations a second from the old petVanh animation alone).
+check("resting, no CSS animation runs on the ring", !nut[".pet-ring"].style.animation);
+const ringAt = () => Number(nut[".pet-ring"].style.strokeDashoffset);
+const ringStart = ringAt();
+let ringWrites = 0, ringLast = ringStart;
+for (let i = 0; i < 100; i++) {   // one second, 10 ms at a time
+  dongHo += 10; chayHen();
+  if (ringAt() !== ringLast) { ringWrites++; ringLast = ringAt(); }
+}
+check("the ring still turns at its idle speed (about 7 units a second) with no frame requested",
+  khungCho === null && Math.abs((ringStart - ringAt()) - 7) < 1.5);
+check("and it is written at most 10 times a second", ringWrites >= 4 && ringWrites <= 10);
 const truocLiec = nut[".pet-eyes"].style.transform;
 dongHo += 8000; chayHen();
 check("resting, the glance still moves on a timer (no frame needed)", khungCho === null && typeof truocLiec === "string");
 
 P.setState("thinking");
 check("a state change wakes it: the loop asks for a frame again", !!khungCho);
-check("and the resting mark is gone, the CSS ring animation removed", !lop.has("pet-nghi") && !nut[".pet-ring"].style.animation);
+check("and the resting mark is gone", !lop.has("pet-nghi") && !nut[".pet-ring"].style.animation);
+// The pending frame is not run here, so only the rest timer could move the ring during this second.
+const ringAwake = ringAt();
+dongHo += 1000; chayHen();
+check("the rest timer stops with the rest (the frame loop owns the ring again)", ringAt() === ringAwake);
 
 P.setState("idle");
 chayKhung(2000);
@@ -109,7 +123,7 @@ nghe.pointermove({ clientX: 300, clientY: 200 });
 check("a pointer move wakes it so the eyes follow", !!khungCho && !lop.has("pet-nghi"));
 
 const css = fs.readFileSync(path.join(root, "dashboard", "style.css"), "utf8");
-check("CSS: petVanh keyframes start from --vanh0", /@keyframes petVanh \{ from \{ stroke-dashoffset: var\(--vanh0, 0\); \} to \{ stroke-dashoffset: calc\(var\(--vanh0, 0\) - 360\); \} \}/.test(css));
+check("CSS: the petVanh animation is gone (nothing left to tick on every frame)", !/petVanh/.test(css));
 check("CSS: the resting glance moves in 10 steps (a smooth SVG transform transition relayouts every frame)",
   /\.pet\.pet-nghi \.pet-rig, \.pet\.pet-nghi \.pet-eyes \{ transition: transform 2\.4s steps\(10\); \}/.test(css));
 const src = fs.readFileSync(path.join(root, "dashboard", "pet.js"), "utf8");

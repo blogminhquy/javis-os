@@ -738,9 +738,9 @@
   // Đo trên điện thoại giả lập (trang Cộng sự, app để yên): vòng vẽ JS 30 khung/giây của pet giữ luồng chính bận khoảng
   // 26% thời gian và bắt trình duyệt tính lại bố cục mỗi khung; không có pet là 13%. Lúc pet ngồi yên (rảnh, không ai rê
   // chuột hay chạm, không phản ứng gì) chỉ còn vành quay chậm, mắt thỉnh thoảng liếc, chớp mắt và ngủ gật. Khi đó vòng JS
-  // dừng hẳn: vành quay bằng hoạt ảnh CSS 10 nhịp mỗi giây (steps, petVanh trong style.css), mắt liếc bằng transition CSS,
-  // chớp mắt và ngủ gật hẹn bằng setTimeout. Đo lại: 16%. Có động tĩnh gì (rê chuột, chạm, đổi trạng thái, phản ứng, chữ
-  // mới) là chay() gọi raNghi() và vòng JS chạy lại đủ nhịp như cũ.
+  // dừng hẳn: vành quay bằng một bộ hẹn giờ chậm (spinRingRest; trước 2026-11-12 là hoạt ảnh CSS petVanh), mắt liếc bằng
+  // transition CSS, chớp mắt và ngủ gật hẹn bằng setTimeout. Đo lại: 16%. Có động tĩnh gì (rê chuột, chạm, đổi trạng
+  // thái, phản ứng, chữ mới) là chay() gọi raNghi() và vòng JS chạy lại đủ nhịp như cũ.
   var nghiYen = false, nghiHen = [];
 
   function coTheNghi(now) {
@@ -757,10 +757,32 @@
     gRig.style.transform = "translate(" + (nhinX * 3.4).toFixed(2) + "px," + (nhinY * 2.4).toFixed(2) + "px)";
     gEyes.style.transform = "translate(" + (nhinX * TAM_X * ghim).toFixed(2) + "px," + (nhinY * TAM_Y * ghim).toFixed(2) + "px)";
   }
-  function quayVanhCss() {
-    var tg = 360 / Math.max(tocDoDich, 0.5);
-    pRing.style.setProperty("--vanh0", String((-gocRing).toFixed(2)));
-    pRing.style.animation = "petVanh " + tg.toFixed(1) + "s steps(" + Math.max(1, Math.round(tg * 10)) + ") infinite";
+  // The resting ring moves on a timer (2026-11-12), no longer on a CSS animation. Measured on a simulated phone, Chat
+  // page left alone: the browser ticks a running CSS animation on EVERY frame, whatever its steps() say, so the petVanh
+  // animation alone cost 60 style recalculations a second (main thread 12% busy with it, 3.7% without). A timer writes
+  // the dash offset only when the ring has moved about half a pixel: 8 times a second at idle speed, 4 when dozing.
+  var RING_REST_MIN_MS = 100, RING_REST_MAX_MS = 250, ringRestTimer = 0;
+  function ringRestMs() {
+    return Math.min(RING_REST_MAX_MS, Math.max(RING_REST_MIN_MS, Math.round(900 / Math.max(tocDoDich, 0.5))));
+  }
+  function clockMs() { return typeof performance !== "undefined" ? performance.now() : Date.now(); }
+  function spinRingRest() {
+    clearTimeout(ringRestTimer);
+    pRing.style.animation = "";
+    var last = clockMs();
+    (function step() {
+      ringRestTimer = setTimeout(function () {
+        if (!nghiYen) return;
+        var t = clockMs(), dt = Math.min(1, Math.max(0, (t - last) / 1000));
+        last = t;
+        // A tab in the background keeps the ring where it is: nobody sees it, and timers there run once a second.
+        if (!(typeof document !== "undefined" && document.hidden)) {
+          gocRing = (gocRing + tocDoDich * dt) % 360;
+          pRing.style.strokeDashoffset = (-gocRing).toFixed(2);
+        }
+        step();
+      }, ringRestMs());
+    })();
   }
   function hen(fn, ms) { nghiHen.push(setTimeout(fn, ms)); }
 
@@ -768,7 +790,7 @@
     nghiYen = true;
     raf = 0;
     el.classList.add("pet-nghi");
-    quayVanhCss();
+    spinRingRest();
     datDangNghi();
     (function liec() {
       hen(function () {
@@ -796,7 +818,7 @@
         nguGat = true; mood = "sleepy"; if (!dangChop) veMat(mood);
         tocDoDich = 2; tocDo = 2; pRing.style.opacity = "0.3";
         el.dataset.ngu = "1";
-        quayVanhCss();
+        spinRingRest();
       }, Math.max(0, hoatDongLuc + NGU_SAU - now));
     }
   }
@@ -805,10 +827,9 @@
     nghiYen = false;
     nghiHen.forEach(clearTimeout);
     nghiHen = [];
-    // Vành quay tiếp từ đúng chỗ CSS đang dừng, không giật về chỗ cũ.
-    var o = NaN;
-    try { o = parseFloat(getComputedStyle(pRing).strokeDashoffset); } catch (e) { /* không có trình duyệt (test) */ }
-    if (!isNaN(o)) gocRing = ((-o % 360) + 360) % 360;
+    // The ring goes on from where the rest timer left it (gocRing), so it does not jump.
+    clearTimeout(ringRestTimer);
+    ringRestTimer = 0;
     pRing.style.animation = "";
     pRing.style.strokeDashoffset = (-gocRing).toFixed(2);
     el.classList.remove("pet-nghi");

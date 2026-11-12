@@ -110,6 +110,31 @@ troi(JavisGraph.AN_HAN_MS + 50);
 g.setLevel(0);
 check("chuột rời ra, hết ân hạn: đóng băng lại", g._veLienTuc === false);
 
+// ---- 7b. It freezes BY ITSELF when the grace period ends (2026-11-12) ----
+// The steps above call setLevel(0) after the wait, as the voice pump did on every frame when this file was written.
+// The pump has since stopped calling it in silence, so nothing looked again after the last event and the graph kept
+// drawing every frame for good once the pointer had crossed it (measured: 88% of a slow main thread, idle).
+{
+  const timers = [];
+  const realSet = global.setTimeout, realClear = global.clearTimeout;
+  global.setTimeout = (fn, ms) => { const t = { fn, at: _gio + ms, off: false }; timers.push(t); return t; };
+  global.clearTimeout = (t) => { if (t) t.off = true; };
+  const runDue = () => { timers.filter((t) => !t.off && t.at <= _gio).forEach((t) => { t.off = true; t.fn(); }); };
+  cont.ban("pointerenter");
+  check("pointer over the graph: drawing", g._veLienTuc === true);
+  cont.ban("pointerleave");
+  check("just left: still drawing (grace)", g._veLienTuc === true);
+  troi(JavisGraph.AN_HAN_MS - 100); runDue();
+  check("grace not over yet: still drawing", g._veLienTuc === true);
+  troi(200); runDue();
+  check("grace over and NOBODY called setLevel: it froze by itself", g._veLienTuc === false && log[log.length - 1] === true);
+  check("no timer is left running while frozen", timers.every((t) => t.off));
+  g.setThinking(true); g.setThinking(false);
+  troi(JavisGraph.AN_HAN_MS + 50); runDue();
+  check("the end of a thought freezes by itself too", g._veLienTuc === false);
+  global.setTimeout = realSet; global.clearTimeout = realClear;
+}
+
 // ---- 8. Không gọi thư viện thừa ----
 const truoc = log.length;
 for (let i = 0; i < 50; i++) g.setLevel(0);

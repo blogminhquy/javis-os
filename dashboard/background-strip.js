@@ -173,9 +173,11 @@
     }
   });
 
+  var lastData = null;   // the last answer drawn, to draw it again when the dictionary arrives
   function render(d) {
     var e = el();
     if (!e) return;
+    lastData = d;
     // Voice V1: orb ghi hậu tố "N việc nền" từ đúng con số này (không có thì 0).
     try { if (window.JavisOrb) window.JavisOrb.setBackground((d && d.running_count) || 0); } catch (err) {}
     // Voice V3: số việc nền do BỘ NÃO GIỌNG giao cho chính cuộc nói chuyện này. Javis dùng số
@@ -275,6 +277,10 @@
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();
+  // 2026-11-12: the strip's words come from the dictionary, and its first answer can arrive before the dictionary
+  // does (a slow phone, a server that has just restarted). Drawn then, it showed bare keys such as `bgs.dau_stall`
+  // until its next poll; draw the same answer again as soon as the words are there, and on a language change.
+  window.addEventListener("javis:i18n", function () { if (lastData) render(lastData); });
 
   // Đổi hội thoại thì dải cũ không còn đúng nữa: xoá ngay rồi hỏi lại, đừng để chip của phiên
   // trước nằm lại vài giây trên phiên mới.

@@ -99,8 +99,12 @@ function page({ downCalls, typed }) {
   check("pet draws 30 frames a second when idle, 15 asleep",
     /var khoang = nguGat \? 66 : \(state === "idle" && now - chuotLuc > 1600 && gatLuc <= now \? 33 : 0\);/.test(pet));
   const app = read("dashboard/app.js");
-  check("the starfield skips frames behind a management page",
-    /if \(document\.hidden\) return;\n[\s\S]{0,400}if \(document\.body\.classList\.contains\("in-console"\)\) return;/.test(app));
+  // 2026-11-12: behind a management page (or in a hidden tab) the starfield does not even ask for frames: a timer looks
+  // again a few times a second. It used to ask for a frame on every frame only to return at once.
+  check("the starfield draws nothing behind a management page and waits on a timer there",
+    /const isParked = \(\) => document\.hidden \|\| document\.body\.classList\.contains\("in-console"\);/.test(app)
+    && /const wake = \(\) => \{ if \(isParked\(\)\) setTimeout\(wake, STAR_PARKED_MS\); else requestAnimationFrame\(draw\); \};/.test(app)
+    && /else setTimeout\(wake, parked \? STAR_PARKED_MS : /.test(app) && /if \(parked \|\| wait > 0\) return;/.test(app));
   check("the brain graph is paused right after it is built when the app opens on another page",
     /await reloadGraph\(\);\n[\s\S]{0,300}window\.JavisRecomputeGraph\(\)/.test(app) && /window\.JavisRecomputeGraph = recomputeGraph;/.test(consoleJs));
 
