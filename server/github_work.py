@@ -965,16 +965,59 @@ async def merge_now(row: Dict[str, Any], pr: Dict[str, Any], by_person: bool = F
         return st().get(sid, fn) or row
 
 
+def _download_base_for_merge(row: Dict[str, Any]) -> str:
+    """Make `git merge origin/<base>` runnable in the worktree WITHOUT a credential. "" when ready, else the reason.
+
+    The engine that resolves the conflict has no token in its shell (github_repos docstring), and the clone is a
+    partial one, so on a private repo it can neither fetch the base nor let git download, in the middle of the merge,
+    the file contents that merge reads. Javis does both here, with its token:
+      1. fetch the base branch;
+      2. download every file content that differs between each merge base and either side. `git diff --shortstat`
+         reads both versions of every changed path, and git batches the download of the missing ones. That covers
+         what the merge reads (base, ours, theirs, rename candidates) and what it writes into the worktree.
+    Nothing in the worktree or the index changes: only objects arrive.
+    """
+    wt = row.get("worktree") or ""
+    if not wt:
+        return ""
+    name = row.get("base_branch") or "main"
+    base = f"origin/{name}"
+    try:
+        github_repos.git(["fetch", "origin", f"+refs/heads/{name}:refs/remotes/{base}"], wt, auth=True, timeout=300)
+        # Usually one merge base; none (unrelated histories) leaves nothing to download.
+        for merge_base in github_repos.git(["merge-base", "--all", "HEAD", base], wt, check=False).stdout.split():
+            for side in ("HEAD", base):
+                github_repos.git(["diff", "--shortstat", "--no-renames", "--no-ext-diff", "--no-textconv",
+                                  merge_base, side], wt, **github_repos.CHECKOUT)
+    except github_repos.RepoError as e:
+        return str(e)
+    return ""
+
+
 async def _conflict(row: Dict[str, Any]) -> Dict[str, Any]:
     sid, fn = row["sid"], row["full_name"]
+    key = f"{sid}:{fn}:conflict:{row['head_sha']}"
     reason = _c("PR bị xung đột với nhánh chính, cần làm lại.", "The PR conflicts with the base branch.")
+    if not st().step_done("fix:" + key):
+        failed = await asyncio.to_thread(_download_base_for_merge, row)
+        if failed:
+            # No fix round: the merge could not work. `integ` is left alone, so the watcher keeps this row and the
+            # next tick downloads again ("conflict" would take the row off its list).
+            reason += " " + _c(f"Javis chưa tải được nhánh chính về để gộp ({failed}), sẽ tự thử lại.",
+                               f"Javis could not download the base branch to merge it ({failed}) and will try again.")
+            st().update(sid, fn, stuck_reason=reason)
+            await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False,
+                       once=f"conflict-wait:{sid}:{fn}:{row['head_sha']}")
+            return st().get(sid, fn) or row
     st().update(sid, fn, integ="conflict", stuck_reason=reason)
     await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"conflict:{sid}:{fn}:{row['head_sha']}")
-    # A conflict is work for the chat: one fix round to merge the base branch in and resolve it.
+    # A conflict is work for the chat: one fix round to merge the base branch in and resolve it. The engine only
+    # merges; it is never asked to fetch, its shell has no GitHub credential.
     await request_fix(st().get(sid, fn) or row, _c("PR xung đột với nhánh chính", "The PR conflicts with the base"),
-                      f"Trong thư mục làm việc của {fn}: `git fetch origin` rồi `git merge origin/{row.get('base_branch')}`, "
+                      f"Javis đã tải sẵn bản mới nhất của nhánh {row.get('base_branch')} về máy, không cần tải lại. "
+                      f"Trong thư mục làm việc của {fn}: `git merge origin/{row.get('base_branch')}`, "
                       "giải quyết xung đột giữ đúng ý của cả hai bên, chạy lại test. Không rebase, không force push.",
-                      f"{sid}:{fn}:conflict:{row['head_sha']}")
+                      key)
     return st().get(sid, fn) or row
 
 
