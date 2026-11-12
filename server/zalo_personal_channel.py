@@ -40,8 +40,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import sys
+import tempfile
 import time
 from typing import Any, Dict, List, Optional
 
@@ -1463,6 +1465,66 @@ _SEQ: Dict[tuple, int] = {}         # (conn_id, thread) -> số tin khách chat 
 _BO_DO: Dict[tuple, dict] = {}      # (conn_id, thread) -> {"texts": [...], "n": số lần bỏ, "luc": giờ}: tin khách của câu trả lời đã bỏ
 _ID_MINH: Dict[str, dict] = {}      # conn_id -> {"uid", "ten"} của CHÍNH nick này, học từ tin của nó
 
+# The Zalo connection can restart without replaying an own message. Retain only
+# a previously verified self UID, not the bot name or any guessed mention target.
+_SELF_ID_PATH = cfgmod.STATE_DIR / "zalo-personal-self-ids.json"
+_SELF_ID_TTL = 30 * 86400
+
+
+def _self_ids() -> dict:
+    try:
+        if _SELF_ID_PATH.stat().st_size > 65536:
+            return {}
+        data = json.loads(_SELF_ID_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def _cached_self_uid(conn_id: str) -> str:
+    entry = _self_ids().get(str(conn_id))
+    if not isinstance(entry, dict):
+        return ""
+    uid = str(entry.get("uid") or "")
+    stamp = entry.get("ts")
+    if (not re.fullmatch(r"[0-9]{4,30}", uid) or not isinstance(stamp, (int, float))
+            or not 0 <= time.time() - stamp <= _SELF_ID_TTL):
+        return ""
+    return uid
+
+
+def _save_self_uid(conn_id: str, uid: str) -> None:
+    """Persist a Zalo ID only after a real outgoing group echo confirms it."""
+    if uid and not re.fullmatch(r"[0-9]{4,30}", uid):
+        return
+    data = _self_ids()
+    if uid:
+        old = data.get(str(conn_id))
+        stamp = old.get("ts") if isinstance(old, dict) else None
+        if (isinstance(stamp, (int, float)) and old.get("uid") == uid
+                and 0 <= time.time() - stamp < 86400):
+            return
+        data[str(conn_id)] = {"uid": uid, "ts": time.time()}
+    else:
+        data.pop(str(conn_id), None)
+    tmp = ""
+    try:
+        _SELF_ID_PATH.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=".zalo-self-", dir=str(_SELF_ID_PATH.parent))
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            json.dump(data, out)
+        os.replace(tmp, _SELF_ID_PATH)
+    except OSError:
+        pass  # A read-only state directory must not stop the Zalo message loop.
+    finally:
+        if tmp:
+            try:
+                os.unlink(tmp)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
+
 
 def _hoc_danh_tinh(conn_id: str, msg: dict) -> None:
     """Nhớ id + tên Zalo của CHÍNH nick này từ một tin nó gửi. Cần để biết một tin trong nhóm có
@@ -1482,6 +1544,10 @@ def _hoc_danh_tinh(conn_id: str, msg: dict) -> None:
         thay = cu.setdefault("_da_thay", set())
         thay.add(uid)
         cu["uid"] = uid if len(thay) == 1 else ""
+        # Private-chat echoes can report the other person's ID as self. Cache
+        # only a numeric self ID observed in a group, with Zalo's isSelf flag.
+        if msg.get("isSelf") is True and str(msg.get("threadType") or "") in ("1", "group"):
+            _save_self_uid(conn_id, cu["uid"])
     if ten:
         cu["ten"] = ten
 
@@ -1507,6 +1573,14 @@ def nhan_dien_goi(conn_id: str, ev: dict, ten_khac=()) -> tuple:
     Không nhận ra thì cùng lắm chế độ Tự đánh giá vẫn bắt được câu hỏi thuộc tài liệu.
     """
     minh = _ID_MINH.get(str(conn_id)) or {}
+    # A restart clears _ID_MINH. Recover a recently verified self identity
+    # without trusting arbitrary @Name text or treating other people's tags as ours.
+    if not minh.get("uid") and not minh.get("_da_thay"):
+        cached = _cached_self_uid(conn_id)
+        if cached:
+            minh = _ID_MINH.setdefault(str(conn_id), {})
+            minh["uid"] = cached
+            minh["_da_thay"] = {cached}
     uid = str(minh.get("uid") or "").strip()
     ten = {_chuan_ten(x) for x in (list(ten_khac or ()) + [minh.get("ten")]) if x}
     ten.discard("")
