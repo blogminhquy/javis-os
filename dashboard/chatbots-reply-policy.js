@@ -9,6 +9,8 @@
 //   - formHtml(): một dòng giải thích trong FORM bot, chỉ hiện khi chọn "Tự đánh giá".
 //   - openPanel(bot): PANEL "Bộ phán xử" của một bot: mọi quyết định gần đây KỂ CẢ lúc bot im, nút Đúng/Sai để
 //     dạy, ca đã học, bài học, nút Quên hết.
+//     The bot card lists this panel for EVERY bot (12/11/2026). `openPanel(bot, { idle: true, onEdit })` adds a line
+//     on top saying the judge is idle for this bot (it is not in Auto-judge mode) with a button that opens the bot form.
 //
 // Đặc tả: docs/superpowers/specs/2026-09-30-bo-phan-xu-nhom-design.md. Mọi chữ hiện ra lấy từ từ điển
 // (khoá `rp.*`); mã im (`silence_code`) và nhãn là DỮ LIỆU trong bảng bên dưới, không ghép chuỗi khoá.
@@ -75,7 +77,9 @@
   }
 
   // ---------------------------------------------------------------- panel của một bot
-  async function openPanel(bot) {
+  // `opts.idle`: the bot is not in Auto-judge mode, so the judge does not run for it. `opts.onEdit`: opens the bot form.
+  async function openPanel(bot, opts) {
+    opts = opts || {};
     var box = el('<div class="cb-modal"><div class="cb-form cb-rp-form">' +
       '<h3>' + esc(tt("rp.title", { name: bot.name })) + '</h3>' +
       '<div class="cb-rp-body"><div class="pg-loading">' + esc(tt("common.loading")) + '</div></div>' +
@@ -95,6 +99,15 @@
       try { d = await api(base + "?limit=100" + (soloSilent ? "&only_silent=true" : "")); }
       catch (e) { than.textContent = tt("rp.load_err") + " " + e.message; return; }
       ve();
+    }
+
+    // The judge only runs in groups for a bot in Auto-judge mode. Say so up front instead of an empty list nobody
+    // can explain; how to turn it on opens from (i).
+    function idleHtml() {
+      if (!opts.idle) return "";
+      return '<div class="cb-rp-idle"><span>' + esc(tt("rp.idle")) + infoBtn() + '</span>' +
+        (opts.onEdit ? '<button type="button" class="s-btn-ghost rp-edit">' + esc(tt("common.edit")) + '</button>' : '') +
+        '</div>' + infoBody(esc(tt("rp.idle_h")));
     }
 
     function chip(cls, text) { return '<span class="cb-rp-chip ' + cls + '">' + esc(text) + '</span>'; }
@@ -151,7 +164,7 @@
 
     function ve() {
       var s = d.stats || {};
-      var h = '<div class="cb-sum">' + esc(tt("rp.stats", { decisions: s.decisions || 0, silent: s.silent || 0,
+      var h = idleHtml() + '<div class="cb-sum">' + esc(tt("rp.stats", { decisions: s.decisions || 0, silent: s.silent || 0,
         labeled: s.labeled || 0, cases: s.cases || 0, lessons: s.lessons || 0 })) + '</div>';
       // What the Right/Wrong buttons mean opens from (i) after the panel hint (0.214.0).
       h += '<div class="cb-hint">' + esc(tt("rp.panel_h")) + infoBtn() + '</div>' + infoBody(esc(tt("rp.thumb_hint")));
@@ -159,7 +172,8 @@
       h += '<label class="cb-rp-learn"><input type="checkbox" id="rpSolo"' + (soloSilent ? " checked" : "") + '> ' +
         esc(tt("rp.only_silent")) + '</label>';
       h += '<div class="cb-rp-list">' + ((d.decisions || []).length
-        ? d.decisions.map(dongQuyetDinh).join("") : '<div class="cb-empty">' + esc(tt("rp.empty")) + '</div>') + '</div>';
+        ? d.decisions.map(dongQuyetDinh).join("")
+        : '<div class="cb-empty">' + esc(opts.idle ? tt("rp.empty_idle") : tt("rp.empty")) + '</div>') + '</div>';
       h += '<div class="cb-sub">' + esc(tt("rp.lessons")) + '</div>' + ((d.lessons || []).length
         ? '<ul class="cb-rp-ul">' + d.lessons.map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join("") + '</ul>'
         : '<div class="cb-hint">' + esc(tt("rp.no_lessons")) + '</div>');
@@ -174,6 +188,8 @@
         : '<div class="cb-hint">' + esc(tt("rp.no_cases")) + '</div>');
       if (d.role_profile) h += '<div class="cb-sub">' + esc(tt("rp.role_lb")) + '</div><pre class="cb-rp-pre">' + esc(d.role_profile) + '</pre>';
       than.innerHTML = h;
+      var edit = than.querySelector(".rp-edit");
+      if (edit) edit.onclick = function () { dong(); opts.onEdit(); };
       var solo = than.querySelector("#rpSolo");
       if (solo) solo.onchange = function () { soloSilent = solo.checked; tai(); };
       than.querySelectorAll(".rp-thumb").forEach(function (b) {

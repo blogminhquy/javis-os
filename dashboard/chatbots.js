@@ -400,7 +400,9 @@
                     esc(window.t("ht.nhap_cu")) + (ds.length > 1 ? ' (' + esc(a.label || a.external_id || a.id) + ')' : '') +
                     '</button>';
                 }).join("") +
-              (b.reply_when === "auto"
+              // Always listed (owner, 12/11/2026): it used to appear only in Auto-judge mode, so people kept asking where
+              // it was. A bot in another mode opens the same panel with a line saying the judge is idle and how to turn it on.
+              (window.JavisReplyPolicy
                 ? '<button class="cb-rp" type="button">' + ic("brain") + ' ' + esc(window.t("rp.menu")) + '</button>' : '') +
               '<button class="cb-hoi-thoai" type="button">' + ic("messages-square") + ' ' +
                 esc(window.t("cb.xem_hoi_thoai")) + '</button>' +
@@ -420,7 +422,9 @@
     c.querySelector(".cb-toggle").onclick = function () { bat(b, !b.enabled); };
     c.querySelector(".cb-log").onclick = function () { moNhatKy(b); };
     var nutRp = c.querySelector(".cb-rp");
-    if (nutRp) nutRp.onclick = function () { window.JavisReplyPolicy.openPanel(b); };
+    if (nutRp) nutRp.onclick = function () {
+      window.JavisReplyPolicy.openPanel(b, { idle: b.reply_when !== "auto", onEdit: function () { moForm(b); } });
+    };
     c.querySelector(".cb-hoi-thoai").onclick = function () {
       if (window.JavisConversations) window.JavisConversations.mo({ bot_id: b.id });
     };
