@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.553.3] - 2026-11-13
+### Fixed
+- **The automated tests pass again.** Two GitHub updates landed at the same moment and made one test fail for the wrong reason; that test is rewritten. Nothing changes in how Javis runs.
+
 ## [0.553.2] - 2026-11-12
 ### Security
 - **Hooks and git config inside a repo can no longer read the GitHub token.** A hook sitting in the clone (installed husky-style by `npm install`, or written by the model) used to run while Javis fetched or pushed, and could see the token. Javis's git calls that carry the token now ignore every hook of the repo.
