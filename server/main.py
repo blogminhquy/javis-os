@@ -23759,6 +23759,7 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
         vien = tok(cc.CORE_CONTRACT
                    + "Runtime identity: provider=x; model=y. "
                    + cc.ContextCompiler._channel_contract("dashboard")
+                   + cc.ContextCompiler._profile_section(cc.owner_profile())   # #1349: the capsule carries it too
                    + cc.dong_ho()
                    + cc.ContextCompiler._output_contract_text("dashboard"))
     except Exception:  # noqa: BLE001

@@ -424,6 +424,9 @@ class FastPathCanary:
                 hard_max_input_tokens=rule.hard_max_input_tokens,
                 reserved_output_tokens=rule.reserved_output_tokens,
                 execution_mode="canary",
+                # #1349: this capsule replaces the whole regular prompt, so the person's profile must ride along.
+                # Every caller is an owner lane; a bot that talks to customers never reaches the fast path.
+                profile=context_compiler.owner_profile(),
             ),
             compile_resolution,
         )
