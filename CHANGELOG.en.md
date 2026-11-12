@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.550.0] - 2026-11-12
+### Added
+- **One team can run several jobs at once.** A team used to run one job at a time, so one assistant's job waited for another assistant's job to end. Now up to 3 jobs run side by side when they belong to different assistants.
+- **Jobs of the same assistant still run one after the other**, in the order of the queue. So do the jobs the coordinator plans.
+- **To make a job wait for an earlier result, say so in the request.** A job with words such as "after ... is done", "one after another" or "in sequence" waits for every job before it, and no later job starts ahead of it.
+### Improved
+- **The job strip on top of the chat shows every running job**, not only one.
+- To go back to one job at a time, set the environment variable `JAVIS_TEAM_JOBS=1`.
+
 ## [0.549.1] - 2026-11-12
 ### Fixed
 - **A team no longer stops taking pictures after a while.** A team holds at most 50 documents, and every picture sent in a team takes two places (the picture and the description written for the assistants). The list was full after about 25 picture messages, and from then on files were dropped without a word. Now, when the list is full, the oldest picture and its description leave the list to let the new one in. The file stays on disk and the message stays in the chat.
