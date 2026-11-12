@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.551.1] - 2026-11-12
+### Fixed
+- **When ChatGPT (or Claude, Grok) loses its sign-in, Javis moves to another connected model by itself.** Before, only running out of quota moved a turn on; a lost sign-in failed every turn until you signed in again.
+- **Customer bots and assistants with their own model are covered too.** A bot or an assistant set to ChatGPT answers on the main model while ChatGPT is signed out, so customers no longer hit failed turns.
+- **You are told clearly.** The chat shows "Using ... because ChatGPT lost its sign-in", the model picker tags the card "Signed out", and the bell gets one reminder to sign in again on the Models page. After signing in, the old model is used again at once.
+
 ## [0.551.0] - 2026-11-12
 ### Improved
 - **The Team settings tab is simpler.** What is in view is only what you decide for a team: its members, its goal, how far the coordinator decides alone, whether outside actions need approval, its name and status.
