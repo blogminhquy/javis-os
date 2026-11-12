@@ -2663,6 +2663,8 @@
         o.innerHTML = '<b>' + esc(window.t("ht.wh_url")) + '</b> <code>' + esc(r.webhook_url || "") + '</code>' +
           (r.verify_token ? '<br><b>' + esc(window.t("ht.wh_token")) + '</b> <code>' + esc(r.verify_token) + '</code>' : "") +
           (r.https ? "" : '<br><span class="cb-warn">' + esc(window.t(r.site_verify ? "ht.zo_can_https" : "ht.wh_can_https")) + '</span>') +
+          // A warning the server words itself, for a channel whose rule is not "HTTPS only" (WeChat: port 443 or 80).
+          (r.warning ? '<br><span class="cb-warn">' + esc(r.warning) + '</span>' : "") +
           (r.site_verify ? veMaXacThuc(r.site_codes || []) : "") +
           (r.oauth_redirect ? veCapQuyen(r.oauth_redirect) : "");
         o.hidden = false;

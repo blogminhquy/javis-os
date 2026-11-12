@@ -102,7 +102,7 @@ _GROUPS = (("ai", _AI_UA), ("search", SEARCH_ENGINES_UA), ("seo", SEO_TOOLS_UA),
 MACHINE_PREFIXES = ("/hooks/", "/ext/", "/.well-known/", "/chatbot-api/")
 MACHINE_EXACT = frozenset({
     "/robots.txt", "/health", "/tls-check", "/hub/mcp",
-    "/whatsapp/webhook", "/messenger/webhook", "/threads/webhook", "/zalo-oa/webhook",
+    "/whatsapp/webhook", "/messenger/webhook", "/threads/webhook", "/zalo-oa/webhook", "/wechat/webhook",
     "/connect/oauth/callback", "/messenger/oauth/callback", "/threads/oauth/callback", "/zalo-oa/oauth/callback",
     "/threads/uninstall", "/threads/delete", "/messenger/privacy",
 })

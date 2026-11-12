@@ -236,6 +236,10 @@ _DEFAULT = {
     # Zalo OA (0.412.0): customer bots only, credentials live in the channel-account store. This
     # holds the domain verification codes Zalo gives (served as /zalo_verifier<code>.html).
     "zalo_oa": {"site_codes": []},
+    # WeChat Official Account (customer bots only, credentials live in the channel-account store). This holds the
+    # `Token` of WeChat's server configuration: generated once, pasted into WeChat by the owner, and the key every
+    # webhook signature is checked with, so it is stored as a secret.
+    "wechat": {"webhook_token": ""},
     "discord": {"enabled": False, "bot_token": "", "allow": ""},
     "lark": {"enabled": False, "app_id": "", "app_secret": "", "domain": "lark", "allow": ""},
     # Backup brain lên GitHub (repo RIÊNG TƯ). token = GitHub PAT (fine-grained, quyền Contents).
@@ -539,7 +543,7 @@ _SECRET_PATHS = (
     # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.
     "telegram.token", "zalo_bot.token", "backup.token", "voice.elevenlabs_key",
     "slack.bot_token", "slack.app_token", "whatsapp.access_token", "whatsapp.app_secret",
-    "discord.bot_token", "lark.app_secret",
+    "discord.bot_token", "lark.app_secret", "wechat.webhook_token",
     # Secret TOTP là thứ SINH RA mã đăng nhập, nên nó ngang hàng mật khẩu chứ không phải một
     # tuỳ chọn. Ai đọc được nó thì tự sinh mã 2FA mãi mãi, và chủ máy không hề hay biết.
     "auth.totp.secret",

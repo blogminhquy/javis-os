@@ -179,6 +179,7 @@ import messenger_setup  # Messenger connect wizard and health check (0.311.0)
 import messenger_oauth  # Log in with Facebook for the Messenger card (0.434.0)
 import zalo_oa_bot      # Zalo OA transport + webhook router (0.412.0)
 import zalo_oa_oauth    # Grant access with Zalo: OAuth v4 + PKCE for the Zalo OA form
+import wechat_bot       # WeChat Official Account transport + webhook router
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
@@ -343,6 +344,9 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/health", "/auth/status", "/auth/log
                       # /zalo-oa/oauth/callback: Zalo sends the browser back here after the OA admin allows the
                       # app (OAuth v4); the unguessable `state` from an authenticated /zalo-oa/oauth/start is the check.
                       "/zalo-oa/oauth/callback",
+                      # /wechat/webhook: WeChat calls it with no cookie. GET is the URL check, POST a follower's
+                      # message; both are checked in the route against the signature made with Javis's own token.
+                      "/wechat/webhook",
                       # /chatbot-api/v1/turn (0.459.0): a server of the owner asks one Chatbot. No cookie; the route
                       # checks the source address and the key of an internal API channel account itself
                       # (channels/api.py). That key opens this path only, and an API token does not open it.
@@ -27654,13 +27658,22 @@ def _ms_account_secrets() -> list:
 @app.get("/channels/webhook-info")
 async def channels_webhook_info(request: Request, channel: str = ""):
     """Address and verify token to paste into the platform for a channel that receives messages
-    by webhook (Messenger, Zalo OA). Shown on the Add account form; the verify token is not a secret."""
+    by webhook (Messenger, Zalo OA, WeChat). Shown on the Add account form to the signed-in owner."""
     kenh = str(channel or "").strip().lower()
     if kenh == "zalo_oa":
         url = _zo_webhook_url(request)
         return {"ok": True, "webhook_url": url, "verify_token": "", "https": url.startswith("https://"),
                 "site_verify": True, "site_codes": _zo_site_codes(),
                 "oauth_redirect": url[: -len("/zalo-oa/webhook")] + zalo_oa_oauth.CALLBACK_PATH}
+    if kenh == "wechat":
+        url = _wc_webhook_url(request)
+        # WeChat takes http on port 80 as well as https, so plain http is a warning in words, not a refusal.
+        return {"ok": True, "webhook_url": url, "verify_token": _wc_webhook_token(), "https": True,
+                "warning": "" if url.startswith("https://") else localefmt.chu(
+                    "WeChat chỉ gọi được địa chỉ công khai ở cổng 443 (https) hoặc 80. Mở Javis bằng tên miền "
+                    "HTTPS rồi mở lại form này để lấy đúng địa chỉ.",
+                    "WeChat can only call a public address on port 443 (https) or 80. Open Javis through its "
+                    "HTTPS domain, then reopen this form to get the right address.")}
     if kenh != "messenger":
         return JSONResponse({"ok": False, "error": localefmt.chu("Kênh này không dùng webhook",
                                                                  "This channel does not use a webhook")},
@@ -28444,6 +28457,50 @@ async def zalo_oa_verifier_file(code: str):
     if code not in _zo_site_codes():
         return PlainTextResponse("not found", status_code=404)
     return HTMLResponse(zalo_oa_bot.verifier_html(code))
+
+
+# ============================================================
+# WeChat Official Account: customer bots on a WeChat Official Account. WeChat calls one URL for every
+# account; `wechat_bot.handle_webhook` routes by account. No owner control channel here.
+# ============================================================
+def _wc_webhook_url(request: Request) -> str:
+    base = web_security.external_base(
+        request.url.scheme, request.url.netloc,
+        request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
+    return base + "/wechat/webhook"
+
+
+def _wc_webhook_token() -> str:
+    """The `Token` the owner pastes into WeChat's server configuration. Generated once for the machine, because
+    WeChat checks the URL before any account exists here. Every webhook signature is made with it, so it is kept
+    encrypted (config._SECRET_PATHS). Letters and digits only, 32 long: what WeChat's Token field accepts."""
+    w = cfgmod.read_settings().get("wechat", {}) or {}
+    tok = str(w.get("webhook_token") or "").strip()
+    if not tok:
+        tok = secrets.token_hex(16)
+        cfgmod.update_settings({"wechat": {"webhook_token": tok}})
+    return tok
+
+
+@app.get("/wechat/webhook")
+async def wechat_webhook_verify(request: Request):
+    """WeChat's URL check when the server configuration is saved: echo `echostr` only when the signature matches."""
+    q = request.query_params
+    if wechat_bot.fresh_timestamp(q.get("timestamp")) and wechat_bot.check_signature(
+            _wc_webhook_token(), q.get("signature", ""), q.get("timestamp", ""), q.get("nonce", "")):
+        return PlainTextResponse(str(q.get("echostr") or ""))
+    return PlainTextResponse("forbidden", status_code=403)
+
+
+@app.post("/wechat/webhook")
+async def wechat_webhook(request: Request):
+    """Inbound WeChat messages. Public URL, so nothing is trusted before the signature check. WeChat wants an
+    answer within 5 seconds and retries otherwise: the route answers "success" at once and the turn runs as a task."""
+    raw = await _read_capped_body(request, wechat_bot.MAX_BODY)
+    if raw is None:
+        return PlainTextResponse("too large", status_code=413)
+    status, body = await wechat_bot.handle_webhook(raw, dict(request.query_params), _wc_webhook_token())
+    return PlainTextResponse(body, status_code=status)
 
 
 def restart_telegram():

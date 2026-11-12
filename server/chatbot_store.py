@@ -56,7 +56,8 @@ _SLUG_CAM = re.compile(r"[/\\\x00-\x1f\x7f]")           # tách đường dẫn 
 # là chữ số nên đã khớp nhánh đầu.
 # Zalo Bot group ids carry a "zgr-" prefix (e.g. "zgr-72749471121efb40a20f", #875, 0.379.0).
 # Without it here "Allow this group" returned OK while the id was silently dropped.
-_CHAT_ID_RE = re.compile(r"^(-?\d{1,20}|(?:zgr-)?[0-9a-fA-F]{8,40}|[CGDUW][A-Z0-9]{6,20})$")
+# A WeChat follower is an OpenID: "o" then 27 letters, digits, "-" or "_" (e.g. "o6_bmjrPTlm6_2sgVt7hMZOPfL2M").
+_CHAT_ID_RE = re.compile(r"^(-?\d{1,20}|(?:zgr-)?[0-9a-fA-F]{8,40}|[CGDUW][A-Z0-9]{6,20}|o[0-9A-Za-z_-]{20,40})$")
 
 # Kênh nhắn tin của bot. Trường này có từ 0.20.0 nhưng ghim cứng "telegram"; 0.26.5 cho nó
 # thành lựa chọn thật; 0.61.0 đọc từ SỔ ĐĂNG KÝ KÊNH (`channels`) thay vì chép ở đây: kênh nào
