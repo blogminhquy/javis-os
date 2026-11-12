@@ -371,7 +371,14 @@ def _image_account_order() -> list:
         import plan_accounts
         m = (config.read_settings().get("model") or {})
         if plan_accounts.has_extra(m, "openai-oauth"):
-            return [a["id"] for a in plan_accounts.usable(m, "openai-oauth")]
+            ids = [a["id"] for a in plan_accounts.usable(m, "openai-oauth")]
+            if not ids:
+                # Every account is resting, usually after a chat quota notice. Ask the first switched-on,
+                # signed-in one anyway, as chat does (`plan_accounts.fallback`): before account rotation the
+                # image call always reached account 1, and the provider's own answer beats "no account".
+                resting = plan_accounts.fallback(m, "openai-oauth")
+                ids = [resting["id"]] if resting else []
+            return ids
         # On one-account installations keep the original credential path, but
         # honour an explicit owner choice to disable that sole account.
         if not any(a["id"] == "main" and a["enabled"]
