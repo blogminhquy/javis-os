@@ -20,6 +20,11 @@
 >   thật. Mã viết theo hướng chịu được cả ba khuôn phản hồi `getUpdates` có thể có, và kêu ra
 >   stderr khi gặp khuôn lạ.
 >
+> - **File tài liệu chiều VÀO (2026-11-12).** Zalo không có sự kiện file: PDF, bảng tính, video về dưới tên
+>   `message.unsupported.received`, khuôn dữ liệu không công bố (đối chiếu chín bản SDK công khai, không bản nào có
+>   sự kiện file). `zalo_bot.find_file` dò đường dẫn trên mọi sự kiện lạ; có thì tải và đọc qua `zalo_attachments`,
+>   không có thì lượt vẫn chạy trên một dòng nói thật là nội dung không tới, và log một lần mẫu dữ liệu.
+>
 > **Còn lại: Phase 3 chiều RA (gửi ảnh) và Phase 6 (webhook).** Cả hai phụ thuộc kết quả thăm
 > dò và phụ thuộc Javis đang chạy ở đâu.
 

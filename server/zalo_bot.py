@@ -28,6 +28,9 @@ BỐN CHỖ KHÁC TELEGRAM, và cả bốn đều đổi hành vi chứ không c
   5. **Không có `getFile`.** File người dùng gửi lên (ảnh, tin thoại) chỉ tới được qua một URL
      nằm sẵn trong payload, mà khuôn payload đó Zalo chưa công bố. Nên `_lay_url` thử một loạt
      tên trường, và khi trượt hết thì kêu ra stderr kèm mẫu chứ không im lặng bỏ file.
+  6. **No file event.** Zalo documents text, image, sticker, voice and `message.unsupported.received`; a PDF, a
+     spreadsheet or a video arrives as the last one, by Zalo's wording without its content. See `find_file`: a link
+     is looked for on every event the gateway does not know, and a message without one is answered, never dropped.
 
 Tin THOẠI nghe được như Telegram (Whisper qua Groq, xem `server/stt.py`): `stt_fn` do main.py
 cấp, chưa đấu key thì trả lời là cần dán API key Groq ở trang Models.
@@ -42,6 +45,7 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 import httpx
 
@@ -64,6 +68,24 @@ SK_TEXT = "message.text.received"
 SK_ANH = "message.image.received"
 SK_STICKER = "message.sticker.received"
 SK_VOICE = "message.voice.received"
+SK_UNSUPPORTED = "message.unsupported.received"
+_KNOWN_EVENTS = (SK_TEXT, SK_ANH, SK_STICKER, SK_VOICE)
+
+# ---- Files: anything that is not text, a photo, a sticker or a voice message ------------------------------------------
+# Until 2026-11-12 such a message was dropped without a word: the owner sent a PDF to the bot and nothing came back. Zalo has
+# no file event and does not publish what `message.unsupported.received` carries, so a link is looked for under every name
+# a file could travel under, on ANY event outside the four above. When Zalo passes the file (under that event or a later
+# `message.file.received`) it is downloaded and read like a file sent over personal Zalo; when it does not, the sender is
+# told so. Fields are tried in this order; a value is a link, an object holding one, or a list of either. A bare `url` is
+# left out on purpose: on an unknown message it is as likely a shared web link as a file.
+_FILE_FIELDS = ("file_url", "document_url", "video_url", "attachment_url", "media_url", "download_url",
+                "file", "document", "video", "attachment", "attachments", "media")
+_LINK_KEYS = ("url", "file_url", "download_url", "href", "link")
+_NAME_KEYS = ("file_name", "filename", "name", "title")
+_SIZE_KEYS = ("file_size", "size")
+_IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+_MAGIC = ((b"%PDF", ".pdf"), (b"\x89PNG", ".png"), (b"\xff\xd8\xff", ".jpg"), (b"GIF8", ".gif"))
+_OFFICE_PARTS = (("word/", ".docx"), ("xl/", ".xlsx"), ("ppt/", ".pptx"))
 
 
 # `getUpdates` của Zalo KHÔNG trả `ok: true` với danh sách rỗng như Telegram khi hết giờ chờ.
@@ -128,6 +150,55 @@ def _lay_url(msg: dict, khoa_thu) -> str:
     return ""
 
 
+def find_file(msg) -> dict:
+    """The file a Zalo Bot message carries, in the shape `zalo_attachments.fetch_file` takes: {url, name, size}.
+    {} when the payload holds no link. The name falls back to the last part of the link, then to "file"."""
+    msg = msg if isinstance(msg, dict) else {}
+
+    def first(d, keys):
+        return next((d[k] for k in keys if isinstance(d.get(k), (str, int, float)) and not isinstance(d[k], bool)
+                     and d[k] != ""), None)
+
+    for field in _FILE_FIELDS:
+        v = msg.get(field)
+        if isinstance(v, list):
+            v = next((x for x in v if isinstance(x, (dict, str))), None)
+        holder = v if isinstance(v, dict) else {}
+        url = v if isinstance(v, str) else first(holder, _LINK_KEYS)
+        if not (isinstance(url, str) and url.startswith("http")):
+            continue
+        name = first(holder, _NAME_KEYS) or first(msg, _NAME_KEYS) or Path(unquote(urlparse(url).path)).name or "file"
+        try:
+            size = max(0, int(first(holder, _SIZE_KEYS) or first(msg, _SIZE_KEYS)))
+        except (TypeError, ValueError, OverflowError):
+            size = None
+        return {"url": url, "name": str(name), "size": size}
+    return {}
+
+
+def _with_suffix(path: Path) -> Path:
+    """A file saved without an extension (a link often has no file name) gets one from its first bytes, so the document
+    reader and the image path recognise it. Unknown content keeps its name."""
+    if path.suffix:
+        return path
+    try:
+        with path.open("rb") as f:
+            head = f.read(16)
+        suffix = next((suf for magic, suf in _MAGIC if head.startswith(magic)), "")
+        if not suffix and head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+            suffix = ".webp"
+        if not suffix and head[:4] == b"PK\x03\x04":
+            import zipfile
+            with zipfile.ZipFile(path) as z:
+                names = z.namelist()
+            suffix = next((suf for part, suf in _OFFICE_PARTS if any(n.startswith(part) for n in names)), ".zip")
+        if not suffix:
+            return path
+        return path.rename(path.with_name(path.name + suffix))
+    except Exception:  # noqa: BLE001 - a file we cannot name better is still a file the turn can mention
+        return path
+
+
 def _chat_type(raw, chat_id: str = "", sender_id: str = "") -> str:
     """Zalo dùng PRIVATE/GROUP, Javis dùng private/group ở mọi nơi khác (xem
     `chatbot_runtime._ly_do_im`). Quy về MỘT bảng chữ ngay tại cửa vào, chứ đừng bắt mỗi
@@ -152,8 +223,12 @@ class ZaloBot(HangLuot):
 
     def __init__(self, token, chat_id, answer_fn, command_fn=None,
                  download_dir=None, commands=None, precheck_fn=None, event_fn=None,
-                 giau_trang_thai=False, stt_fn=None, cfg_fn=None):
+                 giau_trang_thai=False, stt_fn=None, cfg_fn=None, download_ok_fn=None):
         self.token = token
+        # chat id -> may this chat's photos, voice messages and files be downloaded? The owner's bot (main.py) passes its
+        # allow-list, so a stranger waiting for approval cannot make the server fetch, transcribe or parse anything.
+        # None (a customer bot: every sender is a customer) downloads for everyone.
+        self.download_ok_fn = download_ok_fn
         # Live chatbot config (#885): the names the owner gave this bot in Javis, read on every message so a rename on
         # the Chatbot page applies at once. None for the owner's own bot (main.py), which only knows its handle.
         self.cfg_fn = cfg_fn
@@ -173,6 +248,7 @@ class ZaloBot(HangLuot):
         self.stt_fn = stt_fn
         # Đã kêu một lần về payload thoại không có đường dẫn file chưa (xem `_nghe_tin_thoai`).
         self._da_bao_khuon_thoai = False
+        self._warned_no_file_link = False     # same one-time warning for a non-text message without a link (`_ingest_file`)
         self._task = None
         self._current = {}
         self._cho = {}
@@ -439,13 +515,49 @@ class ZaloBot(HangLuot):
         khoi = stt.khoi_thoai(kq.get("text"), "Zalo")
         return khoi + ("\n" + caption if caption and not caption.startswith("/") else "")
 
+    def _inbox(self, msg) -> Path:
+        """Where this chat's incoming files are saved: the inbox of the brain its session runs on."""
+        chat = str((msg.get("chat") or {}).get("id", ""))
+        ddir = self.download_dir(chat) if callable(self.download_dir) else self.download_dir
+        return Path(ddir) if ddir else Path("zalo-inbox")
+
+    async def _ingest_file(self, ev, msg, with_caption):
+        """A message that is not text, a photo, a sticker or a voice message -> the line(s) for the engine.
+
+        With a link in the payload the file is downloaded (public https only, size cap, see `zalo_attachments`) and a PDF,
+        Word or Excel file is turned into text, so every brain reads it. Without one the turn still runs, on a note that
+        says the content never reached the bot: the model then asks for a photo or typed text instead of the silence
+        this branch used to be."""
+        info = find_file(msg)
+        if not info:
+            if not self._warned_no_file_link:
+                self._warned_no_file_link = True
+                print(f"[zalo file] no file link in the payload of {ev}: {str(msg)[:400]}", file=sys.stderr)
+            return with_caption(
+                "[Người dùng vừa gửi qua Zalo một file hoặc một loại tin mà Zalo Bot KHÔNG chuyển nội dung cho bot. Javis "
+                "không nhận được nó và không biết bên trong có gì. Hãy nói thật điều đó trong một câu ngắn, rồi nhờ họ dán "
+                "nội dung thành chữ hoặc gửi ảnh chụp. Không đoán nội dung.]")
+        import zalo_attachments
+        saved, why = await zalo_attachments.fetch_file(info, self._inbox(msg))
+        if not saved:
+            return with_caption(f"[Người dùng gửi file '{info['name']}' qua Zalo nhưng Javis không tải về được: {why}. "
+                                "Hãy nói thật điều đó, không đoán nội dung.]")
+        saved = _with_suffix(saved)
+        if saved.suffix.lower() in _IMAGE_SUFFIXES:
+            return with_caption(f"[Người dùng gửi một ảnh qua Zalo, đã tải về: {saved}]")
+        return with_caption(await asyncio.to_thread(zalo_attachments.turn_text, saved))
+
     async def _ingest_attachment(self, client, ev, msg):
-        """Tải ảnh người dùng gửi về inbox của brain / nghe tin thoại, trả chuỗi cho engine."""
-        caption = str(msg.get("caption") or "").strip()
+        """Tải ảnh và file người dùng gửi về inbox của brain / nghe tin thoại, trả chuỗi cho engine."""
+        caption = str(msg.get("caption") or (msg.get("text") if ev != SK_TEXT else "") or "").strip()
 
         def _with_cap(s):
             return s + ("\n" + caption if caption else "")
 
+        if ev != SK_TEXT and self.download_ok_fn and not self.download_ok_fn(str((msg.get("chat") or {}).get("id", ""))):
+            # Not allowed yet: nothing is fetched. The line only keeps the turn alive so the precheck answers this
+            # person (the owner's bot replies with the pairing code).
+            return _with_cap("[Người dùng gửi một tin đính kèm qua Zalo. Javis chưa tải về vì chat này chưa được cho phép.]")
         if ev == SK_STICKER:
             return _with_cap("[Người dùng gửi một sticker Zalo. Không có nội dung chữ để đọc.]")
         if ev == SK_VOICE:
@@ -453,8 +565,10 @@ class ZaloBot(HangLuot):
             # đĩa rồi báo "đã tải về path" - người ta ghi âm để RA LỆNH, không phải để gửi
             # Javis một file .ogg.
             return await self._nghe_tin_thoai(client, msg, caption)
-        if ev not in (SK_ANH,):
+        if ev == SK_TEXT:
             return None
+        if ev != SK_ANH:
+            return await self._ingest_file(ev, msg, _with_cap)
 
         url = _lay_url(msg, ("photo_url", "photo", "image_url", "url", "file_url"))
         if not url:
@@ -467,9 +581,7 @@ class ZaloBot(HangLuot):
             if len(noi_dung) > MAX_TAI_MB * 1024 * 1024:
                 return _with_cap(f"[Người dùng gửi một ảnh lớn hơn {MAX_TAI_MB}MB, Javis không "
                                  "tải về.]")
-            chat = str((msg.get("chat") or {}).get("id", ""))
-            ddir = self.download_dir(chat) if callable(self.download_dir) else self.download_dir
-            d = Path(ddir) if ddir else Path("zalo-inbox")
+            d = self._inbox(msg)
             d.mkdir(parents=True, exist_ok=True)
             duoi = ".jpg"
             for k in (".png", ".webp", ".gif", ".jpeg", ".jpg"):
@@ -684,10 +796,11 @@ class ZaloBot(HangLuot):
                             await self._send(client, chat, "Bạn không có quyền dùng bot Javis này.")
                             continue
                         text = str(msg.get("text") or "").strip()
-                        if not text:
+                        # A file event may carry its caption as `text`: the file must not be lost to it.
+                        if not text or (ev not in _KNOWN_EVENTS and find_file(msg)):
                             from telegram_bot import _caption_command_text
                             ingested = await self._ingest_attachment(client, ev, msg) or ""
-                            text = _caption_command_text(ingested, msg.get("caption"))
+                            text = _caption_command_text(ingested, msg.get("caption") or text)
                         if not text:
                             continue
                         await self._dispatch(client, chat, text, meta)

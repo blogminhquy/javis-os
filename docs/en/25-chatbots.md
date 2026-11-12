@@ -72,7 +72,7 @@ The first field in the create form is the channel, and it comes first because it
 | The bot can send images to customers | Yes | Experimental |
 | The bot can send documents (PDF, spreadsheets) | Yes | **Not yet** (Zalo has not opened the API) |
 | Customers can send images for the bot to read | Yes | Yes |
-| Customers can send documents for the bot to read | Yes | Not yet |
+| Customers can send documents for the bot to read | Yes | Read when Zalo passes the file, otherwise the bot says so ([details](26-zalo-bot-channel.md#sending-a-file-to-the-bot-pdf-word-excel-video)) |
 | Message size ceiling | 4096 characters | 2000 characters |
 | The bot shows a `/` command menu | Yes | No, they must be typed |
 

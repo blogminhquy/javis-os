@@ -27347,6 +27347,12 @@ def _zalo_precheck(text, meta):
     return {"reply": _zalo_ghi_cho(meta)}
 
 
+def _zalo_download_ok(chat) -> bool:
+    """Only an allowed chat has its photos, voice messages and files downloaded by the owner's Zalo bot."""
+    ids = tg_parse_ids(cfgmod.read_settings().get("zalo_bot", {}).get("chat_id"))
+    return str(chat or "").strip() in ids
+
+
 def _admin_bot_tokens() -> dict:
     """{chatbot channel: token} of the owner's admin bots that are switched on (Telegram, Zalo Bot). A dedicated bot on
     the Chatbot page never polls one of these (`chatbot_runtime.start_bot`): two pollers on one token split the
@@ -27373,7 +27379,8 @@ def restart_zalo_bot():
         # về mã ghép nối. Truyền cả hai là người lạ ăn hai câu từ chối cho một tin.
         _ZALO_BOT = zalo_bot.ZaloBot(z["token"], "", _zalo_answer, _zalo_command,
                                      download_dir=_zalo_inbox_dir,
-                                     precheck_fn=_zalo_precheck, stt_fn=_stt_nghe)
+                                     precheck_fn=_zalo_precheck, stt_fn=_stt_nghe,
+                                     download_ok_fn=_zalo_download_ok)
         _ZALO_BOT.start()
         try:
             chatbot_runtime.release_admin_token("zalo")   # a dedicated bot still polling this token lets go of it
