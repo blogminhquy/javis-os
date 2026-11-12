@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.553.2] - 2026-11-12
+### Security
+- **Hooks and git config inside a repo can no longer read the GitHub token.** A hook sitting in the clone (installed husky-style by `npm install`, or written by the model) used to run while Javis fetched or pushed, and could see the token. Javis's git calls that carry the token now ignore every hook of the repo.
+- **The token only goes to the repo on GitHub.** If the clone's git config was changed to steer the connection elsewhere (a different `origin`, `insteadOf`, a proxy), Javis stops and names the setting to remove instead of sending the token.
+- **Worth knowing:** a repo's `pre-push` hook no longer runs when Javis pushes (Javis's own checks and CI run as before). Repos using Git LFS: new LFS files made in a chat are not uploaded by the push yet.
+
 ## [0.553.1] - 2026-11-12
 ### Fixed
 - **A conflicting PR on a private repo is merged back by Javis again.** The conflict fix round used to stop at downloading the main branch, because the AI's shell has no access to GitHub. Javis now downloads the main branch first, and the AI only merges and resolves the conflict.
