@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.545.0] - 2026-11-12
+### Added
+- **Customer profile.** After a private chat has been quiet for about 15 minutes, the background model writes down what is worth remembering about the customer: name, how to address them, contact details, what they are interested in, what was agreed, what is still open. The bot then reads this profile along with the last 30 messages, so it does not ask again, even when the customer comes back months later.
+- **The note about the customer becomes the Customer profile section** of the Info panel on the Conversations page, up to 4,000 characters. You can still edit, add to or empty it, and what you write is kept at the next update.
+### Improved
+- **Only private chats the bot has answered in get a profile.** Groups do not, nor do chats with friends and family on a personal Zalo account. Javis writes at most 5 profiles every 5 minutes, so it does not burn through your plan in one go.
+
 ## [0.544.2] - 2026-11-12
 ### Fixed
 - **Opt out of the standalone 07:30 My Tasks agenda per brain.** Set `agenda_enabled: false` in the brain's `Javis/my-tasks.json`. Timed tasks, appointment reminders and habit nudges remain active; all other brains retain the previous default.
