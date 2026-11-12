@@ -360,10 +360,12 @@ _RESET_IN_RE = re.compile(
 _MONTHS = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8,
            "sep": 9, "oct": 10, "nov": 11, "dec": 12}
 # "try again at 8:42 AM" is the ChatGPT plan's form (Codex CLI and ChatGPT Live, owner's screenshot 06/11/2026).
+# A reset days away carries the year too: "try again at Nov 13th, 2026 3:32 PM". Without the optional year the
+# whole sentence matched nothing and the reset read as "unknown".
 _RESET_CLOCK_RE = re.compile(
     r"\b(?:resets?\s+(?:at\s+|on\s+)?|try\s+again\s+(?:at|on)\s+)"
     r"(?:(?P<mon>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?P<day>\d{1,2})"
-    r"(?:st|nd|rd|th)?,?\s+(?:at\s+)?)?"
+    r"(?:st|nd|rd|th)?(?:,?\s+(?P<year>\d{4}))?,?\s+(?:at\s+)?)?"
     r"(?:(?P<word>midnight|noon)\b"
     r"|(?P<h>\d{1,2})(?::(?P<m>\d{2}))?\s*(?P<ap>[ap])\.?m\b\.?"
     r"|(?P<h24>\d{1,2}):(?P<m24>\d{2})\b)"
@@ -395,7 +397,8 @@ def _reset_clock_epoch(text: str, now: float) -> float:
 
     The time is read in the tz in parentheses; without one (or with a name this machine cannot
     resolve), in this machine's local time, which is the clock the CLI itself printed in. A time
-    already past today means tomorrow; a past date means next year."""
+    already past today means tomorrow; a past date means next year, unless the text names the year itself
+    (then a date already past reads as "unknown")."""
     m = _RESET_CLOCK_RE.search(text or "")
     if not m:
         return 0.0
@@ -418,9 +421,15 @@ def _reset_clock_epoch(text: str, now: float) -> float:
     cand = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
     try:
         if m.group("mon"):
-            cand = cand.replace(month=_MONTHS[m.group("mon")[:3].lower()], day=int(m.group("day")))
-            if cand <= base:
-                cand = cand.replace(year=cand.year + 1)
+            month, day = _MONTHS[m.group("mon")[:3].lower()], int(m.group("day"))
+            if m.group("year"):
+                cand = cand.replace(year=int(m.group("year")), month=month, day=day)
+                if cand <= base:
+                    return 0.0      # the stated date is already past: never roll a stated year forward
+            else:
+                cand = cand.replace(month=month, day=day)
+                if cand <= base:
+                    cand = cand.replace(year=cand.year + 1)
         elif cand <= base:
             cand = cand + timedelta(days=1)
     except ValueError:

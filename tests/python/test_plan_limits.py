@@ -133,6 +133,55 @@ check("hết hạn từ chối thì về màu theo số", pl.doc(now=NOW + 901)[
 pl.ghi_het("gemini-cli", 0, now=NOW)
 check("engine lạ không ghi gì", "gemini-cli" not in json.load(open(os.path.join(_TMP, "plan_limits.json"))))
 
+# 8b. Issue 1334: a report measured AFTER the refusal that shows the plan usable again lifts the refusal. Before,
+#     nothing ever cleared `het`: the owner reset the plan on the provider's site, later reports said "allowed"
+#     with a low number, and the ring still stayed red at 100% (and Javis's own work paused) until the old reset.
+pl.ghi_het("claude-code", NOW + 9000, now=NOW + 100)
+pl.ghi_claude(RAW, now=NOW + 50)
+check("a report measured before the refusal keeps the ring red", "het" in pl.doc(now=NOW + 200)["claude"])
+pl.ghi_claude(RAW, now=NOW + 100)
+check("a report in the same second as the refusal keeps it red too", "het" in pl.doc(now=NOW + 200)["claude"])
+pl.ghi_claude(dict(RAW, status="rejected"), now=NOW + 150)
+c = pl.doc(now=NOW + 200)["claude"]
+check("a later report that still says rejected keeps it red", "het" in c and c["muc"] == "bad" and c["max"] == 100, c)
+check("Javis's own work waits while the plan refuses", pl.side_pause("anthropic-cli", now=NOW + 200)["paused"] is True)
+pl.ghi_claude(RAW, now=NOW + 300)
+c = pl.doc(now=NOW + 400)["claude"]
+check("a later allowed report lifts the refusal: the ring follows the meter again",
+      "het" not in c and c["muc"] == "ok" and c["max"] == 23, c)
+check("and Javis's own work runs again",
+      pl.side_pause("anthropic-cli", now=NOW + 400) == {"paused": False, "pct": 9, "resets_at": NOW + 11000},
+      pl.side_pause("anthropic-cli", now=NOW + 400))
+pl.ghi_het("claude-code", NOW + 9000, now=NOW + 500)
+pl.ghi_claude(dict(RAW, status="allowed_warning"), now=NOW + 600)
+check("allowed_warning is still allowed: it lifts the refusal as well", "het" not in pl.doc(now=NOW + 700)["claude"])
+
+
+def _codex_report(primary, secondary=None):
+    w = {"primary": {"usedPercent": primary, "windowDurationMins": 300, "resetsAt": NOW + 9000}}
+    if secondary is not None:
+        w["secondary"] = {"usedPercent": secondary, "windowDurationMins": 10080, "resetsAt": NOW + 86400}
+    return {"rateLimits": w}
+
+
+# Codex sends no status, so its numbers decide. Usage inside a window only grows, so only a clearly low number after
+# the refusal means a reset; the last report before the refusal reads just under 100% and must not lift it.
+pl.ghi_het("codex", NOW + 9000, now=NOW + 100)
+pl.ghi_codex(_codex_report(100, 40), now=NOW + 150)
+check("Codex: a full window after the refusal keeps the ring red", "het" in pl.doc(now=NOW + 200)["codex"])
+pl.ghi_codex(_codex_report(97, 40), now=NOW + 160)
+check("Codex: a window still near its limit keeps it red", "het" in pl.doc(now=NOW + 200)["codex"])
+pl.ghi_codex(_codex_report(12, 40), now=NOW + 90)
+check("Codex: a low report measured before the refusal keeps it red", "het" in pl.doc(now=NOW + 200)["codex"])
+pl.ghi_codex(_codex_report(12, 40), now=NOW + 300)
+x = pl.doc(now=NOW + 400)["codex"]
+check("Codex: every running window low again after the refusal lifts it",
+      "het" not in x and x["five_hour"]["pct"] == 12 and x["muc"] == "ok", x)
+pl.ghi_codex(_codex_report(3, 100), now=NOW + 450)
+pl.ghi_het("codex", NOW + 86400, now=NOW + 500)
+pl.ghi_codex(_codex_report(5), now=NOW + 600)
+check("Codex: a report that leaves out the window still full does not lift it", "het" in pl.doc(now=NOW + 700)["codex"])
+
 # 9. Tên gói: chuẩn hoá, rỗng thì rỗng (không đoán).
 check("max -> Max, pro -> Pro", pl.ten_goi("max") == "Max" and pl.ten_goi("pro") == "Pro")
 check("ChatGPT plus -> Plus", pl.ten_goi("plus") == "Plus" and pl.ten_goi("chatgpt_plus") == "Plus")
