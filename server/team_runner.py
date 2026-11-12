@@ -510,6 +510,8 @@ class TeamRunner:
         self.engine_slots_cli = env_int("JAVIS_TEAM_CLI_SLOTS", ENGINE_SLOTS_CLI)
         self.engine_slots_api = env_int("JAVIS_TEAM_API_SLOTS", ENGINE_SLOTS_API)
         self.job_parallel = env_int("JAVIS_TEAM_JOB_PARALLEL", JOB_PARALLEL)
+        # Jobs ONE team runs at once (2026-11-12, team_store.FIXED_CAPS): 1 = one after the other, as before.
+        self.team_jobs = max(1, env_int("JAVIS_TEAM_JOBS", FIXED_CAPS["running_jobs"]))
         self.tool_slots = env_int("JAVIS_TEAM_TOOL_SLOTS", TOOL_SLOTS)
         self._slots: dict = {}
         self._slots_loop: Any = None
@@ -1764,7 +1766,7 @@ class TeamRunner:
         # là 0 (chặn hết), không phải "chưa đặt".
         ceiling = resonance_store.call_ceiling()
         server = [
-            ("running_jobs", FIXED_CAPS["running_jobs"], "count"),
+            ("running_jobs", self.team_jobs, "count"),
             ("max_parallel_teams", self.max_parallel_teams, "count"),
             ("agent_one_turn", 1, "count"),
             ("engine_slots_cli", self.engine_slots_cli, "count"),
@@ -4544,40 +4546,82 @@ class TeamRunner:
             await self.wait_jobs()
         return [tid for tid, _ in claimed]
 
+    def _job_owners(self, team: dict, task: dict) -> set:
+        """Who a job belongs to: the assistants it was given to, else the one who coordinates it (the leader plans it)."""
+        owners = {str(a) for a in self._assignees(task) if a}
+        return owners or {str(task.get("coordinator_key") or team.get("leader_key") or "")}
+
+    def _next_job(self, team: dict) -> Optional[str]:
+        """The waiting job of `team` that may start now, or None (2026-11-12).
+
+        Nothing running: the head of the queue, as always. Something running: the first waiting job whose assistants
+        are all free of the running jobs, so two assistants with two different jobs work at the same time while two
+        jobs of the same assistant keep their order. A job worded as an order ("sau khi ... xong", "lần lượt", "only
+        after ...": `asks_sequential`, the rule parts of one job already follow) waits for everything before it, and
+        no later job starts ahead of it."""
+        q = self.tasks.team_queue(team["team_id"])
+        waiting = list(q.get("waiting") or [])
+        if not waiting:
+            return None
+        running = list(q.get("running") or [])
+        if not running:
+            return str(waiting[0]["id"])
+        busy: set = set()
+        for t in running:
+            busy |= self._job_owners(team, t)
+        for t in waiting:
+            if asks_sequential(t.get("intent")):
+                return None
+            if self._job_owners(team, t) & busy:
+                continue
+            return str(t["id"])
+        return None
+
     def _claim_batch(self) -> list:
         with self._pool_lock:
-            slots = self.max_parallel_teams - len(self._pool)
-            busy_teams = set(self._pool.values())
+            # 2026-11-12: the pool is counted in TEAMS (`max_parallel_teams` teams at work, as before); a team already
+            # at work may add jobs up to `team_jobs` without taking another team's place. Model calls at the same time
+            # stay bounded by the engine slots (`_engine_slot`), whatever the number of jobs.
+            per_team: dict[str, int] = {}
+            for team_of in self._pool.values():
+                per_team[team_of] = per_team.get(team_of, 0) + 1
+            team_slots = self.max_parallel_teams - len(per_team)
             out: list = []
             current: Optional[str] = None   # việc đã nhận nhưng chưa xong bước đầu (lỗi ở đây cũng phải trả về hàng)
             try:
                 for team_id in self.tasks.teams_with_waiting():
-                    if len(out) >= slots:
-                        break
-                    if team_id in busy_teams:
+                    have = per_team.get(team_id, 0)
+                    if have >= self.team_jobs or (not have and team_slots <= 0):
                         continue
                     team = self.teams.get(team_id)
                     if not team or team["status"] != "active":
                         continue
-                    # Một việc chạy mỗi nhóm là giới hạn MÁY CHỦ (team_store.FIXED_CAPS, GOAL T1 mục 9), không phải trần
-                    # chủ chỉnh: nhóm đã có việc trong pool bị bỏ qua ở trên.
-                    task = self.tasks.claim_team_next(team_id, self.worker_id, lease_s=self.job_lease_s,
-                                                      max_running=FIXED_CAPS["running_jobs"])
-                    if not task:
-                        continue
-                    current = task["id"]
-                    self._judge_job_changed(task["id"], team_id)
-                    first = self.start_job_steps(task["id"])
-                    current = None
-                    if first == "no_leader":
-                        self._block(task["id"], "no_leader", "Nhóm chưa có người điều phối")
-                        continue
-                    if first == "assignee_removed":
-                        self._block(task["id"], "assignee_removed", "Người được giao đã rời nhóm")
-                        continue
-                    self._pool[task["id"]] = team_id
-                    busy_teams.add(team_id)
-                    out.append((task["id"], team_id))
+                    while have < self.team_jobs:
+                        pick = self._next_job(team)
+                        if not pick:
+                            break
+                        # Số việc chạy mỗi nhóm là giới hạn MÁY CHỦ (team_store.FIXED_CAPS, GOAL T1 mục 9), không phải
+                        # trần chủ chỉnh. Kho kiểm lại số việc đang chạy trong cùng giao dịch nhận việc.
+                        task = self.tasks.claim_team_next(team_id, self.worker_id, lease_s=self.job_lease_s,
+                                                          max_running=self.team_jobs, task_id=pick)
+                        if not task:
+                            break
+                        current = task["id"]
+                        self._judge_job_changed(task["id"], team_id)
+                        first = self.start_job_steps(task["id"])
+                        current = None
+                        if first == "no_leader":
+                            self._block(task["id"], "no_leader", "Nhóm chưa có người điều phối")
+                            continue
+                        if first == "assignee_removed":
+                            self._block(task["id"], "assignee_removed", "Người được giao đã rời nhóm")
+                            continue
+                        self._pool[task["id"]] = team_id
+                        if not have:
+                            team_slots -= 1
+                        have += 1
+                        per_team[team_id] = have
+                        out.append((task["id"], team_id))
             except BaseException:
                 # Lỗi giữa chừng: việc đã nhận trong lượt này (kể cả việc đang tạo bước đầu) về hàng chờ, trả chỗ.
                 for tid in [x for x, _ in out] + ([current] if current else []):
@@ -4630,7 +4674,10 @@ class TeamRunner:
 
     async def resume_jobs(self, task_ids: list) -> None:
         for tid in task_ids:
-            self._start_job(tid, "")
+            # The job's own team (2026-11-12): the pool counts running jobs per team, so a job resumed after a restart
+            # must hold its team's place, not a nameless one.
+            task = await self._io(self.tasks.get_task, tid)
+            self._start_job(tid, str((task or {}).get("team_id") or ""))
         await self.wait_jobs()
 
     # ───────────── lệnh của chủ, phục hồi ─────────────

@@ -101,7 +101,7 @@ check("H5 chủ đặt Không giới hạn số lần mỗi ngày qua route: lư
       and r.json()["team"]["caps"]["daily_turns"] is None and r.json()["team"]["usage"]["cap"] is None, r.text)
 r = c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"running_jobs": 2}})
 check("H5 trần máy chủ (việc chạy cùng lúc mỗi nhóm) không đặt được qua route", r.status_code in (400, 409)
-      and c.get(f"/teams/{TID}{Q}").json()["team"]["caps"]["running_jobs"] == 1, r.text)
+      and c.get(f"/teams/{TID}{Q}").json()["team"]["caps"]["running_jobs"] == 3, r.text)
 c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"daily_turns": 100}})
 
 # ═════ H6: set_resonance của trưởng nhóm đánh thức mục tiêu; luật quản lý ═════
