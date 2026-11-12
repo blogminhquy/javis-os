@@ -17,8 +17,25 @@ if [ -z "${JAVIS_NAME:-}" ] && [ -f .env ]; then
 fi
 NAME="${JAVIS_NAME:-javis}"
 
+# A root install runs Javis as a regular account that owns this whole folder (install.sh, 2026-11-12). Root then pulls
+# and installs AS that account: git refuses a repository owned by someone else, and files left owned by root would
+# lock the service out of its own folder. Only when the folder, .git and .venv all belong to the same account: a
+# `sudo ./install.sh` inside someone's clone left a root-owned .venv, and that install keeps updating as root.
+AS_OWNER=""
+if [ "$(id -u)" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
+  OWNER="$(stat -c %U . 2>/dev/null || echo root)"
+  for f in .git .venv; do
+    if [ -e "$f" ] && [ "$(stat -c %U "$f" 2>/dev/null || echo root)" != "$OWNER" ]; then OWNER=root; fi
+  done
+  OWNER_HOME="$(getent passwd "$OWNER" 2>/dev/null | cut -d: -f6)"
+  if [ "$OWNER" != "root" ] && [ -n "$OWNER_HOME" ]; then
+    AS_OWNER="runuser -u $OWNER -- env HOME=$OWNER_HOME USER=$OWNER LOGNAME=$OWNER"
+    echo "==> This install belongs to the account '$OWNER': updating its files as that account."
+  fi
+fi
+
 echo "==> Pulling the latest code from GitHub..."
-git pull --ff-only
+$AS_OWNER git pull --ff-only
 
 is_docker() {
   command -v docker >/dev/null 2>&1 && [ -f docker-compose.yml ] && \
@@ -49,7 +66,7 @@ if [ "$MODE" = "docker" ] || { [ "$MODE" = "auto" ] && is_docker; }; then
   echo "==> Done. Follow the logs:  docker compose logs -f"
 else
   echo "==> Native → updating Python libraries and restarting the service..."
-  [ -d .venv ] && ./.venv/bin/pip install -r requirements.txt -q || true
+  [ -d .venv ] && $AS_OWNER ./.venv/bin/pip install -r requirements.txt -q || true
   # Updating Python alone leaves the ChatGPT model catalog on an old Codex CLI.
   if command -v npm >/dev/null 2>&1; then
     if ! npm install -g @openai/codex@latest && ! $SUDO npm install -g @openai/codex@latest; then
@@ -78,8 +95,17 @@ else
       kill $PIDS 2>/dev/null || true
       sleep 2
     fi
-    ( cd server && JAVIS_STATE_DIR="$PWD" nohup ../.venv/bin/python -m uvicorn main:app \
-        --host "${JAVIS_HOST:-127.0.0.1}" --port "$PORT" > javis.log 2>&1 & )
+    if [ -n "$AS_OWNER" ]; then
+      # As in install.sh: setsid keeps runuser (the server's parent) out of this terminal's session, and the log
+      # redirect sits inside the owner's own shell so javis.log is not left owned by root.
+      DETACH=""; command -v setsid >/dev/null 2>&1 && DETACH="setsid"
+      ( cd server && export JAVIS_STATE_DIR="$PWD" && exec $DETACH $AS_OWNER bash -c \
+          'exec nohup ../.venv/bin/python -m uvicorn main:app --host "$0" --port "$1" > javis.log 2>&1' \
+          "${JAVIS_HOST:-127.0.0.1}" "$PORT" ) </dev/null >/dev/null 2>&1 &
+    else
+      ( cd server && JAVIS_STATE_DIR="$PWD" nohup ../.venv/bin/python -m uvicorn main:app \
+          --host "${JAVIS_HOST:-127.0.0.1}" --port "$PORT" > javis.log 2>&1 & )
+    fi
     echo "==> Restarted (nohup). Logs: server/javis.log"
   fi
 fi
