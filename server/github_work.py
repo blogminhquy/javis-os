@@ -230,17 +230,70 @@ def commit_all(worktree: str, message: str) -> str:
     return github_repos.git_out(["rev-parse", "HEAD"], worktree)
 
 
+def _task_title(task: str) -> str:
+    """The person's own first line of a request, without the bracketed blocks the dashboard puts in front of it.
+
+    A turn arrives as "[NGỮ CẢNH GIAO DIỆN: trang=workspace]", "[File đính kèm để ĐỌC ...: - /path ...]", "[Giờ gửi
+    tin này: ...]" and then the request. Taking the very first line named every job of a chat the same ("ngu-canh-giao-
+    dien-trang-workspace"), so the second job's branch name was already taken (blogminhquy/javisos-blog, 13/11/2026).
+    """
+    inside = False
+    for raw in str(task or "").splitlines():
+        line = raw.strip()
+        if inside:
+            inside = not line.endswith("]")
+            continue
+        if not line:
+            continue
+        if line.startswith("["):
+            inside = not line.endswith("]")
+            continue
+        if line.startswith("\U0001f4ce"):           # an attached file line ("📎 /path")
+            continue
+        return line
+    return ""
+
+
+def _branch_taken(wt: str, name: str, cur: str) -> bool:
+    """True when pushing HEAD to `name` would clash: another local branch has the name, or origin holds that branch
+    with commits HEAD does not contain (an older job's branch whose PR was squashed, for one)."""
+    if name != cur and github_repos.git(["rev-parse", "--verify", "--quiet", f"refs/heads/{name}"], wt,
+                                        check=False).returncode == 0:
+        return True
+    try:
+        r = github_repos.git(["ls-remote", "origin", f"refs/heads/{name}"], wt, auth=True, check=False, timeout=60)
+    except github_repos.RepoError:
+        return False                                  # cannot ask: the push itself reports the real problem
+    if r.returncode != 0:
+        return False
+    remote = (r.stdout or "").split()
+    if not remote:
+        return False
+    # Ours only when HEAD already contains it (a fast-forward). A sha this machine never fetched fails too: taken.
+    return github_repos.git(["merge-base", "--is-ancestor", remote[0], "HEAD"], wt, check=False).returncode != 0
+
+
 def _final_branch(sid: str, repo: Dict[str, Any], title: str) -> str:
-    """`javis/<slug>-<id6>` decided at the first push (spec 6); after that the branch never changes."""
+    """`javis/<slug>-<id6>` decided at the first push (spec 6); after that the branch never changes.
+
+    The name is always one Javis can push to without overwriting anything: when the chosen name is taken locally or
+    on GitHub by other history, `-2`, `-3`... is added. Javis never force-pushes, so a clash used to stop the job with
+    "has commits this machine lacks" until someone renamed the branch by hand.
+    """
     wt = repo["worktree"]
     cur = github_repos.git_out(["rev-parse", "--abbrev-ref", "HEAD"], wt)
     short = github_repos.session_branch(sid)
     slug = _slug(title)
-    if cur != short or not slug:
+    want = f"javis/{slug}-{short.split('/', 1)[1][:6]}" if (cur == short and slug) else cur
+    name = want
+    for n in range(2, 60):
+        if not _branch_taken(wt, name, cur):
+            break
+        name = f"{want}-{n}"
+    if name == cur:
         return cur
-    new = f"javis/{slug}-{short.split('/', 1)[1][:6]}"
-    r = github_repos.git(["branch", "-m", new], wt, check=False)
-    return new if r.returncode == 0 else cur
+    r = github_repos.git(["branch", "-m", name], wt, check=False)
+    return name if r.returncode == 0 else cur
 
 
 class PushError(github_repos.RepoError):
@@ -366,7 +419,7 @@ def ship(sid: str, brain: str, repo: Dict[str, Any], report: Dict[str, Any]) -> 
     fn = repo["full_name"]
     info = _session(sid)
     # The job's own request names the PR; the chat title only describes the chat's FIRST job.
-    task_line = (str(info.get("task") or "").strip().splitlines() or [""])[0]
+    task_line = _task_title(str(info.get("task") or ""))
     title = (task_line[:100] or (info.get("title") or "").strip() or _c("Thay đổi từ Javis", "Changes from Javis"))
     row = st().ensure(sid, fn, brain=brain, worktree=repo["worktree"], base_branch=_base_name(repo),
                       engine=str(info.get("engine") or ""), model=str(info.get("model") or ""))
