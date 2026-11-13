@@ -5986,6 +5986,21 @@ async def _warm_shared_ssl():
 
 
 @app.on_event("startup")
+async def _usage_ledger_compact_on_start():
+    """2026-11-13: drop the Team replay snapshots earlier versions kept in usage.json (usage_store._TEAM_SNAPSHOTS).
+
+    A Team that worked a lot left tens of thousands of them, and every model call re-read and rewrote that file on the
+    event loop: open pages lost their connection while a Team was busy. On a worker thread, so a file of many megabytes
+    is small again before the first turn reads it."""
+    try:
+        dropped = await asyncio.to_thread(usage_store.compact)
+        if dropped:
+            print(f"[usage] usage.json: removed {dropped} team snapshots kept by an earlier version", file=sys.stderr)
+    except Exception as e:  # noqa: BLE001 - the first record() does the same clean-up
+        print(f"[usage] compact failed: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+@app.on_event("startup")
 async def _routing_migrate_on_start():
     """0.350.0: move the settings to the usage-order layout once (docs/dev/2026-10-model-routing-spec.md, part 4)."""
     def _run():

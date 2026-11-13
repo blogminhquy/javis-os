@@ -25,6 +25,8 @@ import hashlib
 import time
 from datetime import datetime, timezone, timedelta
 
+from collections import OrderedDict
+
 import quota_scheduler          # sổ cái TPM dùng chung (không phụ thuộc ngược, xem module đó)
 import usage_parsers            # price table (pure module, no config/DB)
 from config import STATE_DIR
@@ -34,6 +36,25 @@ _EVENTS_PATH = STATE_DIR / "usage-events.jsonl"   # append-only, forward-log cho
 _LOCK = threading.Lock()
 _KEEP_DAYS = 30
 _TELEMETRY_ERRORS = {}
+
+# Replay snapshots of TEAM observations stay in this process, not in usage.json (2026-11-13).
+#
+# A snapshot lets the same observation be recorded twice (a provider that reports a request's tokens more than once)
+# without counting it twice. Until now every one of them was written into usage.json and kept 30 days, and every
+# record() re-read the whole file, filtered every snapshot and wrote the whole file back. A Team that works a lot adds
+# one snapshot per model call (API engines: one per tool round), so the file grew with every turn and each model call of
+# ANY chat, team or background job froze the server for longer: measured 100 ms per call at 50,000 snapshots and 520 ms
+# at 200,000, on the event loop. Open pages then lost their connection whenever a Team was busy (customer report).
+#
+# The identity of a team observation carries the `execution_id` of its run, a random id made when the member's turn
+# starts (main._team_engine_for). It can only be seen again inside that same run of this process: a restart ends the
+# run, and a retry gets a new id. So nothing is lost by keeping these snapshots in memory, oldest out first.
+# Snapshots of other executions (improvement work, whose ids are stable across restarts) stay in the file as before.
+_TEAM_SNAPSHOTS_MAX = 20_000
+_TEAM_SNAPSHOTS: "OrderedDict[tuple, dict]" = OrderedDict()
+# Snapshot keys that belong in usage.json. A bare hash there is a team snapshot left by a version before this one.
+_EXECUTION_PREFIX = "execution:"
+_FILE_SNAPSHOT_PREFIXES = ("improvement:", _EXECUTION_PREFIX)
 
 
 def note_telemetry_error(execution=None) -> None:
@@ -135,6 +156,21 @@ def _append_event(provider: str, model: str, tin: int, tout: int, cost, **metada
         note_telemetry_error(metadata.get("execution"))
 
 
+def _drop_team_leftovers(d: dict) -> int:
+    """Remove the team snapshots a version before 2026-11-13 kept in usage.json. Returns how many went.
+
+    Their runs ended with the process that wrote them, so none can be replayed (see _TEAM_SNAPSHOTS). The next save
+    writes the file without them."""
+    snapshots = d.get("event_snapshots")
+    if not isinstance(snapshots, dict) or not snapshots:
+        return 0
+    kept = {k: v for k, v in snapshots.items() if isinstance(k, str) and k.startswith(_FILE_SNAPSHOT_PREFIXES)}
+    dropped = len(snapshots) - len(kept)
+    if dropped:
+        d["event_snapshots"] = kept
+    return dropped
+
+
 def _load() -> dict:
     try:
         if _PATH.exists():
@@ -142,10 +178,33 @@ def _load() -> dict:
             if isinstance(d, dict):
                 d.setdefault("days", {})
                 d.setdefault("total", {})
+                _drop_team_leftovers(d)
                 return d
     except Exception:
         pass
     return {"days": {}, "total": {}}
+
+
+def compact() -> int:
+    """Rewrite usage.json without the team snapshots an earlier version left in it. Returns how many were removed.
+
+    Called once when the server starts, on a worker thread, so a file that grew to many megabytes is small again
+    before the first chat turn reads it. Without this call the first record() does the same clean-up."""
+    with _LOCK:
+        try:
+            if not _PATH.exists():
+                return 0
+            d = json.loads(_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            return 0
+        if not isinstance(d, dict):
+            return 0
+        dropped = _drop_team_leftovers(d)
+        if dropped:
+            d.setdefault("days", {})
+            d.setdefault("total", {})
+            _save(d)
+        return dropped
 
 
 def _save(d: dict) -> None:
@@ -275,19 +334,32 @@ def record(provider: str, model: str, tin=0, tout=0, cost=None, *, execution=Non
         if ex:
             # These are replaceable projection snapshots, not another source of bills. Keep
             # the old Telegram aggregate idempotent under the same replay as the index.
-            snapshots = d.setdefault("event_snapshots", {})
-            snapshot_key = usage_parsers.observation_key({"provider": provider, **metadata})
-            prior = snapshots.get(snapshot_key) or {}
+            observation = usage_parsers.observation_key({"provider": provider, **metadata})
+            in_memory = bool(ex.get("team_id"))   # a team run: see _TEAM_SNAPSHOTS
+            if in_memory:
+                snapshot_key = (str(_PATH), observation)
+                prior = _TEAM_SNAPSHOTS.get(snapshot_key) or {}
+            else:
+                snapshots = d.setdefault("event_snapshots", {})
+                snapshot_key = _EXECUTION_PREFIX + observation
+                prior = snapshots.get(snapshot_key) or {}
             if prior:
                 day = prior["day"]
                 delta_in -= prior["in"]
                 delta_out -= prior["out"]
                 delta_cost -= prior["cost"]
                 delta_turns = 0
-            snapshots[snapshot_key] = {"day": day, "in": tin, "out": tout, "cost": cost}
-            cutoff = (localefmt.now() - timedelta(days=_KEEP_DAYS)).strftime("%Y-%m-%d")
-            d["event_snapshots"] = {k: v for k, v in snapshots.items()
-                                    if k.startswith("improvement:") or v["day"] >= cutoff}
+            snapshot = {"day": day, "in": tin, "out": tout, "cost": cost}
+            if in_memory:
+                _TEAM_SNAPSHOTS[snapshot_key] = snapshot
+                _TEAM_SNAPSHOTS.move_to_end(snapshot_key)
+                while len(_TEAM_SNAPSHOTS) > _TEAM_SNAPSHOTS_MAX:
+                    _TEAM_SNAPSHOTS.popitem(last=False)
+            else:
+                snapshots[snapshot_key] = snapshot
+                cutoff = (localefmt.now() - timedelta(days=_KEEP_DAYS)).strftime("%Y-%m-%d")
+                d["event_snapshots"] = {k: v for k, v in snapshots.items()
+                                        if k.startswith("improvement:") or v["day"] >= cutoff}
         for bucket in (d["days"].setdefault(day, {}), d["total"]):
             e = bucket.setdefault(key, {"in": 0, "out": 0, "turns": 0, "cost": 0.0})
             e["in"] += delta_in

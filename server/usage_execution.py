@@ -32,22 +32,39 @@ def _money(events):
 
 
 def _attempts(events, details=()):
-    """Select requests by provider identity, never by matching token counts or calendar day."""
+    """Select requests by provider identity, never by matching token counts or calendar day.
+
+    One pass over `events` and one over `details` (2026-11-13). Each attempt used to scan every event and every detail
+    again to find the ones of its CLI session, so the work grew with the square of what a team had ever run: 59 s for a
+    team of 3,000 turns on an API engine, on every open of that team (GET /teams/{id}), while the page gave up after
+    30 s and asked again. The server then answered nobody (customer report: pages lose their connection when a Team is
+    used a lot). The session lookups below give the same answers from tables built once."""
+    details = list(details)
     groups = defaultdict(list)
+    session_attempts = defaultdict(set)      # CLI session id -> the attempts that ran in it
     for event in events:
-        groups[_attempt_key(event)].append(event)
+        key = _attempt_key(event)
+        groups[key].append(event)
+        session = (event.get("execution") or {}).get("cli_session_id")
+        if session:
+            session_attempts[session].add(key)
+    session_details = defaultdict(list)      # CLI session id -> its request details, in order
+    ambiguous_sessions = set()
+    for detail in details:
+        session = detail.get("session_id")
+        if not session:
+            continue
+        session_details[session].append(detail)
+        if detail.get("ambiguous_session"):
+            ambiguous_sessions.add(session)
     for key, group in groups.items():
         fallback = [e for e in group if e.get("event_kind") == "cli_fallback"]
         requests = [e for e in group if e.get("event_kind") in ("request", "cli_detail")]
         anchor = (fallback or requests or group)[-1]
         ex = anchor.get("execution") or {}
         sid = ex.get("cli_session_id")
-        same_session = {_attempt_key(e) for e in events
-                        if e.get("execution", {}).get("cli_session_id") == sid}
-        ambiguous = bool(sid and (len(same_session) > 1 or any(
-            d.get("session_id") == sid and d.get("ambiguous_session") for d in details)))
-        raw = [d for d in details if d.get("session_id") == sid] if (
-            sid and ex.get("cli_session_new") and not ambiguous) else []
+        ambiguous = bool(sid and (len(session_attempts.get(sid, ())) > 1 or sid in ambiguous_sessions))
+        raw = list(session_details.get(sid, ())) if (sid and ex.get("cli_session_new") and not ambiguous) else []
         for detail in raw:
             requests.append({**detail, "event_kind": "cli_detail", "execution": ex,
                 "provider": anchor.get("provider"), "raw_observation": True,

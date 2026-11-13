@@ -45,25 +45,60 @@ NEW_TEAM_UNCAPPED = ("task_turns", "task_steps")   # caps a new team starts with
 # Performance (2026-11-05): the usage block of GET /teams/{id} reads the usage index, its events log and two more
 # databases, on every team open and on every refetch an agent message triggers. It feeds a side panel, so a few
 # seconds of staleness is invisible, while computing it each time made switching teams wait on it.
+#
+# 2026-11-13 (customer report: pages lose their connection when a Team is used a lot). The block is added up from
+# every model call the team ever made, so its cost grows with the team's age. Two rules keep one old, busy team from
+# taking the server with it:
+# - one call adds a team up at a time. Calls that arrive meanwhile get the last figures at once (or, the very first
+#   time, wait for that one call) instead of each starting the same work on another thread;
+# - figures that took long to add up are kept longer (_USAGE_COST_FACTOR times as long, at most _USAGE_TTL_MAX_S), so
+#   the work never takes more than a small share of one core however large the team's history is.
 _USAGE_TTL_S = 15.0
-_usage_cache: Dict[str, tuple] = {}
+_USAGE_TTL_MAX_S = 600.0
+_USAGE_COST_FACTOR = 20.0
+_USAGE_FIRST_WAIT_S = 60.0
+_usage_cache: Dict[str, tuple] = {}            # team_id -> (computed at, value, seconds it stays fresh)
+_usage_flights: Dict[str, threading.Event] = {}  # team_id -> set when the call adding it up is done
 _usage_lock = threading.Lock()
+
+
+def _usage_ttl(took_s: float) -> float:
+    return min(_USAGE_TTL_MAX_S, max(_USAGE_TTL_S, float(took_s) * _USAGE_COST_FACTOR))
 
 
 def _team_usage_cached(team_id: str) -> dict:
     import team_usage
-    now = time.monotonic()
-    with _usage_lock:
-        hit = _usage_cache.get(team_id)
-        if hit and now - hit[0] < _USAGE_TTL_S:
-            return hit[1]
-    val = team_usage.team_usage(team_id)
-    with _usage_lock:
-        _usage_cache[team_id] = (now, val)
-        if len(_usage_cache) > 256:
-            for k in sorted(_usage_cache, key=lambda k: _usage_cache[k][0])[:128]:
-                _usage_cache.pop(k, None)
-    return val
+    waited = False
+    while True:
+        with _usage_lock:
+            hit = _usage_cache.get(team_id)
+            if hit and time.monotonic() - hit[0] < hit[2]:
+                return hit[1]
+            flight = _usage_flights.get(team_id)
+            if flight is None or waited:
+                # Nobody is adding this team up (or the call we waited for left nothing): this call does it.
+                mine = _usage_flights[team_id] = threading.Event()
+                break
+            if hit:
+                return hit[1]
+        flight.wait(_USAGE_FIRST_WAIT_S)
+        waited = True
+    started = time.monotonic()
+    try:
+        val = team_usage.team_usage(team_id)
+        with _usage_lock:
+            _usage_cache[team_id] = (time.monotonic(), val, _usage_ttl(time.monotonic() - started))
+            if len(_usage_cache) > 256:
+                for k in sorted(_usage_cache, key=lambda k: _usage_cache[k][0])[:128]:
+                    _usage_cache.pop(k, None)
+        return val
+    finally:
+        with _usage_lock:
+            if _usage_flights.get(team_id) is mine:
+                _usage_flights.pop(team_id, None)
+        mine.set()
+
+
 DESCRIBE_TIMEOUT_S = 120.0   # tả ảnh đính kèm trước lượt thành viên (0.192.0): quá thì lượt vẫn chạy, không có mô tả
 
 
