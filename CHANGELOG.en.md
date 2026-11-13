@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.556.0] - 2026-11-13
+### Improved
+- **Approve many waiting groups for a bot in one press.** In the bot's Status panel every waiting group or person is a tick box, with **Select all** and one shared **Allow** / **Ignore** bar. Nine waiting groups used to mean opening the panel and pressing nine times.
+- **The panel no longer closes after each press.** After a batch it stays open with the rows still waiting. The button carries the number of ticked rows, for example "Allow (9)".
+- **Easier to read on a phone.** Larger group names, the whole row is tappable, and the buttons stay within reach however long the list is.
+
 ## [0.555.3] - 2026-11-13
 ### Fixed
 - **The OpenAI Compatible and Claude Compatible cards no longer say "Could not load the model list" by mistake.** Javis reads the model list of more kinds of gateways, and a Base URL typed without `/v1` finds the right address on its own. A machine upgraded from an older version gets its models back too.
