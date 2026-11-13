@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.555.1] - 2026-11-13
+### Fixed
+- **Javis no longer freezes when the server's disk answers slowly.** On a VPS, every few seconds of slow disk froze all pages, bots and connections together, and the server could be reported as down. It was worst right after an update. The work that runs all the time (the sign-in check, the MCP hub, bots, shared links) no longer waits for the disk.
+- **After a Docker update, MCP sources no longer download and install themselves again.** What they installed is kept on the data volume, so the server is not flooded while it starts. The update to this version still reinstalls them one last time.
+- **At start-up, Javis opens MCP sources a few at a time** instead of all at once, so a small server is not overloaded.
+
 ## [0.555.0] - 2026-11-13
 ### Added
 - **The Windows installer announces every change it makes.** A page before the install lists what will be downloaded and installed (Javis, Git, Python, Node.js, the AI tools), with the privacy statement and how to uninstall.
