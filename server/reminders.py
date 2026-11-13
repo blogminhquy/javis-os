@@ -61,6 +61,7 @@ import once_ledger       # outside actions of one firing run once, across retrie
 import work_log          # one line per finished run, for the Tasks page stats (0.428.0)
 import turn_context
 import memory_control   # #1165: background writers are not stamped with a chat source
+from reminder_delivery_intent import outbound_action_requested
 
 
 def _nhan_kw(fn, ten: str) -> bool:
@@ -958,7 +959,19 @@ class RemindersFeature:
                 else:
                     msg = clean[:SCRIPT_OUT_CAP]
         else:   # notify
-            msg = localefmt.chu("⏰ Nhắc bạn: ", "⏰ Reminder: ") + text
+            if outbound_action_requested(text):
+                # A notify job can only echo to its OWNER chat. Never post an
+                # outbound Zalo send instruction there and record it as "done".
+                # Do not silently escalate to mode=task/full at firing time.
+                run_failed = True
+                err = localefmt.chu(
+                    "Lịch bị tạo ở chế độ nhắc người đặt, không phải tác vụ gửi tin ra kênh ngoài. "
+                    "Chưa gửi Zalo/nhóm. Hãy tạo lịch task có quyền thích hợp và kiểm tra messageId.",
+                    "The reminder was created as an owner notification, not an outbound send. "
+                    "No group message was sent. Create a task-mode reminder and verify its messageId.")
+                msg = "⚠ " + err
+            else:
+                msg = localefmt.chu("⏰ Nhắc bạn: ", "⏰ Reminder: ") + text
 
         ok, send_err = True, ""
         voice_rel = ""
