@@ -30,30 +30,64 @@
   // hết 5 phút là lần bấm sau phải chờ trọn một lượt tải live - với Codex (ép refresh=1) là
   // vài giây popup trống trơn, chủ repo báo 27/09 "ấn vào danh sách model load rất chậm".
   const DANG_TAI = {};                  // provider id -> Promise đang bay (gộp các lần gọi trùng)
+  // 2026-11-13: an EMPTY answer is not a list to keep. It used to sit in the cache for five minutes and then be
+  // handed out once more while the refresh ran, so one slow gateway (or a card fixed a moment ago on the Models
+  // page) left the picker saying "no model list" long after the list was there. An empty entry is asked again on
+  // the next open, and it carries the server's reason so the picker can say WHY (`why`).
+  const EMPTY_MS = 4000;                // only spares the server a burst of repeats while one popup redraws
+  let GEN = 0;                          // bumped by clearCache: an answer asked for before it is not kept
   function tai(pid) {
     if (DANG_TAI[pid]) return DANG_TAI[pid];
     // Codex: catalog tĩnh của nó vốn rỗng nên phải ép lấy live.
     const force = pid === "openai-oauth" ? "&refresh=1" : "";
-    DANG_TAI[pid] = fetch("/provider/models?provider=" + encodeURIComponent(pid) + force)
+    const gen = GEN;
+    const p = fetch("/provider/models?provider=" + encodeURIComponent(pid) + force)
       .then((r) => r.json())
-      .then((d) => { CACHE[pid] = { models: d.models || [], ts: Date.now() }; })
-      .catch(() => { if (!CACHE[pid]) CACHE[pid] = { models: [], ts: Date.now() }; })
-      .then(() => { delete DANG_TAI[pid]; return CACHE[pid].models; });
-    return DANG_TAI[pid];
+      .then((d) => {
+        const ids = (d && d.models) || [];
+        return { models: ids, ts: Date.now(), why: ids.length ? "" : String((d && d.error) || "") };
+      })
+      .catch(() => {
+        // The network failed: a list already in hand is worth more than an empty one, and is tried again at the
+        // usual pace instead of on every open.
+        const c = gen === GEN ? CACHE[pid] : null;
+        return c && c.models.length ? { models: c.models, ts: Date.now(), why: "" } : { models: [], ts: Date.now(), why: "" };
+      })
+      .then((e) => {
+        if (DANG_TAI[pid] === p) delete DANG_TAI[pid];
+        if (gen === GEN) CACHE[pid] = e;   // the Models page changed a key meanwhile: this answer is the old one
+        return e.models;
+      });
+    DANG_TAI[pid] = p;
+    return p;
   }
   async function models(pid) {
     const c = CACHE[pid];
     if (c) {
-      if (Date.now() - c.ts >= CACHE_MS) tai(pid);
+      const age = Date.now() - c.ts;
+      if (!c.models.length) return age >= EMPTY_MS ? tai(pid) : c.models;
+      if (age >= CACHE_MS) tai(pid);
       return c.models;
     }
     return tai(pid);
   }
   /** Danh sách đang có sẵn (kể cả đã cũ), hoặc null khi chưa từng tải: để người gọi biết có
-   *  phải chờ mạng hay không mà vẽ khung trước. */
-  function peek(pid) { return CACHE[pid] ? CACHE[pid].models : null; }
+   *  phải chờ mạng hay không mà vẽ khung trước. An empty answer that is due for another try counts as "not
+   *  loaded", so the caller draws "loading" and asks again instead of repeating the old empty list. */
+  function peek(pid) {
+    const c = CACHE[pid];
+    if (!c) return null;
+    if (!c.models.length && Date.now() - c.ts >= EMPTY_MS) return null;
+    return c.models;
+  }
+  /** Why the last answer for this provider was empty (the server's own sentence), or "". */
+  function why(pid) { return (CACHE[pid] && CACHE[pid].why) || ""; }
 
-  function clearCache() { Object.keys(CACHE).forEach((k) => delete CACHE[k]); }
+  function clearCache() {
+    GEN++;
+    Object.keys(CACHE).forEach((k) => delete CACHE[k]);
+    Object.keys(DANG_TAI).forEach((k) => delete DANG_TAI[k]);
+  }
 
   // Dựng HTML thân bảng chọn. Trả chuỗi; người gọi tự nhét vào khung của mình rồi tự bắt sự
   // kiện (cả hai bên đều đã có vòng bắt click riêng, gắn thêm ở đây là bắt hai lần).
@@ -124,6 +158,14 @@
       return h;
     };
     const dangTai = `<div class="mb-empty pg-loading">${esc(T("mpick.loading"))}</div>`;
+    // No list: say why (the server's sentence: wrong address, refused key, a seller that lists nothing) and give
+    // the way out, the Models page, where the address is fixed or a model name is typed. Both callers already send
+    // a click on [data-goto] to that page.
+    const khongCoDanhSach = (p) => {
+      const lyDo = why(p.id);
+      return `<div class="mb-empty">${esc(T("mpick.no_list"))}${lyDo ? " " + esc(lyDo) : ""}</div>`
+        + `<div class="mb-link" data-goto="models">${esc(T("mpick.fix_on_models"))}</div>`;
+    };
 
     let html = `<input class="mb-search" id="${esc(o.searchId || "mlSearch")}" `
       + `placeholder="${esc(T("mpick.search_ph"))}" value="${esc(o.filter || "")}">`;
@@ -137,7 +179,9 @@
           if (trungTen) { html += dauNha(p, false); thay++; }
           continue;
         }
-        const ds = peek(p.id);
+        // Search reads what is in hand, an empty answer included: asking a dead gateway again on every keystroke
+        // would flash "loading" under the search box. Opening the provider is what asks again.
+        const ds = CACHE[p.id] ? CACHE[p.id].models : null;
         if (!ds) {
           o.cho.push(models(p.id));
           html += dauNha(p, true) + dangTai;
@@ -165,11 +209,11 @@
         continue;
       }
       const ids = await models(p.id);
-      if (!ids.length) html += `<div class="mb-empty">${esc(T("mpick.no_list"))}</div>`;
+      if (!ids.length) html += khongCoDanhSach(p);
       html += hangModel(p, ids);
     }
     return html;
   }
 
-  window.JavisModelList = { models, peek, render, clearCache };
+  window.JavisModelList = { models, peek, why, render, clearCache };
 })();
