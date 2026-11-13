@@ -40,6 +40,27 @@ Muốn chuyển một cuộc sang nhóm khác thì rê chuột vào nó và bấ
 **Xoá project KHÔNG xoá hội thoại.** Các cuộc bên trong chỉ được gỡ khỏi nhóm và quay về
 "Chưa xếp nhóm". Hộp xác nhận cũng nói rõ điều này kèm số cuộc sẽ được gỡ.
 
+**Project tự học ngữ cảnh.** Bấm chip project dưới khung chat để mở khung project, gồm ba tab:
+
+- **Hướng dẫn**: luật riêng do bạn viết (tối đa 4000 ký tự), ghép vào mọi lượt chat trong project. Javis chỉ sửa
+  phần này khi bạn bảo thẳng trong chat, và trả lại bản cũ để khôi phục.
+- **Đã học**: những điều bền và riêng của project mà Javis tự ghi trong lúc làm việc (sự thật, quyết định đã chốt,
+  thuật ngữ). Bạn xem, sửa, xoá, thêm ngay ở đây. Ghi chú bạn viết hay sửa là của bạn và không bị thay khi đầy
+  (mỗi project giữ tối đa 60 ghi chú).
+- **Tài liệu**: file, thư mục và link của project chung một danh sách, phân biệt bằng biểu tượng. Nút **Thêm tài
+  liệu** có ba cách: tìm trong brain, tải từ máy lên, dán link. File hay link bạn thả vào chat để dùng lâu dài được
+  Javis tự gắn vào đây kèm một dòng nói nó chứa gì; file thả vào chat được chép vào thư mục sources của brain. Bấm
+  cây bút trên một hàng để tự viết hay sửa dòng mô tả.
+
+Bạn cũng có thể nói thẳng trong chat: "ghi nhớ cho project này là...", "gắn file này vào project", "project này
+đang nhớ gì". Tắt việc ghi nhớ mới của brain thì Javis cũng ngừng tự ghi vào project. Javis không lưu khoá, mật
+khẩu hay câu mệnh lệnh lấy từ tài liệu vào phần này.
+
+**Cộng sự và nhóm cũng vậy.** Tài liệu của một cộng sự (nút File & link trong trang Cộng sự) và của một nhóm (tab
+Thông tin của nhóm) có cùng dòng mô tả "tài liệu này chứa gì". Khi bạn chat riêng với một cộng sự, nó tự gắn tài
+liệu bạn đưa vào để dùng lâu dài và tự ghi mô tả. Mô tả của cộng sự nằm ngay trong file của cộng sự đó, nên đi
+theo nó khi bạn xuất ra hay chép brain sang máy khác.
+
 **Icon cho Project.** Mở menu chọn nhóm, rê chuột vào một project rồi bấm biểu tượng bảng
 màu. Bảng chọn hiện toàn bộ icon Javis đang dùng, kèm ô lọc theo tên (gõ `star`, `folder`,
 `brain`...). Project chưa đặt icon thì mượn tạm icon thư mục, nên hàng nào cũng có icon và mắt

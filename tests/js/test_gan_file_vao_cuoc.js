@@ -39,9 +39,10 @@ const check = (name, cond, them) => {
 // riêng, và mọi thứ thêm cho project sau này sẽ không tới được nó.
 check("bỏ hẳn hai pane riêng của chế độ cuộc",
   !/function paneCuocFile/.test(SU) && !/function paneCuocLink/.test(SU));
-check("veDrawer dùng chung paneFile/paneLink cho cả hai chế độ",
-  /projTab === "instr" \? paneHuongDan\(p\) : projTab === "files" \? paneFile\(p\) : paneLink\(p\)/.test(SU)
-  && (SU.match(/function paneFile\(/g) || []).length === 1);
+// 2026-11-13 (owner): files, folders and links share ONE documents pane, so every mode draws it with paneFile.
+check("veDrawer dùng chung MỘT pane tài liệu (file, thư mục, link) cho mọi chế độ",
+  /projTab === "learned" \? paneLearned\(p\) : projTab === "instr" \? paneHuongDan\(p\) : paneFile\(p\)/.test(SU)
+  && (SU.match(/function paneFile\(/g) || []).length === 1 && !/function paneLink\(/.test(SU));
 // Ba chế độ (project / cuộc / trợ lý) dùng chung một ngăn kéo, nên "dữ liệu đang mở" phải
 // đọc ở MỘT chỗ. Rẽ nhánh lại ở từng hàm là thêm chế độ thứ tư sẽ sót đúng một chỗ.
 check("có hàm đọc dữ liệu đang mở, không rẽ nhánh ở từng chỗ",
@@ -159,11 +160,12 @@ check("lượt chat dashboard truyền session_id vào prompt",
 check("chú thích ghim nói rõ chỉ áp cho RIÊNG cuộc này",
   /RIÊNG cuộc này/.test(VI["cts.pin_note"] || ""));
 check("ô rỗng chỉ luôn đường thêm vào chứ không chỉ báo trống",
-  /Thêm file/.test(VI["cts.files_empty"] || "") && /Thêm link/.test(VI["cts.links_empty"] || ""));
+  /Thêm tài liệu/.test(VI["cts.files_empty"] || "") && /link/.test(VI["cts.files_empty"] || "")
+  && VI["proj.add_doc"] === "Thêm tài liệu");
 // Link tự dò: địa chỉ là thứ bấm được ở dòng TÊN, dòng dưới chỉ nói ai gửi. Nhét địa chỉ vào
 // cả hai dòng là bắt đọc hai lần một thứ trong một hàng cao 40px.
 check("link tự dò không lặp địa chỉ ở cả hai dòng",
-  /tuDong: true, icon: "link", tenHtml: aHtml\(l\),\s*\n\s*sub: l\.vai === "user"/.test(SU));
+  /tuDong: true, icon: "link", tenHtml: linkAnchor\(l\),\s*\n\s*sub: l\.vai === "user"/.test(SU));
 // Gạch ngang là dấu "file này đã dời đi". Suy nó từ moDuoc thì mọi hàng link đều bị gạch,
 // vì link không có khái niệm mở-được.
 check("gạch ngang là cờ RIÊNG, không suy từ moDuoc",

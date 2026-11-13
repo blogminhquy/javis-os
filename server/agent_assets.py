@@ -38,6 +38,7 @@ import uuid
 TRAN_MOI_LOAI = 50
 _TEN_MAX = 160
 _URL_MAX = 2000
+DESCRIPTION_MAX = 200    # same cap as the description of a project document (sessions.PROJECT_ASSET_NOTE_MAX)
 
 
 def _sach_hang(h, khoa_chinh):
@@ -60,6 +61,11 @@ def _sach_hang(h, khoa_chinh):
         ra["label"] = str(h.get("label") or "").strip()
     ra["pinned"] = bool(h.get("pinned"))
     ra["added_at"] = moc
+    # 2026-11-13: one line saying what the document holds (Javis writes it, the owner can fix it). Kept only when set,
+    # so an agent file without descriptions reads exactly as before.
+    desc = " ".join(str(h.get("description") or "").split())[:DESCRIPTION_MAX]
+    if desc:
+        ra["description"] = desc
     return ra
 
 
@@ -179,3 +185,23 @@ def ghim_file(meta, fid, on) -> tuple:
 
 def ghim_link(meta, lid, on) -> tuple:
     return _ghim(meta, "links", str(lid or ""), on)
+
+
+def describe(meta, kind, ref, text) -> tuple:
+    """Write the one-line description of an attached file (`kind="file"`, `ref` its stored path or id) or link
+    (`kind="link"`, `ref` its URL or id). Empty text removes it. Returns (new meta, True) or (meta, False) when the
+    assistant has no such document."""
+    if kind not in ("file", "link"):
+        return meta, False
+    loai, key = ("files", "path") if kind == "file" else ("links", "url")
+    ref = str(ref or "").strip()
+    kho = doc(meta)
+    hit = [h for h in kho[loai] if h["id"] == ref or h[key] == ref]
+    if not ref or len(hit) != 1:
+        return meta, False
+    line = " ".join(str(text or "").split())[:DESCRIPTION_MAX]
+    if line:
+        hit[0]["description"] = line
+    else:
+        hit[0].pop("description", None)
+    return _ghi(meta, kho["files"], kho["links"]), True
