@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.555.2] - 2026-11-13
+### Fixed
+- **A group no longer shows one person's profile.** The note box of a Zalo group used to show the profile of whoever wrote first in it, as if the whole group were one customer. A group now has its own note, and editing it touches nobody's profile.
+- **Facebook, Instagram and Threads comments get no profile.** A commenter is not messaging the shop, so the AI no longer writes a profile from comment threads, and a public reply no longer carries a profile learned in a private chat.
+
 ## [0.555.1] - 2026-11-13
 ### Fixed
 - **Javis no longer freezes when the server's disk answers slowly.** On a VPS, every few seconds of slow disk froze all pages, bots and connections together, and the server could be reported as down. It was worst right after an update. The work that runs all the time (the sign-in check, the MCP hub, bots, shared links) no longer waits for the disk.
