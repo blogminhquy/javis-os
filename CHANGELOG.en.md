@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.557.0] - 2026-11-13
+### Added
+- **Projects learn their own context.** While working in a project, Javis notes what is durable and specific to it (facts, settled decisions, terms) and uses it in every later chat of the project. Read, edit and delete them in the new "Learned" tab. The Instructions box stays yours: Javis changes it only when you say so.
+- **Dropping a document into the chat is enough.** A file or link for long-term use is attached to the project by Javis with one line saying what it holds, so it opens the right document without pinning the whole file.
+- **Partners and teams get document descriptions too.** In a private chat, a partner attaches and describes its own documents; a team's documents carry a line every member reads.
+### Improved
+- **Files, folders and links share one "Documents" tab.** Icons tell them apart and Add document can paste a link too, so the drawer is one tab shorter.
+
 ## [0.556.2] - 2026-11-13
 ### Fixed
 - **A suggestion you took no longer vanishes when you delete part of it.** Pressing Tab to take the whole sentence (or taking it word by word to the end) and then deleting a few letters used to lose the suggestion. Now the rest shows in grey again as far as you delete. Empty the box and the whole suggestion is back. It only goes away when you send.
