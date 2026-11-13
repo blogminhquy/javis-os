@@ -8,6 +8,20 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.556.2] - 2026-11-13
+### Fixed
+- **A suggestion you took no longer vanishes when you delete part of it.** Pressing Tab to take the whole sentence (or taking it word by word to the end) and then deleting a few letters used to lose the suggestion. Now the rest shows in grey again as far as you delete. Empty the box and the whole suggestion is back. It only goes away when you send.
+- **The > after a suggestion shows on a computer too.** It used to show on phones only. On a computer, click the **>** right after the last word to take the sentence.
+### Improved
+- **No more "Tab" chip in the button row under the chat box.** The **>** does that job, so the row keeps only its own buttons (attach, model, effort, mic, send). The Tab key still takes the suggestion.
+
+## [0.556.1] - 2026-11-13
+### Fixed
+- **Stopping a dictation answers at once.** The bar switches to "rewriting" the moment stop is pressed, and the recording goes to be heard right away instead of waiting for the browser to close the mic.
+- **The rewrite step is much faster.** The word fix that runs first could take several seconds and now takes a few hundredths of one. The quick model no longer spends its whole turn thinking and returns nothing, and on a subscription the main model thinks at its lowest level for this job.
+- **Long dictations no longer lose words.** Text over about 2,000 characters used to come back cut after the rewrite; every word is kept now.
+- **Fewer everyday words turned into names.** Common Vietnamese word pairs that merely sound like "Javis" or "Canva" are no longer replaced by those names.
+
 ## [0.556.0] - 2026-11-13
 ### Improved
 - **Approve many waiting groups for a bot in one press.** In the bot's Status panel every waiting group or person is a tick box, with **Select all** and one shared **Allow** / **Ignore** bar. Nine waiting groups used to mean opening the panel and pressing nine times.

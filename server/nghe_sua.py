@@ -92,6 +92,16 @@ một hai ba bốn tư năm sáu bảy tám chín mười mươi trăm nghìn ng
 no not never don't stop cancel enable disable open close delete send transfer
 one two three four five six seven eight nine ten hundred thousand million
 """.split())
+# Everyday Vietnamese function words, compared WITH their tone marks (2026-11-13). A group of two or three syllables
+# that holds one of them is ordinary speech far more often than a misheard name: "đã viết" has nearly the sound key of
+# "Javis" and "cần và" exactly that of "Canva", so "rồi đã viết xong" became "rồi Javis xong" and "anh cần và em" became
+# "anh Canva em". Such a group is only taken when it is already spelled like the term; the rewrite model, which reads
+# the whole sentence and its context, decides the rest. One syllable alone ("David") is never held back by this.
+COMMON_WORDS = frozenset("""
+đã sẽ đang vì và cần có là mà thì để khi nếu như nhưng hay hoặc cũng rất lại còn vẫn đều được bị phải nên muốn
+biết làm đi đến ra vào lên xuống về ở trong ngoài trên dưới đó kia ấy đây thế vậy gì sao ai tôi anh em mình chị
+bạn nó họ các những cái việc người
+""".split())
 # Khối ngữ cảnh dashboard chèn TRƯỚC lời nói: FILE ĐANG MỞ (đang mở file trong trình sửa) rồi
 # NGỮ CẢNH GIAO DIỆN. Cả hai không phải lời nói. 0.65.29: trước chỉ nhận khối sau, nên khi đang mở
 # file thì khối FILE bị tính là lời nói; dòng JAVIS_NGHE (chỉ có lời nói) bị coi là cắt chữ, và
@@ -148,6 +158,27 @@ def do_giong(a: str, b: str) -> float:
     if a == b:
         return 1.0
     return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def similar_from(a: str, b: str, floor: float) -> float:
+    """`do_giong(a, b)` when it reaches `floor`, else 0.0, without paying for the full comparison.
+
+    `sua` only ever asks "is this at least 0.8 alike", and nearly every pair it tries is nowhere near. The two cheap
+    upper bounds difflib offers (lengths, then shared letters) settle those, so the costly matcher runs for the few
+    pairs that can pass. Measured 2026-11-13 with 90 terms: an 80-word dictation took 3.5 s and now takes 0.01 s,
+    a 400-word one took 17.8 s and now takes 0.04 s. The old loop also froze every other request meanwhile."""
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    la, lb = len(a), len(b)
+    if 2.0 * min(la, lb) / (la + lb) < floor:
+        return 0.0
+    sm = difflib.SequenceMatcher(None, a, b)
+    if sm.quick_ratio() < floor:
+        return 0.0
+    r = sm.ratio()
+    return r if r >= floor else 0.0
 
 
 def split_vocabulary(chuoi) -> list:
@@ -287,17 +318,29 @@ def sua(text, tv) -> str:
         return s
     dem = frozenset(bo_dau(x) for x in (_MO_DAU | _KET_GOI | _NGOI_THU_BA))
     verbatim = [(m.start(), m.end()) for m in VERBATIM.finditer(s)]
+    # Per syllable, worked out once: its sound key, its plain form, and whether a rule holds it back.
+    words = [t.group(0) for t in toks]
+    lower = [w.lower() for w in words]
+    is_filler = [bo_dau(w) in dem for w in words]
+    is_protected = [w in PROTECTED_WORDS for w in lower]
+    is_common = [unicodedata.normalize("NFC", w) in COMMON_WORDS for w in lower]
+    joined_terms = ["".join(t.lower().split()) for t, _, _ in ds]
+    solo = {}
 
     def _diem_don(j):
-        """Điểm cao nhất của RIÊNG tiếng thứ j so với cả bộ từ vựng."""
-        k = khoa_am(toks[j].group(0))
-        return max((do_giong(k, kt) for _, kt, _ in ds), default=0.0) if len(k) >= 3 else 0.0
+        """Điểm cao nhất của RIÊNG tiếng thứ j so với cả bộ từ vựng (0 khi dưới ngưỡng gọi tên: không ai cần số đó)."""
+        if j not in solo:
+            k = khoa_am(words[j])
+            solo[j] = (max((similar_from(k, kt, NGUONG_GOI_TEN) for _, kt, _ in ds), default=0.0)
+                       if len(k) >= 3 else 0.0)
+        return solo[j]
 
     ra, pos, i, doi = [], 0, 0, False
     while i < len(toks):
         # Xét mọi cách ghép n tiếng từ vị trí i, lấy cách TRÙNG NHẤT (hoà thì cụm ngắn hơn).
         # Duyệt theo thứ tự "n dài trước" rồi lấy khớp đầu tiên là sai: "hey David" ghép hai
         # tiếng trùng 0,91 thắng "David" một tiếng trùng 1,0, và cả "hey" bị nuốt vào tên.
+        # A candidate under NGUONG_GOI_TEN can never be taken, so it is not scored at all (similar_from).
         best = None      # (d, n, term)
         for n in range(1, min(MAX_GHEP, len(toks) - i) + 1):
             uv = _ung_vien(toks, i, n, s)
@@ -308,25 +351,31 @@ def sua(text, tv) -> str:
             k = khoa_am(uv)
             if len(k) < 3:
                 continue
+            span = range(i, i + n)
             if n >= 2:
                 # Cụm ghép không được chứa tiếng đệm ("hey", "ơi", "cho"), và không tiếng nào
                 # trong cụm tự nó trùng tốt hơn cả cụm: "ơn David" 0,83 thua "David" 1,0.
-                if any(bo_dau(toks[j].group(0)) in dem for j in range(i, i + n)):
+                if any(is_filler[j] for j in span):
                     continue
-            for term, kt, so_tieng in ds:
-                if (any(toks[j].group(0).lower() in PROTECTED_WORDS for j in range(i, i + n))
-                        and "".join(uv.lower().split()) != "".join(term.lower().split())):
+            uv_lower = uv.lower()
+            uv_joined = "".join(uv_lower.split())
+            # A command or number word, or (in a group) an everyday word: only a group already spelled like the term.
+            held = any(is_protected[j] for j in span) or (n >= 2 and any(is_common[j] for j in span))
+            for (term, kt, so_tieng), term_joined in zip(ds, joined_terms):
+                if held and uv_joined != term_joined:
                     continue
                 if n > so_tieng + 1:
                     continue           # không ghép quá số tiếng của từ vựng (+1 cho ca bị tách)
-                d = 1.0 if uv.lower() == term.lower() else do_giong(k, kt)
+                exact = uv_lower == term.lower()
+                d = 1.0 if exact else similar_from(k, kt, NGUONG_GOI_TEN)
+                if d < NGUONG_GOI_TEN:
+                    continue
                 if d < 1.0 and len(k) < KHOA_MIN_MO:
                     continue
-                if n >= 2 and any(_diem_don(j) >= d for j in range(i, i + n)):
+                if n >= 2 and any(_diem_don(j) >= d for j in span):
                     continue
                 # Hoà điểm (hai tên cùng khoá âm, như Groq và Grok): ưu tiên tên viết ĐÚNG như máy nghe.
-                exact = uv.lower() == term.lower()
-                if best is None or d > best[0] or (d == best[0] and exact and best[2].lower() != uv.lower()):
+                if best is None or d > best[0] or (d == best[0] and exact and best[2].lower() != uv_lower):
                     best = (d, n, term, uv)
         if best is None or best[0] < NGUONG_GOI_TEN:
             i += 1

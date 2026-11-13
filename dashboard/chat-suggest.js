@@ -5,20 +5,27 @@
  *   - when a turn ends the screen calls ctl.request(context); the server (POST /chat/suggest, server/next_prompt.py)
  *     guesses the owner's next message on the background model;
  *   - the guess shows as the placeholder of the EMPTY box, never as text in it, so nothing is sent by accident;
- *   - Tab (or the "Tab" chip next to the box) fills the box with it; sending drops it. A touch screen has no Tab key:
- *     there a small ">" stands right after the last word of the suggestion, inside the box, and a tap on it takes the
- *     suggestion (owner, 2026-11-13: "hiện ngay sau cùng khung chữ gợi ý, đừng hiện cùng hàng với voice và các nút").
+ *   - the Tab key fills the box with it; sending drops it. A small ">" stands right after the last word of the
+ *     suggestion, inside the box, and a tap or click on it takes the suggestion (owner, 2026-11-13: "hiện ngay sau cùng
+ *     khung chữ gợi ý, đừng hiện cùng hàng với voice và các nút"; on a computer too, same day: "không có mũi tên >").
+ *     There is no "Tab" chip in the button row any more (owner, same day: "không cần hiện chữ tab đâu em, và nhớ phải
+ *     giữ lại các nút khác"): the ">" does its job on every screen, and the row keeps only its own buttons.
  *
  * 2026-11-13, a user's wish passed on by the owner: the suggestion vanished at the first key typed. "Gõ đến chữ nào
  * thì đề xuất sau vẫn giữ nguyên để gõ tiếp", and better, "suy đoán tiếp nội dung gõ sau khi người dùng muốn điều
  * chỉnh, kiểu chức năng dự đoán thông minh trên iPhone". So:
  *   - typing ALONG the suggestion keeps the rest of it in grey right after the typed text (case and Vietnamese marks
- *     do not count, so a half typed "su" still follows "sửa"); Tab or the chip takes the rest, Right Arrow at the end
+ *     do not count, so a half typed "su" still follows "sửa"); Tab or the ">" takes the rest, Right Arrow at the end
  *     of the text takes one word;
  *   - typing something ELSE asks the server, after a short pause, to finish that sentence ({draft, hint}); the answer
  *     shows the same way. The server says how patiently to ask (`live`: the pause and how many per turn).
  * The grey rest is a mirror layer over the box (same font, padding and width), the trick chat-slash.js uses for
  * command colours: a <textarea> cannot colour part of its own text.
+ *
+ * Same day, the owner on a computer: "xóa vẫn bị mất gợi ý". A sentence taken whole (Tab, the ">", or word by word) used
+ * to end the offers of the turn, so deleting a few letters of it left nothing. The sentences on offer now live until
+ * the message is sent: delete part of what was taken and the rest is back in grey, empty the box and the turn's guess
+ * is back.
  *
  * One module for every chat screen (owner rule of 2026-11-05): the main chat (app.js) and Teams (teams.js) attach it.
  * The switch lives in the composer "+" menu and is stored on the server (settings.chat.suggest_next).
@@ -135,7 +142,7 @@
   }
   function aborter() { return typeof AbortController !== "undefined" ? new AbortController() : null; }
 
-  // The ">" after the suggestion on a touch screen (style.css shows it only there).
+  // The ">" after the suggestion: a tap or a click on it takes the suggestion.
   var GO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" ' +
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
   // The rest of a suggestion as [all but its last word, its last word]: the ">" is tied to the last word so it never
@@ -150,7 +157,7 @@
     "textIndent", "textTransform", "textAlign", "direction", "paddingTop", "paddingRight", "paddingBottom",
     "paddingLeft", "tabSize"];
 
-  /* attach({ input: () => textarea, chipHost: () => [parent, beforeNode] | null, composing: () => bool,
+  /* attach({ input: () => textarea, composing: () => bool,
    *          maxHeight: () => px (how tall the screen lets the box grow), quiet: () => bool (dictating: do not ask) })
    * returns { request(context), clear(), refresh(), onInput(), onKeydown(e) -> bool, accept(wordOnly) }.
    * `input` is a getter because Teams redraws its composer: refresh() after a redraw puts the suggestion back.
@@ -158,7 +165,7 @@
   function attach(opts) {
     var sug = "";             // the guess made when the turn ended
     var live = "";            // the latest finished draft, as a whole sentence
-    var seq = 0, ctl = null, chip = null, shownOn = null, savedPh = "";
+    var seq = 0, ctl = null, shownOn = null, savedPh = "";
     var ctx = null;           // the chat the guesses are about; null until a turn ends, and after a send
     var liveCtl = null, liveTimer = 0, liveBusy = false, liveUsed = 0, asked = {};
     var ghost = null, typedEl = null, restEl = null, lastEl = null, goEl = null, ghostOn = null;
@@ -173,27 +180,6 @@
       if (!value) return sug;
       if (live && restOf(value, live)) return live;
       return sug && restOf(value, sug) ? sug : "";
-    }
-
-    function ensureChip() {
-      if (!opts.chipHost) return null;
-      var host = null;
-      try { host = opts.chipHost(); } catch (e) {}
-      if (!host || !host[0]) return null;
-      if (!chip) {
-        chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "sug-tab";
-        chip.hidden = true;
-        chip.textContent = "Tab";
-        // Keep the focus in the box: on a phone the keyboard stays up.
-        chip.addEventListener("mousedown", function (e) { e.preventDefault(); });
-        chip.addEventListener("click", function () { api.accept(); });
-      }
-      chip.title = tw("sug.use");
-      chip.setAttribute("aria-label", tw("sug.use"));
-      if (chip.parentNode !== host[0]) host[0].insertBefore(chip, host[1] || null);
-      return chip;
     }
 
     // ---- the mirror layer: the grey rest after typed text, and room for a long suggestion ----
@@ -247,7 +233,7 @@
       }
     }
     /* Lay `typed` + `rest` out exactly as the box would: the typed part unseen (it only takes up its room), the rest
-     * in grey after it, then the ">" of a touch screen tied to the last word. An empty box is drawn the same way with
+     * in grey after it, then the ">" tied to the last word. An empty box is drawn the same way with
      * nothing typed: the suggestion stays the box's placeholder for a screen reader, but the box hides that text
      * (.sug-ghosted) and this layer shows it, so the ">" lands exactly after the last word and a suggestion of several
      * lines is not cut at the first one. */
@@ -281,6 +267,7 @@
         ghost.appendChild(tail);
       }
       goEl.setAttribute("aria-label", tw("sug.use"));
+      goEl.title = tw("sug.use");
       // Right after the box, so it paints over a box that has its own background (Teams).
       if (ghost.parentNode !== host || ghost.previousSibling !== el) host.insertBefore(ghost, el.nextSibling || null);
       if (ghostOn && ghostOn !== el) shrinkBack(ghostOn);
@@ -321,7 +308,6 @@
         shownOn.classList.remove("has-suggest");
         shownOn = null;
       }
-      if (chip) chip.hidden = true;
       hideGhost();
     }
     function show() {
@@ -334,9 +320,6 @@
         shownOn = el;
       }
       el.classList.add("has-suggest");
-      // The chip first: in Teams it shares the row with the box, so it changes the width the text wraps at.
-      var c = ensureChip();
-      if (c) c.hidden = false;
       el.placeholder = el.value ? savedPh : full;
       drawGhost(el, el.value, restOf(el.value, full));
     }
@@ -365,7 +348,9 @@
       liveUsed++;
       asked[draft] = 1;
       liveCtl = aborter();
-      post({ context: ctx, draft: draft, hint: sug }, liveCtl ? liveCtl.signal : undefined).then(function (d) {
+      // A suggestion taken whole is the draft itself: no hint of another way to go.
+      var hint = nfc(sug) === nfc(draft) ? "" : sug;
+      post({ context: ctx, draft: draft, hint: hint }, liveCtl ? liveCtl.signal : undefined).then(function (d) {
         if (my !== seq) return;
         liveBusy = false;
         if (d && d.off) state.enabled = false;
@@ -431,11 +416,8 @@
         var rest = full ? restOf(el.value, full) : "";
         if (!rest) return false;
         var text = wordOnly ? full.slice(0, full.length - rest.length + nextWord(rest).length) : full;
-        if (text.length >= full.length) {
-          // Taken whole: nothing more to offer for this turn, but a draft typed after it can still be finished.
-          sug = ""; live = "";
-          hide();
-        }
+        // Taken whole, the sentence stays on offer until the message is sent: nothing shows while the box holds all
+        // of it, and deleting part of it brings the rest back.
         el.value = text;
         try { el.focus(); el.setSelectionRange(text.length, text.length); } catch (e) {}
         show();

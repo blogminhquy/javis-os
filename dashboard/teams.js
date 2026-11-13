@@ -4948,7 +4948,7 @@
     }
   }
 
-  // 2026-11-07: the likely next message, grey in the empty box once an assistant answers; Tab or the Tab chip fills
+  // 2026-11-07: the likely next message, grey in the empty box once an assistant answers; Tab or the ">" after it fills
   // it in. 2026-11-13: it stays while the owner types along it, Right Arrow takes one word, and a draft that goes
   // another way is finished after a short pause. The same module as the main chat (chat-suggest.js), one controller
   // for the page.
@@ -4957,10 +4957,6 @@
     if (!teamSuggest && typeof window !== "undefined" && window.JavisSuggest) {
       teamSuggest = window.JavisSuggest.attach({
         input: function () { return S && S.el ? S.el.querySelector(".tm-input") : null; },
-        chipHost: function () {
-          var row = S && S.el && S.el.querySelector(".tm-row");
-          return row ? [row, row.querySelector(".tm-mic")] : null;
-        },
         composing: function () { return !!(S && S.composing && S.composing()); },
         maxHeight: function () { return INPUT_MAX_PX; },
         quiet: function () { return !!(S && S.dictState && S.dictState !== "idle"); },
