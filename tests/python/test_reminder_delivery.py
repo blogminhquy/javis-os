@@ -16,6 +16,7 @@ import reminders  # noqa: E402
 
 fails = []
 sent = []
+webs = []
 brain = Path(tempfile.mkdtemp(prefix="javis-reminder-delivery-brain-"))
 
 
@@ -31,8 +32,9 @@ def atomic_write(path, text):
     p.write_text(text, encoding="utf-8")
 
 
-async def fake_send(chat_id, text):
+async def fake_send(chat_id, text, viec=None, web=""):
     sent.append((chat_id, text))
+    webs.append(web)
     return True, ""
 
 
@@ -93,6 +95,28 @@ async def run():
         "chat_id": "123",
     })
     check("notify thường vẫn gửi nguyên nội dung nhắc", sent[-1][1] == "⏰ Nhắc bạn: Uống thuốc")
+
+    # Regression: an outbound Zalo instruction must never appear in the owner's
+    # chat as a completed reminder (the Mika 2026-11-13 03:00 case).
+    outbound = (
+        "Bạn là Mika. Lúc 03:00 gửi MỘT tin nhắn vào nhóm Zalo "
+        "Hướng về phía mặt trời bằng zalo-lynx__zalo_send_message; "
+        "threadId 8755456034541302373; threadType 1."
+    )
+    rec = {"id": "r_mika_bad_mode", "mode": "notify", "text": outbound,
+           "chat_id": "web:mika-chat", "status": "pending",
+           "due_at": reminders._now() + 1000}
+    data = feature._load(str(brain))
+    data.setdefault("reminders", []).append(rec)
+    feature._save(str(brain), data)
+    await feature._fire(str(brain), rec)
+    check("outbound instruction gets a clear error, not a claim of delivery",
+          "Chưa gửi Zalo/nhóm" in sent[-1][1] and "⚠" in sent[-1][1])
+    check("Zalo internal prompt is never echoed to the owner chat",
+          outbound not in sent[-1][1] and outbound not in webs[-1])
+    updated = next(r for r in feature._load(str(brain))["reminders"] if r["id"] == rec["id"])
+    check("misconfigured outbound reminder fails rather than silently completing",
+          updated["status"] == "failed" and updated.get("error"))
 
 
 asyncio.run(run())
