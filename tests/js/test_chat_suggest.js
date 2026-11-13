@@ -170,7 +170,12 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
   let prevented = false;
   const took = c.onKeydown(Object.assign(tab(), { preventDefault() { prevented = true; } }));
   check("Tab fills the box", took && prevented && input.value === "ok do both" && input.events.includes("input"));
-  check("then the suggestion is gone", c.current() === "" && input.placeholder === "What should I do?" && chip.hidden);
+  check("nothing shows while the box holds all of it", c.showing() === "" && input.placeholder === "What should I do?" && chip.hidden);
+  // Owner on a computer, 2026-11-13: "xóa vẫn bị mất gợi ý". A sentence taken whole stays on offer until it is sent.
+  type("ok do b");
+  check("deleting part of a taken suggestion brings the rest back", c.showing() === "oth" && greyRest() === "oth" && !chip.hidden);
+  type("");
+  check("emptying the box after taking it shows the suggestion again", input.placeholder === "ok do both" && greyRest() === "ok do both");
 
   // ---- 2026-11-13: the suggestion stays while the owner types along it ----
   input.value = "";
@@ -208,8 +213,33 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
     c.onKeydown(Object.assign(tab(), { preventDefault() {} })) === false && c.onKeydown(Object.assign(right(), { preventDefault() {} })) === false);
   composing = false;
   check("Tab with the start typed takes the rest", c.onKeydown(Object.assign(tab(), { preventDefault() {} })) === true && input.value === SUG);
-  check("taken whole: nothing left on offer", c.current() === "" && greyRest() === null && chip.hidden && !input.classList.contains("has-suggest"));
+  check("taken whole: nothing shows while the box holds all of it",
+    c.showing() === "" && greyRest() === null && chip.hidden && !input.classList.contains("has-suggest"));
   check("and the box shows its own placeholder text again", !input.classList.contains("sug-ghosted"));
+  input.selectionStart = input.selectionEnd = input.value.length;   // the caret a real box puts after the taken text
+  c.onInput();   // the screen sizes the box to the taken text and tells the suggestion
+  await pause();
+  check("a taken suggestion may be carried on, with no hint of another way to go (it is the draft itself)",
+    drafts.length === 1 && drafts[0].body.draft === SUG && drafts[0].body.hint === "");
+  drafts.shift().answer({ ok: true, text: "" });
+  await tick(); await tick();
+  type(SUG.slice(0, -2));
+  check("deleting the end of a taken suggestion brings the rest back in grey",
+    greyRest() === "hé" && c.current() === SUG && !chip.hidden && input.classList.contains("has-suggest"));
+  let again = false;
+  check("and Tab takes it again", c.onKeydown(Object.assign(tab(), { preventDefault() { again = true; } })) === true && again && input.value === SUG);
+  type("Em sửa");
+  check("word by word to the end, then deleted: still on offer", (() => {
+    for (let i = 0; i < 9 && c.showing(); i++) {
+      input.selectionStart = input.selectionEnd = input.value.length;
+      c.onKeydown(Object.assign(right(), { preventDefault() {} }));
+    }
+    if (input.value !== SUG) return false;
+    type(SUG.slice(0, -4));
+    return greyRest() === " nhé";
+  })());
+  type("");
+  check("the box emptied after taking: the suggestion is back whole", input.placeholder === SUG && greyRest() === SUG);
 
   // ---- 2026-11-13: a draft that goes another way is finished after a pause ----
   input.value = "";
@@ -237,8 +267,10 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
   goButton().click();
   check("a tap on the > takes it", input.value === "Em sửa kỹ năng code trước, hạ tầng để sau" && greyRest() === null);
   type("");
-  check("a sentence taken whole ends the offers of this turn: the empty box has its usual placeholder",
-    input.placeholder === "What should I do?" && c.current() === "");
+  check("a finished draft taken whole, then the box emptied: the turn's guess is back",
+    input.placeholder === SUG && c.current() === SUG);
+  type("Em sửa kỹ năng code trước, hạ tầng");
+  check("and the finished draft is still on offer for what it starts", greyRest() === " để sau");
   type("ok");
   await pause();
   check("a second draft is asked", drafts.length === 1 && drafts[0].body.draft === "ok");
@@ -409,14 +441,17 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
     SRC.includes('chip.textContent = "Tab";') && cssTab.includes("@media (pointer: coarse) { .sug-tab { display: none; } }"));
   check("main chat: the chip keeps its one place in the row (no second place for a touch screen)",
     !app.includes("pointer: coarse") || !/chipHost[\s\S]{0,300}pointer: coarse/.test(app));
-  const go = cssTab.slice(cssTab.indexOf(".sug-go { display: none; }"));
-  check("the > shows on a touch screen only, with no border and no background, and takes a tap",
-    cssTab.includes(".sug-go { display: none; }") &&
-    /@media \(pointer: coarse\) \{\s*\.sug-go \{ display: inline-flex;[^}]*pointer-events: auto;[^}]*border: 0; background: none;/.test(go));
+  // Owner, 2026-11-13, later: "ở phiên bản máy tính ... không có mũi tên >". The > is for every screen.
+  const go = cssTab.slice(cssTab.indexOf("\n.sug-go { display: inline-flex;"));
+  check("the > shows on a computer too (no media query hides it), with no border and no background, and takes a click",
+    !/\.sug-go \{[^}]*display: none/.test(cssTab) &&
+    /^\n\.sug-go \{ display: inline-flex;[^}]*pointer-events: auto;[^}]*border: 0; background: none;/.test(go) &&
+    SRC.includes('goEl.title = tw("sug.use");'));
   check("the > is darker than the grey text and drawn with a heavy stroke",
     /\.sug-go \{[^}]*color: var\(--text2\);/.test(go) && /stroke-width="3\.2"/.test(SRC) && SRC.includes('<path d="M9 5l7 7-7 7"/>'));
-  check("the > is no taller than a line of text (the lines keep their height) and has room for a finger",
-    /\.sug-go \{[^}]*width: 1em; height: 1em;/.test(go) && /\.sug-go::after \{ content: ""; position: absolute; inset: -8px -10px; \}/.test(go));
+  check("the > is no taller than a line of text (the lines keep their height), with a little room for a mouse and more for a finger",
+    /\.sug-go \{[^}]*width: 1em; height: 1em;/.test(go) && /\.sug-go::after \{ content: ""; position: absolute; inset: -4px -6px; \}/.test(go) &&
+    go.includes("@media (pointer: coarse) { .sug-go::after { inset: -8px -10px; } }"));
   check("the > never wraps onto a line of its own", cssTab.includes(".sug-ghost-tail { white-space: nowrap; }"));
   check("the chip is not shown over the dictation bar", cssTab.includes(".hud-voice.dictating .sug-tab { display: none; }"));
   const kd = app.slice(app.indexOf('chatInput.addEventListener("keydown"'));

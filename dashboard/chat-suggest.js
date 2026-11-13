@@ -5,9 +5,11 @@
  *   - when a turn ends the screen calls ctl.request(context); the server (POST /chat/suggest, server/next_prompt.py)
  *     guesses the owner's next message on the background model;
  *   - the guess shows as the placeholder of the EMPTY box, never as text in it, so nothing is sent by accident;
- *   - Tab (or the "Tab" chip next to the box) fills the box with it; sending drops it. A touch screen has no Tab key:
- *     there a small ">" stands right after the last word of the suggestion, inside the box, and a tap on it takes the
- *     suggestion (owner, 2026-11-13: "hiện ngay sau cùng khung chữ gợi ý, đừng hiện cùng hàng với voice và các nút").
+ *   - Tab (or the "Tab" chip next to the box) fills the box with it; sending drops it. A small ">" stands right
+ *     after the last word of the suggestion, inside the box, and a tap or click on it takes the suggestion (owner,
+ *     2026-11-13: "hiện ngay sau cùng khung chữ gợi ý, đừng hiện cùng hàng với voice và các nút"). A touch screen has
+ *     no Tab key, so there the ">" is the only way and the chip is not shown; a computer has both (owner, same day:
+ *     "ở phiên bản máy tính ... không có mũi tên >").
  *
  * 2026-11-13, a user's wish passed on by the owner: the suggestion vanished at the first key typed. "Gõ đến chữ nào
  * thì đề xuất sau vẫn giữ nguyên để gõ tiếp", and better, "suy đoán tiếp nội dung gõ sau khi người dùng muốn điều
@@ -19,6 +21,11 @@
  *     shows the same way. The server says how patiently to ask (`live`: the pause and how many per turn).
  * The grey rest is a mirror layer over the box (same font, padding and width), the trick chat-slash.js uses for
  * command colours: a <textarea> cannot colour part of its own text.
+ *
+ * Same day, the owner on a computer: "xóa vẫn bị mất gợi ý". A sentence taken whole (Tab, the ">", or word by word) used
+ * to end the offers of the turn, so deleting a few letters of it left nothing. The sentences on offer now live until
+ * the message is sent: delete part of what was taken and the rest is back in grey, empty the box and the turn's guess
+ * is back.
  *
  * One module for every chat screen (owner rule of 2026-11-05): the main chat (app.js) and Teams (teams.js) attach it.
  * The switch lives in the composer "+" menu and is stored on the server (settings.chat.suggest_next).
@@ -135,7 +142,7 @@
   }
   function aborter() { return typeof AbortController !== "undefined" ? new AbortController() : null; }
 
-  // The ">" after the suggestion on a touch screen (style.css shows it only there).
+  // The ">" after the suggestion: a tap or a click on it takes the suggestion.
   var GO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" ' +
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
   // The rest of a suggestion as [all but its last word, its last word]: the ">" is tied to the last word so it never
@@ -247,7 +254,7 @@
       }
     }
     /* Lay `typed` + `rest` out exactly as the box would: the typed part unseen (it only takes up its room), the rest
-     * in grey after it, then the ">" of a touch screen tied to the last word. An empty box is drawn the same way with
+     * in grey after it, then the ">" tied to the last word. An empty box is drawn the same way with
      * nothing typed: the suggestion stays the box's placeholder for a screen reader, but the box hides that text
      * (.sug-ghosted) and this layer shows it, so the ">" lands exactly after the last word and a suggestion of several
      * lines is not cut at the first one. */
@@ -281,6 +288,7 @@
         ghost.appendChild(tail);
       }
       goEl.setAttribute("aria-label", tw("sug.use"));
+      goEl.title = tw("sug.use");
       // Right after the box, so it paints over a box that has its own background (Teams).
       if (ghost.parentNode !== host || ghost.previousSibling !== el) host.insertBefore(ghost, el.nextSibling || null);
       if (ghostOn && ghostOn !== el) shrinkBack(ghostOn);
@@ -365,7 +373,9 @@
       liveUsed++;
       asked[draft] = 1;
       liveCtl = aborter();
-      post({ context: ctx, draft: draft, hint: sug }, liveCtl ? liveCtl.signal : undefined).then(function (d) {
+      // A suggestion taken whole is the draft itself: no hint of another way to go.
+      var hint = nfc(sug) === nfc(draft) ? "" : sug;
+      post({ context: ctx, draft: draft, hint: hint }, liveCtl ? liveCtl.signal : undefined).then(function (d) {
         if (my !== seq) return;
         liveBusy = false;
         if (d && d.off) state.enabled = false;
@@ -431,11 +441,8 @@
         var rest = full ? restOf(el.value, full) : "";
         if (!rest) return false;
         var text = wordOnly ? full.slice(0, full.length - rest.length + nextWord(rest).length) : full;
-        if (text.length >= full.length) {
-          // Taken whole: nothing more to offer for this turn, but a draft typed after it can still be finished.
-          sug = ""; live = "";
-          hide();
-        }
+        // Taken whole, the sentence stays on offer until the message is sent: nothing shows while the box holds all
+        // of it, and deleting part of it brings the rest back.
         el.value = text;
         try { el.focus(); el.setSelectionRange(text.length, text.length); } catch (e) {}
         show();
