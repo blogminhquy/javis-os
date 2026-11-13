@@ -244,6 +244,36 @@ try:
     }))
     check("I2: notify_only=False -> payload mode='task' (đọc MCP + ghi nháp như trước)",
           _captured_payload.get("mode") == "task")
+
+    # An owner-notification is not an outbound action. This was the Mika 03:00 Zalo failure.
+    zalo_job = ("Bạn là Mika. Gửi MỘT tin nhắn vào nhóm Zalo Hướng về phía mặt trời "
+                "bằng zalo-lynx__zalo_send_message threadId 8755456034541302373.")
+    check("Mika outbound Zalo intent detected", sched.outbound_action_requested(zalo_job))
+    check("ordinary owner reminder to send later is not an outbound job",
+          not sched.outbound_action_requested("Nhắc tôi gửi tin nhắn vào nhóm Zalo sau giờ họp"))
+
+    _captured_payload.clear()
+    blocked = asyncio.run(sched._do_create(_vault_c2, {
+        "name": "Nhắc Đạt 3h", "prompt": zalo_job, "schedule": "2026-11-14 03:00",
+        "notify_only": True,
+    }))
+    check("Mika Zalo notify_only rejected rather than echoing the prompt",
+          blocked.startswith("ERROR:") and not _captured_payload)
+
+    blocked = asyncio.run(sched._do_create(_vault_c2, {
+        "name": "Nhắc Đạt 3h", "prompt": zalo_job, "schedule": "2026-11-14 03:00",
+        "notify_only": False, "muc_quyen": "suggest",
+    }))
+    check("Mika Zalo external send cannot run with read-only rights",
+          blocked.startswith("ERROR:") and not _captured_payload)
+
+    sent = asyncio.run(sched._do_create(_vault_c2, {
+        "name": "Nhắc Đạt 3h", "prompt": zalo_job, "schedule": "2026-11-14 03:00",
+        "notify_only": False, "muc_quyen": "full",
+    }))
+    check("Mika Zalo outbound reminder routes to task/full",
+          not sent.startswith("ERROR:") and _captured_payload.get("mode") == "task"
+          and _captured_payload.get("muc_quyen") == "full")
 finally:
     sched._post_reminder = _real_post_reminder
 
