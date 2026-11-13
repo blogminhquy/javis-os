@@ -42,6 +42,7 @@ from __future__ import annotations
 import asyncio
 import calendar
 import json
+import kept
 import re
 import time
 import uuid
@@ -897,7 +898,7 @@ class MyTasks:
         sent, seen = 0, set()
         for brain in brains + ["brain"]:
             try:
-                root = str(Path(self.deps.brain_root(brain)).resolve())
+                root = kept.resolved(self.deps.brain_root(brain))   # from memory on the event loop (kept.py)
             except Exception:
                 continue
             if root in seen or not self._path(brain).exists():

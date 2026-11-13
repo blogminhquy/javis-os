@@ -54,6 +54,7 @@ import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import asyncio
 import sys
 import json
+import kept
 import re
 import time
 import unicodedata
@@ -585,7 +586,7 @@ class LoopFeature:
         out, seen = [], set()
         for b in cands:
             try:
-                root = str(Path(self.deps.brain_root(b)).resolve())
+                root = kept.resolved(self.deps.brain_root(b))   # from memory on the event loop (kept.py)
             except Exception:
                 continue
             if root in seen:

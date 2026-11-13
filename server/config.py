@@ -4,6 +4,7 @@ Gồm: workspace, tài khoản admin (mật khẩu hash), model engine, telegram
 Auth CHỈ bật khi đã đặt mật khẩu → bản local chưa đặt vẫn chạy như cũ.
 """
 import json
+import kept
 import os
 import threading
 import time
@@ -587,6 +588,20 @@ def _transform_secret_fields(cfg, fn):
 # ghi đè) thì mtime/size đổi -> tự đọc lại. Trả deep copy để caller sửa thoải mái không bẩn cache.
 _SETTINGS_CACHE = {"sig": None, "cfg": None}
 
+
+def _settings_sig_now():
+    try:
+        st = SETTINGS_PATH.stat()
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+# 2026-11-13: that one stat ran four times per request on the event loop (both guards, twice each). On a disk that
+# stalls it froze every request, so the loop now reads the signature from memory (kept.py). A save through Javis drops
+# it and shows at once; a hand edit of the file shows on the event loop about a second later.
+_SETTINGS_SIG = kept.Value(lambda: _settings_sig_now(), key=lambda: str(SETTINGS_PATH), name="settings.json")
+
 # Một khoá cho mọi lần đọc-sửa-ghi settings.json (update_settings, write_settings). RLock vì
 # update_settings gọi write_settings bên trong. Chặn hai luồng (endpoint chạy trong threadpool,
 # asyncio.to_thread) cùng đọc bản cũ rồi ghi đè lên thay đổi của nhau.
@@ -716,6 +731,7 @@ def _ghi_nguyen_tu(text: str) -> None:
                 if lan == 4:
                     raise
                 time.sleep(0.05 * (lan + 1))
+        _SETTINGS_SIG.drop()      # the next read looks at the new file, whichever thread makes it
     finally:
         try:
             if tmp.exists():
@@ -950,11 +966,7 @@ def _ui_lang_ban_cu(cfg: dict, data: dict) -> None:
 
 
 def read_settings():
-    try:
-        st = SETTINGS_PATH.stat()
-        sig = (st.st_mtime_ns, st.st_size)
-    except OSError:
-        sig = None
+    sig = _SETTINGS_SIG.get()
     if sig is not None and sig == _SETTINGS_CACHE["sig"] and _SETTINGS_CACHE["cfg"] is not None:
         return json.loads(_SETTINGS_CACHE["cfg"])
     cfg = json.loads(json.dumps(_DEFAULT))   # deep copy
@@ -1158,10 +1170,10 @@ def auth_guard_check(grace: float = None):
     never taken for an attack. No stamp yet (first run of this version) = adopt the current block silently."""
     grace = AUTH_GUARD_GRACE if grace is None else grace
     with _SETTINGS_LOCK:
-        try:
-            st = SETTINGS_PATH.stat()
-            sig = (st.st_mtime_ns, st.st_size)
-        except OSError:
+        # The same kept signature as read_settings (2026-11-13): `valid_session` calls this for every signed-in
+        # request, and the stat it made here ran on the event loop each time.
+        sig = _SETTINGS_SIG.get()
+        if sig is None:
             return None
         if sig == _AUTH_CHECK["sig"]:
             return None

@@ -34,6 +34,7 @@ import config
 import doc_text
 import hub_trace
 import job_recipes
+import kept
 import localefmt
 import mcp_catalog
 import mcp_client
@@ -88,15 +89,24 @@ _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".heic"}
 _mem_token = None   # fallback khi STATE_DIR không ghi được - PHẢI ngẫu nhiên, không được hằng số
 
 
+def _token_on_disk() -> str:
+    return _TOKEN_PATH.read_text(encoding="utf-8").strip() if _TOKEN_PATH.exists() else ""
+
+
+# 2026-11-13: every request to /hub/mcp compares its Bearer with this token, and each compare read the file on the
+# event loop: one more read that froze the hub when the disk stalled. The loop reads it from memory (kept.py).
+_TOKEN = kept.Value(lambda: _token_on_disk(), key=lambda: str(_TOKEN_PATH), name="hub token")
+
+
 def hub_token():
     global _mem_token
     try:
-        if _TOKEN_PATH.exists():
-            t = _TOKEN_PATH.read_text(encoding="utf-8").strip()
-            if t:
-                return t
+        t = _TOKEN.get()
+        if t:
+            return t
         t = _secrets.token_urlsafe(32)
         _TOKEN_PATH.write_text(t, encoding="utf-8")
+        _TOKEN.drop()
         try:
             os.chmod(_TOKEN_PATH, 0o600)
         except Exception:
@@ -1788,6 +1798,10 @@ def _store_mtime():
 
     Đây là đường CHẬM (trong TTL 60 giây sẵn có), dành cho ca thả thư mục vào bằng tay. Đổi qua
     endpoint thì đã gọi thẳng `invalidate_cache()` nên có hiệu lực ngay."""
+    return _STORE_MTIME.get()
+
+
+def _store_mtime_now():
     tong = 0.0
     for f in (mcp_store.STORE, STATE_DIR / "core-off.json", STATE_DIR / "packs"):
         try:
@@ -1795,6 +1809,12 @@ def _store_mtime():
         except OSError:
             pass
     return tong
+
+
+# 2026-11-13: those three stats ran on the event loop for every tool list a hub request asked for. The loop reads
+# the sum from memory (kept.py); `invalidate_cache()` drops it together with the tool lists.
+_STORE_MTIME = kept.Value(lambda: _store_mtime_now(), key=lambda: (str(mcp_store.STORE), str(STATE_DIR)),
+                          name="hub store mtime")
 
 
 def _scope_tools(tools, route, allowlist):
@@ -2104,6 +2124,7 @@ def invalidate_cache():
     global _cache_epoch
     _cache_epoch += 1
     _cache.clear()
+    _STORE_MTIME.drop()
     _ambient_cache["ts"] = 0.0   # ép nạp lại danh sách connector tài khoản ở lần discover kế
     try:
         for c in mcp_store.list_connections():

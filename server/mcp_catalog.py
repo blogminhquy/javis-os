@@ -10,9 +10,9 @@ Tool đa hành động kiểu Pancake (1 tool, tham số action=list|create|...)
 THAM SỐ qua arg_rules - enforcement thật diễn ra lúc tools/call (có args).
 """
 import json
+import kept
 import re
 import sys
-import time
 from fnmatch import fnmatch
 from pathlib import Path
 
@@ -38,7 +38,7 @@ PERM_RANK = {"readonly": 0, "safe": 1, "full": 2}
 # anything that does not know the gate fails closed; the hub lists the step's tools like full and asks the gate.
 _MODE_CAP = {"suggest": "readonly", "auto": "safe", "full": "full", "gated": "safe"}
 
-_cache = {"sig": None, "by_id": {}, "checked": 0.0, "path": None}
+_cache = {"sig": None, "by_id": {}, "path": None}
 
 # How long a checked catalog is trusted without looking at the disk again (2026-11-09). `load()` runs for every
 # connection of every tool list (mcp_hub.discover_all), for every Zalo message and every bot list, and each run used to
@@ -51,7 +51,7 @@ CHECK_S = 2.0
 
 def invalidate() -> None:
     """Make the next `load()` look at the disk again (a pack or a removed connector just changed)."""
-    _cache["checked"] = 0.0
+    _LOADED.drop()
 
 
 def _da_go():
@@ -98,11 +98,17 @@ def load():
     nhất lọc được một lần cho tất cả.
 
     Cache theo (chữ ký file catalog, chữ ký danh sách đã gỡ). Thiếu vế thứ hai thì gỡ một
-    connector sẽ không có hiệu lực cho tới khi ai đó sửa file catalog, tức là không bao giờ."""
-    now = time.monotonic()
-    if (_cache["sig"] is not None and _cache["path"] == str(CATALOG_PATH)
-            and 0 <= now - _cache["checked"] < CHECK_S):
-        return _cache["by_id"]
+    connector sẽ không có hiệu lực cho tới khi ai đó sửa file catalog, tức là không bao giờ.
+
+    A checked catalog is trusted for CHECK_S; past that the event loop still gets it from memory while a helper
+    thread does the check (`_LOADED`, kept.py), so no caller on the loop waits for the disk."""
+    if _cache["sig"] is None:
+        _LOADED.drop()            # never loaded, or the cache was emptied by hand: look at the disk now
+    return _LOADED.get()
+
+
+def _load_now():
+    """The check itself: three signatures from the disk, and a re-read only when one of them changed."""
     try:
         st = CATALOG_PATH.stat()
         sig_file = (st.st_mtime_ns, st.st_size)
@@ -111,7 +117,6 @@ def load():
     go = _da_go()
     sig = (sig_file, tuple(sorted(go)), _sig_goi())
     if _cache["sig"] == sig and _cache["path"] == str(CATALOG_PATH):
-        _cache["checked"] = now
         return _cache["by_id"]
     try:
         data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
@@ -125,8 +130,12 @@ def load():
     # bẻ hướng được kết nối đang đăng nhập thật - xem `packs._kiem_connector`.
     for cid, con in (_lop_goi() or {}).items():
         by_id.setdefault(cid, con)
-    _cache.update(sig=sig, by_id=by_id, checked=now, path=str(CATALOG_PATH))
+    _cache.update(sig=sig, by_id=by_id, path=str(CATALOG_PATH))
     return by_id
+
+
+_LOADED = kept.Value(lambda: _load_now(), fresh_s=lambda: CHECK_S, key=lambda: str(CATALOG_PATH),
+                     name="mcp_catalog.load")
 
 
 def tat_ca():

@@ -11,6 +11,7 @@ import brain_export   # xuất/nhập cả bộ não thành một file .zip (202
 import brain_order   # thứ tự brain trong bảng chọn: chủ tự sắp, còn lại theo tên hiển thị (0.431.0)
 import vault_tree_prefs   # pinned folders and folders open by default in the Vault tree (2026-11-11)
 import default_brain   # which brain is the default: a choice since 2026-11-09, `Brain Default` until one is made
+import kept            # values the event loop reads from memory instead of waiting for the disk (2026-11-13)
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import html as html_mod   # escape lời báo lỗi OAuth trên trang callback (biến cục bộ `html` che tên module)
 import posixpath
@@ -5979,6 +5980,27 @@ async def _widen_io_pool():
 
 
 @app.on_event("startup")
+async def _prime_kept_values():
+    """Read once, on a worker thread, what the event loop asks for from its first request on (kept.py): the settings
+    signature, the default brain folder, the pack and plugin signatures, the MCP catalog, the hub token, the bot and
+    channel stores, the `claude` path of GET /health. Without it the first request after a restart reads each of them
+    on the event loop, and right after an update is exactly when the disk is slowest. Waits ten seconds at most; a
+    slower disk finishes the reads behind the server's back."""
+    def run():
+        for read in (cfgmod.read_settings, _default_brain_dir, packs.signature, mcp_catalog.load, mcp_hub.hub_token,
+                     mcp_hub._store_mtime, lambda: plugins_host.shared_signature(), channel_accounts._load,
+                     chatbot_store._load, _HEALTH_CLI.get):
+            try:
+                read()
+            except Exception as e:  # noqa: BLE001 - the first caller reads it instead
+                print(f"[kept] prime: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
+        await asyncio.wait_for(asyncio.to_thread(run), timeout=10)
+    except Exception as e:  # noqa: BLE001 - a timeout: the thread goes on, the server starts
+        print(f"[kept] prime not finished at start-up: {type(e).__name__}", file=sys.stderr)
+
+
+@app.on_event("startup")
 async def _warm_shared_ssl():
     """Build the one SSL context every httpx client shares (ssl_shared.py) on a worker thread, so not even the first
     client loads the certificate bundle on the event loop."""
@@ -6622,11 +6644,14 @@ async def hub_mcp(request: Request):
 
 
 @app.get("/connect/catalog")
-async def connect_catalog():
+def connect_catalog():
     """Kho kết nối cho giao diện, kèm phần người dùng đã GỠ và kết nối đã mồ côi.
 
     `catalog` đã TRỪ cái đã gỡ (lọc trong `mcp_catalog.load`), còn `removed` là danh sách để vẽ
-    khu "Đã gỡ" có nút Cài lại - nên nó phải đọc từ `tat_ca()` chứ không phải `load()`."""
+    khu "Đã gỡ" có nút Cài lại - nên nó phải đọc từ `tat_ca()` chứ không phải `load()`.
+
+    A plain `def` since 2026-11-13: it reads the catalog file twice, the connection store three times and the pack
+    ledger, which as `async def` all ran on the event loop each time the Connections page opened."""
     tat_ca = mcp_catalog.tat_ca()
     da_go = core_off.da_go("connectors")
     return {"catalog": mcp_catalog.public_catalog(), "connections": mcp_store.list_connections(),
@@ -8262,9 +8287,16 @@ async def reflect(brain: str = Form("brain")):
             "status": res.get("status", ""), "report": rep, "git": g}
 
 
+# 2026-11-13: Docker's health check and every uptime probe call GET /health, and each call looked the `claude` binary
+# up by walking the folders of PATH on the disk, on the event loop. When the disk stalled, the probe that was meant to
+# tell whether Javis is alive timed out with it: the container was marked unhealthy and taken out of service while
+# Javis itself was fine. The answer now comes from memory (kept.py).
+_HEALTH_CLI = kept.Value(lambda: find_claude_cli(), name="claude cli path")
+
+
 @app.get("/health")
 async def health(request: Request):
-    cli = find_claude_cli()
+    cli = _HEALTH_CLI.get()
     out = {"status": "ok", "claude_cli_available": cli is not None}
     # 2026-11-10: the probe is public (watchdog, uptime checks, the CLI). The two absolute paths, which usually give
     # away the OS user and the install folder, go only to a signed-in session or to this machine itself.
@@ -8315,7 +8347,14 @@ def _default_brain_dir() -> Path:
     sách hoặc folder ngoài bất kỳ qua 'path:<thư mục>'. KHÔNG hardcode vault cá nhân nào.
 
     Since 2026-11-09 the owner can make another brain the default (POST /brains/default, server/default_brain.py);
-    `Brain Default` is only the folder used until they do."""
+    `Brain Default` is only the folder used until they do.
+
+    2026-11-13: nearly every request asks for this, and each call cost one stat of the pointer file plus a mkdir
+    on the event loop. The loop now gets the folder from memory (kept.py); `_brain_paths_changed()` drops it."""
+    return _DEFAULT_BRAIN_DIR.get()
+
+
+def _default_brain_dir_now() -> Path:
     p = default_brain.path(BRAINS_DIR)
     try:
         p.mkdir(parents=True, exist_ok=True)
@@ -8323,13 +8362,28 @@ def _default_brain_dir() -> Path:
         pass
     return p
 
+
+_DEFAULT_BRAIN_DIR = kept.Value(lambda: _default_brain_dir_now(), key=lambda: str(BRAINS_DIR), name="default brain")
+# "is this brain a folder" and "its resolved path", per brain path. Same reason: both ran on the event loop for
+# almost every request that names a brain.
+_BRAIN_IS_DIR = kept.Keyed(lambda b: os.path.isdir(b), name="brain folder")
+
+
+def _brain_paths_changed() -> None:
+    """A brain was created, deleted or made the default through Javis: read the folders again now. A folder changed
+    any other way (a restore, an import, by hand) is seen within kept.RECHECK_S."""
+    _DEFAULT_BRAIN_DIR.drop()
+    _BRAIN_IS_DIR.drop()
+    kept.forget_resolved()
+
+
 brain_ident.set_default_dir(_default_brain_dir)
 
 
 def _brain_root(brain: str) -> str:
     if not brain or brain == "brain":
         return str(_default_brain_dir())
-    return brain if os.path.isdir(brain) else str(_default_brain_dir())
+    return brain if _BRAIN_IS_DIR.get(brain) else str(_default_brain_dir())
 
 
 def _cwd_luot_chat(row, brain: str) -> str:
@@ -8413,7 +8467,7 @@ def _brain_key(brain) -> str:
     """
     root = _brain_root(str(brain or ""))
     try:
-        return str(Path(root).resolve())
+        return kept.resolved(root)
     except OSError:
         return str(root)
 
@@ -9064,6 +9118,8 @@ async def new_brain(name: str = Form(...)):
         _ensure_brain_scaffold(root)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+    finally:
+        _brain_paths_changed()
     git_brain.clear_tombstone(BRAINS_DIR, safe)   # dựng lại não cùng tên -> gỡ giấy báo tử để không bị xoá oan
     return {"ok": True, "name": safe, "path": str(root)}
 
@@ -9142,6 +9198,8 @@ async def delete_brain(name: str = Form(...), confirm: str = Form("")):
     except Exception as e:
         return JSONResponse({"ok": False, "error": localefmt.chu(f"Không xoá được (brain đang bận?): {e}", f"Could not delete (is the brain busy?): {e}")},
                             status_code=500)
+    finally:
+        _brain_paths_changed()
 
     _eager_brain_sync()   # đẩy lệnh xoá + tombstone lên remote NGAY thay vì chờ chu kỳ 6h
     return {"ok": True, "name": safe, "trashed": bool(dest)}
@@ -9196,6 +9254,7 @@ async def brain_set_default(brain: str = Form(...)):
     if old is not None and root == old:
         return {"ok": True, "name": root.name, "label": brain_label.display(root), "unchanged": True}
     ok, why = await asyncio.to_thread(default_brain.set_folder, BRAINS_DIR, root.name)
+    _brain_paths_changed()
     if not ok:
         return JSONResponse({"ok": False, "error": localefmt.chu("Không đặt được brain này làm mặc định",
                                                                  "Could not make this brain the default")},
@@ -11300,8 +11359,11 @@ async def share_list(brain: str = Query("")):
                                   for b, t in zip(ds, ten)]}
 
 
+# 2026-11-13: the four public routes below are plain `def`, so FastAPI runs them on a worker thread. Each one looks
+# the link up, checks the file and reads or serves it; as `async def` all of that ran on the event loop, and readers
+# of a shared page froze the whole server whenever the disk stalled (GET /health/loop on the owner's VPS).
 @app.get("/s/{token}")
-async def share_xem(token: str, request: Request):
+def share_xem(token: str, request: Request):
     """TRANG XEM công khai. Không cần đăng nhập - xem chú thích đầu khối. `token` may be the link's custom address."""
     ban = share_store.get(token)
     if not ban:
@@ -11309,7 +11371,7 @@ async def share_xem(token: str, request: Request):
                             status_code=404)
     addr = _share_addr(token, ban)
     if share_store.is_conversation(ban):
-        resp = await asyncio.to_thread(_share_trang_hoi_thoai, ban, addr)
+        resp = _share_trang_hoi_thoai(ban, addr)
         if resp.status_code == 200:
             _share_count_view(request, ban)
         return resp
@@ -11350,7 +11412,7 @@ async def share_xem(token: str, request: Request):
 
 
 @app.get("/s/{token}/raw")
-async def share_raw(token: str, dl: int = Query(0)):
+def share_raw(token: str, dl: int = Query(0)):
     """File gốc, để tải về hoặc để trang .html nhúng thẳng."""
     ban = share_store.get(token)
     if not ban:
@@ -11368,7 +11430,7 @@ async def share_raw(token: str, dl: int = Query(0)):
 
 
 @app.get("/s/{token}/asset")
-async def share_asset(token: str, p: str = Query(...)):
+def share_asset(token: str, p: str = Query(...)):
     """Ảnh và tài nguyên kèm theo. Phạm vi bó hẹp, xem _share_asset."""
     ban = share_store.get(token)
     if not ban:
@@ -11472,7 +11534,7 @@ def share_xem_html(token: str, request: Request):
 
 
 @app.get("/s/{token}/{p:path}")
-async def share_sibling(token: str, p: str):
+def share_sibling(token: str, p: str):
     """File cạnh trang .html chia sẻ, theo đường dẫn tương đối app đó xin. Phạm vi: _share_sibling.
 
     Header `Access-Control-Allow-Origin: *` là BẮT BUỘC chứ không phải cho rộng rãi: trang chạy
@@ -33052,8 +33114,10 @@ async def _close_warm_engines():
 
 @app.get("/health/loop")
 async def health_loop():
-    """Recent event-loop freezes with the stack where the loop was stuck (loop_watch). Read only."""
-    return loop_watch.report()
+    """Recent event-loop freezes with the stack where the loop was stuck (loop_watch). Read only.
+
+    `disk` (2026-11-13): the disk reads the event loop no longer waits for (kept.py), with the ones that were slow."""
+    return {**loop_watch.report(), "disk": kept.report()}
 
 
 @app.post("/diag/ws-drops")
