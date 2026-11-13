@@ -395,7 +395,7 @@
   "sug.menu": "Suggest my next message",
   "sug.on": "On",
   "sug.off": "Off",
-  "sug.use": "Use the suggestion (Tab)",
+  "sug.use": "Use the suggestion (Tab, or → for one word)",
   "cp.undo": "Undo Javis's changes",
   "cp.pin_search_ph": "Find a folder in the brain...",
   "cp.pin_browse": "Browse another folder...",

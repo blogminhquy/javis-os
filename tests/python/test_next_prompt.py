@@ -9,6 +9,13 @@ hidden JAVIS_* blocks dropped and long replies cut from the front (the end holds
 first and the background brain is the fallback; an odd answer ("KHONG", a paragraph, a reply in Javis's voice with a
 lead) gives no suggestion; the long dash never comes out; results are cached; the switch in settings turns it off;
 the routes never error; main.py runs it on the BACKGROUND model in the no-tool sandbox.
+
+2026-11-13, a user's wish passed on by the owner: "suy đoán tiếp nội dung gõ sau khi người dùng muốn điều chỉnh, kiểu
+chức năng dự đoán thông minh trên iPhone". Pins for finishing a draft: the prompt carries the chat, the draft and the
+suggestion that was showing; the answer is only what comes AFTER the draft (the model returns the whole sentence, the
+typed part is cut off, marks and case not counting); a reply that does not start with the draft gives nothing; the
+browser is told how patiently to ask (often on an API key, slowly and a few times on the background brain); and only
+one brain completion runs at a time.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -138,21 +145,181 @@ r = run({"chat": {"suggest_next": False}}, CHAT)
 check("switched off: no suggestion and no call", r.get("off") is True and r["text"] == "" and not seen)
 check("on by default", next_prompt.enabled({}) and next_prompt.enabled({"chat": {}}))
 
+# ---- 2026-11-13: finishing a draft the owner is typing ----
+DRAFT = "ok làm PR 1124 tr"
+FULL = "ok làm PR 1124 trước, PR 1118 để sau"
+REST = "ước, PR 1118 để sau"
+
+
+async def fake_brain_full(prompt):
+    seen.append(("brain", prompt))
+    return FULL
+
+
+async def fake_api_full(pick, prompt):
+    seen.append(("api", prompt))
+    return "Câu hoàn chỉnh: \"" + FULL + "\""
+
+
+def finish(cfg, ctx, draft, hint=""):
+    next_prompt._cache.clear()
+    return asyncio.run(next_prompt.complete(cfg, ctx, draft, hint))
+
+
+check("a draft keeps ONE trailing space (the last word is finished) and folds the rest",
+      next_prompt.shape_draft("ok   làm  ") == "ok làm " and next_prompt.shape_draft("  ok làm") == "ok làm")
+check("too short, several lines or very long: not a draft to finish",
+      next_prompt.shape_draft("a") == "" and next_prompt.shape_draft(" ") == "" and
+      next_prompt.shape_draft("dòng 1\ndòng 2") == "" and next_prompt.shape_draft("x" * 201) == "" and
+      next_prompt.shape_draft(None) == "")
+check("only what comes after the draft is returned", next_prompt.clean_completion(FULL, DRAFT) == REST)
+check("a finished word: the rest starts with its space",
+      next_prompt.clean_completion("ok làm theo đề xuất", "ok làm") == " theo đề xuất")
+check("a draft ending in a space: the rest starts with the word",
+      next_prompt.clean_completion("ok làm theo đề xuất", "ok làm ") == "theo đề xuất")
+check("marks and case do not count when cutting the typed part off",
+      next_prompt.clean_completion("Em sửa kỹ năng code trước nhé", "em sua ky nang code") == " trước nhé")
+check("decomposed marks from the keyboard line up with the model's composed ones",
+      next_prompt.clean_completion("Em sửa kỹ năng code trước", "Em su\u031b\u0309a") == " kỹ năng code trước")
+check("an answer that does not start with the draft is a reply, not a continuation",
+      next_prompt.clean_completion("Được, em làm ngay", "ok làm ") == "" and
+      next_prompt.clean_completion("trước, PR 1118 để sau", DRAFT) == "")
+check("nothing added, KHONG, or a paragraph: nothing",
+      next_prompt.clean_completion(DRAFT, DRAFT) == "" and next_prompt.clean_completion("KHONG", DRAFT) == "" and
+      next_prompt.clean_completion(DRAFT + " và" * 40, DRAFT) == "")
+check("the long dash never comes out of a completion",
+      "—" not in next_prompt.clean_completion("ok làm PR 1124 trước — rồi báo anh", "ok làm PR 1124"))
+parts = next_prompt.split_completion("Chỉ đánh dấu luật nền thôi nhé", "chi danh dau luat n")
+check("the whole sentence comes back in the model's own spelling, next to the rest",
+      parts == {"text": "ền thôi nhé", "full": "Chỉ đánh dấu luật nền thôi nhé"})
+parts = next_prompt.split_completion("ok làm theo đề xuất ", "ok   làm ")
+check("the whole sentence keeps one space where the draft ended in spaces",
+      parts == {"text": "theo đề xuất", "full": "ok làm theo đề xuất"})
+check("not a continuation: no whole sentence either", next_prompt.split_completion("Được ạ", "ok làm") == {"text": ""})
+check("quotes, a lead and a second line are dropped before cutting",
+      next_prompt.clean_completion("Câu hoàn chỉnh: \"" + FULL + "\"\nGiải thích: vì...", DRAFT) == REST)
+
+next_prompt._ASK = fake_brain_full
+transcript_fix.pick_quick_api = lambda cfg: None
+seen.clear()
+r = finish({}, CHAT, DRAFT, SAID)
+check("no API key: the background brain finishes the draft", r == {"text": REST, "full": FULL, "source": "brain"})
+prompt = seen[0][1] if seen else ""
+check("the prompt asks for the WHOLE sentence starting with what was typed",
+      "BẮT ĐẦU bằng đúng nguyên văn phần đã gõ" in prompt and "<da_go>\n" + DRAFT + "\n</da_go>" in prompt)
+check("the prompt carries the chat and the suggestion that was showing",
+      "Anh chọn hướng nào" in prompt and "<goi_y_cu>\n" + SAID + "\n</goi_y_cu>" in prompt and
+      prompt.index("<hoi_thoai>") < prompt.index("<goi_y_cu>") < prompt.index("<da_go>"))
+check("hidden JAVIS_* blocks never reach the model here either", "JAVIS_ASK" not in prompt)
+seen.clear()
+finish({}, CHAT, DRAFT)
+check("no suggestion was showing: the prompt has no such block", seen and "<goi_y_cu>" not in seen[0][1])
+seen.clear()
+check("too short a draft: nothing, no call", finish({}, CHAT, "a") == {"text": "", "source": ""} and not seen)
+check("the owner spoke last: nothing, no call", finish({}, CHAT[:1], DRAFT) == {"text": "", "source": ""} and not seen)
+r = finish({"chat": {"suggest_next": False}}, CHAT, DRAFT)
+check("switched off: no completion and no call", r.get("off") is True and r["text"] == "" and not seen)
+next_prompt._cache.clear()
+asyncio.run(next_prompt.complete({}, CHAT, DRAFT))
+asyncio.run(next_prompt.complete({}, CHAT, DRAFT))
+check("the same draft is asked once (cached)", len(seen) == 1)
+asyncio.run(next_prompt.complete({}, CHAT, DRAFT + "ước"))
+check("a longer draft is a new question", len(seen) == 2)
+transcript_fix.pick_quick_api = lambda cfg: ("groq", "k", "m", "u")
+next_prompt._ask_api = fake_api_full
+seen.clear()
+r = finish({}, CHAT, DRAFT)
+check("an API key goes first for a draft too", r["text"] == REST and r["source"] == "groq" and [s for s, _ in seen] == ["api"])
+next_prompt._ask_api = boom
+r = finish({}, CHAT, DRAFT)
+check("API fails: the background brain finishes it", r["text"] == REST and r["source"] == "brain")
+next_prompt._ASK = boom
+check("everything fails: nothing, never an error", finish({}, CHAT, DRAFT)["text"] == "")
+next_prompt._ask_api = real_api
+
+# How patiently the browser asks.
+check("an API key: asked often", next_prompt.live_policy({}) == next_prompt.LIVE_API)
+transcript_fix.pick_quick_api = lambda cfg: None
+check("only the background brain: asked slowly and a few times per turn",
+      next_prompt.live_policy({}) == next_prompt.LIVE_BRAIN and
+      next_prompt.LIVE_BRAIN["wait_ms"] > next_prompt.LIVE_API["wait_ms"] and
+      next_prompt.LIVE_BRAIN["max"] < next_prompt.LIVE_API["max"])
+check("switched off: never asked", next_prompt.live_policy({"chat": {"suggest_next": False}}) is None)
+next_prompt._ASK = None
+check("no key and no brain: never asked", next_prompt.live_policy({}) is None)
+
+
+# One brain completion at a time: a CLI turn takes seconds, typing must not stack them.
+async def two_at_once():
+    gate = asyncio.Event()
+    started = []
+
+    async def slow_brain(prompt):
+        started.append(prompt)
+        await gate.wait()
+        return FULL
+
+    next_prompt._ASK = slow_brain
+    next_prompt._cache.clear()
+    first = asyncio.create_task(next_prompt.complete({}, CHAT, DRAFT))
+    await asyncio.sleep(0)
+    second = await next_prompt.complete({}, CHAT, DRAFT + "ư")
+    turn = asyncio.create_task(next_prompt.suggest({}, CHAT))   # the turn's own suggestion is not held back
+    await asyncio.sleep(0)
+    n = len(started)
+    gate.set()
+    return await first, second, await turn, n, await next_prompt.complete({}, CHAT, DRAFT + "ư")
+
+
+first, second, turn, n, again = asyncio.run(two_at_once())
+check("while one brain completion runs, the next answers busy at once", first["text"] == REST and second.get("busy") is True and
+      second["text"] == "")
+check("the suggestion for a finished turn still runs next to it", n == 2 and turn["source"] == "brain")
+check("a busy answer is not remembered: the same draft is finished later", again["text"] == REST[1:] and again["source"] == "brain")
+check("the count is back to zero afterwards", next_prompt._brain_live[0] == 0)
+
+
+async def brain_breaks():
+    next_prompt._ASK = boom
+    next_prompt._cache.clear()
+    await next_prompt.complete({}, CHAT, DRAFT)
+    return next_prompt._brain_live[0]
+
+
+check("a completion that fails gives the place back", asyncio.run(brain_breaks()) == 0)
+next_prompt._ASK = fake_brain
+next_prompt._cache.clear()
+
 # ---- the routes ----
-check("GET /chat/suggest: on by default", client.get("/chat/suggest").json() == {"enabled": True})
+check("GET /chat/suggest: on by default, with the pace for finishing drafts",
+      client.get("/chat/suggest").json() == {"enabled": True, "live": next_prompt.LIVE_BRAIN})
 r = client.post("/chat/suggest", json={"context": CHAT})
 check("POST /chat/suggest: the suggestion", r.status_code == 200 and r.json().get("text") == SAID)
+check("the suggestion answer carries the pace too (a key added later shows up without a reload)",
+      r.json().get("live") == next_prompt.LIVE_BRAIN)
+next_prompt._ASK = fake_brain_full
+r = client.post("/chat/suggest", json={"context": CHAT, "draft": DRAFT, "hint": SAID})
+check("POST /chat/suggest with a draft: the rest of the sentence, and the whole of it",
+      r.status_code == 200 and r.json().get("text") == REST and r.json().get("full") == FULL)
+r = client.post("/chat/suggest", json={"context": CHAT, "draft": 7})
+check("an odd draft is no draft: the turn's suggestion is asked instead", r.status_code == 200 and "live" in r.json())
+r = client.post("/chat/suggest", json=["not", "a", "dict"])
+check("POST /chat/suggest: an odd body still answers", r.status_code == 200 and r.json().get("text") == "")
+next_prompt._ASK = fake_brain
+next_prompt._cache.clear()
 r = client.post("/chat/suggest", content=b"not json")
 check("POST /chat/suggest: bad JSON still answers", r.status_code == 200 and r.json().get("text") == "")
 r = client.post("/settings", data={"section": "chat", "data": '{"suggest_next": false}'})
 check("POST /settings section chat: saved", r.status_code == 200 and r.json().get("ok") is not False)
 check("the switch is stored in settings.chat.suggest_next",
       cfgmod.read_settings().get("chat", {}).get("suggest_next") is False)
-check("GET /chat/suggest: now off", client.get("/chat/suggest").json() == {"enabled": False})
+check("GET /chat/suggest: now off", client.get("/chat/suggest").json() == {"enabled": False, "live": None})
 r = client.post("/chat/suggest", json={"context": CHAT})
 check("POST /chat/suggest while off: nothing", r.json().get("text") == "" and r.json().get("off") is True)
+r = client.post("/chat/suggest", json={"context": CHAT, "draft": DRAFT})
+check("POST /chat/suggest with a draft while off: nothing", r.json().get("text") == "" and r.json().get("off") is True)
 client.post("/settings", data={"section": "chat", "data": '{"suggest_next": true}'})
-check("switched back on", client.get("/chat/suggest").json() == {"enabled": True})
+check("switched back on", client.get("/chat/suggest").json().get("enabled") is True)
 
 next_prompt._ASK = real_ask
 transcript_fix.pick_quick_api = real_pick

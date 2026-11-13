@@ -1654,6 +1654,18 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .sug-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sug-tab[hidden] { display: none; }
 @media (pointer: coarse) { .sug-tab { font-size: 14px; padding: 8px 11px; } }
+/* The rest of a suggestion after text already typed (2026-11-13): a mirror layer over the box, same font, padding and
+   width (chat-suggest.js copies them), so the grey rest starts exactly where the typed text ends. The typed part is
+   there only to take up its room. In an empty box the suggestion is the box's own placeholder and the layer only
+   measures it (.sug-ghost-measure), so the box grows to show all of a long one. Main chat and Teams share it. */
+.sug-ghost { position: absolute; margin: 0; border: 0; box-sizing: border-box; overflow: hidden; pointer-events: none;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; background: none; }
+.sug-ghost[hidden] { display: none; }
+.sug-ghost-typed, .sug-ghost-measure { visibility: hidden; }
+.sug-ghost-rest { color: var(--text3); }
+/* A suggestion is read whole before it is taken: it wraps (the usual Teams placeholder is one line with "...") and has
+   the colour of the grey rest, so nothing jumps when typing along begins. */
+textarea.has-suggest::placeholder { color: var(--text3); opacity: 1; white-space: pre-wrap; overflow: visible; text-overflow: clip; }
 .cp-plus, .cp-limit {
   flex: none; width: 32px; height: 32px; border-radius: 50%; padding: 0;
   border: 1px solid var(--border); background: transparent; color: var(--text2);

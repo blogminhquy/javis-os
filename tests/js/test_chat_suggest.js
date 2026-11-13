@@ -1,10 +1,15 @@
-// The suggested next message in an empty chat box (chat-suggest.js, 2026-11-07).
+// The suggested next message in the chat box (chat-suggest.js, 2026-11-07, typing along 2026-11-13).
 //
 // Owner, 2026-11-07: after Claude answers, its empty box shows a likely next message in grey and Tab fills it in;
-// "em xem có thêm được vào javis không?". Pins: Tab only fills an EMPTY box with no modifier and no IME composition;
-// the suggestion is the placeholder, never text in the box (nothing is sent by accident); typing hides it and an empty
-// box shows it again; Tab and the Tab chip fill it in; a newer request or a send drops an older answer; switched off
-// on the server, nothing shows. Both chat screens use it (owner rule of 2026-11-05): the main chat and Teams.
+// "em xem có thêm được vào javis không?". Pins: the suggestion is the placeholder of the empty box, never text in it
+// (nothing is sent by accident); Tab and the Tab chip fill it in, with no modifier and no IME composition; a newer
+// request or a send drops an older answer; switched off on the server, nothing shows. Both chat screens use it (owner
+// rule of 2026-11-05): the main chat and Teams.
+//
+// 2026-11-13, a user's wish passed on by the owner: the suggestion vanished at the first key. Pins: typing ALONG it
+// keeps the rest in grey after the typed text (case and Vietnamese marks do not count); Tab takes the rest and Right
+// Arrow at the end of the text takes one word; typing something else hides it and, after a pause, asks the server to
+// finish that draft ({draft, hint}), one request at a time, at most `live.max` per turn, never twice for one draft.
 //
 //     node tests/js/test_chat_suggest.js
 "use strict";
@@ -28,6 +33,36 @@ check("Shift+Tab never accepts (focus goes back)", P.acceptsKey(tab({ shiftKey: 
 check("no suggestion: Tab moves focus as usual", P.acceptsKey(tab(), "", "", false) === false);
 check("mid IME composition: no", P.acceptsKey(tab(), "", "ok", true) === false);
 check("another key: no", P.acceptsKey(tab({ key: "Enter" }), "", "ok", false) === false);
+check("Tab with the start of the suggestion typed accepts the rest", P.acceptsKey(tab(), "ok d", "ok do both", false) === true);
+check("Tab with the whole suggestion typed is a normal Tab", P.acceptsKey(tab(), "ok do both", "ok do both", false) === false);
+
+// 2026-11-13: what a suggestion adds after the text already typed.
+const SUG = "Em sửa kỹ năng nối hạ tầng luôn nhé";
+check("rest: an empty box gets the whole suggestion", P.restOf("", SUG) === SUG);
+check("rest: typed along, the rest follows", P.restOf("Em sửa kỹ", SUG) === " năng nối hạ tầng luôn nhé");
+check("rest: case and Vietnamese marks do not count (half typed 'su' follows 'sửa')",
+  P.restOf("em su", SUG) === "a kỹ năng nối hạ tầng luôn nhé" && P.restOf("EM SUA KY NANG", SUG) === " nối hạ tầng luôn nhé");
+check("rest: đ and d are the same letter", P.restOf("danh d", "đánh dấu") === "ấu");
+check("rest: decomposed marks (a Mac keyboard) line up with composed ones",
+  P.restOf("Em su\u031b\u0309a", SUG) === " kỹ năng nối hạ tầng luôn nhé");
+check("rest: other text is not the start of it", P.restOf("Anh", SUG) === "" && P.restOf("Em sửa xong", SUG) === "");
+check("rest: nothing left once all of it is typed", P.restOf(SUG, SUG) === "" && P.restOf(SUG + " ạ", SUG) === "");
+check("rest: letters of other scripts are compared as they are", P.restOf("か", "がんばって") === "");
+check("fold keeps one character per character", P.fold("Đường SỬA").length === 9 && P.fold("Đường SỬA") === "duong sua");
+check("next word comes with the space before it", P.nextWord(" năng nối") === " năng" && P.nextWord("a kỹ") === "a" &&
+  P.nextWord("nhé") === "nhé");
+const right = (o) => Object.assign({ key: "ArrowRight", shiftKey: false, ctrlKey: false, altKey: false, metaKey: false }, o);
+const boxAt = (value, at) => ({ value, selectionStart: at == null ? value.length : at, selectionEnd: at == null ? value.length : at });
+check("Right Arrow at the end of the text takes a word", P.acceptsWordKey(right(), boxAt("Em sửa"), SUG, false) === true);
+check("Right Arrow inside the text only moves the caret", P.acceptsWordKey(right(), boxAt("Em sửa", 2), SUG, false) === false);
+check("Right Arrow with a selection, a modifier or an IME open: no",
+  P.acceptsWordKey(right(), { value: "Em", selectionStart: 0, selectionEnd: 2 }, SUG, false) === false &&
+  P.acceptsWordKey(right({ shiftKey: true }), boxAt("Em"), SUG, false) === false &&
+  P.acceptsWordKey(right(), boxAt("Em"), SUG, true) === false);
+check("Right Arrow with nothing on offer: no", P.acceptsWordKey(right(), boxAt("Anh"), SUG, false) === false);
+check("a draft worth finishing: one line, two letters or more, not a long text",
+  P.liveDraft("ok") && P.liveDraft("ok làm ") && !P.liveDraft("a") && !P.liveDraft(" ") && !P.liveDraft("dòng 1\ndòng 2") &&
+  !P.liveDraft("x".repeat(201)));
 const ctx = P.shapeContext([{ role: "user", text: "a" }, { role: "javis", text: " " }, null,
   ...Array.from({ length: 9 }, (_, i) => ({ role: i % 2 ? "user" : "javis", text: "m" + i }))]);
 check("context: at most 6, empty dropped, javis read as assistant",
@@ -39,10 +74,18 @@ function classes() {
   return { add: (c) => s.add(c), remove: (c) => s.delete(c), contains: (c) => s.has(c) };
 }
 function makeEl(tag) {
-  return { tagName: tag, hidden: false, attrs: {}, listeners: {}, children: [], parentNode: null, className: "",
+  return { tagName: tag, hidden: false, attrs: {}, listeners: {}, children: [], parentNode: null, className: "", textContent: "",
     setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k] || null; },
     addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); },
-    insertBefore(c, ref) { c.parentNode = this; const i = ref ? this.children.indexOf(ref) : -1; if (i < 0) this.children.push(c); else this.children.splice(i, 0, c); },
+    appendChild(c) { this.insertBefore(c, null); },
+    insertBefore(c, ref) {
+      if (c.parentNode) c.parentNode.children = c.parentNode.children.filter(x => x !== c);
+      c.parentNode = this;
+      const i = ref ? this.children.indexOf(ref) : -1;
+      if (i < 0) this.children.push(c); else this.children.splice(i, 0, c);
+    },
+    get nextSibling() { const k = this.parentNode ? this.parentNode.children : []; return k[k.indexOf(this) + 1] || null; },
+    get previousSibling() { const k = this.parentNode ? this.parentNode.children : []; return k[k.indexOf(this) - 1] || null; },
     click() { (this.listeners.click || []).forEach(f => f({ preventDefault() {} })); } };
 }
 function makeInput() {
@@ -52,25 +95,31 @@ function makeInput() {
   el.attrs["data-i18n-ph"] = "bar.input_ph";
   return el;
 }
-const pending = [];
+const pending = [];   // answers owed to "what will the owner say next"
+const drafts = [];    // answers owed to "finish this draft": { body, answer(d) }
 let enabledOnServer = true;
+const WAIT = 15;      // the pause the server asks for, short here
 const posts = [];
 function fakeFetch(url, opts) {
   if (!opts || !opts.method || opts.method === "GET") {
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({ enabled: enabledOnServer }) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ enabled: enabledOnServer, live: { wait_ms: WAIT, max: 3 } }) });
   }
   if (url === "/settings") {
     posts.push(opts.body);
     return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
   }
-  return new Promise((resolve) => pending.push((d) => resolve({ ok: true, json: () => Promise.resolve(d) })));
+  const body = JSON.parse(opts.body);
+  return new Promise((resolve) => {
+    const answer = (d) => resolve({ ok: true, json: () => Promise.resolve(d) });
+    if (body.draft) drafts.push({ body, answer }); else pending.push(answer);
+  });
 }
 class FakeForm { constructor() { this.data = {}; } append(k, v) { this.data[k] = v; } }
 const winListeners = {};
 const registered = [];
 const sandbox = {
-  console, Promise, setTimeout, JSON, String, Array, Number,
-  document: { readyState: "complete", createElement: makeEl, addEventListener() {} },
+  console, Promise, setTimeout, clearTimeout, JSON, String, Array, Number, Object,
+  document: { readyState: "complete", createElement: makeEl, addEventListener() {}, activeElement: null },
   fetch: fakeFetch, FormData: FakeForm, AbortController: class { abort() { this.aborted = true; } },
   Event: class { constructor(t) { this.type = t; } },
 };
@@ -80,15 +129,24 @@ vm.createContext(sandbox);
 vm.runInContext(SRC, sandbox);
 const S = sandbox.window.JavisSuggest;
 const tick = () => new Promise((r) => setTimeout(r, 0));
+const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer than the wait before a draft is sent
 
 (async () => {
   check("the switch sits in the composer + menu", registered.length === 1 && registered[0].id === "suggest-next");
   check("menu hint says On while on", registered[0].hint() === "T(sug.on)");
 
   const input = makeInput();
-  const row = makeEl("DIV"), gap = makeEl("SPAN");
+  const row = makeEl("DIV"), gap = makeEl("SPAN"), card = makeEl("DIV");
   row.insertBefore(gap, null);
-  const c = S.attach({ input: () => input, chipHost: () => [row, gap], composing: () => false });
+  card.appendChild(input);
+  card.appendChild(row);
+  sandbox.document.activeElement = input;
+  let composing = false, quiet = false;
+  const c = S.attach({ input: () => input, chipHost: () => [row, gap], composing: () => composing, quiet: () => quiet });
+  // The grey rest after typed text: a layer right after the box, [typed (unseen), rest].
+  const ghost = () => card.children.find(x => String(x.className).split(" ").includes("sug-ghost")) || null;
+  const greyRest = () => { const g = ghost(); return g && !g.hidden && g.className === "sug-ghost" ? g.children[1].textContent : null; };
+  const type = (text) => { input.value = text; input.selectionStart = input.selectionEnd = text.length; c.onInput(); };
 
   let p = c.request([{ role: "user", text: "check 2 PRs" }, { role: "assistant", text: "Which way for each PR?" }]);
   await tick(); await tick();
@@ -110,6 +168,173 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
   const took = c.onKeydown(Object.assign(tab(), { preventDefault() { prevented = true; } }));
   check("Tab fills the box", took && prevented && input.value === "ok do both" && input.events.includes("input"));
   check("then the suggestion is gone", c.current() === "" && input.placeholder === "What should I do?" && chip.hidden);
+
+  // ---- 2026-11-13: the suggestion stays while the owner types along it ----
+  input.value = "";
+  p = c.request([{ role: "user", text: "rà spec" }, { role: "assistant", text: "Anh muốn em sửa kỹ năng nối hạ tầng không?" }]);
+  await tick(); await tick();
+  pending.shift()({ ok: true, text: SUG });
+  await p;
+  check("an empty box: the placeholder, and the layer only measures it (nothing drawn twice)",
+    input.placeholder === SUG && greyRest() === null && ghost() && ghost().className === "sug-ghost sug-ghost-measure");
+  type("Em s");
+  check("typing along keeps the rest in grey after the typed text",
+    greyRest() === "ửa kỹ năng nối hạ tầng luôn nhé" && ghost().children[0].textContent === "Em s");
+  check("the layer sits right after the box, so it paints over it", card.children.indexOf(ghost()) === card.children.indexOf(input) + 1);
+  check("the box gets its usual placeholder back and the chip stays", input.placeholder === "What should I do?" && !chip.hidden &&
+    input.classList.contains("has-suggest"));
+  type("em sua ky");
+  check("typed without marks or capitals it still follows", greyRest() === " năng nối hạ tầng luôn nhé" && c.showing() === " năng nối hạ tầng luôn nhé");
+  let stopped = false;
+  check("Right Arrow at the end takes ONE word, in the suggestion's own spelling",
+    c.onKeydown(Object.assign(right(), { preventDefault() { stopped = true; } })) === true && stopped &&
+    input.value === "Em sửa kỹ năng" && greyRest() === " nối hạ tầng luôn nhé" && c.current() === SUG);
+  input.selectionStart = input.selectionEnd = 2;
+  check("Right Arrow inside the text is left to the caret", c.onKeydown(Object.assign(right(), { preventDefault() {} })) === false);
+  input.selectionStart = input.selectionEnd = input.value.length;
+  composing = true;
+  check("mid IME composition neither key takes anything",
+    c.onKeydown(Object.assign(tab(), { preventDefault() {} })) === false && c.onKeydown(Object.assign(right(), { preventDefault() {} })) === false);
+  composing = false;
+  check("Tab with the start typed takes the rest", c.onKeydown(Object.assign(tab(), { preventDefault() {} })) === true && input.value === SUG);
+  check("taken whole: nothing left on offer", c.current() === "" && greyRest() === null && chip.hidden && !input.classList.contains("has-suggest"));
+
+  // ---- 2026-11-13: a draft that goes another way is finished after a pause ----
+  input.value = "";
+  const CHAT = [{ role: "user", text: "rà spec" }, { role: "assistant", text: "Anh muốn em sửa kỹ năng nối hạ tầng không?" }];
+  p = c.request(CHAT);
+  await tick(); await tick();
+  pending.shift()({ ok: true, text: SUG });
+  await p;
+  type("Em sửa kỹ năng code");
+  check("typing something else hides the suggestion at once", greyRest() === null && chip.hidden && input.placeholder === "What should I do?");
+  check("nothing is asked while the owner is still typing", drafts.length === 0);
+  await pause();
+  check("after a pause the server is asked to finish the draft, with the chat and the suggestion that showed",
+    drafts.length === 1 && drafts[0].body.draft === "Em sửa kỹ năng code" && drafts[0].body.hint === SUG &&
+    drafts[0].body.context.length === 2 && drafts[0].body.context[1].role === "assistant");
+  type("Em sửa kỹ năng code t");
+  await pause();
+  check("one request at a time: a newer draft waits for the answer on its way", drafts.length === 1);
+  drafts.shift().answer({ ok: true, text: " trước, hạ tầng để sau" });
+  await tick(); await tick();
+  check("the answer still fits the text typed meanwhile: the rest shows in grey", greyRest() === "rước, hạ tầng để sau" && !chip.hidden);
+  await pause();
+  check("a draft that is being followed asks nothing more", drafts.length === 0);
+  chip.click();
+  check("the chip takes it", input.value === "Em sửa kỹ năng code trước, hạ tầng để sau" && greyRest() === null);
+  type("");
+  check("a sentence taken whole ends the offers of this turn: the empty box has its usual placeholder",
+    input.placeholder === "What should I do?" && c.current() === "");
+  type("ok");
+  await pause();
+  check("a second draft is asked", drafts.length === 1 && drafts[0].body.draft === "ok");
+  drafts.shift().answer({ ok: true, text: "" });
+  await tick(); await tick();
+  await pause();
+  check("no answer for a draft: it is not asked again", drafts.length === 0 && greyRest() === null);
+  type("x");
+  await pause();
+  check("one letter is too little to finish", drafts.length === 0);
+  type("ok\nthêm dòng");
+  await pause();
+  check("a text of several lines is not a draft to finish", drafts.length === 0);
+  quiet = true;
+  type("đang đọc chính tả");
+  await pause();
+  check("while the screen dictates nothing is asked", drafts.length === 0);
+  quiet = false;
+  sandbox.document.activeElement = null;
+  type("ô không được chọn");
+  await pause();
+  check("a box that is not being typed in asks nothing", drafts.length === 0);
+  sandbox.document.activeElement = input;
+  type("con trỏ ở giữa");
+  input.selectionStart = input.selectionEnd = 3;
+  await pause();
+  check("with the caret inside the text nothing is asked (the end is not what is being written)", drafts.length === 0);
+  composing = true;
+  type("đang gõ dở");
+  await pause();
+  check("mid IME composition the draft waits", drafts.length === 0);
+  composing = false;
+  await pause();
+  check("and goes once the composition is over", drafts.length === 1 && drafts[0].body.draft === "đang gõ dở");
+  drafts.shift().answer({ ok: true, text: " thôi", busy: false });
+  await tick(); await tick();
+  type("lần thứ tư");
+  await pause();
+  check("at most live.max requests per turn (3 here)", drafts.length === 0);
+
+  // A send (clear) drops the answer on its way, and the next turn starts a fresh count.
+  input.value = "";
+  p = c.request(CHAT);
+  await tick(); await tick();
+  pending.shift()({ ok: true, text: "" });
+  await p;
+  type("gửi luôn");
+  await pause();
+  check("no suggestion for the turn: a draft is still finished", drafts.length === 1 && drafts[0].body.hint === "");
+  c.clear();
+  drafts.shift().answer({ ok: true, text: " cho anh" });
+  await tick(); await tick();
+  check("an answer arriving after a send is dropped", greyRest() === null && c.showing() === "");
+  type("sau khi gửi");
+  await pause();
+  check("after a send nothing is asked until Javis answers again", drafts.length === 0);
+  // Typed without marks: the server sends the whole sentence in its own spelling, and Tab takes that.
+  input.value = "";
+  p = c.request(CHAT);
+  await tick(); await tick();
+  pending.shift()({ ok: true, text: "" });
+  await p;
+  type("chi danh dau luat n");
+  await pause();
+  drafts.shift().answer({ ok: true, text: "ền thôi nhé", full: "Chỉ đánh dấu luật nền thôi nhé" });
+  await tick(); await tick();
+  check("the rest shows after the text as typed", greyRest() === "ền thôi nhé");
+  c.onKeydown(Object.assign(tab(), { preventDefault() {} }));
+  check("Tab takes the properly written sentence", input.value === "Chỉ đánh dấu luật nền thôi nhé");
+  input.value = "";
+  p = c.request(CHAT);
+  await tick(); await tick();
+  pending.shift()({ ok: true, text: "" });
+  await p;
+  type("ok  làm ");
+  await pause();
+  drafts.shift().answer({ ok: true, text: "theo đề xuất", full: "ok làm theo đề xuất" });
+  await tick(); await tick();
+  c.onKeydown(Object.assign(tab(), { preventDefault() {} }));
+  check("a whole sentence that does not line up with the typed text is not used: the rest goes after what was typed",
+    input.value === "ok  làm theo đề xuất");
+  // The server was finishing another draft (busy): it cost nothing, the count is given back.
+  input.value = "";
+  p = c.request(CHAT);
+  await tick(); await tick();
+  pending.shift()({ ok: true, text: "", live: { wait_ms: WAIT, max: 1 } });
+  await p;
+  type("bận 1");
+  await pause();
+  drafts.shift().answer({ ok: true, text: "", busy: true });
+  await tick(); await tick();
+  type("bận 2");
+  await pause();
+  check("a busy answer does not use up the turn's count (live.max is 1 here)", drafts.length === 1);
+  drafts.shift().answer({ ok: true, text: "" });
+  await tick(); await tick();
+  // The server says it cannot finish drafts (no key, no background brain): never asked.
+  input.value = "";
+  p = c.request(CHAT);
+  await tick(); await tick();
+  pending.shift()({ ok: true, text: SUG, live: null });
+  await p;
+  type("không có ai đoán");
+  await pause();
+  check("live off on the server: typing along still works, nothing is asked", drafts.length === 0);
+  type("Em sửa");
+  check("typing along needs no server", greyRest() === " kỹ năng nối hạ tầng luôn nhé");
+  c.clear();
+  check("clear takes the grey rest away", greyRest() === null);
 
   // The chip fills it in too (a phone has no Tab key).
   input.value = "";
@@ -172,6 +397,22 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
   check("main chat: sending drops the suggestion",
     app.slice(app.indexOf("function sendMessage("), app.indexOf("function sendMessage(") + 300).includes("dropSuggest()"));
   check("main chat: typing shows or hides it", app.includes("chatSuggest.onInput()"));
+  check("main chat: the grey rest may grow the box up to the screen's own limit, and stays out of dictation",
+    /maxHeight: \(\) => chatInputCap\(\)/.test(app) && /quiet: \(\) => handsFreeActive\(\)/.test(app) &&
+    app.includes("Math.min(chatInput.scrollHeight, chatInputCap())"));
+  const inp = app.slice(app.indexOf('chatInput.addEventListener("input"'));
+  check("main chat: the suggestion is told AFTER the box is sized to its text",
+    inp.indexOf("chatInput.style.height = Math.min") < inp.indexOf("chatSuggest.onInput()"));
+  check("Teams: the same limit and dictation rule", /maxHeight: function \(\) \{ return INPUT_MAX_PX; \}/.test(teams) &&
+    /quiet: function \(\) \{ return !!\(S && S\.dictState && S\.dictState !== "idle"\); \}/.test(teams));
+  check("Teams: the suggestion is told AFTER the box is sized to its text",
+    /grow\(e\.target\);[\s\S]{0,120}teamSuggest\.onInput\(\)/.test(teams));
+  const css = fs.readFileSync(path.join(D, "style.css"), "utf8");
+  check("the grey rest is a layer that never takes a click, its typed part unseen",
+    /\.sug-ghost \{[^}]*position: absolute;[^}]*pointer-events: none;/.test(css) &&
+    /\.sug-ghost-typed, \.sug-ghost-measure \{ visibility: hidden; \}/.test(css));
+  check("a suggestion in an empty box wraps instead of being cut", /textarea\.has-suggest::placeholder \{[^}]*white-space: pre-wrap;/.test(css));
+  check("no timer runs while a suggestion just sits there", !/setInterval|requestAnimationFrame/.test(SRC));
   check("Teams: attached to .tm-input with the chip before the mic",
     /window\.JavisSuggest\.attach\(/.test(teams) && teams.includes('row.querySelector(".tm-mic")'));
   check("Teams: Tab handled after the @mention list (which also uses Tab)",

@@ -4688,6 +4688,10 @@ function chupFile(f) {
 // ============================================
 // Events
 // ============================================
+// How tall the chat box may grow, measured when asked so a resized window still gets the right limit.
+function chatInputCap() {
+  return document.body.classList.contains("on-chat") ? Math.round(window.innerHeight * 0.4) : 200;
+}
 chatInput.addEventListener("input", () => {
   // 0.206.0: the send button shows up next to Stop once there is text; 0.231.0: and in place of voice chat.
   if (isProcessing) syncActiveUI(); else updateStopBtn();
@@ -4696,9 +4700,7 @@ chatInput.addEventListener("input", () => {
   // bản, không phải cuộn trong một ô 3 dòng. Trần ở trang Trò chuyện là 40% màn hình
   // (đo lúc gõ nên đổi cỡ cửa sổ vẫn đúng); màn chính ô nhập nằm trong cột phải hẹp hơn
   // nên trần 200px, quá nữa mới cuộn trong ô. CSS chỉ giữ lưới đỡ 45vh, không chặn nữa.
-  const _cap = document.body.classList.contains("on-chat")
-    ? Math.round(window.innerHeight * 0.4) : 200;
-  chatInput.style.height = Math.min(chatInput.scrollHeight, _cap) + "px";
+  chatInput.style.height = Math.min(chatInput.scrollHeight, chatInputCap()) + "px";
   sendTypingHint();
   try { if (chatSuggest) chatSuggest.onInput(); } catch (e) {}
 });
@@ -4719,11 +4721,15 @@ function sendTypingHint() {
 // chat-acts.js (JavisActs.enterSends) so the Team chat follows the same ones.
 const chatInputComposing = window.JavisActs.trackComposition(chatInput);
 // 2026-11-07: the likely next message shows grey in the empty box once Javis answers; Tab (or the Tab chip on a
-// phone) fills it in. Shared with the Team chat (chat-suggest.js).
+// phone) fills it in. 2026-11-13: it stays while the owner types along it, Right Arrow takes one word, and a draft
+// that goes another way is finished after a short pause. Shared with the Team chat (chat-suggest.js).
 const chatSuggest = window.JavisSuggest ? window.JavisSuggest.attach({
   input: () => chatInput,
   chipHost: () => { const row = document.getElementById("cpRow"); return row ? [row, row.querySelector(".cp-gap")] : null; },
   composing: () => chatInputComposing(),
+  maxHeight: () => chatInputCap(),
+  // Dictation and a voice call write into the box themselves: no guessing over them.
+  quiet: () => handsFreeActive() || !!document.querySelector("#hudVoice.dictating"),
 }) : null;
 function dropSuggest() { try { if (chatSuggest) chatSuggest.clear(); } catch (e) {} }
 chatInput.addEventListener("keydown", (e) => {
