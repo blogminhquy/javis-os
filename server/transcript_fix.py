@@ -32,10 +32,22 @@ answering a Vietnamese instruction slides into Vietnamese: an English dictation 
 iPad, English user). The prompts now say so in plain words, a sentence with no Vietnamese in it gets one more line
 right above it, and `keeps_language` refuses an answer that turned such a sentence into Vietnamese: the next model
 is tried, and when none keeps the language the words stay as heard.
+
+2026-11-13 (owner: "phần đang viết lại câu cho đúng nó rất chậm"): four things made the rewrite slow or wrong.
+  - The word rules that run first cost seconds of CPU with a long vocabulary (nghe_sua.similar_from has the numbers).
+  - They were given the names of every MCP connection, which the fuzzy layer must never get (voice_ear.vocab says so):
+    "cần và" became "Canva". The connections now only go into the model's prompt.
+  - The quick API call let a thinking model spend its small token budget on thinking (Groq's default model thinks),
+    so the answer came back empty or cut, and the slow CLI ran after it. Thinking is now turned down, the budget fits
+    the sentence, and an answer that stopped at the token limit is refused instead of being taken as the sentence.
+  - POST /stt/fix cut the text at 2000 characters and the cut rewrite replaced the whole dictation. A dictation over
+    `MAX_REWRITE_CHARS` now keeps every word and only gets the word rules.
+Each rewrite logs how long each step took (numbers only), so a slow one can be traced.
 """
 from __future__ import annotations
 
 import sys
+import time
 
 import httpx
 
@@ -49,6 +61,7 @@ import nghe_sua
 
 TIMEOUT_S = 3.0
 _CACHE_MAX = 200
+WORD_FIX_MAX_CHARS = 2000    # the word-level model pass answers in at most 400 tokens
 _cache: dict = {}
 
 # chat/completions endpoint of each OpenAI-compatible API (same as engine.py).
@@ -163,10 +176,13 @@ async def fix_transcript(cfg: dict, text) -> dict:
     original = str(text or "").strip()
     if not original:
         return {"text": "", "source": "rules", "ai": False}
+    if len(original) > 4 * MAX_REWRITE_CHARS:     # not a dictation: hand it back untouched
+        return {"text": original, "source": "rules", "ai": False}
     terms = nghe_sua.fix_vocabulary(cfg or {})
     by_rules = nghe_sua.sua(original, terms)
     pick = pick_model(cfg or {})
-    if pick is None:
+    # A long text keeps every word and gets the rules only: the model pass has a small answer budget.
+    if pick is None or len(original) > WORD_FIX_MAX_CHARS:
         return {"text": by_rules, "source": "rules", "ai": False}
     cache_key = (by_rules, pick[0], pick[2])
     if cache_key in _cache:
@@ -195,6 +211,14 @@ async def fix_transcript(cfg: dict, text) -> dict:
 # seconds in all: 5 for the quick key, then up to 19 for the CLI.
 MAIN_TIMEOUT_S = 19.0
 FALLBACK_TIMEOUT_S = 5.0
+# A long dictation is a long answer to write: the quick key gets more time with the length, up to this.
+QUICK_TIMEOUT_MAX_S = 12.0
+# Everything together stays under the 25 seconds the browser waits (dictate.js POLISH_WAIT_MS): an answer that comes
+# later is thrown away there, so there is no point in still working on it here.
+BUDGET_S = 23.0
+# Five minutes of speech (the recorder's limit) is about 5000 characters. Longer than this the text is not sent to a
+# model at all: it keeps every word and gets the word rules only. Never cut a dictation to fit a model.
+MAX_REWRITE_CHARS = 8000
 _CLI_PROVIDERS = (aux_engine.CLAUDE, aux_engine.CODEX, aux_engine.GROK_CLI, aux_engine.ANTIGRAVITY)
 # Other keys worth a quick call when neither Groq nor the background model has one, fastest and cheapest first.
 _QUICK_ORDER = ("openai", "gemini", "openrouter", "deepseek")
@@ -315,18 +339,63 @@ def _terms(cfg: dict) -> list:
     return out[:90]
 
 
+def quick_timeout(sentence: str) -> float:
+    """Seconds the quick API key gets for this sentence: 5 for a short one, more for a long dictation."""
+    return min(QUICK_TIMEOUT_MAX_S, FALLBACK_TIMEOUT_S + len(str(sentence or "").split()) / 50.0)
+
+
+def quick_api_body(provider: str, model: str, system: str, prompt: str, sentence: str) -> dict:
+    """The chat/completions request of the quick key, with thinking turned down and room for the whole sentence.
+
+    Several default models think before they answer, and what they think counts against `max_tokens`. With the old
+    budget (4 tokens a word) Groq's gpt-oss spent it thinking and returned an empty or half sentence, so every dictation
+    paid for the quick call AND the slow CLI after it. Each vendor has its own switch:
+      - Groq gpt-oss: `reasoning_effort` low (its lowest); Groq qwen3: none.
+      - Gemini 2.5 flash: none switches thinking off; other thinking Gemini models: low.
+      - DeepSeek thinks by default: `thinking` disabled (the same switch engine.py sends).
+      - OpenAI o-series and gpt-5: low, no `temperature` (they refuse 0) and `max_completion_tokens`.
+    Vietnamese costs two to three tokens a word, so the answer gets six a word."""
+    words = len(str(sentence or "").split())
+    answer = min(3000, 6 * words + 200)
+    m = (model or "").lower()
+    body = {"model": model, "temperature": 0,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}]}
+    thinks = False
+    if provider == "groq":
+        if "gpt-oss" in m:
+            body["reasoning_effort"] = "low"
+            thinks = True
+        elif "qwen3" in m or "qwen-3" in m:
+            body["reasoning_effort"] = "none"
+    elif provider == "gemini":
+        if "2.5-flash" in m:
+            body["reasoning_effort"] = "none"
+        elif "2.5" in m or "gemini-3" in m or "thinking" in m:
+            body["reasoning_effort"] = "low"
+            thinks = True
+    elif provider == "deepseek":
+        body["thinking"] = {"type": "disabled"}
+    elif provider == "openai" and (m.startswith(("o1", "o3", "o4")) or "gpt-5" in m):
+        body["reasoning_effort"] = "low"
+        body.pop("temperature", None)
+        body["max_completion_tokens"] = answer + 1000
+        return body
+    body["max_tokens"] = answer + (1000 if thinks else 0)
+    return body
+
+
 async def _ask_quick_api(pick, prompt: str, sentence: str) -> str:
     provider, key, model, url = pick
-    body = {
-        "model": model,
-        "temperature": 0,
-        "max_tokens": min(800, 4 * len(sentence.split()) + 60),
-        "messages": [{"role": "system", "content": REWRITE_SYSTEM}, {"role": "user", "content": prompt}],
-    }
-    async with httpx.AsyncClient(timeout=FALLBACK_TIMEOUT_S) as client:
+    body = quick_api_body(provider, model, REWRITE_SYSTEM, prompt, sentence)
+    async with httpx.AsyncClient(timeout=QUICK_TIMEOUT_MAX_S) as client:
         r = await client.post(url, json=body, headers={"Authorization": "Bearer " + key})
         r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+        choice = r.json()["choices"][0]
+    # Stopped at the token limit: a sentence with its end missing. It would pass the size check and silently drop
+    # the rest of what the owner said, so it is a failure, not an answer.
+    if choice.get("finish_reason") == "length":
+        raise RuntimeError("answer cut at the token limit")
+    return choice["message"]["content"] or ""
 
 
 async def rewrite_transcript(cfg: dict, text, context=None) -> dict:
@@ -338,34 +407,58 @@ async def rewrite_transcript(cfg: dict, text, context=None) -> dict:
     original = " ".join(str(text or "").split())
     if not original:
         return {"text": "", "source": "rules", "ai": False}
+    if len(original) > 4 * MAX_REWRITE_CHARS:     # not a dictation: hand it back untouched
+        return {"text": original, "source": "rules", "ai": False}
+    t0 = time.monotonic()
+    # The fuzzy rules get the owner's own words and the AI terms only. The names of the MCP connections go to the
+    # model's prompt, never to the rules (see the 2026-11-13 note at the top).
+    by_rules = nghe_sua.sua(original, nghe_sua.fix_vocabulary(cfg or {}))
+    rules_s = time.monotonic() - t0
+    if len(original) > MAX_REWRITE_CHARS:
+        print(f"[transcript_fix] {len(original)} chars is too long to rewrite, kept every word (rules only)",
+              file=sys.stderr)
+        return {"text": by_rules, "source": "rules", "ai": False}
     terms = _terms(cfg)
-    by_rules = nghe_sua.sua(original, terms)
     ctx = [" ".join(str(c).split())[:300] for c in (context or []) if str(c or "").strip()][-6:]
     cache_key = (by_rules, tuple(ctx))
     if cache_key in _rewrite_cache:
         return dict(_rewrite_cache[cache_key])
     prompt = build_rewrite_prompt(by_rules, terms, ctx)
-    main = [("main", lambda: asyncio.wait_for(_ASK(prompt), MAIN_TIMEOUT_S))] if _ASK is not None else []
+    main = [("main", lambda: _ASK(prompt), MAIN_TIMEOUT_S)] if _ASK is not None else []
     pick = pick_quick_api(cfg or {})
-    quick = [(pick[0], lambda: _ask_quick_api(pick, prompt, by_rules))] if pick is not None else []
+    quick = ([(pick[0], lambda: _ask_quick_api(pick, prompt, by_rules), quick_timeout(by_rules))]
+             if pick is not None and _ask_quick_api is not None else [])
     tries = quick + main if main_is_cli(cfg or {}) else main + quick
-    for source, run in tries:
-        try:
-            out = clean_rewrite(await run())
-        except Exception as e:  # timeout, signed out, network, odd JSON: try the next one
-            print(f"[transcript_fix] rewrite via {source} failed: {type(e).__name__}", file=sys.stderr)
+    deadline = t0 + BUDGET_S
+    steps = [f"rules {rules_s:.2f}s"]
+    result = None
+    for source, run, limit in tries:
+        left = deadline - time.monotonic()
+        if left < 1.0:
+            steps.append(f"{source} skipped (out of time)")
             continue
+        t1 = time.monotonic()
+        try:
+            out = clean_rewrite(await asyncio.wait_for(run(), min(limit, left)))
+        except Exception as e:  # timeout, signed out, network, odd JSON: try the next one
+            steps.append(f"{source} failed {time.monotonic() - t1:.1f}s ({type(e).__name__})")
+            continue
+        took = f"{time.monotonic() - t1:.1f}s"
         if not is_safe_rewrite(by_rules, out):
-            print(f"[transcript_fix] rewrite via {source} was not a rewrite ({len(by_rules)} -> {len(out)} chars)",
-                  file=sys.stderr)
+            steps.append(f"{source} {took} not a rewrite ({len(out)} chars)")
             continue
         if not keeps_language(by_rules, out):
-            print(f"[transcript_fix] rewrite via {source} changed the language, refused ({len(by_rules)} chars)",
-                  file=sys.stderr)
+            steps.append(f"{source} {took} changed the language")
             continue
+        steps.append(f"{source} ok {took}")
         result = {"text": out, "source": source, "ai": True}
-        if len(_rewrite_cache) >= _CACHE_MAX:
-            _rewrite_cache.clear()
-        _rewrite_cache[cache_key] = result
-        return dict(result)
-    return {"text": by_rules, "source": "rules", "ai": False}
+        break
+    # Measurements only, never the owner's words: this line is how a slow rewrite is traced.
+    print(f"[transcript_fix] rewrite {len(by_rules)} chars in {time.monotonic() - t0:.1f}s: " + ", ".join(steps)
+          + ("" if result else " -> kept the rules"), file=sys.stderr)
+    if result is None:
+        return {"text": by_rules, "source": "rules", "ai": False}
+    if len(_rewrite_cache) >= _CACHE_MAX:
+        _rewrite_cache.clear()
+    _rewrite_cache[cache_key] = result
+    return dict(result)

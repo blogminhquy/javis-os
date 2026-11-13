@@ -2824,9 +2824,18 @@ async def _transcript_rewrite_ask(prompt: str) -> str:
     sounds like an order is only rewritten, never carried out."""
     base = _reply_policy_sandbox_engine(transcript_fix.REWRITE_SYSTEM, "transcript-rewrite",
                                         cwd_name="transcript_rewrite_cwd")
+    # 2026-11-13: lowest thinking level for Claude Code. Fixing a dictated sentence needs no plan, and at the CLI's
+    # own default the owner waited through seconds of thinking on every recording. The main_spec below carries no
+    # level, so swap() leaves this one in place. An older `claude` without the flag runs as before.
+    if claude_cli.co_co("--effort"):
+        try:
+            base.effort = "low"
+        except Exception:  # noqa: BLE001 - an engine without the field keeps its default
+            pass
     cli = aux_engine.swap(base, mode="suggest", tag="transcript-rewrite", spec=aux_engine.main_spec(),
                           codex_profile=_write_codex_profile)
     cli = aux_engine.strip_tools(cli, base)
+    _rewrite_low_effort_codex(cli)
     if not cli.is_available():
         raise RuntimeError("main brain not ready")
     final = ""
@@ -2838,6 +2847,27 @@ async def _transcript_rewrite_ask(prompt: str) -> str:
     if aux_engine.final_loi_dang_nhap(final):
         raise RuntimeError("main brain signed out")
     return final
+
+
+def _rewrite_low_effort_codex(cli) -> None:
+    """Codex links of the dictation rewrite think at "low" (2026-11-13), the same reason as Claude Code's flag above.
+
+    Only when Codex lists "low" for that model (or no ladder has been read yet): a value the model does not know would
+    fail the run, and a run at the default is still a rewrite."""
+    try:
+        links = list(cli._all()) if isinstance(cli, aux_engine._FallbackChain) else [cli]
+    except Exception:  # noqa: BLE001
+        return
+    for e in links:
+        if type(e).__name__ != "CodexCLI":
+            continue
+        try:
+            muc = _codex_effort(getattr(e, "model", "") or "", "low")
+            if muc:
+                e.extra_config[:] = [x for x in e.extra_config if not str(x).startswith("model_reasoning_effort=")]
+                e.extra_config.append(f"model_reasoning_effort={muc}")
+        except Exception as ex:  # noqa: BLE001 - the depth setting must never cost the rewrite
+            print(f"[transcript_fix] codex effort: {type(ex).__name__}", file=sys.stderr)
 
 
 transcript_fix.wire(ask=_transcript_rewrite_ask)
@@ -18772,7 +18802,10 @@ async def stt_fix_route(request: Request):
         body = await request.json()
     except Exception:
         return {"ok": False, "text": "", "ly_do": "json_hong"}
-    text = str((body or {}).get("text") or "")[:2000]
+    # 2026-11-13: never cut here. The text used to be cut at 2000 characters and the answer replaced the whole
+    # dictation in the browser, so everything after about two and a half minutes of speech was lost. transcript_fix
+    # keeps every word of a long text and only decides whether a model reads it.
+    text = str((body or {}).get("text") or "")
     cfg = cfgmod.read_settings()
     # `final`: the recording ended, the main brain rewrites the whole sentence with the chat as context.
     if (body or {}).get("final"):
