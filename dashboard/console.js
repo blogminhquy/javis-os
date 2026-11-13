@@ -9074,6 +9074,24 @@
   //
   // Trả về hàm `bat()` để nút bật/tắt của trang gọi: màn hẹp thì mở/đóng ngăn kéo, máy tính
   // thì thu/mở cột và nhớ lựa chọn.
+  // Xoay ngang / đổi cỡ cửa sổ: ngăn kéo đang mở mà nhảy sang bố cục máy tính thì lớp
+  // `side-open` treo lại vô nghĩa. Dọn luôn cho sạch.
+  //
+  // ONE listener for every page built on `.chatpage` (2026-11-12), looking the open drawers up when the width changes.
+  // It used to be added on every render, and the browser keeps a MediaQueryList that has a listener for as long as the
+  // document lives, so each closure held that render's whole page: every visit to Chat leaked its DOM (measured after a
+  // forced garbage collection: 1,461 nodes and 167 listeners per visit, 336 nodes per visit to Coding).
+  let _narrowWatchOn = false;
+  function _watchNarrowOnce() {
+    if (_narrowWatchOn) return;
+    _narrowWatchOn = true;
+    try {
+      window.matchMedia("(max-width: 860px)").addEventListener("change", (e) => {
+        if (e.matches) return;
+        document.querySelectorAll('[data-cot-trai-da-neo="1"].side-open').forEach((p) => p.classList.remove("side-open"));
+      });
+    } catch (e) {}
+  }
   function _neoCotTrai(page, sideEl, slot) {
     if (!page || page.dataset.cotTraiDaNeo === "1") return function () {};
     page.dataset.cotTraiDaNeo = "1";
@@ -9085,13 +9103,7 @@
     if (slot) slot.addEventListener("click", dong);
     page.addEventListener("click", (e) => { if (e.target === page) dong(); });
     if (sideEl) sideEl.addEventListener("click", (e) => { if (e.target.closest(".cside-item")) dong(); });
-    // Xoay ngang / đổi cỡ cửa sổ: ngăn kéo đang mở mà nhảy sang bố cục máy tính thì lớp
-    // `side-open` treo lại vô nghĩa. Dọn luôn cho sạch.
-    try {
-      window.matchMedia("(max-width: 860px)").addEventListener("change", (e) => {
-        if (!e.matches) page.classList.remove("side-open");
-      });
-    } catch (e) {}
+    _watchNarrowOnce();
     return function bat() {
       if (hep()) { page.classList.toggle("side-open"); return; }
       const thu = !page.classList.contains("side-thu");
@@ -10750,6 +10762,9 @@
     khoiPhucTrang();
     // 2026-11-09: the start-up screen waits from here for the first page's own "Loading..." lines to go (boot-splash.js).
     try { if (window.JavisBoot) window.JavisBoot.pageStarted(); } catch (e) {}
+    // 2026-11-12: the brain graph is built only once the home screen is in view (app.js ensureGraph). Opening on Chat
+    // or Partners no longer downloads the graph and runs its physics behind that page.
+    try { if (window.JavisCockpit && window.JavisCockpit.firstPage) window.JavisCockpit.firstPage(Alpine.store("nav").active); } catch (e) {}
 
     freshSettings().then(async s => {
       // Máy này CHƯA chọn ngôn ngữ (i18n đang đoán theo trình duyệt): ngôn ngữ đã lưu trên

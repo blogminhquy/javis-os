@@ -51,6 +51,49 @@ def test_splash_helpers():
     assert got == [True, False, False, True, False, False, True]
 
 
+def test_a_loader_out_of_sight_does_not_hold_the_splash():
+    """2026-11-12: the endless chat list ends with a "Loading more..." line that sits below the fold of its scrolling
+    list whenever there are more chats than fit. It has a box, so the splash took it for a page still loading and
+    stayed for the whole DATA_MAX_MS on every start (measured: data ready after about 1 s, app shown at 4 s)."""
+    box = "(t,b,l,r)=>({top:t,bottom:b,left:l,right:r,width:r-l,height:b-t})"
+    node = ("(rect,parent)=>({getClientRects:()=>[1],closest:()=>null,getBoundingClientRect:()=>rect,"
+            "parentElement:parent||null})")
+    got = _node_json("(()=>{const box=%s,node=%s,env={w:1000,h:800,clips:(el)=>!!el.scrolls};"
+                     "const list={scrolls:true,getBoundingClientRect:()=>box(100,500,0,300),parentElement:null};"
+                     "const plain={scrolls:false,getBoundingClientRect:()=>box(100,500,0,300),parentElement:null};"
+                     "return ["
+                     "b.loaderVisible([node(box(200,240,0,300),list)],env),"       # inside the list's window: counts
+                     "b.loaderVisible([node(box(900,940,0,300),list)],env),"       # below the fold of the list: not
+                     "b.loaderVisible([node(box(40,80,0,300),list)],env),"         # scrolled above the list: not
+                     "b.loaderVisible([node(box(600,640,0,300),plain)],env),"      # parent does not clip: counts
+                     "b.loaderVisible([node(box(850,890,0,300),null)],env),"       # below the screen: not
+                     "b.loaderVisible([node(box(200,240,1200,1400),null)],env),"   # off to the right: not
+                     "b.loaderVisible([node(box(900,940,0,300),list),node(box(200,240,0,300),null)],env)"   # one of two
+                     "]})()" % (box, node))
+    if got is None:
+        return
+    assert got == [True, False, False, True, False, False, True]
+    # The endless chat list is the case this is for: its last line carries the loader class.
+    assert 'class="cside-more pg-loading"' in _read("sessions-ui.js")
+
+
+def test_an_early_splash_never_uncovers_bare_keys():
+    """2026-11-12: now that the splash goes as soon as the first page has its data, the dictionary must be there too,
+    or labels drawn by scripts show as keys. The splash waits for it (same cap), and the background strip, whose first
+    answer can beat the dictionary, draws itself again when the words arrive."""
+    got = _node_json("[b.wordsReady({JavisI18n:{ready:()=>false}}),b.wordsReady({JavisI18n:{ready:()=>true}}),"
+                     "b.wordsReady({}),b.wordsReady(null),b.wordsReady({JavisI18n:{ready(){throw new Error('x')}}})]")
+    if got is None:
+        return
+    # not arrived, arrived, no i18n module, no window, a broken module: only the first keeps the splash.
+    assert got == [False, True, True, True, True]
+    splash = _read("boot-splash.js")
+    assert 'if (loaderVisible(document.querySelectorAll(".pg-loading")) || !wordsReady(window)) quietSince = 0;' in splash
+    strip = _read("background-strip.js")
+    assert 'window.addEventListener("javis:i18n", function () { if (lastData) render(lastData); });' in strip
+    assert re.search(r"function render\(d\) \{\n\s*var e = el\(\);\n\s*if \(!e\) return;\n\s*lastData = d;", strip)
+
+
 def test_splash_goes_soon_after_the_data_and_never_waits_long_for_a_slow_list():
     """2026-11-12: a customer read the splash of a slow machine as "Javis loads slowly". The wait for the first page's
     data has its own, shorter cap; a healthy page hands over within a tenth of a second of its last loader."""

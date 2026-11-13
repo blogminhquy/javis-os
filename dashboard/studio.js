@@ -909,7 +909,7 @@
     // lần là dựng lại DOM), khỏi để lại một chồng closure chết bám vào document.
     const mPick = box.querySelector("#agModelPick");
     const ngoaiKhung = (e) => {
-      if (!mPop || !mPop.isConnected) { document.removeEventListener("click", ngoaiKhung); return; }
+      if (!mPop || !mPop.isConnected) { dropPopListeners(); return; }
       // So bằng CHÍNH phần tử, không phải closest("#agModelPick"): trang Cộng sự có thể đang
       // mở form trong cột phải trong khi Studio bật thêm form trong modal, tức hai khung cùng
       // id trên một trang - so theo id là bấm vào khung này lại không đóng khung kia.
@@ -920,9 +920,15 @@
       if (!mPop.hidden && !(mPick && duong.indexOf(mPick) >= 0)) dongPop();
     };
     const escKhung = (e) => {
-      if (!mPop || !mPop.isConnected) { document.removeEventListener("keydown", escKhung); return; }
+      if (!mPop || !mPop.isConnected) { dropPopListeners(); return; }
       if (e.key === "Escape" && !mPop.hidden) { dongPop(); e.stopPropagation(); }
     };
+    // Both go together (2026-11-12): each used to leave only on its own event, so on a phone, where no key is pressed
+    // for a long while, every form opened kept its keydown listener, and through it the whole form, alive.
+    function dropPopListeners() {
+      document.removeEventListener("click", ngoaiKhung);
+      document.removeEventListener("keydown", escKhung);
+    }
     document.addEventListener("click", ngoaiKhung);
     document.addEventListener("keydown", escKhung);
     // Trạng thái chọn giữ trong Set, DOM chỉ là HÌNH CHIẾU của nó. Đây là chỗ dễ hỏng nhất của

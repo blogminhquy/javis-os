@@ -3530,6 +3530,19 @@ async function initGraph() {
   try { if (window.JavisRecomputeGraph) window.JavisRecomputeGraph(); } catch (e) {}
 }
 
+// The brain graph is built when the home screen is FIRST IN VIEW, not at every start (2026-11-12). Opening the app on
+// Chat or Partners (the page remembered from the last visit) used to download the whole graph, load the graph library
+// and run its warm-up physics on the main thread for a screen nobody was looking at. Measured with 2,600 notes: a
+// 770 KB answer and one 255 ms block on a desktop, about a second on a phone, on every start. console.js tells which
+// page the app opened on (JavisCockpit.firstPage) and calls veManChinh() on every later visit to the home screen.
+let _graphBuilding = null;
+function ensureGraph() {
+  if (!_graphBuilding) _graphBuilding = initGraph().then(connectGraphWatch).catch(connectGraphWatch);
+  return _graphBuilding;
+}
+// Safety net: console.js never reported the first page (a script error there) and the home screen is in view.
+function ensureGraphIfHome() { if (!_graphBuilding && _oManChinh()) ensureGraph(); }
+
 // Click node trong graph → Javis mở & thao tác note đó trong vault
 window.onGraphNodeClick = (node) => {
   if (!node || !node.path) return;
@@ -3662,8 +3675,10 @@ function capNhatManChinh() {
   checkVault();     // kiểm tra cấu trúc vault mới chọn
 }
 // console.js gọi mỗi lần đổi trang: về tới màn chính thì trả nợ lần đổi brain đang hoãn.
-window.JavisCockpit = { veManChinh() { if (_cockpitCho) capNhatManChinh(); },
-                        dangCho: () => _cockpitCho };
+window.JavisCockpit = { veManChinh() { ensureGraph(); if (_cockpitCho) capNhatManChinh(); },
+                        dangCho: () => _cockpitCho,
+                        // The page the app opened on (console.js boot). Only the home screen shows the graph.
+                        firstPage(id) { if (id === "home") ensureGraph(); } };
 
 // Trang đang mở có MƯỢN khung chat và tự mở phiên của nó không (Cộng sự: phiên agent:<slug>
 // hay workflow:<slug>; Coding: phiên của repo). Phiên đó KHÔNG phải cuộc chính của brain.
@@ -3982,16 +3997,22 @@ document.getElementById("fmUse").addEventListener("click", () => {
 window.addEventListener("resize", () => { if (javisGraph) javisGraph.resize(); });
 
 let _stopBtnTick = 0;
+// How often the pump runs while nothing moves (2026-11-12). It used to ask for a frame on every frame, for good: 60
+// callbacks a second with nothing to do, and each of those frames also made the browser tick every CSS animation on
+// the page. With silence on both sides and no caption following a voice, six runs a second do the same job (the
+// stop button below was already updated six times a second); a level or a caption brings the per-frame rhythm back.
+const PUMP_IDLE_MS = 160;
 function pumpAudioLevel() {
+  let live = false;
   // Only while there is a level to show or the last one is still fading out: with silence on both sides the graph
-  // has nothing to redraw, and this runs on every frame.
-  if (javisGraph) {
-    const _lvl = voice.getLevel();
-    if (_lvl > 0 || (javisGraph.level || 0) > 0.001) javisGraph.setLevel(_lvl);
-  }
-  // Cập nhật hiển thị nút stop ~6 lần/giây (theo dõi cả lúc Javis đang đọc)
+  // has nothing to redraw.
+  const _lvl = voice.getLevel();
+  if (_lvl > 0) live = true;
+  if (javisGraph && (_lvl > 0 || (javisGraph.level || 0) > 0.001)) { javisGraph.setLevel(_lvl); live = true; }
+  if (_theoLoi) live = true;
   if (_theoLoi && (_stopBtnTick % 3) === 0) nhipTheoLoi();   // V3: chữ theo lời ~20 lần/giây
-  if ((_stopBtnTick++ % 10) === 0) {
+  // Cập nhật hiển thị nút stop ~6 lần/giây (theo dõi cả lúc Javis đang đọc)
+  if (!live || (_stopBtnTick % 10) === 0) {
     updateStopBtn();
     // (Voice V1) orb do đạo diễn vẽ từ sự kiện thật: voice.js báo onSpeakEnd khi hết hàng đợi.
     // Chốt an toàn: nếu giọng đã im mà đạo diễn còn tưởng đang nói (vd trình duyệt nuốt sự
@@ -3999,7 +4020,9 @@ function pumpAudioLevel() {
     if (turn.speaking && !voice.isSpeaking() && !voice.isPaused()) runActions(turn.ttsEnd());
     if (_cauChoLuot.length) guiCauChoLuot();   // 0.65.28: lưới cho câu chờ lượt khi sự kiện loa bị nuốt
   }
-  requestAnimationFrame(pumpAudioLevel);
+  _stopBtnTick++;
+  if (live) requestAnimationFrame(pumpAudioLevel);
+  else setTimeout(pumpAudioLevel, PUMP_IDLE_MS);
 }
 stopBtn.addEventListener("click", stopCurrent);
 
@@ -4044,6 +4067,7 @@ function initStarfield() {
   let sky = SKY_DARK;
   let cssW = 0, cssH = 0, dpr = 1, lastDraw = 0;
   const STAR_IDLE_MS = 250;
+  const STAR_PARKED_MS = 400;   // how often the loop looks again while nobody can see the canvas
   let watchingSize = false;  // a ResizeObserver tells us when the panel changes size
   let sizeDirty = true;      // the panel's size may have changed: measure once at the next draw
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
@@ -4089,22 +4113,32 @@ function initStarfield() {
   window.addEventListener("javis-theme-change", e => syncSky(!!(e && e.detail && e.detail.light)));
   syncSky(document.documentElement.getAttribute("data-theme") === "light");
 
+  // Nobody can see the canvas: a hidden tab, or a management page in front of the home screen.
+  const isParked = () => document.hidden || document.body.classList.contains("in-console");
+  // While parked the timer only looks again; it asks for a frame once there is something to draw.
+  const wake = () => { if (isParked()) setTimeout(wake, STAR_PARKED_MS); else requestAnimationFrame(draw); };
   function draw(now) {
-    requestAnimationFrame(draw);
-    if (document.hidden) return;
     // 0.415.0: một trang quản lý (Cộng sự, Cài đặt...) đang che màn chính thì nền sao không ai nhìn thấy; vẽ tiếp chỉ đốt
     // CPU, và đo kích thước ở dưới còn ép trình duyệt tính lại bố cục mỗi lần. Khung cuối vẫn nằm trên canvas khi quay về.
-    if (document.body.classList.contains("in-console")) return;
+    const parked = isParked();
     // Nền 2D từng tự dựng gradient + grid ở 60 FPS dù não đứng yên. 15 FPS lúc nghỉ vẫn
     // đủ cho sao nhấp nháy chậm; khi có giọng/đang nghĩ nâng lên 30 FPS.
-    const lvl = voice.getLevel();
-    const active = lvl > 0.01 || _thinkingActive;
+    const lvl = parked ? 0 : voice.getLevel();
+    const active = !parked && (lvl > 0.01 || _thinkingActive);
     // 2026-11-10: at rest the only thing that moves is the twinkle, and one twinkle takes 9 to 69 seconds. Drawing it 15
     // times a second cost about half of the home screen's idle main-thread time on a throttled phone (measured: 228 ms
     // busy per second, 77 with this canvas off). Four frames a second look the same; the twinkle below advances by
     // elapsed time, so its tempo does not change with the frame rate. Voice or thinking still gets 30 frames.
     const interval = active ? 33 : STAR_IDLE_MS;
-    if (now && now - lastDraw < interval) return;
+    const wait = now ? interval - (now - lastDraw) : 0;
+    // 2026-11-12: the next wake-up is a timer unless a voice or thinking needs every frame. This loop used to ask for
+    // a frame on every frame only to return at once (hidden tab, a management page in front, a draw not due yet): 60
+    // callbacks a second for at most four draws, and every one of those frames made the browser tick all the CSS
+    // animations on the page too. A timer may fire a little late; the twinkle advances by elapsed time, so it shows no
+    // difference. Coming back to the home screen draws within STAR_PARKED_MS; the last frame stays on the canvas.
+    if (active) requestAnimationFrame(draw);
+    else setTimeout(wake, parked ? STAR_PARKED_MS : Math.max(16, wait > 0 ? wait : interval));
+    if (parked || wait > 0) return;
     const dt = (now && lastDraw) ? Math.min(now - lastDraw, 1000) : (active ? 33 : 66);
     lastDraw = now || 0;
     // Tự đo lại kích thước (sửa lỗi nền dồn 1 góc khi layout chưa xong lúc boot). The size comes from a
@@ -5574,8 +5608,18 @@ if (document.getElementById("wzFinish")) {
     showNow();
   }
   sel.addEventListener("change", showNow);
-  fill();
-  window.addEventListener("javis:i18n", fill);
+  // 2026-11-12: the list is built when the wizard opens, not on every start of the app. Building it asks the browser
+  // for the clock of some 420 timezones (measured: about 100 ms on a desktop, several times that on a phone), and it
+  // ran at each start and again when the dictionary arrived, for a wizard an installed Javis never shows again.
+  const wz = document.getElementById("setupWizard");
+  const shown = () => !!(wz && wz.classList.contains("open"));
+  let filled = false;
+  function fillIfShown() { if (shown()) { filled = true; fill(); } }
+  fillIfShown();
+  if (wz && typeof MutationObserver === "function") {
+    new MutationObserver(() => { if (!filled) fillIfShown(); }).observe(wz, { attributes: true, attributeFilter: ["class"] });
+  }
+  window.addEventListener("javis:i18n", () => { if (filled) fill(); });
 })();
 
 // Wizard - chọn nhà cung cấp (card radio) + hiện ô key OpenRouter + gợi ý cách kết nối
@@ -5610,7 +5654,7 @@ initAuthGate();
 refreshUsage();
 connect();
 initStarfield();
-initGraph().then(connectGraphWatch).catch(connectGraphWatch);
+setTimeout(ensureGraphIfHome, 4000);   // the graph itself starts from JavisCockpit.firstPage / veManChinh
 pumpAudioLevel();
 loadMemStats();
 loadBrainStats();

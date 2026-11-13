@@ -153,6 +153,100 @@ function _centerGravity(strength) {
   return force;
 }
 
+// ---- Remembered layout (2026-11-12) ----
+// Where every dot came to rest is kept in this browser, per graph, so the next opening starts from that picture instead
+// of from a heap in the middle. Why: the library ran 24 physics steps IN ONE GO before the first frame and then five
+// seconds of physics, on every opening and after every new note. Measured with 2,600 notes: one block of 255 ms on a
+// desktop and 1.1 s on a phone, then five seconds at a few frames a second. A graph that starts where it last settled
+// needs neither: no warm-up, a short settle for the notes that are new.
+// Only numbers are stored (a hash of each note's id and two coordinates), never a name or a path.
+const POS_KEY = "javis.graphPos.";        // + the graph's query (source=... / path=...)
+const POS_INDEX = "javis.graphPos.keys";  // the queries kept, most recent first
+const POS_KEEP = 3;                       // graphs remembered per browser
+const POS_MAX_NODES = 15000;              // beyond this the copy would crowd localStorage
+const POS_HIT = 0.9;                      // share of notes that must have a remembered place to skip the warm-up
+// Physics steps after which a layout counts as settled (d3-force cools down in about 300). A slow machine runs far
+// fewer in its five seconds; the count is kept with the layout and adds up over openings, and until it is reached
+// every opening settles a little more.
+const POS_SETTLED_TICKS = 300;
+// Below this many physics steps a second the machine is too slow to animate the settling: every step is a visible
+// stutter (measured on a simulated phone, 1,900 notes: 7 steps a second, each a 140 ms block). Such a machine keeps the
+// layout it ended on, which is the very picture it always came to rest on after its five seconds.
+const POS_SLOW_RATE = 20;
+
+function _posStore() {
+  try { return (typeof localStorage !== "undefined" && localStorage) || null; } catch (e) { return null; }
+}
+
+// The last layout of this graph: {map: hash of id -> [x, y], ticks: physics steps it has had}, or null.
+function _posLoad(query) {
+  const st = _posStore();
+  if (!st || !query) return null;
+  try {
+    const rec = JSON.parse(st.getItem(POS_KEY + query) || "null");
+    const flat = rec && rec.p;
+    if (!Array.isArray(flat) || flat.length < 3) return null;
+    const map = new Map();
+    for (let i = 0; i + 2 < flat.length; i += 3) map.set(flat[i], [flat[i + 1], flat[i + 2]]);
+    return { map, ticks: Number(rec.t) || 0, slow: !!rec.s };
+  } catch (e) { return null; }
+}
+
+function _posSave(query, nodes, ticks, slow) {
+  const st = _posStore();
+  if (!st || !query || !nodes || !nodes.length || nodes.length > POS_MAX_NODES) return false;
+  const flat = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (typeof n.x !== "number" || typeof n.y !== "number" || !isFinite(n.x) || !isFinite(n.y)) continue;
+    flat.push(_hash(n.id), Math.round(n.x), Math.round(n.y));
+  }
+  if (flat.length < 3) return false;
+  try {
+    let keys = [];
+    try { keys = JSON.parse(st.getItem(POS_INDEX) || "[]"); } catch (e) { keys = []; }
+    if (!Array.isArray(keys)) keys = [];
+    keys = [query].concat(keys.filter(k => k !== query));
+    keys.slice(POS_KEEP).forEach(k => { try { st.removeItem(POS_KEY + k); } catch (e) {} });
+    keys = keys.slice(0, POS_KEEP);
+    st.setItem(POS_KEY + query, JSON.stringify({ t: Math.max(0, Math.round(Number(ticks) || 0)), s: slow ? 1 : 0, p: flat }));
+    st.setItem(POS_INDEX, JSON.stringify(keys));
+    return true;
+  } catch (e) { return false; }   // storage full or blocked: the graph simply settles from scratch next time
+}
+
+// Put the remembered places on `nodes`. A note with no place (new since the last visit) starts beside a note it links
+// to, so it does not fly in from the middle. Returns "" when too little was remembered (the physics lays it all out),
+// "settle" when the dots are placed but still need a short settle (new notes, or a layout that never cooled down), and
+// "still" when every dot stands where a settled layout left it (or where a slow machine's layout ended): nothing to
+// compute at all.
+function _posApply(known, nodes, links) {
+  if (!known || !known.map || !nodes || !nodes.length) return "";
+  let placed = 0;
+  const byId = new Map();
+  nodes.forEach(n => {
+    byId.set(n.id, n);
+    const p = known.map.get(_hash(n.id));
+    if (p) { n.x = p[0]; n.y = p[1]; placed++; }
+  });
+  if (placed / nodes.length < POS_HIT) {
+    nodes.forEach(n => { delete n.x; delete n.y; });   // too little remembered: let the physics lay it all out
+    return "";
+  }
+  if (placed === nodes.length) return (known.ticks >= POS_SETTLED_TICKS || known.slow) ? "still" : "settle";
+  (links || []).forEach(l => {
+    const a = byId.get(l.source), b = byId.get(l.target);
+    if (!a || !b) return;
+    const from = typeof a.x === "number" ? a : (typeof b.x === "number" ? b : null);
+    const to = from === a ? b : a;
+    if (!from || typeof to.x === "number") return;
+    const h = _hash(to.id);
+    to.x = from.x + ((h % 41) - 20);
+    to.y = from.y + (((h >>> 8) % 41) - 20);
+  });
+  return "settle";
+}
+
 class JavisGraph {
   constructor(container) {
     this.container = container;
@@ -211,6 +305,12 @@ class JavisGraph {
     window.__javisCatIdx = this._catMap;                    // danh mục → chỉ số
     window.__javisCatMap = _mapFromIdx(this._catMap);       // để nhãn danh mục (app.js) tô chữ khớp màu node
     const links = (data.edges || []).map(e => ({ source: e.source, target: e.target }));
+    // Start from where this graph last settled (see "Remembered layout" above).
+    const known = _posLoad(query);
+    const remembered = _posApply(known, nodes, links);   // "", "settle" or "still"
+    this._query = query;
+    this._ticks = remembered && known ? known.ticks : 0;   // physics steps this layout has had so far
+    this._slow = !!(remembered && known && known.slow);     // this machine could not animate the settling last time
 
     if (!this.graph) {
       if (!window.ForceGraph) throw new Error(graphTw("graph.lib_2d_missing"));
@@ -257,13 +357,21 @@ class JavisGraph {
           self.container.style.cursor = n ? "pointer" : "grab";
         })
         .onNodeClick(n => { if (window.onGraphNodeClick) window.onGraphNodeClick(n); })   // chỉ mở note, KHÔNG lia camera
-        .onNodeDragEnd(n => { n.fx = null; n.fy = null; })                                // thả kéo → node tự trôi về
+        .onNodeDrag(() => { self._engineOn = true; })                                     // a drag reheats the physics
+        .onNodeDragEnd(n => { n.fx = null; n.fy = null; self._engineOn = true; self._syncLoop(); })   // thả kéo → node tự trôi về
         .onBackgroundClick(() => { self._catFilter = null; })                            // KHÔNG recenter → bấm được node viền
         .minZoom(0.05).maxZoom(3)                                                         // min nâng lên = mức fit sau khi lắng
+        .onEngineTick(() => { self._ticks = (self._ticks || 0) + 1; self._runTicks = (self._runTicks || 0) + 1; })
         .onEngineStop(() => {
-          if (self._fitted) return;
+          self._engineOn = false;
+          self._rememberLayout();
+          // What follows a stop is the user's own doing (dragging a dot reheats the physics): the usual five seconds.
+          try { self.graph.cooldownTime(JavisGraph.cooldownFor("")); } catch (e) {}
+          if (self._fitted) { self._syncLoop(); return; }
           self._fitted = true;
-          self._fit(500);
+          // The user is already dragging or zooming: the camera is theirs, do not pull it back to the middle.
+          if (!self._daKeo) self._fit(500);
+          self._syncLoop();
         });
 
       // Lực đẩy vừa (node gần nhau, không văng) + hút MẠNH về tâm (co thành khối TRÒN, kéo node lẻ vào)
@@ -276,12 +384,60 @@ class JavisGraph {
     }
 
     this._fitted = false;
-    this._t0 = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    // The fade-in needs a redraw on every frame for 0.7 s. A layout that is shown exactly as it was left ("still") is
+    // drawn ONCE, at full strength: on a slow machine every extra frame of a large graph is a visible stutter (about
+    // 140 ms each on a simulated phone with 1,900 notes), and a single frame caught mid-fade would stay dim for good.
+    this._t0 = remembered === "still" ? 0 : (typeof performance !== "undefined" ? performance.now() : Date.now());
     try { this.graph.minZoom(0.05); } catch (e) {}   // mở lại giới hạn để lần fit mới không bị kẹp
+    this._physicsFor(nodes.length, remembered);
     this.graph.graphData({ nodes, links });
     this.resize();
+    // The picture is already the settled one: frame it now instead of after the physics has cooled down.
+    if (remembered) this._fit(0);
+    // Nothing will move, so the framing above is final: no second, animated framing when the physics reports its stop.
+    if (remembered === "still") this._fitted = true;
     return data;
   }
+
+  // How much physics a load gets. `remembered` is what _posApply said: "" (nothing to start from), "settle" (the dots
+  // stand where they last were, new notes still have to find their place) or "still" (a settled layout, unchanged).
+  // The warm-up runs in one go before the first frame, so its length is what the user feels as a freeze: 24 steps are
+  // kept for small graphs (they cost a few milliseconds there), fewer as the graph grows, none when remembered.
+  static warmupFor(count, remembered) {
+    if (remembered) return 0;
+    return count > 1500 ? 6 : (count > 600 ? 12 : 24);
+  }
+  static cooldownFor(remembered) { return remembered === "still" ? 0 : (remembered ? 1500 : 5000); }
+
+  _physicsFor(count, remembered) {
+    if (!this.graph) return;
+    // Every caller hands new data to the library right after this, which starts its physics: the loop must run.
+    this._engineOn = true;
+    this._syncLoop();
+    const warm = JavisGraph.warmupFor(count, remembered);
+    if (!remembered) this._ticks = warm;   // a layout from scratch: the count starts over (warm-up steps included)
+    // This run, for the speed check in _rememberLayout: steps done, when it began and how long it is given.
+    this._runTicks = 0;
+    this._runStart = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    this._runBudget = JavisGraph.cooldownFor(remembered);
+    try { this.graph.warmupTicks(warm); } catch (e) {}
+    try { this.graph.cooldownTime(JavisGraph.cooldownFor(remembered)); } catch (e) {}
+  }
+
+  // Keep where the dots stand now for the next opening (called when the physics stops).
+  _rememberLayout() {
+    if (!this.graph || !this._query || this._tlTimer) return false;   // a timelapse is not a settled layout
+    // How fast did this run go? Only a run that used its whole time says something: one cut short (the physics cooled
+    // down early) or stretched (the page was left while it ran, the loop paused) keeps the earlier verdict.
+    const took = (typeof performance !== "undefined" ? performance.now() : Date.now()) - (this._runStart || 0);
+    const budget = this._runBudget || 0;
+    if (budget >= 1000 && took >= budget && took <= budget + 1500) {
+      this._slow = JavisGraph.slowRun(this._runTicks || 0, took);
+    }
+    try { return _posSave(this._query, this.graph.graphData().nodes, this._ticks || 0, this._slow); } catch (e) { return false; }
+  }
+  // Did a run of `ticks` physics steps in `ms` go too slowly to be worth animating again?
+  static slowRun(ticks, ms) { return ms > 0 && (ticks * 1000) / ms < POS_SLOW_RATE; }
 
   _drawNode(n, ctx, scale) {
     if (n.x == null || n.y == null) return;
@@ -347,6 +503,7 @@ class JavisGraph {
     });
     // Ép force-graph vẽ lại dây nối (linkColor là hàm nên chỉ cần đánh thức vòng vẽ).
     try { this.graph.linkColor(this.graph.linkColor()); } catch (e) {}
+    this._poke(300);
   }
 
   // Lề chừa quanh đồ thị khi canh khung, TÍNH THEO khung thật chứ không phải số cố định.
@@ -365,6 +522,7 @@ class JavisGraph {
 
   _fit(ms = 400) {
     if (!this.graph) return;
+    this._poke(ms + 400);   // the camera glides inside the library's loop
     try {
       this.graph.zoomToFit(ms, this._fitPad());                 // canh cho MỌI node vừa khung
       // Sau khi fit: chặn zoom-out nhỏ hơn mức "mọi node vừa khung". Đặt sau khi hoạt ảnh
@@ -391,6 +549,7 @@ class JavisGraph {
     const w = this.container.clientWidth || (p ? p.clientWidth : 800);
     const h = this.container.clientHeight || (p ? p.clientHeight : 600);
     if (w && h) this.graph.width(w).height(h);
+    this._poke(300);        // a new size clears the canvas: the library must draw it again
   }
 
   // --- Nhịp vẽ: chỉ vẽ liên tục khi THẬT SỰ có gì đang động ---
@@ -417,9 +576,11 @@ class JavisGraph {
     const el = this.container;
     if (!el || this._daNgheChuot) return;
     this._daNgheChuot = true;
-    const cham = () => { this._chuotTren = true; this._nhipVe(); };
+    const cham = () => { if (this._synthetic) return; this._chuotTren = true; this._nhipVe(); };
     const roi = (e) => {
-      this._chuotTren = false; this._nhipVe();
+      this._chuotTren = false;
+      this._dropHover();
+      this._nhipVe();
       if (e && e.pointerType === "mouse") this._henVeGiua();   // chuột rời quả cầu: hết xem, đếm giờ về giữa
     };
     el.addEventListener("pointerenter", cham);
@@ -442,6 +603,23 @@ class JavisGraph {
       window.addEventListener("pointercancel", tha);
     }
     el.addEventListener("wheel", () => { this._daKeo = true; this._loaiTro = "mouse"; this._henVeGiua(); }, { passive: true });
+  }
+
+  // The pointer left the graph: tell the library, which has no "pointer left" of its own (2026-11-12). It keeps the last
+  // position it saw, so the dot under that spot stayed "hovered" for good: the highlight stayed lit with the pointer
+  // elsewhere on the page, and because a hovered dot keeps the drawing on, the graph went on drawing every frame until
+  // the pointer came back (measured on a simulated phone: main thread 88% busy, nobody touching anything). A pointer
+  // move far outside the canvas makes the library's next frame report "nothing hovered" through onNodeHover.
+  _dropHover() {
+    const el = this.container;
+    if (this._hoverId == null || !el || typeof el.querySelector !== "function" || typeof PointerEvent !== "function") return;
+    const canvas = el.querySelector("canvas");
+    if (!canvas) return;
+    this._synthetic = true;     // our own pointermove listener must not read this as the pointer coming back
+    try {
+      canvas.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: -100000, clientY: -100000, pointerType: "mouse" }));
+    } catch (e) { /* no synthetic events here: the hover clears on the next real move */ }
+    this._synthetic = false;
   }
 
   // --- Kéo tự do, buông tay vài giây thì tự về giữa (0.422.0, chủ repo xin) ---
@@ -473,17 +651,70 @@ class JavisGraph {
     const dong = this.level > 0.02 || this._thinking || this._hoverId != null || this._chuotTren;
     const gio = (typeof performance !== "undefined" ? performance.now() : Date.now());
     if (dong) this._dongLuc = gio;
-    const can = dong || (gio - (this._dongLuc || 0) < JavisGraph.AN_HAN_MS);
+    const left = JavisGraph.AN_HAN_MS - (gio - (this._dongLuc || 0));   // what is left of the grace period
+    const can = dong || left > 0;
+    // 2026-11-12: when only the grace period keeps the drawing on, look again when it ends. Nobody else does: this
+    // function runs on events, and since the voice pump stopped calling setLevel on every silent frame the last event
+    // (the pointer leaving the graph, the end of a thought) left the graph drawing every frame for good. Measured on a
+    // simulated phone, 1,900 notes, after the pointer crossed the graph once: main thread 88% busy with nobody
+    // touching anything, 21% once the drawing stops.
+    if (this._graceTimer) { clearTimeout(this._graceTimer); this._graceTimer = null; }
+    if (can && !dong) {
+      this._graceTimer = setTimeout(() => { this._graceTimer = null; this._nhipVe(); }, left + 20);
+      if (this._graceTimer && typeof this._graceTimer.unref === "function") this._graceTimer.unref();   // node (tests)
+    }
     if (can === this._veLienTuc) return;          // không đổi thì đừng gọi lại thư viện
     this._veLienTuc = can;
     if (this.graph) { try { this.graph.autoPauseRedraw(!can); } catch (e) {} }
+    this._syncLoop();
+  }
+
+  // --- The library's own loop sleeps too when nothing can change the picture (2026-11-12) ---
+  //
+  // autoPauseRedraw only skips the DRAWING: the library still asks for a frame on every frame to look whether there is
+  // something to draw, and each of those frames makes the browser tick every CSS animation on the page as well.
+  // Measured on a simulated phone, home screen left alone: main thread 21% busy for a picture that does not change.
+  // So when nothing moves (no voice, no thinking, no pointer on the graph), the physics has stopped and no camera
+  // glide is on its way, the loop is paused. Everything that can change the picture wakes it: _nhipVe (voice,
+  // thinking, pointer), new data and drags (_engineOn), and _poke for the one-off redraws (camera glide, new size,
+  // new colours, a highlighted category). A wake-up the library never confirms (onEngineStop not fired) leaves the loop
+  // running, which is the old behaviour.
+  _loopNeeded(gio) {
+    return !!(this._veLienTuc || this._engineOn || this._tlTimer || gio < (this._pokeUntil || 0));
+  }
+  _syncLoop() {
+    if (!this.graph || this._parked) return;      // parked: another page is in front, console.js paused the graph
+    const gio = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    if (this._pokeTimer) { clearTimeout(this._pokeTimer); this._pokeTimer = null; }
+    if (this._loopNeeded(gio)) {
+      if (this._loopOff) { this._loopOff = false; try { this.graph.resumeAnimation(); } catch (e) {} }
+      // Only a one-off redraw keeps it awake: look again when that is over.
+      if (!this._veLienTuc && !this._engineOn && !this._tlTimer) {
+        this._pokeTimer = setTimeout(() => { this._pokeTimer = null; this._syncLoop(); }, (this._pokeUntil || 0) - gio + 20);
+        if (this._pokeTimer && typeof this._pokeTimer.unref === "function") this._pokeTimer.unref();   // node (tests)
+      }
+    } else if (!this._loopOff) {
+      this._loopOff = true;
+      try { this.graph.pauseAnimation(); } catch (e) {}
+    }
+  }
+  // Keep the loop running for `ms`: something is about to be drawn that no event of ours announces.
+  _poke(ms) {
+    const gio = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    this._pokeUntil = Math.max(this._pokeUntil || 0, gio + (ms || 300));
+    this._syncLoop();
   }
 
   // --- Điều khiển vòng đời đồ thị ---
   pause() {
+    this._parked = true;
     if (this.graph) { try { this.graph.pauseAnimation(); } catch (e) {} }
   }
-  wake() { if (this.graph) { try { this.graph.resumeAnimation(); } catch (e) {} } }
+  wake() {
+    this._parked = false;
+    this._loopOff = true;       // paused by pause() above, whatever it was before
+    this._poke(300);            // one redraw on coming back (the size may have changed meanwhile), then sleep if idle
+  }
   resume() { this.wake(); }
   setThinking(active) { this._thinking = !!active; this._nhipVe(); }
 
@@ -508,6 +739,9 @@ class JavisGraph {
   // Rọi sáng một danh mục (bấm nhãn PERSONAL/SALES... quanh não). null = bỏ lọc.
   spotlightCategory(cat) {
     this._catFilter = cat ? String(cat).replace(/^\d+\s*[-_.]\s*/, "").trim().toLowerCase() : null;
+    // Draw the new highlight now (the label that was clicked sits outside the canvas, so no pointer woke the graph).
+    try { if (this.graph) this.graph.linkColor(this.graph.linkColor()); } catch (e) {}
+    this._poke(300);
     return this._catFilter;
   }
 
@@ -536,6 +770,7 @@ class JavisGraph {
     // Warmup 24 tick sync mỗi lần đổ data sẽ khựng khi lặp hàng trăm lần → tắt trong lúc chiếu
     try { this.graph.warmupTicks(0); } catch (e) {}
     this.graph.graphData({ nodes: [], links: [] });               // não trống - thức giấc
+    this._engineOn = true;
     this._tlTimer = setInterval(() => {
       const now = (typeof performance !== "undefined" ? performance.now() : Date.now());
       const n = order[i];
@@ -548,13 +783,17 @@ class JavisGraph {
       self.graph.graphData({ nodes: order.slice(0, i), links });
       if (i >= total) self.stopTimelapse();                       // hết phim → trả lại trạng thái thường
     }, perNoteMs);
+    this._syncLoop();
     return true;
   }
 
   stopTimelapse() {
     if (this._tlTimer) { clearInterval(this._tlTimer); this._tlTimer = null; }
-    try { this.graph.warmupTicks(24); } catch (e) {}
-    if (this._tlFull) { this.graph.graphData(this._tlFull); this._tlFull = null; }
+    // The dots already stand where the film left them: no warm-up, a short settle (it was 24 steps in one go).
+    if (this._tlFull) {
+      this._physicsFor(this._tlFull.nodes.length, "settle");
+      this.graph.graphData(this._tlFull); this._tlFull = null;
+    }
     try { window.dispatchEvent(new Event("javis-timelapse-end")); } catch (e) {}
   }
 
@@ -568,6 +807,12 @@ class JavisGraph {
       n = { ...node };
       this._prep([n]);
       n.__born = (typeof performance !== "undefined" ? performance.now() : Date.now());   // hiệu ứng nảy sinh
+      // A new note appears beside a note it links to (2026-11-12), not in the middle of the graph.
+      const near = (linkTargets || []).map(tid => d.nodes.find(x => x.id === tid)).find(x => x && typeof x.x === "number");
+      if (near && typeof n.x !== "number") {
+        const h = _hash(n.id);
+        n.x = near.x + ((h % 41) - 20); n.y = near.y + (((h >>> 8) % 41) - 20);
+      }
       d.nodes.push(n);
     } else {
       Object.assign(n, { label: node.label, path: node.path, links: node.links, color: node.color });
@@ -587,9 +832,14 @@ class JavisGraph {
       });
       if (!dup) d.links.push({ source: node.id, target: tid });
     });
+    // One note joined a graph that is already laid out: no warm-up (it ran 24 steps over EVERY dot in one go, a
+    // freeze on a large brain each time Javis wrote a note), only a short settle.
+    this._physicsFor(d.nodes.length, "settle");
     this.graph.graphData({ nodes: d.nodes, links: d.links });
     return { created: !!isNew };
   }
 }
 
 window.JavisGraph = JavisGraph;
+// For tests: the remembered-layout helpers.
+JavisGraph._layoutMemory = { load: _posLoad, save: _posSave, apply: _posApply, KEY: POS_KEY, INDEX: POS_INDEX, KEEP: POS_KEEP, HIT: POS_HIT, SETTLED_TICKS: POS_SETTLED_TICKS, SLOW_RATE: POS_SLOW_RATE };
