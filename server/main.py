@@ -34,6 +34,7 @@ import binascii
 import re
 import urllib.parse
 import secrets
+import filecmp
 import shutil
 import time
 import types as _types   # object tạm cho _apply_antigravity_hub ở endpoint kiểm tra
@@ -978,8 +979,13 @@ def _project_attach_target(brain: str, raw: str):
             if not target.is_file():
                 return None
             folder = Path(_resolve_subfolder(_brain_root(brain), *_THU_MUC_LOGIC["sources"]))
-            copied = Path(_unique_path(str(folder), _sanitize_filename(target.name)))
-            shutil.copy2(str(target), str(copied))
+            same = folder / _sanitize_filename(target.name)
+            # Asked twice for the same dropped file (a retry, a second turn): reuse the copy, do not pile up name_1.
+            if same.is_file() and filecmp.cmp(str(target), str(same), shallow=False):
+                copied = same
+            else:
+                copied = Path(_unique_path(str(folder), _sanitize_filename(target.name)))
+                shutil.copy2(str(target), str(copied))
             target = copied.resolve()
     else:
         target = _safe_serve_path(brain, text)
@@ -20955,10 +20961,10 @@ async def _chat_socket(ws):
                             "dashboard", {"session_id": conv_sid},
                             telegram_running=bool(_TG_BOT), port=_javis_port(),
                             brain_root=_brain_root(brain),
-                        ) + _khoi_coding(_row0, brain   # 0.362.0: pinned folder and GitHub repos reach API brains too
-                        # 2026-11-13: what Javis learnt about the project rides the saving path too. It is the
-                        # distilled context (a few short lines), exactly what a tight budget should keep.
-                        ) + _project_learned_block(_row0.get("project_id") or "")
+                        ) + _khoi_coding(_row0, brain) + (   # 0.362.0: pinned folder and GitHub repos reach API brains too
+                            # 2026-11-13: what Javis learnt about the project rides the saving path too. It is the
+                            # distilled context (a few short lines), exactly what a tight budget should keep.
+                            _project_learned_block(_row0.get("project_id") or ""))
 
                     if _persona:
                         # Phiên cộng sự: prompt luôn là _agent_chat_prompt, không cần tốn công

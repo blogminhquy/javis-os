@@ -163,6 +163,11 @@ check("a file dropped into the chat is copied into the brain's sources folder an
       and any(f["path"].endswith("brief.pdf") and f["description"] == "Brief chiến dịch tháng 12"
               for f in st.get_project_full(pid)["files"]), out)
 
+call({"op": "add_file", "project": pid, "path": str(staged)})
+check("the same dropped file attached twice is one copy and one row",
+      len(list(BR.rglob("brief*.pdf"))) == 1
+      and len([f for f in st.get_project_full(pid)["files"] if "brief" in f["path"]]) == 1)
+
 out = call({"op": "add_link", "project": pid, "url": "https://example.com/landing", "label": "Landing",
             "description": "Trang bán hàng chính"})
 full = st.get_project_full(pid)
