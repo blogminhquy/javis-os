@@ -41,6 +41,7 @@ import localefmt
 import asyncio
 import contextvars
 import json
+import kept
 import os
 import re
 import shutil
@@ -752,7 +753,7 @@ class RemindersFeature:
         out, seen = [], set()
         for b in cands:
             try:
-                root = str(Path(self.deps.brain_root(b)).resolve())
+                root = kept.resolved(self.deps.brain_root(b))   # from memory on the event loop (kept.py)
             except Exception:
                 continue
             if root in seen:

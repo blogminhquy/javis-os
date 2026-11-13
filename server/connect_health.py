@@ -11,8 +11,10 @@ nói thẳng nguyên nhân là một tính năng, không phải trang trí.
 """
 import asyncio
 import json
+import os
 import re
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -25,6 +27,7 @@ _CHECK_TIMEOUT = 60       # trần một lần ping (stdio spawn nguội trên W
 
 _state: dict = {}         # conn_id -> {ok, kind, message, checked_at, tools}
 _task = None
+_main_loop = None       # the event loop `start()` ran on; a worker thread hands the owner notice to it (`_send`)
 
 # Bản tiếng Anh của các câu cố định bên dưới. `_state` và `_engines` vẫn GIỮ câu tiếng Việt
 # (`javis_connections` của bộ não đọc chúng), chỉ lúc trả ra màn hình (`snapshot`,
@@ -146,6 +149,13 @@ def classify_error(err: str, conn=None) -> tuple[str, str]:
     return "unknown", (err or "Lỗi không rõ").strip()[:160]
 
 
+def _oauth_facts(oauth_mcp, conn_id) -> tuple:
+    """(signed in, missing scopes) of one OAuth connection. The missing scopes are only asked for when signed in."""
+    if not oauth_mcp.status(conn_id).get("connected"):
+        return False, []
+    return True, list(oauth_mcp.scope_report(conn_id).get("missing") or [])
+
+
 async def check_one(conn, pool=None) -> dict:
     """Ping MỘT connection, cập nhật _state và trả bản ghi kết quả."""
     pool = pool or mcp_client.pool
@@ -156,7 +166,9 @@ async def check_one(conn, pool=None) -> dict:
     if (conn.get("auth") == "oauth"):
         try:
             import oauth_mcp
-            if not oauth_mcp.status(conn["id"]).get("connected"):
+            # Both calls read the token store: on a worker thread (2026-11-13, see `_loop`).
+            connected, missing = await asyncio.to_thread(_oauth_facts, oauth_mcp, conn["id"])
+            if not connected:
                 rec.update(kind="auth",
                            message="Chưa hoàn tất đăng nhập - bấm Kết nối lại để đăng nhập.")
                 _state[conn["id"]] = rec
@@ -164,7 +176,6 @@ async def check_one(conn, pool=None) -> dict:
             # Đăng nhập rồi nhưng token THIẾU PHẠM VI QUYỀN: tools/list của Google không cần
             # token nên ping bên dưới vẫn xanh, chỉ tool thật mới chết. Không soi ở đây thì
             # trang Kết nối nói dối là mọi thứ ổn (vụ Lịch thiếu calendar.events.freebusy).
-            missing = oauth_mcp.scope_report(conn["id"]).get("missing") or []
             if missing:
                 rec.update(kind="auth",
                            message="Thiếu quyền: " + ", ".join(oauth_mcp.short_scopes(missing))
@@ -233,7 +244,7 @@ async def check_one(conn, pool=None) -> dict:
 
 async def check_by_id(conn_id, pool=None) -> dict:
     """Ép check ngay một connection theo id (nút test trên UI)."""
-    conn = next((c for c in mcp_store.resolved(enabled_only=False)
+    conn = next((c for c in await asyncio.to_thread(mcp_store.resolved, False)
                  if c["id"] == conn_id), None)
     if not conn:
         return _hien({"ok": False, "kind": "unknown", "message": "Không tìm thấy kết nối",
@@ -244,7 +255,7 @@ async def check_by_id(conn_id, pool=None) -> dict:
 async def sweep(pool=None) -> int:
     """Quét mọi connection đang bật. Trả số connection đã check."""
     n = 0
-    for conn in mcp_store.resolved(enabled_only=True):
+    for conn in await asyncio.to_thread(mcp_store.resolved, True):
         try:
             await check_one(conn, pool)
             n += 1
@@ -301,6 +312,7 @@ ENGINE_FIX_DEFAULT_EN = "Go to the Models page to connect and use Javis."
 
 
 _ENGINE_NOTICE_FILE = "engine_down_notified.json"   # in STATE_DIR (0.402.0)
+_notice_lock = threading.Lock()
 
 
 def _engine_notice_path():
@@ -319,17 +331,24 @@ def _engine_notified_saved() -> dict:
 
 
 def _engine_notified_set(name: str, on: bool) -> None:
-    d = _engine_notified_saved()
-    if bool(d.get(name)) == on:
-        return
-    if on:
-        d[name] = time.time()
-    else:
-        d.pop(name, None)
-    try:
-        _engine_notice_path().write_text(json.dumps(d), encoding="utf-8")
-    except OSError as e:
-        print(f"[engine health] cannot save notice state: {e}", file=sys.stderr)
+    # Under a lock and written whole (2026-11-13): the periodic probe now runs on a worker thread while a chat turn
+    # can report an engine on the event loop, and a half-written file read by the other one would send the same
+    # "Javis is not usable" notice twice.
+    with _notice_lock:
+        d = _engine_notified_saved()
+        if bool(d.get(name)) == on:
+            return
+        if on:
+            d[name] = time.time()
+        else:
+            d.pop(name, None)
+        try:
+            path = _engine_notice_path()
+            tmp = path.with_name(path.name + ".tmp")
+            tmp.write_text(json.dumps(d), encoding="utf-8")
+            os.replace(tmp, path)
+        except OSError as e:
+            print(f"[engine health] cannot save notice state: {e}", file=sys.stderr)
 
 
 def looks_like_error_line(text) -> bool:
@@ -372,9 +391,25 @@ def _set_engine(name, ok, message="", source="probe"):
                 + ENGINE_FIX_EN.get(name, ENGINE_FIX_DEFAULT_EN)
                 + f" (details: {name} - {_EN.get(message) or message})"))
             if asyncio.iscoroutine(coro):
-                asyncio.ensure_future(coro)
+                _send(coro)
         except Exception as e:
             print(f"[engine health] notify lỗi: {e}", file=sys.stderr)
+
+
+def _send(coro) -> None:
+    """Start the owner notice. `_set_engine` runs on the event loop for a chat turn and on a worker thread for the
+    periodic probe (`_loop`), and only the loop can start a coroutine: from a thread it is handed to the loop that
+    `start()` saw."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        if _main_loop is not None and not _main_loop.is_closed():
+            asyncio.run_coroutine_threadsafe(coro, _main_loop)
+        else:
+            coro.close()
+            print("[engine health] notice not sent: no event loop to send it from", file=sys.stderr)
+        return
+    asyncio.ensure_future(coro)
 
 
 def flag_engine_auth_error(name, raw) -> bool:
@@ -562,11 +597,15 @@ async def _loop():
     first = True
     while True:
         try:
-            probe_engines()
+            # 2026-11-13: the probe reads the sign-in files and the notice state, and the rounds below read the
+            # connection store, the token store and the smoke state. All of it ran on the event loop, and the
+            # first round starts 25 s after a restart, when the disk is busiest: GET /health/loop on the owner's
+            # VPS named this module among the five that froze the server. Now on worker threads.
+            await asyncio.to_thread(probe_engines)
             # The first round after a restart or an update is the smoke test (it pings every
             # source like a sweep, then retries and reports); the next ones are plain sweeps.
             if first:
-                await startup_smoke(_app_version())
+                await startup_smoke(await asyncio.to_thread(_app_version))
             else:
                 await sweep()
         except Exception as e:
@@ -578,7 +617,8 @@ async def _loop():
 
 def start() -> None:
     """Gọi từ startup của app. Idempotent."""
-    global _task
+    global _task, _main_loop
+    _main_loop = asyncio.get_running_loop()
     if _task is None or _task.done():
         _task = asyncio.create_task(_loop())
 
@@ -668,7 +708,7 @@ async def startup_smoke(version: str = "", pool=None, retry_after: float | None 
                "message": rec.get("message") or "", "message_en": rec.get("message_en") or ""}
               for cid, rec in results.items() if not rec.get("ok") and rec.get("kind") != "starting"]
     fingerprint = sorted(f"{f['id']}:{f['kind']}" for f in failed)
-    already = fingerprint == _last_notified()
+    already = fingerprint == await asyncio.to_thread(_last_notified)
     _smoke = {"version": version, "at": time.time(), "checked": len(conns),
               "ok": len(conns) - len(failed), "failed": failed, "notified": False}
     sent = False
@@ -699,6 +739,6 @@ async def startup_smoke(version: str = "", pool=None, retry_after: float | None 
     # report): saved while no notifier is wired yet, or after a notice that failed, that set
     # would never be reported on a later restart.
     if sent or not failed:
-        _save_notified(fingerprint)
+        await asyncio.to_thread(_save_notified, fingerprint)
     _smoke["notified"] = sent
     return last_smoke()

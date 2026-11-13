@@ -31,6 +31,7 @@ import copy
 import importlib.util
 import inspect
 import json
+import kept
 import os
 import re
 import sys
@@ -597,7 +598,16 @@ def _key(vault_root: Optional[str], scope_vault: bool = True) -> str:
 
 
 def _signature(vault_root: Optional[str], scope_vault: bool = True) -> tuple:
-    """Chữ ký để biết khi nào phải nạp lại: mtime state + mtime entry/manifest mọi plugin + env flag."""
+    """Chữ ký để biết khi nào phải nạp lại: mtime state + mtime entry/manifest mọi plugin + env flag.
+
+    2026-11-13: computing it walks every plugin folder (bundled, packs, user, vault) and stats four files per
+    plugin, a few hundred disk calls with a dozen packs installed, and `_load_all` asks for it on every tool list,
+    every tool call that has hooks and every bot turn. On the event loop it now comes from memory (kept.py);
+    `invalidate()` drops it, so a plugin changed through Javis is seen at once."""
+    return _SIGS.get((vault_root, bool(scope_vault)))
+
+
+def _signature_now(vault_root: Optional[str], scope_vault: bool = True) -> tuple:
     sig: List[Any] = [_env_user_enabled()]
     try:
         sig.append(_STATE_PATH.stat().st_mtime)
@@ -621,6 +631,9 @@ def _signature(vault_root: Optional[str], scope_vault: bool = True) -> tuple:
             except OSError:
                 pass
     return tuple(sig)
+
+
+_SIGS = kept.Keyed(lambda a: _signature_now(a[0], a[1]), name="plugins signature")
 
 
 def shared_signature() -> tuple:
@@ -914,6 +927,7 @@ def invalidate() -> None:
     """
     with _lock:
         _cache.clear()
+    _SIGS.drop()
     _STATE_CACHE["sig"] = None
     _STATE_CACHE["data"] = None
     _MANIFEST_CACHE.clear()

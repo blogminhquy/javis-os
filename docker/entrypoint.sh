@@ -31,7 +31,15 @@ PERSIST_ROOT="${JAVIS_HOME_PERSIST:-/data/home}"
 #
 # ~/.google_workspace_mcp: phiên đăng nhập Google Workspace của MCP cùng tên. Thiếu thì mỗi lần
 # dựng lại container là phải đăng nhập Google lại (báo cáo 13/10/2026).
-for d in .local .antigravity .config .gemini .grok .google_workspace_mcp; do
+#
+# ~/.npm and ~/.cache (2026-11-13): where `npx` and `uvx` keep the packages of the MCP sources they
+# run (~/.npm/_npx, ~/.cache/uv). Outside a volume they were lost with every update, so right after
+# an update EVERY such source downloaded and installed its packages again, all at the same moment.
+# On a small VPS that filled the disk queue and the memory exactly while the server was starting:
+# pages froze, the health check failed and the container was taken out of service (owner report
+# 2026-11-13: "it happens right after an update"). Kept on the volume, a source starts after an
+# update the way it starts after a plain restart.
+for d in .local .antigravity .config .gemini .grok .google_workspace_mcp .npm .cache; do
     src="$HOME/$d"
     dst="$PERSIST_ROOT/$d"
     # Đã là symlink (boot thứ hai trở đi) → xong từ lâu.
@@ -45,6 +53,18 @@ for d in .local .antigravity .config .gemini .grok .google_workspace_mcp; do
     fi
     ln -sfn "$dst" "$src" 2>/dev/null || true
 done
+
+# Packages npx installed (~/.npm/_npx) may hold code built for ONE Node major version. When an update
+# brings another major, drop them so npx installs them again instead of failing to load them. The
+# download cache next to them stays, so that reinstall needs little or no network.
+NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
+NODE_STAMP="$PERSIST_ROOT/.npm/.javis-node-major"
+if [ -n "$NODE_MAJOR" ] && [ -d "$PERSIST_ROOT/.npm" ]; then
+    if [ -f "$NODE_STAMP" ] && [ "$(cat "$NODE_STAMP" 2>/dev/null)" != "$NODE_MAJOR" ]; then
+        rm -rf "$PERSIST_ROOT/.npm/_npx" 2>/dev/null || true
+    fi
+    echo "$NODE_MAJOR" > "$NODE_STAMP" 2>/dev/null || true
+fi
 
 # ~/.claude.json: cấu hình toàn cục của Claude Code (MCP cấp người dùng, trạng thái đã giới thiệu,
 # lựa chọn đã chốt). Là một FILE nằm cạnh volume ~/.claude chứ không ở trong nó, nên trước bản

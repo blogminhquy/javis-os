@@ -49,6 +49,7 @@ thứ đang chạy được; một file lạ trong STATE_DIR không được ph�
 from __future__ import annotations
 
 import json
+import kept
 import os
 import re
 import sys
@@ -427,20 +428,18 @@ def _so_cai_dat() -> dict:
 # mcp_catalog.CHECK_S for the measurement). `invalidate()` drops it, and every install, removal or consent in
 # pack_install calls that, so a change made through Javis is seen at once.
 SIGNATURE_S = 2.0
-_sig_memo: dict = {"at": 0.0, "dir": None, "value": None}
+# 2026-11-13: the 2 s above still let the event loop do the re-check itself, and on the owner's VPS one re-check took
+# up to 93 s (GET /health/loop: this function was 44% of all the time the server stood still). The event loop now
+# gets the last signature from memory while a helper thread computes the new one (kept.py).
+_SIG = kept.Value(lambda: _signature_now(), fresh_s=lambda: SIGNATURE_S, key=lambda: str(PACKS_DIR),
+                  name="packs.signature")
 
 
 def signature():
     """Chữ ký để `mcp_catalog.load()` gộp vào khoá cache của nó. Nhớ trong SIGNATURE_S giây (xem trên)."""
     if tat_het():
         return "off"
-    now = time.monotonic()
-    m = _sig_memo
-    if m["dir"] == str(PACKS_DIR) and m["at"] and 0 <= now - m["at"] < SIGNATURE_S:
-        return m["value"]
-    value = _signature_now()
-    _sig_memo.update(at=now, dir=str(PACKS_DIR), value=value)
-    return value
+    return _SIG.get()
 
 
 def _signature_now():
@@ -556,7 +555,7 @@ def page_path(pid: str, rel: str):
 def invalidate():
     with _lock:
         _cache.update(sig=None, packs=[], connectors={})
-        _sig_memo.update(at=0.0, value=None)
+        _SIG.drop()
     try:
         import mcp_catalog
         mcp_catalog.invalidate()

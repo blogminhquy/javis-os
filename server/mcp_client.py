@@ -66,6 +66,12 @@ _DOWN_TTL = 60           # nguồn vừa khởi động hỏng: trả lỗi ngay
 _INTERNAL = {"botcake": "botcake_mcp", "substack": "substack_mcp"}   # transport internal → tên module
 
 _DIAL_SONG_SONG = 8      # số connection dò tool CÙNG LÚC (đừng để npx nổ ra 30 tiến trình)
+# The start-up warm pass opens fewer sessions at once than a chat turn's dial (2026-11-13). Nobody waits for that
+# pass, and it runs while the server is still starting: eight `npx` / `uvx` processes starting together, each a Node
+# or Python runtime plus a package install when its cache is cold, took a small VPS's disk and memory exactly when
+# the server had its first requests to answer (owner: "right after an update the hub is flooded and the server
+# drops"). JAVIS_MCP_WARM_PARALLEL overrides it.
+_WARM_SONG_SONG = "3"
 _DIAL_TRAN = "20"        # giây - trần dò tool CHO MỖI connection (0 = không giới hạn)
 _WARM_TRAN = "180"       # giây - trần cho vòng LÀM NÓNG lúc khởi động (xem tran_warm)
 # Seconds the MCP handshake of a stdio server may take, measured by the session itself (not by
@@ -1123,6 +1129,15 @@ def tran_warm():
     return v if v > 0 else None
 
 
+def warm_parallel() -> int:
+    """How many connections the start-up warm pass opens at the same time (see `_WARM_SONG_SONG`)."""
+    try:
+        v = int(os.getenv("JAVIS_MCP_WARM_PARALLEL", _WARM_SONG_SONG))
+    except (TypeError, ValueError):
+        v = int(_WARM_SONG_SONG)
+    return max(1, min(v, _DIAL_SONG_SONG))
+
+
 async def warm_pool(conns):
     """Mở sẵn phiên MCP cho từng connection. Trả (id đã nóng, id còn nguội). Không bao giờ raise.
 
@@ -1137,7 +1152,7 @@ async def warm_pool(conns):
     phiên chat, dù kết nối chẳng hỏng gì.
     """
     tran = tran_warm()
-    sem = asyncio.Semaphore(_DIAL_SONG_SONG)
+    sem = asyncio.Semaphore(warm_parallel())
     nong, con_lanh = [], []
 
     async def _mo(conn):

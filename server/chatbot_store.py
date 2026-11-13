@@ -17,6 +17,7 @@ Xem docs/dev/2026-08-bot-chuyen-trach-spec.md.
 from __future__ import annotations
 
 import json
+import kept
 import os
 import re
 import threading
@@ -218,11 +219,25 @@ def _now() -> float:
     return time.time()
 
 
+def _read_text():
+    """The store file as text, None when there is none. Any other read error goes to `_load`."""
+    try:
+        return STORE_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+
+
+# 2026-11-13: same reason as channel_accounts._TEXT. Every bot message looks its bot up, and each lookup read this
+# file on the event loop. The loop gets the text from memory (kept.py); `_save` drops it, so a change shows at once.
+_TEXT = kept.Value(lambda: _read_text(), key=lambda: str(STORE_PATH), name="chatbots.json")
+
+
 def _load() -> dict:
     try:
-        d = json.loads(STORE_PATH.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {"version": 1, "bots": []}
+        text = _TEXT.get()
+        if text is None:
+            return {"version": 1, "bots": []}
+        d = json.loads(text)
     except Exception:
         # File hỏng (sửa tay, đĩa đầy giữa chừng): KHÔNG xoá, đổi tên để còn cứu, rồi bắt đầu lại.
         # Mất danh sách bot đã đau, mất luôn bản gốc để dò thì không cứu được nữa.
@@ -230,6 +245,7 @@ def _load() -> dict:
             STORE_PATH.rename(STORE_PATH.with_suffix(".json.hong"))
         except Exception:
             pass
+        _TEXT.drop()
         return {"version": 1, "bots": []}
     if not isinstance(d, dict) or not isinstance(d.get("bots"), list):
         return {"version": 1, "bots": []}
@@ -263,6 +279,7 @@ def _save(d: dict) -> None:
     tmp = STORE_PATH.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, STORE_PATH)   # ghi nguyên tử: mất điện giữa chừng không để lại file cụt
+    _TEXT.drop()
 
 
 def _slugify(name: str) -> str:
