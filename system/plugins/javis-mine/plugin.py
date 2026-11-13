@@ -511,7 +511,16 @@ def register(ctx):
             },
             "required": ["op"],
         },
-        min_mode="safe",
+        min_mode="readonly",
+        op_modes={
+            "list": "readonly",
+            "add": "safe",
+            "update": "safe",
+            "delete": "safe",
+            "skip": "safe",
+            "check": "safe",
+            "uncheck": "safe",
+        },
         emoji="✅",
     )
 
