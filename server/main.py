@@ -29116,30 +29116,34 @@ async def chatbots_zalo_labels(account_ids: str = "", bot_id: str = ""):
     return {"ok": True, "labels": names, "supported": supported}
 
 
-@app.post("/chatbots/{bot_id}/people")
-async def chatbots_people(bot_id: str, chat_id: str = Form(...), on: str = Form("1")):
-    """Cho phép (hoặc gỡ) MỘT người nhắn riêng cho bot, bằng đúng một cú bấm. Đôi của
-    `/chatbots/{bot_id}/groups` cho audience `chon`. Không khởi động lại poller: `_answer` đọc lại
-    bản ghi bot MỖI LƯỢT, nên người vừa cho phép ăn ngay từ tin kế tiếp."""
+def _chatbots_set_listed(bot_id: str, key: str, chat_id: str, chat_ids: str, on: str):
+    """Shared body of `/chatbots/{bot_id}/groups` and `/people`: allow (or remove) ONE chat (`chat_id`) or MANY at once
+    (`chat_ids`, a JSON list, from the ticked rows of the waiting list on the bot card). One write for the whole batch,
+    then every id leaves the approval queue. The poller is not restarted: `_answer` re-reads the bot record every turn,
+    so a chat allowed here is answered from its next message."""
     bot = chatbot_store.get_bot(bot_id)
     if not bot:
         return JSONResponse({"ok": False, "error": localefmt.chu("Không có bot nào id đó", "No bot with that id")},
                             status_code=404)
-    cid = str(chat_id or "").strip()
-    if not cid:
-        return JSONResponse({"ok": False, "error": localefmt.chu("Thiếu id người", "Missing person id")}, status_code=400)
+    ids, err = chatbot_store.parse_chat_ids(chat_id, chat_ids)
+    if err:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
     bat = str(on).strip() not in ("0", "false", "")
-    ds = [str(x) for x in (bot.get("people") or [])]
-    if bat:
-        if cid not in ds:
-            ds.append(cid)
-    else:
-        ds = [x for x in ds if x != cid]
-    ok, err = chatbot_store.update_bot(bot_id, {"people": ds})
+    ok, err = chatbot_store.set_listed(bot_id, key, ids, bat)
     if not ok:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
-    chatbot_runtime.bo_nhom_cho(bot_id, cid)
-    return {"ok": True, "people": (chatbot_store.get_bot(bot_id) or {}).get("people") or []}
+    # Off the queue whatever the owner chose: allowed means no longer waiting, and ignoring is a decision too. A chat
+    # that was ignored comes back to the queue by itself the next time someone calls the bot there.
+    for cid in ids:
+        chatbot_runtime.bo_nhom_cho(bot_id, cid)
+    return {"ok": True, key: (chatbot_store.get_bot(bot_id) or {}).get(key) or [], "done": len(ids)}
+
+
+@app.post("/chatbots/{bot_id}/people")
+async def chatbots_people(bot_id: str, chat_id: str = Form(""), chat_ids: str = Form(""), on: str = Form("1")):
+    """Cho phép (hoặc gỡ) người nhắn riêng cho bot: một người (`chat_id`) hoặc nhiều người một lần (`chat_ids`, danh
+    sách JSON). Đôi của `/chatbots/{bot_id}/groups` cho audience `chon`."""
+    return _chatbots_set_listed(bot_id, "people", chat_id, chat_ids, on)
 
 
 @app.post("/chatbots")
@@ -29269,37 +29273,15 @@ async def chatbots_enable(bot_id: str, on: str = Form("1")):
 
 
 @app.post("/chatbots/{bot_id}/groups")
-async def chatbots_groups(bot_id: str, chat_id: str = Form(...), on: str = Form("1")):
-    """Cho phép (hoặc gỡ) MỘT nhóm cho bot, bằng đúng một cú bấm trên thẻ.
+async def chatbots_groups(bot_id: str, chat_id: str = Form(""), chat_ids: str = Form(""), on: str = Form("1")):
+    """Cho phép (hoặc gỡ) nhóm cho bot ngay trên thẻ: một nhóm (`chat_id`) hoặc nhiều nhóm một lần (`chat_ids`, danh
+    sách JSON, từ các dòng đã tích trong danh sách chờ).
 
     Đường này tồn tại vì đường cũ dài tới mức không ai đi hết: thả bot vào nhóm, gõ /id, chép
     id, mở dashboard, bấm Sửa, kéo xuống cuối form, dán vào ô textarea, Lưu. Bỏ sót một bước
     là bot im, và không có gì nói cho biết đã sót ở đâu.
-
-    Không khởi động lại poller: `_answer` đọc lại bản ghi bot MỖI LƯỢT, nên nhóm vừa cho phép
-    ăn ngay từ câu tiếp theo.
     """
-    bot = chatbot_store.get_bot(bot_id)
-    if not bot:
-        return JSONResponse({"ok": False, "error": localefmt.chu("Không có bot nào id đó", "No bot with that id")},
-                            status_code=404)
-    cid = str(chat_id or "").strip()
-    if not cid:
-        return JSONResponse({"ok": False, "error": localefmt.chu("Thiếu id nhóm", "Missing group id")}, status_code=400)
-    bat = str(on).strip() not in ("0", "false", "")
-    ds = [str(x) for x in (bot.get("groups") or [])]
-    if bat:
-        if cid not in ds:
-            ds.append(cid)
-    else:
-        ds = [x for x in ds if x != cid]
-    ok, err = chatbot_store.update_bot(bot_id, {"groups": ds})
-    if not ok:
-        return JSONResponse({"ok": False, "error": err}, status_code=400)
-    # Ra khỏi hàng đợi dù chủ chọn gì: cho phép rồi thì hết chờ, mà bấm bỏ qua cũng là đã
-    # quyết. Nhóm nào bị gỡ mà sau này lại có người gọi bot thì nó tự quay lại hàng đợi.
-    chatbot_runtime.bo_nhom_cho(bot_id, cid)
-    return {"ok": True, "groups": (chatbot_store.get_bot(bot_id) or {}).get("groups") or []}
+    return _chatbots_set_listed(bot_id, "groups", chat_id, chat_ids, on)
 
 
 @app.get("/chatbots/{bot_id}/log")

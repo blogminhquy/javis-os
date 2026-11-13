@@ -265,9 +265,11 @@ check("nạp ngầm không nhấp nháy màn hình", /async function tai\(im\)/.
 // tự nhận việc trong nhóm lạ" là đúng, nhưng cách từ chối thì sai: im hoàn toàn, không log,
 // không dòng nào ở đây. "Hành vi đúng" và "bot hỏng" trông y hệt nhau.
 check("thẻ hiện nhóm đang chờ chủ cho phép", /b\.nhom_cho/.test(CB) && /cb-nhomcho/.test(CB));
-check("cho phép nhóm bằng ĐÚNG một cú bấm",
-  /cb-ok-nhom/.test(CB) && /\/groups"/.test(CB) && /choNhom\(b, cid, true, loai\)/.test(CB));
-check("và bỏ qua được nhóm không muốn", /cb-bo-nhom/.test(CB) && /choNhom\(b, cid, false, loai\)/.test(CB));
+// 13/11/2026: mỗi dòng chờ là một ô tích, Cho phép / Bỏ qua là MỘT thanh nút cho mọi dòng đã tích (chủ repo: chín nhóm
+// chờ là chín lượt mở popup rồi bấm). Hành vi chi tiết ở tests/js/test_bot_pending_bulk.js.
+check("cho phép nhiều nhóm bằng MỘT cú bấm: dòng có ô tích, một nút Cho phép chung",
+  /class="cb-pd-c"/.test(CB) && /cb-pd-ok/.test(CB) && /\/groups"/.test(CB) && /settle\(true\)/.test(CB));
+check("và bỏ qua được các nhóm không muốn", /cb-pd-skip/.test(CB) && /settle\(false\)/.test(CB));
 check("CSS cho khối nhóm chờ đã có", /\.cb-nhomcho \{/.test(CSS));
 // Khai nhóm ngay lúc TẠO. Bản trước chỉ cho khai ở form Sửa, nên đường đi tự nhiên nhất (tạo
 // bot rồi thả thẳng vào nhóm) bảo đảm lần thử đầu của mọi người dùng gặp một con bot im lặng.
@@ -441,7 +443,7 @@ check("thẻ bot có một dòng 'Trả lời: ...' và menu '...' cho việc ph
   /tomTatDoiTuong\(b\)/.test(CB) && /class="cb-mn"/.test(CB) && /class="cb-mn-l" hidden/.test(CB) &&
   /cb-log/.test(CB) && /cb-hoi-thoai/.test(CB) && /cb-del/.test(CB));
 check("hàng chờ duyệt có cả người, nút Cho phép gọi /people cho người và /groups cho nhóm",
-  /\/people"/.test(CB) && /cb2\.cho_nguoi/.test(CB) && /data-loai=/.test(CB));
+  /\/people"/.test(CB) && /kind === "private" \? "\/people" : "\/groups"/.test(CB) && /data-loai=/.test(CB));
 check("cảnh báo mức quyền gọn: hiện 2 câu đầu, còn lại sau 'Xem đủ rủi ro'",
   /const HIEN|var HIEN = 2/.test(CB) && /class="cb-xem-du"/.test(CB) && tu("cb2.xem_du", "Xem đủ rủi ro"));
 check("mọi khoá cb2.* giao diện dùng đều có trong tiếng Việt và tiếng Anh", (function () {

@@ -281,25 +281,9 @@
         ' <b>' + esc(mucCua(mq).nhan) + '</b>' +
       '</span>';
     // Nhóm có người gọi bot mà chủ chưa cho phép. Đây là chỗ sửa cho lỗi "thả bot vào nhóm,
-    // tag tên nó, không thấy gì": hành vi từ chối vẫn đúng, nhưng nay nó nổi lên đây kèm đúng
-    // một nút bấm, thay vì bắt chủ đoán rằng mình phải đi khai id nhóm ở đáy form Sửa.
-    var cho = (b.nhom_cho || []).map(function (g) {
-      // Từ 0.64.85 hàng chờ có cả NGƯỜI chưa được chọn (bot trả lời "chỉ người và nhóm tôi chọn").
-      var nguoi = g.loai === "private";
-      return '<div class="cb-nhomcho" data-cid="' + esc(g.chat_id) + '" data-loai="' + (nguoi ? "private" : "group") + '">' +
-        '<div class="cb-nhomcho-t">' + ic(nguoi ? "user" : "message-circle") + ' <b>' +
-          esc(g.ten || ((nguoi ? window.t("cb2.pk_nguoi") : window.t("cb.nhom")) + " " + g.chat_id)) +
-          '</b> <span class="cb-nhomcho-id">' + esc(g.chat_id) + '</span></div>' +
-        '<div class="cb-nhomcho-d">' + esc(nguoi
-          ? window.t(g.lan ? "cb2.nguoicho_goi" : "cb2.nguoicho_moi", { count: g.lan })
-          : (g.lan ? window.t("cb.nhomcho_goi", { count: g.lan }) : window.t("cb.nhomcho_chua_bat"))) + '</div>' +
-        '<div class="cb-nhomcho-a">' +
-          '<button class="s-btn cb-ok-nhom" type="button">' + ic("check") + ' ' +
-            esc(window.t(nguoi ? "cb2.cho_nguoi" : "cb.cho_phep_nhom")) + '</button>' +
-          '<button class="s-btn-ghost cb-bo-nhom" type="button">' +
-            esc(window.t("cb.bo_qua")) + '</button>' +
-        '</div></div>';
-    }).join("");
+    // tag tên nó, không thấy gì": hành vi từ chối vẫn đúng, nhưng nay nó nổi lên đây, thay vì
+    // bắt chủ đoán rằng mình phải đi khai id nhóm ở đáy form Sửa.
+    var cho = pendingRows(b.nhom_cho || []);
     // getMe hỏng: bot vẫn trả lời tin nhắn riêng hoàn hảo nhưng ĐIẾC trong mọi nhóm, vì không
     // biết @username của chính mình thì không nhận ra ai đang gọi tên. Chấm vẫn xanh, lượt vẫn
     // chạy, không có gì đỏ - nên nếu không có dòng này thì không ai đoán ra được.
@@ -450,8 +434,8 @@
     });
     c.querySelector(".cb-del").onclick = function () { xoa(b); };
     var stBtn = c.querySelector(".cb-st");
-    var stHtml = cho + loiTen + riengTu + mat + lluot + cbao + loi;
-    if (stBtn) stBtn.onclick = function () { openStatus(b, stHtml); };
+    var stRest = loiTen + riengTu + mat + lluot + cbao + loi;
+    if (stBtn) stBtn.onclick = function () { openStatus(b, cho, stRest); };
     return c;
   }
 
@@ -476,34 +460,127 @@
     '</button>';
   }
 
-  function openStatus(b, html) {
+  // One row per chat waiting for the owner's decision (a group the bot sits in, or since 0.64.85 a person the bot was
+  // not chosen for). Owner, 13/11/2026: a bot with nine waiting groups took nine rounds of "open the popup, press
+  // Allow, the popup closes", so a row is now a tick box and the two buttons moved to ONE bar under the list
+  // (`openStatus`). `class="cb-nhomcho"` stays spelled exactly like this: `statusRow` counts the rows by it.
+  function pendingRows(list) {
+    return list.map(function (g) {
+      var person = g.loai === "private";
+      var called = g.lan
+        ? window.t(person ? "cb.pd_wrote" : "cb.pd_called", { count: g.lan })
+        : (person ? window.t("cb.pd_new") : "");
+      return '<label class="cb-nhomcho" data-cid="' + esc(g.chat_id) + '" data-loai="' + (person ? "private" : "group") + '">' +
+        '<input type="checkbox" class="cb-pd-c">' +
+        '<span class="cb-pd-m">' +
+          '<span class="cb-nhomcho-t">' + ic(person ? "user" : "message-circle") + ' <b>' +
+            esc(g.ten || ((person ? window.t("cb2.pk_nguoi") : window.t("cb.nhom")) + " " + g.chat_id)) + '</b></span>' +
+          (called ? '<span class="cb-nhomcho-d">' + esc(called) + '</span>' : "") +
+          '<span class="cb-nhomcho-id">' + esc(g.chat_id) + '</span>' +
+        '</span></label>';
+    }).join("");
+  }
+
+  // The status popup: the waiting list first (tick boxes, "select all", one Allow / Ignore bar that stays in view),
+  // then the errors and warnings in full. Settling the ticked rows keeps the popup open with the rows that are left;
+  // it closes by itself only when nothing at all is left to read.
+  function openStatus(b, pending, rest) {
+    var total = pending.split('class="cb-nhomcho"').length - 1;
     var box = el('<div class="cb-modal"><div class="cb-form cb-st-form" role="dialog" aria-modal="true">' +
       '<h3>' + esc(window.t("cb.st_title")) + ' - ' + esc(b.name) + '</h3>' +
-      '<div class="cb-st-body">' + html + '</div>' +
-      '<div class="cb-form-acts"><button class="s-btn" type="button" data-close>' +
+      '<div class="cb-st-body">' +
+        (total
+          ? '<div class="cb-pd">' +
+              '<div class="cb-pd-h"><b class="cb-pd-title"></b>' + infoBtn() + '</div>' +
+              infoBody(esc(window.t("cb.pd_info"))) +
+              '<div class="cb-pd-pick"><label class="cb-pd-all"><input type="checkbox"> ' +
+                esc(window.t("cb.pd_all")) + '</label><span class="cb-pd-n"></span></div>' +
+              '<div class="cb-pd-list">' + pending + '</div>' +
+              '<div class="cb-pd-bar">' +
+                '<button class="s-btn cb-pd-ok" type="button"></button>' +
+                '<button class="s-btn-ghost cb-pd-skip" type="button"></button>' +
+                '<span class="cb-pd-msg" role="status"></span>' +
+              '</div>' +
+            '</div>'
+          : "") +
+        rest +
+      '</div>' +
+      '<div class="cb-form-acts"><button class="s-btn-ghost" type="button" data-close>' +
         esc(window.t("common.close")) + '</button></div>' +
       '</div></div>');
     document.body.appendChild(box);
     var close = function () { if (box.parentNode) box.parentNode.removeChild(box); };
     box.onmousedown = function (e) { if (e.target === box) close(); };
     box.querySelector("[data-close]").onclick = close;
-    box.querySelectorAll(".cb-nhomcho").forEach(function (n) {
-      var cid = n.dataset.cid, loai = n.dataset.loai;
-      n.querySelector(".cb-ok-nhom").onclick = function () { close(); choNhom(b, cid, true, loai); };
-      n.querySelector(".cb-bo-nhom").onclick = function () { close(); choNhom(b, cid, false, loai); };
-    });
+    var sec = box.querySelector(".cb-pd");
+    if (!sec) return;
+
+    var all = sec.querySelector(".cb-pd-all input"), ok = sec.querySelector(".cb-pd-ok"),
+        skip = sec.querySelector(".cb-pd-skip"), msg = sec.querySelector(".cb-pd-msg"), busy = false;
+    var rows = function () { return Array.prototype.slice.call(sec.querySelectorAll(".cb-nhomcho")); };
+    var picked = function () { return rows().filter(function (r) { return r.querySelector(".cb-pd-c").checked; }); };
+    function sync() {
+      var rs = rows(), n = picked().length;
+      rs.forEach(function (r) { r.classList.toggle("on", r.querySelector(".cb-pd-c").checked); });
+      sec.querySelector(".cb-pd-title").textContent = window.t("cb.st_wait", { count: rs.length });
+      // One row left: nothing to pick between, so no "select all" line.
+      sec.querySelector(".cb-pd-pick").hidden = rs.length < 2;
+      all.checked = n > 0 && n === rs.length;
+      all.indeterminate = n > 0 && n < rs.length;
+      sec.querySelector(".cb-pd-n").textContent = window.t("cb.pd_count", { n: n, total: rs.length });
+      // The number on the button is the confirmation: it says how many chats one press opens the bot to.
+      ok.innerHTML = ic("check") + " " + esc(window.t("cb.pd_allow")) + (n ? " (" + n + ")" : "");
+      skip.textContent = window.t("cb.bo_qua") + (n ? " (" + n + ")" : "");
+      ok.disabled = skip.disabled = busy || !n;
+    }
+    rows().forEach(function (r) { r.querySelector(".cb-pd-c").onchange = function () { msg.textContent = ""; sync(); }; });
+    all.onchange = function () {
+      rows().forEach(function (r) { r.querySelector(".cb-pd-c").checked = all.checked; });
+      msg.textContent = "";
+      sync();
+    };
+    // Nothing is ticked on opening: allowing lets the bot speak in that chat, on personal Zalo with a real person's
+    // account, so it must be a choice. The one exception is a single waiting row, where the tick is the only choice.
+    if (total === 1) rows()[0].querySelector(".cb-pd-c").checked = true;
+
+    async function settle(on) {
+      var chosen = picked();
+      if (busy || !chosen.length) return;
+      busy = true; msg.className = "cb-pd-msg"; msg.textContent = ""; sync();
+      var done = 0, err = "";
+      // Groups and people live on two lists, so at most two requests, one after the other.
+      for (var kind of ["group", "private"]) {
+        var part = chosen.filter(function (r) { return (r.dataset.loai === "private") === (kind === "private"); });
+        if (!part.length) continue;
+        try {
+          await settlePending(b, kind, part.map(function (r) { return r.dataset.cid; }), on);
+          part.forEach(function (r) { r.parentNode.removeChild(r); });
+          done += part.length;
+        } catch (e) { err = e.message; }
+      }
+      busy = false;
+      tai(true);
+      if (!rows().length) {
+        sec.parentNode.removeChild(sec);
+        if (!box.querySelector(".cb-st-body").children.length) { close(); return; }
+      } else {
+        sync();
+      }
+      if (!document.body.contains(msg)) return;
+      msg.className = "cb-pd-msg" + (err ? " err" : "");
+      msg.textContent = err ? window.t("cb.loi_cap_nhat_nhom") + " " + err
+                            : window.t(on ? "cb.pd_done_allow" : "cb.pd_done_skip", { count: done });
+    }
+    ok.onclick = function () { settle(true); };
+    skip.onclick = function () { settle(false); };
+    sync();
   }
 
-  // Một cú bấm thay cho: gõ /id trong nhóm, chép id, mở Sửa, kéo xuống đáy form, dán, Lưu.
-  async function choNhom(b, cid, on, loai) {
-    try {
-      // Người (audience `chon`) đi đường /people, nhóm đi đường /groups.
-      await api("/chatbots/" + encodeURIComponent(b.id) + (loai === "private" ? "/people" : "/groups"),
-                { method: "POST", body: fd({ chat_id: cid, on: on ? "1" : "0" }) });
-    } catch (e) {
-      alert(window.t("cb.loi_cap_nhat_nhom") + " " + e.message);
-    }
-    tai();
+  // One request per kind for the whole batch, replacing: type /id in the group, copy the id, open Edit, scroll to the
+  // bottom of the form, paste, Save. People (audience `chon`) go to /people, groups to /groups.
+  function settlePending(b, kind, ids, on) {
+    return api("/chatbots/" + encodeURIComponent(b.id) + (kind === "private" ? "/people" : "/groups"),
+               { method: "POST", body: fd({ chat_ids: JSON.stringify(ids), on: on ? "1" : "0" }) });
   }
 
   // ---------------------------------------------------------------- nhật ký + lỗ hổng

@@ -44,9 +44,9 @@ check("the long text itself is never on the card row", !r.includes("cb-err"));
 check("the card renders the status row instead of the raw blocks",
   SRC.includes("statusRow({ err: [loiTen, mat, lluot, loi], warn: [riengTu, cbao], wait: [cho] })")
   && !SRC.includes("cho + loiTen + riengTu + mat + lluot + cbao + loi +\n"));
-check("the popup gets the full blocks and wires allow/ignore",
-  /function openStatus\(b, html\)/.test(SRC) && SRC.includes("choNhom(b, cid, true, loai)")
-  && SRC.includes("choNhom(b, cid, false, loai)"));
+check("the popup gets the waiting rows and the full blocks, and wires allow/ignore",
+  /function openStatus\(b, pending, rest\)/.test(SRC) && SRC.includes("openStatus(b, cho, stRest)")
+  && SRC.includes("settle(true)") && SRC.includes("settle(false)"));
 check("errors are no longer cut at 160/200 characters for the popup",
   SRC.includes("String(b.loi_luot).slice(0, 2000)") && SRC.includes("String(st.last_error).slice(0, 2000)"));
 check("long words and links wrap instead of running out of the card",

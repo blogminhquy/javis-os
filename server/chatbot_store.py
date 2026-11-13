@@ -723,6 +723,47 @@ def allow_patch(bot: dict, chat_type: str, chat_id: str, on: bool) -> dict:
     return {"blocked": blocked, key: listed}
 
 
+def parse_chat_ids(chat_id: Any = "", chat_ids: Any = "") -> tuple[List[str], str]:
+    """Chat ids from the allow / ignore forms of the bot card: one (`chat_id`) or many (`chat_ids`, a JSON list, sent
+    when the owner ticks several waiting chats and settles them in one press). Returns `(ids, error)`: ids in the order
+    given, without blanks or repeats; the error is set when `chat_ids` is not a JSON list or no id is left."""
+    ids: List[str] = []
+    raw = str(chat_ids or "").strip()
+    if raw:
+        try:
+            many = json.loads(raw)
+        except ValueError:
+            many = None
+        if not isinstance(many, list):
+            return [], localefmt.chu("Danh sách id không đọc được.", "The id list cannot be read.")
+        ids = [str(x).strip() for x in many if not isinstance(x, (dict, list))]
+    ids.append(str(chat_id or "").strip())
+    out: List[str] = []
+    for x in ids:
+        if x and x not in out:
+            out.append(x)
+    if not out:
+        return [], localefmt.chu("Thiếu id cuộc chat.", "Missing chat id.")
+    return out, ""
+
+
+def set_listed(bot_id: str, key: str, ids: List[str], on: bool) -> tuple[bool, str]:
+    """Put every id of `ids` on the bot's `groups` or `people` list (`on`), or take them off, in ONE write. Many chats
+    settled together must not be many read-change-write rounds: two of those overlapping would drop an id, and each
+    round rewrites the whole bots file."""
+    if key not in ("groups", "people"):
+        return False, localefmt.chu("Danh sách id không đọc được.", "The id list cannot be read.")
+    bot = get_bot(bot_id)
+    if not bot:
+        return False, LOI_KHONG_CO_BOT
+    listed = [str(x) for x in (bot.get(key) or [])]
+    if on:
+        listed += [x for x in ids if x not in listed]
+    else:
+        listed = [x for x in listed if x not in ids]
+    return update_bot(bot_id, {key: listed})
+
+
 # ============================================================
 # Đọc
 # ============================================================

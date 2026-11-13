@@ -3626,15 +3626,43 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
   border: 1px solid var(--warn-line); }
 .cb-quyen.full { color: var(--red); background: var(--danger-wash);
   border: 1px solid var(--danger-line); }
-/* Nhóm đang chờ chủ cho phép. Cố ý nổi bằng màu thông tin chứ không phải màu lỗi: không có gì
-   hỏng cả, chỉ là có một quyết định đang chờ đúng một cú bấm. */
-.cb-nhomcho { border: 1px solid var(--info-line); background: var(--info-wash);
-  border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; }
-.cb-nhomcho-t { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  font-size: 13px; color: var(--text); }
-.cb-nhomcho-id { font-family: var(--mono, monospace); font-size: 11.5px; color: var(--text3); }
-.cb-nhomcho-d { font-size: 12.5px; line-height: 1.5; color: var(--text3); }
-.cb-nhomcho-a { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Chats waiting for the owner's decision, in the status popup. Info colour on purpose, not error colour: nothing is
+   broken, a decision is waiting. Since 13/11/2026 a row is one tick box (the whole row is the tap target, 48px tall for
+   a thumb) and Allow / Ignore are ONE bar for every ticked row, instead of two buttons on each row. */
+.cb-pd { display: flex; flex-direction: column; gap: 8px; }
+.cb-pd-h { display: flex; align-items: center; gap: 6px; font-size: 16px; color: var(--text); }
+.cb-pd-pick { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cb-pd-pick[hidden] { display: none; }
+.cb-form label.cb-pd-all { display: inline-flex; align-items: center; gap: 10px; margin: 0; padding: 6px 11px;
+  min-height: 40px; font-size: 16px; font-weight: 600; color: var(--text); cursor: pointer; }
+.cb-pd-n { font-size: 14.5px; color: var(--text3); }
+.cb-pd-list { display: flex; flex-direction: column; gap: 6px; }
+.cb-form label.cb-nhomcho { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 10px;
+  min-height: 48px; box-sizing: border-box; border: 1px solid var(--border); background: var(--surface-1);
+  border-radius: 9px; font-weight: 400; color: var(--text); cursor: pointer; }
+.cb-form label.cb-nhomcho:hover { border-color: var(--info-line); }
+.cb-form label.cb-nhomcho.on { border-color: var(--info-line); background: var(--info-wash); }
+.cb-pd input[type=checkbox] { flex: none; width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); }
+.cb-pd-m { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.cb-nhomcho-t { font-size: 16px; line-height: 1.4; color: var(--text); }
+.cb-nhomcho-t svg { vertical-align: -2px; color: var(--text3); }
+.cb-nhomcho-id { font-family: var(--mono, monospace); font-size: 12.5px; color: var(--text3); }
+.cb-nhomcho-d { font-size: 14.5px; line-height: 1.4; color: var(--warn-ink); }
+/* The bar stays at the bottom of the popup while the list scrolls, so twenty rows never push the buttons out of
+   reach. The negative offset covers the popup's own bottom padding. */
+.cb-pd-bar { position: sticky; bottom: -18px; z-index: 1; display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px; padding: 10px 0; background: var(--bg2); border-top: 1px solid var(--border); }
+.cb-pd-bar .s-btn, .cb-pd-bar .s-btn-ghost { min-height: 44px; display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap; }
+.cb-pd-msg { font-size: 16px; color: var(--text2); }
+.cb-pd-msg.err { color: var(--red); }
+.cb-pd-msg:empty { display: none; }
+@media (max-width: 600px) {
+  /* A phone gives the popup about 340px: less side padding for the names, and two buttons that share the row. */
+  .cb-form.cb-st-form { padding: 16px 14px 18px; }
+  .cb-pd-bar .s-btn, .cb-pd-bar .s-btn-ghost { flex: 1 1 0; justify-content: center; padding-left: 8px; padding-right: 8px; }
+  .cb-pd-msg { flex: 1 1 100%; }
+}
 .cb-acts { display: flex; gap: 6px; margin-top: 2px; }
 /* 0.309.0: a long error (a raw API reply, a Google link) used to run out of the card. Wrap anywhere. */
 .cb-err, .cb-quyen-t, .cb-nhomcho-t, .cb-nhomcho-d { overflow-wrap: anywhere; word-break: break-word; }
@@ -3653,8 +3681,7 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .cb-st-chip.wait { color: var(--text); }
 .cb-st-more { flex: none; display: inline-flex; align-items: center; gap: 2px; color: var(--text3); }
 .cb-st-body { display: flex; flex-direction: column; gap: 10px; }
-.cb-st-body .cb-err, .cb-st-body .cb-quyen, .cb-st-body .cb-nhomcho-d { font-size: 16px; }
-.cb-st-body .cb-nhomcho-t { font-size: 16px; }
+.cb-st-body .cb-err, .cb-st-body .cb-quyen { font-size: 16px; }
 .cb-empty { grid-column: 1 / -1; text-align: center; color: var(--text3); padding: 40px 16px;
   font-size: 14px; line-height: 1.7; }
 .cb-empty b { color: var(--text); display: block; margin: 8px 0 4px; font-size: 15px; }
