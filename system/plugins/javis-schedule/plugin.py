@@ -37,6 +37,8 @@ import httpx
 import json
 import yaml
 
+from reminder_delivery_intent import outbound_action_requested
+
 # Múi giờ đọc từ cấu hình; rơi về UTC+7 khi plugin chạy ngoài tiến trình server.
 def _tz():
     try:
@@ -475,6 +477,14 @@ async def _do_create(vault_root: str, args: dict) -> str:
     if not name or not prompt or not schedule:
         return "ERROR: cần đủ 'name', 'prompt' và 'schedule' để tạo việc."
     notify_only = bool(args.get("notify_only") or False)
+    if outbound_action_requested(prompt):
+        if notify_only:
+            return ("ERROR: lịch này yêu cầu Javis GỬI tin ra kênh ngoài (Zalo/nhóm), "
+                    "nhưng notify_only=True chỉ dán nội dung vào chat người đặt. "
+                    "Hãy tạo mode task (notify_only=False), không được báo đã gửi khi chưa có messageId.")
+        if str(args.get("muc_quyen") or "full").strip().lower() != "full":
+            return ("ERROR: lịch gửi tin ra ngoài cần quyền full khi chạy task; "
+                    "không được tự hạ sang suggest/auto rồi báo đã gửi.")
     chat_id = str(args.get("chat_id") or args.get("owner_chat") or "").strip()
     origin_chat, assistant = _turn_origin(vault_root)
     auto_chat = not chat_id and bool(origin_chat)
@@ -725,7 +735,9 @@ def register(ctx) -> None:
                                              "mai), hoặc đủ ngày giờ '2026-07-20 09:00'.")},
                 "notify_only": {"type": "boolean",
                                  "description": ("true = ép thành nhắc MỘT LẦN (kho reminders) dù "
-                                                 "schedule trông giống chu kỳ lặp. Mặc định false.")},
+                                                 "schedule trông giống chu kỳ lặp. Mặc định false. Đây chỉ nhắc người đặt lịch; "
+                                                 "để thật sự gửi vào nhóm Zalo phải dùng notify_only=False, "
+                                                 "quyền full và xác minh messageId.")},
                 "muc_quyen": {"type": "string", "enum": ["suggest", "auto", "full"],
                               "description": ("Quyền của việc lúc chạy, áp cho cả loop lẫn nhắc "
                                               "hẹn. 'full' (mặc định) = dùng được mọi công cụ đã "
