@@ -6,7 +6,7 @@ description: Thêm, sửa, xoá việc, lịch hẹn và thói quen trong tab C�
 description_en: "Adds, edits and deletes tasks, appointments and habits in the Mine tab of the Tasks page (turn a repeat into an appointment, change times and repeats, skip one time), lists them, and ticks them done when the user says so, right from chat."
 author: Javis (bundled)
 enabled: true
-min_mode: safe
+min_mode: readonly
 tools:
   - javis_mytask
 hooks: []
