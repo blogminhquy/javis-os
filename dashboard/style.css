@@ -1647,13 +1647,21 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cp-chips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; }
 .cp-gap { flex: 1 1 auto; }
 /* Suggested next message (chat-suggest.js, 2026-11-07): the grey placeholder of the empty box IS the suggestion, and
-   this chip fills it in (the way on a phone, which has no Tab key). Main chat and Teams share it. */
+   this chip fills it in. A computer reads "Tab" on it; a touch screen has no Tab key, so there it is a small round
+   arrow on the right of the composer (owner, 2026-11-13). Main chat and Teams share it. */
 .sug-tab { flex: none; align-self: center; font: 600 12px/1 var(--font); padding: 6px 9px; border-radius: 7px;
   border: 1px solid var(--border); background: var(--bg3); color: var(--text2); cursor: pointer; white-space: nowrap; }
 .sug-tab:hover { border-color: var(--accent); color: var(--accent); }
 .sug-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sug-tab[hidden] { display: none; }
-@media (pointer: coarse) { .sug-tab { font-size: 14px; padding: 8px 11px; } }
+.sug-tab-arrow { display: none; }
+@media (pointer: coarse) {
+  .sug-tab { width: 32px; height: 32px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center;
+    justify-content: center; }
+  .sug-tab-key { display: none; }
+  .sug-tab-arrow { display: block; }
+}
+.hud-voice.dictating .sug-tab { display: none; }
 /* The rest of a suggestion after text already typed (2026-11-13): a mirror layer over the box, same font, padding and
    width (chat-suggest.js copies them), so the grey rest starts exactly where the typed text ends. The typed part is
    there only to take up its room. In an empty box the suggestion is the box's own placeholder and the layer only
