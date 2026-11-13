@@ -5180,6 +5180,8 @@
   "ib.i_no_contact": "Chưa có số điện thoại hay email",
   "ib.i_note": "Ghi chú về khách",
   "ib.i_note_ph": "Ghi chú về khách (chỉ bạn thấy)",
+  "ib.i_note_group": "Ghi chú về nhóm",
+  "ib.i_note_group_ph": "Ghi chú về nhóm (chỉ bạn thấy)",
   "ib.i_profile": "Hồ sơ khách hàng",
   "ib.i_profile_ph": "A.I. tự ghi sau mỗi lần chat. Bạn sửa hoặc ghi thêm được.",
   "ib.i_profile_info": "A.I. tự ghi lại những gì cần nhớ về khách này: tên và cách xưng hô, liên hệ, đang quan tâm gì, đã chốt gì, việc còn dang dở. Hồ sơ được cập nhật sau khi cuộc chat im khoảng 15 phút, bằng model chạy nền. Mỗi lần trả lời khách, bot đọc hồ sơ này cùng 30 tin gần nhất nên không phải hỏi lại. Bạn sửa, ghi thêm hoặc xoá trắng ở đây đều được: phần bạn viết được giữ lại ở lần A.I. cập nhật sau. Khách không thấy hồ sơ.",

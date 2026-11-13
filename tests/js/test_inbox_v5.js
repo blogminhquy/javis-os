@@ -100,9 +100,14 @@ check("bot-wide settings say so once, and go through the bot's own update route"
 check("the note is saved when the box loses focus, and typing survives the 5-second redraw", /note\.onblur = function \(\) \{ saveNote\(c\.id\); \};/.test(PI) &&
   /_noteEdit && _noteEdit\.id === c\.id \? _noteEdit\.text/.test(PI) && /\/note", \{ method: "POST", body: fd\(\{ note: text \}\) \}/.test(CV));
 // 2026-11-12: in a private chat the note box IS the customer profile (the background model writes it, the bot reads it).
-check("Info: a private chat shows the customer profile in its own section, a group keeps the plain note",
-  /var prof = c\.chat_type !== "group"/.test(PI) && /class="ib-sec ib-prof"/.test(PI) && /\(prof \? "" : noteBox\)/.test(PI) &&
-  /t\(prof \? "ib\.i_profile_ph" : "ib\.i_note_ph"\)/.test(PI) && /data-profile="1" rows="8"/.test(PI) && /maxlength="4000"/.test(PI));
+// 2026-11-13: a group and a public comment thread are not one person; the server says which chats have a profile.
+check("Info: a private chat shows the customer profile in its own section, a group or a comment thread keeps the plain note",
+  /var prof = hasProfile\(c\)/.test(PI) && /function hasProfile\(c\) \{ return !!\(c && c\.profile_chat\); \}/.test(CV) &&
+  /class="ib-sec ib-prof"/.test(PI) && /\(prof \? "" : noteBox\)/.test(PI) &&
+  /t\(prof \? "ib\.i_profile_ph" : grp \? "ib\.i_note_group_ph" : "ib\.i_note_ph"\)/.test(PI) && /data-profile="1" rows="8"/.test(PI) &&
+  /maxlength="4000"/.test(PI) && /hasProfile\(_conv\) \? "ib\.t_profile" : "ib\.t_note"/.test(CV));
+check("a group's note box says it is about the group, in both languages",
+  VI["ib.i_note_group"] === "Ghi chú về nhóm" && EN["ib.i_note_group"] === "Note about the group" && !!VI["ib.i_note_group_ph"] && !!EN["ib.i_note_group_ph"]);
 check("the profile's explanation sits behind the (i) button, and the panel says when the A.I. last wrote it",
   /JI\.body\(esc\(t\("ib\.i_profile_info"\)\)\)/.test(PI) && /c\.profile_at \? '<p class="ib-hint ib-prof-at">'/.test(PI) &&
   /c\.note \|\| "", c\.profile_at \|\| 0/.test(CV));

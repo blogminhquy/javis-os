@@ -172,6 +172,9 @@
     return x.indexOf("cmt:") === 0 ? "fbc" : x.indexOf("igc:") === 0 ? "igc" : x.indexOf("ig:") === 0 ? "ig" : "";
   }
   function isComment(c) { var k = chatKind(c); return k === "fbc" || k === "igc" || k === "thc"; }
+  // Only a private direct-message chat has one customer, so only it has a customer profile. The server says which
+  // (`profile_chat`, see conversations.is_profile_chat): a group and a comment thread do not.
+  function hasProfile(c) { return !!(c && c.profile_chat); }
   // Only Facebook and Instagram comments can be answered privately (Meta's Private Replies); Threads cannot.
   function canPrivate(c) { var k = chatKind(c); return k === "fbc" || k === "igc"; }
   function isInstagram(c) { var k = chatKind(c); return k === "ig" || k === "igc"; }
@@ -1663,10 +1666,12 @@
     var mail = c.contact && String(c.contact).indexOf("@") > 0;
     // A private chat: the note box IS the customer profile (owner, 2026-11-12: nobody types notes by hand). The background
     // model rewrites it after the chat goes quiet and the bot reads it on later turns; the owner can still fix or empty
-    // it here. A group has no one customer, so it keeps the plain note.
-    var prof = c.chat_type !== "group", JI = window.JavisInfo;
+    // it here. A group and a public comment thread have no one customer (the server decides, `profile_chat`): they keep
+    // a plain note of their own, and never show the profile of whoever wrote first there (owner, 2026-11-13).
+    var prof = hasProfile(c), JI = window.JavisInfo, grp = c.chat_type === "group";
     var noteBox = '<textarea class="ib-notebox"' + (prof ? ' data-profile="1" rows="8"' : ' rows="3"') + ' maxlength="4000" placeholder="' +
-      esc(t(prof ? "ib.i_profile_ph" : "ib.i_note_ph")) + '" aria-label="' + esc(t(prof ? "ib.i_profile" : "ib.i_note")) + '"></textarea>';
+      esc(t(prof ? "ib.i_profile_ph" : grp ? "ib.i_note_group_ph" : "ib.i_note_ph")) + '" aria-label="' +
+      esc(t(prof ? "ib.i_profile" : grp ? "ib.i_note_group" : "ib.i_note")) + '"></textarea>';
     var profSec = !prof ? "" : '<div class="ib-sec ib-prof"><h4>' + ic("brain") + ' <span>' + esc(t("ib.i_profile")) + '</span>' +
       (JI ? JI.btn(t("info.more")) : "") + '</h4>' + (JI ? JI.body(esc(t("ib.i_profile_info"))) : "") + noteBox +
       (c.profile_at ? '<p class="ib-hint ib-prof-at">' + esc(t("ib.i_profile_at", { time: gio(c.profile_at) })) + '</p>' : "") + '</div>';
@@ -1710,7 +1715,7 @@
       if (_noteEdit && _noteEdit.id === id && _noteEdit.text === text) _noteEdit = null;
       if (_conv && _conv.id === id && d.conversation) _conv.note = d.conversation.note;
       _vetMeta = metaSig();
-      toast(window.t(_conv && _conv.id === id && _conv.chat_type !== "group" ? "ib.t_profile" : "ib.t_note"));
+      toast(window.t(_conv && _conv.id === id && hasProfile(_conv) ? "ib.t_profile" : "ib.t_note"));
     } catch (e) { toast(window.t("ht.act_fail", { err: e.message })); }
   }
 

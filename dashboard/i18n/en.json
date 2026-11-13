@@ -5180,6 +5180,8 @@
   "ib.i_no_contact": "No phone number or email yet",
   "ib.i_note": "Note about the customer",
   "ib.i_note_ph": "Note about the customer (only you see it)",
+  "ib.i_note_group": "Note about the group",
+  "ib.i_note_group_ph": "Note about the group (only you see it)",
   "ib.i_profile": "Customer profile",
   "ib.i_profile_ph": "The AI writes this after each chat. You can edit or add to it.",
   "ib.i_profile_info": "The AI writes down what is worth remembering about this customer: their name and how to address them, contact details, what they are interested in, what was agreed, what is still open. The profile is updated after the chat has been quiet for about 15 minutes, by the background model. On every reply the bot reads this profile along with the last 30 messages, so it does not ask again. You can edit, add to or empty it here: what you write is kept the next time the AI updates it. The customer never sees the profile.",

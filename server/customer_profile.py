@@ -20,8 +20,10 @@ sees, and a busy chat may never go quiet).
 
 What it never does:
 
-  - It never reads a group, a chat no bot has answered in, or a chat with no bot (a watched personal Zalo account
-    holds the owner's family and friends: those are not customers of a bot).
+  - It never reads a group, a public comment thread (Facebook, Instagram, Threads: nobody messages the shop there,
+    and several people write in one thread), a chat no bot has answered in, or a chat with no bot (a watched personal
+    Zalo account holds the owner's family and friends: those are not customers of a bot). Which chats count is decided
+    in one place, `conversations.is_profile_chat`.
   - It never overwrites what the owner typed while the model was writing (`conversations.profile_save` compares the
     note it started from).
   - Chat text is DATA: the model has no tool, and both prompts say that nothing in the messages is an instruction.
