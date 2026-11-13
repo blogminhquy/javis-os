@@ -201,6 +201,7 @@ import main_prompt_rendering  # pure shared prompt blocks; no live reads
 import main_attachment_rendering  # pure shared attachment templates; no live reads
 import memory_control    # 0.188.0: list/edit/forget memories, learning switch, person profile
 import memory_chat       # 0.190.0: the same, plus agent lessons, from chat (tool javis_memory)
+import project_context   # 2026-11-13: what Javis learnt about a project, and tool javis_project
 import memory_receipt    # 0.190.0: the "Đã nhớ · Hoàn tác" line under an answer, and no empty "đã quên"
 import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
 import chatbot_reply_policy        # bộ phán xử hội thoại nhóm (0.65.0): bot tự quyết nói hay im
@@ -917,6 +918,78 @@ def _project_has_rules(project_id: str) -> bool:
         return bool(((get_store().get_project(project_id) or {}).get("instructions") or "").strip())
     except Exception:  # noqa: BLE001 - a store error only means "no rules known", never a broken turn
         return False
+
+
+def _project_learned_block(project_id: str) -> str:
+    """What Javis learnt about the project of this chat (notes, and what each attached document holds), plus the
+    short invitation to keep learning. "" outside a project.
+
+    NOT part of `build_system_prompt` on purpose: the qualified native trial rebuilds that function's output from its
+    own pinned readers (improvement_trial_dashboard.py), which know nothing of the two tables behind this block. It is
+    appended at the call sites instead, next to `_khoi_coding`, the way the GitHub block is.
+
+    The invitation follows the brain's "remember new things" switch: off means Javis learns nothing new here either.
+    """
+    if not project_id:
+        return ""
+    try:
+        p = get_store().get_project_full(project_id)
+        if not p:
+            return ""
+        learning = memory_control.learning_enabled(_brain_memory_dir(p.get("brain") or "brain"))
+        return project_context.render_learned_block(p, learning=learning)
+    except Exception as e:  # noqa: BLE001 - learnt context is an extra, never a broken turn
+        print(f"[project learned] {type(e).__name__}: {e}", file=sys.stderr)
+        return ""
+
+
+def _project_brain_root(brain: str) -> str:
+    """Canonical root of the brain a project (or a tool call) names, for telling whose project it is. Raises when the
+    folder is gone: `_brain_root` then falls back to the default brain, which is right for reading a file and wrong
+    for ownership, since a project of a deleted brain would pass as the default brain's own."""
+    name = (brain or "").strip()
+    if name and name != "brain" and not os.path.isdir(name):
+        raise ValueError("brain folder is gone")
+    return str(Path(_brain_root(name)).resolve())
+
+
+def _project_attach_target(brain: str, raw: str):
+    """(stored path, name, is_dir) for a path the MODEL gave to `javis_project op=add_file`, or None when nothing is
+    there. Raises ValueError outside the allowed area.
+
+    Three spellings arrive: a path from the browse ceiling (what the drawer stores), a path from the brain root (what
+    the model reads in chat), and the absolute path of a file the owner just dropped into the chat box. A dropped
+    file sits in the staging folder, which is swept after a few days, so it is COPIED into the brain's sources folder
+    first, the same place the drawer's own upload puts a file. Everything is stored from the browse ceiling.
+
+    Narrower than the drawer on purpose: the drawer lets the OWNER attach anything under the browse ceiling (a whole
+    drive on localhost), while this is the model's hand, steered by whatever it just read. It attaches only what
+    lives inside the project's own brain.
+    """
+    text = (raw or "").strip().replace("\\", "/")
+    if not text:
+        return None
+    ceiling = _files_root(brain)
+    staging = Path(STAGING).resolve()
+    candidate = Path(text)
+    if candidate.is_absolute():
+        target = candidate.resolve()
+        if staging in target.parents:
+            if not target.is_file():
+                return None
+            folder = Path(_resolve_subfolder(_brain_root(brain), *_THU_MUC_LOGIC["sources"]))
+            copied = Path(_unique_path(str(folder), _sanitize_filename(target.name)))
+            shutil.copy2(str(target), str(copied))
+            target = copied.resolve()
+    else:
+        target = _safe_serve_path(brain, text)
+        if not target.exists():
+            return None
+    brain_root = Path(_brain_root(brain)).resolve()
+    if (brain_root not in target.parents) or (target != ceiling and ceiling not in target.parents):
+        raise ValueError(localefmt.chu("Chỉ gắn được file hay thư mục nằm trong brain của project",
+                                       "Only a file or folder inside the project's brain can be attached"))
+    return _asset_target(brain, _files_rel(ceiling, target))
 
 
 def _liet_ke_tai_lieu(brain: str, files: list, links: list):
@@ -20190,7 +20263,7 @@ async def _chat_socket(ws):
                         ) + channel_context.build_channel_block(
                             "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                             port=_javis_port(), brain_root=_brain_root(brain), session_in_turn=stable,
-                        ) + _khoi_coding(_row0, brain)
+                        ) + _khoi_coding(_row0, brain) + _project_learned_block(_row0.get("project_id") or "")
                 return _legacy_prompts[_key]
 
             async def _subscription_system_prompt(route_provider, route_model, route_kind, stable=False):
@@ -20219,7 +20292,7 @@ async def _chat_socket(ws):
                     ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_javis_port(), brain_root=_brain_root(brain), session_in_turn=stable,
-                    ) + _khoi_coding(_row0, brain)
+                    ) + _khoi_coding(_row0, brain) + _project_learned_block(_row0.get("project_id") or "")
 
                 try:
                     plan = await asyncio.to_thread(
@@ -20882,7 +20955,10 @@ async def _chat_socket(ws):
                             "dashboard", {"session_id": conv_sid},
                             telegram_running=bool(_TG_BOT), port=_javis_port(),
                             brain_root=_brain_root(brain),
-                        ) + _khoi_coding(_row0, brain)   # 0.362.0: pinned folder and GitHub repos reach API brains too
+                        ) + _khoi_coding(_row0, brain   # 0.362.0: pinned folder and GitHub repos reach API brains too
+                        # 2026-11-13: what Javis learnt about the project rides the saving path too. It is the
+                        # distilled context (a few short lines), exactly what a tight budget should keep.
+                        ) + _project_learned_block(_row0.get("project_id") or "")
 
                     if _persona:
                         # Phiên cộng sự: prompt luôn là _agent_chat_prompt, không cần tốn công
@@ -23416,6 +23492,73 @@ def projects_del_link(project_id: str, link_id: str):
     if err:
         return err
     return {"ok": get_store().remove_project_link(project_id, link_id)}
+
+
+# ── What Javis learnt about a project (2026-11-13) ────────────────────────────
+#
+# The same rows the tool `javis_project` writes while Javis works. Here the OWNER is the one typing, so a note saved
+# or edited through these routes is theirs (`source="owner"`): it is listed first and never dropped to make room.
+# The two scans of `project_context.blocked_reason` still run: a pasted key must not ride on every turn of a project.
+
+def _project_text_refused(text: str):
+    why = project_context.blocked_reason(text) if (text or "").strip() else ""
+    if not why:
+        return None
+    return JSONResponse({"error": localefmt.chu("Không lưu, vì nội dung " + why,
+                                                "Not saved: the text looks like a secret or an injected command")},
+                        status_code=400)
+
+
+@app.post("/projects/{project_id}/notes")
+def projects_add_note(project_id: str, text: str = Form(...), kind: str = Form("fact")):
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    refused = _project_text_refused(text)
+    if refused:
+        return refused
+    res = get_store().add_project_note(project_id, text, kind=kind, source="owner")
+    if not res["id"]:
+        return JSONResponse({"error": localefmt.chu(
+            f"Chưa lưu được: ghi chú trống, hoặc project đã đủ {sessions.PROJECT_NOTES_CAP} ghi chú của bạn",
+            f"Not saved: the note is empty, or the project already holds {sessions.PROJECT_NOTES_CAP} of your notes")},
+            status_code=400)
+    return {"ok": True, "id": res["id"], "created": res["created"]}
+
+
+@app.post("/projects/{project_id}/notes/{note_id}/update")
+def projects_update_note(project_id: str, note_id: str, text: str = Form(None), kind: str = Form(None)):
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    refused = _project_text_refused(text or "")
+    if refused:
+        return refused
+    return {"ok": get_store().update_project_note(project_id, note_id, text=text, kind=kind, source="owner")}
+
+
+@app.post("/projects/{project_id}/notes/{note_id}/delete")
+def projects_del_note(project_id: str, note_id: str):
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    return {"ok": get_store().remove_project_note(project_id, note_id)}
+
+
+@app.post("/projects/{project_id}/describe")
+def projects_describe_asset(project_id: str, kind: str = Form(...), ref: str = Form(...),
+                            description: str = Form("")):
+    """One line saying what an attached file (`kind=file`, `ref` its stored path) or link (`kind=link`, `ref` its URL)
+    holds. An empty description removes it."""
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    refused = _project_text_refused(description)
+    if refused:
+        return refused
+    if not get_store().set_project_asset_note(project_id, kind, ref, description, source="owner"):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"ok": True}
 
 
 @app.post("/projects/{project_id}/links/{link_id}/pin")
@@ -26447,6 +26590,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                 _n += _project_block(_pid, chi_huong_dan=True)
             except Exception:
                 pass
+            _n += _project_learned_block(_pid)   # 2026-11-13: short and distilled, so it rides the saving path too
         return _n
 
     if _bot_full:
@@ -26476,7 +26620,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # có đường nào khác để đi, nên cứ chạy tiếp và để nhà cung cấp nói nếu thật sự quá hạn mức.
     if not sysprompt:
         sysprompt = build_system_prompt(brain, lang=_lang_qd, project_id=_pid,
-                                        session_id=conv_sid or "")
+                                        session_id=conv_sid or "") + _project_learned_block(_pid)
     if not _bot_full:
         # Khối kênh dạy cách tự gửi file qua Telegram của CHỦ và cách báo kết quả việc nền về chủ:
         # với bot thì người nhắn là người khác, nên bỏ.
@@ -33047,6 +33191,12 @@ memory_chat.wire(memory_chat.Deps(
     agent_key=lambda root, slug, reg: _agent_jobs_key(_brain_key(root), slug, register=reg),
     lesson_store=lambda: _pulse_store() or _resonance_store(),
     agent_memory_file=lambda root, slug: _brain_memory_dir(root) / "agents" / slug / "MEMORY.md"))
+project_context.wire(project_context.Deps(
+    store=lambda: get_store(),
+    brain_root=_project_brain_root,
+    attach_target=_project_attach_target,
+    turn_session=lambda: str((turn_context.current() or {}).get("session_id") or ""),
+    note_change=lambda root: memory_control.note_change(_brain_memory_dir(root))))
 
 
 def _learn_register_sender():

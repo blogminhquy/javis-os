@@ -727,7 +727,10 @@
     // Hướng dẫn chỉ có ở project. Trợ lý đã có system prompt riêng trong trình sửa của nó,
     // bày thêm một ô hướng dẫn ở đây là hai chỗ nói cùng một việc.
     if (pdLaCuoc() || pdLaAgent()) return [tabFile, tabLink];
-    return [{ k: "instr", ico: "scroll-text", nhan: pdT("proj.tab_instr"), n: 0 }, tabFile, tabLink];
+    // 2026-11-13: what Javis learnt about the project while working in it. Right after the instructions: both are
+    // context that rides on every turn, one written by the owner and one mostly by Javis.
+    var tabLearned = { k: "learned", ico: "brain", nhan: pdT("proj.tab_learned"), n: (p.notes || []).length };
+    return [{ k: "instr", ico: "scroll-text", nhan: pdT("proj.tab_instr"), n: 0 }, tabLearned, tabFile, tabLink];
   }
 
   function veThanhTab() {
@@ -932,7 +935,7 @@
 
   function showProjTab(tab) {
     xaLuuHuongDan();              // rời tab cũng là rời ô nhập
-    projTab = (tab === "files" || tab === "links") ? tab
+    projTab = (tab === "files" || tab === "links" || tab === "learned") ? tab
             : (pdCheDo === "cuoc" ? "files" : "instr");
     pdFormFile = false; pdFormLink = false;
     veDrawer();
@@ -967,10 +970,12 @@
         ? '<div class="pd-onboard">' + ic("sparkles") + "<span>" + esc(pdT("proj.onboard")) + "</span>" +
           '<button class="pd-ob-x" type="button">' + esc(pdT("proj.onboard_close")) + "</button></div>"
         : "") +
-      (projTab === "instr" ? paneHuongDan(p) : projTab === "files" ? paneFile(p) : paneLink(p));
+      (projTab === "learned" ? paneLearned(p)
+        : projTab === "instr" ? paneHuongDan(p) : projTab === "files" ? paneFile(p) : paneLink(p));
     var obx = body.querySelector(".pd-ob-x");
     if (obx) obx.onclick = function () { pdOnboard = false; veDrawer(); };
     if (projTab === "instr") noiHuongDan();
+    else if (projTab === "learned") wireLearned();
     else if (projTab === "files") noiFile();
     else noiLink();
   }
@@ -1065,6 +1070,145 @@
     }
   }
 
+  // ── Tab "Đã học" (2026-11-13) ────────────────────────────────────────────────
+  // What Javis learnt about the project while working in it: short notes (a fact, a settled decision, a term).
+  // Javis writes most of them itself (tool javis_project); here the owner reads, edits, removes and adds. A note the
+  // owner writes or edits becomes theirs: listed first and never dropped to make room.
+  var NOTE_KINDS = ["fact", "decision", "term"];
+  // Whole dictionary keys, never a key built from a prefix: a key the source does not spell out cannot be checked
+  // against vi.json and en.json.
+  var NOTE_KIND_KEY = { fact: "proj.kind_fact", decision: "proj.kind_decision", term: "proj.kind_term" };
+  var PROJ_NOTE_MAX = 300;
+
+  function noteRowsHtml(p) {
+    var notes = (p.notes || []).slice().sort(function (a, b) {
+      if ((a.source === "owner") !== (b.source === "owner")) return a.source === "owner" ? -1 : 1;
+      return (b.created_at || 0) - (a.created_at || 0);
+    });
+    if (!notes.length) return '<div class="pd-empty">' + esc(pdT("proj.learned_empty")) + "</div>";
+    return notes.map(function (n) {
+      var kind = NOTE_KINDS.indexOf(n.kind) >= 0 ? n.kind : "fact";
+      return '<div class="pd-nrow" data-id="' + esc(n.id) + '">' +
+          '<span class="pd-nbody">' +
+            '<span class="pd-ntext">' + esc(n.text) + "</span>" +
+            '<span class="pd-nmeta">' + esc(pdT(NOTE_KIND_KEY[kind])) + " · " +
+              esc(pdT(n.source === "owner" ? "proj.src_owner" : "proj.src_javis")) + "</span>" +
+          "</span>" +
+          '<button class="pd-row-act pd-nedit" type="button" title="' + esc(pdT("proj.note_edit")) + '">' +
+            ic("pencil") + "</button>" +
+          '<button class="pd-row-act pd-go pd-ndel" type="button" title="' + esc(pdT("proj.note_remove")) + '">' +
+            ic("x") + "</button>" +
+        "</div>";
+    }).join("");
+  }
+
+  function paneLearned(p) {
+    var info = window.JavisInfo;
+    var explain = esc(pdT("proj.learned_info"));
+    return '<div class="pd-pane" data-pane="learned">' +
+      '<div class="pd-learn-head"><span class="pd-hint">' + esc(pdT("proj.learned_hint")) + "</span>" +
+        (info ? info.btn(pdT("info.more")) : "") + "</div>" +
+      (info ? info.body(explain) : '<div class="pd-note">' + ic("info") + "<span>" + explain + "</span></div>") +
+      '<div class="pd-list">' + noteRowsHtml(p) + "</div>" +
+      '<div class="pd-form pd-nform">' +
+        '<textarea class="pd-in pd-nin" rows="2" maxlength="' + PROJ_NOTE_MAX + '" placeholder="' +
+          esc(pdT("proj.note_ph")) + '"></textarea>' +
+        '<div class="pd-frow">' +
+          '<select class="pd-in pd-nkind">' + NOTE_KINDS.map(function (k) {
+            return '<option value="' + k + '">' + esc(pdT(NOTE_KIND_KEY[k])) + "</option>";
+          }).join("") + "</select>" +
+          '<button class="pd-ok pd-nadd" type="button">' + esc(pdT("proj.add")) + "</button>" +
+        "</div>" +
+        '<div class="pd-fmsg pd-nmsg" role="status" hidden></div>' +
+      "</div>" +
+      "</div>";
+  }
+
+  function noteMsg(text) {
+    var box = pdEl && pdEl.querySelector(".pd-nmsg");
+    if (!box) return;
+    box.hidden = !text;
+    box.className = "pd-fmsg pd-nmsg" + (text ? " loi" : "");
+    box.textContent = text || "";
+  }
+
+  /** Reload the project and redraw only the note list and the tab counts: the box being typed in stays as it is. */
+  async function reloadNotes() {
+    await napProjChiTiet((projChiTiet || {}).id || "");
+    var pane = pdEl && pdEl.querySelector('[data-pane="learned"]');
+    var box = pane && pane.querySelector(".pd-list");
+    if (!box || !projChiTiet) { veDrawer(); return; }
+    box.innerHTML = noteRowsHtml(projChiTiet);
+    wireNoteRows(pane);
+    veSoTab();
+  }
+
+  function wireNoteRows(pane) {
+    var notes = (projChiTiet || {}).notes || [];
+    pane.querySelectorAll(".pd-nrow").forEach(function (row) {
+      var n = notes.filter(function (x) { return x.id === row.dataset.id; })[0];
+      if (!n) return;
+      row.querySelector(".pd-nedit").onclick = function () { editNote(n); };
+      row.querySelector(".pd-ndel").onclick = function () { removeNote(n); };
+    });
+  }
+
+  function wireLearned() {
+    var pane = pdEl.querySelector('[data-pane="learned"]');
+    if (!pane) return;
+    wireNoteRows(pane);
+    var box = pane.querySelector(".pd-nin");
+    pane.querySelector(".pd-nadd").onclick = function () { addNote(); };
+    // Enter saves, Shift+Enter breaks the line; a note is one short line, so Enter as "save" is the expected key.
+    box.onkeydown = function (e) {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); addNote(); }
+    };
+  }
+
+  function noteUrl(suffix) {
+    return "/projects/" + encodeURIComponent((projChiTiet || {}).id || "") + "/notes" + (suffix || "");
+  }
+
+  async function addNote() {
+    var pane = pdEl && pdEl.querySelector('[data-pane="learned"]');
+    var box = pane && pane.querySelector(".pd-nin");
+    var text = box ? box.value.trim() : "";
+    if (!text) { if (box) box.focus(); return; }
+    var r = await post(noteUrl(""), { text: text, kind: pane.querySelector(".pd-nkind").value });
+    if (!r || !r.ok) { noteMsg(pdT("proj.err_note") + ((r && r.error) ? ": " + r.error : "")); return; }
+    box.value = "";
+    noteMsg("");
+    await reloadNotes();
+    box.focus();
+  }
+
+  async function editNote(n) {
+    var text = prompt(pdT("proj.note_edit_q"), n.text || "");
+    if (text == null || !text.trim() || text.trim() === n.text) return;
+    var r = await post(noteUrl("/" + encodeURIComponent(n.id) + "/update"), { text: text.trim() });
+    if (!r || !r.ok) { noteMsg(pdT("proj.err_note") + ((r && r.error) ? ": " + r.error : "")); return; }
+    noteMsg("");
+    await reloadNotes();
+  }
+
+  async function removeNote(n) {
+    if (!confirm(pdT("proj.confirm_remove_note"))) return;
+    await post(noteUrl("/" + encodeURIComponent(n.id) + "/delete"), {});
+    await reloadNotes();
+  }
+
+  /** One line saying what an attached file or link holds. Javis writes it when it attaches or reads the document;
+   *  the owner can write or fix it here. Empty removes it. Project only: a chat and an assistant keep no descriptions. */
+  async function editAssetDescription(m, isFile) {
+    var text = prompt(pdT("proj.desc_q"), m.description || "");
+    if (text == null || text.trim() === (m.description || "")) return;
+    var r = await post("/projects/" + encodeURIComponent((projChiTiet || {}).id || "") + "/describe",
+                       { kind: isFile ? "file" : "link", ref: isFile ? m.path : m.url, description: text.trim() });
+    if (!r || !r.ok) { alert(pdT("proj.err_desc") + ((r && r.error) ? ": " + r.error : "")); return; }
+    await napLaiChiTiet();
+    veLaiDanhSach();
+  }
+
   // ── Tab File ─────────────────────────────────────────────────────────────────
   // Trả về TÊN icon, không phải chuỗi <svg>: chỗ gọi lo dữ liệu, chỗ vẽ mới gọi ic().
   function icoFile(ten) {
@@ -1119,8 +1263,13 @@
           : '<span class="pd-row-body">') +
           '<span class="pd-row-name">' + esc(o.ten) + "</span>" +
           '<span class="pd-row-sub">' + (o.subHtml || esc(o.sub || "")) + "</span>" +
+          (o.desc ? '<span class="pd-row-desc">' + esc(o.desc) + "</span>" : "") +
         (o.moDuoc ? "</button>" : "</span>") +
         nutSao(o) +
+        (o.descEditable
+          ? '<button class="pd-row-act pd-desc' + (o.desc ? " on" : "") + '" type="button" title="' +
+              esc(pdT("proj.desc_edit")) + '">' + ic("pencil") + "</button>"
+          : "") +
         '<button class="pd-row-act pd-ghim' + (o.pinned ? " on" : "") + '" type="button" title="' +
           esc(o.pinned ? pdT("proj.pin_off") : o.ghimTitle) + '">' + ic("pin") + "</button>" +
         '<button class="pd-row-act pd-go" type="button" title="' + esc(pdT(pdK("remove"))) + '">' +
@@ -1190,6 +1339,7 @@
                        icon: dir ? "folder" : f.image ? "image" : icoFile(f.name || f.path), pinned: !!f.pinned,
                        ghimTitle: pdT(dir ? "proj.pin_on_dir" : "proj.pin_on"),
                        moTitle: dir ? pdT("proj.open_dir") : "",
+                       desc: f.description || "", descEditable: pdCheDo === "project",
                        moDuoc: con, xoaDuoc: con && !dir, mat: !con });
     };
     var veTuDong = function (f) {
@@ -1247,11 +1397,8 @@
   }
 
   function veSoTab() {
-    var p = pdDuLieu() || {};
-    // Chỉ project có tab Hướng dẫn đứng đầu, nên bảng đếm phải lệch đi một ô cho khớp thứ
-    // tự tab (xem tabsHienTai).
-    var dem = (pdLaCuoc() || pdLaAgent()) ? [(p.files || []).length, (p.links || []).length]
-                                          : ["", (p.files || []).length, (p.links || []).length];
+    // The counts come from the tab list itself (tabsHienTai), so a new tab cannot shift them out of place.
+    var dem = tabsHienTai().map(function (t) { return t.n || ""; });
     pdEl.querySelectorAll(".pd-tab").forEach(function (b, i) {
       var n = b.querySelector(".pd-tab-n");
       if (!dem[i]) { if (n) n.remove(); return; }
@@ -1282,6 +1429,8 @@
       if (!m) return;
       var moBtn = row.querySelector(".pd-row-body.mo-duoc");
       if (moBtn) moBtn.onclick = function () { moFile(m); };
+      var descBtn = row.querySelector(".pd-desc");
+      if (descBtn) descBtn.onclick = function () { editAssetDescription(m, laFile); };
       row.querySelector(".pd-ghim").onclick = function () { laFile ? ghimFile(m) : ghimLink(m); };
       row.querySelector(".pd-go").onclick = function () { laFile ? goFile(m) : goLink(m); };
       var xoa = row.querySelector(".pd-xoa");
@@ -1500,6 +1649,7 @@
     var ve = function (l) {
       return hangMuc({ id: l.id, ten: l.label || l.url, icon: "link", pinned: !!l.pinned,
                        ghimTitle: pdT("proj.pin_link_on"), subHtml: aHtml(l),
+                       desc: l.description || "", descEditable: pdCheDo === "project",
                        sao: l.url, saoTitle: pdT("common.copy_link") });
     };
     var veTuDong = function (l) {

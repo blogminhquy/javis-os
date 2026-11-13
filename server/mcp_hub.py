@@ -197,6 +197,8 @@ OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "
                               "javis_core_name",
                               # 2026-11-10: steers which model background jobs run on. Not a customer's call.
                               "javis_tune",
+                              # 2026-11-13: rewrites a project's instructions, notes, files and links.
+                              "javis_project",
                               # 2026-10-25: writes code that runs in the server (installed OFF, still owner's call).
                               "javis_plugin",
                               # 0.259.0: tìm và đọc web. Bot nói chuyện với khách lạ không được biến

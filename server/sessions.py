@@ -127,6 +127,35 @@ CREATE TABLE IF NOT EXISTS project_order (
 );
 """
 
+# 2026-11-13: what Javis learnt about ONE project while working in it, and a one-line description of each attached
+# file and link ("which document holds what"). The owner asked for a project that fills in its own context instead of
+# a box they have to write by hand. Tables of their own for the same reason as pin_order above: the columns of
+# `projects`, `project_files` and `project_links` are exact lists the qualified native trial context reads.
+# `project_asset_notes` is keyed by the stored path or URL, so no asset table needed a new column.
+_PROJECT_LEARN_SQL = """
+CREATE TABLE IF NOT EXISTS project_notes (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    text       TEXT NOT NULL,
+    text_norm  TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    session_id TEXT,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_pn_project ON project_notes(project_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS project_asset_notes (
+    project_id  TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    ref         TEXT NOT NULL,
+    description TEXT NOT NULL,
+    source      TEXT NOT NULL,
+    updated_at  REAL NOT NULL,
+    PRIMARY KEY (project_id, kind, ref)
+);
+"""
+
 # 2026-11-06: when the owner last had each chat on screen (red unread dot in every history list). Its own table for the
 # same reason as pin_order above: a `read_at` column on `sessions` would stop the qualified native trial context.
 # A chat without a row was never read: any reply in it is unread.
@@ -446,6 +475,26 @@ def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
 # không âm thầm nuốt ngân sách token của mọi câu hỏi trong đó.
 PROJECT_INSTRUCTIONS_MAX = 4000
 
+# What Javis learnt about a project (2026-11-13). A note is ONE short line, never a document: the block built from
+# these rows rides on every chat turn of the project, so the caps below are the price list of that block.
+PROJECT_NOTE_KINDS = ("fact", "decision", "term")
+PROJECT_NOTE_SOURCES = ("javis", "owner")
+PROJECT_NOTE_MAX = 300          # characters of one note
+PROJECT_NOTES_CAP = 60          # notes kept per project; past it the oldest note Javis wrote itself makes room
+PROJECT_ASSET_NOTE_MAX = 200    # characters of the description of one file or link
+
+
+def project_note_norm(text: str) -> str:
+    """Comparison form of a note: case, accents and punctuation do not make two notes different."""
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(text or "").lower()).replace("đ", "d")
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", t)).strip()
+
+
+def _one_line(text: str, limit: int) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip()[:limit].rstrip()
+
 # Trần số tài liệu/link người dùng gắn tay vào MỘT cuộc trò chuyện. Cùng loại chi phí như trên
 # (khối này cũng ghép vào system prompt mỗi lượt của cuộc đó), nhưng để rộng hơn vì đây là
 # danh sách TÊN chứ không phải nội dung: phần nạp nội dung đã có trần riêng ở tầng prompt.
@@ -615,6 +664,7 @@ class SessionStore:
             self._conn.executescript(_DM_REACTION_SQL)
             self._conn.executescript(_MSG_PIN_SQL)
             self._conn.executescript(_ORDER_SQL)
+            self._conn.executescript(_PROJECT_LEARN_SQL)
             had_read = self._conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_read'").fetchone()
             self._conn.executescript(_READ_SQL)
@@ -1718,6 +1768,12 @@ class SessionStore:
         p["links"] = [dict(r) for r in self._read(
             "SELECT id, url, label, pinned, added_at FROM project_links "
             "WHERE project_id = ? ORDER BY pinned DESC, added_at DESC, rowid DESC", (project_id,))]
+        # 2026-11-13: what Javis learnt about the project, and the one-line description of each file and link.
+        described = self.project_asset_notes(project_id)
+        for kind, rows, key in (("file", p["files"], "path"), ("link", p["links"], "url")):
+            for row in rows:
+                row["description"] = (described.get((kind, str(row.get(key) or ""))) or {}).get("description", "")
+        p["notes"] = self.list_project_notes(project_id)
         return p
 
     def update_project(self, project_id: str, *, name: Optional[str] = None,
@@ -1763,6 +1819,8 @@ class SessionStore:
             conn.execute("DELETE FROM project_files WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM project_links WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM project_order WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM project_notes WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM project_asset_notes WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
             return n
         return self._write(_do)
@@ -1805,9 +1863,13 @@ class SessionStore:
     def remove_project_file(self, project_id: str, file_id: str) -> bool:
         # Kèm project_id trong WHERE: id là uuid nên khó đụng, nhưng một route nhận id từ
         # client thì không được phép xoá bản ghi của project khác chỉ vì đoán trúng id.
-        return bool(self._write(lambda c: c.execute(
-            "DELETE FROM project_files WHERE id = ? AND project_id = ?",
-            (file_id, project_id))).rowcount)
+        def _do(c):
+            # The description is keyed by the stored path, so it goes first, while the row still says which path.
+            c.execute("DELETE FROM project_asset_notes WHERE project_id = ? AND kind = 'file' AND ref IN "
+                      "(SELECT path FROM project_files WHERE id = ? AND project_id = ?)",
+                      (project_id, file_id, project_id))
+            return c.execute("DELETE FROM project_files WHERE id = ? AND project_id = ?", (file_id, project_id))
+        return bool(self._write(_do).rowcount)
 
     def set_project_file_pinned(self, project_id: str, file_id: str, pinned: bool) -> bool:
         return bool(self._write(lambda c: c.execute(
@@ -1830,14 +1892,122 @@ class SessionStore:
         return lid
 
     def remove_project_link(self, project_id: str, link_id: str) -> bool:
-        return bool(self._write(lambda c: c.execute(
-            "DELETE FROM project_links WHERE id = ? AND project_id = ?",
-            (link_id, project_id))).rowcount)
+        def _do(c):
+            c.execute("DELETE FROM project_asset_notes WHERE project_id = ? AND kind = 'link' AND ref IN "
+                      "(SELECT url FROM project_links WHERE id = ? AND project_id = ?)",
+                      (project_id, link_id, project_id))
+            return c.execute("DELETE FROM project_links WHERE id = ? AND project_id = ?", (link_id, project_id))
+        return bool(self._write(_do).rowcount)
 
     def set_project_link_pinned(self, project_id: str, link_id: str, pinned: bool) -> bool:
         return bool(self._write(lambda c: c.execute(
             "UPDATE project_links SET pinned = ? WHERE id = ? AND project_id = ?",
             (1 if pinned else 0, link_id, project_id))).rowcount)
+
+    # ── what Javis learnt about a project (2026-11-13) ──
+    #
+    # Two kinds of row. A NOTE is one durable line about the project (a fact, a settled decision, a term). An ASSET
+    # NOTE says in one line what an attached file or link holds, so the model picks the right document without
+    # opening each one. Both are written by Javis while it works (tool `javis_project`) or by the owner in the
+    # project drawer; the owner's rows are never dropped to make room.
+
+    def list_project_notes(self, project_id: str) -> List[Dict[str, Any]]:
+        return [dict(r) for r in self._read(
+            "SELECT id, kind, text, source, created_at, updated_at FROM project_notes "
+            "WHERE project_id = ? ORDER BY created_at DESC, rowid DESC", (project_id,))]
+
+    def add_project_note(self, project_id: str, text: str, *, kind: str = "fact", source: str = "javis",
+                         session_id: str = "") -> Dict[str, Any]:
+        """Save one note. Returns {"id", "created", "dropped"}; id is "" when nothing could be saved (empty text, or
+        the project is full of the owner's own notes). The same note in other words of case or accents is one note:
+        `created` is then False and the existing id comes back. `dropped` is the text of the note that made room."""
+        line = _one_line(text, PROJECT_NOTE_MAX)
+        norm = project_note_norm(line)
+        if not line or not norm:
+            return {"id": "", "created": False, "dropped": ""}
+        kind = kind if kind in PROJECT_NOTE_KINDS else "fact"
+        source = source if source in PROJECT_NOTE_SOURCES else "javis"
+
+        def _do(c):
+            old = c.execute("SELECT id FROM project_notes WHERE project_id = ? AND text_norm = ?",
+                            (project_id, norm)).fetchone()
+            if old:
+                return {"id": str(old[0]), "created": False, "dropped": ""}
+            dropped = ""
+            count = c.execute("SELECT COUNT(*) FROM project_notes WHERE project_id = ?", (project_id,)).fetchone()[0]
+            if count >= PROJECT_NOTES_CAP:
+                oldest = c.execute(
+                    "SELECT id, text FROM project_notes WHERE project_id = ? AND source = 'javis' "
+                    "ORDER BY created_at ASC, rowid ASC LIMIT 1", (project_id,)).fetchone()
+                if not oldest:
+                    return {"id": "", "created": False, "dropped": ""}
+                c.execute("DELETE FROM project_notes WHERE id = ?", (oldest[0],))
+                dropped = str(oldest[1])
+            nid, now = uuid.uuid4().hex[:8], time.time()
+            c.execute("INSERT INTO project_notes (id, project_id, kind, text, text_norm, source, session_id, "
+                      "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                      (nid, project_id, kind, line, norm, source, (session_id or "")[:200] or None, now, now))
+            return {"id": nid, "created": True, "dropped": dropped}
+        return self._write(_do)
+
+    def update_project_note(self, project_id: str, note_id: str, *, text: Optional[str] = None,
+                            kind: Optional[str] = None, source: Optional[str] = None) -> bool:
+        """Rewrite a note. `source` is passed when the OWNER edits: the note is then theirs and is never dropped."""
+        sets, params = [], []
+        if text is not None:
+            line = _one_line(text, PROJECT_NOTE_MAX)
+            norm = project_note_norm(line)
+            if not line or not norm:
+                return False
+            sets += ["text = ?", "text_norm = ?"]
+            params += [line, norm]
+        if kind in PROJECT_NOTE_KINDS:
+            sets.append("kind = ?")
+            params.append(kind)
+        if source in PROJECT_NOTE_SOURCES:
+            sets.append("source = ?")
+            params.append(source)
+        if not sets:
+            return False
+        sets.append("updated_at = ?")
+        params += [time.time(), note_id, project_id]
+        return bool(self._write(lambda c: c.execute(
+            f"UPDATE project_notes SET {', '.join(sets)} WHERE id = ? AND project_id = ?", tuple(params))).rowcount)
+
+    def remove_project_note(self, project_id: str, note_id: str) -> bool:
+        return bool(self._write(lambda c: c.execute(
+            "DELETE FROM project_notes WHERE id = ? AND project_id = ?", (note_id, project_id))).rowcount)
+
+    def project_asset_notes(self, project_id: str) -> Dict[tuple, Dict[str, Any]]:
+        """{(kind, ref): {"description", "source"}} of a project; kind is "file" or "link", ref the path or URL."""
+        return {(str(r["kind"]), str(r["ref"])): {"description": str(r["description"]), "source": str(r["source"])}
+                for r in self._read("SELECT kind, ref, description, source FROM project_asset_notes "
+                                    "WHERE project_id = ?", (project_id,))}
+
+    def set_project_asset_note(self, project_id: str, kind: str, ref: str, description: str,
+                               source: str = "javis") -> bool:
+        """Describe one attached file or link in one line; an empty description removes it. False when the project
+        has no such file or link: a description of something that is not attached would never be shown."""
+        if kind not in ("file", "link"):
+            return False
+        ref = str(ref or "").strip()
+        table, column = ("project_files", "path") if kind == "file" else ("project_links", "url")
+        if not ref or not self._read(f"SELECT 1 FROM {table} WHERE project_id = ? AND {column} = ?",
+                                     (project_id, ref)):
+            return False
+        line = _one_line(description, PROJECT_ASSET_NOTE_MAX)
+        source = source if source in PROJECT_NOTE_SOURCES else "javis"
+        if not line:
+            self._write(lambda c: c.execute(
+                "DELETE FROM project_asset_notes WHERE project_id = ? AND kind = ? AND ref = ?",
+                (project_id, kind, ref)))
+            return True
+        self._write(lambda c: c.execute(
+            "INSERT INTO project_asset_notes (project_id, kind, ref, description, source, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(project_id, kind, ref) DO UPDATE SET "
+            "description = excluded.description, source = excluded.source, updated_at = excluded.updated_at",
+            (project_id, kind, ref, line, source, time.time())))
+        return True
 
     # ── tài liệu & link người dùng TỰ GẮN vào một cuộc trò chuyện ──
     #

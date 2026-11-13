@@ -34,6 +34,14 @@ Pick "All conversations" to see everything again, or "Ungrouped" to find the lef
 
 **Deleting a project does NOT delete conversations.** The conversations inside are only removed from the group and return to "Ungrouped". The confirmation box says so, along with how many conversations will be released.
 
+**Projects learn their own context.** Click the project chip under the chat box to open the project drawer. It has four tabs:
+
+- **Instructions**: rules you write yourself (up to 4000 characters), prepended to every chat turn in the project. Javis changes them only when you say so in chat, and hands back the old text so it can be restored.
+- **Learned**: what is durable and specific to the project, noted by Javis while it works (facts, settled decisions, terms). Read, edit, delete and add notes here. A note you write or edit is yours and is not replaced when the list is full (a project keeps up to 60 notes).
+- **Files** and **Links**: the project's documents. A file or link you drop into the chat for long-term use is attached here by Javis, with one line saying what it holds; a dropped file is copied into the brain's sources folder. Click the pencil on a row to write or fix that line yourself.
+
+You can also just say it in chat: "remember for this project that...", "attach this file to the project", "what does this project remember". Switching off new memories for the brain also stops Javis from adding notes to projects. Javis does not store keys, passwords or commands lifted from a document in this layer.
+
 **Project icons.** Open the group picker, hover a project and click the palette icon. The picker shows every icon Javis uses, with a name filter (type `star`, `folder`, `brain`...). A project with no icon borrows the folder icon, so every row has one and your eye can scan down the icon column.
 
 Icons exist for **Projects** only, not for individual conversations. The reason: every row in the list is a conversation, so an icon there classifies nothing and only adds a button to click. Each project genuinely is a different thing, so an icon there has work to do.
