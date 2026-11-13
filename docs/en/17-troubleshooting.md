@@ -169,6 +169,8 @@ Since 0.55.56 Watchtower **ships by default** in both the VPS compose and the Ho
 
 **The stack reports "Partially running" after updating the compose file**: almost always the `<name>-watchtower` container failing to reach the host's Docker socket (Hostinger has hit exactly this). The Javis app is unaffected - it is a separate container and keeps running; you simply lose the "Update now" button and fall back to Redeploy. The real reason is in the log: `docker logs javis-watchtower`.
 
+**After an update the domain answers 404 and the Javis container is gone from Docker**: Watchtower stops Javis, removes the old container, and only then creates the new one. On a VPS with a slow disk the removal can run past Watchtower's time limit (the `javis-watchtower` log shows `Failed to remove container ... context deadline exceeded`): Watchtower gives up without creating the new one, while Docker still finishes removing the old one. Since the release that added the `javis-guard` container this heals itself: when Javis has been gone or stopped halfway for 2 minutes, `javis-guard` creates it again (on the new version) or starts it again; see what it did with `docker logs javis-guard`. A machine without `javis-guard` needs one **Redeploy** (VPS: fetch the new compose file as above, then `docker compose up -d --pull always`), which brings Javis back together with `javis-guard` for next time. Data lives in volumes, so nothing is lost.
+
 **A compose command reporting `not found`** comes in three shapes with three entirely different causes:
 
 | Error | Cause | What to do |
