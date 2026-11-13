@@ -1118,9 +1118,14 @@ def chi_tiet(conversation_id: int) -> Optional[dict]:
     d["customer_tags"] = _loads(d.pop("customer_tags_json", "[]"), [])
     d["tags"] = conversation_tags([d["id"]]).get(int(d["id"]), [])
     meta = d.get("metadata") if isinstance(d.get("metadata"), dict) else {}
-    d["note"] = str(d.get("customer_note") or "") if d.get("customer_id") else str(meta.get("note") or "")
+    # The note is the customer's own (their profile) only in a chat with ONE customer. A group or a public comment
+    # thread is linked to whoever wrote first there: showing that person's profile as the note of the whole chat is
+    # wrong (owner, 2026-11-13), so those keep a note of their own on the conversation.
+    d["profile_chat"] = is_profile_chat(d)
+    d["note"] = (str(d.get("customer_note") or "") if d["profile_chat"] and d.get("customer_id")
+                 else str(meta.get("note") or ""))
     # When the A.I. last rewrote the customer profile (the note), 0 when it never has: the Info panel says so.
-    d["profile_at"] = float(_profile_mark(meta).get("at") or 0)
+    d["profile_at"] = float(_profile_mark(meta).get("at") or 0) if d["profile_chat"] else 0.0
     return d
 
 
@@ -1457,15 +1462,16 @@ def clear_draft(conversation_id: int) -> bool:
 
 
 def set_note(conversation_id: int, note: str) -> bool:
-    """The owner's note on a chat (Chatbot v5 Info panel). It belongs to the customer when the chat has one (the same
-    note then follows them into every chat), else to the conversation itself (a group). False when there is no such
-    conversation."""
+    """The owner's note on a chat (Chatbot v5 Info panel). In a private chat it belongs to the customer (it is their
+    profile), else to the conversation itself: a group or a comment thread is many people, and its `customer_id` is
+    only whoever wrote first there. False when there is no such conversation."""
     text = _s(str(note or "").strip(), MAX_GHI_CHU)
     with _lock:
-        r = _conn().execute("SELECT customer_id FROM conversations WHERE id=?", (int(conversation_id),)).fetchone()
+        r = _conn().execute("SELECT customer_id, chat_type, channel_account_id, external_chat_id FROM conversations"
+                            " WHERE id=?", (int(conversation_id),)).fetchone()
     if r is None:
         return False
-    if r["customer_id"]:
+    if r["customer_id"] and is_profile_chat(dict(r)):
         return dat_ghi_chu_khach(int(r["customer_id"]), text)
     return _set_meta_key(conversation_id, "note", text or None)
 
@@ -2066,19 +2072,41 @@ def dat_ghi_chu_khach(customer_id: int, note: str) -> bool:
 # become the profile, since nobody types notes by hand. `customer_profile.py` rewrites it in the background from the
 # messages it has not read yet; how far it has read is kept on the conversation (`metadata.profile.upto`, a message
 # row id), because messages belong to a conversation and a private chat has exactly one.
+#
+# Only a private direct-message chat has ONE customer to keep a profile of. A group is many people, and so is a public
+# comment thread (Facebook `cmt:`, Instagram `igc:`, every Threads chat): nobody messages the shop there, and the
+# customer linked to such a chat is only whoever wrote FIRST. Those never get a profile written from them, never show
+# one as their note and never hand one to the bot (owner, 2026-11-13: a Zalo group showed one member's profile).
+_PROFILE_CHAT_SQL = ("c.chat_type='private' AND c.channel_account_id NOT LIKE 'threads:%'"
+                     " AND NOT (c.channel_account_id LIKE 'messenger:%'"
+                     " AND (c.external_chat_id LIKE 'cmt:%' OR c.external_chat_id LIKE 'igc:%'))")
+
+
+def is_profile_chat(conv: dict) -> bool:
+    """Whether a conversation row (`chat_type`, `channel_account_id`, `external_chat_id`) is a private direct-message
+    chat, the only kind that has a customer profile. The same rule as `_PROFILE_CHAT_SQL`."""
+    c = conv or {}
+    if str(c.get("chat_type") or "private") != "private":
+        return False
+    channel = str(c.get("channel_account_id") or "").split(":", 1)[0]
+    if channel == "threads":
+        return False
+    return not (channel == "messenger" and str(c.get("external_chat_id") or "").startswith(("cmt:", "igc:")))
+
+
 def _profile_mark(meta) -> dict:
     m = (meta or {}).get("profile") if isinstance(meta, dict) else None
     return m if isinstance(m, dict) else {}
 
 
 def profile_of_chat(channel: str, account_id: str, external_chat_id: str) -> str:
-    """The customer profile of a PRIVATE chat by its channel key, "" when there is none (a group, an unknown chat, a
-    store error). Read on every bot turn of a private chat, so it never raises."""
+    """The customer profile of a PRIVATE chat by its channel key, "" when there is none (a group, a comment thread, an
+    unknown chat, a store error). Read on every bot turn of a private chat, so it never raises."""
     try:
         with _lock:
             r = _conn().execute(
                 "SELECT k.note FROM conversations c JOIN customers k ON k.id=c.customer_id"
-                " WHERE c.channel_account_id=? AND c.external_chat_id=? AND c.chat_type='private'",
+                f" WHERE c.channel_account_id=? AND c.external_chat_id=? AND {_PROFILE_CHAT_SQL}",
                 (_tai_khoan_id(channel, account_id), str(external_chat_id))).fetchone()
         return str(r["note"] or "").strip() if r else ""
     except Exception as ex:      # noqa: BLE001
@@ -2088,14 +2116,14 @@ def profile_of_chat(channel: str, account_id: str, external_chat_id: str) -> str
 
 def profile_read(conversation_id: int) -> Optional[dict]:
     """What the profile writer needs to know about one conversation, None when it is not a private chat with a known
-    customer: `{conversation_id, customer_id, bot_id, name, note, upto, last_id, has_ai}`. `upto` is the row id of the
+    customer (a group and a comment thread are not): `{conversation_id, customer_id, bot_id, name, note, upto, last_id, has_ai}`. `upto` is the row id of the
     last message already read into the profile (0 = never), `last_id` the newest message, `has_ai` whether a bot has
     ever answered in this chat."""
     with _lock:
         db = _conn()
         r = db.execute(
             "SELECT c.id, c.customer_id, c.bot_id, c.metadata_json, k.note, k.name FROM conversations c"
-            " JOIN customers k ON k.id=c.customer_id WHERE c.id=? AND c.chat_type='private'",
+            f" JOIN customers k ON k.id=c.customer_id WHERE c.id=? AND {_PROFILE_CHAT_SQL}",
             (int(conversation_id),)).fetchone()
         if r is None:
             return None
@@ -2109,7 +2137,7 @@ def profile_read(conversation_id: int) -> Optional[dict]:
 
 
 def profile_candidates(since: float, limit: int = 5000) -> List[dict]:
-    """Private chats a bot has answered in, active since `since`, that hold messages the profile has not read yet,
+    """Private chats (no group, no comment thread) a bot has answered in, active since `since`, that hold messages the profile has not read yet,
     least recently active first: `[{conversation_id, bot_id, last_message_at, upto, last_id}]`. A chat where no bot
     ever spoke is left out here already: a watched personal account holds hundreds of them (family, friends)."""
     n = max(1, min(int(limit or 5000), 20000))
@@ -2117,7 +2145,7 @@ def profile_candidates(since: float, limit: int = 5000) -> List[dict]:
         rows = _conn().execute(
             "SELECT c.id, c.bot_id, c.last_message_at, c.metadata_json,"
             " (SELECT MAX(m.id) FROM messages m WHERE m.conversation_id=c.id) AS last_id"
-            " FROM conversations c WHERE c.chat_type='private' AND c.bot_id != '' AND c.customer_id IS NOT NULL"
+            f" FROM conversations c WHERE {_PROFILE_CHAT_SQL} AND c.bot_id != '' AND c.customer_id IS NOT NULL"
             " AND c.last_message_at >= ?"
             " AND EXISTS(SELECT 1 FROM messages a WHERE a.conversation_id=c.id AND a.sender_type='ai')"
             " ORDER BY c.last_message_at ASC LIMIT ?", (float(since or 0), n)).fetchall()
@@ -2161,7 +2189,8 @@ def profile_save(conversation_id: int, upto: int, text: Optional[str] = None, ex
     with _lock:
         db = _conn()
         r = db.execute("SELECT c.customer_id, c.metadata_json, k.note FROM conversations c"
-                       " JOIN customers k ON k.id=c.customer_id WHERE c.id=?", (int(conversation_id),)).fetchone()
+                       f" JOIN customers k ON k.id=c.customer_id WHERE c.id=? AND {_PROFILE_CHAT_SQL}",
+                       (int(conversation_id),)).fetchone()
         if r is None:
             return False
         if text is not None:

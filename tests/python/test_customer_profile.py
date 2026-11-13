@@ -10,7 +10,9 @@ What this file guards:
 
   1. the store: the profile is the customer's note, the read mark sits on the conversation, the owner's edit wins;
   2. the writer: what goes into the prompt (chat text as fenced data), what comes out, when a chat is due;
-  3. the bot: a private chat's prompt carries the profile as data, a group's never does.
+  3. the bot: a private chat's prompt carries the profile as data, a group's never does;
+  4. a group and a public comment thread (Facebook, Instagram, Threads) are not one person: no profile is written
+     from them, and they never show or edit the profile of whoever wrote first there (owner, 13/11/2026).
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -43,19 +45,21 @@ NOW = time.time()
 _seq = [0]
 
 
-def record(chat, sender, text, chat_type="private", ago=3600.0, bot_id="bot_p", mtype="text"):
-    """One inbox message, `ago` seconds old. Returns the store's result."""
+def record(chat, sender, text, chat_type="private", ago=3600.0, bot_id="bot_p", mtype="text", channel="zalo",
+           uid=""):
+    """One inbox message, `ago` seconds old. `uid`: who wrote it, when not the chat's own customer. Returns the
+    store's result."""
     _seq[0] += 1
     return conversations.ghi_su_kien({
-        "channel": "zalo", "account_id": "acc1", "account_name": "Shop", "bot_id": bot_id,
+        "channel": channel, "account_id": "acc1", "account_name": "Shop", "bot_id": bot_id,
         "external_chat_id": chat, "chat_type": chat_type, "chat_title": "Nhóm" if chat_type == "group" else "",
-        "sender_type": sender, "sender_id": ("u-" + chat) if sender == "customer" else "", "sender_name": "An",
+        "sender_type": sender, "sender_id": (uid or "u-" + chat) if sender == "customer" else "", "sender_name": "An",
         "message_type": mtype, "text": text, "external_message_id": f"{chat}-{_seq[0]}",
         "created_at": NOW - ago + _seq[0] * 0.001})
 
 
-def conv_id(chat):
-    return conversations.conversation_id_of("zalo", "acc1", chat)
+def conv_id(chat, channel="zalo"):
+    return conversations.conversation_id_of(channel, "acc1", chat)
 
 
 asked = []
@@ -120,6 +124,52 @@ record("g1", "ai", "đáp trong nhóm", chat_type="group")
 check("a group has no customer profile", conversations.profile_read(conv_id("g1")) is None
       and conversations.profile_of_chat("zalo", "acc1", "g1") == "")
 check("an unknown chat gives an empty profile", conversations.profile_of_chat("zalo", "acc1", "nobody") == "")
+
+# A group is not one person. Lan (the customer of c1, who has a profile) is the FIRST to write in group g2, so the
+# store links the group to her: the group must still not show, or edit, her profile.
+lan_profile = conversations.profile_of_chat("zalo", "acc1", "c1")
+record("g2", "customer", "cả nhà ơi cho mình hỏi", chat_type="group", uid="u-c1")
+record("g2", "ai", "dạ em nghe", chat_type="group")
+g2 = conv_id("g2")
+dg = conversations.chi_tiet(g2)
+check("the group is linked to the member who wrote first", dg["customer_id"] == conversations.chi_tiet(c1)["customer_id"])
+check("a group never shows a member's profile as its note", dg["note"] == "" and dg["profile_chat"] is False
+      and dg["profile_at"] == 0, (dg.get("note"), dg.get("profile_chat")))
+check("a private chat is marked as having a profile", conversations.chi_tiet(c1)["profile_chat"] is True)
+check("a note typed in a group stays on the group", conversations.set_note(g2, "Nhóm học viên khoá 3") is True
+      and conversations.chi_tiet(g2)["note"] == "Nhóm học viên khoá 3"
+      and conversations.profile_of_chat("zalo", "acc1", "c1") == lan_profile, conversations.chi_tiet(g2).get("note"))
+check("the profile writer cannot save into a group", conversations.profile_save(g2, 10**9, "Tên: Lan", "") is False
+      and conversations.profile_of_chat("zalo", "acc1", "c1") == lan_profile)
+
+# A public comment thread (Facebook cmt:, Instagram igc:, every Threads chat) is stored as a private chat, but nobody
+# messages the shop there and several people write in one thread: it is not a profile chat either.
+record("psid1", "customer", "Shop ơi em là Hoa, tư vấn em gói 6 tháng", channel="messenger")
+record("psid1", "ai", "Dạ chào chị Hoa ạ", channel="messenger")
+dm = conv_id("psid1", "messenger")
+conversations.profile_save(dm, 10**9, "Tên: Hoa\nQuan tâm: gói 6 tháng", "")
+record("ig:77", "customer", "hi shop", channel="messenger")
+record("ig:77", "ai", "dạ", channel="messenger")
+check("Messenger and Instagram direct messages keep their profile",
+      conversations.profile_of_chat("messenger", "acc1", "psid1").startswith("Tên: Hoa")
+      and conversations.profile_read(conv_id("ig:77", "messenger")) is not None)
+for chat, channel, what in (("cmt:900", "messenger", "a Facebook comment thread"),
+                            ("igc:901", "messenger", "an Instagram comment thread"),
+                            ("thread902", "threads", "a Threads reply thread")):
+    record(chat, "customer", "giá bao nhiêu shop", channel=channel, uid="u-psid1")     # Hoa comments in public
+    record(chat, "ai", "Dạ shop inbox chị ạ", channel=channel)
+    cc = conv_id(chat, channel)
+    dc = conversations.chi_tiet(cc)
+    check(f"{what} has no customer profile", conversations.profile_read(cc) is None
+          and conversations.profile_of_chat(channel, "acc1", chat) == "" and dc["profile_chat"] is False
+          and dc["note"] == "", (dc.get("note"), dc.get("profile_chat")))
+    check(f"a note typed on {what} stays on it", conversations.set_note(cc, "đã trả lời") is True
+          and conversations.chi_tiet(cc)["note"] == "đã trả lời"
+          and conversations.profile_of_chat("messenger", "acc1", "psid1").startswith("Tên: Hoa"))
+check("the rule in Python is the rule in SQL", conversations.is_profile_chat(
+          {"chat_type": "private", "channel_account_id": "messenger:acc1", "external_chat_id": "ig:77"}) is True
+      and conversations.is_profile_chat({"chat_type": "group", "channel_account_id": "zalo:acc1", "external_chat_id": "g"}) is False
+      and conversations.is_profile_chat({"chat_type": "private", "channel_account_id": "zalo:acc1", "external_chat_id": "cmt:1"}) is True)
 
 # ============================================================
 # 2. The writer: prompt, answer, one update
@@ -223,6 +273,9 @@ record("c3", "customer", "Tối nay đi ăn không?")
 n = len(asked)
 check("a chat no bot answered in gets no profile", run(cp.update(conv_id("c3"))) == "skipped:no_bot_answer" and len(asked) == n)
 check("a group gets no profile", run(cp.update(conv_id("g1"))) == "skipped:not_private" and len(asked) == n)
+check("a comment thread gets no profile, whichever platform", len(asked) == n and all(
+    run(cp.update(conv_id(chat, channel))) == "skipped:not_private"
+    for chat, channel in (("cmt:900", "messenger"), ("igc:901", "messenger"), ("thread902", "threads"))) and len(asked) == n)
 
 # A failing engine: nothing saved, the chat rests.
 record("c4", "customer", "Shop ơi")
@@ -242,7 +295,9 @@ due = cp.due(NOW)
 check("a quiet chat with unread messages is due", c4 in due, due)
 check("a chat with nothing new is not", c2 not in due and c1 not in due, due)
 check("a chat no bot answered in is not even a candidate", conv_id("c3") not in due)
-check("a group is never due", conv_id("g1") not in due)
+check("a group is never due", conv_id("g1") not in due and conv_id("g2") not in due)
+check("a comment thread is never due", not {conv_id("cmt:900", "messenger"), conv_id("igc:901", "messenger"),
+                                           conv_id("thread902", "threads")} & set(due), due)
 
 record("c5", "customer", "đang chat dở", ago=60)
 record("c5", "ai", "dạ", ago=60)
@@ -295,6 +350,12 @@ prof = chatbot_runtime.customer_profile(BOT, meta_c2)
 check("a private turn finds the customer's profile", "đổi sang gói 6 tháng" in prof, prof)
 check("a group turn gets none", chatbot_runtime.customer_profile(BOT, {**meta_c2, "chat_id": "g1", "chat_type": "group"}) == "")
 check("an unknown chat gets none", chatbot_runtime.customer_profile(BOT, {**meta_c2, "chat_id": "nobody"}) == "")
+meta_fb = {"chat_id": "psid1", "chat_type": "private", "account_id": "acc1", "_kenh": "messenger"}
+BOT_FB = {**BOT, "channel": "messenger"}
+check("a Messenger direct message finds the profile", "gói 6 tháng" in chatbot_runtime.customer_profile(BOT_FB, meta_fb))
+check("a public comment reply never carries what was learned in private",
+      chatbot_runtime.customer_profile(BOT_FB, {**meta_fb, "chat_id": "cmt:900"}) == ""
+      and chatbot_runtime.customer_profile(BOT_FB, {**meta_fb, "chat_id": "igc:901"}) == "")
 check("a broken call never raises", chatbot_runtime.customer_profile(None, None) == "")
 
 base = chatbot_runtime.build_bot_prompt(BOT)

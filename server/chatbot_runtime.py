@@ -786,8 +786,8 @@ CUSTOMER_PROFILE_MAX = conversations.MAX_GHI_CHU
 
 
 def customer_profile(cfg: dict, meta: dict) -> str:
-    """The stored profile of the person in this PRIVATE chat, ready for the prompt, or "" (a group, nobody known yet,
-    a store error). Hidden characters and the block's own closing tag are stripped; line breaks stay."""
+    """The stored profile of the person in this PRIVATE chat, ready for the prompt, or "" (a group, a public comment
+    thread, nobody known yet, a store error). Hidden characters and the block's own closing tag are stripped; line breaks stay."""
     m = meta or {}
     try:
         if _rp_is_group(m) or not m.get("chat_id"):
