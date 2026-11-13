@@ -2,7 +2,8 @@
 //
 // Owner, 2026-11-07: after Claude answers, its empty box shows a likely next message in grey and Tab fills it in;
 // "em xem có thêm được vào javis không?". Pins: the suggestion is the placeholder of the empty box, never text in it
-// (nothing is sent by accident); Tab and the Tab chip fill it in, with no modifier and no IME composition; a newer
+// (nothing is sent by accident); Tab and the Tab chip (a ">" after the text on a touch screen) fill it in, with no
+// modifier and no IME composition; a newer
 // request or a send drops an older answer; switched off on the server, nothing shows. Both chat screens use it (owner
 // rule of 2026-11-05): the main chat and Teams.
 //
@@ -145,7 +146,9 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
   const c = S.attach({ input: () => input, chipHost: () => [row, gap], composing: () => composing, quiet: () => quiet });
   // The grey rest after typed text: a layer right after the box, [typed (unseen), rest].
   const ghost = () => card.children.find(x => String(x.className).split(" ").includes("sug-ghost")) || null;
-  const greyRest = () => { const g = ghost(); return g && !g.hidden && g.className === "sug-ghost" ? g.children[1].textContent : null; };
+  // [typed (unseen), the rest but its last word, [its last word, the ">" of a touch screen]]
+  const greyRest = () => { const g = ghost(); return g && !g.hidden ? g.children[1].textContent + g.children[2].children[0].textContent : null; };
+  const goButton = () => ghost().children[2].children[1];
   const type = (text) => { input.value = text; input.selectionStart = input.selectionEnd = text.length; c.onInput(); };
 
   let p = c.request([{ role: "user", text: "check 2 PRs" }, { role: "assistant", text: "Which way for each PR?" }]);
@@ -175,8 +178,16 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
   await tick(); await tick();
   pending.shift()({ ok: true, text: SUG });
   await p;
-  check("an empty box: the placeholder, and the layer only measures it (nothing drawn twice)",
-    input.placeholder === SUG && greyRest() === null && ghost() && ghost().className === "sug-ghost sug-ghost-measure");
+  check("an empty box: the suggestion is its placeholder, drawn by the layer while the box hides its own copy",
+    input.placeholder === SUG && greyRest() === SUG && ghost().children[0].textContent === "" &&
+    input.classList.contains("sug-ghosted"));
+  // Owner, 2026-11-13: "hiện ngay sau cùng khung chữ gợi ý, đừng hiện cùng hàng với voice và các nút. Ví dụ ngay sau
+  // chữ 'luôn nhé >' thì có nút đấy".
+  check("the > of a touch screen stands right after the last word, tied to it",
+    ghost().children[2].className === "sug-ghost-tail" && ghost().children[2].children[0].textContent === "nhé" &&
+    goButton().className === "sug-go" && ghost().children[1].textContent === "Em sửa kỹ năng nối hạ tầng luôn ");
+  check("the > is a button with a name, out of the Tab order (Tab already takes the suggestion)",
+    goButton().type === "button" && goButton().attrs["aria-label"] === "T(sug.use)" && goButton().tabIndex === -1);
   type("Em s");
   check("typing along keeps the rest in grey after the typed text",
     greyRest() === "ửa kỹ năng nối hạ tầng luôn nhé" && ghost().children[0].textContent === "Em s");
@@ -198,6 +209,7 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
   composing = false;
   check("Tab with the start typed takes the rest", c.onKeydown(Object.assign(tab(), { preventDefault() {} })) === true && input.value === SUG);
   check("taken whole: nothing left on offer", c.current() === "" && greyRest() === null && chip.hidden && !input.classList.contains("has-suggest"));
+  check("and the box shows its own placeholder text again", !input.classList.contains("sug-ghosted"));
 
   // ---- 2026-11-13: a draft that goes another way is finished after a pause ----
   input.value = "";
@@ -221,8 +233,9 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
   check("the answer still fits the text typed meanwhile: the rest shows in grey", greyRest() === "rước, hạ tầng để sau" && !chip.hidden);
   await pause();
   check("a draft that is being followed asks nothing more", drafts.length === 0);
-  chip.click();
-  check("the chip takes it", input.value === "Em sửa kỹ năng code trước, hạ tầng để sau" && greyRest() === null);
+  check("the > follows the rest that is left", ghost().children[2].children[0].textContent === "sau");
+  goButton().click();
+  check("a tap on the > takes it", input.value === "Em sửa kỹ năng code trước, hạ tầng để sau" && greyRest() === null);
   type("");
   check("a sentence taken whole ends the offers of this turn: the empty box has its usual placeholder",
     input.placeholder === "What should I do?" && c.current() === "");
@@ -389,20 +402,22 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
     html.indexOf("/static/chat-suggest.js") > 0 && html.indexOf("/static/chat-suggest.js") < html.indexOf("/static/app.js?v="));
   check("main chat: attached to #chatInput with the chip in the composer row",
     /JavisSuggest\.attach\(\{\s*input: \(\) => chatInput/.test(app) && app.includes('getElementById("cpRow")'));
-  // Owner, 2026-11-13: "trên điện thoại thì làm cái mũi tên nhỏ bên phải thôi là được rồi", then "làm 1 mũi tên nhỏ
-  // theo kiểu > thôi, không cần cả nút vậy đâu".
-  check("the chip carries the Tab key name and a small > (one stroke, no shaft)", /class="sug-tab-key">Tab</.test(chip.innerHTML) &&
-    /class="sug-tab-arrow"[^>]*><path d="M9 5l7 7-7 7"\/>/.test(chip.innerHTML));
+  // Owner, 2026-11-13: on a phone "làm 1 mũi tên nhỏ theo kiểu > thôi, không cần cả nút", "đừng hiện cùng hàng với
+  // voice và các nút hiện tại", "bôi đậm nút đấy lên một chút".
   const cssTab = fs.readFileSync(path.join(D, "style.css"), "utf8");
-  const coarse = cssTab.slice(cssTab.indexOf(".sug-tab-arrow { display: none; }"));
-  check("a touch screen shows only the >, with no border and no background; a computer only the word Tab",
-    /@media \(pointer: coarse\) \{\s*\.sug-tab \{[^}]*border: 0; background: none;/.test(coarse) &&
-    /\.sug-tab-key \{ display: none; \}\s*\.sug-tab-arrow \{ display: block; \}/.test(coarse));
-  check("the > keeps room for a finger around it", /@media \(pointer: coarse\) \{\s*\.sug-tab \{ width: 28px; height: 32px;/.test(coarse));
-  check("a hidden chip stays hidden on a touch screen too (its rule outranks the round button)",
-    cssTab.includes(".sug-tab[hidden] { display: none; }"));
-  check("main chat: on a touch screen the > sits on the right, next to the mic",
-    /matchMedia\("\(pointer: coarse\)"\)\.matches/.test(app) && app.includes("touch ? gap.nextElementSibling : gap"));
+  check("the chip in the button row reads Tab and is for a computer only",
+    SRC.includes('chip.textContent = "Tab";') && cssTab.includes("@media (pointer: coarse) { .sug-tab { display: none; } }"));
+  check("main chat: the chip keeps its one place in the row (no second place for a touch screen)",
+    !app.includes("pointer: coarse") || !/chipHost[\s\S]{0,300}pointer: coarse/.test(app));
+  const go = cssTab.slice(cssTab.indexOf(".sug-go { display: none; }"));
+  check("the > shows on a touch screen only, with no border and no background, and takes a tap",
+    cssTab.includes(".sug-go { display: none; }") &&
+    /@media \(pointer: coarse\) \{\s*\.sug-go \{ display: inline-flex;[^}]*pointer-events: auto;[^}]*border: 0; background: none;/.test(go));
+  check("the > is darker than the grey text and drawn with a heavy stroke",
+    /\.sug-go \{[^}]*color: var\(--text2\);/.test(go) && /stroke-width="3\.2"/.test(SRC) && SRC.includes('<path d="M9 5l7 7-7 7"/>'));
+  check("the > is no taller than a line of text (the lines keep their height) and has room for a finger",
+    /\.sug-go \{[^}]*width: 1em; height: 1em;/.test(go) && /\.sug-go::after \{ content: ""; position: absolute; inset: -8px -10px; \}/.test(go));
+  check("the > never wraps onto a line of its own", cssTab.includes(".sug-ghost-tail { white-space: nowrap; }"));
   check("the chip is not shown over the dictation bar", cssTab.includes(".hud-voice.dictating .sug-tab { display: none; }"));
   const kd = app.slice(app.indexOf('chatInput.addEventListener("keydown"'));
   check("main chat: Tab is checked before Enter sends", kd.indexOf("chatSuggest.onKeydown(e)") < kd.indexOf("enterSends"));
@@ -425,8 +440,9 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
   const css = fs.readFileSync(path.join(D, "style.css"), "utf8");
   check("the grey rest is a layer that never takes a click, its typed part unseen",
     /\.sug-ghost \{[^}]*position: absolute;[^}]*pointer-events: none;/.test(css) &&
-    /\.sug-ghost-typed, \.sug-ghost-measure \{ visibility: hidden; \}/.test(css));
-  check("a suggestion in an empty box wraps instead of being cut", /textarea\.has-suggest::placeholder \{[^}]*white-space: pre-wrap;/.test(css));
+    /\.sug-ghost-typed \{ visibility: hidden; \}/.test(css));
+  check("a suggestion in an empty box is drawn by the layer (it wraps), the box's own placeholder text unseen",
+    css.includes("textarea.sug-ghosted::placeholder { color: transparent; }"));
   check("no timer runs while a suggestion just sits there", !/setInterval|requestAnimationFrame/.test(SRC));
   check("Teams: attached to .tm-input with the chip before the mic",
     /window\.JavisSuggest\.attach\(/.test(teams) && teams.includes('row.querySelector(".tm-mic")'));

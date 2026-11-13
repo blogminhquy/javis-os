@@ -4725,14 +4725,7 @@ const chatInputComposing = window.JavisActs.trackComposition(chatInput);
 // that goes another way is finished after a short pause. Shared with the Team chat (chat-suggest.js).
 const chatSuggest = window.JavisSuggest ? window.JavisSuggest.attach({
   input: () => chatInput,
-  // A computer: the "Tab" chip follows the model chips. A touch screen: a small ">" on the right, next to the mic
-  // (owner, 2026-11-13).
-  chipHost: () => {
-    const row = document.getElementById("cpRow"), gap = row && row.querySelector(".cp-gap");
-    if (!gap) return row ? [row, null] : null;
-    const touch = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
-    return [row, touch ? gap.nextElementSibling : gap];
-  },
+  chipHost: () => { const row = document.getElementById("cpRow"); return row ? [row, row.querySelector(".cp-gap")] : null; },
   composing: () => chatInputComposing(),
   maxHeight: () => chatInputCap(),
   // Dictation and a voice call write into the box themselves: no guessing over them.

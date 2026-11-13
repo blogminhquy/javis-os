@@ -5,8 +5,9 @@
  *   - when a turn ends the screen calls ctl.request(context); the server (POST /chat/suggest, server/next_prompt.py)
  *     guesses the owner's next message on the background model;
  *   - the guess shows as the placeholder of the EMPTY box, never as text in it, so nothing is sent by accident;
- *   - Tab (or the chip next to the box: it reads "Tab" on a computer and is a bare ">" on a touch screen, owner
- *     2026-11-13 "làm 1 mũi tên nhỏ theo kiểu > thôi, không cần cả nút") fills the box with it; sending drops it.
+ *   - Tab (or the "Tab" chip next to the box) fills the box with it; sending drops it. A touch screen has no Tab key:
+ *     there a small ">" stands right after the last word of the suggestion, inside the box, and a tap on it takes the
+ *     suggestion (owner, 2026-11-13: "hiện ngay sau cùng khung chữ gợi ý, đừng hiện cùng hàng với voice và các nút").
  *
  * 2026-11-13, a user's wish passed on by the owner: the suggestion vanished at the first key typed. "Gõ đến chữ nào
  * thì đề xuất sau vẫn giữ nguyên để gõ tiếp", and better, "suy đoán tiếp nội dung gõ sau khi người dùng muốn điều
@@ -134,8 +135,15 @@
   }
   function aborter() { return typeof AbortController !== "undefined" ? new AbortController() : null; }
 
-  var ARROW = '<svg class="sug-tab-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
+  // The ">" after the suggestion on a touch screen (style.css shows it only there).
+  var GO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
+  // The rest of a suggestion as [all but its last word, its last word]: the ">" is tied to the last word so it never
+  // wraps onto a line of its own.
+  function splitLast(rest) {
+    var m = /^([\s\S]*?)(\S+\s*)$/.exec(String(rest || ""));
+    return m ? [m[1], m[2]] : [String(rest || ""), ""];
+  }
 
   // Copied from the box onto the mirror layer so both wrap the same way.
   var MIRROR = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "wordSpacing",
@@ -153,7 +161,7 @@
     var seq = 0, ctl = null, chip = null, shownOn = null, savedPh = "";
     var ctx = null;           // the chat the guesses are about; null until a turn ends, and after a send
     var liveCtl = null, liveTimer = 0, liveBusy = false, liveUsed = 0, asked = {};
-    var ghost = null, typedEl = null, restEl = null, ghostOn = null;
+    var ghost = null, typedEl = null, restEl = null, lastEl = null, goEl = null, ghostOn = null;
     var baseH = null, grownH = "";   // the box height before the grey rest made it taller, and the height we set
 
     function input() { try { return opts.input(); } catch (e) { return null; } }
@@ -177,8 +185,7 @@
         chip.type = "button";
         chip.className = "sug-tab";
         chip.hidden = true;
-        // A computer shows the key to press; a touch screen has no Tab key and shows a bare ">" (style.css).
-        chip.innerHTML = '<span class="sug-tab-key">Tab</span>' + ARROW;
+        chip.textContent = "Tab";
         // Keep the focus in the box: on a phone the keyboard stays up.
         chip.addEventListener("mousedown", function (e) { e.preventDefault(); });
         chip.addEventListener("click", function () { api.accept(); });
@@ -203,7 +210,10 @@
     }
     function hideGhost() {
       if (ghost) ghost.hidden = true;
-      if (ghostOn) shrinkBack(ghostOn);
+      if (ghostOn) {
+        shrinkBack(ghostOn);
+        if (ghostOn.classList) ghostOn.classList.remove("sug-ghosted");
+      }
       ghostOn = null;
     }
     // The screen can change the box with no input event (it sets .value after a send, a resized window re-wraps the
@@ -236,31 +246,52 @@
         } catch (e) {}
       }
     }
-    /* Lay `typed` + `rest` out exactly as the box would. With text in the box the rest shows in grey after it. In an
-     * empty box the suggestion is the box's own placeholder, and the layer only measures it (`visible` false), so a
-     * suggestion of several lines is not cut at the first one. */
-    function drawGhost(el, typed, rest, visible) {
+    /* Lay `typed` + `rest` out exactly as the box would: the typed part unseen (it only takes up its room), the rest
+     * in grey after it, then the ">" of a touch screen tied to the last word. An empty box is drawn the same way with
+     * nothing typed: the suggestion stays the box's placeholder for a screen reader, but the box hides that text
+     * (.sug-ghosted) and this layer shows it, so the ">" lands exactly after the last word and a suggestion of several
+     * lines is not cut at the first one. */
+    function drawGhost(el, typed, rest) {
       var host = el.parentNode;
       if (!host) { hideGhost(); return; }
       if (!ghost) {
         ghost = document.createElement("div");
-        ghost.setAttribute("aria-hidden", "true");
+        ghost.className = "sug-ghost";
         typedEl = document.createElement("span");
         typedEl.className = "sug-ghost-typed";
         restEl = document.createElement("span");
         restEl.className = "sug-ghost-rest";
+        var tail = document.createElement("span");
+        tail.className = "sug-ghost-tail";
+        lastEl = document.createElement("span");
+        lastEl.className = "sug-ghost-rest";
+        goEl = document.createElement("button");
+        goEl.type = "button";
+        goEl.className = "sug-go";
+        goEl.tabIndex = -1;
+        goEl.innerHTML = GO;
+        // Keep the focus in the box: on a phone the keyboard stays up.
+        goEl.addEventListener("mousedown", function (e) { e.preventDefault(); });
+        goEl.addEventListener("click", function () { api.accept(); });
+        [typedEl, restEl, lastEl].forEach(function (x) { x.setAttribute("aria-hidden", "true"); });
+        tail.appendChild(lastEl);
+        tail.appendChild(goEl);
         ghost.appendChild(typedEl);
         ghost.appendChild(restEl);
+        ghost.appendChild(tail);
       }
-      ghost.className = visible ? "sug-ghost" : "sug-ghost sug-ghost-measure";
+      goEl.setAttribute("aria-label", tw("sug.use"));
       // Right after the box, so it paints over a box that has its own background (Teams).
       if (ghost.parentNode !== host || ghost.previousSibling !== el) host.insertBefore(ghost, el.nextSibling || null);
       if (ghostOn && ghostOn !== el) shrinkBack(ghostOn);
       ghostOn = el;
       follow(el);
+      var parts = splitLast(rest);
       typedEl.textContent = typed;
-      restEl.textContent = rest;
+      restEl.textContent = parts[0];
+      lastEl.textContent = parts[1];
       ghost.hidden = false;
+      el.classList.add("sug-ghosted");
       if (typeof getComputedStyle !== "function" || !ghost.style) return;
       var cs = getComputedStyle(el);
       MIRROR.forEach(function (p) { ghost.style[p] = cs[p]; });
@@ -306,13 +337,8 @@
       // The chip first: in Teams it shares the row with the box, so it changes the width the text wraps at.
       var c = ensureChip();
       if (c) c.hidden = false;
-      if (el.value) {
-        el.placeholder = savedPh;
-        drawGhost(el, el.value, restOf(el.value, full), true);
-      } else {
-        el.placeholder = full;
-        drawGhost(el, "", full, false);
-      }
+      el.placeholder = el.value ? savedPh : full;
+      drawGhost(el, el.value, restOf(el.value, full));
     }
 
     // ---- finishing a draft that left the suggestion ----
