@@ -4720,12 +4720,11 @@ function sendTypingHint() {
 // Enter sends on a computer; an IME composition and a touch screen (Enter = new line) never send. The rules live in
 // chat-acts.js (JavisActs.enterSends) so the Team chat follows the same ones.
 const chatInputComposing = window.JavisActs.trackComposition(chatInput);
-// 2026-11-07: the likely next message shows grey in the empty box once Javis answers; Tab (or the Tab chip on a
-// phone) fills it in. 2026-11-13: it stays while the owner types along it, Right Arrow takes one word, and a draft
+// 2026-11-07: the likely next message shows grey in the empty box once Javis answers; Tab (or the ">" after it)
+// fills it in. 2026-11-13: it stays while the owner types along it, Right Arrow takes one word, and a draft
 // that goes another way is finished after a short pause. Shared with the Team chat (chat-suggest.js).
 const chatSuggest = window.JavisSuggest ? window.JavisSuggest.attach({
   input: () => chatInput,
-  chipHost: () => { const row = document.getElementById("cpRow"); return row ? [row, row.querySelector(".cp-gap")] : null; },
   composing: () => chatInputComposing(),
   maxHeight: () => chatInputCap(),
   // Dictation and a voice call write into the box themselves: no guessing over them.

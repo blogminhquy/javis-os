@@ -5,17 +5,17 @@
  *   - when a turn ends the screen calls ctl.request(context); the server (POST /chat/suggest, server/next_prompt.py)
  *     guesses the owner's next message on the background model;
  *   - the guess shows as the placeholder of the EMPTY box, never as text in it, so nothing is sent by accident;
- *   - Tab (or the "Tab" chip next to the box) fills the box with it; sending drops it. A small ">" stands right
- *     after the last word of the suggestion, inside the box, and a tap or click on it takes the suggestion (owner,
- *     2026-11-13: "hiện ngay sau cùng khung chữ gợi ý, đừng hiện cùng hàng với voice và các nút"). A touch screen has
- *     no Tab key, so there the ">" is the only way and the chip is not shown; a computer has both (owner, same day:
- *     "ở phiên bản máy tính ... không có mũi tên >").
+ *   - the Tab key fills the box with it; sending drops it. A small ">" stands right after the last word of the
+ *     suggestion, inside the box, and a tap or click on it takes the suggestion (owner, 2026-11-13: "hiện ngay sau cùng
+ *     khung chữ gợi ý, đừng hiện cùng hàng với voice và các nút"; on a computer too, same day: "không có mũi tên >").
+ *     There is no "Tab" chip in the button row any more (owner, same day: "không cần hiện chữ tab đâu em, và nhớ phải
+ *     giữ lại các nút khác"): the ">" does its job on every screen, and the row keeps only its own buttons.
  *
  * 2026-11-13, a user's wish passed on by the owner: the suggestion vanished at the first key typed. "Gõ đến chữ nào
  * thì đề xuất sau vẫn giữ nguyên để gõ tiếp", and better, "suy đoán tiếp nội dung gõ sau khi người dùng muốn điều
  * chỉnh, kiểu chức năng dự đoán thông minh trên iPhone". So:
  *   - typing ALONG the suggestion keeps the rest of it in grey right after the typed text (case and Vietnamese marks
- *     do not count, so a half typed "su" still follows "sửa"); Tab or the chip takes the rest, Right Arrow at the end
+ *     do not count, so a half typed "su" still follows "sửa"); Tab or the ">" takes the rest, Right Arrow at the end
  *     of the text takes one word;
  *   - typing something ELSE asks the server, after a short pause, to finish that sentence ({draft, hint}); the answer
  *     shows the same way. The server says how patiently to ask (`live`: the pause and how many per turn).
@@ -157,7 +157,7 @@
     "textIndent", "textTransform", "textAlign", "direction", "paddingTop", "paddingRight", "paddingBottom",
     "paddingLeft", "tabSize"];
 
-  /* attach({ input: () => textarea, chipHost: () => [parent, beforeNode] | null, composing: () => bool,
+  /* attach({ input: () => textarea, composing: () => bool,
    *          maxHeight: () => px (how tall the screen lets the box grow), quiet: () => bool (dictating: do not ask) })
    * returns { request(context), clear(), refresh(), onInput(), onKeydown(e) -> bool, accept(wordOnly) }.
    * `input` is a getter because Teams redraws its composer: refresh() after a redraw puts the suggestion back.
@@ -165,7 +165,7 @@
   function attach(opts) {
     var sug = "";             // the guess made when the turn ended
     var live = "";            // the latest finished draft, as a whole sentence
-    var seq = 0, ctl = null, chip = null, shownOn = null, savedPh = "";
+    var seq = 0, ctl = null, shownOn = null, savedPh = "";
     var ctx = null;           // the chat the guesses are about; null until a turn ends, and after a send
     var liveCtl = null, liveTimer = 0, liveBusy = false, liveUsed = 0, asked = {};
     var ghost = null, typedEl = null, restEl = null, lastEl = null, goEl = null, ghostOn = null;
@@ -180,27 +180,6 @@
       if (!value) return sug;
       if (live && restOf(value, live)) return live;
       return sug && restOf(value, sug) ? sug : "";
-    }
-
-    function ensureChip() {
-      if (!opts.chipHost) return null;
-      var host = null;
-      try { host = opts.chipHost(); } catch (e) {}
-      if (!host || !host[0]) return null;
-      if (!chip) {
-        chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "sug-tab";
-        chip.hidden = true;
-        chip.textContent = "Tab";
-        // Keep the focus in the box: on a phone the keyboard stays up.
-        chip.addEventListener("mousedown", function (e) { e.preventDefault(); });
-        chip.addEventListener("click", function () { api.accept(); });
-      }
-      chip.title = tw("sug.use");
-      chip.setAttribute("aria-label", tw("sug.use"));
-      if (chip.parentNode !== host[0]) host[0].insertBefore(chip, host[1] || null);
-      return chip;
     }
 
     // ---- the mirror layer: the grey rest after typed text, and room for a long suggestion ----
@@ -329,7 +308,6 @@
         shownOn.classList.remove("has-suggest");
         shownOn = null;
       }
-      if (chip) chip.hidden = true;
       hideGhost();
     }
     function show() {
@@ -342,9 +320,6 @@
         shownOn = el;
       }
       el.classList.add("has-suggest");
-      // The chip first: in Teams it shares the row with the box, so it changes the width the text wraps at.
-      var c = ensureChip();
-      if (c) c.hidden = false;
       el.placeholder = el.value ? savedPh : full;
       drawGhost(el, el.value, restOf(el.value, full));
     }
