@@ -12,16 +12,16 @@ import unicodedata
 
 
 _SEND_TOOL = re.compile(
-    r"\\b(?:[a-z0-9_-]+__)?(?:zalo_send_message|telegram_send_message|slack_post_message"
-    r"|discord_send_message|whatsapp_send_message)\\b", re.I
+    r"\b(?:[a-z0-9_-]+__)?(?:zalo_send_message|telegram_send_message|slack_post_message"
+    r"|discord_send_message|whatsapp_send_message)\b", re.I
 )
 _SEND_AND_CHANNEL = re.compile(
-    r"\\b(?:gui|nhan|send|post|dang)\\b.{0,180}"
-    r"\\b(?:nhom|group|kenh|channel|zalo|telegram|slack|discord|whatsapp|facebook)\\b",
+    r"\b(?:gui|nhan|send|post|dang)\b.{0,180}"
+    r"\b(?:nhom|group|kenh|channel|zalo|telegram|slack|discord|whatsapp|facebook)\b",
     re.S
 )
 _ONLY_REMIND_OWNER = re.compile(
-    r"^\\s*(?:nhac\\s+(?:toi|minh|anh|chi|em)|remind\\s+me)\\b"
+    r"^\s*(?:nhac\s+(?:toi|minh|anh|chi|em)|remind\s+me)\b"
 )
 
 
