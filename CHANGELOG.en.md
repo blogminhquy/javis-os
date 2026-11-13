@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.553.8] - 2026-11-13
+### Improved
+- **The Tasks page opens much more smoothly.** It used to draw the whole list twice on every opening and build both the wide and the phone layout. Now it draws once, and only the layout on screen. With 170 tasks on a slow machine: the freeze went from 0.45 seconds to about 0.1, and is all but gone on a phone.
+- **The Partners page opens faster.** The list of assistants used to be drawn five times on each opening, now once, so hovering and scrolling no longer stutter right after the page appears.
+- **Typing in the task search no longer lags.** The list follows a short moment after you stop typing instead of being redrawn after every letter.
+### Fixed
+- **The Tasks page no longer hitches every so often while you look at it.** Every 30 seconds (5 while a task was running) it redrew the whole list even when nothing was new, freezing the screen for a beat and dropping the row under the pointer. Now nothing is redrawn when nothing changed.
+
 ## [0.553.7] - 2026-11-13
 ### Fixed
 - **Heavy Team use no longer drops the connection to the server.** The more turns a team had run, the longer Javis took to add up its usage every time the team was opened: a team of a few thousand turns took a minute, the page gave up after 30 seconds and asked again, and the whole server stalled. It is now about 100 times faster and never runs twice at once.
