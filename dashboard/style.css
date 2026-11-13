@@ -1646,14 +1646,39 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cp-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .cp-chips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; }
 .cp-gap { flex: 1 1 auto; }
-/* Suggested next message (chat-suggest.js, 2026-11-07): the grey placeholder of the empty box IS the suggestion, and
-   this chip fills it in (the way on a phone, which has no Tab key). Main chat and Teams share it. */
+/* Suggested next message (chat-suggest.js, 2026-11-07): this chip fills it in on a computer, where it names the key to
+   press. A touch screen has no Tab key and gets no chip in the button row: there a ">" stands right after the last
+   word of the suggestion, inside the box (.sug-go below; owner, 2026-11-13). Main chat and Teams share it. */
 .sug-tab { flex: none; align-self: center; font: 600 12px/1 var(--font); padding: 6px 9px; border-radius: 7px;
   border: 1px solid var(--border); background: var(--bg3); color: var(--text2); cursor: pointer; white-space: nowrap; }
 .sug-tab:hover { border-color: var(--accent); color: var(--accent); }
 .sug-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sug-tab[hidden] { display: none; }
-@media (pointer: coarse) { .sug-tab { font-size: 14px; padding: 8px 11px; } }
+.hud-voice.dictating .sug-tab { display: none; }
+@media (pointer: coarse) { .sug-tab { display: none; } }
+/* The suggestion is drawn on a mirror layer over the box (2026-11-13), same font, padding and width (chat-suggest.js
+   copies them): the typed part unseen, only there to take up its room, then the rest in grey exactly where the typed
+   text ends. An empty box is drawn the same way and hides its own placeholder text (.sug-ghosted), so a long
+   suggestion wraps and the box grows to show all of it. Main chat and Teams share it. */
+.sug-ghost { position: absolute; margin: 0; border: 0; box-sizing: border-box; overflow: hidden; pointer-events: none;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; background: none; }
+.sug-ghost[hidden] { display: none; }
+.sug-ghost-typed { visibility: hidden; }
+.sug-ghost-rest { color: var(--text3); }
+textarea.sug-ghosted::placeholder { color: transparent; }
+/* The ">" of a touch screen: no border, no background, a little darker and heavier than the grey text so it reads as
+   something to tap (owner, 2026-11-13: "1 mũi tên nhỏ theo kiểu > thôi", "ngay sau chữ luôn nhé", "bôi đậm lên một
+   chút"). It is tied to the last word (nowrap) so it never wraps alone, no taller than a line of text so the lines keep
+   their height, and its ::after is the room for a finger. */
+.sug-ghost-tail { white-space: nowrap; }
+.sug-go { display: none; }
+@media (pointer: coarse) {
+  .sug-go { display: inline-flex; align-items: center; justify-content: center; position: relative; pointer-events: auto;
+    width: 1em; height: 1em; margin: 0 0 0 .3em; padding: 0; border: 0; background: none; color: var(--text2);
+    font: inherit; line-height: 1; vertical-align: -0.12em; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .sug-go::after { content: ""; position: absolute; inset: -8px -10px; }
+  .sug-go:active { color: var(--accent); }
+}
 .cp-plus, .cp-limit {
   flex: none; width: 32px; height: 32px; border-radius: 50%; padding: 0;
   border: 1px solid var(--border); background: transparent; color: var(--text2);

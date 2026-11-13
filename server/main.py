@@ -18574,8 +18574,10 @@ async def stt_fix_route(request: Request):
 
 @app.get("/chat/suggest")
 def chat_suggest_state():
-    """Whether the suggested next message is on (the "+" menu of the composer shows the switch)."""
-    return {"enabled": next_prompt.enabled(cfgmod.read_settings())}
+    """Whether the suggested next message is on (the "+" menu of the composer shows the switch), and `live`: how
+    patiently the box may ask for the rest of a draft while the owner types (None: it does not ask)."""
+    cfg = cfgmod.read_settings()
+    return {"enabled": next_prompt.enabled(cfg), "live": next_prompt.live_policy(cfg)}
 
 
 @app.get("/chat/plan")
@@ -18590,13 +18592,19 @@ async def chat_suggest(request: Request):
     """The owner's likely next message once Javis has answered (2026-11-07), see next_prompt.py.
 
     Body {"context": [{"role": "user"|"assistant", "text": "..."}, ...]}, the last messages on screen, oldest first.
-    Never an error: any trouble gives an empty suggestion, and the chat box keeps its usual placeholder."""
+    With "draft" (what the owner has typed so far, 2026-11-13) the answer is only the REST of that sentence, and
+    "hint" carries the suggestion that was showing. Never an error: any trouble gives an empty suggestion, and the
+    chat box keeps its usual placeholder."""
     try:
         body = await request.json()
     except Exception:
         return {"ok": False, "text": ""}
-    ctx = (body or {}).get("context") if isinstance(body, dict) else None
-    return {"ok": True, **await next_prompt.suggest(cfgmod.read_settings(), ctx)}
+    body = body if isinstance(body, dict) else {}
+    cfg = cfgmod.read_settings()
+    ctx = body.get("context")
+    if isinstance(body.get("draft"), str) and body["draft"]:
+        return {"ok": True, **await next_prompt.complete(cfg, ctx, body["draft"], body.get("hint") or "")}
+    return {"ok": True, **await next_prompt.suggest(cfg, ctx), "live": next_prompt.live_policy(cfg)}
 
 
 @app.get("/voice/call")

@@ -395,7 +395,7 @@
   "sug.menu": "Gợi ý câu tiếp theo",
   "sug.on": "Bật",
   "sug.off": "Tắt",
-  "sug.use": "Dùng câu gợi ý (Tab)",
+  "sug.use": "Dùng câu gợi ý (Tab, hoặc → để lấy từng chữ)",
   "cp.undo": "Hoàn tác thay đổi của Javis",
   "cp.pin_search_ph": "Tìm thư mục trong brain...",
   "cp.pin_browse": "Duyệt thư mục khác...",
