@@ -145,7 +145,9 @@ Bot đã đặt người trực từ trước 0.64.83 thì **giữ nguyên** (th
 
 1. Mời bot vào nhóm như mời một thành viên.
 2. Trong nhóm, gõ **`/id`**. Bot trả về id nhóm **và nói luôn tình trạng**: nhóm này đã được bật chưa, chế độ riêng tư của Telegram đang bật hay tắt, và phải làm gì tiếp.
-3. Nhóm đó **hiện lên thẻ bot** ở trang Chatbot. Bấm **Cho phép nhóm này**. Xong.
+3. Nhóm đó **hiện lên thẻ bot** ở trang Chatbot, trong dòng "chờ cho phép". Bấm vào dòng đó, tích nhóm rồi bấm **Cho phép**. Xong.
+
+Nhiều nhóm cùng chờ thì tích từng nhóm, hoặc **Chọn tất cả**, rồi bấm **Cho phép** một lần cho cả loạt. Nút ghi sẵn con số, ví dụ "Cho phép (9)", để bạn biết một cú bấm mở bot cho bao nhiêu nơi. Mở ra chưa dòng nào được tích sẵn: cho bot lên tiếng ở đâu là việc bạn chọn. Nhóm không muốn thì tích rồi bấm **Bỏ qua**; khi có người gọi bot ở đó lần nữa nó sẽ hiện lại.
 
 Dùng `/id` chứ không phải gọi tên bot, và đó là chủ ý: **lệnh `/...` luôn tới được bot** dù Telegram đang bật chế độ riêng tư, còn tin nhắc tên thì chưa chắc (xem mục dưới). Nếu bước 2 mà bot **không trả lời gì cả** thì vấn đề không nằm ở nhóm - hoặc bot đang tắt, hoặc token hỏng; xem chấm trạng thái trên thẻ.
 
@@ -163,7 +165,7 @@ Muốn nó trả lời **mọi câu trong nhóm** thì đổi nút "Trong nhóm,
 
 Từ 0.64.82 bot gắn vào **tài khoản Zalo cá nhân** (nối ở trang Kết nối, xem [Zalo Agent MCP](12-zalo.md)) đứng được trong nhóm Zalo, không chỉ chat riêng. Nick đó là người thật nên mọi thứ dưới đây nghiêng về phía im lặng.
 
-**Nhóm phải được bạn cho phép.** Có tin từ một nhóm lạ thì nhóm hiện lên hàng chờ ngay trên thẻ bot, kèm tên nhóm và nút **Cho phép nhóm này**. Khác Telegram, ở Zalo bot **không nói một câu nào** vào nhóm chưa cho phép: một câu như "em chưa được bật" trước cả nhóm là tự khai mình là máy.
+**Nhóm phải được bạn cho phép.** Có tin từ một nhóm lạ thì nhóm hiện lên hàng chờ ngay trên thẻ bot, kèm tên nhóm và ô tích để **Cho phép**. Khác Telegram, ở Zalo bot **không nói một câu nào** vào nhóm chưa cho phép: một câu như "em chưa được bật" trước cả nhóm là tự khai mình là máy.
 
 **Được tag, reply hoặc gọi tên thì trả lời luôn.** Từ 0.65.0 gọi tên trơn ("nhi mai ơi") cũng được coi là gọi, xem [Bộ phán xử](#bộ-phán-xử-bot-tự-quyết-nói-hay-im-và-học-từ-nhóm). Bot nhận ra tag bằng "@tên" trong chữ (tên là nhãn kết nối hoặc tên hiển thị của nick), bằng `mentions` nếu Zalo trả về, và nhận ra reply vào tin của nó. Tag người khác thì bot không nhận vơ. Nếu tag mà bot im, xem mục sự cố bên dưới.
 
@@ -714,14 +716,14 @@ Vì sao theo Agent chứ không theo model chính: bot vốn đã mượn nguyê
 - Ghi chú bạn viết trước đây trong ô này giờ bot cũng đọc. Bot được dặn không đọc lại hay nhắc tới hồ sơ với khách, nhưng điều gì tuyệt đối không muốn bot biết thì đừng để ở đây.
 - Người vận hành tắt hẳn được bằng biến môi trường `JAVIS_CUSTOMER_PROFILE=0`.
 
-**Tôi thả bot vào nhóm, tag tên nó mà nó không trả lời, nhưng nhắn riêng thì được?** Gõ **`/id`** trong chính nhóm đó - bot sẽ trả lời và nói luôn nguyên nhân. Ba nguyên nhân cho ra đúng một triệu chứng này: nhóm chưa được bật (bấm **Cho phép nhóm này** trên thẻ bot), chế độ riêng tư của Telegram còn bật (xem mục [Chế độ riêng tư](#chế-độ-riêng-tư-của-telegram-đọc-mục-này-nếu-bot-im-trong-nhóm)), hoặc bot chưa hỏi được danh tính của chính nó (tắt bật lại bot). Nếu ngay cả `/id` cũng không có phản hồi thì bot đang không chạy - xem chấm trạng thái trên thẻ.
+**Tôi thả bot vào nhóm, tag tên nó mà nó không trả lời, nhưng nhắn riêng thì được?** Gõ **`/id`** trong chính nhóm đó - bot sẽ trả lời và nói luôn nguyên nhân. Ba nguyên nhân cho ra đúng một triệu chứng này: nhóm chưa được bật (mở dòng "chờ cho phép" trên thẻ bot, tích nhóm rồi bấm **Cho phép**), chế độ riêng tư của Telegram còn bật (xem mục [Chế độ riêng tư](#chế-độ-riêng-tư-của-telegram-đọc-mục-này-nếu-bot-im-trong-nhóm)), hoặc bot chưa hỏi được danh tính của chính nó (tắt bật lại bot). Nếu ngay cả `/id` cũng không có phản hồi thì bot đang không chạy - xem chấm trạng thái trên thẻ.
 
 **Bot đặt "trả lời mọi tin" mà nó vẫn chỉ trả lời khi được gọi tên?** Chế độ riêng tư của Telegram còn bật, nó chặn từ phía Telegram nên Javis không nhìn thấy những tin đó. Tắt nó ở @BotFather (`/setprivacy` → Disable) hoặc cho bot làm quản trị viên nhóm, rồi tắt bật lại bot. Thẻ bot có nhắc sẵn khi rơi vào tình huống này.
 
 **Tag bot trong nhóm Zalo mà bot im?** Kiểm theo thứ tự:
 
 1. Bot đang bật, chấm trạng thái xanh, và kết nối Zalo còn đăng nhập ở trang Kết nối.
-2. **Nhóm đã được cho phép chưa.** Xem hàng chờ trên thẻ bot, thấy nhóm thì bấm **Cho phép nhóm này**. Không thấy nhóm nào hiện lên thì vòng đọc chưa nhận được tin từ nhóm: mở Hộp thư xem tin nhóm có về không.
+2. **Nhóm đã được cho phép chưa.** Xem hàng chờ trên thẻ bot, thấy nhóm thì tích nó rồi bấm **Cho phép**. Không thấy nhóm nào hiện lên thì vòng đọc chưa nhận được tin từ nhóm: mở Hộp thư xem tin nhóm có về không.
 3. **Bot nhận tag theo tên.** Chữ sau "@" phải trùng nhãn của kết nối Zalo (trang Kết nối) hoặc tên hiển thị của nick. Lệch thì đổi nhãn kết nối cho đúng tên hiển thị. Chọn **Tự đánh giá** thì bot vẫn bắt được câu hỏi thuộc tài liệu dù không nhận ra tag.
 4. Có người vừa nhắn tay bằng nick đó trong nhóm trong 10 phút (hoặc số phút nhường của bot) thì bot nhường. Bot đã ghi số phút nhường thì tin tag thẳng vẫn được trả lời ngay.
 

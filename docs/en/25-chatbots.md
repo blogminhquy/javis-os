@@ -137,7 +137,9 @@ To make the bot say it has no information when it finds no documents, write that
 
 1. Invite the bot into the group like any member.
 2. In the group, type **`/id`**. The bot returns the group id **and states the situation**: whether this group is enabled, whether Telegram's privacy mode is on or off, and what to do next.
-3. That group **appears on the bot's card** on the Chatbot page. Click **Allow this group**. Done.
+3. That group **appears on the bot's card** on the Chatbot page, in the "waiting for approval" row. Open that row, tick the group and press **Allow**. Done.
+
+When several groups are waiting, tick each one, or **Select all**, then press **Allow** once for the whole batch. The button carries the number, for example "Allow (9)", so you know how many places one press opens the bot to. Nothing is ticked when the list opens: where the bot may speak is your choice. Tick a group you do not want and press **Ignore**; it comes back when someone calls the bot there again.
 
 Use `/id` rather than naming the bot, and that is deliberate: **a `/...` command always reaches the bot** even with Telegram's privacy mode on, while a message naming it may not (see the section below). If the bot **says nothing at all** at step 2, the problem is not the group: either the bot is off or the token is broken; check the status dot on the card.
 
@@ -578,7 +580,7 @@ Click **Delete** on the card. The bot stops answering immediately.
 - A note you wrote in this box earlier is now read by the bot too. The bot is told not to quote or mention the profile to the customer, but do not keep here what the bot must never know.
 - An operator can switch it off entirely with the environment variable `JAVIS_CUSTOMER_PROFILE=0`.
 
-**I dropped the bot into a group, tagged its name and it does not answer, but direct messages work?** Type **`/id`** in that very group and the bot will answer and state the cause. Three causes produce this one symptom: the group is not enabled yet (click **Allow this group** on the bot card), Telegram's privacy mode is still on (see [Privacy mode](#telegrams-privacy-mode-read-this-if-the-bot-is-silent-in-a-group)), or the bot could not ask for its own identity (turn the bot off and on again). If even `/id` gets no response, the bot is not running, so check the status dot on the card.
+**I dropped the bot into a group, tagged its name and it does not answer, but direct messages work?** Type **`/id`** in that very group and the bot will answer and state the cause. Three causes produce this one symptom: the group is not enabled yet (open the "waiting for approval" row on the bot card, tick the group and press **Allow**), Telegram's privacy mode is still on (see [Privacy mode](#telegrams-privacy-mode-read-this-if-the-bot-is-silent-in-a-group)), or the bot could not ask for its own identity (turn the bot off and on again). If even `/id` gets no response, the bot is not running, so check the status dot on the card.
 
 **The bot is set to "answer every message" but still only answers when named?** Telegram's privacy mode is still on, blocking those messages on Telegram's side so Javis never sees them. Turn it off in @BotFather (`/setprivacy` → Disable) or make the bot a group administrator, then turn the bot off and on again. The bot card warns you when this situation applies.
 
