@@ -24,7 +24,12 @@ Bấm vào biểu tượng là Javis mở thành cửa sổ riêng (không thanh
   ```
 
 Nếu đã tải file bằng trình duyệt và bị chặn:
+- Edge hoặc Chrome báo "JavisOS-Setup.exe isn't commonly downloaded" và không lưu file: trong ô Downloads, rê chuột vào dòng đó, bấm dấu ba chấm, chọn **Keep**, rồi **Show more** và **Keep anyway**.
 - Windows hiện "Windows protected your PC": bấm **More info** rồi **Run anyway**.
+- Trình diệt virus xoá mất file, hoặc Windows chặn mà không có nút **Run anyway** (máy bật Smart App Control): cài không qua file exe. Cài [Git](https://git-scm.com/download/win), mở PowerShell, dán dòng này rồi Enter. Xong thì Javis tự mở ở http://localhost:7777 và tự chạy cùng máy:
+  ```
+  git clone https://github.com/blogminhquy/javis-os.git "$env:USERPROFILE\JavisOS"; cd "$env:USERPROFILE\JavisOS"; powershell -ExecutionPolicy Bypass -File install.ps1
+  ```
 - macOS báo không mở được: vào **System Settings → Privacy & Security**, kéo xuống bấm **Open Anyway**, rồi mở lại JAVIS OS.
 
 ## Cách 1 - Hostinger VPS (Docker Manager, 1-click)

@@ -263,17 +263,120 @@ check("in-repo JAVIS OS.app now has the icon its Info.plist names",
 
 # ---- publishing and docs agree on the download links ----
 base = "https://github.com/blogminhquy/javis-os/releases/download/desktop/"
-check("workflow publishes both files on the fixed 'desktop' release",
-      "gh release upload desktop out/JavisOS-Setup.exe out/JavisOS-macOS.dmg --clobber" in wf)
+PUBLISH = PK / "publish-desktop.sh"
+publish = PUBLISH.read_text(encoding="utf-8")
+check("workflow publishes through packaging/publish-desktop.sh on the fixed 'desktop' release",
+      "run: bash packaging/publish-desktop.sh out" in wf and 'gh release upload desktop "$dmg" --clobber' in publish
+      and 'gh release upload desktop "$exe" --clobber' in publish)
 check("workflow publishes only from main", "github.ref == 'refs/heads/main'" in wf)
-check("the desktop release never becomes 'latest'", "--latest=false" in wf)
+check("the desktop release never becomes 'latest'", "--latest=false" in publish)
+check("the publish step knows whether the build was signed, and that 'Run workflow' forces a new .exe",
+      "SIGNED: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}" in wf
+      and "FORCE: ${{ github.event_name == 'workflow_dispatch' }}" in wf)
+
+# ---- the unsigned .exe keeps its file hash until something inside it changes (2026-11-12) ----
+# Customers: the browser and the antivirus blocked the download. Unsigned, the file is known by
+# its hash alone, and the workflow replaced it on every install.sh / install.ps1 change.
+iss_sources = set(re.findall(r'^Source: "([^"]+)"', iss, re.M))
+check("the fingerprint covers every file the installer packs",
+      iss_sources == {"bootstrap.ps1", "..\\assets\\javis.ico"}
+      and "packaging/windows/javis-setup.iss packaging/windows/bootstrap.ps1 packaging/assets" in publish,
+      iss_sources)
+in_git = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True).returncode == 0
+if shutil.which("bash") and os.name != "nt" and in_git:
+    import tempfile  # noqa: E402
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state = os.path.join(tmp, "release")
+        outdir = os.path.join(tmp, "out")
+        bindir = os.path.join(tmp, "bin")
+        for d in (state, outdir, bindir):
+            os.mkdir(d)
+        for name in ("JavisOS-Setup.exe", "JavisOS-macOS.dmg"):
+            with open(os.path.join(outdir, name), "w") as fh:
+                fh.write("build 1 " + name)
+        # A stand-in for gh: the release is a folder, an upload copies the file into it.
+        fake_gh = os.path.join(bindir, "gh")
+        with open(fake_gh, "w") as fh:
+            fh.write(r'''#!/usr/bin/env bash
+echo "$*" >> "$GH_STATE/calls.log"
+case "$1 $2" in
+  "release view")
+    [ -e "$GH_STATE/exists" ] || exit 1
+    case "$*" in *"--json assets"*) ls "$GH_STATE" | grep -v -e '^exists$' -e '^calls.log$' || true ;; esac ;;
+  "release download") cat "$GH_STATE/JavisOS-Setup.inputs" 2>/dev/null || exit 1 ;;
+  "release create") touch "$GH_STATE/exists" ;;
+  "release edit") ;;
+  "release upload") cp "$4" "$GH_STATE/" ;;
+  *) exit 2 ;;
+esac
+''')
+        os.chmod(fake_gh, 0o755)
+
+        def publish_run(**extra):
+            """Runs the publish script against the folder release; returns the files it uploaded."""
+            log = os.path.join(state, "calls.log")
+            if os.path.exists(log):
+                os.remove(log)
+            env = {**os.environ, "PATH": bindir + os.pathsep + os.environ["PATH"], "GH_STATE": state,
+                   "SIGNED": "false", "FORCE": "false", **extra}
+            env.pop("GITHUB_STEP_SUMMARY", None)
+            r = subprocess.run(["bash", str(PUBLISH), outdir], cwd=ROOT, env=env, capture_output=True, text=True)
+            calls = open(log).read().splitlines() if os.path.exists(log) else []
+            ups = [os.path.basename(c.split()[3]) for c in calls if c.startswith("release upload")]
+            return r, ups, calls
+
+        def published_exe():
+            return open(os.path.join(state, "JavisOS-Setup.exe")).read()
+
+        r, ups, calls = publish_run()
+        check("first publish creates the release and uploads the .dmg, the .exe, then the fingerprint",
+              r.returncode == 0 and ups == ["JavisOS-macOS.dmg", "JavisOS-Setup.exe", "JavisOS-Setup.inputs"]
+              and re.search(r"^release create desktop .*--latest=false$", "\n".join(calls), re.M | re.S) is not None,
+              (r.stderr[-300:], ups))
+        ver = (ROOT / "VERSION").read_text().strip()
+        fp_file = os.path.join(state, "JavisOS-Setup.inputs")
+        fp = open(fp_file).read().split() if os.path.exists(fp_file) else []
+        check("the fingerprint file holds <fingerprint> <version>", len(fp) == 2 and fp[1] == ver, fp)
+
+        with open(os.path.join(outdir, "JavisOS-Setup.exe"), "w") as fh:
+            fh.write("build 2, same inputs")
+        r, ups, _ = publish_run()
+        check("CANARY: a rebuild with nothing changed inside the .exe keeps the published file (same hash)",
+              r.returncode == 0 and ups == ["JavisOS-macOS.dmg"] and published_exe().startswith("build 1"),
+              (r.stderr[-300:], ups))
+        check("the release notes then name the version the kept .exe was built from",
+              "keeping the published file" in r.stdout)
+
+        r, ups, _ = publish_run(FORCE="true")
+        check("'Run workflow' by hand replaces the .exe anyway",
+              r.returncode == 0 and "JavisOS-Setup.exe" in ups and published_exe().startswith("build 2"), ups)
+
+        with open(os.path.join(outdir, "JavisOS-Setup.exe"), "w") as fh:
+            fh.write("build 3, signed")
+        r, ups, _ = publish_run(SIGNED="true")
+        check("the first signed build replaces the unsigned .exe",
+              r.returncode == 0 and "JavisOS-Setup.exe" in ups and published_exe().startswith("build 3"), ups)
+        r, ups, _ = publish_run(SIGNED="true")
+        check("and the signed .exe is then kept as well", r.returncode == 0 and ups == ["JavisOS-macOS.dmg"], ups)
+
+        os.remove(os.path.join(state, "JavisOS-Setup.exe"))
+        r, ups, _ = publish_run(SIGNED="true")
+        check("a release that lost its .exe gets it back even when the fingerprint matches",
+              r.returncode == 0 and "JavisOS-Setup.exe" in ups, ups)
+
+        os.remove(os.path.join(outdir, "JavisOS-macOS.dmg"))
+        r, ups, _ = publish_run()
+        check("a missing installer stops the publish before anything is uploaded", r.returncode != 0 and not ups, ups)
+r = subprocess.run(["bash", "-n", str(PUBLISH)], capture_output=True, text=True)
+check("bash -n packaging/publish-desktop.sh", r.returncode == 0, r.stderr)
 for doc in ("QUICKSTART.md", "QUICKSTART.en.md"):
     s = (ROOT / doc).read_text(encoding="utf-8")
     check(f"{doc} links the Windows installer", base + "JavisOS-Setup.exe" in s)
     check(f"{doc} links the macOS installer", base + "JavisOS-macOS.dmg" in s)
 
 # ---- repo rule: no long dashes ----
-for f in (ISS, BOOT_PS1, OPEN_VBS, LAUNCHER, BOOT_SH, BUILD_DMG, WF, PK / "make_icons.py", PK / "check_brains.py"):
+for f in (ISS, BOOT_PS1, OPEN_VBS, LAUNCHER, BOOT_SH, BUILD_DMG, WF, PUBLISH, PK / "make_icons.py", PK / "check_brains.py"):
     s = f.read_text(encoding="utf-8-sig")
     check(f"{f.name} has no em/en dash", "—" not in s and "–" not in s)
 
