@@ -43,7 +43,9 @@ def test_team_list_reads_the_registry_once_for_every_team():
 def test_pages_say_loading_and_teams_open_on_the_info_tab():
     ws = (ROOT / "dashboard" / "workspace.js").read_text(encoding="utf-8")
     assert 'id="wsList">\' + dangTaiHtml("ws.loading_list")' in ws
-    assert 'if (!daTai && !ds.length) { host.innerHTML = dangTaiHtml("ws.loading_list"); return; }' in ws
+    # 2026-11-13: the line also forgets the list remembered for "the same list is not drawn again".
+    assert ('if (!daTai && !ds.length) { anTheMini(); host.__wsHtml = null; host.innerHTML = dangTaiHtml("ws.loading_list"); '
+            'return; }') in ws
     tm = (ROOT / "dashboard" / "teams.js").read_text(encoding="utf-8")
     assert 'loadingHtml("teams.loading_list")' in tm and 'loadingHtml("teams.loading_chat")' in tm
     assert "S.msgsFor !== S.activeId" in tm

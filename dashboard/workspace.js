@@ -508,6 +508,12 @@
     if (S.el) veThanhNhom(S.el);
     veDanhSach();
   }
+  // One draw of the list for answers that arrive in the same turn.
+  var listTimer = 0;
+  function listSoon() {
+    if (listTimer) return;
+    listTimer = setTimeout(function () { listTimer = 0; if (active && S.el) veDanhSach(); }, 0);
+  }
   async function taiDanhSach() {
     var lan = lanDung, b0 = brain();
     var b = encodeURIComponent(b0);
@@ -522,9 +528,11 @@
     }
     // T0 nhóm chat team: trạng thái Cộng hưởng của MỌI trợ lý trong một request riêng (không gọi theo từng dòng), đọc
     // SAU khi danh sách đã có: tới đâu vẽ lại tới đó. Chưa về hay lỗi thì dòng không có công tắc (không đoán).
-    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { drawAutoState(); veAuto(dangChon()); } });
-    loadJobCounts().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
-    loadUnread().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
+    // 2026-11-13: the three answers usually land together (one batched request), so the list is drawn once for all of
+    // them (listSoon), not once each.
+    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { if (S.el) veThanhNhom(S.el); listSoon(); veAuto(dangChon()); } });
+    loadJobCounts().then(function (ok) { if (ok && active && S.loai === "agent") listSoon(); });
+    loadUnread().then(function (ok) { if (ok && active && S.loai === "agent") listSoon(); });
     S.agents = sapXep(r[0].agents, "last_chat_at");
     S.workflows = sapXep(r[1].workflows.filter(function (w) { return w.status === "active"; }), "last_run_at");
     daTai = true;
@@ -624,7 +632,7 @@
         '</aside>' +
       '</div>';
     if (opts && opts.borrow) opts.borrow(el.querySelector("#wsSlot"));
-    el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; S.nhom = ""; S.hien = TRANG; luuChon(); veTrai(); chonMacDinh(); }; });
+    el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; S.nhom = ""; S.hien = TRANG; luuChon(); chonSan(); veTrai(); chonMacDinh(); }; });
     noiODoTim(el);
     el.querySelectorAll("[data-rtab]").forEach(function (b) { b.onclick = function () { chonTabPhai(b.dataset.rtab); }; });
     el.querySelector(".ws-panel-close").onclick = function () { datPhai(false); };
@@ -632,7 +640,7 @@
     el.querySelector("#wsImport").onclick = function () {
       if (window.JavisStudio) window.JavisStudio.importItems(async function () {
         if (!active) return;
-        await taiDanhSach(); veTrai(); chonMacDinh();
+        await taiDanhSach(); chonSan(); veTrai(); chonMacDinh();
       });
     };
     // Một ngăn kéo cho cả hai phạm vi (của trợ lý / chỉ cuộc này), công tắc nằm ở đầu ngăn.
@@ -678,7 +686,7 @@
     chonTabPhai(S.tabPhai);
     nhoPhienTruoc();
     var lanNay = lanDung;
-    taiDanhSach().then(function (moi) { if (moi === false || lanNay !== lanDung) return; if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (lanNay !== lanDung) return; if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
+    taiDanhSach().then(function (moi) { if (moi === false || lanNay !== lanDung) return; if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { chonSan(); veTrai(); chonMacDinh(); } }).catch(function () { if (lanNay !== lanDung) return; if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
   }
   async function selectCommand(cmd) {
     S.loai = cmd.kind; S.chon[cmd.kind] = cmd.slug; S.q = ""; S.nhom = "";
@@ -711,7 +719,7 @@
     // vẽ lại ô chọn theo S.nhom nên hai bên vẫn khớp.
     S.loai = loai; S.nhom = "";
     luuChon();
-    if (active) { veTrai(); chonMacDinh(); return true; }
+    if (active) { chonSan(); veTrai(); chonMacDinh(); return true; }
     if (!window.JavisNav) return false;
     window.JavisNav.go("workspace");
     return true;
@@ -1072,15 +1080,15 @@
   //    thì chỉ tổ chật cột.
   function veDanhSach() {
     var el = S.el; if (!el) return;
-    anTheMini();   // the rows are about to be replaced: a card left on a gone row would never get its mouseleave
     var laTag = S.loai === "agent";
     var ds = loc(danhSach(), S.q, S.nhom, laTag, S.rs), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
     var trong = (S.q || S.nhom || laTag) ? [] : docNhomTrong();
     // Not loaded yet (a tab switch or a toggle before the first list arrived): still loading, not "nothing here".
-    if (!daTai && !ds.length) { host.innerHTML = dangTaiHtml("ws.loading_list"); return; }
+    if (!daTai && !ds.length) { anTheMini(); host.__wsHtml = null; host.innerHTML = dangTaiHtml("ws.loading_list"); return; }
     if (!ds.length && !trong.length) {
       var nhomTrong = !laTag && !!(S.nhom && !S.q && docNhomTrong().indexOf(S.nhom) >= 0);
+      anTheMini(); host.__wsHtml = null;
       host.innerHTML = '<div class="ws-empty">' + esc(t(nhomTrong ? "ws.group_empty_hint" : "ws.empty")) + '</div>';
       return;
     }
@@ -1101,11 +1109,20 @@
       tong += n.items.length;
       n.items.forEach(function (x) { if (daVe < S.hien) { html += mucHtml(x, chon); daVe++; } });
     });
-    host.innerHTML = html +
-      (tong > S.hien
-        ? '<button type="button" class="ws-more" id="wsMore">' +
-            esc(t("sess.more", { so: Math.min(TRANG, tong - S.hien) })) + '</button>'
-        : "");
+    html += tong > S.hien
+      ? '<button type="button" class="ws-more" id="wsMore">' +
+          esc(t("sess.more", { so: Math.min(TRANG, tong - S.hien) })) + '</button>'
+      : "";
+    // 2026-11-13: the same list again is not drawn again. Opening the page asked for this list five times in a row
+    // (the list, the default choice, then the Auto state, the job counts and the unread marks as each arrived), and
+    // every one replaced all the rows, bound every row's handlers again and measured every card's tags, with a forced
+    // layout per card: 272 layouts for one opening on a brain of 28 assistants. The rows on screen are exactly what
+    // this HTML would produce (the only thing that edits them afterwards is the tag fitting below, which depends on
+    // the HTML and the column width alone), so keeping them also keeps the scroll position, the hover and the focus.
+    if (host.__wsHtml === html) return;
+    anTheMini();   // the rows are about to be replaced: a card left on a gone row would never get its mouseleave
+    host.innerHTML = html;
+    host.__wsHtml = html;
     var nutThem = host.querySelector("#wsMore");
     if (nutThem) nutThem.onclick = function () {
       // Giữ chỗ cuộn: vẽ lại cả danh sách mà để nó nhảy về đầu thì bấm "Xem thêm" xong lại
@@ -1161,6 +1178,7 @@
   // only when it alone is too long. With no layout (a hidden page, tests) the CSS fallback keeps 104px clear instead.
   function fitCardTags(host) {
     if (!host || !host.querySelectorAll) return;
+    S.tagFitW = host.clientWidth;   // the column width this fitting was done for (see watchCardTags)
     host.querySelectorAll(".ws-item-sub").forEach(function (sub) {
       var wrap = sub.closest ? sub.closest(".ws-item-wrap") : null;
       var btn = wrap && wrap.querySelector("[data-slug]"), end = wrap && wrap.querySelector(".ws-item-end");
@@ -1185,7 +1203,13 @@
     if (typeof ResizeObserver === "undefined" || S.tagRoHost === host) return;
     if (S.tagRo) S.tagRo.disconnect();
     S.tagRoHost = host;
-    S.tagRo = new ResizeObserver(function () { fitCardTags(host); });
+    // A ResizeObserver reports once right after observe(), with the size the fitting above was just done for: fit
+    // again only when the column really has another width (it measured every card a second time on each draw).
+    S.tagRo = new ResizeObserver(function () {
+      var w = host.clientWidth;
+      if (typeof w === "number" && w > 0 && w === S.tagFitW) return;
+      fitCardTags(host);
+    });
     S.tagRo.observe(host);
   }
   // HTML của MỘT hàng. Tách khỏi veDanhSach để chỗ kia chỉ còn lo nhóm - phân trang, và để
@@ -1596,7 +1620,13 @@
     if (S.chon[S.loai] === item.slug) S.chon[S.loai] = null;
     await taiDanhSach();
     if (!active) return;
-    veTrai(); chonMacDinh();
+    chonSan(); veTrai(); chonMacDinh();
+  }
+  // The default choice, settled BEFORE the list is drawn (2026-11-13). veTrai() used to draw the list with nothing
+  // chosen and chonMacDinh() drew it again a moment later with the first row lit: two full draws for one opening.
+  function chonSan() {
+    var ds = danhSach();
+    if (ds.length && !ds.some(function (x) { return x.slug === S.chon[S.loai]; })) S.chon[S.loai] = ds[0].slug;
   }
   function chonMacDinh() {
     var ds = danhSach();
@@ -1771,7 +1801,7 @@
   async function lamLai() {
     try { await taiDanhSach(); } catch (e) { if (active) { veGiua(dangChon()); veLoi(t("ws.err_list")); } return; }
     if (!active) return;
-    veTrai(); chonMacDinh();
+    chonSan(); veTrai(); chonMacDinh();
   }
   // `nhac` = câu thay cho lời mời chọn mục, dùng khi danh sách rỗng (chưa có gì để chọn cả).
   function veGiua(item, nhac) {
@@ -2033,7 +2063,7 @@
         host.querySelector("#wsDel").onclick = async function () {
           if (!confirm(t("studio.del_ag", { ten: item.name }))) return;
           await api("/agents/delete", { method: "POST", body: fd({ slug: item.slug, brain: brain() }) });
-          S.chon.agent = null; await taiDanhSach(); veTrai(); chonMacDinh();
+          S.chon.agent = null; await taiDanhSach(); chonSan(); veTrai(); chonMacDinh();
         };
       }
     } else {
@@ -2056,7 +2086,7 @@
       host.querySelector("#wsDel").onclick = async function () {
         if (!confirm(t("studio.del_wf", { ten: item.name }))) return;
         await api("/workflows/delete", { method: "POST", body: fd({ slug: item.slug, brain: brain() }) });
-        S.chon.workflow = null; await taiDanhSach(); veTrai(); chonMacDinh();
+        S.chon.workflow = null; await taiDanhSach(); chonSan(); veTrai(); chonMacDinh();
       };
     }
     veLichSu(item);

@@ -90,9 +90,11 @@ const coreBefore = core.innerHTML;
 fitCardTags({ querySelectorAll: () => [core] });
 check("Javis Core without tags: the badge line is not touched", core.innerHTML === coreBefore);
 
+// 2026-11-13: "each draw" is each draw that replaced the rows (the same list again keeps its fitted rows), and the
+// observer's first report, which only repeats the width the fitting was just done for, no longer fits a second time.
 check("the list refits after each draw and when the column is resized (ResizeObserver)",
   /noiDanhSach\(host\);\s*if \(laTag\) watchCardTags\(host\);/.test(src)
-  && /S\.tagRo = new ResizeObserver\(function \(\) \{ fitCardTags\(host\); \}\);/.test(src));
+  && /S\.tagRo = new ResizeObserver\(function \(\) \{\s*var w = host\.clientWidth;\s*if \(typeof w === "number" && w > 0 && w === S\.tagFitW\) return;\s*fitCardTags\(host\);\s*\}\);/.test(src));
 
 if (fails) { console.log("\nFAIL " + fails); process.exit(1); }
 console.log("\nOK test_agent_card_tags");
