@@ -89,7 +89,10 @@ global.fetch = function (url, init) {
         WS.includes("RA.packConfirmHtml(RA.missingByPack(rows), S.packSaving)") && WS.includes('"[data-pack-confirm]"')
         && WS.includes("RA.confirmPack(packId)"));
   check("the line is redrawn when the Auto state arrives, not only the cards",
-        (WS.match(/drawAutoState\(\); veAuto\(dangChon\(\)\)/g) || []).length === 2
+        // 2026-11-13: when the page loads, the cards wait one turn so the Auto state, the job counts and the unread
+        // marks are drawn together (listSoon); the line itself is still redrawn at once.
+        (WS.match(/drawAutoState\(\); veAuto\(dangChon\(\)\)/g) || []).length === 1
+        && /loadResonance\(\)\.then\(function \(ok\) \{ if \(ok && active && S\.loai === "agent"\) \{ if \(S\.el\) veThanhNhom\(S\.el\); listSoon\(\); veAuto\(dangChon\(\)\); \} \}\);/.test(WS)
         && /function drawAutoState\(\) \{\s*if \(S\.el\) veThanhNhom\(S\.el\);\s*veDanhSach\(\);/.test(WS));
   check("a failed confirmation says why under the bar", WS.includes('t("resonance.pack_confirm_failed"'));
   const CSS = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");

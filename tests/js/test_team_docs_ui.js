@@ -65,7 +65,9 @@ check("dragging the list edge past the threshold snaps it to the avatar strip an
 check("a remembered strip width comes back as the strip; double-click restores the default list",
   ws.includes("if (v) datBeRong(page, ben, chanBeRong(ben, v, page));") && ws.includes("datBeRong(page, ben, 0);"));
 check("hovering an avatar in the strip shows its name card, the card goes with the rows",
-  ws.includes("hienTheMini(b)") && ws.includes('b.addEventListener("mouseleave", anTheMini)') && /function veDanhSach\(\) \{\n[^\n]*\n    anTheMini\(\);/.test(ws));
+  // 2026-11-13: the card goes when the rows are really replaced; a list that is the same again keeps rows and card.
+  ws.includes("hienTheMini(b)") && ws.includes('b.addEventListener("mouseleave", anTheMini)')
+  && /if \(host\.__wsHtml === html\) return;\n\s*anTheMini\(\);[^\n]*\n\s*host\.innerHTML = html;/.test(ws));
 check("CSS: the strip hides the words on wide screens only, keeps a dot for waiting work",
   /@media \(min-width: 901px\) \{\n  \.wspage\.ws-mini > \.ws-left/.test(css) && css.includes(".wspage.ws-mini .ws-item-wrap[data-st]::after")
   && css.includes(".ws-mini-tip {"));

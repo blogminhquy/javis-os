@@ -1105,15 +1105,80 @@
       + '<button type="button" role="tab" data-act="tab" data-v="ai" aria-selected="' + (S.tab === "ai") + '" class="' + (S.tab === "ai" ? "on" : "") + '">' + avatar(CORE, 18) + "<span>" + esc(tw("nv.tab.ai_s")) + '</span><span class="nv-n">' + nAi + "</span></button>"
       + '<button type="button" role="tab" data-act="tab" data-v="me" aria-selected="' + (S.tab === "me") + '" class="' + (S.tab === "me" ? "on" : "") + '">' + "<span>" + esc(tw("nv.tab.me_s")) + '</span><span class="nv-n">' + nMe + "</span></button></div>";
   }
+  // ---------- draw only what changed, and only the layout on screen (2026-11-13) ----------
+  // Measured on a phone-speed CPU with 170 tasks: one draw of the page writes 340 KB of HTML and blocks the page for
+  // about 0.39 s. The page drew twice on every opening (the copy of the last visit, then the fresh answer, nearly always
+  // the same), again on every poll (every 30 s, every 5 s while a task runs) and built the wide AND the phone layout
+  // each time although only one is ever on screen.
+  //
+  // put(el, html) writes unless `html` is exactly what the last draw wrote into `el` AND nobody has touched the page
+  // since. The second half matters: a click may change the page by hand ahead of the server (the tick of a checkbox),
+  // and the draw that follows must put the server's truth back even when its HTML equals the last one. Every click,
+  // key, edit, drop or paste inside the page sets S.touched (see mount), so only the passive draws (the poll, the fresh
+  // answer behind the instant draw) can skip.
+  // `keep`: a list. The task at the top of the screen stays where it is across the write (see holdRow below).
+  function put(el, html, keep) {
+    if (!el) return false;
+    if (!S.touched && el.__nvHtml === html) return false;
+    var at = keep ? holdRow(el) : null;
+    el.innerHTML = html;
+    el.__nvHtml = html;
+    if (at) backToRow(el, at);
+    return true;
+  }
+  // A redraw makes every card a new one. The cards above the screen then count with the height tasks.css assumes for a
+  // card not drawn yet (content-visibility), no longer with their real one, so a list read halfway down would jump by
+  // the difference. So the first task on screen is noted before the write and put back at the same height after it.
+  // Nothing to do while the start of the list is on screen (the usual case: nothing above can shift).
+  function scrollerOf(el) {
+    for (var p = el.parentElement; p; p = p.parentElement) {
+      var o = getComputedStyle(p).overflowY;
+      if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight + 1) return p;
+    }
+    return null;   // the window scrolls
+  }
+  function holdRow(el) {
+    if (!el.getBoundingClientRect || typeof getComputedStyle !== "function") return null;
+    var sc = scrollerOf(el), edge = sc ? sc.getBoundingClientRect().top : 0;
+    if (el.getBoundingClientRect().top >= edge) return null;
+    var rows = el.querySelectorAll("[data-open]"), lo = 0, hi = rows.length - 1, hit = -1;
+    while (lo <= hi) {   // the rows stand in order: find the first one that reaches below the top edge
+      var mid = (lo + hi) >> 1;
+      if (rows[mid].getBoundingClientRect().bottom > edge) { hit = mid; hi = mid - 1; } else lo = mid + 1;
+    }
+    if (hit < 0) return null;
+    var id = rows[hit].getAttribute("data-open"), nth = 0;
+    for (var i = 0; i < hit; i++) if (rows[i].getAttribute("data-open") === id) nth++;   // the same task can stand twice
+    return { sc: sc, id: id, nth: nth, y: rows[hit].getBoundingClientRect().top };
+  }
+  function backToRow(el, at) {
+    var rows = el.querySelectorAll("[data-open]"), seen = 0;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].getAttribute("data-open") !== at.id) continue;
+      if (seen++ < at.nth) continue;
+      var d = rows[i].getBoundingClientRect().top - at.y;
+      if (Math.abs(d) >= 1) { if (at.sc) at.sc.scrollTop += d; else window.scrollBy(0, d); }
+      return;
+    }
+  }
+  var SEARCH_WAIT_MS = 110;
+  // The layouts switch at this width in tasks.css (.nv-desk / .nv-phone).
+  function isPhone() { return window.innerWidth <= 760; }
   function renderDesk() {
     var D = S.root.querySelector(".nv-desk");
-    D.querySelector(".nv-side").innerHTML = sideHtml();
-    D.querySelector(".nv-top").innerHTML = tabsHtml();
-    D.querySelector(".nv-askbox").innerHTML = askBar();
+    put(D.querySelector(".nv-side"), sideHtml());
+    put(D.querySelector(".nv-top"), tabsHtml());
+    put(D.querySelector(".nv-askbox"), askBar());
     D.querySelector(".nv-search").hidden = S.view === "stats";   // 0.429.0: nothing to search on Stats
-    D.querySelector(".nv-view").innerHTML = viewHtml(S.view);
+    put(D.querySelector(".nv-view"), viewHtml(S.view), true);
     fitSide();
   }
+  // The layout that is not on screen holds nothing: no hidden copy of the list to build, parse and keep in memory.
+  function clearDesk() {
+    var D = S.root.querySelector(".nv-desk");
+    put(D.querySelector(".nv-side"), ""); put(D.querySelector(".nv-view"), "");
+  }
+  function clearPhone() { put(S.root.querySelector(".nv-phone .nv-pbody"), ""); }
   function fitSide() {
     var s = S && S.root.querySelector(".nv-side");
     if (!s || window.innerWidth <= 760) return;
@@ -1142,8 +1207,8 @@
   }
   function renderPhone() {
     var el = S.root.querySelector(".nv-phone");
-    el.querySelector(".nv-ptabs").innerHTML = tabsHtml();
-    el.querySelector(".nv-pbody").innerHTML = phoneHtml();
+    put(el.querySelector(".nv-ptabs"), tabsHtml());
+    put(el.querySelector(".nv-pbody"), phoneHtml(), true);
     var te = el.querySelector(".nv-titleed"); if (te) fitTA(te);
   }
 
@@ -2268,8 +2333,18 @@
   function fitTA(el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
   function render() {
     if (!S || !S.ai) return;
-    renderDesk(); renderPhone(); renderLayer(); pulseMotion();
+    var phone = isPhone();
+    if (phone) { clearDesk(); renderPhone(); } else { renderDesk(); clearPhone(); }
+    renderLayer(); pulseMotion();
+    S.phoneDrawn = phone;
+    S.touched = false;
   }
+  // The window crossed the width where the layouts switch: the one now on screen has not been drawn yet.
+  function onResize() {
+    fitSide();
+    if (S && S.ai && S.phoneDrawn !== undefined && S.phoneDrawn !== isPhone()) render();
+  }
+  function markTouched() { if (S) S.touched = true; }
   function setView(v) { S.view = v; S.sel = null; lsSet("view." + S.tab, v); render(); }
   function setTab(tab) {
     S.tab = tab; lsSet("tab", tab);
@@ -2437,10 +2512,18 @@
     ["dragstart", "dragover", "drop", "dragend"].forEach(function (k) { el.addEventListener(k, onDrag); });
     el.addEventListener("paste", onPasteFiles);
     el.addEventListener("drop", onPasteFiles);
+    // Anything the user does inside the page makes the next draw a full one (see put()).
+    ["click", "change", "submit", "input", "keydown", "dragstart", "drop", "paste"].forEach(function (k) { el.addEventListener(k, markTouched, true); });
     document.addEventListener("keydown", onKey);
-    window.addEventListener("resize", fitSide);
+    window.addEventListener("resize", onResize);
     document.addEventListener("scroll", fitSide, { passive: true, capture: true });   // the page scrolls inside #cviewBody
-    el.querySelector("#nvQ").addEventListener("input", function (e) { S.q = e.target.value; S.root.querySelector(".nv-view").innerHTML = viewHtml(S.view); });
+    // The list follows the search box a moment after the last key, not on every key (2026-11-13): each redraw of a long
+    // list held the page long enough for the next letter to appear late. The wait is short enough to feel immediate.
+    el.querySelector("#nvQ").addEventListener("input", function (e) {
+      S.q = e.target.value;
+      clearTimeout(S.qT);
+      S.qT = setTimeout(function () { if (S && S.root === el) put(S.root.querySelector(".nv-view"), viewHtml(S.view)); }, SEARCH_WAIT_MS);
+    });
     var fixView = function () {
       if (S.view !== "stats" && !lists().some(function (L) { return L[0] === S.view; }) && S.view.indexOf(S.tab === "me" ? "proj:" : "who:") !== 0) S.view = "today";
     };
@@ -2457,8 +2540,9 @@
     if (!S) return;
     keepLast();
     clearTimeout(S.poll);
+    clearTimeout(S.qT);
     document.removeEventListener("keydown", onKey);
-    window.removeEventListener("resize", fitSide);
+    window.removeEventListener("resize", onResize);
     document.removeEventListener("scroll", fitSide, { capture: true });
     S = null;
   }
