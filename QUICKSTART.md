@@ -36,7 +36,7 @@ Nếu đã tải file bằng trình duyệt và bị chặn:
 
 ## Cách 1 - Hostinger VPS (Docker Manager, 1-click)
 
-> 🛒 **Chưa có VPS?** [Đăng ký VPS Hostinger tại đây](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). VPS có sẵn Docker Manager nên cài Javis đúng một cú bấm. Thuê xong quay lại làm các bước dưới.
+> 🛒 **Chưa có VPS?** [Đăng ký VPS Hostinger tại đây](https://www.hostinger.com?REFERRALCODE=JAVISOS). VPS có sẵn Docker Manager nên cài Javis đúng một cú bấm. Thuê xong quay lại làm các bước dưới.
 
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**.
 2. Dán URL:
@@ -57,7 +57,7 @@ Cập nhật bản mới: bấm **⬆ Cập nhật ngay** trong app (trang Cập
 
 ## Cách 2 - Docker ở máy/VPS bất kỳ
 
-> 🛒 **Cần thuê VPS?** [VPS Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) chạy được cả cách này.
+> 🛒 **Cần thuê VPS?** [VPS Hostinger](https://www.hostinger.com?REFERRALCODE=JAVISOS) chạy được cả cách này.
 
 ```
 docker compose -f docker-compose.yml up -d

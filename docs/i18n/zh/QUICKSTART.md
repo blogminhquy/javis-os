@@ -22,7 +22,7 @@
 
 ## 方式一 - Hostinger VPS（Docker Manager，一键部署）
 
-> 🛒 **还没有 VPS？** [在这里购买 Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)。它自带 Docker Manager，一键即可安装 Javis。开通后回到下面的步骤。
+> 🛒 **还没有 VPS？** [在这里购买 Hostinger VPS](https://www.hostinger.com?REFERRALCODE=JAVISOS)。它自带 Docker Manager，一键即可安装 Javis。开通后回到下面的步骤。
 
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**。
 2. 粘贴这个 URL：
@@ -41,7 +41,7 @@
 
 ## 方式二 - 在任意机器或 VPS 上使用 Docker
 
-> 🛒 **需要 VPS？** [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) 同样适用这种方式。
+> 🛒 **需要 VPS？** [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=JAVISOS) 同样适用这种方式。
 
 ```
 docker compose -f docker-compose.yml up -d

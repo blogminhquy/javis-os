@@ -22,7 +22,7 @@ Javis को किसी भी सामान्य ऐप की तरह �
 
 ## विकल्प 1 - Hostinger VPS (Docker Manager, एक click में)
 
-> 🛒 **अभी VPS नहीं है?** [Hostinger VPS यहाँ से लीजिए](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)। इसमें Docker Manager पहले से है, इसलिए Javis एक click में install होता है। तैयार होने पर नीचे के steps पर लौट आइए।
+> 🛒 **अभी VPS नहीं है?** [Hostinger VPS यहाँ से लीजिए](https://www.hostinger.com?REFERRALCODE=JAVISOS)। इसमें Docker Manager पहले से है, इसलिए Javis एक click में install होता है। तैयार होने पर नीचे के steps पर लौट आइए।
 
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**।
 2. यह URL paste कीजिए:
@@ -41,7 +41,7 @@ Update करने के लिए: Docker Manager में **Redeploy** द�
 
 ## विकल्प 2 - किसी भी मशीन या VPS पर Docker
 
-> 🛒 **VPS चाहिए?** यह विकल्प भी [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) पर चलता है।
+> 🛒 **VPS चाहिए?** यह विकल्प भी [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=JAVISOS) पर चलता है।
 
 ```
 docker compose -f docker-compose.yml up -d

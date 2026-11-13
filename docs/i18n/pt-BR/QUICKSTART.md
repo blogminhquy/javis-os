@@ -22,7 +22,7 @@ Os dois instaladores ainda não têm assinatura de código, então o computador 
 
 ## Opção 1 - VPS da Hostinger (Docker Manager, em um clique)
 
-> 🛒 **Ainda não tem VPS?** [Contrate uma VPS da Hostinger aqui](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Ela já vem com o Docker Manager, então o Javis instala em um clique. Quando estiver pronta, volte aos passos abaixo.
+> 🛒 **Ainda não tem VPS?** [Contrate uma VPS da Hostinger aqui](https://www.hostinger.com?REFERRALCODE=JAVISOS). Ela já vem com o Docker Manager, então o Javis instala em um clique. Quando estiver pronta, volte aos passos abaixo.
 
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**.
 2. Cole esta URL:
@@ -41,7 +41,7 @@ Para atualizar: clique em **Redeploy** no Docker Manager (imagem `:latest`, `pul
 
 ## Opção 2 - Docker em qualquer máquina ou VPS
 
-> 🛒 **Precisa de uma VPS?** Uma [VPS da Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) também roda esta opção.
+> 🛒 **Precisa de uma VPS?** Uma [VPS da Hostinger](https://www.hostinger.com?REFERRALCODE=JAVISOS) também roda esta opção.
 
 ```
 docker compose -f docker-compose.yml up -d
