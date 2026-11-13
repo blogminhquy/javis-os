@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.556.1] - 2026-11-13
+### Fixed
+- **Stopping a dictation answers at once.** The bar switches to "rewriting" the moment stop is pressed, and the recording goes to be heard right away instead of waiting for the browser to close the mic.
+- **The rewrite step is much faster.** The word fix that runs first could take several seconds and now takes a few hundredths of one. The quick model no longer spends its whole turn thinking and returns nothing, and on a subscription the main model thinks at its lowest level for this job.
+- **Long dictations no longer lose words.** Text over about 2,000 characters used to come back cut after the rewrite; every word is kept now.
+- **Fewer everyday words turned into names.** Common Vietnamese word pairs that merely sound like "Javis" or "Canva" are no longer replaced by those names.
+
 ## [0.556.0] - 2026-11-13
 ### Improved
 - **Approve many waiting groups for a bot in one press.** In the bot's Status panel every waiting group or person is a tick box, with **Select all** and one shared **Allow** / **Ignore** bar. Nine waiting groups used to mean opening the panel and pressing nine times.
