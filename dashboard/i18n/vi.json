@@ -2451,6 +2451,7 @@
   "mpick.add_key": "Thêm API key ở trang Models để mở khoá",
   "mpick.no_match": "Không có model khớp.",
   "mpick.no_list": "Chưa lấy được danh sách model.",
+  "mpick.fix_on_models": "Mở trang Models để sửa",
   "mpick.loading": "Đang tải danh sách model...",
   "mpick.more": "Còn {n} model nữa, gõ tên để tìm.",
   "ecmd.bold": "Đậm",

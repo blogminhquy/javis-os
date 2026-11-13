@@ -243,7 +243,7 @@ Javis only saves when the check succeeds, so an error means nothing was saved. T
 |---|---|---|
 | Invalid API key (HTTP 401) or (HTTP 403) | The key is wrong, expired or blocked | Copy the key again (no extra spaces), or ask the seller for a new one |
 | This gateway does not list its models | No model name was entered | Enter the model name the seller gave you and click Connect again |
-| .../v1/messages not found (HTTP 404) | The Base URL is wrong | Ask the seller for the Anthropic endpoint address; the usual mistake is using the OpenAI one |
+| No API found at .../v1/messages | The Base URL is wrong | Ask the seller for the Anthropic endpoint address; the usual mistake is using the OpenAI one |
 | The gateway returned HTTP 400 for model ... | Usually a wrong model name, or a model your plan lacks | Check the spelling, or ask the seller for the exact name |
 | Could not reach ... | The machine running Javis cannot reach that address | Check the Base URL and the network, or ask the seller whether the endpoint is up |
 

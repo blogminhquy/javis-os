@@ -7877,6 +7877,113 @@ def _loc_model_chat(ids, cam):
     return [i for i in ids if i and not any(k in i.lower() for k in cam)]
 
 
+def _model_ids(body) -> list:
+    """Model ids out of a gateway's model-list reply, in the order given.
+
+    Sellers do not agree on the envelope: OpenAI wraps the rows in {"data": [...]}, some proxies answer the bare
+    list, others {"models": [...]}, and a row is {"id": ...}, {"name": ...} or a plain string. Reading only the
+    first shape left the picker empty for a gateway that had just answered with its whole list."""
+    rows = body
+    if isinstance(body, dict):
+        rows = body.get("data")
+        if not isinstance(rows, list):
+            rows = body.get("models")
+    out = []
+    for x in rows if isinstance(rows, list) else []:
+        if isinstance(x, dict):
+            x = x.get("id") or x.get("name") or x.get("model")
+        x = str(x or "").strip()
+        if x.startswith("models/"):   # Google's OpenAI-format endpoint names rows "models/gemini-..."
+            x = x[len("models/"):]
+        if x and x not in out:
+            out.append(x)
+    return out
+
+
+_VERSIONED_BASE = re.compile(r"/v\d+[a-z0-9]*$", re.I)
+
+
+def _openai_list_urls(base: str) -> list:
+    """Where an OpenAI-format gateway may keep its model list: (list URL, base it implies).
+
+    {base}/models first. A base typed without its version ("https://api.example.com") is the most common slip, so
+    {base}/v1/models is tried next; a list found there means the API lives under /v1."""
+    base = (base or "").rstrip("/")
+    urls = [(base + "/models", base)]
+    if base and not _VERSIONED_BASE.search(base):
+        urls.append((base + "/v1/models", base + "/v1"))
+    return urls
+
+
+async def _openai_list_models(base: str, key: str, timeout: float = 20) -> dict:
+    """Ask an OpenAI-format gateway for its models.
+
+    Returns {"ids", "base", "status", "why"}: `base` is the address the list was found under (it differs from the
+    one passed in when only {base}/v1/models answered), `status` the HTTP status of the first try that reached the
+    server (0 = none did), `why` a short cause for the owner when `ids` is empty."""
+    import httpx
+    headers = {"Authorization": f"Bearer {key or 'none'}"}
+    out = {"ids": [], "base": base, "status": 0, "why": ""}
+    async with httpx.AsyncClient(timeout=timeout) as c:
+        for url, at in _openai_list_urls(base):
+            try:
+                r = await c.get(url, headers=headers)
+            except Exception as e:
+                out["why"] = out["why"] or type(e).__name__
+                break   # the host itself did not answer: another path on it will not either
+            out["status"] = out["status"] or r.status_code
+            if r.status_code in (401, 403):
+                out["status"] = r.status_code
+                out["why"] = f"HTTP {r.status_code}"
+                break   # the key was refused: do not send it to a second path
+            if r.status_code != 200:
+                out["why"] = out["why"] or f"HTTP {r.status_code}"
+                continue
+            try:
+                ids = _model_ids(r.json())
+            except Exception:
+                ids = []
+            if ids:
+                out.update(ids=ids, base=at, why="")
+                break
+            out["why"] = out["why"] or localefmt.chu("không có danh sách model", "no model list")
+    return out
+
+
+def _adopt_listed_base(prov: str, old_base: str, new_base: str) -> None:
+    """A gateway saved before Javis checked addresses, with its version left off: keep the address its list was
+    found under, so the model the owner picks next can actually chat. Only a gateway with no model saved gets here
+    (one that passed the connect check keeps its address untouched)."""
+    with cfgmod._SETTINGS_LOCK:
+        cfg = cfgmod.read_settings()
+        m = cfg.setdefault("model", {})
+        gws = adv_keys.gateways(m, prov)
+        g = next((x for x in gws if x["base"] == old_base and not x["models"]), None)
+        if not g:
+            return
+        if isinstance(m.get(adv_keys.field(prov)), list) and m[adv_keys.field(prov)]:
+            adv_keys.update(m, prov, g["id"], base=new_base, key=g["key"])
+        else:   # one gateway in the three old fields, never turned into a list
+            m[adv_keys._SPEC[prov]["legacy"] + "_base"] = new_base
+        cfgmod.write_settings(cfg)
+
+
+async def _openai_compat_models(m):
+    """Models of the OpenAI-format gateway in use: the names saved with it first (typed by the owner, or listed
+    when it was connected), then whatever the gateway lists now. A gateway that lists nothing is not an error when
+    names were saved. Returns (ids or None, why)."""
+    base = engine.openai_compat_base()
+    if not base:
+        return None, ""
+    g = next((x for x in adv_keys.gateways(m, adv_keys.OPENAI) if x["base"] == base), None)
+    saved = list(g["models"]) if g else []
+    key = (m.get("openai_compat_key") or "").strip() or "none"
+    got = await _openai_list_models(base, key)
+    if got["ids"] and got["base"] != base and not saved:
+        _adopt_listed_base(adv_keys.OPENAI, base, got["base"])
+    return (_gop_giu_thu_tu(saved, sorted(got["ids"])) or None), got["why"]
+
+
 def _anthropic_compat_typed(m) -> list:
     """Model names the owner typed for the Anthropic-compatible gateway (0.254.0)."""
     return [str(x).strip() for x in (m.get("anthropic_compat_models") or []) if str(x).strip()]
@@ -7898,14 +8005,30 @@ async def _anthropic_compat_models(m, base=None, key=None):
         async with httpx.AsyncClient(timeout=20) as c:
             r = await c.get(base + "/v1/models", headers=engine.anthropic_headers(key, compat=True))
         if r.status_code == 200:
-            data = r.json().get("data") or []
-            live = [x.get("id") for x in data if isinstance(x, dict) and x.get("id")]
+            try:
+                live = _model_ids(r.json())
+            except Exception:
+                live = []   # a web page instead of a list: same as no list
         elif not typed:
             r.raise_for_status()
     except Exception:
         if not typed:
             raise
     return _gop_giu_thu_tu(typed, live) or None
+
+
+def _is_web_page(r) -> bool:
+    """True when an HTTP reply is a web page (the gateway's own site), not its API."""
+    try:
+        if "html" in str((getattr(r, "headers", None) or {}).get("content-type") or "").lower():
+            return True
+        return str(getattr(r, "text", "") or "").lstrip()[:1] == "<"
+    except Exception:
+        return False   # cannot tell: keep the old rule, a 200 is accepted
+
+
+class _NoModelList(Exception):
+    """A gateway was asked and gave no list; the text is the short cause shown to the owner."""
 
 
 async def _fetch_provider_models(provider, m):
@@ -7978,15 +8101,10 @@ async def _fetch_provider_models(provider, m):
             data = r.json().get("data") or []
         return sorted(x.get("id") for x in data if isinstance(x, dict) and x.get("id")) or None
     if provider == "openai-compat":
-        base = engine.openai_compat_base()
-        if not base:
-            return None
-        key = (m.get("openai_compat_key") or "").strip() or "none"
-        async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.get(base + "/models", headers={"Authorization": f"Bearer {key}"})
-            r.raise_for_status()
-            data = r.json().get("data") or []
-        return sorted(x.get("id") for x in data if isinstance(x, dict) and x.get("id")) or None
+        ids, why = await _openai_compat_models(m)
+        if not ids and why:
+            raise _NoModelList(why)
+        return ids
     if provider == "anthropic-compat":
         return await _anthropic_compat_models(m)
     if provider == "ollama":
@@ -8082,18 +8200,24 @@ def _remember_catalog(cfg, d, ids):
     # Chặn phình settings.json (OpenRouter vài trăm model). Endpoint tự khai thì giữ đủ: cắt ở 50
     # là thẻ báo "50 model" sai sự thật với proxy có nhiều hơn.
     keep = list(ids if key in ("openai-compat", "anthropic-compat") else ids[:50])
-    cat = cfg.setdefault("model", {}).setdefault("catalog", {})
-    if cat.get(key) == keep:
+    if ((cfg.get("model") or {}).get("catalog") or {}).get(key) == keep:
         return
-    cat[key] = keep
+    # 2026-11-13: `cfg` was read BEFORE the provider was asked, and that call can take 20 seconds. Writing that
+    # copy back whole undid whatever was saved meanwhile: a key connected while a model list was still loading
+    # vanished again. Only the one catalog entry goes into the settings as they are NOW.
     try:
-        cfgmod.write_settings(cfg)
+        with cfgmod._SETTINGS_LOCK:
+            now_cfg = cfgmod.read_settings()
+            cat = now_cfg.setdefault("model", {}).setdefault("catalog", {})
+            if cat.get(key) != keep:
+                cat[key] = keep
+                cfgmod.write_settings(now_cfg)
     except Exception as e:
         import sys
         print(f"[models] không ghi được catalog {key}: {e}", file=sys.stderr)
 
 
-def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
+def _vi_sao_khong_co_model(provider: str, m: dict, cause: str = "") -> str:
     """Vì sao provider này không trả về model nào - viết cho NGƯỜI ĐỌC, không phải log.
 
     Hầu hết đường lấy model hỏng theo kiểu IM LẶNG: hàm trả None chứ không ném lỗi, nên phía
@@ -8135,22 +8259,26 @@ def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
                              "xem lỗi cụ thể.",
                              "Could not reach Ollama at the saved address. Open the Models page, Local Model "
                              "tab, to see the exact error.")
-    if provider == "openai-compat":
-        if not (m.get("openai_compat_base") or "").strip():
-            return localefmt.chu("Chưa đặt Base URL cho OpenAI Compatible.",
-                                 "No Base URL set for OpenAI Compatible.")
-        return localefmt.chu("Không đọc được danh sách model từ {base}/models. Kiểm tra Base URL (tính tới /v1) "
-                             "và key, hoặc gõ tên model bằng tay.",
-                             "Could not read the model list from {base}/models. Check the Base URL (up to /v1) "
-                             "and the key, or type the model name by hand.")
-    if provider == "anthropic-compat":
-        if not (m.get("anthropic_compat_base") or "").strip():
-            return localefmt.chu("Chưa đặt Base URL cho Anthropic Compatible.",
-                                 "No Base URL set for Anthropic Compatible.")
-        return localefmt.chu("Cổng này không trả danh sách model. Vào trang Models, thẻ Anthropic Compatible, "
-                             "gõ tên model bên bán đưa rồi bấm Lưu.",
-                             "This gateway does not list its models. On the Models page, Anthropic Compatible "
-                             "card, type the model name the seller gave you and press Save.")
+    if provider in adv_keys.PROVIDERS:
+        card = _card_label(d)
+        base = (m.get(adv_keys._SPEC[provider]["legacy"] + "_base") or "").strip()
+        if not base:
+            return localefmt.chu(f"Chưa đặt Base URL cho {card}.", f"No Base URL set for {card}.")
+        host, why = adv_keys.host(base), (f" ({cause})" if cause else "")
+        where = localefmt.chu(f"Mở trang Models, thẻ {card}, bấm dấu ba chấm cạnh key rồi chọn Sửa",
+                              f"Open the Models page, {card} card, press the three dots next to the key and choose Edit")
+        if cause in ("HTTP 401", "HTTP 403"):
+            return localefmt.chu(f"{host} từ chối API key{why}. {where}, dán lại key.",
+                                 f"{host} refused the API key{why}. {where}, then paste the key again.")
+        if provider == adv_keys.OPENAI:
+            return localefmt.chu(
+                f"{host} không trả danh sách model{why}. {where}: kiểm tra Base URL đã tính tới /v1 chưa, hoặc gõ "
+                "tên model bên bán đưa.",
+                f"{host} did not return a model list{why}. {where}: check that the Base URL goes up to /v1, or "
+                "type the model name the seller gave you.")
+        return localefmt.chu(
+            f"{host} không trả danh sách model{why}. {where}, gõ tên model bên bán đưa.",
+            f"{host} did not return a model list{why}. {where}, then type the model name the seller gave you.")
     if d.get("key_field") and not m.get(d["key_field"]):
         return localefmt.chu("Chưa có API key cho nhà cung cấp này.", "No API key for this provider yet.")
     return ""
@@ -8174,13 +8302,33 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
     c = _PROV_MODELS_CACHE.get(provider)
     if not refresh and c and (now - c["ts"]) < 600 and c.get("ids"):
         return {"models": c["ids"], "live": True, "cached": True}
+    is_gateway = provider in adv_keys.PROVIDERS
+    asked_base = (m.get(adv_keys._SPEC[provider]["legacy"] + "_base") or "") if is_gateway else ""
+    cause = ""
     try:
         ids = await _fetch_provider_models(provider, m)
+    except _NoModelList as e:
+        ids, last_err, cause = None, None, str(e)
     except Exception as e:
         ids = None
         last_err = f"{type(e).__name__}: {e}"
+        code = getattr(getattr(e, "response", None), "status_code", 0)
+        cause = f"HTTP {code}" if code else type(e).__name__
     else:
         last_err = None
+    if is_gateway:
+        # A gateway card: the raw exception text means nothing to the person choosing a model, so the reason is
+        # always the sentence that says what to do. And the card may have moved to another gateway while this one
+        # was being asked (a key added, removed, rotated): its list must not be kept under the new gateway's name.
+        m_now = cfgmod.read_settings().get("model", {})
+        moved = (m_now.get(adv_keys._SPEC[provider]["legacy"] + "_base") or "") not in (
+            asked_base, *[u[1] for u in _openai_list_urls(asked_base)])
+        if ids and not moved:
+            _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
+            _remember_catalog(cfg, d, ids)
+        if ids:
+            return {"models": ids, "live": True}
+        return {"models": fallback, "live": False, "error": _vi_sao_khong_co_model(provider, m_now, cause)}
     if ids:
         _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
         _remember_catalog(cfg, d, ids)
@@ -23452,27 +23600,16 @@ async def openai_compat_connect(request: Request):
     if not key and old and base == old["base"]:
         key = old["key"]
     headers = {"Authorization": f"Bearer {key or 'none'}"}
-    live, why = [], ""
-    try:
-        async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.get(base + "/models", headers=headers)
-        if r.status_code in (401, 403):
-            return {"ok": False, "error": localefmt.chu(f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì.",
-                                                        f"Invalid API key (HTTP {r.status_code}). Nothing was saved.")}
-        if r.status_code == 200:
-            try:
-                body = r.json()
-                rows = body.get("data") if isinstance(body, dict) else body
-                live = sorted({x.get("id") for x in (rows or []) if isinstance(x, dict) and x.get("id")})
-            except Exception:
-                live = []
-        else:
-            why = f"HTTP {r.status_code}"
-    except Exception as e:
-        why = type(e).__name__
+    got = await _openai_list_models(base, key)
+    if got["status"] in (401, 403):
+        return {"ok": False, "error": localefmt.chu(f"API key không hợp lệ (HTTP {got['status']}). Chưa lưu gì.",
+                                                    f"Invalid API key (HTTP {got['status']}). Nothing was saved.")}
+    live, why = sorted(got["ids"]), got["why"]
+    if live:
+        base = got["base"]   # the list was under {base}/v1: that is the address chat needs too
     if not live:
         if not typed:
-            if why and not why.startswith("HTTP"):
+            if not got["status"]:
                 return {"ok": False, "error": localefmt.chu(f"Không gọi được {base}/models ({why}). Kiểm tra lại Base URL.",
                                                             f"Could not reach {base}/models ({why}). Check the Base URL.")}
             # The box for model names stays hidden until a seller turns out to list none (same rule as Claude
@@ -23496,10 +23633,12 @@ async def openai_compat_connect(request: Request):
         if r.status_code in (401, 403):
             return {"ok": False, "error": localefmt.chu(f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì.",
                                                         f"Invalid API key (HTTP {r.status_code}). Nothing was saved.")}
-        if r.status_code == 404:
-            return {"ok": False, "error": localefmt.chu(f"Không thấy {url} (HTTP 404). Base URL phải tính tới /v1, "
+        # A gateway whose website answers every unknown path with a page says 200 here too: only a JSON reply is
+        # the API. Saving on that page made the card "Connected" with an address no chat turn could use.
+        if r.status_code == 404 or (r.status_code == 200 and _is_web_page(r)):
+            return {"ok": False, "error": localefmt.chu(f"Không thấy API ở {url}. Base URL phải tính tới /v1, "
                                                         "ví dụ https://api.example.com/v1.",
-                                                        f"{url} not found (HTTP 404). The Base URL must include /v1, "
+                                                        f"No API found at {url}. The Base URL must include /v1, "
                                                         "for example https://api.example.com/v1.")}
         if r.status_code not in (200, 429, 529):   # 429/529: key and model accepted, the gateway is only busy
             return {"ok": False, "error": localefmt.chu(f"Cổng trả HTTP {r.status_code} khi thử model {typed[0]}: {r.text[:160]}",
@@ -23568,7 +23707,7 @@ async def anthropic_compat_connect(request: Request):
             return {"ok": False, "error": localefmt.chu(f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì.",
                                                         f"Invalid API key (HTTP {r.status_code}). Nothing was saved.")}
         if r.status_code == 200:
-            live = [x.get("id") for x in (r.json().get("data") or []) if isinstance(x, dict) and x.get("id")]
+            live = _model_ids(r.json())
     except Exception:
         live = []   # no list is normal here; the message check below decides
     if not live:
@@ -23592,10 +23731,10 @@ async def anthropic_compat_connect(request: Request):
         if r.status_code in (401, 403):
             return {"ok": False, "error": localefmt.chu(f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì.",
                                                         f"Invalid API key (HTTP {r.status_code}). Nothing was saved.")}
-        if r.status_code == 404:
-            return {"ok": False, "error": localefmt.chu(f"Không thấy {url} (HTTP 404). Kiểm tra Base URL bên bán đưa, "
+        if r.status_code == 404 or (r.status_code == 200 and _is_web_page(r)):   # a web page is not the API
+            return {"ok": False, "error": localefmt.chu(f"Không thấy API ở {url}. Kiểm tra Base URL bên bán đưa, "
                                                         "thường có dạng https://ten-mien.com hoặc https://ten-mien.com/anthropic.",
-                                                        f"{url} not found (HTTP 404). Check the Base URL the seller gave you, "
+                                                        f"No API found at {url}. Check the Base URL the seller gave you, "
                                                         "usually https://domain.com or https://domain.com/anthropic.")}
         # 429/529: the key and the model were accepted, the gateway is only busy right now.
         if r.status_code not in (200, 429, 529):

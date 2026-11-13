@@ -3917,6 +3917,7 @@
         }
         return;
       }
+      forgetModelLists();
       await freshSettings();
       renderModelsCloudTab(el);
     };
@@ -3944,6 +3945,7 @@
         }
         return;
       }
+      forgetModelLists();
       await freshSettings();
       renderModelsCloudTab(el);
     };
@@ -4400,6 +4402,7 @@
         if (r && r.need_models) box("models").focus();
         return (r && r.error) || t("app.err_cap");
       }
+      forgetModelLists();
       setTimeout(c.again, 0);
     }, t(GW_TEXT[ADV].add));
     el.querySelectorAll('.ord-acct[data-dnd^="adv:"]').forEach(li => {
@@ -4812,6 +4815,7 @@
         if (o.cho.length) Promise.all(o.cho).then(() => { if (openPop && openPop.el === pop) draw(); });
       };
       sh.body.onclick = (e) => {
+        if (e.target.closest("[data-goto]")) { closePop(); return; }   // "fix it on the Models page": this IS that page
         if (e.target.closest("[data-bgauto]")) { closePop(); save({ auxiliary: { auto: true } }); return; }
         const it = e.target.closest(".mb-item[data-model]");
         if (it) { closePop(); save({ auxiliary: { provider: it.dataset.prov, model: it.dataset.model } }); return; }
@@ -7679,8 +7683,15 @@
     // Đổi model ở trang Models mà thanh model trong chat không đổi theo: hai chỗ đó đọc
     // /settings ở hai thời điểm khác nhau và không ai báo cho ai. Làm mới ngay tại đây để
     // mọi đường đổi model đều đồng bộ, thay vì nhớ gọi ở từng nút.
-    if (section === "model") refreshModelUi();
+    if (section === "model") { forgetModelLists(); refreshModelUi(); }
     return res;
+  }
+
+  // The model lists the pickers keep (model-list.js) belong to the keys and gateways as they WERE. After the Models
+  // page changes one (a gateway connected, edited, switched off, removed) the next open of a picker must ask again,
+  // or it shows the old list, or the old "no model list", for minutes after the fix (2026-11-13).
+  function forgetModelLists() {
+    try { if (window.JavisModelList) window.JavisModelList.clearCache(); } catch (e) {}
   }
 
   // Đồng bộ mọi chỗ hiển thị model: thanh chọn model dưới khung chat và badge engine trên

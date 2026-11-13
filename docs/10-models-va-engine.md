@@ -243,7 +243,7 @@ Javis chỉ lưu khi kiểm tra thành công, nên thấy báo lỗi tức là c
 |---|---|---|
 | API key không hợp lệ (HTTP 401) hoặc (HTTP 403) | Key sai, hết hạn hoặc bị khoá | Chép lại key (không thừa dấu cách), hoặc xin bên bán key mới |
 | Cổng này không trả danh sách model | Chưa điền tên model | Điền tên model bên bán đưa rồi bấm Kết nối lại |
-| Không thấy .../v1/messages (HTTP 404) | Base URL chưa đúng | Hỏi lại bên bán địa chỉ cổng Anthropic; hay gặp nhất là lấy nhầm địa chỉ cổng OpenAI |
+| Không thấy API ở .../v1/messages | Base URL chưa đúng | Hỏi lại bên bán địa chỉ cổng Anthropic; hay gặp nhất là lấy nhầm địa chỉ cổng OpenAI |
 | Cổng trả HTTP 400 khi thử model ... | Thường là tên model sai, hoặc gói không có model đó | Kiểm tra chính tả tên model, hoặc hỏi bên bán tên đúng |
 | Không gọi được ... | Máy chạy Javis không tới được địa chỉ đó | Kiểm tra Base URL, mạng, hoặc hỏi bên bán cổng còn chạy không |
 

@@ -96,7 +96,9 @@ check("vẫn còn lựa chọn Mặc định (khoá i18n studio.model_default)",
 // 0.64.64: lỗi mạng khi làm mới NGẦM thì giữ danh sách cũ; chỉ khi chưa từng có gì mới ghi
 // mảng rỗng. Vẫn là "nuốt lỗi, không ném".
 check("model-list.js nuốt lỗi mạng của một nhà, trả mảng rỗng",
-  /\.catch\(\(\) => \{ if \(!CACHE\[pid\]\) CACHE\[pid\] = \{ models: \[\], ts: Date\.now\(\) \}; \}\)/.test(LIST));
+  // 2026-11-13: the catch now RETURNS the entry (the list in hand, else an empty one) and one place stores it;
+  // tests/js/test_model_list_empty_reason.js runs both cases for real.
+  /\.catch\(\(\) => \{[\s\S]{0,400}c && c\.models\.length \? \{ models: c\.models, ts: Date\.now\(\), why: "" \} : \{ models: \[\], ts: Date\.now\(\), why: "" \}/.test(LIST));
 check("Codex vẫn ép lấy danh sách live (catalog của nó vốn rỗng)",
   LIST.indexOf('pid === "openai-oauth" ? "&refresh=1"') !== -1);
 check("CANARY: studio KHÔNG còn tự gọi /provider/models (đã uỷ cho model-list.js, nạp lười)",
