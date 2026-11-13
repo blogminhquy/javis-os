@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.557.1] - 2026-11-13
+### Sửa lỗi
+- **Javis không còn biến mất (lỗi 404) sau khi cập nhật.** Trên VPS ổ đĩa chậm, Watchtower hết giờ đúng lúc đang xoá container cũ, bỏ dở mà không dựng bản mới, nên Javis mất hẳn khỏi Docker cho tới khi Redeploy.
+- Thêm container canh gác `javis-guard`: thấy Javis biến mất hay bị dừng giữa chừng quá 2 phút là tự dựng lại (lên đúng bản mới) hoặc bật lại. Javis anh tự bấm dừng thì nó để yên.
+- Mỗi lần cập nhật bằng nút bấm có 30 phút thay vì 10. Cần Redeploy một lần để nhận file compose mới.
+
 ## [0.557.0] - 2026-11-13
 ### Thêm mới
 - **Project tự học ngữ cảnh.** Trong lúc làm việc ở một project, Javis tự ghi lại điều bền và riêng của project (sự thật, quyết định đã chốt, thuật ngữ) và dùng lại ở mọi cuộc sau trong project. Xem, sửa, xoá ở tab mới "Đã học". Ô Hướng dẫn vẫn là của bạn: Javis chỉ sửa khi bạn bảo thẳng.

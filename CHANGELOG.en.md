@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.557.1] - 2026-11-13
+### Fixed
+- **Javis no longer vanishes (404) after an update.** On a VPS with a slow disk, Watchtower ran out of time while deleting the old container and gave up without creating the new one, so Javis was gone from Docker until a Redeploy.
+- New `javis-guard` container: when Javis has been gone or stopped halfway for 2 minutes, it creates it again (on the new version) or starts it again. A Javis you stop yourself is left alone.
+- An update from the button now gets 30 minutes instead of 10. Redeploy once to get the new compose file.
+
 ## [0.557.0] - 2026-11-13
 ### Added
 - **Projects learn their own context.** While working in a project, Javis notes what is durable and specific to it (facts, settled decisions, terms) and uses it in every later chat of the project. Read, edit and delete them in the new "Learned" tab. The Instructions box stays yours: Javis changes it only when you say so.
