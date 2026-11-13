@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.555.0] - 2026-11-13
+### Added
+- **The Windows installer announces every change it makes.** A page before the install lists what will be downloaded and installed (Javis, Git, Python, Node.js, the AI tools), with the privacy statement and how to uninstall.
+- **Two new choices in the installer.** "Start when I sign in to Windows" and "install the AI command-line tools" can be unticked. Left alone, the installer does what it did before.
+- **A code signing policy and a privacy policy.** They state that Javis has no tracking, sends no usage statistics, and on its own only downloads public files to check for updates.
+- **Ready for free code signing through SignPath Foundation.** The signing step in the installer build is wired and switched off; it turns on once SignPath accepts the project. The installer is still unsigned today.
+
 ## [0.554.0] - 2026-11-13
 ### Improved
 - **The suggestion no longer vanishes at the first key you type.** Type along the suggestion and the rest stays in grey right after your text, even without accents or halfway through a word. Press **Tab** to take the rest, or **Right Arrow** to take one word. On a phone the Tab button is gone from the button row: a small **>** stands right after the last word of the suggestion, and a tap on it takes the suggestion.
