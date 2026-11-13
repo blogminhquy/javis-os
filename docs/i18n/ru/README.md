@@ -119,7 +119,7 @@ Javis OS **не** чат-бот. Это **самостоятельно разм�
 | **Работа** | Отвечает и ждёт | **Фоновые циклы (loops), напоминания и очередь задач под управлением ИИ**, которые отчитываются перед вами |
 | **Интерфейс** | Окно чата | Панель + граф знаний + **голос без рук** + Telegram, Slack, WhatsApp, Zalo + CLI |
 | **Ваша работа** | Остаётся на серверах поставщика, в формате поставщика | **Обычные файлы на вашей машине**: история, память, skills, агенты и workflows переходят к любой новой модели |
-| **Развёртывание** | Чужое облако | **Self-hosted**: [Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) в один клик, Docker или любой VPS |
+| **Развёртывание** | Чужое облако | **Self-hosted**: [Hostinger](https://www.hostinger.com?REFERRALCODE=JAVISOS) в один клик, Docker или любой VPS |
 
 > 💡 **Философия: возможности живут в Javis, а не в модели.** Каждый мозг получает один и тот же набор инструментов через общий хаб подключений (MCP Hub). Переход с Claude на Gemini ничего вам не стоит, кроме доступа к shell, который есть только у CLI-движков.
 
@@ -249,7 +249,7 @@ flowchart LR
 <details open>
 <summary><b>Вариант 1: Hostinger Docker Manager (домен + HTTPS, в один клик)</b></summary>
 
-> 🛒 **Ещё нет VPS?** [Возьмите VPS на Hostinger здесь](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager там встроен, поэтому Javis ставится в один клик. Когда VPS будет готов, вернитесь к шагам ниже.
+> 🛒 **Ещё нет VPS?** [Возьмите VPS на Hostinger здесь](https://www.hostinger.com?REFERRALCODE=JAVISOS). Docker Manager там встроен, поэтому Javis ставится в один клик. Когда VPS будет готов, вернитесь к шагам ниже.
 
 Hostinger VPS → **Docker Manager → Compose → URL** → вставьте файл для Hostinger и нажмите **Deploy**:
 
@@ -277,7 +277,7 @@ https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hosti
 <details>
 <summary><b>Вариант 2: Docker на любом VPS (клонировать не нужно)</b></summary>
 
-> 🛒 **Нужен VPS?** [VPS на Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) подходит и для этого варианта.
+> 🛒 **Нужен VPS?** [VPS на Hostinger](https://www.hostinger.com?REFERRALCODE=JAVISOS) подходит и для этого варианта.
 
 ```bash
 # Docker required (don't have it?  curl -fsSL https://get.docker.com | sh)

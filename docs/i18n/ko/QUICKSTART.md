@@ -22,7 +22,7 @@ Javis를 일반 앱처럼 설치하세요. 파일 하나를 내려받아 열면 
 
 ## 방법 1 - Hostinger VPS (Docker Manager, 원클릭)
 
-> 🛒 **아직 VPS가 없나요?** [여기서 Hostinger VPS 신청하기](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager가 기본 탑재되어 있어 Javis를 원클릭으로 설치합니다. 준비되면 아래 단계로 돌아오세요.
+> 🛒 **아직 VPS가 없나요?** [여기서 Hostinger VPS 신청하기](https://www.hostinger.com?REFERRALCODE=JAVISOS). Docker Manager가 기본 탑재되어 있어 Javis를 원클릭으로 설치합니다. 준비되면 아래 단계로 돌아오세요.
 
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**.
 2. 다음 URL을 붙여 넣습니다.
@@ -41,7 +41,7 @@ Javis를 일반 앱처럼 설치하세요. 파일 하나를 내려받아 열면 
 
 ## 방법 2 - 아무 컴퓨터나 VPS에서 Docker로
 
-> 🛒 **VPS가 필요하신가요?** 이 방법도 [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)에서 동작합니다.
+> 🛒 **VPS가 필요하신가요?** 이 방법도 [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=JAVISOS)에서 동작합니다.
 
 ```
 docker compose -f docker-compose.yml up -d

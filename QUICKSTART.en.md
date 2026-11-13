@@ -36,7 +36,7 @@ If you already downloaded the file with the browser and it was blocked:
 
 ## Option 1 - Hostinger VPS (Docker Manager, one click)
 
-> 🛒 **No VPS yet?** [Get a Hostinger VPS here](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager comes built in, so Javis installs in one click. Once it is ready, come back to the steps below.
+> 🛒 **No VPS yet?** [Get a Hostinger VPS here](https://www.hostinger.com?REFERRALCODE=JAVISOS). Docker Manager comes built in, so Javis installs in one click. Once it is ready, come back to the steps below.
 
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**.
 2. Paste this URL:
@@ -57,7 +57,7 @@ To update: press **⬆ Update now** in the app (Updates page), or **Redeploy** i
 
 ## Option 2 - Docker on any machine or VPS
 
-> 🛒 **Need a VPS?** A [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) runs this option too.
+> 🛒 **Need a VPS?** A [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=JAVISOS) runs this option too.
 
 ```
 docker compose -f docker-compose.yml up -d
