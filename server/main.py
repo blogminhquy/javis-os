@@ -13831,7 +13831,11 @@ def _dm_lessons_prompt(brain, slug, conv_sid) -> str:
     except Exception as _e:   # noqa: BLE001
         print(f"[dm lessons block] {type(_e).__name__}: {_e}", file=sys.stderr)
         block = ""
-    return agent_lessons.DM_LESSON_RULE + (("\n" + block + "\n") if block else "")
+    # 2026-11-13: in a private chat the assistant also keeps its own documents in order (tool javis_project
+    # agent=<slug>). Here, in the block both compositions share (`_agent_turn_system_prompt` and the dashboard turn),
+    # so the dashboard, the CLI and Telegram turns stay identical.
+    return (agent_lessons.DM_LESSON_RULE + (("\n" + block + "\n") if block else "")
+            + project_context.AGENT_GUIDE.format(slug=slug))
 
 
 def _dm_agent_key(brain, slug, conv_sid="", register=False):
@@ -20348,9 +20352,7 @@ async def _chat_socket(ws):
                             _agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid, skill_served=skill_served)
                             + _session_block(conv_sid)
                             + _dm_feedback_prompt(brain, _persona[1], conv_sid)
-                            + _dm_lessons_prompt(brain, _persona[1], conv_sid)
-                            # 2026-11-13: the assistant keeps its own documents (tool javis_project agent=<slug>).
-                            + project_context.AGENT_GUIDE.format(slug=_persona[1]))
+                            + _dm_lessons_prompt(brain, _persona[1], conv_sid))
                     else:
                         _legacy_prompts[_key] = build_system_prompt(
                             brain, lang=_lang_qd, project_id=_row0.get("project_id") or "",

@@ -336,8 +336,9 @@ finally:
 check("in a private chat with an assistant, no target argument is needed", "trợ lý \"Viết bài\"" in out, out)
 check("the private chat with an assistant is told it keeps its own documents",
       'agent="{slug}"' in PC.AGENT_GUIDE and "op=add_file" in PC.AGENT_GUIDE)
-check("and that line is in the assistant chat prompt, nowhere else",
-      "project_context.AGENT_GUIDE.format(slug=_persona[1])" in (SERVER / "main.py").read_text(encoding="utf-8"))
+check("and that line rides the block every private-chat composition shares (dashboard, CLI, Telegram)",
+      'agent="viet-bai"' in main._dm_lessons_prompt(str(BR), "viet-bai", "")
+      and 'agent="viet-bai"' in main._agent_turn_system_prompt(str(BR), "viet-bai", ""))
 check("a description without its document is cleaned away on the next write of the file",
       agent_assets.describe({"assets": {"files": [{"id": "x", "path": "a.md"}], "links": []}}, "file", "b.md", "t")[1] is False)
 
