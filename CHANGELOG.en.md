@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.555.3] - 2026-11-13
+### Fixed
+- **The OpenAI Compatible and Claude Compatible cards no longer say "Could not load the model list" by mistake.** Javis reads the model list of more kinds of gateways, and a Base URL typed without `/v1` finds the right address on its own. A machine upgraded from an older version gets its models back too.
+- **A model name you typed always stays in the picker**, even when the gateway has its own list or stops listing for a while.
+- **When there really is no list, the picker says why** (wrong address, refused key, a gateway that lists nothing) with a link to the Models page to fix it. After the fix the list shows on the next open, with no wait of several minutes.
+- **A key you just connected no longer disappears** when Javis happened to be loading another card's model list at that moment.
+
 ## [0.555.2] - 2026-11-13
 ### Fixed
 - **A group no longer shows one person's profile.** The note box of a Zalo group used to show the profile of whoever wrote first in it, as if the whole group were one customer. A group now has its own note, and editing it touches nobody's profile.
