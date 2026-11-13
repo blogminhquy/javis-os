@@ -1,0 +1,30 @@
+JAVIS OS Setup: what this installer does
+
+JAVIS OS is open source (MIT license):
+https://github.com/blogminhquy/javis-os
+
+CHANGES ON THIS COMPUTER
+
+1. Downloads the JAVIS OS source code from GitHub into the folder "JavisOS" inside your user folder. Your notes, memory and settings are kept in that folder too.
+
+2. Installs Git, Python and Node.js if they are missing (through winget, or from git-scm.com, python.org and nodejs.org). Windows may ask for permission once.
+
+3. Installs the Python libraries Javis needs, inside the JavisOS folder.
+
+4. If the option on the next page stays ticked: installs four AI command-line tools from their own vendors: Claude Code (Anthropic), Codex (OpenAI), Antigravity CLI (Google) and Grok Build (xAI). They are separate products with their own licenses and privacy policies. Javis also works without them, with an API key.
+
+5. If the option on the next page stays ticked: starts JAVIS OS when you sign in to Windows.
+
+6. Adds JAVIS OS to the Start menu and, if ticked, to the Desktop.
+
+PRIVACY
+
+JAVIS OS runs on your own computer. It has no tracking and sends no usage statistics. It does not transfer information to other networked systems unless you ask it to. For example, the AI provider you choose receives the messages you send it, and a connection you add (Telegram, Zalo, Google and so on) exchanges data with that service.
+
+On its own, Javis only downloads public files from GitHub and PyPI to see whether an update exists, and keeps the AI command-line tools up to date through their vendors' own updaters.
+
+Full text: https://github.com/blogminhquy/javis-os/blob/main/PRIVACY.md
+
+REMOVING IT
+
+Windows Settings, Apps, "JAVIS OS", Uninstall. Your JavisOS folder (notes, memory, settings) is kept until you delete it yourself. Git, Python and Node.js are separate programs: remove them from the same Apps list if you no longer need them.

@@ -23,6 +23,8 @@ Clicking the icon opens Javis in its own window (no address bar), Javis starts w
   curl -fsSL https://raw.githubusercontent.com/blogminhquy/javis-os/main/packaging/macos/get-javis.sh | bash
   ```
 
+What the installers change on your computer, who signs them and what Javis sends where: [Code signing policy](docs/code-signing-policy.md) · [Privacy policy](PRIVACY.md).
+
 If you already downloaded the file with the browser and it was blocked:
 - Edge or Chrome says "JavisOS-Setup.exe isn't commonly downloaded" and does not save the file: in the Downloads box, hover over that line, click the three dots, choose **Keep**, then **Show more** and **Keep anyway**.
 - Windows shows "Windows protected your PC": click **More info**, then **Run anyway**.

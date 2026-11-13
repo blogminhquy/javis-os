@@ -352,6 +352,8 @@ Danh sách đầy đủ mọi biến: [docs/16 - Cấu hình .env](../../../docs
 - **Plugin do bạn cài được tải mặc định, nhưng từng plugin vẫn tắt cho tới khi bạn bật nó trong app**; đặt `JAVIS_ENABLE_USER_PLUGINS=false` nếu muốn tắt hết.
 - Truy cập từ xa nên qua **HTTPS** (Hostinger `*.hstgr.cloud` hoặc Cloudflare Tunnel) - đừng phơi cổng thô.
 
+[Code signing policy](../../code-signing-policy.md) (chính sách ký số bộ cài) · [Privacy policy](../../../PRIVACY.md) (chính sách quyền riêng tư)
+
 ---
 
 ## 🔄 Cập nhật

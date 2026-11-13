@@ -41,6 +41,8 @@ jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 60
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -74,7 +76,8 @@ jobs:
             Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/Vietnamese.isl" -OutFile packaging/windows/Vietnamese.isl -UseBasicParsing
           } catch { Write-Host "Vietnamese.isl unavailable, building English only: $($_.Exception.Message)" }
 
-      # Code signing is OPTIONAL and off until the owner adds two repository secrets:
+      # Code signing with the project's OWN certificate file. OPTIONAL and off until the owner adds
+      # two repository secrets (the free route through SignPath is the sign-windows job below):
       #   WINDOWS_CERT_PFX_BASE64  the code signing certificate (.pfx) as base64
       #   WINDOWS_CERT_PASSWORD    its password
       # With them, Inno Setup signs both the setup .exe and its uninstaller (SignTool=javis in
@@ -168,7 +171,9 @@ jobs:
           if ($text.Contains("CLIXML")) { throw "CLIXML leaked into the wizard log" }
           if (-not (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\JAVIS OS\bootstrap.ps1"))) { throw "bootstrap.ps1 not installed" }
 
+      # SignPath signs this very artifact, by its id: it checks that the file came out of this run.
       - uses: actions/upload-artifact@v4
+        id: upload
         with:
           name: JavisOS-Setup
           path: dist/JavisOS-Setup.exe
@@ -225,18 +230,97 @@ jobs:
           path: dist/JavisOS-macOS.dmg
           if-no-files-found: error
 
+  # Free code signing for open source through SignPath Foundation: the policy, and what the owner
+  # sets up once, are in docs/code-signing-policy.md. The job is OFF until these exist:
+  #   secret    SIGNPATH_API_TOKEN
+  #   variable  SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG, SIGNPATH_SIGNING_POLICY_SLUG
+  #   variable  SIGNPATH_ARTIFACT_CONFIGURATION_SLUG (optional: the project's default otherwise)
+  # Only from main, and only when the publish job is about to replace the .exe: every request
+  # waits for a person to approve it at SignPath, so a run that keeps the published file must
+  # not ask. SignPath takes the unsigned .exe from the windows job's artifact and hands back the
+  # signed one. A request nobody approves in two hours fails the job, and nothing is published.
+  sign-windows:
+    needs: [ windows ]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.SIGNPATH_ORGANIZATION_ID != ''
+    runs-on: windows-latest
+    timeout-minutes: 150
+    outputs:
+      signed: ${{ steps.plan.outputs.replace }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Will the published .exe be replaced?
+        id: plan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNED: "true"
+          FORCE: ${{ github.event_name == 'workflow_dispatch' }}
+        run: bash packaging/publish-desktop.sh --plan
+
+      - name: Sign JavisOS-Setup.exe at SignPath (waits for the approval)
+        if: steps.plan.outputs.replace == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ needs.windows.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 7200
+          output-artifact-directory: signed
+
+      - name: Check the signature
+        if: steps.plan.outputs.replace == 'true'
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem signed -Recurse -Filter JavisOS-Setup.exe | Select-Object -First 1
+          if (-not $f) { throw "SignPath returned no JavisOS-Setup.exe" }
+          $sig = Get-AuthenticodeSignature $f.FullName
+          Write-Host "Signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne "Valid") { throw "JavisOS-Setup.exe is not validly signed" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item $f.FullName dist\JavisOS-Setup.exe -Force
+
+      - uses: actions/upload-artifact@v4
+        if: steps.plan.outputs.replace == 'true'
+        with:
+          name: JavisOS-Setup-signed
+          path: dist/JavisOS-Setup.exe
+          if-no-files-found: error
+
   publish:
-    needs: [ windows, macos ]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [ windows, macos, sign-windows ]
+    # always(): sign-windows is skipped until SignPath is set up, and a skipped job would skip
+    # this one too. A FAILED signing still stops the publish: never an unsigned file over a signed one.
+    if: >-
+      always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+      && needs.windows.result == 'success' && needs.macos.result == 'success'
+      && (needs.sign-windows.result == 'success' || needs.sign-windows.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      # By name, never "all artifacts": the signed and the unsigned .exe carry the same file name.
       - uses: actions/download-artifact@v4
         with:
+          name: JavisOS-macOS
           path: out
-          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: JavisOS-Setup
+          path: out
+      - uses: actions/download-artifact@v4
+        if: needs.sign-windows.outputs.signed == 'true'
+        with:
+          name: JavisOS-Setup-signed
+          path: out-signed
+      - name: Take the signed .exe when this run signed one
+        if: needs.sign-windows.outputs.signed == 'true'
+        run: cp -f out-signed/JavisOS-Setup.exe out/JavisOS-Setup.exe
       # The .dmg is replaced every time. The unsigned .exe only when something inside it
       # changed, so its file hash (all that Edge, SmartScreen and antivirus engines know it by)
       # stays the same between installer changes. "Run workflow" by hand always replaces it.
@@ -244,6 +328,6 @@ jobs:
       - name: Publish on the "desktop" release
         env:
           GH_TOKEN: ${{ github.token }}
-          SIGNED: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+          SIGNED: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' || vars.SIGNPATH_ORGANIZATION_ID != '' }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' }}
         run: bash packaging/publish-desktop.sh out
