@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.554.0] - 2026-11-13
+### Improved
+- **The suggestion no longer vanishes at the first key you type.** Type along the suggestion and the rest stays in grey right after your text, even without accents or halfway through a word. Press **Tab** to take the rest, or **Right Arrow** to take one word. On a phone the Tab button is gone from the button row: a small **>** stands right after the last word of the suggestion, and a tap on it takes the suggestion.
+- **Type something else and Javis finishes the sentence.** Pause for a moment and Javis writes the rest of what you are typing, following your new direction, like the predictive text on an iPhone. With an API key on the machine (Groq, OpenAI...) it is almost instant. On a subscription plan alone it takes a few seconds and runs at most 5 times per turn, so it does not eat the allowance.
+- **A long suggestion shows in full.** The chat box grows to show the whole sentence, so a phone no longer cuts it mid line. Works in the main chat and on the Teams page.
+
 ## [0.553.8] - 2026-11-13
 ### Improved
 - **The Tasks page opens much more smoothly.** It used to draw the whole list twice on every opening and build both the wide and the phone layout. Now it draws once, and only the layout on screen. With 170 tasks on a slow machine: the freeze went from 0.45 seconds to about 0.1, and is all but gone on a phone.
