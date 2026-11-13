@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.557.2] - 2026-11-14
+### Fixed
+- **The second GitHub job in a chat no longer gets stuck at the push.** The PR title and branch name now come from the request itself, skipping the dashboard's bracketed context lines, so every job gets its own name. When the name is already used on this machine or on GitHub, Javis adds -2, -3 and pushes, instead of stopping with "has commits this machine lacks, Javis does not overwrite them".
+
 ## [0.557.1] - 2026-11-13
 ### Fixed
 - **Javis no longer vanishes (404) after an update.** On a VPS with a slow disk, Watchtower ran out of time while deleting the old container and gave up without creating the new one, so Javis was gone from Docker until a Redeploy.
