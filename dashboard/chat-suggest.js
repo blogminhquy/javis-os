@@ -5,8 +5,8 @@
  *   - when a turn ends the screen calls ctl.request(context); the server (POST /chat/suggest, server/next_prompt.py)
  *     guesses the owner's next message on the background model;
  *   - the guess shows as the placeholder of the EMPTY box, never as text in it, so nothing is sent by accident;
- *   - Tab (or the chip next to the box: it reads "Tab" on a computer and is a small arrow on a touch screen, owner
- *     2026-11-13 "trên điện thoại thì làm cái mũi tên nhỏ bên phải thôi") fills the box with it; sending drops it.
+ *   - Tab (or the chip next to the box: it reads "Tab" on a computer and is a bare ">" on a touch screen, owner
+ *     2026-11-13 "làm 1 mũi tên nhỏ theo kiểu > thôi, không cần cả nút") fills the box with it; sending drops it.
  *
  * 2026-11-13, a user's wish passed on by the owner: the suggestion vanished at the first key typed. "Gõ đến chữ nào
  * thì đề xuất sau vẫn giữ nguyên để gõ tiếp", and better, "suy đoán tiếp nội dung gõ sau khi người dùng muốn điều
@@ -135,7 +135,7 @@
   function aborter() { return typeof AbortController !== "undefined" ? new AbortController() : null; }
 
   var ARROW = '<svg class="sug-tab-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
 
   // Copied from the box onto the mirror layer so both wrap the same way.
   var MIRROR = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "wordSpacing",
@@ -177,7 +177,7 @@
         chip.type = "button";
         chip.className = "sug-tab";
         chip.hidden = true;
-        // A computer shows the key to press; a touch screen has no Tab key and shows a small arrow (style.css).
+        // A computer shows the key to press; a touch screen has no Tab key and shows a bare ">" (style.css).
         chip.innerHTML = '<span class="sug-tab-key">Tab</span>' + ARROW;
         // Keep the focus in the box: on a phone the keyboard stays up.
         chip.addEventListener("mousedown", function (e) { e.preventDefault(); });

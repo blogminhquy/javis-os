@@ -389,17 +389,19 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
     html.indexOf("/static/chat-suggest.js") > 0 && html.indexOf("/static/chat-suggest.js") < html.indexOf("/static/app.js?v="));
   check("main chat: attached to #chatInput with the chip in the composer row",
     /JavisSuggest\.attach\(\{\s*input: \(\) => chatInput/.test(app) && app.includes('getElementById("cpRow")'));
-  // Owner, 2026-11-13: "trên điện thoại thì làm cái mũi tên nhỏ bên phải thôi là được rồi".
-  check("the chip carries the Tab key name and a small arrow", /class="sug-tab-key">Tab</.test(chip.innerHTML) &&
-    /class="sug-tab-arrow"/.test(chip.innerHTML));
+  // Owner, 2026-11-13: "trên điện thoại thì làm cái mũi tên nhỏ bên phải thôi là được rồi", then "làm 1 mũi tên nhỏ
+  // theo kiểu > thôi, không cần cả nút vậy đâu".
+  check("the chip carries the Tab key name and a small > (one stroke, no shaft)", /class="sug-tab-key">Tab</.test(chip.innerHTML) &&
+    /class="sug-tab-arrow"[^>]*><path d="M9 5l7 7-7 7"\/>/.test(chip.innerHTML));
   const cssTab = fs.readFileSync(path.join(D, "style.css"), "utf8");
   const coarse = cssTab.slice(cssTab.indexOf(".sug-tab-arrow { display: none; }"));
-  check("a touch screen shows only the arrow, small and round; a computer only the word Tab",
-    /@media \(pointer: coarse\) \{\s*\.sug-tab \{ width: 32px; height: 32px;[^}]*border-radius: 50%;/.test(coarse) &&
+  check("a touch screen shows only the >, with no border and no background; a computer only the word Tab",
+    /@media \(pointer: coarse\) \{\s*\.sug-tab \{[^}]*border: 0; background: none;/.test(coarse) &&
     /\.sug-tab-key \{ display: none; \}\s*\.sug-tab-arrow \{ display: block; \}/.test(coarse));
+  check("the > keeps room for a finger around it", /@media \(pointer: coarse\) \{\s*\.sug-tab \{ width: 28px; height: 32px;/.test(coarse));
   check("a hidden chip stays hidden on a touch screen too (its rule outranks the round button)",
     cssTab.includes(".sug-tab[hidden] { display: none; }"));
-  check("main chat: on a touch screen the arrow sits on the right, next to the mic",
+  check("main chat: on a touch screen the > sits on the right, next to the mic",
     /matchMedia\("\(pointer: coarse\)"\)\.matches/.test(app) && app.includes("touch ? gap.nextElementSibling : gap"));
   check("the chip is not shown over the dictation bar", cssTab.includes(".hud-voice.dictating .sug-tab { display: none; }"));
   const kd = app.slice(app.indexOf('chatInput.addEventListener("keydown"'));

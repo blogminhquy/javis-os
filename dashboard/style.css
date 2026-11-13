@@ -1647,8 +1647,9 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cp-chips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; }
 .cp-gap { flex: 1 1 auto; }
 /* Suggested next message (chat-suggest.js, 2026-11-07): the grey placeholder of the empty box IS the suggestion, and
-   this chip fills it in. A computer reads "Tab" on it; a touch screen has no Tab key, so there it is a small round
-   arrow on the right of the composer (owner, 2026-11-13). Main chat and Teams share it. */
+   this chip fills it in. A computer reads "Tab" on it; a touch screen has no Tab key, so there it is only a small ">"
+   on the right of the composer, with no border or background (owner, 2026-11-13: "1 mũi tên nhỏ theo kiểu > thôi,
+   không cần cả nút"). The 32px box around it is just the room for a finger. Main chat and Teams share it. */
 .sug-tab { flex: none; align-self: center; font: 600 12px/1 var(--font); padding: 6px 9px; border-radius: 7px;
   border: 1px solid var(--border); background: var(--bg3); color: var(--text2); cursor: pointer; white-space: nowrap; }
 .sug-tab:hover { border-color: var(--accent); color: var(--accent); }
@@ -1656,8 +1657,9 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .sug-tab[hidden] { display: none; }
 .sug-tab-arrow { display: none; }
 @media (pointer: coarse) {
-  .sug-tab { width: 32px; height: 32px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center;
-    justify-content: center; }
+  .sug-tab { width: 28px; height: 32px; padding: 0; border: 0; background: none; color: var(--text3);
+    display: inline-flex; align-items: center; justify-content: center; }
+  .sug-tab:active { color: var(--accent); }
   .sug-tab-key { display: none; }
   .sug-tab-arrow { display: block; }
 }

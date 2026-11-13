@@ -4725,7 +4725,7 @@ const chatInputComposing = window.JavisActs.trackComposition(chatInput);
 // that goes another way is finished after a short pause. Shared with the Team chat (chat-suggest.js).
 const chatSuggest = window.JavisSuggest ? window.JavisSuggest.attach({
   input: () => chatInput,
-  // A computer: the "Tab" chip follows the model chips. A touch screen: a small arrow on the right, next to the mic
+  // A computer: the "Tab" chip follows the model chips. A touch screen: a small ">" on the right, next to the mic
   // (owner, 2026-11-13).
   chipHost: () => {
     const row = document.getElementById("cpRow"), gap = row && row.querySelector(".cp-gap");
