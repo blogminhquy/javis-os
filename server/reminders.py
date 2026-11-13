@@ -996,7 +996,7 @@ class RemindersFeature:
                 # 0.203.0: the open dashboard rings with this message as an incoming call (dashboard/incoming-call.js).
                 viec["call"] = "1"
             web = msg
-            if mode == "notify":
+            if mode == "notify" and not loi:
                 web = text + (f"\n\n[🔊 Tin thoại]({voice_rel})" if voice_rel else "")
             elif msg.startswith("⚠ "):
                 web = msg[2:]
