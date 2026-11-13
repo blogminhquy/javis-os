@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.553.6] - 2026-11-13
+### Fixed
+- **The Windows installer is no longer replaced for no reason.** `JavisOS-Setup.exe` is not code-signed yet, so browsers and antivirus engines know it by its file hash alone. Any change to an install script (even the Linux one) used to replace the file, and each new file made Edge say "isn't commonly downloaded" from scratch. The file now changes only when the installer itself does.
+- **The quick start explains what to do when the download is blocked.** It adds the **Keep anyway** step for when Edge or Chrome will not save the file, and a one-line install without the .exe for PCs where an antivirus or Smart App Control blocks it.
+
 ## [0.553.5] - 2026-11-13
 ### Improved
 - **Javis opens much faster.** The "Starting Javis…" screen used to stay for a full 4 seconds on any machine with more than one page of chats, although the data was there after about 1 second. Now the app shows as soon as the data arrives. The brain graph is also no longer built in the background when you open straight into Chat or Partners.
