@@ -74,6 +74,14 @@
    A phone's browser cannot hear while another app is in front: that is the system's rule, not ours. The recording
    simply picks up again when the owner comes back, without pressing anything.
 
+   2026-11-13: pressing stop answers at once and the wait after it is shorter (owner: "khi ấn dừng nó rất chậm",
+   "phần đang viết lại câu cho đúng nó rất chậm"). Three waits used to line up one after the other: the browser
+   closing its recognizer (up to 1.5 seconds, during which the bar still looked like recording), then the recorder
+   stopping and its audio going to POST /stt, then the rewrite. Now the bar turns to "transcribing" the moment stop is
+   pressed, and the recorder stops and uploads right then, while the recognizer is still closing. The recording is also
+   made at a speech bitrate (32 kbit/s Opus, not on iOS), about a quarter of the browser's default size, so a long
+   dictation uploads faster. With localStorage "javis.debug.dictate" = "1" the console shows how long each step took.
+
    joinText and buildRun are pure so node tests can run them. */
 (function () {
   "use strict";
@@ -141,6 +149,20 @@
   var END_WAIT_MS = 1500;
   var STT_WAIT_MS = 45000;
 
+  // Speech needs far less than the browser's default recording bitrate (about 128 kbit/s in Chrome): 32 kbit/s Opus
+  // is what voice messages use, the ear hears it just as well, and the upload is about a quarter of the size.
+  // Only where the browser records Opus and not on iOS, whose recorder (AAC in mp4) is left exactly as it was.
+  // `MR` and `nav` are injectable for node tests. Returns undefined for "construct it as before".
+  var SPEECH_BITRATE = 32000;
+  function recorderOptions(MR, nav) {
+    MR = MR || (typeof MediaRecorder !== "undefined" ? MediaRecorder : null);
+    try {
+      if (!MR || isIOS(nav) || typeof MR.isTypeSupported !== "function") return undefined;
+      if (!MR.isTypeSupported("audio/webm;codecs=opus")) return undefined;
+      return { mimeType: "audio/webm;codecs=opus", audioBitsPerSecond: SPEECH_BITRATE };
+    } catch (e) { return undefined; }
+  }
+
   var earKind = null;   // cached answer of GET /voice/ear: "upload", "" (none) or null (not asked yet)
   var earAt = 0;        // asked again after a minute, so a key added on the Models page counts without a reload
   function askEar() {
@@ -197,6 +219,10 @@
     opts = opts || {};
     var rec = null, media = null, stream = null, chunks = [], on = false, spoken = "", cancelled = false;
     var finishing = false;
+    // 2026-11-13: set by stop(). `early` is the recording already on its way to the ear while the recognizer closes;
+    // `busyShown` says the caller was already told "transcribing"; `stopAt` times the steps for the debug line.
+    // `closing`: stop was pressed and the recognizer has not closed yet, so a new recording must not start.
+    var early = null, busyShown = false, stopAt = 0, closing = false;
     // Background (2026-11-08): recorder audio cut off by the phone, a recognizer run parked until the page is visible.
     var segments = [], parked = false, SRnow = null, planNow = null, mime = "audio/webm";
     var state = function (s) { if (opts.onState) opts.onState(s); };
@@ -254,7 +280,10 @@
         stream = s; chunks = [];
         if (meter) opts.onStream(s);
         if (record) {
-          media = new MediaRecorder(s);
+          var ro = recorderOptions();
+          // A browser that refuses the options still records, at its own default.
+          try { media = ro ? new MediaRecorder(s, ro) : new MediaRecorder(s); }
+          catch (e) { media = new MediaRecorder(s); }
           mime = media.mimeType || mime;
           media.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
           media.start();
@@ -301,11 +330,14 @@
 
     function finish() {
       if (finishing) return;
+      closing = false;
       parked = false;
       if (typeof document !== "undefined" && document.removeEventListener) {
         document.removeEventListener("visibilitychange", onVisible);
       }
-      var hadRecorder = !!media || segments.length > 0 || chunks.length > 0;
+      var sent = early;
+      early = null;
+      var hadRecorder = !!sent || !!media || segments.length > 0 || chunks.length > 0;
       on = false;
       if (cancelled || (!hadRecorder && !spoken)) {
         stopRecorder();
@@ -315,9 +347,13 @@
         return;
       }
       finishing = true;
-      state("transcribing");
-      var heard = hadRecorder ? stopRecorder().then(uploadAll) : Promise.resolve("");
+      if (!busyShown) state("transcribing");
+      busyShown = true;
+      if (!stopAt) stopAt = Date.now();
+      // The recording stop() already sent, else stop and send it now (a run that ended by itself).
+      var heard = sent || (hadRecorder ? stopRecorder().then(uploadAll) : Promise.resolve(""));
       heard.then(function (text) {
+        if (debugOn()) { try { console.debug("[dictate] heard after " + (Date.now() - stopAt) + " ms"); } catch (x) {} }
         if (cancelled) return "";
         // The ear's text when there is one, else what the browser heard.
         text = text || spoken;
@@ -325,6 +361,7 @@
         return polish(text);
       }).then(function (text) {
         finishing = false;
+        if (debugOn()) { try { console.debug("[dictate] ready after " + (Date.now() - stopAt) + " ms"); } catch (x) {} }
         if (cancelled) return;   // cancel() already reported idle
         if (text) opts.onText && opts.onText(text, true);
         else err("nothing");
@@ -380,9 +417,10 @@
     }
 
     function start() {
-      if (on || finishing) return;
+      if (on || finishing || closing) return;
       on = true; spoken = ""; cancelled = false; reported = false;
       segments = []; parked = false; planNow = null;
+      early = null; busyShown = false; stopAt = 0; closing = false;
       var SR = recognizer();
       SRnow = SR;
       if (typeof document !== "undefined" && document.addEventListener) {
@@ -463,9 +501,17 @@
         return;
       }
       on = false;
+      stopAt = Date.now();
       if (!rec) { finish(); return; }
       var r = rec;
       try { r.stop(); } catch (e) { rec = null; finish(); return; }
+      // The browser now takes up to END_WAIT_MS to close the recognizer. Do not make the owner watch a running timer
+      // meanwhile, and do not let the recording wait for it either (2026-11-13): show "transcribing" now, and send the
+      // audio to the ear now. finish() picks both up when the recognizer has closed.
+      busyShown = true;
+      closing = true;
+      state("transcribing");
+      if (media || segments.length > 0 || chunks.length > 0) early = stopRecorder().then(uploadAll);
       // iOS sometimes never answers stop() with onend: end the run ourselves, keeping the words heard so far.
       setTimeout(function () {
         if (rec !== r) return;
@@ -489,7 +535,7 @@
     }
 
     return { start: start, stop: stop, cancel: cancel, active: function () { return on; },
-      busy: function () { return finishing; } };
+      busy: function () { return finishing || closing; } };
   }
 
   // A phone, not a tablet: iPhone, iPod or an Android phone. Only computers and tablets show the words in the box while
@@ -545,7 +591,7 @@
   // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
   var api = { create: create, joinText: joinText, buildRun: buildRun, polishText: polishText,
     recentMessages: recentMessages, isPhoneUA: isPhoneUA, plan: plan, isPhone: isPhone, isIOS: isIOS,
-    isAndroid: isAndroid,
+    isAndroid: isAndroid, recorderOptions: recorderOptions,
     ear: function () { return earKind; }, warm: askEar };
   if (typeof window !== "undefined") window.JavisDictate = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
