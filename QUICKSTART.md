@@ -23,6 +23,8 @@ Bấm vào biểu tượng là Javis mở thành cửa sổ riêng (không thanh
   curl -fsSL https://raw.githubusercontent.com/blogminhquy/javis-os/main/packaging/macos/get-javis.sh | bash
   ```
 
+Bộ cài thay đổi gì trên máy, ai ký số, Javis gửi gì đi đâu: [Code signing policy](docs/code-signing-policy.md) · [Privacy policy](PRIVACY.md) (tiếng Anh).
+
 Nếu đã tải file bằng trình duyệt và bị chặn:
 - Edge hoặc Chrome báo "JavisOS-Setup.exe isn't commonly downloaded" và không lưu file: trong ô Downloads, rê chuột vào dòng đó, bấm dấu ba chấm, chọn **Keep**, rồi **Show more** và **Keep anyway**.
 - Windows hiện "Windows protected your PC": bấm **More info** rồi **Run anyway**.

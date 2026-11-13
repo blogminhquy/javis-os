@@ -271,17 +271,20 @@ check("workflow publishes through packaging/publish-desktop.sh on the fixed 'des
 check("workflow publishes only from main", "github.ref == 'refs/heads/main'" in wf)
 check("the desktop release never becomes 'latest'", "--latest=false" in publish)
 check("the publish step knows whether the build was signed, and that 'Run workflow' forces a new .exe",
-      "SIGNED: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}" in wf
+      "SIGNED: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' || vars.SIGNPATH_ORGANIZATION_ID != '' }}" in wf
       and "FORCE: ${{ github.event_name == 'workflow_dispatch' }}" in wf)
 
 # ---- the unsigned .exe keeps its file hash until something inside it changes (2026-11-12) ----
 # Customers: the browser and the antivirus blocked the download. Unsigned, the file is known by
 # its hash alone, and the workflow replaced it on every install.sh / install.ps1 change.
 iss_sources = set(re.findall(r'^Source: "([^"]+)"', iss, re.M))
+info_pages = set(re.findall(r'InfoBeforeFile: "([^"]+)"', iss))
 check("the fingerprint covers every file the installer packs",
       iss_sources == {"bootstrap.ps1", "..\\assets\\javis.ico"}
-      and "packaging/windows/javis-setup.iss packaging/windows/bootstrap.ps1 packaging/assets" in publish,
-      iss_sources)
+      and info_pages == {"before-install.en.txt", "before-install.vi.txt"}
+      and all(f"packaging/windows/{n}" in publish for n in ("javis-setup.iss", "bootstrap.ps1", *sorted(info_pages)))
+      and '"${inputs[@]}" packaging/assets' in publish,
+      (iss_sources, info_pages))
 in_git = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True).returncode == 0
 if shutil.which("bash") and os.name != "nt" and in_git:
     import tempfile  # noqa: E402
@@ -370,6 +373,90 @@ esac
         check("a missing installer stops the publish before anything is uploaded", r.returncode != 0 and not ups, ups)
 r = subprocess.run(["bash", "-n", str(PUBLISH)], capture_output=True, text=True)
 check("bash -n packaging/publish-desktop.sh", r.returncode == 0, r.stderr)
+
+# ---- free code signing through SignPath Foundation, and what its terms ask of the installer (2026-11-13) ----
+# The owner chose the free route. SignPath signs only what was built by this workflow, wants a
+# published code signing policy and privacy policy, and an installer that changes nothing unannounced.
+sign_job = wf.split("\n  sign-windows:", 1)[1].split("\n  publish:", 1)[0]
+publish_job = wf.split("\n  publish:", 1)[1]
+check("signing is off until the SignPath variables exist, and never runs for a pull request",
+      "vars.SIGNPATH_ORGANIZATION_ID != ''" in sign_job.split("runs-on:", 1)[0]
+      and "github.event_name != 'pull_request'" in sign_job.split("runs-on:", 1)[0]
+      and "github.ref == 'refs/heads/main'" in sign_job.split("runs-on:", 1)[0])
+check("CANARY: a signing request is sent only when the publish is going to replace the .exe "
+      "(each request waits for a person to approve it)",
+      "run: bash packaging/publish-desktop.sh --plan" in sign_job
+      and sign_job.count("if: steps.plan.outputs.replace == 'true'") == 3)
+check("SignPath signs the artifact of the windows job of the same run",
+      "signpath/github-action-submit-signing-request@v3" in sign_job
+      and "github-artifact-id: ${{ needs.windows.outputs.artifact-id }}" in sign_job
+      and "artifact-id: ${{ steps.upload.outputs.artifact-id }}" in win_job and "id: upload" in win_job)
+check("the SignPath token is a secret, never a variable or a literal",
+      "api-token: ${{ secrets.SIGNPATH_API_TOKEN }}" in sign_job)
+check("the signed file is checked before it is handed on",
+      "Get-AuthenticodeSignature" in sign_job and 'if ($sig.Status -ne "Valid")' in sign_job)
+check("CANARY: publish picks artifacts by name (signed and unsigned .exe share one file name)",
+      "merge-multiple" not in publish_job and publish_job.count("actions/download-artifact@v4") == 3
+      and "name: JavisOS-Setup-signed" in publish_job
+      and "cp -f out-signed/JavisOS-Setup.exe out/JavisOS-Setup.exe" in publish_job)
+check("CANARY: a failed signing stops the publish, a skipped one does not",
+      "always()" in publish_job and "needs.sign-windows.result == 'success' || needs.sign-windows.result == 'skipped'"
+      in publish_job and "needs.windows.result == 'success' && needs.macos.result == 'success'" in publish_job)
+if shutil.which("bash") and os.name != "nt" and in_git:
+    with tempfile.TemporaryDirectory() as tmp:
+        bindir = os.path.join(tmp, "bin")
+        os.mkdir(bindir)
+        with open(os.path.join(bindir, "gh"), "w") as fh:
+            fh.write("#!/usr/bin/env bash\nexit 1\n")   # no release yet
+        os.chmod(os.path.join(bindir, "gh"), 0o755)
+        gh_out = os.path.join(tmp, "github_output")
+        env = {**os.environ, "PATH": bindir + os.pathsep + os.environ["PATH"], "GITHUB_OUTPUT": gh_out}
+        r = subprocess.run(["bash", str(PUBLISH), "--plan"], cwd=ROOT, env=env, capture_output=True, text=True)
+        check("--plan needs no installer files, uploads nothing and answers in $GITHUB_OUTPUT",
+              r.returncode == 0 and "replace=true" in r.stdout.splitlines()
+              and open(gh_out).read().strip() == "replace=true", r.stderr[-300:])
+
+for name in ("before-install.en.txt", "before-install.vi.txt"):
+    check(f"exists: packaging/windows/{name}", (PK / "windows" / name).exists())
+info_en = (PK / "windows" / "before-install.en.txt").read_bytes()
+info_vi = (PK / "windows" / "before-install.vi.txt").read_bytes()
+check("the English page before the install is ASCII, the Vietnamese one UTF-8 with BOM (Inno reads no other way)",
+      info_en.isascii() and info_vi.startswith(b"\xef\xbb\xbf"))
+for name, page in (("en", info_en.decode("ascii")), ("vi", info_vi.decode("utf-8-sig"))):
+    check(f"the {name} page names every change Setup makes, the privacy statement and how to uninstall",
+          all(w in page for w in ("Git", "Python", "Node.js", "Claude Code", "Codex", "Antigravity", "Grok",
+                                  "Start menu", "PRIVACY.md", "Uninstall", "JavisOS")))
+    check(f"the {name} page has no em/en dash", "\u2014" not in page and "\u2013" not in page)
+check("the AI command-line tools and the start with Windows are tasks the person can untick",
+      'Name: "autostart"; Description: "{cm:AutostartTask}"' in iss and 'Name: "brains"; Description: "{cm:BrainsTask}"' in iss
+      and all(f"{lang}.{k}=" in iss for lang in ("en", "vi") for k in ("AutostartTask", "BrainsTask")))
+check("CANARY: an unticked task reaches install.ps1 (-NoAutostart, -SkipCli)",
+      "if not WizardIsTaskSelected('autostart') then" in boot_exec and "args := args + ' -NoAutostart'" in boot_exec
+      and "if not WizardIsTaskSelected('brains') then" in boot_exec and "args := args + ' -SkipCli'" in boot_exec
+      and "[switch]$NoAutostart" in boot and 'if ($NoAutostart) { $instArgs += " -NoAutostart" }' in boot
+      and "[switch]$NoAutostart" in install_ps1 and "[switch]$SkipCli" in install_ps1)
+policy = (ROOT / "docs" / "code-signing-policy.md").read_text(encoding="utf-8")
+privacy = (ROOT / "PRIVACY.md").read_text(encoding="utf-8")
+check("the code signing policy carries the SignPath wording, the team roles and the privacy statement",
+      "Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by "
+      "[SignPath Foundation](https://signpath.org/)" in policy
+      and "Committers and reviewers" in policy and "Approvers" in policy and "## Privacy policy" in policy
+      and "will not transfer any information to other networked systems unless specifically requested" in policy)
+check("the privacy policy says what Javis fetches on its own, auto-updates included",
+      "pypi.org" in privacy and "raw.githubusercontent.com" in privacy and "JAVIS_CLAUDE_AUTO_UPDATE=0" in privacy
+      and "JAVIS_AGY_AUTO_UPDATE=0" in privacy)
+check("the privacy policy names switches that exist",
+      '_ENV = "JAVIS_CLAUDE_AUTO_UPDATE"' in (ROOT / "server" / "claude_update.py").read_text(encoding="utf-8")
+      and '"JAVIS_AGY_AUTO_UPDATE"' in (ROOT / "server" / "agy_update.py").read_text(encoding="utf-8"))
+for doc, target in (("README.md", "docs/code-signing-policy.md"), ("QUICKSTART.en.md", "docs/code-signing-policy.md"),
+                    ("QUICKSTART.md", "docs/code-signing-policy.md"),
+                    ("docs/i18n/vi/README.md", "../../code-signing-policy.md")):
+    d = (ROOT / doc).read_text(encoding="utf-8")
+    check(f"{doc} links the page under the name 'Code signing policy' (home and download pages must)",
+          f"[Code signing policy]({target})" in d)
+for f in (ROOT / "docs" / "code-signing-policy.md", ROOT / "PRIVACY.md"):
+    t = f.read_text(encoding="utf-8")
+    check(f"{f.name} has no em/en dash", "\u2014" not in t and "\u2013" not in t)
 for doc in ("QUICKSTART.md", "QUICKSTART.en.md"):
     s = (ROOT / doc).read_text(encoding="utf-8")
     check(f"{doc} links the Windows installer", base + "JavisOS-Setup.exe" in s)

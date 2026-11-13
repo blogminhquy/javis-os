@@ -16,6 +16,11 @@
 ; Per user, no admin rights asked by the wizard itself (PrivilegesRequired=lowest). Installing
 ; Git, Python or Node through winget may still show one Windows permission prompt.
 ;
+; Nothing changes on the computer unannounced: a page before the install (before-install.*.txt)
+; lists every change and the privacy statement, and the AI command-line tools and the start with
+; Windows are tasks the person can untick. The SignPath Foundation terms ask for both
+; (docs/code-signing-policy.md).
+;
 ; This file is UTF-8 WITH BOM: Inno Setup reads a file without BOM in the ANSI codepage, and
 ; the Vietnamese messages below would turn into garbage.
 ; ============================================================
@@ -67,13 +72,15 @@ SignedUninstaller=yes
 #endif
 
 [Languages]
-Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "en"; MessagesFile: "compiler:Default.isl"; InfoBeforeFile: "before-install.en.txt"
 #if FileExists(AddBackslash(SourcePath) + "Vietnamese.isl")
-Name: "vi"; MessagesFile: "Vietnamese.isl"
+Name: "vi"; MessagesFile: "Vietnamese.isl"; InfoBeforeFile: "before-install.vi.txt"
 #endif
 
 [CustomMessages]
 en.DesktopIconTask=Put a JAVIS OS icon on the Desktop
+en.AutostartTask=Start JAVIS OS when I sign in to Windows
+en.BrainsTask=Install the AI command-line tools from their vendors (Claude Code, Codex, Antigravity, Grok)
 en.LaunchNow=Open JAVIS OS now
 en.StopApp=Stop JAVIS OS
 en.Bootstrapping=Checking this computer and installing what is missing. This takes a few minutes.
@@ -90,6 +97,8 @@ en.NotFinishedText=One install step did not finish. Run JavisOS-Setup.exe again:
 en.DataKept=JAVIS OS was removed from this computer.%n%nYour brain (notes, memory, settings) is kept in:%n%1%n%nDelete that folder by hand if you want everything gone.
 #if FileExists(AddBackslash(SourcePath) + "Vietnamese.isl")
 vi.DesktopIconTask=Đặt biểu tượng JAVIS OS ra Desktop
+vi.AutostartTask=Tự chạy JAVIS OS khi tôi đăng nhập Windows
+vi.BrainsTask=Cài các công cụ AI dòng lệnh từ chính hãng (Claude Code, Codex, Antigravity, Grok)
 vi.LaunchNow=Mở JAVIS OS ngay
 vi.StopApp=Tắt JAVIS OS
 vi.Bootstrapping=Đang kiểm tra máy và cài những gì còn thiếu. Việc này mất vài phút.
@@ -108,6 +117,9 @@ vi.DataKept=Đã gỡ JAVIS OS khỏi máy.%n%nBộ não của bạn (ghi chú, 
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIconTask}"
+; Both ticked by default, so a silent install (and the CI smoke test) installs what it always did.
+Name: "autostart"; Description: "{cm:AutostartTask}"
+Name: "brains"; Description: "{cm:BrainsTask}"
 
 [Files]
 Source: "bootstrap.ps1"; DestDir: "{app}"; Flags: ignoreversion
@@ -231,6 +243,11 @@ begin
     { -NoPause: nobody can press Enter in a hidden console. }
     args := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\bootstrap.ps1') +
             '" -Dir "' + CodeDir('') + '" -NoPause';
+    { The two tasks the person may have unticked on the Tasks page. }
+    if not WizardIsTaskSelected('autostart') then
+      args := args + ' -NoAutostart';
+    if not WizardIsTaskSelected('brains') then
+      args := args + ' -SkipCli';
     rc := -1;
     try
       ran := ExecAndLogOutput(PowerShellExe, args, '', SW_SHOWNORMAL, ewWaitUntilTerminated, rc, @BootLine);

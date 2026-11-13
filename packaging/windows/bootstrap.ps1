@@ -31,7 +31,8 @@ param(
   [string]$Repo = "https://github.com/blogminhquy/javis-os.git",
   [string]$Branch = "main",
   [string]$LogFile = "",
-  [switch]$SkipCli,   # passed on to install.ps1 (CI smoke test: no third-party CLI installers)
+  [switch]$SkipCli,   # passed on to install.ps1: no third-party CLI installers (wizard task unticked)
+  [switch]$NoAutostart,   # passed on to install.ps1: do not start with Windows (wizard task unticked)
   [switch]$NoPause    # never wait for Enter (CI); the wizard run waits so errors stay readable
 )
 
@@ -181,6 +182,7 @@ Step "C" "Cai Python, Node, cac bo nao AI va thu vien (vai phut, lan dau lau hon
 $inst = Join-Path $Dir "install.ps1"
 $instArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$inst`" -NoStart"
 if ($SkipCli) { $instArgs += " -SkipCli" }
+if ($NoAutostart) { $instArgs += " -NoAutostart" }
 # Not `& powershell ... | Out-Host`: a pipeline waits until the last helper process that
 # install.ps1 left behind lets go of the pipe. Invoke-Capped waits for install.ps1 itself, and
 # its lines still reach the wizard because the child writes to the same output.

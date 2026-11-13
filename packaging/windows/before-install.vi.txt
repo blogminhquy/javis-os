@@ -1,0 +1,30 @@
+﻿JAVIS OS Setup: bộ cài này làm những gì
+
+JAVIS OS là phần mềm mã nguồn mở (giấy phép MIT):
+https://github.com/blogminhquy/javis-os
+
+NHỮNG THAY ĐỔI TRÊN MÁY NÀY
+
+1. Tải mã nguồn JAVIS OS từ GitHub về thư mục "JavisOS" trong thư mục người dùng của bạn. Ghi chú, trí nhớ và cài đặt của bạn cũng nằm trong thư mục đó.
+
+2. Cài Git, Python và Node.js nếu máy chưa có (qua winget, hoặc tải từ git-scm.com, python.org và nodejs.org). Windows có thể hỏi quyền một lần.
+
+3. Cài các thư viện Python mà Javis cần, ngay trong thư mục JavisOS.
+
+4. Nếu giữ dấu tích ở trang kế tiếp: cài bốn công cụ AI dòng lệnh từ chính hãng của chúng: Claude Code (Anthropic), Codex (OpenAI), Antigravity CLI (Google) và Grok Build (xAI). Đây là sản phẩm riêng, có giấy phép và chính sách quyền riêng tư riêng. Không cài thì Javis vẫn chạy được bằng API key.
+
+5. Nếu giữ dấu tích ở trang kế tiếp: JAVIS OS tự chạy khi bạn đăng nhập Windows.
+
+6. Thêm JAVIS OS vào Start menu và, nếu tích chọn, ra Desktop.
+
+QUYỀN RIÊNG TƯ
+
+JAVIS OS chạy trên chính máy của bạn. Không theo dõi, không gửi số liệu sử dụng. Javis không chuyển thông tin sang hệ thống khác trên mạng trừ khi bạn yêu cầu. Ví dụ: nhà cung cấp AI bạn chọn sẽ nhận những tin nhắn bạn gửi cho nó, và một kết nối bạn thêm vào (Telegram, Zalo, Google...) sẽ trao đổi dữ liệu với dịch vụ đó.
+
+Tự nó, Javis chỉ tải các file công khai từ GitHub và PyPI để xem có bản cập nhật hay không, và giữ các công cụ AI dòng lệnh ở bản mới qua trình cập nhật của chính hãng.
+
+Bản đầy đủ (tiếng Anh): https://github.com/blogminhquy/javis-os/blob/main/PRIVACY.md
+
+GỠ CÀI ĐẶT
+
+Windows Settings, Apps, "JAVIS OS", Uninstall. Thư mục JavisOS (ghi chú, trí nhớ, cài đặt) được giữ lại cho đến khi bạn tự xoá. Git, Python và Node.js là chương trình riêng: nếu không cần nữa thì gỡ trong cùng danh sách Apps.

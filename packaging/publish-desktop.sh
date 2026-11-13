@@ -3,15 +3,20 @@
 # JAVIS OS - publish the desktop installers on the fixed "desktop" release.
 #
 #   bash packaging/publish-desktop.sh <folder holding JavisOS-Setup.exe and JavisOS-macOS.dmg>
+#   bash packaging/publish-desktop.sh --plan
 #
 # Called by the publish job of .github/workflows/desktop-installers.yml (needs gh and GH_TOKEN).
+# --plan uploads nothing: it only says whether a publish would replace the .exe ("replace=true"
+# or "replace=false", also written to $GITHUB_OUTPUT). The sign-windows job asks first, because
+# every signing request at SignPath needs a person to approve it.
 #
 # The Windows .exe is replaced ONLY when something inside it changed. It is not code-signed
 # yet, so Edge, SmartScreen and antivirus engines know it by its file hash alone. Every
 # replaced file starts from zero again: "isn't commonly downloaded" in the browser, and an
 # approval from an antivirus vendor (a false positive report) is lost. The workflow also runs
 # for install.ps1, install.sh and the start scripts, which the smoke tests use but the .exe
-# does not carry (it holds bootstrap.ps1, the icon and the wizard pictures, nothing else), and
+# does not carry (it holds bootstrap.ps1, the before-install pages, the icon and the wizard
+# pictures, nothing else), and
 # customers reported the download being blocked while the file was being replaced for those
 # (2026-11-12).
 #
@@ -22,19 +27,26 @@
 # ============================================================
 set -euo pipefail
 
-out="${1:?usage: publish-desktop.sh <folder with the two installers>}"
-exe="$out/JavisOS-Setup.exe"
-dmg="$out/JavisOS-macOS.dmg"
-for f in "$exe" "$dmg"; do
-  [ -f "$f" ] || { echo "missing: $f" >&2; exit 1; }
-done
+mode=publish
+if [ "${1:-}" = "--plan" ]; then
+  mode=plan
+else
+  out="${1:?usage: publish-desktop.sh <folder with the two installers> | --plan}"
+  exe="$out/JavisOS-Setup.exe"
+  dmg="$out/JavisOS-macOS.dmg"
+  for f in "$exe" "$dmg"; do
+    [ -f "$f" ] || { echo "missing: $f" >&2; exit 1; }
+  done
+fi
 v="$(tr -d ' \r\n' < VERSION)"
 
 # Git blob ids of everything javis-setup.iss packs: the same on every runner, whatever the
 # line endings or the checkout time (an Inno build is not byte-for-byte repeatable).
-listing="$(git ls-tree -r HEAD -- packaging/windows/javis-setup.iss packaging/windows/bootstrap.ps1 packaging/assets | grep -v '\.icns$')"
+inputs=(packaging/windows/javis-setup.iss packaging/windows/bootstrap.ps1
+        packaging/windows/before-install.en.txt packaging/windows/before-install.vi.txt)
+listing="$(git ls-tree -r HEAD -- "${inputs[@]}" packaging/assets | grep -v '\.icns$')"
 tab=$'\t'
-for need in packaging/windows/javis-setup.iss packaging/windows/bootstrap.ps1 packaging/assets/javis.ico; do
+for need in "${inputs[@]}" packaging/assets/javis.ico; do
   # A moved file must not turn the fingerprint into a constant that never republishes.
   grep -q "${tab}${need}\$" <<< "$listing" || { echo "installer input not found in git: $need" >&2; exit 1; }
 done
@@ -63,6 +75,14 @@ else
   replace_exe=1
   exe_v="$v"
   echo "JavisOS-Setup.exe: publishing the build from ${v}"
+fi
+
+if [ "$mode" = plan ]; then
+  answer=false
+  if [ "$replace_exe" = 1 ]; then answer=true; fi
+  echo "replace=${answer}"
+  if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "replace=${answer}" >> "$GITHUB_OUTPUT"; fi
+  exit 0
 fi
 
 notes="Desktop installers for JAVIS OS. They install the newest Javis on first run.

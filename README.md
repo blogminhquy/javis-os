@@ -412,6 +412,8 @@ Every line can stay empty and Javis still runs. Copy `env.example` → `.env` an
 
 Found a vulnerability? Please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
+[Code signing policy](docs/code-signing-policy.md) · [Privacy policy](PRIVACY.md)
+
 ---
 
 ## 🔄 Updating
