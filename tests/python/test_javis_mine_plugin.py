@@ -46,7 +46,23 @@ ctx = plugins_host.PluginContext("javis-mine", "bundled", ROOT / "system/plugins
 m.register(ctx)
 tool = ctx._tools[0]
 h = tool["handler"]
-check("tool javis_mytask registered at level safe", tool["name"] == "javis_mytask" and tool["min_mode"] == "safe")
+check("list floor is readonly", tool["name"] == "javis_mytask" and tool["min_mode"] == "readonly")
+check("list allowed in suggest", plugins_host._required_mode(tool, {"op": "list", "scope": "all"}) == "readonly"
+      and plugins_host._min_mode_ok(plugins_host._required_mode(tool, {"op": "list"}), "suggest"))
+for op in ("add", "update", "delete", "skip", "check", "uncheck"):
+    check(f"{op} blocked in suggest",
+          plugins_host._required_mode(tool, {"op": op}) == "safe"
+          and not plugins_host._min_mode_ok(plugins_host._required_mode(tool, {"op": op}), "suggest"))
+check("unknown and missing op fail closed",
+      plugins_host._required_mode(tool, {"op": "unknown"}) == "safe"
+      and plugins_host._required_mode(tool, {}) == "safe")
+read_call = plugins_host._make_call(tool, ctx, "suggest")
+out = asyncio.run(read_call({"op": "list", "scope": "all"}))
+check("read-only reminder can list task store", out.startswith("Tất cả việc, lịch hẹn"), out)
+out = asyncio.run(read_call({"op": "add", "title": "Should not be created"}))
+check("read-only reminder cannot create task", out.startswith("ERROR:") and "bị chặn" in out, out)
+check("denied task has not been written", not feat.load(str(VAULT)).get("tasks"))
+
 
 today = date.today().isoformat()
 out = asyncio.run(h({"op": "add", "title": "Gọi chị Lan chốt đơn sỉ", "date": today, "time": "14:00"}, ctx))
