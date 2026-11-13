@@ -145,6 +145,18 @@ CREATE TABLE IF NOT EXISTS project_notes (
     updated_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_pn_project ON project_notes(project_id, created_at DESC);
+-- The same one-line description for a document attached to a CHAT, which is where a team keeps its documents
+-- (`teams.session_id`). Unlike the project tables it can declare its foreign key: it is new, created whole, so deleting
+-- the chat takes its descriptions along.
+CREATE TABLE IF NOT EXISTS session_asset_notes (
+    session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    ref         TEXT NOT NULL,
+    description TEXT NOT NULL,
+    source      TEXT NOT NULL,
+    updated_at  REAL NOT NULL,
+    PRIMARY KEY (session_id, kind, ref)
+);
 CREATE TABLE IF NOT EXISTS project_asset_notes (
     project_id  TEXT NOT NULL,
     kind        TEXT NOT NULL,
@@ -2050,9 +2062,12 @@ class SessionStore:
     def remove_session_file(self, session_id: str, file_id: str) -> bool:
         # Kèm session_id trong WHERE vì id đến từ client: đoán trúng một uuid không được phép
         # thành quyền xoá bản ghi của cuộc khác.
-        return bool(self._write(lambda c: c.execute(
-            "DELETE FROM session_files WHERE id = ? AND session_id = ?",
-            (file_id, session_id))).rowcount)
+        def _do(c):
+            c.execute("DELETE FROM session_asset_notes WHERE session_id = ? AND kind = 'file' AND ref IN "
+                      "(SELECT path FROM session_files WHERE id = ? AND session_id = ?)",
+                      (session_id, file_id, session_id))
+            return c.execute("DELETE FROM session_files WHERE id = ? AND session_id = ?", (file_id, session_id))
+        return bool(self._write(_do).rowcount)
 
     def set_session_file_pinned(self, session_id: str, file_id: str, pinned: bool) -> bool:
         return bool(self._write(lambda c: c.execute(
@@ -2077,9 +2092,42 @@ class SessionStore:
         return lid
 
     def remove_session_link(self, session_id: str, link_id: str) -> bool:
-        return bool(self._write(lambda c: c.execute(
-            "DELETE FROM session_links WHERE id = ? AND session_id = ?",
-            (link_id, session_id))).rowcount)
+        def _do(c):
+            c.execute("DELETE FROM session_asset_notes WHERE session_id = ? AND kind = 'link' AND ref IN "
+                      "(SELECT url FROM session_links WHERE id = ? AND session_id = ?)",
+                      (session_id, link_id, session_id))
+            return c.execute("DELETE FROM session_links WHERE id = ? AND session_id = ?", (link_id, session_id))
+        return bool(self._write(_do).rowcount)
+
+    def session_asset_notes(self, session_id: str) -> Dict[tuple, Dict[str, Any]]:
+        """{(kind, ref): {"description", "source"}} of the documents attached to a chat (2026-11-13)."""
+        return {(str(r["kind"]), str(r["ref"])): {"description": str(r["description"]), "source": str(r["source"])}
+                for r in self._read("SELECT kind, ref, description, source FROM session_asset_notes "
+                                    "WHERE session_id = ?", (session_id,))}
+
+    def set_session_asset_note(self, session_id: str, kind: str, ref: str, description: str,
+                               source: str = "javis") -> bool:
+        """Twin of `set_project_asset_note` for a chat's attached documents (a team's documents live there)."""
+        if kind not in ("file", "link"):
+            return False
+        ref = str(ref or "").strip()
+        table, column = ("session_files", "path") if kind == "file" else ("session_links", "url")
+        if not ref or not self._read(f"SELECT 1 FROM {table} WHERE session_id = ? AND {column} = ?",
+                                     (session_id, ref)):
+            return False
+        line = _one_line(description, PROJECT_ASSET_NOTE_MAX)
+        source = source if source in PROJECT_NOTE_SOURCES else "javis"
+        if not line:
+            self._write(lambda c: c.execute(
+                "DELETE FROM session_asset_notes WHERE session_id = ? AND kind = ? AND ref = ?",
+                (session_id, kind, ref)))
+            return True
+        self._write(lambda c: c.execute(
+            "INSERT INTO session_asset_notes (session_id, kind, ref, description, source, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(session_id, kind, ref) DO UPDATE SET "
+            "description = excluded.description, source = excluded.source, updated_at = excluded.updated_at",
+            (session_id, kind, ref, line, source, time.time())))
+        return True
 
     def set_session_link_pinned(self, session_id: str, link_id: str, pinned: bool) -> bool:
         return bool(self._write(lambda c: c.execute(

@@ -85,7 +85,7 @@ check("trần nạp trong chú thích khớp server",
 // 4. Đầu khung và nút không nói chuyện của chế độ khác
 // ============================================================
 check("trợ lý không có tab Hướng dẫn (prompt của nó đã ở trình sửa)",
-  /if \(pdLaCuoc\(\) \|\| pdLaAgent\(\)\) return \[tabFile, tabLink\];/.test(SU));
+  /if \(pdLaCuoc\(\) \|\| pdLaAgent\(\)\) return \[tabDocs\];/.test(SU));
 check("không bày nút đổi tên trong chế độ trợ lý",
   /\.pd-ren"\)\.style\.display = \(laCuoc \|\| pdLaAgent\(\)\) \? "none" : ""/.test(SU));
 check("không bày nút ghim HỘI THOẠI trong chế độ trợ lý",

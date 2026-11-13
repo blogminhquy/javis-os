@@ -3581,6 +3581,26 @@
     });
   }
 
+  // 2026-11-13: one line saying what a team document holds, read by every member turn. Javis writes it (tool
+  // javis_project team=...), the owner writes or fixes it with the pencil. Only a document attached to the team (with an
+  // id) has a row to describe.
+  function descLine(x) {
+    return x.description ? '<span class="tm-info-desc">' + esc(x.description) + "</span>" : "";
+  }
+  function descBtn(x, kind) {
+    if (!(x.manual && x.id)) return "";
+    return '<button type="button" class="tm-chip-x' + (x.description ? " on" : "") + '" data-info-desc="' + kind + '" data-ref="' +
+      esc(kind === "link" ? x.url : x.path) + '" data-desc="' + esc(x.description || "") + '" aria-label="' +
+      esc(tw("teams.info_desc")) + '" title="' + esc(tw("teams.info_desc")) + '">' + ic("pencil") + "</button>";
+  }
+  function describeDoc(kind, ref, old) {
+    var text = window.prompt(tw("teams.info_desc_q"), old || "");
+    if (text == null || text.trim() === (old || "")) return;
+    var f = new FormData();
+    f.append("kind", kind); f.append("ref", ref); f.append("description", text.trim());
+    return assetPost("/describe", f);
+  }
+
   // The info panel (0.191.0): who is in the team, the working folder, pictures, files and links shared in it.
   function infoTabHtml(t) {
     if (!t) return "";
@@ -3632,7 +3652,8 @@
         return "<li>" + (f.dir ? '<button type="button" class="tm-info-dir" data-info-open-dir="' + esc(f.brain_path || f.path) + '" title="' +
           esc(f.brain_path || f.path) + '">' + ic("folder") + "<span>" + esc(f.label || f.name) + "</span></button>"
           : '<a href="' + esc(rawUrl(f.brain_path || f.path)) + '" target="_blank" rel="noopener">' + ic("file-text") + "<span>" +
-          esc(f.label || f.name) + "</span></a>") + (f.manual && f.id ? '<button type="button" class="tm-chip-x" data-info-del-file="' + esc(f.id) +
+          esc(f.label || f.name) + "</span></a>") + descLine(f) + descBtn(f, "file") +
+          (f.manual && f.id ? '<button type="button" class="tm-chip-x" data-info-del-file="' + esc(f.id) +
           '" aria-label="' + esc(tw("teams.info_remove")) + '" title="' + esc(tw("teams.info_remove")) + '">' + ic("x") + "</button>" : "") + "</li>";
       }).join("") + "</ul>" : '<p class="tm-sub">' + esc(tw("teams.info_no_files")) + "</p>") + "</section>";
     h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_links", { n: I.links.length })) + infoBtn() + "</h4>" +
@@ -3641,6 +3662,7 @@
       '<button type="button" class="ws-btn" data-info-add-link="1">' + esc(tw("teams.info_add")) + "</button></div>" +
       (I.links.length ? '<ul class="tm-info-list">' + I.links.map(function (l) {
         return '<li><a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + ic("link") + "<span>" + esc(l.label || l.url) + "</span></a>" +
+          descLine(l) + descBtn(l, "link") +
           (l.manual && l.id ? '<button type="button" class="tm-chip-x" data-info-del-link="' + esc(l.id) + '" aria-label="' +
             esc(tw("teams.info_remove")) + '" title="' + esc(tw("teams.info_remove")) + '">' + ic("x") + "</button>" : "") + "</li>";
       }).join("") + "</ul>" : '<p class="tm-sub">' + esc(tw("teams.info_no_links")) + "</p>") + "</section>";
@@ -4421,6 +4443,7 @@
     if (d.infoOpenDir) { if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(d.infoOpenDir); return; }
     if (d.infoDelFile) return assetPost("/files/" + q(d.infoDelFile) + "/delete");
     if (d.infoDelLink) return assetPost("/links/" + q(d.infoDelLink) + "/delete");
+    if (d.infoDesc) return describeDoc(d.infoDesc, d.ref || "", d.desc || "");
     if (d.infoAddLink) return addTeamLink();
     if (t.classList.contains("tm-mic")) return toggleMic();
     if (d.insertAt) {

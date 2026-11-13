@@ -365,7 +365,9 @@
   var pdEl = null;                 // node ngăn kéo, dựng MỘT lần rồi gắn vào body
   var pdLuuTimer = null;
   var pdOnboard = false;           // banner chào chỉ hiện ngay sau khi tạo project
-  var pdFormFile = false, pdFileMode = "search", pdFormLink = false;
+  // pdFileMode: "search" (a file of the brain), "upload" (from this device) or "link" (paste an address). Files, folders
+  // and links share ONE list and ONE add form since 2026-11-13 (owner: gom File & Link vào 1 chỗ).
+  var pdFormFile = false, pdFileMode = "search";
   // "project" = khung của project | "cuoc" = của cuộc trò chuyện | "agent" = của MỘT trợ lý
   var pdCheDo = "project";
   var phienProj = { sid: "", pid: "", title: "", archived: false };     // cache "phiên đang mở thuộc project nào"
@@ -722,21 +724,25 @@
 
   function tabsHienTai() {
     var p = pdDuLieu() || {};
-    var tabFile = { k: "files", ico: "file-text", nhan: pdT("proj.tab_files"), n: (p.files || []).length };
-    var tabLink = { k: "links", ico: "link", nhan: pdT("proj.tab_links"), n: (p.links || []).length };
+    // Files, folders and links in ONE tab (owner 13/11/2026: "gom File & Link vào 1 chỗ để tiết kiệm diện tích"); each
+    // row's icon tells them apart.
+    var tabDocs = { k: "files", ico: "files", nhan: pdT("proj.tab_docs"),
+                    n: (p.files || []).length + (p.links || []).length };
     // Hướng dẫn chỉ có ở project. Trợ lý đã có system prompt riêng trong trình sửa của nó,
     // bày thêm một ô hướng dẫn ở đây là hai chỗ nói cùng một việc.
-    if (pdLaCuoc() || pdLaAgent()) return [tabFile, tabLink];
+    if (pdLaCuoc() || pdLaAgent()) return [tabDocs];
     // 2026-11-13: what Javis learnt about the project while working in it. Right after the instructions: both are
     // context that rides on every turn, one written by the owner and one mostly by Javis.
     var tabLearned = { k: "learned", ico: "brain", nhan: pdT("proj.tab_learned"), n: (p.notes || []).length };
-    return [{ k: "instr", ico: "scroll-text", nhan: pdT("proj.tab_instr"), n: 0 }, tabLearned, tabFile, tabLink];
+    return [{ k: "instr", ico: "scroll-text", nhan: pdT("proj.tab_instr"), n: 0 }, tabLearned, tabDocs];
   }
 
   function veThanhTab() {
     var ds = tabsHienTai();
     if (ds.map(function (t) { return t.k; }).indexOf(projTab) < 0) projTab = ds[0].k;
     var host = pdEl.querySelector(".pd-tabs");
+    // A chat and an assistant have only the documents tab: a bar with one tab is a row of space that says nothing.
+    host.style.display = ds.length > 1 ? "" : "none";
     host.innerHTML = ds.map(function (t) {
       return '<button class="pd-tab' + (t.k === projTab ? " on" : "") + '" data-tab="' + t.k +
              '" type="button">' + ic(t.ico) + " " + esc(t.nhan) +
@@ -756,7 +762,7 @@
     pdOnboard = false;
     // Reset y như openProjDrawer: form tìm/tải còn mở từ lần trước là mở khung ra đã thấy
     // một ô nhập lạ, không rõ nó thuộc về cái gì.
-    pdFormFile = false; pdFormLink = false; pdFileMode = "search";
+    pdFormFile = false; pdFileMode = "search";
     pdEl.classList.add("on");
     document.body.classList.add("pd-open");
     cuocTS = { files: [], links: [], dangTai: true };
@@ -793,7 +799,7 @@
     if (!giuCongSu) pdCongSu = null;
     pdCheDo = "agent";
     pdOnboard = false;
-    pdFormFile = false; pdFormLink = false; pdFileMode = "search";
+    pdFormFile = false; pdFileMode = "search";
     // Trợ lý không có tab Hướng dẫn, mà projTab có thể còn đứng ở "instr" từ lần mở project
     // trước. veThanhTab() tự nắn lại, nhưng nắn SAU khi veDrawer đã vẽ thân theo tab cũ.
     projTab = "files";
@@ -905,7 +911,7 @@
     pdDung();
     pdCheDo = "project";
     pdCongSu = null;      // project không có công tắc phạm vi của trang Cộng sự
-    pdFormFile = false; pdFormLink = false; pdFileMode = "search";
+    pdFormFile = false; pdFileMode = "search";
     pdEl.classList.add("on");
     document.body.classList.add("pd-open");
     projChiTiet = { id: id, name: (projById(id) || {}).name || "", icon: (projById(id) || {}).icon || "", files: [], links: [], instructions: "", dangTai: true };
@@ -935,9 +941,10 @@
 
   function showProjTab(tab) {
     xaLuuHuongDan();              // rời tab cũng là rời ô nhập
-    projTab = (tab === "files" || tab === "links" || tab === "learned") ? tab
+    // "links" was its own tab before 2026-11-13; it is the documents tab now.
+    projTab = (tab === "files" || tab === "links") ? "files" : tab === "learned" ? "learned"
             : (pdCheDo === "cuoc" ? "files" : "instr");
-    pdFormFile = false; pdFormLink = false;
+    pdFormFile = false;
     veDrawer();
   }
 
@@ -970,14 +977,12 @@
         ? '<div class="pd-onboard">' + ic("sparkles") + "<span>" + esc(pdT("proj.onboard")) + "</span>" +
           '<button class="pd-ob-x" type="button">' + esc(pdT("proj.onboard_close")) + "</button></div>"
         : "") +
-      (projTab === "learned" ? paneLearned(p)
-        : projTab === "instr" ? paneHuongDan(p) : projTab === "files" ? paneFile(p) : paneLink(p));
+      (projTab === "learned" ? paneLearned(p) : projTab === "instr" ? paneHuongDan(p) : paneFile(p));
     var obx = body.querySelector(".pd-ob-x");
     if (obx) obx.onclick = function () { pdOnboard = false; veDrawer(); };
     if (projTab === "instr") noiHuongDan();
     else if (projTab === "learned") wireLearned();
-    else if (projTab === "files") noiFile();
-    else noiLink();
+    else noiFile();
   }
 
   // Nút ghim ở đầu ngăn kéo ghim HỘI THOẠI đang mở lên đầu danh sách - đó là chức năng ghim
@@ -1198,16 +1203,18 @@
   }
 
   /** One line saying what an attached file or link holds. Javis writes it when it attaches or reads the document;
-   *  the owner can write or fix it here. Empty removes it. Project only: a chat and an assistant keep no descriptions. */
+   *  the owner can write or fix it here. Empty removes it. A project and an assistant keep one; a plain chat does not. */
   async function editAssetDescription(m, isFile) {
     var text = prompt(pdT("proj.desc_q"), m.description || "");
     if (text == null || text.trim() === (m.description || "")) return;
-    var r = await post("/projects/" + encodeURIComponent((projChiTiet || {}).id || "") + "/describe",
-                       { kind: isFile ? "file" : "link", ref: isFile ? m.path : m.url, description: text.trim() });
+    // pdApi() + "/describe": /projects/<id>/describe or /agents/<slug>/assets/describe (pdPost adds the brain).
+    var r = await pdPost("/describe", { kind: isFile ? "file" : "link", ref: isFile ? m.path : m.url,
+                                       description: text.trim() });
     if (!r || !r.ok) { alert(pdT("proj.err_desc") + ((r && r.error) ? ": " + r.error : "")); return; }
     await napLaiChiTiet();
     veLaiDanhSach();
   }
+
 
   // ── Tab File ─────────────────────────────────────────────────────────────────
   // Trả về TÊN icon, không phải chuỗi <svg>: chỗ gọi lo dữ liệu, chỗ vẽ mới gọi ic().
@@ -1251,7 +1258,8 @@
         nutSao(o) +
       "</div>";
     }
-    return '<div class="pd-row' + (o.mat ? " mat" : "") + '" data-id="' + esc(o.id) + '">' +
+    return '<div class="pd-row' + (o.mat ? " mat" : "") + '" data-id="' + esc(o.id) + '" data-kind="' +
+        (o.kind === "link" ? "link" : "file") + '">' +
         '<span class="pd-row-ico">' + ic(o.icon) + "</span>" +
         // File: cả khối tên+đường dẫn là NÚT mở. Bấm vào tên một tài liệu mà không mở được nó
         // ra đọc là phản xạ bị phụ - danh sách này chính là chỗ người ta đi tìm tài liệu.
@@ -1314,47 +1322,70 @@
     if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(folderPath(duong));
   }
 
+  function linkAnchor(l) {
+    return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' + esc(l.url) + "</a>";
+  }
+
+  /** Files, folders and links in ONE list (owner 13/11/2026: "gom File & Link vào 1 chỗ để tiết kiệm diện tích ... chỉ
+   *  cần có biểu tượng riêng để phân biệt file, link, folder"). Pinned rows first, then the rest, files before links
+   *  inside each group; in a chat, what Javis spotted in the messages comes last. */
   function dsFileHtml(p) {
-    var fs = p.files || [];
+    var fs = p.files || [], ls = p.links || [];
     var laCuoc = pdLaCuoc();
-    // Chế độ cuộc: file người dùng GẮN TAY (có id) đứng trên, file Javis tự dò ra đứng dưới.
-    // Thứ mình chủ động gắn vào thì phải nằm chỗ mắt nhìn trước, và chỉ nó mới có nút.
-    var tuDong = laCuoc ? fs.filter(function (f) { return !f.manual; }) : [];
-    var tay = laCuoc ? fs.filter(function (f) { return f.manual; }) : fs;
-    var ghim = tay.filter(function (f) { return f.pinned; });
-    var thuong = tay.filter(function (f) { return !f.pinned; });
-    var ve = function (f) {
+    // A one-line description (what the document holds) reaches the prompt of a project and of an assistant, so only
+    // there can it be written. A plain chat keeps none.
+    var descOk = pdCheDo === "project" || pdCheDo === "agent";
+    // Chế độ cuộc: thứ người dùng GẮN TAY (có id) đứng trên, thứ Javis tự dò ra đứng dưới.
+    var tay = function (x) { return !laCuoc || x.manual; };
+    var veFile = function (f) {
       // Ở chế độ cuộc, file đã dời/đổi tên vẫn ở lại danh sách - chỉ mờ đi và nói rõ. Im lặng
       // bỏ đi thì người dùng tưởng thao tác gắn của mình bị nuốt.
       var con = !laCuoc || f.exists !== false;
       var dir = isFolderRow(f);
-      return hangMuc({ id: f.id, ten: f.label || f.name || f.path,
+      return hangMuc({ id: f.id, kind: "file", ten: f.label || f.name || f.path,
                        sub: con ? (laCuoc ? (f.brain_path || f.path) : f.path) : pdT("cts.file_gone"),
                        // Chép đường dẫn TRONG BRAIN (brain_path), không phải đường dẫn tuyệt
-                       // đối trên máy chủ: đó mới là chuỗi mọi nơi khác của Javis nhận vào
-                       // (chat, wikilink, tool đọc file).
+                       // đối trên máy chủ: đó mới là chuỗi mọi nơi khác của Javis nhận vào.
                        sao: f.brain_path || f.path,
                        // A folder: its own icon, a pin that loads its file list, and NO "delete from the brain"
                        // button: one tap here must never remove a whole folder from disk.
                        icon: dir ? "folder" : f.image ? "image" : icoFile(f.name || f.path), pinned: !!f.pinned,
                        ghimTitle: pdT(dir ? "proj.pin_on_dir" : "proj.pin_on"),
                        moTitle: dir ? pdT("proj.open_dir") : "",
-                       desc: f.description || "", descEditable: pdCheDo === "project",
+                       desc: f.description || "", descEditable: descOk,
                        moDuoc: con, xoaDuoc: con && !dir, mat: !con });
     };
-    var veTuDong = function (f) {
+    var veLink = function (l) {
+      return hangMuc({ id: l.id, kind: "link", ten: l.label || l.url, icon: "link", pinned: !!l.pinned,
+                       ghimTitle: pdT("proj.pin_link_on"), subHtml: linkAnchor(l),
+                       desc: l.description || "", descEditable: descOk,
+                       sao: l.url, saoTitle: pdT("common.copy_link") });
+    };
+    var veTuDongFile = function (f) {
       return hangMuc({ tuDong: true, duong: f.path, ten: f.label || f.name,
                        sub: f.exists ? f.brain_path : pdT("cts.file_gone"),
                        sao: f.brain_path || f.path,
                        icon: f.image ? "image" : icoFile(f.name),
                        moDuoc: !!f.exists, mat: !f.exists });
     };
-    if (!fs.length) return '<div class="pd-empty">' + esc(pdT(pdK("files_empty"))) + "</div>";
+    var veTuDongLink = function (l) {
+      return hangMuc({ tuDong: true, icon: "link", tenHtml: linkAnchor(l),
+                       sub: l.vai === "user" ? pdT("cts.from_you") : pdT("cts.from_javis"),
+                       sao: l.url, saoTitle: pdT("common.copy_link") });
+    };
+    if (!fs.length && !ls.length) return '<div class="pd-empty">' + esc(pdT(pdK("files_empty"))) + "</div>";
+    var hang = fs.filter(tay).map(function (f) { return { pinned: !!f.pinned, html: veFile(f) }; })
+      .concat(ls.filter(tay).map(function (l) { return { pinned: !!l.pinned, html: veLink(l) }; }));
+    var ghim = hang.filter(function (h) { return h.pinned; });
+    var thuong = hang.filter(function (h) { return !h.pinned; });
+    var html = function (h) { return h.html; };
     var ds = "";
-    if (ghim.length) ds += nhomHtml(pdT("proj.pinned_group")) + ghim.map(ve).join("");
+    if (ghim.length) ds += nhomHtml(pdT("proj.pinned_group")) + ghim.map(html).join("");
     if (thuong.length) ds += (ghim.length || laCuoc
-      ? nhomHtml(pdT(laCuoc ? "cts.added_group" : "proj.other_group")) : "") + thuong.map(ve).join("");
-    if (tuDong.length) ds += nhomHtml(pdT("cts.auto_group")) + tuDong.map(veTuDong).join("");
+      ? nhomHtml(pdT(laCuoc ? "cts.added_group" : "proj.other_group")) : "") + thuong.map(html).join("");
+    var tuDong = fs.filter(function (f) { return !tay(f); }).map(veTuDongFile)
+      .concat(ls.filter(function (l) { return !tay(l); }).map(veTuDongLink));
+    if (tuDong.length) ds += nhomHtml(pdT("cts.auto_group")) + tuDong.join("");
     return ds;
   }
 
@@ -1374,7 +1405,7 @@
     // gõ lại từ đầu - đúng lỗi chủ repo báo 01/09.
     return '<div class="pd-pane" data-pane="files">' +
       '<div class="pd-list">' + dsFileHtml(p) + "</div>" +
-      '<button class="pd-add" type="button">' + ic("plus") + " " + esc(pdT("proj.add_file")) + "</button>" +
+      '<button class="pd-add" type="button">' + ic("plus") + " " + esc(pdT("proj.add_doc")) + "</button>" +
       (pdFormFile ? formFile() : "") +
       (coGhimDuoc(p)
         ? '<div class="pd-note">' + ic("info") + "<span>" + esc(pdT(pdK("pin_note"))) + "</span></div>"
@@ -1387,12 +1418,11 @@
   function veLaiDanhSach() {
     var p = pdDuLieu();
     if (!pdEl || !p) return;
-    var pane = pdEl.querySelector('[data-pane="files"], [data-pane="links"]');
+    var pane = pdEl.querySelector('[data-pane="files"]');
     var box = pane && pane.querySelector(".pd-list");
     if (!box) { veDrawer(); return; }
-    var laFile = pane.dataset.pane === "files";
-    box.innerHTML = laFile ? dsFileHtml(p) : dsLinkHtml(p);
-    noiHang(pane, laFile);
+    box.innerHTML = dsFileHtml(p);
+    noiHang(pane);
     veSoTab();
   }
 
@@ -1408,9 +1438,10 @@
   }
 
   /** Gắn hành vi cho từng hàng trong danh sách. Dùng chung cho lần vẽ đầu và mọi lần vẽ lại. */
-  function noiHang(pane, laFile) {
+  function noiHang(pane) {
     var p = pdDuLieu() || {};
     pane.querySelectorAll(".pd-row").forEach(function (row) {
+      var laFile = row.dataset.kind !== "link";
       // Nút chép nối TRƯỚC nhánh rẽ bên dưới: hàng tự dò cũng có nút này, mà nhánh đó thoát
       // sớm nên nối sau là hàng tự dò có nút bấm không ăn.
       var sao = row.querySelector(".pd-sao");
@@ -1445,10 +1476,21 @@
           ic("search") + " " + esc(pdT("proj.mode_search")) + "</button>" +
         '<button class="pd-mode' + (pdFileMode === "upload" ? " on" : "") + '" data-mode="upload" type="button">' +
           ic("upload-cloud") + " " + esc(pdT("proj.mode_upload")) + "</button>" +
+        '<button class="pd-mode' + (pdFileMode === "link" ? " on" : "") + '" data-mode="link" type="button">' +
+          ic("link") + " " + esc(pdT("proj.mode_link")) + "</button>" +
       "</div>" +
       (pdFileMode === "search"
         ? '<input class="pd-in pd-fsearch" placeholder="' + esc(pdT("proj.search_ph")) + '">' +
           '<div class="pd-results"><div class="pd-empty">' + esc(pdT("proj.search_hint")) + "</div></div>"
+        : pdFileMode === "link"
+        ? '<input class="pd-in pd-lurl" placeholder="' + esc(pdT("proj.link_url_ph")) + '">' +
+          '<input class="pd-in pd-llabel" placeholder="' + esc(pdT("proj.link_label_ph")) + '">' +
+          '<div class="pd-fmsg" role="status" hidden></div>' +
+          '<div class="pd-frow">' +
+            '<button class="pd-ok" type="button">' + esc(pdT("proj.add")) + "</button>" +
+            '<button class="pd-huy" type="button">' + esc(pdT("proj.cancel")) + "</button>" +
+          "</div>" +
+          '<div class="pd-note pd-up-note">' + ic("info") + "<span>" + esc(pdT("proj.link_note")) + "</span></div>"
         : '<input type="file" class="pd-file" multiple hidden>' +
           '<button class="pd-drop" type="button">' + ic("upload-cloud") + " " + esc(pdT("proj.dropzone")) + "</button>" +
           '<div class="pd-note pd-up-note">' + ic("info") + "<span>" + esc(pdT("proj.upload_dest")) + "</span></div>") +
@@ -1459,10 +1501,11 @@
     var pane = pdEl.querySelector('[data-pane="files"]');
     if (!pane) return;
     pane.querySelector(".pd-add").onclick = function () { pdFormFile = !pdFormFile; veDrawer(); };
-    noiHang(pane, true);
+    noiHang(pane);
     pane.querySelectorAll(".pd-mode").forEach(function (b) {
       b.onclick = function () { pdFileMode = b.dataset.mode; veDrawer(); };
     });
+    noiFormLink(pane);
     var o = pane.querySelector(".pd-fsearch");
     if (o) {
       o.focus();
@@ -1636,65 +1679,15 @@
     veLaiDanhSach();
   }
 
-  // ── Tab Link ─────────────────────────────────────────────────────────────────
-  function dsLinkHtml(p) {
-    var ls = p.links || [];
-    var laCuoc = pdLaCuoc();
-    var tuDong = laCuoc ? ls.filter(function (l) { return !l.manual; }) : [];
-    var tay = laCuoc ? ls.filter(function (l) { return l.manual; }) : ls;
-    var aHtml = function (l) {
-      return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' +
-             esc(l.url) + "</a>";
-    };
-    var ve = function (l) {
-      return hangMuc({ id: l.id, ten: l.label || l.url, icon: "link", pinned: !!l.pinned,
-                       ghimTitle: pdT("proj.pin_link_on"), subHtml: aHtml(l),
-                       desc: l.description || "", descEditable: pdCheDo === "project",
-                       sao: l.url, saoTitle: pdT("common.copy_link") });
-    };
-    var veTuDong = function (l) {
-      return hangMuc({ tuDong: true, icon: "link", tenHtml: aHtml(l),
-                       sub: l.vai === "user" ? pdT("cts.from_you") : pdT("cts.from_javis"),
-                       sao: l.url, saoTitle: pdT("common.copy_link") });
-    };
-    if (!ls.length) return '<div class="pd-empty">' + esc(pdT(pdK("links_empty"))) + "</div>";
-    var ds = "";
-    if (tay.length) ds += (laCuoc ? nhomHtml(pdT("cts.added_group")) : "") + tay.map(ve).join("");
-    if (tuDong.length) ds += nhomHtml(pdT("cts.auto_links_group")) + tuDong.map(veTuDong).join("");
-    return ds;
-  }
-
-  function paneLink(p) {
-    return '<div class="pd-pane" data-pane="links">' +
-      '<div class="pd-list">' + dsLinkHtml(p) + "</div>" +
-      '<button class="pd-add" type="button">' + ic("plus") + " " + esc(pdT("proj.add_link")) + "</button>" +
-      (pdFormLink
-        ? '<div class="pd-form">' +
-            '<input class="pd-in pd-lurl" placeholder="' + esc(pdT("proj.link_url_ph")) + '">' +
-            '<input class="pd-in pd-llabel" placeholder="' + esc(pdT("proj.link_label_ph")) + '">' +
-            '<div class="pd-fmsg" role="status" hidden></div>' +
-            '<div class="pd-frow">' +
-              '<button class="pd-ok" type="button">' + esc(pdT("proj.add")) + "</button>" +
-              '<button class="pd-huy" type="button">' + esc(pdT("proj.cancel")) + "</button>" +
-            "</div></div>"
-        : "") +
-      '<div class="pd-note">' + ic("info") + "<span>" + esc(pdT("proj.link_note")) + "</span></div>" +
-      ghiChuCuoi() +
-      "</div>";
-  }
-
-  function noiLink() {
-    var pane = pdEl.querySelector('[data-pane="links"]');
-    if (!pane) return;
-    pane.querySelector(".pd-add").onclick = function () { pdFormLink = !pdFormLink; veDrawer(); };
-    noiHang(pane, false);
+  // ── Link: one of the three ways into the documents list (2026-11-13) ─────────────
+  function noiFormLink(pane) {
     var u = pane.querySelector(".pd-lurl");
     if (!u) return;
     u.focus();
     var lb = pane.querySelector(".pd-llabel");
     var them = function () { themLink(u.value, lb.value); };
     pane.querySelector(".pd-ok").onclick = them;
-    pane.querySelector(".pd-huy").onclick = function () { pdFormLink = false; veDrawer(); };
+    pane.querySelector(".pd-huy").onclick = function () { pdFormFile = false; veDrawer(); };
     [u, lb].forEach(function (o) {
       o.onkeydown = function (e) { if (e.key === "Enter") { e.preventDefault(); them(); } };
       o.oninput = function () { baoFormLink(""); };
@@ -1705,7 +1698,7 @@
    *  đều không hiện gì hoặc chỉ một hộp alert: bấm "Thêm" thấy ô URL trống trơn, danh sách
    *  y nguyên, người dùng tưởng nút hỏng (chủ repo báo 25/10). */
   function baoFormLink(chu, loi) {
-    var m = pdEl && pdEl.querySelector('[data-pane="links"] .pd-fmsg');
+    var m = pdEl && pdEl.querySelector('[data-pane="files"] .pd-fmsg');
     if (!m) return;
     m.textContent = chu || "";
     m.hidden = !chu;
@@ -1721,7 +1714,7 @@
   }
 
   function nhayHang(id) {
-    var row = pdEl && pdEl.querySelector('[data-pane="links"] .pd-row[data-id="' + id + '"]');
+    var row = pdEl && pdEl.querySelector('[data-pane="files"] .pd-row[data-id="' + id + '"]');
     if (!row) return;
     row.classList.remove("nhay");
     void row.offsetWidth;          // khởi động lại animation khi bấm lần nữa
@@ -1731,7 +1724,7 @@
 
   async function themLink(url, nhan) {
     var u = chuanHoaUrl((url || "").trim());
-    var pane = pdEl && pdEl.querySelector('[data-pane="links"]');
+    var pane = pdEl && pdEl.querySelector('[data-pane="files"]');
     var o = pane && pane.querySelector(".pd-lurl");
     if (!u) { baoFormLink(pdT("proj.link_need_url"), true); if (o) o.focus(); return; }
     var co = ((pdDuLieu() || {}).links || []).filter(function (l) { return l.manual !== false && l.url === u; })[0];
@@ -1747,7 +1740,7 @@
     // Giữ form và dọn ô trống thay vì đóng lại: dán link thứ hai là chuyện thường, cùng lý do
     // với ô tìm file. Con trỏ về ô URL để dán tiếp là xong.
     veLaiDanhSach();
-    var pane = pdEl.querySelector('[data-pane="links"]');
+    var pane = pdEl.querySelector('[data-pane="files"]');
     var u = pane && pane.querySelector(".pd-lurl");
     var lb = pane && pane.querySelector(".pd-llabel");
     if (u) { u.value = ""; u.focus(); }

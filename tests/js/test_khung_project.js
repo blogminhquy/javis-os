@@ -316,8 +316,8 @@ check("gọi endpoint tài sản của phiên", /"\/sessions\/" \+ encodeURIComp
 // dữ liệu là nhân đôi số chỗ phải sửa về sau.
 check("dùng lại vỏ ngăn kéo của project chứ không dựng khung thứ hai",
   (SU.match(/class="pd-panel"/g) || []).length === 1 && /pdCheDo = "cuoc"/.test(SU));
-check("thanh tab dựng động: chế độ cuộc và trợ lý chỉ có File và Link",
-  /if \(pdLaCuoc\(\) \|\| pdLaAgent\(\)\) return \[tabFile, tabLink\];/.test(SU));
+check("thanh tab dựng động: chế độ cuộc và trợ lý chỉ có tab Tài liệu (file, thư mục, link gộp một chỗ)",
+  /if \(pdLaCuoc\(\) \|\| pdLaAgent\(\)\) return \[tabDocs\];/.test(SU));
 check("mở khung project thì trả chế độ về project", /pdDung\(\);\s*\n\s*pdCheDo = "project";/.test(SU));
 check("file đã dời vẫn hiện, mờ đi và gạch ngang",
   /\.pd-row\.mat \{ opacity/.test(CSS) && /\.pd-row\.mat \.pd-row-name \{ text-decoration: line-through/.test(CSS));

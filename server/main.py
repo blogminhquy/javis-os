@@ -954,6 +954,73 @@ def _project_brain_root(brain: str) -> str:
     return str(Path(_brain_root(name)).resolve())
 
 
+def _project_agent_find(root: str, ref: str):
+    """(slug, name) of an assistant of this brain named by slug or by name, or None."""
+    ref = (ref or "").strip()
+    if not ref:
+        return None
+    path = _agent_md_path(root, ref)
+    if path is not None:
+        return path.stem, (_read_md(path)[0] or {}).get("name") or path.stem
+    hits = [a for a in agents_index(root, kem_prompt=False) if str(a.get("name") or "").strip().lower() == ref.lower()]
+    return (hits[0]["slug"], hits[0].get("name") or hits[0]["slug"]) if len(hits) == 1 else None
+
+
+def _project_agent_docs(root: str, slug: str) -> dict:
+    path = _agent_md_path(root, slug)
+    return agent_assets.doc(_read_md(path)[0]) if path is not None else {"files": [], "links": []}
+
+
+def _project_agent_edit(root: str, slug: str, change):
+    """Run `change(meta) -> (new meta, result)` on an assistant's file under the agent write lock; the file is written
+    only when the meta changed. A ValueError of `change` (the list is full) reaches the caller."""
+    with _AGENT_META_LOCK:
+        path = _agent_md_path(root, slug)
+        if path is None:
+            raise ValueError("trợ lý không còn trong brain")
+        meta, body = _read_md(path)
+        new_meta, result = change(meta)
+        if new_meta is not meta:
+            _write_md(path, new_meta, body)
+        return result
+
+
+def _project_team_find(root: str, ref: str):
+    """A team of this brain named by id or by name (case does not matter), or None."""
+    ref = (ref or "").strip()
+    if not ref or not _TEAM_API.exists():
+        return None
+    key = _brain_key(root)
+    team = _TEAM_API.teams().get(ref)
+    if team and team.get("brain_id") == key:
+        return team
+    hits = [t for t in _TEAM_API.teams().list_teams(key, limit=200)
+            if str(t.get("name") or "").strip().lower() == ref.lower()]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _project_team_attach(team, raw: str) -> list:
+    """Attach one file or folder to a team the way the team's own panel does (`_team_attach`): a file just dropped into
+    a chat is copied into the team folder, a file of the brain stays where it is. Raises ValueError outside the brain."""
+    text = (raw or "").strip().replace("\\", "/")
+    if not text:
+        return []
+    brain = team.get("brain_id") or "brain"
+    candidate = Path(text)
+    staging = Path(STAGING).resolve()
+    if candidate.is_absolute() and staging in candidate.resolve().parents:
+        target = candidate.resolve()
+    else:
+        target = candidate.resolve() if candidate.is_absolute() else _safe_serve_path(brain, text)
+        broot = Path(_brain_root(brain)).resolve()
+        if broot not in target.parents:
+            raise ValueError(localefmt.chu("Chỉ gắn được file hay thư mục nằm trong brain của nhóm",
+                                           "Only a file or folder inside the team's brain can be attached"))
+    if not target.exists():
+        return []
+    return _team_attach(team, [{"path": str(target), "name": target.name}])
+
+
 def _project_attach_target(brain: str, raw: str):
     """(stored path, name, is_dir) for a path the MODEL gave to `javis_project op=add_file`, or None when nothing is
     there. Raises ValueError outside the allowed area.
@@ -1118,6 +1185,11 @@ def _agent_assets_block(brain: str, meta: dict) -> str:
     if da_nap:
         ra += ("\n# === NỘI DUNG FILE ĐÃ GHIM (nạp sẵn, không cần mở lại) ===" + "".join(da_nap)
                + "\n")
+    # 2026-11-13: one line per document saying what it holds, so the right one is opened without opening each.
+    desc, hidden = project_context.asset_lines(files, links)
+    if desc:
+        ra += ("\nTài liệu nào chứa gì (mở ra khi cần chi tiết):\n" + "\n".join(desc) + "\n"
+               + (f"(còn {hidden} mô tả nữa: javis_project op=get)\n" if hidden else ""))
     return ra
 
 
@@ -10306,6 +10378,21 @@ async def agent_assets_add_link(slug: str, url: str = Form(...), label: str = Fo
                             status_code=400)
     lid, loi = await asyncio.to_thread(_agent_assets_sua, brain, slug, lambda m: agent_assets.them_link(m, u, label))
     return loi or {"ok": True, "id": lid}
+
+
+@app.post("/agents/{slug}/assets/describe")
+async def agent_assets_describe(slug: str, kind: str = Form(...), ref: str = Form(...), description: str = Form(""),
+                                brain: str = Form("brain")):
+    """One line saying what an attached file (`ref` its stored path) or link (`ref` its URL) holds (2026-11-13).
+    Stored in the assistant's file, next to the document, so it travels with the assistant."""
+    refused = _project_text_refused(description)
+    if refused:
+        return refused
+    ok, loi = await asyncio.to_thread(
+        _agent_assets_sua, brain, slug, lambda m: agent_assets.describe(m, kind, ref, description))
+    if loi:
+        return loi
+    return {"ok": True} if ok else JSONResponse({"error": "not found"}, status_code=404)
 
 
 @app.post("/agents/{slug}/assets/links/{link_id}/delete")
@@ -20261,7 +20348,9 @@ async def _chat_socket(ws):
                             _agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid, skill_served=skill_served)
                             + _session_block(conv_sid)
                             + _dm_feedback_prompt(brain, _persona[1], conv_sid)
-                            + _dm_lessons_prompt(brain, _persona[1], conv_sid))
+                            + _dm_lessons_prompt(brain, _persona[1], conv_sid)
+                            # 2026-11-13: the assistant keeps its own documents (tool javis_project agent=<slug>).
+                            + project_context.AGENT_GUIDE.format(slug=_persona[1]))
                     else:
                         _legacy_prompts[_key] = build_system_prompt(
                             brain, lang=_lang_qd, project_id=_row0.get("project_id") or "",
@@ -23024,6 +23113,7 @@ def _cuoc_tai_lieu_tay(session_id: str, sess: dict):
     gắn tay là một cử chỉ cố ý, im lặng bỏ đi thì người dùng tưởng thao tác của mình bị nuốt.
     """
     store = get_store()
+    notes = store.session_asset_notes(session_id)   # 2026-11-13: one-line descriptions
     brain = (sess.get("brain") or "brain").strip() or "brain"
     broot = Path(_brain_root(brain)).resolve()
     ra_f = []
@@ -23061,6 +23151,7 @@ def _cuoc_tai_lieu_tay(session_id: str, sess: dict):
             "ts": f.get("added_at") or 0,
             "pinned": bool(f.get("pinned")),
             "manual": True,
+            "description": (notes.get(("file", duong)) or {}).get("description", ""),
             "_that": str(rp) if rp else duong,
         })
     ra_l = [{
@@ -23071,6 +23162,7 @@ def _cuoc_tai_lieu_tay(session_id: str, sess: dict):
         "vai": "",
         "pinned": bool(l.get("pinned")),
         "manual": True,
+        "description": (notes.get(("link", l.get("url") or "")) or {}).get("description", ""),
     } for l in store.list_session_links(session_id)]
     return ra_f, ra_l
 
@@ -23107,6 +23199,21 @@ def sessions_add_file(session_id: str, path: str = Form(...), name: str = Form("
                                     f"This chat already has the maximum of {sessions.SESSION_ASSETS_MAX} documents")},
             status_code=400)
     return {"ok": True, "id": fid, "dir": is_dir}
+
+
+@app.post("/sessions/{session_id}/assets/describe")
+def sessions_describe_asset(session_id: str, kind: str = Form(...), ref: str = Form(...), description: str = Form("")):
+    """One line saying what a document attached to this chat holds (2026-11-13). A team keeps its documents in its chat,
+    so this is also where a team document gets its description. Only a document attached by hand has a row to describe."""
+    sess, err = _cuoc_or_404(session_id)
+    if err:
+        return err
+    refused = _project_text_refused(description)
+    if refused:
+        return refused
+    if not get_store().set_session_asset_note(session_id, kind, ref, description, source="owner"):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"ok": True}
 
 
 @app.post("/sessions/{session_id}/assets/files/{file_id}/delete")
@@ -31795,6 +31902,16 @@ def _team_docs_block(team, tools=False):
         files, links = store.list_session_files(sid), store.list_session_links(sid)
         listed, loaded = _liet_ke_tai_lieu(team.get("brain_id") or "brain", files, links) if (files or links) else ([], [])
         block = team_docs.block(listed, loaded, coding_store.cwd_cua_phien(sid), tools=bool(tools))
+        # 2026-11-13: what each team document holds, one line each (written by Javis or the owner).
+        notes = store.session_asset_notes(sid) if (files or links) else {}
+        if notes:
+            desc, hidden = project_context.asset_lines(
+                [dict(f, description=(notes.get(("file", f.get("path") or "")) or {}).get("description", "")) for f in files],
+                [dict(link, description=(notes.get(("link", link.get("url") or "")) or {}).get("description", ""))
+                 for link in links])
+            if desc:
+                block += ("\n\nTài liệu nào chứa gì:\n" + "\n".join(desc)
+                          + (f"\n(còn {hidden} mô tả nữa)" if hidden else ""))
     except Exception as e:  # noqa: BLE001 - a broken document must not stop the team from answering
         print(f"[team docs] {type(e).__name__}: {e}", file=sys.stderr)
         block = ""
@@ -33202,7 +33319,13 @@ project_context.wire(project_context.Deps(
     brain_root=_project_brain_root,
     attach_target=_project_attach_target,
     turn_session=lambda: str((turn_context.current() or {}).get("session_id") or ""),
-    note_change=lambda root: memory_control.note_change(_brain_memory_dir(root))))
+    note_change=lambda root: memory_control.note_change(_brain_memory_dir(root)),
+    agent_find=_project_agent_find, agent_docs=_project_agent_docs, agent_edit=_project_agent_edit,
+    # The assistant of a private chat on the Partners page, set by the host on the dashboard turn.
+    turn_agent=lambda: str((turn_context.current() or {}).get("assistant") or ""),
+    team_find=_project_team_find, team_attach=_project_team_attach,
+    turn_team=lambda: (str((turn_context.current() or {}).get("chat_id") or "")
+                       if (turn_context.current() or {}).get("kenh") == "team" else "")))
 
 
 def _learn_register_sender():

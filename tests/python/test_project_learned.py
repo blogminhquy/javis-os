@@ -292,6 +292,98 @@ check("deleting the project deletes its notes and descriptions",
       st.list_project_notes(pid) == [] and st.project_asset_notes(pid) == {})
 
 # ============================================================
+# 9b. An assistant (cộng sự): documents and their descriptions live in its own file
+# ============================================================
+import agent_assets  # noqa: E402
+
+AG = BR / "agents"
+AG.mkdir(exist_ok=True)
+(AG / "viet-bai.md").write_text("---\nname: Viết bài\nrole: Viết bài Facebook\n---\nViết ngắn, gần gũi.\n", encoding="utf-8")
+(BR / "docs" / "giong-van.md").write_text("Xưng mình, gọi bạn.\n", encoding="utf-8")
+out = call({"op": "add_file", "agent": "viet-bai", "path": "docs/giong-van.md", "description": "Quy tắc giọng văn"})
+meta = main._read_md(AG / "viet-bai.md")[0]
+docs = agent_assets.doc(meta)
+check("add_file with agent= attaches the document to the assistant's own file, with its description",
+      len(docs["files"]) == 1 and docs["files"][0]["description"] == "Quy tắc giọng văn"
+      and docs["files"][0]["path"].endswith("docs/giong-van.md") and "trợ lý" in out, out)
+check("the assistant's body and other keys are untouched",
+      "Viết ngắn, gần gũi." in (AG / "viet-bai.md").read_text(encoding="utf-8") and meta.get("role") == "Viết bài Facebook")
+out = call({"op": "add_link", "agent": "Viết bài", "url": "https://example.com/mau", "description": "Bài mẫu đã duyệt"})
+check("an assistant is found by its name too, and takes a described link",
+      agent_assets.doc(main._read_md(AG / "viet-bai.md")[0])["links"][0]["description"] == "Bài mẫu đã duyệt", out)
+out = call({"op": "describe", "agent": "viet-bai", "path": "docs/giong-van.md", "description": "Giọng văn, cách xưng hô"})
+check("describe rewrites an assistant document's line",
+      agent_assets.doc(main._read_md(AG / "viet-bai.md")[0])["files"][0]["description"] == "Giọng văn, cách xưng hô", out)
+check("get on an assistant lists its documents and points at its lessons",
+      "Giọng văn, cách xưng hô" in (g := call({"op": "get", "agent": "viet-bai"})) and "javis_memory op=lessons" in g, g)
+check("notes and instructions stay project-only",
+      call({"op": "note_add", "agent": "viet-bai", "text": "x y z"}).startswith("ERROR")
+      and call({"op": "set_instructions", "agent": "viet-bai", "text": "x"}).startswith("ERROR"))
+check("an unknown assistant says so", call({"op": "get", "agent": "khong-co"}).startswith("ERROR"))
+block_a = main._agent_assets_block(str(BR), main._read_md(AG / "viet-bai.md")[0])
+check("the assistant's prompt says which document holds what",
+      "Tài liệu nào chứa gì" in block_a and "giong-van.md: Giọng văn, cách xưng hô" in block_a
+      and "https://example.com/mau: Bài mẫu đã duyệt" in block_a, block_a)
+check("an assistant without descriptions gets exactly the old block",
+      "Tài liệu nào chứa gì" not in main._agent_assets_block(str(BR), {"assets": {"files": [
+          {"id": "a1", "path": "docs/giong-van.md", "name": "giong-van.md"}], "links": []}}))
+token = turn_context.bind(dict(turn_context.make("dashboard", chat_id="s-ag", la_chu=True, session_id="s-ag"),
+                               assistant="viet-bai"))
+try:
+    out = PC.run({"op": "get"}, str(BR))
+finally:
+    turn_context.reset(token)
+check("in a private chat with an assistant, no target argument is needed", "trợ lý \"Viết bài\"" in out, out)
+check("the private chat with an assistant is told it keeps its own documents",
+      'agent="{slug}"' in PC.AGENT_GUIDE and "op=add_file" in PC.AGENT_GUIDE)
+check("and that line is in the assistant chat prompt, nowhere else",
+      "project_context.AGENT_GUIDE.format(slug=_persona[1])" in (SERVER / "main.py").read_text(encoding="utf-8"))
+check("a description without its document is cleaned away on the next write of the file",
+      agent_assets.describe({"assets": {"files": [{"id": "x", "path": "a.md"}], "links": []}}, "file", "b.md", "t")[1] is False)
+
+# ============================================================
+# 9c. A team: its documents live in its chat; descriptions in their own table
+# ============================================================
+tsid = "team-chat-1"
+st.set_project(tsid, "", brain=str(BR))   # creates the chat row the team keeps its documents in
+fake_team = {"team_id": "T1", "name": "Nhóm Nội dung", "session_id": tsid, "brain_id": str(BR)}
+_orig_find, _orig_attach = PC._DEPS[0].team_find, PC._DEPS[0].team_attach
+PC._DEPS[0].team_find = lambda root, ref: fake_team if ref in ("T1", "Nhóm Nội dung") else None
+
+
+def _attach(team, raw):
+    rel = main._files_rel(main._files_root(str(BR)), main._safe_serve_path(str(BR), raw))
+    fid = st.add_session_file(team["session_id"], rel, rel.split("/")[-1])
+    return [{"name": rel.split("/")[-1], "path": rel}] if fid else []
+
+
+PC._DEPS[0].team_attach = _attach
+try:
+    out = call({"op": "add_file", "team": "Nhóm Nội dung", "path": "docs/giong-van.md", "description": "Giọng văn chung"})
+    notes = st.session_asset_notes(tsid)
+    check("add_file with team= attaches to the team's chat and stores the description",
+          any(k[0] == "file" and k[1].endswith("giong-van.md") and v["description"] == "Giọng văn chung"
+              for k, v in notes.items()) and "nhóm" in out, out)
+    out = call({"op": "add_link", "team": "T1", "url": "https://example.com/brief", "description": "Brief tháng 12"})
+    check("a team takes a described link", st.session_asset_notes(tsid).get(("link", "https://example.com/brief"),
+                                                                           {}).get("description") == "Brief tháng 12", out)
+    token = turn_context.bind(turn_context.make("team", chat_id="T1"))
+    try:
+        out = PC.run({"op": "get"}, str(BR))
+    finally:
+        turn_context.reset(token)
+    check("in a team turn, no target argument is needed", "nhóm \"Nhóm Nội dung\"" in out and "Brief tháng 12" in out, out)
+    tblock = main._team_docs_block(fake_team)
+    check("every member turn reads which team document holds what",
+          "Tài liệu nào chứa gì" in tblock and "giong-van.md: Giọng văn chung" in tblock
+          and "https://example.com/brief: Brief tháng 12" in tblock, tblock)
+    out = call({"op": "remove_link", "team": "T1", "url": "https://example.com/brief"})
+    check("removing a team link removes its description", ("link", "https://example.com/brief") not in st.session_asset_notes(tsid), out)
+finally:
+    PC._DEPS[0].team_find, PC._DEPS[0].team_attach = _orig_find, _orig_attach
+check("the real team lookup refuses a team of no store", main._project_team_find(str(BR), "nope") is None)
+
+# ============================================================
 # 10. The drawer's routes: what the OWNER types is theirs
 # ============================================================
 from fastapi.testclient import TestClient  # noqa: E402
@@ -320,6 +412,25 @@ check("POST /describe writes the description of an attached link",
 r = client.post(f"/projects/{web_pid}/describe", data={"kind": "link", "ref": "https://nope.example", "description": "x"})
 check("describing something not attached is 404", r.status_code == 404)
 check("an unknown project is 404", client.post("/projects/nope/notes", data={"text": "x"}).status_code == 404)
+r = client.post("/agents/viet-bai/assets/describe", data={"kind": "link", "ref": "https://example.com/mau",
+                                                            "description": "Bài mẫu, bản 2", "brain": str(BR)})
+check("POST /agents/<slug>/assets/describe writes the line into the assistant's file",
+      r.json().get("ok") and agent_assets.doc(main._read_md(AG / "viet-bai.md")[0])["links"][0]["description"] == "Bài mẫu, bản 2",
+      r.text)
+r = client.post("/agents/viet-bai/assets/describe", data={"kind": "link", "ref": "https://example.com/mau",
+                                                            "description": "api_key=sk-abcdefghijklmnop12", "brain": str(BR)})
+check("and refuses a secret", r.status_code == 400)
+r = client.post(f"/sessions/{tsid}/assets/describe", data={"kind": "file", "ref": [k[1] for k in st.session_asset_notes(tsid)][0],
+                                                          "description": "Giọng văn chung, bản chủ sửa"})
+check("POST /sessions/<id>/assets/describe writes a team document's line, as the owner's",
+      r.json().get("ok") and any(v["description"] == "Giọng văn chung, bản chủ sửa" and v["source"] == "owner"
+                                 for v in st.session_asset_notes(tsid).values()), r.text)
+got = client.get(f"/sessions/{tsid}/assets").json()
+check("the chat's document list carries the description for the team panel",
+      any(f.get("description") == "Giọng văn chung, bản chủ sửa" for f in got.get("files", [])), got)
+check("a document not attached has nothing to describe",
+      client.post(f"/sessions/{tsid}/assets/describe", data={"kind": "file", "ref": "x/none.md", "description": "x"}).status_code == 404)
+
 
 # ============================================================
 # 11. Where the block is wired, and what was left alone
@@ -346,16 +457,41 @@ check("no new column on the tables the qualified trial reads by exact column lis
 # ============================================================
 ui = (ROOT / "dashboard" / "sessions-ui.js").read_text(encoding="utf-8")
 css = (ROOT / "dashboard" / "style.css").read_text(encoding="utf-8")
-check("the project drawer has a learned tab, between instructions and files",
-      'k: "learned"' in ui and "tabLearned, tabFile, tabLink" in ui)
-check("the chat and the assistant drawers do not get it",
-      "if (pdLaCuoc() || pdLaAgent()) return [tabFile, tabLink];" in ui)
+check("the project drawer has a learned tab, between instructions and documents",
+      'k: "learned"' in ui and "tabLearned, tabDocs]" in ui)
+check("the chat and the assistant drawers do not get it, and show only the documents tab",
+      "if (pdLaCuoc() || pdLaAgent()) return [tabDocs];" in ui)
 check("the tab counts follow the tab list", "tabsHienTai().map(function (t) { return t.n || \"\"; })" in ui)
 check("notes are escaped when drawn", "esc(n.text)" in ui and "esc(o.desc)" in ui)
 check("the long explanation sits behind the (i) button", "info.btn(pdT(\"info.more\"))" in ui and "proj.learned_info" in ui)
-check("file and link rows show the description and let the owner write it, in a project only",
-      "pd-row-desc" in ui and 'descEditable: pdCheDo === "project"' in ui and "/describe" in ui)
+check("file and link rows show the description and let the owner write it, in a project and an assistant",
+      "pd-row-desc" in ui and 'var descOk = pdCheDo === "project" || pdCheDo === "agent";' in ui
+      and 'pdPost("/describe"' in ui)
+
+# Owner, 13/11/2026: "gom File & Link vào 1 chỗ để tiết kiệm diện tích", "chỉ cần có biểu tượng riêng để phân biệt
+# file, link, folder là được".
+check("files, folders and links share ONE tab: no separate link tab, pane or form is left",
+      'k: "links"' not in ui and "function paneLink" not in ui and "function dsLinkHtml" not in ui
+      and 'data-pane="links"' not in ui and "pdFormLink" not in ui)
+check("each row's icon tells file, folder and link apart",
+      'icon: dir ? "folder" : f.image ? "image" : icoFile(f.name || f.path)' in ui and 'kind: "link", ten: l.label || l.url, icon: "link"' in ui)
+check("a link is one of three ways into the one add form", 'data-mode="link"' in ui and "noiFormLink(pane);" in ui)
+check("each row says what it is, so the row buttons act on the right list", 'data-kind="' in ui
+      and 'var laFile = row.dataset.kind !== "link";' in ui)
+check("a drawer with a single tab hides the tab bar", 'host.style.display = ds.length > 1 ? "" : "none";' in ui)
+check("an old link to the links tab lands on the documents tab", '(tab === "files" || tab === "links") ? "files"' in ui)
+import json as _json  # noqa: E402
+for _lang in ("vi", "en"):
+    _d = _json.loads((ROOT / "dashboard" / "i18n" / (_lang + ".json")).read_text(encoding="utf-8"))
+    check(f"{_lang}: strings of the merged list exist",
+          all(k in _d for k in ("proj.tab_docs", "proj.add_doc", "proj.mode_link", "teams.info_desc", "teams.info_desc_q")))
 check("styles exist for the new rows", ".pd-nrow" in css and ".pd-row-desc" in css and ".pd-ntext" in css)
+tm = (ROOT / "dashboard" / "teams.js").read_text(encoding="utf-8")
+ccss = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
+check("the team panel shows each document's line and a pencil to write it",
+      "descLine(f) + descBtn(f, \"file\")" in tm and "descLine(l) + descBtn(l, \"link\")" in tm
+      and 'if (d.infoDesc) return describeDoc(' in tm and 'assetPost("/describe", f)' in tm and ".tm-info-desc" in ccss)
+check("the team panel escapes the line", 'esc(x.description)' in tm)
 
 print()
 if fails:
