@@ -13,9 +13,11 @@ restarts Javis in exactly those states. A real Docker daemon is not available in
 drives the guard against an in-memory Docker that answers the same API calls.
 """
 from _paths import ROOT  # noqa: E402,F401  (also points tempfile at a per-run folder)
+import ast
 import copy
 import http.server
 import importlib.util
+import io
 import json
 import os
 import socketserver
@@ -23,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import tokenize
 
 import yaml
 
@@ -424,11 +427,39 @@ source = (ROOT / "docker" / "guard.py").read_text(encoding="utf-8")
 check("guard.py has no '$' (compose would read it as a variable)", "$" not in source)
 r = subprocess.run([sys.executable, str(ROOT / "tools" / "sync_guard.py"), "--check"], capture_output=True, text=True)
 check("both compose files carry the current guard.py (else: python tools/sync_guard.py)", r.returncode == 0)
+
+# The compose files carry a compact copy (hPanel refuses a compose over 32,768 characters, owner
+# report 2026-11-14). It must be the very same program: same syntax tree once docstrings are gone.
+sync_spec = importlib.util.spec_from_file_location("sync_guard", ROOT / "tools" / "sync_guard.py")
+sync_guard = importlib.util.module_from_spec(sync_spec)
+sync_spec.loader.exec_module(sync_guard)
+compact = sync_guard.compact(source)
+
+
+def without_docstrings(code):
+    tree = ast.parse(code)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+                node.body = node.body[1:]
+    return ast.dump(tree)
+
+
+check("the compact copy is the same program as guard.py", without_docstrings(source) == ast.dump(ast.parse(compact)))
+compact_tokens = list(tokenize.generate_tokens(io.StringIO(compact).readline))
+check("the compact copy drops docstrings, comments and blank lines",
+      '"""' not in compact and "\n\n" not in compact
+      and not any(tok.type == tokenize.COMMENT for tok in compact_tokens))
+check("the compact copy is much smaller than guard.py", len(compact) < len(source) * 0.8)
+check("the compact copy has no '$' either", "$" not in compact)
+check("compact() keeps a '#' inside a string and cuts a real comment",
+      sync_guard.compact('x = "a#b"  # note\nif x:\n    y = 1\n') == 'x = "a#b"\nif x:\n  y = 1\n')
 for name in ("docker-compose.yml", "docker-compose.hostinger.yml"):
     services = yaml.safe_load((ROOT / name).read_text(encoding="utf-8"))["services"]
     svc = services.get("guard") or {}
     check(f"{name}: has the guard service", bool(svc))
-    check(f"{name}: guard runs the inline copy of guard.py", svc.get("command") == [source]
+    check(f"{name}: guard runs the compact copy of guard.py", svc.get("command") == [compact]
           and svc.get("entrypoint") == ["python", "-u", "-c"])
     check(f"{name}: guard has no network at all", svc.get("network_mode") == "none")
     check(f"{name}: guard reaches the Docker socket and keeps its snapshot on a volume",
