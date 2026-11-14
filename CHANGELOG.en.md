@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.559.2] - 2026-11-14
+### Fixed
+- **The model picker opens right above the model chip.** A tall composer (a file attached, a few lines typed) used to push it far above the chip, and a long list lost its first rows off the top. The model list, Effort, plan usage and the "+" menu now open just above the row of chips and always stay on screen.
+- **The Team chat's "+" menu does the same**, along with the folder and GitHub panels it opens.
+
 ## [0.559.1] - 2026-11-14
 ### Fixed
 - **The Google Workspace connection does real work on Forms, Drive and Sheets.** The card only turned on a reduced tool set, so Javis could not edit Form questions, read responses, browse a Drive folder, rename or copy a file, add a tab or append rows to Sheets. All of that works now, with no new Google sign-in.
