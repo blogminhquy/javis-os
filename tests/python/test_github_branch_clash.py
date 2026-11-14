@@ -107,6 +107,53 @@ r2 = S().get(SID, "acme/app") or {}
 check("the next push of the same job stays on the same branch",
       r2.get("branch") == branch and fake.branch_sha("acme/app", branch) == r2.get("head_sha"))
 
+
+# ---- a job stuck BEFORE this fix: its row already holds the clashing name (owner, 14/11/2026) ----
+# The javisos-blog card kept "has commits this machine lacks" with a warning mark after the fix shipped: the branch
+# is decided once and stored, so every retry and the "Push again" button pushed to the same taken name again.
+SID2 = "51c0ffee07a943d3"
+github_repos.attach(SID2, BRAIN, BRAIN, ["acme/app"])
+wt2 = Path(github_repos.session_repos(SID2, BRAIN)[0]["worktree"])
+short2 = github_repos.session_branch(SID2)
+fake.add_branch("acme/app", short2, "OLD3.md", "old squashed job of chat 2\n")
+(wt2 / "src/a.py").write_text("a = 20\n", encoding="utf-8")
+w.commit_all(str(wt2), "huy hiệu Hostinger")
+S().ensure(SID2, "acme/app", brain=BRAIN, worktree=str(wt2), base_branch="main")
+S().update(SID2, "acme/app", branch=short2, exec="stuck", title="huy hiệu Hostinger",
+           stuck_reason="Nhánh trên GitHub có commit mà máy này không có, Javis không ghi đè.",
+           gate={"ship_failed": {"kind": "diverged", "tries": 23, "at": 0, "next_at": 0, "task": "huy hiệu Hostinger"}})
+posted.clear()
+try:
+    run(w.retry_ship(SID2, "acme/app", by_person=True))
+    raised = ""
+except github_repos.RepoError as e:
+    raised = str(e)
+r3 = S().get(SID2, "acme/app") or {}
+check("Push again on a row stuck before the fix goes through", not raised and not w.ship_failed(r3)
+      and r3.get("exec") != "stuck")
+check("...to a free name, never the taken one", r3.get("branch") not in ("", short2)
+      and fake.branch_sha("acme/app", r3.get("branch") or "") == r3.get("head_sha") and r3.get("integ") == "pr_open")
+check("...and the taken branch on GitHub is untouched", fake.branch_sha("acme/app", short2) != r3.get("head_sha"))
+
+# Same stuck state, but the work was moved by hand to a fresh branch in the worktree (what the session did):
+# the push follows the worktree's branch instead of the stored, never-pushed name.
+SID3 = "7a1ce0de07a943d3"
+github_repos.attach(SID3, BRAIN, BRAIN, ["acme/app"])
+wt3 = Path(github_repos.session_repos(SID3, BRAIN)[0]["worktree"])
+short3 = github_repos.session_branch(SID3)
+fake.add_branch("acme/app", short3, "OLD4.md", "old squashed job of chat 3\n")
+(wt3 / "src/a.py").write_text("a = 30\n", encoding="utf-8")
+w.commit_all(str(wt3), "huy hiệu Hostinger")
+github_repos.git(["branch", "-m", short3 + "-r8"], str(wt3))
+S().ensure(SID3, "acme/app", brain=BRAIN, worktree=str(wt3), base_branch="main")
+S().update(SID3, "acme/app", branch=short3, exec="stuck", title="huy hiệu Hostinger",
+           gate={"ship_failed": {"kind": "diverged", "tries": 3, "at": 0, "next_at": 0, "task": "huy hiệu Hostinger"}})
+run(w.retry_due())
+r4 = S().get(SID3, "acme/app") or {}
+check("the watcher's retry pushes the branch the worktree is on",
+      r4.get("branch") == short3 + "-r8" and fake.branch_sha("acme/app", short3 + "-r8") == r4.get("head_sha")
+      and not w.ship_failed(r4))
+
 fake.close()
 print()
 if _fails:
