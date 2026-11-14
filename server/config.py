@@ -1560,13 +1560,40 @@ def _save_sessions():
         pass
 
 
-def new_session(ip: str = "", ua: str = ""):
+def new_session(ip: str = "", ua: str = "", remember: bool = True):
+    """A new sign-in session. remember=False is "Keep me signed in" left unticked (see _SHORT_SESSION_IDLE)."""
     t = secrets.token_urlsafe(32)
     SESSIONS[t] = _time.time()
     _save_sessions()
     if ip or ua:
         note_session_device(t, ip, ua)
+    if not remember:
+        SESSION_META.setdefault(t, {})["remember"] = False
+        _save_session_meta()
     return t
+
+
+# "Keep me signed in" left unticked (2026-11-14). The owner asked for it to sign in on someone else's device: the
+# cookie then has no max_age, so the browser drops it when it closes. A browser that restores its last session, or a
+# phone browser that never really closes, would keep it anyway, so the server also ends such a session after a few
+# hours with no request from it, and a day after sign-in at the latest. An open dashboard tab polls every few seconds,
+# so the idle limit never hits someone who is using it. The flag lives in SESSION_META (.sessions.json stays
+# {token: ts} for older versions); a session without it is a remembered one, which is every session made before this.
+_SHORT_SESSION_IDLE = 4 * 3600
+_SHORT_SESSION_MAX = 24 * 3600
+
+
+def session_remembered(token) -> bool:
+    return (SESSION_META.get(token) or {}).get("remember") is not False
+
+
+def _short_session_over(token, now: float) -> bool:
+    m = SESSION_META.get(token) or {}
+    if m.get("remember") is not False:
+        return False
+    started = float(m.get("created") or SESSIONS.get(token) or 0)
+    last = float(m.get("last") or started)
+    return now - started > _SHORT_SESSION_MAX or now - last > _SHORT_SESSION_IDLE
 
 
 def valid_session(token):
@@ -1578,7 +1605,7 @@ def valid_session(token):
         pass
     if token not in SESSIONS:
         return False
-    if _time.time() - SESSIONS.get(token, 0) > _SESSION_TTL:
+    if _time.time() - SESSIONS.get(token, 0) > _SESSION_TTL or _short_session_over(token, _time.time()):
         SESSIONS.pop(token, None)
         SESSION_META.pop(token, None)
         _save_sessions()
@@ -1600,6 +1627,8 @@ def renew_session(token) -> bool:
     ts = SESSIONS.get(token) if token else None
     if ts is None or _time.time() - ts < _SESSION_RENEW_AFTER or _time.time() - ts > _SESSION_TTL:
         return False
+    if not session_remembered(token):
+        return False   # never re-issued: that would hand an unticked sign-in a 30-day cookie
     SESSION_META.setdefault(token, {}).setdefault("created", ts)
     SESSIONS[token] = _time.time()
     _save_sessions()
@@ -1688,13 +1717,14 @@ def touch_session(token, ip: str = ""):
 
 def list_sessions(current: str = "") -> list:
     out = []
+    now = _time.time()
     for tok, created in SESSIONS.items():
-        if _time.time() - float(created or 0) > _SESSION_TTL:
+        if now - float(created or 0) > _SESSION_TTL or _short_session_over(tok, now):
             continue
         m = SESSION_META.get(tok) or {}
         out.append({"id": session_id(tok), "created": float(m.get("created") or created or 0), "last": float(m.get("last") or created or 0),
                     "ip": m.get("ip", ""), "last_ip": m.get("last_ip") or m.get("ip", ""), "ua": m.get("ua", ""),
-                    "current": bool(current) and tok == current})
+                    "remember": session_remembered(tok), "current": bool(current) and tok == current})
     out.sort(key=lambda x: (not x["current"], -x["last"]))
     return out
 

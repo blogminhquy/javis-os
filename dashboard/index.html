@@ -917,6 +917,13 @@
           <div class="auth-hint" data-i18n="auth.code_hint">Mở app Authenticator và nhập mã đang hiện. Mất điện thoại thì
             nhập một mã khôi phục đã lưu lúc bật.</div>
         </div>
+        <!-- "Keep me signed in": unticked on a borrowed device, the session ends when the browser closes. -->
+        <div class="auth-remember-row">
+          <label class="auth-remember"><input type="checkbox" id="authRemember" checked>
+            <span data-i18n="auth.remember">Ghi nhớ đăng nhập trên máy này</span></label>
+          <button type="button" class="info-i" aria-expanded="false" data-i18n-aria="info.more" data-i18n-title="info.more"><i data-ic="info"></i></button>
+          <div class="info-body" hidden data-i18n="auth.remember_info">Bỏ tích khi đăng nhập trên máy của người khác: đóng trình duyệt là phiên kết thúc. Để yên 4 giờ không dùng, hoặc quá 24 giờ, Javis cũng tự đăng xuất. Nếu trình duyệt hỏi lưu mật khẩu, chọn Không bao giờ.</div>
+        </div>
         <button class="fm-use" id="authSubmit" data-i18n="auth.submit">Đăng nhập</button>
         <div class="auth-err" id="authErr"></div>
         <div class="auth-help"><span id="authForgot" data-i18n="auth.forgot">Quên mật khẩu?</span></div>
