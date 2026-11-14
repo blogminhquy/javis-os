@@ -1305,6 +1305,9 @@ async def discover_resolved(conns, bo_qua=None):
 
 async def call_route(route, fn, arguments):
     """Gọi 1 tool theo fn. Entry: {"call"} (hub bọc sẵn) | {"spec","tool"} (pool) | {"server","tool"} (legacy)."""
+    import bot_tool_scope
+    if not bot_tool_scope.permitted(fn):
+        return "ERROR: bot_tool_scope_denied"
     ent = route.get(fn)
     if not ent:
         return f"ERROR: tool '{fn}' không tồn tại"

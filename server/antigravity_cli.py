@@ -1462,6 +1462,12 @@ class AntigravityCLI:
         return duong_prompt_dai(self.cli_path)
 
     async def query(self, prompt: str) -> AsyncIterator[dict]:
+        import bot_tool_scope
+        if bot_tool_scope.native_engine_blocked():
+            yield {"type": "error", "content": __import__("localefmt").chu(
+                "Bot giới hạn công cụ cần engine API; engine CLI chưa có sandbox phù hợp.",
+                "Scoped bots require an API engine until CLI sandbox confinement is available.")}
+            return
         """Một lượt chat. Tự chọn đường đưa prompt, và tự thử lại nếu đường đó không tới nơi."""
         if not self.cli_path:
             yield {"type": "error",
