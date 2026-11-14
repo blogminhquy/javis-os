@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.561.1] - 2026-11-14
+### Sửa lỗi
+- **Cúp máy khi Javis còn đang làm việc được giao trong cuộc gọi thì việc không bị bỏ.** Javis làm nốt rồi gửi kết quả vào khung chat của cuộc gọi, kèm thông báo.
+- **Đường gọi Tự động không tự chuyển sang ChatGPT Live chỉ vì máy có sẵn phiên Codex.** ChatGPT Live chỉ được chọn khi ChatGPT là model chính hoặc đã kết nối ở trang Models.
+### Cải thiện
+- **Các dòng hệ thống Javis gắn dưới câu trả lời không còn xưng cứng "mình".** Dòng theo dõi việc chạy nền, đính chính lời hẹn, nhắc trí nhớ, link không thấy file viết không đại từ, nên không lệch với cách xưng hô đã chọn.
+
 ## [0.561.0] - 2026-11-14
 ### Thêm mới
 - **Link mở thẳng một trang của dashboard.** Link dạng `#p=tasks` (hay tên trang khác) mở đúng trang đó, kể cả khi tab Javis đang mở sẵn.
