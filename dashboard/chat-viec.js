@@ -86,7 +86,7 @@
   }
 
   function moTrang(trang) {
-    try { window.Alpine.store("nav").go(trang); } catch (err) { location.hash = "#" + trang; }
+    try { window.Alpine.store("nav").go(trang); } catch (err) { location.hash = "#p=" + trang; }
   }
 
   // Nhan theo LOAI truoc ("viec.loop_done": "Vong lap vua chay"), khong co thi nhan chung.

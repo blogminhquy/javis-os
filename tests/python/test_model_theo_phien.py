@@ -115,10 +115,13 @@ check("meta trả cờ pin_ok (ghim còn chạy được không)", '"pin_ok"' in
 # phiên == model đang chạy thật. Phiên mới/chưa ghim được đóng dấu ngay lượt đầu nên
 # đổi mặc định chung KHÔNG BAO GIỜ đổi ngược cuộc đang dở; ghim hỏng được thay bằng
 # model thật; ghim lành là no-op (không ghi DB mỗi lượt).
+# Issue 1336: the decision moved into `_pin_to_stamp`, which also keeps a resting pin (test_pin_survives_fallback).
 check("CANARY: vòng WS đóng dấu model đang chạy cho phiên",
-      "store.set_pinned_model(conv_sid, prov, api_model or \"\")" in src)
+      "_stamp = _pin_to_stamp(mcfg, _prow, prov, api_model)" in src
+      and "store.set_pinned_model(conv_sid, *_stamp)" in src)
 check("đóng dấu chỉ ghi khi LỆCH (ghim lành không bị ghi lại mỗi lượt)",
-      '(_prow.get("pinned_provider") or "").strip() != prov' in src)
+      main._pin_to_stamp({"main": {"provider": "groq", "model": "m"}, "groq_api_key": "k"},
+                         {"pinned_provider": "groq", "pinned_model": "m"}, "groq", "m") is None)
 
 mp = (ROOT / "dashboard" / "model-picker.js").read_text(encoding="utf-8")
 check("model bar: đổi model trong phiên là ghim cho phiên", "pinToSession" in mp)

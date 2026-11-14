@@ -3484,7 +3484,7 @@
       current: function () { return S.repos.map(function (x) { return x.full_name; }); },
       changed: function (d) { if (sessionId() === sid) setRepos(d); },
       close: closeGithubPanel,
-      connections: function () { try { window.Alpine.store("nav").go("mcp"); } catch (e) { location.hash = "#mcp"; } } });
+      connections: function () { try { window.Alpine.store("nav").go("mcp"); } catch (e) { location.hash = "#p=mcp"; } } });
     setTimeout(function () {
       document.addEventListener("mousedown", githubOutside, true);
       document.addEventListener("keydown", githubEsc, true);

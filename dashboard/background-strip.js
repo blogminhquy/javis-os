@@ -229,7 +229,7 @@
     var btn = e.querySelector(".bg-open");
     if (btn) btn.onclick = function () {
       datPop(false);
-      try { window.Alpine.store("nav").go("kanban"); } catch (err) { location.hash = "#kanban"; }
+      try { window.Alpine.store("nav").go("kanban"); } catch (err) { location.hash = "#p=kanban"; }
     };
     // Vẽ lại vì danh sách đổi: khung đang mở thì vẫn mở, đừng đóng dưới tay người đang đọc.
     if (moPop) datPop(true);

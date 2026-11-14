@@ -608,7 +608,7 @@
   function addReposUrl() {
     return ghStatus && ghStatus.source === "app" && ghStatus.install_url ? String(ghStatus.install_url) : "";
   }
-  function goConnections() { try { window.Alpine.store("nav").go("mcp"); } catch (e) { location.hash = "#mcp"; } }
+  function goConnections() { try { window.Alpine.store("nav").go("mcp"); } catch (e) { location.hash = "#p=mcp"; } }
   // Inside a sub view our own back row leads back to the GitHub menu; the + menu's back row above it would only
   // repeat "Repo GitHub", so it hides there and comes back on the menu view.
   function outerBack(box, show) {

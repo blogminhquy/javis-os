@@ -120,6 +120,30 @@ check("chuẩn hoá tuyệt đối có (ngoặc) ra đủ đuôi .md",
       H(f"[x]({brain}/wiki/{TEN})") == f"[x](wiki/{TEN})", H(f"[x]({brain}/wiki/{TEN})"))
 
 # ============================================================
+# 4b. IDE line suffix on a file link (issue 1390): `agents/x.md#L66-L75` names agents/x.md
+# ============================================================
+(brain / "agents").mkdir()
+(brain / "agents" / "x.md").write_text("x", encoding="utf-8")
+(brain / "ghi-chu.md").write_text("x", encoding="utf-8")
+check("CANARY: [x](agents/x.md#L66-L75) is not reported missing when agents/x.md exists",
+      K("[x.md](agents/x.md#L66-L75)") == [], K("[x.md](agents/x.md#L66-L75)"))
+for suffix in ("#L66", "#l66-l75", "#L66-75", "#L66C3", "#L66C3-L70C1"):
+    check(f"line suffix {suffix} is cut before the existence check",
+          K(f"[x](agents/x.md{suffix})") == [], K(f"[x](agents/x.md{suffix})"))
+check("a file at the brain root with a line suffix still counts as a file link, and exists",
+      K("[x](ghi-chu.md#L5)") == [], K("[x](ghi-chu.md#L5)"))
+check("file:// link with a line suffix inside the brain is not reported",
+      K(f"[x](file://{brain}/agents/x.md#L3-L9)") == [], K(f"[x](file://{brain}/agents/x.md#L3-L9)"))
+check("a missing file with a line suffix is still reported, as written",
+      K("[x](agents/khong-co.md#L5)") == ["agents/khong-co.md#L5"], K("[x](agents/khong-co.md#L5)"))
+check("a heading anchor is not a line suffix",
+      main._LINE_SUFFIX_RE.sub("", "agents/x.md#lien-he") == "agents/x.md#lien-he"
+      and main._LINE_SUFFIX_RE.sub("", "agents/x.md#L5-intro") == "agents/x.md#L5-intro"
+      and main._LINE_SUFFIX_RE.sub("", "agents/x.md#Lab") == "agents/x.md#Lab")
+check("only a TRAILING suffix is cut",
+      main._LINE_SUFFIX_RE.sub("", "a#L5/x.md") == "a#L5/x.md")
+
+# ============================================================
 # 5. Prompt: dặn thẳng model không dùng file://
 # ============================================================
 _agentic = main.main_prompt_rendering.render_agentic_paths(
