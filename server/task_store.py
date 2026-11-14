@@ -1240,6 +1240,17 @@ class TaskStore:
     # through `answer`). Finished jobs included: "make paragraph 2 shorter" on a done job is the common case.
     FOLLOWUP_STATUS = ("blocked", "review", "done", "cancelled", "triage", "todo", "ready")
 
+    @staticmethod
+    def _followup_entry(text: str, by: str, progress: str) -> dict:
+        """One owner follow-up in the Q&A log. `TasksFeature._hoi_dap` hands it to the next run as the newest
+        instruction, which wins over the original goal where the two differ."""
+        return {
+            "q": "Chủ nhắn thêm cho việc này",
+            "a": text[:QA_TEXT_MAX], "kind": "followup", "by": by,
+            "asked_at": now(), "answered_at": now(),
+            "progress": progress.strip()[:QA_PROGRESS_MAX],
+        }
+
     def followup(self, task_id: str, text: str, by: str = "owner") -> tuple[Optional[dict], str]:
         """The owner's extra instruction for a job, then back to the queue (0.411.0).
 
@@ -1271,12 +1282,7 @@ class TaskStore:
                     return None, "not_found"
                 meta = _loads(row["metadata_json"], {})
                 qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
-                qa.append({
-                    "q": "Chủ nhắn thêm cho việc này",
-                    "a": text[:QA_TEXT_MAX], "kind": "followup", "by": by,
-                    "asked_at": now(), "answered_at": now(),
-                    "progress": str(row["result"] or "").strip()[:QA_PROGRESS_MAX],
-                })
+                qa.append(self._followup_entry(text, by, str(row["result"] or "")))
                 meta["qa"] = qa[-QA_KEEP:]
                 meta.pop("once_pending", None)
                 if meta.get("acceptance_check") in ("unverified", "checking", "failed"):
@@ -1331,13 +1337,19 @@ class TaskStore:
             block_reason=reason, metadata=meta, artifacts=artifacts, event_type="acceptance_failed",
         )
 
-    def resolve_acceptance(self, task_id: str, decision: str, by: str = "owner") -> tuple[Optional[dict], str]:
+    def resolve_acceptance(self, task_id: str, decision: str, by: str = "owner",
+                           note: str = "") -> tuple[Optional[dict], str]:
         """The owner's pick on an `acceptance_failed` job: "fix" sends it back to the worker with the checker's
         reason and fresh attempts, "accept" closes it as done (or back to review when it was waiting for approval)
         with `acceptance_check: accepted`. Returns (task, "") or (None, "bad_decision" | "not_found" |
-        "not_waiting")."""
+        "not_waiting").
+
+        `note` (fix only): the owner's extra instruction for the redo, stored as a follow-up entry right after the
+        checker's reason, in the same transaction. A separate `followup` call after this one would race the
+        dispatcher, which can claim the job the moment it is ready and run it without the note."""
         if decision not in ("fix", "accept"):
             return None, "bad_decision"
+        note = (note or "").strip()
         with self._lock:
             self._tx()
             try:
@@ -1357,6 +1369,8 @@ class TaskStore:
                     qa.append({"kind": "acceptance_fix", "q": reason, "a": reason, "by": by,
                                "asked_at": now(), "answered_at": now(),
                                "progress": str(row["result"] or "").strip()[:QA_PROGRESS_MAX]})
+                    if note:
+                        qa.append(self._followup_entry(note, by, str(row["result"] or "")))
                     meta["qa"] = qa[-QA_KEEP:]
                     meta.pop("acceptance_check", None)
                     meta.pop("acceptance_from", None)
@@ -1367,6 +1381,8 @@ class TaskStore:
                         (_json(meta), now(), task_id),
                     )
                     self._event(task_id, "acceptance_fix", reason[:500], metadata={"by": by})
+                    if note:
+                        self._event(task_id, "followup", note[:500], metadata={"by": by, "from": row["status"]})
                 else:
                     status = "review" if meta.pop("acceptance_from", "") == "review" else "done"
                     meta["acceptance_check"] = "accepted"

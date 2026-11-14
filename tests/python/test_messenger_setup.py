@@ -182,6 +182,16 @@ check("missing scopes listed", sc["ok"] is False and "pages_read_engagement" in 
 ex = next(i for i in chk["items"] if i["id"] == "expiry")
 check("expiry is a warning", ex["ok"] is None and ex["detail"], ex)
 
+# Issue 1439: the checklist says whether the Page token may read post insights, a warning only (optional permission).
+ins = next((i for i in chk["items"] if i["id"] == "insights"), {})
+check("insights row: a warning naming read_insights when the token lacks it",
+      ins.get("ok") is None and ins.get("detail") == "read_insights" and ins.get("fix"), ins)
+g = FakeGraph(scopes=ALL_SCOPES + ["read_insights"])
+g.page_fields = ["messages", "messaging_postbacks"]
+chk = run(with_graph(g, lambda c: messenger_setup.run_checks(c, PAGE, PAGE_TOKEN, SECRET, APP, URL)))
+ins = next((i for i in chk["items"] if i["id"] == "insights"), {})
+check("insights row green once the token has read_insights", ins.get("ok") is True and chk["ok"], ins)
+
 # ============================================================
 # 6. Inputs refused before any network call
 # ============================================================

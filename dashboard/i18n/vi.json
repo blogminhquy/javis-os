@@ -6657,6 +6657,8 @@
   "msc.pages_head": "Fanpage đã kết nối ({n})",
   "msc.ig_tick": "Nối cả Instagram của Trang",
   "msc.ig_tick_how": "Tin nhắn và bình luận của tài khoản Instagram chuyên nghiệp gắn với Trang sẽ vào chung Hộp thư, cùng bot với Trang. Cần: tài khoản Instagram doanh nghiệp hoặc nhà sáng tạo đã gắn vào Trang (Cài đặt Trang, Tài khoản liên kết), app Meta có thêm trường hợp sử dụng Instagram (nhắn tin và bình luận), và trong app Instagram bật Cho phép truy cập tin nhắn (Cài đặt, Tin nhắn và phản hồi tin, Công cụ đã kết nối). Nếu Facebook báo quyền không hợp lệ, bỏ tick này và đăng nhập lại.",
+  "msc.insights_tick": "Đọc số liệu bài viết (lượt tiếp cận, lượt lưu)",
+  "msc.insights_tick_how": "Xin thêm quyền read_insights để Javis đọc lượt tiếp cận, lượt lưu, lượt bấm của bài viết và của Trang. Không bắt buộc: app Meta phải thêm quyền read_insights trước, nếu chưa thì Facebook từ chối cả lần đăng nhập. Nếu Facebook báo quyền không hợp lệ, bỏ tick này và đăng nhập lại. Trang đã nối: bấm Đổi token, tick ô này và đăng nhập Facebook lại; bảng kiểm tra có dòng Đọc số liệu bài viết.",
   "msc.ig_none": "Instagram: chưa nối",
   "msc.ig_none_how": "Gắn tài khoản Instagram chuyên nghiệp vào Trang, rồi bấm Đổi token, tick Nối cả Instagram của Trang và đăng nhập Facebook lại.",
   "msc.ig_on": "Nhận tin nhắn và bình luận Instagram",

@@ -226,6 +226,13 @@ check("login asks for the posting permission", "pages_manage_posts" in messenger
 check("posting row: warning when pages_manage_posts is missing, green when present",
       messenger_setup.posts_item(["pages_messaging"])["ok"] is None
       and messenger_setup.posts_item(["pages_manage_posts"])["ok"] is True)
+# Issue 1439: post insights are optional; the row only warns.
+check("login keeps read_insights out of the always-asked permissions",
+      "read_insights" not in messenger_oauth.SCOPES and messenger_oauth.INSIGHTS_SCOPES == ("read_insights",))
+check("insights row: warning when read_insights is missing, green when present",
+      messenger_setup.insights_item(["pages_messaging"])["ok"] is None
+      and messenger_setup.insights_item(["pages_messaging"])["detail"] == "read_insights"
+      and messenger_setup.insights_item(["read_insights"])["ok"] is True)
 
 
 # ============================================================
@@ -281,6 +288,12 @@ check("start returns the Facebook login address with redirect, state and scopes"
       and "pages_messaging" in q["scope"][0] and "pages_manage_engagement" in q["scope"][0], r)
 state = r["state"]
 check("before the callback the login is pending", messenger_oauth.result(state)["status"] == "pending")
+check("read_insights is not asked unless ticked", "read_insights" not in q["scope"][0].split(","), q["scope"])
+r_in = run(with_fb(lambda c: messenger_oauth.start(APP, APP_SECRET, REDIRECT, client=c, insights=True)))
+q_in = parse_qs(urlparse(r_in.get("url", "")).query)
+check("ticked, start asks for read_insights on top of the Page permissions",
+      r_in["ok"] and "read_insights" in q_in["scope"][0].split(",") and "pages_messaging" in q_in["scope"][0]
+      and messenger_oauth._pending[r_in["state"]]["insights"] is True, q_in)
 
 r = run(with_fb(lambda c: messenger_oauth.callback(state, "bad", client=c)))
 check("a bad code reads as an error, also through result()",
@@ -357,6 +370,22 @@ d = r.json()
 check("setup gives the redirect address and the privacy address to paste into Meta",
       d.get("oauth_redirect") == "https://javis.example.com/messenger/oauth/callback"
       and d.get("privacy_url") == "https://javis.example.com/messenger/privacy", d)
+seen_start = []
+
+
+async def fake_start(*a, **kw):
+    seen_start.append(kw)
+    return {"ok": True, "state": "st-x", "url": "https://www.facebook.com/x"}
+
+orig_start = main.messenger_oauth.start
+main.messenger_oauth.start = fake_start
+try:
+    client.post("/messenger/oauth/start", json={"app_id": APP, "app_secret": APP_SECRET, "insights": True})
+    client.post("/messenger/oauth/start", json={"app_id": APP, "app_secret": APP_SECRET, "instagram": True})
+finally:
+    main.messenger_oauth.start = orig_start
+check("the start route passes the insights tick on its own, apart from Instagram",
+      [(k.get("insights"), k.get("instagram")) for k in seen_start] == [(True, False), (False, True)], seen_start)
 r = client.get("/messenger/oauth/callback", params={"state": "nope", "code": "x"})
 check("callback with an unknown state shows an error page, not a crash",
       r.status_code == 200 and "⚠" in r.text, r.status_code)

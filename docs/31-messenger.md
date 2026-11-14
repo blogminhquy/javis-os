@@ -31,6 +31,10 @@ Không cần Graph API Explorer, không cần chép Page ID hay token. Làm lầ
 
 Cùng một lần nối ở thẻ Facebook Messenger, Javis đăng được bài lên Trang: chữ, ảnh, album, video, sửa và xoá bài. Nhắn Javis "đăng bài này lên Fanpage" để đăng ngay, hoặc "8 giờ sáng mỗi ngày đăng một bài" để đặt lịch. Cần quyền `pages_manage_posts` (nút Đăng nhập Facebook tự xin; app phải thêm quyền này trước, xem [hướng dẫn từng bước](31-messenger-tung-buoc.md)). Trang nối trước bản 0.438.0 thì Đăng nhập Facebook lại một lần. Bảng kiểm tra có dòng **Đăng bài lên Trang** báo còn thiếu quyền hay không. Kho cài đặt đã gỡ thẻ Facebook Trang; máy đã cài thẻ đó vẫn dùng như cũ.
 
+## Số liệu bài viết (không bắt buộc)
+
+Muốn Javis đọc lượt tiếp cận, lượt lưu, lượt bấm của bài viết và của Trang thì tick **Đọc số liệu bài viết (lượt tiếp cận, lượt lưu)** trên form trước khi bấm Đăng nhập Facebook. Ô này xin thêm quyền `read_insights`; app Meta phải thêm quyền đó trước, nếu chưa thì Facebook từ chối cả lần đăng nhập, nên ô để trống sẵn. Trang đã nối thì bấm **Đổi token**, tick ô này và đăng nhập lại. Bảng kiểm tra có dòng **Đọc số liệu bài viết** báo token Trang đã có quyền chưa.
+
 ## Bình luận Fanpage (từ 0.434.0)
 
 Giống cách Pancake hiển thị: **mỗi bình luận gốc dưới bài viết là một hội thoại riêng** trong Hộp thư, các trả lời bên dưới bình luận đó gom chung vào hội thoại ấy. Tiêu đề hội thoại ghi vài chữ đầu của bài viết. Bạn gõ trả lời trong Hộp thư thì câu đó hiện **công khai ngay dưới bình luận gốc** trên Facebook. Ảnh gửi kèm được, file khác thì không (bình luận chỉ nhận ảnh).

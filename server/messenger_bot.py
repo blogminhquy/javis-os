@@ -80,6 +80,8 @@ IG_WEBHOOK_FIELDS = "messages,messaging_postbacks,comments"
 COMMENT_MODES = ("off", "inbox", "reply")
 COMMENT_MODE_DEFAULT = "inbox"
 MAX_COMMENT = 7900            # a comment takes 8000 characters
+NAME_RETRY_S = 600            # a sender whose name lookup failed is looked up again after 10 minutes, not per message
+MAX_NAMES = 2000
 
 # page_id -> MessengerBot currently running for it.
 _REGISTRY: dict = {}
@@ -137,6 +139,22 @@ def _chunks(text: str, size: int = MAX_MSG) -> list:
     if text.strip():
         out.append(text)
     return out
+
+
+def profile_name(d: dict) -> str:
+    """The name in a User Profile API answer: `name`, else `@username` (Instagram), else first and last name."""
+    d = d if isinstance(d, dict) else {}
+    return str(d.get("name") or (d.get("username") and "@" + str(d.get("username")))
+               or " ".join(str(x) for x in (d.get("first_name"), d.get("last_name")) if x) or "").strip()
+
+
+def participant_name(conversations: dict, psid: str) -> str:
+    """The name of participant `psid` in a `/<page>/conversations?fields=participants` answer, or ""."""
+    for conv in (conversations if isinstance(conversations, dict) else {}).get("data") or []:
+        for p in ((conv or {}).get("participants") or {}).get("data") or []:
+            if str((p or {}).get("id") or "") == str(psid):
+                return str(p.get("name") or "").strip()
+    return ""
 
 
 def registered() -> dict:
@@ -339,6 +357,7 @@ class MessengerBot(HangLuot):
         self._seen = set()
         self._seen_order = deque()
         self._names: dict = {}
+        self._name_retry: dict = {}     # PSID -> time before which a failed name lookup is not tried again
         self._posts: dict = {}
         self._client = None
         self.account_id = ""
@@ -504,24 +523,67 @@ class MessengerBot(HangLuot):
         await self._post_json(client, f"{self.page_id}/messages",
                               {"recipient": {"id": raw_chat_id(chat)}, "sender_action": action})
 
+    def _read_params(self, extra: dict) -> dict:
+        """Query of a Graph read with the Page token, plus `appsecret_proof` when the app secret is known (as `whoami`)."""
+        p = dict(extra, access_token=self.token)
+        if self.app_secret:
+            p["appsecret_proof"] = appsecret_proof(self.token, self.app_secret)
+        return p
+
+    async def _graph_read(self, client, path: str, params: dict) -> tuple:
+        """GET one Graph path with the Page token. (data, "") or ({}, "<code>: <message>") for the log line.
+        The reason never carries the token: an exception is reduced to its type, whose text may quote the URL."""
+        try:
+            r = await client.get(f"{GRAPH}/{path}", params=self._read_params(params))
+        except Exception as e:
+            return {}, type(e).__name__
+        try:
+            d = r.json() or {}
+        except Exception:
+            d = {}
+        if not isinstance(d, dict):
+            d = {}
+        if d.get("error") or r.status_code >= 300:
+            e = d.get("error") if isinstance(d.get("error"), dict) else {}
+            code = str(e.get("code") or r.status_code) + (f"/{e['error_subcode']}" if e.get("error_subcode") else "")
+            return {}, f"{code}: {str(e.get('message') or 'HTTP ' + str(r.status_code))[:200]}"
+        return d, ""
+
     async def _name_of(self, client, psid, instagram: bool = False) -> str:
-        """Display name of a person (User Profile API). Empty when the app may not read it. On Instagram the
-        name, else the @username."""
+        """Display name of a person. On Instagram the name, else the @username.
+
+        The User Profile API first. On Messenger, when it fails or gives no name (Meta refuses it to many apps), the
+        participants of the Page's conversation with that person, which only needs the Page's own permissions. A name
+        found is kept; a miss is tried again after NAME_RETRY_S, so one refused call no longer leaves the person shown
+        as a bare id until a restart, and Graph is not asked on every message (issue 1449)."""
+        psid = str(psid or "")
+        if not psid:
+            return ""
         if psid in self._names:
             return self._names[psid]
-        name = ""
-        try:
-            fields = "name,username" if instagram else "first_name,last_name,name"
-            r = await client.get(f"{GRAPH}/{psid}", params={"fields": fields, "access_token": self.token})
-            d = r.json() or {}
-            name = str(d.get("name") or (d.get("username") and "@" + str(d.get("username")))
-                       or " ".join(x for x in (d.get("first_name"), d.get("last_name")) if x) or "").strip()
-        except Exception:
-            name = ""
-        if len(self._names) > 2000:
-            self._names.clear()
-        self._names[psid] = name
-        return name
+        now = time.time()
+        if self._name_retry.get(psid, 0) > now:
+            return ""
+        fields = "name,username" if instagram else "first_name,last_name,name"
+        d, err = await self._graph_read(client, psid, {"fields": fields})
+        name = profile_name(d)
+        conv_err = ""
+        if not name and not instagram and self.page_id:
+            c, conv_err = await self._graph_read(client, f"{self.page_id}/conversations",
+                                                 {"user_id": psid, "fields": "participants"})
+            name = participant_name(c, psid)
+        for cache in (self._names, self._name_retry):
+            if len(cache) > MAX_NAMES:
+                cache.clear()
+        if name:
+            self._names[psid] = name
+            self._name_retry.pop(psid, None)
+            return name
+        self._name_retry[psid] = now + NAME_RETRY_S
+        print(f"[messenger] no display name for {psid} on Page {self.page_id}: profile {err or 'no name'}"
+              + ("" if instagram else f"; conversations {conv_err or 'no participant'}")
+              + f"; next try in {NAME_RETRY_S // 60} min", file=sys.stderr)
+        return ""
 
     # ---- Inbound ----------------------------------------------------------------------
     def _seen_before(self, mid) -> bool:

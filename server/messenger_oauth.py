@@ -47,6 +47,9 @@ SCOPES = ("pages_show_list", "pages_messaging", "pages_manage_metadata", "pages_
 # Instagram (0.447.0), only when the owner ticks it: a Meta app without the Instagram use case refuses the whole
 # login over a scope it does not know, so the Page connection must never depend on it.
 IG_SCOPES = ("instagram_basic", "instagram_manage_messages", "instagram_manage_comments")
+# Post and Page insights (reach, saves, clicks; issue 1439), only when the owner ticks it, for the same reason: a Meta
+# app that has not added `read_insights` refuses the whole login over it.
+INSIGHTS_SCOPES = ("read_insights",)
 
 _lock = threading.Lock()
 _pending: Dict[str, Dict[str, Any]] = {}
@@ -81,14 +84,15 @@ def check_input(app_id: str, app_secret: str) -> str:
     return ""
 
 
-def login_url(app_id: str, redirect_uri: str, state: str, instagram: bool = False) -> str:
+def login_url(app_id: str, redirect_uri: str, state: str, instagram: bool = False, insights: bool = False) -> str:
+    scopes = SCOPES + (IG_SCOPES if instagram else ()) + (INSIGHTS_SCOPES if insights else ())
     q = {"client_id": app_id, "redirect_uri": redirect_uri, "state": state, "response_type": "code",
-         "scope": ",".join(SCOPES + (IG_SCOPES if instagram else ())), "auth_type": "rerequest"}
+         "scope": ",".join(scopes), "auth_type": "rerequest"}
     return f"{_web()}/{GRAPH_VERSION}/dialog/oauth?" + urlencode(q)
 
 
 async def start(app_id: str, app_secret: str, redirect_uri: str, brain: str = "", label: str = "",
-                client=None, instagram: bool = False) -> dict:
+                client=None, instagram: bool = False, insights: bool = False) -> dict:
     """Check the app credentials, open a pending login. {"ok", "url", "state"} or {"ok": False, "error"}."""
     app_id, app_secret = str(app_id or "").strip(), str(app_secret or "").strip()
     bad = check_input(app_id, app_secret)
@@ -120,8 +124,8 @@ async def start(app_id: str, app_secret: str, redirect_uri: str, brain: str = ""
         _pending[state] = {"created": time.time(), "status": "pending", "app_id": app_id, "app_secret": app_secret,
                            "app_name": str(d.get("name") or ""), "redirect_uri": redirect_uri,
                            "brain": str(brain or ""), "label": str(label or ""), "pages": [], "error": "",
-                           "instagram": bool(instagram)}
-    return {"ok": True, "state": state, "url": login_url(app_id, redirect_uri, state, bool(instagram))}
+                           "instagram": bool(instagram), "insights": bool(insights)}
+    return {"ok": True, "state": state, "url": login_url(app_id, redirect_uri, state, bool(instagram), bool(insights))}
 
 
 def _set(state: str, **kw) -> None:

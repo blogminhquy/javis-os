@@ -40,6 +40,8 @@ COMMENT_SCOPES = ("pages_read_user_content", "pages_manage_engagement")
 POST_SCOPES = ("pages_manage_posts",)
 # Instagram through the same Page (0.447.0): the linked account, its direct messages and its comments.
 IG_SCOPES = ("instagram_basic", "instagram_manage_messages", "instagram_manage_comments")
+# Post and Page insights (reach, saves, clicks; issue 1439), asked only when the owner ticks it on the login.
+INSIGHTS_SCOPES = ("read_insights",)
 
 
 def _app_token(app_id: str, app_secret: str) -> str:
@@ -266,6 +268,15 @@ def posts_item(scopes) -> dict:
                   "Log in with Facebook again on the Messenger card and accept the posting permission."))
 
 
+def insights_item(scopes) -> dict:
+    """Warning row for reading post and Page insights. Never red: optional, ticked on the login when wanted."""
+    lack = [x for x in INSIGHTS_SCOPES if x not in (scopes or [])]
+    return _item("insights", True if not lack else None, ("Đọc số liệu bài viết", "Reads post insights"),
+                 ", ".join(lack),
+                 ("Đăng nhập Facebook lại ở thẻ Kết nối Meta và tick Đọc số liệu bài viết.",
+                  "Log in with Facebook again on the Meta card and tick Read post insights."))
+
+
 async def run_checks(client, page_id: str, page_token: str, app_secret: str, app_id: str = "",
                      webhook_url: str = "", bot_running: Optional[bool] = None) -> dict:
     """The full checklist for one Page. Returns {"ok", "app_id", "page_name", "items"}; "ok" is
@@ -334,6 +345,7 @@ async def run_checks(client, page_id: str, page_token: str, app_secret: str, app
                                ("Bấm Sửa tự động.", "Click Repair."), auto=True))
             items.append(comments_item(info["scopes"], ps.get("fields", []) if ps.get("ok") else []))
     items.append(posts_item(info["scopes"]))
+    items.append(insights_item(info["scopes"]))
     if bot_running is not None:
         items.append(_item("bot", None if not bot_running else True, ("Có bot đang trực", "A bot is answering"), "",
                            ("Vào Chatbot, Bot, tạo hoặc bật bot cho kênh này.",

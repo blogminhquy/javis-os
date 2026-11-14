@@ -31,6 +31,10 @@ No Graph API Explorer, no Page ID or token to copy. First time, and want every c
 
 The same connection on the Facebook Messenger card lets Javis post to the Page: text, photos, albums, video, editing and deleting posts. Ask Javis "post this to the Page" to post now, or "every day at 8am post something" to schedule it. It needs `pages_manage_posts` (Log in with Facebook asks for it; the app must add that permission first, see the [step-by-step guide](31-messenger-step-by-step.md)). A Page connected before 0.438.0 needs one more Log in with Facebook. The checklist has a **Can post to the Page** row saying whether the permission is there. The store no longer lists the Facebook Pages card; machines that installed it keep using it.
 
+## Post insights (optional)
+
+For Javis to read the reach, saves and clicks of posts and of the Page, tick **Read post insights (reach, saves)** on the form before clicking Log in with Facebook. It asks for the `read_insights` permission; the Meta app must add that permission first, otherwise Facebook refuses the whole login, so the box starts unticked. For a Page already connected, click **New token**, tick it and log in again. The checklist has a **Reads post insights** row saying whether the Page token has the permission.
+
 ## Page comments (from 0.434.0)
 
 The way Pancake shows them: **every top-level comment under a post is its own conversation** in the inbox, and the replies under that comment join the same conversation. The conversation title quotes the start of the post. What you type in the inbox shows **publicly right under the top-level comment** on Facebook. An image can go with it, other files cannot (a comment only takes images).

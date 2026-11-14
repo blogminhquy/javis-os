@@ -165,6 +165,14 @@ check("Instagram: opt-in tick on the form, sent to the login", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "messenger-connect.js"), "utf8");
   assert.ok(src.includes("instagram: !!(igBox && igBox.checked)"));
 });
+// Issue 1439: post insights, an opt-in tick of its own.
+check("Post insights: opt-in tick on the form with its (i), sent to the login", () => {
+  const h = M.formHtml({ https: true }, null);
+  assert.ok(h.includes('data-f-insights="1"') && !/data-f-insights="1" checked/.test(h));
+  assert.ok(h.includes("msc.insights_tick") && h.includes("msc.insights_tick_how"));
+  const src = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "messenger-connect.js"), "utf8");
+  assert.ok(src.includes("insights: !!(insBox && insBox.checked)"));
+});
 check("Instagram: the Page list names the linked account", () => {
   const h = M.pickHtml([{ id: "1", name: "Shop", ig_username: "shop.vn" }, { id: "2", name: "Kho" }]);
   assert.ok(h.includes("Instagram @shop.vn") && (h.match(/Instagram @/g) || []).length === 1);

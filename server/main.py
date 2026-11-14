@@ -28681,7 +28681,7 @@ async def messenger_oauth_start(request: Request):
     res = await messenger_oauth.start(body.get("app_id"), body.get("app_secret"),
                                       _ms_base(request) + messenger_oauth.CALLBACK_PATH,
                                       str(body.get("brain") or ""), str(body.get("label") or ""),
-                                      instagram=bool(body.get("instagram")))
+                                      instagram=bool(body.get("instagram")), insights=bool(body.get("insights")))
     if not res.get("ok"):
         return JSONResponse(res, status_code=400)
     return res
