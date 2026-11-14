@@ -329,9 +329,11 @@
       "status": "beta",
       "transport": "stdio",
       "command": "uvx",
-      "args": ["workspace-mcp@latest", "--tool-tier", "core"],
+      "_args_doc": "Tier 'complete', not 'core' (2026-11-14, a customer could not work on Forms, Drive and Sheets). Core carries 43 tools and leaves out exactly the everyday ones: editing a form's questions (batch_update_form) and reading its responses (list_form_responses), listing a Drive folder, renaming, moving or copying a file (list_drive_items, update_drive_file, copy_drive_file), and finding a spreadsheet's tabs, adding a tab or appending rows (get_spreadsheet_info, create_sheet, append_table_rows). The card promised Sheets, Forms and Drive, so the model was handed a job with no tool to do it. Complete carries 119 tools; the hub's lazy layer already hides a pool this size behind search (core's 43 was over the 40 threshold too), so the prompt does not grow. OAuth scopes are chosen per service, not per tier, so an existing sign-in keeps working. The old default sits in lenh_cu so connections made before this move to the new command.",
+      "args": ["workspace-mcp@latest", "--tool-tier", "complete"],
       "lenh_cu": [
-        { "command": "uvx", "args": ["workspace-mcp", "--tool-tier", "core"] }
+        { "command": "uvx", "args": ["workspace-mcp", "--tool-tier", "core"] },
+        { "command": "uvx", "args": ["workspace-mcp@latest", "--tool-tier", "core"] }
       ],
       "_env_doc": "workspace-mcp nhận Client ID + Secret nên chạy luồng OAuth 'confidential', mà chỗ nó hứng kết quả đăng nhập là http://localhost:8000/oauth2callback - HTTP trần. Thư viện oauthlib mặc định NÉM InsecureTransportError với http, nên thiếu biến này là bấm đồng ý xong quay về vẫn lỗi, không tài nào đăng nhập xong - đúng kiểu bế tắc mà hướng dẫn không nói ra được. README upstream khai biến này 'required'; đây là hằng số kỹ thuật của package, không phải thứ bắt user gõ. An toàn vì callback chỉ chạy trên loopback của chính máy đó.",
       "env": { "OAUTHLIB_INSECURE_TRANSPORT": "1" },
@@ -376,13 +378,25 @@
         ]
       },
       "tool_meta": {
-        "write": ["*create*", "*update*", "*upload*", "*draft*", "*modify*", "*move*", "*add*", "*set*", "*manage*", "import_*"],
-        "danger": ["*send*", "*delete*", "run_*"]
+        "read": ["get_drive_shareable_link", "list_script_deployments"],
+        "write": ["*create*", "*update*", "*upload*", "*draft*", "*modify*", "*move*", "*add*", "*set*", "*manage*", "import_*",
+                  "*copy*", "*export*", "*append*", "*format*", "*resize*"],
+        "danger": ["*send*", "*delete*", "run_*",
+                   "manage_drive_access", "set_drive_file_permissions", "manage_task_list", "manage_gmail_filter", "manage_deployment"]
       },
       "_tool_meta_doc": "workspace-mcp 2.x thêm run_script_function (CHẠY một hàm Apps Script, tức làm được mọi thứ script đó làm) và import_to_google_*. Tên không chứa từ gợi ý ghi nào nên trước đây classify xếp cả hai vào nhóm ĐỌC. generate_trigger_code chỉ sinh đoạn code, không tạo trigger.",
-      "ghi_da_can_nhac": ["generate_trigger_code"],
+      "_tool_meta_complete_doc": "Tier complete (2026-11-14) brought tools whose names carry no write hint, so classify() put them in READ and a read-only connection could run them: copy_drive_file, export_doc_to_pdf (writes a PDF into Drive), append_table_rows, format_sheet_range, resize_sheet_dimensions. Two read tools went the other way on a hint word and were hidden at Read only: get_drive_shareable_link ('share') and list_script_deployments ('deploy'). Danger, same reasoning as the Sheets card: sharing a file or calendar pushes business data out (manage_drive_access also transfers ownership); a Gmail filter acts on every future mail and 'apply' rewrites old ones; manage_deployment publishes Apps Script as a web app; manage_task_list deletes a whole list, matching the Google Tasks card. call_rules keep the ordinary actions of a combined tool at Draft and lift only the one that loses a whole container (a sheet tab, a doc tab, a contact group, a batch of contacts) or shares a calendar. update_drive_file with trashed=true is the Drive delete.",
+      "call_rules": {
+        "manage_sheet_tab": { "key": "action", "else": "write", "danger_values": ["delete"] },
+        "manage_doc_tab": { "key": "action", "else": "write", "danger_values": ["delete"] },
+        "manage_contact_group": { "key": "action", "else": "write", "danger_values": ["delete"] },
+        "manage_contacts_batch": { "key": "action", "else": "write", "danger_values": ["delete"] },
+        "manage_calendar": { "key": "action", "else": "danger", "read_values": ["list_sharing"], "write_values": ["create"] },
+        "update_drive_file": { "key": "trashed", "else": "write", "danger_values": ["true"] }
+      },
+      "ghi_da_can_nhac": ["generate_trigger_code", "start_google_auth", "download_chat_attachment", "get_gmail_attachment_content"],
       "default_perm": "safe",
-      "risk": "Mức Ghi nháp (mặc định) cho phép Javis soạn nháp thư, tạo lịch, tạo tài liệu, và cả SỬA tài liệu có sẵn lẫn DI CHUYỂN file trong Drive.\nCác tool gộp (manage_event, manage_task...) cũng thuộc mức này, nên Javis sửa và xoá được từng sự kiện lịch hay việc cần làm lẻ.\n\nMức Toàn quyền thêm quyền GỬI EMAIL THẬT, XOÁ file, thư, và CHẠY hàm Apps Script bằng tài khoản Google của bạn.\n\nChỉ cần đọc thì hạ xuống Chỉ đọc."
+      "risk": "Mức Ghi nháp (mặc định) cho phép Javis soạn nháp thư, tạo lịch, tạo tài liệu, và cả SỬA tài liệu có sẵn lẫn DI CHUYỂN file trong Drive.\nJavis cũng sửa được câu hỏi Google Form, thêm hay đổi tên tab, ghi thêm dòng vào Sheets, đổi tên và sao chép file Drive.\nCác tool gộp (manage_event, manage_task...) cũng thuộc mức này, nên Javis sửa và xoá được từng sự kiện lịch hay việc cần làm lẻ.\n\nMức Toàn quyền thêm quyền GỬI EMAIL THẬT, XOÁ file, thư, và CHẠY hàm Apps Script bằng tài khoản Google của bạn.\nCũng ở mức này: CHIA SẺ file hay lịch cho người khác, xoá cả một tab, danh sách việc hay nhóm danh bạ, tạo bộ lọc Gmail, xuất bản Apps Script.\n\nChỉ cần đọc thì hạ xuống Chỉ đọc."
     },
     {
       "id": "google-tasks",
