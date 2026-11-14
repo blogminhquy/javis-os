@@ -963,6 +963,11 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
     với người thật ngay lập tức; đó phải là một cú bấm CÓ Ý THỨC, không phải tác dụng phụ của
     việc tạo.
     """
+    if "tool_allowlist" in data:
+        try:
+            __import__("bot_tool_scope").validate(data["tool_allowlist"])
+        except ValueError:
+            return None, localefmt.chu("Danh sách công cụ không hợp lệ", "Invalid tool allowlist")
     name = _clean_name(data.get("name"))
     if not name:
         return None, localefmt.chu("Thiếu tên bot", "Missing bot name")
@@ -1050,6 +1055,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "created_at": _now(),
             "updated_at": _now(),
         }
+        if "tool_allowlist" in data:
+            bot["tool_allowlist"] = __import__("bot_tool_scope").validate(data["tool_allowlist"])
         d["bots"].append(bot)
         _save(d)
     _nhan_brain_cho_tk(bot)
@@ -1088,7 +1095,7 @@ _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "han
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
               "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels", "blocked",
-              "group_typing")
+              "group_typing", "tool_allowlist")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -1096,6 +1103,11 @@ _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "han
 
 
 def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
+    if "tool_allowlist" in patch:
+        try:
+            __import__("bot_tool_scope").validate(patch["tool_allowlist"])
+        except ValueError:
+            return False, localefmt.chu("Danh sách công cụ không hợp lệ", "Invalid tool allowlist")
     # Cùng rào với lúc tạo, và đây mới là đường hay đi hơn: bot sống nhiều tháng ở mức chỉ đọc
     # rồi một hôm được nâng lên. Thiếu rào ở đây thì cả cái gate lúc tạo thành trang trí.
     if "muc_quyen" in patch and can_xac_nhan(patch.get("muc_quyen"), patch.get("xac_nhan_rui_ro")):
@@ -1143,7 +1155,9 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                 if k not in patch:
                     continue
                 v = patch[k]
-                if k == "name":
+                if k == "tool_allowlist":
+                    b[k] = __import__("bot_tool_scope").validate(v)
+                elif k == "name":
                     nv = _clean_name(v)
                     if nv:
                         b["name"] = nv

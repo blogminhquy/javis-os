@@ -2172,6 +2172,12 @@ class CodexCLI:
         return args
 
     async def query(self, prompt: str) -> AsyncIterator[dict]:
+        import bot_tool_scope
+        if bot_tool_scope.native_engine_blocked():
+            yield {"type": "error", "content": __import__("localefmt").chu(
+                "Bot giới hạn công cụ cần engine API; engine CLI chưa có sandbox phù hợp.",
+                "Scoped bots require an API engine until CLI sandbox confinement is available.")}
+            return
         if self.cli_path:
             import codex_steer
             if codex_steer.wanted(self):

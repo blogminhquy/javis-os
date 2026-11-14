@@ -1062,6 +1062,9 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
     name = tool["name"]
 
     async def _call(args):
+        import bot_tool_scope
+        if not bot_tool_scope.permitted(name):
+            return "ERROR: bot_tool_scope_denied"
         min_mode = _required_mode(tool, args)
         if str(mode or "").strip().lower() == "gated" and min_mode != "readonly":
             # 0.207.0: a gated Team step. A plugin that writes or acts (review: `javis_task` and `javis_schedule` are

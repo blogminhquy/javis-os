@@ -1844,6 +1844,12 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     workspace_root: thư mục làm việc của phiên Coding - tool FILE nhận thêm gốc đó (0.64).
         Nhận cả DANH SÁCH: một phiên gắn được nhiều thư mục từ 0.63.9.
     Nằm TRONG khoá cache vì hai phiên coding khác repo phải thấy hai danh sách route khác nhau."""
+    import bot_tool_scope
+    tool_allowlist = bot_tool_scope.effective(tool_allowlist)
+    if tool_allowlist is not None and (turn_context.current() or {}).get("bot_id"):
+        for_bot = True
+    if tool_allowlist is not None:
+        include_ambient = False
     mode = (mode or "full").strip().lower()
     # A bot at the "read_docs" level (0.80.0) gets its three document tools and NOTHING else: no
     # connection, no builtin, no plugin, no lazy tier. Returned before any of those are discovered so
@@ -2013,6 +2019,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     for fn, ent in route.items():
         if ent.get("conn") and ent.get("tool") and ent.get("call"):
             ent["call"] = _shaped_call(ent["call"], ent, fn, str(vault_root or ""))
+    if tool_allowlist is not None:
+        tools_spec, route = _scope_tools(tools_spec, route, tool_allowlist)
     inventory_tools = list(tools_spec)
     inventory_route = dict(route)
     query_route.update(route)
@@ -2321,6 +2329,8 @@ def _chan_doan_thieu_brain(header_hong):
 
 async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, vault_root=None,
                       vault_nguon="", vault_header_hong="", for_bot=False, gate=None, tool_allowlist=None):
+    import bot_tool_scope
+    tool_allowlist = bot_tool_scope.effective(tool_allowlist)
     mid = msg.get("id")
     method = msg.get("method") or ""
     params = msg.get("params") or {}
