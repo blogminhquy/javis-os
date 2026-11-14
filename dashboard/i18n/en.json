@@ -6657,6 +6657,8 @@
   "msc.pages_head": "Connected Pages ({n})",
   "msc.ig_tick": "Also connect the Page's Instagram",
   "msc.ig_tick_how": "Messages and comments of the Instagram professional account linked to the Page land in the same inbox, served by the Page's bot. Needed: a business or creator Instagram account linked to the Page (Page settings, Linked accounts), the Meta app with the Instagram messaging and comments use case, and in the Instagram app Allow access to messages turned on (Settings, Messages and story replies, Connected tools). If Facebook reports invalid permissions, untick this and log in again.",
+  "msc.insights_tick": "Read post insights (reach, saves)",
+  "msc.insights_tick_how": "Asks for the read_insights permission so Javis can read the reach, saves and clicks of posts and of the Page. Optional: the Meta app must add read_insights first, otherwise Facebook refuses the whole login. If Facebook reports invalid permissions, untick this and log in again. For a Page already connected: click New token, tick this and log in with Facebook again; the checklist has a Reads post insights row.",
   "msc.ig_none": "Instagram: not connected",
   "msc.ig_none_how": "Link an Instagram professional account to the Page, then click Renew token, tick Also connect the Page's Instagram and log in with Facebook again.",
   "msc.ig_on": "Receive Instagram messages and comments",

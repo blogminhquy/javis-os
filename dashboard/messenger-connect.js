@@ -204,6 +204,10 @@
       // refuses the whole login over its permissions).
       + '<label class="msc-ig-tick"><input type="checkbox" data-f-ig="1"> ' + esc(tw("msc.ig_tick")) + "</label>"
       + infoBtn() + infoBody(esc(tw("msc.ig_tick_how")))
+      // Post and Page insights (issue 1439): read_insights only when ticked, for the same reason as Instagram. Its own
+      // line; it reuses the Instagram tick's look.
+      + '<div><label class="msc-ig-tick"><input type="checkbox" data-f-insights="1"> ' + esc(tw("msc.insights_tick")) + "</label>"
+      + infoBtn() + infoBody(esc(tw("msc.insights_tick_how"))) + "</div>"
       + '<div class="lv-form-act"><button class="s-btn" type="button" data-f="login"' + (https ? "" : " disabled") + ">"
       + esc(tw("msc.login")) + "</button>"
       + '<button class="s-btn-ghost" type="button" data-f="cancel">' + esc(tw("msc.cancel")) + "</button>"
@@ -481,8 +485,9 @@
     btn.disabled = true;
     msg.textContent = tw("msc.working");
     var igBox = form.querySelector("[data-f-ig]");
+    var insBox = form.querySelector("[data-f-insights]");
     var r = await api("/messenger/oauth/start", { app_id: appId, app_secret: secret, brain: brain(),
-      instagram: !!(igBox && igBox.checked) });
+      instagram: !!(igBox && igBox.checked), insights: !!(insBox && insBox.checked) });
     if (!r.ok) {
       btn.disabled = false;
       msg.textContent = r.error || tw("msc.err_net");
