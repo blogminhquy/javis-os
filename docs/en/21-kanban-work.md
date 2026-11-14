@@ -267,7 +267,7 @@ This works on **every brain** since 0.17.1, through the `javis_task` tool. Befor
 Two things that tool deliberately does **not** do:
 
 - **It cannot create `full`-level work.** The full level lets a job really act outside (creating orders, spending money, running ads, sending messages) and cannot be undone. Javis only creates `suggest` or `auto`; to get full you raise it yourself on this page, where you can see clearly what you are permitting.
-- **It does not move columns, cancel work or approve work awaiting approval.** Those actions need you to see the board, so they stay on this page.
+- **It does not move columns or approve work awaiting approval.** Those actions need you to see the board, so they stay on this page. Cancelling a job can be asked in chat ("cancel the report job"): Javis cancels it exactly like the Cancel task button on this page, a running job stops at once, and the reason you give goes into the job's log.
 
 ## Work proposed by the Self-learning page
 

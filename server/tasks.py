@@ -259,6 +259,8 @@ class TasksFeature:
         # Jobs whose completion check is being re-run from the Work page (verify).
         self._verifying: set[str] = set()
         self._verify_jobs: set[asyncio.Task] = set()
+        # Reason given with a cancel of a running job, read by that worker when it stops (`cancel`).
+        self._cancel_reasons: dict[str, str] = {}
         self.router = self._make_router()
 
     # ------------------------------------------------------------------
@@ -553,6 +555,7 @@ class TasksFeature:
         self._workers.pop(task_id, None)
         self._worker_ids.pop(task_id, None)
         self._worker_brains.pop(task_id, None)
+        self._cancel_reasons.pop(task_id, None)
         if root:
             # A done-callback runs on the event loop: the snapshot (whole board read + JSON write) goes to a thread.
             try:
@@ -704,6 +707,7 @@ class TasksFeature:
                 await asyncio.to_thread(self.store.promote_dependencies, root)
         except asyncio.CancelledError:
             cancel_all(f"dispatch:{tid}")
+            why = self._cancel_reasons.pop(tid, "worker cancelled")
             if self._closing:
                 # Máy chủ tắt/cập nhật giữa chừng: KHÔNG huỷ việc. Trước đây nhánh này ghi
                 # `cancelled` câm cho việc đang chạy, nên mỗi lần bấm Cập nhật là việc nền dở
@@ -713,7 +717,7 @@ class TasksFeature:
                                  "Máy chủ khởi động lại giữa chừng, việc sẽ tự chạy lại.",
                                  transient=True, keep_attempt=True)
             else:
-                await asyncio.to_thread(self.store.cancel_running, tid, "worker cancelled")
+                await asyncio.to_thread(self.store.cancel_running, tid, why)
             raise
         except Exception as exc:
             # Hết giờ (TimeoutError) hay lỗi lạ: GIẾT tiến trình engine của việc này trước khi
@@ -1663,13 +1667,14 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         except Exception as e:
             print(f"[kanban] báo nghiệm thu trượt của việc {tid} lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
-    async def resolve_acceptance(self, task_id: str, decision: str, brain: str = "") -> dict:
+    async def resolve_acceptance(self, task_id: str, decision: str, brain: str = "", note: str = "") -> dict:
         """The owner's button on a job the acceptance check failed: "fix" (run again with the checker's reason) or
-        "accept" (keep the result as done)."""
+        "accept" (keep the result as done). `note` (fix only, from `javis_task` op=fix): the owner's extra
+        instruction, read by the redo as a follow-up."""
         task = await asyncio.to_thread(self.store.get_task, task_id)
         if not task or (brain and task.get("brain_root") != self._ensure(brain)):
             return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
-        done, err = await asyncio.to_thread(self.store.resolve_acceptance, task_id, decision)
+        done, err = await asyncio.to_thread(self.store.resolve_acceptance, task_id, decision, note=note)
         if not done:
             return {"ok": False, "error": {
                 "bad_decision": localefmt.chu("Lựa chọn không hợp lệ", "Unknown choice"),
@@ -1903,6 +1908,33 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             "completed_24h": health["completed_24h"],
             "running": bool(workers),
         }
+
+    async def cancel(self, task_id: str, brain: str = "", reason: str = "", by: str = "owner") -> dict:
+        """Cancel a job: a running one has its worker stopped (the worker records `cancelled` as it stops), any other
+        is moved to `cancelled`. One path for the Tasks page (`POST /kanban/task/cancel`) and `javis_task`
+        op=cancel. `brain` empty skips the brain check. `reason` and `by` only extend the cancel line in the job's log
+        (and a stopped job's reason); without them the line is exactly the page's.
+        Errors carry `code`: "not_found", "finished" (done, cancelled or archived) or "refused"."""
+        task = await asyncio.to_thread(self.store.get_task, task_id)
+        if not task or (brain and task.get("brain_root") != self._ensure(brain)):
+            return {"ok": False, "code": "not_found", "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
+        status = str(task.get("status") or "")
+        if status in task_store.TERMINAL_STATUS:
+            return {"ok": False, "code": "finished", "status": status,
+                    "error": localefmt.chu("Việc đã kết thúc, không còn gì để huỷ",
+                                           "The job has already ended; there is nothing to cancel")}
+        suffix = ("" if by == "owner" else f" ({by})") + (f": {reason.strip()[:300]}" if reason.strip() else "")
+        worker = self._workers.get(task_id)
+        stopped = bool(worker and not worker.done())
+        if stopped:
+            if suffix:
+                self._cancel_reasons[task_id] = "worker cancelled" + suffix
+            cancel_all(f"dispatch:{task_id}")
+            worker.cancel()
+        elif not await asyncio.to_thread(self.store.move, task_id, "cancelled", "operator cancel" + suffix):
+            return {"ok": False, "code": "refused", "error": localefmt.chu("không thể huỷ", "cannot cancel")}
+        await self._asnapshot(str(task.get("brain_root") or ""))
+        return {"ok": True, "cancelled": True, "stopped": stopped}
 
     async def followup(self, task_id: str, text: str, brain: str = "", by: str = "owner") -> dict:
         """The owner's extra instruction for a job that is stopped, waiting or finished: it goes back to the queue
@@ -2246,18 +2278,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         async def kanban_cancel(
             id: str = Form(...), brain: str = Form("brain")
         ):
-            root = self._ensure(brain)
-            task = await asyncio.to_thread(self.store.get_task, id)
-            if not task or task.get("brain_root") != root:
-                return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
-            worker = self._workers.get(id)
-            if worker and not worker.done():
-                cancel_all(f"dispatch:{id}")
-                worker.cancel()
-            elif not await asyncio.to_thread(self.store.move, id, "cancelled", "operator cancel"):
-                return {"ok": False, "error": localefmt.chu("không thể huỷ", "cannot cancel")}
-            await self._asnapshot(root)
-            return {"ok": True, "cancelled": True}
+            return await self.cancel(id, brain=brain or "brain")
 
         @router.post("/kanban/stop")
         async def kanban_stop(brain: str = Form("brain")):

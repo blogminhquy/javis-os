@@ -38,9 +38,14 @@ người:
   Telegram đầu tiên trong whitelist, mà máy chưa đấu Telegram thì MẤT HÚT. Model phải lấy mã
   phiên từ khối "KÊNH HỘI THOẠI HIỆN TẠI" và truyền vào.
 
-Phạm vi: `add`, `list`, `answer` (0.235.0), `accept` và `fix` (2026-11-08). Chuyển cột, huỷ, duyệt việc chờ phê duyệt vẫn làm
-ở trang Nhiệm vụ - đó là những thao tác cần nhìn thấy bảng, và mô tả tool nói thẳng như vậy thay vì
-để model đoán.
+Phạm vi: `add`, `list`, `answer` (0.235.0), `accept` và `fix` (2026-11-08), `cancel` (issue 1426). Chuyển cột, duyệt
+việc chờ phê duyệt vẫn làm ở trang Nhiệm vụ - đó là những thao tác cần nhìn thấy bảng, và mô tả tool nói thẳng như vậy
+thay vì để model đoán.
+
+`cancel` (issue 1426): cancels a job through `TasksFeature.cancel`, the same path as the Tasks page button, so a
+running job has its worker stopped and the job log gets the line the page writes, plus the owner's reason. Always by
+`id`: cancelling is not undone, so a missing id is never guessed. `fix` also takes `note`, the owner's extra
+instruction for the redo; it lands in the job's Q&A log as a follow-up the next run reads.
 
 `answer` (0.235.0): việc nền dừng lại hỏi (`[[NEEDS_INPUT]]`) thì câu hỏi về khung chat của
 người giao việc. Người đó trả lời NGAY trong chat (web, Telegram, Zalo), model chuyển nguyên văn
@@ -379,16 +384,41 @@ async def _resolve_acceptance(args, ctx, decision: str) -> str:
     if tid not in {str(t.get("id") or "") for t in waiting}:
         return (f"ERROR: việc {tid} không thuộc brain này hoặc không còn chờ chọn. "
                 "Gọi op=list để xem việc nào MÁY TỰ KIỂM CHƯA QUA.")
-    kq = await f.resolve_acceptance(tid, decision)
+    note = str((args or {}).get("note") or "").strip() if decision == "fix" else ""
+    kq = await f.resolve_acceptance(tid, decision, note=note)
     if not kq.get("ok"):
         return f"ERROR: {kq.get('error') or 'không ghi được lựa chọn'}."
     if decision == "accept":
         return (f"Đã chấp nhận kết quả của việc {tid}: việc được đánh dấu "
                 + ("đã xong." if kq.get("status") == "done" else "xong, đang chờ duyệt như cũ."))
-    ra = [f"Đã trả việc {tid} về cho người làm sửa đúng chỗ máy chấm chưa đạt; kết quả tự về khung chat này."]
+    ra = [f"Đã trả việc {tid} về cho người làm sửa đúng chỗ máy chấm chưa đạt"
+          + (", kèm lời dặn thêm của người dùng" if note else "") + "; kết quả tự về khung chat này."]
     if not _dieu_phoi_chay(kq.get("orchestration")):
         ra.append(_CANH_BAO_DIEU_PHOI.format(muc=str(kq.get("orchestration") or "off")))
     return "\n".join(ra)
+
+
+async def _cancel(args, ctx) -> str:
+    """op=cancel: cancel one job of this brain the way the Tasks page does."""
+    if not ctx.vault_root:
+        return "ERROR: chưa biết đang làm việc trên brain nào nên không huỷ được việc."
+    tid = str((args or {}).get("id") or "").strip()
+    if not tid:
+        return ("ERROR: thiếu id. Huỷ không hoàn tác được nên không đoán: gọi op=list để lấy mã việc, "
+                "chưa chắc việc nào thì hỏi lại người dùng.")
+    f, loi = _feature()
+    if loi:
+        return loi
+    kq = await f.cancel(tid, brain=ctx.vault_root, reason=str((args or {}).get("reason") or ""), by="chat")
+    if not kq.get("ok"):
+        if kq.get("code") == "not_found":
+            return f"ERROR: không có việc {tid} trong brain này. Gọi op=list để xem đúng mã việc."
+        if kq.get("code") == "finished":
+            return f"ERROR: việc {tid} đã kết thúc (trạng thái {kq.get('status')}), không còn gì để huỷ."
+        return f"ERROR: {kq.get('error') or 'không huỷ được việc'}."
+    if kq.get("stopped"):
+        return f"Đã dừng và huỷ việc {tid} đang chạy. Phần việc đã làm dở không được làm tiếp."
+    return f"Đã huỷ việc {tid}: việc rời hàng đợi và sẽ không chạy."
 
 
 async def _tra_loi(args, ctx) -> str:
@@ -444,14 +474,18 @@ def register(ctx):
         "op=answer: người dùng trả lời câu hỏi của một việc nền đang chờ -> truyền id và answer "
         "(chép nguyên văn); việc chạy tiếp với câu trả lời đó. "
         "op=accept / op=fix: việc MÁY TỰ KIỂM CHƯA QUA đang chờ người dùng chọn -> họ bảo dùng kết quả "
-        "như vậy thì accept, bảo làm lại cho đạt thì fix; truyền id. "
-        "Chuyển cột, huỷ việc và duyệt việc chờ phê duyệt thì làm ở trang Nhiệm vụ, tool này không có.",
+        "như vậy thì accept, bảo làm lại cho đạt thì fix; truyền id, và note nếu họ dặn thêm cách sửa. "
+        "op=cancel: CHỈ khi người dùng bảo huỷ một việc cụ thể -> truyền id (lấy từ op=list), reason nếu họ "
+        "nói lý do; việc đang chạy bị dừng ngay, không hoàn tác được. "
+        "Chuyển cột và duyệt việc chờ phê duyệt thì làm ở trang Nhiệm vụ, tool này không có.",
         _chay,
         schema={
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["add", "list", "answer", "accept", "fix"]},
-                "id": {"type": "string", "description": "Mã việc đang chờ (op=answer, accept, fix)"},
+                "op": {"type": "string", "enum": ["add", "list", "answer", "accept", "fix", "cancel"]},
+                "id": {"type": "string", "description": "Mã việc (op=answer, accept, fix, cancel)"},
+                "note": {"type": "string", "description": "Lời dặn thêm của người dùng cho lần sửa (op=fix)"},
+                "reason": {"type": "string", "description": "Lý do huỷ, nếu người dùng nói (op=cancel)"},
                 "answer": {"type": "string", "description": "Câu trả lời nguyên văn của người dùng (op=answer)"},
                 "title": {"type": "string", "description": "Tên việc, ngắn gọn (op=add)"},
                 "intent": {"type": "string", "description": "Mô tả đầy đủ hơn nếu tiêu đề chưa đủ"},
@@ -478,5 +512,8 @@ async def _chay(args, ctx) -> str:
         return await _tra_loi(args, ctx)
     if op in ("accept", "fix"):
         return await _resolve_acceptance(args, ctx, op)
+    if op == "cancel":
+        return await _cancel(args, ctx)
     return ("ERROR: op phải là 'add' (giao việc), 'list' (xem việc đang có), 'answer' "
-            "(chuyển câu trả lời cho việc đang chờ), 'accept' hoặc 'fix' (chọn cho việc máy tự kiểm chưa qua).")
+            "(chuyển câu trả lời cho việc đang chờ), 'accept' hoặc 'fix' (chọn cho việc máy tự kiểm chưa qua), "
+            "'cancel' (huỷ một việc).")

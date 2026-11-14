@@ -279,7 +279,7 @@ Việc này chạy trên **mọi bộ não** từ 0.17.1, qua tool `javis_task`.
 Hai điều tool đó **không** làm, cố ý:
 
 - **Không tạo được việc mức `full`.** Mức full cho việc tự thao tác thật ra ngoài (tạo đơn, tiêu tiền, chạy quảng cáo, gửi tin) và không hoàn tác được. Javis tạo mức `suggest` hoặc `auto` thôi; muốn full thì bạn tự nâng ở trang này, nơi bạn nhìn thấy rõ mình đang cho phép gì.
-- **Không chuyển cột, không huỷ việc, không duyệt việc đang chờ phê duyệt.** Những thao tác đó cần nhìn thấy bảng, nên chúng ở lại trang này.
+- **Không chuyển cột, không duyệt việc đang chờ phê duyệt.** Những thao tác đó cần nhìn thấy bảng, nên chúng ở lại trang này. Huỷ một việc thì nói thẳng trong chat được ("huỷ việc soạn báo cáo"): Javis huỷ đúng như nút Huỷ việc ở trang này, việc đang chạy thì dừng ngay, và lý do bạn nói được ghi vào nhật ký của việc.
 
 ## Việc do trang Tự học đề xuất
 

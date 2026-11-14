@@ -197,6 +197,44 @@ def test_resolve_refuses_other_jobs_and_unknown_choices(tmp_path):
     assert feature.store.get_task(other)["status"] == "ready"
 
 
+def test_owner_fix_with_a_note_reaches_the_redo(tmp_path):
+    # Issue 1426: "fix" used to resend only the checker's reason. The owner's note joins the Q&A log as a follow-up,
+    # in the same write as the fix, so the dispatcher can never start the redo without it.
+    feature, brain = _feature(tmp_path)
+    tid = _failed_job(feature, brain)
+    r = asyncio.run(feature.resolve_acceptance(tid, "fix", brain=brain, note="Number the sections 1 to 5"))
+    assert r["ok"] and r["status"] == "ready", r
+    t = feature.store.get_task(tid)
+    fix, note = t["metadata"]["qa"][-2:]
+    assert fix["kind"] == "acceptance_fix" and "Only 2 sections" in fix["q"]
+    assert note["kind"] == "followup" and note["a"] == "Number the sections 1 to 5"
+    assert note["progress"] == "Wrote a.md"
+    events = [e["event_type"] for e in feature.store.list_events(tid, 20)]
+    assert "acceptance_fix" in events and "followup" in events
+
+    # The redo itself reads both: the checker's reason and the owner's note.
+    _verdicts(feature, [{"pass": True, "missing": ""}])
+    seen = []
+
+    async def execute(task):
+        seen.append(TasksFeature._hoi_dap(task))
+        return "Wrote a.md with 5 sections.", "", False, {}
+
+    done = _run_once(feature, tid, execute)
+    assert done["status"] == "done", done["status"]
+    assert "Only 2 sections" in seen[0] and "Number the sections 1 to 5" in seen[0], seen
+
+
+def test_accept_ignores_a_note_and_a_blank_note_adds_nothing(tmp_path):
+    feature, brain = _feature(tmp_path)
+    tid = _failed_job(feature, brain)
+    assert asyncio.run(feature.resolve_acceptance(tid, "accept", brain=brain, note="ignored"))["ok"]
+    assert not any(x.get("kind") == "followup" for x in feature.store.get_task(tid)["metadata"].get("qa") or [])
+    other = _failed_job(feature, brain)
+    assert asyncio.run(feature.resolve_acceptance(other, "fix", brain=brain, note="   "))["ok"]
+    assert feature.store.get_task(other)["metadata"]["qa"][-1]["kind"] == "acceptance_fix"
+
+
 def test_a_followup_gives_the_job_a_new_fix_round(tmp_path):
     feature, brain = _feature(tmp_path)
     tid = _failed_job(feature, brain)
@@ -275,6 +313,28 @@ def test_chat_tool_accepts_or_fixes_a_failed_job(tmp_path, monkeypatch):
     assert feature.store.get_task(b)["status"] == "ready" and feature.store.get_task(c)["status"] == "blocked"
     # A job that is not waiting for a pick is refused.
     assert asyncio.run(m._chay({"op": "accept", "id": a}, Ctx())).startswith("ERROR")
+
+    # The owner's extra instruction for the redo goes along with "fix" (issue 1426).
+    out = asyncio.run(m._chay({"op": "fix", "id": c, "note": "Keep the intro short"}, Ctx()))
+    assert out.startswith("Đã trả việc " + c) and "lời dặn thêm" in out, out
+    last = feature.store.get_task(c)["metadata"]["qa"][-1]
+    assert last["kind"] == "followup" and last["a"] == "Keep the intro short"
+    assert "Keep the intro short" in TasksFeature._hoi_dap(feature.store.get_task(c))
+
+
+def test_chat_tool_schema_offers_note_and_cancel():
+    m = _plugin()
+    seen = {}
+
+    class Reg:
+        def register_tool(self, name, desc, fn, schema=None, **kw):
+            seen[name] = (desc, schema, kw)
+
+    m.register(Reg())
+    desc, schema, kw = seen["javis_task"]
+    props = schema["properties"]
+    assert "cancel" in props["op"]["enum"] and "note" in props and "reason" in props
+    assert "op=cancel" in desc and kw.get("min_mode") == "safe"
 
 
 def test_failed_check_notice_says_the_pick_can_be_made_in_chat(tmp_path):

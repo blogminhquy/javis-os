@@ -226,6 +226,17 @@ async def _chay():
     check("CANARY: op=list cảnh báo khi điều phối tắt",
           "KHÔNG tự chạy" in await goi({"op": "list"}))
 
+    # ============================================================
+    # 6c. Cancel from chat (issue 1426), through the same hub path
+    # ============================================================
+    out = await goi({"op": "add", "title": "job to cancel from chat", "chat_id": "web:phien123"})
+    _tid = out.split("Mã việc: ", 1)[-1].split("\n", 1)[0].strip()
+    out = await goi({"op": "cancel", "id": _tid, "reason": "owner changed plans"})
+    check("op=cancel through the hub cancels a queued job",
+          out.startswith("Đã huỷ việc " + _tid) and feat.store.get_task(_tid)["status"] == "cancelled")
+    out = await goi({"op": "cancel", "id": "no-such-job"})
+    check("op=cancel with an unknown id is a clear error", "ERROR" in out and "no-such-job" in out)
+
 
 asyncio.run(_chay())
 
