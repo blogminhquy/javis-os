@@ -13,6 +13,7 @@ chạy được thì rơi xuống đường kế tiếp và báo lý do, giống
 from __future__ import annotations
 
 import codex_realtime
+import model_routing
 import voice_brain
 
 ENGINES = ("auto", "chatgpt", "api", "basic")
@@ -73,6 +74,22 @@ def chatgpt_account(cfg: dict):
         return {"id": "main", "label": "", "enabled": True}
 
 
+def chatgpt_in_use_order(cfg: dict) -> bool:
+    """Whether ChatGPT is one of the brains the owner runs on: the MAIN card, or signed in on the Models page, which
+    puts its card in the usage order (docs/dev/2026-10-model-routing-spec.md 2.1: the order holds exactly the
+    signed-in cards, a new one joins at the end).
+
+    GitHub issue 1315 (point 4): a Codex sign-in that lives only on this machine (`codex login`, a token file left
+    behind) made the Automatic call path open ChatGPT Live, so small talk was answered by ChatGPT although the owner
+    never put ChatGPT in the model order. Spec 3.1 asks for ChatGPT connected on the Models page. The stored `order`
+    list alone is not the test: an OAuth sign-in does not write it, yet the Models page shows that card in the order."""
+    m = (cfg or {}).get("model") or {}
+    if model_routing.main_provider(m) == PLAN:
+        return True
+    o = m.get("openai_oauth") or {}
+    return bool(o.get("access_token") or o.get("refresh_token"))
+
+
 def select_call_engine(cfg: dict) -> dict:
     """{"engine", "live_provider", "voice_mode", "basic_mode", "setting", "reason", "detail"}.
 
@@ -84,6 +101,11 @@ def select_call_engine(cfg: dict) -> dict:
     chat_ok, why = codex_realtime.realtime_available(cfg)
     if chat_ok and chatgpt_account(cfg) is None:
         chat_ok, why = False, "quota"   # every ChatGPT account is out of quota until its reset time
+    if chat_ok and choice == "auto" and not chatgpt_in_use_order(cfg):
+        # Issue 1315: Automatic keeps the previous path unless ChatGPT is one of the owner's brains. For Javis this is
+        # "not connected on the Models page", so the settings card keeps its "connect ChatGPT on the Models page" hint.
+        # Choosing ChatGPT Live by hand still runs on any working Codex sign-in.
+        chat_ok, why = False, "no_login"
     api = _api_provider(cfg)
 
     def out(engine, reason, provider=""):

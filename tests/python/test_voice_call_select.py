@@ -8,7 +8,10 @@ Không mạng. Khoá (docs/dev/2026-10-voice-call-spec.md mục 3.1):
   - khoá cũ: mode=live + nhà cung cấp API là người dùng đã CHỌN Live API, giữ nguyên;
   - Cơ bản dùng Làn nhanh khi có bộ não giọng, không thì Chuẩn;
   - /voice/call trả đúng lựa chọn; POST /settings lưu được call_engine;
-  - /ws/voice-live dựng nhà cung cấp theo đường đã chọn, không theo khoá live_provider cũ.
+  - /ws/voice-live dựng nhà cung cấp theo đường đã chọn, không theo khoá live_provider cũ;
+  - issue 1315: Automatic opens ChatGPT Live only when ChatGPT is MAIN or signed in on the Models page (so in the
+    usage order); a Codex sign-in that lives only on the machine keeps the previous path, a hand-picked ChatGPT Live
+    still runs on it.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import json
@@ -68,6 +71,32 @@ r = voice_call.select_call_engine({"model": CHAT_OK, "voice": {"call_engine": "b
 check("chọn tay Cơ bản -> basic dù ChatGPT sẵn", r["engine"] == "basic" and r["reason"] == "chosen" and r["voice_mode"] == "fast")
 r = voice_call.select_call_engine({"model": {"gemini_api_key": "g"}, "voice": {"mode": "live", "live_provider": "gemini"}})
 check("khoá cũ Live Gemini vẫn là Gemini dù ChatGPT sẵn", r["engine"] == "api" and r["live_provider"] == "gemini")
+
+# ---- issue 1315: Automatic picks ChatGPT Live only when ChatGPT is one of the owner's brains ----
+# Codex works on this machine (`codex login`), but Javis holds no ChatGPT sign-in.
+r = voice_call.select_call_engine({"model": {"order": ["anthropic-cli"]}, "voice": {}})
+check("auto, Codex signed in on the machine only, ChatGPT not in the order -> previous path, connect hint",
+      r["engine"] == "basic" and r["reason"] == "auto_basic" and r["detail"] == "no_login")
+r = voice_call.select_call_engine({"model": {"order": ["anthropic-cli"], "gemini_api_key": "g"}, "voice": {}})
+check("same with a Gemini key -> Live with the API key", r["engine"] == "api" and r["live_provider"] == "gemini")
+r = voice_call.select_call_engine({"model": {"order": ["openai-oauth", "anthropic-cli"]}, "voice": {}})
+check("auto, ChatGPT is MAIN -> ChatGPT Live", r["engine"] == "chatgpt" and r["reason"] == "auto")
+r = voice_call.select_call_engine({"model": {"main": {"provider": "openai-oauth"}}, "voice": {}})
+check("settings without an order, ChatGPT is MAIN -> ChatGPT Live", r["engine"] == "chatgpt")
+r = voice_call.select_call_engine({"model": {}, "voice": {}})
+check("settings without an order, Claude Code is MAIN, machine-only Codex -> not ChatGPT Live", r["engine"] == "basic")
+r = voice_call.select_call_engine({"model": dict(CHAT_OK, order=["anthropic-cli", "openai-oauth"]), "voice": {}})
+check("auto, ChatGPT signed in on the Models page as a fallback card -> ChatGPT Live (spec 3.1)",
+      r["engine"] == "chatgpt")
+r = voice_call.select_call_engine({"model": dict(CHAT_OK, order=["anthropic-cli"]), "voice": {}})
+check("signed in on the Models page but not yet in the saved order (the page lists it last) -> ChatGPT Live",
+      r["engine"] == "chatgpt")
+r = voice_call.select_call_engine({"model": {"order": ["anthropic-cli"]}, "voice": {"call_engine": "chatgpt"}})
+check("ChatGPT Live chosen by hand still runs on the machine's Codex sign-in",
+      r["engine"] == "chatgpt" and r["reason"] == "chosen")
+r = voice_call.select_call_engine({"model": {"order": ["anthropic-cli"]},
+                                   "voice": {"mode": "live", "live_provider": "chatgpt"}})
+check("old key mode=live + chatgpt counts as chosen by hand", r["engine"] == "chatgpt")
 
 # ---- routes ----
 _goc_cfg = main.cfgmod.read_settings
