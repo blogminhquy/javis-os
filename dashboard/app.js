@@ -1100,6 +1100,9 @@ function _ghiDut(code, clean, moLuc) {
 // tới máy chủ" and retried every 3 seconds forever, every list read 0, and restarting the server changed nothing.
 // Ask /auth/status (public, cheap) at most every 15 s; signed out means the sign-in screen, not "reconnecting".
 let _loginCheckAt = 0;
+// True once this page has seen a valid session. A browser that was never signed in (first visit, someone else's device)
+// also gets its socket refused, and must see a plain sign-in screen, not "your sign-in has expired" (2026-11-14).
+let _authedThisPage = false;
 async function _checkLoginAfterRefusal() {
   if (Date.now() - _loginCheckAt < 15000) return;
   _loginCheckAt = Date.now();
@@ -1108,7 +1111,7 @@ async function _checkLoginAfterRefusal() {
   baoDutMang(false);
   await initAuthGate();
   const err = document.getElementById("authErr");
-  if (err && authOverlay && authOverlay.classList.contains("open")) err.textContent = window.t("app.ws_login_lost");
+  if (_authedThisPage && err && authOverlay && authOverlay.classList.contains("open")) err.textContent = window.t("app.ws_login_lost");
 }
 // The same check when an HTTP call gets 401 while the socket is still open (fetch-gop.js raises the event): the
 // session expired mid-use, so chat still answered but images and lists failed silently (2026-11-10).
@@ -5193,7 +5196,7 @@ async function initAuthGate() {
   // cookie phiên rất có thể vẫn còn hợp lệ, chỉ là chưa hỏi được. Cứ để nguyên UI, mọi lệnh
   // gọi API thật sự (chat, file...) tự lộ ra nếu phiên đã hết hạn thật.
   if (!s) return;
-  if (s.authed) { initSetup(); return; }
+  if (s.authed) { _authedThisPage = true; initSetup(); return; }
   if (s.needs_setup) {
     _wizardMandatory = !!s.require_login;
     const wz = document.getElementById("setupWizard");
@@ -5227,6 +5230,8 @@ document.getElementById("authSubmit").addEventListener("click", async () => {
   fd.append("username", document.getElementById("authUser").value.trim());
   fd.append("password", document.getElementById("authPass").value);
   if (codeInp && codeInp.value.trim()) fd.append("code", codeInp.value.trim());
+  const keep = document.getElementById("authRemember");
+  fd.append("remember", keep && !keep.checked ? "0" : "1");
   const err = document.getElementById("authErr"); err.textContent = "";
   try {
     const r = await fetch("/auth/login", { method: "POST", body: fd });
@@ -5248,6 +5253,16 @@ document.getElementById("authSubmit").addEventListener("click", async () => {
     err.textContent = d.error || window.t("app.login_failed");
   } catch (e) { err.textContent = window.t("app.err_net"); }
 });
+// "Keep me signed in" box: this device remembers the last choice, so a borrowed device someone unticked once stays
+// unticked next time. Only the tick is stored, never a name or password.
+(() => {
+  const box = document.getElementById("authRemember");
+  if (!box) return;
+  try { if (localStorage.getItem("javis.rememberLogin") === "0") box.checked = false; } catch (e) {}
+  box.addEventListener("change", () => {
+    try { localStorage.setItem("javis.rememberLogin", box.checked ? "1" : "0"); } catch (e) {}
+  });
+})();
 // Eye button: lets the user check what they typed (a Hostinger customer could not tell a typo
 // from a wrong env password, 2026-10-05). Focus stays in the field so Enter still signs in.
 (() => {

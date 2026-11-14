@@ -7376,7 +7376,7 @@
     const sb = document.getElementById("secSessions");
     if (sb) {
       sb.innerHTML = ss.length ? ss.map(x => `<div class="sec-item">
-          <div class="sec-item-main"><b>${esc(secDevice(x.ua))}</b>${x.current ? ` <span class="sec-tag">${esc(t("sec.this_device"))}</span>` : ""}
+          <div class="sec-item-main"><b>${esc(secDevice(x.ua))}</b>${x.current ? ` <span class="sec-tag">${esc(t("sec.this_device"))}</span>` : ""}${x.remember === false ? ` <span class="sec-tag">${esc(t("sec.not_remembered"))}</span>` : ""}
             <span class="sec-meta">${esc([x.last_ip || x.ip, t("sec.last_active") + " " + secWhen(x.last), t("sec.signed_in") + " " + secWhen(x.created)].filter(Boolean).join(" · "))}</span></div>
           ${x.current ? "" : `<button class="gcard-btn ghost sec-end" data-id="${esc(x.id)}">${esc(t("sec.end_one"))}</button>`}
         </div>`).join("") : `<div class="gcard-meta">${esc(t("sec.no_devices"))}</div>`;

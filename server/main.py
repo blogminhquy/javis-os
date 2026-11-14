@@ -1715,7 +1715,9 @@ async def stop(payload: dict = Body(None)):
 # ============================================================
 # Auth - 1 tài khoản admin (đặt lần đầu để chặn người lạ khi lên VPS)
 # ============================================================
-def _session_cookie(resp, token, request=None):
+def _session_cookie(resp, token, request=None, remember=True):
+    # remember=False ("Keep me signed in" unticked): no max_age, so the browser drops the cookie when it closes. The
+    # server side of it is config._SHORT_SESSION_IDLE.
     # KHÔNG tự suy Secure từ X-Forwarded-Proto: nhiều proxy (vd Hostinger port-path http://host/PORT/)
     # phục vụ HTTP → cookie Secure sẽ KHÔNG được trình duyệt gửi lại → KẸT vòng đăng nhập (đăng nhập/
     # tạo tài khoản xong vẫn bị hỏi lại từ đầu). Mặc định TẮT Secure để chạy được cả HTTP lẫn HTTPS.
@@ -1733,7 +1735,7 @@ def _session_cookie(resp, token, request=None):
         except Exception:
             pass
     resp.set_cookie("javis_session", token, httponly=True, samesite="lax",
-                    secure=secure, max_age=30 * 86400, path="/")
+                    secure=secure, max_age=(30 * 86400 if remember else None), path="/")
     return resp
 
 
@@ -1746,10 +1748,10 @@ def _sec(request, event: str, **kw) -> None:
         print(f"[security_log] {event}: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-def _new_login_session(request, user: str = "", how: str = "") -> str:
+def _new_login_session(request, user: str = "", how: str = "", remember: bool = True) -> str:
     """A session for a successful sign-in, recorded with its device; a network never seen before is an alert."""
     ip, ua = security_log.request_meta(request)
-    tok = cfgmod.new_session(ip, ua)
+    tok = cfgmod.new_session(ip, ua, remember=remember)
     try:
         new_net = security_log.note_login_network(ip)
         security_log.record("login_new_network" if new_net else "login_ok", ip=ip, ua=ua, user=user, detail=how)
@@ -1832,8 +1834,11 @@ def _login_fail(ip):
 
 @app.post("/auth/login")
 async def auth_login(request: Request, username: str = Form(...), password: str = Form(...),
-                     code: str = Form("")):
+                     code: str = Form(""), remember: str = Form("1")):
     """Đăng nhập. `code` chỉ cần khi đã bật 2FA - nhận CẢ mã 6 số lẫn mã khôi phục.
+
+    `remember` is the "Keep me signed in on this device" box. "0" gives a session that ends when the browser closes
+    (see _session_cookie and config._SHORT_SESSION_IDLE). Missing means "1", so an older client keeps the 30 days.
 
     Thứ tự kiểm CÓ CHỦ Ý: mật khẩu trước, mã sau. Đảo lại là biến ô mã thành một máy dò xem
     tài khoản nào đã bật 2FA, cho người còn chưa biết mật khẩu.
@@ -1909,7 +1914,9 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
                                 status_code=401)
     _LOGIN_FAILS.pop(ip, None)
     _how = "password+2fa" if (cfgmod.totp_enabled(cfg) or _tfa_hong) else "password"
-    return _session_cookie(JSONResponse({"ok": True}), _new_login_session(request, username.strip(), _how), request)
+    keep = str(remember or "").strip().lower() not in ("0", "false", "no", "off")
+    return _session_cookie(JSONResponse({"ok": True}), _new_login_session(request, username.strip(), _how, keep),
+                           request, remember=keep)
 
 
 # ---- Xác thực 2 lớp: bật / xác nhận / tắt ----
@@ -2075,9 +2082,13 @@ async def auth_password(request: Request, current_password: str = Form(""),
     # Đổi mật khẩu = hạ MỌI phiên cũ (máy khác, trình duyệt khác) rồi cấp lại phiên cho chính
     # máy này. Thiếu bước này thì cái phiên mà người ta đổi mật khẩu để đuổi đi vẫn sống thêm
     # 30 ngày, và việc đổi coi như không có tác dụng.
+    # The new session keeps this device's "Keep me signed in" choice: changing the password on a borrowed device must
+    # not turn its sign-in into a 30-day one.
+    keep = cfgmod.session_remembered(request.cookies.get("javis_session", ""))
     cfgmod.clear_sessions()
     return _session_cookie(JSONResponse({"ok": True, "username": a.get("username", "")}),
-                           cfgmod.new_session(*security_log.request_meta(request)), request)
+                           cfgmod.new_session(*security_log.request_meta(request), remember=keep), request,
+                           remember=keep)
 
 
 @app.get("/auth/tokens")

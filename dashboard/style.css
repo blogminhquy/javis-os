@@ -889,6 +889,9 @@ body.in-console .graph-stats { display: none; }
    the eye needs back. */
 .set-sec .auth-pw input { padding-right: 44px; }
 .auth-err { color: var(--red); font-size: 14px; min-height: 16px; }
+.auth-remember-row { display: flex; align-items: center; gap: 6px; }
+.auth-remember { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--text2); cursor: pointer; min-height: 40px; }
+.auth-body .auth-remember input { width: 20px; height: 20px; margin: 0; padding: 0; flex: none; accent-color: var(--accent); cursor: pointer; }
 .auth-help { font-size: 14px; }
 .auth-help span { color: var(--accent); cursor: pointer; text-decoration: underline; }
 .auth-reset { font-size: 13px; color: var(--text3); line-height: 1.6; background: var(--bg3); border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; }
