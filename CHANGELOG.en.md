@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.561.1] - 2026-11-14
+### Fixed
+- **Hanging up while Javis is still working on something asked for in the call no longer drops it.** Javis finishes and posts the result to the call's chat, with a notification.
+- **The Automatic call path no longer switches to ChatGPT Live just because the machine has a Codex sign-in.** ChatGPT Live is picked only when ChatGPT is the main model or connected on the Models page.
+### Improved
+- **System lines Javis adds under answers no longer hardcode a Vietnamese first-person pronoun.** Background job tracking, empty-promise and memory notes and missing-file links are written without a pronoun, so they match the chosen form of address.
+
 ## [0.561.0] - 2026-11-14
 ### Added
 - **Links that open a dashboard page directly.** A link like `#p=tasks` (or another page name) opens that page, even in a Javis tab that is already open.
