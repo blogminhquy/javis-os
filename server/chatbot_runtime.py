@@ -2680,6 +2680,9 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
             # bản chụp: chủ đổi chế độ ở trang Chatbot là có tác dụng ngay.
             chung["cfg_fn"] = (lambda _b=bot_id: chatbot_store.get_bot(_b) or {})
             chung["policy"] = PolicyHooks(bot_id)      # bộ phán xử hội thoại nhóm (0.65.0)
+        if kenh == "zalo_oa":
+            # Read live: how many minutes the bot steps back after staff answers from the OA admin page.
+            chung["cfg_fn"] = (lambda _b=bot_id: chatbot_store.get_bot(_b) or {})
         if kenh == "zalo":
             # Zalo Bot sees a group tag only as text "@<display name>", which no Zalo API returns (#885): it matches the
             # names the owner gave this bot, read live like above.

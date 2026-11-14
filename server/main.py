@@ -28652,7 +28652,12 @@ async def zalo_oa_webhook(request: Request):
     if raw is None:
         return PlainTextResponse("too large", status_code=413)
     sig = request.headers.get("x-zevent-signature", "") or request.headers.get("mac", "")
-    if not zalo_oa_bot.verify_signature(raw, sig, _zo_account_secrets()):
+    secrets = _zo_account_secrets()
+    if not secrets:
+        # Setup: Zalo shows the OA secret key only after the webhook URL saves, and saving needs a
+        # 200. With no OA account nothing can be verified, so acknowledge and drop the event.
+        return {"ok": False, "dropped": "no Zalo OA account yet"}
+    if not zalo_oa_bot.verify_signature(raw, sig, secrets):
         return PlainTextResponse("bad signature", status_code=401)
     try:
         payload = json.loads(raw.decode("utf-8") or "{}")

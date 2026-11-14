@@ -35,6 +35,8 @@ Zalo chỉ gửi tin vào một địa chỉ HTTPS trên tên miền đã xác t
 4. Vào mục **Webhook** của app, dán **Địa chỉ webhook** Javis hiện (dạng `https://<tên miền>/zalo-oa/webhook`), bật các sự kiện **user_send_text**, **user_send_image**, **user_send_file**, **user_send_audio**, **user_send_sticker**, **user_send_location**.
 5. Ở mục Webhook có **OA secret key** (khóa bí mật của OA). Chép lại: Javis dùng nó để kiểm chữ ký từng tin, tin không đúng chữ ký bị bỏ.
 
+> Nút **Check** webhook của Zalo báo **401** cho tới khi Javis có OA secret key. Làm bước 3 và 4 (thêm kênh) trước, rồi mới quay lại bấm Check và Update webhook.
+
 ## 3. Khai báo Callback URL cho OAuth v4 (một lần)
 
 Zalo đã chuyển việc cấp quyền OA sang **OAuth v4** (mã cấp quyền kèm PKCE). Javis làm đúng luồng đó nên bạn không phải lấy refresh token tay nữa.

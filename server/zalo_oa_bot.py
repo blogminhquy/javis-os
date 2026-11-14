@@ -61,6 +61,8 @@ OPENAPI = os.getenv("JAVIS_ZALO_OA_OPENAPI", "https://openapi.zalo.me")
 CHANNEL = "zalo_oa"
 MAX_MSG = 1900               # Zalo allows 2000 per text; keep a margin
 MAX_DEDUPE = 4000
+OWN_ECHO_TTL = 120.0         # seconds a sent text is matched against its oa_send_* webhook echo
+STAFF_YIELD_MIN = 30         # minutes the bot steps back after staff replies by hand, when the bot sets none
 MAX_DOWNLOAD_MB = 20
 MAX_IMAGE_MB = 1             # upload/image refuses larger files
 MAX_FILE_MB = 5              # upload/file: pdf, doc, docx only
@@ -328,30 +330,44 @@ def registered() -> dict:
 
 
 def _oa_of(ev: dict) -> str:
-    return str((ev.get("recipient") or {}).get("id") or ev.get("oa_id") or "")
+    # oa_send_* events come FROM the OA, so the OA is the sender there
+    side = "sender" if str(ev.get("event_name") or "").startswith("oa_send_") else "recipient"
+    return str((ev.get(side) or {}).get("id") or ev.get("oa_id") or "")
 
 
 async def handle_webhook(payload: dict) -> int:
     """Route a verified webhook event to the bot of its OA. Returns how many events were handed
-    over. The OA's own outgoing messages (`oa_send_*`) and non-message events are skipped."""
+    over. `oa_send_*` (a message the OA sent) lets the bot step back when staff typed it by hand;
+    other events are skipped."""
     ev = payload or {}
     name = str(ev.get("event_name") or "")
-    if not name.startswith("user_send_") and name != "user_submit_info":
+    staff = name.startswith("oa_send_")
+    if not staff and not name.startswith("user_send_") and name != "user_submit_info":
         return 0
     oa = _oa_of(ev)
     bot = _REGISTRY.get(oa)
+    # Never fall back to "the bot of the same app": one app can serve several OAs, and another OA's
+    # customers would then be answered by this bot (Zalo refuses with -201).
     if not bot:
-        print(f"[zalo_oa] event for OA {oa} but no bot runs for it", file=sys.stderr)
+        print(f"[zalo_oa] {name} for OA {oa} (sender {(ev.get('sender') or {}).get('id')}, recipient "
+              f"{(ev.get('recipient') or {}).get('id')}, app {ev.get('app_id')}) but no bot runs for it",
+              file=sys.stderr)
         return 0
-    asyncio.create_task(bot._safe_event(ev))
+    asyncio.create_task(bot._safe_event(ev, staff=True) if staff else bot._safe_event(ev))
     return 1
+
+
+def _norm(text) -> str:
+    return " ".join(str(text or "").split())
 
 
 # ---- Transport --------------------------------------------------------------------------
 class ZaloOABot(HangLuot):
     def __init__(self, token, chat_id, answer_fn, command_fn=None, callback_fn=None,
                  download_dir=None, commands=None, precheck_fn=None, event_fn=None,
-                 giau_trang_thai=False, stt_fn=None, account_id="", **_ignored):
+                 giau_trang_thai=False, stt_fn=None, account_id="", cfg_fn=None, **_ignored):
+        self.cfg_fn = cfg_fn            # live bot settings (nhuong_tay_phut)
+        self._own = []
         self._raw = token if isinstance(token, str) else dump_credentials(token or {})
         cr = split_credentials(self._raw)
         self.oa_id = str(cr.get("oa_id") or "")
@@ -422,8 +438,71 @@ class ZaloOABot(HangLuot):
         return d
 
     async def _send_one(self, client, to, text):
+        # Noted BEFORE the call: Zalo may echo the oa_send_text webhook before its HTTP reply lands.
+        self._note_own(to, text)
         return await self._call(client, "POST", "/v3.0/oa/message/cs", json_body={
             "recipient": {"user_id": str(to)}, "message": {"text": text}})
+
+    # ---- Staff takeover -----------------------------------------------------------------
+    def _note_own(self, chat, text):
+        now = time.time()
+        self._own = [(c, t, ts) for c, t, ts in getattr(self, "_own", []) if now - ts < OWN_ECHO_TTL]
+        self._own.append((str(chat), _norm(text), now))
+
+    def _is_own(self, chat, text) -> bool:
+        """True when the bot itself just sent this text to this chat (its webhook echo)."""
+        key, now = (str(chat), _norm(text)), time.time()
+        for i, (c, t, ts) in enumerate(getattr(self, "_own", [])):
+            if (c, t) == key and now - ts < OWN_ECHO_TTL:
+                self._own.pop(i)
+                return True
+        return False
+
+    def _yield_minutes(self) -> int:
+        v = ((self.cfg_fn() if self.cfg_fn else {}) or {}).get("nhuong_tay_phut")
+        try:
+            return max(0, int(v))
+        except (TypeError, ValueError):
+            return STAFF_YIELD_MIN
+
+    def _on_staff(self, ev):
+        """Staff answered this customer by hand from the OA admin page: log it in the inbox and hand the
+        chat to a human (mode `human`) for `nhuong_tay_phut` minutes; the bot takes it back after that."""
+        msg = ev.get("message") or {}
+        chat = str((ev.get("recipient") or {}).get("id") or "")
+        text = str(msg.get("text") or "").strip()
+        if not chat or chat == self.oa_id or (text and self._is_own(chat, text)):
+            return
+        if not text and not msg.get("attachments"):
+            return
+        import conversations
+        conversations.ghi_su_kien({
+            "channel": CHANNEL, "account_id": self.account_id, "external_chat_id": chat,
+            "sender_type": "human", "sender_name": localefmt.chu("Nhân viên", "Staff"),
+            "message_type": "text" if text else "other",
+            "text": text or localefmt.chu("[Nhân viên gửi tệp đính kèm]", "[Staff sent an attachment]"),
+            "external_message_id": str(msg.get("msg_id") or "")}, dem_chua_doc=False)
+        minutes = self._yield_minutes()
+        if not minutes:
+            return
+        cid = conversations.conversation_id_of(CHANNEL, self.account_id, chat)
+        if cid and conversations.che_do(CHANNEL, self.account_id, chat) in ("ai", "human"):
+            conversations.dat_che_do(cid, "human")
+            conversations._set_meta_key(cid, "staff_until", time.time() + minutes * 60)
+
+    def _release_if_due(self, chat):
+        """Give the chat back to the bot once the staff window set by `_on_staff` has passed. A takeover
+        the owner made in the inbox has no `staff_until` and is never touched."""
+        import conversations
+        cid = conversations.conversation_id_of(CHANNEL, self.account_id, chat)
+        if not cid:
+            return
+        meta = (conversations.chi_tiet(cid) or {}).get("metadata") or {}
+        until = float(meta.get("staff_until") or 0)
+        if until and time.time() >= until:
+            conversations._set_meta_key(cid, "staff_until", None)
+            if conversations.che_do(CHANNEL, self.account_id, chat) == "human":
+                conversations.dat_che_do(cid, "ai")
 
     async def _send(self, client, chat, text, reply_markup=None):
         if not str(text or "").strip() and self.giau_trang_thai:
@@ -588,9 +667,12 @@ class ZaloOABot(HangLuot):
             parts.append(text)
         return "\n".join(parts).strip()
 
-    async def _safe_event(self, ev):
+    async def _safe_event(self, ev, staff=False):
         try:
-            await self._on_event(ev)
+            if staff:
+                self._on_staff(ev)
+            else:
+                await self._on_event(ev)
         except Exception as e:
             print(f"[zalo_oa event] {type(e).__name__}: {e}", file=sys.stderr)
 
@@ -621,6 +703,10 @@ class ZaloOABot(HangLuot):
         text = await self._event_text(client, ev, chat)
         if not text:
             return
+        try:
+            self._release_if_due(chat)
+        except Exception as e:      # noqa: BLE001 - a store hiccup must not cost the customer an answer
+            print(f"[zalo_oa release] {type(e).__name__}: {e}", file=sys.stderr)
         await self._dispatch(client, chat, text, meta)
 
     # ---- One turn ---------------------------------------------------------------------
@@ -812,7 +898,8 @@ def parse_site_code(raw: str) -> str:
     """The code Zalo gives for domain verification, from whatever the owner pasted: the file name
     `zalo_verifier<code>.html`, the meta tag, or the bare code."""
     s = str(raw or "").strip()
-    m = re.search(r"zalo_verifier([A-Za-z0-9_\-]{6,80})\.html", s)
+    # ".html" optional: owners often paste the file name without the extension
+    m = re.search(r"zalo_verifier([A-Za-z0-9_\-]{6,80})(?:\.html)?", s)
     if m:
         return m.group(1)
     m = re.search(r"zalo-platform-site-verification[^>]*content\s*=\s*[\"']([A-Za-z0-9_\-]{6,80})[\"']", s)

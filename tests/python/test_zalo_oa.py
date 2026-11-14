@@ -199,8 +199,8 @@ class Probe(zo.ZaloOABot):
         super().__init__(pasted, "", None, giau_trang_thai=True)
         self.got = []
 
-    async def _safe_event(self, ev):
-        self.got.append(ev)
+    async def _safe_event(self, ev, staff=False):
+        self.got.append((ev.get("event_name"), staff))
 
 
 async def _route():
@@ -215,8 +215,25 @@ async def _route():
     zo._REGISTRY.clear()
     return n, a.got, b.got
 
+async def _route_by_app():
+    a = Probe()
+    zo._REGISTRY.clear()
+    zo._REGISTRY.update({OA_ID: a})
+    n = await zo.handle_webhook({"event_name": "oa_send_text", "app_id": APP_ID, "sender": {"id": "4592322240370428818"},
+                                 "recipient": {"id": USER}, "message": {"text": "x"}})
+    n += await zo.handle_webhook({"event_name": "oa_send_text", "app_id": "111", "sender": {"id": "4592322240370428818"},
+                                  "recipient": {"id": USER}, "message": {"text": "x"}})
+    await asyncio.sleep(0)
+    zo._REGISTRY.clear()
+    return n, a.got
+
+n2, got2 = run(_route_by_app())
+check("an event of another OA is never handed to this OA's bot, even from the same app",
+      n2 == 0 and got2 == [], (n2, got2))
+
 n, got_a, got_b = run(_route())
-check("customer text reaches the bot of that OA only", n == 1 and len(got_a) == 1 and got_b == [], (n, got_a, got_b))
+check("customer text and the OA's own sends reach the bot of that OA only, follow is skipped",
+      n == 2 and got_a == [("user_send_text", False), ("oa_send_text", True)] and got_b == [], (n, got_a, got_b))
 
 
 async def _turn():
@@ -258,6 +275,51 @@ n0 = state["n"]
 ok, err = run(zo.ZaloOABot("", "", None, giau_trang_thai=True, account_id=aid).send_text(USER, "Dạ"))
 check("-216 on send refreshes and retries once", ok and state["n"] == n0 + 1, (ok, err, state["n"]))
 
+# Staff answering by hand from the OA admin page (oa_send_*) hands the chat to a human for a while.
+import conversations  # noqa: E402
+STAFF_CHAT = "9988776655"
+conversations.ghi_su_kien({"channel": "zalo_oa", "account_id": aid, "external_chat_id": STAFF_CHAT,
+                           "sender_type": "customer", "text": "Còn hàng không?"})
+sb = zo.ZaloOABot("", "", None, giau_trang_thai=True, account_id=aid, cfg_fn=lambda: {"nhuong_tay_phut": 15})
+sb.oa_id = OA_ID
+
+
+def _oa_send(text, mid):
+    return {"event_name": "oa_send_text", "sender": {"id": OA_ID}, "recipient": {"id": STAFF_CHAT},
+            "message": {"text": text, "msg_id": mid}}
+
+
+check("oa_send_* routes by the sender (the OA)", zo._oa_of(_oa_send("x", "m0")) == OA_ID)
+sb._note_own(STAFF_CHAT, "Dạ còn hàng ạ")
+sb._on_staff(_oa_send("Dạ  còn hàng ạ", "m1"))
+check("the bot's own reply echoed back does not stop the bot",
+      conversations.che_do("zalo_oa", aid, STAFF_CHAT) == "ai")
+sb._on_staff(_oa_send("Em là Hà bên CSKH, chị cần màu gì ạ?", "m2"))
+cid = conversations.conversation_id_of("zalo_oa", aid, STAFF_CHAT)
+meta = (conversations.chi_tiet(cid) or {}).get("metadata") or {}
+check("a hand-typed staff reply hands the chat to a human",
+      conversations.che_do("zalo_oa", aid, STAFF_CHAT) == "human"
+      and 14 * 60 < float(meta.get("staff_until") or 0) - time.time() <= 15 * 60, meta)
+check("the staff reply is logged in the inbox as human",
+      any(m.get("sender_type") == "human" and "CSKH" in (m.get("text") or "")
+          for m in conversations.tin_nhan(cid)))
+sb._release_if_due(STAFF_CHAT)
+check("before the window ends the bot stays quiet", conversations.che_do("zalo_oa", aid, STAFF_CHAT) == "human")
+conversations._set_meta_key(cid, "staff_until", time.time() - 1)
+sb._release_if_due(STAFF_CHAT)
+check("after the window the chat goes back to the bot", conversations.che_do("zalo_oa", aid, STAFF_CHAT) == "ai")
+conversations.dat_che_do(cid, "human")
+sb._release_if_due(STAFF_CHAT)
+check("an inbox takeover by the owner (no window) is left alone",
+      conversations.che_do("zalo_oa", aid, STAFF_CHAT) == "human")
+conversations.dat_che_do(cid, "ai")
+z = zo.ZaloOABot("", "", None, giau_trang_thai=True, account_id=aid, cfg_fn=lambda: {"nhuong_tay_phut": 0})
+z.oa_id = OA_ID
+z._on_staff(_oa_send("Nhân viên trả lời", "m3"))
+check("nhuong_tay_phut 0 keeps the bot answering", conversations.che_do("zalo_oa", aid, STAFF_CHAT) == "ai")
+check("no setting falls back to the default window",
+      zo.ZaloOABot("", "", None, account_id=aid)._yield_minutes() == zo.STAFF_YIELD_MIN)
+
 # ============================================================
 # 6. Endpoints (TestClient)
 # ============================================================
@@ -274,6 +336,12 @@ async def fake_handle(payload):
     return 1
 zo.handle_webhook = fake_handle
 try:
+    _real_secrets = main._zo_account_secrets
+    main._zo_account_secrets = lambda: []
+    r = client.post("/zalo-oa/webhook", content=body)
+    check("with no OA account the setup check gets 200 and nothing is handled",
+          r.status_code == 200 and not handled, r.status_code)
+    main._zo_account_secrets = _real_secrets
     r = client.post("/zalo-oa/webhook", content=body, headers={"X-ZEvent-Signature": "mac=00"})
     check("POST with a bad signature is refused", r.status_code == 401 and not handled, r.status_code)
     r = client.post("/zalo-oa/webhook", content=body)
@@ -296,6 +364,8 @@ check("the saved verifier file carries the meta tag",
       r.status_code == 200 and 'content="ABCdef123456"' in r.text and "zalo-platform-site-verification" in r.text, r.text)
 check("meta tag paste is read too", zo.parse_site_code(
     '<meta name="zalo-platform-site-verification" content="QWErty98765" />') == "QWErty98765")
+check("file name without .html drops the prefix",
+      zo.parse_site_code("zalo_verifierV-Qp5fl0CY52ik") == "V-Qp5fl0CY52ik")
 r = client.post("/zalo-oa/site-verification", json={"code": "!!"})
 check("garbage verifier code is refused", r.status_code == 400)
 check("verifier path is public, nested paths are not",
