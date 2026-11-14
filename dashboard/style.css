@@ -2697,6 +2697,12 @@ textarea.sug-ghosted::placeholder { color: transparent; }
   border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-3);
 }
 .eff-pop[hidden], .cp-menu[hidden] { display: none; }
+/* In the composer card (owner, 14/11/2026) the popovers open just above the row of chips, not above the whole card: a
+   tall card (a file attached, a few lines typed) left them far from the chip. Their height stops at the top of the part
+   of the screen in view, so the first rows are never cut off. model-picker.js (POP_ANCHOR) sets both values. */
+.hud-voice .mb-pop, .hud-voice .eff-pop, .hud-voice .cp-menu { bottom: var(--cp-pop-bottom, calc(100% + 6px)); }
+.hud-voice .mb-pop { max-height: min(62vh, var(--cp-pop-room, 62vh)); }
+.hud-voice .cp-menu { max-height: min(60vh, 440px, var(--cp-pop-room, 60vh)); }
 /* Phone sheet wrappers (2026-11-11): boxless on a computer, so the three popovers still place themselves against the
    card. Up to 860px they become one sheet from the bottom, see the phone block of the composer above. */
 .cp-sheet, .cp-sheet-card { display: contents; }

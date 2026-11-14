@@ -2348,6 +2348,7 @@
     grow(box.querySelector(".tm-input"));
     drawHint();
     drawTyping();
+    if (S.plusOpen) placePlusMenu(box);
     if (teamSuggest) teamSuggest.refresh();
     if (S.focusComposer && !off) {
       S.focusComposer = false;
@@ -2381,6 +2382,21 @@
   function ghLogo() {
     var G = typeof window !== "undefined" && window.JavisGithubRepos;
     return G && G.logo ? G.logo : ic("git-branch");
+  }
+
+  // The + menu and the panels it opens (folder, GitHub) sit just above the + button, not above the whole composer: with a
+  // reply bar, files attached or a few lines typed, the composer's top is far from the button (owner, 14/11/2026, the
+  // same fix as the main chat's popovers in model-picker.js).
+  function placePlusMenu(box) {
+    var menu = box.querySelector(".tm-plus-menu"), pb = box.querySelector(".tm-plus");
+    if (!menu || !pb || pb.offsetParent !== box) return;
+    menu.style.bottom = Math.max(0, box.clientHeight - pb.offsetTop + 6) + "px";
+  }
+  function placeAbovePlus(pop, comp) {
+    var r = comp.getBoundingClientRect(), pb = comp.querySelector(".tm-plus");
+    var top = pb && pb.offsetParent ? pb.getBoundingClientRect().top : r.top;
+    pop.style.left = Math.max(8, r.left + 8) + "px";
+    pop.style.bottom = Math.max(8, window.innerHeight - top + 6) + "px";
   }
 
   function plusMenuHtml(off) {
@@ -3456,11 +3472,9 @@
     if (!G || !comp || !S.team || !sessionId()) return;
     closeGithubPanel();
     closeFolderPanel();
-    var r = comp.getBoundingClientRect();
     var pop = document.createElement("div");
     pop.className = "cp-menu tm-folder-pop tm-gh-pop";
-    pop.style.left = Math.max(8, r.left + 8) + "px";
-    pop.style.bottom = Math.max(8, window.innerHeight - r.top + 6) + "px";
+    placeAbovePlus(pop, comp);
     pop.innerHTML = '<div class="cp-mi cp-back">' + esc(tw("gh.menu")) + infoBtn() + "</div>" +
       infoBody(esc(tw("teams.gh_how"))) + '<div class="cp-sep"></div><div class="tm-gh-body"></div>';
     document.body.appendChild(pop);
@@ -3504,11 +3518,9 @@
     var comp = S.el.querySelector(".tm-composer");
     if (!P || !comp || !S.team) return;
     closeFolderPanel();
-    var r = comp.getBoundingClientRect();
     var pop = document.createElement("div");
     pop.className = "cp-menu tm-folder-pop";
-    pop.style.left = Math.max(8, r.left + 8) + "px";
-    pop.style.bottom = Math.max(8, window.innerHeight - r.top + 6) + "px";
+    placeAbovePlus(pop, comp);
     pop.innerHTML = '<div class="cp-mi cp-back">' + esc(tw("cp.pin_folder")) + '</div><div class="cp-sep"></div><div class="tm-folder-body"></div>';
     document.body.appendChild(pop);
     P({ brain: brain, current: function () { return S.folder; }, pin: pinTeamFolder,

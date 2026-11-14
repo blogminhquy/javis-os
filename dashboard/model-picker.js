@@ -529,6 +529,48 @@
     document.addEventListener("pointercancel", () => { if (y0 != null) end(false); });
   })();
   // SHEET_END
+
+  // POP_ANCHOR_BEGIN
+  // Owner, 14/11/2026: "ấn vào model trong khung cộng sự popup bị nhảy lên trên khá xa với khung khiến cho việc lựa
+  // chọn model bị khó khăn". The composer's popovers (model list, Effort, plan usage, the + menu) opened above the WHOLE
+  // card, so a tall card (a file attached, a few lines typed) left them far above the chip, and a long model list then
+  // ran past the top of the chat column, which cut its first rows off. They now open just above the row of chips and
+  // stop at the top of the part of the screen in view (style.css reads the two values). A phone's sheet is not in the
+  // card, so it is not affected.
+  const ANCHORED_POPS = ["mbPop", "effPop", "limitPop", "plusMenu"];
+  const POP_GAP = 6;     // between the popover and the row, as it was between the popover and the card
+  const POP_MIN = 160;   // a few rows at least, even in a very short window
+  function placePops() {
+    const card = $("hudVoice"), row = $("cpRow");
+    if (!card || !row || row.offsetParent !== card) return;
+    card.style.setProperty("--cp-pop-bottom", Math.max(POP_GAP, card.clientHeight - row.offsetTop + POP_GAP) + "px");
+    // The highest point a popover may reach: under the global header, and inside every box that clips its overflow
+    // (the console view, a page body), or its top rows are cut off.
+    let top = 0;
+    const head = document.querySelector(".hud-top");
+    if (head) { const r = head.getBoundingClientRect(); if (r.height) top = r.bottom; }
+    for (let el = card.parentElement; el && el !== document.body; el = el.parentElement) {
+      const cs = getComputedStyle(el);
+      if (cs.overflowX !== "visible" || cs.overflowY !== "visible") top = Math.max(top, el.getBoundingClientRect().top);
+    }
+    const room = Math.floor(row.getBoundingClientRect().top - POP_GAP - top - 8);
+    card.style.setProperty("--cp-pop-room", Math.max(POP_MIN, room) + "px");
+  }
+  const anyPopOpen = () => ANCHORED_POPS.some((id) => { const p = $(id); return !!(p && !p.hidden); });
+  function watchPops() {
+    const card = $("hudVoice");
+    if (!card) return;
+    // Placed the moment one opens, whoever opens it (this file, plan-limit.js, composer-plus.js), before it is painted.
+    const mo = new MutationObserver(() => { if (anyPopOpen()) placePops(); });
+    ANCHORED_POPS.forEach((id) => { const p = $(id); if (p) mo.observe(p, { attributes: true, attributeFilter: ["hidden"] }); });
+    // And again when the card changes size while one is open (a file dropped in, the text wraps) or the window does.
+    if (window.ResizeObserver) new ResizeObserver(() => { if (anyPopOpen()) placePops(); }).observe(card);
+    window.addEventListener("resize", () => { if (anyPopOpen()) placePops(); });
+  }
+  if (document.readyState !== "loading") watchPops();
+  else document.addEventListener("DOMContentLoaded", watchPops);
+  // POP_ANCHOR_END
+
   function closeLimit() { try { if (window.JavisPlanLimit) window.JavisPlanLimit.close(); } catch (e) {} }
   function closePlus() { try { if (window.JavisComposerMenu) window.JavisComposerMenu.close(); } catch (e) {} }
 
