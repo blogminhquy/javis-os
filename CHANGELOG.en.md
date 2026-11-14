@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.558.0] - 2026-11-14
+### Added
+- **A "Keep me signed in on this device" box on the sign-in screen.** Ticked, as before, the device stays signed in for 30 days. Untick it on someone else's device: closing the browser signs you out, and Javis also signs you out after 4 hours unused or 24 hours at most.
+- The Security page marks devices signed in without being remembered.
+### Fixed
+- Opening Javis for the first time in a new browser no longer shows a wrong red "Your sign-in has expired" line.
+
 ## [0.557.3] - 2026-11-14
 ### Fixed
 - **"Push again" and the warning mark on the GitHub card no longer stay stuck.** A job that had stored a branch name already taken on GitHub (from before the previous fix) kept pushing to that same name, so every retry said "has commits this machine lacks". Now, while nothing has been pushed yet, Javis picks a free branch name again (or follows the branch checked out on this machine), pushes, opens the PR, and the warning clears.
