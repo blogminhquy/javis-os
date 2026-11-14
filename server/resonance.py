@@ -3763,8 +3763,8 @@ def notice_text(goal: GoalRecord, kind: str, payload: dict, presentation: Option
     if kind == "goal.review_blocked":
         code = str((payload or {}).get("code") or (payload or {}).get("reason") or "")
         why = {
-            "budget_maker": ("người làm đã dùng hết phần lượt của mình", "the maker used all of its calls"),
-            "budget_reviewer": ("người review đã dùng hết phần lượt của mình", "the reviewer used all of its calls"),
+            "budget_maker": ("người làm đã dùng hết số lượt được cấp", "the maker used all of its calls"),
+            "budget_reviewer": ("người review đã dùng hết số lượt được cấp", "the reviewer used all of its calls"),
             "budget": ("đã chạm trần tổng lượt gọi của Auto", "the overall Auto call ceiling was reached"),
             "review_unknown": ("lượt review không ra kết luận đọc được sau các lần thử cho phép",
                                "the review gave no readable verdict within the allowed tries"),

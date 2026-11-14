@@ -5099,11 +5099,11 @@ async def _execute_write_confirmation(plan, ws, session_id: str, runtime_trace,
                     "lệnh đọc: hành động ĐÃ được thực hiện. Javis không chạy lại.")
         elif reconciled.get("status") == "FAILED_FINAL":
             text = ("Kết nối bị gián đoạn, Javis kiểm chứng lại bằng lệnh đọc và thấy hành "
-                    "động CHƯA được thực hiện. Bạn nhắn lại nếu muốn Javis làm lại.")
+                    "động CHƯA được thực hiện. Nhắn lại nếu muốn Javis làm lại.")
         else:
             text = ("Kết nối bị gián đoạn và Javis KHÔNG kiểm chứng được là hành động đã "
                     "chạy hay chưa. Javis tuyệt đối không chạy lại để tránh làm hai lần. "
-                    "Bạn kiểm tra trực tiếp bên hệ thống đích rồi báo lại giúp mình.")
+                    "Hãy kiểm tra trực tiếp bên hệ thống đích rồi báo lại.")
     elif status == "SUCCEEDED":
         evidence = outcome.get("evidence")
         text = "Đã thực hiện xong hành động ghi."
@@ -5623,8 +5623,8 @@ def _schedule_cancel_reply(action: dict) -> str:
         return str(action.get("list_result") or "Không có lịch đang chạy để xoá.")
     if action.get("needs_choice"):
         return (
-            "Mình đã đọc danh sách lịch thật nhưng có nhiều mục gần giống nhau nên chưa xoá để tránh nhầm. "
-            "Bạn nói đúng tên hoặc ID cần xoá:\n\n" + str(action.get("list_result") or "")
+            "Đã đọc danh sách lịch thật nhưng có nhiều mục gần giống nhau nên chưa xoá để tránh nhầm. "
+            "Cho biết đúng tên hoặc ID cần xoá:\n\n" + str(action.get("list_result") or "")
         )
     return "⚠ " + str(action.get("error") or "Không thể thao tác lịch.")
 
@@ -16078,18 +16078,18 @@ async def _nhan_nuoi_tien_trinh(tag: str, brain: str, owner_chat: str, final_tex
         return ""
     if not ds:
         return ""
-    # Giọng "mình" như các dòng hệ thống khác (promise_note): dòng này không biết người dùng
-    # xưng hô thế nào, "mình" là cách trung tính nhất.
-    dong = ["Mình đang theo dõi việc chạy nền của lượt này:"]
+    # No personal pronoun (issue 1391): this line does not know how the user and Javis address
+    # each other, and a fixed "mình" reads as Javis forgetting the user's own choice.
+    dong = ["Đang theo dõi việc chạy nền của lượt này:"]
     for v in ds:
         dong.append(f"- `{v['mo_ta']}`")
     tiep = next((v.get("sau_khi_xong") for v in ds if v.get("sau_khi_xong")), "")
     if tu_lam_tiep and tiep:
-        dong.append(f"\nXong là mình tự báo về đây rồi làm tiếp: {tiep}")
+        dong.append(f"\nXong sẽ tự báo về đây rồi làm tiếp: {tiep}")
     elif tu_lam_tiep and any(v.get("noi_tiep") for v in ds):
-        dong.append("\nXong là mình tự báo về đây rồi làm nốt phần đã hẹn, không cần hỏi lại.")
+        dong.append("\nXong sẽ tự báo về đây rồi làm nốt phần đã hẹn, không cần hỏi lại.")
     else:
-        dong.append("\nXong là mình tự báo về đây, không cần hỏi lại.")
+        dong.append("\nXong sẽ tự báo về đây, không cần hỏi lại.")
     return "\n".join(dong)
 
 
@@ -16119,9 +16119,9 @@ async def _khi_tien_trinh_xong(v: dict) -> None:
     se_tiep = muon_tiep and runner is not None and do_sau < tien_trinh_nen.TRAN_NOI_TIEP
     loi_dan = str(v.get("sau_khi_xong") or "")
     if se_tiep:
-        than.append("Mình làm tiếp phần còn lại ngay bây giờ.")
+        than.append("Sẽ làm tiếp phần còn lại ngay bây giờ.")
     elif muon_tiep:
-        than.append("Nhắn \"làm tiếp\" để mình làm nốt" + (f": {loi_dan}" if loi_dan else " phần đã hẹn."))
+        than.append("Nhắn \"làm tiếp\" để làm nốt" + (f": {loi_dan}" if loi_dan else " phần đã hẹn."))
     text = "\n\n".join(than)
     try:
         await _notify_owner(owner, text, kind="answer", label="Việc chạy nền", source="job",
@@ -16457,7 +16457,7 @@ def _cau_link_khong_thay(thieu: list) -> str:
     """Dòng sự thật khi câu trả lời dẫn link tới file không có trong brain. Không đổ lỗi, không
     đoán nguyên nhân; chỉ nói mình không thấy và chỉ chỗ tự kiểm."""
     ds = ", ".join(f"`{x}`" for x in thieu[:5])
-    return ("⚠ Câu trả lời có dẫn link tới file mà mình không tìm thấy trong brain: " + ds +
+    return ("⚠ Câu trả lời có dẫn link tới file không tìm thấy trong brain: " + ds +
             ". Có thể file được ghi ở chỗ khác hoặc chưa được ghi thật. Kiểm tra ở trang Tệp tin "
             "trước khi tin vào link đó.")
 
@@ -22284,8 +22284,8 @@ async def _chat_socket(ws):
                     break
                 await asyncio.sleep(5)
             else:
-                await push_to_chat(conv_sid, "Việc chạy nền đã xong nhưng hội thoại đang bận quá "
-                                   "lâu, mình chưa làm tiếp được. Nhắn \"làm tiếp\" để mình làm nốt.")
+                await push_to_chat(conv_sid, "Việc chạy nền đã xong nhưng hội thoại bận quá lâu "
+                                   "nên chưa làm tiếp được. Nhắn \"làm tiếp\" để làm nốt.")
                 return
             store.append_message(conv_sid, "user", text)
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
@@ -31772,8 +31772,8 @@ def _judge_send(decision, payload, mode):
 
 def _judge_clarify_template():
     """Câu cố định của host khi một tin chủ động ở chat riêng chờ quá 30 phút mà vẫn thiếu thông tin."""
-    return localefmt.chu("Mình có một tin định gửi nhưng còn thiếu thông tin nên đã chờ và chưa gửi. Khi bạn tiện, cứ "
-                         "nhắn mình để làm rõ.",
+    return localefmt.chu("Có một tin định gửi nhưng còn thiếu thông tin nên đã chờ và chưa gửi. Khi tiện, cứ nhắn "
+                         "để làm rõ.",
                          "I had a message ready but some information was missing, so I waited and did not send it. "
                          "Message me whenever you want to clarify.")
 

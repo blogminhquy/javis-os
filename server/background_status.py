@@ -121,9 +121,9 @@ def promise_note(orchestration: str = "") -> str:
     """
     lines = [
         localefmt.chu(
-            "⚠ Mình vừa hẹn sẽ báo lại nhưng KHÔNG đặt việc nền nào, nên sẽ không có báo cáo nào "
-            "tự về đây. Nhắn \"làm luôn\" là mình làm ngay, hoặc \"giao việc nền\" để mình đẩy vào "
-            "hàng đợi và kết quả tự rơi về khung chat này.",
+            "⚠ Câu trả lời trên hẹn sẽ báo lại nhưng KHÔNG đặt việc nền nào, nên sẽ không có báo cáo "
+            "nào tự về đây. Nhắn \"làm luôn\" để làm ngay, hoặc \"giao việc nền\" để đẩy vào hàng "
+            "đợi và kết quả tự rơi về khung chat này.",
             "⚠ I said I would report back but queued NO background work, so no report will "
             "arrive here on its own. Reply \"do it now\" and I will do it right away, or \"queue it\" "
             "and I will queue it so the result lands in this chat by itself."),
