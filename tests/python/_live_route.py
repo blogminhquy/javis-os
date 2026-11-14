@@ -17,6 +17,10 @@ real SessionStore in a temp directory.
   langs               the reply language pinned for each brain call (what the person spoke)
   progress            n -> the `progress` callback the route gave the n-th brain call
   frames, inbox       frames sent to the browser / frames the browser sends up
+  route               the running route (await it to see the call end)
+  after_call          (sid, request, result, status) of each answer posted to the chat after the call ended
+  kept                handoff tasks the route left running when the call ended
+  late_sends          frames the route tried to send on the socket after it closed it (must stay empty)
 """
 from _paths import ROOT, SERVER  # noqa: F401
 import ast
@@ -65,28 +69,41 @@ class FakeProvider:
         self.results, self.acks, self.status_calls, self.readbacks = [], [], [], []
         self.status_supported = status_supported
         self.quiet = True
+        self.closed = False
+        self.after_close = []   # what the route said to the provider after closing it (must stay empty)
+
+    def _note(self, what):
+        if self.closed:
+            self.after_close.append(what)
 
     async def connect(self): pass
     async def restore_history(self, history): pass
     def supports_async_tools(self): return True
-    async def close(self): pass
-    async def send_tool_running(self, cid, name): pass
+
+    async def close(self):
+        self.closed = True
+
+    async def send_tool_running(self, cid, name): self._note("send_tool_running")
     async def send_context(self, text): pass
     async def send_text(self, text): pass
 
     async def send_tool_result(self, cid, name, result):
+        self._note("send_tool_result")
         self.results.append((cid, result))
 
     async def send_tool_ack(self, cid, name, text):
+        self._note("send_tool_ack")
         self.acks.append((cid, text))
 
     async def read_result(self, text):
+        self._note("read_result")
         self.readbacks.append(text)
 
     async def wait_quiet(self, max_s):
         return True
 
     async def say_status(self, text):
+        self._note("say_status")
         if self.status_supported:
             self.status_calls.append(text)
         return self.status_supported
@@ -121,38 +138,51 @@ class DeferringProvider(FakeProvider):
         return True
 
     async def send_late_result(self, text):
+        self._note("send_late_result")
         self.late.append(text)
 
 
 class LiveRouteMixin:
     provider_class = FakeProvider
 
-    async def run_route(self, script, answers, status_supported=True, live_overrides=None):
+    async def run_route(self, script, answers, status_supported=True, live_overrides=None, after_call_limit=600.0):
         with tempfile.TemporaryDirectory() as directory:
             store = sessions.SessionStore(str(Path(directory) / "sessions.db"))
             try:
-                return await self._run_in(store, directory, script, answers, status_supported, live_overrides or {})
+                return await self._run_in(store, directory, script, answers, status_supported, live_overrides or {},
+                                          after_call_limit)
             finally:
                 store._conn.close()
 
-    async def _run_in(self, store, directory, script, answers, status_supported, live_overrides):
+    async def _run_in(self, store, directory, script, answers, status_supported, live_overrides, after_call_limit):
         sid = store.get_or_create(None, brain="brain", engine="test", model="test")
         frames, asks, keys, langs, progress = [], [], [], [], {}
+        after_call, kept, late_sends = [], [], []
         inbox = asyncio.Queue()
         prov = self.provider_class(status_supported)
 
         class Socket:
+            closed = False
+
             async def accept(self): pass
 
             async def send_text(self, text):
+                if self.closed:
+                    late_sends.append(json.loads(text))
+                    raise RuntimeError("send on a closed websocket")
                 frames.append(json.loads(text))
 
             async def receive(self):
                 return {"text": json.dumps(await inbox.get())}
 
-            async def close(self): pass
+            async def close(self):
+                self.closed = True
 
         gates = {}
+
+        async def after_call_fake(conv_sid, brain, request, result, status="done"):
+            after_call.append((conv_sid, request, result, status))
+            return True
 
         async def ask(req, conv_sid, brain, key="", progress=None, call_lang=""):
             n = len(asks)
@@ -178,7 +208,10 @@ class LiveRouteMixin:
             _fit_memory_index=lambda mem, cap=None: mem[:cap],
             _voice_ask_javis=ask, get_store=lambda: store, _brain_key=lambda b: b,
             _voice_persona=lambda sid, b: None,
-            voice_call=types.SimpleNamespace(live_settings=lambda c: c, select_call_engine=lambda c: {"engine": "live"}))
+            voice_call=types.SimpleNamespace(live_settings=lambda c: c, select_call_engine=lambda c: {"engine": "live"}),
+            # Hang-up (issue 1315): handoffs still running are kept, then post their answer to the chat.
+            _voice_after_call=after_call_fake, _nho_viec_nen_giong=lambda s, task: kept.append(task),
+            VOICE_BG_TIMEOUT=after_call_limit)
         exec(compile(route_tree(), "live-route", "exec"), namespace)
         route = asyncio.ensure_future(namespace["voice_live_ws"](Socket(), sid, "brain", "vi-VN"))
 
@@ -194,7 +227,8 @@ class LiveRouteMixin:
 
         try:
             await script(prov, types.SimpleNamespace(until=until, release=release, asks=asks, keys=keys, langs=langs,
-                                                     progress=progress, frames=frames, inbox=inbox))
+                                                     progress=progress, frames=frames, inbox=inbox, route=route,
+                                                     after_call=after_call, kept=kept, late_sends=late_sends))
         finally:
             await inbox.put({"type": "stop"})
             await prov.q.put(None)

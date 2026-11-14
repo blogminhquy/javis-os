@@ -257,7 +257,7 @@ def tin_khong_chay(ten: str = "") -> str:
     """Dòng nói THẲNG là lần chạy đã không khởi động, và cách ép chạy nếu đoán sai."""
     cua = f' "{ten}"' if str(ten or "").strip() else ""
     return localefmt.chu(
-        "Tin này đang nói về chính quy trình" + cua + " nên mình trả lời thay vì chạy nó. "
+        "Tin này đang nói về chính quy trình" + cua + " nên được trả lời thay vì chạy. "
         "Muốn chạy thật với đúng câu này thì bấm nút Chạy ở cột phải, hoặc gửi lại với "
         "\"chạy:\" ở đầu tin.",
         "This message is about the workflow" + cua + " itself, so I answered instead of running it. "

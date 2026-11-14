@@ -164,7 +164,7 @@ def detect_claim(text: str) -> str:
 
 def claim_note() -> str:
     return localefmt.chu(
-        "⚠ Mình vừa nói đã nhớ hoặc đã quên, nhưng trí nhớ của brain này không đổi gì. Nhắn lại \"nhớ giúp: ...\" "
-        "hoặc \"quên ...\" để mình làm thật.",
+        "⚠ Câu trả lời trên nói đã nhớ hoặc đã quên, nhưng trí nhớ của brain này không đổi gì. Nhắn lại "
+        "\"nhớ giúp: ...\" hoặc \"quên ...\" để làm thật.",
         "⚠ I just said I remembered or forgot something, but this brain's memory did not change. Say \"remember: ...\" "
         "or \"forget ...\" again and I will really do it.")

@@ -56,6 +56,9 @@ thông tin, nên sửa chữ sau khi nghe không phải đường chính.
 Khoá `voice.call_engine` = `auto` (mặc định) | `chatgpt` | `api` | `basic`. `auto` chọn theo thứ tự:
 
 1. **chatgpt**: đã nối ChatGPT (trang Models) và Codex chạy được realtime (dò một lần rồi nhớ).
+   "Đã nối" nghĩa là ChatGPT là bộ não chính hoặc đã đăng nhập ở trang Models, tức là nằm trong Thứ tự
+   dùng (issue #1315). Một phiên `codex login` chỉ có trên máy thì Tự động bỏ qua và giữ đường kế tiếp;
+   chọn tay ChatGPT Live vẫn chạy bằng phiên đó.
 2. **api**: Live qua API key hiện có (`voice.live_provider` gemini | openai | gpt-live), khi có key.
 3. **basic**: đường dự phòng Cơ bản cho mọi máy, mọi bộ não (mục 3.6).
 
@@ -135,6 +138,14 @@ cả khi Javis nằm trên VPS. Javis không bao giờ đọc token: app-server 
    - `ChatGPTLive.say_status` đi chung hàng với lời đọc kết quả (không chen giữa câu đang nói) và bị
      BỎ khỏi hàng nếu kết quả thật về trước, nếu không "em vẫn đang làm" bị đọc sau "xong rồi".
    Chưa chạy trên cuộc gọi ChatGPT Live thật: kiểm bằng route chạy với nhà cung cấp giả.
+8. **Cúp máy lúc bộ não chính còn đang làm** (issue #1315: người dùng dặn cứ kiểm tra tiếp rồi cúp máy, kết
+   quả không bao giờ về): việc đó KHÔNG bị huỷ, kể cả khi kết nối đóng vì im lặng hay rớt mạng. Nó
+   chạy nốt trong nền, vào sổ việc nền giọng nói của khung chat (lệnh dừng việc nền vẫn huỷ được), trần
+   `VOICE_BG_TIMEOUT` tính từ lúc cúp máy, rồi kết quả vào khung chat của cuộc gọi như mọi việc nền
+   (`_voice_after_call`: `_notify_owner` với `web:<sid>`, có tin trong khung chat, hòm thư và thông báo đẩy).
+   Không gửi gì lên socket hay nhà cung cấp đã đóng. Việc khác của cuộc gọi (nhịp báo tiến độ, bắt tay
+   WebRTC) vẫn dừng. Cuộc gọi mới trong cùng khung chat không xếp hàng sau việc còn chạy: `_voice_ask_javis`
+   dùng mạch engine dùng một lần khi mạch chung của khung chat đang bận.
 
 **Sự kiện dịch sang khung Live chung.** `sdp` thành `webrtc_answer`; `started` thành `ready`;
 `transcript/delta|done` thành `transcript` (lời người dùng `done` là `final`); assistant `done`
