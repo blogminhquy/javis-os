@@ -724,8 +724,11 @@ def register(ctx) -> None:
                                              "'30 phút nữa', '8h30' (qua giờ hôm nay -> tự sang "
                                              "mai), hoặc đủ ngày giờ '2026-07-20 09:00'.")},
                 "notify_only": {"type": "boolean",
-                                 "description": ("true = ép thành nhắc MỘT LẦN (kho reminders) dù "
-                                                 "schedule trông giống chu kỳ lặp. Mặc định false.")},
+                                 "description": ("true = CHỈ nhắc bằng lời, MỘT LẦN (kho reminders, dù "
+                                                 "schedule trông giống chu kỳ lặp): tới giờ dán nguyên văn "
+                                                 "prompt vào chat người đặt, KHÔNG chạy model hay tool nào "
+                                                 "(không gửi Zalo, không đọc MCP). Việc cần LÀM gì đó lúc "
+                                                 "tới giờ thì để false. Mặc định false.")},
                 "muc_quyen": {"type": "string", "enum": ["suggest", "auto", "full"],
                               "description": ("Quyền của việc lúc chạy, áp cho cả loop lẫn nhắc "
                                               "hẹn. 'full' (mặc định) = dùng được mọi công cụ đã "
