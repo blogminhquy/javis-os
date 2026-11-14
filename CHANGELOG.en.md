@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.559.3] - 2026-11-14
+### Fixed
+- **Read-only reminders can see My Tasks.** A reminder that checks progress used to say it could not check; it now reads the list, while adding, editing, deleting and ticking still need write access.
+
 ## [0.559.2] - 2026-11-14
 ### Fixed
 - **The model picker opens right above the model chip.** A tall composer (a file attached, a few lines typed) used to push it far above the chip, and a long list lost its first rows off the top. The model list, Effort, plan usage and the "+" menu now open just above the row of chips and always stay on screen.
