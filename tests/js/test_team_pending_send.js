@@ -25,7 +25,7 @@ function fnBody(name) {
 let h = T.pendingHtml({ cid: "c-1", text: "> Lan: câu cũ\n\nXin <chào>", ts: 1792000000, state: "sending", atts: [] });
 check("sending: an owner bubble marked pending, keyed by the client id, the words escaped, the quote on top",
   /^<div class="tm-msg tm-msg-owner tm-msg-pending" data-cid="c-1">/.test(h) && h.includes("Xin &lt;chào&gt;")
-  && h.includes('<div class="tm-quote">'), h);
+  && h.includes('<button type="button" class="tm-quote tm-quote-src" data-quote-src="1"'), h);
 check("sending: a quiet Sending... and no action buttons (nothing to reply to or pin yet)",
   h.includes(vi["app.sending"]) && !/data-reply=|data-copy=|data-decision=/.test(h));
 h = T.pendingHtml({ cid: "c-2", text: "x", ts: 1, state: "failed", err: "No network", atts: [{ name: "a.png", url: "blob:1" }, { name: "b.txt" }] });
