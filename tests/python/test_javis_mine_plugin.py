@@ -46,7 +46,22 @@ ctx = plugins_host.PluginContext("javis-mine", "bundled", ROOT / "system/plugins
 m.register(ctx)
 tool = ctx._tools[0]
 h = tool["handler"]
-check("tool javis_mytask registered at level safe", tool["name"] == "javis_mytask" and tool["min_mode"] == "safe")
+check("tool javis_mytask registered with list readable at every level",
+      tool["name"] == "javis_mytask" and tool["min_mode"] == "readonly")
+# Issue 1421: a reminder running at `suggest` (read only) must be able to list the owner's tasks, never change them.
+for op in ("add", "update", "delete", "skip", "check", "uncheck"):
+    need = plugins_host._required_mode(tool, {"op": op})
+    check(f"op={op} needs safe, blocked at suggest", need == "safe" and not plugins_host._min_mode_ok(need, "suggest"))
+need = plugins_host._required_mode(tool, {"op": "list", "scope": "all"})
+check("op=list runs at suggest", need == "readonly" and plugins_host._min_mode_ok(need, "suggest"))
+check("unknown or missing op falls back to safe",
+      plugins_host._required_mode(tool, {"op": "nope"}) == "safe" and plugins_host._required_mode(tool, {}) == "safe")
+suggest_call = plugins_host._make_call(tool, ctx, "suggest")
+out = asyncio.run(suggest_call({"op": "add", "title": "Must not be created"}))
+check("op=add at suggest is refused and writes nothing",
+      out.startswith("ERROR") and not feat.load(str(VAULT)).get("tasks"), out)
+out = asyncio.run(suggest_call({"op": "list", "scope": "all"}))
+check("op=list at suggest answers", not out.startswith("ERROR"), out)
 
 today = date.today().isoformat()
 out = asyncio.run(h({"op": "add", "title": "Gọi chị Lan chốt đơn sỉ", "date": today, "time": "14:00"}, ctx))
