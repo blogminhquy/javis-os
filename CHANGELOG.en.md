@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.560.0] - 2026-11-14
+### Added
+- **Cancel background jobs right in chat.** Ask Javis to cancel a job and it leaves the queue, a running job stops at once, and the reason goes into the job's log. When sending a job back to be redone, an extra note on how to fix it now reaches the redo.
+- **Connecting a Facebook Page has a "Read post insights" tick.** This optional tick asks for reach and saves of posts. The Messenger checklist shows whether the Page has that permission.
+### Fixed
+- **Messenger conversations show the customer's name instead of a bare ID.** When Meta refuses the profile, Javis takes the name from the Page conversation, and tries again after 10 minutes if it could not get it.
+
 ## [0.559.3] - 2026-11-14
 ### Fixed
 - **Read-only reminders can see My Tasks.** A reminder that checks progress used to say it could not check; it now reads the list, while adding, editing, deleting and ticking still need write access.
