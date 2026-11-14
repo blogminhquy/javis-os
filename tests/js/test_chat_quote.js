@@ -37,7 +37,9 @@ check("đoạn trích nhiều đoạn tách lại đủ", nhieu.quote === "a\n\n
 
 // ---- 4. HTML trong bong bóng: có khối trích, và luôn escape ----
 const h = Q.utextHtml("> <b>trích</b>\n\ncâu <i>hỏi</i>", esc);
-check("có khối uquote", h.indexOf('<span class="uquote">') === 0, h);
+check("có khối uquote", h.indexOf('<span class="uquote" role="button" tabindex="0"') === 0, h);
+check("khối trích bấm được: có tooltip dịch được và chữ trích nằm trong khối",
+      h.indexOf('data-i18n-title="cact.quote_jump"') > 0 && /<span class="uquote"[^>]*>&lt;b&gt;trích&lt;\/b&gt;<\/span>/.test(h), h);
 check("CANARY: chữ trong đoạn trích được escape", h.indexOf("&lt;b&gt;trích&lt;/b&gt;") > 0, h);
 check("CANARY: câu hỏi được escape", h.indexOf("câu &lt;i&gt;hỏi&lt;/i&gt;") > 0, h);
 check("tin thường: chỉ escape, không thêm khối", Q.utextHtml("x < y", esc) === "x &lt; y");

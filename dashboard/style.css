@@ -1302,6 +1302,19 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .msg-user .bubble .uquote { display: block; margin: 0 0 8px; padding: 2px 0 2px 10px;
   border-left: 3px solid var(--accent); color: var(--text2); font-size: .94em;
   max-height: 7.6em; overflow: hidden; }
+/* 2026-11-14 (quote-jump.js): a tap on the quote scrolls back to the words it quotes and marks them for a moment. */
+.msg-user .bubble .uquote { cursor: pointer; border-radius: 0 6px 6px 0; -webkit-tap-highlight-color: transparent;
+  transition: background-color .15s, color .15s; }
+.msg-user .bubble .uquote:hover { color: var(--text); background: var(--accent-wash); }
+.msg-user .bubble .uquote:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }
+::highlight(jv-quote-hit) { background-color: rgba(255, 150, 70, 0.38); color: inherit; }
+:root[data-theme="light"] ::highlight(jv-quote-hit) { background-color: rgba(255, 170, 60, 0.42); }
+/* A browser without the Highlight API flashes the whole answer instead. */
+.msg.quote-flash .bubble { animation: jv-quote-flash 1.8s ease; }
+@keyframes jv-quote-flash { 0%, 45% { box-shadow: 0 0 0 3px var(--accent-line); } 100% { box-shadow: 0 0 0 3px transparent; } }
+@media (prefers-reduced-motion: reduce) { .msg.quote-flash .bubble { animation: none; outline: 2px solid var(--accent-line); } }
+/* The "not found" note: as wide as its words, never wider than the screen (left: 50% alone halves the room it has). */
+.mp-toast.qj-note { width: max-content; max-width: calc(100vw - 32px); text-align: center; border-radius: 14px; }
 .attach-chip.quote-chip { max-width: min(520px, 100%); }
 .attach-chip.quote-chip .chip-ico { color: var(--accent); }
 .msg-user .bubble .utext.clamped { display: -webkit-box; -webkit-line-clamp: 10;

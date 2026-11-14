@@ -3444,14 +3444,50 @@ chatArea.addEventListener("click", (e) => {
   const t = e.target;
   const actBtn = t.closest && t.closest(".msg-act");
   if (actBtn) { runMsgAct(actBtn); return; }
+  const quoted = t.closest && t.closest(".msg-user .uquote");
+  if (quoted) { jumpToQuoted(quoted); return; }
   // The code block Copy button (chat-render.js) and "Show more" on a long message (chat-acts.js) are handled on the
   // document, so they work in every chat container.
+});
+// Owner, 2026-11-14: a tap on the quote at the top of a sent message scrolls back to the exact words it quotes in the
+// answer above and marks them for a moment (quote-jump.js). Not on screen any more: older pages load until it is.
+function jumpToQuoted(qEl) {
+  const J = window.JavisQuoteJump;
+  const msgEl = qEl.closest(".msg");
+  if (!J || !msgEl || J.selecting(qEl)) return;
+  const quote = window.JavisQuote ? window.JavisQuote.tach(msgEl.dataset.text || "").quote : "";
+  J.go({
+    quote: quote || qEl.textContent,
+    candidates: () => J.before(chatArea.querySelectorAll(".msg"), msgEl),
+    skip: ".uquote",
+    scroller: chatArea,
+    beforeScroll: () => chatScroll.setStuck(false),
+    loadOlder: async () => {
+      const st = _tinCu;
+      if (!st || !st.con || st.sid !== savedSessionId) return false;
+      // A page already on its way (the list reached the top by itself): give it a moment, then look again.
+      if (st.dangTai) { await new Promise(r => setTimeout(r, 500)); return true; }
+      const n = chatArea.querySelectorAll(".msg").length;
+      await taiTinCu();
+      return chatArea.querySelectorAll(".msg").length > n;
+    },
+    flashClass: "quote-flash",
+  });
+}
+// The quote is a span with role="button": Enter and Space work on it like on a real button.
+chatArea.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const quoted = e.target.closest && e.target.closest(".msg-user .uquote");
+  if (!quoted) return;
+  e.preventDefault();
+  jumpToQuoted(quoted);
 });
 // Điện thoại không có hover: chạm vào tin để bật/tắt hàng nút của đúng tin đó.
 chatArea.addEventListener("click", (e) => {
   try { if (!window.matchMedia("(hover: none)").matches) return; } catch (err) { return; }
   if (!e.target.closest) return;
   if (e.target.closest(".msg-acts")) return;   // bấm chính nút thì đừng đóng hàng nút
+  if (e.target.closest(".uquote")) return;     // a tap on the quote scrolls back to its source, it is not this toggle
   if (e.target.closest(".jr-chat")) return;    // hàng reaction (T2) tự lo nút của nó
   const msgEl = e.target.closest(".msg");
   chatArea.querySelectorAll(".msg.acts-on").forEach(m => { if (m !== msgEl) m.classList.remove("acts-on"); });

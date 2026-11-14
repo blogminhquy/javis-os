@@ -2573,6 +2573,8 @@
   "cact.quote": "Quote this to ask a follow-up (select text to quote part of it)",
   "app.quote_meta": "Quoting",
   "app.quote_remove": "Remove quote",
+  "cact.quote_jump": "Go back to the original",
+  "cact.quote_missing": "Couldn't find the original above",
   "cts.share": "Share this conversation by link",
   "cts.share_head": "Conversation share link",
   "cts.share_note": "Anyone with the link can read it, no sign-in needed. It only holds the messages up to when you shared; later messages do not show up on their own.",

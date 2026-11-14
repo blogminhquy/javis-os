@@ -2573,6 +2573,8 @@
   "cact.quote": "Trích dẫn đoạn này để hỏi tiếp (bôi đen để trích một phần)",
   "app.quote_meta": "Đang trích dẫn",
   "app.quote_remove": "Bỏ trích dẫn",
+  "cact.quote_jump": "Xem lại đoạn gốc",
+  "cact.quote_missing": "Không tìm thấy đoạn gốc ở phía trên",
   "cts.share": "Chia sẻ hội thoại này bằng link",
   "cts.share_head": "Link chia sẻ hội thoại",
   "cts.share_note": "Ai có link đều đọc được, không cần đăng nhập. Link chỉ chứa các tin tới lúc chia sẻ; tin gõ sau không tự hiện ra.",

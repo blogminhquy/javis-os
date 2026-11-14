@@ -4323,6 +4323,10 @@ button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-s
 button.tm-quote-ref { width: 100%; text-align: left; font: inherit; font-size: 14px; color: var(--text2); border: 1px solid transparent;
   cursor: pointer; margin: 0 0 8px; }
 button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var(--accent-line); outline: none; }
+/* 2026-11-14: the quote on top of the owner's message is a button too: it scrolls back to the words it quotes. */
+button.tm-quote-src { width: 100%; text-align: left; font: inherit; font-size: 14px; color: var(--text2); border: 1px solid transparent;
+  cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var(--accent-line); outline: none; }
 .tm-replying { border-left: 0; padding: 6px 6px 6px 6px; background: var(--bg3); border: 1px solid var(--border); }
 .tm-replying-ico { flex: none; width: 34px; height: 34px; border-radius: 6px; display: inline-flex; align-items: center;
   justify-content: center; background: var(--bg); color: var(--accent); }

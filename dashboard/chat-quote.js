@@ -53,10 +53,21 @@
 
   // HTML của chữ trong bong bóng người dùng: khối trích dẫn (nếu có) rồi câu hỏi. Cả hai đều
   // escape: đây là chữ người dùng gõ, không bao giờ được hiểu thành HTML.
+  // 2026-11-14: the quote block acts as a button. A tap scrolls back to the words it quotes (quote-jump.js, wired in
+  // app.js). A span with role="button", not a <button>: a button centres its content vertically, so a long quote cut at
+  // its max height would lose its first lines instead of its last ones. data-i18n-title: a message drawn before the
+  // dictionary arrives still gets the right tooltip when it does.
   function utextHtml(text, esc) {
     var t = tach(text);
     if (!t.quote) return esc(text);
-    return '<span class="uquote">' + esc(t.quote) + "</span>" + esc(t.rest);
+    var tip = esc(tw("cact.quote_jump"));
+    return '<span class="uquote" role="button" tabindex="0" data-i18n-title="cact.quote_jump" title="' + tip + '">' +
+      esc(t.quote) + "</span>" + esc(t.rest);
+  }
+
+  function tw(key) {
+    if (typeof window !== "undefined" && window.t) return window.t(key);
+    try { return require("./i18n/vi.json")[key] || key; } catch (e) { return key; }
   }
 
   // Dòng xem trước trên chip phía trên ô nhập: một dòng, ngắn, bỏ ký hiệu markdown (**, `, #, gạch

@@ -288,7 +288,7 @@ check("gói WS không mang reaction của agent thì giữ cái đang có", team
 // ───────────── 0.176.0: reply, markdown, assistant settings, rename and delete ─────────────
 const qm = TM.messageHtml({ id: 9, author_kind: "owner", content: "> Lan: Câu <cũ>\n\nSai rồi em", meta: {} }, { members: members });
 check("0.176 owner reply shows the quote block (name bold) above the text, both escaped",
-      qm.includes('<span class="tm-quote-body"><b>Lan</b>Câu &lt;cũ&gt;</span></div>') && qm.includes('<div class="tm-text utext">Sai rồi em</div>'), qm);
+      qm.includes('<span class="tm-quote-body"><b>Lan</b>Câu &lt;cũ&gt;</span></button>') && qm.includes('<div class="tm-text utext">Sai rồi em</div>'), qm);
 check("0.176 sending a reply puts the quote on top and calls the assistant replied to when nobody is @-mentioned",
       /var text = S\.replyTo && Q \? Q\.ghep\(S\.replyTo\.quote, words\) : words;/.test(teamsJs)
       && /var words = call \? call\.rest : typed;/.test(teamsJs)
