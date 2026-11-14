@@ -28,17 +28,23 @@ from config import STATE_DIR
 STORE = STATE_DIR / "notify_policy.json"
 _LOCK = threading.RLock()
 
-GROUPS = ("job", "reminder", "question", "agent", "team", "incident", "connection", "chatbot", "cost", "update", "other")
+GROUPS = ("job", "reminder", "question", "agent", "suggest", "team", "incident", "connection", "chatbot", "cost", "update",
+          "other")
 LEVELS = ("info", "important", "urgent")
 RANK = {"info": 0, "important": 1, "urgent": 2}
 MODES = ("all", "important", "urgent", "off")
 THRESHOLD = {"all": 0, "important": 1, "urgent": 2}
 DEFAULT_MODE = "urgent"            # owner, 2026-10-29: "mặc định chỉ tin khẩn"
+# Owner, 2026-11-14: what an assistant finds on its own with Auto on "is not a notification any more, it is a suggestion or
+# a reminder". Its reminders go to "reminder" (urgent); its suggestions get their own group that rings from "important"
+# by default, so they reach the owner the way a person's message would. Every other group keeps DEFAULT_MODE.
+GROUP_DEFAULT_MODE = {"suggest": "important"}
 
 # Group names as shown (vi, en). The dashboard has its own i18n keys; these are for the chat tool and Core's messages.
 GROUP_NAMES = {
     "job": ("Kết quả việc", "Job results"), "reminder": ("Nhắc lịch", "Reminders"),
     "question": ("Câu hỏi chờ bạn", "Questions for you"), "agent": ("Trợ lý chủ động", "Assistants reaching out"),
+    "suggest": ("Gợi ý của trợ lý", "Assistant suggestions"),
     "team": ("Nhóm làm việc", "Teams"), "incident": ("Sự cố", "Incidents"),
     "connection": ("Kết nối và đăng nhập", "Connections and sign-in"), "chatbot": ("Chatbot và khách", "Chatbot and customers"),
     "cost": ("Chi phí", "Costs"), "update": ("Cập nhật", "Updates"), "other": ("Khác", "Other"),
@@ -169,10 +175,14 @@ def _key(group: str, sig: str) -> str:
     return f"{group}|{sig}"
 
 
+def default_mode(group: str) -> str:
+    return GROUP_DEFAULT_MODE.get(group, DEFAULT_MODE)
+
+
 def mode_of(group: str, d: Optional[dict] = None) -> dict:
     d = d if d is not None else _load()
     m = d["groups"].get(group) or {}
-    mode = m.get("mode") if m.get("mode") in MODES else DEFAULT_MODE
+    mode = m.get("mode") if m.get("mode") in MODES else default_mode(group)
     return {"mode": mode, "set_by": m.get("set_by") or "default", "since": float(m.get("since") or 0)}
 
 
@@ -272,7 +282,7 @@ def undo(change_id: str) -> Optional[dict]:
         if c is None:
             return None
         if c["kind"] == "group":
-            d["groups"][c["target"]] = {"mode": c["from"] if c["from"] in MODES else DEFAULT_MODE, "set_by": "owner",
+            d["groups"][c["target"]] = {"mode": c["from"] if c["from"] in MODES else default_mode(c["target"]), "set_by": "owner",
                                         "since": _now()}
         else:
             if c["from"] in ("mute", "always"):

@@ -246,6 +246,19 @@ function fakeTimers() {
     /[\u2013\u2014]/.test(v));
   check("không em dash, en dash trong chữ mới", dashes.length === 0 && !/[\u2013\u2014]/.test(pulseSrc));
 
+  // 2026-11-14 (Auto toàn quyền): mốc trợ lý tự hẹn hiện trên bảng đầy đủ và bản gọn, có escape, lọc theo ngữ cảnh.
+  const fu = Object.assign({}, view, { followups: [
+    { id: 1, context_ref: "dm:ag_1", due_at: 2000000000, note: "Kiểm bãi gửi xe <b>" },
+    { id: 2, context_ref: "team:tm_a", due_at: 2000003600, note: "Hỏi tiến độ" }] });
+  const full = P.panelHtml(fu, {});
+  check("mốc tự hẹn: bảng đầy đủ có tiêu đề và ghi chú đã escape", full.includes(vi["pulse.followups_title"])
+    && full.includes("Kiểm bãi gửi xe &lt;b&gt;") && !full.includes("<b>"));
+  const only = P.panelHtml(fu, { only: "team:tm_a" });
+  check("mốc tự hẹn: hàng một ngữ cảnh chỉ vẽ mốc của ngữ cảnh đó", only.includes("Hỏi tiến độ")
+    && !only.includes("Kiểm bãi gửi xe"));
+  check("mốc tự hẹn: bản gọn cũng hiện", P.compactHtml(fu, { registry: [] }).includes("Kiểm bãi gửi xe"));
+  check("không có mốc: không vẽ mục", P.followupsHtml([], {}) === "" && !P.panelHtml(view, {}).includes(vi["pulse.followups_title"]));
+
   console.log(fails ? `\n${fails} FAIL` : "\nALL OK");
   process.exit(fails ? 1 : 0);
 })();

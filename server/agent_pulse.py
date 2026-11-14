@@ -325,6 +325,13 @@ CREATE TABLE IF NOT EXISTS pulse_proposals(
   CHECK (status IN ('pending','accepted','rejected')));
 CREATE INDEX IF NOT EXISTS pulse_proposals_src ON pulse_proposals(agent_key, context_ref, source_ref, version);
 CREATE INDEX IF NOT EXISTS pulse_proposals_msg ON pulse_proposals(context_ref, message_id);
+CREATE TABLE IF NOT EXISTS pulse_followups(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, agent_key TEXT NOT NULL, context_ref TEXT NOT NULL, due_at REAL NOT NULL,
+  note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at REAL NOT NULL,
+  created_by TEXT NOT NULL DEFAULT '', fired_at REAL, closed_at REAL, closed_by TEXT NOT NULL DEFAULT '',
+  CHECK (status IN ('pending','done','cancelled')));
+CREATE INDEX IF NOT EXISTS pulse_followups_due ON pulse_followups(status, due_at);
+CREATE INDEX IF NOT EXISTS pulse_followups_ctx ON pulse_followups(agent_key, context_ref, status, due_at);
 """
 # Cột thêm cho `agent_pulse` (bảng T2, mục 5.4 đã đủ). Chỉ thêm, đều có mặc định: bản 0.154.x vẫn đọc ghi được.
 _PULSE_COLS = (
@@ -344,7 +351,7 @@ _PULSE_COLS = (
 )
 UPGRADE_MARK = "pulse_v1_upgraded_at"
 T3_TABLES = ("pulse_meta", "agent_pulse_events", "pulse_signals", "pulse_contrib", "message_seen",
-             "pulse_opportunities", "pulse_proactive", "pulse_policy_changes", "pulse_proposals")
+             "pulse_opportunities", "pulse_proactive", "pulse_policy_changes", "pulse_proposals", "pulse_followups")
 _READY: set = set()
 
 
@@ -1097,6 +1104,162 @@ def record_proactive(store, agent_key: str, context_ref: str, session_id: str, m
                                           seen["seen_at"] if seen else None))
 
 
+# ───────────── mốc hẹn kiểm lại (Auto toàn quyền, 2026-11-14) ─────────────
+#
+# Chủ repo 14/11/2026: bật Auto là agent tự quét công cụ, TỰ ĐẶT LỊCH NHẮC và chỉ nhắn gợi ý, nhắc nhở thật sự hữu ích, đúng
+# lúc. Nhịp theo bậc (1 giờ ... 1 tháng) không đủ cho "tối hôm trước giải chạy": agent tự hẹn một mốc, tới mốc thì một lần
+# thức riêng (không đổi bậc). Mốc là việc agent tự đặt, không phải nghĩa vụ: tạm dừng, tắt hay ngủ đông thì mốc không kích
+# hoạt (còn nằm chờ tới lần thức kế).
+
+FOLLOWUP_MIN_S = 600.0              # mốc sớm nhất: 10 phút sau lúc hẹn
+FOLLOWUP_MAX_S = 60 * DAY           # muộn nhất: 60 ngày
+FOLLOWUP_MAX_PENDING = 8            # mỗi (agent, ngữ cảnh) giữ tối đa 8 mốc đang chờ
+FOLLOWUP_MAX_PER_SCAN = 3           # một lượt quét hẹn tối đa 3 mốc
+FOLLOWUP_NOTE_MAX = 300
+FOLLOWUP_DEDUP_S = 1800.0           # cùng ghi chú, cách nhau dưới 30 phút: coi là một mốc
+
+
+def parse_when(value: Any, tz: Any = None) -> Optional[float]:
+    """Mốc giờ agent viết ra thành epoch. Nhận số (epoch giây) hay chuỗi ISO ("2026-11-14 19:00", "2026-11-14T19:00+07:00").
+    Chuỗi không có múi giờ hiểu theo `tz` (múi giờ của chủ); thiếu `tz` thì UTC. Sai dạng: None."""
+    from datetime import datetime, timezone
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        v = float(value)
+        return v if math.isfinite(v) and v > 0 else None
+    s = str(value or "").strip()
+    if not s:
+        return None
+    try:
+        d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=tz or timezone.utc)
+    return d.timestamp()
+
+
+def add_followups(store, agent_key: str, context_ref: str, items: Iterable[Any], *, tz: Any = None, by: str = "",
+                  at: Optional[float] = None) -> dict:
+    """Ghi các mốc agent vừa hẹn ({"at", "note"}). Kẹp vào [lúc hẹn + 10 phút, + 60 ngày], bỏ mốc trùng (cùng ghi chú, cách
+    dưới 30 phút), tối đa 3 mốc mỗi lần và 8 mốc đang chờ mỗi ngữ cảnh. Trả {"added": [...], "dropped": [lý do...]}."""
+    ensure(store)
+    t = _now(at)
+    key, ctx = str(agent_key), str(context_ref)
+    added, dropped = [], []
+    with store._Tx(store) as c:
+        n_pending = c.execute("SELECT COUNT(*) FROM pulse_followups WHERE agent_key=? AND context_ref=? AND "
+                              "status='pending'", (key, ctx)).fetchone()[0]
+        for it in list(items or [])[:3 * FOLLOWUP_MAX_PER_SCAN]:
+            if len(added) >= FOLLOWUP_MAX_PER_SCAN:
+                dropped.append("per_scan")
+                continue
+            if not isinstance(it, dict):
+                dropped.append("bad_item")
+                continue
+            due = parse_when(it.get("at"), tz)
+            note = " ".join(str(it.get("note") or "").split())[:FOLLOWUP_NOTE_MAX]
+            if due is None:
+                dropped.append("bad_time")
+                continue
+            if due > t + FOLLOWUP_MAX_S:
+                dropped.append("too_far")
+                continue
+            due = max(due, t + FOLLOWUP_MIN_S)
+            if n_pending >= FOLLOWUP_MAX_PENDING:
+                dropped.append("too_many")
+                continue
+            dup = c.execute("SELECT id FROM pulse_followups WHERE agent_key=? AND context_ref=? AND status='pending' AND "
+                            "note=? AND ABS(due_at-?)<?", (key, ctx, note, due, FOLLOWUP_DEDUP_S)).fetchone()
+            if dup is not None:
+                dropped.append("duplicate")
+                continue
+            fid = c.execute("INSERT INTO pulse_followups(agent_key,context_ref,due_at,note,created_at,created_by) "
+                            "VALUES(?,?,?,?,?,?)", (key, ctx, due, note, t, str(by or ""))).lastrowid
+            n_pending += 1
+            added.append({"id": int(fid), "due_at": due, "note": note})
+        if added:
+            _event(c, key, ctx, "followup_set", source="agent", reason=str(by or ""),
+                   payload={"added": added, "dropped": dropped}, at=t)
+    return {"added": added, "dropped": dropped}
+
+
+def cancel_followups(store, agent_key: str, context_ref: str, ids: Iterable[Any], *, by: str = "",
+                     at: Optional[float] = None) -> int:
+    """Huỷ mốc đang chờ của CHÍNH (agent, ngữ cảnh) này (mã của ngữ cảnh khác bị bỏ qua)."""
+    ensure(store)
+    t = _now(at)
+    want = []
+    for x in list(ids or [])[:FOLLOWUP_MAX_PENDING]:
+        try:
+            want.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    if not want:
+        return 0
+    n = 0
+    with store._Tx(store) as c:
+        for fid in want:
+            n += c.execute("UPDATE pulse_followups SET status='cancelled', closed_at=?, closed_by=? WHERE id=? AND "
+                           "agent_key=? AND context_ref=? AND status='pending'",
+                           (t, str(by or ""), fid, str(agent_key), str(context_ref))).rowcount
+        if n:
+            _event(c, str(agent_key), str(context_ref), "followup_cancel", source="agent", reason=str(by or ""),
+                   payload={"ids": want}, at=t)
+    return n
+
+
+def pending_followups(store, agent_key: str, context_ref: str, limit: int = FOLLOWUP_MAX_PENDING) -> list:
+    ensure(store)
+    with closing(store._conn()) as c:
+        return [dict(r) for r in c.execute(
+            "SELECT id, due_at, note, created_at, fired_at FROM pulse_followups WHERE agent_key=? AND context_ref=? AND "
+            "status='pending' ORDER BY due_at LIMIT ?", (str(agent_key), str(context_ref), int(limit))).fetchall()]
+
+
+def take_due_followups(store, agent_key: str, context_ref: str, at: Optional[float] = None) -> list:
+    """Mốc đang chờ đã tới giờ của (agent, ngữ cảnh), đánh dấu đã kích hoạt (`fired_at`). Mốc vẫn `pending` tới khi một lượt
+    quét chạy xong (`close_followups`); lượt lỗi thì mốc chờ lần thức theo bậc kế tiếp, không kích hoạt lại mỗi nhịp."""
+    ensure(store)
+    t = _now(at)
+    with store._Tx(store) as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT id, due_at, note, fired_at FROM pulse_followups WHERE agent_key=? AND context_ref=? AND "
+            "status='pending' AND due_at<=? ORDER BY due_at LIMIT ?",
+            (str(agent_key), str(context_ref), t, FOLLOWUP_MAX_PENDING)).fetchall()]
+        for r in rows:
+            if r.get("fired_at") is None:
+                c.execute("UPDATE pulse_followups SET fired_at=? WHERE id=?", (t, r["id"]))
+    return rows
+
+
+def close_followups(store, ids: Iterable[Any], *, by: str = "", at: Optional[float] = None) -> int:
+    ensure(store)
+    t = _now(at)
+    n = 0
+    with store._Tx(store) as c:
+        for fid in ids or []:
+            n += c.execute("UPDATE pulse_followups SET status='done', closed_at=?, closed_by=? WHERE id=? AND "
+                           "status='pending'", (t, str(by or ""), int(fid))).rowcount
+    return n
+
+
+def followup_wakes(store, at: Optional[float] = None, limit: int = 50) -> list:
+    """Dòng nhịp có mốc tới giờ CHƯA kích hoạt (chỉ ĐỌC; host nhận lịch bằng CAS như lịch theo bậc). Chỉ trạng thái có lịch
+    (active, awake, slowed) và chưa bị nhận."""
+    ensure(store)
+    t = _now(at)
+    with closing(store._conn()) as c:
+        return [dict(r) for r in c.execute(
+            "SELECT p.*, (SELECT MIN(f.due_at) FROM pulse_followups f WHERE f.agent_key=p.agent_key AND "
+            "f.context_ref=p.context_ref AND f.status='pending' AND f.fired_at IS NULL AND f.due_at<=?) AS followup_due "
+            "FROM agent_pulse p WHERE p.context_ref<>'*' AND p.state IN ('active','awake','slowed') AND "
+            "(p.claim_until IS NULL OR p.claim_until<?) AND EXISTS (SELECT 1 FROM pulse_followups f WHERE "
+            "f.agent_key=p.agent_key AND f.context_ref=p.context_ref AND f.status='pending' AND f.fired_at IS NULL AND "
+            "f.due_at<=?) LIMIT ?", (t, t, t, int(limit))).fetchall()]
+
+
 def sweep_seen_ignored(store, interacted: Callable[[dict], bool], at: Optional[float] = None) -> list:
     """Tin CHỦ ĐỘNG đã có bằng chứng xem, qua 24 giờ kể từ lúc xem mà không tương tác: tín hiệu -0,15 w 0,6 (nguồn
     `seen:<ngữ cảnh>:<mã tin>`). Chưa có bằng chứng xem: không tạo tín hiệu (chưa biết). Agent tắt Cộng hưởng: bỏ qua."""
@@ -1290,4 +1453,14 @@ def view(store, agent_key: str, at: Optional[float] = None) -> dict:
                          "share": s["share"], "status": s["status"], "superseded_by": s["superseded_by"], "at": s["at"]})
     return {"agent_key": key, "resonance": on, "policy_version": POLICY_VERSION, "tiers": list(TIERS),
             "aggregate": star, "contexts": per, "changes": changes, "recent": recent, "feedback": feedback,
-            "policy_changes": policy_changes(store, key, 10), "proposals": proposals(store, key, 10)}
+            "policy_changes": policy_changes(store, key, 10), "proposals": proposals(store, key, 10),
+            "followups": followups_of(store, key)}
+
+
+def followups_of(store, agent_key: str, limit: int = 20) -> list:
+    """Mốc đang chờ của một agent ở mọi ngữ cảnh (cho bảng Nhịp: chủ thấy trợ lý định kiểm lại gì, lúc nào)."""
+    ensure(store)
+    with closing(store._conn()) as c:
+        return [dict(r) for r in c.execute(
+            "SELECT id, context_ref, due_at, note, created_at FROM pulse_followups WHERE agent_key=? AND status='pending' "
+            "ORDER BY due_at LIMIT ?", (str(agent_key), int(limit))).fetchall()]

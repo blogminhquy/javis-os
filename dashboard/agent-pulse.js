@@ -182,6 +182,17 @@
       }).join("") + "</ul>";
   }
 
+  /* 2026-11-14 (Auto toàn quyền): the times the assistant set itself to check back, with what it will check. Shown on
+     the full panel and the compact column so the owner sees what is coming before it lands. */
+  function followupsHtml(list, o) {
+    var items = (list || []).filter(function (f) { return !o.only || f.context_ref === o.only; });
+    if (!items.length) return "";
+    return '<div class="pulse-sub">' + esc(tw("pulse.followups_title")) + '</div><ul class="pulse-list pulse-followups">' +
+      items.slice(0, 8).map(function (f) {
+        return "<li>" + esc(tw("pulse.followup_line", { t: when(f.due_at), note: f.note || "" })) + "</li>";
+      }).join("") + "</ul>";
+  }
+
   /* Mục của phần J/L (sổ đăng ký). Mỗi mục tự escape; lỗi của một mục không làm hỏng bảng. */
   function partsHtml(view, registry, ctx) {
     var list = registry || (typeof window !== "undefined" ? window.JavisPulseParts : null) || [];
@@ -242,6 +253,7 @@
         fb.slice(0, 8).map(function (f) { return "<li>" + esc(feedbackLine(f)) + "</li>"; }).join("") + "</ul>";
     }
     html += proposalsHtml(v.proposals, o);
+    html += followupsHtml(v.followups, o);
     // Hàng thành viên của MỘT nhóm (`only`): các mục chỉ vẽ phần của ngữ cảnh đó; tên nhóm thay cho mã.
     html += partsHtml(v, o.registry, { slug: o.slug || v.slug || "", only: o.only || "", teamNames: o.teamNames || {} });
     if (o.err) html += '<div class="pulse-line pulse-err" role="alert">' + esc(tw("pulse.error", { e: o.err })) + "</div>";
@@ -259,6 +271,7 @@
       try { return p && typeof p.compact === "function" ? p.compact(v) : ""; } catch (e) { return ""; }
     }).join("");
     html += proposalsHtml((v.proposals || []).filter(function (p) { return p.status === "pending"; }), o);
+    html += followupsHtml(v.followups, o);
     if (o.err) html += '<div class="pulse-line pulse-err" role="alert">' + esc(tw("pulse.error", { e: o.err })) + "</div>";
     else if (o.msg) html += '<div class="pulse-line pulse-ok" role="status">' + esc(o.msg) + "</div>";
     return html;
@@ -337,7 +350,7 @@
 
   if (typeof window !== "undefined" && !window.JavisPulseParts) window.JavisPulseParts = [];
   var apiOut = { panelHtml: panelHtml, contextLabel: contextLabel, changeLine: changeLine, feedbackLine: feedbackLine,
-    partsHtml: partsHtml, compactHtml: compactHtml, proposalsHtml: proposalsHtml, policyHtml: policyHtml, tierLabel: tierLabel, stateLabel: stateLabel, mount: mount };
+    partsHtml: partsHtml, followupsHtml: followupsHtml, compactHtml: compactHtml, proposalsHtml: proposalsHtml, policyHtml: policyHtml, tierLabel: tierLabel, stateLabel: stateLabel, mount: mount };
   if (typeof window !== "undefined") window.JavisPulse = apiOut;
   if (typeof module !== "undefined" && module.exports) module.exports = apiOut;
 })();

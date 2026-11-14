@@ -39,13 +39,26 @@ Partner conversations are separate from Javis's main chat history. Returning to 
 
 From 0.403.0 Javis Core decides which notices ring (red dot on the bell, phone push, your Telegram).
 
-- Every notice belongs to a **group** (Reminders, Questions for you, Chatbot and customers, Connections and sign-in, Incidents, Job results, Assistants reaching out, Teams, Costs, Updates, Other) and has a **level**: normal, important or urgent.
-- **By default only urgent notices ring**: reminders, questions waiting for you, a customer asking for a person, a failing chatbot, Javis not usable, a change on a page you watch. Other notices stay in the bell, under **Filtered (N)** at the end of the list. A job you gave from a chat still reports back into that chat.
+- Every notice belongs to a **group** (Reminders, Assistant suggestions, Questions for you, Chatbot and customers, Connections and sign-in, Incidents, Job results, Assistants reaching out, Teams, Costs, Updates, Other) and has a **level**: normal, important or urgent.
+- **By default only urgent notices ring**: reminders, questions waiting for you, a customer asking for a person, a failing chatbot, Javis not usable, a change on a page you watch. The **Assistant suggestions** group rings from important by default (see Auto below). Other notices stay in the bell, under **Filtered (N)** at the end of the list. A job you gave from a chat still reports back into that chat.
 - The bell's **Filter** tab: each group picks **Everything**, **Important and up**, **Urgent only** or **Off**; see the kinds with their own rule; see and **Undo** recent changes.
 - Every notice has two buttons, **Needed** and **Not needed**. To rate it with an emoji, press **Open in Javis Core**: the notice becomes a message in the Javis Core chat, and you put a Resonance emoji (👍 ❤️ 😂 😮 😢 😡) on it like on any answer, with "Should have spoken" or "Should stay quiet" if you like. Javis Core adjusts itself from it: Not needed filters that kind; Needed on a filtered notice makes that kind always ring; a group that gets many bad reactions moves one notch down. Each time, Javis Core says so in its chat.
 - A kind that rings a 3rd time within 6 hours is filtered as "repeated" for the rest of those 6 hours.
 - Javis Core **never hides an urgent notice by itself**. Only you can, with Off or Not needed.
 - You can also say it in the Javis Core chat, for example "turn off Zalo sign-in notices" or "tell me everything": Javis Core uses the `javis_notify` tool and gives you a code to undo it.
+
+### Auto: assistants that suggest and remind on their own
+
+Turning **Auto** on for an assistant gives it **full access**. Javis asks once when you turn it on.
+
+- **It looks around.** In its private chat with you, each time it wakes on its own the assistant uses every connected tool (email, calendar, sales, ads, web search...) within its role.
+- **It acts** when the job is within its role and you surely want it. Whatever it did is always reported.
+- **It sets its own check-backs.** When something has a date (a race, a meeting, a deadline) the assistant sets a time, such as the morning or evening before. At that time it checks the sources again, then decides whether to message you. Pending check-backs show under **Will check back** in the assistant's Proactive pulse section; it cancels the ones that no longer matter.
+- **It only messages when it is worth it.** New, timely and actionable. At most two short paragraphs, one concrete piece of advice, with real source links.
+- **Two kinds of message.** Reminders with a time go to **Reminders** (always ring). Suggestions go to **Assistant suggestions** (ring by default; lower or turn off in the bell's Filter tab).
+- **It learns from your feedback.** ❤️ or 👍 on a useful message makes it look around more often (up to hourly); ignoring or disliking slows it down. Each look counts toward the assistant's daily limit of self-started turns.
+
+Auto works this way in the **private chat** only. In a Team, permissions still follow the Team's **Full access**. A server admin can set `JAVIS_PULSE_TOOLS=0` to bring every assistant back to the text-only wake-up of before.
 
 ### Unread messages and muting
 

@@ -130,6 +130,13 @@
     }).join("");
   }
 
+  /* 2026-11-14 (owner: "bật auto là chấp nhận cho full quyền, kể cả quyền hành động"): turning Auto ON is the consent,
+     so it asks once, in plain words, what full access means. Not asked for an assistant that is already on. */
+  function onConfirmText(row) {
+    if (!row || (row.enabled && row.status === "active")) return "";
+    return tw("resonance.t0_on_confirm", { name: row.name || row.slug });
+  }
+
   /* Hỏi lại trước khi TẮT khi trợ lý còn mục tiêu mở (hợp đồng A1: dừng ở bước kế tiếp). Không có thì không hỏi. */
   function offConfirmText(row) {
     var n = Number((row || {}).goals_open || 0);
@@ -147,7 +154,7 @@
     var on = !!r.enabled && r.status === "active";
     // T0: công tắc nằm trên dòng trợ lý ở cột trái (một nơi duy nhất). Ở đây chỉ còn trạng thái bằng chữ.
     // 0.175.0 (chủ repo 16/10/2026: "bên cài đặt quá rồi... có một nút nhỏ kiểu nút i"): đầu mục chỉ còn tên và trạng thái.
-    // Mọi câu giải thích (Auto làm gì, bật ở đâu, Auto không phải Toàn quyền, ghi chú công tắc, kiểm chứng) nằm sau nút i.
+    // Mọi câu giải thích (Auto làm gì, bật ở đâu, Auto là toàn quyền, ghi chú công tắc, kiểm chứng) nằm sau nút i.
     // Thứ cần chủ làm (mở phiên mới, xác nhận trợ lý, cảnh báo engine) vẫn đứng ngoài, không bị giấu.
     var html = '<div class="rsa-head"><span class="rsa-title">' + esc(tw("resonance.a1_title")) + infoBtn() + "</span>" +
       '<span class="rsa-state">' + esc(tw(stateKey(r))) + "</span></div>";
@@ -156,7 +163,7 @@
     var noChat = !supWarn && (r.support || {}).chat_output === false;
     var nk = toggleNoteKey(r.status === "unregistered" ? { status: "active", enabled: false } : r, session);
     html += infoBody(sub(tw("resonance.auto_desc"), "rsa-desc") + sub(tw("resonance.t0_where")) +
-      sub(tw("resonance.auto_not_full"), "rsa-note") + sub(tw(nk), "rsa-note") +
+      sub(tw("resonance.auto_full"), "rsa-note") + sub(tw(nk), "rsa-note") +
       (noChat ? sub(tw("resonance.a1_engine_no_chat_output")) : supWarn ? "" : sup) +
       (on ? sub(tw("resonance.verify_note"), "rsa-note rsa-verify") : ""));
     if (on && session === "needs_new_session") {
@@ -405,7 +412,8 @@
   }
 
   var api = { mount: mount, refresh: refresh, panelHtml: panelHtml,
-    rowToggleHtml: rowToggleHtml, stateKey: stateKey, offConfirmText: offConfirmText, toggleAgent: toggleAgent,
+    rowToggleHtml: rowToggleHtml, stateKey: stateKey, offConfirmText: offConfirmText, onConfirmText: onConfirmText,
+    toggleAgent: toggleAgent,
     missingByPack: missingByPack, packConfirmHtml: packConfirmHtml, confirmPack: confirmPack,
     settingsHtml: settingsHtml, toggleNoteKey: toggleNoteKey, supportHtml: supportHtml };
   if (typeof window !== "undefined") window.JavisResonanceAgent = api;

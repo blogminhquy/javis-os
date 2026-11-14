@@ -486,7 +486,8 @@
   function doiAuto(slug, wantOn) {
     var row = S.rs[slug], RA = window.JavisResonanceAgent;
     if (!RA || !row || S.rsSaving[slug]) return false;
-    var question = wantOn ? "" : RA.offConfirmText(row);
+    // Turning Auto on gives full access (2026-11-14), so it is confirmed like turning off with open goals.
+    var question = wantOn ? (RA.onConfirmText ? RA.onConfirmText(row) : "") : RA.offConfirmText(row);
     if (question && !window.confirm(question)) { veDanhSach(); return false; }
     S.rsSaving[slug] = true; veDanhSach();
     RA.toggleAgent(slug, wantOn).then(function (result) {

@@ -88,7 +88,7 @@ const ph = RAX.panelHtml({ slug: "a", status: "active", enabled: true }, "ready"
 const ngoai = ph.split('<div class="info-body" hidden>')[0];
 check("Auto: đầu mục có nút i, mô tả và lưu ý nằm trong khối ẩn",
   ph.includes('class="info-i"') && ph.includes(vi["resonance.auto_desc"]) && !ngoai.includes(vi["resonance.auto_desc"])
-  && !ngoai.includes(vi["resonance.auto_not_full"]), ngoai);
+  && !ngoai.includes(vi["resonance.auto_full"]), ngoai);
 const PU = require(path.join(ROOT, "dashboard", "agent-pulse.js"));
 const hp = PU.panelHtml({ agent_key: "a", resonance: true, contexts: [], aggregate: { max_tier: 1 } }, {});
 check("Nhịp chủ động: giới thiệu và lưu ý mức nhanh nhất nằm trong khối ẩn, ô chọn vẫn ở ngoài",

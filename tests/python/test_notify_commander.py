@@ -4,7 +4,7 @@ Jarvis Core", "1. Tự động  2. Mặc định chỉ tin khẩn", "chấm theo
     python tests/run.py notify_commander
 
 Spec: docs/dev/2026-10-javis-core-chi-huy-thong-bao.md sections 3 to 6. No network, no model.
-- every group defaults to "urgent only"; reminders, questions, customers waiting and "Javis is not usable" ring;
+- every group defaults to "urgent only" (assistant suggestions: "important", owner 2026-11-14); reminders, questions, customers waiting and "Javis is not usable" ring;
   the rest is kept in the bell as filtered (read, no push, not copied to Javis Core's chat or the owner's Telegram);
   a chat that asked for the work still gets it;
 - groups and levels from the producer; the same kind ringing a 4th time in 6 hours is filtered (never an urgent one);
@@ -83,8 +83,11 @@ def items():
 
 # ---- 1. the default: urgent only ----
 st = NP.status()
-check("every group starts on 'urgent only'", all(g["mode"] == "urgent" and g["set_by"] == "default" for g in st["groups"]) and
-      st["default"] == "urgent" and len(st["groups"]) == len(NP.GROUPS), st["groups"])
+# Owner, 2026-11-14: an assistant's own suggestions (Auto) are their own group and ring from "important"; every other
+# group keeps the 2026-10-29 default.
+check("every group starts on 'urgent only', assistant suggestions on 'important'",
+      all(g["mode"] == ("important" if g["group"] == "suggest" else "urgent") and g["set_by"] == "default"
+          for g in st["groups"]) and st["default"] == "urgent" and len(st["groups"]) == len(NP.GROUPS), st["groups"])
 check("levels: a reminder and a question are urgent, a quiet notice is info, the rest important",
       NP.level_of(group="reminder") == "urgent" and NP.level_of(group="question") == "urgent" and
       NP.level_of(quiet=True, group="job") == "info" and NP.level_of(group="job") == "important" and
