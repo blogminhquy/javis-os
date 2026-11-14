@@ -16218,6 +16218,10 @@ async def _canh_bao_hua_suong(brain: str, chat_id: str, final_text: str,
 # Nguyên tắc: chỉ ĐỔI CÁCH VIẾT của link, không đổi câu chữ; và KHÔNG BỊA - link nào không thấy
 # file thì nói ra trong một dòng riêng, thà thừa một dòng còn hơn một cái link câm.
 _LINK_BO_QUA = ("#", "mailto:", "data:", "tel:", "blob:", "/files/raw", "/files/download")
+# `agents/x.md#L66-L75`: an IDE-style line suffix CLI engines put on file links (issue 1390). The file is
+# `agents/x.md`; checked with the suffix on, a real file was reported missing. `#L66`, `#L66-L75`, `#L66-75` and a
+# column (`#L66C3`) count, in any case; a heading anchor such as `#lien-he` does not.
+_LINE_SUFFIX_RE = re.compile(r"#L\d+(?:C\d+)?(?:-L?\d+(?:C\d+)?)?$", re.IGNORECASE)
 _BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 # `file:///brains/Brain%20Default/wiki/x.md`, `file://localhost/...`, `file:/C:/...`. Harness của
 # Antigravity dặn model "dùng link markdown kiểu GitHub với giao thức file://" (bug 2026-09-09:
@@ -16420,11 +16424,12 @@ def _link_file_khong_thay(brain_root: str, text: str) -> list:
             raw = file_uri
         elif not raw or "://" in raw or raw.lower().startswith(_LINK_BO_QUA):
             continue
+        path_only = _LINE_SUFFIX_RE.sub("", raw)
         # Chỉ xét thứ TRÔNG NHƯ đường dẫn file (có thư mục hoặc có đuôi). `[Models](models)` hay
         # `[xem](muc-2)` là chữ, không phải file - báo "không thấy" cho chúng là báo động giả.
-        if "/" not in raw and "\\" not in raw and not re.search(r"\.[A-Za-z0-9]{1,6}$", raw):
+        if "/" not in path_only and "\\" not in path_only and not re.search(r"\.[A-Za-z0-9]{1,6}$", path_only):
             continue
-        t = raw
+        t = path_only
         if re.search(r"%[0-9a-fA-F]{2}", t):
             try:
                 t = urllib.parse.unquote(t)

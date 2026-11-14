@@ -351,10 +351,23 @@
     return 'href="#open=' + esc(encodeURIComponent(clean)) + '" data-vault-path="' + esc(clean) +
       '" class="jv-floc' + (extraCls ? " " + extraCls : "") + '" title="' + esc(tit + "\n" + clean) + '"';
   }
+  // An IDE-style line suffix on a file link: `x.md#L66`, `#L66-L75`, `#L66-75`, `#L66C3-L70C1` (any case). CLI engines
+  // cite files this way (issue 1390). The file is `x.md`; kept on the path, the click looked for a file literally
+  // named `x.md#L66-L75` and said "not found". A heading anchor like `x.md#lien-he` is not a line suffix.
+  var LINE_SUFFIX_RE = /#L\d+(?:C\d+)?(?:-L?\d+(?:C\d+)?)?$/i;
+  function splitLineSuffix(p) {
+    p = String(p == null ? "" : p);
+    var m = LINE_SUFFIX_RE.exec(p);
+    return m ? { path: p.slice(0, m.index), suffix: m[0] } : { path: p, suffix: "" };
+  }
   function vaultLink(rawpath, extraCls, brainOverride) {
-    return isDownloadFile(rawpath)
-      ? vaultDownload(rawpath, extraCls, brainOverride)
-      : vaultLoc(rawpath, extraCls);
+    var sp = splitLineSuffix(rawpath);
+    var attrs = isDownloadFile(sp.path)
+      ? vaultDownload(sp.path, extraCls, brainOverride)
+      : vaultLoc(sp.path, extraCls);
+    // The suffix rides along in its own attribute so a note saved from the editor's rendered view writes the link
+    // back whole (console.js, turndown rule for vault links).
+    return sp.suffix ? attrs + ' data-vault-line="' + esc(sp.suffix) + '"' : attrs;
   }
   // Inline code chua DUONG DAN FILE vault (vd `Javis/loops/x.md`)? Tra ve path da chuan hoa, "" neu khong phai.
   // Chi nhan khi trong giong path that: co duoi file + (co thu muc / la .md tran), khong ky tu cam cua ten file
@@ -1913,7 +1926,7 @@
     module.exports = { mdToHtml: mdToHtml, visibleMarkdown: visibleMarkdown, streamCut: streamCut,
       highlight: highlight, wkResolve: wkResolve,
       appFilePath: appFilePath, appFileRef: appFileRef, fileUriPath: fileUriPath,
-      localTarget: localTarget, codeLocalTarget: codeLocalTarget,
+      localTarget: localTarget, codeLocalTarget: codeLocalTarget, splitLineSuffix: splitLineSuffix,
       // Tests: set what the page knows about opening local files (true, false, or null to look again).
       setLocalOpen: function (v) { _localOpen = v; },
       isDownloadFile: isDownloadFile, imageSize: imageSize,

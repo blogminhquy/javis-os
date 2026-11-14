@@ -360,6 +360,16 @@
   // bookmark vẫn tới nơi.
   // 0.422.0: Kanban and Scheduled became the Tasks page; the old Scheduled link opens its Recurring list.
   const TRANG_GOP = { runtime: "usage", agents: "workspace", workflows: "workspace", kanban: "tasks", selfimprove: "tasks" };
+  // The page a `#p=<page id>` deep link opens (issue 1346), or "" when the hash is not one. Known ids are the rail's
+  // (RAIL_ITEMS, hidden pages included) and the old ids above, which navigateTo sends on (kanban -> tasks). An
+  // unknown id gives "" and the link is ignored quietly. Own keys only: "constructor" is not a page.
+  function deepLinkPage(hash) {
+    const m = /^#p=([A-Za-z0-9_-]+)$/.exec(String(hash == null ? "" : hash));
+    if (!m) return "";
+    const id = m[1].toLowerCase();
+    const has = (o) => Object.prototype.hasOwnProperty.call(o, id);
+    return has(RAIL_BY_ID) || has(TRANG_GOP) ? id : "";
+  }
   const TRANG_CUOI_KEY = "javis_last_page";
   function khoiPhucTrang() {
     let id = "home";
@@ -418,6 +428,9 @@
     else swap();
   }
 
+  // `#L66`, `#L66-L75`, `#L66-75`, `#L66C3-L70C1` at the end of a file link (issue 1390). Not a heading anchor.
+  const LINE_SUFFIX_RE = /#L\d+(?:C\d+)?(?:-L?\d+(?:C\d+)?)?$/i;
+
   // Mở trang Tệp tin ĐÚNG vị trí một file/thư mục (gọi từ link trong chat qua window.JavisOpenFiles,
   // hoặc từ deep-link #open=<đường-dẫn> khi mở ở tab trình duyệt mới). fullPath tương đối GỐC BRAIN
   // (đúng quy ước AI ghi trong chat); trang Tệp tin sẽ tự ghép tiền tố brain để ra path tương đối trần.
@@ -444,6 +457,9 @@
   // quyết định, mọi người gọi chung.
   function openVaultPath(fullPath) {
     fullPath = _goFileUri(fullPath);
+    // `agents/x.md#L66-L75` (issue 1390): an IDE line suffix, same rule as chat-render.js splitLineSuffix. Kept on,
+    // the extension read ".md#l66-l75" and the click fell through to the Files page looking for that literal name.
+    if (fullPath != null) fullPath = String(fullPath).replace(LINE_SUFFIX_RE, "");
     const raw = String(fullPath == null ? "" : fullPath);
     const clean = raw.replace(/^\.?\//, "").replace(/\/+$/, "");
     const base = clean.split("/").pop();
@@ -10211,7 +10227,8 @@
             const alias = n.getAttribute("data-wiki-alias");
             return "[[" + p + (alias ? "|" + alias : "") + "]]";
           }
-          return "[" + (c || p) + "](" + p + ")";                    // link markdown vault: giữ dạng [chữ](đường-dẫn)
+          // Vault markdown link: keep [text](path), with the line suffix chat-render.js split off (#L66-L75) put back.
+          return "[" + (c || p) + "](" + p + (n.getAttribute("data-vault-line") || "") + ")";
         } });
       // Vault image: keep the ORIGINAL syntax. ![[a|300]] (dragged size or alt text after |) saves
       // back as-is; ![text](a) stays ![text](a). Only a ![](..) image that was resized switches to
@@ -10777,6 +10794,29 @@
     // or Partners no longer downloads the graph and runs its physics behind that page.
     try { if (window.JavisCockpit && window.JavisCockpit.firstPage) window.JavisCockpit.firstPage(Alpine.store("nav").active); } catch (e) {}
 
+    // Deep links in the URL hash: #open=<vault path> (file links in chat), #cs=<agent|workflow:slug[:session]> (a
+    // partner's chat) and #p=<page id> (a dashboard page, issue 1346). Read once on load, after settings (below), and
+    // again each time the hash changes in an open tab, so a link followed there works too. A hash is handled once, so
+    // the load read and a hashchange racing it never open the same thing twice. Nothing here writes the hash, so a
+    // hash the app sets itself (the #p= fallbacks of other modules) cannot loop back into this.
+    let deepHashDone = null;
+    const runDeepLink = () => {
+      const h = location.hash || "";
+      if (h === deepHashDone) return;
+      deepHashDone = h;
+      // #open= goes through openVaultPath, NOT openFilesAt: an editable file opens straight in the editor, exactly like
+      // a plain click on the link (before 0.30.2 the two paths gave two different results).
+      try {
+        const m = /^#open=(.+)$/.exec(h);
+        if (m) openVaultPath(decodeURIComponent(m[1]));
+        const c = /^#cs=(.+)$/.exec(h);
+        if (c) moCongSu(decodeURIComponent(c[1]));
+        const p = deepLinkPage(h);
+        if (p) Alpine.store("nav").go(p);
+      } catch (e) {}
+    };
+    window.addEventListener("hashchange", runDeepLink);
+
     freshSettings().then(async s => {
       // Máy này CHƯA chọn ngôn ngữ (i18n đang đoán theo trình duyệt): ngôn ngữ đã lưu trên
       // server thắng phần đoán. Không có bước này thì người dùng Việt cũ có trình duyệt để
@@ -10824,15 +10864,8 @@
       } catch (e) { /* thiếu ô thì rail vẫn sống */ }
       graphEnabled = !(s.dashboard && s.dashboard.graph_enabled === false);
       recomputeGraph();
-      // Deep-link mở tab mới từ link file trong chat: #open=<đường-dẫn-vault>.
-      // Đi qua openVaultPath chứ KHÔNG phải openFilesAt: file sửa được thì mở thẳng trình sửa,
-      // đúng như cú bấm thường. Trước bản này hai đường cho ra hai kết quả khác nhau.
-      try {
-        const m = /^#open=(.+)$/.exec(location.hash || "");
-        if (m) openVaultPath(decodeURIComponent(m[1]));
-        const c = /^#cs=(.+)$/.exec(location.hash || "");
-        if (c) moCongSu(decodeURIComponent(c[1]));
-      } catch (e) {}
+      // Deep link the tab was opened with (#open=, #cs=, #p=): see runDeepLink above.
+      runDeepLink();
     });
   }
 

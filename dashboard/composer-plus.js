@@ -186,7 +186,7 @@
       });
     } });
 
-  function goPage(id) { try { window.Alpine.store("nav").go(id); } catch (e) { location.hash = "#" + id; } }
+  function goPage(id) { try { window.Alpine.store("nav").go(id); } catch (e) { location.hash = "#p=" + id; } }
 
   // ---- pick a file from the brain: a search box inside the menu ----
   var brainSeq = 0;
