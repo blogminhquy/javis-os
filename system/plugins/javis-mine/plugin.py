@@ -511,7 +511,11 @@ def register(ctx):
             },
             "required": ["op"],
         },
-        min_mode="safe",
+        # A read-only run (a reminder at `suggest`) may list the owner's tasks; every op that changes them needs
+        # `safe`, and an op not listed here falls back to the strongest level (issue 1421).
+        min_mode="readonly",
+        op_modes={"list": "readonly", "add": "safe", "update": "safe", "delete": "safe", "skip": "safe",
+                  "check": "safe", "uncheck": "safe"},
         emoji="✅",
     )
 
