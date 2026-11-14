@@ -83,6 +83,9 @@ _VIEC: Dict[str, dict] = {}                     # mã việc -> bản ghi
 _LOI_DAN: Dict[str, dict] = {}                  # chat_id -> {"text", "ts"} (javis_job op=then)
 _KHI_XONG: Optional[Callable[[dict], Any]] = None
 _VONG: Optional[asyncio.Task] = None
+# The server's event loop, where the watcher runs. Remembered so a job registered from a worker
+# thread (javis_terminal background=true runs in asyncio.to_thread) can still start the watcher.
+_LOOP: Optional[asyncio.AbstractEventLoop] = None
 
 
 # ---------------------------------------------------------------------------------------
@@ -664,13 +667,39 @@ async def _vong_theo_doi() -> None:
         await asyncio.sleep(NHIP_GIAY)
 
 
-def _dam_bao_vong() -> None:
-    global _VONG
+def _remember_loop() -> Optional[asyncio.AbstractEventLoop]:
+    """Return the running loop of this thread (None in a worker thread), and remember it as the
+    server loop when no live server loop is known yet."""
+    global _LOOP
     try:
-        loop = asyncio.get_running_loop()
+        here = asyncio.get_running_loop()
     except RuntimeError:
+        return None
+    if _LOOP is None or not _LOOP.is_running():
+        _LOOP = here
+    return here
+
+
+def _dam_bao_vong() -> None:
+    """Make sure exactly one watcher runs, on the server loop, whichever thread calls this.
+
+    Issue 1392: `theo_doi_nhom` is reached from `coding_terminal.chay_nen`, which the hub runs in
+    `asyncio.to_thread`. That thread has no running loop, so the watcher was never started and
+    the job stayed "running" until the next server restart. Now the start is handed to the
+    server loop with `call_soon_threadsafe`; this function runs again there and starts it.
+    """
+    global _VONG
+    here = _remember_loop()
+    loop = _LOOP
+    if loop is None or loop.is_closed() or not loop.is_running():
+        return          # no live server loop: khoi_dong() picks the job up at the next start
+    if here is not loop:
+        try:
+            loop.call_soon_threadsafe(_dam_bao_vong)
+        except RuntimeError:
+            pass        # the loop closed in between: same as above
         return
-    if _VONG is None or _VONG.done():
+    if _VONG is None or _VONG.done() or _VONG.get_loop() is not loop:
         _VONG = loop.create_task(_vong_theo_doi())
 
 
@@ -678,6 +707,7 @@ def khoi_dong() -> None:
     """Máy chủ vừa bật: nạp sổ cũ. Việc còn "run" mà nhóm vẫn sống thì theo dõi tiếp (engine
     chạy với session riêng nên việc nền sống sót qua lần khởi động lại máy chủ). Nhóm đã chết
     thì vòng theo dõi sẽ báo "xong" ở nhịp đầu tiên, kèm file mới như thường."""
+    _remember_loop()     # runs on the server loop at startup: worker threads hand the watcher to it
     _nap()
     if dang_chay():
         _dam_bao_vong()

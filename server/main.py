@@ -4073,6 +4073,36 @@ def _chat_selected(mcfg, row) -> dict:
     return {"provider": em["provider"], "model": em.get("model") or ""}
 
 
+def _card_broken(mcfg, prov: str) -> bool:
+    """`prov` cannot run at all (card gone, API key removed, card disconnected), as opposed to resting out of quota or
+    signed out for a while (`_pin_health` does not see a sign-out, so a signed-out card counts as resting)."""
+    usable, resting_until = _pin_health(mcfg, prov)
+    return not usable and not resting_until
+
+
+def _pin_to_stamp(mcfg, row, prov: str, model: str):
+    """(provider, model) a dashboard chat turn stamps as the chat's pin, or None to leave the pin as it is.
+
+    The stamp anchors a chat on its model from the first turn (owner, 16/08): a new or unpinned chat gets the model it
+    runs on, and a broken pin (card gone, key removed, card disconnected) is replaced by the main model it falls back
+    to. A FALLBACK while a card only rests (out of quota, signed out) is never stamped (issue 1336): it replaced the
+    owner's pin, so the chat stayed on the fallback model after the quota came back. The pin stays as it is, and an
+    unpinned chat is stamped on its first turn back on the card it really belongs to."""
+    prov, model = str(prov or ""), str(model or "")
+    row = row or {}
+    if (str(row.get("pinned_provider") or "").strip() == prov
+            and str(row.get("pinned_model") or "") == model):
+        return None
+    sel = _chat_selected(mcfg, row)["provider"]
+    if prov != sel:
+        if not _card_broken(mcfg, sel):
+            return None     # the chosen card (the pin, or MAIN for an unpinned chat) only rests
+        main_prov = _effective_main({"model": mcfg or {}})["provider"]
+        if prov != main_prov and not _card_broken(mcfg, main_prov):
+            return None     # a broken pin falls back to the main model, which rests too
+    return prov, model
+
+
 def _route_rest_until(mcfg, prov: str, now: float = None) -> float:
     """Epoch at which an out-of-quota card can run again, 0 when nothing is resting or the time is unknown. A plan
     marked out of quota gives its reset time; otherwise the earliest account or key of the card to come back."""
@@ -20723,14 +20753,21 @@ async def _chat_socket(ws):
                 if api_model and actual_model != api_model:
                     # Tự chữa: model đã lưu không hợp lệ cho Codex → ghi lại model đúng (converge sau 1 lượt)
                     try:
-                        if (_row0.get("pinned_model") or "").strip():
+                        if ((_row0.get("pinned_provider") or "").strip() == "openai-oauth"
+                                and (_row0.get("pinned_model") or "").strip()):
                             # Phiên ghim một model đã bị gỡ khỏi catalog: sửa luôn cái ghim, nếu
                             # không lượt nào cũng đọc lại ghim cũ và nhắc câu này lần nữa.
                             # The stale model came from this session's pin (an agent chat pins its agent's model),
                             # so only the pin is fixed: rewriting the owner's main model here changed every other chat.
+                            # Issue 1336: only a ChatGPT pin; a pin to a card that rests stays the owner's choice.
                             await asyncio.to_thread(store.set_pinned_model, conv_sid, "openai-oauth", actual_model)
                         else:
-                            _fix = cfgmod.read_settings(); _set_main_model(_fix, "openai-oauth", actual_model); cfgmod.write_settings(_fix)
+                            _fix = cfgmod.read_settings()
+                            if _effective_main(_fix)["provider"] == "openai-oauth":
+                                _set_main_model(_fix, "openai-oauth", actual_model)
+                            else:   # ChatGPT only stands in for a resting card: fix its own card, never make it MAIN
+                                model_routing.set_profile(_fix.setdefault("model", {}), "openai-oauth", model=actual_model)
+                            cfgmod.write_settings(_fix)
                         await ws.send_text(json.dumps({"type": "system", "content": localefmt.chu(
                             f"⚠ Model '{api_model}' không chạy được qua Codex (tài khoản ChatGPT) - đã tự đổi sang '{actual_model}'. Đổi model khác ở trang Models nếu muốn.",
                             f"⚠ Model '{api_model}' does not run through Codex (ChatGPT account) - switched to "
@@ -22489,12 +22526,14 @@ async def _chat_socket(ws):
                 #   - ghim hỏng (provider mất key, đã rơi về mặc định chung) → thay bằng
                 #     model đang chạy thật, thanh model thôi khoe ghim chết;
                 #   - ghim lành → resolved == ghim, không có gì để ghi (no-op).
-                if ((_prow.get("pinned_provider") or "").strip() != prov
-                        or (_prow.get("pinned_model") or "") != (api_model or "")):
-                    try:
-                        store.set_pinned_model(conv_sid, prov, api_model or "")
-                    except Exception:
-                        pass
+                # Issue 1336: a turn that runs on a fallback because a card only RESTS (out of quota, signed out) must
+                # not replace the owner's pin with the fallback model; `_pin_to_stamp` keeps the pin in that case.
+                try:
+                    _stamp = _pin_to_stamp(mcfg, _prow, prov, api_model)
+                    if _stamp:
+                        store.set_pinned_model(conv_sid, *_stamp)
+                except Exception:
+                    pass
                 # Đổi bộ não giữa chừng: mạch native của MỌI engine khác engine đang chạy lượt
                 # này lập tức thành stale, vì nó không chứa lượt sắp diễn ra. Quay lại engine đó
                 # mà cứ nối tiếp mạch cũ là nó mù đúng đoạn ở giữa, rồi trả lời lạc đề - đúng
