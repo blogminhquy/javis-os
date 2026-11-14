@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.559.1] - 2026-11-14
+### Fixed
+- **The Google Workspace connection does real work on Forms, Drive and Sheets.** The card only turned on a reduced tool set, so Javis could not edit Form questions, read responses, browse a Drive folder, rename or copy a file, add a tab or append rows to Sheets. All of that works now, with no new Google sign-in.
+- Connections made earlier move to the full tool set after the update.
+### Security
+- **Sharing a file or calendar with someone needs Full access.** So do deleting a whole tab, task list or contact group, creating Gmail filters and publishing Apps Script. At Read only, Javis cannot copy a Drive file or append rows to Sheets.
+
 ## [0.559.0] - 2026-11-14
 ### Added
 - **Tap a quote to scroll back to the original sentence.** Quote a sentence from a long answer to ask more, then later tap that quote in your message: the chat scrolls up to that exact sentence and highlights it for a few seconds.
