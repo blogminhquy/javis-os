@@ -439,7 +439,11 @@ def ship(sid: str, brain: str, repo: Dict[str, Any], report: Dict[str, Any]) -> 
         row = st().update(sid, fn, branch="", head_sha="", pr_number=0, pr_url="", pr_node_id="", ci="none",
                           integ="no_pr", post_merge="", merged_sha="", fix_rounds=0, rerun_used=0)
     sha = commit_all(repo["worktree"], f"{title[:72]}\n\nJavis chat {sid[:8]}")
-    branch = row.get("branch") or _final_branch(sid, repo, title)
+    # The branch is fixed once a push to it went through. A name stored by a push that never did (GitHub held other
+    # history under it, or a row from before the clash check) is not ours yet: decide again, else every retry and
+    # the "Push again" button hit the same taken name forever (javisos-blog, 14/11/2026).
+    branch = row.get("branch") if (row.get("head_sha") or row.get("pr_number")) else ""
+    branch = branch or _final_branch(sid, repo, title)
     if branch != row.get("branch"):
         st().update(sid, fn, branch=branch)     # decided once: a retry after a failed push uses the same branch
     pushed_sha, pushed_now = push(repo, branch)
