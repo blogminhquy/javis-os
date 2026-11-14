@@ -127,6 +127,18 @@ _avail["v"] = (False, "no_cli")
 cfg2 = voice_call.live_settings({"model": {"gemini_api_key": "g"}, "voice": {"live_provider": "chatgpt"}})
 check("live_settings ghi đè live_provider theo đường đã chọn", cfg2["voice"]["live_provider"] == "gemini")
 
+# Issue 1315: extra ChatGPT accounts added on the Models page count as connected there, even without main tokens.
+import plan_accounts  # noqa: E402
+_has_extra = plan_accounts.has_extra
+plan_accounts.has_extra = lambda m, p: p == "openai-oauth" and bool(((m or {}).get("accounts") or {}).get(p))
+try:
+    check("extra ChatGPT account on the Models page counts as in use",
+          voice_call.chatgpt_in_use_order({"model": {"accounts": {"openai-oauth": [{"id": "a2"}]}}}))
+    check("no ChatGPT tokens and no extra account is not in use",
+          not voice_call.chatgpt_in_use_order({"model": {}}))
+finally:
+    plan_accounts.has_extra = _has_extra
+
 if _fails:
     print("\nFAIL:", len(_fails), _fails)
     raise SystemExit(1)

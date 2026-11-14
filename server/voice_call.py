@@ -87,7 +87,13 @@ def chatgpt_in_use_order(cfg: dict) -> bool:
     if model_routing.main_provider(m) == PLAN:
         return True
     o = m.get("openai_oauth") or {}
-    return bool(o.get("access_token") or o.get("refresh_token"))
+    if o.get("access_token") or o.get("refresh_token"):
+        return True
+    try:    # extra ChatGPT accounts added on the Models page count as connected there too
+        import plan_accounts
+        return bool(plan_accounts.has_extra(m, PLAN))
+    except Exception:   # noqa: BLE001 - deciding the call path must never stop a call
+        return False
 
 
 def select_call_engine(cfg: dict) -> dict:
