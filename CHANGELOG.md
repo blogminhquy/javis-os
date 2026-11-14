@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.558.1] - 2026-11-14
+### Sửa lỗi
+- **Sửa compose trong hPanel rồi bấm Deploy không còn bị chặn.** Bản 0.557.1 làm file Hostinger dài 33.167 ký tự, quá trần 32.768 của hPanel. File giờ còn khoảng 28.400 ký tự, phần bảo vệ cập nhật vẫn chạy y như cũ.
+
 ## [0.558.0] - 2026-11-14
 ### Thêm mới
 - **Ô "Ghi nhớ đăng nhập trên máy này" ở màn đăng nhập.** Để tích như cũ thì máy này giữ đăng nhập 30 ngày. Bỏ tích khi dùng máy của người khác: đóng trình duyệt là thoát, để yên 4 giờ hoặc quá 24 giờ Javis cũng tự đăng xuất.

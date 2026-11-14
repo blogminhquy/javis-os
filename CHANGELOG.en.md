@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.558.1] - 2026-11-14
+### Fixed
+- **Editing the compose in hPanel and pressing Deploy works again.** Version 0.557.1 made the Hostinger file 33,167 characters, over hPanel's 32,768 limit. It is now about 28,400 characters, and the update guard runs exactly as before.
+
 ## [0.558.0] - 2026-11-14
 ### Added
 - **A "Keep me signed in on this device" box on the sign-in screen.** Ticked, as before, the device stays signed in for 30 days. Untick it on someone else's device: closing the browser signs you out, and Javis also signs you out after 4 hours unused or 24 hours at most.
