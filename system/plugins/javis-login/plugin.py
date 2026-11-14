@@ -67,12 +67,13 @@ def register(ctx):
         "không bấm nút hay gửi form. Trang nặng JavaScript có thể ra ít chữ. op=list: xem các đăng nhập đang có (tên, "
         "tên miền, còn sống không). op=fetch: url (bắt buộc), login = tên đăng nhập (bỏ trống thì tự chọn theo tên "
         "miền). Báo 'hết hạn' thì nhờ người dùng cập nhật cookie, đừng thử lại. Muốn canh trang này theo lịch thì "
-        "dùng javis_watch với login.",
+        "dùng javis_watch với login. op=render_misa: cầu nối thử nghiệm chỉ cho hai trang kho AMIS, "
+        "yêu cầu chủ đã bật phía server và endpoint đã được duyệt. Chưa phải công cụ đọc kho hoàn chỉnh.",
         _run,
         schema={
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["list", "fetch"]},
+                "op": {"type": "string", "enum": ["list", "fetch", "render_misa"]},
                 "url": {"type": "string"},
                 "login": {"type": "string", "description": "Tên đăng nhập trong Kho (op=fetch, tuỳ chọn)"},
             },
@@ -87,6 +88,15 @@ async def _run(args, ctx) -> str:
     op = str((args or {}).get("op") or "").strip().lower()
     if op == "list":
         return _list()
+    if op == "render_misa":
+        import json
+        import login_browser
+        vault, error = _vault()
+        if error:
+            return "ERROR: browser_unavailable"
+        result = await login_browser.open_misa(vault, str((args or {}).get("url") or ""),
+                                               str((args or {}).get("login") or "Kho Molli"))
+        return json.dumps(result, ensure_ascii=False)
     if op == "fetch":
         return await _fetch(args)
     return "ERROR: op phải là list hoặc fetch."

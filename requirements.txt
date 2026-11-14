@@ -95,3 +95,6 @@ yt-dlp>=2026.8.19
 # 6.21.4 (2026-11-10): 6.18.1 had 21 advisories, all of the same kind: a crafted PDF sends the parser into an endless
 # loop or makes it allocate without bound. Javis reads PDFs that strangers control (web pages, files customers send).
 pypdf==6.21.4
+
+# Optional rendered login-vault reads; browser binary is managed by optional_tools.
+playwright>=1.48,<2
