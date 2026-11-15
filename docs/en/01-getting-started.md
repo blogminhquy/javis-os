@@ -140,7 +140,7 @@ It is safe: it only moves when the destination does not exist, it never overwrit
 
 ### General tab: Language and timezone
 
-The **Language and timezone** block has three boxes: interface language, **Javis replies in**, and **Timezone** (since 0.443.0). A new timezone is saved at once, and Javis uses it from the next chat turn for today, yesterday, tomorrow, reminders and reports. The timezone box opens with a **Suggested** group (the current one, your device's and a few common ones), followed by the full list sorted by UTC offset. A repeating reminder scheduled before the change may run once more at the old time before it follows the new one.
+The **Language and timezone** block has two boxes: interface language and **Timezone** (since 0.443.0). The language box only changes the words on screen: Javis always replies in the language you write in, and if you want one language every time, tell Javis once and it remembers (the "Javis replies in" box is gone since 2026-11-15). A new timezone is saved at once, and Javis uses it from the next chat turn for today, yesterday, tomorrow, reminders and reports. The timezone box opens with a **Suggested** group (the current one, your device's and a few common ones), followed by the full list sorted by UTC offset. A repeating reminder scheduled before the change may run once more at the old time before it follows the new one.
 
 ### Voice tab and branding in General
 

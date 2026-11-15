@@ -53,7 +53,7 @@ class CallLanguage(unittest.TestCase):
         qd = lang.resolve(turn_text=EN_HANDOFF, channel_default=lang.call_language(VI, "vi-VN"))
         self.assertEqual(qd.lang, "vi")
         self.assertFalse(qd.theo_nguoi_dung, "không để model bám theo câu handoff tiếng Anh")
-        self.assertIn("Ngôn ngữ trả lời", lang.khoi_ngon_ngu(qd))
+        self.assertIn("Reply language: Vietnamese (Tiếng Việt, vi)", lang.khoi_ngon_ngu(qd))
         owner = lang.resolve(turn_text=EN_HANDOFF, reply_pref="en", channel_default="vi")
         self.assertEqual(owner.lang, "en", "ngôn ngữ ghim ở Cài đặt vẫn thắng")
         asked = lang.resolve(turn_text="trả lời bằng tiếng Anh nhé", channel_default="vi")

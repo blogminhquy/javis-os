@@ -292,14 +292,17 @@ class AdaptiveContextCanary:
                 brain: str | Path, session_id: str, messages: list[dict], channel: str,
                 provider: str, model: str, provider_kind: str,
                 base_prompt_builder: Callable[[bool, bool], str],
-                stable_system: bool = False) -> AdaptiveContextPlan:
+                stable_system: bool = False, lang: str = "") -> AdaptiveContextPlan:
         """`stable_system` (#1329): the lane appends the system prompt as one cached block, so the plan's
-        `system_prompt` must not change between new chats; what does change comes back in `turn_context`."""
+        `system_prompt` must not change between new chats; what does change comes back in `turn_context`.
+
+        `lang` (2026-11-15): a PINNED reply language, "" = follow the person. The API lane's small base has no
+        language block, so before this a language set in Settings never reached a compiled capsule."""
         # Ranh giới fallback cuối: bất kỳ lỗi nào ngoài các block per-source (compile,
         # settings, event ghi trace...) đều phải trả legacy, không được phá lượt chat.
         try:
             return self._prepare(trace, objective, brain, session_id, messages, channel,
-                                 provider, model, provider_kind, base_prompt_builder, stable_system)
+                                 provider, model, provider_kind, base_prompt_builder, stable_system, lang)
         except Exception as exc:  # noqa: BLE001 - fallback-per-turn invariant
             return AdaptiveContextPlan("legacy", f"prepare_error:{type(exc).__name__}")
 
@@ -307,7 +310,7 @@ class AdaptiveContextCanary:
                  brain: str | Path, session_id: str, messages: list[dict], channel: str,
                  provider: str, model: str, provider_kind: str,
                  base_prompt_builder: Callable[[bool, bool], str],
-                 stable_system: bool = False) -> AdaptiveContextPlan:
+                 stable_system: bool = False, lang: str = "") -> AdaptiveContextPlan:
         try:
             settings = self.settings_reader() or {}
         except Exception:  # noqa: BLE001 - settings failure must fail closed to legacy
@@ -447,6 +450,7 @@ class AdaptiveContextCanary:
                 reserved_output_tokens=quota["reserved"], execution_mode="canary",
                 context_items=tuple([base_item] + items),
                 stable_system=bool(stable_system), stable_context_ids=(base_item.id,),
+                lang=str(lang or ""),
             ),
             {"selected": [], "selected_count": 0, "candidate_count": 0, "miss_class": ""},
         )

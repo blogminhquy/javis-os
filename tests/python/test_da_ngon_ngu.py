@@ -117,14 +117,15 @@ check("việc nền không cấu hình gì thì về mặc định",
 # Khối prompt phải nói ĐÚNG một trong hai chuyện, không được nói cả hai.
 _khoi_bam = lang_mod.khoi_ngon_ngu(lang_mod.resolve(turn_text="show me the revenue by channel"))
 _khoi_ghim = lang_mod.khoi_ngon_ngu(lang_mod.resolve(turn_text="cho anh xem", reply_pref="en"))
+# 2026-11-15: the block speaks English (the kernel did already), see lang.khoi_ngon_ngu.
 check("khối BÁM bảo model theo người dùng, không nêu tên ngôn ngữ nào",
-      "thứ tiếng người dùng vừa viết" in _khoi_bam
-      and "Ngôn ngữ trả lời:" not in _khoi_bam)
+      "language of the user's latest message" in _khoi_bam
+      and "Reply language:" not in _khoi_bam)
 check("khối GHIM nêu đúng tên ngôn ngữ",
-      "Ngôn ngữ trả lời: English (en)." in _khoi_ghim
-      and "thứ tiếng người dùng vừa viết" not in _khoi_ghim)
+      "Reply language: English (en), set in Settings." in _khoi_ghim
+      and "language of the user's latest message" not in _khoi_ghim)
 check("khối BÁM vẫn dặn giữ nguyên tên riêng, đường dẫn, khối mã",
-      "KHÔNG dịch" in _khoi_bam)
+      "Do not translate" in _khoi_bam)
 
 
 # ============================================================
@@ -229,8 +230,9 @@ check("mã hợp lệ giữ nguyên", chatbot_store._clean_ngon_ngu("EN_us") == 
 _p_auto = chatbot_runtime.build_bot_prompt({"name": "Trợ lý", "ngon_ngu": "auto"})
 _p_en = chatbot_runtime.build_bot_prompt({"name": "Trợ lý", "ngon_ngu": "en"})
 check("bot auto được dạy bám theo ngôn ngữ khách", "ngôn ngữ khách đang nhắn" in _p_auto)
-check("bot ghim en được dạy luôn trả lời tiếng Anh",
-      "English" in _p_en and "Answer in English." in _p_en)
+# 2026-11-15 (owner): no per-bot language pin any more; a value saved on an older bot record is not read.
+check("bot có ngon_ngu cũ vẫn bám theo ngôn ngữ khách",
+      "ngôn ngữ khách đang nhắn" in _p_en and "Answer in English." not in _p_en)
 check("prompt bot LUÔN có một dòng ngôn ngữ, kể cả khi không khai gì",
       "NGÔN NGỮ" in chatbot_runtime.build_bot_prompt({"name": "Trợ lý"}))
 

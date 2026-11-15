@@ -8643,12 +8643,10 @@
     const engine = mainProvider?.label || ({ "openrouter": "OpenRouter", "openai": "OpenAI API", "openai-oauth": "ChatGPT OAuth", "anthropic-cli": "Claude CLI" }[mainProviderId] || mainProviderId);
     const currentModel = model.main?.model || (mainProviderId === "openrouter" ? model.openrouter_model : model.claude_model) || t("common.default");
     const opt = (val, label, cur) => `<option value="${esc(val)}"${val === cur ? " selected" : ""}>${esc(label)}</option>`;
-    // NGÔN NGỮ TRẢ LỜI. Danh sách lấy từ /lang/list (sổ đăng ký phía server) chứ KHÔNG khai
-    // lại ở đây: khai hai nơi thì thêm ngôn ngữ mới lại phải nhớ sửa cả hai, và chỗ bị quên
-    // là chỗ hỏng trong im lặng.
+    // Language here is the INTERFACE's only (owner, 2026-11-15): Javis replies in the language of whoever writes,
+    // like Claude or ChatGPT, so the "Javis replies in" picker is gone. A fixed reply language is said in the chat or
+    // written in the profile.
     const lc = s.locale || {};
-    const langs = (s.lang_list || []);
-    const replyLang = lc.reply_lang || "auto";
     const uiLang = (window.JavisI18n && JavisI18n.lang()) || "vi";
     // Timezone (0.443.0): what "today", "yesterday", reminders and report periods mean for Javis. Lives with the language
     // pickers because both are "where and how I live", but it is saved separately (locale.tz), never inferred from language.
@@ -8666,14 +8664,6 @@
         </div>
         ${infoBody(`${esc(t("settings.ui_lang.hint"))}
           <b>${esc(t("settings.ui_lang.beta"))}</b>`)}
-        <div class="qs-field">
-          <label class="qs-lbl" for="vpReplyLang">${esc(t("settings.lang.title"))}${infoBtn()}</label>
-          <select class="js-input" id="vpReplyLang">
-            ${opt("auto", t("settings.lang.auto"), replyLang)}
-            ${langs.map(l => opt(l.ma, l.ten, replyLang)).join("")}
-          </select>
-        </div>
-        ${infoBody(esc(t("settings.lang.hint")))}
         <div class="qs-field">
           <label class="qs-lbl" for="vpTz">${esc(t("settings.tz.title"))}${infoBtn()}</label>
           <select class="js-input" id="vpTz">
@@ -8764,11 +8754,6 @@
     if (langHost) {
       langHost.innerHTML = `<div class="qs-block" id="vpThemeBox"></div>` + langHtml;
       renderThemeBox(document.getElementById("vpThemeBox"));
-      const sel = document.getElementById("vpReplyLang");
-      if (sel) sel.onchange = async () => {
-        const r = await saveSetting("locale", { reply_lang: sel.value });
-        toast(r && r.ok ? t("settings.lang.saved") : t("settings.save_failed"), !(r && r.ok));
-      };
       const selTz = document.getElementById("vpTz");
       const tzNow = document.getElementById("vpTzNow");
       const showTzNow = () => {

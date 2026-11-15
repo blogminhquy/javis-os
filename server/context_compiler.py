@@ -54,12 +54,14 @@ def _cau_ngon_ngu(lang: str = "") -> str:
     Chưa chốt được ngôn ngữ thì giữ nguyên câu cũ ("bám theo người dùng") - hành vi đang chạy
     tốt, không có lý do làm nó thụt lùi.
     """
-    ma = lang_registry.chuan_hoa(lang)
+    ma = lang_registry.reply_code(lang)
     if not ma:
-        return "Dùng đúng ngôn ngữ người dùng đang dùng."
-    l = lang_registry.get(ma)
-    return (f"Viết TOÀN BỘ câu trả lời bằng {l.lang_directive} ({l.code}); giữ nguyên không "
-            f"dịch tên riêng, đường dẫn, tên tool và khối mã. {l.nudge}")
+        # 2026-11-15: in English, like `lang.khoi_ngon_ngu`, and a stated language wins over the last message.
+        # Short on purpose: the capsule is the token-saving path, and its required items have a tight budget.
+        return "Reply in the user's language, or in one they asked for earlier."
+    l = lang_registry.reply_info(ma)   # any nameable language (2026-11-15), not only vi/en
+    return (f"Write the WHOLE reply in {l.english} ({l.code}); do not translate proper nouns, "
+            f"paths, tool names or code blocks. {l.nudge}")
 
 def _nhan_mui_gio(n) -> str:
     """Nhãn múi giờ cho câu đồng hồ, vd "Asia/Ho_Chi_Minh (UTC+7)".

@@ -157,10 +157,13 @@ và thanh chọn ngôn ngữ đầu README.md phải có thêm thứ tiếng m�
 
 Liệt kê ra đây vì đây là chỗ người ta hay đi thừa:
 
-- **Không** dịch system prompt hay `CLAUDE.md`. Prompt giữ tiếng Việt; khối
-  `# === NGÔN NGỮ ===` ở cuối mới là thứ quyết định Javis trả lời tiếng gì. Model đọc được
-  hướng dẫn tiếng Việt rồi trả lời tiếng Thái - đó là chuyện bình thường, và một bộ prompt
-  cho mỗi thứ tiếng là một bộ nữa để trôi lệch.
+- **Không** dịch system prompt hay `CLAUDE.md` ra từng thứ tiếng. Mỗi thứ chỉ một bản; khối
+  `# === NGÔN NGỮ ===` mới là thứ quyết định Javis trả lời tiếng gì. Model đọc hướng dẫn tiếng
+  Việt hay tiếng Anh rồi trả lời tiếng Thái là chuyện bình thường, và một bộ prompt cho mỗi thứ
+  tiếng là một bộ nữa để trôi lệch. (Từ 15/11/2026 riêng khối NGÔN NGỮ viết tiếng Anh như
+  `CLAUDE.md`, kèm câu nói rõ tiếng Việt xung quanh không phải gợi ý ngôn ngữ; lý do ở đầu
+  `lang.khoi_ngon_ngu`. Server KHÔNG dò câu "English pls" để ghim: chủ repo chốt 15/11/2026 "để mô
+  hình tự xử lý", khối NGÔN NGỮ chỉ dặn model rằng ngôn ngữ người dùng đã nói rõ thì thắng.)
 - **Không** dịch nhãn mốc trong prompt (`# === SKILL KHẢ DỤNG`, `# === BÂY GIỜ ===`...). Chúng
   là **mốc đo**: `context_runtime` đếm token theo đúng chuỗi đó. Dịch chúng là làm phép đo im
   lặng ngừng chạy cho đúng nhóm người dùng mới thêm vào.
@@ -169,6 +172,22 @@ Liệt kê ra đây vì đây là chỗ người ta hay đi thừa:
 - **Không** viết `if lang == "th"` ở bất kỳ đâu ngoài `lang_registry.py`. Có test canh.
 
 ---
+
+## Ngôn ngữ trả lời KHÔNG phải một cài đặt (từ 15/11/2026)
+
+Chủ repo chốt 15/11/2026: "Javis phải làm việc và nói chuyện được bằng mọi ngôn ngữ như Claude hay
+ChatGPT", "để mô hình tự xử lý", và "cài đặt ngôn ngữ chỉ có tác dụng làm ngôn ngữ của giao diện". Nên:
+
+- Ô ngôn ngữ ở Cài đặt chỉ đổi giao diện. Ô "Javis trả lời bằng" và ô ngôn ngữ của chatbot đã bị gỡ.
+  Khoá `locale.reply_lang` vẫn nằm trong settings.json và luôn là `"auto"` (hệ thử nghiệm cải tiến đọc
+  khoá đó); ai đã ghim từ trước thì lúc khởi động được chuyển thành một câu trong hồ sơ người dùng
+  (`main.migrate_reply_lang_to_profile`).
+- Muốn luôn nhận một thứ tiếng: dặn Javis một lần, model tự lưu thành ký ức `preference`.
+- Danh mục `_CATALOG` trong `server/lang_registry.py` (35 thứ tiếng) chỉ còn phục vụ vài chỗ BẮT BUỘC
+  nêu tên một ngôn ngữ: cuộc gọi giọng nói (bộ não chỉ thấy câu giao việc của model giọng nói), một câu
+  ra lệnh thẳng trong lượt, và danh sách giọng đọc. Thêm thứ tiếng: một dòng `ReplyLang` (mã, tên tiếng
+  Anh, tên bản ngữ, câu nhắc viết bằng chính thứ tiếng đó, tiền tố giọng Edge). Test canh ở
+  `tests/python/test_any_reply_language.py`.
 
 ## Ngôn ngữ ĐÃ ĐĂNG KÝ
 

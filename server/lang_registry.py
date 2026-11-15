@@ -181,6 +181,117 @@ LANGS: Dict[str, Lang] = {
 }
 
 
+# ---------------------------------------------------------------- reply languages (2026-11-15)
+#
+# Owner, 2026-11-15: "Javis must work and talk in ANY language, like Claude or ChatGPT", "let the
+# model handle the language", and "the language setting only sets the interface". So nothing in
+# Settings or on a bot names a reply language any more: the model answers in whatever language the
+# person writes. This catalog serves the few places that still NAME a language for a reason: a voice
+# call (the brain only sees the voice model's handoff, so it is told what the caller spoke), a direct
+# "answer in Japanese" in the message, and the voice that reads the answer (`/tts/voices`).
+#
+# `LANGS` above is the heavy registry: a language there has an interface dictionary, safety-gate
+# lexicon, clock sentence and weekday names. A REPLY language needs much less: a code, its names
+# and one sentence in that language. So it gets its own light catalog, and adding one here costs
+# nothing elsewhere. Every language of `LANGS` is a reply language too (`_REPLY` merges them).
+#
+# `nudge` is written in the language itself, like `Lang.nudge`: small models drift with the
+# language of the prompt. Only languages whose sentence is certain are listed; any other language
+# still works through "follow the person", it just cannot be pinned by name.
+
+
+@dataclass(frozen=True)
+class ReplyLang:
+    code: str                       # "ja", "zh-tw": the key, lowercase
+    english: str                    # "Japanese"
+    native: str                     # "日本語", shown in pickers
+    nudge: str                      # "日本語で答えてください。"
+    edge: str = ""                  # Edge TTS locale prefix ("ja-JP"), for the voice list
+
+
+_CATALOG: Tuple[ReplyLang, ...] = (
+    ReplyLang("zh", "Chinese (Simplified)", "简体中文", "请用简体中文回答。", "zh-CN"),
+    ReplyLang("zh-tw", "Chinese (Traditional)", "繁體中文", "請用繁體中文回答。", "zh-TW"),
+    ReplyLang("ja", "Japanese", "日本語", "日本語で答えてください。", "ja-JP"),
+    ReplyLang("ko", "Korean", "한국어", "한국어로 답해 주세요.", "ko-KR"),
+    ReplyLang("th", "Thai", "ภาษาไทย", "กรุณาตอบเป็นภาษาไทย", "th-TH"),
+    ReplyLang("id", "Indonesian", "Bahasa Indonesia", "Jawab dalam bahasa Indonesia.", "id-ID"),
+    ReplyLang("ms", "Malay", "Bahasa Melayu", "Jawab dalam bahasa Melayu.", "ms-MY"),
+    ReplyLang("tl", "Filipino", "Filipino", "Sumagot sa Filipino.", "fil-PH"),
+    ReplyLang("km", "Khmer", "ភាសាខ្មែរ", "សូមឆ្លើយជាភាសាខ្មែរ។", "km-KH"),
+    ReplyLang("lo", "Lao", "ພາສາລາວ", "ກະລຸນາຕອບເປັນພາສາລາວ", "lo-LA"),
+    ReplyLang("hi", "Hindi", "हिन्दी", "कृपया हिन्दी में उत्तर दें।", "hi-IN"),
+    ReplyLang("bn", "Bengali", "বাংলা", "বাংলায় উত্তর দিন।", "bn-BD"),
+    ReplyLang("ar", "Arabic", "العربية", "يرجى الرد باللغة العربية.", "ar-SA"),
+    ReplyLang("he", "Hebrew", "עברית", "ענה בעברית.", "he-IL"),
+    ReplyLang("fa", "Persian", "فارسی", "لطفاً به فارسی پاسخ دهید.", "fa-IR"),
+    ReplyLang("tr", "Turkish", "Türkçe", "Lütfen Türkçe cevap ver.", "tr-TR"),
+    ReplyLang("ru", "Russian", "Русский", "Отвечай на русском языке.", "ru-RU"),
+    ReplyLang("uk", "Ukrainian", "Українська", "Відповідай українською мовою.", "uk-UA"),
+    ReplyLang("pl", "Polish", "Polski", "Odpowiadaj po polsku.", "pl-PL"),
+    ReplyLang("cs", "Czech", "Čeština", "Odpovídej česky.", "cs-CZ"),
+    ReplyLang("de", "German", "Deutsch", "Antworte auf Deutsch.", "de-DE"),
+    ReplyLang("nl", "Dutch", "Nederlands", "Antwoord in het Nederlands.", "nl-NL"),
+    ReplyLang("fr", "French", "Français", "Réponds en français.", "fr-FR"),
+    ReplyLang("es", "Spanish", "Español", "Responde en español.", "es-ES"),
+    ReplyLang("pt", "Portuguese", "Português", "Responda em português.", "pt-BR"),
+    ReplyLang("it", "Italian", "Italiano", "Rispondi in italiano.", "it-IT"),
+    ReplyLang("sv", "Swedish", "Svenska", "Svara på svenska.", "sv-SE"),
+    ReplyLang("da", "Danish", "Dansk", "Svar på dansk.", "da-DK"),
+    ReplyLang("no", "Norwegian", "Norsk", "Svar på norsk.", "nb-NO"),
+    ReplyLang("fi", "Finnish", "Suomi", "Vastaa suomeksi.", "fi-FI"),
+    ReplyLang("el", "Greek", "Ελληνικά", "Απάντησε στα ελληνικά.", "el-GR"),
+    ReplyLang("hu", "Hungarian", "Magyar", "Válaszolj magyarul.", "hu-HU"),
+    ReplyLang("ro", "Romanian", "Română", "Răspunde în limba română.", "ro-RO"),
+)
+
+# Codes people and browsers write for the same language.
+_REPLY_ALIASES = {"zh-cn": "zh", "zh-hans": "zh", "zh-sg": "zh", "zh-hant": "zh-tw", "zh-hk": "zh-tw",
+                  "zh-mo": "zh-tw", "fil": "tl", "nb": "no", "nn": "no", "iw": "he"}
+
+
+def _reply_table() -> Dict[str, ReplyLang]:
+    out: Dict[str, ReplyLang] = {}
+    for l in LANGS.values():
+        voice = l.tts.get("edge") or ""
+        out[l.code] = ReplyLang(l.code, l.english, l.native, l.nudge,
+                                "-".join(voice.split("-")[:2]) if voice else "")
+    for r in _CATALOG:
+        out.setdefault(r.code, r)
+    return out
+
+
+_REPLY: Dict[str, ReplyLang] = _reply_table()
+
+
+def reply_code(code: str) -> str:
+    """A reply-language code ("ja", "zh-tw") for any spelling ("ja-JP", "zh_Hant", "FIL"), "" when unknown.
+
+    Wider than `chuan_hoa`, which only knows the languages with a full registry entry. Use this
+    where a person NAMES the language Javis answers in; use `chuan_hoa` for the interface.
+    """
+    s = str(code or "").strip().lower().replace("_", "-")
+    if not s:
+        return ""
+    if s in _REPLY:
+        return s
+    for k in (s, "-".join(s.split("-")[:2]), s.split("-")[0]):
+        if k in _REPLY_ALIASES:
+            return _REPLY_ALIASES[k]
+        if k in _REPLY:
+            return k
+    return ""
+
+
+def reply_info(code: str) -> ReplyLang:
+    """Names and nudge of a reply language; unknown codes get the default language, never an error."""
+    return _REPLY.get(reply_code(code)) or _REPLY[MAC_DINH]
+
+
+def reply_codes() -> Tuple[str, ...]:
+    return tuple(_REPLY.keys())
+
+
 def chuan_hoa(code: str) -> str:
     """"vi-VN" -> "vi", "EN_us" -> "en", rác -> "". KHÔNG tự rơi về mặc định ở đây.
 
@@ -201,7 +312,13 @@ def get(code: str) -> Lang:
     Prompt và giọng đọc là đường nóng của mọi lượt chat; một KeyError ở đây giết cả lượt trả
     lời chỉ vì ai đó lưu nhầm mã ngôn ngữ vào settings.
     """
-    return LANGS.get(chuan_hoa(code) or MAC_DINH, LANGS[MAC_DINH])
+    ma = chuan_hoa(code)
+    if not ma and reply_code(code):
+        # A reply language without a full entry ("ja", "fr", 2026-11-15): its clock line, weekday names
+        # and skill descriptions fall back to English, which its reader is far likelier to read than
+        # Vietnamese. Before, a Japanese pin got a Vietnamese clock and a Vietnamese voice.
+        ma = DU_PHONG_GIAO_DIEN
+    return LANGS.get(ma or MAC_DINH, LANGS[MAC_DINH])
 
 
 def chon_ban_dich(code: str, ban: dict) -> str:

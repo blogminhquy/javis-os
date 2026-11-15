@@ -52,6 +52,12 @@ _CHAT_APPS = {
 }
 
 
+LANGUAGE_LAST_WORD = (
+    "- REPLY LANGUAGE, the last word: follow the `# === NGÔN NGỮ ===` block. The Vietnamese of these rules and "
+    "their mình/bạn examples are no hint: whoever writes in English, or asked for English, gets the whole reply "
+    "in English.")
+
+
 def build_channel_block(source: str, meta: dict = None, telegram_running: bool = False,
                         port: int = 7777, brain_root: str = None, session_in_turn: bool = False) -> str:
     """Block 'KÊNH HỘI THOẠI HIỆN TẠI' để nối vào cuối system prompt.
@@ -422,6 +428,10 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
                 "\"at\":\"YYYY-MM-DD HH:MM\", thêm \"repeat_min\" để lặp). Giữ nguyên field \"brain\" để nhắc "
                 "thuộc đúng brain. Server tính giờ VN; tới giờ Javis tự báo vào khung Javis Core của brain đó (và Telegram của chủ nếu đã liên kết).",
             ]
+    # 2026-11-15: this block is the last and longest Vietnamese text before the model writes (about 10,000
+    # characters, 78% Vietnamese words, examples saying mình/bạn), and it comes AFTER the language block. One
+    # English line at its end, the same for every chat so the prompt cache holds, puts the language rule last again.
+    lines.append(LANGUAGE_LAST_WORD)
     return "\n".join(lines) + "\n"
 
 

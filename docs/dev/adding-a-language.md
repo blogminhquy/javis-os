@@ -223,10 +223,14 @@ which checks those links.
 
 Listed here because this is where people tend to overdo it:
 
-- **Do not** translate the system prompt or `CLAUDE.md`. The prompt stays in Vietnamese; the
-  `# === NGÔN NGỮ ===` (language) block at the end is what decides which language Javis answers
-  in. The model reads Vietnamese instructions and answers in Thai, which is perfectly normal,
-  and one prompt set per language is one more set to drift out of sync.
+- **Do not** translate the system prompt or `CLAUDE.md` into each language. There is one copy
+  of each; the `# === NGÔN NGỮ ===` (language) block is what decides which language Javis
+  answers in. The model reads Vietnamese or English instructions and answers in Thai, which is
+  perfectly normal, and one prompt set per language is one more set to drift out of sync.
+  (Since 2026-11-15 the language block itself is written in English, like `CLAUDE.md`, and says
+  the Vietnamese around it is no hint; the reason is at the top of `lang.khoi_ngon_ngu`. The server
+  does NOT read "English pls" to pin anything: the owner decided on 2026-11-15 to "let the model
+  handle it", and the block only tells the model that a language the user stated wins.)
 - **Do not** translate the section labels in the prompt (`# === SKILL KHẢ DỤNG` (available
   skills), `# === KÊNH HỘI THOẠI HIỆN TẠI` (current chat channel)...). They are **measurement
   markers**: `context_runtime` counts tokens per section by matching those exact strings
@@ -241,6 +245,22 @@ Listed here because this is where people tend to overdo it:
   and `en`, so a hard-coded `"th"` would pass unnoticed: the rule is on you.
 
 ---
+
+## The reply language is NOT a setting (since 2026-11-15)
+
+The owner decided on 2026-11-15: "Javis must work and talk in any language, like Claude or ChatGPT",
+"let the model handle it", and "the language setting only sets the interface". So:
+
+- The language box in Settings only changes the interface. The "Javis replies in" box and the
+  chatbot language box are gone. `locale.reply_lang` stays in settings.json and is always `"auto"`
+  (the improvement trials read that key); a pin saved before moves into the person's profile at
+  startup (`main.migrate_reply_lang_to_profile`).
+- To always get one language: tell Javis once; the model saves it as a `preference` memory.
+- `_CATALOG` in `server/lang_registry.py` (35 languages) only serves the few places that MUST name a
+  language: a voice call (the brain only sees the voice model's handoff), a direct command in the
+  message, and the voice list. Adding a language is one `ReplyLang` line (code, English name, native
+  name, a nudge written in that language, Edge voice prefix). Guarded by
+  `tests/python/test_any_reply_language.py`.
 
 ## REGISTERED languages
 
