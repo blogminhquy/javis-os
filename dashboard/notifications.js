@@ -26,11 +26,13 @@
   // its rules kept quiet are `filtered` and live under "Filtered"; every card takes the owner's feedback in the
   // two buttons, "Needed" / "Not needed" (owner, 2026-10-29: emoji go on the notice once it is opened in Javis Core's
   // chat, where every answer already takes the six reactions); the "Filter" view sets each group's mode, undoes changes.
-  var GROUPS = ["reminder", "question", "chatbot", "connection", "incident", "job", "agent", "team", "cost", "update", "other"];
+  var GROUPS = ["reminder", "suggest", "question", "chatbot", "connection", "incident", "job", "agent", "team", "cost", "update",
+    "other"];
   var MODES = ["all", "important", "urgent", "off"];
   // Full keys spelled out, so the i18n check finds every one of them.
   var GROUP_KEY = { reminder: "noti.grp_reminder", question: "noti.grp_question", chatbot: "noti.grp_chatbot",
     connection: "noti.grp_connection", incident: "noti.grp_incident", job: "noti.grp_job", agent: "noti.grp_agent",
+    suggest: "noti.grp_suggest",
     team: "noti.grp_team", cost: "noti.grp_cost", update: "noti.grp_update", other: "noti.grp_other" };
   var MODE_KEY = { all: "noti.mode_all", important: "noti.mode_important", urgent: "noti.mode_urgent", off: "noti.mode_off" };
   function icon(n) { return typeof window.ic === "function" ? window.ic(n) : ""; }

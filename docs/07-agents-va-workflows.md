@@ -39,13 +39,26 @@ Hội thoại cộng sự tách khỏi lịch sử chat chính của Javis. Quay
 
 Từ 0.403.0 Javis Core quyết định thông báo nào được báo (chấm đỏ trên chuông, đẩy lên điện thoại, Telegram của bạn).
 
-- Mỗi thông báo thuộc một **nhóm** (Nhắc lịch, Câu hỏi chờ bạn, Chatbot và khách, Kết nối và đăng nhập, Sự cố, Kết quả việc, Trợ lý chủ động, Nhóm làm việc, Chi phí, Cập nhật, Khác) và có một **mức**: bình thường, đáng chú ý hoặc khẩn.
-- **Mặc định chỉ tin khẩn mới báo**: nhắc lịch, câu hỏi đang chờ bạn, khách cần người thật, bot chatbot đang lỗi, Javis không dùng được, trang bạn theo dõi có thay đổi. Tin khác vẫn nằm trong chuông, ở ngăn **Đã lọc (N)** cuối danh sách. Việc bạn giao từ một khung chat thì kết quả vẫn về đúng khung chat đó.
+- Mỗi thông báo thuộc một **nhóm** (Nhắc lịch, Gợi ý của trợ lý, Câu hỏi chờ bạn, Chatbot và khách, Kết nối và đăng nhập, Sự cố, Kết quả việc, Trợ lý chủ động, Nhóm làm việc, Chi phí, Cập nhật, Khác) và có một **mức**: bình thường, đáng chú ý hoặc khẩn.
+- **Mặc định chỉ tin khẩn mới báo**: nhắc lịch, câu hỏi đang chờ bạn, khách cần người thật, bot chatbot đang lỗi, Javis không dùng được, trang bạn theo dõi có thay đổi. Riêng nhóm **Gợi ý của trợ lý** mặc định báo từ mức đáng chú ý (xem mục Auto bên dưới). Tin khác vẫn nằm trong chuông, ở ngăn **Đã lọc (N)** cuối danh sách. Việc bạn giao từ một khung chat thì kết quả vẫn về đúng khung chat đó.
 - Tab **Bộ lọc** của chuông: mỗi nhóm chọn **Tất cả**, **Đáng chú ý trở lên**, **Chỉ tin khẩn** hoặc **Tắt**; xem loại tin có luật riêng; xem và **Hoàn tác** các thay đổi gần đây.
 - Mỗi thông báo có hai nút **Nên báo** và **Không cần báo**. Muốn chấm bằng emoji thì bấm **Mở trong Javis Core**: thông báo thành một tin trong chat Javis Core, thả emoji của Cộng hưởng (👍 ❤️ 😂 😮 😢 😡) lên tin đó như mọi câu trả lời, kèm "Đáng lẽ nên nói" hoặc "Nên im" nếu muốn. Javis Core tự chỉnh theo phản hồi: bấm Không cần báo là loại tin đó bị lọc; bấm Nên báo lên một tin đã lọc là loại đó luôn được báo; một nhóm bị chê nhiều thì hạ một nấc. Mỗi lần chỉnh, Javis Core nói một câu trong chat của nó.
 - Một loại tin báo tới lần thứ 3 trong 6 tiếng thì các lần sau trong 6 tiếng đó bị lọc là "lặp lại".
 - Javis Core **không bao giờ tự giấu tin khẩn**. Chỉ bạn làm được, bằng chế độ Tắt hoặc nút Không cần báo.
 - Nói trong chat Javis Core cũng được, ví dụ "tắt thông báo đăng nhập Zalo" hay "báo hết cho tôi": Javis Core dùng công cụ `javis_notify` và trả kèm mã để hoàn tác.
+
+### Auto: trợ lý tự gợi ý và nhắc nhở
+
+Bật **Auto** trên thẻ trợ lý là trao **toàn quyền** cho trợ lý đó. Javis hỏi lại một lần khi bạn bật.
+
+- **Tự nhìn quanh.** Ở chat riêng với bạn, mỗi lần tự thức trợ lý dùng mọi công cụ đã kết nối (email, lịch, bán hàng, quảng cáo, tra web...) trong vai của nó.
+- **Tự làm việc thật** khi việc đó nằm trong vai và bạn chắc chắn muốn. Việc nào đã làm cũng luôn được báo lại.
+- **Tự hẹn giờ kiểm lại.** Thấy việc có ngày giờ (giải chạy, cuộc hẹn, hạn nộp) thì trợ lý tự đặt mốc, ví dụ sáng hôm trước hay tối hôm trước. Tới giờ nó kiểm lại nguồn rồi mới quyết có nhắn không. Mốc đang chờ hiện ở mục **Sẽ tự kiểm lại** trong phần Nhịp chủ động của trợ lý; mốc nào hết ý nghĩa thì trợ lý tự huỷ.
+- **Chỉ nhắn khi đáng.** Tin phải mới, đúng lúc và làm được ngay. Tối đa hai đoạn ngắn, một lời khuyên cụ thể, kèm link nguồn thật.
+- **Hai loại tin.** Lời nhắc có giờ giấc vào nhóm **Nhắc lịch** (luôn báo). Gợi ý vào nhóm **Gợi ý của trợ lý** (mặc định báo, hạ hay tắt ở tab Bộ lọc của chuông).
+- **Học từ phản hồi.** Thả ❤️ hay 👍 lên tin hữu ích thì trợ lý nhìn quanh dày hơn (tới mỗi giờ); bỏ qua hay chê thì thưa dần. Mỗi lần nhìn quanh tính vào hạn mức lượt tự phát trong ngày của trợ lý.
+
+Auto chỉ chạy kiểu này ở **chat riêng**. Trong Team, quyền vẫn do **Toàn quyền** của Team quyết. Quản trị máy chủ đặt `JAVIS_PULSE_TOOLS=0` thì mọi trợ lý quay về lượt tự thức chỉ chữ như trước.
 
 ### Tin chưa đọc và tắt thông báo
 

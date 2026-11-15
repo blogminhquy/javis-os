@@ -171,7 +171,8 @@ check("Work tab text 13px, buttons 44px on touch screens", /\.aj \{[^}]*font-siz
 const RAX = require(path.join(ROOT, "dashboard", "resonance-agent.js"));
 check("tên hiển thị là Auto ở cả hai thứ tiếng, mô tả đúng câu chủ chốt",
   vi["resonance.a1_title"] === "Auto" && en["resonance.a1_title"] === "Auto" && vi["resonance.t0_state_on"] === "Auto: Bật"
-  && vi["resonance.auto_desc"] === "Tự làm tiếp mục tiêu được giao và báo kết quả.");
+  // 2026-11-14 (owner): Auto gives full access and messages suggestions and reminders, so the key sentence says so.
+  && vi["resonance.auto_desc"] === "Tự làm tiếp mục tiêu, tự nhìn quanh và nhắn gợi ý, nhắc nhở khi thật sự có ích.");
 check("không còn chữ 'Cộng hưởng' ở nhãn hiển thị resonance.* / teams.*",
   Object.keys(vi).filter(function (k) { return /^(resonance|teams|ws|ajobs)\./.test(k) && /Cộng hưởng/.test(vi[k]); }).length === 0);
 const wsJs = fs.readFileSync(path.join(ROOT, "dashboard", "workspace.js"), "utf8");
@@ -193,8 +194,8 @@ check("0.190.0: Auto trên mọi thẻ, cùng cụm với giờ ở góc dưới
   && /\.ws-auto \.toggle-sm span \{ background: var\(--bg3\)/.test(css)
   && /\.ws-item-end > \.ws-auto::after, \.ws-item-end > \.ws-rs-confirm::after \{ content: ""; position: absolute; inset: -12px -6px; \}/.test(css));
 const ph = RAX.panelHtml({ slug: "a", status: "active", enabled: true }, "ready", [], []);
-check("bảng trợ lý: mô tả Auto và câu Auto không phải Toàn quyền", ph.includes(vi["resonance.auto_desc"])
-  && ph.includes(vi["resonance.auto_not_full"]));
+check("bảng trợ lý: mô tả Auto và câu Auto là toàn quyền", ph.includes(vi["resonance.auto_desc"])
+  && ph.includes(vi["resonance.auto_full"]));
 check("hỏi lại khi tắt: nói rõ không huỷ việc, vẫn chat và nhận việc trực tiếp",
   /không bị huỷ/.test(vi["resonance.t0_off_confirm"]) && /nhận việc trực tiếp/.test(vi["resonance.t0_off_confirm"]));
 

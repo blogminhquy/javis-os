@@ -60,6 +60,7 @@
  "resonance.a5_removed_line": "status: goal card state line in chat, paused awaiting owner",
  "resonance.drift": "status: goal card warning, file edited outside Javis",
  "resonance.t0_off_confirm": "confirm: confirm() before turning Auto off",
+ "resonance.t0_on_confirm": "confirm: confirm() before turning Auto on, says it gives full access",
  "rp.owner_none": "status: no owner set, says what to press",
  "rp.stats": "status: numbers summary line of the panel",
  "settings.v2_last_error": "error: last voice fast-lane failure",

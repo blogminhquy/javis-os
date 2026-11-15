@@ -28,7 +28,7 @@ import localefmt
 TEXT_MAX = 8000          # mục tiêu giao cho nhóm, ký tự
 RESULT_SHOWN = 1500      # phần kết quả kèm trong tin báo
 WATCH_LIMIT = 200
-SCHEDULED = ("reminder", "kanban")   # việc nền chủ đã lên lịch: được giao việc cho nhóm như chủ
+SCHEDULED = ("reminder", "kanban", "pulse")   # việc nền chủ đã lên lịch hay cho phép (Auto): giao việc cho nhóm như chủ
 NO_TURN_BUCKET_S = 1800  # kênh không có mã tin: gửi lại cùng mục tiêu trong 30 phút coi là cùng một lần giao
 
 

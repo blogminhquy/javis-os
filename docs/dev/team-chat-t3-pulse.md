@@ -245,3 +245,35 @@ Test hồi quy: `tests/python/test_t3_event_loop.py` (kho phán xử và kho res
 chính 250 ms: lô nhóm có lượt tự lên tiếng, tin chủ động + chờ + gỡ chờ + xét lại + gửi ở chat riêng, nhịp pulse với mọi hàm
 host chậm: khoảng trống loop < 100 ms và không hàm kho nào chạy trên luồng loop; huỷ ngay sau giữ chỗ thì hoàn; bộ chiếu hai
 nhịp không chiếu lại, không ghi lại, đọc theo lô). Trên mã gốc test này đỏ (trễ 4,1 giây ở lô nhóm, 2,8 giây ở chat riêng).
+
+## 10. Auto toàn quyền: lượt tự thức có công cụ, mốc tự hẹn (2026-11-14)
+
+Chủ repo 14/11/2026, so với tin chủ động của ChatGPT (nhắc lấy BIB sáng hôm trước giải chạy, báo bãi xe đổi tối hôm trước):
+"bật auto là chấp nhận cho full quyền, kể cả quyền hành động"; agent "sẽ quét các tool, tự đặt lịch nhắc, và tìm những gì
+hữu ích"; tin "không phải là thông báo nữa, mà kiểu như gợi ý và nhắc nhở", ngắn, dễ hiểu.
+
+- **Ở đâu:** `PulseHostDeps.tool_scan(key, ctx)`. `main._pulse_tool_scan`: chỉ `dm:<agent_key>` (nhịp chỉ chạy cho trợ lý
+  bật Auto). Nhóm giữ lượt chỉ chữ của mục 4: quyền trong nhóm do Toàn quyền của nhóm quyết. `JAVIS_PULSE_TOOLS=0` tắt hẳn.
+- **Mọi lần thức đều quét** (bỏ luật "mỗi 3 lần thức, tối đa một lần mỗi ngày" cho ngữ cảnh này). Số lần do bậc (học từ
+  phản hồi, mặc định 1 ngày, nhanh nhất `max_tier`), hạn mức ngày của agent và trần chung giữ.
+- **Lượt:** `req["tool_turn"] = True` qua `_team_engine_for` (hub `full`, thư mục brain, như bước Work của nhóm). Hệ thống là
+  persona + `TOOL_SCAN_RULES`; lời nhắc là `scan_context` (giờ của chủ có thứ và múi giờ, hồ sơ, chỉ mục bộ nhớ 6.000 ký tự,
+  nhật ký hội thoại hôm qua và hôm nay 5.000 ký tự cuối, 12 tin chat riêng gần nhất đánh dấu tin chủ động và phản hồi, mốc
+  đang chờ) + lý do thức. `_pulse_engine_for` gắn danh tính lượt `pulse` (chat_id `web:<phiên chat riêng>`, `job`
+  `pulse:<mã lượt>` cho `once_ledger`); `team_dispatch.SCHEDULED` nhận `pulse` như nhắc hẹn và việc Kanban.
+- **Đầu ra:** `{"action": none|say, "kind": reminder|suggestion, "text", "did": [...], "follow_ups": [{"at", "note"}],
+  "cancel_follow_ups": [id]}`. `parse_action` lấy khối JSON cuối có `action` hợp lệ.
+- **Việc đã làm luôn được báo:** `did` khác rỗng thì tin đi thẳng, KHÔNG qua bộ phán xử (`verdict = "acted"`); chọn none hay
+  propose mà có `did` thì vẫn gửi một tin liệt kê việc đã làm. Tin không kèm việc vẫn qua `judge_proactive` như mục 4.
+- **Mốc tự hẹn** (`pulse_followups`, tạo cùng các bảng T3 trong `ensure`): giờ không múi giờ hiểu theo múi giờ của chủ; kẹp
+  [10 phút, 60 ngày]; bỏ trùng (cùng ghi chú, cách dưới 30 phút); tối đa 3 mốc mỗi lượt, 8 mốc đang chờ mỗi ngữ cảnh.
+  `followup_wakes` (chỉ đọc) tìm dòng có mốc tới giờ chưa kích hoạt ở trạng thái có lịch; host nhận bằng CAS như lịch theo
+  bậc, đang bận thì để nhịp sau (không ghi gì). `take_due_followups` đưa mốc vào danh sách cơ hội (`followup:<id>`) và đánh
+  dấu `fired_at`; lượt chạy xong thì `close_followups`. Lượt lỗi: mốc vẫn chờ nhưng không kích hoạt lại mỗi nhịp, đi theo
+  lần thức theo bậc kế tiếp. Tạm dừng, tắt, ngủ đông, chờ chủ: mốc không đánh thức.
+- **Gửi:** `meta.kind` theo tin. `main._PULSE_KIND_GROUP`: nhắc nhở vào nhóm `reminder` (khẩn), gợi ý vào nhóm mới `suggest`
+  ("Gợi ý của trợ lý", `notify_policy.GROUP_DEFAULT_MODE` = đáng chú ý). Tin không loại (lượt chỉ chữ) giữ đường cũ.
+- **Giao diện:** bật Auto hỏi lại một lần (`resonance.t0_on_confirm`); câu "Auto không phải Toàn quyền" thay bằng
+  `resonance.auto_full`.
+- **Test:** `tests/python/test_pulse_auto_full.py` (host, engine giả), `tests/python/test_pulse_auto_full_main.py` (nối ở
+  main, chặn engine thật).
