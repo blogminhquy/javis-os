@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.565.0] - 2026-11-15
+### Added
+- **ChatGPT and Claude can set the model and effort inside the command they send through Javis Gate.** Tell ChatGPT "have Javis do this on Opus at high effort": the model is pinned on that chat as if you picked it in the model bar (the chip shows it, change it back any time), and the effort counts for that one message only, nothing in your settings changes. A new `javis_chat_models` tool lets the outside AI see which models Javis has.
+- **When work ChatGPT sent finishes after it stopped waiting, the Javis bell rings your phone**, with the answer and the sentence to send ChatGPT ("check Javis results"). ChatGPT and Claude do not let outside servers wake a chat yet, so this is the shortest path: one message, and the new `javis_chat_updates` tool hands over every unread result, even in a new ChatGPT chat.
+### Improved
+- **ChatGPT waits longer for Javis within the same reply** (up to about 10 minutes) instead of giving up after half a minute, and knows how long Javis has been working.
+
 ## [0.564.0] - 2026-11-15
 ### Added
 - **Add GitHub repositories to a Project.** Open the project panel, Documents tab, Add document, then GitHub repository. Every chat in the project gets the repository from its first message, each on its own branch.
