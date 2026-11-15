@@ -1119,11 +1119,27 @@ def _thinking_rejected(status, body_text):
     return "reasoning_content" in low or "thinking" in low
 
 
+# "gemini-2.5-flash" -> ("2", "5"), "gemini-4-argon" -> ("4", None).
+_GEMINI_VERSION = re.compile(r"(?:^|/)gemini-(\d+)(?:\.(\d+))?(?![\d.])")
+
+
 def _gemini_is_reasoning(model):
-    """Gemini: model 'thinking' (2.5 trở lên) nhận reasoning_effort qua endpoint OpenAI-compat.
-    Model cũ (1.5 / 2.0-flash không thinking) → KHÔNG gửi để tránh 400."""
+    """True when a Gemini model takes `reasoning_effort` on the OpenAI-compatible endpoint.
+
+    Every Gemini from 2.5 on thinks. The old check listed versions by hand ("2.5", "gemini-3"),
+    so Gemini 4 (Hydrogen, Argon, Carbon) was read as a model that cannot think: Javis never sent
+    the Effort level, and the slider silently did nothing on those models. Compare the version
+    number instead, so the next family is covered too. Only 1.x and 2.0 stay out (they answer
+    400 to the field), plus models that carry no Gemini version at all (gemma, learnlm).
+    """
     m = (model or "").lower()
-    return "2.5" in m or "gemini-3" in m or "thinking" in m
+    if "thinking" in m:
+        return True
+    v = _GEMINI_VERSION.search(m)
+    if v:
+        return (int(v.group(1)), int(v.group(2) or 0)) >= (2, 5)
+    # Moving aliases such as "gemini-flash-latest" always point at a current, thinking model.
+    return m.rsplit("/", 1)[-1].startswith("gemini-") and m.endswith("-latest")
 
 
 # ── Ollama (Local): its OWN thinking level, not the shared Effort button (0.95.1) ─────────────────
