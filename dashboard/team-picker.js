@@ -207,11 +207,39 @@
     });
   }
 
-  function docsCount(st) { return (st.docs || []).length + (st.links || []).length; }
+  function docsCount(st) { return (st.docs || []).length + (st.links || []).length + (st.repos || []).length; }
+
+  // 2026-11-15 (owner: "cả trong tài liệu của agent và team cũng có khả năng thêm repo"): GitHub repos picked in the
+  // create box. The picker is team-github.js, saving into the box's state; teams.js attaches them to the new team's
+  // chat once POST /teams answers (the same route as the "Repo GitHub" part of the team's Info tab).
+  function repoLogo() {
+    var G = typeof window !== "undefined" && window.JavisGithubRepos;
+    return G && G.logo ? G.logo : ic("git-branch");
+  }
+  function setRepos(st, names) {
+    var out = [];
+    (names || []).forEach(function (n) {
+      n = String(n || "").trim();
+      if (n && out.map(function (x) { return x.toLowerCase(); }).indexOf(n.toLowerCase()) < 0) out.push(n);
+    });
+    return Object.assign({}, st, { repos: out });
+  }
+  function removeRepo(st, i) {
+    var repos = (st.repos || []).slice();
+    repos.splice(Number(i), 1);
+    return Object.assign({}, st, { repos: repos });
+  }
+  function repoChipsHtml(st) {
+    return (st.repos || []).map(function (n, i) {
+      return '<span class="tmp-doc tmp-repo">' + repoLogo() + '<span class="tmp-doc-name" title="' + esc(n) + '">' +
+        esc(String(n).split("/").pop()) + '</span><button type="button" class="tmp-sel-x" data-repo-del="' + i + '" aria-label="' +
+        esc(tw("teams.pick.doc_remove", { name: n })) + '">' + ic("x") + "</button></span>";
+    }).join("");
+  }
 
   function docChipsHtml(st) {
     var docs = st.docs || [], links = st.links || [];
-    if (!docs.length && !links.length) return "";
+    if (!docs.length && !links.length) return repoChipsHtml(st);
     return docs.map(function (d, i) {
       var state = d.busy ? tw("teams.pick.doc_uploading") : d.err ? tw("teams.pick.doc_failed") : "";
       return '<span class="tmp-doc' + (d.err ? " is-err" : "") + (d.busy ? " is-busy" : "") + '">' +
@@ -224,7 +252,7 @@
       return '<span class="tmp-doc">' + ic("link") + '<span class="tmp-doc-name" title="' + esc(u) + '">' + esc(u.replace(/^https?:\/\//i, "")) +
         '</span><button type="button" class="tmp-sel-x" data-link-del="' + i + '" aria-label="' + esc(tw("teams.pick.doc_remove", { name: u })) +
         '">' + ic("x") + "</button></span>";
-    }).join("");
+    }).join("") + repoChipsHtml(st);
   }
 
   // Search results: files and folders of the brain whose name matches (a folder row has `dir`, and its path ends in
@@ -249,7 +277,7 @@
   }
 
   function docsHtml(st) {
-    var open = !!(st.docsOpen || docsCount(st) || st.docQuery || st.linkDraft);
+    var open = !!(st.docsOpen || docsCount(st) || st.docQuery || st.linkDraft || st.repoOpen);
     return '<details class="tmp-desc tmp-docs"' + (open ? " open" : "") + '><summary class="tmp-docs-sum">' + docsSummaryHtml(st) +
       '</summary><p class="tmp-docs-help">' + esc(tw("teams.pick.docs_help")) + '</p><div class="tmp-docs-chips">' + docChipsHtml(st) +
       '</div><div class="tmp-docs-row"><input class="tmp-doc-search" type="search" value="' + esc(st.docQuery || "") + '" placeholder="' +
@@ -258,7 +286,10 @@
       '<div class="tmp-doc-results">' + docResultsHtml(st) + '</div><div class="tmp-docs-row"><input class="tmp-link-input" type="url" value="' +
       esc(st.linkDraft || "") + '" placeholder="' + esc(tw("teams.pick.link_ph")) + '" aria-label="' + esc(tw("teams.pick.link_ph")) + '">' +
       '<button type="button" class="ws-btn tmp-link-add">' + esc(tw("teams.pick.link_add")) + "</button></div>" +
-      (st.linkBad ? '<div class="tmp-doc-note tmp-doc-warn" role="alert">' + esc(tw("teams.pick.link_bad")) + "</div>" : "") + "</details>";
+      (st.linkBad ? '<div class="tmp-doc-note tmp-doc-warn" role="alert">' + esc(tw("teams.pick.link_bad")) + "</div>" : "") +
+      '<div class="tmp-docs-row"><button type="button" class="ws-btn tmp-repo-open" aria-expanded="' + (st.repoOpen ? "true" : "false") + '">' +
+      repoLogo() + " " + esc(tw("teams.gh_attach")) + "</button></div>" +
+      '<div class="tmp-repo-box"' + (st.repoOpen ? "" : " hidden") + "></div></details>";
   }
 
   function face(a, size) {
@@ -398,6 +429,7 @@
     canSubmit: canSubmit, html: html, listHtml: listHtml, selectedHtml: selectedHtml, tagsHtml: tagsHtml,
     leaderHtml: leaderHtml, footerHtml: footerHtml, previewHtml: previewHtml, setLeader: setLeader, NO_TAG: NO_TAG,
     DOCS_MAX: DOCS_MAX, docsBusy: docsBusy, hasDoc: hasDoc, addDoc: addDoc, removeDoc: removeDoc, cleanLink: cleanLink,
+    setRepos: setRepos, removeRepo: removeRepo, repoChipsHtml: repoChipsHtml,
     addLink: addLink, removeLink: removeLink, docPayload: docPayload, docsCount: docsCount, docsHtml: docsHtml,
     docChipsHtml: docChipsHtml, docResultsHtml: docResultsHtml, docsSummaryHtml: docsSummaryHtml, searchRows: searchRows,
     setStrings: function (o) { FALLBACK = o || {}; } };

@@ -4191,6 +4191,8 @@
       desc: "", descOpen: false, exclude: exclude, saving: false, error: "", rosterState: (S.roster || []).length ? "ok" : "loading",
       // 2026-11-12: documents picked in the create box (team-picker.js: docs, links and the brain file search).
       docs: [], links: [], docQuery: "", docResults: [], docState: "idle", docsOpen: false, linkDraft: "", linkBad: false,
+      // 2026-11-15: GitHub repos picked in the create box, attached to the team's chat once it exists.
+      repos: [], repoOpen: false,
       reqId: newClientId() };
     S.pickOpener = opener || null;
     document.removeEventListener("keydown", pickEsc, true);
@@ -4235,6 +4237,7 @@
       host.innerHTML = P.html(st, roster);
       var first = host.querySelector(st.mode === "create" ? ".tmp-name-input" : ".tmp-search-input");
       if (first && !(typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches)) first.focus();
+      pickMountRepos();       // the repo picker is live DOM: a whole redraw drops it, so it is put back
       return;
     }
     var put = function (sel, h) { var box = host.querySelector(sel); if (box) box.innerHTML = h; };
@@ -4277,13 +4280,59 @@
     var P = TP(), st = S.pickSt, host = S.pickHost;
     if (!P || !st || !host) return;
     var put = function (sel, h) { var box = host.querySelector(sel); if (box) box.innerHTML = h; };
-    if (whole) put(".tmp-docs-box", P.docsHtml(st));
+    if (whole) { put(".tmp-docs-box", P.docsHtml(st)); pickMountRepos(); }
     else {
       put(".tmp-docs-chips", P.docChipsHtml(st));
       put(".tmp-doc-results", P.docResultsHtml(st));
       put(".tmp-docs-sum", P.docsSummaryHtml(st));
     }
     put(".tmp-foot-box", P.footerHtml(st));
+  }
+
+  // 2026-11-15: GitHub repos in the create box. The same picker as the team's Info tab (team-github.js), but nothing
+  // is attached while the box is open: ticks only change S.pickSt.repos, and submitPicker attaches them to the new
+  // team's chat. Put back after every whole redraw of the documents block (drawPickDocs(true), drawPicker("all")).
+  function pickToggleRepos() {
+    var st = S.pickSt;
+    if (!st) return;
+    st.repoOpen = !st.repoOpen;
+    var host = S.pickHost, box = host && host.querySelector(".tmp-repo-box"), btn = host && host.querySelector(".tmp-repo-open");
+    if (btn) btn.setAttribute("aria-expanded", st.repoOpen ? "true" : "false");
+    if (box) { box.hidden = !st.repoOpen; if (!st.repoOpen) box.innerHTML = ""; }
+    pickMountRepos();
+  }
+  function pickMountRepos() {
+    var st = S.pickSt, host = S.pickHost, G = window.JavisTeamGithub;
+    var box = host && host.querySelector(".tmp-repo-box");
+    if (!st || !st.repoOpen || !box || !G || st.mode !== "create") return;
+    box.hidden = false;
+    G.panel(box, {
+      brain: brain,
+      current: function () { return (S.pickSt && S.pickSt.repos) || []; },
+      save: function (names) {
+        if (!S.pickSt) return { ok: false };
+        S.pickSt = TP().setRepos(S.pickSt, names);
+        return { ok: true, repos: S.pickSt.repos.map(function (n) { return { full_name: n }; }) };
+      },
+      changed: function () { drawPickDocs(); },
+      close: function () { if (S.pickSt) { S.pickSt.repoOpen = false; drawPickDocs(true); } },
+      connections: function () { closePicker(); try { window.Alpine.store("nav").go("mcp"); } catch (e) { location.hash = "#p=mcp"; } } });
+  }
+  // After POST /teams: attach the picked repos to the new team's chat (cloning can take a while, so the team opens
+  // first and the chip appears when the repos are in). A failure is said on the team, where the Info tab can retry.
+  function attachNewTeamRepos(team, names, quiet) {
+    var sid = team && team.session_id;
+    if (!sid || !(names || []).length) return;
+    var b = new FormData();
+    b.append("brain", brain()); b.append("repos", names.join(","));
+    if (!quiet) setNote(tw("gh.cloning"));      // `quiet`: a note about documents is already on screen
+    fetch("/github/session/" + q(sid) + "/repos", { method: "POST", body: b, credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (d) {
+        if (!d || d.ok === false) { setNote((d && d.error) || tw("gh.err_net")); return; }
+        if (S.note === tw("gh.cloning")) setNote("");
+        if (sessionId() === sid) setRepos(d);
+      }, function () { setNote(tw("gh.err_net")); });
   }
 
   var pickDocTimer = null;
@@ -4365,10 +4414,12 @@
           closePicker();
           // The team exists either way; a document the server could not take is said once, with where to add it.
           var missed = (r.j.documents && r.j.documents.failed) || 0;
+          var repos = (st.repos || []).slice();
           S.focusComposer = true;
           loadTeams(false).then(function () {
             openTeam(r.j.team.team_id);
             if (missed) setNote(tw("teams.pick.docs_partial", { n: missed }));
+            attachNewTeamRepos(r.j.team, repos, missed > 0);
           });
         }, function () { pickFail(tw("teams.pick.err_network")); });
       return;
@@ -4567,6 +4618,8 @@
     if (d.docAdd !== undefined) return pickAddDoc(Number(d.docAdd));
     if (d.docDel !== undefined) { if (S.pickSt) { S.pickSt = TP().removeDoc(S.pickSt, d.docDel); drawPickDocs(); } return; }
     if (d.linkDel !== undefined) { if (S.pickSt) { S.pickSt = TP().removeLink(S.pickSt, d.linkDel); drawPickDocs(); } return; }
+    if (t.classList.contains("tmp-repo-open")) return pickToggleRepos();
+    if (d.repoDel !== undefined) { if (S.pickSt) { S.pickSt = TP().removeRepo(S.pickSt, d.repoDel); drawPickDocs(); pickMountRepos(); } return; }
     if (t.classList.contains("tmp-cancel")) return closePicker();
     if (t.classList.contains("tmp-submit")) return submitPicker();
     if (t.classList.contains("tm-more-teams")) return loadTeams(true);

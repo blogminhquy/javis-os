@@ -78,6 +78,8 @@
   // The picker inside `box`. opts: {sid(), brain(), current() -> [full names], changed(view), close(), connections()}.
   // Ticking attaches at once and unticking detaches (like the main composer); a tick made while a request is in flight
   // rides on the next one, so the server always ends on the last state shown.
+  // 2026-11-15: `opts.save(names)` replaces the chat route, so the same picker sets the repos of a PROJECT or an
+  // ASSISTANT (sessions-ui.js drawer). It returns a promise of the server's answer ({ok, repos} or {ok: false, error}).
   function panel(box, opts) {
     box.innerHTML = '<div class="cp-empty pg-loading">' + esc(tw("gh.loading")) + "</div>";
     api("/github/status").then(function (st) {
@@ -120,11 +122,13 @@
     function sync() {
       if (busy || sameSet(chosen, sent)) return;
       var want = chosen.slice(), adds = want.some(function (x) { return sent.indexOf(x) < 0; });
-      var sid = opts.sid();
-      if (!sid) return;
+      var sid = opts.save ? "" : opts.sid();
+      if (!opts.save && !sid) return;
       busy = true;
       err.textContent = adds ? tw("gh.cloning") : "";
-      save(sid, opts.brain(), want).then(function (d) {
+      (opts.save ? Promise.resolve(opts.save(want)) : save(sid, opts.brain(), want)).then(null, function () {
+        return { ok: false };     // a thrown save must not leave the picker busy for good
+      }).then(function (d) {
         busy = false;
         if (!d || d.ok === false) {
           chosen = sent.slice();

@@ -876,6 +876,102 @@ def attach(sid: str, brain: str, brain_root: str, full_names: List[str]) -> Dict
     return session_view(sid, brain)
 
 
+# ============================================================
+# Repos a chat inherits from its project or its assistant (2026-11-15)
+# ============================================================
+# Owner, 15/11/2026: "ở chức năng project cũng có khả năng thêm repo để dễ dàng tạo các dự án code, hoặc cả trong tài
+# liệu của agent và team". A project (sessions.project_repos) or an assistant (`assets.repos` in its file) lists repos;
+# every chat of it gets them on its next turn, each on the chat's own branch like a repo picked in the composer.
+# Each repo is offered ONCE per chat (`seeded` in the registry): a repo the person detached from one chat stays
+# detached, while a repo added to the project later still reaches its older chats.
+def prepare(brain: str, brain_root: str, full_names: List[str]) -> List[str]:
+    """Check and clone the repos a project or an assistant is about to list, so a chat that inherits one later only
+    adds a worktree. Returns the names as GitHub spells them; raises RepoError (localized) on the first failure."""
+    out: List[str] = []
+    for fn in full_names or []:
+        n = norm_full_name(fn)
+        if n.lower() in {o.lower() for o in out}:
+            continue
+        out.append(ensure_clone(brain, brain_root, n)["full_name"])
+    return out
+
+
+def seeded(sid: str) -> List[str]:
+    """Lower-cased names of the inherited repos this chat was already given (or already had)."""
+    got = (_load().get("seeded") or {}).get(str(sid or ""), [])
+    return [str(x) for x in got] if isinstance(got, list) else []
+
+
+def _mark_seeded(sid: str, names: List[str]) -> None:
+    if not names:
+        return
+    with _lock:
+        d = _load()
+        per = d.setdefault("seeded", {}).setdefault(str(sid), [])
+        for n in names:
+            if n.lower() not in per:
+                per.append(n.lower())
+        _save(d)
+
+
+def _forget_seeds(sid: str) -> None:
+    with _lock:
+        d = _load()
+        if (d.get("seeded") or {}).pop(str(sid), None) is not None:
+            _save(d)
+
+
+def seed_session(sid: str, brain: str, brain_root: str, full_names: List[str]) -> Dict[str, Any]:
+    """Attach to a chat the inherited repos it has not been given yet. Never detaches anything, never moves the chat's
+    main folder: a new repo goes after what the chat already has (a chat with nothing gets it as its main folder).
+
+    A repo that fails (GitHub disconnected, no access) is not marked, so the next turn tries again.
+    Returns {"attached": [names], "failed": [{"full_name", "error"}]}.
+    """
+    sid = str(sid or "").strip()
+    out: Dict[str, Any] = {"attached": [], "failed": []}
+    if not sid or not full_names:
+        return out
+    done = set(seeded(sid))
+    todo: List[str] = []
+    for fn in full_names:
+        try:
+            n = norm_full_name(fn)
+        except RepoError:
+            continue
+        if n.lower() not in done and n.lower() not in {t.lower() for t in todo}:
+            todo.append(n)
+    if not todo:
+        return out
+    on_chat = {str(r.get("repo") or "").lower() for r in coding_store.thu_muc_cua_phien(sid) if r.get("nguon") == SOURCE}
+    marked: List[str] = []
+    for n in todo:
+        if n.lower() in on_chat:
+            marked.append(n)          # already picked in the composer: nothing to add, only remember it was offered
+            continue
+        ids: List[str] = []
+        rec: Dict[str, Any] = {}
+        try:
+            rec = ensure_clone(brain, brain_root, n)
+            ids = [r["id"] for r in coding_store.thu_muc_cua_phien(sid)]
+            if rec["folder_id"] not in ids:
+                coding_store.dat_rang_buoc(sid, thu_muc_ids=ids + [rec["folder_id"]])
+            ensure_worktree(sid, rec)
+        except Exception as e:  # noqa: BLE001 - one repo failing must not stop the turn or the other repos
+            # A folder bound without its worktree would put the engine in the shared clone: take it off again.
+            if rec.get("folder_id") and rec["folder_id"] not in ids:
+                try:
+                    coding_store.dat_rang_buoc(sid, thu_muc_ids=ids)
+                except Exception:  # noqa: BLE001
+                    pass
+            out["failed"].append({"full_name": n, "error": str(e) or type(e).__name__})
+            continue
+        out["attached"].append(rec.get("full_name") or n)
+        marked.append(n)
+    _mark_seeded(sid, marked)
+    return out
+
+
 def _rec_for_folder(brain: str, folder: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     fn = folder.get("repo") or ""
     if not fn:
@@ -1141,6 +1237,7 @@ def forget_session(sid: str) -> Dict[str, Any]:
             continue
         _remove_worktree(folder["duong_dan"], wt)
         coding_store.dat_worktree_thu_muc(sid, folder["id"], "")
+    _forget_seeds(sid)
     if not kept:
         coding_store.xoa_rang_buoc(sid)
         _forget_bases(sid)

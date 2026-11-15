@@ -8779,6 +8779,51 @@ def _cwd_luot_chat(row, brain: str) -> str:
     return _brain_root(brain)
 
 
+def _inherited_repos(row, persona, brain: str) -> list:
+    """GitHub repos a chat inherits (2026-11-15): its project's, then its assistant's (a private chat on the Partners
+    page). Names only; github_repos.seed_session decides which ones this chat still lacks."""
+    names: list = []
+    pid = (row or {}).get("project_id") or ""
+    if pid:
+        try:
+            names += get_store().project_repo_names(pid)
+        except Exception as e:  # noqa: BLE001 - a store hiccup only means no inherited repo this turn
+            print(f"[repo seed] project {pid}: {type(e).__name__}: {e}", file=sys.stderr)
+    if persona and persona[0] == "agent":
+        try:
+            names += agent_assets.repo_names(_read_md(_agents_dir(brain) / f"{persona[1]}.md")[0])
+        except Exception as e:  # noqa: BLE001
+            print(f"[repo seed] agent {persona[1]}: {type(e).__name__}: {e}", file=sys.stderr)
+    return names
+
+
+async def _seed_chat_repos(ws, row, brain: str, persona) -> None:
+    """Attach the repos of the chat's project or assistant BEFORE the engine starts, so this very turn runs in them.
+    Each repo is offered once per chat (a repo detached from the chat stays detached). A failure is said in one line
+    and never stops the turn; the repo is tried again next turn."""
+    sid = (row or {}).get("id") or ""
+    if not sid:
+        return
+    try:
+        import github_repos
+        names = await asyncio.to_thread(_inherited_repos, row, persona, brain)
+        given = set(await asyncio.to_thread(github_repos.seeded, sid)) if names else set()
+        if not [n for n in names if n.lower() not in given]:
+            return
+        await ws.send_text(json.dumps({"type": "status", "content": localefmt.chu(
+            "Đang gắn repo GitHub vào cuộc này...", "Attaching the GitHub repos to this chat...")}))
+        res = await asyncio.to_thread(github_repos.seed_session, sid, brain, str(_brain_root(brain)), names)
+    except Exception as e:  # noqa: BLE001 - an inherited repo must never break the turn
+        print(f"[repo seed] {sid[:12]}: {type(e).__name__}: {e}", file=sys.stderr)
+        return
+    if res.get("attached"):
+        print(f"[repo seed] {sid[:12]} attached {', '.join(res['attached'])}", file=sys.stderr)
+    for f in res.get("failed") or []:
+        await ws.send_text(json.dumps({"type": "system", "content": localefmt.chu(
+            f"Chưa gắn được repo {f['full_name']} vào cuộc này: {f['error']}. Lượt sau Javis thử lại.",
+            f"Could not attach {f['full_name']} to this chat: {f['error']}. Javis tries again next turn.")}))
+
+
 def _khoi_coding(row, brain: str = "") -> str:
     """Khối prompt của phiên Coding (thư mục làm việc, nhánh, và mức quyền nghĩa là gì).
 
@@ -10402,7 +10447,7 @@ async def agent_assets_list(slug: str, brain: str = Query("brain")):
     meta, _body = _read_md(f)
     kho = agent_assets.doc(meta)
     return {"ok": True, "slug": slug, "name": meta.get("name", slug),
-            "files": kho["files"], "links": kho["links"]}
+            "files": kho["files"], "links": kho["links"], "repos": agent_assets.repos(meta)}
 
 
 @app.post("/agents/{slug}/assets/files")
@@ -10479,6 +10524,47 @@ async def agent_assets_pin_link(slug: str, link_id: str, pinned: str = Form("1")
     on = str(pinned).strip() in ("1", "true", "True", "on")
     ok, loi = await asyncio.to_thread(_agent_assets_sua, brain, slug, lambda m: agent_assets.ghim_link(m, link_id, on))
     return loi or {"ok": bool(ok), "pinned": on}
+
+
+def _repo_names_form(raw: str) -> list:
+    """Comma separated full names, as the repo picker sends them (team-github.js)."""
+    return [x.strip() for x in str(raw or "").split(",") if x.strip()]
+
+
+async def _repos_prepare(brain: str, have: list, names: list):
+    """The list to store for a project or an assistant: the names kept as they are, the new ones checked and cloned
+    (github_repos.prepare) so their chats only add a worktree. Returns (names, error JSONResponse or None)."""
+    import github_repos
+    low = {h.lower() for h in have}
+    new = [n for n in names if n.lower() not in low]
+    try:
+        fixed = await asyncio.to_thread(github_repos.prepare, brain, str(_brain_root(brain)), new)
+    except github_repos.RepoError as e:
+        return None, JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    return [n for n in names if n.lower() in low] + fixed, None
+
+
+@app.post("/agents/{slug}/assets/repos")
+async def agent_assets_set_repos(slug: str, repos: str = Form(""), brain: str = Form("brain")):
+    """Set the assistant's GitHub repos (2026-11-15). Each private chat with it gets them on its next turn, on the
+    chat's own branch. Removing one only takes it off the list: chats that have it keep it."""
+    f = _agent_md_path(brain, slug)
+    if not f:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    names = _repo_names_form(repos)
+    if len(names) > agent_assets.REPOS_MAX:
+        return JSONResponse({"ok": False, "error": localefmt.chu(
+            f"Mỗi trợ lý chỉ gắn được tối đa {agent_assets.REPOS_MAX} repo",
+            f"Each assistant can have at most {agent_assets.REPOS_MAX} repos")}, status_code=400)
+    have = agent_assets.repo_names(_read_md(f)[0])
+    final, err = await _repos_prepare(brain, have, names)
+    if err:
+        return err
+    change, loi = await asyncio.to_thread(_agent_assets_sua, brain, slug, lambda m: agent_assets.set_repos(m, final))
+    if loi:
+        return loi
+    meta = _read_md(_agent_md_path(brain, slug) or f)[0]
+    return {"ok": True, "repos": agent_assets.repos(meta), **(change or {})}
 
 
 # ---- Skills ----
@@ -20504,6 +20590,10 @@ async def _chat_socket(ws):
                         f"Trợ lý '{_persona[1]}' không còn trong brain này. Mở trang Cộng sự để chọn trợ lý khác.",
                         f"Assistant '{_persona[1]}' is no longer in this brain. Open the Partners page to pick another one.")}))
                 return ""
+            # 2026-11-15: the GitHub repos of the chat's project or assistant join the chat before any engine reads
+            # its folder (`_cwd_luot_chat`, `_khoi_coding` below). A rerun on another route finds them already there.
+            if not _route:
+                await _seed_chat_repos(ws, _row0, brain, _persona)
             prov, kind, api_key, api_model = _route or _chat_provider_for_session(mcfg, _row0)
             # Owner, 05/11/2026: tell the composer which model really answers, so its chip stops showing the chosen
             # model with a green dot while a fallback card does the work. `rerouted`: run_turn already wrote the line.
@@ -23844,6 +23934,27 @@ def projects_del_link(project_id: str, link_id: str):
     if err:
         return err
     return {"ok": get_store().remove_project_link(project_id, link_id)}
+
+
+@app.post("/projects/{project_id}/repos")
+async def projects_set_repos(project_id: str, repos: str = Form("")):
+    """Set the project's GitHub repos (2026-11-15), the same comma separated "set" the repo picker sends for a chat.
+    Every chat of the project gets them on its next turn, each on its own branch (github_repos.seed_session). A repo
+    removed here stays on the chats that already have it. The brain is the project's, never the client's."""
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    names = _repo_names_form(repos)
+    if len(names) > sessions.PROJECT_REPOS_MAX:
+        return JSONResponse({"ok": False, "error": localefmt.chu(
+            f"Mỗi project chỉ gắn được tối đa {sessions.PROJECT_REPOS_MAX} repo",
+            f"Each project can have at most {sessions.PROJECT_REPOS_MAX} repos")}, status_code=400)
+    store = get_store()
+    final, bad = await _repos_prepare(p.get("brain") or "brain", store.project_repo_names(project_id), names)
+    if bad:
+        return bad
+    change = await asyncio.to_thread(store.set_project_repos, project_id, final)
+    return {"ok": True, "repos": store.list_project_repos(project_id), **change}
 
 
 # ── What Javis learnt about a project (2026-11-13) ────────────────────────────

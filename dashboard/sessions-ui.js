@@ -683,6 +683,9 @@
 
   function pdLaCuoc() { return pdCheDo === "cuoc"; }
   function pdLaAgent() { return pdCheDo === "agent"; }
+  /** 2026-11-15: a project and an assistant also list GitHub repos, which every chat of theirs gets on its own branch.
+   *  A plain chat picks its repos in the composer (github-connect.js), so its drawer has no repo part. */
+  function pdCoRepo() { return pdCheDo === "project" || pdCheDo === "agent"; }
   function pdDuLieu() { return pdLaCuoc() ? cuocTS : pdLaAgent() ? agentTS : projChiTiet; }
 
   /** Gốc URL của thứ đang mở. Ba chế độ có ba bộ route giống hệt nhau về hình dạng
@@ -727,7 +730,7 @@
     // Files, folders and links in ONE tab (owner 13/11/2026: "gom File & Link vào 1 chỗ để tiết kiệm diện tích"); each
     // row's icon tells them apart.
     var tabDocs = { k: "files", ico: "files", nhan: pdT("proj.tab_docs"),
-                    n: (p.files || []).length + (p.links || []).length };
+                    n: (p.files || []).length + (p.links || []).length + (pdCoRepo() ? (p.repos || []).length : 0) };
     // Hướng dẫn chỉ có ở project. Trợ lý đã có system prompt riêng trong trình sửa của nó,
     // bày thêm một ô hướng dẫn ở đây là hai chỗ nói cùng một việc.
     if (pdLaCuoc() || pdLaAgent()) return [tabDocs];
@@ -818,7 +821,7 @@
       var d = await (await fetch("/agents/" + encodeURIComponent(slug) + "/assets?brain=" +
                                  encodeURIComponent(brain()))).json();
       agentTS = (d && d.ok)
-        ? { slug: slug, name: d.name || co.name, files: d.files || [], links: d.links || [] }
+        ? { slug: slug, name: d.name || co.name, files: d.files || [], links: d.links || [], repos: d.repos || [] }
         : { slug: slug, name: co.name, files: [], links: [], loi: true };
     } catch (e) { agentTS = { slug: slug, name: co.name, files: [], links: [], loi: true }; }
   }
@@ -1373,7 +1376,8 @@
                        sub: l.vai === "user" ? pdT("cts.from_you") : pdT("cts.from_javis"),
                        sao: l.url, saoTitle: pdT("common.copy_link") });
     };
-    if (!fs.length && !ls.length) return '<div class="pd-empty">' + esc(pdT(pdK("files_empty"))) + "</div>";
+    var repoHtml = dsRepoHtml(p);
+    if (!fs.length && !ls.length) return repoHtml || '<div class="pd-empty">' + esc(pdT(pdK("files_empty"))) + "</div>";
     var hang = fs.filter(tay).map(function (f) { return { pinned: !!f.pinned, html: veFile(f) }; })
       .concat(ls.filter(tay).map(function (l) { return { pinned: !!l.pinned, html: veLink(l) }; }));
     var ghim = hang.filter(function (h) { return h.pinned; });
@@ -1386,10 +1390,81 @@
     var tuDong = fs.filter(function (f) { return !tay(f); }).map(veTuDongFile)
       .concat(ls.filter(function (l) { return !tay(l); }).map(veTuDongLink));
     if (tuDong.length) ds += nhomHtml(pdT("cts.auto_group")) + tuDong.join("");
-    return ds;
+    return repoHtml + ds;
   }
 
   function nhomHtml(nhan) { return '<div class="pd-group">' + esc(nhan) + "</div>"; }
+
+  // ── GitHub repos of a project or an assistant (2026-11-15) ───────────────────
+  // Owner: "ở chức năng project cũng có khả năng thêm repo để dễ dàng tạo các dự án code, hoặc cả trong tài liệu của
+  // agent". The list sits on top of the documents; each chat of the project (or with the assistant) gets every repo
+  // on its next turn, on the chat's own branch (server: github_repos.seed_session). The picker is the Team chat's one
+  // (team-github.js), saving to `<pdApi()>/repos` instead of a chat.
+  function repoLogo() {
+    var G = window.JavisGithubRepos;
+    return G && G.logo ? G.logo : ic("git-branch");
+  }
+  function repoNames(p) { return ((p || {}).repos || []).map(function (r) { return r.full_name; }).filter(Boolean); }
+
+  function dsRepoHtml(p) {
+    var names = pdCoRepo() ? repoNames(p) : [];
+    if (!names.length) return "";
+    return nhomHtml(pdT("proj.repos_group")) + names.map(function (n) {
+      var parts = String(n).split("/");
+      return '<div class="pd-row pd-repo-row" data-kind="repo" data-repo="' + esc(n) + '">' +
+        '<span class="pd-row-ico">' + repoLogo() + "</span>" +
+        '<span class="pd-row-body"><span class="pd-row-name">' + esc(parts[1] || n) + "</span>" +
+          '<span class="pd-row-sub">' + esc(parts[0]) + "</span></span>" +
+        '<button class="pd-row-act pd-go pd-repo-x" type="button" title="' + esc(pdT(pdK("repo_remove"))) + '">' +
+          ic("x") + "</button></div>";
+    }).join("");
+  }
+
+  /** Save the repo list of the project or assistant on screen. Returns the server's answer. */
+  async function luuRepos(names) {
+    var r = await pdPost("/repos", { repos: (names || []).join(",") });
+    // post() answers {error} on a network failure and a 404 has no `ok`: both are failures for the picker, which
+    // only treats `ok === false` as one.
+    if (!r || !r.ok) return { ok: false, error: (r && r.error) || "" };
+    var p = pdDuLieu();
+    if (p) p.repos = r.repos || [];
+    return r;
+  }
+
+  function noiRepo(pane) {
+    pane.querySelectorAll(".pd-repo-x").forEach(function (b) {
+      b.onclick = async function () {
+        var row = b.closest(".pd-repo-row"), n = row && row.dataset.repo;
+        if (!n) return;
+        b.disabled = true;
+        var r = await luuRepos(repoNames(pdDuLieu()).filter(function (x) { return x !== n; }));
+        if (!r || !r.ok) { b.disabled = false; alert(pdT("proj.err_repo") + ((r && r.error) ? ": " + r.error : "")); return; }
+        // The picker, when open, keeps its own ticks: redraw it so the repo just removed is unticked there too.
+        veDrawer();
+      };
+    });
+  }
+
+  async function moRepoPicker(pane) {
+    var box = pane.querySelector(".pd-repo-box");
+    if (!box) return;
+    // team-github.js rides in the lazy "teams" group (nap-cham.js): the chat page may not have it yet.
+    if (!window.JavisTeamGithub && window.JavisNapCham) {
+      box.innerHTML = '<div class="pd-empty pg-loading">' + esc(pdT("proj.loading")) + "…</div>";
+      try { await window.JavisNapCham.cho("teams"); } catch (e) {}
+    }
+    if (!box.isConnected) return;
+    if (!window.JavisTeamGithub) { box.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.err_repo")) + "</div>"; return; }
+    window.JavisTeamGithub.panel(box, {
+      brain: brain,
+      current: function () { return repoNames(pdDuLieu()); },
+      save: luuRepos,
+      // Only the list above and the tab count: redrawing the whole drawer would rebuild the picker under the finger.
+      changed: function () { veLaiDanhSach(); },
+      close: function () { pdFormFile = false; veDrawer(); },
+      connections: function () { try { window.Alpine.store("nav").go("mcp"); } catch (e) { location.hash = "#p=mcp"; } },
+    });
+  }
 
   /** Có hàng nào GHIM được không (tức là có nút ghim để mà giải thích)? Chế độ cuộc lúc chưa
    *  gắn gì thì chưa có, và bày sẵn chú thích ghim ở đó là hai đoạn chữ nhỏ chồng nhau ngay
@@ -1440,7 +1515,9 @@
   /** Gắn hành vi cho từng hàng trong danh sách. Dùng chung cho lần vẽ đầu và mọi lần vẽ lại. */
   function noiHang(pane) {
     var p = pdDuLieu() || {};
+    noiRepo(pane);
     pane.querySelectorAll(".pd-row").forEach(function (row) {
+      if (row.dataset.kind === "repo") return;       // wired by noiRepo
       var laFile = row.dataset.kind !== "link";
       // Nút chép nối TRƯỚC nhánh rẽ bên dưới: hàng tự dò cũng có nút này, mà nhánh đó thoát
       // sớm nên nối sau là hàng tự dò có nút bấm không ăn.
@@ -1471,15 +1548,22 @@
 
   function formFile() {
     return '<div class="pd-form">' +
-      '<div class="pd-modes">' +
+      '<div class="pd-modes' + (pdCoRepo() ? " four" : "") + '">' +
         '<button class="pd-mode' + (pdFileMode === "search" ? " on" : "") + '" data-mode="search" type="button">' +
           ic("search") + " " + esc(pdT("proj.mode_search")) + "</button>" +
         '<button class="pd-mode' + (pdFileMode === "upload" ? " on" : "") + '" data-mode="upload" type="button">' +
           ic("upload-cloud") + " " + esc(pdT("proj.mode_upload")) + "</button>" +
         '<button class="pd-mode' + (pdFileMode === "link" ? " on" : "") + '" data-mode="link" type="button">' +
           ic("link") + " " + esc(pdT("proj.mode_link")) + "</button>" +
+        (pdCoRepo()
+          ? '<button class="pd-mode' + (pdFileMode === "repo" ? " on" : "") + '" data-mode="repo" type="button">' +
+              repoLogo() + " " + esc(pdT("proj.mode_repo")) + "</button>"
+          : "") +
       "</div>" +
-      (pdFileMode === "search"
+      (pdFileMode === "repo" && pdCoRepo()
+        ? '<div class="pd-repo-box"></div>' +
+          '<div class="pd-note pd-up-note">' + ic("info") + "<span>" + esc(pdT(pdK("repo_note"))) + "</span></div>"
+        : pdFileMode === "search"
         ? '<input class="pd-in pd-fsearch" placeholder="' + esc(pdT("proj.search_ph")) + '">' +
           '<div class="pd-results"><div class="pd-empty">' + esc(pdT("proj.search_hint")) + "</div></div>"
         : pdFileMode === "link"
@@ -1505,6 +1589,7 @@
     pane.querySelectorAll(".pd-mode").forEach(function (b) {
       b.onclick = function () { pdFileMode = b.dataset.mode; veDrawer(); };
     });
+    if (pdFormFile && pdFileMode === "repo" && pdCoRepo()) moRepoPicker(pane);
     noiFormLink(pane);
     var o = pane.querySelector(".pd-fsearch");
     if (o) {
@@ -2682,11 +2767,13 @@
   // trong DB thì tới lượt server xử lý mới có - endpoint tự tạo hàng khi nhận kèm brain.
   window.JavisProjects = {
     current: curProject,
+    // Returns the request (2026-11-15), so the first message of the chat waits for it: the server reads the chat's
+    // project at the start of the turn to bring the project's GitHub repos in (main._seed_chat_repos).
     claim: function (sid) {
       var p = curProject();
       if (!sid || !p || p === "none") return;
-      post("/sessions/" + encodeURIComponent(sid) + "/project",
-           { project_id: p, brain: brain() });
+      return post("/sessions/" + encodeURIComponent(sid) + "/project",
+                  { project_id: p, brain: brain() });
     },
   };
 
