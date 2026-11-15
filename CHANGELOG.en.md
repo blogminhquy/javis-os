@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.563.0] - 2026-11-15
+### Added
+- **Ask for an improvement and it happens, with undo.** Say "improve yourself" or "rework this skill": the assistant changes its own role, instructions, skills and model, other assistants, skills, workflows, loops and memory. Every change gets an id and a backup; "undo #12" puts it back.
+- **Javis can change its own source code.** With GitHub connected to the javis-os repo, the assistant attaches the repo to the chat and works on its own branch; Javis checks, opens a PR and merges on green CI.
+- **It updates itself to the release.** Say "update now": Javis waits for the chat turn to end, runs exactly what the Update button runs, and rolls back if the new version breaks.
+### Improved
+- **Only you can order it.** Auto's own wake-ups and customer-facing bots may only suggest. Old prompt lines that contradicted this now match.
+
 ## [0.562.0] - 2026-11-15
 ### Added
 - **With Auto on, an assistant looks around with full access.** In its private chat, each time it wakes on its own it uses every connected tool (email, calendar, sales, web search...) and may take real actions within its role. Whatever it does is always reported to you.
