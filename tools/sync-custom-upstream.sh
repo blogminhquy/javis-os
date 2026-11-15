@@ -7,8 +7,8 @@ mode="${1:---check}"
 [[ -z "$(git status --porcelain)" ]] || { echo 'Save all local changes before syncing.' >&2; exit 1; }
 [[ "$(git remote get-url origin)" == https://github.com/kk311/javis-os.git ]] || { echo 'Unexpected fork origin.' >&2; exit 1; }
 [[ "$(git remote get-url upstream)" == https://github.com/blogminhquy/javis-os.git ]] || { echo 'Unexpected upstream.' >&2; exit 1; }
-git fetch origin main custom/zernio-bridge
-git fetch upstream main
+git fetch origin refs/heads/main:refs/remotes/origin/main refs/heads/custom/zernio-bridge:refs/remotes/origin/custom/zernio-bridge
+git fetch upstream refs/heads/main:refs/remotes/upstream/main
 git merge-base --is-ancestor origin/main upstream/main || { echo 'Fork main has diverged; inspect without resetting.' >&2; exit 1; }
 git merge-base --is-ancestor main upstream/main || { echo 'Local main has diverged; inspect without resetting.' >&2; exit 1; }
 [[ "$(git rev-parse custom/zernio-bridge)" == "$(git rev-parse origin/custom/zernio-bridge)" ]] || { echo 'Local and remote custom branches differ; reconcile first.' >&2; exit 1; }
