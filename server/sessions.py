@@ -168,6 +168,20 @@ CREATE TABLE IF NOT EXISTS project_asset_notes (
 );
 """
 
+# 2026-11-15: GitHub repos of a project. Owner: "ở chức năng project cũng có khả năng thêm repo để dễ dàng tạo các dự án
+# code". Each chat of the project gets them attached on its next turn (github_repos.seed_session), on its own branch,
+# so a project becomes a code project with one pick. A table of its own for the same reason as project_notes above.
+# Only the repo's full name is stored: the clone and its registry live in github_repos (outside the brain tree).
+_PROJECT_REPOS_SQL = """
+CREATE TABLE IF NOT EXISTS project_repos (
+    project_id TEXT NOT NULL,
+    full_name  TEXT NOT NULL,
+    added_at   REAL NOT NULL,
+    PRIMARY KEY (project_id, full_name)
+);
+"""
+PROJECT_REPOS_MAX = 10           # repos per project: each chat of the project gets a worktree of every one
+
 # 2026-11-06: when the owner last had each chat on screen (red unread dot in every history list). Its own table for the
 # same reason as pin_order above: a `read_at` column on `sessions` would stop the qualified native trial context.
 # A chat without a row was never read: any reply in it is unread.
@@ -677,6 +691,7 @@ class SessionStore:
             self._conn.executescript(_MSG_PIN_SQL)
             self._conn.executescript(_ORDER_SQL)
             self._conn.executescript(_PROJECT_LEARN_SQL)
+            self._conn.executescript(_PROJECT_REPOS_SQL)
             had_read = self._conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_read'").fetchone()
             self._conn.executescript(_READ_SQL)
@@ -1786,6 +1801,7 @@ class SessionStore:
             for row in rows:
                 row["description"] = (described.get((kind, str(row.get(key) or ""))) or {}).get("description", "")
         p["notes"] = self.list_project_notes(project_id)
+        p["repos"] = self.list_project_repos(project_id)
         return p
 
     def update_project(self, project_id: str, *, name: Optional[str] = None,
@@ -1833,6 +1849,8 @@ class SessionStore:
             conn.execute("DELETE FROM project_order WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM project_notes WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM project_asset_notes WHERE project_id = ?", (project_id,))
+            # Only the project's list goes: the clones and each chat's branch stay (github_repos), never lost code.
+            conn.execute("DELETE FROM project_repos WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
             return n
         return self._write(_do)
@@ -2020,6 +2038,43 @@ class SessionStore:
             "description = excluded.description, source = excluded.source, updated_at = excluded.updated_at",
             (project_id, kind, ref, line, source, time.time())))
         return True
+
+    # ── GitHub repos of a project (2026-11-15) ──
+    #
+    # The list only. Cloning, the chat's worktree and the push all stay in github_repos; this store keeps which repos
+    # the project's chats should work on. Removing one here never touches a clone or a chat that already has it.
+
+    def list_project_repos(self, project_id: str) -> List[Dict[str, Any]]:
+        return [dict(r) for r in self._read(
+            "SELECT full_name, added_at FROM project_repos WHERE project_id = ? ORDER BY added_at, rowid",
+            (project_id,))]
+
+    def project_repo_names(self, project_id: str) -> List[str]:
+        return [str(r["full_name"]) for r in self.list_project_repos(project_id) if r.get("full_name")]
+
+    def set_project_repos(self, project_id: str, full_names: List[str]) -> Dict[str, List[str]]:
+        """Make the project's repo list exactly `full_names` (already checked by the caller), case-insensitively.
+        A repo kept keeps its place and its `added_at`. Returns {"added": [...], "removed": [...]}."""
+        wanted: List[str] = []
+        for n in full_names or []:
+            n = str(n or "").strip()
+            if n and n.lower() not in {w.lower() for w in wanted}:
+                wanted.append(n)
+        wanted = wanted[:PROJECT_REPOS_MAX]
+        have = self.project_repo_names(project_id)
+        added = [n for n in wanted if n.lower() not in {h.lower() for h in have}]
+        removed = [h for h in have if h.lower() not in {n.lower() for n in wanted}]
+
+        def go(c):
+            for h in removed:
+                c.execute("DELETE FROM project_repos WHERE project_id = ? AND full_name = ?", (project_id, h))
+            now = time.time()
+            for i, n in enumerate(added):
+                c.execute("INSERT OR IGNORE INTO project_repos (project_id, full_name, added_at) VALUES (?, ?, ?)",
+                          (project_id, n, now + i * 1e-6))
+        if added or removed:
+            self._write(go)
+        return {"added": added, "removed": removed}
 
     # ── tài liệu & link người dùng TỰ GẮN vào một cuộc trò chuyện ──
     #

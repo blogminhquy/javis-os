@@ -363,7 +363,7 @@ def attach_source(sid: str, brain_root: str) -> dict:
                               "Only inside a web chat (no session id)."))
     st = github_repos.status()
     if not st.get("connected"):
-        raise ImproveError(_c("GitHub chưa kết nối. Vào trang Kết nối, thẻ GitHub, dán token có quyền vào repo "
+        raise ImproveError(_c("GitHub chưa kết nối. Vào trang Kết nối, thẻ GitHub, dán token có quyền vào repository "
                               f"{SOURCE_REPO} (Contents, Pull requests, Workflows: Read and write).",
                               "GitHub is not connected. On the Connections page, GitHub card, paste a token with access "
                               f"to {SOURCE_REPO} (Contents, Pull requests, Workflows: Read and write)."))
@@ -375,10 +375,10 @@ def attach_source(sid: str, brain_root: str) -> dict:
             raise ImproveError(str(e))
     got = source_status(sid, brain_root)
     if not got["attached"]:
-        raise ImproveError(_c("Gắn repo không thành công.", "Attaching the repo did not work."))
+        raise ImproveError(_c("Gắn repository không thành công.", "Attaching the repository did not work."))
     if got["attached"].get("can_push") is False:
-        got["note"] = _c("Token chỉ có quyền đọc repo này: Javis sửa được trên máy nhưng không đẩy, không mở PR được. "
-                         "Cần quyền Contents và Pull requests ghi.", "The token can only read this repo: Javis can edit "
+        got["note"] = _c("Token chỉ có quyền đọc repository này: Javis sửa được trên máy nhưng không đẩy, không mở PR được. "
+                         "Cần quyền Contents và Pull requests ghi.", "The token can only read this repository: Javis can edit "
                          "locally but cannot push or open a PR. Contents and Pull requests need write access.")
     return got
 

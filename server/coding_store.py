@@ -578,9 +578,9 @@ def tao_diem_hoi(sid: str) -> Dict[str, Any]:
     try:
         head = _git(["rev-parse", "HEAD"], cwd)
     except LoiCoding:
-        raise LoiCoding(localefmt.chu("Repo chưa có commit nào nên chưa đặt được điểm hồi. "
+        raise LoiCoding(localefmt.chu("Repository chưa có commit nào nên chưa đặt được điểm hồi. "
                                       "Commit lần đầu rồi thử lại.",
-                                      "The repo has no commits yet, so a restore point cannot be set. "
+                                      "The repository has no commits yet, so a restore point cannot be set. "
                                       "Make the first commit and try again."))
     tag = _tag_moi(sid, cwd)
     _git(["tag", tag, head], cwd)

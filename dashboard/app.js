@@ -1971,7 +1971,10 @@ function sendMessage(text, opts) {
     savedSessionId = newSid();                           // hội thoại mới → mint id để định tuyến
     // Đang mở một project ở cột Lịch sử thì hội thoại mới rơi thẳng vào project đó, khỏi phải
     // gắn tay. Gắn NGAY tại đây vì đây là chỗ duy nhất biết "id này vừa được sinh ra".
-    try { if (window.JavisProjects) window.JavisProjects.claim(savedSessionId); } catch (e) {}
+    let _projClaim = null;
+    try { if (window.JavisProjects) _projClaim = window.JavisProjects.claim(savedSessionId) || null; } catch (e) {}
+    // 2026-11-15: the first turn waits for that claim (below, with the pin and the repos), so the project's
+    // instructions and its GitHub repos reach this very first message instead of the next one.
     // Model đã chọn khi khung chat còn trống -> ghim luôn cho phiên vừa sinh (model-picker.js).
     try { if (window.JavisModelBar) window.JavisModelBar.claimPending(savedSessionId); } catch (e) {}
     // A working folder pinned on the empty chat follows the session that was just minted (0.158.0).
@@ -1984,6 +1987,10 @@ function sendMessage(text, opts) {
         _pinWait = (_pinWait || Promise.resolve()).then(() => window.JavisGithubRepos.claimPending(_sidNew), () => window.JavisGithubRepos.claimPending(_sidNew));
       }
     } catch (e) {}
+    if (_projClaim && _projClaim.then) {
+      const _before = _pinWait || Promise.resolve();
+      _pinWait = Promise.all([_before.catch(() => {}), _projClaim.catch(() => {})]);
+    }
   }
   const sid = savedSessionId;
   // Phiên đang trả lời thì không gửi chồng lượt. NHƯNG tin từ MIC (hay gõ trong lúc rảnh tay)

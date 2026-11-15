@@ -350,8 +350,8 @@ def _config_entries(cwd: str) -> List[tuple]:
     if p is None or p.returncode != 0:
         # Unreadable config: nothing proves the call is safe, so the token stays home.
         why = ((p.stderr if p else "") or "").strip().splitlines()[-1:] or ["?"]
-        raise RepoError(_c(f"Không đọc được cấu hình git của repo nên Javis không dùng token ở đây: {why[0]}",
-                           f"Could not read this repo's git config, so Javis will not use the token here: {why[0]}"))
+        raise RepoError(_c(f"Không đọc được cấu hình git của repository nên Javis không dùng token ở đây: {why[0]}",
+                           f"Could not read this repository's git config, so Javis will not use the token here: {why[0]}"))
     parts = (p.stdout or "").split("\0")
     out = []
     for i in range(0, len(parts) - 1, 2):
@@ -399,12 +399,12 @@ def _vet_config(entries: List[tuple], origin: str) -> List[tuple]:
         refused.append("remote.origin.url")
     if refused:
         names = ", ".join(sorted(set(refused)))
-        raise RepoError(_c(f"Javis không dùng token GitHub trong repo này: cấu hình git của bản clone ({names}) có thể "
-                           "đưa token đi nơi khác. Gỡ các dòng đó (git config --unset-all <tên>), hoặc gỡ repo khỏi "
+        raise RepoError(_c(f"Javis không dùng token GitHub trong repository này: cấu hình git của bản clone ({names}) có thể "
+                           "đưa token đi nơi khác. Gỡ các dòng đó (git config --unset-all <tên>), hoặc gỡ repository khỏi "
                            "brain rồi thêm lại.",
-                           f"Javis will not use the GitHub token in this repo: the clone's git config ({names}) could "
+                           f"Javis will not use the GitHub token in this repository: the clone's git config ({names}) could "
                            "send the token somewhere else. Remove those settings (git config --unset-all <name>), or "
-                           "remove the repo from the brain and add it again."))
+                           "remove the repository from the brain and add it again."))
     return overrides
 
 
@@ -471,8 +471,8 @@ def auth_env(cwd: str, origin: str, tok: Optional[str] = None, in_repo: bool = T
     if not tok:
         return env
     if not origin:
-        raise RepoError(_c(f"Javis chỉ dùng token GitHub trong repo do chính nó clone, {cwd} không phải repo như vậy.",
-                           f"Javis only uses the GitHub token inside a repo it cloned itself; {cwd} is not one."))
+        raise RepoError(_c(f"Javis chỉ dùng token GitHub trong repository do chính nó clone, {cwd} không phải repository như vậy.",
+                           f"Javis only uses the GitHub token inside a repository it cloned itself; {cwd} is not one."))
     entries = [e for e in _config_entries(cwd) if in_repo or e[0] in _MACHINE_SCOPES]
     pairs = [("core.hooksPath", _no_hooks_dir())] + list(ISOLATION) + _vet_config(entries, origin)
     if origin.lower().startswith(("https://", "http://")):
@@ -614,7 +614,7 @@ def norm_full_name(full_name: str) -> str:
     if s.endswith(".git"):
         s = s[:-4]
     if not _NAME_RE.match(s) or ".." in s:
-        raise RepoError(_c(f"Tên repo không hợp lệ: {full_name}", f"Invalid repo name: {full_name}"))
+        raise RepoError(_c(f"Tên repository không hợp lệ: {full_name}", f"Invalid repository name: {full_name}"))
     return s
 
 
@@ -742,7 +742,7 @@ def remote_repos(q: str = "", brain: str = "") -> List[Dict[str, Any]]:
         try:
             items = GitHub(tok).repos()
         except GitHubError as e:
-            raise RepoError(_c(f"Không lấy được danh sách repo: {e}", f"Could not list repos: {e}"))
+            raise RepoError(_c(f"Không lấy được danh sách repository: {e}", f"Could not list repositories: {e}"))
         _REPO_CACHE.update(at=now, token=tok, items=items)
     local = {str(r.get("full_name") or "").lower() for r in list_local(brain)}
     term = str(q or "").strip().lower()
@@ -769,9 +769,9 @@ def ensure_clone(brain: str, brain_root: str, full_name: str) -> Dict[str, Any]:
         meta = gh.repo(full_name)
     except GitHubError as e:
         if e.status == 404:
-            raise RepoError(_c(f"Không thấy repo {full_name}, hoặc token chưa được cấp quyền vào repo này.",
-                               f"Repo {full_name} not found, or the token has no access to it."))
-        raise RepoError(_c(f"Không đọc được repo {full_name}: {e}", f"Could not read repo {full_name}: {e}"))
+            raise RepoError(_c(f"Không thấy repository {full_name}, hoặc token chưa được cấp quyền vào repository này.",
+                               f"Repository {full_name} not found, or the token has no access to it."))
+        raise RepoError(_c(f"Không đọc được repository {full_name}: {e}", f"Could not read repository {full_name}: {e}"))
     full_name = meta.get("full_name") or full_name
     default_branch = meta.get("default_branch") or "main"
     clone_url = meta.get("clone_url") or f"https://github.com/{full_name}.git"
@@ -876,6 +876,102 @@ def attach(sid: str, brain: str, brain_root: str, full_names: List[str]) -> Dict
     return session_view(sid, brain)
 
 
+# ============================================================
+# Repos a chat inherits from its project or its assistant (2026-11-15)
+# ============================================================
+# Owner, 15/11/2026: "ở chức năng project cũng có khả năng thêm repo để dễ dàng tạo các dự án code, hoặc cả trong tài
+# liệu của agent và team". A project (sessions.project_repos) or an assistant (`assets.repos` in its file) lists repos;
+# every chat of it gets them on its next turn, each on the chat's own branch like a repo picked in the composer.
+# Each repo is offered ONCE per chat (`seeded` in the registry): a repo the person detached from one chat stays
+# detached, while a repo added to the project later still reaches its older chats.
+def prepare(brain: str, brain_root: str, full_names: List[str]) -> List[str]:
+    """Check and clone the repos a project or an assistant is about to list, so a chat that inherits one later only
+    adds a worktree. Returns the names as GitHub spells them; raises RepoError (localized) on the first failure."""
+    out: List[str] = []
+    for fn in full_names or []:
+        n = norm_full_name(fn)
+        if n.lower() in {o.lower() for o in out}:
+            continue
+        out.append(ensure_clone(brain, brain_root, n)["full_name"])
+    return out
+
+
+def seeded(sid: str) -> List[str]:
+    """Lower-cased names of the inherited repos this chat was already given (or already had)."""
+    got = (_load().get("seeded") or {}).get(str(sid or ""), [])
+    return [str(x) for x in got] if isinstance(got, list) else []
+
+
+def _mark_seeded(sid: str, names: List[str]) -> None:
+    if not names:
+        return
+    with _lock:
+        d = _load()
+        per = d.setdefault("seeded", {}).setdefault(str(sid), [])
+        for n in names:
+            if n.lower() not in per:
+                per.append(n.lower())
+        _save(d)
+
+
+def _forget_seeds(sid: str) -> None:
+    with _lock:
+        d = _load()
+        if (d.get("seeded") or {}).pop(str(sid), None) is not None:
+            _save(d)
+
+
+def seed_session(sid: str, brain: str, brain_root: str, full_names: List[str]) -> Dict[str, Any]:
+    """Attach to a chat the inherited repos it has not been given yet. Never detaches anything, never moves the chat's
+    main folder: a new repo goes after what the chat already has (a chat with nothing gets it as its main folder).
+
+    A repo that fails (GitHub disconnected, no access) is not marked, so the next turn tries again.
+    Returns {"attached": [names], "failed": [{"full_name", "error"}]}.
+    """
+    sid = str(sid or "").strip()
+    out: Dict[str, Any] = {"attached": [], "failed": []}
+    if not sid or not full_names:
+        return out
+    done = set(seeded(sid))
+    todo: List[str] = []
+    for fn in full_names:
+        try:
+            n = norm_full_name(fn)
+        except RepoError:
+            continue
+        if n.lower() not in done and n.lower() not in {t.lower() for t in todo}:
+            todo.append(n)
+    if not todo:
+        return out
+    on_chat = {str(r.get("repo") or "").lower() for r in coding_store.thu_muc_cua_phien(sid) if r.get("nguon") == SOURCE}
+    marked: List[str] = []
+    for n in todo:
+        if n.lower() in on_chat:
+            marked.append(n)          # already picked in the composer: nothing to add, only remember it was offered
+            continue
+        ids: List[str] = []
+        rec: Dict[str, Any] = {}
+        try:
+            rec = ensure_clone(brain, brain_root, n)
+            ids = [r["id"] for r in coding_store.thu_muc_cua_phien(sid)]
+            if rec["folder_id"] not in ids:
+                coding_store.dat_rang_buoc(sid, thu_muc_ids=ids + [rec["folder_id"]])
+            ensure_worktree(sid, rec)
+        except Exception as e:  # noqa: BLE001 - one repo failing must not stop the turn or the other repos
+            # A folder bound without its worktree would put the engine in the shared clone: take it off again.
+            if rec.get("folder_id") and rec["folder_id"] not in ids:
+                try:
+                    coding_store.dat_rang_buoc(sid, thu_muc_ids=ids)
+                except Exception:  # noqa: BLE001
+                    pass
+            out["failed"].append({"full_name": n, "error": str(e) or type(e).__name__})
+            continue
+        out["attached"].append(rec.get("full_name") or n)
+        marked.append(n)
+    _mark_seeded(sid, marked)
+    return out
+
+
 def _rec_for_folder(brain: str, folder: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     fn = folder.get("repo") or ""
     if not fn:
@@ -936,7 +1032,7 @@ def remove_from_brain(brain: str, full_name: str, busy: Optional[List[str]] = No
     """
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     problems: List[str] = []
     for b in busy or []:
         problems.append(_c(f"đang có việc chạy: {b}", f"a job is running: {b}"))
@@ -1141,6 +1237,7 @@ def forget_session(sid: str) -> Dict[str, Any]:
             continue
         _remove_worktree(folder["duong_dan"], wt)
         coding_store.dat_worktree_thu_muc(sid, folder["id"], "")
+    _forget_seeds(sid)
     if not kept:
         coding_store.xoa_rang_buoc(sid)
         _forget_bases(sid)
@@ -1151,7 +1248,7 @@ def set_checks(brain: str, full_name: str, checks: Optional[List[Dict[str, str]]
     """Save the repo's local check commands (None = go back to the suggested ones)."""
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     if checks is None:
         rec.pop("checks", None)
     else:
@@ -1168,7 +1265,7 @@ def set_checks(brain: str, full_name: str, checks: Optional[List[Dict[str, str]]
 def get_checks(brain: str, full_name: str) -> Dict[str, Any]:
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     import github_gate
     suggested = github_gate.suggest_checks(rec["path"]) if Path(rec["path"]).is_dir() else []
     saved = rec.get("checks")
@@ -1184,7 +1281,7 @@ def auto_merge_on(rec: Dict[str, Any]) -> bool:
 def set_auto_merge(brain: str, full_name: str, on: bool) -> Dict[str, Any]:
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     rec["auto_merge"] = bool(on)
     _put(rec)
     return {"full_name": rec["full_name"], "auto_merge": bool(on)}
@@ -1200,7 +1297,7 @@ def review_settings(rec: Dict[str, Any]) -> Dict[str, Any]:
 def set_review(brain: str, full_name: str, on: bool, provider: str = "") -> Dict[str, Any]:
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     rec["review"] = {"on": bool(on), "provider": str(provider or "").strip()[:64]}
     _put(rec)
     return {"full_name": rec["full_name"], "review": review_settings(rec)}

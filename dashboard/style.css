@@ -4102,6 +4102,11 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
   border: 1px solid var(--border); background: transparent; color: var(--text3);
   font-family: inherit; font-size: 12.5px; }
 .pd-mode.on { border-color: var(--accent-line); background: var(--accent-wash-2); color: var(--accent); }
+/* 2026-11-15: a project and an assistant have a fourth way to add (GitHub repo): two by two, so no label gets cut. */
+.pd-modes.four { display: grid; grid-template-columns: 1fr 1fr; }
+.pd-mode .cp-ic { width: 14px; height: 14px; }
+.pd-repo-row .pd-row-ico .cp-ic { width: 18px; height: 18px; }
+.pd-repo-box .gh-results { max-height: min(45vh, 340px); overflow-y: auto; }
 .pd-in { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--field-bg); color: var(--text); font-family: inherit;
   font-size: 13px; outline: none; }

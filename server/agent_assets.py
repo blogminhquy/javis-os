@@ -92,15 +92,80 @@ def doc(meta) -> dict:
             "links": _xep(_ds(meta, "links", "url"))}
 
 
-def _ghi(meta, files, links) -> dict:
+def _ghi(meta, files, links, repo_rows=None) -> dict:
     """meta MỚI mang danh sách vừa đổi. Rỗng cả hai thì GỠ hẳn khoá `assets` chứ không để lại
-    một khoá rỗng: frontmatter là thứ người ta mở ra đọc, đừng rải xác trong đó."""
+    một khoá rỗng: frontmatter là thứ người ta mở ra đọc, đừng rải xác trong đó.
+
+    `repo_rows` None keeps the assistant's GitHub repos as they are (every file and link edit goes through here)."""
     moi = dict(meta or {})
-    if files or links:
-        moi["assets"] = {"files": files, "links": links}
+    repo_rows = repos(meta) if repo_rows is None else repo_rows
+    if files or links or repo_rows:
+        kho = {"files": files, "links": links}
+        if repo_rows:
+            kho["repos"] = repo_rows
+        moi["assets"] = kho
     else:
         moi.pop("assets", None)
     return moi
+
+
+# ---- GitHub repos of an assistant (2026-11-15) ----
+# Owner: "cả trong tài liệu của agent ... cũng có khả năng thêm repo". Stored next to its files and links, so the list
+# travels with the assistant's file; every private chat with it gets the repos on its next turn
+# (github_repos.seed_session), each chat on its own branch.
+#
+#     assets:
+#       repos:
+#         - full_name: owner/name
+#           added_at: 1758412800.0
+#
+# The name is checked (and the repo cloned) by the caller, through github_repos, before it is written here.
+REPOS_MAX = 10
+
+
+def repos(meta) -> list:
+    """[{"full_name", "added_at"}] of an assistant, oldest first, cleaned (rows broken by a hand edit are dropped)."""
+    kho = (meta or {}).get("assets")
+    raw = kho.get("repos") if isinstance(kho, dict) else None
+    out, seen = [], set()
+    for h in (raw or []):
+        name = str((h.get("full_name") if isinstance(h, dict) else h) or "").strip().strip("/")
+        if not name or "/" not in name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        try:
+            at = float(h.get("added_at") or 0) if isinstance(h, dict) else 0.0
+        except (TypeError, ValueError):
+            at = 0.0
+        out.append({"full_name": name[:_TEN_MAX], "added_at": at})
+    return out[:REPOS_MAX]
+
+
+def repo_names(meta) -> list:
+    return [r["full_name"] for r in repos(meta)]
+
+
+def set_repos(meta, names) -> tuple:
+    """Make the assistant's repo list exactly `names` (case-insensitive). A repo kept keeps its `added_at`.
+    Returns (new meta, {"added": [...], "removed": [...]}). Raises ValueError past REPOS_MAX."""
+    wanted = []
+    for n in names or []:
+        n = str(n or "").strip()
+        if n and n.lower() not in {w.lower() for w in wanted}:
+            wanted.append(n)
+    if len(wanted) > REPOS_MAX:
+        import localefmt
+        raise ValueError(localefmt.chu(f"Mỗi trợ lý chỉ gắn được tối đa {REPOS_MAX} repository",
+                                       f"Each assistant can have at most {REPOS_MAX} repositories"))
+    have = repos(meta)
+    by_low = {r["full_name"].lower(): r for r in have}
+    now = time.time()
+    rows = [by_low.get(n.lower()) or {"full_name": n, "added_at": now + i * 1e-6} for i, n in enumerate(wanted)]
+    rows.sort(key=lambda r: r["added_at"])
+    added = [n for n in wanted if n.lower() not in by_low]
+    removed = [r["full_name"] for r in have if r["full_name"].lower() not in {w.lower() for w in wanted}]
+    kho = doc(meta)
+    return _ghi(meta, kho["files"], kho["links"], rows), {"added": added, "removed": removed}
 
 
 def them_file(meta, path, name="") -> tuple:

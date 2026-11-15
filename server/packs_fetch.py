@@ -191,5 +191,5 @@ def url_zip_github(raw: str) -> str:
         kho, _, ref = s.partition("@")
         if kho.count("/") == 1:
             return f"https://codeload.github.com/{kho}/zip/refs/heads/{ref or 'main'}"
-    raise LoiTai(localefmt.chu("Địa chỉ phải là https://, hoặc dạng owner/repo@nhánh",
-                               "The address must be https://, or of the form owner/repo@branch"))
+    raise LoiTai(localefmt.chu("Địa chỉ phải là https://, hoặc dạng owner/repository@nhánh",
+                               "The address must be https://, or of the form owner/repository@branch"))

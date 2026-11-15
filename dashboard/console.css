@@ -3730,6 +3730,11 @@ body.kb-open .tm-composer { padding-bottom: 8px; }
 .tmp-doc-res-text i { font-style: normal; color: var(--text3); font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tmp-doc-note { padding: 10px 12px; color: var(--text3); font-size: 16px; }
 .tmp-doc-warn { color: var(--warn-ink); padding: 0 0 8px; }
+/* 2026-11-15: GitHub repos picked in the create box (team-github.js picker in .tmp-repo-box). */
+.tmp-repo .cp-ic, .tmp-repo-open .cp-ic { width: 16px; height: 16px; }
+.tmp-repo-open { display: inline-flex; align-items: center; gap: 6px; }
+.tmp-repo-box:not([hidden]) { margin-bottom: 8px; }
+.tmp-repo-box .gh-results { max-height: 260px; overflow-y: auto; }
 .tm-info-fsearch { flex: 1; min-width: 0; }
 .tm-info-found li { justify-content: space-between; gap: 8px; }
 .tm-info-found li > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
