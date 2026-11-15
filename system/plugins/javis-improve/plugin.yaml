@@ -1,0 +1,12 @@
+name: Tự cải tiến theo yêu cầu
+name_en: "Improve on request"
+slug: javis-improve
+version: 1.0.0
+description: Khi chủ yêu cầu, Javis hay một trợ lý tự sửa chính nó và brain (trợ lý, skill, workflow, vòng lặp, bộ nhớ) có sao lưu và hoàn tác, sửa mã nguồn Javis qua GitHub, rồi tự cập nhật lên bản mới. Chỉ phiên của chủ thấy tool này.
+description_en: "On the owner's request, Javis or an assistant changes itself and the brain (assistants, skills, workflows, loops, memory) with backup and undo, changes Javis's own code through GitHub, then updates to the new release. Only the owner's own sessions see this tool."
+author: Javis (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - javis_improve
+hooks: []

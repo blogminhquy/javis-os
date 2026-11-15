@@ -129,6 +129,7 @@ import job_scorecard    # each background job finds the lightest model that gets
 import core_loop        # Javis Core's improvement loop: one loop, many knobs
 import tool_pins        # the tools a brain calls most are shown directly (one knob of that loop)
 import job_tune         # the owner's side of that loop, from chat (tool javis_tune)
+import self_upgrade     # improvement on the owner's request: backup, undo, own code, update (tool javis_improve)
 import phien_am       # từ tiếng Anh -> cách đọc kiểu Việt (đọc loa + so âm câu nghe được)
 import voice_privacy
 voice_privacy.install()
@@ -13570,7 +13571,8 @@ def _workflow_agent_helpers(brain, tools, mode=None):
               "bằng tối đa 2 dòng riêng, mỗi dòng đúng dạng `JAVIS_LESSON: <bài học một câu>`. "
               "Javis tự ghi vào mục `## Bài học (tự học)` của file bộ nhớ trên (tự loại trùng, giữ "
               f"{_BAI_HOC_TRAN} dòng mới nhất). KHÔNG tự sửa file bộ nhớ trực tiếp - phần ngoài mục "
-              "đó là của chủ. Lượt chạy không có gì đáng nhớ thì ĐỪNG phát JAVIS_LESSON, và đừng "
+              "đó là của chủ (chủ bảo sửa thì dùng `javis_improve` op=save). "
+              "Lượt chạy không có gì đáng nhớ thì ĐỪNG phát JAVIS_LESSON, và đừng "
               "lặp lại bài học đã có trong bộ nhớ.\n"
             + "\n# Luật chủ dặn: khi CHỦ nói rõ một luật lâu dài cho vai này (\"từ giờ\", \"luôn\", "
               "\"đừng bao giờ\", vd \"nhắn Zalo thì không dùng markdown\"), làm theo ngay VÀ kết thúc "
@@ -13643,6 +13645,11 @@ _AGENT_TOOLKIT_BLOCK = (
     "\"có kết quả em báo lại\", \"sếp chờ em chút\". " + "Chỉ hai lối đúng: làm xong ngay trong lượt và "
     "trả kết quả thật, hoặc giao việc nền / nhắc hẹn rồi nói rõ đã giao gì, kết quả về đâu. "
     "Không làm được cả hai thì nói thẳng là chưa làm.\n"
+    # 2026-11-15 (owner): asked to improve, an assistant may change itself and the whole system, with undo.
+    "- CHỦ bảo cải tiến (chính bạn, trợ lý khác, skill, quy trình, cả Javis): làm luôn bằng `javis_improve` "
+    "(op=save có sao lưu cho file của bạn agents/<slug>.md, skill, workflow, bộ nhớ; op=source để sửa mã nguồn "
+    "Javis qua GitHub; op=update để máy lên bản mới), rồi báo đổi gì và mã hoàn tác. Không ai yêu cầu thì "
+    "không tự sửa, chỉ đề xuất.\n"
 )
 # Câu "chỉ hai lối" ở trên ĐÚNG khi trợ lý chưa bật Cộng hưởng. Bật rồi thì có lối thứ ba (javis_goal); để nguyên câu
 # cũ là bảo model rằng lối đó không tồn tại (review A1 tích hợp, P1-1). Thay đúng câu đó, chỉ trong phiên trò chuyện.
@@ -17690,6 +17697,12 @@ async def _watchtower_update(token: str, started_at: str):
 async def do_update():
     """Cập nhật lên bản mới nhất. Git checkout (windows/native) → spawn updater.py TÁCH RỜI
     (stop/pull/pip/start/health/rollback). Docker → Watchtower nếu có, không thì hướng dẫn Redeploy."""
+    return await _update_core()
+
+
+async def _update_core():
+    """The body of POST /update, shared with `javis_improve op=update` (a route handler is never called as a plain
+    function, test_handler_khong_goi_truc_tiep). Returns a dict, or a JSONResponse when it refuses."""
     import sys as _sys
     import subprocess
     import datetime as _dt
@@ -17793,6 +17806,26 @@ async def do_update():
     except Exception as e:
         _write_update_state({"phase": "error", "result": "error", "error": str(e), "finished_at": now()})
         return JSONResponse({"ok": False, "error": str(e), "manual": "./update.sh"}, status_code=500)
+
+
+async def _self_upgrade_start() -> dict:
+    """`javis_improve op=update` (2026-11-15): the very same path as the Update button, its answer as a dict."""
+    res = await _update_core()
+    if isinstance(res, dict):
+        return res
+    try:
+        return json.loads(bytes(res.body).decode("utf-8"))
+    except Exception:  # noqa: BLE001
+        return {"ok": False, "error": localefmt.chu("Cập nhật không bắt đầu được.", "The update did not start.")}
+
+
+async def _self_upgrade_versions() -> tuple:
+    cur = _read_version()
+    latest, _err = await _latest_remote_version(cur)
+    return cur, latest
+
+
+self_upgrade.wire(start=_self_upgrade_start, versions=_self_upgrade_versions, turn_busy=luot_dang_chay.has_turn)
 
 
 # ============================================================
