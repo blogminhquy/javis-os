@@ -127,7 +127,8 @@ check("console.js has LINE_SUFFIX_RE, the editor extension lists and openVaultPa
 const opened = [];
 const vctx = {
   window: { JavisOpenNote: (p) => opened.push("note:" + p), JavisEditFile: (p) => opened.push("edit:" + p) },
-  _goFileUri: (p) => p, isNarrow: () => false, _vtRaw: (p) => p,
+  // _neCanDock (2026-11-15): true = the page shows the docked editor; test_team_file_link.js covers the false side.
+  _goFileUri: (p) => p, isNarrow: () => false, _vtRaw: (p) => p, _neCanDock: () => true,
   openFilesAt: (p) => opened.push("files:" + p),
 };
 vm.createContext(vctx);
