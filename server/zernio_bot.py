@@ -72,7 +72,7 @@ def split_credentials(token: Any) -> dict:
         uname = str(d.get("username") or "").strip()
         sec = str(d.get("secret") or d.get("webhook_secret") or "").strip()
         key = str(d.get("api_key") or d.get("apiKey") or "").strip()
-        return {"account_id": aid, "username": uname, "secret": sec, "api_key": key or _fallback_api_key()}
+        return {"account_id": aid, "username": uname, "secret": sec, "api_key": key or (connection_api_key(str(d["connection_id"])) if d.get("connection_id") else _fallback_api_key())}
 
     raw = str(token or "").strip()
     if not raw:
@@ -94,18 +94,31 @@ def split_credentials(token: Any) -> dict:
     return {"account_id": aid, "username": uname, "secret": sec, "api_key": key or _fallback_api_key()}
 
 
+def available_connections() -> List[dict]:
+    """Return only public identifiers for enabled Zernio connections."""
+    import mcp_store
+    return [{"id": c["id"], "label": c.get("label") or c["id"]}
+            for c in mcp_store.list_connections()
+            if "zernio" in str(c.get("connector_id") or c.get("id") or "").lower()
+            and c.get("enabled")]
+
+
+def connection_api_key(connection_id: str = "") -> str:
+    """Resolve an explicit connection, or the unique default, entirely on the server."""
+    import mcp_store
+    matches = available_connections()
+    if connection_id:
+        matches = [c for c in matches if c["id"] == connection_id]
+    if len(matches) != 1:
+        return ""
+    return str((mcp_store.connection_secrets(matches[0]["id"]) or {}).get("api_key") or "").strip()
+
+
 def _fallback_api_key() -> str:
-    """Use a single enabled connection only; never guess among several credentials."""
     try:
-        import mcp_store
-        matches = [c for c in mcp_store.list_connections()
-                   if "zernio" in str(c.get("connector_id") or c.get("id") or "").lower()
-                   and c.get("enabled")]
-        if len(matches) == 1:
-            return str((mcp_store.connection_secrets(matches[0]["id"]) or {}).get("api_key") or "").strip()
+        return connection_api_key()
     except Exception:
-        pass
-    return ""
+        return ""
 
 
 class CredentialsError(Exception):
@@ -151,8 +164,8 @@ def _rest_accounts(key: str) -> List[dict]:
         seen.add(cursor)
 
 
-def connected_instagram_accounts() -> List[dict]:
-    return _rest_accounts(_fallback_api_key())
+def connected_instagram_accounts(connection_id: str = "", api_key: str = "") -> List[dict]:
+    return _rest_accounts(api_key or connection_api_key(connection_id))
 
 
 async def whoami(cr: dict) -> dict:

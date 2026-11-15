@@ -2576,6 +2576,91 @@
   //
   // `opts.onXong(account)`: gọi khi tài khoản đã tạo xong, để nơi gọi tự làm tiếp (form bot
   // tích sẵn tài khoản vừa nối). Không truyền thì chỉ nạp lại tab Tài khoản bot như cũ.
+  // Shared by the channel picker and every chatbot's account editor.
+  function zernioForm(host, account) {
+    var dirty = false, generation = 0, identity = {};
+    host._zernioForm = identity;
+    function field(id, key, password, value) {
+      return '<label>' + esc(window.t(key)) + '</label><input id="' + id +
+        '" type="' + (password ? 'password' : 'text') + '" autocomplete="off" value="' + esc(value || "") + '">';
+    }
+    host.innerHTML = '<label>' + esc(window.t("ht.zernio.connection")) + ' ' + infoBtn() + '</label>' +
+      infoBody(esc(window.t("ht.zernio.credentials_help"))) + '<select id="htZConnection"></select>' +
+      field("htZKey", "ht.zernio.api_key", true) +
+      '<button type="button" class="s-btn-ghost" id="htZLoad">' + esc(window.t("ht.zernio.load")) + '</button>' +
+      '<label>' + esc(window.t("ht.zernio.account")) + '</label><select id="htZAccount"></select>' +
+      field("htZId", "ht.zernio.account_id", false, account && account.meta && account.meta.account_id) +
+      field("htZUser", "ht.zernio.username", false, account && account.external_id) +
+      field("htZSecret", "ht.zernio.secret", true) + '<div id="htZStatus" role="status"></div>' +
+      '<div id="htZWebhook"></div>';
+    function get(id) { return host.querySelector("#" + id); }
+    function option(value, label) { return '<option value="' + esc(value) + '">' + esc(label) + '</option>'; }
+    function status(message) { get("htZStatus").textContent = message; }
+    get("htZConnection").innerHTML = option("", window.t("ht.zernio.manual"));
+    get("htZAccount").innerHTML = option("", window.t("ht.zernio.select_account"));
+    host.oninput = function () { dirty = true; };
+    get("htZConnection").onchange = function () {
+      dirty = true; generation++;
+      get("htZKey").value = "";
+      get("htZKey").disabled = !!this.value;
+      get("htZAccount").innerHTML = option("", window.t("ht.zernio.select_account"));
+      if (this.value) loadAccounts();
+    };
+    get("htZAccount").onchange = function () {
+      var selected = this.options[this.selectedIndex];
+      if (!this.value) return;
+      dirty = true;
+      get("htZId").value = this.value;
+      get("htZUser").value = selected.dataset.username;
+    };
+    async function loadAccounts() {
+      var version = ++generation, connection = get("htZConnection").value;
+      status(window.t("ht.zernio.loading"));
+      try {
+        var result = connection
+          ? await api("/channels/zernio/connected-accounts?connection_id=" + encodeURIComponent(connection))
+          : await api("/channels/zernio/connected-accounts", { method: "POST", body: fd({ api_key: get("htZKey").value.trim() }) });
+        if (version !== generation || host._zernioForm !== identity) return;
+        get("htZAccount").innerHTML = option("", window.t("ht.zernio.select_account")) + result.accounts.map(function (a) {
+          return '<option value="' + esc(a.id) + '" data-username="' + esc(a.username) + '">@' + esc(a.username) + ' (' + esc(a.platform) + ')</option>';
+        }).join("");
+        status(result.accounts.length ? "" : window.t("ht.zernio.empty"));
+      } catch (e) { if (version === generation && host._zernioForm === identity) status(e.message); }
+    }
+    get("htZKey").oninput = function () {
+      generation++;
+      get("htZAccount").innerHTML = option("", window.t("ht.zernio.select_account"));
+    };
+    get("htZLoad").onclick = loadAccounts;
+    api("/channels/zernio/connections").then(function (r) {
+      if (host._zernioForm !== identity) return;
+      get("htZConnection").innerHTML += r.connections.map(function (c) { return option(c.id, c.label); }).join("");
+      if (r.connections.length === 1 && !account && !dirty) {
+        get("htZConnection").value = r.connections[0].id;
+        get("htZKey").disabled = true;
+        loadAccounts();
+      }
+    }).catch(function (e) { if (host._zernioForm === identity) status(e.message); });
+    api("/channels/webhook-info?channel=zernio&config_only=true").then(function (r) {
+      if (host._zernioForm !== identity) return;
+      get("htZWebhook").innerHTML = '<label>' + esc(window.t("ht.wh_url")) + ' ' + infoBtn() + '</label>' +
+        infoBody(esc(window.t("ht.zernio.webhook_help")) + '<br>' + esc(r.signature_header) + ': ' + esc(r.signature_algorithm)) +
+        '<code>' + esc(r.webhook_url) + '</code><div>' + esc(window.t("ht.zernio.events")) + ': <code>' +
+        esc(r.events.join(", ")) + '</code></div>' +
+        (r.https ? "" : '<div class="cb-warn">' + esc(window.t("ht.wh_can_https")) + '</div>');
+    }).catch(function (e) { if (host._zernioForm === identity) status(e.message); });
+    return { token: function () {
+      if (account && !dirty) return "";
+      var credentials = { account_id: get("htZId").value.trim(), username: get("htZUser").value.trim(),
+        secret: get("htZSecret").value.trim() };
+      if (get("htZConnection").value) credentials.connection_id = get("htZConnection").value;
+      else credentials.api_key = get("htZKey").value.trim();
+      if (!credentials.account_id || !credentials.username || !credentials.secret ||
+          (!credentials.connection_id && !credentials.api_key)) throw new Error(window.t("ht.zernio.missing"));
+      return JSON.stringify(credentials);
+    } };
+  }
+
   async function moThemTK(opts) {
     opts = opts || {};
     // Gọi từ tab Chatbot thì sổ kênh có thể chưa nạp: không có nó thì modal hiện ra trống trơn.
@@ -2583,7 +2668,7 @@
     var kenhBot = _kenhDS.filter(function (k) { return k.kind === "bot"; });
     var kenhKhac = _kenhDS.filter(function (k) { return k.kind !== "bot"; });
     var chon = kenhBot.length ? kenhBot[0].id : "";
-    var uname = "", meta = {};
+    var uname = "", meta = {}, zernio = null;
     var box = el('<div class="ht-modal"><div class="ht-form">' +
       '<h3>' + esc(window.t("ht.them_tk")) + '</h3>' +
       '<label>' + esc(window.t("ht.lb_loai_kenh")) + '</label>' +
@@ -2600,7 +2685,7 @@
           '</div>';
       }).join("") + '</div>' : "") +
       '<div class="cb-hint ht-card-hint" id="htCardHint" hidden></div>' +
-      '<div id="htTokenPart">' +
+      '<div id="htTokenPart"><div id="htZernio" hidden></div>' +
       '<label id="htTokenLabel"></label>' +
       '<div class="cb-row" id="htTokenRow"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
         '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
@@ -2639,7 +2724,12 @@
       if (g) lab.insertAdjacentHTML("beforeend", ' · <a class="ht-guide" href="' + esc(g) + '" target="_blank" rel="noopener">'
         + esc(window.t("ht.huong_dan")) + " ↗</a>");
       // Internal API (0.459.0): Javis generates the key on Save, so there is no token to paste or check.
-      box.querySelector("#htTokenRow").hidden = !!k.khoa_tu_sinh;
+      box.querySelector("#htTokenRow").hidden = !!k.khoa_tu_sinh || id === "zernio";
+      var zhost = box.querySelector("#htZernio");
+      zhost.hidden = id !== "zernio";
+      zernio = id === "zernio" ? zernioForm(zhost) : null;
+      lab.hidden = id === "zernio";
+      box.querySelector("#htTokenNote").hidden = id === "zernio";
       if (k.khoa_tu_sinh) lab.textContent = window.t("ht.khoa_lb");
       box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + (k.khoa_tu_sinh ? "" : " " + window.t("cb.token_rieng"));
       // A channel with its own card on the Connections page (Messenger, 0.436.2): connecting there is quicker and a Page
@@ -2668,7 +2758,7 @@
       if (!o) return;
       o.hidden = true;
       o.innerHTML = "";
-      if (!k.webhook) return;
+      if (!k.webhook || k.id === "zernio") return;
       try {
         var r = await api("/channels/webhook-info?channel=" + encodeURIComponent(k.id));
         if (chon !== k.id) return;
@@ -2678,24 +2768,8 @@
           // A warning the server words itself, for a channel whose rule is not "HTTPS only" (WeChat: port 443 or 80).
           (r.warning ? '<br><span class="cb-warn">' + esc(r.warning) + '</span>' : "") +
           (r.site_verify ? veMaXacThuc(r.site_codes || []) : "") +
-          (r.accounts && r.accounts.length ? '<br><b>' + esc(window.t("ht.ig_da_ket_noi", "Tài khoản Instagram đã kết nối:")) + '</b> ' + r.accounts.map(function(acc) {
-            return '<button type="button" class="s-btn-ghost ht-zernio-pick" data-id="' + esc(acc.id) + '" data-user="' + esc(acc.username) + '">@' + esc(acc.username) + '</button>';
-          }).join(" ") : "") +
           (r.oauth_redirect ? veCapQuyen(r.oauth_redirect) : "");
         o.hidden = false;
-        o.querySelectorAll(".ht-zernio-pick").forEach(function(btn) {
-          btn.onclick = function() {
-            var aid = btn.dataset.id || "";
-            var usr = btn.dataset.user || "";
-            var tokField = box.querySelector("#htToken");
-            var labField = box.querySelector("#htLabel");
-            if (labField && !labField.value) labField.value = "@" + usr + " (Instagram)";
-            if (tokField) {
-              tokField.value = aid + " " + usr + " ";
-              tokField.focus();
-            }
-          };
-        });
         if (r.site_verify) noiMaXacThuc(o);
         if (r.oauth_redirect) noiCapQuyen(o);
       } catch (e) {
@@ -2775,11 +2849,15 @@
       } catch (e) { note.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>'; }
     };
     box.querySelector(".ht-save").onclick = async function () {
-      var t = box.querySelector("#htToken").value.trim();
+      var t;
+      try { t = zernio ? zernio.token() : box.querySelector("#htToken").value.trim(); }
+      catch (e) { return alert(e.message); }
       var k = kenhCua(chon);
       if (!chon) return alert(window.t("ht.khong_kenh_token"));
       if (!t && !k.khoa_tu_sinh) return alert(window.t("cb.dan_token_kenh", { kenh: k.nhan }) + "\n\n" + (k.lay_token || ""));
       var moi = null, khoa = "";
+      var saveButton = box.querySelector(".ht-save");
+      saveButton.disabled = true;
       try {
         var r = await api("/channels/accounts", { method: "POST", body: fd({
           channel: chon, token: t, label: box.querySelector("#htLabel").value.trim(), bot_username: uname,
@@ -2789,6 +2867,7 @@
         moi = r.account || (r.id ? { id: r.id, channel: chon } : null);
         khoa = r.secret || "";
       } catch (e) { return alert(window.t("ht.loi_doi") + " " + e.message); }
+      finally { saveButton.disabled = false; }
       dong();
       _dauVetTK = "";
       taiTK(true);
@@ -2863,7 +2942,7 @@
     var tuSinh = !!k.khoa_tu_sinh;
     var md = a.meta || {};
     // Generated-key channel: no token field, the key's first characters, a Rotate button and the account's limits.
-    var phanKhoa = tuSinh
+    var phanKhoa = a.channel === "zernio" ? '<div id="htZernio"></div>' : tuSinh
       ? '<label>' + esc(window.t("ht.khoa_lb")) + '</label>' +
         '<div class="cb-row"><code id="htKhoaDau">' + esc((md.key_prefix || "") + "…") + '</code>' +
           '<button class="s-btn-ghost" id="htXoayKhoa" type="button">' + esc(window.t("ht.khoa_xoay")) + '</button></div>' +
@@ -2902,6 +2981,7 @@
         '<button class="s-btn ht-save" type="button">' + esc(window.t("common.save")) + '</button>' +
       '</div></div></div>');
     document.body.appendChild(box);
+    var zernio = a.channel === "zernio" ? zernioForm(box.querySelector("#htZernio"), a) : null;
     var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
     box.onmousedown = function (e) { if (e.target === box) dong(); };
     box.querySelector(".ht-close").onclick = dong;
@@ -2942,11 +3022,13 @@
       } catch (e) { note.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>'; }
     };
     box.querySelector(".ht-save").onclick = async function () {
+      var saveButton = this;
+      saveButton.disabled = true;
       try {
         var oBr = box.querySelector("#htBrain");
         var oTok = box.querySelector("#htToken");
         var than = { label: box.querySelector("#htLabel").value.trim(),
-                     token: oTok ? oTok.value.trim() : "", bot_username: uname };
+                     token: zernio ? zernio.token() : (oTok ? oTok.value.trim() : ""), bot_username: uname };
         if (oBr) than.brain = oBr.value;   // không có ô (kind account) thì KHÔNG gửi = không đụng
         var oCd = box.querySelectorAll(".ht-cai-dat");
         if (oCd.length) {
@@ -2956,6 +3038,7 @@
         }
         await api("/channels/accounts/" + encodeURIComponent(a.id) + "/update", { method: "POST", body: fd(than) });
       } catch (e) { return alert(window.t("ht.loi_doi") + " " + e.message); }
+      finally { saveButton.disabled = false; }
       dong();
       _dauVetTK = "";
       taiTK(true);

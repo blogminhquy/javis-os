@@ -19,6 +19,8 @@ hội thoại khoá theo `f"{kenh}:{id thô}"`; mỗi bản ghi trả về mang 
 """
 from __future__ import annotations
 
+import json
+
 from dataclasses import dataclass
 from typing import Callable
 
@@ -213,6 +215,13 @@ def register(app, deps: ChannelsDeps):
             return _create_generated(channel, label, brain)
         ext = str(bot_username or "").strip()
         meta = {}
+        if channel == "zernio":
+            from zernio_bot import split_credentials
+            credentials = split_credentials(token)
+            if not credentials["api_key"]:
+                return _400(localefmt.chu("Thiếu API key hoặc kết nối Zernio không hợp lệ",
+                                         "Missing API key or invalid Zernio connection"), code="missing_api_key")
+            token = json.dumps(credentials)
         if not ext or channel == "zernio":
             r = await verify_token(channel, token)
             if isinstance(r, JSONResponse) or not r.get("ok"):
@@ -253,6 +262,7 @@ def register(app, deps: ChannelsDeps):
                                       bot_username: str = Form(""), brain: str = Form(None),
                                       settings: str = Form(None)):
         patch = {}
+        token_changed = bool(token.strip())
         cur = channel_accounts.get_account(account_id)
         m = channels.module((cur or {}).get("channel") or "")
         if cur and _generated_key(cur.get("channel") or ""):
@@ -271,12 +281,19 @@ def register(app, deps: ChannelsDeps):
         # chủ, tài khoản quay về trạng thái hiện ở mọi brain.
         if isinstance(brain, str):
             patch["brain"] = brain.strip()
-        if token.strip() and cur and cur.get("channel") == "zernio":
+        if cur and cur.get("channel") == "zernio":
+            from zernio_bot import split_credentials
+            credentials = split_credentials(token.strip() or channel_accounts.get_token(account_id))
+            if not credentials["api_key"]:
+                return _400(localefmt.chu("Thiếu API key hoặc kết nối Zernio không hợp lệ",
+                                         "Missing API key or invalid Zernio connection"), code="missing_api_key")
+            token = json.dumps(credentials)
             result = await verify_token("zernio", token, account_id=account_id)
+            if isinstance(result, JSONResponse):
+                return result
             if not result.get("ok"):
                 return _400(result.get("error") or "Invalid credentials", code=result.get("code", "invalid_credentials"))
             # Changing the provider identity would mix two accounts' conversation histories.
-            from zernio_bot import split_credentials
             old_provider = split_credentials(channel_accounts.get_token(account_id))["account_id"]
             new_provider = split_credentials(token)["account_id"]
             if old_provider != new_provider:
@@ -291,8 +308,8 @@ def register(app, deps: ChannelsDeps):
         ok, loi = channel_accounts.update_account(account_id, patch)
         if not ok:
             return _404(loi) if loi == channel_accounts.LOI_KHONG_CO else _400(loi)
-        # Token đổi thì poller đang chạy phải khởi động lại mới ăn.
-        if token.strip():
+        # Only an explicit credential replacement needs a transport restart.
+        if token_changed:
             for b in chatbot_store.bots_using_account(account_id):
                 if b.get("enabled") and _DEPS and getattr(_DEPS, "restart_bot", None):
                     _DEPS.restart_bot(b["id"])

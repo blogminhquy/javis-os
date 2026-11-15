@@ -7454,5 +7454,20 @@
   "sec.d_wrong_pw": "wrong password",
   "sec.d_pw": "with password",
   "sec.d_pw_2fa": "password + 2FA",
-  "sec.d_setup": "first setup"
+  "sec.d_setup": "first setup",
+  "ht.zernio.connection": "Zernio connection",
+  "ht.zernio.manual": "Enter an API key",
+  "ht.zernio.api_key": "API key",
+  "ht.zernio.load": "Load accounts",
+  "ht.zernio.account": "Instagram account",
+  "ht.zernio.account_id": "Zernio Account ID",
+  "ht.zernio.username": "Instagram username",
+  "ht.zernio.secret": "Webhook signing secret",
+  "ht.zernio.select_account": "Select an account",
+  "ht.zernio.loading": "Loading accounts…",
+  "ht.zernio.empty": "No Instagram accounts in this connection.",
+  "ht.zernio.events": "Events",
+  "ht.zernio.missing": "Account ID, username, webhook secret and a connection or API key are required.",
+  "ht.zernio.credentials_help": "Reuse a server connection or enter an API key. Load and select a real account, or enter its ID and username for verification on Save. Secrets and API keys are never returned. When editing, leave fields untouched to keep credentials; enter complete credentials to replace them.",
+  "ht.zernio.webhook_help": "In Zernio, register this HTTPS URL for message.received using the same signing secret entered here. Save verifies REST identity only, not webhook delivery. Javis does not register webhooks or enable the bot automatically."
 }

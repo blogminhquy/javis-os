@@ -7454,5 +7454,20 @@
   "sec.d_wrong_pw": "sai mật khẩu",
   "sec.d_pw": "bằng mật khẩu",
   "sec.d_pw_2fa": "mật khẩu + 2FA",
-  "sec.d_setup": "lần đầu tạo"
+  "sec.d_setup": "lần đầu tạo",
+  "ht.zernio.connection": "Kết nối Zernio",
+  "ht.zernio.manual": "Nhập API key riêng",
+  "ht.zernio.api_key": "API key",
+  "ht.zernio.load": "Tải tài khoản",
+  "ht.zernio.account": "Tài khoản Instagram",
+  "ht.zernio.account_id": "Account ID của Zernio",
+  "ht.zernio.username": "Username Instagram",
+  "ht.zernio.secret": "Webhook signing secret",
+  "ht.zernio.select_account": "Chọn tài khoản",
+  "ht.zernio.loading": "Đang tải tài khoản…",
+  "ht.zernio.empty": "Không có tài khoản Instagram trong kết nối này.",
+  "ht.zernio.events": "Sự kiện",
+  "ht.zernio.missing": "Cần Account ID, Username, Webhook secret và kết nối hoặc API key.",
+  "ht.zernio.credentials_help": "Chọn kết nối để tái sử dụng API key trên máy chủ hoặc nhập API key riêng. Tải và chọn tài khoản thật, hoặc nhập ID và username để máy chủ kiểm tra khi Lưu. Secret và API key không được trả về. Khi sửa, để nguyên để giữ credentials cũ; nếu thay đổi, nhập lại đủ credentials.",
+  "ht.zernio.webhook_help": "Trong Zernio, đăng ký URL HTTPS này với sự kiện message.received và cùng signing secret đã nhập. Lưu chỉ xác minh danh tính qua REST, chưa xác minh webhook hoạt động. Javis không tự đăng ký webhook hoặc bật bot."
 }
