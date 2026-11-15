@@ -3323,11 +3323,33 @@
     }).catch(function (e) { a.busy = false; a.err = uploadError(e); drawComposer(); });
   }
 
-  function pickFiles(onDone) {
+  // The file picker input lives IN the page until the pick is done (2026-11-15). Owner, on an iPhone: "chọn được nhưng
+  // gửi không được, không đính kèm được" when several photos were picked. The input used to be created and clicked
+  // without ever joining the page, so nothing held it while iOS Safari prepared the photos (several take seconds); it
+  // was dropped and its change event never came, so no chip appeared. One photo was quick enough to slip through. The
+  // main chat never had this: its #fileInput is in index.html. One picker at a time; the next pick replaces it.
+  var pickerEl = null;
+  function dropPicker() {
+    if (pickerEl && pickerEl.parentNode) pickerEl.parentNode.removeChild(pickerEl);
+    pickerEl = null;
+  }
+  function pickFiles(onDone, accept) {
+    dropPicker();
     var inp = document.createElement("input");
-    inp.type = "file"; inp.multiple = true;
-    inp.addEventListener("change", function () { onDone(Array.prototype.slice.call(inp.files || [])); });
+    inp.type = "file";
+    if (accept) inp.accept = accept; else inp.multiple = true;
+    inp.className = "tm-picker";
+    inp.style.display = "none";
+    inp.addEventListener("change", function () {
+      var files = Array.prototype.slice.call(inp.files || []);
+      if (files.length) onDone(files);
+    });
+    // Closed without a pick: nothing to keep (browsers without this event drop it at the next pick).
+    inp.addEventListener("cancel", function () { if (pickerEl === inp) dropPicker(); });
+    document.body.appendChild(inp);
+    pickerEl = inp;
     inp.click();
+    return inp;
   }
 
   function attachFiles(files) {
@@ -4148,11 +4170,9 @@
 
   // 0.200.0: add a team file. A preview first (who comes in, how many skills), then one confirm.
   function importTeam() {
-    var inp = document.createElement("input");
-    inp.type = "file";
-    inp.accept = ".zip,application/zip";
-    inp.onchange = function () {
-      var f = inp.files && inp.files[0];
+    // The same in-page picker as attaching (pickFiles), so iOS keeps it while the file is chosen.
+    pickFiles(function (files) {
+      var f = files[0];
       if (!f) return;
       var send = function (preview) {
         var fd = new FormData();
@@ -4172,8 +4192,7 @@
           loadTeams(false);
         });
       });
-    };
-    inp.click();
+    }, ".zip,application/zip");
   }
 
   function muteTeam(id, on, btn) {
@@ -5467,7 +5486,7 @@
     membersHtml: membersHtml, settingsFormHtml: settingsFormHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
     levelOf: levelOf, grantFor: grantFor, teamAvatarHtml: teamAvatarHtml, savePin: savePin, pinTeamWith: pinTeamWith, noteHtml: noteHtml, levelsHtml: levelsHtml, turnsHtml: turnsHtml,
     bannersHtml: bannersHtml, reactCornerHtml: reactCornerHtml, reactBarHtml: reactBarHtml, sheetHtml: sheetHtml,
-    hoverActsHtml: hoverActsHtml, bodyHtml: bodyHtml, skillSplit: skillSplit, skillCall: skillCall, listSync: listSync, pendingHtml: pendingHtml, copyTextOf: copyTextOf, fileChipHtml: fileChipHtml, uploadError: uploadError, plainPreview: plainPreview, previewText: previewText,
+    hoverActsHtml: hoverActsHtml, bodyHtml: bodyHtml, skillSplit: skillSplit, skillCall: skillCall, listSync: listSync, pendingHtml: pendingHtml, copyTextOf: copyTextOf, fileChipHtml: fileChipHtml, uploadError: uploadError, pickFiles: pickFiles, plainPreview: plainPreview, previewText: previewText,
     nextReaction: nextReaction, REACTIONS: REACTIONS, authorityHtml: authorityHtml, readGrant: readGrant,
     searchResultsHtml: searchResultsHtml, replyStatusHtml: replyStatusHtml, headLine: headLine,
     typingHtml: typingHtml, pinsHtml: pinsHtml, markMentions: markMentions, replyRefHtml: replyRefHtml,
