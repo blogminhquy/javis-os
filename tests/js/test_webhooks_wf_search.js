@@ -39,7 +39,8 @@ const form = W.formHtml([{ path: "/b", name: "b" }], "/b");
 check("the form has a search box tied to the picker", form.includes('id="whWfQ"') && form.includes('type="search"')
   && form.includes('aria-controls="whWorkflow"') && form.indexOf('id="whWfQ"') < form.indexOf('id="whWorkflow"'));
 check("the search box starts hidden until there are workflows to search", /id="whWfQ"[^>]*hidden>/.test(form));
-check("typing redraws the picker", js.includes('f("#whWfQ").oninput = drawWorkflows'));
+// 2026-11-15: the wiring moved into wireFields, shared by the create form and the edit panel.
+check("typing redraws the picker", js.includes('scope.querySelector("#whWfQ").oninput = drawWorkflows'));
 check("saving with no workflow picked is refused in the form", js.includes('tw("wh.need_workflow")'));
 for (const k of ["wh.wf_search_ph", "wh.wf_no_match", "wh.wf_count", "wh.need_workflow"]) {
   check("i18n key " + k + " in vi and en", typeof vi[k] === "string" && typeof en[k] === "string");
