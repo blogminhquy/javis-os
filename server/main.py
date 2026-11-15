@@ -10544,27 +10544,32 @@ async def _repos_prepare(brain: str, have: list, names: list):
     return [n for n in names if n.lower() in low] + fixed, None
 
 
+def _agent_repo_rows(brain: str, slug: str):
+    """The assistant's repo rows, or None when there is no such assistant. Reads its file: call it in a thread."""
+    f = _agent_md_path(brain, slug)
+    return agent_assets.repos(_read_md(f)[0]) if f else None
+
+
 @app.post("/agents/{slug}/assets/repos")
 async def agent_assets_set_repos(slug: str, repos: str = Form(""), brain: str = Form("brain")):
     """Set the assistant's GitHub repos (2026-11-15). Each private chat with it gets them on its next turn, on the
     chat's own branch. Removing one only takes it off the list: chats that have it keep it."""
-    f = _agent_md_path(brain, slug)
-    if not f:
+    have = await asyncio.to_thread(_agent_repo_rows, brain, slug)
+    if have is None:
         return JSONResponse({"error": "not found"}, status_code=404)
     names = _repo_names_form(repos)
     if len(names) > agent_assets.REPOS_MAX:
         return JSONResponse({"ok": False, "error": localefmt.chu(
             f"Mỗi trợ lý chỉ gắn được tối đa {agent_assets.REPOS_MAX} repository",
             f"Each assistant can have at most {agent_assets.REPOS_MAX} repositories")}, status_code=400)
-    have = agent_assets.repo_names(_read_md(f)[0])
-    final, err = await _repos_prepare(brain, have, names)
+    final, err = await _repos_prepare(brain, [r["full_name"] for r in have], names)
     if err:
         return err
     change, loi = await asyncio.to_thread(_agent_assets_sua, brain, slug, lambda m: agent_assets.set_repos(m, final))
     if loi:
         return loi
-    meta = _read_md(_agent_md_path(brain, slug) or f)[0]
-    return {"ok": True, "repos": agent_assets.repos(meta), **(change or {})}
+    rows = await asyncio.to_thread(_agent_repo_rows, brain, slug)
+    return {"ok": True, "repos": rows or [], **(change or {})}
 
 
 # ---- Skills ----
@@ -23941,7 +23946,7 @@ async def projects_set_repos(project_id: str, repos: str = Form("")):
     """Set the project's GitHub repos (2026-11-15), the same comma separated "set" the repo picker sends for a chat.
     Every chat of the project gets them on its next turn, each on its own branch (github_repos.seed_session). A repo
     removed here stays on the chats that already have it. The brain is the project's, never the client's."""
-    p, err = _proj_or_404(project_id)
+    p, err = await asyncio.to_thread(_proj_or_404, project_id)
     if err:
         return err
     names = _repo_names_form(repos)
@@ -23949,12 +23954,22 @@ async def projects_set_repos(project_id: str, repos: str = Form("")):
         return JSONResponse({"ok": False, "error": localefmt.chu(
             f"Mỗi project chỉ gắn được tối đa {sessions.PROJECT_REPOS_MAX} repository",
             f"Each project can have at most {sessions.PROJECT_REPOS_MAX} repositories")}, status_code=400)
-    store = get_store()
-    final, bad = await _repos_prepare(p.get("brain") or "brain", store.project_repo_names(project_id), names)
+    have = await asyncio.to_thread(_project_repo_names_of, project_id)
+    final, bad = await _repos_prepare(p.get("brain") or "brain", have, names)
     if bad:
         return bad
-    change = await asyncio.to_thread(store.set_project_repos, project_id, final)
-    return {"ok": True, "repos": store.list_project_repos(project_id), **change}
+    change, rows = await asyncio.to_thread(_project_repos_store, project_id, final)
+    return {"ok": True, "repos": rows, **change}
+
+
+def _project_repo_names_of(project_id: str) -> list:
+    return get_store().project_repo_names(project_id)
+
+
+def _project_repos_store(project_id: str, names: list):
+    """Write the project's repo list and read it back (sqlite: call it in a thread). Returns (change, rows)."""
+    store = get_store()
+    return store.set_project_repos(project_id, names), store.list_project_repos(project_id)
 
 
 # ── What Javis learnt about a project (2026-11-13) ────────────────────────────
