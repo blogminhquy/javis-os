@@ -63,7 +63,8 @@ _IDLE_TTL = 900          # đóng session không dùng > 15 phút
 # or when it says so (`notifications/tools/list_changed`). The health check and the Test button still ask for real.
 _TOOLS_TTL = 600
 _DOWN_TTL = 60           # nguồn vừa khởi động hỏng: trả lỗi ngay trong chừng này giây (SessionPool.call_tool)
-_INTERNAL = {"botcake": "botcake_mcp", "substack": "substack_mcp"}   # transport internal → tên module
+_INTERNAL = {"botcake": "botcake_mcp", "substack": "substack_mcp",   # transport internal → tên module
+             "http_api": "http_api_mcp"}
 
 _DIAL_SONG_SONG = 8      # số connection dò tool CÙNG LÚC (đừng để npx nổ ra 30 tiến trình)
 # The start-up warm pass opens fewer sessions at once than a chat turn's dial (2026-11-13). Nobody waits for that
