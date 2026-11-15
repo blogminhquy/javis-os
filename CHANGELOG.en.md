@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.569.0] - 2026-11-16
+### Added
+- **Webhooks can be edited after they are made.** The Configuration part of each webhook has an Edit button: change its name, its workflow or written job, the note and the permission level right in that window. The link and its key stay the same, so whatever sends events there needs no change.
+
 ## [0.568.1] - 2026-11-15
 ### Improved
 - **Add new repos right from a project's documents.** The GitHub repo picker of a project, an assistant and the create-team box now has the "+ Add repositories on GitHub" row, as in the chat. Grant more repos on GitHub, come back, and the list shows them without a reload.
