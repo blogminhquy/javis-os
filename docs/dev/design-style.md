@@ -185,7 +185,7 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 
 ## 9. Trang HTML của gói trong Javis Store
 
-Mẫu là trang của gói `javis.gate` 2.2.1 (`packs/javis.gate/plugins/javis-gate/plugin.py`, hàm `_trang_cai_dat`). Thứ
+Mẫu là trang của gói `javis.gate` 2.2.2 (`packs/javis.gate/plugins/javis-gate/plugin.py`, hàm `_trang_cai_dat`). Thứ
 tự trên trang:
 
 1. trạng thái (sẵn sàng, hoặc lỗi kèm cách sửa);
@@ -199,9 +199,13 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
 
 - Thân chữ 17px, tối thiểu 16px; nút cao 48px; không tràn ngang ở 390px; chụp cả sáng lẫn tối.
 - JS của trang viết thành chuỗi thường, đọc đường dẫn từ một khối JSON, để khỏi nhân đôi ngoặc trong f-string.
-- **Chưa khớp, cần sửa khi đụng tới:** trang gói đang theo sáng/tối của hệ điều hành (`prefers-color-scheme`) và font hệ
-  thống. Dashboard thì mặc định sáng, đổi theo `localStorage["javis.theme"]` (cùng tên miền nên trang gói đọc được) và
-  dùng Be Vietnam Pro. Trang gói mới nên theo dashboard.
+- **Sáng/tối, màu và font theo dashboard** (từ `javis.gate` 2.2.2):
+  - một đoạn script trong `<head>` đọc `localStorage["javis.theme"]`, cùng phép tính với đoạn đầu
+    `dashboard/index.html`; chưa chọn thì sáng;
+  - màu lấy theo biến của `dashboard/style.css`;
+  - font Be Vietnam Pro từ `/static/fonts/fonts.css`, mở được khi chưa đăng nhập.
+
+  Trang gói mới chép `_JS_GIAO_DIEN` và `_CSS` của gói đó. Không dùng `prefers-color-scheme`.
 
 ## 10. Cách làm việc thiết kế với chủ
 
