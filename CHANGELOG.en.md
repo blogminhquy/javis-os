@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.568.0] - 2026-11-15
+### Added
+- **Custom API connection.** Any service with a REST API and an API key but no MCP (POS, CRM, shipping, e-invoices...) now connects on the Connections page: paste the base URL and the key, and every engine can call that API.
+- **The key never reaches the model.** It is encrypted, the server adds it to each call and only sends it to the host you entered; a key echoed in a result is masked.
+- **Read-only by default.** At Read-only Javis only calls GET; to create, edit or delete on that service, raise the connection to Full access.
+
 ## [0.567.0] - 2026-11-15
 ### Improved
 - **The core rules Javis sends to the model are now written in English, one copy for every language.** This covers the rules of each chat channel, token-saving mode, the Javis Core role, and the agent and skill paths. About a quarter of the instructions used to be Vietnamese and pulled replies into Vietnamese; Javis now keeps to the language you write in. Chatting in Vietnamese works as before, with Vietnamese replies.
