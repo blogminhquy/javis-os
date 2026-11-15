@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.562.0] - 2026-11-15
+### Added
+- **With Auto on, an assistant looks around with full access.** In its private chat, each time it wakes on its own it uses every connected tool (email, calendar, sales, web search...) and may take real actions within its role. Whatever it does is always reported to you.
+- **Assistants set their own times to check back.** When something has a date (a race, a meeting, a deadline) the assistant sets a check-back, such as the morning or the evening before. At that time it wakes, checks the sources again, then decides whether to message you.
+- **Suggestions and reminders, not notifications.** An assistant only messages you when something is new, timely and actionable: at most two short paragraphs, one concrete piece of advice, with real source links. Reminders go to the Reminders group, suggestions to the new "Assistant suggestions" group (it still reaches you by default; lower or turn it off on the Notifications page).
+### Improved
+- **Turning Auto on asks once** and says plainly that it gives full access. The old line "Auto is not Full access" now matches how Auto works.
+
 ## [0.561.1] - 2026-11-14
 ### Fixed
 - **Hanging up while Javis is still working on something asked for in the call no longer drops it.** Javis finishes and posts the result to the call's chat, with a notification.
