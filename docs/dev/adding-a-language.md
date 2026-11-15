@@ -70,9 +70,9 @@ Fields that people tend to get wrong:
   in Thai", "trả lời bằng tiếng Thái"), written in any language and matched without diacritics.
   `lang._yeu_cau_thang()` looks for them next to a reply verb. They are not generic request
   phrases.
-- **`lang_directive`** is a language name, not a sentence: it is inserted into Vietnamese prompt
-  sentences such as "Viết TOÀN BỘ câu trả lời bằng {lang_directive} ({code})" (write the whole
-  answer in ...). The existing entries use `"Tiếng Việt"` and `"English"`.
+- **`lang_directive`** is a language name, not a sentence. The prompt sentences that name a reply
+  language now use the English name from the reply catalog (`lang_registry.reply_info`), so this
+  field is kept for older callers. The existing entries use `"Tiếng Việt"` and `"English"`.
 - **`weekdays`** follow `datetime.weekday()`, so **0 = Monday**. Cron uses 0 = Sunday.
   `cron_util._ten_thu()` already corrects for this offset; do not correct it a second time.
 
@@ -224,13 +224,16 @@ which checks those links.
 Listed here because this is where people tend to overdo it:
 
 - **Do not** translate the system prompt or `CLAUDE.md` into each language. There is one copy
-  of each; the `# === NGÔN NGỮ ===` (language) block is what decides which language Javis
-  answers in. The model reads Vietnamese or English instructions and answers in Thai, which is
+  of each, written in English; the `# === NGÔN NGỮ ===` (language) block is what decides which
+  language Javis answers in. The model reads English instructions and answers in Thai, which is
   perfectly normal, and one prompt set per language is one more set to drift out of sync.
-  (Since 2026-11-15 the language block itself is written in English, like `CLAUDE.md`, and says
-  the Vietnamese around it is no hint; the reason is at the top of `lang.khoi_ngon_ngu`. The server
+  (On 2026-11-15 the language block, then the rest of the core, moved to English: the channel
+  rules, the token-saving capsule, the agentic paths, the skill router and the Javis Core role. A
+  prompt that was a quarter Vietnamese pulled an English speaker's replies into Vietnamese. The
+  language block says the language of the rules is no hint about the reply language. The server
   does NOT read "English pls" to pin anything: the owner decided on 2026-11-15 to "let the model
-  handle it", and the block only tells the model that a language the user stated wins.)
+  handle it", and the block only tells the model that a language the user stated wins.
+  `tests/python/test_core_prompt_english.py` guards the core blocks.)
 - **Do not** translate the section labels in the prompt (`# === SKILL KHẢ DỤNG` (available
   skills), `# === KÊNH HỘI THOẠI HIỆN TẠI` (current chat channel)...). They are **measurement
   markers**: `context_runtime` counts tokens per section by matching those exact strings

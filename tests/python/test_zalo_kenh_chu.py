@@ -180,14 +180,13 @@ import channel_context
 khoi = channel_context.build_channel_block(
     "zalo", {"chat_id": "zalo:abc", "user_name": "Ted", "chat_type": "private"},
     port=7777, brain_root="/b")
-check("nhận diện đúng nguồn", "Nguồn tin nhắn này: Zalo" in khoi)
+check("nhận diện đúng nguồn", "Source of this message: Zalo" in khoi)
 check("nói rõ CHƯA gửi được tài liệu, thay vì để Javis hứa hão",
-      "CHƯA có API gửi tài liệu" in khoi, khoi[:0])
-check("cấm nói 'em đã gửi file'", "không nói \"em đã gửi file\"" in khoi.lower()
-      or "TUYỆT ĐỐI không nói" in khoi)
-check("nhắc trần 2000 ký tự", "2000 KÝ TỰ" in khoi)
+      "NO API for sending documents yet" in khoi, khoi[:0])
+check("cấm nói 'em đã gửi file'", "NEVER say \"I've sent the file\"" in khoi)
+check("nhắc trần 2000 ký tự", "2000 CHARACTERS" in khoi)
 check("dặn giữ nguyên tiền tố zalo: khi giao việc nền", "zalo:" in khoi)
-check("không dạy dùng bảng markdown", "đừng dùng bảng" in khoi)
+check("không dạy dùng bảng markdown", "do not use tables" in khoi)
 
 # Quét ĐÚNG khối Zalo trong main.py chứ không quét cả file: main.py có một regex
 # `[-–—]` để NHẬN DIỆN em dash người khác viết trong chỉ mục bộ nhớ, và đó là thứ đúng phải

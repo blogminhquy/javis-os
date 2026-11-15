@@ -205,13 +205,13 @@ _agentic = main.main_prompt_rendering.render_agentic_paths(
 check("production nối đúng renderer LỚP AGENTIC dùng chung",
       "base += main_prompt_rendering.render_agentic_paths(root, ag, wf, lp, sk)" in MAIN)
 check("LỚP AGENTIC dặn ghi FILE THƯỜNG vào trong vault bằng đường dẫn tuyệt đối",
-      "FILE KHÁC (bài viết, báo cáo, nháp, dữ liệu): ghi VÀO TRONG vault root" in _agentic)
+      "OTHER FILES (articles, reports, drafts, data): write them INSIDE the vault root" in _agentic)
 check("LỚP AGENTIC dặn đếm/liệt kê file bằng tool ngay lúc đó (không nhớ lại lượt trước)",
-      "liệt kê lại thư mục bằng tool ngay lúc đó" in _agentic)
+      "list the folder again with a tool right then" in _agentic)
 # Luật này CỐ Ý không nằm trong CLAUDE.md: file đó đã sát trần 33.600 ký tự (test_prompt_budget),
 # còn khối LỚP AGENTIC thì đi cùng mọi engine mỗi lượt và mang đúng đường dẫn gốc brain.
 check("luật ghi file mang ĐÚNG gốc brain đã render, không phải chữ chung chung",
-      f"dẫn TUYỆT ĐỐI `{brain}/<thư mục>/<tên file>`" in _agentic)
+      f"ABSOLUTE path `{brain}/<folder>/<file name>`" in _agentic)
 check("dashboard: link trỏ vào hư không → đẩy một dòng riêng (cùng cách lời hứa suông)",
       "await push_to_chat(conv_sid, _cau_link_khong_thay(_thieu))" in MAIN)
 check("telegram: nối dòng đó vào cuối tin", '+ "\\n\\n" + _cau_link_khong_thay(_thieu)' in MAIN)

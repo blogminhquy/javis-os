@@ -40,20 +40,20 @@ def check(ten, dieu_kien, chi_tiet=""):
 khoi = channel_context.build_channel_block("dashboard", {"session_id": "s-test"}, port=8765)
 check("khối kênh dựng được", bool(khoi), repr(khoi)[:80])
 check("có cổng 'chỉ giao việc khi người dùng bảo làm'",
-      "CHỈ GIAO VIỆC NỀN KHI NGƯỜI DÙNG BẢO LÀM" in khoi)
+      "QUEUE BACKGROUND WORK ONLY WHEN THE USER ASKS FOR IT" in khoi)
 check("nói rõ kế hoạch của chính Javis chưa được user gật thì vẫn là đề xuất",
-      "vẫn là đề xuất" in khoi)
+      "they are still proposals" in khoi)
 check("nêu đúng mấy cái tên việc tự đẻ hay gặp",
-      "áp dụng kế hoạch" in khoi and "cập nhật lại timeline" in khoi)
+      "apply the plan above" in khoi and "update the timeline" in khoi)
 check("nói thẳng một lượt bàn bạc bình thường tạo KHÔNG việc nào",
-      "KHÔNG việc nào" in khoi)
+      "creates NO new job" in khoi)
 check("giải thích HẬU QUẢ (mỗi việc bắn thông báo về chuông và khung chat)",
-      "chuông" in khoi and "thông báo" in khoi)
-check("không chắc thì HỎI trước khi tạo", "HỎI MỘT CÂU" in khoi)
+      "bell" in khoi and "notification" in khoi)
+check("không chắc thì HỎI trước khi tạo", "ASK ONE QUESTION" in khoi)
 
 # Vế cũ phải còn nguyên: bỏ nó đi là quay lại lỗi hứa suông (0.9.x), tệ hơn lỗi đang sửa.
 check("VẪN cấm hứa suông (luật cũ không bị cuốn theo)",
-      "KHÔNG HỨA THỨ MÌNH KHÔNG LÀM ĐƯỢC" in khoi)
+      "DO NOT PROMISE WHAT YOU CANNOT DO" in khoi)
 check("VẪN còn lối giao việc nền cho yêu cầu thật của user",
       "javis_task" in khoi)
 

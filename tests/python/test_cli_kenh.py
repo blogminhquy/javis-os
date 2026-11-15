@@ -159,9 +159,8 @@ check("nhánh token đặt sau nhánh cookie",
 _khoi = channel_context.build_channel_block("cli", {"host": "macbook"})
 check("khối kênh nhận diện đúng nguồn", "Javis CLI" in _khoi)
 check("có tên máy để Javis biết đang nói với ai", "macbook" in _khoi)
-check("CANARY: cấm bảng markdown trong terminal", "không dùng bảng" in _khoi.lower()
-      or "TUYỆT ĐỐI không dùng bảng" in _khoi)
-check("CANARY: cấm nhúng ảnh, bắt in đường dẫn", "ĐƯỜNG DẪN TUYỆT ĐỐI" in _khoi)
+check("CANARY: cấm bảng markdown trong terminal", "NEVER use tables" in _khoi)
+check("CANARY: cấm nhúng ảnh, bắt in đường dẫn", "ABSOLUTE PATH" in _khoi)
 # Khối của web dạy công thức "chat_id":"web:..." - lọt sang CLI là Javis gắn sai người nhận.
 check("CANARY: không lẫn công thức của kênh web", "web:" not in _khoi)
 

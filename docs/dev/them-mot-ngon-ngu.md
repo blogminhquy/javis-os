@@ -157,13 +157,15 @@ và thanh chọn ngôn ngữ đầu README.md phải có thêm thứ tiếng m�
 
 Liệt kê ra đây vì đây là chỗ người ta hay đi thừa:
 
-- **Không** dịch system prompt hay `CLAUDE.md` ra từng thứ tiếng. Mỗi thứ chỉ một bản; khối
-  `# === NGÔN NGỮ ===` mới là thứ quyết định Javis trả lời tiếng gì. Model đọc hướng dẫn tiếng
-  Việt hay tiếng Anh rồi trả lời tiếng Thái là chuyện bình thường, và một bộ prompt cho mỗi thứ
-  tiếng là một bộ nữa để trôi lệch. (Từ 15/11/2026 riêng khối NGÔN NGỮ viết tiếng Anh như
-  `CLAUDE.md`, kèm câu nói rõ tiếng Việt xung quanh không phải gợi ý ngôn ngữ; lý do ở đầu
-  `lang.khoi_ngon_ngu`. Server KHÔNG dò câu "English pls" để ghim: chủ repo chốt 15/11/2026 "để mô
-  hình tự xử lý", khối NGÔN NGỮ chỉ dặn model rằng ngôn ngữ người dùng đã nói rõ thì thắng.)
+- **Không** dịch system prompt hay `CLAUDE.md` ra từng thứ tiếng. Mỗi thứ chỉ một bản, viết tiếng
+  Anh; khối `# === NGÔN NGỮ ===` mới là thứ quyết định Javis trả lời tiếng gì. Model đọc hướng dẫn
+  tiếng Anh rồi trả lời tiếng Thái là chuyện bình thường, và một bộ prompt cho mỗi thứ tiếng là một
+  bộ nữa để trôi lệch. (15/11/2026: khối NGÔN NGỮ rồi cả lõi, gồm luật kênh, capsule tiết kiệm token,
+  đường dẫn agentic, skill router, vai Javis Core, chuyển sang tiếng Anh, vì một prompt một phần tư
+  tiếng Việt kéo câu trả lời của người nói tiếng Anh về tiếng Việt. Khối NGÔN NGỮ dặn rõ thứ tiếng
+  của luật không phải gợi ý ngôn ngữ trả lời. Server KHÔNG dò câu "English pls" để ghim: chủ repo
+  chốt 15/11/2026 "để mô hình tự xử lý", khối NGÔN NGỮ chỉ dặn model rằng ngôn ngữ người dùng đã nói
+  rõ thì thắng.)
 - **Không** dịch nhãn mốc trong prompt (`# === SKILL KHẢ DỤNG`, `# === BÂY GIỜ ===`...). Chúng
   là **mốc đo**: `context_runtime` đếm token theo đúng chuỗi đó. Dịch chúng là làm phép đo im
   lặng ngừng chạy cho đúng nhóm người dùng mới thêm vào.

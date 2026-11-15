@@ -7,7 +7,7 @@ box searched file names only, and the three add routes refused a folder.
 
 - A folder is ONE row whose stored path ends in "/". That slash is the whole marker: no table and no frontmatter key
   changed, and the prompt renderer and the dashboard read the same string.
-- Listed, the model sees `[thư mục] name - path/` and opens what it needs. Pinned, a short tree of the folder is loaded,
+- Listed, the model sees `[folder] name - path/` and opens what it needs. Pinned, a short tree of the folder is loaded,
   within the same caps as a pinned file.
 - A team turn may be text only, so a folder added to a team is pinned at once: the tree is all such a turn can read.
 - The empty path (the browse ceiling itself), a path outside the brain and a folder that is not there stay refused.
@@ -79,7 +79,7 @@ row = [f for f in c.get(API).json()["files"] if f.get("id") == FID][0]
 check("the drawer is told it is a folder that exists", row.get("dir") is True and row.get("exists") is True
       and row.get("image") is False and row.get("brain_path") == "Dự án Web/", row)
 block = M._session_block(SID)
-check("listed, the prompt names it as a folder", "- [thư mục] Dự án Web - Dự án Web/" in block, block)
+check("listed, the prompt names it as a folder", "- [folder] Dự án Web - Dự án Web/" in block, block)
 check("and loads nothing while it is not pinned", "bang-gia.md" not in block, block)
 c.post(f"{API}/files/{FID}/pin", data={"pinned": "1"})
 block = M._session_block(SID)
@@ -100,7 +100,7 @@ check("an empty pinned folder says it is empty", "(thư mục đang trống)" in
 (brain / "trong").rmdir()
 row = [f for f in c.get(API).json()["files"] if f.get("path") == "trong/"][0]
 check("a folder removed from disk stays in the list, marked gone", row.get("dir") is True and row.get("exists") is False, row)
-check("and the prompt says it cannot be read", "- [thư mục, đã ghim nhưng đọc không được] trong - trong/" in M._session_block(SID))
+check("and the prompt says it cannot be read", "- [folder, pinned but unreadable] trong - trong/" in M._session_block(SID))
 
 # ---- a project ----------------------------------------------------------------------------------------------------------
 pid = store.create_project("Web", brain=BRAIN)
@@ -108,7 +108,7 @@ r = c.post(f"/projects/{pid}/files", data={"path": "Dự án Web"})
 check("a project takes a folder", r.status_code == 200 and r.json().get("dir") is True, r.text)
 files = c.get(f"/projects/{pid}").json()["project"]["files"]
 check("stored with the slash the drawer reads", [f["path"] for f in files] == ["Dự án Web/"], files)
-check("the project block names it as a folder", "- [thư mục] Dự án Web - Dự án Web/" in M._project_block(pid), M._project_block(pid))
+check("the project block names it as a folder", "- [folder] Dự án Web - Dự án Web/" in M._project_block(pid), M._project_block(pid))
 r2 = c.post(f"/projects/{pid}/files", data={"path": "Dự án Web/bang-gia.md"})
 check("a file is still stored exactly as given", r2.status_code == 200 and r2.json().get("dir") is False
       and "Dự án Web/bang-gia.md" in [f["path"] for f in c.get(f"/projects/{pid}").json()["project"]["files"]], r2.text)
@@ -121,7 +121,7 @@ d = c.get(AG, params={"brain": BRAIN}).json()
 check("kept in the agent's own file, with the slash", [f["path"] for f in d["files"]] == ["Dự án Web/"]
       and "path: Dự án Web/" in (brain / "agents" / "lan.md").read_text(encoding="utf-8"), d)
 meta = M._read_md(brain / "agents" / "lan.md")[0]
-check("the agent's prompt names it as a folder", "- [thư mục] Dự án Web - Dự án Web/" in M._agent_assets_block(BRAIN, meta))
+check("the agent's prompt names it as a folder", "- [folder] Dự án Web - Dự án Web/" in M._agent_assets_block(BRAIN, meta))
 
 # ---- a team -------------------------------------------------------------------------------------------------------------
 q = f"?brain={BRAIN}"
@@ -154,12 +154,12 @@ files = [{"name": "Docs", "path": "docs/", "pinned": 0}, {"name": "Tree", "path"
          {"name": "Gone", "path": "gone/", "pinned": 1}, {"name": "noext", "path": "noext", "pinned": 1}]
 lines, sections = R.render_attachment_lists(files, [], [None, "- a.md\n- b/", None, None], **limits)
 check("renderer: folder rows by their slash, a file with no extension as before", lines == [
-    "- [thư mục] Docs - docs/", "- [thư mục, đã ghim nhưng đọc không được] Gone - gone/",
-    "- [file, đã ghim nhưng là tệp nhị phân - tự mở khi cần] noext - noext"] and sections == ["\n## Tree - tree/\n- a.md\n- b/"], (lines, sections))
+    "- [folder] Docs - docs/", "- [folder, pinned but unreadable] Gone - gone/",
+    "- [file, pinned but binary - open it yourself when needed] noext - noext"] and sections == ["\n## Tree - tree/\n- a.md\n- b/"], (lines, sections))
 big = [{"name": str(i), "path": f"{i}/", "pinned": 1} for i in range(5)]
 lines, sections = R.render_attachment_lists(big, [], ["x" * 5000] * 5, **limits)
 check("renderer: a folder tree spends the same budget as a pinned file", len(sections) == 3
-      and all(len(x) <= 2000 + 60 for x in sections) and len([x for x in lines if "hết chỗ nạp" in x]) == 2, (lines, [len(x) for x in sections]))
+      and all(len(x) <= 2000 + 60 for x in sections) and len([x for x in lines if "no room left to load" in x]) == 2, (lines, [len(x) for x in sections]))
 
 # ---- media_gc keeps what an attached folder holds -----------------------------------------------------------------------
 gc_root = Path(tempfile.mkdtemp(prefix="javis-gc-dir-"))

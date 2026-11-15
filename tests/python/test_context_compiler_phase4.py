@@ -284,7 +284,7 @@ def test_unresolved_conflicts_are_surfaced_not_silently_merged(tmp_path):
     # Cả hai vẫn vào prompt...
     assert "100k" in system and "120k" in system
     # ...và model được BÁO là chúng mâu thuẫn.
-    assert "MÂU THUẪN" in system
+    assert "CONTRADICT" in system
     assert result.trace_report["unresolved_conflicts"] == [["mem_a", "mem_b"]]
 
 

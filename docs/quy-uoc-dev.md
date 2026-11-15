@@ -83,8 +83,14 @@ không được là tiếng Việt trần:
   chạy mà không nằm trong danh sách ngoại lệ dữ liệu.
 - **Server:** chữ trả về cho màn hình (lỗi, thông báo, nhãn) viết `localefmt.chu("tiếng Việt",
   "English")`. Không có request (Telegram, việc nền) thì nó theo `ui_lang` của máy.
-- **KHÔNG dịch:** prompt và mô tả tool gửi cho model, regex nhận câu người dùng gõ hay nói, log,
-  nội dung ghi vào brain của người dùng. Lý do ở `docs/dev/them-mot-ngon-ngu.md`.
+- **Prompt gửi cho model viết tiếng Anh, MỘT bản cho mọi ngôn ngữ** (chủ repo chốt 15/11/2026: "dịch nốt
+  lõi Javis sang tiếng Anh"). Không đi qua i18n, không dịch ra từng thứ tiếng: model trả lời theo ngôn
+  ngữ người dùng nhờ khối `# === NGÔN NGỮ ===`. Luật mới, mô tả tool mới viết tiếng Anh; phần cũ còn
+  tiếng Việt thì dịch khi PR đụng tới. Giữ nguyên tiêu đề `# === ... ===` (mốc đo token) và tên mà
+  chương trình tự viết hay tự đọc (`[Phiên chat: ...]`, `[NGỮ CẢNH GIAO DIỆN: ...]`...).
+  `tests/python/test_core_prompt_english.py` canh các khối lõi.
+- **KHÔNG dịch:** regex nhận câu người dùng gõ hay nói, log, nội dung ghi vào brain của người dùng.
+  Lý do ở `docs/dev/them-mot-ngon-ngu.md`.
 
 ## Tên trong mã viết bằng tiếng Anh (từ 2026-11-06)
 
@@ -98,8 +104,8 @@ ngoài Việt Nam, họ phải đọc được mã mà không cần biết tiế
   `vocabulary`, `split_vocabulary`, `BASE_VOCABULARY`, `MAX_VOCABULARY`).
 - **Không đổi tên những thứ đã thành hợp đồng** khi chưa có đường chuyển đổi: khoá trong file settings, khoá JSON
   mà dashboard hay máy khác đọc (ví dụ `hotwords_goc` của `/voice/options`), tên route, tên tool gửi cho model.
-- **Không phải là tên nên không dịch:** chữ hiện lên màn hình (đi qua i18n, xem mục trên), prompt gửi cho model,
-  regex nhận câu tiếng Việt người dùng nói, nội dung ghi vào brain.
+- **Không phải là tên nên không theo mục này:** chữ hiện lên màn hình (đi qua i18n, xem mục trên), prompt gửi cho
+  model (tiếng Anh, xem mục trên), regex nhận câu tiếng Việt người dùng nói, nội dung ghi vào brain.
 
 ## Chữ giải thích gập vào nút (i) (từ 0.214.0)
 
@@ -196,7 +202,7 @@ Repo mở cho người đóng góp quốc tế, nên phần NGƯỜI NGOÀI Đ�
   i18n (`vi.json` có dấu, `en.json`). Bảng từ điển định danh tiếng Việt cũ cho người nước ngoài ở
   `docs/dev/GLOSSARY.md`, kiến trúc ở `ARCHITECTURE.md`.
 - **Giữ tiếng Việt:** `CHANGELOG.md` (bản gốc, chủ repo đọc), file quy ước này, spec trong
-  `docs/dev/`, và prompt gửi cho model (lý do ở `docs/dev/them-mot-ngon-ngu.md`).
+  `docs/dev/`. Prompt gửi cho model thì viết tiếng Anh từ 15/11/2026 (xem mục "Chữ hiện lên màn hình").
 - PR từ người ngoài không cần đụng `VERSION`/CHANGELOG: người merge thêm file `changelog.d/`.
 
 ## Bản dịch README và hướng dẫn cài nhanh (từ 0.69.0)

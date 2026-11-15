@@ -64,13 +64,12 @@ check("cả ba chỗ dựng prompt đều dùng hàm đó",
 # Không đủ nếu chỉ "hãy trả lời bằng văn xuôi": model vừa nhìn thấy một object thì mặc định
 # của nó là bắt chước. Phải nói thẳng là không được bọc.
 _loi = cc.ContextCompiler._output_contract_text("dashboard")
-check("cấm đích danh việc bọc trong JSON", "không bọc câu trả lời" in _loi.casefold()
-      or "không bọc" in _loi.casefold())
+check("cấm đích danh việc bọc trong JSON", "never wrap the answer" in _loi.casefold())
 check("có nhắc JSON để lời cấm không mơ hồ", "JSON" in _loi)
-check("cấm in lại chính lời dặn này", "không in lại" in _loi.casefold())
+check("cấm in lại chính lời dặn này", "never repeat these rules" in _loi.casefold())
 check("vẫn giữ luật ngôn ngữ theo người dùng", "Reply in the user's language" in _loi)
-check("vẫn giữ luật thiếu dữ liệu phải nói", "thiếu" in _loi.casefold())
-check("vẫn giữ luật không nhận bừa là đã làm xong", "bằng chứng" in _loi.casefold())
+check("vẫn giữ luật thiếu dữ liệu phải nói", "missing" in _loi.casefold())
+check("vẫn giữ luật không nhận bừa là đã làm xong", "evidence" in _loi.casefold())
 check("nêu đúng kênh", "Dashboard" in _loi)
 check("kênh Telegram ra lời riêng",
       "Telegram" in cc.ContextCompiler._output_contract_text("telegram"))
@@ -98,8 +97,8 @@ check("capsule vẫn mang object ra ngoài", "output_contract: dict" in _SRC)
 # model đi tìm một thứ không có là mở đường cho nó tự bịa ra.
 check("CANARY: Core Contract không còn trỏ tới 'output contract'",
       "output contract" not in cc.CORE_CONTRACT.casefold())
-check("mà trỏ đúng vào phần Cách trả lời", "Cách trả lời" in cc.CORE_CONTRACT)
-check("và phần đó có thật trong lời dặn", "Cách trả lời" in _loi)
+check("mà trỏ đúng vào phần Cách trả lời", "How to answer" in cc.CORE_CONTRACT)
+check("và phần đó có thật trong lời dặn", "How to answer" in _loi)
 
 print()
 if _fails:

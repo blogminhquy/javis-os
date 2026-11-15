@@ -486,8 +486,8 @@ _PIN_REASON = {
 # tool results, system skills), and its examples address the reader as mình/bạn. Measured
 # 2026-11-15: after the English kernel, the last ~13,000 characters before the model writes are
 # about 80% Vietnamese words. A model reads that as a hint; this line says it is none.
-_NOT_A_HINT = ("Much of this prompt, the tool results and the brain are in Vietnamese, and its examples "
-               "address the reader as mình/bạn. That is NEVER a hint about the reply language.")
+_NOT_A_HINT = ("These rules are in English, while tool results, the brain and Javis's own labels may be in "
+               "Vietnamese or another language. That is NEVER a hint about the reply language.")
 _KEEP_AS_IS = ("Do not translate: proper nouns, file paths, tool names, brain names, code blocks, and "
                "verbatim excerpts from the brain or a tool result. Content in another language is read "
                "as it is; only the REPLY follows this block.")

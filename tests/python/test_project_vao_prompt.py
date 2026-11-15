@@ -87,7 +87,7 @@ check("ảnh ghim KHÔNG bị nhét byte nhị phân vào prompt", "\x89PNG" not
 # Im lặng bỏ qua là tệ nhất: người dùng ghim xong tưởng Javis đã đọc rồi ngạc nhiên vì nó
 # trả lời như chưa thấy gì.
 check("mà nói thẳng là tệp nhị phân, tự mở khi cần",
-      "tệp nhị phân" in kh and "logo.png" in kh, kh)
+      "binary" in kh and "logo.png" in kh, kh)
 
 # ============================================================
 # 4. Trần: một project không được nuốt hết ngân sách token
@@ -98,7 +98,7 @@ st.set_project_file_pinned(pid, f_to, True)
 kh = main._project_block(pid)
 check(f"file ghim to bị cắt về trần {main.PROJECT_GHIM_FILE_MAX} ký tự",
       kh.count("A") <= main.PROJECT_GHIM_FILE_MAX + 50, kh.count("A"))
-check("và nói rõ là đã cắt bớt chứ không lặng lẽ", "đã cắt bớt" in kh, kh[-400:])
+check("và nói rõ là đã cắt bớt chứ không lặng lẽ", "(clipped)" in kh, kh[-400:])
 check("tổng nội dung ghim không vượt trần chung",
       len(kh) < main.PROJECT_GHIM_TONG_MAX + 3000, len(kh))
 
@@ -109,9 +109,9 @@ check("link có trong danh sách", "elegant.vn" in kh, kh)
 # Chỉ 3 engine CLI có tool duyệt web. Sáu engine API nhìn thấy URL mà không mở được, nên
 # prompt phải nói trước, không thì model bịa nội dung trang cho xong.
 check("dặn thẳng: không có tool duyệt web thì nói, đừng đoán",
-      "đừng đoán nội dung trang" in kh, kh)
+      "instead of guessing the page" in kh, kh)
 check("và dặn đừng đoán nội dung file từ cái tên",
-      "đừng đoán nội dung từ cái tên" in kh, kh)
+      "do not guess its content from its name" in kh, kh)
 
 # ============================================================
 # 6. Đường tiết kiệm: giữ HƯỚNG DẪN, bỏ danh sách tài liệu

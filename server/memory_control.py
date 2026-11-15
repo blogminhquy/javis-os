@@ -197,10 +197,11 @@ def set_learning(mem_dir: Path, on: bool) -> bool:
     return bool(on)
 
 
-LEARNING_OFF_NOTE = ("\n\n# === GHI NHỚ MỚI ĐANG TẮT ===\n"
-                     "Người dùng đã tắt việc lưu ghi nhớ mới cho brain này. Vẫn dùng bộ nhớ đã có, nhưng KHÔNG tạo hay "
-                     "sửa file trong memory/ và không thêm dòng vào MEMORY.md. Nếu người dùng nhờ nhớ điều gì, nói rõ "
-                     "việc ghi nhớ đang tắt và chỉ chỗ bật lại (Javis Core > Trí nhớ).")
+LEARNING_OFF_NOTE = ("\n\n# === GHI NHỚ MỚI ĐANG TẮT (saving new memories is OFF) ===\n"
+                     "The user has turned off saving new memories for this brain. Keep using the memory that exists, "
+                     "but do NOT create or edit files in memory/ and do not add lines to MEMORY.md. If the user asks "
+                     "you to remember something, say clearly that saving memories is off and where to turn it back on "
+                     "(Javis Core, its memory section).")
 
 
 # ── list / edit / forget ──────────────────────────────────────────────────────
