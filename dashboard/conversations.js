@@ -2678,8 +2678,24 @@
           // A warning the server words itself, for a channel whose rule is not "HTTPS only" (WeChat: port 443 or 80).
           (r.warning ? '<br><span class="cb-warn">' + esc(r.warning) + '</span>' : "") +
           (r.site_verify ? veMaXacThuc(r.site_codes || []) : "") +
+          (r.accounts && r.accounts.length ? '<br><b>' + esc(window.t("ht.ig_da_ket_noi", "Tài khoản Instagram đã kết nối:")) + '</b> ' + r.accounts.map(function(acc) {
+            return '<button type="button" class="s-btn-ghost ht-zernio-pick" data-id="' + esc(acc.id) + '" data-user="' + esc(acc.username) + '">@' + esc(acc.username) + '</button>';
+          }).join(" ") : "") +
           (r.oauth_redirect ? veCapQuyen(r.oauth_redirect) : "");
         o.hidden = false;
+        o.querySelectorAll(".ht-zernio-pick").forEach(function(btn) {
+          btn.onclick = function() {
+            var aid = btn.dataset.id || "";
+            var usr = btn.dataset.user || "";
+            var tokField = box.querySelector("#htToken");
+            var labField = box.querySelector("#htLabel");
+            if (labField && !labField.value) labField.value = "@" + usr + " (Instagram)";
+            if (tokField) {
+              tokField.value = aid + " " + usr + " ";
+              tokField.focus();
+            }
+          };
+        });
         if (r.site_verify) noiMaXacThuc(o);
         if (r.oauth_redirect) noiCapQuyen(o);
       } catch (e) {

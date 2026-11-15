@@ -326,6 +326,14 @@
         '<path fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"' +
         ' d="M9 8l-4 4 4 4M15 8l4 4-4 4M13.2 6.8l-2.4 10.4"/>',
     },
+    // Zernio (multi-channel social messaging): a stylized 'Z' glyph on indigo.
+    zernio: {
+      nhan: "Zernio",
+      mau: "#6366F1",
+      than:
+        '<rect width="24" height="24" rx="7" fill="#6366F1"/>' +
+        '<path fill="#fff" d="M7 6h10v2.5l-6.5 7h6.5v2.5H7v-2.5l6.5-7H7V6z"/>',
+    },
   };
 
   // kenh(id, opts) -> chuỗi SVG dấu hiệu nền tảng. opts.size (mặc định 1.15em), opts.cls.

@@ -28910,6 +28910,15 @@ async def channels_webhook_info(request: Request, channel: str = ""):
                     "HTTPS rồi mở lại form này để lấy đúng địa chỉ.",
                     "WeChat can only call a public address on port 443 (https) or 80. Open Javis through its "
                     "HTTPS domain, then reopen this form to get the right address.")}
+    if kenh == "zernio":
+        import zernio_bot
+        base = web_security.external_base(
+            request.url.scheme, request.url.netloc,
+            request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
+        url = base + "/webhooks/zernio"
+        accounts = zernio_bot.connected_instagram_accounts()
+        return {"ok": True, "webhook_url": url, "verify_token": "", "https": url.startswith("https://"),
+                "accounts": accounts}
     if kenh != "messenger":
         return JSONResponse({"ok": False, "error": localefmt.chu("Kênh này không dùng webhook",
                                                                  "This channel does not use a webhook")},
@@ -28950,6 +28959,46 @@ async def messenger_webhook(request: Request):
     # Answer 200 right away (Meta wants it within seconds); the events run as tasks.
     n = await messenger_bot.handle_webhook(payload)
     return {"ok": True, "events": n}
+
+
+# ---- Zernio Webhook & Inbound Adapter Routes ----
+@app.post("/webhooks/zernio")
+@app.post("/zernio/webhook")
+async def zernio_webhook(request: Request):
+    """Inbound Zernio webhook events. Verifies HMAC-SHA256 signature against registered account secrets."""
+    import zernio_bot
+    raw = await _read_capped_body(request)
+    if raw is None:
+        return PlainTextResponse("too large", status_code=413)
+    status, res = await zernio_bot.handle_webhook(raw, dict(request.headers))
+    if status == 401:
+        return PlainTextResponse("bad signature", status_code=401)
+    if status == 400:
+        return PlainTextResponse(str(res.get("error", "bad request")), status_code=400)
+    return JSONResponse(res, status_code=status)
+
+
+@app.post("/zernio/inbound")
+async def zernio_inbound(request: Request):
+    """Runtime adapter for Zernio bridge. Verifies SAMMY_RUNTIME_TOKEN and delivers batch to chatbot runtime."""
+    import zernio_bot
+    raw = await _read_capped_body(request)
+    if raw is None:
+        return PlainTextResponse("too large", status_code=413)
+    try:
+        payload = json.loads(raw.decode("utf-8") or "{}")
+    except Exception:
+        return PlainTextResponse("bad json", status_code=400)
+    auth = request.headers.get("authorization", "")
+    status, res = await zernio_bot.handle_inbound(payload, auth)
+    return JSONResponse(res, status_code=status)
+
+
+@app.get("/channels/zernio/connected-accounts")
+async def zernio_connected_accounts():
+    """Lists connected Instagram accounts from Zernio connection."""
+    import zernio_bot
+    return {"ok": True, "accounts": zernio_bot.connected_instagram_accounts()}
 
 
 # ---- Messenger setup wizard and health check (0.311.0) ----
