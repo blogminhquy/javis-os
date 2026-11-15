@@ -57,33 +57,35 @@ Transport = _Lazy()
 async def verify_token(token: str) -> dict:
     from zernio_bot import split_credentials, whoami
     cr = split_credentials(token)
-    thieu = []
+    missing = []
     if not cr.get("account_id"):
-        thieu.append("Account ID")
+        missing.append("Account ID")
     if not cr.get("username"):
-        thieu.append("Username")
+        missing.append("Username")
     if not cr.get("secret"):
-        thieu.append("Webhook Secret")
-    if thieu:
-        return {"ok": False, "error": localefmt.chu("Còn thiếu: " + ", ".join(thieu),
-                                                    "Missing: " + ", ".join(thieu))}
+        missing.append("Webhook Secret")
+    if not cr.get("api_key"):
+        missing.append("API Key")
+    if missing:
+        return {"ok": False, "code": "missing_fields", "missing": missing, "error": localefmt.chu("Còn thiếu: " + ", ".join(missing),
+                                                    "Missing: " + ", ".join(missing))}
 
     info = await whoami(cr)
     if not info.get("ok"):
-        return {"ok": False, "error": info.get("error", "")}
+        return {"ok": False, "code": info.get("error", "invalid_credentials"), "error": info.get("error", "")}
 
     return {
         "ok": True,
-        "username": cr["username"],
+        "username": info["account"]["username"],
         "bot_name": f"@{cr['username']} (Instagram)",
         "account_type": "instagram",
         "vao_duoc_nhom": False,
         "meta": {
             "platform": "instagram",
             "account_id": cr["account_id"],
-            "username": cr["username"],
-            "secret": cr["secret"],
-            "api_key": cr.get("api_key", ""),
+            "username": info["account"]["username"],
+            "credentials_verified": True,
+            "webhook_secret_verified": False,
         }
     }
 

@@ -333,6 +333,7 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/health", "/auth/status", "/auth/log
                       # /messenger/webhook (0.134.0): same contract as WhatsApp, the signature is
                       # checked in the route under the app secrets of the Messenger accounts.
                       "/messenger/webhook",
+                      "/webhooks/zernio", "/zernio/inbound",
                       # /messenger/oauth/callback (0.434.0): Facebook sends the browser back here; the
                       # unguessable `state` from an authenticated /messenger/oauth/start is the check.
                       # /messenger/privacy: the policy page Meta must reach to switch the app to Live.
@@ -28916,9 +28917,14 @@ async def channels_webhook_info(request: Request, channel: str = ""):
             request.url.scheme, request.url.netloc,
             request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
         url = base + "/webhooks/zernio"
-        accounts = zernio_bot.connected_instagram_accounts()
+        try:
+            accounts = await asyncio.to_thread(zernio_bot.connected_instagram_accounts)
+        except zernio_bot.CredentialsError as exc:
+            return JSONResponse({"ok": False, "error": exc.code}, status_code=502)
         return {"ok": True, "webhook_url": url, "verify_token": "", "https": url.startswith("https://"),
-                "accounts": accounts}
+                "accounts": accounts, "signature_header": "X-Zernio-Signature",
+                "signature_algorithm": "HMAC-SHA256", "events": ["message.received"],
+                "credentials_format": "json", "account_id_kind": "zernio_provider"}
     if kenh != "messenger":
         return JSONResponse({"ok": False, "error": localefmt.chu("Kênh này không dùng webhook",
                                                                  "This channel does not use a webhook")},
@@ -28963,11 +28969,10 @@ async def messenger_webhook(request: Request):
 
 # ---- Zernio Webhook & Inbound Adapter Routes ----
 @app.post("/webhooks/zernio")
-@app.post("/zernio/webhook")
 async def zernio_webhook(request: Request):
     """Inbound Zernio webhook events. Verifies HMAC-SHA256 signature against registered account secrets."""
     import zernio_bot
-    raw = await _read_capped_body(request)
+    raw = await _read_capped_body(request, limit=zernio_bot.MAX_BODY_BYTES)
     if raw is None:
         return PlainTextResponse("too large", status_code=413)
     status, res = await zernio_bot.handle_webhook(raw, dict(request.headers))
@@ -28980,9 +28985,9 @@ async def zernio_webhook(request: Request):
 
 @app.post("/zernio/inbound")
 async def zernio_inbound(request: Request):
-    """Runtime adapter for Zernio bridge. Verifies SAMMY_RUNTIME_TOKEN and delivers batch to chatbot runtime."""
+    """Account-scoped bearer adapter. Enqueues through the durable Zernio inbox."""
     import zernio_bot
-    raw = await _read_capped_body(request)
+    raw = await _read_capped_body(request, limit=zernio_bot.MAX_BODY_BYTES)
     if raw is None:
         return PlainTextResponse("too large", status_code=413)
     try:
@@ -28998,7 +29003,11 @@ async def zernio_inbound(request: Request):
 async def zernio_connected_accounts():
     """Lists connected Instagram accounts from Zernio connection."""
     import zernio_bot
-    return {"ok": True, "accounts": zernio_bot.connected_instagram_accounts()}
+    try:
+        accounts = await asyncio.to_thread(zernio_bot.connected_instagram_accounts)
+    except zernio_bot.CredentialsError as exc:
+        return JSONResponse({"ok": False, "error": exc.code}, status_code=502)
+    return {"ok": True, "accounts": accounts}
 
 
 # ---- Messenger setup wizard and health check (0.311.0) ----

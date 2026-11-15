@@ -2692,7 +2692,16 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
             **chung,
         )
         tb.account_id = aid
-        tb.start()
+        if kenh == "zernio":
+            tb.bot_id = bot_id
+            try:
+                tb.start()
+            except ValueError:
+                loi.append(localefmt.chu("Ánh xạ tài khoản Zernio bị trùng hoặc thiếu",
+                                         "Duplicate or missing Zernio account mapping"))
+                continue
+        else:
+            tb.start()
         pollers[aid] = tb
     if not pollers:
         return False, "; ".join(loi) or localefmt.chu(f"Chưa có token {nhan_kenh} cho bot này",

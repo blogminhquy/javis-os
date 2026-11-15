@@ -208,16 +208,20 @@ def register(app, deps: ChannelsDeps):
                                       label: str = Form(""), bot_username: str = Form(""),
                                       brain: str = Form("")):
         """Thêm tài khoản token. Chưa kiểm (không có bot_username) thì kiểm luôn ở đây."""
+        channel = str(channel or "").strip().lower()
         if _generated_key(channel):
             return _create_generated(channel, label, brain)
         ext = str(bot_username or "").strip()
         meta = {}
-        if not ext:
+        if not ext or channel == "zernio":
             r = await verify_token(channel, token)
             if isinstance(r, JSONResponse) or not r.get("ok"):
-                return r if isinstance(r, JSONResponse) else _400(r.get("error") or localefmt.chu("Token không hợp lệ", "Invalid token"))
+                return r if isinstance(r, JSONResponse) else _400(
+                    r.get("error") or localefmt.chu("Token không hợp lệ", "Invalid token"),
+                    code=r.get("code", "invalid_credentials"))
             ext = r.get("username") or ""
-            meta = {k: r[k] for k in ("vao_duoc_nhom", "account_type", "bot_name") if k in r}
+            meta = dict(r.get("meta") or {}) if channel == "zernio" else {
+                k: r[k] for k in ("vao_duoc_nhom", "account_type", "bot_name") if k in r}
         aid, loi = channel_accounts.create_account({
             "channel": channel, "token": token, "label": label, "external_id": ext, "meta": meta,
             # Thêm từ brain nào thì thuộc brain đó (0.62.4). Không truyền = chưa gán chủ, thẻ
@@ -267,6 +271,19 @@ def register(app, deps: ChannelsDeps):
         # chủ, tài khoản quay về trạng thái hiện ở mọi brain.
         if isinstance(brain, str):
             patch["brain"] = brain.strip()
+        if token.strip() and cur and cur.get("channel") == "zernio":
+            result = await verify_token("zernio", token, account_id=account_id)
+            if not result.get("ok"):
+                return _400(result.get("error") or "Invalid credentials", code=result.get("code", "invalid_credentials"))
+            # Changing the provider identity would mix two accounts' conversation histories.
+            from zernio_bot import split_credentials
+            old_provider = split_credentials(channel_accounts.get_token(account_id))["account_id"]
+            new_provider = split_credentials(token)["account_id"]
+            if old_provider != new_provider:
+                return _400(localefmt.chu("Tạo tài khoản mới để dùng ID Zernio khác",
+                                         "Create a new account for a different Zernio ID"), code="provider_identity_changed")
+            bot_username = result["username"]
+            patch["meta"] = result.get("meta") or {}
         if token.strip():
             patch["token"] = token
             if bot_username.strip():
@@ -466,7 +483,7 @@ async def verify_token(channel: str, token: str, account_id: str = "", bot_id: s
             "partner answer in the admin chat, type /agent <name> right in Zalo.")}
     r = await m.verify_token(tok)
     if not r.get("ok"):
-        return {"ok": False, "error": r.get("error") or localefmt.chu(f"Token không hợp lệ ({s.nhan} từ chối).",
+        return {"ok": False, "code": r.get("code", "invalid_credentials"), "error": r.get("error") or localefmt.chu(f"Token không hợp lệ ({s.nhan} từ chối).",
                                                                   f"Invalid token ({s.nhan} rejected it).")}
     username = r.get("username") or ""
     # Trùng: tài khoản nào đã giữ đúng con bot này (theo kênh). Sửa chính nó thì bỏ qua.
@@ -493,4 +510,6 @@ async def verify_token(channel: str, token: str, account_id: str = "", bot_id: s
     for k in ("vao_duoc_nhom", "account_type"):
         if k in r:
             ra[k] = r[k]
+    if kenh == "zernio":
+        ra["meta"] = r.get("meta") or {}
     return ra

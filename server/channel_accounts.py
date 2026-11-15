@@ -115,6 +115,9 @@ def _public(a: dict) -> dict:
     out["channel_label"] = s.nhan if s else str(a.get("channel") or "")
     out["logo"] = s.logo if s else ""
     out.setdefault("meta", {})
+    if out.get("channel") == "zernio":
+        out["meta"] = {k: v for k, v in out["meta"].items() if k in (
+            "platform", "account_id", "username", "credentials_verified", "webhook_secret_verified")}
     return out
 
 

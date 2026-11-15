@@ -14,7 +14,7 @@ Key features:
 4. Human takeover & Customer limit protection:
    - Respects human takeover (`conversations.che_do == "human"`): bot remains silent when staff takes over.
    - Verified immediately before invoking runtime and immediately before sending outbound message.
-   - Durable cap on replies in window (max 5 replies) to prevent spam/runaway loops.
+   - No channel-specific reply cap; shared runtime policy applies.
 5. Inbound bridge endpoint (`/zernio/inbound`):
    - Secure runtime adapter receiving `{ conversationId, account, messages, policy }` protected by bearer token.
 """
@@ -28,7 +28,9 @@ import os
 import re
 import sys
 import time
-from collections import deque
+from contextlib import contextmanager
+import sqlite3
+from urllib.parse import quote, urlencode
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -42,10 +44,10 @@ import localefmt
 STATE_FILE = cfgmod.STATE_DIR / "zernio_state.json"
 MAX_AGE_SECONDS = 48 * 3600  # 48 hours for deduplication TTL
 BATCH_SECONDS = 5.0
-MAX_CUSTOMER_REPLIES = 5
+API_BASE = "https://zernio.com/api/v1"
 MAX_BODY_BYTES = 256 * 1024
 
-_lock = asyncio.Lock() if hasattr(asyncio, "Lock") else None
+
 
 # Active bots: account_id -> ZernioBot
 _REGISTRY: Dict[str, "ZernioBot"] = {}
@@ -93,59 +95,77 @@ def split_credentials(token: Any) -> dict:
 
 
 def _fallback_api_key() -> str:
-    """Reads API key from configured Zernio connection in mcp_store if available."""
+    """Use a single enabled connection only; never guess among several credentials."""
     try:
         import mcp_store
-        for c in mcp_store.list_connections():
-            cid = str(c.get("connector_id") or c.get("id") or "")
-            if "zernio" in cid.lower() and c.get("enabled"):
-                sec = mcp_store.connection_secrets(c["id"])
-                if sec and sec.get("api_key"):
-                    return str(sec["api_key"]).strip()
+        matches = [c for c in mcp_store.list_connections()
+                   if "zernio" in str(c.get("connector_id") or c.get("id") or "").lower()
+                   and c.get("enabled")]
+        if len(matches) == 1:
+            return str((mcp_store.connection_secrets(matches[0]["id"]) or {}).get("api_key") or "").strip()
     except Exception:
         pass
     return ""
 
 
-def connected_instagram_accounts() -> List[dict]:
-    """Lists connected Instagram accounts from Zernio API if connected."""
-    key = _fallback_api_key()
+class CredentialsError(Exception):
+    def __init__(self, code):
+        self.code = code
+        super().__init__(code)
+
+
+def _rest_accounts(key: str) -> List[dict]:
+    """Read real accounts with cursor pagination, returning public identity fields only."""
     if not key:
-        return []
+        raise CredentialsError("missing_api_key")
     import urllib.request
-    req = urllib.request.Request("https://api.zernio.com/v1/accounts", headers={
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json"
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            out = []
-            for a in data.get("accounts", []):
-                if a.get("platform") == "instagram":
-                    aid = str(a.get("_id") or a.get("id") or a.get("accountId") or "")
-                    uname = str(a.get("username") or "")
-                    if aid and uname:
-                        out.append({"id": aid, "username": uname, "platform": "instagram"})
+    import urllib.error
+    out, cursor, seen = [], "", set()
+    while True:
+        params = {"platform": "instagram", "limit": 100}
+        if cursor:
+            params["cursor"] = cursor
+        req = urllib.request.Request(API_BASE + "/accounts?" + urlencode(params), headers={
+            "Authorization": f"Bearer {key}", "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as exc:
+            raise CredentialsError("invalid_api_key" if exc.code in (401, 403) else "provider_unavailable") from None
+        except Exception:
+            raise CredentialsError("provider_unavailable") from None
+        if not isinstance(data, dict) or not isinstance(data.get("accounts"), list):
+            raise CredentialsError("invalid_provider_response")
+        for account in data["accounts"]:
+            if not isinstance(account, dict) or account.get("platform") != "instagram":
+                continue
+            aid = str(account.get("_id") or account.get("id") or account.get("accountId") or "")
+            username = str(account.get("username") or "").lstrip("@")
+            if aid and username:
+                out.append({"id": aid, "username": username, "platform": "instagram"})
+        cursor = (data.get("pagination") or {}).get("nextCursor")
+        if not cursor:
             return out
-    except Exception as e:
-        print(f"[zernio] failed to list accounts: {type(e).__name__}: {e}", file=sys.stderr)
-        return []
+        if cursor in seen:
+            raise CredentialsError("invalid_provider_response")
+        seen.add(cursor)
+
+
+def connected_instagram_accounts() -> List[dict]:
+    return _rest_accounts(_fallback_api_key())
 
 
 async def whoami(cr: dict) -> dict:
-    """Validates credentials. If account_id and username match connected Instagram accounts or format."""
-    aid = cr.get("account_id") or ""
-    uname = cr.get("username") or ""
-    if not aid or not uname:
-        return {"ok": False, "error": localefmt.chu("Thiếu Account ID hoặc Username", "Missing Account ID or Username")}
-    accounts = connected_instagram_accounts()
-    if accounts:
-        matched = next((a for a in accounts if a["id"] == aid or a["username"].lower() == uname.lower()), None)
-        if matched:
-            return {"ok": True, "account": matched}
-    # If network check unavailable or not in list, accept valid format
-    return {"ok": True, "account": {"id": aid, "username": uname, "platform": "instagram"}}
+    try:
+        accounts = await asyncio.to_thread(_rest_accounts, cr.get("api_key") or "")
+    except CredentialsError as exc:
+        return {"ok": False, "error": exc.code}
+    matched = next((a for a in accounts if a["id"] == cr.get("account_id")), None)
+    if not matched:
+        return {"ok": False, "error": "account_not_found"}
+    if matched["username"].casefold() != str(cr.get("username") or "").lstrip("@").casefold():
+        return {"ok": False, "error": "account_username_mismatch"}
+    return {"ok": True, "account": matched}
 
 
 # ============================================================
@@ -171,48 +191,68 @@ def verify_signature(raw: bytes, signature: str, secret: str) -> bool:
 # Durable Deduplication & Batching State Store
 # ============================================================
 class DurableState:
+    """Transactional SQLite journal. Import legacy JSON once; never discard corrupt data.
+
+    A separate SQLite write lock per conversation serializes model/send work across
+    processes without holding the shared journal transaction over a network await.
+    OS closes those locks automatically after a worker crash.
+    """
     def __init__(self, file_path: Path):
         self.file_path = file_path
-        self._ensure_dir()
+        self.db_path = file_path.with_suffix(".sqlite3")
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._connect() as db:
+            db.execute("CREATE TABLE IF NOT EXISTS journal (id INTEGER PRIMARY KEY, data TEXT NOT NULL)")
+            row = db.execute("SELECT id FROM journal WHERE id=1").fetchone()
+            if not row:
+                data = json.loads(file_path.read_text()) if file_path.exists() else {}
+                for key in ("events", "messages", "conversations"):
+                    data.setdefault(key, {})
+                data["messages"] = {json.dumps(k.split(":", 1), separators=(",", ":")) if ":" in k and not k.startswith("[") else k: v
+                                    for k, v in data["messages"].items()}
+                db.execute("INSERT OR IGNORE INTO journal VALUES(1, ?)", (json.dumps(data),))
+        os.chmod(self.db_path, 0o600)
 
-    def _ensure_dir(self):
+    def _connect(self):
+        return sqlite3.connect(self.db_path, timeout=10)
+
+    @contextmanager
+    def transaction(self):
+        db = self._connect()
         try:
-            self.file_path.parent.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            pass
+            db.execute("BEGIN IMMEDIATE")
+            data = json.loads(db.execute("SELECT data FROM journal WHERE id=1").fetchone()[0])
+            yield data
+            db.execute("UPDATE journal SET data=? WHERE id=1", (json.dumps(data),))
+            db.commit()
+        finally:
+            db.close()
 
     def load(self) -> dict:
-        try:
-            if self.file_path.exists():
-                with open(self.file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        data.setdefault("events", {})
-                        data.setdefault("messages", {})
-                        data.setdefault("conversations", {})
-                        return data
-        except Exception as e:
-            print(f"[zernio state load error] {type(e).__name__}: {e}", file=sys.stderr)
-        return {"events": {}, "messages": {}, "conversations": {}}
+        with self._connect() as db:
+            return json.loads(db.execute("SELECT data FROM journal WHERE id=1").fetchone()[0])
 
     def save(self, data: dict):
+        # Compatibility helper for migration/tests. Production uses transaction().
+        with self.transaction() as current:
+            current.clear()
+            current.update(data)
+
+    def conversation_lock(self, key):
+        digest = hashlib.sha256(key.encode()).hexdigest()
+        directory = self.db_path.parent / "zernio-locks"
+        directory.mkdir(exist_ok=True, mode=0o700)
+        db = sqlite3.connect(directory / (digest + ".sqlite3"), timeout=0)
         try:
-            self._ensure_dir()
-            tmp_path = self.file_path.with_name(f"{self.file_path.name}.{os.getpid()}.tmp")
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False)
-            os.replace(tmp_path, self.file_path)
-        except Exception as e:
-            print(f"[zernio state save error] {type(e).__name__}: {e}", file=sys.stderr)
+            db.execute("BEGIN IMMEDIATE")
+        except sqlite3.OperationalError:
+            db.close()
+            return None
+        return db
 
     def prune(self, data: dict, now: float) -> dict:
-        events = data.get("events", {})
-        messages = data.get("messages", {})
-        cutoff = now - MAX_AGE_SECONDS
-        pruned_events = {k: v for k, v in events.items() if float(v.get("ts") or now) > cutoff}
-        pruned_messages = {k: v for k, v in messages.items() if float(v.get("ts") or now) > cutoff}
-        data["events"] = pruned_events
-        data["messages"] = pruned_messages
+        for key in ("events", "messages"):
+            data[key] = {k: v for k, v in data[key].items() if float(v.get("ts") or now) > now - MAX_AGE_SECONDS}
         return data
 
 
@@ -229,7 +269,9 @@ class ZernioBot(bot_gateway.HangLuot):
                  download_dir=None, commands=None, precheck_fn=None, event_fn=None,
                  giau_trang_thai: bool = False, **_ignored):
         self.creds = split_credentials(token)
-        self.account_id = self.creds.get("account_id") or ""
+        self.provider_account_id = self.creds.get("account_id") or ""
+        self.account_id = ""  # Javis channel account ID, assigned by runtime
+        self.bot_id = ""
         self.bot_username = self.creds.get("username") or ""
         self.secret = self.creds.get("secret") or ""
         self.api_key = self.creds.get("api_key") or ""
@@ -247,24 +289,33 @@ class ZernioBot(bot_gateway.HangLuot):
         self.last_error = ""
 
     def start(self):
+        if not self.provider_account_id or not self.account_id or not self.bot_id:
+            raise ValueError("Zernio requires provider, Javis account and bot IDs")
+        existing = _REGISTRY.get(self.provider_account_id)
+        if existing and existing is not self:
+            raise ValueError("Zernio provider account already assigned")
         self._stop = False
         self.status = "polling"
-        if self.account_id:
-            _REGISTRY[self.account_id] = self
-            _ACCOUNTS[self.account_id] = self.creds
+        _REGISTRY[self.provider_account_id] = self
+        _ACCOUNTS[self.provider_account_id] = self.creds
+        try:
+            resume_pending(self.provider_account_id)
+        except Exception:
+            self.stop()
+            raise
 
     def stop(self):
         self._stop = True
         self.status = "stopped"
-        if self.account_id in _REGISTRY:
-            _REGISTRY.pop(self.account_id, None)
-            _ACCOUNTS.pop(self.account_id, None)
+        if _REGISTRY.get(self.provider_account_id) is self:
+            _REGISTRY.pop(self.provider_account_id, None)
+            _ACCOUNTS.pop(self.provider_account_id, None)
 
     async def _send(self, client, chat, text):
         return await send_api_message(self.creds, chat, text)
 
-    async def send_text(self, conversation_id: str, text: str) -> Tuple[bool, str]:
-        return await send_api_message(self.creds, conversation_id, text)
+    async def send_text(self, conversation_id: str, text: str, idempotency_key: str = "") -> Tuple[bool, str]:
+        return await send_api_message(self.creds, conversation_id, text, idempotency_key)
 
     async def _handle_turn(self, client, chat, text, meta=None):
         if conversations.che_do("zernio", self.account_id, chat) == "human":
@@ -298,7 +349,7 @@ Transport = ZernioBot
 # ============================================================
 # Outbound Message Sender via Zernio API
 # ============================================================
-async def send_api_message(creds: dict, conversation_id: str, text: str) -> Tuple[bool, str]:
+async def send_api_message(creds: dict, conversation_id: str, text: str, idempotency_key: str = "") -> Tuple[bool, str]:
     """Sends a direct message reply via Zernio REST API POST /v1/inbox/conversations/{conversationId}/messages."""
     cid = str(conversation_id or "").strip()
     msg = str(text or "").strip()
@@ -311,21 +362,20 @@ async def send_api_message(creds: dict, conversation_id: str, text: str) -> Tupl
         return False, localefmt.chu("Chưa có API key Zernio để gửi tin", "Missing Zernio API key for sending messages")
 
     import httpx
-    url = f"https://api.zernio.com/v1/inbox/conversations/{cid}/messages"
+    url = API_BASE + f"/inbox/conversations/{quote(cid, safe='')}/messages"
     payload = {"accountId": aid, "message": msg}
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
+    if idempotency_key:
+        headers["Idempotency-Key"] = idempotency_key
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(url, json=payload, headers=headers)
             if resp.status_code in (200, 201):
                 return True, ""
-            err_text = resp.text[:200]
-            print(f"[zernio send error {resp.status_code}] {err_text}", file=sys.stderr)
-            return False, f"HTTP {resp.status_code}: {err_text}"
-    except Exception as e:
-        print(f"[zernio send exception] {type(e).__name__}: {e}", file=sys.stderr)
-        return False, f"{type(e).__name__}: {e}"
+            return False, f"provider_http_{resp.status_code}"
+    except Exception:
+        return False, "provider_unavailable"
 
 
 async def send_text_for_account(tk: dict, chat_id: str, text: str) -> Tuple[bool, str]:
@@ -340,6 +390,13 @@ async def send_text_for_account(tk: dict, chat_id: str, text: str) -> Tuple[bool
 async def handle_webhook(raw: bytes, headers: dict) -> Tuple[int, dict]:
     """Handles an inbound raw webhook payload from Zernio.
     Returns (HTTP status code, response dict)."""
+    if len(raw) > MAX_BODY_BYTES:
+        return 413, {"ok": False, "error": "body_too_large"}
+    with _state_store.transaction() as state:
+        return _receive_webhook(raw, headers, state)
+
+
+def _receive_webhook(raw, headers, state):
     now = _now()
     h = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
     sig = h.get("x-zernio-signature", "")
@@ -367,29 +424,24 @@ async def handle_webhook(raw: bytes, headers: dict) -> Tuple[int, dict]:
 
     # Determine account id
     acc_obj = body.get("account") or {}
+    if not isinstance(acc_obj, dict):
+        return 400, {"ok": False, "error": "invalid_account"}
     account_id = str(acc_obj.get("accountId") or acc_obj.get("id") or "").strip()
 
-    # Find matching secret
-    matched_secret = ""
-    if account_id and account_id in _ACCOUNTS:
-        matched_secret = _ACCOUNTS[account_id].get("secret", "")
-    elif _ACCOUNTS:
-        for a_creds in _ACCOUNTS.values():
-            if verify_signature(raw, sig, a_creds.get("secret", "")):
-                matched_secret = a_creds.get("secret", "")
-                break
-
-    if not matched_secret:
-        env_secret = os.environ.get("ZERNIO_WEBHOOK_SECRET", "").strip()
-        if env_secret and verify_signature(raw, sig, env_secret):
-            matched_secret = env_secret
-
-    # Verify signature
-    if not matched_secret or not verify_signature(raw, sig, matched_secret):
-        return 401, {"ok": False, "error": "invalid_signature"}
+    # An account event must be signed by THAT account's configured secret.
+    if account_id:
+        bot = _REGISTRY.get(account_id)
+        if not bot or bot._stop:
+            return 404, {"ok": False, "error": "account_unmapped"}
+        if not verify_signature(raw, sig, bot.secret):
+            return 401, {"ok": False, "error": "invalid_signature"}
+    elif event_name == "webhook.test":
+        if not any(verify_signature(raw, sig, cr.get("secret", "")) for cr in _ACCOUNTS.values()):
+            return 401, {"ok": False, "error": "invalid_signature"}
+    else:
+        return 400, {"ok": False, "error": "missing_account"}
 
     # 2. Check Deduplication
-    state = _state_store.load()
     state = _state_store.prune(state, now)
     if event_id in state["events"]:
         return 200, {"ok": True, "duplicate": True}
@@ -399,14 +451,13 @@ async def handle_webhook(raw: bytes, headers: dict) -> Tuple[int, dict]:
         import datetime
         occurred_at = datetime.datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp()
     except Exception:
-        occurred_at = now
+        return 400, {"ok": False, "error": "invalid_timestamp"}
 
     if occurred_at > now + 300 or (now - occurred_at) > MAX_AGE_SECONDS:
         return 202, {"ok": True, "ignored": "replay_or_historical"}
 
     def mark_event_handled(status_code: int, code: str):
         state["events"][event_id] = {"ts": now, "iso": ts_str}
-        _state_store.save(state)
         return status_code, {"ok": status_code < 400, "status": code}
 
     # 4. Handle webhook.test
@@ -419,308 +470,261 @@ async def handle_webhook(raw: bytes, headers: dict) -> Tuple[int, dict]:
 
     # 6. Message Eligibility Checks
     msg = body.get("message") or {}
+    if not isinstance(msg, dict):
+        return 400, {"ok": False, "error": "invalid_message"}
     platform = str(acc_obj.get("platform") or msg.get("platform") or "").lower()
+    if acc_obj.get("username") and str(acc_obj["username"]).lstrip("@").casefold() != bot.bot_username.lstrip("@").casefold():
+        return 400, {"ok": False, "error": "account_username_mismatch"}
     if platform != "instagram":
         return mark_event_handled(202, "unsupported_platform")
 
     direction = str(msg.get("direction") or "").lower()
-    if direction == "outgoing" or msg.get("is_echo") or msg.get("isEcho"):
+    if direction != "incoming" or msg.get("is_echo") or msg.get("isEcho"):
         return mark_event_handled(202, "echo")
 
     meta_obj = body.get("metadata") or {}
+    if not isinstance(meta_obj, dict):
+        return 400, {"ok": False, "error": "invalid_metadata"}
     if meta_obj.get("standby") or meta_obj.get("historical") or msg.get("historical") or msg.get("isHistorical"):
         return mark_event_handled(202, "standby_or_historical")
 
     msg_id = str(msg.get("id") or "").strip()
     platform_msg_id = str(msg.get("platformMessageId") or msg.get("id") or "").strip()
     sender = msg.get("sender") or {}
+    if not isinstance(sender, dict):
+        return 400, {"ok": False, "error": "invalid_sender"}
     sender_id = str(sender.get("id") or "").strip()
     sender_username = str(sender.get("username") or "").strip()
 
-    if not msg_id or not sender_id:
+    if not msg_id or not platform_msg_id or not sender_id:
         return mark_event_handled(400, "invalid_message")
 
     # Check bot sender
-    acc_username = str(acc_obj.get("username") or "").strip().lower()
+    acc_username = bot.bot_username.lstrip("@").casefold()
     if sender_id == account_id or (sender_username and sender_username.lower() == acc_username):
         return mark_event_handled(202, "self_message")
 
     conv_obj = body.get("conversation") or {}
+    if not isinstance(conv_obj, dict):
+        return 400, {"ok": False, "error": "invalid_conversation"}
     conv_id = str(conv_obj.get("id") or msg.get("conversationId") or "").strip()
     if not conv_id:
         return mark_event_handled(400, "missing_conversation_id")
 
     # Message-level deduplication
-    msg_key = f"{account_id}:{platform_msg_id}"
+    msg_key = _batch_key(account_id, platform_msg_id)
     if msg_key in state["messages"]:
         return mark_event_handled(200, "duplicate_message")
 
-    # 7. Record event and message in durable state
+    _enqueue(state, bot, conv_id, [msg], now)
     state["events"][event_id] = {"ts": now, "iso": ts_str}
-    state["messages"][msg_key] = {"ts": now, "event_id": event_id}
-
-    # 8. Add to conversation batch
-    conv_state = state["conversations"].setdefault(conv_id, {
-        "messages": [], "replies_in_window": 0, "takeover": False, "account_id": account_id,
-        "username": acc_username, "sender_name": sender.get("name") or sender_username
-    })
-    conv_state["messages"].append({
-        "id": msg_id,
-        "platformMessageId": platform_msg_id,
-        "text": str(msg.get("text") or "").strip(),
-        "sender": sender,
-        "sentAt": msg.get("sentAt") or ts_str
-    })
-    conv_state["due_at"] = now + BATCH_SECONDS
-    conv_state["account_id"] = account_id
-    conv_state["username"] = acc_username
-    conv_state["sender_name"] = sender.get("name") or sender_username
-    state["conversations"][conv_id] = conv_state
-    _state_store.save(state)
-
-    # Arm 5-second flush timer
-    _arm_timer(conv_id, BATCH_SECONDS)
-
     return 202, {"ok": True, "status": "queued"}
 
 
-def _arm_timer(conversation_id: str, delay_seconds: float):
-    if conversation_id in _TIMERS:
-        try:
-            _TIMERS[conversation_id].cancel()
-        except Exception:
-            pass
-
-    loop = asyncio.get_event_loop()
-    handle = loop.call_later(delay_seconds, lambda: asyncio.create_task(_flush(conversation_id)))
-    _TIMERS[conversation_id] = handle
+def _batch_key(provider_id, conversation_id):
+    return json.dumps([provider_id, conversation_id], separators=(",", ":"))
 
 
-async def _flush(conversation_id: str):
-    _TIMERS.pop(conversation_id, None)
-    state = _state_store.load()
-    conv_state = state.get("conversations", {}).get(conversation_id)
-    if not conv_state:
+def _record_inbox(bot, conversation_id, message):
+    sender = message.get("sender") or {}
+    result = conversations.ghi_su_kien({
+        "channel": "zernio", "account_id": bot.account_id,
+        "account_name": bot.bot_username, "bot_id": str(bot.bot_id),
+        "external_chat_id": conversation_id, "chat_type": "private",
+        "chat_title": str(sender.get("name") or sender.get("username") or sender.get("id") or conversation_id),
+        "external_message_id": message.get("platformMessageId") or message.get("id"),
+        "sender_type": "customer", "sender_id": str(sender.get("id") or ""),
+        "sender_name": str(sender.get("name") or sender.get("username") or ""),
+        "message_type": "text", "text": str(message.get("text") or ""),
+        "metadata": {"attachments": message.get("attachments") or [], "provider_account_id": bot.provider_account_id},
+        "created_at": _now()})
+    if not result.get("ok"):
+        raise RuntimeError("inbox_write_failed")
+
+
+def _enqueue(state, bot, conversation_id, messages, now):
+    key = _batch_key(bot.provider_account_id, conversation_id)
+    current = state["conversations"].setdefault(key, {
+        "messages": [], "account_id": bot.provider_account_id, "conversation_id": conversation_id,
+        "javis_account_id": bot.account_id, "bot_id": bot.bot_id})
+    # Reassignment must never cause an old pending batch to run under another bot.
+    if current.get("javis_account_id") != bot.account_id or current.get("bot_id") != bot.bot_id:
+        state.setdefault("quarantined_batches", []).append(dict(current, reason="assignment_changed"))
+        current = {"messages": [], "account_id": bot.provider_account_id, "conversation_id": conversation_id,
+                   "javis_account_id": bot.account_id, "bot_id": bot.bot_id}
+        state["conversations"][key] = current
+    added = False
+    for message in messages:
+        msg_id = str(message.get("platformMessageId") or message["id"])
+        msg_key = _batch_key(bot.provider_account_id, msg_id)
+        if msg_key in state["messages"]:
+            continue
+        # Inbox commits first. A crash before journal commit is safe: inbox has unique message IDs.
+        _record_inbox(bot, conversation_id, message)
+        current["messages"].append(message)
+        state["messages"][msg_key] = {"ts": now}
+        added = True
+    if added:
+        current["due_at"] = now + BATCH_SECONDS
+        _arm_timer(key, BATCH_SECONDS)
+
+
+def _arm_timer(key, delay_seconds):
+    previous = _TIMERS.pop(key, None)
+    if previous:
+        previous.cancel()
+    loop = asyncio.get_running_loop()
+    _TIMERS[key] = loop.call_later(max(0, delay_seconds), lambda: asyncio.create_task(_flush(key)))
+
+
+def resume_pending(provider_id):
+    # Old JSON batches used only the conversation ID and had no Javis assignment.
+    # Bind only to the exact registered provider account, preserving messages and inbox.
+    bot = _REGISTRY[provider_id]
+    with _state_store.transaction() as state:
+        for old_key, current in list(state["conversations"].items()):
+            if current.get("account_id") != provider_id or current.get("conversation_id"):
+                continue
+            key = _batch_key(provider_id, old_key)
+            if key in state["conversations"]:
+                raise ValueError("legacy_batch_collision")
+            for message in current.get("messages", []):
+                _record_inbox(bot, old_key, message)
+            current.update(conversation_id=old_key, javis_account_id=bot.account_id, bot_id=bot.bot_id)
+            current.pop("takeover", None)
+            current.pop("replies_in_window", None)
+            state["conversations"][key] = state["conversations"].pop(old_key)
+    for key, current in _state_store.load()["conversations"].items():
+        if current.get("account_id") == provider_id and (current.get("messages") or current.get("processing")):
+            _arm_timer(key, max(0, current.get("due_at", _now()) - _now()))
+
+
+async def _flush(key):
+    _TIMERS.pop(key, None)
+    guard = _state_store.conversation_lock(key)
+    if guard is None:
+        _arm_timer(key, 1)
         return
-
-    messages = conv_state.get("messages", [])
-    if not messages:
-        return
-
-    account_id = conv_state.get("account_id") or ""
-    # Check human takeover
-    if conv_state.get("takeover") or conversations.che_do("zernio", account_id, conversation_id) == "human":
-        conv_state["takeover"] = True
-        conv_state["messages"] = []
-        _state_store.save(state)
-        return
-
-    # Check reply cap
-    if conv_state.get("replies_in_window", 0) >= MAX_CUSTOMER_REPLIES:
-        conv_state["messages"] = []
-        _state_store.save(state)
-        return
-
-    batch = list(messages)
-    conv_state["messages"] = []
-    _state_store.save(state)
-
-    # Write batch to inbox
-    for m in batch:
-        sender = m.get("sender") or {}
-        conversations.ghi_su_kien({
-            "channel": "zernio",
-            "account_id": account_id,
-            "account_name": conv_state.get("username") or "ritashopvn",
-            "bot_id": (_REGISTRY.get(account_id) or getattr(_REGISTRY.get(account_id), "bot_id", "")) or "",
-            "external_chat_id": conversation_id,
-            "chat_type": "private",
-            "chat_title": f"@{conv_state.get('username', 'ritashopvn')} (Instagram)",
-            "external_message_id": m.get("platformMessageId") or m.get("id"),
-            "sender_type": "customer",
-            "sender_id": str(sender.get("id") or ""),
-            "sender_name": str(sender.get("name") or sender.get("username") or ""),
-            "message_type": "text",
-            "text": m.get("text") or "",
-            "created_at": _now()
-        })
-
-    # Find active bot
-    bot = _REGISTRY.get(account_id)
-    if not bot or bot._stop:
-        # Check if there is an account in channel_accounts associated with a bot
-        aid = account_id
-        for bid, b_inst in _REGISTRY.items():
-            if b_inst and not b_inst._stop:
-                bot = b_inst
-                break
-
-    if not bot:
-        print(f"[zernio] no active bot for account {account_id}", file=sys.stderr)
-        return
-
-    # Combine text for turn
-    combined_text = "\n".join(m.get("text", "") for m in batch if m.get("text"))
-    if not combined_text.strip():
-        return
-
-    last_msg = batch[-1]
-    sender = last_msg.get("sender") or {}
-    meta = {
-        "platform": "zernio",
-        "chat_id": conversation_id,
-        "chat_type": "private",
-        "user_id": str(sender.get("id") or ""),
-        "user_name": str(sender.get("name") or sender.get("username") or ""),
-        "username": str(sender.get("username") or ""),
-        "message_id": last_msg.get("platformMessageId") or last_msg.get("id"),
-        "account_id": account_id,
-        "mentioned": True
-    }
-
     try:
-        reply = await bot.answer_fn(combined_text, meta, None)
-    except Exception as e:
-        print(f"[zernio answer_fn error] {type(e).__name__}: {e}", file=sys.stderr)
-        return
+        await _flush_locked(key)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        # Keep journaled batch for retry; do not include payloads or provider responses in logs.
+        print(f"[zernio flush] {type(exc).__name__}", file=sys.stderr)
+        _arm_timer(key, BATCH_SECONDS)
+    finally:
+        guard.close()
 
-    # Check human takeover again before sending
-    if conversations.che_do("zernio", account_id, conversation_id) == "human":
-        conv_state["takeover"] = True
-        _state_store.save(state)
-        return
 
-    reply_text = ""
-    if isinstance(reply, dict):
-        if reply.get("im_lang"):
+async def _flush_locked(key):
+    with _state_store.transaction() as state:
+        current = state["conversations"].get(key)
+        if not current:
             return
-        reply_text = str(reply.get("text") or "").strip()
-    elif isinstance(reply, str):
-        reply_text = reply.strip()
+        bot = _REGISTRY.get(current["account_id"])
+        if not bot or bot._stop or current.get("javis_account_id") != bot.account_id or current.get("bot_id") != bot.bot_id:
+            return
+        conversation_id = current["conversation_id"]
+        if not current.get("processing"):
+            delay = current.get("due_at", 0) - _now()
+            if delay > 0:
+                _arm_timer(key, delay)
+                return
+            if not current.get("messages"):
+                return
+            current["processing"] = current["messages"]
+            current["messages"] = []
+        batch = current["processing"]
+        assignment = (current["javis_account_id"], current["bot_id"])
+        reply = current.get("reply")
+        send_key = "zernio-" + hashlib.sha256((key + json.dumps([m.get("platformMessageId") or m["id"] for m in batch])).encode()).hexdigest()
 
-    if not reply_text:
-        return
+    def owns_batch(current):
+        return current and (current.get("javis_account_id"), current.get("bot_id")) == assignment and current.get("processing") == batch
 
-    # Send reply
-    ok, err = await bot.send_text(conversation_id, reply_text)
-    if ok:
-        conv_state["replies_in_window"] = conv_state.get("replies_in_window", 0) + 1
-        _state_store.save(state)
+    def active():
+        return (bot.account_id, bot.bot_id) == assignment and _REGISTRY.get(bot.provider_account_id) is bot and not bot._stop and conversations.che_do(
+            "zernio", bot.account_id, conversation_id) != "human"
+
+    if active():
+        if reply is None:
+            text = "\n".join(str(m.get("text") or "") for m in batch).strip()
+            sender = batch[-1].get("sender") or {}
+            meta = {"platform": "zernio", "chat_id": conversation_id, "chat_type": "private",
+                    "account_id": bot.account_id, "provider_account_id": bot.provider_account_id,
+                    "user_id": str(sender.get("id") or ""),
+                    "user_name": str(sender.get("name") or sender.get("username") or ""),
+                    "username": str(sender.get("username") or ""), "mentioned": True,
+                    "message_id": batch[-1].get("platformMessageId") or batch[-1]["id"]}
+            result = await bot.answer_fn(text, meta, None) if text else ""
+            reply = "" if isinstance(result, dict) and result.get("im_lang") else str(
+                result.get("text") or "") if isinstance(result, dict) else str(result or "")
+            with _state_store.transaction() as state:
+                if not owns_batch(state["conversations"].get(key)):
+                    return
+                state["conversations"][key]["reply"] = reply
+                state["conversations"][key]["reply_created_at"] = _now()
+        if reply.strip() and active():
+            with _state_store.transaction() as state:
+                current = state["conversations"][key]
+                if not owns_batch(current):
+                    return
+                if _now() - current.get("reply_created_at", 0) >= 23 * 3600:
+                    current["blocked_reason"] = "idempotency_window_expired"
+                    return
+            ok, _ = await bot.send_text(conversation_id, reply.strip(), send_key)
+            if not ok:
+                _arm_timer(key, BATCH_SECONDS)
+                return
+    with _state_store.transaction() as state:
+        current = state["conversations"][key]
+        if not owns_batch(current):
+            return
+        current.pop("processing", None)
+        current.pop("reply", None)
+        current.pop("reply_created_at", None)
+        if current.get("messages"):
+            _arm_timer(key, max(0, current.get("due_at", _now()) - _now()))
 
 
-# ============================================================
-# Inbound Runtime Adapter (/zernio/inbound)
-# ============================================================
 async def handle_inbound(payload: dict, auth_header: str) -> Tuple[int, dict]:
-    """Protected runtime adapter for Sammy / bot inbox.
-    Receives `{ conversationId, account, messages, policy }` and delivers to runtime.
-    Returns (status, {"takeover": bool, "sammyReplySent": bool})."""
-    expected_token = os.environ.get("SAMMY_RUNTIME_TOKEN", "").strip()
-    auth = str(auth_header or "").strip()
-    token = auth[7:].strip() if auth.lower().startswith("bearer ") else auth
+    """Legacy adapter, authenticated and pinned to one provider account by server configuration.
 
-    if expected_token and (not token or not hmac.compare_digest(token, expected_token)):
+    It durably enqueues through the same inbox/debounce path as the public webhook.
+    Client-supplied bot IDs, limits and policy cannot change server routing or behavior.
+    """
+    expected = os.environ.get("ZERNIO_ADAPTER_TOKEN", "").strip()
+    provider_id = os.environ.get("ZERNIO_ADAPTER_ACCOUNT_ID", "").strip()
+    auth = str(auth_header or "")
+    if not expected or not provider_id or not auth.startswith("Bearer ") or not hmac.compare_digest(auth[7:], expected):
         return 401, {"ok": False, "error": "unauthorized"}
-
-    if not isinstance(payload, dict):
-        return 400, {"ok": False, "error": "payload must be a JSON object"}
-
-    conv_id = str(payload.get("conversationId") or "").strip()
-    acc_obj = payload.get("account") or {}
-    messages = payload.get("messages") or []
-    policy = payload.get("policy") or {}
-
-    if not conv_id or not isinstance(messages, list):
-        return 400, {"ok": False, "error": "missing conversationId or messages"}
-
-    account_id = str(acc_obj.get("id") or acc_obj.get("accountId") or "").strip()
-    account_username = str(acc_obj.get("username") or "ritashopvn").strip()
-
-    # Check takeover immediately before any work
-    if conversations.che_do("zernio", account_id, conv_id) == "human":
-        return 200, {"takeover": True, "sammyReplySent": False}
-
-    # Enforce customer cap
-    max_replies = int(policy.get("maxCustomerReplies") or MAX_CUSTOMER_REPLIES)
-
-    # Write messages to inbox
-    for m in messages:
-        sender = m.get("sender") or {}
-        conversations.ghi_su_kien({
-            "channel": "zernio",
-            "account_id": account_id,
-            "account_name": account_username,
-            "bot_id": "",
-            "external_chat_id": conv_id,
-            "chat_type": "private",
-            "chat_title": f"@{account_username} (Instagram)",
-            "external_message_id": m.get("platformMessageId") or m.get("id") or f"msg_{_now()}",
-            "sender_type": "customer",
-            "sender_id": str(sender.get("id") or ""),
-            "sender_name": str(sender.get("name") or sender.get("username") or ""),
-            "message_type": "text",
-            "text": str(m.get("text") or ""),
-            "created_at": _now()
-        })
-
-    # Find bot
-    bot = _REGISTRY.get(account_id)
-    if not bot and _REGISTRY:
-        bot = next(iter(_REGISTRY.values()))
-
-    # If no poller in registry, lookup Sammy bot in chatbot_store
-    answer_fn = getattr(bot, "answer_fn", None)
-    if not answer_fn:
-        import chatbot_store
-        import chatbot_runtime
-        bots = chatbot_store.list_bots()
-        sammy = next((b for b in bots if "sammy" in b.get("name", "").lower()), bots[0] if bots else None)
-        if sammy:
-            answer_fn = chatbot_runtime._make_answer_fn(sammy["id"])
-
-    if not answer_fn:
-        return 200, {"takeover": False, "sammyReplySent": False}
-
-    combined_text = "\n".join(m.get("text", "") for m in messages if m.get("text"))
-    if not combined_text.strip():
-        return 200, {"takeover": False, "sammyReplySent": False}
-
-    last_msg = messages[-1]
-    sender = last_msg.get("sender") or {}
-    meta = {
-        "platform": "zernio",
-        "chat_id": conv_id,
-        "chat_type": "private",
-        "user_id": str(sender.get("id") or ""),
-        "user_name": str(sender.get("name") or sender.get("username") or ""),
-        "username": str(sender.get("username") or ""),
-        "message_id": last_msg.get("platformMessageId") or last_msg.get("id"),
-        "account_id": account_id,
-        "mentioned": True
-    }
-
-    try:
-        reply = await answer_fn(combined_text, meta, None)
-    except Exception as e:
-        print(f"[zernio inbound turn error] {type(e).__name__}: {e}", file=sys.stderr)
-        return 200, {"takeover": False, "sammyReplySent": False}
-
-    # Check takeover AGAIN immediately before sending
-    if conversations.che_do("zernio", account_id, conv_id) == "human":
-        return 200, {"takeover": True, "sammyReplySent": False}
-
-    reply_text = ""
-    if isinstance(reply, dict):
-        if reply.get("im_lang"):
-            return 200, {"takeover": False, "sammyReplySent": False}
-        reply_text = str(reply.get("text") or "").strip()
-    elif isinstance(reply, str):
-        reply_text = reply.strip()
-
-    if not reply_text:
-        return 200, {"takeover": False, "sammyReplySent": False}
-
-    # Send outbound reply
-    creds = {"account_id": account_id, "username": account_username}
-    ok, _ = await send_api_message(creds, conv_id, reply_text)
-    return 200, {"takeover": False, "sammyReplySent": bool(ok)}
+    if not isinstance(payload, dict) or not isinstance(payload.get("account"), dict):
+        return 400, {"ok": False, "error": "invalid_payload"}
+    account = payload["account"]
+    if str(account.get("accountId") or account.get("id") or "") != provider_id:
+        return 403, {"ok": False, "error": "account_scope_mismatch"}
+    bot = _REGISTRY.get(provider_id)
+    if not bot or bot._stop:
+        return 404, {"ok": False, "error": "account_unmapped"}
+    if account.get("platform", "instagram") != "instagram":
+        return 400, {"ok": False, "error": "unsupported_platform"}
+    if payload.get("bot_id") or payload.get("botId"):
+        return 400, {"ok": False, "error": "client_routing_forbidden"}
+    conversation_id = payload.get("conversationId")
+    messages = payload.get("messages")
+    if not isinstance(conversation_id, str) or not conversation_id.strip() or not isinstance(messages, list) or not messages:
+        return 400, {"ok": False, "error": "invalid_messages"}
+    for message in messages:
+        if not isinstance(message, dict) or not message.get("id") or not isinstance(message.get("sender"), dict) or not message["sender"].get("id"):
+            return 400, {"ok": False, "error": "invalid_message"}
+        if str(message["sender"].get("id")) == provider_id or str(message["sender"].get("username") or "").lstrip("@").casefold() == bot.bot_username.lstrip("@").casefold():
+            return 400, {"ok": False, "error": "self_message"}
+        if message.get("direction", "incoming") != "incoming" or message.get("isEcho") or message.get("is_echo") or message.get("historical"):
+            return 400, {"ok": False, "error": "ineligible_message"}
+    with _state_store.transaction() as state:
+        _state_store.prune(state, _now())
+        _enqueue(state, bot, conversation_id, messages, _now())
+    return 202, {"ok": True, "status": "queued", "takeover": conversations.che_do(
+        "zernio", bot.account_id, conversation_id) == "human", "replySent": False,
+        "sammyReplySent": False}

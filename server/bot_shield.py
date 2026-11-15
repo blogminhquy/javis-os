@@ -101,6 +101,7 @@ _GROUPS = (("ai", _AI_UA), ("search", SEARCH_ENGINES_UA), ("seo", SEO_TOOLS_UA),
 # main._AUTH_PUBLIC_*; none of them is a page for people to read.
 MACHINE_PREFIXES = ("/hooks/", "/ext/", "/.well-known/", "/chatbot-api/")
 MACHINE_EXACT = frozenset({
+    "/webhooks/zernio", "/zernio/inbound",
     "/robots.txt", "/health", "/tls-check", "/hub/mcp",
     "/whatsapp/webhook", "/messenger/webhook", "/threads/webhook", "/zalo-oa/webhook", "/wechat/webhook",
     "/connect/oauth/callback", "/messenger/oauth/callback", "/threads/oauth/callback", "/zalo-oa/oauth/callback",
