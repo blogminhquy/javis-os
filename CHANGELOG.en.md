@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.563.1] - 2026-11-15
+### Fixed
+- **Files the team writes open with a click.** A file link in a team chat used to do nothing visible. The file now opens right in the team's chat column; press X to get back to the conversation, with anything you were typing still there.
+- **Pages with no room for the editor open the file in a popup**, such as a file link on the Tasks page, so no click on a file link goes nowhere any more.
+
 ## [0.563.0] - 2026-11-15
 ### Added
 - **Ask for an improvement and it happens, with undo.** Say "improve yourself" or "rework this skill": the assistant changes its own role, instructions, skills and model, other assistants, skills, workflows, loops and memory. Every change gets an id and a backup; "undo #12" puts it back.
