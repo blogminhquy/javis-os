@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.564.0] - 2026-11-15
+### Added
+- **Add GitHub repositories to a Project.** Open the project panel, Documents tab, Add document, then GitHub repository. Every chat in the project gets the repository from its first message, each on its own branch.
+- **Add repositories to an Assistant's documents.** Every private chat with that assistant gets them too, and Javis still commits, pushes and opens the PR as usual.
+- **Pick repositories while creating a Team.** The documents part of the Create team box has an Attach a GitHub repository button, so the new team starts with its repositories.
+
 ## [0.563.1] - 2026-11-15
 ### Fixed
 - **Files the team writes open with a click.** A file link in a team chat used to do nothing visible. The file now opens right in the team's chat column; press X to get back to the conversation, with anything you were typing still there.
