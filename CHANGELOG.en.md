@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.568.1] - 2026-11-15
+### Improved
+- **Add new repos right from a project's documents.** The GitHub repo picker of a project, an assistant and the create-team box now has the "+ Add repositories on GitHub" row, as in the chat. Grant more repos on GitHub, come back, and the list shows them without a reload.
+
 ## [0.568.0] - 2026-11-15
 ### Added
 - **Custom API connection.** Any service with a REST API and an API key but no MCP (POS, CRM, shipping, e-invoices...) now connects on the Connections page: paste the base URL and the key, and every engine can call that API.
