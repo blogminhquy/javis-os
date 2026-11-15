@@ -56,15 +56,15 @@ check("style is kept apart from the name", javis_core.identity(A)["name"] == "M�
 # ---- 2. what the role block tells the model ----
 C = Path(tempfile.mkdtemp(prefix="core-name-c-"))
 blk = javis_core.prompt_block(C)
-check("no name, never asked: ask once and record it", "CHƯA có tên riêng" in blk and "op=asked" in blk)
+check("no name, never asked: ask once and record it", "NO name of your own yet" in blk and "op=asked" in blk)
 javis_core.set_identity(C, asked=True)
 blk = javis_core.prompt_block(C)
-check("asked already: no asking again", "op=asked" not in blk and "chưa có tên riêng" in blk)
+check("asked already: no asking again", "op=asked" not in blk and "no name of your own yet" in blk)
 blk = javis_core.prompt_block(A)
 check("named: speaks as that name, with the agreed style",
       "**Mây bé xinh**" in blk and "thân thiện, ngắn gọn" in blk and "op=asked" not in blk)
 check("without a brain the block is the plain role block", javis_core.prompt_block() == javis_core.prompt_block(None)
-      and "tên riêng" not in javis_core.prompt_block().split("# === JAVIS CORE ===")[-1].split("Tên và phong cách")[0])
+      and "name of your own" not in javis_core.prompt_block().split("# === JAVIS CORE ===")[-1].split("Name and style")[0])
 check("the block stays small with a name and a style", len(javis_core.prompt_block(A)) < 3000, len(javis_core.prompt_block(A)))
 check("the role body tells it to fit its style to the user and save it with the tool",
       "javis_core_name" in javis_core.definition()["body"] and "style" in javis_core.definition()["body"])

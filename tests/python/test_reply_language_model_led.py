@@ -13,7 +13,8 @@ nothing on its own. What was fixed instead is everything that pushed Vietnamese 
 1. The language block was Vietnamese, said "follow the last message" and nothing about a language
    the person had STATED (profile, memory, earlier in the chat). It is English now and says so.
 2. ~10,000 characters of Vietnamese channel rules, with mình/bạn examples, came after it. One
-   constant English line now closes that block and points back to the language rule.
+   constant English line now closes that block and points back to the language rule (and the same
+   day the rules themselves became English: tests/python/test_core_prompt_english.py).
 3. The dashboard's Vietnamese context blocks ([FILE ĐANG MỞ ...]) made the detector call an English
    message Vietnamese. Detection reads the person's own words.
 4. The fast-path capsule named a GUESS (the interface language for "ok do 2"); it names only a pin.

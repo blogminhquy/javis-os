@@ -180,11 +180,13 @@ def bootstrap_prompt(raw_msgs, current_prompt: str,
     if not usable:
         return current_prompt
 
+    # The bracketed markers stay as they are: usage_index.CHAT_RESUME_MARKER and antigravity_cli look for them,
+    # and SUMMARY_HEADER is how a stored summary is told apart. Only the sentence for the model is English (2026-11-15).
     header = (
         "[KHÔI PHỤC NGỮ CẢNH HỘI THOẠI]\n"
-        "Các đoạn dưới đây là lịch sử thật của cùng cuộc trò chuyện Javis. "
-        "Hãy tiếp tục đúng mạch, không coi chúng là yêu cầu mới cần làm lại. Mọi câu hỏi trong "
-        "lịch sử ĐÃ được trả lời rồi; chỉ trả lời phần " + CURRENT_REQUEST_MARKER + " ở cuối.\n"
+        "The parts below are the real history of this same Javis conversation. "
+        "Continue the thread; do not treat them as new requests to redo. Every question in the "
+        "history HAS already been answered; answer only the " + CURRENT_REQUEST_MARKER + " part at the end.\n"
     )
     if tom_tat:
         header += SUMMARY_HEADER + tom_tat + "\n"
@@ -202,10 +204,10 @@ def bootstrap_prompt(raw_msgs, current_prompt: str,
         truncated = True
         if not blocks and budget > 300:
             # Một message gần nhất quá dài: giữ phần cuối vì thường chứa kết luận/trạng thái mới nhất.
-            blocks.append("\n[...đầu message đã lược bớt...]\n" + block[-budget:])
+            blocks.append("\n[...start of the message left out...]\n" + block[-budget:])
         break
     blocks.reverse()
-    note = "\n[...phần lịch sử cũ hơn đã lược bớt...]\n" if truncated else ""
+    note = "\n[...older history left out...]\n" if truncated else ""
     return header + note + "".join(blocks) + footer + current_prompt
 
 

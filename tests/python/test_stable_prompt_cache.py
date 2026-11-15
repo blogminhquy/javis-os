@@ -72,7 +72,7 @@ check("no latest workflow run in the stable prompt", "Lần chạy quy trình g�
 check("the clock heading stays and points at the message header",
       "# === BÂY GIỜ ===" in a and "[Giờ gửi tin này: ...]" in a)
 check("the chat_id rule now points at the session line",
-      "[Phiên chat: web:<mã>]" in a and '"chat_id":"web:<mã>"' in a and 'owner_chat: "web:<mã>"' in a)
+      "[Phiên chat: web:<id>]" in a and '"chat_id":"web:<id>"' in a and 'owner_chat: "web:<id>"' in a)
 check("the clock block still comes before the channel block",
       a.index("# === BÂY GIỜ ===") < a.index("# === KÊNH HỘI THOẠI HIỆN TẠI"))
 
@@ -95,7 +95,7 @@ check("default prompt still has the clock", STATE["clock"] in c)
 check("default prompt still has the usage block", "MỨC DÙNG HÔM NAY" in c)
 check("default prompt still has the latest workflow run", "Lần chạy quy trình gần nhất: B" in c)
 check("default channel block still names the session id",
-      "Mã phiên chat hiện tại: `sess-ccc333`" in c and 'web:sess-ccc333' in c)
+      "Current chat session id: `sess-ccc333`" in c and 'web:sess-ccc333' in c)
 
 # ---- 4. the Claude Code lane uses it ----
 SRC = (Path(SERVER) / "main.py").read_text(encoding="utf-8")

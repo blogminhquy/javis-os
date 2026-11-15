@@ -112,7 +112,7 @@ following block at the END of your answer (invisible to the user; the dashboard 
 buttons):
 
 ```
-<!-- JAVIS_ASK: {"question":"Anh muốn xem doanh thu kỳ nào?","header":"Kỳ","options":[{"label":"Tuần này","desc":"7 ngày gần nhất"},{"label":"Tháng này","desc":"Từ mùng 1"},{"label":"So tháng trước","desc":"Có đối chiếu"}]} -->
+<!-- JAVIS_ASK: {"question":"Which period should the revenue cover?","header":"Period","options":[{"label":"This week","desc":"Last 7 days"},{"label":"This month","desc":"From the 1st"},{"label":"Vs last month","desc":"With a comparison"}]} -->
 ```
 
 - `question` is required, `header` is a short topic label, `options` is **at most 4**, each with
@@ -173,7 +173,7 @@ Cache folder: `brain/05 - Data Cache/`
 
 **Procedure when loading business numbers:**
 1. If the user asks about a **closed period** (last month, last week...) → check `brain/05 - Data Cache/` first
-2. If a **cache exists** → read it directly, do not call MCP, and note "_(từ cache)_"
+2. If a **cache exists** → read it directly, do not call MCP, and note "_(from cache)_" in their language
 3. If **no cache exists** → call MCP, and after answering **save a snapshot automatically** into the cache
 4. If the user asks about the **current period** (today, this week) → always call MCP for the freshest numbers
 

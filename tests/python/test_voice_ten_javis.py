@@ -42,7 +42,7 @@ class TenJavis(unittest.TestCase):
 
     def test_bo_nao_chinh_duoc_dan_hieu_theo_ngu_canh(self):
         import channel_context
-        self.assertIn("MÁY NGHE GIỌNG NÓI", channel_context.build_channel_block("dashboard"))
+        self.assertIn("SPEECH RECOGNITION", channel_context.build_channel_block("dashboard"))
 
     def test_rao_dien_giai(self):
         nhan = [("mở trang mô đồ", "mở trang Models"), ("mở web kếch", "mở Webcake"),

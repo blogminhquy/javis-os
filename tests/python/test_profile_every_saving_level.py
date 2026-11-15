@@ -54,7 +54,7 @@ def check(name, cond, extra=""):
 
 
 MARKER = "PROFILE-MARKER-1349: luôn gọi tôi là sếp Bảy."
-HEADER = "HỒ SƠ NGƯỜI DÙNG (chung mọi brain"
+HEADER = "HỒ SƠ NGƯỜI DÙNG (user profile: every brain"
 CLOCK = {"now": "Bây giờ là 09:01 Thứ Hai 02/11/2026."}
 context_compiler.dong_ho = lambda now=None, lang="": CLOCK["now"]
 
@@ -203,7 +203,7 @@ final_system = system_of(final.capsule.rendered_request["messages"]) if final.ca
 check("read-only route: the answer round carries the profile",
       final.status == "compiled" and MARKER in final_system and final_system.count(HEADER) == 1, final.status)
 check("read-only route: the profile comes before the round's own rules",
-      0 < final_system.find(MARKER) < final_system.find("Đây là vòng tổng hợp cuối"))
+      0 < final_system.find(MARKER) < final_system.find("This is the final synthesis round"))
 
 scratch = Path(tempfile.mkdtemp(prefix="javis-profile-orchestrator-"))
 ostack = orchestrator_harness._stack(scratch)

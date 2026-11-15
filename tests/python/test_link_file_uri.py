@@ -151,7 +151,7 @@ _agentic = main.main_prompt_rendering.render_agentic_paths(
 check("production nối đúng renderer LỚP AGENTIC dùng chung",
       "base += main_prompt_rendering.render_agentic_paths(root, ag, wf, lp, sk)" in MAIN)
 check("LỚP AGENTIC dặn KHÔNG dùng giao thức file:// và không mã hoá %20",
-      "KHÔNG dùng giao thức `file://` và không mã hoá %20" in _agentic)
+      "do NOT use the `file://` scheme and do not encode %20" in _agentic)
 check("không em dash trong đoạn dặn", "\u2014" not in _agentic)
 
 print("")

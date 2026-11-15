@@ -173,7 +173,7 @@ check("dùng chung trần token với project",
 r = c.post(API + "/files", data={"path": "sources/anh.png", "brain": BRAIN})
 c.post(API + f"/files/{r.json()['id']}/pin", data={"pinned": "1", "brain": BRAIN})
 sp = main._agent_chat_prompt(BRAIN, SLUG)
-check("file nhị phân ghim vào thì nói rõ không nạp được", "nhị phân" in sp, sp[-800:])
+check("file nhị phân ghim vào thì nói rõ không nạp được", "binary" in sp, sp[-800:])
 
 # Trợ lý chưa gắn gì thì KHÔNG được có khối rỗng trong prompt - mỗi dòng thừa lặp lại ở mọi lượt.
 r2 = c.post("/agents", data={"name": "Trong tron", "role": "x", "prompt": "y", "brain": BRAIN})

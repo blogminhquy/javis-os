@@ -95,15 +95,16 @@ check("TTS bóc ô bảng markdown", "\\|" in _clean)
 # ============================================================
 # 3. Khối kênh dashboard: dạy trình bày, vì nó đứng cuối prompt
 # ============================================================
-check("khối web có hẳn mục cách trình bày", "Cách trình bày trong khung chat này" in _WEB)
-check("web: nói rõ khung chat render đủ markdown", "render ĐỦ markdown" in _WEB)
-for tu in ("gạch đầu dòng", "in đậm", "###", "bảng"):
+# The block is English since 2026-11-15 (the core prompt is English; people still write any language).
+check("khối web có hẳn mục cách trình bày", "How to lay out answers in this chat" in _WEB)
+check("web: nói rõ khung chat render đủ markdown", "renders FULL markdown" in _WEB)
+for tu in ("bullets", "bold", "###", "tables"):
     check(f"web: có dạy '{tu}'", tu in _WEB.lower() or tu in _WEB)
-check("web: gọi tên đúng cái bệnh (văn xuôi liền mạch)", "văn xuôi liền mạch" in _WEB)
+check("web: gọi tên đúng cái bệnh (văn xuôi liền mạch)", "unbroken prose paragraphs" in _WEB)
 check("web: trấn an chuyện giọng đọc để khỏi tự siết lại",
-      "bóc markdown" in _WEB)
+      "strips markdown" in _WEB)
 check("web: vẫn dặn ngắn gọn, không lấy định dạng làm cớ viết dài",
-      "giọng người đang nói" in _WEB and "viết dài" in _WEB)
+      "voice of a person speaking" in _WEB and "write longer" in _WEB)
 check("khối web không dính em dash", "—" not in _WEB)
 
 
@@ -113,34 +114,34 @@ check("khối web không dính em dash", "—" not in _WEB)
 # Đường này KHÔNG đọc CLAUDE.md. Bỏ quên nó thì bật "Siêu tiết kiệm" là văn xuôi quay lại,
 # mà người dùng không có cách nào đoán ra vì sao cùng một câu hỏi lại ra hai kiểu trình bày.
 _hd_web = context_compiler.ContextCompiler._channel_contract("dashboard")
-check("capsule web: dạy chia đoạn", "chia đoạn" in _hd_web)
-check("capsule web: dạy gạch đầu dòng", "gạch đầu dòng" in _hd_web)
-check("capsule web: cho dùng bảng khi so sánh", "bảng" in _hd_web)
+check("capsule web: dạy chia đoạn", "paragraphs of 1-3 sentences" in _hd_web)
+check("capsule web: dạy gạch đầu dòng", "bullets" in _hd_web)
+check("capsule web: cho dùng bảng khi so sánh", "a table when comparing" in _hd_web)
 _loi = context_compiler.ContextCompiler._output_contract_text("dashboard")
-check("phần 'Cách trả lời' vẫn còn (Core Contract trỏ vào đây)", "Cách trả lời" in _loi)
-check("phần 'Cách trả lời' nay có luật trình bày", "gạch đầu dòng" in _loi)
+check("phần 'Cách trả lời' vẫn còn (Core Contract trỏ vào đây)", "How to answer" in _loi)
+check("phần 'Cách trả lời' nay có luật trình bày", "bullets" in _loi)
 check("capsule không dính em dash", "—" not in _hd_web and "—" not in _loi)
 
 
 # ============================================================
 # 5. Nới cho web KHÔNG được tràn sang kênh chữ thuần
 # ============================================================
-check("Telegram: vẫn cấm bảng", "đừng dùng bảng" in _TG)
-check("Zalo: vẫn cấm bảng", "đừng dùng bảng" in _ZL)
-check("CLI: vẫn cấm bảng", "TUYỆT ĐỐI không dùng bảng" in _CLI)
+check("Telegram: vẫn cấm bảng", "do not use tables" in _TG)
+check("Zalo: vẫn cấm bảng", "do not use tables" in _ZL)
+check("CLI: vẫn cấm bảng", "NEVER use tables" in _CLI)
 check("CLI: vẫn cấm ảnh nhúng và link markdown",
-      "không nhúng ảnh" in _CLI and "không dùng link markdown" in _CLI)
+      "do not embed images" in _CLI and "do not use markdown links" in _CLI)
 # Hợp đồng capsule của hai kênh này cũng vậy - cùng một luật, hai đường đi.
 check("capsule Telegram: vẫn cấm bảng",
-      "không dùng bảng Markdown" in context_compiler.ContextCompiler._channel_contract("telegram"))
+      "no Markdown tables" in context_compiler.ContextCompiler._channel_contract("telegram"))
 check("capsule CLI: vẫn cấm bảng",
-      "KHÔNG bảng Markdown" in context_compiler.ContextCompiler._channel_contract("cli"))
+      "NO Markdown tables" in context_compiler.ContextCompiler._channel_contract("cli"))
 # Nhưng gạch đầu dòng thì kênh nào cũng hiện được, nên kênh nào cũng được dạy dùng.
 for ten, khoi in (("Telegram", _TG), ("Zalo", _ZL), ("CLI", _CLI)):
-    check(f"{ten}: vẫn được dùng gạch đầu dòng khi liệt kê", "gạch đầu dòng" in khoi)
+    check(f"{ten}: vẫn được dùng gạch đầu dòng khi liệt kê", "`- ` bullets" in khoi)
 # CLI không tô đậm được: dạy nó dùng ** là dạy nó in ra nguyên dấu sao.
 check("CLI: không dạy dùng ** để in đậm",
-      not re.search(r"in đậm[^.\n]*\*\*", _CLI))
+      not re.search(r"bold[^.\n]*\*\*", _CLI) and "do not wrap words in `**`" in _CLI)
 
 
 if _fails:

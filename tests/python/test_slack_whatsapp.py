@@ -382,10 +382,10 @@ for src, prefix in (("slack", "slack:"), ("whatsapp", "whatsapp:")):
     b = channel_context.build_channel_block(src, {"chat_id": prefix + "X1", "user_name": "Kim",
                                                   "chat_type": "private"})
     check(f"{src} prompt keeps the prefix so results come back", f"`{prefix}`" in b and prefix + "X1" in b)
-    check(f"{src} prompt forbids tables", "bảng" in b)
+    check(f"{src} prompt forbids tables", "do not use tables" in b)
     check(f"{src} prompt has no long dashes", b.count("—") + b.count("–") == 0)
 check("WhatsApp prompt warns about the 24-hour window",
-      "24 GIỜ" in channel_context.build_channel_block("whatsapp", {"chat_id": "whatsapp:1"}))
+      "24 HOURS" in channel_context.build_channel_block("whatsapp", {"chat_id": "whatsapp:1"}))
 
 # ============================================================
 # 10. Settings: masked on read, kept when the form sends nothing

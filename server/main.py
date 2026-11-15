@@ -1178,19 +1178,19 @@ def _agent_assets_block(brain: str, meta: dict) -> str:
     dong, da_nap = _liet_ke_tai_lieu(brain, files, links)
     ra = ""
     if dong:
-        ra += ("\n# === TÀI LIỆU & LINK CỦA BẠN ===\n"
-               "Chủ gắn sẵn cho vai này, nên đây là thứ bạn được coi là ĐÃ BIẾT CHỖ. Vẫn là "
-               "DANH SÁCH chứ không phải nội dung: mở file bằng tool đọc file khi cần, đừng "
-               "đoán nội dung từ cái tên. Link chỉ mở được nếu lượt này có tool duyệt web.\n"
+        ra += ("\n# === TÀI LIỆU & LINK CỦA BẠN (your documents and links) ===\n"
+               "The owner attached these for this role, so you count as KNOWING WHERE they are. Still "
+               "a LIST, not the content: open a file with a file-reading tool when needed; do not "
+               "guess its content from its name. A link opens only if this turn has a web-browsing tool.\n"
                + "\n".join(dong) + "\n")
     if da_nap:
-        ra += ("\n# === NỘI DUNG FILE ĐÃ GHIM (nạp sẵn, không cần mở lại) ===" + "".join(da_nap)
+        ra += ("\n# === NỘI DUNG FILE ĐÃ GHIM (pinned file content, preloaded: no need to open it again) ===" + "".join(da_nap)
                + "\n")
     # 2026-11-13: one line per document saying what it holds, so the right one is opened without opening each.
     desc, hidden = project_context.asset_lines(files, links)
     if desc:
-        ra += ("\nTài liệu nào chứa gì (mở ra khi cần chi tiết):\n" + "\n".join(desc) + "\n"
-               + (f"(còn {hidden} mô tả nữa: javis_project op=get)\n" if hidden else ""))
+        ra += ("\nWhich document holds what (open one when you need the detail):\n" + "\n".join(desc) + "\n"
+               + (f"({hidden} more descriptions: javis_project op=get)\n" if hidden else ""))
     return ra
 
 
@@ -1548,8 +1548,8 @@ def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = Fa
     parts = [
         "# Javis adaptive source contract",
         f"Brain root: {root}",
-        "MCP Hub và tool gateway là nguồn capability live. Chỉ gọi tool được cung cấp; "
-        "không bịa tool, dữ liệu live hay kết quả hành động.",
+        "The MCP Hub and the tool gateway are the source of live capabilities. Call only the tools "
+        "provided; never invent tools, live data or action results.",
         f"Agent files: {ag}/<slug>.md; workflow files: {wf}/<slug>.md; "
         f"loop files: {loops}/<slug>.md; skill files: {skills}/<slug>/SKILL.md.",
     ]
@@ -1563,7 +1563,7 @@ def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = Fa
         except OSError:
             memory = ""
         if memory.strip():
-            parts.append("# Bộ nhớ fallback\n" + _fit_memory_index(memory))
+            parts.append("# Memory fallback\n" + _fit_memory_index(memory))
     if include_skills:
         try:
             system_sync.ensure_synced(root)
@@ -3293,13 +3293,12 @@ def _resonance_turn_agent(conv_sid, brain, get_session):
 # trợ lý (_agent_chat_prompt). Chỉ nối khi lượt thuộc một trợ lý đang bật (_resonance_turn_enabled); review A1 tích
 # hợp P1-1: trước đó chỉ build_system_prompt có dòng này, mà phiên trợ lý lại không dùng hàm đó.
 _RESONANCE_GOAL_HINT = (
-    "MỤC TIÊU (Hệ thống cộng hưởng đang bật): việc xong ngay trong lượt thì làm luôn; việc nền một "
-    "lần, xong là hết trách nhiệm thì javis_task; nhắc giờ cố định thì javis_schedule. Người dùng giao "
-    "trách nhiệm theo đuổi kết quả SAU lượt chat (làm, tự kiểm, sửa theo phản hồi, duy trì, chờ sự kiện, "
-    "giữ việc mở tới khi đạt) thì gọi tool javis_goal op=create; bổ sung ý cho mục tiêu đang mở thì "
-    "op=update. Tool chưa nạp thì tìm: Claude Code dùng ToolSearch (mcp__javis-plugins__javis_goal), "
-    "engine khác dùng javis_search_tools. Câu hỏi, tư vấn: KHÔNG lập mục tiêu. Sản phẩm: nộp toàn văn qua "
-    "javis_submit_deliverable."
+    "GOALS (Resonance is on): a job done within the turn, just do it; one-off background work, javis_task; a "
+    "reminder at a fixed time, javis_schedule. When the user hands you a result to pursue AFTER the chat turn "
+    "(doing, self-checking, fixing from feedback, maintaining, waiting for an event, keeping it open until met), "
+    "call tool javis_goal op=create; to add to an open goal, op=update. Tool not loaded: Claude Code uses ToolSearch "
+    "(mcp__javis-plugins__javis_goal), other engines javis_search_tools. Questions and advice: set NO goal. "
+    "Deliverables: submit the full text through javis_submit_deliverable."
 )
 
 
@@ -13859,7 +13858,7 @@ def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="", skill_serv
     # tắt, hay không có lượt, thì prompt y như trước A1.
     if _resonance_turn_enabled(brain):
         sysprompt = (sysprompt.replace(_AGENT_HAI_LOI, _AGENT_BA_LOI)
-                     + "\n# Cộng hưởng (đang bật cho bạn)\n- " + _RESONANCE_GOAL_HINT + "\n")
+                     + "\n# Resonance (on for you)\n- " + _RESONANCE_GOAL_HINT + "\n")
     where = ("qua Javis CLI (terminal hoặc HTTP /chat)" if channel == "cli"
              else "qua Telegram" if channel == "telegram"
              else "trong một cuộc gọi thoại trên dashboard Javis (khung chat của bạn ở trang Cộng sự); câu bạn "
@@ -27101,7 +27100,9 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         turn_text=_lang_turn_text(text),   # the person's own words, not Javis's blocks (2026-11-15)
         # No Settings pin and no bot pin since 2026-11-15 (owner): a customer bot follows its customer, and anyone
         # who wants a fixed language says so (in the chat, the profile or the bot's Agent file).
-        channel_default=(_ngon_ngu_cuoc_goi(meta) or ("vi" if channel == "zalo" and not bot else "")),
+        # Only a voice call names a language here (the caller's speech). Zalo owner chats used to default to
+        # Vietnamese ("a Vietnamese platform"); since 2026-11-15 they follow whoever writes, like every channel.
+        channel_default=_ngon_ngu_cuoc_goi(meta),
         ui_lang=("" if bot else (_lc_kenh.get("ui_lang") or "")),
     )
     try:
@@ -32434,8 +32435,8 @@ def _team_docs_block(team, tools=False):
                 [dict(link, description=(notes.get(("link", link.get("url") or "")) or {}).get("description", ""))
                  for link in links])
             if desc:
-                block += ("\n\nTài liệu nào chứa gì:\n" + "\n".join(desc)
-                          + (f"\n(còn {hidden} mô tả nữa)" if hidden else ""))
+                block += ("\n\nWhich document holds what:\n" + "\n".join(desc)
+                          + (f"\n({hidden} more descriptions)" if hidden else ""))
     except Exception as e:  # noqa: BLE001 - a broken document must not stop the team from answering
         print(f"[team docs] {type(e).__name__}: {e}", file=sys.stderr)
         block = ""

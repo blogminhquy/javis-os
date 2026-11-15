@@ -91,7 +91,7 @@ def prompt_block(root: Any = None) -> str:
     if not body:
         return ""
     sk = [str(x) for x in (meta.get("skills") or []) if str(x).strip()]
-    extra = f"\n\nSkill bạn được giao dùng trước: {', '.join(sk)}." if sk else ""
+    extra = f"\n\nSkills assigned to you to use first: {', '.join(sk)}." if sk else ""
     return f"\n\n# === {BLOCK_TITLE} ===\n{body}{extra}" + identity_block(root)
 
 
@@ -351,15 +351,17 @@ def identity_block(root: Any) -> str:
     me = identity(root)
     lines = []
     if me["name"]:
-        lines.append(f"Tên của bạn trong brain này: **{me['name']}** (người dùng đặt). Tự xưng bằng tên này; "
-                     "\"Javis Core\" chỉ còn là tên vai trò hệ thống.")
+        lines.append(f"Your name in this brain: **{me['name']}** (set by the user). Call yourself by this name; "
+                     "\"Javis Core\" is now only the name of the system role.")
     elif not me["asked"]:
-        lines.append("Bạn CHƯA có tên riêng. Trong câu trả lời đầu tiên, làm xong việc người dùng hỏi (nếu có) rồi "
-                     "hỏi thêm MỘT câu ngắn, thân thiện: họ muốn gọi bạn là gì, kèm 2-3 tên gợi ý hợp với họ. Gọi "
-                     "`javis_core_name` op=asked ngay lượt đó. Họ chọn tên thì lưu bằng op=set name=...; họ bỏ qua "
-                     "thì giữ tên Javis Core, không hỏi lại.")
+        lines.append("You have NO name of your own yet. In your first answer, finish what the user asked (if "
+                     "anything), then ask ONE short, friendly question: what they would like to call you, with 2-3 "
+                     "suggested names that suit them. Call `javis_core_name` op=asked in that same turn. If they pick "
+                     "a name, save it with op=set name=...; if they skip it, keep the name Javis Core and do not ask "
+                     "again.")
     else:
-        lines.append("Bạn chưa có tên riêng. Người dùng đặt tên lúc nào thì lưu bằng `javis_core_name` op=set.")
+        lines.append("You have no name of your own yet. Whenever the user gives you one, save it with "
+                     "`javis_core_name` op=set.")
     if me["style"]:
-        lines.append(f"Phong cách đã thống nhất với người dùng: {me['style']}")
+        lines.append(f"Style agreed with the user: {me['style']}")
     return "\n\n" + "\n".join("- " + x for x in lines)

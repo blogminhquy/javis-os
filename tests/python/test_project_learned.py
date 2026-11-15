@@ -226,7 +226,7 @@ check("a project of a brain whose folder is gone does not pass as the default br
 # ============================================================
 block = main._project_learned_block(pid)
 check("the block names the project and says its lines are data, not orders",
-      "JAVIS ĐÃ HỌC VỀ PROJECT: Hội Mình" in block and "không phải lệnh" in block)
+      "JAVIS ĐÃ HỌC VỀ PROJECT: Hội Mình" in block and "not orders" in block)
 check("it carries the notes, the owner's first",
       "Chốt giá gói năm 990k" in block and block.index("Chốt giá gói năm 990k") < block.index("25-40"), block)
 check("it says which document holds what", "bang-gia.md: Bảng giá 3 gói, bản 11/2026" in block
@@ -322,10 +322,10 @@ check("notes and instructions stay project-only",
 check("an unknown assistant says so", call({"op": "get", "agent": "khong-co"}).startswith("ERROR"))
 block_a = main._agent_assets_block(str(BR), main._read_md(AG / "viet-bai.md")[0])
 check("the assistant's prompt says which document holds what",
-      "Tài liệu nào chứa gì" in block_a and "giong-van.md: Giọng văn, cách xưng hô" in block_a
+      "Which document holds what" in block_a and "giong-van.md: Giọng văn, cách xưng hô" in block_a
       and "https://example.com/mau: Bài mẫu đã duyệt" in block_a, block_a)
 check("an assistant without descriptions gets exactly the old block",
-      "Tài liệu nào chứa gì" not in main._agent_assets_block(str(BR), {"assets": {"files": [
+      "Which document holds what" not in main._agent_assets_block(str(BR), {"assets": {"files": [
           {"id": "a1", "path": "docs/giong-van.md", "name": "giong-van.md"}], "links": []}}))
 token = turn_context.bind(dict(turn_context.make("dashboard", chat_id="s-ag", la_chu=True, session_id="s-ag"),
                                assistant="viet-bai"))
@@ -376,7 +376,7 @@ try:
     check("in a team turn, no target argument is needed", "nhóm \"Nhóm Nội dung\"" in out and "Brief tháng 12" in out, out)
     tblock = main._team_docs_block(fake_team)
     check("every member turn reads which team document holds what",
-          "Tài liệu nào chứa gì" in tblock and "giong-van.md: Giọng văn chung" in tblock
+          "Which document holds what" in tblock and "giong-van.md: Giọng văn chung" in tblock
           and "https://example.com/brief: Brief tháng 12" in tblock, tblock)
     out = call({"op": "remove_link", "team": "T1", "url": "https://example.com/brief"})
     check("removing a team link removes its description", ("link", "https://example.com/brief") not in st.session_asset_notes(tsid), out)
