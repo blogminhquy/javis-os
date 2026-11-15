@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.565.1] - 2026-11-15
+### Fixed
+- **Picking several photos at once in a team chat on iPhone now attaches and sends them.** Before, a multi-photo pick put nothing in the composer and only a single photo got through. Adding team documents and importing a team file share the fixed picker.
+
 ## [0.565.0] - 2026-11-15
 ### Added
 - **ChatGPT and Claude can set the model and effort inside the command they send through Javis Gate.** Tell ChatGPT "have Javis do this on Opus at high effort": the model is pinned on that chat as if you picked it in the model bar (the chip shows it, change it back any time), and the effort counts for that one message only, nothing in your settings changes. A new `javis_chat_models` tool lets the outside AI see which models Javis has.
