@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.567.0] - 2026-11-15
+### Improved
+- **The core rules Javis sends to the model are now written in English, one copy for every language.** This covers the rules of each chat channel, token-saving mode, the Javis Core role, and the agent and skill paths. About a quarter of the instructions used to be Vietnamese and pulled replies into Vietnamese; Javis now keeps to the language you write in. Chatting in Vietnamese works as before, with Vietnamese replies.
+- **The instructions take fewer tokens**, so every chat turn is a little lighter.
+### Fixed
+- **Chatting with Javis over Zalo no longer defaults to Vietnamese replies.** Javis answers in whatever language you write.
+- **Reminders set over Telegram mention the time zone you chose in Settings**, instead of "Vietnam time" for everyone.
+
 ## [0.566.1] - 2026-11-15
 ### Fixed
 - **The Effort level now works on Gemini 4.** On a Gemini API key, Gemini 4 Hydrogen, Argon and Carbon ignored the Effort you picked and always ran at their own default. Your level is now sent, and later Gemini generations are recognised on their own.
