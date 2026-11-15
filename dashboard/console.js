@@ -447,6 +447,19 @@
     else navigateTo("files");
   }
   if (typeof window !== "undefined") window.JavisOpenFiles = openFilesAt;
+  // Can the docked editor (#noteEditor) be seen from the page open now? It shows in its own place on the main screen, in
+  // the file list of the Files page (#fmEdit), and in the [data-ne-host] frame of a page that hosts it (Chat, Partners,
+  // Coding, Teams). Any other page covers the main screen, so opening the docked editor there happened out of sight:
+  // a click on a file link in a team chat did nothing anyone could see (owner, 2026-11-15). Those pages get the popup
+  // editor (file-editor.js) instead, so a page added later without a frame still opens the file.
+  function _neCanDock() {
+    let active = "home";
+    try { active = (window.Alpine && Alpine.store("nav").active) || "home"; } catch (e) {}
+    if (active === "home") return true;
+    const cls = document.body.classList;
+    if (cls.contains("on-files")) return !!document.getElementById("fmEdit");
+    return (cls.contains("on-chat") || cls.contains("on-teams")) && !!document.querySelector("[data-ne-host]");
+  }
   // Bấm một đường dẫn vault: file SỬA ĐƯỢC thì mở thẳng TRÌNH SỬA, còn lại mới về trang Tệp tin.
   //
   // Vì sao gom vào một hàm: cùng một link trong chat có HAI đường đi tới đây - cú bấm thường
@@ -469,7 +482,8 @@
     if (!laThuMuc && VT_TEXT_EXTS.includes(duoi)) {
       // Màn rộng: trình sửa đính bên cây. Màn hẹp: modal của file-editor.js - ở đây người dùng
       // bấm ĐÚNG một file nên đừng chặn như nhánh node đồ thị.
-      if (!isNarrow() && typeof window.JavisOpenNote === "function") {
+      // A page with no place for the docked editor (see _neCanDock) also gets the popup.
+      if (!isNarrow() && _neCanDock() && typeof window.JavisOpenNote === "function") {
         window.JavisOpenNote(clean); return;
       }
       if (typeof window.JavisEditFile === "function") { window.JavisEditFile(clean); return; }
@@ -702,9 +716,14 @@
       }
       el.classList.add("cview-flush");
       document.body.classList.add("on-teams");
+      // A file opened from the team chat sits in that chat's frame (.tm-edit, see openNote). Leaving the page, or drawing
+      // it again (a brain switch calls renderPage straight), gives the editor back to the main screen first: the frame is
+      // about to be thrown away, and the editor inside it would go with it.
+      _returnNoteEditor();
       _pageLeave = () => {
         el.classList.remove("cview-flush");
         document.body.classList.remove("on-teams");
+        _returnNoteEditor();
         try { if (window.JavisTeams.leave) window.JavisTeams.leave(); } catch (e) {}
       };
       return window.JavisTeams.render(el);
@@ -9183,6 +9202,8 @@
     // cứng ở đây. Danh sách cứng đã cắn hai lần đúng một kiểu: trang Cộng sự (0.59.2) rồi
     // trang Coding (0.63.4) mở file ra LẶNG LẼ không có gì xảy ra, vì tên khung của trang mới
     // không có trong danh sách. Không lỗi, không toast, nên rất khó đoán ra.
+    // The Teams page (2026-11-15) bit a third time the same way: no frame at all, so the editor opened behind the page.
+    // It now has its own frame, and openVaultPath sends any page without one to the popup editor (_neCanDock).
     // Mỗi lúc chỉ một trang dựng trong cviewBody nên chỉ có tối đa một khung mang dấu này.
     into = into || document.querySelector("[data-ne-host]");
     if (!ed || !into) return false;
@@ -10039,6 +10060,9 @@
     if (typeof _fmSauKhiDong === "function") { const f = _fmSauKhiDong; _fmSauKhiDong = null; try { f(); } catch (e) {} }
     try { recomputeGraph(); } catch (e) {}   // chạy lại não (đã gate active===home + không lite + studio đóng)
   }
+  // For a page that hosts the editor and must close it itself: the Teams page closes a file when the owner opens another
+  // team, so the team just picked shows instead of the file of the last one.
+  if (typeof window !== "undefined") window.JavisCloseNote = closeNote;
   // Đổi tên file đang mở: lưu nội dung hiện tại trước (giữ chữ đã gõ), đổi tên, rồi mở lại ở tên mới.
   async function _neRenameCur(rel, it) {
     const oldname = (it && it.name) || rel.split("/").pop();
@@ -10446,7 +10470,8 @@
     _neLayNoiDung = null; _neGocText = null;   // file mới: mốc so sánh dựng lại ở dưới
     // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
     // (thứ không hề hiện ở trang này). Trang Tệp tin cũng vậy: chiếm chỗ danh sách file.
-    if (document.body.classList.contains("on-chat")) _borrowNoteEditor();
+    // The Teams page (2026-11-15) hosts it in place of the team chat, the way the Partners page does.
+    if (document.body.classList.contains("on-chat") || document.body.classList.contains("on-teams")) _borrowNoteEditor();
     else if (document.body.classList.contains("on-files")) _borrowNoteEditor(document.getElementById("fmEdit"));
     document.removeEventListener("keydown", _neKeyHandler, true);
     document.addEventListener("keydown", _neKeyHandler, true);

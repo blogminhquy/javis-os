@@ -3164,6 +3164,16 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .tm-page .ws-btn.tm-primary { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--accent); }
 .tm-list, .tm-chat, .tm-side { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .tm-list[hidden], .tm-chat[hidden], .tm-side[hidden] { display: none; }
+/* 2026-11-15: a file link clicked in the team chat opens the file editor IN the chat column, the Partners page's rule
+   (.ws-main.edit-on): the editor takes the whole column and every other part of it hides. Hidden with display:none, so
+   the messages, the words typed in the composer and the open team stay; closing the file (X on the editor) brings the
+   chat back. The editor is a floating layer in .hud-center by itself, so here it drops inset and z-index, except while
+   maximized (.ne-full), when it covers the screen on purpose. */
+.tm-edit { display: none; position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; flex-direction: column; }
+.tm-chat.edit-on > .tm-edit { display: flex; }
+.tm-chat.edit-on > :not(.tm-edit) { display: none; }
+.tm-edit > .note-editor:not(.ne-full) { position: static; inset: auto; z-index: auto;
+  flex: 1 1 auto; min-height: 0; min-width: 0; border-radius: 12px; }
 .tm-list { border-right: 1px solid var(--border); padding: 8px; gap: 2px; overflow-y: auto; }
 .tm-bar { display: flex; align-items: center; gap: 8px; justify-content: space-between; min-height: 36px; }
 .tm-bar[hidden] { display: none; }

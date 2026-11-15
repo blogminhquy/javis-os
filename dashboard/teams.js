@@ -1901,6 +1901,14 @@
 
   // ───────────── phần chạy trong trình duyệt ─────────────
 
+  // A file opened from the chat covers the whole chat column (.tm-edit). Opening another team closes it first, so the
+  // team just picked shows instead of the last team's file. closeNote writes what is still unsaved, nothing typed is lost.
+  function closeDockedFile() {
+    var ed = typeof document !== "undefined" ? document.getElementById("noteEditor") : null;
+    if (!ed || !S || !S.el || !S.el.contains(ed)) return;
+    if (typeof window.JavisCloseNote === "function") { try { window.JavisCloseNote(); } catch (e) {} }
+  }
+
   function brain() {
     try {
       if (window.JavisSessions && window.JavisSessions.brain) return window.JavisSessions.brain();
@@ -1982,7 +1990,12 @@
       '<div class="tm-teams"></div><button type="button" class="ws-btn tm-more-teams" hidden>' + esc(tw("teams.next_page")) + "</button></aside>" +
       '<section class="tm-chat"><div class="tm-bar tm-chat-head"></div><div class="tm-search" hidden></div>' +
       '<div class="tm-banners"></div><div class="tm-jobs" hidden></div>' +
-      '<div class="tm-filterbar" hidden></div><div class="tm-pinbar" hidden></div><div class="tm-msgs" aria-live="polite"></div><div class="tm-composer"></div></section>' +
+      '<div class="tm-filterbar" hidden></div><div class="tm-pinbar" hidden></div><div class="tm-msgs" aria-live="polite"></div><div class="tm-composer"></div>' +
+      // 2026-11-15 (owner: files the team writes could not be clicked open): the frame the file editor docks into when a
+      // file link in the chat is clicked, like the Partners page's #wsEdit. It takes the whole chat column while open
+      // (console.css .tm-chat.edit-on); closing the file brings the chat back as it was. `data-ne-host` is how
+      // console.js finds it; without it the editor opened behind this page and nothing showed.
+      '<div class="tm-edit" data-ne-host></div></section>' +
       // Vùng thông báo chung NGOÀI khung chat: trên điện thoại khung chat bị ẩn khi đang ở danh sách, thông báo (vd. ghim
       // lỗi) vẫn phải nhìn thấy (review 4f6268bd #2).
       '<aside class="tm-side" hidden></aside><div class="tm-scrim" hidden></div><div class="tm-note" role="status" aria-live="polite" hidden></div></div>';
@@ -3121,6 +3134,7 @@
   function openTeam(id, taskId) {
     keepTeam();
     dropNextSug();
+    closeDockedFile();
     S.jumped = null; S.searchResults = null; S.searchQuery = ""; S.searchOpen = false;
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.msgsFor = ""; S.taskTitles = {}; S.openMember = null; S.turns = [];
