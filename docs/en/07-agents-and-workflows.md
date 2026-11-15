@@ -60,6 +60,17 @@ Turning **Auto** on for an assistant gives it **full access**. Javis asks once w
 
 Auto works this way in the **private chat** only. In a Team, permissions still follow the Team's **Full access**. A server admin can set `JAVIS_PULSE_TOOLS=0` to bring every assistant back to the text-only wake-up of before.
 
+### Improving itself when you ask
+
+Tell Javis or an assistant "improve yourself", "rework the email skill", "improve the whole system"... and it does it with the `javis_improve` tool:
+
+- **Changes in the brain, with a backup.** The assistant's own role, instructions, skills and model (`agents/<slug>.md`), other assistants, skills, workflows, loops, memory and the brain's `CLAUDE.md`. Every change gets an id and a few lines showing what changed.
+- **Undo by saying so.** "Undo #12" puts the file back as it was; a file it created is removed. The undo has an id too, so it can be undone.
+- **Javis's own code too.** Needs the GitHub card connected with a token that can reach `blogminhquy/javis-os`. The assistant attaches the repo to the chat and works on its own branch; after the turn Javis checks locally, opens a PR, follows CI and merges on green (see [GitHub in chat](34-github-in-chat.md)). The Release workflow numbers the new version.
+- **It updates itself.** Once the new version is released, say "update now": Javis waits for the chat turn to end, then runs exactly what the Update button runs, and rolls back by itself if the new version does not come up.
+
+Only **you** can order it: your own chat, or a Kanban job or reminder you set up. Auto's own wake-ups and customer-facing bots never change themselves; they only suggest. Plugins keep their own path (`javis_plugin`, always off until you turn them on).
+
 ### Unread messages and muting
 
 From 0.205.0 the partner list works like a message list:
