@@ -139,12 +139,12 @@ check("khối kênh dashboard nêu mã phiên chat hiện tại", "abc123" in bl
 check("dạy Javis gắn chat_id 'web:<sid>' khi giao việc", '"chat_id":"web:abc123"' in blk)
 check("dạy Javis gắn owner_chat cho loop", 'owner_chat: "web:abc123"' in blk)
 check("cấm hứa ngồi đợi rồi tổng hợp",
-      "KHÔNG hứa" in blk and "đợi các agent chạy xong" in blk)
+      "NEVER promise" in blk and "wait for the agents to finish" in blk)
 check("chỉ đường thay thế: giao thêm việc tổng hợp bằng deps", "deps" in blk)
 
 # Không có mã phiên (đường gọi cũ) thì không được vỡ, chỉ là thiếu khối đó.
 blk0 = channel_context.build_channel_block("dashboard", port=7777)
-check("thiếu mã phiên vẫn dựng được khối kênh, không nổ", "Dashboard web Javis" in blk0)
+check("thiếu mã phiên vẫn dựng được khối kênh, không nổ", "Javis web dashboard" in blk0)
 check("thiếu mã phiên thì không bịa ra hướng dẫn web:", "web:" not in blk0)
 
 # Telegram giữ nguyên đường cũ.

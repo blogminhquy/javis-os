@@ -145,7 +145,7 @@ check("prompt nêu ToolSearch kèm tên đầy đủ đúng server in-process",
       "ToolSearch" in p_on and _full in p_on and _full == "mcp__" + "javis-plugins" + "__javis_goal")
 check("prompt vẫn nêu javis_search_tools cho engine khác", "javis_search_tools" in p_on)
 check("prompt nêu đủ ranh giới: làm luôn, javis_task, javis_schedule, javis_goal",
-      all(x in p_on for x in ("làm luôn", "javis_task", "javis_schedule", "javis_goal op=create")))
+      all(x in p_on for x in ("just do it", "javis_task", "javis_schedule", "javis_goal op=create")))
 check("brain tắt: prompt không nhắc javis_goal hay ToolSearch",
       "javis_goal" not in p_off and _full not in p_off)
 

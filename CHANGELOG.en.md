@@ -8,6 +8,45 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.569.0] - 2026-11-16
+### Added
+- **Webhooks can be edited after they are made.** The Configuration part of each webhook has an Edit button: change its name, its workflow or written job, the note and the permission level right in that window. The link and its key stay the same, so whatever sends events there needs no change.
+
+## [0.568.1] - 2026-11-15
+### Improved
+- **Add new repos right from a project's documents.** The GitHub repo picker of a project, an assistant and the create-team box now has the "+ Add repositories on GitHub" row, as in the chat. Grant more repos on GitHub, come back, and the list shows them without a reload.
+
+## [0.568.0] - 2026-11-15
+### Added
+- **Custom API connection.** Any service with a REST API and an API key but no MCP (POS, CRM, shipping, e-invoices...) now connects on the Connections page: paste the base URL and the key, and every engine can call that API.
+- **The key never reaches the model.** It is encrypted, the server adds it to each call and only sends it to the host you entered; a key echoed in a result is masked.
+- **Read-only by default.** At Read-only Javis only calls GET; to create, edit or delete on that service, raise the connection to Full access.
+
+## [0.567.0] - 2026-11-15
+### Improved
+- **The core rules Javis sends to the model are now written in English, one copy for every language.** This covers the rules of each chat channel, token-saving mode, the Javis Core role, and the agent and skill paths. About a quarter of the instructions used to be Vietnamese and pulled replies into Vietnamese; Javis now keeps to the language you write in. Chatting in Vietnamese works as before, with Vietnamese replies.
+- **The instructions take fewer tokens**, so every chat turn is a little lighter.
+### Fixed
+- **Chatting with Javis over Zalo no longer defaults to Vietnamese replies.** Javis answers in whatever language you write.
+- **Reminders set over Telegram mention the time zone you chose in Settings**, instead of "Vietnam time" for everyone.
+
+## [0.566.1] - 2026-11-15
+### Fixed
+- **The Effort level now works on Gemini 4.** On a Gemini API key, Gemini 4 Hydrogen, Argon and Carbon ignored the Effort you picked and always ran at their own default. Your level is now sent, and later Gemini generations are recognised on their own.
+- **The Usage page prices the new Gemini models correctly.** Gemini 4 used the old Gemini price and showed several times cheaper than it is, while Gemini 3.5 Flash-Lite was priced as Pro. Each model now has its own price.
+
+## [0.566.0] - 2026-11-15
+### Improved
+- **Javis replies in the language you write in, any language, like Claude or ChatGPT.** The language box in Settings now only changes the interface, and chatbots always answer customers in the customer's language. To always get one language, tell Javis once; a reply language pinned before becomes a sentence in your profile, so it is not lost.
+### Fixed
+- **Javis no longer answers in Vietnamese while you chat in English.** The language rule is now written in English, says a language you stated wins, and that the Vietnamese around it is no hint.
+- **Background work (Kanban, reminders, loops) no longer always reports in Vietnamese.** It follows the task's own language.
+- **Replies in Japanese, Korean, Chinese and Thai are read aloud by a native voice**, and an English message with an attached file is no longer read as Vietnamese.
+
+## [0.565.1] - 2026-11-15
+### Fixed
+- **Picking several photos at once in a team chat on iPhone now attaches and sends them.** Before, a multi-photo pick put nothing in the composer and only a single photo got through. Adding team documents and importing a team file share the fixed picker.
+
 ## [0.565.0] - 2026-11-15
 ### Added
 - **ChatGPT and Claude can set the model and effort inside the command they send through Javis Gate.** Tell ChatGPT "have Javis do this on Opus at high effort": the model is pinned on that chat as if you picked it in the model bar (the chip shows it, change it back any time), and the effort counts for that one message only, nothing in your settings changes. A new `javis_chat_models` tool lets the outside AI see which models Javis has.

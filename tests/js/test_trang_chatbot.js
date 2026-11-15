@@ -393,10 +393,11 @@ check("hai nút ở chân form đổi vai theo bước chứ không mọc thêm 
   noi("cb.quay_lai", "Quay lại") && noi("cb.tiep_tuc", "Tiếp tục"));
 // Ba ô có mặc định dùng được ngay mới được gấp. Mức quyền thì KHÔNG: đọc sót nó là mất tiền
 // thật, nên nó phải nằm phơi ra trên màn hình chứ không phải sau một cú bấm.
-check("chỉ ngôn ngữ gấp vào Nâng cao; nhóm và người nằm ở phần Bot trả lời ai, ngoài khối gấp",
-  /class="cb-nangcao"/.test(CB) && noi("cb.nang_cao", "Nâng cao: ngôn ngữ trả lời") &&
-  CB.indexOf('class="cb-nangcao"') < CB.indexOf('id="cbNgonNgu"') &&
-  CB.indexOf('id="cbPk"') < CB.indexOf('class="cb-nangcao"') && !/id="cbNhomBox"/.test(CB));
+// 15/11/2026 (chủ repo): bot luôn trả lời khách bằng đúng thứ tiếng khách nhắn, nên ô ghim ngôn ngữ và khối
+// "Nâng cao" chỉ chứa mỗi ô đó đã bị gỡ.
+check("form không còn ô ghim ngôn ngữ; nhóm và người nằm ở phần Bot trả lời ai",
+  !/id="cbNgonNgu"/.test(CB) && !/class="cb-nangcao"/.test(CB) && !/ngon_ngu:/.test(CB) &&
+  CB.indexOf('id="cbPk"') > -1 && !/id="cbNhomBox"/.test(CB));
 // 0.64.83: chủ dự án bỏ ô "người trực nhận chuyển tiếp" (Chat ID Telegram, vô nghĩa với bot Zalo).
 check("form KHÔNG còn ô người trực nhận chuyển tiếp và không gửi handoff_to lên server",
   !/id="cbHandoff"/.test(CB) && !/handoff_to:\s*ho/.test(CB) && !/cb\.lb_handoff/.test(CB));
@@ -453,11 +454,11 @@ check("mọi khoá cb2.* giao diện dùng đều có trong tiếng Việt và t
   if (thieu.length) console.log("  thiếu:", thieu.join(", "));
   return Object.keys(ks).length > 30 && !thieu.length;
 })());
-check("CANARY: mức quyền KHÔNG bị gấp vào khối Nâng cao",
-  CB.indexOf('htmlMuc(muc0)') > -1 && CB.indexOf('htmlMuc(muc0)') < CB.indexOf('class="cb-nangcao"'));
+check("CANARY: mức quyền KHÔNG bị gấp vào khối nào",
+  CB.indexOf('htmlMuc(muc0)') > -1 && !/class="cb-nangcao"/.test(CB));
 check("CSS của form hai bước đã có",
   /\.cb-wizard \.cb-form-acts/.test(CSS) && /\.cb-buoc \{/.test(CSS) &&
-  /\.cb-tom \{/.test(CSS) && /\.cb-nangcao \{/.test(CSS) &&
+  /\.cb-tom \{/.test(CSS) &&
   /\.cb-rc \{|\.cb-form label\.cb-rc \{/.test(CSS) && /\.cb-seg \{/.test(CSS) && /\.cb-pk \{/.test(CSS) &&
   /\.cb-mn \{/.test(CSS));
 // Gõ lại đúng cái tên vừa đọc ở bước trước là việc thừa.

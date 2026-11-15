@@ -549,6 +549,39 @@ VOICES_BY_GENDER = {
 }
 _MALE_VOICES = ("namminh", "andrew", "brian", "william", "guy", "davis", "christopher", "eric",
                 "roger", "steffan", "ryan", "thomas", "liam")
+# Any other language (2026-11-15, owner: "Javis must talk in any language"): a script that names its
+# language gets that language's own voice; other Latin text gets the multilingual voice of the gender.
+_SCRIPT_VOICES = (
+    (re.compile(r"[\u3040-\u30ff]"), {"f": "ja-JP-NanamiNeural", "m": "ja-JP-KeitaNeural"}),   # kana first
+    (re.compile(r"[\uac00-\ud7af]"), {"f": "ko-KR-SunHiNeural", "m": "ko-KR-InJoonNeural"}),
+    (re.compile(r"[\u0e00-\u0e7f]"), {"f": "th-TH-PremwadeeNeural", "m": "th-TH-NiwatNeural"}),
+    (re.compile(r"[\u4e00-\u9fff]"), {"f": "zh-CN-XiaoxiaoNeural", "m": "zh-CN-YunxiNeural"}),
+    (re.compile(r"[\u0400-\u04ff]"), {"f": "ru-RU-SvetlanaNeural", "m": "ru-RU-DmitryNeural"}),
+    (re.compile(r"[\u0600-\u06ff]"), {"f": "ar-SA-ZariyahNeural", "m": "ar-SA-HamedNeural"}),
+    (re.compile(r"[\u0900-\u097f]"), {"f": "hi-IN-SwaraNeural", "m": "hi-IN-MadhurNeural"}),
+    (re.compile(r"[\u0590-\u05ff]"), {"f": "he-IL-HilaNeural", "m": "he-IL-AvriNeural"}),
+    (re.compile(r"[\u0370-\u03ff]"), {"f": "el-GR-AthinaNeural", "m": "el-GR-NestorasNeural"}),
+)
+
+
+def _other_language_voice(text: str, voice: str) -> str:
+    """The voice for text that is neither English nor Vietnamese.
+
+    A multilingual voice (Emma, Andrew) is kept: it reads French, Spanish, Japanese. So is a voice the
+    owner picked for another language ("fr-FR-DeniseNeural"). Only a voice that cannot read the text
+    changes: a Vietnamese voice, or a single-language English one, reading Japanese came out as noise.
+    """
+    v = str(voice or "")
+    if "multilingual" in v.lower():
+        return v
+    gender = voice_gender(v)
+    for pattern, voices in _SCRIPT_VOICES:
+        if pattern.search(text):
+            target = voices[gender]
+            return v if v.split("-")[:2] == target.split("-")[:2] else target
+    if v.lower().startswith(("vi-", "en-")):
+        return VOICES_BY_GENDER["en"][gender]   # multilingual, reads the Latin-script languages
+    return v
 _EDGE_VOICE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}-\w+Neural$")
 # Letters only Vietnamese writes (co_tieng_viet also takes any non-ASCII word, kana included).
 _VI_LETTERS = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]", re.I)
@@ -596,7 +629,8 @@ def speech_plan(text: str, voice: str, english=None) -> tuple:
             voice = VOICES_BY_GENDER["en"][voice_gender(voice)]
         return str(text or ""), voice
     if not vietnamese:
-        return str(text or ""), voice       # another language (French, Japanese): left as it is
+        # Another language (French, Japanese): the text as it is, read by a voice that can read it.
+        return str(text or ""), (_other_language_voice(str(text or ""), voice) if edge else voice)
     if edge and not _vietnamese_voice(voice):
         voice = VOICES_BY_GENDER["vi"][voice_gender(voice)]
     return doc_viet(text, vietnamese=hinted), voice

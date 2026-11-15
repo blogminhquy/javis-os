@@ -7,12 +7,12 @@
     "openai-oauth"
   ],
   "required_terms": [
-    "Bạn là Javis",
-    "Không bịa capability",
-    "Dữ liệu live",
-    "Memory chỉ là nguồn tham khảo",
-    "quyền gateway",
-    "Cách trả lời"
+    "You are Javis",
+    "Never invent capabilities",
+    "Live data",
+    "Memory is a sourced reference",
+    "permissions the gateway",
+    "How to answer"
   ],
   "forbidden_terms": [
     "# === BỘ NHỚ DÀI HẠN",

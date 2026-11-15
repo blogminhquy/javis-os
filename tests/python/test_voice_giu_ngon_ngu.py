@@ -53,7 +53,7 @@ class CallLanguage(unittest.TestCase):
         qd = lang.resolve(turn_text=EN_HANDOFF, channel_default=lang.call_language(VI, "vi-VN"))
         self.assertEqual(qd.lang, "vi")
         self.assertFalse(qd.theo_nguoi_dung, "không để model bám theo câu handoff tiếng Anh")
-        self.assertIn("Ngôn ngữ trả lời", lang.khoi_ngon_ngu(qd))
+        self.assertIn("Reply language: Vietnamese (Tiếng Việt, vi)", lang.khoi_ngon_ngu(qd))
         owner = lang.resolve(turn_text=EN_HANDOFF, reply_pref="en", channel_default="vi")
         self.assertEqual(owner.lang, "en", "ngôn ngữ ghim ở Cài đặt vẫn thắng")
         asked = lang.resolve(turn_text="trả lời bằng tiếng Anh nhé", channel_default="vi")
@@ -61,7 +61,9 @@ class CallLanguage(unittest.TestCase):
 
     def test_engine_reads_the_pin_from_meta(self):
         src = (SERVER / "main.py").read_text(encoding="utf-8")
-        self.assertIn('channel_default=(_ngon_ngu_cuoc_goi(meta) or ("vi" if channel == "zalo" and not bot else ""))', src)
+        self.assertIn('channel_default=_ngon_ngu_cuoc_goi(meta),', src)
+        # 2026-11-15 (owner): Zalo owner chats no longer default to Vietnamese; they follow whoever writes.
+        self.assertNotIn('"vi" if channel == "zalo"', src)
         self.assertIn('meta={"chat_id": key, "call_lang": call_lang}', src)
 
 

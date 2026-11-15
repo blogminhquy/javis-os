@@ -1179,19 +1179,19 @@ def _agent_assets_block(brain: str, meta: dict) -> str:
     dong, da_nap = _liet_ke_tai_lieu(brain, files, links)
     ra = ""
     if dong:
-        ra += ("\n# === TÀI LIỆU & LINK CỦA BẠN ===\n"
-               "Chủ gắn sẵn cho vai này, nên đây là thứ bạn được coi là ĐÃ BIẾT CHỖ. Vẫn là "
-               "DANH SÁCH chứ không phải nội dung: mở file bằng tool đọc file khi cần, đừng "
-               "đoán nội dung từ cái tên. Link chỉ mở được nếu lượt này có tool duyệt web.\n"
+        ra += ("\n# === TÀI LIỆU & LINK CỦA BẠN (your documents and links) ===\n"
+               "The owner attached these for this role, so you count as KNOWING WHERE they are. Still "
+               "a LIST, not the content: open a file with a file-reading tool when needed; do not "
+               "guess its content from its name. A link opens only if this turn has a web-browsing tool.\n"
                + "\n".join(dong) + "\n")
     if da_nap:
-        ra += ("\n# === NỘI DUNG FILE ĐÃ GHIM (nạp sẵn, không cần mở lại) ===" + "".join(da_nap)
+        ra += ("\n# === NỘI DUNG FILE ĐÃ GHIM (pinned file content, preloaded: no need to open it again) ===" + "".join(da_nap)
                + "\n")
     # 2026-11-13: one line per document saying what it holds, so the right one is opened without opening each.
     desc, hidden = project_context.asset_lines(files, links)
     if desc:
-        ra += ("\nTài liệu nào chứa gì (mở ra khi cần chi tiết):\n" + "\n".join(desc) + "\n"
-               + (f"(còn {hidden} mô tả nữa: javis_project op=get)\n" if hidden else ""))
+        ra += ("\nWhich document holds what (open one when you need the detail):\n" + "\n".join(desc) + "\n"
+               + (f"({hidden} more descriptions: javis_project op=get)\n" if hidden else ""))
     return ra
 
 
@@ -1239,6 +1239,75 @@ def _with_turn_context(cli, plan, prompt, sysprompt):
     return prompt, sysprompt
 
 
+def _lang_turn_text(message: str) -> str:
+    """The words the person typed, without the blocks Javis puts in front of them, for language detection.
+
+    2026-11-15: the dashboard's context blocks are Vietnamese ("[FILE ĐANG MỞ trong trình sửa của Javis: ...]",
+    "[File đính kèm ...]", "[NGỮ CẢNH GIAO DIỆN: ...]"), and one Vietnamese-only letter in them made `lang.detect`
+    call a whole English message Vietnamese: the clock line, the skill list and the voice then followed Vietnamese.
+    Nothing left after stripping keeps the original, so a message that is only a block still reads as before.
+    """
+    raw = str(message or "")
+    try:
+        clean = raw
+        for _ in range(4):
+            nxt = share_render.chu_nguoi_go(chat_recall.strip_block(clean.lstrip()))
+            if nxt == clean:
+                break
+            clean = nxt
+    except Exception:  # noqa: BLE001 - detection falls back to the raw text
+        clean = raw
+    return clean or raw
+
+
+def _background_lang_decision():
+    """`lang.resolve_background`: the task's own language. Never raises (a broken setting = follow the task).
+
+    No Settings pin since 2026-11-15 (owner: the language setting is the interface's only); `ui_lang` only names
+    the language of the clock line and skill list."""
+    try:
+        lc = (cfgmod.read_settings() or {}).get("locale") or {}
+    except Exception:  # noqa: BLE001
+        lc = {}
+    return lang_mod.resolve_background(ui_lang=lc.get("ui_lang") or "")
+
+
+def migrate_reply_lang_to_profile() -> str:
+    """Move a reply language pinned in Settings into the person's profile, once. Returns the language moved, or "".
+
+    Owner, 2026-11-15: "the language setting only sets the interface, not the language Javis replies in". The
+    "Javis replies in" picker is gone and nothing reads `locale.reply_lang` for a reply any more. Someone who had
+    pinned one still means it, so it becomes a plain sentence in the profile the model reads every turn ("Always
+    reply to me in English"), the same place they would now write it themselves, and the setting goes back to
+    "auto" (the improvement trials read that key, so it stays and stays "auto").
+    """
+    try:
+        lc = (cfgmod.read_settings() or {}).get("locale") or {}
+        code = lang_registry.reply_code(lc.get("reply_lang") or "")
+        if not code:
+            return ""
+        info = lang_registry.reply_info(code)
+        line = f"Always reply to me in {info.english}, whatever language I write in."
+        current = memory_control.read_profile()
+        if line not in current:
+            memory_control.write_profile((current + "\n" + line).strip())
+        cfgmod.update_settings({"locale": {"reply_lang": "auto"}})
+        print(f"[reply_lang] moved the pinned reply language ({code}) into the profile", file=sys.stderr)
+        return code
+    except Exception as exc:  # noqa: BLE001 - startup must never fail on this
+        print(f"[reply_lang] migration skipped: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return ""
+
+
+def _background_system_prompt(brain: str = "brain") -> str:
+    """The system prompt of work with no chat turn: Kanban tasks, reminders, loops, learning (2026-11-15).
+
+    They used to call `build_system_prompt(brain)` with no language, which names Vietnamese, so an English or
+    Japanese owner got every background report in Vietnamese. Now: the Settings pin, else the task's own language.
+    """
+    return build_system_prompt(brain, lang=_background_lang_decision())
+
+
 def _turn_facts_header(brain: str, session_id: str, lang: str = "", first: bool = True) -> str:
     """The per-turn facts a stable system prompt leaves out, as short lines at the head of the user message.
 
@@ -1247,6 +1316,9 @@ def _turn_facts_header(brain: str, session_id: str, lang: str = "", first: bool 
     the system prompt of its first turn anyway, so these were frozen there before; the header keeps the same
     freshness without breaking the shared prompt cache (issue #975). Never raises: a missing line must not
     break the chat turn.
+
+    2026-11-15: the usage line speaks English unless the turn's language is Vietnamese. It lands in the person's
+    message, and Vietnamese words there pulled English chats toward Vietnamese.
     """
     lines = []
     try:
@@ -1265,9 +1337,14 @@ def _turn_facts_header(brain: str, session_id: str, lang: str = "", first: bool 
         try:
             _t = usage_store.summary().get("today", {}).get("total", {})
             if _t.get("in") or _t.get("out"):
-                lines.append(f"[Mức dùng hôm nay (Javis tự đo, không phải hạn mức gói): "
-                             f"{_t.get('in', 0):,} token vào + {_t.get('out', 0):,} token ra qua "
-                             f"{_t.get('turns', 0)} lượt. Chi tiết ở panel 'Mức dùng'.]")
+                if lang_registry.chuan_hoa(lang) == "vi":
+                    lines.append(f"[Mức dùng hôm nay (Javis tự đo, không phải hạn mức gói): "
+                                 f"{_t.get('in', 0):,} token vào + {_t.get('out', 0):,} token ra qua "
+                                 f"{_t.get('turns', 0)} lượt. Chi tiết ở panel 'Mức dùng'.]")
+                else:
+                    lines.append(f"[Usage today (measured by Javis, not the plan's limit): "
+                                 f"{_t.get('in', 0):,} tokens in + {_t.get('out', 0):,} tokens out over "
+                                 f"{_t.get('turns', 0)} turns. Details in the 'Usage' panel.]")
         except Exception:  # noqa: BLE001
             pass
     return "\n".join(lines)
@@ -1472,8 +1549,8 @@ def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = Fa
     parts = [
         "# Javis adaptive source contract",
         f"Brain root: {root}",
-        "MCP Hub và tool gateway là nguồn capability live. Chỉ gọi tool được cung cấp; "
-        "không bịa tool, dữ liệu live hay kết quả hành động.",
+        "The MCP Hub and the tool gateway are the source of live capabilities. Call only the tools "
+        "provided; never invent tools, live data or action results.",
         f"Agent files: {ag}/<slug>.md; workflow files: {wf}/<slug>.md; "
         f"loop files: {loops}/<slug>.md; skill files: {skills}/<slug>/SKILL.md.",
     ]
@@ -1487,7 +1564,7 @@ def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = Fa
         except OSError:
             memory = ""
         if memory.strip():
-            parts.append("# Bộ nhớ fallback\n" + _fit_memory_index(memory))
+            parts.append("# Memory fallback\n" + _fit_memory_index(memory))
     if include_skills:
         try:
             system_sync.ensure_synced(root)
@@ -3217,13 +3294,12 @@ def _resonance_turn_agent(conv_sid, brain, get_session):
 # trợ lý (_agent_chat_prompt). Chỉ nối khi lượt thuộc một trợ lý đang bật (_resonance_turn_enabled); review A1 tích
 # hợp P1-1: trước đó chỉ build_system_prompt có dòng này, mà phiên trợ lý lại không dùng hàm đó.
 _RESONANCE_GOAL_HINT = (
-    "MỤC TIÊU (Hệ thống cộng hưởng đang bật): việc xong ngay trong lượt thì làm luôn; việc nền một "
-    "lần, xong là hết trách nhiệm thì javis_task; nhắc giờ cố định thì javis_schedule. Người dùng giao "
-    "trách nhiệm theo đuổi kết quả SAU lượt chat (làm, tự kiểm, sửa theo phản hồi, duy trì, chờ sự kiện, "
-    "giữ việc mở tới khi đạt) thì gọi tool javis_goal op=create; bổ sung ý cho mục tiêu đang mở thì "
-    "op=update. Tool chưa nạp thì tìm: Claude Code dùng ToolSearch (mcp__javis-plugins__javis_goal), "
-    "engine khác dùng javis_search_tools. Câu hỏi, tư vấn: KHÔNG lập mục tiêu. Sản phẩm: nộp toàn văn qua "
-    "javis_submit_deliverable."
+    "GOALS (Resonance is on): a job done within the turn, just do it; one-off background work, javis_task; a "
+    "reminder at a fixed time, javis_schedule. When the user hands you a result to pursue AFTER the chat turn "
+    "(doing, self-checking, fixing from feedback, maintaining, waiting for an event, keeping it open until met), "
+    "call tool javis_goal op=create; to add to an open goal, op=update. Tool not loaded: Claude Code uses ToolSearch "
+    "(mcp__javis-plugins__javis_goal), other engines javis_search_tools. Questions and advice: set NO goal. "
+    "Deliverables: submit the full text through javis_submit_deliverable."
 )
 
 
@@ -6204,6 +6280,12 @@ async def _widen_io_pool():
 
 
 @app.on_event("startup")
+async def _reply_lang_to_profile():
+    """Once per start: a reply language still pinned in Settings moves into the profile (see the function)."""
+    await asyncio.to_thread(migrate_reply_lang_to_profile)
+
+
+@app.on_event("startup")
 async def _prime_kept_values():
     """Read once, on a worker thread, what the event loop asks for from its first request on (kept.py): the settings
     signature, the default brain folder, the pack and plugin signatures, the MCP catalog, the hub token, the bot and
@@ -7530,10 +7612,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # người dùng bấm lưu, thấy báo thành công, F5 xong mất sạch - không lỗi, không log.
         lc = cfg.setdefault("locale", {})
         if "reply_lang" in patch:
-            v = str(patch["reply_lang"] or "").strip().lower()
-            # "auto" là giá trị HỢP LỆ, không phải chuỗi rỗng: nó nghĩa là "bám theo người
-            # dùng", khác hẳn với "chưa chọn".
-            lc["reply_lang"] = "auto" if v in ("", "auto") else (lang_registry.chuan_hoa(v) or "auto")
+            # 2026-11-15 (owner): the language setting is the interface's only; Javis replies in the language of
+            # whoever writes. A page cached from before may still send a pin: it is not stored.
+            lc["reply_lang"] = "auto"
         if "ui_lang" in patch:
             lc["ui_lang"] = lang_registry.chuan_hoa(patch["ui_lang"]) or lang_registry.MAC_DINH
             # Nguồn của giá trị: "tu_dong" = dashboard tự ghi theo trình duyệt của thiết bị ghé
@@ -13778,7 +13859,7 @@ def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="", skill_serv
     # tắt, hay không có lượt, thì prompt y như trước A1.
     if _resonance_turn_enabled(brain):
         sysprompt = (sysprompt.replace(_AGENT_HAI_LOI, _AGENT_BA_LOI)
-                     + "\n# Cộng hưởng (đang bật cho bạn)\n- " + _RESONANCE_GOAL_HINT + "\n")
+                     + "\n# Resonance (on for you)\n- " + _RESONANCE_GOAL_HINT + "\n")
     where = ("qua Javis CLI (terminal hoặc HTTP /chat)" if channel == "cli"
              else "qua Telegram" if channel == "telegram"
              else "trong một cuộc gọi thoại trên dashboard Javis (khung chat của bạn ở trang Cộng sự); câu bạn "
@@ -15310,7 +15391,7 @@ def _loop_mcp_allow():
 
 
 loop_feature = self_improve.register(app, self_improve.LoopDeps(
-    build_system_prompt=build_system_prompt,
+    build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     brain_root=_brain_root,
     aux_model=_aux_model,
     aux_swap=_aux_swap,
@@ -15351,7 +15432,7 @@ async def run_loop_cycle(reason="manual"):
 import learn as learn_mod
 
 learn_feature = learn_mod.register(app, learn_mod.LearnDeps(
-    build_system_prompt=build_system_prompt,
+    build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     brain_root=_brain_root,
     brain_memory_dir=_brain_memory_dir,
     resolve_subfolder=_resolve_subfolder,
@@ -15427,7 +15508,7 @@ tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     atomic_write_text=_atomic_write_text,
     execute_workflow=execute_workflow,
     workflows_dir=_workflows_dir,
-    build_system_prompt=build_system_prompt,
+    build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     aux_model=_aux_model,
     aux_swap=_aux_swap,
     safe_tools=SAFE_FILE_TOOLS,
@@ -15656,7 +15737,7 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     atomic_write_text=_atomic_write_text,
     send_telegram=_bao_nhac_hen,
     notify_ready=_notify_ready,
-    build_system_prompt=build_system_prompt,
+    build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     aux_model=_aux_model,
     aux_swap=_aux_swap,
     safe_tools=SAFE_FILE_TOOLS,
@@ -20171,11 +20252,11 @@ async def tts_voices(lang: str = Query("")):
     nghe như máy hỏng. Danh sách ngôn ngữ lấy từ sổ đăng ký chứ không khai lại ở đây.
     """
     import edge_tts   # lazy - xem ghi chú ở đầu file
-    ma = lang_registry.chuan_hoa(lang) or localefmt.ngon_ngu_tra_loi()
-    # Tiền tố locale suy từ giọng mặc định của ngôn ngữ đó ("vi-VN-HoaiMyNeural" -> "vi-VN"),
-    # để thêm ngôn ngữ vẫn chỉ là thêm một dòng trong sổ đăng ký.
-    giong_mac_dinh = lang_registry.giong_tts(ma, "edge")
-    tien_to = "-".join(giong_mac_dinh.split("-")[:2]) if giong_mac_dinh else ma
+    # Any nameable language (2026-11-15): `lang=ja` lists Japanese voices.
+    ma = lang_registry.reply_code(lang) or localefmt.ngon_ngu_tra_loi()
+    # Tiền tố locale lấy từ danh mục ngôn ngữ trả lời ("ja-JP"); ngôn ngữ đủ mục thì suy từ giọng
+    # mặc định ("vi-VN-HoaiMyNeural" -> "vi-VN"), như trước.
+    tien_to = lang_registry.reply_info(ma).edge or ma
     voices = await edge_tts.list_voices()
     return {
         "lang": ma,
@@ -20580,8 +20661,8 @@ async def _chat_socket(ws):
             # bám theo thứ tiếng người dùng vừa viết - xem đầu file lang.py.
             _lc = _cfg_all.get("locale") or {}
             _lang_qd = lang_mod.resolve(
-                turn_text=user_message,
-                reply_pref=_lc.get("reply_lang") or "auto",
+                turn_text=_lang_turn_text(user_message),   # the person's own words, not Javis's blocks (2026-11-15)
+                # No `reply_pref` since 2026-11-15: the language setting is the interface's only (owner).
                 ui_lang=_lc.get("ui_lang") or "",
             )
             try:
@@ -20728,6 +20809,7 @@ async def _chat_socket(ws):
                         store.get_messages(conv_sid), "dashboard", route_provider,
                         route_model, route_kind, _base,
                         stable_system=stable,   # #1329: the compiled prompt stays the same between new chats too
+                        lang="" if _lang_qd.theo_nguoi_dung else _lang_qd.lang,   # a pin only, so the cache holds
                     )
                 except Exception as _exc:   # noqa: BLE001 - không được phá lượt chat
                     _CONTEXT_RUNTIME.record_runtime_event(
@@ -20758,7 +20840,7 @@ async def _chat_socket(ws):
                         "dashboard", prov,
                         _codex_safe_model(api_model) if kind == "oauth"
                         else (api_model or mcfg.get("claude_model") or "mặc định"),
-                        kind, bool(has_attachments), _lang_qd.lang_cau_hoi, _lang_qd.lang,
+                        kind, bool(has_attachments), _lang_qd.lang_cau_hoi, _lang_qd.capsule_lang,
                     )
                     # Chỉ nhận "execute". "reject" của đường tắt là lời từ chối dựa trên
                     # TRẦN TỰ KHAI của gói thuê bao, không phải hạn mức nhà cung cấp nói ra -
@@ -21296,7 +21378,7 @@ async def _chat_socket(ws):
                                     _FAST_PATH.prepare, runtime_trace, user_message,
                                     _brain_root(brain), "dashboard", prov,
                                     api_model or "?", kind, bool(has_attachments),
-                                    _lang_qd.lang_cau_hoi, _lang_qd.lang,
+                                    _lang_qd.lang_cau_hoi, _lang_qd.capsule_lang,
                                 )
                             except Exception as _exc:
                                 fast_plan = None
@@ -21406,6 +21488,8 @@ async def _chat_socket(ws):
                                 runtime_trace, user_message, _brain_root(brain), conv_sid,
                                 store.get_messages(conv_sid), "dashboard", prov,
                                 api_model or "?", kind, _phase8_base,
+                                # 2026-11-15: the small base has no language block; the capsule carries the pin.
+                                lang="" if _lang_qd.theo_nguoi_dung else _lang_qd.lang,
                             )
                         except Exception as _exc:
                             _phase8_plan = adaptive_context_runtime.AdaptiveContextPlan(
@@ -24817,6 +24901,9 @@ _GIA_INPUT_1M = {
     "opus": 15.0, "sonnet-5": 2.0, "sonnet": 3.0, "haiku": 1.0,
     "gpt-5-mini": 0.25, "gpt-5": 1.25, "gpt-4o-mini": 0.15, "gpt-4o": 2.5, "o3": 2.0,
     "gemini-2.5-pro": 1.25, "gemini-2.5-flash": 0.30, "gemini": 0.30,
+    # Same numbers and sources as usage_pricing.json (its "_gemini" note). Without these rows Gemini 3 and 4 fell to the
+    # bare "gemini" row (0.30), so Gemini 4 read 5-13 times cheaper than it is.
+    "gemini-3": 2.0, "gemini-3.5-flash-lite": 0.30, "gemini-4": 4.0, "gemini-4-hydrogen": 1.5,
     "deepseek": 0.30, "llama": 0.10, "qwen": 0.20, "mistral": 0.20, "grok": 2.0,
 }
 _GIA_INPUT_MAC_DINH = 3.0     # không đoán được model thì lấy mức phổ biến tầm trung
@@ -27007,16 +27094,16 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # bot Telegram phục vụ nhiều người, và ngôn ngữ của người này không được tràn sang người
     # kia.
     #
-    # Với bot chuyên trách thì ngôn ngữ do BẢN GHI BOT quyết, và cố ý KHÔNG truyền
-    # `reply_pref` của chủ xuống: bot ghim "auto" nghĩa là "bám theo khách", còn tràn cài đặt
-    # của chủ vào đó là phá đúng lý do trường `ngon_ngu` tồn tại - chủ người Việt bán cho
-    # khách Nhật thì ngôn ngữ của chủ là thông tin SAI để suy ra ngôn ngữ của bot.
+    # Bot chuyên trách bám theo KHÁCH: ngôn ngữ của chủ là thông tin sai để suy ra ngôn ngữ của bot (chủ người
+    # Việt bán cho khách Nhật). Từ 15/11/2026 bot cũng không còn ô ghim ngôn ngữ riêng.
     _lc_kenh = cfgmod.read_settings().get("locale") or {}
     _lang_qd = lang_mod.resolve(
-        turn_text=text,
-        chatbot_pin=(bot or {}).get("ngon_ngu") or "",
-        reply_pref=("" if bot else (_lc_kenh.get("reply_lang") or "auto")),
-        channel_default=(_ngon_ngu_cuoc_goi(meta) or ("vi" if channel == "zalo" and not bot else "")),
+        turn_text=_lang_turn_text(text),   # the person's own words, not Javis's blocks (2026-11-15)
+        # No Settings pin and no bot pin since 2026-11-15 (owner): a customer bot follows its customer, and anyone
+        # who wants a fixed language says so (in the chat, the profile or the bot's Agent file).
+        # Only a voice call names a language here (the caller's speech). Zalo owner chats used to default to
+        # Vietnamese ("a Vietnamese platform"); since 2026-11-15 they follow whoever writes, like every channel.
+        channel_default=_ngon_ngu_cuoc_goi(meta),
         ui_lang=("" if bot else (_lc_kenh.get("ui_lang") or "")),
     )
     try:
@@ -27201,7 +27288,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             _fp = await asyncio.to_thread(
                 _FAST_PATH.prepare, runtime_trace, text, _brain_root(brain), channel, prov,
                 api_model or mcfg.get("claude_model") or "mặc định", kind, False,
-                _lang_qd.lang_cau_hoi, _lang_qd.lang)
+                _lang_qd.lang_cau_hoi, _lang_qd.capsule_lang)
         except Exception as _e:
             _fp = None
             _CONTEXT_RUNTIME.record_runtime_event(
@@ -32425,8 +32512,8 @@ def _team_docs_block(team, tools=False):
                 [dict(link, description=(notes.get(("link", link.get("url") or "")) or {}).get("description", ""))
                  for link in links])
             if desc:
-                block += ("\n\nTài liệu nào chứa gì:\n" + "\n".join(desc)
-                          + (f"\n(còn {hidden} mô tả nữa)" if hidden else ""))
+                block += ("\n\nWhich document holds what:\n" + "\n".join(desc)
+                          + (f"\n({hidden} more descriptions)" if hidden else ""))
     except Exception as e:  # noqa: BLE001 - a broken document must not stop the team from answering
         print(f"[team docs] {type(e).__name__}: {e}", file=sys.stderr)
         block = ""

@@ -153,8 +153,8 @@ check("#1349 the profile is on the small adaptive base too", "Gọi tôi là anh
 small_mem = main.build_adaptive_source_prompt(str(B), include_memory=True, include_skills=False)
 check("#1349 on the small base the profile comes before the memory fallback",
       "Gọi tôi là anh" in small_mem
-      and ("# Bộ nhớ fallback" not in small_mem
-           or small_mem.index("HỒ SƠ NGƯỜI DÙNG") < small_mem.index("# Bộ nhớ fallback")))
+      and ("# Memory fallback" not in small_mem
+           or small_mem.index("HỒ SƠ NGƯỜI DÙNG") < small_mem.index("# Memory fallback")))
 check("#1349 the profile appears once, not twice", lean.count("HỒ SƠ NGƯỜI DÙNG") == 1 and small.count("HỒ SƠ NGƯỜI DÙNG") == 1)
 client.post("/profile", json={"text": ""})
 check("an empty profile adds nothing to the prompt", "HỒ SƠ NGƯỜI DÙNG" not in main.build_system_prompt(str(B)))

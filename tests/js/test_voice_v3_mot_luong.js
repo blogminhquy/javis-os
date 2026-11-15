@@ -103,7 +103,7 @@ check("style.css: có .viec-giao", /\.msg-javis \.viec-giao \{/.test(css));
 
 // 4
 check("channel_context.py giải thích kênh=giọng: trả lời như người đang nói, không dàn trang",
-      /kênh=giọng/.test(ctxPy) && /không tiêu đề, không bảng, không gạch đầu dòng/.test(ctxPy));
+      /kênh=giọng/.test(ctxPy) && /no headings, no tables, no bullets/.test(ctxPy));
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
 console.log("\nOK - voice-v3-mot-luong");

@@ -161,7 +161,7 @@ check("agent: runs on the agent's model, not the main model", run.get("model") =
 check("agent: system prompt carries the agent's role body", "QUICK CHECK ROLE BODY" in sp, sp[:200])
 check("agent: system prompt lists the agent's skills", "check-merchant" in sp and "cpc-estimate" in sp)
 check("agent: Javis's own prompt is not used", "JAVIS MAIN PROMPT" not in sp)
-check("agent: the CLI channel block is still there", "Terminal KHÔNG render markdown" in sp, sp[-300:])
+check("agent: the CLI channel block is still there", "The terminal does NOT render markdown" in sp, sp[-300:])
 check("agent: runs inside the chosen brain", same_dir(run.get("cwd"), BRAIN), run.get("cwd"))
 check("agent: fast path and adaptive context are skipped (both answer in Javis's voice)",
       FAST.calls == 0 and ADAPTIVE.calls == 0, (FAST.calls, ADAPTIVE.calls))

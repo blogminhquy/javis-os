@@ -3765,14 +3765,6 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .cb-gio-truc label { flex: 1; min-width: 0; }
 .cb-tag-list { margin: 6px 0 8px; }
 #cbTagMore { width: 100%; }
-/* Ba ô có mặc định dùng được ngay (ngôn ngữ tự nhận, không chuyển người thật, chưa khai nhóm)
-   gấp vào đây. Ô mức quyền thì KHÔNG: đọc sót nó là mất tiền thật. */
-.cb-nangcao { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 4px; }
-.cb-nangcao summary { cursor: pointer; font-size: 13.5px; color: var(--text2); font-weight: 600;
-  display: flex; align-items: center; gap: 6px; list-style: none; padding: 8px 0; }
-.cb-nangcao summary::-webkit-details-marker { display: none; }
-.cb-nangcao[open] summary { color: var(--text); }
-
 /* ---- Form bot 0.64.85: bốn phần, thẻ chọn, nút chọn một, ô chọn người và nhóm ----
    Mỗi phần một quyết định, cách nhau bằng đường kẻ mảnh thay vì hộp lồng hộp. Chữ giải thích rút
    về một dòng dưới ô chọn; phần dài chuyển sang tài liệu. */
@@ -4107,6 +4099,9 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .pd-mode .cp-ic { width: 14px; height: 14px; }
 .pd-repo-row .pd-row-ico .cp-ic { width: 18px; height: 18px; }
 .pd-repo-box .gh-results { max-height: min(45vh, 340px); overflow-y: auto; }
+/* The "+" row under the repo list of a project, an assistant or a new team: the list scrolls on its own here, so the
+   foot sits under it instead of sticking to the bottom of a + menu. */
+.pd-repo-box .gh-foot, .tmp-repo-box .gh-foot { position: static; margin: 6px 0 0; padding: 4px 0 0; background: none; }
 .pd-in { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--field-bg); color: var(--text); font-family: inherit;
   font-size: 13px; outline: none; }

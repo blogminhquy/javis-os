@@ -59,8 +59,8 @@ check("TG: gợi ý dùng tool javis_schedule", "javis_schedule" in tg)
 check("TG: fallback huỷ dùng đúng POST /reminders/cancel", "POST http://127.0.0.1:7777/reminders/cancel" in tg)
 check("TG: fallback huỷ dùng form-data id + brain", '--data-urlencode "id=<r_id>"' in tg
       and f'--data-urlencode "brain={BRAIN}"' in tg)
-check("TG: cấm DELETE/JSON và sửa thẳng reminders.json", "KHÔNG gọi DELETE" in tg
-      and "KHÔNG đoán body JSON" in tg and "KHÔNG sửa trực tiếp `Javis/reminders.json`" in tg)
+check("TG: cấm DELETE/JSON và sửa thẳng reminders.json", "do NOT call DELETE" in tg
+      and "do NOT guess a JSON body" in tg and "NEVER edit `Javis/reminders.json` directly" in tg)
 # send-file KHÔNG được dính brain (chỉ /reminders cần)
 sendfile_blobs = [b for b in re.findall(r"-d '(\{.*?\})'", " ".join(tg.split("\n"))) if '"path"' in b]
 check("TG: recipe send-file KHÔNG chèn brain", sendfile_blobs and all('"brain"' not in b for b in sendfile_blobs))

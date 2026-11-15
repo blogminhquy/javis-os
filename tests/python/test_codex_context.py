@@ -115,7 +115,7 @@ with tempfile.TemporaryDirectory(prefix="javis-codex-context-") as tmp:
     huge = [{"role": "user", "content": "cũ-" + ("x" * 5000)},
             {"role": "assistant", "content": "mới-" + ("y" * 1200)}]
     clipped = compaction.codex_bootstrap_prompt(huge, "tiếp tục", max_chars=2200)
-    check("bootstrap: cắt phần cũ, giữ phần mới", "mới-" in clipped and "phần lịch sử cũ hơn" in clipped)
+    check("bootstrap: cắt phần cũ, giữ phần mới", "mới-" in clipped and "older history left out" in clipped)
 
     # 5) Chỉ fallback khi đúng lỗi mất thread; lỗi auth/model không tự chạy lại.
     check("fallback: nhận diện thread không tồn tại",

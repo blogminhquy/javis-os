@@ -720,6 +720,82 @@
       "default_perm": "readonly",
       "risk": "Mức Ghi nháp cho phép Javis SOẠN NHÁP thư và gắn, gỡ nhãn trong hộp thư của bạn.\n\nServer Gmail chính chủ không có tool gửi thẳng nên Javis không tự gửi được, luôn dừng ở bản nháp để bạn tự bấm gửi.\n\nChỉ cần đọc và tìm thư thì giữ mức Chỉ đọc."
     },
+    {
+      "id": "http-api",
+      "name": "API tuỳ chỉnh (API key)",
+      "icon": "key-round",
+      "category": "Khác",
+      "description": "Nối bất kỳ dịch vụ nào có REST API và API key mà chưa có MCP (POS, CRM, vận chuyển, hoá đơn điện tử...). Dán địa chỉ gốc và key, mọi bộ não gọi được API đó. Key mã hoá, chỉ server gắn vào lời gọi, model không bao giờ thấy.",
+      "status": "beta",
+      "transport": "internal",
+      "internal": "http_api",
+      "auth": {
+        "type": "apikey",
+        "fields": [
+          {
+            "key": "base_url",
+            "label": "Địa chỉ gốc của API",
+            "placeholder": "Ví dụ: https://api.ten-dich-vu.com/v1"
+          },
+          {
+            "key": "api_key",
+            "label": "API key",
+            "placeholder": "Dán API key..."
+          },
+          {
+            "key": "auth_style",
+            "label": "Cách gửi key (tuỳ chọn, bỏ trống = Authorization: Bearer)",
+            "placeholder": "Ví dụ: X-API-Key: {key}  hoặc  ?api_key={key}",
+            "optional": true
+          },
+          {
+            "key": "extra_headers",
+            "label": "Header thêm (tuỳ chọn, mỗi dòng Tên: giá trị)",
+            "placeholder": "Ví dụ: X-Shop-Id: 12345",
+            "multiline": true,
+            "optional": true
+          },
+          {
+            "key": "docs_url",
+            "label": "Link tài liệu API (tuỳ chọn, để Javis tự đọc)",
+            "placeholder": "Ví dụ: https://docs.ten-dich-vu.com/api",
+            "optional": true
+          },
+          {
+            "key": "notes",
+            "label": "Ghi chú cho Javis (tuỳ chọn)",
+            "placeholder": "Ví dụ: đơn hàng ở /orders, tồn kho ở /inventory",
+            "multiline": true,
+            "optional": true
+          }
+        ],
+        "guide": "1. Mở trang tài liệu API của dịch vụ, tìm địa chỉ gốc (base URL) và tạo một API key.\n2. Xem tài liệu nói key gửi kiểu nào. Phổ biến nhất là header Authorization: Bearer, khi đó để trống ô Cách gửi key.\nDịch vụ dùng header khác thì ghi dạng X-API-Key: {key}; dùng tham số trên đường dẫn thì ghi ?api_key={key}.\nKey dạng tên:mật khẩu với Authorization: Basic {key} được Javis tự mã hoá.\n3. Dán link tài liệu và vài dòng ghi chú (endpoint hay dùng) để Javis gọi đúng ngay từ đầu.\n\nMỗi dịch vụ là một kết nối riêng. Key chỉ được gửi tới đúng máy chủ của địa chỉ gốc. Địa chỉ http:// chỉ dùng được cho máy trong mạng nội bộ."
+      },
+      "validate": {
+        "tool": "api_request",
+        "args": {
+          "method": "GET",
+          "path": ""
+        },
+        "label_paths": [
+          "host"
+        ]
+      },
+      "call_rules": {
+        "api_request": {
+          "key": "method",
+          "default": "GET",
+          "read_values": [
+            "GET",
+            "HEAD",
+            "OPTIONS"
+          ],
+          "else": "danger"
+        }
+      },
+      "default_perm": "readonly",
+      "risk": "Mức Chỉ đọc (mặc định) chỉ cho Javis gọi GET, tức chỉ xem dữ liệu.\n\nMức Toàn quyền cho Javis gọi POST, PUT, PATCH, DELETE: tạo đơn, sửa, xoá, gửi tin thật trên dịch vụ đó, có thể không hoàn tác được.\nGhi nháp không mở được các lệnh này vì Javis không biết một API lạ ghi ra sao.\n\nAPI key có toàn quyền như chính tài khoản đã tạo nó: nên tạo key riêng cho Javis, giới hạn quyền ngay ở dịch vụ nếu dịch vụ cho phép."
+    },
                         {
       "id": "substack",
       "name": "Substack",

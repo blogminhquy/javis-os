@@ -537,6 +537,7 @@
       + switchRow("whToggle", h.enabled, "wh.sw_recv", h.enabled ? "wh.receiving_on" : "wh.receiving_off", h.enabled ? "wh.turn_off" : "wh.turn_on")
       + switchRow("whPause", !h.paused, "wh.sw_proc", h.paused ? "wh.paused_on" : "wh.paused_off", h.paused ? "wh.resume" : "wh.pause")
       + '<div class="wh-acts wh-cfgacts">'
+      + '<button type="button" class="wh-btn whEdit">' + ic("pencil") + " " + esc(tw("wh.edit")) + "</button>"
       + '<button type="button" class="wh-btn whTest">' + ic("play") + " " + esc(tw("wh.test")) + "</button>"
       + '<button type="button" class="wh-btn whRules' + (hasRules ? " has-rules" : "") + '">' + ic("sliders-horizontal") + " "
       + esc(tw("wh.rules")) + (hasRules ? " " + ic("check") : "") + "</button>"
@@ -602,6 +603,42 @@
     }).join("");
   }
 
+  // The fields the create form and the edit panel share: name, what runs (workflow or a written job), its text, level.
+  // `h` prefills them when editing; the create form starts on a workflow at full level.
+  function fieldsHtml(h, brainHtml) {
+    h = h || {};
+    var target = h.target === "task" ? "task" : "workflow", level = LEVEL_KEY[h.level] ? h.level : "full";
+    var seg = function (attr, v, key, on) {
+      return '<button type="button" class="wh-segb' + (on ? " on" : "") + '" data-' + attr + '="' + v + '">' + esc(tw(key)) + "</button>";
+    };
+    return '<div class="wh-fld"><label for="whName">' + esc(tw("wh.name")) + '</label><input id="whName" placeholder="' + esc(tw("wh.name_ph"))
+      + '" value="' + esc(h.name || "") + '"></div>'
+      + (brainHtml || "")
+      + '<div class="wh-fld"><label>' + esc(tw("wh.target")) + '</label><div class="wh-seg" id="whTarget">'
+      + seg("t", "workflow", "wh.target_wf", target === "workflow") + seg("t", "task", "wh.target_task", target === "task") + "</div></div>"
+      + '<div class="wh-fld" id="whWfWrap"><label for="whWorkflow">' + esc(tw("wh.workflow")) + '</label>'
+      + '<input type="search" id="whWfQ" class="wh-wfq" autocomplete="off" spellcheck="false" placeholder="' + esc(tw("wh.wf_search_ph"))
+      + '" aria-label="' + esc(tw("wh.wf_search_ph")) + '" aria-controls="whWorkflow" hidden>'
+      + '<select id="whWorkflow"></select><span id="whWfCount" class="wh-wfcount" aria-live="polite"></span></div>'
+      + '<div class="wh-fld"><label id="whTextLabel" for="whText">' + esc(tw(target === "task" ? "wh.text_task" : "wh.text_wf"))
+      + '</label><textarea id="whText" placeholder="' + esc(tw("wh.text_ph")) + '">' + esc(h.text || "") + "</textarea></div>"
+      + '<div class="wh-fld"><label>' + esc(tw("wh.level")) + '</label><div class="wh-seg" id="whLevel">'
+      + seg("l", "suggest", "wh.level_suggest", level === "suggest") + seg("l", "auto", "wh.level_auto", level === "auto")
+      + seg("l", "full", "wh.level_full", level === "full") + "</div></div>";
+  }
+
+  // 2026-11-15 (owner: "thêm nút sửa cho webhook đi. Cài xong ko sửa đc"): the hook's name, what it runs, its text and
+  // its level open prefilled inside the popup, over the configuration, and save with the revision edited (a 409 says
+  // someone saved first). The URL and its key stay as they are: callers keep working. The brain is not changed here.
+  function editHtml(h) {
+    return '<button type="button" class="wh-back whBack">' + ic("chevron-left") + " " + esc(tw("wh.back_cfg")) + "</button>"
+      + '<h3 class="wh-subh">' + esc(tw("wh.edit_title")) + "</h3>"
+      + '<div id="whForm" class="wh-form">' + fieldsHtml(h)
+      + '<div class="wh-acts"><button type="button" class="wh-btn pri" id="whSave">' + esc(tw("common.save")) + "</button>"
+      + '<button type="button" class="wh-btn ghost whBack">' + esc(tw("common.cancel")) + "</button>"
+      + '<span id="whMsg" class="wh-warn" role="status"></span></div></div>';
+  }
+
   // The new-webhook form, drawn inside the popup.
   function formHtml(brains, current) {
     var opts = (brains || []).map(function (b) {
@@ -610,21 +647,7 @@
     return '<div class="wh-dhead"><span class="wh-grab"></span><div class="wh-dtop"><div class="wh-dtitle"><h2 id="whDlgTitle">' + ic("webhook") + " "
       + esc(tw("wh.add")) + '</h2></div><button type="button" class="wh-x whClose" aria-label="' + esc(tw("wh.close")) + '">' + ic("x") + "</button></div></div>"
       + '<div class="wh-dbody"><div id="whForm" class="wh-form">'
-      + '<div class="wh-fld"><label for="whName">' + esc(tw("wh.name")) + '</label><input id="whName" placeholder="' + esc(tw("wh.name_ph")) + '"></div>'
-      + '<div class="wh-fld"><label for="whBrain">' + esc(tw("wh.brain")) + '</label><select id="whBrain">' + opts + "</select></div>"
-      + '<div class="wh-fld"><label>' + esc(tw("wh.target")) + '</label><div class="wh-seg" id="whTarget">'
-      + '<button type="button" class="wh-segb on" data-t="workflow">' + esc(tw("wh.target_wf")) + "</button>"
-      + '<button type="button" class="wh-segb" data-t="task">' + esc(tw("wh.target_task")) + "</button></div></div>"
-      + '<div class="wh-fld" id="whWfWrap"><label for="whWorkflow">' + esc(tw("wh.workflow")) + '</label>'
-      + '<input type="search" id="whWfQ" class="wh-wfq" autocomplete="off" spellcheck="false" placeholder="' + esc(tw("wh.wf_search_ph"))
-      + '" aria-label="' + esc(tw("wh.wf_search_ph")) + '" aria-controls="whWorkflow" hidden>'
-      + '<select id="whWorkflow"></select><span id="whWfCount" class="wh-wfcount" aria-live="polite"></span></div>'
-      + '<div class="wh-fld"><label id="whTextLabel" for="whText">' + esc(tw("wh.text_wf")) + '</label><textarea id="whText" placeholder="'
-      + esc(tw("wh.text_ph")) + '"></textarea></div>'
-      + '<div class="wh-fld"><label>' + esc(tw("wh.level")) + '</label><div class="wh-seg" id="whLevel">'
-      + '<button type="button" class="wh-segb" data-l="suggest">' + esc(tw("wh.level_suggest")) + "</button>"
-      + '<button type="button" class="wh-segb" data-l="auto">' + esc(tw("wh.level_auto")) + "</button>"
-      + '<button type="button" class="wh-segb on" data-l="full">' + esc(tw("wh.level_full")) + "</button></div></div>"
+      + fieldsHtml(null, '<div class="wh-fld"><label for="whBrain">' + esc(tw("wh.brain")) + '</label><select id="whBrain">' + opts + "</select></div>")
       + '<div class="wh-acts"><button type="button" class="wh-btn pri" id="whSave">' + esc(tw("common.save")) + "</button>"
       + '<button type="button" class="wh-btn ghost whClose" id="whCancel">' + esc(tw("common.cancel")) + "</button>"
       + '<span id="whMsg" class="wh-warn"></span></div>'
@@ -724,15 +747,34 @@
       if (cnt) cnt.textContent = query.trim() && wfList.length
         ? tw("wh.wf_count", { n: filterWorkflows(wfList, query).length, total: wfList.length }) : "";
     }
-    async function loadWorkflows() {
+    // `brain` and `chosen`: the edit panel lists the hook's own brain with its workflow already picked.
+    async function loadWorkflows(brain, chosen) {
       var sel = modal.querySelector("#whWorkflow");
       if (!sel) return;
-      var d = await api("/workflows?brain=" + encodeURIComponent(modal.querySelector("#whBrain").value || current()));
+      var bs = modal.querySelector("#whBrain");
+      var d = await api("/workflows?brain=" + encodeURIComponent((typeof brain === "string" && brain) || (bs && bs.value) || current()));
+      if (!sel.isConnected) return;
       wfList = (d && d.workflows) || [];
       var qb = modal.querySelector("#whWfQ");
       if (qb) { qb.value = ""; qb.hidden = wfList.length < 2; }
+      // A workflow the brain no longer has stays listed, so saving other fields does not quietly drop it.
+      if (typeof chosen === "string" && chosen && !wfList.some(function (w) { return w.slug === chosen; })) {
+        wfList = [{ slug: chosen, name: chosen }].concat(wfList);
+      }
+      sel.innerHTML = "";
       sel.value = "";
       drawWorkflows();
+      if (typeof chosen === "string" && chosen) sel.value = chosen;
+    }
+    // The target and level buttons and the workflow search, in the create form or the edit panel.
+    function wireFields(scope) {
+      scope.querySelectorAll("#whTarget .wh-segb").forEach(function (c) { c.onclick = function () { target = c.dataset.t; syncForm(); }; });
+      scope.querySelectorAll("#whLevel .wh-segb").forEach(function (c) { c.onclick = function () { level = c.dataset.l; syncForm(); }; });
+      scope.querySelector("#whWfQ").oninput = drawWorkflows;
+      // Enter in the search box keeps the first match chosen instead of submitting anything.
+      scope.querySelector("#whWfQ").onkeydown = function (ev) {
+        if (ev.key === "Enter") { ev.preventDefault(); scope.querySelector("#whWorkflow").focus(); }
+      };
     }
     function syncForm() {
       modal.querySelectorAll("#whTarget .wh-segb").forEach(function (c) { c.classList.toggle("on", c.dataset.t === target); });
@@ -746,12 +788,8 @@
       dlg.innerHTML = formHtml(brains(), current());
       target = "workflow"; level = "full";
       var f = function (s) { return dlg.querySelector(s); };
-      dlg.querySelectorAll("#whTarget .wh-segb").forEach(function (c) { c.onclick = function () { target = c.dataset.t; syncForm(); }; });
-      dlg.querySelectorAll("#whLevel .wh-segb").forEach(function (c) { c.onclick = function () { level = c.dataset.l; syncForm(); }; });
-      f("#whBrain").onchange = loadWorkflows;
-      f("#whWfQ").oninput = drawWorkflows;
-      // Enter in the search box keeps the first match chosen instead of submitting anything.
-      f("#whWfQ").onkeydown = function (ev) { if (ev.key === "Enter") { ev.preventDefault(); f("#whWorkflow").focus(); } };
+      wireFields(dlg);
+      f("#whBrain").onchange = function () { loadWorkflows(); };
       f("#whSave").onclick = async function () {
         var body = { name: f("#whName").value.trim(), brain: f("#whBrain").value, target: target, level: level,
           workflow: target === "workflow" ? f("#whWorkflow").value : "", text: f("#whText").value.trim() };
@@ -858,6 +896,31 @@
         await api("/webhooks/delete", { id: h.id });
         closeModal();
         load();
+      };
+      b(".whEdit").onclick = function () {
+        var host = showSub(editHtml(h));
+        host.querySelectorAll(".whBack").forEach(function (x) { x.onclick = hideSub; });
+        target = h.target === "task" ? "task" : "workflow";
+        level = LEVEL_KEY[h.level] ? h.level : "full";
+        var f = function (s) { return host.querySelector(s); };
+        wireFields(host);
+        syncForm();
+        loadWorkflows(h.brain, h.workflow || "");
+        f("#whSave").onclick = async function () {
+          var body = { id: h.id, revision: h.revision, name: f("#whName").value.trim(), target: target, level: level,
+            workflow: target === "workflow" ? f("#whWorkflow").value : "", text: f("#whText").value.trim() };
+          if (!body.name) { f("#whMsg").textContent = tw("wh.need_name"); return; }
+          if (target === "workflow" && wfList.length && !body.workflow) { f("#whMsg").textContent = tw("wh.need_workflow"); return; }
+          var btn = f("#whSave");
+          btn.disabled = true;
+          var r = await api("/webhooks/update", body);
+          btn.disabled = false;
+          if (r._status === 409) { f("#whMsg").textContent = r.error || tw("wh.conflict"); return; }
+          if (!r.ok) { f("#whMsg").textContent = r.error || tw("wh.save_err"); return; }
+          hideSub();
+          refreshSoon();
+        };
+        f("#whName").focus();
       };
       b(".whTest").onclick = function () {
         var host = showSub(testPanelHtml());
@@ -1101,7 +1164,7 @@
     secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText,
     simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules, readActions: readActions, detailHtml: detailHtml, settingsHtml: settingsHtml,
     testText: testText, readSettings: readSettings, stateWord: stateWord, timelineHtml: timelineHtml, payloadHtml: payloadHtml,
-    replayHtml: replayHtml, planHtml: planHtml, healthHtml: healthHtml, testPanelHtml: testPanelHtml, formHtml: formHtml,
+    replayHtml: replayHtml, planHtml: planHtml, healthHtml: healthHtml, testPanelHtml: testPanelHtml, formHtml: formHtml, editHtml: editHtml,
     filterWorkflows: filterWorkflows, workflowOptionsHtml: workflowOptionsHtml };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;

@@ -120,13 +120,13 @@ check("tran cuc chat: buoc phai bo bot dong", kept < n_all)
 # hoa, tuc chinh loi chi muc rut gon lai day model di vao thu muc ma app KHONG BAO GIO doc -
 # ghi vao do la mat ky uc, im lang. Xem tests/python/test_memory_hoa_thuong.py.
 check("bo dong thi PHAI noi ro con bao nhieu + duong doc tiep",
-      "chưa liệt kê" in tiny and "memory/MEMORY.md" in tiny)
+      "not listed here" in tiny and "memory/MEMORY.md" in tiny)
 check("rut mo ta thi chi duong sang facts/", "memory/facts/" in main._fit_memory_index(mem, 8000))
 # 0.222.0: the hidden memories are NAMED, so the model knows what it can still read.
 dropped = [i for i in range(60) if f"(facts/ky-uc-{i}.md)" not in tiny]
 check("bo dong thi van NEU TEN file cua ky uc bi an (it nhat ky uc dau tien bi an)",
-      dropped and f"ky-uc-{dropped[0]}" in tiny.split("chưa liệt kê")[-1])
-check("bo dong: ten ky uc an kem duong doc memory/facts/<tên>.md", "memory/facts/<tên>.md" in tiny)
+      dropped and f"ky-uc-{dropped[0]}" in tiny.split("not listed here")[-1])
+check("bo dong: ten ky uc an kem duong doc memory/facts/<tên>.md", "memory/facts/<name>.md" in tiny)
 for cap in (1200, 4000):
     got = main._fit_memory_index(mem * 3, cap)
     check(f"bo dong: tran {cap} van giu duoi tran ke ca danh sach ten", len(got) <= cap)

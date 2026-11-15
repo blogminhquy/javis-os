@@ -292,7 +292,7 @@ check("by_prefix finds discord: and lark:",
       owner_channels.by_prefix("discord:dm1") == (D, "dm1") and owner_channels.by_prefix("lark:oc_1") == (L, "oc_1"))
 check("Discord and Lark trust the chat id a turn produced (a DM channel is not a user id)",
       D.trust_turn_ids and L.trust_turn_ids and not owner_channels.WHATSAPP.trust_turn_ids)
-for src, must in (("discord", "2000 ký tự"), ("lark", "KHÔNG có bảng")):
+for src, must in (("discord", "2000 characters"), ("lark", "has NO tables")):
     blk = channel_context.build_channel_block(src, {"chat_id": f"{src}:X", "chat_type": "group", "user_name": "An"})
     check(f"context block for {src}: keeps the {src}: prefix and its own rule",
           f"`{src}:`" in blk and must in blk, blk[-600:])

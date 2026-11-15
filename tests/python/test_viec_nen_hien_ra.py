@@ -191,16 +191,16 @@ BLOCK_WEB = channel_context.build_channel_block("dashboard", {"session_id": "s1"
 BLOCK_TG = channel_context.build_channel_block("telegram", {"chat_id": "42"})
 BLOCK_CLI = channel_context.build_channel_block("cli", {})
 for ten, blk in (("web", BLOCK_WEB), ("telegram", BLOCK_TG), ("cli", BLOCK_CLI)):
-    # Câu mẫu trong prompt viết theo giọng xưng hô HIỆN TẠI của Javis ("mình"), còn bộ dò ở
-    # mục 1 vẫn phải bắt được mọi biến thể (em/anh/chị/tôi) vì máy đang chạy có thể còn giọng cũ.
+    # The prompt is English since 2026-11-15 and its sample promises are English; the rule says it covers
+    # every language and form of address, while the detector of section 1 still catches em/anh/chị/tôi.
     check(f"{ten}: prompt cấm hứa 'có kết quả mình báo ngay'",
-          "có kết quả mình báo ngay" in blk and "KHÔNG HỨA THỨ MÌNH KHÔNG LÀM ĐƯỢC" in blk)
+          "I'll report as soon as I have the result" in blk and "DO NOT PROMISE WHAT YOU CANNOT DO" in blk)
     check(f"{ten}: prompt nói rõ luật áp cho MỌI biến thể xưng hô",
-          "biến thể xưng hô" in blk)
+          "in any language and any form of address" in blk)
     check(f"{ten}: prompt bắt thuật đúng kết quả tool khi điều phối tắt",
-          "điều phối đang TẮT" in blk)
+          "says orchestration is OFF" in blk)
 check("web: prompt nói rõ server tự kiểm lời hứa",
-      "server tự dán một dòng đính chính" in BLOCK_WEB)
+      "the server paste a correction line" in BLOCK_WEB)
 
 
 # ─────────── 5. Plugin javis-task: cổng điều phối phải ĐÚNG ───────────

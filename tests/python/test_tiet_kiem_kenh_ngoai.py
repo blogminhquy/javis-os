@@ -168,9 +168,21 @@ ra = chay()
 
 check("CANARY: lượt Telegram CÓ hỏi đường tắt", len(_goi["fast_prepare"]) == 1)
 check("và mang theo NGÔN NGỮ đã chốt, không bắt cổng tự đoán lại",
-      _goi["fast_prepare"][0].get("lang_tra_loi") == "vi")
+      _goi["fast_prepare"][0].get("lang") == "vi")
+# Owner, 2026-11-15: "let the model handle the language". With nothing pinned the capsule names no reply language
+# ("Reply in the user's language"), instead of the detector's guess; a pin still reaches it (checked below).
+check("không ghim gì thì đường tắt không ép ngôn ngữ trả lời", _goi["fast_prepare"][0].get("lang_tra_loi") == "")
 check("CANARY: hỏi với kênh 'telegram', không phải 'dashboard'",
       _goi["fast_prepare"] and _goi["fast_prepare"][0]["channel"] == "telegram")
+# A language asked for in the message itself is a real decision, and it reaches the fast path. (Settings no longer
+# name a reply language since 2026-11-15: the language setting is the interface's only.)
+_dem_truoc = {k: list(v) for k, v in _goi.items()}   # the checks below count the FIRST run's calls only
+_goi["fast_prepare"].clear()
+chay(hoi="please answer in English: what is 2+2")
+check("ngôn ngữ người dùng ra lệnh trong câu xuống tới đường tắt", _goi["fast_prepare"] and
+      _goi["fast_prepare"][0].get("lang_tra_loi") == "en")
+for _k, _v in _dem_truoc.items():
+    _goi[_k][:] = _v
 check("đi đường tắt thì trả lời luôn", isinstance(ra, dict) and "4 ạ." in ra["text"])
 check("đường tắt chạy ĐÚNG một vòng gọi model", len(_goi["stream"]) == 1)
 check("đường tắt dùng capsule nhỏ, không phải CLAUDE.md",

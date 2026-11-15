@@ -45,7 +45,11 @@
     return { selected: sel, rest: rest, all: sel.concat(rest) };
   }
 
-  var pure = { shortName: shortName, chipText: chipText, toggle: toggle, sameSet: sameSet, split: split };
+  // Signed in with the Javis OS app, a repo is listed only once the app may see it: the "+" row opens the app's page on
+  // GitHub to tick more (the same row as the main composer, github-connect.js). A pasted token already sees every repo,
+  // so it gets no link and the row leads to Connections instead.
+  function addReposUrl(st) { return st && st.source === "app" && st.install_url ? String(st.install_url) : ""; }
+  var pure = { shortName: shortName, chipText: chipText, toggle: toggle, sameSet: sameSet, split: split, addReposUrl: addReposUrl };
   if (typeof module !== "undefined" && module.exports) module.exports = pure;
   if (typeof document === "undefined") return;
 
@@ -63,6 +67,7 @@
       .catch(function () { return { ok: false, error: tw("gh.err_net") }; });
   }
   var CHECK = '<svg class="cp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
+  var PLUS = '<svg class="cp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
   // Repos attached to a team chat: {repos: [...], icon} or null when the server could not be reached.
   function load(sid, brain) {
@@ -90,16 +95,30 @@
         box.querySelector("[data-tg-conn]").onclick = function () { opts.close(); if (opts.connections) opts.connections(); };
         return;
       }
-      list(box, opts);
+      list(box, opts, addReposUrl(st));
     });
   }
 
-  function list(box, opts) {
+  function list(box, opts, addUrl) {
     var chosen = (opts.current() || []).slice(), sent = chosen.slice(), busy = false, items = [], timer = 0, n = 0;
     box.innerHTML = '<input type="search" class="cp-search" placeholder="' + esc(tw("gh.search_ph")) + '" aria-label="' + esc(tw("gh.search_ph")) + '">' +
       '<div class="cp-results gh-results" role="listbox" aria-multiselectable="true"></div>' +
-      '<div class="cp-pin-err" role="status"></div>';
+      '<div class="gh-foot"><div class="cp-pin-err" role="status"></div>' + footRow(addUrl) + "</div>";
     var input = box.querySelector(".cp-search"), out = box.querySelector(".cp-results"), err = box.querySelector(".cp-pin-err");
+    var conn = box.querySelector("[data-tg-conn]");
+    if (conn) conn.onclick = function () { opts.close(); if (opts.connections) opts.connections(); };
+    // Back from GitHub with more repos ticked: list them again without a reload, once per return to the tab.
+    var away = false;
+    function onBack() {
+      if (!box.isConnected) { document.removeEventListener("visibilitychange", onBack); window.removeEventListener("focus", onBack); return; }
+      if (document.visibilityState === "hidden") { away = true; return; }
+      if (away) { away = false; fetchList(); }
+    }
+    if (addUrl) {
+      box.addEventListener("click", function (e) { if (e.target.closest && e.target.closest("[data-tg-add]")) away = true; });
+      document.addEventListener("visibilitychange", onBack);
+      window.addEventListener("focus", onBack);
+    }
     function row(r, i, on) {
       var parts = String(r.full_name).split("/");
       var tag = r.cloned ? tw("gh.cloned") : (r.private ? tw("gh.private") : "");
@@ -117,7 +136,9 @@
       var rest = v.rest.map(function (r) { return row(r, i++, false); }).join("");
       out.innerHTML = (sel ? '<div class="gh-sec">' + esc(tw("gh.sec_selected")) + '</div><div class="gh-group">' + sel + "</div>" : "") +
         (rest ? '<div class="gh-sec">' + esc(tw("gh.sec_repos")) + '</div><div class="gh-group">' + rest + "</div>" : "") +
-        (!shown.length ? '<div class="cp-empty">' + esc(tw("gh.none_found")) + "</div>" : "");
+        (!shown.length ? '<div class="cp-empty">' + esc(tw("gh.none_found")) +
+          (addUrl ? ' <a data-tg-add="1" target="_blank" rel="noopener" href="' + esc(addUrl) + '">' + esc(tw("gh.add_on_github")) + "</a>" : "") +
+          "</div>" : "");
     }
     function sync() {
       if (busy || sameSet(chosen, sent)) return;
@@ -164,6 +185,14 @@
     input.focus();
     draw();
     fetchList();
+  }
+
+  // The "+" row at the foot of the list: add repos on GitHub (app sign-in), or connect more (pasted token).
+  function footRow(addUrl) {
+    return addUrl
+      ? '<a class="cp-mi gh-more-conn" data-tg-add="1" target="_blank" rel="noopener" href="' + esc(addUrl) + '">' + PLUS +
+        '<span class="cp-mi-lbl">' + esc(tw("gh.add_on_github")) + "</span></a>"
+      : '<button type="button" class="cp-mi gh-more-conn" data-tg-conn="1">' + PLUS + '<span class="cp-mi-lbl">' + esc(tw("gh.connect_more")) + "</span></button>";
   }
 
   // The status of the team chat's pushed work, in the same detail box as a private chat (github-connect.js).

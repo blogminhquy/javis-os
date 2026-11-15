@@ -95,14 +95,15 @@ Cái đầu để **người khác nói chuyện với Javis**. Cái sau để *
 
 ### Bước 1: Tạo bot
 
-Bấm **Bot mới**. Từ 0.64.85 form có **bốn phần**, mỗi phần một quyết định, và những ô ít khi đụng tới nằm trong mục **Nâng cao** đã gập sẵn:
+Bấm **Bot mới**. Từ 0.64.85 form chia thành từng phần, mỗi phần một quyết định:
 
 | Phần | Điền gì |
 |---|---|
 | **Bot là ai** | Tích một hay nhiều tài khoản kênh (chỉ hiện tài khoản của brain này mà chưa bot nào trực), đặt tên bot, chọn Agent làm bộ não hoặc bấm **Tạo Agent**. Kênh đang do bot khác trực hiện **mờ kèm ổ khoá**, ghi rõ bot nào (và brain nào nếu khác brain đang mở) đang giữ. Chưa có kênh thì bấm **Kết nối kênh mới**: chọn loại kênh, dán token, Kiểm tra. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
 | **Bot trả lời ai** | Bốn thẻ chọn một, xem mục [Bot trả lời ai](#bot-trả-lời-ai) ngay dưới. Chọn nhóm hay người thì tick trong danh sách, không phải gõ id. Kèm nút chọn **khi nào bot lên tiếng trong nhóm**: Được gọi tên (mặc định), Tự đánh giá, hoặc Mọi tin (thẻ Tự động hóa tất cả đã quyết sẵn nên ẩn nút này) |
 | **Bot được làm gì** | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Bốn mức quyền](#bốn-mức-quyền---bot-được-làm-gì) trước khi nâng |
-| Nâng cao | Ngôn ngữ trả lời |
+
+Bot luôn trả lời khách bằng đúng thứ tiếng khách nhắn, giống Claude hay ChatGPT. Từ 15/11/2026 form không còn ô ghim ngôn ngữ; muốn bot luôn nói một thứ tiếng thì ghi câu đó vào file Agent của bot.
 
 Chỉ có tài khoản Zalo Bot thì phần chọn nhóm **biến mất** thay vì hiện ra rồi vô tác dụng: gói bot cơ bản của Zalo không cho bot vào nhóm, nên chọn nhóm ở đó chỉ là một lời hứa suông nằm lại trong dữ liệu.
 
