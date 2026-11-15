@@ -397,7 +397,8 @@ def resolve(*, turn_text: str = "", reply_pref: str = "auto", chatbot_pin: str =
       2. ngôn ngữ ghim của chatbot (bot phục vụ khách lạ, không theo ngôn ngữ của chủ)
       3. `reply_pref` khác "auto" - user đã ghim ở Cài đặt
       4. ngôn ngữ ghim của brain
-      5. mặc định của kênh (Zalo là nền tảng Việt Nam)
+      5. the language a voice call was spoken in (`call_language`); no channel has a fixed language since
+         2026-11-15 (Zalo owner chats used to default to Vietnamese)
 
     Không ghim gì mà CÓ chữ người dùng gõ -> để model bám. Không ghim và cũng KHÔNG có chữ
     nào (việc chạy nền: loop, nhắc hẹn, Kanban, tự học) -> không có gì để bám, phải nêu tên

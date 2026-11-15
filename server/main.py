@@ -27098,7 +27098,9 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         turn_text=_lang_turn_text(text),   # the person's own words, not Javis's blocks (2026-11-15)
         # No Settings pin and no bot pin since 2026-11-15 (owner): a customer bot follows its customer, and anyone
         # who wants a fixed language says so (in the chat, the profile or the bot's Agent file).
-        channel_default=(_ngon_ngu_cuoc_goi(meta) or ("vi" if channel == "zalo" and not bot else "")),
+        # Only a voice call names a language here (the caller's speech). Zalo owner chats used to default to
+        # Vietnamese ("a Vietnamese platform"); since 2026-11-15 they follow whoever writes, like every channel.
+        channel_default=_ngon_ngu_cuoc_goi(meta),
         ui_lang=("" if bot else (_lc_kenh.get("ui_lang") or "")),
     )
     try:
