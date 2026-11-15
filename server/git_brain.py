@@ -495,7 +495,7 @@ def list_learn_commits(root: str, n: int = 20) -> List[dict]:
 def revert_last_learn(root: str) -> dict:
     """git revert commit HỌC gần nhất (undo 1-click). Trả {ok, reverted, subject, error}."""
     if not is_git_checkout(root):
-        return {"ok": False, "error": _c("Brain chưa phải git repo", "The brain is not a git repo yet")}
+        return {"ok": False, "error": _c("Brain chưa phải git repository", "The brain is not a git repository yet")}
     try:
         commits = list_learn_commits(root, 1)
         if not commits:
@@ -551,7 +551,7 @@ def remote_reachable(repo_url: str, token: str, timeout: int = 30) -> dict:
     if not has_git():
         return {"ok": False, "error": _c("Máy chưa cài git", "git is not installed on this machine")}
     if not repo_url or not token:
-        return {"ok": False, "error": _c("Thiếu repo URL hoặc token", "Missing repo URL or token")}
+        return {"ok": False, "error": _c("Thiếu repository URL hoặc token", "Missing repository URL or token")}
     try:
         r = subprocess.run(["git", "ls-remote", _auth_url(repo_url, token), "HEAD"],
                            capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -1078,7 +1078,7 @@ def sync_brains(brains_dir: str, mirror_dir: str, repo_url: str, token: str, bra
         return {"ok": False, "error": _c("Máy chưa cài git (cần cài git để đồng bộ)",
                                          "git is not installed on this machine (git is needed to sync)")}
     if not repo_url or not token:
-        return {"ok": False, "error": _c("Chưa cấu hình repo URL hoặc token", "Repo URL or token is not configured")}
+        return {"ok": False, "error": _c("Chưa cấu hình repository URL hoặc token", "Repository URL or token is not configured")}
     if not Path(brains_dir).is_dir():
         return {"ok": False, "error": _c(f"Thư mục brains không tồn tại: {brains_dir}",
                                          f"The brains folder does not exist: {brains_dir}")}

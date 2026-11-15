@@ -155,8 +155,8 @@ def set_repos(meta, names) -> tuple:
             wanted.append(n)
     if len(wanted) > REPOS_MAX:
         import localefmt
-        raise ValueError(localefmt.chu(f"Mỗi trợ lý chỉ gắn được tối đa {REPOS_MAX} repo",
-                                       f"Each assistant can have at most {REPOS_MAX} repos"))
+        raise ValueError(localefmt.chu(f"Mỗi trợ lý chỉ gắn được tối đa {REPOS_MAX} repository",
+                                       f"Each assistant can have at most {REPOS_MAX} repositories"))
     have = repos(meta)
     by_low = {r["full_name"].lower(): r for r in have}
     now = time.time()

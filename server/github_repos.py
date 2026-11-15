@@ -350,8 +350,8 @@ def _config_entries(cwd: str) -> List[tuple]:
     if p is None or p.returncode != 0:
         # Unreadable config: nothing proves the call is safe, so the token stays home.
         why = ((p.stderr if p else "") or "").strip().splitlines()[-1:] or ["?"]
-        raise RepoError(_c(f"Không đọc được cấu hình git của repo nên Javis không dùng token ở đây: {why[0]}",
-                           f"Could not read this repo's git config, so Javis will not use the token here: {why[0]}"))
+        raise RepoError(_c(f"Không đọc được cấu hình git của repository nên Javis không dùng token ở đây: {why[0]}",
+                           f"Could not read this repository's git config, so Javis will not use the token here: {why[0]}"))
     parts = (p.stdout or "").split("\0")
     out = []
     for i in range(0, len(parts) - 1, 2):
@@ -399,12 +399,12 @@ def _vet_config(entries: List[tuple], origin: str) -> List[tuple]:
         refused.append("remote.origin.url")
     if refused:
         names = ", ".join(sorted(set(refused)))
-        raise RepoError(_c(f"Javis không dùng token GitHub trong repo này: cấu hình git của bản clone ({names}) có thể "
-                           "đưa token đi nơi khác. Gỡ các dòng đó (git config --unset-all <tên>), hoặc gỡ repo khỏi "
+        raise RepoError(_c(f"Javis không dùng token GitHub trong repository này: cấu hình git của bản clone ({names}) có thể "
+                           "đưa token đi nơi khác. Gỡ các dòng đó (git config --unset-all <tên>), hoặc gỡ repository khỏi "
                            "brain rồi thêm lại.",
-                           f"Javis will not use the GitHub token in this repo: the clone's git config ({names}) could "
+                           f"Javis will not use the GitHub token in this repository: the clone's git config ({names}) could "
                            "send the token somewhere else. Remove those settings (git config --unset-all <name>), or "
-                           "remove the repo from the brain and add it again."))
+                           "remove the repository from the brain and add it again."))
     return overrides
 
 
@@ -471,8 +471,8 @@ def auth_env(cwd: str, origin: str, tok: Optional[str] = None, in_repo: bool = T
     if not tok:
         return env
     if not origin:
-        raise RepoError(_c(f"Javis chỉ dùng token GitHub trong repo do chính nó clone, {cwd} không phải repo như vậy.",
-                           f"Javis only uses the GitHub token inside a repo it cloned itself; {cwd} is not one."))
+        raise RepoError(_c(f"Javis chỉ dùng token GitHub trong repository do chính nó clone, {cwd} không phải repository như vậy.",
+                           f"Javis only uses the GitHub token inside a repository it cloned itself; {cwd} is not one."))
     entries = [e for e in _config_entries(cwd) if in_repo or e[0] in _MACHINE_SCOPES]
     pairs = [("core.hooksPath", _no_hooks_dir())] + list(ISOLATION) + _vet_config(entries, origin)
     if origin.lower().startswith(("https://", "http://")):
@@ -614,7 +614,7 @@ def norm_full_name(full_name: str) -> str:
     if s.endswith(".git"):
         s = s[:-4]
     if not _NAME_RE.match(s) or ".." in s:
-        raise RepoError(_c(f"Tên repo không hợp lệ: {full_name}", f"Invalid repo name: {full_name}"))
+        raise RepoError(_c(f"Tên repository không hợp lệ: {full_name}", f"Invalid repository name: {full_name}"))
     return s
 
 
@@ -742,7 +742,7 @@ def remote_repos(q: str = "", brain: str = "") -> List[Dict[str, Any]]:
         try:
             items = GitHub(tok).repos()
         except GitHubError as e:
-            raise RepoError(_c(f"Không lấy được danh sách repo: {e}", f"Could not list repos: {e}"))
+            raise RepoError(_c(f"Không lấy được danh sách repository: {e}", f"Could not list repositories: {e}"))
         _REPO_CACHE.update(at=now, token=tok, items=items)
     local = {str(r.get("full_name") or "").lower() for r in list_local(brain)}
     term = str(q or "").strip().lower()
@@ -769,9 +769,9 @@ def ensure_clone(brain: str, brain_root: str, full_name: str) -> Dict[str, Any]:
         meta = gh.repo(full_name)
     except GitHubError as e:
         if e.status == 404:
-            raise RepoError(_c(f"Không thấy repo {full_name}, hoặc token chưa được cấp quyền vào repo này.",
-                               f"Repo {full_name} not found, or the token has no access to it."))
-        raise RepoError(_c(f"Không đọc được repo {full_name}: {e}", f"Could not read repo {full_name}: {e}"))
+            raise RepoError(_c(f"Không thấy repository {full_name}, hoặc token chưa được cấp quyền vào repository này.",
+                               f"Repository {full_name} not found, or the token has no access to it."))
+        raise RepoError(_c(f"Không đọc được repository {full_name}: {e}", f"Could not read repository {full_name}: {e}"))
     full_name = meta.get("full_name") or full_name
     default_branch = meta.get("default_branch") or "main"
     clone_url = meta.get("clone_url") or f"https://github.com/{full_name}.git"
@@ -1032,7 +1032,7 @@ def remove_from_brain(brain: str, full_name: str, busy: Optional[List[str]] = No
     """
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     problems: List[str] = []
     for b in busy or []:
         problems.append(_c(f"đang có việc chạy: {b}", f"a job is running: {b}"))
@@ -1248,7 +1248,7 @@ def set_checks(brain: str, full_name: str, checks: Optional[List[Dict[str, str]]
     """Save the repo's local check commands (None = go back to the suggested ones)."""
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     if checks is None:
         rec.pop("checks", None)
     else:
@@ -1265,7 +1265,7 @@ def set_checks(brain: str, full_name: str, checks: Optional[List[Dict[str, str]]
 def get_checks(brain: str, full_name: str) -> Dict[str, Any]:
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     import github_gate
     suggested = github_gate.suggest_checks(rec["path"]) if Path(rec["path"]).is_dir() else []
     saved = rec.get("checks")
@@ -1281,7 +1281,7 @@ def auto_merge_on(rec: Dict[str, Any]) -> bool:
 def set_auto_merge(brain: str, full_name: str, on: bool) -> Dict[str, Any]:
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     rec["auto_merge"] = bool(on)
     _put(rec)
     return {"full_name": rec["full_name"], "auto_merge": bool(on)}
@@ -1297,7 +1297,7 @@ def review_settings(rec: Dict[str, Any]) -> Dict[str, Any]:
 def set_review(brain: str, full_name: str, on: bool, provider: str = "") -> Dict[str, Any]:
     rec = find(brain, full_name)
     if not rec:
-        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+        raise RepoError(_c(f"Brain này không có repository {full_name}.", f"This brain has no repository {full_name}."))
     rec["review"] = {"on": bool(on), "provider": str(provider or "").strip()[:64]}
     _put(rec)
     return {"full_name": rec["full_name"], "review": review_settings(rec)}

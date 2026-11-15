@@ -2361,7 +2361,7 @@ class LearnFeature:
             self.write_config(cfg)
             return {"ok": True, "git": g, "config": cfg,
                     "note": (localefmt.chu("Đã git-init brain → auto-write an toàn/undo được.",
-                                           "The brain is now a git repo → auto-write is safe and can be undone.")
+                                           "The brain is now a git repository → auto-write is safe and can be undone.")
                              if g.get("ok")
                              else localefmt.chu("⚠ Chưa git được (thiếu git?) → auto sẽ tự hạ dry-run. ",
                                                 "⚠ Could not set up git (git missing?) → auto falls back to dry-run. ")

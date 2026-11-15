@@ -322,11 +322,11 @@ def auth_message() -> str:
 def _perm_message(full_name: str) -> str:
     login = (github_repos.status().get("login") or "?") if github_repos.token() else "?"
     return _c(f"Tài khoản GitHub {login} không có quyền ghi vào {full_name}. Đăng nhập bằng nút Đăng nhập với GitHub thì "
-              "cài app Javis cho repo này (trang Kết nối, phần chọn repo); dùng token thì token cần quyền ghi Contents "
-              "(token cổ điển: quyền repo). Sửa xong Javis tự đẩy lại.",
+              "cài app Javis cho repository này (trang Kết nối, phần chọn repository); dùng token thì token cần quyền ghi Contents "
+              "(token cổ điển: quyền repository). Sửa xong Javis tự đẩy lại.",
               f"GitHub account {login} cannot write to {full_name}. With Sign in with GitHub, install the Javis app on "
-              "this repo (Connections page, repo picker); with a token, it needs Contents write (classic token: the "
-              "repo scope). Once fixed Javis pushes again on its own.")
+              "this repository (Connections page, repository picker); with a token, it needs Contents write (classic token: the "
+              "repository scope). Once fixed Javis pushes again on its own.")
 
 
 def push_error(stderr: str, branch: str, full_name: str) -> PushError:
@@ -681,13 +681,13 @@ async def retry_ship(sid: str, full_name: str, by_person: bool = False) -> Dict[
     when it still fails, so the panel can show it."""
     row = st().get(sid, full_name)
     if not row:
-        raise github_repos.RepoError(_c("Cuộc này chưa có việc GitHub nào cho repo đó.",
-                                        "This chat has no GitHub work for that repo."))
+        raise github_repos.RepoError(_c("Cuộc này chưa có việc GitHub nào cho repository đó.",
+                                        "This chat has no GitHub work for that repository."))
     fn = row["full_name"]
     key = _key(sid, fn)
     if key in _SHIPPING:
         if by_person:
-            raise github_repos.RepoError(_c("Javis đang đẩy repo này rồi, chờ chút.", "Javis is pushing this repo already."))
+            raise github_repos.RepoError(_c("Javis đang đẩy repository này rồi, chờ chút.", "Javis is pushing this repository already."))
         return row
     if not await asyncio.to_thread(github_repos.token):
         if by_person:
@@ -697,8 +697,8 @@ async def retry_ship(sid: str, full_name: str, by_person: bool = False) -> Dict[
     repo = next((r for r in repos if r.get("worktree") and r["full_name"].lower() == fn.lower()), None)
     if repo is None:
         if by_person:
-            raise github_repos.RepoError(_c("Repo này không còn gắn với cuộc trò chuyện.",
-                                            "This repo is no longer attached to the chat."))
+            raise github_repos.RepoError(_c("Repository này không còn gắn với cuộc trò chuyện.",
+                                            "This repository is no longer attached to the chat."))
         return row
     _SHIPPING.add(key)
     try:
@@ -951,7 +951,7 @@ def _merge_blockers(row: Dict[str, Any], pr: Dict[str, Any]) -> List[str]:
     out = []
     rec = github_repos.find(row.get("brain") or "", row["full_name"]) or {}
     if not github_repos.auto_merge_on(rec):
-        out.append(_c("tự merge đang tắt cho repo này", "auto-merge is off for this repo"))
+        out.append(_c("tự merge đang tắt cho repository này", "auto-merge is off for this repository"))
     if row.get("merge_block"):
         what = ", ".join(f"{x['path']} ({x['kind']})" for x in row["merge_block"][:5])
         out.append(_c(f"thay đổi cần người xem: {what}", f"changes a person must look at: {what}"))
@@ -961,8 +961,8 @@ def _merge_blockers(row: Dict[str, Any], pr: Dict[str, Any]) -> List[str]:
     if review:
         out.append(_c(f"review chéo còn {len(review)} phát hiện mở", f"cross review has {len(review)} open findings"))
     if pr.get("mergeable_state") == "blocked":
-        out.append(_c("repo còn điều kiện chưa đạt (cần người duyệt hoặc kiểm tra bắt buộc)",
-                      "the repo still requires something (a review or a required check)"))
+        out.append(_c("repository còn điều kiện chưa đạt (cần người duyệt hoặc kiểm tra bắt buộc)",
+                      "the repository still requires something (a review or a required check)"))
     return out
 
 
@@ -1145,7 +1145,7 @@ async def on_no_ci(row: Dict[str, Any], pr: Dict[str, Any]) -> Dict[str, Any]:
     if pr.get("mergeable") is False:
         return await on_green(row, pr)      # conflict wording and state are the same
     st().update(sid, fn, integ="ready")
-    await _say(sid, _c(f"**{fn}**: repo không có CI cho commit này. Kiểm tra ở máy đã qua; PR #{row['pr_number']} "
+    await _say(sid, _c(f"**{fn}**: repository không có CI cho commit này. Kiểm tra ở máy đã qua; PR #{row['pr_number']} "
                        f"chờ người bấm merge, Javis không tự merge khi không có CI.{_pr_tail(row)}",
                        f"**{fn}**: no CI ran on this commit. Local checks passed; PR #{row['pr_number']} waits for a "
                        f"person to merge, Javis never auto-merges without CI.{_pr_tail(row)}"), True,
@@ -1364,10 +1364,10 @@ def _candidates(row: Dict[str, Any], provider: str) -> Tuple[List[Dict[str, str]
         return out[:REVIEW_TRY_MAX], ""
     return [], _c("chưa có engine nào chạy được ở chế độ chỉ chữ: Claude, hoặc một nhà dùng API key (OpenAI, Gemini, "
                   "DeepSeek, OpenRouter...). Gói ChatGPT, Grok Build và Antigravity chạy qua CLI còn công cụ đọc ghi "
-                  "file nên không được đọc diff của repo.",
+                  "file nên không được đọc diff của repository.",
                   "no engine can run text-only: Claude, or a provider on an API key (OpenAI, Gemini, DeepSeek, "
                   "OpenRouter...). The ChatGPT, Grok Build and Antigravity plans run through a CLI that keeps file "
-                  "tools, so they never read a repo's diff.")
+                  "tools, so they never read a repository's diff.")
 
 
 async def cross_review(row: Dict[str, Any], provider: str = "", manual: bool = False) -> Dict[str, Any]:
@@ -1465,7 +1465,7 @@ _PERSON_REVIEWS: Dict[str, "asyncio.Task[Dict[str, Any]]"] = {}
 def _review_row(sid: str, full_name: str) -> Dict[str, Any]:
     row = st().get(sid, full_name)
     if not row or not row.get("pr_number"):
-        raise github_repos.RepoError(_c("Cuộc này chưa có PR cho repo đó.", "This chat has no PR for that repo."))
+        raise github_repos.RepoError(_c("Cuộc này chưa có PR cho repository đó.", "This chat has no PR for that repository."))
     if row.get("integ") == "merged":
         raise github_repos.RepoError(_c("PR đã merge, không còn gì để review.", "The PR is merged, nothing to review."))
     return row
@@ -1700,7 +1700,7 @@ def queue_next(sid: str, text: str) -> Dict[str, Any]:
     if not text:
         raise ValueError(_c("Chưa có nội dung việc kế tiếp.", "The next job has no text."))
     if not st().for_session(sid) and not github_repos.session_repos(sid):
-        raise ValueError(_c("Cuộc trò chuyện này chưa gắn repo GitHub nào.", "This chat has no GitHub repo attached."))
+        raise ValueError(_c("Cuộc trò chuyện này chưa gắn repository GitHub nào.", "This chat has no GitHub repository attached."))
     qid = st().queue_add(sid, text[:4000])
     return {"id": qid, "queue": [{"id": q["id"], "text": q["text"]} for q in st().queue_list(sid)]}
 
@@ -1754,7 +1754,7 @@ async def merge_by_person(sid: str, full_name: str) -> Dict[str, Any]:
 async def _merge_by_person(sid: str, full_name: str) -> Dict[str, Any]:
     row = st().get(sid, full_name)
     if not row or not row.get("pr_number"):
-        raise github_repos.RepoError(_c("Cuộc này chưa có PR cho repo đó.", "This chat has no PR for that repo."))
+        raise github_repos.RepoError(_c("Cuộc này chưa có PR cho repository đó.", "This chat has no PR for that repository."))
     if row.get("integ") == "merged":
         return {"row": _row_view(row)}
     if row.get("ci") not in ("green", "no_ci"):

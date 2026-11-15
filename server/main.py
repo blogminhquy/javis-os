@@ -7952,7 +7952,7 @@ def _do_backup(brain: str = "") -> dict:
     cfg = cfgmod.read_settings()
     b = cfg.get("backup", {}) or {}
     if not (b.get("repo_url") and b.get("token")):
-        return {"ok": False, "error": localefmt.chu("Chưa cấu hình repo URL + token", "Repo URL and token are not configured yet")}
+        return {"ok": False, "error": localefmt.chu("Chưa cấu hình repository URL + token", "Repository URL and token are not configured yet")}
     mirror = str(cfgmod.STATE_DIR / "brains-backup")   # repo mirror riêng (tránh nested git từng brain)
     res = git_brain.sync_brains(BRAINS_DIR, mirror, b["repo_url"], b["token"], b.get("branch") or "main",
                                 trash_dir=str(cfgmod.STATE_DIR / "brain-trash"),
@@ -8811,7 +8811,7 @@ async def _seed_chat_repos(ws, row, brain: str, persona) -> None:
         if not [n for n in names if n.lower() not in given]:
             return
         await ws.send_text(json.dumps({"type": "status", "content": localefmt.chu(
-            "Đang gắn repo GitHub vào cuộc này...", "Attaching the GitHub repos to this chat...")}))
+            "Đang gắn repository GitHub vào cuộc này...", "Attaching the GitHub repositories to this chat...")}))
         res = await asyncio.to_thread(github_repos.seed_session, sid, brain, str(_brain_root(brain)), names)
     except Exception as e:  # noqa: BLE001 - an inherited repo must never break the turn
         print(f"[repo seed] {sid[:12]}: {type(e).__name__}: {e}", file=sys.stderr)
@@ -8820,7 +8820,7 @@ async def _seed_chat_repos(ws, row, brain: str, persona) -> None:
         print(f"[repo seed] {sid[:12]} attached {', '.join(res['attached'])}", file=sys.stderr)
     for f in res.get("failed") or []:
         await ws.send_text(json.dumps({"type": "system", "content": localefmt.chu(
-            f"Chưa gắn được repo {f['full_name']} vào cuộc này: {f['error']}. Lượt sau Javis thử lại.",
+            f"Chưa gắn được repository {f['full_name']} vào cuộc này: {f['error']}. Lượt sau Javis thử lại.",
             f"Could not attach {f['full_name']} to this chat: {f['error']}. Javis tries again next turn.")}))
 
 
@@ -10554,8 +10554,8 @@ async def agent_assets_set_repos(slug: str, repos: str = Form(""), brain: str = 
     names = _repo_names_form(repos)
     if len(names) > agent_assets.REPOS_MAX:
         return JSONResponse({"ok": False, "error": localefmt.chu(
-            f"Mỗi trợ lý chỉ gắn được tối đa {agent_assets.REPOS_MAX} repo",
-            f"Each assistant can have at most {agent_assets.REPOS_MAX} repos")}, status_code=400)
+            f"Mỗi trợ lý chỉ gắn được tối đa {agent_assets.REPOS_MAX} repository",
+            f"Each assistant can have at most {agent_assets.REPOS_MAX} repositories")}, status_code=400)
     have = agent_assets.repo_names(_read_md(f)[0])
     final, err = await _repos_prepare(brain, have, names)
     if err:
@@ -23169,8 +23169,8 @@ def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
     m = _KENH_CONG_SU_RE.match(ch)
     if not m:
         return JSONResponse({"error": localefmt.chu(
-            "channel phải là agent:<slug>, workflow:<slug> hoặc coding:<repo>",
-            "channel must be agent:<slug>, workflow:<slug> or coding:<repo>")}, status_code=400)
+            "channel phải là agent:<slug>, workflow:<slug> hoặc coding:<repository>",
+            "channel must be agent:<slug>, workflow:<slug> or coding:<repository>")}, status_code=400)
     loai, slug = m.group(1), m.group(2)
     if loai == "coding":
         # Phiên của trang Coding. KHÔNG đòi phải có thư mục nào: 0.63.0 bắt phải chọn repo
@@ -23947,8 +23947,8 @@ async def projects_set_repos(project_id: str, repos: str = Form("")):
     names = _repo_names_form(repos)
     if len(names) > sessions.PROJECT_REPOS_MAX:
         return JSONResponse({"ok": False, "error": localefmt.chu(
-            f"Mỗi project chỉ gắn được tối đa {sessions.PROJECT_REPOS_MAX} repo",
-            f"Each project can have at most {sessions.PROJECT_REPOS_MAX} repos")}, status_code=400)
+            f"Mỗi project chỉ gắn được tối đa {sessions.PROJECT_REPOS_MAX} repository",
+            f"Each project can have at most {sessions.PROJECT_REPOS_MAX} repositories")}, status_code=400)
     store = get_store()
     final, bad = await _repos_prepare(p.get("brain") or "brain", store.project_repo_names(project_id), names)
     if bad:
