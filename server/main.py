@@ -1259,13 +1259,16 @@ def _lang_turn_text(message: str) -> str:
     return clean or raw
 
 
-def _update_conversation_lang(store, session_id: str, row: dict, own_words: str) -> str:
+def _update_conversation_lang(store, session_id: str, own_words: str) -> str:
     """Apply this message to the conversation's pinned reply language and return the pin now in force ("" = none).
 
     "English pls" pins English for the rest of THIS conversation; a complaint about the pinned language clears it
-    (`lang.conversation_pin_update`). A failed write never breaks the turn: the turn still uses what was asked.
+    (`lang.conversation_pin_update`). A failed read or write never breaks the turn: the turn uses what was asked.
     """
-    current = lang_registry.chuan_hoa((row or {}).get("reply_lang") or "")
+    try:
+        current = lang_registry.chuan_hoa(store.get_reply_lang(session_id) if session_id else "")
+    except Exception:  # noqa: BLE001 - an unreadable pin is no pin
+        current = ""
     try:
         upd = lang_mod.conversation_pin_update(own_words, current)
     except Exception:  # noqa: BLE001
@@ -20641,7 +20644,7 @@ async def _chat_socket(ws):
             # language: the conversation may carry a reply language the owner asked for (2026-11-15).
             _row0 = await asyncio.to_thread(store.get_session, conv_sid) or {}
             _own_words = _lang_turn_text(user_message)
-            _conv_lang = await asyncio.to_thread(_update_conversation_lang, store, conv_sid, _row0, _own_words)
+            _conv_lang = await asyncio.to_thread(_update_conversation_lang, store, conv_sid, _own_words)
             _lang_qd = lang_mod.resolve(
                 turn_text=_own_words,
                 reply_pref=_lc.get("reply_lang") or "auto",
@@ -27090,9 +27093,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     _conv_lang = ""
     if store is not None and conv_sid and not bot:
         try:
-            _conv_lang = await asyncio.to_thread(
-                _update_conversation_lang, store, conv_sid,
-                await asyncio.to_thread(store.get_session, conv_sid) or {}, _own_words)
+            _conv_lang = await asyncio.to_thread(_update_conversation_lang, store, conv_sid, _own_words)
         except Exception:  # noqa: BLE001 - a pin that cannot be read leaves the turn as before
             _conv_lang = ""
     _lang_qd = lang_mod.resolve(

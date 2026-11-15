@@ -353,14 +353,6 @@ class DashboardContextCapture:
         with source.lock, SQL._existing_reader(source) as reader:
             row = SQL._one(reader, f"SELECT {','.join(SQL._SESSION_FIELDS)} FROM main.sessions WHERE id=? LIMIT 2", (surface["session_id"],))
             project = row["project_id"] or ""
-            # 2026-11-15: a conversation may pin its reply language (sessions.reply_lang, "English pls"). The live
-            # turn then names that language; this replica builds the language block from Settings only, so it
-            # would not be the prompt the owner's chat really gets. Refuse, as for a Settings language it cannot match.
-            columns = {item["name"] for item in reader.execute('PRAGMA main.table_xinfo("sessions")').fetchall()}
-            if "reply_lang" in columns:
-                pinned = SQL._one(reader, SQL.SESSION_REPLY_LANG, (surface["session_id"],))["reply_lang"]
-                if str(pinned or "").strip():
-                    raise ValueError("unsupported_dashboard_language")
         return self.sql.capture(owner, surface["session_id"], project)
 
     def _settings(self, sources):

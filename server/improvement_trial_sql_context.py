@@ -35,9 +35,6 @@ _SESSION_COLUMNS = set(_SESSION_FIELDS) | {
     "title", "cli_session_id", "codex_thread_id", "created_at", "updated_at", "msg_count", "parent_session_id",
     "compact_summary", "compact_count", "last_input_tokens", "thread_rotated_msg", "pinned", "gemini_session_id",
     "grok_session_id", "web_thread_id",
-    # 2026-11-15: the reply language pinned in one conversation ("English pls"). The dashboard trial refuses a
-    # conversation that has one (improvement_trial_dashboard._sql_capture), so it is allowed here and read only there.
-    "reply_lang",
 }
 _PROJECT_COLUMNS = set(_PROJECT_FIELDS) | {"icon", "pinned", "created_at", "updated_at"}
 _WORKFLOW_COLUMNS = set(_WORKFLOW_FIELDS) | {
@@ -47,11 +44,8 @@ _TABLES = {"sessions", "projects", "project_files", "project_links", "session_fi
 _ASSET_TABLES = {"project_files": ("project_id", False), "project_links": ("project_id", True),
                  "session_files": ("session_id", False), "session_links": ("session_id", True)}
 _LOCK_TYPES = (type(threading.Lock()), type(threading.RLock()))
-# The one optional session column the dashboard trial checks (`improvement_trial_dashboard._sql_capture`).
-SESSION_REPLY_LANG = "SELECT reply_lang FROM main.sessions WHERE id=? LIMIT 2"
 _READ_STATEMENTS = {
     "PRAGMA database_list",
-    SESSION_REPLY_LANG,
     "SELECT name,type,sql FROM main.sqlite_master WHERE name=? COLLATE NOCASE LIMIT 2",
     f"SELECT {','.join(_SESSION_FIELDS)} FROM main.sessions WHERE id=? LIMIT 2",
     f"SELECT {','.join(_PROJECT_FIELDS)} FROM main.projects WHERE id=? LIMIT 2",

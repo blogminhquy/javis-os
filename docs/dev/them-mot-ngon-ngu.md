@@ -162,8 +162,8 @@ Liệt kê ra đây vì đây là chỗ người ta hay đi thừa:
   Việt hay tiếng Anh rồi trả lời tiếng Thái là chuyện bình thường, và một bộ prompt cho mỗi thứ
   tiếng là một bộ nữa để trôi lệch. (Từ 15/11/2026 riêng khối NGÔN NGỮ viết tiếng Anh như
   `CLAUDE.md`, kèm câu nói rõ tiếng Việt xung quanh không phải gợi ý ngôn ngữ; lý do ở đầu
-  `lang.khoi_ngon_ngu`. Lệnh "English pls" trong chat ghim ngôn ngữ cho cả cuộc chat, cột
-  `sessions.reply_lang`.)
+  `lang.khoi_ngon_ngu`. Lệnh "English pls" trong chat ghim ngôn ngữ cho cả cuộc chat, bảng
+  `session_reply_lang`.)
 - **Không** dịch nhãn mốc trong prompt (`# === SKILL KHẢ DỤNG`, `# === BÂY GIỜ ===`...). Chúng
   là **mốc đo**: `context_runtime` đếm token theo đúng chuỗi đó. Dịch chúng là làm phép đo im
   lặng ngừng chạy cho đúng nhóm người dùng mới thêm vào.

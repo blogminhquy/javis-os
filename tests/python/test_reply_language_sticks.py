@@ -140,17 +140,21 @@ check("a message that is only a block keeps its text", main._lang_turn_text("[NG
 # ---- 6. the pin is stored on the conversation and survives the next turns ----
 store = sessions.SessionStore(SCRATCH / "pin.sqlite3")
 sid = store.create_session(brain="brain")
-row = store.get_session(sid)
-check("a new conversation has no pin", not (row.get("reply_lang") or ""))
-now = main._update_conversation_lang(store, sid, row, "Shit. English pls!")
-check("'English pls' pins and returns English", now == "en" and store.get_session(sid)["reply_lang"] == "en")
-row = store.get_session(sid)
-now = main._update_conversation_lang(store, sid, row, "ok viết tiếp 10 hook nữa đi")
+check("a new conversation has no pin", store.get_reply_lang(sid) == "")
+now = main._update_conversation_lang(store, sid, "Shit. English pls!")
+check("'English pls' pins and returns English", now == "en" and store.get_reply_lang(sid) == "en")
+now = main._update_conversation_lang(store, sid, "ok viết tiếp 10 hook nữa đi")
 d2 = lang.resolve(turn_text="ok viết tiếp 10 hook nữa đi", conversation_pin=now)
 check("next turn typed in Vietnamese still answers English", d2.lang == "en" and lang.turn_line(d2) == "[Answer in English.]")
-now = main._update_conversation_lang(store, sid, store.get_session(sid), "sao em lại trả lời bằng tiếng Anh vậy?")
-check("a complaint clears the stored pin", now == "" and not store.get_session(sid)["reply_lang"])
+now = main._update_conversation_lang(store, sid, "sao em lại trả lời bằng tiếng Anh vậy?")
+check("a complaint clears the stored pin", now == "" and store.get_reply_lang(sid) == "")
 check("set_reply_lang on a missing conversation is a no-op", store.set_reply_lang("nope", "en") is False)
+store.set_reply_lang(sid, "en")
+store.delete(sid)
+check("deleting the conversation drops its pin", store.get_reply_lang(sid) == "")
+# The pin lives in its own table: the improvement trials pin the exact columns of `sessions` in qualified files.
+cols = {r[1] for r in store._conn.execute("PRAGMA table_info(sessions)").fetchall()}
+check("sessions keeps its shape (no new column)", "reply_lang" not in cols)
 
 # ---- 7. capsules and the closing line ----
 check("capsule names the pin", lang.resolve(turn_text="cho anh xem", reply_pref="en").capsule_lang == "en")
