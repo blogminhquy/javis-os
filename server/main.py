@@ -1277,32 +1277,7 @@ def _background_system_prompt(brain: str = "brain") -> str:
     return build_system_prompt(brain, lang=_background_lang_decision())
 
 
-def _update_conversation_lang(store, session_id: str, own_words: str) -> str:
-    """Apply this message to the conversation's pinned reply language and return the pin now in force ("" = none).
-
-    "English pls" pins English for the rest of THIS conversation; a complaint about the pinned language clears it
-    (`lang.conversation_pin_update`). A failed read or write never breaks the turn: the turn uses what was asked.
-    """
-    try:
-        current = lang_registry.chuan_hoa(store.get_reply_lang(session_id) if session_id else "")
-    except Exception:  # noqa: BLE001 - an unreadable pin is no pin
-        current = ""
-    try:
-        upd = lang_mod.conversation_pin_update(own_words, current)
-    except Exception:  # noqa: BLE001
-        upd = None
-    if upd is None or upd == current:
-        return current
-    try:
-        if session_id:
-            store.set_reply_lang(session_id, upd)
-    except Exception as exc:  # noqa: BLE001
-        print(f"[reply_lang] {type(exc).__name__}: {exc}", file=sys.stderr)
-    return upd
-
-
-def _turn_facts_header(brain: str, session_id: str, lang: str = "", first: bool = True,
-                       lang_line: str = "") -> str:
+def _turn_facts_header(brain: str, session_id: str, lang: str = "", first: bool = True) -> str:
     """The per-turn facts a stable system prompt leaves out, as short lines at the head of the user message.
 
     Every turn: the send time and the dashboard session id (`web:<id>`, needed for `chat_id`/`owner_chat`).
@@ -1311,9 +1286,7 @@ def _turn_facts_header(brain: str, session_id: str, lang: str = "", first: bool 
     freshness without breaking the shared prompt cache (issue #975). Never raises: a missing line must not
     break the chat turn.
 
-    `lang_line` (2026-11-15, `lang.turn_line`): the pinned reply language, every turn, as the LAST line so it sits
-    right above the person's words. The frozen system prompt of a resumed thread never learnt a language asked
-    for later. The usage line speaks English unless the turn's language is Vietnamese: it lands in the person's
+    2026-11-15: the usage line speaks English unless the turn's language is Vietnamese. It lands in the person's
     message, and Vietnamese words there pulled English chats toward Vietnamese.
     """
     lines = []
@@ -1343,8 +1316,6 @@ def _turn_facts_header(brain: str, session_id: str, lang: str = "", first: bool 
                                  f"{_t.get('turns', 0)} turns. Details in the 'Usage' panel.]")
         except Exception:  # noqa: BLE001
             pass
-    if lang_line:
-        lines.append(lang_line)
     return "\n".join(lines)
 
 
@@ -5788,21 +5759,17 @@ def _cli_think(reasoning, message):
     return f"{message}\n\n(Suy nghĩ kỹ trước khi trả lời - {kw})"
 
 
-def _gio_luot_noi_mach(cli, prompt, lang: str = "", lang_line: str = ""):
+def _gio_luot_noi_mach(cli, prompt, lang: str = ""):
     """Gắn giờ gửi tin vào đầu prompt khi lượt này NỐI LẠI phiên Claude Code (`cli.session_id` có giá trị).
 
     Claude Code giữ system prompt của lượt đầu phiên khi --resume, nên câu đồng hồ trong system prompt đông cứng
     (xem context_compiler.dong_ho_ngan). Phiên MỚI không gắn: system prompt của nó vừa dựng, giờ trong đó đúng.
     Lỗi gì cũng trả nguyên prompt: thiếu dòng giờ không được làm hỏng lượt chat.
-
-    `lang_line` (`lang.turn_line`, 2026-11-15): a pinned reply language rides along for the same reason as the
-    clock: the frozen system prompt of the thread may predate the pin.
     """
     if not getattr(cli, "session_id", None) or not isinstance(prompt, str):
         return prompt
     try:
-        head = context_compiler.dong_ho_ngan(lang=lang or lang_mod.detect(prompt)[0])
-        return head + "\n" + (lang_line + "\n" if lang_line else "") + prompt
+        return context_compiler.dong_ho_ngan(lang=lang or lang_mod.detect(prompt)[0]) + "\n" + prompt
     except Exception:  # noqa: BLE001
         return prompt
 
@@ -20662,15 +20629,9 @@ async def _chat_socket(ws):
             # lượt. Không ai ghim gì thì `resolve` trả `theo_nguoi_dung=True` và chính MODEL
             # bám theo thứ tiếng người dùng vừa viết - xem đầu file lang.py.
             _lc = _cfg_all.get("locale") or {}
-            # Đọc row phiên TRƯỚC khi chọn provider: phiên có thể đã ghim model riêng. Also before the
-            # language: the conversation may carry a reply language the owner asked for (2026-11-15).
-            _row0 = await asyncio.to_thread(store.get_session, conv_sid) or {}
-            _own_words = _lang_turn_text(user_message)
-            _conv_lang = await asyncio.to_thread(_update_conversation_lang, store, conv_sid, _own_words)
             _lang_qd = lang_mod.resolve(
-                turn_text=_own_words,
+                turn_text=_lang_turn_text(user_message),   # the person's own words, not Javis's blocks (2026-11-15)
                 reply_pref=_lc.get("reply_lang") or "auto",
-                conversation_pin=_conv_lang,
                 ui_lang=_lc.get("ui_lang") or "",
             )
             try:
@@ -20678,6 +20639,8 @@ async def _chat_socket(ws):
                                                       _lang_qd.as_trace())
             except Exception:
                 pass
+            # Đọc row phiên TRƯỚC khi chọn provider: phiên có thể đã ghim model riêng.
+            _row0 = await asyncio.to_thread(store.get_session, conv_sid) or {}
             # Phiên cộng sự (trang Cộng sự, 0.59): kênh agent:<slug> đổi system prompt sang prompt
             # của trợ lý đó. Đọc MỘT lần ở đây, mọi chỗ chọn prompt bên dưới đều hỏi `_persona`.
             _persona = workflow_chat.persona_cua_phien(_row0)
@@ -21171,11 +21134,6 @@ async def _chat_socket(ws):
                         "use Claude Code or OpenRouter for stability (change it on the Models page).")}))
                 else:
                     _codex_current = _codex_do_sau(ccli, reasoning, user_message)
-                    # 2026-11-15: app-server gives the system prompt once, at thread/start (codex_steer), so a pinned
-                    # reply language asked for later travels with the message, as on Claude Code.
-                    _codex_lang = lang_mod.turn_line(_lang_qd)
-                    if _codex_lang and isinstance(_codex_current, str):
-                        _codex_current = _codex_lang + "\n" + _codex_current
                     _codex_fast(ccli)
                     _codex_raw = [{"role": _m["role"], "content": _m["content"]}
                                   for _m in (await asyncio.to_thread(store.get_messages, conv_sid))[:-1]
@@ -21707,14 +21665,12 @@ async def _chat_socket(ws):
                 _cost = None
                 if _stable_sp:
                     _cli_prompt = _cli_do_sau(cli, reasoning, user_message)
-                    _hdr = _turn_facts_header(brain, conv_sid or "", _lang_qd.lang, first=not cli.session_id,
-                                              lang_line=lang_mod.turn_line(_lang_qd))
+                    _hdr = _turn_facts_header(brain, conv_sid or "", _lang_qd.lang, first=not cli.session_id)
                     _cli_prompt, sysprompt = _with_turn_context(cli, _sub_plan, _cli_prompt, sysprompt)   # #1329
                     if _hdr and isinstance(_cli_prompt, str):
                         _cli_prompt = _hdr + "\n" + _cli_prompt
                 else:
-                    _cli_prompt = _gio_luot_noi_mach(cli, _cli_do_sau(cli, reasoning, user_message), _lang_qd.lang,
-                                                     lang_line=lang_mod.turn_line(_lang_qd))
+                    _cli_prompt = _gio_luot_noi_mach(cli, _cli_do_sau(cli, reasoning, user_message), _lang_qd.lang)
                 _cli_fast(cli)
                 if not cli.session_id:
                     # Bỏ --resume là Claude Code mất sạch mạch cũ. Mở mạch mới mà không mang
@@ -27109,19 +27065,9 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # của chủ vào đó là phá đúng lý do trường `ngon_ngu` tồn tại - chủ người Việt bán cho
     # khách Nhật thì ngôn ngữ của chủ là thông tin SAI để suy ra ngôn ngữ của bot.
     _lc_kenh = cfgmod.read_settings().get("locale") or {}
-    # 2026-11-15: the owner's own chats (Telegram, Zalo, CLI) keep a language asked for earlier in the chat, as on
-    # the dashboard. A customer bot does not: its record decides (`ngon_ngu`), and its chats are the customer's.
-    _own_words = _lang_turn_text(text)
-    _conv_lang = ""
-    if store is not None and conv_sid and not bot:
-        try:
-            _conv_lang = await asyncio.to_thread(_update_conversation_lang, store, conv_sid, _own_words)
-        except Exception:  # noqa: BLE001 - a pin that cannot be read leaves the turn as before
-            _conv_lang = ""
     _lang_qd = lang_mod.resolve(
-        turn_text=_own_words,
+        turn_text=_lang_turn_text(text),   # the person's own words, not Javis's blocks (2026-11-15)
         chatbot_pin=(bot or {}).get("ngon_ngu") or "",
-        conversation_pin=_conv_lang,
         reply_pref=("" if bot else (_lc_kenh.get("reply_lang") or "auto")),
         channel_default=(_ngon_ngu_cuoc_goi(meta) or ("vi" if channel == "zalo" and not bot else "")),
         ui_lang=("" if bot else (_lc_kenh.get("ui_lang") or "")),
@@ -27662,7 +27608,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         _streamed = ""   # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
         loi = []
         _pinged = False
-        _cli_prompt = _gio_luot_noi_mach(cli, _cli_do_sau(cli, reasoning, text), lang_line=lang_mod.turn_line(_lang_qd))
+        _cli_prompt = _gio_luot_noi_mach(cli, _cli_do_sau(cli, reasoning, text))
         _cli_fast(cli)
         if not getattr(cli, "session_id", None):
             # Chưa có mạch native (phiên mới, hoặc vừa restart nên object engine dựng lại từ

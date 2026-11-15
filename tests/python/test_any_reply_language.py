@@ -3,15 +3,15 @@
     python tests/run.py any_reply_language      (no network)
 
 Owner, 2026-11-15: "the interface defaults to English, but switch to any language and Javis must work
-and talk in that language, like Claude or ChatGPT." The model already followed whatever language the
-person wrote. What stayed locked to vi/en were the places where a language is NAMED:
+and talk in that language, like Claude or ChatGPT", then "let the model handle the language". So by
+default nothing is named and the model follows the person. What stayed locked to vi/en:
 
-1. the reply language in Settings and a customer bot's language offered only Vietnamese and English;
-2. "reply in Japanese" / "tiếng Nhật nhé" in the chat matched no command;
-3. a pinned language other than vi/en fell back to Vietnamese in the prompt (`lang_registry.get`);
-4. Kanban tasks, reminders, loops and learning built their prompt with no language, which named
+1. the reply language in Settings and a customer bot's language (opt-in, "auto" by default) offered
+   only Vietnamese and English;
+2. a language chosen there other than vi/en fell back to Vietnamese in the prompt (`lang_registry.get`);
+3. Kanban tasks, reminders, loops and learning built their prompt with no language, which NAMED
    Vietnamese, so every background report of an English or Japanese owner came in Vietnamese;
-5. a reply in Japanese, Korean or Thai was read aloud by the Vietnamese voice the owner picked.
+4. a reply in Japanese, Korean or Thai was read aloud by the Vietnamese voice the owner picked.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import os
@@ -55,11 +55,6 @@ for code in codes:
     info = R.reply_info(code)
     check(f"{code}: has names and a nudge", bool(info.english and info.native and info.nudge))
     check(f"{code}: no em or en dash", "—" not in info.nudge + info.native and "–" not in info.nudge)
-    # The full entries (vi, en) carry accented spellings too; matching strips accents first, so only the
-    # catalog's own words must already be in matched form.
-    for w in (info.request_words if code not in R.LANGS else ()):
-        check(f"{code}: request word {w!r} is written the way it is matched (lowercase, no accents)",
-              lang._bo_dau(w) == w)
 check("Edge locale for the voice list", R.reply_info("ja").edge == "ja-JP" and R.reply_info("vi").edge == "vi-VN")
 for raw, want in (("ja-JP", "ja"), ("ZH_hant", "zh-tw"), ("zh-HK", "zh-tw"), ("zh-CN", "zh"), ("pt-BR", "pt"),
                   ("fil", "tl"), ("nb", "no"), ("EN-us", "en"), ("xx", ""), ("", ""), ("auto", "")):
@@ -70,41 +65,26 @@ check("picker shows native names", any(c["ten"] == "日本語" for c in choices)
 check("an unknown code still falls back to the default language", R.get("xx").code == R.MAC_DINH)
 check("a reply-only language reads its clock in English, not Vietnamese", R.get("ja").code == "en")
 
-# ---- 2. asking for a language in the chat ----
-PINS = {"tiếng Nhật nhé": "ja", "reply in Japanese": "ja", "Japanese please": "ja", "nói tiếng Hàn đi em": "ko",
-        "auf Deutsch bitte": "de", "en español por favor": "es", "en français s'il vous plaît": "fr",
-        "French pls": "fr", "traditional chinese pls": "zh-tw", "Chinese please": "zh",
-        "trả lời bằng tiếng Pháp": "fr", "tiếng Ý nhé": "it", "polski pls": "pl", "speak Thai with me": "th",
-        "tiếng Indonesia nha": "id", "English pls": "en", "nói tiếng Việt đi": "vi"}
-for text, want in PINS.items():
-    got = lang.conversation_pin_update(text, "")
-    check(f"pins {want}: {text}", got == want, got)
-for text in ("viết caption bằng tiếng Nhật", "translate this to Japanese please", "dịch sang tiếng Hàn đi",
-             "Japanese", "tiếng Nhật", "Polish pls", "reply to this customer in French",
-             "khách này nói tiếng Hàn, soạn giúp anh câu trả lời"):
-    check(f"does not pin the chat: {text}", lang.conversation_pin_update(text, "") is None,
-          lang.conversation_pin_update(text, ""))
-check("a complaint about the pinned Japanese clears it",
-      lang.conversation_pin_update("why are you replying in Japanese?", "ja") == "")
-check("'viết caption bằng tiếng Nhật' still steers its own turn",
-      lang.resolve(turn_text="viết caption bằng tiếng Nhật").lang == "ja")
+# ---- 2. asking for a language in the chat: the model handles it, the server pins nothing ----
+for text in ("tiếng Nhật nhé", "Japanese please", "nói tiếng Hàn đi em", "auf Deutsch bitte", "en español por favor",
+             "French pls", "trả lời bằng tiếng Pháp", "viết caption bằng tiếng Nhật"):
+    d = lang.resolve(turn_text=text)
+    check(f"followed by the model, not pinned: {text}", d.theo_nguoi_dung and d.capsule_lang == "", d)
 
 # ---- 3. every pin names the right language ----
-for kw in ({"conversation_pin": "ja"}, {"reply_pref": "ja"}, {"chatbot_pin": "ja"}, {"brain_pin": "ja"},
-           {"channel_default": "ja"}):
+for kw in ({"reply_pref": "ja"}, {"chatbot_pin": "ja"}, {"brain_pin": "ja"}, {"channel_default": "ja"}):
     d = lang.resolve(turn_text="cho anh xem doanh thu tháng này", **kw)
     check(f"{list(kw)[0]}=ja pins Japanese", d.lang == "ja" and not d.theo_nguoi_dung, d)
-d = lang.resolve(turn_text="cho anh xem doanh thu tháng này", conversation_pin="ja")
+d = lang.resolve(turn_text="cho anh xem doanh thu tháng này", reply_pref="ja")
 block = lang.khoi_ngon_ngu(d)
-check("block names Japanese with its native name", "Reply language: Japanese (日本語, ja)" in block, block)
+check("block names Japanese with its native name", "Reply language: Japanese (日本語, ja), set in Settings." in block, block)
 check("block ends with the nudge in Japanese", block.rstrip().endswith("日本語で答えてください。"))
 check("no Vietnamese pin hides behind a Japanese one", "Vietnamese" not in block.split("\n")[3])
-check("turn line in Japanese", lang.turn_line(d) == "[日本語で答えてください。]")
 check("capsule sentence names Japanese", "Japanese (ja)" in context_compiler._cau_ngon_ngu("ja")
       and "日本語で答えてください。" in context_compiler._cau_ngon_ngu("ja"))
 auto = lang.resolve(turn_text="今日の売上はいくらですか")
-check("a Japanese message is followed, and named for the capsule",
-      auto.theo_nguoi_dung and auto.lang == "ja" and auto.capsule_lang == "ja", auto)
+check("a Japanese message is followed by the model, nothing named for it",
+      auto.theo_nguoi_dung and auto.capsule_lang == "", auto)
 check("a voice call in Japanese pins Japanese", lang.call_language("今日の売上はいくらですか", "ja-JP") == "ja")
 check("a call recognised as Korean with no text pins Korean", lang.call_language("", "ko-KR") == "ko")
 

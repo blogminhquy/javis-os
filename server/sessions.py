@@ -607,12 +607,6 @@ class SessionStore:
         with self._lock:
             self._conn.executescript(_SCHEMA_SQL)
             subscription_context_store.migrate(self._conn)
-            # Reply language the owner asked for in ONE conversation ("English pls", lang.conversation_pin_update),
-            # 2026-11-15. Its own table, not a column of `sessions`: the improvement trials pin the exact shape of
-            # `sessions` in qualified files (improvement_trial_sql_context._SESSION_COLUMNS). No row = no pin.
-            self._conn.execute(
-                "CREATE TABLE IF NOT EXISTS session_reply_lang ("
-                "session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, lang TEXT NOT NULL)")
             # Migration cột mới cho DB cũ (CREATE IF NOT EXISTS không tự thêm cột)
             cols = {r[1] for r in self._conn.execute("PRAGMA table_info(sessions)").fetchall()}
             for name, ddl in (("codex_thread_id", "TEXT"),
@@ -1713,24 +1707,6 @@ class SessionStore:
         self._write(lambda c: c.execute(
             "UPDATE sessions SET pinned_provider = ?, pinned_model = ? WHERE id = ?",
             (prov, mdl, session_id)))
-        return True
-
-    def get_reply_lang(self, session_id: str) -> str:
-        """The reply language pinned in ONE conversation, "" when none."""
-        rows = self._read("SELECT lang FROM session_reply_lang WHERE session_id = ?", (session_id,))
-        return str(rows[0]["lang"] or "") if rows else ""
-
-    def set_reply_lang(self, session_id: str, code: Optional[str]) -> bool:
-        """Pin the reply language of ONE conversation (empty = clear). False when the session does not exist."""
-        if not self.get_session(session_id):
-            return False
-        val = (code or "").strip().lower()
-        if val:
-            self._write(lambda c: c.execute(
-                "INSERT INTO session_reply_lang(session_id, lang) VALUES(?, ?) "
-                "ON CONFLICT(session_id) DO UPDATE SET lang = excluded.lang", (session_id, val)))
-        else:
-            self._write(lambda c: c.execute("DELETE FROM session_reply_lang WHERE session_id = ?", (session_id,)))
         return True
 
     # ── projects (nhóm hội thoại) ──

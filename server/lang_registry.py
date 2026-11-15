@@ -156,8 +156,7 @@ LANGS: Dict[str, Lang] = {
             "each", "every", "other", "into", "over", "under", "between", "before",
             "after", "out", "here", "now",
         ),
-        # "eng": the short form people type ("Eng pls"). Not a Vietnamese word, with or without accents.
-        request_words=("english", "tieng anh", "tiếng anh", "in english", "anh ngu", "anh ngữ", "eng"),
+        request_words=("english", "tieng anh", "tiếng anh", "in english", "anh ngu", "anh ngữ"),
         stt="en",
         tts={
             "edge": "en-US-AriaNeural",
@@ -185,9 +184,10 @@ LANGS: Dict[str, Lang] = {
 # ---------------------------------------------------------------- reply languages (2026-11-15)
 #
 # Owner, 2026-11-15: "Javis must work and talk in ANY language, like Claude or ChatGPT, not only
-# Vietnamese or English." The model already answers in whatever language the person writes; what
-# stayed locked to vi/en were the places where a HUMAN names a language: the reply language in
-# Settings, a customer bot's language, "reply in Japanese" in the chat, background work, the voice.
+# Vietnamese or English", and "let the model handle the language". The model already answers in
+# whatever language the person writes, so the default stays exactly that, with nothing named. This
+# catalog only serves the places where a HUMAN deliberately names a language: the reply language in
+# Settings and a customer bot's language (both off by default), and the voice that reads the answer.
 #
 # `LANGS` above is the heavy registry: a language there has an interface dictionary, safety-gate
 # lexicon, clock sentence and weekday names. A REPLY language needs much less: a code, its names
@@ -206,79 +206,42 @@ class ReplyLang:
     native: str                     # "日本語", shown in pickers
     nudge: str                      # "日本語で答えてください。"
     edge: str = ""                  # Edge TTS locale prefix ("ja-JP"), for the voice list
-    # How people ASK for it, without accents (`lang._bo_dau` strips them before matching): the
-    # English name, the Vietnamese "tiếng X", the native name when it is written in Latin letters.
-    # Leave out a name that is also an everyday word ("polish this text", "lao" in Vietnamese).
-    request_words: Tuple[str, ...] = ()
 
 
 _CATALOG: Tuple[ReplyLang, ...] = (
-    ReplyLang("zh", "Chinese (Simplified)", "简体中文", "请用简体中文回答。", "zh-CN",
-              ("chinese", "mandarin", "tieng trung", "tieng hoa", "tieng quan thoai")),
-    ReplyLang("zh-tw", "Chinese (Traditional)", "繁體中文", "請用繁體中文回答。", "zh-TW",
-              ("traditional chinese", "tieng trung phon the", "tieng dai loan")),
-    ReplyLang("ja", "Japanese", "日本語", "日本語で答えてください。", "ja-JP",
-              ("japanese", "tieng nhat")),
-    ReplyLang("ko", "Korean", "한국어", "한국어로 답해 주세요.", "ko-KR",
-              ("korean", "tieng han", "tieng han quoc")),
-    ReplyLang("th", "Thai", "ภาษาไทย", "กรุณาตอบเป็นภาษาไทย", "th-TH",
-              ("thai", "tieng thai", "tieng thai lan")),
-    ReplyLang("id", "Indonesian", "Bahasa Indonesia", "Jawab dalam bahasa Indonesia.", "id-ID",
-              ("indonesian", "bahasa indonesia", "tieng indonesia", "tieng indo")),
-    ReplyLang("ms", "Malay", "Bahasa Melayu", "Jawab dalam bahasa Melayu.", "ms-MY",
-              ("malay", "bahasa melayu", "tieng ma lai", "tieng malaysia")),
-    ReplyLang("tl", "Filipino", "Filipino", "Sumagot sa Filipino.", "fil-PH",
-              ("filipino", "tagalog", "tieng philippines", "tieng philippin", "tieng tagalog")),
-    ReplyLang("km", "Khmer", "ភាសាខ្មែរ", "សូមឆ្លើយជាភាសាខ្មែរ។", "km-KH",
-              ("khmer", "cambodian", "tieng khmer", "tieng campuchia", "tieng cam pu chia")),
-    ReplyLang("lo", "Lao", "ພາສາລາວ", "ກະລຸນາຕອບເປັນພາສາລາວ", "lo-LA",
-              ("laotian", "tieng lao")),
-    ReplyLang("hi", "Hindi", "हिन्दी", "कृपया हिन्दी में उत्तर दें।", "hi-IN",
-              ("hindi", "tieng hindi", "tieng an do")),
-    ReplyLang("bn", "Bengali", "বাংলা", "বাংলায় উত্তর দিন।", "bn-BD",
-              ("bengali", "bangla", "tieng bengal", "tieng bangladesh")),
-    ReplyLang("ar", "Arabic", "العربية", "يرجى الرد باللغة العربية.", "ar-SA",
-              ("arabic", "tieng a rap", "tieng arap")),
-    ReplyLang("he", "Hebrew", "עברית", "ענה בעברית.", "he-IL",
-              ("hebrew", "tieng do thai", "tieng hebrew")),
-    ReplyLang("fa", "Persian", "فارسی", "لطفاً به فارسی پاسخ دهید.", "fa-IR",
-              ("persian", "farsi", "tieng ba tu")),
-    ReplyLang("tr", "Turkish", "Türkçe", "Lütfen Türkçe cevap ver.", "tr-TR",
-              ("turkish", "turkce", "tieng tho nhi ky")),
-    ReplyLang("ru", "Russian", "Русский", "Отвечай на русском языке.", "ru-RU",
-              ("russian", "tieng nga")),
-    ReplyLang("uk", "Ukrainian", "Українська", "Відповідай українською мовою.", "uk-UA",
-              ("ukrainian", "tieng ukraina", "tieng ukraine")),
-    ReplyLang("pl", "Polish", "Polski", "Odpowiadaj po polsku.", "pl-PL",
-              ("polski", "tieng ba lan")),
-    ReplyLang("cs", "Czech", "Čeština", "Odpovídej česky.", "cs-CZ",
-              ("czech", "cestina", "tieng sec")),
-    ReplyLang("de", "German", "Deutsch", "Antworte auf Deutsch.", "de-DE",
-              ("german", "deutsch", "tieng duc")),
-    ReplyLang("nl", "Dutch", "Nederlands", "Antwoord in het Nederlands.", "nl-NL",
-              ("dutch", "nederlands", "tieng ha lan")),
-    ReplyLang("fr", "French", "Français", "Réponds en français.", "fr-FR",
-              ("french", "francais", "tieng phap")),
-    ReplyLang("es", "Spanish", "Español", "Responde en español.", "es-ES",
-              ("spanish", "espanol", "castellano", "tieng tay ban nha")),
-    ReplyLang("pt", "Portuguese", "Português", "Responda em português.", "pt-BR",
-              ("portuguese", "portugues", "tieng bo dao nha")),
-    ReplyLang("it", "Italian", "Italiano", "Rispondi in italiano.", "it-IT",
-              ("italian", "italiano", "tieng y", "tieng italia")),
-    ReplyLang("sv", "Swedish", "Svenska", "Svara på svenska.", "sv-SE",
-              ("swedish", "svenska", "tieng thuy dien")),
-    ReplyLang("da", "Danish", "Dansk", "Svar på dansk.", "da-DK",
-              ("danish", "dansk", "tieng dan mach")),
-    ReplyLang("no", "Norwegian", "Norsk", "Svar på norsk.", "nb-NO",
-              ("norwegian", "norsk", "tieng na uy")),
-    ReplyLang("fi", "Finnish", "Suomi", "Vastaa suomeksi.", "fi-FI",
-              ("finnish", "suomi", "tieng phan lan")),
-    ReplyLang("el", "Greek", "Ελληνικά", "Απάντησε στα ελληνικά.", "el-GR",
-              ("greek", "tieng hy lap")),
-    ReplyLang("hu", "Hungarian", "Magyar", "Válaszolj magyarul.", "hu-HU",
-              ("hungarian", "magyar", "tieng hungary")),
-    ReplyLang("ro", "Romanian", "Română", "Răspunde în limba română.", "ro-RO",
-              ("romanian", "romana", "tieng romania", "tieng rumani")),
+    ReplyLang("zh", "Chinese (Simplified)", "简体中文", "请用简体中文回答。", "zh-CN"),
+    ReplyLang("zh-tw", "Chinese (Traditional)", "繁體中文", "請用繁體中文回答。", "zh-TW"),
+    ReplyLang("ja", "Japanese", "日本語", "日本語で答えてください。", "ja-JP"),
+    ReplyLang("ko", "Korean", "한국어", "한국어로 답해 주세요.", "ko-KR"),
+    ReplyLang("th", "Thai", "ภาษาไทย", "กรุณาตอบเป็นภาษาไทย", "th-TH"),
+    ReplyLang("id", "Indonesian", "Bahasa Indonesia", "Jawab dalam bahasa Indonesia.", "id-ID"),
+    ReplyLang("ms", "Malay", "Bahasa Melayu", "Jawab dalam bahasa Melayu.", "ms-MY"),
+    ReplyLang("tl", "Filipino", "Filipino", "Sumagot sa Filipino.", "fil-PH"),
+    ReplyLang("km", "Khmer", "ភាសាខ្មែរ", "សូមឆ្លើយជាភាសាខ្មែរ។", "km-KH"),
+    ReplyLang("lo", "Lao", "ພາສາລາວ", "ກະລຸນາຕອບເປັນພາສາລາວ", "lo-LA"),
+    ReplyLang("hi", "Hindi", "हिन्दी", "कृपया हिन्दी में उत्तर दें।", "hi-IN"),
+    ReplyLang("bn", "Bengali", "বাংলা", "বাংলায় উত্তর দিন।", "bn-BD"),
+    ReplyLang("ar", "Arabic", "العربية", "يرجى الرد باللغة العربية.", "ar-SA"),
+    ReplyLang("he", "Hebrew", "עברית", "ענה בעברית.", "he-IL"),
+    ReplyLang("fa", "Persian", "فارسی", "لطفاً به فارسی پاسخ دهید.", "fa-IR"),
+    ReplyLang("tr", "Turkish", "Türkçe", "Lütfen Türkçe cevap ver.", "tr-TR"),
+    ReplyLang("ru", "Russian", "Русский", "Отвечай на русском языке.", "ru-RU"),
+    ReplyLang("uk", "Ukrainian", "Українська", "Відповідай українською мовою.", "uk-UA"),
+    ReplyLang("pl", "Polish", "Polski", "Odpowiadaj po polsku.", "pl-PL"),
+    ReplyLang("cs", "Czech", "Čeština", "Odpovídej česky.", "cs-CZ"),
+    ReplyLang("de", "German", "Deutsch", "Antworte auf Deutsch.", "de-DE"),
+    ReplyLang("nl", "Dutch", "Nederlands", "Antwoord in het Nederlands.", "nl-NL"),
+    ReplyLang("fr", "French", "Français", "Réponds en français.", "fr-FR"),
+    ReplyLang("es", "Spanish", "Español", "Responde en español.", "es-ES"),
+    ReplyLang("pt", "Portuguese", "Português", "Responda em português.", "pt-BR"),
+    ReplyLang("it", "Italian", "Italiano", "Rispondi in italiano.", "it-IT"),
+    ReplyLang("sv", "Swedish", "Svenska", "Svara på svenska.", "sv-SE"),
+    ReplyLang("da", "Danish", "Dansk", "Svar på dansk.", "da-DK"),
+    ReplyLang("no", "Norwegian", "Norsk", "Svar på norsk.", "nb-NO"),
+    ReplyLang("fi", "Finnish", "Suomi", "Vastaa suomeksi.", "fi-FI"),
+    ReplyLang("el", "Greek", "Ελληνικά", "Απάντησε στα ελληνικά.", "el-GR"),
+    ReplyLang("hu", "Hungarian", "Magyar", "Válaszolj magyarul.", "hu-HU"),
+    ReplyLang("ro", "Romanian", "Română", "Răspunde în limba română.", "ro-RO"),
 )
 
 # Codes people and browsers write for the same language.
@@ -291,7 +254,7 @@ def _reply_table() -> Dict[str, ReplyLang]:
     for l in LANGS.values():
         voice = l.tts.get("edge") or ""
         out[l.code] = ReplyLang(l.code, l.english, l.native, l.nudge,
-                                "-".join(voice.split("-")[:2]) if voice else "", l.request_words)
+                                "-".join(voice.split("-")[:2]) if voice else "")
     for r in _CATALOG:
         out.setdefault(r.code, r)
     return out

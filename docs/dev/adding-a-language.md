@@ -228,9 +228,9 @@ Listed here because this is where people tend to overdo it:
   answers in. The model reads Vietnamese or English instructions and answers in Thai, which is
   perfectly normal, and one prompt set per language is one more set to drift out of sync.
   (Since 2026-11-15 the language block itself is written in English, like `CLAUDE.md`, and says
-  the Vietnamese around it is no hint; the reason is at the top of `lang.khoi_ngon_ngu`. A chat
-  command such as "English pls" pins the language for the whole conversation, table
-  `session_reply_lang`.)
+  the Vietnamese around it is no hint; the reason is at the top of `lang.khoi_ngon_ngu`. The server
+  does NOT read "English pls" to pin anything: the owner decided on 2026-11-15 to "let the model
+  handle it", and the block only tells the model that a language the user stated wins.)
 - **Do not** translate the section labels in the prompt (`# === SKILL KHẢ DỤNG` (available
   skills), `# === KÊNH HỘI THOẠI HIỆN TẠI` (current chat channel)...). They are **measurement
   markers**: `context_runtime` counts tokens per section by matching those exact strings
@@ -246,19 +246,19 @@ Listed here because this is where people tend to overdo it:
 
 ---
 
-## Only need people to PIN a language: add one line to the reply catalog
+## Only need a language in the Settings picker: add one line to the reply catalog
 
-Since 2026-11-15 (owner: "Javis must work and talk in any language, like Claude or ChatGPT"), letting
-people pin a language (the "Javis replies in" picker in Settings, a chatbot's language, "reply in
-Japanese" in the chat, background work, the voice) does NOT need the four steps above. Add one
-`ReplyLang` line to `_CATALOG` in `server/lang_registry.py`: the code, the English name, the native
-name, one nudge sentence written in that language, the Edge voice prefix, and how people name it
-(lowercase, without accents, e.g. `"tieng nhat"`). Leave out a name that is also an everyday word
-("polish" as in "polish this text", "lao" in Vietnamese). Guarded by
+Since 2026-11-15 (owner: "Javis must work and talk in any language, like Claude or ChatGPT", and "let
+the model handle it"), nothing is pinned by default: the model answers in the language the person
+writes. The catalog only serves the places where a person DELIBERATELY names a language: the "Javis
+replies in" picker in Settings and a chatbot's language (both "auto" by default), and the voice. To
+offer another language there you do NOT need the four steps above: add one `ReplyLang` line to
+`_CATALOG` in `server/lang_registry.py` (the code, the English name, the native name, one nudge
+sentence written in that language, the Edge voice prefix). Guarded by
 `tests/python/test_any_reply_language.py`.
 
-The catalog holds 35 languages today. A language outside it is still answered normally (the model
-follows the writer); it just cannot be pinned by name.
+The catalog holds 35 languages today. A language outside it is still answered normally; it just is
+not offered in those two pickers.
 
 ## REGISTERED languages
 

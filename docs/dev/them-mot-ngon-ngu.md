@@ -162,8 +162,8 @@ Liệt kê ra đây vì đây là chỗ người ta hay đi thừa:
   Việt hay tiếng Anh rồi trả lời tiếng Thái là chuyện bình thường, và một bộ prompt cho mỗi thứ
   tiếng là một bộ nữa để trôi lệch. (Từ 15/11/2026 riêng khối NGÔN NGỮ viết tiếng Anh như
   `CLAUDE.md`, kèm câu nói rõ tiếng Việt xung quanh không phải gợi ý ngôn ngữ; lý do ở đầu
-  `lang.khoi_ngon_ngu`. Lệnh "English pls" trong chat ghim ngôn ngữ cho cả cuộc chat, bảng
-  `session_reply_lang`.)
+  `lang.khoi_ngon_ngu`. Server KHÔNG dò câu "English pls" để ghim: chủ repo chốt 15/11/2026 "để mô
+  hình tự xử lý", khối NGÔN NGỮ chỉ dặn model rằng ngôn ngữ người dùng đã nói rõ thì thắng.)
 - **Không** dịch nhãn mốc trong prompt (`# === SKILL KHẢ DỤNG`, `# === BÂY GIỜ ===`...). Chúng
   là **mốc đo**: `context_runtime` đếm token theo đúng chuỗi đó. Dịch chúng là làm phép đo im
   lặng ngừng chạy cho đúng nhóm người dùng mới thêm vào.
@@ -173,18 +173,18 @@ Liệt kê ra đây vì đây là chỗ người ta hay đi thừa:
 
 ---
 
-## Chỉ cần GHIM được một thứ tiếng: thêm một dòng vào danh mục trả lời
+## Chỉ cần chọn được một thứ tiếng ở Cài đặt: thêm một dòng vào danh mục trả lời
 
 Từ 15/11/2026 (chủ repo: "Javis phải làm việc và nói chuyện được bằng mọi ngôn ngữ như Claude hay
-ChatGPT"), muốn người dùng ghim được một thứ tiếng (ô "Javis trả lời bằng" ở Cài đặt, ngôn ngữ của
-chatbot, lệnh "tiếng Nhật nhé" trong chat, việc chạy nền, giọng đọc) thì KHÔNG cần đủ bốn bước trên.
-Chỉ thêm một dòng `ReplyLang` vào `_CATALOG` trong `server/lang_registry.py`: mã, tên tiếng Anh, tên
-bản ngữ, một câu nhắc viết bằng chính thứ tiếng đó, tiền tố giọng Edge, và cách người ta gọi tên nó
-(viết thường, bỏ dấu, ví dụ `"tieng nhat"`). Đừng thêm tên trùng một từ thường ngày ("polish" trong
-"polish this text", "lao" trong tiếng Việt). Test canh ở `tests/python/test_any_reply_language.py`.
+ChatGPT", và "để mô hình tự xử lý"), mặc định không ghim gì: model trả lời bằng thứ tiếng người dùng
+viết. Danh mục chỉ phục vụ chỗ con người CHỦ ĐỘNG chọn một thứ tiếng: ô "Javis trả lời bằng" ở Cài đặt
+và ngôn ngữ của chatbot (cả hai mặc định "tự động"), cùng giọng đọc. Muốn có thêm thứ tiếng trong hai
+ô đó thì KHÔNG cần đủ bốn bước trên: thêm một dòng `ReplyLang` vào `_CATALOG` trong
+`server/lang_registry.py` (mã, tên tiếng Anh, tên bản ngữ, một câu nhắc viết bằng chính thứ tiếng đó,
+tiền tố giọng Edge). Test canh ở `tests/python/test_any_reply_language.py`.
 
-Danh mục hiện có 35 thứ tiếng. Thứ tiếng ngoài danh mục vẫn được trả lời bình thường (model bám theo
-người viết), chỉ là chưa ghim được bằng tên.
+Danh mục hiện có 35 thứ tiếng. Thứ tiếng ngoài danh mục vẫn được trả lời bình thường, chỉ là chưa chọn
+được trong hai ô đó.
 
 ## Ngôn ngữ ĐÃ ĐĂNG KÝ
 
