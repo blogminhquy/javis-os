@@ -260,7 +260,7 @@ check("tool: chủ bảo cập nhật mà chưa có bản mới thì nói rõ", 
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 check("main: nối đường cập nhật của nút Cập nhật, phiên bản và lượt đang chạy",
       "self_upgrade.wire(start=_self_upgrade_start, versions=_self_upgrade_versions, turn_busy=luot_dang_chay.has_turn)"
-      in src and "res = await do_update()" in src)
+      in src and "res = await _update_core()" in src and "return await _update_core()" in src)
 check("prompt trợ lý: chủ bảo cải tiến thì dùng javis_improve, không ai bảo thì chỉ đề xuất",
       "CHỦ bảo cải tiến" in src and "`javis_improve`" in src)
 claude_md = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")

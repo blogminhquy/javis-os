@@ -25,7 +25,7 @@ import self_upgrade as SU
 
 OPS = ("status", "save", "undo", "history", "source", "update")
 _REFUSE = ("ERROR: chỉ làm khi CHỦ yêu cầu trực tiếp (chat của chủ, hay việc Kanban hoặc nhắc hẹn chủ đã giao). Lượt tự "
-           "thức của Auto và bot nói với khách không tự sửa mình hay hệ thống: hãy đề xuất cho chủ trong tin nhắn.")
+           "thức của Auto và bot nói với khách không tự sửa chính nó hay hệ thống: hãy đề xuất cho chủ trong tin nhắn.")
 
 
 def _turn() -> dict:

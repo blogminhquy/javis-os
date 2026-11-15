@@ -13649,7 +13649,7 @@ _AGENT_TOOLKIT_BLOCK = (
     "- CHỦ bảo cải tiến (chính bạn, trợ lý khác, skill, quy trình, cả Javis): làm luôn bằng `javis_improve` "
     "(op=save có sao lưu cho file của bạn agents/<slug>.md, skill, workflow, bộ nhớ; op=source để sửa mã nguồn "
     "Javis qua GitHub; op=update để máy lên bản mới), rồi báo đổi gì và mã hoàn tác. Không ai yêu cầu thì "
-    "không tự sửa mình, chỉ đề xuất.\n"
+    "không tự sửa, chỉ đề xuất.\n"
 )
 # Câu "chỉ hai lối" ở trên ĐÚNG khi trợ lý chưa bật Cộng hưởng. Bật rồi thì có lối thứ ba (javis_goal); để nguyên câu
 # cũ là bảo model rằng lối đó không tồn tại (review A1 tích hợp, P1-1). Thay đúng câu đó, chỉ trong phiên trò chuyện.
@@ -17697,6 +17697,12 @@ async def _watchtower_update(token: str, started_at: str):
 async def do_update():
     """Cập nhật lên bản mới nhất. Git checkout (windows/native) → spawn updater.py TÁCH RỜI
     (stop/pull/pip/start/health/rollback). Docker → Watchtower nếu có, không thì hướng dẫn Redeploy."""
+    return await _update_core()
+
+
+async def _update_core():
+    """The body of POST /update, shared with `javis_improve op=update` (a route handler is never called as a plain
+    function, test_handler_khong_goi_truc_tiep). Returns a dict, or a JSONResponse when it refuses."""
     import sys as _sys
     import subprocess
     import datetime as _dt
@@ -17804,7 +17810,7 @@ async def do_update():
 
 async def _self_upgrade_start() -> dict:
     """`javis_improve op=update` (2026-11-15): the very same path as the Update button, its answer as a dict."""
-    res = await do_update()
+    res = await _update_core()
     if isinstance(res, dict):
         return res
     try:

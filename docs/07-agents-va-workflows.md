@@ -69,7 +69,7 @@ Bảo Javis hay một trợ lý "cải tiến chính em", "sửa lại skill vi�
 - **Sửa cả mã nguồn Javis.** Cần thẻ GitHub đã kết nối với token có quyền vào repo `blogminhquy/javis-os`. Trợ lý tự gắn repo vào khung chat, sửa trên nhánh riêng; hết lượt Javis tự kiểm ở máy, mở PR, theo dõi CI và merge khi xanh (mục [GitHub ngay trong khung chat](34-github-trong-chat.md)). Workflow Release ra số phiên bản mới.
 - **Tự cập nhật.** Khi bản mới đã phát hành, bảo "cập nhật đi": Javis chờ lượt chat xong rồi chạy đúng quy trình của nút Cập nhật, tự lùi về bản cũ nếu bản mới không lên.
 
-Chỉ **bạn ra lệnh** mới sửa được: chat của bạn, hay việc Kanban và nhắc hẹn bạn đã giao. Lượt tự thức của Auto và bot nói với khách không tự sửa mình, chỉ đề xuất. Plugin vẫn đi đường riêng (`javis_plugin`, luôn tắt cho tới khi bạn bật).
+Chỉ **bạn ra lệnh** mới sửa được: chat của bạn, hay việc Kanban và nhắc hẹn bạn đã giao. Lượt tự thức của Auto và bot nói với khách không tự sửa, chỉ đề xuất. Plugin vẫn đi đường riêng (`javis_plugin`, luôn tắt cho tới khi bạn bật).
 
 ### Tin chưa đọc và tắt thông báo
 
