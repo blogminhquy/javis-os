@@ -163,7 +163,8 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
         self.clock += 5
         await self.flush()
         self.bot.answer_fn.assert_awaited_once()
-        self.assertEqual(len(self.inbox), 1)
+        self.assertEqual(len([e for e in self.inbox if e["sender_type"] == "customer"]), 1)
+        self.assertEqual(len([e for e in self.inbox if e["sender_type"] == "ai"]), 1)
 
     async def test_silent_and_takeover_messages_remain_in_real_inbox(self):
         await self.receive()
@@ -343,7 +344,8 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
         state = self.store.load()
         self.assertEqual(state["quarantined_batches"][0]["bot_id"], "bot_a")
         self.assertEqual(state["quarantined_batches"][0]["messages"][0]["id"], "m1")
-        self.assertEqual(len(self.inbox), 2)
+        self.assertEqual(len([e for e in self.inbox if e["sender_type"] == "customer"]), 2)
+        self.assertEqual(len([e for e in self.inbox if e["sender_type"] == "ai"]), 1)
 
     async def test_expired_outbound_idempotency_window_keeps_batch_for_review(self):
         self.bot.send_text.return_value = (False, "timeout")

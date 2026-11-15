@@ -31,8 +31,21 @@ test('dedupes a customer message when Zernio retries it in a new event envelope 
 });
 test('filters a wrong account, echo, bot sender and standby takeover', () => { const { bridge } = setup(); assert.equal(receive(bridge, event({ account: { ...event().account, accountId: 'wrong', id: 'wrong' } })).code, 'ignored_message'); assert.equal(receive(bridge, event({ id: 'echo', message: { ...event().message, direction: 'outgoing' } })).code, 'ignored_message'); assert.equal(receive(bridge, event({ id: 'self', message: { ...event().message, sender: { id: accountId } } })).code, 'ignored_message'); assert.equal(receive(bridge, event({ id: 'standby', metadata: { standby: true } })).code, 'ignored_message'); });
 test('filters explicitly historical messages', () => { const { bridge } = setup(); assert.equal(receive(bridge, event({ metadata: { historical: true } })).code, 'ignored_message'); });
-test('batches messages, enforces customer cap and respects takeover before delivery', async () => { const batches = []; const { bridge, file } = setup({ runtime: { deliver: async batch => { batches.push(batch); return { takeover: false, sammyReplySent: true }; } } }); receive(bridge, event()); receive(bridge, event({ id: 'evt-2', message: { ...event().message, id: 'msg-2', platformMessageId: 'native-2', text: 'mình cần màu Hope' } })); await new Promise(r => setTimeout(r, 10)); assert.equal(batches.length, 1); assert.equal(batches[0].messages.length, 2); const state = new JsonState(file).load(); state.conversations['conv-1'].repliesInWindow = 5; state.conversations['conv-1'].messages = [{ id: 'later' }]; state.conversations['conv-1'].dueAt = 0; new JsonState(file).save(state); await bridge.flush('conv-1'); assert.equal(batches.length, 1); state.conversations['conv-1'].repliesInWindow = 0; state.conversations['conv-1'].takeover = true; state.conversations['conv-1'].messages = [{ id: 'later' }]; new JsonState(file).save(state); await bridge.flush('conv-1'); assert.equal(batches.length, 1); });
-test('runtime timeout/error preserves batch for retry', async () => { const { bridge, file } = setup({ runtime: { deliver: async () => { throw new Error('timeout'); } } }); receive(bridge, event()); await new Promise(r => setTimeout(r, 10)); const saved = new JsonState(file).load(); assert.equal(saved.conversations['conv-1'].messages.length, 1); });
+test('delivers to inbox despite legacy cap and takeover without a second debounce', async () => {
+  const batches = [];
+  const { bridge, file } = setup({ runtime: { deliver: async batch => { batches.push(batch); return {ok:true,status:'queued',takeover:true,replySent:false,sammyReplySent:false}; } } });
+  receive(bridge, event());
+  clearTimeout(bridge.timers.get('conv-1'));
+  const state = new JsonState(file).load();
+  state.conversations['conv-1'].repliesInWindow = 5;
+  state.conversations['conv-1'].takeover = true;
+  new JsonState(file).save(state);
+  await bridge.flush('conv-1');
+  assert.equal(batches.length, 1);
+  assert.equal(batches[0].policy, undefined);
+  assert.equal(new JsonState(file).load().conversations['conv-1'].processing, undefined);
+});
+test('runtime timeout/error preserves batch for retry', async () => { const { bridge, file } = setup({ runtime: { deliver: async () => { throw new Error('timeout'); } } }); receive(bridge, event()); await new Promise(r => setTimeout(r, 10)); const saved = new JsonState(file).load(); assert.equal(saved.conversations['conv-1'].processing.length, 1); });
 test('runtime client rejects API errors, malformed results and timeouts without exposing its token', async () => {
   const body = { conversationId: 'conv-1' };
   await assert.rejects(createRuntimeClient({ baseUrl: 'https://runtime.example', token: 'private-token', fetchImpl: async () => ({ ok: false }) }).deliver(body), /runtime rejected/);
@@ -59,4 +72,33 @@ test('HTTP endpoint enforces HTTPS, raw HMAC and body size', async (t) => {
   assert.throws(() => new Bridge({ secret, accountId, state, runtime: {} }), /configuration is incomplete/);
   const { bridge } = setup();
   assert.equal(receive(bridge, event({ account: { ...event().account, username: 'another-shop' } })).code, 'ignored_message');
+});
+
+test('restart retries an unacknowledged batch and concurrent arrival is preserved', async () => {
+  let release;
+  const { bridge, file } = setup({runtime:{deliver: () => new Promise(resolve => {release = resolve;})}});
+  receive(bridge, event());
+  clearTimeout(bridge.timers.get('conv-1'));
+  const pending = bridge.flush('conv-1');
+  receive(bridge, event({id:'e2', message:{...event().message,id:'m2',platformMessageId:'p2'}}));
+  clearTimeout(bridge.timers.get('conv-1'));
+  await bridge.flush('conv-1');
+  assert.equal(new JsonState(file).load().conversations['conv-1'].processing.length, 1);
+  const received = [];
+  const restarted = new Bridge({secret,accountId,username:'test-shop',state:new JsonState(file),runtime:{deliver:async body=>received.push(body)},batchMs:0});
+  restarted.resume();
+  clearTimeout(restarted.timers.get('conv-1'));
+  await restarted.flush('conv-1');
+  clearTimeout(restarted.timers.get('conv-1'));
+  await restarted.flush('conv-1');
+  assert.deepEqual(received.map(x=>x.messages[0].id), ['msg-1','m2']);
+  release({}); await pending;
+});
+test('runtime ACK is queue acceptance, never proof of a sent reply', async () => {
+  for (const result of [{ok:false,takeover:false,sammyReplySent:false}, {ok:true,status:'queued',takeover:false,replySent:true,sammyReplySent:true}]) {
+    const client = createRuntimeClient({baseUrl:'http://local',token:'private',fetchImpl:async()=>({ok:true,json:async()=>result})});
+    await assert.rejects(client.deliver({}), /invalid result/);
+  }
+  const ack = {ok:true,status:'queued',takeover:false,replySent:false,sammyReplySent:false};
+  assert.deepEqual(await createRuntimeClient({baseUrl:'http://local',token:'private',fetchImpl:async()=>({ok:true,json:async()=>ack})}).deliver({}),ack);
 });

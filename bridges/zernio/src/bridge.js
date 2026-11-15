@@ -36,11 +36,11 @@ export function validSignature(raw, signature, secret) {
 }
 
 export class Bridge {
-  constructor({ secret, accountId, username, state, runtime, now = () => Date.now(), batchMs = 5000, maxAgeMs = 52 * 60 * 60 * 1000 }) {
+  constructor({ secret, accountId, username, state, runtime, now = () => Date.now(), batchMs = 0, maxAgeMs = 52 * 60 * 60 * 1000 }) {
     if (!secret || !accountId || !username || !state || !runtime) throw new Error('bridge configuration is incomplete');
     this.secret = secret; this.accountId = accountId; this.username = username;
     this.stateStore = state; this.runtime = runtime; this.now = now;
-    this.batchMs = batchMs; this.maxAgeMs = maxAgeMs; this.timers = new Map();
+    this.batchMs = batchMs; this.maxAgeMs = maxAgeMs; this.timers = new Map(); this.inflight = new Set();
   }
   receive(raw, headers) {
     if (!validSignature(raw, headers['x-zernio-signature'], this.secret)) return { status: 401, code: 'invalid_signature' };
@@ -69,7 +69,7 @@ export class Bridge {
     // batching, so a crash cannot acknowledge only half of the dedupe state.
     state.events[event.id] = { receivedAt: new Date(this.now()).toISOString() };
     state.messages[messageKey] = { eventId: event.id, receivedAt: new Date(this.now()).toISOString() };
-    const conversation = state.conversations[conversationId] ||= { messages: [], repliesInWindow: 0, takeover: false };
+    const conversation = state.conversations[conversationId] ||= { messages: [] };
     conversation.messages.push({ id: event.message.id, platformMessageId: event.message.platformMessageId, text: event.message.text, attachments: event.message.attachments, sender: event.message.sender, sentAt: event.message.sentAt });
     conversation.account = { id: event.account.accountId || event.account.id, username: event.account.username, platform: event.account.platform };
     conversation.dueAt = this.now() + this.batchMs;
@@ -97,29 +97,41 @@ export class Bridge {
   }
   async flush(conversationId) {
     this.timers.delete(conversationId);
+    // Runtime owns the five-second debounce, takeover and reply policy. Legacy
+    // local cap/takeover values must never prevent delivery to its inbox.
+    if (this.inflight.has(conversationId)) return;
     const state = this.stateStore.load();
     const conversation = state.conversations[conversationId];
     if (!conversation) return;
-    if (conversation.takeover || conversation.repliesInWindow >= 5) { conversation.messages = []; this.stateStore.save(state); return; }
-    const batch = conversation.messages.splice(0);
-    this.stateStore.save(state);
+    if (!conversation.processing?.length) {
+      if (!conversation.messages?.length) return;
+      conversation.processing = conversation.messages.splice(0);
+      this.stateStore.save(state);
+    }
+    const batch = conversation.processing;
+    this.inflight.add(conversationId);
     try {
-      // This adapter may enqueue into the existing Sammy inbox/runtime only. It never receives
-      // Javis credentials and cannot create orders, inspect other chats, or call arbitrary tools.
-      const result = await this.runtime.deliver({ conversationId, account: conversation.account, messages: batch, policy: { batchMs: this.batchMs, maxCustomerReplies: 5, requireTakeoverCheck: true } });
-      const updated = this.stateStore.load(); const current = updated.conversations[conversationId];
-      if (!current) return;
-      if (result?.takeover) current.takeover = true;
-      if (result?.sammyReplySent) current.repliesInWindow += 1;
-      this.stateStore.save(updated);
+      await this.runtime.deliver({ conversationId, account: conversation.account, messages: batch });
+      const updated = this.stateStore.load();
+      const current = updated.conversations[conversationId];
+      if (current) {
+        delete current.processing;
+        delete current.takeover;
+        delete current.repliesInWindow;
+        this.stateStore.save(updated);
+        if (current.messages?.length) this.arm(conversationId, this.batchMs);
+      }
     } catch {
-      // Restore the batch for a later delivery; content and secrets are deliberately not logged.
-      const updated = this.stateStore.load(); const current = updated.conversations[conversationId];
-      if (current) { current.messages = [...batch, ...current.messages]; current.dueAt = this.now() + this.batchMs; this.stateStore.save(updated); this.arm(conversationId, this.batchMs); }
+      // Keep the in-flight batch durable until runtime acknowledges its inbox
+      // commit. A restart retries the same message identities safely.
+      this.arm(conversationId, Math.max(1000, this.batchMs));
+    } finally {
+      this.inflight.delete(conversationId);
     }
   }
+
   resume() {
     const state = this.stateStore.load();
-    for (const [id, conversation] of Object.entries(state.conversations)) if (conversation.messages?.length) this.arm(id, Math.max(0, (conversation.dueAt || this.now()) - this.now()));
+    for (const [id, conversation] of Object.entries(state.conversations)) if (conversation.messages?.length || conversation.processing?.length) this.arm(id, Math.max(0, (conversation.dueAt || this.now()) - this.now()));
   }
 }

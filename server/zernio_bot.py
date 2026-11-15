@@ -301,6 +301,10 @@ class ZernioBot(bot_gateway.HangLuot):
         self.status = "off"
         self.last_error = ""
 
+    @property
+    def webhook_active(self):
+        return not self._stop and _REGISTRY.get(self.provider_account_id) is self
+
     def start(self):
         if not self.provider_account_id or not self.account_id or not self.bot_id:
             raise ValueError("Zernio requires provider, Javis account and bot IDs")
@@ -669,7 +673,8 @@ async def _flush_locked(key):
                     "user_id": str(sender.get("id") or ""),
                     "user_name": str(sender.get("name") or sender.get("username") or ""),
                     "username": str(sender.get("username") or ""), "mentioned": True,
-                    "message_id": batch[-1].get("platformMessageId") or batch[-1]["id"]}
+                    "message_id": batch[-1].get("platformMessageId") or batch[-1]["id"],
+                    "_defer_zernio_delivery": True}
             result = await bot.answer_fn(text, meta, None) if text else ""
             reply = "" if isinstance(result, dict) and result.get("im_lang") else str(
                 result.get("text") or "") if isinstance(result, dict) else str(result or "")
@@ -690,6 +695,16 @@ async def _flush_locked(key):
             if not ok:
                 _arm_timer(key, BATCH_SECONDS)
                 return
+            receipt = conversations.ghi_su_kien({
+                "channel": "zernio", "account_id": bot.account_id, "bot_id": str(bot.bot_id),
+                "account_name": bot.bot_username, "external_chat_id": conversation_id,
+                "chat_type": "private", "external_message_id": send_key,
+                "sender_type": "ai", "sender_name": bot.bot_username,
+                "message_type": "text", "text": reply.strip(),
+                "metadata": {"provider_account_id": bot.provider_account_id, "delivery": "accepted"},
+                "created_at": _now()})
+            if not receipt.get("ok"):
+                raise RuntimeError("outbound_inbox_write_failed")
     with _state_store.transaction() as state:
         current = state["conversations"][key]
         if not owns_batch(current):

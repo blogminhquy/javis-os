@@ -25,6 +25,10 @@ Xem `.env.example`. Bắt buộc có `ZERNIO_INSTAGRAM_ACCOUNT_ID`, `ZERNIO_INST
 
 ## Hợp đồng runtime
 
-Bridge gọi `POST /zernio/inbound` với bearer token giới hạn quyền, gửi `{ conversationId, account, messages, policy }`. Runtime phải kiểm tra tài khoản và hội thoại được phép, đưa tin vào inbox Sammy hiện hữu, giữ prompt, kiểm tra nhân viên tiếp quản ngay trước gửi và áp giới hạn trước khi gọi model.
+Ưu tiên webhook native của Javis tại `POST /webhooks/zernio`. Nếu giữ bridge, dùng mã trong `bridges/zernio` tại SHA đã kiểm thử, không dùng bản bridge vận hành cũ ngoài checkout.
 
-Kết quả phải có hai boolean `takeover` và `sammyReplySent`. Chỉ trả `sammyReplySent: true` khi có bằng chứng gửi thành công. Bridge không tự gọi model hoặc gửi DM ra Zernio. Kiểm thử dùng runtime giả; cần kiểm thử gửi nhận thật với tài khoản thử trước khi triển khai.
+Bridge gọi `POST /zernio/inbound` với bearer riêng. Trên máy chủ Javis bắt buộc đặt `ZERNIO_ADAPTER_TOKEN` bằng `SAMMY_RUNTIME_TOKEN` của bridge và `ZERNIO_ADAPTER_ACCOUNT_ID` bằng ID Zernio được phép. Tên biến `SAMMY_*` chỉ giữ tương thích cấu hình, không quyết định bot nhận. Tài khoản phải được gán cho bot qua API tài khoản Javis.
+
+Runtime trả HTTP 202 `{ok:true,status:"queued",takeover:boolean,replySent:false,sammyReplySent:false}` khi đã lưu inbox và journal, không phải khi đã gửi DM. Bridge chuyển tiếp ngay, không gom thêm 5 giây, không giữ cap/takeover riêng. Runtime gom 5 giây từ tin cuối và kiểm takeover trước model, trước gửi. Không có trần 5 câu hoặc cửa sổ reset trần đó theo chính sách runtime chung đã bỏ giới hạn.
+
+Batch đang chuyển được giữ trên đĩa tới khi runtime ACK; restart sẽ retry cùng ID tin. Một tiến trình bridge dùng một state file/volume, không chạy nhiều replica cùng ghi JSON. Thư mục state Javis phải bền vững cho inbox, secret store và journal SQLite. Các test chỉ dùng loopback/provider giả, không chứng minh webhook public hoặc quyền gửi thật.

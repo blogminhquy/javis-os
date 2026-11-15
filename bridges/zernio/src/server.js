@@ -21,7 +21,7 @@ export function createRuntimeClient({ baseUrl, token, fetchImpl = fetch, timeout
         });
         if (!response.ok) throw new Error('runtime rejected batch');
         const result = await response.json();
-        if (!result || typeof result !== 'object' || typeof result.takeover !== 'boolean' || typeof result.sammyReplySent !== 'boolean') throw new Error('runtime returned invalid result');
+        if (!result || result.ok !== true || result.status !== 'queued' || result.replySent !== false || result.sammyReplySent !== false || typeof result.takeover !== 'boolean') throw new Error('runtime returned invalid result');
         return result;
       } finally { clearTimeout(timer); }
     }

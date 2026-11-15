@@ -2212,7 +2212,8 @@ def _make_answer_fn(bot_id: str):
                 conversations.save_draft(cid_draft, dap_ghi, conversations.last_customer_message_id(cid_draft))
             return {"text": "", "files": [], "im_lang": True, "draft": True}
         # Câu bot nói vào Hộp thư hội thoại, cạnh tin khách. Lượt gãy thì `dap` rỗng nên không ghi gì: khách không nhận tin nào.
-        receipt_row = ghi_tin_bot(
+        # Zernio journals the reply and records it only after provider acceptance.
+        receipt_row = 0 if kenh_luot == "zernio" and meta.get("_defer_zernio_delivery") else ghi_tin_bot(
             cfg, meta or {}, dap_ghi, loi=loi_ky_thuat, files=(out or {}).get("files"),
             zalo_sending=(kenh_luot == "zalo_personal" and not loi_ky_thuat))
         if goi_nguoi:
@@ -2749,7 +2750,8 @@ def stop_bot(bot_id: str) -> bool:
 
 
 def _trang_thai_poller(tb) -> dict:
-    song = bool(tb._task and not tb._task.done())
+    task = getattr(tb, "_task", None)
+    song = bool(getattr(tb, "webhook_active", False) or (task and not task.done()))
     tt = getattr(tb, "status", "off")
     state = ("error" if tt in ("error", "conflict") else
              "running" if (song and tt == "polling") else
@@ -2815,7 +2817,8 @@ def sync_all() -> dict:
             stop_bot(bid)
     ok, loi = 0, {}
     for bid in muon:
-        if bid in _RUNNING and any(tb._task and not tb._task.done()
+        if bid in _RUNNING and any(getattr(tb, "webhook_active", False) or
+                                   (getattr(tb, "_task", None) and not tb._task.done())
                                    for tb in _RUNNING[bid].get("pollers", {}).values()):
             ok += 1
             continue
