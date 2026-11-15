@@ -6033,6 +6033,8 @@
   "wh.retried_n": "Đã xếp chạy lại {n} sự kiện",
   "wh.alert_need": "{n} sự kiện cần bạn xem",
   "wh.back_cfg": "Quay lại cấu hình",
+  "wh.edit": "Sửa",
+  "wh.edit_title": "Sửa webhook",
   "wh.back_events": "Tất cả lần chạy",
   "wh.chip_failed": "{n} lỗi",
   "wh.chip_need": "Cần xem",
