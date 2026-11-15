@@ -52,5 +52,18 @@ check("a fourth add mode lays the modes out two by two", /'<div class="pd-modes'
   && read("style.css").includes(".pd-modes.four { display: grid; grid-template-columns: 1fr 1fr; }"));
 check("the assistant's repos are read with its documents", /repos: d\.repos \|\| \[\]/.test(SU));
 
+// ---- the "+" row of the picker (owner 15/11: "cần thêm nút + để thêm repo mới như ở hội thoại") ----
+const G = require(path.join(root, "dashboard", "team-github.js"));
+const TG = read("team-github.js");
+check("signed in with the app, the + row opens the app's page on GitHub",
+  G.addReposUrl({ source: "app", install_url: "https://github.com/apps/x/installations/new" }) === "https://github.com/apps/x/installations/new");
+check("a pasted token gets no GitHub link", G.addReposUrl({ source: "token", install_url: "https://x" }) === "" && G.addReposUrl(null) === "");
+check("the picker draws the + row under its list, like the chat composer",
+  /'<div class="gh-foot"><div class="cp-pin-err" role="status"><\/div>' \+ footRow\(addUrl\)/.test(TG)
+  && TG.includes('tw("gh.add_on_github")') && TG.includes('tw("gh.connect_more")'));
+check("the list is fetched again on return from GitHub", /if \(away\) \{ away = false; fetchList\(\); \}/.test(TG));
+check("the + row sits under the list in the drawer and the create box",
+  read("style.css").includes(".pd-repo-box .gh-foot, .tmp-repo-box .gh-foot { position: static;"));
+
 if (fails) { console.log(`\nFAIL - test_project_repos_ui: ${fails} lỗi`); process.exit(1); }
 console.log("\nOK - test_project_repos_ui: tất cả pass");
