@@ -8647,7 +8647,8 @@
     // lại ở đây: khai hai nơi thì thêm ngôn ngữ mới lại phải nhớ sửa cả hai, và chỗ bị quên
     // là chỗ hỏng trong im lặng.
     const lc = s.locale || {};
-    const langs = (s.lang_list || []);
+    // Reply language: every language Javis can name (2026-11-15); the interface keeps its own shorter list.
+    const langs = (s.reply_lang_list || s.lang_list || []);
     const replyLang = lc.reply_lang || "auto";
     const uiLang = (window.JavisI18n && JavisI18n.lang()) || "vi";
     // Timezone (0.443.0): what "today", "yesterday", reminders and report periods mean for Javis. Lives with the language

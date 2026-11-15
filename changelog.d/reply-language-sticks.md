@@ -1,17 +1,21 @@
 ---
-bump: patch
-title: A reply language you ask for stays for the whole chat
+bump: minor
+title: Javis works in 35 pinnable languages and keeps the one you ask for
 ---
 ## vi
+### Thêm mới
+- **Javis làm việc bằng 35 ngôn ngữ ghim được.** Ô "Javis trả lời bằng" ở Cài đặt và ngôn ngữ của chatbot nay có tiếng Nhật, Hàn, Trung, Pháp, Đức, Tây Ban Nha, Thái, Indonesia và nhiều thứ tiếng khác. Câu trả lời tiếng Nhật, Hàn, Trung, Thái được đọc bằng giọng bản xứ.
+
 ### Sửa lỗi
-- **Bảo Javis "English pls" một lần là cả cuộc chat trả lời tiếng Anh.** Trước đây câu đó không được nhận, còn "reply in English" chỉ giữ đúng một lượt. Nay cuộc chat nhớ ngôn ngữ đã chọn tới khi bạn đổi hoặc than phiền về nó; "viết caption bằng tiếng Anh" vẫn chỉ là việc của lượt đó.
-- **Claude Code và ChatGPT không còn quên ngôn ngữ giữa cuộc chat.** Ngôn ngữ đã ghim (trong chat hoặc ở Cài đặt) đi kèm từng tin nhắn, vì hai engine này giữ nguyên lời dặn của lượt đầu khi nối phiên.
-- **Tin nhắn tiếng Anh kèm file đang mở hay file đính kèm không còn bị hiểu là tiếng Việt.** Luật ngôn ngữ viết lại bằng tiếng Anh, nói rõ ngôn ngữ bạn đã dặn (hồ sơ, bộ nhớ, trong chat) thắng, và đứng cuối lời dặn như thiết kế ban đầu.
-- **Chế độ tiết kiệm token của engine API tôn trọng ngôn ngữ ghim ở Cài đặt**, và câu quá ngắn ("ok do 2") không còn bị ép theo ngôn ngữ giao diện.
+- **Nói "English pls" hay "tiếng Nhật nhé" một lần là cả cuộc chat giữ ngôn ngữ đó**, kể cả trên Claude Code và ChatGPT vốn hay quên giữa chừng. "Viết caption bằng tiếng Anh" vẫn chỉ là việc của lượt đó.
+- **Việc chạy nền (Kanban, nhắc hẹn, loop) không còn luôn báo bằng tiếng Việt.** Nó theo ngôn ngữ ghim ở Cài đặt, hoặc ngôn ngữ của chính đầu việc.
+- **Tin nhắn tiếng Anh kèm file không còn bị hiểu là tiếng Việt**, và ngôn ngữ bạn đã dặn (hồ sơ, bộ nhớ, trong chat) thắng luật "theo tin nhắn cuối".
 
 ## en
+### Added
+- **Javis works in 35 pinnable languages.** The "Javis replies in" picker in Settings and a chatbot's language now offer Japanese, Korean, Chinese, French, German, Spanish, Thai, Indonesian and more. Replies in Japanese, Korean, Chinese and Thai are read aloud by a native voice.
+
 ### Fixed
-- **Tell Javis "English pls" once and the whole chat answers in English.** That phrase used to match nothing, and "reply in English" held for one turn only. The chat now keeps the language until you ask for another or complain about it; "write the caption in English" still only steers that turn.
-- **Claude Code and ChatGPT no longer forget the language mid-chat.** A pinned language (from the chat or Settings) rides with each message, since both engines keep the first turn's instructions when they resume a thread.
-- **An English message with an open or attached file is no longer read as Vietnamese.** The language rule is now written in English, says a language you stated (profile, memory, the chat) wins, and sits last in the prompt again.
-- **Token saving on API engines honours the language pinned in Settings**, and a message too short to tell ("ok do 2") no longer follows the interface language.
+- **Say "English pls" or "Japanese please" once and the whole chat keeps that language**, Claude Code and ChatGPT included, which used to forget it mid-chat. "Write the caption in English" still only steers that turn.
+- **Background work (Kanban, reminders, loops) no longer always reports in Vietnamese.** It follows the language pinned in Settings, or the task's own language.
+- **An English message with an attached file is no longer read as Vietnamese**, and a language you stated (profile, memory, the chat) wins over "follow the last message".

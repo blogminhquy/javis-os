@@ -351,7 +351,7 @@ def _clean_ngon_ngu(v: Any) -> str:
     s_ = str(v or "").strip().lower()
     if s_ in ("", "auto"):
         return "auto"
-    return lang_registry.chuan_hoa(s_) or "auto"
+    return lang_registry.reply_code(s_) or "auto"   # any nameable language since 2026-11-15
 
 
 # Active hours (0.130.0): {"tu": "HH:MM", "den": "HH:MM"} in the configured timezone (`localefmt.tz()`).

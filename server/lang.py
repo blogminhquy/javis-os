@@ -327,23 +327,21 @@ def _yeu_cau_thang(text: str) -> str:
     # đè lên cả lựa chọn user đã ghim ở Cài đặt (mức 1 đứng trên mức 3).
     dong_tu = (r"tra loi|tra loi bang|noi|noi bang|chuyen sang|doi sang|"
                r"answer|reply|respond|speak|switch to")
-    for code in lang_registry.ma_list():
-        for tu in lang_registry.get(code).request_words:
-            t = re.escape(_bo_dau(tu))
-            for m in re.finditer(rf"\b({dong_tu})\b[^.!?\n]{{0,24}}?\b{t}\b", s):
-                if not _la_cau_than(s, m.start()):
-                    return code
+    for code, phrase in _requests():
+        t = r"\s+".join(re.escape(w) for w in phrase)
+        for m in re.finditer(rf"\b({dong_tu})\b[^.!?\n]{{0,24}}?\b{t}\b", s):
+            if not _la_cau_than(s, m.start()):
+                return code
     # Dạng đảo ("in English please", "bang tieng Anh nhe") CHỈ tính khi cả tin nhắn là một
     # câu ra lệnh ngắn. Câu dài chỉ NHẮC TỚI một ngôn ngữ thì không phải lệnh: "File hợp đồng
     # bằng tiếng Anh nằm ở đâu trong brain" là một câu hỏi về vị trí file, không phải yêu cầu
     # Javis đổi sang tiếng Anh - mà bản đầu hiểu đúng thành lệnh và đổi cả cuộc trò chuyện.
     if len(s) <= 40:
-        for code in lang_registry.ma_list():
-            for tu in lang_registry.get(code).request_words:
-                t = re.escape(_bo_dau(tu))
-                m = re.search(rf"\b(bang|in|sang)\s+{t}\b", s)
-                if m and not _la_cau_than(s, m.start()):
-                    return code
+        for code, phrase in _requests():
+            t = r"\s+".join(re.escape(w) for w in phrase)
+            m = re.search(rf"\b(bang|in|sang)\s+{t}\b", s)
+            if m and not _la_cau_than(s, m.start()):
+                return code
     return ""
 
 
@@ -386,6 +384,8 @@ _REPLY_VERBS = frozenset((
 _COMMAND_MARKERS = _REPLY_VERBS | frozenset((
     "please", "pls", "plz", "plez", "plss", "now", "only", "always", "again", "from",
     "nhe", "nha", "nhen", "di", "thoi", "luon", "gio", "lai",
+    # "please" in the languages people ask in ("auf Deutsch bitte", "en español por favor").
+    "bitte", "favor", "plait", "favore",
 ))
 # Words that may stand around the language name without naming a task.
 _COMMAND_FILLER = _COMMAND_MARKERS | frozenset((
@@ -394,8 +394,35 @@ _COMMAND_FILLER = _COMMAND_MARKERS | frozenset((
     "anh", "em", "chi", "ban", "minh", "toi", "tao", "a", "ah", "oi", "voi", "bang", "cho", "tu",
     "nay", "het", "ca", "hoan", "toan", "duoc", "khong", "vay", "giup", "dum", "y", "la", "thi",
     "hay", "chu", "nen", "ma", "roi", "va", "and", "but", "no", "yes", "yeah", "so",
+    # "en français s'il vous plaît", "auf Deutsch", "em português", "po polsku", "per favore".
+    "en", "auf", "por", "s", "il", "vous", "per", "po", "em",
 ))
 _SENTENCE = re.compile(r"[.!?\n,;:]+")
+
+
+def _request_words():
+    """(code, words) for every language a person can name, longest phrases first.
+
+    Longest first because one name can sit inside another: "traditional chinese" must win over
+    "chinese", or asking for Traditional Chinese would pin Simplified.
+    """
+    pairs = []
+    for code in lang_registry.reply_codes():
+        for tu in lang_registry.reply_info(code).request_words:
+            words = tuple(_TU.findall(_bo_dau(tu)))
+            if words:
+                pairs.append((code, words))
+    return sorted(pairs, key=lambda p: -len(p[1]))
+
+
+_REQUEST_WORDS = None
+
+
+def _requests():
+    global _REQUEST_WORDS
+    if _REQUEST_WORDS is None:
+        _REQUEST_WORDS = _request_words()
+    return _REQUEST_WORDS
 _STICKY_MAX_WORDS = 14
 
 
@@ -418,28 +445,25 @@ def _sticky_command(s: str) -> str:
         words = _TU.findall(cau)
         if not words or len(words) > _STICKY_MAX_WORDS:
             continue
-        for code in lang_registry.ma_list():
-            for tu in lang_registry.get(code).request_words:
-                phrase = tuple(_TU.findall(_bo_dau(tu)))
-                at = _phrase_at(words, phrase) if phrase else -1
-                if at < 0:
-                    continue
-                rest = words[:at] + words[at + len(phrase):]
-                if rest and all(w in _COMMAND_FILLER for w in rest) \
-                        and any(w in _COMMAND_MARKERS for w in rest):
-                    return code
+        for code, phrase in _requests():
+            at = _phrase_at(words, phrase)
+            if at < 0:
+                continue
+            rest = words[:at] + words[at + len(phrase):]
+            if rest and all(w in _COMMAND_FILLER for w in rest) \
+                    and any(w in _COMMAND_MARKERS for w in rest):
+                return code
     return ""
 
 
 def _complained_language(s: str) -> str:
     """Language the owner complains about being answered in ("why are you replying in English?"), or ""."""
     dong_tu = r"tra loi|noi|answer|reply|respond|speak|writ(?:e|ing)|talk"
-    for code in lang_registry.ma_list():
-        for tu in lang_registry.get(code).request_words:
-            t = re.escape(_bo_dau(tu))
-            for m in re.finditer(rf"\b({dong_tu})\w*\b[^.!?\n]{{0,24}}?\b{t}\b", s):
-                if _la_cau_than(s, m.start()):
-                    return code
+    for code, phrase in _requests():
+        t = r"\s+".join(re.escape(w) for w in phrase)
+        for m in re.finditer(rf"\b({dong_tu})\w*\b[^.!?\n]{{0,24}}?\b{t}\b", s):
+            if _la_cau_than(s, m.start()):
+                return code
     return ""
 
 
@@ -457,7 +481,7 @@ def conversation_pin_update(text: str, current: str = ""):
     code = _sticky_command(s)
     if code:
         return code
-    cur = lang_registry.chuan_hoa(current)
+    cur = lang_registry.reply_code(current)
     if cur and _complained_language(s) == cur:
         # "Ý là em trả lời anh bằng tiếng Việt chứ sao em lại trả lời bằng tiếng Anh?": the complaint and the
         # new choice share one sentence, so the strict test above misses the choice. The per-turn command
@@ -524,34 +548,36 @@ def resolve(*, turn_text: str = "", reply_pref: str = "auto", chatbot_pin: str =
     do_duoc, tin = detect(turn_text)
 
     def _xong(lang: str, source: str, conf: float, theo=False) -> LangDecision:
-        ma = lang_registry.chuan_hoa(lang) or lang_registry.MAC_DINH
+        ma = lang_registry.reply_code(lang) or lang_registry.MAC_DINH
         return LangDecision(ma, source, conf, co_lexicon(ma), do_duoc, theo)
 
     thang = _yeu_cau_thang(turn_text)
     if thang:
         return _xong(thang, "turn", 0.99)
 
-    if lang_registry.chuan_hoa(chatbot_pin):
+    if lang_registry.reply_code(chatbot_pin):
         return _xong(chatbot_pin, "chatbot", 1.0)
 
-    if lang_registry.chuan_hoa(conversation_pin):
+    if lang_registry.reply_code(conversation_pin):
         return _xong(conversation_pin, "conversation", 1.0)
 
-    pref = lang_registry.chuan_hoa(reply_pref)
+    pref = lang_registry.reply_code(reply_pref)
     if pref:
         return _xong(pref, "setting", 1.0)
 
-    if lang_registry.chuan_hoa(brain_pin):
+    if lang_registry.reply_code(brain_pin):
         return _xong(brain_pin, "brain", 1.0)
 
-    if lang_registry.chuan_hoa(channel_default):
+    if lang_registry.reply_code(channel_default):
         return _xong(channel_default, "channel", 0.9)
 
     if str(turn_text or "").strip():
         # Có chữ của người dùng: model bám theo. `lang` ở đây KHÔNG phải ngôn ngữ trả lời,
         # nó chỉ là ngôn ngữ để nêu tên ở những chỗ buộc phải nêu (đồng hồ trong prompt, danh
         # sách skill, giọng đọc dự phòng) - lấy ngôn ngữ dò được nếu có, không thì cấu hình.
-        neu_ten = (do_duoc if lang_registry.duoc_ho_tro(do_duoc) else "") or ui_lang
+        # 2026-11-15: a detected language Javis can NAME (Japanese, Thai, Korean...) is named too, not
+        # only vi/en: the fast-path capsule then says "answer in Japanese" instead of the interface's.
+        neu_ten = lang_registry.reply_code(do_duoc) or ui_lang
         return _xong(neu_ten, "detect" if do_duoc else "ui", max(tin, 0.5), theo=True)
 
     # Việc chạy nền: không có lượt người dùng nào để mà bám.
@@ -559,6 +585,21 @@ def resolve(*, turn_text: str = "", reply_pref: str = "auto", chatbot_pin: str =
         return _xong(ui_lang, "ui", 0.7)
 
     return _xong(lang_registry.MAC_DINH, "default", 0.5)
+
+
+def resolve_background(*, reply_pref: str = "auto", ui_lang: str = "") -> LangDecision:
+    """Language of work that has no chat turn: Kanban tasks, reminders, loops, learning (2026-11-15).
+
+    A reply language set in Settings, any nameable one, is named. Without one the model follows the
+    language of the TASK itself, which the owner wrote: a reminder written in Japanese reports in
+    Japanese. Before, `build_system_prompt` without a language named Vietnamese for every brain, so
+    an English or Japanese owner got every background report in Vietnamese.
+    """
+    pref = lang_registry.reply_code(reply_pref)
+    if pref:
+        return LangDecision(pref, "setting", 1.0, co_lexicon(pref))
+    ui = lang_registry.chuan_hoa(ui_lang) or lang_registry.MAC_DINH
+    return LangDecision(ui, "ui", 0.7, co_lexicon(ui), "", True)
 
 
 # ---------------------------------------------------------------- chữ cho prompt
@@ -570,9 +611,8 @@ def call_language(said: str, recognition_lang: str = "") -> str:
     lúc là tiếng Anh dù người dùng nói tiếng Việt). Không dò ra thì theo ngôn ngữ nhận dạng của
     mic ("vi-VN"); mic để "auto" thì không ghim gì."""
     code, _ = detect(said)
-    if lang_registry.duoc_ho_tro(code):
-        return lang_registry.chuan_hoa(code)
-    return lang_registry.chuan_hoa(recognition_lang)
+    # Any nameable language (2026-11-15): a call in Japanese pins Japanese, as one in Vietnamese pins Vietnamese.
+    return lang_registry.reply_code(code) or lang_registry.reply_code(recognition_lang)
 
 
 # Why the pin holds, in the block and in the per-turn line. Background work and an unknown source
@@ -608,7 +648,9 @@ def khoi_ngon_ngu(quyet_dinh: LangDecision) -> str:
     registry `nudge`, written in the target language itself, for small models that drift with
     the language of the prompt.
     """
-    l = lang_registry.get(quyet_dinh.lang)
+    l = lang_registry.reply_info(quyet_dinh.lang)
+    # "English (en)", "Japanese (日本語, ja)": the native name helps a model tell close languages apart.
+    ten = f"{l.english} ({l.code})" if l.english == l.native else f"{l.english} ({l.native}, {l.code})"
 
     if quyet_dinh.theo_nguoi_dung:
         # Không ai ghim gì: để model bám. Nó làm việc này tốt hơn bộ dò của mình, và làm được
@@ -640,13 +682,13 @@ def khoi_ngon_ngu(quyet_dinh: LangDecision) -> str:
         "",
         "",
         "# === NGÔN NGỮ ===",
-        f"Reply language: {l.lang_directive} ({l.code})" + (f", {why}." if why else "."),
+        f"Reply language: {ten}" + (f", {why}." if why else "."),
     ]
     if quyet_dinh.detected and quyet_dinh.detected != l.code:
         dong.append(f"(The user is writing in: {quyet_dinh.detected}. Still reply in "
-                    f"{l.lang_directive}, as pinned.)")
+                    f"{l.english}, as pinned.)")
     dong += [
-        f"Write the WHOLE reply in {l.lang_directive}, headings, labels, units, warnings and "
+        f"Write the WHOLE reply in {l.english}, headings, labels, units, warnings and "
         "questions back included.",
         _NOT_A_HINT,
         _KEEP_AS_IS,
@@ -669,9 +711,9 @@ def turn_line(quyet_dinh: LangDecision) -> str:
     """
     if quyet_dinh.theo_nguoi_dung or quyet_dinh.source not in _PIN_REASON:
         return ""
-    return f"[{lang_registry.get(quyet_dinh.lang).nudge}]"
+    return f"[{lang_registry.reply_info(quyet_dinh.lang).nudge}]"
 
 
 def nudge_dau_luot(code: str) -> str:
     """Câu nhắc ngắn viết bằng chính ngôn ngữ đích, dán lên đầu tin nhắn user cho engine yếu."""
-    return lang_registry.get(code).nudge
+    return lang_registry.reply_info(code).nudge

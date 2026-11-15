@@ -173,6 +173,19 @@ Liệt kê ra đây vì đây là chỗ người ta hay đi thừa:
 
 ---
 
+## Chỉ cần GHIM được một thứ tiếng: thêm một dòng vào danh mục trả lời
+
+Từ 15/11/2026 (chủ repo: "Javis phải làm việc và nói chuyện được bằng mọi ngôn ngữ như Claude hay
+ChatGPT"), muốn người dùng ghim được một thứ tiếng (ô "Javis trả lời bằng" ở Cài đặt, ngôn ngữ của
+chatbot, lệnh "tiếng Nhật nhé" trong chat, việc chạy nền, giọng đọc) thì KHÔNG cần đủ bốn bước trên.
+Chỉ thêm một dòng `ReplyLang` vào `_CATALOG` trong `server/lang_registry.py`: mã, tên tiếng Anh, tên
+bản ngữ, một câu nhắc viết bằng chính thứ tiếng đó, tiền tố giọng Edge, và cách người ta gọi tên nó
+(viết thường, bỏ dấu, ví dụ `"tieng nhat"`). Đừng thêm tên trùng một từ thường ngày ("polish" trong
+"polish this text", "lao" trong tiếng Việt). Test canh ở `tests/python/test_any_reply_language.py`.
+
+Danh mục hiện có 35 thứ tiếng. Thứ tiếng ngoài danh mục vẫn được trả lời bình thường (model bám theo
+người viết), chỉ là chưa ghim được bằng tên.
+
 ## Ngôn ngữ ĐÃ ĐĂNG KÝ
 
 Nhắc lại: đây KHÔNG phải danh sách thứ tiếng Javis nói được. Javis trả lời được mọi thứ tiếng.

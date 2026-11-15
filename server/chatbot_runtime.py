@@ -380,10 +380,12 @@ def build_bot_prompt(bot: dict) -> str:
     # Một câu ngắn chứ không phải khối đầy đủ như prompt chính: prompt bot vốn chỉ vài chục
     # token, nhét 60 token luật ngôn ngữ vào là làm lệch hẳn tỉ trọng so với file Agent của
     # chủ - mà file đó mới là thứ quyết định bot nói gì.
-    _ma = lang_registry.chuan_hoa((bot or {}).get("ngon_ngu") or "")
+    # 2026-11-15: any nameable language (Japanese, Korean, Thai...), not only vi/en: a Vietnamese shop serving
+    # Japanese customers is the very case this field exists for.
+    _ma = lang_registry.reply_code((bot or {}).get("ngon_ngu") or "")
     if _ma:
-        _l = lang_registry.get(_ma)
-        phan.append(f"\nNGÔN NGỮ: luôn trả lời khách bằng {_l.lang_directive}, "
+        _l = lang_registry.reply_info(_ma)
+        phan.append(f"\nNGÔN NGỮ: luôn trả lời khách bằng {_l.english} ({_l.native}), "
                     f"kể cả khi khách nhắn bằng tiếng khác. {_l.nudge}")
     else:
         phan.append("\nNGÔN NGỮ: trả lời bằng ĐÚNG ngôn ngữ khách đang nhắn.")

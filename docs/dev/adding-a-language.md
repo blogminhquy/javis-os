@@ -246,6 +246,20 @@ Listed here because this is where people tend to overdo it:
 
 ---
 
+## Only need people to PIN a language: add one line to the reply catalog
+
+Since 2026-11-15 (owner: "Javis must work and talk in any language, like Claude or ChatGPT"), letting
+people pin a language (the "Javis replies in" picker in Settings, a chatbot's language, "reply in
+Japanese" in the chat, background work, the voice) does NOT need the four steps above. Add one
+`ReplyLang` line to `_CATALOG` in `server/lang_registry.py`: the code, the English name, the native
+name, one nudge sentence written in that language, the Edge voice prefix, and how people name it
+(lowercase, without accents, e.g. `"tieng nhat"`). Leave out a name that is also an everyday word
+("polish" as in "polish this text", "lao" in Vietnamese). Guarded by
+`tests/python/test_any_reply_language.py`.
+
+The catalog holds 35 languages today. A language outside it is still answered normally (the model
+follows the writer); it just cannot be pinned by name.
+
 ## REGISTERED languages
 
 Again: this is NOT the list of languages Javis can speak. Javis can answer in any language.

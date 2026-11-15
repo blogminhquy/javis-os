@@ -1259,6 +1259,24 @@ def _lang_turn_text(message: str) -> str:
     return clean or raw
 
 
+def _background_lang_decision():
+    """`lang.resolve_background` from the saved locale; never raises (a broken setting = follow the task)."""
+    try:
+        lc = (cfgmod.read_settings() or {}).get("locale") or {}
+    except Exception:  # noqa: BLE001
+        lc = {}
+    return lang_mod.resolve_background(reply_pref=lc.get("reply_lang") or "auto", ui_lang=lc.get("ui_lang") or "")
+
+
+def _background_system_prompt(brain: str = "brain") -> str:
+    """The system prompt of work with no chat turn: Kanban tasks, reminders, loops, learning (2026-11-15).
+
+    They used to call `build_system_prompt(brain)` with no language, which names Vietnamese, so an English or
+    Japanese owner got every background report in Vietnamese. Now: the Settings pin, else the task's own language.
+    """
+    return build_system_prompt(brain, lang=_background_lang_decision())
+
+
 def _update_conversation_lang(store, session_id: str, own_words: str) -> str:
     """Apply this message to the conversation's pinned reply language and return the pin now in force ("" = none).
 
@@ -7458,6 +7476,8 @@ def settings_get():
     # Nguồn duy nhất là sổ đăng ký phía server: dashboard KHÔNG khai lại danh sách, nếu không
     # thì thêm ngôn ngữ mới phải nhớ sửa hai chỗ và chỗ bị quên hỏng trong im lặng.
     safe["lang_list"] = lang_registry.cho_giao_dien()
+    # The REPLY language picker offers every nameable language (2026-11-15); `lang_list` stays the interface's.
+    safe["reply_lang_list"] = lang_registry.reply_choices()
     # Interface pickers also offer dashboard-only dictionaries (a community xx.json, 0.99.0); `lang_list` stays the
     # languages the server itself speaks, which is what reply language and voice may choose from.
     safe["ui_lang_list"] = safe["lang_list"] + lang_registry.dashboard_only_languages(DASHBOARD_PATH / "i18n")
@@ -7594,7 +7614,8 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             v = str(patch["reply_lang"] or "").strip().lower()
             # "auto" là giá trị HỢP LỆ, không phải chuỗi rỗng: nó nghĩa là "bám theo người
             # dùng", khác hẳn với "chưa chọn".
-            lc["reply_lang"] = "auto" if v in ("", "auto") else (lang_registry.chuan_hoa(v) or "auto")
+            # 2026-11-15: any nameable language (Japanese, French...), not only the two with a full registry entry.
+            lc["reply_lang"] = "auto" if v in ("", "auto") else (lang_registry.reply_code(v) or "auto")
         if "ui_lang" in patch:
             lc["ui_lang"] = lang_registry.chuan_hoa(patch["ui_lang"]) or lang_registry.MAC_DINH
             # Nguồn của giá trị: "tu_dong" = dashboard tự ghi theo trình duyệt của thiết bị ghé
@@ -15371,7 +15392,7 @@ def _loop_mcp_allow():
 
 
 loop_feature = self_improve.register(app, self_improve.LoopDeps(
-    build_system_prompt=build_system_prompt,
+    build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     brain_root=_brain_root,
     aux_model=_aux_model,
     aux_swap=_aux_swap,
@@ -15412,7 +15433,7 @@ async def run_loop_cycle(reason="manual"):
 import learn as learn_mod
 
 learn_feature = learn_mod.register(app, learn_mod.LearnDeps(
-    build_system_prompt=build_system_prompt,
+    build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     brain_root=_brain_root,
     brain_memory_dir=_brain_memory_dir,
     resolve_subfolder=_resolve_subfolder,
@@ -15488,7 +15509,7 @@ tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     atomic_write_text=_atomic_write_text,
     execute_workflow=execute_workflow,
     workflows_dir=_workflows_dir,
-    build_system_prompt=build_system_prompt,
+    build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     aux_model=_aux_model,
     aux_swap=_aux_swap,
     safe_tools=SAFE_FILE_TOOLS,
@@ -15717,7 +15738,7 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     atomic_write_text=_atomic_write_text,
     send_telegram=_bao_nhac_hen,
     notify_ready=_notify_ready,
-    build_system_prompt=build_system_prompt,
+    build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     aux_model=_aux_model,
     aux_swap=_aux_swap,
     safe_tools=SAFE_FILE_TOOLS,
@@ -20232,11 +20253,12 @@ async def tts_voices(lang: str = Query("")):
     nghe như máy hỏng. Danh sách ngôn ngữ lấy từ sổ đăng ký chứ không khai lại ở đây.
     """
     import edge_tts   # lazy - xem ghi chú ở đầu file
-    ma = lang_registry.chuan_hoa(lang) or localefmt.ngon_ngu_tra_loi()
-    # Tiền tố locale suy từ giọng mặc định của ngôn ngữ đó ("vi-VN-HoaiMyNeural" -> "vi-VN"),
-    # để thêm ngôn ngữ vẫn chỉ là thêm một dòng trong sổ đăng ký.
-    giong_mac_dinh = lang_registry.giong_tts(ma, "edge")
-    tien_to = "-".join(giong_mac_dinh.split("-")[:2]) if giong_mac_dinh else ma
+    # Any nameable language (2026-11-15): a reply language pinned to Japanese lists Japanese voices.
+    _pin = (cfgmod.read_settings().get("locale") or {}).get("reply_lang") or ""
+    ma = lang_registry.reply_code(lang) or lang_registry.reply_code(_pin) or localefmt.ngon_ngu_tra_loi()
+    # Tiền tố locale lấy từ danh mục ngôn ngữ trả lời ("ja-JP"); ngôn ngữ đủ mục thì suy từ giọng
+    # mặc định ("vi-VN-HoaiMyNeural" -> "vi-VN"), như trước.
+    tien_to = lang_registry.reply_info(ma).edge or ma
     voices = await edge_tts.list_voices()
     return {
         "lang": ma,
@@ -29918,7 +29940,8 @@ def chatbots_list(brain: str = ""):
     # Nhãn + cảnh báo rủi ro của từng mức quyền đi kèm luôn: giao diện KHÔNG được giữ bản chép
     # riêng. Chép riêng thì một hôm server siết thêm một rào mà ô cảnh báo vẫn hứa như cũ, và
     # chủ bấm đồng ý dựa trên một câu đã sai.
-    return {"bots": out, "lang_list": lang_registry.cho_giao_dien(), "muc_quyen": [
+    return {"bots": out, "lang_list": lang_registry.cho_giao_dien(),
+            "reply_lang_list": lang_registry.reply_choices(), "muc_quyen": [
         {"id": m, "nhan": chatbot_store.nhan_muc(m),
          "canh_bao": chatbot_store.canh_bao_muc(m),
          "can_xac_nhan": m in chatbot_store.MUC_NANG}

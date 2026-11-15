@@ -168,7 +168,8 @@
       var d = await api("/chatbots?brain=" + encodeURIComponent(brain()));
       _bots = d.bots || [];
       _mucDS = d.muc_quyen || [];
-      _langDS = d.lang_list || [];
+      // Every nameable language (2026-11-15): a shop can pin a Japanese or Korean bot, not only vi/en.
+      _langDS = d.reply_lang_list || d.lang_list || [];
       _kenhDS = d.kenh || [];
       _tkRanh = d.tai_khoan || [];
       _tkBan = d.tai_khoan_ban || [];
