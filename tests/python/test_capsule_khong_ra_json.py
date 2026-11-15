@@ -68,7 +68,7 @@ check("cấm đích danh việc bọc trong JSON", "không bọc câu trả lờ
       or "không bọc" in _loi.casefold())
 check("có nhắc JSON để lời cấm không mơ hồ", "JSON" in _loi)
 check("cấm in lại chính lời dặn này", "không in lại" in _loi.casefold())
-check("vẫn giữ luật ngôn ngữ theo người dùng", "ngôn ngữ người dùng" in _loi)
+check("vẫn giữ luật ngôn ngữ theo người dùng", "Reply in the user's language" in _loi)
 check("vẫn giữ luật thiếu dữ liệu phải nói", "thiếu" in _loi.casefold())
 check("vẫn giữ luật không nhận bừa là đã làm xong", "bằng chứng" in _loi.casefold())
 check("nêu đúng kênh", "Dashboard" in _loi)

@@ -102,7 +102,7 @@ SRC = (Path(SERVER) / "main.py").read_text(encoding="utf-8")
 check("Claude Code lane asks for the stable prompt",
       '"cli", cli.model or mcfg.get("claude_model") or "mặc định", kind, stable=_stable_sp)' in SRC)
 check("Claude Code lane prefixes the turn facts header",
-      "_turn_facts_header(brain, conv_sid or \"\", _lang_qd.lang, first=not cli.session_id)" in SRC)
+      "_turn_facts_header(brain, conv_sid or \"\", _lang_qd.lang, first=not cli.session_id,\n" in SRC)
 check("agent DMs keep their own prompt", "_stable_sp = not _persona" in SRC)
 check("Codex, Grok and Antigravity lanes are untouched",
       all(f'_subscription_system_prompt("{p}"' in SRC or f'_subscription_system_prompt(\n                    "{p}"' in SRC

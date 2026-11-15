@@ -651,7 +651,11 @@ class SessionStore:
                               # lượt. NULL/rỗng = phiên chưa có lượt dashboard nào (hoặc phiên
                               # Telegram) → theo mặc định chung ở settings.json.
                               ("pinned_provider", "TEXT"),
-                              ("pinned_model", "TEXT")):
+                              ("pinned_model", "TEXT"),
+                              # Reply language the owner asked for in THIS conversation ("English pls",
+                              # lang.conversation_pin_update), 2026-11-15. NULL/empty = none: Settings
+                              # or the person's own language decides, as before.
+                              ("reply_lang", "TEXT")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
             # Index cho cột vừa thêm phải chạy SAU vòng ALTER: DB cũ chưa có cột thì CREATE
@@ -1707,6 +1711,15 @@ class SessionStore:
         self._write(lambda c: c.execute(
             "UPDATE sessions SET pinned_provider = ?, pinned_model = ? WHERE id = ?",
             (prov, mdl, session_id)))
+        return True
+
+    def set_reply_lang(self, session_id: str, code: Optional[str]) -> bool:
+        """Pin the reply language of ONE conversation (empty = clear). False when the session does not exist."""
+        if not self.get_session(session_id):
+            return False
+        val = (code or "").strip().lower() or None
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET reply_lang = ? WHERE id = ?", (val, session_id)))
         return True
 
     # ── projects (nhóm hội thoại) ──

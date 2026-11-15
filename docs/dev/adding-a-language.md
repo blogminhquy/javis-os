@@ -223,10 +223,14 @@ which checks those links.
 
 Listed here because this is where people tend to overdo it:
 
-- **Do not** translate the system prompt or `CLAUDE.md`. The prompt stays in Vietnamese; the
-  `# === NGÔN NGỮ ===` (language) block at the end is what decides which language Javis answers
-  in. The model reads Vietnamese instructions and answers in Thai, which is perfectly normal,
-  and one prompt set per language is one more set to drift out of sync.
+- **Do not** translate the system prompt or `CLAUDE.md` into each language. There is one copy
+  of each; the `# === NGÔN NGỮ ===` (language) block is what decides which language Javis
+  answers in. The model reads Vietnamese or English instructions and answers in Thai, which is
+  perfectly normal, and one prompt set per language is one more set to drift out of sync.
+  (Since 2026-11-15 the language block itself is written in English, like `CLAUDE.md`, and says
+  the Vietnamese around it is no hint; the reason is at the top of `lang.khoi_ngon_ngu`. A chat
+  command such as "English pls" pins the language for the whole conversation, column
+  `sessions.reply_lang`.)
 - **Do not** translate the section labels in the prompt (`# === SKILL KHẢ DỤNG` (available
   skills), `# === KÊNH HỘI THOẠI HIỆN TẠI` (current chat channel)...). They are **measurement
   markers**: `context_runtime` counts tokens per section by matching those exact strings

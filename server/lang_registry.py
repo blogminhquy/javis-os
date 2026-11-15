@@ -156,7 +156,8 @@ LANGS: Dict[str, Lang] = {
             "each", "every", "other", "into", "over", "under", "between", "before",
             "after", "out", "here", "now",
         ),
-        request_words=("english", "tieng anh", "tiếng anh", "in english", "anh ngu", "anh ngữ"),
+        # "eng": the short form people type ("Eng pls"). Not a Vietnamese word, with or without accents.
+        request_words=("english", "tieng anh", "tiếng anh", "in english", "anh ngu", "anh ngữ", "eng"),
         stt="en",
         tts={
             "edge": "en-US-AriaNeural",

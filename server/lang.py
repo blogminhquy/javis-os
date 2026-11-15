@@ -47,7 +47,7 @@ DO_DAI_TOI_THIEU = 12
 @dataclass(frozen=True)
 class LangDecision:
     lang: str            # ngôn ngữ để NÊU TÊN khi cần nêu (đồng hồ, danh sách skill, giọng đọc)
-    source: str          # turn | chatbot | brain | channel | detect | ui | default
+    source: str          # turn | chatbot | conversation | setting | brain | channel | detect | ui | default
     confidence: float
     has_lexicon: bool    # có bộ từ vựng cho ngôn ngữ này không (xem server/lexicon/)
     detected: str = ""   # ngôn ngữ dò được từ lượt này, kể cả khi không được dùng
@@ -78,6 +78,18 @@ class LangDecision:
         # là đúng con bệnh đã đo được - user ghim trả lời tiếng Anh rồi hỏi tiếng Việt thì
         # cổng đem bộ từ vựng tiếng Anh ra chấm một câu tiếng Việt.
         return self.detected
+
+    @property
+    def capsule_lang(self) -> str:
+        """Language to NAME in a prompt that carries no full language block (a compiled capsule), "" = follow.
+
+        A pin is named. With no pin, only what THIS turn was detected as; when nothing was detected
+        (`source` "ui": "ok do 2") the old code named the interface language, so a short English
+        message on a Vietnamese interface was answered in Vietnamese.
+        """
+        if not self.theo_nguoi_dung:
+            return self.lang
+        return self.lang if self.source == "detect" else ""
 
     def as_trace(self) -> dict:
         return {"lang": self.lang, "lang_source": self.source,
@@ -304,6 +316,12 @@ def _yeu_cau_thang(text: str) -> str:
     if _DONG_TU_DICH.search(s):
         return ""
 
+    # A command that holds for the rest of the conversation ("English pls!", "tiếng Anh nhé") is
+    # a command for this turn too. Before 2026-11-15 "English pls" matched nothing below.
+    ghim = _sticky_command(s)
+    if ghim:
+        return ghim
+
     # Động từ phải nói về việc TRẢ LỜI. Bản đầu nhận cả "dung", "viet", "write", "use" - quá
     # rộng, nên "anh dùng app học tiếng Anh nào tốt" bị hiểu là lệnh đổi ngôn ngữ, và nó còn
     # đè lên cả lựa chọn user đã ghim ở Cài đặt (mức 1 đứng trên mức 3).
@@ -343,6 +361,112 @@ def _la_cau_than(s: str, vt: int) -> bool:
     return bool(_HOI_LY_DO.search(truoc))
 
 
+# ---------------------------------------------------------------- conversation pin (2026-11-15)
+#
+# Why this exists. A community member set "answer me in English" and still had to repeat it more
+# than ten times in two days: "English pls!" was not recognised at all, and a recognised command
+# ("reply in English") only held for the turn that said it. The next message typed in Vietnamese,
+# or a short "ok do 2", fell back to "follow the user's last message", and the Vietnamese-heavy
+# context did the rest. A reply-language command now pins the CONVERSATION until the owner asks
+# for another language or complains about this one.
+#
+# Being sticky raises the cost of a false positive, so the bar is higher than for `_yeu_cau_thang`:
+# a sentence counts only when every other word in it is a filler (politeness, pronoun, "in",
+# "bằng", "from now on"). Any content word makes it a request about CONTENT, which only steers
+# the one turn: "reply to this email in English", "viết caption bằng tiếng Anh", "trả lời khách
+# này bằng tiếng Anh" are jobs, not a new language for the whole chat.
+
+# Words that speak about Javis's own replies. They also mark the sentence as a command.
+_REPLY_VERBS = frozenset((
+    "tra", "loi", "noi", "chuyen", "doi", "sang", "giao", "tiep", "dung",
+    "answer", "reply", "respond", "speak", "talk", "switch", "chat", "use", "using",
+))
+# Urgency and "from now on": a bare language name ("English", the answer to "which language
+# should the caption be in?") is not a command, "English pls" is.
+_COMMAND_MARKERS = _REPLY_VERBS | frozenset((
+    "please", "pls", "plz", "plez", "plss", "now", "only", "always", "again", "from",
+    "nhe", "nha", "nhen", "di", "thoi", "luon", "gio", "lai",
+))
+# Words that may stand around the language name without naming a task.
+_COMMAND_FILLER = _COMMAND_MARKERS | frozenset((
+    "me", "to", "with", "in", "us", "back", "on", "all", "the", "time", "just", "ok", "okay",
+    "thanks", "thank", "thx", "ty", "you", "can", "could", "would", "will", "hey", "javis", "i",
+    "anh", "em", "chi", "ban", "minh", "toi", "tao", "a", "ah", "oi", "voi", "bang", "cho", "tu",
+    "nay", "het", "ca", "hoan", "toan", "duoc", "khong", "vay", "giup", "dum", "y", "la", "thi",
+    "hay", "chu", "nen", "ma", "roi", "va", "and", "but", "no", "yes", "yeah", "so",
+))
+_SENTENCE = re.compile(r"[.!?\n,;:]+")
+_STICKY_MAX_WORDS = 14
+
+
+def _phrase_at(words: list, phrase: tuple) -> int:
+    """Index where `phrase` (a tuple of words) starts inside `words`, or -1."""
+    n = len(phrase)
+    for i in range(len(words) - n + 1):
+        if tuple(words[i:i + n]) == phrase:
+            return i
+    return -1
+
+
+def _sticky_command(s: str) -> str:
+    """Language code when a sentence of `s` (already passed through `_bo_dau`) asks Javis to reply in it from now on.
+
+    "" when no sentence qualifies. A sentence asking WHY ("sao em lại trả lời bằng tiếng Anh") never
+    does: "sao" and "why" are not fillers, so the complaint fails the filler test on its own.
+    """
+    for cau in _SENTENCE.split(s):
+        words = _TU.findall(cau)
+        if not words or len(words) > _STICKY_MAX_WORDS:
+            continue
+        for code in lang_registry.ma_list():
+            for tu in lang_registry.get(code).request_words:
+                phrase = tuple(_TU.findall(_bo_dau(tu)))
+                at = _phrase_at(words, phrase) if phrase else -1
+                if at < 0:
+                    continue
+                rest = words[:at] + words[at + len(phrase):]
+                if rest and all(w in _COMMAND_FILLER for w in rest) \
+                        and any(w in _COMMAND_MARKERS for w in rest):
+                    return code
+    return ""
+
+
+def _complained_language(s: str) -> str:
+    """Language the owner complains about being answered in ("why are you replying in English?"), or ""."""
+    dong_tu = r"tra loi|noi|answer|reply|respond|speak|writ(?:e|ing)|talk"
+    for code in lang_registry.ma_list():
+        for tu in lang_registry.get(code).request_words:
+            t = re.escape(_bo_dau(tu))
+            for m in re.finditer(rf"\b({dong_tu})\w*\b[^.!?\n]{{0,24}}?\b{t}\b", s):
+                if _la_cau_than(s, m.start()):
+                    return code
+    return ""
+
+
+def conversation_pin_update(text: str, current: str = ""):
+    """How this message changes the conversation's pinned reply language.
+
+    Returns a language code to pin, "" to clear the pin, or None to leave it as it is. A request to
+    translate never pins. A complaint about the pinned language clears it, so "sao lại trả lời bằng
+    tiếng Anh?" is not answered in English again; a complaint about ANOTHER language keeps the pin
+    ("why are you answering in Vietnamese?" while English is pinned means: keep English).
+    """
+    s = _bo_dau(text)
+    if not s or _DONG_TU_DICH.search(s):
+        return None
+    code = _sticky_command(s)
+    if code:
+        return code
+    cur = lang_registry.chuan_hoa(current)
+    if cur and _complained_language(s) == cur:
+        # "Ý là em trả lời anh bằng tiếng Việt chứ sao em lại trả lời bằng tiếng Anh?": the complaint and the
+        # new choice share one sentence, so the strict test above misses the choice. The per-turn command
+        # still reads it; a complaint plus a choice is a clear enough word to pin that choice.
+        khac = _yeu_cau_thang(s)
+        return khac if khac and khac != cur else ""
+    return None
+
+
 # ---------------------------------------------------------------- bộ từ vựng
 
 def co_lexicon(code: str) -> bool:
@@ -361,7 +485,8 @@ def co_lexicon(code: str) -> bool:
 # ---------------------------------------------------------------- quyết định
 
 def resolve(*, turn_text: str = "", reply_pref: str = "auto", chatbot_pin: str = "",
-            brain_pin: str = "", channel_default: str = "", ui_lang: str = "") -> LangDecision:
+            conversation_pin: str = "", brain_pin: str = "", channel_default: str = "",
+            ui_lang: str = "") -> LangDecision:
     """Chốt xem lượt này Javis trả lời bằng tiếng gì.
 
     NGUYÊN TẮC (đổi ở 0.35.0, sau khi đo): **model tự bám theo ngôn ngữ người dùng, hàm này
@@ -382,6 +507,8 @@ def resolve(*, turn_text: str = "", reply_pref: str = "auto", chatbot_pin: str =
     Thứ tự GHIM, cao xuống thấp:
       1. user ra lệnh thẳng trong lượt này ("trả lời bằng tiếng Anh")
       2. ngôn ngữ ghim của chatbot (bot phục vụ khách lạ, không theo ngôn ngữ của chủ)
+      2b. `conversation_pin`: the owner asked for this language earlier in THIS conversation
+          (`conversation_pin_update`). Above Settings because it is newer and narrower.
       3. `reply_pref` khác "auto" - user đã ghim ở Cài đặt
       4. ngôn ngữ ghim của brain
       5. mặc định của kênh (Zalo là nền tảng Việt Nam)
@@ -406,6 +533,9 @@ def resolve(*, turn_text: str = "", reply_pref: str = "auto", chatbot_pin: str =
 
     if lang_registry.chuan_hoa(chatbot_pin):
         return _xong(chatbot_pin, "chatbot", 1.0)
+
+    if lang_registry.chuan_hoa(conversation_pin):
+        return _xong(conversation_pin, "conversation", 1.0)
 
     pref = lang_registry.chuan_hoa(reply_pref)
     if pref:
@@ -445,54 +575,101 @@ def call_language(said: str, recognition_lang: str = "") -> str:
     return lang_registry.chuan_hoa(recognition_lang)
 
 
+# Why the pin holds, in the block and in the per-turn line. Background work and an unknown source
+# name no reason: there is no person behind it to quote.
+_PIN_REASON = {
+    "turn": "asked for in this message",
+    "conversation": "asked for earlier in this conversation",
+    "setting": "set in Settings",
+    "chatbot": "the language of this bot",
+    "brain": "the language of this brain",
+    "channel": "the language of this channel or call",
+}
+
+# The prompt around this block is mostly Vietnamese (the blocks Javis inserts, the channel rules,
+# tool results, system skills), and its examples address the reader as mình/bạn. Measured
+# 2026-11-15: after the English kernel, the last ~13,000 characters before the model writes are
+# about 80% Vietnamese words. A model reads that as a hint; this line says it is none.
+_NOT_A_HINT = ("Much of this prompt, the tool results and the brain are in Vietnamese, and its examples "
+               "address the reader as mình/bạn. That is NEVER a hint about the reply language.")
+_KEEP_AS_IS = ("Do not translate: proper nouns, file paths, tool names, brain names, code blocks, and "
+               "verbatim excerpts from the brain or a tool result. Content in another language is read "
+               "as it is; only the REPLY follows this block.")
+
+
 def khoi_ngon_ngu(quyet_dinh: LangDecision) -> str:
     """Khối "# === NGÔN NGỮ ===" nối vào system prompt.
 
-    Bản thân khối viết bằng TIẾNG VIỆT có chủ ý (spec quyết định số hai: một bản CLAUDE.md,
-    không dịch luật hành xử ra N bản - model không cần đọc luật bằng tiếng Anh để trả lời
-    bằng tiếng Anh). Chỉ câu `nudge` cuối là viết bằng chính ngôn ngữ đích, dành cho model
-    nhỏ vốn trôi theo ngôn ngữ của prompt.
+    Written in ENGLISH since 2026-11-15. The old reason to keep it Vietnamese ("one CLAUDE.md, the
+    rules are not translated N times") lapsed when CLAUDE.md itself moved to English; what was left
+    was a Vietnamese rule about the reply language sitting in a Vietnamese tail, read by an English
+    speaker's turn. The header stays `# === NGÔN NGỮ ===`: CLAUDE.md points at it by that name and
+    `context_runtime` measures blocks by their header. The last line of a pinned block is the
+    registry `nudge`, written in the target language itself, for small models that drift with
+    the language of the prompt.
     """
     l = lang_registry.get(quyet_dinh.lang)
-    chung = [
-        "Giữ nguyên KHÔNG dịch: tên riêng, đường dẫn file, tên tool, tên brain, khối mã, và "
-        "đoạn trích nguyên văn từ brain hoặc từ kết quả tool.",
-        "Nội dung trong brain viết bằng ngôn ngữ khác thì cứ đọc bình thường, chỉ TRẢ LỜI "
-        "theo luật trên.",
-    ]
 
     if quyet_dinh.theo_nguoi_dung:
         # Không ai ghim gì: để model bám. Nó làm việc này tốt hơn bộ dò của mình, và làm được
-        # với MỌI thứ tiếng chứ không riêng hai thứ có trong sổ đăng ký.
+        # với MỌI thứ tiếng chứ không riêng hai thứ có trong sổ đăng ký. But a reply language the
+        # person STATED (profile, memory, earlier in the chat) used to lose to "the language of
+        # the last message" here, because this block sits after the profile and said nothing
+        # about it: the root of "it keeps forgetting I want English".
         return "\n".join([
             "",
             "",
             "# === NGÔN NGỮ ===",
-            "Trả lời bằng ĐÚNG thứ tiếng người dùng vừa viết trong tin nhắn cuối cùng. Họ gõ "
-            "tiếng Việt thì trả lời tiếng Việt, gõ tiếng Anh thì trả lời tiếng Anh, gõ thứ "
-            "tiếng nào khác thì trả lời bằng chính thứ tiếng đó.",
-            "Viết TOÀN BỘ câu trả lời bằng ngôn ngữ ấy, kể cả tiêu đề, nhãn, đơn vị và câu "
-            "cảnh báo. Đừng trộn hai thứ tiếng trong một câu trả lời.",
-            "Tin nhắn quá ngắn để đoán (\"ok\", \"thanks\") thì giữ nguyên thứ tiếng đang dùng "
-            "trong cuộc trò chuyện này.",
-            *chung,
+            "Reply in the language of the user's latest message: Vietnamese gets Vietnamese, "
+            "English gets English, any other language gets that language.",
+            "A reply language the user has STATED wins over that rule: in the user profile, in "
+            "long-term memory, or earlier in this conversation (\"English please\", \"always answer "
+            "me in Vietnamese\"). Keep it on every later turn, even when they type in another "
+            "language, until they ask for a different one. If they say to ALWAYS use a language, "
+            "also save it as a `preference` memory.",
+            "Write the WHOLE reply in that one language, headings, labels, units, warnings and "
+            "questions back included. Do not mix two languages in one reply.",
+            "A message too short to tell (\"ok\", \"do 2\") keeps the language already in use in "
+            "this conversation.",
+            _NOT_A_HINT,
+            _KEEP_AS_IS,
         ])
 
+    why = _PIN_REASON.get(quyet_dinh.source, "")
     dong = [
         "",
         "",
         "# === NGÔN NGỮ ===",
-        f"Ngôn ngữ trả lời: {l.lang_directive} ({l.code}).",
+        f"Reply language: {l.lang_directive} ({l.code})" + (f", {why}." if why else "."),
     ]
     if quyet_dinh.detected and quyet_dinh.detected != l.code:
-        dong.append(f"(Người dùng đang viết bằng: {quyet_dinh.detected}. Vẫn trả lời bằng "
-                    f"{l.lang_directive} theo lựa chọn đã ghim.)")
+        dong.append(f"(The user is writing in: {quyet_dinh.detected}. Still reply in "
+                    f"{l.lang_directive}, as pinned.)")
     dong += [
-        "Viết TOÀN BỘ câu trả lời bằng ngôn ngữ này, kể cả tiêu đề, nhãn, đơn vị và câu cảnh báo.",
-        *chung,
-        l.nudge,
+        f"Write the WHOLE reply in {l.lang_directive}, headings, labels, units, warnings and "
+        "questions back included.",
+        _NOT_A_HINT,
+        _KEEP_AS_IS,
     ]
+    if quyet_dinh.source in ("turn", "conversation", "setting"):
+        dong.append("If the user now asks for another language, use that one.")
+    dong.append(l.nudge)
     return "\n".join(dong)
+
+
+def turn_line(quyet_dinh: LangDecision) -> str:
+    """One short line at the head of the user message when a reply language is pinned, else "".
+
+    Why the message and not only the system prompt: Claude Code and the Codex app-server keep the
+    system prompt of a thread's FIRST turn when they resume it (measured 27/10/2026, see
+    `context_compiler.dong_ho_ngan`). A language asked for on turn 5, or set in Settings while the
+    chat was open, never reached a resumed thread. Written in the target language (`nudge`).
+    Nothing when nobody pinned a language: the model follows the person, and a line naming a
+    language there would be the detector's guess, not the person's choice.
+    """
+    if quyet_dinh.theo_nguoi_dung or quyet_dinh.source not in _PIN_REASON:
+        return ""
+    return f"[{lang_registry.get(quyet_dinh.lang).nudge}]"
 
 
 def nudge_dau_luot(code: str) -> str:
