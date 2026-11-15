@@ -1,0 +1,11 @@
+# Add this site block to the existing Hostinger javis-gateway Caddy configuration.
+# It is intentionally a snippet, not a replacement configuration.
+{$WEBHOOK_DOMAIN} {
+  @zernioWebhook path /webhooks/zernio
+  handle @zernioWebhook {
+    reverse_proxy 127.0.0.1:3000 {
+      header_up X-Forwarded-Proto https
+    }
+  }
+  respond 404
+}

@@ -1,0 +1,25 @@
+services:
+  bridge:
+    # Hostinger Docker Manager deploys an image, not this local checkout. Publish the
+    # verified commit first and pin its immutable digest here or in BRIDGE_IMAGE.
+    image: ${BRIDGE_IMAGE:?published bridge image digest}
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      LISTEN_HOST: "127.0.0.1"
+      REQUIRE_HTTPS: "true"
+      STATE_FILE: /app/data/state.json
+      ZERNIO_WEBHOOK_SECRET: ${ZERNIO_WEBHOOK_SECRET:?set in the deployment secret manager}
+      ZERNIO_INSTAGRAM_ACCOUNT_ID: ${ZERNIO_INSTAGRAM_ACCOUNT_ID:?set account id}
+      ZERNIO_INSTAGRAM_USERNAME: ${ZERNIO_INSTAGRAM_USERNAME:?set account username}
+      SAMMY_RUNTIME_URL: ${SAMMY_RUNTIME_URL:?private Sammy runtime URL}
+      SAMMY_RUNTIME_TOKEN: ${SAMMY_RUNTIME_TOKEN:?set in the deployment secret manager}
+    volumes:
+      - bridge-state:/app/data
+    # The existing javis-gateway Caddy container also uses host networking. The
+    # bridge remains loopback-only and needs the reviewed snippet in deploy/ added
+    # to that gateway before any public route exists.
+    network_mode: host
+
+volumes:
+  bridge-state:

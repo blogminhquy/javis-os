@@ -1,0 +1,6 @@
+**
+!package.json
+!src/
+!src/**
+!data/
+!data/.gitkeep

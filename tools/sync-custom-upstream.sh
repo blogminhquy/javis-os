@@ -15,15 +15,11 @@ git merge-base --is-ancestor main upstream/main || { echo 'Local main has diverg
 echo "Upstream target: $(git rev-parse upstream/main)"
 git log --oneline custom/zernio-bridge..upstream/main
 [[ "$mode" == --apply ]] || exit 0
-bridge="${ZERNIO_BRIDGE_DIR:-../zernio-bridge}"
-[[ -f "$bridge/package.json" ]] || { echo 'Set ZERNIO_BRIDGE_DIR to the bridge checkout.' >&2; exit 1; }
-bridge="$(cd "$bridge" && pwd)"
-[[ -z "$(git -C "$bridge" status --porcelain -- src test package.json Dockerfile)" ]] || { echo 'Bridge source has uncommitted changes.' >&2; exit 1; }
 candidate="update/zernio-$(date -u +%Y%m%dT%H%M%SZ)"
 git switch -c "$candidate" custom/zernio-bridge
 echo "Candidate: $candidate; failures leave the custom branch unchanged."
 git merge --no-edit upstream/main
-(cd "$bridge" && npm test)
+npm --prefix bridges/zernio test
 python tools/release.py check
 python tests/run.py
 # Publish is separate, through the authenticated Javis GitHub gateway.

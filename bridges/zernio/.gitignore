@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+node_modules/
+data/*
+!data/.gitkeep
+*.log
