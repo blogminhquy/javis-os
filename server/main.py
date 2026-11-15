@@ -16267,6 +16267,9 @@ async def _bao_luot_dai_xong(conv_sid: str, brain, turn_tag: str, user_message: 
     text = str(final_text or "")
     if not turn_done_notice.should_notify(elapsed, user_message, text):
         return False
+    import chat_bridge as _cb
+    if _cb.co_viec(conv_sid):
+        return False   # work an outside AI sent: chat_bridge rings once, and only if that AI did not read the answer
     body = turn_done_notice.notice_text(channel_context.strip_control_blocks(text))
     if not body:
         return False
@@ -20487,7 +20490,8 @@ async def _chat_socket(ws):
     try:
         async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
                            has_attachments=False, resume_attempt=0, user_mid=0, user_text=None,
-                           _task_skills=None, _turn_token=None, _route=None, _tried=(), _hops_left=0):
+                           _task_skills=None, _turn_token=None, _route=None, _tried=(), _hops_left=0, effort=""):
+            # `effort`: a level for THIS turn only, over the card's own (Javis Gate: the outside AI asked for it).
             # `_route`, `_tried`, `_hops_left` (0.354.0): run_turn reruns the turn on the next route after a quota error
             # that came before any output (_chat_next_route); `_hops_left` 0 means this run may not hand over.
             ws = _SendProxy(conv_sid, runtime_trace)  # các nhánh engine bên dưới dùng ws proxy này
@@ -20616,6 +20620,8 @@ async def _chat_socket(ws):
                     pass
             elif javis_core.is_core_channel((_row0 or {}).get("channel")):
                 reasoning = _core_reasoning(mcfg)       # 0.283.0: Javis Core's own level, not the main chat's
+            if effort in engine.REASONING_LEVELS:
+                reasoning = effort                      # this turn only; nothing saved changes
             fast_mode.use(mcfg.get("fast") is True)
             _CONTEXT_RUNTIME.set_route(
                 runtime_trace,
@@ -21924,7 +21930,7 @@ async def _chat_socket(ws):
 
         async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
                            has_attachments=False, resume_attempt=0, goc_chat="", user_mid=0,
-                           user_text=None):
+                           user_text=None, effort=""):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             # Dashboard = the owner's own surface (signed-in session): no platform sender id.
             # A1: kèm phiên, id tin và agent của phiên (host phân giải) để tool javis_goal biết ĐÚNG lượt nào gọi.
@@ -21970,7 +21976,7 @@ async def _chat_socket(ws):
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
                     resume_attempt=resume_attempt, user_mid=user_mid, user_text=user_text,
-                    _task_skills=_task_skills, _turn_token=_luot_token, _hops_left=3,
+                    _task_skills=_task_skills, _turn_token=_luot_token, _hops_left=3, effort=effort,
                 )
                 # 0.354.0: the route ran out of quota before writing anything -> same turn again on the next route,
                 # with one line saying why (spec 6.4). _do_turn stops handing over after 3 hops.
@@ -21987,7 +21993,7 @@ async def _chat_socket(ws):
                         conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
                         resume_attempt=resume_attempt, user_mid=user_mid, user_text=user_text,
                         _task_skills=_task_skills, _turn_token=_luot_token,
-                        _route=_nxt["route"], _tried=_nxt["tried"], _hops_left=3 - _hop,
+                        _route=_nxt["route"], _tried=_nxt["tried"], _hops_left=3 - _hop, effort=effort,
                     )
                 _resonance_after_turn(conv_sid, brain, user_mid, _t0_luot, runtime_trace)
                 # A long turn (a render the engine waited for, a background job's follow-up) rings the bell when done.
@@ -22040,6 +22046,13 @@ async def _chat_socket(ws):
                 await send_raw({"type": "turn_done", "session_id": conv_sid,
                                 **context_runtime.event_fields(runtime_trace), **_engine_outcome_pop(conv_sid)})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+                # Javis Gate: ChatGPT or Claude sent work into this chat and may have stopped waiting for it. The bridge
+                # rings the owner's phone once the outside AI has not picked the answer up (it cannot wake by itself).
+                try:
+                    import chat_bridge as _cb
+                    _cb.luot_xong(conv_sid)
+                except Exception as _e:  # noqa: BLE001 - a missed notice never fails the turn
+                    print(f"[gate notice] {type(_e).__name__}: {_e}", file=sys.stderr)
 
         async def run_workflow_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, slug,
                                     resume=None, goc_chat=""):
@@ -22916,9 +22929,11 @@ async def _chat_socket(ws):
                         giu_ban_chep=bool(_voice_uid), user_mid=_user_mid)
                     task = asyncio.create_task(voice_turn_protocol.run(_voice_coro, store, conv_sid, _voice_uid) if _voice_uid else _voice_coro)
                 else:
+                    # `effort`: a level for this one message (Javis Gate, chat_bridge.gui), never saved. _do_turn ignores
+                    # anything off the ladder.
                     _voice_coro = run_turn(
                         conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
-                        goc_chat=_goc, user_mid=_user_mid)
+                        goc_chat=_goc, user_mid=_user_mid, effort=str(payload.get("effort") or ""))
                     task = asyncio.create_task(voice_turn_protocol.run(_voice_coro, store, conv_sid, _voice_uid) if _voice_uid else _voice_coro)
                 _CHAT_RUNTIME.register_job(
                     conv_sid, task, turn_tag,
@@ -22950,7 +22965,56 @@ async def _gate_luu_luot(sid, brain, tin, tra_loi):
     return await _persist_turn(st, sid, brain, tin, tra_loi)
 
 
-chat_bridge.gan(lambda ws: _chat_socket(ws), lambda: _CHAT_RUNTIME, _gate_luu_luot)
+def _gate_models() -> dict:
+    """Javis Gate: the models an outside AI may pick for a chat, the way the chat's model bar lists them (connected
+    cards only, each with its catalog), plus the main model a chat with no pin follows."""
+    cfg = cfgmod.read_settings()
+    em = _effective_main(cfg)
+    ra = []
+    for p in _providers_view(cfg):
+        if not p.get("configured"):
+            continue
+        ids = [m if isinstance(m, str) else str((m or {}).get("id") or (m or {}).get("name") or "")
+               for m in (p.get("models") or [])]
+        ra.append({"provider": p["id"], "name": p.get("label") or p["id"], "models": [i for i in ids if i]})
+    return {"providers": ra, "main": {"provider": em.get("provider") or "", "model": em.get("model") or "",
+                                      "name": _route_name(em.get("provider") or "")}}
+
+
+def _gate_chat_model(sid: str) -> dict:
+    """Javis Gate: the model and effort one chat runs on next. Effort follows the same order as a turn: the card's own,
+    an assistant's own level in its chat, Javis Core's own level in a Core chat."""
+    row = get_store().get_session(sid) or {}
+    mcfg = cfgmod.read_settings().get("model", {})
+    v = _route_view(mcfg, row)
+    effort = v.get("reasoning") or "off"
+    try:
+        _p = workflow_chat.persona_cua_phien(row)
+        if _p and _p[0] == "agent":
+            effort = _agent_reasoning(_read_md(_agents_dir(row.get("brain") or "brain") / f"{_p[1]}.md")[0])
+        elif javis_core.is_core_channel(row.get("channel")):
+            effort = _core_reasoning(mcfg)
+    except Exception:  # noqa: BLE001 - an unreadable assistant file keeps the card's level, as a turn does
+        pass
+    pinned = bool(_core_pin(mcfg)) if javis_core.is_core_channel(row.get("channel")) \
+        else bool(str(row.get("pinned_provider") or "").strip())
+    return {"provider": v["selected_provider"], "model": v["selected_model"], "name": v["selected_name"],
+            "pinned": pinned, "effort": effort,
+            "runs_on": {"provider": v["provider"], "model": v["model"], "name": v["name"]} if v.get("fallback") else None,
+            "note": v.get("content") or ""}
+
+
+async def _gate_bao(sid: str, brain: str, body: str, label: str, dedup: str) -> bool:
+    """Javis Gate: leave a finished task's answer in the bell, which rings the phone (as a long turn does)."""
+    item = await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{sid}", body, kind="answer", label=label, source="job",
+                                 brain=_brain_key(brain or "brain"), dedup=dedup, push_if_away=True)
+    return bool(item) and not item.get("dropped")
+
+
+chat_bridge.gan(lambda ws: _chat_socket(ws), lambda: _CHAT_RUNTIME, _gate_luu_luot,
+                models=_gate_models, model_cua=_gate_chat_model, bao=_gate_bao,
+                # `_pin_chat_model` sits with the /sessions routes further down: looked up when called.
+                ghim=lambda sid, prov, model: _pin_chat_model(sid, prov, model))
 
 
 # ============================================================
@@ -23777,21 +23841,16 @@ async def agent_set_reasoning(slug: str, level: str = Form(...), brain: str = Fo
     return await asyncio.to_thread(_luu)
 
 
-@app.post("/sessions/{session_id}/model")
-async def sessions_set_model(session_id: str, provider: str = Form(""),
-                             model: str = Form(""), brain: str = Form("")):
-    """Ghim model riêng cho phiên (provider rỗng = gỡ ghim, quay về mặc định chung).
-
-    Có `brain` thì tạo hàng nếu phiên chưa tồn tại - dashboard mint id phía client nên
-    user có thể đổi model trước cả tin nhắn đầu tiên (cùng khuôn /sessions/{id}/project).
-    CHỦ Ý không đi qua _set_main_model: hàm đó ghi mốc nhật ký usage cho việc đổi bộ não
-    TOÀN CỤC, ghim theo phiên mà đi qua đó là rác hoá biểu đồ token.
+async def _pin_chat_model(session_id: str, provider: str, model: str, brain=None) -> dict:
+    """Pin one chat's model, what the chat's model bar does (empty provider = follow the main model again). Shared by
+    POST /sessions/{id}/model and Javis Gate (chat_bridge: the outside AI picks the model for the chat it writes in).
+    A failure comes back as {"ok": False, "status", "error"}.
 
     0.402.0: a Javis Core chat pins Javis Core as a whole (`model.core_provider/core_model`), see `_core_pin`."""
     prov = (provider or "").strip()
     if prov and not _provider_def(prov):
-        return JSONResponse({"error": localefmt.chu(f"provider không tồn tại: {prov}",
-                                                    f"provider does not exist: {prov}")}, status_code=400)
+        return {"ok": False, "status": 400, "error": localefmt.chu(f"provider không tồn tại: {prov}",
+                                                                   f"provider does not exist: {prov}")}
     if prov:
         _clear_pin_limit(prov)   # picking a model in the chat bar means "use this one": its old quota mark goes
     _row = get_store().get_session(session_id)
@@ -23800,11 +23859,25 @@ async def sessions_set_model(session_id: str, provider: str = Form(""),
         if (_row.get("pinned_provider") or "").strip():
             get_store().set_pinned_model(session_id, "", "")   # an older stamp of this chat must not show as a pin
         return {"ok": True, "pinned_provider": _cp["provider"] or None, "pinned_model": _cp["model"] or None, "scope": "core"}
-    ok = get_store().set_pinned_model(session_id, prov, model,
-                                      brain=_brain_key(brain) if (brain or "").strip() else None)
-    if not ok:
-        return JSONResponse({"error": localefmt.chu("phiên không tồn tại", "session does not exist")}, status_code=404)
+    if not get_store().set_pinned_model(session_id, prov, model, brain=brain):
+        return {"ok": False, "status": 404, "error": localefmt.chu("phiên không tồn tại", "session does not exist")}
     return {"ok": True, "pinned_provider": prov or None, "pinned_model": (model or "").strip() or None}
+
+
+@app.post("/sessions/{session_id}/model")
+async def sessions_set_model(session_id: str, provider: str = Form(""),
+                             model: str = Form(""), brain: str = Form("")):
+    """Ghim model riêng cho phiên (provider rỗng = gỡ ghim, quay về mặc định chung).
+
+    Có `brain` thì tạo hàng nếu phiên chưa tồn tại - dashboard mint id phía client nên
+    user có thể đổi model trước cả tin nhắn đầu tiên (cùng khuôn /sessions/{id}/project).
+    CHỦ Ý không đi qua _set_main_model: hàm đó ghi mốc nhật ký usage cho việc đổi bộ não
+    TOÀN CỤC, ghim theo phiên mà đi qua đó là rác hoá biểu đồ token."""
+    out = await _pin_chat_model(session_id, provider, model,
+                                brain=_brain_key(brain) if (brain or "").strip() else None)
+    if not out.get("ok"):
+        return JSONResponse({"error": out["error"]}, status_code=out["status"])
+    return out
 
 
 @app.post("/sessions/{session_id}/project")
