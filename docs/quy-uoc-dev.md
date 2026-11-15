@@ -62,6 +62,17 @@ Nếu bot đã lấy mất số của nó thì phiên đó đánh số lại nh�
 **PR từ người ngoài:** thiếu mảnh thì CI chỉ cảnh báo. Người merge thêm file `changelog.d/` vào
 nhánh trước khi merge, hoặc merge xong mở một PR nhỏ chỉ chứa mảnh đó.
 
+## Thiết kế giao diện: đọc `docs/dev/design-style.md` trước (từ 2026-11-15)
+
+Chủ repo 15/11/2026: "rà soát lại những lần anh sửa thiết kế để lưu lại phong cách thiết kế. Lần sau làm theo cho anh
+đỡ phải nhắc". `docs/dev/design-style.md` gom mọi lần chủ đã sửa giao diện (chữ, điện thoại, màu, bố cục, nút, câu chữ,
+trang của gói Store, cách làm việc), có danh sách kiểm trước khi gửi và bảng những lần đổi ý.
+
+- Việc nào có giao diện (dashboard, trang HTML của gói trong `javis-store`, trang HTML làm cho chủ) thì đọc file đó
+  trước khi vẽ, và chạy mục 0 "Kiểm trước khi gửi" trước khi báo xong.
+- Màn mới hoặc thiết kế lại: làm bản HTML cho chủ duyệt trước khi code, trừ khi chủ bảo làm thẳng.
+- Chủ chốt thêm một luật thiết kế mới thì ghi vào file đó (đúng mục, kèm ngày và lời chủ), cùng PR với thay đổi.
+
 ## Chữ hiện lên màn hình (từ 0.67.0)
 
 Giao diện chạy bằng tiếng Anh với người dùng trình duyệt tiếng Anh, nên chữ MỚI viết cho màn hình

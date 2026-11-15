@@ -8,6 +8,18 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.566.0] - 2026-11-15
+### Improved
+- **Javis replies in the language you write in, any language, like Claude or ChatGPT.** The language box in Settings now only changes the interface, and chatbots always answer customers in the customer's language. To always get one language, tell Javis once; a reply language pinned before becomes a sentence in your profile, so it is not lost.
+### Fixed
+- **Javis no longer answers in Vietnamese while you chat in English.** The language rule is now written in English, says a language you stated wins, and that the Vietnamese around it is no hint.
+- **Background work (Kanban, reminders, loops) no longer always reports in Vietnamese.** It follows the task's own language.
+- **Replies in Japanese, Korean, Chinese and Thai are read aloud by a native voice**, and an English message with an attached file is no longer read as Vietnamese.
+
+## [0.565.1] - 2026-11-15
+### Fixed
+- **Picking several photos at once in a team chat on iPhone now attaches and sends them.** Before, a multi-photo pick put nothing in the composer and only a single photo got through. Adding team documents and importing a team file share the fixed picker.
+
 ## [0.565.0] - 2026-11-15
 ### Added
 - **ChatGPT and Claude can set the model and effort inside the command they send through Javis Gate.** Tell ChatGPT "have Javis do this on Opus at high effort": the model is pinned on that chat as if you picked it in the model bar (the chip shows it, change it back any time), and the effort counts for that one message only, nothing in your settings changes. A new `javis_chat_models` tool lets the outside AI see which models Javis has.
