@@ -5,8 +5,7 @@ cd "$(git rev-parse --show-toplevel)"
 mode="${1:---check}"
 [[ "$mode" == --check || "$mode" == --apply ]] || { echo 'Usage: sync-custom-upstream.sh [--check|--apply]' >&2; exit 2; }
 [[ -z "$(git status --porcelain)" ]] || { echo 'Save all local changes before syncing.' >&2; exit 1; }
-[[ "$(git remote get-url origin)" == https://github.com/kk311/javis-os.git ]] || { echo 'Unexpected fork origin.' >&2; exit 1; }
-[[ "$(git remote get-url upstream)" == https://github.com/blogminhquy/javis-os.git ]] || { echo 'Unexpected upstream.' >&2; exit 1; }
+python tools/check-sync-remotes.py
 git fetch origin refs/heads/main:refs/remotes/origin/main refs/heads/custom/zernio-bridge:refs/remotes/origin/custom/zernio-bridge
 git fetch upstream refs/heads/main:refs/remotes/upstream/main
 git merge-base --is-ancestor origin/main upstream/main || { echo 'Fork main has diverged; inspect without resetting.' >&2; exit 1; }
