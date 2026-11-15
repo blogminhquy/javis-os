@@ -246,19 +246,21 @@ Listed here because this is where people tend to overdo it:
 
 ---
 
-## Only need a language in the Settings picker: add one line to the reply catalog
+## The reply language is NOT a setting (since 2026-11-15)
 
-Since 2026-11-15 (owner: "Javis must work and talk in any language, like Claude or ChatGPT", and "let
-the model handle it"), nothing is pinned by default: the model answers in the language the person
-writes. The catalog only serves the places where a person DELIBERATELY names a language: the "Javis
-replies in" picker in Settings and a chatbot's language (both "auto" by default), and the voice. To
-offer another language there you do NOT need the four steps above: add one `ReplyLang` line to
-`_CATALOG` in `server/lang_registry.py` (the code, the English name, the native name, one nudge
-sentence written in that language, the Edge voice prefix). Guarded by
-`tests/python/test_any_reply_language.py`.
+The owner decided on 2026-11-15: "Javis must work and talk in any language, like Claude or ChatGPT",
+"let the model handle it", and "the language setting only sets the interface". So:
 
-The catalog holds 35 languages today. A language outside it is still answered normally; it just is
-not offered in those two pickers.
+- The language box in Settings only changes the interface. The "Javis replies in" box and the
+  chatbot language box are gone. `locale.reply_lang` stays in settings.json and is always `"auto"`
+  (the improvement trials read that key); a pin saved before moves into the person's profile at
+  startup (`main.migrate_reply_lang_to_profile`).
+- To always get one language: tell Javis once; the model saves it as a `preference` memory.
+- `_CATALOG` in `server/lang_registry.py` (35 languages) only serves the few places that MUST name a
+  language: a voice call (the brain only sees the voice model's handoff), a direct command in the
+  message, and the voice list. Adding a language is one `ReplyLang` line (code, English name, native
+  name, a nudge written in that language, Edge voice prefix). Guarded by
+  `tests/python/test_any_reply_language.py`.
 
 ## REGISTERED languages
 

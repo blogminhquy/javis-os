@@ -168,8 +168,6 @@
       var d = await api("/chatbots?brain=" + encodeURIComponent(brain()));
       _bots = d.bots || [];
       _mucDS = d.muc_quyen || [];
-      // Every nameable language (2026-11-15): a shop can pin a Japanese or Korean bot, not only vi/en.
-      _langDS = d.reply_lang_list || d.lang_list || [];
       _kenhDS = d.kenh || [];
       _tkRanh = d.tai_khoan || [];
       _tkBan = d.tai_khoan_ban || [];
@@ -727,31 +725,6 @@
                      : '<option value="">' + esc(window.t("cb.khong_agent")) + '</option>';
   }
 
-  // Danh sách ngôn ngữ lấy từ /settings (sổ đăng ký phía server), KHÔNG khai lại ở đây.
-
-  // Khai hai nơi thì thêm ngôn ngữ mới phải nhớ sửa cả hai chỗ.
-
-  var _langDS = [];
-
-  function htmlNgonNgu(cur) {
-
-    var ra = '<option value="auto"' + (cur === "auto" || !cur ? " selected" : "") +
-
-             '>' + esc(window.t("cb.lang_auto")) + '</option>';
-
-    _langDS.forEach(function (l) {
-
-      ra += '<option value="' + esc(l.ma) + '"' + (l.ma === cur ? " selected" : "") +
-
-            '>' + esc(l.ten) + '</option>';
-
-    });
-
-    return ra;
-
-  }
-
-
   // ===== Thành phần dùng chung của form và thẻ (0.64.85) =====================================
   // Form đi theo bốn phần: Bot là ai, Bot trả lời ai, Bot dựa vào đâu để trả lời, Bot được làm gì.
   // Mỗi phần một tiêu đề có icon, mỗi lựa chọn ngắn là một nút bấm chọn một thay cho ô xổ xuống kèm
@@ -1098,15 +1071,8 @@
             infoBody(esc(window.t("cb.hint_ngoai_le"))) +
           '</div>' +
 
-          // Nâng cao: chỉ ngôn ngữ trả lời. Ngôn ngữ của bot ĐỘC LẬP với ngôn ngữ của chủ: bot nói
-          // chuyện với NGƯỜI NGOÀI, và chủ dùng Javis bằng tiếng Việt mà người nhắn tới nói tiếng khác
-          // là chuyện bình thường, nên suy ngôn ngữ của bot từ ngôn ngữ của chủ là suy sai.
-          '<details class="cb-nangcao">' +
-            '<summary>' + ic("settings") + ' ' + esc(window.t("cb.nang_cao")) + '</summary>' +
-            '<label for="cbNgonNgu">' + esc(window.t("cb.lb_ngon_ngu")) + infoBtn() + '</label>' +
-            '<select id="cbNgonNgu">' + htmlNgonNgu((b && b.ngon_ngu) || "auto") + '</select>' +
-            infoBody(esc(window.t("cb.hint_ngon_ngu"))) +
-          '</details>' +
+          // No language picker since 2026-11-15 (owner): the bot answers each customer in the language they write.
+          // That "Advanced" section held only this picker, so it went with it.
         '</div>' +
 
         '<div class="cb-form-acts">' +
@@ -1562,7 +1528,6 @@
       // sách nhóm không bao giờ dùng tới là một lời hứa suông nằm lại trong dữ liệu.
       var chung = { name: ten, agent_slug: ag, agent_brain: br, brain: br,
                     nguon_tra_loi: "agent", muc_quyen: muc, xac_nhan_rui_ro: "1",
-                    ngon_ngu: (document.getElementById("cbNgonNgu") || {}).value || "auto",
                     audience: aud, people: ds("private").join("\n"),
                     groups: co ? ds("group").join("\n") : "",
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",

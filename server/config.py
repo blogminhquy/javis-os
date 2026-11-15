@@ -42,13 +42,15 @@ _DEFAULT = {
     # Ngôn ngữ và locale. TÁCH BA BIẾN có chủ ý (spec đa ngôn ngữ mục 4.1):
     #   ui_lang     chữ trên màn hình      - "" = chưa ai chọn: dashboard đoán theo trình duyệt
     #               rồi ghi lại đây (0.66.0). Bản cài cũ đã lưu "vi" nên không bị đổi.
-    #   reply_lang  Javis trả lời          - "auto" = bám theo ngôn ngữ người dùng đang viết
+    #   reply_lang  Javis trả lời          - always "auto" since 2026-11-15: Javis follows whoever writes and
+    #               Settings only set the interface (owner). Kept because the improvement trials read it; a pin
+    #               saved before moves into the profile at startup (main.migrate_reply_lang_to_profile).
     #   tz/currency locale, KHÁC ngôn ngữ  - người dùng tiếng Anh ở VN vẫn xài UTC+7 và VND
     # Gộp ba cái làm một là chặn đứng ca dùng đáng tiền nhất: chủ Việt, giao diện Việt, brain
     # Việt, nhưng chatbot đối ngoại trả lời tiếng Nhật.
     "locale": {
         "ui_lang": "",
-        "reply_lang": "auto",              # auto | vi | en
+        "reply_lang": "auto",              # always "auto", see above
         "tz": "Asia/Ho_Chi_Minh",
         "currency": "VND",
     },

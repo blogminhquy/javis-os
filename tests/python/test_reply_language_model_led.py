@@ -78,8 +78,8 @@ check("it names the profile, memory and the conversation",
 check("it says the Vietnamese around it is no hint", "NEVER a hint about the reply language" in auto)
 check("it asks to save an ALWAYS language as a preference memory", "`preference` memory" in auto)
 check("it names no language", "Reply language:" not in auto)
-pinned = lang.khoi_ngon_ngu(lang.resolve(turn_text="cho anh xem", reply_pref="en"))
-check("a Settings pin is named, with why", "Reply language: English (en), set in Settings." in pinned)
+pinned = lang.khoi_ngon_ngu(lang.resolve(turn_text="please answer in English", ui_lang="vi"))
+check("a direct command is named, with why", "Reply language: English (en), asked for in this message." in pinned, pinned)
 check("...and the person can still switch", "If the user now asks for another language, use that one." in pinned)
 check("...ending with the nudge in that language", pinned.rstrip().endswith("Answer in English."))
 for name, text in (("auto", auto), ("pinned", pinned)):
@@ -103,7 +103,7 @@ check("a message that is only a block keeps its text", main._lang_turn_text("[NG
 check("both turn handlers detect on the person's own words", SRC.count("turn_text=_lang_turn_text(") == 2)
 
 # ---- 5. capsules name a pin, never a guess ----
-check("capsule: a Settings pin is named", lang.resolve(turn_text="cho anh xem", reply_pref="en").capsule_lang == "en")
+check("capsule: a direct command is named", lang.resolve(turn_text="please answer in English").capsule_lang == "en")
 check("capsule: a short message on a Vietnamese interface is not forced into Vietnamese",
       lang.resolve(turn_text="ok do 2", ui_lang="vi").capsule_lang == "")
 check("capsule follow sentence", context_compiler._cau_ngon_ngu("") ==

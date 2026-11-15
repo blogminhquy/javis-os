@@ -1260,12 +1260,42 @@ def _lang_turn_text(message: str) -> str:
 
 
 def _background_lang_decision():
-    """`lang.resolve_background` from the saved locale; never raises (a broken setting = follow the task)."""
+    """`lang.resolve_background`: the task's own language. Never raises (a broken setting = follow the task).
+
+    No Settings pin since 2026-11-15 (owner: the language setting is the interface's only); `ui_lang` only names
+    the language of the clock line and skill list."""
     try:
         lc = (cfgmod.read_settings() or {}).get("locale") or {}
     except Exception:  # noqa: BLE001
         lc = {}
-    return lang_mod.resolve_background(reply_pref=lc.get("reply_lang") or "auto", ui_lang=lc.get("ui_lang") or "")
+    return lang_mod.resolve_background(ui_lang=lc.get("ui_lang") or "")
+
+
+def migrate_reply_lang_to_profile() -> str:
+    """Move a reply language pinned in Settings into the person's profile, once. Returns the language moved, or "".
+
+    Owner, 2026-11-15: "the language setting only sets the interface, not the language Javis replies in". The
+    "Javis replies in" picker is gone and nothing reads `locale.reply_lang` for a reply any more. Someone who had
+    pinned one still means it, so it becomes a plain sentence in the profile the model reads every turn ("Always
+    reply to me in English"), the same place they would now write it themselves, and the setting goes back to
+    "auto" (the improvement trials read that key, so it stays and stays "auto").
+    """
+    try:
+        lc = (cfgmod.read_settings() or {}).get("locale") or {}
+        code = lang_registry.reply_code(lc.get("reply_lang") or "")
+        if not code:
+            return ""
+        info = lang_registry.reply_info(code)
+        line = f"Always reply to me in {info.english}, whatever language I write in."
+        current = memory_control.read_profile()
+        if line not in current:
+            memory_control.write_profile((current + "\n" + line).strip())
+        cfgmod.update_settings({"locale": {"reply_lang": "auto"}})
+        print(f"[reply_lang] moved the pinned reply language ({code}) into the profile", file=sys.stderr)
+        return code
+    except Exception as exc:  # noqa: BLE001 - startup must never fail on this
+        print(f"[reply_lang] migration skipped: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return ""
 
 
 def _background_system_prompt(brain: str = "brain") -> str:
@@ -6250,6 +6280,12 @@ async def _widen_io_pool():
 
 
 @app.on_event("startup")
+async def _reply_lang_to_profile():
+    """Once per start: a reply language still pinned in Settings moves into the profile (see the function)."""
+    await asyncio.to_thread(migrate_reply_lang_to_profile)
+
+
+@app.on_event("startup")
 async def _prime_kept_values():
     """Read once, on a worker thread, what the event loop asks for from its first request on (kept.py): the settings
     signature, the default brain folder, the pack and plugin signatures, the MCP catalog, the hub token, the bot and
@@ -7443,8 +7479,6 @@ def settings_get():
     # Nguồn duy nhất là sổ đăng ký phía server: dashboard KHÔNG khai lại danh sách, nếu không
     # thì thêm ngôn ngữ mới phải nhớ sửa hai chỗ và chỗ bị quên hỏng trong im lặng.
     safe["lang_list"] = lang_registry.cho_giao_dien()
-    # The REPLY language picker offers every nameable language (2026-11-15); `lang_list` stays the interface's.
-    safe["reply_lang_list"] = lang_registry.reply_choices()
     # Interface pickers also offer dashboard-only dictionaries (a community xx.json, 0.99.0); `lang_list` stays the
     # languages the server itself speaks, which is what reply language and voice may choose from.
     safe["ui_lang_list"] = safe["lang_list"] + lang_registry.dashboard_only_languages(DASHBOARD_PATH / "i18n")
@@ -7578,11 +7612,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # người dùng bấm lưu, thấy báo thành công, F5 xong mất sạch - không lỗi, không log.
         lc = cfg.setdefault("locale", {})
         if "reply_lang" in patch:
-            v = str(patch["reply_lang"] or "").strip().lower()
-            # "auto" là giá trị HỢP LỆ, không phải chuỗi rỗng: nó nghĩa là "bám theo người
-            # dùng", khác hẳn với "chưa chọn".
-            # 2026-11-15: any nameable language (Japanese, French...), not only the two with a full registry entry.
-            lc["reply_lang"] = "auto" if v in ("", "auto") else (lang_registry.reply_code(v) or "auto")
+            # 2026-11-15 (owner): the language setting is the interface's only; Javis replies in the language of
+            # whoever writes. A page cached from before may still send a pin: it is not stored.
+            lc["reply_lang"] = "auto"
         if "ui_lang" in patch:
             lc["ui_lang"] = lang_registry.chuan_hoa(patch["ui_lang"]) or lang_registry.MAC_DINH
             # Nguồn của giá trị: "tu_dong" = dashboard tự ghi theo trình duyệt của thiết bị ghé
@@ -20220,9 +20252,8 @@ async def tts_voices(lang: str = Query("")):
     nghe như máy hỏng. Danh sách ngôn ngữ lấy từ sổ đăng ký chứ không khai lại ở đây.
     """
     import edge_tts   # lazy - xem ghi chú ở đầu file
-    # Any nameable language (2026-11-15): a reply language pinned to Japanese lists Japanese voices.
-    _pin = (cfgmod.read_settings().get("locale") or {}).get("reply_lang") or ""
-    ma = lang_registry.reply_code(lang) or lang_registry.reply_code(_pin) or localefmt.ngon_ngu_tra_loi()
+    # Any nameable language (2026-11-15): `lang=ja` lists Japanese voices.
+    ma = lang_registry.reply_code(lang) or localefmt.ngon_ngu_tra_loi()
     # Tiền tố locale lấy từ danh mục ngôn ngữ trả lời ("ja-JP"); ngôn ngữ đủ mục thì suy từ giọng
     # mặc định ("vi-VN-HoaiMyNeural" -> "vi-VN"), như trước.
     tien_to = lang_registry.reply_info(ma).edge or ma
@@ -20631,7 +20662,7 @@ async def _chat_socket(ws):
             _lc = _cfg_all.get("locale") or {}
             _lang_qd = lang_mod.resolve(
                 turn_text=_lang_turn_text(user_message),   # the person's own words, not Javis's blocks (2026-11-15)
-                reply_pref=_lc.get("reply_lang") or "auto",
+                # No `reply_pref` since 2026-11-15: the language setting is the interface's only (owner).
                 ui_lang=_lc.get("ui_lang") or "",
             )
             try:
@@ -27060,15 +27091,13 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # bot Telegram phục vụ nhiều người, và ngôn ngữ của người này không được tràn sang người
     # kia.
     #
-    # Với bot chuyên trách thì ngôn ngữ do BẢN GHI BOT quyết, và cố ý KHÔNG truyền
-    # `reply_pref` của chủ xuống: bot ghim "auto" nghĩa là "bám theo khách", còn tràn cài đặt
-    # của chủ vào đó là phá đúng lý do trường `ngon_ngu` tồn tại - chủ người Việt bán cho
-    # khách Nhật thì ngôn ngữ của chủ là thông tin SAI để suy ra ngôn ngữ của bot.
+    # Bot chuyên trách bám theo KHÁCH: ngôn ngữ của chủ là thông tin sai để suy ra ngôn ngữ của bot (chủ người
+    # Việt bán cho khách Nhật). Từ 15/11/2026 bot cũng không còn ô ghim ngôn ngữ riêng.
     _lc_kenh = cfgmod.read_settings().get("locale") or {}
     _lang_qd = lang_mod.resolve(
         turn_text=_lang_turn_text(text),   # the person's own words, not Javis's blocks (2026-11-15)
-        chatbot_pin=(bot or {}).get("ngon_ngu") or "",
-        reply_pref=("" if bot else (_lc_kenh.get("reply_lang") or "auto")),
+        # No Settings pin and no bot pin since 2026-11-15 (owner): a customer bot follows its customer, and anyone
+        # who wants a fixed language says so (in the chat, the profile or the bot's Agent file).
         channel_default=(_ngon_ngu_cuoc_goi(meta) or ("vi" if channel == "zalo" and not bot else "")),
         ui_lang=("" if bot else (_lc_kenh.get("ui_lang") or "")),
     )
@@ -29886,8 +29915,7 @@ def chatbots_list(brain: str = ""):
     # Nhãn + cảnh báo rủi ro của từng mức quyền đi kèm luôn: giao diện KHÔNG được giữ bản chép
     # riêng. Chép riêng thì một hôm server siết thêm một rào mà ô cảnh báo vẫn hứa như cũ, và
     # chủ bấm đồng ý dựa trên một câu đã sai.
-    return {"bots": out, "lang_list": lang_registry.cho_giao_dien(),
-            "reply_lang_list": lang_registry.reply_choices(), "muc_quyen": [
+    return {"bots": out, "lang_list": lang_registry.cho_giao_dien(), "muc_quyen": [
         {"id": m, "nhan": chatbot_store.nhan_muc(m),
          "canh_bao": chatbot_store.canh_bao_muc(m),
          "can_xac_nhan": m in chatbot_store.MUC_NANG}

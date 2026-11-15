@@ -173,18 +173,21 @@ Liệt kê ra đây vì đây là chỗ người ta hay đi thừa:
 
 ---
 
-## Chỉ cần chọn được một thứ tiếng ở Cài đặt: thêm một dòng vào danh mục trả lời
+## Ngôn ngữ trả lời KHÔNG phải một cài đặt (từ 15/11/2026)
 
-Từ 15/11/2026 (chủ repo: "Javis phải làm việc và nói chuyện được bằng mọi ngôn ngữ như Claude hay
-ChatGPT", và "để mô hình tự xử lý"), mặc định không ghim gì: model trả lời bằng thứ tiếng người dùng
-viết. Danh mục chỉ phục vụ chỗ con người CHỦ ĐỘNG chọn một thứ tiếng: ô "Javis trả lời bằng" ở Cài đặt
-và ngôn ngữ của chatbot (cả hai mặc định "tự động"), cùng giọng đọc. Muốn có thêm thứ tiếng trong hai
-ô đó thì KHÔNG cần đủ bốn bước trên: thêm một dòng `ReplyLang` vào `_CATALOG` trong
-`server/lang_registry.py` (mã, tên tiếng Anh, tên bản ngữ, một câu nhắc viết bằng chính thứ tiếng đó,
-tiền tố giọng Edge). Test canh ở `tests/python/test_any_reply_language.py`.
+Chủ repo chốt 15/11/2026: "Javis phải làm việc và nói chuyện được bằng mọi ngôn ngữ như Claude hay
+ChatGPT", "để mô hình tự xử lý", và "cài đặt ngôn ngữ chỉ có tác dụng làm ngôn ngữ của giao diện". Nên:
 
-Danh mục hiện có 35 thứ tiếng. Thứ tiếng ngoài danh mục vẫn được trả lời bình thường, chỉ là chưa chọn
-được trong hai ô đó.
+- Ô ngôn ngữ ở Cài đặt chỉ đổi giao diện. Ô "Javis trả lời bằng" và ô ngôn ngữ của chatbot đã bị gỡ.
+  Khoá `locale.reply_lang` vẫn nằm trong settings.json và luôn là `"auto"` (hệ thử nghiệm cải tiến đọc
+  khoá đó); ai đã ghim từ trước thì lúc khởi động được chuyển thành một câu trong hồ sơ người dùng
+  (`main.migrate_reply_lang_to_profile`).
+- Muốn luôn nhận một thứ tiếng: dặn Javis một lần, model tự lưu thành ký ức `preference`.
+- Danh mục `_CATALOG` trong `server/lang_registry.py` (35 thứ tiếng) chỉ còn phục vụ vài chỗ BẮT BUỘC
+  nêu tên một ngôn ngữ: cuộc gọi giọng nói (bộ não chỉ thấy câu giao việc của model giọng nói), một câu
+  ra lệnh thẳng trong lượt, và danh sách giọng đọc. Thêm thứ tiếng: một dòng `ReplyLang` (mã, tên tiếng
+  Anh, tên bản ngữ, câu nhắc viết bằng chính thứ tiếng đó, tiền tố giọng Edge). Test canh ở
+  `tests/python/test_any_reply_language.py`.
 
 ## Ngôn ngữ ĐÃ ĐĂNG KÝ
 

@@ -32,7 +32,6 @@ import re
 import secrets
 import sys
 
-import lang_registry
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -373,22 +372,13 @@ def build_bot_prompt(bot: dict) -> str:
     phan = [f"Bạn là **{ten}**." + (f" {vai}" if vai else "")]
 
     # NGÔN NGỮ của bot, và đây là hòn đảo prompt tách hẳn: nó không nối CLAUDE.md, không đi
-    # qua ContextCompiler, không đi qua build_system_prompt. Bỏ sót chỗ này thì đúng ca dùng
-    # đáng tiền nhất (chủ shop Việt, bot đối ngoại phục vụ khách Nhật/Hàn) không có một dòng
-    # chỉ dẫn ngôn ngữ nào.
+    # qua ContextCompiler, không đi qua build_system_prompt. Bỏ sót chỗ này thì bot không có
+    # một dòng chỉ dẫn ngôn ngữ nào.
     #
-    # Một câu ngắn chứ không phải khối đầy đủ như prompt chính: prompt bot vốn chỉ vài chục
-    # token, nhét 60 token luật ngôn ngữ vào là làm lệch hẳn tỉ trọng so với file Agent của
-    # chủ - mà file đó mới là thứ quyết định bot nói gì.
-    # 2026-11-15: any nameable language (Japanese, Korean, Thai...), not only vi/en: a Vietnamese shop serving
-    # Japanese customers is the very case this field exists for.
-    _ma = lang_registry.reply_code((bot or {}).get("ngon_ngu") or "")
-    if _ma:
-        _l = lang_registry.reply_info(_ma)
-        phan.append(f"\nNGÔN NGỮ: luôn trả lời khách bằng {_l.english} ({_l.native}), "
-                    f"kể cả khi khách nhắn bằng tiếng khác. {_l.nudge}")
-    else:
-        phan.append("\nNGÔN NGỮ: trả lời bằng ĐÚNG ngôn ngữ khách đang nhắn.")
+    # Owner, 2026-11-15: no language pin per bot any more; the bot answers each customer in the language they
+    # write. A shop that wants a fixed language writes it in the bot's Agent file. A `ngon_ngu` saved on an older
+    # bot record is no longer read.
+    phan.append("\nNGÔN NGỮ: trả lời bằng ĐÚNG ngôn ngữ khách đang nhắn.")
     # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này, và nó đứng
     # TRƯỚC file Agent: mặc định của Javis đọc trước, luật của chủ đọc sau và thắng (0.172.0).
     if (bot or {}).get("_kenh_luot") == "zalo_personal":

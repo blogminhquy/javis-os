@@ -22,7 +22,9 @@ BỘ DÒ VẪN CÒN, và vẫn cần, ở những chỗ KHÔNG CÓ MODEL trong v
 
 Ba biến ngôn ngữ tách rời (spec mục 4.1), đừng nhập một:
   ui_lang       chữ trên màn hình      - user chọn, lưu theo thiết bị
-  reply_lang    Javis trả lời          - mặc định "auto" = để model bám theo người dùng
+  reply_lang    Javis trả lời          - since 2026-11-15 NOT a setting: the model follows whoever writes
+                                         (owner: "the language setting only sets the interface"). The
+                                         key stays "auto" in settings.json, see main.migrate_reply_lang_to_profile
   content_lang  nội dung trong brain   - của user, Javis không đụng
 
 Dò ngôn ngữ KHÔNG dùng thư viện ngoài. Chỉ cần phân biệt giữa các ngôn ngữ ĐÃ ĐĂNG KÝ, nên
@@ -444,17 +446,14 @@ def resolve(*, turn_text: str = "", reply_pref: str = "auto", chatbot_pin: str =
     return _xong(lang_registry.MAC_DINH, "default", 0.5)
 
 
-def resolve_background(*, reply_pref: str = "auto", ui_lang: str = "") -> LangDecision:
+def resolve_background(*, ui_lang: str = "") -> LangDecision:
     """Language of work that has no chat turn: Kanban tasks, reminders, loops, learning (2026-11-15).
 
-    A reply language set in Settings, any nameable one, is named. Without one the model follows the
-    language of the TASK itself, which the owner wrote: a reminder written in Japanese reports in
-    Japanese. Before, `build_system_prompt` without a language named Vietnamese for every brain, so
-    an English or Japanese owner got every background report in Vietnamese.
+    The model follows the language of the TASK itself, which the owner wrote: a reminder written in
+    Japanese reports in Japanese. Before, `build_system_prompt` without a language named Vietnamese
+    for every brain, so an English or Japanese owner got every background report in Vietnamese.
+    `ui_lang` only names the language of the clock line and the skill list.
     """
-    pref = lang_registry.reply_code(reply_pref)
-    if pref:
-        return LangDecision(pref, "setting", 1.0, co_lexicon(pref))
     ui = lang_registry.chuan_hoa(ui_lang) or lang_registry.MAC_DINH
     return LangDecision(ui, "ui", 0.7, co_lexicon(ui), "", True)
 

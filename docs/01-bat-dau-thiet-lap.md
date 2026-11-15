@@ -140,7 +140,7 @@ Thao tác này an toàn: chỉ di chuyển khi thư mục đích chưa có, khô
 
 ### Tab Chung: Ngôn ngữ và múi giờ
 
-Khối **Ngôn ngữ và múi giờ** có ba ô: ngôn ngữ giao diện, **Javis trả lời bằng**, và **Múi giờ** (từ 0.443.0). Đổi múi giờ là lưu ngay, Javis dùng giờ mới từ lượt chat kế tiếp cho hôm nay, hôm qua, ngày mai, nhắc hẹn và báo cáo. Ô múi giờ có nhóm **Gợi ý** ở đầu (múi đang chọn, múi của máy bạn và vài múi hay dùng), bên dưới là toàn bộ danh sách xếp theo độ lệch UTC. Một nhắc hẹn lặp lại đã lên lịch trước khi đổi có thể chạy theo giờ cũ đúng một lần rồi mới theo giờ mới.
+Khối **Ngôn ngữ và múi giờ** có hai ô: ngôn ngữ giao diện và **Múi giờ** (từ 0.443.0). Ô ngôn ngữ chỉ đổi chữ trên màn hình: Javis luôn trả lời bằng đúng thứ tiếng bạn viết, muốn luôn nhận một thứ tiếng thì dặn Javis một lần là nó nhớ (từ 15/11/2026 không còn ô "Javis trả lời bằng"). Đổi múi giờ là lưu ngay, Javis dùng giờ mới từ lượt chat kế tiếp cho hôm nay, hôm qua, ngày mai, nhắc hẹn và báo cáo. Ô múi giờ có nhóm **Gợi ý** ở đầu (múi đang chọn, múi của máy bạn và vài múi hay dùng), bên dưới là toàn bộ danh sách xếp theo độ lệch UTC. Một nhắc hẹn lặp lại đã lên lịch trước khi đổi có thể chạy theo giờ cũ đúng một lần rồi mới theo giờ mới.
 
 ### Tab Giọng nói và phần thương hiệu trong tab Chung
 

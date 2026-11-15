@@ -457,7 +457,7 @@ javis-os/
 
 | What | Languages today |
 |---|---|
-| **Javis's replies** | Any language: it answers in the language you write in, or one you pin in Settings |
+| **Javis's replies** | Any language: it answers in the language you write in, like Claude or ChatGPT. Tell it once to always use one and it remembers |
 | **Dashboard and server messages** | 🇬🇧 English · 🇻🇳 Tiếng Việt, per device: each browser gets its own language until you pick one |
 | **Connection store, plugins, a new brain's starter files** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 | **README and quick start** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 · 🇮🇳 हिन्दी · 🇧🇷 Português · 🇰🇷 한국어 · 🇷🇺 Русский · 🇩🇪 Deutsch · 🇫🇷 Français · 🇮🇩 Bahasa Indonesia |

@@ -183,11 +183,12 @@ LANGS: Dict[str, Lang] = {
 
 # ---------------------------------------------------------------- reply languages (2026-11-15)
 #
-# Owner, 2026-11-15: "Javis must work and talk in ANY language, like Claude or ChatGPT, not only
-# Vietnamese or English", and "let the model handle the language". The model already answers in
-# whatever language the person writes, so the default stays exactly that, with nothing named. This
-# catalog only serves the places where a HUMAN deliberately names a language: the reply language in
-# Settings and a customer bot's language (both off by default), and the voice that reads the answer.
+# Owner, 2026-11-15: "Javis must work and talk in ANY language, like Claude or ChatGPT", "let the
+# model handle the language", and "the language setting only sets the interface". So nothing in
+# Settings or on a bot names a reply language any more: the model answers in whatever language the
+# person writes. This catalog serves the few places that still NAME a language for a reason: a voice
+# call (the brain only sees the voice model's handoff, so it is told what the caller spoke), a direct
+# "answer in Japanese" in the message, and the voice that reads the answer (`/tts/voices`).
 #
 # `LANGS` above is the heavy registry: a language there has an interface dictionary, safety-gate
 # lexicon, clock sentence and weekday names. A REPLY language needs much less: a code, its names
@@ -289,13 +290,6 @@ def reply_info(code: str) -> ReplyLang:
 
 def reply_codes() -> Tuple[str, ...]:
     return tuple(_REPLY.keys())
-
-
-def reply_choices() -> list:
-    """The reply-language picker (Settings, customer bots): full-registry languages first, then by English name."""
-    head = [_REPLY[c] for c in LANGS]
-    rest = sorted((r for c, r in _REPLY.items() if c not in LANGS), key=lambda r: r.english)
-    return [{"ma": r.code, "ten": r.native, "ten_en": r.english} for r in head + rest]
 
 
 def chuan_hoa(code: str) -> str:

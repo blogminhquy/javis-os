@@ -174,17 +174,13 @@ check("và mang theo NGÔN NGỮ đã chốt, không bắt cổng tự đoán l�
 check("không ghim gì thì đường tắt không ép ngôn ngữ trả lời", _goi["fast_prepare"][0].get("lang_tra_loi") == "")
 check("CANARY: hỏi với kênh 'telegram', không phải 'dashboard'",
       _goi["fast_prepare"] and _goi["fast_prepare"][0]["channel"] == "telegram")
-_cfg_ghim = cfgmod.read_settings()
-_locale_cu = dict(_cfg_ghim.get("locale") or {})
-_cfg_ghim.setdefault("locale", {})["reply_lang"] = "en"
-cfgmod.write_settings(_cfg_ghim)
+# A language asked for in the message itself is a real decision, and it reaches the fast path. (Settings no longer
+# name a reply language since 2026-11-15: the language setting is the interface's only.)
 _dem_truoc = {k: list(v) for k, v in _goi.items()}   # the checks below count the FIRST run's calls only
 _goi["fast_prepare"].clear()
-chay()
-check("ngôn ngữ ghim ở Cài đặt xuống tới đường tắt", _goi["fast_prepare"] and
+chay(hoi="please answer in English: what is 2+2")
+check("ngôn ngữ người dùng ra lệnh trong câu xuống tới đường tắt", _goi["fast_prepare"] and
       _goi["fast_prepare"][0].get("lang_tra_loi") == "en")
-_cfg_ghim["locale"] = _locale_cu
-cfgmod.write_settings(_cfg_ghim)
 for _k, _v in _dem_truoc.items():
     _goi[_k][:] = _v
 check("đi đường tắt thì trả lời luôn", isinstance(ra, dict) and "4 ạ." in ra["text"])
