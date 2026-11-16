@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.576.0] - 2026-11-16
+### Improved
+- **The team Jobs tab now follows the Tasks page.** Each job is a card, and right under it you see what every member is doing: done, working or waiting its turn, with what they were asked to do. Jobs waiting for you come first.
+- **Icons replace text buttons.** Edit, acceptance, cancel, priority and move to Archive are icons; one text button is left, on a job that waits for you. The Info, Jobs and Team tabs have icons, and Jobs shows how many jobs are open.
+- **Press a finished job to read a summary:** when it ended, the result, who did what. Finished jobs and the Archive are paged, five jobs a page.
+- **The Archive is no longer cut at 30 jobs** and gets a search box once it is longer than one page. "Delete all" stands apart at the end.
+
 ## [0.575.2] - 2026-11-16
 ### Fixed
 - **Playwright no longer says "browser not installed" right after Javis downloaded one.** Javis now hands Playwright the exact browser file it downloaded, so the two can run on different versions. A browser you chose yourself is left alone.
