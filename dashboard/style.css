@@ -5072,6 +5072,9 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-tick { flex: none; display: inline-flex; color: var(--accent, #3b82f6); }
 .gh-tick svg { width: 18px; height: 18px; }
 .gh-results { display: flex; flex-direction: column; gap: 2px; }
+/* Where the list has a max-height (project drawer, create-team box, team chat pop-up) it must scroll. A group clips its
+   own overflow, so without this the browser shrinks the groups instead and "Selected" is cut to a sliver (2026-11-16). */
+.gh-results > * { flex: none; }
 /* "Add repos on GitHub" is a link styled as a menu row, and the same link inline in the empty list (0.438.1). */
 a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 .gh-results .cp-empty a[data-gh-add] { color: var(--accent, #3b82f6); text-decoration: underline; }
