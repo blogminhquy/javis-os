@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.578.0] - 2026-11-17
+### Cải thiện
+- **Việc của team gọn thành một viên thuốc ngay trên khung nhập,** giống việc nền ở chat chính. Bấm vào mới mở chi tiết: lý do dừng, nút xử lý, ai đang làm.
+- **Việc chờ bạn tự ẩn khỏi viên thuốc khi bạn đã nhắn trong khung chat sau lúc nó dừng.** Việc vẫn còn ở tab Việc cho tới khi xử lý xong.
+- **Đổi tên vai trong team:** bạn, người tạo team, là Trưởng nhóm; cộng sự dẫn team là Phó nhóm (trước là "Điều phối"). Nhãn vai luôn nằm trên một dòng, và "Chia việc", "Làm" ở từng bước thành tag gọn.
+- **Tab Việc đứng đầu ngăn bên** (Việc, Thông tin, Team). Mở team đang có việc thì vào thẳng tab Việc, chưa có việc thì vào tab Thông tin.
+### Sửa lỗi
+- **Câu gợi ý trả lời không còn đè lên dòng "đang gõ"** khi dòng đó hiện ra phía trên ô nhập, ở cả trang Team lẫn chat chính.
+
 ## [0.577.0] - 2026-11-17
 ### Cải thiện
 - **Cập nhật xong, việc đang dở tự chạy tiếp.** Việc team bị cắt giữa chừng tự làm tiếp đúng bước đang dở, câu team đang trả lời tự trả lời lại; không còn phải bấm "Làm tiếp" hay "Thử lại".
