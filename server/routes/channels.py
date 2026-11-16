@@ -22,9 +22,10 @@ from __future__ import annotations
 import json
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Literal
 
 from fastapi import APIRouter, Form
+from pydantic import BaseModel, StrictInt
 from fastapi.responses import JSONResponse
 
 import channel_accounts
@@ -43,6 +44,11 @@ class ChannelsDeps:
     main_bot_token: Callable[[], str]
     # 2026-11-08: the same for the owner's Zalo Bot (Admin channels page).
     main_zalo_token: Callable[[], str] = None
+
+
+class DeliveryIssueResolution(BaseModel):
+    revision: StrictInt
+    resolution: Literal["handled_by_staff"]
 
 
 _DEPS: "ChannelsDeps" = None   # type: ignore
@@ -469,6 +475,34 @@ def register(app, deps: ChannelsDeps):
         meta_off = await _meta_unsubscribe(account_id)
         ok, loi = channel_accounts.delete_account(account_id)
         return {"ok": True, "bot_tat": bot_tat, **meta_off} if ok else _404(loi)
+
+    def issue_account(account_id: str, brain: str):
+        # Same owner authentication middleware and brain visibility as the existing
+        # channels/inbox routes. Never add these endpoints to machine exemptions.
+        return next((a for a in channel_accounts.list_accounts("zernio", brain=brain)
+                     if a["id"] == account_id), None)
+
+    @router.get("/channels/accounts/{account_id}/zernio/delivery-issues")
+    async def zernio_delivery_issues(account_id: str, brain: str = ""):
+        if not issue_account(account_id, brain):
+            return _404()
+        import zernio_bot
+        return {"ok": True, "issues": zernio_bot.delivery_issues(account_id)}
+
+    @router.post("/channels/accounts/{account_id}/zernio/delivery-issues/{issue_id}/resolve")
+    async def zernio_resolve_delivery_issue(account_id: str, issue_id: str,
+                                            body: DeliveryIssueResolution, brain: str = ""):
+        if not issue_account(account_id, brain):
+            return _404()
+        import zernio_bot
+        status = zernio_bot.resolve_delivery_issue(account_id, issue_id, body.revision)
+        if status == 404:
+            return _404()
+        if status == 409:
+            return JSONResponse({"ok": False, "error": localefmt.chu(
+                "Sự cố đã thay đổi hoặc chưa sẵn sàng. Tải lại để kiểm tra.",
+                "The issue changed or is not ready. Reload to check.")}, status_code=409)
+        return {"ok": True}
 
     app.include_router(router)
 

@@ -123,7 +123,11 @@
     var r = await fetch(url, opts || {});
     var d = null;
     try { d = await r.json(); } catch (e) { d = {}; }
-    if (!r.ok || d.ok === false) throw new Error((d && d.error) || window.t("cb.loi_ma", { ma: r.status }));
+    if (!r.ok || d.ok === false) {
+      var error = new Error((d && d.error) || window.t("cb.loi_ma", { ma: r.status }));
+      error.status = r.status;
+      throw error;
+    }
     return d;
   }
   function fd(obj) {
@@ -2495,6 +2499,7 @@
         loi +
         '<div class="ht-acc-acts">' +
           congTac +
+          (a.channel === "zernio" ? '<button type="button" style="min-height:44px" class="s-btn-ghost ht-zernio-issues">' + esc(window.t("ht.zernio.issues")) + '</button>' : "") +
           // 0.174.0: nhập tin cũ (Zalo cá nhân giữ khoảng 2 tuần). Chủ bấm mới chạy; tin cũ không vào bot, không tính chưa đọc.
           (nl.nhap_lich_su && a.kind === "account"
             ? '<button type="button" class="s-btn-ghost ht-acc-nhap-cu">' + ic("history") + ' ' + esc(window.t("ht.nhap_cu")) + '</button>' : "") +
@@ -2511,6 +2516,8 @@
         '</div>' +
       '</div>');
     c.querySelector(".ht-acc-inbox").onclick = function () { _cho = { account_key: a.account_key }; chonTab("inbox"); };
+    var issuesButton = c.querySelector(".ht-zernio-issues");
+    if (issuesButton) issuesButton.onclick = function () { openZernioIssues(a); };
     var tb = c.querySelector(".ht-acc-tao-bot");
     if (tb) tb.onclick = function () {
       // Đã đứng ở tab Bot rồi: không dựng lại tab (mất nhịp), chỉ mở form với kênh này tích sẵn.
@@ -2577,6 +2584,78 @@
   // `opts.onXong(account)`: gọi khi tài khoản đã tạo xong, để nơi gọi tự làm tiếp (form bot
   // tích sẵn tài khoản vừa nối). Không truyền thì chỉ nạp lại tab Tài khoản bot như cũ.
   // Shared by the channel picker and every chatbot's account editor.
+  async function zernioIssues(host, account, onOpen) {
+    var url = "/channels/accounts/" + encodeURIComponent(account.id) + "/zernio/delivery-issues";
+    var scope = "?brain=" + encodeURIComponent(brain());
+    var t = window.t;
+    host.innerHTML = '<p role="status">' + esc(t("ht.zernio.issue_loading")) + '</p>';
+    var issues;
+    try { issues = (await api(url + scope)).issues; }
+    catch (e) {
+      host.innerHTML = '<p role="alert">' + esc(t("ht.zernio.issue_load_failed")) + '</p>' +
+        '<button type="button" style="min-height:44px" class="s-btn-ghost" id="htZIReload">' + esc(t("ht.zernio.issue_reload")) + '</button>';
+      host.querySelector("#htZIReload").onclick = function () { return zernioIssues(host, account, onOpen); };
+      return;
+    }
+    function reason(issue) {
+      if (issue.reason === "unsupported_media") return t("ht.zernio.issue_media");
+      if (issue.reason === "idempotency_window_expired") return t("ht.zernio.issue_expired");
+      if (/^provider_http_40[13]$/.test(issue.reason)) return t("ht.zernio.issue_auth");
+      if (issue.reason === "provider_http_429") return t("ht.zernio.issue_rate");
+      return t("ht.zernio.issue_delivery");
+    }
+    host.innerHTML = '<p>' + esc(t("ht.zernio.issue_no_replay")) + '</p>' +
+      infoBtn() + infoBody(esc(t("ht.zernio.issue_help"))) +
+      '<p id="htZIStatus" role="status" aria-live="polite"></p>' +
+      '<button type="button" style="min-height:44px" class="s-btn-ghost" id="htZIReload">' + esc(t("ht.zernio.issue_reload")) + '</button>' +
+      (issues.length ? issues.map(function (issue, i) {
+        return '<section style="border-top:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere">' +
+          '<p><strong>' + esc(reason(issue)) + '</strong></p>' +
+          '<p>' + esc(t("ht.zernio.issue_attempts", {count:issue.attempts})) + '</p>' +
+          '<p>' + esc(issue.next_retry_at ? t("ht.zernio.issue_next", {time:gio(issue.next_retry_at)}) : t("ht.zernio.issue_stopped")) + '</p>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+          '<button type="button" style="min-height:44px" class="s-btn-ghost" id="htZIChat' + i + '">' + esc(t("ht.zernio.issue_chat")) + '</button>' +
+          '<button type="button" style="min-height:44px" class="s-btn-ghost" id="htZIResolve' + i + '">' + esc(t("ht.zernio.issue_resolve")) + '</button>' +
+          '</div></section>';
+      }).join("") : '<p>' + esc(t("ht.zernio.issue_empty")) + '</p>');
+    host.querySelector("#htZIReload").onclick = function () { return zernioIssues(host, account, onOpen); };
+    issues.forEach(function (issue, i) {
+      host.querySelector("#htZIChat" + i).onclick = function () {
+        if (onOpen) onOpen();
+        moTu({tab:"inbox", id:issue.conversation_id, account_key:"zernio:" + account.id});
+      };
+      var button = host.querySelector("#htZIResolve" + i);
+      button.disabled = !!issue.next_retry_at;
+      button.onclick = async function () {
+        button.disabled = true;
+        try {
+          await api(url + "/" + encodeURIComponent(issue.id) + "/resolve" + scope, {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({revision:issue.revision, resolution:"handled_by_staff"})});
+          await zernioIssues(host, account, onOpen);
+        } catch (e) {
+          host.querySelector("#htZIStatus").textContent = t(e.status === 409 ? "ht.zernio.issue_conflict" : "ht.zernio.issue_failed");
+          // Require a fresh revision after conflict or an ambiguous network result.
+        }
+      };
+    });
+  }
+
+  function openZernioIssues(account) {
+    var box = el('<div class="ht-modal"><div class="ht-form" role="dialog" aria-modal="true" aria-labelledby="htZITitle" ' +
+      'style="font-size:16px;max-width:560px;width:calc(100% - 24px);max-height:90dvh;overflow:auto">' +
+      '<h3 id="htZITitle">' + esc(window.t("ht.zernio.issues")) + '</h3>' +
+      '<button type="button" style="min-height:44px" class="s-btn-ghost ht-close">' + esc(window.t("ht.zernio.issue_close")) + '</button>' +
+      '<div class="ht-zernio-content"></div></div></div>');
+    document.body.appendChild(box);
+    var close = function () { box.remove(); document.removeEventListener("keydown", onKey); };
+    var onKey = function (event) { if (event.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    box.querySelector(".ht-close").onclick = close;
+    box.querySelector(".ht-close").focus();
+    zernioIssues(box.querySelector(".ht-zernio-content"), account, close);
+  }
+
   function zernioForm(host, account) {
     var dirty = false, generation = 0, identity = {};
     host._zernioForm = identity;
@@ -3077,6 +3156,13 @@
   // Mở trang này từ nơi khác (thẻ bot ở tab Chatbot, console.js) với tab hoặc bộ lọc sẵn.
   function moTu(opts) {
     _cho = opts || {};
+    if (_cho.id) {
+      dropMic();
+      _chon = Number(_cho.id);
+      _msgs = []; _conv = null; _silence = null;
+      _draftEdit = null; _noteEdit = null; _actNote = null;
+      _conCu = false; _dangTaiCu = false; _vetMeta = ""; _dauVetTin = "";
+    }
     var tabMo = chuanTab(_cho.tab || "");
     _tab = TABS.indexOf(tabMo) >= 0 ? tabMo : "inbox";
     if (_host && document.body.contains(_host)) { veTabs(); veTab(); return; }

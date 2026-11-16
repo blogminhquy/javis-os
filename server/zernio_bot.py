@@ -647,6 +647,56 @@ async def _flush(key):
         guard.close()
 
 
+def delivery_issues(account_id: str) -> list:
+    """Only public metadata for the requested Javis account, never batch contents."""
+    result = []
+    for current in _state_store.load()["conversations"].values():
+        issue = current.get("delivery_issue")
+        if current.get("javis_account_id") != account_id or not issue:
+            continue
+        public = {k: issue.get(k) for k in
+                  ("id", "revision", "reason", "attempts", "next_retry_at", "created_at")}
+        public["conversation_id"] = conversations.conversation_id_of(
+            "zernio", account_id, current["conversation_id"])
+        result.append(public)
+    return result
+
+
+def resolve_delivery_issue(account_id: str, issue_id: str, revision: int) -> int:
+    """CAS under the same cross-process conversation lock as flush. No sending."""
+    import chatbot_store
+    snapshot = _state_store.load()
+    key = next((key for key, c in snapshot["conversations"].items()
+                if c.get("javis_account_id") == account_id and
+                ((c.get("delivery_issue") or {}).get("id") == issue_id or
+                 any(h["issue"]["id"] == issue_id for h in c.get("delivery_history", [])))), None)
+    if key is None:
+        return 404
+    guard = _state_store.conversation_lock(key)
+    if guard is None:
+        return 409
+    try:
+        with _state_store.transaction() as state:
+            current = state["conversations"].get(key) or {}
+            issue = current.get("delivery_issue") or {}
+            assigned = chatbot_store.bots_using_account(account_id)
+            if (current.get("javis_account_id") != account_id or issue.get("id") != issue_id
+                    or issue.get("revision") != revision or not current.get("delivery_batch")
+                    or current.get("handoff_pending") or len(assigned) != 1
+                    or assigned[0].get("id") != current.get("bot_id")):
+                return 409
+            current.setdefault("delivery_history", []).append({
+                "issue": dict(issue, revision=revision + 1), "batch": current.pop("delivery_batch"),
+                "resolution": "handled_by_staff", "resolved_at": _now()})
+            current.pop("delivery_issue")
+            # These messages already exist in the inbox. Recovery must not enqueue
+            # them or enable AI; only future incoming messages can form a new batch.
+            current["messages"] = []
+        return 200
+    finally:
+        guard.close()
+
+
 def _block_delivery(current, reason):
     """Commit handoff intent and evidence before touching the inbox database."""
     current["delivery_batch"] = {field: current.pop(field) for field in
