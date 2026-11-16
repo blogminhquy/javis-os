@@ -29,6 +29,7 @@ from pathlib import Path
 import httpx
 
 import mcp_orphans
+import tool_images
 import winproc
 
 
@@ -128,7 +129,12 @@ def _format_result(res):
     texts = []
     for c in (result.get("content") or []):
         if isinstance(c, dict):
-            texts.append(c.get("text", "") if c.get("type") == "text" else json.dumps(c, ensure_ascii=False))
+            if c.get("type") == "text":
+                texts.append(c.get("text", ""))
+            else:
+                # An image during a model's call goes into the brain and shows in the chat (tool_images.py).
+                note = tool_images.note_for(c)
+                texts.append(note if note is not None else json.dumps(c, ensure_ascii=False))
     out = "\n".join(t for t in texts if t)
     if result.get("isError"):
         return "ERROR: " + (out or "tool error")

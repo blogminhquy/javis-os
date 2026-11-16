@@ -45,6 +45,7 @@ import secret_guard
 import skill_router
 import skill_usage
 import team_gate
+import tool_images
 import tool_pins
 import tool_result_shaper
 import tool_result_tools
@@ -452,8 +453,11 @@ def _shaped_call(call, ent, fn, scope):
     tool = ent["tool"]
 
     async def _call(args):
-        result = await call(args)
-        if tool_result_shaper.audience() == "":
+        audience = tool_result_shaper.audience()
+        # Inside a model's turn an image the tool returns is saved in this brain and shown in the chat (tool_images).
+        with tool_images.saving_to(scope if audience else "", tool):
+            result = await call(args)
+        if audience == "":
             return result                       # an internal caller: exactly as before, and not measured
         text = result if isinstance(result, str) else str(result)
         if len(text) < tool_result_shaper.MIN_SHAPE_CHARS:
