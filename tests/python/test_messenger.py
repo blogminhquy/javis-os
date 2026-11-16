@@ -111,9 +111,13 @@ class Probe(messenger_bot.MessengerBot):
         super().__init__({"page_id": page, "access_token": TOKEN, "app_secret": SECRET}, "", None,
                          giau_trang_thai=True)
         self.got = []
+        self.echoes = []
 
     async def _safe_event(self, ev):
         self.got.append(ev)
+
+    async def _safe_echo(self, ev, instagram=False):
+        self.echoes.append(ev)
 
 
 def ev(mid, text="hi", sender="555", **msg):
@@ -139,7 +143,7 @@ async def _route():
 n, got_a, got_b, other = run(_route())
 check("message and postback reach the bot of that Page", [g.get("message", {}).get("mid") or "postback" for g in got_a]
       == ["m1", "postback"], got_a)
-check("echo and read receipt are skipped", n == 2, n)
+check("read receipt is skipped, the echo goes to the inbox path, not a turn", n == 3, n)
 check("another Page's bot hears nothing", got_b == [], got_b)
 check("non-page objects are ignored", other == 0)
 
