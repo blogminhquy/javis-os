@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.575.0] - 2026-11-16
+### Cải thiện
+- Thanh chọn dự án và danh sách dự án có chấm đỏ khi dự án khác có câu trả lời chưa đọc. Dự án đang xem chỉ báo trên từng cuộc chat, tránh báo trùng.
+- Mở dự án vẫn giữ dấu chưa đọc cho đến khi mở đúng cuộc chat. Dấu báo cập nhật khi có câu trả lời mới hoặc khi đọc ở tab khác.
+
 ## [0.574.0] - 2026-11-16
 ### Cải thiện
 - **Gõ thêm lúc đang theo đuổi mục tiêu không còn làm mục tiêu tạm dừng.** Tin bạn gửi được gộp vào mục tiêu: vòng đang chạy đọc nó ở bước kế tiếp, các vòng sau đều mang theo, nên bạn chỉnh hay mở rộng mục tiêu ngay khi Javis đang làm. Mỗi tin như vậy cho thêm một vòng (tối đa 10). Vòng nào báo đạt mà chưa kịp đọc tin của bạn thì Javis vẫn làm thêm một vòng cho tin đó. Nút Dừng vẫn tạm dừng mục tiêu như trước.

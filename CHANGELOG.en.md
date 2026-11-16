@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.575.0] - 2026-11-16
+### Improved
+- The project selector and project list show a red dot when another project has unread replies. The selected project uses its chat dots without a duplicate folder alert.
+- Opening a project keeps chats unread until they are opened. Badges update for new replies and reads in another tab.
+
 ## [0.574.0] - 2026-11-16
 ### Improved
 - **Typing while a goal runs no longer pauses it.** Your message is added to the goal: the running round reads it at its next step and every later round carries it, so you can adjust or widen the goal while Javis works. Each such message gives one more round (10 at most). If a round reports the goal met before it read your message, Javis runs one more round for it. The Stop button still pauses the goal as before.
