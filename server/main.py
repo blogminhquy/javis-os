@@ -202,6 +202,7 @@ import javis_core        # Javis Core (0.185.0): system assistant pinned in ever
 import main_prompt_rendering  # pure shared prompt blocks; no live reads
 import main_attachment_rendering  # pure shared attachment templates; no live reads
 import memory_control    # 0.188.0: list/edit/forget memories, learning switch, person profile
+import agent_learned     # 2026-11-16: the Learned tab of an assistant (Cộng sự page)
 import memory_chat       # 0.190.0: the same, plus agent lessons, from chat (tool javis_memory)
 import project_context   # 2026-11-13: what Javis learnt about a project, and tool javis_project
 import memory_receipt    # 0.190.0: the "Đã nhớ · Hoàn tác" line under an answer, and no empty "đã quên"
@@ -34012,6 +34013,13 @@ async def _learn_tick():
 agent_review.register_routes(app, agent_review.LearnRouteDeps(
     brain_key=lambda b: _brain_key(b), agent_exists=lambda root, slug: _agent_md_path(root, slug) is not None,
     agent_key=lambda root, slug: _agent_jobs_key(root, slug), store=_pulse_store))
+# 2026-11-16: the Learned tab of an assistant (Cộng sự page): what it learnt, from the same store the prompt reads.
+agent_learned.register_routes(app, agent_learned.Deps(
+    brain_key=lambda b: _brain_key(b), agent_exists=lambda root, slug: _agent_md_path(root, slug) is not None,
+    agent_key=lambda root, slug, reg: _agent_jobs_key(root, slug, register=reg),
+    store=lambda create: _pulse_store() or (_resonance_store() if create else None),
+    legacy_file=lambda root, slug: _brain_memory_dir(root) / "agents" / slug / "MEMORY.md",
+    refuse=lambda text: project_context.blocked_reason(text)))
 
 @app.get("/model/fast-state")
 async def model_fast_state():

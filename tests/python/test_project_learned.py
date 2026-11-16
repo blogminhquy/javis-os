@@ -460,8 +460,11 @@ ui = (ROOT / "dashboard" / "sessions-ui.js").read_text(encoding="utf-8")
 css = (ROOT / "dashboard" / "style.css").read_text(encoding="utf-8")
 check("the project drawer has a learned tab, between instructions and documents",
       'k: "learned"' in ui and "tabLearned, tabDocs]" in ui)
-check("the chat and the assistant drawers do not get it, and show only the documents tab",
+check("a plain chat drawer does not get it, and shows only the documents tab",
       "if (pdLaCuoc() || pdLaAgent()) return [tabDocs];" in ui)
+# 2026-11-16: an assistant has its own Learned tab (its lessons, tests/python/test_agent_learned.py).
+check("an assistant drawer gets its own Learned tab, after the documents",
+      'if (laHocTroLy()) return [tabDocs, { k: "learned"' in ui)
 check("the tab counts follow the tab list", "tabsHienTai().map(function (t) { return t.n || \"\"; })" in ui)
 check("notes are escaped when drawn", "esc(n.text)" in ui and "esc(o.desc)" in ui)
 check("the long explanation sits behind the (i) button", "info.btn(pdT(\"info.more\"))" in ui and "proj.learned_info" in ui)

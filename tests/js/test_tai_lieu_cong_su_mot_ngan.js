@@ -33,7 +33,7 @@ check("Studio (không có cuộc liên quan) vẫn mở ngăn riêng của trợ
 check("khung ngăn kéo có chỗ cho công tắc", /'<div class="pd-scope" hidden><\/div>'/.test(SU));
 check("veDrawer vẽ công tắc mỗi lần", /veThanhPhamVi\(\);/.test(SU.split("function veDrawer()")[1] || ""));
 check("công tắc chỉ hiện khi mở từ trang Cộng sự",
-  /if \(!pdCongSu \|\| !\(pdLaAgent\(\) \|\| pdLaCuoc\(\)\)\) \{ host\.hidden = true;/.test(SU));
+  /if \(!pdCongSu \|\| !\(pdLaAgent\(\) \|\| pdLaCuoc\(\)\)( \|\| projTab === "learned")?\) \{ host\.hidden = true;/.test(SU));
 check("mở project thì tắt công tắc", /pdCheDo = "project";\s*\n\s*pdCongSu = null;/.test(SU));
 check("đóng ngăn thì tắt công tắc",
   /pdOnboard = false;\s*\n\s*pdCongSu = null;\s*\n\s*\}/.test(SU.split("function closeProjDrawer()")[1] || ""));
@@ -57,6 +57,13 @@ check("đủ khoá tiếng Việt", KEYS.every((k) => VI[k]));
 check("đủ khoá tiếng Anh", KEYS.every((k) => EN[k]));
 check("câu gợi ý nói rõ gắn vào ĐÂU", /TRỢ LÝ/.test(VI["pds.hint_agent"]) && /RIÊNG CUỘC NÀY/.test(VI["pds.hint_chat"]));
 check("nút trên thanh đầu đổi tên thành Tài liệu", VI["ws.files_links"] === "Tài liệu");
+// 2026-11-16 (chủ repo): ngăn của trợ lý có thêm tab Đã học, nên ở tab Trợ lý nút ghi cả hai.
+check("tab Trợ lý: nút là Tài liệu & Đã học; tab Quy trình vẫn là Tài liệu",
+  VI["ws.docs_learned"] === "Tài liệu & Đã học" && EN["ws.docs_learned"]
+  && /S\.loai === "agent" \? "ws\.docs_learned" : "ws\.files_links"/.test(WS));
+check("tab nằm TRÊN công tắc phạm vi: công tắc là lựa chọn bên trong tab Tài liệu",
+  SU.indexOf("'<div class=\"pd-tabs\"></div>'") < SU.indexOf("'<div class=\"pd-scope\" hidden></div>'"));
+check("tab Đã học ẩn công tắc phạm vi", /\|\| projTab === "learned"\) \{ host\.hidden = true;/.test(SU));
 check("ghi chú của trợ lý không còn chỉ sang nút File & link cũ", !/File & link/.test(VI["ags.note"]));
 check("không có gạch ngang dài trong chữ mới",
   KEYS.every((k) => !/[–—]/.test(VI[k] + EN[k])));

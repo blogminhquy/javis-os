@@ -601,8 +601,10 @@
             '<button class="pd-hbtn pd-ren" type="button"></button>' +
             '<button class="pd-hbtn pd-x" type="button"></button>' +
           '</div>' +
-          '<div class="pd-scope" hidden></div>' +
+          // 2026-11-16: the tabs sit ABOVE the scope switch. "Of the assistant / only this chat" is a choice inside the
+          // Documents tab; the Learned tab belongs to the assistant alone and hides the switch.
           '<div class="pd-tabs"></div>' +
+          '<div class="pd-scope" hidden></div>' +
           '<div class="pd-body"></div>' +
         '</div>' +
       '</div>');
@@ -733,6 +735,9 @@
                     n: (p.files || []).length + (p.links || []).length + (pdCoRepo() ? (p.repos || []).length : 0) };
     // Hướng dẫn chỉ có ở project. Trợ lý đã có system prompt riêng trong trình sửa của nó,
     // bày thêm một ô hướng dẫn ở đây là hai chỗ nói cùng một việc.
+    // 2026-11-16 (owner): an assistant also has a Learned tab, what it learnt while working. Opened from the Cộng sự
+    // page it stays there on both scopes: the lessons belong to the assistant, whichever documents scope is showing.
+    if (laHocTroLy()) return [tabDocs, { k: "learned", ico: "brain", nhan: pdT("proj.tab_learned"), n: soBaiHoc() }];
     if (pdLaCuoc() || pdLaAgent()) return [tabDocs];
     // 2026-11-13: what Javis learnt about the project while working in it. Right after the instructions: both are
     // context that rides on every turn, one written by the owner and one mostly by Javis.
@@ -809,6 +814,7 @@
     pdEl.classList.add("on");
     document.body.classList.add("pd-open");
     agentTS = { slug: slug, name: ten || slug, files: [], links: [], dangTai: true };
+    napHocVaVe(slug);
     veDrawer();
     await napAgentTS(slug, ten);
     veDrawer();
@@ -859,6 +865,9 @@
   async function openTaiLieuCongSu(slug, ten, phamVi) {
     if (!slug) return;
     pdCongSu = { slug: slug, name: ten || slug };
+    projTab = "files";        // the button opens on the documents; a tab left over from a project must not win
+    if (!agentHoc || agentHoc.slug !== slug) agentHoc = null;
+    napHocVaVe(slug);
     var pv = phamVi || phamViDaNho();
     if (pv === "cuoc" && !currentId()) pv = "agent";   // chưa có cuộc thì chưa có chỗ gắn
     // Nạp phạm vi KIA song song để công tắc hiện đúng số ngay từ đầu.
@@ -886,7 +895,7 @@
     if (!pdEl) return;
     var host = pdEl.querySelector(".pd-scope");
     if (!host) return;
-    if (!pdCongSu || !(pdLaAgent() || pdLaCuoc())) { host.hidden = true; host.innerHTML = ""; return; }
+    if (!pdCongSu || !(pdLaAgent() || pdLaCuoc()) || projTab === "learned") { host.hidden = true; host.innerHTML = ""; return; }
     host.hidden = false;
     var coCuoc = !!currentId();
     var nut = function (pv, ico, nhan, phu, n, tat) {
@@ -966,13 +975,14 @@
     if (pdCongSu) pdEl.querySelector(".pd-ico").innerHTML = ic("bot");
     pdEl.querySelector(".pd-name").textContent = pdCongSu ? pdCongSu.name
       : laCuoc ? pdT("cts.title") : (p.name || "");
-    veThanhPhamVi();
     // Đổi tên chỉ có nghĩa với project. Cuộc trò chuyện đổi tên ở cột trái, trợ lý đổi tên
     // trong trình sửa của nó; bày lại ở đây là hai chỗ làm cùng một việc.
     pdEl.querySelector(".pd-ren").style.display = (laCuoc || pdLaAgent()) ? "none" : "";
     veThanhTab();
+    veThanhPhamVi();          // after the tab bar: it settles projTab, and the Learned tab hides the switch
     veNutGhimPhien();
     var body = pdEl.querySelector(".pd-body");
+    if (projTab === "learned" && laHocTroLy()) { body.innerHTML = paneHocTroLy(); wireHocTroLy(); return; }
     if (p.dangTai) { body.innerHTML = '<div class="pd-empty pg-loading">' + esc(pdT("proj.loading")) + "…</div>"; return; }
     if (p.loi) { body.innerHTML = '<div class="pd-empty">' + esc(pdT(pdK("err_load"))) + "</div>"; return; }
     body.innerHTML =
@@ -1203,6 +1213,153 @@
     if (!confirm(pdT("proj.confirm_remove_note"))) return;
     await post(noteUrl("/" + encodeURIComponent(n.id) + "/delete"), {});
     await reloadNotes();
+  }
+
+  // ── Tab "Đã học" of an ASSISTANT (2026-11-16) ─────────────────────────────────
+  // Owner, 16/11/2026: bring the project's self-learning into the Cộng sự page. An assistant already learns lessons on
+  // its own (JAVIS_LESSON); this tab shows the ones it uses and lets the owner edit, remove and add, like the project
+  // tab above. The server reads the same store the prompt reads (server/agent_learned.py), so the list is what the
+  // assistant really uses. No scopes to pick and no promote button: that is what the owner removed in 0.190.0.
+  var agentHoc = null;       // {slug, lessons, loi} of the assistant whose Learned tab is showing
+  var hocDangNap = null;     // {slug, p}: one load per assistant at a time
+  var AGENT_LESSON_MAX = 300;
+  var HOC_WHERE_KEY = { all: "ags.where_all", dm: "ags.where_dm", team: "ags.where_team" };
+  var HOC_SRC_KEY = { owner: "ags.src_owner", learnt: "ags.src_learnt", legacy: "ags.src_legacy" };
+
+  /** The drawer is about an assistant: its own drawer, or a chat of it opened from the Cộng sự page. */
+  function laHocTroLy() { return pdLaAgent() || (pdLaCuoc() && !!pdCongSu); }
+  function slugHoc() { return pdLaAgent() ? ((agentTS || {}).slug || "") : pdCongSu ? pdCongSu.slug : ""; }
+  function hocHienTai() { return agentHoc && agentHoc.slug === slugHoc() ? agentHoc : null; }
+  function soBaiHoc() { var h = hocHienTai(); return h && !h.loi ? h.lessons.length : 0; }
+
+  function napHoc(slug) {
+    if (hocDangNap && hocDangNap.slug === slug) return hocDangNap.p;
+    var p = (async function () {
+      var out;
+      try {
+        var d = await (await fetch("/agents/" + encodeURIComponent(slug) + "/learned?brain=" +
+                                   encodeURIComponent(brain()))).json();
+        out = (d && d.ok) ? { slug: slug, lessons: d.lessons || [] } : { slug: slug, lessons: [], loi: true };
+      } catch (e) { out = { slug: slug, lessons: [], loi: true }; }
+      agentHoc = out;
+      if (hocDangNap && hocDangNap.p === p) hocDangNap = null;
+    })();
+    hocDangNap = { slug: slug, p: p };
+    return p;
+  }
+
+  /** Load the lessons in the background; then the tab count, and the list when the tab is open, follow. */
+  function napHocVaVe(slug) {
+    if (!slug) return;
+    napHoc(slug).then(function () {
+      if (!pdEl || slugHoc() !== slug || !laHocTroLy()) return;
+      if (projTab === "learned") veDrawer(); else veSoTab();
+    });
+  }
+
+  function hocRowsHtml(h) {
+    if (!h.lessons.length) return '<div class="pd-empty">' + esc(pdT("ags.learned_empty")) + "</div>";
+    return h.lessons.map(function (n) {
+      var meta = esc(pdT(HOC_SRC_KEY[n.source] || "ags.src_learnt")) +
+        (n.source === "legacy" ? "" : " · " + esc(pdT(HOC_WHERE_KEY[n.where] || "ags.where_all")));
+      return '<div class="pd-nrow" data-id="' + esc(n.id) + '">' +
+          '<span class="pd-nbody">' +
+            '<span class="pd-ntext">' + esc(n.text) + "</span>" +
+            '<span class="pd-nmeta">' + meta + "</span>" +
+          "</span>" +
+          '<button class="pd-row-act pd-nedit" type="button" title="' + esc(pdT("ags.lesson_edit")) + '">' +
+            ic("pencil") + "</button>" +
+          '<button class="pd-row-act pd-go pd-ndel" type="button" title="' + esc(pdT("ags.lesson_remove")) + '">' +
+            ic("x") + "</button>" +
+        "</div>";
+    }).join("");
+  }
+
+  function paneHocTroLy() {
+    var h = hocHienTai();
+    if (!h) return '<div class="pd-empty pg-loading">' + esc(pdT("proj.loading")) + "…</div>";
+    if (h.loi) return '<div class="pd-empty">' + esc(pdT("ags.err_learned")) + "</div>";
+    var info = window.JavisInfo;
+    var explain = esc(pdT("ags.learned_info"));
+    return '<div class="pd-pane" data-pane="learned">' +
+      '<div class="pd-learn-head"><span class="pd-hint">' + esc(pdT("ags.learned_hint")) + "</span>" +
+        (info ? info.btn(pdT("info.more")) : "") + "</div>" +
+      (info ? info.body(explain) : '<div class="pd-note">' + ic("info") + "<span>" + explain + "</span></div>") +
+      '<div class="pd-list">' + hocRowsHtml(h) + "</div>" +
+      '<div class="pd-form pd-nform">' +
+        '<textarea class="pd-in pd-nin" rows="2" maxlength="' + AGENT_LESSON_MAX + '" placeholder="' +
+          esc(pdT("ags.lesson_ph")) + '"></textarea>' +
+        '<div class="pd-frow"><button class="pd-ok pd-nadd" type="button">' + esc(pdT("proj.add")) + "</button></div>" +
+        '<div class="pd-fmsg pd-nmsg" role="status" hidden></div>' +
+      "</div>" +
+      "</div>";
+  }
+
+  function wireHocRows(pane) {
+    var h = hocHienTai();
+    if (!h) return;
+    pane.querySelectorAll(".pd-nrow").forEach(function (row) {
+      var n = h.lessons.filter(function (x) { return x.id === row.dataset.id; })[0];
+      if (!n) return;
+      row.querySelector(".pd-nedit").onclick = function () { suaBaiHoc(n); };
+      row.querySelector(".pd-ndel").onclick = function () { xoaBaiHoc(n); };
+    });
+  }
+
+  function wireHocTroLy() {
+    var pane = pdEl.querySelector('[data-pane="learned"]');
+    if (!pane) return;
+    wireHocRows(pane);
+    var box = pane.querySelector(".pd-nin");
+    pane.querySelector(".pd-nadd").onclick = function () { themBaiHoc(); };
+    box.onkeydown = function (e) {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); themBaiHoc(); }
+    };
+  }
+
+  function hocUrl(suffix) { return "/agents/" + encodeURIComponent(slugHoc()) + "/learned" + (suffix || ""); }
+  function hocLoi(r) { noteMsg(pdT("ags.err_lesson") + ((r && r.error) ? ": " + r.error : "")); }
+
+  /** Reload and redraw only the list and the tab count: the box being typed in stays as it is. */
+  async function napLaiHoc() {
+    var slug = slugHoc();
+    await napHoc(slug);
+    var pane = pdEl && pdEl.querySelector('[data-pane="learned"]');
+    var box = pane && pane.querySelector(".pd-list");
+    var h = hocHienTai();
+    if (!box || !h || h.loi) { veDrawer(); return; }
+    box.innerHTML = hocRowsHtml(h);
+    wireHocRows(pane);
+    veSoTab();
+  }
+
+  async function themBaiHoc() {
+    var pane = pdEl && pdEl.querySelector('[data-pane="learned"]');
+    var box = pane && pane.querySelector(".pd-nin");
+    var text = box ? box.value.trim() : "";
+    if (!text) { if (box) box.focus(); return; }
+    var r = await post(hocUrl(""), { text: text, brain: brain() });
+    if (!r || !r.ok) { hocLoi(r); return; }
+    box.value = "";
+    noteMsg("");
+    await napLaiHoc();
+    box.focus();
+  }
+
+  async function suaBaiHoc(n) {
+    var text = prompt(pdT("ags.lesson_edit_q"), n.text || "");
+    if (text == null || !text.trim() || text.trim() === n.text) return;
+    var r = await post(hocUrl("/" + encodeURIComponent(n.id) + "/update"), { text: text.trim(), brain: brain() });
+    if (!r || !r.ok) { hocLoi(r); return; }
+    noteMsg("");
+    await napLaiHoc();
+  }
+
+  async function xoaBaiHoc(n) {
+    if (!confirm(pdT("ags.confirm_remove_lesson"))) return;
+    var r = await post(hocUrl("/" + encodeURIComponent(n.id) + "/delete"), { brain: brain() });
+    if (!r || !r.ok) { hocLoi(r); return; }
+    await napLaiHoc();
   }
 
   /** One line saying what an attached file or link holds. Javis writes it when it attaches or reads the document;
