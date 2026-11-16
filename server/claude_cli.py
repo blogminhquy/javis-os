@@ -2334,6 +2334,10 @@ class CodexCLI:
         final_text = ""
         messages = []   # this turn's agent messages, joined into `final_text` when the turn ends (codex_answer_text)
         sandbox_hong = False
+        # 2026-11-16: each agent message is its own paragraph in the live chat, as on the app-server path
+        # (codex_steer); they used to reach the chat glued together ("...xong.Bước tiếp...").
+        import text_breaks
+        shown = text_breaks.Joiner()
         while True:
             item = await queue.get()
             if item is SENTINEL:
@@ -2392,7 +2396,8 @@ class CodexCLI:
                     if txt.strip():
                         # Shown live as before; the answer (`final`) leaves lead-ins out (codex_answer_text).
                         messages.append({"text": txt, "phase": it.get("phase")})
-                        yield {"type": "text", "content": txt}
+                        shown.tool()   # a new message: a new paragraph after earlier text
+                        yield {"type": "text", "content": shown.text(txt)}
                 elif itype in _CODEX_TOOL_ITEMS:
                     codex_mark_step(messages)
                     # Câu lệnh đi kèm trong `item` để tool_label.chi_tiet rút ra khi cần.

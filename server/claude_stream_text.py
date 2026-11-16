@@ -15,14 +15,22 @@ it is not edited. This wraps its module-level `map_message` the same way the cac
 
 Nothing changes when the binary sends no StreamEvent (old CLI, the bundled one): there is nothing to drop.
 `JAVIS_CLAUDE_STREAM_TEXT=0` turns it off.
+
+2026-11-16: a new text block after earlier text of the same turn starts a new paragraph (`text_breaks.lead`). The
+text written before a tool call and the text written after it used to reach the chat glued together ("... cần đăng
+nhập.Xong mục 3"). A block is new at its `content_block_start`, at its first delta when no start came, and when a
+complete AssistantMessage brings text that never streamed. The rest of a block that streamed only in part is not.
 """
 from __future__ import annotations
 
 import os
 import threading
 
+import text_breaks
+
 _LOCK = threading.Lock()
-# session_id -> {"msg": message id of the root message streaming now, "blocks": {index: text so far}}
+# session_id -> {"msg": message id of the root message streaming now, "blocks": {index: text so far},
+#                 "tail": how this turn's text ends so far, "fresh": indexes started but with no text yet}
 _STATE: dict = {}
 _MAX_SESSIONS = 256
 
@@ -36,8 +44,15 @@ def _state(sid: str) -> dict:
     if st is None:
         if len(_STATE) >= _MAX_SESSIONS:
             _STATE.pop(next(iter(_STATE)))
-        st = _STATE[sid] = {"msg": None, "blocks": {}}
+        st = _STATE[sid] = {"msg": None, "blocks": {}, "tail": "", "fresh": set()}
     return st
+
+
+def _piece(st: dict, piece: str, new: bool) -> dict:
+    """The text event for `piece`. A new block after earlier text of this turn starts on a new paragraph."""
+    before = text_breaks.lead(st["tail"], piece) if new else ""
+    st["tail"] = (st["tail"] + before + piece)[-4:]
+    return {"type": "text", "content": before + piece}
 
 
 def _on_stream(msg) -> list:
@@ -54,22 +69,30 @@ def _on_stream(msg) -> list:
             st = _state(sid)
             st["msg"] = (ev.get("message") or {}).get("id")
             st["blocks"] = {}
+            st["fresh"] = set()
         elif kind == "content_block_start":
             block = ev.get("content_block") or {}
             if block.get("type") == "text":
+                st = _state(sid)
+                i = ev.get("index", 0)
                 piece = str(block.get("text") or "")
-                _state(sid)["blocks"][ev.get("index", 0)] = piece
+                st["blocks"][i] = piece
                 if piece:
-                    out.append({"type": "text", "content": piece})
+                    out.append(_piece(st, piece, True))
+                else:
+                    st["fresh"].add(i)
         elif kind == "content_block_delta":
             delta = ev.get("delta") or {}
             if delta.get("type") == "text_delta":
                 piece = str(delta.get("text") or "")
                 if piece:
-                    blocks = _state(sid)["blocks"]
+                    st = _state(sid)
+                    blocks = st["blocks"]
                     i = ev.get("index", 0)
+                    new = i in st["fresh"] or i not in blocks
+                    st["fresh"].discard(i)
                     blocks[i] = blocks.get(i, "") + piece
-                    out.append({"type": "text", "content": piece})
+                    out.append(_piece(st, piece, new))
     return out
 
 
@@ -79,12 +102,12 @@ def _on_assistant(msg, events: list) -> list:
     sid = str(getattr(msg, "session_id", "") or "")
     with _LOCK:
         st = _STATE.get(sid)
-        if not st or not st["blocks"]:
-            return events
+        streamed = bool(st and st["blocks"])
         mid = getattr(msg, "message_id", None)
-        if mid and st["msg"] and mid != st["msg"]:
-            return events     # a different message: what streamed belongs elsewhere
-        pending = [st["blocks"][k] for k in sorted(st["blocks"])]
+        if streamed and mid and st["msg"] and mid != st["msg"]:
+            streamed = False     # a different message: what streamed belongs elsewhere
+        st = st or _state(sid)
+        pending = [st["blocks"][k] for k in sorted(st["blocks"])] if streamed else []
         pending = [p for p in pending if p]
         out = []
         for ev in events:
@@ -94,14 +117,15 @@ def _on_assistant(msg, events: list) -> list:
             content = str(ev.get("content") or "")
             hit = next((p for p in pending if content == p or content.startswith(p)), None)
             if hit is None:
-                out.append(ev)
+                out.append({**ev, **_piece(st, content, True)})   # text that never streamed: a block of its own
                 continue
             pending.remove(hit)
             rest = content[len(hit):]
             if rest:
-                out.append({**ev, "content": rest})
-        # What was matched is consumed: Claude Code may send one AssistantMessage per block with the same id.
-        st["blocks"] = {i: t for i, t in st["blocks"].items() if t in pending}
+                out.append({**ev, **_piece(st, rest, False)})    # the end of a block that streamed in part
+        if streamed:
+            # What was matched is consumed: Claude Code may send one AssistantMessage per block with the same id.
+            st["blocks"] = {i: t for i, t in st["blocks"].items() if t in pending}
     return out
 
 
@@ -109,6 +133,14 @@ def _on_result(msg) -> None:
     sid = str(getattr(msg, "session_id", "") or "")
     with _LOCK:
         _STATE.pop(sid, None)
+
+
+def _on_turn_start(msg) -> None:
+    """A new turn begins (the `init` system message): nothing shown yet, so its first text needs no break."""
+    data = getattr(msg, "data", None) or {}
+    if getattr(msg, "subtype", "") == "init" and isinstance(data, dict):
+        with _LOCK:
+            _STATE.pop(str(data.get("session_id") or ""), None)
 
 
 def cai_vao_claude_sdk() -> bool:
@@ -123,15 +155,16 @@ def cai_vao_claude_sdk() -> bool:
 
     def map_message(msg):
         out = goc(msg)
-        if not bat():
-            return out
         try:
             name = type(msg).__name__
-            if name == "StreamEvent":
-                return out[0] + _on_stream(msg), out[1]
-            if name == "AssistantMessage":
+            if name == "SystemMessage":
+                _on_turn_start(msg)
+            elif name == "StreamEvent":
+                # JAVIS_CLAUDE_STREAM_TEXT=0 stops the pieces; the paragraph breaks below still apply.
+                return (out[0] + _on_stream(msg), out[1]) if bat() else out
+            elif name == "AssistantMessage":
                 return _on_assistant(msg, out[0]), out[1]
-            if name == "ResultMessage":
+            elif name == "ResultMessage":
                 _on_result(msg)
         except Exception:  # noqa: BLE001 - streaming is a nicety, never break a turn
             pass

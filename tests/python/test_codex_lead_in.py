@@ -78,7 +78,7 @@ evs = asyncio.run(_collect())
 final = next((e for e in evs if e["type"] == "final"), {})
 shown = [e["content"] for e in evs if e["type"] == "text"]
 check("exec: the customer answer has no lead-in", final.get("content") == ANSWER, final.get("content"))
-check("exec: the lead-in is still shown live (owner's chat, progress)", LEAD in shown and ANSWER in shown, shown)
+check("exec: the lead-in is still shown live (owner's chat, progress)", shown == [LEAD, "\n\n" + ANSWER], shown)
 
 print()
 if _fails:
