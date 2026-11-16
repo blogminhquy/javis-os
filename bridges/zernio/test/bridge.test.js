@@ -102,3 +102,17 @@ test('runtime ACK is queue acceptance, never proof of a sent reply', async () =>
   const ack = {ok:true,status:'queued',takeover:false,replySent:false,sammyReplySent:false};
   assert.deepEqual(await createRuntimeClient({baseUrl:'http://local',token:'private',fetchImpl:async()=>({ok:true,json:async()=>ack})}).deliver({}),ack);
 });
+
+
+test('explicit echo flags never reach runtime even when direction says incoming', async () => {
+  const batches = [];
+  const { bridge, file } = setup({ runtime: { deliver: async batch => { batches.push(batch); } } });
+  for (const flag of ['isEcho', 'is_echo']) {
+    const body = event({ id: 'echo-' + flag, message: { ...event().message, id: 'echo-' + flag,
+      platformMessageId: 'echo-' + flag, direction: 'incoming', [flag]: true } });
+    assert.equal(receive(bridge, body).code, 'ignored_message');
+  }
+  await bridge.flush('conv-1');
+  assert.deepEqual(batches, []);
+  assert.deepEqual(new JsonState(file).load().conversations, {});
+});

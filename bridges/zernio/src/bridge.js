@@ -82,7 +82,7 @@ export class Bridge {
     const msg = event.message || {}, account = event.account || {};
     const accountId = account.accountId || account.id;
     if (accountId !== this.accountId || account.platform !== 'instagram' || account.username !== this.username) return false;
-    if (msg.platform !== 'instagram' || msg.direction !== 'incoming' || event.metadata?.standby) return false;
+    if (msg.platform !== 'instagram' || msg.direction !== 'incoming' || msg.isEcho || msg.is_echo || event.metadata?.standby) return false;
     if (event.metadata?.historical || event.metadata?.isHistorical || event.historical || msg.historical || msg.isHistorical) return false;
     if (!msg.id || !msg.platformMessageId || !msg.sender?.id) return false;
     if (msg.sender.id === accountId || msg.sender.username === this.username) return false;
