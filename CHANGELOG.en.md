@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.577.0] - 2026-11-17
+### Improved
+- **After an update, work in flight carries on by itself.** A team job cut in the middle continues with the step it was on, and a team reply that was being written is written again; no more pressing "Continue" or "Retry".
+- **A chat answer cut short is answered again** when the page comes back after the server restarts, in the main chat and in chats with an assistant.
+- **Background jobs go back to the queue at once** instead of waiting 90 seconds, and the cut no longer counts as a failed attempt.
+- **Nothing outside happens twice.** A step that had already sent a message, posted or created an order before the server stopped makes Javis stop and tell you instead of doing it again. A workflow run cut short no longer says "running" for ever.
+
 ## [0.576.0] - 2026-11-16
 ### Improved
 - **The team Jobs tab now follows the Tasks page.** Each job is a card, and right under it you see what every member is doing: done, working or waiting its turn, with what they were asked to do. Jobs waiting for you come first.
