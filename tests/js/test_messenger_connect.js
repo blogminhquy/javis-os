@@ -131,7 +131,7 @@ check("the add-channel form points a channel with a Connections card to it", () 
 // 0.438.3 (owner, 01/11/2026): picking such a channel shows only the way to its card, no token field, webhook or Save.
 check("a channel with a Connections card hides the token part and Save", () => {
   const conv = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "conversations.js"), "utf8");
-  assert.ok(conv.includes("'<div id=\"htTokenPart\">' +"));
+  assert.ok(conv.includes('<div id="htTokenPart">'));
   assert.ok(conv.includes('box.querySelector("#htTokenPart").hidden = !!k.the_ket_noi;'));
   assert.ok(conv.includes('box.querySelector(".ht-save").hidden = !!k.the_ket_noi;'));
   assert.ok(conv.includes('window.t("ht.mo_the", { kenh: k.nhan })'));
