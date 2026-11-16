@@ -292,6 +292,7 @@
       "name": "Google Search Console",
       "icon": "search",
       "category": "Marketing",
+      "key_family": "google",
       "description": "Số liệu SEO website: khách tìm từ khoá gì ra trang của bạn, lượt hiển thị, lượt bấm, trang top.",
       "status": "beta",
       "transport": "stdio",
@@ -447,7 +448,7 @@
         "guide_url": "https://github.com/taylorwilsdon/google_workspace_mcp",
         "steps": [
           { "text": "TRƯỚC KHI LÀM, đọc dòng này: kết nối này chạy trên chính máy cài Javis, và lần đầu gọi tool nó mở trình duyệt CỦA MÁY ĐÓ để bạn bấm đồng ý. Javis chạy trên VPS không màn hình thì đường này không đi được." },
-          { "text": "Đã đấu Google Workspace hoặc dịch vụ Google khác rồi thì DÙNG LẠI key của nó (nút bên dưới ô nhập), chỉ cần làm thêm bước bật API." },
+          { "text": "Đã đấu Google Workspace hoặc dịch vụ Google khác rồi thì DÙNG LẠI key của nó (ô Dùng lại key ở đầu khung này), chỉ cần làm thêm bước bật API." },
           { "text": "Vào Google Cloud tạo project (hoặc dùng project sẵn có), bật Google Tasks API.", "link": "https://console.cloud.google.com/apis/library/tasks.googleapis.com", "link_label": "Bật Tasks API" },
           { "text": "Màn hình đồng ý OAuth: chọn External rồi thêm email Google của bạn vào Test users. Bỏ bước này là Google chặn ngay lúc đăng nhập.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },
           { "text": "Tạo OAuth client, chọn loại 'Ứng dụng dành cho máy tính' (Desktop app). Loại này KHÔNG phải khai URI chuyển hướng nào cả, thấy phần đó trống là đúng.", "link": "https://console.cloud.google.com/apis/credentials/oauthclient", "link_label": "Tạo OAuth client" },
@@ -692,7 +693,7 @@
         "guide": "Server MCP Gmail của Google đang ở giai đoạn Developer Preview: phải ghi danh chương trình (miễn phí) và bật thêm API MCP riêng, thiếu là bị chặn 403 dù đăng nhập thành công.\nLàm 1 lần, khoảng 10 phút:\n1. Ghi danh Google Workspace Developer Preview Program bằng đúng tài khoản Google sẽ đăng nhập (nút bên dưới).\n2. Vào console.cloud.google.com, tạo project, bật CẢ HAI API: Gmail API và Gmail MCP API (tìm 'Gmail MCP' trong thư viện API, có nút bên dưới).\n3. Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.\n4. Thông tin xác thực > Tạo OAuth client ID loại 'Ứng dụng web'.\n5. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n6. Copy Client ID + Client Secret dán vào đây rồi bấm Kết nối.\n\nTrình duyệt sẽ mở để bạn đăng nhập Google và bấm đồng ý. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\n\nCó thể dùng CHUNG một OAuth client với Google Calendar, chỉ cần bật thêm Gmail API + Gmail MCP API và khai thêm phạm vi Gmail ở trang Quyền dữ liệu.\nMàn hình đồng ý có ô tick cho từng nhóm quyền: TICK HẾT, bỏ ô nào là tool tương ứng chết ngay.\nĐăng nhập xong mà Test vẫn báo thiếu quyền thì soát lại bước ghi danh, bước bật API và bước khai phạm vi - ba bước hay bị bỏ sót nhất.",
         "guide_url": "https://console.cloud.google.com/apis/credentials",
         "steps": [
-          { "text": "Đã đấu Google Calendar rồi thì DÙNG LẠI key của nó (nút bên dưới ô nhập), chỉ cần làm thêm bước 2 cho Gmail.", "link": "", "link_label": "" },
+          { "text": "Đã đấu Google Calendar rồi thì DÙNG LẠI key của nó (ô Dùng lại key ở đầu khung này), chỉ cần làm thêm bước 2 cho Gmail.", "link": "", "link_label": "" },
           { "text": "Ghi danh Google Workspace Developer Preview (miễn phí) bằng ĐÚNG tài khoản Google sẽ đăng nhập. Bỏ bước này là bị chặn 403 dù đăng nhập thành công.", "link": "https://developers.google.com/workspace/preview", "link_label": "Mở trang ghi danh" },
           { "text": "Vào Google Cloud tạo project (hoặc dùng project sẵn có), bật CẢ HAI API: Gmail API và Gmail MCP API.", "link": "https://console.cloud.google.com/apis/library/gmailmcp.googleapis.com", "link_label": "Bật Gmail MCP API" },
           { "text": "Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },

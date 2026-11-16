@@ -171,6 +171,27 @@ def _icon_goi(con, gia_tri):
     return f"/packs/{pid}/asset/{v}"
 
 
+def key_family(con):
+    """Which connectors may lend each other a sign-in key ("" = none).
+
+    Every Google service signs in with the same kind of key: an OAuth client (client_id + client_secret) or a
+    service account file, made once in one Google Cloud project. Google shows a client secret only once, when it
+    is created, so a key the owner has lost can only come back from a connection that already holds it. The display
+    `group` alone used to decide this, and Google Ads, Analytics, Merchant Center and Search Console sit outside the
+    Google card (they are marketing tools), so their keys could neither be lent nor borrowed.
+
+    Order: an explicit `key_family`, then the display group, then "google" for a Google OAuth provider. Other
+    providers (Meta, Slack) stay out on purpose: nothing says their app keys carry over between connectors."""
+    c = con or {}
+    explicit = str(c.get("key_family") or "").strip()
+    if explicit:
+        return explicit
+    group = str(c.get("group") or "").strip()
+    if group:
+        return group
+    return "google" if str((c.get("auth") or {}).get("provider") or "").strip() == "google" else ""
+
+
 def public_catalog():
     """Bản cho UI - đủ vẽ kho + form đăng nhập, không lộ chi tiết nội bộ (validate/arg_rules)."""
     out = []
@@ -209,6 +230,8 @@ def public_catalog():
             # copy="redirect" chèn ô sao chép Redirect URI ngay tại bước đó;
             # copy="domain" chèn ô sao chép tên miền trần (cho App Domains của Facebook).
             "group": c.get("group", ""), "group_line": c.get("group_line", ""),
+            # Connectors of one family may reuse each other's sign-in key (see `key_family`).
+            "key_family": key_family(c),
             "steps": [{"text": s.get("text", ""), "link": s.get("link", ""),
                        "link_label": s.get("link_label", ""), "copy": s.get("copy", "")}
                       for s in (auth.get("steps") or [])],

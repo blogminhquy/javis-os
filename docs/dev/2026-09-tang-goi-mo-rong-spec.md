@@ -114,10 +114,10 @@ Cả ba lượt phản biện đều xác nhận chỉ cần chạm hai chỗ:
 Nên phân **ba bậc, do trình cài tự tính từ cây file đã giải nén, không tin lời tác giả khai**:
 
 **Bậc DATA** - cài được không cần đồng ý chạy code:
-transport `http`/`sse`; `url`/`url_template` **chỉ https cổng 443**, tên miền hiện lên màn hình xác nhận; `auth.type` là `apikey`/`none`/`oauth` với `provider` thuộc phương ngữ đã có (`meta`, `google`, `generic`); `tool_meta`, `validate`, `arg_rules`, `rate_limit`, `risk`; icon và trang hướng dẫn **chỉ đường dẫn trong gói** (icon `http://` bị từ chối vì đó là beacon nổ mỗi lần vẽ trang Kết nối); và `default_perm` bị **ép về `readonly`** cho mọi connector đến từ gói, người dùng tự nâng từng kết nối qua UI cũ nơi cảnh báo rủi ro đã có sẵn.
+transport `http`/`sse`; `url`/`url_template` **chỉ https cổng 443**, tên miền hiện lên màn hình xác nhận; `auth.type` là `apikey`/`none`/`oauth` với `provider` thuộc phương ngữ đã có (`meta`, `google`, `generic`); `tool_meta`, `validate`, `arg_rules`, `rate_limit`, `risk`, `key_family` (từ 2026-11-16: họ dịch vụ được dùng chung key đăng nhập, ví dụ `google`; bỏ trống thì lấy theo `group`, rồi theo `provider: google`); icon và trang hướng dẫn **chỉ đường dẫn trong gói** (icon `http://` bị từ chối vì đó là beacon nổ mỗi lần vẽ trang Kết nối); và `default_perm` bị **ép về `readonly`** cho mọi connector đến từ gói, người dùng tự nâng từng kết nối qua UI cũ nơi cảnh báo rủi ro đã có sẵn.
 
 **Bậc CODE** - đòi đồng ý riêng từng gói, gắn với hash nội dung:
-bất kỳ file `.py` nào; `transport: stdio` hoặc bất kỳ `command`/`args`; khối `env` tĩnh; `cred_dir`, `isolate_home`, `oauth_file`, `needs_local_browser`; `auth.exchange`.
+bất kỳ file `.py` nào; `transport: stdio` hoặc bất kỳ `command`/`args`; khối `env` tĩnh; `cred_dir`, `isolate_home`, `oauth_file`, `oauth_env` (từ 2026-11-16: đưa client_id, client_secret, refresh_token Google vào biến môi trường cho MCP đọc đăng nhập từ biến chứ không từ file, như MCP Tag Manager của Stape), `needs_local_browser`; `auth.exchange`.
 
 **Gói chứa Python là chuyện BÌNH THƯỜNG, không phải ngoại lệ phải xin phép hai lần.** Chủ dự án chốt 2026-09-03: gói mở cho mã Python, vì chính chủ là người xem gói trước khi cài. Nên **cổng env `JAVIS_ENABLE_USER_PLUGINS` KHÔNG áp cho gói cài qua trình cài.** Việc này nhất quán chứ không phải nới lỏng, và lý do đáng viết ra:
 

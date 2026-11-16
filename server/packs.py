@@ -87,7 +87,7 @@ _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 # Trường connector chỉ có nghĩa khi chạy MÃ hoặc LỆNH. Có mặt bất kỳ cái nào thì gói là bậc
 # CODE. Danh sách này là mô tả, không phải cổng chặn: xem docstring đầu file.
 _CODE_FIELD = ("command", "args", "env", "cred_dir", "isolate_home", "oauth_file",
-               "needs_local_browser")
+               "oauth_env", "needs_local_browser")
 
 # Trường bị TỪ CHỐI THẲNG ở spec 1, nêu đích danh khi từ chối.
 #   internal : `mcp_client._INTERNAL` là allowlist bảo vệ `importlib.import_module`, không phải

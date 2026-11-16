@@ -188,20 +188,40 @@ def connection_secrets(cid):
     return secrets_store.decrypt_map((c or {}).get("secrets") or {})
 
 
-def reuse_client_fields(target_con, fields, from_cid, keys=("client_id", "client_secret")):
+# Sign-in keys one Google service can lend another: an OAuth client, or a service account file (Sheets and Search
+# Console both take one). The dashboard offers a donor only when both forms carry a whole set; console.js keeps the
+# same list (REUSE_SETS).
+REUSABLE_KEY_SETS = (("client_id", "client_secret"), ("service_account",))
+
+
+def donor_connector(conn_id):
+    """The catalog connector behind a connection, or None. A function so tests can stand in for it."""
+    c = _find(_load(), conn_id) if conn_id else None
+    return mcp_catalog.get(c.get("connector_id")) if c else None
+
+
+def reuse_client_fields(target_con, fields, from_cid, keys=None):
     """Dùng lại key OAuth client từ connection KHÁC, copy hoàn toàn SERVER-SIDE.
 
     Các connector Google dùng chung được một OAuth client, nên user đã tạo key cho
     Calendar thì Gmail chỉ cần "dùng lại key của Calendar" thay vì làm lại 10 phút.
     Secrets không bao giờ đi qua browser: UI chỉ gửi `reuse_from=<conn_id>`, server
     tự đọc và điền. Chỉ copy key nằm trong danh sách fields của connector ĐÍCH, và
-    KHÔNG đè giá trị user đã tự nhập."""
+    KHÔNG đè giá trị user đã tự nhập.
+
+    The donor must be of the same key family as the target (`mcp_catalog.key_family`): the browser only names a
+    connection, so without this check a crafted request could pour, say, a Meta app secret into a Google form.
+    `keys` defaults to every key of `REUSABLE_KEY_SETS`, so a Search Console form can take the service account
+    already given to Sheets."""
     out = dict(fields or {})
     if not from_cid:
         return out
+    family = mcp_catalog.key_family(target_con)
+    if not family or mcp_catalog.key_family(donor_connector(from_cid)) != family:
+        return out
     allowed = {f.get("key") for f in ((target_con or {}).get("auth") or {}).get("fields", [])}
     src = connection_secrets(from_cid)
-    for k in keys:
+    for k in (keys or [k for s in REUSABLE_KEY_SETS for k in s]):
         if k in allowed and not out.get(k) and src.get(k):
             out[k] = src[k]
     return out
@@ -557,6 +577,17 @@ def resolved(enabled_only=True):
                     env[of["env"]] = str(fp)
             except Exception as e:
                 print(f"[mcp_store] oauth file {c['id']}: {e}", file=sys.stderr)
+        # Same bridge for a STDIO server that reads the sign-in from VARIABLES (Stape's Tag Manager MCP:
+        # GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET + GOOGLE_REFRESH_TOKEN). setdefault: a value the connection set
+        # by hand wins, like the hand-pasted file above.
+        oe = (con or {}).get("oauth_env") or {}
+        if oe:
+            try:
+                import oauth_mcp   # late import: oauth_mcp imports mcp_store at module level
+                for k, v in oauth_mcp.credentials_env(c["id"], oe).items():
+                    env.setdefault(k, v)
+            except Exception as e:
+                print(f"[mcp_store] oauth env {c['id']}: {type(e).__name__}: {e}", file=sys.stderr)
         if c.get("connector_id") == "zalo" and (c.get("transport") or "http") == "stdio":
             # Live push (2026-11-10): javis-zalo 1.10.0 wakes Javis when a message arrives, so the read loop stops
             # asking on a timer. Set HERE, not where the loop builds its spec: the session's identity includes its

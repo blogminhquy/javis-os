@@ -113,7 +113,7 @@
    },
    "steps": [
     {"text": "BEFORE YOU START, read this: this connection runs on the machine where Javis is installed, and the first tool call opens THAT MACHINE'S browser for you to approve. If Javis runs on a VPS with no screen, this route will not work."},
-    {"text": "If Google Workspace or another Google service is already connected, REUSE its key (the button below the input), and only do the enable-API step."},
+    {"text": "If Google Workspace or another Google service is already connected, REUSE its key (the Reuse key row at the top of this box), and only do the enable-API step."},
     {"text": "Create a project in Google Cloud (or use an existing one) and enable the Google Tasks API.", "link_label": "Enable Tasks API"},
     {"text": "OAuth consent screen: choose External, then add your Google email under Test users. Skip this and Google blocks the sign-in right away.", "link_label": "Open consent screen"},
     {"text": "Create an OAuth client of type 'Desktop app'. This type needs NO redirect URI at all, so an empty section is correct.", "link_label": "Create OAuth client"},
@@ -181,7 +181,7 @@
     "client_secret": {"label": "OAuth Client Secret", "placeholder": "e.g. GOCSPX-..."}
    },
    "steps": [
-    {"text": "If Google Calendar is already connected, REUSE its key (the button below the input) and only do step 2 for Gmail."},
+    {"text": "If Google Calendar is already connected, REUSE its key (the Reuse key row at the top of this box) and only do step 2 for Gmail."},
     {"text": "Enrol in the Google Workspace Developer Preview (free) with EXACTLY the Google account you will sign in with. Skip this and you get a 403 even after a successful sign-in.", "link_label": "Open enrolment page"},
     {"text": "Create a project in Google Cloud (or use an existing one) and enable BOTH APIs: Gmail API and Gmail MCP API.", "link_label": "Enable Gmail MCP API"},
     {"text": "OAuth consent screen: choose External and add your email under Test users.", "link_label": "Open consent screen"},

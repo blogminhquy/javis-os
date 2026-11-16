@@ -1304,6 +1304,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .reuse-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2px 0 6px;
   padding: 9px 12px; border: 1px solid var(--ok-line); border-radius: 10px; background: var(--ok-wash); }
 .reuse-row select { max-width: 200px; }
+/* 2026-11-16: the row now sits at the top of a Google form and is often the only thing the owner needs, so its
+   sentence reads at the 16px floor (docs/dev/design-style.md), not as a 13px footnote. */
+.reuse-row > .mp-note { font-size: 16px; color: var(--text2); flex-basis: 100%; }
+.reuse-row .mp-btn { margin-left: 0; }   /* one left edge with the select above it */
 /* Đèn báo não: bộ não mất đăng nhập - dải đỏ mỏng giữa thanh trạng thái */
 /* Ngắn gọn và BẤM ĐƯỢC. Trước đây chuỗi dài hơn cả thanh trạng thái nên bị cắt cụt giữa
    chừng, và phần bị cắt lại đúng là phần nói phải làm gì. Nay chữ đủ ngắn để không cần cắt;
