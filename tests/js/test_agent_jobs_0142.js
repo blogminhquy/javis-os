@@ -78,8 +78,9 @@ check("Cần bạn: 'Chờ bạn: lý do' (escape), không lặp dòng lý do", 
   && !h.includes("aj-reason"), h);
 h = ["coordinator", "worker", "helper", "verifier", "verifier_legacy", "assignee", "owner", "reviewer"]
   .map((r) => AJ.jobHtml(job({ roles: [r] }), {})).join("");
-check("vai: Điều phối, Thực hiện, Hỗ trợ, Kiểm chứng; mã cũ cũng ra nhãn mới",
-  ["Điều phối", "Thực hiện", "Hỗ trợ", "Kiểm chứng", "Kiểm chứng (kiểu cũ)"].every((x) => h.includes(">" + x + "<"))
+// 17/11/2026 (owner): the assistant who leads a team is the deputy lead ("phó nhóm"), no longer "điều phối".
+check("vai: Phó nhóm, Thực hiện, Hỗ trợ, Kiểm chứng; mã cũ cũng ra nhãn mới",
+  ["Phó nhóm", "Thực hiện", "Hỗ trợ", "Kiểm chứng", "Kiểm chứng (kiểu cũ)"].every((x) => h.includes(">" + x + "<"))
   && !/Được giao|Làm một phần|Tự làm \(Auto\)|Đang review/.test(h), h.match(/aj-role[^<]*<\/span>/g));
 h = AJ.jobHtml(job({ kind: "verify", roles: ["verifier"], link: { id: "team:t9", title: "Bản <tổng hợp>",
   open: { kind: "team", team_id: "tm1", task_id: "t9" } } }), { canVerify: true });

@@ -434,9 +434,10 @@ check("0.207.0 chờ duyệt: nút dẫn tới thẻ duyệt, không còn Cho ch
 h = TM.jobStripHtml({ running: [{ id: "t_1", title: "Soạn <kế>" }], waiting: [{ id: "t_9", title: "x" }],
   blocked: [{ id: "a", title: "A", block_kind: "cap_reached", block_reason: "Nhóm đã dùng hết số lần trả lời hôm nay" },
     { id: "b", title: "B", block_kind: "no_leader", block_reason: "" }, { id: "c", title: "C", block_kind: "failed" }] });
-check("T5 dải việc đầu khung chat: đang làm một dòng (Sửa, Huỷ), tối đa hai thẻ chờ bạn có nút giải quyết, còn lại gom một nút",
+// 17/11/2026: the strip is one pill above the composer; every job waiting for you is in its details with its way out.
+check("dải việc: viên thuốc một dòng; chi tiết có việc đang làm (Sửa, Huỷ) và mọi việc chờ bạn với nút giải quyết",
       h.includes("Soạn &lt;kế&gt;") && /data-amend="t_1"/.test(h) && /data-extend="a"/.test(h) && /data-open-team="1"/.test(h)
-      && !h.includes('data-cancel="c"') && h.includes(vi["teams.blocked_more"].replace("{n}", "1")) && !h.includes("t_9"), h);
+      && /data-cancel="c"/.test(h) && h.includes('class="bg-pill"') && !h.includes("t_9"), h);
 check("T5 lý do trống thì dùng nhãn lý do bằng chữ", h.includes(vi["teams.block.no_leader"]), h);
 check("T5 dải việc trống khi không có việc chạy hay chờ bạn", TM.jobStripHtml({ running: [], waiting: [{ id: "x", title: "x" }], blocked: [] }) === "");
 check("T5 chip việc: ẩn khi không có việc; có việc chờ bạn thì Cần bạn N (cảnh báo); không thì Việc N",

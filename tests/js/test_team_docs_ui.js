@@ -45,8 +45,8 @@ check("the team picture opens the info panel", tm.includes('class="tm-ava-btn" d
 check("the info panel: members, working folder, pictures, files with Add, links with Add, from the conversation assets",
   tm.includes("function infoTabHtml(t)") && tm.includes('"/sessions/" + q(sid) + "/assets?brain="') &&
   tm.includes("data-info-add-file") && tm.includes("data-info-add-link") && tm.includes("tm-info-imgs") && tm.includes('teamUrl("/files")'));
-// 16/11/2026: the tabs moved into sideTabsHtml (icon, word, count); Info is still the first one.
-check("info is the first tab of the side panel", tm.includes('return ["info", "jobs", "team"].map(function (k) {'));
+// 17/11/2026 (owner): the order is Jobs, Info, Team; a team without jobs still opens on Info (test_team_jobs_tab.js).
+check("the side panel's tabs are Jobs, Info, Team", tm.includes('return ["jobs", "info", "team"].map(function (k) {'));
 check("files sent with a message show as chips, the stored names line is not repeated",
   tm.includes("((m.meta || {}).files || [])") && tm.includes("fileChipHtml"));
 const keys = ["teams.tab_info", "teams.info_open", "teams.attach", "teams.attach_err", "teams.attach_wait", "teams.uploading",

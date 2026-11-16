@@ -50,7 +50,8 @@ def test_pages_say_loading_and_teams_open_on_the_info_tab():
     assert 'loadingHtml("teams.loading_list")' in tm and 'loadingHtml("teams.loading_chat")' in tm
     assert "S.msgsFor !== S.activeId" in tm
     open_team = tm.split("function openTeam(", 1)[1].split("\n  function ", 1)[0]
-    assert "S.side = sideByDefault();" in open_team and 'if (S.side) S.tab = "info";' in open_team
+    # 17/11/2026 (owner): a team with jobs opens on the Jobs tab, one without any on Info (teams.js defaultTab).
+    assert "S.side = sideByDefault();" in open_team and "if (S.side) S.tab = defaultTab(null, listed && listed.counts);" in open_team
     assert "rememberSide(false)" in tm.split("function closeSide(", 1)[1].split("\n  }", 1)[0]
     css = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
     assert ".pg-loading {" in css and ".ws-btn.tm-icon { width: 36px; height: 36px;" in css

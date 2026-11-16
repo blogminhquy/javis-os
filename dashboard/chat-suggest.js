@@ -280,6 +280,11 @@
       ghost.hidden = false;
       el.classList.add("sug-ghosted");
       if (typeof getComputedStyle !== "function" || !ghost.style) return;
+      // Owner, 17/11/2026 (Teams, a screenshot: the grey suggestion over the "is typing" line): the layer was placed
+      // against a box further up, so a line that showed up above the input afterwards (who is typing, a pill, a goal
+      // bar) pushed the input down and left the suggestion where it was. Placed against the input's own row, nothing
+      // above can move one without the other.
+      if (host.style && getComputedStyle(host).position === "static") host.style.position = "relative";
       var cs = getComputedStyle(el);
       MIRROR.forEach(function (p) { ghost.style[p] = cs[p]; });
       shrinkBack(el);

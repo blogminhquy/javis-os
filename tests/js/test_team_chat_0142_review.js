@@ -98,14 +98,16 @@ check("dòng chỗ trống đã giao cho điều phối: ẩn", h === "");
 const team = { team_id: "tm1", leader_key: "ag_lan", creator: { kind: "owner", you: true, name: "minhquy" },
   members: [{ agent_key: "ag_lan", slug: "lan", name: "Lan", status: "active", role: "leader" },
     { agent_key: "ag_m", slug: "m", name: "Minh", status: "active", role: "member" }] };
-check("đầu nhóm: 'Bạn + 2 cộng sự · Lan điều phối'", TM.headLine(team) === "Bạn + 2 cộng sự · Lan điều phối", TM.headLine(team));
+// 17/11/2026 (owner): "chữ điều phối đổi thành phó nhóm và người tạo ra nhóm mặc định là trưởng nhóm".
+check("đầu nhóm: 'Bạn + 2 cộng sự · Phó nhóm Lan'", TM.headLine(team) === "Bạn + 2 cộng sự · Phó nhóm Lan", TM.headLine(team));
 check("chưa có điều phối: nói rõ", TM.headLine(Object.assign({}, team, { leader_key: null })).includes(vi["teams.no_leader_short"]));
 const mh = TM.membersHtml(team, [], null);
 check("ngăn Nhóm: dòng Bạn (tên đăng nhập do server cấp) · Người tạo nhóm/quản lý, đứng đầu", mh.indexOf("Bạn (minhquy)") >= 0 &&
   mh.indexOf("Bạn (minhquy)") < mh.indexOf("Lan") && mh.includes(vi["teams.pick.you_role"]), mh.slice(0, 300));
-check("chữ 'trưởng nhóm' trên giao diện nhóm đổi thành 'điều phối'",
-  Object.keys(vi).filter((k) => k.indexOf("teams.") === 0 && /trưởng nhóm/i.test(vi[k])).length === 0 &&
-  Object.keys(en).filter((k) => k.indexOf("teams.") === 0 && /\blead\b/i.test(en[k])).length === 0);
+check("vai trong nhóm: cộng sự dẫn nhóm là 'phó nhóm', không còn chữ 'điều phối'; 'trưởng nhóm' chỉ để gọi bạn",
+  Object.keys(vi).filter((k) => k.indexOf("teams.") === 0 && /điều phối/i.test(vi[k])).length === 0 &&
+  Object.keys(en).filter((k) => k.indexOf("teams.") === 0 && /coordinat/i.test(en[k])).length === 0 &&
+  Object.keys(vi).filter((k) => k.indexOf("teams.") === 0 && /trưởng nhóm/i.test(vi[k])).sort().join() === "teams.lead_badge,teams.pick.owner_badge");
 
 // ───────────── hộp chọn kiểu Zalo ─────────────
 const roster = [

@@ -74,14 +74,50 @@ check("up next: numbered in run order, the star is the priority button and sits 
 check("review case: an acceptance being checked has no criteria button", !TM.queueHtml({ blocked: [{ id: "t_9", title: "x",
   block_kind: "acceptance_review" }] }, view).includes('data-acc-edit="t_9"'));
 
-// ───────────── the strip on top of the chat ─────────────
+// ───────────── the job pill above the composer (17/11/2026) ─────────────
+// Owner: "các thông tin này có thể co gọn lại và để xuống dưới giống như việc kanban nền chạy", "khi đã nhắn ở khung chat
+// xử lý vấn đề thông báo rồi thì phải tự tắt cái thông báo đó đi".
 h = TM.jobStripHtml(q, members);
-check("strip: one line per running job with the faces of who is working now, the step count and two icons",
-  h.includes("tm-js-run") && h.includes("Làm blog") && h.includes(">1/3<") && count(h.slice(0, h.indexOf("tm-js-ask")), "tm-js-face") === 1
-  && /class="tm-jb-ic[^"]*" data-amend="t_1"/.test(h) && /class="tm-jb-ic[^"]*" data-cancel="t_1"/.test(h), h);
-check("strip: a job waiting for you keeps its one text button and a cancel icon", h.includes("tm-js-ask") && /data-extend="t_4"/.test(h)
-  && /class="tm-jb-ic[^"]*" data-cancel="t_4"/.test(h) && count(h, "ws-btn") === 1 && h.includes("Hết &lt;6&gt; lượt"), h);
-check("strip: the title opens the Jobs tab", /class="tm-js-title" data-open-jobs="1"/.test(h), h);
+const pill = h.slice(0, h.indexOf('class="bg-pop"'));
+check("pill: ONE line, the main chat's background pill, folded until pressed",
+  count(h, 'class="bg-pill"') === 1 && /data-strip="1"[^>]*aria-expanded="false"/.test(h) && /class="bg-pop"[^>]*hidden>/.test(h), h);
+check("pill: a job waiting for you comes first, in words, and the rest is a count",
+  pill.includes(vi["teams.strip.ask"].replace("{title}", "Đo tốc độ")) && pill.includes(">+1<") && !pill.includes("Hết &lt;6&gt;"), pill);
+check("pill: the long reason, the button and the icons wait in the details", !pill.includes("ws-btn") && !pill.includes("tm-jb-ic"), pill);
+const pop = h.slice(h.indexOf('class="bg-pop"'));
+check("details: the job waiting for you with its reason, ONE text button and a cancel icon",
+  pop.includes("Hết &lt;6&gt; lượt") && /data-extend="t_4"/.test(pop) && count(pop, "ws-btn") === 1
+  && /class="tm-jb-ic[^"]*" data-cancel="t_4"/.test(pop), pop);
+check("details: the running job with who works now, the step count, edit and cancel icons",
+  pop.includes("Làm blog") && pop.includes("1/3") && pop.includes("Duy &lt;b&gt;") && !/tm-sr-meta[^]*Mai/.test(pop)
+  && /class="tm-jb-ic[^"]*" data-amend="t_1"/.test(pop) && /class="tm-jb-ic[^"]*" data-cancel="t_1"/.test(pop), pop);
+check("details: a title shows the job's messages, and a button opens the Jobs tab",
+  /class="tm-sr-title" data-view-task="t_4"/.test(pop) && /class="bg-open" data-open-jobs="1"/.test(pop) && pop.includes(vi["teams.strip.open"]), pop);
+check("pill open: the details show", /class="bg-pop"[^>]*role="dialog"[^>]*">/.test(TM.jobStripHtml(q, members, { open: true }))
+  && !/class="bg-pop"[^>]*hidden/.test(TM.jobStripHtml(q, members, { open: true })));
+check("tone: amber while a job waits for you, green while jobs only run",
+  TM.stripState(q).tone === "ask" && TM.stripState({ running: q.running }).tone === "run" && TM.stripState({ waiting: q.waiting }).tone === "");
+check("nothing running and nothing waiting for you: no pill", TM.jobStripHtml({ waiting: q.waiting }, members) === "");
+// The owner wrote in the chat after the job stopped: its notice goes away.
+const stopped = { blocked: [Object.assign({}, q.blocked[0], { updated_at: 1000 })], running: [] };
+const said = (ts) => [{ author_kind: "agent", ts: 5000 }, { author_kind: "owner", ts: ts }];
+check("a waiting job leaves the pill once the owner has written after it stopped", TM.jobStripHtml(stopped, members,
+  { seenAt: TM.ownerSaidAt(said(1200)) }) === "" && TM.stripState(stopped, 1200).tone === "");
+check("an owner's message from BEFORE the stop does not count, nor does an assistant's",
+  TM.jobStripHtml(stopped, members, { seenAt: TM.ownerSaidAt(said(900)) }).includes("Đo tốc độ") && TM.ownerSaidAt(said(900)) === 900);
+check("a message that hands the team a new job does not count as an answer",
+  TM.ownerSaidAt([{ author_kind: "owner", ts: 1200, meta: { as_job: true } }, { author_kind: "owner", ts: 900 }]) === 900);
+check("the owner's time is read in seconds or milliseconds", TM.ownerSaidAt([{ author_kind: "owner", ts: 1200000 }]) === 1200000 / 1000
+  || TM.ownerSaidAt([{ author_kind: "owner", ts: 1200000 }]) === 1200000);
+check("with a running job too, the pill turns green and shows the running job",
+  TM.jobStripHtml({ blocked: stopped.blocked, running: q.running }, members, { seenAt: 1200 }).includes("Làm blog")
+  && TM.stripState({ blocked: stopped.blocked, running: q.running }, 1200).tone === "run");
+check("a job that stops again after the owner's message comes back", TM.stripState({ blocked: [Object.assign({}, stopped.blocked[0],
+  { updated_at: 1300 })] }, 1200).tone === "ask");
+check("page code: the pill sits right above the composer, its details close on an outside press and on Esc",
+  teamsJs.includes(`'<div class="tm-jobs bg-strip" hidden></div><div class="tm-composer"></div>'`)
+  && teamsJs.includes('if (S.stripOpen && !inside(".tm-jobs")) setStrip(false);') && teamsJs.includes('if (e.key === "Escape" && S.stripOpen)')
+  && teamsJs.includes("var seenAt = ownerSaidAt(S.msgs);"));
 
 // ───────────── the tabs carry icons ─────────────
 h = TM.sideTabsHtml("jobs", q);
@@ -90,6 +126,12 @@ check("tabs: three tabs, still tm-tab with data-tab, the open one selected", cou
 check("tabs: each has its label; Jobs shows how many jobs are open", [vi["teams.tab_info"], vi["teams.tab_jobs"], vi["teams.tab_team"]]
   .every((x) => h.includes(">" + x + "<")) && h.includes('<span class="tm-tab-n">4</span>'), h);
 check("tabs: no count when nothing is open", !TM.sideTabsHtml("info", {}).includes("tm-tab-n"));
+check("tabs: in the order Jobs, Info, Team", h.indexOf('data-tab="jobs"') < h.indexOf('data-tab="info"') && h.indexOf('data-tab="info"') < h.indexOf('data-tab="team"'), h);
+check("a team opens on Jobs when it has any job, on Info when it has none",
+  TM.defaultTab(q) === "jobs" && TM.defaultTab({ finished: [{ id: "f" }] }) === "jobs" && TM.defaultTab({ archived: [{ id: "a" }] }) === "info"
+  && TM.defaultTab({}) === "info" && TM.defaultTab(null, { running: 0, waiting: 2, blocked: 0 }) === "jobs" && TM.defaultTab(null, {}) === "info");
+check("the owner's own pick of a tab is kept: the choice is made once the jobs have loaded, only if no tab was pressed",
+  teamsJs.includes("if (S.tabAuto && S.side) S.tab = defaultTab(S.queue);") && teamsJs.includes("S.tab = d.tab; S.tabAuto = false;"));
 check("tabs: an icon per tab in the page code", /TAB_ICON = \{ info: "info", jobs: "list-checks", team: "users" \}/.test(teamsJs));
 
 // ───────────── finished jobs: five a page, a summary on a press ─────────────
@@ -155,9 +197,15 @@ check("the page reads one job's report from the job endpoint and searches as the
 check("page code: fold, page, Show more and the lazy report are handled", ["d.jobFold", "d.jobPage", "d.repMore", "loadJobDetail("]
   .every((x) => teamsJs.includes(x)));
 check("CSS: the new card, its steps, the pager, the strip line and the icon tabs",
-  [".tm-jb {", ".tm-jb-step {", ".tm-jb-ic {", ".tm-jb-pg {", ".tm-jb-search {", ".tm-js {", ".tm-tab-n {", ".tm-report-body.is-clamped {"]
-    .every((x) => css.includes(x)), [".tm-jb {", ".tm-jb-step {", ".tm-jb-ic {", ".tm-jb-pg {", ".tm-jb-search {", ".tm-js {", ".tm-tab-n {",
+  [".tm-jb {", ".tm-jb-step {", ".tm-jb-ic {", ".tm-jb-pg {", ".tm-jb-search {", ".tm-sr {", ".tm-tab-n {", ".tm-report-body.is-clamped {"]
+    .every((x) => css.includes(x)), [".tm-jb {", ".tm-jb-step {", ".tm-jb-ic {", ".tm-jb-pg {", ".tm-jb-search {", ".tm-sr {", ".tm-tab-n {",
     ".tm-report-body.is-clamped {"].filter((x) => !css.includes(x)).join(" | "));
+check("CSS: the old strip rules are gone, the pill is not clipped (no scroll box around it)", !css.includes(".tm-js")
+  && !/\.tm-jobs \{[^}]*overflow-y: auto/.test(css));
+check("roles: the owner is the team lead, the assistant who leads is the deputy, on one line",
+  vi["teams.leader_badge"] === "Phó nhóm" && vi["teams.lead_badge"] === "Trưởng nhóm" && vi["teams.pick.owner_badge"] === "Trưởng nhóm"
+  && css.includes(".tm-info-members .tm-info-badge { flex: none; white-space: nowrap; }")
+  && teamsJs.includes('<span class="tm-info-badge tm-info-lead">'));
 check("CSS: icon buttons are 44px tall on a phone", /@media \(max-width: 760px\) \{[^@]*\.tm-jb-ic \{[^}]*height: 44px/.test(css));
 const keys = Object.keys(vi).filter((k) => k.indexOf("teams.jb.") === 0);
 check("the new words exist in both languages", keys.length >= 16 && keys.every((k) => en[k]), keys.filter((k) => !en[k]).join(","));

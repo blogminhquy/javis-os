@@ -492,6 +492,12 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
   const vi = JSON.parse(fs.readFileSync(path.join(D, "i18n", "vi.json"), "utf8"));
   const en = JSON.parse(fs.readFileSync(path.join(D, "i18n", "en.json"), "utf8"));
   check("labels in vi and en", ["sug.menu", "sug.on", "sug.off", "sug.use"].every(k => vi[k] && en[k]));
+  // Owner, 17/11/2026 (Teams screenshot: the grey suggestion over the "is typing" line): the layer is placed against the
+  // input's own row, made a positioned box first, so a line that shows up above the input cannot leave it behind.
+  const draw = SRC.slice(SRC.indexOf("function drawGhost("), SRC.indexOf("function hide()"));
+  check("the suggestion layer is placed against the input's own row, which is made a positioned box first",
+    draw.includes('if (host.style && getComputedStyle(host).position === "static") host.style.position = "relative";')
+    && draw.indexOf('host.style.position = "relative"') < draw.indexOf("ghost.style.top = (el.offsetTop + el.clientTop)"));
 
   if (fails) { console.log("\n" + fails + " FAIL"); process.exit(1); }
   console.log("\nOK - chat_suggest: all pass");

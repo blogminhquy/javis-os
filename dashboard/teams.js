@@ -1113,41 +1113,85 @@
       qualityUsageHtml(detail.usage) + "</details>";
   }
 
-  // Dải việc ở đầu khung chat: mỗi việc đang làm một dòng (ai đang làm, xong mấy bước, hai icon) và việc đang chờ chủ
-  // (lý do, một nút giải quyết có chữ, icon huỷ). 16/11/2026: cùng kiểu với thẻ ở tab Việc.
-  function stripRunHtml(t, members) {
+  // Job strip (owner, 17/11/2026: "các thông tin này có thể co gọn lại và để xuống dưới giống như việc kanban nền chạy"):
+  // one pill right above the composer, like the background-work pill of the main chat (background-strip.js, same
+  // classes), and a press opens the details above it. Amber when a job waits for the owner, green while jobs run.
+  // A job that waits for the owner leaves the pill once the owner has written in the chat after it stopped (owner, same
+  // day: "khi đã nhắn ở khung chat xử lý vấn đề thông báo rồi thì phải tự tắt cái thông báo đó đi"); it stays in the
+  // Jobs tab and in the header chip until it is resolved.
+  // A message that hands the team a NEW job (Giao việc) is not an answer to the one that stopped, so it does not count.
+  function ownerSaidAt(msgs) {
+    var at = 0;
+    (msgs || []).forEach(function (m) {
+      if (!m || m.author_kind !== "owner" || (m.meta && m.meta.as_job)) return;
+      var ts = Number(m.ts) || 0;
+      if (ts > 1e12) ts = ts / 1000;
+      if (ts > at) at = ts;
+    });
+    return at;
+  }
+
+  function stripState(q, seenAt) {
+    q = q || {};
+    var asks = (q.blocked || []).filter(function (t) { return !(seenAt && Number(t.updated_at || 0) <= seenAt); });
+    var runs = q.running || [];
+    return { asks: asks, runs: runs, tone: asks.length ? "ask" : runs.length ? "run" : "" };
+  }
+
+  function stripAskRow(t) {
+    var kind = t.block_kind || "failed";
+    return '<li class="bg-row tm-sr tm-sr-ask"><div class="tm-sr-head">' + stateIcon("ask") +
+      '<button type="button" class="tm-sr-title" data-view-task="' + esc(t.id) + '">' + esc(t.title) + "</button>" +
+      jobIcon("x", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad") + "</div>" +
+      '<div class="tm-sr-why">' + esc(t.block_reason || tw(BLOCK_KEY[kind] || BLOCK_KEY.failed)) + "</div>" +
+      '<div class="tm-sr-go">' + blockedButtonHtml(t) + "</div></li>";
+  }
+
+  function stripRunRow(t, members) {
     var steps = t.steps || [];
     var now = steps.filter(function (x) { return x.status === "running"; });
     var done = steps.filter(function (x) { return x.status === "done"; }).length;
-    var names = now.map(function (x) { var m = memberOf(members, x.agent_key); return m ? m.name || m.slug : x.agent_key; }).join(", ");
-    return '<div class="tm-js tm-js-run">' + stateIcon("run") + '<button type="button" class="tm-js-title" data-open-jobs="1"><b>' +
-      esc(t.title) + "</b></button>" +
-      (now.length ? '<span class="tm-js-who" title="' + esc(tw("teams.jb.now", { names: names })) + '">' + now.slice(0, 4).map(function (x) {
-        return '<span class="tm-js-face">' + agentAva(memberOf(members, x.agent_key) || { name: x.agent_key }, 22) + "</span>";
-      }).join("") + "</span>" : "") +
-      (steps.length ? '<span class="tm-js-n">' + done + "/" + steps.length + "</span>" : "") +
+    return '<li class="bg-row tm-sr"><div class="tm-sr-head">' + stateIcon("run") +
+      '<button type="button" class="tm-sr-title" data-view-task="' + esc(t.id) + '">' + esc(t.title) + "</button>" +
       jobIcon("pencil", 'data-amend="' + esc(t.id) + '"', tw("teams.amend")) +
-      jobIcon("square", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad") + "</div>";
+      jobIcon("square", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad") + "</div>" +
+      (now.length || steps.length ? '<div class="tm-sr-meta">' + now.slice(0, 3).map(function (x) {
+        return faceName(members, x.agent_key);
+      }).join("") + (steps.length ? '<span class="tm-jb-m">' + ic("list-checks") + done + "/" + steps.length + "</span>" : "") + "</div>" : "") +
+      "</li>";
   }
 
-  function stripAskHtml(t) {
-    var kind = t.block_kind || "failed";
-    return '<div class="tm-js tm-js-ask">' + stateIcon("ask") + '<button type="button" class="tm-js-title" data-open-jobs="1"><b>' +
-      esc(t.title) + "</b><small>" + esc(t.block_reason || tw(BLOCK_KEY[kind] || BLOCK_KEY.failed)) + "</small></button>" +
-      blockedButtonHtml(t) + jobIcon("x", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad") + "</div>";
+  // The pill and its details. `opts.seenAt`: when the owner last wrote in the chat (seconds), `opts.open`: details shown.
+  function jobStripHtml(q, members, opts) {
+    opts = opts || {};
+    var s = stripState(q, opts.seenAt);
+    if (!s.tone) return "";
+    var first = s.tone === "ask" ? s.asks[0] : s.runs[0];
+    var more = s.asks.length + s.runs.length - 1;
+    var text = s.tone === "ask" ? tw("teams.strip.ask", { title: first.title }) : first.title;
+    var head = [];
+    if (s.asks.length) head.push(tw("teams.strip.head_ask", { n: s.asks.length }));
+    if (s.runs.length) head.push(tw("teams.strip.head_run", { n: s.runs.length }));
+    var open = !!opts.open;
+    return '<button type="button" class="bg-pill" data-strip="1" aria-haspopup="dialog" aria-controls="tm-strip-pop" aria-expanded="' +
+      (open ? "true" : "false") + '" title="' + esc(head.join(" · ") + " · " + tw("bgs.pill_hint")) + '">' +
+      '<span class="bg-dot" aria-hidden="true"></span><span class="bg-pill-txt">' + esc(text) + "</span>" +
+      (more > 0 ? '<span class="bg-pill-more">+' + more + "</span>" : "") + '<span class="bg-caret" aria-hidden="true"></span></button>' +
+      '<div class="bg-pop" id="tm-strip-pop" role="dialog" aria-label="' + esc(head.join(" · ")) + '"' + (open ? "" : " hidden") + ">" +
+      '<div class="bg-pop-head"><span class="bg-dot" aria-hidden="true"></span><span>' + esc(head.join(" · ")) + "</span></div>" +
+      '<ul class="bg-list">' + s.asks.map(stripAskRow).join("") +
+      s.runs.slice(0, 3).map(function (t) { return stripRunRow(t, members); }).join("") + "</ul>" +
+      '<button type="button" class="bg-open" data-open-jobs="1">' + esc(tw("teams.strip.open")) + "</button></div>";
   }
 
-  function jobStripHtml(q, members) {
-    q = q || {};
-    var running = q.running || [], blocked = q.blocked || [];
-    // 2026-11-12: a team runs up to three jobs at once (different assistants), so every running job has its line.
-    var h = running.slice(0, 3).map(function (t) { return stripRunHtml(t, members); }).join("");
-    h += blocked.slice(0, 2).map(stripAskHtml).join("");
-    if (blocked.length > 2) {
-      h += '<button type="button" class="ws-btn tm-jmore" data-open-jobs="1">' +
-        esc(tw("teams.blocked_more", { n: blocked.length - 2 })) + "</button>";
-    }
-    return h;
+  // The tab a team opens on (owner, 17/11/2026: "chưa có việc nào thì mặc định vào tab thông tin nhưng có việc thì sẽ
+  // show việc"): Jobs when the Jobs tab has anything above the Archive (running, waiting for you, up next, finished),
+  // else Info. `counts` is the team list row (open jobs only), used before the queue itself has loaded.
+  function defaultTab(queue, counts) {
+    var q = queue || {};
+    var n = (q.running || []).length + (q.blocked || []).length + (q.waiting || []).length + (q.finished || []).length;
+    if (!queue && counts) n = (Number(counts.running) || 0) + (Number(counts.blocked) || 0) + (Number(counts.waiting) || 0);
+    return n ? "jobs" : "info";
   }
 
   // Tabs of the side panel (owner, 16/11/2026: "menu thông tin, việc team cũng nên có icon"): icon, word, and on Jobs the
@@ -1156,7 +1200,8 @@
   function sideTabsHtml(tab, queue) {
     queue = queue || {};
     var open = (queue.running || []).length + (queue.blocked || []).length + (queue.waiting || []).length;
-    return ["info", "jobs", "team"].map(function (k) {
+    // 17/11/2026 (owner): "thứ tự sẽ là Việc, thông tin, rồi mới đến team".
+    return ["jobs", "info", "team"].map(function (k) {
       return '<button type="button" class="tm-tab" role="tab" data-tab="' + k + '" aria-selected="' + (tab === k ? "true" : "false") +
         '">' + ic(TAB_ICON[k]) + "<span>" + esc(tw(TAB_KEY[k])) + "</span>" +
         (k === "jobs" && open ? '<span class="tm-tab-n">' + open + "</span>" : "") + "</button>";
@@ -2176,8 +2221,9 @@
       '<div class="cside-proj ws-nhom-bar tm-tagbar" hidden></div>' +
       '<div class="tm-teams"></div><button type="button" class="ws-btn tm-more-teams" hidden>' + esc(tw("teams.next_page")) + "</button></aside>" +
       '<section class="tm-chat"><div class="tm-bar tm-chat-head"></div><div class="tm-search" hidden></div>' +
-      '<div class="tm-banners"></div><div class="tm-jobs" hidden></div>' +
-      '<div class="tm-filterbar" hidden></div><div class="tm-pinbar" hidden></div><div class="tm-msgs" aria-live="polite"></div><div class="tm-composer"></div>' +
+      '<div class="tm-banners"></div>' +
+      '<div class="tm-filterbar" hidden></div><div class="tm-pinbar" hidden></div><div class="tm-msgs" aria-live="polite"></div>' +
+      '<div class="tm-jobs bg-strip" hidden></div><div class="tm-composer"></div>' +
       // 2026-11-15 (owner: files the team writes could not be clicked open): the frame the file editor docks into when a
       // file link in the chat is clicked, like the Partners page's #wsEdit. It takes the whole chat column while open
       // (console.css .tm-chat.edit-on); closing the file brings the chat back as it was. `data-ne-host` is how
@@ -2457,6 +2503,7 @@
     var box = S.el.querySelector(".tm-msgs");
     if (!box) return;
     drawPins();
+    drawJobs();
     // T3 (6.2): khung tin của nhóm đang mở; pulse-seen.js đọc mã nhóm ở đây để báo tin của trợ lý đã được xem.
     if (S.team) box.setAttribute("data-seen-team", S.team.team_id); else box.removeAttribute("data-seen-team");
     if (!S.team) {
@@ -2518,9 +2565,19 @@
   function drawJobs() {
     var bar = S.el.querySelector(".tm-jobs");
     if (!bar) return;
-    var h = S.team ? jobStripHtml(S.queue, S.team.members) : "";
+    var seenAt = ownerSaidAt(S.msgs);
+    var st = S.team ? stripState(S.queue, seenAt) : { tone: "" };
+    if (!st.tone) S.stripOpen = false;
+    var h = st.tone ? jobStripHtml(S.queue, S.team.members, { seenAt: seenAt, open: S.stripOpen }) : "";
     bar.hidden = !h;
-    bar.innerHTML = h;
+    bar.className = "tm-jobs bg-strip" + (st.tone ? " bg-" + (st.tone === "ask" ? "stall" : "run") : "");
+    if (bar.innerHTML !== h) bar.innerHTML = h;
+  }
+
+  function setStrip(open) {
+    if (!S || !!S.stripOpen === !!open) return;
+    S.stripOpen = !!open;
+    drawJobs();
   }
 
   function drawComposer() {
@@ -3151,6 +3208,7 @@
       : opener.matches(".tm-gear") ? ".tm-gear" : opener.matches(".tm-ava-btn") ? ".tm-ava-btn" : null;
     S.side = true;
     S.tab = tab;
+    S.tabAuto = false;
     rememberSide(true);
     drawSide(true);
     drawHead();
@@ -3363,7 +3421,10 @@
     // 2026-11-09 (owner): a team opens with its Info tab showing on a wide screen, unless the owner closed the panel
     // last time (remembered per device). A phone keeps the panel as a drawer that opens on demand.
     S.side = sideByDefault();
-    if (S.side) S.tab = "info";
+    // Picked again once the jobs are known, unless the owner picks a tab first (`tabAuto`).
+    var listed = (S.teams || []).filter(function (x) { return x.team_id === id; })[0];
+    S.tabAuto = S.side;
+    if (S.side) S.tab = defaultTab(null, listed && listed.counts);
     S.picker = null; S.draft = null; S.picked = []; S.retrying = {};
     S.replyTo = null; S.plusOpen = false; S.renamingHead = false; forgetAtts(S.atts); S.atts = []; S.folder = null; S.repos = []; S.ghIcon = null; S.info = null; S.infoFind = null;
     S.typing = []; S.pinned = []; S.pinsOpen = false; S.unclamped = {}; S.listCache = null; S.outbox = []; stopReveal();
@@ -3381,6 +3442,8 @@
     drawAll(true);
     loads.then(function () {
       if (S.activeId !== id) return;
+      if (S.tabAuto && S.side) S.tab = defaultTab(S.queue);
+      S.tabAuto = false;
       // Drawn from the cache, the chat was already on screen: this redraw reuses the unchanged message nodes.
       drawAll(true);
       keepTeam(); loadFolder(); loadSkills();
@@ -3924,7 +3987,9 @@
       esc(t.name) + "</strong>" + (t.description ? infoBtn() : "") + "</span>" +
       (t.description ? infoBody(esc(t.description).replace(/\n/g, "<br>")) : "") + "</div></div>";
     h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_members", { n: members.length + 1 })) + '</h4><ul class="tm-info-members">' +
-      '<li>' + avaHtml(tw("teams.you")) + "<span>" + esc(tw("teams.you")) + "</span></li>" +
+      // The empty slot where an assistant has its private chat button keeps both badges in one column.
+      '<li>' + avaHtml(tw("teams.you")) + "<span>" + esc(tw("teams.you")) + '</span><span class="tm-info-badge tm-info-lead">' +
+      esc(tw("teams.lead_badge")) + '</span><span class="tm-bar-x tm-info-chat tm-info-gap" aria-hidden="true"></span></li>' +
       members.map(function (m) {
         return "<li>" + agentAva(m, 28) + "<span>" + esc(m.name || m.slug) + "</span>" +
           (m.agent_key && m.agent_key === t.leader_key ? '<span class="tm-info-badge">' + esc(tw("teams.leader_badge")) + "</span>" : "") +
@@ -4708,6 +4773,9 @@
     }
     // A press anywhere outside the "+" menu closes it; outside the long-press sheet closes the sheet.
     var inside = function (sel) { return !!(e.target.closest && e.target.closest(sel)); };
+    if (S.stripOpen && !inside(".tm-jobs")) setStrip(false);
+    if (t && t.dataset && t.dataset.strip) { setStrip(!S.stripOpen); return; }
+    if (S.stripOpen && t && t.dataset && (t.dataset.openJobs || t.dataset.viewTask) && inside(".tm-jobs")) setStrip(false);
     if (S.plusOpen && !inside(".tm-plus-menu") && !inside(".tm-plus")) setPlus(false);
     if (S.picker !== null && !inside(".tm-sheet") && Date.now() - (S.sheetAt || 0) > 600) {
       S.picker = null;
@@ -4912,7 +4980,7 @@
     if (d.openTeam) return openSide("team", t);
     if (t.classList.contains("tm-close")) return closeSide();
     if (d.tab) {
-      S.tab = d.tab; drawSide(true); drawHead();
+      S.tab = d.tab; S.tabAuto = false; drawSide(true); drawHead();
       if (d.tab === "team") loadAgents().then(function () { if (S.side && S.tab === "team") drawSide(); });
       return;
     }
@@ -5367,6 +5435,12 @@
   }
 
   function onKey(e) {
+    if (e.key === "Escape" && S.stripOpen) {
+      setStrip(false);
+      var pill = S.el.querySelector(".tm-jobs .bg-pill");
+      if (pill) pill.focus();
+      return;
+    }
     if (e.target.classList && e.target.classList.contains("tm-search-input") && e.key === "Enter") {
       e.preventDefault();
       runSearch();
@@ -5714,7 +5788,7 @@
   }
 
   var api = { render: render, leave: leave, open: open, teamListHtml: teamListHtml, messageHtml: messageHtml, queueHtml: queueHtml,
-    jobStripHtml: jobStripHtml, sideTabsHtml: sideTabsHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, workModeHtml: workModeHtml,
+    jobStripHtml: jobStripHtml, stripState: stripState, defaultTab: defaultTab, ownerSaidAt: ownerSaidAt, sideTabsHtml: sideTabsHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, workModeHtml: workModeHtml,
     mandateHtml: mandateHtml, opportunityCardHtml: opportunityCardHtml, readMandateForm: readMandateForm,
     parseCriteria: parseCriteria, acceptanceCardHtml: acceptanceCardHtml, acceptanceDecisionPayload: acceptanceDecisionPayload,
     qualityPolicyHtml: qualityPolicyHtml, qualityPolicyPayload: qualityPolicyPayload, qualityTemplatePayload: qualityTemplatePayload,
