@@ -81,9 +81,56 @@ def _speak_sync(text: str, lang: str) -> bytes:
     return r.stdout if r.returncode == 0 else b""
 
 
+VIENEU_VOICE = "Trúc Ly"      # female, northern, natural (preset of VieNeu-TTS v3 Turbo, Apache-2.0)
+_VIENEU_SCRIPT = ("import sys\nfrom vieneu import Vieneu\nv = Vieneu(precision='int8')\n"
+                  "v.save(v.infer(sys.argv[1], voice=sys.argv[2]), sys.argv[3])\n")
+
+
+def vieneu_available() -> bool:
+    h = home()
+    return (h / "vieneu-lib" / "vieneu").is_dir() and (h / "hf").is_dir()
+
+
+def _to_mp3(wav: bytes) -> bytes:
+    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-codec:a", "libmp3lame",
+                        "-q:a", "4", "-f", "mp3", "pipe:1"], input=wav, capture_output=True, timeout=60)
+    return r.stdout if r.returncode == 0 else b""
+
+
+def _vieneu_sync(text: str) -> bytes:
+    """Vietnamese (and Vietnamese-English mixed) text read by VieNeu in its own process: its numpy and onnxruntime
+    stay in `<state>/tts/vieneu-lib` and never meet the server's. Weights are in `<state>/tts/hf`, read offline."""
+    import tempfile
+    h = home()
+    env = dict(os.environ, PYTHONPATH=str(h / "vieneu-lib"), HF_HOME=str(h / "hf"), HF_HUB_OFFLINE="1")
+    out = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    out.close()
+    try:
+        r = subprocess.run([sys.executable, "-c", _VIENEU_SCRIPT, text, VIENEU_VOICE, out.name], env=env,
+                           capture_output=True, text=True, timeout=180)
+        wav = Path(out.name).read_bytes()
+        if r.returncode != 0 or not wav:
+            print(f"[voice offline] VieNeu gave no audio (exit {r.returncode}): {(r.stderr or '').strip()[-200:]}",
+                  file=sys.stderr, flush=True)
+            return b""
+        return _to_mp3(wav)
+    finally:
+        try:
+            os.unlink(out.name)
+        except OSError:
+            pass
+
+
 async def speak(text: str, voice: str = "") -> bytes:
     """mp3 bytes, or b"" when the offline voice is not installed or fails (never raises)."""
     lang = language(text, voice)
+    if lang == "vi" and vieneu_available():
+        try:
+            mp3 = await asyncio.to_thread(_vieneu_sync, text)
+            if mp3:
+                return mp3
+        except Exception as e:      # noqa: BLE001
+            print(f"[voice offline] VieNeu failed: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
     if not available(lang):
         return b""
     try:
