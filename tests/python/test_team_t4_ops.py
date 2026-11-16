@@ -148,8 +148,10 @@ new_runner = api.runner()
 check("khởi động lại: bộ chạy mới là đối tượng khác, pool trống", new_runner is not old_runner and not new_runner._pool)
 rep = new_runner.recover()
 check("phục hồi: việc chưa tới engine được nhận lại để chạy tiếp", j_resume["task_id"] in rep["resumed"], rep)
-check("phục hồi: việc có lượt đã tới engine bị chặn interrupted (không tự chạy lại)", j_int["task_id"] in rep["blocked"]
-      and tsx.get_task(j_int["task_id"])["status"] == "team_blocked", (rep, tsx.get_task(j_int["task_id"])["status"]))
+# 16/11/2026 (owner: "sau mỗi lần cập nhật thì các team tự khởi động lại để tiếp tục công việc"): such a job is no longer
+# blocked for the owner to press Continue; it carries on with a new step (tests/python/test_team_resume_after_restart.py).
+check("phục hồi: việc có lượt đã tới engine tự làm tiếp bằng một bước mới", j_int["task_id"] in rep["resumed"]
+      and tsx.get_task(j_int["task_id"])["status"] == "team_running", (rep, tsx.get_task(j_int["task_id"])["status"]))
 check("phục hồi: lượt đã tới engine chốt interrupted (tính một lần, không hoàn)",
       next(t for t in api.teams().turns(R2["team_id"]) if t["turn_id"] == turn_int)["status"] == "interrupted")
 calls_rs = fakes.team_calls

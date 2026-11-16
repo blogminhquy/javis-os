@@ -241,6 +241,45 @@ hub = (SERVER / "mcp_hub.py").read_text(encoding="utf-8")
 src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("the hub marks a chat turn before any call that is not a read", hub.index("turn_ledger.mark_acted(") < hub.index("result = await once_ledger.run(")
       and 'if cls == "read":' in hub[hub.index("turn_ledger.mark_acted(") - 400:hub.index("turn_ledger.mark_acted(")])
+# A plugin tool that acts outside (strongest level `full`) counts like a connector call that is not a read.
+import mcp_hub  # noqa: E402
+import once_ledger  # noqa: E402
+import turn_context  # noqa: E402
+
+SENT = []
+
+
+async def send_image(args):
+    SENT.append(dict(args))
+    return "đã gửi"
+
+
+async def plugin_calls():
+    call = mcp_hub._outside_plugin_call("zalo_send_image", send_image)
+    TL.begin("chat-plugin", 5, "gửi ảnh", None, "brain")
+    tok = turn_context.bind(turn_context.make("dashboard", chat_id="chat-plugin", la_chu=True, session_id="chat-plugin"))
+    try:
+        first = await call({"threadId": "1", "path": "a.png"})
+        again = await call({"threadId": "1", "path": "a.png"})
+    finally:
+        turn_context.reset(tok)
+    tok = turn_context.bind(turn_context.make("team", chat_id="tm", job="team:t1:abc"))
+    try:
+        team_first = await call({"threadId": "2", "path": "b.png"})
+        team_again = await call({"threadId": "2", "path": "b.png"})
+    finally:
+        turn_context.reset(tok)
+    return first, again, team_first, team_again
+
+first, again, team_first, team_again = asyncio.run(plugin_calls())
+check("a chat turn that calls an outside plugin tool is marked, and the call itself goes straight through each time",
+      [r["acted"] for r in TL.rows() if r["session_id"] == "chat-plugin"] == [1] and first == again == "đã gửi"
+      and [a["threadId"] for a in SENT[:2]] == ["1", "1"], (TL.rows(), SENT))
+check("a team step records it once: the step running again gets the old result instead of sending twice",
+      team_first == "đã gửi" and team_again.startswith(once_ledger.DONE_NOTE) and [a["threadId"] for a in SENT] == ["1", "1", "2"], (team_again, SENT))
+TL.drop("chat-plugin")
+check("the hub wraps only plugin tools whose strongest level is full",
+      'if route[fn].get("effect") == "danger" and route[fn].get("call"):' in hub)
 check("every chat turn writes its row first, the runtime closes it, shutdown keeps it",
       "turn_ledger.begin(conv_sid, user_mid, user_message, user_text, brain)" in src
       and "_CHAT_RUNTIME.on_finish = turn_ledger.end" in src and "turn_ledger.closing = True" in src)
