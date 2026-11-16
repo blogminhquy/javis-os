@@ -133,6 +133,22 @@ class WorkflowRunStore:
                  _cat(error, TRAN_OUT_BUOC), str(task_id or ""), str(task_id or ""), run_id))
             self._db.commit()
 
+    def close_cut(self, before: float, error: str) -> List[Dict[str, Any]]:
+        """Runs still `running` that started before `before` (this process's start): the process that ran them is
+        gone, so they are closed as `error` with the reason instead of showing "running" for ever. Returns the rows
+        that were closed (id, brain, slug, name, session_id, source, steps), so the host can tell the owner.
+        `waiting` runs (awaiting approval) are not running and stay as they are."""
+        with self._lock:
+            rows = [self._row(r, True) for r in self._db.execute(
+                "SELECT * FROM workflow_runs WHERE status='running' AND started_at<? ORDER BY started_at",
+                (float(before),)).fetchall()]
+            if rows:
+                self._db.execute(
+                    "UPDATE workflow_runs SET status='error', finished_at=?, error=? WHERE status='running' AND started_at<?",
+                    (time.time(), _cat(error, TRAN_OUT_BUOC), float(before)))
+                self._db.commit()
+        return rows
+
     # ---- đọc ----
     @staticmethod
     def _row(r: sqlite3.Row, day_du: bool) -> Dict[str, Any]:

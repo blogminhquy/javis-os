@@ -117,6 +117,7 @@ Note: these two TTS variables apply to the default free Edge TTS voice. If you p
 | `WATCHTOWER_TOKEN` | The token the "Update now" button (the **Updates** page) uses to call Watchtower when running Docker | In `docker-compose.yml`: `javis-update`. Outside Docker: empty (no variable means Javis assumes Watchtower is not running) | For tighter security: change it to a random string, setting the same value on both the app and the watchtower service. |
 | `JAVIS_AUTO_UPDATE` | Lets Watchtower find new versions and recreate the container on its own, with no button to press | `false` | Off by default on purpose: turning it on means the app restarts itself whenever a new version lands, cutting across background work and a running chat. Set it in `.env` (Hostinger: the Environment box) and bring the stack up again. |
 | `JAVIS_AUTO_UPDATE_INTERVAL` | How often Watchtower looks for a new version, in SECONDS | `86400` (24 hours) | Only has an effect with `JAVIS_AUTO_UPDATE=true`. Do not set it too short: every new version is another restart. |
+| `JAVIS_RESUME_AFTER_RESTART` | Work that was in flight when the server restarted (team jobs, chat turns, background jobs) carries on by itself | `1` | Set `0` for the old behaviour: cut work waits for you to press Continue or Retry. A step that had already done something outside (sent, posted) always stops and asks instead of doing it again. |
 
 ### Group 7: Advanced variables (rarely need touching)
 

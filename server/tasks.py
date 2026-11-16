@@ -403,6 +403,15 @@ class TasksFeature:
         for root in self._brain_roots():
             if self.store.recover_codex_global_flag_blocks(root):
                 self._snapshot(root)
+        # 16/11/2026: jobs the restart cut short go back to the queue now, once per process (task_store.reclaim_boot).
+        if not getattr(self, "_boot_reclaimed", False):
+            self._boot_reclaimed = True
+            for root in self._brain_roots():
+                try:
+                    if self.store.reclaim_boot(root):
+                        self._snapshot(root)
+                except Exception as ex:  # noqa: BLE001 - reclaim_stale still picks them up after their lease
+                    print(f"[kanban boot reclaim] {type(ex).__name__}: {ex}", file=sys.stderr)
         self._closing = False
         self._dispatcher_task = asyncio.create_task(
             self._dispatcher_loop(), name="javis-kanban-dispatcher"

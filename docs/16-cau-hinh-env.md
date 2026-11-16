@@ -121,6 +121,7 @@ Lưu ý: hai biến TTS này áp cho giọng Edge TTS miễn phí mặc định.
 | `WATCHTOWER_TOKEN` | Token cho nút "Cập nhật ngay" (trang **Cập nhật**) gọi Watchtower khi chạy Docker | Trong `docker-compose.yml`: `javis-update`. Ngoài Docker: trống (không có biến thì Javis coi như Watchtower không chạy) | Muốn chặt hơn: đổi thành chuỗi ngẫu nhiên, đặt cùng giá trị cho cả app lẫn service watchtower. |
 | `JAVIS_AUTO_UPDATE` | Cho Watchtower TỰ đi tìm bản mới rồi dựng lại container, khỏi cần bấm nút | `false` | Mặc định tắt có chủ ý: bật là app tự khởi động lại bất cứ lúc nào có bản mới, cắt ngang việc nền và phiên chat đang chạy. Đặt trong `.env` (Hostinger: ô Environment) rồi dựng lại stack. |
 | `JAVIS_AUTO_UPDATE_INTERVAL` | Chu kỳ Watchtower đi tìm bản mới, tính bằng GIÂY | `86400` (24 giờ) | Chỉ có tác dụng khi `JAVIS_AUTO_UPDATE=true`. Đừng đặt quá ngắn: mỗi lần có bản mới là một lần app khởi động lại. |
+| `JAVIS_RESUME_AFTER_RESTART` | Việc đang dở lúc máy chủ khởi động lại (việc team, lượt chat, việc nền) tự chạy tiếp | `1` | Đặt `0` để quay về cách cũ: việc bị cắt chờ bạn bấm Làm tiếp hoặc Thử lại. Bước đã kịp làm một việc ra ngoài (gửi, đăng) thì luôn dừng hỏi, không tự làm lại. |
 
 ### Nhóm 7: Biến nâng cao (hiếm khi cần đụng)
 

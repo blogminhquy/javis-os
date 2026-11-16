@@ -49,7 +49,7 @@ Op sai (JSON hỏng, op lạ, người ngoài nhóm, nhờ ngược, quá độ 
 
 ## Sổ lượt
 
-Một dòng mỗi lời gọi model. Giữ chỗ và kiểm trần (ngày, việc) nằm trong CÙNG một giao dịch `BEGIN IMMEDIATE` (`reserve_turn` có `daily_cap`, `task_cap`), nên hai lượt đồng thời không cùng lọt qua chỗ trống cuối. Lỗi trước mốc gọi engine thì hoàn (`refunded`) đúng một lần. Sau mốc thì tính, kể cả lỗi, bị huỷ giữa lượt (`interrupted`), restart (`interrupted`, không tự chạy lại).
+Một dòng mỗi lời gọi model. Giữ chỗ và kiểm trần (ngày, việc) nằm trong CÙNG một giao dịch `BEGIN IMMEDIATE` (`reserve_turn` có `daily_cap`, `task_cap`), nên hai lượt đồng thời không cùng lọt qua chỗ trống cuối. Lỗi trước mốc gọi engine thì hoàn (`refunded`) đúng một lần. Sau mốc thì tính, kể cả lỗi, bị huỷ giữa lượt (`interrupted`), restart (`interrupted`). Từ 16/11/2026 việc bị restart cắt giữa lượt TỰ làm tiếp bằng một bước mới cho đúng người đó (chủ: "sau mỗi lần cập nhật thì các team tự khởi động lại để tiếp tục công việc"); chỉ dừng hỏi khi một thao tác ra ngoài của bước chưa rõ đã xong chưa (`once_ledger`), hoặc cùng một bước đã bị cắt quá `RESTART_RESUME_MAX` lần. Tắt bằng `JAVIS_RESUME_AFTER_RESTART=0`.
 
 **Mốc gọi engine (review vòng 1, R4):** engine thật (`fn.marks_engine`) dựng xong engine, kiểm `is_available`, rồi mới gọi `req["engine_started"]`; bộ chạy ghi mốc ở đó. Dựng hỏng (`_resonance_engine` trả None, engine báo chưa sẵn sàng, cấu hình ném lỗi) hay bị huỷ khi đang dựng thì lượt hoàn, việc chặn `failed` với lý do "Không dựng được engine" để Chạy lại. Engine giả không khai báo thì mốc ghi ngay trước lời gọi như trước.
 

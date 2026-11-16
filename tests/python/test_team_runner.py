@@ -667,9 +667,12 @@ tu2 = tm.reserve_turn(T["team_id"], j2["task_id"], st2["step_id"], "ag_hoa", "wo
 tm.mark_engine(tu2, "fake", "fake-model")
 fake.calls.clear()
 rep = r.recover()
-check("TC17 restart sau mốc engine: lượt interrupted tính một lần, việc chặn interrupted, không tự chạy lại",
-      tm.turn(tu2)["status"] == "interrupted" and ts.get_task(j2["task_id"])["block_kind"] == "interrupted"
-      and tm.step(st2["step_id"])["status"] == "interrupted" and fake.calls == [])
+# 16/11/2026 (owner: "sau mỗi lần cập nhật thì các team tự khởi động lại để tiếp tục công việc"): the job is no longer
+# blocked for the owner to press Continue; it carries on with a new step (tests/python/test_team_resume_after_restart.py).
+check("TC17 restart sau mốc engine: lượt interrupted tính một lần, bước interrupted, việc tự làm tiếp bằng một bước mới",
+      tm.turn(tu2)["status"] == "interrupted" and tm.step(st2["step_id"])["status"] == "interrupted"
+      and j2["task_id"] in rep["resumed"] and ts.get_task(j2["task_id"])["status"] == "team_running"
+      and [s["status"] for s in tm.steps(j2["task_id"])].count("queued") == 1 and fake.calls == [])
 
 # ---------- Review Focus 5: khối JAVIS_TEAM sai khuôn ----------
 ss, ts, tm, fake, r, pub, inbox, gone = world("badops")
