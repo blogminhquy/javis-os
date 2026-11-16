@@ -907,9 +907,11 @@
     }).join("") + "</div>";
   }
 
-  function jobCardHtml(o) {
+  // `title` is the only plain text and is escaped here; everything in `o` is HTML the caller built (icons included),
+  // which is why the title is not a field of `o` (tests/python/test_icons.py: no icon into a function that escapes).
+  function jobCardHtml(title, o) {
     return '<div class="tm-jb ' + o.cls + '"><div class="tm-jb-head"><span class="tm-jb-lead">' + o.lead + "</span>" +
-      '<button type="button" class="tm-jb-title" ' + o.titleAttr + ">" + esc(o.title) + "</button>" +
+      '<button type="button" class="tm-jb-title" ' + o.titleAttr + ">" + esc(title) + "</button>" +
       '<span class="tm-jb-acts">' + (o.icons || "") + "</span></div>" +
       (o.meta ? '<div class="tm-jb-meta">' + o.meta + "</div>" : "") + (o.below || "") + "</div>";
   }
@@ -920,7 +922,7 @@
     var open = jobOpen(t, view, false);
     // 0.209.0 review: criteria can be set on a stopped job too (acceptance_failed re-checks without redoing the work).
     var checking = kind === "acceptance_review" || kind === "acceptance_checking";
-    return jobCardHtml({ cls: "tm-jb-ask", lead: stateIcon("ask"), title: t.title, titleAttr: 'data-view-task="' + esc(t.id) + '"',
+    return jobCardHtml(t.title, { cls: "tm-jb-ask", lead: stateIcon("ask"), titleAttr: 'data-view-task="' + esc(t.id) + '"',
       icons: (checking ? "" : jobIcon("clipboard-check", 'data-acc-edit="' + esc(t.id) + '"', tw("teams.acc.set"))) +
         jobIcon("x", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad"),
       meta: (view.leaderKey ? faceName(view.members, view.leaderKey) : "") + jobFoldHtml(t, open),
@@ -930,7 +932,7 @@
 
   function runningCardHtml(t, view) {
     var open = jobOpen(t, view, true);
-    return jobCardHtml({ cls: "tm-jb-run", lead: stateIcon("run"), title: t.title, titleAttr: 'data-view-task="' + esc(t.id) + '"',
+    return jobCardHtml(t.title, { cls: "tm-jb-run", lead: stateIcon("run"), titleAttr: 'data-view-task="' + esc(t.id) + '"',
       icons: jobIcon("pencil", 'data-amend="' + esc(t.id) + '"', tw("teams.amend")) +
         jobIcon("clipboard-check", 'data-acc-edit="' + esc(t.id) + '"', tw("teams.acc.set")) +
         jobIcon("square", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad"),
@@ -941,7 +943,7 @@
   function waitingCardHtml(t, pos) {
     var star = t.team_prio != null;
     var label = tw(star ? "teams.unprioritize" : "teams.prioritize");
-    return jobCardHtml({ cls: "tm-jb-wait", lead: '<span class="tm-jb-pos">' + pos + "</span>", title: t.title,
+    return jobCardHtml(t.title, { cls: "tm-jb-wait", lead: '<span class="tm-jb-pos">' + pos + "</span>",
       titleAttr: 'data-view-task="' + esc(t.id) + '"',
       icons: jobIcon("clipboard-check", 'data-acc-edit="' + esc(t.id) + '"', tw("teams.acc.set")) +
         jobIcon("x", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad") +
@@ -1225,8 +1227,8 @@
     if (!archived) (j.steps || []).forEach(function (st) { if (st.agent_key && keys.indexOf(st.agent_key) < 0) keys.push(st.agent_key); });
     var toggle = 'data-fin-open="' + esc(j.id) + '" aria-expanded="' + (open ? "true" : "false") + '"';
     var label = tw(open ? "teams.fin_close" : "teams.fin_open");
-    return jobCardHtml({ cls: "tm-jb-done" + (archived ? " tm-jb-arch" : "") + (j.cancelled ? " is-cancelled" : "") + (open ? " is-open" : ""),
-      lead: stateIcon(j.cancelled ? "off" : "done"), title: j.title, titleAttr: toggle,
+    return jobCardHtml(j.title, { cls: "tm-jb-done" + (archived ? " tm-jb-arch" : "") + (j.cancelled ? " is-cancelled" : "") + (open ? " is-open" : ""),
+      lead: stateIcon(j.cancelled ? "off" : "done"), titleAttr: toggle,
       icons: (open && j.task_id ? jobIcon("message-circle", 'data-view-task="' + esc(j.task_id) + '"', tw("teams.view_msgs")) : "") +
         (archived ? jobIcon("undo-2", 'data-job-unarchive="' + esc(j.id) + '"', tw("teams.archive_back")) +
           jobIcon("trash-2", 'data-job-delete="' + esc(j.id) + '"', tw("teams.archive_delete"), "tm-jb-bad")
