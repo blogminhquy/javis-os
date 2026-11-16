@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.571.0] - 2026-11-16
+### Added
+- **Javis Store has an All tab.** It comes first, puts every assistant, skill, workflow, tool and connector in one grid, and the Store opens on it. Its search box covers the whole Store, and each card says which kind it is.
+- **A search that finds nothing in one tab offers to search All.** The button shows how many items match in the other tabs and keeps the words you typed.
+
 ## [0.570.1] - 2026-11-16
 ### Fixed
 - **The repository picker in a project and a team is no longer cut off.** The "Selected" section used to show as a thin strip, and the list under it could not scroll to the last repositories. Every row now shows in full and the list scrolls, in the documents of a project or an assistant, the create-team box and the team chat.

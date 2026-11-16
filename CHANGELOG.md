@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.571.0] - 2026-11-16
+### Thêm mới
+- **Javis Store có tab Tất cả.** Tab đứng đầu hàng, gom mọi trợ lý, kỹ năng, quy trình, công cụ và kết nối vào một lưới, và kho mở ra ở tab này. Ô tìm ở đây tìm trên cả kho, mỗi thẻ ghi rõ nó thuộc loại nào.
+- **Tìm ở một tab mà không thấy thì có nút tìm trong Tất cả.** Nút ghi sẵn số mục khớp ở các tab khác và giữ nguyên chữ bạn đã gõ.
+
 ## [0.570.1] - 2026-11-16
 ### Sửa lỗi
 - **Bảng chọn repository trong dự án và trong team không còn bị cắt.** Mục "Đã chọn" trước đây chỉ hiện một dải mỏng, và danh sách bên dưới không cuộn được tới các repository ở cuối. Giờ từng dòng hiện đủ và danh sách cuộn bình thường, ở cả tài liệu của dự án, của cộng sự, ô tạo team và khung chat của team.
