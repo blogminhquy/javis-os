@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.571.1] - 2026-11-16
+### Fixed
+- **An assistant's Jobs tab records each run it started on its own.** The Auto block could say "Worked on its own 1 times today" while the Jobs tab stayed empty, because the tab only read goals, team jobs, chat jobs and workflow runs. Each look around or self-review is now a card under the Auto source, with what it ended in: the work it did, a message to you, a job it proposed, or nothing that needed doing. Today's number and the cards always agree because both read the same ledger.
+
 ## [0.571.0] - 2026-11-16
 ### Added
 - **Javis Store has an All tab.** It comes first, puts every assistant, skill, workflow, tool and connector in one grid, and the Store opens on it. Its search box covers the whole Store, and each card says which kind it is.
