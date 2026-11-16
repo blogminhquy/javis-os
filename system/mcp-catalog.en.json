@@ -197,6 +197,38 @@
     ]
    }
   },
+  "http-api": {
+   "name": "Custom API (API key)",
+   "description": "Connect any service that has a REST API and an API key but no MCP (POS, CRM, shipping, e-invoices...). Paste the base URL and the key and every engine can call that API. The key is encrypted and only the server adds it to calls; the model never sees it.",
+   "risk": "Read-only (the default) lets Javis call GET only, so it can only look at data.\n\nFull access lets Javis call POST, PUT, PATCH and DELETE: create orders, edit, delete and send real messages on that service, which may not be undoable.\nDraft cannot open these methods because Javis cannot know how an unknown API writes.\n\nAn API key has every right of the account that created it: create a separate key for Javis and limit its rights at the service if the service allows it.",
+   "guide": "1. Open the service's API documentation, find the base URL and create an API key.\n2. Check how the docs say the key is sent. The most common is the header Authorization: Bearer, in which case leave Key format empty.\nA service using another header: write X-API-Key: {key}; a query parameter: write ?api_key={key}.\nA name:password key with Authorization: Basic {key} is encoded by Javis.\n3. Paste the docs link and a few notes (endpoints you use often) so Javis calls the right thing from the start.\n\nEach service is its own connection. The key is only sent to the base URL's host. An http:// address only works for a machine on your local network.",
+   "fields": {
+    "base_url": {
+     "label": "API base URL",
+     "placeholder": "e.g. https://api.example.com/v1"
+    },
+    "api_key": {
+     "label": "API key",
+     "placeholder": "Paste the API key..."
+    },
+    "auth_style": {
+     "label": "Key format (optional, empty = Authorization: Bearer)",
+     "placeholder": "e.g. X-API-Key: {key}  or  ?api_key={key}"
+    },
+    "extra_headers": {
+     "label": "Extra headers (optional, one Name: value per line)",
+     "placeholder": "e.g. X-Shop-Id: 12345"
+    },
+    "docs_url": {
+     "label": "API docs link (optional, for Javis to read)",
+     "placeholder": "e.g. https://docs.example.com/api"
+    },
+    "notes": {
+     "label": "Notes for Javis (optional)",
+     "placeholder": "e.g. orders under /orders, stock under /inventory"
+    }
+   }
+  },
   "substack": {
    "description": "Write and PUBLISH posts and newsletters on Substack by asking: list drafts, create drafts and publish (optionally emailing subscribers). Javis wraps the Substack API itself (internal Python, NO Node/npx needed), one session token per account.",
    "risk": "Draft (the default) lets Javis CREATE DRAFT posts on your Substack. Nothing is published or sent.\n\nTo let Javis PUBLISH FOR REAL, raise this connection to Full access. Even then Javis only publishes when you ask directly in chat; a background loop never publishes on its own.\n\nPublishing goes to the web only by default, with NO email. Javis only turns on emailing when you clearly say \"email the subscribers\", and a sent email CANNOT be undone.\n\nThe session token grants full access to the Substack account, so keep it as private as a password. If it expires when you sign out, reconnect.",

@@ -6033,6 +6033,8 @@
   "wh.retried_n": "Queued {n} events again",
   "wh.alert_need": "{n} events need you",
   "wh.back_cfg": "Back to configuration",
+  "wh.edit": "Edit",
+  "wh.edit_title": "Edit webhook",
   "wh.back_events": "All runs",
   "wh.chip_failed": "{n} failed",
   "wh.chip_need": "Needs you",

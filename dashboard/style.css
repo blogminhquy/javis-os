@@ -4099,6 +4099,9 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .pd-mode .cp-ic { width: 14px; height: 14px; }
 .pd-repo-row .pd-row-ico .cp-ic { width: 18px; height: 18px; }
 .pd-repo-box .gh-results { max-height: min(45vh, 340px); overflow-y: auto; }
+/* The "+" row under the repo list of a project, an assistant or a new team: the list scrolls on its own here, so the
+   foot sits under it instead of sticking to the bottom of a + menu. */
+.pd-repo-box .gh-foot, .tmp-repo-box .gh-foot { position: static; margin: 6px 0 0; padding: 4px 0 0; background: none; }
 .pd-in { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--field-bg); color: var(--text); font-family: inherit;
   font-size: 13px; outline: none; }

@@ -24900,6 +24900,9 @@ _GIA_INPUT_1M = {
     "opus": 15.0, "sonnet-5": 2.0, "sonnet": 3.0, "haiku": 1.0,
     "gpt-5-mini": 0.25, "gpt-5": 1.25, "gpt-4o-mini": 0.15, "gpt-4o": 2.5, "o3": 2.0,
     "gemini-2.5-pro": 1.25, "gemini-2.5-flash": 0.30, "gemini": 0.30,
+    # Same numbers and sources as usage_pricing.json (its "_gemini" note). Without these rows Gemini 3 and 4 fell to the
+    # bare "gemini" row (0.30), so Gemini 4 read 5-13 times cheaper than it is.
+    "gemini-3": 2.0, "gemini-3.5-flash-lite": 0.30, "gemini-4": 4.0, "gemini-4-hydrogen": 1.5,
     "deepseek": 0.30, "llama": 0.10, "qwen": 0.20, "mistral": 0.20, "grok": 2.0,
 }
 _GIA_INPUT_MAC_DINH = 3.0     # không đoán được model thì lấy mức phổ biến tầm trung
