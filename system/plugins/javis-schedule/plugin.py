@@ -785,7 +785,8 @@ def register(ctx) -> None:
                          "description": ("Zalo reminder (op=create, notify_only=true): at the time Javis tags the person, sends a "
                                          "tagged call-style line, a voice message of the note and the written note. Fields: "
                                          "thread (chat id), type (0 person, 1 group), name, uid (for the tag in a group), "
-                                         "conn (Zalo account id, optional when only one). `name` MUST be the name the person "
+                                         "conn (Zalo account id or its name on the Connections page, e.g. Crewvn; optional when only one). It also "
+                                         "creates a reminder entry inside the Zalo chat. `name` MUST be the name the person "
                                          "set for THEMSELVES on Zalo, never the nickname the owner saved for them. Write the "
                                          "prompt with the owner's shorthand already read correctly.")},
                 "intensity": {"type": "string",

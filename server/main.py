@@ -15667,7 +15667,10 @@ async def _zalo_voice_deliver(rem, text, brain) -> tuple:
     if not tg:
         return False, "no Zalo thread"
     conns = zc._ket_noi()
-    conn = next((c for c in conns if c.get("id") == tg["conn"]), None) if tg["conn"] else (conns[0] if len(conns) == 1 else None)
+    want = tg["conn"].strip().lower()
+    # The account is named by id or by the name on the Connections page ("Crewvn").
+    conn = (next((c for c in conns if c.get("id") == tg["conn"] or str(c.get("label") or "").strip().lower() == want), None)
+            if want else (conns[0] if len(conns) == 1 else None))
     if not conn:
         return False, localefmt.chu("không rõ nick Zalo nào để gửi (kết nối đã tắt hoặc có nhiều nick)",
                                     "no single Zalo account to send from (connection off, or several accounts)")
@@ -15686,7 +15689,17 @@ async def _zalo_voice_deliver(rem, text, brain) -> tuple:
         ok, _d, err = await zalo_cli.send_files(conn["id"], home, tg["thread"], [Path(path)], tg["type"])
         return ok, err
 
-    return await zvr.deliver(tg, text, send_text=send_text, send_voice=send_voice, make_voice=make_voice, root=root)
+    async def send_reminder(title):
+        # The reminder entry inside the Zalo chat (`javis-zalo reminder create`), set for now: Zalo notifies at once.
+        home = zalo_cli.home_of(conn)
+        if not home:
+            return False, "no session folder"
+        ok, _d, err = await zalo_cli.run_cli({"home": home}, ["reminder", "create"], [tg["thread"], title],
+                                             ["-t", str(tg["type"])])
+        return ok, str(err or "")
+
+    return await zvr.deliver(tg, text, send_text=send_text, send_voice=send_voice, make_voice=make_voice, root=root,
+                             send_reminder=send_reminder)
 
 
 import my_tasks as my_tasks_mod

@@ -170,6 +170,29 @@ check("a written line Zalo refuses fails the firing", not ok and err.startswith(
 lg = Log()
 ok, err = asyncio.run(fire({"thread": "444555666", "type": 0, "name": "Thế", "ring": False, "voice": False}, "x", lg))
 check("ring and voice can be switched off: only the written line goes", ok and [c[0] for c in lg.calls] == ["text"], lg.calls)
+titles = []
+
+
+async def rem_ok(title):
+    titles.append(title)
+    return True, ""
+
+
+async def rem_bad(title):
+    return False, "Zalo refused"
+
+
+ok, err = asyncio.run(Z.deliver(PRIVATE, "-nhớ gọi cho a Thế lúc 7h", send_text=Log().send_text, send_reminder=rem_ok, root=ROOT_B))
+check("the Zalo reminder entry gets the spelled-out note, never a leading dash",
+      ok and titles == ["nhớ gọi cho anh Thế lúc 7 giờ"], titles)
+ok, err = asyncio.run(Z.deliver(PRIVATE, "x", send_text=Log().send_text, send_reminder=rem_bad, root=ROOT_B))
+check("a Zalo reminder entry that fails is a warning, the reminder still arrived", ok and "zalo reminder not created" in err, (ok, err))
+titles.clear()
+ok, err = asyncio.run(Z.deliver({**PRIVATE, "remind": False}, "x", send_text=Log().send_text, send_reminder=rem_ok, root=ROOT_B))
+check("remind=false skips the Zalo reminder entry", ok and titles == [])
+check("an empty note still gets a usable title", Z.reminder_title("   ") == "Nhắc hẹn")
+check("a long note is cut to 120 characters", len(Z.reminder_title("a" * 500)) == 120)
+
 ok, err = asyncio.run(fire({}, "x", Log()))
 check("no thread: refused with a reason, no crash", (not ok) and "thread" in err, (ok, err))
 

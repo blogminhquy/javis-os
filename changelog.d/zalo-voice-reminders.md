@@ -4,14 +4,14 @@ title: Zalo reminders that tag you, ring and speak the note
 ---
 ## vi
 ### Thêm mới
-- **Nhắc hẹn qua Zalo có tag tên, gọi ảo và tin thoại.** Anh ra lệnh trên Zalo, tới giờ Javis tag tên anh, gửi dòng "Javis đang gọi", một tin thoại đọc nội dung cần nhớ, rồi tin chữ. Lặp theo mức nhẹ, vừa hoặc gắt, hay đúng số lần anh muốn.
+- **Nhắc hẹn qua Zalo có tag tên, gọi ảo và tin thoại.** Anh ra lệnh trên Zalo, tới giờ Javis tag tên anh, gửi dòng "Javis đang gọi", một tin thoại đọc nội dung cần nhớ, tin chữ, và một lịch nhắc hiện ngay trong khung chat Zalo. Lặp theo mức nhẹ, vừa hoặc gắt, hay đúng số lần anh muốn.
 - **Javis học cách anh viết tiếng Việt.** "ko", "dc", "7h", "a Thế" được hiểu và đọc đúng là "không", "được", "7 giờ", "anh Thế". Anh sửa một từ Javis hiểu sai thì Javis nhớ luôn cho các lần sau.
 - **Tên chính thức là tên người đó tự đặt cho mình trên Zalo**, không phải biệt danh anh lưu trong danh bạ.
 - Zalo chưa có API gọi thoại thật, nên cuộc gọi là gọi ảo: dòng gọi có tag cùng tin thoại.
 
 ## en
 ### Added
-- **Zalo reminders that tag you, ring and speak.** Book something by Zalo and, at the time, Javis tags your name, sends a "Javis is calling" line, a voice message of what to remember, then the written note. Repeats at a light, medium or urgent level, or an exact number of times.
+- **Zalo reminders that tag you, ring and speak.** Book something by Zalo and, at the time, Javis tags your name, sends a "Javis is calling" line, a voice message of what to remember, the written note, and a reminder entry inside the Zalo chat. Repeats at a light, medium or urgent level, or an exact number of times.
 - **Javis learns how you write Vietnamese.** Chat shorthand such as "ko", "dc", "7h" or a one-letter "a" before a name is read and spoken in full. Correct a word Javis misread and it remembers for next time.
 - **The official name is the one a person set for themselves on Zalo**, not the nickname you saved for them.
 - Zalo has no real voice-call API, so the call is a virtual one: a tagged call line plus the voice message.

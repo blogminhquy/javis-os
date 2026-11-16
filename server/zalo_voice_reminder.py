@@ -225,7 +225,8 @@ def clean_target(z: Any) -> Optional[dict]:
     uid = re.sub(r"\D", "", str(z.get("uid") or ""))[:25]
     return {"conn": _clean(z.get("conn") or z.get("connection"), 80), "thread": thread, "type": t, "uid": uid,
             "name": canonical_name(z) or _clean(z.get("name")),
-            "voice": z.get("voice") is not False, "ring": z.get("ring") is not False}
+            "voice": z.get("voice") is not False, "ring": z.get("ring") is not False,
+            "remind": z.get("remind") is not False}
 
 
 def spoken_line(name: str, text: str, root: str = "") -> str:
@@ -243,12 +244,22 @@ def ring_line(name: str, group: bool) -> str:
 Send = Callable[..., Awaitable[Tuple[bool, str]]]
 
 
-async def deliver(target: dict, text: str, *, send_text: Send, send_voice: Optional[Send] = None,
-                  make_voice: Optional[Callable[[str], Awaitable[str]]] = None, root: str = "") -> Tuple[bool, str]:
-    """One firing. `send_text(text, mention=None)`, `send_voice(path)`, `make_voice(text) -> path or ""` are injected.
+def reminder_title(text: str, root: str = "") -> str:
+    """The title of the reminder that appears in the Zalo chat: the note, spelled out, one line, never starting with a
+    dash (the CLI would read it as a flag)."""
+    t = " ".join(normalize(text, root).split()).lstrip("-– ")
+    return t[:120] or "Nhắc hẹn"
 
-    Order: ring line (tag), voice note, written line. The ring line and the written line carry the message, so a
-    failure of either is a failure; a missing voice note only adds a warning, the reminder still arrived."""
+
+async def deliver(target: dict, text: str, *, send_text: Send, send_voice: Optional[Send] = None,
+                  make_voice: Optional[Callable[[str], Awaitable[str]]] = None, root: str = "",
+                  send_reminder: Optional[Callable[[str], Awaitable[Tuple[bool, str]]]] = None) -> Tuple[bool, str]:
+    """One firing. `send_text(text, mention=None)`, `send_voice(path)`, `make_voice(text) -> path or ""` and
+    `send_reminder(title)` (the reminder entry inside the Zalo chat) are injected.
+
+    Order: ring line (tag), voice note, written line, Zalo reminder entry. The ring line and the written line carry
+    the message, so a failure of either is a failure; a missing voice note or Zalo reminder only adds a warning,
+    the reminder still arrived."""
     tg = clean_target(target)
     if not tg:
         return False, "no Zalo thread to send to"
@@ -274,4 +285,11 @@ async def deliver(target: dict, text: str, *, send_text: Send, send_voice: Optio
     ok, err = await send_text("⏰ " + normalize(text, root).strip(), None if tg["ring"] else mention)
     if not ok:
         return False, f"text: {err}"
+    if tg["remind"] and send_reminder:
+        try:
+            rok, rerr = await send_reminder(reminder_title(text, root))
+        except Exception as e:      # noqa: BLE001 - the reminder entry is an extra
+            rok, rerr = False, f"{type(e).__name__}: {e}"
+        if not rok:
+            notes.append(f"zalo reminder not created: {rerr}"[:160])
     return True, "; ".join(notes)
