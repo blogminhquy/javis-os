@@ -37,6 +37,16 @@ LOOP_EVERY_S = 5.0          # nhịp điều phối (spec 8.3: cùng nhịp 5 gi
 REMIND_EVERY_S = 3600.0     # nhịp nhắc việc bị chặn quá 24 giờ
 RECONCILE_EVERY_S = 60.0    # nhịp đối soát sổ lượt chung với team_turns (T2, thiết kế 9.1)
 FINISHED_SHOWN = 30          # việc đã xong hiện ở tab Việc của nhóm (0.193.0)
+# Jobs tab redesign (owner, 16/11/2026): the archive grows without a ceiling the owner can feel, so it is listed light
+# (title, who, when) up to this many rows and paged on the page; the report of one job loads when it is opened.
+ARCHIVE_SHOWN = 500
+STEP_BRIEF_MAX = 240         # a step's brief on a job card: one or two lines, never the whole instruction
+
+
+def _step_rows(steps: list) -> list:
+    """What a job card shows of each step: who, which kind, where it stands, and the first lines of its brief."""
+    return [{"agent_key": x.get("agent_key") or "", "kind": x.get("kind") or "", "status": x.get("status") or "",
+             "brief": " ".join(str(x.get("brief") or "").split())[:STEP_BRIEF_MAX]} for x in steps][:20]
 PINNED_SHOWN = 20            # tin đã ghim hiện ở dải trên khung chat (0.192.0), như Sổ quyết định của lượt
 CREATE_DOCS_MAX = 10         # files, and links, a team may be given in its create box (team_docs.MAX_PER_SEND)
 NEW_TEAM_UNCAPPED = ("task_turns", "task_steps")   # caps a new team starts without (TeamOps.create)
@@ -947,31 +957,49 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if err:
                 return err
             out = dict(deps.task_store().team_queue(team_id), ok=True, busy=api.runner().busy_view(team_id))
+            # Owner, 16/11/2026: "anh cần biết các agent đang có những nhiệm vụ gì". A job that runs or waits for the
+            # owner carries its steps, so the card can list every member under the job.
+            for t in out["running"] + out["blocked"]:
+                try:
+                    t["steps"] = _step_rows(api.teams().steps(t["id"]))
+                except Exception:  # noqa: BLE001 - a broken step list never hides the job
+                    t["steps"] = []
             out.update(_finished(team))
             return out
         return await api.io(_do)
 
     def _finished(team: dict) -> dict:
         """0.193.0: finished jobs of the team for the Jobs tab: `finished` (not yet marked Done by the owner, each with a
-        short report: result, who did which step) and `archived` (marked Done). Deleted ones are left out."""
+        short report: result, who did which step) and `archived` (marked Done). Deleted ones are left out.
+
+        16/11/2026: the archive is a light list (title, who, when) of up to ARCHIVE_SHOWN jobs, without result or
+        steps; the page reads one job's report from GET /teams/{id}/tasks/{task_id} when the owner opens it."""
         import job_marks
-        rows = deps.task_store().team_history(team["team_id"], FINISHED_SHOWN)
+        rows = deps.task_store().team_history(team["team_id"], ARCHIVE_SHOWN)
+        results = {}
         jobs = []
         for t in rows:
-            steps = []
-            try:
-                steps = [{"agent_key": x.get("agent_key") or "", "kind": x.get("kind") or "", "status": x.get("status") or ""}
-                         for x in api.teams().steps(t["id"])][:20]
-            except Exception:  # noqa: BLE001 - a broken step list never hides the job
-                steps = []
+            results[t["id"]] = str(t.get("result") or "")[:4000]
             jobs.append({"id": f"team:{t['id']}", "task_id": t["id"], "title": t.get("title") or "", "bucket": "done",
                          "status": t.get("status") or "", "cancelled": t.get("status") == "cancelled",
-                         "result": str(t.get("result") or "")[:4000], "created_at": t.get("created_at"),
-                         "updated_at": t.get("updated_at"), "steps": steps})
+                         "created_at": t.get("created_at"), "updated_at": t.get("updated_at")})
         try:
-            kept, archived = job_marks.split(jobs, job_marks.marks(team["brain_id"]))
+            kept, archived = job_marks.split(jobs, job_marks.marks(team["brain_id"]), archive_max=ARCHIVE_SHOWN)
         except Exception:  # noqa: BLE001
             kept, archived = jobs, []
+        kept = kept[:FINISHED_SHOWN]
+        for j in kept:
+            j["result"] = results.get(j["task_id"], "")
+            try:
+                j["steps"] = _step_rows(api.teams().steps(j["task_id"]))
+            except Exception:  # noqa: BLE001 - a broken step list never hides the job
+                j["steps"] = []
+        try:
+            who = api.teams().step_agents([j["task_id"] for j in archived])
+        except Exception:  # noqa: BLE001
+            who = {}
+        for j in archived:
+            j["agents"] = who.get(j["task_id"], [])
         return {"finished": kept, "archived": archived}
 
     @app.post("/teams/{team_id}/queue/{task_id}/priority")

@@ -759,6 +759,22 @@ class TeamStore:
             return [self._step(r) for r in c.execute("SELECT * FROM team_steps WHERE task_id=? ORDER BY seq",
                                                      (task_id,)).fetchall()]
 
+    def step_agents(self, task_ids: list) -> dict:
+        """{task_id: [agent_key, ...]} in step order, each member once: who worked on each of these jobs. One query
+        per 400 jobs, for lists that show many jobs without their steps (the team's archive)."""
+        ids = [str(i) for i in task_ids if i]
+        out: dict = {}
+        with closing(self._conn()) as c:
+            for i in range(0, len(ids), 400):
+                part = ids[i:i + 400]
+                rows = c.execute("SELECT task_id, agent_key FROM team_steps WHERE task_id IN (%s) ORDER BY task_id, seq"
+                                 % ",".join("?" * len(part)), part).fetchall()
+                for r in rows:
+                    seen = out.setdefault(r["task_id"], [])
+                    if r["agent_key"] and r["agent_key"] not in seen:
+                        seen.append(r["agent_key"])
+        return out
+
     def step(self, step_id: str) -> Optional[dict]:
         with closing(self._conn()) as c:
             r = c.execute("SELECT * FROM team_steps WHERE step_id=?", (step_id,)).fetchone()
