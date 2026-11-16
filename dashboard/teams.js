@@ -828,24 +828,127 @@
       label + "</button>";
   }
 
-  function blockedCardHtml(t) {
-    var kind = t.block_kind || "failed";
-    return '<div class="tm-jcard"><div class="tm-jcard-text"><strong class="tm-qtitle">' + esc(t.title) + "</strong>" +
-      '<span class="tm-qwhy">' + esc(t.block_reason || tw(BLOCK_KEY[kind] || BLOCK_KEY.failed)) + "</span></div>" +
-      '<span class="tm-actions">' + blockedButtonHtml(t) +
-      // 0.209.0 review: criteria can be set on a stopped job too (acceptance_failed re-checks without redoing the work).
-      (kind === "acceptance_review" || kind === "acceptance_checking" ? "" :
-        '<button type="button" class="ws-btn" data-acc-edit="' + esc(t.id) + '">' + esc(tw("teams.acc.set")) + "</button>") +
-      '<button type="button" class="ws-btn" data-cancel="' + esc(t.id) + '">' + esc(tw("teams.cancel")) + "</button></span></div>";
+  // ───────────── Jobs tab cards (16/11/2026) ─────────────
+  // Owner, 16/11/2026: "cải tiến phần việc của team giống trải nghiệm của trang nhiệm vụ, anh cần biết các agent đang có
+  // những nhiệm vụ gì và ux ui có nhiều icon ít button", "có nhiệm vụ chính, và các thành viên đang làm gì sẽ hiện bên
+  // dưới". One card per job, in the pattern of the Tasks page: a status icon, the title (a press shows the job's
+  // messages), a meta line, and at most three icon buttons on the right. Under a job that runs or waits for the owner:
+  // one line per step, who and what. The only button with words is the way out of a job that waits for the owner.
+  var JOBS_PER_PAGE = 5;
+  var STEP_STATE = { done: "done", running: "run", waiting_owner: "ask", queued: "wait", held: "wait", waiting: "wait" };
+  var STATE_ICON = { run: "loader-circle", ask: "circle-alert", done: "circle-check", off: "circle-x" };
+  var STATE_KEY = { done: "teams.jb.st.done", run: "teams.jb.st.run", wait: "teams.jb.st.wait", ask: "teams.jb.st.ask",
+    off: "teams.jb.st.off" };
+
+  function stepState(status, fallback) { return STEP_STATE[status] || (status ? "off" : fallback || "off"); }
+
+  function stateIcon(state) {
+    if (state === "wait") return '<span class="tm-jb-ring" aria-hidden="true"></span>';
+    return '<span class="tm-jb-s tm-jb-s-' + state + '" aria-hidden="true">' + ic(STATE_ICON[state] || STATE_ICON.off) + "</span>";
   }
 
-  function runningRowHtml(t, withView) {
-    return '<div class="tm-qrow tm-jrun"><span class="tm-spin" aria-hidden="true">' + ic("loader") + "</span>" +
-      '<span class="tm-qtitle">' + esc(tw("teams.doing", { title: t.title })) + '</span><span class="tm-actions">' +
-      (withView ? '<button type="button" class="ws-btn" data-view-task="' + esc(t.id) + '">' + esc(tw("teams.view_msgs")) + "</button>" : "") +
-      '<button type="button" class="ws-btn" data-amend="' + esc(t.id) + '">' + esc(tw("teams.amend")) + "</button>" +
-      (withView ? '<button type="button" class="ws-btn" data-acc-edit="' + esc(t.id) + '">' + esc(tw("teams.acc.set")) + "</button>" : "") +
-      '<button type="button" class="ws-btn" data-cancel="' + esc(t.id) + '">' + esc(tw("teams.cancel")) + "</button></span></div>";
+  function jobIcon(name, attrs, label, extra) {
+    return '<button type="button" class="tm-jb-ic' + (extra ? " " + extra : "") + '" ' + attrs + ' aria-label="' + esc(label) +
+      '" title="' + esc(label) + '">' + ic(name) + "</button>";
+  }
+
+  // "21:30" for today, "14/11" for another day (the year only when it is not this one).
+  function shortWhen(sec) {
+    if (!sec) return "";
+    var d = new Date(Number(sec) * 1000), n = new Date();
+    var two = function (x) { return (x < 10 ? "0" : "") + x; };
+    if (d.toDateString() === n.toDateString()) return two(d.getHours()) + ":" + two(d.getMinutes());
+    return d.getDate() + "/" + (d.getMonth() + 1) + (d.getFullYear() !== n.getFullYear() ? "/" + d.getFullYear() : "");
+  }
+
+  // When a job ended: the hour for today ("22:31"), the day and the hour for another day ("14/11, 22:31").
+  function endedWhen(sec) {
+    var d = new Date(Number(sec) * 1000);
+    var two = function (x) { return (x < 10 ? "0" : "") + x; };
+    var hour = two(d.getHours()) + ":" + two(d.getMinutes());
+    return d.toDateString() === new Date().toDateString() ? hour : shortWhen(sec) + ", " + hour;
+  }
+
+  function faceName(members, key) {
+    var m = memberOf(members, key) || { name: key };
+    return '<span class="tm-jb-m">' + agentAva(m, 16) + "<span>" + esc(m.name || m.slug || key) + "</span></span>";
+  }
+
+  function givenMeta(t) {
+    return t.created_at ? '<span class="tm-jb-m">' + ic("clock") + esc(tw("teams.jb.given", { t: shortWhen(t.created_at) })) + "</span>" : "";
+  }
+
+  // Folded or open: the owner's last press wins; before any press a running job shows its members, the others fold.
+  function jobOpen(t, view, byDefault) {
+    var f = (view.fold || {})[t.id];
+    return f === undefined ? byDefault : !!f;
+  }
+
+  function jobFoldHtml(t, open) {
+    var steps = t.steps || [];
+    if (!steps.length) return "";
+    var done = steps.filter(function (x) { return x.status === "done"; }).length;
+    var label = tw("teams.jb.fold", { a: done, b: steps.length });
+    return '<button type="button" class="tm-jb-fold" data-job-fold="' + esc(t.id) + '" data-open="' + (open ? "1" : "0") +
+      '" aria-expanded="' + (open ? "true" : "false") + '" aria-label="' + esc(label) + '" title="' + esc(label) + '">' +
+      ic("list-checks") + done + "/" + steps.length + ic(open ? "chevron-up" : "chevron-down") + "</button>";
+  }
+
+  // One line per step: where it stands, who, in which role, and the first lines of what they were asked to do.
+  function jobStepsHtml(steps, members, fallback) {
+    if (!steps || !steps.length) return "";
+    return '<div class="tm-jb-steps">' + steps.map(function (st) {
+      var m = memberOf(members, st.agent_key) || { name: st.agent_key };
+      var state = stepState(st.status, fallback);
+      return '<div class="tm-jb-step tm-jb-step-' + state + '"><span class="tm-jb-lead" title="' + esc(tw(STATE_KEY[state])) + '">' +
+        stateIcon(state) + '</span><div class="tm-jb-stext"><span class="tm-jb-who">' + agentAva(m, 20) + "<span>" +
+        esc(m.name || m.slug || st.agent_key) + "</span><small>" + esc(tw(ROLE_KEY[st.kind] || "teams.role.work")) + "</small></span>" +
+        (st.brief ? '<span class="tm-jb-what">' + esc(st.brief) + "</span>" : "") + "</div></div>";
+    }).join("") + "</div>";
+  }
+
+  function jobCardHtml(o) {
+    return '<div class="tm-jb ' + o.cls + '"><div class="tm-jb-head"><span class="tm-jb-lead">' + o.lead + "</span>" +
+      '<button type="button" class="tm-jb-title" ' + o.titleAttr + ">" + esc(o.title) + "</button>" +
+      '<span class="tm-jb-acts">' + (o.icons || "") + "</span></div>" +
+      (o.meta ? '<div class="tm-jb-meta">' + o.meta + "</div>" : "") + (o.below || "") + "</div>";
+  }
+
+  function blockedCardHtml(t, view) {
+    view = view || {};
+    var kind = t.block_kind || "failed";
+    var open = jobOpen(t, view, false);
+    // 0.209.0 review: criteria can be set on a stopped job too (acceptance_failed re-checks without redoing the work).
+    var checking = kind === "acceptance_review" || kind === "acceptance_checking";
+    return jobCardHtml({ cls: "tm-jb-ask", lead: stateIcon("ask"), title: t.title, titleAttr: 'data-view-task="' + esc(t.id) + '"',
+      icons: (checking ? "" : jobIcon("clipboard-check", 'data-acc-edit="' + esc(t.id) + '"', tw("teams.acc.set"))) +
+        jobIcon("x", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad"),
+      meta: (view.leaderKey ? faceName(view.members, view.leaderKey) : "") + jobFoldHtml(t, open),
+      below: '<div class="tm-jb-why">' + esc(t.block_reason || tw(BLOCK_KEY[kind] || BLOCK_KEY.failed)) + '</div><div class="tm-jb-go">' +
+        blockedButtonHtml(t) + "</div>" + (open ? jobStepsHtml(t.steps, view.members) : "") });
+  }
+
+  function runningCardHtml(t, view) {
+    var open = jobOpen(t, view, true);
+    return jobCardHtml({ cls: "tm-jb-run", lead: stateIcon("run"), title: t.title, titleAttr: 'data-view-task="' + esc(t.id) + '"',
+      icons: jobIcon("pencil", 'data-amend="' + esc(t.id) + '"', tw("teams.amend")) +
+        jobIcon("clipboard-check", 'data-acc-edit="' + esc(t.id) + '"', tw("teams.acc.set")) +
+        jobIcon("square", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad"),
+      meta: (view.leaderKey ? faceName(view.members, view.leaderKey) : "") + jobFoldHtml(t, open) + givenMeta(t),
+      below: open ? jobStepsHtml(t.steps, view.members) : "" });
+  }
+
+  function waitingCardHtml(t, pos) {
+    var star = t.team_prio != null;
+    var label = tw(star ? "teams.unprioritize" : "teams.prioritize");
+    return jobCardHtml({ cls: "tm-jb-wait", lead: '<span class="tm-jb-pos">' + pos + "</span>", title: t.title,
+      titleAttr: 'data-view-task="' + esc(t.id) + '"',
+      icons: jobIcon("clipboard-check", 'data-acc-edit="' + esc(t.id) + '"', tw("teams.acc.set")) +
+        jobIcon("x", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad") +
+        '<button type="button" class="tm-jb-ic tm-jb-star' + (star ? " is-on" : "") + '" data-prio="' + esc(t.id) + '" data-on="' +
+        (star ? "0" : "1") + '" aria-pressed="' + (star ? "true" : "false") + '" aria-label="' + esc(label) + '" title="' +
+        esc(label) + '">' + ic("star") + "</button>",
+      meta: givenMeta(t) });
   }
 
   // 0.209.0: acceptance criteria of a job, one per line (parsed by parseCriteria):
@@ -1008,13 +1111,36 @@
       qualityUsageHtml(detail.usage) + "</details>";
   }
 
-  // Dải việc ở đầu khung chat: việc đang làm (một dòng) và việc đang chờ chủ (thẻ có nút giải quyết).
-  function jobStripHtml(q) {
+  // Dải việc ở đầu khung chat: mỗi việc đang làm một dòng (ai đang làm, xong mấy bước, hai icon) và việc đang chờ chủ
+  // (lý do, một nút giải quyết có chữ, icon huỷ). 16/11/2026: cùng kiểu với thẻ ở tab Việc.
+  function stripRunHtml(t, members) {
+    var steps = t.steps || [];
+    var now = steps.filter(function (x) { return x.status === "running"; });
+    var done = steps.filter(function (x) { return x.status === "done"; }).length;
+    var names = now.map(function (x) { var m = memberOf(members, x.agent_key); return m ? m.name || m.slug : x.agent_key; }).join(", ");
+    return '<div class="tm-js tm-js-run">' + stateIcon("run") + '<button type="button" class="tm-js-title" data-open-jobs="1"><b>' +
+      esc(t.title) + "</b></button>" +
+      (now.length ? '<span class="tm-js-who" title="' + esc(tw("teams.jb.now", { names: names })) + '">' + now.slice(0, 4).map(function (x) {
+        return '<span class="tm-js-face">' + agentAva(memberOf(members, x.agent_key) || { name: x.agent_key }, 22) + "</span>";
+      }).join("") + "</span>" : "") +
+      (steps.length ? '<span class="tm-js-n">' + done + "/" + steps.length + "</span>" : "") +
+      jobIcon("pencil", 'data-amend="' + esc(t.id) + '"', tw("teams.amend")) +
+      jobIcon("square", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad") + "</div>";
+  }
+
+  function stripAskHtml(t) {
+    var kind = t.block_kind || "failed";
+    return '<div class="tm-js tm-js-ask">' + stateIcon("ask") + '<button type="button" class="tm-js-title" data-open-jobs="1"><b>' +
+      esc(t.title) + "</b><small>" + esc(t.block_reason || tw(BLOCK_KEY[kind] || BLOCK_KEY.failed)) + "</small></button>" +
+      blockedButtonHtml(t) + jobIcon("x", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad") + "</div>";
+  }
+
+  function jobStripHtml(q, members) {
     q = q || {};
     var running = q.running || [], blocked = q.blocked || [];
     // 2026-11-12: a team runs up to three jobs at once (different assistants), so every running job has its line.
-    var h = running.slice(0, 3).map(function (t) { return runningRowHtml(t, false); }).join("");
-    h += blocked.slice(0, 2).map(blockedCardHtml).join("");
+    var h = running.slice(0, 3).map(function (t) { return stripRunHtml(t, members); }).join("");
+    h += blocked.slice(0, 2).map(stripAskHtml).join("");
     if (blocked.length > 2) {
       h += '<button type="button" class="ws-btn tm-jmore" data-open-jobs="1">' +
         esc(tw("teams.blocked_more", { n: blocked.length - 2 })) + "</button>";
@@ -1022,7 +1148,25 @@
     return h;
   }
 
-  // Tab Việc trong ngăn: Đang làm, Chờ bạn, Sắp làm (đánh số đúng thứ tự chạy).
+  // Tabs of the side panel (owner, 16/11/2026: "menu thông tin, việc team cũng nên có icon"): icon, word, and on Jobs the
+  // number of jobs still open, like the tabs of the Tasks page.
+  var TAB_ICON = { info: "info", jobs: "list-checks", team: "users" };
+  function sideTabsHtml(tab, queue) {
+    queue = queue || {};
+    var open = (queue.running || []).length + (queue.blocked || []).length + (queue.waiting || []).length;
+    return ["info", "jobs", "team"].map(function (k) {
+      return '<button type="button" class="tm-tab" role="tab" data-tab="' + k + '" aria-selected="' + (tab === k ? "true" : "false") +
+        '">' + ic(TAB_ICON[k]) + "<span>" + esc(tw(TAB_KEY[k])) + "</span>" +
+        (k === "jobs" && open ? '<span class="tm-tab-n">' + open + "</span>" : "") + "</button>";
+    }).join("");
+  }
+
+  function groupHead(key, n, extra) {
+    return '<div class="tm-qhead tm-jb-h' + (extra ? " " + extra : "") + '">' + esc(tw(key)) + ' <span class="tm-qn">' + n + "</span></div>";
+  }
+
+  // Tab Việc trong ngăn: Chờ bạn (thứ cần chủ xử lý, lên đầu), Đang làm, Sắp làm (đánh số đúng thứ tự chạy), rồi việc đã
+  // hoàn thành và Lưu trữ.
   function queueHtml(q, view) {
     q = q || {};
     view = view || {};
@@ -1032,89 +1176,129 @@
       return (fin ? "" : '<div class="tm-empty">' + esc(tw("teams.queue_empty")) + "</div>") + fin;
     }
     var h = "";
-    if (running.length) {
-      h += '<div class="tm-qhead">' + esc(tw("teams.queue_running")) + "</div>";
-      h += running.map(function (t) { return runningRowHtml(t, true) + accEditorHtml(t, view); }).join("");
-    }
     if (blocked.length) {
-      h += '<div class="tm-qhead">' + esc(tw("teams.queue_blocked")) + "</div>";
-      h += blocked.map(function (t) { return blockedCardHtml(t) + accEditorHtml(t, view); }).join("");
+      h += groupHead("teams.queue_blocked", blocked.length, "tm-jb-h-ask");
+      h += blocked.map(function (t) { return blockedCardHtml(t, view) + accEditorHtml(t, view); }).join("");
+    }
+    if (running.length) {
+      h += groupHead("teams.queue_running", running.length);
+      h += running.map(function (t) { return runningCardHtml(t, view) + accEditorHtml(t, view); }).join("");
     }
     if (waiting.length) {
-      h += '<div class="tm-qhead">' + esc(tw("teams.queue_waiting")) + "</div>";
-      h += waiting.map(function (t, i) {
-        var star = t.team_prio != null;
-        return '<div class="tm-qrow"><span class="tm-qpos">' + (i + 1) + "</span>" +
-          (star ? '<span class="tm-star" title="' + esc(tw("teams.prioritized")) + '">' + ic("star") + esc(tw("teams.prioritized")) + "</span>" : "") +
-          '<span class="tm-qtitle">' + esc(t.title) + '</span><span class="tm-actions">' +
-          '<button type="button" class="ws-btn" data-prio="' + esc(t.id) + '" data-on="' + (star ? "0" : "1") + '">' +
-          esc(tw(star ? "teams.unprioritize" : "teams.prioritize")) + "</button>" +
-          '<button type="button" class="ws-btn" data-acc-edit="' + esc(t.id) + '">' + esc(tw("teams.acc.set")) + "</button>" +
-          '<button type="button" class="ws-btn" data-cancel="' + esc(t.id) + '">' + esc(tw("teams.cancel")) + "</button></span></div>" +
-          accEditorHtml(t, view);
-      }).join("");
+      h += groupHead("teams.queue_waiting", waiting.length);
+      h += waiting.map(function (t, i) { return waitingCardHtml(t, i + 1) + accEditorHtml(t, view); }).join("");
     }
     return h + fin;
   }
 
-  // 0.193.0 (owner, 16/10/2026): finished jobs stay in the Jobs tab until the owner presses Done; Open shows a short report
-  // (what came out, who did which step); Done moves the job to the Archive below (nothing deleted); only in the Archive
-  // can a job be deleted, one by one or all at once.
+  // Five jobs a page (owner, 16/11/2026: "có cả phân trang những việc đã hoàn thành nếu nhiều quá"): the side panel is
+  // narrow, and the pager sits on the group title so it does not move when a card opens.
+  function clampPage(page, total) {
+    var pages = Math.max(1, Math.ceil(total / JOBS_PER_PAGE));
+    return Math.min(Math.max(0, Number(page) || 0), pages - 1);
+  }
+
+  function pagerHtml(key, page, total) {
+    var pages = Math.ceil(total / JOBS_PER_PAGE);
+    if (pages < 2) return "";
+    var arrow = function (icon, label, dir, off) {
+      return '<button type="button" class="tm-jb-ic" data-job-page="' + key + '" data-dir="' + dir + '" aria-label="' + esc(label) +
+        '" title="' + esc(label) + '"' + (off ? " disabled" : "") + ">" + ic(icon) + "</button>";
+    };
+    return '<span class="tm-jb-pg">' + arrow("chevron-left", tw("teams.jb.prev"), -1, page <= 0) + '<span class="tm-jb-pgn">' +
+      (page + 1) + "/" + pages + "</span>" + arrow("chevron-right", tw("teams.jb.next"), 1, page >= pages - 1) + "</span>";
+  }
+
+  function filterJobs(list, query) {
+    var want = foldName(query || "").trim();
+    if (!want) return list;
+    return list.filter(function (j) { return foldName(j.title).indexOf(want) >= 0; });
+  }
+
+  // 0.193.0 (owner, 16/10/2026): finished jobs stay in the Jobs tab until the owner moves them to the Archive (nothing
+  // deleted); only in the Archive can a job be deleted, one by one or all at once. 16/11/2026: a press on a finished job
+  // opens what was done (result, who did what); the lists are paged; the Archive has a search box once it is longer
+  // than one page, and Delete all stands apart at its end.
+  function doneCardHtml(j, view, archived) {
+    var open = view.openFin === j.id;
+    var keys = archived ? (j.agents || []) : [];
+    if (!archived) (j.steps || []).forEach(function (st) { if (st.agent_key && keys.indexOf(st.agent_key) < 0) keys.push(st.agent_key); });
+    var toggle = 'data-fin-open="' + esc(j.id) + '" aria-expanded="' + (open ? "true" : "false") + '"';
+    var label = tw(open ? "teams.fin_close" : "teams.fin_open");
+    return jobCardHtml({ cls: "tm-jb-done" + (archived ? " tm-jb-arch" : "") + (j.cancelled ? " is-cancelled" : "") + (open ? " is-open" : ""),
+      lead: stateIcon(j.cancelled ? "off" : "done"), title: j.title, titleAttr: toggle,
+      icons: (open && j.task_id ? jobIcon("message-circle", 'data-view-task="' + esc(j.task_id) + '"', tw("teams.view_msgs")) : "") +
+        (archived ? jobIcon("undo-2", 'data-job-unarchive="' + esc(j.id) + '"', tw("teams.archive_back")) +
+          jobIcon("trash-2", 'data-job-delete="' + esc(j.id) + '"', tw("teams.archive_delete"), "tm-jb-bad")
+          : jobIcon("archive", 'data-job-archive="' + esc(j.id) + '"', tw("teams.jb.archive"))),
+      meta: keys.slice(0, 3).map(function (k) { return faceName(view.members, k); }).join("") +
+        (j.updated_at ? '<span class="tm-jb-m">' + ic("clock") + esc(shortWhen(j.updated_at)) + "</span>" : "") +
+        (j.cancelled ? '<span class="tm-jb-m">' + esc(tw("teams.jb.cancelled")) + "</span>" : "") +
+        '<button type="button" class="tm-jb-fold" ' + toggle + ' aria-label="' + esc(label) + '" title="' + esc(label) + '">' +
+        ic(open ? "chevron-up" : "chevron-down") + "</button>",
+      below: open ? reportHtml(j, view) : "" });
+  }
+
+  function archiveRowsHtml(list, page, view) {
+    if (!list.length) return '<div class="tm-jb-note">' + esc(tw("teams.jb.no_match")) + "</div>";
+    return list.slice(page * JOBS_PER_PAGE, page * JOBS_PER_PAGE + JOBS_PER_PAGE).map(function (j) { return doneCardHtml(j, view, true); }).join("");
+  }
+
   function finishedHtml(fin, arch, view) {
     var h = "";
     if (fin.length) {
-      h += '<div class="tm-qhead tm-qhead-done">' + esc(tw("teams.queue_finished")) + ' <span class="tm-qn">' + fin.length + "</span></div>";
-      h += fin.map(function (j) {
-        var open = view.openFin === j.id;
-        return '<div class="tm-qrow tm-jdone' + (j.cancelled ? " is-cancelled" : "") + '"><span class="tm-qok" aria-hidden="true">' +
-          ic(j.cancelled ? "circle-x" : "circle-check") + '</span><span class="tm-qtitle">' + esc(j.title) + "</span>" +
-          '<span class="tm-actions"><button type="button" class="ws-btn" data-fin-open="' + esc(j.id) + '" aria-expanded="' +
-          (open ? "true" : "false") + '">' + ic(open ? "chevron-up" : "file-text") + esc(tw(open ? "teams.fin_close" : "teams.fin_open")) +
-          '</button><button type="button" class="ws-btn tm-primary" data-job-archive="' + esc(j.id) + '">' + ic("check") +
-          esc(tw("teams.fin_done")) + "</button></span>" + (open ? reportHtml(j, view) : "") + "</div>";
-      }).join("");
+      var fp = clampPage(view.finPage, fin.length);
+      h += '<div class="tm-qhead tm-qhead-done tm-jb-h">' + esc(tw("teams.queue_finished")) + ' <span class="tm-qn">' + fin.length +
+        "</span>" + pagerHtml("fin", fp, fin.length) + "</div>";
+      h += fin.slice(fp * JOBS_PER_PAGE, fp * JOBS_PER_PAGE + JOBS_PER_PAGE).map(function (j) { return doneCardHtml(j, view, false); }).join("");
     }
     if (arch.length) {
       var aopen = !!view.archOpen;
-      h += '<div class="tm-qhead tm-qhead-arch"><button type="button" class="tm-arch-toggle" aria-expanded="' + (aopen ? "true" : "false") + '">' +
-        ic(aopen ? "chevron-down" : "chevron-right") + esc(tw("teams.archive")) + ' <span class="tm-qn">' + arch.length + "</span></button>" +
-        (aopen ? '<button type="button" class="ws-btn tm-arch-clear" data-job-delete-all="1">' + ic("trash-2") +
-          esc(tw("teams.archive_clear")) + "</button>" : "") + "</div>";
+      var list = filterJobs(arch, view.archQuery);
+      var ap = clampPage(view.archPage, list.length);
+      h += '<div class="tm-qhead tm-qhead-arch tm-jb-h"><button type="button" class="tm-arch-toggle" aria-expanded="' +
+        (aopen ? "true" : "false") + '">' + esc(tw("teams.archive")) + ' <span class="tm-qn">' + arch.length + "</span>" +
+        ic(aopen ? "chevron-down" : "chevron-right") + "</button>" + (aopen ? pagerHtml("arch", ap, list.length) : "") + "</div>";
       if (aopen) {
-        h += arch.map(function (j) {
-          return '<div class="tm-qrow tm-jarch"><span class="tm-qok" aria-hidden="true">' + ic("folder") + '</span><span class="tm-qtitle">' +
-            esc(j.title) + '</span><span class="tm-actions"><button type="button" class="ws-btn" data-fin-open="' + esc(j.id) + '">' +
-            esc(tw(view.openFin === j.id ? "teams.fin_close" : "teams.fin_open")) + '</button><button type="button" class="ws-btn" data-job-unarchive="' +
-            esc(j.id) + '">' + esc(tw("teams.archive_back")) + '</button><button type="button" class="ws-btn" data-job-delete="' + esc(j.id) +
-            '">' + ic("trash-2") + esc(tw("teams.archive_delete")) + "</button></span>" + (view.openFin === j.id ? reportHtml(j, view) : "") + "</div>";
-        }).join("");
+        if (arch.length > JOBS_PER_PAGE) {
+          h += '<label class="tm-jb-search">' + ic("search") + '<input type="search" class="tm-jb-q" value="' + esc(view.archQuery || "") +
+            '" placeholder="' + esc(tw("teams.jb.search")) + '" aria-label="' + esc(tw("teams.jb.search")) + '" enterkeyhint="search"></label>';
+        }
+        h += '<div class="tm-jb-archive">' + archiveRowsHtml(list, ap, view) + "</div>";
+        h += '<div class="tm-jb-danger"><button type="button" class="tm-jb-delall" data-job-delete-all="1">' + ic("trash-2") +
+          esc(tw("teams.archive_clear")) + "</button></div>";
       }
     }
     return h;
   }
 
+  // What was done (owner, 16/11/2026: "click vào việc đã hoàn thành thì phải có 1 tóm tắt những gì đã làm ... thì mới dễ
+  // kiểm soát"): when it ended and how long after it was given, the result the leader wrote (its first lines; Show more
+  // opens all of it), then one line per step. A finished job carries this already; an archived one is listed light, so
+  // its report is read when it is opened (`view.details`, by task id).
   function reportHtml(j, view) {
-    var members = view.members || [];
-    var who = {}, order = [];
-    (j.steps || []).forEach(function (st) {
-      if (!st.agent_key) return;
-      if (!who[st.agent_key]) { who[st.agent_key] = []; order.push(st.agent_key); }
-      who[st.agent_key].push(st);
-    });
+    var d = j.result !== undefined ? j : (view.details || {})[j.task_id];
+    if (d === "error") return '<div class="tm-report"><div class="tm-jb-note">' + esc(tw("teams.jb.load_err")) + "</div></div>";
+    if (!d || d === "loading") return '<div class="tm-report"><div class="tm-jb-note">' + esc(tw("teams.jb.loading")) + "</div></div>";
     var md = typeof window !== "undefined" && window.mdToHtml;
-    var res = String(j.result || "").trim();
+    var res = String(d.result || "").trim();
     var resHtml = res ? (md ? (function () { try { return '<div class="msg-javis tm-mdwrap"><div class="bubble">' + md(res, brain()) + "</div></div>"; }
       catch (e) { return esc(res); } })() : esc(res).replace(/\n/g, "<br>")) : '<p class="tm-sub">' + esc(tw("teams.fin_no_result")) + "</p>";
-    var when = j.updated_at ? new Date(Number(j.updated_at) * 1000).toLocaleString() : "";
+    var ended = d.updated_at || j.updated_at;
+    var when = ended ? endedWhen(ended) : "";
+    var took = d.created_at && ended ? Math.max(1, Math.round((Number(ended) - Number(d.created_at)) / 60)) : 0;
+    var long = res.length > 280 || res.split("\n").length > 4;
+    var full = !!(view.fullReport || {})[j.id];
+    var steps = d.steps || [];
     return '<div class="tm-report">' +
-      '<div class="tm-report-meta">' + esc(tw(j.cancelled ? "teams.fin_cancelled_at" : "teams.fin_done_at", { when: when })) + "</div>" +
-      (order.length ? '<div class="tm-report-who">' + order.map(function (k) {
-        var m = memberOf(members, k) || { name: k };
-        var kinds = who[k].map(function (st) { return tw(ROLE_KEY[st.kind] || "teams.role.work"); }).filter(function (x, i, a) { return a.indexOf(x) === i; });
-        return '<span class="tm-report-person">' + agentAva(m, 18) + "<b>" + esc(m.name || m.slug || k) + "</b>" + esc(kinds.join(", ")) + "</span>";
-      }).join("") + "</div>" : "") +
-      '<div class="tm-report-body">' + resHtml + "</div>" +
-      (j.task_id ? '<button type="button" class="ws-btn" data-view-task="' + esc(j.task_id) + '">' + esc(tw("teams.view_msgs")) + "</button>" : "") +
+      '<div class="tm-report-meta"><span class="tm-jb-m">' + ic(j.cancelled ? "circle-x" : "circle-check") +
+      esc(tw(j.cancelled ? "teams.fin_cancelled_at" : "teams.fin_done_at", { when: when })) + "</span>" +
+      (took ? '<span class="tm-jb-m">' + ic("hourglass") + esc(tw("teams.jb.took", { n: took })) + "</span>" : "") + "</div>" +
+      '<div class="tm-jb-sub">' + esc(tw("teams.jb.result")) + "</div>" +
+      '<div class="tm-report-body' + (long && !full ? " is-clamped" : "") + '">' + resHtml + "</div>" +
+      (long ? '<button type="button" class="tm-jb-more" data-rep-more="' + esc(j.id) + '" aria-expanded="' + (full ? "true" : "false") + '">' +
+        esc(tw(full ? "teams.fin_close" : "teams.jb.more")) + ic(full ? "chevron-up" : "chevron-right") + "</button>" : "") +
+      (steps.length ? '<div class="tm-jb-sub">' + esc(tw("teams.jb.who")) + "</div>" + jobStepsHtml(steps, view.members || [], "done") : "") +
       "</div>";
   }
 
@@ -1949,7 +2133,8 @@
       picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [],
       renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle", dictSend: false,
       atts: [], folder: null, repos: [], ghIcon: null, skills: null, skillsBrain: "", info: null, typing: [], pinned: [], pinsOpen: false, tagFilter: readTagFilter(),
-      autoOpened: false, unclamped: {}, outbox: [] };
+      autoOpened: false, unclamped: {}, outbox: [],
+      jobFold: {}, finPage: 0, archPage: 0, archQuery: "", jobDetails: {}, fullReport: {} };
   }
 
   function teamUrl(path) { return "/teams/" + q(S.activeId) + (path || ""); }
@@ -2331,7 +2516,7 @@
   function drawJobs() {
     var bar = S.el.querySelector(".tm-jobs");
     if (!bar) return;
-    var h = S.team ? jobStripHtml(S.queue) : "";
+    var h = S.team ? jobStripHtml(S.queue, S.team.members) : "";
     bar.hidden = !h;
     bar.innerHTML = h;
   }
@@ -2780,6 +2965,44 @@
     if (S) S.rv = null;
   }
 
+  function jobsView() {
+    return { openFin: S.openFin, archOpen: S.archOpen, members: S.team ? S.team.members : [], accEdit: S.accEdit,
+      leaderKey: S.team ? S.team.leader_key : "", fold: S.jobFold, finPage: S.finPage, archPage: S.archPage,
+      archQuery: S.archQuery, details: S.jobDetails, fullReport: S.fullReport };
+  }
+
+  // The Archive is listed without results (it can hold hundreds of jobs): one job's report is read when it is opened.
+  function loadJobDetail(id) {
+    var lists = S.queue || {};
+    var job = (lists.archived || []).concat(lists.finished || []).filter(function (j) { return j.id === id; })[0];
+    if (!job || job.result !== undefined || !job.task_id) return;
+    var known = S.jobDetails[job.task_id];
+    if (known && known !== "error") return;
+    S.jobDetails[job.task_id] = "loading";
+    var forTeam = S.activeId;
+    call("GET", teamUrl("/tasks/" + q(job.task_id))).then(function (r) {
+      if (!S || S.activeId !== forTeam) return;
+      var task = r.code === 200 && r.j ? r.j.task : null;
+      S.jobDetails[job.task_id] = task ? { result: task.result || "", steps: r.j.steps || [], created_at: task.created_at,
+        updated_at: task.updated_at } : "error";
+      if (S.side && S.tab === "jobs") drawSide(true);
+    });
+  }
+
+  // Typing in the Archive search box redraws only the rows and the pager, so the box keeps its focus and its caret.
+  function drawArchive() {
+    var rows = S.el.querySelector(".tm-side-body .tm-jb-archive");
+    if (!rows) return;
+    var view = jobsView();
+    var list = filterJobs((S.queue || {}).archived || [], view.archQuery);
+    var page = clampPage(view.archPage, list.length);
+    rows.innerHTML = archiveRowsHtml(list, page, view);
+    var head = S.el.querySelector(".tm-side-body .tm-qhead-arch");
+    var old = head && head.querySelector(".tm-jb-pg");
+    if (old) old.parentNode.removeChild(old);
+    if (head) head.insertAdjacentHTML("beforeend", pagerHtml("arch", page, list.length));
+  }
+
   function markJobs(ids, state) {
     return call("POST", "/jobs/marks", { brain: brain(), ids: ids, state: state }).then(function (r) {
       if (r.code !== 200) return fail(r);
@@ -2895,12 +3118,8 @@
     if (side.hidden) { side.innerHTML = ""; return; }
     var keep = side.querySelector(".tm-side-body");
     var top = keep ? keep.scrollTop : 0;
-    var tabs = ["info", "jobs", "team"].map(function (k) {
-      return '<button type="button" class="tm-tab" role="tab" data-tab="' + k + '" aria-selected="' + (S.tab === k ? "true" : "false") +
-        '">' + esc(tw(TAB_KEY[k])) + "</button>";
-    }).join("");
-    var body = S.tab === "info" ? infoTabHtml(S.team) : S.tab === "jobs" ? queueHtml(S.queue,
-      { openFin: S.openFin, archOpen: S.archOpen, members: S.team ? S.team.members : [], accEdit: S.accEdit })
+    var tabs = sideTabsHtml(S.tab, S.queue);
+    var body = S.tab === "info" ? infoTabHtml(S.team) : S.tab === "jobs" ? queueHtml(S.queue, jobsView())
       : teamTabHtml(S.team, S.agents, { openMember: S.openMember, advOpen: S.advOpen, turns: S.turns, mandateEdit: S.mandateEdit });
     side.innerHTML = '<div class="tm-bar tm-side-bar"><div class="tm-tabs" role="tablist">' + tabs + "</div>" +
       '<button type="button" class="ws-btn tm-icon tm-close" aria-label="' + esc(tw("teams.close")) + '" title="' +
@@ -3138,6 +3357,7 @@
     S.jumped = null; S.searchResults = null; S.searchQuery = ""; S.searchOpen = false;
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.msgsFor = ""; S.taskTitles = {}; S.openMember = null; S.turns = [];
+    S.jobFold = {}; S.finPage = 0; S.archPage = 0; S.archQuery = ""; S.jobDetails = {}; S.fullReport = {}; S.openFin = null;
     // 2026-11-09 (owner): a team opens with its Info tab showing on a wide screen, unless the owner closed the panel
     // last time (remembered per device). A phone keeps the panel as a drawer that opens on demand.
     S.side = sideByDefault();
@@ -4517,8 +4737,25 @@
     if (t.classList && t.classList.contains("cs-proj-x") && t.closest(".tm-tagbar")) { setTagFilter(""); drawList(); return; }
     if (d.deleteTeam) { if (S.rowMenu) closeRowMenu(); return deleteTeam(d.deleteTeam); }
     if (d.renameHead) { S.renamingHead = true; drawHead(); return; }
-    if (d.finOpen) { S.openFin = S.openFin === d.finOpen ? null : d.finOpen; drawSide(); return; }
-    if (t.classList.contains("tm-arch-toggle")) { S.archOpen = !S.archOpen; drawSide(); return; }
+    // Jobs tab (16/11/2026): a press on a control of the tab leaves the Archive search box first, so the redraw is not
+    // held back as "the owner is typing" (Safari keeps the focus in the box when a button is pressed).
+    var typed = typeof document !== "undefined" ? document.activeElement : null;
+    if (typed && typed !== t && typed.classList && typed.classList.contains("tm-jb-q") && t.closest(".tm-side-body")) typed.blur();
+    if (d.finOpen) {
+      S.openFin = S.openFin === d.finOpen ? null : d.finOpen;
+      if (S.openFin) loadJobDetail(S.openFin);
+      drawSide(true); return;
+    }
+    if (d.jobFold) { S.jobFold[d.jobFold] = d.open !== "1"; drawSide(true); return; }
+    if (d.jobPage) {
+      var inArch = d.jobPage === "arch";
+      var paged = inArch ? filterJobs((S.queue || {}).archived || [], S.archQuery) : (S.queue || {}).finished || [];
+      var next = clampPage(clampPage(inArch ? S.archPage : S.finPage, paged.length) + Number(d.dir), paged.length);
+      if (inArch) S.archPage = next; else S.finPage = next;
+      drawSide(true); return;
+    }
+    if (d.repMore) { S.fullReport[d.repMore] = !S.fullReport[d.repMore]; drawSide(true); return; }
+    if (t.classList.contains("tm-arch-toggle")) { S.archOpen = !S.archOpen; drawSide(true); return; }
     if (d.jobArchive) return markJobs([d.jobArchive], "archived");
     if (d.jobUnarchive) return markJobs([d.jobUnarchive], "");
     if (d.jobDelete) return markJobs([d.jobDelete], "deleted");
@@ -5177,6 +5414,7 @@
   }
 
   function onInput(e) {
+    if (e.target.classList.contains("tm-jb-q")) { S.archQuery = e.target.value; S.archPage = 0; drawArchive(); return; }
     if (S.pickSt && e.target.classList.contains("tmp-search-input")) {
       S.pickSt.query = e.target.value;
       drawPicker("filter");
@@ -5474,7 +5712,7 @@
   }
 
   var api = { render: render, leave: leave, open: open, teamListHtml: teamListHtml, messageHtml: messageHtml, queueHtml: queueHtml,
-    jobStripHtml: jobStripHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, workModeHtml: workModeHtml,
+    jobStripHtml: jobStripHtml, sideTabsHtml: sideTabsHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, workModeHtml: workModeHtml,
     mandateHtml: mandateHtml, opportunityCardHtml: opportunityCardHtml, readMandateForm: readMandateForm,
     parseCriteria: parseCriteria, acceptanceCardHtml: acceptanceCardHtml, acceptanceDecisionPayload: acceptanceDecisionPayload,
     qualityPolicyHtml: qualityPolicyHtml, qualityPolicyPayload: qualityPolicyPayload, qualityTemplatePayload: qualityTemplatePayload,

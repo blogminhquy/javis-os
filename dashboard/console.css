@@ -4549,6 +4549,150 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-filterbar:has(.tm-task-quality) { flex-wrap: wrap; }
 .tm-task-quality .tm-sec { overflow-wrap: anywhere; }
 
+/* ───────────── Team Jobs tab: job cards, steps, pager, strip, icon tabs (16/11/2026) ─────────────
+   Owner: "cải tiến phần việc của team giống trải nghiệm của trang nhiệm vụ ... ux ui có nhiều icon ít button". The card
+   follows the row of the Tasks page (tasks.css .nv-item / .nv-row): status icon, title, a meta line, icon buttons on
+   the right. Written here, not borrowed from tasks.css, because that file loads with the Tasks page only. */
+.tm-jb { margin-bottom: 6px; padding: 4px 4px 6px 10px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface-1); }
+.tm-jb[hidden] { display: none; }
+:root[data-theme="light"] .tm-jb { background: var(--panel-solid); }
+.tm-jb-ask { border-color: var(--accent-line); }
+.tm-jb-done:not(.is-open) { background: transparent; }
+.tm-jb-head { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: start; }
+.tm-jb-lead { display: grid; place-items: center start; min-height: 36px; }
+.tm-jb-title { min-width: 0; padding: 7px 4px 7px 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 16px;
+  line-height: 1.4; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.tm-jb-title:hover { color: var(--accent-ink); }
+.tm-jb-ask .tm-jb-title { font-weight: 650; }
+.tm-jb-done:not(.is-open) .tm-jb-title { color: var(--text2); }
+.tm-jb-acts { display: inline-flex; }
+.tm-jb-ic { display: grid; place-items: center; flex: none; width: 30px; height: 36px; padding: 0; border: 0; border-radius: 8px;
+  background: none; color: var(--text2); cursor: pointer; }
+.tm-jb-ic[hidden] { display: none; }
+.tm-jb-ic .ic { width: 17px; height: 17px; }
+.tm-jb-ic:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.tm-jb-ic.tm-jb-bad:hover, .tm-jb-ic.tm-jb-bad:focus-visible { color: var(--red); }
+.tm-jb-ic:disabled { opacity: .3; cursor: default; }
+.tm-jb-star { color: var(--text3); }
+/* The same yellow as the priority star of the Tasks page (tasks.css .nv-starb.on), in both themes. */
+.tm-jb-star.is-on { color: #eab308; }
+.tm-jb-star.is-on .ic { fill: currentColor; }
+.tm-jb-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin: -2px 4px 2px 26px; font-size: 14px; color: var(--text3); }
+.tm-jb-m { display: inline-flex; align-items: center; gap: 5px; }
+.tm-jb-m .ic { width: 14px; height: 14px; flex: none; }
+.tm-jb .tm-ava, .tm-js .tm-ava { width: 18px; height: 18px; font-size: 10px; }
+.tm-jb-fold { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; margin: 0 -6px; padding: 0 6px; border: 0; border-radius: 8px;
+  background: none; color: inherit; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.tm-jb-fold:hover { background: var(--surface-2); color: var(--text); }
+.tm-jb-fold .ic { width: 14px; height: 14px; }
+.tm-jb-why { margin: 2px 8px 0 26px; font-size: 14.5px; line-height: 1.45; color: var(--warn-ink); }
+.tm-jb-go { margin: 8px 8px 4px 26px; }
+.tm-side .tm-jb-go .ws-btn { min-height: 40px; padding: 0 16px; border-radius: 10px; font-size: 15px; }
+.tm-jb-steps { margin: 6px 6px 0 26px; border-top: 1px solid var(--hairline); }
+.tm-jb-step { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 0 10px; align-items: start; padding: 9px 0;
+  border-bottom: 1px solid var(--hairline); }
+.tm-jb-step:last-child { border-bottom: 0; }
+.tm-jb-step .tm-jb-lead { min-height: 22px; }
+.tm-jb-stext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tm-jb-who { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.tm-jb-who small { font-size: 13.5px; color: var(--text3); }
+.tm-jb-what { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; font-size: 15px;
+  line-height: 1.45; color: var(--text2); overflow-wrap: anywhere; }
+.tm-jb-step-done .tm-jb-what, .tm-jb-step-wait .tm-jb-what, .tm-jb-step-off .tm-jb-what { color: var(--text3); }
+.tm-jb-step-wait .tm-jb-who, .tm-jb-step-off .tm-jb-who { color: var(--text2); }
+.tm-jb-s { display: inline-grid; }
+.tm-jb-s .ic { width: 20px; height: 20px; }
+.tm-jb-step .tm-jb-s .ic { width: 18px; height: 18px; }
+.tm-jb-s-run { color: var(--info-ink); }
+.tm-jb-s-run .ic { animation: tm-spin 1s linear infinite; }
+.tm-jb-s-ask { color: var(--warn-ink); }
+.tm-jb-s-done { color: var(--green); }
+.tm-jb-s-off, .tm-jb-arch .tm-jb-s-done { color: var(--text3); }
+@media (prefers-reduced-motion: reduce) { .tm-jb-s-run .ic { animation: none; } }
+.tm-jb-ring { display: inline-block; box-sizing: border-box; width: 18px; height: 18px; border: 2px solid var(--text3); border-radius: 50%; }
+.tm-jb-step .tm-jb-ring { width: 16px; height: 16px; border-width: 1.5px; }
+.tm-jb-pos { display: grid; place-items: center; box-sizing: border-box; width: 20px; height: 20px; border: 1.5px solid var(--text3);
+  border-radius: 50%; font-size: 12px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
+.tm-side .tm-qhead.tm-jb-h { display: flex; align-items: center; gap: 8px; margin: 16px 2px 6px; color: var(--text); font-size: 15px;
+  font-weight: 700; text-transform: none; letter-spacing: 0; }
+.tm-side .tm-qhead.tm-jb-h:first-child { margin-top: 8px; }
+.tm-side .tm-qhead.tm-jb-h-ask { color: var(--warn-ink); }
+.tm-jb-h .tm-qn { min-width: 0; padding: 0; background: none; color: var(--text3); font-size: 14px; font-weight: 500; }
+.tm-jb-h .tm-arch-toggle { gap: 6px; color: inherit; font-weight: inherit; }
+.tm-jb-pg { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
+.tm-jb-pgn { min-width: 34px; text-align: center; font-size: 14px; font-weight: 500; color: var(--text2); font-variant-numeric: tabular-nums; }
+.tm-jb-pg .tm-jb-ic { width: 32px; height: 32px; }
+.tm-jb-search { display: flex; align-items: center; gap: 10px; margin: 4px 0 8px; padding: 0 12px; border: 1px solid var(--hairline);
+  border-radius: 12px; background: var(--surface-1); }
+.tm-jb-search .ic { flex: none; width: 18px; height: 18px; color: var(--text3); }
+.tm-side .tm-jb-search input { flex: 1; min-width: 0; min-height: 44px; padding: 0; border: 0; background: none; color: var(--text);
+  font: inherit; font-size: 16px; outline: none; }
+.tm-jb-danger { margin: 10px 2px 0; padding-top: 10px; border-top: 1px solid var(--hairline); }
+.tm-jb-delall { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0; border: 0; background: none; color: var(--red);
+  font: inherit; font-size: 15px; cursor: pointer; }
+.tm-jb-delall .ic { width: 16px; height: 16px; }
+.tm-jb-note { padding: 8px 2px; font-size: 14.5px; color: var(--text3); }
+.tm-jb-sub { margin: 12px 0 4px; font-size: 13.5px; font-weight: 600; color: var(--text3); }
+.tm-jb-more { display: inline-flex; align-items: center; gap: 2px; padding: 4px 0; border: 0; background: none; color: var(--accent-ink);
+  font: inherit; font-size: 14.5px; cursor: pointer; }
+.tm-jb-more .ic { width: 14px; height: 14px; }
+.tm-jb .tm-report { margin: 8px 8px 4px 26px; padding: 10px 0 0; border: 0; border-top: 1px solid var(--hairline); border-radius: 0; background: none; }
+.tm-jb .tm-report-meta { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 14px; }
+.tm-jb .tm-report-body { max-height: none; overflow: visible; font-size: 15.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.tm-report-body.is-clamped { max-height: 6.4em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent);
+  mask-image: linear-gradient(#000 70%, transparent); }
+.tm-jb .tm-report .tm-jb-steps { margin: 0; border-top: 0; }
+.tm-jb .tm-report .tm-jb-step:first-child { padding-top: 4px; }
+
+/* The job strip on top of the chat: one line per job, the same icons as the cards. */
+.tm-jobs { gap: 0; padding: 2px 6px 2px 12px; }
+.tm-js { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.tm-js[hidden] { display: none; }
+.tm-js + .tm-js { border-top: 1px solid var(--hairline); }
+.tm-js-title { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; padding: 8px 0; border: 0; background: none;
+  color: var(--text); font: inherit; font-size: 16px; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.tm-js-title b { font-weight: 400; }
+.tm-js-ask .tm-js-title b { font-weight: 650; }
+.tm-js-title small { font-size: 14px; color: var(--warn-ink); }
+.tm-js-who { display: inline-flex; flex: none; }
+.tm-js-face { display: inline-flex; }
+.tm-js-face + .tm-js-face { margin-left: -6px; }
+.tm-js-n { flex: none; font-size: 14px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.tm-js .tm-jb-ic { width: 36px; }
+.tm-js .ws-btn { flex: none; min-height: 36px; padding: 0 12px; border-radius: 10px; font-size: 14.5px; }
+
+/* Tabs of the side panel: icon, word, count (owner: "menu thông tin, việc team cũng nên có icon"), the look of the tabs
+   on the Tasks page. */
+/* The three tabs share the width left of the close button, so they fit the 360px panel and never run under it. */
+.tm-side-bar .tm-tabs { flex: 1 1 auto; min-width: 0; gap: 2px; padding: 4px; border-radius: 12px; background: var(--surface-2); }
+.tm-side .tm-tab { display: inline-flex; flex: 1 1 auto; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 36px;
+  padding: 0 5px; border-radius: 9px; font-size: 14.5px; font-weight: 600; white-space: nowrap; }
+.tm-tab > span:not(.tm-tab-n) { min-width: 0; overflow: hidden; }
+.tm-tab .ic { flex: none; width: 17px; height: 17px; }
+.tm-side .tm-tab[aria-selected="true"] { background: var(--panel-solid); color: var(--text); box-shadow: var(--shadow-1); }
+.tm-tab-n { padding: 0 7px; border-radius: 999px; background: var(--surface-2); font-size: 12.5px; font-weight: 700; line-height: 1.6; }
+.tm-tab[aria-selected="true"] .tm-tab-n { background: var(--accent-wash); color: var(--accent-ink); }
+@media (max-width: 760px) {
+  .tm-jb-ic { width: 36px; height: 44px; }
+  .tm-jb-lead { min-height: 44px; }
+  .tm-jb-title { padding: 11px 4px 11px 0; }
+  .tm-jb-fold { min-height: 36px; }
+  .tm-jb-step { padding: 11px 0; }
+  .tm-jb-pg .tm-jb-ic { width: 40px; height: 44px; }
+  .tm-side .tm-jb-go .ws-btn { min-height: 48px; }
+  .tm-jb-delall, .tm-jb-more { min-height: 44px; }
+  .tm-jobs { padding-left: 10px; }
+  .tm-js .tm-jb-ic { width: 40px; }
+  .tm-js .ws-btn { min-height: 44px; }
+  .tm-side-bar .tm-tabs { padding: 3px; }
+  .tm-side .tm-tab { gap: 5px; min-height: 44px; }
+  .tm-side .tm-qhead.tm-jb-h, .tm-jb-h .tm-qn { font-size: 16px; }
+  /* A phone reads this panel at 16px like the rest of the team page (0.358.0); only the count pills stay small. */
+  .tm-jb-meta, .tm-jb-fold, .tm-jb-why, .tm-jb-who, .tm-jb-who small, .tm-jb-what, .tm-jb-pgn, .tm-jb-note, .tm-jb-sub, .tm-jb-more,
+  .tm-jb-delall, .tm-jb .tm-report-meta, .tm-jb .tm-report-body, .tm-js-title small, .tm-js-n, .tm-side .tm-jb-go .ws-btn,
+  .tm-js .ws-btn { font-size: 16px; }
+}
+
 /* 0.358.0 (owner, 27/10/2026: "uxui nhìn điện thoại trong phần team loạn lắm"): a calmer Team chat on a phone. Fewer
    boxes and lines, more width for the words, rich answers read as a chat message instead of a document. Text stays 16px. */
 @media (max-width: 760px) {
