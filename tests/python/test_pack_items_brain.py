@@ -7,8 +7,10 @@ and skills are placed in ONE brain, the one open at install time. Seen from anot
 although nothing of the pack was there, and Uninstall removed the items from a brain the user was not looking at,
 with a confirmation that listed them without saying where they were.
 
-This is the small guard, not per-brain packs (the owner decided 10/11/2026 that one pack in several brains belongs
-to the enterprise plan): the uninstall plan and the card name the brain, and say so when it is not the open one.
+The first fix (10/11/2026) only named the brain. On 16/11/2026, after a community report ("installed in one brain, the
+other brain says installed but I cannot install it there"), the owner opened packs to several brains: the card offers
+"Install in this brain", an update refreshes every brain, and uninstalling clears them all
+(test_pack_multi_brain.py covers that part).
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import json
@@ -45,7 +47,8 @@ try:
 
     w = pack_vault.brain_of("javis.demo", str(brain_a))
     check("in the brain that holds the items: named, not 'other'",
-          w == {"brain": str(brain_a), "name": "Brain Trịnh Lan Anh", "present": 1, "other": False}, w)
+          w["brain"] == str(brain_a) and w["name"] == "Brain Trịnh Lan Anh" and w["present"] == 1
+          and w["here"] == 1 and w["other"] is False, w)
     w = pack_vault.brain_of("javis.demo", str(brain_b))
     check("from another brain: the same name, flagged as another brain",
           w["name"] == "Brain Trịnh Lan Anh" and w["present"] == 1 and w["other"] is True, w)
@@ -59,14 +62,16 @@ try:
           w["present"] == 0 and w["other"] is False, w)
     w = pack_vault.brain_of("javis.unknown", str(brain_b))
     check("a pack with no ledger (connector only) is never flagged",
-          w == {"brain": "", "name": "", "present": 0, "other": False}, w)
+          w["brain"] == "" and w["present"] == 0 and w["other"] is False, w)
 finally:
     pack_vault.HIEU_UNG_DIR = saved_dir
 
 routes = (ROOT / "server" / "routes" / "packs.py").read_text(encoding="utf-8")
-check("the uninstall plan carries the brain's name and whether it is another brain",
-      'plan["vault"]["brain_name"] = w["name"]' in routes and 'plan["vault"]["other_brain"] = w["other"]' in routes)
-check("the Store list marks a pack whose items are in another brain", 'g["items_brain"] = w["name"]' in routes)
+check("the uninstall plan names every brain and whether one is not the open brain",
+      'plan["vault"]["brain_name"] = ", ".join(w.get("names") or []) or w["name"]' in routes
+      and 'plan["vault"]["other_brain"]' in routes)
+check("the Store list marks a pack whose items are in another brain, and offers to add it here",
+      'g["items_brain"] = w["name"]' in routes and 'g["add_to_brain"] = True' in routes)
 check("a pack whose items the user deleted keeps its own state (Install again), not this one",
       routes.index('g["removed_from_brain"] = True') < routes.index('g["items_brain"] = w["name"]')
       and "            elif hang:" in routes)

@@ -21,6 +21,7 @@ gì được nạp) rồi trả về đúng cái sắp xảy ra kèm `sha256`. `
 người gọi đưa lại đúng sha256 đó - ràng buộc này làm cái đã hiện ra trên màn hình phải chính là
 cái được cài.
 """
+import asyncio
 import inspect
 import sys
 from dataclasses import dataclass
@@ -151,7 +152,7 @@ def _items_brain(pid: str, brain: str) -> dict:
         import pack_vault
         return pack_vault.brain_of(pid, _DEPS.brain_root(str(brain or "brain")) if brain else "")
     except Exception:       # noqa: BLE001
-        return {"brain": "", "name": "", "present": 0, "other": False}
+        return {"brain": "", "name": "", "present": 0, "here": 0, "other": False, "names": []}
 
 
 async def _agents_changed(root: str) -> None:
@@ -166,13 +167,13 @@ async def _agents_changed(root: str) -> None:
         print(f"[packs] agents_changed: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-def _pack_brain(pid: str) -> str:
-    """The brain root that holds the items pack `pid` placed, "" when it placed none."""
+def _pack_brains(pid: str) -> list:
+    """The brain roots that hold items pack `pid` placed (one pack can be in several brains), [] when none."""
     try:
         import pack_vault
-        return str(pack_vault.doc_so(pid).get("brain") or "")
+        return pack_vault.brains(pid)
     except Exception:  # noqa: BLE001
-        return ""
+        return []
 
 
 def _tu_choi():
@@ -248,6 +249,35 @@ def _make_router() -> APIRouter:
             _DEPS.lam_moi_hub()
         return r if r.get("ok") else JSONResponse(r, status_code=400)
 
+    @router.post("/packs/add-to-brain")
+    async def packs_add_to_brain(request: Request):
+        """Put an installed pack's assistants, workflows and skills into the brain open now (16/11/2026).
+
+        The pack is already on the machine (checked and consented to when it was installed), so this copies from its
+        folder and downloads nothing. The same rules as an install apply: the user's own files are never
+        overwritten, a name clash puts the pack's copy in under a free name."""
+        if not _DEPS.co_phien(request):
+            return _tu_choi()
+        d = await request.json()
+        pid = str(d.get("id") or "").strip()
+        thu_muc = packs.PACKS_DIR / pid
+        if (not packs._ID_RE.match(pid) or pid not in pack_install.doc_so() or not thu_muc.is_dir()
+                or packs.PACKS_DIR.resolve() not in thu_muc.resolve().parents):
+            return JSONResponse({"ok": False, "error": localefmt.chu("Gói này chưa được cài trên máy.",
+                                                                 "This pack is not installed on this machine.")},
+                                status_code=404)
+        root = _DEPS.brain_root(str(d.get("brain") or "brain"))
+        import pack_vault
+        bao = await asyncio.to_thread(pack_vault.cai, pid, thu_muc, root)
+        if not any(bao.get(k) for k in ("them", "cap_nhat", "doi_ten")):
+            loi = "; ".join(bao.get("loi") or []) or localefmt.chu(
+                "Gói không có trợ lý, quy trình hay skill nào để đặt vào brain này.",
+                "The pack has no assistants, workflows or skills to put in this brain.")
+            return JSONResponse({"ok": False, "error": loi, "vault": bao}, status_code=400)
+        _DEPS.lam_moi_hub()
+        await _agents_changed(root)
+        return {"ok": True, "vault": bao}
+
     @router.get("/packs/uninstall-plan")
     async def packs_uninstall_plan(request: Request, id: str = "", brain: str = ""):
         if not _DEPS.co_phien(request):
@@ -255,10 +285,11 @@ def _make_router() -> APIRouter:
         plan = pack_install.ke_hoach_go(id.strip())
         # #1308: the items sit in the brain that was open at install time. Name it, and say when that is not the
         # brain open now, so nobody removes assistants from a brain they are not looking at without being told.
+        # Since 16/11/2026 a pack can be in several brains: uninstalling it clears all of them, so name them all.
         if isinstance(plan, dict) and plan.get("ok") and isinstance(plan.get("vault"), dict):
             w = _items_brain(id.strip(), brain)
-            plan["vault"]["brain_name"] = w["name"]
-            plan["vault"]["other_brain"] = w["other"]
+            plan["vault"]["brain_name"] = ", ".join(w.get("names") or []) or w["name"]
+            plan["vault"]["other_brain"] = bool(brain) and len(w.get("names") or []) > (1 if w.get("here") else 0)
         return plan
 
     @router.post("/packs/uninstall")
@@ -268,14 +299,16 @@ def _make_router() -> APIRouter:
         d = await request.json()
         # BEFORE the files go: the registry records that these assistants are this pack's own (their origin), which
         # is what lets it take them back without asking when the pack is installed again. AFTER: it sees them gone.
-        root = _pack_brain(str(d.get("id") or "").strip())
-        await _agents_changed(root)
+        roots = _pack_brains(str(d.get("id") or "").strip())
+        for root in roots:
+            await _agents_changed(root)
         r = await pack_install.go(str(d.get("id") or ""),
                                   purge_data=bool(d.get("purge_data")),
                                   purge_audit=bool(d.get("purge_audit")))
         if r.get("ok"):
             _DEPS.lam_moi_hub()
-            await _agents_changed(root)
+            for root in roots:
+                await _agents_changed(root)
         return r if r.get("ok") else JSONResponse(r, status_code=409)
 
     @router.get("/packs/store")
@@ -323,10 +356,11 @@ def _make_router() -> APIRouter:
                 g["removed_from_brain"] = True
             elif hang:
                 # #1308: installed for the machine, but its assistants and skills are in another brain than the
-                # one open now. The card says which, instead of a bare "Installed".
+                # one open now. The card says which, and (16/11/2026) offers to install it in this brain too.
                 w = _items_brain(g.get("replaces_installed") or g["id"], brain)
                 if w["other"]:
                     g["items_brain"] = w["name"]
+                    g["add_to_brain"] = True
             # Thẻ cần biết gói đang bật hay tắt để vẽ đúng nút. Gói thả tay vào thư mục (không
             # có hàng trong sổ) mặc định là BẬT - người vận hành đã tự đặt nó vào rồi.
             g["enabled"] = bool(hang.get("enabled", True)) if hang else True
