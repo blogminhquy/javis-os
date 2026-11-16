@@ -36,6 +36,15 @@ _CJK = re.compile(r"[㐀-鿿]")
 _VI = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹáàãéèíìĩóòõúùũý]", re.I)
 _LOADED: Dict[str, object] = {}
 
+# One manner of speaking for every voice and language: slower (0.8 = a fifth slower, pitch kept), the same loudness
+# and the same sample rate, so Vietnamese, English and Chinese pieces sound like one speaker's pace.
+# JAVIS_VOICE_SPEED changes the pace (1.0 = as the engine speaks, 0.7 = slower still).
+try:
+    SPEED = min(1.0, max(0.5, float(os.getenv("JAVIS_VOICE_SPEED", "0.8"))))
+except ValueError:
+    SPEED = 0.8
+_POST = f"atempo={SPEED},loudnorm=I=-16:TP=-1.5:LRA=11,aresample=24000"
+
 
 def home() -> Path:
     try:
@@ -76,7 +85,7 @@ def _speak_sync(text: str, lang: str) -> bytes:
     w = wave.open(buf, "wb")
     _load(lang).synthesize_wav(text, w)
     w.close()
-    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-codec:a", "libmp3lame",
+    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-filter:a", _POST, "-codec:a", "libmp3lame",
                         "-q:a", "4", "-f", "mp3", "pipe:1"], input=buf.getvalue(), capture_output=True, timeout=60)
     return r.stdout if r.returncode == 0 else b""
 
@@ -92,7 +101,7 @@ def vieneu_available() -> bool:
 
 
 def _to_mp3(wav: bytes) -> bytes:
-    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-codec:a", "libmp3lame",
+    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-filter:a", _POST, "-codec:a", "libmp3lame",
                         "-q:a", "4", "-f", "mp3", "pipe:1"], input=wav, capture_output=True, timeout=60)
     return r.stdout if r.returncode == 0 else b""
 

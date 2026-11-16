@@ -12,6 +12,8 @@ title: Zalo reminders that tag you, ring and speak the note
 
 - **Giọng đọc offline cho lời nhắc Zalo** (Piper, tiếng Việt, Anh, Trung): file giọng nằm trong thư mục state nên không mất khi cập nhật, đọc được cả khi không có mạng. Thiếu file giọng thì dùng giọng trực tuyến như cũ.
 
+- Giọng offline đọc chậm hơn 20% và đều âm lượng giữa các ngôn ngữ; đổi mức chậm bằng biến `JAVIS_VOICE_SPEED`.
+
 ### Sửa lỗi
 - Lời nhắc có đọc to không còn mất giọng khi dịch vụ giọng đọc của Microsoft từ chối máy chủ: Javis thử lại bằng tiến trình mới, rồi bằng giọng Google.
 
@@ -24,6 +26,8 @@ title: Zalo reminders that tag you, ring and speak the note
 - **The voice message plays inside the Zalo chat** instead of arriving as an mp3 file card. Javis re-adds the voice tool after every update.
 
 - **Offline voices for Zalo reminders** (Piper, Vietnamese, English, Chinese): the voice files live in the state folder so an update keeps them, and they speak with no internet. Without the files the online voice is used as before.
+
+- Offline voices speak 20% slower with the same loudness across languages; the pace is set with `JAVIS_VOICE_SPEED`.
 
 ### Fixed
 - Spoken reminders no longer lose their voice when the Microsoft speech service refuses the server: Javis retries from a fresh process, then with Google's voice.
