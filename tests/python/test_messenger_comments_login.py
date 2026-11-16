@@ -210,10 +210,10 @@ async def _subscribe(refuse_feed):
 
 r, asked = run(_subscribe(False))
 check("subscribe asks for messages, postbacks and feed", r == {"ok": True, "feed": True}
-      and asked == ["messages,messaging_postbacks,message_echoes,feed"], (r, asked))
+      and asked == ["messages,messaging_postbacks,message_echoes,standby,feed"], (r, asked))
 r, asked = run(_subscribe(True))
 check("feed refused: the Page is still subscribed for messages",
-      r.get("ok") and r.get("feed") is False and asked[-1] == "messages,messaging_postbacks,message_echoes", (r, asked))
+      r.get("ok") and r.get("feed") is False and asked[-1] == "messages,messaging_postbacks,message_echoes,standby", (r, asked))
 
 import messenger_setup  # noqa: E402
 item = messenger_setup.comments_item(["pages_messaging"], ["messages"])

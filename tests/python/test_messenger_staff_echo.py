@@ -65,7 +65,7 @@ class Probe(messenger_bot.MessengerBot):
                          giau_trang_thai=True)
         self.got = []
 
-    async def _safe_event(self, ev, instagram=False):
+    async def _safe_event(self, ev, instagram=False, standby=False):
         self.got.append(("event", instagram, ev["message"]["mid"]))
 
     async def _safe_echo(self, ev, instagram=False):
