@@ -4712,7 +4712,7 @@
   "teams.cap.task_steps": "Bước tối đa mỗi việc",
   "teams.cap.daily_turns": "Lần trả lời tối đa mỗi ngày",
   "teams.cap.mentions": "Số người gọi (@) mỗi tin",
-  "teams.cap.busy_wait_s": "Chờ cộng sự đang bận tối đa (giây)",
+  "teams.cap.busy_wait_s": "Chờ cộng sự đang bận ở chỗ khác tối đa (giây)",
   "teams.limits.title": "Bảng giới hạn",
   "teams.limits.intro": "Mọi giới hạn đang áp cho team này, chia theo ai đổi được. Không có chế độ nào bỏ được mọi giới hạn: nhóm máy chủ và nhà cung cấp luôn áp.",
   "teams.limits.owner": "Bạn chỉnh được (mục Giới hạn của team ở trên)",

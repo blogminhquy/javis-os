@@ -241,6 +241,9 @@ check("G1d bước plan: cấp lại giữa bước thì lệnh quản trị b�
 r, tm, ts, ss, fake, admin, T, new_team = world("prio")
 T2 = new_team("prio-khac", mem=("tu",), leader="ag_tu")
 r.max_parallel_teams = 1
+# 17/11/2026: jobs no longer wait in line unless the machine sets a cap (JAVIS_TEAM_JOBS); the priority star orders the
+# line only then, so this test runs with one job at a time.
+r.team_jobs = 1
 order = []
 gate_box = {}
 
@@ -390,9 +393,9 @@ check("G4 chủ không đặt được running_jobs (giới hạn máy chủ, tr
 with tm._Tx(tm) as c:   # dòng cũ từng lưu running_jobs=9 trước bản này
     c.execute("UPDATE teams SET caps_json=? WHERE team_id=?", (json.dumps({"running_jobs": 9, "no_progress": 5}),
                                                                 T["team_id"]))
-# 2026-11-12: the server limit is 3 jobs per team (was 1); a number an old row stored is still not what applies.
-check("G4 dòng cũ vẫn hiện giá trị đang áp (3 việc, 2 lần không tiến triển)",
-      tm.get(T["team_id"])["caps"]["running_jobs"] == 3 and tm.get(T["team_id"])["caps"]["no_progress"] == 2)
+# 2026-11-12: 3 jobs per team (was 1); 17/11/2026: no cap. A number an old row stored is still not what applies.
+check("G4 dòng cũ vẫn hiện giá trị đang áp (không giới hạn việc, 2 lần không tiến triển)",
+      tm.get(T["team_id"])["caps"]["running_jobs"] is None and tm.get(T["team_id"])["caps"]["no_progress"] == 2)
 r.max_parallel_teams = 3
 for n in ("R1", "R2"):
     r.submit(T["team_id"], n, mentions=["ag_minh"], as_job=True, client_msg_id=n)
@@ -406,11 +409,13 @@ async def runjobs_main():
     return got, running, again
 
 claimed, running_n, again = run(runjobs_main())
-check("G4 nhóm có hai việc chờ, pool 3: chỉ một việc chạy, kick lại cũng không mở việc thứ hai",
-      len(claimed) == 1 and running_n == 1 and again == [], (claimed, running_n, again))
+# 17/11/2026 (owner: "chạy song song và chỉ đợi nhau khi ... cần đợi kết quả"): both of Minh's jobs start; Minh does
+# their turns one at a time (test_team_parallel_jobs.py).
+check("G4 nhóm có hai việc chờ: cả hai chạy ngay, kick lại không mở thêm gì",
+      len(claimed) == 2 and running_n == 2 and again == [], (claimed, running_n, again))
 lim = {(x["category"], x["key"]): x for x in limits(r, T)}
 check("G4 bảng giới hạn: running_jobs và no_progress thuộc máy chủ, không thuộc trần của chủ",
-      ("server", "running_jobs") in lim and lim[("server", "running_jobs")]["value"] == 3 and lim[("server", "no_progress")]["value"] == 2
+      ("server", "running_jobs") in lim and lim[("server", "running_jobs")]["value"] is None and lim[("server", "no_progress")]["value"] == 2
       and ("owner", "running_jobs") not in lim and ("owner", "no_progress") not in lim, sorted(lim))
 
 # ═════ G5: bảng giới hạn, Không giới hạn cho trần của chủ ═════
