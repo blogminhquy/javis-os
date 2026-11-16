@@ -261,8 +261,9 @@ api_src = (SERVER / "resonance_api.py").read_text(encoding="utf-8")
 routes_src = (SERVER / "routes" / "packs.py").read_text(encoding="utf-8")
 check("the Auto list goes through the one sync", "agent_presence.sync(store, root, have, packs)" in api_src)
 check("uninstall records origins BEFORE the files go and syncs after",
-      routes_src.index("await _agents_changed(root)\n        r = await pack_install.go(") > 0
-      and routes_src.count("await _agents_changed(root)") == 3)
+      # Since 16/11/2026 a pack can be in several brains: every one of them, before and after.
+      routes_src.index("for root in roots:\n            await _agents_changed(root)\n        r = await pack_install.go(") > 0
+      and routes_src.count("await _agents_changed(root)") == 4)
 
 if fails:
     raise SystemExit(f"FAIL - test_pack_reinstall_auto: {len(fails)}: {fails}")

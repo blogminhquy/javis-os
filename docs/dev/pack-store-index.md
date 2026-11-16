@@ -205,7 +205,12 @@ mục**. Chỉ `provides.connectors` là bắt buộc khai trong manifest, vì m
 phải trỏ đúng tên; khai thêm `provides.plugins` hay `provides.skills` là để người đọc manifest
 biết gói có gì mà không phải mở từng thư mục, chứ trình cài không đọc.
 
-Chúng được ghi vào **brain đang mở lúc bấm Cài**, không phải mọi brain.
+Chúng được ghi vào **brain đang mở lúc bấm Cài**, không phải mọi brain. Từ 16/11/2026 một gói
+nằm được ở **nhiều brain**: sổ `STATE_DIR/packs-state/<id>.json` giữ một mục cho mỗi brain
+(`brains: {gốc brain: {items}}`, cộng `brain`/`items` chép mục đầu cho bản Javis cũ). Gói đã cài
+ở brain khác thì thẻ hiện nút "Cài vào brain này" (`POST /packs/add-to-brain`, chép từ thư mục gói
+đã cài, không tải lại). Cập nhật làm mới mọi brain còn giữ gói (`pack_vault.cai_moi_brain`), brain
+mà người dùng đã xoá hết mục của gói thì bị bỏ khỏi sổ chứ không bị điền lại. Gỡ gói gỡ ở mọi brain.
 
 Ba luật, và chúng là lý do phần này có một module riêng (`server/pack_vault.py`):
 

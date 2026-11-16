@@ -558,6 +558,10 @@
       return { nhan: tw("store.btn.update_to", { ver: esc(g.version) }),
                lop: "kho-btn kho-btn-chinh", act: "cai" };
     }
+    // Installed in another brain, nothing of it in this one (16/11/2026): install it here too.
+    if (g.installed && g.add_to_brain) {
+      return { nhan: tw("store.btn.add_to_brain"), lop: "kho-btn kho-btn-chinh", act: "addbrain", tat: true };
+    }
     if (g.installed) {
       return { nhan: tw("store.btn.uninstall"), lop: "kho-btn kho-btn-go", act: "go", tat: true };
     }
@@ -586,7 +590,7 @@
       + tw("store.installed_latest", { ver: esc(g.installed_version) }) + '</div>' + dongBrainKhac(g);
   }
 
-  // #1308: installed for the machine, but the pack's assistants and skills are in another brain than the one open.
+  // #1308: installed for the machine, but the pack's assistants and skills are only in another brain.
   function dongBrainKhac(g) {
     return g.items_brain
       ? '<div class="kho-daicai">' + ic("info") + ' '
@@ -992,6 +996,16 @@
       const act = b.dataset.khoAct;
       if (act === "cai") return tuUrl(el, g.download.url, g.download.sha256, g);
       if (act === "go") return hopGo(el, g.id);
+      if (act === "addbrain") {
+        b.disabled = true;
+        return postJson("/packs/add-to-brain", {
+          id: g.replaces_installed || g.id,
+          brain: (typeof currentBrainPath === "function" ? currentBrainPath() : "") || "brain",
+        }).then(r => {
+          if (r && r.ok) veKho(el, host, false, _kho.loai);
+          else { b.disabled = false; alert((r && r.error) || tw("store.add_to_brain_failed")); }
+        });
+      }
       if (act === "tat") {
         return postJson("/packs/toggle", { id: g.id, enabled: g.enabled === false }).then(r => {
           if (r && r.ok) veKho(el, host, false, _kho.loai);

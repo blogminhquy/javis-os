@@ -37,9 +37,25 @@ def _pack_owned(root: Path, kind: str, slug: str, path: Path, state: Path) -> bo
             data = json.loads(registry.read_text(encoding="utf-8"))
             if not isinstance(data, dict) or not isinstance(data.get("items", {}), dict):
                 raise SourceError("ownership_unavailable")
-            if Path(str(data.get("brain") or "")).resolve() != root:
+            # One pack can be installed in several brains (16/11/2026): `brains` maps each root to its items.
+            # The older one-brain shape (`brain` + `items`) is still read.
+            per_brain = data.get("brains")
+            if per_brain is None:
+                per_brain = {str(data.get("brain") or ""): {"items": data.get("items", {})}}
+            if not isinstance(per_brain, dict):
+                raise SourceError("ownership_unavailable")
+            entry = None
+            for brain, value in per_brain.items():
+                if not brain or not isinstance(value, dict) or not isinstance(value.get("items", {}), dict):
+                    if brain:
+                        raise SourceError("ownership_unavailable")
+                    continue
+                if Path(str(brain)).resolve() == root:
+                    entry = value
+                    break
+            if entry is None:
                 continue
-            item = data.get("items", {}).get(f"{kind}s/{slug}")
+            item = entry.get("items", {}).get(f"{kind}s/{slug}")
             if item is not None:
                 if not isinstance(item, dict):
                     raise SourceError("ownership_unavailable")

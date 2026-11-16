@@ -463,7 +463,7 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
     if brain_root:
         try:
             import pack_vault
-            bao_vault = pack_vault.cai(pid, dich, brain_root)
+            bao_vault = pack_vault.cai_moi_brain(pid, dich, brain_root)
         except Exception as e:
             print(f"[packs] ghi năng lực vào brain: {e}", file=sys.stderr)
             bao_vault = {"loi": [str(e)]}
