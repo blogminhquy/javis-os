@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.575.2] - 2026-11-16
+### Fixed
+- **Playwright no longer says "browser not installed" right after Javis downloaded one.** Javis now hands Playwright the exact browser file it downloaded, so the two can run on different versions. A browser you chose yourself is left alone.
+
 ## [0.575.1] - 2026-11-16
 ### Fixed
 - **Playwright screenshots show right in the chat.** When Javis took a screenshot of a page with Playwright, the image reached the model as a long string of characters and nothing appeared in the chat. The image is now saved in the brain under `attachments/tool-images/` and Javis embeds it in its reply so you can preview it. Images returned by other tools (charts, designs) are handled the same way.
