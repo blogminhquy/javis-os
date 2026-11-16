@@ -197,7 +197,8 @@ Unlike `/plan`, `/goal` does real work (within the permissions you gave Javis), 
 
 **The goal bar (since 0.290.0).** While a goal exists, a bar sits right above the chat box in every chat view: an icon, the goal text, a timer of how long it has run, then three buttons: **delete**, **pause / resume** and an **arrow** that opens the details (full goal text, round out of five, what is still missing). With several goals (one per conversation) a **number** at the start of the bar says how many; press it to drop down the list and press a row to open that goal's conversation.
 
-- **Pause instead of stop:** pressing the chat's Stop button or typing a new message mid-run only pauses the goal (the timer stops), and your words still come first. Press resume on the bar and Javis runs the next round.
+- **Typing mid-run does not stop the goal:** a message you type while the goal runs is added to the goal. The running round reads it at its next step and every later round carries it, so you can adjust or widen the goal while Javis works. Each such message gives the goal one more round (10 at most). If the running round reports the goal met before it read your message, Javis still runs one more round for it.
+- **Pause instead of stop:** pressing the chat's Stop button only pauses the goal (the timer stops). Press resume on the bar and Javis runs the next round.
 - **Moving to another conversation:** the goal is not lost, it waits. It only moves on while its conversation is open, because the automatic rounds are sent by the browser into the chat you are looking at. Open that conversation again and it carries on.
 - **Reloading the page:** the goal stays on the bar, paused; press resume to run the next round. The five-round cap still holds.
 

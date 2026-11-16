@@ -12,10 +12,15 @@ let fails = 0;
 function check(name, ok) { console.log((ok ? "ok   " : "FAIL ") + name); if (!ok) fails++; }
 
 check("typed text during a turn is sent as an add-on, not dropped",
-  /if \(!\(_tuGiong \|\| handsFree\)\) \{ guiBoSung\(msg, atts\); return; \}/.test(app)
+  /if \(!\(_tuGiong \|\| handsFree\)\) \{\s*const _goal = [^\n]*\n\s*if \(guiBoSung\(msg, atts, _goal\)/.test(app)
   && !/if \(!\(_tuGiong \|\| handsFree\)\) return;/.test(app));
-const g = app.slice(app.indexOf("function guiBoSung(msg, atts) {"), app.indexOf("function trangThaiBoSung(data) {"));
-check("guiBoSung sends action steer with the chat id", /action: "steer", session_id: sid, message: chu, client_id: cid/.test(g));
+// 2026-11-16: a running /goal round is no longer stopped by typed text; the text joins the goal.
+check("typed text during a /goal round joins the goal, no stop", /window\.JavisLenh\.gopBoSung\(sid, msg\)/.test(app)
+  && !/dangCoMucTieu\(\) && !\(_tuGiong \|\| handsFree\)\) \{\s*chatInput\.value = ""; chatInput\.style\.height = "auto";\s*stopCurrent\(\)/.test(app));
+check("steer_read tells the goal its round read the message", /window\.JavisLenh\.boSungDaDoc\(data\.session_id\)/.test(app)
+  && /data\.mode === "goal" \? "app\.steer_goal"/.test(app));
+const g = app.slice(app.indexOf("function guiBoSung(msg, atts, goal) {"), app.indexOf("function trangThaiBoSung(data) {"));
+check("guiBoSung sends action steer with the chat id", /action: "steer", session_id: sid, message: chu, client_id: cid, goal: !!goal/.test(g));
 check("the message shows at once with a status line, input cleared", /appendUserMessage\(msg, tep\)/.test(g)
   && /steer-note/.test(g) && /chatInput\.value = "";/.test(g));
 check("files attached go along as their paths", /"\\uD83D\\uDCCE " \+ a\.path/.test(g));
@@ -26,7 +31,7 @@ check("not in a voice call (that has its own queue)", /isProcessing && !handsFre
 check("status frames handled and never revive a turn",
   /data\.type === "steer_ack" \|\| data\.type === "steer_read" \|\| data\.type === "steer_turn"/.test(app)
   && !/KHUNG_LUOT = \[[^\]]*steer/.test(app));
-const keys = ["app.steer_send", "app.steer_sent", "app.steer_live", "app.steer_after", "app.steer_read", "app.steer_turn"];
+const keys = ["app.steer_send", "app.steer_sent", "app.steer_live", "app.steer_after", "app.steer_goal", "app.steer_read", "app.steer_turn"];
 check("strings in both languages", keys.every((k) => vi[k] && en[k]));
 check("no long dashes in the new strings", keys.every((k) => !/[–—]/.test(vi[k] + en[k])));
 

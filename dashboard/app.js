@@ -1999,18 +1999,16 @@ function sendMessage(text, opts) {
   // endpoint() TRƯỚC khi gọi vào đây, mà lượt bị nuốt thì không bao giờ có turn_done để hạ nó,
   // nên orb đứng mãi ở "đang suy nghĩ" và người dùng không thấy tin mình vừa nói ở đâu cả.
   if ((turns[sid] && turns[sid].running) || (opts && opts.adaptive && _luotDaDung[sid]!=null)) {
-    // Ngoại lệ: đang chạy /goal thì người dùng gõ chữ CŨNG là chen ngang. Vòng tự động không phải lượt
-    // họ tự bấm gửi, nên "đợi nó xong rồi mới gõ được" là kẹt họ trong một vòng lặp họ không điều khiển.
-    // Dừng vòng hiện tại (stopCurrent cũng dừng /goal), tin của họ đi ngay sau khi lượt cũ dừng hẳn.
-    if (window.JavisLenh && window.JavisLenh.dangCoMucTieu() && !(_tuGiong || handsFree)) {
-      chatInput.value = ""; chatInput.style.height = "auto";
-      stopCurrent();
-      datTinCho(msg, opts);
-      return;
-    }
     // 0.206.0 (owner, 17/10/2026: "like Claude Code, type and send more while it works"): typed text goes to the
     // running turn. It reads it at its next step, or it runs right after the turn (server steer_inbox.py).
-    if (!(_tuGiong || handsFree)) { guiBoSung(msg, atts); return; }
+    // 2026-11-16 (owner): a /goal round is no longer stopped either. The message is a goal steer: the round reads it
+    // at its next step, and the goal keeps it for every later round (chat-lenh.js gopBoSung), so the goal goes on and
+    // adjusts to it instead of pausing.
+    if (!(_tuGiong || handsFree)) {
+      const _goal = !!(window.JavisLenh && window.JavisLenh.dangCoMucTieu());
+      if (guiBoSung(msg, atts, _goal) && _goal) { try { window.JavisLenh.gopBoSung(sid, msg); } catch (e) {} }
+      return;
+    }
     // Đang gọi (0.65.28): KHÔNG dừng lượt đang chạy. Câu mới xếp hàng, gửi khi lượt cũ xong và
     // loa đọc xong. Chủ dự án báo 02/10: nói chen một câu là "Đã dừng lượt này", mô hình bị
     // cắt liên tục nên không liền mạch; cuộc gọi chỉ được dừng khi bấm lại nút mic.
@@ -2059,12 +2057,12 @@ function sendMessage(text, opts) {
   const _goalRound = (_slash.type === "prefix" && window.JavisLenh && window.JavisLenh.docVong)
     ? window.JavisLenh.docVong(_slash.prefix) : null;
   const userElement = _goalRound ? appendGoalRound(_goalRound, true) : appendUserMessage(msg, atts);
-  // /goal đang chạy: tin do vòng tự động gửi thì gắn nó vào phiên này; tin người dùng tự gõ thì
-  // dừng mục tiêu (lời của họ lên trước, không chạy tiếp vòng tự động dưới một câu họ vừa nói).
+  // /goal đang chạy: tin do vòng tự động gửi thì gắn nó vào phiên này; tin người dùng tự gõ thì gộp vào
+  // mục tiêu (2026-11-16: không tạm dừng nữa), vòng sau đi ngay sau lượt của tin này.
   try {
     if (window.JavisLenh) {
       if (_slash.type === "prefix") window.JavisLenh.daGui(sid, opts);
-      else window.JavisLenh.chenNgang(sid);
+      else window.JavisLenh.chenNgang(sid, msg);
     }
   } catch (e) {}
   // Lưu cả `url` (đường /upload/raw của file stage): thiếu nó thì F5 xong ảnh trong tin cũ
@@ -2914,7 +2912,8 @@ function appendUserMessage(text, attachments, ts, via) {
 // what the server reports: read by the running turn, or waiting to run right after it.
 let _boSungSeq = 0;
 const _boSungEl = {};   // client_id or "s<steer_id>" -> the status line of that message
-function guiBoSung(msg, atts) {
+// `goal`: a /goal runs in this chat, so the message joins the goal (server never runs it as its own turn).
+function guiBoSung(msg, atts, goal) {
   const sid = savedSessionId;
   const tep = (atts || []).filter(a => a.path);
   let chu = String(msg || "");
@@ -2934,7 +2933,7 @@ function guiBoSung(msg, atts) {
     div.appendChild(note);
     _boSungEl[cid] = note;
   }
-  ws.send(JSON.stringify({ action: "steer", session_id: sid, message: chu, client_id: cid }));
+  ws.send(JSON.stringify({ action: "steer", session_id: sid, message: chu, client_id: cid, goal: !!goal }));
   syncActiveUI();
   return true;
 }
@@ -2943,8 +2942,10 @@ function trangThaiBoSung(data) {
   if (data.type === "steer_ack") {
     const el = _boSungEl[data.client_id];
     if (el && data.steer_id) _boSungEl["s" + data.steer_id] = el;
-    ghi(el, data.mode === "live" ? "app.steer_live" : "app.steer_after");
+    ghi(el, data.mode === "live" ? "app.steer_live" : data.mode === "goal" ? "app.steer_goal" : "app.steer_after");
   } else {
+    // The running /goal round read the owner's message: its verdict now covers it (chat-lenh.js boSungDaDoc).
+    if (data.type === "steer_read") { try { if (window.JavisLenh) window.JavisLenh.boSungDaDoc(data.session_id); } catch (e) {} }
     (data.ids || []).forEach(id => ghi(_boSungEl["s" + id], data.type === "steer_read" ? "app.steer_read" : "app.steer_turn"));
   }
 }

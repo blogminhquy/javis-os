@@ -26,14 +26,19 @@ MAX_CHARS = 8000
 _CURRENT: contextvars.ContextVar[str] = contextvars.ContextVar("javis_steer_sid", default="")
 
 
-def note_for(texts: List[str]) -> str:
-    """The text a running turn reads: the owner's own words, fenced, and what to do with them. Model prompt: Vietnamese."""
+def note_for(texts: List[str], goal: bool = False) -> str:
+    """The text a running turn reads: the owner's own words, fenced, and what to do with them. Model prompt: Vietnamese.
+
+    `goal`: the turn is a round of a /goal (2026-11-16), so the message joins the goal instead of standing apart."""
     if not texts:
         return ""
     body = "\n\n".join(f"<<<\n{t}\n>>>" for t in texts)
+    goal_line = ("Đây là lời bổ sung cho mục tiêu đang theo đuổi (khối [MỤC TIÊU:] của lượt này): gộp nó vào điều "
+                 "kiện mục tiêu, làm tiếp mục tiêu theo hướng đã chỉnh, và khi báo dòng JAVIS_GOAL thì tính cả phần "
+                 "bổ sung này.\n") if goal else ""
     return ("\n\n[Javis] Người dùng vừa gửi thêm "
             + ("một tin" if len(texts) == 1 else f"{len(texts)} tin")
-            + " trong lúc bạn đang làm. Đây là lời của chính họ:\n" + body + "\n"
+            + " trong lúc bạn đang làm. Đây là lời của chính họ:\n" + body + "\n" + goal_line +
             "Nếu đó là sửa hướng hay bổ sung cho việc đang làm, áp dụng ngay từ bước kế tiếp. Nếu là một việc mới, "
             "độc lập, hãy nhận luôn: làm song song (giao việc nền hoặc sub-agent nếu có) hoặc làm ngay sau phần đang dở, "
             "rồi trả lời cả hai trong câu trả lời cuối. Đừng bỏ qua tin này.\n")
@@ -83,7 +88,9 @@ class SteerInbox:
             self._sinks.pop(sid, None)
             if tag:
                 self._tags.pop(tag, None)
-            left = self._pending.pop(sid, [])
+            # A message sent to a /goal round (put goal=True) is never returned: the dashboard folds it into the
+            # goal's next round, so running it as its own turn would do it twice and race that round.
+            left = [i for i in self._pending.pop(sid, []) if not i.get("goal")]
         if token is not None:
             try:
                 _CURRENT.reset(token)
@@ -120,8 +127,10 @@ class SteerInbox:
             return bool(self._live.get(sid))
 
     # -- the owner sends --
-    def put(self, sid: str, text: str) -> Optional[dict]:
-        """Hold one message for the running turn of `sid`. None when no turn is running or too many are waiting."""
+    def put(self, sid: str, text: str, goal: bool = False) -> Optional[dict]:
+        """Hold one message for the running turn of `sid`. None when no turn is running or too many are waiting.
+
+        `goal`: typed while a /goal runs; the turn reads it as part of the goal and it never becomes its own turn."""
         text = str(text or "").strip()[:MAX_CHARS]
         if not text:
             return None
@@ -132,6 +141,8 @@ class SteerInbox:
             if len(q) >= MAX_PENDING:
                 return None
             item = {"id": next(self._ids), "text": text, "at": self._clock()}
+            if goal:
+                item["goal"] = True
             q.append(item)
             return dict(item)
 
@@ -153,7 +164,10 @@ class SteerInbox:
         return items
 
     def take_note(self, sid: str) -> str:
-        return note_for([i["text"] for i in self.take(sid)]) if sid else ""
+        if not sid:
+            return ""
+        items = self.take(sid)
+        return note_for([i["text"] for i in items], goal=any(i.get("goal") for i in items))
 
     def take_note_current(self) -> str:
         """For the API engines' tool loops: the note for the chat turn running in this context, "" outside one."""

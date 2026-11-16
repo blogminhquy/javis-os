@@ -78,7 +78,8 @@ window.JavisChatApi = {
   },
 };
 window.JavisSessions = { open: (sid) => { SID = sid; fire("javis:sessions-changed"); } };
-global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ block: "[MỤC TIÊU: x]\n\n" }) });
+let LAST_BODY = null;   // FormData of the last /slash/block request
+global.fetch = async (_u, o) => { LAST_BODY = o && o.body; return { ok: true, status: 200, json: async () => ({ block: "[MỤC TIÊU: x]\n\n" }) }; };
 function fire(ev) { (handlers[ev] || []).forEach((f) => f()); }
 const L = require("../../dashboard/chat-lenh.js");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -122,17 +123,15 @@ function xongVong(sid, marker) { L.ghiNhan(sid, marker, false); L.hetLuot(sid); 
   await sleep(350);
   check("chạy tiếp từ thanh: vòng 4 đi luôn", g.state === "running" && SENT.length === 4 && g.vong === 4);
 
-  // Gõ chen ngang một tin thường.
-  L.chenNgang("s1");
-  check("gõ chen ngang: tạm dừng kèm câu báo", g.state === "paused" && /vừa nhắn/.test(lastNote()));
-  xongVong("s1", null);   // lượt trả lời tin của người dùng
+  // 2026-11-16: typing a normal message between rounds no longer pauses the goal; it joins the goal.
+  L.chenNgang("s1", "thêm cả đơn của chi nhánh 2");
+  check("gõ chen ngang: mục tiêu VẪN chạy, câu báo đã gộp", g.state === "running" && /gộp vào mục tiêu/.test(lastNote()));
+  check("gõ chen ngang: tin được giữ trong mục tiêu, thêm một vòng", g.them.length === 1 && /chi nhánh 2/.test(g.them[0]) && g.toiDa === 5);
+  xongVong("s1", null);   // lượt trả lời tin của người dùng (không có marker: không dùng để quyết định)
   await sleep(350);
-  check("lượt của tin người dùng không làm mục tiêu chết", G.theoSid("s1") === g && SENT.length === 4);
-
-  // Tạm dừng từ thanh khi không có lượt nào chạy, rồi chạy tiếp: vòng 5 (vòng cuối).
-  L.goalAct("resume", g.id);
-  await sleep(350);
-  check("chạy tiếp: vòng 5", SENT.length === 5 && g.vong === 5);
+  check("lượt của tin người dùng xong: vòng 5 tự đi, không cần bấm chạy tiếp", G.theoSid("s1") === g && SENT.length === 5 && g.vong === 5);
+  check("vòng sau mang theo lời bổ sung trong khối", /chi nhánh 2/.test(String(LAST_BODY && LAST_BODY.get("them"))));
+  check("kho giữ lời bổ sung qua tải lại trang", G.tuKho(G.veKho([g]))[0].them[0] === g.them[0]);
   L.goalAct("pause", g.id);
   xongVong("s1", { done: true });
   check("đang tạm dừng mà vòng báo đạt: báo ngay và gỡ mục tiêu", G.theoSid("s1") === null && /Đã đạt mục tiêu sau 5 vòng/.test(lastNote()));
@@ -169,6 +168,34 @@ function xongVong(sid, marker) { L.ghiNhan(sid, marker, false); L.hetLuot(sid); 
   check("hết vòng sau tải lại trang: dừng và báo, không gửi vòng thứ 6", SENT.length === n0 && G.theoSid("s1") === null && /Dừng sau 5 vòng/.test(lastNote()));
 
   check("/goal clear khi không có mục tiêu", (await L.chay("goal", "clear"), /Hiện không có mục tiêu/.test(lastNote())));
+
+  // 2026-11-16: the owner types while a round RUNS (app.js sends it to that round as a goal steer).
+  SID = "s5"; fire("javis:sessions-changed");
+  await L.chay("goal", "báo cáo doanh thu tuần");
+  const q = G.theoSid("s5");
+  const nq = SENT.length;
+  RUNNING.s5 = true;
+  check("gõ lúc vòng đang chạy: gộp vào mục tiêu, không tạm dừng", L.gopBoSung("s5", "tính cả kênh Shopee") === true && q.state === "running" && q.moi === true && q.them[0] === "tính cả kênh Shopee");
+  check("không có mục tiêu thì không gộp", L.gopBoSung("khong-co", "x") === false);
+  RUNNING.s5 = false;
+  xongVong("s5", { done: true });   // the round said done but never read the addition
+  await sleep(350);
+  check("vòng báo đạt mà chưa đọc lời bổ sung: vẫn chạy thêm một vòng", G.theoSid("s5") === q && SENT.length === nq + 1 && q.vong === 2 && q.moi === false);
+  check("vòng thêm mang lời bổ sung", /Shopee/.test(String(LAST_BODY && LAST_BODY.get("them"))));
+  RUNNING.s5 = true;
+  L.gopBoSung("s5", "gửi qua email");
+  L.boSungDaDoc("s5");   // steer_read: the round took it in
+  RUNNING.s5 = false;
+  xongVong("s5", { done: true });
+  check("vòng đã đọc lời bổ sung rồi báo đạt: mục tiêu xong", G.theoSid("s5") === null && /Đã đạt mục tiêu/.test(lastNote()));
+  check("hàm thuần: moi bỏ qua cổng không tiến triển", L.quyetDinhVongTiep({ vong: 2, toiDa: 5, left: "a", moi: true }, { marker: { done: false, left: "a" } }).act === "tiep"
+    && L.quyetDinhVongTiep({ vong: 2, toiDa: 5, left: "a" }, { marker: { done: false, left: "a" } }).ly === "khong_tien_trien");
+  const many = G.them({ sid: "m", dk: "x", toiDa: 5 });
+  for (let i = 0; i < 12; i++) L.gopBoSung("m", "lời " + i);
+  check("lời bổ sung giữ tối đa 5, trần cứng 10 vòng", many.them.length === 5 && many.them[4] === "lời 11" && many.toiDa === 5);
+  many.vong = 9; L.gopBoSung("m", "nữa"); const td = many.toiDa; many.vong = 10; L.gopBoSung("m", "nữa");
+  check("thêm vòng không vượt 10", td === 10 && many.toiDa === 10);
+  window.JavisGoals.xoa(many.id);
 
   // ---- 4. chỗ nối trong app.js, index.html, console.js ----
   const app = fs.readFileSync(path.join(ROOT, "dashboard/app.js"), "utf8");

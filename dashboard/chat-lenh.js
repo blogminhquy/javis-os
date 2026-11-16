@@ -18,6 +18,9 @@
   // Trần số vòng của /goal. Model đề xuất "chưa xong", MÃ quyết định có chạy tiếp không - nếu không
   // có trần thì một mục tiêu không bao giờ đạt được là một vòng lặp đốt token vô hạn.
   var GOAL_TOI_DA = 5;   // 0.173.1: five rounds, then stop and say why (owner request)
+  // 2026-11-16: an owner message typed during a goal buys the goal one more round, never past this hard cap.
+  var GOAL_TRAN = 10;
+  var GOAL_THEM_TOI_DA = 5;   // owner additions a goal keeps (oldest drop first), same as the server block
   var GOAL_RE = /<!--\s*JAVIS_GOAL:\s*([\s\S]*?)\s*-->/g;
   // Hidden line the server puts inside the /goal block of an automatic round (lenh_he_thong.GOAL_ROUND_TAG).
   var ROUND_RE = /<!--\s*JAVIS_GOAL_ROUND:\s*(\{[\s\S]*?\})\s*-->/;
@@ -102,12 +105,14 @@
     if (ket.hoiLai) return { act: "dung", ly: "hoi_lai" };
     var m = ket.marker;
     if (!m) return { act: "dung", ly: "khong_bao" };
-    if (m.done) return { act: "dung", ly: "dat" };
+    // st.moi: the owner added to the goal during this round and the round never read it (2026-11-16). Its "done"
+    // and its "same as last round" were judged without that addition, so one more round runs with it.
+    if (m.done && !st.moi) return { act: "dung", ly: "dat" };
     // Blocked: only the owner can unblock it, so another round would just repeat the same failure.
     if (m.blocked) return { act: "dung", ly: "khong_lam_duoc", why: m.blocked };
     if (st.vong >= st.toiDa) return { act: "dung", ly: "het_vong" };
     // Hai vòng liền báo Y HỆT phần còn thiếu = không tiến triển: chạy thêm chỉ tốn token.
-    if (st.left && m.left && chuanSo(st.left) === chuanSo(m.left)) {
+    if (!st.moi && st.left && m.left && chuanSo(st.left) === chuanSo(m.left)) {
       return { act: "dung", ly: "khong_tien_trien", left: m.left };
     }
     return { act: "tiep", left: m.left || "" };
@@ -424,7 +429,9 @@
   // ---- /goal ----
   // 0.290.0: mỗi hội thoại một mục tiêu, giữ trong kho của chat-goal.js (thanh mục tiêu vẽ từ đó). Rời chat
   // thì mục tiêu CHỜ chứ không tắt; nó chỉ chạy tiếp khi chat của nó đang mở (vòng tự động là trình duyệt
-  // gửi tin vào khung đang xem). Bấm Dừng hay gõ chen ngang thì TẠM DỪNG, bấm chạy tiếp trên thanh là đi tiếp.
+  // gửi tin vào khung đang xem). Bấm Dừng thì TẠM DỪNG, bấm chạy tiếp trên thanh là đi tiếp.
+  // 2026-11-16 (owner): typing while the goal runs no longer pauses it. The message joins the goal: the running round
+  // reads it at its next step (steer, goal mode), and every later round carries it in its block (g.them).
   function kho() {
     if (typeof window !== "undefined" && window.JavisGoals) return window.JavisGoals;
     try { return require("./chat-goal.js"); } catch (e) { return null; }
@@ -477,16 +484,42 @@
     choId = null;
   }
 
-  // Người dùng gõ một tin thường (không phải vòng của /goal) trong lúc mục tiêu đang chạy: tin của họ lên
-  // trước. Chạy tiếp vòng tự động ngay dưới câu họ vừa nói là giành lời của họ, nên tạm dừng, không xoá.
-  function chenNgang(sid) {
+  // Fold one owner message into goal `g`: kept for every later round (newest last), and one more round allowed.
+  function themVaoMucTieu(g, text) {
+    var s = String(text || "").replace(/\s+/g, " ").trim().slice(0, 300);
+    if (!s) return;
+    g.them = (g.them || []).concat([s]).slice(-GOAL_THEM_TOI_DA);
+    g.toiDa = Math.min(GOAL_TRAN, Math.max(g.toiDa, g.vong + 1));
+  }
+
+  // The owner typed while a round of the goal is RUNNING (app.js sent it to that round as a goal steer). The goal
+  // goes on: the round reads it at its next step, and later rounds carry it. Until the round reads it (boSungDaDoc),
+  // its "done" does not end the goal. False when no goal runs in that chat.
+  function gopBoSung(sid, text) {
+    var g = mucTieuCua(sid);
+    if (!g || g.state !== "running") return false;
+    themVaoMucTieu(g, text);
+    g.moi = true;
+    kho().luu();
+    return true;
+  }
+
+  // steer_read of chat `sid`: the running round took the owner's message in, so its verdict covers it.
+  function boSungDaDoc(sid) {
+    var g = mucTieuCua(sid);
+    if (g) g.moi = false;
+  }
+
+  // The owner typed while the goal runs but NO round is running (between rounds, or the goal waits): their message
+  // goes as a normal turn. The goal joins it in and its next round goes right after that turn (hetLuot), no pause.
+  function chenNgang(sid, text) {
     var g = mucTieuCua(sid);
     if (!g || g.state !== "running") return;
-    kho().tamDung(g);
+    themVaoMucTieu(g, text);
     g.tiepNgay = true;
     g.xongLuot = false;
     kho().luu();
-    ghi(tw("lenh.goal_paused_takeover"));
+    ghi(tw("lenh.goal_merged"));
   }
 
   // Nút Dừng của khung chat (stopCurrent): lượt bị cắt giữa chừng, mục tiêu tạm dừng chứ không mất.
@@ -528,10 +561,13 @@
     // Trần vòng giữ cả khi vòng sau đi thẳng (sau tạm dừng, sau tải lại trang) không qua quyetDinhVongTiep.
     if (g.vong >= g.toiDa) { ketThucMucTieu(g); return ghi(tw("lenh.goal_max", { n: g.toiDa })); }
     g.vong += 1;
-    var khoi = await layKhoi({ kind: "goal", dk: g.dk, vong: g.vong, toi_da: g.toiDa, left: g.left || "" });
+    var khoi = await layKhoi({ kind: "goal", dk: g.dk, vong: g.vong, toi_da: g.toiDa, left: g.left || "",
+                               them: JSON.stringify(g.them || []) });
     if (k.theoId(g.id) !== g || g.state !== "running") { g.vong -= 1; g.tiepNgay = true; return; }   // xoá hay dừng lúc chờ khối
     if (!khoi) { ketThucMucTieu(g); return ghi(tw("lenh.err_net")); }
-    if (a.sid() !== g.sid) { g.vong -= 1; g.tiepNgay = true; return; }
+    // Left the chat, or the owner sent a message while the block loaded (its turn runs now): go after that turn.
+    if (a.sid() !== g.sid || a.dangChay(g.sid)) { g.vong -= 1; g.tiepNgay = true; return; }
+    g.moi = false;   // this round's block carries every owner addition
     k.luu();
     // No local note here: the round message itself is drawn as the collapsible round line (app.js).
     a.send(tw("lenh.goal_cont"), { prefix: khoi, goal: true });
@@ -584,7 +620,8 @@
       kho().luu();
       return;
     }
-    if (g.tiepNgay) { g.ket = null; return; }   // đang chờ đi vòng sau (lượt vừa rồi là tin của người dùng)
+    // Waiting to go to the next round (the turn that just ended was the owner's message): go now if it runs.
+    if (g.tiepNgay) { g.ket = null; thuTiep(g); return; }
     g.xongLuot = true;
     if (a.dangChay(sid)) return;                // đã có lượt mới chạy (tin chen ngang)
     // Tạm dừng nhưng chat đang mở: vẫn quyết định ngay, để "đã đạt" hay "không làm được" được báo liền.
@@ -655,6 +692,8 @@
     chay: chay,
     daGui: daGui,
     chenNgang: chenNgang,
+    gopBoSung: gopBoSung,
+    boSungDaDoc: boSungDaDoc,
     dungMucTieu: dungMucTieu,
     ghiNhan: ghiNhan,
     baoLoi: baoLoi,
