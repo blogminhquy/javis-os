@@ -2034,6 +2034,7 @@
   "sess.proj_all": "All conversations",
   "sess.proj_none": "Ungrouped",
   "sess.proj_pick_title": "Choose a conversation group",
+  "sess.proj_unread": "Unread replies",
   "sess.proj_clear_title": "Clear the filter, show all",
   "sess.proj_add_title": "Create a new project",
   "sess.proj_acts": "Project actions",

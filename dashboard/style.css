@@ -2488,6 +2488,8 @@ textarea.sug-ghosted::placeholder { color: transparent; }
 .cs-proj-cur:hover { border-color: var(--info-line); color: var(--text); }
 .cs-proj-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-proj-caret { flex: none; opacity: .6; display: inline-flex; }
+.cs-proj-unread { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+.cs-proj-unread[hidden] { display: none; }
 .cs-proj-x, .cs-proj-add { flex: none; width: 30px; height: 30px; border-radius: 8px;
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
   border: 1px solid var(--border); background: transparent; color: var(--text3); }

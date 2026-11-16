@@ -1723,13 +1723,19 @@ class SessionStore:
         return pid
 
     def list_projects(self, brain: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Project kèm số hội thoại đang nằm trong đó (đếm cả cuộc đã cất vào kho lưu:
-        con số này để người dùng biết xoá project sẽ gỡ nhãn bao nhiêu cuộc)."""
+        """Projects with total chats and unread chats visible in the dashboard history.
+
+        Total chats include archived ones because deleting a project unlinks those too.
+        Unread counts use the history's channel/archive rules and cover every page.
+        """
         where_sql, params = ("WHERE p.brain = ?", (brain,)) if brain else ("", ())
+        unread_where, unread_params = self._list_where(None, False, None, None, None, False)
         rows = self._read(
             f"""
             SELECT p.id, p.name, p.icon, p.brain, p.pinned, p.created_at, p.updated_at,
                    (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id) AS session_count,
+                   (SELECT COUNT(*) FROM sessions s {unread_where}
+                    AND s.project_id = p.id AND {UNREAD_SQL}) AS unread_count,
                    (SELECT COUNT(*) FROM project_files f WHERE f.project_id = p.id) AS file_count,
                    (SELECT COUNT(*) FROM project_links l WHERE l.project_id = p.id) AS link_count,
                    -- Chỉ CÓ hay KHÔNG, không kéo cả 4000 ký tự về cho một danh sách bên trái.
@@ -1742,7 +1748,7 @@ class SessionStore:
             -- pinned first, then the most recent.
             ORDER BY (po.pos IS NULL), po.pos, p.pinned DESC, p.updated_at DESC, p.rowid DESC
             """,
-            params,
+            (*unread_params, *params),
         )
         return [dict(r) for r in rows]
 
