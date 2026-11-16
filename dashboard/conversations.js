@@ -2647,7 +2647,7 @@
         infoBody(esc(window.t("ht.zernio.webhook_help")) + '<br>' + esc(r.signature_header) + ': ' + esc(r.signature_algorithm)) +
         '<code>' + esc(r.webhook_url) + '</code><div>' + esc(window.t("ht.zernio.events")) + ': <code>' +
         esc(r.events.join(", ")) + '</code></div>' +
-        (r.https ? "" : '<div class="cb-warn">' + esc(window.t("ht.wh_can_https")) + '</div>');
+        (r.https ? "" : '<div class="cb-warn">' + esc(window.t("ht.zernio.https")) + '</div>');
     }).catch(function (e) { if (host._zernioForm === identity) status(e.message); });
     return { token: function () {
       if (account && !dirty) return "";

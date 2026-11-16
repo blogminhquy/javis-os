@@ -7449,6 +7449,7 @@
   "sec.d_pw": "bằng mật khẩu",
   "sec.d_pw_2fa": "mật khẩu + 2FA",
   "sec.d_setup": "lần đầu tạo",
+  "ht.zernio.https": "Mở Javis qua HTTPS rồi mở lại form để lấy URL webhook công khai.",
   "ht.zernio.connection": "Kết nối Zernio",
   "ht.zernio.manual": "Nhập API key riêng",
   "ht.zernio.api_key": "API key",

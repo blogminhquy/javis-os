@@ -7449,6 +7449,7 @@
   "sec.d_pw": "with password",
   "sec.d_pw_2fa": "password + 2FA",
   "sec.d_setup": "first setup",
+  "ht.zernio.https": "Open Javis through HTTPS, then reopen this form to get its public webhook URL.",
   "ht.zernio.connection": "Zernio connection",
   "ht.zernio.manual": "Enter an API key",
   "ht.zernio.api_key": "API key",
