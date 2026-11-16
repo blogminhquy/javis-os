@@ -1336,13 +1336,21 @@ class GrokCLI:
 
         threading.Thread(target=doc_luong, name=f"javis-grok-{self.tag}", daemon=True).start()
 
+        import text_breaks
+        sau_tool = False   # a tool call came since the last text: the next text starts a new paragraph
         while True:
             ev = await hang.get()
             if ev is HET:
                 break
             _n = len(cac_manh)
             for ra in self._doi_su_kien(ev, cac_manh, chan):
+                if ra.get("type") == "tool_call":
+                    sau_tool = True
                 yield ra
+            # 2026-11-16: text before and after a tool call used to reach the chat glued together.
+            if sau_tool and len(cac_manh) > _n and "_raw" not in ev:
+                text_breaks.break_after_tool(cac_manh, _n)
+                sau_tool = False
             # 0.438.6: chữ xem trước, ra ngay từng mẩu như Codex/Claude Code. Câu trả lời thật vẫn
             # là sự kiện `final` cuối lượt; nơi nào không biết `delta` thì bỏ qua (bot, việc nền).
             # Dòng không phải JSON (`_raw`) có thể là log lọt ra stdout nên không hiện trước.

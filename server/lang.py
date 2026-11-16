@@ -488,6 +488,10 @@ _PIN_REASON = {
 # about 80% Vietnamese words. A model reads that as a hint; this line says it is none.
 _NOT_A_HINT = ("These rules are in English, while tool results, the brain and Javis's own labels may be in "
                "Vietnamese or another language. That is NEVER a hint about the reply language.")
+# 2026-11-16 (owner's screenshot): on a long technical turn, Claude Code's notes between tool calls drifted into English
+# for a Vietnamese user. The rule said "the WHOLE reply", and a model reads its working notes as scratch, not the reply.
+_EVERY_LINE = ("This covers every line the user sees: the notes you write between tool calls while you work, status "
+               "lines and the final answer. Code, logs and tool results in another language never change it.")
 _KEEP_AS_IS = ("Do not translate: proper nouns, file paths, tool names, brain names, code blocks, and "
                "verbatim excerpts from the brain or a tool result. Content in another language is read "
                "as it is; only the REPLY follows this block.")
@@ -527,6 +531,7 @@ def khoi_ngon_ngu(quyet_dinh: LangDecision) -> str:
             "also save it as a `preference` memory.",
             "Write the WHOLE reply in that one language, headings, labels, units, warnings and "
             "questions back included. Do not mix two languages in one reply.",
+            _EVERY_LINE,
             "A message too short to tell (\"ok\", \"do 2\") keeps the language already in use in "
             "this conversation.",
             _NOT_A_HINT,
@@ -546,6 +551,7 @@ def khoi_ngon_ngu(quyet_dinh: LangDecision) -> str:
     dong += [
         f"Write the WHOLE reply in {l.english}, headings, labels, units, warnings and "
         "questions back included.",
+        _EVERY_LINE,
         _NOT_A_HINT,
         _KEEP_AS_IS,
     ]

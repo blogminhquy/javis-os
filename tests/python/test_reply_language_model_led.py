@@ -83,8 +83,13 @@ pinned = lang.khoi_ngon_ngu(lang.resolve(turn_text="please answer in English", u
 check("a direct command is named, with why", "Reply language: English (en), asked for in this message." in pinned, pinned)
 check("...and the person can still switch", "If the user now asks for another language, use that one." in pinned)
 check("...ending with the nudge in that language", pinned.rstrip().endswith("Answer in English."))
+# 2026-11-16, owner's screenshot: a Vietnamese user's Claude Code turn wrote its notes between tool calls in English.
 for name, text in (("auto", auto), ("pinned", pinned)):
     check(f"{name} block has no em or en dash", "—" not in text and "–" not in text)
+    check(f"{name} block covers the notes written between tool calls",
+          "the notes you write between tool calls" in text and "Code, logs and tool results" in text, text)
+check("the closing line of the channel block says the same",
+      "your notes between tool calls included" in channel_context.LANGUAGE_LAST_WORD)
 
 # ---- 3. the Vietnamese tail ends with the language rule ----
 block = channel_context.build_channel_block("dashboard", {"session_id": "s"}, brain_root="/tmp/b", session_in_turn=True)

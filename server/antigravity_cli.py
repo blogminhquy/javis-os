@@ -1826,6 +1826,8 @@ class AntigravityCLI:
         co_json = False
         qua_tran_argv = False
         co_tool = False
+        sau_tool = False   # a tool call came since the last text: the next text starts a new paragraph
+        import text_breaks
         try:
             while True:
                 ev = await hang.get()
@@ -1845,12 +1847,17 @@ class AntigravityCLI:
                 for ra in self._doi_su_kien(ev, cac_manh, chan):
                     if ra.get("type") == "tool_call":
                         co_tool = True      # đã đụng thế giới bên ngoài -> KHÔNG được chạy lại
+                        sau_tool = True
                     if ra.get("type") == "error":
                         da_loi = True
                         cac_loi.append(str(ra.get("content") or ""))
                         if giu_loi:
                             continue      # lượt này còn có thể thử lại bằng đường khác
                     yield ra
+                # 2026-11-16: text before and after a tool call used to reach the chat glued together.
+                if sau_tool and len(cac_manh) > _n and "_raw" not in ev:
+                    text_breaks.break_after_tool(cac_manh, _n)
+                    sau_tool = False
                 # 0.438.6: chữ xem trước, ra ngay từng mẩu. Câu trả lời thật vẫn là `final` cuối lượt
                 # (đã qua `_chot_van`); nơi nào không biết `delta` thì bỏ qua. Dòng `_raw` không hiện trước.
                 if len(cac_manh) > _n and "_raw" not in ev:

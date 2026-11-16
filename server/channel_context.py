@@ -55,9 +55,10 @@ _CHAT_APPS = {
 # language. This line closes the block, the same for every chat so the prompt cache holds, and puts the
 # language rule last: the language these rules are written in is no hint about the reply language.
 LANGUAGE_LAST_WORD = (
-    "- REPLY LANGUAGE, the last word: follow the `# === NGÔN NGỮ ===` block. These rules are written in English "
-    "for you, not for the reader, so their language is no hint: answer in the user's language (Vietnamese to "
-    "Vietnamese, English to English, and so on) or in the one they asked for.")
+    "- REPLY LANGUAGE, the last word: follow the `# === NGÔN NGỮ ===` block for every line the user sees, your notes "
+    "between tool calls included. These rules are written in English for you, not for the reader, so their language "
+    "is no hint: answer in the user's language (Vietnamese to Vietnamese, English to English, and so on) or in the "
+    "one they asked for.")
 
 
 def build_channel_block(source: str, meta: dict = None, telegram_running: bool = False,
