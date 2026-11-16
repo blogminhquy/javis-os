@@ -34318,7 +34318,12 @@ async def diag_ws_drops(body: dict = Body(...)):
 # Remote access through the built-in Cloudflare Tunnel (0.242.0): routes/remote_access.py, remote_tunnel.py.
 # Registered at the end of the file so the route table only grows at the end.
 import routes.remote_access as remote_access_routes  # noqa: E402
-remote_access_routes.register(app, remote_access_routes.RemoteAccessDeps(browser_session_error=_doi_phien_that))
+import messenger_tunnel_sync  # noqa: E402
+# A quick link changes whenever cloudflared restarts (also when the /ready watchdog restarts it), so Messenger
+# callbacks registered on the old link are moved to the new one (2026-11-17).
+remote_access_routes.register(app, remote_access_routes.RemoteAccessDeps(
+    browser_session_error=_doi_phien_that,
+    url_listeners=(messenger_tunnel_sync.on_quick_url(_ms_verify_token),)))
 
 
 @app.get("/voice/elevenlabs/voices")

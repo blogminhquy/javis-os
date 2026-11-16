@@ -18,6 +18,13 @@ Three modes, picked in Settings:
 Javis downloads the right `cloudflared` build for the machine on first use (Windows x64/ARM, macOS Intel/Apple
 Silicon, Linux), keeps it in <state>/bin, starts it with the server and restarts it when it drops.
 
+A cloudflared that is still running is not always connected (2026-11-17): after the Mac slept for 26 minutes the
+process stayed up, but its /ready endpoint answered 503 with readyConnections 0 and the quick hostname was gone from
+DNS, so Meta's webhooks went nowhere until someone killed it by hand. The supervisor now gives every run its own
+--metrics port, asks /ready every few seconds, and restarts cloudflared once it has been unready for about 1.5 minutes.
+A quick tunnel comes back on a new address, so URL listeners (add_url_listener) get the new link to re-point
+webhooks that were registered on the old one.
+
 Safety rails, because a tunnel puts a dashboard that can run shell commands on the Internet:
 - The tunnel only starts while an admin password is set, and the supervisor kills it within seconds if the password
   goes away (reset-auth). Without that, the first stranger to open the link would get the "create account" page.
@@ -59,6 +66,16 @@ CONNECTED_MARKERS = ("Registered tunnel connection", "Connection registered")
 BACKOFF = (3, 10, 30, 60)
 STABLE_AFTER = 120
 PASSWORD_CHECK_EVERY = 5
+
+# Health of a live cloudflared, read from its metrics server (`--metrics 127.0.0.1:<port>`, GET /ready: 200 while at
+# least one connection to Cloudflare is up, 503 with readyConnections 0 when none is). No check during the first
+# READY_GRACE seconds of a run (it is still connecting), then one every READY_CHECK_EVERY seconds; a run that stays
+# unready for UNREADY_RESTART_AFTER seconds over at least UNREADY_MIN_PROBES probes in a row is restarted.
+READY_GRACE = 45
+READY_CHECK_EVERY = 15
+UNREADY_RESTART_AFTER = 90
+UNREADY_MIN_PROBES = 3
+READY_TIMEOUT = 5
 
 
 def section(cfg=None) -> dict:
@@ -265,6 +282,30 @@ def service_points_here(service: str) -> bool:
     return (int(port) if port else 80) == local_port()
 
 
+def free_port() -> int:
+    """A loopback port nothing listens on right now, for cloudflared's metrics server.
+
+    Chosen per run rather than fixed: cloudflared's own default (20241-20245) may already be taken by a connector the
+    owner runs as a service, and then ours would answer for theirs."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def probe_ready(port: int, timeout: float = READY_TIMEOUT):
+    """HTTP status of cloudflared's /ready on `port` (200 connected, 503 not), or None when nothing answered."""
+    import urllib.error
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{int(port)}/ready", timeout=timeout) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------- stray process from an earlier run
 
 def _pid_file() -> Path:
@@ -414,10 +455,12 @@ class TunnelManager:
     In tailscale mode the same thread switches `tailscale serve` on, watches the password and the Tailscale login,
     and switches it off again."""
 
-    def __init__(self, binary_finder=None, installer=None, tailscale_finder=None):
+    def __init__(self, binary_finder=None, installer=None, tailscale_finder=None, ready_probe=None):
         self._find = binary_finder or find_binary
         self._install = installer or install_binary
         self._ts_find = tailscale_finder or find_tailscale
+        self._probe = ready_probe or probe_ready
+        self._url_listeners = []
         self._serving_bin = ""      # tailscale binary that currently has our serve entry on
         self._ts_cache = (0.0, None)
         self._lock = threading.RLock()
@@ -466,6 +509,23 @@ class TunnelManager:
         kill_stray()
         if enabled():
             self.start()
+
+    def add_url_listener(self, fn):
+        """Call fn(url) in a background thread each time a quick tunnel is up on its link (once per cloudflared run).
+
+        A quick link changes on every restart, including the restarts the /ready watchdog makes, so anything registered
+        on the old link elsewhere (the Meta app's webhook callback) has to follow it."""
+        if fn not in self._url_listeners:
+            self._url_listeners.append(fn)
+
+    def _announce(self, url: str):
+        for fn in list(self._url_listeners):
+            def run(fn=fn):
+                try:
+                    fn(url)
+                except Exception as e:
+                    print(f"[remote tunnel] URL listener failed: {type(e).__name__}: {e}", file=sys.stderr)
+            threading.Thread(target=run, name="remote-tunnel-url", daemon=True).start()
 
     def tailscale_binary(self) -> str:
         return self._ts_find()
@@ -546,13 +606,16 @@ class TunnelManager:
                                        "Cloudflare could not hand out a quick link (network blocked or Cloudflare "
                                        "busy); Javis will retry.")
 
-    def _command(self, binary: str, sec: dict):
+    def _command(self, binary: str, sec: dict, metrics_port: int = 0):
         env = dict(os.environ)
         env.pop("TUNNEL_TOKEN", None)
+        base = [binary, "tunnel", "--no-autoupdate"]
+        if metrics_port:
+            base += ["--metrics", f"127.0.0.1:{metrics_port}"]
         if self.mode == "token":
             env["TUNNEL_TOKEN"] = str(sec.get("token") or "")
-            return [binary, "tunnel", "--no-autoupdate", "run"], env
-        return [binary, "tunnel", "--no-autoupdate", "--url", local_target()], env
+            return base + ["run"], env
+        return base + ["--url", local_target()], env
 
     def _wait(self, stop: threading.Event, seconds: float) -> bool:
         """Sleep, waking early on stop. True when asked to stop."""
@@ -594,7 +657,11 @@ class TunnelManager:
                     continue
             if stop.is_set():
                 break
-            cmd, env = self._command(binary, sec)
+            try:
+                metrics_port = free_port()
+            except OSError:
+                metrics_port = 0
+            cmd, env = self._command(binary, sec, metrics_port)
             self.state, self.url, self.ingress, self.since = "starting", "", [], 0.0
             started = time.time()
             try:
@@ -616,12 +683,21 @@ class TunnelManager:
             reader = threading.Thread(target=self._read, args=(proc,), name="remote-tunnel-log", daemon=True)
             reader.start()
             last_check = time.time()
+            watch = _ReadyWatch()
+            announced = False
             while proc.poll() is None and not stop.is_set():
                 if self._wait(stop, 1):
                     break
                 if time.time() - last_check >= PASSWORD_CHECK_EVERY:
                     last_check = time.time()
                     if not cfgmod.auth_enabled() or not enabled():
+                        break
+                if not announced and self.mode == "quick" and self.state == "running" and self.url:
+                    announced = True
+                    self._announce(self.url)
+                now = time.time()
+                if metrics_port and now - started >= READY_GRACE and now - watch.last >= READY_CHECK_EVERY:
+                    if self._check_ready(watch, metrics_port, stop):
                         break
             self._kill_proc()
             reader.join(3)
@@ -646,6 +722,34 @@ class TunnelManager:
         # A thread that was replaced (Reconnect during a slow download) must not paint "off" over its successor.
         if stop is self._stop and self.state != "error":
             self.state = "off"
+
+    def _check_ready(self, watch: "_ReadyWatch", port: int, stop: threading.Event) -> bool:
+        """One /ready probe. True when cloudflared has been unready long enough to restart it."""
+        code = self._probe(port)
+        now = watch.last = time.time()
+        if stop.is_set():
+            return False
+        if code == 200:
+            watch.answered = True
+            watch.bad_since, watch.bad_count = 0.0, 0
+            if self.state == "waiting" and self.error == _lost_text():
+                self.state, self.error = "running", ""
+            return False
+        if code is None and not watch.answered:
+            # The metrics server never came up (or an old cloudflared without it): no evidence the tunnel is down.
+            return False
+        watch.answered = watch.answered or code is not None
+        watch.bad_count += 1
+        if not watch.bad_since:
+            watch.bad_since = now
+        if self.state == "running":
+            self.state, self.error = "waiting", _lost_text()
+        if watch.bad_count >= UNREADY_MIN_PROBES and now - watch.bad_since >= UNREADY_RESTART_AFTER:
+            self.log.append(f"Javis: /ready answered {code or 'nothing'} for {int(now - watch.bad_since)}s, "
+                            "restarting cloudflared")
+            self.error = _lost_text()
+            return True
+        return False
 
     def _still_allowed(self) -> bool:
         sec = section()
@@ -724,6 +828,21 @@ class TunnelManager:
                 self._note(line)
         except Exception:
             pass
+
+
+class _ReadyWatch:
+    """/ready bookkeeping for one cloudflared run."""
+
+    def __init__(self):
+        self.last = 0.0         # time of the last probe
+        self.answered = False   # the metrics server answered at least once this run
+        self.bad_since = 0.0    # start of the current unready streak
+        self.bad_count = 0      # probes in that streak
+
+
+def _lost_text() -> str:
+    return localefmt.chu("cloudflared vẫn chạy nhưng mất kết nối tới Cloudflare, Javis sẽ khởi động lại nó.",
+                         "cloudflared is running but lost its connection to Cloudflare; Javis will restart it.")
 
 
 MANAGER = TunnelManager()

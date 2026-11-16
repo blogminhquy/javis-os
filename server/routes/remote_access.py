@@ -20,6 +20,9 @@ class RemoteAccessDeps:
     """`browser_session_error(request)` returns a 403 response when the caller is not a signed-in browser (an API
     token must not be able to put the machine on the Internet), else None. It lives in main as _doi_phien_that."""
     browser_session_error: Callable
+    # Called with each new quick-tunnel link (remote_tunnel.TunnelManager.add_url_listener), e.g. to move Meta's
+    # webhook callback off the old one.
+    url_listeners: tuple = ()
 
 
 _DEPS: RemoteAccessDeps = None
@@ -99,6 +102,8 @@ async def _shutdown():
 def register(app, deps: RemoteAccessDeps):
     global _DEPS
     _DEPS = deps
+    for fn in deps.url_listeners or ():
+        remote_tunnel.MANAGER.add_url_listener(fn)
     router = _make_router()
     app.include_router(router)
     # Starts the tunnel after a reboot or an update when the owner left it on; stops it with the server.
