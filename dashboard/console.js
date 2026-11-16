@@ -5476,10 +5476,14 @@
   }
 
   // Kết nối lại GIỮ NGUYÊN connection (id, label, quyền, deny) - không xoá tạo lại.
-  function reconnectAccount(el, c, con) {
+  // `ctx` comes only from the account menu ("sign in again / change key"): there an OAuth account whose form takes a
+  // client ID and secret (every Google OAuth service) opens a form to change or borrow the key first. The red
+  // "Reconnect" chip passes no ctx and keeps its one-tap sign-in.
+  function reconnectAccount(el, c, con, ctx) {
     // Kết nối TỰ THÊM không có ô key khai trong catalog để "thay key", nên kết nối lại chính là
     // mở lại form của nó ở chế độ Sửa (đổi URL, header, lệnh, env).
     if ((c.connector_id || "custom") === "custom" && c.auth !== "oauth") { closeConnModal(); return openMcpForm(el, c); }
+    if (ctx && con && con.auth_type === "oauth" && hasClientFields(con)) return openOauthReKey(el, c, con, ctx);
     if ((c.auth || "") === "oauth" || (con && con.auth_type === "oauth")) {
       postJson("/connect/oauth/start", { id: c.id }).then(r => {
         if (!r || r.ok === false) { alert(window.t("cs.cn_signin_fail") + " " + ((r && r.error) || window.t("cs.cn_error_low"))); return; }
@@ -5489,31 +5493,68 @@
       });
       return;
     }
-    openReKey(el, c, con);
+    openReKey(el, c, con, ctx);
   }
-  function openReKey(el, c, con) {
+  // Donors for a form that changes THIS account's key: every other account of the family.
+  function otherAccounts(ctx, c) {
+    return ctx ? { conns: (ctx.conns || []).filter(x => x.id !== c.id), byId: ctx.byId } : null;
+  }
+  function openReKey(el, c, con, ctx) {
     const flds = (con && con.fields) || [];
     const rows = flds.map(f =>
       '<label class="mcp-lb">' + esc(f.label || f.key)
       + '<input class="js-input" data-rk="' + esc(f.key) + '" placeholder="' + esc(window.t("cs.cn_keep_old_ph")) + '"'
       + ((/secret|password|token|key/i.test(f.key)) ? ' type="password"' : "") + '></label>').join("");
     const m = connModal(mHead(esc(window.t("cs.cn_rekey_head")) + " " + esc(c.label || ""))
-      + '<div class="conn-form"><div class="mp-note">' + esc(window.t("cs.cn_rekey_note")) + '</div>'
+      + '<div class="conn-form">' + (con ? reuseHtml(reuseDonors(con, otherAccounts(ctx, c)), con) : "")
+      + '<div class="mp-note">' + esc(window.t("cs.cn_rekey_note")) + '</div>'
       + (rows || '<div class="mp-note">' + esc(window.t("cs.cn_rekey_nofield")) + '</div>')
       + '<div class="mp-note" id="rkErr" style="color:var(--red)"></div></div>'
       + '<div class="mp-foot"><button class="mp-btn" data-act="close">' + esc(window.t("common.cancel")) + '</button>'
       + (rows ? '<button class="mp-btn primary" id="rkGo">' + esc(window.t("cs.cn_save_check")) + '</button>' : "") + '</div>');
+    wireReuse(m, con, otherAccounts(ctx, c));
     const go = m.querySelector("#rkGo");
     if (go) go.onclick = async () => {
       const fields = {};
       m.querySelectorAll("[data-rk]").forEach(i => { if (i.value.trim()) fields[i.dataset.rk] = i.value.trim(); });
-      if (!Object.keys(fields).length) { m.querySelector("#rkErr").textContent = window.t("cs.cn_no_new_value"); return; }
+      if (!Object.keys(fields).length && !m._reuseFrom) { m.querySelector("#rkErr").textContent = window.t("cs.cn_no_new_value"); return; }
       go.disabled = true; go.textContent = window.t("settings.checking");
-      await postJson("/connect/update", { id: c.id, fields: fields });
+      await postJson("/connect/update", { id: c.id, fields: fields, reuse_from: m._reuseFrom || "" });
       const r = await postJson("/connect/health/check", { id: c.id });
       if (r && r.ok) { closeConnModal(); renderConnect(el); return; }
       go.disabled = false; go.textContent = window.t("cs.cn_save_check");
       m.querySelector("#rkErr").innerHTML = Icons.warn((r && r.message) || window.t("cs.cn_still_fail"));
+    };
+  }
+  // Change the key of a Google OAuth account (Gmail, Calendar, Analytics, Ads, Tag Manager...), or borrow one saved
+  // for another Google service, then sign in again. Before this the menu could only sign in again with the key it had,
+  // so a client whose secret was replaced in Google Cloud could only be fixed by deleting the account.
+  function openOauthReKey(el, c, con, ctx) {
+    const flds = (con.fields || []).filter(f => f.key === "client_id" || f.key === "client_secret");
+    const rows = flds.map(f =>
+      '<label class="mcp-lb">' + esc(f.label || f.key)
+      + '<input class="js-input" data-f="' + esc(f.key) + '" placeholder="' + esc(window.t("cs.cn_keep_old_ph")) + '"'
+      + (f.key === "client_secret" ? ' type="password"' : "") + '></label>').join("");
+    const m = connModal(mHead(esc(window.t("cs.cn_rekey_head")) + " " + esc(c.label || ""))
+      + '<div class="conn-form">' + reuseHtml(reuseDonors(con, otherAccounts(ctx, c)), con)
+      + '<div class="mp-note">' + esc(window.t("cs.cn_rekey_note")) + '</div>'
+      + jsonDropHtml(con) + rows
+      + '<button class="mp-btn primary" id="orkGo">' + esc(window.t("cs.cn_oauth_save_open")) + '</button></div>'
+      + '<div class="mp-foot"><span class="mp-note" id="orkErr"></span><button class="mp-btn" data-act="close">'
+      + esc(window.t("common.close")) + '</button></div>');
+    wireWizCommon(m); wireJsonDrop(m); wireReuse(m, con, otherAccounts(ctx, c));
+    m.querySelector("#orkGo").onclick = async () => {
+      const err = m.querySelector("#orkErr"), go = m.querySelector("#orkGo");
+      const fields = {};
+      m.querySelectorAll("[data-f]").forEach(i => { if (i.value.trim()) fields[i.dataset.f] = i.value.trim(); });
+      go.disabled = true; err.textContent = "";
+      const r = await postJson("/connect/oauth/start", { id: c.id, connector_id: c.connector_id, fields: fields,
+        reuse_from: m._reuseFrom || "" });
+      go.disabled = false;
+      if (!r || r.ok === false) { err.textContent = (r && r.error) || window.t("app.err_cap"); return; }
+      window.open(r.url, "_blank");
+      err.textContent = window.t("cs.cn_oauth_after");
+      window.addEventListener("focus", () => renderConnect(el), { once: true });
     };
   }
   function connectorCard(con, conns) {
@@ -5914,8 +5955,9 @@
       const donor = ((ctx && ctx.conns) || []).find(x => x.id === m._reuseFrom) || {};
       m._reuseKeys = sharedReuseKeys(con || {}, ((ctx && ctx.byId) || {})[donor.connector_id] || {});
       m._reuseKeys.forEach(k => {
-        const i = m.querySelector('[data-f="' + k + '"]');
-        if (i) { i.value = ""; i.placeholder = window.t("cs.cn_reuse_ph"); i.disabled = true; }
+        m.querySelectorAll('[data-f="' + k + '"], [data-rk="' + k + '"]').forEach(i => {
+          i.value = ""; i.placeholder = window.t("cs.cn_reuse_ph"); i.disabled = true;
+        });
       });
       btn.innerHTML = CHECK_ICON + " " + esc(window.t("cs.cn_reuse_ok")); btn.disabled = true;
     };
@@ -5995,7 +6037,7 @@
     };
   }
 
-  function openAccountMenu(el, c, con) {
+  function openAccountMenu(el, c, con, ctx) {
     const m = connModal(mHead(esc(c.label || window.t("cs.cn_account_fallback")))
       + '<div class="conn-menu">'
       + ((c.connector_id || "custom") === "custom"
@@ -6022,7 +6064,7 @@
       } else if (act === "edit") {
         closeConnModal(); openMcpForm(el, c);
       } else if (act === "rekey") {
-        closeConnModal(); reconnectAccount(el, c, con);
+        closeConnModal(); reconnectAccount(el, c, con, ctx);
       } else if (act === "default") {
         await postJson("/connect/default", { id: c.id }); closeConnModal(); renderConnect(el);
       } else if (act === "rename") {
@@ -6464,7 +6506,7 @@
       openGroupPicker(el, b.dataset.groupopen, cat.filter(c => c.group === b.dataset.groupopen), ctx, isFirst));
     el.querySelectorAll("[data-conn]").forEach(b => b.onclick = () => {
       const c = conns.find(x => x.id === b.dataset.conn);
-      if (c) openAccountMenu(el, c, byId[c.connector_id]);
+      if (c) openAccountMenu(el, c, byId[c.connector_id], ctx);
     });
     const applyFilter = () => {
       const q = (document.getElementById("catQ").value || "").toLowerCase();

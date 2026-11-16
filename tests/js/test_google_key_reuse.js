@@ -113,6 +113,29 @@ for (const flow of ["function openApikeyFlow(", "function openOauthFlow("]) {
 const css = fs.readFileSync(path.join(ROOT, "dashboard/console.css"), "utf8");
 check("the reuse sentence reads at 16px", /\.reuse-row > \.mp-note \{[^}]*font-size: 16px/.test(css));
 
+// Change key (owner 2026-11-16: keys stay per connection, each with add, change and delete, no separate key store).
+const rekey = cut("  function openReKey(", "\n  }\n");
+check("the change-key form offers the reuse row, without the account itself as donor",
+  rekey.includes("reuseHtml(reuseDonors(con, otherAccounts(ctx, c)), con)") && rekey.includes("wireReuse(m, con, otherAccounts(ctx, c))"));
+check("the change-key form sends the donor to the server, and a borrowed key alone is enough to save",
+  rekey.includes('reuse_from: m._reuseFrom || ""') && rekey.includes("!Object.keys(fields).length && !m._reuseFrom"));
+const orekey = cut("  function openOauthReKey(", "\n  }\n");
+check("a Google OAuth account has a change-key form too", orekey.length > 0);
+check("it borrows through /connect/oauth/start with the connector id (the server checks the family)",
+  /\/connect\/oauth\/start", \{ id: c\.id, connector_id: c\.connector_id, fields: fields,\s*reuse_from: m\._reuseFrom/.test(orekey));
+check("it offers the reuse row and the JSON drop zone", orekey.includes("reuseHtml(reuseDonors(con, otherAccounts(ctx, c)), con)") && orekey.includes("jsonDropHtml(con)"));
+const recon = cut("  function reconnectAccount(", "\n  }\n");
+check("from the account menu, a Google OAuth account opens the change-key form",
+  recon.includes("if (ctx && con && con.auth_type === \"oauth\" && hasClientFields(con)) return openOauthReKey(el, c, con, ctx);"));
+check("the account menu passes the page context to it", src.includes("closeConnModal(); reconnectAccount(el, c, con, ctx);")
+  && src.includes("if (c) openAccountMenu(el, c, byId[c.connector_id], ctx);"));
+check("the red Reconnect chip keeps its one-tap sign-in (no context passed)",
+  src.includes("fix.onclick = () => reconnectAccount(el, c, byId[c.connector_id]);"));
+check("borrowing greys out the change-key inputs too", src.includes("'[data-f=\"' + k + '\"], [data-rk=\"' + k + '\"]'"));
+const others = new Function(cut("  function otherAccounts(", "\n  }\n") + "\n  }\nreturn otherAccounts;")();
+check("otherAccounts leaves the account itself out",
+  others({ conns: [{ id: "a" }, { id: "b" }], byId: {} }, { id: "a" }).conns.map((x) => x.id).join() === "b");
+
 // Same list on both sides: the server copies exactly what the dashboard greys out.
 const py = fs.readFileSync(path.join(ROOT, "server/mcp_store.py"), "utf8");
 check("REUSE_SETS matches REUSABLE_KEY_SETS in mcp_store.py",

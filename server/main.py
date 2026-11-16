@@ -7256,6 +7256,13 @@ async def connect_substack_resolve_uid(q: str = Query("")):
 @app.post("/connect/update")
 async def connect_update(request: Request):
     data = await request.json()
+    # "Change key" form of a Google connection: borrow the key of another connection of the same family, copied
+    # here on the server (reuse_client_fields checks the family). The browser only names the donor.
+    reuse_from = (data.get("reuse_from") or "").strip()
+    if reuse_from and data.get("id"):
+        own = mcp_store.get_connection(data.get("id")) or {}
+        data = dict(data, fields=mcp_store.reuse_client_fields(
+            mcp_catalog.get(own.get("connector_id")), data.get("fields") or {}, reuse_from))
     ok = mcp_store.update_connection(data.get("id"), data)
     mcp_hub.invalidate_cache()
     return {"ok": ok}

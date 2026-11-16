@@ -227,6 +227,35 @@ def reuse_client_fields(target_con, fields, from_cid, keys=None):
     return out
 
 
+def holds_last_key(conn_id):
+    """True when this connection holds a reusable sign-in key (REUSABLE_KEY_SETS) that no other connection of its
+    key family holds.
+
+    Google shows a client secret, and a service account key, only once, when it is made. If the owner deletes the
+    last connection that holds it, nothing can bring it back, so the delete dialog says so before it happens
+    (purge.plan_connection). Compares the decrypted values here on the server and returns only yes or no: no key
+    ever reaches the browser."""
+    d = _load()
+    c = _find(d, conn_id)
+    if not c:
+        return False
+    family = mcp_catalog.key_family(mcp_catalog.get(c.get("connector_id")))
+    if not family:
+        return False
+    mine = connection_secrets(conn_id)
+    unshared = [s for s in REUSABLE_KEY_SETS if all(mine.get(k) for k in s)]
+    for other in d["connections"]:
+        if not unshared:
+            break
+        if other.get("id") == conn_id:
+            continue
+        if mcp_catalog.key_family(mcp_catalog.get(other.get("connector_id"))) != family:
+            continue
+        theirs = connection_secrets(other.get("id"))
+        unshared = [s for s in unshared if not all(theirs.get(k) == mine.get(k) for k in s)]
+    return bool(unshared)
+
+
 @_locked
 def add_connection(connector_id, data):
     """Thêm 1 tài khoản. data: {label?, fields{}, headers{}, env{}, url?, command?, args?,
