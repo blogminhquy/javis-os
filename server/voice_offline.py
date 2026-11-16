@@ -121,9 +121,67 @@ def _vieneu_sync(text: str) -> bytes:
             pass
 
 
+_RUN = re.compile(r"[㐀-鿿，、。！？；]+|[^㐀-鿿，、。！？；]+")
+_CLAUSE = re.compile(r"(?<=[.!?;\n])\s+")
+
+
+def segments(text: str, voice: str = "") -> list:
+    """[(lang, text)] in reading order: a sentence that mixes Vietnamese, English and Chinese is cut at sentence
+    ends and at every change between Chinese characters and other letters; neighbours in the same language are
+    joined, so each engine is started as few times as possible."""
+    out: list = []
+    for clause in _CLAUSE.split(str(text or "")):
+        for run in _RUN.findall(clause):
+            if not re.search(r"\w", run):
+                continue
+            lang = "zh" if _CJK.search(run) else "vi" if _VI.search(run) else ("vi" if str(voice).lower().startswith("vi") and not out else "en")
+            if out and out[-1][0] == lang:
+                out[-1] = (lang, out[-1][1] + " " + run.strip())
+            else:
+                out.append((lang, run.strip()))
+    return out
+
+
+def _concat(parts: list) -> bytes:
+    """One mp3 from several (the engines run at different sample rates, so they are decoded and joined)."""
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    try:
+        cmd = ["ffmpeg", "-loglevel", "error", "-y"]
+        for i, b in enumerate(parts):
+            p = Path(tmp) / f"{i}.mp3"
+            p.write_bytes(b)
+            cmd += ["-i", str(p)]
+        cmd += ["-filter_complex", "".join(f"[{i}:a]aresample=24000[a{i}];" for i in range(len(parts)))
+                + "".join(f"[a{i}]" for i in range(len(parts))) + f"concat=n={len(parts)}:v=0:a=1[o]",
+                "-map", "[o]", "-codec:a", "libmp3lame", "-q:a", "4", "-f", "mp3", "pipe:1"]
+        r = subprocess.run(cmd, capture_output=True, timeout=90)
+        return r.stdout if r.returncode == 0 else b""
+    finally:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 async def speak(text: str, voice: str = "") -> bytes:
-    """mp3 bytes, or b"" when the offline voice is not installed or fails (never raises)."""
-    lang = language(text, voice)
+    """mp3 bytes, or b"" when an offline voice is missing or fails (never raises). Mixed-language text is read
+    piece by piece, each in its own language."""
+    segs = segments(text, voice)
+    if len(segs) <= 1:
+        return await _speak_one(text, language(text, voice))
+    parts = []
+    for lang, seg in segs:
+        b = await _speak_one(seg, lang)
+        if not b:
+            return b""
+        parts.append(b)
+    try:
+        return await asyncio.to_thread(_concat, parts)
+    except Exception as e:      # noqa: BLE001
+        print(f"[voice offline] joining failed: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        return b""
+
+
+async def _speak_one(text: str, lang: str) -> bytes:
     if lang == "vi" and vieneu_available():
         try:
             mp3 = await asyncio.to_thread(_vieneu_sync, text)
