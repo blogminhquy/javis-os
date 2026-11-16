@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.575.1] - 2026-11-16
+### Fixed
+- **Playwright screenshots show right in the chat.** When Javis took a screenshot of a page with Playwright, the image reached the model as a long string of characters and nothing appeared in the chat. The image is now saved in the brain under `attachments/tool-images/` and Javis embeds it in its reply so you can preview it. Images returned by other tools (charts, designs) are handled the same way.
+
 ## [0.575.0] - 2026-11-16
 ### Improved
 - The project selector and project list show a red dot when another project has unread replies. The selected project uses its chat dots without a duplicate folder alert.
