@@ -232,6 +232,35 @@ def revoke(store, lesson_id: int, *, by: str = "owner", reason: str = "", agent_
         return _row(c.execute("SELECT * FROM agent_lessons WHERE id=?", (r["id"],)).fetchone())
 
 
+def edit(store, lesson_id: int, text: str, *, agent_key: Optional[str] = None, by: str = "owner",
+         at: Optional[float] = None) -> Optional[dict]:
+    """The owner rewrites an active lesson (the Learned tab of an assistant, 2026-11-16). The row keeps its id and scope,
+    and its source becomes `owner`, so the scope cap never drops it to make room, as a project note the owner edits
+    becomes theirs. New words already standing as another active lesson of the same scope: this one is revoked
+    (`merged`) and the other is returned, so the scope never holds the same lesson twice. Not active, not this
+    assistant's (`agent_key`), or empty text: None."""
+    body = clean_text(text)
+    norm = normalize(body)
+    if not norm:
+        return None
+    ensure(store)
+    t = _now(at)
+    with store._Tx(store) as c:
+        r = c.execute("SELECT * FROM agent_lessons WHERE id=?", (int(lesson_id),)).fetchone()
+        if r is None or r["status"] != "active" or (agent_key is not None and r["agent_key"] != str(agent_key)):
+            return None
+        twin = c.execute("SELECT id FROM agent_lessons WHERE agent_key=? AND scope=? AND text_norm=? AND status='active' "
+                         "AND id<>?", (r["agent_key"], r["scope"], norm, r["id"])).fetchone()
+        if twin is not None:
+            c.execute("UPDATE agent_lessons SET status='revoked', revoked_at=?, revoked_by=?, revoke_reason=? WHERE id=?",
+                      (t, str(by or ""), f"merged:{twin['id']}", r["id"]))
+            _event(c, r["id"], r["agent_key"], "revoke", by, {"reason": f"merged:{twin['id']}"}, t)
+            return _row(c.execute("SELECT * FROM agent_lessons WHERE id=?", (twin["id"],)).fetchone())
+        c.execute("UPDATE agent_lessons SET text=?, text_norm=?, source='owner' WHERE id=?", (body, norm, r["id"]))
+        _event(c, r["id"], r["agent_key"], "edit", by, {"before": r["text"], "after": body}, t)
+        return _row(c.execute("SELECT * FROM agent_lessons WHERE id=?", (r["id"],)).fetchone())
+
+
 def restore(store, lesson_id: int, *, by: str = "auto", reason: str = "", at: Optional[float] = None) -> Optional[dict]:
     """Khôi phục một bài học đã thu hồi hay đã bị thay (quay lại thay đổi `lesson_remove`/`lesson_promote` của tự rà soát).
     Đã có bài học đang dùng cùng chữ cùng phạm vi thì không khôi phục (None)."""

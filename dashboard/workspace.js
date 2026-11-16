@@ -599,7 +599,7 @@
         '<div class="ws-main">' +
           '<div class="ws-bar">' +
             '<button type="button" class="ws-ico" id="wsLeftBtn" title="' + esc(t("ws.toggle_list")) + '">' + ic("panel-left") + '</button>' +
-            '<button type="button" class="ws-btn" id="wsFiles">' + ic("paperclip") + ' ' + esc(t("ws.files_links")) + '</button>' +
+            '<button type="button" class="ws-btn" id="wsFiles">' + ic("paperclip") + ' <span class="ws-files-lbl">' + esc(nhanNutTaiLieu()) + '</span></button>' +
             '<button type="button" class="ws-btn" id="wsNewChat">' + esc(t("sess.new_chat")) + '</button>' +
             // Bộ icon chưa đóng gói "panel-right" (xem icons.manifest.json) và thêm icon mới
             // phải chạy gen_icons tải mạng - lật gương panel-left bằng CSS rẻ hơn mà cùng nghĩa.
@@ -1037,9 +1037,14 @@
     veTrai(); veGiua(dangChon());
   }
 
+  // 2026-11-16 (owner): an assistant's drawer has a Learned tab next to its documents, so the button says both. A
+  // workflow has no documents or lessons of its own (the button opens the chat's documents), so it keeps "Documents".
+  function nhanNutTaiLieu() { return t(S.loai === "agent" ? "ws.docs_learned" : "ws.files_links"); }
+
   function veTrai() {
     var el = S.el; if (!el) return;
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.classList.toggle("on", b.dataset.loai === S.loai); });
+    var lbl = el.querySelector(".ws-files-lbl"); if (lbl) lbl.textContent = nhanNutTaiLieu();
     if (S.loai === "agent") {
       // Tag không có "tag trống": tag tồn tại khi có agent mang nó. Tag đang lọc vừa bị đổi tên hay
       // xoá (ở tab khác, sau F5) thì về "Tất cả agent".
