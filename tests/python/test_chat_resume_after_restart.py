@@ -109,6 +109,23 @@ async def jobs():
     return seen_while_new_runs
 
 seen = asyncio.run(jobs())
+
+started = []
+
+
+async def start_hook():
+    rt = ChatRuntime()
+    rt.on_start = lambda sid, turn: started.append((sid, turn["user_mid"]))
+
+    async def quick():
+        return 1
+
+    rt.register_job("with-turn", asyncio.create_task(quick()), "t1", turn={"user_mid": 7})
+    rt.register_job("no-turn", asyncio.create_task(quick()), "t2")
+    await asyncio.sleep(0.05)
+
+asyncio.run(start_hook())
+check("a job registered with its question reports it; a job without one (follow-up, voice lane) does not", started == [("with-turn", 7)], started)
 check("a finished job reports its session", seen == ["a"], seen)
 check("an old job ending under a newer one of the same chat does not close the newer turn's row", over == ["a", "b"], over)
 
@@ -280,9 +297,15 @@ check("a team step records it once: the step running again gets the old result i
 TL.drop("chat-plugin")
 check("the hub wraps only plugin tools whose strongest level is full",
       'if route[fn].get("effect") == "danger" and route[fn].get("call"):' in hub)
-check("every chat turn writes its row first, the runtime closes it, shutdown keeps it",
-      "turn_ledger.begin(conv_sid, user_mid, user_message, user_text, brain)" in src
+run_turn_src = src[src.index("        async def run_turn("):src.index("        async def run_workflow_turn(")]
+check("a question and its rerun write their row where the turn is created, the runtime closes it, shutdown keeps it",
+      "turn=_turn_row," in src and "_CHAT_RUNTIME.on_start = lambda sid, turn: turn_ledger.begin(" in src
+      and 'turn_ledger.begin(sid, int(row["user_mid"]), row["user_message"], row["user_text"], row["brain"])' in src
       and "_CHAT_RUNTIME.on_finish = turn_ledger.end" in src and "turn_ledger.closing = True" in src)
+resumed_src = src[src.index("        async def _start_resumed_turn("):src.index("        async def _resume_cut_turns(")]
+loop_src = src[src.index("            raw = await _real_ws.receive_text()"):src.index("@app.websocket(\"/ws/terminal\")")]
+check("run_turn, _start_resumed_turn and the receive loop do not name the ledger (other tests run them on their own, with stubs)",
+      "turn_ledger" not in run_turn_src and "turn_ledger" not in resumed_src and "turn_ledger" not in loop_src)
 check("no em dash in this file", chr(0x2014) not in open(__file__, encoding="utf-8").read())
 
 if fails:

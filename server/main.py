@@ -253,6 +253,8 @@ app = FastAPI(title="Javis OS")
 _CHAT_RUNTIME = ChatRuntime()
 # 16/11/2026: a chat job that is over closes its row in the ledger of turns in flight (kept during shutdown).
 _CHAT_RUNTIME.on_finish = turn_ledger.end
+_CHAT_RUNTIME.on_start = lambda sid, turn: turn_ledger.begin(
+    sid, turn.get("user_mid") or 0, turn.get("user_message") or "", turn.get("user_text"), turn.get("brain") or "")
 
 
 def _steer_read(sid, ids):
@@ -22064,9 +22066,6 @@ async def _chat_socket(ws):
         async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
                            has_attachments=False, resume_attempt=0, goc_chat="", user_mid=0,
                            user_text=None, effort=""):
-            # 16/11/2026: on disk until the turn is over, so a restart in the middle answers the question again
-            # (turn_ledger.py, `_resume_cut_turns` below).
-            turn_ledger.begin(conv_sid, user_mid, user_message, user_text, brain)
             _trace_token = context_runtime.bind_trace(runtime_trace)
             # Dashboard = the owner's own surface (signed-in session): no platform sender id.
             # A1: kèm phiên, id tin và agent của phiên (host phân giải) để tool javis_goal biết ĐÚNG lượt nào gọi.
@@ -22764,6 +22763,8 @@ async def _chat_socket(ws):
                 await send_raw({"type": "system", "session_id": sid, "content": localefmt.chu(
                     "Máy chủ vừa khởi động lại. Javis trả lời lại câu đang dở.",
                     "The server just restarted. Javis is answering the question it was on again.")})
+                # On disk again until this run is over; the same question keeps its count of restarts.
+                turn_ledger.begin(sid, int(row["user_mid"]), row["user_message"], row["user_text"], row["brain"])
                 await _start_resumed_turn(sid, row["user_message"], row["brain"], 0, None,
                                           user_mid=int(row["user_mid"]), user_text=row["user_text"])
 
@@ -23114,6 +23115,7 @@ async def _chat_socket(ws):
                     except Exception:
                         _vconf = None
                     _bao_lan_nhanh_bo_qua(_vconf)
+                _turn_row = None
                 if _vconf and _vconf.get("mode") == "fast" and _vconf.get("provider"):
                     _voice_coro = run_voice_turn(
                         conv_sid, user_message, brain, turn_tag, runtime_trace, _vconf,
@@ -23127,10 +23129,15 @@ async def _chat_socket(ws):
                         conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
                         goc_chat=_goc, user_mid=_user_mid, effort=str(payload.get("effort") or ""))
                     task = asyncio.create_task(voice_turn_protocol.run(_voice_coro, store, conv_sid, _voice_uid) if _voice_uid else _voice_coro)
+                    # 16/11/2026: the owner's question goes on disk with its job (`turn=`), so a restart in the middle
+                    # answers it again (the ledger of turns in flight, `_resume_cut_turns`). Passed through the
+                    # runtime, not written here, because tests run this block and `run_turn` on their own with stubs.
+                    _turn_row = {"user_mid": _user_mid, "user_message": user_message, "user_text": None, "brain": brain}
                 _CHAT_RUNTIME.register_job(
                     conv_sid, task, turn_tag,
                     runtime_task_id=runtime_trace.task_id if runtime_trace else "",
                     runtime_step_id=runtime_trace.step_id if runtime_trace else "",
+                    turn=_turn_row,
                 )
                 if _pending_voice_receipt:
                     await send_client(_pending_voice_receipt)

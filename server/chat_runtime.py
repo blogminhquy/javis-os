@@ -64,6 +64,9 @@ class ChatRuntime:
     # 16/11/2026: `on_finish(session_id)` is called once a registered job is over, however it ended (answer, error,
     # Stop, cancel). The host uses it to close the turn's row in turn_ledger.py. Never raises into the runtime.
     on_finish: Optional[Callable[[str], None]] = None
+    # `on_start(session_id, turn)`: a job was registered together with the question it answers (`turn=` of
+    # register_job: user_mid, user_message, user_text, brain). The host writes the row that `on_finish` closes.
+    on_start: Optional[Callable[[str, dict], None]] = None
 
     def __init__(self) -> None:
         self._clients: Dict[str, _Client] = {}
@@ -107,11 +110,17 @@ class ChatRuntime:
         return fut
 
     def register_job(self, session_id: str, task: asyncio.Task, tag: str,
-                     runtime_task_id: str = "", runtime_step_id: str = "") -> None:
+                     runtime_task_id: str = "", runtime_step_id: str = "", turn: Optional[dict] = None) -> None:
         self._jobs[session_id] = ChatJob(
             task=task, tag=tag,
             runtime_task_id=runtime_task_id, runtime_step_id=runtime_step_id,
         )
+        # Before the task can run (no await since it was created), so the row exists before the job can end.
+        if turn is not None and self.on_start is not None:
+            try:
+                self.on_start(session_id, turn)
+            except Exception:  # noqa: BLE001 - bookkeeping must not keep a turn from starting
+                pass
         task.add_done_callback(lambda done, sid=session_id: self._job_over(sid, done))
 
     def _job_over(self, session_id: str, task: asyncio.Task) -> None:
