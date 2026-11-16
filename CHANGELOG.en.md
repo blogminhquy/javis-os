@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.574.0] - 2026-11-16
+### Improved
+- **Typing while a goal runs no longer pauses it.** Your message is added to the goal: the running round reads it at its next step and every later round carries it, so you can adjust or widen the goal while Javis works. Each such message gives one more round (10 at most). If a round reports the goal met before it read your message, Javis runs one more round for it. The Stop button still pauses the goal as before.
+
 ## [0.573.0] - 2026-11-16
 ### Improved
 - **Reuse a Google key for every Google service.** The "Reuse this key" row now sits at the top of the form, shows on Google Ads, Analytics, Merchant Center and Search Console too, and borrows a key (service accounts included) saved for any other Google service. Google shows a client secret only once, when it is made, so the key kept in Javis is often the only copy left.
