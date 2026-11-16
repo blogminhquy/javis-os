@@ -181,6 +181,9 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   - một viên thuốc kèm popup;
   - khối công cụ đóng sẵn;
   - không đổ danh sách nhắc việc vào khung chat.
+- **Báo câu trả lời mới theo nơi đang xem** (chủ chốt 16/11/2026): từng cuộc chat có chấm đỏ khi có câu trả lời chưa
+  đọc. Thanh chọn dự án và các dòng trong bộ chọn chỉ báo đỏ cho dự án khác đang có câu trả lời chưa đọc; dự án đang
+  xem dùng chấm đỏ ở từng chat, không báo trùng ở thư mục. Mở dự án không đánh dấu các chat là đã đọc.
 - **Tạo động lực:** trang Nhiệm vụ có chuỗi ngày, sao, gợi ý việc khi trống (kiểu trò chơi, 04/11).
 
 ## 9. Trang HTML của gói trong Javis Store

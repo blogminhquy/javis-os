@@ -113,6 +113,7 @@
   var PROJ_KEY = "javis.chatside.project";
   var projects = [];      // [{id,name,icon,session_count}] của brain đang xem
   var projBar = null;
+  var projectRefreshTimer = null, projectRequest = 0;
 
   function projKey() { return PROJ_KEY + "." + brain(); }
   function curProject() {
@@ -127,6 +128,32 @@
   function projById(id) {
     for (var i = 0; i < projects.length; i++) if (projects[i].id === id) return projects[i];
     return null;
+  }
+  // The selected project's unread chats already have dots in the history. Only other projects need a folder alert.
+  function projectNeedsAttention(p) {
+    return p.id !== curProject() && Number(p.unread_count) > 0;
+  }
+  function projectUnreadHtml(unread) {
+    var label = esc(window.t("sess.proj_unread"));
+    return '<span class="cs-proj-unread" role="img" title="' + label + '" aria-label="' + label + '"' +
+      (unread ? '' : ' hidden') + '></span>';
+  }
+  function updateProjectUnread() {
+    if (projBar) {
+      var dot = projBar.querySelector(".cs-proj-unread");
+      if (dot) dot.hidden = !projects.some(projectNeedsAttention);
+    }
+    // Update an open picker in place so a reply or a read in another tab never closes it or steals focus.
+    if (menuEl) menuEl.querySelectorAll("[data-unread-project]").forEach(function (row) {
+      var p = projById(row.getAttribute("data-unread-project"));
+      var dot = row.querySelector(".cs-proj-unread");
+      if (dot) dot.hidden = !(p && projectNeedsAttention(p));
+    });
+  }
+  function refreshProjects() {
+    if (!projBar || kenhLoc) return;
+    clearTimeout(projectRefreshTimer);
+    projectRefreshTimer = setTimeout(function () { loadProjects(); }, 150);
   }
   // Nhãn project trả về HTML (icon là thẻ <svg>, không phải ký tự) nên phần CHỮ phải tự
   // escape ở đây - tên project do người dùng gõ.
@@ -151,17 +178,22 @@
   }
 
   async function loadProjects() {
+    var requestedBrain = brain(), request = ++projectRequest;
+    var previousLabel = projLabelHtml();
     try {
-      var d = await (await fetch("/projects?brain=" + encodeURIComponent(brain()))).json();
+      var d = await (await fetch("/projects?brain=" + encodeURIComponent(requestedBrain))).json();
+      if (request !== projectRequest || requestedBrain !== brain()) return;
       projects = d.projects || [];
-    } catch (e) { projects = []; }
+    } catch (e) { return; }
     // Project đang mở vừa bị xoá (ở tab khác, hoặc brain khác) → về "Tất cả". Không có nhát
     // này thì danh sách rỗng trơn mà người dùng không hiểu vì sao.
     var cur = curProject();
     if (cur && cur !== "none" && !projById(cur)) setCurProject("");
-    renderProjBar();
+    // Most refreshes change only unread counts. Keep the selector node, its keyboard focus and the menu anchor.
+    if (previousLabel !== projLabelHtml() || (projBar && !projBar.querySelector(".cs-proj-cur"))) renderProjBar();
     renderProjChip();
     fillProjTags();
+    updateProjectUnread();
   }
 
   // 2026-11-09: each chat row carries a small folder tag with its project's name, so the owner sees which group a
@@ -186,6 +218,7 @@
     projBar.innerHTML =
       '<button class="cs-proj-cur" type="button" title="' + esc(window.t("sess.proj_pick_title")) + '">' +
         '<span class="cs-proj-name">' + projLabelHtml() + '</span>' +
+        projectUnreadHtml(projects.some(projectNeedsAttention)) +
         '<span class="cs-proj-caret">' + ic("chevron-down") + '</span>' +
       '</button>' +
       (cur ? '<button class="cs-proj-x" type="button" title="' + esc(window.t("sess.proj_clear_title")) + '">' + ic("x") + '</button>' : '') +
@@ -218,6 +251,8 @@
         icon: p.icon || "folder",
         right: String(p.session_count || 0),
         on: cur === p.id,
+        projectId: p.id,
+        unread: projectNeedsAttention(p),
         run: function () { chonProject(p.id); },
         pinIcon: p.pinned ? "pin" : "",
         // MỘT nút ba chấm thay cho bốn icon hiện-khi-rê-chuột (chủ repo yêu cầu 01/09). Ba
@@ -2029,7 +2064,8 @@
       if (r.sep) { menuEl.appendChild(el('<div class="cs-menu-sep"></div>')); return; }
       // r.icon là TÊN icon Lucide, đi qua iconHtml (thẻ <svg>); r.label là chữ nên phải escape.
       var iHtml = r.icon ? iconHtml(r.icon) : "";
-      var row = el('<div class="cs-menu-row' + (r.on ? " on" : "") + '">' +
+      var row = el('<div class="cs-menu-row' + (r.on ? " on" : "") + '"' +
+        (r.projectId ? ' data-unread-project="' + esc(r.projectId) + '"' : '') + '>' +
         '<button class="cs-menu-main" type="button">' +
         (iHtml ? '<span class="cs-menu-ico">' + iHtml + '</span>' : '') +
         '<span class="cs-menu-lbl' + (r.wrap ? " nhieu-dong" : "") + '">' + esc(r.label) + '</span>' +
@@ -2037,6 +2073,7 @@
         // chuột). Ghim mà chỉ thấy được lúc rê chuột thì nhìn danh sách không biết vì sao
         // thứ tự lại như vậy.
         (r.pinIcon ? '<span class="cs-menu-pin">' + ic(r.pinIcon) + '</span>' : '') +
+        (r.projectId ? projectUnreadHtml(r.unread) : '') +
         (r.right ? '<span class="cs-menu-right">' + esc(r.right) + '</span>' : '') + '</button>' +
         '<span class="cs-menu-acts"></span></div>');
       row.querySelector(".cs-menu-main").onclick = function () { closeMenu(); r.run(); };
@@ -2253,17 +2290,19 @@
   function refresh() {
     if (!side) return;
     var b = brain();
+    var changedBrain = b !== lastBrain;
     if (b !== lastBrain) {
       lastBrain = b; shown = PAGE; archView = false;
       // Project gắn theo brain, nên đổi brain là danh sách project đổi theo. Không nạp lại thì
       // thanh trên đầu còn treo tên project của brain cũ mà bộ lọc lại đang trỏ vào id lạ.
-      if (projBar) { renderProjBar(); loadProjects(); }
+      if (projBar) { projects = []; renderProjBar(); loadProjects(); }
       // Cây Vault tự dựng lại khi đổi brain (console.js theo dõi #graphSource), nên ở đây
       // không phải làm gì thêm - đó chính là cái lợi của việc mượn node thay vì nuôi bản hai.
     }
     // debounce nhẹ: response + notifySessions có thể bắn sát nhau
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(function () {
+      if (projBar && !kenhLoc && !changedBrain) loadProjects();
       var q = searchEl && searchEl.value.trim();
       q ? doSearch(q) : loadList();
     }, 150);
@@ -2949,6 +2988,7 @@
   window.addEventListener("javis:session-read", function (e) {
     var sid = e && e.detail && e.detail.session_id;
     if (sid) clearDot(sid);
+    refreshProjects();
   });
   // Chip phải tự sống KHÔNG phụ thuộc cột trái: refresh() thoát sớm khi chưa mount sidebar,
   // mà chip còn đứng ở màn Javis nơi cột đó chưa bao giờ mount. Đổi phiên là đổi project có
