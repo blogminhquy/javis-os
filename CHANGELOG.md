@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.577.0] - 2026-11-17
+### Cải thiện
+- **Cập nhật xong, việc đang dở tự chạy tiếp.** Việc team bị cắt giữa chừng tự làm tiếp đúng bước đang dở, câu team đang trả lời tự trả lời lại; không còn phải bấm "Làm tiếp" hay "Thử lại".
+- **Câu chat đang trả lời dở cũng được trả lời lại** khi trang mở lại sau khi máy chủ khởi động, cho cả chat chính lẫn chat với cộng sự.
+- **Việc nền quay lại hàng đợi ngay** thay vì chờ 90 giây, và lần bị cắt không còn bị tính là một lần thử hỏng.
+- **Không làm trùng việc ra ngoài.** Bước nào đã kịp gửi tin, đăng bài hay tạo đơn trước khi máy chủ dừng thì Javis dừng lại báo bạn, không tự làm lại. Lượt workflow bị cắt không còn treo "đang chạy" mãi.
+
 ## [0.576.0] - 2026-11-16
 ### Cải thiện
 - **Tab Việc của team làm lại theo kiểu trang Nhiệm vụ.** Mỗi việc là một thẻ, ngay dưới là từng thành viên đang làm gì: xong, đang làm hay chờ lượt, kèm lời giao. Việc đang chờ bạn đứng trên cùng.
