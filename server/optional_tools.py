@@ -27,8 +27,9 @@ The owner decided on 2026-10-28 that a browser is part of the basic experience (
 so reading pages and the Facebook plugins need a real one), so the button is no longer the only
 way in: `auto_install_browser()` runs once per server start and downloads the same headless
 shell in the background when the machine has nothing Javis can drive. It still stays out of the
-Docker image: the download must match the Playwright version the MCP runs, and in STATE_DIR it
-survives updates. It skips when a system Chrome/Edge exists, when the user pressed Remove
+Docker image: in STATE_DIR it survives updates. The download no longer has to match the Playwright
+version the MCP runs: since 16/11/2026 Javis hands the MCP the exact file (`executable_env()`),
+because the two drifted apart and broke every Playwright call. It skips when a system Chrome/Edge exists, when the user pressed Remove
 (marker file), when JAVIS_SKIP_BROWSER is set, and when the image was built without the system
 libraries (JAVIS_BROWSER_DEPS=0), since the download could not run there anyway.
 """
@@ -595,6 +596,72 @@ def env_playwright() -> dict:
     e = dict(env_cho_connector())
     e["PLAYWRIGHT_MCP_BROWSER"] = trinh_duyet_mac_dinh()
     return e
+
+
+ENV_EXECUTABLE = "PLAYWRIGHT_MCP_EXECUTABLE_PATH"
+# Ways a user points the Playwright MCP at a browser of their own choosing. Any one of them present
+# means Javis keeps its hands off: a CDP endpoint, the browser extension or a config file all make
+# an executable path meaningless or wrong.
+_OWN_BROWSER_ENV = (ENV_EXECUTABLE, "PLAYWRIGHT_MCP_CDP_ENDPOINT", "PLAYWRIGHT_MCP_ENDPOINT",
+                    "PLAYWRIGHT_MCP_EXTENSION", "PLAYWRIGHT_MCP_CONFIG")
+_OWN_BROWSER_FLAGS = ("--browser", "--executable-path", "--cdp", "--cdp-endpoint", "--endpoint",
+                      "--extension", "--config")
+_SHELL_NAMES = ("headless_shell", "headless_shell.exe", "chrome-headless-shell",
+                "chrome-headless-shell.exe")
+
+
+def downloaded_executable() -> str:
+    """Runnable file of the browser Javis downloaded into BROWSERS_DIR, empty when there is none.
+
+    Unlike `duong_dan_chrome()` this never falls back to a system Chrome: it answers "what did
+    Javis itself put on this machine", which is the only file Javis may hand to the MCP unasked.
+    """
+    for d in _cac_ban_da_tai():
+        if (path := _binary_trong(d)):
+            return path
+    return ""
+
+
+def _flag_in(args, flags) -> bool:
+    for a in args or ():
+        a = str(a)
+        if any(a == f or a.startswith(f + "=") for f in flags):
+            return True
+    return False
+
+
+def executable_env(env: dict, args=()) -> dict:
+    """`{PLAYWRIGHT_MCP_EXECUTABLE_PATH: <file>}` when the Playwright MCP should run Javis's download.
+
+    Why this exists (16/11/2026, a team chat where every Playwright call failed): the connector runs
+    `@playwright/mcp@latest` and Javis's download button runs `playwright@latest install
+    --only-shell chromium`. Two packages on their own release schedule: that day the MCP (0.0.85,
+    playwright-core 1.66.0-alpha) wanted the full build `chromium-1254`, the button fetched
+    `chromium_headless_shell-1255` with Playwright 1.65.1, and that install garbage-collected
+    1254. The MCP looks only for its own revision and never falls back to a headless shell, so
+    it died with "Browser chrome-for-testing is not installed". Matching the two versions is a race
+    Javis cannot win for good; naming the file is not. With this variable the same MCP navigated
+    and took screenshots on the 1255 headless shell.
+
+    `env` is the connection's env as already resolved (the user's values first), `args` its
+    command arguments. Returns `{}` whenever the user chose a browser themselves (another
+    browser, their own path, a CDP endpoint, the extension, a config file, a flag in the args),
+    when Javis downloaded nothing, and when the only download is a headless shell but the user
+    asked to see the window, which a headless shell cannot show.
+    """
+    if any(str(env.get(k) or "").strip() for k in _OWN_BROWSER_ENV):
+        return {}
+    if _flag_in(args, _OWN_BROWSER_FLAGS):
+        return {}
+    if (str(env.get("PLAYWRIGHT_MCP_BROWSER") or "chromium").strip().lower()) != "chromium":
+        return {}
+    path = downloaded_executable()
+    if not path:
+        return {}
+    headed = str(env.get("PLAYWRIGHT_MCP_HEADLESS") or "").strip().lower() in ("false", "0", "no", "off")
+    if headed and Path(path).name in _SHELL_NAMES:
+        return {}
+    return {ENV_EXECUTABLE: path}
 
 
 def trinh_duyet_mac_dinh() -> str:
