@@ -10,6 +10,8 @@ title: Zalo reminders that tag you, ring and speak the note
 - Zalo chưa có API gọi thoại thật, nên cuộc gọi là gọi ảo: dòng gọi có tag cùng tin thoại.
 - **Tin thoại phát ngay trong khung chat Zalo**, không còn là thẻ file mp3. Javis tự gắn lại công cụ gửi thoại sau mỗi lần cập nhật.
 
+- **Giọng đọc offline cho lời nhắc Zalo** (Piper, tiếng Việt, Anh, Trung): file giọng nằm trong thư mục state nên không mất khi cập nhật, đọc được cả khi không có mạng. Thiếu file giọng thì dùng giọng trực tuyến như cũ.
+
 ### Sửa lỗi
 - Lời nhắc có đọc to không còn mất giọng khi dịch vụ giọng đọc của Microsoft từ chối máy chủ: Javis thử lại bằng tiến trình mới, rồi bằng giọng Google.
 
@@ -20,6 +22,8 @@ title: Zalo reminders that tag you, ring and speak the note
 - **The official name is the one a person set for themselves on Zalo**, not the nickname you saved for them.
 - Zalo has no real voice-call API, so the call is a virtual one: a tagged call line plus the voice message.
 - **The voice message plays inside the Zalo chat** instead of arriving as an mp3 file card. Javis re-adds the voice tool after every update.
+
+- **Offline voices for Zalo reminders** (Piper, Vietnamese, English, Chinese): the voice files live in the state folder so an update keeps them, and they speak with no internet. Without the files the online voice is used as before.
 
 ### Fixed
 - Spoken reminders no longer lose their voice when the Microsoft speech service refuses the server: Javis retries from a fresh process, then with Google's voice.

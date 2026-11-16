@@ -15681,7 +15681,8 @@ async def _zalo_voice_deliver(rem, text, brain) -> tuple:
         return await zp.gui({"id": conn["id"]}, tg["thread"], line, chat_type, mention)
 
     async def make_voice(line):
-        res = await voice_note.make(root, line)
+        import voice_offline      # Piper voices kept on the machine, so the reminder is spoken with or without internet
+        res = await voice_note.make(root, line, synth=voice_offline.offline_first(voice_note._chosen_synth()))
         if not res.get("ok"):
             raise RuntimeError(str(res.get("error") or "voice engine failed"))
         return str(Path(root) / res["rel_path"])
