@@ -29,6 +29,114 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
     receive = ZernioTests.receive
     flush = ZernioTests.flush
 
+    async def test_acceptance_timeout_restart_reuses_provider_key_once(self):
+        import httpx
+        accepted, requests = {}, []
+        async def post(url, *, json, headers):
+            key = headers['Idempotency-Key']
+            requests.append((key, json.copy()))
+            if key not in accepted:
+                accepted[key] = json.copy()
+                raise httpx.ReadTimeout('accepted but response lost')
+            return httpx.Response(200)
+        client = AsyncMock()
+        client.__aenter__.return_value = client
+        client.post.side_effect = post
+        self.bot.send_delivery = z.ZernioBot.send_delivery.__get__(self.bot)
+        with patch('httpx.AsyncClient', return_value=client):
+            await self.receive()
+            self.clock += 5
+            await self.flush()
+            key = z._batch_key('provider-a', 'same-conversation')
+            before = self.store.load()['conversations'][key]
+            self.assertEqual(before['attempts'], 1)
+            self.assertFalse([e for e in self.inbox if e['sender_type'] == 'ai'])
+            for timer in z._TIMERS.values():
+                timer.cancel()
+            z._TIMERS.clear()
+            self.bot.stop()
+            z._state_store = z.DurableState(self.store.file_path)
+            self.bot.start()
+            await self.flush()
+            self.assertEqual(len(requests), 1)  # no retry before durable deadline
+            self.clock = before['next_retry_at']
+            await self.flush()
+            await self.flush()
+        self.assertEqual(len(accepted), 1)
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[0], requests[1])
+        self.assertEqual(requests[0][0], before['send_key'])
+        self.bot.answer_fn.assert_awaited_once()
+        self.assertEqual(len([e for e in self.inbox if e['sender_type'] == 'ai']), 1)
+        self.assertNotIn('processing', self.store.load()['conversations'][key])
+
+    async def test_concurrent_flush_serializes_inflight_provider_acceptance(self):
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def send(*args):
+            entered.set()
+            await release.wait()
+            return {'kind':'accepted','code':'','retry_after_seconds':None}
+        self.bot.send_delivery.side_effect = send
+        await self.receive()
+        self.clock += 5
+        first = asyncio.create_task(self.flush())
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            await asyncio.gather(self.flush(), self.flush())
+            self.bot.send_delivery.assert_awaited_once()
+        finally:
+            release.set()
+            await first
+        await self.flush()
+        self.bot.answer_fn.assert_awaited_once()
+        self.bot.send_delivery.assert_awaited_once()
+        self.assertEqual(len([e for e in self.inbox if e['sender_type'] == 'ai']), 1)
+
+    async def test_bot_reassignment_while_model_running_never_sends_old_reply(self):
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def answer(*args):
+            entered.set()
+            await release.wait()
+            return 'old bot answer'
+        self.bot.answer_fn.side_effect = answer
+        await self.receive()
+        self.clock += 5
+        first = asyncio.create_task(self.flush())
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            self.bot.stop()
+            replacement = self.make_bot('provider-a','acc_a','replacement','alice','secret-a')
+        finally:
+            release.set()
+            await first
+        await self.flush(replacement)
+        self.bot.send_delivery.assert_not_awaited()
+        replacement.send_delivery.assert_not_awaited()
+        replacement.answer_fn.assert_not_awaited()
+        self.assertFalse([e for e in self.inbox if e['sender_type'] == 'ai'])
+
+    async def test_concurrent_issue_resolution_after_media_handoff(self):
+        self.mode_patch.stop()
+        event = self.event()
+        event['message']['attachments'] = [{'type':'image','url':'https://invalid.example/image'}]
+        await self.receive(event)
+        self.clock += 5
+        await self.flush()
+        issue = z.delivery_issues('acc_a')[0]
+        with patch('chatbot_store.bots_using_account', return_value=[{'id':'bot_a'}]):
+            results = await asyncio.gather(*[
+                asyncio.to_thread(z.resolve_delivery_issue, 'acc_a', issue['id'], issue['revision'])
+                for _ in range(2)])
+        self.assertEqual(sorted(results), [200,409])
+        key = z._batch_key('provider-a','same-conversation')
+        current = z.DurableState(self.store.file_path).load()['conversations'][key]
+        self.assertEqual(len(current['delivery_history']), 1)
+        self.assertEqual(current['delivery_history'][0]['batch']['processing'][0]['attachments'], event['message']['attachments'])
+        self.assertEqual(conversations.che_do('zernio','acc_a','same-conversation'), 'human')
+        await self.flush()
+        self.bot.answer_fn.assert_not_awaited()
+        self.bot.send_delivery.assert_not_awaited()
+
     async def test_real_runtime_two_brains_status_sync_and_send_receipt(self):
         configs = {key: {"id": key, "name": key, "channel": "zernio", "brain": key + "-brain",
                          "enabled": True, "muc_quyen": "suggest", "nguon_tra_loi": "agent"}
@@ -67,7 +175,7 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
                     ok,error = runtime.start_bot(key)
                     self.assertTrue(ok,error)
                     bot = z._REGISTRY[f'provider-integration-{index}']
-                    bot.send_text = AsyncMock(return_value=(False,'timeout'))
+                    bot.send_delivery = AsyncMock(return_value={'kind':'retry','code':'provider_unavailable','retry_after_seconds':None})
                     bots.append(bot)
                     self.assertEqual(runtime.status(key)['state'], 'running')
                     await self.receive(self.event('integration-e'+str(index),'integration-m'+str(index),bot=bot,text='only '+key),bot.secret)
@@ -80,7 +188,9 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertFalse([r for r in rows if r['sender_type']=='ai'], rows)
                 self.assertEqual(seen,[(key,key+'-brain',records[key][0]['id'],'only '+key) for key in configs])
                 for bot in bots:
-                    bot.send_text.return_value = (True,'')
+                    bot.send_delivery.return_value = {'kind':'accepted','code':'','retry_after_seconds':None}
+                    key = z._batch_key(bot.provider_account_id, 'same-conversation')
+                    self.clock = max(self.clock, self.store.load()['conversations'][key]['next_retry_at'])
                     await self.flush(bot)
                     rows = conversations.tin_gan_day('zernio',bot.account_id,'same-conversation',20)
                     replies = [r for r in rows if r['sender_type']=='ai']
@@ -108,7 +218,7 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         await self.receive(self.event('released','released'))
         self.clock += 5
         await self.flush()
-        self.bot.send_text.assert_awaited_once()
+        self.bot.send_delivery.assert_awaited_once()
         async def take_over(*args):
             conversations.dat_che_do(cid,'human')
             return 'must not be sent'
@@ -116,13 +226,13 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         await self.receive(self.event('during','during'))
         self.clock += 5
         await self.flush()
-        self.assertEqual(self.bot.send_text.await_count,1)
+        self.assertEqual(self.bot.send_delivery.await_count,1)
         conversations.dat_che_do(cid,'ai')
         self.bot.answer_fn.side_effect = None
         await self.receive(self.event('released-again','released-again'))
         self.clock += 5
         await self.flush()
-        self.assertEqual(self.bot.send_text.await_count,2)
+        self.assertEqual(self.bot.send_delivery.await_count,2)
 
     async def test_real_timer_waits_five_seconds_from_last_arrival(self):
         import time
@@ -133,9 +243,9 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.clock = time.time()
         await self.receive(self.event('timer-2','timer-2',text='last message'))
         await asyncio.sleep(4.2)
-        self.bot.send_text.assert_not_awaited()
+        self.bot.send_delivery.assert_not_awaited()
         await asyncio.sleep(1.1)
-        self.bot.send_text.assert_awaited_once()
+        self.bot.send_delivery.assert_awaited_once()
         self.assertEqual(self.bot.answer_fn.call_args.args[0],'hello\nlast message')
 
     async def test_node_bridge_delivers_actual_ack_through_python_auth_middleware(self):
@@ -185,10 +295,10 @@ console.log('Node bridge accepted durable Python runtime ACK, sent no DM');
                 self.assertEqual(process.returncode,0,stderr.decode())
                 self.assertIn(b'durable Python runtime ACK',stdout)
                 self.assertTrue(conversations.tin_theo_id('zernio','acc_a','same-conversation','m1'))
-                self.bot.send_text.assert_not_awaited()
+                self.bot.send_delivery.assert_not_awaited()
                 self.clock += 5
                 await self.flush()
-                self.bot.send_text.assert_awaited_once()
+                self.bot.send_delivery.assert_awaited_once()
         finally:
             await asyncio.to_thread(server.shutdown)
             server.server_close()
