@@ -15682,12 +15682,22 @@ async def _zalo_voice_deliver(rem, text, brain) -> tuple:
 
     async def make_voice(line):
         res = await voice_note.make(root, line)
-        return str(Path(root) / res["rel_path"]) if res.get("ok") else ""
+        if not res.get("ok"):
+            raise RuntimeError(str(res.get("error") or "voice engine failed"))
+        return str(Path(root) / res["rel_path"])
 
     async def send_voice(path):
         home = zalo_cli.home_of(conn)
-        ok, _d, err = await zalo_cli.send_files(conn["id"], home, tg["thread"], [Path(path)], tg["type"])
-        return ok, err
+        # A real voice bubble first; an older javis-zalo (no such tool) or a refused link falls back to a file.
+        ok, _d, err = await zalo_cli.send_voice(conn["id"], home, tg["thread"], Path(path), tg["type"])
+        if ok:
+            return True, ""
+        print(f"[zalo voice] bubble failed, sending the mp3 as a file: {err}", flush=True)
+        if "zalo_send_voice" in str(err):     # an update wiped the tool: put it back for the next connection start
+            import zalo_voice_tool
+            zalo_voice_tool.ensure(cfgmod.STATE_DIR)
+        ok, _d, err2 = await zalo_cli.send_files(conn["id"], home, tg["thread"], [Path(path)], tg["type"])
+        return ok, ("" if ok else err2) or ""
 
     async def send_reminder(title):
         # The reminder entry inside the Zalo chat (`javis-zalo reminder create`), set for now: Zalo notifies at once.

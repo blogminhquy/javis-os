@@ -19,6 +19,7 @@ calling. When javis-zalo gains a call tool, only `deliver` changes.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -272,10 +273,18 @@ async def deliver(target: dict, text: str, *, send_text: Send, send_voice: Optio
         if not ok:
             return False, f"ring: {err}"
     if tg["voice"] and make_voice and send_voice:
-        try:
-            path = await make_voice(spoken_line(name, text, root))
-        except Exception as e:      # noqa: BLE001 - a voice failure must not lose the reminder
-            path, notes = "", [f"voice: {type(e).__name__}: {e}"[:160]]
+        path = ""
+        line = spoken_line(name, text, root)
+        for attempt in range(3):    # the free voice service sometimes answers with no audio; ask again
+            try:
+                path = await make_voice(line)
+                notes = []
+            except Exception as e:      # noqa: BLE001 - a voice failure must not lose the reminder
+                path, notes = "", [f"voice: {type(e).__name__}: {e}"[:160]]
+            if path:
+                break
+            if attempt < 2:
+                await asyncio.sleep(1.5)
         if path:
             vok, verr = await send_voice(path)
             if not vok:

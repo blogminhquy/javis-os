@@ -1054,6 +1054,13 @@ def mo_ta_loi(raw: str, cap: int = 300) -> str:
 
 async def _vong() -> None:
     print("[zalo-personal] vòng đọc bắt đầu", file=sys.stderr)
+    try:        # voice messages that play in the chat: re-add the tool an update may have wiped (zalo_voice_tool.py)
+        import config as _cfg
+        import zalo_voice_tool
+        for f in zalo_voice_tool.ensure(_cfg.STATE_DIR):
+            print(f"[zalo-personal] added zalo_send_voice to {f}", file=sys.stderr)
+    except Exception:       # noqa: BLE001
+        pass
     while not _stop:
         if _WAKE is not None:
             _WAKE.clear()       # before the pass: whatever calls wake() from here on is seen by the next sleep

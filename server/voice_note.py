@@ -146,7 +146,79 @@ async def _edge(text: str, voice: str) -> bytes:
     except Exception:
         pass
     out = b""
-    async for chunk in edge_tts.Communicate(text, voice, rate="+0%").stream():
-        if chunk.get("type") == "audio":
-            out += chunk.get("data") or b""
+    try:
+        async for chunk in edge_tts.Communicate(text, voice, rate="+0%").stream():
+            if chunk.get("type") == "audio":
+                out += chunk.get("data") or b""
+    except Exception as e:  # noqa: BLE001 - NoAudioReceived: a long-running process can keep a stale token
+        import sys
+        print(f"[voice note] Edge in-process failed ({type(e).__name__}: {e}); trying a fresh process",
+              file=sys.stderr, flush=True)
+        out = b""
+    return out or await _edge_fresh_process(text, voice) or await _google_tts(text, voice)
+
+
+async def _google_tts(text: str, voice: str) -> bytes:
+    """Last resort when Edge keeps answering NoAudioReceived (the VPS, 2026-11-16): Google Translate's
+    public speech endpoint, in chunks of at most 180 characters, joined into one mp3."""
+    import sys
+    import httpx
+    lang = (voice or "vi")[:2].lower() or "vi"
+    words, chunks, cur = str(text or "").split(), [], ""
+    for w in words:
+        if cur and len(cur) + 1 + len(w) > 180:
+            chunks.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}".strip()
+    if cur:
+        chunks.append(cur)
+    out = b""
+    try:
+        async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "Mozilla/5.0"}) as c:
+            for i, part in enumerate(chunks):
+                r = await c.get("https://translate.google.com/translate_tts",
+                                params={"ie": "UTF-8", "client": "tw-ob", "tl": lang, "q": part,
+                                        "total": len(chunks), "idx": i, "textlen": len(part)})
+                if r.status_code != 200 or not r.content:
+                    print(f"[voice note] Google speech answered {r.status_code}", file=sys.stderr, flush=True)
+                    return b""
+                out += r.content
+    except Exception as e:  # noqa: BLE001
+        print(f"[voice note] Google speech failed: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        return b""
     return out
+
+
+async def _edge_fresh_process(text: str, voice: str) -> bytes:
+    """Same voice, asked from a fresh python process. A server that has run for a while sometimes gets
+    `NoAudioReceived` from Edge while a new process is answered normally (seen on the VPS, 2026-11-16)."""
+    import asyncio
+    import sys
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp.close()
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "edge_tts", "--voice", voice, "--text", text, "--write-media", tmp.name,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+        try:
+            _o, err = await asyncio.wait_for(proc.communicate(), timeout=45)
+        except asyncio.TimeoutError:
+            proc.kill()
+            print("[voice note] fresh Edge process timed out", file=sys.stderr, flush=True)
+            return b""
+        audio = Path(tmp.name).read_bytes()
+        if not audio:
+            tail = (err or b"").decode(errors="replace").strip().splitlines()[-1:] or [""]
+            print(f"[voice note] fresh Edge process gave no audio (exit {proc.returncode}, voice={voice}, text={text[:80]!r}): {tail[0][:200]}",
+                  file=sys.stderr, flush=True)
+        return audio
+    except Exception as e:  # noqa: BLE001
+        print(f"[voice note] fresh Edge process failed: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        return b""
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass

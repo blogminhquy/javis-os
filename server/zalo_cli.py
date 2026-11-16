@@ -459,3 +459,38 @@ async def send_files(conn_id: str, home: str, thread_id: str, files: List[Path],
         return True, data, ""
     finally:
         shutil.rmtree(box, ignore_errors=True)
+
+
+SEND_VOICE_TOOL = "zalo_send_voice"
+
+
+async def send_voice(conn_id: str, home: str, thread_id: str, audio: Path, thread_type: int = 0) -> Tuple[bool, Any, str]:
+    """Send one audio file as a real Zalo voice message (a playable bubble) with MCP tool `zalo_send_voice`.
+    Same outbox rule as `send_files`. A javis-zalo without that tool comes back as `(False, None, reason)` and the
+    caller falls back to a plain file."""
+    try:
+        import zalo_personal_channel
+    except Exception as e:      # noqa: BLE001
+        return False, None, f"cannot load the Zalo channel ({type(e).__name__})"
+    conn = zalo_personal_channel.ket_noi_theo_id(conn_id)
+    if not conn:
+        return False, None, f"Zalo connection '{conn_id}' is not on"
+    box = outbox_dir(home) / uuid.uuid4().hex
+    try:
+        try:
+            box.mkdir(parents=True)
+            dst = box / Path(audio).name
+            shutil.copyfile(audio, dst)
+        except OSError as e:
+            return False, None, f"cannot copy the audio into the Zalo outbox ({e})"
+        args = {"threadId": str(thread_id), "threadType": int(thread_type), "path": str(dst)}
+        try:
+            data = await zalo_personal_channel._goi(conn, SEND_VOICE_TOOL, args)
+        except Exception as e:      # noqa: BLE001
+            why = re.sub(r"^\s*Error:\s*", "", str(e)).strip() or type(e).__name__
+            return False, None, why
+        if not isinstance(data, dict) or not data.get("success"):
+            return False, None, f"odd MCP answer: {json.dumps(data, ensure_ascii=False)[:200]}"
+        return True, data, ""
+    finally:
+        shutil.rmtree(box, ignore_errors=True)
