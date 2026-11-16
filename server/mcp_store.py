@@ -528,6 +528,10 @@ def resolved(enabled_only=True):
                 import optional_tools
                 for k, v in optional_tools.env_playwright().items():
                     env.setdefault(k, v)
+                # The MCP and Javis's download button are different Playwright versions that want
+                # different browser builds (16/11/2026: every call failed). Name the file instead.
+                for k, v in optional_tools.executable_env(env, args).items():
+                    env.setdefault(k, v)
             except Exception as e:
                 print(f"[mcp_store] env playwright: {type(e).__name__}: {e}", file=sys.stderr)
         # workspace-mcp (Google Workspace, Google Tasks) in DOCKER (issue #855): its OAuth callback listens on the
