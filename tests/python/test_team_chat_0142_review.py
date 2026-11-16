@@ -175,7 +175,8 @@ try:
     r.retry_reply(t["team_id"], sub["message_id"], TR.LEADER_SLOT)
     check("Thử lại khi vẫn chưa có điều phối: báo rõ", False)
 except team_store.TeamError as ex:
-    check("Thử lại khi vẫn chưa có điều phối: báo rõ", "điều phối" in str(ex))
+    # 17/11/2026: the leading assistant is called "phó nhóm" (deputy lead), no longer "điều phối".
+    check("Thử lại khi vẫn chưa có điều phối: báo rõ", "phó nhóm" in str(ex))
 tm.set_leader(t["team_id"], "agent-two")
 s1 = r.retry_reply(t["team_id"], sub["message_id"], TR.LEADER_SLOT)
 s2 = r.retry_reply(t["team_id"], sub["message_id"], TR.LEADER_SLOT)

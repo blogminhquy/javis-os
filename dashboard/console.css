@@ -3315,8 +3315,8 @@ body.on-teams .cview-head { display: none; }
   border: none; border-radius: 8px; background: none; color: inherit; cursor: pointer; }
 @media (max-width: 760px) { .tm-note-retry, .tm-note-close { min-height: 44px; min-width: 44px; } }
 
-/* Dải việc ở đầu khung chat: việc đang làm và việc chờ chủ (một nút giải quyết). */
-.tm-jobs { display: flex; flex-direction: column; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); max-height: 40%; overflow-y: auto; }
+/* Dải việc (17/11/2026): một viên thuốc ngay trên khung nhập, cùng lớp với viên việc nền của chat chính (.bg-strip). */
+.tm-jobs { flex: none; }
 .tm-jobs[hidden] { display: none; }
 .tm-jrun { border-bottom: none; padding: 2px 0; }
 .tm-spin { display: inline-flex; color: var(--accent); }
@@ -4580,7 +4580,7 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-jb-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin: -2px 4px 2px 26px; font-size: 14px; color: var(--text3); }
 .tm-jb-m { display: inline-flex; align-items: center; gap: 5px; }
 .tm-jb-m .ic { width: 14px; height: 14px; flex: none; }
-.tm-jb .tm-ava, .tm-js .tm-ava { width: 18px; height: 18px; font-size: 10px; }
+.tm-jb .tm-ava, .tm-sr .tm-ava { width: 18px; height: 18px; font-size: 10px; }
 .tm-jb-fold { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; margin: 0 -6px; padding: 0 6px; border: 0; border-radius: 8px;
   background: none; color: inherit; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; }
 .tm-jb-fold:hover { background: var(--surface-2); color: var(--text); }
@@ -4594,8 +4594,13 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-jb-step:last-child { border-bottom: 0; }
 .tm-jb-step .tm-jb-lead { min-height: 22px; }
 .tm-jb-stext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.tm-jb-who { display: flex; align-items: center; gap: 6px; font-size: 15px; }
-.tm-jb-who small { font-size: 13.5px; color: var(--text3); }
+.tm-jb-who { display: flex; align-items: flex-start; gap: 6px; font-size: 15px; }
+.tm-jb-who > .tm-ava, .tm-jb-who > .tm-face { flex: none; margin-top: 1px; }
+.tm-jb-who > span:not(.tm-face):not(.tm-ava) { min-width: 0; overflow-wrap: anywhere; }
+/* The role of a step (Chia việc, Làm, Hỗ trợ, Tổng hợp) is a small tag that never breaks (owner, 17/11/2026: "làm kiểu
+   tag trông cho đẹp, chia việc trên 1 dòng thôi"), the size of the tag chips of the Tasks page. */
+.tm-jb-who small { flex: none; margin: 1px 0 0 auto; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text2);
+  font-size: 13px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
 .tm-jb-what { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; font-size: 15px;
   line-height: 1.45; color: var(--text2); overflow-wrap: anywhere; }
 .tm-jb-step-done .tm-jb-what, .tm-jb-step-wait .tm-jb-what, .tm-jb-step-off .tm-jb-what { color: var(--text3); }
@@ -4644,22 +4649,31 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-jb .tm-report .tm-jb-steps { margin: 0; border-top: 0; }
 .tm-jb .tm-report .tm-jb-step:first-child { padding-top: 4px; }
 
-/* The job strip on top of the chat: one line per job, the same icons as the cards. */
-.tm-jobs { gap: 0; padding: 2px 6px 2px 12px; }
-.tm-js { display: flex; align-items: center; gap: 10px; min-height: 44px; }
-.tm-js[hidden] { display: none; }
-.tm-js + .tm-js { border-top: 1px solid var(--hairline); }
-.tm-js-title { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; padding: 8px 0; border: 0; background: none;
-  color: var(--text); font: inherit; font-size: 16px; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
-.tm-js-title b { font-weight: 400; }
-.tm-js-ask .tm-js-title b { font-weight: 650; }
-.tm-js-title small { font-size: 14px; color: var(--warn-ink); }
-.tm-js-who { display: inline-flex; flex: none; }
-.tm-js-face { display: inline-flex; }
-.tm-js-face + .tm-js-face { margin-left: -6px; }
-.tm-js-n { flex: none; font-size: 14px; color: var(--text3); font-variant-numeric: tabular-nums; }
-.tm-js .tm-jb-ic { width: 36px; }
-.tm-js .ws-btn { flex: none; min-height: 36px; padding: 0 12px; border-radius: 10px; font-size: 14.5px; }
+/* The job pill above the composer and its details (17/11/2026). The pill, dot, caret and pop-up come from style.css
+   (.bg-strip, the main chat's background-work pill); these are the rows of a team job inside the pop-up. */
+.tm-jobs.bg-strip { margin: 6px 12px 6px; }
+.tm-jobs .bg-pop { width: min(420px, calc(100vw - 32px)); }
+.tm-sr { display: flex; flex-direction: column; gap: 4px; }
+.tm-sr-head { display: flex; align-items: flex-start; gap: 8px; }
+.tm-sr-head > .tm-jb-s { padding-top: 3px; }
+.tm-sr-head > .tm-jb-s .ic { width: 18px; height: 18px; }
+.tm-sr-title { flex: 1; min-width: 0; padding: 2px 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 15px;
+  line-height: 1.4; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.tm-sr-title:hover { color: var(--accent-ink); }
+.tm-sr-ask .tm-sr-title { font-weight: 650; }
+.tm-sr .tm-jb-ic { width: 30px; height: 30px; }
+.tm-sr-why { margin-left: 26px; font-size: 14px; line-height: 1.45; color: var(--warn-ink); overflow-wrap: anywhere; }
+.tm-sr-go { margin: 4px 0 2px 26px; }
+.tm-sr-go .ws-btn { min-height: 36px; padding: 0 14px; border-radius: 10px; font-size: 14.5px; }
+.tm-sr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-left: 26px; font-size: 14px; color: var(--text3); }
+.tm-sr-meta .ic { width: 14px; height: 14px; }
+/* Role badges in the member list: one line, never squeezed by a long name (owner, 17/11/2026: "chữ phó nhóm trên 1 dòng
+   thôi đừng 2 dòng"). */
+.tm-info-members .tm-info-badge { flex: none; white-space: nowrap; }
+/* As wide as the private chat button of the other rows (32px, 44px on a phone): the generic span rule of this list would
+   squeeze it to nothing. */
+.tm-info-members li > span.tm-info-chat.tm-info-gap { visibility: hidden; min-width: 32px; }
+.tm-info-members .tm-info-badge + .tm-info-chat { margin-left: 4px; }
 
 /* Tabs of the side panel: icon, word, count (owner: "menu thông tin, việc team cũng nên có icon"), the look of the tabs
    on the Tasks page. */
@@ -4681,16 +4695,17 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
   .tm-jb-pg .tm-jb-ic { width: 40px; height: 44px; }
   .tm-side .tm-jb-go .ws-btn { min-height: 48px; }
   .tm-jb-delall, .tm-jb-more { min-height: 44px; }
-  .tm-jobs { padding-left: 10px; }
-  .tm-js .tm-jb-ic { width: 40px; }
-  .tm-js .ws-btn { min-height: 44px; }
+  .tm-sr .tm-jb-ic { width: 40px; height: 44px; }
+  .tm-info-members li > span.tm-info-chat.tm-info-gap { min-width: 44px; }
+  .tm-sr-go .ws-btn { min-height: 44px; }
+  .tm-jobs .bg-pill { min-height: 40px; }
   .tm-side-bar .tm-tabs { padding: 3px; }
   .tm-side .tm-tab { gap: 5px; min-height: 44px; }
   .tm-side .tm-qhead.tm-jb-h, .tm-jb-h .tm-qn { font-size: 16px; }
   /* A phone reads this panel at 16px like the rest of the team page (0.358.0); only the count pills stay small. */
-  .tm-jb-meta, .tm-jb-fold, .tm-jb-why, .tm-jb-who, .tm-jb-who small, .tm-jb-what, .tm-jb-pgn, .tm-jb-note, .tm-jb-sub, .tm-jb-more,
-  .tm-jb-delall, .tm-jb .tm-report-meta, .tm-jb .tm-report-body, .tm-js-title small, .tm-js-n, .tm-side .tm-jb-go .ws-btn,
-  .tm-js .ws-btn { font-size: 16px; }
+  .tm-jb-meta, .tm-jb-fold, .tm-jb-why, .tm-jb-who, .tm-jb-what, .tm-jb-pgn, .tm-jb-note, .tm-jb-sub, .tm-jb-more,
+  .tm-jb-delall, .tm-jb .tm-report-meta, .tm-jb .tm-report-body, .tm-side .tm-jb-go .ws-btn,
+  .tm-sr-title, .tm-sr-why, .tm-sr-meta, .tm-sr-go .ws-btn { font-size: 16px; }
 }
 
 /* 0.358.0 (owner, 27/10/2026: "uxui nhìn điện thoại trong phần team loạn lắm"): a calmer Team chat on a phone. Fewer

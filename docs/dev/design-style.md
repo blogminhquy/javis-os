@@ -149,6 +149,7 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 - **Từ trung tính,** không gắn với một nghề: "đừng có dùng tiền, đơn, đăng bài, nó cá nhân hoá với anh quá" (05/08).
 - **Tên gọi đã chốt:**
   - Cộng sự (không gọi trợ lý);
+  - trong team: **Trưởng nhóm** là bạn, người tạo team; **Phó nhóm** là cộng sự dẫn team (không gọi "điều phối", 17/11);
   - Mạng nơ-ron (không gọi đồ thị);
   - Node, Link;
   - Tags;
@@ -239,6 +240,8 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
 | Ngôn ngữ giao diện | có cả tiếng Đức | **chỉ Việt và Anh** (08/11) |
 | Sao ưu tiên | 3 sao một ngày | **1 sao** |
 | Dải công cụ cạnh chọn model | bỏ hẳn | **chỉ 3 công cụ gần nhất** |
+| Tên vai trong team | trưởng nhóm, rồi điều phối | **phó nhóm** cho cộng sự dẫn team, **trưởng nhóm** là bạn (17/11) |
+| Việc team chờ bạn trong khung chat | thẻ dài ở đầu khung chat | **viên thuốc một dòng trên khung nhập** như việc nền ở chat chính, tự ẩn khi bạn đã nhắn sau lúc việc dừng (17/11) |
 
 ## 12. Trích lời chủ theo thời gian
 
@@ -285,3 +288,12 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
 - **15/11:**
   - "các phần thông tin hướng dẫn làm gọn lại nút i và các bước nhìn dễ đọc";
   - "tự phản biện lại ux ui trang này rồi thiết kế lại".
+- **16/11:**
+  - "cải tiến phần việc của team giống trải nghiệm của trang nhiệm vụ ... ux ui có nhiều icon ít button";
+  - "click vào việc đã hoàn thành thì phải có 1 tóm tắt những gì đã làm".
+- **17/11:**
+  - "các thông tin này có thể co gọn lại và để xuống dưới giống như việc kanban nền chạy";
+  - "chữ điều phối đổi thành phó nhóm và người tạo ra nhóm mặc định là trưởng nhóm";
+  - "khi đã nhắn ở khung chat xử lý vấn đề thông báo rồi thì phải tự tắt cái thông báo đó đi";
+  - "mấy cái phần chia việc với Làm này cũng cần làm kiểu tag trông cho đẹp, chia việc trên 1 dòng thôi";
+  - "thứ tự sẽ là Việc, thông tin, rồi mới đến team" (chưa có việc thì mở tab Thông tin).

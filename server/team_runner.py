@@ -1111,7 +1111,7 @@ class TeamRunner:
             # Dòng "chưa có điều phối": thử lại là giao tin cho điều phối HIỆN TẠI (đúng một lượt), dòng chỗ trống khép lại.
             leader = team.get("leader_key")
             if not leader:
-                raise TeamError("nhóm chưa có người điều phối")
+                raise TeamError("nhóm chưa có phó nhóm")
             row = self.teams.retry_reply(team_id, int(message_id), LEADER_SLOT)
             if row is None:
                 return None
@@ -1724,7 +1724,7 @@ class TeamRunner:
         with self.accept_lock:
             row = self.teams.grant_authority(team_id, clean, by=by)
         team = self._team(team_id)
-        self._post(team, f"Chủ nhóm đã cho người điều phối {self._name(team, row['leader_key'])} tự quyết trong nhóm.",
+        self._post(team, f"Chủ nhóm đã cho phó nhóm {self._name(team, row['leader_key'])} tự quyết trong nhóm.",
                    author_kind="system", meta={"kind": "authority_granted"})
         self._state(team_id)
         return row
@@ -2017,7 +2017,7 @@ class TeamRunner:
                 if not task or task.get("team_id") != team_id or task["status"] != "team_running":
                     raise TeamError("không có việc đang chạy này trong nhóm")
                 reason = str(op.get("reason") or "").strip()[:300] or "không nêu lý do"
-                self.cancel_job(task["id"], f"người điều phối ngắt: {reason}")
+                self.cancel_job(task["id"], f"phó nhóm ngắt: {reason}")
                 self.teams.log_event(team_id, "job_interrupted", by, None, {"task_id": task["id"], "reason": reason})
                 self._system(team, f"Trưởng nhóm {lead} đã ngắt việc \"{task['title']}\": {reason}.", "job_interrupted")
             else:
@@ -3183,7 +3183,7 @@ class TeamRunner:
             return None if self._add_steps(team, task, specs) else "team_blocked"
         team = self._team(team["team_id"])
         if not team["leader_key"]:
-            return self._block(task["id"], "no_leader", "Nhóm chưa có người điều phối")
+            return self._block(task["id"], "no_leader", "Nhóm chưa có phó nhóm")
         ok = self._add_steps(team, task, [{"kind": "plan", "agent": team["leader_key"],
                                            "brief": f"Lập lại kế hoạch ({reason}). {task['intent']}",
                                            "inputs": self._done_results(task) or self._source_id(task)}])
@@ -3871,9 +3871,9 @@ class TeamRunner:
             res = self._after_steps(team, task)
             return ("return", res) if res else ("continue",)
         if step["kind"] in ("plan", "synthesize") and step["agent_key"] != team["leader_key"]:
-            self.teams.set_step_status(step["step_id"], "cancelled", "người điều phối đã đổi")
+            self.teams.set_step_status(step["step_id"], "cancelled", "phó nhóm đã đổi")
             if not team["leader_key"]:
-                return ("return", self._block(task_id, "no_leader", "Nhóm chưa có người điều phối"))
+                return ("return", self._block(task_id, "no_leader", "Nhóm chưa có phó nhóm"))
             self._coordinator_changed(team, task, team["leader_key"])
             if not self._add_steps(team, task, [{"kind": step["kind"], "agent": team["leader_key"],
                                                  "brief": step["brief"], "inputs": step["input_refs"]}]):
@@ -4022,7 +4022,7 @@ class TeamRunner:
                                 int(results[0]["job_revision"]))
         if len(results) > 1:
             if not team["leader_key"]:
-                return self._block(task["id"], "no_leader", "Nhóm chưa có người điều phối để tổng hợp")
+                return self._block(task["id"], "no_leader", "Nhóm chưa có phó nhóm để tổng hợp")
             ok = self._add_steps(team, task, [{"kind": "synthesize", "agent": team["leader_key"], "brief": "",
                                                "inputs": [s["result_msg_id"] for s in results]}])
             return None if ok else "team_blocked"
@@ -4115,10 +4115,10 @@ class TeamRunner:
             self.teams.finish_step(sid, "cancelled", mid, False, "theo yêu cầu cũ")
             return self._recoordinate(team, task, step, "yêu cầu đã sửa")
         if st == "leader_changed":
-            self.teams.finish_step(sid, "cancelled", mid, False, "người điều phối đã đổi")
+            self.teams.finish_step(sid, "cancelled", mid, False, "phó nhóm đã đổi")
             team = self._team(team["team_id"])
             if not team["leader_key"]:
-                return self._block(task["id"], "no_leader", "Nhóm chưa có người điều phối")
+                return self._block(task["id"], "no_leader", "Nhóm chưa có phó nhóm")
             self._coordinator_changed(team, task, team["leader_key"])
             ok = self._add_steps(team, task, [{"kind": step["kind"], "agent": team["leader_key"],
                                                "brief": step["brief"], "inputs": step["input_refs"]}])
@@ -4634,7 +4634,7 @@ class TeamRunner:
                         first = self.start_job_steps(task["id"])
                         current = None
                         if first == "no_leader":
-                            self._block(task["id"], "no_leader", "Nhóm chưa có người điều phối")
+                            self._block(task["id"], "no_leader", "Nhóm chưa có phó nhóm")
                             continue
                         if first == "assignee_removed":
                             self._block(task["id"], "assignee_removed", "Người được giao đã rời nhóm")
