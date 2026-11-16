@@ -2322,13 +2322,27 @@
   }
 
   // Đang lọc tin theo một việc: một băng nói rõ, kèm nút Xem tất cả (thay ô chọn lọc cũ).
+  // The bar shown while the chat holds one job's messages. Owner, 17/11/2026 (a phone screenshot: "rối như tơ vò ...
+  // không thể nào mà thao tác với đọc hiểu dữ liệu đc"): it took three lines on a phone (the sentence, a "Show all"
+  // button, the acceptance and usage folder) and pushed the chat down. Now ONE line: the job's name cut to fit, an
+  // icon for its acceptance and usage (opens a panel under the line, folded by default) and an X to show every message.
+  function filterbarHtml(title, quality, open) {
+    var usage = tw("teams.quality.task_usage"), all = tw("teams.filter_clear");
+    return '<span class="tm-fb-ic" aria-hidden="true">' + ic("message-circle") + "</span>" +
+      '<span class="tm-fb-text" title="' + esc(tw("teams.filter_on", { title: title })) + '">' + esc(tw("teams.filter_short", { title: title })) + "</span>" +
+      (quality ? '<button type="button" class="tm-jb-ic tm-fb-q" data-fb-quality="1" aria-expanded="' + (open ? "true" : "false") +
+        '" aria-label="' + esc(usage) + '" title="' + esc(usage) + '">' + ic("chart-column") + "</button>" : "") +
+      '<button type="button" class="tm-jb-ic tm-filter-clear" aria-label="' + esc(all) + '" title="' + esc(all) + '">' + ic("x") + "</button>" +
+      (quality && open ? '<div class="tm-fb-panel">' + quality.replace('<details class="tm-task-quality">', '<details class="tm-task-quality" open>') + "</div>" : "");
+  }
+
   function drawFilterbar() {
     var bar = S.el.querySelector(".tm-filterbar");
     if (!bar) return;
     bar.hidden = !S.filterTask || !S.team;
-    bar.innerHTML = bar.hidden ? "" : "<span>" + esc(tw("teams.filter_on", { title: S.taskTitles[S.filterTask] || S.filterTask })) +
-      '</span><button type="button" class="ws-btn tm-filter-clear">' + esc(tw("teams.filter_clear")) + "</button>" +
-      (S.taskDetail && S.taskDetail.task && S.taskDetail.task.id === S.filterTask ? taskQualityHtml(S.taskDetail) : "");
+    if (bar.hidden) { S.fbQuality = false; bar.innerHTML = ""; return; }
+    var quality = S.taskDetail && S.taskDetail.task && S.taskDetail.task.id === S.filterTask ? taskQualityHtml(S.taskDetail) : "";
+    bar.innerHTML = filterbarHtml(S.taskTitles[S.filterTask] || S.filterTask, quality, !!S.fbQuality);
   }
 
   function runSearch() {
@@ -2482,7 +2496,7 @@
       { key: "older", html: S.hasMore ? '<button type="button" class="ws-btn tm-older">' + esc(tw("teams.older")) + "</button>" : "" },
       // Messages of this team not loaded yet: say so, rather than "no message yet" (2026-11-09, owner).
       { key: "empty", html: !list.length && !S.hasMore ? (S.msgsFor !== S.activeId ? loadingHtml("teams.loading_chat")
-        : '<div class="tm-empty tm-empty-chat">' + esc(tw("teams.chat_empty")) + "</div>") : "" }];
+        : '<div class="tm-empty tm-empty-chat">' + esc(tw(S.filterTask ? "teams.chat_empty_job" : "teams.chat_empty")) + "</div>") : "" }];
     list.forEach(function (m) {
       var mm = m;
       if (S.skipped["p" + m.id] && m.meta && m.meta.proposal) mm = Object.assign({}, m, { meta: Object.assign({}, m.meta, { proposal: null }) });
@@ -2565,7 +2579,9 @@
   function drawJobs() {
     var bar = S.el.querySelector(".tm-jobs");
     if (!bar) return;
-    var seenAt = ownerSaidAt(S.msgs);
+    // The newest owner message seen in this team so far: while the chat shows one job's messages, the owner's answer
+    // in the whole chat still counts (it is not in that job's list).
+    var seenAt = S.seenAt = Math.max(S.seenAt || 0, ownerSaidAt(S.msgs));
     var st = S.team ? stripState(S.queue, seenAt) : { tone: "" };
     if (!st.tone) S.stripOpen = false;
     var h = st.tone ? jobStripHtml(S.queue, S.team.members, { seenAt: seenAt, open: S.stripOpen }) : "";
@@ -3418,6 +3434,7 @@
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.msgsFor = ""; S.taskTitles = {}; S.openMember = null; S.turns = [];
     S.jobFold = {}; S.finPage = 0; S.archPage = 0; S.archQuery = ""; S.jobDetails = {}; S.fullReport = {}; S.openFin = null;
+    S.seenAt = 0; S.fbQuality = false; S.stripOpen = false;
     // 2026-11-09 (owner): a team opens with its Info tab showing on a wide screen, unless the owner closed the panel
     // last time (remembered per device). A phone keeps the panel as a drawer that opens on demand.
     S.side = sideByDefault();
@@ -4775,7 +4792,12 @@
     var inside = function (sel) { return !!(e.target.closest && e.target.closest(sel)); };
     if (S.stripOpen && !inside(".tm-jobs")) setStrip(false);
     if (t && t.dataset && t.dataset.strip) { setStrip(!S.stripOpen); return; }
-    if (S.stripOpen && t && t.dataset && (t.dataset.openJobs || t.dataset.viewTask) && inside(".tm-jobs")) setStrip(false);
+    // A job's title or "Open the Jobs tab" in the pill's details: the details close AFTER this press is handled. Drawn
+    // again right away, the pressed button left the page and the press was dropped below (`S.el.contains(t)`).
+    if (S.stripOpen && t && t.dataset && (t.dataset.openJobs || t.dataset.viewTask) && inside(".tm-jobs")) {
+      S.stripOpen = false;
+      setTimeout(drawJobs, 0);
+    }
     if (S.plusOpen && !inside(".tm-plus-menu") && !inside(".tm-plus")) setPlus(false);
     if (S.picker !== null && !inside(".tm-sheet") && Date.now() - (S.sheetAt || 0) > 600) {
       S.picker = null;
@@ -5023,6 +5045,7 @@
     }
     if (t.classList.contains("tm-jump-back")) { S.jumped = null; loadMsgs(false); return; }
     if (t.classList.contains("tm-filter-clear")) { S.filterTask = ""; drawFilterbar(); loadMsgs(false); return; }
+    if (t.dataset && t.dataset.fbQuality) { S.fbQuality = !S.fbQuality; drawFilterbar(); return; }
     if (d.reactClose) { S.focusBack = S.picker; S.picker = null; drawMsgs(false); return; }
     if ((d.task && t.classList.contains("tm-tag")) || d.viewTask) {
       S.filterTask = d.task || d.viewTask;
@@ -5788,7 +5811,7 @@
   }
 
   var api = { render: render, leave: leave, open: open, teamListHtml: teamListHtml, messageHtml: messageHtml, queueHtml: queueHtml,
-    jobStripHtml: jobStripHtml, stripState: stripState, defaultTab: defaultTab, ownerSaidAt: ownerSaidAt, sideTabsHtml: sideTabsHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, workModeHtml: workModeHtml,
+    jobStripHtml: jobStripHtml, filterbarHtml: filterbarHtml, stripState: stripState, defaultTab: defaultTab, ownerSaidAt: ownerSaidAt, sideTabsHtml: sideTabsHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, workModeHtml: workModeHtml,
     mandateHtml: mandateHtml, opportunityCardHtml: opportunityCardHtml, readMandateForm: readMandateForm,
     parseCriteria: parseCriteria, acceptanceCardHtml: acceptanceCardHtml, acceptanceDecisionPayload: acceptanceDecisionPayload,
     qualityPolicyHtml: qualityPolicyHtml, qualityPolicyPayload: qualityPolicyPayload, qualityTemplatePayload: qualityTemplatePayload,

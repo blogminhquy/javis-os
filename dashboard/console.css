@@ -3327,8 +3327,15 @@ body.on-teams .cview-head { display: none; }
 .tm-jcard[hidden] { display: none; }
 .tm-jcard-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 200px; }
 .tm-jmore { align-self: flex-start; }
-.tm-filterbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; font-size: 12.5px;
-  background: var(--accent-wash); }
+/* One line while the chat holds one job's messages (17/11/2026): name, usage icon, X. */
+.tm-filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-height: 40px; padding: 0 4px 0 12px; font-size: 14.5px;
+  color: var(--text2); background: var(--accent-wash); border-bottom: 1px solid var(--hairline); }
+.tm-fb-ic { display: inline-flex; flex: none; color: var(--accent-ink); }
+.tm-fb-ic .ic { width: 16px; height: 16px; }
+.tm-fb-text { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-filterbar .tm-jb-ic[aria-expanded="true"] { color: var(--accent-ink); background: var(--surface-2); }
+.tm-fb-panel { flex: 1 0 100%; max-height: 40vh; overflow: auto; padding: 0 8px 8px 0; font-size: 14px; }
+.tm-fb-panel > .tm-task-quality > summary { display: none; }   /* the icon above already names it */
 .tm-filterbar[hidden] { display: none; }
 
 /* Tin: bong bóng. Của chủ bên phải (không tên, không ảnh); của trợ lý bên trái kèm ảnh và tên; tin hệ thống ở giữa. */
@@ -4546,7 +4553,6 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-quality-form .ws-btn, .tm-template-form .ws-btn { font-size: 16px; min-height: 40px; }
 .tm-quality-form select, .tm-template-form textarea { width: 100%; min-width: 0; }
 .tm-task-quality { flex-basis: 100%; min-width: 0; width: 100%; }
-.tm-filterbar:has(.tm-task-quality) { flex-wrap: wrap; }
 .tm-task-quality .tm-sec { overflow-wrap: anywhere; }
 
 /* ───────────── Team Jobs tab: job cards, steps, pager, strip, icon tabs (16/11/2026) ─────────────
@@ -4698,6 +4704,7 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
   .tm-sr .tm-jb-ic { width: 40px; height: 44px; }
   .tm-info-members li > span.tm-info-chat.tm-info-gap { min-width: 44px; }
   .tm-sr-go .ws-btn { min-height: 44px; }
+  .tm-filterbar { min-height: 44px; font-size: 16px; }
   .tm-jobs .bg-pill { min-height: 40px; }
   .tm-side-bar .tm-tabs { padding: 3px; }
   .tm-side .tm-tab { gap: 5px; min-height: 44px; }
