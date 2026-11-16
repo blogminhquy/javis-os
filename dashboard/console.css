@@ -1676,6 +1676,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .kho-btn-go { background: transparent; color: var(--danger-ink, #b3261e);
   border-color: var(--border); }
 .kho-btn-go:hover { border-color: var(--danger-ink, #b3261e); }
+/* An empty search in one tab: the offer to run it on the All tab sits under the message, on the same left edge. */
+.kho-search-all { display: flex; margin-top: 12px; }
 
 .kho-trang { display: flex; align-items: center; gap: 6px; margin-top: 22px; padding-top: 16px;
   border-top: 1px solid var(--border); flex-wrap: wrap; }
