@@ -53,6 +53,7 @@
       vong: 1,
       toiDa: +o.toiDa || 5,
       left: "",
+      them: [],               // 2026-11-16: what the owner typed while the goal ran, folded into every later round
       state: "running",       // "running" | "paused"
       batDau: now,
       daChay: 0,              // ms đã chạy trước đoạn hiện tại (tạm dừng thì đồng hồ đứng)
@@ -61,7 +62,8 @@
       ket: null,              // kết quả vòng vừa xong {marker, hoiLai} | {loi}
       xongLuot: false,        // lượt của vòng vừa đóng, chưa quyết định vòng tiếp
       tiepNgay: false,        // vòng sau đi luôn, khỏi quyết định (sau tạm dừng, sau tải lại trang)
-      catNgang: false,        // lượt đang chạy bị cắt (bấm Dừng, gõ chen ngang): bỏ kết quả của nó
+      catNgang: false,        // lượt đang chạy bị cắt (bấm Dừng): bỏ kết quả của nó
+      moi: false,             // an owner message the running round has not read yet: "done" must not end the goal
     };
   }
 
@@ -128,6 +130,7 @@
       g.id = String(o.id);
       g.vong = Math.max(1, +o.vong || 1);
       g.left = String(o.left || "");
+      g.them = Array.isArray(o.them) ? o.them.map(String).slice(-5) : [];
       g.daChay = Math.max(0, +o.daChay || 0);
       g.chayTu = 0;
       g.state = "paused";
@@ -141,7 +144,7 @@
     now = +now || Date.now();
     return JSON.stringify((ds || []).filter(function (g) { return g && g.sid; }).map(function (g) {
       return { id: g.id, sid: g.sid, brain: g.brain, dk: g.dk, vong: g.vong, toiDa: g.toiDa, left: g.left,
-               state: g.state, batDau: g.batDau, daChay: thoiGian(g, now) };
+               them: g.them || [], state: g.state, batDau: g.batDau, daChay: thoiGian(g, now) };
     }));
   }
 

@@ -84,7 +84,8 @@ check("CANARY: bỏ hẳn kiểu nuốt lặng `if (turns[sid].running) return;`
 // tục, mô hình bị cắt); câu xếp hàng và gửi khi lượt xong. Ngoài cuộc gọi (mic một lần) vẫn dừng rồi gửi.
 check("tin từ mic lúc đang gọi thì XẾP HÀNG, không dừng lượt cũ",
   // 0.206.0: typed text no longer stops at a silent return; it goes to the running turn (guiBoSung). Mic rules unchanged.
-  /if \(!\(_tuGiong \|\| handsFree\)\) \{ guiBoSung\(msg, atts\); return; \}[\s\S]{0,400}if \(handsFree\) \{ xepCauChoLuot\(msg, opts\); return; \}\s*\n\s*stopCurrent\(\);/.test(app));
+  // 2026-11-16: that branch also tells a running /goal (guiBoSung(msg, atts, _goal)), so it spans a few lines.
+  /if \(!\(_tuGiong \|\| handsFree\)\) \{\s*const _goal = [^\n]*\n\s*if \(guiBoSung\(msg, atts, _goal\)[^\n]*\n\s*return;\s*\}[\s\S]{0,400}if \(handsFree\) \{ xepCauChoLuot\(msg, opts\); return; \}\s*\n\s*stopCurrent\(\);/.test(app));
 
 // ---- 3. Cắt lời chỉ làm Javis im, lượt đang chạy viết nốt (0.65.28) ----
 const b = new T.VoiceTurn();

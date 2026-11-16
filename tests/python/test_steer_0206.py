@@ -165,6 +165,23 @@ check("one-shot engines (Grok, Antigravity, Codex, the one-call path) say after"
       src.count("steer_inbox.INBOX.set_live(conv_sid, False)") == 4)
 check("three API loops read pending messages",
       (SERVER / "engine.py").read_text(encoding="utf-8").count("steer_inbox.INBOX.take_note_current()") == 3)
+# ---- 2026-11-16: a message typed while a /goal runs joins the goal ----
+gi = si.SteerInbox()
+tok = gi.open("g1", "chat:g1")
+it = gi.put("g1", "tính cả kênh Shopee", goal=True)
+check("a goal message is held like any other", it is not None and it.get("goal") is True)
+note = gi.take_note("g1")
+check("the round reads it as part of the goal", "Shopee" in note and "mục tiêu đang theo đuổi" in note and "JAVIS_GOAL" in note)
+gi.put("g1", "gửi qua email", goal=True)
+gi.put("g1", "một việc khác")
+left = gi.close("g1", "chat:g1", tok)
+check("an unread goal message never becomes its own turn, a plain one still does",
+      [i["text"] for i in left] == ["một việc khác"])
+check("a plain note has no goal line", "mục tiêu đang theo đuổi" not in si.note_for(["x"]))
+check("main.py: goal steer is acked as goal mode and never starts a turn",
+      '_goal = bool(payload.get("goal"))' in src and "steer_inbox.INBOX.put(_sid, _txt, goal=_goal)" in src
+      and 'elif _goal:\n                        _mode, _id = "goal", 0' in src)
+
 for f in ("steer_inbox.py",):
     check(f"no long dashes in {f}", not any(c in (SERVER / f).read_text(encoding="utf-8") for c in "–—"))
 

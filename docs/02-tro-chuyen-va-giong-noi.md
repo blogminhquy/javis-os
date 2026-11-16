@@ -214,7 +214,8 @@ Khi dừng vì những lý do trên, mục tiêu tự tắt và câu báo luôn 
 
 **Thanh mục tiêu (từ 0.290.0).** Khi có mục tiêu, một thanh hiện ngay trên khung nhập, ở mọi khung chat: biểu tượng, chữ mục tiêu, đồng hồ đếm thời gian đã chạy, rồi ba nút **xoá**, **tạm dừng / chạy tiếp** và **mũi tên** mở chi tiết (đủ chữ mục tiêu, vòng mấy trên năm, phần còn thiếu). Có nhiều mục tiêu (mỗi hội thoại một cái) thì **ô số** ở đầu thanh cho biết có bao nhiêu; bấm vào đó xổ ra danh sách, bấm một dòng để mở đúng hội thoại của nó.
 
-- **Tạm dừng thay vì tắt:** bấm Dừng của khung chat hay gõ một tin mới giữa chừng thì mục tiêu chỉ tạm dừng (đồng hồ đứng), lời của bạn vẫn lên trước. Bấm chạy tiếp trên thanh là Javis đi vòng sau.
+- **Gõ thêm giữa chừng không làm mục tiêu dừng:** tin bạn gõ lúc mục tiêu đang chạy được gộp vào mục tiêu. Vòng đang chạy đọc nó ở bước kế tiếp, và mọi vòng sau đều mang theo nó, nên bạn có thể chỉnh hay mở rộng mục tiêu ngay khi Javis đang làm. Mỗi tin như vậy cho mục tiêu thêm một vòng (tối đa 10 vòng). Nếu vòng đang chạy chưa kịp đọc tin của bạn mà đã báo đạt, Javis vẫn chạy thêm một vòng để làm theo tin đó.
+- **Tạm dừng thay vì tắt:** bấm Dừng của khung chat thì mục tiêu chỉ tạm dừng (đồng hồ đứng). Bấm chạy tiếp trên thanh là Javis đi vòng sau.
 - **Sang hội thoại khác:** mục tiêu không mất mà chờ. Nó chỉ chạy tiếp khi hội thoại của nó đang mở, vì vòng tự động là trình duyệt gửi tin vào khung chat bạn đang xem. Mở lại hội thoại đó là nó đi tiếp.
 - **Tải lại trang:** mục tiêu còn nguyên trên thanh ở trạng thái tạm dừng; bấm chạy tiếp là đi vòng sau. Trần 5 vòng vẫn giữ.
 

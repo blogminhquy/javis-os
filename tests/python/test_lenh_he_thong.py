@@ -199,6 +199,17 @@ check("POST /slash/block goal thiếu điều kiện -> 400", client.post("/slas
 check("POST /slash/block kind lạ -> 400", client.post("/slash/block", data={"kind": "xyz"}).status_code == 400)
 r = client.post("/slash/block", data={"kind": "goal", "dk": "a", "vong": "999", "toi_da": "999"})
 check("POST /slash/block kẹp trần vòng (không cho model chạy vô hạn)", "vòng 20/20" in r.json()["block"], r.json())
+# 2026-11-16: what the owner typed while the goal ran rides in every later round's block.
+r = client.post("/slash/block", data={"kind": "goal", "dk": "báo cáo tuần", "vong": "2", "toi_da": "6",
+                                      "left": "còn email", "them": '["tính cả Shopee", "gửi trước 9 giờ ]"]'})
+_b = r.json()["block"]
+check("POST /slash/block goal mang lời bổ sung của chủ", "đã bổ sung trong lúc mục tiêu chạy" in _b
+      and "- tính cả Shopee" in _b and "- gửi trước 9 giờ )" in _b and _b.index("tính cả Shopee") < _b.index("JAVIS_GOAL_ROUND"), _b)
+r = client.post("/slash/block", data={"kind": "goal", "dk": "a", "them": "không phải json"})
+check("POST /slash/block them hỏng thì bỏ qua", r.status_code == 200 and "bổ sung" not in r.json()["block"])
+_b = L.khoi_muc_tieu("a", 2, 5, "", [str(i) for i in range(9)])
+check("khối giữ tối đa 5 lời bổ sung, mới nhất", "- 8\n" in _b and "- 3\n" not in _b and "- 4\n" in _b)
+check("khối không có lời bổ sung thì như cũ", L.khoi_muc_tieu("a", 2, 5, "x") == L.khoi_muc_tieu("a", 2, 5, "x", []))
 
 st = main.get_store()
 sid = st.create_session(brain="brain")

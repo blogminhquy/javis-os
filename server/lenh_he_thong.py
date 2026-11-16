@@ -80,7 +80,22 @@ def _don_dieu_kien(dieu_kien: str, toi_da: int = 400) -> str:
     return s[:toi_da]
 
 
-def khoi_muc_tieu(dieu_kien: str, vong: int = 1, toi_da: int = GOAL_MAX_ROUNDS, left: str = "") -> str:
+GOAL_MAX_ADDED = 5   # owner messages typed during a /goal that the block carries (oldest drop first)
+
+
+def _dong_bo_sung(them) -> str:
+    """Owner messages typed while the /goal ran (2026-11-16) -> the block lines that fold them into the goal.
+
+    The goal no longer pauses when the owner types: their words join the goal, and every later round reads them."""
+    ds = [_don_dieu_kien(x, 300).replace("-->", "- ->") for x in (them or [])]
+    ds = [x for x in ds if x][-GOAL_MAX_ADDED:]
+    if not ds:
+        return ""
+    return ("Người dùng đã bổ sung trong lúc mục tiêu chạy (là một phần của mục tiêu, chỉnh hướng làm theo; "
+            "lời sau thắng lời trước nếu mâu thuẫn):\n" + "".join(f"- {x}\n" for x in ds))
+
+
+def khoi_muc_tieu(dieu_kien: str, vong: int = 1, toi_da: int = GOAL_MAX_ROUNDS, left: str = "", them=None) -> str:
     """Khối chỉ dẫn `/goal`: làm tiếp cho tới khi điều kiện đúng, tự báo trạng thái ở cuối.
 
     Trình duyệt đọc dòng ẩn `<!-- JAVIS_GOAL: {...} -->` để quyết định có tự gửi vòng tiếp
@@ -100,7 +115,7 @@ def khoi_muc_tieu(dieu_kien: str, vong: int = 1, toi_da: int = GOAL_MAX_ROUNDS, 
         f"{GOAL_MARK} {dk}\n"
         f"Chế độ làm tới khi đạt, vòng {int(vong)}/{int(toi_da)}. Làm tiếp phần còn thiếu bằng "
         "công cụ sẵn có, rồi tự kiểm tra bằng dữ liệu thật xem điều kiện trên đã đúng chưa.\n"
-        + round_line +
+        + _dong_bo_sung(them) + round_line +
         "Cuối câu trả lời LUÔN thêm đúng MỘT dòng ẩn: "
         f'<!-- {GOAL_TAG}: {{"done":true}} --> nếu điều kiện đã đúng và đã kiểm chứng, hoặc '
         f'<!-- {GOAL_TAG}: {{"done":false,"left":"tình trạng và phần còn lại, một câu ngắn"}} --> nếu chưa, hoặc '

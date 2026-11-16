@@ -22722,13 +22722,18 @@ async def _chat_socket(ws):
                     _sid = str(payload.get("session_id") or "").strip()
                     _txt = str(payload.get("message") or "").strip()[:steer_inbox.MAX_CHARS]
                     _cid = str(payload.get("client_id") or "")[:40]
+                    # 2026-11-16: typed while a /goal runs. The goal goes on: the round reads it, or the dashboard folds
+                    # it into the next round. Never a turn of its own ("goal" mode): that would race the next round.
+                    _goal = bool(payload.get("goal"))
                     _row = store.get_session(_sid) if _sid else None
                     if not _row or not _txt:
                         continue
                     store.append_message(_sid, "user", _txt)
-                    _it = steer_inbox.INBOX.put(_sid, _txt)
+                    _it = steer_inbox.INBOX.put(_sid, _txt, goal=_goal)
                     if _it:
-                        _mode, _id = ("live" if steer_inbox.INBOX.live(_sid) else "after"), _it["id"]
+                        _mode, _id = ("live" if steer_inbox.INBOX.live(_sid) else ("goal" if _goal else "after")), _it["id"]
+                    elif _goal:
+                        _mode, _id = "goal", 0
                     else:
                         # The turn just ended (or too many are waiting): this message is its own next turn.
                         _mode, _id = "after", 0
@@ -30968,7 +30973,8 @@ async def slash_memory(brain: str = Query("brain")):
 
 @app.post("/slash/block")
 async def slash_block(kind: str = Form(...), dk: str = Form(""), vong: int = Form(1),
-                      toi_da: int = Form(lenh_he_thong.GOAL_MAX_ROUNDS), left: str = Form("")):
+                      toi_da: int = Form(lenh_he_thong.GOAL_MAX_ROUNDS), left: str = Form(""),
+                      them: str = Form("")):
     """Khối chỉ dẫn của `/plan` và `/goal` cho khung chat web.
 
     Máy chủ là nguồn DUY NHẤT của chữ trong khối (Telegram dùng chung `lenh_he_thong`): trình
@@ -30982,7 +30988,13 @@ async def slash_block(kind: str = Form(...), dk: str = Form(""), vong: int = For
                                 status_code=400)
         toi_da = max(1, min(int(toi_da), 20))
         vong = max(1, min(int(vong), toi_da))
-        return {"block": lenh_he_thong.khoi_muc_tieu(dk, vong, toi_da, left)}
+        # 2026-11-16: `them` = JSON list of what the owner typed while the goal ran (folded into the goal).
+        try:
+            _them = json.loads(them) if (them or "").strip() else []
+        except ValueError:
+            _them = []
+        _them = [str(x) for x in _them] if isinstance(_them, list) else []
+        return {"block": lenh_he_thong.khoi_muc_tieu(dk, vong, toi_da, left, _them)}
     return JSONResponse({"error": localefmt.chu("kind phải là plan hoặc goal", "kind must be plan or goal")},
                         status_code=400)
 
