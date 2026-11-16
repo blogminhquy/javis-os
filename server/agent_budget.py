@@ -141,6 +141,24 @@ def usage(store, agent_key: str, at: Optional[float] = None) -> dict:
             "day_start": d0}
 
 
+def runs(store, agent_key: str, finished_limit: int = 40) -> list:
+    """Các lượt tự phát của agent, đúng những dòng `usage` đếm (cùng điều kiện, không giới hạn theo ngày): mọi lượt còn
+    đang chạy, rồi `finished_limit` lượt đã chốt mới nhất (theo giờ bắt đầu, là thứ tự tab xếp thẻ). Tab Công việc của
+    trợ lý đọc ở đây để con số "hôm nay đã tự làm N lần" và danh sách việc không bao giờ lệch nhau."""
+    ensure(store)
+    key = str(agent_key or "")
+    if not key:
+        return []
+    q = (f"SELECT id, purpose, context_ref, reason_ref, status, created_at, settled_at FROM agent_calls "
+         f"WHERE {_counted_where()} AND status ")
+    order = " ORDER BY created_at DESC, id DESC"
+    with closing(store._conn()) as c:
+        live = c.execute(q + "IN ('reserved','running')" + order, (key, 0)).fetchall()
+        done = c.execute(q + "NOT IN ('reserved','running')" + order + " LIMIT ?",
+                         (key, 0, max(0, int(finished_limit)))).fetchall()
+    return [dict(r) for r in live] + [dict(r) for r in done]
+
+
 def _purpose_of(purpose: str) -> str:
     p = str(purpose or "")
     return p if p in PRIORITY else "proactive"

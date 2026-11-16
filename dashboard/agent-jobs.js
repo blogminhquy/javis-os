@@ -16,6 +16,9 @@
  * (`javis:agent-jobs-changed`), tải lại sau 800ms gộp nhịp. Kanban chưa có gói WS riêng nên thêm một nhịp hỏi thưa lúc
  * trang đang hiện. `destroy` gỡ hết.
  *
+ * Lượt trợ lý tự làm (owner, 16/11/2026): mỗi lượt Auto tự nhìn quanh, tự xem lại là một thẻ ở nguồn Auto. Server gửi mã
+ * (`title_code`, `outcome`), ở đây đọc bằng lời: tiêu đề nói lượt đó là gì, dòng kết quả nói nó kết thúc ra sao.
+ *
  * Hàm vẽ là hàm THUẦN (test dưới node); `mount` gắn sự kiện và gọi API.
  */
 (function () {
@@ -120,6 +123,27 @@
     return "";
   }
 
+  // A run the assistant started by itself: the server sends codes, read here in words.
+  var RUN_TITLE = { scan: "ajobs.run.scan", review: "ajobs.run.review", reaction_review: "ajobs.run.reaction_review",
+    judge: "ajobs.run.judge" };
+  var RUN_OUT = { none: "ajobs.run.out.none", did: "ajobs.run.out.did", said: "ajobs.run.out.said",
+    held: "ajobs.run.out.held", proposed: "ajobs.run.out.proposed", enqueued: "ajobs.run.out.enqueued" };
+  function titleText(j) {
+    if (j && j.title_code) return tw(RUN_TITLE[j.title_code] || RUN_TITLE.scan);
+    return String((j && j.title) || "");
+  }
+  function outcomeText(j) {
+    var o = j && j.outcome;
+    if (!o || !o.code) return "";
+    if (o.code === "reviewed") return o.n ? tw("ajobs.run.out.reviewed", { n: o.n }) : tw("ajobs.run.out.reviewed_none");
+    return RUN_OUT[o.code] ? tw(RUN_OUT[o.code]) : "";
+  }
+  // What a job ended in: for a self-run, how it ended, then the work itself ("Đã tự làm: gửi báo giá").
+  function resultText(j) {
+    var o = outcomeText(j), r = String((j && j.result) || "");
+    return o && r ? o + ": " + r : (o || r);
+  }
+
   function jobHtml(j, ui) {
     ui = ui || {};
     var roles = (j.roles || []).filter(function (r, i, a) { return a.indexOf(r) === i; }).map(function (r) {
@@ -136,10 +160,13 @@
     var nxt = nextText(j);
     // Mã lý do của mục tiêu Auto (đang dừng, đã gỡ người review cố định) đọc bằng lời thường; lý do khác hiện nguyên văn.
     // Bước kế "Chờ bạn: <lý do>" đã mang lý do thì không lặp lại dòng lý do.
-    var why = REASON_KEY[j.reason_code] ? tw(REASON_KEY[j.reason_code])
+    // A self-run that broke says so in plain words; its raw cause (an error class name) stays out of the card.
+    var why = j.kind === "auto_run" ? (j.failed ? tw("ajobs.run.failed") : "")
+      : REASON_KEY[j.reason_code] ? tw(REASON_KEY[j.reason_code])
       : (j.next && j.next.code === "needs_you" && j.next.reason ? "" : reasonText(j.reason));
     var reason = why ? '<div class="aj-reason">' + esc(why) + "</div>" : "";
-    var result = j.result ? '<div class="aj-result">' + esc(j.result) + "</div>" : "";
+    var res = resultText(j), title = titleText(j);
+    var result = res ? '<div class="aj-result">' + esc(res) + "</div>" : "";
     var link = "";
     if (j.link) {
       var lt = j.link.title || (j.link.missing ? tw("ajobs.link_missing") : j.link.id);
@@ -156,8 +183,9 @@
         esc(tw("ajobs.resume")) + "</button>" : "") +
       (j.priority ? '<button type="button" class="ws-btn aj-prio" data-aj-prio="' + esc(j.id) + '"' + (working ? " disabled" : "") + ">" +
         esc(tw(j.priority.on ? "ajobs.prio_on" : "ajobs.prio_off")) + "</button>" : "") +
-      // A workflow run cannot be the subject of a verify job (resolve_link knows goals, team and Kanban jobs only).
-      (ui.canVerify && j.kind !== "verify" && j.source !== "workflow" ? '<button type="button" class="ws-btn aj-verify" data-aj-verify="' + esc(j.id) + '">' +
+      // A workflow run or a self-run cannot be the subject of a verify job (resolve_link knows goals, team and Kanban
+      // jobs only).
+      (ui.canVerify && j.kind !== "verify" && j.kind !== "auto_run" && j.source !== "workflow" ? '<button type="button" class="ws-btn aj-verify" data-aj-verify="' + esc(j.id) + '">' +
         esc(tw("ajobs.verify_this")) + "</button>" : "") +
       (j.cancel ? '<button type="button" class="ws-btn aj-cancel" data-aj-cancel="' + esc(j.id) + '"' + (busy ? " disabled" : "") + ">" +
         esc(tw(busy ? "ajobs.cancelling" : "ajobs.cancel")) + "</button>" : "") +
@@ -165,7 +193,7 @@
       (j.bucket === "done" && !j.archived_at ? '<button type="button" class="ws-btn aj-done-btn" data-aj-archive="' + esc(j.id) + '">' +
         ic("check") + esc(tw("ajobs.mark_done")) + "</button>" : "");
     return '<li class="aj-job aj-' + esc(j.bucket) + '" data-aj-id="' + esc(j.id) + '">' +
-      '<div class="aj-top"><span class="aj-title" title="' + esc(j.title) + '">' + esc(j.title) + "</span>" +
+      '<div class="aj-top"><span class="aj-title" title="' + esc(title) + '">' + esc(title) + "</span>" +
         '<span class="aj-state aj-state-' + esc(j.bucket) + '">' + esc(tw(BUCKET_KEY[j.bucket] || "ajobs.b.waiting")) + "</span></div>" +
       '<div class="aj-meta"><span class="aj-src">' + ic(SOURCE_ICON[j.source] || "circle") + esc(sourceText(j)) + "</span>" + roles + "</div>" +
       (nxt ? '<div class="aj-next">' + esc(nxt) + "</div>" : "") +
@@ -183,7 +211,8 @@
       (open ? '<button type="button" class="ws-btn aj-arch-clear">' + ic("trash-2") + esc(tw("ajobs.archive_clear")) + "</button>" : "") +
       "</div>" + (open ? '<ul class="aj-list">' + list.map(function (j) {
         return '<li class="aj-job aj-archived" data-aj-id="' + esc(j.id) + '"><div class="aj-top"><span class="aj-title" title="' +
-          esc(j.title) + '">' + esc(j.title) + "</span></div>" + (j.result ? '<div class="aj-result">' + esc(j.result) + "</div>" : "") +
+          esc(titleText(j)) + '">' + esc(titleText(j)) + "</span></div>" +
+          (resultText(j) ? '<div class="aj-result">' + esc(resultText(j)) + "</div>" : "") +
           '<div class="aj-acts"><button type="button" class="ws-btn" data-aj-unarchive="' + esc(j.id) + '">' + esc(tw("ajobs.archive_back")) +
           '</button><button type="button" class="ws-btn aj-cancel" data-aj-delete="' + esc(j.id) + '">' + ic("trash-2") +
           esc(tw("ajobs.archive_delete")) + "</button></div></li>";
@@ -507,7 +536,7 @@
     }
     function cancelJob(j) {
       var c = j.cancel || {};
-      if (typeof confirm === "function" && !confirm(tw("ajobs.cancel_confirm", { title: j.title }))) return;
+      if (typeof confirm === "function" && !confirm(tw("ajobs.cancel_confirm", { title: titleText(j) }))) return;
       st.ui.cancelling[j.id] = true; draw();
       var b = q(opts.brain()), req;
       if (c.kind === "team") req = jsonPost("/teams/" + q(c.team_id) + "/tasks/" + q(c.task_id) + "/cancel?brain=" + b);
@@ -520,7 +549,7 @@
       } else return;
       req.then(function (res) {
         delete st.ui.cancelling[j.id];
-        st.ui.note = res.ok ? tw("ajobs.cancelled_note", { title: j.title }) : tw("ajobs.cancel_err", { e: (res.j && res.j.error) || "" });
+        st.ui.note = res.ok ? tw("ajobs.cancelled_note", { title: titleText(j) }) : tw("ajobs.cancel_err", { e: (res.j && res.j.error) || "" });
         changed(); load(true);
       }, function () { delete st.ui.cancelling[j.id]; st.ui.note = tw("ajobs.net_err"); draw(); });
     }
@@ -530,7 +559,7 @@
       jsonPost("/goals/" + q(r0.goal_id) + "/commands?brain=" + q(opts.brain()), { command: "resume", expected_revision: r0.revision })
         .then(function (res) {
           delete st.ui.busy[j.id];
-          st.ui.note = res.ok ? tw("ajobs.resumed_note", { title: j.title }) : tw("ajobs.action_err", { e: (res.j && res.j.error) || "" });
+          st.ui.note = res.ok ? tw("ajobs.resumed_note", { title: titleText(j) }) : tw("ajobs.action_err", { e: (res.j && res.j.error) || "" });
           changed(); load(true);
         }, function () { delete st.ui.busy[j.id]; st.ui.note = tw("ajobs.net_err"); draw(); });
     }
@@ -555,7 +584,7 @@
       resetForm();
       st.ui.assignOpen = true; st.ui.note = "";
       if (verifyJob) {
-        st.ui.kind = "verify"; st.ui.verifyFor = { id: verifyJob.id, title: verifyJob.title };
+        st.ui.kind = "verify"; st.ui.verifyFor = { id: verifyJob.id, title: titleText(verifyJob) };
         st.ui.link = verifyJob.id;
         var o = others(); st.ui.verifier = o.length ? o[0].slug : "";
       }
@@ -706,7 +735,7 @@
   }
 
   var api = { html: html, liveHtml: liveHtml, jobHtml: jobHtml, toolbarHtml: toolbarHtml, assignHtml: assignHtml,
-    confirmHtml: confirmHtml, badgeHtml: badgeHtml, archiveHtml: archiveHtml, statusOf: statusOf, statusText: statusText, nextText: nextText, reasonText: reasonText, relTime: relTime, mount: mount, loadCounts: loadCounts,
+    confirmHtml: confirmHtml, titleText: titleText, outcomeText: outcomeText, resultText: resultText, badgeHtml: badgeHtml, archiveHtml: archiveHtml, statusOf: statusOf, statusText: statusText, nextText: nextText, reasonText: reasonText, relTime: relTime, mount: mount, loadCounts: loadCounts,
     RELOAD_MS: RELOAD_MS, setStrings: function (o) { STR = o || {}; } };
   if (typeof window !== "undefined") window.JavisAgentJobs = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
