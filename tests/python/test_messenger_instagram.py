@@ -97,6 +97,9 @@ async def _routing():
 
         async def _safe_event(self, ev, instagram=False):
             got.append(("m", instagram, ev))
+
+        async def _safe_echo(self, ev, instagram=False):
+            got.append(("e", instagram, ev))
     messenger_bot._IG_REGISTRY.clear()
     messenger_bot._REGISTRY.clear()
     messenger_bot._IG_REGISTRY[IG] = B()
@@ -115,8 +118,9 @@ async def _routing():
     return n, n_fb, got
 
 n, n_fb, got = run(_routing())
-check("Instagram comment and message reach the linked Page's bot; echoes, other fields, unknown accounts do not",
-      n == 2 and [g[0] for g in got[:2]] == ["c", "m"] and got[1][1] is True, (n, got))
+check("Instagram comment and message reach the linked Page's bot, the echo goes to the inbox path; other fields and "
+      "unknown accounts do not", n == 3 and [g[0] for g in got[:3]] == ["c", "m", "e"] and got[1][1] is True
+      and got[2][1] is True, (n, got))
 check("Facebook Page webhooks still route as before", n_fb == 1 and got[-1][0] == "m" and got[-1][1] is False, got)
 
 

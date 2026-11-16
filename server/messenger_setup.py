@@ -26,14 +26,14 @@ from typing import Optional
 import httpx
 
 import localefmt
-from messenger_bot import (FEED_FIELD, GRAPH, IG_OBJECT, IG_WEBHOOK_FIELDS, SUBSCRIBED_FIELDS, _explain_error,
+from messenger_bot import (FEED_FIELD, GRAPH, IG_OBJECT, IG_WEBHOOK_FIELDS, REQUIRED_FIELDS, SUBSCRIBED_FIELDS, _explain_error,
                            appsecret_proof, subscribe_page, whoami)
 
 WEBHOOK_PATH = "/messenger/webhook"
 # What the bot needs at run time. `pages_show_list` is only needed while deriving the Page token,
 # so it is not part of the run-time check.
 REQUIRED_SCOPES = ("pages_messaging", "pages_manage_metadata", "pages_read_engagement")
-WEBHOOK_FIELDS = tuple(SUBSCRIBED_FIELDS.split(","))
+WEBHOOK_FIELDS = REQUIRED_FIELDS
 # Page comments (0.434.0): reading them and replying under them. Optional, so a warning when missing.
 COMMENT_SCOPES = ("pages_read_user_content", "pages_manage_engagement")
 # Posting through the Facebook Pages tools on this same connection (0.438.0). Optional, a warning when missing.

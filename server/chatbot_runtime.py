@@ -1645,6 +1645,47 @@ def ghi_tin_khach(cfg: dict, meta: dict, text: str) -> None:
         print(f"[chatbot conversations] {type(e).__name__}: {e}", file=sys.stderr)
 
 
+# How far apart a Messenger echo and the stored copy of the same sentence may be and still be one message (seconds).
+ECHO_MATCH_S = 180
+
+
+def _same_sentence(a: str, b: str) -> bool:
+    a, b = " ".join(str(a or "").split()).lower(), " ".join(str(b or "").split()).lower()
+    return bool(a and b) and (a == b or a.startswith(b[:80]) or b.startswith(a[:80]))
+
+
+def store_staff_echo(cfg: dict, meta: dict, text: str) -> str:
+    """Store a message the Page sent that Javis did not send as a staff ("human") message.
+
+    Returns "stored", "duplicate" (Javis already holds it: same channel id, or the same sentence it sent itself a
+    moment ago, which then gets the channel id) or "error". Swallows every error: it runs on a webhook task."""
+    try:
+        meta = meta or {}
+        aid, kenh = _tai_khoan_cua(cfg, meta)
+        chat_id = str(meta.get("chat_id") or "")
+        mid = str(meta.get("message_id") or "")
+        at = float(meta.get("sent_at") or 0) or time.time()
+        # An echo without this app's id may still be Javis's own send (Instagram echoes carry no app id): match it
+        # against what Javis stored around that time before calling it a staff reply.
+        for row in conversations.own_messages_between(kenh, aid, chat_id, at - ECHO_MATCH_S, at + ECHO_MATCH_S):
+            if str(row.get("external_message_id") or ""):
+                continue
+            if _same_sentence(row.get("text"), text):
+                conversations.set_message_id(int(row["id"]), mid)
+                return "duplicate"
+        r = conversations.ghi_su_kien(_su_kien_bot(
+            cfg, meta, sender_type="human", sender_id="", sender_name="",
+            message_type=conversations.loai_tin_tu_chu(text), text=text, external_message_id=mid,
+            created_at=at, metadata={"source": "page_echo", "app_id": str(meta.get("echo_app_id") or "")}),
+            dem_chua_doc=False, late=True)
+        if not r.get("ok"):
+            return "error"
+        return "duplicate" if r.get("trung") else "stored"
+    except Exception as e:      # noqa: BLE001 - the inbox must never break the webhook
+        print(f"[chatbot conversations] staff echo: {type(e).__name__}: {e}", file=sys.stderr)
+        return "error"
+
+
 def _ghi_loi_tu_dong(bot_id: str, cfg: dict, meta: dict, text: str, loi: str) -> None:
     """A Tự đánh giá turn failed (0.102.1): record it for the owner and ring the Javis bell once, send nothing.
 
@@ -1918,6 +1959,10 @@ def _make_answer_fn(bot_id: str):
         if (meta or {}).get("log_only"):
             # Recorded for the inbox only, no turn (0.434.0: Page comments in "inbox" mode, the owner answers them).
             ghi_tin_khach(cfg, meta or {}, text)
+            return {"text": "", "files": [], "im_lang": True}
+        if (meta or {}).get("staff_echo"):
+            # A reply staff typed outside Javis (Messenger echo): stored as a staff message, never a turn.
+            store_staff_echo(cfg, meta or {}, text)
             return {"text": "", "files": [], "im_lang": True}
         meta = _rp_named_meta(cfg, text, meta)
         _nho_neu_khong_goi(bot_id, cfg, meta, text)

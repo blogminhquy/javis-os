@@ -69,7 +69,10 @@ MAX_MSG = 1900               # Messenger allows 2000; keep a margin for multi-by
 MAX_DEDUPE = 4000
 MAX_DOWNLOAD_MB = 20
 TYPING_EVERY = 15.0          # typing_on lasts about 20 s or until the next message
-SUBSCRIBED_FIELDS = "messages,messaging_postbacks"
+SUBSCRIBED_FIELDS = "messages,messaging_postbacks,message_echoes"
+# What the bot cannot work without. `message_echoes` (the Page's own outgoing messages, so replies staff type in
+# Facebook or Meta Business Suite reach the inbox) is subscribed too, but a webhook without it still answers customers.
+REQUIRED_FIELDS = ("messages", "messaging_postbacks")
 FEED_FIELD = "feed"           # Page comments (0.434.0); optional, the bot works without it
 COMMENT_PREFIX = "cmt:"       # conversation id of a comment thread: cmt:<top-level comment id>
 IG_PREFIX = "ig:"             # Instagram direct message: ig:<Instagram-scoped user id> (0.447.0)
@@ -248,6 +251,30 @@ def comment_mode(account_id: str) -> str:
     return m if m in COMMENT_MODES else COMMENT_MODE_DEFAULT
 
 
+def app_id_of(account_id: str) -> str:
+    """The Meta app id a Messenger account is connected through, from its meta; "" when unknown."""
+    try:
+        import channel_accounts
+        m = (channel_accounts.get_account(str(account_id or "")) or {}).get("meta") or {}
+    except Exception:
+        m = {}
+    return str(m.get("app_id") or "")
+
+
+def echo_text(msg: dict) -> str:
+    """What a staff echo says, for the inbox: its text, plus one short line per attachment (nothing is downloaded)."""
+    parts = []
+    for att in msg.get("attachments") or []:
+        kind = str((att or {}).get("type") or "file")
+        label = {"image": ("ảnh", "an image"), "video": ("video", "a video"), "audio": ("ghi âm", "an audio clip"),
+                 "file": ("file", "a file")}.get(kind, ("tệp đính kèm", "an attachment"))
+        parts.append(localefmt.chu(f"[Nhân viên gửi {label[0]} qua Messenger]", f"[Staff sent {label[1]} via Messenger]"))
+    text = str(msg.get("text") or "").strip()
+    if text:
+        parts.append(text)
+    return "\n".join(parts).strip()
+
+
 def instagram_of(account_id: str) -> dict:
     """The Instagram account linked to a Messenger account, from its meta: {"id", "username", "on"}."""
     try:
@@ -285,6 +312,10 @@ async def handle_webhook(payload: dict) -> int:
         for ev in events:
             msg = ev.get("message") or {}
             if msg.get("is_echo"):
+                # The Page's own outgoing message: a staff reply typed outside Javis goes to the inbox, never to a turn.
+                if not msg.get("is_deleted"):
+                    asyncio.create_task(bot._safe_echo(ev))
+                    n += 1
                 continue
             if not msg and not ev.get("postback"):
                 continue
@@ -312,7 +343,11 @@ def _handle_instagram(payload: dict) -> int:
                 n += 1
         for ev in entry.get("messaging") or []:
             msg = ev.get("message") or {}
-            if msg.get("is_echo") or msg.get("is_deleted"):
+            if msg.get("is_deleted"):
+                continue
+            if msg.get("is_echo"):
+                asyncio.create_task(bot._safe_echo(ev, instagram=True))
+                n += 1
                 continue
             if not msg and not ev.get("postback"):
                 continue
@@ -702,6 +737,44 @@ class MessengerBot(HangLuot):
             return
         await self._action(client, chat, "mark_seen")
         await self._dispatch(client, chat, text, meta)
+
+    # ---- Staff replies typed outside Javis -----------------------------------------------
+    async def _safe_echo(self, ev, instagram: bool = False):
+        try:
+            await self._on_echo(ev, instagram=instagram)
+        except Exception as e:
+            print(f"[messenger echo] {type(e).__name__}: {e}", file=sys.stderr)
+
+    async def _on_echo(self, ev, instagram: bool = False):
+        """A message the Page sent. Javis's own sends (the bot, or a reply from the Javis inbox) carry this app's id and
+        are stored already, so they are dropped here; anything else is a person replying in Facebook, Meta Business
+        Suite or the Instagram app, and goes to the inbox as a staff message. Never a turn, never a reply."""
+        msg = ev.get("message") or {}
+        mid = str(msg.get("mid") or "")
+        if self._stop or not mid or self._seen_before("echo:" + mid):
+            return
+        ours = app_id_of(self.account_id)
+        if ours and str(msg.get("app_id") or "") == ours:
+            return
+        customer = str((ev.get("recipient") or {}).get("id") or "")
+        if not customer or customer in (self.page_id, self.ig_id):
+            return
+        if instagram and not instagram_of(self.account_id).get("on"):
+            return
+        text = echo_text(msg)
+        if not text:
+            return
+        chat = (IG_PREFIX + customer) if instagram else customer
+        meta = {
+            "platform": "messenger", "chat_id": chat, "chat_type": "private", "chat_title": "",
+            "user_id": chat, "message_id": mid, "bot_username": self.bot_username,
+            "mentioned": False, "reply_to_bot": False,
+            "staff_echo": True, "echo_app_id": str(msg.get("app_id") or ""),
+            "sent_at": (float(ev.get("timestamp") or 0) / 1000.0) or time.time(),
+        }
+        if instagram:
+            meta["instagram"] = True
+        await self.answer_fn(text, meta, None)
 
     # ---- Page comments (0.434.0) -------------------------------------------------------
     async def _safe_comment(self, com):
