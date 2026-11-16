@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.573.0] - 2026-11-16
+### Cải thiện
+- **Dùng lại key Google cho mọi dịch vụ Google.** Hàng "Dùng lại key này" giờ nằm ngay đầu form, có cả ở Google Ads, Analytics, Merchant Center, Search Console, và mượn được key (kể cả service account) đã lưu ở bất kỳ dịch vụ Google nào. Google chỉ cho xem Client Secret đúng một lần lúc tạo, nên key trong Javis thường là bản duy nhất còn lại.
+- **Đổi key ngay trên kết nối.** Mục "Kết nối lại (đăng nhập / đổi key)" của Gmail, Lịch, Analytics, Ads... giờ mở form đổi key: chọn key đã lưu ở dịch vụ khác, hoặc dán key mới, rồi đăng nhập lại.
+- **Báo trước khi mất key.** Xoá kết nối cuối cùng còn giữ một key Google thì hộp xác nhận nói rõ, kèm cách giữ lại.
+### Thêm mới
+- Gói Google Tag Manager trong Javis Store đăng nhập Google ngay trong dashboard, như Analytics và Ads.
+
 ## [0.572.0] - 2026-11-16
 ### Thêm mới
 - **Trang Cộng sự có tab Đã học cho từng trợ lý.** Nút trên thanh đầu đổi thành "Tài liệu & Đã học". Tab mới liệt kê những bài học trợ lý tự rút ra khi làm việc, đúng những bài nó đang dùng, kèm nơi áp dụng (chat riêng, trong nhóm, mọi nơi). Bạn sửa, xoá hay thêm bài học ngay ở đó, giống tab Đã học của project.
