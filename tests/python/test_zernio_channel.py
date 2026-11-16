@@ -50,7 +50,7 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
     def make_bot(self, provider, account, bot_id, username, secret):
         bot = z.ZernioBot({"account_id": provider, "username": username, "secret": secret, "api_key": "private-key"}, "", AsyncMock(return_value={"text": "answer"}))
         bot.account_id, bot.bot_id = account, bot_id
-        bot.send_text = AsyncMock(return_value=(True, ""))
+        bot.send_delivery = AsyncMock(return_value={"kind": "accepted", "code": "", "retry_after_seconds": None})
         bot.start()
         return bot
 
@@ -146,7 +146,7 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
         self.clock += 4
         await self.flush()
         self.assertEqual(self.bot.answer_fn.call_args.args[0], "hello\nsecond")
-        self.bot.send_text.assert_awaited_once()
+        self.bot.send_delivery.assert_awaited_once()
 
     async def test_restart_recovers_dedup_and_pending_timer(self):
         await self.receive()
@@ -179,7 +179,7 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
         await self.receive(self.event("e2", "m2"))
         self.clock += 5
         await self.flush()
-        self.bot.send_text.assert_not_awaited()
+        self.bot.send_delivery.assert_not_awaited()
         self.assertTrue(conversations.tin_theo_id("zernio", "acc_a", "same-conversation", "m2"))
 
     async def test_takeover_during_model_prevents_send(self):
@@ -190,7 +190,7 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
         await self.receive()
         self.clock += 5
         await self.flush()
-        self.bot.send_text.assert_not_awaited()
+        self.bot.send_delivery.assert_not_awaited()
 
     async def test_concurrent_flush_and_arrival_do_not_overwrite_messages(self):
         entered, release = asyncio.Event(), asyncio.Event()
@@ -218,16 +218,17 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.bot.answer_fn.await_count, 2)
 
     async def test_failed_send_restart_reuses_reply_and_idempotency_key(self):
-        self.bot.send_text.return_value = (False, "timeout")
+        self.bot.send_delivery.return_value = {"kind": "retry", "code": "provider_unavailable", "retry_after_seconds": None}
         await self.receive()
         self.clock += 5
         await self.flush()
-        key = self.bot.send_text.call_args.args[2]
+        key = self.bot.send_delivery.call_args.args[2]
         z._state_store = z.DurableState(self.store.file_path)
-        self.bot.send_text.return_value = (True, "")
+        self.bot.send_delivery.return_value = {"kind": "accepted", "code": "", "retry_after_seconds": None}
+        self.clock = self.delivery_state()["next_retry_at"]
         await self.flush()
         self.bot.answer_fn.assert_awaited_once()
-        self.assertEqual(self.bot.send_text.call_args.args[2], key)
+        self.assertEqual(self.bot.send_delivery.call_args.args[2], key)
         self.assertNotIn("processing", self.store.load()["conversations"][z._batch_key("provider-a", "same-conversation")])
 
     async def test_inbox_failure_not_acknowledged_or_deduplicated(self):
@@ -260,7 +261,7 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
             await self.receive(self.event(f"cap-e{number}", f"cap-m{number}"))
             self.clock += 5
             await self.flush()
-        self.assertEqual(self.bot.send_text.await_count, 7)
+        self.assertEqual(self.bot.send_delivery.await_count, 7)
 
     async def test_adapter_fail_closed_scoped_and_durable(self):
         payload = {"conversationId": "adapter-chat", "account": {"id": "provider-a"},
@@ -347,17 +348,127 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len([e for e in self.inbox if e["sender_type"] == "customer"]), 2)
         self.assertEqual(len([e for e in self.inbox if e["sender_type"] == "ai"]), 1)
 
-    async def test_expired_outbound_idempotency_window_keeps_batch_for_review(self):
-        self.bot.send_text.return_value = (False, "timeout")
+    def delivery_state(self):
+        return self.store.load()["conversations"][z._batch_key("provider-a", "same-conversation")]
+
+    def restart_delivery(self):
+        for timer in z._TIMERS.values():
+            timer.cancel()
+        z._TIMERS.clear()
+        self.bot.stop()
+        z._state_store = z.DurableState(self.store.file_path)
+        self.bot.start()
+
+    def mock_provider(self, status=503, retry_after=None, error=None):
+        from types import SimpleNamespace
+        client = AsyncMock()
+        client.post.return_value = SimpleNamespace(status_code=status, headers={"Retry-After": retry_after})
+        client.post.side_effect = error
+        context = AsyncMock()
+        context.__aenter__.return_value = client
+        self.provider_patch = patch("httpx.AsyncClient", return_value=context)
+        self.provider_patch.start()
+        self.addCleanup(self.provider_patch.stop)
+        # Use production transport; mock only the external HTTP boundary.
+        del self.bot.send_delivery
+        return client
+
+    async def test_expired_batch_handoffs_without_head_of_line_retry(self):
+        client = self.mock_provider()
+        self.mode_patch.stop()
+        cid = conversations.conversation_id_of("zernio", "acc_a", "same-conversation")
+        if cid:
+            conversations.dat_che_do(cid, "ai")
         await self.receive()
         self.clock += 5
         await self.flush()
-        self.clock += 24 * 3600
+        self.clock += 23 * 3600
         await self.flush()
-        self.bot.send_text.assert_awaited_once()
-        current = self.store.load()["conversations"][z._batch_key("provider-a", "same-conversation")]
-        self.assertEqual(current["blocked_reason"], "idempotency_window_expired")
-        self.assertTrue(current["processing"])
+        current = self.delivery_state()
+        self.assertNotIn("processing", current)
+        self.assertEqual(current["delivery_issue"]["reason"], "idempotency_window_expired")
+        self.assertEqual(current["delivery_batch"]["processing"][0]["id"], "m1")
+        self.assertTrue(current["delivery_batch"]["send_key"])
+        self.assertEqual(conversations.che_do("zernio", "acc_a", "same-conversation"), "human")
+        await self.receive(self.event("e2", "m2"))
+        self.restart_delivery()
+        self.clock += 5
+        await self.flush()
+        self.assertTrue(conversations.tin_theo_id("zernio", "acc_a", "same-conversation", "m2"))
+        self.assertNotIn("processing", self.delivery_state())
+        self.assertEqual(client.post.await_count, 1)
+
+    async def test_auth_error_blocks_once(self):
+        client = self.mock_provider(401)
+        await self.receive()
+        self.clock += 5
+        await self.flush()
+        self.assertEqual(self.delivery_state().get("delivery_issue", {}).get("reason"), "provider_http_401")
+        key = z._batch_key("provider-a", "same-conversation")
+        self.assertNotIn(key, z._TIMERS)
+        self.restart_delivery()
+        self.clock += 100
+        await self.flush()
+        self.assertEqual(client.post.await_count, 1)
+        self.assertNotIn(key, z._TIMERS)
+
+    async def test_restart_preserves_reply_and_send_key(self):
+        client = self.mock_provider(error=TimeoutError())
+        await self.receive()
+        self.clock += 5
+        await self.flush()
+        current = self.delivery_state()
+        self.assertEqual(current.get("attempts"), 1)
+        self.assertEqual(current.get("delivery_issue", {}).get("reason"), "provider_unavailable")
+        self.assertEqual(current["delivery_issue"]["attempts"], 1)
+        self.assertEqual(current["delivery_issue"]["next_retry_at"], current["next_retry_at"])
+        retry_at = current["next_retry_at"]
+        self.assertGreaterEqual(retry_at, self.clock + 5)
+        self.restart_delivery()
+        await self.receive(self.event("e2", "m2"))
+        await self.flush()
+        self.assertEqual(client.post.await_count, 1)
+        self.clock = retry_at
+        await self.flush()
+        self.assertEqual(self.delivery_state()["attempts"], 2)
+        self.assertEqual(self.delivery_state()["reply"], current["reply"])
+        self.assertEqual(self.delivery_state()["send_key"], current["send_key"])
+        self.assertEqual(client.post.call_args_list[0].kwargs["headers"]["Idempotency-Key"],
+                         client.post.call_args_list[1].kwargs["headers"]["Idempotency-Key"])
+        self.bot.answer_fn.assert_awaited_once()
+
+    async def test_retry_after_survives_restart_and_deadline(self):
+        client = self.mock_provider(429, "120")
+        await self.receive()
+        self.clock += 5
+        await self.flush()
+        self.assertEqual(self.delivery_state().get("next_retry_at"), self.clock + 120)
+        self.restart_delivery()
+        self.clock += 119
+        await self.flush()
+        self.assertEqual(client.post.await_count, 1)
+        self.clock += 1
+        client.post.return_value.headers = {"Retry-After": "999999"}
+        await self.flush()
+        self.assertNotIn("processing", self.delivery_state())
+        self.assertEqual(self.delivery_state()["delivery_issue"]["reason"], "idempotency_window_expired")
+
+    async def test_restart_completes_handoff_between_databases(self):
+        self.mock_provider(403)
+        await self.receive()
+        self.clock += 5
+        with patch.object(conversations, "dat_che_do", side_effect=RuntimeError("simulated crash")):
+            await self.flush()
+        current = self.delivery_state()
+        self.assertIn("delivery_issue", current)
+        self.assertTrue(current["handoff_pending"])
+        issue_id = current["delivery_issue"]["id"]
+        self.restart_delivery()
+        await self.flush()
+        self.assertFalse(self.delivery_state()["handoff_pending"])
+        self.assertEqual(self.delivery_state()["delivery_issue"]["id"], issue_id)
+        cid = conversations.conversation_id_of("zernio", "acc_a", "same-conversation")
+        self.assertEqual(conversations.chi_tiet(cid)["mode"], "human")
 
     async def test_inflight_reassignment_cannot_write_reply_into_new_batch(self):
         entered, release = asyncio.Event(), asyncio.Event()
@@ -378,7 +489,7 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("reply", current)
         self.assertNotIn("processing", current)
         self.assertEqual(current["messages"][0]["id"], "new-message")
-        self.bot.send_text.assert_not_awaited()
+        self.bot.send_delivery.assert_not_awaited()
 
     async def test_outbound_uses_provider_identity_and_sanitizes_errors(self):
         class Response:

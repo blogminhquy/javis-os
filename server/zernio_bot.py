@@ -26,6 +26,7 @@ import hmac
 import json
 import os
 import re
+import random
 import sys
 import time
 from contextlib import contextmanager
@@ -39,6 +40,7 @@ import channel_accounts
 import config as cfgmod
 import conversations
 import localefmt
+from zernio_delivery import classify_delivery, retry_delay
 
 # Store file for durable deduplication and batching state
 STATE_FILE = cfgmod.STATE_DIR / "zernio_state.json"
@@ -334,6 +336,9 @@ class ZernioBot(bot_gateway.HangLuot):
     async def send_text(self, conversation_id: str, text: str, idempotency_key: str = "") -> Tuple[bool, str]:
         return await send_api_message(self.creds, conversation_id, text, idempotency_key)
 
+    async def send_delivery(self, conversation_id, text, idempotency_key):
+        return await send_api_delivery(self.creds, conversation_id, text, idempotency_key)
+
     async def _handle_turn(self, client, chat, text, meta=None):
         if conversations.che_do("zernio", self.account_id, chat) == "human":
             return
@@ -367,16 +372,22 @@ Transport = ZernioBot
 # Outbound Message Sender via Zernio API
 # ============================================================
 async def send_api_message(creds: dict, conversation_id: str, text: str, idempotency_key: str = "") -> Tuple[bool, str]:
-    """Sends a direct message reply via Zernio REST API POST /v1/inbox/conversations/{conversationId}/messages."""
+    """Keep the legacy tuple contract for public callers."""
+    result = await send_api_delivery(creds, conversation_id, text, idempotency_key)
+    return result["kind"] == "accepted", result["code"]
+
+
+async def send_api_delivery(creds: dict, conversation_id: str, text: str, idempotency_key: str = "") -> dict:
+    """Return a sanitized structured result for durable delivery."""
     cid = str(conversation_id or "").strip()
     msg = str(text or "").strip()
     if not cid or not msg:
-        return False, "missing conversation_id or text"
+        return {"kind": "blocked", "code": "missing conversation_id or text", "retry_after_seconds": None}
 
     aid = creds.get("account_id") or ""
     api_key = creds.get("api_key") or _fallback_api_key()
     if not api_key:
-        return False, localefmt.chu("Chưa có API key Zernio để gửi tin", "Missing Zernio API key for sending messages")
+        return {"kind": "blocked", "code": "missing_api_key", "retry_after_seconds": None}
 
     import httpx
     url = API_BASE + f"/inbox/conversations/{quote(cid, safe='')}/messages"
@@ -388,11 +399,9 @@ async def send_api_message(creds: dict, conversation_id: str, text: str, idempot
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(url, json=payload, headers=headers)
-            if resp.status_code in (200, 201):
-                return True, ""
-            return False, f"provider_http_{resp.status_code}"
+            return classify_delivery(resp.status_code, getattr(resp, "headers", {}).get("Retry-After"), _now())
     except Exception:
-        return False, "provider_unavailable"
+        return classify_delivery(None, None, _now())
 
 
 async def send_text_for_account(tk: dict, chat_id: str, text: str) -> Tuple[bool, str]:
@@ -612,8 +621,12 @@ def resume_pending(provider_id):
             current.pop("replies_in_window", None)
             state["conversations"][key] = state["conversations"].pop(old_key)
     for key, current in _state_store.load()["conversations"].items():
-        if current.get("account_id") == provider_id and (current.get("messages") or current.get("processing")):
-            _arm_timer(key, max(0, current.get("due_at", _now()) - _now()))
+        if current.get("account_id") == provider_id:
+            if current.get("handoff_pending"):
+                _arm_timer(key, 0)
+            elif current.get("messages") or current.get("processing"):
+                due = current.get("next_retry_at") if current.get("processing") else current.get("due_at")
+                _arm_timer(key, max(0, (due or _now()) - _now()))
 
 
 async def _flush(key):
@@ -634,6 +647,32 @@ async def _flush(key):
         guard.close()
 
 
+def _block_delivery(current, reason):
+    """Commit handoff intent and evidence before touching the inbox database."""
+    current["delivery_batch"] = {field: current.pop(field) for field in
+        ("processing", "reply", "reply_created_at", "send_key", "attempts", "next_retry_at") if field in current}
+    batch = current["delivery_batch"]
+    previous = current.get("delivery_issue") or {}
+    current["delivery_issue"] = {
+        "id": batch["send_key"], "revision": previous.get("revision", 0) + 1, "reason": reason,
+        "created_at": previous.get("created_at", _now()),
+        "attempts": batch.get("attempts", 0), "next_retry_at": None}
+    current["handoff_pending"] = True
+    current.pop("blocked_reason", None)
+
+
+def _complete_handoff(key, bot):
+    current = _state_store.load()["conversations"][key]
+    if not current.get("handoff_pending"):
+        return
+    cid = conversations.conversation_id_of("zernio", bot.account_id, current["conversation_id"])
+    ok, _ = conversations.dat_che_do(cid, "human")
+    if not ok:
+        raise RuntimeError("delivery_handoff_failed")
+    with _state_store.transaction() as state:
+        state["conversations"][key]["handoff_pending"] = False
+
+
 async def _flush_locked(key):
     with _state_store.transaction() as state:
         current = state["conversations"].get(key)
@@ -643,6 +682,15 @@ async def _flush_locked(key):
         if not bot or bot._stop or current.get("javis_account_id") != bot.account_id or current.get("bot_id") != bot.bot_id:
             return
         conversation_id = current["conversation_id"]
+        handoff_pending = current.get("handoff_pending")
+    if handoff_pending:
+        _complete_handoff(key, bot)
+    with _state_store.transaction() as state:
+        current = state["conversations"][key]
+        if current.get("delivery_batch"):
+            # New messages already live in the inbox; never retry the archived batch.
+            current["messages"] = []
+            return
         if not current.get("processing"):
             delay = current.get("due_at", 0) - _now()
             if delay > 0:
@@ -655,7 +703,7 @@ async def _flush_locked(key):
         batch = current["processing"]
         assignment = (current["javis_account_id"], current["bot_id"])
         reply = current.get("reply")
-        send_key = "zernio-" + hashlib.sha256((key + json.dumps([m.get("platformMessageId") or m["id"] for m in batch])).encode()).hexdigest()
+        send_key = current.setdefault("send_key", "zernio-" + hashlib.sha256((key + json.dumps([m.get("platformMessageId") or m["id"] for m in batch])).encode()).hexdigest())
 
     def owns_batch(current):
         return current and (current.get("javis_account_id"), current.get("bot_id")) == assignment and current.get("processing") == batch
@@ -688,12 +736,45 @@ async def _flush_locked(key):
                 current = state["conversations"][key]
                 if not owns_batch(current):
                     return
-                if _now() - current.get("reply_created_at", 0) >= 23 * 3600:
-                    current["blocked_reason"] = "idempotency_window_expired"
-                    return
-            ok, _ = await bot.send_text(conversation_id, reply.strip(), send_key)
-            if not ok:
-                _arm_timer(key, BATCH_SECONDS)
+                expired = _now() >= current.get("reply_created_at", 0) + 23 * 3600
+                if expired:
+                    _block_delivery(current, "idempotency_window_expired")
+                else:
+                    delay = current.get("next_retry_at", 0) - _now()
+                    if delay > 0:
+                        _arm_timer(key, delay)
+                        return
+                    attempt = current.get("attempts", 0)
+                    current["attempts"] = attempt + 1
+                    # Persist a retry guard before HTTP too, including crash during send.
+                    current["next_retry_at"] = min(
+                        _now() + retry_delay(attempt, None, random.random()),
+                        current["reply_created_at"] + 23 * 3600)
+            if expired:
+                _complete_handoff(key, bot)
+                return
+            result = await bot.send_delivery(conversation_id, reply.strip(), send_key)
+            if result["kind"] != "accepted":
+                with _state_store.transaction() as state:
+                    current = state["conversations"].get(key)
+                    if not owns_batch(current):
+                        return
+                    next_retry = _now() + retry_delay(attempt, result["retry_after_seconds"], random.random())
+                    reason = result["code"] if result["kind"] == "blocked" else (
+                        "idempotency_window_expired" if next_retry >= current["reply_created_at"] + 23 * 3600 else "")
+                    if reason:
+                        _block_delivery(current, reason)
+                    else:
+                        current["next_retry_at"] = next_retry
+                        previous = current.get("delivery_issue") or {}
+                        current["delivery_issue"] = {
+                            "id": send_key, "revision": previous.get("revision", 0) + 1,
+                            "reason": result["code"], "created_at": previous.get("created_at", _now()),
+                            "attempts": current["attempts"], "next_retry_at": next_retry}
+                if reason:
+                    _complete_handoff(key, bot)
+                else:
+                    _arm_timer(key, next_retry - _now())
                 return
             receipt = conversations.ghi_su_kien({
                 "channel": "zernio", "account_id": bot.account_id, "bot_id": str(bot.bot_id),
@@ -712,6 +793,8 @@ async def _flush_locked(key):
         current.pop("processing", None)
         current.pop("reply", None)
         current.pop("reply_created_at", None)
+        for field in ("send_key", "attempts", "next_retry_at", "delivery_issue"):
+            current.pop(field, None)
         if current.get("messages"):
             _arm_timer(key, max(0, current.get("due_at", _now()) - _now()))
 
