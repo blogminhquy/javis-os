@@ -705,6 +705,16 @@ async def _flush_locked(key):
         reply = current.get("reply")
         send_key = current.setdefault("send_key", "zernio-" + hashlib.sha256((key + json.dumps([m.get("platformMessageId") or m["id"] for m in batch])).encode()).hexdigest())
 
+        # This channel has no media reader. Preserve the whole batch for staff
+        # before any model call, including captions and albums.
+        unsupported_media = any(message.get("attachments") for message in batch)
+        if unsupported_media:
+            _block_delivery(current, "unsupported_media")
+
+    if unsupported_media:
+        _complete_handoff(key, bot)
+        return
+
     def owns_batch(current):
         return current and (current.get("javis_account_id"), current.get("bot_id")) == assignment and current.get("processing") == batch
 

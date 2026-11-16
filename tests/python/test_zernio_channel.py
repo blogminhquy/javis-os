@@ -359,6 +359,80 @@ class ZernioTests(unittest.IsolatedAsyncioTestCase):
         z._state_store = z.DurableState(self.store.file_path)
         self.bot.start()
 
+    async def test_image_only_handoffs_once(self):
+        event = self.event("image-event", "image-message", text="")
+        event["message"]["attachments"] = [{"type": "image", "url": "https://example.invalid/photo.jpg"}]
+        self.assertEqual((await self.receive(event))[0], 202)
+        saved = conversations.tin_theo_id("zernio", "acc_a", "same-conversation", "image-message")
+        self.assertEqual(saved["metadata"]["attachments"], event["message"]["attachments"])
+        self.clock += 5
+        await self.flush()
+        current = self.delivery_state()
+        self.assertEqual(current.get("delivery_issue", {}).get("reason"), "unsupported_media")
+        cid = conversations.conversation_id_of("zernio", "acc_a", "same-conversation")
+        self.assertEqual(conversations.chi_tiet(cid)["mode"], "human")
+        self.assertEqual(current["delivery_batch"]["processing"], [event["message"]])
+        self.assertEqual((await self.receive(event))[1].get("duplicate"), True)
+        event["id"] = "replayed-with-new-event-id"
+        self.assertEqual((await self.receive(event))[1]["status"], "duplicate_message")
+        await self.flush()
+        self.assertEqual(self.delivery_state()["delivery_issue"], current["delivery_issue"])
+        self.assertEqual(len(self.inbox), 1)
+        self.bot.answer_fn.assert_not_awaited()
+        self.bot.send_delivery.assert_not_awaited()
+
+    async def test_mixed_text_image_handoffs_without_guessing(self):
+        first = self.event("mixed-event", "mixed-message", text="Can you check these?")
+        album = self.event("album-event", "album-message", text="Which size?")
+        album["message"]["attachments"] = [
+            {"type": "image", "url": "https://example.invalid/one.jpg"},
+            {"type": "image", "url": "https://example.invalid/two.jpg"}]
+        await self.receive(first)
+        self.clock += 4
+        await self.receive(album)
+        self.clock += 5
+        await self.flush()
+        current = self.delivery_state()
+        self.assertEqual(current.get("delivery_issue", {}).get("reason"), "unsupported_media")
+        self.assertEqual(current["delivery_batch"]["processing"], [first["message"], album["message"]])
+        cid = conversations.conversation_id_of("zernio", "acc_a", "same-conversation")
+        self.assertEqual(conversations.chi_tiet(cid)["mode"], "human")
+        for event in (first, album):
+            saved = conversations.tin_theo_id("zernio", "acc_a", "same-conversation", event["message"]["id"])
+            self.assertEqual(saved["text"], event["message"]["text"])
+            self.assertEqual(saved["metadata"]["attachments"], event["message"].get("attachments", []))
+        self.assertEqual(len(self.inbox), 2)
+        self.bot.answer_fn.assert_not_awaited()
+        self.bot.send_delivery.assert_not_awaited()
+
+    async def test_media_handoff_survives_restart(self):
+        event = self.event("restart-media-event", "restart-media-message", text="Please inspect this")
+        event["message"]["attachments"] = [{"type": "image", "url": "https://example.invalid/photo.jpg"}]
+        await self.receive(event)
+        self.restart_delivery()
+        self.clock += 5
+        with patch.object(conversations, "dat_che_do", side_effect=RuntimeError("simulated crash")):
+            await self.flush()
+        current = self.delivery_state()
+        self.assertTrue(current.get("handoff_pending"))
+        self.assertEqual(current["delivery_issue"]["reason"], "unsupported_media")
+        self.restart_delivery()
+        await self.flush()
+        self.assertFalse(self.delivery_state()["handoff_pending"])
+        self.assertEqual(self.delivery_state()["delivery_issue"], current["delivery_issue"])
+        self.assertEqual(self.delivery_state()["delivery_batch"], current["delivery_batch"])
+        self.restart_delivery()
+        self.assertEqual((await self.receive(event))[1].get("duplicate"), True)
+        await self.receive(self.event("later", "later-message", text="Anyone there?"))
+        self.clock += 5
+        await self.flush()
+        cid = conversations.conversation_id_of("zernio", "acc_a", "same-conversation")
+        self.assertEqual(conversations.chi_tiet(cid)["mode"], "human")
+        self.assertTrue(conversations.tin_theo_id("zernio", "acc_a", "same-conversation", "later-message"))
+        self.assertEqual(self.delivery_state()["delivery_issue"], current["delivery_issue"])
+        self.bot.answer_fn.assert_not_awaited()
+        self.bot.send_delivery.assert_not_awaited()
+
     def mock_provider(self, status=503, retry_after=None, error=None):
         from types import SimpleNamespace
         client = AsyncMock()
