@@ -5476,10 +5476,14 @@
   }
 
   // Kết nối lại GIỮ NGUYÊN connection (id, label, quyền, deny) - không xoá tạo lại.
-  function reconnectAccount(el, c, con) {
+  // `ctx` comes only from the account menu ("sign in again / change key"): there an OAuth account whose form takes a
+  // client ID and secret (every Google OAuth service) opens a form to change or borrow the key first. The red
+  // "Reconnect" chip passes no ctx and keeps its one-tap sign-in.
+  function reconnectAccount(el, c, con, ctx) {
     // Kết nối TỰ THÊM không có ô key khai trong catalog để "thay key", nên kết nối lại chính là
     // mở lại form của nó ở chế độ Sửa (đổi URL, header, lệnh, env).
     if ((c.connector_id || "custom") === "custom" && c.auth !== "oauth") { closeConnModal(); return openMcpForm(el, c); }
+    if (ctx && con && con.auth_type === "oauth" && hasClientFields(con)) return openOauthReKey(el, c, con, ctx);
     if ((c.auth || "") === "oauth" || (con && con.auth_type === "oauth")) {
       postJson("/connect/oauth/start", { id: c.id }).then(r => {
         if (!r || r.ok === false) { alert(window.t("cs.cn_signin_fail") + " " + ((r && r.error) || window.t("cs.cn_error_low"))); return; }
@@ -5489,31 +5493,68 @@
       });
       return;
     }
-    openReKey(el, c, con);
+    openReKey(el, c, con, ctx);
   }
-  function openReKey(el, c, con) {
+  // Donors for a form that changes THIS account's key: every other account of the family.
+  function otherAccounts(ctx, c) {
+    return ctx ? { conns: (ctx.conns || []).filter(x => x.id !== c.id), byId: ctx.byId } : null;
+  }
+  function openReKey(el, c, con, ctx) {
     const flds = (con && con.fields) || [];
     const rows = flds.map(f =>
       '<label class="mcp-lb">' + esc(f.label || f.key)
       + '<input class="js-input" data-rk="' + esc(f.key) + '" placeholder="' + esc(window.t("cs.cn_keep_old_ph")) + '"'
       + ((/secret|password|token|key/i.test(f.key)) ? ' type="password"' : "") + '></label>').join("");
     const m = connModal(mHead(esc(window.t("cs.cn_rekey_head")) + " " + esc(c.label || ""))
-      + '<div class="conn-form"><div class="mp-note">' + esc(window.t("cs.cn_rekey_note")) + '</div>'
+      + '<div class="conn-form">' + (con ? reuseHtml(reuseDonors(con, otherAccounts(ctx, c)), con) : "")
+      + '<div class="mp-note">' + esc(window.t("cs.cn_rekey_note")) + '</div>'
       + (rows || '<div class="mp-note">' + esc(window.t("cs.cn_rekey_nofield")) + '</div>')
       + '<div class="mp-note" id="rkErr" style="color:var(--red)"></div></div>'
       + '<div class="mp-foot"><button class="mp-btn" data-act="close">' + esc(window.t("common.cancel")) + '</button>'
       + (rows ? '<button class="mp-btn primary" id="rkGo">' + esc(window.t("cs.cn_save_check")) + '</button>' : "") + '</div>');
+    wireReuse(m, con, otherAccounts(ctx, c));
     const go = m.querySelector("#rkGo");
     if (go) go.onclick = async () => {
       const fields = {};
       m.querySelectorAll("[data-rk]").forEach(i => { if (i.value.trim()) fields[i.dataset.rk] = i.value.trim(); });
-      if (!Object.keys(fields).length) { m.querySelector("#rkErr").textContent = window.t("cs.cn_no_new_value"); return; }
+      if (!Object.keys(fields).length && !m._reuseFrom) { m.querySelector("#rkErr").textContent = window.t("cs.cn_no_new_value"); return; }
       go.disabled = true; go.textContent = window.t("settings.checking");
-      await postJson("/connect/update", { id: c.id, fields: fields });
+      await postJson("/connect/update", { id: c.id, fields: fields, reuse_from: m._reuseFrom || "" });
       const r = await postJson("/connect/health/check", { id: c.id });
       if (r && r.ok) { closeConnModal(); renderConnect(el); return; }
       go.disabled = false; go.textContent = window.t("cs.cn_save_check");
       m.querySelector("#rkErr").innerHTML = Icons.warn((r && r.message) || window.t("cs.cn_still_fail"));
+    };
+  }
+  // Change the key of a Google OAuth account (Gmail, Calendar, Analytics, Ads, Tag Manager...), or borrow one saved
+  // for another Google service, then sign in again. Before this the menu could only sign in again with the key it had,
+  // so a client whose secret was replaced in Google Cloud could only be fixed by deleting the account.
+  function openOauthReKey(el, c, con, ctx) {
+    const flds = (con.fields || []).filter(f => f.key === "client_id" || f.key === "client_secret");
+    const rows = flds.map(f =>
+      '<label class="mcp-lb">' + esc(f.label || f.key)
+      + '<input class="js-input" data-f="' + esc(f.key) + '" placeholder="' + esc(window.t("cs.cn_keep_old_ph")) + '"'
+      + (f.key === "client_secret" ? ' type="password"' : "") + '></label>').join("");
+    const m = connModal(mHead(esc(window.t("cs.cn_rekey_head")) + " " + esc(c.label || ""))
+      + '<div class="conn-form">' + reuseHtml(reuseDonors(con, otherAccounts(ctx, c)), con)
+      + '<div class="mp-note">' + esc(window.t("cs.cn_rekey_note")) + '</div>'
+      + jsonDropHtml(con) + rows
+      + '<button class="mp-btn primary" id="orkGo">' + esc(window.t("cs.cn_oauth_save_open")) + '</button></div>'
+      + '<div class="mp-foot"><span class="mp-note" id="orkErr"></span><button class="mp-btn" data-act="close">'
+      + esc(window.t("common.close")) + '</button></div>');
+    wireWizCommon(m); wireJsonDrop(m); wireReuse(m, con, otherAccounts(ctx, c));
+    m.querySelector("#orkGo").onclick = async () => {
+      const err = m.querySelector("#orkErr"), go = m.querySelector("#orkGo");
+      const fields = {};
+      m.querySelectorAll("[data-f]").forEach(i => { if (i.value.trim()) fields[i.dataset.f] = i.value.trim(); });
+      go.disabled = true; err.textContent = "";
+      const r = await postJson("/connect/oauth/start", { id: c.id, connector_id: c.connector_id, fields: fields,
+        reuse_from: m._reuseFrom || "" });
+      go.disabled = false;
+      if (!r || r.ok === false) { err.textContent = (r && r.error) || window.t("app.err_cap"); return; }
+      window.open(r.url, "_blank");
+      err.textContent = window.t("cs.cn_oauth_after");
+      window.addEventListener("focus", () => renderConnect(el), { once: true });
     };
   }
   function connectorCard(con, conns) {
@@ -5675,17 +5716,18 @@
       // là lúc phát hiện ra máy chưa có trình duyệt - bắt họ tự mò sang trang khác thì kết
       // nối đấu xong vẫn không chạy và không ai hiểu vì sao.
       + '<div id="ctNhac"></div>'
+      // A key saved for another Google service comes FIRST: with it, most of the setup steps below are already done.
+      + reuseHtml(reuseDonors(con, ctx), con)
       // Có steps thì wizard từng bước THAY guide tường chữ (guide giữ làm fallback catalog cũ)
       + (hasSteps ? stepsHtml(con)
         : (con.guide ? '<div class="conn-guide">' + esc(con.guide) + (con.guide_url ? ' <a href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">' + esc(window.t("cs.cn_guide")) + ' ↗</a>' : "") + '</div>' : ""))
       + oauthWizard(con)   // nút mở trang ngoài (vd "Tạo App Password") khi catalog khai auth.setup.links
-      + reuseHtml(reuseDonors(con, ctx))
       + jsonDropHtml(con)
       + fields
       + '<label class="mcp-lb">' + esc(window.t("cs.cn_label_long")) + '<input class="js-input" id="cLabel"></label>'
       + '</div>'
       + '<div class="mp-foot"><span class="mp-note" id="cErr"></span><div><button class="mp-btn" data-act="close">' + esc(window.t("common.cancel")) + '</button><button class="mp-btn primary" id="cGo">' + esc(window.t("models.connect")) + '</button></div></div>');
-    wireWizCommon(m); wireJsonDrop(m); wireReuse(m);
+    wireWizCommon(m); wireJsonDrop(m); wireReuse(m, con, ctx);
     nhacCongCuThieu(m, con);
     m.querySelector("#cGo").onclick = async () => {
       const fieldsVal = {};
@@ -5835,7 +5877,8 @@
   function jsonDropHtml(con) {
     // CHỈ nhóm Google: Facebook/Meta cũng đặt tên field client_id/client_secret (nhãn App ID)
     // nhưng không hề có file JSON để tải - từng mọc nhầm ô "tải từ Google" sang form Facebook.
-    if (!hasClientFields(con) || con.group !== "google") return "";
+    // The Google key family, not the display group: Ads, Analytics and Tag Manager download the same JSON.
+    if (!hasClientFields(con) || con.key_family !== "google") return "";
     return '<div class="json-drop" id="jsonDrop"><span id="jdMsg">' + ic("file-code") + ' ' + esc(window.t("cs.cn_jsondrop")) + '</span>'
       + '<input type="file" accept=".json,application/json" style="display:none"></div>';
   }
@@ -5869,28 +5912,52 @@
       if (f) f.text().then(fill);
     };
   }
+  // Sign-in keys one service of a key family can lend another, each lent as a whole set. Same list as
+  // REUSABLE_KEY_SETS in server/mcp_store.py, which does the copying: the browser never sees a key.
+  const REUSE_SETS = [["client_id", "client_secret"], ["service_account"]];
+  function reuseSets(con) {
+    const ks = ((con && con.fields) || []).map(f => f.key);
+    return REUSE_SETS.filter(s => s.every(k => ks.includes(k)));
+  }
+  // The keys both forms carry, so the right inputs grey out and count as given.
+  function sharedReuseKeys(con, donorCon) {
+    const theirs = reuseSets(donorCon).map(s => s.join(","));
+    return reuseSets(con).filter(s => theirs.includes(s.join(","))).reduce((a, s) => a.concat(s), []);
+  }
+  // Donors: accounts of any service of the same key family (key_family, from the server) that hold a key this form
+  // takes. Google Ads, Analytics and Search Console sit outside the Google card yet share its keys, so the display
+  // group is not enough. Google shows a client secret only once; a key kept here is the only copy many owners have.
   function reuseDonors(con, ctx) {
-    if (!ctx || !con.group || !hasClientFields(con)) return [];
+    if (!ctx || !con.key_family || !reuseSets(con).length) return [];
     return (ctx.conns || []).filter(x => {
       const cc = (ctx.byId || {})[x.connector_id] || {};
-      return cc.group === con.group && hasClientFields(cc);
+      return cc.key_family === con.key_family && sharedReuseKeys(con, cc).length > 0;
     });
   }
-  function reuseHtml(donors) {
+  // What to check when a borrowed key fails, by how this form signs in. Behind (i): it is only needed when it fails.
+  function reuseInfoKey(con) {
+    if (!hasClientFields(con)) return "cs.cn_reuse_info_sa";
+    return con.auth_type === "oauth" ? "cs.cn_reuse_info_oauth" : "cs.cn_reuse_info_local";
+  }
+  function reuseHtml(donors, con) {
     if (!donors.length) return "";
-    return '<div class="reuse-row"><span class="mp-note">' + esc(window.t("cs.cn_reuse_row")) + '</span>'
+    return '<div class="reuse-row"><span class="mp-note">' + esc(window.t("cs.cn_reuse_row")) + infoBtn() + '</span>'
+      + infoBody(esc(window.t(reuseInfoKey(con || {}))))
       + '<select class="js-input" id="reuseSel">' + donors.map(d =>
         '<option value="' + esc(d.id) + '">' + esc(d.label || d.id) + '</option>').join("") + '</select>'
       + '<button type="button" class="mp-btn" id="reuseBtn">' + esc(window.t("cs.cn_reuse_btn")) + '</button></div>';
   }
-  function wireReuse(m) {
+  function wireReuse(m, con, ctx) {
     const btn = m.querySelector("#reuseBtn");
     if (!btn) return;
     btn.onclick = () => {
       m._reuseFrom = m.querySelector("#reuseSel").value;
-      ["client_id", "client_secret"].forEach(k => {
-        const i = m.querySelector('[data-f="' + k + '"]');
-        if (i) { i.value = ""; i.placeholder = window.t("cs.cn_reuse_ph"); i.disabled = true; }
+      const donor = ((ctx && ctx.conns) || []).find(x => x.id === m._reuseFrom) || {};
+      m._reuseKeys = sharedReuseKeys(con || {}, ((ctx && ctx.byId) || {})[donor.connector_id] || {});
+      m._reuseKeys.forEach(k => {
+        m.querySelectorAll('[data-f="' + k + '"], [data-rk="' + k + '"]').forEach(i => {
+          i.value = ""; i.placeholder = window.t("cs.cn_reuse_ph"); i.disabled = true;
+        });
       });
       btn.innerHTML = CHECK_ICON + " " + esc(window.t("cs.cn_reuse_ok")); btn.disabled = true;
     };
@@ -5901,7 +5968,7 @@
     m.querySelectorAll("[data-f]").forEach(inp => {
       const k = inp.dataset.f, v = inp.value.trim();
       const fd = (con.fields || []).find(x => x.key === k) || {};
-      const reused = m._reuseFrom && (k === "client_id" || k === "client_secret");
+      const reused = m._reuseFrom && (m._reuseKeys || []).includes(k);
       if (!v && !fd.optional && !reused) missing = fd.label || k;
     });
     return missing;
@@ -5917,16 +5984,17 @@
       + '<div class="conn-form">'
       // Cảnh báo rủi ro phải hiện NGAY LÚC QUYẾT ĐỊNH, không đợi tới hộp thoại đổi quyền.
       + (con.risk ? '<div class="conn-risk">' + WARN_ICON + ' ' + esc(con.risk) + '</div>' : "")
+      // A key saved for another Google service comes FIRST: with it, most of the setup steps below are already done.
+      + reuseHtml(reuseDonors(con, ctx), con)
       + (hasSteps ? stepsHtml(con)
         : '<div class="conn-guide">' + esc(con.guide || window.t("cs.cn_oauth_guide"))
           + (con.guide_url ? ' <a href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">' + esc(window.t("cs.cn_guide")) + ' ↗</a>' : "") + '</div>')
       + oauthWizard(con)
-      + reuseHtml(reuseDonors(con, ctx))
       + jsonDropHtml(con)
       + fields
       + '<button class="mp-btn primary" id="oGo">' + esc(window.t(fields ? "cs.cn_oauth_save_open" : "cs.cn_oauth_open")) + '</button></div>'
       + '<div class="mp-foot"><span class="mp-note" id="oErr"></span><button class="mp-btn" data-act="close">' + esc(window.t("common.close")) + '</button></div>');
-    wireWizCommon(m); wireJsonDrop(m); wireReuse(m);
+    wireWizCommon(m); wireJsonDrop(m); wireReuse(m, con, ctx);
     m.querySelector("#oGo").onclick = async () => {
       const err = m.querySelector("#oErr"), go = m.querySelector("#oGo");
       const fieldsVal = {};
@@ -5969,7 +6037,7 @@
     };
   }
 
-  function openAccountMenu(el, c, con) {
+  function openAccountMenu(el, c, con, ctx) {
     const m = connModal(mHead(esc(c.label || window.t("cs.cn_account_fallback")))
       + '<div class="conn-menu">'
       + ((c.connector_id || "custom") === "custom"
@@ -5996,7 +6064,7 @@
       } else if (act === "edit") {
         closeConnModal(); openMcpForm(el, c);
       } else if (act === "rekey") {
-        closeConnModal(); reconnectAccount(el, c, con);
+        closeConnModal(); reconnectAccount(el, c, con, ctx);
       } else if (act === "default") {
         await postJson("/connect/default", { id: c.id }); closeConnModal(); renderConnect(el);
       } else if (act === "rename") {
@@ -6438,7 +6506,7 @@
       openGroupPicker(el, b.dataset.groupopen, cat.filter(c => c.group === b.dataset.groupopen), ctx, isFirst));
     el.querySelectorAll("[data-conn]").forEach(b => b.onclick = () => {
       const c = conns.find(x => x.id === b.dataset.conn);
-      if (c) openAccountMenu(el, c, byId[c.connector_id]);
+      if (c) openAccountMenu(el, c, byId[c.connector_id], ctx);
     });
     const applyFilter = () => {
       const q = (document.getElementById("catQ").value || "").toLowerCase();

@@ -744,6 +744,41 @@ def credentials_file(conn_id, fmt):
                        "client_secret": cs, "refresh_token": rt}, ensure_ascii=False, indent=2)
 
 
+# What a connector's `oauth_env` may hand to its process. A closed list: the access token is left out on purpose,
+# because it dies within the hour and a process given only that would fail an hour after every start.
+OAUTH_ENV_PARTS = ("client_id", "client_secret", "refresh_token")
+
+
+def credentials_env(conn_id, mapping):
+    """{ENV_NAME: value} for a STDIO connector that reads its Google sign-in from variables, not from a file.
+
+    `mapping` is the connector's `oauth_env`, e.g. {"refresh_token": "GOOGLE_REFRESH_TOKEN", "client_id":
+    "GOOGLE_CLIENT_ID", "client_secret": "GOOGLE_CLIENT_SECRET"}. Why it exists: `credentials_file` covers servers
+    that read an ADC file (Google Ads, Analytics), while some servers (Stape's Tag Manager MCP) take the same three
+    values as variables and never look at a file.
+
+    All or nothing: without a refresh token (not signed in yet) or without the client pair, it returns {} so the
+    process starts unconfigured and says so, instead of half-signed-in. No network: the process refreshes the access
+    token itself."""
+    if not isinstance(mapping, dict) or not mapping:
+        return {}
+    ent = _load().get(conn_id) or {}
+    rt = secrets_store.decrypt(ent.get("refresh_token", ""))
+    if not rt:
+        return {}
+    sec = mcp_store.connection_secrets(conn_id) or {}
+    parts = {"client_id": sec.get("client_id") or ent.get("client_id") or "",
+             "client_secret": sec.get("client_secret") or "",
+             "refresh_token": rt}
+    if not (parts["client_id"] and parts["client_secret"]):
+        return {}
+    out = {}
+    for part, env_name in mapping.items():
+        if part in OAUTH_ENV_PARTS and isinstance(env_name, str) and env_name.strip():
+            out[env_name.strip()] = parts[part]
+    return out
+
+
 def status(conn_id):
     ent = _load().get(conn_id) or {}
     rep = scope_report(conn_id)

@@ -150,6 +150,20 @@ def plan_connection(cid: str) -> dict:
     files = _tep_secret(cid)
     muc: list[dict] = [{"kind": "connection",
                         "label": localefmt.chu("Kết nối và khoá đã lưu", "Connection and saved keys"), "n": 1}]
+    # The last copy of a Google key: Google never shows it again, so this line says so right under the connection.
+    try:
+        last_key = mcp_store.holds_last_key(cid)
+    except Exception:
+        last_key = False
+    if last_key:
+        muc.append({"kind": "last_key",
+                    "label": localefmt.chu("Key Google cuối cùng còn lưu trong Javis",
+                                           "The last copy of this Google key in Javis"),
+                    "n": 1,
+                    "note": localefmt.chu("Google chỉ cho xem key này một lần. Muốn giữ thì đấu dịch vụ Google khác "
+                                          "bằng key này trước.",
+                                          "Google shows this key only once. To keep it, connect another Google "
+                                          "service with it first.")})
     if conn.get("secrets"):
         muc.append({"kind": "secrets", "label": localefmt.chu("Khoá hoặc mật khẩu đã mã hoá", "Encrypted keys or passwords"),
                     "n": len(conn.get("secrets") or {})})
