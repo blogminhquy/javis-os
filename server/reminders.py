@@ -135,7 +135,8 @@ def _engine_tag() -> str:
 
 # A reminder that still has a schedule: "paused" (0.422.0) is skipped by the tick but kept.
 LIVE_STATUSES = ("pending", "paused")
-MAX_KEEP = 500                 # trần số bản ghi giữ lại mỗi brain
+MAX_RUNS_CAP = 200              # most runs a Zalo voice reminder may be told to repeat (max_runs)
+MAX_KEEP = 500                # trần số bản ghi giữ lại mỗi brain
 SCRIPT_TIMEOUT_S = 120         # trần thời gian chạy 1 job script
 SCRIPT_OUT_CAP = 3500          # trần ký tự stdout đẩy về Telegram
 # Pictures a `task` run made, sent to the asking chat on channels that need the file itself (#1285).
@@ -366,6 +367,9 @@ class RemindersDeps:
     # register_brain(brain): remember a brain that now holds a reminder so `scheduler_brains`
     # keeps returning it (needed for folders outside BRAINS_DIR). None = nothing to register.
     register_brain: Optional[Callable[[str], None]] = None
+    # 2026-11-16: async zalo_deliver(rem, text, brain) -> (ok, err): a reminder with a Zalo target tags the owner,
+    # "rings" and speaks the note there (zalo_voice_reminder.deliver). None = the target is ignored.
+    zalo_deliver: Optional[Callable] = None
 
 
 class RemindersFeature:
@@ -450,7 +454,8 @@ class RemindersFeature:
     def _create(self, brain: str, text: str, *, delay_min=None, at=None, due_at=None,
                 chat_id="", mode="notify", repeat_min=0, label="", cron=None, script="",
                 created_by="user", allow_no_channel=False, muc_quyen=None,
-                remember_last=False, speak=False, call=False, bot_id="", agent="") -> dict:
+                remember_last=False, speak=False, call=False, bot_id="", agent="",
+                zalo=None, max_runs=0) -> dict:
         mode = mode if mode in VALID_MODE else "notify"
         mq = str(muc_quyen or "").strip().lower()
         mq = mq if mq in VALID_MUC_QUYEN else MUC_QUYEN_MAC_DINH
@@ -496,6 +501,19 @@ class RemindersFeature:
             "created_by": created_by, "created_at": _now(),
             "fired_at": 0.0, "result": "", "error": "",
         }
+        # 2026-11-16: a Zalo target (tag, virtual call, voice note) and how many times a repeating one may run.
+        if zalo:
+            import zalo_voice_reminder as zvr
+            target = zvr.clean_target(zalo)
+            if not target:
+                raise ValueError(localefmt.chu("Đích Zalo thiếu mã cuộc chat (thread)", "The Zalo target has no chat id (thread)"))
+            rem["zalo"] = target
+        try:
+            runs = max(0, min(int(float(max_runs or 0)), MAX_RUNS_CAP))
+        except (TypeError, ValueError):
+            runs = 0
+        if runs:
+            rem["max_runs"] = runs
         # 0.429.0: made in a dedicated chatbot's turn -> the Tasks page shows it under that bot's assistant.
         bid = str(bot_id or "").strip()
         if re.fullmatch(r"bot_[A-Za-z0-9_-]{1,64}", bid):
@@ -532,6 +550,8 @@ class RemindersFeature:
                 "remember_last": bool(r.get("remember_last")),
                 "speak": bool(r.get("speak")),
                 "call": bool(r.get("call")),
+                "zalo": r.get("zalo") or None, "max_runs": int(r.get("max_runs") or 0),
+                "runs_done": int(r.get("runs_done") or 0),
                 # 0.429.0: who made it. bot_id names the chatbot whose turn created it ("" = the owner or Javis Core).
                 "created_by": r.get("created_by", ""), "bot_id": r.get("bot_id", ""),
                 # the Partners-page assistant it runs as ("" = Javis).
@@ -1014,6 +1034,16 @@ class RemindersFeature:
                     print(f"[reminders] voice note not sent: {type(e).__name__}: {e}", file=sys.stderr)
             if mode == "task" and ok and not loi and self.deps.send_file:
                 await self._send_run_images(brain, rem, body, t0)
+            if rem.get("zalo") and not loi and self.deps.zalo_deliver:
+                # The owner's Zalo: tag, virtual call, voice note. A failure here is a failed firing, said in `error`.
+                try:
+                    zok, zerr = await self.deps.zalo_deliver(rem, text if mode == "notify" else msg, brain)
+                except Exception as e:
+                    zok, zerr = False, f"{type(e).__name__}: {e}"
+                if not zok:
+                    ok, send_err = False, f"Zalo: {zerr}"[:300]
+                elif zerr:
+                    print(f"[reminders] zalo delivery note: {zerr}", file=sys.stderr)
 
         work_log.append(str(self.deps.brain_root(brain)), "reminder", str(rem.get("id") or ""), head,
                         "stopped" if stopped else "retry" if retry_at else "fail" if (run_failed or not ok) else "ok",
@@ -1049,7 +1079,11 @@ class RemindersFeature:
                 cur.pop("retry_of", None)
                 cur.pop("retry_count", None)
                 cur["last_slot"] = slot      # an incident retry reuses this firing's ledger key
-                if cron:
+                cur["runs_done"] = int(cur.get("runs_done") or 0) + 1
+                cap = int(cur.get("max_runs") or 0)
+                if cap and cur["runs_done"] >= cap:
+                    cur["status"] = "cancelled" if stopped else ("done" if ok and not run_failed else "failed")
+                elif cron:
                     try:
                         cur["due_at"] = cron_util.cron_next(cron, _now(), VN_TZ())
                         cur["status"] = "pending"
@@ -1375,6 +1409,8 @@ class RemindersFeature:
                         call=_truthy(p.get("call")),
                         bot_id=str(p.get("bot_id") or ""),
                         agent=str(p.get("agent") or ""),
+                        zalo=p.get("zalo") if isinstance(p.get("zalo"), dict) else None,
+                        max_runs=p.get("max_runs") or 0,
                     )
             except NotifyNotReady as e:
                 # can_force: chỗ gọi (dashboard/chat) hỏi lại người dùng rồi tạo tiếp với

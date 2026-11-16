@@ -503,6 +503,21 @@ async def _do_create(vault_root: str, args: dict) -> str:
         payload["speak"] = True
     if args.get("call"):
         payload["call"] = True
+    zalo = args.get("zalo")
+    if isinstance(zalo, dict):
+        # 2026-11-16: tag the person, "ring" and speak the note on Zalo (server/zalo_voice_reminder.py).
+        payload["zalo"] = zalo
+        if args.get("max_runs"):
+            payload["max_runs"] = args["max_runs"]
+        elif str(args.get("intensity") or "").strip():
+            try:
+                import zalo_voice_reminder as zvr
+                every, runs = zvr.repeat_preset(args.get("intensity"))
+            except Exception:
+                every, runs = 0, 1
+            if runs > 1:
+                payload["max_runs"] = runs
+                payload.setdefault("repeat_min", every)
     if _turn_bot():
         payload["bot_id"] = _turn_bot()
     if assistant:
@@ -674,7 +689,26 @@ async def javis_schedule(args: dict, cctx) -> str:
         return await _do_update(vault_root, args)
     if op == "cancel":
         return await _do_cancel(vault_root, args)
-    return f"ERROR: op không hợp lệ: {op!r} (dùng create|list|update|cancel)"
+    if op == "lexicon":
+        return _do_lexicon(vault_root, args)
+    return f"ERROR: op không hợp lệ: {op!r} (dùng create|list|update|cancel|lexicon)"
+
+
+def _do_lexicon(vault_root: str, args: dict) -> str:
+    """How the owner writes Vietnamese (2026-11-16). `wrong` + `right` teaches a meaning, `wrong` alone with
+    `forget` removes one, nothing else lists them. Used by Zalo reminders to read and speak the owner's words right."""
+    try:
+        import zalo_voice_reminder as zvr
+    except Exception as e:      # noqa: BLE001
+        return f"ERROR: lexicon unavailable ({type(e).__name__})"
+    wrong, right = str(args.get("wrong") or "").strip(), str(args.get("right") or "").strip()
+    if wrong and args.get("forget"):
+        return f"Forgot {wrong!r}." if zvr.forget(vault_root, wrong) else f"ERROR: {wrong!r} was not in the lexicon."
+    if wrong and right:
+        return (f"Learned: {wrong!r} means {right!r}. Zalo reminders now read it that way.") if zvr.learn(vault_root, wrong, right) \
+            else "ERROR: could not learn that pair (empty, identical, or the lexicon is full)."
+    rows = zvr.load(vault_root)
+    return "\n".join(f"{k} -> {v['right']}" for k, v in sorted(rows.items())) or "The lexicon has no learned words yet."
 
 
 def register(ctx) -> None:
@@ -705,8 +739,14 @@ def register(ctx) -> None:
         schema={
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["create", "list", "update", "cancel"],
-                       "description": ("create = tạo việc mới (cần name/prompt/schedule); "
+                "wrong": {"type": "string",
+                          "description": "op=lexicon: a word the owner wrote or said that Javis must read differently."},
+                "right": {"type": "string", "description": "op=lexicon: what the owner really meant by `wrong`."},
+                "forget": {"type": "boolean", "description": "op=lexicon with `wrong`: remove that entry."},
+                "op": {"type": "string", "enum": ["create", "list", "update", "cancel", "lexicon"],
+                       "description": ("lexicon = teach how the owner writes Vietnamese (wrong+right), or list what was "
+                                       "taught: do it whenever the owner corrects a word you misread; "
+                                       "create = tạo việc mới (cần name/prompt/schedule); "
                                        "list = liệt kê MỌI việc đang có, cả loop lẫn nhắc hẹn; "
                                        "update = sửa việc đã có theo id (truyền name/prompt/"
                                        "schedule - trường nào không truyền thì giữ nguyên); "
@@ -741,6 +781,18 @@ def register(ctx) -> None:
                 "call": {"type": "boolean",
                          "description": ("true = tới giờ Javis GỌI ĐẾN như cuộc gọi trên trang Javis đang mở, user bấm "
                                          "Nghe thì Javis đọc kết quả và nói chuyện tiếp (\"7h gọi đọc báo cáo cho anh\").")},
+                "zalo": {"type": "object",
+                         "description": ("Zalo reminder (op=create, notify_only=true): at the time Javis tags the person, sends a "
+                                         "tagged call-style line, a voice message of the note and the written note. Fields: "
+                                         "thread (chat id), type (0 person, 1 group), name, uid (for the tag in a group), "
+                                         "conn (Zalo account id, optional when only one). `name` MUST be the name the person "
+                                         "set for THEMSELVES on Zalo, never the nickname the owner saved for them. Write the "
+                                         "prompt with the owner's shorthand already read correctly.")},
+                "intensity": {"type": "string",
+                              "description": ("With zalo: how hard to repeat. light (once), medium (every 10 min, 3 times), "
+                                              "urgent (every 5 min, 6 times). Use max_runs for an exact count.")},
+                "max_runs": {"type": "integer",
+                             "description": "With zalo and a repeating schedule: stop after this many runs."},
                 "remember_last": {"type": "boolean",
                                   "description": ("true = mỗi lần chạy nhận lại kết quả lần trước (theo dõi, "
                                                   "báo cái mới). Chỉ cho nhắc hẹn tự làm, không cho loop.")},

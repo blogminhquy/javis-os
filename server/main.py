@@ -15656,6 +15656,39 @@ async def _zalo_send_file_to(chat_id, path) -> tuple:
     return await bot.send_file(path, chat=cid)
 
 
+async def _zalo_voice_deliver(rem, text, brain) -> tuple:
+    """A reminder with a Zalo target (2026-11-16): the owner is tagged, "rung" and sent the note as a voice message.
+    The connection is the one the reminder names, else the only enabled personal Zalo account."""
+    import zalo_cli
+    import zalo_personal_channel as zc
+    import zalo_voice_reminder as zvr
+    from channels import zalo_personal as zp
+    tg = zvr.clean_target(rem.get("zalo"))
+    if not tg:
+        return False, "no Zalo thread"
+    conns = zc._ket_noi()
+    conn = next((c for c in conns if c.get("id") == tg["conn"]), None) if tg["conn"] else (conns[0] if len(conns) == 1 else None)
+    if not conn:
+        return False, localefmt.chu("không rõ nick Zalo nào để gửi (kết nối đã tắt hoặc có nhiều nick)",
+                                    "no single Zalo account to send from (connection off, or several accounts)")
+    root = _brain_root(brain)
+    chat_type = "group" if tg["type"] == 1 else "private"
+
+    async def send_text(line, mention=None):
+        return await zp.gui({"id": conn["id"]}, tg["thread"], line, chat_type, mention)
+
+    async def make_voice(line):
+        res = await voice_note.make(root, line)
+        return str(Path(root) / res["rel_path"]) if res.get("ok") else ""
+
+    async def send_voice(path):
+        home = zalo_cli.home_of(conn)
+        ok, _d, err = await zalo_cli.send_files(conn["id"], home, tg["thread"], [Path(path)], tg["type"])
+        return ok, err
+
+    return await zvr.deliver(tg, text, send_text=send_text, send_voice=send_voice, make_voice=make_voice, root=root)
+
+
 import my_tasks as my_tasks_mod
 import gcal_read
 
@@ -15749,6 +15782,7 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     send_file=lambda chat_id, path, brain: _send_voice_file(chat_id, path, brain),
     build_agent_prompt=_background_agent_prompt,          # made in a partner chat -> runs as that assistant
     finish_agent_run=_finish_background_agent_run,
+    zalo_deliver=_zalo_voice_deliver,
 ))
 
 
