@@ -65,5 +65,16 @@ check("the list is fetched again on return from GitHub", /if \(away\) \{ away = 
 check("the + row sits under the list in the drawer and the create box",
   read("style.css").includes(".pd-repo-box .gh-foot, .tmp-repo-box .gh-foot { position: static;"));
 
+// ---- the list scrolls instead of squeezing its rows (owner 16/11: "khi thêm repo trong dự án và trong team thì bị lỗi
+// hiển thị": the "Selected" group was cut to a sliver) ----
+// .gh-results is a column flex box. Where it has a max-height (project drawer, create-team box, team chat pop-up), its
+// groups clip their own overflow, so the browser may shrink them to nothing rather than let the list scroll.
+const CSS = read("style.css") + read("console.css");
+const capped = CSS.match(/[^\n{}]*\.gh-results \{[^}]*max-height:[^}]*\}/g) || [];
+check("the picker caps its list in the drawer, the create box and the team chat pop-up", capped.length === 3, capped.join(" | "));
+check("each capped list scrolls", capped.every((r) => /overflow-y: auto/.test(r)), capped.join(" | "));
+check("sections and groups of the list keep their height, so a capped list scrolls",
+  /\.gh-results > \* \{ flex: none; \}/.test(CSS));
+
 if (fails) { console.log(`\nFAIL - test_project_repos_ui: ${fails} lỗi`); process.exit(1); }
 console.log("\nOK - test_project_repos_ui: tất cả pass");
