@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.573.0] - 2026-11-16
+### Improved
+- **Reuse a Google key for every Google service.** The "Reuse this key" row now sits at the top of the form, shows on Google Ads, Analytics, Merchant Center and Search Console too, and borrows a key (service accounts included) saved for any other Google service. Google shows a client secret only once, when it is made, so the key kept in Javis is often the only copy left.
+- **Change a key right on the connection.** "Reconnect (sign in / change key)" on Gmail, Calendar, Analytics, Ads and the rest now opens a change-key form: pick a key saved for another service, or paste a new one, then sign in again.
+- **A warning before a key is lost.** Deleting the last connection that holds a Google key says so in the confirmation, with how to keep it.
+### Added
+- The Google Tag Manager pack in Javis Store signs in to Google right in the dashboard, like Analytics and Ads.
+
 ## [0.572.0] - 2026-11-16
 ### Added
 - **The Partners page has a Learned tab for each assistant.** The top bar button now reads "Documents & Learned". The new tab lists what the assistant worked out while working, exactly the lessons it uses, with where each applies (private chat, a team, everywhere). Edit, delete or add a lesson right there, like a project's Learned tab.
