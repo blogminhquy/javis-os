@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.575.1] - 2026-11-16
+### Sửa lỗi
+- **Ảnh chụp màn hình của Playwright hiện ngay trong khung chat.** Trước đây khi Javis chụp màn hình một trang bằng Playwright, ảnh bị đổi thành một chuỗi ký tự dài gửi cho model, nên bạn không thấy gì trong khung chat. Giờ ảnh được lưu vào bộ não ở `attachments/tool-images/` và Javis nhúng nó vào câu trả lời để bạn xem trước. Ảnh do công cụ khác trả về (biểu đồ, thiết kế) cũng được xử lý giống vậy.
+
 ## [0.575.0] - 2026-11-16
 ### Cải thiện
 - Thanh chọn dự án và danh sách dự án có chấm đỏ khi dự án khác có câu trả lời chưa đọc. Dự án đang xem chỉ báo trên từng cuộc chat, tránh báo trùng.
