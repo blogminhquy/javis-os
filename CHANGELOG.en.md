@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.570.0] - 2026-11-16
+### Fixed
+- **A Store pack can be installed in several brains.** A pack installed in one brain used to show "Installed" in another brain with only Turn off and Uninstall, so its assistants and skills could never reach that brain. The card now offers "Install in this brain". Updating the pack brings every brain that has it to the new version, keeping what you edited. Uninstalling removes it from every brain, and the confirmation names each one.
+
 ## [0.569.1] - 2026-11-16
 ### Fixed
 - **Text Javis writes before and after each tool call no longer runs together** (as in "needs a sign-in.Done with item 3"). Each new stretch starts on a new line, on Claude Code, Codex, Grok Build and Antigravity.
