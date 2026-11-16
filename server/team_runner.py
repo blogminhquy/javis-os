@@ -31,6 +31,7 @@ import unicodedata
 from typing import Any, Awaitable, Callable, Optional
 
 import localefmt
+import once_ledger
 import reaction_values as RV
 from io_offload import run_io  # noqa: F401 - giữ `team_runner.run_io` cho team_api và test
 import resonance_store
@@ -89,6 +90,25 @@ REPLY_ROLES = ("leader_reply", "member_reply")
 # Bước của việc nhóm chạy CÓ công cụ (0.194.0, chủ 17/10/2026: "team phải đầy đủ các quyền thì mới làm việc được"): Làm
 # và Hỗ trợ. Lượt trò chuyện, lập kế hoạch và tổng hợp vẫn chỉ chữ cho nhanh và rẻ.
 TOOL_ROLES = ("work", "help")
+# Owner, 16/11/2026: "sau mỗi lần cập nhật thì các team tự khởi động lại để tiếp tục công việc". A step that a restart
+# cut short runs again by itself. Not more than this many times for one step: a server that keeps dying in the middle
+# of the same step must not burn turns for ever, so the next cut stops the job and asks the owner.
+RESTART_RESUME_MAX = 2
+
+
+def restart_resume_on() -> bool:
+    """JAVIS_RESUME_AFTER_RESTART=0 gives the old behaviour back: work a restart cut short waits for the owner."""
+    return str(os.environ.get("JAVIS_RESUME_AFTER_RESTART", "1")).strip().lower() not in ("0", "false", "off", "no")
+
+
+def once_key(task_id: str, step: dict) -> str:
+    """Key of the once-only record of outside actions (once_ledger.py) for one job step AND every retry of it: a retry
+    is a new step with the same kind, member, brief and job revision (team_retry.chain_failures uses the same four).
+    So a step that runs again after a restart does not send, post or order what its first run already did, while
+    another step of the job that happens to make the same call is not held back."""
+    raw = "\x1f".join(str(x) for x in (step.get("kind") or "", step.get("agent_key") or "", step.get("brief") or "",
+                                        step.get("job_revision")))
+    return f"team:{task_id}:{hashlib.sha256(raw.encode('utf-8', 'replace')).hexdigest()[:16]}"
 # 0.449.0: the block the /skill command puts before the owner's words (dashboard/chat-slash.js buildSkillInvocation).
 SKILL_BLOCK_RE = re.compile(r"\[SKILL:\s*([A-Za-z0-9_-]+)")
 SKILLS_PER_TURN = 3
@@ -2614,7 +2634,10 @@ class TeamRunner:
                "step_id": step["step_id"] if step else None, "turn_id": turn_id,
                'job_revision': step['job_revision'] if step else task['team_rev'] if task else None,
                'attempt': (task or {}).get('attempts'),
-               "tools": None if tool_turn else [], "tool_turn": tool_turn, "work_mode": work_mode}
+               "tools": None if tool_turn else [], "tool_turn": tool_turn, "work_mode": work_mode,
+               # 16/11/2026: outside actions of a tool step are recorded once per step chain, so the step can run again
+               # after a restart without repeating them (the host puts this in the turn's `job`, see once_key).
+               "once_key": once_key(task["id"], step) if tool_turn and step else ""}
         return {"pre": "done", "engine": str(engine or ""), "model": str(model or ""), "fn": fn, "req": req,
                 "tool_key": self._work_key(team) if tool_turn else ""}
 
@@ -4772,22 +4795,73 @@ class TeamRunner:
             steps = self.teams.steps(task_id)
             last = next((s for s in reversed(steps) if s["status"] in ("failed", "interrupted")), None)
             if last:
-                new = self.teams.add_step(task_id, task["team_id"], last["kind"], last["agent_key"],
-                                          int(task["team_rev"]), last["brief"], last["input_refs"], last["parent_step"],
-                                          part=last.get("part") or "")
-                ap_id = ""
-                if self.approvals is not None:
-                    granted = self.approvals.approved_for_step(last["step_id"])
-                    ap_id = granted["approval_id"] if granted else ""
-                if ap_id:
-                    # 0.207.0: a step the owner approved was interrupted (restart, error). Its approval moves to the
-                    # retry; calls already used stay used, so nothing that already happened can happen twice.
-                    self.teams.set_step_status(new["step_id"], "queued", f"approval:{ap_id}")
-                    self.approvals.granted_step(ap_id, new["step_id"])
+                self._run_step_again(task, last)
         done = self.tasks.team_unblock(task_id) is not None
         if done:
             self._judge_job_changed(task_id, task["team_id"])
         return done
+
+    def _run_step_again(self, task: dict, last: dict) -> dict:
+        """A new step for the same member with the same brief, queued behind the failed or interrupted one."""
+        new = self.teams.add_step(task["id"], task["team_id"], last["kind"], last["agent_key"],
+                                  int(task["team_rev"]), last["brief"], last["input_refs"], last["parent_step"],
+                                  part=last.get("part") or "")
+        ap_id = ""
+        if self.approvals is not None:
+            granted = self.approvals.approved_for_step(last["step_id"])
+            ap_id = granted["approval_id"] if granted else ""
+        if ap_id:
+            # 0.207.0: a step the owner approved was interrupted (restart, error). Its approval moves to the
+            # retry; calls already used stay used, so nothing that already happened can happen twice.
+            self.teams.set_step_status(new["step_id"], "queued", f"approval:{ap_id}")
+            self.approvals.granted_step(ap_id, new["step_id"])
+        return new
+
+    def _restart_stop_reason(self, task: dict, cut: list) -> str:
+        """Why a job whose steps `cut` were interrupted by a restart must NOT continue by itself ("" = it may)."""
+        plain = localefmt.chu("Máy chủ khởi động lại giữa chừng nên bước đang làm bị dừng",
+                              "The server restarted in the middle of this step, so the step stopped")
+        if not restart_resume_on():
+            return plain
+        steps = self.teams.steps(task["id"])
+        for s in cut:
+            key = (s.get("kind"), s.get("agent_key"), s.get("brief") or "", s.get("job_revision"))
+            times = sum(1 for x in steps if x.get("status") == "interrupted"
+                        and (x.get("kind"), x.get("agent_key"), x.get("brief") or "", x.get("job_revision")) == key)
+            if times > RESTART_RESUME_MAX:
+                return localefmt.chu(
+                    f"Máy chủ đã khởi động lại {times} lần giữa cùng một bước, nên Javis không tự chạy lại nữa",
+                    f"The server restarted {times} times in the middle of the same step, so Javis stopped running it again")
+            if s.get("kind") not in TOOL_ROLES:
+                continue
+            try:
+                unsure = once_ledger.unknowns(once_key(task["id"], s))
+            except Exception:  # noqa: BLE001 - no ledger means nothing was recorded for this step
+                unsure = []
+            if unsure:
+                what = str(unsure[0].get("target") or unsure[0].get("tool") or "").strip()[:160]
+                return localefmt.chu(
+                    f"Máy chủ khởi động lại đúng lúc bước này đang làm một việc ra ngoài, chưa rõ đã xong chưa: {what}. "
+                    "Kiểm tra rồi bấm Làm tiếp",
+                    f"The server restarted while this step was doing something outside, and it is unclear whether it "
+                    f"went through: {what}. Check it, then press Continue")
+        return ""
+
+    def _continue_after_restart(self, task: dict, cut: list) -> None:
+        """The interrupted steps run again as new steps and the team chat says so in one line."""
+        for s in cut:
+            self._run_step_again(task, s)
+        self.teams.log_event(task["team_id"], "job_resumed_after_restart", "host", None,
+                             {"task_id": task["id"], "steps": [s["step_id"] for s in cut]})
+        team = self.teams.get(task["team_id"])
+        if team and team.get("status") != "archived":
+            try:
+                self._post(team, localefmt.chu(
+                    f"Máy chủ vừa khởi động lại. Việc \"{task['title']}\" tự làm tiếp bước đang dở.",
+                    f"The server just restarted. The job \"{task['title']}\" carries on with the step it was in."),
+                    author_kind="system", task_id=task["id"], meta={"kind": "job_resumed"})
+            except Exception:  # noqa: BLE001 - the note must not stop the job from carrying on
+                pass
 
     def _cap_record(self, task: dict) -> Optional[dict]:
         """Bản ghi `cap_blocked` mới nhất của việc (trần đã chạm, các bước bị từ chối). Mỗi lần chặn ghi bản ghi TRƯỚC khi
@@ -4905,10 +4979,18 @@ class TeamRunner:
 
     def recover(self) -> dict:
         """Sau restart (spec 8.6): lượt chưa tới mốc engine thì hoàn, bước về chờ, việc chạy tiếp; lượt đã qua mốc thì
-        `interrupted` (tính một lần), bước `interrupted`, việc chặn với nút "Chạy lại bước". Không tự chạy lại."""
+        `interrupted` (tính một lần), bước `interrupted`.
+
+        16/11/2026 (owner: "sau mỗi lần cập nhật thì các team tự khởi động lại để tiếp tục công việc"): the job then
+        carries on by itself with a new step for the same member, what the Continue button does. It still stops and
+        asks in two cases (`_restart_stop_reason`): an outside action of the step may already have gone out, or
+        restarts cut the same step RESTART_RESUME_MAX times already. Chat replies a restart cut short are handed back
+        in `replies` for the caller to run again (they are text only, nothing can happen twice)."""
         self._recover_acceptance_decisions()
         interrupted_tasks = set()
-        for r in self.teams.interrupt_open_replies(before=self.started_at):
+        cut_steps: dict = {}
+        cut_replies = self.teams.interrupt_open_replies(before=self.started_at)
+        for r in cut_replies:
             self._publish_replies(r["team_id"], r["message_id"])
         for t in self.teams.open_turns():
             self.teams.release_busy(t["agent_key"], t["turn_id"])
@@ -4921,20 +5003,50 @@ class TeamRunner:
                 self._settle_turn(t["turn_id"], "interrupted")
                 if t["step_id"]:
                     self.teams.set_step_status(t["step_id"], "interrupted", "server khởi động lại giữa lượt")
+                    if t["task_id"]:
+                        cut_steps.setdefault(t["task_id"], []).append(t["step_id"])
                 if t["task_id"]:
                     interrupted_tasks.add(t["task_id"])
         resumed, blocked = [], []
         for task in self.tasks.team_running_tasks():
             self._ensure_quality_contract(task['id'])
             self.tasks.team_take_over(task["id"], self.worker_id)
-            if task["id"] in interrupted_tasks:
-                self._block(task["id"], "interrupted", "Máy chủ khởi động lại giữa chừng nên bước đang làm bị dừng")
+            # A clean stop settles the turn itself (CancelledError in `_turn`) and leaves its step `running` with no
+            # open turn. Nothing runs in this new process yet, so such a step was cut short too.
+            for s in self.teams.steps(task["id"]):
+                if s["status"] == "running":
+                    self.teams.set_step_status(s["step_id"], "interrupted", "server khởi động lại giữa lượt")
+                    cut_steps.setdefault(task["id"], []).append(s["step_id"])
+                    interrupted_tasks.add(task["id"])
+            if task["id"] not in interrupted_tasks:
+                resumed.append(task["id"])
+                continue
+            ids = cut_steps.get(task["id"]) or []
+            cut = [s for s in self.teams.steps(task["id"]) if s["step_id"] in ids]
+            why = self._restart_stop_reason(task, cut)
+            if why or not cut:
+                self._block(task["id"], "interrupted", why or localefmt.chu(
+                    "Máy chủ khởi động lại giữa chừng nên bước đang làm bị dừng",
+                    "The server restarted in the middle of this step, so the step stopped"))
                 blocked.append(task["id"])
             else:
+                self._continue_after_restart(task, cut)
                 resumed.append(task["id"])
         # Sổ chung: lượt nhóm của tiến trình trước đã hoàn hay chốt ở trên; dòng sổ thiếu hay dư được đối soát (9.1).
         self.reconcile_ceiling(startup=True)
         # 0.209.0: a product check that was running when the server stopped runs again (the caller spawns `recheck`).
         rechecks = [t["id"] for t in self.tasks.team_tasks_by_status("team_blocked")
                     if t.get("block_kind") == "acceptance_checking"]
-        return {"resumed": resumed, "blocked": blocked, "rechecks": rechecks}
+        replies = [{"team_id": r["team_id"], "message_id": r["message_id"], "agent_key": r["agent_key"]}
+                   for r in cut_replies] if restart_resume_on() else []
+        return {"resumed": resumed, "blocked": blocked, "rechecks": rechecks, "replies": replies}
+
+    async def retry_cut_replies(self, rows: list) -> None:
+        """Chat replies a restart cut short run again, as if the owner pressed Retry on each line."""
+        for row in rows or []:
+            try:
+                sub = await self._io(self.retry_reply, row["team_id"], int(row["message_id"]), row["agent_key"])
+            except Exception:  # noqa: BLE001 - a team archived or a message gone meanwhile: nothing to retry
+                continue
+            if sub is not None:
+                await self.run_replies(sub)

@@ -40,6 +40,7 @@ import mcp_catalog
 import mcp_client
 import mcp_store
 import once_ledger
+import turn_ledger
 import scout
 import secret_guard
 import skill_router
@@ -520,6 +521,9 @@ def _guard(ent, fn, mode):
         if cls == "read":
             result = await mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, args)
         else:
+            # 16/11/2026: a chat turn that acts outside is marked, so a restart in the middle of it does not run the
+            # whole turn again by itself (turn_ledger.py). A turn that only read things is safe to run again.
+            turn_ledger.mark_acted(str((turn_context.current() or {}).get("session_id") or ""))
             # 0.238.0: a Kanban job that runs again must not send, post or order twice (once_ledger.py).
             # Outside a background job this calls straight through.
             result = await once_ledger.run(

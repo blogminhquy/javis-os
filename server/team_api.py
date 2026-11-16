@@ -430,6 +430,8 @@ class TeamApi:
             rep = await r._io(r.recover)
             if rep["resumed"]:
                 self._spawn(r.resume_jobs(rep["resumed"]))
+            if rep.get("replies"):
+                self._spawn(r.retry_cut_replies(rep["replies"]))
             for tid in rep.get("rechecks") or []:
                 self._spawn(r.recheck(tid))
         # 0.207.0: approval requests past their deadline close before dispatch, so their jobs stay stopped with the reason.

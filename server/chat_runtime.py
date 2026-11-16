@@ -61,6 +61,10 @@ class ChatJob:
 class ChatRuntime:
     """Registry in-memory cho job chat và các kết nối đang xem."""
 
+    # 16/11/2026: `on_finish(session_id)` is called once a registered job is over, however it ended (answer, error,
+    # Stop, cancel). The host uses it to close the turn's row in turn_ledger.py. Never raises into the runtime.
+    on_finish: Optional[Callable[[str], None]] = None
+
     def __init__(self) -> None:
         self._clients: Dict[str, _Client] = {}
         self._jobs: Dict[str, ChatJob] = {}
@@ -108,6 +112,19 @@ class ChatRuntime:
             task=task, tag=tag,
             runtime_task_id=runtime_task_id, runtime_step_id=runtime_step_id,
         )
+        task.add_done_callback(lambda done, sid=session_id: self._job_over(sid, done))
+
+    def _job_over(self, session_id: str, task: asyncio.Task) -> None:
+        """A job is over. Skipped when a NEWER job of the same session is already registered: its row in the ledger
+        belongs to that newer turn, and the old turn must not close it."""
+        job = self._jobs.get(session_id)
+        if job is not None and job.task is not task and not job.task.done():
+            return
+        if self.on_finish is not None:
+            try:
+                self.on_finish(session_id)
+            except Exception:  # noqa: BLE001 - bookkeeping must not break the loop's callbacks
+                pass
 
     def get_job(self, session_id: str) -> Optional[ChatJob]:
         job = self._jobs.get(session_id)
