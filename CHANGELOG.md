@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.583.0] - 2026-11-17
+### Thêm mới
+- **Báo mỗi câu trả lời khi bạn không xem hội thoại đó.** Bật ô mới trong phần Thông báo đẩy của chuông: Javis trả lời xong là điện thoại kêu, nếu bạn đã chuyển sang app khác hoặc đang mở một hội thoại khác. Đang xem đúng hội thoại đó thì im. Bấm thông báo là mở thẳng hội thoại.
+### Cải thiện
+- **Thông báo lượt chạy lâu không còn bị nuốt khi bạn đang ở hội thoại khác.** Trước đây cứ mở Javis là im, nay chỉ im khi màn hình đang hiện đúng hội thoại đó.
+
 ## [0.582.1] - 2026-11-17
 ### Sửa lỗi
 - **Danh sách skill khi gõ / trong Team không còn chồng chữ.** Mỗi skill một dòng tên, một dòng mô tả, tên dài được cắt bằng dấu ba chấm, danh sách cuộn khi dài.
