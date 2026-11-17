@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.579.0] - 2026-11-17
+### Cải thiện
+- **Việc của team chạy song song.** Mọi việc giao cho team bắt đầu ngay, kể cả việc giao chung cho cả team (trước đây việc chung phải chờ nhau vì cùng tính là của phó nhóm).
+- **Chỉ chờ khi cần kết quả của người khác:** các phần trong một việc có thứ tự trước sau vẫn chờ nhau, và việc anh viết kiểu "sau khi … xong", "lần lượt" vẫn chờ việc trước nó. Mỗi cộng sự làm lần lượt các phần được giao, đúng thứ tự giao.
+- **Bỏ giới hạn số việc mỗi team (trước là 3) và số team làm việc cùng lúc (trước là 4).** Một bước chờ cộng sự đang bận ở việc khác trong cùng team giờ cứ chờ tới lượt, không còn bị báo dừng "bận quá lâu".
+
 ## [0.578.1] - 2026-11-17
 ### Sửa lỗi
 - **Thanh "Đang xem tin của việc" gọn còn một dòng** trên điện thoại: tên việc, một icon mở nghiệm thu và mức dùng, một dấu X để xem lại mọi tin. Trước đây nó chiếm ba dòng và đẩy khung chat xuống.
