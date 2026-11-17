@@ -653,6 +653,10 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
             elif method == "item/completed":
                 it = p.get("item") or {}
                 t = it.get("type")
+                if t == "contextCompaction":
+                    # Codex summarised the thread: earlier tool results may be gone (tool_result_reuse).
+                    import tool_result_reuse
+                    tool_result_reuse.forget_current_turn()
                 if t == "agentMessage":
                     txt = engine_mod.strip_provider_markers(it.get("text") or "")
                     if txt.strip():

@@ -207,7 +207,12 @@ Two features come with it:
 - **Scout (`javis_scout`).** The main model can hand a read across several sources to the **background model** you chose on the Models page. A scout can only read, and only its findings return to the chat. If it cannot run, the main model does the reading itself as before.
 - **Recipes for recurring jobs.** After the same run on two different days, Javis fetches the data itself before the model starts. It does so only when every reading of the dates gives the same result that day; otherwise the job runs as before. Only calls that are plainly reads are repeated, and a job whose period is not written as `YYYY-MM-DD` (a month `2026-11`, a week number, `01/11/2026`) is never turned into a recipe. If the model still has to call a source again after the data was fetched for it, the recipe is dropped after two such runs. Each recipe is a file in `<brain>/Javis/recipes/`; delete the file to forget it.
 
-The **Suggestions** section at the bottom has a line saying what share of tool results stayed out of the conversation in the last 7 days. To turn this off: choose the **Off** saving level, or see `JAVIS_TOOL_RESULT_*`, `JAVIS_SCOUT` and `JAVIS_RECIPES` in [Environment configuration](16-env-configuration.md).
+In a long turn, two more savings take nothing away from the model:
+
+- **Repeated results.** When the model calls the same tool with the same arguments and the result is identical (it reads a file again, lists the same data again), it gets a one-line reference to the copy it already holds instead of the whole text again. The tool still runs every time, so changed data reaches the model in full. When a turn grows long enough that Javis trims old results, the full text goes back into the newest reference. Claude Code and Codex keep a conversation Javis cannot see, so for them this happens at the hub, for Javis's tools and connections: a call right after a reference gets the full text, and when they compact their conversation Javis forgets that turn's record. Claude Code handles re-reading an unchanged file itself.
+- **Compact JSON.** A JSON result with indentation, or with Vietnamese letters written as `\u1ec7`, is written compactly with the same content. File reads, terminal output, web pages and skills stay exactly as they are, because the model may need to copy them exactly to edit.
+
+The **Suggestions** section at the bottom has a line saying what share of tool results stayed out of the conversation in the last 7 days, both savings above included. To turn this off: choose the **Off** saving level, or see `JAVIS_TOOL_RESULT_*`, `JAVIS_RESULT_REPEAT_REFS`, `JAVIS_SCOUT` and `JAVIS_RECIPES` in [Environment configuration](16-env-configuration.md).
 
 ## Where these figures come from
 

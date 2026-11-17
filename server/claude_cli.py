@@ -1410,6 +1410,13 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
     except Exception as e:  # noqa: BLE001 - reported, never a broken turn
         print(f"[write scope] Claude hook not installed: {type(e).__name__}: {e}", file=sys.stderr)
     try:
+        # 2026-11-17: Claude Code compacting its conversation drops the turn's record of repeated tool results
+        # (tool_result_reuse). Installed BEFORE the secret hook, which must stay the outermost wrapper of _options.
+        import claude_result_reuse
+        claude_result_reuse.install()
+    except Exception as e:  # noqa: BLE001 - reported, never a broken turn
+        print(f"[result reuse] Claude hook not installed: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
         # 2026-11-09 (owner incident): every Claude turn refuses tool calls on Javis' secret files (secret_guard.py).
         import claude_secret_hook
         claude_secret_hook.install()
@@ -2387,6 +2394,10 @@ class CodexCLI:
             elif t == "item.completed":
                 it = ev.get("item") or {}
                 itype = it.get("type")
+                if itype in ("context_compaction", "contextCompaction"):
+                    # Codex summarised the thread: earlier tool results may be gone (tool_result_reuse).
+                    import tool_result_reuse
+                    tool_result_reuse.forget_current_turn()
                 if itype == "agent_message":
                     # Bóc dấu trích dẫn nội bộ của OpenAI TRƯỚC khi text đi bất cứ đâu. Nếu
                     # để lọt, ba ký tự vô hình đó hiện thành ô vuông giữa câu trả lời, VÀ đi

@@ -49,6 +49,7 @@ import team_gate
 import tool_images
 import tool_pins
 import tool_result_shaper
+import tool_result_reuse   # 2026-11-17: compact JSON + per-turn repeat references for CLI engines
 import tool_result_tools
 import turn_context
 from config import STATE_DIR
@@ -316,7 +317,8 @@ def result_size_stats(days: int = 7, top: int = 10) -> dict:
     less than `days`; `since` says how far it goes."""
     days = max(1, min(90, int(days or 7)))
     cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")   # same clock as the log's `ts`
-    counted = tool_result_shaper.MODEL_KINDS | {"raw", "query"}
+    # "repeat": a repeated identical result handed over as a reference (tool_result_reuse, API engines)
+    counted = tool_result_shaper.MODEL_KINDS | {"raw", "query", "repeat"}
     total = {"calls": 0, "raw_chars": 0, "sent_chars": 0, "stored": 0, "over_cap": 0}
     by_tool, since = {}, ""
     for path in (_SIZES_PATH.with_suffix(".jsonl.1"), _SIZES_PATH):
@@ -845,7 +847,8 @@ def _connections_json(include_ambient=False, hidden=None, bo_qua=None, owner_cha
                                   "Code. Model đang chạy bằng API key nên không gọi được. Nói đúng lý do đó, rồi "
                                   "chỉ hai cách: nối nguồn này ở trang Kết nối của Javis (mọi model đều dùng "
                                   "được), hoặc đổi model chat sang Claude Code.")})
-    return json.dumps(out, ensure_ascii=False, indent=1)
+    # Compact: a model reads this list on every engine; indent=1 made a sample list of six connections 17% longer.
+    return json.dumps(out, ensure_ascii=False, separators=(",", ":"))
 
 
 def _skills_dir(vault_root):
@@ -2408,6 +2411,8 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
                                       **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
         with tool_result_shaper.for_model():
             result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
+        # A CLI engine's tool loop is out of Javis's sight: compact JSON and per-turn repeat references happen here.
+        result = tool_result_reuse.lean_for_cli(result, name, params.get("arguments") or {})
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
         if ghi_chu:
             result += "\n\n" + ghi_chu
@@ -2459,7 +2464,10 @@ async def handle_http(request):
     # that turn issued; the header names nobody by itself, so a forged or stale key is just None.
     # ALWAYS bind, even to None: this request must never inherit a turn from whatever context
     # the server happens to run it in.
-    tok = turn_context.bind(turn_context.resolve_key(request.headers.get(turn_context.HEADER.lower())))
+    turn_key = request.headers.get(turn_context.HEADER.lower())
+    tok = turn_context.bind(turn_context.resolve_key(turn_key))
+    # The same key names this turn's record of repeated results (tool_result_reuse, CLI engines).
+    reuse_tok = tool_result_reuse.HUB_TURN.set(tool_result_reuse.turn_id_for_key(turn_key))
     # CLI engines also load skills natively from `.claude/skills`; an improvement overlay served only
     # through this tool would split one turn across two versions, so these requests see canonical skills.
     import improvement_activation
@@ -2470,6 +2478,7 @@ async def handle_http(request):
                                          raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot,
                                          **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
     finally:
+        tool_result_reuse.HUB_TURN.reset(reuse_tok)
         turn_context.reset(tok)
 
 
