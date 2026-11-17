@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.584.1] - 2026-11-18
+### Fixed
+- **Locking the phone no longer hides the answer.** Ask on the phone, lock it, and when you come back Javis pulls in the answer that finished while you were away, no need to ask again or keep the screen on.
+- **A home-screen app that was closed shows the full answer when reopened.** The chat used to show only the old copy kept on the phone until you opened it again from History.
+
 ## [0.584.0] - 2026-11-17
 ### Added
 - **Background jobs can carry fixed done-criteria.** A job a script or workflow hands out every day keeps its wording and is checked against exactly those criteria, so it no longer passes one day and sticks the next.

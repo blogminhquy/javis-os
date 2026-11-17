@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.584.1] - 2026-11-18
+### Sửa lỗi
+- **Khoá màn hình rồi mở lại vẫn thấy câu trả lời.** Hỏi trên điện thoại, khoá máy, lúc mở lại Javis tự kéo câu trả lời đã xong trong lúc vắng mặt, không phải hỏi lại hay treo màn hình chờ.
+- **App trên màn hình chính bị tắt hẳn rồi mở lại cũng đủ câu trả lời.** Trước đây khung chat chỉ hiện bản lưu cũ trên máy, phải vào Lịch sử bấm lại mới thấy.
+
 ## [0.584.0] - 2026-11-17
 ### Thêm mới
 - **Giao việc nền kèm điều kiện hoàn thành cố định.** Việc do script hay quy trình giao mỗi ngày giữ nguyên lời giao và được chấm đúng theo các điều kiện đó, không còn hôm đạt hôm kẹt.
