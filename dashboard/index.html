@@ -213,6 +213,8 @@
         <button class="noti-text-btn primary" id="notificationPushToggle" type="button" data-i18n="noti.push_on">Bật</button>
         <label class="noti-push-hide" id="notificationPushHideRow" hidden><input type="checkbox" id="notificationPushHide">
           <span data-i18n="noti.push_hide">Ẩn nội dung trên thông báo đẩy</span></label>
+        <label class="noti-push-hide" id="notificationPushEveryRow" hidden><input type="checkbox" id="notificationPushEvery">
+          <span data-i18n="noti.push_every">Báo mỗi câu trả lời khi bạn không xem hội thoại đó</span></label>
       </div>
       <div class="noti-foot">
         <button class="noti-text-btn" id="notificationRefresh" type="button" data-i18n="noti.refresh">↻ Làm mới</button>
@@ -1243,12 +1245,12 @@
   <script src="/static/console.js?v=213"></script>
   <script src="/static/mobile-chat.js?v=17"></script>
   <script src="/static/brain-view.js?v=1"></script>
-  <script src="/static/push.js?v=3"></script>
+  <script src="/static/push.js?v=4"></script>
   <script src="/static/install-nudge.js?v=3"></script>
   <!-- Mời tặng sao GitHub (0.324.0): thẻ hiện ở khoảnh khắc vui, xem server/star_nudge.py. -->
   <link rel="stylesheet" href="/static/star-nudge.css?v=3">
   <script src="/static/star-nudge.js?v=2"></script>
-  <script src="/static/notifications.js?v=11"></script>
+  <script src="/static/notifications.js?v=12"></script>
   <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
        (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->
   <!-- Mascot menu the owner arranges (Settings > Mascot): load BEFORE pet.js, which builds its menu from it. -->
