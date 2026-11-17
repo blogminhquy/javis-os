@@ -7824,6 +7824,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # 0.187.0: "hidden" = push notifications say only that something arrived, without its text.
         if "preview" in patch:
             cfg.setdefault("push", {})["preview"] = "hidden" if patch.get("preview") == "hidden" else "full"
+        if "turn_done" in patch:
+            # 2026-11-17: "all" = every dashboard answer rings when the owner is not looking at that chat.
+            cfg.setdefault("push", {})["turn_done"] = "all" if patch.get("turn_done") == "all" else "long"
     elif section == "zalo_bot":
         # Cùng khuôn với telegram. Id Zalo là chuỗi HEX chứ không phải số, nhưng `tg_parse_ids`
         # chỉ tách và bỏ trùng chứ không ép kiểu nên dùng chung được.
@@ -15189,7 +15192,7 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         # Giữ tham chiếu tới task, không thì bộ dọn rác có thể nuốt nó giữa chừng.
         t = asyncio.create_task(
             webpush.gui_het(title, body, url, tag=f"javis-{item['id']}", phien_hop_le=_phien_con_hieu_luc(),
-                            **({"quiet_if_visible": True} if push_if_away else {})))
+                            **({"quiet_if_visible": True, "session_id": sid} if push_if_away else {})))
         _PUSH_TASKS.add(t)
         t.add_done_callback(_PUSH_TASKS.discard)
     except Exception as e:
@@ -16398,7 +16401,7 @@ async def _bao_luot_dai_xong(conv_sid: str, brain, turn_tag: str, user_message: 
     (turn_done_notice.py). True when a notice was filed."""
     text = str(final_text or "")
     if not turn_done_notice.should_notify(elapsed, user_message, text):
-        return False
+        return _bao_luot_xong_ngan(conv_sid, text)
     import chat_bridge as _cb
     if _cb.co_viec(conv_sid):
         return False   # work an outside AI sent: chat_bridge rings once, and only if that AI did not read the answer
@@ -16409,6 +16412,35 @@ async def _bao_luot_dai_xong(conv_sid: str, brain, turn_tag: str, user_message: 
                                  label=turn_done_notice.label(elapsed, user_message), source="job",
                                  brain=_brain_key(brain), dedup=f"turn:{turn_tag}", push_if_away=True)
     return bool(item)
+
+
+def _bao_luot_xong_ngan(conv_sid: str, final_text: str) -> bool:
+    """A short dashboard turn ended and the owner turned on "notify every answer" (push.turn_done = "all"): push only,
+    no bell entry. The phone stays quiet when a tab in front of the owner shows this chat (sw.js asks the tab).
+    True when a push was scheduled."""
+    try:
+        st = cfgmod.read_settings()
+        if not turn_done_notice.every_turn(st) or not conv_sid or not webpush.so_sub():
+            return False
+        import chat_bridge as _cb
+        if _cb.co_viec(conv_sid):
+            return False
+        body = turn_done_notice.push_text(channel_context.strip_control_blocks(final_text))
+        if not body:
+            return False
+        if (st.get("push") or {}).get("preview") == "hidden":
+            body = localefmt.chu("Javis đã trả lời xong.", "Javis has answered.")
+        # Not awaited: a dead subscription waits up to 15 s and the turn is already over. One notice per chat: a newer
+        # answer replaces the older one (tag).
+        t = asyncio.create_task(webpush.gui_het(
+            "Javis", body, f"/?mo_phien={conv_sid}", tag=f"javis-turn-{conv_sid[:24]}",
+            phien_hop_le=_phien_con_hieu_luc(), quiet_if_visible=True, session_id=conv_sid))
+        _PUSH_TASKS.add(t)
+        t.add_done_callback(_PUSH_TASKS.discard)
+        return True
+    except Exception as e:  # noqa: BLE001 - a missed doorbell never fails the turn
+        print(f"[turn push] {type(e).__name__}: {e}", file=sys.stderr)
+        return False
 
 
 async def _canh_bao_hua_suong(brain: str, chat_id: str, final_text: str,

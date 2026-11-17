@@ -664,6 +664,19 @@
         });
       }
     }
+    // 2026-11-17: "notify every answer" - every dashboard answer rings when the owner is not looking at that chat.
+    var moiRow = byId("notificationPushEveryRow"), moi = byId("notificationPushEvery");
+    if (moiRow && moi) {
+      moiRow.hidden = !on;
+      if (!moi.dataset.wired) {
+        moi.dataset.wired = "1";
+        try { var st2 = await (await fetch("/settings")).json(); moi.checked = !!(st2.push && st2.push.turn_done === "all"); } catch (e) {}
+        moi.addEventListener("change", function () {
+          var f = new FormData(); f.append("section", "push"); f.append("data", JSON.stringify({ turn_done: moi.checked ? "all" : "long" }));
+          fetch("/settings", { method: "POST", body: f }).catch(function () {});
+        });
+      }
+    }
     nut.textContent = on ? window.t("noti.push_off") : window.t("noti.push_on");
     nut.classList.toggle("primary", !on);
     if (thu) thu.hidden = !on;
@@ -739,12 +752,29 @@
 
     // Deep-link từ thông báo đẩy: /?mo_thu=<id>. Mở panel rồi nhảy thẳng vào mẩu thư đó.
     try {
+      var phienTu = new URLSearchParams(location.search).get("mo_phien");
+      if (phienTu) {
+        history.replaceState(null, "", location.pathname);
+        setTimeout(function () { moPhien(phienTu); }, 1200);
+      }
       var idTu = new URLSearchParams(location.search).get("mo_thu");
       if (idTu) {
         history.replaceState(null, "", location.pathname);   // đừng để tham số dính lại khi F5
         setTimeout(function () { moTheoId(idTu); }, 1200);
       }
     } catch (e) {}
+  }
+
+  // A "Javis has answered" push opens its chat (/?mo_phien=<id>). The chat code may still be loading on a cold start.
+  function moPhien(sid) {
+    var lan = 0;
+    (function thu() {
+      if (window.JavisSessions && window.JavisSessions.open) {
+        try { window.JavisSessions.open(sid); } catch (e) {}
+        return;
+      }
+      if (++lan < 40) setTimeout(thu, 250);
+    })();
   }
 
   async function moTheoId(id) {
@@ -766,8 +796,10 @@
       docThu({ session_id: sid }).then(function () { taiThu(); });
     },
     moTu: function (url) {
-      var id = "";
+      var id = "", phien = "";
       try { id = new URL(url, location.origin).searchParams.get("mo_thu") || ""; } catch (e) {}
+      try { phien = new URL(url, location.origin).searchParams.get("mo_phien") || ""; } catch (e) {}
+      if (phien) { moPhien(phien); return; }
       if (id && id !== "test") moTheoId(id); else openPanel();
     },
   };
