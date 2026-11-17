@@ -293,7 +293,7 @@ Sửa yêu cầu của việc hay huỷ việc làm thẻ cũ hết hiệu lực
 - **Cần chủ duyệt** (mặc định, cả nhóm cũ): cộng sự tự đọc, tìm, ghi file trong bộ não và thư mục của nhóm, chạy lệnh chỉ đọc. Gửi, đăng, thanh toán, đặt hàng, xoá dữ liệu hay lệnh máy khác bị chặn TRƯỚC khi chạy và thành thẻ xin duyệt.
 - **Nhóm tự làm, không hỏi**: quyền như khi bạn chat riêng với từng cộng sự (cách Team chạy ở 0.194.0 tới 0.206.0).
 
-Ở chế độ Cần chủ duyệt, Claude Code, Codex (có sandbox riêng) và các bộ não dùng API key chặn được hành động trước khi chạy. Grok Build chỉ làm phần trong phạm vi (hành động đã duyệt không chạy được trên Grok). Antigravity không chặn được công cụ của chính nó nên bước đó bị từ chối kèm lời giải thích: đổi trợ lý sang bộ não khác hoặc bật "Nhóm tự làm".
+Ở chế độ Cần chủ duyệt, Claude Code, Codex (có sandbox riêng) và các bộ não dùng API key chặn được hành động trước khi chạy. Ảnh Docker tắt sandbox của Codex (`JAVIS_CODEX_SANDBOX=off`) nên ở đó thành viên chạy bằng ChatGPT bị từ chối; cách bật lại ở [Cấu hình env](16-cau-hinh-env.md). Grok Build chỉ làm phần trong phạm vi (hành động đã duyệt không chạy được trên Grok). Antigravity không chặn được công cụ của chính nó nên bước đó bị từ chối kèm lời giải thích: đổi trợ lý sang bộ não khác hoặc bật "Nhóm tự làm".
 
 ## Mục tiêu phòng ban của Team (từ 0.208.0)
 

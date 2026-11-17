@@ -72,6 +72,22 @@ def test_official_docker_image_is_the_refused_case():
     assert "ENV JAVIS_CODEX_SANDBOX=off" in (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
 
+def test_codex_refusal_names_the_docker_way_out():
+    # Issue 1551: a Docker + ChatGPT owner only heard "switch to Claude Code". The reason now names the setting that
+    # turns Codex's sandbox back on, in the screen's language, and the docs explain it.
+    vi = team_gate.provider_support(team_gate.CODEX, codex_sandbox=None)["reason"]
+    assert "JAVIS_CODEX_SANDBOX=auto" in vi and "Docker" in vi
+    token = localefmt.dat_ngon_ngu_yeu_cau("en")
+    try:
+        en = team_gate.provider_support(team_gate.CODEX, codex_sandbox=None)["reason"]
+    finally:
+        localefmt.bo_ngon_ngu_yeu_cau(token)
+    assert en.startswith("Codex runs without its own sandbox") and "JAVIS_CODEX_SANDBOX=auto" in en
+    for doc in ("docs/16-cau-hinh-env.md", "docs/en/16-env-configuration.md"):
+        text = (ROOT / doc).read_text(encoding="utf-8")
+        assert "seccomp:unconfined" in text, doc
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -127,6 +127,9 @@ def asks_for_input(result: str) -> bool:
 
 
 EXECUTION_MODES = {"suggest", "auto", "full"}
+# Metadata key for done-criteria handed in with the job (issue 1481, `javis_task` op=add `acceptance`).
+FIXED_ACCEPTANCE = "acceptance_fixed"
+MAX_FIXED_ACCEPTANCE = 20
 
 # #1133: a Codex worker at `auto`/`full` whose writes were refused by Codex's own sandbox (on Windows, Codex quietly
 # ran `workspace-write` as `read-only`) stopped with a [[NEEDS_INPUT]] about it, and the job sat in "waiting for your answer".
@@ -370,7 +373,10 @@ class TasksFeature:
         execution_mode: str = "auto",
         idempotency_key: str = "",
         dedupe_title: bool = True,
+        acceptance: Optional[List[str]] = None,
     ) -> str:
+        """`acceptance` (issue 1481): fixed done-criteria from whoever handed the job out. The specifier then keeps
+        the intent word for word and the acceptance check reads exactly these lines instead of ones it invented."""
         root = self._ensure(brain)
         status = "todo" if deps else "triage"
         tid = self.store.enqueue(
@@ -388,6 +394,7 @@ class TasksFeature:
             idempotency_key,
             status,
             dedupe_title=dedupe_title,
+            metadata=({FIXED_ACCEPTANCE: list(acceptance)} if acceptance else None),
         )
         self.store.promote_dependencies(root)
         self._snapshot(root)
@@ -601,6 +608,11 @@ class TasksFeature:
                 elif error:
                     final_task = await asyncio.to_thread(self.store.block, tid, worker_id, "transient", error, transient=True)
                 else:
+                    fixed = (task.get("metadata") or {}).get(FIXED_ACCEPTANCE) or []
+                    if fixed:
+                        # Issue 1481: the job came with its own done-criteria. Keep the intent as written and check
+                        # against those lines; the specifier only chooses the lane and the level.
+                        spec = {**spec, "intent": str(task.get("intent") or spec["intent"]), "acceptance": list(fixed)}
                     final_task = await asyncio.to_thread(self.store.prepared, tid,
                         worker_id,
                         spec["intent"],
@@ -676,6 +688,17 @@ class TasksFeature:
             elif needs_input:
                 final_task = await asyncio.to_thread(self.store.ask, tid, worker_id, self._needs_input_reason(result, task_store.QA_TEXT_MAX),
                     result=result)
+            elif channel_context.is_silent_report(result):
+                # Issue 1483: "[SILENT]" means nothing to report, the same flag reminders and webhooks honour. The job
+                # is done, its result stays on the card, the acceptance check is skipped (an empty-looking answer
+                # would fail it) and `_report` sends nothing to the chat or the bell.
+                score.ok()
+                job_scorecard.settle(score)
+                final_task = await asyncio.to_thread(self.store.complete, tid, worker_id, result, needs_approval=False,
+                    metadata={**(task.get("metadata") or {}), **(metadata or {}), "acceptance_check": "silent",
+                              "silent": True, "run_seconds": round(time.monotonic() - t_run)},
+                    artifacts=self._artifacts(result, root))
+                await asyncio.to_thread(self.store.promote_dependencies, root)
             else:
                 # The worker ending its session is not the job being done. Check the report
                 # against the acceptance criteria the specifier wrote, and only then mark it
@@ -1701,6 +1724,8 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         if not self.deps.report:
             return
         status = str(task.get("status") or "")
+        if status == "done" and (task.get("metadata") or {}).get("silent"):
+            return      # issue 1483: the job answered [SILENT], nothing to tell anyone
         # A job waiting for the owner (needs_input) or for a plan to reopen (limit) is not broken (0.199.0).
         if (status == "blocked" and self.deps.incident_hook
                 and str(task.get("block_kind") or "") not in ("needs_input", "limit", task_store.ACCEPTANCE_FAILED)):
