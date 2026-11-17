@@ -5672,6 +5672,7 @@
   "noti.no_target": "Không rõ gửi về đâu nên chỉ giữ ở đây",
   "noti.ask_core": "Hỏi Javis Core",
   "noti.push_hide": "Ẩn nội dung trên thông báo đẩy",
+  "noti.push_every": "Báo mỗi câu trả lời khi bạn không xem hội thoại đó",
   "core.saved": "Đã lưu",
   "core.save_err": "Chưa lưu được, thử lại.",
   "app.brain_of_chat": "Cuộc chat này thuộc brain {name}. Javis trả lời theo brain đó.",

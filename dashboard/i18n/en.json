@@ -5672,6 +5672,7 @@
   "noti.no_target": "No known destination, so it is kept here only",
   "noti.ask_core": "Ask Javis Core",
   "noti.push_hide": "Hide the text in push notifications",
+  "noti.push_every": "Notify every answer when you are not viewing that chat",
   "core.saved": "Saved",
   "core.save_err": "Not saved, try again.",
   "app.brain_of_chat": "This chat belongs to brain {name}. Javis answers with that brain.",

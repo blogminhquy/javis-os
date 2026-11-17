@@ -138,6 +138,13 @@
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", function (ev) {
       var d = ev.data || {};
+      if (d.type === "javis-which-session") {
+        // sw.js asks which chat this tab shows before a "Javis has answered" notice: same chat = no notice.
+        var sid = "";
+        try { sid = (window.JavisSessions && window.JavisSessions.current()) || ""; } catch (e) {}
+        try { if (ev.ports && ev.ports[0]) ev.ports[0].postMessage({ session_id: sid }); } catch (e) {}
+        return;
+      }
       if (d.type !== "javis-open-inbox") return;
       try { if (window.JavisInbox) window.JavisInbox.moTu(d.url || ""); } catch (e) {}
     });
