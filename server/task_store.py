@@ -1210,9 +1210,12 @@ class TaskStore:
 
     def ask(
         self, task_id: str, worker_id: str, question: str, result: str = "",
-        extra_meta: Optional[dict] = None,
+        extra_meta: Optional[dict] = None, qa_extra: Optional[dict] = None,
     ) -> Optional[dict]:
         """Chặn việc ở `needs_input` VÀ ghi câu hỏi vào `metadata.qa` (0.235.0).
+
+        `qa_extra`: thêm vào ĐÚNG mục hỏi này (vd `wf_wait` của một mốc duyệt workflow), để câu
+        trả lời gắn với đúng chỗ đang dừng chứ không với cả việc.
 
         Trước đây câu hỏi chỉ nằm lẫn trong `block_reason`, và đường duy nhất để gỡ là Thử lại:
         việc chạy lại từ đầu mà không ai nói cho nó câu trả lời, nên nó hỏi lại y hệt. Giờ mỗi
@@ -1228,6 +1231,7 @@ class TaskStore:
             "q": (question or "").strip()[:QA_TEXT_MAX],
             "asked_at": now(),
             "progress": (result or "").strip()[:QA_PROGRESS_MAX],
+            **(qa_extra or {}),
         })
         meta["qa"] = qa[-QA_KEEP:]
         meta.update(extra_meta or {})
