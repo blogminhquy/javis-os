@@ -284,6 +284,18 @@
      {"label": "Install uv"}
     ]
    }
+  },
+  "perplexity": {
+   "description": "Search and research the web with Perplexity through the official MCP: quick searches with sources, answers on fresh information, multi-step reasoning, deep research into a report. Paste an API key and you are done. It only reads the web and changes nothing of yours.",
+   "guide": "One-time setup:\n1. Sign in to Perplexity's API Portal (console.perplexity.ai) and create a new API key.\n2. Copy the key (it starts with pplx-), paste it below and press Connect.\n\nThe API is billed per use against credit in the API Portal, separate from any Perplexity app plan.\nWith no credit left every call fails, so top up first.\n\nThere are 4 tools: perplexity_search (web search, the fastest and cheapest), perplexity_ask (questions and answers), perplexity_reason (multi-step reasoning).\nperplexity_research is deep research: it runs longest and costs the most credit, so keep it for thorough reports.\n\nIf the key leaks, go back to the API Portal, delete that key and create a new one.",
+   "fields": {
+    "api_key": {"label": "API key (Perplexity)", "placeholder": "e.g. pplx-..."}
+   },
+   "steps": [
+    {"text": "Open Perplexity's API Portal, sign in and create a new API key.", "link_label": "Open API Portal"},
+    {"text": "Top up credit on the API account: the API is billed per use, separate from any Perplexity app plan."},
+    {"text": "Copy the key (it starts with pplx-), paste it into the box below and press Connect.", "link_label": "Perplexity's guide"}
+   ]
   }
  }
 }

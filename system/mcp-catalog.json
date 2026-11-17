@@ -978,6 +978,36 @@
       "purge_warning": "Xoá kết nối này là mất phiên Google đã dán. Muốn dùng lại phải lấy lại cookie từ trình duyệt một lần nữa.",
       "risk": "Kết nối này dùng COOKIE PHIÊN Google, credential tương đương đang đăng nhập tài khoản Google của bạn, không phải OAuth giới hạn phạm vi như Gmail hay Lịch.\n\nMức Chỉ đọc: liệt kê notebook, đọc nguồn, xem trạng thái. Không đụng gì.\n\nMức Ghi nháp: thêm quyền tạo notebook, thêm nguồn, lưu ghi chú, hỏi đáp trong notebook và tạo tóm tắt/audio ở Studio - những thứ này tiêu quota NotebookLM của bạn.\n\nMức Toàn quyền: thêm quyền XOÁ notebook, xoá nguồn, và CHIA SẺ notebook cho người khác. Chia sẻ nhầm thì gỡ lại được nhưng người ta đã đọc rồi, nên nó nằm ở mức cao nhất.\n\nnotebooklm-py là thư viện KHÔNG chính thức, chạy trên giao thức nội bộ của NotebookLM. Google đổi giao thức lúc nào cũng có thể làm kết nối này gãy.",
       "rate_limit": { "calls_per_min": 20 }
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "icon": "search",
+      "category": "Văn phòng",
+      "description": "Tìm kiếm và nghiên cứu trên web bằng Perplexity qua MCP chính chủ: tìm nhanh có dẫn nguồn, hỏi đáp thông tin mới, suy luận nhiều bước, nghiên cứu sâu ra báo cáo. Dán API key là xong. Chỉ đọc web, không thay đổi gì của bạn.",
+      "status": "beta",
+      "transport": "http",
+      "url": "https://api.perplexity.ai/mcp",
+      "auth": {
+        "type": "apikey",
+        "fields": [
+          { "key": "api_key", "label": "API key (Perplexity)", "placeholder": "Ví dụ: pplx-...",
+            "header": "Authorization: Bearer {api_key}" }
+        ],
+        "guide": "Làm 1 lần:\n1. Đăng nhập API Portal của Perplexity (console.perplexity.ai) rồi tạo một API key mới.\n2. Copy key (chuỗi bắt đầu bằng pplx-), dán vào ô dưới rồi bấm Kết nối.\n\nAPI tính phí theo lượt dùng, trừ vào credit trong API Portal, tách khỏi gói Perplexity trên app.\nHết credit thì mọi lượt gọi đều báo lỗi, nên nạp trước.\n\nCó 4 công cụ: perplexity_search (tìm web, nhanh và rẻ nhất), perplexity_ask (hỏi đáp), perplexity_reason (suy luận nhiều bước).\nperplexity_research là nghiên cứu sâu: chạy lâu và tốn credit nhất, chỉ nên dùng khi cần báo cáo kỹ.\n\nLỡ lộ key thì vào lại API Portal xoá key đó rồi tạo key mới.",
+        "guide_url": "https://docs.perplexity.ai/guides/mcp-server",
+        "steps": [
+          { "text": "Mở API Portal của Perplexity, đăng nhập rồi tạo một API key mới.",
+            "link": "https://console.perplexity.ai", "link_label": "Mở API Portal" },
+          { "text": "Nạp credit cho tài khoản API: API tính phí theo lượt dùng, tách khỏi gói Perplexity trên app." },
+          { "text": "Copy key (bắt đầu bằng pplx-), dán vào ô bên dưới rồi bấm Kết nối.",
+            "link": "https://docs.perplexity.ai/guides/mcp-server", "link_label": "Hướng dẫn của Perplexity" }
+        ]
+      },
+      "tool_meta": {
+        "read": ["perplexity_search", "perplexity_ask", "perplexity_reason", "perplexity_research"]
+      },
+      "default_perm": "readonly"
     }
   ]
 }

@@ -23,6 +23,7 @@ _SECRET_PREFIX_RE = re.compile(
     r"|AIza[A-Za-z0-9_-]{30,}"           # Google API key
     r"|hf_[A-Za-z0-9]{10,}"              # HuggingFace
     r"|tvly-[A-Za-z0-9]{10,}"            # Tavily
+    r"|pplx-[A-Za-z0-9]{10,}"            # Perplexity
     r")(?![A-Za-z0-9_-])"
 )
 _JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]{10,}(?:\.[A-Za-z0-9_=-]{4,}){0,2}")
@@ -49,7 +50,7 @@ def redact_secrets(text: str) -> str:
         return text
     if "eyJ" in text:
         text = _JWT_RE.sub(lambda m: _mask_secret(m.group(0)), text)
-    if any(s in text for s in ("sk-", "xai-", "gsk_", "ghp_", "gho_", "github_pat_", "AIza", "hf_", "tvly-")):
+    if any(s in text for s in ("sk-", "xai-", "gsk_", "ghp_", "gho_", "github_pat_", "AIza", "hf_", "tvly-", "pplx-")):
         text = _SECRET_PREFIX_RE.sub(lambda m: _mask_secret(m.group(1)), text)
     if ":" in text:
         def _redact_tg(m):
