@@ -22,7 +22,10 @@ check("khối bước vẽ lại khi từ điển về (hết chữ thô app.ste
 
 const APP = fs.readFileSync(path.join(D, "app.js"), "utf8");
 check("quay lại app mà socket còn 'sống' vẫn đồng bộ nhẹ với server", /else if \(savedSessionId\) \{[\s\S]{0,600}_dongBoNeuLech\(\)/.test(APP));
-check("socket nối lại (không phải lần chào đầu) thì đồng bộ nhẹ", APP.includes("if (_daChao) setTimeout(_dongBoNeuLech"));
+// 17/11/2026: the FIRST hello checks too (a home-screen app iOS closed starts from its own copy of the chat).
+check("mọi lời chào hello (cả lần đầu) đều đồng bộ nhẹ", /data\.type === "hello"\) \{[\s\S]{0,900}\n    setTimeout\(_dongBoNeuLech, 300\);/.test(APP));
+check("đồng bộ nhẹ hỏi lại một lần khi mạng chưa kịp dậy", /if \(!isRetry\) setTimeout\(\(\) => _dongBoNeuLech\(true\), 2000\)/.test(APP));
+check("đồng bộ nhẹ nhường cho hội thoại đang được mở", /seq !== sessionOpenSeq/.test(APP));
 check("đồng bộ nhẹ không tải lại khi lượt đang chạy", APP.includes("if (!sid || (turns[sid] && turns[sid].running)) return;"));
 
 const BGS = fs.readFileSync(path.join(D, "background-strip.js"), "utf8");
