@@ -3509,6 +3509,7 @@
   "store.rm.purge_note": "Kept by default, so reinstalling brings it right back.",
   "store.rm.working": "Removing…",
   "store.rm.failed": "Could not remove it.",
+  "store.set_password": "Set a password",
   "store.back_to": "Back to {trang}",
   "store.disabled_env": "The environment variable {bien} is on, so everything installed as an add-on is switched off.",
   "store.dir_note": "Add-ons live in {duong}. You can drop a folder straight in there, no zip file required.",
