@@ -5359,3 +5359,61 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   .rail.collapsed .rail-foot .rf-install { flex: 0 0 auto; width: 32px; padding: 0; }
   .rail.collapsed .rail-foot .rf-install .rf-install-short { display: none; }
 }
+
+/* Provider/model capability badges, inline fix & impact modals (2026-11-17) */
+.cap-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; line-height: 1.35; white-space: nowrap;
+}
+.cap-badge.is-ok { background: rgba(22, 163, 74, .14); color: var(--ok, #22c55e); }
+.cap-badge.is-warn { background: rgba(217, 119, 6, .16); color: var(--warn-ink, #f59e0b); }
+.cap-badge.is-blocked { background: rgba(220, 38, 38, .16); color: var(--danger, #ef4444); }
+.ag-eff-box {
+  margin-top: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--hairline);
+  background: var(--surface-1); font-size: 13px; color: var(--text2); display: flex; flex-direction: column; gap: 6px;
+}
+.ag-eff-box.is-blocked { border-color: rgba(220, 38, 38, .45); }
+.ag-eff-box.is-warn { border-color: rgba(217, 119, 6, .45); }
+.ag-eff-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ag-eff-pair { font-weight: 500; color: var(--text); word-break: break-word; }
+.ag-eff-why { color: var(--text2); line-height: 1.4; }
+.ag-eff-why.is-blocked { color: var(--danger, #ef4444); }
+.ag-eff-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cap-modes { display: flex; flex-wrap: wrap; gap: 5px; }
+.cap-mode {
+  display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 6px; font-size: 12px;
+  border: 1px solid var(--hairline); background: var(--surface-2); color: var(--text2);
+}
+.cap-mode.is-ok { border-color: rgba(22, 163, 74, .35); color: var(--ok, #22c55e); }
+.cap-mode.is-no { border-color: rgba(217, 119, 6, .35); color: var(--text3); }
+.cap-modal-box { max-width: 540px; width: calc(100vw - 24px); }
+.cap-modal-body { padding: 12px 16px; max-height: 60vh; overflow: auto; font-size: 14px; color: var(--text); }
+.cap-modal-foot { justify-content: flex-end; gap: 8px; }
+.cap-alert { padding: 8px 10px; border-radius: 8px; margin-bottom: 10px; font-size: 13px; font-weight: 500; }
+.cap-alert.is-blocked { background: rgba(220, 38, 38, .14); border: 1px solid rgba(220, 38, 38, .4); color: var(--danger, #ef4444); }
+.cap-sec-title { font-size: 13px; font-weight: 600; margin: 10px 0 4px; color: var(--text); }
+.cap-list { margin: 0 0 8px; padding-left: 18px; line-height: 1.5; }
+.cap-dim { color: var(--text3); font-size: 13px; }
+.tmp-eff { display: block; font-size: 12px; color: var(--text3); margin-top: 2px; }
+.tmp-compat-panel {
+  margin: 6px 0 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(220, 38, 38, .4);
+  background: var(--surface-1); display: flex; flex-direction: column; gap: 8px; font-size: 14px;
+}
+.tmp-compat-panel.is-warn { border-color: rgba(217, 119, 6, .4); }
+.tmp-compat-item { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--hairline); }
+.tmp-compat-item:first-child { padding-top: 0; border-top: 0; }
+.tmp-compat-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tmp-fix-box {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--hairline);
+}
+.tmp-fix-box select { min-height: 40px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--hairline); background: var(--field-bg); color: var(--text); font-size: 14px; }
+.tmp-sel.is-blocked { border-color: rgba(220, 38, 38, .55); }
+.tmp-sel.is-warn { border-color: rgba(217, 119, 6, .55); }
+.tm-banner-blocked { border-color: rgba(220, 38, 38, .45); background: rgba(220, 38, 38, .1); }
+.tm-banner-warn { border-color: rgba(217, 119, 6, .45); background: rgba(217, 119, 6, .08); }
+.tm-mcfg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 3px; font-size: 12px; color: var(--text3); }
+.tm-reply-hint { display: block; margin-top: 2px; font-size: 13px; color: var(--text3); }
+
+.tm-repeat-note { font-size: 13px; color: var(--text3); margin: -4px 0 8px 44px; }
+.tm-jb-hint { font-size: 13px; color: var(--text3); margin-top: 4px; }

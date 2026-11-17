@@ -692,8 +692,14 @@
     if (!list.length) { cards.innerHTML = `<div class="empty">${esc(t("studio.ag_no_match"))}</div>`; return; }
     cards.innerHTML = "";
     list.forEach(a => {
+      const Cap = window.JavisCapUI;
+      const eff = a.effective;
+      const effTxt = (Cap && eff) ? Cap.formatEffective(eff) : (a.model || t("common.default"));
+      const stCls = eff ? (eff.status === "blocked" ? "is-blocked" : (eff.status === "warning" || eff.status === "unverified" ? "is-warn" : "is-ok")) : "";
+      const stWhy = eff && eff.reason_code ? (eff.message || (Cap ? Cap.reasonText(eff.reason_code) : eff.reason_code)) : "";
+      const stBadge = eff ? ` <span class="cap-badge ${stCls}"${stWhy ? ` title="${esc(stWhy)}"` : ""}>${esc(Cap ? Cap.statusLabel(eff.status) : eff.status)}</span>` : "";
       const div = document.createElement("div"); div.className = "ag-card";
-      div.innerHTML = `<div class="ag-name"><input type="checkbox" class="ag-sel" data-slug="${esc(a.slug)}" title="${esc(t("studio.sel_one"))}"> ${ic("bot")} ${esc(a.name)} <span class="ag-model">${esc(a.model || "")}</span></div><div class="ag-role">${esc(a.role)}</div><div class="ag-skills">${(a.skills || []).map(s => `<span class="chip-skill">${esc(s)}</span>`).join("") || `<span class="dim">${esc(t("studio.no_skills"))}</span>`}</div><div class="ag-group">${ic("tag")} ${tagsCua(a).length ? tagsCua(a).map(g => `<span class="chip-tag">${esc(g)}</span>`).join("") : `<span class="dim">${esc(t("ws.tag_none"))}</span>`}</div><div class="wf-actions"><button class="s-btn-ghost edit">${esc(t("common.edit"))}</button><button class="s-btn-ghost exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="s-btn-ghost del">${esc(t("common.delete"))}</button></div>`;
+      div.innerHTML = `<div class="ag-name"><input type="checkbox" class="ag-sel" data-slug="${esc(a.slug)}" title="${esc(t("studio.sel_one"))}"> ${ic("bot")} ${esc(a.name)} <span class="ag-model">${esc(effTxt)}</span>${stBadge}</div><div class="ag-role">${esc(a.role)}</div><div class="ag-skills">${(a.skills || []).map(s => `<span class="chip-skill">${esc(s)}</span>`).join("") || `<span class="dim">${esc(t("studio.no_skills"))}</span>`}</div><div class="ag-group">${ic("tag")} ${tagsCua(a).length ? tagsCua(a).map(g => `<span class="chip-tag">${esc(g)}</span>`).join("") : `<span class="dim">${esc(t("ws.tag_none"))}</span>`}</div><div class="wf-actions"><button class="s-btn-ghost edit">${esc(t("common.edit"))}</button><button class="s-btn-ghost exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="s-btn-ghost del">${esc(t("common.delete"))}</button></div>`;
       noiSel("agent", "agDl", div.querySelector(".ag-sel"), a.slug);
       div.querySelector(".exp").onclick = () => exportItem("agent", a.slug);
       div.querySelector(".edit").onclick = () => editAgent(a);
@@ -746,20 +752,23 @@
     // `agent_ok` thì vẫn lọc thật: server không dựng nổi engine agent cho nhà ngoài danh sách
     // (AGENT_PROVIDERS), bày ra là hứa suông - agent sẽ lặng lẽ chạy Claude.
     const provs = ((st.model || {}).providers || []).filter(p => p.agent_ok);
+    const mainCfg = (st.model && st.model.main) || {};
     const coKetNoi = provs.some(p => p.configured);
     const val = (pid, m) => pid + MODEL_SEP + m;
     const provCua = (id) => provs.find(p => p.id === id) || {};
-    // Agent CŨ chỉ lưu tên model (chưa có trường `model_provider`): dò trong catalog tĩnh mà
-    // /settings đã trả về để mở form lên vẫn hiện đúng nhà, thay vì bỏ trống rồi bấm Lưu là
-    // server phải đi đoán. Không dò ra thì để rỗng - server có `_agent_model_provider` lo.
-    const doanNha = (m) => (provs.find(p => (p.models || []).includes(m)) || {}).id || "";
+    // A legacy model-only selection is ambiguous across providers. Keep it unassigned until
+    // the owner picks a provider; never silently persist the first catalog match.
     let mModel = (a && a.model) || "";
-    let mProv = mModel ? ((a && a.model_provider) || doanNha(mModel)) : "";
+    let mProv = mModel ? ((a && a.model_provider) || "") : "";
+    let origModel = mModel, origProv = mProv;
     let mLoc = "", mMo = mProv || (provs.find(p => p.configured) || {}).id || "";
     // Nhãn trên nút. Model đang lưu mà nhà đã ngắt key thì nói thẳng "(đang lưu)" chứ KHÔNG
     // âm thầm tụt về Mặc định - đó là lựa chọn của người dùng, chỉ là tạm chưa chạy được.
+    const Cap = window.JavisCapUI;
     const nhanModel = () => !mModel
-      ? t("studio.model_default")
+      ? (Cap && mainCfg.provider
+        ? Cap.formatEffective({ provider: mainCfg.provider, model: mainCfg.model || "", source: "main" })
+        : t("studio.model_default"))
       : (provCua(mProv).label ? provCua(mProv).label + " · " + mModel : mModel)
         + (mProv && !provCua(mProv).configured ? " " + t("studio.saved_suffix") : "");
     const box = opts.host || document.getElementById("editorBox");
@@ -804,6 +813,7 @@
         <input type="hidden" id="agModel" value="${esc(mModel ? val(mProv, mModel) : "")}">
         <div class="mb-pop ag-model-pop" id="agModelPop" hidden></div>
       </div>
+      <div class="ag-eff-box" id="agEffBox" aria-live="polite"></div>
       ${coKetNoi && JI ? JI.body(`<div class="dim" style="font-size:12px">${esc(t("studio.model_hint"))}</div>`)
         : `<div class="dim" style="font-size:12px;margin-top:4px">${esc(coKetNoi ? t("studio.model_hint") : t("studio.model_none"))}</div>`}
       ${a && a.system ? "" : `<label for="agCallVoice">${esc(t("studio.call_voice"))}</label>
@@ -856,12 +866,66 @@
     // còn gọi /provider/models cho mọi nhà một lượt như bản cũ.
     const mPop = box.querySelector("#agModelPop");
     const mBtn = box.querySelector("#agModelBtn");
+    const effBox = box.querySelector("#agEffBox");
     const dongPop = () => { if (mPop) mPop.hidden = true; };
+    function veTrangThaiModel(extraWarn) {
+      if (!effBox || !Cap) { if (effBox) effBox.hidden = true; return; }
+      const eff = Cap.computeLocalEffective(mProv, mModel, mainCfg, provs, a && a.effective, origProv, origModel);
+      const stCls = eff.status === "blocked" ? "is-blocked"
+        : (eff.status === "warning" || eff.status === "unverified" ? "is-warn" : "is-ok");
+      const pairTxt = Cap.formatEffective(eff);
+      const code = Cap.normalizeCode(eff.reason_code);
+      let whyTxt = extraWarn || "";
+      if (!whyTxt && mModel && !mProv) {
+        whyTxt = t("cap.legacy_need_prov", { model: mModel });
+      } else if (!whyTxt && code) {
+        whyTxt = eff.message || (code === "model_unverified" ? eff.message : Cap.reasonText(code));
+        if (eff.fix_hint) whyTxt += (whyTxt ? " " : "") + eff.fix_hint;
+      } else if (!whyTxt && eff.modes && eff.modes.team_text && !eff.modes.team_text.ok) {
+        whyTxt = Cap.reasonText(eff.modes.team_text.reason_code);
+      }
+      const needPickFix = Boolean((mModel && !mProv) || code === "capability_unsupported"
+        || code === "model_invalid" || code === "provider_unknown"
+        || (eff.modes && eff.modes.team_text && !eff.modes.team_text.ok));
+      const needModelsPage = Boolean(code === "auth_missing" || (mProv && !provCua(mProv).configured));
+      let acts = "";
+      if (needPickFix) {
+        acts += `<button type="button" class="s-btn-ghost" id="agFixPick">${esc(t("cap.fix_pick_inline"))}</button>`;
+      }
+      if (needModelsPage) {
+        acts += `<button type="button" class="s-btn-ghost" id="agFixModels">${esc(t("cap.fix_open_models"))}</button>`;
+      }
+      effBox.className = "ag-eff-box " + (stCls === "is-ok" ? "" : stCls);
+      effBox.hidden = false;
+      effBox.innerHTML = `<div class="ag-eff-head"><span class="ag-eff-pair">${esc(pairTxt)}</span>`
+        + `<span class="cap-badge ${stCls}">${esc(Cap.statusLabel(eff.status))}</span></div>`
+        + (whyTxt ? `<div class="ag-eff-why ${stCls === "is-blocked" ? "is-blocked" : ""}">${esc(whyTxt)}</div>` : "")
+        + Cap.modesHtml(eff.modes)
+        + (acts ? `<div class="ag-eff-acts">${acts}</div>` : "");
+      const fixBtn = effBox.querySelector("#agFixPick");
+      if (fixBtn) fixBtn.onclick = async (ev) => {
+        ev.stopPropagation();
+        const good = provs.find(p => p.configured && Cap.teamSupportsText(p.id)) || provs.find(p => p.configured);
+        if (good) mMo = good.id;
+        mLoc = "";
+        mPop.hidden = false;
+        await veModelPop();
+        try { mPop.scrollIntoView({ block: "nearest" }); } catch (er) {}
+      };
+      const modBtn = effBox.querySelector("#agFixModels");
+      if (modBtn) modBtn.onclick = () => {
+        moDong(false);
+        try { if (window.JavisNav && window.JavisNav.go) window.JavisNav.go("models"); else if (window.Alpine) Alpine.store("nav").go("models"); } catch (er) {}
+      };
+    }
     async function veModelPop() {
       if (!mPop) return;
+      const defLabel = Cap && mainCfg.provider
+        ? Cap.formatEffective({ provider: mainCfg.provider, model: mainCfg.model || "", source: "main" })
+        : t("studio.model_default");
       const hangMacDinh = `<div class="mb-item ${mModel ? "" : "cur"}" data-prov="" data-model="">`
         + `<span class="tick">${mModel ? "" : ic("check", { cls: "ic-ok" })}</span>`
-        + `<span>${esc(t("studio.model_default"))}</span></div>`;
+        + `<span>${esc(defLabel)}</span></div>`;
       const o = {
         providers: provs, expanded: mMo, filter: mLoc,
         selected: { provider: mProv, model: mModel },
@@ -878,6 +942,7 @@
         se.focus(); se.selectionStart = se.selectionEnd = se.value.length;   // giữ con trỏ khi gõ
       }
     }
+    veTrangThaiModel();
     if (mBtn) mBtn.onclick = async () => {
       if (!mPop.hidden) { dongPop(); return; }
       mPop.hidden = false;
@@ -898,6 +963,7 @@
         mProv = it.dataset.prov || ""; mModel = it.dataset.model || "";
         box.querySelector("#agModel").value = mModel ? val(mProv, mModel) : "";
         box.querySelector("#agModelTxt").textContent = nhanModel();
+        veTrangThaiModel();
         danhDau();
         dongPop();
         return;
@@ -952,10 +1018,26 @@
       const cut = raw.indexOf(MODEL_SEP);
       const mProv = cut === -1 ? "" : raw.slice(0, cut);
       const mName = cut === -1 ? raw : raw.slice(cut + MODEL_SEP.length);
+      if (mName && !mProv) {
+        veTrangThaiModel(t("cap.legacy_need_prov", { model: mName }));
+        if (mPop) { mPop.hidden = false; await veModelPop(); }
+        try { box.querySelector("#agModelPick").scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {}
+        return;
+      }
       const saveButton = box.querySelector("#saveAg");
       saveButton.disabled = true;
       datTrangThai("saving");
       try {
+        if (a && a.slug && Cap && (mProv !== origProv || mName !== origModel)) {
+          let impactRes = null;
+          try {
+            impactRes = await api("/agents/impact", { method: "POST", body: fd({
+              slug: a.slug, model: mName, model_provider: mProv, brain: brain()
+            }) });
+          } catch (ie) { impactRes = null; }
+          const okImpact = await Cap.confirmAgentImpact(name, impactRes, a.used_by_teams);
+          if (!okImpact) { datTrangThai(dirty ? "dirty" : ""); return; }
+        }
         // KHÔNG gửi `group`: form không còn ô nhóm, mà gửi một giá trị đoán ra là ghi đè nhóm
         // người dùng vừa đổi ở cột trái. Server thấy thiếu field là giữ nguyên nhóm đang có.
         const saved = await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
@@ -964,6 +1046,8 @@
           ...(a && a.system ? {} : { chatgpt_voice: (box.querySelector("#agCallVoice") || {}).value || "" }),
           slug: a ? a.slug : "", brain: brain(), ...(avatar ? window.JavisAvatar.formFields(avatar) : {}) }) });
         if (!saved.ok) { datTrangThai(dirty ? "dirty" : ""); alert(loiLuu(saved.error)); return; }
+        origProv = mProv; origModel = mName;
+        if (a && saved.effective) { a.effective = saved.effective; veTrangThaiModel(); }
         dirty = false;
         datTrangThai("saved");
         moDong(false);

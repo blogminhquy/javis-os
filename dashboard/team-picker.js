@@ -19,7 +19,10 @@
 
   function tw(khoa, bien) {
     var s = (typeof window !== "undefined" && window.t) ? window.t(khoa, bien) : khoa;
-    if (s === khoa && typeof module !== "undefined" && module.exports && FALLBACK[khoa]) s = FALLBACK[khoa];
+    if (s === khoa && typeof module !== "undefined" && module.exports) {
+      if (FALLBACK[khoa]) s = FALLBACK[khoa];
+      else { try { s = require("./i18n/vi.json")[khoa] || khoa; } catch (e) {} }
+    }
     if (bien) {
       s = String(s).replace(/\{(\w+)\}/g, function (m, ten) {
         return Object.prototype.hasOwnProperty.call(bien, ten) ? String(bien[ten]) : m;
@@ -128,11 +131,95 @@
       .join(", ");
   }
 
+  var PICK_WHY_KEY = {
+    capability_unsupported: "teams.reply.why.capability_unsupported",
+    auth_missing: "teams.reply.why.auth_missing",
+    model_invalid: "teams.reply.why.model_invalid",
+    provider_unknown: "teams.reply.why.provider_unknown",
+    quota_or_rate_limit: "teams.reply.why.quota_or_rate_limit",
+    network: "teams.reply.why.network",
+    build_failed: "teams.reply.why.build_failed",
+    invalid_provider: "teams.reply.why.provider_unknown",
+    provider_required: "teams.reply.why.provider_unknown",
+    provider_not_ready: "teams.reply.why.auth_missing",
+    engine_build_failed: "teams.reply.why.build_failed",
+    auth: "teams.reply.why.auth_missing"
+  };
+
+  function whyOfCode(code) {
+    var k = PICK_WHY_KEY[String(code || "").trim()];
+    return k ? tw(k) : tw("teams.reply.why.unknown");
+  }
+
+  function isManualOnlyCompat(eff) {
+    if (!eff) return false;
+    var p = eff.provider || "";
+    if (p !== "openai-compat" && p !== "anthropic-compat") return false;
+    var srcs = eff.evidence && eff.evidence.model && eff.evidence.model.sources;
+    return Array.isArray(srcs) && srcs.length === 1 && srcs[0] === "manual";
+  }
+
+  function memberCompat(a, isLeader, workMode) {
+    var eff = a && a.effective;
+    if (!eff) return { hasEff: false, status: "ready", refuse: false, label: "", reason: "", code: "" };
+    var prov = String(eff.provider || "");
+    var mod = String(eff.model || "");
+    var pair = mod ? (prov ? prov + " / " + mod : mod) : prov;
+    var label = eff.source === "main" ? tw("teams.cfg.inherited_main", { pair: pair || "-" })
+      : eff.source === "legacy" ? tw("teams.cfg.legacy_pair", { pair: mod || pair || "-" })
+      : pair;
+    var modes = eff.modes || {};
+    var toolMode = String(workMode || "") === "full" ? "team_tool_full" : "team_tool_gated";
+    var tText = modes.team_text;
+    var tTool = modes[toolMode];
+    var topCode = String(eff.reason_code || "");
+    if (topCode === "provider_unknown" || topCode === "model_invalid" || topCode === "invalid_provider" || topCode === "provider_required") {
+      return { hasEff: true, status: "blocked", refuse: true, label: label, code: topCode, reason: eff.message || whyOfCode(topCode) };
+    }
+    if (tText && tText.ok === false) {
+      var tc = String(tText.reason_code || "capability_unsupported");
+      if (tc === "auth_missing" || tc === "provider_not_ready" || tc === "auth") {
+        return { hasEff: true, status: "warning", refuse: false, label: label, code: "auth_missing", reason: eff.message || whyOfCode("auth_missing") };
+      }
+      return { hasEff: true, status: "blocked", refuse: true, label: label, code: tc, reason: whyOfCode(tc) };
+    }
+    if (!tText && eff.status === "blocked") {
+      if (topCode === "auth_missing" || topCode === "provider_not_ready" || topCode === "auth") {
+        return { hasEff: true, status: "warning", refuse: false, label: label, code: "auth_missing", reason: eff.message || whyOfCode("auth_missing") };
+      }
+      var bc = topCode || "capability_unsupported";
+      return { hasEff: true, status: "blocked", refuse: true, label: label, code: bc, reason: eff.message || whyOfCode(bc) };
+    }
+    if (tTool && tTool.ok === false) {
+      var ttc = String(tTool.reason_code || "");
+      if (ttc === "provider_unknown" || ttc === "model_invalid") {
+        return { hasEff: true, status: "blocked", refuse: true, label: label, code: ttc, reason: whyOfCode(ttc) };
+      }
+      if (ttc === "capability_unsupported") {
+        return { hasEff: true, status: "warning", refuse: false, label: label, code: "capability_unsupported", reason: tw("teams.cfg.tool_only_warn") };
+      }
+    }
+    if (eff.status === "unverified" && isManualOnlyCompat(eff)) {
+      return { hasEff: true, status: "warning", refuse: false, label: label, code: "model_unverified", reason: eff.message || "" };
+    }
+    return { hasEff: true, status: "ready", refuse: false, label: label, code: "", reason: "" };
+  }
+
+  function hasBlockingSelected(st, roster) {
+    var list = roster || (st && st.roster) || [];
+    if (!list.length) return false;
+    return (st.selected || []).some(function (slug) {
+      var a = bySlug(list, slug);
+      return a ? memberCompat(a, st.mode === "create" && st.leader === slug, st.workMode).refuse : false;
+    });
+  }
+
   // Tạo nhóm cần một người điều phối trong số người đã chọn (review 0.142.0, #9): bỏ điều phối thì nút Tạo khoá cho tới
   // khi chủ chọn lại, thay vì tạo một nhóm mà mọi tin chung đều không ai trả lời.
-  function canSubmit(st) {
+  function canSubmit(st, roster) {
     if (st.saving || !(st.selected || []).length) return false;
     if (docsBusy(st)) return false;          // a file still uploading would be left out of the team
+    if (hasBlockingSelected(st, roster)) return false;
     return st.mode !== "create" || !!st.leader;
   }
 
@@ -325,6 +412,71 @@
       (untagged ? chip(NO_TAG, tw("teams.pick.untagged"), untagged) : "") + "</div>";
   }
 
+  function inlineFixBoxHtml(slug, st) {
+    var provs = st.fixProviders || [];
+    var curProv = st.fixProv || "";
+    var curModel = st.fixModel || "";
+    var models = st.fixModels || [];
+    var busy = Boolean(st.fixSaving);
+    if (!provs.length && !st.fixMainOk) {
+      return '<div class="tmp-fix-box"><span>' + esc(tw("teams.cfg.pick_no_conn_prov")) + '</span>'
+        + '<button type="button" class="ws-btn" data-pick-models="1">' + esc(tw("cap.fix_open_models")) + "</button></div>";
+    }
+    var provOpts = '<option value="">' + esc(tw("teams.cfg.pick_choose_prov")) + "</option>"
+      + (st.fixMainOk ? '<option value="__default__"' + (curProv === "__default__" ? " selected" : "") + ">"
+        + esc(st.fixMainLabel || tw("common.default")) + "</option>" : "")
+      + provs.map(function (p) {
+        return '<option value="' + esc(p.id) + '"' + (curProv === p.id ? " selected" : "") + ">" + esc(p.label || p.id) + "</option>";
+      }).join("");
+    var needModel = curProv && curProv !== "__default__";
+    var modHtml = !needModel ? "" : '<select class="tmp-fix-model" data-fix-model-for="' + esc(slug) + '" aria-label="' + esc(tw("teams.cfg.pick_model_label")) + '">'
+      + '<option value="">' + esc(tw("teams.cfg.pick_choose_model")) + "</option>"
+      + models.map(function (m) {
+        return '<option value="' + esc(m) + '"' + (curModel === m ? " selected" : "") + ">" + esc(m) + "</option>";
+      }).join("") + "</select>";
+    var canApply = !busy && (curProv === "__default__" || Boolean(curProv && curModel));
+    return '<div class="tmp-fix-box">'
+      + '<select class="tmp-fix-prov" data-fix-prov-for="' + esc(slug) + '" aria-label="' + esc(tw("teams.cfg.pick_prov_label")) + '">' + provOpts + "</select>"
+      + modHtml
+      + '<button type="button" class="ws-btn tm-primary" data-pick-fix-apply="' + esc(slug) + '"' + (canApply ? "" : " disabled") + ">"
+      + esc(tw(busy ? "cap.fix_applying" : "cap.fix_apply")) + "</button></div>";
+  }
+
+  function compatPanelHtml(roster, st) {
+    var sel = st.selected || [];
+    var items = [];
+    var blockedNames = [];
+    sel.forEach(function (s) {
+      var a = bySlug(roster, s);
+      if (!a) return;
+      var c = memberCompat(a, st.mode === "create" && st.leader === s, st.workMode);
+      if (c.status === "ready") return;
+      var nm = a.name || a.slug;
+      if (c.refuse) blockedNames.push(nm);
+      items.push({ slug: s, name: nm, compat: c });
+    });
+    if (!items.length) return "";
+    var head = blockedNames.length
+      ? '<div class="cap-alert is-blocked" role="alert">' + esc(tw("teams.cfg.pick_blocked_note", { names: blockedNames.join(", ") })) + "</div>"
+      : "";
+    return '<div class="tmp-compat-panel' + (blockedNames.length ? "" : " is-warn") + '">' + head
+      + items.map(function (it) {
+        var c = it.compat;
+        var openFix = st.fixSlug === it.slug;
+        var bCls = c.refuse ? "is-blocked" : "is-warn";
+        var bTxt = tw(c.refuse ? "cap.status_blocked" : "cap.status_warning");
+        return '<div class="tmp-compat-item"><div><b>' + esc(it.name) + '</b> <span class="cap-badge ' + bCls + '">' + esc(bTxt) + "</span>"
+          + (c.label ? ' <span class="cap-dim">(' + esc(c.label) + ")</span>" : "")
+          + (c.reason ? '<div class="cap-dim">' + esc(c.reason) + "</div>" : "") + "</div>"
+          + '<div class="tmp-compat-acts">'
+          + '<button type="button" class="ws-btn" data-pick-fix="' + esc(it.slug) + '">'
+          + esc(tw(openFix ? "teams.cfg.pick_fix_close" : "teams.cfg.pick_fix_btn")) + "</button>"
+          + (c.code === "auth_missing" ? '<button type="button" class="ws-btn" data-pick-models="1">' + esc(tw("cap.fix_open_models")) + "</button>" : "")
+          + '<button type="button" class="ws-btn" data-pick-toggle="' + esc(it.slug) + '">' + esc(tw("teams.pick.unselect", { name: it.name })) + "</button>"
+          + "</div>" + (openFix ? inlineFixBoxHtml(it.slug, st) : "") + "</div>";
+      }).join("") + "</div>";
+  }
+
   function selectedHtml(roster, st) {
     var sel = st.selected || [];
     var create = st.mode === "create";
@@ -334,15 +486,17 @@
       var a = bySlug(roster, s) || { slug: s, name: s };
       var name = a.name || a.slug;
       var lead = create && st.leader === s;
+      var cp = memberCompat(a, lead, st.workMode);
+      var cpCls = cp.refuse ? " is-blocked" : (cp.status === "warning" ? " is-warn" : "");
       // Điều phối chọn ngay trên chip: nhiều người thì mỗi chip có nút; một người thì chip mang sẵn nhãn Điều phối.
       var leadCtl = !create ? "" : many ? '<button type="button" class="tmp-lead' + (lead ? " is-on" : "") + '" data-pick-leader="' +
         esc(s) + '" aria-pressed="' + (lead ? "true" : "false") + '" title="' + esc(tw("teams.pick.make_leader", { name: name })) +
         '">' + esc(tw("teams.pick.leader_short")) + "</button>" : lead ? '<span class="tmp-lead is-on">' +
         esc(tw("teams.pick.leader_short")) + "</span>" : "";
-      return '<span class="tmp-sel' + (lead ? " is-lead" : "") + '">' + face(a, 24) + '<span class="tmp-sel-name">' + esc(name) +
+      return '<span class="tmp-sel' + (lead ? " is-lead" : "") + cpCls + '">' + face(a, 24) + '<span class="tmp-sel-name">' + esc(name) +
         "</span>" + leadCtl + '<button type="button" class="tmp-sel-x" data-pick-toggle="' + esc(s) + '" aria-label="' +
         esc(tw("teams.pick.unselect", { name: name })) + '">' + ic("x") + "</button></span>";
-    }).join("") + "</div>" + leaderHtml(roster, st);
+    }).join("") + "</div>" + leaderHtml(roster, st) + compatPanelHtml(roster, st);
   }
 
   function listHtml(roster, st) {
@@ -366,11 +520,19 @@
       var already = joined(st, a.slug);
       var on = already || sel.indexOf(a.slug) >= 0;
       var sub = a.role || (a.tags || []).join(" · ");
+      var cp = memberCompat(a, st.mode === "create" && st.leader === a.slug, st.workMode);
+      var effHtml = "";
+      if (cp.hasEff) {
+        var bCls = cp.refuse ? "is-blocked" : (cp.status === "warning" ? "is-warn" : "is-ok");
+        var bTxt = tw(cp.refuse ? "cap.status_blocked" : (cp.status === "warning" ? "cap.status_warning" : "cap.status_ready"));
+        effHtml = '<span class="tmp-eff">' + esc(cp.label) + ' · <span class="cap-badge ' + bCls + '"' +
+          (cp.reason ? ' title="' + esc(cp.reason) + '"' : "") + ">" + esc(bTxt) + "</span></span>";
+      }
       return '<label class="tmp-row' + (on ? " is-on" : "") + (already ? " is-joined" : "") + '"><input type="checkbox" class="tmp-check" data-pick-slug="' +
         esc(a.slug) + '"' + (on ? " checked" : "") + (already ? " disabled" : "") + ">" + face(a, 40) +
         '<span class="tmp-text"><span class="tmp-name">' + esc(a.name || a.slug) + "</span>" +
         (already ? '<span class="tmp-role tmp-joined">' + esc(tw("teams.pick.joined")) + "</span>" :
-          sub ? '<span class="tmp-role">' + esc(sub) + "</span>" : "") +
+          sub ? '<span class="tmp-role">' + esc(sub) + "</span>" : "") + effHtml +
         '</span><span class="tmp-tick" aria-hidden="true">' + (on ? ic("check") : "") + "</span></label>";
     }).join("");
   }
@@ -387,14 +549,14 @@
       { name: a.name || a.slug || st.leader })) + "</div>";
   }
 
-  function footerHtml(st) {
+  function footerHtml(st, roster) {
     var n = (st.selected || []).length;
     var main = st.mode === "create" ? tw(st.saving ? "teams.pick.creating" : "teams.pick.create")
       : tw(st.saving ? "teams.pick.adding" : "teams.pick.add", { n: n });
     return '<div class="tmp-foot"><span class="tmp-count">' + esc(tw(st.mode === "create" ? "teams.pick.count" : "teams.pick.count_new",
       { n: n })) + "</span>" +
       '<button type="button" class="ws-btn tmp-cancel">' + esc(tw("teams.pick.cancel")) + "</button>" +
-      '<button type="button" class="ws-btn tm-primary tmp-submit"' + (canSubmit(st) ? "" : " disabled") + ">" + esc(main) +
+      '<button type="button" class="ws-btn tm-primary tmp-submit"' + (canSubmit(st, roster) ? "" : " disabled") + ">" + esc(main) +
       "</button></div>";
   }
 
@@ -422,11 +584,12 @@
       '<div class="tmp-tags-box">' + tagsHtml(roster, st) + "</div>" +
       '<div class="tmp-selected-box">' + selectedHtml(roster, st) + "</div>" +
       '<div class="tmp-list" role="list">' + listHtml(roster, st) + "</div>" + err + "</div>" +
-      '<div class="tmp-foot-box">' + footerHtml(st) + "</div></div></div>";
+      '<div class="tmp-foot-box">' + footerHtml(st, roster) + "</div></div></div>";
   }
 
   var api = { fold: fold, tagsOf: tagsOf, visible: visible, toggle: toggle, normalize: normalize, autoName: autoName,
-    canSubmit: canSubmit, html: html, listHtml: listHtml, selectedHtml: selectedHtml, tagsHtml: tagsHtml,
+    canSubmit: canSubmit, memberCompat: memberCompat, hasBlockingSelected: hasBlockingSelected, compatPanelHtml: compatPanelHtml,
+    html: html, listHtml: listHtml, selectedHtml: selectedHtml, tagsHtml: tagsHtml,
     leaderHtml: leaderHtml, footerHtml: footerHtml, previewHtml: previewHtml, setLeader: setLeader, NO_TAG: NO_TAG,
     DOCS_MAX: DOCS_MAX, docsBusy: docsBusy, hasDoc: hasDoc, addDoc: addDoc, removeDoc: removeDoc, cleanLink: cleanLink,
     setRepos: setRepos, removeRepo: removeRepo, repoChipsHtml: repoChipsHtml,

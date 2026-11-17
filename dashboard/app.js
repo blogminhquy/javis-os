@@ -5451,7 +5451,19 @@ function _saveSetting(section, dataObj, btn) {
   fd.append("section", section);
   fd.append("data", JSON.stringify(dataObj));
   const old = btn.textContent; btn.disabled = true; btn.textContent = window.t("settings.saving");
-  return fetch("/settings", { method: "POST", body: fd }).then(r => r.json()).then(d => {
+  return fetch("/settings", { method: "POST", body: fd }).then(r => r.json()).then(async d => {
+    if (section === "model" && d && d.code === "main_change_impact" && d.impact && window.JavisCapUI && !(dataObj && dataObj.confirm_impact)) {
+      const ok = await window.JavisCapUI.confirmMainImpact(d.impact, { forced: false });
+      if (ok) {
+        btn.textContent = old; btn.disabled = false;
+        return _saveSetting(section, Object.assign({}, dataObj, { confirm_impact: true }), btn);
+      }
+      btn.textContent = old; btn.disabled = false;
+      return { ok: false, cancelled: true };
+    }
+    if (section === "model" && d && d.main_impact && window.JavisCapUI) {
+      window.JavisCapUI.confirmMainImpact(d.main_impact, { forced: true });
+    }
     btn.innerHTML = d.ok ? ic("check", { cls: "ic-ok" }) + " " + window.t("proj.instr_saved") : (ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(d.error || window.t("app.err_low")));
     setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 1500);
     return d;

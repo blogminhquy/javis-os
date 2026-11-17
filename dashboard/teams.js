@@ -55,7 +55,12 @@
     rejected: "teams.block.rejected", approval_expired: "teams.block.approval_expired",
     acceptance_review: "teams.block.acceptance_review", acceptance_failed: "teams.block.acceptance_failed",
     acceptance_checking: "teams.block.acceptance_checking",
-    server_ceiling: "teams.block.server_ceiling" };
+    server_ceiling: "teams.block.server_ceiling",
+    config: "teams.block.config", capability_unsupported: "teams.block.config", auth_missing: "teams.block.config",
+    model_invalid: "teams.block.config", provider_unknown: "teams.block.config", build_failed: "teams.block.config" };
+  // A job blocked by a config error (provider/model cannot run the step): no Retry, "Sửa cấu hình" instead.
+  function isConfigBlock(kind) { return kind === "config" || kind === "capability_unsupported" || kind === "auth_missing" ||
+    kind === "model_invalid" || kind === "provider_unknown" || kind === "build_failed"; }
   var CAP_KEY = { task_turns: "teams.cap.task_turns", task_steps: "teams.cap.task_steps", daily_turns: "teams.cap.daily_turns",
     mentions: "teams.cap.mentions", help_depth: "teams.cap.help_depth", busy_wait_s: "teams.cap.busy_wait_s",
     judge_daily: "teams.cap.judge_daily", volunteer_k: "teams.cap.volunteer_k", judge_off_batch: "teams.cap.judge_off_batch",
@@ -641,18 +646,47 @@
     leader_changed: "teams.reply.why.leader_changed", superseded: "teams.reply.why.superseded",
     lease_lost: "teams.reply.why.lease_lost",
     timeout: "teams.reply.why.timeout", auth: "teams.reply.why.auth", no_leader: "teams.reply.why.no_leader",
-    server_ceiling: "teams.reply.why.server_ceiling" };
+    server_ceiling: "teams.reply.why.server_ceiling",
+    capability_unsupported: "teams.reply.why.capability_unsupported",
+    auth_missing: "teams.reply.why.auth_missing",
+    model_invalid: "teams.reply.why.model_invalid",
+    provider_unknown: "teams.reply.why.provider_unknown",
+    quota_or_rate_limit: "teams.reply.why.quota_or_rate_limit",
+    network: "teams.reply.why.network",
+    build_failed: "teams.reply.why.build_failed",
+    invalid_provider: "teams.reply.why.provider_unknown",
+    provider_required: "teams.reply.why.provider_unknown",
+    provider_not_ready: "teams.reply.why.auth_missing",
+    engine_build_failed: "teams.reply.why.build_failed",
+    quota: "teams.reply.why.quota_or_rate_limit",
+    rate_limit: "teams.reply.why.quota_or_rate_limit" };
+  var CONFIG_REPLY_REASONS = { capability_unsupported: 1, auth_missing: 1, model_invalid: 1,
+    provider_unknown: 1, build_failed: 1, invalid_provider: 1, provider_required: 1,
+    provider_not_ready: 1, engine_build_failed: 1 };
+  function isReplyConfigErr(x) {
+    if (!x) return false;
+    if (x.retryable === false) return true;
+    return Boolean(CONFIG_REPLY_REASONS[x.reason]);
+  }
   var STUCK_QUEUED_S = 600;   // khớp team_store.STUCK_QUEUED_S: chờ lâu hơn thì cho Thử lại
   var LEADER_SLOT = "__leader__";   // khớp team_runner.LEADER_SLOT: tin thường gửi lúc nhóm chưa có điều phối
 
-  // Thao tác xử lý theo từng loại lỗi (0.142.0), ngoài nút Thử lại: lỗi model hay đăng nhập thì mở trợ lý để đổi model
-  // hoặc mở trang Models; hết lượt thì mở giới hạn của nhóm; chưa có hay mất điều phối thì mở danh sách thành viên.
+  // Thao tác xử lý theo từng loại lỗi (0.142.0), ngoài nút Thử lại: lỗi cấu hình không thử lại được thì hiện Sửa cấu hình
+  // (Contract A3); lỗi model hay đăng nhập thì mở trợ lý để đổi model hoặc mở trang Models.
   function replyActions(x, ctx) {
     var out = [];
     var slug = (memberOf(ctx.members, x.agent_key) || {}).slug || "";
-    if (x.reason === "auth") out.push({ act: "models", key: "teams.reply.act.models" });
-    if ((x.reason === "engine" || x.reason === "engine_unavailable" || x.reason === "timeout" || x.reason === "auth") && slug) {
-      out.push({ act: "agent", key: "teams.reply.act.agent", slug: slug });
+    var cfgErr = isReplyConfigErr(x);
+    if (cfgErr) {
+      if (x.reason === "auth_missing" || x.reason === "auth" || x.reason === "provider_not_ready") {
+        out.push({ act: "models", key: "teams.reply.act.models" });
+      }
+      out.push({ act: slug ? "fix_config" : "models", key: "teams.reply.act.fix_config", slug: slug });
+    } else {
+      if (x.reason === "auth") out.push({ act: "models", key: "teams.reply.act.models" });
+      if ((x.reason === "engine" || x.reason === "engine_unavailable" || x.reason === "timeout" || x.reason === "auth") && slug) {
+        out.push({ act: "agent", key: "teams.reply.act.agent", slug: slug });
+      }
     }
     // 17/11/2026: no limit numbers to open any more (Advanced is gone, the daily reply cap too): Try again is the way on.
     if (x.reason === "no_leader" || (x.reason === "member_left" && ctx.leaderKey === x.agent_key) ||
@@ -684,11 +718,13 @@
         var why = REPLY_WHY[x.reason] || "teams.reply.why.unknown";
         var detail = x.detail && x.reason !== "timeout" && x.reason !== "no_leader"
           ? '<span class="tm-reply-detail">' + esc(String(x.detail).slice(0, 200)) + "</span>" : "";
+        var hint = x.fix_hint && String(x.fix_hint) !== String(x.detail || "")
+          ? '<span class="tm-reply-hint">' + esc(String(x.fix_hint).slice(0, 240)) + "</span>" : "";
         var whyText = x.reason === "timeout" ? tw(why, { n: x.detail || "?" }) : tw(why);
-        // Rời nhóm thì không thử lại được; hết lượt hôm nay thì Thử lại chỉ chạy được sau khi mở thêm giới hạn.
-        var canRetry = x.reason !== "member_left";
+        // Rời nhóm và lỗi cấu hình (retryable=false) không hiện nút Thử lại (Contract A3).
+        var canRetry = x.reason !== "member_left" && !isReplyConfigErr(x);
         return '<div class="tm-reply tm-reply-error" role="status">' + face + '<span class="tm-reply-main"><b>' + esc(who) +
-          "</b> " + esc(tw(slot ? "teams.reply.error_slot" : "teams.reply.error")) + ": " + esc(whyText) + detail + "</span>" +
+          "</b> " + esc(tw(slot ? "teams.reply.error_slot" : "teams.reply.error")) + ": " + esc(whyText) + detail + hint + "</span>" +
           '<span class="tm-reply-acts">' + replyActions(x, ctx) + (canRetry ? retryBtn : "") + "</span></div>";
       }
       var answering = x.status === "running" && x.reason === "answering";
@@ -801,6 +837,7 @@
   // Việc bị chặn: MỘT nút giải quyết theo lý do (T5). Hết lượt thì "Cho thêm lượt" (nâng đúng giới hạn rồi chạy tiếp),
   // lỗi hay không làm ra gì mới thì Thử lại, bị dừng giữa chừng thì Làm tiếp, chưa có trưởng nhóm thì mở chỗ chọn.
   function blockedAction(kind) {
+    if (isConfigBlock(kind)) return { act: "fix_config", key: "teams.reply.act.fix_config" };
     if (kind === "cap_reached") return { act: "extend", key: "teams.act.extend" };
     // 0.436.0: auto_retry waits for its own retry time; the same button runs it now.
     if (kind === "failed" || kind === "no_progress" || kind === "auto_retry") return { act: "retry", key: "teams.act.retry" };
@@ -822,6 +859,10 @@
     if (!a) return "";
     var label = esc(tw(a.key));
     if (a.act === "extend") return '<button type="button" class="ws-btn tm-primary" data-extend="' + esc(t.id) + '">' + label + "</button>";
+    if (a.act === "fix_config") {
+      return '<button type="button" class="ws-btn tm-primary" data-open-team="1">' + label + "</button>" +
+        (t.fix_hint ? '<div class="tm-jb-hint">' + esc(String(t.fix_hint).slice(0, 300)) + "</div>" : "");
+    }
     if (a.act === "leader") return '<button type="button" class="ws-btn tm-primary" data-open-team="1">' + label + "</button>";
     if (a.act === "view") return '<button type="button" class="ws-btn tm-primary" data-view-task="' + esc(t.id) + '">' + label + "</button>";
     if (a.act === "amend") return '<button type="button" class="ws-btn tm-primary" data-amend="' + esc(t.id) + '">' + label + "</button>";
@@ -1571,6 +1612,51 @@
 
   function rsText(on) { return tw(on ? "resonance.t0_state_on" : "resonance.t0_state_off"); }
 
+  function memberCfgOf(team, agents, m) {
+    var cs = team && team.config_status;
+    if (cs && Array.isArray(cs.members)) {
+      for (var i = 0; i < cs.members.length; i++) {
+        if (cs.members[i].agent_key === m.agent_key) return cs.members[i];
+      }
+    }
+    var agList = agents || [];
+    for (var j = 0; j < agList.length; j++) {
+      if (agList[j].slug && agList[j].slug === m.slug && agList[j].effective) {
+        var ef = agList[j].effective;
+        return {
+          agent_key: m.agent_key,
+          provider: ef.provider,
+          model: ef.model,
+          source: ef.source,
+          issues: ef.status === "blocked" && ef.reason_code
+            ? [{ reason_code: ef.reason_code, message: ef.message || "", severity: "blocked" }] : []
+        };
+      }
+    }
+    return null;
+  }
+
+  function memberCfgHtml(mc, hasModelLine) {
+    if (!mc) return "";
+    var prov = String(mc.provider || "");
+    var mod = String(mc.model || "");
+    var pair = mod ? (prov ? prov + " / " + mod : mod) : (prov || "-");
+    var label = mc.source === "main" ? tw("teams.cfg.inherited_main", { pair: pair })
+      : mc.source === "legacy" ? tw("teams.cfg.legacy_pair", { pair: mod || pair })
+      : pair;
+    var issues = mc.issues || [];
+    var hasBlocked = issues.some(function (x) { return x.severity === "blocked"; });
+    var hasWarn = !hasBlocked && issues.length > 0;
+    var bCls = hasBlocked ? "is-blocked" : (hasWarn ? "is-warn" : "is-ok");
+    var bTxt = tw(hasBlocked ? "cap.status_blocked" : (hasWarn ? "cap.status_warning" : "cap.status_ready"));
+    var firstIss = issues[0];
+    var whyTxt = firstIss ? (firstIss.message || tw(REPLY_WHY[firstIss.reason_code] || "teams.reply.why.unknown")) : "";
+    return '<span class="tm-mcfg">' + (hasModelLine ? "" : '<span>' + esc(label) + '</span>') +
+      '<span class="cap-badge ' + bCls + '"' +
+      (whyTxt ? ' title="' + esc(whyTxt) + '"' : "") + ">" + esc(bTxt) + "</span>" +
+      (whyTxt ? '<span>' + esc(whyTxt) + "</span>" : "") + "</span>";
+  }
+
   // Mỗi thành viên một dòng (tên đủ, vai ở dòng dưới); chạm dòng mở các thao tác.
   // The model a member's turns run on (owner, 18/11/2026: "trong team nhìn được model của các thành viên, như vậy sẽ dễ
   // kiểm soát hơn"): engine and model, marked when the member has no model of its own and follows the main model.
@@ -1589,11 +1675,15 @@
       var sub = [tw(lead ? "teams.leader" : "teams.member")];
       if (m.resonance_enabled) sub.push(rsText(true));
       var model = memberModelText(m);
+      var mc = memberCfgOf(team, agents, m);
+      var mcHtml = memberCfgHtml(mc, Boolean(model));
+      var hasAuthIss = Boolean(mc && (mc.issues || []).some(function (x) { return x.reason_code === "auth_missing"; }));
+      var hasCfgIss = Boolean(mc && (mc.issues || []).length);
       return '<div class="tm-mrow"><button type="button" class="tm-mhead" data-expand="' + esc(m.agent_key) + '" aria-expanded="' +
         (open ? "true" : "false") + '">' + agentAva(m, 34) + '<span class="tm-mtext"><span class="tm-mname">' +
         esc(m.name || m.slug) + '</span><span class="tm-mrole">' + esc(sub.join(" · ")) + "</span>" +
         (model ? '<span class="tm-mmodel" title="' + esc(model) + '">' + ic("cpu") + "<span>" + esc(model) + "</span></span>" : "") +
-        "</span>" +
+        mcHtml + "</span>" +
         '<span class="tm-chev" aria-hidden="true">' + ic("chevron-down") + "</span></button>" +
         '<div class="tm-mact"' + (open ? "" : " hidden") + ">" +
         '<label class="tm-rs"><input type="checkbox" class="tm-rs-toggle" data-slug="' + esc(m.slug) + '"' +
@@ -1603,9 +1693,11 @@
         (m.managed ? " checked" : "") + "><span>" + esc(tw("teams.managed")) + "</span></label>" +
         '<span class="tm-actions">' + (m.slug ? '<button type="button" class="ws-btn" data-agent-chat="' + esc(m.slug) + '">' +
           ic("message-circle") + esc(tw("teams.chat_private")) + "</button>" +
-          '<button type="button" class="ws-btn" data-agent-edit="' + esc(m.slug) + '">' +
-          ic("settings") + esc(tw("teams.agent_settings_short")) + "</button>" : "") + (lead
-          ?'<button type="button" class="ws-btn" data-leader="">' + esc(tw("teams.remove_leader")) + "</button>"
+          '<button type="button" class="ws-btn' + (hasCfgIss ? " tm-primary" : "") + '" data-agent-edit="' + esc(m.slug) + '">' +
+          ic("settings") + esc(tw(hasCfgIss ? "teams.cfg.fix_model" : "teams.agent_settings_short")) + "</button>" : "") +
+        (hasAuthIss ? '<button type="button" class="ws-btn" data-reply-act="models">' + esc(tw("cap.fix_open_models")) + "</button>" : "") +
+        (lead
+          ? '<button type="button" class="ws-btn" data-leader="">' + esc(tw("teams.remove_leader")) + "</button>"
           : '<button type="button" class="ws-btn" data-leader="' + esc(m.agent_key) + '">' + esc(tw("teams.make_leader")) + "</button>") +
         '<button type="button" class="ws-btn" data-remove="' + esc(m.agent_key) + '">' + esc(tw("teams.remove")) + "</button></span>" +
         // T3: nhịp chủ động của thành viên TRONG nhóm này (agent-pulse.js gắn vào sau khi vẽ).
@@ -2208,6 +2300,19 @@
       out.push(one(tw("teams.no_leader"), '<button type="button" class="ws-btn" data-open-team="1">' +
         esc(tw("teams.pick")) + "</button>"));
     }
+    var cs = team.config_status;
+    if (cs && (cs.status === "blocked" || cs.status === "warning")) {
+      var aff = (cs.members || []).filter(function (r) { return r.issues && r.issues.length; });
+      if (aff.length) {
+        var names = aff.map(function (r) { return r.name || nameOf(team.members, r.agent_key); }).join(", ");
+        var iss0 = aff[0].issues[0] || {};
+        var whyCs = iss0.message || tw(REPLY_WHY[iss0.reason_code] || "teams.reply.why.unknown");
+        var bCls = cs.status === "blocked" ? "tm-banner-blocked" : "tm-banner-warn";
+        var bKey = cs.status === "blocked" ? "teams.cfg.banner_blocked" : "teams.cfg.banner_warning";
+        out.push('<div class="tm-banner ' + bCls + '"><span>' + esc(tw(bKey, { names: names, reason: whyCs })) +
+          '</span><button type="button" class="ws-btn" data-open-team="1">' + esc(tw("teams.cfg.open_fix")) + "</button></div>");
+      }
+    }
     Object.keys(team.busy || {}).forEach(function (k) {
       var other = team.busy[k];
       out.push(one(tw("teams.busy_elsewhere", { name: nameOf(team.members, k), team: (teamNames || {})[other] || other })));
@@ -2595,8 +2700,23 @@
   // The keyed parts of the list for the open team: the bars on top, then each message and its reply status rows.
   // `lastAgent` is NOT baked into the HTML (it moves with every new answer and would replace the previous answer's
   // nodes, wiping a selection in it); drawMsgs marks it on the nodes instead.
+  // Identical system posts in a row (the same job error repeated by every failed step) collapse into the first one
+  // plus a "x N" note; messages from the owner or an assistant are never touched.
+  function collapseRepeats(list) {
+    var out = [], counts = {}, prev = null;
+    list.forEach(function (m) {
+      var sys = m.author_kind !== "owner" && m.author_kind !== "agent" && !(m.meta && (m.meta.approval || m.meta.acceptance || m.meta.opportunity));
+      var sig = sys ? String(m.author_kind) + "|" + String((m.meta && m.meta.kind) || "") + "|" + String(m.content || "") : "";
+      if (sig && prev && prev.sig === sig) { counts[prev.id] = (counts[prev.id] || 1) + 1; return; }
+      prev = sig ? { sig: sig, id: m.id } : null;
+      out.push(m);
+    });
+    return { list: out, counts: counts };
+  }
+
   function listItems() {
-    var list = S.msgs.filter(function (m) { return !S.skipped[m.id]; });
+    var col = collapseRepeats(S.msgs.filter(function (m) { return !S.skipped[m.id]; }));
+    var list = col.list;
     var c = ctx(null);
     var items = [
       { key: "jumped", html: S.jumped !== null && S.jumped !== undefined ? '<div class="tm-jumped">' + esc(tw("teams.search_viewing")) +
@@ -2615,6 +2735,7 @@
         items.push({ key: "m" + m.id, html: h.slice(0, h.length - rs.length) });
         items.push({ key: "r" + m.id, html: rs });
       } else items.push({ key: "m" + m.id, html: h });
+      if (col.counts[m.id]) items.push({ key: "x" + m.id, html: '<div class="tm-repeat-note">' + esc(tw("teams.repeat_note", { n: col.counts[m.id] })) + "</div>" });
     });
     // The owner's messages still on their way, at the bottom (11: shown at once, replaced by the server's copy).
     pendingEntries().forEach(function (p) { items.push({ key: "p" + p.cid, html: pendingHtml(p) }); });
@@ -3428,6 +3549,11 @@
 
   // Nút xử lý trên dòng lỗi của lượt trả lời (0.142.0).
   function replyAct(kind, slug, btn) {
+    if (kind === "fix_config") {
+      if (slug) openAgentSettings(slug);
+      else if (typeof window !== "undefined" && window.JavisNav && window.JavisNav.go) window.JavisNav.go("models");
+      return;
+    }
     if (kind === "models") {
       if (typeof window !== "undefined" && window.JavisNav && window.JavisNav.go) window.JavisNav.go("models");
       return;
@@ -4663,9 +4789,31 @@
     drawHint();
   }
 
+  function configBlockedDetail(cs) {
+    if (!cs || !Array.isArray(cs.members)) return "";
+    for (var i = 0; i < cs.members.length; i++) {
+      var r = cs.members[i];
+      var iss = (r.issues || []).filter(function (x) { return x.severity === "blocked"; })[0] || (r.issues || [])[0];
+      if (iss) {
+        var who = r.name || r.agent_key || "";
+        var why = iss.message || tw(REPLY_WHY[iss.reason_code] || "teams.reply.why.unknown");
+        return { agent_key: r.agent_key || "", text: (who ? who + ": " : "") + why };
+      }
+    }
+    return null;
+  }
+
   function act(r, after) {
     if (r.code === 409 && r.j && r.j.queue) {
       S.queue = r.j.queue; learnTitles(S.queue); setNote(tw("teams.queue_changed")); drawJobs(); drawSide(); return;
+    }
+    if (r.code === 409 && r.j && r.j.code === "team_config_blocked") {
+      var info = configBlockedDetail(r.j.config_status);
+      if (S.team && r.j.config_status) S.team.config_status = r.j.config_status;
+      if (info && info.agent_key) S.openMember = info.agent_key;
+      setNote((info && info.text) || r.j.error || tw("teams.reply.why.capability_unsupported"));
+      drawBanners(); drawSide(true);
+      return;
     }
     if (r.code !== 200) return fail(r);
     if (r.j && r.j.team) S.team = r.j.team;
@@ -4795,18 +4943,21 @@
     }, function () { if (S.pickSt) S.pickSt.rosterState = "error"; });
   }
 
+  function newPickState(mode, exclude) {
+    return { mode: mode, query: "", tag: "", selected: [], leader: "", leaderTouched: false, leaderDropped: false, name: "",
+      desc: "", descOpen: false, exclude: exclude, saving: false, error: "", rosterState: (S.roster || []).length ? "ok" : "loading",
+      workMode: mode === "add" && S.team ? (S.team.work_mode || "gated") : "gated",
+      fixSlug: "", fixProviders: [], fixProv: "", fixModels: [], fixModel: "", fixMainOk: false, fixMainLabel: "", fixSaving: false,
+      docs: [], links: [], docQuery: "", docResults: [], docState: "idle", docsOpen: false, linkDraft: "", linkBad: false,
+      repos: [], repoOpen: false, reqId: newClientId() };
+  }
+
   function openPicker(mode, opener) {
     if (!TP()) return;
     var exclude = mode === "add" && S.team ? (S.team.members || []).filter(function (m) { return !m.status || m.status === "active"; })
       .map(function (m) { return m.slug; }) : [];
     // `reqId`: một mã cho mỗi lần mở hộp Tạo nhóm. Bấm Tạo hai lần hay mạng chậm gửi lại thì server trả lại nhóm đã tạo.
-    S.pickSt = { mode: mode, query: "", tag: "", selected: [], leader: "", leaderTouched: false, leaderDropped: false, name: "",
-      desc: "", descOpen: false, exclude: exclude, saving: false, error: "", rosterState: (S.roster || []).length ? "ok" : "loading",
-      // 2026-11-12: documents picked in the create box (team-picker.js: docs, links and the brain file search).
-      docs: [], links: [], docQuery: "", docResults: [], docState: "idle", docsOpen: false, linkDraft: "", linkBad: false,
-      // 2026-11-15: GitHub repos picked in the create box, attached to the team's chat once it exists.
-      repos: [], repoOpen: false,
-      reqId: newClientId() };
+    S.pickSt = newPickState(mode, exclude);
     S.pickOpener = opener || null;
     document.removeEventListener("keydown", pickEsc, true);
     document.addEventListener("keydown", pickEsc, true);
@@ -4859,7 +5010,7 @@
     if (part === "filter") return;
     put(".tmp-selected-box", P.selectedHtml(roster, st));
     put(".tmp-preview-box", P.previewHtml(roster, st));
-    put(".tmp-foot-box", P.footerHtml(st));
+    put(".tmp-foot-box", P.footerHtml(st, roster));
     var err = host.querySelector(".tmp-error");
     if (err && !st.error) err.remove();
   }
@@ -4899,7 +5050,112 @@
       put(".tmp-doc-results", P.docResultsHtml(st));
       put(".tmp-docs-sum", P.docsSummaryHtml(st));
     }
-    put(".tmp-foot-box", P.footerHtml(st));
+    put(".tmp-foot-box", P.footerHtml(st, S.roster || []));
+  }
+
+  function pickOpenFix(slug) {
+    var st = S.pickSt;
+    if (!st) return;
+    if (st.fixSlug === slug) {
+      st.fixSlug = ""; st.fixProv = ""; st.fixModel = ""; st.fixModels = [];
+      drawPicker("pick");
+      return;
+    }
+    st.fixSlug = slug; st.fixProv = ""; st.fixModel = ""; st.fixModels = [];
+    drawPicker("pick");
+    fetch("/settings", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!S.pickSt || S.pickSt.fixSlug !== slug) return;
+        var m = (d && d.model) || {};
+        var Cap = typeof window !== "undefined" && window.JavisCapUI;
+        var okTeam = function (id) { return Cap ? Cap.teamSupportsText(id) : (id !== "antigravity-cli" && id !== "grok-cli"); };
+        S.pickSt.fixProviders = (m.providers || []).filter(function (p) { return p.agent_ok && p.configured && okTeam(p.id); });
+        var mn = m.main || {};
+        var mnConf = (m.providers || []).some(function (p) { return p.id === mn.provider && p.configured; });
+        S.pickSt.fixMainOk = Boolean(mn.provider && okTeam(mn.provider) && mnConf);
+        S.pickSt.fixMainLabel = Cap ? Cap.formatEffective({ provider: mn.provider, model: mn.model || "", source: "main" }) : tw("common.default");
+        drawPicker("pick");
+      }, function () {});
+  }
+
+  function pickSelectFixProv(slug, prov) {
+    var st = S.pickSt;
+    if (!st || st.fixSlug !== slug) return;
+    st.fixProv = prov || "";
+    st.fixModel = "";
+    st.fixModels = [];
+    drawPicker("pick");
+    if (!prov || prov === "__default__") return;
+    var ML = typeof window !== "undefined" && window.JavisModelList;
+    var load = ML && ML.models ? ML.models(prov)
+      : fetch("/provider/models?provider=" + q(prov), { credentials: "same-origin" })
+          .then(function (r) { return r.json(); }).then(function (d) { return (d && d.models) || []; }, function () { return []; });
+    load.then(function (ids) {
+      if (!S.pickSt || S.pickSt.fixSlug !== slug || S.pickSt.fixProv !== prov) return;
+      S.pickSt.fixModels = ids || [];
+      drawPicker("pick");
+    });
+  }
+
+  function pickApplyFix(slug) {
+    var st = S.pickSt;
+    if (!st || st.fixSaving || st.fixSlug !== slug) return;
+    var isDef = st.fixProv === "__default__";
+    var wantProv = isDef ? "" : (st.fixProv || "");
+    var wantModel = isDef ? "" : (st.fixModel || "");
+    if (!isDef && (!wantProv || !wantModel)) return;
+    st.fixSaving = true;
+    drawPicker("pick");
+    call("GET", "/agents/get?slug=" + q(slug)).then(function (gr) {
+      var full = (gr && gr.code === 200 && gr.j) ? gr.j : null;
+      if (!full || typeof full.prompt !== "string") {
+        if (S.pickSt) { S.pickSt.fixSaving = false; pickFail(tw("teams.err_generic")); }
+        return;
+      }
+      var Cap = typeof window !== "undefined" && window.JavisCapUI;
+      var impFd = new FormData();
+      impFd.append("slug", slug); impFd.append("model", wantModel); impFd.append("model_provider", wantProv); impFd.append("brain", brain());
+      var askImpact = Cap ? fetch("/agents/impact", { method: "POST", body: impFd, credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : null; }, function () { return null; })
+        .then(function (imp) { return Cap.confirmAgentImpact(full.name || slug, imp, full.used_by_teams); })
+        : Promise.resolve(true);
+      return askImpact.then(function (confirmed) {
+        if (!confirmed) {
+          if (S.pickSt) { S.pickSt.fixSaving = false; drawPicker("pick"); }
+          return;
+        }
+        var saveFd = new FormData();
+        saveFd.append("slug", slug);
+        saveFd.append("brain", brain());
+        saveFd.append("name", full.name || slug);
+        saveFd.append("role", full.role || "");
+        saveFd.append("prompt", full.prompt || "");
+        saveFd.append("skills", (full.skills || []).join(","));
+        saveFd.append("model", wantModel);
+        saveFd.append("model_provider", wantProv);
+        saveFd.append("reasoning", full.reasoning || "medium");
+        if (!full.system && full.chatgpt_voice) saveFd.append("chatgpt_voice", full.chatgpt_voice);
+        return fetch("/agents", { method: "POST", body: saveFd, credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (saved) {
+            if (!saved || !saved.ok) {
+              if (S.pickSt) { S.pickSt.fixSaving = false; pickFail((saved && saved.error) || tw("teams.err_generic")); }
+              return;
+            }
+            if (window.JavisStudio && window.JavisStudio.quenForm) window.JavisStudio.quenForm();
+            return loadRoster().then(function () {
+              if (!S.pickSt) return;
+              S.pickSt.fixSaving = false;
+              S.pickSt.fixSlug = "";
+              S.pickSt.error = "";
+              drawPicker("all");
+            });
+          });
+      });
+    }).catch(function () {
+      if (S.pickSt) { S.pickSt.fixSaving = false; pickFail(tw("teams.err_network")); }
+    });
   }
 
   // 2026-11-15: GitHub repos in the create box. The same picker as the team's Info tab (team-github.js), but nothing
@@ -5012,7 +5268,7 @@
 
   function submitPicker() {
     var P = TP(), st = S.pickSt;
-    if (!P || !st || !P.canSubmit(st)) return;
+    if (!P || !st || !P.canSubmit(st, S.roster || [])) return;
     if (st.mode === "create" && (st.docs || []).some(function (d) { return d.err; })) return pickFail(tw("teams.pick.doc_fix"));
     st.saving = true; st.error = "";
     drawPicker("pick");
@@ -5022,7 +5278,10 @@
       call("POST", "/teams", { name: name, description: st.desc || "", members: st.selected.slice(), leader_slug: st.leader || "",
         client_req_id: st.reqId, attachments: docs.attachments, links: docs.links })
         .then(function (r) {
-          if (r.code !== 200) return pickFail((r.j && r.j.error) || tw("teams.err", { e: r.code }));
+          if (r.code !== 200) {
+            var cb = r.code === 409 && r.j && r.j.code === "team_config_blocked" ? configBlockedDetail(r.j.config_status) : null;
+            return pickFail((cb && cb.text) || (r.j && r.j.error) || tw("teams.err", { e: r.code }));
+          }
           // Tạo xong: vào thẳng khung chat của nhóm mới, con trỏ đặt sẵn ở khung soạn.
           closePicker();
           // The team exists either way; a document the server could not take is said once, with where to add it.
@@ -5046,7 +5305,12 @@
     st.selected.slice().reduce(function (p, slug) {
       return p.then(function () {
         return call("POST", "/teams/" + q(forTeam) + "/members", { slug: slug }).then(function (r) {
-          if (r.code === 200) done.push(slug); else { failed.push(slug); lastErr = (r.j && r.j.error) || ""; }
+          if (r.code === 200) done.push(slug);
+          else {
+            failed.push(slug);
+            var cb = r.code === 409 && r.j && r.j.code === "team_config_blocked" ? configBlockedDetail(r.j.config_status) : null;
+            lastErr = (cb && cb.text) || (r.j && r.j.error) || "";
+          }
         }, function () { failed.push(slug); lastErr = tw("teams.err_network"); });
       });
     }, Promise.resolve()).then(function () {
@@ -5248,6 +5512,9 @@
     if (d.pickTag !== undefined) { S.pickSt.tag = d.pickTag; drawPicker("filter"); return; }
     if (d.pickToggle) { pickToggle(d.pickToggle); return; }
     if (d.pickLeader) { S.pickSt = TP().setLeader(S.pickSt, d.pickLeader); drawPicker("pick"); return; }
+    if (d.pickFix) { pickOpenFix(d.pickFix); return; }
+    if (d.pickFixApply) { pickApplyFix(d.pickFixApply); return; }
+    if (d.pickModels) { closePicker(); if (typeof window !== "undefined" && window.JavisNav && window.JavisNav.go) window.JavisNav.go("models"); return; }
     if (t.classList.contains("tmp-reload")) { loadRoster().then(function () { if (S.pickSt) drawPicker("all"); }); drawPicker("filter"); return; }
     if (t.classList.contains("tmp-desc-sum")) { var dd = t.parentNode; if (S.pickSt) S.pickSt.descOpen = !(dd && dd.open); return; }
     if (t.classList.contains("tmp-docs-sum")) { var dz = t.parentNode; if (S.pickSt) S.pickSt.docsOpen = !(dz && dz.open); return; }
@@ -5483,6 +5750,20 @@
     }
     if (d.teamResume) return call("PATCH", teamUrl(), { status: "active" }).then(function (r) { act(r, drawAll); });
     if (d.leader !== undefined && t.hasAttribute("data-leader")) {
+      if (d.leader && S.team) {
+        var lm = memberOf(S.team.members, d.leader);
+        var lmc = lm ? memberCfgOf(S.team, S.agents, lm) : null;
+        var lBlk = lmc && (lmc.issues || []).filter(function (x) {
+          return x.severity === "blocked" && (x.reason_code === "capability_unsupported" || x.reason_code === "provider_unknown" || x.reason_code === "model_invalid");
+        })[0];
+        if (lBlk) {
+          S.openMember = d.leader;
+          var lWhy = lBlk.message || tw(REPLY_WHY[lBlk.reason_code] || "teams.reply.why.unknown");
+          setNote(tw("teams.cfg.leader_blocked", { name: (lm && (lm.name || lm.slug)) || d.leader, reason: lWhy }));
+          drawSide(true);
+          return;
+        }
+      }
       return call("POST", teamUrl("/leader"), { agent_key: d.leader || null }).then(function (r) { act(r, drawAll); });
     }
     if (d.remove) {
@@ -5667,6 +5948,15 @@
     }
     if (S.pickSt && e.target.classList && e.target.classList.contains("tmp-check")) {
       pickToggle(e.target.getAttribute("data-pick-slug"));
+      return;
+    }
+    if (S.pickSt && e.target.classList && e.target.classList.contains("tmp-fix-prov")) {
+      pickSelectFixProv(e.target.getAttribute("data-fix-prov-for"), e.target.value);
+      return;
+    }
+    if (S.pickSt && e.target.classList && e.target.classList.contains("tmp-fix-model")) {
+      S.pickSt.fixModel = e.target.value || "";
+      drawPicker("pick");
       return;
     }
     if (S.pickSt && e.target.classList && e.target.classList.contains("tmp-leader-pick")) {
@@ -6123,7 +6413,7 @@
   }
 
   var api = { render: render, leave: leave, open: open, teamListHtml: teamListHtml, messageHtml: messageHtml, queueHtml: queueHtml,
-    jobStripHtml: jobStripHtml, filterbarHtml: filterbarHtml, stripState: stripState, defaultTab: defaultTab, ownerSaidAt: ownerSaidAt, sideTabsHtml: sideTabsHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, apDueText: apDueText, apShortRef: apShortRef, workModeHtml: workModeHtml,
+    jobStripHtml: jobStripHtml, filterbarHtml: filterbarHtml, stripState: stripState, defaultTab: defaultTab, ownerSaidAt: ownerSaidAt, sideTabsHtml: sideTabsHtml, blockedAction: blockedAction, collapseRepeats: collapseRepeats, isConfigBlock: isConfigBlock, approvalCardHtml: approvalCardHtml, apDueText: apDueText, apShortRef: apShortRef, workModeHtml: workModeHtml,
     mandateHtml: mandateHtml, opportunityCardHtml: opportunityCardHtml, readMandateForm: readMandateForm,
     parseCriteria: parseCriteria, acceptanceCardHtml: acceptanceCardHtml, acceptanceDecisionPayload: acceptanceDecisionPayload,
     qualityPolicyHtml: qualityPolicyHtml, qualityPolicyPayload: qualityPolicyPayload, qualityTemplatePayload: qualityTemplatePayload,

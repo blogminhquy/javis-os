@@ -215,5 +215,311 @@
     return html;
   }
 
+  const T2 = (k, vars) => {
+    let s = window.t ? window.t(k, vars) : k;
+    if (vars && typeof s === "string") {
+      s = s.replace(/\{(\w+)\}/g, (m, n) => (Object.prototype.hasOwnProperty.call(vars, n) ? String(vars[n]) : m));
+    }
+    return s;
+  };
+
+  const ALIASES = {
+    invalid_provider: "provider_unknown",
+    provider_required: "provider_unknown",
+    provider_not_ready: "auth_missing",
+    engine_unavailable: "build_failed",
+    engine_build_failed: "build_failed",
+    auth: "auth_missing",
+    quota: "quota_or_rate_limit",
+    rate_limit: "quota_or_rate_limit",
+  };
+  const REASON_KEYS = {
+    capability_unsupported: "teams.reply.why.capability_unsupported",
+    auth_missing: "teams.reply.why.auth_missing",
+    model_invalid: "teams.reply.why.model_invalid",
+    provider_unknown: "teams.reply.why.provider_unknown",
+    quota_or_rate_limit: "teams.reply.why.quota_or_rate_limit",
+    network: "teams.reply.why.network",
+    build_failed: "teams.reply.why.build_failed",
+  };
+  const CONFIG_CODES = {
+    capability_unsupported: 1,
+    auth_missing: 1,
+    model_invalid: 1,
+    provider_unknown: 1,
+    build_failed: 1,
+  };
+  const MODE_ORDER = ["solo_chat", "team_text", "team_tool_full", "team_tool_gated"];
+  const MODE_KEYS = {
+    solo_chat: "cap.mode.solo_chat",
+    team_text: "cap.mode.team_text",
+    team_tool_full: "cap.mode.team_tool_full",
+    team_tool_gated: "cap.mode.team_tool_gated",
+  };
+  const NO_TEAM_TEXT_PROVS = { "antigravity-cli": 1, "grok-cli": 1 };
+  const CLI_PROVS = { "anthropic-cli": 1, "openai-oauth": 1, "grok-cli": 1, "antigravity-cli": 1 };
+
+  function normalizeCode(code) {
+    const c = String(code || "").trim();
+    return ALIASES[c] || c;
+  }
+  function isConfigError(code, retryable) {
+    if (retryable === false) return true;
+    return Boolean(CONFIG_CODES[normalizeCode(code)]);
+  }
+  function reasonText(code) {
+    const c = normalizeCode(code);
+    if (!c) return T2("teams.reply.why.unknown");
+    const k = REASON_KEYS[c];
+    return k ? T2(k) : T2("teams.reply.why.unknown");
+  }
+  function statusLabel(st) {
+    if (st === "blocked") return T2("cap.status_blocked");
+    if (st === "warning") return T2("cap.status_warning");
+    if (st === "unverified") return T2("cap.status_unverified");
+    return T2("cap.status_ready");
+  }
+  function formatPair(prov, model, provLabel) {
+    const pName = (provLabel && provLabel(prov)) || prov || "-";
+    return model ? T2("cap.eff_pair", { prov: pName, model: model }) : pName;
+  }
+  function formatEffective(eff, provLabel) {
+    if (!eff) return "";
+    const pName = (provLabel && provLabel(eff.provider)) || eff.provider || "";
+    const m = eff.model || "";
+    if (eff.source === "main") {
+      return m ? T2("cap.eff_main", { prov: pName || "-", model: m })
+               : T2("cap.eff_main_def", { prov: pName || "-" });
+    }
+    if (eff.source === "legacy") {
+      return pName ? T2("cap.eff_legacy", { model: m || "-", prov: pName })
+                   : T2("cap.eff_legacy_none", { model: m || "-" });
+    }
+    return formatPair(eff.provider, m, provLabel);
+  }
+
+  function computeLocalEffective(mProv, mModel, mainCfg, provs, serverEff, origProv, origModel) {
+    const p = String(mProv || "").trim();
+    const m = String(mModel || "").trim();
+    if (serverEff && p === String(origProv || "").trim() && m === String(origModel || "").trim()) {
+      return serverEff;
+    }
+    const provMap = {};
+    (provs || []).forEach((x) => { if (x && x.id) provMap[x.id] = x; });
+    let effProv = p, effModel = m, source = "agent";
+    if (!p && !m) {
+      effProv = String((mainCfg && mainCfg.provider) || "anthropic-cli");
+      effModel = String((mainCfg && mainCfg.model) || "");
+      source = "main";
+    } else if (!p && m) {
+      effProv = "";
+      effModel = m;
+      source = "legacy";
+    }
+    const pObj = effProv ? provMap[effProv] : null;
+    const known = Boolean(effProv && (pObj || CLI_PROVS[effProv]));
+    const confOk = pObj ? Boolean(pObj.configured) : true;
+    const apiEmpty = known && !CLI_PROVS[effProv] && !effModel;
+    const modeRes = (mode) => {
+      if (!known) return { ok: false, reason_code: "provider_unknown" };
+      if (apiEmpty) return { ok: false, reason_code: "model_invalid" };
+      const adOk = (mode === "solo_chat" || mode === "team_tool_full")
+        ? true
+        : !NO_TEAM_TEXT_PROVS[effProv];
+      if (!adOk) return { ok: false, reason_code: "capability_unsupported" };
+      if (!confOk) return { ok: false, reason_code: "auth_missing" };
+      return { ok: true, reason_code: "" };
+    };
+    const modes = {};
+    MODE_ORDER.forEach((md) => { modes[md] = modeRes(md); });
+    const primary = modes.solo_chat;
+    const teamText = modes.team_text;
+    const code = !primary.ok ? primary.reason_code : (!teamText.ok ? teamText.reason_code : "");
+    const status = !primary.ok ? "blocked" : (!teamText.ok ? "warning" : "ready");
+    return {
+      provider: effProv,
+      model: effModel,
+      source: source,
+      status: status,
+      reason_code: code,
+      message: code ? reasonText(code) : "",
+      fix_hint: "",
+      modes: modes,
+    };
+  }
+
+  function modesHtml(modes) {
+    if (!modes) return "";
+    return '<div class="cap-modes">' + MODE_ORDER.map((m) => {
+      const r = modes[m];
+      if (!r) return "";
+      const ok = Boolean(r.ok);
+      const why = !ok && r.reason_code ? " title=\"" + esc(reasonText(r.reason_code)) + "\"" : "";
+      return `<span class="cap-mode ${ok ? "is-ok" : "is-no"}"${why}>`
+        + `${esc(T2(MODE_KEYS[m] || m))}: ${esc(T2(ok ? "cap.mode_ok" : "cap.mode_no"))}</span>`;
+    }).join("") + "</div>";
+  }
+
+  function teamSupportsText(provId) {
+    return Boolean(provId && !NO_TEAM_TEXT_PROVS[provId]);
+  }
+
+  function openImpactDialog(html, onConfirm, forced) {
+    return new Promise((resolve) => {
+      if (typeof document === "undefined" || !document.body) { resolve(true); return; }
+      const old = document.getElementById("javisCapModal");
+      if (old) old.remove();
+      const wrap = document.createElement("div");
+      wrap.id = "javisCapModal";
+      wrap.className = "mp-overlay open cap-modal-overlay";
+      wrap.innerHTML = `<div class="mp-box cap-modal-box" role="dialog" aria-modal="true">${html}`
+        + `<div class="mp-foot cap-modal-foot">`
+        + (forced
+          ? `<button type="button" class="mp-btn primary" data-cap-act="ok">${esc(T2("cap.main_impact_ack"))}</button>`
+          : `<button type="button" class="mp-btn" data-cap-act="cancel">${esc(T2("common.cancel"))}</button>`
+            + `<button type="button" class="mp-btn primary" data-cap-act="ok">${esc(onConfirm || T2("cap.main_impact_confirm"))}</button>`)
+        + `</div></div>`;
+      const done = (ans) => {
+        document.removeEventListener("keydown", onKey, true);
+        wrap.remove();
+        resolve(ans);
+      };
+      const onKey = (e) => {
+        if (e.key === "Escape") { e.preventDefault(); done(Boolean(forced)); }
+      };
+      document.addEventListener("keydown", onKey, true);
+      wrap.addEventListener("click", (e) => {
+        if (e.target === wrap) { done(Boolean(forced)); return; }
+        const btn = e.target.closest && e.target.closest("[data-cap-act]");
+        if (!btn) return;
+        done(btn.dataset.capAct === "ok");
+      });
+      document.body.appendChild(wrap);
+    });
+  }
+
+  function confirmMainImpact(impact, opts) {
+    opts = opts || {};
+    if (!impact) return Promise.resolve(true);
+    const agents = impact.agents || [];
+    const teams = impact.teams || [];
+    const blocking = Number(impact.blocking || 0);
+    if (!agents.length && !teams.length && !blocking) return Promise.resolve(true);
+    const b = impact.before || {};
+    const a = impact.after || {};
+    const fromTxt = formatPair(b.provider, b.model);
+    const toTxt = formatPair(a.provider, a.model);
+    let body = `<div class="mp-head"><div><div class="mp-title">${esc(T2(opts.forced ? "cap.main_impact_forced_title" : "cap.main_impact_title"))}</div>`
+      + `<div class="mp-sub">${esc(T2("cap.main_impact_pair", { from: fromTxt, to: toTxt }))}</div></div></div>`
+      + `<div class="cap-modal-body">`;
+    if (blocking > 0) {
+      body += `<div class="cap-alert is-blocked">${esc(T2("cap.main_impact_blocking", { n: blocking }))}</div>`;
+    }
+    if (agents.length) {
+      body += `<div class="cap-sec-title">${esc(T2("cap.main_impact_agents", { n: agents.length }))}</div><ul class="cap-list">`;
+      agents.slice(0, 25).forEach((ag) => {
+        const tr = T2("cap.status_transition", { before: statusLabel(ag.before_status), after: statusLabel(ag.after_status) });
+        const why = ag.reason_code ? " - " + reasonText(ag.reason_code) : "";
+        body += `<li><b>${esc(ag.name || ag.key)}</b> <span class="cap-dim">(${esc(tr)}${esc(why)})</span></li>`;
+      });
+      body += `</ul>`;
+    }
+    if (teams.length) {
+      body += `<div class="cap-sec-title">${esc(T2("cap.main_impact_teams", { n: teams.length }))}</div><ul class="cap-list">`;
+      teams.slice(0, 25).forEach((tm) => {
+        const tr = T2("cap.status_transition", { before: statusLabel(tm.before), after: statusLabel(tm.after) });
+        const iss = (tm.issues || [])[0];
+        const why = iss ? " - " + (iss.message || reasonText(iss.reason_code)) : "";
+        body += `<li><b>${esc(tm.name || tm.team_id)}</b> <span class="cap-dim">(${esc(tr)}${esc(why)})</span></li>`;
+      });
+      body += `</ul>`;
+    }
+    body += `</div>`;
+    return openImpactDialog(body, T2("cap.main_impact_confirm"), Boolean(opts.forced));
+  }
+
+  async function previewAndConfirmMain(newMain, impactUrl) {
+    if (!newMain || !newMain.provider) return { confirmed: true, impact: null };
+    let impact = null;
+    try {
+      const fd = new FormData();
+      fd.append("provider", newMain.provider);
+      fd.append("model", newMain.model || "");
+      const r = await fetch(impactUrl || "/models/main/impact", { method: "POST", body: fd, credentials: "same-origin" });
+      if (r && r.ok) impact = await r.json();
+    } catch (e) { impact = null; }
+    if (!impact || (!((impact.agents || []).length) && !((impact.teams || []).length) && !impact.blocking)) {
+      return { confirmed: true, impact: impact };
+    }
+    const ok = await confirmMainImpact(impact, { forced: false });
+    return { confirmed: ok, impact: impact };
+  }
+
+  function confirmAgentImpact(agentName, impact, usedByTeams) {
+    const imp = impact || {};
+    const byId = {};
+    const teams = [];
+    (imp.teams || []).forEach((t) => {
+      const k = t.team_id || t.name;
+      byId[k] = t;
+      teams.push(t);
+    });
+    (usedByTeams || []).forEach((t) => {
+      const k = t.team_id || t.name;
+      if (!byId[k]) teams.push(t);
+    });
+    const workflows = imp.workflows || [];
+    const chatbots = imp.chatbots || [];
+    const sessions = Number(imp.sessions || imp.solo_sessions || 0);
+    const blocking = Number(imp.blocking || 0);
+    if (!teams.length && !workflows.length && !chatbots.length && !sessions && !blocking) {
+      return Promise.resolve(true);
+    }
+    let body = `<div class="mp-head"><div><div class="mp-title">${esc(T2("cap.agent_impact_title", { name: agentName }))}</div>`
+      + `<div class="mp-sub">${esc(T2("cap.agent_impact_sub", { name: agentName }))}</div></div></div>`
+      + `<div class="cap-modal-body">`;
+    if (blocking > 0) {
+      body += `<div class="cap-alert is-blocked">${esc(T2("cap.main_impact_blocking", { n: blocking }))}</div>`;
+    }
+    if (teams.length) {
+      body += `<div class="cap-sec-title">${esc(T2("cap.agent_impact_teams", { n: teams.length }))}</div><ul class="cap-list">`;
+      teams.forEach((tm) => {
+        const tr = tm.before && tm.after
+          ? " (" + T2("cap.status_transition", { before: statusLabel(tm.before), after: statusLabel(tm.after) }) + ")"
+          : (tm.role ? " (" + tm.role + ")" : "");
+        const iss = (tm.issues || [])[0];
+        const why = iss ? " - " + (iss.message || reasonText(iss.reason_code)) : "";
+        body += `<li><b>${esc(tm.name || tm.team_id)}</b><span class="cap-dim">${esc(tr + why)}</span></li>`;
+      });
+      body += `</ul>`;
+    }
+    if (workflows.length) {
+      body += `<div class="cap-sec-title">${esc(T2("cap.agent_impact_workflows", { n: workflows.length }))}</div><ul class="cap-list">`;
+      workflows.forEach((w) => { body += `<li><b>${esc(w.name || w.slug)}</b></li>`; });
+      body += `</ul>`;
+    }
+    if (chatbots.length) {
+      body += `<div class="cap-sec-title">${esc(T2("cap.agent_impact_chatbots", { n: chatbots.length }))}</div><ul class="cap-list">`;
+      chatbots.forEach((cb) => { body += `<li><b>${esc(cb.name || cb.id)}</b></li>`; });
+      body += `</ul>`;
+    }
+    if (sessions > 0) {
+      body += `<div class="cap-sec-title">${esc(T2("cap.agent_impact_sessions", { n: sessions }))}</div>`;
+    }
+    body += `</div>`;
+    return openImpactDialog(body, T2("cap.agent_impact_confirm"), false);
+  }
+
+  const CapUI = {
+    ALIASES, REASON_KEYS, CONFIG_CODES, MODE_ORDER,
+    normalizeCode, isConfigError, reasonText, statusLabel,
+    formatPair, formatEffective, computeLocalEffective, modesHtml, teamSupportsText,
+    confirmMainImpact, previewAndConfirmMain, confirmAgentImpact,
+  };
+
   window.JavisModelList = { models, peek, why, render, clearCache };
+  window.JavisCapUI = CapUI;
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = { ModelList: window.JavisModelList, CapUI: CapUI };
+  }
 })();

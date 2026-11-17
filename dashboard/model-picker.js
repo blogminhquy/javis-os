@@ -82,11 +82,33 @@
   const onFallback = () => !!(route && route.fallback && route.reasoning);
   const shownEffort = () => (agentEff ? agentEff.level : onFallback() ? route.reasoning : state.reasoning);
 
+  let _mainSaveCancelled = false;
   async function saveModel(patch) {
-    const fd = new FormData();
-    fd.append("section", "model");
-    fd.append("data", JSON.stringify(patch));
-    try { await fetch("/settings", { method: "POST", body: fd }); } catch (e) {}
+    _mainSaveCancelled = false;
+    const Cap = window.JavisCapUI;
+    let payload = patch;
+    if (payload && payload.main && !payload.confirm_impact && Cap
+        && (payload.main.provider !== state.main.provider || (payload.main.model || "") !== (state.main.model || ""))) {
+      const chk = await Cap.previewAndConfirmMain(payload.main, "/models/main/impact");
+      if (!chk.confirmed) { _mainSaveCancelled = true; return { ok: false, cancelled: true }; }
+      payload = Object.assign({}, payload, { confirm_impact: true });
+    }
+    const post = async (p) => {
+      const fd = new FormData();
+      fd.append("section", "model");
+      fd.append("data", JSON.stringify(p));
+      try { return await (await fetch("/settings", { method: "POST", body: fd })).json(); }
+      catch (e) { return { ok: false }; }
+    };
+    let res = await post(payload);
+    if (res && res.code === "main_change_impact" && res.impact && Cap && !(payload && payload.confirm_impact)) {
+      const ok = await Cap.confirmMainImpact(res.impact, { forced: false });
+      if (!ok) { _mainSaveCancelled = true; return { ok: false, cancelled: true }; }
+      res = await post(Object.assign({}, payload, { confirm_impact: true }));
+    } else if (res && res.main_impact && Cap) {
+      Cap.confirmMainImpact(res.main_impact, { forced: true });
+    }
+    return res;
   }
 
   async function saveAgentEffort(slug, level) {
@@ -581,6 +603,7 @@
     // 0.285.0 (owner, 22/10/2026): in an assistant's chat (any partner, Javis Core) the choice pins THAT chat only. It
     // used to also rewrite the main chat's model. An assistant chat with no pin follows the main chat's model.
     if (!agentEff) await saveModel({ main: { provider: prov, model: model } });
+    if (_mainSaveCancelled) return;
     const sid = curSid();
     if (sid) {
       sessionPin = { provider: prov, model: model };

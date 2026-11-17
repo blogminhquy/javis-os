@@ -4932,11 +4932,14 @@
     if (!sure && !window.confirm(q)) return;
     if (btn) { btn.disabled = true; btn.textContent = t("models.disconnecting"); }
     try {
-      if (DISC_URL[pid]) await fetch(DISC_URL[pid], { method: "POST" });
-      else if (pid === "ollama-local") {
+      if (DISC_URL[pid]) {
+        const dr = await (await fetch(DISC_URL[pid], { method: "POST" })).json().catch(() => ({}));
+        if (dr && dr.main_impact && window.JavisCapUI) window.JavisCapUI.confirmMainImpact(dr.main_impact, { forced: true });
+      } else if (pid === "ollama-local") {
         const fd = new FormData();
         fd.append("endpoint", "");
-        await fetch("/ollama-local/endpoint", { method: "POST", body: fd });
+        const dr = await (await fetch("/ollama-local/endpoint", { method: "POST", body: fd })).json().catch(() => ({}));
+        if (dr && dr.main_impact && window.JavisCapUI) window.JavisCapUI.confirmMainImpact(dr.main_impact, { forced: true });
       } else await saveSetting("model", { clear_key: pid });
     } catch (e) {}
     _daHoiModel.delete(pid);
@@ -5244,14 +5247,14 @@
     let filterQ = "";   // giữ chữ đang lọc qua mỗi lần vẽ lại (bấm provider là draw() dựng lại DOM)
     let modal = document.getElementById("modelPicker");
     if (!modal) { modal = document.createElement("div"); modal.id = "modelPicker"; modal.className = "mp-overlay"; document.body.appendChild(modal); }
-    let selProv = main.provider || (providers[0] && providers[0].id);
+    let selProv = main.provider || "";
     // "đang chọn" phải so với main truyền vào, KHÔNG dùng p.is_main: is_main do server tính cho
     // MODEL CHÍNH, nên ở chế độ model việc nền nó sẽ đánh dấu nhầm nhà cung cấp của model chính.
-    let selModel = (selProv === main.provider) ? (main.model || null) : null;
+    let selModel = (selProv && selProv === main.provider) ? (main.model || null) : null;
     const liveCache = {};      // pid -> {models:[], live:bool} - model load động từ API provider
     let loadingProv = null;
 
-    const modelsFor = (pid) => (liveCache[pid] && liveCache[pid].models) || (providers.find(x => x.id === pid) || {}).models || [];
+    const modelsFor = (pid) => pid ? ((liveCache[pid] && liveCache[pid].models) || (providers.find(x => x.id === pid) || {}).models || []) : [];
     const tagFor = (pid) => {
       if (loadingProv === pid && !liveCache[pid]) return " · " + t("models.mp_loading_tag");
       if (!liveCache[pid]) return "";
@@ -5259,6 +5262,7 @@
     };
 
     async function ensureModels(pid) {
+      if (!pid) { draw(); return; }
       if (liveCache[pid]) { draw(); return; }
       loadingProv = pid; draw();
       let res = null;
@@ -5273,16 +5277,17 @@
         // chung chung "chưa kết nối hoặc không có model", đọc xong vẫn không biết phải làm gì.
         : { models: stat, live: false, error: (res && res.error) || "" };
       if (loadingProv === pid) loadingProv = null;
-      if (pid === selProv) {   // model đang chọn không còn trong list mới → reset
+      if (pid === selProv) {   // model đang chọn không còn trong list mới -> để trống cho chủ tự chọn lại
         const ms = liveCache[pid].models;
         if (!selModel || ms.indexOf(selModel) < 0)
-          selModel = (pid === main.provider && ms.indexOf(main.model) >= 0) ? main.model : (ms[0] || null);
+          selModel = (pid === main.provider && main.model && ms.indexOf(main.model) >= 0) ? main.model : null;
       }
       draw();
     }
 
     const draw = () => {
       const models = modelsFor(selProv);
+      const footNote = opts.note || (selProv && !selModel ? t("cap.mp_no_model") : t("models.mp_note"));
       modal.innerHTML = `
         <div class="mp-box">
           <div class="mp-head">
@@ -5296,21 +5301,22 @@
                 <div class="mp-prov-l">${esc(p.label)}</div>
                 <div class="mp-prov-c">${esc(p.id)}${p.id === main.provider ? " · " + esc(t("models.mp_using")) : ""}${esc(tagFor(p.id))}${p.configured ? "" : " · " + WARN_ICON + " " + esc(t("models.mp_need_conn"))}</div>
               </button>`).join("")}</div>
-            <div class="mp-models">${models.length ? models.map(mod => `
+            <div class="mp-models">${!selProv ? '<div class="mp-empty">' + esc(t("cap.mp_no_prov")) + '</div>'
+              : models.length ? models.map(mod => `
               <button class="mp-model ${mod === selModel ? "sel" : ""}" data-mod="${esc(mod)}">${esc(mod)}${(selProv === main.provider && mod === main.model) ? ` <span class="mp-cur">${esc(t("models.mp_using"))}</span>` : ""}</button>`).join("")
                 : (loadingProv === selProv ? '<div class="mp-empty">' + esc(t("models.mp_loading")) + '</div>'
                     : '<div class="mp-empty">' + esc((liveCache[selProv] && liveCache[selProv].error)
                         || t("models.mp_empty")) + '</div>')}</div>
           </div>
           <div class="mp-foot">
-            <span class="mp-note">${esc(opts.note || t("models.mp_note"))}</span>
-            <div><button class="mp-btn" data-act="close">${esc(t("common.cancel"))}</button><button class="mp-btn primary" data-act="switch" ${selModel ? "" : "disabled"}>${esc(opts.title ? t("models.mp_pick") : "Switch")}</button></div>
+            <span class="mp-note">${esc(footNote)}</span>
+            <div><button class="mp-btn" data-act="close">${esc(t("common.cancel"))}</button><button class="mp-btn primary" data-act="switch" ${selProv && selModel ? "" : "disabled"}>${esc(opts.title ? t("models.mp_pick") : "Switch")}</button></div>
           </div>
         </div>`;
       modal.querySelectorAll(".mp-prov").forEach(b => b.onclick = () => {
         selProv = b.dataset.prov;
         const ms = modelsFor(selProv);
-        selModel = (selProv === main.provider && ms.indexOf(main.model) >= 0) ? main.model : (liveCache[selProv] ? (ms[0] || null) : null);
+        selModel = (selProv === main.provider && main.model && ms.indexOf(main.model) >= 0) ? main.model : null;
         ensureModels(selProv);
       });
       modal.querySelectorAll(".mp-model").forEach(b => b.onclick = () => { selModel = b.dataset.mod; draw(); });
@@ -5323,9 +5329,14 @@
       applyFilter();   // đổi provider xong vẫn giữ nguyên chữ đang lọc, khỏi gõ lại
       const sw = modal.querySelector('[data-act="switch"]');
       if (sw) sw.onclick = async () => {
-        if (!selModel) return;
+        if (!selProv || !selModel) return;
+        const oldTxt = sw.textContent;
         sw.disabled = true; sw.textContent = t("settings.saving");
-        await SAVE(selProv, selModel);
+        const saved = await SAVE(selProv, selModel);
+        if (saved && (saved.cancelled || saved.ok === false)) {
+          sw.disabled = false; sw.textContent = oldTxt;
+          return;
+        }
         modal.classList.remove("open");
         if (onDone) onDone();
       };
@@ -7777,12 +7788,28 @@
   }
 
   async function saveSetting(section, dataObj) {
-    const fd = new FormData();
-    fd.append("section", section);
-    fd.append("data", JSON.stringify(dataObj));
-    let res;
-    try { res = await (await fetch("/settings", { method: "POST", body: fd })).json(); }
-    catch (e) { res = { ok: false }; }
+    const Cap = window.JavisCapUI;
+    let payload = dataObj;
+    if (section === "model" && payload && payload.main && !payload.confirm_impact && Cap) {
+      const chk = await Cap.previewAndConfirmMain(payload.main, "/models/main/impact");
+      if (!chk.confirmed) return { ok: false, cancelled: true };
+      payload = Object.assign({}, payload, { confirm_impact: true });
+    }
+    const post = async (obj) => {
+      const fd = new FormData();
+      fd.append("section", section);
+      fd.append("data", JSON.stringify(obj));
+      try { return await (await fetch("/settings", { method: "POST", body: fd })).json(); }
+      catch (e) { return { ok: false }; }
+    };
+    let res = await post(payload);
+    if (section === "model" && res && res.code === "main_change_impact" && res.impact && Cap && !(payload && payload.confirm_impact)) {
+      const ok = await Cap.confirmMainImpact(res.impact, { forced: false });
+      if (!ok) return { ok: false, cancelled: true };
+      res = await post(Object.assign({}, payload, { confirm_impact: true }));
+    } else if (section === "model" && res && res.main_impact && Cap) {
+      Cap.confirmMainImpact(res.main_impact, { forced: true });
+    }
     // Đổi model ở trang Models mà thanh model trong chat không đổi theo: hai chỗ đó đọc
     // /settings ở hai thời điểm khác nhau và không ai báo cho ai. Làm mới ngay tại đây để
     // mọi đường đổi model đều đồng bộ, thay vì nhớ gọi ở từng nút.
