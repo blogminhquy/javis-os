@@ -3496,6 +3496,7 @@
   "store.rm.purge_note": "Mặc định giữ lại, cài lại là có ngay.",
   "store.rm.working": "Đang gỡ…",
   "store.rm.failed": "Gỡ không được.",
+  "store.set_password": "Đặt mật khẩu",
   "store.back_to": "Quay lại {trang}",
   "store.disabled_env": "Biến môi trường {bien} đang bật, nên mọi thứ cài thêm bị tắt hết.",
   "store.dir_note": "Thứ cài thêm nằm ở {duong}. Thả thẳng một thư mục vào đó cũng được, không bắt buộc phải qua tệp nén.",

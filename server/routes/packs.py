@@ -34,6 +34,7 @@ import packs
 import packs_fetch
 import packs_store
 import localefmt
+import config as cfgmod
 
 # Chỉ ảnh, và KHÔNG SVG: một SVG phục vụ cùng origin thì trơ trong thẻ <img> nhưng chạy script
 # khi người dùng mở thẳng nó ra một tab, tức là XSS trên chính origin của dashboard.
@@ -176,8 +177,16 @@ def _pack_brain(pid: str) -> str:
 
 
 def _tu_choi():
-    return JSONResponse({"ok": False, "error": localefmt.chu("Cần đăng nhập vào Javis để quản lý gói.",
-                                                         "Sign in to Javis to manage packs.")},
+    # A local install with no password has every other page open, yet no session can exist, so the
+    # Store stayed shut with nothing saying why (owner report 2026-11-17). `need_password` lets the page
+    # say a sign-in password must be set first and send the user to Account instead of "Sign in".
+    no_password = not cfgmod.auth_enabled()
+    return JSONResponse({"ok": False, "need_password": no_password,
+                         "error": localefmt.chu("Javis Store cần mật khẩu đăng nhập. Đặt mật khẩu ở trang Tài khoản rồi đăng nhập.",
+                                                "Javis Store needs a sign-in password. Set one on the Account page, then sign in.")
+                         if no_password else
+                         localefmt.chu("Cần đăng nhập vào Javis để quản lý gói.",
+                                       "Sign in to Javis to manage packs.")},
                         status_code=401)
 
 
@@ -375,7 +384,6 @@ def _make_router() -> APIRouter:
         """Danh sách host đã lưu token. KHÔNG bao giờ trả giá trị token."""
         if not _DEPS.co_phien(request):
             return _tu_choi()
-        import config as cfgmod
         kho = (cfgmod.read_settings().get("packs") or {}).get("tokens") or {}
         return {"hosts": sorted(kho)}
 
@@ -384,7 +392,6 @@ def _make_router() -> APIRouter:
         """Lưu hoặc xoá token cho một host. Token được mã hoá khi ghi xuống đĩa."""
         if not _DEPS.co_phien(request):
             return _tu_choi()
-        import config as cfgmod
         d = await request.json()
         host = str(d.get("host") or "").strip().lower()
         if not host or "/" in host or " " in host:
