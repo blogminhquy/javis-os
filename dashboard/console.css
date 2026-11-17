@@ -4228,6 +4228,15 @@ button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-s
   background: var(--accent-wash, rgba(255, 122, 60, .12)); color: var(--accent); font-size: 13.5px; font-family: var(--mono, monospace); }
 .tm-skill-chip svg { width: 13px; height: 13px; }
 .tm-sug-skill .tm-sug-name { font-family: var(--mono, monospace); }
+/* Owner, 17/11/2026: the "/" skill list overlapped. The box is a column with a max height, so its rows shrank below their
+   text (flex-shrink) and each row ran into the next; a long skill name also wrapped onto its description. Rows keep their
+   height and the box scrolls; the name and the description are one line each, cut with "...". */
+.tm-sug-item { flex: none; }
+.tm-sug-skill { width: 100%; }
+.tm-sug-skill .tm-sug-text { flex: 1 1 auto; }
+.tm-sug-skill .tm-sug-name, .tm-sug-skill .tm-sug-role { display: block; max-width: none; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.tm-sug-skill .tm-sug-slug { font-family: var(--font); font-weight: 400; }
 @media (hover: none), (pointer: coarse) { .tm-skill-chip { font-size: 14.5px; } button.tm-gh-st { font-size: 14px; min-height: 28px; } }
 .tm-ava-btn { border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; flex: none; display: inline-flex; }
 .tm-ava-btn:hover, .tm-ava-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
