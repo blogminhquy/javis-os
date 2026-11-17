@@ -4712,7 +4712,7 @@
   "teams.cap.task_steps": "Most steps per job",
   "teams.cap.daily_turns": "Most replies per day",
   "teams.cap.mentions": "People called (@) per message",
-  "teams.cap.busy_wait_s": "Max wait for a busy assistant (seconds)",
+  "teams.cap.busy_wait_s": "Max wait for an assistant busy elsewhere (seconds)",
   "teams.limits.title": "Limits",
   "teams.limits.intro": "Every limit that applies to this team, grouped by who can change it. No mode removes every limit: the server and provider groups always apply.",
   "teams.limits.owner": "You can change (Team limits above)",

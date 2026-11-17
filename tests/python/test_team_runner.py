@@ -604,7 +604,7 @@ check("0.257.0 trần theo engine: một chỗ thì hai nhóm lần lượt, kh�
 lim = {row["key"]: row["value"] for row in r.limits_table(X["team_id"])}
 check("0.257.0 bảng giới hạn có trần theo engine và số nhóm song song",
       lim.get("engine_slots_api") == 1 and lim.get("engine_slots_cli") == TR.ENGINE_SLOTS_CLI
-      and lim.get("max_parallel_teams") == TR.MAX_PARALLEL_TEAMS, lim)
+      and lim.get("max_parallel_teams") is None and TR.MAX_PARALLEL_TEAMS == 0, lim)   # 17/11/2026: no cap by default
 check("0.257.0 engine gói đăng ký dùng trần CLI, engine khác dùng trần API",
       r.slots_for("anthropic-cli") == TR.ENGINE_SLOTS_CLI and r.slots_for("openrouter") == 1)
 

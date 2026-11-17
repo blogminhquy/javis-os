@@ -1,15 +1,18 @@
-"""One team runs several jobs at once when they belong to different assistants (2026-11-12).
+"""A team runs its jobs side by side and waits only where a result is needed (2026-11-12, 17/11/2026).
 
     python tests/run.py team_parallel_jobs
 
-A customer: "việc nó chạy tuần tự trong khi 2 agent 2 việc khác nhau có thể chạy song song, chỉ tuần tự khi thằng này
-làm xong có kết quả rồi mới tới thằng kia". A team ran one job at a time (a server limit), so a job for Minh waited for
-a job for Hoa to end.
+A customer (12/11): "việc nó chạy tuần tự trong khi 2 agent 2 việc khác nhau có thể chạy song song, chỉ tuần tự khi thằng
+này làm xong có kết quả rồi mới tới thằng kia". The owner (17/11): "anh muốn chạy song song và chỉ đợi nhau khi việc của
+người này cần đợi kết quả của người kia ... giống như mỗi người đi làm việc của họ khi được giao", "anh không muốn giới
+hạn team làm việc luôn".
 
-- Up to three jobs of one team run together, each with a different assistant in charge.
-- Two jobs of the same assistant keep their order. Two jobs the leader coordinates do too.
+- Every waiting job starts at once; no cap on the jobs of a team nor on the teams at work (JAVIS_TEAM_JOBS and
+  JAVIS_TEAM_PARALLEL still set one).
+- Jobs given to the whole team no longer wait for each other behind the deputy lead.
+- Two jobs of the same assistant both start; the assistant works their turns one at a time, in the order asked, and a
+  step waiting for a teammate busy in the same team is never stopped as "busy too long".
 - A job worded as an order ("sau khi ... xong") waits for everything before it, and nothing starts ahead of it.
-- JAVIS_TEAM_JOBS=1 gives one job at a time back. Other teams still get their place in the pool.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -41,10 +44,11 @@ SLUGS = ("lan", "minh", "hoa", "tu", "an")
 
 
 class Fake:
-    """A stand-in engine: per (assistant, role) a queue of answers; an async function is awaited with the request."""
+    """A stand-in engine: per (assistant, role) a queue of answers; an async function is awaited with the request.
+    `peak[agent]` is the most turns of that assistant that were ever in flight at the same time."""
 
     def __init__(self):
-        self.script, self.order = {}, []
+        self.script, self.order, self.live, self.peak = {}, [], {}, {}
 
     def say(self, agent, role, *answers):
         self.script.setdefault((agent, role), []).extend(answers)
@@ -52,11 +56,16 @@ class Fake:
     def engine_for(self, team, agent_key, role):
         async def run_(req):
             self.order.append((agent_key, role))
-            q = self.script.get((agent_key, role)) or []
-            ans = q.pop(0) if q else f"{agent_key} {role} xong"
-            if callable(ans):
-                ans = await ans(req)
-            return {"text": ans}
+            self.live[agent_key] = self.live.get(agent_key, 0) + 1
+            self.peak[agent_key] = max(self.peak.get(agent_key, 0), self.live[agent_key])
+            try:
+                q = self.script.get((agent_key, role)) or []
+                ans = q.pop(0) if q else f"{agent_key} {role} xong"
+                if callable(ans):
+                    ans = await ans(req)
+                return {"text": ans}
+            finally:
+                self.live[agent_key] -= 1
         return "aux", "fake-model", run_
 
 
@@ -138,24 +147,31 @@ check("each finished (each waited for the other to be in flight, so they did ove
       ts.get_task(j1)["status"] == "done" and ts.get_task(j2)["status"] == "done",
       (ts.get_task(j1)["status"], ts.get_task(j2)["status"], ts.get_task(j1).get("block_reason")))
 
-# ───── two jobs of the same assistant keep their order; a job of another one does not wait behind them ─────
+# ───── two jobs of the same assistant: both start, Minh does one turn at a time, in the order asked ─────
 r, tm, ts, fake, T, _ = world("cung-nguoi")
 a1, a2, b1 = job(r, T, "Minh việc 1", "ag_minh"), job(r, T, "Minh việc 2", "ag_minh"), job(r, T, "Hoa việc 1", "ag_hoa")
+tm.set_caps(T["team_id"], {"busy_wait_s": 0.05})
+
+
+async def slow(req):
+    await asyncio.sleep(0.4)          # far longer than busy_wait_s: the other job's step has to wait for Minh
+    return "Minh xong"
 
 
 async def same():
+    fake.say("ag_minh", "work", slow, slow)
     got = await r.dispatch_once(wait=False)
     now, wait_ = running(ts, T), waiting(ts, T)
-    again = await r.dispatch_once(wait=False)
     await r.wait_jobs()
-    after = await r.dispatch_once(wait=False)
-    await r.wait_jobs()
-    return got, now, wait_, again, after
+    return got, now, wait_
 
-got, now, wait_, again, after = asyncio.run(same())
-check("Minh's first job and Hoa's job start together; Minh's second job waits", sorted(now) == sorted([a1, b1]) and wait_ == [a2], (now, wait_))
-check("another pass while they run opens nothing more", again == [], again)
-check("Minh's second job starts once his first is over", after == [a2] and ts.get_task(a2)["status"] == "done", (after, ts.get_task(a2)["status"]))
+got, now, wait_ = asyncio.run(same())
+check("Minh's two jobs and Hoa's job all start in one pass", sorted(now) == sorted([a1, a2, b1]) and wait_ == [], (now, wait_))
+check("Minh still works one turn at a time", fake.peak.get("ag_minh") == 1, fake.peak)
+check("in the order the jobs were given", [k for k in fake.order if k == ("ag_minh", "work")] == [("ag_minh", "work")] * 2
+      and fake.order.index(("ag_minh", "work")) < len(fake.order))
+check("the step that waited for Minh, busy in the same team, is not stopped as 'busy too long'",
+      all(ts.get_task(x)["status"] == "done" for x in (a1, a2, b1)), [(ts.get_task(x)["status"], ts.get_task(x).get("block_kind")) for x in (a1, a2, b1)])
 
 # ───── a job worded as an order waits for everything before it, and nothing jumps ahead of it ─────
 r, tm, ts, fake, T, _ = world("thu-tu")
@@ -180,26 +196,27 @@ check("the job that asks to come after waits, and the job behind it does not sta
 check("once the first is over, the ordered job runs, with the next one beside it", sorted(second) == sorted([s2, s3]), second)
 check("all three end", all(ts.get_task(x)["status"] == "done" for x in (s1, s2, s3)))
 
-# ───── at most three at once ─────
-r, tm, ts, fake, T, _ = world("toi-da-ba")
-four = [job(r, T, f"Việc của {s}", f"ag_{s}") for s in ("minh", "hoa", "tu", "an")]
+# ───── no cap: every job runs at once ─────
+r, tm, ts, fake, T, _ = world("khong-gioi-han")
+many = [job(r, T, f"Việc {i} của {s}", f"ag_{s}") for i in range(2) for s in ("minh", "hoa", "tu", "an")]
 
 
-async def capped():
+async def uncapped():
     got = await r.dispatch_once(wait=False)
     now = running(ts, T)
     await r.wait_jobs()
-    rest = await r.dispatch_once(wait=False)
-    await r.wait_jobs()
-    return got, now, rest
+    return got, now
 
-got, now, rest = asyncio.run(capped())
-check("four jobs of four assistants: three run, the fourth waits", len(now) == 3 and sorted(now) == sorted(four[:3]), now)
-check("the fourth runs when a place frees", rest == [four[3]] and ts.get_task(four[3])["status"] == "done", rest)
-check("the limits table says three", {x["key"]: x["value"] for x in r.authority_view(T["team_id"]).get("limits") or []}.get("running_jobs") == 3)
+got, now = asyncio.run(uncapped())
+check("eight jobs of four assistants all run at once", sorted(now) == sorted(many) and sorted(got) == sorted(many), (len(now), len(got)))
+check("and all end", all(ts.get_task(x)["status"] == "done" for x in many))
+lim = {x["key"]: x["value"] for x in r.authority_view(T["team_id"]).get("limits") or []}
+check("the limits table says no cap for the jobs of a team and the teams at work (None = Không giới hạn)",
+      "running_jobs" in lim and lim["running_jobs"] is None and "max_parallel_teams" in lim and lim["max_parallel_teams"] is None, lim)
+check("by default the runner caps neither", r.team_jobs is None and r.max_parallel_teams is None, (r.team_jobs, r.max_parallel_teams))
 
-# ───── jobs the leader coordinates: one at a time; beside a job given to a member: together ─────
-r, tm, ts, fake, T, _ = world("dieu-phoi")
+# ───── jobs given to the whole team no longer wait behind the deputy lead ─────
+r, tm, ts, fake, T, _ = world("pho-nhom")
 l1, l2, m1 = job(r, T, "Lên kế hoạch tuần"), job(r, T, "Lên kế hoạch tháng"), job(r, T, "Dọn file", "ag_tu")
 
 
@@ -210,8 +227,9 @@ async def led():
     return now
 
 now = asyncio.run(led())
-check("two jobs the leader coordinates do not run together, a member's own job runs beside the first",
-      sorted(now) == sorted([l1, m1]), now)
+check("two jobs for the whole team and a member's job all run together", sorted(now) == sorted([l1, l2, m1]), now)
+check("all three end", all(ts.get_task(x)["status"] == "done" for x in (l1, l2, m1)),
+      [(ts.get_task(x)["status"], ts.get_task(x).get("block_kind")) for x in (l1, l2, m1)])
 
 # ───── JAVIS_TEAM_JOBS=1: one job at a time, as before ─────
 os.environ["JAVIS_TEAM_JOBS"] = "1"
@@ -230,7 +248,7 @@ async def one():
 
 check("JAVIS_TEAM_JOBS=1 gives one job at a time back", asyncio.run(one()) == [o1])
 
-# ───── the pool is counted in teams: a busy team does not take the other team's place ─────
+# ───── JAVIS_TEAM_PARALLEL / max_parallel_teams still cap the teams at work when set ─────
 r, tm, ts, fake, T, new_team = world("hai-team", max_parallel_teams=2)
 T2 = new_team("team-hai")
 p = [job(r, T, f"A {s}", f"ag_{s}") for s in ("minh", "hoa", "tu")]
@@ -256,6 +274,7 @@ check("a job that already runs is not taken twice", ts.claim_team_next(T["team_i
 check("a job of another team is not taken", ts.claim_team_next(T2["team_id"], "w", max_running=2, task_id=k1) is None)
 check("without a name: the head, as before", (ts.claim_team_next(T["team_id"], "w", max_running=2) or {}).get("id") == k1)
 check("at the limit nothing more is taken", ts.claim_team_next(T["team_id"], "w", max_running=2, task_id=k3) is None)
+check("max_running=None: no limit in the store either", (ts.claim_team_next(T["team_id"], "w", max_running=None, task_id=k3) or {}).get("id") == k3)
 
 print("")
 if fails:

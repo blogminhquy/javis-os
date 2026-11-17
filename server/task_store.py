@@ -1833,7 +1833,7 @@ class TaskStore:
             self._db.commit()
 
     def claim_team_next(
-        self, team_id: str, worker_id: str, lease_s: int = 90, max_running: int = 1, task_id: Optional[str] = None,
+        self, team_id: str, worker_id: str, lease_s: int = 90, max_running: Optional[int] = 1, task_id: Optional[str] = None,
     ) -> Optional[dict]:
         """Nhận việc đầu hàng của nhóm nếu nhóm còn chỗ chạy (mặc định một việc mỗi nhóm).
 
@@ -1856,7 +1856,8 @@ class TaskStore:
                     "SELECT COUNT(*) AS n FROM tasks WHERE lane='team' AND team_id=? AND status='team_running'",
                     (team_id,),
                 ).fetchone()["n"]
-                if int(running) >= max(1, int(max_running)):
+                # `max_running=None`: no cap on the jobs a team runs at once (team_runner, 17/11/2026).
+                if max_running is not None and int(running) >= max(1, int(max_running)):
                     self._db.rollback()
                     return None
                 if task_id:
