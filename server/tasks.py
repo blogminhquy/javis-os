@@ -121,6 +121,23 @@ NEEDS_INPUT = "[[NEEDS_INPUT]]"
 _NEEDS_INPUT_LINE_RE = re.compile(r"^[\s>#*_`\-•|]*" + re.escape(NEEDS_INPUT), re.MULTILINE)
 
 
+# A reply that only approves: "Duyệt", "Duyệt V006.", "ok", "đồng ý", "approve". Anything that also asks for a change
+# or says no is NOT an approval, so the workflow starts again with the reply in its brief, as before.
+_DUYET_DAU = ("duyệt", "duyet", "đồng ý", "dong y", "đạt", "ok", "oke", "okay", "chốt", "chot", "được", "approve",
+              "approved", "yes", "lgtm", "go", "tiếp tục", "chạy tiếp", "continue")
+_DUYET_KHONG = re.compile(
+    r"(chưa|chua|không|khong|\bko\b|\bk\b|đừng|sửa|sua|nhưng|đổi|thay|bỏ|huỷ|hủy|dừng|làm lại|lại|bổ sung|thêm|"
+    r"\bnot\b|\bno\b|don'?t|\bbut\b|\bfix|change|reject|stop|cancel|redo|\?)", re.IGNORECASE)
+
+
+def la_loi_duyet(text: str) -> bool:
+    """Whether an answer to a workflow approval step is a plain approval (owner, 17/11/2026)."""
+    t = re.sub(r"\s+", " ", str(text or "")).strip().lower().strip(" .!,;:-")
+    if not t or len(t) > 80 or _DUYET_KHONG.search(t):
+        return False
+    return any(t == w or t.startswith(w + " ") or t.startswith(w + ",") for w in _DUYET_DAU)
+
+
 def asks_for_input(result: str) -> bool:
     """Whether a worker result asks for a person: a line that STARTS with [[NEEDS_INPUT]]."""
     return bool(_NEEDS_INPUT_LINE_RE.search(result or ""))
@@ -234,6 +251,10 @@ class TasksDeps:
     agent_roster: Optional[Callable[[str], list]] = None
     # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken job to Javis Core (incident_desk.py).
     incident_hook: Optional[Callable] = None
+    # Owner, 17/11/2026 ("tôi duyệt rồi mà cứ báo duyệt lại hoài"): (brain, slug, task_id, node, code, tools=, mode=,
+    # source=) -> events. Runs a workflow on from the approval step it stopped at. None = the old path: every answer
+    # starts the workflow again from step one, which stops at the same approval step again.
+    execute_workflow_resume: Optional[Callable] = None
 
 
 class TasksFeature:
@@ -686,8 +707,9 @@ class TasksFeature:
                 final_task = await asyncio.to_thread(self.store.block, tid, worker_id, SANDBOX_BLOCK_KIND,
                                                      sandbox_block_reason(), result=result, transient=False)
             elif needs_input:
+                _wf_wait = (metadata or {}).get("wf_wait")
                 final_task = await asyncio.to_thread(self.store.ask, tid, worker_id, self._needs_input_reason(result, task_store.QA_TEXT_MAX),
-                    result=result)
+                    result=result, qa_extra={"wf_wait": _wf_wait} if _wf_wait else None)
             elif channel_context.is_silent_report(result):
                 # Issue 1483: "[SILENT]" means nothing to report, the same flag reminders and webhooks honour. The job
                 # is done, its result stays on the card, the acceptance check is skipped (an empty-looking answer
@@ -1100,6 +1122,22 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             disallowed.extend(["Bash", "WebFetch", "WebSearch"])
         return list(dict.fromkeys(tools)), mode, disallowed
 
+    def _duyet_cho_chay_tiep(self, task: dict, slug: str) -> dict:
+        """The stopped workflow step to run on from, or {} to start the workflow again.
+
+        Only when the LAST question was a workflow approval step, the owner has answered it, and the answer is a plain
+        approval. A change request ("chưa duyệt, sửa...") still starts again with the answer in the brief, as before."""
+        if not self.deps.execute_workflow_resume:
+            return {}
+        qa = [x for x in ((task.get("metadata") or {}).get("qa") or []) if isinstance(x, dict)]
+        cuoi = qa[-1] if qa else {}
+        cho = cuoi.get("wf_wait") if isinstance(cuoi.get("wf_wait"), dict) else {}
+        if not cho or not cuoi.get("a") or str(cho.get("slug") or slug) != slug:
+            return {}
+        if not cho.get("task_id") or not cho.get("node"):
+            return {}
+        return cho if la_loi_duyet(str(cuoi.get("a") or "")) else {}
+
     @staticmethod
     def _hoi_dap(task: dict) -> str:
         """Khối HỎI ĐÁP VỚI CHỦ cho lần chạy sau một câu trả lời (0.235.0). Rỗng khi chưa ai trả lời.
@@ -1139,12 +1177,42 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             slug = route[3:].strip()
             result = ""
             error = ""
-            try:
-                async for event in self.deps.execute_workflow(
+            wf_wait: dict = {}
+            cho = self._duyet_cho_chay_tiep(task, slug)
+
+            def _chay_moi():
+                return self.deps.execute_workflow(
                     task["brain_root"], slug, intent + ("\n\n" + hoi_dap if hoi_dap else ""),
                     tools, source="kanban", mode=mode,
-                ):
+                )
+
+            async def _su_kien():
+                # The owner approved the step the run is waiting on: run on from that step. Starting over would
+                # reach the same approval step and ask again, for ever (owner, 17/11/2026).
+                if cho:
+                    tien = False
+                    async for ev in self.deps.execute_workflow_resume(
+                        task["brain_root"], slug, cho["task_id"], cho["node"], cho.get("code") or "",
+                        tools=tools, mode=mode, source="kanban",
+                    ):
+                        if ev.get("type") in ("resume", "step_start", "done", "wait_user", "escalation"):
+                            tien = True
+                        if tien or ev.get("type") not in ("error",):
+                            yield ev
+                    if tien:
+                        return
+                    # The stopped run could not be picked up (state gone, the workflow file changed since): fall back
+                    # to the old path rather than ending the job with an empty result.
+                async for ev in _chay_moi():
+                    yield ev
+
+            try:
+                async for event in _su_kien():
                     kind = event.get("type")
+                    if kind == "wait_user":
+                        for k in ("task_id", "node", "code"):
+                            if event.get(k):
+                                wf_wait[k] = str(event.get(k))
                     if kind == "done":
                         result = event.get("result") or result
                     elif kind == "wait_user":
@@ -1171,11 +1239,14 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
                         error = event.get("content") or error
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
+            meta_out = {"route": route, "capability": task.get("capability")}
+            if wf_wait.get("task_id") and wf_wait.get("node"):
+                meta_out["wf_wait"] = {**wf_wait, "slug": slug}
             return (
                 result,
                 error,
                 asks_for_input(result),
-                {"route": route, "capability": task.get("capability")},
+                meta_out,
             )
 
         cli = self._base_cli(task, tools, mode, "execute")
