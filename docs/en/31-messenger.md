@@ -57,7 +57,7 @@ The step people get wrong is the token: a user token pasted where a Page token b
 4. Javis derives a non-expiring Page token, registers the app webhook with `messages`, `messaging_postbacks` and `message_echoes` (so the bot sees the files staff send from the Page inbox), subscribes the Page to the app, saves the channel and shows a checklist with a fix for every red row.
 5. Open **Chatbot**, **Bots** to create a bot for the new channel (section 3).
 
-Every connected Page has **Check**, **Repair** (registers the webhook and subscribes the Page again) and **New token** buttons. Any brain can call the `messenger_check` and `messenger_repair` tools when the bot goes silent. Business verification and App Review for `pages_messaging` (section 4) still happen on Meta's site.
+Every connected Page has **Check**, **Repair** (registers the webhook and subscribes the Page again) and **New token** buttons. Any brain can call the `messenger_check` and `messenger_repair` tools when the bot goes silent. Business verification and App Review for `pages_messaging` (section 4) still happen on Meta's site. To have Javis message a customer from chat, the brain finds the chat with `inbox_find` and sends with `inbox_reply`, through that chat's own Page or Instagram account. Messenger accepts a message within 24 hours of the customer's last one.
 
 The manual steps below still work.
 
