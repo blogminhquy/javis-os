@@ -48,9 +48,9 @@ check("mandate: sources help folded into (i)", inInfoBody(md, T("teams.md.source
 check("mandate: labels point at their textarea (the (i) button inside a label must not become its control)",
   /<label class="tm-field" for="tm-md-sources">/.test(md) && /<textarea id="tm-md-sources" name="tm-md-sources"/.test(md), md);
 
-// Advanced section: the note sits in the (i) inside <summary>, not as a line under it.
+// 17/11/2026: the Advanced section is gone from the Team tab, so its note is not drawn anywhere.
 const tab = TM.teamTabHtml(team, {});
-check("advanced: note folded into (i)", inInfoBody(tab, T("teams.advanced_note")) && !outsideInfoBody(tab, T("teams.advanced_note")), tab);
+check("advanced: gone, its note is not drawn as a loose line either", !tab.includes(T("teams.advanced_note")), tab);
 
 // Info panel (not exported): the description goes in the (i) beside the name; files and links explain themselves there too.
 const info = src.slice(src.indexOf("function infoTabHtml(t)"), src.indexOf("\n  function ", src.indexOf("function infoTabHtml(t)") + 10));

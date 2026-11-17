@@ -654,7 +654,7 @@
     if ((x.reason === "engine" || x.reason === "engine_unavailable" || x.reason === "timeout" || x.reason === "auth") && slug) {
       out.push({ act: "agent", key: "teams.reply.act.agent", slug: slug });
     }
-    if (x.reason === "cap") out.push({ act: "limits", key: "teams.reply.act.limits" });
+    // 17/11/2026: no limit numbers to open any more (Advanced is gone, the daily reply cap too): Try again is the way on.
     if (x.reason === "no_leader" || (x.reason === "member_left" && ctx.leaderKey === x.agent_key) ||
         x.reason === "leader_changed") {
       out.push({ act: "leader", key: "teams.reply.act.leader" });
@@ -1651,24 +1651,32 @@
       ? tw("teams.usage_today_unl", { n: u.today }) : tw("teams.usage_today", { n: u.today, cap: u.cap })) + "</div>";
   }
 
-  // Tên, mô tả, trạng thái của nhóm. Nút Lưu ở cuối.
+  // Tên, mô tả, ảnh và tạm dừng của nhóm. 17/11/2026 (chủ: "quá nhiều cài đặt ... các nút lưu bố trí cũng không hợp
+  // lý"): không còn nút Lưu, mỗi ô tự lưu khi đổi (tên, mô tả khi rời ô; công tắc tạm dừng ngay), như công tắc ghim.
   function settingsFormHtml(team) {
-    var st = ["active", "paused", "archived"].map(function (s) {
-      return '<label class="tm-radio"><input type="radio" name="tm-status" value="' + s + '"' + (team.status === s ? " checked" : "") +
-        "><span>" + esc(tw(TEAM_STATUS_KEY[s])) + "</span></label>";
-    }).join("");
-    // Ảnh nhóm (0.176.0): mặc định ghép từ gương mặt thành viên; "Tải ảnh lên" thay bằng ảnh riêng, lưu ngay không chờ nút Lưu.
+    // Ảnh nhóm (0.176.0): mặc định ghép từ gương mặt thành viên; "Tải ảnh lên" thay bằng ảnh riêng, lưu ngay.
     var A = typeof window !== "undefined" && window.JavisAvatar;
     var ava = A && A.uploadRowHtml ? '<div class="tm-field tm-ava-set"><span>' + esc(tw("teams.avatar")) + '</span><div class="tm-ava-row">' +
       teamAvatarHtml(team, 56) + '<div class="tm-ava-acts">' + A.uploadRowHtml(!!team.avatar_image, tw("teams.avatar_use_faces")) +
       "</div></div></div>" : "";
+    var off = team.status === "archived" ? " disabled" : "";
     return '<form class="tm-form" onsubmit="return false">' + ava +
-      '<label class="tm-field"><span>' + esc(tw("teams.name")) + '</span><input name="tm-set-name" value="' + esc(team.name) + '"></label>' +
-      '<label class="tm-field"><span>' + esc(tw("teams.description")) + '</span><textarea name="tm-set-desc" rows="2">' + esc(team.description) + "</textarea></label>" +
-      '<div class="tm-field"><span>' + esc(tw("teams.status")) + '</span><div class="tm-radios">' + st + "</div></div>" +
-      '<div class="tm-actions"><button type="button" class="ws-btn tm-save">' + esc(tw("teams.save")) + "</button>" +
+      '<label class="tm-field"><span>' + esc(tw("teams.name")) + '</span><input name="tm-set-name" data-team-field="name" value="' +
+        esc(team.name) + '"' + off + "></label>" +
+      '<label class="tm-field"><span>' + esc(tw("teams.description")) + '</span><textarea name="tm-set-desc" data-team-field="description" rows="2"' +
+        off + ">" + esc(team.description) + "</textarea></label>" +
+      '<label class="tm-rs tm-pause-row"><input type="checkbox" class="tm-pause-toggle"' + (team.status === "paused" ? " checked" : "") +
+        off + "><span>" + esc(tw("teams.pause_team")) + "</span></label></form>";
+  }
+
+  // Vùng nguy hiểm ở cuối tab (design-style mục 9): Lưu trữ (hay Mở lại khi đã lưu trữ) và Xoá team, đứng riêng, màu đỏ.
+  function dangerZoneHtml(team) {
+    var arch = team.status === "archived";
+    return '<section class="tm-sec tm-danger-zone" aria-label="' + esc(tw("teams.danger_zone")) + '"><div class="tm-actions">' +
+      (arch ? '<button type="button" class="ws-btn" data-team-unarchive="1">' + ic("archive-restore") + esc(tw("teams.unarchive_team")) + "</button>"
+        : '<button type="button" class="ws-btn tm-danger" data-team-archive="1">' + ic("archive") + esc(tw("teams.archive_team")) + "</button>") +
       '<button type="button" class="ws-btn tm-danger" data-delete-team="' + esc(team.team_id) + '">' + ic("trash-2") +
-      esc(tw("teams.delete_team")) + "</button></div></form>";
+      esc(tw("teams.delete_team")) + "</button></div></section>";
   }
 
   // Các số giới hạn của nhóm (trong Nâng cao). Nút Lưu ở cuối.
@@ -2076,18 +2084,15 @@
       esc(tw("teams.head_people", { n: nAct })) + "</div>" +
       membersHtml(team, agents, ui.openMember) + "</section>" +
       mandateHtml(team, ui.mandateEdit) +
-      '<section class="tm-sec">' + levelsHtml(team) + usageHtml(team) + "</section>" +
+      '<section class="tm-sec">' + levelsHtml(team) + "</section>" +
       workModeHtml(team) +
       '<section class="tm-sec"><div class="tm-qhead">' + esc(tw("teams.tab_team")) + "</div>" +
       '<label class="tm-rs tm-pin-row"><input type="checkbox" class="tm-pin-toggle"' + (team.pinned_at ? " checked" : "") +
       "><span>" + esc(tw("teams.pin_top")) + "</span></label>" + settingsFormHtml(team) + "</section>" +
-      '<details class="tm-adv"' + (ui.advOpen ? " open" : "") + '><summary class="tm-adv-sum">' + esc(tw("teams.advanced")) +
-      // The (i) may sit inside <summary>: info-tip.js cancels the click's default action, so it opens the note without
-      // folding or unfolding the section.
-      infoBtn() + "</summary>" + infoBody(esc(tw("teams.advanced_note"))) +
-      qualityPolicyHtml(team) + qualityUsageHtml(team.quality_usage, (team.quality_policy || {}).reference_usd) +
-      capsFormHtml(team) + authorityHtml(team) +
-      limitsHtml(team) + turnsHtml(ui.turns || [], team) + "</details>";
+      // 17/11/2026 (owner: "quá nhiều cài đặt ... anh muốn lược bỏ hết để tự động thôi, không ai động vào đâu"): the
+      // Advanced section (acceptance policy, usage, limit numbers, the deputy's detailed rights, limits table, reply log)
+      // is gone from the tab. The server keeps its automatic defaults; the three levels above set the deputy's rights.
+      dangerZoneHtml(team);
   }
 
   // Băng báo gọn, kèm nút giải quyết khi có: tạm dừng thì Bật lại, chưa có trưởng nhóm thì Chọn.
@@ -3248,8 +3253,6 @@
       return;
     }
     if (kind === "resume") return call("PATCH", teamUrl(), { status: "active" }).then(function (r) { act(r, drawAll); });
-    // Giới hạn nằm ở Nâng cao của ngăn Nhóm; điều phối chọn trong danh sách thành viên của cùng ngăn.
-    if (kind === "limits") S.advOpen = true;
     openSide("team", btn);
   }
 
@@ -5224,7 +5227,8 @@
         return call("PATCH", teamUrl(), { avatar_image: "" }).then(function (r) { act(r, drawAll); });
       }
     }
-    if (t.classList.contains("tm-save")) return saveSettings();
+    if (d.teamArchive) return setTeamStatus("archived", t);
+    if (d.teamUnarchive) return setTeamStatus("active", t);
     if (t.classList.contains("tm-caps-save")) return saveCaps();
     if (t.classList.contains("tm-auth-save")) {
       var sec = S.el.querySelector(".tm-auth");
@@ -5272,14 +5276,34 @@
     return x ? x.value : "";
   }
 
-  function saveSettings() {
-    var status = (S.el.querySelector('input[name="tm-status"]:checked') || {}).value || S.team.status;
-    if (status === "archived" && S.team.status !== "archived" && typeof confirm === "function" &&
-        !confirm(tw("teams.archive_confirm"))) return;
-    call("PATCH", teamUrl(), { name: val("tm-set-name"), description: val("tm-set-desc"), status: status }).then(function (r) {
+  // One change of the Team tab saved on its own (17/11/2026: no Save button). `patch` is part of PATCH /teams/{id}.
+  // Refused or offline: the tab is drawn again from what is saved and the note says why, nothing changes silently.
+  function saveTeamPatch(patch, input) {
+    if (input) input.disabled = true;
+    return call("PATCH", teamUrl(), patch).then(function (r) {
+      if (input) input.disabled = false;
       if (r.code === 200) setNote(tw("teams.saved"));
       act(r, drawAll);
+    }).catch(function () {
+      if (input) input.disabled = false;
+      setNote(tw("teams.err_network"));
+      drawAll();
     });
+  }
+
+  function saveTeamField(input) {
+    var key = input.getAttribute("data-team-field");
+    var v = String(input.value || "").trim();
+    if (key === "name" && !v) { input.value = S.team.name || ""; return; }   // a team always has a name
+    if (v === String(S.team[key] || "").trim()) return;
+    var patch = {};
+    patch[key] = v;
+    saveTeamPatch(patch, input);
+  }
+
+  function setTeamStatus(status, input) {
+    if (status === "archived" && typeof confirm === "function" && !confirm(tw("teams.archive_confirm"))) return;
+    saveTeamPatch({ status: status }, input);
   }
 
   // Dựng thân POST /caps từ form (hàm thuần, test được dưới node). `read(k)` trả {checked: bool|null, value: chuỗi};
@@ -5380,6 +5404,8 @@
       return;
     }
     if (e.target.name === "tm-level") { setLevel(Number(e.target.value), e.target); return; }
+    if (e.target.getAttribute && e.target.getAttribute("data-team-field")) { saveTeamField(e.target); return; }
+    if (e.target.classList.contains("tm-pause-toggle")) { setTeamStatus(e.target.checked ? "paused" : "active", e.target); return; }
     if (e.target.classList.contains("tm-pin-toggle")) {
       // Ghim nhóm lên đầu danh sách: lưu được thì act() tải lại nhóm và danh sách; lỗi thì công tắc về trạng thái đã lưu,
       // bật lại để thử lại, và báo lỗi (review b93c46bd #1).
@@ -5821,7 +5847,7 @@
     jobsChip: jobsChip, jobsChipHtml: jobsChipHtml, timeShort: timeShort,
     mentionMatches: mentionMatches, mentionsFromText: mentionsFromText, mentionScan: mentionScan, removeMention: removeMention,
     callsHtml: callsHtml, foldName: foldName, emailBefore: emailBefore, composerHint: composerHint, newClientId: newClientId,
-    membersHtml: membersHtml, settingsFormHtml: settingsFormHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
+    membersHtml: membersHtml, settingsFormHtml: settingsFormHtml, dangerZoneHtml: dangerZoneHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
     levelOf: levelOf, grantFor: grantFor, teamAvatarHtml: teamAvatarHtml, savePin: savePin, pinTeamWith: pinTeamWith, noteHtml: noteHtml, levelsHtml: levelsHtml, turnsHtml: turnsHtml,
     bannersHtml: bannersHtml, reactCornerHtml: reactCornerHtml, reactBarHtml: reactBarHtml, sheetHtml: sheetHtml,
     hoverActsHtml: hoverActsHtml, bodyHtml: bodyHtml, skillSplit: skillSplit, skillCall: skillCall, listSync: listSync, pendingHtml: pendingHtml, copyTextOf: copyTextOf, fileChipHtml: fileChipHtml, uploadError: uploadError, pickFiles: pickFiles, plainPreview: plainPreview, previewText: previewText,
