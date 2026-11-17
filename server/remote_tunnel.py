@@ -59,6 +59,12 @@ CONNECTED_MARKERS = ("Registered tunnel connection", "Connection registered")
 BACKOFF = (3, 10, 30, 60)
 STABLE_AFTER = 120
 PASSWORD_CHECK_EVERY = 5
+# Health watch (2026-11-17): a quick tunnel can lose every edge connection while cloudflared keeps running, and then
+# its trycloudflare.com name stops resolving. Nothing exits, so the restart above never fired and Messenger webhooks
+# went nowhere for hours. Ask cloudflared's own /ready every HEALTH_EVERY seconds; after DEAD_AFTER seconds with no
+# ready connection, restart it.
+HEALTH_EVERY = 20
+DEAD_AFTER = 90
 
 
 def section(cfg=None) -> dict:
@@ -267,6 +273,36 @@ def service_points_here(service: str) -> bool:
 
 # ---------------------------------------------------------------- stray process from an earlier run
 
+def free_port() -> int:
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            return int(s.getsockname()[1])
+    except OSError:
+        return 0
+
+
+def ready_connections(port: int, timeout: float = 4.0):
+    """How many edge connections cloudflared reports ready on its metrics port; None when it cannot be asked."""
+    import urllib.error
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/ready", timeout=timeout) as r:
+            body = r.read()
+    except urllib.error.HTTPError as e:          # 503 = not ready, the body still says how many
+        try:
+            body = e.read()
+        except Exception:
+            return None
+    except Exception:
+        return None
+    try:
+        return int(json.loads(body.decode("utf-8") or "{}").get("readyConnections"))
+    except Exception:
+        return None
+
+
 def _pid_file() -> Path:
     return Path(cfgmod.STATE_DIR) / "remote-tunnel.pid"
 
@@ -425,6 +461,9 @@ class TunnelManager:
         self._stop = threading.Event()
         self._proc = None
         self.log = deque(maxlen=200)
+        self._metrics_port = 0
+        self._url_listeners = []    # fn(url), called on a worker thread once a NEW quick address is connected
+        self._announced = ""
         self._reset_state("off")
 
     def _reset_state(self, state: str):
@@ -461,6 +500,26 @@ class TunnelManager:
             tailscale_serve_off(self._serving_bin)
         self._serving_bin = ""
         self._reset_state("off")
+
+    def add_url_listener(self, fn):
+        """Call fn(url) whenever a quick tunnel comes up connected on an address it did not have before."""
+        if fn not in self._url_listeners:
+            self._url_listeners.append(fn)
+
+    def _announce(self):
+        url = self.url
+        if self.mode != "quick" or not url or url == self._announced:
+            return
+        self._announced = url
+        for fn in list(self._url_listeners):
+            threading.Thread(target=self._call_listener, args=(fn, url), name="remote-tunnel-url", daemon=True).start()
+
+    @staticmethod
+    def _call_listener(fn, url):
+        try:
+            fn(url)
+        except Exception as e:
+            print(f"[remote-tunnel] url listener: {type(e).__name__}: {e}", file=sys.stderr)
 
     def autostart(self):
         kill_stray()
@@ -535,6 +594,7 @@ class TunnelManager:
             self.error = ""
             if not self.since:
                 self.since = time.time()
+            self._announce()
         # Matched on the message, not on an ERR level: "failed to request quick Tunnel" is printed bare, without one.
         low = line.lower()
         if "unauthorized" in low or "invalid tunnel secret" in low or "provided tunnel token is not valid" in low:
@@ -551,8 +611,22 @@ class TunnelManager:
         env.pop("TUNNEL_TOKEN", None)
         if self.mode == "token":
             env["TUNNEL_TOKEN"] = str(sec.get("token") or "")
-            return [binary, "tunnel", "--no-autoupdate", "run"], env
-        return [binary, "tunnel", "--no-autoupdate", "--url", local_target()], env
+            return [binary, "tunnel", "--no-autoupdate"] + self._metrics_args() + ["run"], env
+        return [binary, "tunnel", "--no-autoupdate"] + self._metrics_args() + ["--url", local_target()], env
+
+    def _metrics_args(self) -> list:
+        """A fixed local metrics address, so the health watch knows where to ask /ready."""
+        self._metrics_port = free_port()
+        return ["--metrics", f"127.0.0.1:{self._metrics_port}"] if self._metrics_port else []
+
+    def _dead_too_long(self, dead_since: float) -> float:
+        """One health probe. Returns the new dead_since: 0 while healthy or unknown, else when it went dead."""
+        if self.state != "running" or not self._metrics_port:
+            return 0.0
+        n = ready_connections(self._metrics_port)
+        if n is None or n > 0:
+            return 0.0
+        return dead_since or time.time()
 
     def _wait(self, stop: threading.Event, seconds: float) -> bool:
         """Sleep, waking early on stop. True when asked to stop."""
@@ -615,13 +689,22 @@ class TunnelManager:
                 pass
             reader = threading.Thread(target=self._read, args=(proc,), name="remote-tunnel-log", daemon=True)
             reader.start()
-            last_check = time.time()
+            last_check = last_health = time.time()
+            dead_since = 0.0
             while proc.poll() is None and not stop.is_set():
                 if self._wait(stop, 1):
                     break
                 if time.time() - last_check >= PASSWORD_CHECK_EVERY:
                     last_check = time.time()
                     if not cfgmod.auth_enabled() or not enabled():
+                        break
+                if time.time() - last_health >= HEALTH_EVERY:
+                    last_health = time.time()
+                    dead_since = self._dead_too_long(dead_since)
+                    if dead_since and time.time() - dead_since >= DEAD_AFTER:
+                        self.error = localefmt.chu("Đường hầm mất kết nối với Cloudflare, Javis khởi động lại nó.",
+                                                   "The tunnel lost its Cloudflare connection; Javis restarts it.")
+                        print("[remote-tunnel] no ready connection, restarting cloudflared", file=sys.stderr)
                         break
             self._kill_proc()
             reader.join(3)

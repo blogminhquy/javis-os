@@ -937,6 +937,9 @@ def _ly_do_im(bot_cfg: dict, meta: dict, luc=None) -> str:
     if (chatbot_store.skips_by_label(bot_cfg, (meta or {}).get("zalo_labels"))
             and not chatbot_store.ngoai_le_cua(bot_cfg, meta)):
         return "tag_bo_qua"
+    # Listen only: the owner wants the inbox filled and the bot quiet, at every hour.
+    if (bot_cfg or {}).get("listen_only"):
+        return "listen_only"
     if not chatbot_store.trong_gio_truc((bot_cfg or {}).get("gio_truc"), luc):
         return "ngoai_gio_truc"
     return ""
@@ -1369,7 +1372,7 @@ def _make_precheck_fn(bot_id: str):
         if (meta or {}).get("member_join"):
             # A join in a group the bot may not speak in: silent, and not a "call" for the approval queue.
             return {}
-        if ly_do in ("ngoai_gio_truc", "chat_tat"):
+        if ly_do in ("ngoai_gio_truc", "chat_tat", "listen_only"):
             # Outside active hours, or the owner switched the bot off in this chat (Chatbot v5): silent, nothing sent. A message the bot WOULD have answered still goes to the
             # inbox so whoever is on duty reads it in the morning; group chatter in "Tự đánh giá" mode does not,
             # since by day it would not have reached the inbox either.
@@ -1634,19 +1637,45 @@ def ghi_tin_khach(cfg: dict, meta: dict, text: str) -> None:
     """Tin KHÁCH gửi tới bot. Nuốt mọi lỗi: kho hỏng không được làm gãy câu trả lời."""
     try:
         meta = meta or {}
-        conversations.ghi_su_kien(_su_kien_bot(
+        r = conversations.ghi_su_kien(_su_kien_bot(
             cfg, meta, sender_type="customer",
             sender_id=str(meta.get("user_id") or meta.get("username") or ""),
             sender_name=meta.get("user_name") or meta.get("username") or "",
             message_type=conversations.loai_tin_tu_chu(text), text=text,
             external_message_id=str(meta.get("message_id") or ""),
             metadata={"username": meta.get("username") or ""}))
+        # Messenger: a standby copy means another app (the Page Inbox, Haravan...) holds this chat and the bot cannot
+        # answer; the inbox warns the owner. A message delivered to Javis itself clears the warning.
+        if (meta.get("platform") == "messenger" and not meta.get("comment") and r.get("ok") and not r.get("trung")):
+            conversations.mark_held_elsewhere(r["conversation_id"], bool(meta.get("standby")))
     except Exception as e:
         print(f"[chatbot conversations] {type(e).__name__}: {e}", file=sys.stderr)
 
 
 # How far apart a Messenger echo and the stored copy of the same sentence may be and still be one message (seconds).
 ECHO_MATCH_S = 180
+
+# Minutes a Messenger bot stays out of a private chat after a person wrote in it, when the bot never saved its own
+# `nhuong_tay_phut`. Same default as personal Zalo (`zalo_personal_channel.TAY_IM`).
+STAFF_YIELD_DEFAULT_MIN = 10
+
+
+def staff_yield_active(cfg: dict, meta: dict, channel: str, account_id: str, now=None) -> bool:
+    """True when the bot must stay quiet in this Messenger chat because the owner or staff wrote in it a moment ago
+    (in Messenger, Meta Business Suite or the Javis inbox): the bot's `nhuong_tay_phut` minutes, default
+    `STAFF_YIELD_DEFAULT_MIN`, 0 = never. Live private chats only: Page comments and a turn the owner asked for from
+    the inbox (it carries `_kenh`) are answered."""
+    meta = meta or {}
+    if channel != "messenger" or meta.get("_kenh") or meta.get("comment"):
+        return False
+    if str(meta.get("chat_type") or "private") != "private":
+        return False
+    n = chatbot_store.clean_nhuong_tay((cfg or {}).get("nhuong_tay_phut"))
+    window = (STAFF_YIELD_DEFAULT_MIN if n is None else n) * 60
+    if window <= 0:
+        return False
+    last = conversations.last_staff_at(channel, account_id, str(meta.get("chat_id") or ""))
+    return bool(last) and ((time.time() if now is None else now) - last) < window
 
 
 def _same_sentence(a: str, b: str) -> bool:
@@ -2027,6 +2056,9 @@ def _make_answer_fn(bot_id: str):
         aid_luot, kenh_luot = _tai_khoan_cua(cfg, meta or {})
         if conversations.che_do(kenh_luot, aid_luot, chat_id) == "human":
             _rp_retract(rp_dec, "taken_over")
+            return {"text": "", "files": [], "im_lang": True}
+        if staff_yield_active(cfg, meta or {}, kenh_luot, aid_luot):
+            _rp_retract(rp_dec, "staff_yield")
             return {"text": "", "files": [], "im_lang": True}
         _compose_started(on_compose)
 
@@ -2622,6 +2654,8 @@ def _try_reason(code: str) -> str:
         "nhom_chua_bat": ("Nhóm này chưa được cho phép.", "This group is not allowed yet."),
         "nguoi_chua_chon": ("Người này chưa được chọn.", "This person is not selected yet."),
         "chat_tat": ("Bạn đã tắt A.I. ở cuộc chat này.", "You switched the AI off in this chat."),
+        "listen_only": ("Bot đang ở chế độ Chỉ ghi: tin khách vào Hộp thư, bot không trả lời.",
+                        "The bot is in listen-only mode: customer messages go to the inbox, the bot does not reply."),
         "ngoai_gio_truc": ("Đang ngoài giờ trực của bot. Tin thật lúc này không được trả lời, chỉ vào Hộp thư.",
                            "Outside the bot's active hours. A real message now gets no reply and only goes to the inbox."),
         "khong_giong_cau_hoi": ("Tin này không giống một câu hỏi hay lời nhờ giúp, nên bot không tự chen vào.",

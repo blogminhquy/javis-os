@@ -169,6 +169,57 @@ async def set_app_webhook(client, app_id: str, app_secret: str, callback_url: st
     return {"ok": True, "feed": False}
 
 
+QUICK_HOST_SUFFIX = ".trycloudflare.com"
+
+
+def _is_quick(url: str) -> bool:
+    host = (httpx.URL(url).host if url else "") or ""
+    return host.endswith(QUICK_HOST_SUFFIX)
+
+
+async def _follow_one(client, read, write, app_id: str, secret: str, callback_url: str, verify_token: str) -> dict:
+    """Move one app subscription (page or instagram) if it sat on an old quick address or none.
+    {"moved": bool, "error": str}."""
+    wh = await read(client, app_id, secret)
+    if not wh.get("ok"):
+        return {"moved": False, "error": wh.get("error", "")}
+    cur = wh.get("callback_url", "")
+    if cur.rstrip("/") == callback_url.rstrip("/") or (cur and not _is_quick(cur)):
+        return {"moved": False, "error": ""}
+    r = await write(client, app_id, secret, callback_url, verify_token)
+    return {"moved": bool(r.get("ok")), "error": "" if r.get("ok") else r.get("error", "")}
+
+
+async def follow_quick_tunnel(client, accounts: list, callback_url: str, verify_token: str) -> dict:
+    """A quick tunnel came back on a new trycloudflare.com address: point every Meta app that was on an old quick
+    address (or on none) at the new one, and re-subscribe its Pages. The page and instagram subscriptions are
+    checked separately, so a failed one is retried on the next call even when the other already moved. An app on
+    any other address (a real domain, a named tunnel) is left alone. `accounts` holds
+    {"id", "page_id", "token", "app_id", "app_secret", "ig"}. Returns {"moved": [app ids], "errors": [text]}."""
+    moved, errors, seen = [], [], set()
+    for a in accounts:
+        app_id, secret = a.get("app_id", ""), a.get("app_secret", "")
+        if not app_id or not secret or app_id in seen:
+            continue
+        seen.add(app_id)
+        r = await _follow_one(client, app_webhook, set_app_webhook, app_id, secret, callback_url, verify_token)
+        if r["error"]:
+            errors.append(r["error"])
+        if r["moved"]:
+            moved.append(app_id)
+        if any(x.get("ig") for x in accounts if x.get("app_id") == app_id):
+            ri = await _follow_one(client, instagram_webhook, set_instagram_webhook, app_id, secret,
+                                   callback_url, verify_token)
+            if ri["error"]:
+                errors.append(ri["error"])
+    for a in accounts:
+        if a.get("app_id") in moved and a.get("page_id") and a.get("token"):
+            r = await subscribe_page(client, a["page_id"], a["token"])
+            if not r.get("ok"):
+                errors.append(r.get("error", ""))
+    return {"moved": moved, "errors": [e for e in errors if e]}
+
+
 async def page_subscription(client, page_id: str, page_token: str, app_id: str) -> dict:
     d = await _get(client, f"{page_id}/subscribed_apps", {"access_token": page_token})
     if d.get("error"):

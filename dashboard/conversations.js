@@ -1510,7 +1510,7 @@
           esc(V ? V.whoSentence(c) : "") + '</span></span>' +
         (threeModes ? (c.mode === "human" ? '<button type="button" class="ib-link ib-back-ai">' + esc(window.t("ib.back_ai")) + '</button>' : "") : bar) +
       '</div>' +
-      '<div class="ht-msgs">' + nutTinCu() + _msgs.map(veTin).join("") + renderSilenceLine(c) + '</div>' +
+      '<div class="ht-msgs">' + nutTinCu() + _msgs.map(veTin).join("") + renderSilenceLine(c) + renderHeldLine(c) + '</div>' +
       (guiDuoc ? veCompose(c) : '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>') +
       '<div class="ib-msheet"' + (_msheet && threeModes ? "" : " hidden") + '>' + (_msheet && threeModes && V ? V.modeSheetHtml(c, ic) : "") + '</div>';
     box.querySelector(".ht-back").onclick = dongThread;
@@ -2107,6 +2107,16 @@
     if (loi && d.text) { var ta = _host && _host.querySelector(".ht-thread .ib-cin textarea"); if (ta) ta.value = d.text; }
     else if (!loi && !d.silent) toast(window.t(d.taught ? "ib.t_sent_taught" : "ib.t_sent"));
     refreshChat();
+  }
+
+  // Messenger handed this chat to another app (the Page Inbox, Haravan...): its messages reach Javis only as standby
+  // copies, so the bot records them and cannot answer. The mark comes from the server; it is shown for 24 hours, the
+  // window the other app keeps the chat after the customer's last message.
+  function renderHeldLine(c) {
+    var h = c && c.metadata && c.metadata.held_elsewhere;
+    var at = h && Number(h.at);
+    if (!at || Date.now() / 1000 - at > 86400) return "";
+    return '<div class="ht-silent ht-held">' + ic("triangle-alert") + ' <span>' + esc(window.t("ht.held_elsewhere")) + '</span></div>';
   }
 
   // "Bot im: lý do" ngay dưới tin khách cuối, lấy từ nhật ký bộ phán xử, khỏi phải mở menu Bộ phán xử để hỏi vì sao. When the

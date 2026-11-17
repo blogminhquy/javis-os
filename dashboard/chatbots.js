@@ -789,6 +789,7 @@
   function tomTatDoiTuong(b) {
     var s = tomTatAi(b), g = b.gio_truc || {}, nl = (b.ngoai_le || []).length;
     if (g.tu && g.den) s += " · " + window.t("cb.tt_gio_truc", { tu: g.tu, den: g.den });
+    if (b.listen_only) s += " · " + window.t("cb.tt_listen_only");
     // Per-chat exceptions (0.172.0) on the card: a chat running at another level must never be invisible.
     return nl ? s + " · " + window.t("cb.tt_ngoai_le", { n: nl }) : s;
   }
@@ -1022,6 +1023,10 @@
           // 5. Active hours (0.130.0). Both empty = all day. Outside them the bot stays silent and the message
           // still lands in the inbox; an end earlier than the start runs past midnight (08:00 to 02:00).
           '<div class="cb-sec">' + voiInfo(secH("alarm-clock", "cb.s_gio_truc")) +
+            // Listen only: every customer message still lands in the inbox, the bot never replies.
+            '<label class="cb-gio-truc" for="cbListenOnly"><input type="checkbox" id="cbListenOnly"' +
+              (b && b.listen_only ? " checked" : "") + '> ' + esc(window.t("cb.listen_only")) + infoBtn() + '</label>' +
+            infoBody(esc(window.t("cb.hint_listen_only"))) +
             '<div class="cb-gio-truc">' +
               '<label>' + esc(window.t("cb.gio_tu")) +
                 ' <input type="time" id="cbGioTu" value="' + esc(((b && b.gio_truc) || {}).tu || "") + '"></label>' +
@@ -1029,7 +1034,7 @@
                 ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
             '</div>' +
             infoBody(esc(window.t("cb.hint_gio_truc"))) +
-            // Owner yield (0.172.0, personal Zalo only): minutes the bot stays out of a chat after the owner types into it
+            // Owner yield (0.172.0 personal Zalo, Messenger since): minutes the bot stays out of a chat after the owner types into it
             // by hand; 0 = never. Left blank = not set: the channel default (10 minutes, groups silent as before), shown
             // as a placeholder so saving the form does not turn an unset bot into an explicit 10.
             '<div class="cb-gio-truc">' +
@@ -1536,6 +1541,7 @@
                     nhuong_tay_phut: nhuong, ngoai_le: JSON.stringify(nlDs),
                     nhan_ket_ban: coZaloCaNhan() && (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0",
                     group_typing: (box.querySelector("#cbGroupTyping") || {}).checked === false ? "0" : "1",
+                    listen_only: (box.querySelector("#cbListenOnly") || {}).checked ? "1" : "0",
                     skip_labels: coZaloCaNhan() ? tagLuu() : "[]" };
       if (nang.length) chung.xac_nhan_ngoai_le = "1";
       try {

@@ -1558,7 +1558,7 @@
   "cb.lb_muc": "Bot được làm gì",
   "cb.nhuong_tay": "Nhường khi bạn nhắn tay (phút)",
   "cb.ph_nhuong_tay": "Mặc định 10",
-  "cb.hint_nhuong_tay": "Chỉ Zalo cá nhân. Bạn vừa tự nhắn vào một cuộc chat bằng nick này thì bot im chừng ấy phút ở cuộc chat đó, tính từ tin bạn nhắn tay cuối; hết thời gian mà bạn không nhắn thêm thì bot trả lời các tin khách đang chờ. Để trống = mặc định 10 phút, nhóm im suốt quãng đó như trước. Ghi một số thì ở nhóm, tin tag thẳng nick được trả lời ngay và tin khác được trả lời khi hết thời gian. Đặt 0 để bot không bao giờ im vì bạn nhắn tay.",
+  "cb.hint_nhuong_tay": "Zalo cá nhân và Messenger. Messenger: bạn hoặc nhân viên vừa trả lời khách (trong Messenger, Meta Business Suite hay Hộp thư Javis) thì bot im chừng ấy phút ở cuộc chat đó, tính từ câu trả lời cuối; hết thời gian thì bot trả lời tin khách nhắn sau đó, mặc định 10 phút. Zalo cá nhân: bạn vừa tự nhắn vào một cuộc chat bằng nick này thì bot im chừng ấy phút ở cuộc chat đó, tính từ tin bạn nhắn tay cuối; hết thời gian mà bạn không nhắn thêm thì bot trả lời các tin khách đang chờ. Để trống = mặc định 10 phút, nhóm im suốt quãng đó như trước. Ghi một số thì ở nhóm, tin tag thẳng nick được trả lời ngay và tin khác được trả lời khi hết thời gian. Đặt 0 để bot không bao giờ im vì bạn nhắn tay.",
   "cb.nhuong_tay_sai": "Số phút nhường phải là số nguyên từ 0 đến 240.",
   "cb.nhan_ket_ban": "Tự nhận lời mời kết bạn và đọc lời giới thiệu",
   "cb.hint_nhan_ket_ban": "Mỗi giờ một lần, trong giờ trực, Javis nhận các lời mời kết bạn đang chờ, lưu lời nhắn kèm lời mời vào Hộp thư như tin đầu tiên của người đó và đưa cho bot: giới thiệu đủ thì bot không hỏi lại, thiếu thì bot hỏi tiếp phần còn thiếu. Không chạy khi bot chỉ trả lời người được chọn, hoặc khi bot ở mức Được ghi trở lên. Người được nhận thành bạn bè thật của nick này và xem được những gì bạn bè xem được (nhật ký, bài đăng), nên chỉ bật cho nick dùng để tiếp khách.",
@@ -3771,6 +3771,7 @@
   "ht.react_any": "{who} thả cảm xúc vào một tin",
   "ht.react_off": "{who} bỏ cảm xúc",
   "ht.nhom": "Nhóm",
+  "ht.held_elsewhere": "Facebook giao chat này cho app khác nên bot chỉ ghi tin. Đổi app nhận tin của Page sang Javis.",
   "ht.silent": "Bot im: {why}",
   "ht.silent_why": "Vì sao",
   "ht.act_fail": "Không làm được: {err}",
@@ -7545,5 +7546,8 @@
   "sec.d_wrong_pw": "sai mật khẩu",
   "sec.d_pw": "bằng mật khẩu",
   "sec.d_pw_2fa": "mật khẩu + 2FA",
-  "sec.d_setup": "lần đầu tạo"
+  "sec.d_setup": "lần đầu tạo",
+  "cb.listen_only": "Chỉ ghi, không trả lời",
+  "cb.hint_listen_only": "Bật thì mọi tin khách vẫn vào Hộp thư để bạn và Javis đọc (gói CRM đếm được khách chờ trả lời), nhưng bot không bao giờ trả lời, ở mọi giờ. Bình luận Trang ở chế độ Trả lời cũng im. Bạn vẫn tự trả lời hoặc bấm Gợi ý câu trả lời trong Hộp thư được.",
+  "cb.tt_listen_only": "chỉ ghi"
 }

@@ -69,9 +69,11 @@ MAX_MSG = 1900               # Messenger allows 2000; keep a margin for multi-by
 MAX_DEDUPE = 4000
 MAX_DOWNLOAD_MB = 20
 TYPING_EVERY = 15.0          # typing_on lasts about 20 s or until the next message
-SUBSCRIBED_FIELDS = "messages,messaging_postbacks,message_echoes"
+SUBSCRIBED_FIELDS = "messages,messaging_postbacks,message_echoes,standby"
 # What the bot cannot work without. `message_echoes` (the Page's own outgoing messages, so replies staff type in
 # Facebook or Meta Business Suite reach the inbox) is subscribed too, but a webhook without it still answers customers.
+# `standby`: messages of a conversation another app holds (Haravan Funnel, the Page Inbox after "talk to staff"). Meta
+# sends them to every other app only as standby events, so without it those customers never reach the Javis inbox.
 REQUIRED_FIELDS = ("messages", "messaging_postbacks")
 FEED_FIELD = "feed"           # Page comments (0.434.0); optional, the bot works without it
 COMMENT_PREFIX = "cmt:"       # conversation id of a comment thread: cmt:<top-level comment id>
@@ -301,7 +303,7 @@ async def handle_webhook(payload: dict) -> int:
         events = entry.get("messaging") or []
         changes = [c for c in (entry.get("changes") or []) if (c or {}).get("field") == FEED_FIELD]
         if not bot:
-            if events:
+            if events or entry.get("standby"):
                 print(f"[messenger] event for Page {pid} but no bot runs for it", file=sys.stderr)
             continue
         for ch in changes:
@@ -309,18 +311,30 @@ async def handle_webhook(payload: dict) -> int:
             if com:
                 asyncio.create_task(bot._safe_comment(com))
                 n += 1
-        for ev in events:
-            msg = ev.get("message") or {}
-            if msg.get("is_echo"):
-                # The Page's own outgoing message: a staff reply typed outside Javis goes to the inbox, never to a turn.
-                if not msg.get("is_deleted"):
-                    asyncio.create_task(bot._safe_echo(ev))
-                    n += 1
-                continue
-            if not msg and not ev.get("postback"):
-                continue
-            asyncio.create_task(bot._safe_event(ev))
+        n += _route_messaging(bot, events)
+        # Standby: the conversation belongs to another app, so Javis records it for the inbox and never answers.
+        n += _route_messaging(bot, entry.get("standby") or [], standby=True)
+    return n
+
+
+def _route_messaging(bot, events, instagram: bool = False, standby: bool = False) -> int:
+    """Hand each messaging event of one entry to its bot; returns how many were handed over."""
+    n = 0
+    echo_kw = {"instagram": True} if instagram else {}
+    event_kw = dict(echo_kw, **({"standby": True} if standby else {}))
+    for ev in events:
+        msg = ev.get("message") or {}
+        if msg.get("is_deleted"):
+            continue
+        if msg.get("is_echo"):
+            # The Page's own outgoing message: a staff reply typed outside Javis goes to the inbox, never to a turn.
+            asyncio.create_task(bot._safe_echo(ev, **echo_kw))
             n += 1
+            continue
+        if not msg and not ev.get("postback"):
+            continue
+        asyncio.create_task(bot._safe_event(ev, **event_kw))
+        n += 1
     return n
 
 
@@ -331,7 +345,7 @@ def _handle_instagram(payload: dict) -> int:
         ig = str(entry.get("id") or "")
         bot = _IG_REGISTRY.get(ig)
         if not bot:
-            if entry.get("messaging") or entry.get("changes"):
+            if entry.get("messaging") or entry.get("standby") or entry.get("changes"):
                 print(f"[messenger] Instagram event for {ig} but no bot runs for it", file=sys.stderr)
             continue
         for ch in entry.get("changes") or []:
@@ -341,18 +355,8 @@ def _handle_instagram(payload: dict) -> int:
             if com:
                 asyncio.create_task(bot._safe_comment(com))
                 n += 1
-        for ev in entry.get("messaging") or []:
-            msg = ev.get("message") or {}
-            if msg.get("is_deleted"):
-                continue
-            if msg.get("is_echo"):
-                asyncio.create_task(bot._safe_echo(ev, instagram=True))
-                n += 1
-                continue
-            if not msg and not ev.get("postback"):
-                continue
-            asyncio.create_task(bot._safe_event(ev, instagram=True))
-            n += 1
+        n += _route_messaging(bot, entry.get("messaging") or [], instagram=True)
+        n += _route_messaging(bot, entry.get("standby") or [], instagram=True, standby=True)
     return n
 
 
@@ -699,13 +703,15 @@ class MessengerBot(HangLuot):
             parts.append(str(qr))
         return "\n".join(parts).strip()
 
-    async def _safe_event(self, ev, instagram: bool = False):
+    async def _safe_event(self, ev, instagram: bool = False, standby: bool = False):
         try:
-            await self._on_event(ev, instagram=instagram)
+            await self._on_event(ev, instagram=instagram, standby=standby)
         except Exception as e:
             print(f"[messenger event] {type(e).__name__}: {e}", file=sys.stderr)
 
-    async def _on_event(self, ev, instagram: bool = False):
+    async def _on_event(self, ev, instagram: bool = False, standby: bool = False):
+        """One customer message. `standby`: another app holds the conversation, so it is recorded for the inbox only:
+        no reply, no seen mark, no typing, nothing sent to the customer."""
         msg = ev.get("message") or {}
         mid = msg.get("mid") or (ev.get("postback") or {}).get("mid") or ""
         if self._stop or self._seen_before(mid):
@@ -728,6 +734,13 @@ class MessengerBot(HangLuot):
         }
         if instagram:
             meta["instagram"] = True
+        if standby:
+            text = await self._event_text(client, ev, chat)
+            if text:
+                meta["log_only"] = True
+                meta["standby"] = True
+                await self.answer_fn(text, meta, None)
+            return
         if self.chat_ids and chat not in self.chat_ids:
             await self._send(client, chat, localefmt.chu(
                 "Bạn không có quyền dùng bot Javis này.", "You are not allowed to use this Javis bot."))

@@ -670,6 +670,8 @@ def _public(b: dict) -> dict:
     out["skip_labels"] = clean_skip_labels(out.get("skip_labels"))
     # Giờ trực (0.130.0). Thiếu khoá = bản ghi cũ = cả ngày; giá trị hỏng cũng đọc là cả ngày (xem `trong_gio_truc`).
     out["gio_truc"] = parse_gio_truc(out.get("gio_truc"))[0] or {}
+    # Listen only: every message still lands in the inbox, the bot never answers. Missing key = old record = off.
+    out["listen_only"] = clean_bat(out.get("listen_only"))
     # Per-chat exceptions (0.172.0). Missing key = old record = none; a broken value also reads as none (narrowest).
     out["ngoai_le"] = parse_ngoai_le(out.get("ngoai_le"))[0] or []
     # Bộ phán xử hội thoại nhóm (0.65.0). Thiếu khoá = bản ghi cũ = tắt; có khoá mà hỏng = phía hẹp nhất.
@@ -1042,6 +1044,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             # Tự nhận lời mời kết bạn và đọc lời giới thiệu (0.172.0, chỉ Zalo cá nhân). Mặc định TẮT: nhận kết bạn
             # là hành động ra ngoài dưới tên chủ, chỉ bật khi chủ chọn.
             "nhan_ket_ban": clean_bat(data.get("nhan_ket_ban")),
+            # Listen only: record every customer message in the inbox and never reply. Default OFF.
+            "listen_only": clean_bat(data.get("listen_only")),
             # "Đang soạn tin" in groups once the bot decided to answer (personal Zalo, 09/11/2026). Default ON.
             "group_typing": group_typing_on(data),
             # Zalo chat labels the bot stays out of (0.281.0, personal Zalo only), e.g. family and friends.
@@ -1088,7 +1092,7 @@ _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "han
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
               "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels", "blocked",
-              "group_typing")
+              "group_typing", "listen_only")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -1193,6 +1197,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["ngoai_le"] = ngoai_le_moi     # checked at the top, risk gate included
                 elif k == "nhan_ket_ban":
                     b["nhan_ket_ban"] = clean_bat(v)
+                elif k == "listen_only":
+                    b["listen_only"] = clean_bat(v)
                 elif k == "group_typing":
                     b["group_typing"] = group_typing_on({"group_typing": v})
                 elif k == "skip_labels":

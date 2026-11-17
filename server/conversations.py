@@ -703,6 +703,21 @@ def own_messages_between(channel: str, account_id: str, external_chat_id: str, s
         return []
 
 
+def last_staff_at(channel: str, account_id: str, external_chat_id: str) -> float:
+    """When a person (the owner or staff, from the inbox or outside Javis) last wrote in a chat; 0 when never. Never
+    raises."""
+    try:
+        with _lock:
+            r = _conn().execute(
+                "SELECT MAX(m.created_at) FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? AND m.sender_type='human'",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id))).fetchone()
+        return float((r and r[0]) or 0)
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] last staff read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return 0.0
+
+
 def set_message_id(row_id: int, external_message_id: str) -> bool:
     """Give a stored message its channel id (see `own_messages_without_id`). False when the id is empty, already used in the
     same conversation, or the row already has one. Never raises."""
@@ -1433,6 +1448,32 @@ def _set_meta_key(conversation_id: int, key: str, value) -> bool:
                    (_json(meta), _now(), int(conversation_id)))
         db.commit()
     return True
+
+
+# Conversation metadata key: the channel hands this chat to another app (Messenger standby), so the bot only records
+# it. Holds {"at": <time of the last such message>}; a message delivered to Javis itself removes it.
+HELD_ELSEWHERE = "held_elsewhere"
+
+
+def mark_held_elsewhere(conversation_id: int, held: bool) -> None:
+    """Record whether the last customer message of a conversation reached Javis only as a standby copy. Writes only
+    when the mark changes (or to refresh its time), so an ordinary message costs one read."""
+    with _lock:
+        db = _conn()
+        r = db.execute("SELECT metadata_json FROM conversations WHERE id=?", (int(conversation_id),)).fetchone()
+        if r is None:
+            return
+        meta = _loads(r["metadata_json"], {})
+        if not isinstance(meta, dict):
+            meta = {}
+        if held:
+            meta[HELD_ELSEWHERE] = {"at": _now()}
+        elif HELD_ELSEWHERE in meta:
+            meta.pop(HELD_ELSEWHERE)
+        else:
+            return
+        db.execute("UPDATE conversations SET metadata_json=? WHERE id=?", (_json(meta), int(conversation_id)))
+        db.commit()
 
 
 def conversation_id_of(channel: str, account_id: str, external_chat_id: str) -> int:

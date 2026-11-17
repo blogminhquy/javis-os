@@ -34321,6 +34321,47 @@ import routes.remote_access as remote_access_routes  # noqa: E402
 remote_access_routes.register(app, remote_access_routes.RemoteAccessDeps(browser_session_error=_doi_phien_that))
 
 
+def _ms_follow_tunnel(base: str) -> None:
+    """A quick tunnel came up on a new address (2026-11-17): move the Messenger webhook there, so Meta does not keep
+    calling a dead trycloudflare.com name until the owner clicks Repair. Runs on the tunnel's worker thread; tries
+    a few times because a fresh quick address takes a moment to resolve, and Meta checks it before accepting."""
+    import httpx
+    accs = []
+    for a in channel_accounts.list_accounts("messenger"):
+        a2, cr = _ms_account_creds(a.get("id", ""))
+        if not a2 or not cr or not cr.get("page_id"):
+            continue
+        meta = a2.get("meta") or {}
+        accs.append({"id": a2["id"], "page_id": cr["page_id"], "token": cr.get("access_token", ""),
+                     "app_id": meta.get("app_id", ""), "app_secret": cr.get("app_secret", ""),
+                     "ig": bool(meta.get("ig_id"))})
+    if not accs:
+        return
+    url = base.rstrip("/") + "/messenger/webhook"
+
+    async def run():
+        async with httpx.AsyncClient(timeout=25) as c:
+            for wait_s in (8, 20, 60, 120):
+                await asyncio.sleep(wait_s)
+                res = await messenger_setup.follow_quick_tunnel(c, accs, url, _ms_verify_token())
+                if res["moved"]:
+                    print(f"[messenger] webhook moved to {url} for {len(res['moved'])} app(s)", file=sys.stderr)
+                    for a in accs:
+                        if a["app_id"] in res["moved"]:
+                            cur = channel_accounts.get_account(a["id"]) or {}
+                            channel_accounts.update_account(a["id"], {"meta": {**(cur.get("meta") or {}),
+                                                                               "webhook_url": url}})
+                if not res["errors"]:
+                    return
+                print(f"[messenger] webhook move: {'; '.join(res['errors'])[:300]}", file=sys.stderr)
+
+    asyncio.run(run())
+
+
+import remote_tunnel  # noqa: E402
+remote_tunnel.MANAGER.add_url_listener(_ms_follow_tunnel)
+
+
 @app.get("/voice/elevenlabs/voices")
 async def voice_elevenlabs_voices():
     """The ElevenLabs account's voices by name for the Voice settings (0.255.0), so nobody has to

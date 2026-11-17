@@ -193,7 +193,7 @@ check("token mode reaches running with the owner's hostname",
 last = calls.read_text().splitlines()[-1]
 argv, env_token = last.split("|", 1)
 check("token passed through TUNNEL_TOKEN", env_token == TOKEN)
-check("token NOT on the command line", TOKEN not in argv and argv.startswith("tunnel --no-autoupdate run"), argv)
+check("token NOT on the command line", TOKEN not in argv and argv.startswith("tunnel --no-autoupdate") and argv.endswith(" run"), argv)
 st = rt.MANAGER.status()
 check("status shows the tunnel id, never the token", st["has_token"] and st["tunnel_id"] == "1234abcd"
       and TOKEN not in json.dumps(st))
