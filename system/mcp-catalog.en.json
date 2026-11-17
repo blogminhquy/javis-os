@@ -143,6 +143,19 @@
     "adc_json": {"label": "Or paste an ADC file if you already ran gcloud yourself (leave empty if you sign in above)", "placeholder": "e.g. { \"type\": \"authorized_user\", \"refresh_token\": ... }"}
    }
   },
+  "posthog": {
+   "description": "Web and product numbers through PostHog's official MCP: traffic, conversion funnels, retention, events, SQL queries (HogQL), dashboards, insights, errors, surveys, experiments and feature flags. Paste a personal API key and you are done.",
+   "guide": "One-time setup, about 2 minutes:\n1. Sign in to PostHog and open Personal API keys (the link below already picks the MCP Server preset).\n2. Create a new key (Create personal API key), name it e.g. Javis, keep the MCP Server preset and pick the project whose numbers you want.\n3. Copy the phx_... key RIGHT AWAY (it is not shown again), paste it below and press Connect.\n\nEach key only sees the project picked when it was created. For several projects add several accounts, one key per project.\nThis card points to PostHog Cloud, US region (us.posthog.com).\n\nIf the key leaks, go back to that page and press Roll or Delete.",
+   "fields": {
+    "api_key": {"label": "Personal API key (PostHog)", "placeholder": "e.g. phx_..."}
+   },
+   "steps": [
+    {"text": "Open PostHog's Personal API keys page; the MCP Server preset is already picked.", "link_label": "Open the key page"},
+    {"text": "Create a new key (Create personal API key), name it e.g. Javis, keep the MCP Server preset and pick the project whose numbers you want. One key per project."},
+    {"text": "Copy the phx_... key as soon as it shows (it is not shown again), paste it in the box below and press Connect.", "link_label": "PostHog's guide"}
+   ],
+   "risk": "Read-only (default): Javis only reads numbers: insights, dashboards, SQL queries (HogQL), events, people, errors, survey and experiment results. Safe.\n\nDraft: also creates and edits dashboards, insights, annotations, actions and error statuses inside PostHog. Your customers see nothing different.\n\nFull access: Javis can switch feature flags, start or stop experiments, launch surveys, turn on workflows that SEND REAL MESSAGES to your users,\npush data out (batch exports, destinations) and DELETE data.\nThese change what your customers see at once, and many cannot be undone.\n\nPostHog has about 1,000 tools and keeps adding more. Any tool Javis does not recognise as a read counts as a write, so Read-only blocks it."
+  },
   "google-calendar": {
    "description": "Google Calendar through Google's official MCP: view calendars, find free time, create and edit events and reminders. Sign in to Google inside the dashboard; works on a VPS too. Needs a one-time OAuth client plus Google's Developer Preview enrolment (~10 minutes).",
    "group_line": "View calendars, find free time, create and edit events. Sign in inside the dashboard; works on a VPS too.",

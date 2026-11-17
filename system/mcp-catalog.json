@@ -595,6 +595,64 @@
       },
       "default_perm": "readonly"
     },
+    {
+      "id": "posthog",
+      "name": "PostHog",
+      "icon": "trending-up",
+      "category": "Marketing",
+      "description": "Số liệu web và sản phẩm qua MCP chính chủ của PostHog: lượt truy cập, phễu chuyển đổi, tỉ lệ quay lại, sự kiện, truy vấn SQL (HogQL), dashboard, insight, lỗi, khảo sát, thí nghiệm, feature flag. Dán Personal API key là xong.",
+      "status": "beta",
+      "transport": "http",
+      "url": "https://mcp.posthog.com/mcp?mode=tools",
+      "auth": {
+        "type": "apikey",
+        "fields": [
+          {
+            "key": "api_key",
+            "label": "Personal API key (PostHog)",
+            "placeholder": "Ví dụ: phx_...",
+            "header": "Authorization: Bearer {api_key}"
+          }
+        ],
+        "guide": "Làm 1 lần, khoảng 2 phút:\n1. Đăng nhập PostHog, mở trang Personal API keys (link bên dưới đã chọn sẵn mẫu MCP Server).\n2. Tạo key mới (Create personal API key), đặt tên vd Javis, giữ mẫu MCP Server và chọn đúng project cần xem số.\n3. Copy key dạng phx_... NGAY lúc nó hiện ra (đóng là không xem lại được), dán vào ô dưới rồi bấm Kết nối.\n\nMỗi key chỉ thấy project đã chọn lúc tạo. Nhiều project thì thêm nhiều tài khoản, mỗi project một key.\nThẻ này trỏ tới PostHog Cloud vùng US (us.posthog.com).\n\nLỡ lộ key thì vào lại trang đó bấm Roll hoặc Delete.",
+        "guide_url": "https://posthog.com/docs/model-context-protocol",
+        "steps": [
+          {
+            "text": "Mở trang Personal API keys của PostHog, mẫu MCP Server đã được chọn sẵn.",
+            "link": "https://us.posthog.com/settings/user-api-keys?preset=mcp_server",
+            "link_label": "Mở trang tạo key"
+          },
+          {
+            "text": "Tạo key mới (Create personal API key), đặt tên vd Javis, giữ mẫu MCP Server và chọn đúng project cần xem số. Nhiều project thì mỗi project một key."
+          },
+          {
+            "text": "Copy key dạng phx_... ngay khi hiện ra (đóng là không xem lại được), dán vào ô bên dưới rồi bấm Kết nối.",
+            "link": "https://posthog.com/docs/model-context-protocol",
+            "link_label": "Hướng dẫn của PostHog"
+          }
+        ]
+      },
+      "tool_meta": {
+        "read": [
+          "*-get", "*-get-*", "get-*", "*-list", "*-list-*", "list-*", "*-retrieve", "*-retrieve-*",
+          "query-*", "*-search", "docs-*", "*-stats", "*-results",
+          "execute-sql", "read-data-schema", "insight-query", "insight-trust-check", "explain-chart",
+          "dashboard-insights-run", "generate-app-url", "external-data-sources-db-schema",
+          "external-data-sources-jobs", "external-data-sync-logs", "workflows-blast-radius"
+        ],
+        "danger": [
+          "*delete*", "*destroy*", "*-execute", "*bulk*",
+          "*feature-flag*", "early-access-feature*", "scheduled-changes-*", "experiment*", "survey*", "cohorts-*",
+          "workflows-*", "messaging-*", "conversations-*", "*send*", "*alert*", "*publish*", "*promote*",
+          "batch-export*", "event-stream*", "cdp-functions-*", "hog-function*",
+          "*-run", "*-run-*", "billing-*", "access-control-*", "*invite*", "*member*", "*api-key*",
+          "identity-provider*", "organization*", "posthog-connection-call", "agent-feedback"
+        ],
+        "write": ["*"]
+      },
+      "default_perm": "readonly",
+      "risk": "Mức Chỉ đọc (mặc định): Javis chỉ xem số liệu, gồm insight, dashboard, truy vấn SQL (HogQL), sự kiện, người dùng, lỗi, kết quả khảo sát và thí nghiệm. An toàn.\n\nMức Ghi nháp: thêm việc tạo và sửa dashboard, insight, chú thích (annotation), action, trạng thái lỗi bên trong PostHog. Khách của bạn không thấy gì khác.\n\nMức Toàn quyền: Javis được bật tắt feature flag, chạy hoặc dừng thí nghiệm, phát khảo sát, bật workflow GỬI TIN THẬT tới người dùng của bạn,\nđẩy dữ liệu ra ngoài (batch export, destination) và XOÁ dữ liệu.\nNhững việc này đổi ngay thứ khách của bạn nhìn thấy, nhiều việc không hoàn tác được.\n\nPostHog có khoảng 1.000 công cụ và thêm mới liên tục. Công cụ nào Javis không nhận ra là đọc thì bị coi là ghi, nên ở mức Chỉ đọc nó bị chặn."
+    },
         {
       "id": "google-calendar",
       "name": "Google Calendar",
