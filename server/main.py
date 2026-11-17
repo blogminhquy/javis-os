@@ -14645,7 +14645,7 @@ def workflow_capability_guard(node, route_entry, approved: bool) -> str:
 
 
 async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tools=None,
-                                       session_id=""):
+                                       session_id="", mode=None):
     """Duyệt xong thì chạy tiếp workflow đang dừng. Yield event như /workflows/run."""
     graph = load_workflow_graph(brain, slug)
     if graph is None:
@@ -14657,7 +14657,7 @@ async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tool
                                                          "This task was not found or cannot be resumed.")}
         return
     canary = _get_workflow_canary(brain)
-    mk, agent_sysprompt, log_run, learn = _workflow_agent_helpers(brain, tools)
+    mk, agent_sysprompt, log_run, learn = _workflow_agent_helpers(brain, tools, mode)
     queue: asyncio.Queue = asyncio.Queue()
 
     async def sink(event):
@@ -14714,14 +14714,14 @@ async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tool
 
 
 async def execute_workflow_resume(brain, slug, task_id, node_id, code, tools=None,
-                                  session_id="", source="other"):
+                                  session_id="", source="other", mode=None):
     """Chạy tiếp lần đang chờ duyệt, ghi vào ĐÚNG bản ghi lịch sử đang `waiting`."""
     import workflow_runs
     cu = workflow_runs.get_store().tim_theo_task(task_id)
     wf_file = _workflows_dir(brain) / f"{slug}.md"
     meta, _ = _read_md(wf_file) if wf_file.exists() else ({}, "")
     async for ev in _ghi_lich_su(
-            _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tools, session_id),
+            _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tools, session_id, mode),
             brain=_brain_key(brain), slug=slug, name=meta.get("name", slug), input=(cu or {}).get("input", ""),
             source=source, session_id=session_id or (cu or {}).get("session_id", ""),
             run_id=(cu or {}).get("id")):
@@ -15568,6 +15568,7 @@ tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,
     execute_workflow=execute_workflow,
+    execute_workflow_resume=execute_workflow_resume,   # 17/11/2026: an approval answered on the Tasks page runs on
     workflows_dir=_workflows_dir,
     build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     aux_model=_aux_model,
