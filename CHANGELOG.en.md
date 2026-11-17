@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.584.2] - 2026-11-18
+### Fixed
+- **The team Info tab no longer stays on "Loading...".** A team that opened on Jobs now shows its images, files and links as soon as you switch to Info.
+
 ## [0.584.1] - 2026-11-18
 ### Fixed
 - **Locking the phone no longer hides the answer.** Ask on the phone, lock it, and when you come back Javis pulls in the answer that finished while you were away, no need to ask again or keep the screen on.
