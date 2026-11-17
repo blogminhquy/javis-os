@@ -209,7 +209,12 @@ Hai tính năng đi kèm:
 - **Trinh sát (`javis_scout`).** Việc đọc nhiều nguồn có thể được model chính giao cho **model việc nền** bạn đã chọn ở trang Models. Trinh sát chỉ được đọc, và chỉ kết luận quay về khung chat. Không chạy được thì model chính tự làm như trước.
 - **Công thức cho việc định kỳ.** Sau hai lần chạy giống nhau ở hai ngày khác nhau, Javis tự lấy sẵn dữ liệu trước khi model bắt đầu. Javis chỉ làm vậy khi mọi cách hiểu về ngày tháng đều cho cùng một kết quả trong hôm đó, còn không thì chạy như cũ. Chỉ các lệnh đọc rõ ràng mới được lặp lại, và việc nào dùng kỳ không ở dạng `YYYY-MM-DD` (tháng `2026-11`, số tuần, `01/11/2026`) thì không bao giờ được ghi thành công thức. Nếu model vẫn phải tự gọi lại nguồn sau khi đã có dữ liệu lấy sẵn, công thức bị loại sau hai lần. Mỗi công thức là một file trong `<brain>/Javis/recipes/`, xoá file là quên.
 
-Mục **Đề xuất** cuối trang có một dòng cho biết 7 ngày qua kết quả tool đã giữ được bao nhiêu phần trăm ngoài hội thoại. Muốn tắt: chọn mức tiết kiệm **Tắt**, hoặc xem các biến `JAVIS_TOOL_RESULT_*`, `JAVIS_SCOUT`, `JAVIS_RECIPES` ở [Cấu hình .env](16-cau-hinh-env.md).
+Trong một lượt dài của bộ não dùng API key còn hai cách bớt nữa, không làm mất gì của model:
+
+- **Kết quả lặp lại.** Model gọi lại đúng công cụ với đúng tham số mà kết quả y hệt lần trước (đọc lại một file, liệt kê lại cùng dữ liệu) thì nhận một dòng tham chiếu tới bản đã có, thay vì cả khối chữ lần nữa. Công cụ vẫn chạy lại thật, nên dữ liệu đã đổi thì model nhận bản mới đầy đủ. Khi lượt dài tới mức Javis phải rút gọn kết quả cũ, nội dung đầy đủ được đặt lại vào chỗ tham chiếu mới nhất.
+- **JSON gọn.** Kết quả là JSON có thụt dòng, hoặc chữ Việt bị viết thành `\u1ec7`, được viết lại gọn với cùng nội dung. Kết quả đọc file, terminal, trang web và skill thì giữ nguyên từng ký tự, vì model có thể cần chép đúng để sửa.
+
+Mục **Đề xuất** cuối trang có một dòng cho biết 7 ngày qua kết quả tool đã giữ được bao nhiêu phần trăm ngoài hội thoại, tính cả hai cách trên. Muốn tắt: chọn mức tiết kiệm **Tắt**, hoặc xem các biến `JAVIS_TOOL_RESULT_*`, `JAVIS_RESULT_REPEAT_REFS`, `JAVIS_SCOUT`, `JAVIS_RECIPES` ở [Cấu hình .env](16-cau-hinh-env.md).
 
 ## Số liệu này lấy từ đâu
 

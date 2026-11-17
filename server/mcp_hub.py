@@ -316,7 +316,8 @@ def result_size_stats(days: int = 7, top: int = 10) -> dict:
     less than `days`; `since` says how far it goes."""
     days = max(1, min(90, int(days or 7)))
     cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")   # same clock as the log's `ts`
-    counted = tool_result_shaper.MODEL_KINDS | {"raw", "query"}
+    # "repeat": a repeated identical result handed over as a reference (tool_result_reuse, API engines)
+    counted = tool_result_shaper.MODEL_KINDS | {"raw", "query", "repeat"}
     total = {"calls": 0, "raw_chars": 0, "sent_chars": 0, "stored": 0, "over_cap": 0}
     by_tool, since = {}, ""
     for path in (_SIZES_PATH.with_suffix(".jsonl.1"), _SIZES_PATH):
@@ -845,7 +846,8 @@ def _connections_json(include_ambient=False, hidden=None, bo_qua=None, owner_cha
                                   "Code. Model đang chạy bằng API key nên không gọi được. Nói đúng lý do đó, rồi "
                                   "chỉ hai cách: nối nguồn này ở trang Kết nối của Javis (mọi model đều dùng "
                                   "được), hoặc đổi model chat sang Claude Code.")})
-    return json.dumps(out, ensure_ascii=False, indent=1)
+    # Compact: a model reads this list on every engine; indent=1 made a sample list of six connections 17% longer.
+    return json.dumps(out, ensure_ascii=False, separators=(",", ":"))
 
 
 def _skills_dir(vault_root):

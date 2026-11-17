@@ -29,6 +29,7 @@ import limit_learner
 import localefmt
 import vision_input
 import steer_inbox   # 0.206.0: messages the owner sends while a turn runs
+import tool_result_reuse   # 2026-11-17: repeated results become references, JSON compact
 
 
 TEAM_REQUEST_OBSERVER = contextvars.ContextVar("team_request_observer", default=None)
@@ -1918,6 +1919,14 @@ def _clip_tool_result(result, max_chars: int = 0, head_ratio: float = 0.6, ten: 
             + text[-tail_n:])
 
 
+def _result_text_for_model(result, fn, args, reuse) -> str:
+    """The text a model gets for one tool result in the tool loop: compact JSON first (so the cut below keeps more),
+    then the usual cut, then a reference instead of a byte-identical repeat (tool_result_reuse)."""
+    fn = fn or ""
+    text = _clip_tool_result(tool_result_reuse.compact_json(str(result), fn), ten=fn)
+    return reuse.text_for(fn, args, text) if reuse is not None else text
+
+
 def _mcp_to_openai_tools(mcp_tools):
     return [{"type": "function", "function": {
         "name": t["fn"], "description": (t.get("description") or t["fn"])[:1024],
@@ -2364,6 +2373,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
     usage_in = usage_out = 0
     thinking_on = thinking_fallback is not None
     guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
+    reuse = tool_result_reuse.RepeatResults()   # identical repeated results become references
     # Chỉ chờ cửa sổ hạn mức MỘT lần mỗi lượt: chờ hai lần là người dùng ngồi nhìn màn hình
     # đứng im nửa phút mà không hiểu chuyện gì.
     waited_for_window = False
@@ -2433,6 +2443,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
     da_hien = False   # đã nhả chữ xem trước ở vòng nào chưa (để chèn dòng trống giữa hai vòng)
     for _vong in range(_n_vong):
         _gon_ket_qua_cu(msgs)
+        reuse.after_trim()
         payload = {"model": model, "messages": msgs, "stream": False}
         # Bỏ hẳn khoá "tools" khi rỗng: vài endpoint OpenAI-compat từ chối mảng rỗng, và
         # nhánh cứu hộ ở dưới (model vấp cú pháp gọi tool) dựa vào đúng chỗ này.
@@ -2565,7 +2576,9 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                     result = await _call_tool_for_model(mcp_route, fn, args)
                 else:
                     result = _schedule_tool_blocked_result()
-                msgs.append({"role": "tool", "tool_call_id": tc.get("id"), "content": _clip_tool_result(result, ten=fn)})
+                msgs.append({"role": "tool", "tool_call_id": tc.get("id"),
+                             "content": _result_text_for_model(result, fn, args, reuse)})
+                reuse.remember(fn, args, msgs[-1], "content")
             guard.ghi([((tc.get("function") or {}).get("name"),
                         (tc.get("function") or {}).get("arguments") or "") for tc in tcs],
                       [m.get("content") for m in msgs[-len(tcs):]])
@@ -2931,9 +2944,11 @@ async def _responses_with_mcp_account(access_token, account_id, model, messages,
     async with httpx.AsyncClient(timeout=timeout) as client:
         usage_in = usage_out = 0
         guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
+        reuse = tool_result_reuse.RepeatResults()   # identical repeated results become references
         _n_vong = _max_tool_rounds()
         for _vong in range(_n_vong):
             _gon_ket_qua_cu(items)
+            reuse.after_trim()
             # Backend Codex BẮT BUỘC stream=True → đọc SSE, lấy response.completed.output để chạy vòng tool
             payload = {"model": model, "instructions": instructions, "input": items,
                        "tools": tools, "stream": True, "store": False}
@@ -3046,7 +3061,9 @@ async def _responses_with_mcp_account(access_token, account_id, model, messages,
                         result = await _call_tool_for_model(mcp_route, fc.get("name"), args)
                     else:
                         result = _schedule_tool_blocked_result()
-                    items.append({"type": "function_call_output", "call_id": fc.get("call_id"), "output": _clip_tool_result(result, ten=fc.get("name") or "")})
+                    items.append({"type": "function_call_output", "call_id": fc.get("call_id"),
+                                  "output": _result_text_for_model(result, fc.get("name"), args, reuse)})
+                    reuse.remember(fc.get("name") or "", args, items[-1], "output")
                 guard.ghi([(fc.get("name"), fc.get("arguments") or "") for fc in fcalls],
                           [it.get("output") for it in items[-len(fcalls):]])
                 nhac = guard.loi_nhac() + _nhac_sap_het(_vong, _n_vong)
@@ -3115,10 +3132,12 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
     async with httpx.AsyncClient(timeout=timeout) as client:
         usage_in = usage_out = 0
         guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
+        reuse = tool_result_reuse.RepeatResults()   # identical repeated results become references
         _n_vong = _max_tool_rounds()
         da_hien = False   # 0.438.5: đã nhả chữ xem trước ở vòng nào chưa
         for _vong in range(_n_vong):
             _gon_ket_qua_cu(conv)
+            reuse.after_trim()
             # Cache theo lối không-mutate (system dựng mới mỗi vòng, conv copy-khi-đánh-dấu)
             # → marker KHÔNG tích luỹ qua vòng tool, tối đa 3 breakpoint/request (trần API là 4).
             # Vòng tool là nơi cache lãi nhất: mỗi vòng 1 request chở lại nguyên system+tools+conv.
@@ -3197,7 +3216,8 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                     else:
                         res = _schedule_tool_blocked_result()
                     results.append({"type": "tool_result", "tool_use_id": tu.get("id"),
-                                    "content": _clip_tool_result(res, ten=tu.get("name") or "")})
+                                    "content": _result_text_for_model(res, tu.get("name"), args, reuse)})
+                    reuse.remember(tu.get("name") or "", args, results[-1], "content")
                 guard.ghi([(tu.get("name"), json.dumps(tu.get("input") or {}, sort_keys=True,
                                                        ensure_ascii=False)) for tu in tool_uses],
                           [r.get("content") for r in results])
