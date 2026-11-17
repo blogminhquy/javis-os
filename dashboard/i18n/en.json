@@ -4720,6 +4720,7 @@
   "teams.leader": "Deputy lead",
   "teams.member": "Member",
   "teams.model_main": "Main model: {model}",
+  "teams.at_jump": "{n} messages mention you, tap to see them",
   "teams.make_leader": "Make deputy lead",
   "teams.remove_leader": "Remove as deputy lead",
   "teams.remove": "Remove from team",

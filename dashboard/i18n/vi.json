@@ -4720,6 +4720,7 @@
   "teams.leader": "Phó nhóm",
   "teams.member": "Thành viên",
   "teams.model_main": "Model chính: {model}",
+  "teams.at_jump": "{n} tin nhắc tới bạn, bấm để xem",
   "teams.make_leader": "Đặt làm phó nhóm",
   "teams.remove_leader": "Bỏ phó nhóm",
   "teams.remove": "Bỏ khỏi team",
