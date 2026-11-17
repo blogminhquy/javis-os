@@ -65,6 +65,36 @@ class HealthProbe(unittest.TestCase):
         m._metrics_port = rt.free_port()
         self.assertEqual(m._dead_too_long(first), 0.0, "cannot ask = do not kill")
 
+    def test_dead_shows_waiting_and_recovers(self):
+        m = rt.TunnelManager(binary_finder=lambda: "", installer=lambda: "")
+        dead = _serve(503, {"readyConnections": 0})
+        live = _serve(200, {"readyConnections": 2})
+        self.addCleanup(dead.shutdown)
+        self.addCleanup(live.shutdown)
+        m.state, m._metrics_port = "running", dead.server_port
+        since = m._dead_too_long(0.0)
+        self.assertEqual(m.state, "waiting")
+        self.assertTrue(m.error)
+        self.assertEqual(m._dead_too_long(since), since, "still probed while waiting")
+        self.assertEqual(m._dead_probes, 2)
+        m._metrics_port = live.server_port
+        self.assertEqual(m._dead_too_long(since), 0.0)
+        self.assertEqual((m.state, m.error, m._dead_probes), ("running", "", 0))
+
+    def test_restart_needs_time_and_three_dead_answers(self):
+        m = rt.TunnelManager(binary_finder=lambda: "", installer=lambda: "")
+        long_ago = time.time() - rt.DEAD_AFTER - 5
+        m._dead_probes = rt.DEAD_MIN_PROBES - 1
+        self.assertFalse(m._should_restart(long_ago), "long enough but too few probes")
+        m._dead_probes = rt.DEAD_MIN_PROBES
+        self.assertFalse(m._should_restart(time.time() - 5), "enough probes but too short")
+        self.assertTrue(m._should_restart(long_ago))
+        self.assertFalse(m._should_restart(0.0))
+
+    def test_grace_period_before_first_probe(self):
+        self.assertGreaterEqual(rt.READY_GRACE, 30)
+        self.assertGreaterEqual(rt.DEAD_MIN_PROBES, 3)
+
     def test_metrics_flag_on_both_commands(self):
         m = rt.TunnelManager(binary_finder=lambda: "", installer=lambda: "")
         m.mode = "quick"

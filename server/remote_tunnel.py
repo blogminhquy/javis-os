@@ -63,8 +63,13 @@ PASSWORD_CHECK_EVERY = 5
 # its trycloudflare.com name stops resolving. Nothing exits, so the restart above never fired and Messenger webhooks
 # went nowhere for hours. Ask cloudflared's own /ready every HEALTH_EVERY seconds; after DEAD_AFTER seconds with no
 # ready connection, restart it.
+# No probe in the first READY_GRACE seconds of a run (it is still connecting), and a restart also needs at least
+# DEAD_MIN_PROBES dead answers in a row, so one slow answer around a sleep/wake never kills a tunnel that is fine.
+# While dead the state is "waiting" with a reason, so Settings shows the trouble before the restart.
 HEALTH_EVERY = 20
 DEAD_AFTER = 90
+READY_GRACE = 45
+DEAD_MIN_PROBES = 3
 
 
 def section(cfg=None) -> dict:
@@ -462,6 +467,7 @@ class TunnelManager:
         self._proc = None
         self.log = deque(maxlen=200)
         self._metrics_port = 0
+        self._dead_probes = 0       # dead /ready answers in a row, this run
         self._url_listeners = []    # fn(url), called on a worker thread once a NEW quick address is connected
         self._announced = ""
         self._reset_state("off")
@@ -620,13 +626,28 @@ class TunnelManager:
         return ["--metrics", f"127.0.0.1:{self._metrics_port}"] if self._metrics_port else []
 
     def _dead_too_long(self, dead_since: float) -> float:
-        """One health probe. Returns the new dead_since: 0 while healthy or unknown, else when it went dead."""
-        if self.state != "running" or not self._metrics_port:
+        """One health probe. Returns the new dead_since: 0 while healthy or unknown, else when it went dead.
+
+        Counts dead answers in self._dead_probes, shows "waiting" with a reason while dead, and puts "running" back
+        when cloudflared reconnects on its own."""
+        lost = _lost_text()
+        ours = self.state == "waiting" and self.error == lost
+        if (self.state != "running" and not ours) or not self._metrics_port:
+            self._dead_probes = 0
             return 0.0
         n = ready_connections(self._metrics_port)
         if n is None or n > 0:
+            self._dead_probes = 0
+            if ours:
+                self.state, self.error = "running", ""
             return 0.0
+        self._dead_probes += 1
+        if self.state == "running":
+            self.state, self.error = "waiting", lost
         return dead_since or time.time()
+
+    def _should_restart(self, dead_since: float) -> bool:
+        return bool(dead_since) and self._dead_probes >= DEAD_MIN_PROBES and time.time() - dead_since >= DEAD_AFTER
 
     def _wait(self, stop: threading.Event, seconds: float) -> bool:
         """Sleep, waking early on stop. True when asked to stop."""
@@ -691,6 +712,7 @@ class TunnelManager:
             reader.start()
             last_check = last_health = time.time()
             dead_since = 0.0
+            self._dead_probes = 0
             while proc.poll() is None and not stop.is_set():
                 if self._wait(stop, 1):
                     break
@@ -698,10 +720,10 @@ class TunnelManager:
                     last_check = time.time()
                     if not cfgmod.auth_enabled() or not enabled():
                         break
-                if time.time() - last_health >= HEALTH_EVERY:
+                if time.time() - started >= READY_GRACE and time.time() - last_health >= HEALTH_EVERY:
                     last_health = time.time()
                     dead_since = self._dead_too_long(dead_since)
-                    if dead_since and time.time() - dead_since >= DEAD_AFTER:
+                    if self._should_restart(dead_since):
                         self.error = localefmt.chu("Đường hầm mất kết nối với Cloudflare, Javis khởi động lại nó.",
                                                    "The tunnel lost its Cloudflare connection; Javis restarts it.")
                         print("[remote-tunnel] no ready connection, restarting cloudflared", file=sys.stderr)
@@ -807,6 +829,12 @@ class TunnelManager:
                 self._note(line)
         except Exception:
             pass
+
+
+def _lost_text() -> str:
+    return localefmt.chu("cloudflared vẫn chạy nhưng mất kết nối tới Cloudflare, Javis sẽ khởi động lại nếu không tự nối lại.",
+                         "cloudflared is running but lost its Cloudflare connection; Javis restarts it unless it "
+                         "reconnects on its own.")
 
 
 MANAGER = TunnelManager()
