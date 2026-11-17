@@ -14,6 +14,12 @@
       họ học cách bấm tắt mà không đọc, và lần có việc thật cũng chịu chung số phận.
    2. Không bung ngay lúc mở trang. Chờ một nhịp để người ta làm xong việc họ vào đây để làm;
       popup đè lên màn hình ở giây đầu tiên là thứ ai cũng đóng theo phản xạ.
+      17/11/2026 (chủ repo: "phải vào được màn sử dụng mới hiện chứ vừa mới đăng nhập đã hiện gây
+      khó chịu, dùng một chút rồi hãng hiện ra"): 12 giây sau khi mở trang là chưa đủ, nó bung đè
+      lên màn đăng nhập và bộ cài đặt lần đầu. Nay chỉ đếm lúc DÙNG THẬT: trang đang hiện, không
+      có màn đăng nhập, bộ cài đặt hay hộp nào khác đang mở, và người dùng vừa chạm hay gõ trong
+      một phút qua. Đủ 3 phút dùng (cộng dồn qua các lần mở, lưu trong localStorage) mới nhắc, và
+      không nhắc giữa lúc đang gõ.
    3. Nói ĐÚNG cách cài của TỪNG trình duyệt. iOS không có nút cài nào để bấm - chỉ vẽ nút
       "Cài" trên Safari là hứa một thứ không tồn tại, nên bên đó phải chỉ đường Chia sẻ →
       Thêm vào MH chính.
@@ -30,7 +36,11 @@
   var KEY_LUC = "javis.install.nhac_luc";     // lần nhắc gần nhất (epoch ms)
   var KEY_TAT = "javis.install.tat_nhac";     // "1" = người dùng bảo đừng nhắc nữa
   var MOT_NGAY = 24 * 60 * 60 * 1000;
-  var CHO_TRUOC_KHI_HIEN = 12000;             // 12 giây - xem luật 2
+  var KEY_DUNG = "javis.install.da_dung_ms";  // thời gian đã dùng thật, cộng dồn (ms) - xem luật 2
+  var CAN_DUNG_MS = 3 * 60 * 1000;            // dùng đủ 3 phút mới nhắc
+  var NHIP_MS = 5000;                         // mỗi 5 giây xem một lần
+  var CON_DUNG_MS = 60 * 1000;                // chạm hay gõ trong 1 phút qua thì còn tính là đang dùng
+  var lucCham = 0;                            // lần chạm/gõ gần nhất trong phiên này
 
   function doc(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function ghi(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -126,8 +136,27 @@
     });
   }
 
+  // Màn đăng nhập, bộ cài đặt lần đầu và mọi hộp .modal-overlay đang mở, hay ngăn kéo menu: chưa phải lúc dùng app.
+  function dangBiChe() {
+    return !!document.querySelector(".modal-overlay.open") || document.body.classList.contains("nav-open");
+  }
+  function dangGo() {
+    var a = document.activeElement;
+    return !!a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.isContentEditable);
+  }
+  function daDung() { return Number(doc(KEY_DUNG) || 0); }
+
+  // Một nhịp 5 giây: cộng vào thời gian dùng nếu người dùng đang thật sự dùng app, rồi xem đã tới lúc nhắc chưa.
+  function nhip() {
+    if (!laDienThoai() || daLaApp() || !denHen()) return;
+    var dung = document.visibilityState !== "hidden" && !dangBiChe() && lucCham && (Date.now() - lucCham) < CON_DUNG_MS;
+    if (dung && daDung() < CAN_DUNG_MS) ghi(KEY_DUNG, String(daDung() + NHIP_MS));
+    thu();
+  }
+
   function thu() {
     if (!laDienThoai() || daLaApp() || !denHen()) return;
+    if (daDung() < CAN_DUNG_MS || dangBiChe() || dangGo()) return;
     if (document.querySelector(".inud-wrap")) return;
     ve();
   }
@@ -176,9 +205,17 @@
     if (b) veNutMenu(b);
   });
 
-  function batDau() { ganNutMenu(); setTimeout(thu, CHO_TRUOC_KHI_HIEN); }
+  function cham() { lucCham = Date.now(); }
+  function batDau() {
+    ganNutMenu();
+    ["pointerdown", "keydown", "touchstart"].forEach(function (ev) {
+      document.addEventListener(ev, cham, { capture: true, passive: true });
+    });
+    setInterval(nhip, NHIP_MS);
+  }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", batDau);
   else batDau();
 
-  window.JavisInstallNudge = { thu: thu, moHuongDan: moHuongDan, denHen: denHen, laIOS: laIOS, laDienThoai: laDienThoai };
+  window.JavisInstallNudge = { thu: thu, nhip: nhip, moHuongDan: moHuongDan, denHen: denHen, laIOS: laIOS,
+    laDienThoai: laDienThoai, dangBiChe: dangBiChe };
 })();

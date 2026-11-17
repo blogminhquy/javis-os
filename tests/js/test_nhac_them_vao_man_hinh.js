@@ -90,8 +90,18 @@ check("chỉ nhắc trên điện thoại (màn hẹp hoặc cảm ứng)",
   /max-width: 860px/.test(nudge) && /pointer: coarse/.test(nudge));
 check("CANARY: ba điều kiện đi cùng nhau trước khi vẽ",
   /if \(!laDienThoai\(\) \|\| daLaApp\(\) \|\| !denHen\(\)\) return;/.test(nudge));
-check("không bung ngay lúc mở trang (chờ một nhịp)",
-  /CHO_TRUOC_KHI_HIEN\s*=\s*\d{4,}/.test(nudge) && /setTimeout\(thu, CHO_TRUOC_KHI_HIEN\)/.test(nudge));
+// 17/11/2026 (chủ repo: "vừa mới đăng nhập đã hiện gây khó chịu, dùng một chút rồi hãng hiện ra"): không còn đếm giờ từ
+// lúc mở trang; chỉ cộng thời gian dùng thật, đủ 3 phút mới nhắc.
+check("không bung ngay lúc mở trang: không còn hẹn giờ cố định từ lúc tải",
+  !/CHO_TRUOC_KHI_HIEN/.test(nudge) && !/setTimeout\(thu/.test(nudge));
+check("chỉ nhắc khi đã dùng thật đủ 3 phút, cộng dồn và lưu lại qua các lần mở",
+  /CAN_DUNG_MS\s*=\s*3 \* 60 \* 1000/.test(nudge) && nudge.indexOf("javis.install.da_dung_ms") !== -1
+  && /if \(daDung\(\) < CAN_DUNG_MS \|\| dangBiChe\(\) \|\| dangGo\(\)\) return;/.test(nudge));
+check("CANARY: màn đăng nhập, bộ cài đặt lần đầu (.modal-overlay.open) hay ngăn kéo menu đang mở thì không đếm, không nhắc",
+  /\.modal-overlay\.open/.test(nudge) && /nav-open/.test(nudge));
+check("chỉ đếm khi trang đang hiện và người dùng vừa chạm hay gõ trong 1 phút",
+  /visibilityState !== "hidden"/.test(nudge) && /CON_DUNG_MS/.test(nudge) && /"pointerdown", "keydown", "touchstart"/.test(nudge));
+check("không bung giữa lúc đang gõ", /function dangGo\(\)/.test(nudge) && /TEXTAREA/.test(nudge));
 
 // ---- 4. Hướng dẫn ĐÚNG cho từng trình duyệt ----
 check("iOS: mã vẽ đủ ba bước của đường dẫn Safari",
@@ -148,8 +158,8 @@ check("moHuongDan vẽ popup ở chế độ tự mở (không có nút Đừng 
 check("moHuongDan đóng ngăn kéo menu trước khi mở", /nav-open/.test(moHD));
 check("cài xong (appinstalled) thì gỡ nút",
   /addEventListener\("appinstalled", function \(\) \{[^}]*goNutMenu\(\)/.test(nudge));
-check("nút được gắn ngay lúc trang nạp, không đợi 12 giây như lời nhắc",
-  /function batDau\(\) \{ ganNutMenu\(\);/.test(nudge));
+check("nút được gắn ngay lúc trang nạp, không đợi đủ thời gian dùng như lời nhắc",
+  /function batDau\(\) \{\s*ganNutMenu\(\);/.test(nudge));
 check("nút dùng khoá i18n instl.rail", goiKhoa("instl.rail") && cauLa("instl.rail", "Cài lên điện thoại"));
 check("có style cho nút, ẩn trên máy tính", css.indexOf(".rail-foot .rf-install") !== -1
   && /@media \(min-width: 861px\) and \(pointer: fine\) \{ \.rail-foot \.rf-install \{ display: none; \} \}/.test(css));
