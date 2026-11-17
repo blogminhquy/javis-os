@@ -18,15 +18,29 @@ agent never pays twice for a result it already holds).
    is the same value. Tools whose output is the content of something a model may copy or edit exactly (files, terminal
    output, web pages, skills) are never touched, because a reformatted view would make an exact edit miss.
 
-Both follow the owner's saving level: choosing Off ("send everything") on the Usage page turns them off, like tool
+3. CLI engines (`lean_for_cli`, 2026-11-17). Claude Code, Codex and the other CLI engines run their own tool loop, so
+   Javis cannot see their conversation. What it does see is every call they make to Javis's tools and connections
+   through the hub over HTTP, with the turn's X-Javis-Turn key. There the same compact JSON applies, and repeats are
+   kept per turn (`CliRepeatResults`) with a rule that does not need to see the conversation: a repeat right after a
+   reference always comes back whole, because a model that asks again may have lost the earlier copy, and the record
+   of a turn is dropped when the engine compacts its conversation (Claude Code's PreCompact hook through
+   claude_result_reuse, Codex's contextCompaction item). Not touched: Claude Code's in-process plugin tools (their
+   result could only be replaced through a hook whose expected shape Javis cannot check), Claude Code's own re-read
+   of an unchanged file (it already answers "File unchanged since last read"), and terminal output.
+
+All of it follows the owner's saving level: choosing Off ("send everything") on the Usage page turns it off, like tool
 result shaping. `mcp.result_repeat_refs` (true/false/"auto") and JAVIS_RESULT_REPEAT_REFS=0|1 switch the first one
 alone, which is how an A/B run measures it (tools/quality_eval.py).
 """
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import os
+import threading
+import time
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -48,7 +62,18 @@ REFERENCE_MARK = "[Javis: identical to another result"
 REFERENCE = (REFERENCE_MARK + " of this same {tool} call (same arguments) in this turn, which is kept in full in "
              "this conversation. Not repeated, to save tokens: use that result.]")
 
+# A CLI engine's own conversation is out of Javis's sight, so its reference also says how to get the text back.
+CLI_REFERENCE = (REFERENCE_MARK + " of this same {tool} call (same arguments) in this turn. Not repeated, to save "
+                 "tokens: use that earlier result. If it is no longer in your context, call again with the same "
+                 "arguments and the full result comes back.]")
+CLI_MAX_TURNS = 256      # turn records kept at once (oldest dropped first)
+CLI_MAX_ENTRIES = 512    # distinct results remembered per turn
+CLI_TURN_TTL_S = 6 * 3600
+
 _LOG_POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="javis-reuse-log")
+# The turn of the hub request being served (set by mcp_hub.handle_http from the X-Javis-Turn header).
+HUB_TURN: contextvars.ContextVar = contextvars.ContextVar("javis_hub_reuse_turn", default=None)
+_switch_cache = {"ts": 0.0, "on": True}
 
 
 def _flag(value) -> bool | None:
@@ -67,6 +92,14 @@ def _shaping_on() -> bool:
         return bool(tool_result_shaper.settings().get("on"))
     except Exception:  # noqa: BLE001 - unreadable settings: keep the default
         return True
+
+
+def repeat_refs_on_cached() -> bool:
+    """`repeat_refs_on`, re-read at most every few seconds: the hub asks on every tool call."""
+    now = time.time()
+    if now - _switch_cache["ts"] > 5:
+        _switch_cache.update(ts=now, on=repeat_refs_on())
+    return bool(_switch_cache["on"])
 
 
 def repeat_refs_on() -> bool:
@@ -213,3 +246,110 @@ class RepeatResults:
             restored += 1
         self.restored += restored
         return restored
+
+
+# ───────────────────────── CLI engines (part 3 of the module docstring) ─────────────────────────
+class CliRepeatResults:
+    """Repeats within one turn of an engine whose conversation Javis cannot see.
+
+    Per result (same tool, same arguments, same text): the first copy goes out whole, a repeat becomes a reference,
+    and a repeat right after a reference goes out whole again. So a model that lost the earlier copy (its engine
+    compacted the conversation without telling us) gets it back with one more call, never a second reference."""
+
+    def __init__(self):
+        self._entries: "OrderedDict[tuple, str]" = OrderedDict()   # key -> "full" | "ref" (what went out last)
+        self.reused = 0
+        self.saved_chars = 0
+        self.created = time.time()
+
+    def text_for(self, tool: str, args, text: str) -> str:
+        if not isinstance(text, str) or len(text) < REPEAT_MIN_CHARS:
+            return text
+        k = RepeatResults._key(tool, args, text)
+        last = self._entries.get(k)
+        self._entries[k] = "full" if last in (None, "ref") else "ref"
+        self._entries.move_to_end(k)
+        while len(self._entries) > CLI_MAX_ENTRIES:
+            self._entries.popitem(last=False)
+        if self._entries[k] == "full":
+            return text
+        ref = CLI_REFERENCE.format(tool=tool)
+        self.reused += 1
+        self.saved_chars += len(text) - len(ref)
+        note_saving("repeat", tool, len(text), len(ref))
+        return ref
+
+
+_CLI_LEDGERS: "OrderedDict[str, CliRepeatResults]" = OrderedDict()
+_CLI_LOCK = threading.Lock()
+
+
+def turn_id_for_key(key) -> str | None:
+    """One turn's identity from an X-Javis-Turn key: the key plus the expiry turn_context stamped when it gave the key
+    to that turn. A warm engine keeps one lane key for its whole life and turn_lane re-attaches it to every new turn
+    with a new stamp, so two turns of one warm process never share a record. None for a dead or unknown key."""
+    k = str(key or "").strip()
+    if not k:
+        return None
+    try:
+        import turn_context as tc
+        with tc._LOCK:
+            ent = tc._KEYS.get(k)
+    except Exception:  # noqa: BLE001
+        return None
+    if ent is None or ent[1] < time.time():
+        return None
+    return f"{k}:{ent[1]}"
+
+
+def current_turn_ids() -> list[str]:
+    """The identities of the turn running in this context, one per live key it issued or attached."""
+    try:
+        import turn_context as tc
+        b = tc._CURRENT.get()
+        keys = list(b.keys) if b is not None and b.alive else []
+    except Exception:  # noqa: BLE001
+        return []
+    return [t for t in (turn_id_for_key(k) for k in keys) if t]
+
+
+def current_turn_id() -> str | None:
+    """The turn running in this context, as the hub names it from the key that turn sent (a compaction signal reads
+    it to drop the right record)."""
+    ids = current_turn_ids()
+    return ids[0] if ids else None
+
+
+def forget_turn(turn_id) -> bool:
+    with _CLI_LOCK:
+        return _CLI_LEDGERS.pop(str(turn_id or ""), None) is not None
+
+
+def forget_current_turn() -> int:
+    """The engine of the current turn compacted its conversation: earlier results may be gone, so forget them."""
+    return sum(1 for t in current_turn_ids() if forget_turn(t))
+
+
+def cli_text_for(turn_id, tool: str, args, text: str) -> str:
+    """`text`, or a reference when this turn's record says the model holds an identical earlier copy."""
+    if not turn_id or not repeat_refs_on_cached():
+        return text
+    now = time.time()
+    with _CLI_LOCK:
+        for old in [t for t, led in _CLI_LEDGERS.items() if now - led.created > CLI_TURN_TTL_S]:
+            _CLI_LEDGERS.pop(old, None)
+        led = _CLI_LEDGERS.get(turn_id)
+        if led is None:
+            led = _CLI_LEDGERS[turn_id] = CliRepeatResults()
+        _CLI_LEDGERS.move_to_end(turn_id)
+        while len(_CLI_LEDGERS) > CLI_MAX_TURNS:
+            _CLI_LEDGERS.popitem(last=False)
+        return led.text_for(tool, args, text)
+
+
+def lean_for_cli(text, tool: str, args, turn_id=None) -> str:
+    """What a CLI engine gets for one result of a Javis tool: compact JSON, then the per-turn repeat check.
+    `turn_id` defaults to the turn of the hub request being served."""
+    tool = str(tool or "")
+    text = compact_json(str(text), tool)
+    return cli_text_for(turn_id if turn_id is not None else HUB_TURN.get(), tool, args, text)

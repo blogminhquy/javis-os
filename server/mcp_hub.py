@@ -49,6 +49,7 @@ import team_gate
 import tool_images
 import tool_pins
 import tool_result_shaper
+import tool_result_reuse   # 2026-11-17: compact JSON + per-turn repeat references for CLI engines
 import tool_result_tools
 import turn_context
 from config import STATE_DIR
@@ -2410,6 +2411,8 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
                                       **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
         with tool_result_shaper.for_model():
             result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
+        # A CLI engine's tool loop is out of Javis's sight: compact JSON and per-turn repeat references happen here.
+        result = tool_result_reuse.lean_for_cli(result, name, params.get("arguments") or {})
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
         if ghi_chu:
             result += "\n\n" + ghi_chu
@@ -2461,7 +2464,10 @@ async def handle_http(request):
     # that turn issued; the header names nobody by itself, so a forged or stale key is just None.
     # ALWAYS bind, even to None: this request must never inherit a turn from whatever context
     # the server happens to run it in.
-    tok = turn_context.bind(turn_context.resolve_key(request.headers.get(turn_context.HEADER.lower())))
+    turn_key = request.headers.get(turn_context.HEADER.lower())
+    tok = turn_context.bind(turn_context.resolve_key(turn_key))
+    # The same key names this turn's record of repeated results (tool_result_reuse, CLI engines).
+    reuse_tok = tool_result_reuse.HUB_TURN.set(tool_result_reuse.turn_id_for_key(turn_key))
     # CLI engines also load skills natively from `.claude/skills`; an improvement overlay served only
     # through this tool would split one turn across two versions, so these requests see canonical skills.
     import improvement_activation
@@ -2472,6 +2478,7 @@ async def handle_http(request):
                                          raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot,
                                          **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
     finally:
+        tool_result_reuse.HUB_TURN.reset(reuse_tok)
         turn_context.reset(tok)
 
 

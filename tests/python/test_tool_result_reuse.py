@@ -12,6 +12,9 @@ Owner, 17/11/2026: save tokens "mà vừa không ảnh hưởng đến chất l�
   4. The Off saving level and the dedicated switch turn the references off.
   5. All three tool loops (Chat Completions, Anthropic Messages, Responses) are wired, and the request a model gets
      after a repeat is really smaller.
+  6. CLI engines (Claude Code, Codex) get the same savings at the hub, one record per turn (a warm engine's lane key
+     included): whole, reference, whole again, and the record is dropped when Claude Code (PreCompact, through a
+     wrapper that leaves claude_sdk_engine.py byte for byte) or Codex (contextCompaction) compacts.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -356,6 +359,153 @@ stats = mcp_hub.result_size_stats(7)
 rows = {(row["source"], row["tool"]) for row in stats.get("by_tool") or []}
 check("repeat savings show up in the tool result meter", ("javis", "read_doc") in rows and stats["saved_chars"] > 0,
       (rows, stats.get("saved_chars")))
+
+
+# ───────────────────────── 6. CLI engines (Claude Code, Codex) through the hub ─────────────────────────
+import sys  # noqa: E402
+import time  # noqa: E402
+import turn_context as tc  # noqa: E402
+import turn_lane  # noqa: E402
+from tool_result_reuse import (CliRepeatResults, cli_text_for, current_turn_id, forget_current_turn,  # noqa: E402
+                               lean_for_cli, turn_id_for_key)
+
+cli = CliRepeatResults()
+seq = [cli.text_for("pos_orders", {"d": "today"}, BIG) for _ in range(4)]
+check("CLI: whole, reference, whole again, reference",
+      [x == BIG for x in seq] == [True, False, True, False] and seq[1].startswith(REFERENCE_MARK), [x[:20] for x in seq])
+check("CLI: the reference says how to get the text back", "call again with the same arguments" in seq[1])
+check("CLI: changed data goes out whole", cli.text_for("pos_orders", {"d": "today"}, OTHER) == OTHER)
+check("CLI: no turn, no record: whole", cli_text_for(None, "pos_orders", {}, BIG) == BIG)
+
+with patch.object(reuse_mod, "_shaping_on", return_value=True):
+    reuse_mod._switch_cache["ts"] = 0
+    tok = tc.bind(tc.make("dashboard", la_chu=True))
+    key = tc.issue_key()
+    tid = turn_id_for_key(key)
+    check("CLI: the hub and the compaction signals name the same turn", bool(tid) and tid == current_turn_id(), tid)
+    a, b = lean_for_cli(BIG, "pos_orders", {}, tid), lean_for_cli(BIG, "pos_orders", {}, tid)
+    check("CLI: a repeat in the turn becomes a reference", a == BIG and b.startswith(REFERENCE_MARK))
+    forget_current_turn()
+    check("CLI: after the engine compacts, a repeat goes out whole", lean_for_cli(BIG, "pos_orders", {}, tid) == BIG)
+    pretty = json.dumps(data, indent=2)
+    check("CLI: JSON from a plugin is compact on the CLI path too",
+          json.loads(lean_for_cli(pretty, "crm_list", {}, tid)) == data
+          and len(lean_for_cli(pretty, "crm_list", {"x": 1}, tid)) < len(pretty) * 0.6)
+    tc.reset(tok)
+    check("CLI: a key dies with its turn", turn_id_for_key(key) is None)
+
+    # a warm engine keeps one lane key across turns: each turn still gets its own record
+    lane = turn_lane.Lane()
+    t1 = tc.bind(tc.make("dashboard", la_chu=True))
+    lane.attach()
+    id1 = turn_id_for_key(lane.key)
+    lean_for_cli(BIG, "pos_orders", {}, id1)
+    check("CLI: warm engine, first turn: repeat is a reference",
+          lean_for_cli(BIG, "pos_orders", {}, id1).startswith(REFERENCE_MARK))
+    lane.detach()
+    tc.reset(t1)
+    time.sleep(0.01)
+    t2 = tc.bind(tc.make("dashboard", la_chu=True))
+    lane.attach()
+    id2 = turn_id_for_key(lane.key)
+    check("CLI: warm engine, next turn: a fresh record, whole again",
+          id2 and id2 != id1 and lean_for_cli(BIG, "pos_orders", {}, id2) == BIG, (id1, id2))
+    lane.detach()
+    tc.reset(t2)
+
+    # through the real hub endpoint, as Claude Code and Codex call it
+    async def _fake_discover(*a, **k):
+        return ([{"fn": "pos_orders", "server": "pos", "name": "pos_orders", "description": "orders",
+                  "schema": {"type": "object", "properties": {}}}],
+                {"pos_orders": {"call": _read_doc_any}})
+
+    async def _read_doc_any(args):
+        return BIG
+
+    class _Req:
+        def __init__(self, turn_key, body):
+            self.headers = {"authorization": f"Bearer {mcp_hub.hub_token()}", "x-javis-mode": "full"}
+            if turn_key:
+                self.headers["x-javis-turn"] = turn_key
+            self._body = body
+
+        async def json(self):
+            return self._body
+
+    async def _hub_call(turn_key):
+        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": {"name": "pos_orders", "arguments": {"d": "today"}}}
+        resp = await mcp_hub.handle_http(_Req(turn_key, body))
+        out = json.loads(resp.body.decode("utf-8"))
+        return ((out.get("result") or {}).get("content") or [{}])[0].get("text", json.dumps(out))
+
+    async def _hub_run():
+        tok = tc.bind(tc.make("dashboard", la_chu=True))
+        try:
+            k = tc.issue_key()
+            with patch.object(mcp_hub, "discover_all", _fake_discover):
+                got = [await _hub_call(k) for _ in range(3)]
+                anonymous = [await _hub_call(None) for _ in range(2)]
+        finally:
+            tc.reset(tok)
+        return got, anonymous
+
+    got, anonymous = asyncio.run(_hub_run())
+    check("hub: whole, reference, whole for a CLI turn",
+          [g.startswith(BIG[:40]) for g in got] == [True, False, True] and got[1].startswith(REFERENCE_MARK),
+          [g[:40] for g in got])
+    check("hub: a call without a turn key always gets the whole result",
+          all(x.startswith(BIG[:40]) for x in anonymous), [x[:40] for x in anonymous])
+
+    # Codex reports a compaction in its event stream: the turn's record is dropped
+    import claude_cli  # noqa: E402
+    tok = tc.bind(tc.make("dashboard", la_chu=True))
+    k = tc.issue_key()
+    tid = turn_id_for_key(k)
+    lean_for_cli(BIG, "pos_orders", {}, tid)
+    events = [{"type": "thread.started", "thread_id": "t-1"},
+              {"type": "item.completed", "item": {"type": "context_compaction"}},
+              {"type": "item.completed", "item": {"type": "agent_message", "text": "Xong."}},
+              {"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 1}}]
+    script = "import json\n" + "\n".join(f"print(json.dumps({json.dumps(ev)}), flush=True)" for ev in events)
+    codex = claude_cli.CodexCLI(cwd=os.environ["JAVIS_STATE_DIR"])
+    codex.cli_path = sys.executable
+    codex._build_args = lambda: [sys.executable, "-c", script]
+
+    async def _codex_run():
+        return [e async for e in codex.query("tóm tắt")]
+    asyncio.run(_codex_run())
+    check("Codex: a compaction in its stream drops the turn's record",
+          lean_for_cli(BIG, "pos_orders", {}, tid) == BIG)
+    tc.reset(tok)
+
+# Claude Code: a wrapper (never claude_sdk_engine.py itself, which stays the qualified source byte for byte) adds a
+# PreCompact hook to the SDK options, and the hook drops the turn's record
+import claude_sdk_engine  # noqa: E402
+import claude_result_reuse  # noqa: E402
+import claude_secret_hook  # noqa: E402
+if claude_sdk_engine.ClaudeSDK.pre_tool_hooks_supported():
+    check("Claude Code: the wrapper installs", claude_result_reuse.install())
+    claude_secret_hook.install()
+    check("Claude Code: the secret hook stays the outermost wrapper",
+          getattr(claude_sdk_engine.ClaudeSDK._options, "_javis_secret_hook", False))
+    top = claude_sdk_engine.ClaudeSDK._options
+    claude_result_reuse.install()
+    check("Claude Code: installing again stacks nothing", claude_sdk_engine.ClaudeSDK._options is top)
+    eng = claude_sdk_engine.ClaudeSDK(system_prompt="x", cwd=os.environ["JAVIS_STATE_DIR"], tag="chat")
+    pre_compact = (getattr(eng._options(), "hooks", None) or {}).get("PreCompact") or []
+    check("Claude Code: a PreCompact hook is installed",
+          any(claude_result_reuse.compact_hook in (m.hooks or []) for m in pre_compact))
+    with patch.object(reuse_mod, "_shaping_on", return_value=True):
+        tok = tc.bind(tc.make("dashboard", la_chu=True))
+        tid = turn_id_for_key(tc.issue_key())
+        lean_for_cli(BIG, "pos_orders", {}, tid)
+        out = asyncio.run(claude_result_reuse.compact_hook({"hook_event_name": "PreCompact"}, None, None))
+        check("Claude Code: the hook decides nothing and drops the turn's record",
+              out == {} and lean_for_cli(BIG, "pos_orders", {}, tid) == BIG)
+        tc.reset(tok)
+else:
+    print("skip  SDK without hooks")
 
 
 print()
