@@ -3501,16 +3501,22 @@ def _resonance_agents_meta(root):
     """A1: trợ lý của brain cho trang Cộng hưởng: slug, tên và engine thật sự chạy phiên của nó (model riêng của trợ
     lý, hay bộ não chính khi trợ lý không chọn model) để giao diện báo đúng khả năng theo engine."""
     try:
-        main_prov = _chat_provider(cfgmod.read_settings().get("model", {}) or {})[0]
+        mcfg = cfgmod.read_settings().get("model", {}) or {}
+        main_prov = _chat_provider(mcfg)[0]
+        main_model = str(_effective_main({"model": mcfg}).get("model") or "")
     except Exception:  # noqa: BLE001
-        main_prov = ""
+        main_prov, main_model = "", ""
     out = []
     for a in agents_index(root, kem_prompt=False):
-        prov = _agent_model_provider(a.get("model") or "", a.get("model_provider") or "") if a.get("model") else main_prov
+        own = str(a.get("model") or "")
+        prov = _agent_model_provider(own, a.get("model_provider") or "") if own else main_prov
         # avatar: trang Nhóm vẽ đúng ảnh trợ lý đang dùng (cùng nhân dạng với trang Cộng sự).
         # title: vai của trợ lý (dòng "role" ở trang Cộng sự) cho gợi ý @ của trang Nhóm (0.142.0).
+        # model / model_label / model_main (owner, 18/11/2026: "trong team nhìn được model của các thành viên"): the
+        # model a team turn picks first (team_engine.choose_spec): the assistant's own, else the main model.
         out.append({"slug": a["slug"], "name": a.get("name") or a["slug"], "provider": prov, "avatar": a.get("avatar"),
-                    "title": str(a.get("role") or "")[:120]})
+                    "title": str(a.get("role") or "")[:120], "model": own or main_model,
+                    "model_label": str((_provider_def(prov) or {}).get("label") or prov), "model_main": not own})
     return out
 
 

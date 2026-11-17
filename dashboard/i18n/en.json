@@ -4719,6 +4719,7 @@
   "teams.mention_all": "Call the whole team ({n})",
   "teams.leader": "Deputy lead",
   "teams.member": "Member",
+  "teams.model_main": "Main model: {model}",
   "teams.make_leader": "Make deputy lead",
   "teams.remove_leader": "Remove as deputy lead",
   "teams.remove": "Remove from team",
