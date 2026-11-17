@@ -1143,9 +1143,10 @@
       return a && !(seen || {})[a.id] && !(ownerTs && ts <= ownerTs);
     }).map(function (a) { return Number(a.id); }).sort(function (x, y) { return x - y; });
   }
-  // The round "@" button at the bottom of the chat, with the number of messages waiting under it.
+  // The round button at the top of the chat: an up arrow (the messages are above, owner 18/11/2026), and under it "@"
+  // with the number of messages waiting.
   function atJumpHtml(n) {
-    return n ? ic("at-sign") + '<span class="notification-badge tm-at-n">' + (n > 99 ? "99+" : n) + "</span>" : "";
+    return n ? ic("chevrons-up") + '<span class="notification-badge tm-at-n">@' + (n > 99 ? "99+" : n) + "</span>" : "";
   }
 
   function stripState(q, seenAt) {
@@ -2543,8 +2544,11 @@
       return it.nodes.every(function (n) { return n.parentNode === box; });
     });
     var keep = box.lastChild && box.lastChild.classList && box.lastChild.classList.contains("jv-new-msg") ? box.lastChild : null;
+    // The "@" button (18/11/2026) is the list's FIRST child, so `position: sticky; top` keeps it at the top: kept there.
+    var lead = box.firstChild && box.firstChild.classList && box.firstChild.classList.contains("tm-at-jump") ? box.firstChild : null;
     if (!usable) {
       while (box.firstChild) box.removeChild(box.firstChild);
+      if (lead) box.appendChild(lead);
       items.forEach(function (it) {
         it.nodes = make(it.html);
         it.nodes.forEach(function (n) { box.appendChild(n); });
@@ -2558,7 +2562,7 @@
     prev.forEach(function (it) {
       if (!want[it.key]) it.nodes.forEach(function (n) { box.removeChild(n); });
     });
-    var cursor = box.firstChild;
+    var cursor = lead ? lead.nextSibling : box.firstChild;
     items.forEach(function (it) {
       var was = old[it.key];
       if (was && was.html === it.html) {
@@ -2724,10 +2728,10 @@
     if (lastRx) lastRx.classList.add("is-last");
     // The jump-to-latest button (chat-scroll.js) is the list's last child, so `position: sticky` keeps it at the bottom.
     if (S.scroll) { if (box.lastChild !== S.scroll.button) box.appendChild(S.scroll.button); S.scroll.update(); }
-    // The "@" button sits right before it, sticky at the bottom right (18/11/2026).
+    // The "@" button is the list's first child, sticky at the top right (owner, 18/11/2026: "nút nó phải ở phía trên",
+    // like Zalo: the messages it leads to are above).
     if (S.atBtn) {
-      var before = S.scroll && S.scroll.button.parentNode === box ? S.scroll.button : null;
-      if (S.atBtn.parentNode !== box || S.atBtn.nextSibling !== before) box.insertBefore(S.atBtn, before);
+      if (box.firstChild !== S.atBtn) box.insertBefore(S.atBtn, box.firstChild);
       updateAtJump(true);
     }
     applyReveal(box);

@@ -4381,18 +4381,19 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-msg-flash .tm-bubble { animation: tm-flash 1.6s ease; }
 @keyframes tm-flash { 0%, 40% { background: var(--accent-wash-2); } 100% { background: inherit; } }
 @media (prefers-reduced-motion: reduce) { .tm-msg-flash .tm-bubble { animation: none; outline: 2px solid var(--accent); } }
-/* 18/11/2026 (owner): the round "@" button at the bottom right of a team chat, the number of messages calling the owner
-   under it (red like every unread count). Sticky like the jump-to-latest button; it keeps its own room under the last
-   message, so at the end of the chat it never covers that message. */
-.tm-at-jump { position: sticky; bottom: 10px; align-self: flex-end; margin: 4px 12px 8px 0; z-index: 3; flex: none;
+/* 18/11/2026 (owner): the round button at the TOP right of a team chat ("nút nó phải ở phía trên", like Zalo: the
+   messages it leads to are above), an up arrow, "@" and the number of messages calling the owner under it (red like
+   every unread count). The list's first child, sticky to the top; the negative bottom margin takes back its height, so
+   showing or hiding it never moves the messages being read. */
+.tm-at-jump { position: sticky; top: 10px; align-self: flex-end; margin: 10px 12px -50px 0; z-index: 3; flex: none;
   display: none; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border-radius: 50%;
-  background: var(--panel-solid); border: 1px solid var(--border); color: var(--accent); box-shadow: var(--shadow-2); cursor: pointer; }
+  background: var(--panel-solid); border: 1px solid var(--border); color: var(--text2); box-shadow: var(--shadow-2); cursor: pointer; }
 .tm-at-jump.show { display: inline-flex; }
-.tm-at-jump svg { width: 20px; height: 20px; }
-.tm-at-jump:hover { background: var(--accent-wash-2); border-color: var(--accent); }
+.tm-at-jump svg { width: 22px; height: 22px; }
+.tm-at-jump:hover { background: var(--accent-wash-2); border-color: var(--accent); color: var(--accent); }
 .tm-at-jump .tm-at-n { position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%); min-width: 18px; height: 18px;
   padding: 0 5px; font-size: 11px; font-weight: 700; box-shadow: none; background: var(--red); color: #fff; }
-@media (max-width: 760px) { .tm-at-jump { width: 44px; height: 44px; } }
+@media (max-width: 760px) { .tm-at-jump { width: 44px; height: 44px; margin-bottom: -54px; } }
 /* 0.192.0: pinned strip on top of the team chat. */
 .tm-pinbar { border-bottom: 1px solid var(--border); padding: 6px 12px; background: var(--bg2); display: flex; flex-direction: column;
   gap: 4px; max-height: 40vh; overflow: auto; }
