@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.578.1] - 2026-11-17
+### Fixed
+- **The "Showing one job's messages" bar is one line** on a phone: the job's name, an icon for its acceptance and usage, an X to see every message again. It used to take three lines and push the chat down.
+- **Pressing a job's title or "Open the Jobs tab" in the job pill's details now opens it;** the details used to just close.
+- **A job you already answered no longer comes back on the pill** while you look at another job's messages. A job with no message yet says so in the chat.
+
 ## [0.578.0] - 2026-11-17
 ### Improved
 - **Team jobs fold into one pill right above the composer,** like background work in the main chat. Press it for the details: why a job stopped, the button that resolves it, who is working.

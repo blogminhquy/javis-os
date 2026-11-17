@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.578.1] - 2026-11-17
+### Sửa lỗi
+- **Thanh "Đang xem tin của việc" gọn còn một dòng** trên điện thoại: tên việc, một icon mở nghiệm thu và mức dùng, một dấu X để xem lại mọi tin. Trước đây nó chiếm ba dòng và đẩy khung chat xuống.
+- **Bấm tên việc hay "Mở tab Việc" trong khung chi tiết của viên thuốc giờ mở đúng thứ đó,** trước đây khung chỉ đóng lại.
+- **Việc bạn đã trả lời không hiện lại trên viên thuốc** khi bạn đang xem tin của một việc khác. Việc chưa có tin nào thì khung chat nói đúng như vậy.
+
 ## [0.578.0] - 2026-11-17
 ### Cải thiện
 - **Việc của team gọn thành một viên thuốc ngay trên khung nhập,** giống việc nền ở chat chính. Bấm vào mới mở chi tiết: lý do dừng, nút xử lý, ai đang làm.
