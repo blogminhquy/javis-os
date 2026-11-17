@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.584.0] - 2026-11-17
+### Added
+- **Background jobs can carry fixed done-criteria.** A job a script or workflow hands out every day keeps its wording and is checked against exactly those criteria, so it no longer passes one day and sticks the next.
+### Fixed
+- **A background job that answers `[SILENT]` finishes quietly**, like reminders: no more "nothing to report" messages on every run, and the automatic check no longer fails it.
+- **Editing a schedule changes its permission level, who gets the result and the spoken note.** Javis used to say "updated" while the old level stayed.
+- **Short wikilinks like `[[log]]` open** even when many files mention the word. When an approval team refuses ChatGPT on Docker, the message now says how to turn the sandbox back on.
+
 ## [0.583.0] - 2026-11-17
 ### Added
 - **Notify every answer when you are not viewing that chat.** Turn on the new box under Push notifications in the bell: when Javis finishes an answer the phone rings if you switched to another app or opened another chat. Viewing that chat keeps it quiet. Tapping the notice opens the chat.
