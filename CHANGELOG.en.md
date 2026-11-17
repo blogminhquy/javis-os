@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.581.1] - 2026-11-17
+### Improved
+- **The "Add Javis to your Home Screen" prompt no longer pops up right after you sign in.** It used to show 12 seconds
+
 ## [0.581.0] - 2026-11-17
 ### Improved
 - **The team's settings tab is much shorter and saves itself.** Advanced is gone (acceptance, usage, limit numbers, the

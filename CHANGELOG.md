@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.581.1] - 2026-11-17
+### Cải thiện
+- **Lời nhắc "Thêm Javis vào Màn hình chính" không bung ngay lúc vừa đăng nhập nữa.** Trước đây nó hiện 12 giây sau khi
+
 ## [0.581.0] - 2026-11-17
 ### Cải thiện
 - **Tab cài đặt của team gọn hẳn và tự lưu.** Bỏ mục Nâng cao (nghiệm thu, mức dùng, các con số giới hạn, quyền chi tiết
