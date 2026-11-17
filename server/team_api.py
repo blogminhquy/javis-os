@@ -334,7 +334,12 @@ class TeamApi:
         for m in members:
             reg = regs.get(m["agent_key"]) or {}
             ident = self._identity(team, m, reg, by_slug)
-            out.append(dict(ident, agent_key=m["agent_key"], title=str((by_slug.get(ident.get("slug")) or {}).get("title") or "")
+            # The model this member's turns run on (owner, 18/11/2026), only while its file is confirmed as this member.
+            info = (by_slug.get(ident.get("slug")) or {}) if reg.get("status") == "active" else {}
+            model = {"model": str(info.get("model") or ""), "label": str(info.get("model_label") or ""),
+                     "main": bool(info.get("model_main"))} if info.get("model_label") else None
+            out.append(dict(ident, agent_key=m["agent_key"], model=model,
+                            title=str((by_slug.get(ident.get("slug")) or {}).get("title") or "")
                             if reg.get("status") == "active" else "",
                             role=m["role"], status=m["status"], agent_status=reg.get("status") or "",
                             resonance_enabled=bool(reg.get("enabled")), joined_at=m["joined_at"],

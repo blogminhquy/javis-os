@@ -4719,6 +4719,7 @@
   "teams.mention_all": "Gọi cả team ({n} cộng sự)",
   "teams.leader": "Phó nhóm",
   "teams.member": "Thành viên",
+  "teams.model_main": "Model chính: {model}",
   "teams.make_leader": "Đặt làm phó nhóm",
   "teams.remove_leader": "Bỏ phó nhóm",
   "teams.remove": "Bỏ khỏi team",

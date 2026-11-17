@@ -1555,6 +1555,15 @@
   function rsText(on) { return tw(on ? "resonance.t0_state_on" : "resonance.t0_state_off"); }
 
   // Mỗi thành viên một dòng (tên đủ, vai ở dòng dưới); chạm dòng mở các thao tác.
+  // The model a member's turns run on (owner, 18/11/2026: "trong team nhìn được model của các thành viên, như vậy sẽ dễ
+  // kiểm soát hơn"): engine and model, marked when the member has no model of its own and follows the main model.
+  function memberModelText(m) {
+    var x = m && m.model;
+    if (!x || !x.label) return "";
+    var text = x.model && x.model !== x.label ? x.label + " · " + x.model : x.label;
+    return x.main ? tw("teams.model_main", { model: text }) : text;
+  }
+
   function membersHtml(team, agents, openKey) {
     var mem = team.members || [];
     var rows = mem.map(function (m) {
@@ -1562,9 +1571,12 @@
       var open = openKey === m.agent_key;
       var sub = [tw(lead ? "teams.leader" : "teams.member")];
       if (m.resonance_enabled) sub.push(rsText(true));
+      var model = memberModelText(m);
       return '<div class="tm-mrow"><button type="button" class="tm-mhead" data-expand="' + esc(m.agent_key) + '" aria-expanded="' +
         (open ? "true" : "false") + '">' + agentAva(m, 34) + '<span class="tm-mtext"><span class="tm-mname">' +
-        esc(m.name || m.slug) + '</span><span class="tm-mrole">' + esc(sub.join(" · ")) + "</span></span>" +
+        esc(m.name || m.slug) + '</span><span class="tm-mrole">' + esc(sub.join(" · ")) + "</span>" +
+        (model ? '<span class="tm-mmodel" title="' + esc(model) + '">' + ic("cpu") + "<span>" + esc(model) + "</span></span>" : "") +
+        "</span>" +
         '<span class="tm-chev" aria-hidden="true">' + ic("chevron-down") + "</span></button>" +
         '<div class="tm-mact"' + (open ? "" : " hidden") + ">" +
         '<label class="tm-rs"><input type="checkbox" class="tm-rs-toggle" data-slug="' + esc(m.slug) + '"' +
@@ -6013,7 +6025,7 @@
     jobsChip: jobsChip, jobsChipHtml: jobsChipHtml, timeShort: timeShort,
     mentionMatches: mentionMatches, mentionsFromText: mentionsFromText, mentionScan: mentionScan, removeMention: removeMention,
     callsHtml: callsHtml, foldName: foldName, emailBefore: emailBefore, composerHint: composerHint, newClientId: newClientId,
-    membersHtml: membersHtml, settingsFormHtml: settingsFormHtml, dangerZoneHtml: dangerZoneHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
+    membersHtml: membersHtml, memberModelText: memberModelText, settingsFormHtml: settingsFormHtml, dangerZoneHtml: dangerZoneHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
     levelOf: levelOf, grantFor: grantFor, teamAvatarHtml: teamAvatarHtml, savePin: savePin, pinTeamWith: pinTeamWith, noteHtml: noteHtml, levelsHtml: levelsHtml, turnsHtml: turnsHtml,
     bannersHtml: bannersHtml, reactCornerHtml: reactCornerHtml, reactBarHtml: reactBarHtml, sheetHtml: sheetHtml,
     hoverActsHtml: hoverActsHtml, bodyHtml: bodyHtml, skillSplit: skillSplit, skillCall: skillCall, listSync: listSync, pendingHtml: pendingHtml, copyTextOf: copyTextOf, fileChipHtml: fileChipHtml, uploadError: uploadError, pickFiles: pickFiles, plainPreview: plainPreview, previewText: previewText,
