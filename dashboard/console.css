@@ -4783,3 +4783,17 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
   .cside-reorder { width: 34px; height: 30px; }
 }
 
+
+/* 17/11/2026: the Team tab without Advanced (teams.js teamTabHtml). Every field saves itself; Archive and Delete stand
+   apart at the end in a red-edged box (design-style 9: the danger zone is last). */
+.tm-pause-row { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.tm-danger-zone { margin-top: 18px; padding: 12px; border: 1px solid var(--danger-line); border-radius: 14px; }
+.tm-danger-zone .tm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tm-danger-zone .ws-btn { min-height: 44px; padding: 0 14px; }
+.tm-danger-zone .ws-btn.tm-danger { color: var(--danger-ink); border-color: var(--danger-line); }
+.tm-danger-zone .ws-btn svg { width: 18px; height: 18px; }
+/* The two outside-action choices are choice cards like the three levels above them: one look, one left edge. */
+.tm-wm .tm-radio { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 0 0 6px; border: 1px solid var(--border);
+  border-radius: 12px; cursor: pointer; }
+.tm-wm .tm-radio:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); }
+.tm-wm .tm-radio input { margin: 3px 0 0; flex: none; }

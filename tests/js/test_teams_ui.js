@@ -124,10 +124,12 @@ check("thành viên: nút Đặt làm trưởng nhóm, Bỏ khỏi nhóm", /data
 check("thêm thành viên: một nút mở hộp chọn (0.142.0; hộp chọn loại người đã trong nhóm, test ở test_team_chat_0142.js)",
       h.includes("tm-add-open") && !h.includes("tm-add-pick"), h);
 h = TM.settingsFormHtml(team);
-check("T5 tên, mô tả, trạng thái một cột, nút Lưu ở cuối, không có số giới hạn", h.lastIndexOf("tm-save") > h.lastIndexOf("tm-status")
+// 17/11/2026: no Save button, every field saves itself; pause is one switch, archive sits in the danger zone.
+check("T5 tên, mô tả, tạm dừng một cột, tự lưu (không nút Lưu), không có số giới hạn", !h.includes("tm-save")
+      && h.includes('data-team-field="name"') && h.includes('data-team-field="description"') && h.includes("tm-pause-toggle")
       && !h.includes("tm-cap") && !h.includes("<table"), h);
-check("ba trạng thái nhóm bằng chữ", h.includes(vi["teams.status_active"]) && h.includes(vi["teams.status_paused"])
-      && h.includes(vi["teams.status_archived"]), h);
+check("tạm dừng bằng chữ, lưu trữ và xoá ở vùng nguy hiểm", h.includes(vi["teams.pause_team"])
+      && TM.dangerZoneHtml(team).includes(vi["teams.archive_team"]) && TM.dangerZoneHtml(team).includes(vi["teams.delete_team"]), h);
 h = TM.capsFormHtml(team);
 check("T5 số giới hạn riêng một form, nút Lưu ở cuối", h.lastIndexOf("tm-caps-save") > h.lastIndexOf("tm-cap-") && !h.includes("<table"), h);
 // 0.260.0: owner picks whether several @ in one message answer at the same time (1, default) or one by one (0).
@@ -466,19 +468,17 @@ check("T5 hộp quyền đặt tay khác ba mức: Tuỳ chỉnh", TM.levelOf(wi
       && TM.levelOf(withGrant(Object.assign({}, g3, { providers_unlimited: ["aux"] }))) === "custom");
 check("T5 mức 1 không có hộp quyền (là thu hồi)", TM.grantFor(1) === null);
 h = TM.teamTabHtml(Object.assign({}, withGrant(g2), { usage: { today: 7, cap: 100 } }), [], {});
-check("T5 tab Nhóm: thành viên, câu hỏi tự quyết, ba lựa chọn có mô tả (mức 2 được chọn), số đã dùng hôm nay",
+check("T5 tab Nhóm: thành viên, câu hỏi tự quyết, ba lựa chọn có mô tả (mức 2 được chọn)",
       h.includes(vi["teams.level_title"]) && (h.match(/name="tm-level"/g) || []).length === 3 && /value="2" checked/.test(h)
       && ["teams.level_1", "teams.level_2", "teams.level_3", "teams.level_1_desc", "teams.level_3_desc"].every(function (k) {
-        return h.includes(vi[k]); }) && h.includes(vi["teams.usage_today"].replace("{n}", "7").replace("{cap}", "100")), h);
-check("T5 tab Nhóm: mọi con số và quyền chi tiết trong Nâng cao, đóng sẵn",
-      /<details class="tm-adv">/.test(h) && h.indexOf("tm-adv") < h.indexOf("tm-caps-form") && h.indexOf("tm-adv") < h.indexOf("tm-auth")
-      && h.indexOf("tm-adv") < h.indexOf("tm-turns") && h.indexOf("tm-adv") > h.indexOf("tm-level"), h);
-check("T5 Nâng cao đã mở thì vẽ lại vẫn mở", /<details class="tm-adv" open>/.test(TM.teamTabHtml(team, [], { advOpen: true })));
+        return h.includes(vi[k]); }), h);
+// 17/11/2026 (owner: "lược bỏ hết để tự động thôi"): no Advanced, no usage line, no limit numbers or detailed rights.
+check("T5 tab Nhóm: không còn Nâng cao, số đã dùng, con số giới hạn hay quyền chi tiết",
+      !h.includes("tm-adv") && !h.includes("tm-usage") && !h.includes("tm-caps-form") && !h.includes("tm-auth")
+      && !h.includes("tm-turns"), h);
 check("T5 chưa có trưởng nhóm: không chọn mức được, nhắc chọn trưởng nhóm",
       TM.levelsHtml(Object.assign({}, team, { leader_key: null })).includes(vi["teams.level_need_leader"])
       && !TM.levelsHtml(Object.assign({}, team, { leader_key: null })).includes("tm-level\""));
-check("T5 không giới hạn số lần trả lời: nói rõ", TM.teamTabHtml(Object.assign({}, team, { usage: { today: 3, cap: null } }), [], {})
-      .includes(vi["teams.usage_today_unl"].replace("{n}", "3")));
 check("T5 mức 3 hỏi lại trước khi bật; mức 1 là thu hồi", /n === 3 && typeof confirm === "function" && !confirm\(tw\("teams\.level_3_confirm"\)\)/.test(teamsJs)
       && /n === 1 \? \{ mode: "limited"/.test(teamsJs));
 
@@ -782,7 +782,7 @@ check("khoá chữ ghim có ở vi và en", ["teams.pin_team", "teams.unpin_team
   check("GOAL T1 bảng giới hạn: Quyền giới hạn thì nói trưởng nhóm chưa chỉnh được",
         TM.limitsHtml(Object.assign({}, team, { authority: { limits: [{ key: "task_turns", category: "leader", value: null,
           unit: "count", unlimited_ok: true, granted: false, editable: false }] } })).includes(vi["teams.limits.leader_off"]));
-  check("GOAL T1 bảng giới hạn nằm trong Nâng cao của tab Nhóm", TM.teamTabHtml(Object.assign({}, team,
+  check("GOAL T1 bảng giới hạn không còn hiện ở tab Nhóm (17/11/2026: tự động)", !TM.teamTabHtml(Object.assign({}, team,
     { authority: { authority: null, limits: limRows } }), [], {}).includes('class="tm-limits"'));
   check("GOAL T1 bảng giới hạn không có chữ nào hứa bỏ mọi giới hạn", !/bỏ mọi giới hạn|remove all limits/i.test(
     Object.keys(vi).filter(function (k) { return k.indexOf("teams.limits.") === 0; }).map(function (k) { return vi[k] + " " + en[k]; }).join(" ")));

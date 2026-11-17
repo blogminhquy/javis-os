@@ -5,6 +5,10 @@
 // A customer: "cái phần cài đặt của team khá phức tạp, nhiều thông số quá, cần đơn giản hơn, tập trung vào mục tiêu
 // thôi". Acceptance, usage figures, limits, detailed rights and the reply log now sit in
 // Advanced, closed by default. Nothing was removed.
+//
+// 17/11/2026, the owner: "quá nhiều cài đặt, phần trang cài đặt bị quá phức tạp anh muốn lược bỏ hết để tự động thôi tối
+// giản lại vì không ai động vào đâu, các nút lưu bố trí cũng không hợp lý". Advanced is gone from the tab (the server keeps
+// its automatic defaults), every field saves itself (no Save button), Archive and Delete stand apart at the end.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -29,39 +33,41 @@ const team = { id: "tm_x", team_id: "tm_x", name: "Shop", description: "Sells on
   quality_usage: { attempts: 0, money: {}, coverage: {} } };
 
 const html = TM.teamTabHtml(team, [], {});
-const cut = html.indexOf('<details class="tm-adv"');
-const shown = html.slice(0, cut), advanced = html.slice(cut);
 const count = (h, re) => (h.match(re) || []).length;
 
-check("Advanced is there and closed by default", cut > 0 && !/<details class="tm-adv" open/.test(html));
-check("in view: members, the goal, how far the coordinator decides, outside actions, name and status",
-  shown.includes(T("teams.tab_members")) && shown.includes(T("teams.md.title")) && shown.includes(T("teams.level_title"))
-  && shown.includes(T("teams.tab_team")) && /class="tm-pin-toggle"/.test(shown), shown.slice(0, 300));
+check("no Advanced section any more", !html.includes("tm-adv") && !html.includes(T("teams.advanced")));
+check("in view: members, the goal, how far the deputy decides, outside actions, the team",
+  html.includes(T("teams.tab_members")) && html.includes(T("teams.md.title")) && html.includes(T("teams.level_title"))
+  && html.includes(T("teams.tab_team")) && /class="tm-pin-toggle"/.test(html), html.slice(0, 300));
 check("the goal comes right after the members, before the other choices",
-  shown.indexOf(T("teams.tab_members")) < shown.indexOf(T("teams.md.title"))
-  && shown.indexOf(T("teams.md.title")) < shown.indexOf(T("teams.level_title"))
-  && shown.indexOf(T("teams.level_title")) < shown.indexOf(T("teams.tab_team")));
-check("today's use stays in view as one line", shown.includes('class="tm-usage"'));
-check("acceptance and the usage figures are in Advanced, not in view",
-  !shown.includes(T("teams.quality.title")) && !shown.includes(T("teams.quality.usage"))
-  && advanced.includes(T("teams.quality.title")) && advanced.includes(T("teams.quality.usage")));
-check("limits and the detailed rights are in Advanced, as before", !shown.includes(T("teams.caps")) && advanced.includes(T("teams.caps"))
-  && !shown.includes(T("teams.auth.title")) && advanced.includes(T("teams.auth.title")));
+  html.indexOf(T("teams.tab_members")) < html.indexOf(T("teams.md.title"))
+  && html.indexOf(T("teams.md.title")) < html.indexOf(T("teams.level_title"))
+  && html.indexOf(T("teams.level_title")) < html.indexOf(T("teams.tab_team")));
+check("no usage line, no limit numbers, no acceptance form, no detailed rights, no reply log",
+  !html.includes('class="tm-usage"') && !html.includes("tm-cap-") && !html.includes("tm-quality-form")
+  && !html.includes(T("teams.auth.title")) && !html.includes(T("teams.caps")));
 // The two switches on each member row grow with the team, so they are counted apart from the team's own choices.
-const perMember = count(shown, /class="tm-(rs|managed)-toggle"/g);
-const inView = count(shown, /<(input|select|textarea)\b/g) - perMember, all = count(html, /<(input|select|textarea)\b/g);
-check("11 inputs of the team's own in view (3 levels, 2 outside-action choices, pin, name, description, 3 states); the rest behind Advanced",
-  inView === 11 && all - inView - perMember >= 40, inView + " + " + perMember + " per member, of " + all);
-check("the acceptance form that left the view carried 4 inputs", count(TM.qualityPolicyHtml(team), /<(input|select|textarea)\b/g) === 4);
-check("nothing was removed: the forms the handlers look for are all still drawn",
-  ["tm-quality-form", "tm-template-form", "tm-quality-save", "tm-pin-toggle"].every((c) => html.includes(c))
-  && html.includes("tm-cap-task_turns"));
-check("with Advanced open it is drawn open", /<details class="tm-adv" open>/.test(TM.teamTabHtml(team, [], { advOpen: true })));
-check("the (i) of Advanced says what is inside, in both languages", vi["teams.advanced_note"].indexOf("Nghiệm thu") === 0
-  && /^Acceptance, usage figures/.test(en["teams.advanced_note"]));
-check("a new team's per-job limits read Unlimited in the limits form", (() => {
-  const f = TM.capsFormHtml(team);
-  return /tm-cap-task_turns[\s\S]{0,400}checked/.test(f) || /tm-unl-task_turns[^>]*checked/.test(f) || /data-unl="task_turns"[^>]*checked/.test(f);
-})(), TM.capsFormHtml(team).slice(0, 600));
+const perMember = count(html, /class="tm-(rs|managed)-toggle"/g);
+const own = count(html, /<(input|select|textarea)\b/g) - perMember;
+check("9 inputs of the team's own (3 levels, 2 outside-action choices, pin, name, description, pause)", own === 9,
+  own + " + " + perMember + " per member");
+check("no Save button: name and description save themselves", !html.includes("tm-save")
+  && /name="tm-set-name" data-team-field="name"/.test(html) && /name="tm-set-desc" data-team-field="description"/.test(html));
+check("pause is one switch that reads the team's state", /class="tm-pause-toggle"/.test(html)
+  && /class="tm-pause-toggle" checked/.test(TM.teamTabHtml(Object.assign({}, team, { status: "paused" }), [], {}))
+  && !html.includes('name="tm-status"'));
+const zone = html.indexOf("tm-danger-zone");
+check("Archive and Delete stand apart at the very end, in the danger zone", zone > html.indexOf(T("teams.tab_team"))
+  && html.slice(zone).includes("data-team-archive") && html.slice(zone).includes("data-delete-team")
+  && html.indexOf("data-delete-team") > zone);
+const arch = TM.teamTabHtml(Object.assign({}, team, { status: "archived" }), [], {});
+check("an archived team offers Restore instead of Archive, and its fields are read only",
+  arch.includes("data-team-unarchive") && !arch.includes("data-team-archive")
+  && /name="tm-set-name"[^>]*disabled/.test(arch) && /class="tm-pause-toggle"[^>]*disabled/.test(arch));
+check("the new words exist in both languages", ["teams.pause_team", "teams.danger_zone", "teams.archive_team",
+  "teams.unarchive_team"].every((k) => vi[k] && en[k]));
+const capped = TM.replyStatusHtml({ replies: [{ agent_key: "b", status: "error", reason: "cap" }] }, { members: team.members });
+check("a blocked reply no longer offers to open limit numbers that are gone, Try again stays",
+  capped.includes("tm-replies") && !/data-reply-act="limits"/.test(capped), capped.slice(0, 400));
 
 process.exit(fails ? 1 : 0);

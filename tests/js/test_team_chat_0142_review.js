@@ -79,7 +79,8 @@ check("timeout: nói số phút, có Đổi model và Thử lại", h.includes("
 h = row({ agent_key: "ag_lan", reason: "auth", detail: "token hết hạn" });
 check("lỗi đăng nhập: mở trang Models", h.includes('data-reply-act="models"') && h.includes(vi["teams.reply.why.auth"]), h);
 h = row({ agent_key: "ag_lan", reason: "cap", detail: "daily_turns" });
-check("hết lượt: mở giới hạn của nhóm", h.includes('data-reply-act="limits"'), h);
+// 17/11/2026: no limit numbers to open any more (the team tab has no Advanced, no daily cap): only Try again stays.
+check("hết lượt: không còn nút mở giới hạn, vẫn có Thử lại", !h.includes('data-reply-act="limits"') && h.includes("data-retry-key"), h);
 h = row({ agent_key: "__leader__", reason: "no_leader" });
 check("chưa có điều phối: dòng 'Điều phối ... chưa có ai trả lời' kèm Chọn điều phối và Thử lại",
   h.includes(vi["teams.reply.leader_slot"]) && h.includes('data-reply-act="leader"') && h.includes('data-retry-key="__leader__"'), h);
