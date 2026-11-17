@@ -276,7 +276,7 @@ Editing or cancelling the job voids its old cards. Words in the chat (yours or a
 - **Needs your approval** (default, older teams too): members read, search, write files in the brain and the team folder, and run read-only commands on their own. Sending, posting, paying, ordering, deleting data or other machine commands are stopped BEFORE they run and become an approval card.
 - **The team acts without asking**: the same rights as your private chat with each member (how Teams ran from 0.194.0 to 0.206.0).
 
-With Needs your approval, Claude Code, Codex (with its own sandbox) and the API-key brains stop an action before it runs. Grok Build only does the in-scope part (an approved action cannot run on Grok). Antigravity cannot stop its own tools, so that step is refused with an explanation: move the member to another brain or turn on "The team acts without asking".
+With Needs your approval, Claude Code, Codex (with its own sandbox) and the API-key brains stop an action before it runs. The Docker image turns Codex's sandbox off (`JAVIS_CODEX_SANDBOX=off`), so there a member on ChatGPT is refused; how to turn it back on is in [Env configuration](16-env-configuration.md). Grok Build only does the in-scope part (an approved action cannot run on Grok). Antigravity cannot stop its own tools, so that step is refused with an explanation: move the member to another brain or turn on "The team acts without asking".
 
 ## A Team's department mandate (from 0.208.0)
 

@@ -310,6 +310,42 @@ check("dispatcher: op không hợp lệ -> báo lỗi rõ (không im lặng/cras
       str(_res_badop).startswith("ERROR") and "khong-ton-tai" in _res_badop)
 
 
+# ---- 12. Issue 1482: op=update forwards muc_quyen, chat_id, speak, and never answers "Đã sửa" for a dropped field ----
+_upd_sent = {}
+
+
+async def _fake_update_reminder(vault_root, rid, fields):
+    _upd_sent.clear()
+    _upd_sent.update(fields)
+    return f"Đã sửa lịch {rid}."
+
+
+_real_update_reminder = sched._update_reminder
+sched._update_reminder = _fake_update_reminder
+try:
+    _vault_up = tempfile.mkdtemp(prefix="javis-vault-up-")
+    _r = asyncio.run(sched._do_update(_vault_up, {"id": "r1", "muc_quyen": "auto"}))
+    check("1482: muc_quyen alone reaches the reminder store (used to be 'nothing to change')",
+          _upd_sent == {"muc_quyen": "auto"} and _r.startswith("Đã sửa"))
+    asyncio.run(sched._do_update(_vault_up, {"id": "r1", "name": "X", "chat_id": "web:abc", "speak": True}))
+    check("1482: chat_id and speak go along with other fields instead of being dropped",
+          _upd_sent.get("chat_id") == "web:abc" and _upd_sent.get("speak") == "true" and _upd_sent.get("label") == "X")
+    _upd_sent.clear()
+    _r = asyncio.run(sched._do_update(_vault_up, {"id": "r1", "muc_quyen": "root"}))
+    check("1482: an unknown level is an error and nothing is sent", _r.startswith("ERROR") and not _upd_sent)
+    _r = asyncio.run(sched._do_update(_vault_up, {"id": "r1"}))
+    check("1482: no field at all is still an error", _r.startswith("ERROR"))
+    sched._create_loop_file(_vault_up, name="Vong quet", prompt="x", schedule="120m", owner_chat="1")
+    _loop_id = next((Path(_vault_up) / "Javis" / "loops").glob("*.md")).stem
+    _before = (Path(_vault_up) / "Javis" / "loops" / f"{_loop_id}.md").read_text(encoding="utf-8")
+    _r = asyncio.run(sched._do_update(_vault_up, {"id": _loop_id, "name": "Moi", "muc_quyen": "suggest"}))
+    check("1482: a loop refuses fields it cannot take, names them, and its file is untouched",
+          _r.startswith("ERROR") and "muc_quyen" in _r
+          and (Path(_vault_up) / "Javis" / "loops" / f"{_loop_id}.md").read_text(encoding="utf-8") == _before)
+finally:
+    sched._update_reminder = _real_update_reminder
+
+
 if _fails:
     print(f"\nFAIL - test_javis_schedule: {len(_fails)} lỗi: {_fails}")
     sys.exit(1)

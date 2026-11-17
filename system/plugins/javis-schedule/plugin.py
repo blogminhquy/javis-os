@@ -601,11 +601,24 @@ async def _do_update(vault_root: str, args: dict) -> str:
     if isinstance(args.get("remember_last"), bool):
         fields["remember_last"] = args["remember_last"]
     call = args.get("call") if isinstance(args.get("call"), bool) else None
-    if not fields and call is None:
-        return "ERROR: không có gì để sửa - truyền ít nhất một trong name / prompt / schedule."
+    # Issue 1482: muc_quyen, chat_id and speak are in the schema for every op, but update used to drop them and still
+    # answer "Đã sửa", so the model told the owner a level had changed when it had not. They now reach the reminder
+    # store; a field this kind of job cannot take is an error and nothing changes.
+    level = str(args.get("muc_quyen") or "").strip().lower()
+    if level and level not in ("suggest", "auto", "full"):
+        return f"ERROR: invalid muc_quyen '{level}' (use suggest, auto or full). Nothing was changed."
+    chat = str(args.get("chat_id") or "").strip()
+    speak = args.get("speak") if isinstance(args.get("speak"), bool) else None
+    reminder_only = [k for k, v in (("muc_quyen", level), ("chat_id", chat), ("speak", speak), ("call", call))
+                     if v not in (None, "")]
+    if not fields and not reminder_only:
+        return ("ERROR: nothing to change - pass at least one of name / prompt / schedule / remember_last / "
+                "muc_quyen / chat_id / speak / call.")
     if (_loops_dir(vault_root) / f"{rid}.md").is_file():
-        if not fields:
-            return "ERROR: việc lặp không gọi điện được; 'call' chỉ dành cho nhắc hẹn."
+        not_for_loop = reminder_only + (["remember_last"] if "remember_last" in fields else [])
+        if not_for_loop:
+            return ("ERROR: a loop takes only name / prompt / schedule here; " + ", ".join(not_for_loop)
+                    + " of a loop is changed on the Tasks page. Nothing was changed.")
         return _update_loop_file(vault_root, rid, fields)
     # Kho nhắc hẹn: đổi lịch thì dịch chuỗi lịch sang tham số thời gian như lúc tạo.
     payload = {}
@@ -619,6 +632,12 @@ async def _do_update(vault_root: str, args: dict) -> str:
         payload["remember_last"] = "true" if fields["remember_last"] else "false"
     if call is not None:
         payload["call"] = "true" if call else "false"
+    if level:
+        payload["muc_quyen"] = level
+    if chat:
+        payload["chat_id"] = chat
+    if speak is not None:
+        payload["speak"] = "true" if speak else "false"
     return await _update_reminder(vault_root, rid, payload)
 
 

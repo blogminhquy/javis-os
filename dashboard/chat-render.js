@@ -1221,7 +1221,9 @@
     var q = hasExt ? base.replace(WK_EXT, "") : base;
     return Promise.all([
       wkGetHome(b),
-      fetch("/files/search?brain=" + encodeURIComponent(b) + "&q=" + encodeURIComponent(q) + "&limit=200")
+      // mode=name (issue 1534): the default mode=all also counts files that only mention q in their text, and with a
+      // short name like [[log]] those fill the 200 results before the walk reaches wiki/log.md, so the link missed.
+      fetch("/files/search?brain=" + encodeURIComponent(b) + "&q=" + encodeURIComponent(q) + "&limit=200&mode=name")
         .then(function (r) { return r.ok ? r.json() : {}; }).catch(function () { return {}; }),
     ]).then(function (rs) {
       var home = rs[0] || "";

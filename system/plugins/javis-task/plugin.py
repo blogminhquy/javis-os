@@ -224,6 +224,12 @@ def _them(args, ctx) -> str:
             nguoi_tao = f"bot:{_bot}"
     except Exception:
         pass
+    # Issue 1481: done-criteria handed in with the job (a list, or one line per criterion).
+    raw = (args or {}).get("acceptance")
+    if isinstance(raw, str):
+        raw = raw.splitlines()
+    acceptance = [str(x).strip()[:500] for x in (raw if isinstance(raw, list) else []) if str(x).strip()]
+    acceptance = acceptance[:getattr(tasks_mod, "MAX_FIXED_ACCEPTANCE", 20)]
     try:
         tid = f.enqueue(
             ctx.vault_root,
@@ -238,6 +244,7 @@ def _them(args, ctx) -> str:
             "auto",
             mode,
             "",
+            **({"acceptance": acceptance} if acceptance else {}),
         )
     except Exception as e:
         return f"ERROR: không giao được việc ({type(e).__name__}: {e})."
@@ -264,6 +271,8 @@ def _them(args, ctx) -> str:
         ra.append(canh_bao_route)
     if deps:
         ra.append("Chờ xong: " + ", ".join(deps))
+    if acceptance:
+        ra.append(f"Fixed done-criteria: {len(acceptance)} (the intent is kept as written).")
     if tu_gan:
         ra.append(f"Người nhận kết quả: tự gắn khung chat đang hỏi ({chat_id}).")
     if not chat_id:
@@ -477,7 +486,9 @@ def register(ctx):
         "như vậy thì accept, bảo làm lại cho đạt thì fix; truyền id, và note nếu họ dặn thêm cách sửa. "
         "op=cancel: CHỈ khi người dùng bảo huỷ một việc cụ thể -> truyền id (lấy từ op=list), reason nếu họ "
         "nói lý do; việc đang chạy bị dừng ngay, không hoàn tác được. "
-        "Chuyển cột và duyệt việc chờ phê duyệt thì làm ở trang Nhiệm vụ, tool này không có.",
+        "Chuyển cột và duyệt việc chờ phê duyệt thì làm ở trang Nhiệm vụ, tool này không có. "
+        "acceptance (op=add): fixed done-criteria, one per item; the intent is then kept word for word "
+        "and checked against exactly these. A job whose answer opens or ends with [SILENT] finishes quietly.",
         _chay,
         schema={
             "type": "object",
@@ -494,6 +505,8 @@ def register(ctx):
                 "deps": {"type": "string", "description": "Mã các việc phải xong trước, cách nhau dấu phẩy"},
                 "route": {"type": "string",
                           "description": "auto, hoặc wf:<slug> để chạy một quy trình có thật"},
+                "acceptance": {"type": "array", "items": {"type": "string"},
+                               "description": "Fixed done-criteria (op=add), for jobs handed out the same way each time"},
             },
             "required": ["op"],
         },
