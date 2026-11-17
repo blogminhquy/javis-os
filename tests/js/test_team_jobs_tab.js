@@ -137,6 +137,11 @@ check("a team opens on Jobs when it has any job, on Info when it has none",
   && TM.defaultTab({}) === "info" && TM.defaultTab(null, { running: 0, waiting: 2, blocked: 0 }) === "jobs" && TM.defaultTab(null, {}) === "info");
 check("the owner's own pick of a tab is kept: the choice is made once the jobs have loaded, only if no tab was pressed",
   teamsJs.includes("if (S.tabAuto && S.side) S.tab = defaultTab(S.queue);") && teamsJs.includes("S.tab = d.tab; S.tabAuto = false;"));
+// 18/11/2026 (owner, screenshot): a team that opened on Jobs showed "Loading..." for good under the Info tab, because
+// pressing that tab only redrew the panel and never read the team's files and links.
+check("pressing the Info tab reads the team's files, links and folder, like opening the panel on it",
+  /if \(d\.tab === "info"\) \{ loadInfo\(\); loadFolder\(\); \}/.test(teamsJs.slice(teamsJs.indexOf("S.tab = d.tab; S.tabAuto = false;"))
+    .slice(0, 400)));
 check("tabs: an icon per tab in the page code", /TAB_ICON = \{ info: "info", jobs: "list-checks", team: "users" \}/.test(teamsJs));
 
 // ───────────── finished jobs: five a page, a summary on a press ─────────────
