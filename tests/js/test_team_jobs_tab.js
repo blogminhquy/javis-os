@@ -117,7 +117,12 @@ check("a job that stops again after the owner's message comes back", TM.stripSta
 check("page code: the pill sits right above the composer, its details close on an outside press and on Esc",
   teamsJs.includes(`'<div class="tm-jobs bg-strip" hidden></div><div class="tm-composer"></div>'`)
   && teamsJs.includes('if (S.stripOpen && !inside(".tm-jobs")) setStrip(false);') && teamsJs.includes('if (e.key === "Escape" && S.stripOpen)')
-  && teamsJs.includes("var seenAt = ownerSaidAt(S.msgs);"));
+  && teamsJs.includes("var seenAt = S.seenAt = Math.max(S.seenAt || 0, ownerSaidAt(S.msgs));") && teamsJs.includes("S.seenAt = 0;"));
+check("while one job's messages show, the owner's answer elsewhere in the chat still counts, and the empty chat says it is that job's",
+  teamsJs.includes('tw(S.filterTask ? "teams.chat_empty_job" : "teams.chat_empty")') && vi["teams.chat_empty_job"] && en["teams.chat_empty_job"]);
+// 17/11/2026: pressing a job's title in the details did nothing, the details were drawn again before the press was handled.
+check("a press on a job or on 'Open the Jobs tab' in the details is handled first, the details close after",
+  /\(t\.dataset\.openJobs \|\| t\.dataset\.viewTask\) && inside\("\.tm-jobs"\)\) \{\s*S\.stripOpen = false;\s*setTimeout\(drawJobs, 0\);/.test(teamsJs));
 
 // ───────────── the tabs carry icons ─────────────
 h = TM.sideTabsHtml("jobs", q);
@@ -192,6 +197,18 @@ check("archive: a report that failed to load says so", TM.queueHtml({ archived: 
   details: { a1: "error" } }, view)).includes(vi["teams.jb.load_err"]));
 check("the page reads one job's report from the job endpoint and searches as the owner types",
   teamsJs.includes('teamUrl("/tasks/" + q(job.task_id))') && /classList\.contains\("tm-jb-q"\)/.test(teamsJs));
+
+// ───────────── the bar over one job's messages: one line (17/11/2026) ─────────────
+// Owner, a phone screenshot: "rối như tơ vò ... không thể nào mà thao tác với đọc hiểu dữ liệu đc".
+h = TM.filterbarHtml("Triển khai <UI>", '<details class="tm-task-quality"><summary>x</summary>y</details>', false);
+check("filter bar: the job's name in one cut line, an icon for usage, an X for all messages, no text button",
+  h.includes(vi["teams.filter_short"].replace("{title}", "Triển khai &lt;UI&gt;")) && /class="tm-jb-ic tm-fb-q" data-fb-quality="1" aria-expanded="false"/.test(h)
+  && /class="tm-jb-ic tm-filter-clear"/.test(h) && !h.includes("ws-btn") && !h.includes("tm-task-quality"), h);
+h = TM.filterbarHtml("Việc", '<details class="tm-task-quality"><summary>x</summary>y</details>', true);
+check("filter bar: the usage icon opens the panel under the line, already unfolded", h.includes('<div class="tm-fb-panel"><details class="tm-task-quality" open>')
+  && /aria-expanded="true"/.test(h), h);
+check("filter bar: no usage yet, no icon for it", !TM.filterbarHtml("Việc", "", false).includes("data-fb-quality"));
+check("CSS: the bar keeps to one line, its name cut to fit", css.includes(".tm-fb-text { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }"));
 
 // ───────────── wiring, CSS, words ─────────────
 check("page code: fold, page, Show more and the lazy report are handled", ["d.jobFold", "d.jobPage", "d.repMore", "loadJobDetail("]
