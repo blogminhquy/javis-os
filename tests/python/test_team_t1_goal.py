@@ -425,12 +425,13 @@ cats = {x["category"] for x in rows}
 owner_rows = {x["key"]: x for x in rows if x["category"] == "owner"}
 check("G5 bảng có đủ bốn nhóm: chủ, trưởng nhóm (Toàn quyền), máy chủ, nhà cung cấp",
       cats == {"owner", "leader", "server", "provider"}, cats)
-check("G5 trần của chủ: bốn trần có Không giới hạn, @ mỗi tin và thời gian chờ thì không",
+check("G5 trần của chủ: ba trần có Không giới hạn, @ mỗi tin và thời gian chờ thì không",
       # T3: judge_daily (phần J) và agent_daily_calls (phần L) cũng có Không giới hạn.
-      bool(owner_rows) and {"task_turns", "task_steps", "help_depth", "daily_turns"}
+      bool(owner_rows) and {"task_turns", "task_steps", "help_depth"}
       <= {k for k, x in owner_rows.items() if x["unlimited_ok"]}
-      <= {"task_turns", "task_steps", "help_depth", "daily_turns", "judge_daily", "agent_daily_calls"}
+      <= {"task_turns", "task_steps", "help_depth", "judge_daily", "agent_daily_calls"}
       and not owner_rows["mentions"]["unlimited_ok"] and not owner_rows["busy_wait_s"]["unlimited_ok"], owner_rows)
+check("G5 không còn trần lượt mỗi ngày trong bảng của chủ (17/11/2026)", "daily_turns" not in owner_rows, sorted(owner_rows))
 check("G5 không dòng máy chủ hay nhà cung cấp nào có Không giới hạn (không quảng cáo bỏ mọi giới hạn)",
       rows and not [x for x in rows if x["category"] in ("server", "provider") and x["unlimited_ok"]])
 check("G5 dòng trưởng nhóm: Quyền giới hạn thì chưa chỉnh được",
@@ -438,20 +439,23 @@ check("G5 dòng trưởng nhóm: Quyền giới hạn thì chưa chỉnh đượ
 r.grant_authority(T["team_id"], FULL, by="owner")
 lead = {x["key"]: x for x in limits(r, T) if x["category"] == "leader"}
 check("G5 Toàn quyền: dòng trưởng nhóm theo trần tối đa của chủ (Không giới hạn là null)",
-      bool(lead) and lead["task_turns"]["value"] is None and lead["daily_turns"]["value"] == 200 and lead["task_turns"]["editable"]
-      and lead["daily_turns"]["model_turns"] and not lead["help_depth"]["model_turns"], lead)
+      bool(lead) and lead["task_turns"]["value"] is None and lead["task_steps"]["value"] == 20 and lead["task_turns"]["editable"]
+      and lead["task_turns"]["model_turns"] and not lead["help_depth"]["model_turns"], lead)
+check("G5 Toàn quyền: trần tối đa daily_turns của hộp cấp quyền không thành dòng trưởng nhóm", "daily_turns" not in lead,
+      sorted(lead))
 r.revoke_authority(T["team_id"])
 try:
-    tm.set_caps(T["team_id"], {"daily_turns": {"unlimited": True}, "task_steps": None})
+    tm.set_caps(T["team_id"], {"help_depth": {"unlimited": True}, "task_steps": None})
 except team_store.TeamError as ex:   # head cũ: chưa có Không giới hạn cho trần của chủ
     print(f"  (set_caps Không giới hạn bị từ chối: {ex})")
 caps = tm.get(T["team_id"])["caps"]
-check("G5 chủ đặt Không giới hạn: lưu null, không thay bằng số lớn", caps["daily_turns"] is None and caps["task_steps"] is None,
+check("G5 chủ đặt Không giới hạn: lưu null, không thay bằng số lớn", caps["help_depth"] is None and caps["task_steps"] is None,
       caps)
-check("G5 Không giới hạn của chủ có hiệu lực ở trần đang áp và dòng Hôm nay đã dùng",
-      r.effective_caps(T["team_id"])["daily_turns"] is None and r.usage(T["team_id"])["cap"] is None)
+check("G5 Không giới hạn của chủ có hiệu lực ở trần đang áp; dòng Hôm nay đã dùng không có giới hạn",
+      r.effective_caps(T["team_id"])["help_depth"] is None and r.effective_caps(T["team_id"])["daily_turns"] is None
+      and r.usage(T["team_id"])["cap"] is None)
 reply(r, T, "Chào", "g5")
-check("G5 lượt chạy được khi trần ngày là Không giới hạn", last_agent(ss, T)["meta"]["applied"])
+check("G5 lượt chạy được, không có trần ngày", last_agent(ss, T)["meta"]["applied"])
 for bad in ({"mentions": None}, {"busy_wait_s": {"unlimited": True}}, {"task_turns": True}, {"task_turns": -1}):
     try:
         tm.set_caps(T["team_id"], bad)
@@ -459,8 +463,10 @@ for bad in ({"mentions": None}, {"busy_wait_s": {"unlimited": True}}, {"task_tur
     except team_store.TeamError:
         ok = True
     check(f"G5 trần sai khuôn bị từ chối: {bad}", ok)
-tm.set_caps(T["team_id"], {"daily_turns": 50})
-check("G5 đặt lại số sau Không giới hạn", tm.get(T["team_id"])["caps"]["daily_turns"] == 50)
+tm.set_caps(T["team_id"], {"help_depth": 3})
+check("G5 đặt lại số sau Không giới hạn", tm.get(T["team_id"])["caps"]["help_depth"] == 3)
+tm.set_caps(T["team_id"], {"daily_turns": 5})
+check("G5 gửi trần ngày (đã bỏ) vẫn lưu được, trần ngày vẫn không giới hạn", tm.get(T["team_id"])["caps"]["daily_turns"] is None)
 
 # ═════ G6: luật set_resonance của trưởng nhóm (GOAL 4.3, 9) ═════
 r, tm, ts, ss, fake, admin, T, new_team = world("resonance", members=("lan", "minh", "hoa"))

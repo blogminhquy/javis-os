@@ -96,13 +96,17 @@ check("tạo nhóm qua route", r.status_code == 200 and T["leader_key"] == K["la
 lim = T["authority"].get("limits") or []
 check("H5 khung nhìn nhóm có bảng giới hạn đủ bốn nhóm", {x["category"] for x in lim} == {"owner", "leader", "server", "provider"},
       lim)
-r = c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"daily_turns": {"unlimited": True}}})
-check("H5 chủ đặt Không giới hạn số lần mỗi ngày qua route: lưu null", r.status_code == 200
+r = c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"help_depth": {"unlimited": True}}})
+check("H5 chủ đặt Không giới hạn qua route: lưu null", r.status_code == 200
+      and r.json()["team"]["caps"]["help_depth"] is None, r.text)
+# 17/11/2026: không còn trần lượt mỗi ngày. Trang cũ gửi số thì vẫn 200, không lưu, dòng Hôm nay đã dùng không có giới hạn.
+r = c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"daily_turns": 5}})
+check("H5 gửi trần lượt mỗi ngày (đã bỏ) qua route: 200, vẫn không giới hạn", r.status_code == 200
       and r.json()["team"]["caps"]["daily_turns"] is None and r.json()["team"]["usage"]["cap"] is None, r.text)
 r = c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"running_jobs": 2}})
 check("H5 trần máy chủ (việc chạy cùng lúc mỗi nhóm) không đặt được qua route", r.status_code in (400, 409)
       and c.get(f"/teams/{TID}{Q}").json()["team"]["caps"]["running_jobs"] is None, r.text)   # 17/11/2026: no cap
-c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"daily_turns": 100}})
+c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"help_depth": 2}})
 
 # ═════ H6: set_resonance của trưởng nhóm đánh thức mục tiêu; luật quản lý ═════
 check("H6 chủ giao Minh cho nhóm quản lý", c.post(f"/teams/{TID}/members/{K['minh']}/managed{Q}", json={"on": True})
@@ -209,7 +213,7 @@ check("H8 ghi chú trên tin nói Auto đã bật, không báo lệnh thất b�
 
 # ═════ H9 (review T1 #7): NaN và vô cực qua route caps trả 4xx, không lưu, JSON trả về hợp lệ ═════
 caps0 = c.get(f"/teams/{TID}{Q}").json()["team"]["caps"]
-for raw in ('{"caps": {"busy_wait_s": NaN}}', '{"caps": {"task_turns": Infinity}}', '{"caps": {"daily_turns": -Infinity}}',
+for raw in ('{"caps": {"busy_wait_s": NaN}}', '{"caps": {"task_turns": Infinity}}', '{"caps": {"help_depth": -Infinity}}',
             '{"caps": {"mentions": 1e400}}', '{"caps": ["task_turns"]}'):
     r = c.post(f"/teams/{TID}/caps{Q}", content=raw, headers={"content-type": "application/json"})
     try:

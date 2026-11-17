@@ -30,7 +30,7 @@ const members = [
   { agent_key: "ag_minh", slug: "minh", name: "Minh <b>", role: "member", status: "active", resonance_enabled: false, agent_status: "active" },
 ];
 const team = { team_id: "tm_1", name: "Ra mắt <i>", description: "", leader_key: "ag_lan", status: "active",
-  caps: { mentions: 3, daily_turns: 100, task_turns: 12, task_steps: 8 }, members: members,
+  caps: { mentions: 3, daily_turns: null, task_turns: 12, task_steps: 8 }, members: members,
   counts: { running: 1, waiting: 2, blocked: 1 }, running: [{ id: "t_1", title: "Soạn kế hoạch" }], busy: {} };
 
 // ───────────── danh sách nhóm ─────────────
@@ -153,7 +153,7 @@ check("0.260.0 bảng giới hạn: nhãn chế độ theo đúng ô, có bướ
       && lim.includes(vi["teams.limits.job_parallel"]) && lim.includes(vi["teams.limits.tool_slots"]), lim);
 h = TM.turnsHtml([{ agent_key: "ag_lan", role: "plan", status: "ok", created_at: Date.now() / 1000, tokens_in: 10, tokens_out: 2 },
                   { agent_key: "ag_minh", role: "work", status: "refunded", created_at: Date.now() / 1000 }], team);
-check("lượt: lượt hoàn không tính, theo agent và vai", h.includes(vi["teams.turns_today"].replace("{n}", "1").replace("{cap}", "100"))
+check("lượt: lượt hoàn không tính, theo agent và vai", h.includes(vi["teams.turns_today"].replace("{n}", "1").replace("{cap}", vi["teams.auth.unlimited"]))
       && h.includes("Lan") && h.includes(vi["teams.role.plan"]), h);
 // Tạo nhóm từ 0.142.0 là hộp chọn kiểu Zalo (team-picker.js, test riêng ở test_team_chat_0142.js).
 check("tạo nhóm và thêm người mở hộp chọn kiểu Zalo", teamsJs.includes('openPicker("create"') && teamsJs.includes('openPicker("add"')
@@ -324,20 +324,22 @@ check("lý do server_ceiling có nhãn ở lượt trả lời và ở việc b�
 
 // ───────────── T3: hộp cấp Toàn quyền, công tắc Nhóm quản lý (spec mục 13) ─────────────
 const limitedTeam = Object.assign({}, team, { authority: { authority: null,
-  effective_caps: { task_turns: 12, task_steps: 8, help_depth: 2, daily_turns: 100 }, fixed_limits: {} } });
+  effective_caps: { task_turns: 12, task_steps: 8, help_depth: 2, daily_turns: null }, fixed_limits: {} } });
 let ah = TM.authorityHtml(limitedTeam);
 check("Quyền giới hạn: nói rõ trưởng nhóm chỉ đề xuất, có nút Bật, không có nút Thu hồi",
       ah.includes(vi["teams.auth.off"]) && ah.includes(vi["teams.auth.grant"]) && !ah.includes("tm-auth-revoke"), ah);
 check("hộp cấp quyền đủ dòng của 13.1: phạm vi, agent do nhóm quản lý, provider, thanh toán, trần, ngắt việc, trần không bỏ được",
       ah.includes(vi["teams.auth.scope"]) && ah.includes(vi["teams.auth.managed_none"]) && ah.includes(vi["teams.auth.providers"])
-      && ah.includes(vi["teams.auth.billing"]) && (ah.match(/name="tm-auth-ceil-[a-z_]+" value/g) || []).length === 6  // T3 J: + judge_daily, volunteer_k
+      && ah.includes(vi["teams.auth.billing"]) && (ah.match(/name="tm-auth-ceil-[a-z_]+" value/g) || []).length === 5  // T3 J: + judge_daily, volunteer_k
       && ah.includes(vi["teams.auth.interrupt"]) && ["teams.auth.fixed_server", "teams.auth.fixed_provider",
         "teams.auth.fixed_account", "teams.auth.fixed_technical"].every(function (k) { return ah.includes(vi[k]); }), ah);
+check("hộp cấp quyền không còn dòng lượt mỗi ngày (17/11/2026: team không giới hạn số lần trả lời mỗi ngày)",
+      !/tm-auth-(cap|ceil)-daily_turns/.test(ah), ah);
 const fullTeam = Object.assign({}, team, { members: [Object.assign({}, members[0]), Object.assign({}, members[1], { managed: true })],
   authority: { authority: { leader_key: "ag_lan", granted_at: 1791900000,
-    grant: { caps: { task_turns: { unlimited: true } }, ceilings: { task_turns: { unlimited: true }, daily_turns: 150 },
+    grant: { caps: { task_turns: { unlimited: true } }, ceilings: { task_turns: { unlimited: true }, task_steps: 20, daily_turns: 150 },
       providers_unlimited: ["openai-oauth"], can_interrupt: true, billing: "api" } },
-    effective_caps: { task_turns: null, task_steps: 8, help_depth: 2, daily_turns: 100 } } });
+    effective_caps: { task_turns: null, task_steps: 8, help_depth: 2, daily_turns: null } } });
 ah = TM.authorityHtml(fullTeam);
 check("Toàn quyền bật: trạng thái nêu trưởng nhóm, có Lưu và Thu hồi", ah.includes("tm-auth-on") && ah.includes("Lan")
       && ah.includes(vi["teams.auth.update"]) && ah.includes("tm-auth-revoke"), ah);
@@ -345,8 +347,9 @@ check("Không giới hạn hiện bằng chữ, ô số tắt, ô tích bật (n
       ah.includes(vi["teams.cap.task_turns"] + ": " + vi["teams.auth.unlimited"])
       && /name="tm-auth-cap-task_turns" value="" disabled/.test(ah) && /name="tm-auth-cap-task_turns-unl" checked/.test(ah), ah);
 check("trần trần số hiện đúng, provider và quyền ngắt việc đã chọn được đánh dấu",
-      /name="tm-auth-ceil-daily_turns" value="150"/.test(ah) && /value="openai-oauth" checked/.test(ah)
+      /name="tm-auth-ceil-task_steps" value="20"/.test(ah) && /value="openai-oauth" checked/.test(ah)
       && /name="tm-auth-interrupt" checked/.test(ah) && /value="api" checked/.test(ah), ah);
+check("hộp cấp quyền cũ còn trần tối đa lượt mỗi ngày: không hiện ô nào cho nó", !/tm-auth-(cap|ceil)-daily_turns/.test(ah), ah);
 check("agent do nhóm quản lý được liệt kê", ah.includes(vi["teams.auth.managed"].replace("{names}", "Minh &lt;b&gt;")), ah);
 check("chưa có trưởng nhóm: chỉ nhắc chọn trưởng nhóm", TM.authorityHtml(Object.assign({}, limitedTeam, { leader_key: null }))
       .includes(vi["teams.auth.need_leader"]));
@@ -454,11 +457,13 @@ check("T5 mức 1 = chưa bật Toàn quyền", TM.levelOf(limitedTeam) === 1);
 const withGrant = function (g) { return Object.assign({}, team, { authority: { authority: { leader_key: "ag_lan", grant: g } } }); };
 const g2 = TM.grantFor(2), g3 = TM.grantFor(3);
 check("T5 hộp quyền mức 2: trần tối đa vừa phải, không ngắt việc, không provider Không giới hạn, gói thuê bao",
-      g2.ceilings.task_turns === 24 && g2.ceilings.daily_turns === 200 && g2.can_interrupt === false
+      g2.ceilings.task_turns === 24 && g2.ceilings.task_steps === 12 && g2.ceilings.help_depth === 3 && g2.can_interrupt === false
       && g2.providers_unlimited.length === 0 && g2.billing === "subscription" && Object.keys(g2.caps).length === 0);
 check("T5 hộp quyền mức 3: trần tối đa không giới hạn, được ngắt việc, vẫn không provider Không giới hạn",
-      ["task_turns", "task_steps", "help_depth", "daily_turns"].every(function (k) { return g3.ceilings[k].unlimited === true; })
+      ["task_turns", "task_steps", "help_depth"].every(function (k) { return g3.ceilings[k].unlimited === true; })
       && g3.can_interrupt === true && g3.providers_unlimited.length === 0);
+check("T5 mức 2, 3 không còn mang trần lượt mỗi ngày", !("daily_turns" in g2.ceilings) && !("daily_turns" in g3.ceilings),
+      JSON.stringify([g2.ceilings, g3.ceilings]));
 check("T5 đọc lại đúng mức 2, 3; trưởng nhóm tự chỉnh số trong khoảng cho phép vẫn là mức đó",
       TM.levelOf(withGrant(g2)) === 2 && TM.levelOf(withGrant(g3)) === 3
       && TM.levelOf(withGrant(Object.assign({}, g2, { caps: { task_turns: 20 } }))) === 2);
@@ -748,14 +753,15 @@ check("khoá chữ ghim có ở vi và en", ["teams.pin_team", "teams.unpin_team
         && notes.some(function (n) { return n.reloaded; }), JSON.stringify(notes));
 
   // ───────────── GOAL T1 mục 9: Không giới hạn cho trần của chủ, bảng giới hạn trong Nâng cao ─────────────
-  const unlTeam = Object.assign({}, team, { caps: { task_turns: 12, task_steps: null, help_depth: 2, daily_turns: 100, mentions: 3,
+  const unlTeam = Object.assign({}, team, { caps: { task_turns: 12, task_steps: null, help_depth: 2, daily_turns: null, mentions: 3,
     busy_wait_s: 1800, running_jobs: 1, no_progress: 2 } });
   const cf = TM.capsFormHtml(unlTeam);
-  check("GOAL T1 trần của chủ: bốn trần có ô Không giới hạn riêng (ngoài hộp Toàn quyền), @ và thời gian chờ thì không",
-        ["task_turns", "task_steps", "help_depth", "daily_turns"].every(function (k) { return cf.includes('name="tm-cap-' + k + '-unl"'); })
+  check("GOAL T1 trần của chủ: ba trần có ô Không giới hạn riêng (ngoài hộp Toàn quyền), @ và thời gian chờ thì không",
+        ["task_turns", "task_steps", "help_depth"].every(function (k) { return cf.includes('name="tm-cap-' + k + '-unl"'); })
         && !cf.includes('name="tm-cap-mentions-unl"') && !cf.includes('name="tm-cap-busy_wait_s-unl"')
         && /name="tm-cap-task_steps" value="" disabled/.test(cf) && /name="tm-cap-task_steps-unl" checked/.test(cf)
         && !cf.includes("tm-cap-running_jobs") && !cf.includes("tm-cap-no_progress"), cf);
+  check("17/11/2026 trần của chủ không còn ô lượt mỗi ngày", !cf.includes("tm-cap-daily_turns"), cf);
   check("GOAL T1 Không giới hạn dùng nhãn chung của i18n, số ngày Không giới hạn hiện bằng chữ ở sổ lượt",
         cf.includes(vi["teams.auth.unlimited"]) && TM.turnsHtml([], Object.assign({}, unlTeam, { caps: { daily_turns: null } }))
           .includes(vi["teams.auth.unlimited"]));
@@ -795,10 +801,10 @@ check("khoá chữ ghim có ở vi và en", ["teams.pin_team", "teams.unpin_team
         teamsJs.includes("/^tm-(auth-(cap|ceil)|cap)-[a-z_]+-unl$/") && teamsJs.includes("if (cur !== null) caps[k] = { unlimited: true };"));
   // Review T1 #1 (af85ad71): bỏ tích Không giới hạn mà chưa nhập số thì không gửi gì và chỉ ra trần thiếu số.
   (function () {
-    var cur = { task_turns: null, task_steps: 8, help_depth: 2, daily_turns: 100, mentions: 3, busy_wait_s: 1800 };
+    var cur = { task_turns: null, task_steps: 8, help_depth: 2, mentions: 3, busy_wait_s: 1800 };
     function form(over) {
       return function (k) {
-        var f = { checked: ["task_turns", "task_steps", "help_depth", "daily_turns"].indexOf(k) >= 0 ? false : null,
+        var f = { checked: ["task_turns", "task_steps", "help_depth"].indexOf(k) >= 0 ? false : null,
           value: cur[k] == null ? "" : String(cur[k]) };
         return Object.assign(f, (over || {})[k] || {});
       };
@@ -815,9 +821,11 @@ check("khoá chữ ghim có ở vi và en", ["teams.pin_team", "teams.unpin_team
     var keep = TM.capsPayload(cur, form({ task_turns: { checked: true } }));
     check("review T1 #1 vẫn tích Không giới hạn như đang lưu: không gửi gì, không báo thiếu",
           !keep.missing && Object.keys(keep.caps).length === 0, JSON.stringify(keep));
-    var unl = TM.capsPayload(cur, form({ task_turns: { checked: true }, daily_turns: { checked: true } }));
-    check("review T1 #1 tích Không giới hạn mới: gửi {unlimited: true}", unl.caps.daily_turns && unl.caps.daily_turns.unlimited === true
+    var unl = TM.capsPayload(cur, form({ task_turns: { checked: true }, help_depth: { checked: true } }));
+    check("review T1 #1 tích Không giới hạn mới: gửi {unlimited: true}", unl.caps.help_depth && unl.caps.help_depth.unlimited === true
           && !("task_turns" in unl.caps), JSON.stringify(unl));
+    var old = TM.capsPayload(Object.assign({}, cur, { daily_turns: 100 }), form({ daily_turns: { checked: true, value: "5" } }));
+    check("17/11/2026 Lưu giới hạn không gửi trần lượt mỗi ngày nữa", !("daily_turns" in old.caps), JSON.stringify(old));
     // Hành vi thật của nút Lưu (review T1 vòng 2 #7): thiếu số thì nhắc, focus đúng ô, không gọi POST.
     var log = { notes: [], focus: [], posts: [] };
     var ui = { note: function (t) { log.notes.push(t); }, focus: function (k) { log.focus.push(k); },

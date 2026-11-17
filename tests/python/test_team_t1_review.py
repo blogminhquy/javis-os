@@ -280,7 +280,6 @@ def section_r2():
     # Trần: tối đa 20 tin gần nhất, tối đa 8.000 ký tự.
     rec = Recorder()
     r, tm, ts, ss, t, d = world("r2-cap", rec.engine_for)
-    tm.set_caps(t["team_id"], {"daily_turns": 1000})
     for i in range(25):
         ss.append_team_message(t["session_id"], "user", f"MSG_{i:02d}", author_kind="owner", client_msg_id=f"m{i}")
     run(r.run_replies(r.submit(t["team_id"], "Câu hỏi cuối", client_msg_id="last")))
@@ -502,7 +501,8 @@ def section_r5():
     check("R5 việc nhóm với kho chậm: event loop không bị chặn, việc vẫn xong", gap < 100
           and ts.get_task(job)["status"] == "done", (gap, ts.get_task(job)["status"]))
 
-    # Đồng thời: trần ngày 1, hai lượt cùng lúc chỉ một lượt được giữ chỗ (đếm và ghi cùng giao dịch).
+    # 17/11/2026: nhóm không còn trần lượt mỗi ngày. Trần ngày 1 gửi lên không lưu: hai lượt cùng lúc đều chạy.
+    # Đếm và ghi cùng giao dịch vẫn được kiểm ở kho bên dưới (trần ngày và trần lượt mỗi việc, nhiều luồng).
     rec = Recorder()
     r, tm, ts, ss, t, d = world("r5-cap", rec.engine_for)
     s1 = r.submit(t["team_id"], "A", mentions=["agent-one"], client_msg_id="x1")
@@ -517,9 +517,9 @@ def section_r5():
     with patch.object(tm, "reserve_turn", side_effect=slow(tm.reserve_turn, 0.1)):
         outs = run(both())
     statuses = sorted(o[0]["status"] for o in outs)
-    check("R5 hai lượt đồng thời, trần ngày 1: đúng một lượt chạy, lượt kia chạm trần, không lượt nào tới engine thừa",
-          statuses == ["cap", "done"] and len(rec.reqs) == 1
-          and len([x for x in tm.turns(t["team_id"]) if x["status"] != "refunded"]) == 1, (statuses, len(rec.reqs)))
+    check("R5 hai lượt đồng thời, trần ngày 1 gửi lên (đã bỏ): cả hai lượt chạy, không lượt nào chạm trần",
+          tm.get(t["team_id"])["caps"]["daily_turns"] is None and statuses == ["done", "done"] and len(rec.reqs) == 2
+          and len([x for x in tm.turns(t["team_id"]) if x["status"] != "refunded"]) == 2, (statuses, len(rec.reqs)))
     tm2 = team_store.TeamStore(TEMP / "r5-threads.sqlite3")
     got, errs = [], []
 
@@ -538,6 +538,23 @@ def section_r5():
         th.join()
     check("R5 tám luồng giữ chỗ cùng lúc, trần 3: đúng 3 lượt, 5 lượt bị từ chối", len(got) == 3 and len(errs) == 5,
           (len(got), len(errs)))
+    got_t, errs_t = [], []
+
+
+    def grab_task():
+        try:
+            got_t.append(tm2.reserve_turn("tmY", "t_y", None, "a", "work", task_cap=2))
+        except team_store.TurnCapReached as ex:
+            errs_t.append(str(ex))
+
+
+    ths = [threading.Thread(target=grab_task) for _ in range(8)]
+    for th in ths:
+        th.start()
+    for th in ths:
+        th.join()
+    check("R5 tám luồng giữ chỗ cùng một việc, trần lượt mỗi việc 2: đúng 2 lượt, 6 lượt bị từ chối",
+          len(got_t) == 2 and len(errs_t) == 6 and set(errs_t) == {"task_turns"}, (len(got_t), errs_t))
 
     # Huỷ (lặp) khi luồng phụ đang ghi lượt giữ chỗ: chờ ghi xong rồi hoàn, không lượt mồ côi, không kẹt khoá.
     rec = Recorder()

@@ -34,7 +34,7 @@ DEFAULT_CAPS = {
     "help_depth": 2,           # độ sâu nhờ hỗ trợ
     "no_progress": 2,          # lượt không tiến triển liên tiếp của một bước
     "mentions": 3,             # @ mỗi tin
-    "daily_turns": 100,        # lượt mỗi nhóm mỗi ngày
+    "daily_turns": None,       # lượt mỗi nhóm mỗi ngày: không giới hạn từ 17/11/2026 (xem FIXED_CAPS)
     "running_jobs": None,      # việc chạy cùng lúc mỗi nhóm: không giới hạn từ 17/11/2026 (xem FIXED_CAPS)
     "busy_wait_s": 1800,       # chờ khoá bận trước khi báo chặn
     # T3 phần J (0.156.0, thiết kế mục 9): lượt phán xử theo lô mỗi nhóm mỗi ngày (tách khỏi daily_turns), số người tự lên
@@ -55,10 +55,10 @@ DEFAULT_CAPS = {
 #   số > 1 trước đây nhận được mà không bao giờ có tác dụng. Chọn thay đổi nhỏ và an toàn: bỏ khỏi trần chỉnh được, hiện là
 #   giới hạn kỹ thuật, thay vì mở song song trong một nhóm (đụng khoá bận theo agent, thứ tự hàng đợi, ngữ cảnh chung).
 # - no_progress: bộ chạy dừng ở hai kết quả GIỐNG HỆT liên tiếp (so sha), con số không được đọc ở đâu.
-OWNER_CAPS = ("task_turns", "task_steps", "help_depth", "daily_turns", "mentions", "busy_wait_s", "judge_daily",
+OWNER_CAPS = ("task_turns", "task_steps", "help_depth", "mentions", "busy_wait_s", "judge_daily",
               "volunteer_k", "judge_off_batch", "reply_parallel", "auto_jobs")
 # Trần có lựa chọn "Không giới hạn" (lưu `None`, không thay bằng số lớn). Bộ chạy đọc `None` là không chặn.
-UNLIMITED_CAPS = ("task_turns", "task_steps", "help_depth", "daily_turns", "judge_daily")
+UNLIMITED_CAPS = ("task_turns", "task_steps", "help_depth", "judge_daily")
 # Giá trị lớn nhất của các ô không phải trần lượt (T3 J): K tối đa 5 người, chế độ phán xử là 0 hay 1.
 CAP_MAX = {"volunteer_k": 5, "judge_off_batch": 1, "reply_parallel": 1, "auto_jobs": 50}
 # 2026-11-12 (a customer: two assistants with two different jobs ran one after the other): a team now runs up to three
@@ -66,7 +66,12 @@ CAP_MAX = {"volunteer_k": 5, "judge_off_batch": 1, "reply_parallel": 1, "auto_jo
 # number for the owner to set: who may run together is decided by who the jobs belong to. JAVIS_TEAM_JOBS=1 gives the
 # old one-job-at-a-time team back.
 # 17/11/2026 (owner: "anh không muốn giới hạn team làm việc luôn"): no cap (None) by default; JAVIS_TEAM_JOBS sets one.
-FIXED_CAPS = {"running_jobs": None, "no_progress": 2}
+# 17/11/2026 (owner, a team stopped with "Team đã hết số lần trả lời cho phép": "anh không muốn giới hạn như này"):
+# no daily reply count either. A number saved before (by the owner, by "Cho thêm lượt", or in a Full-authority grant)
+# no longer applies; the caps of one job (task_turns, task_steps) stay.
+FIXED_CAPS = {"running_jobs": None, "no_progress": 2, "daily_turns": None}
+# Caps a save may still name but that no longer exist as a choice (ignored by set_caps).
+RETIRED_CAPS = ("daily_turns",)
 TEAM_STATUS = ("active", "paused", "archived")
 STEP_KINDS = ("plan", "work", "help", "synthesize", "reply")
 # A step that waits for every step before it (a sequential plan), see `TeamStore.add_step(held=...)`.
@@ -522,6 +527,9 @@ class TeamStore:
         nhận thêm `None` hay {"unlimited": true} là "Không giới hạn" (GOAL T1 mục 9). Trần máy chủ cố định bị từ chối."""
         if caps is not None and not isinstance(caps, dict):
             raise TeamError("trần phải là một bảng tên trần và giá trị")
+        # 17/11/2026: the daily reply cap is gone (FIXED_CAPS). An older page or a saved preset may still send it: it is
+        # dropped, not an error, so the rest of the save goes through.
+        caps = {k: v for k, v in caps.items() if k not in RETIRED_CAPS} if isinstance(caps, dict) else caps
         bad = set(caps or {}) - set(DEFAULT_CAPS)
         if bad:
             raise TeamError(f"trần không có: {sorted(bad)}")

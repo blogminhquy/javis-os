@@ -67,7 +67,7 @@ path = d / "team.sqlite3"
 now = time.time()
 with closing(sqlite3.connect(str(path))) as c:
     c.executescript(T1_SCHEMA)
-    c.execute("INSERT INTO teams VALUES('tm_old','B','Nhóm cũ','mô tả','s1','ag_lan','limited','active','{\"daily_turns\": 40}',?,?)",
+    c.execute("INSERT INTO teams VALUES('tm_old','B','Nhóm cũ','mô tả','s1','ag_lan','limited','active','{\"daily_turns\": 40, \"task_turns\": 30}',?,?)",
               (now - 100, now - 100))
     c.execute("INSERT INTO team_members VALUES('tm_old','ag_lan','lan','leader','active',0,?,NULL)", (now - 100,))
     c.execute("INSERT INTO team_members VALUES('tm_old','ag_cu','cu','member','removed',0,?,?)", (now - 100, now - 50))
@@ -83,7 +83,9 @@ check("kho đời T1 mở bằng mã phát hành: tự thêm pinned_at, identity
       "pinned_at" in cols["teams"] and "identity_json" in cols["team_members"] and "committed_at" in cols["team_turns"], cols)
 t = ts.get("tm_old")
 check("nhóm cũ giữ nguyên: tên, trưởng nhóm, trần đã đổi, chưa ghim", t and t["name"] == "Nhóm cũ" and t["leader_key"] == "ag_lan"
-      and t["caps"]["daily_turns"] == 40 and t["pinned_at"] is None, t)
+      and t["caps"]["task_turns"] == 30 and t["pinned_at"] is None, t)
+check("nhóm cũ đã lưu trần ngày 40: trần đó không còn áp (17/11/2026), không giới hạn", t["caps"]["daily_turns"] is None,
+      t["caps"])
 mem = ts.members("tm_old", include_removed=True)
 check("thành viên cũ giữ nguyên (cả người đã rời), chưa có ảnh chụp nhân dạng",
       {m["agent_key"]: m["status"] for m in mem} == {"ag_lan": "active", "ag_cu": "removed"}

@@ -186,17 +186,21 @@ check("TC31 mở việc trùng trong lượt khác vẫn là việc khác (khoá
 caps = r.effective_caps(T["team_id"], provider="aux")
 check("TC32 Không giới hạn lưu null + cờ, không phải số lớn", caps["task_turns"] is None
       and tm.active_authority(T["team_id"])["grant"]["caps"]["task_turns"] == {"unlimited": True}, caps)
-check("TC32 trần trần là số thì trưởng nhóm chưa đặt vẫn theo mặc định", caps["daily_turns"] == 100, caps)
+check("TC32 trần trần là số thì trưởng nhóm chưa đặt vẫn theo mặc định", caps["task_steps"] == 8, caps)
+check("TC32 trần tối đa daily_turns trong hộp cấp quyền không áp (17/11/2026: không còn trần ngày)",
+      caps["daily_turns"] is None and "daily_turns" not in tm.active_authority(T["team_id"])["grant"]["ceilings"], caps)
 check("TC32 provider không được tích (D6): Không giới hạn lượt model không áp, dùng mặc định",
       r.effective_caps(T["team_id"], provider="anthropic-api")["task_turns"] == 12)
 view = r.authority_view(T["team_id"])
 check("TC32 hộp cấp quyền luôn hiện các trần không bỏ được", {"server_call_ceiling", "provider_quota", "account",
                                                              "technical"} <= set(view["fixed_limits"]), view)
-fake.say("ag_lan", "leader_reply", "Nâng trần." + directive(op="set_cap", cap="daily_turns", value=150)
+fake.say("ag_lan", "leader_reply", "Nâng trần." + directive(op="set_cap", cap="task_turns", value=30)
+         + directive(op="set_cap", cap="daily_turns", value=150)
          + directive(op="set_cap", cap="task_steps", value=50) + directive(op="set_cap", cap="help_depth", unlimited=True))
 reply(r, T, "Đặt trần", "c6")
 caps = r.effective_caps(T["team_id"], provider="aux")
-check("TC32 trưởng nhóm đặt trần trong trần trần", caps["daily_turns"] == 150)
+check("TC32 trưởng nhóm đặt trần trong trần trần", caps["task_turns"] == 30, caps)
+check("TC32 trưởng nhóm không đặt được trần ngày (đã bỏ), vẫn không giới hạn", caps["daily_turns"] is None, caps)
 check("TC32 vượt trần trần bị từ chối (task_steps 50 > 20), Không giới hạn ngoài trần trần bị từ chối",
       caps["task_steps"] == 8 and caps["help_depth"] == 2, caps)
 tu = [tm.reserve_turn(T["team_id"], "t_x", None, "ag_lan", "work", daily_cap=None, day_start=0, task_cap=None)
@@ -330,16 +334,17 @@ r.grant_authority(T["team_id"], dict(FULL, caps={"task_turns": {"unlimited": Tru
 check("review #2: agent chạy anthropic-cli (theo engine) không được Không giới hạn khi chủ chỉ tích aux",
       r._caps(tm.get(T["team_id"]), "ag_lan")["task_turns"] == 12 and r._caps(tm.get(T["team_id"]), "ag_minh")["task_turns"] is None)
 
-# #3: trần ngày Không giới hạn cho provider của trưởng nhóm thì tin của chủ vẫn có trả lời dù đã vượt trần thường.
+# #3: 17/11/2026 không còn trần lượt mỗi ngày: số 1 gửi lên (trang cũ) không lưu, tin thứ hai của chủ vẫn có trả lời,
+# không cần Toàn quyền hay provider được tích.
 r, tm, ts, ss, fake, admin, T = world("rv3")
 orig3 = fake.engine_for
 r.engine_for = lambda team, key, role: ("anthropic-cli",) + tuple(orig3(team, key, role)[1:])
 tm.set_caps(T["team_id"], {"daily_turns": 1})
+check("review #3: set_caps nhận daily_turns nhưng trần ngày vẫn không giới hạn", tm.get(T["team_id"])["caps"]["daily_turns"]
+      is None)
 reply(r, T, "Một", "d1")
-r.grant_authority(T["team_id"], dict(FULL, caps={"daily_turns": {"unlimited": True}},
-                                     ceilings={"daily_turns": {"unlimited": True}}, providers_unlimited=["anthropic-cli"]))
 sub = r.submit(T["team_id"], "Hai", client_msg_id="d2")
-check("review #3: trần ngày theo provider của người nhận, không chặn nhầm", sub["replies"] == ["ag_lan"]
+check("review #3: không còn trần ngày chặn tin của chủ", sub["replies"] == ["ag_lan"]
       and "daily_cap" not in sub["notes"], sub)
 
 # #4: việc trưởng nhóm mở không trỏ nhầm tin nguồn.

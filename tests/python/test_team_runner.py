@@ -305,9 +305,10 @@ tm.set_caps(T["team_id"], {"task_steps": 8, "daily_turns": len(tm.turns(T["team_
 fake.calls.clear()
 sd = r.submit(T["team_id"], "Còn lượt không?", client_msg_id="k3")
 run(r.run_replies(sd))
-check("TC13 hết lượt ngày của nhóm: tin vẫn lưu, không có lượt", sd["created"] and sd["replies"] == []
-      and "daily_cap" in sd["notes"] and fake.calls == [])
-tm.set_caps(T["team_id"], {"daily_turns": 100})
+# 17/11/2026: nhóm không còn trần lượt mỗi ngày. Số gửi lên không lưu, tin vẫn có trả lời.
+check("TC13 không còn trần lượt ngày: số gửi lên không lưu, tin có trả lời", tm.get(T["team_id"])["caps"]["daily_turns"]
+      is None and sd["created"] and sd["replies"] and "daily_cap" not in sd["notes"] and fake.calls,
+      (sd["replies"], sd["notes"], len(fake.calls)))
 
 # ---------- TC18: bị chặn rời chỗ chạy, hàng đi tiếp, nhắc sau 24 giờ ----------
 fake.calls.clear()
