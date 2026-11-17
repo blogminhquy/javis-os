@@ -1,0 +1,13 @@
+name: Trả lời khách từ Hội thoại
+name_en: "Reply to customers from the inbox"
+slug: inbox-reply
+version: 1.0.0
+description: Tìm hội thoại khách trên trang Hội thoại và gửi tin trả lời ngay vào đó, đúng kênh của cuộc chat (Messenger, Instagram, Telegram, Zalo...), như chủ gõ tay ở Hộp thư.
+description_en: "Finds customer conversations in the inbox and sends a reply into one on its own channel (Messenger, Instagram, Telegram, Zalo...), as if the owner typed it in the inbox."
+author: Javis (bundled)
+enabled: true
+min_mode: full
+tools:
+  - inbox_find
+  - inbox_reply
+hooks: []
