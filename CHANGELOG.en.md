@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.582.0] - 2026-11-17
+### Added
+- **Answer an approval card in the team chat.** The card has two big buttons with icons: Approve and Reply. Reply opens
+### Improved
+- **A tidier approval card.** The deadline reads "5 h left" at the top next to "Waiting for you"; evidence and calls fold
+
 ## [0.581.1] - 2026-11-17
 ### Improved
 - **The "Add Javis to your Home Screen" prompt no longer pops up right after you sign in.** It used to show 12 seconds
