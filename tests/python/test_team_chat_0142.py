@@ -54,8 +54,8 @@ sp = team_engine.choose_spec("", "", MAIN, resolve, OK)
 check("trợ lý không đặt model: theo model chính", sp["provider"] == "anthropic-cli" and sp["source"] == "main", sp)
 sp = team_engine.choose_spec("deepseek-chat", "deepseek", MAIN, resolve,
                              lambda s: (False, "Chưa có API key") if s["provider"] == "deepseek" else (True, ""))
-check("model riêng chưa cấu hình được: theo model chính, kèm ghi chú vì sao",
-      sp["provider"] == "anthropic-cli" and sp["source"] == "main" and "Chưa có API key" in sp["note"], sp)
+check("an unavailable explicit model remains selected; build must report readiness",
+      sp["provider"] == "deepseek" and sp["model"] == "deepseek-chat" and sp["source"] == "agent", sp)
 
 # Máy để Codex làm model VIỆC NỀN, model chính Claude: lượt nhóm theo model chính, không bị chặn bởi hợp đồng Cộng hưởng.
 SETTINGS = {"model": {"main": {"provider": "anthropic-cli", "model": "sonnet"},
@@ -224,11 +224,13 @@ r, tm, ts, ss, t, ev = world("errors", eng)
 sub = r.submit(t["team_id"], "Hai bạn ơi", mentions=["agent-one", "agent-two", "agent-dup"], client_msg_id="e1")
 outs = run(r.run_replies(sub))
 rp = replies(tm, t, sub["message_id"])
-check("lỗi dựng engine: error, lý do engine_unavailable, chi tiết đi kèm",
-      rp["agent-one"]["status"] == "error" and rp["agent-one"]["reason"] == "engine_unavailable"
-      and "chưa sẵn sàng" in rp["agent-one"]["detail"], rp["agent-one"])
-check("lỗi engine sau khi gọi model: error, lý do engine", rp["agent-two"]["status"] == "error"
-      and rp["agent-two"]["reason"] == "engine" and "rate limit" in rp["agent-two"]["detail"], rp["agent-two"])
+check("lỗi dựng engine: error, lý do build_failed (engine_unavailable normalized), chi tiết đi kèm",
+      rp["agent-one"]["status"] == "error" and rp["agent-one"]["reason"] in ("build_failed", "engine_unavailable")
+      and rp["agent-one"]["retryable"] is False and "chưa sẵn sàng" in rp["agent-one"]["detail"], rp["agent-one"])
+check("lỗi engine sau khi gọi model: error, lý do quota_or_rate_limit (rate limit classified)",
+      rp["agent-two"]["status"] == "error"
+      and rp["agent-two"]["reason"] in ("quota_or_rate_limit", "engine")
+      and rp["agent-two"]["retryable"] is True and "rate limit" in rp["agent-two"]["detail"], rp["agent-two"])
 check("một lượt lỗi không làm mất lượt sau", rp["agent-dup"]["status"] == "done" and len(outs) == 3)
 turns_before = len(tm.turns(t["team_id"]))
 owner_before = [m for m in ss.get_team_messages_page(t["session_id"], limit=200)["messages"]

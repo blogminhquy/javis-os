@@ -148,8 +148,8 @@ r, tm, ts, ss, t, ev = world("auth", auth_fail)
 sub = r.submit(t["team_id"], "Bạn ơi", client_msg_id="a1")
 run(r.run_replies(sub))
 rp = replies(tm, t, sub["message_id"])["agent-one"]
-check("lỗi đăng nhập của engine có lý do riêng `auth` (dashboard mở trang Models)", rp["status"] == "error"
-      and rp["reason"] == "auth" and "token hết hạn" in rp["detail"], rp)
+check("lỗi đăng nhập của engine có lý do riêng `auth_missing` (dashboard mở trang Models)", rp["status"] == "error"
+      and rp["reason"] in ("auth_missing", "auth") and rp["retryable"] is False and "token hết hạn" in rp["detail"], rp)
 
 # ───────────── 3. chưa có điều phối: dòng kết cục + Thử lại sau khi chọn ─────────────
 
@@ -277,8 +277,8 @@ MAIN = {"provider": "anthropic-cli", "model": "sonnet"}
 for prov in ("grok-cli", "antigravity-cli"):
     sp = team_engine.choose_spec("grok-4" if prov == "grok-cli" else "gemini-3", prov, MAIN, lambda m, p: p,
                                  lambda s: (True, ""))
-    check(f"{prov}: chạy bằng model chính và NÓI RÕ trên tin", sp["source"] == "main" and sp["provider"] == "anthropic-cli"
-          and prov in sp["note"] and "model chính" in sp["note"], sp)
+    check(f"{prov}: preserve explicit identity; reject unsupported capability at build",
+          sp["source"] == "agent" and sp["provider"] == prov and not sp["note"], sp)
 check("Codex và Claude vẫn dùng đúng model riêng", team_engine.choose_spec(
     "gpt-6.1-sol", "openai-oauth", MAIN, lambda m, p: p, lambda s: (True, ""))["source"] == "agent")
 

@@ -194,7 +194,8 @@ main_spec = {"provider": "anthropic-cli", "model": ""}
 sp = team_engine.choose_spec("grok-4", "grok-cli", main_spec, lambda m, p: p, lambda s: (True, ""), tools=True)
 check("choose_spec(tools=True) keeps a Grok Build member on Grok Build", sp["provider"] == "grok-cli" and sp["source"] == "agent", sp)
 sp = team_engine.choose_spec("grok-4", "grok-cli", main_spec, lambda m, p: p, lambda s: (True, ""))
-check("choose_spec without tools still moves Grok Build to the main model (text-only contract)", sp["source"] == "main", sp)
+check("choose_spec without tools preserves Grok Build; build enforces the text-only contract",
+      sp["source"] == "agent" and sp["provider"] == "grok-cli", sp)
 
 
 class Base:

@@ -13,7 +13,7 @@ Covered here:
   3. the mark: a signed-out card is skipped by MAIN and by a pinned chat (an agent's or a bot's model), is lifted by a
      sign-in, by choosing the card, and by itself after the retry window; the chip never calls it "out of quota";
   4. channel turns: the error strings a channel turn returns are recognised, and a customer bot hops too;
-  5. a workflow step runs again on the route that can run; a team member's own model falls back to the main model.
+  5. a workflow step runs again on the route that can run; a team member's explicit provider never falls back.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -436,14 +436,15 @@ def _steps_and_teams(mp):
     check("wiring: _mk sends an ungated step off a signed-out card, and keeps a gated one on its safety rail",
           "_signed_out_until(prov)" in mk and "tools is not None and not signed_out" in mk)
 
-    # A team member's own model on a signed-out card: the turn is built on the main model, with the reason.
+    # Sign-in readiness never changes a team member's explicit provider/model identity.
     main._SIGNED_OUT[CHATGPT] = time.time() + 300
     ok_av, why = main._agent_spec_available({"provider": CHATGPT, "model": "gpt-5.6-luna"}, {})
     check("team: a signed-out card is not available for a member's own model", ok_av is False and "ChatGPT" in why, why)
     spec = main.team_engine.choose_spec("gpt-5.6-luna", CHATGPT, {"provider": "anthropic-cli", "model": "opus"},
                                         main._agent_model_provider, lambda sp: main._agent_spec_available(sp, {}))
-    check("team: the turn runs on the main model and says why",
-          spec["provider"] == "anthropic-cli" and spec["source"] == "main" and "đăng nhập" in spec["note"], str(spec))
+    check("team: signed-out explicit selection stays selected without silent fallback",
+          spec["provider"] == CHATGPT and spec["model"] == "gpt-5.6-luna"
+          and spec["source"] == "agent" and not spec["note"], str(spec))
     _reset()
     err = team_runner.EngineOutcomeError("error_event", LOST)
     check("team: a turn refused for a lost sign-in marks the card",

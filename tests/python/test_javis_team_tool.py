@@ -84,16 +84,21 @@ check("list_agents: thấy ba trợ lý có sẵn, model chính", all(s in r for
 check("không biết brain: lỗi rõ, không đoán", run({"op": "list"}, root=None).startswith("ERROR"))
 check("op lạ: lỗi liệt kê op hợp lệ", "create_agent" in run({"op": "bay"}))
 
-# Tạo nhóm một lần: hai trợ lý mới (model riêng) + một trợ lý có sẵn, trưởng nhóm theo slug
+# Tạo trợ lý có model mà thiếu provider bị từ chối giống hệt POST /agents
+r_no_prov = run({"op": "create_agent", "name": "Thiếu nhà", "role": "Thử", "model": "haiku"})
+check("create_agent có model mà thiếu model_provider: từ chối", r_no_prov.startswith("ERROR"), r_no_prov)
+
+# Tạo nhóm một lần: hai trợ lý mới (model riêng + mặc định) + một trợ lý có sẵn, trưởng nhóm theo slug
 r = run({"op": "create", "name": "Phòng thử 3 AI", "members": ["lan"], "leader": "lan",
          "new_agents": [{"name": "Người phản biện", "role": "Tìm điểm yếu, đưa cách sửa", "model": "sonnet",
                          "model_provider": "anthropic-cli"},
-                        {"name": "Người tóm tắt", "role": "Tóm tắt sau thảo luận", "model": "haiku"}]})
+                        {"name": "Người tóm tắt", "role": "Tóm tắt sau thảo luận", "model": "haiku",
+                         "model_provider": "anthropic-cli"}]})
 check("create: báo đã tạo, có trợ lý mới", r.startswith("Đã tạo nhóm") and "nguoi-phan-bien" in r, r)
 pb = (BR / "agents" / "nguoi-phan-bien.md").read_text(encoding="utf-8")
 tt = (BR / "agents" / "nguoi-tom-tat.md").read_text(encoding="utf-8")
 check("trợ lý mới ghi đúng model và provider vào file", "model: sonnet" in pb and "model_provider: anthropic-cli" in pb
-      and "model: haiku" in tt and "model_provider" not in tt, (pb, tt))
+      and "model: haiku" in tt and "model_provider: anthropic-cli" in tt, (pb, tt))
 ops = team_api.current()
 teams = ops.api.teams().list_teams(main._brain_key(str(BR)))
 check("nhóm có đúng 3 thành viên, Lan là trưởng nhóm", len(teams) == 1

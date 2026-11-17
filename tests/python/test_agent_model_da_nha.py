@@ -132,7 +132,8 @@ finally:
 # ─────────── 4. File agent lưu + đọc lại được nhà ───────────
 src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("save_agent nhận model_provider", "model_provider: str = Form(\"\")" in src)
-check("chỉ ghi nhà hợp lệ vào file agent", 'mp if mp in AGENT_PROVIDERS else ""' in src)
+check("invalid provider rejected before persistence",
+      '"invalid_provider"' in src and "validate_agent_selection" in src and '"model_provider": mp,' in src)
 check("agents_index trả model_provider cho giao diện",
       '"model_provider": meta.get("model_provider", "")' in src)
 check("_agent_sysprompt trả kèm nhà", 'ameta.get("model_provider")' in src)

@@ -120,7 +120,7 @@ check("6 `tags: []` có chủ ý là bỏ hết", r.json().get("tags") == [], r.
 meta(B, "mk", tags=J("Marketing", "Viết nội dung"))
 meta(B, "mk", pinned="1")
 r = client.post("/agents", data={"brain": str(B), "slug": "mk", "name": "MK mới", "role": "tiếp thị 2",
-                                 "prompt": "Prompt mới.", "model": "opus", "skills": "",
+                                 "prompt": "Prompt mới.", "model": "opus", "model_provider": "anthropic-cli", "skills": "",
                                  "avatar_shape": "star", "avatar_palette": "amber"})
 m, body = doc(B, "mk")
 check("5 form không gửi tags giữ đủ tag", m.get("tags") == ["Marketing", "Viết nội dung"], m)
@@ -269,7 +269,8 @@ r = meta(B4, "dai", pinned="1")
 m, body = doc(B4, "dai")
 check("R1 ghim agent nhóm cũ dài: giữ nguyên tag và gương group trong file",
       r.status_code == 200 and m.get("tags") == [DAI] and m.get("group") == DAI and body == "Thân dài.", (r.text, m))
-r = client.post("/agents", data={"brain": str(B4), "slug": "dai", "name": "Dài 2", "role": "y", "model": "sonnet"})
+r = client.post("/agents", data={"brain": str(B4), "slug": "dai", "name": "Dài 2", "role": "y", "model": "sonnet",
+                               "model_provider": "anthropic-cli"})
 m, _ = doc(B4, "dai")
 check("R1 lưu form không gửi tags: giữ nguyên tag dài", r.status_code == 200 and m.get("tags") == [DAI]
       and m.get("group") == DAI and m.get("name") == "Dài 2", (r.text, m))

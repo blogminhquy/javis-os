@@ -8,6 +8,9 @@ refusal of a provider that cannot stop its own tools before they run.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
+import contextlib
+import io
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -203,6 +206,58 @@ check("full: usage context carries the actual host execution identifiers", store
 check("full: execution context is released after the turn", turn_context.current() is None)
 seen, task, tm, t = one_job("agy-full", aux_engine.ANTIGRAVITY, work_mode="full")
 check("full: Antigravity runs (the owner chose full)", seen and seen[0]["mode"] == "full")
+
+# Exercise the real selector, not a patched spec: the two reported Marathon job shapes
+# share this runner. Retry deliberately reads the member's current config, not a job snapshot.
+for label in ("Marathon Theo sat", "Marathon Giu nhiet"):
+    seen = []
+    current = dict(INFO["agent-two"], model="shared-model", model_provider="antigravity-cli")
+
+    def current_info(root, key):
+        return current if key == "agent-two" else INFO.get(key)
+
+    def capture_build(spec, base, tag, settings=None, mode="full", codex_profile=None):
+        seen.append((dict(spec), mode))
+        return Engine()
+
+    r, tm, ts, t = world(label)
+    with patch.object(main, "_team_agent_info", side_effect=current_info), \
+            patch.object(aux_engine, "availability", return_value=(True, "")), \
+            patch.object(main.claude_cli, "_codex_home", return_value=CODEX_CONFIG_HOME), \
+            patch.multiple(team_engine, build=lambda *a, **k: Engine(), build_tools=capture_build):
+        job = r.submit(t["team_id"], "Harmless fixture", mentions=["agent-two"], as_job=True,
+                       client_msg_id=label)["task_id"]
+        run(r.dispatch_once())
+        blocked = ts.get_task(job)
+        check(f"{label}: actual selection refuses agy without building another provider",
+              not seen and blocked["status"] == "team_blocked" and "capability_unsupported" in blocked["block_reason"])
+        # A config change alone must not mutate the blocked job or run anything.
+        current.update(model="sonnet-5-medium", model_provider="anthropic-compat")
+        check(f"{label}: editing the member does not silently run the blocked job", not seen)
+        r.unblock(job, "retry")
+        run(r.dispatch_once())
+        check(f"{label}: intentional retry uses the updated provider/model with approval intact",
+              len(seen) == 1 and seen[0][0]["provider"] == "anthropic-compat"
+              and seen[0][0]["model"] == "sonnet-5-medium" and seen[0][1] == "gated"
+              and ts.get_task(job)["status"] == "done", seen)
+
+# Routing fields are user-controlled: every new trace must use the shared redactor.
+secret = "sk-fixtureSecretForTrace1234567890"
+for provider, event in (("anthropic-cli", "team_engine_built"), (secret, "team_engine_refused")):
+    stderr = io.StringIO()
+    selected = {"provider": provider, "model": secret, "source": "agent", "note": ""}
+    with contextlib.redirect_stderr(stderr), patch.object(team_engine, "choose_spec", return_value=selected):
+        # one_job supplies its own selector patch, so construct the fixture directly here.
+        r, tm, ts, t = world("trace")
+        with patch.object(main, "_team_agent_info", side_effect=ident), \
+                patch.multiple(team_engine, build=lambda *a, **k: Engine(), build_tools=lambda *a, **k: Engine()):
+            job = r.submit(t["team_id"], "Harmless fixture", mentions=["agent-two"], as_job=True,
+                           client_msg_id="trace")["task_id"]
+            run(r.dispatch_once())
+    traces = [json.loads(line) for line in stderr.getvalue().splitlines() if line.startswith('{"event": "team_engine_')]
+    check(f"{event}: emitted and secret redacted", any(x["event"] == event for x in traces)
+          and secret not in stderr.getvalue(), stderr.getvalue())
+    check(f"{event}: execution context released", turn_context.current() is None)
 
 print()
 if fails:

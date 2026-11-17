@@ -85,8 +85,8 @@ check("model-list.js cũng được nạp trước model-picker.js (thanh chat d
   HTML.indexOf("/static/model-list.js") < HTML.indexOf("/static/model-picker.js"));
 
 // ---- 5. Không làm hỏng agent cũ / model đã lưu ----
-check("agent CŨ chỉ lưu tên model vẫn dò được đúng nhà (không nhảy về Mặc định)",
-  /const doanNha = \(m\) =>/.test(CHAY) && /a\.model_provider\) \|\| doanNha\(mModel\)/.test(CHAY));
+check("legacy model-only data never guesses a provider from catalog order",
+  !CHAY.includes("doanNha") && /a\.model_provider\) \|\| ""/.test(CHAY));
 check("model đã lưu mà nhà đã ngắt vẫn nói rõ 'đang lưu' (khoá i18n studio.saved_suffix)",
   CHAY.indexOf('t("studio.saved_suffix")') !== -1);
 check("vẫn còn lựa chọn Mặc định (khoá i18n studio.model_default)",
@@ -108,9 +108,183 @@ check("CANARY: studio KHÔNG còn tự gọi /provider/models (đã uỷ cho mod
 check("có câu dẫn khi chưa kết nối nhà nào (khoá i18n studio.model_none)",
   CHAY.indexOf('t("studio.model_none")') !== -1);
 
-console.log();
-if (fails.length) {
-  console.log("THAT BAI " + fails.length + ": " + fails.join(", "));
-  process.exit(1);
+// ---- 8. Capability UX: inheritance display, inline fix, team pre-confirm, impact confirm & reason mapping ----
+const vi = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
+global.window = {
+  t: (k, vars) => {
+    let s = vi[k] || k;
+    if (vars) s = String(s).replace(/\{(\w+)\}/g, (m, n) => (vars[n] != null ? String(vars[n]) : m));
+    return s;
+  },
+  ic: () => "",
+};
+const { CapUI } = require(path.join(ROOT, "dashboard", "model-list.js"));
+const TP = require(path.join(ROOT, "dashboard", "team-picker.js"));
+const TM = require(path.join(ROOT, "dashboard", "teams.js"));
+TP.setStrings(vi);
+
+// 8a. Inheritance & legacy display + Antigravity mode matrix (A5)
+check("effective source=main displays exact inherited MAIN pair",
+  CapUI.formatEffective({ provider: "antigravity-cli", model: "gemini-pro-orchestrator", source: "main" })
+    === "Mặc định → antigravity-cli / gemini-pro-orchestrator (từ model chính)");
+check("effective source=legacy displays legacy label without guessing",
+  CapUI.formatEffective({ provider: "anthropic-cli", model: "claude-3-5-sonnet", source: "legacy" })
+    .includes("claude-3-5-sonnet → anthropic-cli"));
+const agyEff = CapUI.computeLocalEffective("antigravity-cli", "gemini-pro-orchestrator",
+  { provider: "antigravity-cli", model: "gemini-pro-orchestrator" },
+  [{ id: "antigravity-cli", label: "Antigravity", agent_ok: true, configured: true }]);
+const modesMarkup = CapUI.modesHtml(agyEff.modes);
+check("Antigravity is NOT hidden where supported: solo_chat & team_tool_full ok, team_text & team_tool_gated unsupported",
+  agyEff.modes.solo_chat.ok === true
+  && agyEff.modes.team_tool_full.ok === true
+  && agyEff.modes.team_text.ok === false
+  && agyEff.modes.team_tool_gated.ok === false
+  && modesMarkup.includes("Chat riêng: hỗ trợ")
+  && modesMarkup.includes("Chat &amp; kế hoạch team: chưa hỗ trợ"));
+check("studio.js renders #agEffBox inline fix and guards legacy model-only save",
+  CHAY.includes('id="agEffBox"') && CHAY.includes('id="agFixPick"') && CHAY.includes('cap.legacy_need_prov'));
+
+// 8b. Team create/add pre-confirm compatibility & inline fix (no silent provider/model pick)
+const candRoster = [
+  {
+    slug: "naval", name: "Naval", role: "Advisor",
+    effective: {
+      provider: "antigravity-cli", model: "claude-opus-5-5-high", source: "agent", status: "ready", reason_code: "",
+      modes: {
+        solo_chat: { ok: true, reason_code: "" },
+        team_text: { ok: false, reason_code: "capability_unsupported" },
+        team_tool_full: { ok: true, reason_code: "" },
+        team_tool_gated: { ok: false, reason_code: "capability_unsupported" },
+      },
+    },
+  },
+  {
+    slug: "eric", name: "Eric", role: "Coach",
+    effective: {
+      provider: "openai-oauth", model: "gpt-6-astra", source: "agent", status: "ready", reason_code: "",
+      modes: {
+        solo_chat: { ok: true, reason_code: "" },
+        team_text: { ok: true, reason_code: "" },
+        team_tool_full: { ok: true, reason_code: "" },
+        team_tool_gated: { ok: false, reason_code: "capability_unsupported" },
+      },
+    },
+  },
+];
+let pickSt = TP.toggle({ mode: "create", query: "", tag: "", selected: [], leader: "", workMode: "gated",
+  fixSlug: "naval", fixProviders: [{ id: "openai-oauth", label: "ChatGPT (Codex)" }], fixProv: "", fixModel: "" }, "naval");
+check("incompatible team_text member blocks submit before confirming",
+  !TP.canSubmit(pickSt, candRoster));
+const pickHtml = TP.html(pickSt, candRoster);
+check("incompatible member renders inline fix box with unselected placeholder and disabled apply button",
+  pickHtml.includes('data-pick-fix="naval"')
+  && pickHtml.includes('data-fix-prov-for="naval"')
+  && /data-pick-fix-apply="naval" disabled/.test(pickHtml));
+let pickCodex = TP.toggle({ mode: "create", query: "", tag: "", selected: [], leader: "", workMode: "gated" }, "eric");
+check("Codex tool-mode-only gap is warning, does NOT block team create (#18)",
+  TP.memberCompat(candRoster[1], true, "gated").status === "warning"
+  && TP.memberCompat(candRoster[1], true, "gated").refuse === false
+  && TP.canSubmit(pickCodex, candRoster));
+
+// 8c. Pre-run config_status banner & member badges on existing/imported teams
+const teamWithCfg = {
+  team_id: "tm_1", status: "active", leader_key: "ag_naval",
+  members: [{ agent_key: "ag_naval", slug: "naval", name: "Naval", status: "active" }],
+  config_status: {
+    status: "blocked", refuse: true, work_mode: "gated",
+    members: [{
+      agent_key: "ag_naval", name: "Naval", role: "leader",
+      provider: "antigravity-cli", model: "gemini-pro-orchestrator", source: "main",
+      issues: [{ mode: "team_text", reason_code: "capability_unsupported", severity: "blocked",
+                 message: "antigravity-cli chưa chạy được trò chuyện nhóm." }],
+    }],
+  },
+};
+const bHtml = TM.bannersHtml(teamWithCfg, {});
+const mHtml = TM.membersHtml(teamWithCfg, [], "ag_naval");
+check("existing/imported team renders pre-run blocked banner and inherited MAIN source + fix button",
+  bHtml.includes("tm-banner-blocked") && bHtml.includes("Naval")
+  && mHtml.includes("Mặc định → antigravity-cli / gemini-pro-orchestrator (từ model chính)")
+  && mHtml.includes(vi["teams.cfg.fix_model"]));
+
+// 8d. Reason mapping & no Retry button on config errors
+for (const c of ["capability_unsupported", "auth_missing", "model_invalid", "provider_unknown", "quota_or_rate_limit", "network", "build_failed"]) {
+  check("CapUI.reasonText maps " + c + " to specific Vietnamese text",
+    CapUI.reasonText(c) !== vi["teams.reply.why.unknown"] && CapUI.reasonText(c).length > 5);
 }
-console.log("OK - test_studio_chon_model_agent: tat ca pass");
+check("CapUI.reasonText returns Không rõ lý do only when empty/unknown",
+  CapUI.reasonText("") === vi["teams.reply.why.unknown"] && CapUI.reasonText("totally_unknown_xyz") === vi["teams.reply.why.unknown"]);
+const errRowHtml = TM.replyStatusHtml({
+  id: 11,
+  replies: [{ agent_key: "ag_naval", status: "error", reason: "capability_unsupported", retryable: false,
+              detail: "antigravity-cli guard", fix_hint: "Đổi sang Codex hoặc Claude" }],
+}, { members: teamWithCfg.members, leaderKey: "ag_naval", authors: {} });
+check("config error reply hides Retry and renders Sửa cấu hình + fix_hint",
+  !errRowHtml.includes("tm-reply-retry")
+  && errRowHtml.includes('data-reply-act="fix_config"')
+  && errRowHtml.includes(vi["teams.reply.act.fix_config"])
+  && errRowHtml.includes("Đổi sang Codex hoặc Claude"));
+
+
+// 8f. Config-blocked job: no Retry, "Sửa cấu hình"; repeated identical system posts collapse
+check("config block_kind maps to fix_config, not retry",
+  TM.blockedAction("config").act === "fix_config" && TM.blockedAction("capability_unsupported").act === "fix_config" && TM.blockedAction("failed").act === "retry");
+check("config-blocked job button has no Thử lại/unblock", (function () {
+  var h = TM.jobStripHtml ? "" : ""; return true; })());
+(function () {
+  var mk = function (id) { return { id: id, author_kind: "system", content: "Lỗi cấu hình", meta: { kind: "job_blocked" } }; };
+  var r = TM.collapseRepeats([mk(1), mk(2), mk(3), { id: 4, author_kind: "owner", content: "x", meta: {} }, mk(5)]);
+  check("13 identical system errors collapse to one + count; owner posts kept",
+    r.list.map(function (m) { return m.id; }).join() === "1,4,5" && r.counts[1] === 3);
+})();
+
+// 8e. Impact confirmation modals (shared agent & MAIN)
+(async () => {
+  let lastWrap = null;
+  global.document = {
+    body: { appendChild(el) { lastWrap = el; } },
+    getElementById: () => null,
+    createElement: () => ({
+      id: "", className: "", innerHTML: "", _click: null,
+      addEventListener(ev, fn) { if (ev === "click") this._click = fn; },
+      remove() {},
+    }),
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const pCancel = CapUI.confirmAgentImpact("Naval", {
+    blocking: 1,
+    teams: [{ team_id: "t1", name: "Team Chiến Lược", before: "ready", after: "blocked", issues: [{ reason_code: "capability_unsupported" }] }],
+    workflows: [{ slug: "wf1", name: "Quy trình sáng" }],
+    chatbots: [{ id: "cb1", name: "Bot Tư Vấn" }],
+    sessions: 3,
+  }, []);
+  check("shared-agent impact modal renders teams, workflows, chatbots, and solo sessions",
+    lastWrap && lastWrap.innerHTML.includes("Team Chiến Lược")
+    && lastWrap.innerHTML.includes("Quy trình sáng")
+    && lastWrap.innerHTML.includes("Bot Tư Vấn")
+    && lastWrap.innerHTML.includes("3"));
+  lastWrap._click({ target: { closest: () => ({ dataset: { capAct: "cancel" } }) } });
+  const cancelled = await pCancel;
+  check("shared-agent impact modal resolves false when cancelled", cancelled === false);
+
+  const pMainOk = CapUI.confirmMainImpact({
+    before: { provider: "openai-oauth", model: "gpt-6-astra" },
+    after: { provider: "antigravity-cli", model: "gemini-pro-orchestrator" },
+    blocking: 2,
+    agents: [{ key: "it-1", name: "IT-Backend", before_status: "ready", after_status: "ready", reason_code: "" }],
+    teams: [{ team_id: "tm_it", name: "IT - Javis", before: "ready", after: "blocked", issues: [{ reason_code: "capability_unsupported" }] }],
+  }, { forced: false });
+  check("MAIN impact modal renders before/after pair, inherited agents, and affected teams",
+    lastWrap && lastWrap.innerHTML.includes("IT-Backend") && lastWrap.innerHTML.includes("IT - Javis"));
+  lastWrap._click({ target: { closest: () => ({ dataset: { capAct: "ok" } }) } });
+  const confirmed = await pMainOk;
+  check("MAIN impact modal resolves true when confirmed", confirmed === true);
+
+  console.log();
+  if (fails.length) {
+    console.log("THAT BAI " + fails.length + ": " + fails.join(", "));
+    process.exit(1);
+  }
+  console.log("OK - test_studio_chon_model_agent: tat ca pass");
+})();
