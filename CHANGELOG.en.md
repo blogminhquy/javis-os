@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.587.0] - 2026-11-18
+### Improved
+- **Long turns cost fewer tokens, on every brain.** When the model calls the same tool with the same arguments and the result is identical, it gets a one-line reference instead of the whole text again. The tool still runs every time, so changed data always reaches the model in full. For Claude Code and Codex this happens at the hub, and Javis forgets the turn's record whenever they compact their conversation.
+- **Leaner JSON.** Indented or escaped JSON results are written compactly with the same content. Files, terminal output, web pages and skills stay exactly as they are.
+- Choosing **Off** on the Usage page turns both savings off. What they save shows in the tool results line of that page.
+### Added
+- **Before-and-after meters** for developers: `tools/token_bench.py` measures the characters a turn sends to the model, and `tools/quality_eval.py` runs a set of questions through a real Javis and compares how complete the answers are between two runs.
+
 ## [0.586.1] - 2026-11-18
 ### Improved
 - **The button to tagged messages now sits at the top.** A round button with an up arrow and "@" plus the count under it, like Zalo, since the tagged messages are usually above. Showing or hiding it never moves the messages you are reading.

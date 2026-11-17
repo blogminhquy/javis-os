@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.587.0] - 2026-11-18
+### Cải thiện
+- **Lượt dài tốn ít token hơn, với mọi bộ não.** Model gọi lại đúng công cụ với đúng tham số mà kết quả y hệt lần trước thì nhận một dòng tham chiếu thay vì cả khối chữ lần nữa. Công cụ vẫn chạy lại thật, nên dữ liệu đổi là model nhận bản mới đầy đủ. Với Claude Code và Codex, việc này làm ở cổng hub, và Javis quên sổ của lượt đó mỗi khi chúng nén hội thoại.
+- **JSON gọn hơn.** Kết quả JSON thụt lề hay có chữ Việt bị mã hoá được viết gọn lại, cùng nội dung. Tệp, terminal, trang web và skill thì giữ nguyên từng ký tự.
+- Chọn mức **Tắt** trên trang Mức dùng là tắt luôn hai cách tiết kiệm này. Số ký tự bớt được hiện chung ở dòng kết quả tool trên trang đó.
+### Thêm mới
+- **Bộ đo trước và sau** cho người phát triển: `tools/token_bench.py` đo số ký tự mỗi lượt gửi cho model, `tools/quality_eval.py` chạy một bộ câu hỏi qua Javis thật rồi so độ đủ ý của câu trả lời giữa hai lần chạy.
+
 ## [0.586.1] - 2026-11-18
 ### Cải thiện
 - **Nút tới tin được tag giờ nằm ở góc trên.** Nút tròn có mũi tên hướng lên, dưới là @ kèm số tin đang chờ, giống Zalo, vì tin được tag thường nằm phía trên. Nút hiện hay ẩn không làm xô lệch tin đang đọc.
