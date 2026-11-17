@@ -128,7 +128,9 @@ check("a junk body is ignored, not an error", c.post("/diag/ws-drops", headers=H
 
 app_js = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
 check("the page records every kind of drop (close code, silent socket, stuck handshake)",
-      "_ghiDut(e && e.code" in app_js and '_ghiDut("ping"' in app_js and '_ghiDut("connect_timeout"' in app_js)
+      "_ghiDut(e && e.code" in app_js and '_ghiDut(why || "ping"' in app_js and '_ghiDut("connect_timeout"' in app_js
+      # 17/11/2026: a socket dropped on return from sleep (a turn the page thought was running) is recorded apart.
+      and '_dropDeadSocket("resume")' in app_js)
 check("the page reports once it is back (on hello)", "_baoDutVeMayChu();" in app_js and '"/diag/ws-drops"' in app_js)
 for name in ("server/ws_compat.py", "server/loop_watch.py"):
     s = (ROOT / name).read_text(encoding="utf-8")
