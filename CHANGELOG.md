@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.580.0] - 2026-11-17
+### Cải thiện
+- **Team không còn giới hạn số lần trả lời mỗi ngày.** Trước đây một team dùng hết 100 lần trả lời trong ngày thì mọi
+
 ## [0.579.0] - 2026-11-17
 ### Cải thiện
 - **Việc của team chạy song song.** Mọi việc giao cho team bắt đầu ngay, kể cả việc giao chung cho cả team (trước đây việc chung phải chờ nhau vì cùng tính là của phó nhóm).

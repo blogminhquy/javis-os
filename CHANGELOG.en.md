@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.580.0] - 2026-11-17
+### Improved
+- **A team no longer has a daily reply cap.** A team that used its 100 replies of the day used to stop every member
+
 ## [0.579.0] - 2026-11-17
 ### Improved
 - **Team jobs run side by side.** Every job given to a team starts at once, jobs given to the whole team too (they used to wait for each other because they all counted as the deputy lead's).
