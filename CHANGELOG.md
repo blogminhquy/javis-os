@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.582.0] - 2026-11-17
+### Thêm mới
+- **Trả lời được thẻ Xin duyệt trong chat team.** Thẻ còn hai nút lớn có icon: Duyệt và Trả lời. Trả lời mở một khung ngay
+### Cải thiện
+- **Thẻ Xin duyệt gọn hơn.** Hạn duyệt hiện "còn 5 giờ" ở đầu thẻ cạnh nhãn "Chờ bạn"; bằng chứng và lời gọi thu vào một
+
 ## [0.581.1] - 2026-11-17
 ### Cải thiện
 - **Lời nhắc "Thêm Javis vào Màn hình chính" không bung ngay lúc vừa đăng nhập nữa.** Trước đây nó hiện 12 giây sau khi
