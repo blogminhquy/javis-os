@@ -348,6 +348,29 @@ class _CeilingStoreError(RuntimeError):
 class EngineUnavailable(RuntimeError):
     """Không dựng được engine cho lượt (cấu hình, provider chưa sẵn sàng): CHƯA gọi model, lượt được hoàn (R4)."""
 
+    def __init__(self, message: str, *, code: str = "build_failed", stage: str = "preflight",
+                 fix_hint: str = "", retryable: bool = False):
+        super().__init__(message)
+        import engine_capability
+        self.code = engine_capability.normalize_code(code)
+        self.stage = stage
+        self.fix_hint = str(fix_hint or engine_capability.reason(self.code)["fix_hint"])
+        self.retryable = False if self.code in engine_capability.CONFIG_CODES else bool(retryable)
+
+
+def _CONFIG_CODES():
+    import engine_capability
+    return engine_capability.CONFIG_CODES
+
+
+class ConfigBlocked(RuntimeError):
+    """A retry/resume was refused because the member's provider/model STILL cannot run the step (preflight on the
+    current config). Nothing was queued and no engine was called: fix the configuration, then press the button again."""
+
+    def __init__(self, code: str, message: str, fix_hint: str = "", agent_key: str = ""):
+        super().__init__(message)
+        self.code, self.message, self.fix_hint, self.agent_key = code, message, fix_hint, agent_key
+
 
 class EngineOutcomeError(RuntimeError):
     """Engine đã được gọi nhưng kết cục không phải một câu trả lời chữ hợp lệ (R1). `kind`: final_error, auth,
@@ -473,7 +496,8 @@ class TeamRunner:
                  learning: Any = None, contrib_reader: Any = None, docs_block: Any = None, approvals: Any = None,
                  acceptance: Any = None, check_command: Optional[Callable] = None,
                  brain_root: Optional[Callable] = None, work_dir: Optional[Callable] = None,
-                 job_done: Optional[Callable] = None, skill_block: Optional[Callable] = None):
+                 job_done: Optional[Callable] = None, skill_block: Optional[Callable] = None,
+                 preflight: Optional[Callable] = None):
         self.teams = teams
         # 0.449.0: `job_done(team, task)` runs once a job is marked done (GitHub repos of the team chat get pushed there).
         # Called on the loop, never raises into the runner. None: nothing happens after a job.
@@ -481,6 +505,9 @@ class TeamRunner:
         # 0.449.0: `skill_block(team, slugs) -> str`, the text of the skills the owner named with /skill in the job or
         # message. A text-only turn cannot load a skill itself, so the host puts it in the prompt. None: no skills block.
         self.skill_block = skill_block
+        # 2026-11-18: (team, agent_key, role) -> None when the member's provider/model can run that kind of step now,
+        # else {code, message, fix_hint}. No engine is built or called. None: no check (old tests).
+        self.preflight = preflight
         # 0.207.0: owner approval requests (team_approval.ApprovalStore), in the team store's own file by default.
         if approvals is None and getattr(teams, "path", None) is not None:
             approvals = team_approval.ApprovalStore(teams.path, clock=clock)
@@ -1085,11 +1112,17 @@ class TeamRunner:
                                     reason="" if out.get("applied") else str(st or ""),
                                     turn_id=out.get("turn_id"), result_msg_id=int(out["message_id"]))
         elif st == "error":
-            why = reason or out.get("reason") or ("internal" if out.get("internal") else
-                                                  "engine_unavailable" if out.get("before_engine") else "engine")
+            import engine_capability
+            raw_why = reason or out.get("reason") or ("internal" if out.get("internal") else
+                                                      engine_capability.BUILD_FAILED if out.get("before_engine") else "engine")
+            why = engine_capability.normalize_code(raw_why) if raw_why in engine_capability.ALIASES else raw_why
+            hint = str(out.get("fix_hint") or "")
+            if not hint and why in engine_capability.RETRYABLE:
+                hint = engine_capability.reason(why, str(out.get("engine") or ""))["fix_hint"]
             self.teams.settle_reply(team_id, mid, key, "error", attempt=attempt, reason=why,
                                     detail=str(out.get("detail") or out.get("error") or ""),
-                                    turn_id=out.get("turn_id"))
+                                    turn_id=out.get("turn_id"), engine=str(out.get("engine") or ""),
+                                    fix_hint=hint)
         else:
             # Trần chung của máy chủ (T2) có lý do riêng: "Cho thêm lượt" của nhóm không gỡ được nó.
             code = "server_ceiling" if st == "cap" and out.get("cap") == "server_ceiling" else st
@@ -1944,6 +1977,9 @@ class TeamRunner:
                 slug = str(op.get("slug") or "").strip()
                 if not admin or not slug or not admin.exists(root, slug):
                     raise TeamError(f"không có trợ lý '{slug}'")
+                chk = getattr(admin, "check_member", None)
+                if callable(chk):
+                    chk(root, team, slug)
                 reg = admin.register(root, slug)
                 self.teams.add_member(team_id, reg["agent_key"], slug, by=by)
                 self._system(team, f"Trưởng nhóm {lead} đã thêm {self._name(team, reg['agent_key'])} vào nhóm.",
@@ -2783,22 +2819,42 @@ class TeamRunner:
                     await self._io(self._refund_if_unmarked, turn_id)
                 raise
             except Exception as ex:  # noqa: BLE001
+                import engine_capability
+                from secret_redact import redact_secrets
                 if not marked:
                     # Chưa tới mốc gọi model (engine chưa dựng được): hoàn đúng một lần, bước thành lỗi để Chạy lại.
                     await self._io(self._refund_if_unmarked, turn_id)
-                    return {"status": "error", "error": f"Không dựng được engine: {str(ex)[:300]}",
-                            "before_engine": True, "turn_id": turn_id}
+                    stage = getattr(ex, "stage", "build")
+                    raw_code = getattr(ex, "code", "")
+                    code = (engine_capability.normalize_code(raw_code) if raw_code
+                            else engine_capability.classify_runtime_error(ex, stage=stage) or engine_capability.BUILD_FAILED)
+                    rinfo = engine_capability.reason(code, prep["engine"])
+                    fix_hint = redact_secrets(str(getattr(ex, "fix_hint", "") or rinfo["fix_hint"]))[:300]
+                    retryable = False if code in engine_capability.CONFIG_CODES else bool(
+                        getattr(ex, "retryable", rinfo["retryable"]))
+                    return {"status": "error", "error": localefmt.chu(
+                                "Không dựng được engine [{code}/{stage}]: {detail}",
+                                "Could not build engine [{code}/{stage}]: {detail}",
+                                code=code, stage=stage, detail=redact_secrets(str(ex))[:300]),
+                            "before_engine": True, "turn_id": turn_id, "reason": code,
+                            "stage": stage, "retryable": retryable, "fix_hint": fix_hint, "engine": prep["engine"]}
                 await self._io(self._settle_turn, turn_id, "error")
-                msg = (OUTCOME_TEXT.get(ex.kind, ex.kind) + (f" ({ex.detail})" if ex.detail else "")
-                       if isinstance(ex, EngineOutcomeError) else str(ex))
+                msg = redact_secrets(OUTCOME_TEXT.get(ex.kind, ex.kind) + (f" ({ex.detail})" if ex.detail else "")
+                                     if isinstance(ex, EngineOutcomeError) else str(ex))
                 # `detail`: riêng câu của engine (dòng trạng thái lượt trả lời đã có nhãn lý do, khỏi lặp lại).
-                detail = (ex.detail or OUTCOME_TEXT.get(ex.kind, ex.kind)) if isinstance(ex, EngineOutcomeError) else str(ex)
-                kind = "auth" if isinstance(ex, EngineOutcomeError) and ex.kind == "auth" else ""
+                detail = redact_secrets((ex.detail or OUTCOME_TEXT.get(ex.kind, ex.kind))
+                                        if isinstance(ex, EngineOutcomeError) else str(ex))
+                raw_kind = ex.kind if isinstance(ex, EngineOutcomeError) else ""
+                classified = engine_capability.classify_runtime_error(detail, kind=raw_kind, stage="runtime")
+                rinfo = engine_capability.reason(classified, prep["engine"]) if classified else {
+                    "retryable": True, "fix_hint": ""}
                 # 0.436.0 (team_retry): how many tools the failed turn called (None = unknown, set by the real engine)
                 # and which engine ran it, so a temporary error may run again without repeating an action.
                 calls = getattr(ex, "team_tool_calls", None)
                 return {"status": "error", "error": msg[:500], "detail": detail[:500], "turn_id": turn_id,
-                        "reason": kind, "tool_calls": calls if isinstance(calls, int) else None,
+                        "reason": classified, "stage": "runtime",
+                        "retryable": bool(rinfo["retryable"]), "fix_hint": str(rinfo["fix_hint"] or "")[:300],
+                        "tool_calls": calls if isinstance(calls, int) else None,
                         "engine": prep["engine"]}
             finally:
                 if ctx_tok is not None:
@@ -3157,6 +3213,25 @@ class TeamRunner:
             self.teams.set_step_status(continues, "continued", "")
             self.teams.set_step_status(cont["step_id"], "queued", f"continues:{continues}")
 
+    def _config_check(self, team: dict, agent_key: str, role: str) -> Optional[dict]:
+        """Preflight of one member for one kind of step; never raises (a broken probe never blocks a job)."""
+        if self.preflight is None or not agent_key:
+            return None
+        try:
+            got = self.preflight(team, agent_key, role)
+        except Exception as ex:  # noqa: BLE001
+            log.warning("team preflight: %s: %s", type(ex).__name__, ex)
+            return None
+        return dict(got, agent_key=agent_key) if got else None
+
+    def _block_config(self, task_id: str, who: str, issue: dict) -> str:
+        """Block a job for a configuration problem: ONE notice, kind `config` (no Retry button, \"Sửa cấu hình\"), and no
+        further step runs until the owner fixes it and presses the button (which re-checks the current config)."""
+        text = f"{who}: {issue.get('message') or issue.get('code')}"
+        if issue.get("fix_hint"):
+            text += " " + str(issue["fix_hint"])
+        return self._block(task_id, "config", text[:600])
+
     def _add_steps(self, team: dict, task: dict, specs: list, continues: Optional[str] = None) -> bool:
         """Thêm bước nếu không vượt trần bước mỗi việc; vượt thì chặn `cap_reached`, không thêm bước nào (các bước bị từ
         chối được ghi lại để thêm sau khi chủ cho thêm)."""
@@ -3165,6 +3240,18 @@ class TeamRunner:
             self._block_cap(task, "task_steps", f"Việc đã dùng hết {cap} bước cho phép", specs, continues)
             return False
         self._put_steps(team, task, specs, continues)
+        # 2026-11-18: never send a step to a member whose provider/model cannot run it (Marathon case: 16 Work steps
+        # assigned to Codex members on a machine where gated Codex steps cannot run). The plan is kept (the steps are
+        # queued), the job stops BEFORE any turn with the coded reason, and the retry button re-checks the config.
+        seen = set()
+        for sp in specs:
+            if sp.get("kind") not in TOOL_ROLES or sp.get("agent") in seen:
+                continue
+            seen.add(sp.get("agent"))
+            issue = self._config_check(team, sp.get("agent"), sp.get("kind"))
+            if issue:
+                self._block_config(task["id"], self._name(team, sp["agent"]), issue)
+                return False
         return True
 
     def _recoordinate(self, team: dict, task: dict, step: dict, reason: str) -> Optional[str]:
@@ -4086,6 +4173,12 @@ class TeamRunner:
                                f"{self._name(team, step['agent_key'])} bận ở nhóm khác quá lâu")
         if st == "error":
             self.teams.finish_step(sid, "failed", note=out["error"])
+            if out.get("before_engine") and out.get("reason") in _CONFIG_CODES():
+                # A configuration error is not a failure of the work: the same step would fail the same way. One block,
+                # one notice, kind `config`; the owner fixes the member and the button re-checks before running again.
+                return self._block_config(task["id"], self._name(team, step["agent_key"]),
+                                          {"code": out["reason"], "message": out.get("detail") or out.get("error"),
+                                           "fix_hint": out.get("fix_hint") or ""})
             retry = self._auto_retry_plan(team, task, step, out)
             if retry is not None:
                 return self._block_for_retry(team, task, step, out, retry)
@@ -4224,6 +4317,8 @@ class TeamRunner:
     def _auto_retry_plan(self, team: dict, task: dict, step: dict, out: dict) -> Optional[dict]:
         """The retry plan for a step just marked failed, or None (block as before). Never raises: a broken detector
         must not turn one failed step into a stuck job."""
+        if out.get("retryable") is False:
+            return None
         try:
             failures = team_retry.chain_failures(self.teams.steps(task["id"]), step)
             provider = str(out.get("engine") or "") or self._provider(team, step.get("agent_key"))
@@ -4788,9 +4883,25 @@ class TeamRunner:
             return False
         if task.get("block_kind") in self.APPROVAL_BLOCKS:
             return False
+        steps = self.teams.steps(task_id)
+        last = next((s for s in reversed(steps) if s["status"] in ("failed", "interrupted")), None)
+        if task.get("block_kind") == "config":
+            # Re-run the preflight on the CURRENT config of every member that still has a tool step to run. Still
+            # blocked: the same coded error comes back, no step is created, no engine is called.
+            team = self.teams.get(task["team_id"])
+            cands = ([last] if last and last["kind"] in TOOL_ROLES else []) + [
+                s for s in steps if s["kind"] in TOOL_ROLES and s["status"] in ("queued", "held")]
+            seen = set()
+            for s in cands:
+                if s["agent_key"] in seen:
+                    continue
+                seen.add(s["agent_key"])
+                issue = self._config_check(team, s["agent_key"], s["kind"]) if team else None
+                if issue:
+                    raise ConfigBlocked(issue.get("code") or "", issue.get("message") or "", issue.get("fix_hint") or "",
+                                        s["agent_key"])
+            action = "retry"
         if action == "retry":
-            steps = self.teams.steps(task_id)
-            last = next((s for s in reversed(steps) if s["status"] in ("failed", "interrupted")), None)
             if last:
                 self._run_step_again(task, last)
         done = self.tasks.team_unblock(task_id) is not None

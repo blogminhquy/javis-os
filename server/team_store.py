@@ -159,6 +159,7 @@ WORK_MODES = ("gated", "full")
 _STEP_DEP_COLS = (
     ("team_steps", "part", "TEXT NOT NULL DEFAULT ''"),
     ("team_steps", "after_json", "TEXT"),
+    ("team_replies", "fix_hint", "TEXT NOT NULL DEFAULT ''"),
 )
 _T2_REACTION_COLS = (
     ("team_reactions", "source_kind", "TEXT NOT NULL DEFAULT 'owner'"),
@@ -1447,17 +1448,39 @@ class TeamStore:
                           "updated_at) VALUES(?,?,?,?,'queued',?,?)", (team_id, int(message_id), key, i, now, now))
         return self.replies_of(team_id, message_id)
 
+    @staticmethod
+    def _enrich_reply(row: dict) -> dict:
+        if row.get("status") != "error":
+            row.setdefault("fix_hint", "")
+            row.setdefault("retryable", True)
+            return row
+        import engine_capability
+        raw = str(row.get("reason") or "")
+        norm = engine_capability.normalize_code(raw)
+        if norm in engine_capability.RETRYABLE:
+            info = engine_capability.reason(norm, str(row.get("engine") or ""))
+            if not row.get("fix_hint"):
+                row["fix_hint"] = info["fix_hint"]
+            row["retryable"] = bool(info["retryable"])
+        elif raw == "member_left":
+            row.setdefault("fix_hint", "")
+            row["retryable"] = False
+        else:
+            row.setdefault("fix_hint", "")
+            row["retryable"] = True
+        return row
+
     def replies_of(self, team_id: str, message_id: int) -> list:
         with closing(self._conn()) as c:
             rows = c.execute("SELECT * FROM team_replies WHERE team_id=? AND message_id=? ORDER BY seq",
                              (team_id, int(message_id))).fetchall()
-        return [dict(r) for r in rows]
+        return [self._enrich_reply(dict(r)) for r in rows]
 
     def reply(self, team_id: str, message_id: int, agent_key: str) -> Optional[dict]:
         with closing(self._conn()) as c:
             r = c.execute("SELECT * FROM team_replies WHERE team_id=? AND message_id=? AND agent_key=?",
                           (team_id, int(message_id), agent_key)).fetchone()
-        return dict(r) if r else None
+        return self._enrich_reply(dict(r)) if r else None
 
     def replies_for(self, team_id: str, message_ids: list) -> dict:
         """{message_id: [lượt trả lời theo thứ tự]} cho một trang tin."""
@@ -1469,7 +1492,7 @@ class TeamStore:
             q = ",".join("?" * len(ids))
             for r in c.execute(f"SELECT * FROM team_replies WHERE team_id=? AND message_id IN ({q}) ORDER BY seq",
                                [team_id] + ids).fetchall():
-                out.setdefault(int(r["message_id"]), []).append(dict(r))
+                out.setdefault(int(r["message_id"]), []).append(self._enrich_reply(dict(r)))
         return out
 
     def claim_reply(self, team_id: str, message_id: int, agent_key: str) -> Optional[int]:
@@ -1480,25 +1503,27 @@ class TeamStore:
                           "AND status='queued'", (team_id, int(message_id), agent_key)).fetchone()
             if r is None:
                 return None
-            c.execute("UPDATE team_replies SET status='running', reason='', detail='', updated_at=? "
+            c.execute("UPDATE team_replies SET status='running', reason='', detail='', fix_hint='', updated_at=? "
                       "WHERE team_id=? AND message_id=? AND agent_key=? AND status='queued'",
                       (time.time(), team_id, int(message_id), agent_key))
         return int(r["attempt"])
 
     def settle_reply(self, team_id: str, message_id: int, agent_key: str, status: str, *, attempt: int,
                      reason: str = "", detail: str = "", turn_id: Optional[str] = None,
-                     result_msg_id: Optional[int] = None, engine: str = "", model: str = "") -> bool:
+                     result_msg_id: Optional[int] = None, engine: str = "", model: str = "",
+                     fix_hint: str = "") -> bool:
         """Ghi kết cục của ĐÚNG lần thử `attempt` khi lượt còn mở (review 0.142.0, #3): một lượt cũ về muộn (đã bị coi là
         dở lúc khởi động lại, rồi chủ bấm Thử lại) không ghi đè kết cục của lần thử mới. Trả True khi đã ghi."""
         if status not in REPLY_STATUS:
             raise ValueError(status)
         with self._Tx(self) as c:
-            n = c.execute("UPDATE team_replies SET status=?, reason=?, detail=?, turn_id=COALESCE(?,turn_id), "
+            n = c.execute("UPDATE team_replies SET status=?, reason=?, detail=?, fix_hint=?, turn_id=COALESCE(?,turn_id), "
                       "result_msg_id=COALESCE(?,result_msg_id), engine=CASE WHEN ?='' THEN engine ELSE ? END, "
                       "model=CASE WHEN ?='' THEN model ELSE ? END, updated_at=? "
                       "WHERE team_id=? AND message_id=? AND agent_key=? AND attempt=? AND status IN ('queued','running')",
-                      (status, str(reason or "")[:60], str(detail or "")[:500], turn_id, result_msg_id, engine,
-                       engine, model, model, time.time(), team_id, int(message_id), agent_key, int(attempt))).rowcount
+                      (status, str(reason or "")[:60], str(detail or "")[:500], str(fix_hint or "")[:300],
+                       turn_id, result_msg_id, engine, engine, model, model, time.time(),
+                       team_id, int(message_id), agent_key, int(attempt))).rowcount
         return n == 1
 
     def retry_reply(self, team_id: str, message_id: int, agent_key: str, stuck_after_s: float = STUCK_QUEUED_S
@@ -1508,7 +1533,7 @@ class TeamStore:
         nền không tạo được) cũng thử lại được; lần thử cũ, nếu có lúc chạy, không ghi đè được kết cục mới (attempt)."""
         now = time.time()
         with self._Tx(self) as c:
-            n = c.execute("UPDATE team_replies SET status='queued', attempt=attempt+1, reason='', detail='', "
+            n = c.execute("UPDATE team_replies SET status='queued', attempt=attempt+1, reason='', detail='', fix_hint='', "
                           "updated_at=? WHERE team_id=? AND message_id=? AND agent_key=? AND (status='error' OR "
                           "(status='queued' AND updated_at<?))",
                           (now, team_id, int(message_id), agent_key, now - float(stuck_after_s))).rowcount

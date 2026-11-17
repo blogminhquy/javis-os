@@ -337,3 +337,64 @@ def import_bundle(data: bytes, filename, *, agents_dir, workflows_dir, skills_ro
     res["imported"] = sorted(imp)
     res["skipped"] = sorted(skp - imp)
     return res
+
+
+def restore_member_config(agents_dir: Path, imported: list, member_config: dict, *,
+                          validator=None, allowed_reasoning: tuple = ()) -> dict:
+    """Restore per-member {provider, model, reasoning} from `javis-team.json` onto NEWLY imported partner files only.
+
+    Existing partner files in the brain (`skipped` when `overwrite=False`) are NEVER touched (safety rule: shared
+    agents are owned by the brain's owner). Invalid pairs (e.g. an unregistered provider) are refused by `validator`
+    and reported in `dropped` so the newly imported partner cleanly inherits MAIN (`source="main"` in config_status).
+    """
+    import fastyaml
+    import yaml
+    restored: dict = {}
+    dropped: list = []
+    if not isinstance(member_config, dict) or not member_config:
+        return {"restored": restored, "dropped": dropped}
+    imp_slugs = {str(k).split(":", 1)[1] for k in (imported or []) if str(k).startswith("agent:")}
+    for slug, cfg in member_config.items():
+        if slug not in imp_slugs or not isinstance(cfg, dict):
+            continue
+        target = Path(agents_dir) / f"{slug}.md"
+        if not target.is_file():
+            continue
+        prov = str(cfg.get("provider") or "").strip()
+        mdl = str(cfg.get("model") or "").strip()
+        if not prov and not mdl:
+            continue
+        if validator is not None:
+            v = validator(prov, mdl)
+            if not v.get("ok"):
+                dropped.append({"slug": slug, "provider": prov, "model": mdl,
+                                "reason_code": v.get("reason_code") or "provider_unknown",
+                                "message": v.get("message") or "", "fix_hint": v.get("fix_hint") or ""})
+                continue
+            prov, mdl = v["provider"], v["model"]
+        try:
+            raw = target.read_text(encoding="utf-8")
+            parts = fastyaml.split_frontmatter(raw)
+            if not parts:
+                continue
+            meta = fastyaml.safe_load(parts[0]) or {}
+            if not isinstance(meta, dict):
+                continue
+            meta["model"] = mdl
+            if prov:
+                meta["model_provider"] = prov
+            else:
+                meta.pop("model_provider", None)
+            rsn = str(cfg.get("reasoning") or "").strip()
+            if rsn and (not allowed_reasoning or rsn in allowed_reasoning):
+                meta["reasoning"] = rsn
+            head = yaml.safe_dump(meta, allow_unicode=True, sort_keys=False)
+            tmp = target.with_suffix(".md.tmp")
+            tmp.write_text("---\n" + head.strip() + "\n---\n" + parts[1].lstrip("\n"),
+                           encoding="utf-8", newline="\n")
+            tmp.replace(target)
+            restored[slug] = {"provider": prov, "model": mdl}
+        except Exception as exc:
+            dropped.append({"slug": slug, "provider": prov, "model": mdl,
+                            "reason_code": "build_failed", "message": f"{type(exc).__name__}: {exc}", "fix_hint": ""})
+    return {"restored": restored, "dropped": dropped}

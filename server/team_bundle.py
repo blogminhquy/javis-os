@@ -10,10 +10,16 @@ members' partner files and their skills, plus one more entry, `javis-team.json`:
 Older Javis versions open the same file as a plain bundle (they ignore the extra entry and import
 the partners), so a team file never breaks an old install.
 
-What NEVER travels: chat history, keys and passwords, model choices, Auto switches, memory. Text that
-looks like a secret (API keys, bearer tokens, JWTs, bot tokens, `password: ...` lines) is replaced
-before it is written. A partner file arrives with its model fields and Auto switch removed, so the
-person who adds the team picks those themselves.
+What NEVER travels: chat history, keys and passwords, Auto switches, memory. Text that looks like a
+secret (API keys, bearer tokens, JWTs, bot tokens, `password: ...` lines) is replaced before it is
+written. A partner file arrives with its model fields and Auto switch removed.
+
+2026-11-17: each member's own provider / model / reasoning level DOES travel, but only as plain
+identifiers in the team entry (`member_config`), never inside the partner file and never with a key.
+The importing side keeps them (checked with the same validator as saving an assistant) and reports
+what it could not keep; a bundle from an older Javis has no `member_config`, so those members inherit
+the main model and the review says so explicitly. Nothing here changes a partner that already exists
+in the importing brain.
 """
 from __future__ import annotations
 
@@ -74,9 +80,40 @@ def _dump(meta: dict) -> str:
     return yaml.safe_dump(meta, allow_unicode=True, sort_keys=False)
 
 
-def team_manifest(team: dict, members: List[str], leader: str, instructions: List[str]) -> dict:
+# Identifier shapes a shared provider / model / reasoning may have. They are looked up, never executed, but they are
+# still shown to a person and written to a file, so anything that is not a plain identifier is refused.
+_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+\-\[\] ]{0,119}$")
+_CONFIG_KEYS = ("provider", "model", "reasoning")
+MAX_CONFIG_MEMBERS = 30
+
+
+def clean_member_config(raw: Any, members: Optional[List[str]] = None) -> Dict[str, Dict[str, str]]:
+    """{slug: {provider, model, reasoning}} with only plain identifiers; a member with neither model nor
+    provider is left out (it inherits the main model). Keys that look like secrets never pass `_ID_RE`
+    because `scrub` runs first and a value it changed is dropped."""
+    out: Dict[str, Dict[str, str]] = {}
+    if not isinstance(raw, dict):
+        return out
+    allowed = set(members) if members is not None else None
+    for slug, cfg in list(raw.items())[:MAX_CONFIG_MEMBERS]:
+        slug = str(slug or "").strip()
+        if not slug or not isinstance(cfg, dict) or (allowed is not None and slug not in allowed):
+            continue
+        one: Dict[str, str] = {}
+        for k in _CONFIG_KEYS:
+            v = str(cfg.get(k) or "").strip()
+            if v and _ID_RE.match(v) and scrub(v) == v:
+                one[k] = v
+        if one.get("model") or one.get("provider"):
+            out[slug] = one
+    return out
+
+
+def team_manifest(team: dict, members: List[str], leader: str, instructions: List[str],
+                  member_config: Optional[dict] = None) -> dict:
     return {
         "format": "javis-team", "version": 1,
+        "member_config": clean_member_config(member_config, list(members)),
         "name": scrub(str(team.get("name") or ""))[:120],
         "description": scrub(str(team.get("description") or ""))[:2000],
         "tags": [str(t)[:40] for t in (team.get("tags") or [])][:10],
@@ -118,6 +155,7 @@ def read_team_entry(data: bytes) -> Optional[dict]:
     m["members"] = [str(s) for s in m["members"] if str(s or "").strip()][:30]
     m["instructions"] = [str(t)[:INSTRUCTION_CHARS] for t in (m.get("instructions") or [])][:MAX_INSTRUCTIONS]
     m["name"] = str(m.get("name") or "Team")[:120]
+    m["member_config"] = clean_member_config(m.get("member_config"), m["members"])
     return m
 
 
@@ -131,8 +169,12 @@ def preview(data: bytes) -> Dict[str, Any]:
     except zipfile.BadZipFile:
         names = []
     skills = sorted({n.split("/")[1] for n in names if n.startswith("skills/") and n.count("/") >= 2})
+    cfg = m.get("member_config") or {}
     return {"ok": True, "name": m["name"], "description": m.get("description", ""), "members": m["members"],
-            "leader": m.get("leader", ""), "skills": skills, "instructions": len(m["instructions"])}
+            "leader": m.get("leader", ""), "skills": skills, "instructions": len(m["instructions"]),
+            # which members arrive with their own provider/model; the others follow the main model on this machine
+            "member_config": {s: {k: v for k, v in c.items() if k != "reasoning"} for s, c in cfg.items()},
+            "inherit_main": [s for s in m["members"] if s not in cfg]}
 
 
 def resolve_members(manifest: dict, imported: List[str], skipped: List[str], existing: set) -> Tuple[List[str], List[str]]:

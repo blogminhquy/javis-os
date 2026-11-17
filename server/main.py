@@ -94,6 +94,7 @@ import grok_cli          # bộ não thứ 11: Grok Build CLI (`grok`) - gói Su
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
+import engine_capability   # luật khả năng chạy provider/model: MỘT nguồn cho UI, lưu agent, nhóm, đổi model chính, preflight
 import model_routing   # 0.350.0: provider order, per-card model/effort, several accounts per provider
 import plan_limits     # the plan's 5-hour and weekly meters (side work pauses near the limit)
 import plan_accounts   # 0.353.0: several accounts on one subscription plan card (Codex, Grok, Claude Code)
@@ -3516,7 +3517,8 @@ def _resonance_agents_meta(root):
         # model a team turn picks first (team_engine.choose_spec): the assistant's own, else the main model.
         out.append({"slug": a["slug"], "name": a.get("name") or a["slug"], "provider": prov, "avatar": a.get("avatar"),
                     "title": str(a.get("role") or "")[:120], "model": own or main_model,
-                    "model_label": str((_provider_def(prov) or {}).get("label") or prov), "model_main": not own})
+                    "model_label": str((_provider_def(prov) or {}).get("label") or prov), "model_main": not own,
+                    "own_model": own, "model_provider": str(a.get("model_provider") or "")})
     return out
 
 
@@ -3775,6 +3777,268 @@ def _agent_model_provider(model: str, provider: str = "") -> str:
     if p in AGENT_PROVIDERS:
         return p
     return "openai-oauth" if _is_codex_model(model) else "anthropic-cli"
+
+
+# ---- 2026-11-17: engine_capability wiring (one rule source; see server/engine_capability.py) ----------------------------
+def _capability_probes(settings=None):
+    """Machine facts for engine_capability, read ONCE per request: sign-in/key (`_agent_spec_available`, includes the
+    signed-out mark), gate support of THIS machine (`_team_gate_support`), model catalogs of THAT provider only (the
+    live list kept for 10 minutes = remote, the list remembered in settings = remembered, shipped list = default;
+    the same model name under another provider is never evidence), and the legacy model-only resolver."""
+    st = settings if settings is not None else (cfgmod.read_settings() or {})
+    gate_cache = {}
+
+    def _avail(spec):
+        return _agent_spec_available(spec, st)
+
+    def _gate(prov):
+        if prov not in gate_cache:
+            gate_cache[prov] = _team_gate_support(prov)
+        return gate_cache[prov]
+
+    def _catalog(prov):
+        d = _provider_def(prov) or {}
+        m_cfg = (st.get("model") or {})
+        out = {}
+        c = _PROV_MODELS_CACHE.get(prov)
+        fresh_cache = bool(c and (time.time() - c.get("ts", 0)) < 600)
+        if prov in adv_keys.PROVIDERS:
+            gw = adv_keys.active(m_cfg, prov)
+            lg = adv_keys._SPEC[prov]["legacy"]
+            manual_ids = [str(x).strip() for x in ((gw or {}).get("models") or m_cfg.get(lg + "_models") or [])
+                          if str(x).strip()]
+            if manual_ids:
+                out["manual"] = manual_ids
+            if fresh_cache and c.get("remote_ids"):
+                out["remote"] = list(c["remote_ids"])
+            rem_raw = ((m_cfg.get("catalog") or {}).get(d.get("catalog_key") or "")) or []
+            manual_set = set(manual_ids)
+            rem_clean = [str(x) for x in rem_raw if str(x) and str(x) not in manual_set]
+            if rem_clean:
+                out["remembered"] = rem_clean
+        else:
+            if fresh_cache and c.get("ids"):
+                out["remote"] = list(c.get("remote_ids") if "remote_ids" in c else c["ids"])
+            rem = ((m_cfg.get("catalog") or {}).get(d.get("catalog_key") or "")) or []
+            if rem:
+                out["remembered"] = list(rem)
+        if d.get("default_models"):
+            out["default"] = list(d["default_models"])
+        return out
+
+    return engine_capability.Probes(availability=_avail, gate_support=_gate, catalog=_catalog,
+                                    legacy_provider=lambda model: _agent_model_provider(model, ""),
+                                    known_providers=tuple(AGENT_PROVIDERS))
+
+
+def _agent_effective(meta, probes=None, main=None) -> dict:
+    """`effective` block of an agent for the API: who really runs it (own pair, legacy name guess, or MAIN), per mode."""
+    probes = probes or _capability_probes()
+    main = main if main is not None else _effective_main(cfgmod.read_settings() or {})
+    return engine_capability.resolve(
+        {"model": (meta or {}).get("model") or "", "model_provider": (meta or {}).get("model_provider") or ""},
+        main, engine_capability.SOLO_CHAT, probes, all_modes=True)
+
+
+def _team_config_status_for(root, member_rows: list, leader_key: str, work_mode="gated",
+                            settings=None, probes=None, main=None) -> dict:
+    st = settings if settings is not None else (cfgmod.read_settings() or {})
+    pr = probes or _capability_probes(st)
+    mn = main if main is not None else _effective_main(st)
+    return engine_capability.team_status(member_rows, leader_key, work_mode, mn, pr)
+
+
+def _agent_used_by_teams_map(brain: str) -> dict:
+    """{slug: [{team_id, name, role, work_mode, status}]} across active/paused teams in `brain`."""
+    out: dict = {}
+    try:
+        if "_TEAM_API" not in globals() or not _TEAM_API.exists():
+            return out
+        bkey = _brain_key(brain)
+        teams = _TEAM_API.teams().list_teams(bkey, limit=200)
+        if not teams:
+            return out
+        mems = {t["team_id"]: _TEAM_API.teams().members(t["team_id"]) for t in teams}
+        regs = {}
+        try:
+            if _RESONANCE_STORE is not None or (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+                regs = _resonance_store().agents_by_keys(bkey, [m["agent_key"] for ms in mems.values() for m in ms])
+        except Exception:
+            regs = {}
+        for t in teams:
+            for m in mems.get(t["team_id"], ()):
+                if m.get("status") != "active":
+                    continue
+                reg = regs.get(m["agent_key"]) or {}
+                sl = reg.get("slug") or m.get("slug_at_join") or ""
+                if not sl:
+                    continue
+                out.setdefault(sl, []).append({
+                    "team_id": t["team_id"], "name": t.get("name") or t["team_id"],
+                    "role": "leader" if m["agent_key"] == t.get("leader_key") else "member",
+                    "work_mode": t.get("work_mode") or "gated", "status": t.get("status") or "active",
+                })
+    except Exception:
+        pass
+    return out
+
+
+def _agent_other_usages(brain: str, slug: str) -> dict:
+    """Non-team places in `brain` that reference `slug`: workflows, chatbots, solo chat sessions."""
+    wfs = []
+    try:
+        for fp in sorted(_workflows_dir(brain).glob("*.md")):
+            meta, _ = _read_md(fp)
+            steps = (meta or {}).get("steps") or []
+            if any(isinstance(st, dict) and (st.get("agent") == slug or st.get("verifier") == slug) for st in steps):
+                wfs.append({"slug": fp.stem, "name": (meta or {}).get("name") or fp.stem})
+    except Exception:
+        pass
+    bots = []
+    try:
+        import bot_gateway
+        for b in bot_gateway.list_bots() or []:
+            if isinstance(b, dict) and b.get("agent") == slug:
+                bots.append({"id": b.get("id") or "", "name": b.get("name") or b.get("id") or "",
+                             "channel": b.get("channel") or ""})
+    except Exception:
+        pass
+    sess_count = 0
+    try:
+        moc = get_store().moc_cap_nhat_theo_kenh(_brain_keys(brain), "agent:")
+        if ("agent:" + slug) in moc:
+            sess_count = 1
+    except Exception:
+        pass
+    return {"workflows": wfs, "chatbots": bots, "sessions": sess_count}
+
+
+def _compute_agent_change_impact(brain: str, slug: str, new_provider: str, new_model: str,
+                                 settings=None) -> dict:
+    """Impact on teams, workflows, chatbots and solo sessions if `slug` changes to `(new_provider, new_model)`."""
+    st = settings if settings is not None else (cfgmod.read_settings() or {})
+    probes = _capability_probes(st)
+    main = _effective_main(st)
+    path = _agent_md_path(brain, slug)
+    old_meta = (_read_md(path)[0] or {}) if path and path.is_file() else {}
+    before_eff = _agent_effective(old_meta, probes, main)
+    after_eff = _agent_effective({"model": new_model, "model_provider": new_provider}, probes, main)
+    teams_out = []
+    blocking = 0
+    try:
+        if "_TEAM_API" in globals() and _TEAM_API.exists():
+            bkey = _brain_key(brain)
+            by_slug = {a["slug"]: a for a in agents_index(brain, kem_prompt=False)}
+            for t in _TEAM_API.teams().list_teams(bkey, limit=200):
+                ms = [m for m in _TEAM_API.teams().members(t["team_id"]) if m.get("status") == "active"]
+                regs = {}
+                try:
+                    if _RESONANCE_STORE is not None or (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+                        regs = _resonance_store().agents_by_keys(bkey, [m["agent_key"] for m in ms])
+                except Exception:
+                    regs = {}
+                before_rows, after_rows, touched = [], [], False
+                for m in ms:
+                    reg = regs.get(m["agent_key"]) or {}
+                    sl = reg.get("slug") or m.get("slug_at_join") or ""
+                    info = by_slug.get(sl) or {}
+                    nm = info.get("name") or sl or m["agent_key"]
+                    b_mdl = str(info.get("model") or "")
+                    b_mp = str(info.get("model_provider") or "")
+                    before_rows.append({"agent_key": m["agent_key"], "slug": sl, "name": nm,
+                                        "model": b_mdl, "model_provider": b_mp})
+                    if sl == slug:
+                        touched = True
+                        after_rows.append({"agent_key": m["agent_key"], "slug": sl, "name": nm,
+                                           "model": new_model, "model_provider": new_provider})
+                    else:
+                        after_rows.append(before_rows[-1])
+                if not touched:
+                    continue
+                wm = t.get("work_mode") or "gated"
+                lk = t.get("leader_key") or ""
+                b_cs = engine_capability.team_status(before_rows, lk, wm, main, probes)
+                a_cs = engine_capability.team_status(after_rows, lk, wm, main, probes)
+                if b_cs["status"] != "blocked" and a_cs["status"] == "blocked":
+                    blocking += 1
+                teams_out.append({
+                    "team_id": t["team_id"], "name": t.get("name") or t["team_id"],
+                    "before": b_cs["status"], "after": a_cs["status"],
+                    "issues": [dict(i, agent_key=r["agent_key"], name=r["name"])
+                               for r in a_cs["members"] for i in r["issues"]],
+                })
+    except Exception:
+        pass
+    other = _agent_other_usages(brain, slug)
+    return {"ok": True, "slug": slug, "before": before_eff, "after": after_eff,
+            "teams": teams_out, **other, "blocking": blocking}
+
+
+def _compute_main_change_impact(old_main: dict, new_main: dict, settings=None, brain: str = "") -> dict:
+    """Impact across agents and teams when MAIN changes from `old_main` to `new_main`."""
+    st = settings if settings is not None else (cfgmod.read_settings() or {})
+    probes = _capability_probes(st)
+    roots = []
+    seen_roots = set()
+    candidates = [brain] if brain else ["brain"]
+    try:
+        for b in (_list_brains_sync().get("brains") or []):
+            if b.get("path"):
+                candidates.append(b["path"])
+    except Exception:
+        pass
+    try:
+        if "_TEAM_API" in globals() and _TEAM_API.exists():
+            with __import__("contextlib").closing(_TEAM_API.teams()._conn()) as c:
+                for r in c.execute("SELECT DISTINCT brain_id FROM teams WHERE status != 'archived'").fetchall():
+                    if r[0]:
+                        candidates.append(str(r[0]))
+    except Exception:
+        pass
+    for cand in candidates:
+        try:
+            rk = _brain_key(cand)
+            if rk and rk not in seen_roots and Path(_brain_root(cand)).is_dir():
+                seen_roots.add(rk)
+                roots.append((cand, rk))
+        except Exception:
+            continue
+    agents_in = []
+    teams_in = []
+    for br_arg, rk in roots:
+        by_slug = {}
+        try:
+            for a in agents_index(br_arg, kem_prompt=False):
+                by_slug[a["slug"]] = a
+                agents_in.append({"key": a["slug"], "slug": a["slug"], "name": a.get("name") or a["slug"],
+                                  "model": a.get("model") or "", "model_provider": a.get("model_provider") or ""})
+        except Exception:
+            pass
+        try:
+            if "_TEAM_API" in globals() and _TEAM_API.exists():
+                for t in _TEAM_API.teams().list_teams(rk, limit=200):
+                    ms = [m for m in _TEAM_API.teams().members(t["team_id"]) if m.get("status") == "active"]
+                    regs = {}
+                    try:
+                        if _RESONANCE_STORE is not None or (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+                            regs = _resonance_store().agents_by_keys(rk, [m["agent_key"] for m in ms])
+                    except Exception:
+                        regs = {}
+                    m_rows = []
+                    for m in ms:
+                        reg = regs.get(m["agent_key"]) or {}
+                        sl = reg.get("slug") or m.get("slug_at_join") or ""
+                        info = by_slug.get(sl) or {}
+                        m_rows.append({"agent_key": m["agent_key"], "slug": sl,
+                                       "name": info.get("name") or sl or m["agent_key"],
+                                       "model": info.get("model") or "",
+                                       "model_provider": info.get("model_provider") or ""})
+                    teams_in.append({"team_id": t["team_id"], "name": t.get("name") or t["team_id"],
+                                     "leader_key": t.get("leader_key") or "",
+                                     "work_mode": t.get("work_mode") or "gated", "members": m_rows})
+        except Exception:
+            pass
+    return engine_capability.main_change_impact(agents_in, teams_in, old_main, new_main, probes)
 
 
 # A subscription that ran out of quota (0.285.0, owner 22/10/2026): provider -> epoch until which a chat PINNED to it
@@ -6179,6 +6443,7 @@ async def oauth_openai_browser_finish(request: Request):
 @app.post("/oauth/openai/disconnect")
 def oauth_openai_disconnect():
     cfg = cfgmod.read_settings()
+    old_main = _effective_main(cfg)
     # 0.350.0: the card leaves the usage order; the next card becomes MAIN when it was MAIN.
     model_routing.drop_from_order(cfg["model"], "openai-oauth")
     if _effective_main(cfg).get("provider") == "openai-oauth":   # đang là MAIN (thẻ duy nhất) → về Claude Code CLI
@@ -6192,7 +6457,9 @@ def oauth_openai_disconnect():
         connect_health.probe_engines()   # ngắt chủ động → đèn đổi ngay theo Main Model mới
     except Exception:
         pass
-    return {"ok": True}
+    new_main = _effective_main(cfg)
+    imp = _compute_main_change_impact(old_main, new_main, cfg) if new_main != old_main else None
+    return {"ok": True, **({"impact": imp, "main_impact": imp} if imp is not None else {})}
 
 
 @app.get("/oauth/openai/status")
@@ -6678,25 +6945,22 @@ async def grok_logout():
     Grok có lệnh đăng xuất chính chủ nên nút này làm đúng việc nó hứa.
     """
     out = await asyncio.to_thread(grok_cli.logout)
+    imp = None
     # 0.350.0: the card leaves the usage order (the next card becomes MAIN when it was MAIN).
     try:
-        def _drop():
-            with cfgmod._SETTINGS_LOCK:
-                cfg = cfgmod.read_settings()
-                if "grok-cli" in model_routing.stored_order(cfg["model"]):
-                    model_routing.drop_from_order(cfg["model"], "grok-cli")
-                    _sync_legacy_engine(cfg["model"])
-                    cfgmod.write_settings(cfg)
-        await asyncio.to_thread(_drop)
+        imp = await asyncio.to_thread(_drop_card, "grok-cli")
     except Exception as e:  # noqa: BLE001 - the logout itself already happened
         print(f"[routing] grok logout: {type(e).__name__}: {e}", file=sys.stderr)
+    if isinstance(out, dict) and imp is not None:
+        return {**out, "impact": imp, "main_impact": imp}
     return out
 
 
-def _drop_card(provider: str) -> None:
+def _drop_card(provider: str):
     """A card the owner disconnected leaves the usage order; MAIN moves on, or back to Claude Code when it was alone."""
     with cfgmod._SETTINGS_LOCK:
         cfg = cfgmod.read_settings()
+        old_main = _effective_main(cfg)
         m = cfg["model"]
         model_routing.drop_from_order(m, provider)
         if _effective_main(cfg).get("provider") == provider:
@@ -6704,6 +6968,8 @@ def _drop_card(provider: str) -> None:
         else:
             _sync_legacy_engine(m)
         cfgmod.write_settings(cfg)
+        new_main = _effective_main(cfg)
+    return _compute_main_change_impact(old_main, new_main, cfg) if new_main != old_main else None
 
 
 @app.post("/antigravity/logout")
@@ -6714,11 +6980,13 @@ async def antigravity_logout():
     own sign-out when the binary lists one, and in any case switch the card off in Javis, so no chat, background job
     or fallback runs on it until the owner taps "Connect again"."""
     out = await asyncio.to_thread(antigravity_cli.logout)
+    imp = None
     try:
         def _save():
-            _drop_card("antigravity-cli")
+            res_imp = _drop_card("antigravity-cli")
             cfgmod.update_settings({"model": {antigravity_cli._OFF_KEY: True}})
-        await asyncio.to_thread(_save)
+            return res_imp
+        imp = await asyncio.to_thread(_save)
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     antigravity_cli.forget_status()
@@ -6728,7 +6996,8 @@ async def antigravity_logout():
         connect_health.probe_engines()
     except Exception:
         pass
-    return {"ok": True, "cli_logout": bool(out.get("cli_logout")), "error": out.get("error", "")}
+    return {"ok": True, "cli_logout": bool(out.get("cli_logout")), "error": out.get("error", ""),
+            **({"impact": imp, "main_impact": imp} if imp is not None else {})}
 
 
 @app.post("/antigravity/reconnect")
@@ -7666,10 +7935,20 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             cfg["setup_done"] = bool(patch["setup_done"])
     elif section == "model":
         m = cfg["model"]
+        _old_main_before_patch = _effective_main(cfg)
         # Đặt model chính theo provider (UI mới)
         if patch.get("main"):
             prov = patch["main"].get("provider"); mod = patch["main"].get("model")
             if _provider_def(prov) and mod:
+                cand_main = {"provider": prov, "model": mod}
+                if cand_main != _old_main_before_patch and not patch.get("confirm_impact"):
+                    imp = await asyncio.to_thread(_compute_main_change_impact, _old_main_before_patch, cand_main, cfg)
+                    if imp.get("blocking", 0) > 0:
+                        return JSONResponse({"ok": False, "code": "main_change_impact",
+                                             "error": localefmt.chu(
+                                                 "Đổi model chính sẽ làm một số trợ lý hoặc nhóm đang kế thừa không chạy được. Xác nhận trước khi đổi.",
+                                                 "Changing the main model will block inherited assistants or teams. Confirm before applying."),
+                                             "impact": imp, "main_impact": imp}, status_code=409)
                 _set_main_model(cfg, prov, mod)
                 _clear_pin_limit(prov)
         # Nhập credential provider (chỉ ghi khi có giá trị mới - tránh xoá bằng giá trị che ••••)
@@ -8040,7 +8319,32 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             print(f"[{section} restart] {e}", file=__import__('sys').stderr)
     if section == "voice":
         cfgmod.apply_tool_env(cfg)   # key ElevenLabs -> env cho tool ngoài (video-use) ngay, không cần restart
+    if section == "model":
+        _new_main_after_patch = _effective_main(cfg)
+        if _new_main_after_patch != _old_main_before_patch:
+            imp = await asyncio.to_thread(_compute_main_change_impact, _old_main_before_patch, _new_main_after_patch, cfg)
+            return {"ok": True, "impact": imp, "main_impact": imp}
     return {"ok": True}
+
+
+@app.post("/models/main/impact")
+async def models_main_impact(request: Request, provider: str = Form(""), model: str = Form(""),
+                             brain: str = Form("")):
+    """Preview which inherited assistants and teams change status if MAIN moves to `(provider, model)`."""
+    prov, mod, br = str(provider or "").strip(), str(model or "").strip(), str(brain or "").strip()
+    if not prov and not mod:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                prov = str(body.get("provider") or "").strip()
+                mod = str(body.get("model") or "").strip()
+                br = str(body.get("brain") or br or "").strip()
+        except Exception:
+            pass
+    cfg = cfgmod.read_settings() or {}
+    old_main = _effective_main(cfg)
+    new_main = {"provider": prov or old_main.get("provider") or "", "model": mod}
+    return await asyncio.to_thread(_compute_main_change_impact, old_main, new_main, cfg, br)
 
 
 # ============================================================
@@ -8294,20 +8598,26 @@ def _adopt_listed_base(prov: str, old_base: str, new_base: str) -> None:
         cfgmod.write_settings(cfg)
 
 
+_COMPAT_LAST_REMOTE_IDS: dict = {}
+
+
 async def _openai_compat_models(m):
     """Models of the OpenAI-format gateway in use: the names saved with it first (typed by the owner, or listed
     when it was connected), then whatever the gateway lists now. A gateway that lists nothing is not an error when
     names were saved. Returns (ids or None, why)."""
     base = engine.openai_compat_base()
     if not base:
+        _COMPAT_LAST_REMOTE_IDS["openai-compat"] = []
         return None, ""
     g = next((x for x in adv_keys.gateways(m, adv_keys.OPENAI) if x["base"] == base), None)
     saved = list(g["models"]) if g else []
     key = (m.get("openai_compat_key") or "").strip() or "none"
     got = await _openai_list_models(base, key)
+    remote_ids = sorted(got["ids"])
+    _COMPAT_LAST_REMOTE_IDS["openai-compat"] = remote_ids
     if got["ids"] and got["base"] != base and not saved:
         _adopt_listed_base(adv_keys.OPENAI, base, got["base"])
-    return (_gop_giu_thu_tu(saved, sorted(got["ids"])) or None), got["why"]
+    return (_gop_giu_thu_tu(saved, remote_ids) or None), got["why"]
 
 
 def _anthropic_compat_typed(m) -> list:
@@ -8324,6 +8634,7 @@ async def _anthropic_compat_models(m, base=None, key=None):
     typed = _anthropic_compat_typed(m)
     base = base if base is not None else engine.anthropic_compat_base()
     if not base:
+        _COMPAT_LAST_REMOTE_IDS["anthropic-compat"] = []
         return None
     key = key if key is not None else ((m.get("anthropic_compat_key") or "").strip() or "none")
     live = []
@@ -8339,7 +8650,9 @@ async def _anthropic_compat_models(m, base=None, key=None):
             r.raise_for_status()
     except Exception:
         if not typed:
+            _COMPAT_LAST_REMOTE_IDS["anthropic-compat"] = []
             raise
+    _COMPAT_LAST_REMOTE_IDS["anthropic-compat"] = list(live)
     return _gop_giu_thu_tu(typed, live) or None
 
 
@@ -8650,7 +8963,7 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
         moved = (m_now.get(adv_keys._SPEC[provider]["legacy"] + "_base") or "") not in (
             asked_base, *[u[1] for u in _openai_list_urls(asked_base)])
         if ids and not moved:
-            _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
+            _PROV_MODELS_CACHE[provider] = {"ids": ids, "remote_ids": list(_COMPAT_LAST_REMOTE_IDS.get(provider) or []), "ts": now}
             _remember_catalog(cfg, d, ids)
         if ids:
             return {"models": ids, "live": True}
@@ -10202,8 +10515,20 @@ def agents_index(brain: str, *, kem_prompt: bool = True) -> list:
         moc = get_store().moc_cap_nhat_theo_kenh(_brain_keys(brain), "agent:")
     except Exception:
         moc = {}
+    try:
+        st_cfg = cfgmod.read_settings() or {}
+        probes = _capability_probes(st_cfg)
+        main_spec = _effective_main(st_cfg)
+        teams_map = _agent_used_by_teams_map(brain)
+    except Exception:
+        probes, main_spec, teams_map = None, None, {}
     for a in out:
         a["last_chat_at"] = float(moc.get("agent:" + a["slug"], 0) or 0)
+        try:
+            a["effective"] = _agent_effective(a, probes, main_spec)
+        except Exception:
+            pass
+        a["used_by_teams"] = teams_map.get(a["slug"], [])
     return out
 
 # `def` thường chứ không `async def` (0.64.19): bốn route mà tab Cài đặt trợ lý cần
@@ -10240,6 +10565,11 @@ def _javis_core_entry(brain: str) -> dict:
     pin = _core_pin(mcfg)
     e["model"], e["model_provider"] = pin.get("model") or "", pin.get("provider") or ""
     e["reasoning"] = _core_reasoning(mcfg)
+    try:
+        e["effective"] = _agent_effective(e)
+    except Exception:
+        pass
+    e["used_by_teams"] = []
     _core_auto_on(brain)
     return e
 
@@ -10338,9 +10668,13 @@ def agent_get(slug: str = Query(...), brain: str = Query("brain")):
     if not path:
         return JSONResponse({"error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")}, status_code=404)
     meta, body = _read_md(path)
+    used_teams = _agent_used_by_teams_map(brain).get(slug, [])
+    other_use = _agent_other_usages(brain, slug)
     return {"slug": slug, "name": meta.get("name", slug), "role": meta.get("role", ""),
             "skills": meta.get("skills", []) or [], "model": meta.get("model", ""),
             **_agent_tag_fields(meta), "model_provider": meta.get("model_provider", ""),
+            "effective": _agent_effective(meta),
+            "used_by_teams": used_teams, **other_use,
             "chatgpt_voice": meta.get("chatgpt_voice", ""),
             "reasoning": _agent_reasoning(meta),
             "prompt": body, "pinned": bool(meta.get("pinned")),
@@ -10364,6 +10698,17 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     core = javis_core.is_core_slug(slug)
     if core and creating:
         return _core_refusal()   # a new agent can never take the system assistant's slug
+    model = str(model or "").strip()
+    model_provider = str(model_provider or "").strip()
+    _val = engine_capability.validate_agent_selection(model_provider, model, _capability_probes())
+    if not _val["ok"]:
+        # Keep legacy `code` ("invalid_provider" / "provider_required") alongside `reason_code` (`provider_unknown` / `model_invalid`).
+        _legacy_code = ("invalid_provider" if (model_provider and model_provider not in AGENT_PROVIDERS)
+                        else ("provider_required" if (model and not model_provider) else _val["reason_code"]))
+        return JSONResponse({"ok": False, "code": _legacy_code, "reason_code": _val["reason_code"],
+                             "fix_hint": _val["fix_hint"], "retryable": False,
+                             "error": _val["message"]}, status_code=400)
+    model, model_provider = _val["model"], _val["provider"]
     if core:
         # 2026-11-05 (owner): Javis Core is edited with the same form as any agent. Its file is made first, its model
         # is Javis Core's pin (the same one as the model chip of its chat) and its level is its own, both in settings.
@@ -10376,8 +10721,7 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     skills_list = [s.strip() for s in re.split(r"[,\n]", skills) if s.strip()]
     # `model_provider` nói RÕ model thuộc nhà nào - cùng một tên model có thể có ở hai nhà
     # (gemini-2.5-pro: Gemini CLI lẫn Gemini API; claude-*: Claude Code lẫn Anthropic API).
-    # Giá trị lạ (client cũ, gõ tay) bị loại về "" để _agent_model_provider suy như agent cũ,
-    # chứ không ghi vào file một nhà mà server không chạy được.
+    # The explicit pair was validated before any file/settings mutation.
     mp = (model_provider or "").strip()
     # Empty = inherit the shared voice; absent = preserve existing preference for old clients.
     if isinstance(chatgpt_voice, str):
@@ -10433,7 +10777,7 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                 meta["reasoning"] = reasoning
             meta.update({"type": "agent", "name": name, "slug": slug, "role": role,
                          "skills": skills_list, "model": model, "avatar": avatar,
-                         "model_provider": mp if mp in AGENT_PROVIDERS else "",
+                         "model_provider": mp,
                          "updated": _today()})  # "" = mặc định theo CLI
             if isinstance(chatgpt_voice, str):
                 meta["chatgpt_voice"] = chatgpt_voice
@@ -10441,9 +10785,31 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                 meta["system"] = True   # still the system assistant after any edit
             agent_tags.write_tags(meta, hien)
             _write_md(path, meta, (prompt.strip() or role))
-            return {"ok": True, "slug": slug, "tags": hien}
+            eff = _agent_effective(meta)
+            used_teams = _agent_used_by_teams_map(brain).get(slug, [])
+            return {"ok": True, "slug": slug, "tags": hien, "effective": eff, "used_by_teams": used_teams}
 
     return await asyncio.to_thread(_luu)
+
+
+@app.post("/agents/impact")
+async def agent_change_impact(request: Request, slug: str = Form(""), model: str = Form(""),
+                              model_provider: str = Form(""), brain: str = Form("brain")):
+    """Preview impact on teams, workflows, chatbots and sessions if `slug` switches to `(model_provider, model)`."""
+    sl, mdl, mp, br = str(slug or "").strip(), str(model or "").strip(), str(model_provider or "").strip(), str(brain or "brain").strip()
+    if not sl:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                sl = str(body.get("slug") or "").strip()
+                mdl = str(body.get("model") or "").strip()
+                mp = str(body.get("model_provider") or body.get("provider") or "").strip()
+                br = str(body.get("brain") or br or "brain").strip()
+        except Exception:
+            pass
+    if not sl:
+        return JSONResponse({"ok": False, "error": "slug is required"}, status_code=400)
+    return await asyncio.to_thread(_compute_agent_change_impact, br, sl, mp, mdl)
 
 @app.post("/agents/delete")
 async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
@@ -24477,7 +24843,9 @@ async def ollama_local_set_endpoint(endpoint: str = Form(""), key: str = Form(No
     if not ep:
         _ol_luu({"ollama_local_endpoint": "", "ollama_local_key": ""})
         _ol_quen_danh_sach(ca_catalog=True)
-        return {"ok": True, "endpoint": "", "reachable": False}
+        imp = await asyncio.to_thread(_drop_card, "ollama-local")
+        return {"ok": True, "endpoint": "", "reachable": False,
+                **({"impact": imp, "main_impact": imp} if imp is not None else {})}
     try:
         ep = ollama_local.chuan_hoa_endpoint(ep)
     except ollama_local.LoiEndpoint as e:
@@ -31550,6 +31918,40 @@ def _team_gate_support(provider):
                                       api_providers=tuple(aux_engine.API_PROVIDERS))
 
 
+def _team_preflight(team, agent_key, role):
+    """TeamRunner.preflight: can this member's CURRENT provider/model run a `role` step of this team now? None = yes,
+    else {code, message, fix_hint}. Pure checks (engine_capability + machine probes): no engine is built or called."""
+    try:
+        settings = cfgmod.read_settings() or {}
+        info = _team_agent_info(team["brain_id"], agent_key) or {}
+        mode = engine_capability.mode_for(role, team.get("work_mode"), has_task=True)
+        r = engine_capability.resolve({"model": info.get("model") or "", "model_provider": info.get("model_provider") or ""},
+                                      _effective_main(settings), mode, _capability_probes(settings))
+    except Exception as e:  # noqa: BLE001 - a broken probe never blocks a job
+        print(f"[team preflight] {type(e).__name__}: {e}", file=sys.stderr)
+        return None
+    if r["status"] != "blocked":
+        return None
+    hint = r["fix_hint"]
+    if r["reason_code"] == engine_capability.CAPABILITY_UNSUPPORTED and mode == engine_capability.TEAM_TOOL_GATED:
+        hint = _gated_fix_hint(r["provider"], str(r.get("detail") or ""), settings)
+    return {"code": r["reason_code"], "message": r["message"], "fix_hint": hint}
+
+
+def _gated_fix_hint(provider: str, why: str, settings: dict) -> str:
+    """Actionable fix_hint for a refused gated step, listing only gate-capable connected providers on this machine."""
+    names = _team_gate_choices(provider, settings)
+    who = ", ".join(names) if names else ""
+    hint = localefmt.chu(
+        (f"Giao bước này cho thành viên dùng {who}, hoặc đổi model của trợ lý ở trang Cộng sự."
+         if who else "Chưa có provider nào trên máy này chạy được bước cần duyệt; kiểm tra trang Models."),
+        (f"Give this step to a member on {who}, or change the assistant's model on the Partners page."
+         if who else "No provider on this machine can run steps with approvals; check the Models page."))
+    if why:
+        hint += " " + localefmt.chu(f"Lý do trên máy này: {why}", f"Why on this machine: {why}")
+    return hint
+
+
 def _team_gate_choices(current, settings):
     """Labels of the connected providers a refused gated step can switch to on THIS machine, `current` left out: on
     Docker (Codex without its sandbox) the advice must not send the owner back to Codex. Grok Build and Antigravity are
@@ -31843,8 +32245,8 @@ def _step_engine(eng, provider: str):
 
 def _team_engine_for(team, agent_key, role):
     """Engine CHỈ CHỮ cho một lượt nhóm (phán quyết R3 của kế hoạch T1): thư mục trống, không MCP, cổng từ chối mọi công
-    cụ. Model theo hợp đồng chat tương tác và giao việc (`team_engine`, 0.142.0): model riêng của trợ lý, thiếu hay chưa
-    cấu hình được thì model chính. KHÔNG còn đi qua `_resonance_engine` (model việc nền, hợp đồng Cộng hưởng): máy để
+    cụ. Model theo hợp đồng chat tương tác và giao việc (`team_engine`, 0.142.0): model riêng của trợ lý; chỉ khi chưa
+    chọn mới theo model chính. KHÔNG còn đi qua `_resonance_engine` (model việc nền, hợp đồng Cộng hưởng): máy để
     Codex làm model việc nền từng làm cả nhóm im lặng.
 
     Review T1:
@@ -31857,12 +32259,14 @@ def _team_engine_for(team, agent_key, role):
     root = team["brain_id"]
     info = _team_agent_info(root, agent_key) or {}
     settings = cfgmod.read_settings() or {}
+    main_spec = _effective_main(settings)
     spec = team_engine.choose_spec(
-        info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+        info.get("model") or "", info.get("model_provider") or "", main_spec,
         _agent_model_provider, lambda sp: _agent_spec_available(sp, settings))
     tool_spec = team_engine.choose_spec(
-        info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+        info.get("model") or "", info.get("model_provider") or "", main_spec,
         _agent_model_provider, lambda sp: _agent_spec_available(sp, settings), tools=True)
+    initial_spec = tool_spec if role in team_runner.TOOL_ROLES else spec
 
     def _build_tools(system, tag, gate_id=""):
         # 0.194.0: a Work/Help step of a job runs like a private chat with this member: cwd is the team's working folder
@@ -31873,11 +32277,18 @@ def _team_engine_for(team, agent_key, role):
         if os.environ.get("JAVIS_NO_REAL_TEAM_ENGINE") == "1" and team_engine.build_tools is _TEAM_ENGINE_BUILD_TOOLS_REAL:
             raise team_runner.EngineUnavailable("JAVIS_NO_REAL_TEAM_ENGINE: không dựng engine nhóm thật")
         prov = str(tool_spec.get("provider") or aux_engine.CLAUDE)
+        try:
+            team_engine.validate_spec(tool_spec)
+        except team_engine.TeamEngineUnavailable as ex:
+            raise team_runner.EngineUnavailable(ex.reason, code=ex.code, stage=ex.stage,
+                                                fix_hint=getattr(ex, "fix_hint", "")) from None
         if gate_id:
             sup = _team_gate_support(prov)
             if not sup["ok"]:
                 raise team_runner.EngineUnavailable(team_gate.unsupported_text(
-                    sup["reason"], assistant=info.get("name") or "", choices=tuple(_team_gate_choices(prov, settings))))
+                    sup["reason"], assistant=info.get("name") or "", choices=tuple(_team_gate_choices(prov, settings))),
+                    code=engine_capability.CAPABILITY_UNSUPPORTED, stage="capability",
+                    fix_hint=_gated_fix_hint(prov, sup["reason"], settings))
         vault = str(_brain_root(root))
         cwd = ""
         try:
@@ -31902,7 +32313,8 @@ def _team_engine_for(team, agent_key, role):
             eng = team_engine.build_tools(tool_spec, base, tag, settings, mode=build_mode,
                                           codex_profile=_write_codex_profile)
         except team_engine.TeamEngineUnavailable as ex:
-            raise team_runner.EngineUnavailable(ex.reason)
+            raise team_runner.EngineUnavailable(ex.reason, code=ex.code, stage=ex.stage,
+                                                fix_hint=getattr(ex, "fix_hint", "")) from None
         if gate_id and prov == aux_engine.CODEX:
             # Natives stay in Codex's own `auto` sandbox (no network); hub tools get the gated level and the turn key,
             # so an approved outside action can pass the gate and nothing else can.
@@ -31917,7 +32329,10 @@ def _team_engine_for(team, agent_key, role):
         _step_plan_account(eng, prov)   # the plan account that should run now (rotation, as in chat)
         avail = getattr(eng, "is_available", None)
         if callable(avail) and not avail():
-            raise team_runner.EngineUnavailable(f"engine {tool_spec['provider']} chưa sẵn sàng (kiểm tra trang Models)")
+            r_auth = engine_capability.reason(engine_capability.AUTH_MISSING, str(tool_spec.get("provider") or ""))
+            raise team_runner.EngineUnavailable(
+                f"engine {tool_spec['provider']} chưa sẵn sàng (kiểm tra trang Models)",
+                code=engine_capability.AUTH_MISSING, stage="preflight", fix_hint=r_auth["fix_hint"])
         return eng
 
     def _build(system, tag):
@@ -31930,11 +32345,15 @@ def _team_engine_for(team, agent_key, role):
         try:
             eng = team_engine.build(spec, base, tag, settings)
         except team_engine.TeamEngineUnavailable as ex:
-            raise team_runner.EngineUnavailable(ex.reason)
+            raise team_runner.EngineUnavailable(ex.reason, code=ex.code, stage=ex.stage,
+                                                fix_hint=getattr(ex, "fix_hint", "")) from None
         _step_plan_account(eng, str(spec.get("provider") or aux_engine.CLAUDE))   # as in chat: the account with quota
         avail = getattr(eng, "is_available", None)
         if callable(avail) and not avail():
-            raise team_runner.EngineUnavailable(f"engine {spec['provider']} chưa sẵn sàng (kiểm tra trang Models)")
+            r_auth = engine_capability.reason(engine_capability.AUTH_MISSING, str(spec.get("provider") or ""))
+            raise team_runner.EngineUnavailable(
+                f"engine {spec['provider']} chưa sẵn sàng (kiểm tra trang Models)",
+                code=engine_capability.AUTH_MISSING, stage="preflight", fix_hint=r_auth["fix_hint"])
         return eng
 
     async def execute(req):
@@ -31953,6 +32372,11 @@ def _team_engine_for(team, agent_key, role):
                 eng = await asyncio.to_thread(_build_tools, req["system"], tag, str(req.get("team_gate") or ""))
             else:
                 eng = await asyncio.to_thread(_build, req["system"], tag)
+            from secret_redact import redact_secrets
+            print(redact_secrets(json.dumps({"event": "team_engine_built", "execution_id": (
+                (turn_context.current() or {}).get("execution") or {}).get("execution_id"),
+                "provider": prov, "model": used["model"], "adapter": type(eng).__name__,
+                "permission": req.get("work_mode"), "gated": bool(req.get("team_gate"))})), file=sys.stderr)
             prompt = _team_reasoning(eng, info.get("reasoning") or AGENT_REASONING_DEFAULT, req["prompt"])
             if tools_on:
                 # The tool spec can differ from the text one (Grok Build, Antigravity run tool turns): mark the real engine.
@@ -32000,11 +32424,16 @@ def _team_engine_for(team, agent_key, role):
                                    execution=execution, status=usage_status,
                                    expected_requests=getattr(eng, "usage_request_count", None))
             if failed is None:
+                engine_capability.record_outcome(prov, used.get("model") or "", True)
                 break
             # The account that ran out rests whatever happens next. The turn itself runs again only when it called no
             # tool (a refusal comes before any work; running a step twice could send or post something twice).
             nxt = await asyncio.to_thread(_team_quota_next, prov, eng, failed)
             if not nxt or hops >= REROUTE_MAX_HOPS or int(getattr(outcome, "tool_calls", 0) or 0):
+                err_code = engine_capability.classify_runtime_error(
+                    getattr(failed, "detail", "") or str(failed),
+                    kind=getattr(failed, "kind", ""), stage="runtime")
+                engine_capability.record_outcome(prov, used.get("model") or "", False, err_code or "runtime_error")
                 raise failed
             hops += 1
             moved = nxt["status"]
@@ -32051,13 +32480,27 @@ def _team_engine_for(team, agent_key, role):
             "turn_id": req.get("turn_id"), "attempt": req.get("attempt"), "job_revision": req.get("job_revision"),
             "role": role, "purpose": req.get("purpose") or role, "execution_id": uuid.uuid4().hex})
         token = turn_context.bind(ambient)
+        used = tool_spec if req.get("tool_turn") else spec
+        # Log only routing identifiers, never the settings, prompt, environment or provider errors.
+        trace = {"event": "team_engine_resolution", **ambient["execution"],
+                 "source": used.get("source", "unknown"), "requested_provider": info.get("model_provider") or "",
+                 "requested_model": info.get("model") or "", "resolved_provider": used["provider"],
+                 "resolved_model": used["model"], "permission": req.get("work_mode"),
+                 "tool_turn": bool(req.get("tool_turn"))}
+        from secret_redact import redact_secrets
+        print(redact_secrets(json.dumps(trace, ensure_ascii=True)), file=sys.stderr)
         try:
             return await execute(req)
+        except team_runner.EngineUnavailable as ex:
+            engine_capability.record_outcome(used["provider"], used.get("model") or "", False, ex.code)
+            print(redact_secrets(json.dumps({"event": "team_engine_refused", "execution_id": ambient["execution"].get("execution_id"),
+                              "code": ex.code, "stage": ex.stage, "provider": used["provider"]})), file=sys.stderr)
+            raise
         finally:
             turn_context.reset(token)
 
     run.marks_engine = True
-    return spec["provider"], spec["model"], run
+    return initial_spec["provider"], initial_spec["model"], run
 
 
 class _TeamAdmin:
@@ -32070,10 +32513,25 @@ class _TeamAdmin:
     def register(self, root, slug):
         return _TEAM_API.register_agent(root, slug)
 
+    def check_member(self, root, team, slug):
+        """Capability check before a Full-authority leader adds `slug` to `team`."""
+        path = _agent_md_path(root, slug)
+        meta = (_read_md(path)[0] or {}) if path else {}
+        cand = [{"agent_key": slug, "slug": slug, "name": meta.get("name") or slug,
+                 "model": meta.get("model") or "", "model_provider": meta.get("model_provider") or ""}]
+        cs = _team_config_status_for(root, cand, (team or {}).get("leader_key") or "",
+                                     (team or {}).get("work_mode") or "gated")
+        if cs.get("refuse"):
+            msg = next((i.get("message") for m in cs.get("members", ()) for i in m.get("issues", ())
+                        if i.get("severity") == "blocked"), "") or "trợ lý không chạy được lượt nhóm chỉ chữ"
+            raise team_store.TeamError(f"{slug}: {msg}")
+
     def create_agent(self, root, name, role, prompt, model="", model_provider="", tags=None):
         """Tạo trợ lý MỚI, không bao giờ ghi đè: slug trùng thì thêm -2, -3. Gắn tag "Nhóm" (hay `tags` được đưa) để không
-        bị trống nhãn. `model`/`model_provider` (0.173.0, công cụ `javis_team`): model riêng của trợ lý; provider lạ bị bỏ
-        về "" để `_agent_model_provider` suy như trợ lý cũ."""
+        bị trống nhãn. `model`/`model_provider` kiểm qua `engine_capability.validate_agent_selection` giống hệt POST /agents."""
+        val = engine_capability.validate_agent_selection(model_provider, model, _capability_probes())
+        if not val["ok"]:
+            raise ValueError(val["message"])
         base = _ascii_slug(name) or "tro-ly"
         with _AGENT_META_LOCK:
             d = _agents_dir(root)
@@ -32082,16 +32540,18 @@ class _TeamAdmin:
             while (d / f"{slug}.md").exists() or javis_core.is_core_slug(slug):
                 slug, n = f"{base}-{n}", n + 1
             meta = {"type": "agent", "name": name, "slug": slug, "role": role, "skills": [],
-                    "model": str(model or "").strip(), "updated": _today()}
-            mp = str(model_provider or "").strip()
-            if meta["model"] and mp in AGENT_PROVIDERS:
-                meta["model_provider"] = mp
+                    "model": val["model"], "updated": _today()}
+            if val["provider"]:
+                meta["model_provider"] = val["provider"]
             agent_tags.write_tags(meta, agent_tags.normalize_tags(list(tags or []) or ["Nhóm"]))
             _write_md(d / f"{slug}.md", meta, (prompt or "").strip() or role or name)
         return slug
 
     def set_model(self, root, slug, model, model_provider=""):
         """Đổi model riêng của một trợ lý có sẵn (0.173.0). `model` rỗng: về model chính. Không đụng phần còn lại của file."""
+        val = engine_capability.validate_agent_selection(model_provider, model, _capability_probes())
+        if not val["ok"]:
+            raise ValueError(val["message"])
         with _AGENT_META_LOCK:
             path = _agent_md_path(root, slug)
             if path is None:
@@ -32099,15 +32559,15 @@ class _TeamAdmin:
             meta, body = _read_md(path)
             if not meta:
                 raise ValueError("file trợ lý không có frontmatter đọc được, không sửa")
-            meta["model"] = str(model or "").strip()
-            mp = str(model_provider or "").strip()
-            if meta["model"] and mp in AGENT_PROVIDERS:
-                meta["model_provider"] = mp
+            meta["model"] = val["model"]
+            if val["provider"]:
+                meta["model_provider"] = val["provider"]
             else:
                 meta.pop("model_provider", None)
             meta["updated"] = _today()
             _write_md(path, meta, body)
-        return {"slug": slug, "model": meta["model"], "model_provider": meta.get("model_provider", "")}
+        return {"slug": slug, "model": meta["model"], "model_provider": meta.get("model_provider", ""),
+                "effective": _agent_effective(meta)}
 
     @staticmethod
     def providers():
@@ -32729,13 +33189,38 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     check_command=lambda cmd, cwd: _MandateDeps().run_test(cmd, cwd),
     brain_root=lambda team: Path(_brain_root(team["brain_id"])),
     work_dir=lambda team: coding_store.cwd_cua_phien(team.get("session_id") or "") if team.get("session_id") else "",
-    report=_notify_owner, job_done=_team_job_done, skill_block=_team_skill_block))
+    report=_notify_owner, job_done=_team_job_done, skill_block=_team_skill_block,
+    team_config_status=_team_config_status_for, team_preflight=_team_preflight))
 
 
 # ============================================================
 # 0.200.0: share a whole team as one file (team_bundle.py). Idea from OpenMausBot's "Share team".
 # ============================================================
 TEAM_SHARE_PINS = 20
+
+
+def _team_member_config(brain: str, slugs: list) -> dict:
+    """{slug: {provider, model, reasoning}} of each member's OWN selection, for the team file (2026-11-17).
+
+    Only what the owner set on the assistant travels: a member that inherits the main model has no entry (the
+    importing machine has its own main model). A legacy model-only assistant exports the provider Javis would run it
+    on (`_agent_model_provider`), so the pair is explicit on the other side. Identifiers only, never a key."""
+    out = {}
+    for slug in slugs:
+        try:
+            path = _agent_md_path(brain, slug)
+            meta = _read_md(path)[0] if path else {}
+        except Exception:  # noqa: BLE001 - an unreadable file exports nothing for that member
+            continue
+        model = str((meta or {}).get("model") or "").strip()
+        provider = str((meta or {}).get("model_provider") or "").strip()
+        if not model and not provider:
+            continue
+        cfg = {"provider": provider or _agent_model_provider(model, ""), "model": model}
+        if (meta or {}).get("reasoning") in engine.REASONING_LEVELS:
+            cfg["reasoning"] = meta["reasoning"]
+        out[slug] = cfg
+    return out
 
 
 @app.get("/teams/{team_id}/export")
@@ -32760,7 +33245,8 @@ async def teams_export(team_id: str, brain: str = "brain"):
                                             app_version=_app_version())
         if not data:
             raise team_api.OpError(400, "Team chưa có cộng sự nào để chia sẻ", "The team has no partners to share")
-        manifest = team_bundle.team_manifest(team, slugs, leader, pins)
+        manifest = team_bundle.team_manifest(team, slugs, leader, pins,
+                                             member_config=_team_member_config(brain, slugs))
         name = f"{share_bundle._safe_name(team.get('name') or 'team')}.team.javis.zip"
         return team_bundle.add_team_entry(data, manifest), name
 
@@ -32796,6 +33282,11 @@ async def teams_import(file: UploadFile = File(...), brain: str = Form("brain"),
         res = share_bundle.import_bundle(data, file.filename, agents_dir=_agents_dir(brain),
                                          workflows_dir=_workflows_dir(brain), skills_root=_skills_dir(brain),
                                          overwrite=False)
+        probes = _capability_probes()
+        cfg_report = share_bundle.restore_member_config(
+            _agents_dir(brain), res.get("imported", []), manifest.get("member_config") or {},
+            validator=lambda p_id, m_id: engine_capability.validate_agent_selection(p_id, m_id, probes),
+            allowed_reasoning=tuple(engine.REASONING_LEVELS))
         if any(str(k).startswith("skill:") for k in res.get("imported", [])):
             try:
                 system_sync.mirror_skills(_brain_root(brain))
@@ -32809,13 +33300,17 @@ async def teams_import(file: UploadFile = File(...), brain: str = Form("brain"),
         if manifest.get("instructions"):
             desc = (desc + "\n\n" if desc else "") + "\n".join("- " + t for t in manifest["instructions"])
         leader = manifest.get("leader") if manifest.get("leader") in members else ""
-        got = ops.create(brain, root, manifest["name"], members, leader, desc[:2000], "")
+        # Contract v1 §5 & A1: import never refuses on member capability; it builds the team and surfaces config_status.
+        got = ops.create(brain, root, manifest["name"], members, leader, desc[:2000], "", enforce_capability=False)
         try:
             rebuild_javis_index(_brain_root(brain))
         except Exception:
             pass
-        return {"ok": True, "team": _TEAM_API.view(got["team"]), "imported": res.get("imported", []),
-                "kept": res.get("skipped", []), "missing": missing, "errors": res.get("errors", [])}
+        view = _TEAM_API.view(got["team"])
+        return {"ok": True, "team": view, "config_status": view.get("config_status"),
+                "imported": res.get("imported", []), "kept": res.get("skipped", []),
+                "restored_models": cfg_report["restored"], "dropped_models": cfg_report["dropped"],
+                "missing": missing, "errors": res.get("errors", [])}
 
     try:
         return await asyncio.to_thread(_do)

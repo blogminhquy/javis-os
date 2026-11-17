@@ -30,7 +30,7 @@ import localefmt
 import resonance_store as RS
 import task_store
 import team_store
-from team_runner import TeamRunner, run_io
+from team_runner import ConfigBlocked, TeamRunner, run_io
 from team_store import TeamError
 
 LOOP_EVERY_S = 5.0          # nhịp điều phối (spec 8.3: cùng nhịp 5 giây của Kanban)
@@ -149,6 +149,10 @@ class TeamApiDeps:
     # 0.357.0: report a job Javis Core gave the team back where it was asked (main._notify_owner):
     # (owner_chat, text, *, kind, label, source, ngan, brain, dedup) -> (ok, error), sync or async. None: no reports.
     report: Optional[Callable[..., Any]] = None
+    # 2026-11-17: shared capability evaluation (engine_capability.team_status via main._team_config_status).
+    team_config_status: Optional[Callable[[str, list, str, Any], dict]] = None
+    # (team, agent_key, role) -> None when runnable now, else {code, message, fix_hint} (TeamRunner.preflight).
+    team_preflight: Optional[Callable[[dict, str, str], Optional[dict]]] = None
 
 
 async def _body(request: Request) -> dict:
@@ -159,12 +163,21 @@ async def _body(request: Request) -> dict:
         return {}
 
 
-def _err(code: int, vi: str, en: str, **extra) -> JSONResponse:
-    return JSONResponse({"ok": False, "error": localefmt.chu(vi, en), **extra}, status_code=code)
+def _err(status_code: int, vi: str, en: str, **extra) -> JSONResponse:
+    return JSONResponse({"ok": False, "error": localefmt.chu(vi, en), **extra}, status_code=status_code)
 
 
 def _team_err(ex: Exception, code: int = 400) -> JSONResponse:
     return JSONResponse({"ok": False, "error": str(ex)}, status_code=code)
+
+
+def _raw_member_model(info: Optional[dict]) -> str:
+    """Assistant's own explicit model field, ignoring #1570 display fallback (`model_main`)."""
+    if not info:
+        return ""
+    if "own_model" in info:
+        return str(info.get("own_model") or "")
+    return "" if info.get("model_main") else str(info.get("model") or "")
 
 
 def _regs_of(rs, root: str, members) -> dict:
@@ -261,7 +274,8 @@ class TeamApi:
                 learning=self.deps.learning() if self.deps.learning is not None else None,
                 contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block,
                 check_command=self.deps.check_command, brain_root=self.deps.brain_root,
-                work_dir=self.deps.work_dir, job_done=self.deps.job_done, skill_block=self.deps.skill_block)
+                work_dir=self.deps.work_dir, job_done=self.deps.job_done, skill_block=self.deps.skill_block,
+                preflight=self.deps.team_preflight)
             if self._loop is not None:
                 self._runner._loop, self._runner._loop_thread = self._loop, self._loop_thread
         return self._runner
@@ -385,10 +399,45 @@ class TeamApi:
         many of them call the owner (`at`), for the badge and the @ mark on the team list."""
         return self.deps.session_store().team_unread(team["session_id"], team.get("read_at") or 0)
 
+    def config_status(self, team: dict, meta: Optional[list] = None, members: Optional[list] = None,
+                      regs: Optional[dict] = None) -> dict:
+        """2026-11-17: pre-run capability status of `team` (`ready` | `warning` | `blocked`) from engine_capability."""
+        import engine_capability
+        root = team["brain_id"]
+        meta = self.deps.agents_meta(root) if meta is None else meta
+        by_slug = {m["slug"]: m for m in (meta or [])}
+        rs = self.deps.resonance_store()
+        members = self.teams().members(team["team_id"]) if members is None else members
+        regs = _regs_of(rs, root, members) if regs is None else regs
+        inputs = []
+        for m in members:
+            if m.get("status") != "active":
+                continue
+            reg = regs.get(m["agent_key"]) or {}
+            ident = self._identity(team, m, reg, by_slug)
+            info = by_slug.get(ident.get("slug")) if reg.get("status") == "active" else None
+            mdl = _raw_member_model(info)
+            mp = str((info or {}).get("model_provider") or "") if info is not None else ""
+            if info is not None and "own_model" not in info and "model" not in info and self.deps.agent_info is not None:
+                full = self.deps.agent_info(root, m["agent_key"]) or {}
+                mdl = str(full.get("model") or "")
+                mp = str(full.get("model_provider") or "")
+            inputs.append({"agent_key": m["agent_key"], "slug": ident.get("slug") or "",
+                           "name": ident.get("name") or ident.get("slug") or m["agent_key"],
+                           "model": mdl, "model_provider": mp})
+        leader_key = str(team.get("leader_key") or "")
+        work_mode = team.get("work_mode") or "gated"
+        if self.deps.team_config_status is not None:
+            return self.deps.team_config_status(root, inputs, leader_key, work_mode)
+        return engine_capability.team_status(inputs, leader_key, work_mode, None, None)
+
     def view(self, team: dict) -> dict:
         q = self.deps.task_store().team_queue(team["team_id"])
         meta = self.deps.agents_meta(team["brain_id"]) or []
-        return dict(team, members=self.member_views(team, meta), authors=self.authors(team, meta),
+        members = self.teams().members(team["team_id"])
+        regs = _regs_of(self.deps.resonance_store(), team["brain_id"], members)
+        return dict(team, members=self.member_views(team, meta, members, regs), authors=self.authors(team, meta),
+                    config_status=self.config_status(team, meta, members, regs),
                     creator=self.creator(team),
                     counts={"running": len(q["running"]), "waiting": len(q["waiting"]), "blocked": len(q["blocked"])},
                     running=[{"id": t["id"], "title": t["title"]} for t in q["running"]],
@@ -533,9 +582,9 @@ class TeamApi:
 class OpError(Exception):
     """Lỗi của một thao tác nhóm, có mã HTTP và câu hai thứ tiếng (route trả JSON, công cụ `javis_team` trả chữ)."""
 
-    def __init__(self, code: int, vi: str, en: str, **extra):
+    def __init__(self, status_code: int, vi: str, en: str, **extra):
         super().__init__(vi)
-        self.code, self.vi, self.en, self.extra = code, vi, en, extra
+        self.code, self.vi, self.en, self.extra = status_code, vi, en, extra
 
 
 class TeamOps:
@@ -578,8 +627,44 @@ class TeamOps:
 
     # ───────────── thao tác ─────────────
 
+    def _evaluate_candidates(self, root: str, member_rows: list, leader_key: str, work_mode: str = "gated") -> dict:
+        import engine_capability
+        if self.deps.team_config_status is not None:
+            return self.deps.team_config_status(root, member_rows, leader_key, work_mode)
+        return engine_capability.team_status(member_rows, leader_key, work_mode, None, None)
+
+    def _refuse_if_blocked(self, cs: dict) -> None:
+        if not cs.get("refuse"):
+            return
+        import engine_capability
+        bad_member = next((m for m in (cs.get("members") or [])
+                           if any(i.get("severity") == "blocked" and i.get("reason_code") in engine_capability.REFUSE_CODES
+                                  for i in (m.get("issues") or []))), None) or {}
+        issue = next((i for i in (bad_member.get("issues") or [])
+                      if i.get("severity") == "blocked" and i.get("reason_code") in engine_capability.REFUSE_CODES), {})
+        who = bad_member.get("name") or bad_member.get("agent_key") or "trợ lý"
+        msg = issue.get("message") or "Trợ lý chưa tương thích với lượt nhóm."
+        hint = issue.get("fix_hint") or ""
+        vi = f"{who}: {msg}" + (f" {hint}" if hint else "")
+        en = f"{who}: {msg}" + (f" {hint}" if hint else "")
+        raise OpError(409, vi, en, code="team_config_blocked",
+                      reason_code=issue.get("reason_code") or engine_capability.CAPABILITY_UNSUPPORTED,
+                      fix_hint=hint, config_status=cs)
+
+    def _member_row_for_slug(self, root: str, slug: str, agent_key: str = "", by_slug: Optional[dict] = None) -> dict:
+        by_slug = by_slug if by_slug is not None else {m["slug"]: m for m in (self.deps.agents_meta(root) or [])}
+        info = by_slug.get(slug) or {}
+        mdl = _raw_member_model(info)
+        mp = str(info.get("model_provider") or "")
+        if "own_model" not in info and "model" not in info and agent_key and self.deps.agent_info is not None:
+            full = self.deps.agent_info(root, agent_key) or {}
+            mdl = str(full.get("model") or "")
+            mp = str(full.get("model_provider") or "")
+        return {"agent_key": agent_key or slug, "slug": slug, "name": info.get("name") or slug,
+                "model": mdl, "model_provider": mp}
+
     def create(self, brain: str, root: str, name: str, members: list, leader: str = "", description: str = "",
-               client_req_id: str = "") -> dict:
+               client_req_id: str = "", *, enforce_capability: bool = True) -> dict:
         """Tạo nhóm. Trả {"team": dòng nhóm, "duplicate": bool}."""
         name = str(name or "").strip()
         members = [str(s) for s in (members or []) if str(s or "").strip()]
@@ -591,8 +676,9 @@ class TeamOps:
         # Nhóm cần ít nhất một trợ lý (0.142.0): người tạo là người thật, không tính là thành viên AI.
         if not members:
             raise OpError(400, "Chọn ít nhất một trợ lý", "Pick at least one assistant")
-        have = self.slugs(root)
-        missing = [s for s in members if s not in have]
+        meta = self.deps.agents_meta(root) or []
+        by_slug = {m["slug"]: m for m in meta}
+        missing = [s for s in members if s not in by_slug]
         if missing:
             raise OpError(400, f"Không có trợ lý: {', '.join(missing)}", f"No such assistant: {', '.join(missing)}")
         teams = self.api.teams()
@@ -601,7 +687,11 @@ class TeamOps:
         old = teams.find_by_request(root, req) if req else None
         if old is not None:
             return {"team": old, "duplicate": True}
-        keys = {slug: self.api.register_agent(root, slug)["agent_key"] for slug in dict.fromkeys(members)}
+        uniq_members = list(dict.fromkeys(members))
+        if enforce_capability:
+            cand = [self._member_row_for_slug(root, s, s, by_slug) for s in uniq_members]
+            self._refuse_if_blocked(self._evaluate_candidates(root, cand, leader if leader else "", "gated"))
+        keys = {slug: self.api.register_agent(root, slug)["agent_key"] for slug in uniq_members}
         tid = team_store.new_team_id()
         sid = self.deps.session_store().create_session(brain=brain, channel=f"team:{tid}", title=name[:120])
         # Người tạo: luôn là chủ máy đã qua cổng đăng nhập của server (Javis có một tài khoản), không đọc từ client.
@@ -651,11 +741,16 @@ class TeamOps:
         return updated
 
     def add_member(self, root: str, team_id: str, slug: str) -> dict:
-        self.team(root, team_id)
+        team = self.team(root, team_id)
         slug = str(slug or "").strip()
-        if slug not in self.slugs(root):
+        by_slug = {m["slug"]: m for m in (self.deps.agents_meta(root) or [])}
+        if slug not in by_slug:
             raise OpError(400, f"Không có trợ lý: {slug}", f"No such assistant: {slug}")
         reg = self.api.register_agent(root, slug)
+        cand = self._member_row_for_slug(root, slug, reg["agent_key"], by_slug)
+        # Evaluate the new member against the team's work_mode before mutating membership
+        self._refuse_if_blocked(self._evaluate_candidates(
+            root, [cand], team.get("leader_key") or "", team.get("work_mode") or "gated"))
         self.api.teams().add_member(team_id, reg["agent_key"], slug)
         self.api.runner()._state(team_id)
         return self.api.teams().get(team_id)
@@ -670,9 +765,24 @@ class TeamOps:
         return self.api.teams().get(team_id)
 
     def set_leader(self, root: str, team_id: str, agent_key: Optional[str]) -> dict:
-        self.team(root, team_id)
+        team = self.team(root, team_id)
+        target = str(agent_key) if agent_key else None
+        if target:
+            by_slug = {m["slug"]: m for m in (self.deps.agents_meta(root) or [])}
+            cur_members = [m for m in self.api.teams().members(team_id) if m.get("status") == "active"]
+            regs = _regs_of(self.deps.resonance_store(), root, cur_members)
+            lead_row = None
+            for m in cur_members:
+                if m["agent_key"] == target:
+                    r = regs.get(target) or {}
+                    sl = r.get("slug") or m.get("slug_at_join") or ""
+                    lead_row = self._member_row_for_slug(root, sl, target, by_slug)
+                    break
+            if lead_row is not None:
+                self._refuse_if_blocked(self._evaluate_candidates(
+                    root, [lead_row], target, team.get("work_mode") or "gated"))
         with self.api.runner().accept_lock:
-            updated = self.api.teams().set_leader(team_id, str(agent_key) if agent_key else None)
+            updated = self.api.teams().set_leader(team_id, target)
         if updated["leader_key"]:
             self.api.runner().resume_no_leader(team_id)
             self.api.kick()
@@ -779,6 +889,7 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             mems = {t["team_id"]: api.teams().members(t["team_id"]) for t in teams}
             regs = _regs_of(deps.resonance_store(), root, [m for ms in mems.values() for m in ms])
             rows = [dict(t, counts=api.counts(t["team_id"]), last=api.last_message(t), unread=api.unread(t),
+                         config_status=api.config_status(t, meta, mems[t["team_id"]], regs),
                          **api.faces(t, meta, mems[t["team_id"]], regs))
                     for t in teams]
             # Con trỏ trang sau chỉ tính nhóm không ghim (nhóm ghim luôn nằm ở trang đầu).
@@ -971,6 +1082,24 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
                     t["steps"] = _step_rows(api.teams().steps(t["id"]))
                 except Exception:  # noqa: BLE001 - a broken step list never hides the job
                     t["steps"] = []
+            # 2026-11-18: a job blocked by a configuration problem carries the CURRENT coded reason and fix hint (the
+            # preflight of the member that still has a tool step), so the card shows what to fix instead of "Thử lại".
+            for t in out["blocked"]:
+                if t.get("block_kind") != "config":
+                    continue
+                try:
+                    pend = [x for x in api.teams().steps(t["id"]) if x["kind"] in ("work", "help")
+                            and x["status"] in ("failed", "queued", "held")]
+                    for x in reversed(pend):
+                        issue = api.runner()._config_check(team, x["agent_key"], x["kind"])
+                        if issue:
+                            t["reason_code"], t["fix_hint"] = issue.get("code") or "", issue.get("fix_hint") or ""
+                            t["config_agent_key"] = x["agent_key"]
+                            break
+                    else:
+                        t["config_cleared"] = True   # the config looks fixed: the button will run the job again
+                except Exception:  # noqa: BLE001 - the hint is a courtesy
+                    pass
             out.update(_finished(team))
             return out
         return await api.io(_do)
@@ -1114,7 +1243,13 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if cur.get("block_kind") in api.runner().APPROVAL_BLOCKS:
                 return _err(409, "Việc này đang chờ quyết định trên thẻ duyệt; hãy duyệt, sửa yêu cầu hay huỷ việc",
                             "This job waits for a decision on its approval card; decide, edit or cancel the job")
-            if not api.runner().unblock(task_id, action):
+            try:
+                unblocked = api.runner().unblock(task_id, action)
+            except ConfigBlocked as ex:
+                return _err(409, ex.message or "Cấu hình của thành viên vẫn chưa chạy được bước này",
+                            ex.message or "The member's configuration still cannot run this step",
+                            code="config_blocked", reason_code=ex.code, fix_hint=ex.fix_hint, agent_key=ex.agent_key)
+            if not unblocked:
                 return _err(409, "Việc không ở trạng thái bị chặn", "The job is not blocked")
             api.kick()
             api.runner()._state(team_id)
@@ -1508,7 +1643,8 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
                         if mode == "full" else "Chủ nhóm đặt lại: hành động ra ngoài của nhóm phải chờ duyệt.",
                         author_kind="system", meta={"kind": "work_mode", "work_mode": mode})
                 r._publish({"type": "team_state", "team_id": team_id})
-            return {"ok": True, "work_mode": mode}
+            updated_team = api.teams().get(team_id) or dict(team, work_mode=mode)
+            return {"ok": True, "work_mode": mode, "config_status": api.config_status(updated_team)}
         return await api.io(_do)
 
     # Quality policy and default acceptance templates are owner settings, never agent directives.
