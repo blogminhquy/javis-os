@@ -15,6 +15,9 @@ const en = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "en.j
 const css = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
 const src = fs.readFileSync(path.join(ROOT, "dashboard", "teams.js"), "utf8");
 
+// ic() draws nothing under node, so the icon name is read from the source.
+function teamsSrcIcon() { return /function atJumpHtml\(n\) \{\s*return n \? ic\("chevrons-up"\)/.test(src); }
+
 let fails = 0;
 function check(name, cond, extra) {
   console.log((cond ? "ok   " : "FAIL ") + name + (cond || !extra ? "" : "  " + String(extra).slice(0, 600)));
@@ -34,9 +37,11 @@ check("the owner's last message comes from ownerSaidAt (a message that hands a j
   TM.ownerSaidAt([{ author_kind: "owner", ts: 250 }, { author_kind: "owner", ts: 400, meta: { as_job: true } }]) === 250);
 
 // ───────────── the button ─────────────
+// 18/11/2026 (owner, a Zalo screenshot): "nút nó phải ở phía trên một chút và dấu mũi tên lên trên sẽ hợp lý hơn".
 let h = TM.atJumpHtml(3);
-check("the count sits in a badge under the icon", h.includes('<span class="notification-badge tm-at-n">3</span>'), h);
-check("a large count is cut to 99+", TM.atJumpHtml(140).includes(">99+<"));
+check("an up arrow in the button, '@' and the count in a badge under it", h.includes('<span class="notification-badge tm-at-n">@3</span>')
+  && teamsSrcIcon(), h);
+check("a large count is cut to 99+", TM.atJumpHtml(140).includes(">@99+<"));
 check("no message waiting: the button is empty", TM.atJumpHtml(0) === "");
 check("words: a label in both languages with the count", vi["teams.at_jump"].includes("{n}") && en["teams.at_jump"].includes("{n}")
   && !/[–—]/.test(vi["teams.at_jump"] + en["teams.at_jump"]));
@@ -44,8 +49,9 @@ check("words: a label in both languages with the count", vi["teams.at_jump"].inc
 // ───────────── page wiring ─────────────
 check("page: the messages counted are the ones drawn with the 'asks you' flag",
   src.includes('box.querySelectorAll(".tm-msg-asks[data-mid]")') && src.includes("atPending(asks, ownerSaidAt(S.msgs), atSeenMap())"));
-check("page: the button sits before the jump-to-latest button and is refreshed on every draw of the list",
-  /if \(S\.atBtn\) \{[^}]*box\.insertBefore\(S\.atBtn, before\);\s*updateAtJump\(true\);/.test(src));
+check("page: the button is the list's first child (sticky top) and is refreshed on every draw of the list",
+  /if \(S\.atBtn\) \{\s*if \(box\.firstChild !== S\.atBtn\) box\.insertBefore\(S\.atBtn, box\.firstChild\);\s*updateAtJump\(true\);/.test(src)
+  && src.includes('box.firstChild.classList.contains("tm-at-jump") ? box.firstChild : null;'));
 check("page: a press goes to the oldest waiting message, in the middle, flashing, and counts it read",
   /function atJump\(\) \{[^]*?\(S\.atPend \|\| \[\]\)\[0\][^]*?scrollIntoView\(\{ block: "center", behavior: "smooth" \}\)[^]*?tm-msg-flash[^]*?markAtSeen\(id\)/.test(src)
   && src.includes('if (t.classList.contains("tm-at-jump")) return atJump();'));
@@ -53,10 +59,10 @@ check("page: a message is read once half of it is on screen, watched with Inters
   src.includes("new IO(onAtSeen, { root: box") && src.includes("en.intersectionRatio < 0.5 && !tall"));
 check("page: what was read is kept per team on this device, never throwing without storage",
   src.includes('var AT_SEEN_KEY = "javis.teams.atSeen";') && /function markAtSeen[^]*?try \{[^]*?localStorage\.setItem\(AT_SEEN_KEY/.test(src));
-check("CSS: round, sticky at the bottom right, hidden until shown, 44px on a phone, red count",
-  /\.tm-at-jump \{ position: sticky;[^}]*align-self: flex-end;[^}]*display: none;[^}]*border-radius: 50%;/.test(css)
+check("CSS: round, sticky at the TOP right, takes no room in the list, hidden until shown, 44px on a phone, red count",
+  /\.tm-at-jump \{ position: sticky; top: 10px; align-self: flex-end; margin: 10px 12px -50px 0;[^}]*display: none;[^}]*border-radius: 50%;/.test(css)
   && css.includes(".tm-at-jump.show { display: inline-flex; }")
-  && /@media \(max-width: 760px\) \{ \.tm-at-jump \{ width: 44px; height: 44px;/.test(css)
+  && /@media \(max-width: 760px\) \{ \.tm-at-jump \{ width: 44px; height: 44px; margin-bottom: -54px; \} \}/.test(css)
   && /\.tm-at-jump \.tm-at-n \{[^}]*background: var\(--red\);/.test(css));
 
 if (fails) { console.log("\nFAILED " + fails); process.exit(1); }

@@ -80,6 +80,8 @@ const rnd = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return see
 let state = [];
 for (let i = 0; i < 12; i++) state.push({ key: "m" + i, html: "v0-" + i + (rnd(3) === 0 ? "|s-" + i : "") });
 const rbox = new El("div");
+// 18/11/2026: the "@" button is the list's first child (sticky top), the jump-to-latest button its last.
+rbox.appendChild(new El("button", "tm-at-jump"));
 rbox.appendChild(new El("button", "jv-new-msg"));
 let ritems = T.listSync(rbox, state.map((x) => Object.assign({}, x)), null, make);
 let bad = "";
@@ -97,9 +99,16 @@ for (let step = 0; step < 400 && !bad; step++) {
   const got = rbox.children.filter((n) => !n.cls).map((n) => n.html).join(",");
   if (got !== expect(state)) bad = "step " + step + ": " + got + " != " + expect(state);
   else if (rbox.lastChild.cls !== "jv-new-msg") bad = "step " + step + ": button not last";
+  else if (rbox.firstChild.cls !== "tm-at-jump") bad = "step " + step + ": @ button not first";
   else ritems.forEach((it) => { const b = before.get(it.key); if (b && b.html === it.html && b.nodes.some((n, i) => n !== it.nodes[i])) bad = "step " + step + ": unchanged " + it.key + " rebuilt"; });
 }
-check("400 random updates: always the same as a full rebuild, unchanged items never rebuilt", !bad, bad);
+check("400 random updates: always the same as a full rebuild, unchanged items never rebuilt, @ first and jump last", !bad, bad);
+// A full rebuild (first draw, team switch) keeps the @ button first too.
+const abox = new El("div");
+abox.appendChild(new El("button", "tm-at-jump"));
+abox.appendChild(new El("button", "jv-new-msg"));
+T.listSync(abox, [{ key: "a", html: "a" }, { key: "b", html: "b" }], null, make);
+check("full rebuild: the @ button stays first, the jump button last", flat(abox) === "[tm-at-jump],a,b,[jv-new-msg]", flat(abox));
 
 check("drawMsgs reconciles by key and rebuilds only for a new team or a page it does not own",
   /var sync = function \(\) \{ return listSync\(box, built\.items, prev, htmlNodes\); \};/.test(teamsJs)
