@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.581.0] - 2026-11-17
+### Improved
+- **The team's settings tab is much shorter and saves itself.** Advanced is gone (acceptance, usage, limit numbers, the
+- **A reply stopped by a limit no longer offers "Open the team limits"**, since there are no numbers to open; Try again
+
 ## [0.580.0] - 2026-11-17
 ### Improved
 - **A team no longer has a daily reply cap.** A team that used its 100 replies of the day used to stop every member
