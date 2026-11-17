@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.582.1] - 2026-11-17
+### Fixed
+- **The / skill list in a team chat no longer overlaps.** Each skill shows one line of name and one of description, a long name ends in "...", and the list scrolls when long.
+
 ## [0.582.0] - 2026-11-17
 ### Added
 - **Answer an approval card in the team chat.** The card has two big buttons with icons: Approve and Reply. Reply opens
