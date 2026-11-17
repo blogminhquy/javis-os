@@ -25,8 +25,9 @@ let h = TM.messageHtml(msg, {});
 check("a pending card renders as an approval card, not a plain system line", h.includes("tm-ap ") && !h.includes("tm-sys"), h);
 check("card text is escaped", h.includes("Gửi tin &lt;b&gt;ưu đãi&lt;/b&gt;") && !h.includes("<b>ưu đãi"), h);
 check("card shows the exact call and the evidence", h.includes("zalo_send_message") && h.includes("khach.csv"), h);
-check("pending card has Approve, Ask for changes, Reject bound to the request and its revision",
-  ["approve", "changes", "reject"].every(function (d) { return h.includes('data-ap-decide="' + d + '"'); })
+// 17/11/2026: Approve and Reply; Change and Reject sit in the reply box (test_team_approval_reply.js).
+check("pending card has Approve bound to the request and its revision, and Reply",
+  h.includes('data-ap-decide="approve"') && h.includes('data-ap-reply="ap_1"')
   && h.includes('data-ap="ap_1"') && h.includes('data-ap-rev="2"'), h);
 const states = ["approved", "consumed", "rejected", "changes_requested", "expired", "superseded", "cancelled", "revoked"];
 const bad = states.filter(function (st) {
@@ -48,8 +49,10 @@ check("every new key exists in both languages", keys.length > 20 && keys.every(f
   keys.filter(function (k) { return !en[k]; }));
 check("no em or en dash in the new strings", keys.every(function (k) { return !/[\u2013\u2014]/.test(vi[k] + en[k]); }));
 check("each decision click carries its own key (retry replays, second tab is told)",
-  /decision_key: dkey/.test(teamsJs) && /\/approvals\/" \+ q\(d\.ap\) \+ "\/decide"/.test(teamsJs));
-check("reject and changes ask for a reason before sending", /dec === "reject" \|\| dec === "changes"/.test(teamsJs));
+  /decision_key: dkey/.test(teamsJs) && /\/approvals\/" \+ q\(apId\) \+ "\/decide"/.test(teamsJs));
+check("reject and changes need words from the reply box before sending (no browser prompt any more)",
+  /if \(!words\) \{/.test(teamsJs) && /if \(d\.apSend !== "ask"\) return apDecide\(btn, d\.ap, d\.apRev, d\.apSend, words\);/.test(teamsJs)
+  && !/prompt\(tw\(dec === "reject"/.test(teamsJs));
 check("card text is 16px for phones", /\.tm-ap \{[^}]*font-size: 16px/.test(css));
 
 if (fails) { console.log("\nFAILED " + fails); process.exit(1); }

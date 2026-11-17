@@ -4511,9 +4511,9 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 }
 
 /* 0.207.0: approval request card in the team chat (teams.js approvalCardHtml) */
-.tm-ap { align-self: stretch; max-width: 640px; margin: 6px auto; padding: 12px 14px; border: 1px solid var(--hairline);
-  border-left: 3px solid var(--accent, #d97706); border-radius: 10px; background: var(--surface-2); font-size: 16px;
-  line-height: 1.5; display: flex; flex-direction: column; gap: 6px; }
+.tm-ap { align-self: stretch; max-width: 640px; margin: 6px auto; padding: 14px 14px 12px; border: 1px solid var(--hairline);
+  border-left: 3px solid var(--accent, #d97706); border-radius: 16px; background: var(--bg2); font-size: 16px;
+  line-height: 1.5; display: flex; flex-direction: column; gap: 10px; }
 .tm-ap-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .tm-ap-head svg { width: 18px; height: 18px; }
 .tm-ap-row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -4526,6 +4526,76 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-ap-approved, .tm-ap-consumed { border-left-color: var(--ok, #16a34a); }
 .tm-ap-rejected, .tm-ap-expired, .tm-ap-revoked { border-left-color: var(--danger, #dc2626); }
 .tm-ap-superseded, .tm-ap-cancelled, .tm-ap-changes_requested { border-left-color: var(--text3); }
+
+/* 17/11/2026: the approval card can be answered (teams.js approvalCardHtml). Head with the shield in a soft square, a
+   waiting pill and the time left; the title on its own line; the lines in one bordered list with a quote button each;
+   evidence and calls fold away; two 48px buttons (Approve, Reply); the reply box opens inside the card. */
+.tm-ap .tm-ap-head { gap: 8px; color: var(--text2); }
+.tm-ap-ico { width: 32px; height: 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-wash-2); color: var(--accent-ink); flex: none; }
+.tm-ap-ico svg { width: 18px; height: 18px; }
+.tm-ap-pill { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 999px; background: var(--danger-wash);
+  color: var(--danger-ink); font-size: 16px; }
+.tm-ap-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.tm-ap-due { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--text3); font-size: 16px; white-space: nowrap; }
+.tm-ap-due svg { width: 16px; height: 16px; }
+.tm-ap-title { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.tm-ap-rows { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.tm-ap-rows .tm-ap-row { display: flex; flex-wrap: nowrap; gap: 4px; align-items: flex-start; padding: 8px 4px 8px 12px; background: var(--surface-1); }
+.tm-ap-rows .tm-ap-row + .tm-ap-row { border-top: 1px solid var(--border); }
+.tm-ap-rows .tm-ap-row-sel { background: var(--accent-wash); box-shadow: inset 3px 0 0 var(--accent); }
+.tm-ap-row-b { flex: 1; min-width: 0; }
+.tm-ap-row-b .tm-ap-k { display: block; min-width: 0; }
+.tm-ap-v { display: block; overflow-wrap: anywhere; }
+.tm-ap-q { flex: none; width: 44px; height: 44px; margin: -4px 0; border: 0; border-radius: 10px; background: none; color: var(--text3);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.tm-ap-q svg { width: 18px; height: 18px; }
+.tm-ap-q:hover, .tm-ap-q:focus-visible, .tm-ap-row-sel .tm-ap-q { color: var(--accent-ink); background: var(--accent-wash); }
+.tm-ap-more { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); }
+.tm-ap-more summary { list-style: none; cursor: pointer; min-height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 8px;
+  color: var(--text2); }
+.tm-ap-more summary::-webkit-details-marker { display: none; }
+.tm-ap-more summary svg { width: 18px; height: 18px; flex: none; }
+.tm-ap-more summary svg:last-child { margin-left: auto; transition: transform .15s; }
+.tm-ap-more[open] summary svg:last-child { transform: rotate(180deg); }
+.tm-ap-n { color: var(--text3); }
+.tm-ap-more ul { margin: 0; padding: 0 12px 10px 38px; }
+.tm-ap-more li { overflow-wrap: anywhere; }
+.tm-ap-more code { font-size: 16px; word-break: break-all; }
+.tm-ap-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tm-ap-acts .ws-btn { min-height: 48px; border-radius: 12px; justify-content: center; gap: 8px; font-size: 16px; font-weight: 500;
+  color: var(--text); background: var(--bg2); }
+.tm-ap-acts .ws-btn svg, .tm-ap-rp-foot .ws-btn svg { width: 20px; height: 20px; }
+.tm-ap-acts .tm-ap-ok, .tm-ap-rp-foot .tm-ap-send { background: var(--accent-solid); border-color: var(--accent-solid); color: var(--on-accent); font-weight: 600; }
+.tm-ap-acts .tm-ap-ok:hover, .tm-ap-rp-foot .tm-ap-send:hover { color: var(--on-accent); filter: brightness(1.06); }
+.tm-ap-acts .tm-ap-reply-on { border-color: var(--accent-line); background: var(--accent-wash-2); color: var(--accent-ink); }
+.tm-ap-rp-foot .tm-ap-send-rej { background: var(--red); border-color: var(--red); }
+.tm-ap-rp { border: 1px solid var(--accent-line); border-radius: 14px; background: var(--bg); padding: 10px; display: flex;
+  flex-direction: column; gap: 10px; }
+.tm-ap-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface-2); }
+.tm-ap-seg-b { min-height: 44px; border: 0; border-radius: 9px; background: none; color: var(--text2); display: inline-flex; align-items: center;
+  justify-content: center; gap: 5px; font: inherit; font-size: 16px; cursor: pointer; padding: 0 2px; white-space: nowrap; min-width: 0; }
+.tm-ap-seg-b svg { width: 18px; height: 18px; flex: none; }
+.tm-ap-seg-b span { overflow: hidden; text-overflow: ellipsis; }
+.tm-ap-seg-b[aria-checked="true"] { background: var(--bg2); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.tm-ap-seg-rej[aria-checked="true"] { color: var(--danger-ink); }
+.tm-ap-qchip { display: flex; gap: 8px; align-items: flex-start; padding: 6px 4px 6px 8px; border-radius: 10px; background: var(--accent-wash);
+  color: var(--text2); }
+.tm-ap-qbody { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tm-ap-qbody b { color: var(--text); font-weight: 600; }
+.tm-ap-qx { flex: none; width: 36px; height: 36px; margin: -4px 0; border: 0; background: none; color: var(--text3); border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.tm-ap-qx svg { width: 16px; height: 16px; }
+.tm-ap-ta { width: 100%; min-height: 104px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2);
+  color: var(--text); padding: 10px 12px; font: inherit; font-size: 16px; line-height: 1.5; box-sizing: border-box; }
+.tm-ap-ta:focus { outline: 2px solid var(--accent-line); border-color: var(--accent); }
+.tm-ap-sugs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tm-ap-sug { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg2); color: var(--text2);
+  font: inherit; font-size: 16px; cursor: pointer; }
+.tm-ap-rp-foot { display: flex; gap: 8px; align-items: center; }
+.tm-ap-rp-foot .ws-btn { min-height: 48px; border-radius: 12px; padding: 0 14px; font-size: 16px; gap: 8px; }
+.tm-ap-rp-foot .tm-ap-cancel { border-color: transparent; }
+.tm-ap-rp-foot .tm-ap-send { margin-left: auto; }
 .tm-wm .tm-radio { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: 16px; }
 
 /* 0.208.0: department mandate section (teams.js mandateHtml) and opportunity card (reuses .tm-ap) */

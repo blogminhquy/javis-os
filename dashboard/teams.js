@@ -2024,40 +2024,104 @@
       }).join("") + "</section>";
   }
 
-  // 0.207.0: an approval request card in the team chat. State comes from the server (never guessed): waiting with three
-  // buttons, approved / used / rejected / void with who and why.
-  function approvalCardHtml(m) {
-    var ap = (m.meta || {}).approval || {};
-    var st = ap.status || "pending";
+  // 0.207.0: an approval request card in the team chat. State comes from the server (never guessed).
+  // 17/11/2026 (owner: "cần phải trả lời được lại các yêu cầu này chứ không chỉ duyệt hoặc không duyệt ... rất nhiều lúc anh
+  // muốn hỏi rõ về phần yêu cầu duyệt và muốn chỉnh sửa"): two big buttons, Approve and Reply. Reply opens a box in the
+  // card with three kinds of answer: Ask (a chat message quoting the card, the card keeps waiting), Change (the old
+  // "changes" decision) and Reject. A quote button on each line asks about that exact line. Evidence and calls fold away.
+  // The reply box state lives in AP_REPLY (one card at a time); the browser part fills it.
+  var AP_REPLY = { id: "", mode: "ask", quote: -1, draft: "" };
+  var AP_MODES = [
+    { id: "ask", icon: "circle-help", key: "teams.ap.mode_ask", ph: "teams.ap.ph_ask", send: "teams.ap.send_ask",
+      sugs: ["teams.ap.sug_ask_why", "teams.ap.sug_ask_cost", "teams.ap.sug_ask_other"] },
+    { id: "changes", icon: "pencil", key: "teams.ap.mode_changes", ph: "teams.ap.changes_prompt", send: "teams.ap.send_changes",
+      sugs: ["teams.ap.sug_fix_smaller", "teams.ap.sug_fix_show", "teams.ap.sug_fix_later"] },
+    { id: "reject", icon: "ban", key: "teams.ap.mode_reject", ph: "teams.ap.reject_prompt", send: "teams.ap.send_reject",
+      sugs: ["teams.ap.sug_rej_notnow", "teams.ap.sug_rej_cost", "teams.ap.sug_rej_wrong"] }];
+
+  // The lines of a card the owner can quote: [label key, text].
+  function apRows(ap) {
     var rows = [];
     if (ap.action) rows.push(["teams.ap.action", ap.action]);
     if (ap.scope) rows.push(["teams.ap.scope", ap.scope]);
     if (ap.impact) rows.push(["teams.ap.impact", ap.impact]);
-    var body = rows.map(function (r) {
-      return '<div class="tm-ap-row"><span class="tm-ap-k">' + esc(tw(r[0])) + "</span><span>" +
-        esc(r[1]).replace(/\n/g, "<br>") + "</span></div>";
+    return rows;
+  }
+
+  // "còn 5 giờ" from the deadline (seconds). Past it: "hết hạn".
+  function apDueText(deadline, now) {
+    var left = Number(deadline) - (now === undefined ? Date.now() / 1000 : Number(now));
+    if (!(left > 0)) return tw("teams.ap.due_over");
+    if (left < 3600) return tw("teams.ap.due_min", { n: Math.max(1, Math.round(left / 60)) });
+    if (left < 48 * 3600) return tw("teams.ap.due_h", { n: Math.round(left / 3600) });
+    return tw("teams.ap.due_d", { n: Math.round(left / 86400) });
+  }
+
+  // A path shows as its file name; the whole path stays in the tooltip.
+  function apShortRef(e) {
+    var t = String(e == null ? "" : e).trim();
+    var m = /^(.*?)([^\/\\]+\.[A-Za-z0-9]{1,8})(\s.*)?$/.exec(t);
+    return m && /[\/\\]/.test(m[1]) ? m[2] + (m[3] || "") : t;
+  }
+
+  function apFoldHtml(icon, key, items) {
+    if (!items.length) return "";
+    return '<details class="tm-ap-more"><summary>' + ic(icon) + "<span>" + esc(tw(key)) + '</span><span class="tm-ap-n">' +
+      items.length + "</span>" + ic("chevron-down") + "</summary><ul>" + items.join("") + "</ul></details>";
+  }
+
+  // The reply box under the two buttons, for the card whose reply is open.
+  function apReplyHtml(ap, rows, ui) {
+    var mode = AP_MODES.filter(function (x) { return x.id === ui.mode; })[0] || AP_MODES[0];
+    var seg = AP_MODES.map(function (x) {
+      return '<button type="button" role="radio" class="tm-ap-seg-b' + (x.id === "reject" ? " tm-ap-seg-rej" : "") + '" aria-checked="' +
+        (x.id === mode.id ? "true" : "false") + '" data-ap-mode="' + x.id + '">' + ic(x.icon) + "<span>" + esc(tw(x.key)) + "</span></button>";
     }).join("");
-    var acts = (ap.actions || []).map(function (a) {
-      return '<li><code>' + esc(a.call || a.label) + "</code>" + (a.used ? " · " + esc(tw("teams.ap.used")) : "") + "</li>";
+    var q = rows[ui.quote];
+    var quote = q ? '<div class="tm-ap-qchip"><span class="tm-quote-ico" aria-hidden="true">' + ic("quote") + '</span><span class="tm-ap-qbody"><b>' +
+      esc(tw(q[0])) + "</b> " + esc(String(q[1]).replace(/\s+/g, " ").slice(0, 160)) + '</span><button type="button" class="tm-ap-qx" data-ap-unquote="1" aria-label="' +
+      esc(tw("teams.ap.unquote")) + '" title="' + esc(tw("teams.ap.unquote")) + '">' + ic("x") + "</button></div>" : "";
+    var sugs = mode.sugs.map(function (k) {
+      return '<button type="button" class="tm-ap-sug" data-ap-sug="' + esc(k) + '">' + esc(tw(k)) + "</button>";
     }).join("");
-    if (acts) body += '<div class="tm-ap-k">' + esc(tw("teams.ap.calls")) + '</div><ul class="tm-ap-calls">' + acts + "</ul>";
-    var ev = (ap.evidence || []).map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("");
-    if (ev) body += '<div class="tm-ap-k">' + esc(tw("teams.ap.evidence")) + '</div><ul class="tm-ap-ev">' + ev + "</ul>";
-    if (ap.deadline_at) {
-      body += '<div class="tm-ap-row"><span class="tm-ap-k">' + esc(tw("teams.ap.deadline")) + "</span><span>" +
-        esc(new Date(Number(ap.deadline_at) * 1000).toLocaleString()) + "</span></div>";
-    }
+    return '<div class="tm-ap-rp" data-ap-rp="' + esc(ap.approval_id) + '"><div class="tm-ap-seg" role="radiogroup" aria-label="' +
+      esc(tw("teams.ap.reply")) + '">' + seg + "</div>" + quote +
+      '<textarea class="tm-ap-ta" rows="3" placeholder="' + esc(tw(mode.ph)) + '" aria-label="' + esc(tw(mode.ph)) + '"></textarea>' +
+      '<div class="tm-ap-sugs">' + sugs + '</div><div class="tm-ap-rp-foot"><button type="button" class="ws-btn tm-ap-cancel" data-ap-close="1">' +
+      esc(tw("teams.cancel")) + '</button><button type="button" class="ws-btn tm-ap-send' + (mode.id === "reject" ? " tm-ap-send-rej" : "") +
+      '" data-ap-send="' + mode.id + '" data-ap="' + esc(ap.approval_id) + '" data-ap-rev="' + esc(ap.team_rev) + '">' + ic("send") +
+      "<span>" + esc(tw(mode.send)) + "</span></button></div></div>";
+  }
+
+  function approvalCardHtml(m, ui) {
+    ui = ui || AP_REPLY;
+    var ap = (m.meta || {}).approval || {};
+    var st = ap.status || "pending";
+    var pending = st === "pending";
+    var open = pending && ui.id && ui.id === ap.approval_id;
+    var rows = apRows(ap);
+    var body = rows.length ? '<div class="tm-ap-rows">' + rows.map(function (r, i) {
+      return '<div class="tm-ap-row' + (open && ui.quote === i ? " tm-ap-row-sel" : "") + '"><div class="tm-ap-row-b"><span class="tm-ap-k">' +
+        esc(tw(r[0])) + '</span><span class="tm-ap-v">' + esc(r[1]).replace(/\n/g, "<br>") + "</span></div>" +
+        (pending ? '<button type="button" class="tm-ap-q" data-ap-quote="' + i + '" data-ap="' + esc(ap.approval_id) + '" aria-label="' +
+          esc(tw("teams.ap.quote_row")) + '" title="' + esc(tw("teams.ap.quote_row")) + '">' + ic("quote") + "</button>" : "") + "</div>";
+    }).join("") + "</div>" : "";
+    body += apFoldHtml("list-todo", "teams.ap.calls", (ap.actions || []).map(function (a) {
+      return "<li><code>" + esc(a.call || a.label) + "</code>" + (a.used ? " · " + esc(tw("teams.ap.used")) : "") + "</li>";
+    }));
+    body += apFoldHtml("file-text", "teams.ap.evidence", (ap.evidence || []).map(function (e) {
+      return '<li title="' + esc(e) + '">' + esc(apShortRef(e)) + "</li>";
+    }));
     // A prose question: what Approve means sits behind the (i) in the card head.
     var prose = ap.kind === "question";
     if (prose) body = infoBody(esc(tw("teams.ap.prose"))) + body;
     var foot;
-    if (st === "pending") {
-      var b = function (d, k, cls) {
-        return '<button type="button" class="ws-btn' + (cls || "") + '" data-ap-decide="' + d + '" data-ap="' +
-          esc(ap.approval_id) + '" data-ap-rev="' + esc(ap.team_rev) + '">' + esc(tw(k)) + "</button>";
-      };
-      foot = '<div class="tm-actions">' + b("approve", "teams.ap.approve", " tm-primary") + b("changes", "teams.ap.changes") +
-        b("reject", "teams.ap.reject") + "</div>";
+    if (pending) {
+      foot = '<div class="tm-ap-acts"><button type="button" class="ws-btn tm-ap-ok" data-ap-decide="approve" data-ap="' +
+        esc(ap.approval_id) + '" data-ap-rev="' + esc(ap.team_rev) + '">' + ic("check") + "<span>" + esc(tw("teams.ap.approve")) +
+        '</span></button><button type="button" class="ws-btn tm-ap-reply' + (open ? " tm-ap-reply-on" : "") + '" data-ap-reply="' +
+        esc(ap.approval_id) + '" aria-expanded="' + (open ? "true" : "false") + '">' + ic("reply") + "<span>" + esc(tw("teams.ap.reply")) +
+        "</span></button></div>" + (open ? apReplyHtml(ap, rows, ui) : "");
     } else {
       foot = '<div class="tm-ap-state tm-ap-' + esc(st) + '">' + esc(tw(AP_ST_KEY[st] || AP_ST_KEY.pending)) +
         (ap.decision_note ? " · " + esc(ap.decision_note) : "") + (ap.close_reason && st !== "consumed" ? " · " +
@@ -2065,9 +2129,14 @@
         (st === "approved" ? '<div class="tm-actions"><button type="button" class="ws-btn" data-ap-decide="revoke" data-ap="' +
           esc(ap.approval_id) + '">' + esc(tw("teams.ap.revoke")) + "</button></div>" : "");
     }
-    return '<div class="tm-ap tm-ap-' + esc(st) + '" data-mid="' + esc(m.id) + '" role="group" aria-label="' +
-      esc(tw("teams.ap.title")) + '"><div class="tm-ap-head">' + ic("shield") + "<b>" + esc(tw("teams.ap.title")) +
-      "</b> " + esc(ap.title || "") + (prose ? infoBtn() : "") + "</div>" + body + foot + "</div>";
+    var head = '<div class="tm-ap-head"><span class="tm-ap-ico" aria-hidden="true">' + ic("shield") + "</span><span>" +
+      esc(tw("teams.ap.title")) + "</span>" + (pending ? '<span class="tm-ap-pill">' + esc(tw("teams.ap.pill_wait")) + "</span>" : "") +
+      (pending && ap.deadline_at ? '<span class="tm-ap-due" title="' + esc(tw("teams.ap.deadline")) + ": " +
+        esc(new Date(Number(ap.deadline_at) * 1000).toLocaleString()) + '">' + ic("clock") + esc(apDueText(ap.deadline_at)) + "</span>" : "") +
+      (prose ? infoBtn() : "") + "</div>";
+    return '<div class="tm-ap tm-ap-' + esc(st) + '" data-mid="' + esc(m.id) + '" data-ap-card="' + esc(ap.approval_id) +
+      '" role="group" aria-label="' + esc(tw("teams.ap.title")) + '">' + head +
+      (ap.title ? '<p class="tm-ap-title">' + esc(ap.title) + "</p>" : "") + body + foot + "</div>";
   }
 
   // Tab Nhóm: thành viên, mức tự quyết, số lần đã dùng hôm nay, tên và trạng thái; mọi con số trong Nâng cao (đóng sẵn).
@@ -2559,6 +2628,8 @@
       if (stick) toLatest(true);
       else if (!S.scroll || S.scroll.stuck()) toLatest(false);
     }
+    // The reply box of an approval card keeps what was typed if the card was drawn again (17/11/2026).
+    if (AP_REPLY.id) apRestore(false);
     if (S.focusPicker) {
       // Mở bộ chọn: focus vào nút đầu của bảng (bàn phím và trình đọc màn hình vào được bảng, Escape đóng được).
       S.focusPicker = false;
@@ -4069,6 +4140,92 @@
     return h;
   }
 
+  // ───────────── reply box of an approval card (17/11/2026) ─────────────
+
+  // Open the reply box of card `id` (""/falsy closes it), optionally quoting line `quote` and in `mode`.
+  function apOpen(id, quote, mode) {
+    if (id !== AP_REPLY.id) AP_REPLY.draft = "";
+    else apKeepDraft();
+    AP_REPLY.id = id || "";
+    AP_REPLY.quote = quote === undefined ? -1 : quote;
+    if (mode) AP_REPLY.mode = mode;
+    else if (!id) AP_REPLY.mode = "ask";
+    drawMsgs(false);
+    apRestore(!!id);
+  }
+
+  function apBox() {
+    return AP_REPLY.id && S.el ? S.el.querySelector('.tm-ap-rp[data-ap-rp="' + AP_REPLY.id + '"]') : null;
+  }
+  function apKeepDraft() {
+    var box = apBox(), ta = box && box.querySelector(".tm-ap-ta");
+    if (ta) AP_REPLY.draft = ta.value;
+  }
+  // After a redraw: the words typed so far come back, and the cursor too when the owner was in the box.
+  function apRestore(focus) {
+    var box = apBox(), ta = box && box.querySelector(".tm-ap-ta");
+    if (!ta) return;
+    if (!ta.value && AP_REPLY.draft) ta.value = AP_REPLY.draft;
+    if (focus && !(typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches && !ta.value)) {
+      try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
+    }
+  }
+
+  // Approve, Change or Reject: the server decides (POST .../approvals/{id}/decide). One key per decision of this card in
+  // this tab: pressing again after a lost connection replays the same answer (no second action, no error), another tab
+  // has its own key and is told the request is already decided.
+  function apDecide(btn, apId, rev, dec, note) {
+    S.apKeys = S.apKeys || {};
+    var kk = apId + "|" + dec;
+    var dkey = S.apKeys[kk] || (S.apKeys[kk] = "ap-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10));
+    btn.disabled = true;
+    return call("POST", teamUrl("/approvals/" + q(apId) + "/decide"), { decision: dec, note: (note || "").trim(),
+      decision_key: dkey, expected_rev: rev ? Number(rev) : null }).then(function (r) {
+      btn.disabled = false;
+      if (r.code !== 200) { fail(r); return; }
+      if (AP_REPLY.id === apId) { AP_REPLY.id = ""; AP_REPLY.draft = ""; AP_REPLY.quote = -1; AP_REPLY.mode = "ask"; }
+      loadMsgs(false); loadQueue();
+    }).catch(function () { btn.disabled = false; setNote(tw("teams.err_network")); });
+  }
+
+  // The card a reply box belongs to, from the loaded messages.
+  function apOf(apId) {
+    for (var i = (S.msgs || []).length - 1; i >= 0; i--) {
+      var a = ((S.msgs[i].meta || {}).approval) || null;
+      if (a && a.approval_id === apId) return a;
+    }
+    return null;
+  }
+
+  // Send of the reply box. Ask: a chat message that quotes the card (or the line picked) and calls the member who asked,
+  // the card keeps waiting. Change / Reject: the decision with the words as its note.
+  function apSend(btn, d) {
+    var box = btn.closest(".tm-ap-rp"), ta = box && box.querySelector(".tm-ap-ta");
+    var words = ta ? ta.value.trim() : "";
+    if (!words) { if (ta) ta.focus(); setNote(tw("teams.ap.need_words")); return; }
+    if (d.apSend !== "ask") return apDecide(btn, d.ap, d.apRev, d.apSend, words);
+    var ap = apOf(d.ap);
+    if (!ap || !S.team) return;
+    var row = apRows(ap)[AP_REPLY.quote];
+    var quote = row ? tw("teams.ap.title") + " · " + tw(row[0]) + ": " + String(row[1]).replace(/\s+/g, " ").slice(0, 280)
+      : tw("teams.ap.title") + ": " + (ap.title || "");
+    var Q = quoteApi();
+    var who = String(ap.requested_by || "");
+    var mem = who && who.indexOf("mandate:") !== 0 ? memberOf(S.team.members, who) : null;
+    var body = { text: Q ? Q.ghep(quote, words) : quote + "\n\n" + words, mentions: mem && (!mem.status || mem.status === "active") ? [who] : [],
+      as_job: false, client_msg_id: AP_REPLY.cid || (AP_REPLY.cid = newClientId()) };
+    var forTeam = S.activeId;
+    btn.disabled = true;
+    return call("POST", teamUrl("/messages"), body).then(function (r) {
+      btn.disabled = false;
+      if (S.activeId !== forTeam) return;
+      if (r.code !== 200) { fail(r); return; }
+      AP_REPLY.id = ""; AP_REPLY.draft = ""; AP_REPLY.quote = -1; AP_REPLY.mode = "ask"; AP_REPLY.cid = "";
+      loadMsgs(false).then(function () { drawMsgs(true); });
+      loadQueue();
+    }).catch(function () { btn.disabled = false; setNote(tw("teams.err_network")); });   // retry sends the same client id
+  }
+
   function send() {
     var input = S.el.querySelector(".tm-input");
     if (!input || !S.team) return;
@@ -5098,25 +5255,20 @@
       if (typeof confirm === "function" && !confirm(tw("teams.cancel_confirm", { title: ct }))) return;
       return call("POST", teamUrl("/tasks/" + q(d.cancel) + "/cancel")).then(function (r) { act(r); });
     }
+    if (d.apReply) { apOpen(AP_REPLY.id === d.apReply ? "" : d.apReply, -1); return; }
+    if (d.apQuote !== undefined && d.ap) { apOpen(d.ap, Number(d.apQuote), "ask"); return; }
+    if (d.apClose) { apOpen("", -1); return; }
+    if (d.apUnquote) { apKeepDraft(); AP_REPLY.quote = -1; drawMsgs(false); apRestore(true); return; }
+    if (d.apMode) { apKeepDraft(); AP_REPLY.mode = d.apMode; drawMsgs(false); apRestore(true); return; }
+    if (d.apSug) {
+      var ta = t.closest(".tm-ap-rp") && t.closest(".tm-ap-rp").querySelector(".tm-ap-ta");
+      if (ta) { ta.value = (ta.value.trim() ? ta.value.trim() + " " : "") + tw(d.apSug); AP_REPLY.draft = ta.value; ta.focus(); }
+      return;
+    }
+    if (d.apSend) return apSend(t, d);
     if (d.apDecide) {
-      var dec = d.apDecide, note = "";
-      if (dec === "reject" || dec === "changes") {
-        note = typeof prompt === "function" ? prompt(tw(dec === "reject" ? "teams.ap.reject_prompt" : "teams.ap.changes_prompt")) : "";
-        if (!note || !note.trim()) return;
-      } else if (dec === "revoke" && typeof confirm === "function" && !confirm(tw("teams.ap.revoke_confirm"))) {
-        return;
-      }
-      // One key per decision of this card in this tab: pressing again after a lost connection replays the same answer
-      // (no second action, no error), another tab has its own key and is told the request is already decided.
-      S.apKeys = S.apKeys || {};
-      var kk = d.ap + "|" + dec;
-      var dkey = S.apKeys[kk] || (S.apKeys[kk] = "ap-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10));
-      t.disabled = true;
-      return call("POST", teamUrl("/approvals/" + q(d.ap) + "/decide"), { decision: dec, note: (note || "").trim(),
-        decision_key: dkey, expected_rev: d.apRev ? Number(d.apRev) : null }).then(function (r) {
-        if (r.code !== 200) { t.disabled = false; fail(r); }
-        loadMsgs(false); loadQueue();
-      }).catch(function () { t.disabled = false; setNote(tw("teams.err_network")); });
+      if (d.apDecide === "revoke" && typeof confirm === "function" && !confirm(tw("teams.ap.revoke_confirm"))) return;
+      return apDecide(t, d.ap, d.apRev, d.apDecide, "");
     }
     if (d.mandateEdit !== undefined) { S.mandateEdit = d.mandateEdit === "1"; drawSide(); return; }
     if (d.accEdit !== undefined) { S.accEdit = d.accEdit || null; drawSide(); return; }
@@ -5485,6 +5637,17 @@
   }
 
   function onKey(e) {
+    // Reply box of an approval card: Ctrl/Cmd+Enter sends, Escape closes (17/11/2026).
+    if (e.target.classList && e.target.classList.contains("tm-ap-ta")) {
+      if (e.key === "Escape") { e.preventDefault(); apOpen("", -1); return; }
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        var sb = e.target.closest(".tm-ap-rp") && e.target.closest(".tm-ap-rp").querySelector("[data-ap-send]");
+        if (sb && !sb.disabled) sb.click();
+        return;
+      }
+      return;
+    }
     if (e.key === "Escape" && S.stripOpen) {
       setStrip(false);
       var pill = S.el.querySelector(".tm-jobs .bg-pill");
@@ -5540,6 +5703,7 @@
   }
 
   function onInput(e) {
+    if (e.target.classList.contains("tm-ap-ta")) { AP_REPLY.draft = e.target.value; return; }
     if (e.target.classList.contains("tm-jb-q")) { S.archQuery = e.target.value; S.archPage = 0; drawArchive(); return; }
     if (S.pickSt && e.target.classList.contains("tmp-search-input")) {
       S.pickSt.query = e.target.value;
@@ -5838,7 +6002,7 @@
   }
 
   var api = { render: render, leave: leave, open: open, teamListHtml: teamListHtml, messageHtml: messageHtml, queueHtml: queueHtml,
-    jobStripHtml: jobStripHtml, filterbarHtml: filterbarHtml, stripState: stripState, defaultTab: defaultTab, ownerSaidAt: ownerSaidAt, sideTabsHtml: sideTabsHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, workModeHtml: workModeHtml,
+    jobStripHtml: jobStripHtml, filterbarHtml: filterbarHtml, stripState: stripState, defaultTab: defaultTab, ownerSaidAt: ownerSaidAt, sideTabsHtml: sideTabsHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, apDueText: apDueText, apShortRef: apShortRef, workModeHtml: workModeHtml,
     mandateHtml: mandateHtml, opportunityCardHtml: opportunityCardHtml, readMandateForm: readMandateForm,
     parseCriteria: parseCriteria, acceptanceCardHtml: acceptanceCardHtml, acceptanceDecisionPayload: acceptanceDecisionPayload,
     qualityPolicyHtml: qualityPolicyHtml, qualityPolicyPayload: qualityPolicyPayload, qualityTemplatePayload: qualityTemplatePayload,
