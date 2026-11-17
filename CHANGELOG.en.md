@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.586.0] - 2026-11-18
+### Added
+- **An @ button in team chats.** When an assistant tags you and the message has scrolled out of view, a round @ button with the number of waiting messages shows at the bottom right. Tap it to jump to that message, tap again for the next; it hides once you have read them or replied.
+
 ## [0.585.0] - 2026-11-18
 ### Added
 - **The Team tab shows each member's model.** Under each assistant's name is the engine and model it runs on, marked "Main model" when it has no model of its own, so the whole team is easy to keep an eye on.
