@@ -1127,6 +1127,12 @@ class GrokCLI:
         return args
 
     async def query(self, prompt: str) -> AsyncIterator[dict]:
+        import bot_tool_scope
+        if bot_tool_scope.native_engine_blocked():
+            yield {"type": "error", "content": __import__("localefmt").chu(
+                "Bot giới hạn công cụ cần engine API; engine CLI chưa có sandbox phù hợp.",
+                "Scoped bots require an API engine until CLI sandbox confinement is available.")}
+            return
         if not self.cli_path:
             yield {"type": "error",
                    "content": localefmt.chu(f"Không tìm thấy Grok CLI. Cài bằng `{lenh_cai()}` rồi chạy "

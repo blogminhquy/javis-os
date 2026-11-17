@@ -94,11 +94,15 @@ _LOCK = threading.Lock()  # CLI engines build argv from worker threads too
 
 
 def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_id="", message_id=0,
-         agent=None, authority_seq=None, provider="", team_gate="", job="", execution=None) -> dict:
+         agent=None, authority_seq=None, provider="", team_gate="", job="", execution=None, account_id="", bot_id="",
+         tool_allowlist=None) -> dict:
     """`authority_seq` (Resonance A4): ảnh chụp thứ tự quyền do HOST đọc trước khi engine chạy; None khi lượt không
     thuộc trợ lý nào. `provider`: engine của lượt, để hồ sơ bản nộp ghi đúng khả năng engine.
     `team_gate` (0.207.0): id cổng công cụ của một bước việc nhóm (team_gate.py), "" ngoài bước đó."""
     return {
+        "account_id": str(account_id or ""),
+        "bot_id": str(bot_id or ""),
+        "tool_allowlist": None if tool_allowlist is None else __import__("bot_tool_scope").validate(tool_allowlist),
         "kenh": str(kenh or "").strip(),
         "sender_id": str(sender_id or "").strip(),
         "chat_type": "group" if str(chat_type or "").strip().lower() in _GROUP_TYPES else "private",
@@ -133,6 +137,8 @@ def _copy(turn: dict) -> dict:
     """Copy one level deeper than dict(): `agent` is a nested dict, and a hook must not be able to
     edit what the next reader (the goal tool, another hook) sees."""
     out = dict(turn)
+    if isinstance(out.get("tool_allowlist"), list):
+        out["tool_allowlist"] = list(out["tool_allowlist"])
     if isinstance(out.get("agent"), dict):
         out["agent"] = dict(out["agent"])
     if isinstance(out.get("execution"), dict):
