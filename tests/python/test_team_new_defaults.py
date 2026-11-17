@@ -4,7 +4,7 @@
 
 A customer: "tốn token xíu cũng ok, mục tiêu đã ghép team là phải giải quyết được việc". A job stopped at 12 replies or 8
 steps and waited for the owner to press "Cho thêm lượt". The owner decided: teams made from now on start without those
-two caps. The daily cap of the team stays, and teams made before keep what they had.
+two caps. Teams made before keep what they had. Since 17/11/2026 no team has a daily reply cap either.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import os
@@ -41,8 +41,8 @@ t = r.json()["team"]
 caps = t["caps"]
 check("a team made through the route has no cap on replies and steps of one job",
       r.status_code == 200 and caps["task_turns"] is None and caps["task_steps"] is None, caps)
-check("the daily cap and the other limits are the defaults", caps["daily_turns"] == team_store.DEFAULT_CAPS["daily_turns"] == 100
-      and caps["help_depth"] == 2 and caps["no_progress"] == 2, caps)
+check("no daily cap, and the other limits are the defaults", caps["daily_turns"] is None
+      and team_store.DEFAULT_CAPS["daily_turns"] is None and caps["help_depth"] == 2 and caps["no_progress"] == 2, caps)
 check("the answer of the create call already carries them", team_api.NEW_TEAM_UNCAPPED == ("task_turns", "task_steps"))
 ev = [e for e in teams.events(t["team_id"]) if e["kind"] == "caps_set"]
 check("it is written as the host's doing, not as a choice the owner made", len(ev) == 1 and ev[0]["by"] == "host", ev)
@@ -60,6 +60,7 @@ check("the owner can still put a number back", r3.status_code == 200 and r3.json
 sid = M.get_store().create_session(brain=str(brain), channel="team:tm_old", title="Cũ")
 old = teams.create_team(str(brain), "Team cũ", "", sid, team_id="tm_old")
 check("a team made before keeps 12 replies and 8 steps per job", old["caps"]["task_turns"] == 12 and old["caps"]["task_steps"] == 8, old["caps"])
+check("a team made before has no daily cap either", old["caps"]["daily_turns"] is None, old["caps"])
 
 print("")
 if fails:

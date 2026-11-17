@@ -379,7 +379,7 @@ check("F4 tin hệ thống báo trưởng nhóm đã bật Auto", any("bật Aut
 r, tm, ts, ss, fake, admin, T, _ = world("caps-nan")
 before = tm.get(T["team_id"])["caps"]
 bad_inputs = [{"busy_wait_s": float("nan")}, {"busy_wait_s": float("inf")}, {"task_turns": float("-inf")},
-              {"task_steps": float("nan")}, {"daily_turns": "1e400"}, {"mentions": "NaN"}, ["task_turns", 3],
+              {"task_steps": float("nan")}, {"help_depth": "1e400"}, {"mentions": "NaN"}, ["task_turns", 3],
               {"task_turns": [3]}, {"task_turns": True}]
 for bad in bad_inputs:
     try:
@@ -390,6 +390,14 @@ for bad in bad_inputs:
     except Exception as ex:  # noqa: BLE001
         got = f"crash {type(ex).__name__}"
     check(f"F5 set_caps({bad!r}) bị từ chối bằng TeamError (4xx), không lỗi khác", got == "rejected", got)
+# 17/11/2026: daily_turns is a retired cap. A save that still names it drops it, whatever the value, instead of failing.
+try:
+    tm.set_caps(T["team_id"], {"daily_turns": "1e400"})
+    got = "accepted"
+except Exception as ex:  # noqa: BLE001
+    got = f"crash {type(ex).__name__}"
+check("F5 set_caps({'daily_turns': '1e400'}): trần đã bỏ, bị bỏ qua (không lỗi, không ghi)", got == "accepted"
+      and tm.get(T["team_id"])["caps"]["daily_turns"] is None, got)
 after = tm.get(T["team_id"])["caps"]
 check("F5 không có giá trị hỏng nào được ghi", after == before and all(
     v is None or (isinstance(v, (int, float)) and math.isfinite(v)) for v in after.values()), after)

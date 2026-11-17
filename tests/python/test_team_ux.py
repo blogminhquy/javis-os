@@ -66,22 +66,28 @@ def run(coro):
     return asyncio.run(coro)
 
 
-# ═════ Hết lượt trong ngày: Cho thêm lượt nâng trần ngày rồi chạy tiếp ═════
+# ═════ 17/11/2026: không còn trần lượt mỗi ngày. Cho thêm lượt nâng trần lượt mỗi việc rồi chạy tiếp ═════
 r, tm, ts, ss, fake, T = world("daily")
 tm.set_caps(T["team_id"], {"daily_turns": 1})
 run(r.run_replies(r.submit(T["team_id"], "Chào", client_msg_id="c1")))
+job0 = r.submit(T["team_id"], "Việc đầu", mentions=["minh"], as_job=True, client_msg_id="j0")["task_id"]
+run(r.dispatch_once())
+check("không còn trần ngày: số 1 gửi lên không lưu, việc sau tin chào vẫn chạy xong",
+      tm.get(T["team_id"])["caps"]["daily_turns"] is None and ts.get_task(job0)["status"] == "done",
+      (tm.get(T["team_id"])["caps"]["daily_turns"], ts.get_task(job0)["status"], ts.get_task(job0)["block_reason"]))
+tm.set_caps(T["team_id"], {"task_turns": 0})
 job = r.submit(T["team_id"], "Viết bài", mentions=["minh"], as_job=True, client_msg_id="j1")["task_id"]
 run(r.dispatch_once())
 t = ts.get_task(job)
-check("việc chặn vì hết lượt trong ngày, lý do bằng lời thường (không có chữ 'trần')",
+check("việc chặn vì hết lượt của việc, lý do bằng lời thường (không có chữ 'trần')",
       t["status"] == "team_blocked" and t["block_kind"] == "cap_reached" and "trần" not in t["block_reason"]
-      and "hôm nay" in t["block_reason"], t["block_reason"])
+      and t["block_reason"].startswith("Việc đã dùng hết số lần trả lời"), t["block_reason"])
 out = r.extend_job(job)
-check("Cho thêm lượt: nâng đúng trần ngày (+20), việc về hàng chờ", out and out["cap"] == "daily_turns"
-      and out["value"] == 21 and tm.get(T["team_id"])["caps"]["daily_turns"] == 21
+check("Cho thêm lượt: nâng đúng trần lượt mỗi việc (+6), việc về hàng chờ", out and out["cap"] == "task_turns"
+      and out["value"] == 6 and tm.get(T["team_id"])["caps"]["task_turns"] == 6
       and ts.get_task(job)["status"] == "team_queued", out)
 check("Cho thêm lượt: có sự kiện và tin hệ thống nói rõ", any(e["kind"] == "caps_extended" for e in tm.events(T["team_id"]))
-      and any(m["author_kind"] == "system" and "20" in m["content"]
+      and any(m["author_kind"] == "system" and "6" in m["content"]
               for m in ss.get_team_messages_page(T["session_id"], limit=50)["messages"]))
 run(r.dispatch_once())
 check("sau khi cho thêm lượt: việc chạy xong", ts.get_task(job)["status"] == "done")
@@ -130,61 +136,68 @@ st = [(s["kind"], s["status"]) for s in tm.steps(job)]
 check("C1 chạy tiếp tới xong: hai bước làm được thêm lại, có tổng hợp", ts.get_task(job)["status"] == "done"
       and st.count(("work", "done")) == 2 and ("synthesize", "done") in st, (ts.get_task(job)["status"], st))
 
-# ═════ Review T5 I1: trần đã chạm không còn chặn nữa (sang ngày mới, chủ đã tự nâng) thì không nâng trần nào ═════
+# ═════ Review T5 I1: trần đã chạm không còn chặn nữa (chủ đã tự nâng) thì không nâng trần nào ═════
 r, tm, ts, ss, fake, T = world("stale")
-clock = {"t": time.time()}
-r.clock = lambda: clock["t"]
-tm.set_caps(T["team_id"], {"daily_turns": 1})
+tm.set_caps(T["team_id"], {"task_turns": 0})
 run(r.run_replies(r.submit(T["team_id"], "Chào", client_msg_id="d1")))
 job = r.submit(T["team_id"], "Viết", mentions=["minh"], as_job=True, client_msg_id="d2")["task_id"]
 run(r.dispatch_once())
-check("I1 việc chặn vì hết lần trả lời hôm nay", ts.get_task(job)["block_kind"] == "cap_reached")
-clock["t"] += 2 * 86400
+check("I1 việc chặn vì hết lần trả lời của việc", ts.get_task(job)["block_kind"] == "cap_reached")
+tm.set_caps(T["team_id"], {"task_turns": 12})
 before = dict(tm.get(T["team_id"])["caps"])
 out = r.extend_job(job)
-check("I1 hai ngày sau: Cho thêm lượt không nâng trần nào (kể cả trần bước), chỉ cho việc chạy tiếp",
+check("I1 chủ đã tự nâng: Cho thêm lượt không nâng trần nào (kể cả trần bước), chỉ cho việc chạy tiếp",
       out is not None and out["cap"] is None and tm.get(T["team_id"])["caps"] == before
       and ts.get_task(job)["status"] == "team_queued"
       and not any(e["kind"] == "caps_extended" for e in tm.events(T["team_id"])), (out, tm.get(T["team_id"])["caps"]))
 
 # ═════ Review T5 I2: trần bị hạ dưới số đã dùng: nâng từ số đã dùng, không phải từ trần ═════
 r, tm, ts, ss, fake, T = world("below")
-for i in range(3):
-    run(r.run_replies(r.submit(T["team_id"], f"Tin {i}", client_msg_id=f"b{i}")))
-tm.set_caps(T["team_id"], {"daily_turns": 1})
-job = r.submit(T["team_id"], "Viết", mentions=["minh"], as_job=True, client_msg_id="b9")["task_id"]
+r.engine_for = lambda team, key, role: ("fake", "fake", planner)
+tm.set_caps(T["team_id"], {"task_turns": 1})
+job = r.submit(T["team_id"], "Việc nhiều bước", as_job=True, client_msg_id="b9")["task_id"]
 run(r.dispatch_once())
+used = tm.count_task_turns(job)
+tm.set_caps(T["team_id"], {"task_turns": 0})
 out = r.extend_job(job)
-check("I2 đã dùng 3, trần hạ còn 1: Cho thêm lượt đặt 3 + 20, việc chạy được ngay", out and out["value"] == 23, out)
+check("I2 đã dùng 1, trần hạ còn 0: Cho thêm lượt đặt 1 + 6, việc chạy được ngay", used == 1 and out
+      and out["cap"] == "task_turns" and out["value"] == 7, (used, out))
 run(r.dispatch_once())
 check("I2 việc chạy tới xong, không chặn lại", ts.get_task(job)["status"] == "done", ts.get_task(job)["status"])
 
 # ═════ Toàn quyền đặt số cho trần: nâng trần trong hộp cấp quyền (cả trần tối đa), không đụng trần nhóm ═════
 r, tm, ts, ss, fake, T = world("auth")
-r.grant_authority(T["team_id"], {"caps": {"daily_turns": 1}, "ceilings": {"daily_turns": 1}})
+r.grant_authority(T["team_id"], {"caps": {"task_turns": 0}, "ceilings": {"task_turns": 0}})
 run(r.run_replies(r.submit(T["team_id"], "Chào", client_msg_id="a1")))
 job = r.submit(T["team_id"], "Viết", mentions=["minh"], as_job=True, client_msg_id="a2")["task_id"]
 run(r.dispatch_once())
-check("Toàn quyền trần ngày 1: việc chặn hết lượt", ts.get_task(job)["block_kind"] == "cap_reached")
+check("Toàn quyền trần lượt mỗi việc 0: việc chặn hết lượt", ts.get_task(job)["block_kind"] == "cap_reached")
 out = r.extend_job(job)
 g = tm.active_authority(T["team_id"])["grant"]
 check("Cho thêm lượt khi Toàn quyền: nâng trần trong hộp cấp quyền và trần tối đa, trần nhóm giữ nguyên",
-      out["value"] == 21 and g["caps"]["daily_turns"] == 21 and g["ceilings"]["daily_turns"] == 21
-      and tm.get(T["team_id"])["caps"]["daily_turns"] == 100, (out, g))
-check("usage theo trần đang áp (Toàn quyền)", r.usage(T["team_id"])["cap"] == 21, r.usage(T["team_id"]))
+      out["cap"] == "task_turns" and out["value"] == 6 and g["caps"]["task_turns"] == 6 and g["ceilings"]["task_turns"] == 6
+      and tm.get(T["team_id"])["caps"]["task_turns"] == 12, (out, g))
+check("trần đang áp theo Toàn quyền; số lần mỗi ngày không có giới hạn", r.effective_caps(T["team_id"])["task_turns"] == 6
+      and r.usage(T["team_id"])["cap"] is None, (r.effective_caps(T["team_id"]), r.usage(T["team_id"])))
+r.grant_authority(T["team_id"], {"caps": {"daily_turns": 1}, "ceilings": {"daily_turns": 1}})
+g = tm.active_authority(T["team_id"])["grant"]
+check("hộp cấp quyền có daily_turns (trang cũ): không lưu, không áp", "daily_turns" not in g["caps"]
+      and "daily_turns" not in g["ceilings"] and r.effective_caps(T["team_id"])["daily_turns"] is None
+      and r.usage(T["team_id"])["cap"] is None, (g, r.usage(T["team_id"])))
 
 # ═════ Không phải việc bị chặn vì hết lượt: không làm gì ═════
 r, tm, ts, ss, fake, T = world("other")
 job = r.submit(T["team_id"], "Việc", as_job=True, client_msg_id="j3")["task_id"]
+before = dict(tm.get(T["team_id"])["caps"])
 check("việc không bị chặn hết lượt: Cho thêm lượt không làm gì", r.extend_job(job) is None
-      and tm.get(T["team_id"])["caps"]["daily_turns"] == 100)
+      and tm.get(T["team_id"])["caps"] == before)
 
 # ═════ Số lần đã dùng hôm nay ═════
 r, tm, ts, ss, fake, T = world("usage")
 run(r.run_replies(r.submit(T["team_id"], "Một", client_msg_id="u1")))
 run(r.run_replies(r.submit(T["team_id"], "Hai", client_msg_id="u2")))
 u = r.usage(T["team_id"])
-check("số lần đã dùng hôm nay kèm giới hạn đang áp", u == {"today": 2, "cap": 100}, u)
+check("số lần đã dùng hôm nay, không có giới hạn ngày", u == {"today": 2, "cap": None}, u)
 
 # ═════ Lý do chặn bằng lời thường ═════
 src = (ROOT / "server" / "team_runner.py").read_text(encoding="utf-8")
@@ -193,7 +206,7 @@ check("lý do chặn không còn chữ 'trần', 'Lượt lỗi', 'Server khởi
 check("tin hệ thống về quyền tự quyết bằng lời thường (không 'Toàn quyền', 'Quyền giới hạn', 'đặt trần')",
       "đã bật Toàn quyền" not in src and "Nhóm về Quyền giới hạn" not in src and "đã đặt trần" not in src)
 r, tm, ts, ss, fake, T = world("authmsg")
-r.grant_authority(T["team_id"], {"ceilings": {"daily_turns": 50}})
+r.grant_authority(T["team_id"], {"ceilings": {"task_turns": 50}})
 r.revoke_authority(T["team_id"])
 sys_msgs = [m["content"] for m in ss.get_team_messages_page(T["session_id"], limit=50)["messages"] if m["author_kind"] == "system"]
 check("bật rồi thu quyền tự quyết: hai tin hệ thống nói rõ", any("tự quyết" in s for s in sys_msgs)
@@ -207,7 +220,7 @@ job = r.submit(T["team_id"], "Việc hai người", as_job=True, client_msg_id="
 run(r.dispatch_once())
 check("#3 chặn vì trần bước, giữ hai bước bị từ chối", ts.get_task(job)["block_kind"] == "cap_reached")
 other = r.submit(T["team_id"], "Việc khác", as_job=True, client_msg_id="e2")["task_id"]
-tm.log_event(T["team_id"], "cap_blocked", "host", None, {"task_id": other, "cap": "daily_turns", "specs": [], "continues": None})
+tm.log_event(T["team_id"], "cap_blocked", "host", None, {"task_id": other, "cap": "task_turns", "specs": [], "continues": None})
 for i in range(300):
     tm.set_pinned(T["team_id"], True)
     tm.set_pinned(T["team_id"], False)
@@ -216,7 +229,7 @@ check("#3 hơn 600 sự kiện khác sau lần chặn (đuôi 500 sự kiện kh
 rec = tm.cap_record(T["team_id"], job)
 check("#3 kho tìm bản ghi chặn mới nhất của ĐÚNG việc đó, đủ hai bước bị từ chối",
       rec is not None and rec["cap"] == "task_steps" and len(rec["specs"]) == 2, rec)
-check("#3 bản ghi của việc khác không lẫn sang", (tm.cap_record(T["team_id"], other) or {}).get("cap") == "daily_turns")
+check("#3 bản ghi của việc khác không lẫn sang", (tm.cap_record(T["team_id"], other) or {}).get("cap") == "task_turns")
 out = r.extend_job(job)
 check("#3 Cho thêm lượt nâng trần bước", out and out["cap"] == "task_steps", out)
 run(r.dispatch_once())
@@ -248,7 +261,7 @@ check("đoạn chỉ chữ nói rõ không có công cụ và gọi công cụ l
 r, tm, ts, ss, fake, T = world("remind")
 notes_sent = []
 r._notify = lambda team_id, text: notes_sent.append(text)
-tm.set_caps(T["team_id"], {"daily_turns": 0})
+tm.set_caps(T["team_id"], {"task_turns": 0})
 job = r.submit(T["team_id"], "Việc chờ", mentions=["minh"], as_job=True, client_msg_id="r1")["task_id"]
 run(r.dispatch_once())
 check("việc chặn để thử nhắc", ts.get_task(job)["status"] == "team_blocked")

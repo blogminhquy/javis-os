@@ -143,12 +143,14 @@ class QualityContracts(unittest.TestCase):
                 self.runner.quality.set_policy(self.tid, {'reference_usd': value})
 
     def test_observe_only_is_assigned_task_scoped(self):
-        self.tm.set_caps(self.tid, {'daily_turns': 0, 'task_turns': 0})
+        self.tm.set_caps(self.tid, {'task_turns': 0})
         self.enable()
         job = self.submit()
         self.settle()
         self.assertEqual('acceptance_review', self.ts.get_task(job)['block_kind'])
-        self.assertEqual(0, self.runner._caps(self.tm.get(self.tid))['daily_turns'])
+        self.assertEqual(0, self.runner._caps(self.tm.get(self.tid))['task_turns'])
+        # 17/11/2026: no daily reply cap for any team (team_store.FIXED_CAPS).
+        self.assertIsNone(self.runner._caps(self.tm.get(self.tid))['daily_turns'])
 
     def test_owner_cap_set_after_migration_remains_binding(self):
         self.enable()
@@ -159,7 +161,7 @@ class QualityContracts(unittest.TestCase):
         self.assertFalse(self.calls)
 
     def test_retain_and_autonomous_jobs_do_not_bypass_limits(self):
-        self.tm.set_caps(self.tid, {'daily_turns': 0, 'task_turns': 0})
+        self.tm.set_caps(self.tid, {'task_turns': 0})
         self.enable('retain')
         job = self.submit()
         self.settle()
@@ -302,7 +304,7 @@ class QualityContracts(unittest.TestCase):
         self.assertNotEqual('done', self.ts.get_task(job)['status'])
 
     def test_legacy_leader_source_is_not_an_owner_obligation(self):
-        self.tm.set_caps(self.tid, {'daily_turns': 0, 'task_turns': 0})
+        self.tm.set_caps(self.tid, {'task_turns': 0})
         self.enable()
         job, _ = self.ts.enqueue_team(str(self.brain), self.tid, 'Leader job', 'Leader job',
             source_ref='leader:existing-host-source', assignee_key='ag_maker')

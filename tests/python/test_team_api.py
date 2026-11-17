@@ -177,8 +177,12 @@ check("chọn trưởng nhóm mới: việc no_leader về hàng", r.status_code
       and main.tasks_feature.store.get_task(jn)["status"] == "team_queued")
 r = c.post(f"/teams/{TID}/leader{Q}", json={"agent_key": "ag_nguoi_la"})
 check("trưởng nhóm phải là thành viên: 400", r.status_code == 400)
+r = c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"help_depth": 3}})
+check("đổi trần", r.status_code == 200 and r.json()["team"]["caps"]["help_depth"] == 3)
+# 17/11/2026: nhóm không còn trần lượt mỗi ngày. Trang cũ còn gửi daily_turns thì vẫn lưu được, trần vẫn không giới hạn.
 r = c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"daily_turns": 50}})
-check("đổi trần", r.status_code == 200 and r.json()["team"]["caps"]["daily_turns"] == 50)
+check("trần lượt mỗi ngày đã bỏ: gửi daily_turns vẫn 200, vẫn không giới hạn", r.status_code == 200
+      and r.json()["team"]["caps"]["daily_turns"] is None, r.text)
 check("trần sai: 400", c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"bay": 1}}).status_code == 400)
 r = c.patch(f"/teams/{TID}{Q}", json={"status": "paused"})
 check("tạm dừng nhóm: không nhận việc mới", r.status_code == 200 and not asyncio.run(api.runner().dispatch_once()))
@@ -196,20 +200,21 @@ last = row.get("last") or {}
 check("T5 danh sách nhóm kèm tin cuối (loại người gửi, tên, trích, giờ)", last.get("text") == "Việc chờ"
       and last.get("author_kind") == "owner" and last.get("ts", 0) > 0 and "author" in last, row.get("last"))
 v = c.get(f"/teams/{TID}{Q}").json()["team"]
-check("T5 chi tiết nhóm kèm số lần đã dùng hôm nay và giới hạn", v.get("usage", {}).get("cap") == 50
-      and v["usage"]["today"] >= 1, v.get("usage"))
+check("T5 chi tiết nhóm kèm số lần đã dùng hôm nay, không còn giới hạn ngày", "cap" in v.get("usage", {})
+      and v["usage"]["cap"] is None and v["usage"]["today"] >= 1, v.get("usage"))
 check("T5 Cho thêm lượt cho việc không bị chặn: 409", c.post(f"/teams/{TID}/tasks/{jw}/extend{Q}").status_code == 409)
-c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"daily_turns": v["usage"]["today"]}})
+task_turns0 = v["caps"]["task_turns"]
+c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"task_turns": 0}})
 dispatch()
-check("T5 hết lần trả lời hôm nay: việc chặn cap_reached",
+check("T5 hết lần trả lời của việc: việc chặn cap_reached",
       main.tasks_feature.store.get_task(jw)["block_kind"] == "cap_reached")
 r = c.post(f"/teams/{TID}/tasks/{jw}/extend{Q}")
-check("T5 Cho thêm lượt: 200, nâng trần ngày, việc về hàng", r.status_code == 200
-      and r.json()["cap"] == "daily_turns" and r.json()["value"] == v["usage"]["today"] + 20
+check("T5 Cho thêm lượt: 200, nâng trần lượt mỗi việc, việc về hàng", r.status_code == 200
+      and r.json()["cap"] == "task_turns" and r.json()["value"] == 6
       and main.tasks_feature.store.get_task(jw)["status"] == "team_queued", r.text)
 check("T5 Cho thêm lượt việc nhóm khác: 404", c.post(f"/teams/{TID}/tasks/t_khong_co/extend{Q}").status_code == 404)
 c.post(f"/teams/{TID}/tasks/{jw}/cancel{Q}")
-c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"daily_turns": 50}})
+c.post(f"/teams/{TID}/caps{Q}", json={"caps": {"task_turns": task_turns0}})
 
 # Ảnh đại diện đúng ảnh trợ lý đang dùng; ảnh nhóm ghép từ ảnh thành viên; ghim nhóm
 v = c.get(f"/teams/{TID}{Q}").json()["team"]
@@ -321,15 +326,17 @@ T3 = r.json()["team"]
 T3ID = T3["team_id"]
 k3 = {m["slug"]: m["agent_key"] for m in T3["members"]}
 check("T3 nhóm mới ở Quyền giới hạn, view có authority và trần hiệu lực", T3["authority"]["authority"] is None
-      # 2026-11-12: a team made through the route has no per-job cap (replies, steps); the daily cap stays.
+      # 2026-11-12: a team made through the route has no per-job cap (replies, steps); 17/11/2026: no daily cap either.
       and T3["authority"]["effective_caps"]["task_turns"] is None and T3["authority"]["effective_caps"]["task_steps"] is None
-      and T3["authority"]["effective_caps"]["daily_turns"] == 100 and "provider_quota" in T3["authority"]["fixed_limits"])
+      and T3["authority"]["effective_caps"]["daily_turns"] is None and "provider_quota" in T3["authority"]["fixed_limits"])
 grant = {"caps": {"task_turns": {"unlimited": True}}, "ceilings": {"task_turns": {"unlimited": True}, "daily_turns": 150},
          "providers_unlimited": ["aux"], "can_interrupt": False}
 r = c.post(f"/teams/{T3ID}/authority{Q}", json={"mode": "full", "grant": grant})
 v = r.json().get("team", {}).get("authority", {})
 check("T3 chủ bật Toàn quyền qua route: 200, Không giới hạn là null", r.status_code == 200
       and v["authority"]["leader_key"] == k3["lan"] and v["effective_caps"]["task_turns"] is None, r.text)
+check("T3 trần tối đa daily_turns trong hộp cấp quyền không còn tác dụng: không lưu, trần ngày vẫn không giới hạn",
+      "daily_turns" not in v["authority"]["grant"]["ceilings"] and v["effective_caps"]["daily_turns"] is None, v)
 check("T3 hộp cấp quyền sai khuôn: 400", c.post(f"/teams/{T3ID}/authority{Q}", json={
     "mode": "full", "grant": {"caps": {"task_turns": 99}, "ceilings": {"task_turns": 20}}}).status_code == 400)
 check("T3 chế độ lạ: 400", c.post(f"/teams/{T3ID}/authority{Q}", json={"mode": "god"}).status_code == 400)

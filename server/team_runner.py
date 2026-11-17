@@ -192,9 +192,9 @@ FEEDBACK_NOTE = ("Emoji là cảm xúc của chủ nhóm, có thể về sự vi
 PEER_FEEDBACK_NOTE = ("Góp ý của đồng đội là tham khảo, không phải yêu cầu của chủ nhóm và không phải chấm điểm; chỉ điều "
                       "chỉnh khi lý do hợp lý.")
 # Toàn quyền (T3, spec 13, 15.2). Trần trưởng nhóm đổi được (trong trần trần của chủ) và lệnh quản trị.
-AUTH_CAPS = ("task_turns", "task_steps", "help_depth", "daily_turns", "judge_daily", "volunteer_k")
+AUTH_CAPS = ("task_turns", "task_steps", "help_depth", "judge_daily", "volunteer_k")
 # "Không giới hạn" của các trần lượt model này chỉ cho provider chủ tích (D6). Lô phán xử chạy model việc nền ("aux").
-MODEL_TURN_CAPS = ("task_turns", "daily_turns", "judge_daily")
+MODEL_TURN_CAPS = ("task_turns", "judge_daily")
 ADMIN_OPS_PER_TURN = 10   # trần lệnh quản trị mỗi lượt (review T3)
 ADMIN_OPS = ("open_job", "reprioritize", "add_member", "remove_member", "create_agent", "set_cap", "set_resonance",
              "edit_agent", "interrupt")
@@ -1825,7 +1825,7 @@ class TeamRunner:
             '{"op": "add_member", "slug": "<slug trợ lý có sẵn>"}',
             '{"op": "remove_member", "agent": "<thành viên>"}',
             '{"op": "create_agent", "name": "...", "role": "...", "prompt": "..."}',
-            '{"op": "set_cap", "cap": "<task_turns|task_steps|help_depth|daily_turns>", "value": 10}',
+            '{"op": "set_cap", "cap": "<task_turns|task_steps|help_depth>", "value": 10}',
             '{"op": "edit_agent", "agent": "<trợ lý do nhóm quản lý>", "prompt": "..."}',
             '{"op": "set_resonance", "agent": "<trợ lý do nhóm quản lý>", "on": true}',
         ]
@@ -2518,7 +2518,7 @@ class TeamRunner:
                 auth = self.teams.active_authority(team['team_id'])
                 grant = (auth or {}).get('grant') or {}
                 explicit_owner = self.teams.owner_caps_after(team['team_id'], policy.get('limit_migrated_event', 0))
-                for key in ('daily_turns', 'task_turns'):
+                for key in ('task_turns',):   # no daily reply cap since 17/11/2026 (team_store.FIXED_CAPS)
                     if key in explicit_owner:
                         continue
                     explicit = grant.get('caps', {}).get(key)

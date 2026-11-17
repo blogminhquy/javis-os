@@ -63,9 +63,9 @@
   var TAB_KEY = { info: "teams.tab_info", jobs: "teams.tab_jobs", team: "teams.tab_team" };
   var LATE = ["late_cancelled", "late", "old_revision", "member_left", "leader_changed", "lease_lost"];
   // Trần chủ nhóm chỉnh được (team_store.OWNER_CAPS). Bốn trần đầu có "Không giới hạn" (lưu null, GOAL T1 mục 9).
-  var CAP_FIELDS = ["task_turns", "task_steps", "help_depth", "daily_turns", "mentions", "busy_wait_s", "judge_daily",
+  var CAP_FIELDS = ["task_turns", "task_steps", "help_depth", "mentions", "busy_wait_s", "judge_daily",
     "volunteer_k", "auto_jobs"];
-  var OWNER_UNL = ["task_turns", "task_steps", "help_depth", "daily_turns", "judge_daily"];
+  var OWNER_UNL = ["task_turns", "task_steps", "help_depth", "judge_daily"];
   // Ô chọn chế độ (T3 phần J): phán xử khi Cộng hưởng của trợ lý tắt, 1 = lọc code + lô, 0 = chỉ lọc code. Chỉ chủ chỉnh.
   // 0.260.0: reply_parallel, 1 = mọi người được @ trả lời cùng lúc, 0 = lần lượt theo thứ tự @.
   var CAP_MODES = ["judge_off_batch", "reply_parallel"];
@@ -89,7 +89,8 @@
     agent_daily_calls: "teams.limits.agent_daily_calls",
     provider_quota: "teams.limits.provider_quota", account: "teams.limits.account" };
   // Toàn quyền (T3, spec 13): trần trưởng nhóm đổi được trong trần trần của chủ.
-  var AUTH_CAPS = ["task_turns", "task_steps", "help_depth", "daily_turns"];
+  // 17/11/2026: no daily reply cap any more (team_store.FIXED_CAPS), so it is not a row to set.
+  var AUTH_CAPS = ["task_turns", "task_steps", "help_depth"];
   var AUTH_CAP_KEY = { task_turns: "teams.cap.task_turns", task_steps: "teams.cap.task_steps",
     help_depth: "teams.cap.help_depth", daily_turns: "teams.cap.daily_turns", judge_daily: "teams.cap.judge_daily",
     volunteer_k: "teams.cap.volunteer_k" };
@@ -105,7 +106,7 @@
   // Ba mức tự quyết của trưởng nhóm (T5), đặt lên Toàn quyền của T3. Mức 2: trần tối đa vừa phải, không ngắt việc.
   // Mức 3: trần tối đa không giới hạn và được ngắt việc; lượt model vẫn theo trần của nhóm vì không provider nào được
   // Không giới hạn (D6), nên vẫn trong hạn mức gói của chủ.
-  var LEVEL2_CEILINGS = { task_turns: 24, task_steps: 12, help_depth: 3, daily_turns: 200 };
+  var LEVEL2_CEILINGS = { task_turns: 24, task_steps: 12, help_depth: 3 };
   var LEVELS = [{ n: 1, key: "teams.level_1", desc: "teams.level_1_desc" },
     { n: 2, key: "teams.level_2", desc: "teams.level_2_desc" },
     { n: 3, key: "teams.level_3", desc: "teams.level_3_desc" }];
