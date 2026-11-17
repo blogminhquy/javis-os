@@ -1132,6 +1132,22 @@
     return at;
   }
 
+  // 18/11/2026 (owner: "nếu có tin được tag vào thì phải có 1 nút popup nhỏ để ấn vào sẽ lướt lên tin được tag"): the
+  // messages that call the owner and still wait to be read, oldest first. `asks`: [{id, ts}] of the messages drawn with
+  // the "asks you" flag. A message no longer waits once the owner wrote in the chat after it (`ownerTs`, ownerSaidAt) or
+  // once it has been on screen (`seen`: {id: true}).
+  function atPending(asks, ownerTs, seen) {
+    return (asks || []).filter(function (a) {
+      var ts = Number(a && a.ts) || 0;
+      if (ts > 1e12) ts = ts / 1000;
+      return a && !(seen || {})[a.id] && !(ownerTs && ts <= ownerTs);
+    }).map(function (a) { return Number(a.id); }).sort(function (x, y) { return x - y; });
+  }
+  // The round "@" button at the bottom of the chat, with the number of messages waiting under it.
+  function atJumpHtml(n) {
+    return n ? ic("at-sign") + '<span class="notification-badge tm-at-n">' + (n > 99 ? "99+" : n) + "</span>" : "";
+  }
+
   function stripState(q, seenAt) {
     q = q || {};
     var asks = (q.blocked || []).filter(function (t) { return !(seenAt && Number(t.updated_at || 0) <= seenAt); });
@@ -2268,7 +2284,8 @@
       renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle", dictSend: false,
       atts: [], folder: null, repos: [], ghIcon: null, skills: null, skillsBrain: "", info: null, typing: [], pinned: [], pinsOpen: false, tagFilter: readTagFilter(),
       autoOpened: false, unclamped: {}, outbox: [],
-      jobFold: {}, finPage: 0, archPage: 0, archQuery: "", jobDetails: {}, fullReport: {} };
+      jobFold: {}, finPage: 0, archPage: 0, archQuery: "", jobDetails: {}, fullReport: {},
+      atBtn: null, atObs: null, atSeen: null, atPend: [] };
   }
 
   function teamUrl(path) { return "/teams/" + q(S.activeId) + (path || ""); }
@@ -2600,6 +2617,82 @@
     return { items: items, list: list };
   }
 
+  // ───────────── the "@" button: messages that call the owner (18/11/2026) ─────────────
+  // What has been read is kept per team on this device, so reopening the team does not count the same messages again.
+  var AT_SEEN_KEY = "javis.teams.atSeen";
+  function readAtSeen(teamId) {
+    try {
+      var all = JSON.parse(localStorage.getItem(AT_SEEN_KEY) || "{}") || {}, out = {};
+      (all[teamId] || []).forEach(function (id) { out[id] = true; });
+      return out;
+    } catch (e) { return {}; }
+  }
+  function atSeenMap() {
+    var id = S.team && S.team.team_id;
+    if (!id) return {};
+    if (!S.atSeen || S.atSeen.team !== id) S.atSeen = { team: id, ids: readAtSeen(id) };
+    return S.atSeen.ids;
+  }
+  function markAtSeen(mid) {
+    var seen = atSeenMap();
+    if (!S.atSeen || seen[mid]) return false;
+    seen[mid] = true;
+    try {
+      var all = JSON.parse(localStorage.getItem(AT_SEEN_KEY) || "{}") || {};
+      all[S.atSeen.team] = Object.keys(seen).map(Number).sort(function (a, b) { return a - b; }).slice(-200);
+      localStorage.setItem(AT_SEEN_KEY, JSON.stringify(all));
+    } catch (e) {}
+    return true;
+  }
+  // A message calling the owner counts as read once half of it (or half the chat's height, for a long one) is on screen.
+  function onAtSeen(entries) {
+    var changed = false;
+    entries.forEach(function (en) {
+      if (!en.isIntersecting) return;
+      var tall = en.rootBounds && en.intersectionRect.height >= en.rootBounds.height * 0.5;
+      if (en.intersectionRatio < 0.5 && !tall) return;
+      if (markAtSeen(Number(en.target.getAttribute("data-mid")))) changed = true;
+      if (S.atObs) S.atObs.unobserve(en.target);
+    });
+    if (changed) updateAtJump(false);
+  }
+  // `watch`: the list was drawn again, so the messages to watch are new nodes.
+  function updateAtJump(watch) {
+    var btn = S.atBtn, box = S.el.querySelector(".tm-msgs");
+    if (!btn || !box) return;
+    var IO = typeof IntersectionObserver !== "undefined" ? IntersectionObserver : null;
+    var asks = S.team && IO ? Array.prototype.map.call(box.querySelectorAll(".tm-msg-asks[data-mid]"), function (el) {
+      var id = Number(el.getAttribute("data-mid")), m = msgById(id);
+      return { id: id, ts: m ? m.ts : 0, el: el };
+    }) : [];
+    var pend = S.atPend = atPending(asks, ownerSaidAt(S.msgs), atSeenMap());
+    // Drawn again on every update of the list: the button is only rewritten when its count changes.
+    if (btn.getAttribute("data-n") !== String(pend.length)) {
+      btn.setAttribute("data-n", String(pend.length));
+      btn.innerHTML = atJumpHtml(pend.length);
+      var label = tw("teams.at_jump", { n: pend.length });
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+      btn.classList.toggle("show", pend.length > 0);
+    }
+    if (!watch || !IO) return;
+    if (!S.atObs || S.atObs.root !== box) S.atObs = new IO(onAtSeen, { root: box, threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] });
+    S.atObs.disconnect();
+    asks.forEach(function (a) { if (pend.indexOf(a.id) >= 0) S.atObs.observe(a.el); });
+  }
+  // Pressed: the oldest message still waiting comes to the middle of the chat and flashes; the next press goes on.
+  function atJump() {
+    var box = S.el.querySelector(".tm-msgs"), id = (S.atPend || [])[0];
+    var el = id != null && box ? box.querySelector('.tm-msg[data-mid="' + id + '"]') : null;
+    if (!el) return updateAtJump(true);
+    if (S.scroll) S.scroll.setStuck(false);
+    if (el.scrollIntoView) el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.add("tm-msg-flash");
+    setTimeout(function () { el.classList.remove("tm-msg-flash"); }, 1600);
+    markAtSeen(id);
+    updateAtJump(false);
+  }
+
   function drawMsgs(stick) {
     var box = S.el.querySelector(".tm-msgs");
     if (!box) return;
@@ -2631,6 +2724,12 @@
     if (lastRx) lastRx.classList.add("is-last");
     // The jump-to-latest button (chat-scroll.js) is the list's last child, so `position: sticky` keeps it at the bottom.
     if (S.scroll) { if (box.lastChild !== S.scroll.button) box.appendChild(S.scroll.button); S.scroll.update(); }
+    // The "@" button sits right before it, sticky at the bottom right (18/11/2026).
+    if (S.atBtn) {
+      var before = S.scroll && S.scroll.button.parentNode === box ? S.scroll.button : null;
+      if (S.atBtn.parentNode !== box || S.atBtn.nextSibling !== before) box.insertBefore(S.atBtn, before);
+      updateAtJump(true);
+    }
     applyReveal(box);
     // Bảng đang "mở" mà không vẽ ra (tin đã đổi, đã ghim): bỏ trạng thái mở, kẻo tin mới không còn tự cuộn xuống.
     if (S.picker !== null && !box.querySelector('[data-panel="' + S.picker + '"]')) S.picker = null;
@@ -5219,6 +5318,7 @@
       return jumpTo(d.jump, d.ts);
     }
     if (t.classList.contains("tm-jump-back")) { S.jumped = null; loadMsgs(false); return; }
+    if (t.classList.contains("tm-at-jump")) return atJump();
     if (t.classList.contains("tm-filter-clear")) { S.filterTask = ""; drawFilterbar(); loadMsgs(false); return; }
     if (t.dataset && t.dataset.fbQuality) { S.fbQuality = !S.fbQuality; drawFilterbar(); return; }
     if (d.reactClose) { S.focusBack = S.picker; S.picker = null; drawMsgs(false); return; }
@@ -5879,6 +5979,9 @@
     var msgsBox = el.querySelector(".tm-msgs");
     S.scroll = CS && msgsBox ? CS.attach(msgsBox, { buttonClass: "jv-new-msg tm-new-msg", msg: ".tm-msg",
       hold: ".tm-hacts:hover, .tm-rx:hover", key: "data-mid", followLoads: true }) : null;
+    S.atBtn = document.createElement("button");
+    S.atBtn.type = "button";
+    S.atBtn.className = "tm-at-jump";
     attachListResize();
     el.addEventListener("mouseover", function (e) {
       var row = e.target.closest && e.target.closest(".tm-team");
@@ -6025,7 +6128,7 @@
     jobsChip: jobsChip, jobsChipHtml: jobsChipHtml, timeShort: timeShort,
     mentionMatches: mentionMatches, mentionsFromText: mentionsFromText, mentionScan: mentionScan, removeMention: removeMention,
     callsHtml: callsHtml, foldName: foldName, emailBefore: emailBefore, composerHint: composerHint, newClientId: newClientId,
-    membersHtml: membersHtml, memberModelText: memberModelText, settingsFormHtml: settingsFormHtml, dangerZoneHtml: dangerZoneHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
+    membersHtml: membersHtml, memberModelText: memberModelText, atPending: atPending, atJumpHtml: atJumpHtml, settingsFormHtml: settingsFormHtml, dangerZoneHtml: dangerZoneHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
     levelOf: levelOf, grantFor: grantFor, teamAvatarHtml: teamAvatarHtml, savePin: savePin, pinTeamWith: pinTeamWith, noteHtml: noteHtml, levelsHtml: levelsHtml, turnsHtml: turnsHtml,
     bannersHtml: bannersHtml, reactCornerHtml: reactCornerHtml, reactBarHtml: reactBarHtml, sheetHtml: sheetHtml,
     hoverActsHtml: hoverActsHtml, bodyHtml: bodyHtml, skillSplit: skillSplit, skillCall: skillCall, listSync: listSync, pendingHtml: pendingHtml, copyTextOf: copyTextOf, fileChipHtml: fileChipHtml, uploadError: uploadError, pickFiles: pickFiles, plainPreview: plainPreview, previewText: previewText,
