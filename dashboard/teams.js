@@ -5165,6 +5165,8 @@
     if (d.tab) {
       S.tab = d.tab; S.tabAuto = false; drawSide(true); drawHead();
       if (d.tab === "team") loadAgents().then(function () { if (S.side && S.tab === "team") drawSide(); });
+      // 18/11/2026: a team that opened on Jobs never read its files and links, so Info showed "Loading..." for good.
+      if (d.tab === "info") { loadInfo(); loadFolder(); }
       return;
     }
     if (d.expand) { S.openMember = S.openMember === d.expand ? null : d.expand; drawSide(true); return; }
