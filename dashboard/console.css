@@ -4911,3 +4911,22 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
   border-radius: 12px; cursor: pointer; }
 .tm-wm .tm-radio:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); }
 .tm-wm .tm-radio input { margin: 3px 0 0; flex: none; }
+
+/* Mốc chờ chủ duyệt trong tab Quy trình (workspace.js, veChoDuyet) */
+.ws-approvals { flex: 0 0 auto; max-height: 38vh; overflow: auto; padding: 8px 12px; border-bottom: 1px solid var(--border, #2a2a3a); display: flex; flex-direction: column; gap: 8px; }
+.ws-approvals[hidden] { display: none; }
+.ws-ap-head { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.ws-ap-n { background: #ff7a3d; color: #fff; border-radius: 10px; padding: 0 7px; font-size: 12px; }
+.ws-ap-card { border: 1px solid var(--border, #2a2a3a); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ws-ap-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ws-ap-wf { font-size: 11px; opacity: .65; }
+.ws-ap-q { font-size: 13px; line-height: 1.45; white-space: pre-wrap; max-height: 9em; overflow: auto; }
+.ws-ap-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.ws-ap-link { font-size: 12px; padding: 3px 9px; border: 1px solid var(--border, #2a2a3a); border-radius: 8px; text-decoration: none; color: inherit; }
+.ws-ap-link:hover { border-color: #ff7a3d; }
+.ws-ap-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ws-ap-ok { background: #ff7a3d; color: #fff; border-color: #ff7a3d; }
+.ws-ap-hint { font-size: 12px; opacity: .7; }
+.ws-ap-form textarea { width: 100%; box-sizing: border-box; resize: vertical; border-radius: 8px; padding: 8px; font: inherit; background: var(--bg-input, transparent); color: inherit; border: 1px solid var(--border, #2a2a3a); }
+.ws-ap-msg { font-size: 12px; opacity: .8; }
+.ws-ap-msg:empty { display: none; }

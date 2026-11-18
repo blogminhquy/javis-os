@@ -515,6 +515,89 @@
     if (listTimer) return;
     listTimer = setTimeout(function () { listTimer = 0; if (active && S.el) veDanhSach(); }, 0);
   }
+  // ---------- mốc chờ duyệt (một chỗ cho mọi quy trình) ----------
+  // Chủ 17/11/2026: duyệt NGAY trong tab Quy trình, thấy rõ duyệt cái gì, có link tài liệu, nút Duyệt và
+  // ô Yêu cầu sửa. Lượt giao qua Kanban dừng ở mốc duyệt chỉ hiện ở trang Nhiệm vụ nên trước đây tab này
+  // không thấy; /kanban/approvals gom chúng lại. Nút Duyệt gửi đúng một chữ "ok" (máy chủ nhận là lời duyệt, không phụ thuộc ngôn ngữ) qua đường trả lời
+  // sẵn có (/kanban/task/answer), nên máy chủ xử lý y như bấm ở trang Nhiệm vụ.
+  async function taiChoDuyet() {
+    var lan = lanDung, b0 = brain();
+    var r;
+    try { r = await api("/kanban/approvals?brain=" + encodeURIComponent(b0)); } catch (e) { return; }
+    if (lan !== lanDung || b0 !== brain() || !active) return;
+    if (!r || !Array.isArray(r.items)) return;
+    var cu = JSON.stringify(S.choDuyet || []), moi = JSON.stringify(r.items);
+    S.choDuyet = r.items;
+    // Không vẽ lại khi không có gì đổi, hoặc khi chủ đang gõ lời yêu cầu sửa (vẽ lại là mất chữ đang gõ).
+    if (cu === moi || Object.keys(S.duyetMo || {}).length) return;
+    veChoDuyet();
+  }
+  function urlTep(p) {
+    var b = ""; try { b = (typeof currentBrainPath === "function") ? currentBrainPath() : brain(); } catch (e) { b = brain(); }
+    return "/files/raw?brain=" + encodeURIComponent(b) + "&path=" + encodeURIComponent(String(p || "").replace(/^\.?\//, ""));
+  }
+  function tenTep(p) { var m = String(p || "").split("/"); return m[m.length - 1] || p; }
+  function veChoDuyet() {
+    var host = S.el && S.el.querySelector("#wsApprovals"); if (!host) return;
+    var ds = S.choDuyet || [];
+    if (S.loai !== "workflow" || !ds.length) { host.hidden = true; host.innerHTML = ""; return; }
+    host.hidden = false;
+    host.innerHTML =
+      '<div class="ws-ap-head">' + ic("check") + ' <strong>' + esc(t("ws.ap_title")) + '</strong> <span class="ws-ap-n">' + ds.length + '</span></div>' +
+      ds.map(function (x) {
+        var mo = S.duyetMo && S.duyetMo[x.id];
+        var links = (x.links || []).map(function (l) {
+          return '<a class="ws-ap-link ' + esc(l.kind) + '" href="' + esc(urlTep(l.path)) + '" target="_blank" rel="noopener" title="' + esc(l.path) + '">' + esc(tenTep(l.path)) + '</a>';
+        }).join("");
+        var hanhDong = x.can_answer
+          ? '<button type="button" class="ws-btn ws-ap-ok" data-ap="ok" data-id="' + esc(x.id) + '">' + ic("check") + ' ' + esc(t("ws.ap_approve")) + '</button>' +
+            '<button type="button" class="ws-btn" data-ap="edit" data-id="' + esc(x.id) + '">' + esc(t("ws.ap_edit")) + '</button>'
+          : '<span class="ws-ap-hint">' + esc(t("ws.ap_tasks_page")) + '</span>';
+        var form = mo
+          ? '<div class="ws-ap-form"><textarea data-ap-text="' + esc(x.id) + '" rows="3" placeholder="' + esc(t("ws.ap_edit_ph")) + '"></textarea>' +
+            '<div class="ws-ap-row"><button type="button" class="ws-btn" data-ap="cancel" data-id="' + esc(x.id) + '">' + esc(t("ws.ap_cancel")) + '</button>' +
+            '<button type="button" class="ws-btn ws-ap-ok" data-ap="send" data-id="' + esc(x.id) + '">' + esc(t("ws.ap_send")) + '</button></div></div>'
+          : "";
+        return '<div class="ws-ap-card" data-card="' + esc(x.id) + '">' +
+          '<div class="ws-ap-top"><strong>' + esc(x.title) + '</strong><span class="ws-ap-wf">' + esc(x.workflow) + '</span></div>' +
+          '<div class="ws-ap-q">' + esc(x.question) + '</div>' +
+          (links ? '<div class="ws-ap-links">' + links + '</div>' : "") +
+          '<div class="ws-ap-row">' + hanhDong + '</div>' + form +
+          '<div class="ws-ap-msg" data-ap-msg="' + esc(x.id) + '" role="status"></div>' +
+        '</div>';
+      }).join("");
+  }
+  async function guiDuyet(id, text) {
+    var msg = S.el && S.el.querySelector('[data-ap-msg="' + id + '"]');
+    if (msg) msg.textContent = t("ws.ap_sending");
+    var r;
+    try { r = await api("/kanban/task/answer", { method: "POST", body: fd({ id: id, answer: text, brain: brain() }) }); }
+    catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
+    if (!r || !r.ok) {
+      msg = S.el && S.el.querySelector('[data-ap-msg="' + id + '"]');
+      if (msg) msg.textContent = (r && r.error) || t("ws.ap_failed");
+      return;
+    }
+    if (S.duyetMo) delete S.duyetMo[id];
+    S.choDuyet = (S.choDuyet || []).filter(function (x) { return x.id !== id; });
+    veChoDuyet();
+    taiChoDuyet();
+  }
+  function xuLyChoDuyet(ev) {
+    var btn = ev.target.closest ? ev.target.closest("[data-ap]") : null;
+    if (!btn || btn.disabled) return;
+    var id = btn.dataset.id, act = btn.dataset.ap;
+    if (act === "ok") { btn.disabled = true; guiDuyet(id, "ok"); return; }
+    if (act === "edit") { S.duyetMo[id] = true; veChoDuyet(); var ta = S.el.querySelector('[data-ap-text="' + id + '"]'); if (ta) ta.focus(); return; }
+    if (act === "cancel") { delete S.duyetMo[id]; veChoDuyet(); return; }
+    if (act === "send") {
+      var box = S.el.querySelector('[data-ap-text="' + id + '"]');
+      var text = box ? box.value.trim() : "";
+      var msg = S.el.querySelector('[data-ap-msg="' + id + '"]');
+      if (!text) { if (msg) msg.textContent = t("ws.ap_need_text"); return; }
+      btn.disabled = true; guiDuyet(id, text);
+    }
+  }
   async function taiDanhSach() {
     var lan = lanDung, b0 = brain();
     var b = encodeURIComponent(b0);
@@ -605,6 +688,8 @@
             // phải chạy gen_icons tải mạng - lật gương panel-left bằng CSS rẻ hơn mà cùng nghĩa.
             '<button type="button" class="ws-ico lat" id="wsRightBtn" title="' + esc(t("ws.toggle_panel")) + '">' + ic("panel-left") + '</button>' +
           '</div>' +
+          // Mốc đang chờ chủ duyệt (quy trình giao qua Kanban cũng hiện ở đây). Ẩn khi không có mốc nào.
+          '<div class="ws-approvals" id="wsApprovals" hidden></div>' +
           '<div class="ws-id" id="wsIdentity">' + dangTaiHtml("ws.loading_chat") + '</div>' +
           // Màn khởi đầu: danh sách rỗng thì không có phiên nào để mở, ô nhập bị khoá, nên
           // chỗ khung chat là hai nút tạo. Nằm TRƯỚC #wsSlot trong DOM cho thuận mắt, còn
@@ -654,6 +739,11 @@
     };
     el.querySelector("#wsStore").onclick = function () { nhom("packs", function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); }); };
     el.querySelector("#wsNewChat").onclick = function () { var x = dangChon(); if (x) moPhien(x, true); };
+    el.querySelector("#wsApprovals").onclick = xuLyChoDuyet;
+    S.choDuyet = []; S.duyetMo = {};
+    if (S.duyetTimer) clearInterval(S.duyetTimer);
+    S.duyetTimer = setInterval(function () { if (active && S.loai === "workflow") taiChoDuyet(); }, 15000);
+    taiChoDuyet();
     var page = el.querySelector("#wsPage");
     el.querySelector("#wsLeftBtn").onclick = function () { page.classList.toggle("left-open"); };
     el.querySelector("#wsRightBtn").onclick = function () { datPhai(!phaiDangHien()); };
@@ -1063,6 +1153,7 @@
     el.querySelector("#wsNew").innerHTML = ic("plus") + " " + esc(S.loai === "agent" ? t("ws.new_agent") : t("ws.new_workflow"));
     el.querySelector("#wsImport").innerHTML = ic("upload-cloud") + ' ' + esc(t(S.loai === "agent" ? "ws.upload_agent" : "ws.upload_workflow"));
     veDanhSach();
+    if (typeof veChoDuyet === "function") veChoDuyet();
   }
   // Quy trình này có lần chạy nào ĐANG chạy không? Đọc thẳng từ S.tienDo (máy trạng thái ăn
   // wf_event) chứ không nuôi một cờ riêng: cờ riêng thì lúc chạy xong, lỗi, hay dừng chờ duyệt
@@ -2317,6 +2408,7 @@
   function roi() {
     active = false; opening++; chatReady(true); anTheMini();
     dongMenu(); traCayThuMuc(); traKhungChat();
+    if (S.duyetTimer) { clearInterval(S.duyetTimer); S.duyetTimer = 0; }
     // Tab Công việc: gỡ trình nghe sự kiện, nhịp hỏi và hẹn tải lại của lần gắn đang sống.
     if (_congViec) { _congViec.destroy(); _congViec = null; }
     // XOÁ câu đang tìm. S.q sống ở mức module còn ô nhập chết theo DOM của trang, nên giữ lại
