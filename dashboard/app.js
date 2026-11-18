@@ -1445,8 +1445,8 @@ function handleMessage(data) {
         else window.JavisInbox.refresh();
       }
     } catch (e) {}
-    // A notice turned read (an approval already answered, 18/11/2026) only refreshes the bell: no new work to show.
-    if (!data.cleared) { try { if (window.JavisStar) window.JavisStar.moment("work"); } catch (e) {} }   // việc nền vừa trả kết quả
+    // `cleared`: a notice turned read (approval answered), not new work.
+    if (!data.cleared) { try { if (window.JavisStar) window.JavisStar.moment("work"); } catch (e) {} }
     return;
   }
   if (data.type === "status") {
