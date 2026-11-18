@@ -17444,6 +17444,9 @@ async def _start_scheduler():
                              session_probe=_manual_session_probe, session_undo=_manual_session_undo,
                              # 0.433.0: hear what is said in a video a customer sends (same Groq key as voice messages).
                              transcribe=_stt_nghe,
+                             # 2026-11-18: a photo a staff member sends from the Zalo OA app / Page inbox is read by a
+                             # connected brain, so the bot can answer about the quote in it.
+                             describe=lambda paths, caption, chat_id="": _bot_xem_ho(paths, caption, "", "", chat_id),
                              # 2026-11-08: a dedicated bot never polls the token of a running admin bot.
                              admin_tokens=_admin_bot_tokens,
                              # Lượt bot hỏng: khách không nhận gì, chủ nghe ở chuông thông báo (chủ repo 15/10/2026).

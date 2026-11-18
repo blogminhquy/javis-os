@@ -32,7 +32,7 @@ Zalo chỉ gửi tin vào một địa chỉ HTTPS trên tên miền đã xác t
 1. Mở Javis **bằng tên miền HTTPS**, vào **Chatbot**, tab **Bot**, bấm **Thêm kênh**, chọn **Zalo OA**. Form hiện **Địa chỉ webhook** và ô **Mã xác thực tên miền Zalo**.
 2. Trên Zalo, mục **Xác thực tên miền**, nhập tên miền của Javis, chọn cách xác thực bằng **file HTML**. Zalo cho tên file dạng `zalo_verifier<mã>.html`.
 3. Dán tên file đó (hoặc thẻ meta Zalo đưa) vào ô của Javis, bấm **Lưu mã**. Javis bắt đầu phục vụ đúng file đó. Quay lại Zalo bấm **Xác thực**.
-4. Vào mục **Webhook** của app, dán **Địa chỉ webhook** Javis hiện (dạng `https://<tên miền>/zalo-oa/webhook`), bật các sự kiện **user_send_text**, **user_send_image**, **user_send_file**, **user_send_audio**, **user_send_sticker**, **user_send_location**.
+4. Vào mục **Webhook** của app, dán **Địa chỉ webhook** Javis hiện (dạng `https://<tên miền>/zalo-oa/webhook`), bật các sự kiện **user_send_text**, **user_send_image**, **user_send_file**, **user_send_audio**, **user_send_sticker**, **user_send_location**. Bật thêm **oa_send_text**, **oa_send_image**, **oa_send_file** để bot thấy tin và file nhân viên gửi cho khách từ app OA (xem mục dưới).
 5. Ở mục Webhook có **OA secret key** (khóa bí mật của OA). Chép lại: Javis dùng nó để kiểm chữ ký từng tin, tin không đúng chữ ký bị bỏ.
 
 ## 3. Khai báo Callback URL cho OAuth v4 (một lần)
@@ -76,6 +76,7 @@ Vẫn dùng được nếu bạn chưa khai báo Callback URL.
 - **"Zalo không làm mới được token":** refresh token sai, đã dùng rồi, hoặc quá 3 tháng. Mở Sửa kênh, bấm **Cấp quyền lại bằng Zalo**.
 - **Lỗi -230 hoặc báo khách lâu không nhắn:** Zalo chỉ cho OA trả lời trong một khung thời gian sau tin cuối của khách. Khách nhắn lại là mở lại.
 - **Lỗi -224:** gói dịch vụ của OA chưa cho dùng tính năng này qua API. Kiểm tra gói ở [oa.zalo.me](https://oa.zalo.me).
+- **Bot không biết báo giá nhân viên vừa gửi:** bật các sự kiện oa_send_text, oa_send_image, oa_send_file ở mục Webhook của app. Từ đó tin nhân viên gửi từ app OA hiện trong Hộp thư (nhãn Nhân viên), và bot đọc được nội dung file: PDF, Word, Excel đọc thẳng, ảnh thì nhờ một bộ não đã kết nối có mắt (model chính, gói ChatGPT hoặc Claude Code) đọc hộ. Bot chỉ ghi nhận, không tự trả lời tin của nhân viên.
 - **Không có tin nào tới:** kiểm tra webhook đúng địa chỉ HTTPS của Javis và đã bật sự kiện user_send_*. Zalo bỏ webhook nếu Javis không trả lời nhiều lần liền, khi đó bật lại ở trang app.
 
 Javis không đọc lại được tin nhắn cũ của OA trước lúc nối: Hộp thư bắt đầu từ tin đầu tiên tới qua webhook.

@@ -198,9 +198,13 @@ class Probe(zo.ZaloOABot):
     def __init__(self):
         super().__init__(pasted, "", None, giau_trang_thai=True)
         self.got = []
+        self.staff = []
 
     async def _safe_event(self, ev):
         self.got.append(ev)
+
+    async def _safe_staff(self, ev):
+        self.staff.append(ev)
 
 
 async def _route():
@@ -209,14 +213,18 @@ async def _route():
     zo._REGISTRY.update({OA_ID: a, "999": b})
     ev = json.loads(body)
     n = await zo.handle_webhook(ev)
-    n += await zo.handle_webhook({**ev, "event_name": "oa_send_text", "sender": {"id": OA_ID}})
+    # 2026-11-18: what the OA itself sends (a staff member in the OA app) goes to the staff path of THAT OA's bot.
+    n += await zo.handle_webhook({**ev, "event_name": "oa_send_text", "sender": {"id": OA_ID},
+                                  "recipient": {"id": USER}})
     n += await zo.handle_webhook({"event_name": "follow", "oa_id": OA_ID, "follower": {"id": USER}})
     await asyncio.sleep(0)
     zo._REGISTRY.clear()
-    return n, a.got, b.got
+    return n, a.got, b.got, a.staff, b.staff
 
-n, got_a, got_b = run(_route())
-check("customer text reaches the bot of that OA only", n == 1 and len(got_a) == 1 and got_b == [], (n, got_a, got_b))
+n, got_a, got_b, staff_a, staff_b = run(_route())
+check("customer text reaches the bot of that OA only", n == 2 and len(got_a) == 1 and got_b == [], (n, got_a, got_b))
+check("an oa_send_* event reaches the staff path of the OA that sent it", len(staff_a) == 1 and staff_b == [],
+      (staff_a, staff_b))
 
 
 async def _turn():

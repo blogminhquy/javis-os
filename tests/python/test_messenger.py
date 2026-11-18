@@ -111,9 +111,13 @@ class Probe(messenger_bot.MessengerBot):
         super().__init__({"page_id": page, "access_token": TOKEN, "app_secret": SECRET}, "", None,
                          giau_trang_thai=True)
         self.got = []
+        self.staff = []
 
     async def _safe_event(self, ev):
         self.got.append(ev)
+
+    async def _safe_staff(self, ev):
+        self.staff.append(ev)
 
 
 def ev(mid, text="hi", sender="555", **msg):
@@ -134,12 +138,13 @@ async def _route():
     await asyncio.sleep(0)
     other = await messenger_bot.handle_webhook({"object": "instagram", "entry": [{"id": PAGE, "messaging": [ev("m4")]}]})
     messenger_bot._REGISTRY.clear()
-    return n, a.got, b.got, other
+    return n, a.got, b.got, other, a.staff
 
-n, got_a, got_b, other = run(_route())
+n, got_a, got_b, other, staff_a = run(_route())
 check("message and postback reach the bot of that Page", [g.get("message", {}).get("mid") or "postback" for g in got_a]
       == ["m1", "postback"], got_a)
-check("echo and read receipt are skipped", n == 2, n)
+check("read receipt skipped, the echo goes to the staff path (2026-11-18)",
+      n == 3 and [g["message"]["mid"] for g in staff_a] == ["m2"], (n, staff_a))
 check("another Page's bot hears nothing", got_b == [], got_b)
 check("non-page objects are ignored", other == 0)
 

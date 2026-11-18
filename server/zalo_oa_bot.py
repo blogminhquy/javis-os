@@ -32,6 +32,9 @@ What makes Zalo OA different from Messenger, and shapes the code:
      `_explain_error` says so in words; the inbox still keeps the conversation.
   4. Zalo renders no markdown and caps a text at 2000 characters: plain text, split when longer.
   5. Private chats with the OA only (OA group chats are a separate product, not handled here).
+  7. Messages the OA itself sends (`oa_send_*`, a staff member answering in the OA app) arrive on the same webhook. They
+     go to the inbox as the person's ("human") with what the file says (`chat_files`), so the bot knows the quote a
+     staff member sent. The bot's own sends come back the same way and are recognised (`chat_files.is_own_echo`).
   6. Zalo wants the webhook domain verified first (`zalo_verifier<code>.html`); main.py serves that
      file for the codes the owner saved (`site_verification_codes`).
 """
@@ -50,6 +53,7 @@ from pathlib import Path
 
 import httpx
 
+import chat_files
 import localefmt
 import stt
 from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool
@@ -328,22 +332,27 @@ def registered() -> dict:
 
 
 def _oa_of(ev: dict) -> str:
+    if str(ev.get("event_name") or "").startswith("oa_send_"):
+        # The OA's own message: the OA is the SENDER, the recipient is the customer.
+        return str(ev.get("oa_id") or (ev.get("sender") or {}).get("id") or "")
     return str((ev.get("recipient") or {}).get("id") or ev.get("oa_id") or "")
 
 
 async def handle_webhook(payload: dict) -> int:
     """Route a verified webhook event to the bot of its OA. Returns how many events were handed
-    over. The OA's own outgoing messages (`oa_send_*`) and non-message events are skipped."""
+    over. The OA's own outgoing messages (`oa_send_*`) go to `_safe_staff` (a staff member's message
+    for the inbox, or the echo of the bot's own); other non-message events are skipped."""
     ev = payload or {}
     name = str(ev.get("event_name") or "")
-    if not name.startswith("user_send_") and name != "user_submit_info":
+    staff = name.startswith("oa_send_")
+    if not staff and not name.startswith("user_send_") and name != "user_submit_info":
         return 0
     oa = _oa_of(ev)
     bot = _REGISTRY.get(oa)
     if not bot:
         print(f"[zalo_oa] event for OA {oa} but no bot runs for it", file=sys.stderr)
         return 0
-    asyncio.create_task(bot._safe_event(ev))
+    asyncio.create_task(bot._safe_staff(ev) if staff else bot._safe_event(ev))
     return 1
 
 
@@ -422,8 +431,11 @@ class ZaloOABot(HangLuot):
         return d
 
     async def _send_one(self, client, to, text):
-        return await self._call(client, "POST", "/v3.0/oa/message/cs", json_body={
+        chat_files.remember_sent(CHANNEL, str(to), text)
+        d = await self._call(client, "POST", "/v3.0/oa/message/cs", json_body={
             "recipient": {"user_id": str(to)}, "message": {"text": text}})
+        chat_files.remember_id(CHANNEL, str(((d.get("data") or {}) if d.get("ok") else {}).get("message_id") or ""))
+        return d
 
     async def _send(self, client, chat, text, reply_markup=None):
         if not str(text or "").strip() and self.giau_trang_thai:
@@ -485,10 +497,12 @@ class ZaloOABot(HangLuot):
             if is_image and str(caption or "").strip():
                 msg["text"] = md_to_plain(str(caption))[:MAX_MSG]
                 caption = ""
+            chat_files.remember_sent(CHANNEL, str(chat), kind="image" if is_image else "file")
             d = await self._call(c, "POST", "/v3.0/oa/message/cs",
                                  json_body={"recipient": {"user_id": str(chat)}, "message": msg})
             if not d.get("ok"):
                 return False, d.get("error", "")
+            chat_files.remember_id(CHANNEL, str((d.get("data") or {}).get("message_id") or ""))
         if str(caption or "").strip():
             ok, err = await self.send_text(chat, caption)
             if not ok:
@@ -622,6 +636,76 @@ class ZaloOABot(HangLuot):
         if not text:
             return
         await self._dispatch(client, chat, text, meta)
+
+    # ---- What the OA itself sent (a staff member in the OA app) -------------------------
+    async def _safe_staff(self, ev):
+        try:
+            await self._on_staff(ev)
+        except Exception as e:
+            print(f"[zalo_oa staff message] {type(e).__name__}: {e}", file=sys.stderr)
+
+    async def _on_staff(self, ev):
+        """An `oa_send_*` event. The echo of the bot's own send is dropped; anything else is a person
+        answering from the OA app: its words and files go to `event_fn("staff_sent", ...)`, which
+        files them in the inbox with what each file says."""
+        msg = ev.get("message") or {}
+        mid = str(msg.get("msg_id") or "")
+        chat = str((ev.get("recipient") or {}).get("id") or ev.get("user_id") or "")
+        if self._stop or not chat or chat == self.oa_id or not self.event_fn:
+            return
+        if chat_files.is_own_echo(CHANNEL, chat, message_id=mid) or self._seen_before("out:" + mid if mid else ""):
+            return
+        text = str(msg.get("text") or "").strip()
+        atts = [a for a in (msg.get("attachments") or []) if isinstance(a, dict)]
+        kinds = [("image" if str(a.get("type") or "") in ("image", "gif") else "file") for a in atts]
+        if atts:
+            # The bot sends a photo with its caption in ONE message: one attachment of the bot's is the whole echo.
+            if any(chat_files.is_own_echo(CHANNEL, chat, kind=k) for k in kinds):
+                return
+        elif chat_files.is_own_echo(CHANNEL, chat, text=text):
+            return
+        client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(60.0))
+        self._client = client
+        files, notes = [], []
+        for att, kind in zip(atts, kinds):
+            atype = str(att.get("type") or "")
+            pl = att.get("payload") or {}
+            url = str(pl.get("url") or "")
+            name = str(pl.get("name") or "").strip()
+            if atype in ("image", "gif", "file") and url:
+                try:
+                    data, mime = await self._download(client, url)
+                except Exception as e:
+                    notes.append(f"[{atype} {name}: {type(e).__name__}: {e}]")
+                    continue
+                dest = await asyncio.to_thread(self._save, chat, data, mime, name or url, "zalo_oa_staff")
+                files.append({"path": str(dest), "kind": kind,
+                              "name": name or ("photo" if kind == "image" else "file")})
+            elif atype == "sticker":
+                notes.append("[sticker]")
+            elif atype == "link":
+                notes.append(str(pl.get("url") or pl.get("description") or "").strip())
+            elif url:
+                notes.append(f"[{atype}: {url}]")
+        words = "\n".join([t for t in notes if t] + ([text] if text else [])).strip()
+        if not words and not files:
+            return
+        await self.event_fn("staff_sent", {
+            "chat_id": chat, "account_id": self.account_id, "message_id": mid, "text": words, "files": files,
+            "platform": CHANNEL, "ts": time.time()})
+
+    def _save(self, chat, data, mime, name_or_url, prefix):
+        ddir = self.download_dir(chat) if callable(self.download_dir) else self.download_dir
+        d = Path(ddir) if ddir else Path("zalo-oa-inbox")
+        d.mkdir(parents=True, exist_ok=True)
+        ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
+               "application/pdf": ".pdf"}.get(mime, "")
+        if not ext:
+            m = re.search(r"\.([A-Za-z0-9]{2,5})(?:\?|$)", str(name_or_url or ""))
+            ext = "." + m.group(1).lower() if m else ""
+        dest = d / f"{prefix}_{int(time.time() * 1000)}{ext}"
+        dest.write_bytes(data)
+        return dest
 
     # ---- One turn ---------------------------------------------------------------------
     async def _handle_turn(self, client, chat, text, meta=None):

@@ -26,7 +26,7 @@ from typing import Optional
 import httpx
 
 import localefmt
-from messenger_bot import (FEED_FIELD, GRAPH, IG_OBJECT, IG_WEBHOOK_FIELDS, SUBSCRIBED_FIELDS, _explain_error,
+from messenger_bot import (ECHO_FIELD, FEED_FIELD, GRAPH, IG_OBJECT, IG_WEBHOOK_FIELDS, SUBSCRIBED_FIELDS, _explain_error,
                            appsecret_proof, subscribe_page, whoami)
 
 WEBHOOK_PATH = "/messenger/webhook"
@@ -156,14 +156,17 @@ async def set_app_webhook(client, app_id: str, app_secret: str, callback_url: st
     """Register (or overwrite) the app's `page` webhook with the fields the bot needs. Meta calls
     `callback_url` with the verify token while this request is open, so Javis must be reachable
     at that address for it to succeed."""
-    params = {"object": "page", "callback_url": callback_url, "fields": SUBSCRIBED_FIELDS + "," + FEED_FIELD,
+    params = {"object": "page", "callback_url": callback_url,
+              "fields": SUBSCRIBED_FIELDS + "," + ECHO_FIELD + "," + FEED_FIELD,
               "include_values": "true", "verify_token": verify_token,
               "access_token": _app_token(app_id, app_secret)}
     d = await _post(client, f"{app_id}/subscriptions", params)
     if not d.get("error") and d.get("success"):
         return {"ok": True, "feed": True}
     # `feed` (comments) is optional: never lose the message webhook over it.
-    d = await _post(client, f"{app_id}/subscriptions", {**params, "fields": SUBSCRIBED_FIELDS})
+    d = await _post(client, f"{app_id}/subscriptions", {**params, "fields": SUBSCRIBED_FIELDS + "," + ECHO_FIELD})
+    if d.get("error") or not d.get("success"):
+        d = await _post(client, f"{app_id}/subscriptions", {**params, "fields": SUBSCRIBED_FIELDS})
     if d.get("error") or not d.get("success"):
         return {"ok": False, "error": _err(d, "webhook setup failed")}
     return {"ok": True, "feed": False}
@@ -245,6 +248,17 @@ def _date(ts: int) -> str:
         return time.strftime("%Y-%m-%d", time.localtime(int(ts)))
     except Exception:
         return ""
+
+
+def echoes_item(app_fields) -> dict:
+    """A warning, never a stop: without `message_echoes` the bot still answers, it only never sees what a staff member
+    sends from the Page inbox (a quote, a PDF), so it cannot answer questions about it (2026-11-18)."""
+    has = ECHO_FIELD in (app_fields or [])
+    return _item("webhook_echoes", True if has else None,
+                 ("Bot thấy tin nhân viên gửi từ Trang", "The bot sees what staff send from the Page"), ECHO_FIELD,
+                 ("Bấm Sửa tự động để Javis bật message_echoes, bot mới đọc được file nhân viên gửi cho khách.",
+                  "Click Repair so Javis turns on message_echoes and the bot can read the files staff send customers."),
+                 auto=True)
 
 
 def comments_item(scopes, page_fields) -> dict:
@@ -336,6 +350,8 @@ async def run_checks(client, page_id: str, page_token: str, app_secret: str, app
                                ", ".join(lack) if lack else ", ".join(WEBHOOK_FIELDS),
                                ("Meta chưa gửi tin sang Javis. Bấm Sửa tự động.", "Meta does not forward messages yet. Click Repair."),
                                auto=True))
+            if wh.get("found") and not lack:
+                items.append(echoes_item(wh.get("fields", [])))
         if is_page:
             ps = await page_subscription(client, page_id, page_token, app_id)
             lack = [f for f in WEBHOOK_FIELDS if f not in ps.get("fields", [])]
