@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.593.0] - 2026-11-18
+### Thêm mới
+- **Bot đọc được file nhân viên gửi cho khách trên Zalo OA và Fanpage.** Báo giá PDF, Word, Excel hay ảnh nhân viên gửi từ app OA hoặc hộp thư Trang giờ hiện trong Hộp thư (nhãn Nhân viên), và bot biết nội dung để trả lời khi khách hỏi lại. Ảnh được một bộ não đã kết nối có mắt đọc hộ.
+- **Bot đọc được file PDF, Word, Excel khách gửi**, không chỉ biết là "có file" như trước.
+### Cải thiện
+- **Cần bật thêm một lần:** Zalo OA bật sự kiện `oa_send_text`, `oa_send_image`, `oa_send_file` ở mục Webhook của app. Fanpage bấm **Sửa tự động** ở bảng kiểm tra để Javis bật `message_echoes`.
+
 ## [0.592.2] - 2026-11-18
 ### Sửa lỗi
 - **Nhóm Zalo mới vào cũng có tên.** Bộ Zalo (javis-zalo 1.12.0) trước chỉ nạp tên nhóm một lần lúc khởi động, nên nhóm nick vào sau đó hiện thành "Nhóm …" kèm đuôi id cho tới lần khởi động lại. Giờ tin đầu tiên từ nhóm lạ sẽ kèm tra tên nhóm, và nhóm đổi tên cũng được cập nhật.
