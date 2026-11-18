@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.589.1] - 2026-11-18
+### Fixed
+- **A full local test run no longer turns itself red the next time.** The turn ledger file (`turn_ledger.sqlite3`) that tests create in `server/` is now ignored by git like the other runtime stores.
+
 ## [0.589.0] - 2026-11-18
 ### Improved
 - **Long skills load selectively, chosen by Javis before loading.** For a menu-style skill such as the agent/loop/plugin builder, Javis loads only the part a request needs plus every rules section (and any part it says to create first, such as the agent template for a workflow), about 47-63% lighter. Measured with a real model on 7 kinds of request, answers as complete as with the whole skill.
