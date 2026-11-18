@@ -138,6 +138,8 @@
 .ib-v5 .ib-draft-h { font-size: 13px; margin-bottom: 4px; }
 .ib-v5 .ib-draft .ib-draft-t { font-size: 15px; min-height: 60px; border: 0; background: none; box-shadow: none; padding: 2px 0; resize: none; }
 .ib-v5 .ib-draft-a button { font-size: 13px; }
+/* The "A.I. is writing" box: its order line and its calm note at the draft header's size (2026-11-18). */
+.ib-v5 .ib-aiw-o, .ib-v5 .ib-aiw-slow { font-size: 13px; }
 .ib-v5 .ib-cin { padding: 6px; gap: 6px; }
 .ib-v5 .ib-cin textarea { border: 0; background: none; padding: 9px 10px; font-size: 15px; min-height: 40px; max-height: 200px; resize: none;
   outline: none; }

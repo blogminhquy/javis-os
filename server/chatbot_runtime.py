@@ -2281,7 +2281,14 @@ _INSTRUCTION_NOTE = ("(Ghi chú riêng của chủ, khách KHÔNG thấy: hãy v
                      "Viết thành câu trả lời hoàn chỉnh, đúng giọng và cách xưng hô của bạn với khách, không nhắc tới ghi chú này.)")
 
 
-async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction: str = "") -> dict:
+def _manual_stage(line) -> str:
+    """The stage code of one engine progress line for the inbox's "A.I. is writing" box, or "" to skip it. The engine
+    lines are Vietnamese status text ("✍ Đang soạn câu trả lời…", "⚙ Đang gọi: <tool>"); only their marker counts."""
+    s = str(line or "").lstrip()
+    return "write" if s.startswith("✍") else "tool" if s.startswith("⚙") else ""
+
+
+async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction: str = "", progress=None) -> dict:
     """Chủ bấm "Trả lời giúp tin này" (`draft=False`) hoặc "Gợi ý câu trả lời" (`draft=True`) ở Hộp thư: chạy đúng Agent của bot
     trên tin khách CUỐI của cuộc chat. KHÔNG gửi gì (người gọi gửi), và không đi qua cổng "có nên nói", bộ phán xử hay hạn mức tự nói,
     vì đây là lời nhờ của chính chủ.
@@ -2294,7 +2301,20 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction
 
     `instruction` (Chatbot v5, "A.I. reply"): what the owner typed as an order ("quote 20 cases, deliver Thursday"). It
     rides along as a note only the model reads; with it the bot drafts even when no customer message is waiting.
+
+    `progress(code)`: told each stage as it starts ("docs", "image", "think", "tool", "write"), so the inbox can show
+    the owner what the A.I. is doing during a turn that takes many seconds. A failing callback never costs the reply.
     """
+    async def stage(code):
+        if progress and code:
+            try:
+                await progress(code)
+            except Exception:      # noqa: BLE001 - the progress line is a courtesy, the draft is the job
+                pass
+
+    async def engine_progress(line):
+        await stage(_manual_stage(line))
+
     lenh = " ".join(str(instruction or "").split())[:500]
     bot_id = str(conv.get("bot_id") or "")
     cfg = chatbot_store.get_bot(bot_id)
@@ -2331,16 +2351,24 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction
             print(f"[chatbot {bot_id}] đọc phiên cho bản nháp lỗi: {type(e).__name__}", file=sys.stderr)
     try:
         text = chu_khach or lenh
-        tl = await _tra_tai_lieu(bot_id, cfg, text, meta["chat_id"])
         _aid, kenh = _tai_khoan_cua(cfg, meta)
-        cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, False
+        cfg["_kenh_luot"], cfg["_tu_dong"] = kenh, False
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh, _aid)
         cfg["_customer_profile"] = customer_profile(cfg, meta)
-        cfg["_ngu_canh_plugin"] = await plugin_context(cfg, meta, kenh, _aid)
         text_engine = text
         if kenh == "zalo_personal" and meta["chat_type"] == "group" and meta["user_name"]:
             text_engine = f"[{meta['user_name']}] {text}"      # cả nhóm chung một mạch: model phải biết ai đang nói
-        text_engine, cfg["_anh"] = await anh_cho_bot(text_engine, meta, cfg) if chu_khach else (text_engine, [])
+        sees_media = bool(chu_khach and (meta.get("co_anh") or meta.get("video_url") or meta.get("audio_urls")))
+        await stage("image" if sees_media else "docs")
+
+        async def no_media():
+            return text_engine, []
+        # The documents, the plugins' lines and the look at the customer's photo do not depend on one another: run
+        # them together, the owner waits for the slowest instead of the sum (owner 2026-11-18: "A.I. viết" felt slow).
+        tl, cfg["_ngu_canh_plugin"], (text_engine, cfg["_anh"]) = await asyncio.gather(
+            _tra_tai_lieu(bot_id, cfg, text, meta["chat_id"]), plugin_context(cfg, meta, kenh, _aid),
+            anh_cho_bot(text_engine, meta, cfg) if chu_khach else no_media())
+        cfg["_tai_lieu"] = tl
         if lenh:
             note = _INSTRUCTION_NOTE.format(lenh=lenh.replace('"', "'"))
             text_engine = note + ("\n" + text_engine if chu_khach else "")
@@ -2349,7 +2377,8 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction
         kw = {"channel": kenh, "bot": cfg}
         if draft:
             kw.update(phien_kho=sid, ghi_kho=False)
-        out = await _deps["answer"](text_engine, meta, None, **kw)
+        await stage("think")
+        out = await _deps["answer"](text_engine, meta, engine_progress if progress else None, **kw)
     except Exception as e:      # noqa: BLE001
         return {"ok": False, "code": "engine", "error": f"{type(e).__name__}: {str(e)[:200]}"}
     finally:

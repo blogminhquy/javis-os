@@ -157,7 +157,10 @@ check("chat and message ids cannot climb out of attachments/zalo",
 # ============================================================
 src = (SERVER / "chatbot_runtime.py").read_text(encoding="utf-8")
 check("the live reply and the inbox 'reply for me' both attach the photos to the turn",
-      src.count("= await anh_cho_bot(text_engine,") == 2 and 'cfg["_anh"]' in src and "text_engine = gan_nhan_anh(" not in src)
+      src.count("= await anh_cho_bot(text_engine,") == 1 and 'cfg["_anh"]' in src and "text_engine = gan_nhan_anh(" not in src
+      # The inbox turn looks at the photo next to the document lookup (asyncio.gather, 2026-11-18).
+      and '(text_engine, cfg["_anh"]) = await asyncio.gather(' in src
+      and "anh_cho_bot(text_engine, meta, cfg) if chu_khach else no_media())" in src)
 for f in (Path(__file__), SERVER / "image_vision.py"):
     check(f"no em dash in {f.name}", chr(0x2014) not in f.read_text(encoding="utf-8"))
 

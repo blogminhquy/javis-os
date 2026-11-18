@@ -85,7 +85,8 @@ const tin = fn("function veTin(t) {");
 check("who and when go under the bubble; a private chat's customer is not named again", tin.indexOf('class="ht-bubble"') < tin.indexOf('class="ht-msg-h"') &&
   /if \(lop === "khach" && _conv && _conv\.chat_type !== "group"\) ai = "";/.test(tin));
 const comp = fn("function veCompose(c) {");
-check("composer: one card; the draft sits on top of the box inside it", /'<div class="ib-cbox">' \+\s*\(draft && V \? V\.draftHtml/.test(comp) && /has-draft/.test(comp));
+check("composer: one card; the draft (or the 'A.I. is writing' box in its place) sits on top of the box inside it",
+  /'<div class="ib-cbox">' \+\s*\(writing && V \? V\.workingHtml\(aiWorkView\(\), ic\) : draft && V \? V\.draftHtml/.test(comp) && /has-draft/.test(comp));
 check("composer buttons keep a spoken label when a phone shows only their icons", /class="s-btn ht-send" aria-label="'/.test(comp) &&
   /'" aria-label="' \+ esc\(t\("ib\.ai_reply"\)\)/.test(comp));
 check("the box grows with what is typed", /ta\.style\.height = "auto"; ta\.style\.height = ta\.scrollHeight \+ "px";/.test(CV));

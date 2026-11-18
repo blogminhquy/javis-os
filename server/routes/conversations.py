@@ -12,6 +12,8 @@ Không nhận `import main` - mọi thứ cần từ main đi qua `deps`.
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import mimetypes
 import time
 import sys
@@ -20,7 +22,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from fastapi import APIRouter, Form, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 import channel_accounts
@@ -32,6 +34,8 @@ import localefmt
 import routes.channels as channels_routes
 
 router = APIRouter()
+# Streamed "A.I. reply" turns still running: kept here so a page that leaves does not let the task be collected.
+_AI_REPLY_JOBS: set = set()
 
 
 @dataclass
@@ -657,7 +661,43 @@ def register(app, deps: ConversationsDeps):
         return {"ok": True, "remote": bool(r.get("remote"))}
 
     @router.post("/conversations/{conv_id}/ai-reply")
-    async def conversations_ai_reply(conv_id: int, mode: str = Form("send"), instruction: str = Form("")):
+    async def conversations_ai_reply(conv_id: int, mode: str = Form("send"), instruction: str = Form(""),
+                                     stream: str = Form("")):
+        """See `_ai_reply`. `stream=1` (the inbox, 2026-11-18): a `text/event-stream` of `{"type": "stage", "stage":
+        code}` lines while the A.I. works, then one `{"type": "done", "status": <http status>, "body": <the JSON
+        answer>}`. A draft takes many seconds; without the stages the owner stared at a still button and wondered
+        whether it had broken. The work is never cancelled when the page leaves: the draft is still saved."""
+        if str(stream).strip() not in ("1", "true"):
+            status, body = await _ai_reply(conv_id, mode, instruction, None)
+            return body if status == 200 else JSONResponse(body, status_code=status)
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def progress(code):
+            await queue.put({"type": "stage", "stage": str(code or "")})
+
+        async def run():
+            try:
+                status, body = await _ai_reply(conv_id, mode, instruction, progress)
+            except Exception as e:      # noqa: BLE001 - the error must reach the page, not hang it
+                status, body = 500, {"ok": False, "code": "engine", "error": f"{type(e).__name__}: {str(e)[:200]}"}
+            await queue.put({"type": "done", "status": status, "body": body})
+            await queue.put(None)
+
+        job = asyncio.create_task(run())
+        _AI_REPLY_JOBS.add(job)
+        job.add_done_callback(_AI_REPLY_JOBS.discard)
+
+        async def events():
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield "data: " + json.dumps(item, ensure_ascii=False) + "\n\n"
+
+        return StreamingResponse(events(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    async def _ai_reply(conv_id: int, mode: str, instruction: str, progress) -> tuple:
         """Chủ nhờ BOT trả lời ngay từ Hộp thư (0.65.5). `mode=send`: bot trả lời tin khách cuối và câu đó được gửi luôn; cuộc chat
         vẫn ở chế độ Tự động. `mode=draft`: bot chỉ soạn, trả chữ về để đổ vào ô nhập, không gửi và không để lại dấu vết.
 
@@ -669,51 +709,53 @@ def register(app, deps: ConversationsDeps):
         if str(instruction or "").strip():
             mode = "draft"
         if mode not in ("send", "draft"):
-            return JSONResponse({"ok": False, "code": "bad_mode", "error": localefmt.chu("mode phải là send hoặc draft",
-                                                                                         "mode must be send or draft")}, status_code=400)
+            return 400, {"ok": False, "code": "bad_mode", "error": localefmt.chu("mode phải là send hoặc draft",
+                                                                                         "mode must be send or draft")}
         if _DEPS.manual_answer is None:
-            return JSONResponse({"ok": False, "code": "unavailable", "error": localefmt.chu("Chưa nối bot vào Hộp thư",
-                                                                                            "Bots are not wired to the Inbox yet")}, status_code=503)
+            return 503, {"ok": False, "code": "unavailable", "error": localefmt.chu("Chưa nối bot vào Hộp thư",
+                                                                                            "Bots are not wired to the Inbox yet")}
         c = conversations.chi_tiet(conv_id)
         if not c:
-            return _404()
+            return 404, {"ok": False, "error": localefmt.chu("không có hội thoại nào id đó", "no conversation with that id")}
         bot_id = str(c.get("bot_id") or "")
         if not bot_id:
-            return JSONResponse({"ok": False, "code": "no_bot", "error": localefmt.chu("Cuộc chat này không có bot trực",
-                                                                                           "No bot is on duty in this chat")}, status_code=400)
+            return 400, {"ok": False, "code": "no_bot", "error": localefmt.chu("Cuộc chat này không có bot trực",
+                                                                                           "No bot is on duty in this chat")}
         msgs = conversations.tin_nhan(conv_id, limit=30)
         send = mode == "send"
         if send:
             # Tin cuối phải là của khách: bot đã đáp (hay bạn đã đáp) rồi thì "trả lời giúp" là nói lần hai.
             if not msgs or msgs[-1].get("sender_type") != "customer":
-                return JSONResponse({"ok": False, "code": "already_answered", "error": localefmt.chu("Tin cuối không phải của khách",
-                                                                                                         "The last message is not from the customer")}, status_code=409)
+                return 409, {"ok": False, "code": "already_answered", "error": localefmt.chu("Tin cuối không phải của khách",
+                                                                                                         "The last message is not from the customer")}
             if str(c.get("mode") or "ai") != "ai":
-                return JSONResponse({"ok": False, "code": "human", "error": localefmt.chu("Bạn đang tiếp quản cuộc chat này",
-                                                                                              "You have taken over this chat")}, status_code=409)
+                return 409, {"ok": False, "code": "human", "error": localefmt.chu("Bạn đang tiếp quản cuộc chat này",
+                                                                                              "You have taken over this chat")}
             if not (_DEPS.bot_status(bot_id) or {}).get("running"):
-                return JSONResponse({"ok": False, "code": "bot_off", "error": localefmt.chu("Bot đang tắt", "The bot is off")}, status_code=409)
+                return 409, {"ok": False, "code": "bot_off", "error": localefmt.chu("Bot đang tắt", "The bot is off")}
         lenh = str(instruction or "").strip()
-        r = await (_DEPS.manual_answer(c, msgs, not send, lenh) if lenh else _DEPS.manual_answer(c, msgs, not send))
+        # `progress` only when the page streams: a caller (or a stand-in) without it keeps the old call.
+        kw = {"progress": progress} if progress else {}
+        r = await (_DEPS.manual_answer(c, msgs, not send, lenh, **kw) if lenh else _DEPS.manual_answer(c, msgs, not send, **kw))
         if not r.get("ok"):
             status = 409 if r.get("code") == "busy" else 400 if r.get("code") in ("no_bot", "no_message") else 502
-            return JSONResponse({"ok": False, "code": r.get("code") or "engine", "error": r.get("error") or localefmt.chu("Bot không soạn được", "The bot could not draft a reply")},
-                                status_code=status)
+            return status, {"ok": False, "code": r.get("code") or "engine", "error": r.get("error") or localefmt.chu("Bot không soạn được", "The bot could not draft a reply")}
         if r.get("silent"):
-            return {"ok": True, "silent": True, "text": ""}
+            return 200, {"ok": True, "silent": True, "text": ""}
         if not send:
             # Kept as the chat's waiting draft (Chatbot v5), so it survives a reload and is sent or dropped through
             # /draft like a draft the bot wrote in "drafts" mode.
             conversations.save_draft(conv_id, r["text"], conversations.last_customer_message_id(conv_id), lenh)
-            return {"ok": True, "silent": False, "text": r["text"], "draft": True,
+            return 200, {"ok": True, "silent": False, "text": r["text"], "draft": True,
                     "conversation": _detail_with_state(conv_id)}
+        if progress:
+            await progress("send")
         ok, loi = await _gui_tin(c, r["text"], tieng_vong=True, reply_to=msgs[-1])
         if not ok:
             # Không gửi được thì trả chữ đã soạn để chủ dán vào ô nhập gửi tay, khỏi mất công soạn lại.
-            return JSONResponse({"ok": False, "code": "send_failed", "error": loi or localefmt.chu("không gửi được", "could not send"), "text": r["text"]},
-                                status_code=400)
+            return 400, {"ok": False, "code": "send_failed", "error": loi or localefmt.chu("không gửi được", "could not send"), "text": r["text"]}
         done = _DEPS.manual_done(c, msgs, r["text"], r["meta"]) if _DEPS.manual_done else {}
-        return {"ok": True, "silent": False, "text": r["text"], "taught": bool((done or {}).get("taught")),
+        return 200, {"ok": True, "silent": False, "text": r["text"], "taught": bool((done or {}).get("taught")),
                 "conversation": conversations.chi_tiet(conv_id)}
 
     def _detail_with_state(conv_id: int) -> Optional[dict]:
