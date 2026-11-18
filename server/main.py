@@ -12948,6 +12948,8 @@ async def _phi_moi_muc(brain: str = "brain") -> dict:
         return (o[1] if o else {})
     phi = {k: int((v or {}).get("token_moi_request") or 0)
            for k, v in ((uoc or {}).get("muc") or {}).items()}
+    # The price per turn for the running tally, where the estimate gives one (see _uoc_tinh_tiet_kiem).
+    phi.update({k: int(v or 0) for k, v in ((uoc or {}).get("phi_tinh_cong_don") or {}).items()})
     _PHI_MUC_CACHE[khoa] = (time.time(), phi)
     return phi
 
@@ -24922,8 +24924,16 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
 
     Ba con số:
       - Tắt: gửi nguyên CLAUDE.md + chỉ mục bộ nhớ + khối skill + mô tả tool.
-      - Tối ưu: capsule nhỏ thay chỗ CLAUDE.md, vẫn kèm mô tả tool.
-      - Siêu tiết kiệm: như trên, và câu hỏi đơn giản đi thẳng không kèm mô tả tool.
+      - Tối ưu: the small capsule PLUS the base the compiler keeps (see below), with tool descriptions.
+      - Siêu tiết kiệm: a simple question goes straight with the capsule alone; others go as Tối ưu.
+
+    2026-11-18 (token saving, phase 3): the old figure for Tối ưu was capsule + tools and left out the base
+    (`source_fallback_contract`) that Phase 8 always sends with it (adaptive_context_runtime.prepare). That base
+    depends on the kind of brain: an API engine sends `build_adaptive_source_prompt` (no CLAUDE.md) plus the WHOLE
+    channel block; a subscription engine keeps CLAUDE.md ON PURPOSE (see `_subscription_system_prompt`) and drops
+    only the memory index and the skill block. The page said Tối ưu saved 84% on Claude Code too, while a real turn
+    sent about as much as Tắt, and the running tally (`usage_saving.tiet_kiem`) multiplied that by every turn.
+    Memory and skill parts loaded per question change with the question and are not counted here.
 
     Dùng CHÍNH hệ số ký tự-trên-token mà runtime đang dùng để ước lượng, để con số ở đây và
     con số ở chỗ khác không đá nhau. Đây là ƯỚC LƯỢNG: bộ đếm token thật của từng nhà cung
@@ -24954,6 +24964,15 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
         cu = tok(await asyncio.to_thread(_dung_prompt_cu))
     except Exception:  # noqa: BLE001
         return {}
+    # Loại bộ não đang chạy: quyết định phần nền mức Tối ưu còn gửi, và mức Siêu tiết kiệm có đường tắt không.
+    # ĐỌC cấu hình thật, KHÔNG gõ cứng (lý do ở chỗ tính fast_hop bên dưới).
+    try:
+        _st = cfgmod.read_settings()
+        _prov, _kind, _k, _m = _chat_provider(_st.get("model", {}) or {})
+        _kinds_tat = [str(x) for x in (((_st.get("context_runtime") or {}).get("canary") or {})
+                                       .get("provider_kinds") or ["api"])]
+    except Exception:  # noqa: BLE001 - phần thông tin, không được làm sập trang
+        _kind, _kinds_tat = "api", ["api"]
     try:
         cc = context_compiler
         vien = tok(cc.CORE_CONTRACT
@@ -24962,6 +24981,21 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
                    + cc.ContextCompiler._profile_section(cc.owner_profile())   # #1349: the capsule carries it too
                    + cc.dong_ho()
                    + cc.ContextCompiler._output_contract_text("dashboard"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+    def _dung_nen() -> str:
+        """The base Tối ưu still sends after the capsule, built as `_phase8_base` (API) and
+        `_subscription_system_prompt` (subscription) build it, with memory and skills loaded per question."""
+        kenh = channel_context.build_channel_block(
+            "dashboard", {"session_id": "uoc-tinh"}, telegram_running=bool(_TG_BOT),
+            port=_javis_port(), brain_root=_brain_root(brain))
+        if _kind == "api":
+            return build_adaptive_source_prompt(brain) + kenh
+        return build_system_prompt(brain, include_memory=False, include_skills=False) + kenh
+
+    try:
+        nen = tok(await asyncio.to_thread(_dung_nen))
     except Exception:  # noqa: BLE001
         return {}
     try:
@@ -24987,30 +25021,37 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
     # gõ cứng này không ai nhớ sửa - nên trang vẫn dán nhãn "không áp cho bộ não đang dùng"
     # lên đúng mức vừa được mở, và chủ repo bấm vào rồi tưởng mình bấm nhầm. Đọc thẳng
     # provider_kinds của đường tắt thì lần sau mở thêm bộ não nào, trang tự đúng theo.
-    try:
-        _st = cfgmod.read_settings()
-        _prov, _kind, _k, _m = _chat_provider(_st.get("model", {}) or {})
-        _kinds_tat = [str(x) for x in (((_st.get("context_runtime") or {}).get("canary") or {})
-                                       .get("provider_kinds") or ["api"])]
-    except Exception:  # noqa: BLE001 - phần thông tin, không được làm sập trang
-        _kind, _kinds_tat = "api", ["api"]
     fast_hop = _kind in _kinds_tat
-    max_token = vien if fast_hop else (vien + cong_cu)
+    saving_token = vien + nen + cong_cu
+    max_token = vien if fast_hop else saving_token
     return {
         "chu_ky_ky_tu_tren_token": ratio,
         "la_uoc_luong": True,
         "kind_bo_nao": _kind,
-        "chi_tiet": {"claude_md_va_bo_nho": cu, "capsule": vien, "mo_ta_cong_cu": cong_cu},
+        "chi_tiet": {"claude_md_va_bo_nho": cu, "capsule": vien, "nen_giu_lai": nen, "mo_ta_cong_cu": cong_cu},
+        # Cost per turn for the running saving tally (usage_saving.tiet_kiem). Only SIMPLE questions take the
+        # shortcut of the max level; the rest go the Optimized route, and how many do is not known here. Counting
+        # every turn at the shortcut price is what made the tally overstate, so it counts the max level at the
+        # Optimized price: the measured section of the page shows what the shortcut really saved.
+        "phi_tinh_cong_don": {"off": goc, "saving": saving_token, "max": saving_token},
         "muc": {
             "off": {"token_moi_request": goc, "phan_tram": 0, "ap_dung": True,
                     "ghi_chu": localefmt.chu("Gửi nguyên bộ luật, bộ nhớ và danh sách skill mỗi lượt.",
                                              "Sends the full rules, memory and skill list every turn.")},
-            "saving": {"token_moi_request": vien + cong_cu, "phan_tram": muc(vien + cong_cu),
+            "saving": {"token_moi_request": saving_token, "phan_tram": muc(saving_token),
                        "ap_dung": True,
-                       "ghi_chu": localefmt.chu(
-                           "Thay bộ luật dài bằng bản rút gọn; nhớ và skill chỉ nạp phần liên quan.",
-                           "Replaces the long rules with a short version; memory and skills load only "
-                           "what is relevant.")},
+                       "ghi_chu": (localefmt.chu(
+                           "Thay bộ luật dài bằng bản rút gọn, vẫn giữ luật của kênh chat; nhớ và skill chỉ "
+                           "nạp phần liên quan.",
+                           "Replaces the long rules with a short version and keeps the chat channel rules; "
+                           "memory and skills load only what is relevant.")
+                                   if _kind == "api" else
+                                   localefmt.chu(
+                           "Gói thuê bao không tính tiền theo token nên giữ nguyên bộ luật; mức này chỉ nạp "
+                           "phần liên quan của bộ nhớ và skill. Brain càng nhiều ghi nhớ và skill thì càng bớt.",
+                           "A subscription plan is not billed per token, so the full rules stay; this level "
+                           "loads only the relevant memory and skills. The more memories and skills a brain "
+                           "has, the more it saves."))},
             "max": {"token_moi_request": max_token, "phan_tram": muc(max_token),
                     "ap_dung": fast_hop,
                     "ghi_chu": (localefmt.chu(

@@ -90,9 +90,29 @@ _muc = _uoc.get("muc") or {}
 for _k in ("off", "saving", "max"):
     check(f"có số cho mức '{_k}'", _k in _muc and "phan_tram" in _muc[_k])
 check("mức Tắt là mốc 0 phần trăm", _muc.get("off", {}).get("phan_tram") == 0)
-# Thứ tự phải đúng: càng tiết kiệm càng ít token. Đảo là con số vô nghĩa.
-check("CANARY: Tối ưu tốn ít token hơn Tắt",
-      _muc["saving"]["token_moi_request"] < _muc["off"]["token_moi_request"])
+# 2026-11-18: Tối ưu counts what the compiler REALLY sends: the capsule plus the base it keeps. On an API engine that
+# base has no CLAUDE.md, so it is far smaller than Tắt. On a subscription engine CLAUDE.md stays on purpose and only
+# the memory index and the skill block go, so on a near-empty brain Tối ưu costs about what Tắt does. The page used to
+# claim 84% for both.
+_ct = _uoc.get("chi_tiet") or {}
+check("CANARY: Tối ưu = capsule + the base the compiler keeps + tools, not capsule + tools",
+      _muc["saving"]["token_moi_request"] == _ct.get("capsule", -1) + _ct.get("nen_giu_lai", -1)
+      + _ct.get("mo_ta_cong_cu", -1) and _ct.get("nen_giu_lai", 0) > 0)
+_api_brain = _uoc.get("kind_bo_nao") == "api"
+if _api_brain:
+    check("CANARY: API brain, Tối ưu costs less than Tắt",
+          _muc["saving"]["token_moi_request"] < _muc["off"]["token_moi_request"])
+else:
+    # What a subscription brain can save at Tối ưu is the memory index and the skill block, no more.
+    _bo = (len(main.build_system_prompt("brain")) - len(main.build_system_prompt(
+        "brain", include_memory=False, include_skills=False))) / (_uoc.get("chu_ky_ky_tu_tren_token") or 3.0)
+    check("CANARY: subscription brain, Tối ưu never claims more than the memory and skill blocks it drops",
+          _muc["off"]["token_moi_request"] - _muc["saving"]["token_moi_request"] <= _bo + 2)
+    check("and says the rules stay", "giữ nguyên bộ luật" in (_muc["saving"].get("ghi_chu") or "")
+          or "full rules stay" in (_muc["saving"].get("ghi_chu") or ""))
+# The running tally counts the max level at the Tối ưu price: only simple questions take the shortcut.
+check("the tally price of the max level is the Tối ưu price, not the shortcut",
+      (_uoc.get("phi_tinh_cong_don") or {}).get("max") == _muc["saving"]["token_moi_request"])
 # "Siêu tiết kiệm" hơn "Tối ưu" ở đúng một thứ: đường tắt cho câu hỏi đơn giản. Đường đó
 # nằm trong nhánh engine API của _do_turn và provider_kinds của nó cũng chỉ có "api", nên
 # bộ não gói thuê bao KHÔNG ăn phần này - với họ hai mức bằng nhau. Con số phải nói đúng
@@ -115,7 +135,9 @@ else:
     check("và mức đó bị đánh dấu là không áp dụng", _muc["max"]["ap_dung"] is False)
     check("kèm câu giải thích vì sao", "chưa mở" in (_muc["max"].get("ghi_chu") or ""))
 check("phần trăm tăng dần theo mức",
-      _muc["off"]["phan_tram"] < _muc["saving"]["phan_tram"] <= _muc["max"]["phan_tram"])
+      (_muc["off"]["phan_tram"] < _muc["saving"]["phan_tram"] if _api_brain
+       else _muc["off"]["phan_tram"] <= _muc["saving"]["phan_tram"])
+      and _muc["saving"]["phan_tram"] <= _muc["max"]["phan_tram"])
 check("phần trăm nằm trong khoảng đọc được",
       all(0 <= _muc[k]["phan_tram"] <= 99 for k in _muc))
 check("mỗi mức có một câu nói nó đánh đổi gì",
@@ -133,7 +155,7 @@ check("CANARY: con số đo trên prompt THẬT của brain, không phải hằn
 check("và tính bằng ĐÚNG hệ số ký tự-trên-token của runtime",
       "estimate_chars_per_token" in _MAIN.split("async def _uoc_tinh_tiet_kiem(")[1][:2600])
 check("có chi tiết để đối chiếu, không chỉ một con số trơ",
-      set(_uoc.get("chi_tiet") or {}) >= {"claude_md_va_bo_nho", "capsule", "mo_ta_cong_cu"})
+      set(_uoc.get("chi_tiet") or {}) >= {"claude_md_va_bo_nho", "capsule", "nen_giu_lai", "mo_ta_cong_cu"})
 # Nói rõ là ƯỚC LƯỢNG. Trình bày một ước lượng như số đo là hứa thứ không giữ được.
 check("CANARY: tự khai đây là ước lượng", _uoc.get("la_uoc_luong") is True)
 check("giao diện có nói ra chữ 'ước lượng'",
@@ -401,4 +423,28 @@ print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")
     sys.exit(1)
+
+# ============================================================
+# 2026-11-18: the same estimate on an API brain. Its base is the small adaptive source prompt plus the whole channel
+# block, so Tối ưu really is far below Tắt, but not the 84% the capsule alone suggested.
+# ============================================================
+_s_api = cfg.read_settings()
+_s_api.setdefault("model", {})["main"] = {"provider": "groq", "model": "llama-3.3-70b-versatile"}
+_s_api["model"]["groq_api_key"] = "test-key"
+cfg.write_settings(_s_api)
+main._PHI_MUC_CACHE.clear()
+_uoc_api = asyncio.run(main._uoc_tinh_tiet_kiem("brain"))
+_ma = _uoc_api.get("muc") or {}
+_ca = _uoc_api.get("chi_tiet") or {}
+_nen_api = (len(main.build_adaptive_source_prompt("brain")) + len(main.channel_context.build_channel_block(
+    "dashboard", {"session_id": "uoc-tinh"}, telegram_running=False, port=main._javis_port(),
+    brain_root=main._brain_root("brain")))) / (_uoc_api.get("chu_ky_ky_tu_tren_token") or 3.0)
+check("API brain: the kind is read as api", _uoc_api.get("kind_bo_nao") == "api")
+check("CANARY: API brain, the base is the adaptive source prompt plus the channel block",
+      abs(_ca.get("nen_giu_lai", 0) - _nen_api) <= 2)
+check("API brain: Tối ưu is far below Tắt", _ma["saving"]["token_moi_request"] < _ma["off"]["token_moi_request"]
+      and _ma["saving"]["phan_tram"] >= 30)
+check("API brain: the max level shortcut is still below Tối ưu",
+      _ma["max"]["token_moi_request"] < _ma["saving"]["token_moi_request"])
+
 print("OK - test_trang_tiet_kiem: tất cả pass")
