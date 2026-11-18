@@ -573,6 +573,8 @@ class TeamRunner:
         # tác làm đầu ra hết hợp lệ (bỏ thành viên, đổi trưởng nhóm, huỷ, sửa yêu cầu, xoá agent). Không có khe nào giữa
         # lúc kiểm và lúc ghi để một thao tác như vậy chen vào.
         self.accept_lock = threading.RLock()
+        # 18/11/2026: host hook, ref -> mark the owner's notices filed under it as read (team_api sets it).
+        self.notice_done: Optional[Callable[[str], Any]] = None
 
     # ───────────── tiện ích ─────────────
 
@@ -609,14 +611,46 @@ class TeamRunner:
                     pass
             self._on_loop(go)
 
-    def _notify(self, team_id: str, text: str) -> None:
+    def _notify(self, team_id: str, text: str, ref: str = "") -> None:
+        """`ref` (18/11/2026): a key the notice is filed under, so `_notice_done(ref)` can clear it once handled."""
         if self._notify_fn:
             def go():
                 try:
+                    if ref:
+                        try:
+                            self._notify_fn(team_id, text, ref=ref)
+                            return
+                        except TypeError:   # a notify without `ref` (older host, tests)
+                            pass
                     self._notify_fn(team_id, text)
                 except Exception:
                     pass
             self._on_loop(go)
+
+    @staticmethod
+    def approval_ref(approval_id: str) -> str:
+        return f"team-approval:{approval_id}"
+
+    def _notice_done(self, ref: str) -> None:
+        """The thing a notice asked the owner about is handled: the bell stops showing it as new (18/11/2026)."""
+        fn = getattr(self, "notice_done", None)
+        if fn is None or not ref:
+            return
+        def go():
+            try:
+                fn(ref)
+            except Exception:
+                pass
+        self._on_loop(go)
+
+    def approval_answered(self, team_id: str, approval_id: str) -> bool:
+        """The owner replied to an approval card with a question (Reply, Ask): they have seen it, so its notice stops
+        ringing. The card itself keeps waiting for the decision."""
+        ap = self.approvals.get(approval_id) if self.approvals is not None else None
+        if not ap or ap.get("team_id") != team_id:
+            return False
+        self._notice_done(self.approval_ref(approval_id))
+        return True
 
     def _team(self, team_id: str) -> dict:
         team = self.teams.get(team_id)
@@ -4490,7 +4524,8 @@ class TeamRunner:
                           reply_to=reply_to, meta={"kind": "approval_request", "approval": team_approval.view(ap)})
         self.approvals.set_message(ap["approval_id"], card)
         self._notify(team["team_id"], localefmt.chu("Nhóm \"{nhom}\" xin duyệt: {t}", "Team \"{nhom}\" asks for approval: {t}",
-                                                     nhom=cur.get("name") or "", t=ap["title"]))
+                                                     nhom=cur.get("name") or "", t=ap["title"]),
+                     ref=self.approval_ref(ap["approval_id"]))
 
     def mandate_job_needs_approval(self, team: dict, task_id: str, title: str, opp: dict, mandate: dict) -> Optional[str]:
         """0.208.0: a job the department mandate opens at the `approve` level waits for the owner before its first step.
@@ -4509,6 +4544,10 @@ class TeamRunner:
         return ap["approval_id"]
 
     def _refresh_card(self, team: dict, ap: dict) -> None:
+        if ap and ap.get("status") and ap.get("status") != "pending":
+            # 18/11/2026 (owner: "khi mà 1 câu xin duyệt đã được trả lời cần tự tắt thông báo đi vì đã xử lý rồi"):
+            # decided, expired, superseded or cancelled, the request needs nobody any more.
+            self._notice_done(self.approval_ref(ap.get("approval_id") or ""))
         if not ap or not ap.get("message_id"):
             return
         self.sessions.update_team_message_meta(team["session_id"], int(ap["message_id"]),

@@ -252,6 +252,24 @@ def doc_theo_phien(session_id: str) -> int:
         return n
 
 
+def read_by_dedup(key: str) -> int:
+    """Mark read the notices filed under `key` (18/11/2026: a team approval request the owner already answered, so the
+    bell stops asking). Returns how many changed."""
+    key = str(key or "").strip()[:200]
+    if not key:
+        return 0
+    with _LOCK:
+        d = _load()
+        n = 0
+        for it in d.get("items") or []:
+            if not it.get("read") and it.get("dedup") == key:
+                it["read"] = True
+                n += 1
+        if n:
+            _save(d)
+        return n
+
+
 def lay(item_id: str) -> dict:
     """One item by id, {} when it is gone."""
     with _LOCK:

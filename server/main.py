@@ -32155,11 +32155,23 @@ _TEAM_ASKS_OWNER = re.compile(r"gọi bạn trong nhóm|called you in team|chờ
                               r"xin duyệt|asks for approval|vẫn đang chờ bạn|still waiting for you", re.I)
 
 
-async def _team_notify(session_id, text):
+async def _team_notify(session_id, text, ref=""):
     asks = bool(_TEAM_ASKS_OWNER.search(str(text or "")))
+    # `ref` (18/11/2026): the notice is filed under it, so `_team_notice_done` clears it once the owner answered.
     await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{session_id}", text, kind="report",
                           label=localefmt.chu("Team", "Team"), source="team",
-                          group="question" if asks else "team", level="urgent" if asks else "important")
+                          group="question" if asks else "team", level="urgent" if asks else "important",
+                          dedup=str(ref or ""))
+
+
+async def _team_notice_done(ref):
+    """An approval request of a team was answered: its notice in the bell turns read, and open tabs refresh the bell."""
+    changed = await asyncio.to_thread(inbox.read_by_dedup, str(ref or ""))
+    if changed:
+        try:
+            await _CHAT_RUNTIME.publish({"type": "inbox", "session_id": "", "cleared": True})
+        except Exception as e:  # noqa: BLE001 - the bell refreshes on its next load anyway
+            print(f"[inbox] bắn WebSocket lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 _FEEDBACK_PROJECTOR = [None]
@@ -32724,7 +32736,8 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     task_store=lambda: tasks_feature.store, resonance_store=lambda: _resonance_store(),
     agents_meta=_resonance_agents_meta, agent_info=lambda root, key: _team_agent_info(root, key, "team"),
     engine_for=_team_engine_for,
-    broadcast=lambda ev: _CHAT_RUNTIME.publish(ev), notify=_team_notify, admin=_TeamAdmin(),
+    broadcast=lambda ev: _CHAT_RUNTIME.publish(ev), notify=_team_notify, notice_done=_team_notice_done,
+    admin=_TeamAdmin(),
     owner_name=lambda: ((cfgmod.read_settings().get("auth") or {}).get("username") or ""),
     ceiling=_team_ceiling, projector=_feedback_projector, judge=lambda: _agent_judge(),
     learning=_team_learning,

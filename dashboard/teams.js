@@ -4341,7 +4341,9 @@
     var who = String(ap.requested_by || "");
     var mem = who && who.indexOf("mandate:") !== 0 ? memberOf(S.team.members, who) : null;
     var body = { text: Q ? Q.ghep(quote, words) : quote + "\n\n" + words, mentions: mem && (!mem.status || mem.status === "active") ? [who] : [],
-      as_job: false, client_msg_id: AP_REPLY.cid || (AP_REPLY.cid = newClientId()) };
+      as_job: false, client_msg_id: AP_REPLY.cid || (AP_REPLY.cid = newClientId()),
+      // 18/11/2026: the card was answered, so the server clears its notice in the bell.
+      approval_id: d.ap };
     var forTeam = S.activeId;
     btn.disabled = true;
     return call("POST", teamUrl("/messages"), body).then(function (r) {

@@ -11,6 +11,8 @@ Owner: "trong chức năng team khi nhồi thêm lệnh vào chat thì agent đa
 3. A member running a tool step of a job reads the owner's message at its next tool call (steer_inbox), the waiting reply
    says so, and the reply turn after the step only confirms what changed.
 4. The deputy row in the team settings stands out (dashboard).
+5. Owner, same day: "khi mà 1 câu xin duyệt đã được trả lời cần tự tắt thông báo đi vì đã xử lý rồi". The approval notice
+   is filed under a key; a Reply (Ask) on the card, or any decision that closes it, turns that notice read.
 
 Fake engines only, no model call.
 """
@@ -230,6 +232,42 @@ check("4 merged replies keep one quiet line", 'x.reason === "merged"' in JS and 
 check("no em dash in the new words", not any("—" in str(d.get(k, "")) or "–" in str(d.get(k, ""))
                                              for d in (VI, EN) for k in ("teams.leader_role", "teams.reply.steered",
                                                                          "teams.reply.merged")))
+
+# ---------- 5. an answered approval request stops ringing ----------
+ss, tm, fake, r, T = world("approval")
+sent, done = [], []
+r._notify_fn = lambda team_id, text, ref="": sent.append((team_id, text, ref))
+r.notice_done = done.append
+ap = r.approvals.create(team_id=T["team_id"], task_id="job1", step_id="st1", team_rev=1, requested_by="ag_an",
+                        kind="question", title="Swap 3 product photos", action="Replace the photos")
+r._approval_card(T, "job1", "st1", None, ap)
+ref = TR.TeamRunner.approval_ref(ap["approval_id"])
+check("5 the approval notice is filed under its own key", sent and sent[-1][2] == ref, sent)
+check("5 a Reply (Ask) on the card clears its notice", r.approval_answered(T["team_id"], ap["approval_id"])
+      and done == [ref], done)
+check("5 a card of another team is not touched", not r.approval_answered("tm_other", ap["approval_id"]))
+done.clear()
+r._refresh_card(T, r.approvals.get(ap["approval_id"]))
+check("5 a pending card that is redrawn keeps its notice", done == [], done)
+r.approvals.close_task("job1", "cancelled", "job ended", ("pending",))
+r._refresh_card(T, r.approvals.get(ap["approval_id"]))
+check("5 a closed request clears its notice", done == [ref], done)
+# A host notify without `ref` (older code, other tests) still gets the notice.
+plain = []
+r._notify_fn = lambda team_id, text: plain.append(text)
+r._notify(T["team_id"], "hello", ref="x")
+check("5 a notify without ref still delivers", plain == ["hello"], plain)
+
+import inbox  # noqa: E402
+a1 = inbox.add("Team asks for approval: A", dedup=ref)
+a2 = inbox.add("Team asks for approval: B", dedup="team-approval:other")
+check("5 the bell marks only that request's notice read", inbox.read_by_dedup(ref) == 1
+      and inbox.lay(a1["id"]).get("read") and not inbox.lay(a2["id"]).get("read"))
+check("5 an empty key clears nothing", inbox.read_by_dedup("") == 0)
+check("5 the dashboard sends the card id with a Reply", "approval_id: d.ap" in JS)
+SRC_MAIN = (SERVER / "main.py").read_text(encoding="utf-8")
+check("5 the host wires notify(ref) to the bell's dedup and clears it", "dedup=str(ref or \"\")" in SRC_MAIN
+      and "notice_done=_team_notice_done" in SRC_MAIN)
 
 print(f"\n{'FAIL' if fails else 'OK'}: {len(fails)} failed")
 raise SystemExit(1 if fails else 0)

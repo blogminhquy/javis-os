@@ -123,6 +123,8 @@ class TeamApiDeps:
     engine_for: Callable[[dict, str, str], tuple]      # (team, agent_key, role) -> (engine, model, async fn)
     broadcast: Optional[Callable[[dict], Any]] = None  # gói WS tới mọi tab (async)
     notify: Optional[Callable[[str, str], Any]] = None  # (session_id nhóm, chữ) -> hộp thư (async)
+    # 18/11/2026: ref -> mark the owner's notices filed under that ref read (an approval card already answered).
+    notice_done: Optional[Callable[[str], Any]] = None
     spawn: Callable[[Any], Any] = field(default=asyncio.ensure_future)
     store_path: Optional[Path] = None                  # mặc định STATE_DIR/team.sqlite3
     admin: Any = None                                  # thao tác host cho lệnh quản trị Toàn quyền (T3)
@@ -236,7 +238,7 @@ class TeamApi:
                 if self.deps.broadcast is not None:
                     self._spawn(self.deps.broadcast(ev))
 
-            def notify(team_id: str, text: str) -> None:
+            def notify(team_id: str, text: str, ref: str = "") -> None:
                 if self.deps.notify is None:
                     return
 
@@ -245,10 +247,22 @@ class TeamApi:
                     # 0.197.0: a muted team never reaches the owner's inbox or devices ("team nào bị tắt thông báo thì dù
                     # có tag tên cũng không báo về máy").
                     if team and not team.get("muted"):
-                        res = self.deps.notify(team["session_id"], text)
+                        try:
+                            res = (self.deps.notify(team["session_id"], text, ref=ref) if ref
+                                   else self.deps.notify(team["session_id"], text))
+                        except TypeError:   # a host notify without `ref` (older host, tests)
+                            res = self.deps.notify(team["session_id"], text)
                         if asyncio.iscoroutine(res):
                             await res
                 self._spawn(go())
+
+            def notice_done(ref: str) -> None:
+                # 18/11/2026: the request a notice was about is handled (approval answered): the bell stops ringing.
+                if self.deps.notice_done is None:
+                    return
+                res = self.deps.notice_done(ref)
+                if asyncio.iscoroutine(res):
+                    self._spawn(res)
 
             self._runner = TeamRunner(
                 teams=self.teams(), tasks=self.deps.task_store(), sessions=self.deps.session_store(),
@@ -262,6 +276,7 @@ class TeamApi:
                 contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block,
                 check_command=self.deps.check_command, brain_root=self.deps.brain_root,
                 work_dir=self.deps.work_dir, job_done=self.deps.job_done, skill_block=self.deps.skill_block)
+            self._runner.notice_done = notice_done
             if self._loop is not None:
                 self._runner._loop, self._runner._loop_thread = self._loop, self._loop_thread
         return self._runner
@@ -1239,6 +1254,9 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
                                     mention_all=bool(body.get("mention_all")))
             except TeamError as ex:
                 return _team_err(ex)
+            if body.get("approval_id"):
+                # 18/11/2026: a Reply (Ask) on an approval card: the owner has seen the request, its notice stops ringing.
+                runner.approval_answered(team_id, str(body.get("approval_id") or "")[:80])
             pics = [f for f in files if f.get("image")] if api.deps.describe is not None else []
             if sub["replies"] or sub.get("judge"):
                 # Lượt trả lời theo @ (như cũ), rồi bộ phán xử cho người không được gọi (T3 phần J), đều chạy nền.
