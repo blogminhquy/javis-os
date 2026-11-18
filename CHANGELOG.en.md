@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.589.0] - 2026-11-18
+### Improved
+- **Long skills load selectively, chosen by Javis before loading.** For a menu-style skill such as the agent/loop/plugin builder, Javis loads only the part a request needs plus every rules section (and any part it says to create first, such as the agent template for a workflow), about 47-63% lighter. Measured with a real model on 7 kinds of request, answers as complete as with the whole skill.
+- **Every language alike.** The choice does not lean on Vietnamese or English: it reads every script (Chinese, Japanese, Korean and Thai included), matches words with inflected endings (Russian, German, Turkish, Korean), and finds filler words from the skill itself. When someone asks in another language than the skill, the model sums up the task in the skill's language so Javis picks the right part. When unsure it loads the whole skill as before, and a skill that is one procedure always loads whole.
+- **Learns from use.** A part the model keeps fetching is loaded up front next time. It starts on about 10% of chat sessions and follows the Off level.
+
 ## [0.588.0] - 2026-11-18
 ### Improved
 - **A message added in a team is read at once.** A member still writing the answer to the previous message stops and answers both together, the newest one first in priority. No more waiting for the earlier answer before the next message is read.

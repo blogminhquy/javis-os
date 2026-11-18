@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.589.0] - 2026-11-18
+### Cải thiện
+- **Skill dài nạp có chọn lọc, Javis chọn trước khi nạp.** Với skill kiểu thực đơn như trình tạo agent/loop/plugin, Javis chỉ nạp phần yêu cầu cần cùng mọi mục luật (và phần nó dặn tạo trước, như workflow kéo theo mẫu agent), nhẹ hơn khoảng 47-63%. Đo bằng model thật trên 7 loại yêu cầu, câu trả lời đủ ý như khi nạp cả skill.
+- **Mọi ngôn ngữ như nhau.** Cách chọn không dựa vào tiếng Việt hay tiếng Anh: tách chữ được mọi hệ chữ (kể cả Trung, Nhật, Hàn, Thái), nhận cả từ có đuôi biến đổi (tiếng Nga, Đức, Thổ, Hàn), và tự tìm từ thừa ngay trong skill. Người hỏi bằng ngôn ngữ khác skill thì model tóm việc bằng ngôn ngữ của skill để Javis chọn đúng phần. Không chắc là nạp cả skill như cũ, và skill dạng quy trình liền mạch luôn nạp đủ.
+- **Học từ cách dùng.** Phần nào model hay phải lấy thêm thì lần sau Javis nạp sẵn. Bật thử cho khoảng 10% phiên chat trước, tắt theo mức Tắt.
+
 ## [0.588.0] - 2026-11-18
 ### Cải thiện
 - **Nhắn thêm trong team là cộng sự đọc ngay.** Cộng sự đang soạn câu trả lời cho tin trước thì dừng lại và trả lời gộp cả hai tin, tin mới nhất được ưu tiên. Không còn cảnh phải chờ trả lời xong câu trên mới đọc câu dưới.
