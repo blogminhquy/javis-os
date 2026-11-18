@@ -1866,6 +1866,58 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         out["metadata"] = {k: meta[k] for k in cls.CARD_META_KEYS if k in meta}
         return out
 
+    # Files a gate message points the owner at. Images and videos are told apart so the page can later show them
+    # inline; the rest open as a document.
+    _APPROVAL_FILE_RE = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)+[\w.-]+\.(?:md|png|jpe?g|webp|gif|mp4|mov|webm|pdf|txt|json|html))\b", re.I)
+    _APPROVAL_IMG = {"png", "jpg", "jpeg", "webp", "gif"}
+    _APPROVAL_VID = {"mp4", "mov", "webm"}
+
+    @classmethod
+    def approval_links(cls, *texts: str) -> list:
+        """Vault-relative file paths mentioned in `texts`, in order, without repeats (max 12)."""
+        seen, out = set(), []
+        for text in texts:
+            for m in cls._APPROVAL_FILE_RE.finditer(str(text or "")):
+                rel = m.group(1)
+                if rel in seen or ".." in rel.split("/"):
+                    continue
+                seen.add(rel)
+                ext = rel.rsplit(".", 1)[-1].lower()
+                kind = "image" if ext in cls._APPROVAL_IMG else "video" if ext in cls._APPROVAL_VID else "doc"
+                out.append({"path": rel, "kind": kind})
+                if len(out) >= 12:
+                    return out
+        return out
+
+    def approvals_view(self, brain: str) -> dict:
+        """Every workflow gate waiting for the owner, in one list (the Quy trinh tab's "Dang cho duyet" strip).
+
+        A workflow handed over through the Kanban (route `wf:<slug>`) stops at a gate as a card on the Tasks page and
+        never shows on the Quy trinh tab, so the owner had two places to look. Only jobs that wait for the owner and
+        run a real workflow are listed; `can_answer` is true for the ones `/kanban/task/answer` can move on."""
+        root = self._ensure(brain)
+        items = []
+        for task in self.store.board_lists(root, history_limit=1)["open"]:
+            route = str(task.get("route") or "")
+            if not route.startswith("wf:") or not TaskStore.waits_for_owner(task):
+                continue
+            qa = [x for x in ((task.get("metadata") or {}).get("qa") or []) if isinstance(x, dict)]
+            open_q = qa[-1] if qa and not qa[-1].get("a") else {}
+            question = str(open_q.get("q") or task.get("block_reason") or "").strip()
+            result = str(task.get("result") or "")
+            items.append({
+                "id": task.get("id"),
+                "title": task.get("title") or "",
+                "workflow": route[3:],
+                "status": task.get("status"),
+                "question": question,
+                "links": self.approval_links(question, result),
+                "asked_at": float(open_q.get("asked_at") or task.get("updated_at") or 0),
+                "can_answer": task.get("status") == "blocked" and task.get("block_kind") == "needs_input",
+            })
+        items.sort(key=lambda x: x["asked_at"])
+        return {"ok": True, "items": items}
+
     def board_rev(self, brain: str, history_limit: int = 20) -> str:
         root = self._ensure(brain)
         live = bool(self._dispatcher_task and not self._dispatcher_task.done())
@@ -2062,6 +2114,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         ):
             # `brain` rỗng: thẻ câu hỏi trong khung chat không biết brain, mã việc đã đủ định danh.
             return await self.answer(id, answer, brain=brain)
+
+        @router.get("/kanban/approvals")
+        async def kanban_approvals(brain: str = Query("brain")):
+            return await asyncio.to_thread(self.approvals_view, brain)
 
         @router.get("/kanban")
         async def kanban_get(brain: str = Query("brain"), rev: str = Query(""), history: int = Query(20)):
