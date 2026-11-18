@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.592.1] - 2026-11-18
+### Sửa lỗi
+- **Ô chọn nhóm của Chatbot không còn hiện id trần.** Nhóm đã tick mà ô tìm lọc mất, hoặc cũ hơn 80 cuộc chat gần nhất, trước đây hiện thành dãy số dài. Giờ nhóm nào cũng mang tên thật lấy từ Hộp thư, nhóm chưa rõ tên thì hiện "Nhóm …" kèm đuôi id.
+
 ## [0.592.0] - 2026-11-18
 ### Cải thiện
 - **Bấm "A.I. viết" hay "Viết lại" ở Hộp thư giờ thấy ngay A.I. đang làm gì.** Chỗ bản nháp sẽ hiện ra có một khung "A.I. đang viết": biểu tượng nhấp nháy, dòng chữ nói bước hiện tại (đọc cuộc chat, tra tài liệu, xem ảnh khách gửi, viết câu trả lời), số giây đã chờ và ba vạch chạy. Quá 25 giây thì khung nói nhẹ nhàng là A.I. vẫn đang viết, để không ai tưởng bị lỗi.
