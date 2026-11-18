@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.589.1] - 2026-11-18
+### Sửa lỗi
+- **Chạy đủ bộ test trên máy không còn tự báo đỏ ở lần sau.** Tệp sổ lượt chat (`turn_ledger.sqlite3`) mà test tạo ra trong `server/` nay được git bỏ qua như các kho dữ liệu chạy khác.
+
 ## [0.589.0] - 2026-11-18
 ### Cải thiện
 - **Skill dài nạp có chọn lọc, Javis chọn trước khi nạp.** Với skill kiểu thực đơn như trình tạo agent/loop/plugin, Javis chỉ nạp phần yêu cầu cần cùng mọi mục luật (và phần nó dặn tạo trước, như workflow kéo theo mẫu agent), nhẹ hơn khoảng 47-63%. Đo bằng model thật trên 7 loại yêu cầu, câu trả lời đủ ý như khi nạp cả skill.
