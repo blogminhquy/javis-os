@@ -80,6 +80,10 @@
   var _info = (function () { try { return localStorage.getItem(INFO_KEY) === "1"; } catch (e) { return false; } })();
   var _msheet = false;      // the phone's "who replies" sheet is open
   var _aiBusy = "";         // "ask" | "redo" | "send" | "now" while the A.I. writes or a draft goes out
+  // While the A.I. writes ("ask" / "redo"): the stage the server last reported, when it started, the order it got, and
+  // the one-second ticker that keeps the seconds and the stage line moving without redrawing the thread.
+  var _aiWork = null;       // {stage, start, order, conv}
+  var _aiTick = null;
   var _draftEdit = null;    // {ts, text}: the owner's edits to the waiting draft, kept across the 5-second redraws
   var _noteEdit = null;     // {id, text}: the note being typed in the Info panel, same reason
   var _toastT = null;
@@ -104,7 +108,9 @@
   var _cho = null;          // bộ lọc / tab chờ áp khi trang mở từ nơi khác (nút trên thẻ bot)
   var _dangGui = false;
 
-  var ic = function (n) { return window.ic ? window.ic(n) : ""; };
+  // Options pass through ({cls: "ic-spin"}): before 2026-11-18 they were dropped, so every "loader" here stood still.
+  var ic = function (n, o) { return window.ic ? window.ic(n, o) : ""; };
+  var spin = function () { return ic("loader", { cls: "ic-spin" }); };
   var LOC = function () { return (window.JavisI18n && JavisI18n.locale()) || "vi-VN"; };
 
   function esc(s) {
@@ -1140,7 +1146,7 @@
   async function showProfile(id) {
     var c = rmItem(id) || (_conv && _conv.id === id ? _conv : null) || { id: id };
     var box = el('<div class="ht-modal"><div class="ht-form ht-prof" role="dialog" aria-label="' + esc(window.t("ht.rm_profile")) + '">' +
-      '<div class="ht-prof-body">' + ic("loader") + ' ' + esc(window.t("ht.prof_loading")) + '</div>' +
+      '<div class="ht-prof-body">' + spin() + ' ' + esc(window.t("ht.prof_loading")) + '</div>' +
       '<div class="ht-form-acts"><button class="s-btn-ghost ht-close" type="button">' + esc(window.t("common.close")) + '</button></div>' +
       '</div></div>');
     document.body.appendChild(box);
@@ -2047,17 +2053,26 @@
   // ORDER for the A.I. ("quote 20 cases wholesale, delivery Thursday"); an empty box lets it read the chat and write on its
   // own. The answer is always a draft in the dashed box (kept on the server), never sent by itself. "Rewrite" asks again
   // with the same order.
+  // A draft takes many seconds (the bot's whole turn: documents, the photo, the model). Owner 2026-11-18: with only a
+  // still button "khách hàng sốt ruột không biết có bị lỗi hay không". So the draft box becomes a live "A.I. is writing"
+  // box: what it is doing now (streamed by the server), the seconds so far, moving lines, and a calm word when it runs long.
   async function aiReply(c, lenh, kind) {
     if (_aiBusy) return;
     _aiBusy = kind;
     _actNote = null;
+    _aiWork = { stage: "", start: Date.now(), order: lenh || "", conv: c.id };
+    startAiTick();
     veThread();
     var d = {}, loi = "";
     try {
-      var r = await fetch("/conversations/" + c.id + "/ai-reply", { method: "POST", body: fd({ mode: "draft", instruction: lenh || "" }) });
-      try { d = await r.json(); } catch (e) { d = {}; }
-      if (!r.ok || d.ok === false) loi = (d && d.error) || window.t("cb.loi_ma", { ma: r.status });
+      var r = await fetch("/conversations/" + c.id + "/ai-reply", { method: "POST", body: fd({ mode: "draft", instruction: lenh || "", stream: "1" }) });
+      var res = await readAiStream(r, function (ev) {
+        if (ev.type === "stage" && _aiWork && ev.stage) { _aiWork.stage = String(ev.stage); paintAiWork(); }
+      });
+      d = res.body || {};
+      if (res.status !== 200 || d.ok === false) loi = (d && d.error) || window.t(res.lost ? "ib.aiw_lost" : "cb.loi_ma", { ma: res.status });
     } catch (e) { loi = e.message; }
+    stopAiTick();
     _aiBusy = "";
     if (!loi && !d.silent) {
       _draftEdit = null;
@@ -2066,6 +2081,58 @@
     _actNote = loi ? { text: window.t("ht.act_fail", { err: loi }), err: true } : d.silent ? { text: window.t("ib.ai_silent"), err: false } : null;
     refreshChat();
   }
+
+  // The streamed answer of /ai-reply (stream=1): `data:` lines of {type: "stage"} while it works, then one {type: "done",
+  // status, body}. Returns {status, body, lost}; `lost` = the stream ended without its answer (the connection dropped,
+  // the draft may still land with the next refresh). A server without streaming answers plain JSON: read that as is.
+  async function readAiStream(r, onEvent) {
+    var ct = (r.headers && r.headers.get("content-type")) || "";
+    if (ct.indexOf("text/event-stream") < 0 || !r.body || !r.body.getReader) {
+      var d = {};
+      try { d = await r.json(); } catch (e) { d = {}; }
+      return { status: r.status, body: d, lost: false };
+    }
+    var rd = r.body.getReader(), dec = new TextDecoder(), buf = "", fin = null;
+    var take = function (block) {
+      if (block.indexOf("data: ") !== 0) return;
+      var ev;
+      try { ev = JSON.parse(block.slice(6)); } catch (e) { return; }
+      if (ev && ev.type === "done") fin = ev;
+      else if (ev) { try { onEvent(ev); } catch (e) { /* a paint error must not end the read */ } }
+    };
+    for (;;) {
+      var x = await rd.read();
+      if (x.done) break;
+      buf += dec.decode(x.value, { stream: true });
+      var i;
+      while ((i = buf.indexOf("\n\n")) >= 0) { take(buf.slice(0, i)); buf = buf.slice(i + 2); }
+    }
+    if (buf.trim()) take(buf.trim());
+    return fin ? { status: Number(fin.status) || 200, body: fin.body || {}, lost: false } : { status: 0, body: {}, lost: true };
+  }
+
+  // What the "A.I. is writing" box shows now. Before the server's first stage arrives it is "reading the chat".
+  var AI_STAGES = { read: "ib.aiw_read", docs: "ib.aiw_docs", image: "ib.aiw_image", think: "ib.aiw_think",
+    tool: "ib.aiw_tool", write: "ib.aiw_write", send: "ib.aiw_send" };
+  var AI_SLOW_S = 25;     // past this the box adds a calm "taking a little longer, still writing"
+  function aiWorkView() {
+    var w = _aiWork || { stage: "", start: Date.now(), order: "" };
+    var s = Math.max(0, Math.floor((Date.now() - w.start) / 1000));
+    return { stage: window.t(AI_STAGES[w.stage || "read"] || "ib.aiw_think"), secs: window.t("ib.aiw_secs", { n: s }),
+      slow: s >= AI_SLOW_S, order: w.order || "" };
+  }
+  // Repaint only the box's moving parts, never the thread: the owner may be typing in the reply box meanwhile.
+  function paintAiWork() {
+    var box = _host && _host.querySelector(".ht-thread .ib-aiw");
+    if (!box) return;
+    var v = aiWorkView();
+    var st = box.querySelector(".ib-aiw-st"), sc = box.querySelector(".ib-aiw-s"), sl = box.querySelector(".ib-aiw-slow");
+    if (st && st.textContent !== v.stage) st.textContent = v.stage;
+    if (sc) sc.textContent = v.secs;
+    if (sl) sl.hidden = !v.slow;
+  }
+  function startAiTick() { if (_aiTick) clearInterval(_aiTick); _aiTick = setInterval(paintAiWork, 1000); }
+  function stopAiTick() { if (_aiTick) clearInterval(_aiTick); _aiTick = null; _aiWork = null; }
 
   async function sendDraft(c) {
     var t = _host && _host.querySelector(".ht-thread .ib-draft-t");
@@ -2123,7 +2190,7 @@
     var canAsk = c.ai_allowed && modeOf(c) === "ai" && _running && last && last.sender_type === "customer";
     return '<div class="ht-silent">' + ic("info") + ' <span>' + esc(window.t("ht.silent", { why: lyDo + diem })) + '</span>' +
       (RP ? ' <button type="button" class="ht-silent-why">' + esc(window.t("ht.silent_why")) + '</button>' : "") +
-      (canAsk ? ' <button type="button" class="ib-silent-ask"' + (_aiBusy ? " disabled" : "") + '>' +
+      (canAsk ? ' <button type="button" class="ib-silent-ask"' + (_aiBusy ? " disabled" : "") + '>' + (_aiBusy === "now" ? spin() + " " : "") +
         esc(window.t(_aiBusy === "now" ? "ib.ai_busy" : "ib.ask_ai_now")) + '</button>' : "") + '</div>';
   }
 
@@ -2158,7 +2225,7 @@
     return '<button type="button" class="s-btn-ghost ib-mic' + (st !== "idle" ? " is-rec" : "") + '" aria-pressed="' +
       (st === "listening" ? "true" : "false") + '" title="' + esc(lab) + '" aria-label="' + esc(lab) + '"' +
       (st === "transcribing" ? " disabled" : "") + '>' +
-      ic(st === "idle" ? "mic" : st === "transcribing" ? "loader" : "square") + '</button>';
+      (st === "idle" ? ic("mic") : st === "transcribing" ? spin() : ic("square")) + '</button>';
   }
 
   function replyBox() { return _host && _host.querySelector(".ht-thread .ib-cin textarea"); }
@@ -2270,18 +2337,21 @@
     var ph = ten ? t(laBot ? "ib.cin_ph_as_ai" : "ib.cin_ph_as", { ten: ten }) :
       t(laBot ? "ib.cin_ph_ai" : cham ? "ib.cin_ph_touch" : "ht.gui_ph");
     var busy = _aiBusy === "redo" || _aiBusy === "send" ? _aiBusy : "";
+    // While the A.I. writes for THIS chat, the live "A.I. is writing" box stands where the draft lands (a Rewrite
+    // replaces the old draft with it: the new one takes its place anyway).
+    var writing = (_aiBusy === "ask" || _aiBusy === "redo") && _aiWork && _aiWork.conv === c.id;
     var cmt = canPrivate(c), priv = cmt && _privFor === c.id;
     if (priv) ph = t("ht.priv_ph");
-    return '<div class="ht-compose' + (draft ? " has-draft" : "") + '">' + noteHtml() +
+    return '<div class="ht-compose' + (draft || writing ? " has-draft" : "") + '">' + noteHtml() +
       (cmt ? privToggleHtml(priv, c) : "") +
       '<div class="ib-cbox">' +
-      (draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
+      (writing && V ? V.workingHtml(aiWorkView(), ic) : draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
       '<div class="ib-cin">' +
         '<textarea rows="1" placeholder="' + esc(ph) + '" aria-label="' + esc(t("ib.cin_aria")) + '"></textarea>' +
         micHtml(c) +
         (laBot && !priv ? '<button type="button" class="s-btn-ghost ib-ask"' + (_aiBusy ? " disabled" : "") + ' title="' + esc(t("ib.ai_reply_t")) +
           '" aria-label="' + esc(t("ib.ai_reply")) + '">' +
-          ic(_aiBusy === "ask" ? "loader" : "sparkles") + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +
+          (_aiBusy === "ask" ? spin() : ic("sparkles")) + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +
         '<button type="button" class="s-btn ht-send" aria-label="' + esc(t("ht.gui")) + '">' + ic("send") + '<span>' + esc(t("ht.gui")) + '</span></button>' +
       '</div></div>' +
     '</div>';

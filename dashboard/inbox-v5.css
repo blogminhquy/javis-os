@@ -186,6 +186,25 @@
   font-size: 16px; }
 .ib-draft-a { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .ib-draft-a button { font-size: 16px; display: inline-flex; align-items: center; gap: 6px; }
+/* "A.I. is writing" (owner 2026-11-18: a still button made people think it broke): a pulsing sparkle, what it does now,
+   the seconds so far, and three moving lines where the draft will land. Reduced motion keeps it still. */
+.ib-aiw .ib-draft-h { font-weight: 600; }
+.ib-aiw-ic { display: inline-flex; animation: ib-aiw-pulse 1.4s ease-in-out infinite; }
+.ib-aiw-st { flex: 1; min-width: 0; }
+.ib-aiw-s { flex: none; color: var(--text3); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ib-aiw-o { color: var(--text2); font-size: 16px; margin-bottom: 8px; overflow-wrap: anywhere; }
+.ib-aiw-lines { display: grid; gap: 8px; padding: 4px 0 6px; }
+.ib-aiw-lines span { display: block; height: 12px; border-radius: 6px; background-size: 200% 100%;
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--ib-ai) 12%, transparent) 25%,
+    color-mix(in srgb, var(--ib-ai) 34%, transparent) 50%, color-mix(in srgb, var(--ib-ai) 12%, transparent) 75%);
+  animation: ib-aiw-shimmer 1.6s linear infinite; }
+.ib-aiw-lines span:nth-child(2) { width: 86%; }
+.ib-aiw-lines span:nth-child(3) { width: 58%; }
+.ib-aiw-slow { color: var(--text3); font-size: 16px; margin-top: 2px; }
+.ib-aiw-slow[hidden] { display: none; }
+@keyframes ib-aiw-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes ib-aiw-pulse { 0%, 100% { opacity: .55; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { .ib-aiw-ic, .ib-aiw-lines span { animation: none; } }
 
 /* ---- Info panel ---- */
 .ht-info { width: 320px; flex: none; border-left: 1px solid var(--hairline); overflow-y: auto; background: var(--bg2); }

@@ -257,6 +257,22 @@ s = rec.SEEN[-1] if rec and rec.SEEN else {}
 check("'reply for me' turn: hook fired with the real sender, not a trial",
       (s.get("sender_id"), s.get("chat_id"), s.get("trial"), s.get("account_id")) == (SENDER, SENDER, False, ACCOUNT), (r, s))
 check("'reply for me' turn: line reached its prompt", "computed by plugin" in prompts[-1], prompts[-1][-300:])
+# The inbox's "A.I. is writing" box (2026-11-18): the turn tells its stages; the plugin line still lands with them.
+stages = []
+
+
+async def _stage(code):
+    stages.append(code)
+    raise RuntimeError("a broken progress callback must not cost the draft")
+try:
+    r = asyncio.run(chatbot_runtime.manual_answer(conv, msgs, draft=True, progress=_stage))
+except Exception as e:      # noqa: BLE001
+    r = {"error": f"{type(e).__name__}: {e}"}
+check("'reply for me' turn: reports docs then think, and a failing callback is ignored",
+      stages[:2] == ["docs", "think"] and not r.get("error") and "computed by plugin" in prompts[-1], (stages, r))
+check("engine progress lines map to stages by their marker only",
+      (chatbot_runtime._manual_stage("✍ Đang soạn câu trả lời…"), chatbot_runtime._manual_stage("⚙ Đang gọi: tra_kho"),
+       chatbot_runtime._manual_stage("✓ Nhận kết quả"), chatbot_runtime._manual_stage(None)) == ("write", "tool", "", ""))
 try:
     r = asyncio.run(chatbot_runtime.try_message(bid, "cho em hỏi"))
 except Exception as e:      # noqa: BLE001
@@ -268,7 +284,10 @@ check("'Try bot' turn: line reached its prompt", "computed by plugin" in prompts
 remove_plugins()
 
 src = (SERVER / "chatbot_runtime.py").read_text(encoding="utf-8")
-check("all three turn kinds attach the plugin context", src.count('cfg["_ngu_canh_plugin"] = await plugin_context(') == 3)
+# The owner's "A.I. reply" turn runs it next to the document lookup and the photo (asyncio.gather, 2026-11-18).
+check("all three turn kinds attach the plugin context", src.count('cfg["_ngu_canh_plugin"] = await plugin_context(') == 2
+      and 'tl, cfg["_ngu_canh_plugin"], (text_engine, cfg["_anh"]) = await asyncio.gather(' in src
+      and "plugin_context(cfg, meta, kenh, _aid)," in src)
 check("no em dash in this file", chr(0x2014) not in open(__file__, encoding="utf-8").read())
 
 print(f"\n{'ALL OK' if not fails else str(len(fails)) + ' FAILED'}")

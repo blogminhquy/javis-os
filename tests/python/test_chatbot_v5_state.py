@@ -270,6 +270,38 @@ check("ai-reply draft is kept as the chat's draft, with the instruction",
       and (r.get("conversation") or {}).get("draft", {}).get("text") == "Dạ em báo giá ạ", (d, r.get("conversation")))
 r = cl.post(f"/conversations/{cid}/ai-reply", data={"mode": "draft"}).json()
 check("ai-reply without an instruction keeps the old call", r.get("ok") and ASKED[-1] == (True, ""), (r, ASKED))
+
+
+# stream=1 (owner 2026-11-18, "A.I. viết" felt broken while it worked): the stages the A.I. reports, then the same answer.
+async def _fake_manual_stream(conv, msgs, draft=False, instruction="", progress=None):
+    ASKED.append((draft, instruction, progress is not None))
+    for code in ("docs", "think", "write"):
+        await progress(code)
+    return {"ok": True, "silent": False, "text": "Dạ em gửi báo giá ạ", "meta": {}}
+
+
+def _events(resp):
+    import json as _json
+    return [_json.loads(b[6:]) for b in resp.text.split("\n\n") if b.startswith("data: ")]
+
+
+conv_routes._DEPS.manual_answer = _fake_manual_stream
+resp = cl.post(f"/conversations/{cid}/ai-reply", data={"mode": "draft", "instruction": "báo giá", "stream": "1"})
+ev = _events(resp)
+check("ai-reply stream: an event stream of the stages in order, then done with the usual answer",
+      resp.headers.get("content-type", "").startswith("text/event-stream")
+      and [e.get("stage") for e in ev if e.get("type") == "stage"] == ["docs", "think", "write"]
+      and ev[-1].get("type") == "done" and ev[-1].get("status") == 200 and ev[-1]["body"].get("draft")
+      and ev[-1]["body"].get("text") == "Dạ em gửi báo giá ạ" and ASKED[-1] == (True, "báo giá", True), (resp.text[:400], ASKED[-1:]))
+check("ai-reply stream: the draft is kept like the plain call",
+      (conversations.draft_of(conversations.chi_tiet(cid)) or {}).get("text") == "Dạ em gửi báo giá ạ")
+resp = cl.post("/conversations/999999/ai-reply", data={"mode": "draft", "stream": "1"})
+ev = _events(resp)
+check("ai-reply stream: a refusal travels as done with its status", ev and ev[-1].get("status") == 404 and ev[-1]["body"].get("ok") is False,
+      resp.text[:300])
+conv_routes._DEPS.manual_answer = _fake_manual
+r = cl.post(f"/conversations/{cid}/ai-reply", data={"mode": "draft"}).json()
+check("ai-reply without stream never hands a progress callback (old stand-ins keep working)", r.get("ok") and ASKED[-1] == (True, ""), (r, ASKED[-1:]))
 r = cl.get(f"/conversations/{cid}/messages").json()
 check("messages: the conversation carries who fields", "who" in (r.get("conversation") or {}), r.get("conversation"))
 check("messages: the conversation carries the bot's reply_when", "reply_when" in (r.get("conversation") or {}), r.get("conversation"))
