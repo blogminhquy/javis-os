@@ -30189,13 +30189,16 @@ def _chan_ngoai_le(raw, cu, xac_nhan):
 
 
 @app.get("/chatbots/chats")
-async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60):
+async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60, chon: str = ""):
     """Các cuộc chat ĐÃ BIẾT (người và nhóm) cho ô "chọn người và nhóm" của form bot.
 
     Nguồn là Hộp thư (`conversations`) nên có tên hiển thị thật thay vì id. `account_ids` (cách nhau
     bằng dấu phẩy) là các tài khoản kênh ĐANG TÍCH trong form, kể cả khi bot chưa tồn tại; `bot_id`
     thêm hàng chờ duyệt và cờ "đã chọn". Phải đăng ký TRƯỚC mọi route có `{bot_id}` để "chats" không
     bị coi là id bot.
+
+    `chon` (id cách nhau bằng dấu phẩy) là các cuộc chat form ĐANG TÍCH: `ten` trả tên của chúng (cùng mọi id bot đã
+    lưu) dù ô tìm hay giới hạn trang để chúng ra ngoài danh sách, để form không vẽ chúng thành id trần.
     """
     bot = chatbot_store.get_bot(bot_id) if bot_id else None
     ids = [x.strip() for x in str(account_ids or "").split(",") if x.strip()]
@@ -30205,7 +30208,10 @@ async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", l
     else:
         tk = list((bot or {}).get("accounts") or [])
     cho = chatbot_runtime.nhom_cho(bot_id) if bot else []
-    return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot)}
+    can_ten = [x.strip() for x in str(chon or "").split(",") if x.strip()]
+    can_ten += [str(x) for x in list((bot or {}).get("groups") or []) + list((bot or {}).get("people") or [])]
+    return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot),
+            "ten": chatbot_cuoc_chat.ten_da_chon(tk, can_ten)}
 
 
 @app.get("/chatbots/zalo-labels")

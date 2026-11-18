@@ -923,6 +923,9 @@
     ((b && b.groups) || []).forEach(function (x) { chon.group[x] = true; });
     ((b && b.people) || []).forEach(function (x) { chon.private[x] = true; });
     var pkTab = "group", chats = [], pkQ = "", pkSeq = 0, pkHen = null;
+    // Tên của mọi cuộc chat từng thấy trong lần mở form này (server trả `ten` cho các dòng đang tick). Dòng đang tick mà
+    // danh sách hiện tại không có (ô tìm lọc mất, hoặc cũ hơn trang đầu) lấy tên ở đây, không hiện id trần (chủ, 18/11/2026).
+    var tenBiet = {};
 
     var box = el(
       '<div class="cb-modal"><div class="cb-form cb-wizard">' +
@@ -1185,6 +1188,9 @@
     }
 
     // ---- Ô chọn người và nhóm (lấy từ Hộp thư)
+    function demChonIds(loai) {
+      return Object.keys(chon[loai]).filter(function (k) { return chon[loai][k]; });
+    }
     function demChon(loai) {
       return Object.keys(chon[loai]).filter(function (k) { return chon[loai][k]; }).length;
     }
@@ -1201,7 +1207,7 @@
       // Id vừa thêm bằng tay mà Hộp thư chưa biết vẫn phải hiện ra để bỏ tick được.
       Object.keys(chon[pkTab]).forEach(function (id) {
         if (chon[pkTab][id] && !ds.some(function (x) { return x.id === id; })) {
-          ds.push({ id: id, ten: id, loai: pkTab, luc: 0, cho: false });
+          ds.push({ id: id, ten: tenBiet[id] || id, loai: pkTab, luc: 0, cho: false });
         }
       });
       veTabPk();
@@ -1224,12 +1230,16 @@
       if (!ids && !sua) { chats = []; vePk(); return; }
       var lan = ++pkSeq;
       box.querySelector("#cbPkBody").innerHTML = '<div class="cb-pk-rong">' + esc(window.t("cb2.pk_dang_tai")) + '</div>';
+      var dangTick = demChonIds("group").concat(demChonIds("private")).slice(0, 300).join(",");
       try {
         var d = await api("/chatbots/chats?account_ids=" + encodeURIComponent(ids) +
           (sua ? "&bot_id=" + encodeURIComponent(b.id) : "") +
-          "&q=" + encodeURIComponent(pkQ) + "&limit=80");
+          "&q=" + encodeURIComponent(pkQ) + "&limit=80" +
+          (dangTick ? "&chon=" + encodeURIComponent(dangTick) : ""));
         if (lan !== pkSeq) return;       // có lần tải mới hơn rồi
         chats = d.chats || [];
+        Object.keys(d.ten || {}).forEach(function (k) { if (d.ten[k]) tenBiet[k] = d.ten[k]; });
+        chats.forEach(function (c) { if (c.ten && c.ten !== c.id) tenBiet[c.id] = c.ten; });
       } catch (e) { if (lan !== pkSeq) return; chats = []; }
       vePk();
     }

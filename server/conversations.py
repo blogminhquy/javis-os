@@ -1084,6 +1084,42 @@ def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: i
     return danh_sach(account_id=_tai_khoan_id(channel, account_id), q=q, limit=limit)
 
 
+def ten_theo_chat_id(account_keys: List[str], chat_ids: List[str]) -> Dict[str, dict]:
+    """Display name of each given chat id, looked up directly, whatever the search box or the page size of
+    `cuoc_chat_cua_tai_khoan`: `{chat_id: {ten, loai, luc, tk}}` (`tk` is the account key). A chat the inbox never
+    saw is left out. The name follows `_conv_public`, so a group without a known name reads "Nhóm …<id tail>", never
+    a member's name. Owner, 18/11/2026: the bot form's picker showed ticked groups as bare ids whenever they fell
+    outside the search or the 80 latest chats."""
+    keys = [str(k) for k in (account_keys or []) if str(k or "").strip()]
+    ids = list(dict.fromkeys(str(c).strip() for c in (chat_ids or []) if str(c or "").strip()))[:500]
+    if not keys or not ids:
+        return {}
+    out: Dict[str, dict] = {}
+    with _lock:
+        db = _conn()
+        for i in range(0, len(ids), 200):
+            part = ids[i:i + 200]
+            rows = db.execute(
+                "SELECT c.external_chat_id, c.chat_type, c.title, c.channel_account_id, c.last_message_at,"
+                " c.updated_at, k.name AS customer_name FROM conversations c"
+                " LEFT JOIN customers k ON k.id=c.customer_id"
+                f" WHERE c.channel_account_id IN ({','.join('?' * len(keys))})"
+                f" AND c.external_chat_id IN ({','.join('?' * len(part))})"
+                " ORDER BY c.last_message_at DESC",
+                (*keys, *part)).fetchall()
+            for r in rows:
+                d = _row(r)
+                cid = str(d.get("external_chat_id") or "")
+                if cid in out:
+                    continue        # the same chat seen by two accounts: keep the newest
+                d["metadata_json"] = "{}"
+                pub = _conv_public(d)
+                out[cid] = {"ten": str(pub.get("title") or cid), "loai": "group" if d.get("chat_type") == "group"
+                            else "private", "luc": float(d.get("last_message_at") or d.get("updated_at") or 0),
+                            "tk": str(d.get("channel_account_id") or "")}
+    return out
+
+
 def group_speakers(account_key: str, chat_id: str, limit: int = 300) -> List[dict]:
     """Người ĐÃ NHẮN trong một cuộc chat: `[{uid, name, ts}]`, mới nhất trước, tên là tên ở tin gần nhất của người đó.
 
