@@ -302,24 +302,34 @@ def _resolve_media(ref, cctx):
                         "File phải nằm trong vault, hoặc là file vừa gửi qua khung chat/Telegram.")
 
 
-async def _post_file(path_in_graph, file_path, data, token, base=GRAPH, timeout=900):
-    """POST multipart (upload file thật). Video đi base GRAPH_VIDEO, timeout dài."""
+async def _post_multipart(path_in_graph, files, data, token, base=GRAPH, timeout=900):
+    """POST multipart with several files: files = {field name: path}. Empty files sends data
+    only (e.g. a video by file_url plus its cover image)."""
     import mimetypes
     import httpx
+    from contextlib import ExitStack
     from pathlib import Path
-    mime = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
     try:
-        with open(file_path, "rb") as f:
-            files = {"source": (Path(file_path).name, f, mime)}
+        with ExitStack() as stack:
+            parts = {}
+            for field, fp in (files or {}).items():
+                mime = mimetypes.guess_type(str(fp))[0] or "application/octet-stream"
+                parts[field] = (Path(fp).name, stack.enter_context(open(fp, "rb")), mime)
             async with httpx.AsyncClient(timeout=timeout) as c:
                 r = await c.post(f"{base}/{str(path_in_graph).lstrip('/')}",
-                                 data={**(data or {}), "access_token": token}, files=files)
+                                 data={**(data or {}), "access_token": token}, files=parts or None)
         try:
             return r.json()
         except Exception:
             return {"error": {"message": f"HTTP {r.status_code}: {r.text[:200]}"}}
     except Exception as e:
         return {"error": {"message": f"{type(e).__name__}: {e}"}}
+
+
+async def _post_file(path_in_graph, file_path, data, token, base=GRAPH, timeout=900):
+    """POST multipart (upload file thật). Video đi base GRAPH_VIDEO, timeout dài."""
+    return await _post_multipart(path_in_graph, {"source": file_path}, data, token,
+                                 base=base, timeout=timeout)
 
 
 async def _publish_photo(args, cctx):
@@ -347,6 +357,91 @@ async def _publish_photo(args, cctx):
                       ensure_ascii=False, default=str)
 
 
+# Cover image: Meta caps it at 10MB (graph-api/reference/video/thumbnails). Images only.
+THUMB_MAX_BYTES = 10 * 1024 * 1024
+THUMB_EXTS = (".jpg", ".jpeg", ".png")
+RUPLOAD = "https://rupload.facebook.com/video-upload/v25.0"
+
+
+def _resolve_thumb(ref, cctx):
+    """Video cover: an image file in the vault / chat drop zone (same sandbox as media).
+    Returns (path, err); an empty ref gives (None, None)."""
+    ref = str(ref or "").strip()
+    if not ref:
+        return None, None
+    if ref.startswith("http://") or ref.startswith("https://"):
+        return None, ("ERROR: thumbnail phải là file ảnh trong vault (Facebook nhận ảnh bìa dạng file "
+                      "tải lên, không nhận link).")
+    _u, path, err = _resolve_media(ref, cctx)
+    if err:
+        return None, err
+    if path.suffix.lower() not in THUMB_EXTS:
+        return None, "ERROR: thumbnail phải là ảnh .jpg hoặc .png."
+    if path.stat().st_size > THUMB_MAX_BYTES:
+        return None, "ERROR: thumbnail quá 10MB (giới hạn của Facebook). Hãy xuất .jpg nhẹ hơn."
+    return path, None
+
+
+async def _rupload(video_id, path, url, token):
+    """Reels step 2: push the video to rupload.facebook.com (binary body or file_url header)."""
+    import httpx
+    headers = {"Authorization": f"OAuth {token}"}
+    try:
+        async with httpx.AsyncClient(timeout=900) as c:
+            if url:
+                r = await c.post(f"{RUPLOAD}/{video_id}", headers={**headers, "file_url": url})
+            else:
+                body = path.read_bytes()
+                r = await c.post(f"{RUPLOAD}/{video_id}", content=body,
+                                 headers={**headers, "offset": "0", "file_size": str(len(body))})
+        try:
+            return r.json()
+        except Exception:
+            return {"error": {"message": f"HTTP {r.status_code}: {r.text[:200]}"}}
+    except Exception as e:
+        return {"error": {"message": f"{type(e).__name__}: {e}"}}
+
+
+async def _set_thumb(video_id, thumb, ptok):
+    """Preferred cover for a video that already belongs to the Page:
+    POST {video}/thumbnails with source + is_preferred. Returns None on success, else the error."""
+    d = await _post_file(f"{video_id}/thumbnails", thumb, {"is_preferred": "true"}, ptok, base=GRAPH)
+    if isinstance(d, dict) and d.get("error"):
+        return _fmt(d)
+    return None
+
+
+async def _publish_reel(pid, ptok, pname, url, path, thumb, desc, title):
+    """Publish a Reel: start, rupload, cover, finish PUBLISHED (video-api/guides/reels-publishing)."""
+    d = await _post(f"{pid}/video_reels", {"upload_phase": "start"}, ptok)
+    if isinstance(d, dict) and d.get("error"):
+        return _fmt(d)
+    vid = (d or {}).get("video_id")
+    if not vid:
+        return "ERROR: Facebook không trả video_id khi mở phiên tải Reel."
+    up = await _rupload(vid, path, url, ptok)
+    if not isinstance(up, dict) or up.get("error") or not up.get("success"):
+        return _fmt(up if isinstance(up, dict) and up.get("error")
+                    else {"error": {"message": f"tải video Reel lên lỗi: {up}"}})
+    thumb_err = await _set_thumb(vid, thumb, ptok) if thumb else None
+    fin = {"upload_phase": "finish", "video_id": vid, "video_state": "PUBLISHED"}
+    if desc:
+        fin["description"] = desc
+    if title:
+        fin["title"] = title
+    d = await _post(f"{pid}/video_reels", fin, ptok)
+    if isinstance(d, dict) and d.get("error"):
+        return _fmt(d)
+    if thumb and thumb_err:
+        # The first try can miss while the video is still processing; retry once after publishing.
+        thumb_err = await _set_thumb(vid, thumb, ptok)
+    out = {"ok": True, "page": pname, "kind": "reel", "video_id": vid,
+           "note": "Reel xử lý nền vài phút rồi mới hiện trên Trang."}
+    if thumb:
+        out["thumbnail"] = "đã gắn" if not thumb_err else f"chưa gắn được: {thumb_err}"
+    return json.dumps(out, ensure_ascii=False, default=str)
+
+
 async def _publish_video(args, cctx):
     token = await _token()
     if not token:
@@ -355,26 +450,39 @@ async def _publish_video(args, cctx):
     url, path, err = _resolve_media(args.get("video") or "", cctx)
     if err:
         return err
+    thumb, terr = _resolve_thumb(args.get("thumbnail") or args.get("thumb") or "", cctx)
+    if terr:
+        return terr
     pid, ptok, pname, perr = await _resolve_page(args, token)
     if perr:
         return perr
-    data = {}
     desc = str(args.get("message") or args.get("description") or "").strip()
     title = str(args.get("title") or "").strip()
+    if args.get("reel") in (True, "true", "1", 1):
+        return await _publish_reel(pid, ptok, pname, url, path, thumb, desc, title)
+    data = {}
     if desc:
         data["description"] = desc
     if title:
         data["title"] = title
-    if url:
+    if url and thumb:
+        d = await _post_multipart(f"{pid}/videos", {"thumb": thumb}, {**data, "file_url": url},
+                                  ptok, base=GRAPH_VIDEO)
+    elif url:
         d = await _post(f"{pid}/videos", {**data, "file_url": url}, ptok)
+    elif thumb:
+        d = await _post_multipart(f"{pid}/videos", {"source": path, "thumb": thumb}, data,
+                                  ptok, base=GRAPH_VIDEO)
     else:
         d = await _post_file(f"{pid}/videos", path, data, ptok, base=GRAPH_VIDEO)
     if isinstance(d, dict) and d.get("error"):
         return _fmt(d)
-    return json.dumps({"ok": True, "page": pname,
-                       "video_id": d.get("id") if isinstance(d, dict) else None,
-                       "note": "Video Facebook xử lý nền vài phút rồi mới hiện trên Trang."},
-                      ensure_ascii=False, default=str)
+    out = {"ok": True, "page": pname,
+           "video_id": d.get("id") if isinstance(d, dict) else None,
+           "note": "Video Facebook xử lý nền vài phút rồi mới hiện trên Trang."}
+    if thumb:
+        out["thumbnail"] = "đã gửi kèm"
+    return json.dumps(out, ensure_ascii=False, default=str)
 
 
 async def _publish_album(args, cctx):
@@ -584,9 +692,14 @@ def register(ctx):
         name="fb_page_video", min_mode="full", check_fn=_check, handler=_publish_video,
         description=("ĐĂNG VIDEO lên Trang của bạn - hành động THẬT, công khai. video = đường dẫn file "
                      "video trong vault hoặc URL http(s) (tối đa cỡ 1GB). message = mô tả, title = tiêu đề, "
-                     "đều tuỳ chọn. Facebook xử lý nền vài phút mới hiện bài. Bỏ trống page nếu chỉ có 1 Trang."),
+                     "thumbnail = ảnh bìa .jpg/.png trong vault (tối đa 10MB, cùng tỉ lệ với video), đều "
+                     "tuỳ chọn. reel=true đăng dạng Reels (video dọc 9:16, 3-90 giây). Facebook xử lý nền "
+                     "vài phút mới hiện bài. Bỏ trống page nếu chỉ có 1 Trang."),
         schema={"type": "object", "properties": {
             "video": {"type": "string", "description": "Đường dẫn video trong vault hoặc URL http(s)"},
+            "thumbnail": {"type": "string",
+                          "description": "Ảnh bìa .jpg/.png trong vault, hiện mặc định khi video lên (tuỳ chọn)"},
+            "reel": {"type": "boolean", "description": "true = đăng dạng Reels (video dọc 3-90 giây)"},
             "message": {"type": "string", "description": "Mô tả video (tuỳ chọn)"},
             "title": {"type": "string", "description": "Tiêu đề video (tuỳ chọn)"},
             "page_id": {"type": "string", "description": "id Trang (bỏ trống nếu chỉ có 1 Trang)"},
