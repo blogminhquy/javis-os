@@ -1125,8 +1125,8 @@ function _baoDutVeMayChu() {
       .catch(() => {});
   } catch (e) {}
 }
-function _dropDeadSocket() {
-  _ghiDut("ping", false, _wsMoLuc);
+function _dropDeadSocket(why) {
+  _ghiDut(why || "ping", false, _wsMoLuc);
   _wsMoLuc = 0;
   const cu = ws;
   ws = null;
@@ -1183,6 +1183,13 @@ function _resumeSauNgu(force) {
   // Chỉ đồng bộ từ server khi socket đứt hoặc trang trở về từ bfcache.
   if (savedSessionId && (force || !socketConSong)) {
     try { openStoredSession(savedSessionId); } catch (e) {}
+  } else if (savedSessionId && turns[savedSessionId] && turns[savedSessionId].running) {
+    // Customer report, 17/11/2026: asked on the phone, locked the screen, came back and the answer never showed, with
+    // no reload button in the home-screen app. This page still believed the turn was running, so the last-message
+    // check below stood aside, and a frozen socket only got dropped after the pong wait (up to 20 s more). The turn
+    // may well have ended while the phone slept and its `turn_done` was lost with the socket: reconnect now, and
+    // `hello` brings the turns really running plus the answers finished meanwhile.
+    _dropDeadSocket("resume");
   } else if (savedSessionId) {
     // Socket "còn sống" trên giấy: iOS hay trả về một socket readyState OPEN mà thực ra đã
     // chết trong lúc app ngủ, tin tới lúc đó rơi mất. Chủ repo báo 27/09: hỏi lúc 14:53 mà
@@ -1201,19 +1208,24 @@ function _resumeSauNgu(force) {
 function _chuanTinSo(s) {
   return String(s || "").replace(/<!--[\s\S]*?-->/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
 }
-async function _dongBoNeuLech() {
+async function _dongBoNeuLech(isRetry) {
   const sid = savedSessionId;
   if (!sid || (turns[sid] && turns[sid].running)) return;
+  // A chat being opened meanwhile (the Partners page reopening its chat after a reload) wins: never redraw over it.
+  const seq = sessionOpenSeq;
   try {
     const s = await (await fetch(`/sessions/${encodeURIComponent(sid)}?limit=1`)).json();
-    if (sid !== savedSessionId || !s || s.error || (turns[sid] && turns[sid].running)) return;
+    if (sid !== savedSessionId || seq !== sessionOpenSeq || !s || s.error || (turns[sid] && turns[sid].running)) return;
     const m = (s.messages || []).slice(-1)[0];
     if (!m) return;
     const c = convo.length ? convo[convo.length - 1] : null;
     const cungVai = !!c && ((m.role === "assistant") === (c.role === "javis"));
     const chuSv = m.role === "user" ? chuNguoiGo(m.content || "") : (m.content || "");
     if (!cungVai || _chuanTinSo(chuSv) !== _chuanTinSo(c.text)) openStoredSession(sid);
-  } catch (e) {}
+  } catch (e) {
+    // A phone just back from sleep often has no network for a second or two: ask once more instead of giving up.
+    if (!isRetry) setTimeout(() => _dongBoNeuLech(true), 2000);
+  }
 }
 
 function handleMessage(data) {
@@ -1222,7 +1234,10 @@ function handleMessage(data) {
   if (data.type === "hello") {
     // Socket NỐI LẠI (không phải lần chào đầu): tin tới trong lúc đứt có thể đã rơi mất, ví dụ
     // câu trả lời của một lượt chạy xong khi điện thoại đang tắt màn hình. Đồng bộ nhẹ.
-    if (_daChao) setTimeout(_dongBoNeuLech, 300);
+    // Customer report, 17/11/2026: the FIRST hello checks too. A home-screen app that iOS closed in the background starts
+    // again from this browser's own copy of the chat (restoreSession), so an answer finished while it was closed never
+    // showed: only a reconnect used to ask the server. One cheap read of the last message, a reload only when it differs.
+    setTimeout(_dongBoNeuLech, 300);
     _baoDutVeMayChu();
     // Nhóm chat (0.142.0): gói team_message/team_replies lỡ trong lúc mất kết nối không được gửi lại, nên trang Nhóm
     // tự tải lại tin và kết cục lượt trả lời của nhóm đang mở khi socket nối lại.
@@ -1430,7 +1445,8 @@ function handleMessage(data) {
         else window.JavisInbox.refresh();
       }
     } catch (e) {}
-    try { if (window.JavisStar) window.JavisStar.moment("work"); } catch (e) {}   // việc nền vừa trả kết quả
+    // `cleared`: a notice turned read (approval answered), not new work.
+    if (!data.cleared) { try { if (window.JavisStar) window.JavisStar.moment("work"); } catch (e) {} }
     return;
   }
   if (data.type === "status") {

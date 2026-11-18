@@ -3341,6 +3341,16 @@ body.on-teams .cview-head { display: none; }
 /* Tin: bong bóng. Của chủ bên phải (không tên, không ảnh); của trợ lý bên trái kèm ảnh và tên; tin hệ thống ở giữa. */
 .tm-msgs { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior-x: none; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .tm-msgs[hidden] { display: none; }
+/* Older messages (18/11/2026): they load by themselves near the top; the button stays for a press, and shows a spinner
+   while a page is on its way. Both labels are in the button, the list's class picks one. */
+.tm-older-wait { display: none; }
+.tm-older-wait::before { content: ""; display: inline-block; vertical-align: -2px; margin-right: 8px; width: 13px; height: 13px;
+  border-radius: 50%; border: 2px solid var(--border, rgba(140,140,160,.35)); border-top-color: var(--accent);
+  animation: tm-spin .8s linear infinite; }
+.tm-msgs.tm-older-busy .tm-older { pointer-events: none; opacity: .75; }
+.tm-msgs.tm-older-busy .tm-older-idle { display: none; }
+.tm-msgs.tm-older-busy .tm-older-wait { display: inline; }
+@media (prefers-reduced-motion: reduce) { .tm-older-wait::before { animation: none; } }
 /* Mỗi tin chiếm trọn hàng (để phần trăm bên dưới tính theo bề ngang khung, không theo nội dung), bong bóng dồn về đúng
    phía. Bề ngang tối đa chừa chỗ cho ảnh và nút bên cạnh để ba thứ nằm một hàng; hàng có wrap cho bảng mở ra bên dưới. */
 .tm-msg { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 6px; width: 100%; }
@@ -3576,6 +3586,9 @@ body.kb-open .tm-composer { padding-bottom: 8px; }
 .tm-mtext { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .tm-mname { font-weight: 600; overflow-wrap: anywhere; }
 .tm-mrole { font-size: 12px; color: var(--text3); }
+.tm-mmodel { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12px; color: var(--text3); }
+.tm-mmodel span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-mmodel svg { flex: none; width: 12px; height: 12px; }
 .tm-chev { display: inline-flex; color: var(--text3); transition: transform .15s; }
 .tm-mhead[aria-expanded="true"] .tm-chev { transform: rotate(180deg); }
 .tm-mact { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 2px 12px 46px; }
@@ -3683,6 +3696,7 @@ body.kb-open .tm-composer { padding-bottom: 8px; }
   line-height: 1.4; color: var(--text3); padding: 6px 10px; border-radius: 12px; background: var(--surface-2); }
 .tm-reply-main { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
 .tm-reply-main b { color: var(--text); font-weight: 600; }
+.tm-reply-merged { background: none; padding-left: 0; }
 .tm-reply-error { background: var(--warn-wash, var(--surface-2)); color: var(--warn-ink); border: 1px solid var(--warn-line, transparent); }
 .tm-reply-detail { display: block; font-size: 16px; opacity: .85; margin-top: 2px; }
 .tm-reply-retry { min-height: 44px; padding: 0 14px; font-size: 16px; display: inline-flex; align-items: center; gap: 6px; }
@@ -3816,6 +3830,14 @@ span.tmp-lead { cursor: default; }
 .tmp-foot .tmp-submit:disabled { opacity: .5; cursor: not-allowed; }
 .tm-mrow-you .tm-mhead-static { cursor: default; }
 .tm-mrow-you .tmp-you { width: 34px; height: 34px; }
+/* 18/11/2026: the deputy coordinates the whole team, so its row stands out: tinted, an accent edge, a badge. */
+.tm-mrow-lead { background: var(--accent-wash); border: 1px solid var(--accent-line); border-left: 3px solid var(--accent);
+  border-radius: 12px; margin: 6px -10px; padding: 0 9px 0 7px; }
+.tm-mrow-lead .tm-mrole { color: var(--accent); font-weight: 600; }
+.tm-mrow-lead .tm-ava { box-shadow: 0 0 0 2px var(--accent); }
+.tm-lead-badge { flex: none; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; white-space: nowrap;
+  background: var(--accent); color: #fff; }
+.tm-lead-badge svg { width: 14px; height: 14px; }
 @media (max-width: 640px) {
   .tmp-layer { padding: 0; align-items: stretch; }
   .tmp-dialog { width: 100%; max-height: none; height: 100%; height: 100dvh; border-radius: 0; border: none; }
@@ -4378,6 +4400,19 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-msg-flash .tm-bubble { animation: tm-flash 1.6s ease; }
 @keyframes tm-flash { 0%, 40% { background: var(--accent-wash-2); } 100% { background: inherit; } }
 @media (prefers-reduced-motion: reduce) { .tm-msg-flash .tm-bubble { animation: none; outline: 2px solid var(--accent); } }
+/* 18/11/2026 (owner): the round button at the TOP right of a team chat ("nút nó phải ở phía trên", like Zalo: the
+   messages it leads to are above), an up arrow, "@" and the number of messages calling the owner under it (red like
+   every unread count). The list's first child, sticky to the top; the negative bottom margin takes back its height, so
+   showing or hiding it never moves the messages being read. */
+.tm-at-jump { position: sticky; top: 10px; align-self: flex-end; margin: 10px 12px -50px 0; z-index: 3; flex: none;
+  display: none; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border-radius: 50%;
+  background: var(--panel-solid); border: 1px solid var(--border); color: var(--text2); box-shadow: var(--shadow-2); cursor: pointer; }
+.tm-at-jump.show { display: inline-flex; }
+.tm-at-jump svg { width: 22px; height: 22px; }
+.tm-at-jump:hover { background: var(--accent-wash-2); border-color: var(--accent); color: var(--accent); }
+.tm-at-jump .tm-at-n { position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%); min-width: 18px; height: 18px;
+  padding: 0 5px; font-size: 11px; font-weight: 700; box-shadow: none; background: var(--red); color: #fff; }
+@media (max-width: 760px) { .tm-at-jump { width: 44px; height: 44px; margin-bottom: -54px; } }
 /* 0.192.0: pinned strip on top of the team chat. */
 .tm-pinbar { border-bottom: 1px solid var(--border); padding: 6px 12px; background: var(--bg2); display: flex; flex-direction: column;
   gap: 4px; max-height: 40vh; overflow: auto; }

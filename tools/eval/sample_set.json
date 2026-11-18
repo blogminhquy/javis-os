@@ -1,0 +1,124 @@
+{
+  "name": "sample",
+  "about": "Generic tasks that touch the paths a token saving changes: a large skill, a file read twice, the connection list, the schedule list, a no-tool answer and a greeting. None of them writes anything. Copy this file and add the owner's real questions: those are the ones that matter.",
+  "tasks": [
+    {
+      "id": "agent-draft",
+      "ask": "Mình muốn có một agent chuyên viết email chăm sóc khách cũ. Đừng tạo file, chỉ cho mình xem nội dung file agent bạn sẽ tạo (cả phần frontmatter lẫn phần thân).",
+      "must": [
+        [
+          "description"
+        ],
+        [
+          "tags"
+        ],
+        [
+          "---"
+        ],
+        [
+          "email"
+        ]
+      ],
+      "must_not": [
+        "\u2014",
+        "\u2013"
+      ],
+      "note": "Loads the javis-builder skill (over 12,000 characters)."
+    },
+    {
+      "id": "memory-reread",
+      "ask": "Đọc file memory/MEMORY.md trong brain, kể ngắn 3 điều bạn đang nhớ về mình. Xong đọc lại đúng file đó lần nữa để chắc là không bỏ sót điều gì quan trọng hơn.",
+      "must": [
+        [
+          "MEMORY.md",
+          "bo nho",
+          "ghi nho",
+          "nho"
+        ]
+      ],
+      "must_not": [
+        "\u2014",
+        "\u2013"
+      ],
+      "note": "Reads one file twice in a turn: the repeat becomes a reference on API engines."
+    },
+    {
+      "id": "connections",
+      "ask": "Brain này đang kết nối những nguồn dữ liệu nào? Nguồn nào chưa dùng được thì nói lý do.",
+      "must": [
+        [
+          "ket noi",
+          "nguon",
+          "mcp"
+        ]
+      ],
+      "must_not": [
+        "\u2014",
+        "\u2013"
+      ],
+      "note": "javis_connections, whose list is now compact JSON."
+    },
+    {
+      "id": "schedule",
+      "ask": "Liệt kê các việc định kỳ và lời nhắc đang bật, mỗi cái một dòng kèm giờ chạy.",
+      "must": [
+        [
+          "lich",
+          "dinh ky",
+          "nhac",
+          "loop",
+          "chua co",
+          "khong co"
+        ]
+      ],
+      "must_not": [
+        "\u2014",
+        "\u2013"
+      ],
+      "note": "javis_schedule op=list."
+    },
+    {
+      "id": "advice-no-tools",
+      "ask": "Cho mình 3 gạch đầu dòng: cách giảm chi phí quảng cáo Facebook cho một shop nhỏ.",
+      "must": [
+        [
+          "- "
+        ],
+        [
+          "ngan sach",
+          "chi phi"
+        ]
+      ],
+      "must_not": [
+        "\u2014",
+        "\u2013"
+      ],
+      "note": "No tool needed: shows the baseline cost and style."
+    },
+    {
+      "id": "engine",
+      "ask": "Bạn đang chạy bằng engine và model nào?",
+      "must": [
+        [
+          "model",
+          "engine"
+        ]
+      ],
+      "must_not": [
+        "\u2014",
+        "\u2013"
+      ],
+      "note": "Must name the real engine, not default to Claude."
+    },
+    {
+      "id": "greeting",
+      "ask": "Chào em",
+      "must": [],
+      "must_not": [
+        "\u2014",
+        "\u2013"
+      ],
+      "note": "The fast path: the cheapest turn there is."
+    }
+  ]
+}

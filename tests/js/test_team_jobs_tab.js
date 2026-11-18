@@ -137,6 +137,25 @@ check("a team opens on Jobs when it has any job, on Info when it has none",
   && TM.defaultTab({}) === "info" && TM.defaultTab(null, { running: 0, waiting: 2, blocked: 0 }) === "jobs" && TM.defaultTab(null, {}) === "info");
 check("the owner's own pick of a tab is kept: the choice is made once the jobs have loaded, only if no tab was pressed",
   teamsJs.includes("if (S.tabAuto && S.side) S.tab = defaultTab(S.queue);") && teamsJs.includes("S.tab = d.tab; S.tabAuto = false;"));
+// 18/11/2026 (owner, screenshot): a team that opened on Jobs showed "Loading..." for good under the Info tab, because
+// pressing that tab only redrew the panel and never read the team's files and links.
+check("pressing the Info tab reads the team's files, links and folder, like opening the panel on it",
+  /if \(d\.tab === "info"\) \{ loadInfo\(\); loadFolder\(\); \}/.test(teamsJs.slice(teamsJs.indexOf("S.tab = d.tab; S.tabAuto = false;"))
+    .slice(0, 400)));
+// 18/11/2026 (owner): "trong team nhìn được model của các thành viên, như vậy sẽ dễ kiểm soát hơn".
+check("member model: engine and model, 'Main model:' FIRST when it follows the main model (a cut line keeps it), nothing when unknown",
+  vi["teams.model_main"].indexOf("{model}") > 0 && en["teams.model_main"].indexOf("{model}") > 0 &&
+  TM.memberModelText({ model: { label: "Claude Code", model: "claude-opus-5-5", main: false } }) === "Claude Code · claude-opus-5-5"
+  && TM.memberModelText({ model: { label: "ChatGPT", model: "gpt-5.5", main: true } }) === vi["teams.model_main"].replace("{model}", "ChatGPT · gpt-5.5")
+  && TM.memberModelText({ model: { label: "Claude Code", model: "", main: true } }) === vi["teams.model_main"].replace("{model}", "Claude Code")
+  && TM.memberModelText({ model: null }) === "" && TM.memberModelText({}) === "" && en["teams.model_main"].includes("{model}"));
+h = TM.membersHtml({ leader_key: "ag_an", members: [{ agent_key: "ag_an", slug: "an", name: "An",
+  model: { label: "Claude Code", model: "<opus>", main: false } }, { agent_key: "ag_mai", slug: "mai", name: "Mai", model: null }] }, [], null);
+check("member rows: the model line sits under the role, escaped, and only on members that have one",
+  count(h, 'class="tm-mmodel"') === 1 && h.includes("Claude Code · &lt;opus&gt;") && !h.includes("<opus>")
+  && h.indexOf('class="tm-mrole"') < h.indexOf('class="tm-mmodel"'), h);
+check("CSS: the model line is cut to one line on a narrow panel",
+  /\.tm-mmodel span \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/.test(css));
 check("tabs: an icon per tab in the page code", /TAB_ICON = \{ info: "info", jobs: "list-checks", team: "users" \}/.test(teamsJs));
 
 // ───────────── finished jobs: five a page, a summary on a press ─────────────

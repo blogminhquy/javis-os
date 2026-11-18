@@ -118,6 +118,7 @@ navCase({ javis_last_page: "not-a-page" }, "home");
     ws: { readyState: 1 },
     WebSocket: { OPEN: 1 },
     savedSessionId: "main-chat",
+    turns: {},
     connect() {},
     openStoredSession() { reloads++; },
     // 0.64.66: socket "còn sống" vẫn hỏi server tin cuối (rẻ); chỉ tải lại khi lệch.
@@ -146,6 +147,20 @@ navCase({ javis_last_page: "not-a-page" }, "home");
   ctx._resumeSauNgu(false);
   assert.equal(drops, 1, "an unconfirmed message must make the page drop the socket on return");
   assert.equal(reloads, 1, "dropping the socket leaves the resync to hello");
+  // Customer report, 17/11/2026: locked the phone while Javis answered; back in the app the page still thought the
+  // turn was running, so the last-message check stood aside and the answer never came. Reconnect at once instead.
+  overdue = false;
+  ctx.turns["main-chat"] = { running: true };
+  ctx._hiddenAt = Date.now() - 60000;
+  const dongBoTruoc = dongBo;
+  ctx._resumeSauNgu(false);
+  assert.equal(drops, 2, "a turn this page still thinks is running must reconnect the socket on return");
+  assert.equal(dongBo, dongBoTruoc, "the check is left to hello, which knows the turns really running");
+  assert.equal(reloads, 1, "the transcript is not rebuilt before hello");
+  // A short app switch still leaves everything alone.
+  ctx._hiddenAt = Date.now() - 3000;
+  ctx._resumeSauNgu(false);
+  assert.equal(drops, 2, "a few seconds away must not reconnect");
 }
 
 console.log("OK - khoi phuc trang dang lam va phien tro ly");

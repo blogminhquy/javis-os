@@ -76,6 +76,17 @@ class SteerInbox:
                 self._tags[tag] = sid
         return _CURRENT.set(sid)
 
+    def attach_tag(self, sid: str, tag: str) -> None:
+        """Name the engine tag of the turn of `sid` once the engine is built (a Team step, 18/11/2026): the Claude Code
+        hook finds the turn by its tag. Forgotten when the turn closes."""
+        with self._lock:
+            if sid in self._live and tag:
+                self._tags[tag] = sid
+
+    def has_tag(self, tag: str) -> bool:
+        with self._lock:
+            return bool(tag) and self._tags.get(tag, "") in self._live
+
     def set_live(self, sid: str, live: bool) -> None:
         with self._lock:
             if sid in self._live:
@@ -88,6 +99,8 @@ class SteerInbox:
             self._sinks.pop(sid, None)
             if tag:
                 self._tags.pop(tag, None)
+            for t in [t for t, s in self._tags.items() if s == sid]:
+                self._tags.pop(t, None)   # tags attached later (attach_tag)
             # A message sent to a /goal round (put goal=True) is never returned: the dashboard folds it into the
             # goal's next round, so running it as its own turn would do it twice and race that round.
             left = [i for i in self._pending.pop(sid, []) if not i.get("goal")]

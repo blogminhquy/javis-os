@@ -34,7 +34,8 @@ check("khối điều khiển JAVIS_TEAM không bị luật độ dài cắt", "
 check("không em dash trong lời nhắc", "—" not in note and "–" not in note)
 check("lượt làm việc có công cụ cũng trả lời NGẮN", "Trả lời trong nhóm NGẮN" in TR.WORK_TOOLS_NOTE)
 SRC = (SERVER / "team_runner.py").read_text(encoding="utf-8")
-check("lượt trả lời tin của chủ: 1 đến 3 câu", "Trả lời ngắn gọn (1 đến 3 câu), đúng vai của bạn trong nhóm." in SRC)
+# 18/11/2026: the reply body moved to English with the rest of the model prompts (docs/quy-uoc-dev.md).
+check("lượt trả lời tin của chủ: 1 đến 3 câu", "Answer briefly (1 to 3 sentences), in your own role in the team." in SRC)
 check("bước tổng hợp: kết quả cuối NGẮN, không kể lại từng bước",
       "thành một kết quả cuối NGẮN cho chủ nhóm" in SRC and "Không kể lại từng bước." in SRC)
 

@@ -49,6 +49,8 @@ import team_gate
 import tool_images
 import tool_pins
 import tool_result_shaper
+import tool_result_reuse   # 2026-11-17: compact JSON + per-turn repeat references for CLI engines
+import section_select   # 2026-11-18: load the parts of a long menu-style skill a task needs
 import tool_result_tools
 import turn_context
 from config import STATE_DIR
@@ -316,7 +318,8 @@ def result_size_stats(days: int = 7, top: int = 10) -> dict:
     less than `days`; `since` says how far it goes."""
     days = max(1, min(90, int(days or 7)))
     cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")   # same clock as the log's `ts`
-    counted = tool_result_shaper.MODEL_KINDS | {"raw", "query"}
+    # "repeat": a repeated identical result handed over as a reference (tool_result_reuse, API engines)
+    counted = tool_result_shaper.MODEL_KINDS | {"raw", "query", "repeat", "sections"}
     total = {"calls": 0, "raw_chars": 0, "sent_chars": 0, "stored": 0, "over_cap": 0}
     by_tool, since = {}, ""
     for path in (_SIZES_PATH.with_suffix(".jsonl.1"), _SIZES_PATH):
@@ -845,7 +848,8 @@ def _connections_json(include_ambient=False, hidden=None, bo_qua=None, owner_cha
                                   "Code. Model đang chạy bằng API key nên không gọi được. Nói đúng lý do đó, rồi "
                                   "chỉ hai cách: nối nguồn này ở trang Kết nối của Javis (mọi model đều dùng "
                                   "được), hoặc đổi model chat sang Claude Code.")})
-    return json.dumps(out, ensure_ascii=False, indent=1)
+    # Compact: a model reads this list on every engine; indent=1 made a sample list of six connections 17% longer.
+    return json.dumps(out, ensure_ascii=False, separators=(",", ":"))
 
 
 def _skills_dir(vault_root):
@@ -1181,6 +1185,11 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
 
     async def _skill(args):
         name = str((args or {}).get("name") or "").strip()
+        # 2026-11-18 (section_select): a long skill built as a menu loads the parts this task needs; `section` and
+        # `full` fetch more. Every doubt loads the whole skill, as before.
+        want_section = str((args or {}).get("section") or "").strip()
+        want_full = bool((args or {}).get("full"))
+        task = str((args or {}).get("task") or "").strip()
         from improvement_task_skill_scope import current, ScopeUnavailable
         from improvement_blobs import AssetUnavailable
         import sqlite3
@@ -1198,7 +1207,23 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         if asset is None:
             return ("ERROR: không có skill đó. Skill khả dụng: "
                     + (", ".join(_list_skills(vault_root)) or "(chưa có)"))
-        text = _skill_base_line(vault_root, asset) + asset.text[:60_000]
+        base = _skill_base_line(vault_root, asset)
+        text = base + asset.text[:60_000]
+        _sess = section_select.session_key()
+        if want_section:
+            part = section_select.find_section(asset.text, want_section)
+            if part is None:
+                return (f"ERROR: skill `{asset.slug}` has no section matching '{want_section}'. Its sections: "
+                        + "; ".join(section_select.section_titles(asset.text)))
+            await asyncio.to_thread(section_select.note_fetch, "skill", asset.slug, _sess,
+                                    section_select.resolve_title(asset.text, want_section) or want_section)
+            return base + part
+        if want_full:
+            await asyncio.to_thread(section_select.note_fetch, "skill", asset.slug, _sess, "*")
+        else:
+            picked = await asyncio.to_thread(section_select.for_skill, asset.slug, asset.text, task, None, _sess)
+            if picked:
+                text = base + picked
         # ĐIỂM ĐẾM DUY NHẤT: mọi engine nạp skill qua tool này đều đi ngang đây. Chỉ đếm ở
         # đường THÀNH CÔNG - nhánh trên đã lọc slug sai/skill tắt nên không đếm gõ nhầm.
         # Count the slug verified by the shared reader, not the raw name from the engine.
@@ -1288,9 +1313,12 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         listing += (f"; …(+{_con_lai} skill nữa không liệt kê ở đây, vẫn nạp được bằng "
                     f"name=<slug> nếu biết tên - xem Javis/index.md)")
     add("javis_use_skill",
-        "Nạp nội dung 1 skill (hướng dẫn chuyên sâu) rồi LÀM THEO. Truyền name=<slug>. "
-        "Skill khả dụng (slug: mô tả): " + (listing or "(chưa có)"),
-        {"name": {"type": "string"}}, ["name"], _skill)
+        "Load a skill (in-depth instructions) and FOLLOW it. Pass name=<slug> and task=<what you are about to do, in a "
+        "few words, in the language of the skill's description: translate the request if needed>; a long skill may "
+        "come back as the parts this task needs, listing the rest: read one with "
+        "section=<title>, or all with full=true. Available skills (slug: description): " + (listing or "(none yet)"),
+        {"name": {"type": "string"}, "task": {"type": "string"}, "section": {"type": "string"},
+         "full": {"type": "boolean"}}, ["name"], _skill)
 
     # `javis_run_command` chỉ hiện khi phiên CÓ thư mục làm việc. Phiên chat thường không thấy
     # nó, nên không có chuyện một câu hỏi bình thường lại gọi được lệnh máy. Mức quyền vẫn do
@@ -2408,6 +2436,8 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
                                       **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
         with tool_result_shaper.for_model():
             result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
+        # A CLI engine's tool loop is out of Javis's sight: compact JSON and per-turn repeat references happen here.
+        result = tool_result_reuse.lean_for_cli(result, name, params.get("arguments") or {})
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
         if ghi_chu:
             result += "\n\n" + ghi_chu
@@ -2459,7 +2489,10 @@ async def handle_http(request):
     # that turn issued; the header names nobody by itself, so a forged or stale key is just None.
     # ALWAYS bind, even to None: this request must never inherit a turn from whatever context
     # the server happens to run it in.
-    tok = turn_context.bind(turn_context.resolve_key(request.headers.get(turn_context.HEADER.lower())))
+    turn_key = request.headers.get(turn_context.HEADER.lower())
+    tok = turn_context.bind(turn_context.resolve_key(turn_key))
+    # The same key names this turn's record of repeated results (tool_result_reuse, CLI engines).
+    reuse_tok = tool_result_reuse.HUB_TURN.set(tool_result_reuse.turn_id_for_key(turn_key))
     # CLI engines also load skills natively from `.claude/skills`; an improvement overlay served only
     # through this tool would split one turn across two versions, so these requests see canonical skills.
     import improvement_activation
@@ -2470,6 +2503,7 @@ async def handle_http(request):
                                          raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot,
                                          **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
     finally:
+        tool_result_reuse.HUB_TURN.reset(reuse_tok)
         turn_context.reset(tok)
 
 

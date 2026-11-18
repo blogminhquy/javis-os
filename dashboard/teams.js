@@ -667,7 +667,8 @@
   }
 
   function replyStatusHtml(m, ctx) {
-    var rows = (m.replies || []).filter(function (x) { return x.status !== "done"; });
+    // A reply folded into the answer of a later message (18/11/2026) keeps one quiet line, so the owner sees it was read.
+    var rows = (m.replies || []).filter(function (x) { return x.status !== "done" || x.reason === "merged"; });
     if (!rows.length) return "";
     var retrying = (ctx && ctx.retrying) || {};
     return '<div class="tm-replies">' + rows.map(function (x) {
@@ -691,14 +692,20 @@
           "</b> " + esc(tw(slot ? "teams.reply.error_slot" : "teams.reply.error")) + ": " + esc(whyText) + detail + "</span>" +
           '<span class="tm-reply-acts">' + replyActions(x, ctx) + (canRetry ? retryBtn : "") + "</span></div>";
       }
+      if (x.status === "done") {
+        return '<div class="tm-reply tm-reply-merged" role="status">' + face + '<span class="tm-reply-main"><b>' + esc(who) +
+          "</b> " + esc(tw("teams.reply.merged")) + "</span></div>";
+      }
       var answering = x.status === "running" && x.reason === "answering";
+      var steered = x.status === "running" && x.reason === "steered";
       var waiting = x.status === "running" && x.reason === "waiting_busy";
       var stuck = x.status === "queued" && x.updated_at && (Date.now() / 1000 - Number(x.updated_at)) > STUCK_QUEUED_S;
       if (stuck) {
         return '<div class="tm-reply tm-reply-error" role="status">' + face + '<span class="tm-reply-main"><b>' + esc(who) +
           "</b> " + esc(tw("teams.reply.stuck")) + '</span><span class="tm-reply-acts">' + retryBtn + "</span></div>";
       }
-      var label = answering ? tw("teams.reply.answering") : waiting ? (x.detail ? tw("teams.reply.waiting_busy_in",
+      var label = answering ? tw("teams.reply.answering") : steered ? tw("teams.reply.steered") :
+        waiting ? (x.detail ? tw("teams.reply.waiting_busy_in",
         { team: x.detail }) : tw("teams.reply.waiting_busy")) : tw("teams.reply.queued");
       return '<div class="tm-reply tm-reply-' + (answering ? "answering" : "queued") + '" role="status">' + face +
         '<span class="tm-reply-main"><b>' + esc(who) + "</b> " + esc(label) +
@@ -1132,6 +1139,23 @@
     return at;
   }
 
+  // 18/11/2026 (owner: "nếu có tin được tag vào thì phải có 1 nút popup nhỏ để ấn vào sẽ lướt lên tin được tag"): the
+  // messages that call the owner and still wait to be read, oldest first. `asks`: [{id, ts}] of the messages drawn with
+  // the "asks you" flag. A message no longer waits once the owner wrote in the chat after it (`ownerTs`, ownerSaidAt) or
+  // once it has been on screen (`seen`: {id: true}).
+  function atPending(asks, ownerTs, seen) {
+    return (asks || []).filter(function (a) {
+      var ts = Number(a && a.ts) || 0;
+      if (ts > 1e12) ts = ts / 1000;
+      return a && !(seen || {})[a.id] && !(ownerTs && ts <= ownerTs);
+    }).map(function (a) { return Number(a.id); }).sort(function (x, y) { return x - y; });
+  }
+  // The round button at the top of the chat: an up arrow (the messages are above, owner 18/11/2026), and under it "@"
+  // with the number of messages waiting.
+  function atJumpHtml(n) {
+    return n ? ic("chevrons-up") + '<span class="notification-badge tm-at-n">@' + (n > 99 ? "99+" : n) + "</span>" : "";
+  }
+
   function stripState(q, seenAt) {
     q = q || {};
     var asks = (q.blocked || []).filter(function (t) { return !(seenAt && Number(t.updated_at || 0) <= seenAt); });
@@ -1555,16 +1579,34 @@
   function rsText(on) { return tw(on ? "resonance.t0_state_on" : "resonance.t0_state_off"); }
 
   // Mỗi thành viên một dòng (tên đủ, vai ở dòng dưới); chạm dòng mở các thao tác.
+  // The model a member's turns run on (owner, 18/11/2026: "trong team nhìn được model của các thành viên, như vậy sẽ dễ
+  // kiểm soát hơn"): engine and model, marked when the member has no model of its own and follows the main model.
+  function memberModelText(m) {
+    var x = m && m.model;
+    if (!x || !x.label) return "";
+    var text = x.model && x.model !== x.label ? x.label + " · " + x.model : x.label;
+    return x.main ? tw("teams.model_main", { model: text }) : text;
+  }
+
   function membersHtml(team, agents, openKey) {
-    var mem = team.members || [];
+    // 18/11/2026 (owner: "tag phó nhóm trong cài đặt team nổi bật lên một chút vì phó nhóm sẽ điều phối toàn bộ team"):
+    // the deputy stands right under the owner, on a tinted row with its own badge, so the coordinator is seen first.
+    var mem = (team.members || []).slice().sort(function (a, b) {
+      return (b.agent_key === team.leader_key ? 1 : 0) - (a.agent_key === team.leader_key ? 1 : 0);
+    });
     var rows = mem.map(function (m) {
       var lead = m.agent_key === team.leader_key;
       var open = openKey === m.agent_key;
-      var sub = [tw(lead ? "teams.leader" : "teams.member")];
+      var sub = [tw(lead ? "teams.leader_role" : "teams.member")];
       if (m.resonance_enabled) sub.push(rsText(true));
-      return '<div class="tm-mrow"><button type="button" class="tm-mhead" data-expand="' + esc(m.agent_key) + '" aria-expanded="' +
+      var model = memberModelText(m);
+      return '<div class="tm-mrow' + (lead ? " tm-mrow-lead" : "") + '"><button type="button" class="tm-mhead" data-expand="' +
+        esc(m.agent_key) + '" aria-expanded="' +
         (open ? "true" : "false") + '">' + agentAva(m, 34) + '<span class="tm-mtext"><span class="tm-mname">' +
-        esc(m.name || m.slug) + '</span><span class="tm-mrole">' + esc(sub.join(" · ")) + "</span></span>" +
+        esc(m.name || m.slug) + '</span><span class="tm-mrole">' + esc(sub.join(" · ")) + "</span>" +
+        (model ? '<span class="tm-mmodel" title="' + esc(model) + '">' + ic("cpu") + "<span>" + esc(model) + "</span></span>" : "") +
+        "</span>" +
+        (lead ? '<span class="tmp-badge tm-lead-badge">' + ic("star") + "<span>" + esc(tw("teams.leader")) + "</span></span>" : "") +
         '<span class="tm-chev" aria-hidden="true">' + ic("chevron-down") + "</span></button>" +
         '<div class="tm-mact"' + (open ? "" : " hidden") + ">" +
         '<label class="tm-rs"><input type="checkbox" class="tm-rs-toggle" data-slug="' + esc(m.slug) + '"' +
@@ -2256,7 +2298,8 @@
       renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle", dictSend: false,
       atts: [], folder: null, repos: [], ghIcon: null, skills: null, skillsBrain: "", info: null, typing: [], pinned: [], pinsOpen: false, tagFilter: readTagFilter(),
       autoOpened: false, unclamped: {}, outbox: [],
-      jobFold: {}, finPage: 0, archPage: 0, archQuery: "", jobDetails: {}, fullReport: {} };
+      jobFold: {}, finPage: 0, archPage: 0, archQuery: "", jobDetails: {}, fullReport: {},
+      atBtn: null, atObs: null, atSeen: null, atPend: [], olderBusy: null };
   }
 
   function teamUrl(path) { return "/teams/" + q(S.activeId) + (path || ""); }
@@ -2514,8 +2557,11 @@
       return it.nodes.every(function (n) { return n.parentNode === box; });
     });
     var keep = box.lastChild && box.lastChild.classList && box.lastChild.classList.contains("jv-new-msg") ? box.lastChild : null;
+    // The "@" button (18/11/2026) is the list's FIRST child, so `position: sticky; top` keeps it at the top: kept there.
+    var lead = box.firstChild && box.firstChild.classList && box.firstChild.classList.contains("tm-at-jump") ? box.firstChild : null;
     if (!usable) {
       while (box.firstChild) box.removeChild(box.firstChild);
+      if (lead) box.appendChild(lead);
       items.forEach(function (it) {
         it.nodes = make(it.html);
         it.nodes.forEach(function (n) { box.appendChild(n); });
@@ -2529,7 +2575,7 @@
     prev.forEach(function (it) {
       if (!want[it.key]) it.nodes.forEach(function (n) { box.removeChild(n); });
     });
-    var cursor = box.firstChild;
+    var cursor = lead ? lead.nextSibling : box.firstChild;
     items.forEach(function (it) {
       var was = old[it.key];
       if (was && was.html === it.html) {
@@ -2568,7 +2614,10 @@
     var items = [
       { key: "jumped", html: S.jumped !== null && S.jumped !== undefined ? '<div class="tm-jumped">' + esc(tw("teams.search_viewing")) +
         ' <button type="button" class="ws-btn tm-jump-back">' + ic("chevrons-down") + esc(tw("teams.search_back")) + "</button></div>" : "" },
-      { key: "older", html: S.hasMore ? '<button type="button" class="ws-btn tm-older">' + esc(tw("teams.older")) + "</button>" : "" },
+      // Both labels are always in the button and the list's `tm-older-busy` class picks one: the keyed list reuses a node
+      // whose markup did not change, so a label written into the node would stay after the load.
+      { key: "older", html: S.hasMore ? '<button type="button" class="ws-btn tm-older"><span class="tm-older-idle">' + esc(tw("teams.older")) +
+        '</span><span class="tm-older-wait">' + esc(tw("teams.older_loading")) + "</span></button>" : "" },
       // Messages of this team not loaded yet: say so, rather than "no message yet" (2026-11-09, owner).
       { key: "empty", html: !list.length && !S.hasMore ? (S.msgsFor !== S.activeId ? loadingHtml("teams.loading_chat")
         : '<div class="tm-empty tm-empty-chat">' + esc(tw(S.filterTask ? "teams.chat_empty_job" : "teams.chat_empty")) + "</div>") : "" }];
@@ -2586,6 +2635,82 @@
     // The owner's messages still on their way, at the bottom (11: shown at once, replaced by the server's copy).
     pendingEntries().forEach(function (p) { items.push({ key: "p" + p.cid, html: pendingHtml(p) }); });
     return { items: items, list: list };
+  }
+
+  // ───────────── the "@" button: messages that call the owner (18/11/2026) ─────────────
+  // What has been read is kept per team on this device, so reopening the team does not count the same messages again.
+  var AT_SEEN_KEY = "javis.teams.atSeen";
+  function readAtSeen(teamId) {
+    try {
+      var all = JSON.parse(localStorage.getItem(AT_SEEN_KEY) || "{}") || {}, out = {};
+      (all[teamId] || []).forEach(function (id) { out[id] = true; });
+      return out;
+    } catch (e) { return {}; }
+  }
+  function atSeenMap() {
+    var id = S.team && S.team.team_id;
+    if (!id) return {};
+    if (!S.atSeen || S.atSeen.team !== id) S.atSeen = { team: id, ids: readAtSeen(id) };
+    return S.atSeen.ids;
+  }
+  function markAtSeen(mid) {
+    var seen = atSeenMap();
+    if (!S.atSeen || seen[mid]) return false;
+    seen[mid] = true;
+    try {
+      var all = JSON.parse(localStorage.getItem(AT_SEEN_KEY) || "{}") || {};
+      all[S.atSeen.team] = Object.keys(seen).map(Number).sort(function (a, b) { return a - b; }).slice(-200);
+      localStorage.setItem(AT_SEEN_KEY, JSON.stringify(all));
+    } catch (e) {}
+    return true;
+  }
+  // A message calling the owner counts as read once half of it (or half the chat's height, for a long one) is on screen.
+  function onAtSeen(entries) {
+    var changed = false;
+    entries.forEach(function (en) {
+      if (!en.isIntersecting) return;
+      var tall = en.rootBounds && en.intersectionRect.height >= en.rootBounds.height * 0.5;
+      if (en.intersectionRatio < 0.5 && !tall) return;
+      if (markAtSeen(Number(en.target.getAttribute("data-mid")))) changed = true;
+      if (S.atObs) S.atObs.unobserve(en.target);
+    });
+    if (changed) updateAtJump(false);
+  }
+  // `watch`: the list was drawn again, so the messages to watch are new nodes.
+  function updateAtJump(watch) {
+    var btn = S.atBtn, box = S.el.querySelector(".tm-msgs");
+    if (!btn || !box) return;
+    var IO = typeof IntersectionObserver !== "undefined" ? IntersectionObserver : null;
+    var asks = S.team && IO ? Array.prototype.map.call(box.querySelectorAll(".tm-msg-asks[data-mid]"), function (el) {
+      var id = Number(el.getAttribute("data-mid")), m = msgById(id);
+      return { id: id, ts: m ? m.ts : 0, el: el };
+    }) : [];
+    var pend = S.atPend = atPending(asks, ownerSaidAt(S.msgs), atSeenMap());
+    // Drawn again on every update of the list: the button is only rewritten when its count changes.
+    if (btn.getAttribute("data-n") !== String(pend.length)) {
+      btn.setAttribute("data-n", String(pend.length));
+      btn.innerHTML = atJumpHtml(pend.length);
+      var label = tw("teams.at_jump", { n: pend.length });
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+      btn.classList.toggle("show", pend.length > 0);
+    }
+    if (!watch || !IO) return;
+    if (!S.atObs || S.atObs.root !== box) S.atObs = new IO(onAtSeen, { root: box, threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] });
+    S.atObs.disconnect();
+    asks.forEach(function (a) { if (pend.indexOf(a.id) >= 0) S.atObs.observe(a.el); });
+  }
+  // Pressed: the oldest message still waiting comes to the middle of the chat and flashes; the next press goes on.
+  function atJump() {
+    var box = S.el.querySelector(".tm-msgs"), id = (S.atPend || [])[0];
+    var el = id != null && box ? box.querySelector('.tm-msg[data-mid="' + id + '"]') : null;
+    if (!el) return updateAtJump(true);
+    if (S.scroll) S.scroll.setStuck(false);
+    if (el.scrollIntoView) el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.add("tm-msg-flash");
+    setTimeout(function () { el.classList.remove("tm-msg-flash"); }, 1600);
+    markAtSeen(id);
+    updateAtJump(false);
   }
 
   function drawMsgs(stick) {
@@ -2619,6 +2744,12 @@
     if (lastRx) lastRx.classList.add("is-last");
     // The jump-to-latest button (chat-scroll.js) is the list's last child, so `position: sticky` keeps it at the bottom.
     if (S.scroll) { if (box.lastChild !== S.scroll.button) box.appendChild(S.scroll.button); S.scroll.update(); }
+    // The "@" button is the list's first child, sticky at the top right (owner, 18/11/2026: "nút nó phải ở phía trên",
+    // like Zalo: the messages it leads to are above).
+    if (S.atBtn) {
+      if (box.firstChild !== S.atBtn) box.insertBefore(S.atBtn, box.firstChild);
+      updateAtJump(true);
+    }
     applyReveal(box);
     // Bảng đang "mở" mà không vẽ ra (tin đã đổi, đã ghim): bỏ trạng thái mở, kẻo tin mới không còn tự cuộn xuống.
     if (S.picker !== null && !box.querySelector('[data-panel="' + S.picker + '"]')) S.picker = null;
@@ -2928,11 +3059,7 @@
       roots: function (el) { return Array.prototype.slice.call(el.querySelectorAll(".tm-text")); },
       scroller: function () { return S.el.querySelector(".tm-msgs"); },
       beforeScroll: function () { if (S.scroll) S.scroll.setStuck(false); },
-      loadOlder: function () {
-        if (!S.hasMore || S.filterTask) return false;
-        var n = S.msgs.length;
-        return loadMsgs(true).then(function () { return S.msgs.length > n; });
-      },
+      loadOlder: function () { return loadOlder(); },
       flashClass: "tm-msg-flash"
     });
   }
@@ -3469,6 +3596,47 @@
     });
   }
 
+  // 18/11/2026 (owner: "chỉ tải những tin gần nhất thôi lúc nào cuộn lên mới tải cả các tin bên trên"): a team opens on
+  // its newest page only, and older pages come in by themselves as the owner scrolls near the top, like the main chat
+  // and the Chatbot page. One page at a time: two loads from the same cursor (a double press, a scroll during a press)
+  // used to put the same messages in twice. Resolves true when older messages were added.
+  var OLDER_NEAR_PX = 240;
+  function loadOlder() {
+    if (!S || !S.activeId || !S.hasMore || S.filterTask || !S.msgs.length) return Promise.resolve(false);
+    if (S.olderBusy) return S.olderBusy.team === S.activeId ? S.olderBusy.p : Promise.resolve(false);
+    var mine = { team: S.activeId }, n = S.msgs.length;
+    var box = S.el.querySelector(".tm-msgs");
+    var done = function () {
+      if (S.olderBusy !== mine) return;
+      S.olderBusy = null;
+      if (box) box.classList.remove("tm-older-busy");
+    };
+    S.olderBusy = mine;
+    if (box) box.classList.add("tm-older-busy");
+    mine.p = loadMsgs(true).then(function () {
+      done();
+      var more = S.activeId === mine.team && S.msgs.length > n;
+      if (more) fillOlder();
+      return more;
+    }, function () { done(); return false; });
+    return mine.p;
+  }
+
+  // A newest page of short messages may not fill the chat: with nothing to scroll, the top is never reached. Load older
+  // pages until the chat can scroll (the Chatbot page does the same). A hidden chat (height 0) loads nothing, and so
+  // does a chat still showing "Loading" while the team's record is on its way (no list on screen yet).
+  function fillOlder() {
+    var box = S && S.el && S.el.querySelector(".tm-msgs");
+    if (!box || !S.team || !S.hasMore || S.olderBusy || !box.clientHeight || box.scrollHeight > box.clientHeight + 40) return;
+    loadOlder();
+  }
+
+  function onMsgsScroll(e) {
+    var box = e && e.currentTarget;
+    if (!S || !box || !S.activeId || !S.team || !S.hasMore || S.olderBusy) return;
+    if (box.scrollTop < OLDER_NEAR_PX) loadOlder();
+  }
+
   function loadTurns() {
     if (!S.activeId) return Promise.resolve();
     var forTeam = S.activeId;
@@ -3508,6 +3676,10 @@
     S.jumped = null; S.searchResults = null; S.searchQuery = ""; S.searchOpen = false;
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.msgsFor = ""; S.taskTitles = {}; S.openMember = null; S.turns = [];
+    // The last team's "more above" and its older load in flight belong to that team.
+    S.hasMore = false; S.olderBusy = null;
+    var msgsBox = S.el.querySelector(".tm-msgs");
+    if (msgsBox) msgsBox.classList.remove("tm-older-busy");
     S.jobFold = {}; S.finPage = 0; S.archPage = 0; S.archQuery = ""; S.jobDetails = {}; S.fullReport = {}; S.openFin = null;
     S.seenAt = 0; S.fbQuality = false; S.stripOpen = false;
     // 2026-11-09 (owner): a team opens with its Info tab showing on a wide screen, unless the owner closed the panel
@@ -3540,6 +3712,7 @@
       drawAll(true);
       keepTeam(); loadFolder(); loadSkills();
       if (S.side && S.tab === "info") loadInfo();
+      fillOlder();
     });
     markOpened(id);
   }
@@ -4213,7 +4386,9 @@
     var who = String(ap.requested_by || "");
     var mem = who && who.indexOf("mandate:") !== 0 ? memberOf(S.team.members, who) : null;
     var body = { text: Q ? Q.ghep(quote, words) : quote + "\n\n" + words, mentions: mem && (!mem.status || mem.status === "active") ? [who] : [],
-      as_job: false, client_msg_id: AP_REPLY.cid || (AP_REPLY.cid = newClientId()) };
+      as_job: false, client_msg_id: AP_REPLY.cid || (AP_REPLY.cid = newClientId()),
+      // 18/11/2026: the card was answered, so the server clears its notice in the bell.
+      approval_id: d.ap };
     var forTeam = S.activeId;
     btn.disabled = true;
     return call("POST", teamUrl("/messages"), body).then(function (r) {
@@ -5165,6 +5340,8 @@
     if (d.tab) {
       S.tab = d.tab; S.tabAuto = false; drawSide(true); drawHead();
       if (d.tab === "team") loadAgents().then(function () { if (S.side && S.tab === "team") drawSide(); });
+      // 18/11/2026: a team that opened on Jobs never read its files and links, so Info showed "Loading..." for good.
+      if (d.tab === "info") { loadInfo(); loadFolder(); }
       return;
     }
     if (d.expand) { S.openMember = S.openMember === d.expand ? null : d.expand; drawSide(true); return; }
@@ -5180,7 +5357,7 @@
       return;
     }
     if (t.classList.contains("tm-send")) return send();
-    if (t.classList.contains("tm-older")) return loadMsgs(true);
+    if (t.classList.contains("tm-older")) return loadOlder();
     if (d.mention) return pickMention(d.mention);
     if (d.skill) return pickSkill(d.skill);
     if (d.unmention) return unMention(d.unmention);
@@ -5205,6 +5382,7 @@
       return jumpTo(d.jump, d.ts);
     }
     if (t.classList.contains("tm-jump-back")) { S.jumped = null; loadMsgs(false); return; }
+    if (t.classList.contains("tm-at-jump")) return atJump();
     if (t.classList.contains("tm-filter-clear")) { S.filterTask = ""; drawFilterbar(); loadMsgs(false); return; }
     if (t.dataset && t.dataset.fbQuality) { S.fbQuality = !S.fbQuality; drawFilterbar(); return; }
     if (d.reactClose) { S.focusBack = S.picker; S.picker = null; drawMsgs(false); return; }
@@ -5865,6 +6043,11 @@
     var msgsBox = el.querySelector(".tm-msgs");
     S.scroll = CS && msgsBox ? CS.attach(msgsBox, { buttonClass: "jv-new-msg tm-new-msg", msg: ".tm-msg",
       hold: ".tm-hacts:hover, .tm-rx:hover", key: "data-mid", followLoads: true }) : null;
+    // Near the top of the chat, the next older page loads by itself (18/11/2026).
+    if (msgsBox) msgsBox.addEventListener("scroll", onMsgsScroll, { passive: true });
+    S.atBtn = document.createElement("button");
+    S.atBtn.type = "button";
+    S.atBtn.className = "tm-at-jump";
     attachListResize();
     el.addEventListener("mouseover", function (e) {
       var row = e.target.closest && e.target.closest(".tm-team");
@@ -6011,7 +6194,7 @@
     jobsChip: jobsChip, jobsChipHtml: jobsChipHtml, timeShort: timeShort,
     mentionMatches: mentionMatches, mentionsFromText: mentionsFromText, mentionScan: mentionScan, removeMention: removeMention,
     callsHtml: callsHtml, foldName: foldName, emailBefore: emailBefore, composerHint: composerHint, newClientId: newClientId,
-    membersHtml: membersHtml, settingsFormHtml: settingsFormHtml, dangerZoneHtml: dangerZoneHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
+    membersHtml: membersHtml, memberModelText: memberModelText, atPending: atPending, atJumpHtml: atJumpHtml, settingsFormHtml: settingsFormHtml, dangerZoneHtml: dangerZoneHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
     levelOf: levelOf, grantFor: grantFor, teamAvatarHtml: teamAvatarHtml, savePin: savePin, pinTeamWith: pinTeamWith, noteHtml: noteHtml, levelsHtml: levelsHtml, turnsHtml: turnsHtml,
     bannersHtml: bannersHtml, reactCornerHtml: reactCornerHtml, reactBarHtml: reactBarHtml, sheetHtml: sheetHtml,
     hoverActsHtml: hoverActsHtml, bodyHtml: bodyHtml, skillSplit: skillSplit, skillCall: skillCall, listSync: listSync, pendingHtml: pendingHtml, copyTextOf: copyTextOf, fileChipHtml: fileChipHtml, uploadError: uploadError, pickFiles: pickFiles, plainPreview: plainPreview, previewText: previewText,

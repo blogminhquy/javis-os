@@ -114,7 +114,7 @@ class LazySkillSource:
 
     def resolve(self, brain: str | Path, query: str, min_score: float = 0.24,
                 ambiguity_margin: float = 0.08, max_body_chars: int = 12000,
-                lang: str = "", descriptions: dict | None = None) -> SkillSelection:
+                lang: str = "", descriptions: dict | None = None, session_key: str = "") -> SkillSelection:
         """`descriptions`: owner-applied routing descriptions (M4) for this chat, {slug: text}. With
         any, ranking runs over the frozen manifest projection so the overlay text is what is scored."""
         from improvement_task_skill_scope import current, ScopeUnavailable
@@ -192,11 +192,26 @@ class LazySkillSource:
             return SkillSelection("none" if scope is not None else "fallback", "source_manifest_changed", top["capability_id"], slug,
                                   top_score, runner, revision)
         raw = asset.text
-        if not raw.strip() or len(raw) > max(1000, int(max_body_chars)):
+        picked = None
+        if raw.strip() and len(raw) > max(1000, int(max_body_chars)) and session_key:
+            # 2026-11-18: a long skill built as a menu brings the parts this objective needs, chosen before loading
+            # (section_select); when Javis is not sure the old fallback below applies.
+            try:
+                import section_select
+                picked = section_select.for_skill(slug, raw, "", question=query, session=session_key,
+                                                  tool="lazy_skill")
+            except Exception:  # noqa: BLE001 - a saving never stands in the way of the old path
+                picked = None
+            if picked is not None and len(picked) > max(1000, int(max_body_chars)):
+                picked = None
+        if not raw.strip() or (picked is None and len(raw) > max(1000, int(max_body_chars))):
             return SkillSelection("none" if scope is not None else "fallback", "body_over_limit", top["capability_id"], slug,
                                   top_score, runner, revision)
-        _meta, body = skill_router.split_frontmatter(raw)
-        body = body.strip()
+        if picked is not None:
+            body = picked.strip()
+        else:
+            _meta, body = skill_router.split_frontmatter(raw)
+            body = body.strip()
         if not body:
             return SkillSelection("none" if scope is not None else "fallback", "body_empty", top["capability_id"], slug,
                                   top_score, runner, revision)
