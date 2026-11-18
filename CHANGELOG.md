@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.592.2] - 2026-11-18
+### Sửa lỗi
+- **Nhóm Zalo mới vào cũng có tên.** Bộ Zalo (javis-zalo 1.12.0) trước chỉ nạp tên nhóm một lần lúc khởi động, nên nhóm nick vào sau đó hiện thành "Nhóm …" kèm đuôi id cho tới lần khởi động lại. Giờ tin đầu tiên từ nhóm lạ sẽ kèm tra tên nhóm, và nhóm đổi tên cũng được cập nhật.
+
 ## [0.592.1] - 2026-11-18
 ### Sửa lỗi
 - **Ô chọn nhóm của Chatbot không còn hiện id trần.** Nhóm đã tick mà ô tìm lọc mất, hoặc cũ hơn 80 cuộc chat gần nhất, trước đây hiện thành dãy số dài. Giờ nhóm nào cũng mang tên thật lấy từ Hộp thư, nhóm chưa rõ tên thì hiện "Nhóm …" kèm đuôi id.
