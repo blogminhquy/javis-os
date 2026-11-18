@@ -4839,6 +4839,7 @@
   "teams.cancel_confirm": "Cancel \"{title}\"?",
   "teams.remove_confirm": "Remove {name} from the team? A step {name} is working on (if any) will not be applied; the deputy lead will reassign it.",
   "teams.older": "Older messages",
+  "teams.older_loading": "Loading older messages...",
   "teams.next_page": "Next page",
   "teams.doing": "Working on: {title}",
   "teams.needs_you": "Needs you",

@@ -2299,7 +2299,7 @@
       atts: [], folder: null, repos: [], ghIcon: null, skills: null, skillsBrain: "", info: null, typing: [], pinned: [], pinsOpen: false, tagFilter: readTagFilter(),
       autoOpened: false, unclamped: {}, outbox: [],
       jobFold: {}, finPage: 0, archPage: 0, archQuery: "", jobDetails: {}, fullReport: {},
-      atBtn: null, atObs: null, atSeen: null, atPend: [] };
+      atBtn: null, atObs: null, atSeen: null, atPend: [], olderBusy: null };
   }
 
   function teamUrl(path) { return "/teams/" + q(S.activeId) + (path || ""); }
@@ -2614,7 +2614,10 @@
     var items = [
       { key: "jumped", html: S.jumped !== null && S.jumped !== undefined ? '<div class="tm-jumped">' + esc(tw("teams.search_viewing")) +
         ' <button type="button" class="ws-btn tm-jump-back">' + ic("chevrons-down") + esc(tw("teams.search_back")) + "</button></div>" : "" },
-      { key: "older", html: S.hasMore ? '<button type="button" class="ws-btn tm-older">' + esc(tw("teams.older")) + "</button>" : "" },
+      // Both labels are always in the button and the list's `tm-older-busy` class picks one: the keyed list reuses a node
+      // whose markup did not change, so a label written into the node would stay after the load.
+      { key: "older", html: S.hasMore ? '<button type="button" class="ws-btn tm-older"><span class="tm-older-idle">' + esc(tw("teams.older")) +
+        '</span><span class="tm-older-wait">' + esc(tw("teams.older_loading")) + "</span></button>" : "" },
       // Messages of this team not loaded yet: say so, rather than "no message yet" (2026-11-09, owner).
       { key: "empty", html: !list.length && !S.hasMore ? (S.msgsFor !== S.activeId ? loadingHtml("teams.loading_chat")
         : '<div class="tm-empty tm-empty-chat">' + esc(tw(S.filterTask ? "teams.chat_empty_job" : "teams.chat_empty")) + "</div>") : "" }];
@@ -3056,11 +3059,7 @@
       roots: function (el) { return Array.prototype.slice.call(el.querySelectorAll(".tm-text")); },
       scroller: function () { return S.el.querySelector(".tm-msgs"); },
       beforeScroll: function () { if (S.scroll) S.scroll.setStuck(false); },
-      loadOlder: function () {
-        if (!S.hasMore || S.filterTask) return false;
-        var n = S.msgs.length;
-        return loadMsgs(true).then(function () { return S.msgs.length > n; });
-      },
+      loadOlder: function () { return loadOlder(); },
       flashClass: "tm-msg-flash"
     });
   }
@@ -3597,6 +3596,47 @@
     });
   }
 
+  // 18/11/2026 (owner: "chỉ tải những tin gần nhất thôi lúc nào cuộn lên mới tải cả các tin bên trên"): a team opens on
+  // its newest page only, and older pages come in by themselves as the owner scrolls near the top, like the main chat
+  // and the Chatbot page. One page at a time: two loads from the same cursor (a double press, a scroll during a press)
+  // used to put the same messages in twice. Resolves true when older messages were added.
+  var OLDER_NEAR_PX = 240;
+  function loadOlder() {
+    if (!S || !S.activeId || !S.hasMore || S.filterTask || !S.msgs.length) return Promise.resolve(false);
+    if (S.olderBusy) return S.olderBusy.team === S.activeId ? S.olderBusy.p : Promise.resolve(false);
+    var mine = { team: S.activeId }, n = S.msgs.length;
+    var box = S.el.querySelector(".tm-msgs");
+    var done = function () {
+      if (S.olderBusy !== mine) return;
+      S.olderBusy = null;
+      if (box) box.classList.remove("tm-older-busy");
+    };
+    S.olderBusy = mine;
+    if (box) box.classList.add("tm-older-busy");
+    mine.p = loadMsgs(true).then(function () {
+      done();
+      var more = S.activeId === mine.team && S.msgs.length > n;
+      if (more) fillOlder();
+      return more;
+    }, function () { done(); return false; });
+    return mine.p;
+  }
+
+  // A newest page of short messages may not fill the chat: with nothing to scroll, the top is never reached. Load older
+  // pages until the chat can scroll (the Chatbot page does the same). A hidden chat (height 0) loads nothing, and so
+  // does a chat still showing "Loading" while the team's record is on its way (no list on screen yet).
+  function fillOlder() {
+    var box = S && S.el && S.el.querySelector(".tm-msgs");
+    if (!box || !S.team || !S.hasMore || S.olderBusy || !box.clientHeight || box.scrollHeight > box.clientHeight + 40) return;
+    loadOlder();
+  }
+
+  function onMsgsScroll(e) {
+    var box = e && e.currentTarget;
+    if (!S || !box || !S.activeId || !S.team || !S.hasMore || S.olderBusy) return;
+    if (box.scrollTop < OLDER_NEAR_PX) loadOlder();
+  }
+
   function loadTurns() {
     if (!S.activeId) return Promise.resolve();
     var forTeam = S.activeId;
@@ -3636,6 +3676,10 @@
     S.jumped = null; S.searchResults = null; S.searchQuery = ""; S.searchOpen = false;
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.msgsFor = ""; S.taskTitles = {}; S.openMember = null; S.turns = [];
+    // The last team's "more above" and its older load in flight belong to that team.
+    S.hasMore = false; S.olderBusy = null;
+    var msgsBox = S.el.querySelector(".tm-msgs");
+    if (msgsBox) msgsBox.classList.remove("tm-older-busy");
     S.jobFold = {}; S.finPage = 0; S.archPage = 0; S.archQuery = ""; S.jobDetails = {}; S.fullReport = {}; S.openFin = null;
     S.seenAt = 0; S.fbQuality = false; S.stripOpen = false;
     // 2026-11-09 (owner): a team opens with its Info tab showing on a wide screen, unless the owner closed the panel
@@ -3668,6 +3712,7 @@
       drawAll(true);
       keepTeam(); loadFolder(); loadSkills();
       if (S.side && S.tab === "info") loadInfo();
+      fillOlder();
     });
     markOpened(id);
   }
@@ -5312,7 +5357,7 @@
       return;
     }
     if (t.classList.contains("tm-send")) return send();
-    if (t.classList.contains("tm-older")) return loadMsgs(true);
+    if (t.classList.contains("tm-older")) return loadOlder();
     if (d.mention) return pickMention(d.mention);
     if (d.skill) return pickSkill(d.skill);
     if (d.unmention) return unMention(d.unmention);
@@ -5998,6 +6043,8 @@
     var msgsBox = el.querySelector(".tm-msgs");
     S.scroll = CS && msgsBox ? CS.attach(msgsBox, { buttonClass: "jv-new-msg tm-new-msg", msg: ".tm-msg",
       hold: ".tm-hacts:hover, .tm-rx:hover", key: "data-mid", followLoads: true }) : null;
+    // Near the top of the chat, the next older page loads by itself (18/11/2026).
+    if (msgsBox) msgsBox.addEventListener("scroll", onMsgsScroll, { passive: true });
     S.atBtn = document.createElement("button");
     S.atBtn.type = "button";
     S.atBtn.className = "tm-at-jump";
