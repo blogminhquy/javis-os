@@ -452,13 +452,18 @@
   }
   function tatDen(u) { var m = Number((u && u.muted_until) || 0); return m === -1 || m > Date.now() / 1000 ? m : 0; }
   function chuaDoc(slug) { var u = S.un[slug]; return u && !dangXemCongSu(slug) ? Number(u.n) || 0 : 0; }
-  // The unread pill (grey while muted) and the bell-off mark, in the row's corner cluster next to the time.
+  // The bell-off mark of a muted partner, in the row's corner cluster next to the time.
   function tinHtml(x) {
-    var n = chuaDoc(x.slug), tat = tatDen(S.un[x.slug]);
-    return (tat ? '<span class="tm-muted" title="' + esc(t("ws.muted")) + '" aria-label="' + esc(t("ws.muted")) + '">' +
-        ic("bell-off") + "</span>" : "") +
-      (n ? '<span class="notification-badge tm-unread' + (tat ? " is-muted" : "") + '" title="' + esc(t("ws.unread_n", { n: n })) +
-        '">' + (n > 99 ? "99+" : String(n)) + "</span>" : "");
+    return tatDen(S.un[x.slug]) ? '<span class="tm-muted" title="' + esc(t("ws.muted")) + '" aria-label="' + esc(t("ws.muted")) +
+      '">' + ic("bell-off") + "</span>" : "";
+  }
+  // 2026-11-18 (owner: "đặt số tin chưa đọc sang bên trái đè lên cạnh dưới trái của avatar để tiết kiệm không gian"): the
+  // unread pill (grey while muted) sits on the avatar's bottom left corner, on phone and desktop alike. The time keeps the
+  // corner cluster to itself, and the collapsed avatar strip (where the cluster hides) still shows who has new messages.
+  function soTinHtml(x) {
+    var n = chuaDoc(x.slug);
+    return n ? '<span class="notification-badge tm-unread ws-av-unread' + (tatDen(S.un[x.slug]) ? " is-muted" : "") + '" title="' +
+      esc(t("ws.unread_n", { n: n })) + '">' + (n > 99 ? "99+" : String(n)) + "</span>" : "";
   }
   async function datTat(item, choice) {
     var r;
@@ -1274,7 +1279,7 @@
       (laAgent ? " has-end" : "") + (info ? " has-info" : "") + '"' + (jst ? ' data-st="' + jst + '"' : "") + '>' +
       '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '"' +
         (title ? ' title="' + esc(title) + '"' : "") + '>' +
-      '<span class="ws-item-ic">' + (laAgent ? avatar(x, 40)
+      '<span class="ws-item-ic">' + (laAgent ? avatar(x, 40) + soTinHtml(x)
         : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
       '<span class="ws-item-text"><span class="ws-item-top"><strong>' + esc(x.name) + '</strong></span>' +
       (laAgent ? cardSubHtml(x, he) : "") +
@@ -2331,7 +2336,7 @@
     dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, nhomHtml: nhomHtml, chonNhom: chonNhom, state: function () { return S; },
     tagsCua: tagsCua, tagCap: tagCap, laKhoa: laKhoa, demTag: demTag, coTag: coTag, khoaTag: khoaTag,
     dongChonTag: dongChonTag, chipTagHtml: chipTagHtml, TAG_NONE: TAG_NONE, TAG_AUTO: TAG_AUTO, laLocGia: laLocGia, autoBat: autoBat, autoBlocked: autoBlocked,
-    resonanceMap: resonanceMap, afterToggle: afterToggle, tinHtml: tinHtml, tatDen: tatDen };
+    resonanceMap: resonanceMap, afterToggle: afterToggle, tinHtml: tinHtml, soTinHtml: soTinHtml, tatDen: tatDen };
   // Sidebar lịch sử mở phiên trực tiếp qua JavisSessions.open, ngoài đường moPhien ở trên.
   // Ghi lại sau khi nó mở xong để lần dựng trang sau vẫn ở đúng cuộc đã chọn.
   window.addEventListener("javis:sessions-changed", function () {

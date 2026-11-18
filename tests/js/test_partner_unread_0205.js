@@ -24,7 +24,10 @@ check("events read the counts again", /\["javis:sessions-changed", "javis:agent-
   && /data\.type === "agent_read"/.test(app));
 // 2026-11-05: only when something is unread (or the counts are not loaded yet): a zero count skips the POST.
 check("opening a partner's chat reads it", /if \(S\.loai === "agent" && coTinChuaDoc\(item\.slug\)\) daDoc\(item\.slug\);/.test(ws) && ws.includes('api("/agents/opened"'));
-check("unread pill and muted mark in the corner cluster", ws.includes("gioNhanHtml(x.last_chat_at) + tinHtml(x) +"));
+check("muted mark in the corner cluster", ws.includes("gioNhanHtml(x.last_chat_at) + tinHtml(x) +"));
+// 2026-11-18: the count sits on the avatar's bottom left corner, not in the corner cluster.
+check("unread pill on the avatar", ws.includes("avatar(x, 40) + soTinHtml(x)") && !/gioNhanHtml\(x\.last_chat_at\) \+ soTinHtml/.test(ws)
+  && /\.ws-av-unread \{ position: absolute; left: -4px; bottom: -4px;/.test(css) && /\.ws-item-ic \{ position: relative; \}/.test(css));
 check("the chat on screen shows no count", /function chuaDoc\(slug\) \{ var u = S\.un\[slug\]; return u && !dangXemCongSu\(slug\)/.test(ws));
 check("menu item and the four lengths", /nutMenu\("bell-off", t\("ws\.mute"\), "tb"\)/.test(ws)
   && ["1h", "4h", "8am", "forever"].every((c) => ws.includes('["' + c + '", "ws.mute_')) && ws.includes('datTat(item, "off")'));
@@ -41,9 +44,10 @@ require(path.join(R, "dashboard/workspace.js"));
 const W = window.JavisWorkspace;
 const S = W.state();
 S.un = { a: { n: 3, last_at: 1, muted_until: 0 }, b: { n: 120, last_at: 1, muted_until: -1 }, c: { n: 0, muted_until: 0 } };
-const a = W.tinHtml({ slug: "a" }), b = W.tinHtml({ slug: "b" }), c = W.tinHtml({ slug: "c" });
-check("count pill", /notification-badge tm-unread"[^>]*>3</.test(a) && !a.includes("tm-muted"));
-check("muted: grey pill, bell-off mark, 99+", b.includes("tm-unread is-muted") && b.includes("tm-muted") && b.includes(">99+<"));
+const a = W.soTinHtml({ slug: "a" }) + W.tinHtml({ slug: "a" }), b = W.soTinHtml({ slug: "b" }), bm = W.tinHtml({ slug: "b" });
+const c = W.soTinHtml({ slug: "c" }) + W.tinHtml({ slug: "c" });
+check("count pill", /notification-badge tm-unread ws-av-unread"[^>]*>3</.test(a) && !a.includes("tm-muted"));
+check("muted: grey pill, bell-off mark, 99+", b.includes("ws-av-unread is-muted") && bm.includes("tm-muted") && !bm.includes("tm-unread") && b.includes(">99+<"));
 check("nothing unread draws nothing", c === "");
 check("mute until turned back on reads as muted", W.tatDen({ muted_until: -1 }) === -1 && W.tatDen({ muted_until: 1 }) === 0);
 

@@ -4548,7 +4548,14 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-mini-unread { display: none; }
 /* 0.205.0: a private partner chat shows its unread count and the bell-off mark in the row's corner cluster, like a
    team row; an unread row reads in full ink. */
-.ws-item-end .tm-unread { margin-left: 2px; }
+/* 2026-11-18 (owner): the count moved onto the avatar's bottom left corner. It stays inside the row's padding, so it never
+   touches the orange bar of a pinned row; a long "99+" grows to the right along the avatar's foot, and a ring in the
+   list colour lifts it off the picture. Same spot in the collapsed avatar strip. */
+.ws-item-ic { position: relative; }
+.ws-av-unread { position: absolute; left: -4px; bottom: -4px; top: auto; right: auto; height: 18px; min-width: 18px; padding: 0 5px;
+  border-radius: 9px; font-size: 11px; line-height: 18px; box-shadow: 0 0 0 2px var(--bg2); pointer-events: none; }
+/* On a picture the pale muted grey vanished (dark theme above all): a solid mid grey still reads as muted. */
+.ws-av-unread.is-muted { background: var(--text3); color: var(--bg2); }
 .ws-item-wrap.has-unread .ws-item-top strong, .ws-item-wrap.has-unread .ws-item small { color: var(--text); font-weight: 700; }
 @media (min-width: 1061px) {
   .tm-page.tm-mini .tm-mini-unread { display: flex; gap: 2px; position: absolute; top: 0; right: 2px; pointer-events: none; }
