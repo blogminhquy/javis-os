@@ -32,7 +32,7 @@ Zalo only delivers to an HTTPS address on a verified domain.
 1. Open Javis **through its HTTPS domain**, go to **Chatbot**, **Bots**, choose **Add channel**, pick **Zalo OA**. The form shows the **Webhook address** and a **Zalo domain verification code** box.
 2. On Zalo, under **Domain verification**, enter Javis's domain and choose verification by **HTML file**. Zalo gives a file name like `zalo_verifier<code>.html`.
 3. Paste that file name (or the meta tag Zalo shows) into Javis's box and press **Save code**. Javis now serves that exact file. Go back to Zalo and press **Verify**.
-4. Open the app's **Webhook** section, paste the **Webhook address** Javis shows (like `https://<domain>/zalo-oa/webhook`) and enable the events **user_send_text**, **user_send_image**, **user_send_file**, **user_send_audio**, **user_send_sticker**, **user_send_location**.
+4. Open the app's **Webhook** section, paste the **Webhook address** Javis shows (like `https://<domain>/zalo-oa/webhook`) and enable the events **user_send_text**, **user_send_image**, **user_send_file**, **user_send_audio**, **user_send_sticker**, **user_send_location**. Also enable **oa_send_text**, **oa_send_image**, **oa_send_file** so the bot sees what staff send customers from the OA app (see below).
 5. The Webhook section also shows the **OA secret key**. Copy it: Javis checks the signature of every event with it and drops anything not signed with it.
 
 ## 3. Register the Callback URL for OAuth v4 (once)
@@ -76,6 +76,7 @@ Still works if you have not registered the Callback URL.
 - **"Zalo could not refresh the token":** the refresh token is wrong, already used, or older than 3 months. Open Edit on the channel and click **Grant access again with Zalo**.
 - **Error -230 or "the customer has not written for too long":** Zalo only lets the OA reply within a window after the customer's last message. It reopens when they write again.
 - **Error -224:** the OA's service package does not allow this through the API. Check the package on [oa.zalo.me](https://oa.zalo.me).
+- **The bot does not know the quote a staff member just sent:** enable the oa_send_text, oa_send_image and oa_send_file events in the app's Webhook section. Messages staff send from the OA app then show in the Inbox (labelled Staff) and the bot reads the files: PDF, Word and Excel directly, photos through a connected brain that can see (your main model, the ChatGPT plan or Claude Code). The bot only records them, it does not answer staff messages.
 - **No messages arrive at all:** check the webhook points to Javis's HTTPS address and the user_send_* events are on. Zalo drops a webhook that fails several times in a row; turn it back on in the app page.
 
 Javis cannot read OA messages from before the connection: the Inbox starts with the first event that arrives through the webhook.

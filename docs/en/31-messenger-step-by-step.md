@@ -205,7 +205,7 @@ Javis usually registers it by itself. Only do this when the **App webhook** or *
 In the Meta app: **Use cases, Messenger from Meta, Customize, Messenger API settings**.
 
 - **Configure webhooks (section 1):** paste the **Webhook address** into **Callback URL** and the **Verify token** into **Verify token** (both are on the Facebook Messenger form, each with a Copy button). Click **Verify and save**.
-- **Subscribe the Page (section 2):** on the Page's row, click **Add subscriptions**, tick exactly 3 fields `messages`, `messaging_postbacks`, `feed`, click **Confirm**. Do not tick everything: extra fields send events Javis does not handle.
+- **Subscribe the Page (section 2):** on the Page's row, click **Add subscriptions**, tick exactly 4 fields `messages`, `messaging_postbacks`, `message_echoes`, `feed`, click **Confirm**. `message_echoes` lets the bot see what staff send customers from the Page inbox. Do not tick everything: extra fields send events Javis does not handle.
 
 Then go back to the Messenger card and click **Check** on that Page.
 

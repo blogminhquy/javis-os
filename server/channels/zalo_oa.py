@@ -17,7 +17,7 @@ import localefmt
 SPEC = KenhSpec(
     id="zalo_oa", nhan="Zalo OA", kind="bot", logo="zalo", mau="#0068FF",
     lay_token=("Cần Javis có tên miền HTTPS. Ở developers.zalo.me tạo app, liên kết OA, xác thực tên miền "
-               "(dán mã vào ô bên dưới), đặt webhook bằng địa chỉ bên dưới và bật các sự kiện user_send_*. "
+               "(dán mã vào ô bên dưới), đặt webhook bằng địa chỉ bên dưới và bật các sự kiện user_send_* và oa_send_* (để bot đọc file nhân viên gửi). "
                "Rồi dán App ID, App secret key, OA secret key cách nhau dấu cách và bấm Cấp quyền bằng Zalo "
                "(OAuth v4). Vẫn dán được kiểu cũ, thêm Refresh token ở cuối rồi Kiểm tra. "
                "Chi tiết: docs/35-zalo-oa.md."),
@@ -27,7 +27,7 @@ SPEC = KenhSpec(
     en={
         "lay_token": ("Javis needs an HTTPS domain. On developers.zalo.me create an app, link your OA, verify "
                       "the domain (paste the code in the box below), set the webhook to the address below and "
-                      "enable the user_send_* events. Then paste the App ID, App secret key and OA secret key "
+                      "enable the user_send_* and oa_send_* events (so the bot reads files staff send). Then paste the App ID, App secret key and OA secret key "
                       "separated by spaces and click Grant access with Zalo (OAuth v4). The old way still works: add "
                       "a Refresh token at the end and click Check. Details: docs/en/35-zalo-oa.md."),
         "tom_tat": ("Your business Zalo Official Account inbox. Private chats only; once a customer has been "

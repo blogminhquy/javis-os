@@ -205,7 +205,7 @@ Thường Javis tự khai được. Chỉ làm phần này khi dòng **Webhook c
 Vào app Meta: **Trường hợp sử dụng, Messenger from Meta, Tùy chỉnh, Cài đặt API Messenger**.
 
 - **Cấu hình webhook (mục 1):** ô **URL gọi lại** dán **Địa chỉ webhook**, ô **Xác minh mã** dán **Mã xác minh** (cả hai có trên form Facebook Messenger, mỗi dòng có nút Chép). Bấm **Xác minh và lưu**.
-- **Đăng ký sự kiện cho Trang (mục 2):** ở dòng Trang, bấm **Thêm đăng ký**, chỉ tick đúng 3 trường `messages`, `messaging_postbacks`, `feed`, bấm **Confirm**. Không tick hết: các trường thừa gửi về sự kiện Javis không xử lý.
+- **Đăng ký sự kiện cho Trang (mục 2):** ở dòng Trang, bấm **Thêm đăng ký**, chỉ tick đúng 4 trường `messages`, `messaging_postbacks`, `message_echoes`, `feed`, bấm **Confirm**. `message_echoes` để bot thấy tin và file nhân viên gửi cho khách từ hộp thư Trang. Không tick hết: các trường thừa gửi về sự kiện Javis không xử lý.
 
 Xong quay lại thẻ Messenger, bấm **Kiểm tra** ở Trang đó.
 
