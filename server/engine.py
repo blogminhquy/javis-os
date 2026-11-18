@@ -30,6 +30,7 @@ import localefmt
 import vision_input
 import steer_inbox   # 0.206.0: messages the owner sends while a turn runs
 import tool_result_reuse   # 2026-11-17: repeated results become references, JSON compact
+import section_select   # 2026-11-18: the turn's request, for choosing the parts of a long skill
 
 
 TEAM_REQUEST_OBSERVER = contextvars.ContextVar("team_request_observer", default=None)
@@ -1919,6 +1920,21 @@ def _clip_tool_result(result, max_chars: int = 0, head_ratio: float = 0.6, ten: 
             + text[-tail_n:])
 
 
+def _note_question(messages) -> None:
+    """Remember the request of this turn (the last user message) for section_select, which picks the parts of a long
+    skill this request needs. Text parts only; nothing when there is no user message."""
+    for m in reversed(messages or []):
+        if not isinstance(m, dict) or m.get("role") != "user":
+            continue
+        c = m.get("content")
+        if isinstance(c, list):
+            c = " ".join(str(b.get("text") or "") for b in c
+                         if isinstance(b, dict) and b.get("type") in ("text", "input_text"))
+        if isinstance(c, str) and c.strip():
+            section_select.QUESTION.set(c[-2000:])
+        return
+
+
 def _result_text_for_model(result, fn, args, reuse) -> str:
     """The text a model gets for one tool result in the tool loop: compact JSON first (so the cut below keeps more),
     then the usual cut, then a reference instead of a byte-identical repeat (tool_result_reuse)."""
@@ -2374,6 +2390,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
     thinking_on = thinking_fallback is not None
     guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
     reuse = tool_result_reuse.RepeatResults()   # identical repeated results become references
+    _note_question(messages)
     # Chỉ chờ cửa sổ hạn mức MỘT lần mỗi lượt: chờ hai lần là người dùng ngồi nhìn màn hình
     # đứng im nửa phút mà không hiểu chuyện gì.
     waited_for_window = False
@@ -2945,6 +2962,7 @@ async def _responses_with_mcp_account(access_token, account_id, model, messages,
         usage_in = usage_out = 0
         guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
         reuse = tool_result_reuse.RepeatResults()   # identical repeated results become references
+        _note_question(messages)
         _n_vong = _max_tool_rounds()
         for _vong in range(_n_vong):
             _gon_ket_qua_cu(items)
@@ -3133,6 +3151,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
         usage_in = usage_out = 0
         guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
         reuse = tool_result_reuse.RepeatResults()   # identical repeated results become references
+        _note_question(messages)
         _n_vong = _max_tool_rounds()
         da_hien = False   # 0.438.5: đã nhả chữ xem trước ở vòng nào chưa
         for _vong in range(_n_vong):

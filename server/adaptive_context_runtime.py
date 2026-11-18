@@ -411,6 +411,7 @@ class AdaptiveContextCanary:
                 selected = self.skills.resolve(
                     brain, objective, max_body_chars=policies["skill"].max_body_chars,
                     lang=_lang_skill, descriptions=(_routing(brain) if _routing and not subscription else None),
+                    session_key=str(session_id or ""),
                 )
                 status["skill"].update({
                     "reason": selected.reason, "score": selected.score,

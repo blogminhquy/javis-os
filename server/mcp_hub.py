@@ -50,6 +50,7 @@ import tool_images
 import tool_pins
 import tool_result_shaper
 import tool_result_reuse   # 2026-11-17: compact JSON + per-turn repeat references for CLI engines
+import section_select   # 2026-11-18: load the parts of a long menu-style skill a task needs
 import tool_result_tools
 import turn_context
 from config import STATE_DIR
@@ -318,7 +319,7 @@ def result_size_stats(days: int = 7, top: int = 10) -> dict:
     days = max(1, min(90, int(days or 7)))
     cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")   # same clock as the log's `ts`
     # "repeat": a repeated identical result handed over as a reference (tool_result_reuse, API engines)
-    counted = tool_result_shaper.MODEL_KINDS | {"raw", "query", "repeat"}
+    counted = tool_result_shaper.MODEL_KINDS | {"raw", "query", "repeat", "sections"}
     total = {"calls": 0, "raw_chars": 0, "sent_chars": 0, "stored": 0, "over_cap": 0}
     by_tool, since = {}, ""
     for path in (_SIZES_PATH.with_suffix(".jsonl.1"), _SIZES_PATH):
@@ -1184,6 +1185,11 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
 
     async def _skill(args):
         name = str((args or {}).get("name") or "").strip()
+        # 2026-11-18 (section_select): a long skill built as a menu loads the parts this task needs; `section` and
+        # `full` fetch more. Every doubt loads the whole skill, as before.
+        want_section = str((args or {}).get("section") or "").strip()
+        want_full = bool((args or {}).get("full"))
+        task = str((args or {}).get("task") or "").strip()
         from improvement_task_skill_scope import current, ScopeUnavailable
         from improvement_blobs import AssetUnavailable
         import sqlite3
@@ -1201,7 +1207,23 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         if asset is None:
             return ("ERROR: không có skill đó. Skill khả dụng: "
                     + (", ".join(_list_skills(vault_root)) or "(chưa có)"))
-        text = _skill_base_line(vault_root, asset) + asset.text[:60_000]
+        base = _skill_base_line(vault_root, asset)
+        text = base + asset.text[:60_000]
+        _sess = section_select.session_key()
+        if want_section:
+            part = section_select.find_section(asset.text, want_section)
+            if part is None:
+                return (f"ERROR: skill `{asset.slug}` has no section matching '{want_section}'. Its sections: "
+                        + "; ".join(section_select.section_titles(asset.text)))
+            await asyncio.to_thread(section_select.note_fetch, "skill", asset.slug, _sess,
+                                    section_select.resolve_title(asset.text, want_section) or want_section)
+            return base + part
+        if want_full:
+            await asyncio.to_thread(section_select.note_fetch, "skill", asset.slug, _sess, "*")
+        else:
+            picked = await asyncio.to_thread(section_select.for_skill, asset.slug, asset.text, task, None, _sess)
+            if picked:
+                text = base + picked
         # ĐIỂM ĐẾM DUY NHẤT: mọi engine nạp skill qua tool này đều đi ngang đây. Chỉ đếm ở
         # đường THÀNH CÔNG - nhánh trên đã lọc slug sai/skill tắt nên không đếm gõ nhầm.
         # Count the slug verified by the shared reader, not the raw name from the engine.
@@ -1291,9 +1313,11 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         listing += (f"; …(+{_con_lai} skill nữa không liệt kê ở đây, vẫn nạp được bằng "
                     f"name=<slug> nếu biết tên - xem Javis/index.md)")
     add("javis_use_skill",
-        "Nạp nội dung 1 skill (hướng dẫn chuyên sâu) rồi LÀM THEO. Truyền name=<slug>. "
-        "Skill khả dụng (slug: mô tả): " + (listing or "(chưa có)"),
-        {"name": {"type": "string"}}, ["name"], _skill)
+        "Load a skill (in-depth instructions) and FOLLOW it. Pass name=<slug> and task=<what you are about to do, in "
+        "the user's words>; a long skill may come back as the parts this task needs, listing the rest: read one with "
+        "section=<title>, or all with full=true. Available skills (slug: description): " + (listing or "(none yet)"),
+        {"name": {"type": "string"}, "task": {"type": "string"}, "section": {"type": "string"},
+         "full": {"type": "boolean"}}, ["name"], _skill)
 
     # `javis_run_command` chỉ hiện khi phiên CÓ thư mục làm việc. Phiên chat thường không thấy
     # nó, nên không có chuyện một câu hỏi bình thường lại gọi được lệnh máy. Mức quyền vẫn do
