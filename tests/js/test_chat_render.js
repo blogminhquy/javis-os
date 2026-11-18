@@ -273,6 +273,27 @@ check("copy giữa stream bỏ metadata chưa đóng",
   check("no placeholder is left in the output", !/[]/.test(mdToHtml("# T\n\n- `a`\n- [b](https://c.com)\n\n```js\n1\n```")));
 })();
 
+// ---- Cong thuc toan (KaTeX). Duoi node khong co window.katex: ra span du phong giu TeX ----
+(function () {
+  let m = mdToHtml(String.raw`Nghiem $x = \frac{-b}{2a}$ nhe`);
+  check("math inline: span jv-math", has(m, 'class="jv-math"') && has(m, String.raw`data-tex="x = \frac{-b}{2a}"`));
+  m = mdToHtml("Cong thuc:\n\n$$\na^2 + b^2 = c^2\n$$\n\nHet.");
+  check("math block: div jv-math-d", has(m, "jv-math-d") && has(m, 'data-tex="a^2 + b^2 = c^2"'));
+  check("math block: khong boc trong p", !has(m, "<p><div"));
+  m = mdToHtml("Gia $5 va $10 thoi");
+  check("math: tien do la khong thanh cong thuc", !has(m, "jv-math"));
+  m = mdToHtml("Chay `echo $HOME$` di");
+  check("math: trong inline code giu nguyen", !has(m, "jv-math"));
+  m = mdToHtml(String.raw`\(x^2\) va \[y^3\]`);
+  check("math: \\( \\) and \\[ \\]", has(m, 'data-tex="x^2"') && has(m, 'data-tex="y^3"'));
+  m = mdToHtml("$<img src=x onerror=alert(1)>$");
+  check("math: TeX bi escape", !has(m, "<img"));
+  m = mdToHtml("$x^2$", null, { trinhSua: true });
+  check("math: trinh sua giu nguyen van", !has(m, "jv-math") && has(m, "$x^2$"));
+  m = mdToHtml("**dam** $a_1 + a_2$ *nghieng*");
+  check("math: dau _ trong cong thuc khong thanh nghieng", has(m, 'data-tex="a_1 + a_2"') && has(m, "<strong>dam</strong>"));
+})();
+
 if (fails.length) {
   console.log("\nFAIL - " + fails.length + " test: " + fails.join(", "));
   process.exit(1);
