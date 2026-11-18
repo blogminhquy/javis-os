@@ -667,7 +667,8 @@
   }
 
   function replyStatusHtml(m, ctx) {
-    var rows = (m.replies || []).filter(function (x) { return x.status !== "done"; });
+    // A reply folded into the answer of a later message (18/11/2026) keeps one quiet line, so the owner sees it was read.
+    var rows = (m.replies || []).filter(function (x) { return x.status !== "done" || x.reason === "merged"; });
     if (!rows.length) return "";
     var retrying = (ctx && ctx.retrying) || {};
     return '<div class="tm-replies">' + rows.map(function (x) {
@@ -691,14 +692,20 @@
           "</b> " + esc(tw(slot ? "teams.reply.error_slot" : "teams.reply.error")) + ": " + esc(whyText) + detail + "</span>" +
           '<span class="tm-reply-acts">' + replyActions(x, ctx) + (canRetry ? retryBtn : "") + "</span></div>";
       }
+      if (x.status === "done") {
+        return '<div class="tm-reply tm-reply-merged" role="status">' + face + '<span class="tm-reply-main"><b>' + esc(who) +
+          "</b> " + esc(tw("teams.reply.merged")) + "</span></div>";
+      }
       var answering = x.status === "running" && x.reason === "answering";
+      var steered = x.status === "running" && x.reason === "steered";
       var waiting = x.status === "running" && x.reason === "waiting_busy";
       var stuck = x.status === "queued" && x.updated_at && (Date.now() / 1000 - Number(x.updated_at)) > STUCK_QUEUED_S;
       if (stuck) {
         return '<div class="tm-reply tm-reply-error" role="status">' + face + '<span class="tm-reply-main"><b>' + esc(who) +
           "</b> " + esc(tw("teams.reply.stuck")) + '</span><span class="tm-reply-acts">' + retryBtn + "</span></div>";
       }
-      var label = answering ? tw("teams.reply.answering") : waiting ? (x.detail ? tw("teams.reply.waiting_busy_in",
+      var label = answering ? tw("teams.reply.answering") : steered ? tw("teams.reply.steered") :
+        waiting ? (x.detail ? tw("teams.reply.waiting_busy_in",
         { team: x.detail }) : tw("teams.reply.waiting_busy")) : tw("teams.reply.queued");
       return '<div class="tm-reply tm-reply-' + (answering ? "answering" : "queued") + '" role="status">' + face +
         '<span class="tm-reply-main"><b>' + esc(who) + "</b> " + esc(label) +
@@ -1582,18 +1589,24 @@
   }
 
   function membersHtml(team, agents, openKey) {
-    var mem = team.members || [];
+    // 18/11/2026 (owner: "tag phó nhóm trong cài đặt team nổi bật lên một chút vì phó nhóm sẽ điều phối toàn bộ team"):
+    // the deputy stands right under the owner, on a tinted row with its own badge, so the coordinator is seen first.
+    var mem = (team.members || []).slice().sort(function (a, b) {
+      return (b.agent_key === team.leader_key ? 1 : 0) - (a.agent_key === team.leader_key ? 1 : 0);
+    });
     var rows = mem.map(function (m) {
       var lead = m.agent_key === team.leader_key;
       var open = openKey === m.agent_key;
-      var sub = [tw(lead ? "teams.leader" : "teams.member")];
+      var sub = [tw(lead ? "teams.leader_role" : "teams.member")];
       if (m.resonance_enabled) sub.push(rsText(true));
       var model = memberModelText(m);
-      return '<div class="tm-mrow"><button type="button" class="tm-mhead" data-expand="' + esc(m.agent_key) + '" aria-expanded="' +
+      return '<div class="tm-mrow' + (lead ? " tm-mrow-lead" : "") + '"><button type="button" class="tm-mhead" data-expand="' +
+        esc(m.agent_key) + '" aria-expanded="' +
         (open ? "true" : "false") + '">' + agentAva(m, 34) + '<span class="tm-mtext"><span class="tm-mname">' +
         esc(m.name || m.slug) + '</span><span class="tm-mrole">' + esc(sub.join(" · ")) + "</span>" +
         (model ? '<span class="tm-mmodel" title="' + esc(model) + '">' + ic("cpu") + "<span>" + esc(model) + "</span></span>" : "") +
         "</span>" +
+        (lead ? '<span class="tmp-badge tm-lead-badge">' + ic("star") + "<span>" + esc(tw("teams.leader")) + "</span></span>" : "") +
         '<span class="tm-chev" aria-hidden="true">' + ic("chevron-down") + "</span></button>" +
         '<div class="tm-mact"' + (open ? "" : " hidden") + ">" +
         '<label class="tm-rs"><input type="checkbox" class="tm-rs-toggle" data-slug="' + esc(m.slug) + '"' +
@@ -4328,7 +4341,9 @@
     var who = String(ap.requested_by || "");
     var mem = who && who.indexOf("mandate:") !== 0 ? memberOf(S.team.members, who) : null;
     var body = { text: Q ? Q.ghep(quote, words) : quote + "\n\n" + words, mentions: mem && (!mem.status || mem.status === "active") ? [who] : [],
-      as_job: false, client_msg_id: AP_REPLY.cid || (AP_REPLY.cid = newClientId()) };
+      as_job: false, client_msg_id: AP_REPLY.cid || (AP_REPLY.cid = newClientId()),
+      // 18/11/2026: the card was answered, so the server clears its notice in the bell.
+      approval_id: d.ap };
     var forTeam = S.activeId;
     btn.disabled = true;
     return call("POST", teamUrl("/messages"), body).then(function (r) {

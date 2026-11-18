@@ -31915,6 +31915,11 @@ def _team_engine_for(team, agent_key, role):
             except Exception:  # noqa: BLE001 - Codex reports its own sign-in error
                 pass
         _step_plan_account(eng, prov)   # the plan account that should run now (rotation, as in chat)
+        if prov == aux_engine.CLAUDE and steer_inbox.INBOX.has_tag(tag):
+            # 18/11/2026: this step reads the owner's messages to its member after each tool call. ClaudeSDK only turns
+            # its steer hook on for chat tags; switched on here, on this one engine, so claude_sdk_engine.py keeps the
+            # bytes its native qualification pinned (test_plan_limits CANARY). The hook finds the step by its tag.
+            eng._steer_on = lambda _t=tag: steer_inbox.INBOX.has_tag(_t)
         avail = getattr(eng, "is_available", None)
         if callable(avail) and not avail():
             raise team_runner.EngineUnavailable(f"engine {tool_spec['provider']} chưa sẵn sàng (kiểm tra trang Models)")
@@ -31948,6 +31953,10 @@ def _team_engine_for(team, agent_key, role):
         # 10/11/2026: a plan account out of quota rests and the turn runs again at once on the card's next account, as
         # a chat turn does (spec 6.4). `moved` is the line the message carries when that happened.
         hops, moved = 0, ""
+        if tools_on and req.get("steer_sid"):
+            # 18/11/2026: the owner's messages to this member reach the step at its next tool call (Claude Code hook by
+            # tag; the API engines read the turn's inbox from the context).
+            steer_inbox.INBOX.attach_tag(str(req["steer_sid"]), tag)
         while True:
             if tools_on:
                 eng = await asyncio.to_thread(_build_tools, req["system"], tag, str(req.get("team_gate") or ""))
@@ -32151,11 +32160,23 @@ _TEAM_ASKS_OWNER = re.compile(r"gọi bạn trong nhóm|called you in team|chờ
                               r"xin duyệt|asks for approval|vẫn đang chờ bạn|still waiting for you", re.I)
 
 
-async def _team_notify(session_id, text):
+async def _team_notify(session_id, text, ref=""):
     asks = bool(_TEAM_ASKS_OWNER.search(str(text or "")))
+    # `ref` (18/11/2026): the notice is filed under it, so `_team_notice_done` clears it once the owner answered.
     await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{session_id}", text, kind="report",
                           label=localefmt.chu("Team", "Team"), source="team",
-                          group="question" if asks else "team", level="urgent" if asks else "important")
+                          group="question" if asks else "team", level="urgent" if asks else "important",
+                          dedup=str(ref or ""))
+
+
+async def _team_notice_done(ref):
+    """An approval request of a team was answered: its notice in the bell turns read, and open tabs refresh the bell."""
+    changed = await asyncio.to_thread(inbox.read_by_dedup, str(ref or ""))
+    if changed:
+        try:
+            await _CHAT_RUNTIME.publish({"type": "inbox", "session_id": "", "cleared": True})
+        except Exception as e:  # noqa: BLE001 - the bell refreshes on its next load anyway
+            print(f"[inbox] bắn WebSocket lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 _FEEDBACK_PROJECTOR = [None]
@@ -32720,7 +32741,8 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     task_store=lambda: tasks_feature.store, resonance_store=lambda: _resonance_store(),
     agents_meta=_resonance_agents_meta, agent_info=lambda root, key: _team_agent_info(root, key, "team"),
     engine_for=_team_engine_for,
-    broadcast=lambda ev: _CHAT_RUNTIME.publish(ev), notify=_team_notify, admin=_TeamAdmin(),
+    broadcast=lambda ev: _CHAT_RUNTIME.publish(ev), notify=_team_notify, notice_done=_team_notice_done,
+    admin=_TeamAdmin(),
     owner_name=lambda: ((cfgmod.read_settings().get("auth") or {}).get("username") or ""),
     ceiling=_team_ceiling, projector=_feedback_projector, judge=lambda: _agent_judge(),
     learning=_team_learning,
