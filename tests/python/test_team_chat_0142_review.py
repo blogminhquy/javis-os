@@ -273,12 +273,19 @@ check("quá trần thời gian: giết tiến trình engine của đúng lượt
 
 # ───────────── 5. Grok/Antigravity: model chính kèm ghi chú ─────────────
 
+import antigravity_cli  # noqa: E402
 MAIN = {"provider": "anthropic-cli", "model": "sonnet"}
-for prov in ("grok-cli", "antigravity-cli"):
-    sp = team_engine.choose_spec("grok-4" if prov == "grok-cli" else "gemini-3", prov, MAIN, lambda m, p: p,
-                                 lambda s: (True, ""))
-    check(f"{prov}: chạy bằng model chính và NÓI RÕ trên tin", sp["source"] == "main" and sp["provider"] == "anthropic-cli"
-          and prov in sp["note"] and "model chính" in sp["note"], sp)
+with patch.object(antigravity_cli, "hooks_supported", return_value=False):
+    for prov in ("grok-cli", "antigravity-cli"):
+        sp = team_engine.choose_spec("grok-4" if prov == "grok-cli" else "gemini-3", prov, MAIN, lambda m, p: p,
+                                     lambda s: (True, ""))
+        check(f"{prov} without hooks: falls back to main model with clear note",
+              sp["source"] == "main" and sp["provider"] == "anthropic-cli"
+              and prov in sp["note"] and "model chính" in sp["note"], sp)
+with patch.object(antigravity_cli, "hooks_supported", return_value=True):
+    sp_agy = team_engine.choose_spec("gemini-3", "antigravity-cli", MAIN, lambda m, p: p, lambda s: (True, ""))
+    check("antigravity-cli with hooks: keeps assistant's own model in team chat",
+          sp_agy["source"] == "agent" and sp_agy["provider"] == "antigravity-cli", sp_agy)
 check("Codex và Claude vẫn dùng đúng model riêng", team_engine.choose_spec(
     "gpt-6.1-sol", "openai-oauth", MAIN, lambda m, p: p, lambda s: (True, ""))["source"] == "agent")
 

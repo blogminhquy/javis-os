@@ -126,13 +126,30 @@ with patch.object(aux_engine, "availability", return_value=(True, "")):
     api = team_engine.build({"provider": "openrouter", "model": "x/y"}, Base(), "team-x", {})
 check("engine API: no_tools, mức suggest, không vault", api.no_tools is True and api.javis_mode == "suggest"
       and api.vault_root is None)
-for prov in ("grok-cli", "antigravity-cli"):
-    try:
-        with patch.object(aux_engine, "availability", return_value=(True, "")):
-            team_engine.build({"provider": prov, "model": ""}, Base(), "team-x", {})
-        check(f"{prov}: chưa có cơ chế chỉ chữ, báo rõ thay vì chạy", False)
-    except team_engine.TeamEngineUnavailable as ex:
-        check(f"{prov}: chưa có cơ chế chỉ chữ, báo rõ thay vì chạy", prov in ex.reason and "Cộng sự" in ex.reason)
+try:
+    with patch.object(aux_engine, "availability", return_value=(True, "")):
+        team_engine.build({"provider": "grok-cli", "model": ""}, Base(), "team-x", {})
+    check("grok-cli: no text-only mode, refused with reason", False)
+except team_engine.TeamEngineUnavailable as ex:
+    check("grok-cli: no text-only mode, refused with reason", "grok-cli" in ex.reason and "Cộng sự" in ex.reason)
+
+import antigravity_cli  # noqa: E402
+try:
+    with patch.object(aux_engine, "availability", return_value=(True, "")), \
+            patch.object(antigravity_cli, "hooks_supported", return_value=False):
+        team_engine.build({"provider": "antigravity-cli", "model": ""}, Base(), "team-x", {})
+    check("antigravity-cli without hooks: refused with reason instead of running", False)
+except team_engine.TeamEngineUnavailable as ex:
+    check("antigravity-cli without hooks: refused with reason instead of running",
+          "antigravity-cli" in ex.reason and ("Cộng sự" in ex.reason or "Partners" in ex.reason))
+
+with patch.object(aux_engine, "availability", return_value=(True, "")), \
+        patch.object(antigravity_cli, "hooks_supported", return_value=True):
+    ac = team_engine.build({"provider": "antigravity-cli", "model": "gemini-3.8-flash-low"}, Base(), "team-x", {})
+check("antigravity-cli with hooks: built in strict text-only mode (no hub, no gate, no add-dir)",
+      isinstance(ac, antigravity_cli.AntigravityCLI) and ac.text_only is True and ac.hub_turn is False
+      and ac.mcp_config is None and ac.team_gate is None and ac.include_dirs == []
+      and ac.model == "gemini-3.8-flash-low" and ac.instructions == "SYS", vars(ac))
 try:
     with patch.object(aux_engine, "availability", return_value=(False, "Chưa cài Codex CLI")):
         team_engine.build({"provider": "openai-oauth", "model": ""}, Base(), "team-x", {})

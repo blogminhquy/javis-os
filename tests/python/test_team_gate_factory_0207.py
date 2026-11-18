@@ -176,12 +176,27 @@ with patch.object(main, "_codex_user_mcp_servers", return_value=["github"]), \
 check("codex gated with the user's own MCP servers: refused, named", not seen and "github" in (task["block_reason"] or ""),
       task["block_reason"])
 
-# Antigravity: cannot pre-block its own tools -> refused with an explanation, nothing built
-seen, task, tm, t = one_job("agy", aux_engine.ANTIGRAVITY)
-check("antigravity gated: refused before the engine, job stopped with the reason",
+# Antigravity without hooks/isolated HOME: cannot pre-block its own tools -> refused with an explanation, nothing built
+with patch.object(main.antigravity_cli, "hooks_supported", return_value=False):
+    seen, task, tm, t = one_job("agy", aux_engine.ANTIGRAVITY)
+check("antigravity gated (no hooks): refused before the engine, job stopped with the reason",
       not seen and task["status"] == "team_blocked" and "Antigravity" in (task["block_reason"] or "")
       and "Claude Code" in (task["block_reason"] or "") and "Thử lại" in (task["block_reason"] or ""),
       task["block_reason"])
+
+# Antigravity with hooks + per-turn HOME: runs gated at CLI auto, hub level overridden to gated, team folder workspace
+with patch.object(aux_engine, "availability", return_value=(True, "")), \
+        patch.object(main.antigravity_cli, "hooks_supported", return_value=True), \
+        patch.object(main.antigravity_cli, "per_turn_home_supported", return_value=True):
+    seen, task, tm, t = one_job("agy-gated", aux_engine.ANTIGRAVITY)
+ae = seen[0]["eng"] if seen else None
+ab = seen[0]["base"] if seen else None
+check("antigravity gated (hooks ok): built at CLI auto, hub gated, turn key + gate id attached, teams folder",
+      task["status"] == "done" and seen and seen[0]["mode"] == "auto"
+      and ae is not None and ae.team_gate and ae.hub_turn
+      and isinstance(ae.hub_headers, dict) and ae.hub_headers.get("X-Javis-Mode") == team_gate.HUB_MODE
+      and ab is not None and Path(ab.cwd).parent.name == "teams",
+      (task["status"], seen and seen[0]["mode"], getattr(ae, "hub_headers", None), getattr(ab, "cwd", None)))
 
 # Full: the owner's switch gives the 0.194.0 private-chat level, no gate
 seen, task, tm, t = one_job("full", "anthropic-cli", work_mode="full")
