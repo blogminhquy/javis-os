@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.591.0] - 2026-11-18
+### Fixed
+- **Opening a team no longer hangs on "Loading the team's messages".** Each open used to add up every model call the team ever made, slower the older the team, although the page no longer shows those figures. Opening a team skips that now.
+### Improved
+- **A team loads only its latest messages, and older ones as you scroll up.** Near the top of the chat the next page loads by itself and you stay on the same message, like the main chat and the Chatbot page. A "Loading older messages..." line shows meanwhile.
+
 ## [0.590.0] - 2026-11-18
 ### Improved
 - **Background jobs on an API-key engine send about 60% fewer fixed tokens.** Kanban jobs, loops and reminders that do work carry a short background rule set instead of the whole chat rule set in every tool call. Every rule about acting stays: do exactly the job within its permission level, never invent numbers, report to whoever assigned it, no empty promises, no jobs created unasked, new plugins always off. Tested with a real model on 7 sample background jobs: results on par with the full rules.
