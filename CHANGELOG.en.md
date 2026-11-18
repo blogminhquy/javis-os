@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.588.0] - 2026-11-18
+### Improved
+- **A message added in a team is read at once.** A member still writing the answer to the previous message stops and answers both together, the newest one first in priority. No more waiting for the earlier answer before the next message is read.
+- **A deputy busy with a step of a job reads the new message at its next step,** so the way of working can change mid-way. The status line says "Read mid-way".
+- **An answered approval request stops ringing.** Approve, Change, Reject or a Reply question on the card turns its notice in the bell read. A request that expires or is cancelled does too.
+- **The deputy stands out in the team settings:** right under the owner, on a tinted row with an accent edge and a star badge.
+
 ## [0.587.0] - 2026-11-18
 ### Improved
 - **Long turns cost fewer tokens, on every brain.** When the model calls the same tool with the same arguments and the result is identical, it gets a one-line reference instead of the whole text again. The tool still runs every time, so changed data always reaches the model in full. For Claude Code and Codex this happens at the hub, and Javis forgets the turn's record whenever they compact their conversation.

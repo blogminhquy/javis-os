@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.588.0] - 2026-11-18
+### Cải thiện
+- **Nhắn thêm trong team là cộng sự đọc ngay.** Cộng sự đang soạn câu trả lời cho tin trước thì dừng lại và trả lời gộp cả hai tin, tin mới nhất được ưu tiên. Không còn cảnh phải chờ trả lời xong câu trên mới đọc câu dưới.
+- **Phó nhóm đang làm một bước việc cũng đọc tin mới ở bước kế tiếp,** nên đổi được cách làm ngay giữa chừng. Dòng trạng thái ghi rõ "Đã đọc giữa chừng".
+- **Thẻ xin duyệt đã trả lời thì thông báo tự tắt.** Bấm Duyệt, Sửa, Từ chối, hay Trả lời hỏi lại trên thẻ, thông báo của nó trong chuông chuyển thành đã đọc. Yêu cầu hết hạn hay bị huỷ cũng vậy.
+- **Phó nhóm nổi bật trong cài đặt team:** đứng ngay dưới chủ nhóm, có nền màu, viền nhấn và huy hiệu ngôi sao.
+
 ## [0.587.0] - 2026-11-18
 ### Cải thiện
 - **Lượt dài tốn ít token hơn, với mọi bộ não.** Model gọi lại đúng công cụ với đúng tham số mà kết quả y hệt lần trước thì nhận một dòng tham chiếu thay vì cả khối chữ lần nữa. Công cụ vẫn chạy lại thật, nên dữ liệu đổi là model nhận bản mới đầy đủ. Với Claude Code và Codex, việc này làm ở cổng hub, và Javis quên sổ của lượt đó mỗi khi chúng nén hội thoại.
