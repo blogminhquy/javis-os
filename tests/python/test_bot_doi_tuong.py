@@ -175,6 +175,17 @@ check("cờ `da_chon` khớp danh sách của bot (people và groups)",
       by[P]["da_chon"] and by[G]["da_chon"] and not by[Q]["da_chon"] and not by[G2]["da_chon"])
 tim = chatbot_cuoc_chat.danh_sach(bot5.get("accounts") or [], "Lớp", 50, [], bot5)
 check("ô tìm lọc theo tên", [d["id"] for d in tim] == [G], [d["id"] for d in tim])
+# Owner, 18/11/2026: a ticked group the list did not hold (search, or past the page) showed as a bare id.
+ten = chatbot_cuoc_chat.ten_da_chon(bot5.get("accounts") or [], [P, G, G2, "khong-co-trong-hop-thu"])
+check("`ten_da_chon` trả tên thật của các cuộc chat đang tick, dù ô tìm lọc mất chúng",
+      ten.get(P) == "Học viên A" and ten.get(G) == "Lớp Javis OS", ten)
+check("nhóm chưa rõ tên vẫn ra tên dự phòng 'Nhóm …', không phải id trần, không mượn tên người nhắn",
+      ten.get(G2, "").startswith("Nhóm") and ten.get(G2) != G2 and "Học viên C" not in ten.get(G2, ""), ten)
+check("id Hộp thư chưa từng thấy thì không có tên (form giữ id như cũ)", "khong-co-trong-hop-thu" not in ten, ten)
+mot = chatbot_cuoc_chat.danh_sach(bot5.get("accounts") or [], "", 1, [], bot5)
+by1 = {d["id"]: d for d in mot}
+check("dòng đã chọn không bị giới hạn trang cắt mất, và mang tên thật",
+      by1.get(P, {}).get("ten") == "Học viên A" and by1.get(G, {}).get("ten") == "Lớp Javis OS", mot)
 chatbot_runtime._ghi_nhom_cho(b5, {"chat_id": G2, "chat_type": "group", "chat_title": "Nhóm lạ"}, "hi")
 ds2 = chatbot_cuoc_chat.danh_sach(bot5.get("accounts") or [], "", 50, chatbot_runtime.nhom_cho(b5), bot5)
 check("cuộc chat đang chờ duyệt được đánh dấu `cho`", {d["id"]: d for d in ds2}[G2]["cho"])
