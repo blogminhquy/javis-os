@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.591.1] - 2026-11-18
+### Improved
+- **A partner's unread count sits on the bottom left of the avatar.** The time keeps the bottom right corner to itself, rows breathe on a phone, and the collapsed avatar strip on desktop now shows who has new messages.
+
 ## [0.591.0] - 2026-11-18
 ### Fixed
 - **Opening a team no longer hangs on "Loading the team's messages".** Each open used to add up every model call the team ever made, slower the older the team, although the page no longer shows those figures. Opening a team skips that now.

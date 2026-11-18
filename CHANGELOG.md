@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.591.1] - 2026-11-18
+### Cải thiện
+- **Số tin chưa đọc của cộng sự nằm ở góc dưới trái avatar.** Giờ chat có chỗ riêng ở góc dưới phải, dòng thoáng hơn trên điện thoại, và dải avatar thu gọn trên máy tính giờ cũng thấy ai có tin mới.
+
 ## [0.591.0] - 2026-11-18
 ### Sửa lỗi
 - **Mở một team không còn kẹt lâu ở "Đang tải tin nhắn của nhóm".** Mỗi lần mở, máy chủ từng cộng lại chi phí model của cả team từ trước tới nay, team càng lâu càng chậm, trong khi màn hình không còn hiện con số đó. Giờ bỏ hẳn bước này khi mở team.
