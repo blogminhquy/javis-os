@@ -4839,6 +4839,7 @@
   "teams.cancel_confirm": "Huỷ việc \"{title}\"?",
   "teams.remove_confirm": "Bỏ {name} khỏi team? Bước {name} đang làm (nếu có) sẽ không được áp dụng; phó nhóm sẽ giao lại.",
   "teams.older": "Tin cũ hơn",
+  "teams.older_loading": "Đang tải tin cũ...",
   "teams.next_page": "Trang sau",
   "teams.doing": "Đang làm: {title}",
   "teams.needs_you": "Cần bạn",

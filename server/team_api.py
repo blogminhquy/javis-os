@@ -63,6 +63,11 @@ NEW_TEAM_UNCAPPED = ("task_turns", "task_steps")   # caps a new team starts with
 #   time, wait for that one call) instead of each starting the same work on another thread;
 # - figures that took long to add up are kept longer (_USAGE_COST_FACTOR times as long, at most _USAGE_TTL_MAX_S), so
 #   the work never takes more than a small share of one core however large the team's history is.
+#
+# 2026-11-18 (owner: opening a team showed "Loading the team's messages..." for a long time). The dashboard stopped
+# showing this block on 17/11/2026 (the short Team settings tab), yet GET /teams/{id} kept adding it up on every open,
+# and the chat waits for that answer before it draws a single message. It now lives only behind
+# GET /teams/{id}/usage, still through this cache.
 _USAGE_TTL_S = 15.0
 _USAGE_TTL_MAX_S = 600.0
 _USAGE_COST_FACTOR = 20.0
@@ -873,9 +878,8 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             pinned = [{"id": m["id"], "ts": m["ts"], "author_kind": m["author_kind"], "author_ref": m["author_ref"],
                        "content": str(m.get("content") or "")[:400]}
                       for m in deps.session_store().team_decisions(team["session_id"], PINNED_SHOWN)]
-            view = api.view(team)
-            view["quality_usage"] = _team_usage_cached(team_id)
-            return {"ok": True, "team": view, "typing": api.teams().active_turns(team_id), "pinned": pinned}
+            # No usage block here (2026-11-18): nothing on the page reads it, and adding it up made every open wait.
+            return {"ok": True, "team": api.view(team), "typing": api.teams().active_turns(team_id), "pinned": pinned}
         return await api.io(_do)
 
     @app.patch("/teams/{team_id}")
@@ -1590,8 +1594,8 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             team, err = _team(team_id, brain)
             if err:
                 return err
-            import team_usage
-            return {"ok": True, "usage": team_usage.team_usage(team_id)}
+            # Through the cache: several readers of the same busy team add it up once.
+            return {"ok": True, "usage": _team_usage_cached(team_id)}
         return await api.io(_do)
 
     @app.get("/teams/{team_id}/tasks/{task_id}/usage")

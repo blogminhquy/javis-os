@@ -159,7 +159,7 @@ global.window = undefined;
     teams.includes('class="tm-quote tm-quote-src" data-quote-src="1"') && teams.includes("if (d.quoteSrc) return jumpToQuoted(t);"));
   check("Team chat: looks for the words after \"Name: \", in the messages above, and loads older pages",
     teams.includes("quote: quoteParts(quote).words") && /J\.before\(box\.querySelectorAll\("\.tm-msg\[data-mid\]"\), self\(\)\)/.test(teams)
-    && teams.includes("return loadMsgs(true).then("));
+    && teams.includes("loadOlder: function () { return loadOlder(); },"));
   check("quote-jump.js loads before app.js and teams.js", order.napTruoc("quote-jump.js", ["app.js", "teams.js"]));
   const style = read("dashboard/style.css"), cons = read("dashboard/console.css");
   check("CSS: the marked words, the flash fallback and the clickable quotes",

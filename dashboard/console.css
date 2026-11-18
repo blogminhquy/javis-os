@@ -3341,6 +3341,16 @@ body.on-teams .cview-head { display: none; }
 /* Tin: bong bóng. Của chủ bên phải (không tên, không ảnh); của trợ lý bên trái kèm ảnh và tên; tin hệ thống ở giữa. */
 .tm-msgs { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior-x: none; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .tm-msgs[hidden] { display: none; }
+/* Older messages (18/11/2026): they load by themselves near the top; the button stays for a press, and shows a spinner
+   while a page is on its way. Both labels are in the button, the list's class picks one. */
+.tm-older-wait { display: none; }
+.tm-older-wait::before { content: ""; display: inline-block; vertical-align: -2px; margin-right: 8px; width: 13px; height: 13px;
+  border-radius: 50%; border: 2px solid var(--border, rgba(140,140,160,.35)); border-top-color: var(--accent);
+  animation: tm-spin .8s linear infinite; }
+.tm-msgs.tm-older-busy .tm-older { pointer-events: none; opacity: .75; }
+.tm-msgs.tm-older-busy .tm-older-idle { display: none; }
+.tm-msgs.tm-older-busy .tm-older-wait { display: inline; }
+@media (prefers-reduced-motion: reduce) { .tm-older-wait::before { animation: none; } }
 /* Mỗi tin chiếm trọn hàng (để phần trăm bên dưới tính theo bề ngang khung, không theo nội dung), bong bóng dồn về đúng
    phía. Bề ngang tối đa chừa chỗ cho ảnh và nút bên cạnh để ba thứ nằm một hàng; hàng có wrap cho bảng mở ra bên dưới. */
 .tm-msg { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 6px; width: 100%; }
