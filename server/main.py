@@ -33,6 +33,7 @@ from pathlib import Path
 import binascii
 import re
 import urllib.parse
+import hmac
 import secrets
 import filecmp
 import shutil
@@ -330,8 +331,9 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/health", "/auth/status", "/auth/log
                       # verified https link exists; neither reveals anything beyond that link and a random id.
                       "/domain/auto", "/domain/whoami",
                       # /hub/mcp: Claude CLI/Codex gọi bằng Bearer hub_token riêng (không có cookie).
+                      # /hub/team-gate: CLI PreToolUse hook callback authenticated with Bearer hub_token.
                       # /connect/oauth/callback: browser redirect từ provider OAuth về.
-                      "/hub/mcp", "/connect/oauth/callback",
+                      "/hub/mcp", "/hub/team-gate", "/connect/oauth/callback",
                       # /whatsapp/webhook: Meta calls it with no cookie. GET is the setup
                       # handshake (verify token), POST must carry a valid X-Hub-Signature-256
                       # under a known app secret, checked in the route itself.
@@ -6072,7 +6074,15 @@ def _apply_antigravity_hub(cli, vault_root=None, mode="full"):
             headers["X-Javis-Vault"] = str(Path(root).expanduser().resolve())
         except Exception:
             headers["X-Javis-Vault"] = str(root)
-        hub = antigravity_cli.hub_entry(mcp_hub.hub_url(), headers)
+        hub_url = mcp_hub.hub_url()
+        hub = antigravity_cli.hub_entry(hub_url, headers)
+        cli.hub_url = hub_url
+        cli.hub_headers = headers
+        cli.hub_turn = True
+    else:
+        cli.hub_url = None
+        cli.hub_headers = None
+        cli.hub_turn = False
     antigravity_cli.ghi_mcp_settings(root, hub)
     try:
         cli.mcp_config = mcp_hub.antigravity_config_path(mode, root) if hub else None
@@ -31589,6 +31599,9 @@ def _team_gate_support(provider):
             return {"ok": False, "approved_actions": False,
                     "reason": ("Codex trên máy này có MCP riêng ngoài Javis (" + ", ".join(extra[:5]) + ") mà Javis không "
                                "chặn được trước khi chạy")}
+    antigravity_gate = False
+    if prov == aux_engine.ANTIGRAVITY:
+        antigravity_gate = bool(antigravity_cli.hooks_supported() and antigravity_cli.per_turn_home_supported())
     deny = True
     if prov == aux_engine.GROK_CLI:
         try:
@@ -31597,15 +31610,16 @@ def _team_gate_support(provider):
         except Exception:  # noqa: BLE001
             deny = False
     return team_gate.provider_support(prov, codex_sandbox=claude_cli.codex_sandbox_cho_mode("auto"), grok_deny=deny,
-                                      api_providers=tuple(aux_engine.API_PROVIDERS))
+                                      api_providers=tuple(aux_engine.API_PROVIDERS),
+                                      antigravity_gate=antigravity_gate)
 
 
 def _team_gate_choices(current, settings):
     """Labels of the connected providers a refused gated step can switch to on THIS machine, `current` left out: on
-    Docker (Codex without its sandbox) the advice must not send the owner back to Codex. Grok Build and Antigravity are
-    refused by team_gate.provider_support everywhere, so they are not probed."""
+    Docker (Codex without its sandbox) the advice must not send the owner back to Codex. Grok Build is
+    refused by team_gate.provider_support everywhere, so it is not probed."""
     out = []
-    for prov in (aux_engine.CLAUDE, aux_engine.CODEX) + tuple(aux_engine.API_PROVIDERS):
+    for prov in (aux_engine.CLAUDE, aux_engine.CODEX, aux_engine.ANTIGRAVITY) + tuple(aux_engine.API_PROVIDERS):
         if prov == current:
             continue
         try:
@@ -31935,10 +31949,9 @@ def _team_engine_for(team, agent_key, role):
         except Exception:  # noqa: BLE001 - a broken folder binding falls back to the brain
             cwd = ""
         hub_mode = team_gate.HUB_MODE if gate_id else TEAM_WORK_MODE
-        if gate_id and prov == aux_engine.CODEX and not cwd:
-            # Review 0.207.0: Codex's own file tools write anywhere under its working folder (no hook), so a gated step
-            # without a pinned folder works in the team's own folder of the brain, never at the brain root where
-            # plugins/ and settings live. Files elsewhere in the brain go through the hub's gated file tool.
+        if gate_id and prov in (aux_engine.CODEX, aux_engine.ANTIGRAVITY) and not cwd:
+            # Review 0.207.0 / Antigravity: a gated step without a pinned folder works in the team's own folder
+            # of the brain, never at the brain root where plugins/ and settings live.
             cwd = str(Path(vault) / "teams" / str(team["team_id"]))
             Path(cwd).mkdir(parents=True, exist_ok=True)
         base = claude_engine(system_prompt=system, cwd=cwd or vault, tag=tag)
@@ -31946,8 +31959,8 @@ def _team_engine_for(team, agent_key, role):
         if gate_id:
             base.team_gate = gate_id
             team_gate.set_roots(gate_id, [cwd or vault, vault])
-        build_mode = (("auto" if prov in (aux_engine.CODEX, aux_engine.GROK_CLI) else hub_mode) if gate_id
-                      else TEAM_WORK_MODE)
+        build_mode = (("auto" if prov in (aux_engine.CODEX, aux_engine.GROK_CLI, aux_engine.ANTIGRAVITY) else hub_mode)
+                      if gate_id else TEAM_WORK_MODE)
         try:
             eng = team_engine.build_tools(tool_spec, base, tag, settings, mode=build_mode,
                                           codex_profile=_write_codex_profile)
@@ -31959,6 +31972,24 @@ def _team_engine_for(team, agent_key, role):
             # Review 0.207.0: also no ChatGPT apps (Gmail, Slack... outside the hub) and no shell network.
             mcp_hub.dat_codex_team_gated(eng.extra_config)
             eng.hub_turn = True
+        if gate_id and prov == aux_engine.ANTIGRAVITY:
+            links = list(eng._all()) if hasattr(eng, "_all") else [eng]
+            for link in links:
+                link.team_gate = gate_id
+                link.hub_turn = True
+                if (vault and getattr(link, "cwd", None) != vault
+                        and vault not in (getattr(link, "include_dirs", None) or [])):
+                    link.include_dirs = list(getattr(link, "include_dirs", None) or []) + [vault]
+                if not getattr(link, "hub_url", None):
+                    link.gate_url = f"http://127.0.0.1:{mcp_hub.hub_port()}/hub/team-gate"
+                if getattr(link, "hub_headers", None):
+                    link.hub_headers = {**dict(link.hub_headers), "X-Javis-Mode": team_gate.HUB_MODE}
+                else:
+                    link.hub_headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}",
+                                        "X-Javis-Mode": team_gate.HUB_MODE, "X-Javis-Vault": vault}
+        if not gate_id and prov == aux_engine.ANTIGRAVITY:
+            for link in (list(eng._all()) if hasattr(eng, "_all") else [eng]):
+                link.hub_turn = True
         if tool_spec.get("provider") == aux_engine.CODEX:
             try:
                 openai_oauth.write_codex_auth()
@@ -35122,3 +35153,47 @@ async def plan_limits_get(goi: int = 0):
 async def batch_reads(request: Request):
     import read_batch
     return await read_batch.handle(app, request)
+
+
+# PreToolUse gate callback for CLI engines (Antigravity) running a gated Team step.
+# Registered LAST so route_table.json only grows at the end.
+@app.post("/hub/team-gate")
+async def hub_team_gate(request: Request):
+    """Verify a CLI PreToolUse hook tool call against the active Team Gate (`team_gate.native_check`)."""
+    if not _direct_local_request(request):
+        return JSONResponse({"decision": "deny", "reason": "team gate only answers this machine"}, status_code=403)
+    auth = str(request.headers.get("authorization") or "").strip()
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    expected = str(mcp_hub.hub_token() or "")
+    if not token or not expected or not hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8")):
+        return JSONResponse({"decision": "deny", "reason": "unauthorized team gate token"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"decision": "deny", "reason": "invalid team gate request body"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"decision": "deny", "reason": "invalid team gate payload"}, status_code=400)
+
+    turn_key = str(request.headers.get(turn_context.HEADER.lower()) or "").strip()
+    resolved_turn = turn_context.resolve_key(turn_key) if turn_key else None
+    if turn_key and resolved_turn is None:
+        return JSONResponse({"decision": "deny", "reason": "invalid or expired turn key"}, status_code=403)
+    tok = turn_context.bind(resolved_turn)
+    try:
+        gate_id = str(body.get("gate_id") or "").strip()
+        if resolved_turn is not None:
+            ctx_gate = str(resolved_turn.get("team_gate") or "").strip()
+            if ctx_gate and gate_id and ctx_gate != gate_id:
+                return JSONResponse({"decision": "deny", "reason": "team gate mismatch for turn"}, status_code=403)
+            if not gate_id:
+                gate_id = ctx_gate
+        tool = str(body.get("tool") or "").strip()
+        inp = body.get("input")
+        if not isinstance(inp, dict):
+            inp = {}
+        ok, msg = await asyncio.to_thread(team_gate.native_check, gate_id or None, tool, inp)
+        if ok:
+            return JSONResponse({"decision": "allow"})
+        return JSONResponse({"decision": "deny", "reason": str(msg or team_gate.BLOCK_NOTE)})
+    finally:
+        turn_context.reset(tok)

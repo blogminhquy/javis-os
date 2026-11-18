@@ -23,8 +23,9 @@ Cơ chế chỉ chữ theo provider:
   ("writing is blocked by read-only sandbox"). Đã thử với Codex 0.153.4 qua một máy chủ Responses giả: danh sách công cụ
   gửi cho model chỉ còn `request_user_input` và `apply_patch`, và một `apply_patch` ghi file ngoài thư mục bị từ chối.
 - Engine API: `no_tools` (không hỏi hub, model không được đưa công cụ nào).
-- Grok Build, Antigravity: chưa có cơ chế chỉ chữ được kiểm (Grok còn công cụ đọc native; `agy` đọc MCP từ file chung
-  của máy). Báo lỗi rõ, không chạy thay bằng provider khác.
+- `antigravity-cli`: thư mục trống riêng mỗi lượt, tắt slash command, `--settings` chặn toàn bộ tool/MCP, móc `PreToolUse`
+  chặn mọi tool, và `HOME` riêng mỗi lượt (không có MCP Hub); chỉ sự kiện tool hoàn thành (`DONE`) mới coi là rò rỉ.
+- Grok Build: chưa có cơ chế chỉ chữ được kiểm (còn công cụ đọc native). Báo lỗi rõ, không chạy thay bằng provider khác.
 """
 from __future__ import annotations
 
@@ -79,8 +80,12 @@ def choose_spec(agent_model: str, agent_provider: str, main: dict, resolve: Call
 
 
 def text_only_supported(provider: str) -> bool:
-    """Provider có cơ chế chỉ chữ đã kiểm cho lượt nhóm: Claude (cổng chặn), Codex (cờ + sandbox read-only), engine API."""
+    """Whether `provider` has a verified text-only mechanism for team turns: Claude (tool gate), Codex
+    (flags + read-only sandbox), Antigravity (PreToolUse deny + settings + isolated cwd/HOME when supported), API engines."""
     p = str(provider or "")
+    if p == aux_engine.ANTIGRAVITY:
+        import antigravity_cli as _a
+        return _a.hooks_supported()
     return p in (CLAUDE, CODEX) or p in aux_engine.API_PROVIDERS
 
 
@@ -124,6 +129,22 @@ def build(spec: dict, base: Any, tag: str, settings: Optional[dict] = None) -> A
         cc = CodexCLI(cwd=getattr(base, "cwd", None), tag=tag, model=model or None,
                       instructions=getattr(base, "system_prompt", None))
         return codex_text_only(cc)
+    if prov == aux_engine.ANTIGRAVITY:
+        import antigravity_cli as _a
+        if not _a.hooks_supported():
+            import localefmt
+            raise TeamEngineUnavailable(
+                localefmt.chu(
+                    "antigravity-cli chưa hỗ trợ hook PreToolUse và --settings trên máy này. "
+                    "Cập nhật `agy` hoặc đổi model của trợ lý ở trang Cộng sự",
+                    "antigravity-cli on this machine does not support PreToolUse hooks and --settings yet. "
+                    "Upgrade `agy` or switch the assistant's model on the Partners page"),
+                prov,
+            )
+        ac = _a.AntigravityCLI(cwd=getattr(base, "cwd", None), tag=tag, model=model or None,
+                               instructions=getattr(base, "system_prompt", None))
+        ac.mode = getattr(base, "mode", None) or "suggest"
+        return _a.antigravity_text_only(ac)
     if prov in aux_engine.API_PROVIDERS:
         eng = aux_engine._ApiAuxEngine(provider=prov, model=model, system_prompt=getattr(base, "system_prompt", None),
                                        vault_root=None, mode="suggest", tag=tag)

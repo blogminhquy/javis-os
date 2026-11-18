@@ -44,15 +44,20 @@ MAX_BLOCKED = 5             # recorded refusals per step (an approval card lists
 # folders (checked below), planning and sub-agents (their own tool calls go through this same hook).
 NATIVE_FREE = frozenset({"Read", "Glob", "Grep", "LS", "NotebookRead", "TodoWrite", "TodoRead", "WebSearch",
                          "Task", "Agent", "BashOutput", "KillShell", "KillBash", "ExitPlanMode", "ToolSearch",
-                         "ListMcpResourcesTool", "ReadMcpResourceTool"})
-NATIVE_WRITE = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
+                         "ListMcpResourcesTool", "ReadMcpResourceTool",
+                         "view_file", "view_file_outline", "view_code_item", "read_file", "list_dir",
+                         "find_by_name", "grep_search", "command_status", "read_terminal",
+                         "list_resources", "read_resource", "search_web", "list_permissions", "list_plugin_accounts"})
+NATIVE_WRITE = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit",
+                          "write_to_file", "write_file", "edit_file", "replace_file_content",
+                          "multi_replace_file_content", "sed_file"})
 # 0.271.0: Claude Code's shell tools. On Windows the shell is `PowerShell`, not `Bash` (customer report, codes 5 and 22):
 # before this its call was fingerprinted with every input field (a different `timeout` on the rerun made the approved
 # command "another" command), a declared PowerShell action was fingerprinted as a hub tool, and the card only said
 # "PowerShell". Both shells are now one action per exact command text. PowerShell is never read-only here.
-SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
+SHELL_TOOLS = frozenset({"Bash", "PowerShell", "run_command"})
 # Native tools an `ask_approval` directive may name, fingerprinted like the gate does at call time.
-NATIVE_DECLARABLE = NATIVE_WRITE | SHELL_TOOLS | frozenset({"WebFetch"})
+NATIVE_DECLARABLE = NATIVE_WRITE | SHELL_TOOLS | frozenset({"WebFetch", "read_url_content"})
 LABEL_COMMAND_MAX = 160
 # Shell programs that only read. Narrower than run_command's `auto` list on purpose: python, node, npm and make run any
 # code, which can reach the network, so in a gated team they are outside actions.
@@ -66,8 +71,8 @@ _GIT_BAD = ("--output", "--ext-diff", "--textconv", "-o")
 # Paths inside the step's folders whose content runs or configures code: writing them is never "in scope" (a vault plugin
 # loads into the server, Claude/Grok/Codex settings carry hooks, git config runs fsmonitor, Javis/ holds loops and
 # reminders that run on their own).
-PROTECTED_PARTS = ("plugins", ".claude", ".git", ".grok", ".codex", ".agents", ".gemini", ".antigravity", "Javis",
-                   ".javis")
+PROTECTED_PARTS = ("plugins", ".claude", ".git", ".grok", ".codex", ".agents", ".gemini", ".antigravity",
+                   ".antigravitycli", "Javis", ".javis")
 PROTECTED_FILES = (".mcp.json", ".mcp_hub.json", "CLAUDE.md", "AGENTS.md", "GEMINI.md")
 _PROTECTED_PARTS_CF = frozenset(x.casefold() for x in PROTECTED_PARTS)
 _PROTECTED_FILES_CF = frozenset(x.casefold() for x in PROTECTED_FILES)
@@ -305,7 +310,7 @@ def _native_args(tool: str, inp: dict) -> Any:
     """What makes two native calls the same action. Shell tools: the command alone (the description, timeout and
     background flag vary between runs of the same command)."""
     if tool in SHELL_TOOLS:
-        return {"command": str((inp or {}).get("command") or "")}
+        return {"command": str((inp or {}).get("command") or (inp or {}).get("CommandLine") or "")}
     return {k: v for k, v in (inp or {}).items() if k not in ("description",)}
 
 
@@ -325,7 +330,9 @@ def native_label(tool: str, inp: Any) -> str:
     """What the card's summary line says about one native call: the tool and the command, file or address it acts on,
     shortened. The full call is kept separately (`call`) for the card's list of exact calls."""
     d = inp if isinstance(inp, dict) else {}
-    what = d.get("command") if tool in SHELL_TOOLS else (d.get("file_path") or d.get("notebook_path") or d.get("url") or "")
+    what = ((d.get("command") or d.get("CommandLine")) if tool in SHELL_TOOLS
+            else (d.get("file_path") or d.get("notebook_path") or d.get("Path") or d.get("TargetFile")
+                  or d.get("AbsolutePath") or d.get("url") or d.get("Url") or ""))
     what = short_text(what)
     return f"{tool}: {what}" if what else str(tool or "")
 
@@ -333,17 +340,25 @@ def native_label(tool: str, inp: Any) -> str:
 def classify_native(tool: str, inp: dict, roots: list) -> str:
     """'free' (runs) or 'outside' (needs approval)."""
     name = str(tool or "")
-    if name.startswith("mcp__javis__") or name.startswith("mcp__javis-plugins__"):
+    d = inp if isinstance(inp, dict) else {}
+    if name.startswith(("mcp__javis__", "mcp__javis-plugins__", "mcp_javis_", "mcp_javis-plugins_")):
         return "free"           # the hub and the plugin host apply the gate themselves
+    if name in ("call_mcp_tool", "mcp_tool"):
+        srv = str(d.get("ServerName") or d.get("serverName") or d.get("server_name") or d.get("server") or "").strip()
+        if srv in ("javis", "javis-plugins"):
+            return "free"       # the hub / plugin host enforces team_gate via X-Javis-Turn
+        fn = str(d.get("ToolName") or d.get("toolName") or d.get("tool_name") or d.get("tool") or "").strip().lower()
+        return "free" if (fn and fn.startswith(_READ_VERBS)) else "outside"
     if name in NATIVE_FREE:
         return "free"
     if name in NATIVE_WRITE:
-        path = (inp or {}).get("file_path") or (inp or {}).get("notebook_path") or ""
+        path = (d.get("file_path") or d.get("notebook_path") or d.get("Path") or d.get("TargetFile")
+                or d.get("AbsolutePath") or d.get("target_file") or d.get("path") or "")
         return "free" if _inside(str(path), roots) else "outside"
-    if name == "Bash":
-        return "free" if bash_readonly((inp or {}).get("command")) else "outside"
-    if name == "WebFetch":
-        return "free" if webfetch_free((inp or {}).get("url")) else "outside"
+    if name in SHELL_TOOLS:
+        return "free" if bash_readonly(d.get("command") or d.get("CommandLine")) else "outside"
+    if name in ("WebFetch", "read_url_content"):
+        return "free" if webfetch_free(d.get("url") or d.get("Url")) else "outside"
     if name.startswith("mcp__"):
         last = name.rsplit("__", 1)[-1].lower()
         return "free" if last.startswith(_READ_VERBS) else "outside"
@@ -423,7 +438,7 @@ ANTIGRAVITY = "antigravity-cli"
 
 
 def provider_support(provider: str, *, codex_sandbox: Optional[str] = "workspace-write", grok_deny: bool = True,
-                     api_providers: tuple = ()) -> dict:
+                     api_providers: tuple = (), antigravity_gate: bool = False) -> dict:
     """{"ok": can run a gated tool step, "approved_actions": an approved outside action can run on it, "reason": ...}."""
     p = str(provider or CLAUDE)
     if p == CLAUDE:
@@ -452,8 +467,13 @@ def provider_support(provider: str, *, codex_sandbox: Optional[str] = "workspace
                 "reason": ("Grok Build đọc mức quyền từ một file cấu hình dùng chung cho cả bộ não và ghi file không giới "
                            "hạn thư mục, nên Javis không bảo đảm chặn được trước khi chạy")}
     if p == ANTIGRAVITY:
+        if antigravity_gate:
+            return {"ok": True, "approved_actions": True, "reason": ""}
+        from localefmt import chu  # lazy: this module keeps its imports light
         return {"ok": False, "approved_actions": False,
-                "reason": "Antigravity CLI không có cách chặn công cụ của chính nó trước khi chạy ở mức này"}
+                "reason": chu(
+                    "Antigravity CLI chưa đủ điều kiện chặn công cụ trước khi chạy và khóa lượt riêng trên máy này",
+                    "Antigravity CLI on this machine lacks PreToolUse hooks and per-turn HOME isolation")}
     return {"ok": False, "approved_actions": False, "reason": f"{p} chưa được kiểm là chặn được công cụ trước khi chạy"}
 
 

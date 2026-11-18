@@ -35,10 +35,14 @@ import errno
 import json
 import os
 import re
+import secrets
+import shlex
+import shutil
 import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import uuid
 from pathlib import Path
 from typing import AsyncIterator, Optional
@@ -582,19 +586,167 @@ _HAN_NGU_CANH = 3600.0      # file mồ côi quá một giờ thì dọn
 
 
 def _don_ngu_canh_cu(thu_muc: Path):
-    """Xoá file ngữ cảnh mồ côi. Bình thường mỗi lượt tự dọn file của mình trong `finally`, nhưng
-    `kill -9`, mất điện, hay restart container giữa lượt thì không có `finally` nào chạy - mà thứ
-    nằm lại là bản sao ký ức của người dùng, không phải một file tạm vô hại."""
+    """Remove orphaned context files and per-turn temp HOME/cwd directories. Normally each turn cleans up in
+    `finally`, but `kill -9`, power loss, or container restarts can leave behind user memory copies or turn dirs."""
     try:
         gio = time.time()
         for f in thu_muc.glob("ngu-canh-*.md"):
             try:
-                if gio - f.stat().st_mtime > _HAN_NGU_CANH:
+                if gio - f.lstat().st_mtime > _HAN_NGU_CANH:
                     f.unlink()
             except Exception:
                 pass
+        for f in thu_muc.glob("gate-*.json"):
+            try:
+                if gio - f.lstat().st_mtime > _HAN_NGU_CANH:
+                    f.unlink()
+            except Exception:
+                pass
+        for pat in ("home-*", "turn-cwd-*"):
+            for entry in thu_muc.glob(pat):
+                try:
+                    st = entry.lstat()
+                    if gio - st.st_mtime > _HAN_NGU_CANH:
+                        if entry.is_symlink() or entry.is_file():
+                            entry.unlink()
+                        else:
+                            shutil.rmtree(entry, ignore_errors=True)
+                except Exception:
+                    pass
     except Exception:
         pass
+
+
+def _state_agy_dir() -> Path:
+    try:
+        import config
+        root_dir = Path(config.STATE_DIR)
+    except Exception:
+        root_dir = Path(os.environ.get("JAVIS_STATE_DIR") or Path(__file__).parent)
+    folder = root_dir / _THU_MUC_NGU_CANH
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def hooks_supported() -> bool:
+    """Whether installed `agy` enforces PreToolUse hooks and session `--settings` / `--disable-slash-commands`."""
+    forced = (os.environ.get("JAVIS_AGY_HOOKS") or "").strip().lower()
+    if forced in ("0", "false", "no"):
+        return False
+    if forced in ("1", "true", "yes"):
+        return True
+    return bool(find_antigravity_cli() and co_co("--settings") and co_co("--disable-slash-commands"))
+
+
+def per_turn_home_supported() -> bool:
+    """Whether `agy` runs with a per-turn symlinked HOME isolating `mcp_config.json` and `hooks.json`."""
+    forced = (os.environ.get("JAVIS_AGY_PER_TURN_HOME") or os.environ.get("JAVIS_AGY_TURN_HOME") or "").strip().lower()
+    if forced in ("0", "false", "no"):
+        return False
+    if forced in ("1", "true", "yes"):
+        return True
+    return sys.platform.startswith("linux") and hasattr(os, "symlink")
+
+
+def antigravity_text_only(ac: "AntigravityCLI") -> "AntigravityCLI":
+    """Put an AntigravityCLI into strict text-only Team mode: empty cwd, no slash commands, deny-all settings,
+    PreToolUse deny-all hook, no Javis hub MCP config, and isolated HOME per turn."""
+    ac.text_only = True
+    ac.hub_turn = False
+    ac.hub_url = None
+    ac.hub_headers = None
+    ac.mcp_config = None
+    ac.team_gate = None
+    ac.include_dirs = []
+    return ac
+
+
+def _deny_all_hooks_doc() -> dict:
+    py = shlex.quote(sys.executable or "python3")
+    cmd = f"{py} -c \"import json; print(json.dumps({{'decision':'deny','reason':'Text-only team turn forbids all tools.'}}))\""
+    return {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "*", "hooks": [{"type": "command", "command": cmd, "timeout": 10}]}
+            ]
+        }
+    }
+
+
+def _team_gate_hooks_doc(url: str, gate_cfg_path: str) -> dict:
+    py = shlex.quote(sys.executable or "python3")
+    hook = shlex.quote(str(Path(__file__).resolve().with_name("agy_gate_hook.py")))
+    cmd = f"{py} {hook} {shlex.quote(str(url))} {shlex.quote(str(gate_cfg_path))}"
+    return {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "*", "hooks": [{"type": "command", "command": cmd, "timeout": 700}]}
+            ]
+        }
+    }
+
+
+def _symlink_dir_except(src: Path, dst: Path, skip: set[str]) -> None:
+    dst.mkdir(parents=True, exist_ok=True)
+    if not src.is_dir():
+        return
+    try:
+        items = list(src.iterdir())
+    except OSError:
+        return
+    for item in items:
+        if item.name in skip:
+            continue
+        target = dst / item.name
+        if target.exists() or target.is_symlink():
+            continue
+        try:
+            os.symlink(str(item), str(target))
+        except OSError:
+            pass
+
+
+def _create_turn_home(turn_home: Path, base_home: Path, mcp_doc: Optional[dict] = None,
+                      hooks_doc: Optional[dict] = None, *, allow_plugins: bool = True) -> Path:
+    """Create a per-turn isolated HOME symlinking auth/state from `base_home` while keeping
+    `mcp_config.json` and `hooks.json` strictly isolated to this turn."""
+    turn_home.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(turn_home, 0o700)
+    except OSError:
+        pass
+    _symlink_dir_except(base_home, turn_home, {".gemini", ".agents", ".javis"})
+    if allow_plugins and (base_home / ".agents").is_dir():
+        _symlink_dir_except(base_home / ".agents", turn_home / ".agents", {"mcp_config.json", "hooks.json"})
+    _symlink_dir_except(base_home / ".gemini", turn_home / ".gemini", {"config", "antigravity-cli"})
+    skip_cfg = {"mcp_config.json"}
+    if hooks_doc is not None:
+        skip_cfg.add("hooks.json")
+    if not allow_plugins:
+        skip_cfg |= {"plugins", "skills"}
+    cfg_dir = turn_home / ".gemini" / "config"
+    ac_dir = turn_home / ".gemini" / "antigravity-cli"
+    _symlink_dir_except(base_home / ".gemini" / "config", cfg_dir, skip_cfg)
+    _symlink_dir_except(base_home / ".gemini" / "antigravity-cli", ac_dir,
+                        {"mcp_config.json", "mcp", "presence", "persistent_terminals", "hooks.json"})
+    if mcp_doc is not None:
+        raw_mcp = json.dumps(mcp_doc, ensure_ascii=False, indent=2)
+        for p in (cfg_dir / "mcp_config.json", ac_dir / "mcp_config.json"):
+            p.write_text(raw_mcp, encoding="utf-8")
+            try:
+                os.chmod(p, 0o600)
+            except OSError:
+                pass
+    if hooks_doc is not None:
+        # Write hooks.json only under .gemini/config so agy fires PreToolUse once per call
+        # and does not consume one-shot approval fingerprints twice across two paths.
+        hp = cfg_dir / "hooks.json"
+        hp.write_text(json.dumps(hooks_doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            os.chmod(hp, 0o600)
+        except OSError:
+            pass
+    return turn_home
 
 
 def _viet_file_ngu_canh(cwd: str, noi_dung: str) -> tuple[str, str]:
@@ -1390,6 +1542,12 @@ class AntigravityCLI:
         # Chỉ tới được dòng lệnh khi `co_effort` thấy bản CLI này khai đủ cờ lẫn giá trị.
         self.effort = None
         self.include_dirs: list[str] = []
+        self.text_only = False
+        self.team_gate: Optional[str] = None
+        self.hub_turn = False
+        self.hub_url: Optional[str] = None
+        self.hub_headers: Optional[dict] = None
+        self.gate_url: Optional[str] = None
         # Time cap for one turn in seconds, 0 = none (the default since 2026-11-07, see `turn_cap_seconds`). The old
         # 900s default stopped heavy tool work half way. Read it through `turn_cap()`, which adds the suggest-mode net.
         self.timeout = turn_cap_seconds()
@@ -1412,7 +1570,10 @@ class AntigravityCLI:
         args = [self.cli_path]
         if self.model and co_co("--model"):
             args += ["--model", self.model]
-        args += co_quyen_cho_mode(self.mode)
+        perm_mode = ("auto" if (getattr(self, "team_gate", None)
+                                and str(self.mode or "").strip().lower() == "gated")
+                     else self.mode)
+        args += co_quyen_cho_mode(perm_mode)
         # Hai điều kiện, thiếu một là hỏng lượt chat: `co_effort` biết bản CLI này CÓ cờ hay
         # không, `model_khoa_effort` biết model đang chọn đã tự mang mức nghĩ trong tên chưa.
         if not model_khoa_effort(self.model):
@@ -1423,9 +1584,15 @@ class AntigravityCLI:
             args += ["--output-format", "stream-json"]
         if noi_mach and self.session_id and co_co("--conversation"):
             args += ["--conversation", self.session_id]
-        if co_co("--add-dir"):
+        if not getattr(self, "text_only", False) and co_co("--add-dir"):
             for d in self.include_dirs:
                 args += ["--add-dir", str(d)]
+        if getattr(self, "text_only", False):
+            if co_co("--disable-slash-commands"):
+                args.append("--disable-slash-commands")
+            if co_co("--settings"):
+                args += ["--settings", json.dumps({"permissions": {"deny": ["*", "mcp(*)"]}},
+                                                  separators=(",", ":"))]
         args += list(them or [])
         # Trần thời gian của CHÍNH `agy` trong print mode, mặc định 5 phút. Không đặt thì việc
         # nền dài bị chính CLI cắt ở phút thứ 5 trong khi Javis còn ngồi đợi tới 15 - và cắt kiểu
@@ -1453,13 +1620,18 @@ class AntigravityCLI:
         """
         ep = (os.environ.get("JAVIS_AGY_PROMPT_DAI") or "").strip().lower()
         if ep in ("stdin", "file", "argv"):
+            if ep == "file" and getattr(self, "text_only", False):
+                return "stdin:trong"
             return duong_prompt_dai(self.cli_path) if ep == "stdin" else ep
         # Đo bằng _do_dai_argv chứ KHÔNG bằng len(): trần của hệ điều hành tính theo byte
         # (Linux) hoặc đơn vị UTF-16 (Windows), mà tiếng Việt tốn ~1.3 byte mỗi ký tự.
         do_dai = _do_dai_argv(full) + sum(_do_dai_argv(a) + 3 for a in self._build_args(""))
         if do_dai <= _tran_argv():
             return "argv"     # vừa dòng lệnh thì cứ đường cũ, đã chạy tốt trên Linux/macOS
-        return duong_prompt_dai(self.cli_path)
+        chosen = duong_prompt_dai(self.cli_path)
+        if getattr(self, "text_only", False) and chosen == "file":
+            return "stdin:trong"
+        return chosen
 
     async def query(self, prompt: str) -> AsyncIterator[dict]:
         """Một lượt chat. Tự chọn đường đưa prompt, và tự thử lại nếu đường đó không tới nơi."""
@@ -1532,6 +1704,8 @@ class AntigravityCLI:
             _duong_lui = await asyncio.to_thread(duong_prompt_dai, self.cli_path)
             if _duong_lui == "argv":      # cửa thoát env đang ép argv, mà argv vừa nổ
                 _duong_lui = "file"
+            if getattr(self, "text_only", False) and _duong_lui == "file":
+                _duong_lui = "stdin:trong"
             print(f"[antigravity] prompt vượt trần dòng lệnh, chuyển sang {_duong_lui}",
                   file=sys.stderr)
             ket = {}
@@ -1553,7 +1727,7 @@ class AntigravityCLI:
         # được `agy`, nhưng phát hiện được: U+FFFD gần như không bao giờ xuất hiện trong câu trả
         # lời lành lặn.
         _hong_dau = "�" in (ket.get("text") or "")
-        _thu_lai = duong.startswith("stdin") and (
+        _thu_lai = (not getattr(self, "text_only", False)) and duong.startswith("stdin") and (
             _hong_dau or (not ket.get("text") and (_loi_thieu_prompt or not ket.get("loi"))))
         if _thu_lai:
             _vi_sao = ("stdin làm hỏng dấu tiếng Việt" if _hong_dau
@@ -1630,6 +1804,151 @@ class AntigravityCLI:
         tep_ngu_canh = ten_ngu_canh = ""
         prompt_argv = full
         them_args: list[str] = []
+        turn_cwd_dir: Optional[Path] = None
+        turn_home_dir: Optional[Path] = None
+        gate_cfg_path: Optional[Path] = None
+
+        def _cleanup_turn() -> None:
+            if tep_ngu_canh and not os.environ.get("JAVIS_AGY_GIU_NGU_CANH"):
+                try:
+                    os.unlink(tep_ngu_canh)
+                except Exception:
+                    pass
+            if gate_cfg_path is not None:
+                try:
+                    gate_cfg_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            for d in (turn_home_dir, turn_cwd_dir):
+                if d is not None:
+                    try:
+                        shutil.rmtree(d, ignore_errors=True)
+                    except Exception:
+                        pass
+
+        turn_key: Optional[str] = None
+        if getattr(self, "hub_turn", False) or getattr(self, "team_gate", None):
+            try:
+                import turn_context
+                turn_key = turn_context.issue_key()
+            except Exception:
+                turn_key = None
+
+        try:
+            if getattr(self, "text_only", False) or getattr(self, "team_gate", None) or (
+                getattr(self, "hub_turn", False) and getattr(self, "hub_url", None) and per_turn_home_supported()
+            ):
+                state_agy = _state_agy_dir()
+                _don_ngu_canh_cu(state_agy)
+                turn_tok = secrets.token_hex(8)
+                base_home = Path(self.agy_home) if getattr(self, "agy_home", None) else _home_dir()
+
+                if getattr(self, "text_only", False):
+                    if getattr(self, "team_gate", None):
+                        msg = localefmt.chu(
+                            "Antigravity ở chế độ chỉ chữ không thể chạy cùng cổng duyệt team.",
+                            "Antigravity text_only cannot run alongside team_gate.",
+                        )
+                        ket.update(text="", loi=True, doc_duoc=True, ten_ngu_canh="", cac_loi=[msg])
+                        yield {"type": "error", "content": msg}
+                        return
+                    if duong == "file":
+                        msg = localefmt.chu(
+                            "Antigravity ở chế độ chỉ chữ không cho phép truyền ngữ cảnh qua file.",
+                            "Antigravity text_only forbids context file delivery.",
+                        )
+                        ket.update(text="", loi=True, doc_duoc=True, ten_ngu_canh="", cac_loi=[msg])
+                        yield {"type": "error", "content": msg}
+                        return
+                    turn_cwd_dir = state_agy / f"turn-cwd-{turn_tok}"
+                    (turn_cwd_dir / ".agents").mkdir(parents=True, exist_ok=True)
+                    hooks_doc = _deny_all_hooks_doc()
+                    (turn_cwd_dir / ".agents" / "hooks.json").write_text(
+                        json.dumps(hooks_doc, ensure_ascii=False, indent=2), encoding="utf-8"
+                    )
+                    if per_turn_home_supported():
+                        turn_home_dir = state_agy / f"home-{turn_tok}"
+                        _create_turn_home(turn_home_dir, base_home, mcp_doc={"mcpServers": {}},
+                                          hooks_doc=hooks_doc, allow_plugins=False)
+                elif getattr(self, "team_gate", None):
+                    if not hooks_supported() or not per_turn_home_supported():
+                        msg = localefmt.chu(
+                            "Antigravity CLI trên máy này chưa hỗ trợ hook chặn công cụ và HOME riêng mỗi lượt.",
+                            "Antigravity CLI on this machine lacks PreToolUse hooks and per-turn HOME isolation.",
+                        )
+                        ket.update(text="", loi=True, doc_duoc=True, ten_ngu_canh="", cac_loi=[msg])
+                        yield {"type": "error", "content": msg}
+                        return
+                    hub_headers = getattr(self, "hub_headers", None)
+                    auth_hdr = (
+                        str((hub_headers or {}).get("Authorization") or "").strip()
+                        if isinstance(hub_headers, dict) else ""
+                    )
+                    gate_url = str(getattr(self, "gate_url", None) or "").strip()
+                    if (not getattr(self, "hub_url", None) and not gate_url) or not auth_hdr:
+                        msg = localefmt.chu(
+                            "Thiếu thông tin xác thực MCP Hub cho cổng duyệt team của Antigravity.",
+                            "Missing MCP Hub credentials for Antigravity team gate.",
+                        )
+                        ket.update(text="", loi=True, doc_duoc=True, ten_ngu_canh="", cac_loi=[msg])
+                        yield {"type": "error", "content": msg}
+                        return
+                    if getattr(self, "hub_turn", False) and not turn_key:
+                        msg = localefmt.chu(
+                            "Thiếu khoá lượt X-Javis-Turn cho lượt team cần duyệt của Antigravity.",
+                            "Missing X-Javis-Turn key for gated Antigravity team turn.",
+                        )
+                        ket.update(text="", loi=True, doc_duoc=True, ten_ngu_canh="", cac_loi=[msg])
+                        yield {"type": "error", "content": msg}
+                        return
+                    if not gate_url:
+                        parts = urllib.parse.urlsplit(str(self.hub_url))
+                        gate_url = urllib.parse.urlunsplit((parts.scheme, parts.netloc, "/hub/team-gate", "", ""))
+                    raw_tok = auth_hdr[7:].strip() if auth_hdr.lower().startswith("bearer ") else auth_hdr
+                    gate_cfg_path = state_agy / f"gate-{turn_tok}.json"
+                    gate_cfg_path.write_text(
+                        json.dumps({
+                            "url": gate_url,
+                            "token": raw_tok,
+                            "gate_id": str(self.team_gate),
+                            "turn_key": str(turn_key or ""),
+                        }, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    try:
+                        os.chmod(gate_cfg_path, 0o600)
+                    except OSError:
+                        pass
+                    if getattr(self, "hub_url", None):
+                        headers = dict(hub_headers)
+                        if turn_key:
+                            headers["X-Javis-Turn"] = turn_key
+                        mcp_doc = {"mcpServers": {"javis": hub_entry(str(self.hub_url), headers)}}
+                    else:
+                        mcp_doc = {"mcpServers": {}}
+                    hooks_doc = _team_gate_hooks_doc(gate_url, str(gate_cfg_path))
+                    turn_home_dir = state_agy / f"home-{turn_tok}"
+                    _create_turn_home(turn_home_dir, base_home, mcp_doc=mcp_doc,
+                                      hooks_doc=hooks_doc, allow_plugins=True)
+                else:
+                    hub_headers = getattr(self, "hub_headers", None)
+                    headers = dict(hub_headers) if isinstance(hub_headers, dict) else {}
+                    if turn_key:
+                        headers["X-Javis-Turn"] = turn_key
+                    mcp_doc = {"mcpServers": {"javis": hub_entry(str(self.hub_url), headers)}}
+                    turn_home_dir = state_agy / f"home-{turn_tok}"
+                    _create_turn_home(turn_home_dir, base_home, mcp_doc=mcp_doc,
+                                      hooks_doc=None, allow_plugins=True)
+        except Exception as e:
+            _cleanup_turn()
+            msg = localefmt.chu(
+                f"Không chuẩn bị được môi trường cô lập cho lượt Antigravity ({type(e).__name__}: {e}).",
+                f"Failed to prepare isolated Antigravity turn environment ({type(e).__name__}: {e}).",
+            )
+            ket.update(text="", loi=True, doc_duoc=True, ten_ngu_canh="", cac_loi=[msg])
+            yield {"type": "error", "content": msg}
+            return
+
         if duong == "file":
             try:
                 tep_ngu_canh, ten_ngu_canh = _viet_file_ngu_canh(self.cwd, full)
@@ -1689,15 +2008,20 @@ class AntigravityCLI:
                     _env = tien_trinh_nen.mark_env(None, self.tag)
                 except Exception:  # noqa: BLE001
                     _env = None
-                # An extra Google account (plan_accounts, Linux only): agy runs with that account's own HOME and keeps
-                # its token in a file there instead of the machine's one keyring login.
-                if getattr(self, "agy_home", None):
+                # Isolated per-turn HOME (Team text/gate/hub_turn) or extra Google account HOME (`agy_home`, Linux only).
+                if turn_home_dir is not None:
+                    _env = dict(_env if _env is not None else os.environ)
+                    _env["HOME"] = str(turn_home_dir)
+                    if getattr(self, "agy_home", None):
+                        _env["GEMINI_FORCE_FILE_STORAGE"] = "true"
+                elif getattr(self, "agy_home", None):
                     _env = dict(_env if _env is not None else os.environ)
                     _env["HOME"] = self.agy_home
                     _env["GEMINI_FORCE_FILE_STORAGE"] = "true"
                 proc = subprocess.Popen(
                     args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                    cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,
+                    cwd=str(turn_cwd_dir) if turn_cwd_dir is not None else self.cwd,
+                    text=True, encoding="utf-8", errors="replace", bufsize=1,
                     creationflags=_no_window(), start_new_session=(os.name != "nt"), env=_env,
                 )
                 with _PROC_LOCK:
@@ -1789,18 +2113,17 @@ class AntigravityCLI:
                 if proc:
                     with _PROC_LOCK:
                         _ACTIVE_PROCS.pop(proc, None)
-                # Dọn file ngữ cảnh ở ĐÂY chứ không ở vòng đọc sự kiện: luồng này luôn chạy hết,
-                # kể cả khi người dùng đóng tab giữa chừng và không ai đọc nốt hàng đợi nữa.
-                # Để sót là rác tích dần trong brain của người dùng.
-                if tep_ngu_canh and not os.environ.get("JAVIS_AGY_GIU_NGU_CANH"):
-                    try:
-                        os.unlink(tep_ngu_canh)
-                    except Exception:
-                        pass
+                # Clean up per-turn files and temp directories here (not in the event reader):
+                # this thread always finishes even if the client disconnects mid-turn.
+                _cleanup_turn()
                 reader_finished.set()
                 publish(HET)
 
-        threading.Thread(target=doc_luong, name=f"javis-agy-{self.tag}", daemon=True).start()
+        try:
+            threading.Thread(target=doc_luong, name=f"javis-agy-{self.tag}", daemon=True).start()
+        except Exception:
+            _cleanup_turn()
+            raise
 
         cac_manh: list[str] = []
         cac_loi: list[str] = []
@@ -1935,13 +2258,29 @@ class AntigravityCLI:
             da_bao = kho.setdefault("_buoc_tool", set())
             idx = str(ev.get("step_index") or ev.get("tool_id") or ev.get("id") or "")
             ten = str(ev.get("tool_name") or (ev.get("tool_info") or {}).get("name") or "")
+            st = str(ev.get("state") or "").upper()
             ra = []
+            if getattr(self, "text_only", False):
+                # Blocked PreToolUse steps arrive as ACTIVE -> ERROR/CANCELED without executing;
+                # only DONE proves a tool actually completed in a text-only turn.
+                if st != "DONE":
+                    return []
+                if idx not in da_bao:
+                    da_bao.add(idx)
+                    ra.append({"type": "tool_call", "name": ten, "id": idx,
+                               "input": (ev.get("tool_info") or {}).get("parameters") or {}})
+                ra.append({"type": "tool_result", "id": idx, "status": "", "content": ""})
+                return ra
             if idx not in da_bao:
                 da_bao.add(idx)
                 ra.append({"type": "tool_call", "name": ten, "id": idx,
                            "input": (ev.get("tool_info") or {}).get("parameters") or {}})
-            if str(ev.get("state") or "").upper() == "DONE":
+            if st == "DONE":
                 ra.append({"type": "tool_result", "id": idx, "status": "", "content": ""})
+            elif st in ("ERROR", "CANCELED", "CANCELLED"):
+                err = (ev.get("tool_info") or {}).get("error")
+                msg = str(err.get("message") if isinstance(err, dict) else (err or ""))[:2000]
+                ra.append({"type": "tool_result", "id": idx, "status": "error", "content": msg})
             return ra
 
         # Mở mạch: nhặt id hội thoại để lượt sau nối lại được.

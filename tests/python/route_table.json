@@ -8516,5 +8516,15 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 855,
+  "type": "APIRoute",
+  "path": "/hub/team-gate",
+  "name": "hub_team_gate",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

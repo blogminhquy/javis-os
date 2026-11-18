@@ -1106,9 +1106,13 @@ def _build_antigravity(spec, claude_cli_obj, mode, tag):
             import mcp_hub
             hub = None
             if bool(cfgmod.read_settings().get("mcp", {}).get("hub", True)):
-                hub = _a.hub_entry(mcp_hub.hub_url(),
-                                   {"Authorization": f"Bearer {mcp_hub.hub_token()}",
-                                    "X-Javis-Mode": muc, "X-Javis-Vault": str(vault)})
+                hub_url = mcp_hub.hub_url()
+                hub_headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}",
+                               "X-Javis-Mode": muc, "X-Javis-Vault": str(vault)}
+                hub = _a.hub_entry(hub_url, hub_headers)
+                ac.hub_url = hub_url
+                ac.hub_headers = hub_headers
+                ac.hub_turn = True
             _a.ghi_mcp_settings(vault, hub)
         except Exception as e:
             print(f"[aux antigravity mcp] {e}", file=sys.stderr)
@@ -1254,7 +1258,8 @@ def _links_for_step(step: dict, cli, mode, tag, codex_profile, settings, claude_
             return _per_account(GROK_CLI, _build_grok(sp, cli, mode, tag), settings,
                                 lambda: _build_grok(sp, cli, mode, tag))
         if prov == ANTIGRAVITY:
-            return [_build_antigravity(sp, cli, mode, tag)]
+            return _per_account(ANTIGRAVITY, _build_antigravity(sp, cli, mode, tag), settings,
+                                lambda: _build_antigravity(sp, cli, mode, tag))
         if prov in API_PROVIDERS:
             s = settings if settings is not None else cfgmod.read_settings()
             m = s.get("model", {}) or {}
