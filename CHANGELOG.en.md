@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.593.0] - 2026-11-18
+### Added
+- **Bots read the files staff send customers on Zalo OA and Fanpage.** A PDF, Word or Excel quote, or a photo, sent from the OA app or the Page inbox now shows in the Inbox (labelled Staff) and the bot knows what it says when the customer asks about it. Photos are read by a connected brain that can see.
+- **Bots read the PDF, Word and Excel files customers send**, instead of only knowing "there is a file".
+### Improved
+- **One step to turn it on:** for Zalo OA, enable the `oa_send_text`, `oa_send_image` and `oa_send_file` events in the app's Webhook section. For a Fanpage, click **Repair** on the checklist so Javis turns on `message_echoes`.
+
 ## [0.592.2] - 2026-11-18
 ### Fixed
 - **New Zalo groups get their name.** The Zalo layer (javis-zalo 1.12.0) only loaded group names once at start-up, so a group the account joined later showed as "Group …" with the end of its id until a restart. The first message from an unknown group now looks its name up, and a renamed group is updated too.
