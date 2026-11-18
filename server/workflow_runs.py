@@ -149,6 +149,18 @@ class WorkflowRunStore:
                 self._db.commit()
         return rows
 
+    def xoa(self, run_id: str, brain: str) -> str:
+        """Delete one history row of `brain`. Returns "" when deleted, else why not: missing | running."""
+        with self._lock:
+            r = self._db.execute("SELECT status, brain FROM workflow_runs WHERE id=?", (run_id,)).fetchone()
+            if not r or r["brain"] != brain:
+                return "missing"
+            if r["status"] == "running":
+                return "running"
+            self._db.execute("DELETE FROM workflow_runs WHERE id=?", (run_id,))
+            self._db.commit()
+        return ""
+
     # ---- đọc ----
     @staticmethod
     def _row(r: sqlite3.Row, day_du: bool) -> Dict[str, Any]:

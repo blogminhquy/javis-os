@@ -235,6 +235,7 @@ class TasksDeps:
     aux_model: Callable[[], Optional[str]]
     safe_tools: List[str]
     state_dir: Optional[Path] = None
+    agents_dir: Optional[Callable[[str], Path]] = None   # names of the agents a gate card can save a lesson to
     scheduler_brains: Optional[Callable[[], List[str]]] = None
     apply_mcp: Optional[Callable] = None
     mcp_allow_patterns: Optional[Callable[[], List[str]]] = None
@@ -1960,6 +1961,30 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                     return out
         return out
 
+    def workflow_agents(self, brain: str, slug: str) -> list:
+        """Agents that work in workflow `slug` as [{slug, name}], so a gate card can save a lesson to one of them."""
+        try:
+            text = (self.deps.workflows_dir(brain) / f"{slug}.md").read_text(encoding="utf-8")
+            import yaml
+            meta = yaml.safe_load(text.split("---", 2)[1]) or {}
+        except Exception:
+            return []
+        seen, out = set(), []
+        for node in meta.get("nodes") or []:
+            a = str((node or {}).get("agent") or "").strip() if isinstance(node, dict) else ""
+            if not a or a in seen or "/" in a or ".." in a:
+                continue
+            seen.add(a)
+            name = a
+            try:
+                if self.deps.agents_dir:
+                    am = (self.deps.agents_dir(brain) / f"{a}.md").read_text(encoding="utf-8")
+                    name = str((yaml.safe_load(am.split("---", 2)[1]) or {}).get("name") or a)
+            except Exception:
+                pass
+            out.append({"slug": a, "name": name})
+        return out
+
     def approvals_view(self, brain: str) -> dict:
         """Every workflow gate waiting for the owner, in one list (the Quy trinh tab's "Dang cho duyet" strip).
 
@@ -1980,6 +2005,8 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 "id": task.get("id"),
                 "title": task.get("title") or "",
                 "workflow": route[3:],
+                "agents": self.workflow_agents(brain, route[3:]),
+                "task_id": task.get("id"),
                 "status": task.get("status"),
                 "question": question,
                 "links": self.approval_links(question, result),

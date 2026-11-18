@@ -14752,6 +14752,16 @@ def workflow_runs_list(brain: str = Query("brain"), slug: str = Query(""), limit
         _brain_key(brain), slug=slug or None, limit=max(1, min(int(limit or 20), 100)))}
 
 
+@app.post("/workflows/runs/{run_id}/delete")
+def workflow_runs_delete(run_id: str, brain: str = Form("brain")):
+    """Remove one old run from the history list (never a run that is still running)."""
+    import workflow_runs
+    why = workflow_runs.get_store().xoa(run_id, _brain_key(brain))
+    if why:
+        return JSONResponse({"ok": False, "error": why}, status_code=409 if why == "running" else 404)
+    return {"ok": True}
+
+
 @app.get("/workflows/runs/{run_id}")
 def workflow_runs_get(run_id: str):
     import workflow_runs
@@ -15570,6 +15580,7 @@ tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     execute_workflow=execute_workflow,
     execute_workflow_resume=execute_workflow_resume,   # 17/11/2026: an approval answered on the Tasks page runs on
     workflows_dir=_workflows_dir,
+    agents_dir=_agents_dir,
     build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     aux_model=_aux_model,
     aux_swap=_aux_swap,

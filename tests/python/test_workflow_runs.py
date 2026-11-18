@@ -79,5 +79,13 @@ check("moc_moi_nhat_theo_slug", set(moc) == {"viet-bai", "ban-tin"} and moc["ban
 # 7. Nhãn trạng thái tiếng Việt có đủ
 check("nhan trang thai", set(workflow_runs.NHAN_TRANG_THAI) == set(workflow_runs.TRANG_THAI))
 
+# Xoá một dòng lịch sử: đúng brain, không xoá lần đang chạy.
+rx = st.bat_dau(brain="/b9", slug="x", name="X", input="", source="web", session_id="sx")
+check("xoa: đang chạy thì không xoá", st.xoa(rx, "/b9") == "running" and st.lay(rx) is not None)
+st.ket_thuc(rx, "done", output="ok")
+check("xoa: sai brain thì không xoá", st.xoa(rx, "/khac") == "missing" and st.lay(rx) is not None)
+check("xoa: xong thì xoá được", st.xoa(rx, "/b9") == "" and st.lay(rx) is None)
+check("xoa: id không có", st.xoa("none", "/b9") == "missing")
+
 print("\nFAIL:" if fails else "\nOK - workflow_runs", fails or "")
 sys.exit(1 if fails else 0)

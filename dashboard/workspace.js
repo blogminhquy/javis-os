@@ -528,6 +528,12 @@
     if (!r || !Array.isArray(r.items)) return;
     var cu = JSON.stringify(S.choDuyet || []), moi = JSON.stringify(r.items);
     S.choDuyet = r.items;
+    try {
+      var h = await api("/workflows/runs?brain=" + encodeURIComponent(b0) + "&limit=100");
+      var co = {}; r.items.forEach(function (x) { co[x.task_id || x.id] = 1; });
+      var cut = Date.now() / 1000 - 12 * 3600;
+      S.lanCu = ((h && h.runs) || []).filter(function (x) { return x.status === "waiting" && !co[x.task_id] && Number(x.started_at || 0) < cut; });
+    } catch (e) { S.lanCu = S.lanCu || []; }
     // Không vẽ lại khi không có gì đổi, hoặc khi chủ đang gõ lời yêu cầu sửa (vẽ lại là mất chữ đang gõ).
     if (cu === moi || Object.keys(S.duyetMo || {}).length) return;
     veChoDuyet();
@@ -540,12 +546,25 @@
   function veChoDuyet() {
     var host = S.el && S.el.querySelector("#wsApprovals"); if (!host) return;
     var ds = S.choDuyet || [];
-    if (S.loai !== "workflow" || !ds.length) { host.hidden = true; host.innerHTML = ""; return; }
+    var cu = S.lanCu || [];
+    if (S.loai !== "workflow" || (!ds.length && !cu.length)) { host.hidden = true; host.innerHTML = ""; return; }
     host.hidden = false;
-    host.innerHTML =
+    var cuHtml = cu.length
+      ? '<div class="ws-ap-old"><div class="ws-ap-hint">' + esc(t("ws.ap_old")) + '</div>' + cu.map(function (x) {
+          return '<div class="ws-ap-row"><span class="ws-ap-oldn">' + esc(x.name || x.slug) + ' · ' + esc(new Date(Number(x.started_at) * 1000).toLocaleString()) + '</span>' +
+            '<button type="button" class="ws-btn" data-ap="del" data-id="' + esc(x.id) + '">' + esc(t("ws.ap_delete")) + '</button></div>';
+        }).join("") + '</div>'
+      : "";
+    host.innerHTML = (ds.length ?
       '<div class="ws-ap-head">' + ic("check") + ' <strong>' + esc(t("ws.ap_title")) + '</strong> <span class="ws-ap-n">' + ds.length + '</span></div>' +
       ds.map(function (x) {
         var mo = S.duyetMo && S.duyetMo[x.id];
+        var media = (x.links || []).filter(function (l) { return l.kind === "image" || l.kind === "video"; }).map(function (l) {
+          var u = esc(urlTep(l.path));
+          return l.kind === "image"
+            ? '<a class="ws-ap-fig" href="' + u + '" target="_blank" rel="noopener"><img loading="lazy" src="' + u + '" alt="' + esc(tenTep(l.path)) + '"></a>'
+            : '<video class="ws-ap-vid" controls preload="metadata" src="' + u + '"></video>';
+        }).join("");
         var links = (x.links || []).map(function (l) {
           return '<a class="ws-ap-link ' + esc(l.kind) + '" href="' + esc(urlTep(l.path)) + '" target="_blank" rel="noopener" title="' + esc(l.path) + '">' + esc(tenTep(l.path)) + '</a>';
         }).join("");
@@ -553,19 +572,34 @@
           ? '<button type="button" class="ws-btn ws-ap-ok" data-ap="ok" data-id="' + esc(x.id) + '">' + ic("check") + ' ' + esc(t("ws.ap_approve")) + '</button>' +
             '<button type="button" class="ws-btn" data-ap="edit" data-id="' + esc(x.id) + '">' + esc(t("ws.ap_edit")) + '</button>'
           : '<span class="ws-ap-hint">' + esc(t("ws.ap_tasks_page")) + '</span>';
+        var ags = x.agents || [];
+        var bai = ags.length
+          ? '<label class="ws-ap-lesson"><input type="checkbox" data-ap-lesson="' + esc(x.id) + '"> ' + esc(t("ws.ap_lesson")) +
+            ' <select data-ap-agent="' + esc(x.id) + '">' + ags.map(function (a) { return '<option value="' + esc(a.slug) + '">' + esc(a.name) + '</option>'; }).join("") + '</select></label>'
+          : "";
         var form = mo
-          ? '<div class="ws-ap-form"><textarea data-ap-text="' + esc(x.id) + '" rows="3" placeholder="' + esc(t("ws.ap_edit_ph")) + '"></textarea>' +
+          ? '<div class="ws-ap-form"><textarea data-ap-text="' + esc(x.id) + '" rows="3" placeholder="' + esc(t("ws.ap_edit_ph")) + '"></textarea>' + bai +
             '<div class="ws-ap-row"><button type="button" class="ws-btn" data-ap="cancel" data-id="' + esc(x.id) + '">' + esc(t("ws.ap_cancel")) + '</button>' +
             '<button type="button" class="ws-btn ws-ap-ok" data-ap="send" data-id="' + esc(x.id) + '">' + esc(t("ws.ap_send")) + '</button></div></div>'
           : "";
         return '<div class="ws-ap-card" data-card="' + esc(x.id) + '">' +
           '<div class="ws-ap-top"><strong>' + esc(x.title) + '</strong><span class="ws-ap-wf">' + esc(x.workflow) + '</span></div>' +
           '<div class="ws-ap-q">' + esc(x.question) + '</div>' +
+          (media ? '<div class="ws-ap-media">' + media + '</div>' : "") +
           (links ? '<div class="ws-ap-links">' + links + '</div>' : "") +
           '<div class="ws-ap-row">' + hanhDong + '</div>' + form +
           '<div class="ws-ap-msg" data-ap-msg="' + esc(x.id) + '" role="status"></div>' +
         '</div>';
-      }).join("");
+      }).join("") : "") + cuHtml;
+  }
+  async function xoaLanCu(id, btn) {
+    if (!window.confirm(t("ws.ap_delete_ask"))) { btn.disabled = false; return; }
+    var r;
+    try { r = await api("/workflows/runs/" + encodeURIComponent(id) + "/delete", { method: "POST", body: fd({ brain: brain() }) }); }
+    catch (e) { r = { ok: false }; }
+    if (!r || !r.ok) { btn.disabled = false; return; }
+    S.lanCu = (S.lanCu || []).filter(function (x) { return x.id !== id; });
+    veChoDuyet();
   }
   async function guiDuyet(id, text) {
     var msg = S.el && S.el.querySelector('[data-ap-msg="' + id + '"]');
@@ -587,6 +621,7 @@
     var btn = ev.target.closest ? ev.target.closest("[data-ap]") : null;
     if (!btn || btn.disabled) return;
     var id = btn.dataset.id, act = btn.dataset.ap;
+    if (act === "del") { btn.disabled = true; xoaLanCu(id, btn); return; }
     if (act === "ok") { btn.disabled = true; guiDuyet(id, "ok"); return; }
     if (act === "edit") { S.duyetMo[id] = true; veChoDuyet(); var ta = S.el.querySelector('[data-ap-text="' + id + '"]'); if (ta) ta.focus(); return; }
     if (act === "cancel") { delete S.duyetMo[id]; veChoDuyet(); return; }
@@ -595,7 +630,15 @@
       var text = box ? box.value.trim() : "";
       var msg = S.el.querySelector('[data-ap-msg="' + id + '"]');
       if (!text) { if (msg) msg.textContent = t("ws.ap_need_text"); return; }
-      btn.disabled = true; guiDuyet(id, text);
+      btn.disabled = true;
+      var cb = S.el.querySelector('[data-ap-lesson="' + id + '"]'), sel = S.el.querySelector('[data-ap-agent="' + id + '"]');
+      if (cb && cb.checked && sel && sel.value) {
+        // Lời sửa thành bài học: đi cùng kho bài học của tab Cộng sự, để lần sau agent nhớ.
+        api("/agents/" + encodeURIComponent(sel.value) + "/learned", { method: "POST", body: fd({ text: text, brain: brain() }) })
+          .then(function (r) { if (!r || !r.ok) { if (msg) msg.textContent = (r && r.error) || t("ws.ap_failed"); } })
+          .catch(function () {});
+      }
+      guiDuyet(id, text);
     }
   }
   async function taiDanhSach() {

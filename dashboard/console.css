@@ -4930,3 +4930,10 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .ws-ap-form textarea { width: 100%; box-sizing: border-box; resize: vertical; border-radius: 8px; padding: 8px; font: inherit; background: var(--bg-input, transparent); color: inherit; border: 1px solid var(--border, #2a2a3a); }
 .ws-ap-msg { font-size: 12px; opacity: .8; }
 .ws-ap-msg:empty { display: none; }
+
+.ws-ap-media { display: flex; flex-wrap: wrap; gap: 8px; }
+.ws-ap-fig img { max-height: 180px; max-width: 100%; border-radius: 8px; display: block; border: 1px solid var(--border, #2a2a3a); }
+.ws-ap-vid { max-height: 240px; max-width: 100%; border-radius: 8px; background: #000; }
+.ws-ap-lesson { font-size: 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ws-ap-old { display: flex; flex-direction: column; gap: 6px; }
+.ws-ap-oldn { font-size: 12px; flex: 1; }

@@ -67,6 +67,22 @@ def test_answered_gate_leaves_the_list(tmp_path):
     assert feature.approvals_view(brain)["items"] == []
 
 
+def test_card_lists_the_agents_of_its_workflow(tmp_path):
+    feature, brain = _feature(tmp_path)
+    wf_dir = Path(brain) / "workflows"
+    wf_dir.mkdir()
+    (wf_dir / "w.md").write_text('---\nname: W\nnodes: [{"id":"a","agent":"hoang-minh"},{"id":"b","agent":"hoang-minh"},'
+                                 '{"id":"c","kind":"wait_user"},{"id":"d","agent":"khong-co"}]\n---\nbody', encoding="utf-8")
+    ag = Path(brain) / "agents"
+    ag.mkdir()
+    (ag / "hoang-minh.md").write_text("---\nname: Hoàng Minh\n---\nx", encoding="utf-8")
+    feature.deps.agents_dir = lambda b: ag
+    _gate(feature, brain, "SKY", "wf:w", "Duyệt?")
+    item = feature.approvals_view(brain)["items"][0]
+    assert item["agents"] == [{"slug": "hoang-minh", "name": "Hoàng Minh"}, {"slug": "khong-co", "name": "khong-co"}]
+    assert item["task_id"] == item["id"]
+
+
 def test_links_ignore_parent_paths_and_dedupe():
     links = TasksFeature.approval_links("a/b.md a/b.md ../x/secret.md https://e.com/a/b.png")
     assert [l["path"] for l in links] == ["a/b.md"]
