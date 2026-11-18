@@ -115,6 +115,23 @@ for request, want in CASES:
 check(f"javis-builder: {right}/{len(CASES)} requests get exactly what they need, unsure ones load whole",
       right == len(CASES))
 
+# 2b: a part that says another part's thing must be made first brings it along (found in the real-model A/B: a workflow
+# answer without the Agent template wrote its new agents with `description:` where the template has `role:`).
+wf = ss.select(BUILDER, "Tạo workflow: một trợ lý viết bài blog, rồi một trợ lý đăng lên Facebook", ss.SKILL_MIN_CHARS)
+check("a workflow request brings the Agent template it says to create first",
+      wf is not None and "### Agent ->" in wf.text and "### Workflow ->" in wf.text, wf and wf.loaded)
+check("...and still leaves out what it does not need",
+      wf is not None and "### Loop ->" not in wf.text and "### Plugin ->" not in wf.text)
+ag = ss.select(BUILDER, "Tạo giúp mình một agent chuyên viết email chăm sóc khách cũ", ss.SKILL_MIN_CHARS)
+check("an agent request does not pull the workflow in", ag is not None and "### Workflow ->" not in ag.text)
+needs_doc = "# Doc\n\n## Parts\n" + "".join(f"### {t}\n" + body + ("filler words here. " * 60) + "\n\n" for t, body in [
+    ("Report", "A report shows a chart. If the chart does not exist yet, create the chart first.\n"),
+    ("Chart", "How to draw a chart.\n"), ("Table", "Read the table first, then sort it.\n"),
+    ("Export", "How to export.\n")])
+sel = ss.select(needs_doc, "make a report", 1000)
+check("needs-first works on any menu skill", sel is not None and "### Chart" in sel.text, sel and sel.loaded)
+check("a 'first' line without a make word pulls nothing", sel is not None and "### Table" not in sel.text)
+
 # ───────────────────────── 3. only menu-style skills, the switches ─────────────────────────
 procedure = "---\nname: SEO audit\ndescription: audit SEO\n---\n# SEO Audit\n\n" + "".join(
     f"## {t}\n" + (f"{t} check details. " * 80) + "\n\n" for t in
@@ -159,16 +176,18 @@ tc.reset(tok)
 key = ss.text_key("skill", "javis-builder", BUILDER)
 agent_title = next(u.title for u in b_units if u.title.startswith("Agent ->"))
 check("section= names resolve to the real heading", ss.resolve_title(BUILDER, "agent") == agent_title)
-for n in range(2):   # two turns that had to fetch the Agent template after a workflow request
+TEAM_ASK = "Lập nhóm chat gồm trợ lý marketing và trợ lý bán hàng"
+for n in range(2):   # two turns that had to fetch the Agent template after a team request
     ss.note_load("skill", "javis-builder", key, f"turn-{n}")
     ss.note_fetch("skill", "javis-builder", f"turn-{n}", agent_title)
     ss.note_fetch("skill", "javis-builder", f"turn-{n}", agent_title)   # the same part twice counts once
 full_now, extra = ss.learned(key)
 check("a part fetched in two turns is learned", extra == {agent_title} and not full_now, (full_now, extra))
 check("learned titles are matched like headings",
-      ss.select(BUILDER, "Thêm một bước vào workflow dang-bai", ss.SKILL_MIN_CHARS,
-                (False, {agent_title})).loaded.count(agent_title) == 1)
-sel = ss.select(BUILDER, "Thêm một bước vào workflow dang-bai", ss.SKILL_MIN_CHARS, ss.learned(key))
+      ss.select(BUILDER, TEAM_ASK, ss.SKILL_MIN_CHARS, (False, {agent_title})).loaded.count(agent_title) == 1)
+check("before learning, a team request leaves the Agent template out",
+      "### Agent ->" not in ss.select(BUILDER, TEAM_ASK, ss.SKILL_MIN_CHARS).text)
+sel = ss.select(BUILDER, TEAM_ASK, ss.SKILL_MIN_CHARS, ss.learned(key))
 check("the learned part now comes up front", sel is not None and "### Agent ->" in sel.text)
 ss.note_fetch("skill", "javis-builder", "never-loaded", "Loop")
 check("a fetch with no selective load before it is not counted", "Loop" not in (ss.learned(key)[1]))
@@ -251,6 +270,135 @@ engine._note_question([{"role": "system", "content": "x"}, {"role": "user", "con
 check("the API loops hand over the last request of the turn", ss.QUESTION.get() == "tạo loop mới", ss.QUESTION.get())
 
 shutil.rmtree(_TMP, ignore_errors=True)
+# ───────────────────────── 6. every language works the same ─────────────────────────
+# Owner, 18/11/2026: Javis is for the whole world, so the selector must serve any language equally. Each row is one
+# language: (rules heading, container heading, [(heading, text)] for agent / loop / plugin, a request for the loop).
+LANGS = {
+    "es": ("Reglas", "Plantillas", [
+        ("Agente", "Un agente es un rol fijo con su propio archivo. Escribe el nombre, la descripción y las etiquetas."),
+        ("Bucle", "Un bucle repite una tarea cada cierto tiempo. Define el intervalo y el modo."),
+        ("Complemento", "Un complemento añade una herramienta en Python. Queda apagado hasta que el dueño lo active.")],
+        "Crea un bucle que revise los pedidos nuevos cada hora"),
+    "fr": ("Règles", "Modèles", [
+        ("Agent", "Un agent est un rôle fixe avec son propre fichier. Écris le nom, la description et les étiquettes."),
+        ("Boucle", "Une boucle répète une tâche à intervalle fixe. Fixe l'intervalle et le mode."),
+        ("Extension", "Une extension ajoute un outil en Python. Elle reste éteinte tant que le propriétaire ne l'active pas.")],
+        "Crée une boucle qui vérifie les nouvelles commandes toutes les heures"),
+    "pt": ("Regras", "Modelos", [
+        ("Agente", "Um agente é um papel fixo com arquivo próprio. Escreva o nome, a descrição e as etiquetas."),
+        ("Laço", "Um laço repete uma tarefa em intervalos fixos. Defina o intervalo e o modo."),
+        ("Extensão", "Uma extensão adiciona uma ferramenta em Python. Fica desligada até o dono ativar.")],
+        "Crie um laço que verifique os pedidos novos a cada hora"),
+    "de": ("Regeln", "Vorlagen", [   # plural in the request: "Schleifen" for the heading "Schleife"
+        ("Agent", "Ein Agent ist eine feste Rolle mit eigener Datei. Trage Name, Beschreibung und Schlagwörter ein."),
+        ("Schleife", "Eine Schleife wiederholt eine Aufgabe in festen Abständen. Lege Intervall und Modus fest."),
+        ("Erweiterung", "Eine Erweiterung fügt ein Werkzeug in Python hinzu. Sie bleibt aus, bis der Besitzer sie einschaltet.")],
+        "Erstelle Schleifen, die jede Stunde neue Bestellungen prüfen"),
+    "id": ("Aturan", "Templat", [
+        ("Agen", "Agen adalah peran tetap dengan berkasnya sendiri. Tulis nama, deskripsi, dan label."),
+        ("Perulangan", "Perulangan mengulang tugas setiap selang waktu. Tentukan selang dan mode."),
+        ("Plugin", "Plugin menambah alat dengan Python. Tetap mati sampai pemilik menyalakannya.")],
+        "Buat perulangan yang memeriksa pesanan baru setiap jam"),
+    "tr": ("Kurallar", "Şablonlar", [   # suffixed in the request: "döngüyü" for the heading "Döngü"
+        ("Ajan", "Ajan kendi dosyası olan sabit bir roldür. Adı, açıklamayı ve etiketleri yaz."),
+        ("Döngü", "Döngü bir işi belirli aralıklarla tekrarlar. Aralığı ve modu belirle."),
+        ("Eklenti", "Eklenti Python ile bir araç ekler. Sahibi açana kadar kapalı kalır.")],
+        "Yeni siparişleri her saat kontrol eden döngüyü kur"),
+    "ru": ("Правила", "Шаблоны", [   # a case ending in the request: "цикла" for the heading "Цикл"
+        ("Агент", "Агент это постоянная роль со своим файлом. Укажите имя, описание и метки."),
+        ("Цикл", "Цикл повторяет задачу через заданный промежуток. Задайте интервал и режим."),
+        ("Плагин", "Плагин добавляет инструмент на Python. Он выключен, пока владелец его не включит.")],
+        "Настрой работу цикла, который каждый час проверяет новые заказы"),
+    "ar": ("القواعد", "القوالب", [
+        ("وكيل", "الوكيل دور ثابت له ملف خاص. اكتب الاسم والوصف والوسوم."),
+        ("حلقة", "تكرر هذه المهمة كل فترة محددة. حدد الفترة والوضع."),
+        ("إضافة", "تضيف أداة بلغة بايثون. تبقى معطلة حتى يفعلها المالك.")],
+        "أنشئ حلقة تتحقق من الطلبات الجديدة كل ساعة"),
+    "hi": ("नियम", "टेम्पलेट", [
+        ("एजेंट", "एजेंट अपनी फ़ाइल वाली एक तय भूमिका है। नाम, विवरण और टैग लिखें।"),
+        ("लूप", "लूप तय अंतराल पर एक काम दोहराता है। अंतराल और मोड तय करें।"),
+        ("प्लगइन", "प्लगइन पायथन में एक टूल जोड़ता है। मालिक के चालू करने तक यह बंद रहता है।")],
+        "हर घंटे नए ऑर्डर जांचने वाला लूप बनाएं"),
+    "zh": ("规则", "模板", [
+        ("代理", "代理是一个有自己文件的固定角色。写下名称、说明和标签。"),
+        ("循环", "循环按固定间隔重复一项工作。设定间隔和模式。"),
+        ("插件", "插件用 Python 添加一个工具。在主人启用之前它保持关闭。")],
+        "创建一个每小时检查新订单的循环"),
+    "ja": ("ルール", "テンプレート", [
+        ("エージェント", "エージェントは専用ファイルを持つ固定の役割です。名前、説明、タグを書きます。"),
+        ("ループ", "ループは一定の間隔で作業を繰り返します。間隔とモードを決めます。"),
+        ("プラグイン", "プラグインはPythonのツールを追加します。所有者が有効にするまで無効のままです。")],
+        "新しい注文を一時間ごとに確認するループを作って"),
+    "ko": ("규칙", "템플릿", [   # a particle on the noun in the request: "루프를"
+        ("에이전트", "에이전트는 자기 파일을 가진 고정 역할입니다. 이름, 설명, 태그를 적습니다."),
+        ("루프", "루프는 정해진 간격으로 작업을 반복합니다. 간격과 모드를 정합니다."),
+        ("플러그인", "플러그인은 파이썬 도구를 추가합니다. 소유자가 켤 때까지 꺼져 있습니다.")],
+        "매시간 새 주문을 확인하는 루프를 만들어 줘"),
+    "th": ("กฎ", "แม่แบบ", [
+        ("เอเจนต์", "เอเจนต์คือบทบาทประจำที่มีไฟล์ของตัวเอง เขียนชื่อ คำอธิบาย และแท็ก"),
+        ("ลูป", "ลูปทำงานซ้ำตามช่วงเวลาที่กำหนด ตั้งช่วงเวลาและโหมด"),
+        ("ปลั๊กอิน", "ปลั๊กอินเพิ่มเครื่องมือด้วย Python และปิดอยู่จนกว่าเจ้าของจะเปิด")],
+        "สร้างลูปตรวจคำสั่งซื้อใหม่ทุกชั่วโมง"),
+}
+
+
+def menu_skill(rules, container, parts, flat=False):
+    head = "---\nname: test\ndescription: test\n---\n# Test\n\n" + f"## {rules}\n" + f"- {rules} 1\n- {rules} 2\n\n"
+    if not flat:
+        head += f"## {container}\n{container}.\n\n"
+    mark = "##" if flat else "###"
+    return head + "".join(f"{mark} {t}\n" + (body + "\n") * 8 + "\n" for t, body in parts)
+
+
+ok_menu, ok_flat = [], []
+for lang, (rules, container, parts, ask) in LANGS.items():
+    for flat in (False, True):
+        sel = ss.select(menu_skill(rules, container, parts, flat), ask, 200)
+        loop, others = parts[1][0], [parts[0][0], parts[2][0]]
+        good = (sel is not None and loop in sel.loaded and rules in sel.loaded
+                and not any(o in sel.loaded for o in others))
+        (ok_flat if flat else ok_menu).append(lang if good else f"{lang}:FAIL {sel and sel.loaded}")
+check(f"menu skills in {len(LANGS)} languages: the request picks its part, the rules come along",
+      all(":FAIL" not in x for x in ok_menu), ok_menu)
+check("...and flat ones, where the rules heading is found from the word table", all(":FAIL" not in x for x in ok_flat),
+      ok_flat)
+es = LANGS["es"]
+check("a request naming nothing in the skill loads whole, in any language",
+      all(ss.select(menu_skill(*v[:3]), "?", 200) is None and
+          ss.select(menu_skill(*v[:3]), "Recuérdame tomar agua a las ocho", 200) is None for v in [es]))
+
+# Make-it-first in other languages (2b): the dependency is read in the skill's own language.
+deps = {
+    "es": ("Flujo", "Si el flujo usa un agente que no existe, crea el agente primero.", "Agente", "Crea un flujo de dos pasos"),
+    "ja": ("ワークフロー", "エージェントがまだない場合は、先にエージェントを作成してください。", "エージェント",
+           "二段階のワークフローを作って"),
+    "ru": ("Процесс", "Если агента ещё нет, сначала создай агента.", "Агент", "Создай процесс из двух шагов"),
+}
+for lang, (wf, line, ag, ask) in deps.items():
+    doc = menu_skill("Rules", "Parts", [(ag, "Agent template here."), (wf, line), ("Zzz", "Something else entirely.")])
+    sel = ss.select(doc, ask, 200)
+    check(f"make-it-first read in {lang}: the part it names comes along", sel is not None and ag in sel.loaded,
+          sel and sel.loaded)
+
+# A request in another language than the skill: the model passes task= in the skill's language.
+JA_ASK = "古い顧客にフォローメールを書くエージェントを作って"
+with patch.object(ss, "assigned", return_value=True), patch.object(ss, "_meter"):
+    got = ss.for_skill("javis-builder", BUILDER, "tạo agent viết email chăm sóc khách cũ", JA_ASK, "lang-1")
+    check("Japanese request, task in the skill's language: the Agent part", got is not None and "### Agent ->" in got)
+    check("Japanese request with no task: the whole skill, as before", ss.for_skill("javis-builder", BUILDER, "",
+                                                                                   JA_ASK, "lang-2") is None)
+    got = ss.for_skill("javis-builder", BUILDER, "", "Crea un agente que escriba correos a clientes antiguos", "lang-3")
+    check("a Spanish request finds the Agent part on its own (agente = agent)", got is not None and "### Agent ->" in got)
+    got = ss.for_skill("javis-builder", BUILDER, "", "Erstelle einen Agenten, der Kaltakquise-Mails schreibt", "lang-4")
+    check("a German request too (Agenten = agent)", got is not None and "### Agent ->" in got)
+check("javis_use_skill asks for task in the skill's language", "in the language of the skill's description"
+      in open(os.path.join(SERVER, "mcp_hub.py"), encoding="utf-8").read())
+check("words: any script", ss.words("作成する") == ["作成", "成す", "する"] and ss.words("नियम पालन") == ["नियम", "पालन"]
+      and ss.words("루프를") == ["루프", "프를"] and ss.words("Đơn hàng, Café!") == ["don", "hang", "cafe"])
+check("fold keeps the marks other scripts spell with", ss.fold("ガイド ज़रूरी") == "ガイド ज़रूरी")
+check("same_word: endings, not unrelated words", ss.same_word("schleifen", "schleife") and ss.same_word("цикла", "цикл")
+      and ss.same_word("donguyu", "dongu") and not ss.same_word("loop", "plugin") and not ss.same_word("ab", "abc"))
+
 print()
 if fails:
     print(f"{len(fails)} FAIL")

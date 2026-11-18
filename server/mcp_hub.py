@@ -1313,8 +1313,9 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         listing += (f"; …(+{_con_lai} skill nữa không liệt kê ở đây, vẫn nạp được bằng "
                     f"name=<slug> nếu biết tên - xem Javis/index.md)")
     add("javis_use_skill",
-        "Load a skill (in-depth instructions) and FOLLOW it. Pass name=<slug> and task=<what you are about to do, in "
-        "the user's words>; a long skill may come back as the parts this task needs, listing the rest: read one with "
+        "Load a skill (in-depth instructions) and FOLLOW it. Pass name=<slug> and task=<what you are about to do, in a "
+        "few words, in the language of the skill's description: translate the request if needed>; a long skill may "
+        "come back as the parts this task needs, listing the rest: read one with "
         "section=<title>, or all with full=true. Available skills (slug: description): " + (listing or "(none yet)"),
         {"name": {"type": "string"}, "task": {"type": "string"}, "section": {"type": "string"},
          "full": {"type": "boolean"}}, ["name"], _skill)

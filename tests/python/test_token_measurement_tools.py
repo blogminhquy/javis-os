@@ -40,13 +40,13 @@ qe = load("quality_eval")
 
 # ───────────────────────── 1. scoring ─────────────────────────
 s = qe.score("Đơn hàng tuần này: 12 đơn, doanh thu 3 triệu", [["don hang"], ["doanh thu", "revenue"], ["lợi nhuận"]],
-             ["—"])
+             ["\u2014"])
 check("key facts match without accents or case", s["coverage"] == round(2 / 3, 3) and s["missing"] == ["lợi nhuận"], s)
-check("a banned string is reported", qe.score("a — b", [], ["—"])["violations"] == ["—"])
+check("a banned string is reported", qe.score("a \u2014 b", [], ["\u2014"])["violations"] == ["\u2014"])
 check("no key facts means full coverage", qe.score("anything", [], [])["coverage"] == 1.0)
 check("the sample set loads and has no literal banned dash",
       json.loads((ROOT / "tools/eval/sample_set.json").read_text(encoding="utf-8"))["tasks"]
-      and "—" not in (ROOT / "tools/eval/sample_set.json").read_text(encoding="utf-8"))
+      and "\u2014" not in (ROOT / "tools/eval/sample_set.json").read_text(encoding="utf-8"))
 
 # ───────────────────────── 2. a run against a fake Javis ─────────────────────────
 STATE = Path(tempfile.mkdtemp(prefix="javis-qe-"))
@@ -79,7 +79,7 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 url = f"http://127.0.0.1:{srv.server_address[1]}"
 SET = STATE / "set.json"
 SET.write_text(json.dumps({"tasks": [{"id": "sales", "ask": "Tuần này bán sao?", "must": [["doanh thu"], ["don"]],
-                                      "must_not": ["—"]}]}), encoding="utf-8")
+                                      "must_not": ["\u2014"]}]}), encoding="utf-8")
 before, after = STATE / "before.json", STATE / "after.json"
 code = qe.main(["run", "--set", str(SET), "--url", url, "--token", "jvs_test", "--state-dir", str(STATE),
                 "--repeat", "2", "--out", str(before)])
@@ -106,6 +106,25 @@ check("bench: re-reading a document saves characters", rows["reread"]["saved_pct
       rows["reread"]["references"] == 1, rows["reread"])
 check("bench: changed data hands out no reference", rows["changed_data"]["references"] == 0, rows["changed_data"])
 check("bench: indented plugin JSON gets compact", rows["plugin_json"]["saved_pct"] > 10, rows["plugin_json"])
+
+# ───────────────────────── 4. section_ab_eval grading ─────────────────────────
+ab = load("section_ab_eval")
+loop_case = next(c for c in ab.CASES if c["id"] == "loop")
+for note, ans in [("yaml", "javis_schedule op: create\nmode: full\nenabled: false"),
+                  ("json", 'javis_schedule({"op": "create", "mode": "full", "enabled": false})'),
+                  ("kwargs", 'javis_schedule(op = "create", mode = "full", enabled = false)')]:
+    check(f"ab grade: a {note} tool call covers the loop facts", ab.grade(ans, loop_case)["coverage"] == 1.0,
+          ab.grade(ans, loop_case))
+agent_case = next(c for c in ab.CASES if c["id"] == "agent")
+good = "File `agents/x.md` (not `Javis/agents/`)\ntype: agent\nslug: x\nrole: r\ntags: [a]"
+check("ab grade: warning against the old folder is not a fault", ab.grade(good, agent_case)["violations"] == [])
+check("ab grade: writing into the old folder is", ab.grade(good.replace("`agents/x.md`", "`Javis/agents/x.md`"),
+                                                             agent_case)["violations"] != [])
+wf_case = next(c for c in ab.CASES if c["id"] == "workflow")
+check("ab grade: a workflow whose new agents lack role: is not full",
+      ab.grade("workflows/w.md\ntype: workflow\nstatus: 'off'\nsteps:\nagents/a.md description: x", wf_case)["missing"]
+      == ["role:"])
+check("ab grade: a banned dash is a fault", ab.grade("x \u2014 y", ab.CASES[0])["violations"] == ["\u2014"])
 
 print()
 if fails:
