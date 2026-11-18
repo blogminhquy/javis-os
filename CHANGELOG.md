@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.591.0] - 2026-11-18
+### Sửa lỗi
+- **Mở một team không còn kẹt lâu ở "Đang tải tin nhắn của nhóm".** Mỗi lần mở, máy chủ từng cộng lại chi phí model của cả team từ trước tới nay, team càng lâu càng chậm, trong khi màn hình không còn hiện con số đó. Giờ bỏ hẳn bước này khi mở team.
+### Cải thiện
+- **Team chỉ tải các tin gần nhất, cuộn lên mới tải tiếp tin cũ.** Gần tới đầu khung chat là tự tải thêm một trang, giữ nguyên chỗ đang đọc, giống khung chat chính và trang Chatbot. Lúc đang tải hiện dòng "Đang tải tin cũ...".
+
 ## [0.590.0] - 2026-11-18
 ### Cải thiện
 - **Việc chạy nền trên bộ não dùng khóa API gửi ít token hơn khoảng 60%.** Việc Kanban, việc lặp và nhắc hẹn có làm việc mang bộ luật việc nền ngắn thay cho toàn bộ bộ luật chat, ở mỗi lần gọi công cụ. Mọi luật về hành động được giữ nguyên: làm đúng việc trong mức quyền, không bịa số, báo kết quả về đúng người giao, không hứa suông, không tự tạo thêm việc, plugin mới luôn tắt. Thử bằng model thật trên 7 loại việc nền mẫu, kết quả ngang bản đầy đủ.
