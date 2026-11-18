@@ -490,7 +490,10 @@ class _ApiAuxEngine:
                 print(f"[aux discover] {e}", file=sys.stderr)
 
         messages = []
-        sysprompt = self.system_prompt or ""
+        # Token saving, phase 3 (owner, 18/11/2026): a Kanban job, loop or reminder on an API key carries the short
+        # background rule set in place of CLAUDE.md, for a share of jobs at the saving levels (background_prompt.py).
+        import background_prompt
+        sysprompt = background_prompt.for_api(self.system_prompt or "", self.tag, prompt)
         # Khai THẬT năng lực của engine này. Không có dòng này, model chỉ thấy "gọi tool X
         # không được" rồi tự dựng một lý do nghe hợp lý mà sai - hay gặp nhất là đổ cho quyền
         # ("phiên này bị chặn quyền"), khiến chủ đi sửa mức quyền trong khi mức quyền không hề
