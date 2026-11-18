@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.592.0] - 2026-11-18
+### Improved
+- **"AI reply" and "Rewrite" in the inbox now show what the AI is doing.** Where the draft will appear, an "AI is writing" box shows a pulsing icon, the current step (reading the chat, checking documents, looking at the customer's photo, writing the reply), the seconds so far and three moving lines. Past 25 seconds it calmly says the AI is still writing, so nobody thinks it broke.
+- **Drafts come a little faster:** the document lookup, the plugin context and the look at the customer's photo now run together instead of one after another.
+### Fixed
+- **Waiting icons on the Chatbot page spin again.** The "AI is writing..." button, the draft's Send button, the mic while transcribing and the customer profile card used to stand still.
+
 ## [0.591.1] - 2026-11-18
 ### Improved
 - **A partner's unread count sits on the bottom left of the avatar.** The time keeps the bottom right corner to itself, rows breathe on a phone, and the collapsed avatar strip on desktop now shows who has new messages.
