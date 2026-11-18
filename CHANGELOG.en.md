@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.589.2] - 2026-11-18
+### Fixed
+- **The estimated saving on the Usage page now matches what is really sent.** Optimized used to count only the short rules and forgot the base that still goes with them (the chat channel rules included), so the page claimed 84% for every brain. Now an API-key brain sees the real figure, and a subscription plan (Claude Code, ChatGPT...) sees plainly that the full rules stay and only memory and skills load the relevant parts.
+- **The running total of tokens saved no longer counts every Max-level turn as a shortcut turn.** Only simple questions take the shortcut, so the total uses the Optimized price; the measured part of the page still shows what the shortcut really saved.
+
 ## [0.589.1] - 2026-11-18
 ### Fixed
 - **A full local test run no longer turns itself red the next time.** The turn ledger file (`turn_ledger.sqlite3`) that tests create in `server/` is now ignored by git like the other runtime stores.
