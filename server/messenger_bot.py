@@ -772,7 +772,7 @@ class MessengerBot(HangLuot):
                 if not ext and m:
                     ext = "." + m.group(2).lower()
                 dest = d / f"messenger_staff_{int(time.time() * 1000)}{ext}"
-                dest.write_bytes(data)
+                await asyncio.to_thread(dest.write_bytes, data)
                 name = (f"{m.group(1)}.{m.group(2)}" if m else "") or ("photo" if kind == "image" else "file")
                 files.append({"path": str(dest), "kind": kind, "name": name[:120]})
             elif url:

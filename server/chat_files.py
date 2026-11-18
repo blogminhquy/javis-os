@@ -18,6 +18,7 @@ File content is customer-chat content: it is always framed as such, never as an 
 """
 from __future__ import annotations
 
+import asyncio
 import re
 import threading
 import time
@@ -133,9 +134,9 @@ async def read_file(path, describe: Optional[DescribeFn] = None, chat_id: str = 
             text, _who, why = await describe([str(p)], caption, chat_id)
             return (True, _cap(text, FILE_TEXT_CHARS)) if str(text or "").strip() else (False, why or "the photo could not be read")
         if suf in TEXT_SUFFIXES:
-            return True, _cap(p.read_text(encoding="utf-8", errors="replace"), FILE_TEXT_CHARS)
+            text = await asyncio.to_thread(p.read_text, encoding="utf-8", errors="replace")
+            return True, _cap(text, FILE_TEXT_CHARS)
         if suf in doc_text.SUFFIXES:
-            import asyncio
             text = await asyncio.to_thread(doc_text.extract, p)
             if str(text).startswith("ERROR:"):
                 return False, str(text)[6:].strip()

@@ -678,7 +678,8 @@ class ZaloOABot(HangLuot):
                 except Exception as e:
                     notes.append(f"[{atype} {name}: {type(e).__name__}: {e}]")
                     continue
-                files.append({"path": str(self._save(chat, data, mime, name or url, "zalo_oa_staff")), "kind": kind,
+                dest = await asyncio.to_thread(self._save, chat, data, mime, name or url, "zalo_oa_staff")
+                files.append({"path": str(dest), "kind": kind,
                               "name": name or ("photo" if kind == "image" else "file")})
             elif atype == "sticker":
                 notes.append("[sticker]")
