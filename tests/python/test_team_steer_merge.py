@@ -204,18 +204,20 @@ asyncio.run(steer_case())
 
 import claude_sdk_engine  # noqa: E402
 
-
-class _E:
-    _steer_on = claude_sdk_engine.ClaudeSDK._steer_on
-
-
-e = _E()
-e.tag = "team-zzz-turn9"
-check("3 a team step without an open inbox installs no steer hook", e._steer_on() is False)
+# The Claude engine file is pinned by its native qualification (test_plan_limits CANARY): the team step switches the
+# steer hook on per engine in main._team_engine_for, and the hook itself reads by tag.
+SRC_MAIN = (SERVER / "main.py").read_text(encoding="utf-8")
+check("3 the team step switches the Claude steer hook on for its own engine only",
+      "eng._steer_on = lambda _t=tag: steer_inbox.INBOX.has_tag(_t)" in SRC_MAIN)
+check("3 the Claude steer hook reads the turn by its tag", "take_note_for_tag(self.tag)" in
+      (SERVER / "claude_sdk_engine.py").read_text(encoding="utf-8"))
 tok = steer_inbox.INBOX.open("team:x:y")
 steer_inbox.INBOX.attach_tag("team:x:y", "team-zzz-turn9")
-check("3 a team step with an open inbox installs the steer hook", e._steer_on() is True)
+steer_inbox.INBOX.put("team:x:y", "change the plan")
+check("3 a note put for the step is read by the engine tag", "change the plan" in
+      steer_inbox.INBOX.take_note_for_tag("team-zzz-turn9"))
 steer_inbox.INBOX.close("team:x:y", token=tok)
+check("3 closing the step forgets its tag", not steer_inbox.INBOX.has_tag("team-zzz-turn9"))
 
 # ---------- 4. dashboard: the deputy stands out, new reply states have words ----------
 JS = (ROOT / "dashboard" / "teams.js").read_text(encoding="utf-8")
@@ -265,7 +267,6 @@ check("5 the bell marks only that request's notice read", inbox.read_by_dedup(re
       and inbox.lay(a1["id"]).get("read") and not inbox.lay(a2["id"]).get("read"))
 check("5 an empty key clears nothing", inbox.read_by_dedup("") == 0)
 check("5 the dashboard sends the card id with a Reply", "approval_id: d.ap" in JS)
-SRC_MAIN = (SERVER / "main.py").read_text(encoding="utf-8")
 check("5 the host wires notify(ref) to the bell's dedup and clears it", "dedup=str(ref or \"\")" in SRC_MAIN
       and "notice_done=_team_notice_done" in SRC_MAIN)
 

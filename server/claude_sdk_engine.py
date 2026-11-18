@@ -920,13 +920,6 @@ class ClaudeSDK:
         tag = str(self.tag or "")
         if tag.startswith("chat:"):
             return True
-        if tag.startswith("team-"):
-            # 18/11/2026: a tool step of a Team job reads the owner's messages to its member (team_runner._steer_open).
-            try:
-                import steer_inbox
-                return steer_inbox.INBOX.has_tag(tag)
-            except Exception:
-                return False
         if not tag.startswith("telegram:"):
             return False
         try:

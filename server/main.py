@@ -31915,6 +31915,11 @@ def _team_engine_for(team, agent_key, role):
             except Exception:  # noqa: BLE001 - Codex reports its own sign-in error
                 pass
         _step_plan_account(eng, prov)   # the plan account that should run now (rotation, as in chat)
+        if prov == aux_engine.CLAUDE and steer_inbox.INBOX.has_tag(tag):
+            # 18/11/2026: this step reads the owner's messages to its member after each tool call. ClaudeSDK only turns
+            # its steer hook on for chat tags; switched on here, on this one engine, so claude_sdk_engine.py keeps the
+            # bytes its native qualification pinned (test_plan_limits CANARY). The hook finds the step by its tag.
+            eng._steer_on = lambda _t=tag: steer_inbox.INBOX.has_tag(_t)
         avail = getattr(eng, "is_available", None)
         if callable(avail) and not avail():
             raise team_runner.EngineUnavailable(f"engine {tool_spec['provider']} chưa sẵn sàng (kiểm tra trang Models)")
