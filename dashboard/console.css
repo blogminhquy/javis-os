@@ -3686,6 +3686,7 @@ body.kb-open .tm-composer { padding-bottom: 8px; }
   line-height: 1.4; color: var(--text3); padding: 6px 10px; border-radius: 12px; background: var(--surface-2); }
 .tm-reply-main { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
 .tm-reply-main b { color: var(--text); font-weight: 600; }
+.tm-reply-merged { background: none; padding-left: 0; }
 .tm-reply-error { background: var(--warn-wash, var(--surface-2)); color: var(--warn-ink); border: 1px solid var(--warn-line, transparent); }
 .tm-reply-detail { display: block; font-size: 16px; opacity: .85; margin-top: 2px; }
 .tm-reply-retry { min-height: 44px; padding: 0 14px; font-size: 16px; display: inline-flex; align-items: center; gap: 6px; }
@@ -3819,6 +3820,14 @@ span.tmp-lead { cursor: default; }
 .tmp-foot .tmp-submit:disabled { opacity: .5; cursor: not-allowed; }
 .tm-mrow-you .tm-mhead-static { cursor: default; }
 .tm-mrow-you .tmp-you { width: 34px; height: 34px; }
+/* 18/11/2026: the deputy coordinates the whole team, so its row stands out: tinted, an accent edge, a badge. */
+.tm-mrow-lead { background: var(--accent-wash); border: 1px solid var(--accent-line); border-left: 3px solid var(--accent);
+  border-radius: 12px; margin: 6px -10px; padding: 0 9px 0 7px; }
+.tm-mrow-lead .tm-mrole { color: var(--accent); font-weight: 600; }
+.tm-mrow-lead .tm-ava { box-shadow: 0 0 0 2px var(--accent); }
+.tm-lead-badge { flex: none; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; white-space: nowrap;
+  background: var(--accent); color: #fff; }
+.tm-lead-badge svg { width: 14px; height: 14px; }
 @media (max-width: 640px) {
   .tmp-layer { padding: 0; align-items: stretch; }
   .tmp-dialog { width: 100%; max-height: none; height: 100%; height: 100dvh; border-radius: 0; border: none; }

@@ -560,6 +560,14 @@ class TeamRunner:
         self._pool_lock = threading.Lock()
         # Nhịp gia hạn khoá bận và hạn giữ việc của các lượt đang chạy (GOAL T1).
         self._lease_tasks: set = set()
+        # 18/11/2026: reply turns of this process by (team_id, agent_key), so a newer owner message can stop an older
+        # reply that has not produced its answer yet and answer both at once (`_absorb_earlier`).
+        self._live_replies: dict = {}
+        # 18/11/2026: tool steps running now by (team_id, agent_key) -> steer_inbox key, so an owner message for that
+        # member reaches the running step at its next tool call (`_steer_into_step`). Reads mark the reply here.
+        self._steer_turns: dict = {}
+        self._steer_pending: dict = {}
+        self._steer_read: set = set()
         self._lease_requeues: dict = {}   # step_id -> số lần chạy lại vì mất quyền giữ (review T1 vòng 2 #4)
         # Khoá chấp nhận đầu ra (R3): kiểm "đầu ra còn hợp lệ" và ghi bài học bền nằm trong cùng một khoá với các thao
         # tác làm đầu ra hết hợp lệ (bỏ thành viên, đổi trưởng nhóm, huỷ, sửa yêu cầu, xoá agent). Không có khe nào giữa
@@ -863,6 +871,8 @@ class TeamRunner:
             self._blocked_replies(team, mid, targets, "cap", "daily_turns")
         elif targets:
             out["replies"] = targets
+            # 18/11/2026: a fresh owner message folds the same member's unanswered earlier ones into its own turn.
+            out["merge"] = True
             self.teams.queue_replies(team_id, mid, targets)
             self._publish_replies(team_id, mid)
         elif not wanted:
@@ -997,10 +1007,35 @@ class TeamRunner:
         if att is None:
             return None   # đã chạy, đang chạy ở chỗ khác, hay đã có kết cục: không nhân đôi lượt
         await self._io(self._publish_replies, team_id, mid)
+        volunteer = key in (submitted.get("volunteers") or [])
+        # 18/11/2026 (owner: "khi nhồi thêm lệnh vào chat thì agent đang không đọc ngay mà phải đợi xử lý câu trên"): a
+        # newer message of the owner to the same member stops that member's earlier reply that has no answer yet and
+        # this turn answers them together, so the newest instruction is in the context at once.
+        texts = ([] if volunteer or not submitted.get("merge") else self._absorb_earlier(team_id, key, mid))
+        texts.append((mid, str(submitted["text"] or "")))
+        if not volunteer and submitted.get("merge"):
+            self._steer_into_step(team_id, key, mid, str(submitted["text"] or ""))
+        entry = {"mid": mid, "texts": texts, "sealed": False, "merged_into": None, "task": None}
+        slot = (team_id, key)
+        inner = asyncio.ensure_future(self._reply_turn(team_id, key, mid, texts, att, volunteer=volunteer,
+                                                       entry=entry))
+        entry["task"] = inner
+        self._live_replies.setdefault(slot, []).append(entry)
         try:
-            out = await self._reply_turn(team_id, key, mid, submitted["text"], att,
-                                         volunteer=key in (submitted.get("volunteers") or []))
+            try:
+                out = await inner
+            finally:
+                live = self._live_replies.get(slot) or []
+                if entry in live:
+                    live.remove(entry)
+                if not live:
+                    self._live_replies.pop(slot, None)
         except asyncio.CancelledError:
+            me = asyncio.current_task()
+            if entry["merged_into"] is not None and not (me is not None and me.cancelling()):
+                # Stopped by a newer message of the owner, which answers this one too: done, no Try again.
+                await self._io(self._settle_merged, team_id, mid, key, att, int(entry["merged_into"]))
+                return None
             await self._io(self._settle_reply_out, team_id, mid, key, att,
                            {"status": "error", "error": "lượt bị huỷ giữa chừng"}, "interrupted")
             raise
@@ -1008,6 +1043,79 @@ class TeamRunner:
             out = {"status": "error", "error": f"lỗi nội bộ: {type(ex).__name__}: {str(ex)[:200]}", "internal": True}
         await self._io(self._settle_reply_out, team_id, mid, key, att, out)
         return out
+
+    def _absorb_earlier(self, team_id: str, key: str, mid: int) -> list:
+        """Stop this member's reply turns to EARLIER owner messages of the team that have no answer yet (waiting for the
+        member, or the model still writing), and return their messages, oldest first, for the newer turn to answer.
+        A turn whose answer is already in (`sealed`) is left to post it; the newer turn then waits and sees it."""
+        taken = []
+        for e in list(self._live_replies.get((team_id, key)) or []):
+            task = e.get("task")
+            if (int(e["mid"]) >= int(mid) or e["sealed"] or e["merged_into"] is not None or task is None
+                    or task.done()):
+                continue
+            e["merged_into"] = int(mid)
+            taken.extend(e["texts"])
+            task.cancel()
+        return sorted(dict(taken).items())
+
+    def _settle_merged(self, team_id: str, mid: int, key: str, attempt: int, into: int) -> None:
+        self.teams.settle_reply(team_id, mid, key, "done", attempt=attempt, reason="merged", detail=str(int(into)))
+        self._publish_replies(team_id, mid)
+
+    # ───────────── tin của chủ tới một bước đang làm (18/11/2026) ─────────────
+
+    def steer_sid(self, team_id: str, agent_key: str) -> str:
+        return f"team:{team_id}:{agent_key}"
+
+    def _steer_into_step(self, team_id: str, key: str, mid: int, text: str) -> bool:
+        """The member this message calls is running a tool step of a job in this team right now: hand the message to
+        that step, which reads it at its next tool call (Claude Code after a tool, the API engines before the next
+        model round), so the owner can change how the work is done while it is being done. The reply turn still runs
+        after the step, and then only confirms. False when no step can take it (none running, or a one-shot engine)."""
+        sid = self._steer_turns.get((team_id, key))
+        if not sid or not text.strip():
+            return False
+        import steer_inbox
+        if steer_inbox.INBOX.put(sid, f"[#{int(mid)}] {text}") is None:
+            return False
+        self._steer_pending.setdefault(sid, []).append((team_id, int(mid), key))
+        return True
+
+    @contextlib.contextmanager
+    def _steer_open(self, team_id: str, agent_key: str, req: dict):
+        """While a tool step of `agent_key` runs, it can read the owner's messages to that member (steer_inbox). What
+        it never read stays with the reply turn queued for that message, which runs after the step as before."""
+        import steer_inbox
+        sid = self.steer_sid(team_id, agent_key)
+        slot = (team_id, agent_key)
+        token = steer_inbox.INBOX.open(sid)
+        steer_inbox.INBOX.set_sink(sid, lambda _texts, _s=sid: self._on_loop(self._steer_taken, _s))
+        self._steer_turns[slot] = sid
+        req["steer_sid"] = sid
+        try:
+            yield sid
+        finally:
+            if self._steer_turns.get(slot) == sid:
+                self._steer_turns.pop(slot, None)
+            steer_inbox.INBOX.close(sid, token=token)
+            self._steer_pending.pop(sid, None)
+
+    def _steer_taken(self, sid: str) -> None:
+        """The running step just read what the owner sent (steer_inbox sink, on the loop): its replies say so while
+        they wait, and the reply turn after the step only confirms what changed."""
+        rows = self._steer_pending.pop(sid, [])
+        self._steer_read.update(rows)
+        if rows:
+            self._spawn_bg(self._io(self._steer_mark, rows))
+
+    def _steer_mark(self, rows: list) -> None:
+        for team_id, mid, key in rows:
+            row = self.teams.reply(team_id, mid, key) or {}
+            if row.get("status") in ("queued", "running"):
+                self.teams.settle_reply(team_id, mid, key, "running", attempt=int(row.get("attempt") or 1),
+                                        reason="steered")
+                self._publish_replies(team_id, mid)
 
     def _interrupt_unclaimed(self, team_id: str, mid: int, keys: list) -> None:
         for key in keys:
@@ -1030,8 +1138,8 @@ class TeamRunner:
                 outcomes.append(out)
         return outcomes
 
-    async def _reply_turn(self, team_id: str, key: str, mid: int, text: str, attempt: int,
-                          volunteer: bool = False) -> dict:
+    async def _reply_turn(self, team_id: str, key: str, mid: int, texts: Any, attempt: int,
+                          volunteer: bool = False, entry: Optional[dict] = None) -> dict:
         if volunteer:
             # Thử lại một lượt tự lên tiếng (review T3 J P2-4): chạy lại ĐÚNG quyết định cũ (giữ câu hỏi lại `clarify`),
             # rồi ghi kết cục thật lên quyết định đó (đăng được tin thì về lại `speak`).
@@ -1049,8 +1157,7 @@ class TeamRunner:
             return out
         team = await self._io(self._team, team_id)
         role = "leader_reply" if key == team["leader_key"] else "member_reply"
-        body = (f"Chủ nhóm vừa nhắn (tin #{mid}):\n{text}\n\n"
-                "Trả lời ngắn gọn (1 đến 3 câu), đúng vai của bạn trong nhóm.")
+        body = self._reply_body(team_id, key, mid, texts)
         if await self._io(self._auto_jobs_left, team) > 0:
             # 0.452.0: whoever answers the owner opens the job itself; the leader still plans and assigns it.
             body += "\n" + AUTO_JOB_HINT
@@ -1064,14 +1171,43 @@ class TeamRunner:
             await self._io(self._publish_replies, team_id, mid)
 
         async def waiting(holder: dict) -> None:
+            if (team_id, int(mid), key) in self._steer_read:
+                return   # the running step already read it: keep saying so
             other = await self._io(self.teams.get, holder.get("team_id") or "") if holder.get("team_id") else None
             where = other["name"] if other and other["team_id"] != team_id else ""
             await self._io(self.teams.settle_reply, team_id, mid, key, "running", attempt=attempt,
                            reason="waiting_busy", detail=where)
             await self._io(self._publish_replies, team_id, mid)
 
-        return await self._turn(team, key, role, body, reply_to=mid, vet=self._vet_reply, on_engine=started,
-                                on_wait=waiting)
+        def answered() -> None:
+            # The answer is in: a newer message no longer stops this turn, it waits and reads this answer.
+            if entry is not None:
+                entry["sealed"] = True
+
+        try:
+            return await self._turn(team, key, role, body, reply_to=mid, vet=self._vet_reply, on_engine=started,
+                                    on_wait=waiting, on_result=answered)
+        finally:
+            for m, _t in (texts if isinstance(texts, list) else [(mid, texts)]):
+                self._steer_read.discard((team_id, int(m), key))
+
+    def _reply_body(self, team_id: str, key: str, mid: int, texts: Any) -> str:
+        """What a reply turn is asked (model prompt, English). `texts`: [(message_id, text)], oldest first; more than one
+        when the owner wrote again before this member answered (18/11/2026)."""
+        items = texts if isinstance(texts, list) else [(mid, str(texts or ""))]
+        read = [m for m, _t in items if (team_id, int(m), key) in self._steer_read]
+        if len(items) == 1:
+            body = f"The team owner just wrote (message #{items[0][0]}):\n{items[0][1]}\n\n"
+        else:
+            body = ("The team owner wrote several messages in a row before you answered ("
+                    + ", ".join(f"#{m}" for m, _t in items) + "). Your earlier answer was stopped so that you read them "
+                    "all now. Read them in order: the LAST one is the newest and wins where they differ, it may change "
+                    "what the team should do or how. Answer them together, once.\n\n"
+                    + "\n\n".join(f"[#{m}]\n{t}" for m, t in items) + "\n\n")
+        if read:
+            body += ("You already read " + ", ".join(f"#{m}" for m in read) + " while you were doing a step of a job and "
+                     "applied it there. Do not redo that work: say briefly what you changed because of it.\n")
+        return body + "Answer briefly (1 to 3 sentences), in your own role in the team."
 
     # Lý do lỗi của lượt trả lời (mã ngắn lưu bền; dashboard dịch sang lời thường).
     _REPLY_REASON = {"cap": "cap", "busy_long": "busy", "team_paused": "team_paused", "member_left": "member_left",
@@ -2662,7 +2798,7 @@ class TeamRunner:
 
     async def _turn(self, team: dict, agent_key: str, role: str, body: str, *, task: Optional[dict] = None,
                     step: Optional[dict] = None, reply_to=None, vet=None, on_engine=None, on_wait=None,
-                    judge_meta: Optional[dict] = None) -> dict:
+                    judge_meta: Optional[dict] = None, on_result=None) -> dict:
         """Một lượt của thành viên (spec 9.1): giữ chỗ (kèm kiểm trần), khoá bận, kiểm, dựng engine, mốc gọi engine,
         gọi, kiểm kết cục, chấp nhận đầu ra (kiểm muộn + ghi bài học), đăng tin. Mọi I/O chặn chạy ở luồng phụ (R5).
 
@@ -2767,7 +2903,12 @@ class TeamRunner:
                     # lock does not sit on a slot that a text turn could use. Neither wait counts against the turn's
                     # time limit; the leases keep renewing meanwhile.
                     await held.enter_async_context(self._engine_slot(prep["engine"]))
+                    if req.get("tool_turn"):
+                        # 18/11/2026: the owner's messages to this member reach the step while it runs.
+                        held.enter_context(self._steer_open(team_id, agent_key, req))
                     res = await asyncio.wait_for(fn(req), timeout=limit or None)
+                    if on_result is not None:
+                        on_result()
             except asyncio.TimeoutError:
                 if marked:
                     await self._io(self._settle_turn, turn_id, "error")

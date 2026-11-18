@@ -31948,6 +31948,10 @@ def _team_engine_for(team, agent_key, role):
         # 10/11/2026: a plan account out of quota rests and the turn runs again at once on the card's next account, as
         # a chat turn does (spec 6.4). `moved` is the line the message carries when that happened.
         hops, moved = 0, ""
+        if tools_on and req.get("steer_sid"):
+            # 18/11/2026: the owner's messages to this member reach the step at its next tool call (Claude Code hook by
+            # tag; the API engines read the turn's inbox from the context).
+            steer_inbox.INBOX.attach_tag(str(req["steer_sid"]), tag)
         while True:
             if tools_on:
                 eng = await asyncio.to_thread(_build_tools, req["system"], tag, str(req.get("team_gate") or ""))
