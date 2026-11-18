@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.592.2] - 2026-11-18
+### Fixed
+- **New Zalo groups get their name.** The Zalo layer (javis-zalo 1.12.0) only loaded group names once at start-up, so a group the account joined later showed as "Group …" with the end of its id until a restart. The first message from an unknown group now looks its name up, and a renamed group is updated too.
+
 ## [0.592.1] - 2026-11-18
 ### Fixed
 - **The Chatbot group picker no longer shows bare ids.** A ticked group hidden by the search box, or older than the 80 latest chats, used to show as a long number. Every group now keeps its real name from the inbox, and a group with no known name reads "Group …" with the end of its id.
