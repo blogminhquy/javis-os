@@ -55,6 +55,7 @@ function buttons(state) {
     ${grab("updateStopBtn")} ${grab("coNoiDungGui")} ${grab("coTheGuiBoSung")}
     updateStopBtn();`);
   run(state, env);
+  buttons.last = env;
   const shown = b => b.style.display !== "none";
   return ["dict", "voiceBtn", "stopBtn", "sendBtn"].filter(k => shown(env[k])).join(",");
 }
@@ -65,6 +66,13 @@ check("Javis answering, empty box: mic and stop", buttons({ processing: true }) 
 // 2026-11-19 (owner): typing while Javis works turns Stop into the add-on send, one button in one spot.
 check("Javis answering with typed text: Stop turns into send (add-on)", buttons({ processing: true, text: "thêm" }) === "dict,sendBtn");
 check("Javis answering with an attachment: send takes Stop's spot", buttons({ processing: true, atts: [{ path: "a.png" }] }) === "dict,sendBtn");
+check("the send in Stop's spot is unlocked when text arrives without a keystroke",
+  /if \(isProcessing\) sendBtn\.disabled = !boSung \|\| \(sendBtn\.dataset \|\| \{\}\)\.wsLock === "1";/.test(app));
+buttons({ processing: true, atts: [{ path: "a.png" }] });
+check("an attachment added while Javis works: the send is pressable", buttons.last.sendBtn.disabled === false);
+buttons({ processing: true });
+check("empty box while Javis works: send stays locked behind Stop", buttons.last.sendBtn.disabled === true);
+check("dictating while Javis works: Stop steps aside for send", /\.hud-voice\.dictating #stopBtn \{ display: none !important; \}/.test(css));
 check("Javis speaking aloud, nothing running: Stop stays", buttons({ speaking: true, text: "thêm" }) === "dict,stopBtn");
 check("in a call: the red hang-up stays, the dictate mic steps aside", buttons({ call: true }) === "voiceBtn");
 check("the box value is watched, so code that empties or fills it flips the button too",

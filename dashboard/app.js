@@ -51,6 +51,9 @@ function updateStopBtn() {
   // turns Stop into send; emptying the box brings Stop back.
   const boSung = coTheGuiBoSung();
   stopBtn.style.display = active && !boSung ? "flex" : "none";
+  // With Stop gone, the send in its spot must be pressable: text that arrives without a keystroke (dictation, an
+  // attachment) only reaches this function, not syncActiveUI, so the lock is refreshed here too.
+  if (isProcessing) sendBtn.disabled = !boSung || (sendBtn.dataset || {}).wsLock === "1";
   // 0.231.0: two buttons (owner 2026-10-19). An empty box shows the voice chat button; text or an attachment turns
   // it into send. In a call the button stays the red hang-up and the dictate mic steps aside.
   const goi = handsFreeActive();
