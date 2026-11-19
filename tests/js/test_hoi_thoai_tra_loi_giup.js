@@ -77,7 +77,7 @@ check("Send posts the edited text to /draft action=send, with learn only when th
   /var learn = lc && ll && !ll\.hidden && lc\.checked \? "1" : "0";/.test(SEND));
 check("a learned reply says so in a toast", /if \(r && r\.learned\) toast\(window\.t\("ib\.t_learned"\)\);/.test(SEND));
 check("the learn keys are in vi and en, the label short", ["ib.dr_learn", "ib.dr_learn_t", "ib.t_learned"].every((k) => VI[k] && EN[k]) &&
-  VI["ib.dr_learn"] === "Bot học câu này" && VI["ib.dr_learn_t"].length <= 160);
+  VI["ib.dr_learn"] === "Bot học câu này" && VI["ib.dr_learn_t"].length <= 100 && EN["ib.dr_learn_t"].length <= 100);
 check("Discard posts action=discard and says so in a toast", /\/draft", \{ method: "POST", body: fd\(\{ action: "discard" \}\) \}/.test(fnBody("async function dropDraft(c) {")) &&
   /toast\(window\.t\("ib\.t_dropped"\)\)/.test(CV));
 

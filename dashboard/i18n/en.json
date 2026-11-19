@@ -5294,7 +5294,7 @@
   "ib.dr_redo": "Rewrite",
   "ib.dr_send": "Send",
   "ib.dr_learn": "Bot learns this",
-  "ib.dr_learn_t": "Save this reply to the Agent's documents so the bot answers it right next time. Untick it when it is about this customer only.",
+  "ib.dr_learn_t": "Save this reply to the Agent's documents for next time. Untick it for this customer only.",
   "ib.t_learned": "Sent. The bot learned this reply in its Agent's documents.",
   "ib.ai_reply": "Javis draft",
   "ib.mic": "Speak to type",
