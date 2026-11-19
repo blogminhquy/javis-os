@@ -97,7 +97,9 @@ body.in-console .hud-actions { display: none; }
 }
 .rail-brand-text i { font-style: normal; font-weight: 400; color: var(--text3); }
 .rail-item {
-  position: relative; background: transparent; border: 0; cursor: pointer;
+  /* width 100% (19/11/2026): on a phone the rail's item list is a block, where a <button> shrinks to its text; the row
+     must span the drawer like on a computer so the unread dot lines up on the right edge. */
+  position: relative; width: 100%; background: transparent; border: 0; cursor: pointer;
   color: var(--text3); border-radius: 9px; padding: 7px 8px 7px 16px;
   display: flex; flex-direction: row; align-items: center; gap: 10px;
   transition: color var(--rail-anim), background var(--rail-anim);

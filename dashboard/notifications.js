@@ -340,7 +340,12 @@
     if (item.summary) return item.summary;
     var tieuDe = String(item.title || "").trim();
     var than = String(item.body || "").replace(/\*\*|__|`/g, "").trim();
-    if (tieuDe && than.indexOf(tieuDe) === 0) than = than.slice(tieuDe.length).trim();
+    // The title is the text's first line, cut at 120 characters: drop that whole line, never leave its cut-off tail
+    // ("...is not signed in on this machine.)") as a line of its own.
+    if (tieuDe && than.indexOf(tieuDe) === 0) {
+      var xuong = than.indexOf("\n");
+      than = xuong < 0 ? "" : than.slice(xuong + 1).trim();
+    }
     return than;
   }
   function theThu(item) {

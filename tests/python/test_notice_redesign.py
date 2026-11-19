@@ -220,6 +220,11 @@ app = (D / "app.js").read_text(encoding="utf-8")
 check("app.js turns chat_unread into javis:chat-activity", '"chat_unread"' in app and "javis:chat-activity" in app)
 nj = (D / "notifications.js").read_text(encoding="utf-8")
 check("a card shows the summary line, not the title twice", "function dongPhu(item)" in nj and "item.summary" in nj)
+check("a title cut at 120 characters drops its whole first line, no cut-off tail under it",
+      'than.indexOf("\\n")' in nj and "than.slice(tieuDe.length)" not in nj)
+css = (D / "console.css").read_text(encoding="utf-8")
+check("rail rows span the drawer on a phone, so the dots line up on the right",
+      "position: relative; width: 100%; background: transparent" in css)
 
 print()
 print("FAIL" if fails else "PASS", f"({len(fails)} failed)")
