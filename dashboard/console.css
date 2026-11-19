@@ -4304,6 +4304,50 @@ button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-s
   background: var(--bg); color: var(--text); font: inherit; font-size: 15px; }
 .tm-info-addlink input:focus { outline: none; border-color: var(--accent); }
 @media (pointer: coarse) { .tm-chip-x { width: 36px; height: 36px; } .tm-info-addlink input { font-size: 16px; } }
+/* 19/11/2026 (owner: "phân trang ... như Zalo xem tất cả rồi vào kho lưu trữ"): Info shows the newest few, "See all" opens
+   the storage view in the same panel. A file row: a tile with its extension in the colour of its kind, the name, one line
+   with the size (and the day on Info). */
+.tm-info-all { display: flex; justify-content: center; width: 100%; min-height: 40px; margin-top: 10px; font-size: 15px; font-weight: 500; }
+.tm-info-list li.tm-as-row { flex-wrap: nowrap; align-items: center; gap: 10px; }
+.tm-as-list { gap: 4px; }
+.tm-as-row { padding: 4px 0; }
+.tm-as-type { --ft: var(--text3); display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 9px;
+  color: var(--ft); background: color-mix(in srgb, var(--ft) 14%, transparent); font-size: 11px; font-weight: 700;
+  letter-spacing: .02em; line-height: 1; overflow: hidden; }
+.tm-as-type[data-long] { font-size: 9.5px; letter-spacing: 0; }
+.tm-info-list .tm-as-type svg, .tm-as-type .ic { width: 18px; height: 18px; color: inherit; }
+.tm-as-type[data-ft="pdf"] { --ft: var(--red); }
+.tm-as-type[data-ft="doc"], .tm-as-type[data-ft="link"] { --ft: var(--link-ink); }
+.tm-as-type[data-ft="sheet"] { --ft: var(--green); }
+.tm-as-type[data-ft="slide"], .tm-as-type[data-ft="dir"] { --ft: var(--accent); }
+.tm-as-type[data-ft="zip"] { --ft: var(--warn-ink); }
+.tm-as-type[data-ft="media"] { --ft: var(--accent2); }
+.tm-as-type[data-ft="code"] { --ft: var(--text2); }
+.tm-as-main { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
+.tm-info-list .tm-as-main .tm-as-name { flex: none; font-size: 15px; line-height: 1.4; }
+.tm-as-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-width: 0; color: var(--text3); font-size: 13px; line-height: 1.4; }
+.tm-as-dot { color: var(--text3); }
+.tm-as-gone { display: inline-flex; align-items: center; gap: 4px; color: var(--warn-ink); }
+.tm-info-list .tm-as-gone svg { width: 13px; height: 13px; color: inherit; }
+.tm-as-main .tm-info-desc { order: 0; flex: none; padding-left: 0; margin-top: 2px; }
+/* The storage view: back, three tabs with their totals, then the search box with the pager beside it. The head stays on
+   top while the page scrolls, so the pager is always at hand. */
+.tm-as-head { position: sticky; top: -4px; z-index: 2; display: flex; flex-direction: column; gap: 8px; margin: 0 -14px; padding: 8px 14px 10px;
+  background: var(--bg); border-bottom: 1px solid var(--border); }
+.tm-as-back { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; min-height: 36px; padding: 0 8px 0 0; border: 0;
+  background: none; color: var(--text); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+.tm-as-back .ic { width: 20px; height: 20px; }
+.tm-as-back:hover { color: var(--accent-ink); }
+.tm-as-tabs { display: flex; gap: 2px; padding: 4px; border-radius: 12px; background: var(--surface-2); }
+.tm-as-tools { display: flex; align-items: center; gap: 4px; }
+.tm-side .tm-as-search { flex: 1 1 auto; min-width: 0; margin: 0; }
+.tm-as-pg:empty { display: none; }
+.tm-as-pg .tm-jb-pg { margin-left: 0; }
+.tm-as-day h5 { margin: 14px 0 8px; font-size: 14px; font-weight: 600; color: var(--text2); }
+.tm-as-imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tm-as-imgs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; }
+.tm-as-empty { padding: 18px 0; text-align: center; }
+@media (pointer: coarse) { .tm-info-all, .tm-as-back { min-height: 44px; } }
 
 
 /* 0.191.0 (owner, 16/10/2026): drag the list edge narrow enough and the column becomes a strip of avatars only

@@ -23739,6 +23739,10 @@ async def sessions_message_pin(session_id: str, message_id: int, request: Reques
 # lặng lẽ giữa lượt thì không.
 PHIEN_TS_MAX_FILE = 200        # trần một cuộc, đủ cho cuộc dài nhất mà không đổ ra vô hạn
 PHIEN_TS_MAX_LINK = 200
+# 2026-11-19 (owner: "phần file với link trong nhóm cần phân trang"): the team's archive asks one kind a page at a time
+# (`kind`, `q`, `offset`, `limit`), so it reaches every file and link, not only the newest 200 of the plain call.
+ASSET_KINDS = ("image", "file", "link")
+ASSET_PAGE_MAX = 100
 
 
 def _ts_trong_brain(broot: Path, duong: Path):
@@ -23757,8 +23761,13 @@ def _ts_trong_brain(broot: Path, duong: Path):
 
 
 @app.get("/sessions/{session_id}/assets")
-def sessions_assets(session_id: str, brain: str = Query("")):
+def sessions_assets(session_id: str, brain: str = Query(""), kind: str = Query(""), q: str = Query(""),
+                    offset: int = Query(0), limit: int = Query(20)):
     """File Javis đã tạo và link đã nhắc trong CUỘC TRÒ CHUYỆN này.
+
+    Without `kind`: the newest 200 files and 200 links, as before, plus `counts` (images, files, links) that are the true
+    totals even when a list is cut. With `kind` = image | file | link: one page of that kind, newest first, filtered by
+    every word of `q` (no accents, any case, in the name, label, path, url or description): `items`, `total`, `offset`.
 
     Ứng viên file có hai nguồn, và luật giữ khác nhau vì độ tin cậy khác nhau:
 
@@ -23769,10 +23778,49 @@ def sessions_assets(session_id: str, brain: str = Query("")):
       trong lời giải thích trông y hệt đường dẫn thật, nên nó phải tự chứng minh bằng cách
       tồn tại.
     """
+    got = _session_asset_lists(session_id, brain)
+    if got is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    b, ra_file, ra_link = got
+    if kind:
+        if kind not in ASSET_KINDS:
+            return JSONResponse({"ok": False, "error": localefmt.chu("Loại không hợp lệ", "Unknown kind")}, status_code=400)
+        rows = ra_link if kind == "link" else [f for f in ra_file if bool(f.get("image")) == (kind == "image")]
+        rows = _assets_matching(rows, q)
+        rows.sort(key=lambda x: -(x.get("ts") or 0))     # stable: the same time keeps the order of the plain list
+        lim = max(1, min(int(limit or 0), ASSET_PAGE_MAX))
+        off = max(0, int(offset or 0))
+        return {"ok": True, "brain": b, "kind": kind, "total": len(rows), "offset": off, "limit": lim,
+                "items": rows[off:off + lim]}
+    images = sum(1 for f in ra_file if f.get("image"))
+    return {"ok": True, "brain": b,
+            "files": ra_file[:PHIEN_TS_MAX_FILE],
+            "links": ra_link[:PHIEN_TS_MAX_LINK],
+            "counts": {"images": images, "files": len(ra_file) - images, "links": len(ra_link)}}
+
+
+def _assets_matching(rows: list, query: str) -> list:
+    """The rows whose name, label, path, url or description holds every word of `query` (no accents, any case)."""
+    words = [w for w in sessions.SessionStore.fold_text(query or "").split() if w]
+    if not words:
+        return list(rows)
+    fold = sessions.SessionStore.fold_text
+    out = []
+    for r in rows:
+        hay = fold(" ".join(str(r.get(k) or "") for k in ("name", "label", "brain_path", "url", "description")))
+        if all(w in hay for w in words):
+            out.append(r)
+    return out
+
+
+def _session_asset_lists(session_id: str, brain: str = ""):
+    """(brain, files, links) of one conversation, every row (no cap), or None when there is no such conversation.
+
+    Files: the ones the owner attached first, then the ones found in the messages, newest first. Links the same."""
     store = get_store()
     sess = store.get_session(session_id)
     if not sess:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return None
     b = (brain or sess.get("brain") or "brain").strip() or "brain"
     broot = Path(_brain_root(b)).resolve()
     ceil = _files_root(b)
@@ -23829,9 +23877,7 @@ def sessions_assets(session_id: str, brain: str = Query("")):
     ra_link = tay_link + [l for l in ra_link if l["url"] not in url_tay]
     for f in ra_file:
         f.pop("_that", None)
-    return {"ok": True, "brain": b,
-            "files": ra_file[:PHIEN_TS_MAX_FILE],
-            "links": ra_link[:PHIEN_TS_MAX_LINK]}
+    return b, ra_file, ra_link
 
 
 def _cuoc_tai_lieu_tay(session_id: str, sess: dict):
