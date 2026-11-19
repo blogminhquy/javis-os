@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.596.0] - 2026-11-19
+### Added
+- **Javis can message a customer straight from chat.** Ask "tell Lan size M is in stock" and it finds the chat in the inbox and sends through that chat's own Messenger Page, Instagram, Telegram or Zalo bot, as if you typed it in the inbox. Before, Javis said it had no Messenger send tool and asked you to paste the message yourself.
+- **The message is recorded as yours, and that chat's bot keeps running.** Only you can ask for this: a customer talking to a bot can never read or message other customers, and Javis sees only the chats of the brain in use.
+
 ## [0.595.2] - 2026-11-19
 ### Fixed
 - **Workflow jobs on the Tasks page wait for the plan to reset.** A step that hit an exhausted subscription used to retry at once, spend all three attempts in seconds and get stuck. The job now waits until the plan resets, and the wait does not count as an attempt.
