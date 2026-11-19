@@ -63,6 +63,14 @@ check("packs.js exposes render and showNeedPassword",
   await P2win.JavisPacks.render(el2);
   check("with a password set, no Set-a-password button", !msg2.children.some(c => c.tag === "button"));
 
+  // The companion-pack offer after a Zalo QR sign-in says a password is missing instead of "not found".
+  const P3win = { ic: () => "", Alpine: win.Alpine };
+  new Function("window", "document", "fetch",
+    fs.readFileSync(path.join(ROOT, "dashboard", "packs.js"), "utf8"))(
+    P3win, doc, () => Promise.resolve({ json: () => Promise.resolve({ ok: false, need_password: true, error: "x" }) }));
+  check("installing a companion pack without a password reports need_password",
+    (await P3win.JavisPacks.caiGoiKho("javis.zalo")) === "need_password");
+
   console.log();
   if (fails.length) { console.log("FAIL - test_store_need_password: " + fails.join(", ")); process.exit(1); }
   console.log("OK - test_store_need_password: all pass");
