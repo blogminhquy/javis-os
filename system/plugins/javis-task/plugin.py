@@ -213,6 +213,9 @@ def _them(args, ctx) -> str:
             tu_gan = bool(chat_id)
         except Exception:
             chat_id = ""
+    import telegram_topics
+    import turn_context
+    chat_id = telegram_topics.turn_destination(turn_context.current(), chat_id)
     deps = [d.strip() for d in str((args or {}).get("deps") or "").split(",") if d.strip()]
     # 0.429.0: a dedicated chatbot's turn stamps the job with that bot ("bot:<id>"), so the Tasks page shows it under
     # the bot's assistant instead of Javis Core. The host sets the bot in turn_context, never the model.

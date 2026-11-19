@@ -151,6 +151,7 @@ import usage_index   # dashboard token: index log thô Claude+Codex + query summ
 import usage_parsers as up_parsers   # bảng giá + khớp model, dùng chung với indexer
 import usage_saving   # tiết kiệm đối chứng ngược, mốc sự kiện, dự báo, ngân sách
 import context_runtime   # Phase 0-8: trace + Registry/Resolver/Compiler + canary paths
+import telegram_topics
 import turn_context      # who is talking in this turn, for tool hooks (`turn` in pre/post_tool_call)
 import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
 import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
@@ -14903,8 +14904,9 @@ async def _tg_send_to(chat_id, text) -> tuple:
     if not (tg.get("enabled") and token):
         return False, "Bot Telegram chưa bật"
     cid = str(chat_id or "").strip()
+    base_chat, _topic = telegram_topics.split(cid)
     # 0.186.0: only the named chat. An empty or unlisted one used to fan out to every allowed id.
-    targets = [cid] if (cid and (not ids or cid in ids)) else []
+    targets = [cid] if (cid and (not ids or base_chat in ids)) else []
     if not targets:
         return False, "Chưa có chat_id đích" if not cid else "Chat này không nằm trong danh sách được phép"
     import httpx
@@ -14914,7 +14916,7 @@ async def _tg_send_to(chat_id, text) -> tuple:
             for t in targets:
                 try:
                     r = await c.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                                     json={"chat_id": t, "text": text})
+                                     json={**telegram_topics.payload(t), "text": text})
                     d = r.json() if r.content else {}
                     if d.get("ok"):
                         ok_any = True
@@ -15352,6 +15354,13 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
         ok, err = await _gui_qua_kenh(f"{WEB_CHAT_PREFIX}{chat}", text + mark, ngan=ngan, viec=viec,
                                       web=(web + mark) if web else web, card=card)
     ext = route.get("external") or ""
+    if ext and (not str(owner_chat or "").strip() or str(owner_chat).strip() == _owner_telegram_id()):
+        try:
+            ext = telegram_topics.notification_destination(
+                cfgmod.read_settings().get("telegram", {}), dec.get("group"), ext)
+        except ValueError as exc:
+            # The inbox already holds the report; never redirect a broken topic to General.
+            return bool(vao_hom), str(exc)
     if ext:
         # Each channel on its own: one that fails does not stop the other or lose the report.
         ok2, err2 = await _gui_qua_kenh(ext, text, ngan=ngan, viec=viec, web=web, card=card)
@@ -15420,14 +15429,14 @@ async def _gui_qua_kenh(owner_chat, text, *, ngan="", viec=None, web="", card=""
         return False, "Bot Telegram chưa bật hoặc chưa có chat_id"
     # 0.186.0: an explicit id outside the allow-list, or no id at all, is not redirected to "the first id" (that may be
     # someone else sharing the bot). `_report_route` already put the owner's own id here when it is known.
-    if not cid or cid not in ids:
+    if not cid or telegram_topics.split(cid)[0] not in ids:
         return False, ("Không rõ người nhận Telegram" if not cid else "Chat Telegram này không nằm trong danh sách được phép")
     target = cid
     import httpx
     try:
         async with httpx.AsyncClient(timeout=15) as c:
             r = await c.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                             json={"chat_id": target, "text": _cat_cho_tg(text)})
+                             json={**telegram_topics.payload(target), "text": _cat_cho_tg(text)})
             d = r.json() if r.content else {}
             if d.get("ok"):
                 return True, ""
@@ -26505,7 +26514,8 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         import chatbot_grounding
         chatbot_grounding.add_turn_scopes(_luot, meta)
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
-    chat_id = str((meta or {}).get("chat_id") or "default")
+    chat_id = (telegram_topics.conversation({**(meta or {}), "platform": "telegram"})
+               if channel == "telegram" else str((meta or {}).get("chat_id") or "")) or "default"
     if bot:
         # Bot chuyên trách: brain RIÊNG của bot, không phải brain của chủ. Khoá phiên gắn id bot
         # nên hai bot cùng nói chuyện với một khách vẫn là hai mạch tách bạch, và không cái nào
@@ -28531,7 +28541,7 @@ def _tg_owner_chat(chat) -> bool:
         ids = tg_parse_ids((cfgmod.read_settings().get("zalo_bot") or {}).get("chat_id", ""))
         return key[len(ZALO_CHAT_PREFIX):] in ids
     ids = tg_parse_ids((cfgmod.read_settings().get("telegram") or {}).get("chat_id", ""))
-    return bool(key) and key in ids
+    return bool(key) and telegram_topics.split(key)[0] in ids
 
 
 def _tg_agent_list_text(rows, head="") -> str:
@@ -28605,7 +28615,7 @@ def _tg_owner_precheck(text, meta):
     """Owner bot precheck: a mention that names no agent, or several, is answered with the list
     BEFORE a turn starts (no "Javis is working" message, no turn spent on a guess)."""
     m = meta or {}
-    r = _tg_agent_route(m.get("chat_id"), text, m.get("bot_username") or "")
+    r = _tg_agent_route(telegram_topics.conversation(m), text, m.get("bot_username") or "")
     return {"reply": r["reply"]} if r["reply"] else None
 
 
@@ -28614,7 +28624,8 @@ async def _tg_owner_answer(text, meta=None, progress=None, channel="telegram"):
 
     2026-11-08: also the owner's Zalo bot (`_zalo_answer`, channel "zalo", chat id already prefixed)."""
     m = meta or {}
-    chat = str(m.get("chat_id") or "")
+    chat = (telegram_topics.conversation({**m, "platform": "telegram"})
+            if channel == "telegram" else str(m.get("chat_id") or ""))
     r = _tg_agent_route(chat, text, m.get("bot_username") or "")
     if r["reply"]:
         return {"text": r["reply"], "files": []}
@@ -28644,6 +28655,39 @@ async def _tg_owner_command(cmd, arg, chat=None, meta=None):
     `_tg_command` because the owner channels share it and have no agent routing. The owner's Zalo
     bot uses this one too since 2026-11-08 (`_zalo_command`)."""
     chat_key = str(chat or "default")
+    if cmd == "topic":
+        if not _tg_owner_chat(chat_key) or str(chat_key).startswith(ZALO_CHAT_PREFIX):
+            return {"reply": localefmt.chu("Chỉ chat Telegram được phép mới đặt topic thông báo.",
+                                            "Only an allowed Telegram chat can set notification topics.")}
+        group = str(arg or "").strip()
+        routes = (cfgmod.read_settings().get("telegram") or {}).get("topic_routes") or {}
+        if not group:
+            return {"reply": localefmt.chu(
+                "Topic thông báo: ", "Notification topics: ") + json.dumps(routes, ensure_ascii=False)
+                + "\n/topic <group> | /topic off <group>\n" + ", ".join(notify_policy.GROUPS)}
+        remove = group.startswith("off ")
+        group = group[4:].strip() if remove else group
+        if group not in notify_policy.GROUPS:
+            return {"reply": localefmt.chu("Nhóm không hợp lệ: ", "Invalid group: ")
+                    + ", ".join(notify_policy.GROUPS)}
+        _raw, tid = telegram_topics.split(chat_key)
+        if not remove and tid is None:
+            return {"reply": localefmt.chu("Hãy gửi lệnh này bên trong topic đích.",
+                                            "Send this command inside the destination topic.")}
+        def update_route():
+            # Read and write under the settings lock so independent commands cannot lose routes.
+            with cfgmod._SETTINGS_LOCK:
+                settings = cfgmod.read_settings()
+                routes = dict((settings.get("telegram") or {}).get("topic_routes") or {})
+                if remove:
+                    routes.pop(group, None)
+                else:
+                    routes[group] = chat_key
+                settings.setdefault("telegram", {})["topic_routes"] = routes
+                cfgmod.write_settings(settings)
+        await asyncio.to_thread(update_route)
+        return {"reply": localefmt.chu("Đã cập nhật topic thông báo cho nhóm ",
+                                        "Updated notification topic for group ") + group}
     if cmd == "agent":
         if not _tg_owner_chat(chat_key):
             return {"reply": localefmt.chu(
@@ -31005,13 +31049,20 @@ async def telegram_send_file(payload: dict = Body(...)):
         return {"ok": False, "error": "Bot Telegram chưa chạy (bật ở Settings → Telegram)."}
     if not path:
         return {"ok": False, "error": "Thiếu path"}
-    # chỉ nhận chat_id nằm trong whitelist (chống gửi tới ID lạ); ngoài whitelist → về chủ bot
-    target = chat_id if (chat_id and chat_id in (_TG_BOT.chat_ids or [])) else None
+    # Authorize the parent chat; an unlisted explicit recipient must never fall back to the owner.
+    try:
+        target = telegram_topics.target(chat_id, (payload or {}).get("message_thread_id")) if chat_id else None
+        base_chat, _topic = telegram_topics.split(target)
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    if chat_id and base_chat not in (_TG_BOT.chat_ids or []):
+        return {"ok": False, "error": localefmt.chu(
+            "Chat Telegram này không nằm trong danh sách được phép", "Telegram chat is not allowed")}
     ok, err = await _TG_BOT.send_file(path, caption, chat=target)
     if ok:
         # ghi nhận vào ĐÚNG phiên để auto-attach cuối lượt không gửi lại file này lần nữa
         try:
-            sess = _TG_SESS.get(chat_id) if chat_id else None
+            sess = _TG_SESS.get(target) if target else None
             if sess is not None:
                 sess["sent"].add(os.path.normcase(os.path.normpath(os.path.abspath(path))))
         except Exception:

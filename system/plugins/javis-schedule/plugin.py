@@ -480,6 +480,9 @@ async def _do_create(vault_root: str, args: dict) -> str:
     auto_chat = not chat_id and bool(origin_chat)
     if auto_chat:
         chat_id = origin_chat
+    import telegram_topics
+    import turn_context
+    chat_id = telegram_topics.turn_destination(turn_context.current(), chat_id)
     brain_name = Path(vault_root).name   # tên brain phiên → nói cho user biết việc rơi vào đâu
     kind = _route_kind(schedule, notify_only)
     if kind == "loop":

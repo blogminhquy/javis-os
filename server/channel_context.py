@@ -176,7 +176,8 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             conv = f"group '{meta.get('chat_title') or '?'}', message from {who}"
         else:
             conv = f"DM with {who}"
-        chat_id = meta.get("chat_id") or "?"
+        import telegram_topics
+        chat_id = telegram_topics.conversation({**meta, "platform": "telegram"}) or "?"
         lines += [
             f"- Source of this message: Telegram ({conv}, chat_id {chat_id}).",
             f"- Connected platforms: {', '.join(platforms)}.",

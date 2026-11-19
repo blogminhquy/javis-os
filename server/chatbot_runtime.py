@@ -27,6 +27,8 @@ Xem docs/dev/2026-08-bot-chuyen-trach-spec.md.
 """
 from __future__ import annotations
 
+import telegram_topics
+
 import asyncio
 import re
 import secrets
@@ -686,13 +688,13 @@ def nho_anh_khong_goi(bot_id: str, meta: dict, text: str, root) -> None:
     if len(_ANH_CHO) > 500:
         for k in [k for k, v in _ANH_CHO.items() if now - v["ts"] > ANH_CHO_GIAY]:
             _ANH_CHO.pop(k, None)
-    _ANH_CHO[(str(bot_id), str(meta.get("chat_id") or ""), str(meta.get("user_id") or ""))] = {
+    _ANH_CHO[(str(bot_id), telegram_topics.conversation(meta), str(meta.get("user_id") or ""))] = {
         "paths": paths, "url": url, "msg": str(meta.get("message_id") or ""), "ts": now}
 
 
 def lay_anh_cho(bot_id: str, meta: dict) -> dict:
     """The photo `nho_anh_khong_goi` kept for this person in this chat, if still fresh; taken once. {} otherwise."""
-    k = (str(bot_id), str((meta or {}).get("chat_id") or ""), str((meta or {}).get("user_id") or ""))
+    k = (str(bot_id), telegram_topics.conversation(meta), str((meta or {}).get("user_id") or ""))
     v = _ANH_CHO.pop(k, None)
     if not v or time.time() - v["ts"] > ANH_CHO_GIAY:
         return {}
@@ -744,6 +746,8 @@ def ngu_canh_nhom(meta: dict, kenh: str, tai_khoan: str) -> str:
     "vậy còn cái kia?" vô nghĩa nếu không biết người ta vừa nói gì. Tin đang hỏi bị bỏ ra (nó đã nằm trong kho vì lượt này ghi tin khách trước khi
     gọi engine). Nội dung đi qua `clean_chat_text` như ở bộ phán xử: gỡ marker nội bộ và thẻ `<chat_data>` để tin nhắn không đóng được khối."""
     m = meta or {}
+    if m.get("platform") == "telegram" and m.get("message_thread_id"):
+        return ""  # Topic sessions already retain their own history; the shared inbox is not thread-scoped.
     if m.get("chat_type") != "group" or not m.get("chat_id"):
         return ""
     msgs = conversations.tin_gan_day(kenh, tai_khoan, m["chat_id"], NGU_CANH_TIN + 1)
@@ -819,6 +823,8 @@ def private_history(cfg: dict, meta: dict, limit: int) -> list:
     `user`; the bot's and the owner's become `assistant`, which is who the customer heard them from. Neighbours of
     one role are joined and the list starts with a `user` message, as some providers require. Never raises."""
     m = meta or {}
+    if m.get("platform") == "telegram" and m.get("message_thread_id"):
+        return []  # Do not bootstrap a topic from unscoped inbox history.
     try:
         n = int(limit or 0)
         if n <= 0 or _rp_is_group(m) or not m.get("chat_id"):
@@ -1221,7 +1227,7 @@ def _rp_profile(cfg: dict, meta: dict = None, with_role: bool = True):
 
 def _rp_event(cfg: dict, profile, text: str, meta: dict, owner_typing: bool = False):
     now = float((meta or {}).get("ts") or time.time())
-    bot_id, chat_id = str(cfg.get("id") or ""), str((meta or {}).get("chat_id") or "")
+    bot_id, chat_id = str(cfg.get("id") or ""), telegram_topics.conversation(meta)
     last, addressee = chatbot_reply_policy.bot_context(bot_id, chat_id, now)
     uid = str((meta or {}).get("user_id") or "")
     return chatbot_reply_policy.Event(
@@ -1426,7 +1432,7 @@ class PolicyHooks:
         cfg = chatbot_store.get_bot(self.bot_id)
         if not cfg or cfg.get("reply_when") != "auto":
             return
-        chatbot_reply_policy.note_bot_reply(self.bot_id, str((meta or {}).get("chat_id") or ""),
+        chatbot_reply_policy.note_bot_reply(self.bot_id, telegram_topics.conversation(meta),
                                             str((meta or {}).get("user_id") or ""), text)
 
 

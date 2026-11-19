@@ -28,6 +28,7 @@ import httpx
 
 import stt
 import localefmt
+import telegram_topics
 from bot_gateway import HangLuot, dong_vet, ten_tool
 
 
@@ -51,6 +52,7 @@ TG_API = "https://api.telegram.org/bot{token}/{method}"
 # Lệnh hiện trong menu Telegram (gõ "/" hoặc nút Menu). Tên chỉ a-z0-9_ (skill có dấu "-" gõ tay).
 BOT_COMMANDS = [
     {"command": "help", "description": "Trợ giúp"},
+    {"command": "topic", "description": localefmt.chu("Topic thông báo", "Notification topics")},
     {"command": "status", "description": "Engine, model, vault, trạng thái"},
     {"command": "skills", "description": "Liệt kê skill có sẵn"},
     {"command": "notes", "description": "Lưu tin nhắn (kèm ảnh) vào Sources của brain"},
@@ -250,6 +252,10 @@ class TelegramBot(HangLuot):
         # Menu lệnh "/" đẩy lên Telegram hỏng thì cũng phải có chỗ nói ra. Xem `_day_menu_lenh`.
         self.loi_menu_lenh = ""
 
+    async def _dispatch(self, client, chat, text, meta=None):
+        destination = telegram_topics.target(chat, (meta or {}).get("message_thread_id"))
+        return await super()._dispatch(client, destination, text, meta)
+
     def _url(self, method):
         return TG_API.format(token=self.token, method=method)
 
@@ -303,7 +309,7 @@ class TelegramBot(HangLuot):
         # 3500 (không phải 4096) để chừa chỗ cho ký tự escape MarkdownV2
         chunks = [text[i:i + 3500] for i in range(0, len(text), 3500)] or [text]
         for idx, chunk in enumerate(chunks):
-            base = {"chat_id": chat, "text": chunk}
+            base = {**telegram_topics.payload(chat), "text": chunk}
             if reply_markup is not None and idx == len(chunks) - 1:
                 base["reply_markup"] = reply_markup   # nút chỉ gắn vào tin cuối
             # MDV2 trước, hỏng escape (400 can't parse entities) → gửi lại plain
@@ -341,7 +347,7 @@ class TelegramBot(HangLuot):
             for chunk in [text[i:i + 3500] for i in range(0, len(text), 3500)]:
                 da_gui = False
                 for use_md in (True, False):
-                    payload = {"chat_id": chat, "text": chunk}
+                    payload = {**telegram_topics.payload(chat), "text": chunk}
                     if use_md:
                         payload["text"] = md_to_mdv2(chunk)
                         payload["parse_mode"] = "MarkdownV2"
@@ -378,7 +384,7 @@ class TelegramBot(HangLuot):
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
         caption = (caption or "")[:1000]
-        data = {"chat_id": chat}
+        data = telegram_topics.payload(chat)
         if caption:
             data["caption"] = caption
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
@@ -414,7 +420,7 @@ class TelegramBot(HangLuot):
 
     async def _typing(self, client, chat):
         try:
-            await client.post(self._url("sendChatAction"), json={"chat_id": chat, "action": "typing"})
+            await client.post(self._url("sendChatAction"), json={**telegram_topics.payload(chat), "action": "typing"})
         except Exception:
             pass
 
@@ -441,7 +447,7 @@ class TelegramBot(HangLuot):
         """
         try:
             r = await client.post(self._url("sendMessage"),
-                                  json={"chat_id": chat, "text": text,
+                                  json={**telegram_topics.payload(chat), "text": text,
                                         "disable_notification": True})
             d = r.json()
             if d.get("ok"):
@@ -455,7 +461,7 @@ class TelegramBot(HangLuot):
             return
         try:
             await client.post(self._url("editMessageText"),
-                              json={"chat_id": chat, "message_id": mid, "text": text})
+                              json={"chat_id": telegram_topics.split(chat)[0], "message_id": mid, "text": text})
         except Exception as e:
             print(f"[telegram status edit] {e}", file=sys.stderr)
 
@@ -479,6 +485,7 @@ class TelegramBot(HangLuot):
             # id NGƯỜI gửi (khác chat_id trong nhóm). Hộp thư hội thoại dùng nó làm khoá khách.
             "user_id": str(frm.get("id") or ""),
             "message_id": msg.get("message_id"),
+            "message_thread_id": telegram_topics.thread_id(msg.get("message_thread_id")),
             "bot_username": self.bot_username,
             "mentioned": self._co_nhac_ten(msg),
             "reply_to_bot": self._la_reply_bot(msg),
@@ -539,7 +546,8 @@ class TelegramBot(HangLuot):
         if not (rieng or self._co_nhac_ten(msg) or self._la_reply_bot(msg)):
             return None
         return {"photo": rep.get("photo") or [], "document": doc if la_anh_file else None,
-                "chat": msg.get("chat") or {}, "message_id": rep.get("message_id")}
+                "chat": msg.get("chat") or {}, "message_id": rep.get("message_id"),
+                "message_thread_id": msg.get("message_thread_id")}
 
     def _la_reply_bot(self, msg):
         """Tin này có phải reply vào một tin của CHÍNH con bot này không.
@@ -722,7 +730,7 @@ class TelegramBot(HangLuot):
                                   timeout=httpx.Timeout(180.0))
             rr.raise_for_status()
             # download_dir nhận chat_id → file rơi vào inbox của ĐÚNG brain phiên người gửi
-            chat = str((msg.get("chat") or {}).get("id", ""))
+            chat = telegram_topics.target((msg.get("chat") or {}).get("id"), msg.get("message_thread_id"))
             ddir = self.download_dir(chat) if callable(self.download_dir) else self.download_dir
             d = Path(ddir) if ddir else Path("telegram-inbox")
             d.mkdir(parents=True, exist_ok=True)
@@ -901,7 +909,8 @@ class TelegramBot(HangLuot):
                                     text = text + "\n" + phu
                         if not text:
                             continue
-                        await self._dispatch(client, chat, text, self._build_meta(msg))
+                        await self._dispatch(client, telegram_topics.target(chat, msg.get("message_thread_id")),
+                                             text, self._build_meta(msg))
                 except Exception as e:
                     print(f"[telegram loop] {type(e).__name__}: {e}", file=sys.stderr)
                     await asyncio.sleep(5)
@@ -921,7 +930,8 @@ class TelegramBot(HangLuot):
             except Exception:
                 pass
             return
-        res = await self.callback_fn(data, chat) if self.callback_fn else None
+        destination = telegram_topics.target(chat, msg.get("message_thread_id"))
+        res = await self.callback_fn(data, destination) if self.callback_fn else None
         # luôn answer để Telegram tắt vòng xoay; alert hiện toast nếu có
         try:
             await client.post(self._url("answerCallbackQuery"),

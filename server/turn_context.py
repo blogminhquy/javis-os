@@ -202,7 +202,11 @@ def from_meta(kenh, meta, la_chu: bool) -> dict:
     manager's rights, so a join turn names nobody (`sender_id` "")."""
     m = meta or {}
     sender = "" if m.get("member_join") else m.get("user_id")
-    return make(kenh, sender, m.get("chat_type"), m.get("chat_id"), la_chu)
+    result = make(kenh, sender, m.get("chat_type"), m.get("chat_id"), la_chu)
+    if kenh == "telegram":
+        import telegram_topics
+        result["message_thread_id"] = telegram_topics.thread_id(m.get("message_thread_id"))
+    return result
 
 
 def bind(turn: Optional[dict]) -> Token:
