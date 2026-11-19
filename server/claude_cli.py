@@ -1596,7 +1596,9 @@ def find_codex_cli() -> Optional[str]:
         home / ".codex" / ".sandbox-bin" / "codex",
         home / ".local" / "bin" / "codex",
     ]
-    # Windows Store aliases can fail in background services, so keep them as a last resort.
+    # Windows Store có thể đặt app-execution alias ``codex.exe`` lên PATH nhưng service/tiến trình nền không được
+    # quyền chạy alias đó (WinError 5), nên alias đó chỉ là đường lui cuối. Since PR 1608 the PATH binary on
+    # Mac/Linux no longer wins outright either: it joins the candidates below and the newest one is asked.
     cli = tim_binary("codex")
     co = []
     if cli and "windowsapps" not in cli.lower():
@@ -1607,8 +1609,12 @@ def find_codex_cli() -> Optional[str]:
                 co.append(str(p))
         except Exception:
             pass
-    # Desktop, npm, PATH, and local user installs can expose different model catalogs.
-    # Ask the newest binary when versions are available; otherwise keep the prior search order.
+    # Một máy hay có NHIỀU bản Codex cùng lúc: Codex Desktop xuất một bản vào ~/.codex/.sandbox-bin và không phải lúc
+    # nào cũng cập nhật nó, npm đặt bản khác. Trước 0.71.1 bản đứng đầu danh sách thắng, và chủ repo đo 03/10/2026:
+    # sandbox-bin kẹt ở 0.147 (tháng 8) trong khi npm đã 0.160, nên `model/list` chỉ trả đời GPT-5.6 và trang Models
+    # không có GPT-6.1-Sol. Danh sách model là lời của CHÍNH binary được hỏi, nên phải hỏi bản MỚI NHẤT. PR 1608
+    # (2026-11-19): the same holds on Mac/Linux (PATH, npm, ~/.local/bin). A binary whose version cannot be read is
+    # skipped; when none can be read, the old search order stands.
     if len(co) > 1:
         versioned = [(p, _codex_version(p)) for p in co]
         versioned = [(p, version) for p, version in versioned if version is not None]
