@@ -123,6 +123,10 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   làm xem tất cả này xong ấn vào thì nó vào kho lưu trữ"): bảng Thông tin chỉ hiện vài mục mới nhất (6 ảnh, 3 file,
   3 link) và nút "Xem tất cả"; bấm vào mở "Kho lưu trữ" ngay trong bảng đó, có nút quay lại, tab Ảnh/File/Link kèm số,
   ô tìm, xếp theo ngày (ảnh theo tháng), phân trang. Mẫu ở tab Thông tin của trang Nhóm (`teams.js`, `assetsHtml`).
+- **Sửa một đoạn chữ thì mở khung rộng, không dùng `prompt()` của trình duyệt** (19/11: "popup làm lại khi sửa để mở
+  rộng ra dễ sửa"). Dùng chung `JavisTextEdit.open(...)` (`dashboard/text-edit-dialog.js`): ô chữ tự giãn, đếm ký tự,
+  lựa chọn dạng chip, Ctrl+Enter lưu; điện thoại là bảng kéo lên. Danh sách dài thì nút Thêm đứng cạnh ô tìm ở trên
+  đầu, không nằm cuối danh sách.
 - **Popup thay cho thả xuống** với nội dung chi tiết, và popup đứng yên tới khi người dùng tự đóng. Danh sách ngắn, đơn
   giản thì mở ngay tại chỗ, không cần popup (07/11).
 - **Mở file (HTML, .md, PDF) ngay trong khung,** bấm mới phóng toàn màn hình.
@@ -166,7 +170,9 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   - Tags;
   - "Của Javis" và "Của tôi";
   - Claude, Codex, Grok (không viết CLI hay tên nội bộ);
-  - Tài khoản bot.
+  - Tài khoản bot;
+  - **Javis soạn** cho nút và chế độ để Javis viết sẵn câu trả lời khách (không gọi "A.I. soạn", 19/11: "đổi luôn chữ
+    A.I. Soạn thành Javis Soạn").
 - **Đặt tên theo lợi ích người dùng thấy** ("Tiết kiệm token", không gọi "Chẩn đoán").
 - **Xưng hô theo người dùng.** Chủ là "anh", đừng gọi "chị".
 - **Ngôn ngữ giao diện:** chỉ tiếng Việt và tiếng Anh, qua i18n (`docs/quy-uoc-dev.md`, mục "Chữ hiện lên màn hình").
@@ -196,6 +202,13 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 - **Báo câu trả lời mới theo nơi đang xem** (chủ chốt 16/11/2026): từng cuộc chat có chấm đỏ khi có câu trả lời chưa
   đọc. Thanh chọn dự án và các dòng trong bộ chọn chỉ báo đỏ cho dự án khác đang có câu trả lời chưa đọc; dự án đang
   xem dùng chấm đỏ ở từng chat, không báo trùng ở thư mục. Mở dự án không đánh dấu các chat là đã đọc.
+- **Chuông chỉ giữ thứ cần bạn, câu trả lời là chấm đỏ trên menu** (chủ chốt 19/11/2026: "câu trả lời của cộng sự,
+  của trò chuyện và của team ... không cần thiết phải có những thông báo đấy, mình chỉ cần một dấu chấm đỏ ở bên phía
+  menu"). Câu trả lời nằm trong một cuộc chat có chấm đỏ riêng (Trò chuyện, Cộng sự, Team) thì không vào chuông;
+  mục đó trên menu có chấm đỏ (`dashboard/rail-unread.js`), nhóm menu đang gập cũng có chấm. Chuông chỉ còn: câu hỏi,
+  xin duyệt, nhắc hẹn chủ tự đặt, lỗi chủ phải sửa, và lần chạy tự báo có chuyện cần chủ ra tay. Việc chạy theo lịch
+  chạy trót lọt không kêu. Tiêu đề thông báo nói KẾT QUẢ trong một dòng ngắn, không thuật lại việc đang làm
+  ("Em kiểm tra..."), dòng dưới không lặp lại tiêu đề.
 - **Tạo động lực:** trang Nhiệm vụ có chuỗi ngày, sao, gợi ý việc khi trống (kiểu trò chơi, 04/11).
 
 ## 9. Trang HTML của gói trong Javis Store

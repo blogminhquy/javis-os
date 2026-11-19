@@ -8,6 +8,57 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.603.0] - 2026-11-19
+### Improved
+- **The Learned and Documents tabs now show 20 items a page.** A long list gets a search box (ignores Vietnamese marks) and the Add button sits at the top, so adding never means scrolling to the end.
+- **Learned notes are easier to scan.** Filter by Fact, Decision or Term; each kind has its own colour; your own notes carry an orange bar on the left.
+- **Edit notes, lessons and document descriptions in a roomy box.** It replaces the browser's one-line prompt: the whole text shows, with a character count, the note type, and Ctrl+Enter to save. On a phone it slides up from the bottom.
+
+## [0.602.1] - 2026-11-19
+### Fixed
+- **Calling `javis_team` no longer says "does not exist" when the hub runs in lazy mode.** With many tools the hub hides most behind its search tool, but assistants call them by name and got an error. A call by name now reaches the right tool, through the same permission layer. The quick reminder cancel works again in lazy mode too.
+
+## [0.602.0] - 2026-11-19
+### Improved
+- **A much quieter bell.** Answers in chats, partner chats and teams no longer go to the bell. A **red dot** on Chat, Partners and Team in the menu shows them instead, like the dot already on each chat.
+- **Scheduled jobs no longer ring on every run.** The result still reaches its chat or Telegram; the bell rings only when the job fails for good, or when the run itself finds something you must act on.
+- **Readable notice titles.** Each run writes a short headline about its result instead of "Checking...", and the card no longer repeats the title below it.
+
+## [0.601.0] - 2026-11-19
+### Added
+- **Links Javis sends on personal Zalo show a preview card.** A message with a link now shows the page's title, description and image under the text, as when a person types a link in the Zalo app. Before, it was a bare link. Owner report, 19/11/2026.
+- **Links Javis sends on WhatsApp show a preview card too.**
+
+## [0.600.1] - 2026-11-19
+### Fixed
+- **/goal and /plan work at the end or in the middle of a message.** They used to work only at the start, so "...do it for me /goal" went out as a plain chat. The rest of the text becomes the goal.
+- **Skills, agents and workflows installed mid-conversation can be called with "/" mid-sentence right away.** The page reloads its list before sending when it meets an unknown name, instead of treating it as plain text.
+- **Agent and workflow names work without the prefix.** "/seo-pro" opens the seo-pro agent, same as "/agent-seo-pro".
+- **Punctuation right after a command no longer hides it.** "/viet-email," and "/goal." are still recognized.
+
+## [0.600.0] - 2026-11-19
+### Added
+- **A link that opens one task.** An address like `#task=<id>` opens the Tasks page and then that item: one of your own tasks (`m:`), a reminder (`r:`) or a job Javis does (`k:`). An outside page such as a home-made dashboard can lead straight to a task instead of only to the Tasks page.
+
+## [0.599.0] - 2026-11-19
+### Added
+- **The bot learns from replies you confirm.** The draft box in the Inbox has a "Bot learns this" tick, on by default. Sending a reply that carries your order, or one you rewrote, saves it to the Agent's documents (file `tri-thuc-chatbot/<agent>.md`). Next time another customer asks the same thing, the bot answers the way you confirmed. Untick it for something about one customer only.
+### Fixed
+- **The reply draft button follows the owner's order.** Type "schedule confirmed 8pm on the 21st and 22nd" and press draft: the reply gives that schedule instead of "I have no confirmed schedule yet" just because no document had it or the bot earlier said it was checking. The owner's order is the newest word, above the documents and the chat history, with no list of banned phrases. Rewrite follows it too.
+### Improved
+- **"AI draft" is now "Javis draft"** on the composer button, the mode above the chat and the lines of the draft.
+
+## [0.598.1] - 2026-11-19
+### Fixed
+- **Bot cards show the Facebook Page name instead of its numeric ID.** A Page added by pasting its token only stored the ID, so the channel chip showed a string of digits. Each time the bot starts, Javis now keeps the Page's real name and the chip shows it. A label you set yourself (a short name) still wins, and the ID shows when you hover the chip.
+
+## [0.598.0] - 2026-11-19
+### Added
+- **Ask Javis in chat to run a script on a schedule.** For example "run check_shop.py every minute": the job runs the script directly with no model, so it is cheap and can run every minute.
+### Improved
+- **A scheduled job keeps its whole result, no longer cut at 2,000 characters.** The next run still reads only the start, but now knows it was cut.
+- **A repeating job that skipped runs shows "N missed" on the Tasks page.** Before, when one run was late or long, the next ones were skipped and nobody knew.
+
 ## [0.597.0] - 2026-11-19
 ### Added
 - **A team job that waits for you can be answered, not only retried.** Press **Reply** next to Retry: "Go on" has the member do the step again with your answer, "Ask back" asks first and the job keeps waiting.

@@ -218,9 +218,12 @@ class WhatsAppBot(HangLuot):
             return {"ok": False, "error": f"{type(e).__name__}: {e}", "net_error": True}
 
     async def _send_one(self, client, to, text):
+        # `preview_url` on (owner report 19/11/2026: a link the bot sent showed as bare text): WhatsApp then shows the
+        # first link's title and thumbnail under the message, as for a link a person types. A message without a link
+        # is unchanged.
         return await self._post_json(client, f"{self.phone_number_id}/messages", {
             "messaging_product": "whatsapp", "recipient_type": "individual", "to": str(to),
-            "type": "text", "text": {"preview_url": False, "body": md_to_whatsapp(text)}})
+            "type": "text", "text": {"preview_url": True, "body": md_to_whatsapp(text)}})
 
     async def _send(self, client, chat, text, reply_markup=None):
         if not str(text or "").strip() and self.giau_trang_thai:

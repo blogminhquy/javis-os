@@ -40,8 +40,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=179">
-  <link rel="stylesheet" href="/static/console.css?v=142">
+  <link rel="stylesheet" href="/static/style.css?v=180">
+  <link rel="stylesheet" href="/static/console.css?v=144">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chưa chọn gì thì SÁNG (2026-11-05; trước đó là "auto"). Chế độ "auto" (0.74.0) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
@@ -725,6 +725,7 @@
           <button class="rail-grp-lbl" x-show="!g.solo" @click="$store.nav.toggleGroup(g.label)" :title="g.label">
             <span class="rail-grp-ico" x-html="g.icon"></span>
             <span class="grp-name" x-text="g.label"></span>
+            <span class="rail-dot" x-show="!$store.nav.isOpen(g.label) && $store.nav.groupUnread(g)" aria-hidden="true"></span>
           </button>
           <div class="rail-grp-items">
             <!-- Nhãn mục đọc qua getter gọi t(), mà từ điển KHÔNG phải dữ liệu phản ứng của Alpine. Nhóm thường
@@ -736,6 +737,8 @@
                       @click="$store.nav.go(it.id)" :title="($store.nav.i18nTick, it.label)" :data-page="it.id">
                 <span class="rail-ico" x-html="it.icon"></span>
                 <span class="rail-lbl" x-text="($store.nav.i18nTick, it.label)"></span>
+                <span class="rail-dot" x-show="$store.nav.unread[it.id]" role="img"
+                      :aria-label="($store.nav.i18nTick, t('nav.unread'))" :title="($store.nav.i18nTick, t('nav.unread'))"></span>
               </button>
             </template>
           </div>
@@ -1042,7 +1045,7 @@
  ],
  "teams": [
   "/static/team-github.js?v=1",
-  "/static/teams.js?v=33"
+  "/static/teams.js?v=35"
  ],
  "packs": [
   "/static/packs.js?v=7"
@@ -1073,7 +1076,7 @@
   "/static/tasks.css?v=10",
   "/static/date-range.js?v=1",
   "/static/tasks-stats.js?v=1",
-  "/static/tasks.js?v=11"
+  "/static/tasks.js?v=12"
  ]
 }</script>
   <script src="/static/nap-cham.js?v=1"></script>
@@ -1128,7 +1131,7 @@
   <script src="/static/note-images.js?v=1"></script>
   <script src="/static/chat-ask.js?v=2"></script>
   <script src="/static/limit-resume.js?v=2"></script>
-  <script src="/static/chat-slash.js?v=5"></script>
+  <script src="/static/chat-slash.js?v=6"></script>
   <!-- Lệnh "/" hệ thống (/status /model /compact /plan /goal ...): chạy lệnh mà chat-slash.js vừa nhận
        diện. Phải nạp TRƯỚC app.js (sendMessage gọi window.JavisLenh) và SAU chat-slash.js (đọc menu). -->
   <script src="/static/chat-goal.js?v=1"></script>
@@ -1176,7 +1179,7 @@
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/incoming-call.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=165"></script>
+  <script src="/static/app.js?v=166"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=4"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -1200,7 +1203,10 @@
   <script src="/static/brain-picker.js?v=3"></script>
   <!-- One Reorder box (drag or arrows) for projects, pinned chats and tags (0.454.0). Before sessions-ui.js. -->
   <script src="/static/reorder-dialog.js?v=2"></script>
-  <script src="/static/sessions-ui.js?v=30"></script>
+  <!-- One roomy box to write or fix a short text (notes, lessons, document descriptions). Before sessions-ui.js and
+       teams.js, which open it instead of prompt(). -->
+  <script src="/static/text-edit-dialog.js?v=1"></script>
+  <script src="/static/sessions-ui.js?v=31"></script>
   <link rel="stylesheet" href="/static/improvement-candidates.css?v=3">
   <script src="/static/improvement-experiments.js?v=1"></script>
   <script src="/static/improvement-candidates.js?v=3"></script>
@@ -1242,7 +1248,7 @@
   <script src="/static/login-vault.js?v=2"></script>
   <script src="/static/messenger-connect.js?v=4"></script>
   <script src="/static/voice-catalog.js?v=1"></script>
-  <script src="/static/console.js?v=214"></script>
+  <script src="/static/console.js?v=215"></script>
   <script src="/static/mobile-chat.js?v=17"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=4"></script>
@@ -1250,7 +1256,8 @@
   <!-- Mời tặng sao GitHub (0.324.0): thẻ hiện ở khoảnh khắc vui, xem server/star_nudge.py. -->
   <link rel="stylesheet" href="/static/star-nudge.css?v=3">
   <script src="/static/star-nudge.js?v=2"></script>
-  <script src="/static/notifications.js?v=12"></script>
+  <script src="/static/notifications.js?v=15"></script>
+  <script src="/static/rail-unread.js?v=1"></script>
   <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
        (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->
   <!-- Mascot menu the owner arranges (Settings > Mascot): load BEFORE pet.js, which builds its menu from it. -->

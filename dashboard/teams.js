@@ -306,7 +306,8 @@
     var t = String(typed || "");
     var head = t.match(/^\/([a-zA-Z0-9_-]+)(?:\s+([\s\S]*))?$/);
     if (head && list.indexOf(head[1].toLowerCase()) >= 0) return { cmd: head[1].toLowerCase(), rest: (head[2] || "").trim(), mid: false };
-    var re = /(^|\s)\/([a-zA-Z0-9_-]+)(?=\s|$)/g, m, hit = null;
+    // Punctuation right after the name ("/viet-email," "/viet-email.") still counts, as in the main chat.
+    var re = /(^|\s)\/([a-zA-Z0-9_-]+)(?=[.,!?;:\u2026)\]"'\u201d]*(?:\s|$))/g, m, hit = null;
     while ((m = re.exec(t)) !== null) { if (list.indexOf(m[2].toLowerCase()) >= 0) hit = m; }
     if (!hit) return null;
     var start = hit.index + hit[1].length;
@@ -4312,12 +4313,23 @@
       esc(kind === "link" ? x.url : x.path) + '" data-desc="' + esc(x.description || "") + '" aria-label="' +
       esc(tw("teams.info_desc")) + '" title="' + esc(tw("teams.info_desc")) + '">' + ic("pencil") + "</button>";
   }
+  // 2026-11-19 (owner: "popup làm lại khi sửa để mở rộng ra dễ sửa"): the same roomy edit box as the project drawer
+  // (text-edit-dialog.js) instead of prompt(); prompt() stays only as the fallback when that script is missing.
   function describeDoc(kind, ref, old) {
+    var send = function (text) {
+      var f = new FormData();
+      f.append("kind", kind); f.append("ref", ref); f.append("description", text);
+      return assetPost("/describe", f);
+    };
+    var E = window.JavisTextEdit;
+    if (E && E.open) {
+      return E.open({ title: tw("teams.info_desc"), value: old || "", max: 200, placeholder: tw("proj.desc_ph"),
+        hint: String(ref || "").split("/").pop(), allowEmpty: true,
+        save: function (text) { return Promise.resolve(send(text)).then(function () { return ""; }); } });
+    }
     var text = window.prompt(tw("teams.info_desc_q"), old || "");
     if (text == null || text.trim() === (old || "")) return;
-    var f = new FormData();
-    f.append("kind", kind); f.append("ref", ref); f.append("description", text.trim());
-    return assetPost("/describe", f);
+    return send(text.trim());
   }
 
   // ───────────── 19/11/2026: short lists on Info, the rest in the archive ─────────────

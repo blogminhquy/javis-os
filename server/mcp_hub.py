@@ -1474,7 +1474,9 @@ CORE_CODING_FNS = frozenset({"javis_edit_file", "javis_search_files"})
 # Mô tả nhóm tool nội bộ cho thực đơn lazy. Builtin/plugin không có connector trong
 # mcp_catalog nên không tự có mô tả; thiếu dòng này thì model chỉ thấy "javis (javis, N tool)".
 _LOCAL_GROUP_DESC = {
-    "javis": "skill của brain, danh sách nguồn đang đấu, tiện ích nội bộ",
+    # Cut at 70 characters in the menu. Names what the prompt promises (Kanban work, reminders, team chats) so a
+    # model looking for javis_team knows it sits here and searches, instead of saying it has too many tools.
+    "javis": "việc nền, lịch nhắc, nhóm chat, trợ lý, skill của brain, tiện ích",
     "plugin": "tool do plugin cài thêm",
 }
 

@@ -319,6 +319,38 @@ def update_account(account_id: str, patch: dict) -> tuple[bool, str]:
     return False, LOI_KHONG_CO
 
 
+def ghi_ten_that(account_id: str, ten: str) -> bool:
+    """Ghi tên thật của tài khoản (tên Fanpage...) mà kênh vừa hỏi được lúc bot khởi động. Trả True nếu có đổi.
+
+    Lưu vào `meta.bot_name`. Nhãn chỉ bị thay khi nó còn là nhãn tự sinh (rỗng, trùng id, hay tên kênh),
+    không bao giờ đè nhãn người dùng tự đặt (tên viết tắt...). Chủ repo 19/11/2026: chip kênh trên thẻ bot
+    hiện Page ID dạng số thay vì tên Trang, vì Trang gắn bằng cách dán token chỉ lưu id.
+    """
+    ten = _clean_label(ten)
+    if not account_id or not ten:
+        return False
+    with _lock:
+        d = _load()
+        for a in d["accounts"]:
+            if a.get("id") != account_id:
+                continue
+            m = dict(a.get("meta") or {})
+            doi = False
+            if m.get("bot_name") != ten:
+                m["bot_name"] = ten
+                a["meta"] = m
+                doi = True
+            nhan = str(a.get("label") or "")
+            if nhan != ten and nhan in ("", str(a.get("external_id") or ""), channels.nhan(a.get("channel") or "")):
+                a["label"] = ten
+                doi = True
+            if doi:
+                a["updated_at"] = _now()
+                _save(d)
+            return doi
+    return False
+
+
 def delete_account(account_id: str) -> tuple[bool, str]:
     with _lock:
         d = _load()

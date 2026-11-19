@@ -20,6 +20,13 @@
     { cmd: "goal", nhan: "lenh.goal_name", mota: "lenh.goal_desc", needArg: true },
   ];
   var SYSTEM_NAMES = SYSTEM_COMMANDS.map(function (x) { return x.cmd; });
+  // Lệnh hệ thống CẦN nội dung (/goal, /plan) thì gõ ở đâu trong tin cũng chạy, phần chữ còn lại là nội
+  // dung (chủ repo 19/11: "...làm luôn giúp anh /goal" gõ cuối câu mà Javis chỉ chat thường). Lệnh không cần
+  // nội dung (/compact, /status...) vẫn chỉ ở ĐẦU tin: chạy nó giữa câu là bỏ mất câu đang viết.
+  var NEED_ARG = SYSTEM_COMMANDS.filter(function (x) { return x.needArg; }).map(function (x) { return x.cmd; });
+  function canNoiDung(cmd) { return NEED_ARG.indexOf(String(cmd || "").toLowerCase()) !== -1; }
+  // Giữa câu: một skill trùng tên (skill tên "plan") vẫn thắng như trước, chỉ ở đầu tin lệnh mới thắng.
+  function canNoiDungGiua(cmd) { return canNoiDung(cmd) && !isKnownSkill(cmd); }
 
   // Chu hien ra lay tu tu dien. Trong trinh duyet la window.t (i18n/index.js nap dau tien);
   // duoi node (test require file nay) khong co window nen doc thang vi.json. Chu tw chu
@@ -34,6 +41,17 @@
   var knownSkills = [];
   var knownPartners = [];
   function setKnownPartners(agents, workflows) { knownPartners = buildMenu([], agents, workflows).filter(function (x) { return x.kind === "agent" || x.kind === "workflow"; }); }
+  // Cộng sự của một token: đúng tên menu ("agent-viet-bai", "workflow-bao-cao"), hoặc tên TRẦN ("viet-bai")
+  // khi không có skill nào trùng và chỉ đúng một cộng sự mang slug đó. Người dùng hay gõ tay tên agent mà không
+  // biết tiền tố "agent-" của menu; trước đây tên trần giữa câu rơi thẳng xuống chat thường.
+  function timCongSu(cmd) {
+    var c = String(cmd || "").toLowerCase();
+    var dung = knownPartners.find(function (x) { return x.cmd === c; });
+    if (dung) return dung;
+    if (isKnownSkill(c)) return null;
+    var tran = knownPartners.filter(function (x) { return String(x.slug || "").toLowerCase() === c; });
+    return tran.length === 1 ? tran[0] : null;
+  }
   function setKnownSkills(list) {
     knownSkills = [];
     (list || []).forEach(function (s) {
@@ -58,51 +76,83 @@
   //   - lenh phien (/new /reset /stop) KHONG tinh o giua cau - "hay /reset lai" ma reset
   //     that thi mat sach ngu canh, do la pha hoai chu khong phai tien.
   // Lay lan xuat hien CUOI cung: nguoi dung vua go xong o cuoi cau la y dinh moi nhat.
-  var MID_RE = /(^|\s)\/([a-zA-Z0-9_-]+)(?=\s|$)/g;
+  //
+  // Dấu câu dính liền sau lệnh ("/goal." "/viet-email," "(/plan)") vẫn tính là lệnh: người ta gõ tiếng Việt
+  // có dấu câu, đòi một khoảng trắng sau lệnh là bắt hụt lặng lẽ. Dấu "/" ngay sau ('/home/user') thì không.
+  var DAU_CAU = "[.,!?;:\u2026)\\]\"'\u201d]*";
+  var MID_RE = new RegExp("(^|\\s)\\/([a-zA-Z0-9_-]+)(?=" + DAU_CAU + "(?:\\s|$))", "g");
+  var DAU_CAU_DAU = new RegExp("^" + DAU_CAU);
+
+  // Token giữa câu được nhận là lệnh khi: skill có thật, cộng sự có thật, hoặc lệnh hệ thống cần nội dung.
+  function nhanGiuaCau(cmd) { return isKnownSkill(cmd) || !!timCongSu(cmd) || canNoiDungGiua(cmd); }
+
+  // Lần xuất hiện được chọn: /goal hay /plan có mặt thì nó THẮNG (nó bọc cả việc, kể cả skill nhắc trong
+  // câu), không thì lấy lần CUỐI cùng của skill/cộng sự. `boQua(m)`: bỏ một lần khớp (vd token đầu tin đã xét).
+  function chonLanKhop(text, boQua) {
+    var hit = null, heThong = null, m;
+    MID_RE.lastIndex = 0;
+    while ((m = MID_RE.exec(text)) !== null) {
+      if (boQua && boQua(m)) continue;
+      if (canNoiDungGiua(m[2])) heThong = m;
+      else if (nhanGiuaCau(m[2])) hit = m;
+    }
+    return heThong || hit;
+  }
+
   function parseSlashAnywhere(text) {
     if (typeof text !== "string") return null;
     var head = parseSlash(text);
-    if (head) return head;                       // dau chuoi: giu nguyen hanh vi cu
-    var hit = null, m;
-    MID_RE.lastIndex = 0;
-    while ((m = MID_RE.exec(text)) !== null) {
-      if (isKnownSkill(m[2]) || knownPartners.some(function (x) { return x.cmd === m[2].toLowerCase(); })) hit = m;
-    }
-    if (!hit) return null;
+    // Đầu chuỗi: giữ nguyên hành vi cũ. Trừ khi đầu tin là một skill CHƯA biết mà trong câu lại có
+    // /goal hay /plan: lúc đó lệnh cần nội dung mới là ý chính.
+    if (head && (classify(head.cmd) !== "skill" || isKnownSkill(head.cmd) || timCongSu(head.cmd))) return head;
+    var hit = chonLanKhop(text, head ? function (m) { return m.index === 0; } : null);
+    if (!hit || (head && !canNoiDungGiua(hit[2]))) return head;
     var start = hit.index + hit[1].length;
     var sau = start + 1 + hit[2].length;
+    var dau = (text.slice(sau).match(DAU_CAU_DAU) || [""])[0];
     var don = function (x) { return x.trim().replace(/\s{2,}/g, " "); };
     // HAI bản của phần chữ còn lại, vì hai đường dùng nó khác nhau:
-    //   arg       - BỎ HẲN token (đường cộng sự: "/agent-viet" là một ĐỊA CHỈ, gửi kèm tên
-    //               agent vào tin nhắn cho chính agent đó là chữ thừa);
+    //   arg       - BỎ HẲN token và dấu câu dính sau nó (đường cộng sự và lệnh /goal /plan: "/agent-viet"
+    //               là một ĐỊA CHỈ, "/goal" là một CÔNG TẮC, để lại trong nội dung là chữ thừa);
     //   argGiuTen - giữ tên, chỉ bỏ dấu "/" (đường SKILL).
     // Vì sao đường skill phải giữ: tên skill hay là một THÀNH PHẦN của câu ("Skill
     // /viet-bai-x sẽ là skill chính"). Xoá hẳn token rồi nối hai đầu lại thì câu thành "Skill
     // sẽ là skill chính" - mất một từ, đọc ra vô nghĩa. Khách báo đúng chuyện này 16/09:
     // "chữ nó bị dịch chạy đi linh tinh".
     return { cmd: hit[2].toLowerCase(),
-             arg: don(text.slice(0, start) + " " + text.slice(sau)),
+             arg: don(text.slice(0, start) + " " + text.slice(sau + dau.length)),
              argGiuTen: don(text.slice(0, start) + hit[2] + text.slice(sau)),
              giuaCau: true };
+  }
+
+  // Tin có một token dạng lệnh giữa câu mà danh sách skill/cộng sự đang nhớ KHÔNG nhận ra. Trang chỉ nạp danh
+  // sách khi mở và khi gõ "/" (cache 5 giây), nên skill, agent hay workflow vừa cài GIỮA cuộc trò chuyện (Javis
+  // tạo trong lượt trước, cài từ Store ở tab khác) bị coi là chữ thường. app.js thấy cờ này thì nạp lại danh
+  // sách một lần rồi mới định tuyến.
+  function coLenhLa(text) {
+    if (typeof text !== "string" || text.indexOf("/") === -1) return false;
+    var m;
+    MID_RE.lastIndex = 0;
+    while ((m = MID_RE.exec(text)) !== null) {
+      var c = m[2].toLowerCase();
+      if (SESSION_COMMANDS.indexOf(c) !== -1 || SYSTEM_NAMES.indexOf(c) !== -1) continue;
+      if (!nhanGiuaCau(c)) return true;
+    }
+    return false;
   }
 
   // Vùng lệnh để TÔ MÀU trong ô nhập (0.290.0): {start, end} của đúng token mà route() sẽ dùng, hoặc null.
   // Ở đầu tin chỉ tô lệnh có thật (lệnh phiên, lệnh hệ thống, skill, cộng sự): đang gõ dở "/go" thì chưa
   // phải lệnh nào, tô lên là nói dối. Giữa câu thì như parseSlashAnywhere: skill hay cộng sự có thật, lần
   // xuất hiện cuối.
-  function laCongSu(cmd) { return knownPartners.some(function (x) { return x.cmd === String(cmd || "").toLowerCase(); }); }
   function vungLenh(text) {
     if (typeof text !== "string" || text.indexOf("/") === -1) return null;
     var dau = text.match(/^\/([a-zA-Z0-9_-]+)(?=\s|$)/);
-    if (dau) {
+    var hit = chonLanKhop(text, dau ? function (m) { return m.index === 0; } : null);
+    // /goal hay /plan giữa câu thắng token đầu tin (route() cũng chọn nó), còn lại token đầu tin xét trước.
+    if (dau && !(hit && canNoiDungGiua(hit[2]))) {
       var c = dau[1].toLowerCase();
-      if (classify(c) !== "skill" || isKnownSkill(c) || laCongSu(c)) return { start: 0, end: 1 + dau[1].length };
-    }
-    var hit = null, m;
-    MID_RE.lastIndex = 0;
-    while ((m = MID_RE.exec(text)) !== null) {
-      if (m.index === 0 && !m[1] && dau) continue;   // token đầu tin đã xét ở trên
-      if (isKnownSkill(m[2]) || laCongSu(m[2])) hit = m;
+      if (classify(c) !== "skill" || isKnownSkill(c) || timCongSu(c)) return { start: 0, end: 1 + dau[1].length };
     }
     if (!hit) return null;
     var st = hit.index + hit[1].length;
@@ -158,10 +208,10 @@
     var p = parseSlashAnywhere(text);
     if (!p) return { type: "passthrough" };
     if (classify(p.cmd) === "session") return { type: "session", cmd: p.cmd };
-    // Lệnh hệ thống chỉ ở ĐẦU tin. Giữa câu thì rơi xuống nhánh skill/cộng sự bên dưới (một skill
-    // tình cờ trùng tên vẫn gọi được ở giữa câu như cũ).
-    if (classify(p.cmd) === "system" && !p.giuaCau) return { type: "system", cmd: p.cmd, arg: p.arg };
-    var partner = knownPartners.find(function (x) { return x.cmd === p.cmd; });
+    // Lệnh hệ thống ở ĐẦU tin, hoặc ở bất kỳ đâu nếu nó cần nội dung (/goal, /plan: phần chữ còn lại là
+    // nội dung). Lệnh khác giữa câu thì rơi xuống nhánh skill/cộng sự bên dưới.
+    if (classify(p.cmd) === "system" && (!p.giuaCau || canNoiDungGiua(p.cmd))) return { type: "system", cmd: p.cmd, arg: p.arg };
+    var partner = timCongSu(p.cmd);
     if (partner) return { type: partner.kind, slug: partner.slug, message: p.arg };
     return { type: "skill", cmd: p.cmd,
              message: buildSkillInvocation(p.cmd, p.argGiuTen || p.arg, !!p.giuaCau) };
@@ -235,6 +285,7 @@
   var api = {
     parseSlash: parseSlash,
     parseSlashAnywhere: parseSlashAnywhere,
+    coLenhLa: coLenhLa,
     tokenAtCaret: tokenAtCaret,
     setKnownSkills: setKnownSkills,
     setKnownPartners: setKnownPartners,
@@ -273,7 +324,9 @@
       if (skillsCache && cacheBrain === brain && Date.now() - loadedAt < 5000) return skillsCache;
       try {
         var results = await Promise.all(["skills", "agents", "workflows"].map(async function (kind) {
-          try { var r = await fetch("/" + kind + "?brain=" + encodeURIComponent(brain)); if (!r.ok) return {}; return await r.json(); } catch (e) { return {}; }
+          // prompt=0: menu chỉ cần tên/vai, không cần system prompt của từng agent (99% số byte của /agents).
+          var q = (kind === "agents" ? "?prompt=0&brain=" : "?brain=") + encodeURIComponent(brain);
+          try { var r = await fetch("/" + kind + q); if (!r.ok) return {}; return await r.json(); } catch (e) { return {}; }
         }));
         var d = results[0]; agentsCache = results[1].agents || []; workflowsCache = results[2].workflows || [];
         api.setKnownPartners(agentsCache, workflowsCache); loadedAt = Date.now();
@@ -285,6 +338,11 @@
       try { if (api.syncHighlight) api.syncHighlight(); } catch (e) {}   // skill vừa biết thì tô được
       return skillsCache;
     }
+
+    // Nạp lại danh sách skill/cộng sự ngay, bỏ qua cache 5 giây (app.js gọi trước khi gửi một tin có lệnh lạ).
+    api.lamMoi = function () { loadedAt = 0; return loadSkills(); };
+    // Cache coi như cũ: lượt vừa xong có thể đã tạo hay cài skill, agent, workflow mới.
+    api.boCache = function () { loadedAt = 0; };
 
     function hide() { inputSeq++; if (box) box.style.display = "none"; items = []; active = 0; }
 
@@ -375,7 +433,8 @@
       if (seq !== inputSeq || !api.tokenAtCaret(input.value, input.selectionStart)) return;
       // Lenh phien (/new /reset /stop) va lenh he thong chi hien khi token o DAU o nhap: giua cau ma bam
       // /reset thi mat sach ngu canh dang viet do, khong ai muon vay.
-      var all = tok.atHead ? buildMenu(skills, agentsCache, workflowsCache) : buildMenu(skills, agentsCache, workflowsCache).filter(function (x) { return x.kind !== "session" && x.kind !== "system"; });
+      // /goal và /plan (cần nội dung) thì hiện cả giữa câu: chọn chỉ chèn tên lệnh, không chạy ngay.
+      var all = tok.atHead ? buildMenu(skills, agentsCache, workflowsCache) : buildMenu(skills, agentsCache, workflowsCache).filter(function (x) { return x.kind !== "session" && !(x.kind === "system" && !x.needArg); });
       items = filterItems(all, tok.query);
       active = 0;
       if (!items.length) { hide(); return; }

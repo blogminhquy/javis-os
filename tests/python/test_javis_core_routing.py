@@ -131,15 +131,17 @@ try:
     inbox.STORE.unlink(missing_ok=True)
     ok, err = run(main._notify_owner("", "✅ Việc 'Báo cáo tuần' đã hoàn thành.", kind="report", brain=str(A),
                                      dedup="task:t1:done:r1"))
-    items = inbox.danh_sach(50)
+    # 2026-11-19: a report that lands in Javis Core's chat is filed hidden (that chat's red dot shows it), so it is
+    # read with include_hidden here; the dedup key still works on it.
+    items = inbox.danh_sach(50, include_hidden=True)
     check("untargeted report: Javis Core chat and the owner's Telegram", ok and sent == [f"web:{core_a}", "111"], sent)
     check("the bell item carries the source brain and opens Javis Core",
           items and items[0]["brain"] == KA and items[0]["session_id"] == core_a
-          and items[0]["channel"] == "agent:javis-core", items[:1])
+          and items[0]["channel"] == "agent:javis-core" and items[0].get("hidden") is True, items[:1])
     sent.clear()
     ok, _ = run(main._notify_owner("", "✅ Việc 'Báo cáo tuần' đã hoàn thành.", kind="report", brain=str(A),
                                    dedup="task:t1:done:r1"))
-    check("a retry with the same key: filed once, sent once", ok and sent == [] and len(inbox.danh_sach(50)) == 1, sent)
+    check("a retry with the same key: filed once, sent once", ok and sent == [] and len(inbox.danh_sach(50, include_hidden=True)) == 1, sent)
     sent.clear()
     ok, err = run(main._notify_owner("", "Báo cáo lạc", kind="report"))
     it = inbox.danh_sach(50)[0]
@@ -169,7 +171,7 @@ try:
     ok, _ = run(main._notify_owner("", "Việc xong", kind="report", brain=str(B)))
     check("one channel failing does not stop the other or the report", ok and len(sent) == 2
           and sent[0] == f"web:{javis_core.current_default(KB)}" and sent[1] == "111"
-          and inbox.danh_sach(1)[0]["brain"] == KB, sent)
+          and inbox.danh_sach(1, include_hidden=True)[0]["brain"] == KB, sent)
 finally:
     main._gui_qua_kenh = real_channel
 

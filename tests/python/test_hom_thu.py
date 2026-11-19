@@ -115,7 +115,18 @@ finally:
 check("_notify_owner vẫn gửi qua kênh như cũ", len(gui) == 1 and gui[0][0] == "web:phien-abc")
 check("_notify_owner trả ok", ok is True and err == "")
 moi = inbox.danh_sach(10_000)
-check("CANARY: mọi lượt báo đều để lại MỘT mẩu thư", len(moi) == n0 + 1, f"{n0} -> {len(moi)}")
+# 2026-11-19 (owner): "answers of chats, partners and teams need no notification, a red dot on the menu is enough".
+# A result that lands in a chat with its own unread dot is not filed in the bell; one that needs the owner still is.
+check("CANARY: kết quả đã nằm trong khung chat có chấm đỏ riêng thì không vào chuông", len(moi) == n0, f"{n0} -> {len(moi)}")
+gui.clear()
+main._gui_qua_kenh = _gia_kenh
+try:
+    asyncio.get_event_loop().run_until_complete(
+        main._notify_owner("web:phien-abc", "Cần anh duyệt\nchi tiết ở đây", kind="answer", level="urgent"))
+finally:
+    main._gui_qua_kenh = that_kenh
+moi = inbox.danh_sach(10_000)
+check("CANARY: tin cần chủ ra tay vẫn để lại MỘT mẩu thư", len(moi) == n0 + 1, f"{n0} -> {len(moi)}")
 check("thư bóc đúng mã phiên từ tiền tố web:", moi[0]["session_id"] == "phien-abc", moi[0]["session_id"])
 
 # Kênh hỏng (chưa đấu Telegram) mà thư vẫn vào hòm thì lượt báo vẫn tính là TỚI ĐƯỢC người
@@ -147,7 +158,10 @@ main._CHAT_RUNTIME.publish = _bat_publish
 main._gui_qua_kenh = _gia_kenh
 try:
     asyncio.get_event_loop().run_until_complete(
-        main._notify_owner("web:phien-xyz", "Xong rồi nhé"))
+        main._notify_owner("web:phien-xyz", "Xong rồi nhé", level="urgent"))
+    # 2026-11-19: a plain answer is not filed in the bell, but the rail dot still hears about it at once.
+    asyncio.get_event_loop().run_until_complete(
+        main._notify_owner("web:phien-xyz", "Câu trả lời thường"))
 finally:
     main._CHAT_RUNTIME.publish = that_publish
     main._gui_qua_kenh = that_kenh
@@ -157,6 +171,9 @@ check("CANARY: có thư mới thì bắn sự kiện WebSocket cho chuông cập
       len(inbox_ev) == 1, [e.get("type") for e in su_kien])
 check("sự kiện mang mã phiên để khung chat đang mở tự đánh dấu đã đọc",
       inbox_ev and inbox_ev[0].get("session_id") == "phien-xyz")
+check("câu trả lời thường bắn chat_unread cho chấm đỏ trên menu",
+      any(e.get("type") == "chat_unread" and e.get("session_id") == "phien-xyz" for e in su_kien),
+      [e.get("type") for e in su_kien])
 
 
 # ─────────── 4b. Mẩu thư mang theo KÊNH để bấm vào là về đúng trang (0.59.22) ───────────
@@ -177,9 +194,9 @@ main.get_store = lambda: _GiaStore()
 main._gui_qua_kenh = _gia_kenh
 try:
     asyncio.get_event_loop().run_until_complete(
-        main._notify_owner("web:phien-cs", "Quy trình chạy xong", kind="answer"))
+        main._notify_owner("web:phien-cs", "Quy trình chạy xong", kind="answer", level="urgent"))
     asyncio.get_event_loop().run_until_complete(
-        main._notify_owner("web:phien-thuong", "Việc thường chạy xong", kind="answer"))
+        main._notify_owner("web:phien-thuong", "Việc thường chạy xong", kind="answer", level="urgent"))
     asyncio.get_event_loop().run_until_complete(
         main._notify_owner("12345678", "Tin đi Telegram", kind="report"))
 finally:

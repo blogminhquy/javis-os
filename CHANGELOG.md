@@ -6,6 +6,57 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.603.0] - 2026-11-19
+### Cải thiện
+- **Tab Đã học và Tài liệu chia trang, mỗi trang 20 mục.** Danh sách dài có ô tìm (gõ không dấu vẫn ra) và nút Thêm đứng ngay trên đầu, khỏi phải cuộn hết danh sách.
+- **Ghi chú Đã học dễ nhìn hơn.** Lọc nhanh theo Sự thật, Quyết định, Thuật ngữ; mỗi loại một màu; ghi chú của bạn có vạch cam bên trái.
+- **Sửa ghi chú, bài học, mô tả tài liệu trong một khung rộng.** Thay cho ô nhập một dòng của trình duyệt: chữ hiện trọn, có đếm ký tự, đổi được loại ghi chú, Ctrl+Enter để lưu. Trên điện thoại khung kéo từ dưới lên.
+
+## [0.602.1] - 2026-11-19
+### Sửa lỗi
+- **Gọi `javis_team` không còn báo "không tồn tại" khi hub bật chế độ lazy.** Khi có nhiều công cụ, hub giấu bớt sau ô tìm kiếm, nhưng trợ lý quen gọi thẳng tên nên bị báo lỗi. Giờ gọi thẳng tên vẫn chạy đúng công cụ, vẫn qua cùng lớp quyền. Lối tắt huỷ lịch nhắc cũng chạy lại được khi lazy bật.
+
+## [0.602.0] - 2026-11-19
+### Cải thiện
+- **Chuông thông báo gọn hẳn.** Câu trả lời của trò chuyện, cộng sự và team không còn đẩy lên chuông. Thay vào đó là **chấm đỏ** ở mục Trò chuyện, Cộng sự, Team trên menu, như chấm đỏ đang có ở từng cuộc chat.
+- **Việc chạy theo lịch không còn kêu mỗi lần chạy.** Kết quả vẫn về đúng khung chat hoặc Telegram, chuông chỉ kêu khi việc lỗi hẳn, hoặc khi chính lần chạy thấy có chuyện anh cần ra tay.
+- **Tiêu đề thông báo dễ đọc hơn.** Mỗi lần chạy tự viết một dòng tiêu đề ngắn nói kết quả, không còn kiểu "Em kiểm tra..." và không lặp lại tiêu đề ở dòng dưới.
+
+## [0.601.0] - 2026-11-19
+### Thêm mới
+- **Link Javis gửi trên Zalo cá nhân hiện thẻ xem trước.** Tin có link giờ hiện tiêu đề, mô tả và ảnh của trang ngay dưới chữ, như khi người thật gõ link trong app Zalo. Trước đây chỉ là link trần. Chủ báo ngày 19/11/2026.
+- **Link Javis gửi trên WhatsApp cũng hiện thẻ xem trước.**
+
+## [0.600.1] - 2026-11-19
+### Sửa lỗi
+- **/goal và /plan gõ ở cuối hay giữa câu giờ chạy được.** Trước đây chỉ ăn khi đứng đầu tin, gõ "...làm luôn giúp anh /goal" thì Javis chỉ chat thường. Phần chữ còn lại thành nội dung của mục tiêu.
+- **Skill, agent, workflow vừa cài giữa cuộc trò chuyện gọi được ngay bằng "/" ở giữa câu.** Trang nạp lại danh sách trước khi gửi nếu gặp tên lạ, không còn coi là chữ thường.
+- **Gõ tên agent hay workflow không cần tiền tố.** "/seo-pro" mở thẳng agent seo-pro, như "/agent-seo-pro".
+- **Dấu câu ngay sau lệnh không làm hụt lệnh.** "/viet-email," hay "/goal." vẫn được nhận.
+
+## [0.600.0] - 2026-11-19
+### Thêm mới
+- **Link mở thẳng một việc.** Địa chỉ dạng `#task=<mã>` mở trang Nhiệm vụ rồi mở đúng việc đó: việc của bạn (`m:`), nhắc hẹn (`r:`) hoặc việc Javis làm (`k:`). Trang ngoài như bảng điều hành tự làm có thể dẫn thẳng tới một việc thay vì chỉ tới trang Nhiệm vụ.
+
+## [0.599.0] - 2026-11-19
+### Thêm mới
+- **Bot học từ câu bạn xác nhận.** Trên bản nháp ở Hộp thư có ô tick "Bot học câu này", bật sẵn. Gửi một câu có lệnh của bạn, hoặc câu bạn đã tự sửa, thì câu đó được ghi vào tài liệu của Agent (file `tri-thuc-chatbot/<tên-agent>.md`). Lần sau khách khác hỏi chuyện tương tự, bot trả lời theo đúng câu bạn đã xác nhận. Chuyện riêng của một khách thì bỏ tick.
+### Sửa lỗi
+- **Nút soạn trả lời khách làm đúng lệnh của chủ.** Gõ "lịch đã xác nhận 20h ngày 21 và 22" rồi bấm soạn, câu trả lời báo đúng lịch đó, không còn viết "em chưa có lịch xác nhận" chỉ vì tài liệu chưa có hay trước đó bot từng nói "đang kiểm tra". Lệnh của chủ là lời mới nhất, đứng trên tài liệu và lịch sử cuộc chat, không kèm danh sách câu cấm nào. Bấm Viết lại cũng theo lệnh đó.
+### Cải thiện
+- **"A.I. soạn" đổi tên thành "Javis soạn"** ở nút trong ô nhập, chế độ trên đầu cuộc chat và các dòng của bản nháp.
+
+## [0.598.1] - 2026-11-19
+### Sửa lỗi
+- **Thẻ bot hiện tên Fanpage thay vì Page ID dạng số.** Trang gắn bằng cách dán token trước đây chỉ lưu ID nên chip kênh hiện một dãy số, khó biết là Trang nào. Nay mỗi lần bot khởi động, Javis lưu tên thật của Trang và chip hiện tên đó. Nhãn bạn tự đặt (tên viết tắt) vẫn được ưu tiên, còn ID xem được khi rê chuột vào chip.
+
+## [0.598.0] - 2026-11-19
+### Thêm mới
+- **Nhờ Javis đặt lịch chạy script ngay trong chat.** Ví dụ "mỗi phút chạy check_shop.py": job chạy thẳng script, không gọi model nên rẻ, và chạy được mỗi phút.
+### Cải thiện
+- **Kết quả của lịch được lưu đủ, không còn cắt ở 2.000 ký tự.** Lần chạy sau vẫn chỉ đọc phần đầu cho gọn, nhưng giờ biết rõ là đã bị cắt.
+- **Lịch lặp bị lỡ lượt thì trang Nhiệm vụ ghi "lỡ N lần".** Trước đây khi một lượt chạy trễ hay chạy lâu, các lượt kế bị bỏ qua mà không ai biết.
+
 ## [0.597.0] - 2026-11-19
 ### Thêm mới
 - **Việc "Chờ bạn" của nhóm giờ trả lời được, không chỉ Thử lại.** Bấm **Trả lời** cạnh Thử lại: chọn "Làm tiếp" để thành viên làm lại bước đó kèm câu trả lời của bạn, hoặc "Hỏi lại" để hỏi rõ trước, việc vẫn chờ bạn.

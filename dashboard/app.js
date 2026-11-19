@@ -1327,6 +1327,11 @@ function handleMessage(data) {
   if (sid && _luotDaDung[sid] != null && data.type !== "turn_done" && KHUNG_LUOT.includes(data.type)
       && t && t.id && t.id !== _luotDaDung[sid]) delete _luotDaDung[sid];
 
+  if (data.type === "turn_saved" || data.type === "chat_unread") {
+    // 19/11/2026: an answer was saved somewhere: the red dots on the rail (rail-unread.js) read their counts again.
+    try { window.dispatchEvent(new CustomEvent("javis:chat-activity", { detail: data })); } catch (e) {}
+    if (data.type === "chat_unread") return;
+  }
   if (data.type === "turn_saved" || data.type === "chat_reaction") {
     // T2 (0.154.0): turn_saved mang mã tin của câu trả lời vừa lưu (bong bóng vừa chốt nhận data-mid, hiện nút thả cảm xúc);
     // chat_reaction vẽ lại reaction của tin đó ở mọi bong bóng đang mở, kể cả khi đổi ở tab khác. Không đụng lượt đang chạy
@@ -1643,6 +1648,8 @@ function handleMessage(data) {
     if (isActive) { hideActivity(); veKhoiBuoc(t, false); syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
     // T2: bong bóng hay mã tin còn chờ ghép của lượt này chỉ sống thêm một quãng ngắn (xem chat-reactions.js).
     try { if (window.JavisChatReactions) window.JavisChatReactions.turnDone(sid); } catch (e) {}
+    // Lượt vừa xong có thể đã tạo hay cài skill, agent, workflow: menu "/" lần tới nạp lại, không dùng bản cũ.
+    try { if (window.JavisSlash && window.JavisSlash.boCache) window.JavisSlash.boCache(); } catch (e) {}
     if (sid) delete turns[sid];
     if (isActive && _tinChoLuot) guiTinCho();   // câu người dùng chen ngang: lượt cũ dừng hẳn rồi thì gửi
     if (isActive) guiCauChoLuot();               // câu nói lúc đang trả lời (cuộc gọi): gửi nếu loa đã im
@@ -1903,6 +1910,8 @@ function _drawUnacked(id, ds) {
 // bộ nhớ trang: tải lại trang là quên, và như vậy là đúng - lúc đó người dùng không còn đang
 // theo dõi cuộc gọi ấy nữa.
 const _gocCongSu = {};
+// Đang nạp lại danh sách lệnh "/" trước khi gửi một tin (xem sendMessage).
+let _choNapLenh = null;
 
 // `opts.wfRun`: tin này đến từ nút CHẠY của trang Cộng sự. Server dùng cờ đó để không
 // đoán lại ý người dùng (xem workflow_chat.quyet_dinh_luot): bấm đúng nút Chạy thì chạy,
@@ -1917,6 +1926,17 @@ function sendMessage(text, opts) {
   // bắt đầu bằng "/").
   const _slash = (opts && opts.prefix) ? { type: "prefix", prefix: opts.prefix, message: msg }
     : (window.JavisSlash && msg) ? window.JavisSlash.route(msg) : { type: "passthrough" };
+  // Tin có "/ten" giữa câu mà danh sách skill/agent/workflow trang đang nhớ chưa có (vừa cài giữa cuộc trò
+  // chuyện): nạp lại danh sách MỘT lần rồi định tuyến lại, thay vì lặng lẽ gửi như chat thường. Chủ repo báo
+  // 19/11/2026: cài giữa chừng thì không gọi được, chỉ gõ ở đầu tin mới ăn.
+  if (_slash.type === "passthrough" && !(opts && (opts.prefix || opts._lenhMoi)) && window.JavisSlash
+      && window.JavisSlash.lamMoi && window.JavisSlash.coLenhLa(msg)) {
+    if (_choNapLenh) return;   // Enter lần nữa trong lúc đang nạp: tin đầu sẽ đi, không gửi đôi
+    const o = Object.assign({}, opts || {}, { _lenhMoi: true });
+    const tiep = () => { _choNapLenh = null; sendMessage(msg, o); };
+    _choNapLenh = Promise.resolve(window.JavisSlash.lamMoi()).then(tiep, tiep);
+    return;
+  }
   if (_slash.type === "system") {
     // Lệnh hệ thống (chat-lenh.js): tự xử lý tại chỗ, không gửi gì cho model. /plan và /goal thì
     // tự gọi lại sendMessage với `opts.prefix` sau khi xin khối chỉ dẫn từ máy chủ.

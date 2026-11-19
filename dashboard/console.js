@@ -370,6 +370,28 @@
     const has = (o) => Object.prototype.hasOwnProperty.call(o, id);
     return has(RAIL_BY_ID) || has(TRANG_GOP) ? id : "";
   }
+  // `#task=<id>` names one item of the Tasks page: k:<Kanban job>, r:<reminder> or m:<one of the owner's own tasks>,
+  // the same ids tasks.js gives its rows. Anything else is not a task link.
+  function deepLinkTask(hash) {
+    const m = /^#task=([kmr]:[\w.-]{1,80})$/.exec(String(hash == null ? "" : hash));
+    return m ? m[1] : "";
+  }
+  // Open the Tasks page, then that item. tasks.js loads lazily, so wait (up to ~15 s: a slow VPS or a phone on a weak line) until it has its data. An id
+  // this brain does not have leaves the reader on the Tasks page with a line saying so, never on a blank screen.
+  async function openTaskLink(id) {
+    Alpine.store("nav").go("tasks");
+    for (let i = 0; i < 150; i++) {
+      const nv = window.JavisTasks;
+      if (nv && typeof nv.ready === "function" && nv.ready() && typeof nv.openItem === "function") {
+        let shown = false;
+        try { shown = await nv.openItem(id); } catch (e) {}
+        if (!shown) toast(t("nv.link_missing"), true);
+        return shown;
+      }
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return false;
+  }
   const TRANG_CUOI_KEY = "javis_last_page";
   function khoiPhucTrang() {
     let id = "home";
@@ -9469,6 +9491,10 @@
       // ĐẾM phản ứng để đá vào getter. Thiếu nó thì đổi ngôn ngữ xong rail vẫn chữ cũ
       // cho tới khi F5 - một kiểu hỏng nhìn như "lưu không ăn".
       i18nTick: 0,
+      // Owner, 19/11/2026: a red dot on Chat, Partners and Team when something there is unread (rail-unread.js), in
+      // place of a bell notification for every answer.
+      unread: {},
+      groupUnread(g) { return !!(g && g.items && g.items.some(it => this.unread[it.id])); },
       get groups() { void this.i18nTick; return railGroups(); },
       get meta() { void this.i18nTick; return VIEW_META[this.active] || VIEW_META.home; },
       isOpen(label) { return this.openGroup === label; },
@@ -10874,7 +10900,7 @@
     try { if (window.JavisCockpit && window.JavisCockpit.firstPage) window.JavisCockpit.firstPage(Alpine.store("nav").active); } catch (e) {}
 
     // Deep links in the URL hash: #open=<vault path> (file links in chat), #cs=<agent|workflow:slug[:session]> (a
-    // partner's chat) and #p=<page id> (a dashboard page, issue 1346). Read once on load, after settings (below), and
+    // partner's chat), #p=<page id> (a dashboard page, issue 1346) and #task=<id> (one item of the Tasks page). Read once on load, after settings (below), and
     // again each time the hash changes in an open tab, so a link followed there works too. A hash is handled once, so
     // the load read and a hashchange racing it never open the same thing twice. Nothing here writes the hash, so a
     // hash the app sets itself (the #p= fallbacks of other modules) cannot loop back into this.
@@ -10892,6 +10918,8 @@
         if (c) moCongSu(decodeURIComponent(c[1]));
         const p = deepLinkPage(h);
         if (p) Alpine.store("nav").go(p);
+        const tk = deepLinkTask(h);
+        if (tk) openTaskLink(tk);
       } catch (e) {}
     };
     window.addEventListener("hashchange", runDeepLink);

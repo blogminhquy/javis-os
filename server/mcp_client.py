@@ -1314,6 +1314,14 @@ async def call_route(route, fn, arguments):
     """Gọi 1 tool theo fn. Entry: {"call"} (hub bọc sẵn) | {"spec","tool"} (pool) | {"server","tool"} (legacy)."""
     ent = route.get(fn)
     if not ent:
+        lazy = route.get("javis_run_tool")
+        if lazy and lazy.get("call") and fn not in ("javis_run_tool", "javis_search_tools"):
+            # 2026-11-19: with the hub's lazy tier on, most tools (javis_team, javis_task...) sit behind
+            # javis_search_tools. The prompt names them, so a model calls them by name, and that answered
+            # "tool không tồn tại" although the tool is there. Hand the call to javis_run_tool: it dispatches
+            # through the full guarded route (same permission, audit, owner-only filter), and a name that
+            # really is missing still gets its hint to search first.
+            return await lazy["call"]({"name": fn, "args": arguments or {}})
         return f"ERROR: tool '{fn}' không tồn tại"
     try:
         if ent.get("call"):

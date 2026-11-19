@@ -186,6 +186,10 @@
   font-size: 16px; }
 .ib-draft-a { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .ib-draft-a button { font-size: 16px; display: inline-flex; align-items: center; gap: 6px; }
+.ib-dr-learn { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 16px; color: var(--ib-ai-ink);
+  cursor: pointer; min-height: 44px; }
+.ib-dr-learn[hidden] { display: none; }
+.ib-dr-learn input { width: 18px; height: 18px; margin: 0; accent-color: var(--ib-ai); cursor: pointer; }
 /* "A.I. is writing" (owner 2026-11-18: a still button made people think it broke): a pulsing sparkle, what it does now,
    the seconds so far, and three moving lines where the draft will land. Reduced motion keeps it still. */
 .ib-aiw .ib-draft-h { font-weight: 600; }
