@@ -333,6 +333,16 @@
       render();
     } catch (e) { state.note[item.id] = window.t("noti.react_err"); render(); }
   }
+  // The line under the title (owner, 2026-11-19: "the notices are hard to read"). The server's one-line `summary` when
+  // there is one; else the text without the title it starts with. A card used to print the title twice when the text
+  // was a single sentence.
+  function dongPhu(item) {
+    if (item.summary) return item.summary;
+    var tieuDe = String(item.title || "").trim();
+    var than = String(item.body || "").replace(/\*\*|__|`/g, "").trim();
+    if (tieuDe && than.indexOf(tieuDe) === 0) than = than.slice(tieuDe.length).trim();
+    return than;
+  }
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
     var why = item.filtered ? (item.why === "repeat" ? "noti.why_repeat" : item.why === "muted" ? "noti.why_muted" : "noti.why_mode") : "";
@@ -344,7 +354,7 @@
       esc(nhanLoai(item.kind)) + '</span><span class="noti-top-r"><span class="noti-time">' + esc(thoiGian(item.ts)) +
       "</span>" + nutX() + "</span></div>" +
       "<h4>" + esc(item.title || window.t("noti.msg_title")) + "</h4>" +
-      '<p class="noti-card-body">' + esc(item.body || "") + "</p>" +
+      (dongPhu(item) ? '<p class="noti-card-body">' + esc(dongPhu(item)) + "</p>" : "") +
       (why ? '<span class="noti-why">' + esc(window.t(why)) + "</span>" : "") +
       (phu ? '<span class="noti-cta">' + phu + "</span>" : "") + phanHoiHtml(item) + "</article>";
   }

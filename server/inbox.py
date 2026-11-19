@@ -58,6 +58,7 @@ KINDS = ("answer", "report", "system")
 # Tiêu đề cắt ngắn cho vừa một dòng thẻ; thân thư cắt cho vừa cái xem trước.
 MAX_TITLE = 120
 MAX_BODY = 600
+MAX_SUMMARY = 160
 
 
 def _load() -> dict:
@@ -116,7 +117,7 @@ def _tieu_de(text: str) -> str:
 def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "",
         source: str = "", label: str = "", title: str = "", read: bool = False,
         channel: str = "", dedup: str = "", routing: str = "", group: str = "", level: str = "", sig: str = "",
-        filtered: bool = False, why: str = "") -> dict:
+        filtered: bool = False, why: str = "", summary: str = "", hidden: bool = False) -> dict:
     """Bỏ MỘT mẩu thư vào hòm. Trả về thư vừa tạo.
 
     `text` là nguyên văn nội dung đã gửi cho người dùng; hòm thư chỉ giữ bản cắt ngắn để
@@ -151,6 +152,16 @@ def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "
     # same key; the first item stands and the caller learns it was a repeat (`duplicate`), so no channel rings twice.
     # `routing` (0.186.0): why the report could not be delivered to a chat ("no_target": no chat and no source brain),
     # kept so the owner sees it in the bell instead of Javis guessing a recipient.
+    # 2026-11-19: one plain line under the title (the run's own JAVIS_NOTIFY line, or the first reporting line of the
+    # text). The card shows it instead of the raw start of the text, which often repeated the title word for word.
+    summary = " ".join(str(summary or "").split())[:MAX_SUMMARY]
+    if summary and summary.lower() != item["title"].lower():
+        item["summary"] = summary
+    # 2026-11-19 (owner): an answer that sits in a chat with its own unread dot is not shown in the bell. It is still
+    # filed, hidden and read, so its `dedup` key keeps a retried report from being posted twice.
+    if hidden:
+        item["hidden"] = True
+        item["read"] = True
     if dedup:
         item["dedup"] = str(dedup)[:200]
     if routing:
@@ -191,10 +202,11 @@ def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "
     return item
 
 
-def danh_sach(limit: int = 50) -> list:
-    """Thư MỚI NHẤT trước. `limit` chặn trên để panel không phải tải cả trăm mẩu."""
+def danh_sach(limit: int = 50, include_hidden: bool = False) -> list:
+    """Thư MỚI NHẤT trước. `limit` chặn trên để panel không phải tải cả trăm mẩu. Hidden items (answers shown by a chat's
+    own red dot, 2026-11-19) are left out unless `include_hidden`."""
     with _LOCK:
-        items = list(_load().get("items") or [])
+        items = [x for x in (_load().get("items") or []) if include_hidden or not x.get("hidden")]
     items.sort(key=lambda x: float(x.get("ts") or 0), reverse=True)
     return items[:max(1, int(limit or 50))]
 

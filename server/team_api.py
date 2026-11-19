@@ -807,6 +807,18 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             return {"ok": True, "teams": rows, "next": nxt}
         return await api.io(_do)
 
+    @app.get("/teams/unread")
+    async def teams_unread(brain: str = "brain"):
+        """How many teams of the brain have messages the owner has not read (owner, 2026-11-19): the red dot on the
+        Team entry of the rail, in place of a bell notification for every team answer."""
+        def _do():
+            root = _root(brain)
+            if root is None or not api.exists():
+                return {"ok": True, "teams": 0}
+            teams = api.teams().list_teams(root, limit=200)
+            return {"ok": True, "teams": sum(1 for t in teams if (api.unread(t) or {}).get("n"))}
+        return await api.io(_do)
+
     @app.post("/teams")
     async def teams_create(request: Request, brain: str = "brain"):
         body = await _body(request)

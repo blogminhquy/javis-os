@@ -77,6 +77,7 @@ from claude_cli import claude_engine, cancel_all, _empty_mcp_file
 import aux_engine   # engine viec nen theo model phu nguoi dung chon
 import job_recipes   # a recurring job replays its own read chain before the model starts
 import job_scorecard
+import notice_text      # a short headline for the bell (owner, 2026-11-19)
 
 # Múi giờ để tính giờ nhắc hẹn. Đọc từ cấu hình, KHÔNG còn ghim Việt Nam.
 #
@@ -231,6 +232,35 @@ class NotifyNotReady(ValueError):
 
 
 SILENT_MARK = "[SILENT]"
+
+
+def _bell_notice(outcome: str, name: str, text: str, meta: dict, at: str = "") -> dict:
+    """What the bell shows for one firing of a scheduled job (owner, 2026-11-19: "the notices are hard to read, people
+    skip them, and Javis sends far too many, even when there is nothing to do").
+
+    A job that ran fine is a result, not a reminder: it lands in its chat or channel as before and is filed in the
+    bell as already read, without a red dot or a push. It rings only when the run itself says the owner has to act
+    (`act` in its JAVIS_NOTIFY block). A failure the owner has to fix rings; a network error that Javis retries by
+    itself does not. Only a plain reminder (mode notify) keeps the "reminder" group, urgent by default.
+
+    Returns {"title", "summary", "group", "level"} for `_notify_owner` (main.py)."""
+    name = name or localefmt.chu("Việc theo lịch", "Scheduled job")
+    meta = meta or {}
+    if outcome == "done":
+        title = meta.get("title") or notice_text.headline(
+            text, localefmt.chu(f"{name}: đã chạy xong", f"{name}: done"))
+        line = meta.get("line") or notice_text.summary(text, title)
+        return {"title": title, "summary": line, "group": "job", "level": "urgent" if meta.get("act") else "info"}
+    if outcome == "retrying":
+        return {"title": localefmt.chu(f"{name}: lỗi mạng, tự thử lại lúc {at}", f"{name}: network error, retrying at {at}"),
+                "summary": notice_text.clean_line(str(text or "").strip().splitlines()[-1] if text else "")[:160],
+                "group": "job", "level": "info"}
+    if outcome == "empty":
+        return {"title": localefmt.chu(f"{name}: chạy xong nhưng không có kết quả", f"{name}: ran but returned nothing"),
+                "summary": "", "group": "job", "level": "important"}
+    last = [ln for ln in str(text or "").strip().splitlines() if ln.strip()]
+    return {"title": localefmt.chu(f"{name}: chưa chạy được", f"{name}: could not run"),
+            "summary": notice_text.clean_line(last[-1] if last else "")[:160], "group": "job", "level": "urgent"}
 
 
 def _is_silent_task_result(body: str) -> bool:
@@ -874,6 +904,10 @@ class RemindersFeature:
         run_failed = False       # the run itself produced nothing usable (set per mode below)
         stopped = False          # the owner stopped this run (POST /reminders/stop)
         t0 = _now()
+        meta = {}
+        # What the bell shows for this firing (owner, 2026-11-19): set per outcome below, see `_bell_notice`.
+        notice = {}
+        name = notice_text.short_name(rem.get("label") or text)
         if mode == "task":
             previous = ""
             if rem.get("remember_last") and rem.get("result") and float(rem.get("fired_at") or 0) > 0:
@@ -936,6 +970,7 @@ class RemindersFeature:
                         _RUN_RID.reset(rid_tok)
                 finally:
                     turn_context.reset(tok)
+            body, meta = notice_text.split_block(body)
             run_failed = not (body or "").strip()
             if rem.get("id") in self._stopped:
                 # The owner pressed stop on the Tasks page: no retry, nothing posted.
@@ -956,6 +991,7 @@ class RemindersFeature:
                 # vai trò, quy trình. Telegram chỉ cần KẾT QUẢ cuối; ghép prompt vào đây vừa rối
                 # vừa làm lộ chỉ dẫn máy như ca Coach Mục Tiêu & Kỷ Luật.
                 msg = body.strip()
+                notice = _bell_notice("done", name, body, meta)
             elif err and retry_at:
                 # The network will likely be back in a few minutes: say so once, on the first
                 # failure, and stay quiet on the retries in between. The final outcome (an answer,
@@ -968,10 +1004,12 @@ class RemindersFeature:
                                            f"(lần 1/{len(RETRY_DELAYS_S)}), việc đã gửi đi rồi thì không gửi lại.",
                                            f"This looks like a network error. Javis will try again at {luc} "
                                            f"(attempt 1 of {len(RETRY_DELAYS_S)}); anything already sent is not sent again."))
+                    notice = _bell_notice("retrying", name, err, meta, at=luc)
                 else:
                     deliver = False
             elif err:
                 msg = localefmt.chu("⚠ Nhắc hẹn chưa chạy được nhiệm vụ: ", "⚠ The reminder could not run its task: ") + err[:300]
+                notice = _bell_notice("failed", name, err, meta)
                 if 0 < attempt <= len(RETRY_DELAYS_S):
                     msg += "\n\n" + localefmt.chu(f"Đã thử lại {attempt} lần vẫn lỗi.",
                                                   f"Still failing after {attempt} retries.")
@@ -984,6 +1022,7 @@ class RemindersFeature:
                         pass
             else:
                 msg = localefmt.chu("⚠ Nhắc hẹn đã chạy nhưng không trả về nội dung.", "⚠ The reminder ran but returned nothing.")
+                notice = _bell_notice("empty", name, "", meta)
         elif mode == "script":
             async with self.script_lock:
                 out, serr, code = await self._run_script(brain, rem.get("script", ""))
@@ -992,6 +1031,7 @@ class RemindersFeature:
             if code != 0:
                 err = (serr or out or "").strip()
                 tail = err[-1500:]
+                notice = _bell_notice("failed", notice_text.short_name(rem.get("label") or rem.get("script")), tail, {})
                 msg = localefmt.chu(f"⚠ Job script '{rem.get('script')}' lỗi (exit {code})",
                                     f"⚠ Script job '{rem.get('script')}' failed (exit {code})") + (":\n" + tail if tail else "")
             else:
@@ -1000,8 +1040,11 @@ class RemindersFeature:
                     deliver = False       # stdout rỗng / cờ [SILENT] → im lặng (giống Hermes)
                 else:
                     msg = clean[:SCRIPT_OUT_CAP]
+                    msg, meta = notice_text.split_block(msg)
+                    notice = _bell_notice("done", notice_text.short_name(rem.get("label") or rem.get("script")), msg, meta)
         else:   # notify
             msg = localefmt.chu("⏰ Nhắc bạn: ", "⏰ Reminder: ") + text
+            notice = {"title": notice_text.clean_line(msg)[:notice_text.TITLE_MAX], "group": "reminder"}
 
         ok, send_err = True, ""
         voice_rel = ""
@@ -1044,6 +1087,8 @@ class RemindersFeature:
                     # A network retry is a new message about the same firing: its own key, or the
                     # inbox would drop the answer as a duplicate of the error posted before it.
                     kw["dedup"] = f"rem:{rem.get('id', '')}:{slot}" + (f":r{attempt}" if attempt else "")
+                if notice and _nhan_kw(self.deps.send_telegram, "notice"):
+                    kw["notice"] = notice
                 ok, send_err = await self.deps.send_telegram(
                     rem.get("chat_id", ""), channel_context.strip_control_blocks(msg), **kw)
             except Exception as e:
@@ -1336,29 +1381,34 @@ class RemindersFeature:
         cli.max_wall_s = aux_engine.bg_max_wall_s()
         if not cli.is_available():
             return "", localefmt.chu("Claude CLI chưa cài", "Claude CLI is not installed")
-        rang_buoc = {
-            "suggest": ("Mức quyền của nhắc hẹn này là CHỈ ĐỌC: được đọc dữ liệu thật qua MCP "
-                        "và đọc file, KHÔNG ghi file, KHÔNG hành động ra ngoài. Việc nào cần "
-                        "hành động thì mô tả lại cho user tự làm."),
-            "auto": ("Mức quyền của nhắc hẹn này là ĐƯỢC GHI FILE: đọc dữ liệu thật qua MCP và "
-                     "ghi file nháp trong vault, nhưng KHÔNG tạo đơn / tiêu tiền / chạy quảng "
-                     "cáo / đăng bài / gửi tin ra ngoài."),
-            # Không kể lể "hãy cẩn thận": user đã được cảnh báo lúc tạo và đã chọn mức này. Nói
-            # đúng một điều model cần biết mà nó không tự suy ra được: việc này chạy KHÔNG có
-            # ai ngồi cạnh, nên hỏi lại là hỏi vào hư không.
-            "full": ("Mức quyền của nhắc hẹn này là TOÀN QUYỀN: user đã chủ động cấp, nên cứ "
-                     "làm đúng việc được giao bằng các công cụ đã đấu, gồm cả hành động ra "
-                     "ngoài. Không có ai ngồi cạnh để duyệt hay trả lời câu hỏi ở bước này: "
-                     "làm được thì làm rồi thuật lại đã làm gì, không làm được thì nói thẳng "
-                     "là chưa làm và vì sao, tuyệt đối đừng hỏi lại rồi ngồi đợi."),
+        limits = {
+            "suggest": ("Permission level of this scheduled job: READ ONLY. You may read real data through MCP "
+                        "and read files; do NOT write files and do NOT act outside. Anything that needs an "
+                        "action, describe it for the owner to do."),
+            "auto": ("Permission level of this scheduled job: MAY WRITE FILES. Read real data through MCP and "
+                     "write draft files in the vault, but do NOT create orders, spend money, run ads, publish "
+                     "posts or send messages outside."),
+            # No "be careful" speech: the owner was warned when creating it and chose this level. Say the one thing the
+            # model cannot infer: nobody sits next to this run, so asking back is asking into the void.
+            "full": ("Permission level of this scheduled job: FULL. The owner granted it, so do the job with the "
+                     "connected tools, outside actions included. Nobody is there to approve or answer a question "
+                     "at this step: if you can do it, do it and report what you did; if you cannot, say plainly "
+                     "it was not done and why. Never ask back and wait."),
         }[mq]
+        # Owner, 2026-11-19 (bell redesign): the bell reads the headline this run writes, and a run that repeats and
+        # found nothing new stays out of the chat (`[SILENT]`, same rule as script jobs).
+        recurring = bool(_RECIPE_JOB.get())
+        silent = ("\n\nThis job repeats. If its task is to watch or check for something and this run found "
+                  "nothing new and nothing that needs the owner, answer only [SILENT]. A job whose task is to "
+                  "send a report always reports.") if recurring else ""
         # `intro` (0.198.0): another caller of this runner, such as a webhook, says what woke it.
         prompt = (
-            (intro or "NHIỆM VỤ NHẮC HẸN - tới giờ user đã đặt trước.")
-            + " Làm việc dưới đây rồi VIẾT câu trả lời "
-            "NGẮN GỌN như tin nhắn Telegram gửi cho user (tiếng Việt, không bảng, không gạch ngang dài). "
-            + rang_buoc + "\n\n"
-            "Việc cần làm:\n" + text
+            (intro or "SCHEDULED JOB - the time the owner set has come.")
+            + " Do the work below, then WRITE a SHORT answer like a chat message to the owner "
+            "(in the language the job is written in, no tables, no long dashes). Report what came out, "
+            "not what you are about to do. "
+            + limits + silent + "\n\n" + notice_text.PROMPT + "\n\n"
+            "Job:\n" + text
             + task_context_note(previous, late_s)
         )
         recipe_job = _RECIPE_JOB.get()

@@ -1575,6 +1575,20 @@ class SessionStore:
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
         return where_sql, params
 
+    def unread_summary(self, brain: Any = None) -> Dict[str, int]:
+        """Unread chats per rail entry (2026-11-19): `chat` (the Chat page's own list) and `workspace` (partner and
+        workflow chats), archived ones left out. Same unread rule as the dot on each history row (UNREAD_SQL)."""
+        # With no channel, _list_where keeps only the Chat page's chats (partner, bot and team chats left out).
+        where, params = self._list_where(brain, False, None, None, None, False)
+        rows = self._read(f"SELECT COUNT(*) FROM sessions s {where} AND {UNREAD_SQL} = 1", params)
+        chat = int(rows[0][0] or 0) if rows else 0
+        cond, bparams = loc_brain(brain)
+        pre = " OR ".join("s.channel LIKE ?" for _ in KENH_CONG_SU)
+        q = (f"SELECT COUNT(*) FROM sessions s WHERE s.archived = 0 AND ({pre}) AND {UNREAD_SQL} = 1"
+             + (f" AND {cond}" if cond else ""))
+        ws = self._read(q, [p + "%" for p in KENH_CONG_SU] + list(bparams))
+        return {"chat": chat, "workspace": int(ws[0][0] or 0) if ws else 0}
+
     def mark_read(self, session_id: str, at: Optional[float] = None) -> bool:
         """The owner has this chat on screen: every message up to now is read. False when no such chat exists yet
         (a brand-new chat whose id the dashboard minted before the server stored it)."""

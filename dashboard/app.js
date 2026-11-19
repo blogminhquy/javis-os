@@ -1327,6 +1327,11 @@ function handleMessage(data) {
   if (sid && _luotDaDung[sid] != null && data.type !== "turn_done" && KHUNG_LUOT.includes(data.type)
       && t && t.id && t.id !== _luotDaDung[sid]) delete _luotDaDung[sid];
 
+  if (data.type === "turn_saved" || data.type === "chat_unread") {
+    // 19/11/2026: an answer was saved somewhere: the red dots on the rail (rail-unread.js) read their counts again.
+    try { window.dispatchEvent(new CustomEvent("javis:chat-activity", { detail: data })); } catch (e) {}
+    if (data.type === "chat_unread") return;
+  }
   if (data.type === "turn_saved" || data.type === "chat_reaction") {
     // T2 (0.154.0): turn_saved mang mã tin của câu trả lời vừa lưu (bong bóng vừa chốt nhận data-mid, hiện nút thả cảm xúc);
     // chat_reaction vẽ lại reaction của tin đó ở mọi bong bóng đang mở, kể cả khi đổi ở tab khác. Không đụng lượt đang chạy

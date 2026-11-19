@@ -209,9 +209,10 @@ LY_DO_CAN_QUYEN = (
 _BUCKET_SEP = "\x1f"
 
 
-def _report_extra(fn, brain, dedup) -> dict:
+def _report_extra(fn, brain, dedup, level: str = "") -> dict:
     """`brain` and `dedup` for the report hook when it takes them (0.186.0); test fakes that only take the old
-    arguments keep working."""
+    arguments keep working. `level` "urgent" (2026-11-19) marks a report that waits on the owner (approval, review,
+    blocked), the only kind that still reaches the bell once plain answers became a red dot on the chat."""
     import inspect
     try:
         ps = inspect.signature(fn).parameters.values()
@@ -222,6 +223,8 @@ def _report_extra(fn, brain, dedup) -> dict:
     out = {"brain": str(brain or "")}
     if dedup:
         out["dedup"] = dedup
+    if level:
+        out["level"] = level
     return out
 
 
@@ -1613,7 +1616,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             try:
                 await self.deps.report(
                     cid, channel_context.strip_control_blocks("\n\n".join(parts)), quiet=(kieu == "technical"),
-                    **_report_extra(self.deps.report, root, ""))
+                    **_report_extra(self.deps.report, root, "", "urgent" if kieu == "permission" else ""))
             except Exception as e:
                 print(f"[kanban] báo gộp việc kẹt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
@@ -1795,7 +1798,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 viec={"kind": "task", "status": "kiem", "title": title, "id": tid},
                 web=channel_context.strip_control_blocks("\n\n".join([reason, how])),
                 **_report_extra(self.deps.report, task.get("brain_root"),
-                                f"acceptance:{tid}:{task.get('updated_at') or ''}"),
+                                f"acceptance:{tid}:{task.get('updated_at') or ''}", "urgent"),
             )
         except Exception as e:
             print(f"[kanban] báo nghiệm thu trượt của việc {tid} lỗi: {type(e).__name__}: {e}", file=sys.stderr)
@@ -1901,7 +1904,8 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                       "id": str(task.get("id") or "")},
                 web=channel_context.strip_control_blocks(web),
                 **_report_extra(self.deps.report, task.get("brain_root"),
-                                f"task:{task.get('id', '')}:{status}:{task.get('current_run_id') or task.get('updated_at') or ''}"),
+                                f"task:{task.get('id', '')}:{status}:{task.get('current_run_id') or task.get('updated_at') or ''}",
+                                "urgent" if status in ("review", "blocked") else ""),
             )
         except Exception as e:
             # KHÔNG nuốt im: đây là đường DUY NHẤT để kết quả việc nền quay về với người dùng,

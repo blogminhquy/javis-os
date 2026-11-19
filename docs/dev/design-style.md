@@ -194,6 +194,13 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 - **Báo câu trả lời mới theo nơi đang xem** (chủ chốt 16/11/2026): từng cuộc chat có chấm đỏ khi có câu trả lời chưa
   đọc. Thanh chọn dự án và các dòng trong bộ chọn chỉ báo đỏ cho dự án khác đang có câu trả lời chưa đọc; dự án đang
   xem dùng chấm đỏ ở từng chat, không báo trùng ở thư mục. Mở dự án không đánh dấu các chat là đã đọc.
+- **Chuông chỉ giữ thứ cần bạn, câu trả lời là chấm đỏ trên menu** (chủ chốt 19/11/2026: "câu trả lời của cộng sự,
+  của trò chuyện và của team ... không cần thiết phải có những thông báo đấy, mình chỉ cần một dấu chấm đỏ ở bên phía
+  menu"). Câu trả lời nằm trong một cuộc chat có chấm đỏ riêng (Trò chuyện, Cộng sự, Team) thì không vào chuông;
+  mục đó trên menu có chấm đỏ (`dashboard/rail-unread.js`), nhóm menu đang gập cũng có chấm. Chuông chỉ còn: câu hỏi,
+  xin duyệt, nhắc hẹn chủ tự đặt, lỗi chủ phải sửa, và lần chạy tự báo có chuyện cần chủ ra tay. Việc chạy theo lịch
+  chạy trót lọt không kêu. Tiêu đề thông báo nói KẾT QUẢ trong một dòng ngắn, không thuật lại việc đang làm
+  ("Em kiểm tra..."), dòng dưới không lặp lại tiêu đề.
 - **Tạo động lực:** trang Nhiệm vụ có chuỗi ngày, sao, gợi ý việc khi trống (kiểu trò chơi, 04/11).
 
 ## 9. Trang HTML của gói trong Javis Store

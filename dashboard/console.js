@@ -9491,6 +9491,10 @@
       // ĐẾM phản ứng để đá vào getter. Thiếu nó thì đổi ngôn ngữ xong rail vẫn chữ cũ
       // cho tới khi F5 - một kiểu hỏng nhìn như "lưu không ăn".
       i18nTick: 0,
+      // Owner, 19/11/2026: a red dot on Chat, Partners and Team when something there is unread (rail-unread.js), in
+      // place of a bell notification for every answer.
+      unread: {},
+      groupUnread(g) { return !!(g && g.items && g.items.some(it => this.unread[it.id])); },
       get groups() { void this.i18nTick; return railGroups(); },
       get meta() { void this.i18nTick; return VIEW_META[this.active] || VIEW_META.home; },
       isOpen(label) { return this.openGroup === label; },
