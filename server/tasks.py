@@ -689,7 +689,7 @@ class TasksFeature:
                 return
             # Soi CẢ result: nhà cung cấp hay in câu hết lượt ngay chỗ câu trả lời chứ không
             # báo lỗi, và bản trước coi đó là việc XONG với "kết quả" là một câu tiếng Anh.
-            het_luot = self._het_luot(error, "" if error else result)
+            het_luot = self._het_luot(error, "" if error else result) or self._limit_from_meta(metadata)
             if het_luot or error:
                 # Out of plan quota, a connection, a tool that failed: none of it is about the model.
                 score.fail(job_scorecard.CAUSE_OTHER, str(error or het_luot)[:120])
@@ -1178,6 +1178,7 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             result = ""
             error = ""
             wf_wait: dict = {}
+            step_limit: dict = {}   # issue 1607: a step stopped on an exhausted plan, with its reset point
             cho = self._duyet_cho_chay_tiep(task, slug)
 
             def _chay_moi():
@@ -1237,6 +1238,8 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
                         )
                     elif kind in ("error", "step_error"):
                         error = event.get("content") or error
+                        if kind == "error" and isinstance(event.get("limit"), dict):
+                            step_limit = event["limit"]
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
             # A resume that stops again at the same step (code mismatch) yields wait_user without a code. The code is
@@ -1247,6 +1250,8 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             meta_out = {"route": route, "capability": task.get("capability")}
             if wf_wait.get("task_id") and wf_wait.get("node"):
                 meta_out["wf_wait"] = {**wf_wait, "slug": slug}
+            if step_limit:
+                meta_out["limit"] = step_limit
             return (
                 result,
                 error,
@@ -1346,6 +1351,24 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 return hit
         return None
 
+    @staticmethod
+    def _limit_from_meta(metadata) -> Optional[limit_learner.SubscriptionLimit]:
+        """The exhausted plan a `wf:` step reported (issue 1607), or None.
+
+        A workflow step turns the provider's "You've hit your limit - resets 4:40am" into a translated sentence that
+        `_het_luot` cannot parse, so the step hands the parsed reset point over in its `error` event instead. Without
+        it the job was retried at once and burnt all its attempts in seconds."""
+        lim = (metadata or {}).get("limit") if isinstance(metadata, dict) else None
+        if not isinstance(lim, dict) or not (lim.get("engine") or lim.get("reset_epoch")):
+            return None
+        try:
+            reset = float(lim.get("reset_epoch") or 0)
+        except (TypeError, ValueError):
+            reset = 0.0
+        return limit_learner.SubscriptionLimit(
+            engine=str(lim.get("engine") or ""), source="workflow_step", reset_epoch=reset,
+            reset_text=str(lim.get("reset_text") or ""), scope=str(lim.get("scope") or ""))
+
     def _hoan_vi_het_luot(self, tid: str, worker_id: str, hit) -> Optional[dict]:
         """Hoãn việc tới lúc gói mở lại. Trả task sau khi ghi kho (ready + not_before, hoặc
         blocked nếu mốc quá xa). Việc về ready lặng lẽ: thẻ trên trang Việc hiện lý do và giờ
@@ -1387,7 +1410,9 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             marker in text
             for marker in (
                 "timeout", "timed out", "rate limit", "429", "temporar",
-                "connection", "network", "busy", "unavailable", "reset",
+                # No bare "reset" ("connection reset" is caught by "connection"): the plan-limit sentence says
+                # "resets 4:40am", and matching it made an exhausted plan look like a blip to retry at once (#1607).
+                "connection", "network", "busy", "unavailable",
             )
         )
 

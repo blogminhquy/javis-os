@@ -14394,6 +14394,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         attempt = 0
         reason = ""
         loi_buoc = ""      # bước này HỎNG vì sao. "" = bước chạy được.
+        step_limit: dict = {}   # issue 1607: reset point when the step stopped on an exhausted plan
         while True:
             out = ""
             loi_engine = ""
@@ -14419,6 +14420,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
             # của đúng cái gói vừa hết để hỏi một câu vô nghĩa.
             loi_buoc = _loi_het_luot_cua_buoc(out, loi_engine, agent_prov, agent_name) or loi_engine
             if loi_buoc:
+                step_limit = _step_subscription_limit(out, loi_engine, agent_prov)
                 break
 
             if not verify_slug:
@@ -14476,7 +14478,10 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
             # còn tasks.py gộp step_error và error vào chung một biến.
             if loi_buoc != loi_engine:
                 yield {"type": "step_error", "i": i, "content": loi_buoc}
-            yield {"type": "error", "i": i, "agent": agent_name, "content": loi_buoc}
+            err_ev = {"type": "error", "i": i, "agent": agent_name, "content": loi_buoc}
+            if step_limit:
+                err_ev["limit"] = step_limit   # issue 1607: the Kanban queue waits for this reset
+            yield err_ev
             return
         if verified is False:
             # Still failing its check after the last retry. Before 0.107.0 the step was marked
@@ -25467,6 +25472,25 @@ def _het_luot_ap_dao(raw: str) -> bool:
     chung một bộ nhận dạng (tasks.py không import được main).
     """
     return limit_learner.subscription_dominates(raw or "")
+
+
+def _step_subscription_limit(out: str, loi: str, provider: str) -> dict:
+    """The reset point of a workflow step that stopped on an exhausted plan, for the Kanban queue. {} = not that.
+
+    Issue 1607: the step's `error` event carries only the translated sentence, which the queue's own parser cannot
+    read, so a `wf:` job retried at once and burnt its three attempts in seconds instead of waiting for the reset.
+    Same detection as `_loi_het_luot_cua_buoc`, so both agree on what counts as an exhausted plan."""
+    hint = _NHA_SANG_ENGINE.get(str(provider or "").strip(), "")
+    for raw, must_dominate in ((out, True), (loi, False)):
+        if must_dominate and not _het_luot_ap_dao(raw or ""):
+            continue
+        _msg, lim = _subscription_limit_event(raw or "", hint)
+        if lim:
+            return {"engine": str(getattr(lim, "engine", "") or hint),
+                    "reset_epoch": float(getattr(lim, "reset_epoch", 0) or 0),
+                    "reset_text": str(getattr(lim, "reset_text", "") or ""),
+                    "scope": str(getattr(lim, "scope", "") or "")}
+    return {}
 
 
 def _loi_het_luot_cua_buoc(out: str, loi: str, provider: str, agent_name: str) -> str:
