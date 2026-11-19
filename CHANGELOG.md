@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.595.0] - 2026-11-19
+### Thêm mới
+- **Khung chat vẽ được công thức toán.** Công thức viết dạng `$...$`, `$$...$$`, `\(...\)` hoặc `\[...\]` giờ hiện thành phân số, căn, mũ như trong sách thay vì nguyên mã. Thư viện KaTeX chỉ tải lần đầu có công thức; mất mạng thì vẫn thấy mã gốc. Số tiền kiểu "$5 và $10" không bị nhận nhầm.
+
 ## [0.594.0] - 2026-11-19
 ### Thêm mới
 - **Đăng video lên Trang có ảnh bìa.** Công cụ đăng video nhận thêm ảnh .jpg/.png làm thumbnail mặc định, và có chế độ đăng dạng Reels. Kết quả ghi rõ ảnh bìa đã gắn hay chưa.
