@@ -119,6 +119,10 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   chat và thẻ lớn bo 24px.
 - **Khoảng cách đều,** không có gì dính sát vào chữ ("margin các thứ đang dính hết vào nhau", 05/11).
 - **Hàng tóm tắt chỉ hiện con số;** chi tiết mở trong popup. Danh sách dài thì mỗi trang 20 mục, có ô tìm.
+- **Ảnh, file, link của một cuộc chat làm như Zalo** (19/11: "phần file với link trong nhóm cần phân trang ... zalo nó
+  làm xem tất cả này xong ấn vào thì nó vào kho lưu trữ"): bảng Thông tin chỉ hiện vài mục mới nhất (6 ảnh, 3 file,
+  3 link) và nút "Xem tất cả"; bấm vào mở "Kho lưu trữ" ngay trong bảng đó, có nút quay lại, tab Ảnh/File/Link kèm số,
+  ô tìm, xếp theo ngày (ảnh theo tháng), phân trang. Mẫu ở tab Thông tin của trang Nhóm (`teams.js`, `assetsHtml`).
 - **Popup thay cho thả xuống** với nội dung chi tiết, và popup đứng yên tới khi người dùng tự đóng. Danh sách ngắn, đơn
   giản thì mở ngay tại chỗ, không cần popup (07/11).
 - **Mở file (HTML, .md, PDF) ngay trong khung,** bấm mới phóng toàn màn hình.
