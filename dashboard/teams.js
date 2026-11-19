@@ -4347,8 +4347,7 @@
       : '<a class="tm-as-name" href="' + esc(rawUrl(where)) + '" target="_blank" rel="noopener" title="' + esc(where) + '"><span>' +
         esc(f.label || f.name) + "</span></a>";
     return '<li class="tm-as-row">' + tile + '<span class="tm-as-main">' + name +
-      (meta.length ? '<span class="tm-as-meta">' + meta.join('<span class="tm-as-dot">·</span>') + "</span>" : "") + descLine(f) + "</span>" +
-      descBtn(f, "file") +
+      (meta.length ? '<span class="tm-as-meta">' + meta.join('<span class="tm-as-dot">·</span>') + "</span>" : "") + descLine(f) + "</span>" + descBtn(f, "file") +
       (f.manual && f.id ? '<button type="button" class="tm-chip-x" data-info-del-file="' + esc(f.id) + '" aria-label="' +
         esc(tw("teams.info_remove")) + '" title="' + esc(tw("teams.info_remove")) + '">' + ic("x") + "</button>" : "") + "</li>";
   }
