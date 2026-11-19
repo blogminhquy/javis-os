@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.594.0] - 2026-11-19
+### Thêm mới
+- **Đăng video lên Trang có ảnh bìa.** Công cụ đăng video nhận thêm ảnh .jpg/.png làm thumbnail mặc định, và có chế độ đăng dạng Reels. Kết quả ghi rõ ảnh bìa đã gắn hay chưa.
+
 ## [0.593.3] - 2026-11-19
 ### Sửa lỗi
 - **Danh sách model Codex nhận đủ bản mới hơn đã cài.** Javis so phiên bản Codex trên `PATH` với bản cài trong thư mục người dùng để không bỏ sót model mới.

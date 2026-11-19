@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.594.0] - 2026-11-19
+### Added
+- **Page videos post with a cover image.** The video tool takes a .jpg/.png thumbnail and can post as a Reel. The result says plainly whether the cover was set.
+
 ## [0.593.3] - 2026-11-19
 ### Fixed
 - **Codex model lists include newer installed versions.** Javis compares the Codex CLI on `PATH` with the version installed in the user directory so newer models are not missed.
