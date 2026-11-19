@@ -250,7 +250,11 @@
     var head = x.instruction ? tt("ib.dr_cmd", { lenh: x.instruction }) : tt("ib.dr_ready");
     return '<div class="ib-draft"><div class="ib-draft-h">' + I("sparkles") + ' <span>' + esc(head) + '</span></div>' +
       '<textarea class="ib-draft-t" rows="3">' + esc(x.text || "") + '</textarea>' +
-      '<div class="ib-draft-a"><button type="button" class="s-btn-ghost ib-dr-drop"' + (busy ? " disabled" : "") + '>' + I("x") + ' ' + esc(tt("ib.dr_drop")) + '</button>' +
+      // "Bot học câu này" (owner 2026-11-19): ticked by default; shown when the draft carries the owner's order, and
+      // revealed by conversations.js once the owner rewrites the draft. Unticked for something about one customer only.
+      '<div class="ib-draft-a"><label class="ib-dr-learn"' + (x.instruction ? "" : " hidden") + ' title="' + esc(tt("ib.dr_learn_t")) + '">' +
+        '<input type="checkbox" class="ib-dr-learn-c" checked> <span>' + esc(tt("ib.dr_learn")) + '</span></label>' +
+      '<button type="button" class="s-btn-ghost ib-dr-drop"' + (busy ? " disabled" : "") + '>' + I("x") + ' ' + esc(tt("ib.dr_drop")) + '</button>' +
       '<button type="button" class="s-btn-ghost ib-dr-redo"' + (busy ? " disabled" : "") + '>' + I(busy === "redo" ? "loader" : "rotate-cw") + ' ' +
         esc(tt(busy === "redo" ? "ib.ai_busy" : "ib.dr_redo")) + '</button>' +
       '<button type="button" class="s-btn ib-dr-send"' + (busy ? " disabled" : "") + '>' + (busy === "send" ? I("loader", { cls: "ic-spin" }) : I("send")) + ' ' + esc(tt("ib.dr_send")) + '</button></div></div>';

@@ -113,7 +113,7 @@ const keys = ["ib.ai_lbl", "ib.m_ai", "ib.m_ai_s", "ib.m_draft", "ib.m_draft_s",
   "ib.allow_here", "ib.make_bot", "ib.back_ai", "ib.ask_ai_now", "ht.silent", "ht.silent_why"].concat(codes.map((k) => "ib.wc_" + k));
 check("khoá có ở cả vi và en", keys.every((k) => VI[k] && EN[k]), keys.filter((k) => !VI[k] || !EN[k]).join(","));
 check("the self-action buttons speak in the first person (owner, 2026-10-28)", VI["ib.m_human"] === "Tôi trả lời" &&
-  VI["ib.m_draft"] === "A.I. soạn, tôi duyệt");
+  VI["ib.m_draft"] === "Javis soạn, tôi duyệt");
 check("khoá của công tắc và dòng trạng thái cũ đã bỏ", ["ht.sw_auto", "ht.sw_mine", "ht.st_ai", "ht.st_off", "ht.tra_ai", "ht.tiep_quan"]
   .every((k) => !(k in VI) && !(k in EN)));
 check("không dùng em dash trong test này", fs.readFileSync(__filename, "utf8").indexOf(String.fromCharCode(0x2014)) < 0);

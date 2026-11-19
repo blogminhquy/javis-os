@@ -10546,6 +10546,17 @@ def _agent_assets_sua(brain: str, slug: str, doi):
         return ket_qua, None
 
 
+def _agent_add_doc(brain: str, slug: str, rel: str, name: str = ""):
+    """Attach a brain file to an Agent's Documents (`chatbot_runtime.learn_from_owner`). The same path twice keeps the one
+    entry. Raises when the Agent is gone or the path leaves the brain."""
+    found = _asset_target(brain, rel)
+    if not found or found[2]:
+        raise ValueError("no such file")
+    _id, loi = _agent_assets_sua(brain, slug, lambda m: agent_assets.them_file(m, found[0], name or found[1]))
+    if loi is not None:
+        raise ValueError("agent not found or full")
+
+
 @app.get("/agents/{slug}/assets")
 async def agent_assets_list(slug: str, brain: str = Query("brain")):
     f = _agent_md_path(brain, slug)
@@ -17459,6 +17470,8 @@ async def _start_scheduler():
                              describe=lambda paths, caption, chat_id="": _bot_xem_ho(paths, caption, "", "", chat_id),
                              # 2026-11-08: a dedicated bot never polls the token of a running admin bot.
                              admin_tokens=_admin_bot_tokens,
+                             # 2026-11-19: the file of replies the owner confirmed joins the Agent's Documents.
+                             agent_add_doc=_agent_add_doc,
                              # Lượt bot hỏng: khách không nhận gì, chủ nghe ở chuông thông báo (chủ repo 15/10/2026).
                              # 0.403.0: urgent: a customer is waiting for a person, or got no answer at all.
                              notify=lambda text: _bo_vao_hom_thu("", text, kind="system", source="chatbot",
@@ -30486,6 +30499,7 @@ conversations_routes.register(app, conversations_routes.ConversationsDeps(
     pending=chatbot_runtime.nhom_cho,
     drop_pending=chatbot_runtime.bo_nhom_cho,
     manual_meta=chatbot_runtime.manual_meta,
+    learn_owner=chatbot_runtime.learn_from_owner,
 ))
 
 # Trang Coding (0.63.0): sổ repo, ràng buộc phiên, worktree, điểm hồi. Không có deps - kho

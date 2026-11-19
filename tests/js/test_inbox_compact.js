@@ -117,7 +117,7 @@ const keys = ["ib.wq_you", "ib.wq_ai", "ib.wq_owner", "ib.wq_all", "ib.wq_you_d"
 check("every new key is in vi and en, under 100 characters", keys.every((k) => VI[k] && EN[k] && VI[k].length <= 100 && EN[k].length <= 100),
   keys.filter((k) => !VI[k] || !EN[k]).join(","));
 check("Vietnamese writes A.I. with dots, English plain AI", keys.every((k) => !/(^|[^.A-Za-z])AI([^.A-Za-z]|$)/.test(VI[k]) && EN[k].indexOf("A.I.") < 0));
-check("the composer's A.I. button says what it does: it drafts, it does not send", VI["ib.ai_reply"] === "A.I. soạn" && EN["ib.ai_reply"] === "AI draft");
+check("the composer button says what it does: Javis drafts, it does not send (owner 2026-11-19)", VI["ib.ai_reply"] === "Javis soạn" && EN["ib.ai_reply"] === "Javis draft");
 check("keys nothing uses any more are gone", ["ib.who_all", "ht.gui_ten_ban", "ib.f_btn"].every((k) => !(k in VI) && !(k in EN)));
 const dashes = [String.fromCharCode(0x2014), String.fromCharCode(0x2013)];
 check("no em or en dash in the new sheet, this test or the new strings", ![CSS, fs.readFileSync(__filename, "utf8"), ...keys.map((k) => VI[k] + EN[k])]

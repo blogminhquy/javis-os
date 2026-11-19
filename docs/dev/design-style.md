@@ -162,7 +162,9 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   - Tags;
   - "Của Javis" và "Của tôi";
   - Claude, Codex, Grok (không viết CLI hay tên nội bộ);
-  - Tài khoản bot.
+  - Tài khoản bot;
+  - **Javis soạn** cho nút và chế độ để Javis viết sẵn câu trả lời khách (không gọi "A.I. soạn", 19/11: "đổi luôn chữ
+    A.I. Soạn thành Javis Soạn").
 - **Đặt tên theo lợi ích người dùng thấy** ("Tiết kiệm token", không gọi "Chẩn đoán").
 - **Xưng hô theo người dùng.** Chủ là "anh", đừng gọi "chị".
 - **Ngôn ngữ giao diện:** chỉ tiếng Việt và tiếng Anh, qua i18n (`docs/quy-uoc-dev.md`, mục "Chữ hiện lên màn hình").
