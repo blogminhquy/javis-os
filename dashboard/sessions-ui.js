@@ -2364,7 +2364,7 @@
     var r = await fetch("/sessions?brain=" + encodeURIComponent(b) + "&limit=" + (shown + 1) +
                         (p ? "&project=" + encodeURIComponent(p) : "") +
                         (kenhLoc ? "&channel=" + encodeURIComponent(kenhLoc) + (kenhLoc.indexOf("agent:") === 0 ? "&bots=1" : "") : "") +
-                        (arch ? "&archived=1" : ""));
+                        (arch ? "&archived=1" : "") + "&unread_first=1");
     var data = await r.json();
     archCount = Number(data.archived_count) || 0;
     // `kenh` nằm trong khoá cache: thiếu nó thì lần mở trang Cộng sự kế tiếp vẽ tạm bằng danh
@@ -2609,10 +2609,17 @@
     if (archView) listEl.appendChild(dauLuuTru());
     var cur = currentId(), lastGroup = null;
     var pins = items.filter(function (s) { return s.pinned; });
+    // 2026-11-19 (owner: "những tin chấm đỏ mà chưa đọc em sắp xếp kéo lên trên đầu"): unread chats form their own
+    // group right under the pinned ones. The server already puts them on the first page (unread_first=1); this pass
+    // only keeps the open chat, which counts as read, in its date group instead of under "Unread".
+    function laChuaDoc(s) { return !!s.unread && !(s.id === cur && chatOnScreen()); }
+    items = pins.concat(items.filter(function (s) { return !s.pinned && laChuaDoc(s); }),
+                        items.filter(function (s) { return !s.pinned && !laChuaDoc(s); }));
     items.forEach(function (s) {
       // Mục ghim gom thành MỘT nhóm trên đầu, không xếp theo thời gian nữa - ghim chính là để
       // thoát khỏi thứ tự thời gian. Server đã sắp pinned trước nên chỉ cần đổi nhãn nhóm.
-      var g = s.pinned ? window.t("sess.grp_pinned") : groupOf(s.updated_at || 0);
+      var g = s.pinned ? window.t("sess.grp_pinned")
+        : laChuaDoc(s) ? window.t("sess.unread") : groupOf(s.updated_at || 0);
       if (g !== lastGroup) {
         var head = el('<div class="cside-group">' + g + '</div>');
         // 0.454.0: the pinned group gets a Reorder button (two or more pinned chats).

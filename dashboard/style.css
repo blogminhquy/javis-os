@@ -1782,6 +1782,9 @@ textarea.sug-ghosted::placeholder { color: transparent; }
 /* 0.231.0: send is hidden while the box is empty (voice chat takes its place), but while dictating it is the
    "stop and send" button, so it stays even before the first word lands. */
 .hud-voice.dictating #sendBtn { display: flex !important; }
+/* 2026-11-19 (owner): Stop and send share one spot while Javis works. Dictating is typing by voice, so Stop steps aside
+   for send here too, even before the first words reach the box. */
+.hud-voice.dictating #stopBtn { display: none !important; }
 /* The voice chat button sits where send appears, so it wears the same filled circle: one spot, two jobs. In a call
    it turns red (.in-call) as before. */
 #voiceBtn:not(.in-call):not(.handsfree) { background: var(--accent-solid); color: var(--on-accent); border-color: transparent; }

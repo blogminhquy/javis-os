@@ -4976,3 +4976,17 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
   border-radius: 12px; cursor: pointer; }
 .tm-wm .tm-radio:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); }
 .tm-wm .tm-radio input { margin: 3px 0 0; flex: none; }
+
+/* 2026-11-19 (owner: "tạo team với nhập team ở trên 1 hàng thôi đừng xuống dòng 2 hàng... nếu kéo về thu nhỏ quá thì chỉ
+   hiện icon thôi"): the team list bar never wraps and a label never breaks inside its button. When the two labels do not
+   fit, teams.js (fitListBar) adds .tm-chi-icon and both buttons keep only their icons. The folded strip (.tm-mini) shows
+   Import as an icon too, under Create. */
+.tm-list-bar { flex-wrap: nowrap; }
+.tm-list-bar .ws-btn { white-space: nowrap; flex: none; }
+.tm-list-bar.tm-chi-icon .tm-new, .tm-list-bar.tm-chi-icon .tm-import { font-size: 0; gap: 0; padding: 8px; }
+.tm-list-bar.tm-chi-icon .ws-btn svg, .tm-list-bar.tm-chi-icon .ws-btn .ic { width: 18px; height: 18px; }
+@media (min-width: 1061px) {
+  .tm-page.tm-mini .tm-list-bar { flex-direction: column; gap: 6px; }
+  .tm-page.tm-mini .tm-new, .tm-page.tm-mini .tm-import { font-size: 0; gap: 0; padding: 8px; margin-left: 0; }
+  .tm-page.tm-mini .tm-import svg, .tm-page.tm-mini .tm-import .ic { width: 18px; height: 18px; }
+}
