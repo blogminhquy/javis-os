@@ -260,8 +260,8 @@ def start_server(mode, port=""):
             run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(plist)])
             if run(["launchctl", "kickstart", "-k", _launchd_target()]).returncode == 0:
                 return
-        # Still nothing: stop the running copy and let KeepAlive bring the new code up. Never start a uvicorn of our
-        # own here, a copy outside launchd is exactly what held the port on 2026-11-19.
+        # Still nothing: stop the running copy and let KeepAlive bring the new code up. Do not start a uvicorn of our
+        # own while launchd may still do it, a copy outside launchd is exactly what held the port on 2026-11-19.
         pids = [p for p in _pids_on_port(port or "7777") if p != os.getpid()]
         log(_chu("launchctl không đổi ca được: dừng bản đang chạy để launchd KeepAlive tự bật lại.",
                  "launchctl could not swap the server: stopping the running copy so launchd KeepAlive restarts it.")
@@ -269,14 +269,41 @@ def start_server(mode, port=""):
                               "launchctl could not swap the server and no copy is running."))
         for p in pids:
             _kill_pid(p)
+        # Last resort: if launchd does not bring a server up (the plist is left over from an old install, or the
+        # agent was switched off), Javis must not stay down until someone opens it by hand. A copy outside launchd
+        # is still better than none, and port_guard hands the port back to launchd once its own copy starts.
+        if not _wait_for_listener(port or "7777", LAUNCHD_RESPAWN_WAIT_S):
+            log(_chu("launchd không bật lại Javis: khởi động trực tiếp để Javis không nằm chết.",
+                     "launchd did not bring Javis back: starting it directly so it does not stay down."))
+            _start_nohup(port)
     else:  # nohup: chạy lại uvicorn nền y như install.sh (fallback không systemd)
-        host = os.getenv("JAVIS_HOST", "127.0.0.1")
-        logf = open(us.STATE_DIR / "javis.log", "a", encoding="utf-8")
-        subprocess.Popen(   # noqa: JAVIS_CONSOLE - server mới phải sống lâu hơn updater
-            [venv_python(), "-m", "uvicorn", "main:app", "--host", host, "--port", str(port or "7777")],
-            cwd=str(ROOT / "server"), stdout=logf, stderr=subprocess.STDOUT,
-            start_new_session=True,
-            env={**os.environ, "JAVIS_STATE_DIR": os.getenv("JAVIS_STATE_DIR", str(us.STATE_DIR))})
+        _start_nohup(port)
+
+
+# How long the launchd path waits for KeepAlive to bring a server up before starting one itself.
+LAUNCHD_RESPAWN_WAIT_S = 45
+
+
+def _wait_for_listener(port, timeout_s):
+    """True once some process listens on `port` again, False after `timeout_s` seconds of nothing."""
+    deadline = time.monotonic() + max(0.0, float(timeout_s))
+    while True:
+        if [p for p in _pids_on_port(port) if p != os.getpid()]:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(1)
+
+
+def _start_nohup(port=""):
+    """Start uvicorn in the background exactly as install.sh does (the fallback with no service manager)."""
+    host = os.getenv("JAVIS_HOST", "127.0.0.1")
+    logf = open(us.STATE_DIR / "javis.log", "a", encoding="utf-8")
+    subprocess.Popen(   # noqa: JAVIS_CONSOLE - server mới phải sống lâu hơn updater
+        [venv_python(), "-m", "uvicorn", "main:app", "--host", host, "--port", str(port or "7777")],
+        cwd=str(ROOT / "server"), stdout=logf, stderr=subprocess.STDOUT,
+        start_new_session=True,
+        env={**os.environ, "JAVIS_STATE_DIR": os.getenv("JAVIS_STATE_DIR", str(us.STATE_DIR))})
 
 
 def git_dirty():

@@ -139,6 +139,19 @@ with patch.object(updater, "run", return_value=subprocess.CompletedProcess([], 5
 check("launchctl unusable -> stop the copy, let KeepAlive restart it",
       kill.call_args[0][0] == 4242 and not popen.called)
 
+# Nothing comes back after the copy is stopped (plist left over, agent switched off): start Javis directly rather
+# than leave it down until someone opens it by hand.
+_ports = iter([[4242], [], []])
+with patch.object(updater, "run", return_value=subprocess.CompletedProcess([], 5, "", "")), \
+        patch.object(updater, "launchd_plist_path", return_value=plist), \
+        patch.object(updater, "_pids_on_port", side_effect=lambda _p: next(_ports, [])), \
+        patch.object(updater, "LAUNCHD_RESPAWN_WAIT_S", 0), \
+        patch.object(updater, "_start_nohup") as nohup, \
+        patch.object(updater, "_kill_pid") as kill:
+    updater.start_server("launchd", "7777")
+check("launchd never brings it back -> start Javis directly as a last resort",
+      kill.call_args[0][0] == 4242 and nohup.called)
+
 with patch.object(updater.subprocess, "run",
                   return_value=subprocess.CompletedProcess([], 0, "123\n", "")) as r:
     updater._pids_on_port("7777")
