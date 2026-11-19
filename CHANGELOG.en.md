@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.595.1] - 2026-11-19
+### Fixed
+- **Javis Store is no longer blank when no password is set.** Installing a pack needs a real sign-in, so the Store was shut with no reason given. It now says a password is needed, with a Set a password button that opens the Account page.
+
 ## [0.595.0] - 2026-11-19
 ### Added
 - **Chat draws math formulas.** Formulas written as `$...$`, `$$...$$`, `\(...\)` or `\[...\]` now show as real fractions, roots and powers instead of raw code. KaTeX loads only the first time a formula appears; offline, the source text still shows. Money like "$5 and $10" is left alone.
