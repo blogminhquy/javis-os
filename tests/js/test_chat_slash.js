@@ -160,5 +160,34 @@ check("css: nền tô lệnh mở bằng box-shadow, không padding (gương ph�
   const m = css.match(/\.ci-hl \.ci-cmd \{([^}]*)\}/); return !!m && m[1].includes("box-shadow") && !/padding/.test(m[1]);
 })());
 
+// ---- 19/11/2026: lệnh gõ GIỮA hay CUỐI câu (chủ repo: "...làm luôn giúp anh /goal" mà Javis chỉ chat thường) ----
+S.setKnownSkills(["viet-email"]);
+S.setKnownPartners([{ slug: "writer" }, { slug: "seo-pro", name: "SEO" }], [{ slug: "writer", status: "active" }, { slug: "bao-cao", status: "active" }]);
+check("goal cuối câu chạy /goal, nội dung là phần chữ còn lại", (() => {
+  const r = S.route("anh muốn viết luôn plugin lcx-seo, làm luôn giúp anh /goal");
+  return r.type === "system" && r.cmd === "goal" && r.arg === "anh muốn viết luôn plugin lcx-seo, làm luôn giúp anh";
+})());
+check("goal giữa câu cũng chạy", (() => { const r = S.route("làm cho xong /goal mọi đơn hôm nay"); return r.type === "system" && r.cmd === "goal" && r.arg === "làm cho xong mọi đơn hôm nay"; })());
+check("plan cuối câu có dấu chấm", (() => { const r = S.route("lên kế hoạch ra mắt sản phẩm /plan."); return r.type === "system" && r.cmd === "plan" && r.arg === "lên kế hoạch ra mắt sản phẩm"; })());
+check("goal thắng skill nhắc trong câu, tên skill giữ trong nội dung", (() => {
+  const r = S.route("dùng /viet-email gửi cả 20 khách /goal"); return r.type === "system" && r.cmd === "goal" && r.arg === "dùng /viet-email gửi cả 20 khách";
+})());
+check("goal giữa câu thắng skill lạ ở đầu tin", (() => { const r = S.route("/khong-co viet bai /goal"); return r.type === "system" && r.cmd === "goal"; })());
+check("lệnh không cần nội dung giữa câu vẫn là chữ (hãy /compact lại)", S.route("hãy /compact lại").type === "passthrough");
+check("lệnh phiên giữa câu vẫn là chữ", S.route("làm xong thì /stop.").type === "passthrough");
+check("skill có dấu phẩy ngay sau", (() => { const r = S.route("nhờ /viet-email, gửi khách cũ"); return r.type === "skill" && r.cmd === "viet-email"; })());
+check("đường dẫn vẫn không bị bắt", S.route("mở /goal/x nhé").type === "passthrough");
+check("agent gõ tên trần (không tiền tố agent-)", (() => { const r = S.route("viết bài chuẩn seo /seo-pro"); return r.type === "agent" && r.slug === "seo-pro" && r.message === "viết bài chuẩn seo"; })());
+check("workflow gõ tên trần ở đầu tin", (() => { const r = S.route("/bao-cao tuần này"); return r.type === "workflow" && r.slug === "bao-cao"; })());
+check("tên trần trùng agent và workflow: không đoán", S.route("/writer hello").type === "skill");
+check("tô màu /goal cuối câu", JSON.stringify(V("làm giúp anh /goal")) === JSON.stringify({ start: 13, end: 18 }));
+check("tô màu agent tên trần", V("nhờ /seo-pro nhé") !== null);
+check("coLenhLa: token lạ giữa câu -> cần nạp lại danh sách", S.coLenhLa("dùng /skill-moi-cai viết bài") === true);
+check("coLenhLa: token đã biết, lệnh hệ thống, đường dẫn -> không", !S.coLenhLa("nhờ /viet-email") && !S.coLenhLa("hãy /compact lại") && !S.coLenhLa("mở /home/user/x") && !S.coLenhLa("xin chào"));
+check("coLenhLa: skill mới nạp xong thì nhận được", (() => {
+  S.setKnownSkills(["viet-email", "skill-moi-cai"]);
+  const r = S.route("dùng /skill-moi-cai viết bài"); return !S.coLenhLa("dùng /skill-moi-cai viết bài") && r.type === "skill" && r.cmd === "skill-moi-cai";
+})());
+
 if (fails.length) { console.log("\nFAIL - test_chat_slash: " + fails.length + " loi"); process.exit(1); }
 console.log("\nOK - test_chat_slash: tat ca pass");

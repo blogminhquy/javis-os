@@ -80,8 +80,12 @@ const goiGui = (app.match(/(?<!function )\bsendMessage\(/g) || []).length;
 // 0.349.0: nút "Gửi lại câu này" nhường chỗ cho nút Tua lại, vốn chỉ đưa câu hỏi về ô nhập, không tự gửi: bớt một chỗ.
 // 06/11/2026: thêm một chỗ HOÃN, không phải đường mới: câu người dùng vừa nói cho ChatGPT Live lúc nó hết lượt
 // được gửi qua đường Cơ bản (chuyenSangCoBan), thay vì mất. Chỉ chạy khi máy chủ báo hết lượt (code quota/use_basic).
-check("có 11 chỗ gọi sendMessage (giọng nói, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ, sau khi nối lại mạng, sau khi mở agent/workflow, adaptive commit, câu chờ lượt trong cuộc gọi, bấm Nghe cuộc gọi hẹn giờ, câu dở khi Live hết lượt)",
-  goiGui === 11, goiGui);
+// 19/11/2026: thêm một chỗ HOÃN nữa, không phải đường mới: tin có "/ten" giữa câu mà trang chưa biết (skill, agent,
+// workflow vừa cài) thì nạp lại danh sách một lần rồi mới gửi chính tin đó.
+check("có 12 chỗ gọi sendMessage (giọng nói, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ, sau khi nối lại mạng, sau khi mở agent/workflow, adaptive commit, câu chờ lượt trong cuộc gọi, bấm Nghe cuộc gọi hẹn giờ, câu dở khi Live hết lượt, sau khi nạp lại danh sách lệnh /)",
+  goiGui === 12, goiGui);
+check("chỗ thứ 12 nằm TRONG sendMessage, chỉ chạy sau khi nạp lại danh sách lệnh, và chỉ một lần",
+  /window\.JavisSlash\.coLenhLa\(msg\)[\s\S]{0,250}_lenhMoi: true[\s\S]{0,100}sendMessage\(msg, o\);/.test(app));
 check("chỗ thứ 11 chỉ gửi câu đã nói dở, khi chuyển đường Cơ bản",
   /function chuyenSangCoBan\(cauDangNoi = ""[\s\S]{0,500}if \(cauDangNoi\) sendMessage\(cauDangNoi\);/.test(app));
 // Chỗ thứ 11 (0.203.0) KHÔNG phải mic tự gửi: người dùng bấm Nghe trên thẻ cuộc gọi hẹn giờ, đường giọng cơ bản
