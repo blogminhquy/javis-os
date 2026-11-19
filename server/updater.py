@@ -117,9 +117,25 @@ def has_launchd_job():
     try:
         r = subprocess.run(["launchctl", "print", _launchd_target()],
                            capture_output=True, text=True, creationflags=_CAM)
-        return r.returncode == 0
+        if r.returncode == 0:
+            return True
     except Exception:
-        return False
+        pass
+    # 2026-11-19: `launchctl print` can fail when the updater runs outside the login session (started from a
+    # remote shell, for one). The updater then fell back to nohup and started a uvicorn launchd did not know about;
+    # that copy held port 7777 for 8 days while launchd's KeepAlive copy failed to bind every 10 s. Our own plist
+    # on disk is enough to know launchd owns this install.
+    return launchd_plist_path() is not None
+
+
+def launchd_plist_path(home=None):
+    """This install's LaunchAgent plist, or None when there is none or it points at another checkout."""
+    p = Path(home or Path.home()) / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
+    try:
+        text = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return p if str(ROOT / "server") in text else None
 
 
 def service_mode(osname=None, systemd=None, launchd=None):
@@ -163,9 +179,12 @@ def _kill_pid(pid, timeout_s=15):
 
 
 def _pids_on_port(port):
-    """PID đang giữ cổng (lsof có sẵn trên Mac lẫn đa số Linux). Fallback khi thiếu --server-pid."""
+    """PID đang giữ cổng (lsof có sẵn trên Mac lẫn đa số Linux). Fallback khi thiếu --server-pid.
+
+    Only the LISTENING process: plain `lsof -ti tcp:<port>` also lists every client connected to the port
+    (cloudflared, the browser), and stopping those is not stopping the server."""
     try:
-        r = subprocess.run(["lsof", "-ti", f"tcp:{port}"], capture_output=True, text=True,
+        r = subprocess.run(["lsof", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"], capture_output=True, text=True,
                            creationflags=_CAM)
         return [int(x) for x in (r.stdout or "").split() if x.strip().isdigit()]
     except Exception:
@@ -233,7 +252,23 @@ def start_server(mode, port=""):
     elif mode == "launchd":
         # kickstart -k: launchd tự hạ bản đang chạy rồi bật bản mới - MỘT người điều phối,
         # không còn cửa cho hai tiến trình cùng bind cổng.
-        run(["launchctl", "kickstart", "-k", _launchd_target()])
+        if run(["launchctl", "kickstart", "-k", _launchd_target()]).returncode == 0:
+            return
+        # The job is not loaded in this session (or launchctl cannot reach it): load our plist, then try again.
+        plist = launchd_plist_path()
+        if plist is not None:
+            run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(plist)])
+            if run(["launchctl", "kickstart", "-k", _launchd_target()]).returncode == 0:
+                return
+        # Still nothing: stop the running copy and let KeepAlive bring the new code up. Never start a uvicorn of our
+        # own here, a copy outside launchd is exactly what held the port on 2026-11-19.
+        pids = [p for p in _pids_on_port(port or "7777") if p != os.getpid()]
+        log(_chu("launchctl không đổi ca được: dừng bản đang chạy để launchd KeepAlive tự bật lại.",
+                 "launchctl could not swap the server: stopping the running copy so launchd KeepAlive restarts it.")
+            if pids else _chu("launchctl không đổi ca được và không có bản nào đang chạy.",
+                              "launchctl could not swap the server and no copy is running."))
+        for p in pids:
+            _kill_pid(p)
     else:  # nohup: chạy lại uvicorn nền y như install.sh (fallback không systemd)
         host = os.getenv("JAVIS_HOST", "127.0.0.1")
         logf = open(us.STATE_DIR / "javis.log", "a", encoding="utf-8")
