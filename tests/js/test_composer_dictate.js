@@ -62,7 +62,10 @@ check("empty box: mic and voice chat, no send", buttons({}) === "dict,voiceBtn")
 check("typed text: voice chat turns into send", buttons({ text: "chào" }) === "dict,sendBtn");
 check("an attachment alone also shows send", buttons({ atts: [{ path: "a.png" }] }) === "dict,sendBtn");
 check("Javis answering, empty box: mic and stop", buttons({ processing: true }) === "dict,stopBtn");
-check("Javis answering with typed text: stop and send (add-on)", buttons({ processing: true, text: "thêm" }) === "dict,stopBtn,sendBtn");
+// 2026-11-19 (owner): typing while Javis works turns Stop into the add-on send, one button in one spot.
+check("Javis answering with typed text: Stop turns into send (add-on)", buttons({ processing: true, text: "thêm" }) === "dict,sendBtn");
+check("Javis answering with an attachment: send takes Stop's spot", buttons({ processing: true, atts: [{ path: "a.png" }] }) === "dict,sendBtn");
+check("Javis speaking aloud, nothing running: Stop stays", buttons({ speaking: true, text: "thêm" }) === "dict,stopBtn");
 check("in a call: the red hang-up stays, the dictate mic steps aside", buttons({ call: true }) === "voiceBtn");
 check("the box value is watched, so code that empties or fills it flips the button too",
   /Object\.defineProperty\(chatInput, "value"/.test(app) && /set\(v\) \{ d\.set\.call\(this, v\); try \{ updateStopBtn\(\); \}/.test(app));

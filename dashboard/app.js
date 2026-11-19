@@ -45,10 +45,12 @@ let stopTag = null;        // tag phiên chat server phát qua message hello →
 
 function updateStopBtn() {
   const active = isProcessing || voice.isSpeaking();
-  stopBtn.style.display = active ? "flex" : "none";
-  // 0.206.0: while Javis works, typed text can still go out (as an add-on to the running turn), so the send button
-  // comes back next to Stop as soon as there is something to send.
+  // 0.206.0: while Javis works, typed text can still go out (as an add-on to the running turn).
+  // 2026-11-19 (owner: "khi gõ trong lúc 1 lệnh đang chạy thì anh muốn nút ngắt lệnh chuyển thành nút gửi thêm việc
+  // đang làm để không tốn thêm diện tích"): Stop and the add-on send share ONE spot. Text or an attachment in the box
+  // turns Stop into send; emptying the box brings Stop back.
   const boSung = coTheGuiBoSung();
+  stopBtn.style.display = active && !boSung ? "flex" : "none";
   // 0.231.0: two buttons (owner 2026-10-19). An empty box shows the voice chat button; text or an attachment turns
   // it into send. In a call the button stays the red hang-up and the dictate mic steps aside.
   const goi = handsFreeActive();
