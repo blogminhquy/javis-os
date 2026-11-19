@@ -306,7 +306,8 @@
     var t = String(typed || "");
     var head = t.match(/^\/([a-zA-Z0-9_-]+)(?:\s+([\s\S]*))?$/);
     if (head && list.indexOf(head[1].toLowerCase()) >= 0) return { cmd: head[1].toLowerCase(), rest: (head[2] || "").trim(), mid: false };
-    var re = /(^|\s)\/([a-zA-Z0-9_-]+)(?=\s|$)/g, m, hit = null;
+    // Punctuation right after the name ("/viet-email," "/viet-email.") still counts, as in the main chat.
+    var re = /(^|\s)\/([a-zA-Z0-9_-]+)(?=[.,!?;:\u2026)\]"'\u201d]*(?:\s|$))/g, m, hit = null;
     while ((m = re.exec(t)) !== null) { if (list.indexOf(m[2].toLowerCase()) >= 0) hit = m; }
     if (!hit) return null;
     var start = hit.index + hit[1].length;
