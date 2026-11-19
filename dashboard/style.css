@@ -4074,12 +4074,110 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .pd-nbody { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .pd-ntext { color: var(--text); font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
 .pd-nmeta { color: var(--text3); font-size: 12px; }
-.pd-nform .pd-nin { resize: vertical; min-height: 54px; font-size: 14px; line-height: 1.5; }
-.pd-nform .pd-nkind { flex: 1 1 auto; min-width: 0; }
+/* 2026-11-19 (owner: "hiển thị đẹp hơn"): the text shows up to four lines and a tap opens it whole in the edit box;
+   the meta line is a coloured tag for the kind plus who wrote it. Blue fact, orange decision, purple term. */
+.pd-nbody { cursor: pointer; }
+.pd-nbody:hover .pd-ntext { color: var(--text-hi); }
+.pd-ntext { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.pd-nmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pd-ntag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 12px;
+  font-weight: 600; line-height: 1.6; border: 1px solid var(--info-line); background: var(--info-wash); color: var(--info-ink); }
+.pd-ntag.k-decision { border-color: var(--accent-line); background: var(--accent-wash); color: var(--accent-ink); }
+.pd-ntag.k-term { border-color: var(--accent2-line); background: var(--accent2-wash); color: var(--accent2-ink); }
+.pd-nsrc + .pd-nsrc::before { content: "\00b7"; margin-right: 6px; }
+.pd-nsrc.own { color: var(--text2); font-weight: 600; }
+.pd-nrow:has(.pd-nsrc.own) { border-left: 3px solid var(--accent); padding-left: 9px; }
+
+/* Search box and page buttons of a long list (2026-11-19, design-style section 5: 20 rows a page, with search). */
+.pd-ltools { display: flex; align-items: center; gap: 8px; }
+.pd-ltools .pd-find { flex: 1 1 auto; min-width: 0; }
+.pd-ltools .pd-add { flex: none; margin-top: 0; min-height: 38px; }
+.pd-find { display: flex; align-items: center; gap: 7px; padding: 0 10px; border-radius: 9px;
+  border: 1px solid var(--border); background: var(--field-bg); color: var(--text3); }
+.pd-find[hidden] { display: none; }
+.pd-find:focus-within { border-color: var(--info-line); }
+.pd-find .ic { flex: none; }
+.pd-find-in { flex: 1 1 auto; min-width: 0; height: 36px; padding: 0; border: 0; outline: none; background: transparent;
+  color: var(--text); font-family: inherit; font-size: 14px; }
+/* The kind chips stay on ONE line (owner 17/11: tags "trên 1 dòng thôi"); a narrow screen scrolls them sideways. */
+.pd-chips { display: flex; gap: 6px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
+.pd-chips::-webkit-scrollbar { display: none; }
+.pd-chip { flex: none; white-space: nowrap; }
+.pd-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text2); font-family: inherit; font-size: 13px; }
+.pd-chip:hover { border-color: var(--accent-line); color: var(--text); }
+.pd-chip.on { border-color: var(--accent); background: var(--accent-wash-2); color: var(--accent-ink); font-weight: 600; }
+.pd-chip-n { color: var(--text3); font-weight: 400; }
+.pd-chip.on .pd-chip-n { color: inherit; }
+.pd-pager { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 6px 0 2px; }
+.pd-pg { width: 36px; height: 36px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; border: 1px solid var(--border); background: var(--bg); color: var(--text2); }
+.pd-pg:hover:not(:disabled) { border-color: var(--accent-line); color: var(--accent); }
+.pd-pg:disabled { opacity: .4; cursor: default; }
+.pd-pg-n { min-width: 92px; text-align: center; font-size: 13px; color: var(--text2); font-variant-numeric: tabular-nums; }
 @media (max-width: 600px) {
-  .pd-ntext, .pd-nform .pd-nin { font-size: 15px; }
+  .pd-ntext { font-size: 15px; }
   .pd-nmeta, .pd-row-desc { font-size: 13px; }
   .pd-nrow .pd-row-act { width: 34px; height: 34px; }
+  .pd-find-in { font-size: 16px; height: 42px; }
+  .pd-ltools .pd-add { min-height: 44px; font-size: 14px; }
+  .pd-chip { font-size: 14px; padding: 6px 12px; }
+  .pd-pg { width: 44px; height: 44px; }
+  .pd-pg-n { font-size: 14px; }
+}
+
+/* The edit box (text-edit-dialog.js, 2026-11-19, owner: "popup làm lại khi sửa để mở rộng ra dễ sửa"). Above the
+   project drawer (z-index 5000). Desktop: centred, 640px wide, the text area grows with the text. Phone: a sheet from
+   the bottom; with the keyboard up it follows the part of the screen still in view (mobile-chat.js sets --vv-*). */
+.ted-wrap { position: fixed; inset: 0; z-index: 6000; display: flex; align-items: center; justify-content: center;
+  padding: 16px; }
+.ted-scrim { position: absolute; inset: 0; background: var(--scrim); animation: cps-fade .15s ease; }
+.ted-box { position: relative; width: min(640px, 100%); max-height: calc(100dvh - 32px); display: flex;
+  flex-direction: column; gap: 12px; padding: 16px 18px 16px; border-radius: 18px; border: 1px solid var(--border);
+  background: var(--bg2); box-shadow: var(--shadow-3); animation: cps-up .18s ease; }
+.ted-grip { display: none; }
+.ted-head { display: flex; align-items: center; gap: 10px; }
+.ted-title { flex: 1 1 auto; min-width: 0; font-size: 17px; font-weight: 700; color: var(--text-hi); }
+.ted-x { flex: none; width: 36px; height: 36px; border-radius: 9px; cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; border: 1px solid transparent; background: transparent; color: var(--text3); }
+.ted-x:hover { color: var(--text-hi); background: var(--bg3); }
+.ted-hint { margin-top: -6px; font-size: 14px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ted-in { width: 100%; min-height: 180px; max-height: 55dvh; resize: none; overflow-y: auto; box-sizing: border-box;
+  padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--field-bg); color: var(--text);
+  font-family: inherit; font-size: 16px; line-height: 1.65; outline: none; }
+.ted-in:focus { border-color: var(--info-line); box-shadow: 0 0 0 3px var(--info-wash); }
+.ted-kinds { display: flex; flex-wrap: wrap; gap: 8px; }
+.ted-kind { min-height: 36px; padding: 6px 14px; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: 15px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text2); }
+.ted-kind:hover { border-color: var(--accent-line); color: var(--text); }
+.ted-kind.on { border-color: var(--accent); background: var(--accent-wash-2); color: var(--accent-ink); font-weight: 600; }
+.ted-err { font-size: 15px; line-height: 1.5; color: var(--danger-ink); }
+.ted-err[hidden] { display: none; }
+.ted-foot { display: flex; align-items: center; gap: 10px; }
+.ted-count { font-size: 13px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.ted-count.near { color: var(--warn-ink); }
+.ted-count.full { color: var(--danger-ink); font-weight: 600; }
+.ted-keys { flex: 1 1 auto; font-size: 13px; color: var(--text3); }
+.ted-cancel, .ted-save { min-height: 40px; padding: 8px 18px; border-radius: 10px; cursor: pointer; font-family: inherit;
+  font-size: 15px; border: 1px solid var(--border); }
+.ted-cancel { background: transparent; color: var(--text2); }
+.ted-cancel:hover { color: var(--text-hi); background: var(--bg3); }
+.ted-save { background: var(--accent-solid); border-color: var(--accent-solid); color: var(--on-accent); font-weight: 600; }
+.ted-save:disabled { opacity: .45; cursor: default; }
+@media (max-width: 600px) {
+  .ted-wrap { align-items: flex-end; padding: 0; }
+  .ted-box { width: 100%; max-height: 94dvh; border-radius: 20px 20px 0 0; border-bottom: 0; padding: 6px 16px
+    calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .ted-grip { display: block; width: 40px; height: 4px; border-radius: 2px; margin: 4px auto 0; background: var(--border); }
+  .ted-in { min-height: 160px; max-height: 50dvh; }
+  .ted-keys { display: none; }
+  .ted-count { flex: 1 1 auto; font-size: 14px; }
+  .ted-cancel, .ted-save, .ted-x { min-height: 44px; }
+  .ted-x { width: 44px; height: 44px; }
+  .ted-kind { min-height: 44px; }
+  body.kb-open .ted-wrap { top: var(--vv-top, 0px); bottom: auto; height: var(--vv-h, 100dvh); }
+  body.kb-open .ted-box { max-height: 100%; padding-bottom: 10px; }
+  body.kb-open .ted-in { max-height: 34dvh; min-height: 96px; }
 }
 
 .pd-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;

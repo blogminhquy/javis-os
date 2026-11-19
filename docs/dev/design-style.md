@@ -119,6 +119,10 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   chat và thẻ lớn bo 24px.
 - **Khoảng cách đều,** không có gì dính sát vào chữ ("margin các thứ đang dính hết vào nhau", 05/11).
 - **Hàng tóm tắt chỉ hiện con số;** chi tiết mở trong popup. Danh sách dài thì mỗi trang 20 mục, có ô tìm.
+- **Sửa một đoạn chữ thì mở khung rộng, không dùng `prompt()` của trình duyệt** (19/11: "popup làm lại khi sửa để mở
+  rộng ra dễ sửa"). Dùng chung `JavisTextEdit.open(...)` (`dashboard/text-edit-dialog.js`): ô chữ tự giãn, đếm ký tự,
+  lựa chọn dạng chip, Ctrl+Enter lưu; điện thoại là bảng kéo lên. Danh sách dài thì nút Thêm đứng cạnh ô tìm ở trên
+  đầu, không nằm cuối danh sách.
 - **Popup thay cho thả xuống** với nội dung chi tiết, và popup đứng yên tới khi người dùng tự đóng. Danh sách ngắn, đơn
   giản thì mở ngay tại chỗ, không cần popup (07/11).
 - **Mở file (HTML, .md, PDF) ngay trong khung,** bấm mới phóng toàn màn hình.

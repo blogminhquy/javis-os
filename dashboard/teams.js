@@ -4303,12 +4303,23 @@
       esc(kind === "link" ? x.url : x.path) + '" data-desc="' + esc(x.description || "") + '" aria-label="' +
       esc(tw("teams.info_desc")) + '" title="' + esc(tw("teams.info_desc")) + '">' + ic("pencil") + "</button>";
   }
+  // 2026-11-19 (owner: "popup làm lại khi sửa để mở rộng ra dễ sửa"): the same roomy edit box as the project drawer
+  // (text-edit-dialog.js) instead of prompt(); prompt() stays only as the fallback when that script is missing.
   function describeDoc(kind, ref, old) {
+    var send = function (text) {
+      var f = new FormData();
+      f.append("kind", kind); f.append("ref", ref); f.append("description", text);
+      return assetPost("/describe", f);
+    };
+    var E = window.JavisTextEdit;
+    if (E && E.open) {
+      return E.open({ title: tw("teams.info_desc"), value: old || "", max: 200, placeholder: tw("proj.desc_ph"),
+        hint: String(ref || "").split("/").pop(), allowEmpty: true,
+        save: function (text) { return Promise.resolve(send(text)).then(function () { return ""; }); } });
+    }
     var text = window.prompt(tw("teams.info_desc_q"), old || "");
     if (text == null || text.trim() === (old || "")) return;
-    var f = new FormData();
-    f.append("kind", kind); f.append("ref", ref); f.append("description", text.trim());
-    return assetPost("/describe", f);
+    return send(text.trim());
   }
 
   // The info panel (0.191.0): who is in the team, the working folder, pictures, files and links shared in it.
