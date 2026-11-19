@@ -117,9 +117,25 @@ def has_launchd_job():
     try:
         r = subprocess.run(["launchctl", "print", _launchd_target()],
                            capture_output=True, text=True, creationflags=_CAM)
-        return r.returncode == 0
+        if r.returncode == 0:
+            return True
     except Exception:
-        return False
+        pass
+    # 2026-11-19: `launchctl print` can fail when the updater runs outside the login session (started from a
+    # remote shell, for one). The updater then fell back to nohup and started a uvicorn launchd did not know about;
+    # that copy held port 7777 for 8 days while launchd's KeepAlive copy failed to bind every 10 s. Our own plist
+    # on disk is enough to know launchd owns this install.
+    return launchd_plist_path() is not None
+
+
+def launchd_plist_path(home=None):
+    """This install's LaunchAgent plist, or None when there is none or it points at another checkout."""
+    p = Path(home or Path.home()) / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
+    try:
+        text = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return p if str(ROOT / "server") in text else None
 
 
 def service_mode(osname=None, systemd=None, launchd=None):
@@ -163,9 +179,12 @@ def _kill_pid(pid, timeout_s=15):
 
 
 def _pids_on_port(port):
-    """PID đang giữ cổng (lsof có sẵn trên Mac lẫn đa số Linux). Fallback khi thiếu --server-pid."""
+    """PID đang giữ cổng (lsof có sẵn trên Mac lẫn đa số Linux). Fallback khi thiếu --server-pid.
+
+    Only the LISTENING process: plain `lsof -ti tcp:<port>` also lists every client connected to the port
+    (cloudflared, the browser), and stopping those is not stopping the server."""
     try:
-        r = subprocess.run(["lsof", "-ti", f"tcp:{port}"], capture_output=True, text=True,
+        r = subprocess.run(["lsof", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"], capture_output=True, text=True,
                            creationflags=_CAM)
         return [int(x) for x in (r.stdout or "").split() if x.strip().isdigit()]
     except Exception:
@@ -233,15 +252,58 @@ def start_server(mode, port=""):
     elif mode == "launchd":
         # kickstart -k: launchd tự hạ bản đang chạy rồi bật bản mới - MỘT người điều phối,
         # không còn cửa cho hai tiến trình cùng bind cổng.
-        run(["launchctl", "kickstart", "-k", _launchd_target()])
+        if run(["launchctl", "kickstart", "-k", _launchd_target()]).returncode == 0:
+            return
+        # The job is not loaded in this session (or launchctl cannot reach it): load our plist, then try again.
+        plist = launchd_plist_path()
+        if plist is not None:
+            run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(plist)])
+            if run(["launchctl", "kickstart", "-k", _launchd_target()]).returncode == 0:
+                return
+        # Still nothing: stop the running copy and let KeepAlive bring the new code up. Do not start a uvicorn of our
+        # own while launchd may still do it, a copy outside launchd is exactly what held the port on 2026-11-19.
+        pids = [p for p in _pids_on_port(port or "7777") if p != os.getpid()]
+        log(_chu("launchctl không đổi ca được: dừng bản đang chạy để launchd KeepAlive tự bật lại.",
+                 "launchctl could not swap the server: stopping the running copy so launchd KeepAlive restarts it.")
+            if pids else _chu("launchctl không đổi ca được và không có bản nào đang chạy.",
+                              "launchctl could not swap the server and no copy is running."))
+        for p in pids:
+            _kill_pid(p)
+        # Last resort: if launchd does not bring a server up (the plist is left over from an old install, or the
+        # agent was switched off), Javis must not stay down until someone opens it by hand. A copy outside launchd
+        # is still better than none, and port_guard hands the port back to launchd once its own copy starts.
+        if not _wait_for_listener(port or "7777", LAUNCHD_RESPAWN_WAIT_S):
+            log(_chu("launchd không bật lại Javis: khởi động trực tiếp để Javis không nằm chết.",
+                     "launchd did not bring Javis back: starting it directly so it does not stay down."))
+            _start_nohup(port)
     else:  # nohup: chạy lại uvicorn nền y như install.sh (fallback không systemd)
-        host = os.getenv("JAVIS_HOST", "127.0.0.1")
-        logf = open(us.STATE_DIR / "javis.log", "a", encoding="utf-8")
-        subprocess.Popen(   # noqa: JAVIS_CONSOLE - server mới phải sống lâu hơn updater
-            [venv_python(), "-m", "uvicorn", "main:app", "--host", host, "--port", str(port or "7777")],
-            cwd=str(ROOT / "server"), stdout=logf, stderr=subprocess.STDOUT,
-            start_new_session=True,
-            env={**os.environ, "JAVIS_STATE_DIR": os.getenv("JAVIS_STATE_DIR", str(us.STATE_DIR))})
+        _start_nohup(port)
+
+
+# How long the launchd path waits for KeepAlive to bring a server up before starting one itself.
+LAUNCHD_RESPAWN_WAIT_S = 45
+
+
+def _wait_for_listener(port, timeout_s):
+    """True once some process listens on `port` again, False after `timeout_s` seconds of nothing."""
+    deadline = time.monotonic() + max(0.0, float(timeout_s))
+    while True:
+        if [p for p in _pids_on_port(port) if p != os.getpid()]:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(1)
+
+
+def _start_nohup(port=""):
+    """Start uvicorn in the background exactly as install.sh does (the fallback with no service manager)."""
+    host = os.getenv("JAVIS_HOST", "127.0.0.1")
+    logf = open(us.STATE_DIR / "javis.log", "a", encoding="utf-8")
+    subprocess.Popen(   # noqa: JAVIS_CONSOLE - server mới phải sống lâu hơn updater
+        [venv_python(), "-m", "uvicorn", "main:app", "--host", host, "--port", str(port or "7777")],
+        cwd=str(ROOT / "server"), stdout=logf, stderr=subprocess.STDOUT,
+        start_new_session=True,
+        env={**os.environ, "JAVIS_STATE_DIR": os.getenv("JAVIS_STATE_DIR", str(us.STATE_DIR))})
 
 
 def git_dirty():

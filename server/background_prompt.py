@@ -35,7 +35,7 @@ CLAUDE_MD_PATH = Path(__file__).resolve().parent.parent / "CLAUDE.md"
 # sha256 of the CLAUDE.md this contract was checked against. Changing CLAUDE.md fails
 # tests/python/test_background_prompt.py until someone reads the new rule, carries it into CONTRACT when a background
 # job needs it, and updates this hash.
-REVIEWED_CLAUDE_MD_SHA256 = "373fadce5de1eb28cb0af335a9d44af5b14ca5c36c84db0b15f7ba2e65539557"
+REVIEWED_CLAUDE_MD_SHA256 = "b2ca6a01e81a82846e0e1eec9281903dac23e368a05bb6d13a8bcd30b2b3cb8f"
 DEFAULT_BASIS_POINTS = 1000   # 10% of background jobs
 SALT = "background-prompt-v1"
 
@@ -82,7 +82,8 @@ options, no "Other") may follow it.
 `zalo_create_note|reminder|poll`; see images with `zalo_read_images`; react with `zalo_add_reaction`. Never the old \
 `javis_zalo_send`. Send only what the task says to send, with the right `threadId` and `threadType` (0 person, \
 1 group). A name matching several chats: never guess, ask. Exactly one exact match: send.
-- Customer chats from every channel are on the Chatbot page; store pack `javis.crm` adds `crm_*` tools.
+- Customer chats from every channel are on the Chatbot page; reply to one on its own channel with `inbox_find`, \
+then `inbox_reply` (several matches for a name: never guess, ask). Store pack `javis.crm` adds `crm_*` tools.
 - Images: create or edit with `javis_generate_image` (signed-in ChatGPT plan); it takes real reference images in \
 `images`. Show an image or file in the result with a path relative to the vault root: `![name](attachments/x.jpg)`, \
 `[name.pdf](exports/x.pdf)`. An .html app to SHARE (`/s/<token>/`) reads data by a relative path (`./data.json`), \

@@ -5,6 +5,10 @@ Kiến trúc: Voice (browser) ⇄ FastAPI WebSocket ⇄ Claude Code CLI subproce
 Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling đi qua
 `claude` CLI đã cài trên máy → tự kế thừa MCP, skills, auth.
 """
+# Before ANY startup work: a second copy on a port another Javis already serves must not run startup at all
+# (2026-11-19, see port_guard.py). Does nothing when main is imported by tests.
+import port_guard
+port_guard.claim_port()
 import brain_seed_i18n   # file hạt giống của brain mới theo ngôn ngữ người dùng
 import brain_label   # tên hiển thị của brain, tách khỏi thư mục (0.219.0)
 import brain_export   # xuất/nhập cả bộ não thành một file .zip (2026-11-09)
@@ -14390,6 +14394,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         attempt = 0
         reason = ""
         loi_buoc = ""      # bước này HỎNG vì sao. "" = bước chạy được.
+        step_limit: dict = {}   # issue 1607: reset point when the step stopped on an exhausted plan
         while True:
             out = ""
             loi_engine = ""
@@ -14415,6 +14420,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
             # của đúng cái gói vừa hết để hỏi một câu vô nghĩa.
             loi_buoc = _loi_het_luot_cua_buoc(out, loi_engine, agent_prov, agent_name) or loi_engine
             if loi_buoc:
+                step_limit = _step_subscription_limit(out, loi_engine, agent_prov)
                 break
 
             if not verify_slug:
@@ -14472,7 +14478,10 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
             # còn tasks.py gộp step_error và error vào chung một biến.
             if loi_buoc != loi_engine:
                 yield {"type": "step_error", "i": i, "content": loi_buoc}
-            yield {"type": "error", "i": i, "agent": agent_name, "content": loi_buoc}
+            err_ev = {"type": "error", "i": i, "agent": agent_name, "content": loi_buoc}
+            if step_limit:
+                err_ev["limit"] = step_limit   # issue 1607: the Kanban queue waits for this reset
+            yield err_ev
             return
         if verified is False:
             # Still failing its check after the last retry. Before 0.107.0 the step was marked
@@ -14645,7 +14654,7 @@ def workflow_capability_guard(node, route_entry, approved: bool) -> str:
 
 
 async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tools=None,
-                                       session_id=""):
+                                       session_id="", mode=None):
     """Duyệt xong thì chạy tiếp workflow đang dừng. Yield event như /workflows/run."""
     graph = load_workflow_graph(brain, slug)
     if graph is None:
@@ -14657,7 +14666,7 @@ async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tool
                                                          "This task was not found or cannot be resumed.")}
         return
     canary = _get_workflow_canary(brain)
-    mk, agent_sysprompt, log_run, learn = _workflow_agent_helpers(brain, tools)
+    mk, agent_sysprompt, log_run, learn = _workflow_agent_helpers(brain, tools, mode)
     queue: asyncio.Queue = asyncio.Queue()
 
     async def sink(event):
@@ -14714,14 +14723,14 @@ async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tool
 
 
 async def execute_workflow_resume(brain, slug, task_id, node_id, code, tools=None,
-                                  session_id="", source="other"):
+                                  session_id="", source="other", mode=None):
     """Chạy tiếp lần đang chờ duyệt, ghi vào ĐÚNG bản ghi lịch sử đang `waiting`."""
     import workflow_runs
     cu = workflow_runs.get_store().tim_theo_task(task_id)
     wf_file = _workflows_dir(brain) / f"{slug}.md"
     meta, _ = _read_md(wf_file) if wf_file.exists() else ({}, "")
     async for ev in _ghi_lich_su(
-            _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tools, session_id),
+            _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tools, session_id, mode),
             brain=_brain_key(brain), slug=slug, name=meta.get("name", slug), input=(cu or {}).get("input", ""),
             source=source, session_id=session_id or (cu or {}).get("session_id", ""),
             run_id=(cu or {}).get("id")):
@@ -15568,6 +15577,7 @@ tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,
     execute_workflow=execute_workflow,
+    execute_workflow_resume=execute_workflow_resume,   # 17/11/2026: an approval answered on the Tasks page runs on
     workflows_dir=_workflows_dir,
     build_system_prompt=_background_system_prompt,   # 2026-11-15: Settings pin or the task's language, not vi
     aux_model=_aux_model,
@@ -25508,6 +25518,25 @@ def _het_luot_ap_dao(raw: str) -> bool:
     chung một bộ nhận dạng (tasks.py không import được main).
     """
     return limit_learner.subscription_dominates(raw or "")
+
+
+def _step_subscription_limit(out: str, loi: str, provider: str) -> dict:
+    """The reset point of a workflow step that stopped on an exhausted plan, for the Kanban queue. {} = not that.
+
+    Issue 1607: the step's `error` event carries only the translated sentence, which the queue's own parser cannot
+    read, so a `wf:` job retried at once and burnt its three attempts in seconds instead of waiting for the reset.
+    Same detection as `_loi_het_luot_cua_buoc`, so both agree on what counts as an exhausted plan."""
+    hint = _NHA_SANG_ENGINE.get(str(provider or "").strip(), "")
+    for raw, must_dominate in ((out, True), (loi, False)):
+        if must_dominate and not _het_luot_ap_dao(raw or ""):
+            continue
+        _msg, lim = _subscription_limit_event(raw or "", hint)
+        if lim:
+            return {"engine": str(getattr(lim, "engine", "") or hint),
+                    "reset_epoch": float(getattr(lim, "reset_epoch", 0) or 0),
+                    "reset_text": str(getattr(lim, "reset_text", "") or ""),
+                    "scope": str(getattr(lim, "scope", "") or "")}
+    return {}
 
 
 def _loi_het_luot_cua_buoc(out: str, loi: str, provider: str, agent_name: str) -> str:

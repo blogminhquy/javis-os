@@ -149,6 +149,10 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 - **Nút nguy hiểm** (ngắt, xoá, chạy lại) đứng riêng, ở cuối, màu đỏ, không đặt sát nút hay bấm như nút Chép.
 - **Gợi ý nhỏ thì làm nhỏ:** mũi tên gợi ý chỉ là ">" nhỏ ngay sau chữ, không làm thành nút tròn (13/11).
 - **Thao tác trên tin nhắn** nằm thành một hàng dưới bong bóng. Thả cảm xúc kiểu Zalo ở góc bong bóng.
+- **Thẻ nào chờ bạn cũng trả lời được, không chỉ có nút cố định** (17/11 thẻ duyệt, 19/11 việc nhóm dừng giữa chừng: "phải
+  tương tác phản hồi và trao đổi lại được"). Cạnh nút quyết định có nút **Trả lời** mở ô gõ ngay trên thẻ: chọn kiểu trả
+  lời (làm tiếp, hỏi lại...), gợi ý bấm nhanh, Ctrl+Enter gửi, Esc đóng. Câu trả lời hiện vào khung chat, trích lý do ở
+  trên. Dùng chung khung `.tm-ap-rp` của thẻ duyệt.
 
 ## 7. Câu chữ trên màn hình
 

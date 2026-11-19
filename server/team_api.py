@@ -1117,6 +1117,32 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             return {"ok": True, "revision": rev}
         return await api.io(_do)
 
+    @app.post("/teams/{team_id}/tasks/{task_id}/answer")
+    async def teams_task_answer(team_id: str, task_id: str, request: Request, brain: str = "brain"):
+        """19/11/2026: the owner answers a job stopped on a step (the "Reply" box of a "Waiting for you" card). The
+        answer goes to the chat and the stopped step runs again with it."""
+        body = await _body(request)
+        answer = str(body.get("answer") or "").strip()
+        text = str(body.get("text") or "").strip()
+        cmid = str(body.get("client_msg_id") or "").strip()[:120]
+
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            if not _own_task(team_id, task_id):
+                return _err(404, "Không có việc này trong nhóm", "No such job in this team")
+            if not answer:
+                return _err(400, "Gõ câu trả lời trước khi gửi", "Type your answer first")
+            res = api.runner().answer_blocked(task_id, answer, text=text, client_msg_id=cmid)
+            if res is None:
+                return _err(409, "Việc này không còn chờ câu trả lời; tải lại để xem trạng thái mới",
+                            "This job no longer waits for an answer; reload to see where it stands")
+            api.kick()
+            api.runner()._state(team_id)
+            return {"ok": True, **res}
+        return await api.io(_do)
+
     @app.post("/teams/{team_id}/tasks/{task_id}/unblock")
     async def teams_task_unblock(team_id: str, task_id: str, request: Request, brain: str = "brain"):
         action = str((await _body(request)).get("action") or "resume")

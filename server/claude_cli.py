@@ -1594,13 +1594,12 @@ def find_codex_cli() -> Optional[str]:
         Path(os.environ.get("APPDATA", "")) / "npm" / "codex.cmd",
         Path(os.environ.get("APPDATA", "")) / "npm" / "codex.exe",
         home / ".codex" / ".sandbox-bin" / "codex",
+        home / ".local" / "bin" / "codex",
     ]
-    # Windows Store có thể đặt app-execution alias ``codex.exe`` lên PATH nhưng
-    # service/tiến trình nền không được quyền chạy alias đó (WinError 5), nên alias
-    # đó chỉ là đường lui cuối. POSIX vẫn tôn trọng PATH trước như thông lệ.
+    # Windows Store có thể đặt app-execution alias ``codex.exe`` lên PATH nhưng service/tiến trình nền không được
+    # quyền chạy alias đó (WinError 5), nên alias đó chỉ là đường lui cuối. Since PR 1608 the PATH binary on
+    # Mac/Linux no longer wins outright either: it joins the candidates below and the newest one is asked.
     cli = tim_binary("codex")
-    if cli and os.name != "nt":
-        return cli
     co = []
     if cli and "windowsapps" not in cli.lower():
         co.append(cli)
@@ -1610,16 +1609,17 @@ def find_codex_cli() -> Optional[str]:
                 co.append(str(p))
         except Exception:
             pass
-    # Một máy Windows hay có NHIỀU bản Codex cùng lúc: Codex Desktop xuất một bản vào
-    # ~/.codex/.sandbox-bin và không phải lúc nào cũng cập nhật nó, npm đặt bản khác. Trước
-    # 0.71.1 bản đứng đầu danh sách thắng, và chủ repo đo 03/10/2026: sandbox-bin kẹt ở 0.147
-    # (tháng 8) trong khi npm đã 0.160, nên `model/list` chỉ trả đời GPT-5.6 và trang Models
-    # không có GPT-6.1-Sol. Danh sách model là lời của CHÍNH binary được hỏi, nên phải hỏi bản
-    # MỚI NHẤT. Không đọc được số phiên bản thì giữ thứ tự cũ.
+    # Một máy hay có NHIỀU bản Codex cùng lúc: Codex Desktop xuất một bản vào ~/.codex/.sandbox-bin và không phải lúc
+    # nào cũng cập nhật nó, npm đặt bản khác. Trước 0.71.1 bản đứng đầu danh sách thắng, và chủ repo đo 03/10/2026:
+    # sandbox-bin kẹt ở 0.147 (tháng 8) trong khi npm đã 0.160, nên `model/list` chỉ trả đời GPT-5.6 và trang Models
+    # không có GPT-6.1-Sol. Danh sách model là lời của CHÍNH binary được hỏi, nên phải hỏi bản MỚI NHẤT. PR 1608
+    # (2026-11-19): the same holds on Mac/Linux (PATH, npm, ~/.local/bin). A binary whose version cannot be read is
+    # skipped; when none can be read, the old search order stands.
     if len(co) > 1:
-        best = max(co, key=lambda p: _codex_version(p) or ())
-        if _codex_version(best):
-            return best
+        versioned = [(p, _codex_version(p)) for p in co]
+        versioned = [(p, version) for p, version in versioned if version is not None]
+        if versioned:
+            return max(versioned, key=lambda item: item[1])[0]
     if co:
         return co[0]
     if cli:

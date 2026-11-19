@@ -625,6 +625,71 @@
       "</tr></thead><tbody>" + trs + "</tbody></table></div>";
   }
 
+  // ---------------------------------------------------------------- math (KaTeX)
+  // Owner 15/11/2026: formulas showed as raw "$\frac{a}{b}$" in chat. KaTeX is loaded from the CDN the first time
+  // a formula appears, like mermaid. Until it arrives (or when offline) the TeX shows as text in a .jv-math span;
+  // once loaded, those spans are drawn in place and later renders call katex.renderToString directly.
+  // KaTeX escapes its input and runs with trust:false, so \href / \htmlClass and friends cannot add markup.
+  // The CDN code runs with full rights in the owner's dashboard, so both files are pinned by hash (SRI): a changed
+  // file on the CDN is refused and the formula stays as plain text. Bumping KX_VER means new hashes, taken from the
+  // npm tarball: `npm pack katex@X`, then `openssl dgst -sha384 -binary dist/<file> | openssl base64 -A`.
+  var KX_VER = "0.16.11", kxState = 0;   // 0 not loaded, 1 loading, 2 ready, 3 failed
+  var KX_SRI = {
+    js: "sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg",
+    css: "sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+"
+  };
+  function katexOpts(display) {
+    return { displayMode: !!display, throwOnError: false, strict: "ignore", trust: false, output: "htmlAndMathml" };
+  }
+  function upgradeMath(root) {
+    var k = window.katex;
+    if (!k || !root || !root.querySelectorAll) return;
+    var els = root.querySelectorAll(".jv-math[data-tex]");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], d = el.classList.contains("jv-math-d");
+      try { k.render(el.getAttribute("data-tex"), el, katexOpts(d)); el.removeAttribute("data-tex"); } catch (e) {}
+    }
+  }
+  function loadKatex() {
+    if (kxState || typeof document === "undefined" || !document.head) return;
+    kxState = 1;
+    var base = "https://cdn.jsdelivr.net/npm/katex@" + KX_VER + "/dist/";
+    var css = document.createElement("link");
+    css.rel = "stylesheet"; css.href = base + "katex.min.css";
+    css.integrity = KX_SRI.css; css.crossOrigin = "anonymous";
+    document.head.appendChild(css);
+    var s = document.createElement("script");
+    s.src = base + "katex.min.js";
+    s.integrity = KX_SRI.js; s.crossOrigin = "anonymous";
+    s.onload = function () { kxState = window.katex ? 2 : 3; upgradeMath(document); };
+    s.onerror = function () { kxState = 3; };
+    document.head.appendChild(s);
+  }
+  function mathHtml(tex, display) {
+    var k = (typeof window !== "undefined") ? window.katex : null;
+    if (k) {
+      try {
+        var out = k.renderToString(tex, katexOpts(display));
+        return display ? '<div class="jv-math-block">' + out + "</div>" : out;
+      } catch (e) {}
+    }
+    loadKatex();
+    var t = display ? "div" : "span";
+    return "<" + t + ' class="jv-math' + (display ? " jv-math-d jv-math-block" : "") + '" data-tex="' + esc(tex) + '">' +
+      esc(display ? "$$" + tex + "$$" : "$" + tex + "$") + "</" + t + ">";
+  }
+  // Finds $$..$$, \[..\], \(..\) and $..$ in text whose code is already in placeholders. A single $ only opens
+  // when a non-space follows and closes when a non-space precedes and no digit follows, so "$5 and $10" stays money.
+  function replaceMath(raw, put) {
+    function blk(_m, tex) { return tex.trim() ? "\n" + put(mathHtml(tex.trim(), true)) + "\n" : _m; }
+    raw = raw.replace(/\$\$([\s\S]+?)\$\$/g, blk);
+    raw = raw.replace(/\\\[([\s\S]+?)\\\]/g, blk);
+    raw = raw.replace(/\\\(([^\n]+?)\\\)/g, function (_m, tex) { return put(mathHtml(tex.trim(), false)); });
+    return raw.replace(/(^|[^\\$\w])\$(?=\S)([^$\n]*?\S)\$(?![\d$])/g, function (_m, pre, tex) {
+      return pre + put(mathHtml(tex, false));
+    });
+  }
+
   // ---------------------------------------------------------------- inline (dam/nghieng/gach/xuong dong)
   function inline(s) {
     s = esc(s);
@@ -843,6 +908,8 @@
       if (p) return put("<a " + vaultLink(p, "jv-fcode") + ">" + code + "</a>");
       return put(code);
     });
+    // 2b) cong thuc toan (sau code de `$x$` trong code giu nguyen). Trinh sua bo qua: turndown khong doc nguoc duoc KaTeX.
+    if (!_choTrinhSua) raw = replaceMath(raw, put);
     // 3) anh vault ![[..]] + anh markdown ![]() (giu URL qua placeholder de khong bi escape)
     raw = raw.replace(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/g, function (_m, name, after) {
       name = name.trim();
@@ -1911,6 +1978,7 @@
 
   if (typeof window !== "undefined") {
     window.mdToHtml = mdToHtml;
+    window.JavisMath = { upgrade: upgradeMath, load: loadKatex };
     window.JavisVisibleMarkdown = visibleMarkdown;
     window.JavisStreamCut = streamCut;
     // Bo to mau chung: code-hl.js goi lai cho cac ngon ngu kieu C (js/py/sh...) de mot luat

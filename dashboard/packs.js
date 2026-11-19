@@ -443,6 +443,7 @@
     tuy = tuy || {};
     let ds;
     try { ds = await (await fetch("/packs/store" + brainQuery("?"))).json(); } catch (e) { ds = null; }
+    if (ds && ds.need_password) return "need_password";   // no sign-in password yet: say so, not "not found"
     const g = ((ds && ds.packs) || []).find(x => x && x.id === id && x.nguon !== "app");
     if (!g || !g.download || !g.download.url) return "khong_co";
     if (g.installed) return g.enabled === false ? "da_tat" : "da_cai";
@@ -700,6 +701,11 @@
     let d;
     try { d = await (await fetch("/packs/store" + (lamMoi ? "?refresh=1" + brainQuery("&") : brainQuery("?")))).json(); }
     catch (e) { d = { ok: false, error: String(e) }; }
+    if (d && d.need_password) {
+      host.innerHTML = '<div class="mp-empty">' + esc(d.error || "") + '</div>';
+      showNeedPassword(host);
+      return;
+    }
     if (!d || !d.ok) {
       // Kho không tới được thì KHÔNG phải là hỏng cả trang: cài từ tệp vẫn chạy như thường.
       host.innerHTML = '<div class="mp-empty">'
@@ -1359,6 +1365,25 @@
     };
   }
 
+  // A local install with no password: every other page is open, but the Store needs a real session and
+  // none can exist until a password is set (owner report 2026-11-17). The server says so with
+  // `need_password`; this adds the one button that fixes it, straight to the Account page.
+  function showNeedPassword(box) {
+    const btn = document.createElement("button");
+    btn.className = "mp-btn primary";
+    btn.type = "button";
+    btn.id = "pkSetPassword";
+    btn.style.marginTop = "12px";
+    btn.textContent = tw("store.set_password");
+    btn.onclick = () => {
+      const s = window.Alpine && Alpine.store("nav");
+      if (s && s.go) s.go("account");
+    };
+    const msg = box.firstElementChild || box;
+    msg.appendChild(document.createElement("br"));
+    msg.appendChild(btn);
+  }
+
   // console.js gọi hàm này MỖI LẦN điều hướng vào trang kho, và chỉ lúc đó. Nên đây là chỗ
   // đúng để chốt đường về của lượt mới: lấy thứ `moKho` vừa đặt (nếu vào bằng tab), hoặc
   // không có gì (nếu vào từ thanh bên).
@@ -1378,6 +1403,7 @@
     }
     if (d && d.error) {
       el.innerHTML = '<div class="cview-placeholder">' + esc(d.error) + '</div>';
+      if (d.need_password) showNeedPassword(el);
       return;
     }
     // Bộ lọc loại thì lấy rồi XOÁ NGAY: nó là ý định của MỘT lần bấm tab. Giữ lại thì lần sau
@@ -1443,5 +1469,6 @@
                         coBanMoi: coBanMoi, nutThe: nutThe, theKho: theKho,
                         ghiConTro: ghiConTro, traConTro: traConTro, veKho: veKho,
                         caiGoiKho: caiGoiKho, caiPluginZip: caiPluginZip,
+                        showNeedPassword: showNeedPassword,
                         pluginZipView: pluginZipView };
 })();

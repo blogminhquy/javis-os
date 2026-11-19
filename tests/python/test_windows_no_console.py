@@ -49,6 +49,8 @@ _CO_Y = {
     # đó (gọi Watchtower) nằm ngay phía trên, và _ham_chua lấy nhầm tên hàm lồng.
     ("main.py", "_update_core"),
     ("updater.py", "start_server"),
+    # The same nohup start, moved into its own function so the launchd path can fall back to it (PR 1609).
+    ("updater.py", "_start_nohup"),
     # Bench dev, chạy tay từ terminal có sẵn.
     ("bench_hotpath.py", None),
 }

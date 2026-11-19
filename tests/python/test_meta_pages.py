@@ -50,6 +50,7 @@ class _Ctx:
 
 ctx = _Ctx()
 plug.register(ctx)
+_real_rupload = plug._rupload   # later sections swap in fakes; the streaming check below needs the real one
 byname = {t["name"]: t for t in ctx.tools}
 check("plugin: đủ 10 tool", set(byname) == {"fb_pages_list", "fb_page_posts", "fb_page_comments",
                                             "fb_page_post", "fb_page_photo", "fb_page_album",
@@ -204,6 +205,60 @@ async def handler_tests():
     r_vd_miss = await plug._publish_video({}, _CtxNoVault())
     check("fb_page_video: thiếu video → ERROR", r_vd_miss.startswith("ERROR"))
 
+    # fb_page_video + thumbnail: the cover rides in the same multipart as field `thumb`
+    mpcalls = {}
+
+    async def _fake_multipart(pathg, files, data, token, base=plug.GRAPH, timeout=900):
+        mpcalls["args"] = (pathg, {k: str(v) for k, v in (files or {}).items()}, dict(data or {}), token, base)
+        return {"id": "V1"}
+
+    plug._post_multipart = _fake_multipart
+    (vroot / "bia.jpg").write_bytes(b"jpg")
+    r_th = await plug._publish_video({"video": "clip.mp4", "thumbnail": "bia.jpg"}, _CtxVault())
+    check("fb_page_video(file+thumbnail): source + thumb in one upload to graph-video",
+          mpcalls["args"][0] == "P1/videos" and set(mpcalls["args"][1]) == {"source", "thumb"}
+          and mpcalls["args"][1]["thumb"].endswith("bia.jpg") and mpcalls["args"][4] == plug.GRAPH_VIDEO
+          and '"thumbnail"' in r_th)
+    await plug._publish_video({"video": "https://ex.com/v.mp4", "thumbnail": "bia.jpg"}, _CtxVault())
+    check("fb_page_video(URL+thumbnail): file_url + thumb file",
+          set(mpcalls["args"][1]) == {"thumb"} and mpcalls["args"][2].get("file_url") == "https://ex.com/v.mp4")
+    r_th_url = await plug._publish_video({"video": "clip.mp4", "thumbnail": "https://ex.com/a.jpg"}, _CtxVault())
+    check("fb_page_video: thumbnail as a link → ERROR", r_th_url.startswith("ERROR"))
+    (vroot / "bia.gif").write_bytes(b"gif")
+    r_th_gif = await plug._publish_video({"video": "clip.mp4", "thumbnail": "bia.gif"}, _CtxVault())
+    check("fb_page_video: thumbnail not jpg/png → ERROR", r_th_gif.startswith("ERROR"))
+
+    # reel=true: start → rupload → thumbnails(is_preferred) → finish PUBLISHED
+    reel_seq = []
+
+    async def _fake_post_reel(path, data, token):
+        reel_seq.append(("post", path, dict(data or {})))
+        return {"video_id": "R1"} if (data or {}).get("upload_phase") == "start" else {"success": True}
+
+    async def _fake_rupload(vid, path, url, token):
+        reel_seq.append(("rupload", vid, str(path)))
+        return {"success": True}
+
+    async def _fake_post_file_reel(pathg, fp, data, token, base=plug.GRAPH, timeout=900):
+        reel_seq.append(("file", pathg, dict(data or {})))
+        return {"success": True}
+
+    plug._post = _fake_post_reel
+    plug._rupload = _fake_rupload
+    plug._post_file = _fake_post_file_reel
+    r_reel = await plug._publish_video({"video": "clip.mp4", "thumbnail": "bia.jpg", "reel": True,
+                                        "message": "mo ta"}, _CtxVault())
+    steps = [(s[0], s[1]) for s in reel_seq]
+    check("fb_page_video(reel): start → rupload → thumbnails → finish",
+          steps == [("post", "P1/video_reels"), ("rupload", "R1"), ("file", "R1/thumbnails"),
+                    ("post", "P1/video_reels")])
+    check("fb_page_video(reel): thumbnail is_preferred + finish PUBLISHED with description",
+          reel_seq[2][2].get("is_preferred") == "true"
+          and reel_seq[3][2].get("video_state") == "PUBLISHED" and reel_seq[3][2].get("description") == "mo ta")
+    check("fb_page_video(reel): reports the cover as attached", "đã gắn" in r_reel and '"reel"' in r_reel)
+    plug._post = _fake_post
+    plug._post_file = _fake_post_file
+
     # fb_page_album: up từng ảnh published=false rồi gom vào MỘT bài /feed
     seq = []
 
@@ -348,6 +403,48 @@ async def messenger_tests():
         oauth_mcp.auth_headers = orig
 
 asyncio.run(messenger_tests())
+
+# Reels upload streams the file in pieces (a 1GB video must not sit in memory whole) and declares its size.
+def _check_rupload_streams():
+    import asyncio as _aio
+    import tempfile as _tf
+    import httpx as _httpx
+    seen = {}
+
+    def _handler(request):
+        seen["body"] = request.read()
+        seen["headers"] = dict(request.headers)
+        seen["url"] = str(request.url)
+        return _httpx.Response(200, json={"success": True})
+
+    real_client = _httpx.AsyncClient
+
+    class _Client(real_client):
+        def __init__(self, *a, **k):
+            k["transport"] = _httpx.MockTransport(_handler)
+            super().__init__(*a, **k)
+
+    data = bytes(range(256)) * 9000   # ~2.3MB: more than two pieces
+    with _tf.TemporaryDirectory() as d:
+        fp = Path(d) / "clip.mp4"
+        fp.write_bytes(data)
+        pieces = _aio.run(_collect(plug._file_chunks(fp)))
+        _httpx.AsyncClient = _Client
+        try:
+            out = _aio.run(_real_rupload("R9", fp, "", "tok"))
+        finally:
+            _httpx.AsyncClient = real_client
+    check("rupload: the file is read in pieces, not whole", len(pieces) == 3 and b"".join(pieces) == data)
+    check("rupload: the whole file arrives with its size", out.get("success") and seen.get("body") == data
+          and seen["headers"].get("file_size") == str(len(data)))
+    check("rupload: same API version as GRAPH", seen.get("url", "").endswith(plug.GRAPH.rsplit("/", 1)[-1] + "/R9"))
+
+
+async def _collect(agen):
+    return [x async for x in agen]
+
+
+_check_rupload_streams()
 
 if _fails:
     print(f"\nFAIL - {len(_fails)} test: {_fails}")

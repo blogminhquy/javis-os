@@ -8,6 +8,45 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.597.0] - 2026-11-19
+### Added
+- **A team job that waits for you can be answered, not only retried.** Press **Reply** next to Retry: "Go on" has the member do the step again with your answer, "Ask back" asks first and the job keeps waiting.
+- Both the answer and the question show in the team chat under a quote of why the job stopped, so it reads clearly later.
+
+## [0.596.0] - 2026-11-19
+### Added
+- **Javis can message a customer straight from chat.** Ask "tell Lan size M is in stock" and it finds the chat in the inbox and sends through that chat's own Messenger Page, Instagram, Telegram or Zalo bot, as if you typed it in the inbox. Before, Javis said it had no Messenger send tool and asked you to paste the message yourself.
+- **The message is recorded as yours, and that chat's bot keeps running.** Only you can ask for this: a customer talking to a bot can never read or message other customers, and Javis sees only the chats of the brain in use.
+
+## [0.595.2] - 2026-11-19
+### Fixed
+- **Workflow jobs on the Tasks page wait for the plan to reset.** A step that hit an exhausted subscription used to retry at once, spend all three attempts in seconds and get stuck. The job now waits until the plan resets, and the wait does not count as an attempt.
+
+## [0.595.1] - 2026-11-19
+### Fixed
+- **Javis Store is no longer blank when no password is set.** Installing a pack needs a real sign-in, so the Store was shut with no reason given. It now says a password is needed, with a Set a password button that opens the Account page.
+
+## [0.595.0] - 2026-11-19
+### Added
+- **Chat draws math formulas.** Formulas written as `$...$`, `$$...$$`, `\(...\)` or `\[...\]` now show as real fractions, roots and powers instead of raw code. KaTeX loads only the first time a formula appears; offline, the source text still shows. Money like "$5 and $10" is left alone.
+
+## [0.594.0] - 2026-11-19
+### Added
+- **Page videos post with a cover image.** The video tool takes a .jpg/.png thumbnail and can post as a Reel. The result says plainly whether the cover was set.
+
+## [0.593.3] - 2026-11-19
+### Fixed
+- **Codex model lists include newer installed versions.** Javis compares the Codex CLI on `PATH` with the version installed in the user directory so newer models are not missed.
+
+## [0.593.2] - 2026-11-19
+### Fixed
+- **Javis no longer gets stuck dropping connections because a stray copy holds its port.** On a Mac the copy launchd manages now stops a stray Javis and takes over; any other extra copy exits at once, before its startup runs.
+- **Updates on a Mac always restart through launchd**, even when the launchd check fails, so they no longer leave a copy running outside launchd.
+
+## [0.593.1] - 2026-11-19
+### Fixed
+- **Approving a workflow step on the Tasks page runs the workflow on, with no second approval request.** Each answer used to start the workflow again from step one, so it stopped at the same step again. Now "Approve", "ok" or "yes" carries on from that step. A change request still makes the workflow redo the work with it, as before.
+
 ## [0.593.0] - 2026-11-18
 ### Added
 - **Bots read the files staff send customers on Zalo OA and Fanpage.** A PDF, Word or Excel quote, or a photo, sent from the OA app or the Page inbox now shows in the Inbox (labelled Staff) and the bot knows what it says when the customer asks about it. Photos are read by a connected brain that can see.

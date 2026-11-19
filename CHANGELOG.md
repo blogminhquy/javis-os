@@ -6,6 +6,45 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.597.0] - 2026-11-19
+### Thêm mới
+- **Việc "Chờ bạn" của nhóm giờ trả lời được, không chỉ Thử lại.** Bấm **Trả lời** cạnh Thử lại: chọn "Làm tiếp" để thành viên làm lại bước đó kèm câu trả lời của bạn, hoặc "Hỏi lại" để hỏi rõ trước, việc vẫn chờ bạn.
+- Câu trả lời và câu hỏi đều hiện trong khung chat của nhóm, có trích lý do việc dừng ở trên, nên đọc lại vẫn biết đang trả lời chuyện gì.
+
+## [0.596.0] - 2026-11-19
+### Thêm mới
+- **Javis nhắn khách được ngay từ khung chat.** Bảo Javis "trả lời chị Lan là còn size M", nó tìm cuộc chat trên trang Hội thoại rồi gửi đúng Page Messenger, Instagram, bot Telegram hay Zalo của cuộc đó, như bạn gõ ở Hộp thư. Trước đây Javis báo thiếu công cụ gửi Messenger và bắt bạn tự dán tin.
+- **Tin gửi đi ghi là của bạn, bot của cuộc đó vẫn chạy như cũ.** Chỉ bạn ra lệnh được việc này: khách nhắn bot không đọc hay nhắn được cho khách khác, và Javis chỉ thấy cuộc chat của brain đang dùng.
+
+## [0.595.2] - 2026-11-19
+### Sửa lỗi
+- **Việc chạy quy trình trên trang Nhiệm vụ biết đợi gói mở lại.** Trước đây bước nào vấp gói thuê bao hết lượt là việc thử lại ngay, đốt hết 3 lần thử trong vài giây rồi kẹt. Giờ việc tự hẹn chạy lại đúng giờ gói mở và không tính vào số lần thử.
+
+## [0.595.1] - 2026-11-19
+### Sửa lỗi
+- **Javis Store không còn trống trơn khi máy chưa đặt mật khẩu.** Cài gói cần đăng nhập thật, nên trước đây Store bị chặn mà không nói vì sao. Giờ trang nói rõ cần đặt mật khẩu và có nút Đặt mật khẩu dẫn thẳng tới trang Tài khoản.
+
+## [0.595.0] - 2026-11-19
+### Thêm mới
+- **Khung chat vẽ được công thức toán.** Công thức viết dạng `$...$`, `$$...$$`, `\(...\)` hoặc `\[...\]` giờ hiện thành phân số, căn, mũ như trong sách thay vì nguyên mã. Thư viện KaTeX chỉ tải lần đầu có công thức; mất mạng thì vẫn thấy mã gốc. Số tiền kiểu "$5 và $10" không bị nhận nhầm.
+
+## [0.594.0] - 2026-11-19
+### Thêm mới
+- **Đăng video lên Trang có ảnh bìa.** Công cụ đăng video nhận thêm ảnh .jpg/.png làm thumbnail mặc định, và có chế độ đăng dạng Reels. Kết quả ghi rõ ảnh bìa đã gắn hay chưa.
+
+## [0.593.3] - 2026-11-19
+### Sửa lỗi
+- **Danh sách model Codex nhận đủ bản mới hơn đã cài.** Javis so phiên bản Codex trên `PATH` với bản cài trong thư mục người dùng để không bỏ sót model mới.
+
+## [0.593.2] - 2026-11-19
+### Sửa lỗi
+- **Javis không còn bị kẹt cảnh mất kết nối vì một bản chạy thừa giữ cổng.** Trên Mac, bản launchd quản lý giờ tự tắt bản Javis chạy lạc rồi tiếp quản; bản thừa khác thì thoát ngay, không chạy phần khởi động.
+- **Cập nhật trên Mac luôn đổi ca qua launchd**, kể cả khi lệnh kiểm tra của launchd lỗi, nên không còn sinh ra bản chạy ngoài launchd.
+
+## [0.593.1] - 2026-11-19
+### Sửa lỗi
+- **Duyệt một mốc của quy trình ở trang Nhiệm vụ thì quy trình chạy tiếp, không hỏi duyệt lại.** Trước đây mỗi lần trả lời, quy trình chạy lại từ bước đầu nên lại dừng đúng mốc cũ. Giờ trả lời "Duyệt", "ok" hay "đồng ý" là chạy tiếp từ mốc đó. Câu yêu cầu sửa vẫn cho quy trình làm lại kèm lời sửa như cũ.
+
 ## [0.593.0] - 2026-11-18
 ### Thêm mới
 - **Bot đọc được file nhân viên gửi cho khách trên Zalo OA và Fanpage.** Báo giá PDF, Word, Excel hay ảnh nhân viên gửi từ app OA hoặc hộp thư Trang giờ hiện trong Hộp thư (nhãn Nhân viên), và bot biết nội dung để trả lời khi khách hỏi lại. Ảnh được một bộ não đã kết nối có mắt đọc hộ.

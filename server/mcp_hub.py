@@ -211,6 +211,9 @@ OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "
                               # 0.259.0: tìm và đọc web. Bot nói chuyện với khách lạ không được biến
                               # máy chủ của chủ thành máy đi đọc web hộ bất kỳ ai nhắn tới.
                               "javis_web_search", "javis_web_fetch",
+                              # 2026-11-19 (PR 1554 review): list, read and message EVERY customer of the shop. A
+                              # stranger chatting with a bot must never read other customers' chats or write to them.
+                              "inbox_find", "inbox_reply",
                               # 2026-11-05 audit: adds an MCP server to the store EVERY brain shares and dials it
                               # at once. A customer must never plant a server in the owner's tool list.
                               "javis_add_mcp"})

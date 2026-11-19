@@ -72,54 +72,99 @@ def _404(msg: str = ""):
     return JSONResponse({"ok": False, "error": msg}, status_code=404)
 
 
+def _tk_goc(c: dict) -> str:
+    key = str(c.get("channel_account_id") or "")
+    return key.split(":", 1)[1] if ":" in key else key
+
+
+async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Optional[dict] = None):
+    """Gửi một tin chữ vào cuộc chat qua năng lực `gui` của kênh. Trả (ok, lỗi). Dùng chung cho chủ gõ tay và cho lượt
+    nhờ bot trả lời (0.65.5), để hai đường không lệch nhau ở cách dựng tài khoản gửi.
+
+    `tieng_vong=True`: trên Zalo cá nhân phải nhớ câu vừa gửi TRƯỚC khi gửi, y như `Transport._gui`, không thì vòng đọc thấy nó
+    quay về như tin của chính chủ (bot tưởng chủ vừa nhắn tay nên im cả quãng) hoặc như tin của một khách (bot tự trả lời chính
+    mình trong nhóm). Câu CHỦ gõ ở Hộp thư cũng bật cờ này (0.108.0): Javis đã tự ghi câu đó, và từ javis-zalo 1.3.0 tin của
+    chính tài khoản quay về vòng đọc kèm `isSelf`, nên không nhớ thì Hộp thư hiện câu chủ gõ HAI lần.
+
+    `reply_to` (tin khách bot đang trả lời): trong nhóm Zalo cá nhân, câu của bot tag đúng người gửi tin đó, y như bot tự trả lời."""
+    kenh = str(c.get("channel") or "")
+    raw = _tk_goc(c)
+    if tieng_vong and kenh == "zalo_personal":
+        try:
+            import zalo_personal_channel as zc
+            zc.ghi_da_gui(raw, str(c.get("external_chat_id") or ""), txt)
+        except Exception:      # noqa: BLE001 - không nhớ được tiếng vọng thì vẫn gửi, tệ nhất là một dòng trùng trong Hộp thư
+            pass
+    s = channels.spec(kenh)
+    if not s:
+        return False, localefmt.chu(f"kênh '{kenh}' không có trong sổ đăng ký",
+                                    f"channel '{kenh}' is not in the registry")
+    tk = {"id": raw, "channel": kenh}
+    if s.kind == "bot":
+        a = channel_accounts.get_account(raw) or {}
+        tk.update({k: a.get(k) for k in ("label", "external_id")})
+        tk["token"] = channel_accounts.get_token(raw)
+    extra = {}
+    if tieng_vong and kenh == "zalo_personal" and reply_to and str(c.get("chat_type") or "") == "group":
+        extra["mention"] = {"uid": reply_to.get("sender_id"), "name": reply_to.get("sender_name")}
+    kq = await channels.gui(kenh, tk, str(c.get("external_chat_id") or ""), txt, str(c.get("chat_type") or "private"), **extra)
+    if tieng_vong and kenh == "zalo_personal" and kq and kq[0]:
+        # Hộp thư vừa trả lời chat này: tiếng vọng của câu này bị lọc ở vòng đọc nên không tính là chủ nhắn tay,
+        # phải tự báo kẻo 10 phút sau bot trả lời lại tin khách đã có người đáp (0.136.0).
+        try:
+            import zalo_personal_channel as zc
+            zc.bo_cho_chu(raw, str(c.get("external_chat_id") or ""))
+        except Exception:      # noqa: BLE001
+            pass
+    return kq
+
+
+async def owner_reply(conv_id: int, text: str, sender_name: str = "Bạn", via: str = "",
+                      take_over: bool = True) -> dict:
+    """Send `text` into conversation `conv_id` as the owner, on whatever channel it lives (Messenger, Instagram,
+    Telegram, Zalo...), the same path as typing in the inbox. Records it as a `human` message and takes the chat over
+    from its bot. `via` marks who sent it (`"tool"` when an engine called `inbox_reply`). `take_over=False` (the
+    `inbox_reply` tool) leaves the bot running: the owner asked Javis to pass on one message, not to mute the bot for
+    that customer. Returns a dict with `ok`."""
+    c = conversations.chi_tiet(int(conv_id or 0))
+    if not c:
+        return {"ok": False, "code": "not_found",
+                "error": localefmt.chu("không có hội thoại nào id đó", "no conversation with that id")}
+    txt = str(text or "").strip()
+    if not txt:
+        return {"ok": False, "code": "empty", "error": localefmt.chu("tin rỗng", "empty message")}
+    if len(txt) > conversations.MAX_CHU:
+        return {"ok": False, "code": "too_long",
+                "error": localefmt.chu(f"tin dài quá {conversations.MAX_CHU} ký tự",
+                                       f"message longer than {conversations.MAX_CHU} characters")}
+    kenh = str(c.get("channel") or "")
+    ok, loi = await _gui_tin(c, txt, tieng_vong=True)
+    if not ok:
+        return {"ok": False, "code": "send_failed", "error": loi or localefmt.chu("không gửi được", "could not send")}
+    meta = {"tu_javis": True}
+    if via:
+        meta["via"] = via
+    r = conversations.ghi_su_kien({
+        "channel": kenh, "account_id": _tk_goc(c), "account_name": c.get("account_name") or "",
+        "bot_id": c.get("bot_id") or "",
+        "external_chat_id": c.get("external_chat_id"), "chat_type": c.get("chat_type"),
+        "chat_title": c.get("title") if c.get("chat_type") == "group" else "",
+        "sender_type": "human", "sender_name": sender_name, "message_type": "text", "text": txt,
+        "metadata": meta,
+    })
+    tiep_quan = False
+    if take_over and c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
+        conversations.dat_che_do(c["id"], "human")
+        tiep_quan = True
+    # The owner answered by hand: an A.I. draft still waiting is no longer needed (Chatbot v5).
+    conversations.clear_draft(c["id"])
+    return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
+            "conversation": conversations.chi_tiet(c["id"])}
+
+
 def register(app, deps: ConversationsDeps):
     global _DEPS
     _DEPS = deps
-
-    def _tk_goc(c: dict) -> str:
-        key = str(c.get("channel_account_id") or "")
-        return key.split(":", 1)[1] if ":" in key else key
-
-    async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Optional[dict] = None):
-        """Gửi một tin chữ vào cuộc chat qua năng lực `gui` của kênh. Trả (ok, lỗi). Dùng chung cho chủ gõ tay và cho lượt
-        nhờ bot trả lời (0.65.5), để hai đường không lệch nhau ở cách dựng tài khoản gửi.
-
-        `tieng_vong=True`: trên Zalo cá nhân phải nhớ câu vừa gửi TRƯỚC khi gửi, y như `Transport._gui`, không thì vòng đọc thấy nó
-        quay về như tin của chính chủ (bot tưởng chủ vừa nhắn tay nên im cả quãng) hoặc như tin của một khách (bot tự trả lời chính
-        mình trong nhóm). Câu CHỦ gõ ở Hộp thư cũng bật cờ này (0.108.0): Javis đã tự ghi câu đó, và từ javis-zalo 1.3.0 tin của
-        chính tài khoản quay về vòng đọc kèm `isSelf`, nên không nhớ thì Hộp thư hiện câu chủ gõ HAI lần.
-
-        `reply_to` (tin khách bot đang trả lời): trong nhóm Zalo cá nhân, câu của bot tag đúng người gửi tin đó, y như bot tự trả lời."""
-        kenh = str(c.get("channel") or "")
-        raw = _tk_goc(c)
-        if tieng_vong and kenh == "zalo_personal":
-            try:
-                import zalo_personal_channel as zc
-                zc.ghi_da_gui(raw, str(c.get("external_chat_id") or ""), txt)
-            except Exception:      # noqa: BLE001 - không nhớ được tiếng vọng thì vẫn gửi, tệ nhất là một dòng trùng trong Hộp thư
-                pass
-        s = channels.spec(kenh)
-        if not s:
-            return False, localefmt.chu(f"kênh '{kenh}' không có trong sổ đăng ký",
-                                        f"channel '{kenh}' is not in the registry")
-        tk = {"id": raw, "channel": kenh}
-        if s.kind == "bot":
-            a = channel_accounts.get_account(raw) or {}
-            tk.update({k: a.get(k) for k in ("label", "external_id")})
-            tk["token"] = channel_accounts.get_token(raw)
-        extra = {}
-        if tieng_vong and kenh == "zalo_personal" and reply_to and str(c.get("chat_type") or "") == "group":
-            extra["mention"] = {"uid": reply_to.get("sender_id"), "name": reply_to.get("sender_name")}
-        kq = await channels.gui(kenh, tk, str(c.get("external_chat_id") or ""), txt, str(c.get("chat_type") or "private"), **extra)
-        if tieng_vong and kenh == "zalo_personal" and kq and kq[0]:
-            # Hộp thư vừa trả lời chat này: tiếng vọng của câu này bị lọc ở vòng đọc nên không tính là chủ nhắn tay,
-            # phải tự báo kẻo 10 phút sau bot trả lời lại tin khách đã có người đáp (0.136.0).
-            try:
-                import zalo_personal_channel as zc
-                zc.bo_cho_chu(raw, str(c.get("external_chat_id") or ""))
-            except Exception:      # noqa: BLE001
-                pass
-        return kq
 
     def _hesitant() -> list:
         """Nhóm bot vừa cân nhắc nói rồi im trong 24 giờ qua (kho bộ phán xử). Kho hỏng hay chưa có thì rỗng: bộ lọc
@@ -517,37 +562,10 @@ def register(app, deps: ConversationsDeps):
         `human`): người vừa nhắn tay mà bot chen vào câu sau là khách đọc hai giọng một lúc.
         Trả `tiep_quan: true` để giao diện nói ra điều đó.
         """
-        c = conversations.chi_tiet(conv_id)
-        if not c:
-            return _404()
-        txt = str(text or "").strip()
-        if not txt:
-            return JSONResponse({"ok": False, "error": localefmt.chu("tin rỗng", "empty message")}, status_code=400)
-        if len(txt) > conversations.MAX_CHU:
-            return JSONResponse({"ok": False, "error": localefmt.chu(f"tin dài quá {conversations.MAX_CHU} ký tự",
-                                                                   f"message longer than {conversations.MAX_CHU} characters")}, status_code=400)
-        kenh = str(c.get("channel") or "")
-        ok, loi = await _gui_tin(c, txt, tieng_vong=True)
-        if not ok:
-            return JSONResponse({"ok": False, "error": loi or localefmt.chu("không gửi được", "could not send")},
-                                status_code=400)
-        raw = _tk_goc(c)
-        r = conversations.ghi_su_kien({
-            "channel": kenh, "account_id": raw, "account_name": c.get("account_name") or "",
-            "bot_id": c.get("bot_id") or "",
-            "external_chat_id": c.get("external_chat_id"), "chat_type": c.get("chat_type"),
-            "chat_title": c.get("title") if c.get("chat_type") == "group" else "",
-            "sender_type": "human", "sender_name": "Bạn", "message_type": "text", "text": txt,
-            "metadata": {"tu_javis": True},
-        })
-        tiep_quan = False
-        if c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
-            conversations.dat_che_do(conv_id, "human")
-            tiep_quan = True
-        # The owner answered by hand: an A.I. draft still waiting is no longer needed (Chatbot v5).
-        conversations.clear_draft(conv_id)
-        return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
-                "conversation": conversations.chi_tiet(conv_id)}
+        r = await owner_reply(conv_id, text)
+        if r.get("ok"):
+            return r
+        return JSONResponse(r, status_code=404 if r.get("code") == "not_found" else 400)
 
     def _private_target(msgs: list, wanted: str = "") -> tuple:
         """The comment a private message answers (0.446.0): `wanted` when it is one of the customer's comments in this
