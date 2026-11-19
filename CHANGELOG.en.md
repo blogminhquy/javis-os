@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.598.1] - 2026-11-19
+### Fixed
+- **Bot cards show the Facebook Page name instead of its numeric ID.** A Page added by pasting its token only stored the ID, so the channel chip showed a string of digits. Each time the bot starts, Javis now keeps the Page's real name and the chip shows it. A label you set yourself (a short name) still wins, and the ID shows when you hover the chip.
+
 ## [0.598.0] - 2026-11-19
 ### Added
 - **Ask Javis in chat to run a script on a schedule.** For example "run check_shop.py every minute": the job runs the script directly with no model, so it is cheap and can run every minute.
