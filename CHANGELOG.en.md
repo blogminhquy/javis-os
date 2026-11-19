@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.602.1] - 2026-11-19
+### Fixed
+- **Calling `javis_team` no longer says "does not exist" when the hub runs in lazy mode.** With many tools the hub hides most behind its search tool, but assistants call them by name and got an error. A call by name now reaches the right tool, through the same permission layer. The quick reminder cancel works again in lazy mode too.
+
 ## [0.602.0] - 2026-11-19
 ### Improved
 - **A much quieter bell.** Answers in chats, partner chats and teams no longer go to the bell. A **red dot** on Chat, Partners and Team in the menu shows them instead, like the dot already on each chat.
