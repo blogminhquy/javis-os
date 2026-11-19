@@ -360,7 +360,19 @@ async def _publish_photo(args, cctx):
 # Cover image: Meta caps it at 10MB (graph-api/reference/video/thumbnails). Images only.
 THUMB_MAX_BYTES = 10 * 1024 * 1024
 THUMB_EXTS = (".jpg", ".jpeg", ".png")
-RUPLOAD = "https://rupload.facebook.com/video-upload/v25.0"
+RUPLOAD = "https://rupload.facebook.com/video-upload/" + GRAPH.rsplit("/", 1)[-1]   # same API version as GRAPH
+RUPLOAD_CHUNK = 1024 * 1024
+
+
+async def _file_chunks(path, size=RUPLOAD_CHUNK):
+    """Read a video in 1MB pieces off the event loop, so a 1GB Reel never sits in memory whole."""
+    import asyncio
+    with open(path, "rb") as f:
+        while True:
+            piece = await asyncio.to_thread(f.read, size)
+            if not piece:
+                break
+            yield piece
 
 
 def _resolve_thumb(ref, cctx):
@@ -391,9 +403,10 @@ async def _rupload(video_id, path, url, token):
             if url:
                 r = await c.post(f"{RUPLOAD}/{video_id}", headers={**headers, "file_url": url})
             else:
-                body = path.read_bytes()
-                r = await c.post(f"{RUPLOAD}/{video_id}", content=body,
-                                 headers={**headers, "offset": "0", "file_size": str(len(body))})
+                size = path.stat().st_size
+                r = await c.post(f"{RUPLOAD}/{video_id}", content=_file_chunks(path),
+                                 headers={**headers, "offset": "0", "file_size": str(size),
+                                          "Content-Length": str(size)})
         try:
             return r.json()
         except Exception:
