@@ -62,9 +62,22 @@ check("while sending, the three buttons are disabled and Send spins", (d2.match(
 check("the draft box shows whenever the chat has a waiting draft, whatever the mode", /var draft = c\.draft && String\(c\.draft\.text \|\| ""\)\.trim\(\) \? c\.draft : null;/.test(COMP) &&
   /draft && V \? V\.draftHtml\(draft/.test(COMP));
 check("the owner's edits to the draft survive the 5-second redraw (same draft only)", /if \(_draftEdit && _draftEdit\.ts === dr\.ts\) dt\.value = _draftEdit\.text;/.test(CV) &&
-  /dt\.oninput = function \(\) \{ _draftEdit = \{ ts: dr\.ts, text: dt\.value \}; \};/.test(CV));
+  /dt\.oninput = function \(\) \{ _draftEdit = \{ ts: dr\.ts, text: dt\.value \}; showLearn\(\); \};/.test(CV));
+// "Bot học câu này" (owner 2026-11-19): ticked by default; shown with the owner's order, revealed once the owner rewrites.
+check("draft box: a ticked 'Bot học câu này', shown when the draft carries the owner's order",
+  /<label class="ib-dr-learn" title="ib\.dr_learn_t"><input type="checkbox" class="ib-dr-learn-c" checked> <span>ib\.dr_learn<\/span><\/label>/.test(d1));
+check("draft box: hidden on a plain A.I. draft until the owner rewrites it",
+  /<label class="ib-dr-learn" hidden/.test(V.draftHtml({ text: "x" })) &&
+  /ll\.hidden = !\(String\(dr\.instruction \|\| ""\)\.trim\(\) \|\| dt\.value\.trim\(\) !== String\(dr\.text \|\| ""\)\.trim\(\)\)/.test(CV));
+check("the tick survives the 5-second redraw (same draft only)",
+  /if \(_draftLearn && _draftLearn\.ts === dr\.ts\) lc\.checked = _draftLearn\.on;/.test(CV));
 const SEND = fnBody("async function sendDraft(c) {");
-check("Send posts the edited text to /draft action=send", /\/draft", \{ method: "POST", body: fd\(\{ action: "send", text: txt \}\) \}/.test(SEND));
+check("Send posts the edited text to /draft action=send, with learn only when the tick is shown and on",
+  /\/draft", \{ method: "POST", body: fd\(\{ action: "send", text: txt, learn: learn \}\) \}/.test(SEND) &&
+  /var learn = lc && ll && !ll\.hidden && lc\.checked \? "1" : "0";/.test(SEND));
+check("a learned reply says so in a toast", /if \(r && r\.learned\) toast\(window\.t\("ib\.t_learned"\)\);/.test(SEND));
+check("the learn keys are in vi and en, the label short", ["ib.dr_learn", "ib.dr_learn_t", "ib.t_learned"].every((k) => VI[k] && EN[k]) &&
+  VI["ib.dr_learn"] === "Bot học câu này" && VI["ib.dr_learn_t"].length <= 160);
 check("Discard posts action=discard and says so in a toast", /\/draft", \{ method: "POST", body: fd\(\{ action: "discard" \}\) \}/.test(fnBody("async function dropDraft(c) {")) &&
   /toast\(window\.t\("ib\.t_dropped"\)\)/.test(CV));
 

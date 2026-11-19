@@ -85,6 +85,7 @@
   var _aiWork = null;       // {stage, start, order, conv}
   var _aiTick = null;
   var _draftEdit = null;    // {ts, text}: the owner's edits to the waiting draft, kept across the 5-second redraws
+  var _draftLearn = null;   // {ts, on}: the owner's "Bot học câu này" tick on the waiting draft, kept the same way
   var _noteEdit = null;     // {id, text}: the note being typed in the Info panel, same reason
   var _toastT = null;
   var _tags = [];           // the owner's inbox tags [{id, name, color, count}], from the list endpoint
@@ -1557,7 +1558,17 @@
     if (dt) {
       var dr = c.draft || {};
       if (_draftEdit && _draftEdit.ts === dr.ts) dt.value = _draftEdit.text;
-      dt.oninput = function () { _draftEdit = { ts: dr.ts, text: dt.value }; };
+      // "Bot học câu này": shown when the draft carries the owner's order or the owner rewrote it (a person decided).
+      var lc = box.querySelector(".ib-dr-learn-c"), ll = box.querySelector(".ib-dr-learn");
+      var showLearn = function () {
+        if (ll) ll.hidden = !(String(dr.instruction || "").trim() || dt.value.trim() !== String(dr.text || "").trim());
+      };
+      if (lc) {
+        if (_draftLearn && _draftLearn.ts === dr.ts) lc.checked = _draftLearn.on;
+        lc.onchange = function () { _draftLearn = { ts: dr.ts, on: lc.checked }; };
+      }
+      showLearn();
+      dt.oninput = function () { _draftEdit = { ts: dr.ts, text: dt.value }; showLearn(); };
       if (suaDo) dt.focus();
       box.querySelector(".ib-dr-drop").onclick = function () { dropDraft(c); };
       box.querySelector(".ib-dr-redo").onclick = function () { aiReply(c, dr.instruction || "", "redo"); };
@@ -2138,11 +2149,14 @@
     var t = _host && _host.querySelector(".ht-thread .ib-draft-t");
     var txt = t ? t.value.trim() : "";
     if (!txt || _aiBusy) return;
+    var lc = _host.querySelector(".ht-thread .ib-dr-learn-c"), ll = _host.querySelector(".ht-thread .ib-dr-learn");
+    var learn = lc && ll && !ll.hidden && lc.checked ? "1" : "0";
     _aiBusy = "send";
     veThread();
     try {
-      await api("/conversations/" + c.id + "/draft", { method: "POST", body: fd({ action: "send", text: txt }) });
-      _draftEdit = null; _actNote = null;
+      var r = await api("/conversations/" + c.id + "/draft", { method: "POST", body: fd({ action: "send", text: txt, learn: learn }) });
+      _draftEdit = null; _draftLearn = null; _actNote = null;
+      if (r && r.learned) toast(window.t("ib.t_learned"));
     } catch (e) { _actNote = { text: window.t("ht.act_fail", { err: e.message }), err: true }; }
     _aiBusy = "";
     refreshChat();

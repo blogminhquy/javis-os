@@ -55,6 +55,9 @@ class ConversationsDeps:
     drop_pending: Callable = None
     # `manual_meta(conv, last) -> meta`: the turn meta for a stored conversation, to record a sent draft as the bot's words.
     manual_meta: Callable = None
+    # `learn_owner(conv, msgs, sent, instruction, draft) -> {"learned", "path", "reason"}` (2026-11-19): a draft the
+    # owner ordered or rewrote, once sent, joins the Agent's knowledge (`chatbot_runtime.learn_from_owner`). Blocking.
+    learn_owner: Callable = None
 
 
 # Ảnh và file khách gửi chỉ được phát từ hai thư mục mà các kênh tự tải về: `inbox/` (Telegram, Zalo Bot, Slack, WhatsApp,
@@ -838,9 +841,12 @@ def register(app, deps: ConversationsDeps):
         return {"ok": True, "conversation": _detail_with_state(conv_id)}
 
     @router.post("/conversations/{conv_id}/draft")
-    async def conversations_draft(conv_id: int, action: str = Form(...), text: str = Form("")):
+    async def conversations_draft(conv_id: int, action: str = Form(...), text: str = Form(""), learn: str = Form("")):
         """The A.I.'s waiting draft (Chatbot v5): `action=send` sends `text` (the owner may have edited it) as the bot's
-        reply and records it in the inbox as the bot's words; `action=discard` drops it. Both clear the stored draft."""
+        reply and records it in the inbox as the bot's words; `action=discard` drops it. Both clear the stored draft.
+
+        `learn=1` (the ticked "Bot học câu này", 2026-11-19): when the draft carried the owner's order or the owner
+        rewrote it, the sent reply joins the Agent's knowledge; the answer says `learned`."""
         c = conversations.chi_tiet(conv_id)
         if not c:
             return _404()
@@ -877,8 +883,17 @@ def register(app, deps: ConversationsDeps):
                 "sender_type": "ai", "sender_name": "Bot", "message_type": "text", "text": txt,
                 "metadata": {"tu_javis": True, "draft": True},
             })
+        learned = False
+        if str(learn).strip().lower() in ("1", "true", "on") and c.get("bot_id") and _DEPS.learn_owner:
+            dr = conversations.draft_of(c) or {}
+            try:
+                res = await asyncio.to_thread(_DEPS.learn_owner, c, msgs, txt, str(dr.get("instruction") or ""),
+                                              str(dr.get("text") or ""))
+                learned = bool((res or {}).get("learned"))
+            except Exception:      # noqa: BLE001 - the message went out; learning is extra
+                learned = False
         conversations.clear_draft(conv_id)
-        return {"ok": True, "conversation": _detail_with_state(conv_id)}
+        return {"ok": True, "learned": learned, "conversation": _detail_with_state(conv_id)}
 
     def _goc_media(c: dict) -> list:
         """Các thư mục được phép phát media của hội thoại này: inbox/ và attachments/ trong brain của bot trực nó, và

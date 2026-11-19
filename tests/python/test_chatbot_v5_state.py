@@ -247,6 +247,24 @@ check("draft send: recorded as the bot's words",
       any(m["sender_type"] == "ai" and m["text"] == "Dạ 120k một chai ạ" for m in conversations.tin_nhan(cid)))
 check("draft send: draft cleared", conversations.draft_of(conversations.chi_tiet(cid)) is None)
 check("draft send: empty refused", cl.post(f"/conversations/{cid}/draft", data={"action": "send", "text": " "}).status_code == 400)
+# "Bot học câu này" (owner 2026-11-19): learn=1 hands the sent text, the order and the A.I.'s draft to the learner.
+LEARNED = []
+conv_routes._DEPS.learn_owner = lambda c, msgs, sent, instruction, draft: (
+    LEARNED.append((sent, instruction, draft)) or {"learned": True, "path": "x.md"})
+conversations.save_draft(cid, "Dạ em chưa có lịch ạ", 0, "lịch 20h ngày 21")
+r = cl.post(f"/conversations/{cid}/draft", data={"action": "send", "text": "Dạ lịch 20h ngày 21 ạ", "learn": "1"}).json()
+check("draft send learn=1: the learner gets the sent text, the order and the draft",
+      r.get("ok") and r.get("learned") is True and LEARNED[-1] == ("Dạ lịch 20h ngày 21 ạ", "lịch 20h ngày 21", "Dạ em chưa có lịch ạ"),
+      (r, LEARNED))
+n = len(LEARNED)
+conversations.save_draft(cid, "Dạ giảm 10% cho chị ạ", 0, "giảm 10% cho chị này")
+r = cl.post(f"/conversations/{cid}/draft", data={"action": "send", "text": "Dạ giảm 10% cho chị ạ", "learn": "0"}).json()
+check("draft send unticked: nothing learned", r.get("ok") and r.get("learned") is False and len(LEARNED) == n, (r, LEARNED))
+conv_routes._DEPS.learn_owner = lambda *a: (_ for _ in ()).throw(RuntimeError("disk full"))
+conversations.save_draft(cid, "Dạ ạ", 0, "x")
+r = cl.post(f"/conversations/{cid}/draft", data={"action": "send", "text": "Dạ vâng ạ", "learn": "1"}).json()
+check("draft send: a failing learner never fails the sent message", r.get("ok") and r.get("learned") is False, r)
+conv_routes._DEPS.learn_owner = None
 conversations.save_draft(cid, "Dạ để em xem ạ")
 r = cl.post(f"/conversations/{cid}/reply", data={"text": "Dạ còn hàng ạ"}).json()
 check("owner's own reply drops the A.I. draft", r.get("ok") and conversations.draft_of(conversations.chi_tiet(cid)) is None, r)

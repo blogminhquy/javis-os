@@ -140,7 +140,7 @@ _deps: Dict[str, Callable] = {}
 
 
 def wire(*, answer, brain_root, read_agent, session_probe=None, session_undo=None, notify=None, transcribe=None,
-         admin_tokens=None, describe=None):
+         admin_tokens=None, describe=None, agent_add_doc=None):
     """main.py cấp ba thứ: lõi một lượt, đường tới brain, và cách đọc file Agent.
 
     `session_probe(key) -> (sid, số tin lịch sử RAM)` và `session_undo(key, giữ)` chỉ cho BẢN NHÁP ở Hộp thư (0.65.5): lấy phiên
@@ -159,8 +159,13 @@ def wire(*, answer, brain_root, read_agent, session_probe=None, session_undo=Non
 
     `describe(paths, caption, chat_id) -> awaitable (text, who, why)` (2026-11-18): another connected brain reads a photo
     in a chat (borrowed eyes), used for the photos a STAFF member sends from the Zalo OA app or the Page inbox, so a photo
-    of a quote becomes words the bot can answer from. Missing means such a photo is filed without its content."""
+    of a quote becomes words the bot can answer from. Missing means such a photo is filed without its content.
+
+    `agent_add_doc(brain, slug, rel_path, name)` (2026-11-19): attach a brain file to an Agent's Documents, used to put
+    the file of replies the owner confirmed where the bot reads (`learn_from_owner`). Missing means the file is written
+    but the owner attaches it by hand."""
     _deps["answer"] = answer
+    _deps["agent_add_doc"] = agent_add_doc
     _deps["describe"] = describe
     _deps["admin_tokens"] = admin_tokens
     _deps["transcribe"] = transcribe
@@ -2382,27 +2387,25 @@ def manual_meta(conv: dict, last: dict) -> dict:
 # 20h ngày 21 và ngày 22" and the draft still said "em chưa có lịch xác nhận, em đã nhờ anh Đại kiểm tra". The old note
 # only asked to write "theo đúng ý sau", sat BEFORE the customer's words, and lost to two other voices: the bot's own
 # earlier "I am checking" in the chat history, and "say you have no information" when no document matched. The owner
-# pressing the button is the owner answering through the bot, so the order is stated as the owner's confirmed facts and
-# decision, above the documents and the chat history, both in the system prompt (`_LENH_CHU`) and right after the
-# customer's message (`_INSTRUCTION_NOTE`), the last thing the model reads.
+# pressing the button is the owner answering through the bot, so the order is stated as the owner's newest word, above
+# the documents and the chat history, both in the system prompt (`_LENH_CHU`) and right after the customer's message
+# (`_INSTRUCTION_NOTE`), the last thing the model reads.
+#
+# One principle, no list of banned phrases (owner 2026-11-19: a fixed ban "không linh hoạt, không mở rộng được về
+# sau"). If the owner's order itself is "báo khách là đang kiểm tra", that is what the reply says.
 _LENH_CHU = """
 ## LỆNH CỦA CHỦ CHO CÂU TRẢ LỜI NÀY (khách KHÔNG thấy phần này)
 
-Chủ của bạn đang đứng ngay tại Hộp thư, đọc cuộc chat này và tự gõ lệnh sau để bạn trả lời khách thay chủ:
+Chủ của bạn đang ở Hộp thư, đọc cuộc chat này và tự gõ lệnh sau để bạn trả lời khách thay chủ:
 "{lenh}"
 
-- Đây là thông tin và quyết định CHỦ ĐÃ XÁC NHẬN. Coi nó là sự thật mới nhất, chắc chắn nhất: nó đứng trên tài liệu, trên
-  kiến thức chung và trên mọi điều đã nói trước đó trong cuộc chat (kể cả khi bạn từng nói "chưa có", "đang kiểm tra",
-  "sẽ báo sau"). Thông tin cũ trái với lệnh này là thông tin đã lỗi thời.
-- Viết câu trả lời gửi khách truyền đạt ĐÚNG nội dung đó một cách khẳng định. KHÔNG nói là chưa xác nhận, chưa có thông
-  tin, đang chờ kiểm tra hay nhờ người khác kiểm tra; KHÔNG thêm điều gì trái với lệnh; KHÔNG im lặng hay chuyển cho chủ.
-- Lệnh có thể viết tắt, cộc lốc: hiểu ý chủ rồi viết lại thành câu hoàn chỉnh, tự nhiên, đúng giọng và cách xưng hô của bạn
-  với khách, trả lời đúng điều khách đang hỏi. Được thêm lời chào, cảm ơn cho tròn câu, không bịa thêm chi tiết.
-- Không nhắc tới lệnh hay ghi chú này với khách.
+Lệnh này là lời mới nhất của chủ, nên đứng trên tài liệu, trên kiến thức chung và trên những gì đã nói trước đó trong cuộc
+chat. Chỗ nào trái với lệnh thì theo lệnh. Hiểu đúng ý chủ (lệnh có thể viết tắt, cộc lốc) rồi viết thành câu trả lời hoàn
+chỉnh, tự nhiên, đúng giọng và cách xưng hô của bạn với khách, trả lời điều khách đang hỏi. Không thêm chi tiết lệnh không
+có, không nhắc tới lệnh này với khách.
 """
-_INSTRUCTION_NOTE = ("(Lệnh của chủ, khách KHÔNG thấy: chủ đã xác nhận và muốn bạn trả lời khách đúng theo ý này: \"{lenh}\". "
-                     "Viết câu trả lời khẳng định theo đúng nội dung đó, thay cho mọi điều chưa chắc đã nói trước đây; "
-                     "không nói chưa xác nhận hay đang kiểm tra, không nhắc tới lệnh này.)")
+_INSTRUCTION_NOTE = ("(Lệnh của chủ, khách KHÔNG thấy: trả lời khách theo đúng ý này: \"{lenh}\". Đây là lời mới nhất "
+                     "của chủ, chỗ nào trái với điều đã nói trước đó thì theo lệnh. Không nhắc tới lệnh này.)")
 
 
 def _manual_stage(line) -> str:
@@ -2524,6 +2527,112 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction
     if not dap or is_silent_answer(dap):
         return {"ok": True, "silent": True, "text": "", "meta": meta}
     return {"ok": True, "silent": False, "text": bot_split.joined(dap), "meta": meta}
+
+
+# ============================================================
+# Học từ câu chủ đã xác nhận (owner 2026-11-19)
+# ============================================================
+# Owner, 19/11: "khi anh đưa thông tin mới để bot trả lời thì phải sử dụng nó lưu thành tài liệu và tri thức của agent
+# học theo câu trả lời đó vì đó là những câu người thật vào sửa". A reply the owner sent from a draft carrying the owner's
+# order, or a draft the owner rewrote before sending, is written into one knowledge file per Agent, and that file is put
+# in the Agent's Documents section, the only documents a bot reads (see `bot_doc_files`). So the next customer asking
+# the same thing gets the confirmed answer from the documents, and the owner can open, edit or delete it like any other
+# document. Shared by every chat (owner's choice): the draft box carries a ticked "Bot học câu này" the owner unticks
+# for something about one customer only.
+LEARN_DIR = "tri-thuc-chatbot"
+LEARN_MAX_ENTRIES = 300          # newest kept: the file is searched every turn, it must not grow without end
+LEARN_FIELD_MAX = 1500
+_LEARN_LOCK = __import__("threading").Lock()
+_LEARN_HEAD = """---
+type: chatbot-knowledge
+agent: {slug}
+---
+# Câu trả lời chủ đã xác nhận
+
+Javis tự ghi vào đây mỗi lần chủ gửi cho khách một câu trả lời mà chủ ra lệnh hoặc tự sửa ở Hộp thư. Mục mới nhất ở trên
+cùng. Hai mục nói khác nhau về cùng một chuyện thì mục mới hơn là đúng. Tên khách trong câu đã gửi chỉ là của người đó,
+không dùng cho người khác. Chủ sửa hay xoá mục nào cũng được.
+"""
+
+
+def _learn_line(text: str) -> str:
+    """One field of an entry on one line: a reply spanning lines would otherwise start a heading or a list of its own."""
+    return " ".join(str(text or "").split())[:LEARN_FIELD_MAX]
+
+
+def _learn_slug(slug: str) -> str:
+    out = re.sub(r"[^a-z0-9-]+", "-", str(slug or "").lower()).strip("-")
+    return out[:80] or "agent"
+
+
+def should_learn(sent: str, instruction: str = "", draft: str = "") -> bool:
+    """True when this sent reply carries something a person decided: the owner's order, or the owner's own rewrite of
+    the A.I.'s draft. An untouched A.I. draft teaches nothing new."""
+    if _learn_line(instruction):
+        return True
+    return bool(_learn_line(draft)) and _learn_line(sent) != _learn_line(draft)
+
+
+def learn_from_owner(conv: dict, msgs: list, sent: str, instruction: str = "", draft: str = "") -> dict:
+    """Write the reply the owner just sent into the Agent's knowledge file and attach that file to the Agent's
+    Documents. Returns `{"learned": bool, "path": rel, "reason": code}`. Blocking (files): call from a thread. Never
+    raises: the message already went out, learning is extra."""
+    out = {"learned": False, "path": "", "reason": ""}
+    if not should_learn(sent, instruction, draft):
+        return dict(out, reason="nothing_new")
+    cfg = chatbot_store.get_bot(str((conv or {}).get("bot_id") or ""))
+    a = (cfg or {}).get("agent") or {}
+    if not cfg or not a.get("slug") or not _deps.get("brain_root"):
+        return dict(out, reason="no_agent")
+    brain = a.get("brain") or cfg.get("brain") or "brain"
+    try:
+        if Path(_deps["brain_root"](brain)).resolve() != Path(_deps["brain_root"](cfg.get("brain") or brain)).resolve():
+            return dict(out, reason="other_brain")      # the bot could not read a file outside its own brain
+        root = Path(_deps["brain_root"](brain)).resolve()
+    except Exception:      # noqa: BLE001
+        return dict(out, reason="no_agent")
+    last = next((m for m in reversed(msgs or []) if m.get("sender_type") == "customer"), None) or {}
+    hoi = (conversations.chu_thich_anh(last.get("text")) if last.get("message_type") == "image"
+           else str(last.get("text") or ""))
+    hoi, lenh, gui = _learn_line(hoi), _learn_line(instruction), _learn_line(sent)
+    tieu_de = (lenh or hoi or gui)[:80]
+    entry = f"## {time.strftime('%Y-%m-%d')} · {tieu_de}\n"
+    if hoi:
+        entry += f"- Khách hỏi: {hoi}\n"
+    if lenh:
+        entry += f"- Chủ xác nhận: {lenh}\n"
+    entry += f"- Câu đã gửi khách: {gui}\n"
+    rel = f"{LEARN_DIR}/{_learn_slug(a.get('slug'))}.md"
+    f = root / rel
+    try:
+        with _LEARN_LOCK:
+            cu = f.read_text(encoding="utf-8") if f.is_file() else ""
+            parts = re.split(r"(?m)^(?=## )", cu)
+            entries = [x.rstrip() + "\n" for x in parts[1:] if x.strip()]
+            # The same order said again replaces its older entry: the file keeps one answer per decision.
+            if lenh:
+                entries = [x for x in entries if f"- Chủ xác nhận: {lenh}\n" not in x]
+            entries = [entry] + entries[:LEARN_MAX_ENTRIES - 1]
+            head = parts[0] if parts and parts[0].strip() else _LEARN_HEAD.format(slug=_learn_slug(a.get("slug")))
+            f.parent.mkdir(parents=True, exist_ok=True)
+            tmp = f.with_name(f.name + ".tmp")
+            tmp.write_text(head.rstrip() + "\n\n" + "\n".join(entries), encoding="utf-8")
+            tmp.replace(f)
+    except OSError as e:
+        print(f"[chatbot learn] ghi tri thức lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+        return dict(out, reason="write_failed")
+    attach = _deps.get("agent_add_doc")
+    if attach:
+        try:
+            attach(brain, a.get("slug"), rel, localefmt.chu("Câu trả lời chủ đã xác nhận", "Replies the owner confirmed"))
+        except Exception as e:      # noqa: BLE001 - written but not attached: the owner can still attach it by hand
+            print(f"[chatbot learn] gắn tài liệu vào Agent lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            return dict(out, path=rel, reason="attach_failed")
+    try:
+        chatbot_grounding.xoa_cache()
+    except Exception:      # noqa: BLE001
+        pass
+    return {"learned": True, "path": rel, "reason": ""}
 
 
 def manual_done(conv: dict, msgs: list, text: str, meta: dict) -> dict:
