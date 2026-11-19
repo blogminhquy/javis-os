@@ -6897,6 +6897,7 @@
   "nv.title": "Nhiệm vụ",
   "nv.tab.ai": "Việc của Javis",
   "nv.agents": "Trợ lý",
+  "nv.link_missing": "Không thấy việc này ở bộ não đang chọn. Thử đổi sang bộ não khác.",
   "nv.search_ph": "Tìm việc theo tên hoặc trợ lý...",
   "nv.l.all": "Tất cả việc",
   "nv.l.today": "Hôm nay",

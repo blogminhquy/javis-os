@@ -6897,6 +6897,7 @@
   "nv.title": "Tasks",
   "nv.tab.ai": "Javis's tasks",
   "nv.agents": "Assistants",
+  "nv.link_missing": "This task is not in the selected brain. Try another brain.",
   "nv.search_ph": "Search tasks by name or assistant...",
   "nv.l.all": "All tasks",
   "nv.l.today": "Today",
