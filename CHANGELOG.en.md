@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.606.0] - 2026-11-20
+### Improved
+- **Javis finds the right tool far more often when many sources are connected.** Everyday requests such as "today's POS revenue", "Zalo message history" or "Google Ads cost" now reach the right tool, even when tool descriptions are in English. On 55 real test requests, hits rose from 20 to 55.
+- **Naming a source lists its tools**, and several accounts of one kind (three POS shops, two Zalo accounts) share one line instead of crowding out other tools.
+- **Calling a tool without its source prefix or with a typo still works** when only one tool matches; with several matches Javis names them to pick from. Search results are also shorter, so tokens stay low.
+
 ## [0.605.0] - 2026-11-20
 ### Improved
 - **Unread chats move to the top of the history.** Every chat with a red dot now sits in an **Unread** group right under Pinned, even an old one that used to be on a later page. Once read, it goes back to its place by date.
