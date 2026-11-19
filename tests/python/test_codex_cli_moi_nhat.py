@@ -1,10 +1,9 @@
-"""Regression 0.71.1: máy có nhiều bản Codex thì Javis phải hỏi bản MỚI NHẤT.
+"""Regression tests for selecting the newest installed Codex CLI.
 
     python tests/run.py codex_cli_moi_nhat
 
-Chủ repo đo 03/10/2026: ~/.codex/.sandbox-bin (Codex Desktop) kẹt ở 0.147, npm đã 0.160.
-`find_codex_cli` lấy bản đứng đầu nên `model/list` chỉ trả đời GPT-5.6, thiếu GPT-6.1-Sol.
-Không chạy Codex thật: số phiên bản được giả lập.
+The CLI supplies the model catalog, so a stale binary can hide newer models.
+Versions are mocked to keep the test independent of a real Codex installation.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import os
@@ -17,51 +16,74 @@ import claude_cli as cc  # noqa: E402
 _fails = []
 
 
-def check(name, cond):
-    print(("ok   " if cond else "FAIL ") + name)
-    if not cond:
+def check(name, condition):
+    print(("ok   " if condition else "FAIL ") + name)
+    if not condition:
         _fails.append(name)
 
 
 def main():
-    if os.name != "nt":
-        print("skip (chỉ Windows mới gom nhiều bản; POSIX vẫn theo PATH)")
-        return 0
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "home"
         appdata = Path(tmp) / "appdata"
         desktop = home / ".codex" / ".sandbox-bin" / "codex.exe"
         npm = appdata / "npm" / "codex.cmd"
-        for p in (desktop, npm):
-            p.parent.mkdir(parents=True)
-            p.write_text("x")
-        phien_ban = {str(desktop): (0, 147, 0), str(npm): (0, 160, 0)}
+        path_cli = home / "path-codex"
+        local = home / ".local" / "bin" / "codex"
+        paths = [desktop, npm]
+        if os.name != "nt":
+            paths.extend((path_cli, local))
+        for path in paths:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("mock")
 
-        old = (cc._home_dir, cc.tim_binary, cc._codex_version, os.environ.get("APPDATA"),
-               os.environ.pop("JAVIS_CODEX_BIN", None))
+        old_functions = (cc._home_dir, cc.tim_binary, cc._codex_version)
+        old_env = {name: os.environ.get(name) for name in ("APPDATA", "JAVIS_CODEX_BIN")}
+        versions = {}
         cc._home_dir = lambda: home
-        cc.tim_binary = lambda ten: None
-        cc._codex_version = lambda p: phien_ban.get(p)
+        cc._codex_version = lambda path: versions.get(path)
         os.environ["APPDATA"] = str(appdata)
+        os.environ.pop("JAVIS_CODEX_BIN", None)
         try:
-            check("bản npm mới hơn thắng bản Codex Desktop cũ", cc.find_codex_cli() == str(npm))
+            if os.name == "nt":
+                cc.tim_binary = lambda name: None
+                versions.update({str(desktop): (0, 147, 0), str(npm): (0, 160, 0)})
+                check("newer npm CLI wins over older Desktop CLI", cc.find_codex_cli() == str(npm))
 
-            phien_ban[str(desktop)] = (0, 161, 0)
-            check("Codex Desktop mới hơn thì lấy Codex Desktop", cc.find_codex_cli() == str(desktop))
+                versions[str(desktop)] = (0, 161, 0)
+                check("newer Desktop CLI wins over npm CLI", cc.find_codex_cli() == str(desktop))
 
-            phien_ban.clear()
-            check("không đọc được phiên bản thì giữ thứ tự cũ", cc.find_codex_cli() == str(desktop))
+                versions.clear()
+                check("unknown versions preserve the prior candidate order", cc.find_codex_cli() == str(desktop))
 
-            npm.unlink()
-            check("chỉ một bản thì lấy bản đó", cc.find_codex_cli() == str(desktop))
-        finally:
-            cc._home_dir, cc.tim_binary, cc._codex_version = old[0], old[1], old[2]
-            if old[3] is None:
-                os.environ.pop("APPDATA", None)
+                npm.unlink()
+                check("a single installed CLI is selected", cc.find_codex_cli() == str(desktop))
             else:
-                os.environ["APPDATA"] = old[3]
-            if old[4] is not None:
-                os.environ["JAVIS_CODEX_BIN"] = old[4]
+                cc.tim_binary = lambda name: str(path_cli)
+                versions.update({str(path_cli): (0, 153, 4), str(local): (0, 162, 1)})
+                check("newer local CLI wins over stale PATH CLI", cc.find_codex_cli() == str(local))
+
+                versions[str(path_cli)] = (0, 163, 0)
+                check("newer PATH CLI remains selected", cc.find_codex_cli() == str(path_cli))
+
+                versions.clear()
+                check("unknown POSIX versions preserve PATH precedence", cc.find_codex_cli() == str(path_cli))
+
+                local.unlink()
+                versions[str(path_cli)] = (0, 153, 4)
+                check("PATH CLI works when no local CLI exists", cc.find_codex_cli() == str(path_cli))
+
+                override = home / "custom-codex"
+                override.write_text("mock")
+                os.environ["JAVIS_CODEX_BIN"] = str(override)
+                check("explicit CLI override remains authoritative", cc.find_codex_cli() == str(override))
+        finally:
+            cc._home_dir, cc.tim_binary, cc._codex_version = old_functions
+            for name, value in old_env.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
     return 1 if _fails else 0
 
 

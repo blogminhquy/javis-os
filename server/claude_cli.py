@@ -1594,13 +1594,10 @@ def find_codex_cli() -> Optional[str]:
         Path(os.environ.get("APPDATA", "")) / "npm" / "codex.cmd",
         Path(os.environ.get("APPDATA", "")) / "npm" / "codex.exe",
         home / ".codex" / ".sandbox-bin" / "codex",
+        home / ".local" / "bin" / "codex",
     ]
-    # Windows Store có thể đặt app-execution alias ``codex.exe`` lên PATH nhưng
-    # service/tiến trình nền không được quyền chạy alias đó (WinError 5), nên alias
-    # đó chỉ là đường lui cuối. POSIX vẫn tôn trọng PATH trước như thông lệ.
+    # Windows Store aliases can fail in background services, so keep them as a last resort.
     cli = tim_binary("codex")
-    if cli and os.name != "nt":
-        return cli
     co = []
     if cli and "windowsapps" not in cli.lower():
         co.append(cli)
@@ -1610,16 +1607,13 @@ def find_codex_cli() -> Optional[str]:
                 co.append(str(p))
         except Exception:
             pass
-    # Một máy Windows hay có NHIỀU bản Codex cùng lúc: Codex Desktop xuất một bản vào
-    # ~/.codex/.sandbox-bin và không phải lúc nào cũng cập nhật nó, npm đặt bản khác. Trước
-    # 0.71.1 bản đứng đầu danh sách thắng, và chủ repo đo 03/10/2026: sandbox-bin kẹt ở 0.147
-    # (tháng 8) trong khi npm đã 0.160, nên `model/list` chỉ trả đời GPT-5.6 và trang Models
-    # không có GPT-6.1-Sol. Danh sách model là lời của CHÍNH binary được hỏi, nên phải hỏi bản
-    # MỚI NHẤT. Không đọc được số phiên bản thì giữ thứ tự cũ.
+    # Desktop, npm, PATH, and local user installs can expose different model catalogs.
+    # Ask the newest binary when versions are available; otherwise keep the prior search order.
     if len(co) > 1:
-        best = max(co, key=lambda p: _codex_version(p) or ())
-        if _codex_version(best):
-            return best
+        versioned = [(p, _codex_version(p)) for p in co]
+        versioned = [(p, version) for p, version in versioned if version is not None]
+        if versioned:
+            return max(versioned, key=lambda item: item[1])[0]
     if co:
         return co[0]
     if cli:
