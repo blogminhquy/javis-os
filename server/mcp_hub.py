@@ -46,6 +46,7 @@ import secret_guard
 import skill_router
 import skill_usage
 import team_gate
+import tool_finder
 import tool_images
 import tool_pins
 import tool_result_shaper
@@ -1575,42 +1576,32 @@ def _connector_menu(pool, ambient=None):
     return "; ".join(parts)
 
 
-def _rank_tools(pool, query, top_k):
-    """Xếp hạng pool theo độ khớp query: khớp cả cụm (+5), đếm từ khoá (+1/từ), boost khi
-    query nhắc thẳng namespace (+3). Trả top_k tool điểm > 0; query rỗng → [] (handler trả menu).
-
-    2026-11-10, two changes so a search stops costing 10,000 to 25,000 characters:
-      - A word found in the tool's own NAME (fn, name, namespace, label) counts twice. Counting every word
-        once favoured whichever description was longest: a search for shop orders came back with the skill
-        loader on top, because its description lists dozens of skills and so contains nearly any word.
-      - A hit that scores under half of the best one is dropped. It was only there because top_k had room."""
-    q = (query or "").strip().lower()
-    if not q:
-        return []
-    terms = set(_WORD_RE.findall(q))
-    scored = []
+def _source_descs(pool):
+    """namespace -> one-line description of the source (catalog, plugin manifest or local group), the same
+    words the connector menu shows. tool_finder reads them to send "doanh thu" to a POS whose tools only
+    speak English."""
+    out = {}
     for t in pool:
-        own = " ".join([str(t.get("fn") or ""), str(t.get("name") or ""),
-                        str(t.get("namespace") or ""), str(t.get("label") or "")]).lower()
-        hay = own + " " + str(t.get("description") or "").lower()
-        score = 5 if q in hay else 0
-        score += sum(1 for w in terms if w in hay)
-        in_name = sum(1 for w in terms if w in own)
-        score += in_name
-        if q == str(t.get("fn") or "").lower() or q == str(t.get("name") or "").lower():
-            score += 100                                   # asked for by exact name: always first
-        ns = str(t.get("namespace") or "").lower()
-        if ns and ns in q:
-            score += 3
-        if score > 0:
-            scored.append((score, t, in_name))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    if scored:
-        floor = scored[0][0] / 2
-        # ...unless the tool's own name carries two of the words asked for: that is a real match even when
-        # another tool's description happens to contain the whole phrase and takes the top score.
-        scored = [x for x in scored if x[0] >= floor or x[2] >= 2]
-    return [t for _s, t, _n in scored[:top_k]]
+        ns = t.get("namespace") or t.get("server") or "?"
+        if ns in out:
+            continue
+        con = mcp_catalog.get(t.get("connector_id")) or {}
+        out[ns] = (str(con.get("description") or "").strip() or str(t.get("group_desc") or "").strip()
+                   or _LOCAL_GROUP_DESC.get(ns, ""))
+    return out
+
+
+def _rank_tools(pool, query, top_k, index=None):
+    """Tools of `pool` that match `query`, best first, at most top_k; [] for an empty query or no match.
+
+    2026-11-19: ranking moved to tool_finder (concepts in Vietnamese and English, BM25, named sources,
+    spelling). The word count it replaces found the right tool for 20 of 55 everyday requests on a real
+    brain; see tool_finder's docstring for why."""
+    idx = index or tool_finder.Index(pool, _source_descs(pool))
+    res = idx.search(query)
+    if res["browse"]:
+        return []
+    return [t for t, _s in res["hits"][:top_k]]
 
 
 def _hidden_hint(hidden, only_ns=None):
@@ -1641,8 +1632,13 @@ _MO_TA_GON = 400
 # Whole answer of one tool search, in characters. Hits are listed in full (description + schema) while they fit;
 # the rest are named with one line each, and a search by exact name returns the schema of any of them. The best
 # hit is always given in full, whatever its size.
-_SEARCH_BUDGET_CHARS = 9000
+_SEARCH_BUDGET_CHARS = 6000
 _MO_TA_TEN = 160
+# After the top_k hits with arguments, this many more are named with one line each: cheap (about 250
+# characters each) and they turn "not in the list" into "one more search by exact name".
+_THEM_GON = 8
+# One line per tool when a search only names a source and gets the source's whole list.
+_MO_TA_LIET_KE = 90
 
 
 def _tool_chars(t) -> int:
@@ -1673,35 +1669,83 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
     menu = _connector_menu(pool, ambient)
     by_fn = {t.get("fn"): t for t in pool} if pins_key else {}
 
+    index_box = []
+
+    def _index():
+        # Built on the first search of this tool list, not when the list is built: most turns never search.
+        if not index_box:
+            index_box.append(tool_finder.Index(pool, _source_descs(pool)))
+        return index_box[0]
+
+    def _src(t):
+        return str(t.get("label") or t.get("namespace") or "")
+
+    def _also(group):
+        # The same tool in other accounts of the same kind (three POS shops, three Zalo accounts): named once
+        # under the first, so the list has room for the second and third tool the request needs.
+        return [{"name": t.get("fn"), "source": _src(t)} for t in group[1:]]
+
     async def _search(args):
         q = (args or {}).get("query") or ""
         if pins_key:
             tool_pins.note_search(pins_key)
-        hits = _rank_tools(pool, q, top_k)
+        res = _index().search(q)
         amb = _match_ambient(ambient, q)
+        hits = res["hits"]
         if not hits and not amb:
             hint = _hidden_hint(hidden)
             return ("Không thấy tool khớp. Nguồn đang đấu: " + (menu or "(chưa có nguồn nào)")
-                    + f". Nêu rõ nguồn hoặc việc cần làm rồi gọi lại {_LAZY_SEARCH}."
+                    + f". Gọi lại {_LAZY_SEARCH} với TÊN NGUỒN (liệt kê mọi tool của nguồn đó) hoặc mô tả việc "
+                      "bằng từ khác, tiếng Việt hay tiếng Anh đều được."
                     + (" " + hint if hint else ""))
         payload = {}
-        hint = _hidden_hint(hidden, {t.get("namespace") for t in hits})
+        hint = _hidden_hint(hidden, {t.get("namespace") for t, _s in hits})
         if hint:
             payload["luu_y_quyen"] = hint
-        if hits:
+        if res["browse"]:
+            # The request named a source and nothing to do with it: list what that source has, by name, so
+            # the next search (or the run) can ask for the exact one.
+            labels = sorted({_src(t) for t, _s in hits})
+            listing, used = [], 0
+            for group in tool_finder.group_hits(hits):
+                t = group[0]
+                d = " ".join(str(t.get("description") or "").split())
+                item = {"name": t.get("fn"), "description": d[:_MO_TA_LIET_KE]}
+                if len(group) > 1:
+                    item["same_tool_in"] = _also(group)
+                size = len(json.dumps(item, ensure_ascii=False))
+                if used + size > _SEARCH_BUDGET_CHARS:
+                    item = {"name": t.get("fn")}
+                    size = len(t.get("fn") or "") + 12
+                    if used + size > _SEARCH_BUDGET_CHARS + 1500:
+                        break
+                listing.append(item)
+                used += size
+            payload["source_tools"] = listing
+            payload["source_note"] = (f"Mọi tool của {', '.join(labels)} ({len(listing)}/{len(hits)} nhóm). Gọi "
+                                      f"{_LAZY_SEARCH} với đúng tên một tool để lấy tham số của nó.")
+        elif hits:
             # Mô tả ĐẦY ĐỦ cho vài kết quả đầu, gọn cho phần còn lại. Cắt đồng loạt 400 ký tự
             # từng nuốt mất thông tin sống còn: mô tả COMPOSIO_SEARCH_TOOLS ghi "User has
             # manually connected the apps: gmail, googlecalendar..." ở quãng ký tự 1000, nên
             # model không bao giờ biết người dùng đã nối những app nào (vụ 24/09).
             full, brief, used = [], [], 0
-            for i, t in enumerate(hits):
-                item = {"name": t.get("fn"),
+            groups = tool_finder.group_hits(hits)
+            for i, group in enumerate(groups[:top_k + _THEM_GON]):
+                t = group[0]
+                item = {"name": t.get("fn"), "source": _src(t),
                         "description": (t.get("description") or "")[
                             :(_MO_TA_DAY_DU if i < _SO_KQ_DAY_DU else _MO_TA_GON)],
                         "schema": t.get("schema") or {"type": "object", "properties": {}}}
+                if len(group) > 1:
+                    item["same_tool_in"] = _also(group)
                 size = len(json.dumps(item, ensure_ascii=False))
-                if full and (brief or used + size > _SEARCH_BUDGET_CHARS):
-                    brief.append({"name": t.get("fn"), "description": (t.get("description") or "")[:_MO_TA_TEN]})
+                if full and (brief or i >= top_k or used + size > _SEARCH_BUDGET_CHARS):
+                    b = {"name": t.get("fn"), "source": _src(t),
+                         "description": " ".join(str(t.get("description") or "").split())[:_MO_TA_TEN]}
+                    if len(group) > 1:
+                        b["same_tool_in"] = _also(group)
+                    brief.append(b)
                     continue
                 full.append(item)
                 used += size
@@ -1710,6 +1754,24 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
                 payload["more_tools"] = brief
                 payload["more_tools_note"] = (f"Also match, listed without their arguments. Call {_LAZY_SEARCH} "
                                               "with the exact name to get the schema of one.")
+            rest = tool_finder.group_hits(res.get("rest") or [])
+            shown = {g[0].get("fn") for g in groups[:len(full) + len(brief)]}
+            rest = [g for g in rest if g[0].get("fn") not in shown]
+            if rest:
+                # The request named a small source: the rest of it, one short line each, so a tool the words
+                # missed is still one exact-name search away.
+                payload["rest_of_source"] = [
+                    {"name": g[0].get("fn"),
+                     "description": " ".join(str(g[0].get("description") or "").split())[:_MO_TA_LIET_KE]}
+                    for g in rest]
+            if res["other"]:
+                payload["other_sources"] = [
+                    {"name": t.get("fn"), "source": _src(t),
+                     "description": " ".join(str(t.get("description") or "").split())[:_MO_TA_TEN]}
+                    for t, _s in res["other"]]
+            if any(len(g) > 1 for g in groups[:len(full) + len(brief)]):
+                payload["tai_khoan"] = ("Tool có same_tool_in tồn tại ở nhiều tài khoản/nguồn cùng loại. Chọn "
+                                        "đúng tài khoản người dùng nói tới; chưa rõ thì hỏi lại, đừng đoán.")
             payload["goi_the_nao"] = (f"Gọi tool bằng {_LAZY_RUN}(name=<name>, args={{...}}). "
                                      "Nếu cổng làm mất khoá trong args, dùng args_json là chuỗi JSON object thay args.")
         if amb:
@@ -1746,8 +1808,23 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
         if name in (_LAZY_SEARCH, _LAZY_RUN):
             return f"ERROR: '{name}' là meta-tool, không gọi qua {_LAZY_RUN}."
         if name not in full_route:
-            return (f"ERROR: không có tool '{name}'. Dùng {_LAZY_SEARCH} để lấy đúng tên "
-                    "(phải khớp y hệt kết quả tìm).")
+            # A name without its source prefix ("zalo_get_history") or with a typo used to end here with
+            # "search again". When exactly one tool of this list carries that name, it is the one meant;
+            # otherwise name the candidates so the next call is the right one, not another search.
+            listed = {t.get("fn") for t in pool} | set(visible_route)
+            near = [f for f in tool_finder.suggest_names(name, [f for f in full_route if f in listed or not pool])
+                    if f not in (_LAZY_SEARCH, _LAZY_RUN)]
+            same_tail = [f for f in near if f.lower().split("__")[-1] == name.lower().split("__")[-1]]
+            if len(same_tail) == 1:
+                name = same_tail[0]
+            else:
+                if near:
+                    src = {t.get("fn"): str(t.get("label") or t.get("namespace") or "") for t in pool}
+                    opts = "; ".join(f"{f}" + (f" ({src[f]})" if src.get(f) else "") for f in near)
+                    return (f"ERROR: không có tool '{name}'. Gần nhất: {opts}. Gọi lại {_LAZY_RUN} với đúng một "
+                            "tên ở trên (chọn đúng tài khoản người dùng nói tới).")
+                return (f"ERROR: không có tool '{name}'. Dùng {_LAZY_SEARCH} để lấy đúng tên "
+                        "(phải khớp y hệt kết quả tìm).")
         if name in by_fn:
             # One call that needed a search round first: the count that earns a tool its pin (tool_pins).
             tool_pins.note_run(pins_key, name, _tool_chars(by_fn[name]))
