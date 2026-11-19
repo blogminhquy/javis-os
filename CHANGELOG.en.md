@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.593.1] - 2026-11-19
+### Fixed
+- **Approving a workflow step on the Tasks page runs the workflow on, with no second approval request.** Each answer used to start the workflow again from step one, so it stopped at the same step again. Now "Approve", "ok" or "yes" carries on from that step. A change request still makes the workflow redo the work with it, as before.
+
 ## [0.593.0] - 2026-11-18
 ### Added
 - **Bots read the files staff send customers on Zalo OA and Fanpage.** A PDF, Word or Excel quote, or a photo, sent from the OA app or the Page inbox now shows in the Inbox (labelled Staff) and the bot knows what it says when the customer asks about it. Photos are read by a connected brain that can see.
