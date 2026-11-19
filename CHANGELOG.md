@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.597.0] - 2026-11-19
+### Thêm mới
+- **Việc "Chờ bạn" của nhóm giờ trả lời được, không chỉ Thử lại.** Bấm **Trả lời** cạnh Thử lại: chọn "Làm tiếp" để thành viên làm lại bước đó kèm câu trả lời của bạn, hoặc "Hỏi lại" để hỏi rõ trước, việc vẫn chờ bạn.
+- Câu trả lời và câu hỏi đều hiện trong khung chat của nhóm, có trích lý do việc dừng ở trên, nên đọc lại vẫn biết đang trả lời chuyện gì.
+
 ## [0.596.0] - 2026-11-19
 ### Thêm mới
 - **Javis nhắn khách được ngay từ khung chat.** Bảo Javis "trả lời chị Lan là còn size M", nó tìm cuộc chat trên trang Hội thoại rồi gửi đúng Page Messenger, Instagram, bot Telegram hay Zalo của cuộc đó, như bạn gõ ở Hộp thư. Trước đây Javis báo thiếu công cụ gửi Messenger và bắt bạn tự dán tin.

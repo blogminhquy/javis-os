@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.597.0] - 2026-11-19
+### Added
+- **A team job that waits for you can be answered, not only retried.** Press **Reply** next to Retry: "Go on" has the member do the step again with your answer, "Ask back" asks first and the job keeps waiting.
+- Both the answer and the question show in the team chat under a quote of why the job stopped, so it reads clearly later.
+
 ## [0.596.0] - 2026-11-19
 ### Added
 - **Javis can message a customer straight from chat.** Ask "tell Lan size M is in stock" and it finds the chat in the inbox and sends through that chat's own Messenger Page, Instagram, Telegram or Zalo bot, as if you typed it in the inbox. Before, Javis said it had no Messenger send tool and asked you to paste the message yourself.
