@@ -6,9 +6,11 @@ own channel, the same path as the owner typing in the inbox.
 Owner (2026-11-17): Javis told them "there is no Messenger send tool, paste the drafts yourself". Guards:
   1. inbox_find locates a Messenger and an Instagram chat by name and returns their conversation_id.
   2. inbox_reply sends through `channels.gui` with the Page account and the raw chat id, records a `human` message
-     marked via=tool, and takes the chat over from its bot.
+     marked via=tool, and leaves the chat's bot running (a reply typed in the inbox still takes over).
   3. a failed send returns ERROR and records nothing; a missing conversation or empty text never reaches the channel.
   4. the inbox route POST /conversations/{id}/reply still works through the shared `owner_reply`.
+  5. (review of PR 1554) both tools are owner-only, so a customer talking to a bot can never read or message the
+     shop's other customers, and neither reaches a conversation of a channel account assigned to another brain.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -108,7 +110,8 @@ check("sent once on messenger to the raw chat id", len(SENT) == 1 and SENT[0]["k
 last = conversations.tin_nhan(fb, limit=1)[-1]
 check("recorded as the owner's message via tool", last["sender_type"] == "human"
       and (last.get("metadata") or {}).get("via") == "tool", last)
-check("chat taken over from its bot", conversations.chi_tiet(fb)["mode"] == "human" and d["bot_paused"] is True)
+check("the chat's bot keeps running after a reply from chat", conversations.chi_tiet(fb)["mode"] == "ai"
+      and "bot_paused" not in d, d)
 
 SENT.clear()
 call("inbox_reply", {"conversation_id": ig, "text": "Dạ 350k ạ"})
@@ -143,6 +146,45 @@ else:
 resp = client.post("/conversations/99999/reply", data={"text": "x"})
 if resp.status_code not in (401, 403):
     check("route unknown conversation is 404", resp.status_code == 404, resp.status_code)
+
+check("a reply typed in the inbox still takes the chat over from its bot",
+      conversations.chi_tiet(fb2)["mode"] == "human" or resp.status_code in (401, 403))
+
+# 5. safety
+import mcp_hub  # noqa: E402
+check("both tools are owner-only (never reach a customer-facing bot)",
+      {"inbox_find", "inbox_reply"} <= mcp_hub.OWNER_ONLY_TOOLS)
+
+import channel_accounts  # noqa: E402
+other = seed("8642", "Khach brain khac", "hello", bot="bot-khac")
+mine = seed("9753x", "Khach brain nay", "xin chao")
+
+
+class BrainCtx:
+    vault_root = "/brains/shop-a"
+
+
+_real_keys = channel_accounts.keys_of_other_brains
+# The two seeded chats share one Page account here, so give the "other brain" chat its own account key.
+with conversations._lock:
+    conversations._conn().execute("UPDATE conversations SET channel_account_id=? WHERE id=?", ("messenger:OTHER", other))
+    conversations._conn().commit()
+channel_accounts.keys_of_other_brains = lambda brain: ["messenger:OTHER"] if brain == "/brains/shop-a" else []
+
+
+def call_in(name, args):
+    return asyncio.run(ctx.tools[name][0](args, BrainCtx()))
+
+
+r = json.loads(call_in("inbox_find", {"q": "Khach brain"}))
+found = {c["conversation_id"] for c in r["conversations"]}
+check("find stays inside the calling brain", other not in found and mine in found, r)
+check("find reading another brain's chat is refused",
+      call_in("inbox_find", {"conversation_id": other}).startswith("ERROR:"))
+SENT.clear()
+out = call_in("inbox_reply", {"conversation_id": other, "text": "x"})
+check("reply into another brain's chat is refused and nothing is sent", out.startswith("ERROR:") and SENT == [], out)
+channel_accounts.keys_of_other_brains = _real_keys
 
 if _fails:
     print(f"\nFAIL {len(_fails)}: " + ", ".join(_fails))
