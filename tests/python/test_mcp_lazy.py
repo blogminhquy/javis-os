@@ -437,7 +437,7 @@ check("thực đơn nêu tên hiển thị của plugin", "TTS Dropship" in _men
 check("thực đơn nói plugin đó LÀM GÌ (mô tả từ manifest)", "dropship" in _menu.lower())
 check("đếm đúng số tool của riêng plugin đó", "2 tool" in _menu)
 check("builtin vẫn ở nhóm javis với mô tả nội bộ",
-      "javis (" in _menu and "skill của brain" in _menu)
+      "javis (" in _menu and "skill của brain" in _menu and "nhóm chat" in _menu)
 
 # Không có `group_desc` (plugin đời cũ) thì vẫn phải gọi tên nhóm, chỉ là thiếu mô tả - suy
 # biến nghiêng về "nói được tên" chứ không quay lại gộp chung.

@@ -2253,7 +2253,8 @@ async def schedule_cancel_gateway(messages, mcp_tools, mcp_route):
     if not _schedule_cancel_request(messages):
         return None
     names = {t.get("fn") for t in (mcp_tools or [])}
-    if "javis_schedule" not in names:
+    # Lazy tier on: javis_schedule is hidden behind javis_run_tool, and call_route still reaches it.
+    if "javis_schedule" not in names and "javis_run_tool" not in names:
         return {
             "handled": False,
             "error": "javis_schedule không có trong MCP của phiên",
