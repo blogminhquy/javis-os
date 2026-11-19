@@ -122,7 +122,7 @@ check("while one job's messages show, the owner's answer elsewhere in the chat s
   teamsJs.includes('tw(S.filterTask ? "teams.chat_empty_job" : "teams.chat_empty")') && vi["teams.chat_empty_job"] && en["teams.chat_empty_job"]);
 // 17/11/2026: pressing a job's title in the details did nothing, the details were drawn again before the press was handled.
 check("a press on a job or on 'Open the Jobs tab' in the details is handled first, the details close after",
-  /\(t\.dataset\.openJobs \|\| t\.dataset\.viewTask\) && inside\("\.tm-jobs"\)\) \{\s*S\.stripOpen = false;\s*setTimeout\(drawJobs, 0\);/.test(teamsJs));
+  /\(t\.dataset\.openJobs \|\| t\.dataset\.viewTask(?: \|\| t\.dataset\.jrOpen)?\) && inside\("\.tm-jobs"\)\) \{\s*S\.stripOpen = false;\s*setTimeout\(drawJobs, 0\);/.test(teamsJs));
 
 // ───────────── the tabs carry icons ─────────────
 h = TM.sideTabsHtml("jobs", q);

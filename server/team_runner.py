@@ -4978,11 +4978,56 @@ class TeamRunner:
             self._judge_job_changed(task_id, task["team_id"])
         return done
 
-    def _run_step_again(self, task: dict, last: dict) -> dict:
-        """A new step for the same member with the same brief, queued behind the failed or interrupted one."""
+    # 19/11/2026 (owner): "một số việc chờ như này không hỏi lại được cũng không tương tác được để làm rõ yêu cầu". A job
+    # stopped because a member could not do its step only had Retry, which ran the same brief again and stopped again.
+    # The owner now answers on the card: the answer lands in the chat and the step runs again with it in its brief.
+    ANSWER_BLOCKS = ("failed", "no_progress", "interrupted", "auto_retry")
+    ANSWER_MAX = 4000
+
+    def answer_blocked(self, task_id: str, answer: str, *, text: str = "", client_msg_id: str = "") -> Optional[dict]:
+        """The owner's answer to a job stopped on a step. Posts `text` (the answer as the chat shows it, `answer` when
+        empty) as the owner's message linked to the job, then runs the stopped step again for the same member with the
+        reason and the answer added to its brief, and puts the job back in the queue.
+
+        None when the job no longer waits for such an answer (or has no stopped step to run again). The same
+        `client_msg_id` sent twice (lost connection) returns the first message and changes nothing."""
+        answer = str(answer or "").strip()[:self.ANSWER_MAX]
+        if not answer:
+            return None
+        with self.accept_lock:
+            task = self.tasks.get_task(task_id)
+            if not task or not task.get("team_id"):
+                return None
+            team = self._team(task["team_id"])
+            cmid = str(client_msg_id or "").strip()
+            if cmid:
+                old = self.sessions.message_by_client_id(team["session_id"], cmid)
+                if old is not None:
+                    return {"message_id": int(old["id"]), "created": False}
+            if task["status"] != "team_blocked" or task.get("block_kind") not in self.ANSWER_BLOCKS:
+                return None
+            last = next((s for s in reversed(self.teams.steps(task_id)) if s["status"] in ("failed", "interrupted")), None)
+            if last is None:
+                return None
+            reason = str(task.get("block_reason") or "").strip()
+            mid = self._post(team, str(text or "").strip()[:2 * self.ANSWER_MAX] or answer, author_kind="owner",
+                             role="user", task_id=task_id, client_msg_id=cmid or None,
+                             meta={"kind": "job_answer", "task_id": task_id, "agent_key": last["agent_key"]})
+            brief = (str(last["brief"] or "").rstrip() + "\n\n[The owner answered why this step stopped]\n"
+                     + (f"It stopped because: {reason}\n" if reason else "")
+                     + f"The owner's answer: {answer}\nDo the step again with this answer.")
+            self._run_step_again(task, last, brief=brief)
+            if self.tasks.team_unblock(task_id) is None:
+                return None
+            self._judge_job_changed(task_id, task["team_id"])
+            return {"message_id": int(mid), "created": True}
+
+    def _run_step_again(self, task: dict, last: dict, brief: Optional[str] = None) -> dict:
+        """A new step for the same member with the same brief (or `brief`), queued behind the failed or interrupted
+        one."""
         new = self.teams.add_step(task["id"], task["team_id"], last["kind"], last["agent_key"],
-                                  int(task["team_rev"]), last["brief"], last["input_refs"], last["parent_step"],
-                                  part=last.get("part") or "")
+                                  int(task["team_rev"]), last["brief"] if brief is None else brief, last["input_refs"],
+                                  last["parent_step"], part=last.get("part") or "")
         ap_id = ""
         if self.approvals is not None:
             granted = self.approvals.approved_for_step(last["step_id"])

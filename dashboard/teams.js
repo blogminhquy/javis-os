@@ -924,18 +924,85 @@
       (o.meta ? '<div class="tm-jb-meta">' + o.meta + "</div>" : "") + (o.below || "") + "</div>";
   }
 
+  // ───────────── reply box of a "Waiting for you" job (19/11/2026) ─────────────
+  // Owner: "một số việc chờ như này không hỏi lại được cũng không tương tác được để làm rõ yêu cầu", "nó chỉ có nút thử
+  // lại thôi mà thử lại không được thì chỉ có ấn X để tắt thôi, phải tương tác phản hồi và trao đổi lại được". A job that
+  // stopped on a step gets a Reply button next to Retry. Answer: the words go to the chat and the member does the step
+  // again with them (POST .../answer). Ask: a chat message to that member, quoting why it stopped; the job keeps waiting.
+  var ANSWER_KINDS = ["failed", "no_progress", "interrupted", "auto_retry"];
+  var JOB_REPLY = { id: "", mode: "answer", draft: "", cid: "" };
+  var JR_MODES = [
+    { id: "answer", icon: "play", key: "teams.jr.mode_answer", ph: "teams.jr.ph_answer", send: "teams.jr.send_answer",
+      sugs: ["teams.jr.sug_skip", "teams.jr.sug_current", "teams.jr.sug_simpler"] },
+    { id: "ask", icon: "circle-help", key: "teams.jr.mode_ask", ph: "teams.jr.ph_ask", send: "teams.jr.send_ask",
+      sugs: ["teams.jr.sug_need", "teams.jr.sug_where", "teams.jr.sug_other"] }];
+
+  function canAnswer(t) { return ANSWER_KINDS.indexOf(t.block_kind || "failed") >= 0; }
+
+  // The member whose step stopped the job: the last failed or interrupted step ("" when none is listed).
+  function stuckAgent(t) {
+    var steps = t.steps || [];
+    for (var i = steps.length - 1; i >= 0; i--) {
+      if (steps[i].status === "failed" || steps[i].status === "interrupted") return steps[i].agent_key || "";
+    }
+    return "";
+  }
+
+  function jobReplyButtonHtml(t, open) {
+    return '<button type="button" class="ws-btn tm-jr-open' + (open ? " tm-ap-reply-on" : "") + '" data-jr-open="' + esc(t.id) +
+      '" aria-expanded="' + (open ? "true" : "false") + '">' + ic("reply") + "<span>" + esc(tw("teams.jr.reply")) + "</span></button>";
+  }
+
+  function jobReplyHtml(t, ui, members) {
+    var mode = JR_MODES.filter(function (x) { return x.id === ui.mode; })[0] || JR_MODES[0];
+    var who = memberOf(members, stuckAgent(t));
+    var seg = JR_MODES.map(function (x) {
+      return '<button type="button" role="radio" class="tm-ap-seg-b" aria-checked="' + (x.id === mode.id ? "true" : "false") +
+        '" data-jr-mode="' + x.id + '">' + ic(x.icon) + "<span>" + esc(tw(x.key)) + "</span></button>";
+    }).join("");
+    var sugs = mode.sugs.map(function (k) {
+      return '<button type="button" class="tm-ap-sug" data-jr-sug="' + esc(k) + '">' + esc(tw(k)) + "</button>";
+    }).join("");
+    var ph = tw(mode.ph, { name: who ? (who.name || who.slug) : tw("teams.jr.member") });
+    return '<div class="tm-ap-rp tm-jr-rp" data-jr-rp="' + esc(t.id) + '"><div class="tm-ap-seg tm-jr-seg" role="radiogroup" aria-label="' +
+      esc(tw("teams.jr.reply")) + '">' + seg + '</div><textarea class="tm-jr-ta" rows="3" placeholder="' + esc(ph) + '" aria-label="' +
+      esc(ph) + '"></textarea><div class="tm-ap-sugs">' + sugs + '</div><div class="tm-ap-rp-foot"><button type="button" ' +
+      'class="ws-btn tm-ap-cancel" data-jr-open="">' + esc(tw("teams.cancel")) + '</button><button type="button" class="ws-btn tm-ap-send" ' +
+      'data-jr-send="' + mode.id + '" data-jr-task="' + esc(t.id) + '">' + ic("send") + "<span>" + esc(tw(mode.send)) + "</span></button></div></div>";
+  }
+
+  // What Send posts. Both carry the reason quoted above the words, so the chat shows what was answered. Answer: the job's
+  // answer route (the step runs again). Ask: a plain chat message to the member whose step stopped (the leader when
+  // that member left), the job keeps waiting.
+  function jobReplyPayload(t, mode, words, members, cid) {
+    var Q = quoteApi();
+    var reason = String(t.block_reason || tw(BLOCK_KEY[t.block_kind || "failed"] || BLOCK_KEY.failed)).replace(/\s+/g, " ").slice(0, 400);
+    var quote = tw("teams.jr.quote", { title: t.title || "" }) + ": " + reason;
+    var text = Q ? Q.ghep(quote, words) : quote + "\n\n" + words;
+    if (mode === "ask") {
+      var key = stuckAgent(t), mem = key ? memberOf(members, key) : null;
+      return { mode: "ask", path: "/messages", body: { text: text, as_job: false, client_msg_id: cid,
+        mentions: mem && (!mem.status || mem.status === "active") ? [key] : [] } };
+    }
+    return { mode: "answer", path: "/tasks/" + encodeURIComponent(t.id) + "/answer",
+      body: { answer: words, text: text, client_msg_id: cid } };
+  }
+
   function blockedCardHtml(t, view) {
     view = view || {};
     var kind = t.block_kind || "failed";
     var open = jobOpen(t, view, false);
     // 0.209.0 review: criteria can be set on a stopped job too (acceptance_failed re-checks without redoing the work).
     var checking = kind === "acceptance_review" || kind === "acceptance_checking";
+    var answerable = canAnswer(t);
+    var replying = answerable && view.reply && view.reply.id === t.id;
     return jobCardHtml(t.title, { cls: "tm-jb-ask", lead: stateIcon("ask"), titleAttr: 'data-view-task="' + esc(t.id) + '"',
       icons: (checking ? "" : jobIcon("clipboard-check", 'data-acc-edit="' + esc(t.id) + '"', tw("teams.acc.set"))) +
         jobIcon("x", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad"),
       meta: (view.leaderKey ? faceName(view.members, view.leaderKey) : "") + jobFoldHtml(t, open),
       below: '<div class="tm-jb-why">' + esc(t.block_reason || tw(BLOCK_KEY[kind] || BLOCK_KEY.failed)) + '</div><div class="tm-jb-go">' +
-        blockedButtonHtml(t) + "</div>" + (open ? jobStepsHtml(t.steps, view.members) : "") });
+        (answerable ? jobReplyButtonHtml(t, replying) : "") + blockedButtonHtml(t) + "</div>" +
+        (replying ? jobReplyHtml(t, view.reply, view.members) : "") + (open ? jobStepsHtml(t.steps, view.members) : "") });
   }
 
   function runningCardHtml(t, view) {
@@ -1169,7 +1236,7 @@
       '<button type="button" class="tm-sr-title" data-view-task="' + esc(t.id) + '">' + esc(t.title) + "</button>" +
       jobIcon("x", 'data-cancel="' + esc(t.id) + '"', tw("teams.jb.cancel"), "tm-jb-bad") + "</div>" +
       '<div class="tm-sr-why">' + esc(t.block_reason || tw(BLOCK_KEY[kind] || BLOCK_KEY.failed)) + "</div>" +
-      '<div class="tm-sr-go">' + blockedButtonHtml(t) + "</div></li>";
+      '<div class="tm-sr-go">' + (canAnswer(t) ? jobReplyButtonHtml(t, false) : "") + blockedButtonHtml(t) + "</div></li>";
   }
 
   function stripRunRow(t, members) {
@@ -3247,7 +3314,7 @@
   function jobsView() {
     return { openFin: S.openFin, archOpen: S.archOpen, members: S.team ? S.team.members : [], accEdit: S.accEdit,
       leaderKey: S.team ? S.team.leader_key : "", fold: S.jobFold, finPage: S.finPage, archPage: S.archPage,
-      archQuery: S.archQuery, details: S.jobDetails, fullReport: S.fullReport };
+      archQuery: S.archQuery, details: S.jobDetails, fullReport: S.fullReport, reply: JOB_REPLY };
   }
 
   // The Archive is listed without results (it can hold hundreds of jobs): one job's report is read when it is opened.
@@ -3416,6 +3483,7 @@
       });
     }
     if (window.JavisAgentJudge && window.JavisAgentJudge.hydrate) window.JavisAgentJudge.hydrate(side);
+    jrRestore(false);
   }
 
   function drawAll(stick) {
@@ -4401,6 +4469,62 @@
     }).catch(function () { btn.disabled = false; setNote(tw("teams.err_network")); });   // retry sends the same client id
   }
 
+  // ───────────── reply box of a "Waiting for you" job (19/11/2026), browser part ─────────────
+
+  function jrBox() {
+    return JOB_REPLY.id && S.el ? S.el.querySelector('.tm-jr-rp[data-jr-rp="' + JOB_REPLY.id + '"]') : null;
+  }
+  function jrKeepDraft() {
+    var ta = jrBox() && jrBox().querySelector(".tm-jr-ta");
+    if (ta) JOB_REPLY.draft = ta.value;
+  }
+  function jrRestore(focus) {
+    var ta = jrBox() && jrBox().querySelector(".tm-jr-ta");
+    if (!ta) return;
+    if (!ta.value && JOB_REPLY.draft) ta.value = JOB_REPLY.draft;
+    if (focus && !(typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches && !ta.value)) {
+      try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
+    }
+  }
+
+  // Open the reply box of job `id`; the same id again, or "", closes it. From the pill above the composer the Jobs tab
+  // opens with the box ready.
+  function jrOpen(id, btn) {
+    var fromStrip = !!(btn && btn.closest && btn.closest(".tm-jobs"));
+    var next = id && (fromStrip || id !== JOB_REPLY.id) ? id : "";
+    if (next !== JOB_REPLY.id) { JOB_REPLY.draft = ""; JOB_REPLY.cid = ""; JOB_REPLY.mode = "answer"; }
+    else jrKeepDraft();
+    JOB_REPLY.id = next;
+    if (next && !(S.side && S.tab === "jobs")) openSide("jobs", btn);
+    else drawSide(true);
+    jrRestore(!!next);
+  }
+
+  function blockedJob(id) {
+    return ((S.queue && S.queue.blocked) || []).filter(function (x) { return x.id === id; })[0] || null;
+  }
+
+  function jrSend(btn, d) {
+    var ta = jrBox() && jrBox().querySelector(".tm-jr-ta");
+    var words = ta ? ta.value.trim() : "";
+    if (!words) { if (ta) ta.focus(); setNote(tw("teams.ap.need_words")); return; }
+    var job = blockedJob(d.jrTask);
+    if (!job || !S.team) return;
+    var p = jobReplyPayload(job, d.jrSend, words, S.team.members, JOB_REPLY.cid || (JOB_REPLY.cid = newClientId()));
+    var forTeam = S.activeId;
+    btn.disabled = true;
+    return call("POST", teamUrl(p.path), p.body).then(function (r) {
+      btn.disabled = false;
+      if (S.activeId !== forTeam) return;
+      if (r.code !== 200) { fail(r); return; }
+      JOB_REPLY.id = ""; JOB_REPLY.draft = ""; JOB_REPLY.cid = ""; JOB_REPLY.mode = "answer";
+      setNote(tw(p.mode === "ask" ? "teams.jr.asked" : "teams.jr.answered"));
+      drawSide(true);
+      loadMsgs(false).then(function () { drawMsgs(true); });
+      loadQueue();
+    }).catch(function () { btn.disabled = false; setNote(tw("teams.err_network")); });   // retry sends the same client id
+  }
+
   function send() {
     var input = S.el.querySelector(".tm-input");
     if (!input || !S.team) return;
@@ -5130,7 +5254,7 @@
     if (t && t.dataset && t.dataset.strip) { setStrip(!S.stripOpen); return; }
     // A job's title or "Open the Jobs tab" in the pill's details: the details close AFTER this press is handled. Drawn
     // again right away, the pressed button left the page and the press was dropped below (`S.el.contains(t)`).
-    if (S.stripOpen && t && t.dataset && (t.dataset.openJobs || t.dataset.viewTask) && inside(".tm-jobs")) {
+    if (S.stripOpen && t && t.dataset && (t.dataset.openJobs || t.dataset.viewTask || t.dataset.jrOpen) && inside(".tm-jobs")) {
       S.stripOpen = false;
       setTimeout(drawJobs, 0);
     }
@@ -5523,6 +5647,14 @@
         loadMsgs(false); loadQueue();
       }).catch(function () { t.disabled = false; setNote(tw("teams.err_network")); });
     }
+    if (d.jrOpen !== undefined) return jrOpen(d.jrOpen, t);
+    if (d.jrMode) { jrKeepDraft(); if (JOB_REPLY.mode !== d.jrMode) JOB_REPLY.cid = ""; JOB_REPLY.mode = d.jrMode; drawSide(true); jrRestore(true); return; }
+    if (d.jrSug) {
+      var jta = jrBox() && jrBox().querySelector(".tm-jr-ta");
+      if (jta) { jta.value = (jta.value.trim() ? jta.value.trim() + " " : "") + tw(d.jrSug); JOB_REPLY.draft = jta.value; jta.focus(); }
+      return;
+    }
+    if (d.jrSend) return jrSend(t, d);
     if (d.amend) {
       var at = S.taskTitles[d.amend] || d.amend;
       var text = typeof prompt === "function" ? prompt(tw("teams.amend_prompt", { title: at })) : "";
@@ -5815,6 +5947,16 @@
   }
 
   function onKey(e) {
+    // Reply box of a "Waiting for you" job (19/11/2026): Ctrl/Cmd+Enter sends, Escape closes, like the approval card.
+    if (e.target.classList && e.target.classList.contains("tm-jr-ta")) {
+      if (e.key === "Escape") { e.preventDefault(); jrOpen(""); return; }
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        var jb = jrBox() && jrBox().querySelector("[data-jr-send]");
+        if (jb && !jb.disabled) jb.click();
+      }
+      return;
+    }
     // Reply box of an approval card: Ctrl/Cmd+Enter sends, Escape closes (17/11/2026).
     if (e.target.classList && e.target.classList.contains("tm-ap-ta")) {
       if (e.key === "Escape") { e.preventDefault(); apOpen("", -1); return; }
@@ -5882,6 +6024,7 @@
 
   function onInput(e) {
     if (e.target.classList.contains("tm-ap-ta")) { AP_REPLY.draft = e.target.value; return; }
+    if (e.target.classList.contains("tm-jr-ta")) { JOB_REPLY.draft = e.target.value; return; }
     if (e.target.classList.contains("tm-jb-q")) { S.archQuery = e.target.value; S.archPage = 0; drawArchive(); return; }
     if (S.pickSt && e.target.classList.contains("tmp-search-input")) {
       S.pickSt.query = e.target.value;
@@ -6202,7 +6345,7 @@
     searchResultsHtml: searchResultsHtml, replyStatusHtml: replyStatusHtml, headLine: headLine,
     typingHtml: typingHtml, pinsHtml: pinsHtml, markMentions: markMentions, replyRefHtml: replyRefHtml,
     allTags: allTags, filterTeams: filterTeams, tagBarHtml: tagBarHtml, tagMenuRows: tagMenuRows, tagPickRows: tagPickRows,
-    lastWorkedTeam: lastWorkedTeam, TAG_NONE: TAG_NONE, unreadHtml: unreadHtml };
+    lastWorkedTeam: lastWorkedTeam, TAG_NONE: TAG_NONE, unreadHtml: unreadHtml, jobReplyPayload: jobReplyPayload, canAnswer: canAnswer };
   if (typeof window !== "undefined") window.JavisTeams = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

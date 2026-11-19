@@ -4637,9 +4637,9 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-ap-qx { flex: none; width: 36px; height: 36px; margin: -4px 0; border: 0; background: none; color: var(--text3); border-radius: 8px;
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .tm-ap-qx svg { width: 16px; height: 16px; }
-.tm-ap-ta { width: 100%; min-height: 104px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2);
+.tm-jr-ta, .tm-ap-ta { width: 100%; min-height: 104px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2);
   color: var(--text); padding: 10px 12px; font: inherit; font-size: 16px; line-height: 1.5; box-sizing: border-box; }
-.tm-ap-ta:focus { outline: 2px solid var(--accent-line); border-color: var(--accent); }
+.tm-ap-ta:focus, .tm-jr-ta:focus { outline: 2px solid var(--accent-line); border-color: var(--accent); }
 .tm-ap-sugs { display: flex; flex-wrap: wrap; gap: 6px; }
 .tm-ap-sug { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg2); color: var(--text2);
   font: inherit; font-size: 16px; cursor: pointer; }
@@ -4713,8 +4713,15 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
 .tm-jb-fold:hover { background: var(--surface-2); color: var(--text); }
 .tm-jb-fold .ic { width: 14px; height: 14px; }
 .tm-jb-why { margin: 2px 8px 0 26px; font-size: 14.5px; line-height: 1.45; color: var(--warn-ink); }
+.tm-jb-go, .tm-sr-go { display: flex; flex-wrap: wrap; gap: 8px; }
 .tm-jb-go { margin: 8px 8px 4px 26px; }
 .tm-side .tm-jb-go .ws-btn { min-height: 40px; padding: 0 16px; border-radius: 10px; font-size: 15px; }
+/* 19/11/2026: Reply on a "Waiting for you" job opens its reply box (the approval card's box, two modes). */
+.tm-jr-open { gap: 6px; }
+.tm-jr-open svg { width: 18px; height: 18px; }
+.tm-jr-open.tm-ap-reply-on { border-color: var(--accent-line); background: var(--accent-wash-2); color: var(--accent-ink); }
+.tm-jr-rp { margin: 8px 8px 4px 26px; }
+.tm-jr-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tm-jb-steps { margin: 6px 6px 0 26px; border-top: 1px solid var(--hairline); }
 .tm-jb-step { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 0 10px; align-items: start; padding: 9px 0;
   border-bottom: 1px solid var(--hairline); }
