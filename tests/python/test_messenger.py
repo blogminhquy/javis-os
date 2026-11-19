@@ -308,6 +308,46 @@ check("start: missing App secret refuses to start (webhook would 401 forever)",
 bot, reg = run(start_with(full, {"ok": False, "error": "App secret không khớp"}, {"ok": True}))
 check("start: wrong App secret refuses to start", not reg and "App secret" in bot.last_error, bot.last_error)
 
+# Owner 2026-11-19: a Page added by pasting its token showed its numeric id on the bot card. Starting the bot asks
+# Graph for the Page name anyway; it is now kept on the account, and replaces only a label Javis made up itself.
+import channel_accounts  # noqa: E402
+
+
+async def start_on_account(aid, who):
+    orig = (messenger_bot.whoami, messenger_bot.subscribe_page)
+
+    async def fake_who(c, page_id, token, app_secret=""):
+        return who
+
+    async def fake_sub(c, page_id, token):
+        return {"ok": True}
+    messenger_bot.whoami, messenger_bot.subscribe_page = fake_who, fake_sub
+    try:
+        bot = messenger_bot.MessengerBot(full, "", None)
+        bot.account_id = aid
+        bot.start()
+        for _ in range(50):
+            await asyncio.sleep(0)
+            if bot.status != "starting":
+                break
+        bot.stop()
+    finally:
+        messenger_bot.whoami, messenger_bot.subscribe_page = orig
+
+
+aid_ten, _ = channel_accounts.create_account({"channel": "messenger", "token": f"{PAGE} {TOKEN} {SECRET}",
+                                              "external_id": PAGE})
+run(start_on_account(aid_ten, {"ok": True, "username": PAGE, "bot_name": "Trung tâm"}))
+acc_ten = channel_accounts.get_account(aid_ten) or {}
+check("start: the Page name is stored and replaces a label that was only the Page ID",
+      acc_ten.get("label") == "Trung tâm" and (acc_ten.get("meta") or {}).get("bot_name") == "Trung tâm", acc_ten)
+channel_accounts.update_account(aid_ten, {"label": "TT Q7"})
+run(start_on_account(aid_ten, {"ok": True, "username": PAGE, "bot_name": "Trung tâm mới"}))
+acc_ten = channel_accounts.get_account(aid_ten) or {}
+check("start: a label the owner typed is kept, the renamed Page name still lands in meta",
+      acc_ten.get("label") == "TT Q7" and (acc_ten.get("meta") or {}).get("bot_name") == "Trung tâm mới", acc_ten)
+channel_accounts.delete_account(aid_ten)
+
 # ============================================================
 # 5. Webhook endpoints (TestClient)
 # ============================================================
