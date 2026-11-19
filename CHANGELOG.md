@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.593.3] - 2026-11-19
+### Sửa lỗi
+- **Danh sách model Codex nhận đủ bản mới hơn đã cài.** Javis so phiên bản Codex trên `PATH` với bản cài trong thư mục người dùng để không bỏ sót model mới.
+
 ## [0.593.2] - 2026-11-19
 ### Sửa lỗi
 - **Javis không còn bị kẹt cảnh mất kết nối vì một bản chạy thừa giữ cổng.** Trên Mac, bản launchd quản lý giờ tự tắt bản Javis chạy lạc rồi tiếp quản; bản thừa khác thì thoát ngay, không chạy phần khởi động.
