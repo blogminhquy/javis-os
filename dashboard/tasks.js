@@ -2550,15 +2550,22 @@
   }
 
   // Javis opens a Kanban job on screen (ui-actions.js, action open_task): Javis tab, details of that job.
-  async function show(ref) {
+  function show(ref) { return openItem("k:" + String(ref || "").replace(/^k:/, "")); }
+  // A `#task=<id>` link (console.js runDeepLink) opens one item: a Kanban job (k:), a reminder (r:) or one of the
+  // owner's own tasks (m:). It picks the tab the item lives on, reloads once when the item is not in the lists yet
+  // (made a moment ago), and answers false when this brain has no such item.
+  async function openItem(id) {
     if (!S || !S.ai) return false;
-    var id = "k:" + String(ref || "").replace(/^k:/, "");
-    if (S.tab !== "ai") setTab("ai");
+    id = String(id || "");
+    var tab = id.indexOf("m:") === 0 ? "me" : "ai";
+    if (S.tab !== tab) setTab(tab);
     if (!find(id)) { await load(); if (!S) return false; }
     if (!find(id)) return false;
+    // The morning sheet setTab("me") may have raised would sit on top of the item the link asked for.
+    if (S.sheet && S.sheet.kind === "morning") S.sheet = null;
     openDetail(id);
     return true;
   }
 
-  window.JavisTasks = { mount: mount, unmount: unmount, show: show, ready: function () { return !!(S && S.ai); }, morning: function (force) { return morning(force); }, _model: model_ };
+  window.JavisTasks = { mount: mount, unmount: unmount, show: show, ready: function () { return !!(S && S.ai); }, openItem: openItem, morning: function (force) { return morning(force); }, _model: model_ };
 })();
