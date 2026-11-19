@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.595.2] - 2026-11-19
+### Fixed
+- **Workflow jobs on the Tasks page wait for the plan to reset.** A step that hit an exhausted subscription used to retry at once, spend all three attempts in seconds and get stuck. The job now waits until the plan resets, and the wait does not count as an attempt.
+
 ## [0.595.1] - 2026-11-19
 ### Fixed
 - **Javis Store is no longer blank when no password is set.** Installing a pack needs a real sign-in, so the Store was shut with no reason given. It now says a password is needed, with a Set a password button that opens the Account page.

@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.595.2] - 2026-11-19
+### Sửa lỗi
+- **Việc chạy quy trình trên trang Nhiệm vụ biết đợi gói mở lại.** Trước đây bước nào vấp gói thuê bao hết lượt là việc thử lại ngay, đốt hết 3 lần thử trong vài giây rồi kẹt. Giờ việc tự hẹn chạy lại đúng giờ gói mở và không tính vào số lần thử.
+
 ## [0.595.1] - 2026-11-19
 ### Sửa lỗi
 - **Javis Store không còn trống trơn khi máy chưa đặt mật khẩu.** Cài gói cần đăng nhập thật, nên trước đây Store bị chặn mà không nói vì sao. Giờ trang nói rõ cần đặt mật khẩu và có nút Đặt mật khẩu dẫn thẳng tới trang Tài khoản.
