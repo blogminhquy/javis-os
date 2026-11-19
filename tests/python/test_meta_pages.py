@@ -50,6 +50,7 @@ class _Ctx:
 
 ctx = _Ctx()
 plug.register(ctx)
+_real_rupload = plug._rupload   # later sections swap in fakes; the streaming check below needs the real one
 byname = {t["name"]: t for t in ctx.tools}
 check("plugin: đủ 10 tool", set(byname) == {"fb_pages_list", "fb_page_posts", "fb_page_comments",
                                             "fb_page_post", "fb_page_photo", "fb_page_album",
@@ -402,6 +403,48 @@ async def messenger_tests():
         oauth_mcp.auth_headers = orig
 
 asyncio.run(messenger_tests())
+
+# Reels upload streams the file in pieces (a 1GB video must not sit in memory whole) and declares its size.
+def _check_rupload_streams():
+    import asyncio as _aio
+    import tempfile as _tf
+    import httpx as _httpx
+    seen = {}
+
+    def _handler(request):
+        seen["body"] = request.read()
+        seen["headers"] = dict(request.headers)
+        seen["url"] = str(request.url)
+        return _httpx.Response(200, json={"success": True})
+
+    real_client = _httpx.AsyncClient
+
+    class _Client(real_client):
+        def __init__(self, *a, **k):
+            k["transport"] = _httpx.MockTransport(_handler)
+            super().__init__(*a, **k)
+
+    data = bytes(range(256)) * 9000   # ~2.3MB: more than two pieces
+    with _tf.TemporaryDirectory() as d:
+        fp = Path(d) / "clip.mp4"
+        fp.write_bytes(data)
+        pieces = _aio.run(_collect(plug._file_chunks(fp)))
+        _httpx.AsyncClient = _Client
+        try:
+            out = _aio.run(_real_rupload("R9", fp, "", "tok"))
+        finally:
+            _httpx.AsyncClient = real_client
+    check("rupload: the file is read in pieces, not whole", len(pieces) == 3 and b"".join(pieces) == data)
+    check("rupload: the whole file arrives with its size", out.get("success") and seen.get("body") == data
+          and seen["headers"].get("file_size") == str(len(data)))
+    check("rupload: same API version as GRAPH", seen.get("url", "").endswith(plug.GRAPH.rsplit("/", 1)[-1] + "/R9"))
+
+
+async def _collect(agen):
+    return [x async for x in agen]
+
+
+_check_rupload_streams()
 
 if _fails:
     print(f"\nFAIL - {len(_fails)} test: {_fails}")
