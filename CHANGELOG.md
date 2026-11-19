@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.602.0] - 2026-11-19
+### Cải thiện
+- **Chuông thông báo gọn hẳn.** Câu trả lời của trò chuyện, cộng sự và team không còn đẩy lên chuông. Thay vào đó là **chấm đỏ** ở mục Trò chuyện, Cộng sự, Team trên menu, như chấm đỏ đang có ở từng cuộc chat.
+- **Việc chạy theo lịch không còn kêu mỗi lần chạy.** Kết quả vẫn về đúng khung chat hoặc Telegram, chuông chỉ kêu khi việc lỗi hẳn, hoặc khi chính lần chạy thấy có chuyện anh cần ra tay.
+- **Tiêu đề thông báo dễ đọc hơn.** Mỗi lần chạy tự viết một dòng tiêu đề ngắn nói kết quả, không còn kiểu "Em kiểm tra..." và không lặp lại tiêu đề ở dòng dưới.
+
 ## [0.601.0] - 2026-11-19
 ### Thêm mới
 - **Link Javis gửi trên Zalo cá nhân hiện thẻ xem trước.** Tin có link giờ hiện tiêu đề, mô tả và ảnh của trang ngay dưới chữ, như khi người thật gõ link trong app Zalo. Trước đây chỉ là link trần. Chủ báo ngày 19/11/2026.

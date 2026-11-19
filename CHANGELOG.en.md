@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.602.0] - 2026-11-19
+### Improved
+- **A much quieter bell.** Answers in chats, partner chats and teams no longer go to the bell. A **red dot** on Chat, Partners and Team in the menu shows them instead, like the dot already on each chat.
+- **Scheduled jobs no longer ring on every run.** The result still reaches its chat or Telegram; the bell rings only when the job fails for good, or when the run itself finds something you must act on.
+- **Readable notice titles.** Each run writes a short headline about its result instead of "Checking...", and the card no longer repeats the title below it.
+
 ## [0.601.0] - 2026-11-19
 ### Added
 - **Links Javis sends on personal Zalo show a preview card.** A message with a link now shows the page's title, description and image under the text, as when a person types a link in the Zalo app. Before, it was a bare link. Owner report, 19/11/2026.
