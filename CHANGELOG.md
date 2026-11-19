@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.596.0] - 2026-11-19
+### Thêm mới
+- **Javis nhắn khách được ngay từ khung chat.** Bảo Javis "trả lời chị Lan là còn size M", nó tìm cuộc chat trên trang Hội thoại rồi gửi đúng Page Messenger, Instagram, bot Telegram hay Zalo của cuộc đó, như bạn gõ ở Hộp thư. Trước đây Javis báo thiếu công cụ gửi Messenger và bắt bạn tự dán tin.
+- **Tin gửi đi ghi là của bạn, bot của cuộc đó vẫn chạy như cũ.** Chỉ bạn ra lệnh được việc này: khách nhắn bot không đọc hay nhắn được cho khách khác, và Javis chỉ thấy cuộc chat của brain đang dùng.
+
 ## [0.595.2] - 2026-11-19
 ### Sửa lỗi
 - **Việc chạy quy trình trên trang Nhiệm vụ biết đợi gói mở lại.** Trước đây bước nào vấp gói thuê bao hết lượt là việc thử lại ngay, đốt hết 3 lần thử trong vài giây rồi kẹt. Giờ việc tự hẹn chạy lại đúng giờ gói mở và không tính vào số lần thử.
