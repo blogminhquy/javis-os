@@ -328,7 +328,21 @@ check("kênh lạ trả rỗng chứ không vẽ dấu hỏi", /if \(!k\) return
 // 0.61.0: bot TRỎ tới tài khoản kênh (một bot trực được nhiều tài khoản), kênh không còn là
 // một trường của bot. Thẻ hiện một chip cho MỖI tài khoản; huy hiệu ở icon chỉ khi có đúng một.
 check("kênh hiện trên thẻ bot (huy hiệu ở icon khi một tài khoản + chip cho từng tài khoản)",
-  /class="cb-ico-kenh"/.test(CB) && /function chipTK\(/.test(CB) && /\.map\(chipTK\)/.test(CB));
+  /class="cb-ico-kenh"/.test(CB) && /function chipTK\(/.test(CB) && /\.map\(function \(a\) \{ return chipTK\(a, b\); \}\)/.test(CB));
+// Chủ repo 19/11/2026: chip Fanpage hiện Page ID dạng số thay vì tên Trang. Chạy thật tenTK trên các ca.
+{
+  const m = CB.match(/function tenTK\(a, k, b\) \{[\s\S]*?\n  \}/);
+  const tenTK = m && new Function("return " + m[0])();
+  const MS = { nhan: "Messenger" }, TG = { nhan: "Telegram", tien_to_ten: "@" };
+  const bot = { name: "Khánh Ngân - Báo giá Zalo" };
+  check("chip Messenger hiện tên Trang thay vì Page ID", !!tenTK &&
+    tenTK({ external_id: "1312748711929369", label: "1312748711929369", meta: { bot_name: "Vĩnh Cửu" } }, MS, bot) === "Vĩnh Cửu" &&
+    tenTK({ external_id: "1312748711929369", label: bot.name, meta: { bot_name: "Vĩnh Cửu" } }, MS, bot) === "Vĩnh Cửu" &&
+    tenTK({ external_id: "1312748711929369", label: "VCSG Q7", meta: { bot_name: "Vĩnh Cửu" } }, MS, bot) === "VCSG Q7" &&
+    tenTK({ external_id: "1312748711929369", label: "1312748711929369" }, MS, bot) === "1312748711929369" &&
+    tenTK({ external_id: "mybot", label: "Shop" }, TG, bot) === "@mybot" &&
+    tenTK({ label: "Khánh Ngân Vcsg" }, { nhan: "Zalo" }, bot) === "Khánh Ngân Vcsg");
+}
 check("form hỏi KÊNH NGAY Ở ĐẦU, trước cả tên bot",
   tu("cb.lb_tai_khoan", "kênh") && CB.indexOf('window.t("cb.lb_tai_khoan")') > -1 &&
   CB.indexOf('window.t("cb.lb_tai_khoan")') < CB.indexOf('"cb2.s_ai"'));

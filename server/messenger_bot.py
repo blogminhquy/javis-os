@@ -939,6 +939,13 @@ class MessengerBot(HangLuot):
             "subscribed by hand in the Meta app (Messenger, Webhooks, Add Subscriptions) the bot still hears; "
             "otherwise subscribe it there.")
         self.bot_username = info.get("username", "")
+        # Keep the Page's real name on the account, so the bot card shows it instead of the numeric Page ID
+        # (a Page added by pasting its token only stored the id). Also follows a Page renamed on Facebook.
+        try:
+            import channel_accounts
+            channel_accounts.ghi_ten_that(str(self.account_id or ""), info.get("bot_name", ""))
+        except Exception as e:
+            print(f"[messenger] could not store the Page name: {e}", file=sys.stderr)
         self.feed_on = bool(sub.get("feed"))
         old = _REGISTRY.get(self.page_id)
         if old is not None and old is not self:
