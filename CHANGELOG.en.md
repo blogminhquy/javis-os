@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.599.0] - 2026-11-19
+### Added
+- **The bot learns from replies you confirm.** The draft box in the Inbox has a "Bot learns this" tick, on by default. Sending a reply that carries your order, or one you rewrote, saves it to the Agent's documents (file `tri-thuc-chatbot/<agent>.md`). Next time another customer asks the same thing, the bot answers the way you confirmed. Untick it for something about one customer only.
+### Fixed
+- **The reply draft button follows the owner's order.** Type "schedule confirmed 8pm on the 21st and 22nd" and press draft: the reply gives that schedule instead of "I have no confirmed schedule yet" just because no document had it or the bot earlier said it was checking. The owner's order is the newest word, above the documents and the chat history, with no list of banned phrases. Rewrite follows it too.
+### Improved
+- **"AI draft" is now "Javis draft"** on the composer button, the mode above the chat and the lines of the draft.
+
 ## [0.598.1] - 2026-11-19
 ### Fixed
 - **Bot cards show the Facebook Page name instead of its numeric ID.** A Page added by pasting its token only stored the ID, so the channel chip showed a string of digits. Each time the bot starts, Javis now keeps the Page's real name and the chip shows it. A label you set yourself (a short name) still wins, and the ID shows when you hover the chip.
