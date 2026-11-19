@@ -6933,6 +6933,7 @@
   "nv.rep.daily": "Every day",
   "nv.rep.hourly": "Every hour",
   "nv.rep.every_min": "Every {n} min",
+  "nv.rep.missed": "{n} missed",
   "nv.rep.every_hours": "Every {n} hours",
   "nv.rep.every_days": "Every {n} days",
   "nv.rep.next": "Next: {t}",

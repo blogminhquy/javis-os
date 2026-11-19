@@ -6933,6 +6933,7 @@
   "nv.rep.daily": "Mỗi ngày",
   "nv.rep.hourly": "Mỗi giờ",
   "nv.rep.every_min": "Mỗi {n} phút",
+  "nv.rep.missed": "lỡ {n} lần",
   "nv.rep.every_hours": "Mỗi {n} giờ",
   "nv.rep.every_days": "Mỗi {n} ngày",
   "nv.rep.next": "Lần tới: {t}",

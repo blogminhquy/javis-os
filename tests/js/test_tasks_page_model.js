@@ -203,6 +203,15 @@ check("the loop log line follows its loop", bm.log.some(l => /^ads/.test(l.title
 check("the rest stays with Javis Core", bid("r:r2").who === "javis-core" && brec("w:w1").who === "javis-core");
 
 // no Vietnamese text in the running code of the page (it goes through i18n)
+// Issue 1480: a repeating job whose runs were skipped (an earlier run was late or long) says so next to its schedule.
+const missedModel = M.model({ viec: { brains: [{ name: "Main", path: "/b/main", is_default: true, loops: [], reminders: [
+  { id: "rm", text: "Watch", mode: "task", status: "pending", repeat_min: 1, due_at: at(30, 10), missed_total: 3 },
+  { id: "rn", text: "Fine", mode: "task", status: "pending", repeat_min: 1, due_at: at(30, 10) }] }] } }, now);
+const missedRow = missedModel.recurring.find(r => r.id === "r:rm"), fineRow = missedModel.recurring.find(r => r.id === "r:rn");
+check("skipped runs show next to the schedule", !!missedRow && missedRow.sc.indexOf(" · ") > 0
+  && missedRow.sc.indexOf("nv.rep.missed") > 0);   // under node, tw() returns the i18n key
+check("a job with nothing skipped shows the schedule alone", !!fineRow && fineRow.sc.indexOf("·") === -1);
+
 const js = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "tasks.js"), "utf8");
 check("the nav points to the Tasks page", /ids: \["tasks", "webhooks"\]/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "console.js"), "utf8")));
 check("old page ids open the Tasks page", /kanban: "tasks", selfimprove: "tasks"/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "console.js"), "utf8")));
