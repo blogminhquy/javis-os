@@ -913,9 +913,13 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
             # Tin chủ gửi đi. Tiếng vọng của câu BOT vừa gửi thì bỏ (bot đã tự ghi câu đó vào
             # Hộp thư, ghi thêm lần nữa là hiện hai lần, lần hai mang nhãn "người thật"). Còn
             # lại là chủ tự tay nhắn: nhớ giờ để bot nhường cuộc chat đó.
-            if _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"]) or (
-                    ev.get("message_type") == "image"
-                    and _la_vong_anh(conn["id"], ev["external_chat_id"])):
+            if _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"]):
+                _is_link_echo(conn["id"], ev["external_chat_id"], ev, m, blind=False)    # its card record too
+                attach_echo_id(conn["id"], ev)
+                trung += 1
+                continue
+            if (ev.get("message_type") == "image" and _la_vong_anh(conn["id"], ev["external_chat_id"])) or (
+                    _is_link_echo(conn["id"], ev["external_chat_id"], ev, m)):
                 attach_echo_id(conn["id"], ev)
                 trung += 1
                 continue
@@ -1408,6 +1412,7 @@ NHUONG_GIAY = 20        # giây bot chờ trước khi tự trả lời tin nhó
 _BOTS: Dict[str, Any] = {}          # conn_id -> Transport đang trực
 _DA_GUI: Dict[tuple, list] = {}     # (conn_id, thread) -> [(ts, chữ đã chuẩn hoá)]
 _DA_GUI_ANH: Dict[tuple, list] = {}  # (conn_id, thread) -> [ts mỗi ảnh bot vừa gửi] (xem ghi_da_gui_anh)
+_LINK_ECHOES: Dict[tuple, list] = {}  # (conn_id, thread) -> [(ts, link)] cards the bot sent (remember_link_echo)
 _TAY: Dict[tuple, float] = {}       # (conn_id, thread) -> giờ tin chủ tự nhắn gần nhất
 # Ảnh khách gửi trong CHAT RIÊNG (nhớ cho các lượt chữ ngay sau, xem `Transport.xu_ly`). Ca thật 15/10/2026: giáo viên gửi
 # ảnh bài làm rồi nhắn "check xem đúng chưa", bot hỏi danh tính; trả lời xong thì ảnh đã ở tin trước nên bot nói "chưa đọc
@@ -1813,6 +1818,72 @@ def _la_vong_anh(conn_id: str, thread: str) -> bool:
         _DA_GUI_ANH.pop(khoa, None)
         return False
     _DA_GUI_ANH[khoa] = ds[1:]
+    return True
+
+
+# A link card's echo is matched by its link, not by its text: Zalo fills a link message's text from the page's
+# preview (title, description) as much as from what was typed, so the reply's own words may not come back. A
+# non-text own message with no readable link counts as the card only shortly after it was sent (LINK_ECHO_BLIND).
+LINK_ECHO_BLIND = 120
+
+
+def _link_key(url: Any) -> str:
+    return str(url or "").strip().rstrip("/").lower()
+
+
+def remember_link_echo(conn_id: str, thread: str, url: str) -> None:
+    """The bot is about to send a link card for `url` in this chat: remember it, so its echo is not taken for the
+    owner typing by hand (the bot would go quiet in that chat, and the inbox would show the message twice)."""
+    key = (str(conn_id), str(thread))
+    now = time.time()
+    ds = [x for x in _LINK_ECHOES.get(key, []) if now - x[0] < ECHO_TTL]
+    ds.append((now, _link_key(url)))
+    _LINK_ECHOES[key] = ds[-20:]
+    if len(_LINK_ECHOES) > 500:
+        for k in list(_LINK_ECHOES)[:250]:
+            _LINK_ECHOES.pop(k, None)
+
+
+def forget_link_echo(conn_id: str, thread: str, url: str) -> None:
+    """No card went out after all (older MCP, refused, sent as plain text): drop the record `remember_link_echo` made."""
+    key = (str(conn_id), str(thread))
+    want = _link_key(url)
+    ds = list(_LINK_ECHOES.get(key, []))
+    for i in range(len(ds) - 1, -1, -1):
+        if ds[i][1] == want:
+            del ds[i]
+            break
+    if ds:
+        _LINK_ECHOES[key] = ds
+    else:
+        _LINK_ECHOES.pop(key, None)
+
+
+def _is_link_echo(conn_id: str, thread: str, ev: dict, msg: Any = None, blind: bool = True) -> bool:
+    """True, and the record used up, when this own message is the echo of a link card the bot sent.
+
+    Matched by the link appearing in the message's text or in its attachment link. With `blind`, a non-text message
+    without a readable link also counts when a card went out in this chat within LINK_ECHO_BLIND seconds."""
+    key = (str(conn_id), str(thread))
+    now = time.time()
+    ds = [x for x in _LINK_ECHOES.get(key, []) if now - x[0] < ECHO_TTL]
+    if not ds:
+        _LINK_ECHOES.pop(key, None)
+        return False
+    att = msg.get("attachment") if isinstance(msg, dict) and isinstance(msg.get("attachment"), dict) else {}
+    seen = " ".join(str(v or "") for v in (ev.get("text"), att.get("url"),
+                                            msg.get("url") if isinstance(msg, dict) else "")).lower()
+    hit = next((i for i, (_ts, url) in enumerate(ds) if url and url in seen), None)
+    if hit is None and blind and str(ev.get("message_type") or "text") != "text":
+        hit = next((i for i, (ts, _url) in enumerate(ds) if now - ts < LINK_ECHO_BLIND), None)
+    if hit is None:
+        _LINK_ECHOES[key] = ds
+        return False
+    del ds[hit]
+    if ds:
+        _LINK_ECHOES[key] = ds
+    else:
+        _LINK_ECHOES.pop(key, None)
     return True
 
 

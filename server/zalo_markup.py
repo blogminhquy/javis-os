@@ -22,7 +22,7 @@ _ORPHAN_HREF = re.compile(r"""\s*href\s*=\s*["']zm://[^"'>]*["']\s*>""", re.IGNO
 _CUT = re.compile(r"</?a_mention\b[^>@]*", re.IGNORECASE)
 
 # MCP tools that send text into a Zalo chat, and the argument keys that carry that text.
-SEND_TOOLS = ("zalo_send_message", "zalo_send_mention")
+SEND_TOOLS = ("zalo_send_message", "zalo_send_link", "zalo_send_mention")
 TEXT_KEYS = ("text", "message", "content", "caption")
 
 

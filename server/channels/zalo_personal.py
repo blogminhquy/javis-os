@@ -102,6 +102,17 @@ _TYPING_OFF_UNTIL: dict = {}  # conn_id -> time the indicator may be tried again
 # lasts until the reply is sent. Most group messages end in silence by design, so it never starts before that point.
 # Each bot can switch it off on the Chatbot page (`group_typing`, on when never set).
 _TOOL_MISSING = ("not found", "unknown tool", "no such tool")
+# Link card (owner report 19/11/2026: a link the bot sent showed as bare text, while the same link typed in the Zalo app
+# shows the page's title and thumbnail). Zalo's card is built by the SENDER, so a reply holding a link goes out through
+# `zalo_send_link` (javis-zalo >= 1.13.0) instead of `zalo_send_message`. An older MCP answers "tool not found": the
+# reply goes out as before, and the tool is not tried again on that account for LINK_OFF seconds.
+LINK_TOOL = "zalo_send_link"
+LINK_OFF = 3600
+_LINK_OFF_UNTIL: dict = {}  # conn_id -> time the card may be tried again
+# The first http(s) link of a reply. Trailing punctuation that ends the sentence is not part of it.
+_URL_RE = re.compile(r"https?://[^\s<>\"'`\[\]{}]+", re.IGNORECASE)
+_URL_TAIL = ".,;:!?)]}…\"'"
+_UNCERTAIN_ERR = ("timeout", "timed out", "hết giờ")
 _UID_RE = re.compile(r"\d{3,25}")
 
 
@@ -392,6 +403,63 @@ def send_uncertain(err) -> bool:
     return bool(m and int(m.group(1)) > 1) or any(x in low for x in _UNCERTAIN_SEND)
 
 
+def first_link(text: str) -> str:
+    """The first http(s) link in `text`, without the punctuation that closes the sentence around it, or ""."""
+    m = _URL_RE.search(str(text or ""))
+    if not m:
+        return ""
+    url = m.group(0).rstrip(_URL_TAIL)
+    # "(xem https://a.vn/x_(y))": keep a closing bracket that has its opening one inside the link.
+    while m.group(0)[len(url):len(url) + 1] == ")" and url.count("(") > url.count(")"):
+        url += ")"
+    return url if len(url) > len("https://") else ""
+
+
+async def _send_link(conn: dict, chat_id: str, text: str, loai: int, url: str) -> Optional[tuple]:
+    """Send one message WITH a link card through `zalo_send_link`. `(ok, error)` once there is an outcome, or None
+    when nothing was sent and the caller should send it the usual way (older MCP without the tool, a refused send).
+
+    The card carries plain text: Zalo has no styles on a link message, so bold or coloured words become plain words,
+    the way a person typing a link sends them. A send that ran out of time is an outcome (the card may have arrived),
+    never a reason to send the text a second time."""
+    import zalo_personal_channel as zc
+    cid = str(conn.get("id") or "")
+    if time.time() < float(_LINK_OFF_UNTIL.get(cid) or 0):
+        return None
+    # The echo comes back as a link message whose text Zalo may fill from the page instead of from the reply.
+    zc.remember_link_echo(cid, str(chat_id), url)
+    try:
+        d = await zc._goi(conn, LINK_TOOL, {"threadId": str(chat_id), "url": url, "text": text,
+                                            "threadType": loai})
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:      # noqa: BLE001 - the reply still goes out the usual way below
+        msg = str(e)
+        low = msg.lower()
+        if any(k in low for k in _UNCERTAIN_ERR):
+            return False, localefmt.chu(f"không rõ tin có link đã đi chưa ({msg[:200]})",
+                                        f"not sure the message with the link went out ({msg[:200]})")
+        zc.forget_link_echo(cid, str(chat_id), url)
+        if any(k in low for k in _TOOL_MISSING):
+            _LINK_OFF_UNTIL[cid] = time.time() + LINK_OFF
+            print(f"[zalo-personal] no link card on this account ({msg[:120]}), plain text for "
+                  f"{LINK_OFF // 60} minutes", file=sys.stderr)
+        else:
+            print(f"[zalo-personal] link card failed, sending plain text: {msg[:200]}", file=sys.stderr)
+        return None
+    if not (isinstance(d, dict) and d.get("success") is True):
+        # Only a plain "sent" from javis-zalo counts; anything else and nothing is assumed to have gone out.
+        zc.forget_link_echo(cid, str(chat_id), url)
+        return None
+    if "messageId" in d and not d.get("messageId"):
+        return False, localefmt.chu("Zalo không xác nhận đã nhận tin (không có mã tin)",
+                                    "Zalo did not confirm the message (no message id)")
+    if d.get("preview") is False:
+        # Zalo could not read the page: the text went out plain, as a normal message.
+        zc.forget_link_echo(cid, str(chat_id), url)
+    return True, ""
+
+
 async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=None):
     """Gửi MỘT tin (đã vừa trần `TIN_TOI_DA`). `(ok, lỗi)`.
 
@@ -402,6 +470,11 @@ async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=
     text, styles = zalo_markup.to_zalo(str(text or ""))
     if loai == 1 and (mention or "@" in text):
         r = await _send_tagged(conn, str(chat_id), text, mention, styles)
+        if r is not None:
+            return r
+    url = first_link(text)
+    if url:
+        r = await _send_link(conn, str(chat_id), text, loai, url)
         if r is not None:
             return r
     if styles:

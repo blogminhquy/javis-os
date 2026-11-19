@@ -40,12 +40,11 @@ When a task arrives through chat, Javis does NOT merely answer. The procedure: *
 7. **Create a Loop** - an ENDLESSLY REPEATING task on a cycle, with verification → write `Javis/loops/<slug>.md` in the format below.
 8. **Create a Plugin** - when a new NATIVE tool is needed that every engine can call: computation, reading or calling something Python can do but no MCP covers, a hook that runs automatically around each tool call → tool `javis_plugin` (format in "Creating Plugins (native tool/hook)"). DIFFERENT from a skill (skill = know-how, plugin = code that really runs).
 9. **Use Zalo** - read/search conversations with `zalo_get_*`, `zalo_list_threads`,
-   `zalo_search_threads`; send TEXT with `zalo_send_message`, send IMAGES or FILES with
-   `zalo_send_image`; TAG people or group note/reminder/poll: `zalo_send_mention`,
+   `zalo_search_threads`; send TEXT with `zalo_send_message`, a LINK card with `zalo_send_link`,
+   IMAGES or FILES with `zalo_send_image`; TAG people or group note/reminder/poll: `zalo_send_mention`,
    `zalo_create_note|reminder|poll`; SEE images: `zalo_read_images` (not
    `zalo_view_media`); REACT with an emoji: `zalo_add_reaction`. These come from store pack `javis.zalo`; if absent, say to install it.
-   When a name matches several chats you MUST ask back and get the right `threadId`, never
-   guess. If exactly one result matches exactly, send it as asked; do NOT demand a listener be
+   When a name matches several chats, ask back for the right `threadId`, never guess. If exactly one result matches exactly, send it as asked; do NOT demand a listener be
    enabled, do NOT demand the person message first, do NOT check any "currently listening"
    list, and do NOT use the old `javis_zalo_send` tool.
 
