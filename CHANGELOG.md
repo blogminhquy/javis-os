@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.606.0] - 2026-11-20
+### Cải thiện
+- **Javis tìm đúng tool hơn hẳn khi có nhiều nguồn.** Câu hỏi đời thường như "doanh thu hôm nay trên POS", "lịch sử tin nhắn Zalo", "chi phí Google Ads" giờ ra đúng tool, kể cả khi mô tả tool viết tiếng Anh. Trên bộ 55 câu thử thật, tỉ lệ tìm trúng từ 20 lên 55.
+- **Nêu tên nguồn là ra danh sách tool của nguồn đó**, và nhiều tài khoản cùng loại (ba shop POS, hai Zalo) được gộp một dòng, không còn chiếm chỗ của tool khác.
+- **Gọi tool thiếu tiền tố hay gõ sai tên vẫn chạy** nếu chỉ có một tool khớp, nhiều tool khớp thì Javis nêu tên để chọn. Kết quả tìm cũng ngắn hơn để vẫn tiết kiệm token.
+
 ## [0.605.0] - 2026-11-20
 ### Cải thiện
 - **Hội thoại chưa đọc lên đầu danh sách.** Các cuộc có chấm đỏ giờ gom thành nhóm **Chưa đọc** ngay dưới nhóm Đã ghim, kể cả cuộc cũ nằm tận trang sau. Đọc xong thì cuộc đó về lại đúng chỗ theo ngày.
