@@ -413,10 +413,13 @@ def build_bot_prompt(bot: dict) -> str:
     # bịa ra khối tài liệu nào cả.
     tl = (bot or {}).get("_tai_lieu")
     tu_mo = str((bot or {}).get("muc_quyen") or "").strip().lower() == "read_docs"
+    # The owner's order for THIS draft (see `manual_answer`): the owner IS the source, so "no document, say you do not
+    # know" must not talk the bot out of what the owner just told it.
+    lenh_chu = str((bot or {}).get("_lenh_chu") or "").strip()
     if isinstance(tl, dict):
         if tl.get("co"):
             phan.append(_CO_TAI_LIEU.format(khoi=tl.get("khoi") or ""))
-        elif bot.get("nguon_tra_loi") == "tai_lieu" and not tu_mo:
+        elif bot.get("nguon_tra_loi") == "tai_lieu" and not tu_mo and not lenh_chu:
             phan.append(_KHONG_TAI_LIEU_CHAT)
     if tu_mo:
         phan.append(_TU_MO_TAI_LIEU.format(
@@ -461,6 +464,9 @@ def build_bot_prompt(bot: dict) -> str:
                     f"\"{chatbot_store.MUC_NHAN.get(nl.get('muc_quyen'), nl.get('muc_quyen'))}\", khác mức chung của bot "
                     "(các cuộc chat khác vẫn ở mức chung). Đây không phải người lạ: đừng im chỉ vì đó là chuyện riêng hay "
                     "chuyện gia đình; làm theo hướng dẫn của chủ cho người này.")
+    # LAST of all, so nothing after it softens it: the owner typed this order in the inbox for this one reply.
+    if lenh_chu:
+        phan.append(_LENH_CHU.format(lenh=lenh_chu.replace('"', "'")))
     return "\n".join(phan)
 
 
@@ -2372,8 +2378,31 @@ def manual_meta(conv: dict, last: dict) -> dict:
 
 
 # The owner's instruction for "A.I. reply" (Chatbot v5). Only the model reads it; it never reaches the inbox or the customer.
-_INSTRUCTION_NOTE = ("(Ghi chú riêng của chủ, khách KHÔNG thấy: hãy viết câu trả lời gửi khách theo đúng ý sau: \"{lenh}\". "
-                     "Viết thành câu trả lời hoàn chỉnh, đúng giọng và cách xưng hô của bạn với khách, không nhắc tới ghi chú này.)")
+# The owner's order for one draft (Chatbot v5 "Javis soạn"). Field report 2026-11-19: the owner typed "lịch đã xác nhận
+# 20h ngày 21 và ngày 22" and the draft still said "em chưa có lịch xác nhận, em đã nhờ anh Đại kiểm tra". The old note
+# only asked to write "theo đúng ý sau", sat BEFORE the customer's words, and lost to two other voices: the bot's own
+# earlier "I am checking" in the chat history, and "say you have no information" when no document matched. The owner
+# pressing the button is the owner answering through the bot, so the order is stated as the owner's confirmed facts and
+# decision, above the documents and the chat history, both in the system prompt (`_LENH_CHU`) and right after the
+# customer's message (`_INSTRUCTION_NOTE`), the last thing the model reads.
+_LENH_CHU = """
+## LỆNH CỦA CHỦ CHO CÂU TRẢ LỜI NÀY (khách KHÔNG thấy phần này)
+
+Chủ của bạn đang đứng ngay tại Hộp thư, đọc cuộc chat này và tự gõ lệnh sau để bạn trả lời khách thay chủ:
+"{lenh}"
+
+- Đây là thông tin và quyết định CHỦ ĐÃ XÁC NHẬN. Coi nó là sự thật mới nhất, chắc chắn nhất: nó đứng trên tài liệu, trên
+  kiến thức chung và trên mọi điều đã nói trước đó trong cuộc chat (kể cả khi bạn từng nói "chưa có", "đang kiểm tra",
+  "sẽ báo sau"). Thông tin cũ trái với lệnh này là thông tin đã lỗi thời.
+- Viết câu trả lời gửi khách truyền đạt ĐÚNG nội dung đó một cách khẳng định. KHÔNG nói là chưa xác nhận, chưa có thông
+  tin, đang chờ kiểm tra hay nhờ người khác kiểm tra; KHÔNG thêm điều gì trái với lệnh; KHÔNG im lặng hay chuyển cho chủ.
+- Lệnh có thể viết tắt, cộc lốc: hiểu ý chủ rồi viết lại thành câu hoàn chỉnh, tự nhiên, đúng giọng và cách xưng hô của bạn
+  với khách, trả lời đúng điều khách đang hỏi. Được thêm lời chào, cảm ơn cho tròn câu, không bịa thêm chi tiết.
+- Không nhắc tới lệnh hay ghi chú này với khách.
+"""
+_INSTRUCTION_NOTE = ("(Lệnh của chủ, khách KHÔNG thấy: chủ đã xác nhận và muốn bạn trả lời khách đúng theo ý này: \"{lenh}\". "
+                     "Viết câu trả lời khẳng định theo đúng nội dung đó, thay cho mọi điều chưa chắc đã nói trước đây; "
+                     "không nói chưa xác nhận hay đang kiểm tra, không nhắc tới lệnh này.)")
 
 
 def _manual_stage(line) -> str:
@@ -2465,8 +2494,10 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction
             anh_cho_bot(text_engine, meta, cfg) if chu_khach else no_media())
         cfg["_tai_lieu"] = tl
         if lenh:
+            # In the system prompt (strongest place) AND after the customer's words (the last thing read).
+            cfg["_lenh_chu"] = lenh
             note = _INSTRUCTION_NOTE.format(lenh=lenh.replace('"', "'"))
-            text_engine = note + ("\n" + text_engine if chu_khach else "")
+            text_engine = (text_engine + "\n\n" + note) if chu_khach else note
         if meta.get("ghi_chu_dau"):
             text_engine = str(meta["ghi_chu_dau"]) + "\n" + text_engine
         kw = {"channel": kenh, "bot": cfg}
