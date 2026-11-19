@@ -5,6 +5,10 @@ Kiến trúc: Voice (browser) ⇄ FastAPI WebSocket ⇄ Claude Code CLI subproce
 Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling đi qua
 `claude` CLI đã cài trên máy → tự kế thừa MCP, skills, auth.
 """
+# Before ANY startup work: a second copy on a port another Javis already serves must not run startup at all
+# (2026-11-19, see port_guard.py). Does nothing when main is imported by tests.
+import port_guard
+port_guard.claim_port()
 import brain_seed_i18n   # file hạt giống của brain mới theo ngôn ngữ người dùng
 import brain_label   # tên hiển thị của brain, tách khỏi thư mục (0.219.0)
 import brain_export   # xuất/nhập cả bộ não thành một file .zip (2026-11-09)
