@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.603.0] - 2026-11-19
+### Cải thiện
+- **Tab Đã học và Tài liệu chia trang, mỗi trang 20 mục.** Danh sách dài có ô tìm (gõ không dấu vẫn ra) và nút Thêm đứng ngay trên đầu, khỏi phải cuộn hết danh sách.
+- **Ghi chú Đã học dễ nhìn hơn.** Lọc nhanh theo Sự thật, Quyết định, Thuật ngữ; mỗi loại một màu; ghi chú của bạn có vạch cam bên trái.
+- **Sửa ghi chú, bài học, mô tả tài liệu trong một khung rộng.** Thay cho ô nhập một dòng của trình duyệt: chữ hiện trọn, có đếm ký tự, đổi được loại ghi chú, Ctrl+Enter để lưu. Trên điện thoại khung kéo từ dưới lên.
+
 ## [0.602.1] - 2026-11-19
 ### Sửa lỗi
 - **Gọi `javis_team` không còn báo "không tồn tại" khi hub bật chế độ lazy.** Khi có nhiều công cụ, hub giấu bớt sau ô tìm kiếm, nhưng trợ lý quen gọi thẳng tên nên bị báo lỗi. Giờ gọi thẳng tên vẫn chạy đúng công cụ, vẫn qua cùng lớp quyền. Lối tắt huỷ lịch nhắc cũng chạy lại được khi lazy bật.
