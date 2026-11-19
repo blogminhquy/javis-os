@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.603.1] - 2026-11-20
+### Fixed
+- **Zooming a chat image no longer pushes it to the left.** At actual size, a picture smaller than the screen stays centered, and a larger one opens at the spot you clicked.
+
 ## [0.603.0] - 2026-11-19
 ### Improved
 - **The Learned and Documents tabs now show 20 items a page.** A long list gets a search box (ignores Vietnamese marks) and the Add button sits at the top, so adding never means scrolling to the end.
