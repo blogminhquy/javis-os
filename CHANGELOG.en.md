@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.595.0] - 2026-11-19
+### Added
+- **Chat draws math formulas.** Formulas written as `$...$`, `$$...$$`, `\(...\)` or `\[...\]` now show as real fractions, roots and powers instead of raw code. KaTeX loads only the first time a formula appears; offline, the source text still shows. Money like "$5 and $10" is left alone.
+
 ## [0.594.0] - 2026-11-19
 ### Added
 - **Page videos post with a cover image.** The video tool takes a .jpg/.png thumbnail and can post as a Reel. The result says plainly whether the cover was set.
