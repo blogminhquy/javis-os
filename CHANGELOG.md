@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.601.0] - 2026-11-19
+### Thêm mới
+- **Link Javis gửi trên Zalo cá nhân hiện thẻ xem trước.** Tin có link giờ hiện tiêu đề, mô tả và ảnh của trang ngay dưới chữ, như khi người thật gõ link trong app Zalo. Trước đây chỉ là link trần. Chủ báo ngày 19/11/2026.
+- **Link Javis gửi trên WhatsApp cũng hiện thẻ xem trước.**
+
 ## [0.600.1] - 2026-11-19
 ### Sửa lỗi
 - **/goal và /plan gõ ở cuối hay giữa câu giờ chạy được.** Trước đây chỉ ăn khi đứng đầu tin, gõ "...làm luôn giúp anh /goal" thì Javis chỉ chat thường. Phần chữ còn lại thành nội dung của mục tiêu.
