@@ -443,6 +443,7 @@
     tuy = tuy || {};
     let ds;
     try { ds = await (await fetch("/packs/store" + brainQuery("?"))).json(); } catch (e) { ds = null; }
+    if (ds && ds.need_password) return "need_password";   // no sign-in password yet: say so, not "not found"
     const g = ((ds && ds.packs) || []).find(x => x && x.id === id && x.nguon !== "app");
     if (!g || !g.download || !g.download.url) return "khong_co";
     if (g.installed) return g.enabled === false ? "da_tat" : "da_cai";

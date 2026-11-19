@@ -3304,6 +3304,7 @@
   "cs.cn_companion_install": "Cài gói đi kèm",
   "cs.cn_companion_enable": "Bật gói",
   "cs.cn_companion_unavail": "Lúc này không tìm thấy gói {goi} trong kho. Thử lại sau, hoặc mở Kho cài đặt.",
+  "cs.cn_companion_need_password": "Cài gói cần mật khẩu đăng nhập. Đặt mật khẩu ở trang Tài khoản rồi đăng nhập.",
   "cs.cn_removed_head": "Đã gỡ",
   "cs.cn_removed_n": "{count} dịch vụ - bấm để xem",
   "cs.cn_removed_n.one": "{count} dịch vụ - bấm để xem",

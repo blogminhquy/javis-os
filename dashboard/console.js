@@ -6462,6 +6462,7 @@
       }
       const kq = await moiGoiDiKem(el, pack);
       if (kq === "khong_co" && note) note.textContent = window.t("cs.cn_companion_unavail", { goi: pack });
+      else if (kq === "need_password" && note) note.textContent = window.t("cs.cn_companion_need_password");
       else if (kq === "da_cai" || kq === "da_tat") renderConnect(el);
     });
     el.querySelectorAll("[data-mocoi]").forEach(b => b.onclick = () => {
