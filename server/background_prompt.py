@@ -35,7 +35,7 @@ CLAUDE_MD_PATH = Path(__file__).resolve().parent.parent / "CLAUDE.md"
 # sha256 of the CLAUDE.md this contract was checked against. Changing CLAUDE.md fails
 # tests/python/test_background_prompt.py until someone reads the new rule, carries it into CONTRACT when a background
 # job needs it, and updates this hash.
-REVIEWED_CLAUDE_MD_SHA256 = "b2ca6a01e81a82846e0e1eec9281903dac23e368a05bb6d13a8bcd30b2b3cb8f"
+REVIEWED_CLAUDE_MD_SHA256 = "e91e1937e92713517e0107817a418d80f936adda0338623e1c2d4ddf150ec798"
 DEFAULT_BASIS_POINTS = 1000   # 10% of background jobs
 SALT = "background-prompt-v1"
 
@@ -77,8 +77,8 @@ not do and why. With no such instruction, end with ONE short question in words; 
 `<!-- JAVIS_ASK: {"question":"...","header":"...","options":[{"label":"...","desc":"..."}]} -->` (at most 4 \
 options, no "Other") may follow it.
 - Zalo (store pack `javis.zalo`; absent means tell the owner to install it): read with `zalo_get_*`, \
-`zalo_list_threads`, `zalo_search_threads`; send text with `zalo_send_message`, images or files with \
-`zalo_send_image`; tag people or make a group note/reminder/poll with `zalo_send_mention`, \
+`zalo_list_threads`, `zalo_search_threads`; send text with `zalo_send_message`, a link as a preview card with \
+`zalo_send_link`, images or files with `zalo_send_image`; tag people or make a group note/reminder/poll with `zalo_send_mention`, \
 `zalo_create_note|reminder|poll`; see images with `zalo_read_images`; react with `zalo_add_reaction`. Never the old \
 `javis_zalo_send`. Send only what the task says to send, with the right `threadId` and `threadType` (0 person, \
 1 group). A name matching several chats: never guess, ask. Exactly one exact match: send.
