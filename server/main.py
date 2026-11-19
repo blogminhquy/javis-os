@@ -17396,6 +17396,12 @@ async def _start_scheduler():
                         await _bao_cao_tuan_neu_toi_gio()
                 except Exception as nse:
                     print(f"[ngan sach tick] {type(nse).__name__}: {nse}", file=__import__('sys').stderr)
+                # 3d) An opted-in install checks for a Javis release in the background. Detection only queues the
+                # update; self_upgrade waits without a deadline until every live chat, Kanban worker and team turn ends.
+                try:
+                    await _auto_update_tick()
+                except Exception as aue:
+                    print(f"[auto update tick] {type(aue).__name__}: {aue}", file=__import__('sys').stderr)
                 # 4) Đồng bộ GitHub tự động (2 CHIỀU): đủ interval → kéo về + hoà nhập + đẩy lên
                 try:
                     bcfg = cfgmod.read_settings().get("backup", {}) or {}
@@ -18181,7 +18187,35 @@ async def _self_upgrade_versions() -> tuple:
     return cur, latest
 
 
-self_upgrade.wire(start=_self_upgrade_start, versions=_self_upgrade_versions, turn_busy=luot_dang_chay.has_turn)
+def _update_work_busy() -> bool:
+    """One process-wide drain signal for both owner-requested and automatic updates."""
+    if luot_dang_chay.has_any_turn() or tasks_feature.has_running_work():
+        return True
+    try:
+        return _TEAM_API.runner().has_running_work()
+    except Exception:
+        return False
+
+
+_AUTO_UPDATE_LAST = [0.0]
+_AUTO_UPDATE_INTERVAL_S = 10 * 60
+
+
+async def _auto_update_tick() -> None:
+    settings = cfgmod.read_settings()
+    if not bool((settings.get("updates") or {}).get("auto_install")):
+        return
+    now = time.monotonic()
+    if now - _AUTO_UPDATE_LAST[0] < _AUTO_UPDATE_INTERVAL_S:
+        return
+    _AUTO_UPDATE_LAST[0] = now
+    cur, latest = await _self_upgrade_versions()
+    if _ver_newer(latest, cur):
+        await self_upgrade.schedule_update()
+
+
+self_upgrade.wire(start=_self_upgrade_start, versions=_self_upgrade_versions,
+                  turn_busy=luot_dang_chay.has_turn, work_busy=_update_work_busy)
 
 
 # ============================================================

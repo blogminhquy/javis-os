@@ -171,7 +171,7 @@ async def _start():
     return {"ok": True, "mode": "native"}
 
 
-def _busy(chat_id):
+def _busy():
     return calls["busy"].pop(0) if calls["busy"] else False
 
 
@@ -180,7 +180,7 @@ async def _no_sleep(_s):
 
 
 async def scenario():
-    SU.wire(start=_start, versions=lambda: _v("0.562.0", "0.562.0"), turn_busy=_busy)
+    SU.wire(start=_start, versions=lambda: _v("0.562.0", "0.562.0"), work_busy=_busy)
     same = await SU.schedule_update("web:s1", sleep=_no_sleep)
     SU.wire(versions=lambda: _v("0.562.0", "0.563.0"))
     ok = await SU.schedule_update("web:s1", sleep=_no_sleep, poll_s=0.01)
@@ -198,7 +198,7 @@ check("chưa có bản mới hơn: không cập nhật, nói rõ chờ Release",
       and calls["start"] in (0, 1), same)
 check("có bản mới: hẹn cập nhật, trả bản hiện tại và bản mới", ok["ok"] and ok["latest"] == "0.563.0", ok)
 check("hẹn hai lần: không chạy đôi", again.get("already") or again.get("ok"), again)
-check("cập nhật chạy SAU khi lượt chat kết thúc, đúng một lần", calls["start"] == 1 and calls["busy"] == [], calls)
+check("cập nhật chạy SAU khi mọi việc kết thúc, đúng một lần", calls["start"] == 1 and calls["busy"] == [], calls)
 check("so phiên bản theo số", SU._newer("0.563.0", "0.562.9") and not SU._newer("0.562.0", "0.562.0")
       and SU._newer("1.0.0", "0.999.9"))
 
@@ -258,9 +258,13 @@ out = call({"op": "update"}, owner)
 check("tool: chủ bảo cập nhật mà chưa có bản mới thì nói rõ", out.startswith("ERROR") and "Release" in out, out)
 
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-check("main: nối đường cập nhật của nút Cập nhật, phiên bản và lượt đang chạy",
-      "self_upgrade.wire(start=_self_upgrade_start, versions=_self_upgrade_versions, turn_busy=luot_dang_chay.has_turn)"
-      in src and "res = await _update_core()" in src and "return await _update_core()" in src)
+check("main: nối đường cập nhật của nút Cập nhật, phiên bản và toàn bộ việc đang chạy",
+      "work_busy=_update_work_busy" in src and "luot_dang_chay.has_any_turn()" in src
+      and "tasks_feature.has_running_work()" in src and "has_running_work()" in src
+      and "res = await _update_core()" in src and "return await _update_core()" in src)
+check("main: tự kiểm tra bản mới khi chủ đã bật và chỉ xếp một lượt cập nhật",
+      'get("auto_install")' in src and "await _auto_update_tick()" in src
+      and "await self_upgrade.schedule_update()" in src)
 check("prompt trợ lý: chủ bảo cải tiến thì dùng javis_improve, không ai bảo thì chỉ đề xuất",
       "CHỦ bảo cải tiến" in src and "`javis_improve`" in src)
 claude_md = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")

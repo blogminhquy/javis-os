@@ -59,6 +59,15 @@ def has_turn(chat_id: str) -> bool:
     return bool(cid) and any(v.get("chat_id") == cid for v in list(_DANG.values()))
 
 
+def has_any_turn() -> bool:
+    """True while any chat turn in this server process is still alive.
+
+    Read the lifecycle ledger rather than the age-pruned routing ledger. A long turn remains work that an updater must
+    wait for until its real finally block calls ket_thuc.
+    """
+    return bool(_SONG)
+
+
 def ket_thuc(khoa: str) -> None:
     _DANG.pop(str(khoa or ""), None)
     _SONG.pop(str(khoa or ""), None)

@@ -39,6 +39,9 @@ _DEFAULT = {
     "branding": {"logo_ext": "", "logo_v": 0},
     # Tên miền riêng cho HTTPS tự động (Caddy On-Demand TLS hỏi /tls-check trước khi xin cert).
     "domain": {"custom": ""},
+    # Install a newly detected Javis release only after every live chat, Kanban worker and team turn has finished.
+    # Off by default because an update restarts the server. The owner can opt in per installation.
+    "updates": {"auto_install": False},
     # Ngôn ngữ và locale. TÁCH BA BIẾN có chủ ý (spec đa ngôn ngữ mục 4.1):
     #   ui_lang     chữ trên màn hình      - "" = chưa ai chọn: dashboard đoán theo trình duyệt
     #               rồi ghi lại đây (0.66.0). Bản cài cũ đã lưu "vi" nên không bị đổi.

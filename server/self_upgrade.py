@@ -43,7 +43,7 @@ MAX_CHARS = 200_000
 DIFF_LINES = 60
 HISTORY_KEEP = 300
 SKILL_DESC_MAX = 150                         # the skill router cuts descriptions at 150 characters (CLAUDE.md)
-UPDATE_WAIT_S = 180.0                        # wait at most this long for the current turn to end before updating
+UPDATE_WAIT_S = 180.0                        # legacy per-chat wait when no whole-system busy callback is wired
 
 # Areas of the brain an owner-requested improvement may change, by the first path parts.
 _AREAS = (("agents",), ("skills",), ("workflows",), ("Javis", "loops"), ("memory",))
@@ -51,7 +51,7 @@ _AREAS = (("agents",), ("skills",), ("workflows",), ("Javis", "loops"), ("memory
 _DENY_NAMES = {"learning.json", "forgotten.json"}
 
 _LOCK = threading.RLock()
-_UPDATE: dict = {"start": None, "versions": None, "turn_busy": None, "task": None}
+_UPDATE: dict = {"start": None, "versions": None, "turn_busy": None, "work_busy": None, "task": None}
 
 
 class ImproveError(ValueError):
@@ -387,15 +387,17 @@ def attach_source(sid: str, brain_root: str) -> dict:
 
 def wire(start: Optional[Callable[[], Awaitable[dict]]] = None,
          versions: Optional[Callable[[], Awaitable[tuple]]] = None,
-         turn_busy: Optional[Callable[[str], bool]] = None) -> None:
-    """main.py: `start()` = the Update button (returns its JSON), `versions()` = (current, latest),
-    `turn_busy(chat_id)` = a turn is still running in that chat."""
+         turn_busy: Optional[Callable[[str], bool]] = None,
+         work_busy: Optional[Callable[[], bool]] = None) -> None:
+    """Connect update actions and the live-work signals supplied by main.py."""
     if start is not None:
         _UPDATE["start"] = start
     if versions is not None:
         _UPDATE["versions"] = versions
     if turn_busy is not None:
         _UPDATE["turn_busy"] = turn_busy
+    if work_busy is not None:
+        _UPDATE["work_busy"] = work_busy
 
 
 def _newer(a: str, b: str) -> bool:
@@ -436,10 +438,21 @@ async def schedule_update(chat_id: str = "", *, wait_s: float = UPDATE_WAIT_S, p
         return {"ok": True, "current": cur, "latest": latest, "already": True}
 
     async def run():
+        work_busy = _UPDATE.get("work_busy")
         busy = _UPDATE.get("turn_busy")
         waited = 0.0
         await sleep(poll_s)
-        while busy is not None and chat_id and waited < wait_s:
+        # A whole-system update never times out this wait. Restarting while another chat, background job or team turn
+        # is still producing output would interrupt work. The legacy per-chat callback keeps its bounded wait for
+        # embedders that have not wired the process-wide signal yet.
+        while work_busy is not None:
+            try:
+                if not work_busy():
+                    break
+            except Exception:  # noqa: BLE001
+                break
+            await sleep(poll_s)
+        while work_busy is None and busy is not None and chat_id and waited < wait_s:
             try:
                 if not busy(chat_id):
                     break
