@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.600.0] - 2026-11-19
+### Thêm mới
+- **Link mở thẳng một việc.** Địa chỉ dạng `#task=<mã>` mở trang Nhiệm vụ rồi mở đúng việc đó: việc của bạn (`m:`), nhắc hẹn (`r:`) hoặc việc Javis làm (`k:`). Trang ngoài như bảng điều hành tự làm có thể dẫn thẳng tới một việc thay vì chỉ tới trang Nhiệm vụ.
+
 ## [0.599.0] - 2026-11-19
 ### Thêm mới
 - **Bot học từ câu bạn xác nhận.** Trên bản nháp ở Hộp thư có ô tick "Bot học câu này", bật sẵn. Gửi một câu có lệnh của bạn, hoặc câu bạn đã tự sửa, thì câu đó được ghi vào tài liệu của Agent (file `tri-thuc-chatbot/<tên-agent>.md`). Lần sau khách khác hỏi chuyện tương tự, bot trả lời theo đúng câu bạn đã xác nhận. Chuyện riêng của một khách thì bỏ tick.
