@@ -119,10 +119,13 @@ async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Option
     return kq
 
 
-async def owner_reply(conv_id: int, text: str, sender_name: str = "Bạn", via: str = "") -> dict:
+async def owner_reply(conv_id: int, text: str, sender_name: str = "Bạn", via: str = "",
+                      take_over: bool = True) -> dict:
     """Send `text` into conversation `conv_id` as the owner, on whatever channel it lives (Messenger, Instagram,
     Telegram, Zalo...), the same path as typing in the inbox. Records it as a `human` message and takes the chat over
-    from its bot. `via` marks who sent it (`"tool"` when an engine called `inbox_reply`). Returns a dict with `ok`."""
+    from its bot. `via` marks who sent it (`"tool"` when an engine called `inbox_reply`). `take_over=False` (the
+    `inbox_reply` tool) leaves the bot running: the owner asked Javis to pass on one message, not to mute the bot for
+    that customer. Returns a dict with `ok`."""
     c = conversations.chi_tiet(int(conv_id or 0))
     if not c:
         return {"ok": False, "code": "not_found",
@@ -150,7 +153,7 @@ async def owner_reply(conv_id: int, text: str, sender_name: str = "Bạn", via: 
         "metadata": meta,
     })
     tiep_quan = False
-    if c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
+    if take_over and c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
         conversations.dat_che_do(c["id"], "human")
         tiep_quan = True
     # The owner answered by hand: an A.I. draft still waiting is no longer needed (Chatbot v5).
