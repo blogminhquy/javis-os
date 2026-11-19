@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.593.3] - 2026-11-19
+### Fixed
+- **Codex model lists include newer installed versions.** Javis compares the Codex CLI on `PATH` with the version installed in the user directory so newer models are not missed.
+
 ## [0.593.2] - 2026-11-19
 ### Fixed
 - **Javis no longer gets stuck dropping connections because a stray copy holds its port.** On a Mac the copy launchd manages now stops a stray Javis and takes over; any other extra copy exits at once, before its startup runs.
