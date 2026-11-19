@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.601.0] - 2026-11-19
+### Added
+- **Links Javis sends on personal Zalo show a preview card.** A message with a link now shows the page's title, description and image under the text, as when a person types a link in the Zalo app. Before, it was a bare link. Owner report, 19/11/2026.
+- **Links Javis sends on WhatsApp show a preview card too.**
+
 ## [0.600.1] - 2026-11-19
 ### Fixed
 - **/goal and /plan work at the end or in the middle of a message.** They used to work only at the start, so "...do it for me /goal" went out as a plain chat. The rest of the text becomes the goal.
