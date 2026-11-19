@@ -114,6 +114,14 @@ def _tieu_de(text: str) -> str:
     return localefmt.chu("Javis vừa gửi một tin", "Javis just sent a message")
 
 
+def _same_line(a: str, b: str) -> bool:
+    """True when two lines say the same thing once punctuation, marks, spaces and case are ignored, or one is the
+    start of the other (a title cut at MAX_TITLE). Owner, 2026-11-19: such a summary is not shown under its title."""
+    fa = "".join(ch for ch in str(a or "").lower() if ch.isalnum())
+    fb = "".join(ch for ch in str(b or "").lower() if ch.isalnum())
+    return bool(fa and fb) and (fa.startswith(fb) or fb.startswith(fa))
+
+
 def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "",
         source: str = "", label: str = "", title: str = "", read: bool = False,
         channel: str = "", dedup: str = "", routing: str = "", group: str = "", level: str = "", sig: str = "",
@@ -155,7 +163,7 @@ def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "
     # 2026-11-19: one plain line under the title (the run's own JAVIS_NOTIFY line, or the first reporting line of the
     # text). The card shows it instead of the raw start of the text, which often repeated the title word for word.
     summary = " ".join(str(summary or "").split())[:MAX_SUMMARY]
-    if summary and summary.lower() != item["title"].lower():
+    if summary and not _same_line(summary, item["title"]):
         item["summary"] = summary
     # 2026-11-19 (owner): an answer that sits in a chat with its own unread dot is not shown in the bell. It is still
     # filed, hidden and read, so its `dedup` key keeps a retried report from being posted twice.

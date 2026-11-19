@@ -337,16 +337,22 @@
   // there is one; else the text without the title it starts with. A card used to print the title twice when the text
   // was a single sentence.
   function dongPhu(item) {
-    if (item.summary) return item.summary;
-    var tieuDe = String(item.title || "").trim();
-    var than = String(item.body || "").replace(/\*\*|__|`/g, "").trim();
+    // Owner, 19/11/2026: "headline and content the same: one line, not two". Compared without punctuation, marks,
+    // spaces or case, so "- **Em kiểm tra ...**" under "Em kiểm tra ..." also counts as the same line.
+    function gon(s) { return String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""); }
+    var tieuDe = gon(item.title);
+    function trung(dong) {
+      var d = gon(dong);
+      return !!d && !!tieuDe && (d.indexOf(tieuDe) === 0 || tieuDe.indexOf(d) === 0);
+    }
+    if (item.summary) return trung(item.summary) ? "" : item.summary;
+    var than = String(item.body || "").trim();
     // The title is the text's first line, cut at 120 characters: drop that whole line, never leave its cut-off tail
     // ("...is not signed in on this machine.)") as a line of its own.
-    if (tieuDe && than.indexOf(tieuDe) === 0) {
-      var xuong = than.indexOf("\n");
-      than = xuong < 0 ? "" : than.slice(xuong + 1).trim();
-    }
-    return than;
+    var xuong = than.indexOf("\n");
+    var dau = xuong < 0 ? than : than.slice(0, xuong);
+    if (trung(dau)) than = xuong < 0 ? "" : than.slice(xuong + 1).trim();
+    return than.replace(/\*\*|__|`/g, "");
   }
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
