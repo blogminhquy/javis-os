@@ -2866,8 +2866,10 @@ body.jv-lb-open { overflow: hidden; }        /* khoá cuộn nền để lăn ch
 .jv-lb.pinch .jv-lb-khung { overflow: hidden; }
 .jv-lb.pinch .jv-lb-img { cursor: grab; }
 /* Bấm vào ảnh -> xem cỡ thật để soi chi tiết, kéo trong khung để xem phần khuất. */
+/* Ảnh nhỏ hơn khung thì vẫn nằm GIỮA (margin:auto), ảnh lớn hơn khung thì margin auto về 0 nên không bị
+   cắt mất mép trái/trên như justify-content:center (chủ repo báo 2026-11-19: zoom lên ảnh dạt sang trái). */
 .jv-lb.that .jv-lb-khung { align-items: flex-start; justify-content: flex-start; }
-.jv-lb.that .jv-lb-img { max-width: none; max-height: none; cursor: zoom-out; }
+.jv-lb.that .jv-lb-img { max-width: none; max-height: none; margin: auto; flex: none; cursor: zoom-out; }
 @media (max-width: 700px) {
   .jv-lb-bar { padding: 8px 10px; }
   .jv-lb-nut button { padding: 6px 9px; }
