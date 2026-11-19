@@ -146,6 +146,13 @@ RUN_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 # its previous result, so a watcher knows what it already reported. Capped so one long report
 # cannot eat the next run's context.
 PREVIOUS_RESULT_CAP = 2000
+# How much of a run's result is kept on the reminder (issue 1563). It used to be 2,000 characters, the same as what the
+# next run is shown, so a long report was cut on disk too and nobody could read the rest. The next run still gets only
+# PREVIOUS_RESULT_CAP (a long report must not eat the next turn's context), now with a line saying it was cut.
+RESULT_KEEP = 20000
+# A repeating job that fires late skips the slots that passed meanwhile (issue 1480). Counting them stops at this many,
+# so a reminder paused for a month does not loop over 40,000 one-minute slots.
+MISSED_COUNT_CAP = 10000
 NEXT_RUNS_SHOWN = 3            # upcoming firings listed for a cron schedule
 LATE_NOTE_AFTER_S = 15 * 60    # a firing this late (server off or busy) tells the model so
 
@@ -242,6 +249,39 @@ def _now() -> float:
 
 def _vnow() -> datetime:
     return datetime.now(VN_TZ())
+
+
+def previous_result_text(result: str, cap: int = PREVIOUS_RESULT_CAP) -> str:
+    """The last run's result as the next run sees it: at most `cap` characters, and a line saying how much was cut
+    (issue 1563: it used to be cut silently, so the next run took a partial report for the whole one)."""
+    text = str(result or "")
+    if len(text) <= cap:
+        return text
+    return text[:cap] + f"\n(... cut here: {len(text) - cap} more characters of the previous result are not shown)"
+
+
+def missed_slots(rem: dict, slot: float, now: float) -> int:
+    """How many regular firings of a repeating reminder fell after `slot` (the firing that just ran) and at or before
+    `now`: those are skipped when the next due time is set from now (issue 1480). 0 for a one-shot reminder."""
+    if not slot or slot >= now:
+        return 0
+    cron = rem.get("cron")
+    n = 0
+    if cron:
+        t = slot
+        try:
+            while n < MISSED_COUNT_CAP:
+                t = float(cron_util.cron_next(cron, t, VN_TZ()))
+                if t > now:
+                    break
+                n += 1
+        except Exception:
+            return 0
+        return n
+    rep = int(rem.get("repeat_min") or 0)
+    if rep <= 0:
+        return 0
+    return min(int((now - slot) // (rep * 60.0)), MISSED_COUNT_CAP)
 
 
 def _fmt_vn(ts) -> str:
@@ -538,6 +578,8 @@ class RemindersFeature:
                 "agent": r.get("agent", ""),
                 "next_runs": next_runs(cron) if cron and r.get("status") == "pending" else [],
                 "result": (r.get("result") or "")[:500], "error": r.get("error", ""),
+                # issue 1480: slots skipped because an earlier run was late or long (0 = none so far).
+                "missed_total": int(r.get("missed_total") or 0), "missed_last": int(r.get("missed_last") or 0),
                 # A pending network retry (code 26): which retry the next run is, out of how many.
                 "retry_count": int(r.get("retry_count") or 0), "retry_max": len(RETRY_DELAYS_S),
                 # The Tasks page (0.422.0) turns its run button into a stop button while this is true.
@@ -836,7 +878,7 @@ class RemindersFeature:
             previous = ""
             if rem.get("remember_last") and rem.get("result") and float(rem.get("fired_at") or 0) > 0:
                 previous = (f"[{_fmt_vn(rem.get('fired_at'))}] "
-                            + str(rem.get("result") or "")[:PREVIOUS_RESULT_CAP])
+                            + previous_result_text(str(rem.get("result") or "")))
             late_s = _now() - float(rem.get("due_at") or _now())
             extra = {}
             if previous:
@@ -1027,13 +1069,13 @@ class RemindersFeature:
                 # tới cả giờ): chỉ ghi kết quả, KHÔNG dựng lại lịch cron/repeat - bản trước ghi
                 # đè status về "pending" nên nhắc đã huỷ sống lại.
                 cur["fired_at"] = _now()
-                cur["result"] = (body or "")[:2000]
+                cur["result"] = (body or "")[:RESULT_KEEP]
                 cur["error"] = (err or ("" if ok else send_err) or "")[:400]
                 if cur.get("status") == "failed" and rem.get("retry_of") and ok and not run_failed:
                     cur["status"] = "done"   # a retry of the failed firing (Javis Core) worked
             elif cur is not None:
                 cur["fired_at"] = _now()
-                cur["result"] = (body or "")[:2000]
+                cur["result"] = (body or "")[:RESULT_KEEP]
                 cur["error"] = (err or ("" if ok else send_err) or "")[:400]
                 cron = cur.get("cron")
                 rep = int(cur.get("repeat_min") or 0)
@@ -1049,6 +1091,15 @@ class RemindersFeature:
                 cur.pop("retry_of", None)
                 cur.pop("retry_count", None)
                 cur["last_slot"] = slot      # an incident retry reuses this firing's ledger key
+                # Slots that passed while this firing waited or ran (issue 1480): they are skipped, as before, but now
+                # counted on the reminder and logged, so "every minute" turning into every few minutes is visible.
+                missed = missed_slots(cur, float(slot or 0), _now())
+                if missed:
+                    cur["missed_last"] = missed
+                    cur["missed_total"] = int(cur.get("missed_total") or 0) + missed
+                    cur["missed_at"] = _now()
+                    print(f"[reminders] {cur.get('id')}: {missed} lần chạy bị lỡ vì lượt trước trễ/chạy lâu",
+                          file=sys.stderr)
                 if cron:
                     try:
                         cur["due_at"] = cron_util.cron_next(cron, _now(), VN_TZ())

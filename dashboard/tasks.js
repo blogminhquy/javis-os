@@ -123,7 +123,9 @@
         var title = r.label || r.text || "";
         var mode = r.mode === "notify" ? "remind" : "do", rwho = whoOf("r:" + r.id, r.created_by, r.agent);
         if (rep) {
-          recurring.push({ id: "r:" + r.id, src: "reminder", ref: r.id, title: title, who: rwho, sc: rep, next: r.due_at || 0,
+          // Issue 1480: runs skipped because an earlier one was late or long show next to the schedule.
+          var sc = rep + (Number(r.missed_total) > 0 ? " · " + tw("nv.rep.missed", { n: Number(r.missed_total) }) : "");
+          recurring.push({ id: "r:" + r.id, src: "reminder", ref: r.id, title: title, who: rwho, sc: sc, next: r.due_at || 0,
             on: !paused, running: !!r.running, mode: mode, raw: r });
         }
         if (paused) return;

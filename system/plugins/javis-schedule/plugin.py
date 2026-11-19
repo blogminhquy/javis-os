@@ -468,10 +468,51 @@ def _turn_origin(vault_root: str) -> tuple:
         return "", ""
 
 
+def _script_time_payload(schedule: str):
+    """Time fields of a SCRIPT job (issue 1563): a plain interval ('1m', 'mỗi 5 phút', '2h') repeats with `repeat_min`,
+    with no 5-minute floor (a script runs no model, so a one-minute watch is cheap); a cron or a daily time is a cron;
+    anything else fires once. Returns (payload, error)."""
+    if _route_kind(schedule) == "loop":
+        norm = _strip_diacritics(schedule)
+        m = _INTERVAL_SEARCH_RE.search(norm)
+        if m:
+            try:
+                n = float(m.group(1).replace(",", ".")) * _UNIT_MINUTES.get(m.group(2), 1)
+            except ValueError:
+                n = 0
+        else:
+            bare = _BARE_UNIT_RE.search(norm)
+            n = _UNIT_MINUTES.get(bare.group(1), 1) if bare else 0
+        if n <= 0:
+            return None, f"ERROR: cannot read the interval '{schedule}' for a script job. Examples: '1m', '5 minutes', '2h'."
+        n = max(1, int(round(n)))
+        # The store needs a first time too: one interval from now, then every `n` minutes.
+        return {"repeat_min": n, "delay_min": n}, ""
+    return _reminder_time_payload(schedule), ""
+
+
+async def _create_script_job(vault_root: str, args: dict, name: str, script: str, schedule: str) -> str:
+    """A job that runs a script from Javis/scripts on schedule, no model involved (issue 1563: before, the model had to
+    call POST /reminders by hand). The server checks the file name (only a file in Javis/scripts, no path) on create."""
+    time_payload, err = _script_time_payload(schedule)
+    if err:
+        return err
+    payload = {"text": str(args.get("prompt") or "").strip(), "label": name, "mode": "script", "script": script,
+               "brain": vault_root, "chat_id": str(args.get("chat_id") or args.get("owner_chat") or "").strip(),
+               "created_by": "javis_schedule"}
+    payload.update(time_payload)
+    return await _post_reminder(payload, brain_name=Path(vault_root).name)
+
+
 async def _do_create(vault_root: str, args: dict) -> str:
     name = str(args.get("name") or "").strip()
     prompt = str(args.get("prompt") or "").strip()
     schedule = str(args.get("schedule") or "").strip()
+    script = str(args.get("script") or "").strip()
+    if script:
+        if not name or not schedule:
+            return "ERROR: a script job needs 'name', 'script' (a file name in Javis/scripts) and 'schedule'."
+        return await _create_script_job(vault_root, args, name, script, schedule)
     if not name or not prompt or not schedule:
         return "ERROR: cần đủ 'name', 'prompt' và 'schedule' để tạo việc."
     notify_only = bool(args.get("notify_only") or False)
@@ -659,6 +700,11 @@ async def _do_list(vault_root: str) -> str:
             # user hiểu ngay, không phải tự dịch "0 7 * * *".
             extra = (f" (lặp {r.get('cron_human') or r.get('cron')} - cron {r.get('cron')})"
                      if r.get("cron") else "")
+            if r.get("mode") == "script" and r.get("script"):
+                extra += f" (script {r.get('script')})"
+            if int(r.get("missed_total") or 0):
+                # issue 1480: runs skipped because an earlier one was late or long
+                extra += f" - {int(r.get('missed_total'))} runs skipped because an earlier run was late"
             lines.append(f"- [{r.get('id')}] {r.get('label') or r.get('text')} - "
                          f"kế tiếp {r.get('due_human')}{extra}")
     if rem.get("error"):
@@ -742,6 +788,11 @@ def register(ctx) -> None:
                                              "cron 5 trường '0 7 * * *', macro '@daily'. Một lần: "
                                              "'30 phút nữa', '8h30' (qua giờ hôm nay -> tự sang "
                                              "mai), hoặc đủ ngày giờ '2026-07-20 09:00'.")},
+                "script": {"type": "string",
+                           "description": ("op=create: a script FILE NAME in Javis/scripts (e.g. 'check_shop.py'; "
+                                           ".py/.sh/.ps1/.js/.bat). With it the job runs that script on schedule "
+                                           "and no model at all (cheap, fits a check every minute); 'prompt' is "
+                                           "optional; an interval like '1m' is fine, no 5-minute floor.")},
                 "notify_only": {"type": "boolean",
                                  "description": ("true = CHỈ nhắc bằng lời, MỘT LẦN (kho reminders, dù "
                                                  "schedule trông giống chu kỳ lặp): tới giờ dán nguyên văn "
