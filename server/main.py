@@ -23499,7 +23499,7 @@ async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Quer
 @app.get("/sessions")
 def sessions_list(brain: str = Query(None), limit: int = Query(50),
                         project: str = Query(""), channel: str = Query(""), bots: int = Query(0),
-                        archived: int = Query(0)):
+                        archived: int = Query(0), unread_first: int = Query(0)):
     """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project.
     channel: bỏ trống = loại các kênh cộng sự (agent:/workflow:); có giá trị = đúng kênh đó
     (trang Cộng sự mở một trợ lý/quy trình).
@@ -23507,12 +23507,14 @@ def sessions_list(brain: str = Query(None), limit: int = Query(50),
     xin cái này). Mặc định 0: lúc trang Cộng sự chọn "phiên gần nhất để mở tiếp" (limit=1) mà lẫn phiên của khách
     vào thì tin chủ gõ sẽ rơi vào cuộc chat của khách.
     archived: 1 = only the archived chats (the history column's "Archived" view, 2026-11-09). Every answer also carries
-    `archived_count`, the number behind the "Archived" row at the bottom of the column."""
+    `archived_count`, the number behind the "Archived" row at the bottom of the column.
+    unread_first: 1 = unread chats right after the pinned ones (the history column, 2026-11-19)."""
     keys = _brain_keys(brain)
     also = _agent_history_channels(brain, channel) if bots else []
     store = get_store()
     return {"sessions": store.list_sessions(limit=limit, brain=keys, project=project or None, channel=channel or None,
-                                            also_channels=also, archived_only=bool(archived)),
+                                            also_channels=also, archived_only=bool(archived),
+                                            unread_first=bool(unread_first)),
             "archived_count": store.count_archived(brain=keys, project=project or None, channel=channel or None,
                                                    also_channels=also)}
 
