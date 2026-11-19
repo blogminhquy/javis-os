@@ -1722,7 +1722,7 @@
                        sao: l.url, saoTitle: pdT("common.copy_link") });
     };
     var v = listView("files");
-    var repoHtml = dsRepoHtml(p, v.q);
+    var repoHtml = dsRepoHtml(p);
     if (!fs.length && !ls.length) return repoHtml || '<div class="pd-empty">' + esc(pdT(pdK("files_empty"))) + "</div>";
     // Every row in display order, each with the group it sits in. The search and the page cut this ONE list, and a
     // group's title is drawn again at the top of a page that starts inside it, so page two still says what it shows.
@@ -1777,7 +1777,9 @@
   }
   function repoNames(p) { return ((p || {}).repos || []).map(function (r) { return r.full_name; }).filter(Boolean); }
 
-  function dsRepoHtml(p, q) {
+  function dsRepoHtml(p) {
+    // The documents search also filters the repos, so a query never leaves an unrelated repo on top.
+    var q = listView("files").q;
     var names = (pdCoRepo() ? repoNames(p) : []).filter(function (n) { return matchesQuery(q, [n]); });
     if (!names.length) return "";
     return nhomHtml(pdT("proj.repos_group")) + names.map(function (n) {
