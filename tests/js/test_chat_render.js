@@ -292,6 +292,11 @@ check("copy giữa stream bỏ metadata chưa đóng",
   check("math: trinh sua giu nguyen van", !has(m, "jv-math") && has(m, "$x^2$"));
   m = mdToHtml("**dam** $a_1 + a_2$ *nghieng*");
   check("math: dau _ trong cong thuc khong thanh nghieng", has(m, 'data-tex="a_1 + a_2"') && has(m, "<strong>dam</strong>"));
+  // The CDN code runs with full rights in the dashboard: both files must be pinned by hash (SRI).
+  const src = require("fs").readFileSync(require("path").join(__dirname, "..", "..", "dashboard", "chat-render.js"), "utf8");
+  check("math: KaTeX js and css pinned by SRI hash",
+    /css\.integrity = KX_SRI\.css/.test(src) && /s\.integrity = KX_SRI\.js/.test(src)
+    && (src.match(/sha384-[A-Za-z0-9+\/=]{64}/g) || []).length === 2);
 })();
 
 if (fails.length) {

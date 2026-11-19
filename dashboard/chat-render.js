@@ -630,7 +630,14 @@
   // a formula appears, like mermaid. Until it arrives (or when offline) the TeX shows as text in a .jv-math span;
   // once loaded, those spans are drawn in place and later renders call katex.renderToString directly.
   // KaTeX escapes its input and runs with trust:false, so \href / \htmlClass and friends cannot add markup.
+  // The CDN code runs with full rights in the owner's dashboard, so both files are pinned by hash (SRI): a changed
+  // file on the CDN is refused and the formula stays as plain text. Bumping KX_VER means new hashes, taken from the
+  // npm tarball: `npm pack katex@X`, then `openssl dgst -sha384 -binary dist/<file> | openssl base64 -A`.
   var KX_VER = "0.16.11", kxState = 0;   // 0 not loaded, 1 loading, 2 ready, 3 failed
+  var KX_SRI = {
+    js: "sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg",
+    css: "sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+"
+  };
   function katexOpts(display) {
     return { displayMode: !!display, throwOnError: false, strict: "ignore", trust: false, output: "htmlAndMathml" };
   }
@@ -649,9 +656,11 @@
     var base = "https://cdn.jsdelivr.net/npm/katex@" + KX_VER + "/dist/";
     var css = document.createElement("link");
     css.rel = "stylesheet"; css.href = base + "katex.min.css";
+    css.integrity = KX_SRI.css; css.crossOrigin = "anonymous";
     document.head.appendChild(css);
     var s = document.createElement("script");
     s.src = base + "katex.min.js";
+    s.integrity = KX_SRI.js; s.crossOrigin = "anonymous";
     s.onload = function () { kxState = window.katex ? 2 : 3; upgradeMath(document); };
     s.onerror = function () { kxState = 3; };
     document.head.appendChild(s);
