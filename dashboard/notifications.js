@@ -333,6 +333,27 @@
       render();
     } catch (e) { state.note[item.id] = window.t("noti.react_err"); render(); }
   }
+  // The line under the title (owner, 2026-11-19: "the notices are hard to read"). The server's one-line `summary` when
+  // there is one; else the text without the title it starts with. A card used to print the title twice when the text
+  // was a single sentence.
+  function dongPhu(item) {
+    // Owner, 19/11/2026: "headline and content the same: one line, not two". Compared without punctuation, marks,
+    // spaces or case, so "- **Em kiểm tra ...**" under "Em kiểm tra ..." also counts as the same line.
+    function gon(s) { return String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""); }
+    var tieuDe = gon(item.title);
+    function trung(dong) {
+      var d = gon(dong);
+      return !!d && !!tieuDe && (d.indexOf(tieuDe) === 0 || tieuDe.indexOf(d) === 0);
+    }
+    if (item.summary) return trung(item.summary) ? "" : item.summary;
+    var than = String(item.body || "").trim();
+    // The title is the text's first line, cut at 120 characters: drop that whole line, never leave its cut-off tail
+    // ("...is not signed in on this machine.)") as a line of its own.
+    var xuong = than.indexOf("\n");
+    var dau = xuong < 0 ? than : than.slice(0, xuong);
+    if (trung(dau)) than = xuong < 0 ? "" : than.slice(xuong + 1).trim();
+    return than.replace(/\*\*|__|`/g, "");
+  }
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
     var why = item.filtered ? (item.why === "repeat" ? "noti.why_repeat" : item.why === "muted" ? "noti.why_muted" : "noti.why_mode") : "";
@@ -344,7 +365,7 @@
       esc(nhanLoai(item.kind)) + '</span><span class="noti-top-r"><span class="noti-time">' + esc(thoiGian(item.ts)) +
       "</span>" + nutX() + "</span></div>" +
       "<h4>" + esc(item.title || window.t("noti.msg_title")) + "</h4>" +
-      '<p class="noti-card-body">' + esc(item.body || "") + "</p>" +
+      (dongPhu(item) ? '<p class="noti-card-body">' + esc(dongPhu(item)) + "</p>" : "") +
       (why ? '<span class="noti-why">' + esc(window.t(why)) + "</span>" : "") +
       (phu ? '<span class="noti-cta">' + phu + "</span>" : "") + phanHoiHtml(item) + "</article>";
   }

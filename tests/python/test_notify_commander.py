@@ -117,7 +117,8 @@ web = main.get_store().create_session(brain=KB)
 run(main._notify_owner("web:" + web, "✅ Việc 'Báo cáo' đã hoàn thành.", kind="answer", quiet=True,
                        viec={"kind": "task", "status": "done", "title": "Báo cáo", "id": "t9"}))
 it = items().get("✅ Việc 'Báo cáo' đã hoàn thành.") or {}
-check("a filtered result still reaches the chat that asked for it", it.get("filtered") and ("web:" + web) in [s[0] for s in sent],
+# 2026-11-19 (owner): a result that sits in a chat with its own unread dot is not filed in the bell at all.
+check("a filtered result still reaches the chat that asked for it, and stays out of the bell", not it and ("web:" + web) in [s[0] for s in sent],
       (it, sent))
 sent.clear(); pushes.clear()
 run(main._bo_vao_hom_thu("", "Bot Shop cần người thật: Lan", kind="system", source="chatbot", level="urgent"))

@@ -125,9 +125,9 @@ check("toàn quyền: hub chạy ở mức full", g["hub_mode"] == "full")
 check("toàn quyền: có truyền brain (plugin in-process cần biết vault nào)",
       g["hub_brain"] == "brain")
 check("toàn quyền: prompt KHÔNG còn câu cấm gửi tin ra ngoài",
-      "KHÔNG tạo đơn" not in g["prompt"] and "gửi tin ra ngoài" not in g["prompt"])
+      "do NOT create orders" not in g["prompt"] and "send messages outside" not in g["prompt"])
 check("toàn quyền: prompt dặn đừng hỏi lại rồi ngồi đợi (không ai ngồi cạnh)",
-      "không ai ngồi cạnh" in g["prompt"].lower() or "Không có ai ngồi cạnh" in g["prompt"])
+      "Nobody is there to approve" in g["prompt"] and "Never ask back and wait" in g["prompt"])
 
 g = _chay("auto")
 check("ghi file: allowlist là bộ tool ghi được", "Write" in (g["allowed_tools"] or []))
@@ -135,12 +135,12 @@ check("ghi file: vẫn kèm pattern MCP để gọi được tool đọc",
       "mcp__javis__*" in (g["allowed_tools"] or []))
 check("ghi file: hub chạy ở mức auto", g["hub_mode"] == "auto")
 check("ghi file: prompt vẫn cấm hành động ra ngoài",
-      "KHÔNG tạo đơn" in g["prompt"] and "gửi tin ra ngoài" in g["prompt"])
+      "do NOT create orders" in g["prompt"] and "send messages outside" in g["prompt"])
 
 g = _chay("suggest")
 check("chỉ đọc: allowlist KHÔNG có tool ghi", "Write" not in (g["allowed_tools"] or []))
 check("chỉ đọc: hub chạy ở mức suggest", g["hub_mode"] == "suggest")
-check("chỉ đọc: prompt nói rõ không ghi file", "KHÔNG ghi file" in g["prompt"])
+check("chỉ đọc: prompt nói rõ không ghi file", "do NOT write files" in g["prompt"])
 
 g = _chay("")     # mức rỗng -> mặc định
 check("không nói mức thì chạy theo mặc định (toàn quyền)",

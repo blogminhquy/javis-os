@@ -84,7 +84,7 @@ async def main():
 asyncio.run(main())
 
 src = (Path(SERVER) / "reminders.py").read_text(encoding="utf-8")
-check("prompt intro can be replaced by another caller", "intro or \"NHIỆM VỤ NHẮC HẸN" in src)
+check("prompt intro can be replaced by another caller", "intro or \"SCHEDULED JOB" in src)
 
 print()
 print("FAIL" if fails else "PASS", f"({len(fails)} failed)")

@@ -97,7 +97,9 @@ body.in-console .hud-actions { display: none; }
 }
 .rail-brand-text i { font-style: normal; font-weight: 400; color: var(--text3); }
 .rail-item {
-  position: relative; background: transparent; border: 0; cursor: pointer;
+  /* width 100% (19/11/2026): on a phone the rail's item list is a block, where a <button> shrinks to its text; the row
+     must span the drawer like on a computer so the unread dot lines up on the right edge. */
+  position: relative; width: 100%; background: transparent; border: 0; cursor: pointer;
   color: var(--text3); border-radius: 9px; padding: 7px 8px 7px 16px;
   display: flex; flex-direction: row; align-items: center; gap: 10px;
   transition: color var(--rail-anim), background var(--rail-anim);
@@ -108,6 +110,10 @@ body.in-console .hud-actions { display: none; }
   font-family: var(--font-ui); font-size: 13.5px; letter-spacing: 0.1px; opacity: 0.95;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Owner, 19/11/2026: red dot on Chat, Partners and Team when something there is unread (rail-unread.js), at the end of
+   the row, the same red as the unread dot on a chat in the history; on a folded group's header too. */
+.rail-dot { flex: none; width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: var(--red); }
+.rail-grp-lbl .rail-dot { margin-right: 4px; }
 .rail-item:hover { color: var(--text); background: var(--surface-2); }
 .rail-item.active { color: var(--accent); background: var(--accent-wash-2); }
 .rail-item.active::before {
@@ -589,6 +595,7 @@ button.ord-mi:hover, button.ord-mi:focus-visible { background: var(--bg3); }
   }
   .rail.collapsed .rail-item { justify-content: center; padding: 9px 0; gap: 0; }
   .rail.collapsed .rail-item .rail-lbl { display: none; }       /* giấu chữ, chỉ còn icon */
+  .rail.collapsed .rail-item .rail-dot { position: absolute; top: 6px; right: 12px; margin: 0; } /* chấm nằm ở góc icon */
   .rail.collapsed .rail-brand-text { display: none; }           /* thu gọn: chỉ còn dấu ấn, chữ không vừa */
   .rail.collapsed .rf-meta { display: none; }                   /* giấu version/tác giả cho vừa bề ngang hẹp, chỉ còn nút */
   .rail.collapsed .rail-lang { display: none; }                 /* ô ngôn ngữ cũng không vừa bề ngang thu gọn */

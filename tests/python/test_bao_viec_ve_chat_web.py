@@ -116,7 +116,8 @@ async def _run():
     check("báo lặng vẫn tính là đã tới người dùng", ok6 is True)
     check("báo lặng KHÔNG cộng thêm số chưa đọc (chuông không nổi chấm đỏ)",
           inbox_mod.so_chua_doc() == truoc)
-    thu = inbox_mod.danh_sach(5)
+    # 2026-11-19: a result in a chat with its own red dot is filed hidden (out of the bell list, still kept).
+    thu = inbox_mod.danh_sach(5, include_hidden=True)
     check("nhưng thư VẪN nằm trong hòm để mở ra xem lại",
           bool(thu) and "Lấy bảng giá" in (thu[0].get("body") or ""))
     check("và thư đó được đánh dấu đã đọc sẵn", bool(thu) and thu[0].get("read") is True)
@@ -126,7 +127,8 @@ async def _run():
     # Ngược lại: mặc định (việc kẹt / chờ duyệt) phải KÊU như cũ. Đây là vế dễ mất nhất khi
     # ai đó sau này đổi mặc định của `quiet` cho gọn.
     truoc2 = inbox_mod.so_chua_doc()
-    await main._notify_owner(main.WEB_CHAT_PREFIX + SID, "⚠ Việc 'Ramp ngân sách' bị chặn.")
+    # tasks.py marks a blocked or review report "urgent" (it waits on the owner), the kind the bell keeps.
+    await main._notify_owner(main.WEB_CHAT_PREFIX + SID, "⚠ Việc 'Ramp ngân sách' bị chặn.", level="urgent")
     check("việc kẹt VẪN cộng số chưa đọc (vẫn kêu)", inbox_mod.so_chua_doc() == truoc2 + 1)
 
 

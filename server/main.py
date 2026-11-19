@@ -119,6 +119,7 @@ import security_log   # account security log: sign-ins, account changes, outside
 import image_gen      # tạo ảnh bằng gói ChatGPT (OAuth) - Codex Responses + tool image_generation
 import media_gc       # dọn vùng cache media (attachments/ + inbox/) theo hạn tuổi + trần dung lượng
 import inbox         # hòm thư: mọi kết quả chạy nền để lại một mẩu thư bền ở server
+import notice_text   # short headline and one summary line for each bell item (2026-11-19)
 import notify_policy  # 0.403.0: Javis Core decides which notices ring (groups, levels, modes, the owner's reactions)
 import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã hoá - không thêm thư viện)
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
@@ -15144,7 +15145,7 @@ def huy_viec_nen_giong(conv_sid: str) -> int:
 
 async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
                           quiet=False, brain="", dedup="", routing="", level="", group="", decision=None, viec=None,
-                          push_if_away=False):
+                          push_if_away=False, title="", summary=""):
     """Để lại MỘT mẩu thư cho mọi kết quả chạy nền, rồi rung chuông đẩy nếu có đăng ký.
 
     Vì sao đặt ở đây chứ không ở từng nơi sinh việc: `_notify_owner` là CỬA DUY NHẤT mà
@@ -15160,8 +15161,14 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
     (loud), is kept quietly under "Filtered" (quiet), or is not kept at all (drop: the owner turned its group off).
     """
     try:
+        # Owner, 2026-11-19: a JAVIS_NOTIFY block the run wrote gives the headline; it never shows in the bell itself.
+        text, meta = notice_text.split_block(text)
+        title = title or meta.get("title") or ""
+        summary = summary or meta.get("line") or ""
+        if meta.get("act") and not level:
+            level = "urgent"
         dec = decision or _notify_decide(text, kind=kind, source=source, quiet=quiet, level=level, group=group,
-                                         viec=viec, dedup=dedup)
+                                         viec=viec, dedup=dedup, title=title)
         if dec.get("verdict") == "drop":
             return {"dropped": True, "id": "", "session_id": ""}
         filtered = dec.get("verdict") != "loud"
@@ -15184,15 +15191,31 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
             except Exception as e:
                 print(f"[inbox] không đọc được kênh của phiên {sid[:8]}: "
                       f"{type(e).__name__}: {e}", file=sys.stderr)
-        item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label,
+        # Owner, 2026-11-19: "answers of partners, chats and teams need no notification, a red dot on the menu is
+        # enough". A notice whose content sits in a chat the dashboard marks unread (Chat, Partners, Team) is not filed
+        # in the bell; the chat's own dot and the rail dot (rail-unread.js) are the signal. Only what needs the owner
+        # (urgent and ringing: a question, an approval, a reminder they set, a run that says they must act) still is.
+        hidden = bool(sid and _chat_has_own_dot(sid, kenh)
+                      and not (dec.get("verdict") == "loud" and dec.get("level") == "urgent"))
+        if hidden:
+            quiet = True
+        item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label, title=title,
+                         summary=summary or notice_text.summary(text, title or inbox._tieu_de(text)),
                          read=bool(quiet), channel=kenh, brain=brain, dedup=dedup, routing=routing,
                          group=dec.get("group") or "", level=dec.get("level") or "", sig=dec.get("sig") or "",
-                         filtered=filtered, why=dec.get("why") or "")
+                         filtered=filtered, why=dec.get("why") or "", hidden=hidden)
     except Exception as e:
         print(f"[inbox] bỏ thư lỗi: {type(e).__name__}: {e}", file=sys.stderr)
         return None
     if item.get("duplicate"):
         return item   # the same report was already filed: no second bell, no second push
+    if hidden:
+        # Not in the bell, no push: the chat's dot and the rail dot (rail-unread.js) carry it. They refresh now.
+        try:
+            await _CHAT_RUNTIME.publish({"type": "chat_unread", "session_id": sid})
+        except Exception as e:  # noqa: BLE001 - the rail dot then shows on its next refresh
+            print(f"[inbox] chat_unread WebSocket: {type(e).__name__}: {e}", file=sys.stderr)
+        return item
     try:
         # Ai đang mở dashboard thì chấm đỏ trên chuông phải nhảy NGAY, không đợi lần
         # tải lại trang sau. Đi chung đường WebSocket sẵn có của khung chat.
@@ -15212,7 +15235,7 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         url = f"/?mo_thu={item['id']}"
         # 0.187.0: "hide content" in the bell's settings shows only that something arrived; the text is read after
         # opening Javis, where login is checked again.
-        title, body = item["title"], item["body"][:200]
+        title, body = item["title"], (item.get("summary") or item["body"])[:200]
         if (cfgmod.read_settings().get("push") or {}).get("preview") == "hidden":
             title, body = "Javis", localefmt.chu("Bạn có tin mới trong Javis.", "You have a new message in Javis.")
         # KHÔNG await: mỗi đăng ký chết là một request chờ tới 15 giây, mà việc rung chuông
@@ -15228,16 +15251,38 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
     return item
 
 
-def _notify_decide(text, *, kind="answer", source="", quiet=False, level="", group="", viec=None, dedup="") -> dict:
+# Channels of chats that carry their own unread dot on the dashboard (sessions.UNREAD_SQL for chats and partner chats, the
+# team list for teams). A notice about one of them is shown by that dot, not by the bell (2026-11-19).
+_DOT_PREFIXES = ("agent:", "workflow:", "coding:", "team:")
+
+
+def _chat_has_own_dot(sid: str, channel: str) -> bool:
+    ch = str(channel or "")
+    if ch.startswith(_DOT_PREFIXES):
+        return True
+    if ch not in ("web", "dashboard", ""):
+        return False
+    try:
+        return bool(get_store().get_session(sid))
+    except Exception:  # noqa: BLE001 - unsure: keep the notice in the bell
+        return False
+
+
+def _notify_decide(text, *, kind="answer", source="", quiet=False, level="", group="", viec=None, dedup="",
+                   title="") -> dict:
     """Javis Core's verdict on one notice (0.403.0, `notify_policy.decide`). Never raises: a broken rule store rings."""
     try:
         g = notify_policy.group_of(source=source, kind=kind, viec=viec, dedup=dedup, group=group)
         lv = notify_policy.level_of(level=level, quiet=quiet, group=g)
-        return notify_policy.decide(g, lv, inbox._tieu_de(text))
+        return notify_policy.decide(g, lv, title or inbox._tieu_de(text))
     except Exception as e:  # noqa: BLE001
         print(f"[notify policy] decide failed: {type(e).__name__}: {e}", file=sys.stderr)
         return {"group": group or "other", "level": level or ("info" if quiet else "important"), "sig": "",
                 "verdict": "quiet" if quiet else "loud", "why": ""}
+
+
+# Sources whose report the owner scheduled on purpose: always delivered to their chat or channel (see _notify_owner).
+_OWNER_SCHEDULED = frozenset({"reminder", "mytask", "habit"})
 
 
 def _owner_telegram_id() -> str:
@@ -15310,7 +15355,7 @@ def _report_route(owner_chat, brain, kind, quiet=False, filtered=False) -> dict:
 
 async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
                         quiet=False, ngan="", viec=None, web="", card="", brain="", dedup="",
-                        level="", group="") -> tuple:
+                        level="", group="", title="", summary="") -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
       - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
       - owner_chat dạng "zalo:<id>" → gửi qua bot Zalo cho ĐÚNG người đó.
@@ -15342,14 +15387,29 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     Trả (ok, error). `ok` là ĐÃ TỚI ĐƯỢC NGƯỜI DÙNG, và hòm thư tính là tới: nó nằm ở
     server, còn sau F5, thấy được từ máy khác. Nhờ vậy một cái nhắc hẹn trên máy chưa đấu
     Telegram không còn bị ghi là "failed" trong khi nội dung đang nằm sẵn trong hòm."""
+    # Owner, 2026-11-19: a background run may end with a JAVIS_NOTIFY block (notice_text.py), its own headline for
+    # the bell. Taken out here so no channel ever shows it; `act` in it means the owner has to do something.
+    text, meta = notice_text.split_block(text)
+    ngan = notice_text.split_block(ngan)[0] if ngan else ngan
+    web = notice_text.split_block(web)[0] if web else web
+    title = title or meta.get("title") or ""
+    summary = summary or meta.get("line") or ""
+    if meta.get("act") and not level:
+        level = "urgent"
     # 0.403.0: Javis Core's verdict first, so a filtered notice is neither copied to its chat nor sent to Telegram.
-    dec = _notify_decide(text, kind=kind, source=source, quiet=quiet, level=level, group=group, viec=viec, dedup=dedup)
+    dec = _notify_decide(text, kind=kind, source=source, quiet=quiet, level=level, group=group, viec=viec, dedup=dedup,
+                         title=title)
     filtered = dec.get("verdict") != "loud"
-    route = _report_route(owner_chat, brain, kind, quiet=quiet or filtered, filtered=filtered)
+    # Owner, 2026-11-19: what the owner scheduled (a job, a reminder, a task of "Mine") is delivered where it was set to
+    # go whatever the bell decides; the filter only decides whether the bell rings. Before, a scheduled job's report was
+    # "urgent" in the bell on every run, so an hourly job rang 24 times a day.
+    scheduled = source in _OWNER_SCHEDULED
+    route = _report_route(owner_chat, brain, kind, quiet=quiet if scheduled else (quiet or filtered),
+                          filtered=False if scheduled else filtered)
     chat = route.get("chat") or ""
     vao_hom = await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{chat}" if chat else "", text, kind=kind, label=label,
                                     source=source, quiet=quiet, brain=route.get("brain") or "", dedup=dedup,
-                                    routing=route.get("routing") or "", decision=dec)
+                                    routing=route.get("routing") or "", decision=dec, title=title, summary=summary)
     if vao_hom and vao_hom.get("duplicate"):
         return True, ""   # filed before: a retry must not post or ring a second time
     if vao_hom and vao_hom.get("dropped") and not chat and not route.get("external"):
@@ -15693,14 +15753,18 @@ def _notify_live_warn() -> str:
         return ""
 
 
-async def _bao_nhac_hen(chat_id, text, viec=None, web="", brain="", dedup="") -> tuple:
+async def _bao_nhac_hen(chat_id, text, viec=None, web="", brain="", dedup="", notice=None) -> tuple:
     """Đường BÁO của nhắc hẹn. Cùng chữ ký (chat_id, text) -> (ok, err) như `_tg_send_to` cũ,
     nhưng đi qua `_notify_owner` nên nhắc hẹn được đúng ba thứ mà trước đây nó không có:
     hòm thư ở server, đẩy về khung chat web khi chat_id là "web:<sid>", và thông báo đẩy.
     Trước bản này nhắc hẹn là thứ DUY NHẤT còn gọi thẳng Telegram - đó cũng là lý do
     reminders.py phải chặn không cho tạo khi chưa đấu bot."""
+    n = notice if isinstance(notice, dict) else {}
+    # Owner, 2026-11-19: a scheduled job's run is a result ("job"), a plain reminder stays "reminder" (reminders._bell_notice).
     return await _notify_owner(chat_id, text, kind="report", source="reminder",
-                               viec=viec, web=web, brain=brain, dedup=dedup)
+                               viec=viec, web=web, brain=brain, dedup=dedup,
+                               level=str(n.get("level") or ""), group=str(n.get("group") or ""),
+                               title=str(n.get("title") or ""), summary=str(n.get("summary") or ""))
 
 
 async def _voice_note_rel(brain, text) -> str:
@@ -23546,6 +23610,14 @@ def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = 
     return {"results": get_store().search(q, limit=limit, brain=_brain_keys(brain),
                                           channel=channel or None,
                                           also_channels=_agent_history_channels(brain, channel) if bots else [])}
+
+
+@app.get("/sessions/unread-summary")
+def sessions_unread_summary(brain: str = Query(None)):
+    """How many chats have a reply the owner has not read, per rail entry (owner, 2026-11-19: "answers of partners,
+    chats and teams need no notification, a red dot on the menu is enough"). `chat`: chats of the Chat page;
+    `workspace`: chats with a partner or a workflow (Partners page). Teams count on their own (`GET /teams/unread`)."""
+    return {"ok": True, **get_store().unread_summary(_brain_keys(brain))}
 
 
 @app.get("/sessions/{session_id}")
