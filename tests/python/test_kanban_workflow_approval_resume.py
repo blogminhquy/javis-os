@@ -20,7 +20,7 @@ def _atomic(path, text):
     target.write_text(text, encoding="utf-8")
 
 
-def _feature(tmp_path, calls, resume=True, resume_works=True):
+def _feature(tmp_path, calls, resume=True, resume_works=True, resume_stops_again=False):
     brain = tmp_path / "brain"
     brain.mkdir(parents=True, exist_ok=True)
 
@@ -35,6 +35,10 @@ def _feature(tmp_path, calls, resume=True, resume_works=True):
         calls.append(("resume", slug, task_id, node, code))
         if not resume_works:
             yield {"type": "error", "content": "This task was not found or cannot be resumed."}
+            return
+        if resume_stops_again:
+            # What the runtime does on a code mismatch: stands still and the wrapper yields wait_user with no code.
+            yield {"type": "wait_user", "node": node, "task_id": task_id, "reason": "confirmation_code_mismatch"}
             return
         yield {"type": "resume", "reused": 2}
         yield {"type": "step_start", "node": "dung-clip"}
@@ -121,6 +125,22 @@ def test_without_resume_wired_the_old_path_is_kept(tmp_path):
 
     asyncio.run(go())
     assert [c[0] for c in calls] == ["run", "run"]
+
+
+def test_resume_that_stops_again_keeps_the_confirmation_code(tmp_path):
+    calls = []
+    feature, brain = _feature(tmp_path, calls, resume_stops_again=True)
+
+    async def go():
+        tid = await _stop_at_gate(feature, brain)
+        feature.store.answer(tid, "ok")
+        return await feature._execute(feature.store.get_task(tid))
+
+    _result, _error, _needs_input, meta = asyncio.run(go())
+    assert [c[0] for c in calls] == ["run", "resume"]
+    # Without the code the next approval would resume with "" and mismatch for ever.
+    assert meta["wf_wait"] == {"task_id": "wft_1", "node": "duyet-content", "code": "ABC123",
+                               "slug": "san-xuat-clip-sky"}, meta
 
 
 def test_what_counts_as_a_plain_approval():

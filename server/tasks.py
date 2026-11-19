@@ -1239,6 +1239,11 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
                         error = event.get("content") or error
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
+            # A resume that stops again at the same step (code mismatch) yields wait_user without a code. The code is
+            # derived from task + node, so keep the one we had; an empty code would mismatch on every later approval.
+            if (cho and not wf_wait.get("code") and wf_wait.get("task_id") == str(cho.get("task_id"))
+                    and wf_wait.get("node") == str(cho.get("node")) and cho.get("code")):
+                wf_wait["code"] = str(cho.get("code"))
             meta_out = {"route": route, "capability": task.get("capability")}
             if wf_wait.get("task_id") and wf_wait.get("node"):
                 meta_out["wf_wait"] = {**wf_wait, "slug": slug}
