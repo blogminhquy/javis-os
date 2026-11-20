@@ -31,12 +31,15 @@ function makeEnv() {
       },
       get previousElementSibling() { const a = this.parentElement ? this.parentElement.children : []; return a[a.indexOf(this) - 1] || null; },
       get nextSibling() { const a = this.parentElement ? this.parentElement.children : []; return a[a.indexOf(this) + 1] || null; },
+      get firstChild() { return this.children[0] || null; },
     };
     if (id) elems[id] = e;
     return e;
   }
-  const host = el("cpChips");
-  host.insertBefore(el("limitBtn"), null);
+  // 21/11/2026: the chip lives in the row under the composer card (#cpCtx), before any GitHub repo chip.
+  const host = el("cpCtx");
+  host.hidden = true;
+  host.insertBefore(el("ghChip"), null);
   const env = { brain: "D:/brains/A", sid: "", calls: [], replies: {}, notes: [], events: [], registered: null };
   const win = {
     t: (k, v) => k + (v ? JSON.stringify(v) : ""),
@@ -64,6 +67,7 @@ function makeEnv() {
   vm.runInContext(SRC, ctx);
   env.api = win.JavisPinnedFolder;
   env.chip = () => elems.pinChip || null;
+  env.host = host;
   return env;
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -73,6 +77,11 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
   let e = makeEnv();
   await e.api.pin("projects/shop");
   check("pin on an empty chat is held: chip shows, no request sent", e.chip() && /shop/.test(e.chip().innerHTML) && e.calls.length === 0);
+  // 21/11/2026 (owner): the folder sits under the composer card, first in #cpCtx, before the GitHub repos; with both
+  // pinned the row is marked .is-two, and a phone then shows both as icons only.
+  check("the folder chip lands first in the row under the card, before the repo chip",
+    e.host.children[0] === e.chip() && e.host.children[1] && e.host.children[1].id === "ghChip" && e.host.hidden === false);
+  check("folder and repos together mark the row .is-two", e.host.classList.contains("is-two"));
   check("claimPending without a session id returns null and keeps the pin", e.api.claimPending(null) === null && e.calls.length === 0);
   e.replies["/pin"] = { ok: true, folder: { id: "1", name: "shop", path: "D:/brains/A/projects/shop", exists: true }, in_brain: true, extra_folders: [] };
   const w = e.api.claimPending("s1");
@@ -89,6 +98,8 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
     e.api.claimPending("s1") === null && e.calls.length === 0);
   await e.api.refresh();
   check("and the chip is cleared on the next refresh", !e.chip());
+  check("with the folder gone the repo chip stands alone: no .is-two, the row still shows",
+    !e.host.classList.contains("is-two") && e.host.hidden === false && e.host.children.length === 1);
 
   // 3. In-brain tooltip for an absolute folder inside the brain.
   e = makeEnv();

@@ -29,6 +29,14 @@ check("the four popovers live in the card", ["mbPop", "effPop", "limitPop", "plu
 const top = card.replace(/<!--[\s\S]*?-->/g, "");
 check("#cpRow is a direct child of the card (opened right after the text box)",
   /<\/textarea>\s*<div class="cp-row" id="cpRow">/.test(top));
+// 21/11/2026: the row is one line with no box of its own (display: contents); #cpRight, the mic and send group, is a
+// direct child of it and so is measured against the card.
+check("#cpRight (mic and send) sits in #cpRow, so its offsetTop is the row's line in the card",
+  /<div class="cp-row" id="cpRow">[\s\S]*?<div class="cp-right" id="cpRight">/.test(top));
+
+// 21/11/2026: the model chip sits under the card on the right, so its list opens over it, kept inside the card.
+check("the model list opens over its chip, not at the card's left edge",
+  /function open\(\) \{[\s\S]*?pop\.hidden = false; renderPop\(\);[\s\S]*?const btn = \$\("mbOpen"\), card = pop\.offsetParent;[\s\S]*?pop\.style\.left = \(btn \? Math\.min\(btn\.offsetLeft, maxLeft\) : 8\) \+ "px";/.test(mp));
 
 // ---- CSS ----
 check("in the card the popovers take their bottom from --cp-pop-bottom (the old place is the fallback)",
@@ -60,7 +68,7 @@ function fakePage(o) {
   const cardEl = { clientHeight: o.cardH, parentElement: plain, style: { setProperty: (k, v) => { vars[k] = v; } } };
   const row = { offsetTop: o.rowTop, offsetParent: cardEl, getBoundingClientRect: () => ({ top: o.rowScreenTop }) };
   const pops = { mbPop: { hidden: false }, effPop: { hidden: true }, limitPop: { hidden: true }, plusMenu: { hidden: true } };
-  const els = Object.assign({ hudVoice: cardEl, cpRow: row }, pops);
+  const els = Object.assign({ hudVoice: cardEl, cpRight: row }, pops);
   const document = {
     readyState: "complete", body,
     querySelector: (s) => (s === ".hud-top" ? { getBoundingClientRect: () => ({ height: 52, bottom: 52 }) } : null),

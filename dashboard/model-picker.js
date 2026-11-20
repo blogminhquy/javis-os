@@ -376,6 +376,11 @@
     effClose(); closePlus(); closeLimit();
     dropKeyboard();
     pop.hidden = false; renderPop();
+    // 21/11/2026: the chip sits under the card on the right now, so the list opens over it (as Effort and usage do), kept
+    // inside the card, instead of at the card's left edge.
+    const btn = $("mbOpen"), card = pop.offsetParent;
+    const maxLeft = card ? Math.max(8, card.clientWidth - pop.offsetWidth - 8) : 8;
+    pop.style.left = (btn ? Math.min(btn.offsetLeft, maxLeft) : 8) + "px";
   }
   function close() {
     if (sheetIsOpen()) { sheetClose(); return; }
@@ -540,8 +545,10 @@
   const ANCHORED_POPS = ["mbPop", "effPop", "limitPop", "plusMenu"];
   const POP_GAP = 6;     // between the popover and the row, as it was between the popover and the card
   const POP_MIN = 160;   // a few rows at least, even in a very short window
+  // 21/11/2026: the card is one row and the chips sit under it. The row itself has no box (display: contents), so the
+  // mic and send group (#cpRight) marks its top: a popover still opens just above the card's last line.
   function placePops() {
-    const card = $("hudVoice"), row = $("cpRow");
+    const card = $("hudVoice"), row = $("cpRight");
     if (!card || !row || row.offsetParent !== card) return;
     card.style.setProperty("--cp-pop-bottom", Math.max(POP_GAP, card.clientHeight - row.offsetTop + POP_GAP) + "px");
     // The highest point a popover may reach: under the global header, and inside every box that clips its overflow

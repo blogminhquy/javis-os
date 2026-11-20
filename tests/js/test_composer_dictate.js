@@ -26,9 +26,13 @@ const voiceTag = (row.match(/<button[^>]*id="voiceBtn"[\s\S]*?<\/button>/) || ["
 check("the voice chat button now draws a sound wave, not a mic", /M2 10v3M6 6v11M10 3v18/.test(voiceTag) && !/a3 3 0 0 0-3 3v8/.test(voiceTag));
 check("composer-dictate.js loads after dictate.js", html.indexOf("/static/dictate.js") !== -1
   && html.indexOf("/static/dictate.js") < html.indexOf("/static/composer-dictate.js"));
-check("CSS: while dictating the bar shows and +, chips and both voice buttons hide",
+check("CSS: while dictating the bar shows and +, the row under the card and both voice buttons hide",
   /\.hud-voice\.dictating \.dict-bar \{ display: flex; \}/.test(css)
-  && /\.hud-voice\.dictating \.cp-plus, \.hud-voice\.dictating \.cp-chips[^{]*\.dict-btn, \.hud-voice\.dictating #voiceBtn \{ display: none; \}/.test(css));
+  && /\.hud-voice\.dictating \.cp-plus, \.hud-voice\.dictating \.cp-under,\s*\.hud-voice\.dictating \.dict-btn, \.hud-voice\.dictating #voiceBtn \{ display: none; \}/.test(css));
+// One-row card (owner, 21/11/2026): while recording the text takes the first line and the dictation bar the second.
+check("CSS: while dictating the text and the dictation bar each take a whole line",
+  css.includes(".hud-voice.dictating > .voice-input { grid-column: 1 / -1; }")
+  && css.includes(".hud-voice.dictating .cp-right { grid-column: 1 / -1; grid-row: 3; }"));
 check("app.js shares its passing note for mic errors", /window\.JavisNoteFlash = ghiChuThoang;/.test(app));
 ["bar.mic", "dict.btn", "dict.stop", "dict.cancel", "dict.busy", "dict.in_call", "dict.unsupported", "dict.denied", "dict.failed"]
   .forEach(k => check("key " + k + " in vi and en", !!(vi[k] && en[k])));

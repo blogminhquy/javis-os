@@ -1226,16 +1226,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   body.brain-max .brain-max-btn .bmx-out { display: block; }
   body.brain-max .brain-max-btn { color: var(--accent-ink); border-color: var(--accent-line); }
 
-  /* Ô nhập luôn nằm trong visual viewport của Safari/Chrome iOS và chừa safe area. */
+  /* Ô nhập luôn nằm trong visual viewport của Safari/Chrome iOS và chừa safe area. Since 21/11/2026 every bottom
+     margin here also keeps the room of the row under the card (#cpUnder, --cp-under-h in style.css), which hangs
+     below the card's border. */
   .hud-voice {
     min-width: 0;
-    margin: 5px 8px max(7px, env(safe-area-inset-bottom, 0px));
+    margin: 5px 8px calc(max(7px, env(safe-area-inset-bottom, 0px)) + var(--cp-under-h, 0px));
   }
   .hud-voice .voice-input { min-width: 0; }
   /* Trang quản lý (Trò chuyện, Coding, Cộng sự) mượn ô nhập vào một cột đã có lề đáy riêng.
      Trước đây lề an toàn cộng CHỒNG lên lề cột (34 + 12px), ô nhập đứng lửng cách đáy màn
      hình gần 50px. Nay lề an toàn chuyển xuống cột, ô nhập không tự chừa thêm. */
-  .cview .hud-voice { margin-bottom: 0; }
+  .cview .hud-voice { margin-bottom: var(--cp-under-h, 0px); }
   .cview .chatpage-main, .cview .ws-main { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
 
   /* BÀN PHÍM ĐANG MỞ (lớp do mobile-chat.js gắn theo visualViewport). Vạch Home nằm dưới bàn
@@ -1256,8 +1258,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     top: calc(var(--vv-top, 0px) + var(--topbar-h)); bottom: auto;
     height: calc(var(--vv-h, 100dvh) - var(--topbar-h));
   }
-  body.kb-open .hud-voice { margin-bottom: 6px; }
-  body.kb-open .cview .hud-voice { margin-bottom: 0; }
+  body.kb-open .hud-voice { margin-bottom: calc(6px + var(--cp-under-h, 0px)); }
+  body.kb-open .cview .hud-voice { margin-bottom: var(--cp-under-h, 0px); }
   body.kb-open .cview .chatpage-main, body.kb-open .cview .ws-main { padding-bottom: 6px; }
   .cview-head { padding: 14px 16px; }
   .cview-title { font-size: 16px; }
