@@ -1596,6 +1596,13 @@ class SessionStore:
         ws = self._read(q, [p + "%" for p in KENH_CONG_SU] + list(bparams))
         return {"chat": chat, "workspace": int(ws[0][0] or 0) if ws else 0}
 
+    def count_unread(self, brain: Any = None, project: Optional[str] = None) -> int:
+        """Unread chats of the Chat page's history (archived ones left out), optionally in one project or, with
+        `project="none"`, in no project. Feeds the dot on "Chưa xếp nhóm" in the project picker (2026-11-20)."""
+        where, params = self._list_where(brain, False, project, None, None, False)
+        rows = self._read(f"SELECT COUNT(*) FROM sessions s {where} AND {UNREAD_SQL} = 1", params)
+        return int(rows[0][0] or 0) if rows else 0
+
     def mark_read(self, session_id: str, at: Optional[float] = None) -> bool:
         """The owner has this chat on screen: every message up to now is read. False when no such chat exists yet
         (a brand-new chat whose id the dashboard minted before the server stored it)."""

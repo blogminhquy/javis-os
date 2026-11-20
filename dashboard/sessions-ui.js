@@ -113,6 +113,7 @@
   var PROJ_KEY = "javis.chatside.project";
   var projects = [];      // [{id,name,icon,session_count}] của brain đang xem
   var projBar = null;
+  var ungroupedUnread = 0; // unread chats in no project (/projects ungrouped_unread), the dot on "Chưa xếp nhóm"
   var projectRefreshTimer = null, projectRequest = 0;
 
   function projKey() { return PROJ_KEY + "." + brain(); }
@@ -133,6 +134,18 @@
   function projectNeedsAttention(p) {
     return p.id !== curProject() && Number(p.unread_count) > 0;
   }
+  // 2026-11-20 (owner): chats in no project light "Chưa xếp nhóm" the same way, so they are easy to spot.
+  function ungroupedNeedsAttention() {
+    return curProject() !== "none" && ungroupedUnread > 0;
+  }
+  function anyNeedsAttention() {
+    return ungroupedNeedsAttention() || projects.some(projectNeedsAttention);
+  }
+  function rowNeedsAttention(id) {
+    if (id === "none") return ungroupedNeedsAttention();
+    var p = projById(id);
+    return !!(p && projectNeedsAttention(p));
+  }
   function projectUnreadHtml(unread) {
     var label = esc(window.t("sess.proj_unread"));
     return '<span class="cs-proj-unread" role="img" title="' + label + '" aria-label="' + label + '"' +
@@ -141,13 +154,12 @@
   function updateProjectUnread() {
     if (projBar) {
       var dot = projBar.querySelector(".cs-proj-unread");
-      if (dot) dot.hidden = !projects.some(projectNeedsAttention);
+      if (dot) dot.hidden = !anyNeedsAttention();
     }
     // Update an open picker in place so a reply or a read in another tab never closes it or steals focus.
     if (menuEl) menuEl.querySelectorAll("[data-unread-project]").forEach(function (row) {
-      var p = projById(row.getAttribute("data-unread-project"));
       var dot = row.querySelector(".cs-proj-unread");
-      if (dot) dot.hidden = !(p && projectNeedsAttention(p));
+      if (dot) dot.hidden = !rowNeedsAttention(row.getAttribute("data-unread-project"));
     });
   }
   function refreshProjects() {
@@ -184,6 +196,7 @@
       var d = await (await fetch("/projects?brain=" + encodeURIComponent(requestedBrain))).json();
       if (request !== projectRequest || requestedBrain !== brain()) return;
       projects = d.projects || [];
+      ungroupedUnread = Number(d.ungrouped_unread) || 0;
     } catch (e) { return; }
     // Project đang mở vừa bị xoá (ở tab khác, hoặc brain khác) → về "Tất cả". Không có nhát
     // này thì danh sách rỗng trơn mà người dùng không hiểu vì sao.
@@ -218,7 +231,7 @@
     projBar.innerHTML =
       '<button class="cs-proj-cur" type="button" title="' + esc(window.t("sess.proj_pick_title")) + '">' +
         '<span class="cs-proj-name">' + projLabelHtml() + '</span>' +
-        projectUnreadHtml(projects.some(projectNeedsAttention)) +
+        projectUnreadHtml(anyNeedsAttention()) +
         '<span class="cs-proj-caret">' + ic("chevron-down") + '</span>' +
       '</button>' +
       (cur ? '<button class="cs-proj-x" type="button" title="' + esc(window.t("sess.proj_clear_title")) + '">' + ic("x") + '</button>' : '') +
@@ -242,7 +255,9 @@
     var cur = curProject();
     var rows = [
       { label: window.t("sess.proj_all"), icon: "layers", on: !cur, run: function () { chonProject(""); } },
-      { label: window.t("sess.proj_none"), icon: "circle", on: cur === "none", run: function () { chonProject("none"); } },
+      // projectId "none" puts the unread dot on this row too; no real project id is ever "none" (ids are uuid hex).
+      { label: window.t("sess.proj_none"), icon: "circle", on: cur === "none", projectId: "none",
+        unread: ungroupedNeedsAttention(), run: function () { chonProject("none"); } },
     ];
     if (projects.length) rows.push({ sep: true });
     projects.forEach(function (p) {
