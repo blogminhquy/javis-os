@@ -69,6 +69,25 @@ UNREAD_SQL = (
 ).format(chs=", ".join("'%s'" % c for c in UNREAD_CHANNELS),
          pre=" OR ".join("s.channel LIKE '%s%%'" % p for p in UNREAD_PREFIXES))
 
+
+# 2026-11-20 (owner): "a chat still working, already read, keeps the folder dot on; it should show only once the chat has
+# finished and is unread". The dashboard sends the chats it sees running and the one open on screen; the folder, the
+# "Chưa xếp nhóm" row and the rail dot leave them out. Bounded so a bad query string cannot build a huge SQL.
+SKIP_UNREAD_MAX = 50
+
+
+def _skip_sql(skip: Any) -> Tuple[str, List[str]]:
+    ids = []
+    for x in (skip or ()):
+        x = str(x or "").strip()
+        if x and x not in ids and len(x) <= 128:
+            ids.append(x)
+        if len(ids) >= SKIP_UNREAD_MAX:
+            break
+    if not ids:
+        return "", []
+    return " AND s.id NOT IN (%s)" % ", ".join("?" for _ in ids), ids
+
 # T2 (0.154.0, thiết kế 2026-10-15 mục 4.1): reaction trên câu trả lời của chat riêng. Kho có từ trước được chụp một bản
 # `conversations.db.pre-0.154.0` trước khi tạo bảng (khôi phục khi hạ phiên bản; bản cũ bỏ qua hai bảng mới).
 DM_REACTION_SNAPSHOT_SUFFIX = ".pre-0.154.0"
@@ -1582,25 +1601,31 @@ class SessionStore:
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
         return where_sql, params
 
-    def unread_summary(self, brain: Any = None) -> Dict[str, int]:
+    def unread_summary(self, brain: Any = None, skip: Any = None) -> Dict[str, int]:
         """Unread chats per rail entry (2026-11-19): `chat` (the Chat page's own list) and `workspace` (partner and
-        workflow chats), archived ones left out. Same unread rule as the dot on each history row (UNREAD_SQL)."""
+        workflow chats), archived ones left out. Same unread rule as the dot on each history row (UNREAD_SQL).
+        `skip`: chat ids not counted, the ones still running or open on screen (_skip_sql)."""
+        skip_sql, skip_params = _skip_sql(skip)
         # With no channel, _list_where keeps only the Chat page's chats (partner, bot and team chats left out).
         where, params = self._list_where(brain, False, None, None, None, False)
-        rows = self._read(f"SELECT COUNT(*) FROM sessions s {where} AND {UNREAD_SQL} = 1", params)
+        rows = self._read(f"SELECT COUNT(*) FROM sessions s {where} AND {UNREAD_SQL} = 1{skip_sql}",
+                          list(params) + skip_params)
         chat = int(rows[0][0] or 0) if rows else 0
         cond, bparams = loc_brain(brain)
         pre = " OR ".join("s.channel LIKE ?" for _ in KENH_CONG_SU)
         q = (f"SELECT COUNT(*) FROM sessions s WHERE s.archived = 0 AND ({pre}) AND {UNREAD_SQL} = 1"
-             + (f" AND {cond}" if cond else ""))
-        ws = self._read(q, [p + "%" for p in KENH_CONG_SU] + list(bparams))
+             + (f" AND {cond}" if cond else "") + skip_sql)
+        ws = self._read(q, [p + "%" for p in KENH_CONG_SU] + list(bparams) + skip_params)
         return {"chat": chat, "workspace": int(ws[0][0] or 0) if ws else 0}
 
-    def count_unread(self, brain: Any = None, project: Optional[str] = None) -> int:
+    def count_unread(self, brain: Any = None, project: Optional[str] = None, skip: Any = None) -> int:
         """Unread chats of the Chat page's history (archived ones left out), optionally in one project or, with
-        `project="none"`, in no project. Feeds the dot on "Chưa xếp nhóm" in the project picker (2026-11-20)."""
+        `project="none"`, in no project. Feeds the dot on "Chưa xếp nhóm" in the project picker (2026-11-20).
+        `skip`: chat ids not counted, the ones still running or open on screen (_skip_sql)."""
+        skip_sql, skip_params = _skip_sql(skip)
         where, params = self._list_where(brain, False, project, None, None, False)
-        rows = self._read(f"SELECT COUNT(*) FROM sessions s {where} AND {UNREAD_SQL} = 1", params)
+        rows = self._read(f"SELECT COUNT(*) FROM sessions s {where} AND {UNREAD_SQL} = 1{skip_sql}",
+                          list(params) + skip_params)
         return int(rows[0][0] or 0) if rows else 0
 
     def mark_read(self, session_id: str, at: Optional[float] = None) -> bool:
@@ -1750,20 +1775,22 @@ class SessionStore:
         ))
         return pid
 
-    def list_projects(self, brain: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_projects(self, brain: Optional[str] = None, skip: Any = None) -> List[Dict[str, Any]]:
         """Projects with total chats and unread chats visible in the dashboard history.
 
         Total chats include archived ones because deleting a project unlinks those too.
-        Unread counts use the history's channel/archive rules and cover every page.
+        Unread counts use the history's channel/archive rules and cover every page, minus `skip` (chats still
+        running or open on screen, see _skip_sql).
         """
         where_sql, params = ("WHERE p.brain = ?", (brain,)) if brain else ("", ())
         unread_where, unread_params = self._list_where(None, False, None, None, None, False)
+        skip_sql, skip_params = _skip_sql(skip)
         rows = self._read(
             f"""
             SELECT p.id, p.name, p.icon, p.brain, p.pinned, p.created_at, p.updated_at,
                    (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id) AS session_count,
                    (SELECT COUNT(*) FROM sessions s {unread_where}
-                    AND s.project_id = p.id AND {UNREAD_SQL}) AS unread_count,
+                    AND s.project_id = p.id AND {UNREAD_SQL}{skip_sql}) AS unread_count,
                    (SELECT COUNT(*) FROM project_files f WHERE f.project_id = p.id) AS file_count,
                    (SELECT COUNT(*) FROM project_links l WHERE l.project_id = p.id) AS link_count,
                    -- Chỉ CÓ hay KHÔNG, không kéo cả 4000 ký tự về cho một danh sách bên trái.
@@ -1776,7 +1803,7 @@ class SessionStore:
             -- pinned first, then the most recent.
             ORDER BY (po.pos IS NULL), po.pos, p.pinned DESC, p.updated_at DESC, p.rowid DESC
             """,
-            (*unread_params, *params),
+            (*unread_params, *skip_params, *params),
         )
         return [dict(r) for r in rows]
 

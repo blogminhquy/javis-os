@@ -23614,12 +23614,19 @@ def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = 
                                           also_channels=_agent_history_channels(brain, channel) if bots else [])}
 
 
+def _unread_skip(skip: str) -> list:
+    """`skip` query of the unread counts: comma-separated chat ids the dashboard sees running or has open on screen.
+    Owner 2026-11-20: a dot means a chat that has finished and is not read yet."""
+    return [x for x in (skip or "").split(",") if x.strip()]
+
+
 @app.get("/sessions/unread-summary")
-def sessions_unread_summary(brain: str = Query(None)):
+def sessions_unread_summary(brain: str = Query(None), skip: str = Query("")):
     """How many chats have a reply the owner has not read, per rail entry (owner, 2026-11-19: "answers of partners,
     chats and teams need no notification, a red dot on the menu is enough"). `chat`: chats of the Chat page;
-    `workspace`: chats with a partner or a workflow (Partners page). Teams count on their own (`GET /teams/unread`)."""
-    return {"ok": True, **get_store().unread_summary(_brain_keys(brain))}
+    `workspace`: chats with a partner or a workflow (Partners page). Teams count on their own (`GET /teams/unread`).
+    `skip`: chats still running or open on screen, not counted (_unread_skip)."""
+    return {"ok": True, **get_store().unread_summary(_brain_keys(brain), skip=_unread_skip(skip))}
 
 
 @app.get("/sessions/{session_id}")
@@ -24288,11 +24295,13 @@ def sessions_set_project(session_id: str, project_id: str = Form(""),
 # Project = nhóm hội thoại người dùng tự gom. Xoá project chỉ GỠ NHÃN, không xoá hội thoại.
 # ============================================================
 @app.get("/projects")
-def projects_list(brain: str = Query(None)):
-    """`ungrouped_unread`: unread chats in no project, the dot on "Chưa xếp nhóm" (2026-11-20)."""
+def projects_list(brain: str = Query(None), skip: str = Query("")):
+    """`ungrouped_unread`: unread chats in no project, the dot on "Chưa xếp nhóm" (2026-11-20). `skip`: chats still
+    running or open on screen, left out of every unread count (_unread_skip)."""
     store = get_store()
-    return {"projects": store.list_projects(brain=brain),
-            "ungrouped_unread": store.count_unread(brain=_brain_keys(brain), project="none")}
+    ids = _unread_skip(skip)
+    return {"projects": store.list_projects(brain=brain, skip=ids),
+            "ungrouped_unread": store.count_unread(brain=_brain_keys(brain), project="none", skip=ids)}
 
 
 @app.post("/projects")

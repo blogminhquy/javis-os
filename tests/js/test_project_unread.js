@@ -129,6 +129,20 @@ async function main() {
   assert.equal(h.menuDots[2].dot.hidden, true, "Reading the last ungrouped chat clears its dot");
   assert.equal(h.barDot.hidden, true);
 
+  // 2026-11-20 (owner): chats still running, and the chat open on screen, are skipped by the folder counts.
+  h.window.JavisRunning = new Set(["run1", "run2"]);
+  h.api.refreshProjects();
+  h.flush();
+  assert.match(h.requests[h.requests.length - 1], /&skip=run1%2Crun2$/, "Running chats are left out of folder counts");
+  h.respond([{ id: "a", name: "A", unread_count: 0 }, { id: "b", name: "B", unread_count: 0 }], 0, 0);
+  await new Promise(setImmediate);
+  h.window.JavisRunning = new Set();
+  h.api.refreshProjects();
+  h.flush();
+  assert.doesNotMatch(h.requests[h.requests.length - 1], /skip=/, "Nothing running: no skip list");
+  h.respond([{ id: "a", name: "A", unread_count: 0 }, { id: "b", name: "B", unread_count: 0 }], 0, 0);
+  await new Promise(setImmediate);
+
   const old = h.api.loadProjects();
   const latest = h.api.loadProjects();
   h.respond([{ id: "b", name: "Latest", unread_count: 0 }], 1);
