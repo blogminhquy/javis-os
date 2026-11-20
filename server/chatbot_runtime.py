@@ -560,8 +560,9 @@ async def anh_cho_bot(text_engine: str, meta: dict, cfg: dict) -> tuple:
     elif meta.get("co_anh") and not url and not paths:
         _ghi_ly_do_anh(cfg, "tin ảnh tới mà không kèm link ảnh nào (bản Zalo đang chạy không gửi link)")
     video_note = ""
-    if meta.get("video_url"):
+    if meta.get("video_url") or meta.get("video_path"):
         # 0.433.0: a video becomes a few frames (plus its speech when a speech-to-text key is set), after any photo.
+        # `video_path` (2026-11-20): a clip the gateway already saved in the bot's brain (Telegram).
         frames, video_note = await video_cho_bot(meta, root, cfg)
         paths.extend(frames[:max(0, vision_input.MAX_IMAGES - len(paths))])
     if not paths:
@@ -610,8 +611,20 @@ async def video_cho_bot(meta: dict, root: Path, cfg: dict) -> tuple:
     chat = image_vision.SAFE_PART.sub("_", str(meta.get("chat_id") or "chat"))[:64] or "chat"
     dest = image_vision.image_gen._attachments_dir(root) / "zalo" / chat
     msg_id = str(meta.get("video_msg") or meta.get("message_id") or "")
+    local = str(meta.get("video_path") or "")
+    if local and not url:
+        # Only a clip inside this bot's own brain, the same rule as a photo (`vision_input.take_image_markers`).
+        try:
+            rp = Path(local).resolve()
+            inside = Path(root).resolve() in rp.parents
+        except OSError:
+            inside = False
+        if not inside:
+            return [], video_vision.note({"frames": [], "why": "file video nằm ngoài brain của bot"})
     try:
-        res = await asyncio.wait_for(video_vision.look(url, dest, msg_id, _hear_for(cfg)), VIDEO_TOI_DA_GIAY)
+        job = (video_vision.look(url, dest, msg_id, _hear_for(cfg)) if url
+               else video_vision.look_file(local, dest, msg_id, _hear_for(cfg)))
+        res = await asyncio.wait_for(job, VIDEO_TOI_DA_GIAY)
     except asyncio.TimeoutError:
         res = {"frames": [], "why": "xử lý video quá lâu"}
     except Exception as e:      # noqa: BLE001 - a video we cannot get must never cost the customer the reply
