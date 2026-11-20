@@ -335,6 +335,85 @@ toml3 = JS.CODEX_CONFIG.read_text(encoding="utf-8")
 check("uninstall: Codex notify back to the owner's program", "javis_sync.py" not in toml3
       and toml3.startswith('notify = ["notify-send", "Codex"]'), toml3)
 
+# ============================================================
+# 4. "Connecting Gate is the whole setup": the Gate tells a coding agent to offer Javis Sync and hands it the command
+# ============================================================
+import asyncio  # noqa: E402
+import mcp_hub  # noqa: E402
+
+GATE = {"source": "Claude Code"}
+
+
+def hub(msg, mode="full", gate=GATE):
+    return asyncio.get_event_loop().run_until_complete(mcp_hub._handle_one(msg, mode, gate=gate))
+
+
+asyncio.set_event_loop(asyncio.new_event_loop())
+init = hub({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}})
+ins = init["result"].get("instructions") or ""
+check("Gate initialize carries instructions to offer Javis Sync",
+      "javis_sync_setup" in ins and "~/.javis-sync/config.json" in ins and "ask the owner once" in ins, ins[:200])
+check("Javis's own engines get no such instructions",
+      "instructions" not in hub({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}, gate=None)["result"])
+
+
+def names(mode):
+    return [t["name"] for t in hub({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, mode)["result"]["tools"]]
+
+
+check("javis_sync_setup at Draft and Full", "javis_sync_setup" in names("auto") and "javis_sync_setup" in names("full"))
+check("not at Read only (it mints a token)", "javis_sync_setup" not in names("suggest"))
+
+
+def setup(args, mode="full"):
+    res = hub({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+               "params": {"name": "javis_sync_setup", "arguments": args}}, mode)["result"]
+    return res["content"][0]["text"], res["isError"]
+
+
+cfg0 = main.cfgmod.read_settings()
+cfg0.setdefault("domain", {})["custom"] = ""
+main.cfgmod.write_settings(cfg0)
+os.environ.pop("DOMAIN_NAME", None)
+txt, err = setup({})
+check("unknown public address: asks the AI for javis_url, mints nothing", err and "javis_url" in txt
+      and not [t for t in main.cfgmod.list_api_tokens() if t.get("scope") == "sync"], txt)
+txt, err = setup({"javis_url": "javascript:alert(1)"})
+check("a javis_url that is not http(s) is refused", err, txt)
+
+cfg0["domain"]["custom"] = "javis.example.com"
+main.cfgmod.write_settings(cfg0)
+txt, err = setup({})
+out = json.loads(txt) if not err else {}
+cmd = out.get("command", "")
+check("the address comes from the domain in Settings", "--url https://javis.example.com " in cmd, txt[:300])
+check("one shell command: download the script and install", cmd.startswith("curl -fsSL https://raw.githubusercontent")
+      and "javis_sync.py install" in cmd and out.get("shell") == "sh", cmd)
+tok = cmd.split("--token ")[-1].strip()
+check("the token is a sync token named after the outside AI", [t["name"] for t in main.cfgmod.list_api_tokens()
+                                                               if t.get("scope") == "sync"] == ["Javis Sync (Claude Code)"])
+check("a sync token reaches /chat/external", bool(main.cfgmod.verify_api_token(tok, "/chat/external")))
+for path in ("/chat", "/chat/jobs", "/sessions", "/sessions/x", "/chat/external/x", "/auth/tokens"):
+    check(f"a sync token does NOT reach {path}", not main.cfgmod.verify_api_token(tok, path))
+check("the AI is told not to echo the token", "Do not repeat the token" in out.get("how", ""))
+
+txt, err = setup({"system": "Windows", "javis_url": "https://my.javis.vn/"})
+out = json.loads(txt) if not err else {}
+check("Windows gets a PowerShell command, javis_url wins and loses its trailing slash",
+      out.get("shell") == "powershell" and out["command"].startswith("irm ")
+      and "--url https://my.javis.vn --token" in out["command"], txt[:300])
+txt, err = setup({}, mode="suggest")
+check("Read only level is refused with a clear reason", err and "Draft or Full" in txt, txt)
+
+_orig_list = main.cfgmod.list_api_tokens
+main.cfgmod.list_api_tokens = lambda: [{"scope": "sync"}] * CB.MAX_SYNC_TOKENS
+txt, err = setup({})
+main.cfgmod.list_api_tokens = _orig_list
+check("too many sync tokens: refused, told where to revoke", err and "API tokens" in txt, txt)
+check("dashboard labels the sync scope", 'cs.tk_scope_sync' in (ROOT / "dashboard" / "console.js").read_text(
+    encoding="utf-8") and all("cs.tk_scope_sync" in json.loads((ROOT / "dashboard" / "i18n" / f"{lg}.json").read_text(
+        encoding="utf-8")) for lg in ("vi", "en")))
+
 check("no em dash in the script", chr(0x2014) not in (ROOT / "tools" / "javis-sync" / "javis_sync.py").read_text(
     encoding="utf-8"))
 

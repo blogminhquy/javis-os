@@ -3185,6 +3185,7 @@
   "cs.tk_last_used": "last used",
   "cs.tk_never_used": "never used",
   "cs.tk_scope_chat": "chat only",
+  "cs.tk_scope_sync": "saves Claude Code / Codex chats only",
   "cs.tk_scope_full": "full access",
   "cs.tk_noname": "unnamed",
   "cs.tk_revoke": "Revoke",

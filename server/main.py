@@ -23440,8 +23440,18 @@ async def _gate_bao(sid: str, brain: str, body: str, label: str, dedup: str) -> 
     return bool(item) and not item.get("dropped")
 
 
+def _gate_base_url() -> str:
+    """Javis Gate: this Javis's public https address for the Javis Sync install command, or "" when unknown (the tool
+    then asks the outside AI, which knows the URL it connected to). Order: the domain set in Settings, DOMAIN_NAME,
+    the link the login page found by itself (routes/domain.py)."""
+    import routes.domain as _domain
+    d = _domain._norm_domain((cfgmod.read_settings().get("domain") or {}).get("custom") or "") \
+        or _domain._norm_domain(os.getenv("DOMAIN_NAME", ""))
+    return f"https://{d}" if d else str(_domain._AUTO.get("url") or "")
+
+
 chat_bridge.gan(lambda ws: _chat_socket(ws), lambda: _CHAT_RUNTIME, _gate_luu_luot,
-                models=_gate_models, model_cua=_gate_chat_model, bao=_gate_bao,
+                models=_gate_models, model_cua=_gate_chat_model, bao=_gate_bao, base_url=_gate_base_url,
                 # `_pin_chat_model` sits with the /sessions routes further down: looked up when called.
                 ghim=lambda sid, prov, model: _pin_chat_model(sid, prov, model))
 

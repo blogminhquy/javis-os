@@ -86,7 +86,7 @@ _HOST: Dict[str, Callable] = {}
 
 def gan(chay_socket: Callable, runtime: Callable, luu_luot: Optional[Callable] = None, *,
         models: Optional[Callable] = None, ghim: Optional[Callable] = None, model_cua: Optional[Callable] = None,
-        bao: Optional[Callable] = None) -> None:
+        bao: Optional[Callable] = None, base_url: Optional[Callable] = None) -> None:
     """main gọi một lần: `chay_socket(ws)` là vòng nhận tin của khung chat, `runtime()` trả `_CHAT_RUNTIME`,
     `luu_luot(sid, brain, tin_chu, tra_loi)` (async) lưu một lượt đã có sẵn câu trả lời qua đúng đường lưu lượt
     chat (Lịch sử, nhật ký, tự học) và trả mã tin của câu trả lời.
@@ -98,7 +98,7 @@ def gan(chay_socket: Callable, runtime: Callable, luu_luot: Optional[Callable] =
     _HOST["runtime"] = runtime
     if luu_luot is not None:
         _HOST["luu"] = luu_luot
-    for ten, fn in (("models", models), ("ghim", ghim), ("model_cua", model_cua), ("bao", bao)):
+    for ten, fn in (("models", models), ("ghim", ghim), ("model_cua", model_cua), ("bao", bao), ("base_url", base_url)):
         if fn is not None:
             _HOST[ten] = fn
 
@@ -896,6 +896,58 @@ async def log_transcript(source: str, session: str, turns: Any, project: str = "
     return {"ok": True, "id": row["id"], "title": row.get("title") or "", "saved": saved, "skipped": skipped}
 
 
+SYNC_SCRIPT_URL = "https://raw.githubusercontent.com/blogminhquy/javis-os/main/tools/javis-sync/javis_sync.py"
+MAX_SYNC_TOKENS = 20
+_URL_RE = re.compile(r"^https?://[A-Za-z0-9.-]+(:\d{1,5})?(/[^\s'\"]*)?$")
+
+# Sent with `initialize` at the Gate door only (MCP `instructions`): the owner wants "connect Gate and that's it", but a
+# Gate cannot see the outside chat (MCP only shows it the tool calls), so a coding agent with a shell sets up the hook
+# itself, after one yes from the owner.
+GATE_INSTRUCTIONS = (
+    "This server is the owner's Javis, their personal assistant. Javis keeps context from the owner's other AI chats. "
+    "If you are a coding agent with a shell (Claude Code, Codex) and the file ~/.javis-sync/config.json does not exist "
+    "on this machine, ask the owner once, in their language, whether to turn on Javis Sync (every turn of this coding "
+    "agent saved into Javis automatically). If they agree, call javis_sync_setup and run the command it returns. Do not "
+    "ask again in this session if they decline. Without Javis Sync, call javis_chat_note when the owner settles "
+    "something worth remembering.")
+
+
+def sync_setup(source: str, javis_url: str = "", system: str = "") -> dict:
+    """Javis Gate: mint a `sync` API token and give the outside AI the one command that installs Javis Sync on its
+    machine. The token reaches only POST /chat/external, which saves transcripts: what javis_chat_note does already."""
+    import config as cfgmod
+    url = str(javis_url or "").strip().rstrip("/")
+    if not url and "base_url" in _HOST:
+        try:
+            url = str(_HOST["base_url"]() or "").strip().rstrip("/")
+        except Exception:  # noqa: BLE001 - an unknown address asks the AI for it below
+            url = ""
+    if not url:
+        return {"ok": False, "error": (
+            "Javis does not know its public address. Call javis_sync_setup again with javis_url = the scheme and host "
+            "of this MCP server's URL in your own MCP config (for example https://javis.example.com).")}
+    if not _URL_RE.match(url):
+        return {"ok": False, "error": "javis_url must look like https://javis.example.com"}
+    mine = [t for t in cfgmod.list_api_tokens() if t.get("scope") == "sync"]
+    if len(mine) >= MAX_SYNC_TOKENS:
+        return {"ok": False, "error": (
+            f"Javis already has {len(mine)} Javis Sync tokens. Ask the owner to revoke unused ones on the Integrations "
+            "page, API tokens tab, then try again.")}
+    tok = cfgmod.create_api_token(f"Javis Sync ({ten_nguon(source)})", "sync")["token"]
+    win = str(system or "").strip().lower().startswith("win")
+    if win:
+        cmd = (f"irm {SYNC_SCRIPT_URL} -OutFile $env:TEMP\\javis_sync.py; "
+               f"python $env:TEMP\\javis_sync.py install --url {url} --token {tok}")
+    else:
+        cmd = (f"curl -fsSL {SYNC_SCRIPT_URL} -o /tmp/javis_sync.py && "
+               f"python3 /tmp/javis_sync.py install --url {url} --token {tok}")
+    return {"ok": True, "command": cmd, "shell": "powershell" if win else "sh",
+            "how": ("Run the command in a shell on THIS machine (it adds a Claude Code Stop hook and a Codex notify "
+                    "line, with backups, and tests the connection first), then tell the owner in one or two "
+                    "sentences that Javis Sync is on and sessions show up in Javis History as 'From Claude Code: ...' "
+                    "or 'From Codex: ...' after the agent restarts. Do not repeat the token in chat.")}
+
+
 # ─────────────────────────── tool cho cửa Gate ───────────────────────────
 
 _ID = {"type": "string", "description": "Conversation id from javis_chat_find."}
@@ -980,6 +1032,17 @@ TOOLS: Dict[str, dict] = {
             "decided": {"type": "string", "description": "What the owner decided, and why. Empty if nothing yet."},
             "id": {"type": "string", "description": "Optional: a Javis conversation id to note into instead."}}},
     },
+    "javis_sync_setup": {
+        "muc": "ghi",
+        "description": (
+            "Turn on Javis Sync on this machine: every Claude Code / Codex turn (the owner's prompt and your final "
+            "answer) then saves into Javis automatically, through a Stop hook / notify program. Call it when the owner "
+            "agrees to Javis Sync or asks for it, then run the returned command in your shell. Pass javis_url only if "
+            "the tool asks for it; system='windows' on Windows."),
+        "schema": {"type": "object", "properties": {
+            "javis_url": {"type": "string", "description": "Optional: Javis's address, e.g. https://javis.example.com."},
+            "system": {"type": "string", "description": "Optional: 'windows' for a PowerShell command."}}},
+    },
     "javis_chat_result": {
         "muc": "doc",
         "description": (
@@ -1039,6 +1102,8 @@ async def goi_tool(ten: str, args: Optional[dict], mode: str, nguon: str) -> str
         elif ten == "javis_chat_note":
             kq = await ghi_chep(nguon, str(a.get("title") or ""), str(a.get("asked") or ""),
                                 str(a.get("answered") or ""), str(a.get("decided") or ""), str(a.get("id") or ""))
+        elif ten == "javis_sync_setup":
+            kq = sync_setup(nguon, str(a.get("javis_url") or ""), str(a.get("system") or ""))
         elif ten == "javis_chat_models":
             kq = ds_model(str(a.get("id") or ""), str(a.get("query") or ""))
         elif ten == "javis_chat_updates":

@@ -336,6 +336,7 @@ tools Javis already has, that door carries five tools only the outside AI sees (
 | `javis_chat_send` | Post into a chat as if the owner typed it, wait for the answer | Full only |
 | `javis_chat_result` | Read the answer when Javis takes long | Any |
 | `javis_chat_note` | Save a note of the outside chat: what the owner said and decided (since 0.441.0) | Draft, Full |
+| `javis_sync_setup` | Turn on Javis Sync on a coding agent's machine: returns one install command the AI runs | Draft, Full |
 
 - **A posted message runs exactly like a typed one:** it goes through the dashboard's own chat loop, so the answer
   streams on every open tab, has a Stop button, is saved to History, written to `memory/conversations` and fed to
@@ -365,10 +366,19 @@ answer (not the tool calls in between) to `POST /chat/external` on Javis.
   skipped, never duplicated.
 - The hook never breaks Claude Code or Codex: failures only go to `~/.javis-sync/sync.log`.
 
-Set it up once per machine (Python 3.8 or newer):
+**Setup: just connect Gate.** As soon as Claude Code or Codex connects to Javis Gate, the Gate tells it to ask you
+once: "Turn on Javis Sync?". Say yes and it calls the `javis_sync_setup` tool, runs the install command on its machine
+and reports back. No command to type, no token to copy. To turn it on later, tell it "turn on Javis Sync".
 
-1. In Javis: **Integrations** page, **API tokens** tab, create a token with scope **chat**.
-2. On the machine running Claude Code / Codex:
+- That tool creates a **save-only** token: it reaches `/chat/external` and nothing else, cannot run a chat turn and
+  cannot read anything. It shows on the **Integrations** page, **API tokens** tab, named "Javis Sync (Claude Code)";
+  revoke it there.
+- Needs the Draft or Full level of the Gate door. Javis's address comes from the domain in **Settings** (or
+  `DOMAIN_NAME`); when none is set, the AI takes it from the Gate address it connected to.
+- Needs Python 3.8 or newer on that machine. Sessions already open pick the hook up after Claude Code or Codex
+  restarts.
+
+Manual setup (a machine not connected to Gate): create a token on the **Integrations** page, **API tokens** tab, then:
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/tools/javis-sync/javis_sync.py
@@ -377,8 +387,7 @@ python3 javis_sync.py install --url https://<your-javis-domain> --token jvs_...
 
 `install` tests the connection first and installs nothing on a wrong URL or token. It copies the script to
 `~/.javis-sync/`, adds the hook to `~/.claude/settings.json` and a `notify` line to `~/.codex/config.toml` (with a
-`.bak` backup). If Codex already had a notify program, it keeps running: Javis Sync chains it. Only one side: add
-`--claude` or `--codex`. Sessions already open pick the hook up after a restart.
+`.bak` backup). If Codex already had a notify program, it keeps running. Only one side: add `--claude` or `--codex`.
 
 - The first turn of a Claude Code session also sends what was said before the install.
 - Status: `python3 ~/.javis-sync/javis_sync.py status`. Remove: `... uninstall` (restores Codex's previous notify).

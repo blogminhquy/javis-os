@@ -338,6 +338,7 @@ cụ Javis đã có, cửa này có thêm năm công cụ chỉ AI bên ngoài t
 | `javis_chat_send` | Nhắn vào hội thoại như chủ gõ, chờ câu trả lời | Chỉ Toàn quyền |
 | `javis_chat_result` | Đọc câu trả lời khi Javis làm lâu | Mọi mức |
 | `javis_chat_note` | Ghi lại cuộc chat bên ngoài: chủ nói gì, đã chốt gì (từ 0.441.0) | Ghi nháp, Toàn quyền |
+| `javis_sync_setup` | Bật Javis Sync trên máy của AI viết code: trả về một lệnh cài, AI tự chạy | Ghi nháp, Toàn quyền |
 
 - **Tin nhắn chạy đúng như chủ gõ:** đi qua chính vòng chat của dashboard, nên chữ chạy trên mọi tab
   đang mở, có nút Dừng, lưu vào Lịch sử, ghi `memory/conversations` và vào vòng tự học. Bong bóng
@@ -367,10 +368,17 @@ gửi các bước gọi công cụ ở giữa) lên `POST /chat/external` của
 - Javis tắt hay mất mạng thì lượt chưa gửi được giữ lại, lần sau gửi bù; lượt nào Javis có rồi thì bỏ qua, không trùng.
 - Hook không bao giờ làm hỏng Claude Code hay Codex: lỗi chỉ ghi vào `~/.javis-sync/sync.log`.
 
-Cài một lần trên mỗi máy (cần Python 3.8 trở lên):
+**Cài: chỉ cần nối Gate.** Claude Code hay Codex vừa nối vào Javis Gate là được Gate dặn hỏi anh một câu: "Bật Javis
+Sync không?". Anh trả lời đồng ý là nó tự gọi tool `javis_sync_setup`, tự chạy lệnh cài trên máy, xong báo lại. Không phải
+gõ lệnh, không phải chép token. Muốn bật lúc khác thì nhắn nó "bật Javis Sync".
 
-1. Trong Javis: trang **Tích hợp**, tab **Token API**, tạo một token phạm vi **chat**.
-2. Trên máy chạy Claude Code / Codex:
+- Tool đó tạo một token loại **chỉ lưu hội thoại**: chỉ vào được đúng `/chat/external`, không chạy được lượt chat nào,
+  không đọc được gì. Token hiện ở trang **Tích hợp**, tab **Token API**, tên "Javis Sync (Claude Code)", thu hồi ở đó.
+- Cần mức Ghi nháp hoặc Toàn quyền của cửa Gate. Địa chỉ Javis lấy từ tên miền trong **Cài đặt** (hoặc `DOMAIN_NAME`);
+  chưa đặt thì AI tự lấy từ địa chỉ Gate nó đang nối.
+- Cần Python 3.8 trở lên trên máy đó. Phiên đang mở nhận hook sau khi khởi động lại Claude Code hay Codex.
+
+Cài tay (máy không nối Gate): tạo token ở trang **Tích hợp**, tab **Token API**, rồi chạy:
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/tools/javis-sync/javis_sync.py
@@ -379,8 +387,7 @@ python3 javis_sync.py install --url https://<tên-miền-javis> --token jvs_...
 
 Lệnh `install` thử kết nối trước, sai URL hay token thì không cài gì. Nó chép script vào `~/.javis-sync/`, thêm hook vào
 `~/.claude/settings.json` và dòng `notify` vào `~/.codex/config.toml` (có sao lưu `.bak`). Codex đang có chương trình
-notify khác thì chương trình đó vẫn chạy tiếp, Javis Sync gọi nối sau nó. Chỉ cài một bên: thêm `--claude` hoặc `--codex`.
-Phiên đang mở nhận hook sau khi khởi động lại.
+notify khác thì chương trình đó vẫn chạy tiếp. Chỉ cài một bên: thêm `--claude` hoặc `--codex`.
 
 - Lượt đầu tiên của một phiên Claude Code gửi bù cả phần đã nói trước khi cài.
 - Xem tình trạng: `python3 ~/.javis-sync/javis_sync.py status`. Gỡ: `... uninstall` (trả lại notify cũ của Codex).

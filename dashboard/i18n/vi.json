@@ -3185,6 +3185,7 @@
   "cs.tk_last_used": "dùng lần cuối",
   "cs.tk_never_used": "chưa dùng lần nào",
   "cs.tk_scope_chat": "chỉ chat",
+  "cs.tk_scope_sync": "chỉ lưu hội thoại Claude Code / Codex",
   "cs.tk_scope_full": "toàn quyền",
   "cs.tk_noname": "không tên",
   "cs.tk_revoke": "Thu hồi",
