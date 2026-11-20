@@ -24289,7 +24289,10 @@ def sessions_set_project(session_id: str, project_id: str = Form(""),
 # ============================================================
 @app.get("/projects")
 def projects_list(brain: str = Query(None)):
-    return {"projects": get_store().list_projects(brain=brain)}
+    """`ungrouped_unread`: unread chats in no project, the dot on "Chưa xếp nhóm" (2026-11-20)."""
+    store = get_store()
+    return {"projects": store.list_projects(brain=brain),
+            "ungrouped_unread": store.count_unread(brain=_brain_keys(brain), project="none")}
 
 
 @app.post("/projects")

@@ -61,6 +61,21 @@ with tempfile.TemporaryDirectory() as tmp:
     chat(alias_project, brain="/canonical/default")
     assert store.list_projects(brain="brain")[0]["unread_count"] == 1, \
         "Brain aliases on older projects do not hide replies in their canonical sessions"
+
+    # 2026-11-20 (owner): chats in no project light "Chưa xếp nhóm" the same way a project lights its folder.
+    def ungrouped():
+        return store.count_unread(brain=["/b"], project="none")
+    base = ungrouped()
+    loose = chat(None)
+    chat(None, channel="agent:writer")
+    chat(None, brain="/other")
+    assert ungrouped() == base + 1, "Only unread history chats of this brain with no project count"
+    store.set_project(loose, first)
+    assert ungrouped() == base, "Moving a chat into a project clears the ungrouped dot"
+    store.set_project(loose, None)
+    assert ungrouped() == base + 1, "Taking it out of its project brings the dot back"
+    store.mark_read(loose)
+    assert ungrouped() == base, "Reading the chat clears the ungrouped dot"
     store._conn.close()
 
 print("OK - project unread counts")
