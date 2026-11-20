@@ -290,6 +290,10 @@ class TasksFeature:
         self._cancel_reasons: dict[str, str] = {}
         self.router = self._make_router()
 
+    def has_running_work(self) -> bool:
+        """Whether this process still owns a live Kanban worker or product verification."""
+        return any(not task.done() for task in list(self._workers.values()) + list(self._verify_jobs))
+
     # ------------------------------------------------------------------
     # Board identity, migration and portable snapshot
     # ------------------------------------------------------------------

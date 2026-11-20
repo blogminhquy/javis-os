@@ -810,6 +810,14 @@ class TeamRunner:
                 out[m["agent_key"]] = b["team_id"]
         return out
 
+    def has_running_work(self) -> bool:
+        """Whether a team job, direct member reply or tool step is alive in this process."""
+        return (
+            any(not task.done() for task in list(self._jobs.values()) + list(self._lease_tasks))
+            or bool(self._live_replies)
+            or bool(self._steer_turns)
+        )
+
     # ───────────── tin của chủ nhóm ─────────────
 
     def submit(self, team_id: str, text: str, *, mentions: Optional[list] = None, as_job: bool = False,
