@@ -60,20 +60,30 @@ async def _run(*args: str, timeout: float = FFMPEG_TIMEOUT) -> tuple:
 
 
 async def probe(path: Path) -> dict:
-    """{"duration": seconds (0 when unknown), "video": has a picture stream, "audio": has a sound stream}."""
-    code, out, _err = await _run("ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type",
-                                 "-of", "json", str(path))
+    """{"duration": seconds (0 when unknown), "video": has a picture stream, "audio": has a sound stream}.
+
+    Some phone clips carry no container duration (`format.duration` missing or 0) while their streams do. Taking 0 then
+    meant one frame at 0:00, i.e. the thumbnail, presented as "the video". The longest stream duration is the fallback."""
+    code, out, _err = await _run("ffprobe", "-v", "error", "-show_entries",
+                                 "format=duration:stream=codec_type,duration", "-of", "json", str(path))
     if code != 0:
         return {"duration": 0.0, "video": False, "audio": False}
     try:
         data = json.loads(out.decode("utf-8", "replace") or "{}")
     except ValueError:
         data = {}
-    kinds = {str(s.get("codec_type") or "") for s in data.get("streams") or [] if isinstance(s, dict)}
-    try:
-        dur = max(0.0, float((data.get("format") or {}).get("duration") or 0))
-    except (TypeError, ValueError):
-        dur = 0.0
+    streams = [s for s in data.get("streams") or [] if isinstance(s, dict)]
+    kinds = {str(s.get("codec_type") or "") for s in streams}
+
+    def _secs(v) -> float:
+        try:
+            return max(0.0, float(v or 0))
+        except (TypeError, ValueError):
+            return 0.0
+
+    dur = _secs((data.get("format") or {}).get("duration"))
+    if dur <= 0:
+        dur = max([_secs(s.get("duration")) for s in streams] or [0.0])
     return {"duration": dur, "video": "video" in kinds, "audio": "audio" in kinds}
 
 

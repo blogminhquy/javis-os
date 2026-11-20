@@ -52,7 +52,7 @@ async def public_target(url: str) -> tuple:
     return u.hostname, ips[0]
 
 
-async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0) -> tuple:
+async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0, diag: dict = None) -> tuple:
     """Download one customer file into the bot brain's `inbox/khach`, like every other bot channel.
 
     Pins a validated public IP for each hop, while retaining TLS SNI and Host. This extends
@@ -60,10 +60,13 @@ async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0) -> tuple:
     accept spreadsheets and does not pin DNS.
 
     `max_bytes` overrides the 20MB cap (0 = `MAX_BYTES`): a customer's video (0.433.0) may be larger than a document.
+    `diag`, when given, is filled with the last hop's `host`, `status`, `content_type` and `bytes`: what a log line may say
+    about a failed download. Never the link itself, which is signed.
     """
     partial = None
     cap = int(max_bytes or MAX_BYTES)
     too_big = f"file lớn hơn {cap // (1024 * 1024)}MB nên không tải"
+    diag = diag if isinstance(diag, dict) else {}
     try:
         if info.get("size") is not None and info["size"] > cap:
             return None, too_big
@@ -84,6 +87,8 @@ async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0) -> tuple:
                     # httpcore uses sni_hostname for both SNI and certificate verification.
                     async with client.stream("GET", pinned, headers={"Host": host, "Accept-Encoding": "identity"},
                                              extensions={"sni_hostname": host}) as response:
+                        diag.update(host=host, status=response.status_code, bytes=0,
+                                    content_type=(response.headers.get("content-type") or "").split(";")[0].strip()[:80])
                         if response.status_code in (301, 302, 303, 307, 308):
                             location = response.headers.get("location")
                             if not location:
@@ -105,6 +110,7 @@ async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0) -> tuple:
                         with partial.open("xb") as output:
                             async for chunk in response.aiter_bytes():
                                 count += len(chunk)
+                                diag["bytes"] = count
                                 if count > cap:
                                     return None, too_big
                                 output.write(chunk)
