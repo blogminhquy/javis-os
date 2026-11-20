@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.608.0] - 2026-11-20
+### Cải thiện
+- **Trang Công cụ (Plugins) làm lại gọn như trang Nhiệm vụ.** Cột trái lọc theo trạng thái và nguồn, mục Tất cả là một danh sách liền xếp theo tên, công cụ của bạn và từ Javis Store có tag riêng.
+- **Mỗi dòng chỉ còn tên, một dòng mô tả, mức quyền bằng chữ dễ hiểu và công tắc.** Bấm vào dòng để xem lệnh, phiên bản và nút Gỡ. Gỡ hỏi lại ngay trong trang và có Hoàn tác.
+- **Nút "Thêm công cụ" gom ba cách thêm:** Javis Store, nhờ Javis tạo trong chat, cài từ tệp .zip. Nút "Cài từ tệp .zip" vẫn đứng riêng cạnh đó.
+- **Trình duyệt và Bộ nghe offline chuyển sang mục "Phần mềm trên máy"**, nút Gỡ không còn tô màu đặc. Trên điện thoại cột trái thành hàng chip, nút + tròn ở góc.
+
 ## [0.607.2] - 2026-11-20
 ### Sửa lỗi
 - **Chấm đỏ ở thư mục hội thoại chỉ hiện khi chat đã xong mà chưa đọc.** Chat còn đang chạy hiện vòng xoay chứ không làm sáng chấm đỏ ở thư mục, ở dòng "Chưa xếp nhóm", ở chính dòng chat và ở menu bên trái. Chat đang mở trên màn hình cũng không bị tính. Lượt chạy xong mà chưa được xem thì chấm đỏ mới hiện.
