@@ -236,21 +236,32 @@ check("bỏ qua giá trị không phải http", zb._lay_url({"voice": "abc"}, ("
 
 
 class _ZClient:
-    """Client giả cho phần TẢI FILE của Zalo (bot tự gọi client.get vào URL trong payload)."""
+    """Client giả của gateway. Từ 2026-11-20 file thoại đi qua `zalo_attachments.fetch_file` (có chặn body rỗng),
+    nên client này không được gọi tới; phần tải được giả bằng `_zfetch` bên dưới."""
 
     def __init__(self, noi_dung=b"AUDIO"):
         self.noi_dung = noi_dung
 
     async def get(self, url, timeout=None):
-        return _ZResp(self.noi_dung)
+        raise AssertionError("tin thoại Zalo phải đi qua zalo_attachments.fetch_file")
 
 
-class _ZResp:
-    def __init__(self, noi_dung):
-        self.content = noi_dung
+import zalo_attachments  # noqa: E402
+_REAL_FETCH = zalo_attachments.fetch_file
 
-    def raise_for_status(self):
-        return None
+
+def _zfetch(noi_dung=b"OggS-AUDIO", why=""):
+    async def fetch(info, inbox, max_bytes=0, diag=None):
+        if why:
+            return None, why
+        from pathlib import Path
+        p = Path(inbox) / ("zalo_x_" + zalo_attachments.safe_name(info.get("name") or "file"))
+        p.write_bytes(noi_dung)
+        return p, ""
+    return fetch
+
+
+zalo_attachments.fetch_file = _zfetch()
 
 
 def _zbot(stt_fn=None):
@@ -295,6 +306,23 @@ check("ảnh Zalo vẫn dùng _lay_url với bộ khoá của ảnh",
 out = chay(_zbot(_stt_ok)._ingest_attachment(_ZClient(), zb.SK_STICKER,
                                              {"message_id": "s", "chat": {"id": "z"}}))
 check("sticker Zalo vẫn báo không có chữ để đọc", "sticker" in out.lower())
+
+# 2026-11-20: tải hỏng / body rỗng / trang lỗi thì nói đúng bước hỏng và KHÔNG đưa gì cho speech-to-text.
+_goi_stt = []
+
+
+async def _stt_dem(data, ten):
+    _goi_stt.append(data)
+    return {"ok": True, "text": "không được tới đây"}
+
+zalo_attachments.fetch_file = _zfetch(why="file rỗng")
+out = chay(_zbot(_stt_dem)._ingest_attachment(_ZClient(), zb.SK_VOICE, _zvoice()))
+check("Zalo thoại rỗng -> nói rõ không tải được, có lý do", "không tải được file ghi âm" in out and "file rỗng" in out)
+zalo_attachments.fetch_file = _zfetch(b"<html><body>403 Forbidden</body></html>")
+out = chay(_zbot(_stt_dem)._ingest_attachment(_ZClient(), zb.SK_VOICE, _zvoice()))
+check("Zalo thoại là trang lỗi HTML -> báo trang lỗi", "trang lỗi" in out)
+check("...và cả hai ca đều KHÔNG gọi speech-to-text", _goi_stt == [])
+zalo_attachments.fetch_file = _REAL_FETCH
 
 
 # ============================================================

@@ -16,6 +16,16 @@ import image_vision
 MAX_BYTES = 20 * 1024 * 1024
 TIMEOUT = 60
 TEXT_EXTENSIONS = {".txt", ".md", ".csv", ".tsv", ".json", ".yaml", ".yml", ".log"}
+# Waits before asking again when a file server answers 202 (file not ready yet). 8.8s in all, well inside TIMEOUT.
+ACCEPTED_BACKOFF = (0.8, 1.5, 2.5, 4.0)
+
+
+def retry_after(header, default: float) -> float:
+    """Seconds to wait from a numeric Retry-After header, clamped to [0.5, 5]; `default` when absent or not a number."""
+    try:
+        return min(5.0, max(0.5, float(str(header).strip())))
+    except (TypeError, ValueError):
+        return default
 
 
 def normalize(msg: dict) -> dict:
@@ -52,7 +62,7 @@ async def public_target(url: str) -> tuple:
     return u.hostname, ips[0]
 
 
-async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0) -> tuple:
+async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0, diag: dict = None) -> tuple:
     """Download one customer file into the bot brain's `inbox/khach`, like every other bot channel.
 
     Pins a validated public IP for each hop, while retaining TLS SNI and Host. This extends
@@ -60,10 +70,13 @@ async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0) -> tuple:
     accept spreadsheets and does not pin DNS.
 
     `max_bytes` overrides the 20MB cap (0 = `MAX_BYTES`): a customer's video (0.433.0) may be larger than a document.
+    `diag`, when given, is filled with the last hop's `host`, `status`, `content_type` and `bytes`: what a log line may say
+    about a failed download. Never the link itself, which is signed.
     """
     partial = None
     cap = int(max_bytes or MAX_BYTES)
     too_big = f"file lớn hơn {cap // (1024 * 1024)}MB nên không tải"
+    diag = diag if isinstance(diag, dict) else {}
     try:
         if info.get("size") is not None and info["size"] > cap:
             return None, too_big
@@ -77,18 +90,33 @@ async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0) -> tuple:
         async with asyncio.timeout(TIMEOUT):
             async with httpx.AsyncClient(timeout=httpx.Timeout(20, connect=10), follow_redirects=False,
                                          trust_env=False, limits=httpx.Limits(max_keepalive_connections=0)) as client:
-                for _ in range(image_vision.MAX_REDIRECTS + 1):
+                hops = waits = 0
+                while hops <= image_vision.MAX_REDIRECTS:
                     host, ip = await public_target(url)
                     original = httpx.URL(url)
                     pinned = original.copy_with(host=ip)
                     # httpcore uses sni_hostname for both SNI and certificate verification.
                     async with client.stream("GET", pinned, headers={"Host": host, "Accept-Encoding": "identity"},
                                              extensions={"sni_hostname": host}) as response:
+                        diag.update(host=host, status=response.status_code, bytes=0,
+                                    content_type=(response.headers.get("content-type") or "").split(";")[0].strip()[:80])
                         if response.status_code in (301, 302, 303, 307, 308):
                             location = response.headers.get("location")
                             if not location:
                                 return None, "link file chuyển hướng thiếu địa chỉ"
                             url = str(original.join(location))
+                            hops += 1
+                            continue
+                        if response.status_code == 202:
+                            # Owner live test 2026-11-20: Zalo's photo servers (photo-stal-*.zdn.vn) answer 202 with an
+                            # empty body for a moment after a photo is sent. The old bare download took that 2xx as the
+                            # photo and saved 0 bytes. Ask again a few times, within the same overall time budget.
+                            if waits >= len(ACCEPTED_BACKOFF):
+                                return None, "máy chủ file trả HTTP 202 (file chưa sẵn sàng trên máy chủ Zalo)"
+                            delay = retry_after(response.headers.get("retry-after"), ACCEPTED_BACKOFF[waits])
+                            waits += 1
+                            await response.aclose()
+                            await asyncio.sleep(delay)
                             continue
                         if response.status_code != 200:
                             return None, f"máy chủ file trả HTTP {response.status_code} (link có thể đã hết hạn)"
@@ -105,6 +133,7 @@ async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0) -> tuple:
                         with partial.open("xb") as output:
                             async for chunk in response.aiter_bytes():
                                 count += len(chunk)
+                                diag["bytes"] = count
                                 if count > cap:
                                     return None, too_big
                                 output.write(chunk)

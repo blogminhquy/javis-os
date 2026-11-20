@@ -96,6 +96,10 @@ def read_reference_image(path: str, vault_root: Optional[str] = None) -> dict:
         return {"ok": False, "error": localefmt.chu(f"'{p.name}' không phải ảnh (chỉ nhận png/jpg/webp/gif).",
                                                 f"'{p.name}' is not an image (only png/jpg/webp/gif).")}
     data = p.read_bytes()
+    if not data:
+        # 2026-11-20: a 0-byte download went out as "data:image/jpeg;base64," and the vision model was asked about nothing.
+        return {"ok": False, "error": localefmt.chu(f"Ảnh '{p.name}' rỗng (0 byte): bước tải ảnh đã hỏng, chưa có gì để xem.",
+                                                f"Image '{p.name}' is empty (0 bytes): the download failed, nothing to look at.")}
     if len(data) > MAX_REF_BYTES:
         return {"ok": False,
                 "error": localefmt.chu(f"Ảnh '{p.name}' nặng {len(data) // (1024 * 1024)}MB, quá trần "
