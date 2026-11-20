@@ -933,8 +933,9 @@
         <div class="auth-err" id="authErr"></div>
         <div class="auth-help"><span id="authForgot" data-i18n="auth.forgot">Quên mật khẩu?</span></div>
         <div class="auth-reset" id="authResetInfo" style="display:none">
-          <span data-i18n="auth.reset1">Mở file</span> <code>server/settings.json</code><span data-i18n="auth.reset2">, xóa khối</span> <code>"auth"</code> <span data-i18n="auth.reset3">(hoặc đặt rỗng), rồi chạy</span>
-          <code>stop-javis.bat</code> → <code>start-javis.vbs</code>. <span data-i18n="auth.reset4">Mở lại sẽ về bộ cài đặt để tạo tài khoản mới.</span>
+          <span data-i18n="auth.reset1">Trên máy tính chạy Javis, mở thư mục cài Javis rồi bấm đúp</span> <code>reset-auth.bat</code>
+          <span data-i18n="auth.reset2">(Mac:</span> <code>reset-auth.command</code><span data-i18n="auth.reset3">).</span>
+          <span data-i18n="auth.reset4">Mật khẩu cũ bị xoá, mở lại Javis rồi vào Tài khoản đặt mật khẩu mới.</span>
           <div class="auth-reset-srv" data-i18n="auth.reset_server">Chạy trên máy chủ (Docker, Hostinger): đổi JAVIS_ADMIN_PASSWORD trong Environment rồi Redeploy. Javis đặt lại mật khẩu theo giá trị mới, 2FA giữ nguyên.</div>
         </div>
       </div>
