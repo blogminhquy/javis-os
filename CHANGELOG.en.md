@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.612.0] - 2026-11-20
+### Improved
+- **Slack bots answer in the right thread.** Before, if someone wrote in another thread of the same channel while the bot was answering, the answer could land in that other thread. Every answer now goes back to the thread of its question.
+- **Customers continuing an old thread are still answered after Javis restarts**, instead of being treated as people talking to each other.
+- **The inbox shows Slack channel names** (for example #sales), and the bot reports being added to or removed from a channel, like Telegram. Text such as `a < b`, `@Kim` and links now reaches Javis exactly as typed.
+- **When Slack rate limits, the bot waits and sends again** instead of losing the rest of the answer. Apps made from the older guide keep working; for channel names, paste the new manifest and reinstall the app (docs/en/29-slack-whatsapp.md).
+
 ## [0.611.0] - 2026-11-20
 ### Added
 - **Connect Asana.** The Connections page has an Asana card on the official V2 MCP: Javis finds and reads tasks, projects and due dates, creates and updates tasks, and adds comments. Sign in from the dashboard; works on a VPS too.

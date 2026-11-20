@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.612.0] - 2026-11-20
+### Cải thiện
+- **Bot Slack trả lời đúng thread.** Trước đây, đang trả lời câu hỏi ở thread này mà có người nhắn ở thread khác cùng kênh thì câu trả lời có thể rơi nhầm sang thread kia. Giờ mỗi câu trả lời luôn về đúng thread của câu hỏi.
+- **Khách nhắn tiếp trong thread cũ vẫn được trả lời sau khi Javis khởi động lại**, không bị coi là người khác nói chuyện với nhau.
+- **Hộp thư hiện tên kênh Slack** (ví dụ #sales), và bot báo ngay khi được thêm vào hoặc bị gỡ khỏi một kênh, giống Telegram. Chữ khách gõ như `a < b`, `@Kim`, đường link giờ tới Javis đúng như khách gõ.
+- **Slack đang giới hạn tần suất thì bot chờ rồi gửi lại**, không mất nửa câu trả lời. App tạo theo hướng dẫn cũ vẫn chạy; muốn có tên kênh thì dán lại manifest mới và cài lại app (docs/29-slack-whatsapp.md).
+
 ## [0.611.0] - 2026-11-20
 ### Thêm mới
 - **Kết nối Asana.** Trang Kết nối có thẻ Asana dùng MCP chính chủ bản V2: Javis tìm và đọc việc, dự án, hạn chót, tạo và cập nhật việc, thêm bình luận. Đăng nhập ngay trong dashboard, chạy được cả trên VPS.
