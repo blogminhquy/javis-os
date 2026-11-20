@@ -224,11 +224,12 @@ src_js = (DASHBOARD / "console.js").read_text(encoding="utf-8")
 # Từ 0.55.54 chữ của dashboard nằm trong từ điển i18n, console.js chỉ gọi khoá. Kiểm ĐỦ HAI VẾ:
 # nhánh `pack` của bảng nguồn gọi đúng khoá, VÀ khoá đó trong vi.json mang đúng nhãn "Từ gói".
 _VI = json.loads((DASHBOARD / "i18n" / "vi.json").read_text(encoding="utf-8"))
-check("thẻ plugin hiện nhãn nguồn 'Từ gói'",
-      'pack: [window.t("cs.pl_src_pack")' in src_js
-      and "Từ gói" in _VI.get("cs.pl_src_pack", ""))
+# 2026-11-20: the Plugins page is one list; a store plugin carries a "Javis Store" tag instead of a group heading.
+check("thẻ plugin của gói mang tag 'Javis Store'",
+      'return `<span class="pl-tag pack">${esc(tt("cs.pl_tag_pack"))}' in src_js
+      and _VI.get("cs.pl_tag_pack", "") == "Javis Store")
 check("plugin của gói chỉ quản lý ở Kho cài đặt, không bật tắt lẻ",
-      "data-goto-packs" in src_js)
+      'class="pl-bypack" data-open=' in src_js and "cs.pl_d_pack_note" in src_js)
 
 if _fails:
     print(f"\nFAIL - test_goi_chay_ma: {len(_fails)} lỗi: {_fails}")

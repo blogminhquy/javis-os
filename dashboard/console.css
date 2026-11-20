@@ -3079,6 +3079,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ac-page { max-width: 760px; }
 /* The Account page has no page header (owner, 2026-11-09): its Account | Security tabs take that place, flush at the top. */
 .cview.cview-tk .cview-head { display: none; }
+/* Plugins page (2026-11-20): its own title sits at the top of its left column, like the Tasks page. */
+.cview.cview-pl .cview-head { display: none; }
 .cview.cview-tk .cview-body { padding-top: 0; }
 .cview.cview-tk .ach-tabs.tabs-top { padding-top: 12px; }
 .tk-intro { margin: 0 0 10px; }

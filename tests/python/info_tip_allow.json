@@ -29,7 +29,6 @@
  "cs.oc_wa_need_https": "error: webhook not on HTTPS",
  "cs.ov_mig_confirm": "confirm: migrate brain layout",
  "cs.ov_upd_confirm": "confirm: update Javis",
- "cs.pl_del_confirm": "confirm: remove plugin",
  "cs.si_body_ph": "placeholder: loop body textarea",
  "cs.tfa_s1": "content: 2FA setup step after pressing Turn on",
  "cs.tfa_saved_note": "status: shown after enabling 2FA",
