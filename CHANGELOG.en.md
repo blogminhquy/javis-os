@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.610.1] - 2026-11-20
+### Fixed
+- **Telegram bot chats (and every other bot channel) show again in the history of the partner the bot uses.** A bot whose record held another spelling of the same brain (a full path from an older version, a trailing slash, or a brain folder that moved) answered as usual, but its chats never reached the partner's History column. Javis now matches the brain the chats are actually stored in, and a partner name with Vietnamese accents matches even when its file was made on macOS.
+
 ## [0.610.0] - 2026-11-20
 ### Improved
 - **Mark the open chat as unread.** The "..." menu of the chat you are reading now has this option too. The red dot shows at once and stays until you open another chat and come back, so unfinished work is easy to flag for later.
