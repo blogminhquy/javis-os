@@ -9,7 +9,10 @@ Ops:
 - save path content|edits reason: write one file of the brain (agents, skills, workflows, Javis/loops, memory, the
   brain's CLAUDE.md) with a backup; returns the change id and a short diff.
 - undo id: put a change back. history: recent changes.
-- source: attach Javis's own repo to this chat (GitHub in chat does the checks, PR, CI and merge after the turn).
+- source: attach Javis's own repo to this chat (GitHub in chat does the checks, PR, CI and merge after the turn). Only
+  on an install that can push to it; anywhere else nothing is attached and the answer asks for op=report.
+- report title body: a link opening a prefilled issue on Javis's repo, for an install that cannot push. Nothing is
+  sent: the person reads it and presses Submit (owner, 20/11/2026: keep users' fixes coming, without the failed push).
 - update: once the release with the change is out, update this install after the current turn ends.
 
 Only a turn the owner started may save, undo, attach the source or update (`self_upgrade.owner_turn`): the owner's own
@@ -23,7 +26,7 @@ import time
 
 import self_upgrade as SU
 
-OPS = ("status", "save", "undo", "history", "source", "update")
+OPS = ("status", "save", "undo", "history", "source", "report", "update")
 _REFUSE = ("ERROR: chỉ làm khi CHỦ yêu cầu trực tiếp (chat của chủ, hay việc Kanban hoặc nhắc hẹn chủ đã giao). Lượt tự "
            "thức của Auto và bot nói với khách không tự sửa chính nó hay hệ thống: hãy đề xuất cho chủ trong tin nhắn.")
 
@@ -99,13 +102,17 @@ async def _status(args, ctx, turn) -> str:
     try:
         src = await asyncio.to_thread(SU.source_status, _sid(args, ctx, turn), root)
         if not src["connected"]:
-            lines.append(f"Mã nguồn Javis ({SU.SOURCE_REPO}): GitHub chưa kết nối (trang Kết nối, thẻ GitHub).")
+            lines.append(f"Javis's code ({SU.SOURCE_REPO}): GitHub not connected. To fix Javis itself, send the "
+                         "developer a bug report with op=report (needs no connection).")
         elif src["attached"]:
             a = src["attached"]
             lines.append(f"Mã nguồn Javis đã gắn vào chat này: {a.get('worktree') or a.get('clone')} "
                          f"(nhánh {a.get('branch') or '?'}).")
-        else:
+        elif src.get("can_write"):
             lines.append(f"Mã nguồn Javis ({SU.SOURCE_REPO}): GitHub đã kết nối, chưa gắn vào chat này (op=source).")
+        else:
+            lines.append(f"Javis's code ({SU.SOURCE_REPO}): this install cannot write to it. To fix Javis itself, "
+                         "send the developer a bug report with op=report, do not edit code here.")
     except Exception as ex:  # noqa: BLE001 - status never fails because GitHub is unreachable
         lines.append(f"Mã nguồn Javis: chưa đọc được trạng thái GitHub ({type(ex).__name__}).")
     return "\n".join(lines)
@@ -123,6 +130,15 @@ async def _run(args, ctx) -> str:
         return "\n".join(_line(c) for c in rows) if rows else "Chưa có thay đổi nào qua javis_improve."
     if op not in OPS:
         return "ERROR: op phải là " + ", ".join(OPS) + "."
+    if op == "report":   # builds a link, sends nothing: no owner check needed
+        try:
+            cur, _latest = await SU.versions()
+            url = SU.report_url(str(args.get("title") or ""), str(args.get("body") or ""), cur)
+        except SU.ImproveError as e:
+            return f"ERROR: {e}"
+        return ("Link to a prefilled issue on Javis's repo (nothing has been sent):\n" + url + "\n"
+                "Give the person this link as is and tell them plainly: open it, check the text, press Submit; "
+                "a GitHub account is all they need. Do not say it was sent.")
     if not SU.owner_turn(turn):
         return _REFUSE
     try:
@@ -145,6 +161,13 @@ async def _run(args, ctx) -> str:
         if op == "source":
             sid = _sid(args, ctx, turn)
             got = await asyncio.to_thread(SU.attach_source, sid, root)
+            if got.get("report"):
+                return (f"Not attached: this install cannot write to {SU.SOURCE_REPO}, only its developer can, so "
+                        "do NOT edit Javis's code here (it could never be sent). Turn the request into a report for "
+                        "the developer instead: find the cause if you can (the code installed on this machine, or "
+                        "the public repo), then call javis_improve op=report with title (one line) and body (what "
+                        "happens, steps to reproduce, what was expected, likely cause with file paths, suggested fix; "
+                        "a diff only if short). Hand the person the link it returns.")
             a = got["attached"]
             return "\n".join(x for x in [
                 f"Đã gắn mã nguồn Javis ({SU.SOURCE_REPO}) vào chat này.",
@@ -175,15 +198,19 @@ async def _run(args, ctx) -> str:
 def register(ctx):
     ctx.register_tool(
         "javis_improve",
-        "Tự cải tiến KHI CHỦ YÊU CẦU (chủ bảo cải tiến chính bạn, một trợ lý, skill, quy trình hay cả hệ thống Javis). "
-        "op=status: sửa được gì ở đây, file của chính bạn, thay đổi gần đây, mã nguồn Javis, phiên bản. "
-        "op=save {path, content | edits:[{old,new}], reason}: ghi MỘT file trong brain (agents/, skills/, workflows/, "
-        "Javis/loops/, memory/, CLAUDE.md của brain) có sao lưu; trả mã thay đổi và diff. Sửa vai trò, hướng dẫn, "
-        "skills, model của chính bạn là sửa agents/<slug>.md của bạn. "
-        "op=undo {id}: hoàn tác. op=history: thay đổi gần đây. "
-        "op=source: gắn mã nguồn Javis vào chat này để sửa code; sau lượt đó Javis tự kiểm, mở PR, merge khi CI xanh. "
-        "op=update: khi bản phát hành chứa thay đổi đã ra, cập nhật máy này sau khi lượt kết thúc. "
-        "Chỉ chủ ra lệnh mới sửa được; tự thức hay bot khách thì chỉ đề xuất. Sửa xong luôn báo chủ đổi gì và mã hoàn tác.",
+        "Improve on the OWNER'S REQUEST (the owner asks to improve you, an assistant, a skill, a workflow or Javis "
+        "itself). op=status: what can be changed here, your own file, recent changes, Javis's code, versions. "
+        "op=save {path, content | edits:[{old,new}], reason}: write ONE file of the brain (agents/, skills/, "
+        "workflows/, Javis/loops/, memory/, the brain's CLAUDE.md) with a backup; returns a change id and a diff. "
+        "Changing your own role, instructions, skills or model means editing your agents/<slug>.md. "
+        "op=undo {id}: put a change back. op=history: recent changes. "
+        "op=source: attach Javis's own code to this chat to fix it; after the turn Javis checks, opens a PR and "
+        "merges on green CI. Only an install that can push to Javis's repo gets it; elsewhere use op=report. "
+        "op=report {title, body}: a link to a prefilled issue for Javis's developer (bug or fix proposal); nothing "
+        "is sent until the person presses Submit. "
+        "op=update: once the release with the change is out, update this install after the turn ends. "
+        "Changes only on the owner's word; Auto's wake-ups and customer bots only suggest. After a change, tell the "
+        "owner what changed and the undo id.",
         _run,
         schema={
             "type": "object",
@@ -198,13 +225,17 @@ def register(ctx):
                 "id": {"type": "integer", "description": "mã thay đổi (op=undo)"},
                 "limit": {"type": "integer", "description": "số dòng (op=history)"},
                 "chat_id": {"type": "string", "description": "khung chat dạng web:<mã phiên>; bỏ trống để tự nhận"},
+                "title": {"type": "string", "description": "one line saying what the bug or proposal is (op=report)"},
+                "body": {"type": "string", "description": "what happens, steps, expected, likely cause, suggested "
+                                                          "fix (op=report)"},
             },
             "required": ["op"],
         },
         # Reading what can be improved runs anywhere; changing brain files needs `safe` (they are files of the brain);
-        # attaching the source repo and updating the install reach outside the brain, so only at Full access.
+        # attaching the source repo and updating the install reach outside the brain, so only at Full access. A report
+        # only builds a link the person submits themselves, so it runs anywhere.
         min_mode="readonly",
         op_modes={"status": "readonly", "history": "readonly", "save": "safe", "undo": "safe", "source": "full",
-                  "update": "full"},
+                  "report": "readonly", "update": "full"},
         emoji="🛠️",
     )
