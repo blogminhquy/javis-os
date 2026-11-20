@@ -96,5 +96,16 @@
     them("promise", msg, m ? m[1] : "", m ? Number(m[2]) : 0, m ? Number(m[3]) : 0, st);
   });
   window.addEventListener("pagehide", day);
+  // An error the app caught on purpose (so one bad message does not blank a chat) still reaches the Health page.
+  // Customer report 2026-11-20: chats showed an old last message for a week and nothing was logged, because the chat
+  // drawing swallowed its errors. `where` names the step, e.g. "chat.message".
+  api.report = function (where, err) {
+    try {
+      var st = err && err.stack ? String(err.stack) : "";
+      var m = /(https?:\/\/[^\s)]+\/static\/[^\s):]+):(\d+):(\d+)/.exec(st);
+      var msg = (where ? "[" + where + "] " : "") + (err && err.message ? err.message : String(err));
+      them("caught", msg, m ? m[1] : "", m ? Number(m[2]) : 0, m ? Number(m[3]) : 0, st);
+    } catch (e) { /* noop */ }
+  };
   window.JavisLoiMayKhach = api;
 })();
