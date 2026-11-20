@@ -34,11 +34,21 @@
   // finished and is unread". A running chat shows its spinner, not a dot, and the chat on screen is being read, so
   // both are left out of every unread count the server makes (the `skip` query of /projects and the rail).
   function isRunning(sid) { return !!(sid && window.JavisRunning && window.JavisRunning.has(sid)); }
+  // 2026-11-20 (owner: "thêm nút đánh dấu chưa đọc thì sẽ hiện lại các phần chấm đỏ, dễ kiểm soát những việc chưa hoàn
+  // thành hơn"): "Mark as unread" also works on the chat open on screen. That chat is kept unread while it stays open,
+  // so its dot shows at once, and is read again only once the owner opens another chat and comes back, or a new turn
+  // starts in it.
+  var heldUnread = null;
+  function isHeldUnread(sid) {
+    if (!heldUnread) return false;
+    if (heldUnread !== currentId() || isRunning(heldUnread)) { heldUnread = null; return false; }
+    return sid === heldUnread;
+  }
   function unreadSkipIds() {
     var ids = [];
     if (window.JavisRunning) window.JavisRunning.forEach(function (id) { if (id && ids.length < 50) ids.push(String(id)); });
     var cur = currentId();
-    if (cur && chatOnScreen() && ids.indexOf(cur) < 0) ids.push(cur);
+    if (cur && chatOnScreen() && !isHeldUnread(cur) && ids.indexOf(cur) < 0) ids.push(cur);
     return ids;
   }
   function unreadSkipQuery() {
@@ -57,7 +67,7 @@
   }
   function markCurrentRead() {
     var sid = currentId();
-    if (sid && chatOnScreen()) { markRead(sid); clearDot(sid); }
+    if (sid && chatOnScreen() && !isHeldUnread(sid)) { markRead(sid); clearDot(sid); }
   }
   // Drop the dot of one chat from the rows on screen and from the cached list, without reloading.
   function clearDot(sid) {
@@ -2642,7 +2652,7 @@
     // 2026-11-19 (owner: "những tin chấm đỏ mà chưa đọc em sắp xếp kéo lên trên đầu"): unread chats form their own
     // group right under the pinned ones. The server already puts them on the first page (unread_first=1); this pass
     // only keeps the open chat, which counts as read, in its date group instead of under "Unread".
-    function laChuaDoc(s) { return !!s.unread && !isRunning(s.id) && !(s.id === cur && chatOnScreen()); }
+    function laChuaDoc(s) { return !!s.unread && !isRunning(s.id) && !(s.id === cur && chatOnScreen() && !isHeldUnread(s.id)); }
     items = pins.concat(items.filter(function (s) { return !s.pinned && laChuaDoc(s); }),
                         items.filter(function (s) { return !s.pinned && !laChuaDoc(s); }));
     items.forEach(function (s) {
@@ -2695,7 +2705,7 @@
       var pid = (!kenhLoc && s.project_id && s.project_id !== curProject()) ? String(s.project_id) : "";
       var pTag = projById(pid);
       var chuaDoc = !!s.unread && !isRun;   // still working: the spinner says so, the dot waits for the end
-      if (chuaDoc && s.id === cur && chatOnScreen()) { chuaDoc = false; s.unread = false; markRead(s.id); }
+      if (chuaDoc && s.id === cur && chatOnScreen() && !isHeldUnread(s.id)) { chuaDoc = false; s.unread = false; markRead(s.id); }
       // 2026-11-09: a pinned row shows a small pin before its title (no bar on the left any more); every other action
       // is in the row's "..." menu (moMenuDong).
       var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + (s.pinned ? " ghim" : "") + (chuaDoc ? " has-unread" : "") + (s.archived ? " archived" : "") + '">' +
@@ -2940,7 +2950,7 @@
       smItem("share", "share-2", "sess.share_link") +
       smItem("export", "download", "sess.export_md");
     if (s.unread) h2 += smItem("read", "mail-open", "sess.mark_read");
-    else if (s.id !== currentId()) h2 += smItem("unread", "mail", "sess.mark_unread");
+    else if (!isRunning(s.id)) h2 += smItem("unread", "mail", "sess.mark_unread");
     h2 += smSep() + smItem("archive", "archive", "sess.archive") +
       smItem("delete", "trash-2", "common.delete", { danger: true });
     return h2;
@@ -3050,10 +3060,19 @@
       return;
     }
     if (act === "pin") { dongMenuDong(false); return togglePin(s, s.timKiem); }
-    if (act === "read") { dongMenuDong(false); markRead(s.id); clearDot(s.id); return; }
+    if (act === "read") {
+      dongMenuDong(false);
+      if (heldUnread === s.id) heldUnread = null;
+      markRead(s.id); clearDot(s.id); return;
+    }
     if (act === "unread") {
+      if (s.id === currentId()) heldUnread = s.id;
+      // A read still waiting in its timer would undo this the moment it lands.
+      if (readTimers[s.id]) { clearTimeout(readTimers[s.id]); delete readTimers[s.id]; }
       return ketQua(await post("/sessions/" + encodeURIComponent(s.id) + "/unread", {}).then(function (r) {
-        cached = null; taiLaiSau(s); return r;
+        cached = null; taiLaiSau(s); refreshProjects();
+        try { if (window.JavisRailUnread) window.JavisRailUnread.refresh(); } catch (e) {}
+        return r;
       }));
     }
     if (act === "archive") return ketQua(await luuTru(s, true));
