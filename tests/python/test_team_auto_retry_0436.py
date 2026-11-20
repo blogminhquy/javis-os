@@ -55,6 +55,12 @@ check("overload on a text step: retry in 60 s", p and p["kind"] == "transient" a
 check("backoff grows: 300 s, then 900 s",
       plan("rate limit", failures=2)["at"] == NOW + 300 and plan("rate limit", failures=3)["at"] == NOW + 900)
 check("circuit breaker: no 4th automatic retry", plan("rate limit", failures=4) is None)
+for blip in ("dial tcp 1.2.3.4:443: connect: can't assign requested address",
+             "OSError: [Errno 49] Can't assign requested address",
+             "getaddrinfo ENOTFOUND api.openai.com",
+             "nodename nor servname provided, or not known"):
+    q = plan(blip)
+    check(f"a network blink on this machine retries: {blip[:40]}", q and q["kind"] == "transient", q)
 check("an error that is not temporary blocks as before", plan("engine hỏng") is None
       and plan("provider unavailable") is None)
 check("a step timeout never retries (it already cost up to an hour)", plan("quá 60 phút", reason="timeout") is None)

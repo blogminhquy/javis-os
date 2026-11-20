@@ -1416,6 +1416,9 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 # No bare "reset" ("connection reset" is caught by "connection"): the plan-limit sentence says
                 # "resets 4:40am", and matching it made an exhausted plan look like a blip to retry at once (#1607).
                 "connection", "network", "busy", "unavailable",
+                # The machine's network blinking (Wi-Fi switch, sleep, VPN) and DNS failing for a moment.
+                "assign requested address", "eaddrnotavail", "getaddrinfo", "nodename nor servname",
+                "name or service not known",
             )
         )
 
