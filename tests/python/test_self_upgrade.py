@@ -10,7 +10,8 @@ scope: everything in the brain and Javis's own code. Checked here, no model, no 
 - every save keeps a backup with an id; undo restores it (a created file is removed), an undo can be undone, a file
   edited again after the change keeps its current text in the undo;
 - a definition file that would no longer load is refused (frontmatter, skill description over 150 characters);
-- Javis's own code: attached next to the chat's other repos through GitHub in chat; GitHub not connected is said;
+- Javis's own code: attached next to the chat's other repos only on an install that can push to the official repo;
+  anywhere else (no write access, GitHub not connected) nothing is cloned and op=report gives a prefilled issue link;
 - update: refused while no newer release exists, otherwise starts the Update button's path after the turn ends;
 - the tool is owner-only in the hub and needs Full access for source and update.
 """
@@ -133,9 +134,19 @@ check("skill hệ thống: sửa được, kèm ghi chú không còn tự cập 
 
 # ═════ mã nguồn Javis ═════
 import github_repos  # noqa: E402
-state = {"connected": True, "repos": [{"full_name": "acme/shop"}], "attach": []}
-gh = {k: getattr(github_repos, k) for k in ("status", "session_repos", "attach")}
+from github_api import GitHubError  # noqa: E402
+from urllib.parse import parse_qs, urlparse  # noqa: E402
+state = {"connected": True, "repos": [{"full_name": "acme/shop"}], "attach": [], "meta": {"permissions": {"push": True}}}
+gh = {k: getattr(github_repos, k) for k in ("status", "session_repos", "attach", "client")}
 github_repos.status = lambda: {"connected": state["connected"], "has_git": True}
+
+
+class _Client:
+    def repo(self, full_name):
+        state.setdefault("asked", []).append(full_name)
+        if isinstance(state["meta"], Exception):
+            raise state["meta"]
+        return state["meta"]
 
 
 def _session_repos(sid, brain=""):
@@ -149,18 +160,51 @@ def _attach(sid, brain, brain_root, names):
 
 
 github_repos.session_repos, github_repos.attach = _session_repos, _attach
+github_repos.client = lambda: _Client()
 try:
     got = SU.attach_source("s1", root)
-    check("gắn mã nguồn Javis: giữ repo cũ của chat, thêm repo chính thức", state["attach"] == [
-        ("s1", root, root, ["acme/shop", SU.SOURCE_REPO])] and got["attached"]["full_name"] == SU.SOURCE_REPO, state)
+    check("máy có quyền ghi repo gốc: gắn, giữ repo cũ của chat, thêm repo chính thức", state["attach"] == [
+        ("s1", root, root, ["acme/shop", SU.SOURCE_REPO])] and got["attached"]["full_name"] == SU.SOURCE_REPO
+        and state["asked"] == [SU.SOURCE_REPO], state)
     SU.attach_source("s1", root)
     check("gắn lần hai: không gắn lại", len(state["attach"]) == 1)
-    state["connected"] = False
-    check("GitHub chưa kết nối: nói rõ cần làm gì", "GitHub" in raises(SU.attach_source, "s2", root))
     check("không rõ khung chat: từ chối", bool(raises(SU.attach_source, "", root)))
+
+    # 20/11/2026: a user's install (GitHub account novagengroup) cloned the official repo, edited it and failed the
+    # push. Without write access nothing is cloned or attached; the model is sent to op=report.
+    for label, meta in (("push false", {"permissions": {"push": False, "pull": True}}),
+                        ("GitHub không trả permissions", {"full_name": SU.SOURCE_REPO}),
+                        ("404", GitHubError(404, "Not Found")), ("403", GitHubError(403, "Forbidden"))):
+        state.update(meta=meta, repos=[{"full_name": "acme/shop"}], attach=[])
+        got = SU.attach_source("s3", root)
+        check(f"không có quyền ghi ({label}): không gắn, không clone, chuyển sang báo lỗi",
+              got.get("report") is True and got["attached"] is None and state["attach"] == [], got)
+    state.update(connected=False, meta={"permissions": {"push": True}}, attach=[])
+    got = SU.attach_source("s4", root)
+    check("GitHub chưa kết nối: không đòi token, chuyển sang báo lỗi", got.get("report") is True
+          and state["attach"] == [] and not SU.can_write_source(), got)
+    state.update(connected=True, meta=GitHubError(502, "Bad Gateway"))
+    check("GitHub trục trặc (502): báo thử lại, không đưa link báo lỗi cho người duy trì",
+          "thử lại" in raises(SU.attach_source, "s5", root).lower() or "try again" in raises(SU.attach_source, "s5", root))
+    state.update(meta=TimeoutError("timed out"))
+    check("mất mạng: báo thử lại", bool(raises(SU.attach_source, "s5", root)))
+    state.update(meta={"permissions": {"push": False}}, repos=[])
+    st = SU.source_status("s6", root)
+    check("trạng thái: nói máy này không ghi được repo gốc", st["can_write"] is False and st["attached"] is None, st)
 finally:
     for k, v in gh.items():
         setattr(github_repos, k, v)
+
+# ═════ link báo lỗi cho nhà phát triển ═════
+url = SU.report_url("Zalo  ảnh lớn\nbị lỗi", "Gửi ảnh 12 MB thì lỗi.\nCách tái hiện: ...", "0.606.1")
+q = parse_qs(urlparse(url).query)
+check("link báo lỗi: mở trang tạo issue của repo gốc", url.startswith(f"https://github.com/{SU.SOURCE_REPO}/issues/new?"), url)
+check("link báo lỗi: tiêu đề một dòng, nội dung kèm phiên bản", q["title"] == ["Zalo ảnh lớn bị lỗi"]
+      and q["body"][0].startswith("Gửi ảnh 12 MB") and q["body"][0].endswith("Javis v0.606.1"), q)
+big = SU.report_url("Lỗi dài", "Dòng chẩn đoán dài. " * 2000)
+check("nội dung quá dài: cắt cho vừa link, có ghi chú đã cắt", len(big) <= SU.REPORT_URL_MAX
+      and "cut to fit" in parse_qs(urlparse(big).query)["body"][0], len(big))
+check("thiếu tiêu đề: từ chối", bool(raises(SU.report_url, "  ", "nội dung")))
 
 # ═════ tự cập nhật ═════
 calls = {"start": 0, "busy": [True, True, False]}
@@ -215,6 +259,7 @@ check("đọc trạng thái chạy ở mọi mức; sửa brain cần safe; mã 
       and plugins_host._required_mode(tool, {"op": "save"}) == "safe"
       and plugins_host._required_mode(tool, {"op": "source"}) == "full"
       and plugins_host._required_mode(tool, {"op": "update"}) == "full"
+      and plugins_host._required_mode(tool, {"op": "report"}) == "readonly"
       and not plugins_host._min_mode_ok(plugins_host._required_mode(tool, {"op": "save"}), "suggest"))
 check("chỉ phiên của chủ thấy tool (bot khách không)", "javis_improve" in mcp_hub.OWNER_ONLY_TOOLS)
 
@@ -256,6 +301,21 @@ out = call({"op": "update"}, turn_context.make("pulse"))
 check("tool: cập nhật từ lượt tự thức bị từ chối", out.startswith("ERROR") and "CHỦ" in out, out)
 out = call({"op": "update"}, owner)
 check("tool: chủ bảo cập nhật mà chưa có bản mới thì nói rõ", out.startswith("ERROR") and "Release" in out, out)
+
+out = call({"op": "report", "title": "Lỗi gửi ảnh Zalo", "body": "Ảnh 12 MB không gửi được."},
+           turn_context.make("pulse"))
+check("tool: op=report trả link issue điền sẵn, nói rõ chưa gửi gì", f"github.com/{SU.SOURCE_REPO}/issues/new?" in out
+      and "nothing has been sent" in out and "Submit" in out and "v0.562.0" in out.replace("%20", " "), out)
+out = call({"op": "report", "body": "x"}, owner)
+check("tool: op=report thiếu tiêu đề thì báo lỗi", out.startswith("ERROR"), out)
+_orig_attach = SU.attach_source
+SU.attach_source = lambda sid, root_: {"repo": SU.SOURCE_REPO, "report": True, "attached": None}
+try:
+    out = call({"op": "source"}, owner)
+finally:
+    SU.attach_source = _orig_attach
+check("tool: op=source trên máy không ghi được: dặn không sửa code, chuyển sang op=report",
+      "do NOT edit" in out and "op=report" in out and "Not attached" in out, out)
 
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 check("main: nối đường cập nhật của nút Cập nhật, phiên bản và lượt đang chạy",
