@@ -48,7 +48,10 @@ ROUTES = {}
 
 
 def handler(request: httpx.Request) -> httpx.Response:
-    status, headers, body = ROUTES[request.url.path]
+    route = ROUTES[request.url.path]
+    if isinstance(route, list):          # a sequence of answers, one per request (202 then 200...)
+        route = route.pop(0) if len(route) > 1 else route[0]
+    status, headers, body = route
     return httpx.Response(status, headers=headers, content=body)
 
 
@@ -141,6 +144,40 @@ check("an oversized photo is refused by its Content-Length", files(inbox) == [] 
 ROUTES["/moved.jpg"] = (302, {"location": "/final.png"}, b"")
 out, inbox, err = photo("/final.png", headers={"content-type": "image/png"}, body=PNG, link_path="/moved.jpg")
 check("a redirect is followed (checked hop by hop) and the image kept", files(inbox) and files(inbox)[0].suffix == ".png", out)
+
+# ---- 3a. The real cause (owner live test 2026-11-20): photo-stal-*.zdn.vn answers 202 + empty body at first -------
+real_backoff = zalo_attachments.ACCEPTED_BACKOFF
+zalo_attachments.ACCEPTED_BACKOFF = (0.01, 0.01, 0.01, 0.01)
+try:
+    ACCEPTED = (202, {"content-length": "0"}, b"")
+    ROUTES["/late.jpg"] = [ACCEPTED, ACCEPTED, (200, {"content-type": "image/jpeg"}, JPEG)]
+    b, inbox = bot()
+    msg = {"message_id": "m202", "chat": {"id": "c1"}, "photo_url": f"https://photo-stal-3.zdn.example/late.jpg?{SECRET}"}
+    errbuf = io.StringIO()
+    httpx.AsyncClient, real_pub = _mock_client, zalo_attachments.public_target
+    zalo_attachments.public_target = _public
+    try:
+        with contextlib.redirect_stderr(errbuf):
+            out = asyncio.run(b._ingest_attachment(NoNetwork(), zb.SK_ANH, msg))
+            ROUTES["/never.jpg"] = [ACCEPTED]
+            never = asyncio.run(b._ingest_attachment(NoNetwork(), zb.SK_ANH, dict(msg, message_id="m202b",
+                                photo_url=f"https://photo-stal-1.zdn.example/never.jpg?{SECRET}")))
+    finally:
+        httpx.AsyncClient, zalo_attachments.public_target = _RealClient, real_pub
+    kept = files(inbox)
+    check("202, 202, then 200: the photo is fetched and kept non-empty as .jpg",
+          len(kept) == 1 and kept[0].stat().st_size == len(JPEG) and kept[0].suffix == ".jpg" and "đã tải về" in out, (kept, out))
+    check("202 that never ends: nothing kept, the turn names HTTP 202 and 'chưa sẵn sàng'",
+          len(files(inbox)) == 1 and "HTTP 202" in never and "chưa sẵn sàng" in never and "đã tải về" not in never, never)
+    check("...logged as status=202 bytes=0, without the link", "status=202" in errbuf.getvalue() and "bytes=0" in errbuf.getvalue()
+          and SECRET not in errbuf.getvalue(), errbuf.getvalue())
+finally:
+    zalo_attachments.ACCEPTED_BACKOFF = real_backoff
+check("Retry-After: numeric is honoured and clamped to [0.5, 5]", zalo_attachments.retry_after("2", 0.8) == 2.0
+      and zalo_attachments.retry_after("0", 0.8) == 0.5 and zalo_attachments.retry_after("120", 0.8) == 5.0)
+check("Retry-After: missing or a date falls back to the backoff step", zalo_attachments.retry_after(None, 0.8) == 0.8
+      and zalo_attachments.retry_after("Wed, 21 Oct 2015 07:28:00 GMT", 1.5) == 1.5)
+check("the whole 202 backoff stays well inside the download time budget", sum(real_backoff) < zalo_attachments.TIMEOUT / 2)
 
 # ---- 3b. Files: an image-named error page, a recording sent as a file, a text error body for a voice message ----
 out, inbox, err = send(zb.SK_UNSUPPORTED, "file_url", "/doc.jpg", headers={"content-type": "text/html"}, body=HTML)

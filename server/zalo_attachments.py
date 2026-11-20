@@ -16,6 +16,16 @@ import image_vision
 MAX_BYTES = 20 * 1024 * 1024
 TIMEOUT = 60
 TEXT_EXTENSIONS = {".txt", ".md", ".csv", ".tsv", ".json", ".yaml", ".yml", ".log"}
+# Waits before asking again when a file server answers 202 (file not ready yet). 8.8s in all, well inside TIMEOUT.
+ACCEPTED_BACKOFF = (0.8, 1.5, 2.5, 4.0)
+
+
+def retry_after(header, default: float) -> float:
+    """Seconds to wait from a numeric Retry-After header, clamped to [0.5, 5]; `default` when absent or not a number."""
+    try:
+        return min(5.0, max(0.5, float(str(header).strip())))
+    except (TypeError, ValueError):
+        return default
 
 
 def normalize(msg: dict) -> dict:
@@ -80,7 +90,8 @@ async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0, diag: dict = N
         async with asyncio.timeout(TIMEOUT):
             async with httpx.AsyncClient(timeout=httpx.Timeout(20, connect=10), follow_redirects=False,
                                          trust_env=False, limits=httpx.Limits(max_keepalive_connections=0)) as client:
-                for _ in range(image_vision.MAX_REDIRECTS + 1):
+                hops = waits = 0
+                while hops <= image_vision.MAX_REDIRECTS:
                     host, ip = await public_target(url)
                     original = httpx.URL(url)
                     pinned = original.copy_with(host=ip)
@@ -94,6 +105,18 @@ async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0, diag: dict = N
                             if not location:
                                 return None, "link file chuyển hướng thiếu địa chỉ"
                             url = str(original.join(location))
+                            hops += 1
+                            continue
+                        if response.status_code == 202:
+                            # Owner live test 2026-11-20: Zalo's photo servers (photo-stal-*.zdn.vn) answer 202 with an
+                            # empty body for a moment after a photo is sent. The old bare download took that 2xx as the
+                            # photo and saved 0 bytes. Ask again a few times, within the same overall time budget.
+                            if waits >= len(ACCEPTED_BACKOFF):
+                                return None, "máy chủ file trả HTTP 202 (file chưa sẵn sàng trên máy chủ Zalo)"
+                            delay = retry_after(response.headers.get("retry-after"), ACCEPTED_BACKOFF[waits])
+                            waits += 1
+                            await response.aclose()
+                            await asyncio.sleep(delay)
                             continue
                         if response.status_code != 200:
                             return None, f"máy chủ file trả HTTP {response.status_code} (link có thể đã hết hạn)"
