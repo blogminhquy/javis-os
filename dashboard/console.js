@@ -2665,7 +2665,7 @@
 
       <div class="si-log" id="lnBackupBox">
         <h3 style="font-size:15px;color:var(--text)">⇅ ${esc(window.t("cs.bk_head"))}${infoBtn()}</h3>
-        ${infoBody(`<p style="margin:0 0 8px">${esc(window.t("cs.bk_p_a"))} <b>${esc(window.t("cs.bk_p_b"))}</b> ${esc(window.t("cs.bk_p_c"))} <b>${esc(window.t("cs.bk_p_d"))}</b>${esc(window.t("cs.bk_p_e"))} <code>.conflict-*</code> ${esc(window.t("cs.bk_p_f"))} <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/18-sao-luu-github.md" target="_blank" style="color:var(--link-ink)">docs/18-sao-luu-github.md</a>.</p>
+        ${infoBody(`<p style="margin:0 0 8px">${esc(window.t("bl.info_fast"))}</p><p style="margin:0 0 8px">${esc(window.t("cs.bk_p_a"))} <b>${esc(window.t("cs.bk_p_b"))}</b> ${esc(window.t("cs.bk_p_c"))} <b>${esc(window.t("cs.bk_p_d"))}</b>${esc(window.t("cs.bk_p_e"))} <code>.conflict-*</code> ${esc(window.t("cs.bk_p_f"))} <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/18-sao-luu-github.md" target="_blank" style="color:var(--link-ink)">docs/18-sao-luu-github.md</a>.</p>
         <ol style="line-height:1.7;margin:0;padding-left:20px">
           <li>${esc(window.t("cs.bk_li1_a"))} <b>Private</b> ${esc(window.t("cs.bk_li1_b"))} <code>javis-brain-backup</code>.</li>
           <li>${esc(window.t("cs.bk_li2_a"))} <b>Fine-grained tokens</b> ${esc(window.t("cs.bk_li2_b"))} <b>Contents: Read and write</b> ${esc(window.t("cs.bk_li2_c"))} <code>github_pat_...</code>).</li>
@@ -2674,24 +2674,30 @@
         <div style="max-width:680px;margin:0 0 12px;color:var(--text3);font-size:13.5px;line-height:1.6">
           <b style="color:var(--text)">${esc(window.t("cs.bk_media_head"))}</b>${infoBtn()}</div>
         ${infoBody(`${esc(window.t("cs.bk_media_a"))} (<code>.md .txt .html .csv .json .canvas .py</code>…). <b>${esc(window.t("cs.bk_media_b"))}</b>; ${esc(window.t("cs.bk_media_c"))}<p>${esc(window.t("cs.bk_media_d"))} <b>${esc(window.t("cs.bk_media_e"))}</b>${esc(window.t("cs.bk_media_f"))}</p><p>${esc(window.t("cs.bk_media_g"))} <b>${esc(window.t("cs.bk_media_h"))}</b> ${esc(window.t("cs.bk_media_i"))}</p>`)}
-        <div class="si-grid">
+        <div class="bl-host" id="bkLink"><div class="pg-loading">${esc(window.t("common.loading"))}</div></div>
+        <div class="si-grid" id="bkManual" hidden>
           <div class="si-field"><label for="bkRepo">${esc(window.t("cs.bk_repo_label"))}</label><input id="bkRepo" placeholder="${esc(window.t("cs.bk_repo_ph"))}">
             <div class="dim" id="bkWarn" style="font-size:16px;margin-top:6px;color:var(--warn-ink)">${WARN_ICON} ${esc(window.t("cs.bk_warn"))}</div></div>
           <div class="si-field"><label>${esc(window.t("cs.bk_token_label"))}</label><input id="bkToken" type="password" placeholder="${esc(window.t("cs.bk_token_ph"))}"></div>
+          <div class="si-field"><label>${esc(window.t("cs.bk_branch"))}</label><input id="bkBranch" value="main" style="max-width:120px"></div>
+          <div class="si-actions">
+            <button class="s-btn" id="bkSave">${SAVE_ICON} ${esc(window.t("cs.ln_save_cfg"))}</button>
+            <button class="s-btn-ghost" id="bkTest">${ic("plug")} ${esc(window.t("cs.bk_test_conn"))}</button>
+            <button class="s-btn-ghost" id="bkManualClose">${esc(window.t("gh.cancel"))}</button>
+          </div>
+        </div>
+        <div class="si-grid" id="bkCfg" hidden>
           <div class="si-row" style="gap:14px;flex-wrap:wrap">
-            <div class="si-field"><label>${esc(window.t("cs.bk_branch"))}</label><input id="bkBranch" value="main" style="max-width:120px"></div>
-            <div class="si-field"><label>${esc(window.t("cs.bk_interval"))}</label><input type="number" id="bkInterval" min="1" value="6" style="max-width:120px"></div>
             <div class="si-field"><label>${esc(window.t("cs.bk_auto"))}</label><button class="si-chip" id="bkAuto">○ ${esc(window.t("settings.tag_off"))}</button></div>
+            <div class="si-field"><label>${esc(window.t("cs.bk_interval"))}</label><input type="number" id="bkInterval" min="1" value="6" style="max-width:120px"></div>
             <div class="si-field"><label for="bkAnhRow">${esc(window.t("cs.bk_images"))}${infoBtn()}</label><button class="si-chip" id="bkAnh">○ ${esc(window.t("settings.tag_off"))}</button></div>
           </div>
           ${infoBody(`${esc(window.t("cs.bk_img_a"))} <b>${esc(window.t("cs.bk_img_b"))}</b> ${esc(window.t("cs.bk_img_c"))} <b>${esc(window.t("cs.bk_img_d"))}</b>${esc(window.t("cs.bk_img_e"))} <b>${esc(window.t("cs.bk_img_f"))}</b> ${esc(window.t("cs.bk_img_g"))}`)}
           <div class="si-actions">
-            <button class="s-btn-ghost" id="bkTest">${ic("plug")} ${esc(window.t("cs.bk_test_conn"))}</button>
             <button class="s-btn" id="bkNow">⇅ ${esc(window.t("cs.bk_sync_now"))}</button>
-            <button class="s-btn-ghost" id="bkSave">${SAVE_ICON} ${esc(window.t("cs.ln_save_cfg"))}</button>
           </div>
-          <div class="dim" id="bkStatus" style="font-size:13px;color:var(--text3)"></div>
         </div>
+        <div class="dim" id="bkStatus" style="font-size:14px;color:var(--text3);margin-top:8px"></div>
       </div>
 
       <div class="si-log"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("improve.auto_title"))}${infoBtn()}</h3>${infoBody(esc(window.t("cs.ln_chat_note")))}<div id="lnChat"><div class="pg-loading">${esc(window.t("common.loading"))}</div></div></div>
@@ -2821,11 +2827,22 @@
             `<div class="dim" style="color:var(--text3)">${esc(window.t("cs.ln_no_learn_log"))}</div>`);
     }
     // ── Backup GitHub ──
-    let bkAutoOn = false, bkAnhOn = false;
+    // The top of the box (connect, pick or create a repo, the linked repo) is backup-link.js; this part keeps the
+    // pasted-token form (#bkManual), the settings of a linked backup (#bkCfg) and the sync itself.
+    let bkAutoOn = false, bkAnhOn = false, bkManualOpen = false;
+    const chipText = (on) => on ? "● " + window.t("settings.tag_on") : "○ " + window.t("settings.tag_off");
     const bkAutoBtn = el.querySelector("#bkAuto");
-    bkAutoBtn.onclick = () => { bkAutoOn = !bkAutoOn; bkAutoBtn.classList.toggle("sel", bkAutoOn); bkAutoBtn.textContent = bkAutoOn ? "● " + window.t("settings.tag_on") : "○ " + window.t("settings.tag_off"); };
     const bkAnhBtn = el.querySelector("#bkAnh");
-    bkAnhBtn.onclick = () => { bkAnhOn = !bkAnhOn; bkAnhBtn.classList.toggle("sel", bkAnhOn); bkAnhBtn.textContent = bkAnhOn ? "● " + window.t("settings.tag_on") : "○ " + window.t("settings.tag_off"); };
+    // A switch takes effect at once (docs/dev/design-style.md, section 6): no separate Save for these.
+    bkAutoBtn.onclick = async () => { bkAutoOn = !bkAutoOn; bkAutoBtn.classList.toggle("sel", bkAutoOn); bkAutoBtn.textContent = chipText(bkAutoOn); await bkSaveCfg(); };
+    bkAnhBtn.onclick = async () => { bkAnhOn = !bkAnhOn; bkAnhBtn.classList.toggle("sel", bkAnhOn); bkAnhBtn.textContent = chipText(bkAnhOn); await bkSaveCfg(); };
+    el.querySelector("#bkInterval").onchange = () => bkSaveCfg();
+    function bkShowManual(on) {
+      bkManualOpen = !!on;
+      el.querySelector("#bkManual").hidden = !bkManualOpen;
+      if (bkManualOpen) el.querySelector("#bkRepo").focus();
+    }
+    el.querySelector("#bkManualClose").onclick = () => bkShowManual(false);
     async function bkSaveCfg() {
       const f = new FormData();
       f.append("repo_url", el.querySelector("#bkRepo").value.trim());
@@ -2837,15 +2854,22 @@
       f.append("sync_images", bkAnhOn ? "1" : "0");
       return (await fetch("/backup/config", { method: "POST", body: f })).json();
     }
-    el.querySelector("#bkSave").onclick = async () => { const b = el.querySelector("#bkSave"); b.textContent = window.t("settings.saving"); await bkSaveCfg(); b.innerHTML = CHECK_ICON + " " + window.t("proj.instr_saved"); setTimeout(() => b.innerHTML = SAVE_ICON + " " + window.t("cs.ln_save_cfg"), 1500); loadBackup(); };
+    el.querySelector("#bkSave").onclick = async () => {
+      const b = el.querySelector("#bkSave"); b.textContent = window.t("settings.saving");
+      // Saving the form by hand is choosing to sync: switch automatic sync on with it, like a GitHub link does.
+      if (el.querySelector("#bkRepo").value.trim()) bkAutoOn = true;
+      await bkSaveCfg(); el.querySelector("#bkToken").value = "";
+      b.innerHTML = SAVE_ICON + " " + window.t("cs.ln_save_cfg"); bkShowManual(false); loadBackup();
+    };
     el.querySelector("#bkTest").onclick = async () => {
       const b = el.querySelector("#bkTest"); b.disabled = true; b.textContent = window.t("cs.bk_checking"); await bkSaveCfg();
       let r = {}; try { r = await (await fetch("/backup/test", { method: "POST" })).json(); } catch (e) { r = { error: e.message }; }
       b.disabled = false; b.innerHTML = ic("plug") + " " + window.t("cs.bk_test_conn");
       el.querySelector("#bkStatus").innerHTML = r.ok ? `<span style="color:var(--green)">${CHECK_ICON} ${esc(window.t("cs.bk_test_ok"))}</span>` : `<span style="color:var(--red)">${ic("circle-x")} ${esc(r.error || window.t("cs.bk_conn_err"))}</span>`;
     };
-    el.querySelector("#bkNow").onclick = async () => {
-      const b = el.querySelector("#bkNow"); b.disabled = true; b.textContent = window.t("cs.bk_syncing"); await bkSaveCfg();
+    async function bkSyncNow() {
+      const b = el.querySelector("#bkNow"); b.disabled = true; b.textContent = window.t("cs.bk_syncing");
+      el.querySelector("#bkStatus").textContent = window.t("cs.bk_syncing");
       let r = {}; try { r = await (await fetch("/backup/now", { method: "POST", body: brainForm() })).json(); } catch (e) { r = { error: e.message }; }
       b.disabled = false; b.textContent = "⇅ " + window.t("cs.bk_sync_now");
       if (r.ok) {
@@ -2864,20 +2888,45 @@
       } else {
         el.querySelector("#bkStatus").innerHTML = `<span style="color:var(--red)">${ic("circle-x")} ${esc(r.error || window.t("app.err_low"))}</span>`;
       }
-    };
-    async function loadBackup() {
-      let s = {}; try { s = await (await fetch(`/backup/status?brain=${encodeURIComponent(fbrain())}`)).json(); } catch (e) { return; }
+    }
+    el.querySelector("#bkNow").onclick = async () => { await bkSaveCfg(); await bkSyncNow(); };
+    async function loadBackup(then) {
+      let s = {}, gh = {};
+      try {
+        [s, gh] = await Promise.all([
+          fetch(`/backup/status?brain=${encodeURIComponent(fbrain())}`).then(r => r.json()),
+          fetch("/github/status").then(r => r.json()).catch(() => ({})),
+        ]);
+      } catch (e) { return; }
+      if (!el.isConnected) return;
       el.querySelector("#bkRepo").value = s.repo_url || "";
       el.querySelector("#bkBranch").value = s.branch || "main";
       el.querySelector("#bkInterval").value = s.interval_hours || 6;
       if (s.token_set && !el.querySelector("#bkToken").value) el.querySelector("#bkToken").placeholder = window.t("cs.bk_token_saved_ph");
-      bkAutoOn = !!s.enabled; bkAutoBtn.classList.toggle("sel", bkAutoOn); bkAutoBtn.textContent = bkAutoOn ? "● " + window.t("settings.tag_on") : "○ " + window.t("settings.tag_off");
-      bkAnhOn = !!s.sync_images; bkAnhBtn.classList.toggle("sel", bkAnhOn); bkAnhBtn.textContent = bkAnhOn ? "● " + window.t("settings.tag_on") : "○ " + window.t("settings.tag_off");
+      bkAutoOn = !!s.enabled; bkAutoBtn.classList.toggle("sel", bkAutoOn); bkAutoBtn.textContent = chipText(bkAutoOn);
+      bkAnhOn = !!s.sync_images; bkAnhBtn.classList.toggle("sel", bkAnhOn); bkAnhBtn.textContent = chipText(bkAnhOn);
+      el.querySelector("#bkCfg").hidden = !s.ready;
+      // The pasted-token form stays open for whoever syncs with one, and opens on demand for the rest.
+      if (s.repo_url && s.token_source === "token" && !gh.connected) bkManualOpen = true;
+      el.querySelector("#bkManual").hidden = !bkManualOpen;
+      if (window.JavisBackupLink) {
+        window.JavisBackupLink.mount(el.querySelector("#bkLink"), s, gh, {
+          showManual: bkShowManual,
+          onChange: () => loadBackup(),
+          // A repo just linked: sync right away, so one tap ends with the brain on GitHub (or pulled from it).
+          onLinked: () => { bkShowManual(false); loadBackup(() => bkSyncNow()); },
+        });
+      }
       const when = s.last_backup ? new Date(s.last_backup * 1000).toLocaleString() : window.t("cs.bk_never");
       const gitNote = s.has_git ? "" : " · " + WARN_ICON + " " + window.t("cs.bk_no_git");
       const brainsNote = s.brains_count != null ? ` · ${window.t("cs.bk_brains_count", { so: s.brains_count })}` : "";
-      el.querySelector("#bkStatus").innerHTML = `${esc(window.t("cs.bk_last"))} ${esc(when)}${s.last_status ? " · " + esc(s.last_status) : ""}${brainsNote}${gitNote}`;
+      el.querySelector("#bkStatus").innerHTML = s.repo_url || !s.has_git
+        ? `${esc(window.t("cs.bk_last"))} ${esc(when)}${s.last_status ? " · " + esc(s.last_status) : ""}${brainsNote}${gitNote}` : "";
+      if (typeof then === "function") then();
     }
+    // Signed in from this box (or anywhere else): show the repo step without a page reload.
+    const bkOnGh = () => { if (el.isConnected) loadBackup(); else window.removeEventListener("javis:github-connected", bkOnGh); };
+    window.addEventListener("javis:github-connected", bkOnGh);
 
     function loadAll() { loadMetrics(); loadChat(); loadReview(); loadLog(); loadBackup(); }
     loadAll();
@@ -5612,6 +5661,9 @@
   function mHead(title) {
     return '<div class="mp-head"><div class="mp-title">' + title + '</div><button class="mp-x" data-act="close">' + X_ICON + '</button></div>';
   }
+  // Shared from the start, not only once the Connections page has been opened: the brain backup box on the
+  // Self-learning page (backup-link.js) opens the GitHub sign-in and its repo picker in this same dialog.
+  window.JavisConnModal = { open: connModal, head: mHead, close: closeConnModal };
   function permChip(p) {
     const m = PERM_META[p] || PERM_META.full;
     return '<span class="perm-chip" style="color:' + m.color + ';border-color:' + m.color + '55">' + esc(window.t(m.key)) + '</span>';

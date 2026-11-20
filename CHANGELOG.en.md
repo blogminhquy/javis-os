@@ -8,6 +8,21 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.617.0] - 2026-11-20
+### Added
+- **Two-way brain sync links through the signed-in GitHub account.** On the Self-learning page, press Connect GitHub, then Create a private repo or Pick an existing one. No token to make, no URL to paste.
+- **Linking syncs right away and turns automatic sync on.** A second machine that picks the same repo pulls the brain down.
+- **A pasted token keeps working as before,** with a button to move onto the signed-in account so the token never runs out.
+### Improved
+- The Auto and Sync images switches take effect at once, no Save needed.
+
+## [0.616.0] - 2026-11-20
+### Improved
+- **In Telegram groups with topics, the bot answers in the topic the question was asked in** instead of piling everything into General. In a group the answer also quotes the message it answers, so a busy group can tell who it is for.
+- **When a customer sends several photos at once, the bot answers once** and looks at the whole set, instead of answering in two or three separate turns.
+- **The bot watches videos customers send** (a few frames, plus the speech when a speech-to-text key is set). Locations, contacts, stickers and polls also reach the bot; before, they were ignored.
+- **When Telegram rate limits, the bot waits and sends again**, long answers split at paragraph breaks, and videos the bot sends play right in the chat.
+
 ## [0.615.0] - 2026-11-20
 ### Improved
 - **Messenger bots know which ad a customer came from.** A click-to-Messenger ad, an m.me link with a ref, or the chat box on a website: the bot sees the ad title or the link's ref, even when the customer reopens an old chat from an ad and types afterwards.

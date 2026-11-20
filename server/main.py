@@ -79,6 +79,7 @@ _write_update_state = update_state.write_state
 _record_boot_version = update_state.record_boot_version
 _update_outcome = update_state.update_outcome
 import git_brain
+import backup_github   # brain backup on the signed-in GitHub account (20/11/2026)
 import engine
 import vision_input
 import borrowed_eyes   # mắt mượn: bộ não khác xem hộ ảnh khi model của bot không xem được (0.94.0)
@@ -8059,10 +8060,12 @@ def _do_backup(brain: str = "") -> dict:
     Cập nhật last_backup/last_status/last_report."""
     cfg = cfgmod.read_settings()
     b = cfg.get("backup", {}) or {}
-    if not (b.get("repo_url") and b.get("token")):
-        return {"ok": False, "error": localefmt.chu("Chưa cấu hình repository URL + token", "Repository URL and token are not configured yet")}
+    tok = backup_github.effective_token(b)
+    if not (b.get("repo_url") and tok):
+        return {"ok": False, "error": localefmt.chu("Chưa chọn repository để đồng bộ. Kết nối GitHub rồi chọn một repository riêng tư.",
+                                                    "No repository to sync with yet. Connect GitHub, then pick a private repository.")}
     mirror = str(cfgmod.STATE_DIR / "brains-backup")   # repo mirror riêng (tránh nested git từng brain)
-    res = git_brain.sync_brains(BRAINS_DIR, mirror, b["repo_url"], b["token"], b.get("branch") or "main",
+    res = git_brain.sync_brains(BRAINS_DIR, mirror, b["repo_url"], tok, b.get("branch") or "main",
                                 trash_dir=str(cfgmod.STATE_DIR / "brain-trash"),
                                 protected_names={_default_brain_dir().name},
                                 sync_images=bool(b.get("sync_images")))
@@ -8110,6 +8113,10 @@ def backup_status(brain: str = Query("brain")):
         "interval_hours": b.get("interval_hours", 6),
         "sync_images": bool(b.get("sync_images")),
         "token_set": bool(b.get("token")),
+        # Where the sync token comes from: "github" (the Connections page sign-in), "token" (pasted here) or "".
+        "use_github": bool(b.get("use_github")),
+        "token_source": backup_github.token_source(b),
+        "ready": backup_github.ready(b),
         "last_backup": b.get("last_backup", 0.0),
         "last_status": b.get("last_status", ""),
         "last_report": b.get("last_report") or {},
@@ -8131,6 +8138,7 @@ async def backup_config(
         b["repo_url"] = repo_url.strip()
     if token:                     # chỉ ghi khi có token MỚI (tránh xoá bằng chuỗi che ••••)
         b["token"] = token.strip()
+        b["use_github"] = False   # a token pasted here is chosen on purpose: it wins over the GitHub connection
     if branch:
         b["branch"] = branch.strip() or "main"
     if enabled is not None:
@@ -8151,12 +8159,42 @@ async def backup_test():
     """Kiểm tra token + repo hợp lệ (git ls-remote) trước khi bật auto."""
     cfg = cfgmod.read_settings()
     b = cfg.get("backup", {}) or {}
-    return await asyncio.to_thread(git_brain.remote_reachable, b.get("repo_url", ""), b.get("token", ""))
+    return await asyncio.to_thread(git_brain.remote_reachable, b.get("repo_url", ""), backup_github.effective_token(b))
 
 
 @app.post("/backup/now")
 async def backup_now(brain: str = Form("brain")):
     return await asyncio.to_thread(_do_backup, brain)
+
+
+async def _backup_link_call(fn, *args):
+    """Run a backup_github step off the event loop; its errors are localized and safe to show."""
+    try:
+        out = await asyncio.to_thread(fn, *args)
+    except backup_github.BackupLinkError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    return {"ok": True, "items": out} if isinstance(out, list) else {"ok": True, **out}
+
+
+@app.get("/backup/github/repos")
+async def backup_github_repos():
+    """Private repos of the connected GitHub account, for the one-tap backup picker."""
+    return await _backup_link_call(backup_github.repos)
+
+
+@app.post("/backup/github/link")
+async def backup_github_link(full_name: str = Form("")):
+    return await _backup_link_call(backup_github.link, full_name)
+
+
+@app.post("/backup/github/create")
+async def backup_github_create(name: str = Form("")):
+    return await _backup_link_call(backup_github.create, name)
+
+
+@app.post("/backup/github/unlink")
+async def backup_github_unlink():
+    return await _backup_link_call(backup_github.unlink)
 
 
 _OR_MODELS_CACHE = {"data": None, "ts": 0.0}
@@ -9734,7 +9772,7 @@ def _eager_brain_sync() -> None:
     6-hour round, so the other machines learn it before they can undo it. Background and best effort."""
     try:
         _b = cfgmod.read_settings().get("backup", {}) or {}
-        if _b.get("enabled") and _b.get("repo_url") and _b.get("token") and git_brain.has_git():
+        if _b.get("enabled") and backup_github.ready(_b) and git_brain.has_git():
             _t = asyncio.create_task(asyncio.to_thread(_do_backup))
             _DELETE_SYNC_TASKS.add(_t)
             _t.add_done_callback(_DELETE_SYNC_TASKS.discard)
@@ -17461,7 +17499,7 @@ async def _start_scheduler():
                 # 4) Đồng bộ GitHub tự động (2 CHIỀU): đủ interval → kéo về + hoà nhập + đẩy lên
                 try:
                     bcfg = cfgmod.read_settings().get("backup", {}) or {}
-                    if bcfg.get("enabled") and bcfg.get("repo_url") and bcfg.get("token") and git_brain.has_git():
+                    if bcfg.get("enabled") and backup_github.ready(bcfg) and git_brain.has_git():
                         interval = max(1, int(bcfg.get("interval_hours", 6))) * 3600
                         if time.time() - float(bcfg.get("last_backup", 0)) >= interval:
                             await asyncio.to_thread(_do_backup)   # 1 lần: toàn bộ thư mục brains, 2 chiều
