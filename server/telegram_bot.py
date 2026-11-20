@@ -17,6 +17,19 @@ Telegram bot cho Javis - long-polling getUpdates, whitelist theo chat_id (MỘT 
 - event_fn(loai, thong_tin): tin DỊCH VỤ của nhóm (bot vào nhóm / bị đá / nhóm nâng cấp lên
   siêu nhóm và đổi id). Telegram gửi mấy tin này bất kể chế độ riêng tư.
 Decoupled: main.py cấp answer_fn (1 lượt chat) + command_fn (xử lý lệnh).
+
+Audit of 2026-11-20 (parity with Slack, WhatsApp and Messenger):
+  - Forum topics: an answer goes back into the TOPIC it was asked in (`message_thread_id`), carried by the turn's
+    own meta so a message in another topic meanwhile cannot redirect it. Before, every answer landed in General.
+  - In a group the answer quotes the message it answers (`reply_parameters`), so a busy group can tell which
+    question it belongs to. Private chats are unchanged.
+  - An album (several photos sent at once) is ONE turn: its parts are gathered for `ALBUM_WAIT` seconds. Before,
+    the first photo started a turn alone and the rest were answered in a second one.
+  - Location, venue, shared contact, sticker and poll reach the bot as text instead of being dropped.
+  - A customer's VIDEO (up to the 20MB the Bot API lets a bot download) is saved in the bot's brain and watched
+    through `meta["video_path"]` (frames, plus speech with a key), like Zalo and Messenger videos.
+  - HTTP 429 waits the `retry_after` Telegram asks for and sends again; long answers split at paragraph breaks;
+    an .mp4 goes out as a playable video.
 """
 import asyncio
 import re
@@ -77,6 +90,12 @@ AUDIO_EXTS = {".mp3", ".m4a"}
 MAX_DOC_MB = 50     # trần sendDocument của bot API
 MAX_PHOTO_MB = 10   # trần sendPhoto
 MAX_DOWNLOAD_MB = 20  # bot API chỉ cho TẢI VỀ file ≤ 20MB
+VIDEO_EXTS = {".mp4", ".mov", ".m4v"}
+MAX_VIDEO_MB = 50     # sendVideo
+MAX_CHUNK = 3500      # chars per message (4096 minus room for MarkdownV2 escapes)
+ALBUM_WAIT = 1.5      # seconds to gather the parts of an album before answering it once
+RETRY_429 = 2
+RETRY_MAX_WAIT = 30
 
 # ---- Chế độ "nói như người thật" (giau_trang_thai=True) ----
 # Chủ repo gửi ảnh chụp một nhóm Telegram (2026-08-07): bot chuyên trách đang nói chuyện như
@@ -179,6 +198,65 @@ def md_to_mdv2(text: str) -> str:
     return t
 
 
+def _chunks(text: str, size: int = MAX_CHUNK) -> list:
+    """Split at a paragraph, else a line, else a space, so a chunk never ends mid-word or mid-markup (a cut through
+    `**bold**` made that chunk fail MarkdownV2 and go out as plain text)."""
+    text = str(text or "")
+    if len(text) <= size:
+        return [text]
+    out = []
+    while len(text) > size:
+        cut = text.rfind("\n\n", 0, size)
+        if cut < size // 2:
+            cut = text.rfind("\n", 0, size)
+        if cut < size // 2:
+            cut = text.rfind(" ", 0, size)
+        if cut < size // 2:
+            cut = size
+        out.append(text[:cut].rstrip())
+        text = text[cut:].lstrip()
+    if text.strip():
+        out.append(text)
+    return out
+
+
+def other_text(msg: dict):
+    """Messages with neither text nor a file (2026-11-20): before, they returned None and the turn was dropped in
+    silence, so a customer sharing their delivery address or phone number got no answer at all."""
+    loc = msg.get("location") or {}
+    venue = msg.get("venue") or {}
+    if venue:
+        loc = venue.get("location") or loc
+        place = " - ".join(x for x in (str(venue.get("title") or ""), str(venue.get("address") or "")) if x)
+        return f"[location: {loc.get('latitude')}, {loc.get('longitude')} {place}]".replace(" ]", "]")
+    if loc:
+        return f"[location: {loc.get('latitude')}, {loc.get('longitude')}]"
+    c = msg.get("contact") or {}
+    if c:
+        name = " ".join(x for x in (c.get("first_name"), c.get("last_name")) if x)
+        return localefmt.chu(f"[Người dùng gửi danh bạ: {name}: {c.get('phone_number') or ''}]",
+                             f"[The user shared a contact: {name}: {c.get('phone_number') or ''}]")
+    st = msg.get("sticker") or {}
+    if st:
+        return localefmt.chu(f"[Người dùng gửi một sticker {st.get('emoji') or ''}]".replace(" ]", "]"),
+                             f"[The user sent a sticker {st.get('emoji') or ''}]".replace(" ]", "]"))
+    poll = msg.get("poll") or {}
+    if poll:
+        opts = "; ".join(str(o.get("text") or "") for o in (poll.get("options") or []))
+        return localefmt.chu(f"[Người dùng tạo bình chọn: {poll.get('question') or ''} ({opts})]",
+                             f"[The user posted a poll: {poll.get('question') or ''} ({opts})]")
+    return None
+
+
+def _where(payload: dict, thread_id=None, reply_to=None) -> dict:
+    """Add the forum topic and the quoted message to a send payload (both optional)."""
+    if thread_id:
+        payload["message_thread_id"] = thread_id
+    if reply_to:
+        payload["reply_parameters"] = {"message_id": reply_to, "allow_sending_without_reply": True}
+    return payload
+
+
 class TelegramBot(HangLuot):
     def __init__(self, token, chat_id, answer_fn, command_fn=None, callback_fn=None,
                  download_dir=None, commands=None, precheck_fn=None, event_fn=None,
@@ -249,9 +327,30 @@ class TelegramBot(HangLuot):
         self._lan_hoi_danh_tinh = 0.0
         # Menu lệnh "/" đẩy lên Telegram hỏng thì cũng phải có chỗ nói ra. Xem `_day_menu_lenh`.
         self.loi_menu_lenh = ""
+        self._topic = {}      # chat -> forum topic of its latest message (default for sends outside a turn)
+        self._albums = {}     # media_group_id -> {"msgs": [...], "task": Task}
 
     def _url(self, method):
         return TG_API.format(token=self.token, method=method)
+
+    def _topic_of(self, chat):
+        """Forum topic of the chat's latest message. `getattr`: some callers build the bot without `__init__`."""
+        return (getattr(self, "_topic", None) or {}).get(str(chat))
+
+    async def _post(self, client, method, **kwargs):
+        """client.post to a Bot API method, waiting out HTTP 429 (`parameters.retry_after`) up to RETRY_429 times.
+        Before, a 429 on the MarkdownV2 try fell through to the plain try, got the same 429, and the chunk was lost."""
+        r = None
+        for attempt in range(RETRY_429 + 1):
+            r = await client.post(self._url(method), **kwargs)
+            if r.status_code != 429 or attempt == RETRY_429:
+                return r
+            try:
+                wait = int(((r.json() or {}).get("parameters") or {}).get("retry_after") or 1)
+            except Exception:
+                wait = 1
+            await asyncio.sleep(max(1, min(wait, RETRY_MAX_WAIT)))
+        return r
 
     async def _day_menu_lenh(self, client):
         """Đẩy menu lệnh `/` lên Telegram - có KIỂM kết quả và đặt cho TỪNG PHẠM VI.
@@ -294,16 +393,17 @@ class TelegramBot(HangLuot):
         else:
             self.loi_menu_lenh = ""
 
-    async def _send(self, client, chat, text, reply_markup=None):
+    async def _send(self, client, chat, text, reply_markup=None, thread_id=None, reply_to=None):
         # "(không có nội dung)" là một dòng gỡ lỗi. Ở chế độ người thật thì thà không nói gì
         # còn hơn nói ra một câu chỉ có nghĩa với người viết code.
         if not str(text or "").strip() and self.giau_trang_thai:
             return
         text = text or "(không có nội dung)"
-        # 3500 (không phải 4096) để chừa chỗ cho ký tự escape MarkdownV2
-        chunks = [text[i:i + 3500] for i in range(0, len(text), 3500)] or [text]
+        thread_id = thread_id or self._topic_of(chat)
+        chunks = _chunks(text) or [text]
         for idx, chunk in enumerate(chunks):
-            base = {"chat_id": chat, "text": chunk}
+            # The quote goes on the first chunk only: the rest of a long answer follows it.
+            base = _where({"chat_id": chat, "text": chunk}, thread_id, reply_to if idx == 0 else None)
             if reply_markup is not None and idx == len(chunks) - 1:
                 base["reply_markup"] = reply_markup   # nút chỉ gắn vào tin cuối
             # MDV2 trước, hỏng escape (400 can't parse entities) → gửi lại plain
@@ -313,7 +413,7 @@ class TelegramBot(HangLuot):
                     payload["text"] = md_to_mdv2(chunk)
                     payload["parse_mode"] = "MarkdownV2"
                 try:
-                    r = await client.post(self._url("sendMessage"), json=payload)
+                    r = await self._post(client, "sendMessage", json=payload)
                     try:
                         ok = bool(r.json().get("ok"))
                     except Exception:
@@ -338,7 +438,7 @@ class TelegramBot(HangLuot):
             return False, "tin rỗng"
         loi = ""
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
-            for chunk in [text[i:i + 3500] for i in range(0, len(text), 3500)]:
+            for chunk in _chunks(text):
                 da_gui = False
                 for use_md in (True, False):
                     payload = {"chat_id": chat, "text": chunk}
@@ -346,7 +446,7 @@ class TelegramBot(HangLuot):
                         payload["text"] = md_to_mdv2(chunk)
                         payload["parse_mode"] = "MarkdownV2"
                     try:
-                        r = await client.post(self._url("sendMessage"), json=payload)
+                        r = await self._post(client, "sendMessage", json=payload)
                         d = r.json() if r.content else {}
                     except Exception as e:
                         return False, f"{type(e).__name__}: {e}"
@@ -358,7 +458,7 @@ class TelegramBot(HangLuot):
                     return False, loi or "Telegram từ chối"
         return True, ""
 
-    async def send_file(self, path, caption="", chat=None):
+    async def send_file(self, path, caption="", chat=None, thread_id=None):
         """Gửi 1 file tới chat (mặc định ID ĐẦU TIÊN trong whitelist - chủ bot).
         Ảnh nhỏ → sendPhoto (có preview), còn lại / ảnh bị từ chối → sendDocument.
         Trả (ok, error)."""
@@ -379,6 +479,9 @@ class TelegramBot(HangLuot):
             return False, f"{type(e).__name__}: {e}"
         caption = (caption or "")[:1000]
         data = {"chat_id": chat}
+        thread_id = thread_id or self._topic_of(chat)
+        if thread_id:
+            data["message_thread_id"] = str(thread_id)
         if caption:
             data["caption"] = caption
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
@@ -392,6 +495,14 @@ class TelegramBot(HangLuot):
                     except Exception:
                         pass
                     # ảnh bị từ chối (kích thước/định dạng lạ) → rơi xuống gửi dạng document
+                elif p.suffix.lower() in VIDEO_EXTS and size <= MAX_VIDEO_MB * 1024 * 1024:
+                    # Plays in the chat instead of arriving as a file to download (2026-11-20).
+                    r = await self._post(client, "sendVideo", data=data, files={"video": (p.name, content)})
+                    try:
+                        if r.json().get("ok"):
+                            return True, ""
+                    except Exception:
+                        pass
                 elif p.suffix.lower() in AUDIO_EXTS:
                     r = await client.post(self._url("sendAudio"), data=data, files={"audio": (p.name, content)})
                     try:
@@ -412,13 +523,14 @@ class TelegramBot(HangLuot):
             except Exception as e:
                 return False, f"{type(e).__name__}: {e}"
 
-    async def _typing(self, client, chat):
+    async def _typing(self, client, chat, thread_id=None):
         try:
-            await client.post(self._url("sendChatAction"), json={"chat_id": chat, "action": "typing"})
+            await client.post(self._url("sendChatAction"),
+                              json=_where({"chat_id": chat, "action": "typing"}, thread_id))
         except Exception:
             pass
 
-    async def _giu_typing(self, client, chat):
+    async def _giu_typing(self, client, chat, thread_id=None):
         """Giữ chấm "đang nhập…" sáng suốt cả lượt trả lời (chế độ người thật).
 
         Đây là thứ THAY THẾ tin "🤔 Javis đang xử lý…": người đang chờ vẫn thấy đầu kia có
@@ -426,11 +538,11 @@ class TelegramBot(HangLuot):
         Telegram tự tắt chấm sau ~5 giây nên phải nhắc lại đều.
         """
         while True:
-            await self._typing(client, chat)
+            await self._typing(client, chat, thread_id)
             await asyncio.sleep(TYPING_MOI_GIAY)
 
     # ---- Tin TRẠNG THÁI: gửi IM LẶNG → cập nhật theo tiến trình → ở lại làm dòng vết ----
-    async def _send_status(self, client, chat, text):
+    async def _send_status(self, client, chat, text, thread_id=None, reply_to=None):
         """Gửi 1 tin trạng thái (plain, không markdown) → trả message_id để sửa sau.
 
         `disable_notification` là phần quan trọng chứ không phải chi tiết làm đẹp. Trước đây
@@ -440,9 +552,9 @@ class TelegramBot(HangLuot):
         nên cả lượt chỉ còn đúng một tiếng chuông: lúc câu trả lời thật được gửi.
         """
         try:
-            r = await client.post(self._url("sendMessage"),
-                                  json={"chat_id": chat, "text": text,
-                                        "disable_notification": True})
+            r = await self._post(client, "sendMessage",
+                                 json=_where({"chat_id": chat, "text": text, "disable_notification": True},
+                                             thread_id, reply_to))
             d = r.json()
             if d.get("ok"):
                 return d["result"]["message_id"]
@@ -482,6 +594,10 @@ class TelegramBot(HangLuot):
             "bot_username": self.bot_username,
             "mentioned": self._co_nhac_ten(msg),
             "reply_to_bot": self._la_reply_bot(msg),
+            # Forum topic of the message (2026-11-20): the answer goes back into it. Only for a real topic message:
+            # a plain supergroup also puts `message_thread_id` on replies, and sending with it there fails.
+            "thread_id": msg.get("message_thread_id") if msg.get("is_topic_message") else None,
+            **({"video_path": msg["_video_path"]} if msg.get("_video_path") else {}),
         }
 
     def _co_nhac_ten(self, msg):
@@ -704,10 +820,9 @@ class TelegramBot(HangLuot):
             name = f"photo_{msg.get('message_id')}.jpg"
             fsize = big.get("file_size") or 0
         elif media_khac:
-            return _with_cap("[Người dùng gửi video qua Telegram - Javis chưa xem được loại này. "
-                             "Hãy lịch sự nhờ user gõ chữ, gửi tin thoại, hoặc gửi dạng file tài liệu.]")
+            return await self._ingest_video(client, msg, media_khac, _with_cap)
         else:
-            return None
+            return other_text(msg)
 
         if fsize and fsize > MAX_DOWNLOAD_MB * 1024 * 1024:
             return _with_cap(f"[Người dùng gửi {kind} '{name}' ({fsize // (1024 * 1024)}MB) nhưng "
@@ -738,8 +853,33 @@ class TelegramBot(HangLuot):
             return _with_cap(f"[Người dùng gửi {kind} qua Telegram nhưng tải về lỗi: "
                              f"{type(e).__name__}: {e}]")
 
+    async def _ingest_video(self, client, msg, media, _with_cap):
+        """A video or round video note (2026-11-20). Saved in the download folder and handed to the runtime as
+        `msg["_video_path"]` (read by `_build_meta`), which watches it like a Zalo or Messenger video. The owner's
+        chat keeps the usual download line; a customer bot gets no server path in its text."""
+        fsize = media.get("file_size") or 0
+        if fsize and fsize > MAX_DOWNLOAD_MB * 1024 * 1024:
+            return _with_cap(f"[Người dùng gửi video ({fsize // (1024 * 1024)}MB) nhưng Telegram bot chỉ cho tải file "
+                             f"dưới {MAX_DOWNLOAD_MB}MB, Javis không xem được. Hãy nhờ người dùng gửi đoạn ngắn hơn hoặc "
+                             "tả lại bằng chữ.]")
+        data, loi = await self._tai_ve_ram(client, media.get("file_id"))
+        if loi:
+            return _with_cap(f"[Người dùng gửi video qua Telegram nhưng tải về lỗi: {loi}]")
+        chat = str((msg.get("chat") or {}).get("id", ""))
+        ddir = self.download_dir(chat) if callable(self.download_dir) else self.download_dir
+        d = Path(ddir) if ddir else Path("telegram-inbox")
+        d.mkdir(parents=True, exist_ok=True)
+        dest = d / f"video_{msg.get('message_id')}_{int(time.time())}.mp4"
+        dest.write_bytes(data)
+        msg["_video_path"] = str(dest)
+        if self.giau_trang_thai:
+            return _with_cap("[Người dùng gửi một video qua Telegram]")
+        return _with_cap(f"[Người dùng gửi video qua Telegram, gateway đã tải về: {dest}]")
+
     async def _handle_turn(self, client, chat, text, meta=None):
-        await self._typing(client, chat)
+        thread = (meta or {}).get("thread_id")
+        quote = (meta or {}).get("message_id") if str((meta or {}).get("chat_type") or "") in ("group", "supergroup") else None
+        await self._typing(client, chat, thread)
         files = []
         # Chờ dài mà đầu kia im hẳn thì người ta tưởng hỏng. Hai cách nói điều đó:
         #   - bot của CHỦ: một tin trạng thái gửi IM LẶNG, cập nhật theo tiến trình (đang gọi
@@ -755,9 +895,9 @@ class TelegramBot(HangLuot):
         status_mid = None
         giu = None
         if self.giau_trang_thai:
-            giu = asyncio.create_task(self._giu_typing(client, chat))
+            giu = asyncio.create_task(self._giu_typing(client, chat, thread))
         else:
-            status_mid = await self._send_status(client, chat, "🤔 Javis đang xử lý…")
+            status_mid = await self._send_status(client, chat, "🤔 Javis đang xử lý…", thread, quote)
         _last = [0.0]
         t0 = time.monotonic()
         tools = []          # tên công cụ đã gọi trong lượt, giữ thứ tự, không trùng
@@ -775,7 +915,7 @@ class TelegramBot(HangLuot):
             if now - _last[0] < 2.5:      # throttle ~2.5s → không spam / dính rate-limit Telegram
                 return
             _last[0] = now
-            await self._typing(client, chat)
+            await self._typing(client, chat, thread)
             # Chuỗi nói về công cụ thì hiện NHÃN đã rút gọn, không hiện nguyên chuỗi engine gửi
             # (Codex từng gửi cả câu lệnh shell dài vài dòng làm "tên").
             await self._edit_status(client, chat, status_mid,
@@ -811,17 +951,22 @@ class TelegramBot(HangLuot):
                 return
             # Nếu câu trả lời chỉ là ![](local-path) và file đã được tách để gửi riêng, không gửi
             # thêm tin "(không có nội dung)" trước ảnh.
+            # Topic and quote go only when there is one: older callers and tests replace `_send` / `send_file`
+            # with the signatures they had before 2026-11-20.
+            where = {"thread_id": thread} if thread else {}
+            ans_where = dict(where, **({"reply_to": quote} if quote and self.giau_trang_thai else {}))
             if str(reply or "").strip() or not files:
-                await self._send(client, chat, reply)
+                # The owner's status message already quotes the question; the answer quotes it in human mode.
+                await self._send(client, chat, reply, **ans_where)
             # Gửi file SAU câu trả lời để thứ tự đọc tự nhiên (text trước, đính kèm sau)
             for f in files:
                 fpath, fcap = (f.get("path"), f.get("caption", "")) if isinstance(f, dict) else (f, "")
-                ok, err = await self.send_file(fpath, fcap, chat=chat)
+                ok, err = await self.send_file(fpath, fcap, chat=chat, **where)
                 if not ok:
                     print(f"[telegram gửi file] {fpath}: {err}", file=sys.stderr)
                     if not self.giau_trang_thai:
                         await self._send(client, chat,
-                                         f"⚠ Không gửi được file {Path(str(fpath)).name}: {err}")
+                                         f"⚠ Không gửi được file {Path(str(fpath)).name}: {err}", **where)
         finally:
             if giu:
                 giu.cancel()
@@ -878,13 +1023,22 @@ class TelegramBot(HangLuot):
                         chat = str((msg.get("chat") or {}).get("id", ""))
                         if not chat:
                             continue
+                        if upd.get("edited_message") and msg.get("location"):
+                            continue    # a live location moving: dozens of edits, none of them a new question
                         # Tin dịch vụ đi TRƯỚC whitelist: "bot vừa bị thả vào nhóm nào" là
                         # chuyện phải biết kể cả (nhất là) khi nhóm đó chưa được cho phép.
                         await self._bao_su_kien(msg)
                         if self.chat_ids and chat not in self.chat_ids:
                             await self._send(client, chat, "Bạn không có quyền dùng bot Javis này.")
                             continue
+                        if msg.get("is_topic_message") and msg.get("message_thread_id"):
+                            self._topic[chat] = msg["message_thread_id"]
+                        else:
+                            self._topic.pop(chat, None)
                         text = (msg.get("text") or "").strip()
+                        if not text and msg.get("media_group_id"):
+                            self._album_add(client, chat, msg)
+                            continue
                         if not text:
                             # tin không có chữ → ảnh/file đính kèm. Caption có thể là LỆNH
                             # (vd "/notes ..."): đưa lệnh lên đầu để _dispatch nhận đúng, kèm
@@ -906,6 +1060,46 @@ class TelegramBot(HangLuot):
                     print(f"[telegram loop] {type(e).__name__}: {e}", file=sys.stderr)
                     await asyncio.sleep(5)
             print("[telegram] bot stopped", file=sys.stderr)
+
+    # ---- Albums: several photos sent at once arrive as separate messages (2026-11-20) ----
+    def _album_add(self, client, chat, msg):
+        gid = str(msg.get("media_group_id"))
+        entry = self._albums.setdefault(gid, {"msgs": [], "task": None})
+        entry["msgs"].append(msg)
+        if entry["task"] and not entry["task"].done():
+            entry["task"].cancel()
+        entry["task"] = asyncio.create_task(self._album_flush(client, chat, gid))
+
+    async def _album_flush(self, client, chat, gid):
+        """ALBUM_WAIT seconds after the last part arrived, every part becomes ONE turn: all the download lines, the
+        caption once (Telegram puts it on one part), the meta of the part that carries it."""
+        try:
+            await asyncio.sleep(ALBUM_WAIT)
+        except asyncio.CancelledError:
+            return
+        entry = self._albums.pop(gid, None) or {}
+        msgs = entry.get("msgs") or []
+        if not msgs or self._stop:
+            return
+        try:
+            cap_msg = next((m for m in msgs if (m.get("caption") or "").strip()), msgs[0])
+            cap = (cap_msg.get("caption") or "").strip()
+            parts = []
+            for m in msgs:
+                t = await self._ingest_attachment(client, {k: v for k, v in m.items() if k != "caption"})
+                if t:
+                    parts.append(t)
+                if m.get("_video_path") and not cap_msg.get("_video_path"):
+                    cap_msg["_video_path"] = m["_video_path"]
+            ingested = "\n".join(parts)
+            if cap.startswith("/"):
+                text = cap + ("\n" + ingested if ingested else "")
+            else:
+                text = (ingested + ("\n" + cap if cap else "")).strip()
+            if text:
+                await self._dispatch(client, chat, text, self._build_meta(cap_msg))
+        except Exception as e:
+            print(f"[telegram album] {type(e).__name__}: {e}", file=sys.stderr)
 
     async def _handle_callback(self, client, cq):
         """Xử lý bấm nút inline: trả lời callback (tắt spinner) + sửa tin để hiện bước kế."""
