@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.618.0] - 2026-11-21
+### Added
+- **Claude Code and Codex sessions are saved into Javis automatically.** Each finished turn, your prompt and the agent's final answer, appears in History as "From Claude Code: ..." or "From Codex: ...", and feeds self-learning.
+- **Setup is one "yes".** Connect Claude Code or Codex to Javis Gate and it asks whether to turn on Javis Sync; say yes and it installs itself on that machine, no command to type and no token to copy.
+- **No quota spent, nothing lost.** Javis runs no model for it, API keys are masked before saving, and turns wait and resend when Javis is off. Its token can only save chats, nothing else.
+
 ## [0.617.1] - 2026-11-20
 ### Fixed
 - **Facebook cookie cards load pages again.** When a page is opened with a card from the Cookies page, Javis now sends the navigation headers a real browser sends (`Sec-Fetch-*`, `Accept`, `Upgrade-Insecure-Requests`). Before, Facebook answered 400 before it even read the cookies, so a live sign-in still showed "last load failed".
