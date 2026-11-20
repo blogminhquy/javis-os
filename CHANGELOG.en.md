@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.610.2] - 2026-11-20
+### Fixed
+- **Asking Javis to fix Javis's own code no longer ends in "cannot write to blogminhquy/javis-os" on a user's install.** Every install used to clone the official repo, edit it for a whole turn and only fail at the push. Now an install without write access clones and edits nothing: Javis writes the bug report and suggested fix and hands you a link to a prefilled issue for the developer. Read it, press Submit, no token or extra access needed.
+
 ## [0.610.1] - 2026-11-20
 ### Fixed
 - **Telegram bot chats (and every other bot channel) show again in the history of the partner the bot uses.** A bot whose record held another spelling of the same brain (a full path from an older version, a trailing slash, or a brain folder that moved) answered as usual, but its chats never reached the partner's History column. Javis now matches the brain the chats are actually stored in, and a partner name with Vietnamese accents matches even when its file was made on macOS.
