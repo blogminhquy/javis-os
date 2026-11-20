@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.609.0] - 2026-11-20
+### Thêm mới
+- **Rời nhóm Zalo ngay ở menu "..." của trang Hội thoại.** Lịch sử chat vẫn giữ trong Javis, ở bộ lọc Đã ẩn.
+- **Nút Chặn có ở mọi kênh.** Messenger và Zalo chặn thật trên nền tảng; kênh khác chặn trong Javis: bot im, chat ẩn đi, tin mới không làm nó hiện lại.
+- **Thêm Bỏ chặn** cho cuộc chat đã chặn, trả lại đúng chế độ trả lời trước đó.
+
 ## [0.608.0] - 2026-11-20
 ### Cải thiện
 - **Trang Công cụ (Plugins) làm lại gọn như trang Nhiệm vụ.** Cột trái lọc theo trạng thái và nguồn, mục Tất cả là một danh sách liền xếp theo tên, công cụ của bạn và từ Javis Store có tag riêng.
