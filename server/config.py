@@ -252,7 +252,9 @@ _DEFAULT = {
     # không đòi lại dung lượng. Dùng nhiều máy chung repo thì bật trên MỌI máy (dù đã có rào
     # chống máy tắt xoá chéo ảnh của máy bật - xem git_brain._sync_mirror). Khi bật, máy dọn
     # media tự BỎ QUA attachments/ để ảnh vừa backup không bị dọn rồi lệnh xoá lan đi các máy.
-    "backup": {"enabled": False, "repo_url": "", "token": "", "branch": "main",
+    # use_github: the sync rides on the GitHub connection (Connections page) instead of a pasted token
+    # (backup_github.py, 20/11/2026).
+    "backup": {"enabled": False, "repo_url": "", "token": "", "branch": "main", "use_github": False,
                "interval_hours": 6, "sync_images": False,
                "last_backup": 0.0, "last_status": ""},
     "dashboard": {
