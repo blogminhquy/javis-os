@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.611.0] - 2026-11-20
+### Added
+- **Connect Asana.** The Connections page has an Asana card on the official V2 MCP: Javis finds and reads tasks, projects and due dates, creates and updates tasks, and adds comments. Sign in from the dashboard; works on a VPS too.
+- You create an Asana MCP app once (about 5 minutes); the card walks you through it. It starts at Read-only.
+
 ## [0.610.2] - 2026-11-20
 ### Fixed
 - **Asking Javis to fix Javis's own code no longer ends in "cannot write to blogminhquy/javis-os" on a user's install.** Every install used to clone the official repo, edit it for a whole turn and only fail at the push. Now an install without write access clones and edits nothing: Javis writes the bug report and suggested fix and hands you a link to a prefilled issue for the developer. Read it, press Submit, no token or extra access needed.
