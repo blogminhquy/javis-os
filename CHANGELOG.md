@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.617.0] - 2026-11-20
+### Thêm mới
+- **Đồng bộ brain 2 chiều nối bằng tài khoản GitHub đã đăng nhập.** Ở trang Tự học, bấm Kết nối GitHub rồi Tạo repo riêng tư hoặc Chọn repo có sẵn. Không còn phải tự tạo token và dán URL.
+- **Nối xong là đồng bộ ngay và bật tự động.** Máy thứ hai chọn cùng repo là kéo brain về.
+- **Ai đang dùng token riêng vẫn chạy như cũ,** và có nút chuyển sang tài khoản GitHub đã đăng nhập để khỏi lo token hết hạn.
+### Cải thiện
+- Công tắc Tự động và Đồng bộ cả ảnh có hiệu lực ngay, không cần bấm Lưu.
+
 ## [0.616.0] - 2026-11-20
 ### Cải thiện
 - **Nhóm Telegram có chủ đề (topic): bot trả lời đúng chủ đề người ta hỏi**, thay vì dồn hết về mục General. Trong nhóm, câu trả lời còn trích đúng tin được hỏi, nên đông người vẫn biết bot đang trả lời ai.
