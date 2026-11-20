@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.614.0] - 2026-11-20
+### Improved
+- **WhatsApp bots read catalog orders.** Before, when a customer sent their cart the bot ignored the whole order. It now sees each product, the quantity, the total and the note. Shared contacts, WhatsApp Flow forms, and a location's name and address also reach the bot.
+- **The bot knows which ad the customer came from** (click-to-WhatsApp ads) and which catalog product they are asking about, so it can answer to the point.
+- **A paused bot, or one you have taken over, no longer shows the customer "typing..." and then says nothing.** The indicator only appears when the bot is really answering.
+- **When WhatsApp rate limits, the bot waits and sends again**, videos go out playable in the chat, and an image too large for WhatsApp goes as a document instead of failing.
+
 ## [0.613.0] - 2026-11-20
 ### Added
 - **The Account page has a "Forgot your current password?" line** right under Change password. On Windows and Mac it opens the install folder with the reset file selected, so a double-click is all it takes. On a VPS, Docker or Hostinger it shows the reset steps.

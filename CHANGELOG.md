@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.614.0] - 2026-11-20
+### Cải thiện
+- **Bot WhatsApp đọc được đơn đặt hàng từ catalog.** Trước đây khách bấm gửi giỏ hàng thì bot bỏ qua cả đơn. Giờ bot thấy từng sản phẩm, số lượng, tổng tiền và lời nhắn kèm theo. Danh bạ khách gửi, biểu mẫu WhatsApp Flow, tên và địa chỉ của vị trí cũng tới được bot.
+- **Bot biết khách tới từ quảng cáo nào** (quảng cáo bấm vào nhắn WhatsApp) và khách đang hỏi sản phẩm nào trong catalog, để trả lời đúng ý.
+- **Bot đang tạm dừng hoặc bạn đang tiếp quản thì khách không còn thấy "đang soạn tin..." rồi im luôn.** Dòng đó chỉ hiện khi bot thật sự trả lời.
+- **WhatsApp giới hạn tần suất thì bot chờ rồi gửi lại**, video gửi đi xem được ngay trong chat, ảnh quá cỡ tự gửi thành tài liệu thay vì báo lỗi.
+
 ## [0.613.0] - 2026-11-20
 ### Thêm mới
 - **Trang Tài khoản có dòng "Quên mật khẩu hiện tại?"** ngay dưới nút Đổi mật khẩu. Trên Windows và Mac, bấm vào là Javis mở thư mục cài đặt và chọn sẵn file reset, chỉ cần bấm đúp. Trên VPS, Docker, Hostinger thì hiện các bước đặt lại.
