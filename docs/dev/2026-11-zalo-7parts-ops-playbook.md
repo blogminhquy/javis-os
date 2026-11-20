@@ -35,7 +35,7 @@ Khi `blogminhquy/javis-zalo` gộp xong bộ PR 7 phần (`#21`, `#22`, `#23`, P
 ## 4. Cấu hình chuẩn cho Scheduler và Workflow trên Javis OS
 
 Khối JSON dưới đây là cấu hình chuẩn cho:
-- **(a) Nhóm im lặng theo giờ Việt Nam (`22:30` khoá nhóm -> `05:30` mở nhóm, `Asia/Ho_Chi_Minh`)**, bảo toàn đủ 9 cờ cài đặt nhóm theo PR `#21` (`blockName`, `signAdminMsg`, `addMemberOnly`, `setTopicOnly`, `enableMsgHistory`, `joinAppr`, `lockCreatePost`, `lockCreatePoll`, `lockSendMsg`).
+- **(a) Nhóm im lặng theo giờ Việt Nam (`22:30` khoá nhóm -> `05:30` mở nhóm, `Asia/Ho_Chi_Minh`)**, bảo toàn đủ 9 cờ cài đặt nhóm theo PR `#21` (`blockName`, `signAdminMsg`, `setTopicOnly`, `enableMsgHistory`, `joinAppr`, `lockCreatePost`, `lockCreatePoll`, `lockSendMsg`, `lockViewMember`) và dừng an toàn nếu nhóm thiếu quyền `isAdmin` hoặc có `blocked_members` hay các cờ `zca-js` không bảo toàn được (`addMemberOnly`, `bannFeature`, `dirtyMedia`, `banDuration` khác `0`).
 - **(b) Vòng đời Poll của `nexme marathon` kết hợp `nexme-ops`**: tự động tạo poll (`zalo_create_poll`) -> đọc danh sách người đã bình chọn và đối chiếu hội viên qua `nexme-ops` (`zalo_get_poll` với `includeVoters=true`) -> chốt bản chụp cuối và tự động khoá poll (`zalo_lock_poll`, lưu ý poll đã khoá không thể mở lại qua Zalo API).
 
 ```json:javis-zalo-7parts-schedules
@@ -53,13 +53,20 @@ Khối JSON dưới đây là cấu hình chuẩn cho:
   "preserved_group_flags": [
     "blockName",
     "signAdminMsg",
-    "addMemberOnly",
     "setTopicOnly",
     "enableMsgHistory",
     "joinAppr",
     "lockCreatePost",
     "lockCreatePoll",
-    "lockSendMsg"
+    "lockSendMsg",
+    "lockViewMember"
+  ],
+  "unpreserved_guard_fields": [
+    "blocked_members",
+    "addMemberOnly",
+    "bannFeature",
+    "dirtyMedia",
+    "banDuration"
   ],
   "reminders": [
     {
@@ -74,7 +81,7 @@ Khối JSON dưới đây là cấu hình chuẩn cho:
       "target_flag": "lockSendMsg",
       "desired_value": true,
       "verify_readback": true,
-      "prompt": "Trên kết nối Zalo profile=nexme (hoặc nhóm mục tiêu đã cấu hình), gọi zalo_get_group_settings(threadId) để kiểm tra isAdmin và ghi nhận đủ 9 cờ cài đặt nhóm. Nếu không có quyền isAdmin hoặc không đọc được cài đặt thì dừng an toàn và báo chủ. Nếu lockSendMsg đã là true thì trả [SILENT]. Nếu lockSendMsg đang là false, gọi zalo_update_group_settings(threadId, lockSendMsg=true) để khoá gửi tin mà vẫn bảo toàn 8 cờ còn lại, sau đó kiểm tra kết quả readback đảm bảo settings.lockSendMsg == true."
+      "prompt": "Trên kết nối Zalo profile=nexme (hoặc nhóm mục tiêu đã cấu hình), gọi zalo_get_group_settings(threadId) để kiểm tra isAdmin và ghi nhận đủ 9 cờ cài đặt nhóm (blockName, signAdminMsg, setTopicOnly, enableMsgHistory, joinAppr, lockCreatePost, lockCreatePoll, lockSendMsg, lockViewMember). Nếu thiếu quyền isAdmin hoặc nhóm có blocked_members hay các cờ zca-js không bảo toàn được (addMemberOnly, bannFeature, dirtyMedia, banDuration khác 0) khiến zalo_update_group_settings từ chối ghi thì dừng an toàn và báo chủ. Nếu lockSendMsg đã là true thì trả [SILENT]. Nếu lockSendMsg đang là false, gọi zalo_update_group_settings(threadId, lockSendMsg=true) để khoá gửi tin mà vẫn bảo toàn 8 cờ còn lại, sau đó kiểm tra kết quả readback đảm bảo settings.lockSendMsg == true."
     },
     {
       "slug": "zalo-quiet-hours-unlock",
@@ -88,7 +95,7 @@ Khối JSON dưới đây là cấu hình chuẩn cho:
       "target_flag": "lockSendMsg",
       "desired_value": false,
       "verify_readback": true,
-      "prompt": "Trên kết nối Zalo profile=nexme (hoặc nhóm mục tiêu đã cấu hình), gọi zalo_get_group_settings(threadId) để kiểm tra isAdmin và 9 cờ cài đặt nhóm. Nếu không có quyền isAdmin thì dừng an toàn và báo chủ. Nếu lockSendMsg đã là false thì trả [SILENT]. Nếu lockSendMsg đang là true, gọi zalo_update_group_settings(threadId, lockSendMsg=false) để mở gửi tin buổi sáng mà vẫn bảo toàn 8 cờ còn lại, sau đó kiểm tra readback đảm bảo settings.lockSendMsg == false."
+      "prompt": "Trên kết nối Zalo profile=nexme (hoặc nhóm mục tiêu đã cấu hình), gọi zalo_get_group_settings(threadId) để kiểm tra isAdmin và đủ 9 cờ cài đặt nhóm (blockName, signAdminMsg, setTopicOnly, enableMsgHistory, joinAppr, lockCreatePost, lockCreatePoll, lockSendMsg, lockViewMember). Nếu thiếu quyền isAdmin hoặc nhóm có blocked_members hay các cờ zca-js không bảo toàn được (addMemberOnly, bannFeature, dirtyMedia, banDuration khác 0) khiến zalo_update_group_settings từ chối ghi thì dừng an toàn và báo chủ. Nếu lockSendMsg đã là false thì trả [SILENT]. Nếu lockSendMsg đang là true, gọi zalo_update_group_settings(threadId, lockSendMsg=false) để mở gửi tin buổi sáng mà vẫn bảo toàn 8 cờ còn lại, sau đó kiểm tra readback đảm bảo settings.lockSendMsg == false."
     },
     {
       "slug": "zalo-marathon-poll-create",
@@ -139,21 +146,21 @@ Khối JSON dưới đây là cấu hình chuẩn cho:
       "slug": "zalo-quiet-hours-guard",
       "meta": {
         "name": "Kiểm tra và chuyển trạng thái khung giờ im lặng nhóm Zalo",
-        "description": "Đọc 9 cờ cài đặt nhóm, chỉ đổi lockSendMsg khi cần và xác nhận readback trên cùng kết nối MCP.",
+        "description": "Đọc 9 cờ cài đặt nhóm, dừng an toàn nếu thiếu isAdmin hoặc có blocked_members hay cờ không bảo toàn được (addMemberOnly, bannFeature, dirtyMedia, banDuration), chỉ đổi lockSendMsg khi cần và xác nhận readback trên cùng kết nối MCP.",
         "status": "active",
         "nodes": [
           {
             "id": "read_settings",
             "kind": "model_step",
             "agent": "zalo-ops",
-            "task": "Gọi zalo_get_group_settings(threadId) kiểm tra isAdmin và chụp nguyên trạng 9 cờ cài đặt nhóm."
+            "task": "Gọi zalo_get_group_settings(threadId) kiểm tra isAdmin, chụp nguyên trạng 9 cờ cài đặt nhóm (blockName, signAdminMsg, setTopicOnly, enableMsgHistory, joinAppr, lockCreatePost, lockCreatePoll, lockSendMsg, lockViewMember) và kiểm tra các trường cảnh vệ (blocked_members, addMemberOnly, bannFeature, dirtyMedia, banDuration)."
           },
           {
             "id": "toggle_lock_send_msg",
             "kind": "model_step",
             "depends_on": ["read_settings"],
             "agent": "zalo-ops",
-            "task": "Nếu lockSendMsg khác giá trị mục tiêu, gọi zalo_update_group_settings(threadId, lockSendMsg=desired) và kiểm tra readback đảm bảo 8 cờ còn lại không đổi."
+            "task": "Nếu thiếu quyền isAdmin hoặc có blocked_members hay cờ không bảo toàn được (addMemberOnly, bannFeature, dirtyMedia, banDuration khác 0) thì dừng an toàn và báo chủ. Nếu lockSendMsg khác giá trị mục tiêu, gọi zalo_update_group_settings(threadId, lockSendMsg=desired) và kiểm tra readback đảm bảo 8 cờ còn lại không đổi."
           }
         ],
         "output_node": "toggle_lock_send_msg"

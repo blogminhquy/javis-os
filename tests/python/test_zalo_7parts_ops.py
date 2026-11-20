@@ -125,12 +125,21 @@ check("cấu hình sandbox khoá cứng vào profile=nexme, Test nhom zalo, thre
       sandbox)
 
 NINE_FLAGS = [
-    "blockName", "signAdminMsg", "addMemberOnly", "setTopicOnly",
-    "enableMsgHistory", "joinAppr", "lockCreatePost", "lockCreatePoll", "lockSendMsg",
+    "blockName", "signAdminMsg", "setTopicOnly",
+    "enableMsgHistory", "joinAppr", "lockCreatePost",
+    "lockCreatePoll", "lockSendMsg", "lockViewMember",
 ]
-check("khai báo bảo toàn đủ 9 cờ cài đặt nhóm theo PR #21",
-      spec.get("preserved_group_flags") == NINE_FLAGS,
+check("khai báo bảo toàn đủ 9 cờ cài đặt nhóm theo PR #21 (có lockViewMember, không có addMemberOnly)",
+      spec.get("preserved_group_flags") == NINE_FLAGS
+      and "addMemberOnly" not in (spec.get("preserved_group_flags") or []),
       spec.get("preserved_group_flags"))
+
+UNPRESERVED_GUARDS = [
+    "blocked_members", "addMemberOnly", "bannFeature", "dirtyMedia", "banDuration",
+]
+check("khai báo đủ 5 trường cảnh vệ không bảo toàn được (blocked_members + UNPRESERVED_ZERO_FIELDS)",
+      spec.get("unpreserved_guard_fields") == UNPRESERVED_GUARDS,
+      spec.get("unpreserved_guard_fields"))
 
 rems = {r["slug"]: r for r in (spec.get("reminders") or [])}
 check("có đủ 5 lịch nhắc hẹn chuẩn (khoá nhóm 22:30, mở nhóm 05:30, tạo/đối chiếu/khoá poll)",
@@ -169,6 +178,14 @@ check("lịch khoá nhóm chạy đúng 22:30 giờ VN và mở nhóm chạy đ�
       and rems["zalo-quiet-hours-lock"].get("verify_readback") is True
       and rems["zalo-quiet-hours-unlock"].get("verify_readback") is True,
       (lock_dt.isoformat(), unlock_dt.isoformat()))
+
+for q_slug in ("zalo-quiet-hours-lock", "zalo-quiet-hours-unlock"):
+    q_prompt = rems[q_slug].get("prompt") or ""
+    check(f"reminder {q_slug}: prompt kiểm tra isAdmin, blocked_members và các cờ không bảo toàn được",
+          "isAdmin" in q_prompt
+          and "lockViewMember" in q_prompt
+          and all(g in q_prompt for g in UNPRESERVED_GUARDS),
+          q_prompt)
 
 check("lịch poll ghi rõ ràng buộc Zalo API không cho mở lại poll đã khoá (irreversible)",
       rems["zalo-marathon-poll-lock"].get("irreversible_lock") is True
