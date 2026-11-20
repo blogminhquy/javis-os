@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.617.0] - 2026-11-20
+### Added
+- **Two-way brain sync links through the signed-in GitHub account.** On the Self-learning page, press Connect GitHub, then Create a private repo or Pick an existing one. No token to make, no URL to paste.
+- **Linking syncs right away and turns automatic sync on.** A second machine that picks the same repo pulls the brain down.
+- **A pasted token keeps working as before,** with a button to move onto the signed-in account so the token never runs out.
+### Improved
+- The Auto and Sync images switches take effect at once, no Save needed.
+
 ## [0.616.0] - 2026-11-20
 ### Improved
 - **In Telegram groups with topics, the bot answers in the topic the question was asked in** instead of piling everything into General. In a group the answer also quotes the message it answers, so a busy group can tell who it is for.
