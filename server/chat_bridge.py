@@ -912,11 +912,14 @@ GATE_INSTRUCTIONS = (
     "something worth remembering.")
 
 
-def sync_setup(source: str, javis_url: str = "", system: str = "") -> dict:
+def sync_setup(source: str, javis_url: str = "", system: str = "", gate_url: str = "") -> dict:
     """Javis Gate: mint a `sync` API token and give the outside AI the one command that installs Javis Sync on its
-    machine. The token reaches only POST /chat/external, which saves transcripts: what javis_chat_note does already."""
+    machine. The token reaches only POST /chat/external, which saves transcripts: what javis_chat_note does already.
+
+    Address order: `javis_url` from the AI, then `gate_url` (the public address the Gate package answered on, the one
+    the AI already reaches, javis.gate 2.2.3+), then this server's own guess (`_gate_base_url` in main)."""
     import config as cfgmod
-    url = str(javis_url or "").strip().rstrip("/")
+    url = str(javis_url or "").strip().rstrip("/") or str(gate_url or "").strip().rstrip("/")
     if not url and "base_url" in _HOST:
         try:
             url = str(_HOST["base_url"]() or "").strip().rstrip("/")
@@ -1084,7 +1087,7 @@ def _so(v: Any, mac_dinh: int) -> int:
         return mac_dinh
 
 
-async def goi_tool(ten: str, args: Optional[dict], mode: str, nguon: str) -> str:
+async def goi_tool(ten: str, args: Optional[dict], mode: str, nguon: str, base_url: str = "") -> str:
     """Chạy một tool Gate, trả chuỗi (JSON) như mọi tool của hub. Lỗi bắt đầu bằng `ERROR:`."""
     a = args if isinstance(args, dict) else {}
     t = TOOLS.get(ten)
@@ -1103,7 +1106,7 @@ async def goi_tool(ten: str, args: Optional[dict], mode: str, nguon: str) -> str
             kq = await ghi_chep(nguon, str(a.get("title") or ""), str(a.get("asked") or ""),
                                 str(a.get("answered") or ""), str(a.get("decided") or ""), str(a.get("id") or ""))
         elif ten == "javis_sync_setup":
-            kq = sync_setup(nguon, str(a.get("javis_url") or ""), str(a.get("system") or ""))
+            kq = sync_setup(nguon, str(a.get("javis_url") or ""), str(a.get("system") or ""), base_url)
         elif ten == "javis_chat_models":
             kq = ds_model(str(a.get("id") or ""), str(a.get("query") or ""))
         elif ten == "javis_chat_updates":

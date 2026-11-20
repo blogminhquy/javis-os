@@ -402,6 +402,14 @@ out = json.loads(txt) if not err else {}
 check("Windows gets a PowerShell command, javis_url wins and loses its trailing slash",
       out.get("shell") == "powershell" and out["command"].startswith("irm ")
       and "--url https://my.javis.vn --token" in out["command"], txt[:300])
+GATE["base_url"] = "https://gate.example.net"
+txt, err = setup({})
+out = json.loads(txt) if not err else {}
+check("the address the Gate package answered on beats the server's own guess (javis.gate 2.2.3+)",
+      "--url https://gate.example.net --token" in out.get("command", ""), txt[:300])
+txt, err = setup({"javis_url": "https://ai-said.example.org"})
+check("an address the AI passes still wins", "--url https://ai-said.example.org --token" in txt, txt[:300])
+GATE.pop("base_url")
 txt, err = setup({}, mode="suggest")
 check("Read only level is refused with a clear reason", err and "Draft or Full" in txt, txt)
 

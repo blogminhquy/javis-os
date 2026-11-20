@@ -2533,7 +2533,8 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
             import chat_bridge
             if name in chat_bridge.TOOLS:
                 result = await chat_bridge.goi_tool(name, params.get("arguments") or {}, mode,
-                                                    (gate or {}).get("source") or "")
+                                                    (gate or {}).get("source") or "",
+                                                    base_url=str((gate or {}).get("base_url") or ""))
                 return {"jsonrpc": "2.0", "id": mid, "result": {
                     "content": [{"type": "text", "text": result}],
                     "isError": result.startswith("ERROR:"),
