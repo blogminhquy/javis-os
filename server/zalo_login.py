@@ -30,6 +30,7 @@ _sessions = {}        # sid -> {state, qr, label, conn_id, error, proc, home, ts
 
 _SUCCESS_EVENTS = {"login", "login_success", "success", "ready", "logged_in", "authenticated"}
 _ERROR_EVENTS = {"error", "failed", "login_error"}   # CLI in {"event":"login_error","message":...} khi QR hỏng
+# Ghim đồng bộ 3 chỗ (system/mcp-catalog.json, server/zalo_cli.py, server/zalo_login.py); khi javis-zalo ra tag mới thì nâng cả 3 cùng lúc.
 _CLI_PACKAGE = "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.14.0"  # trùng zalo_cli.CLI_PACKAGE và catalog
 
 

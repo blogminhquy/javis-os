@@ -31,7 +31,8 @@ một tiến trình MCP: đăng nhập QR, đọc hoặc tìm hội thoại và 
 - Điện thoại đã đăng nhập tài khoản Zalo cần kết nối.
 - Javis đã được khởi động và bạn đăng nhập được dashboard.
 
-Javis ghim `javis-zalo` theo tag phát hành (hiện là `v1.2.0`) và cài thẳng từ tarball của tag
+Javis ghim `javis-zalo` theo tag phát hành (hiện là `v1.14.0`, đồng bộ ở ba chỗ:
+`system/mcp-catalog.json`, `server/zalo_cli.py` và `server/zalo_login.py`) và cài thẳng từ tarball của tag
 đó trên GitHub, không cần tài khoản npm hay Git. Chỉ thư viện `zca-js` bên dưới đi theo bản chính
 thức trên npm. Từ 0.83.0 Javis thay `zalo-agent-cli` 1.6.2 của tác giả ngoài bằng bản riêng này;
 kết nối đã đăng nhập từ trước tự chuyển sang mà không phải quét QR lại.
@@ -63,7 +64,7 @@ Mới đăng nhập Zalo vào Javis thì Hộp thư chỉ có tin từ lúc bậ
 | Tool | Công dụng | Mức thao tác |
 |---|---|---|
 | `zalo_get_messages` | Đọc tin mới trong bộ đệm, đọc tiếp bằng `since` (số thứ tự) | Đọc |
-| `zalo_get_history` | Lấy lịch sử một cuộc chat (kể cả nhóm), có phân trang, kèm `replyTo` và `mentions` | Đọc |
+| `zalo_get_history` | Lấy lịch sử một cuộc chat (kể cả nhóm), có phân trang, kèm `replyTo`, `mentions` và `cliMsgId` | Đọc |
 | `zalo_search_history` | Tìm trong lịch sử mọi cuộc chat theo người gửi hoặc khoảng ngày | Đọc |
 | `zalo_get_group_joins` | Ai đã vào nhóm và vào lúc nào, lọc theo nhóm, người hoặc khoảng ngày | Đọc |
 | `zalo_list_join_requests` | Ai đang xin vào một nhóm phải duyệt | Đọc |
@@ -72,14 +73,33 @@ Mới đăng nhập Zalo vào Javis thì Hộp thư chỉ có tin từ lúc bậ
 | `zalo_search_threads` | Tìm nhóm hoặc người theo tên | Đọc |
 | `zalo_get_labels` | Tag (thẻ phân loại) chủ gắn cho cuộc chat trong app Zalo, của một cuộc chat hoặc tất cả (từ javis-zalo 1.6.0) | Đọc |
 | `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video trên máy chủ (bộ não không thấy ảnh, xem `zalo_read_images` bên dưới) | Đọc |
+| `zalo_get_group_settings` | Đọc thông tin và đủ 9 cờ cài đặt của nhóm kèm quyền quản trị (`isAdmin`) | Đọc |
+| `zalo_update_group_settings` | Cập nhật một hoặc nhiều cờ cài đặt nhóm (ví dụ `lockSendMsg`), tự bảo toàn các cờ còn lại | Nguy hiểm |
+| `zalo_get_poll` | Đọc chi tiết bình chọn kèm danh sách người đã chọn `{ id, name }` đã chuẩn hoá | Đọc |
+| `zalo_create_poll` | Tạo bình chọn nhóm trực tiếp qua MCP | Nguy hiểm |
+| `zalo_lock_poll` | Khoá bình chọn nhóm (một chiều: poll đã khoá không mở lại được) | Nguy hiểm |
 | `zalo_mark_read` | Đánh dấu đã xử lý đến một cursor | Ghi |
-| `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm | Nguy hiểm |
+| `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm (trả về `messageId` và `cliMsgId`) | Nguy hiểm |
+| `zalo_send_link` | Gửi đường dẫn dưới dạng thẻ xem trước (link card) | Nguy hiểm |
+| `zalo_send_typing` | Báo trạng thái đang soạn tin trong cuộc trò chuyện | Nguy hiểm |
 | `zalo_send_file` | Gửi file (Excel, PDF, Word...) kèm lời nhắn, chỉ file nằm trong hộp gửi của phiên (xem "Gửi ảnh và file") | Nguy hiểm |
+| `zalo_send_voice` | Gửi tin nhắn thoại từ URL `https:` hợp lệ (`ttl >= 0`) | Nguy hiểm |
+| `zalo_send_video` | Gửi video từ URL `https:` kèm ảnh thu nhỏ `https:` (nhóm `threadType = 1` bắt buộc `duration > 0` ms) | Nguy hiểm |
+| `zalo_undo_message` | Thu hồi tin nhắn đã gửi bằng `msgId` và `cliMsgId` | Nguy hiểm |
+| `zalo_add_reaction` | Thả biểu tượng cảm xúc vào một tin nhắn | Nguy hiểm |
 
-Danh sách trên theo mã nguồn `javis-zalo` 1.5.0. Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
+Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
 `zalo_send_message` là `threadType` (0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng
 `since` chứ không có `cursor`. Lịch sử chỉ có từ lúc MCP kết nối, cộng phần Zalo gửi lại lúc kết
 nối (khoảng hai tuần gần nhất); tin cũ hơn thì không API nào lấy được.
+
+### Cài đặt nhóm, poll, thu hồi tin và gửi thoại/video qua MCP
+
+- **Bảo toàn 9 cờ cài đặt nhóm (`zalo_get_group_settings`, `zalo_update_group_settings`)**: khi bật hoặc tắt một cờ (như `lockSendMsg` cho khung giờ im lặng `22:30 -> 05:30` giờ Việt Nam), tool tự đọc trạng thái hiện tại của nhóm và giữ nguyên 8 cờ còn lại (`blockName`, `signAdminMsg`, `addMemberOnly`, `setTopicOnly`, `enableMsgHistory`, `joinAppr`, `lockCreatePost`, `lockCreatePoll`). Tài khoản phải là trưởng hoặc phó nhóm (`isAdmin: true`).
+- **Vòng đời bình chọn (`zalo_create_poll`, `zalo_get_poll`, `zalo_lock_poll`)**: `zalo_get_poll` chuẩn hoá danh sách người bình chọn thành `{ id, name }` và tra tên qua danh sách thành viên nhóm hoặc hồ sơ người dùng (trừ khi poll bật ẩn danh `isAnonymous: true`). **API Zalo không cho phép mở lại một poll đã khoá**: khi đã gọi `zalo_lock_poll` thì poll đó đóng vĩnh viễn; muốn mở vòng bình chọn mới phải gọi `zalo_create_poll` tạo poll mới, hoặc dùng cờ `lockCreatePoll` trong `zalo_update_group_settings` để kiểm soát quyền tạo poll của thành viên.
+- **Thu hồi tin nhắn (`zalo_undo_message`)**: cần truyền cả `msgId` và `cliMsgId` (được trả về từ các lệnh gửi tin và lưu trong từng tin của bộ đệm/lịch sử).
+- **Gửi thoại và video (`zalo_send_voice`, `zalo_send_video`)**: chỉ chấp nhận đường dẫn `https:` và `ttl >= 0`, không in đường dẫn có chữ ký ra nhật ký. Riêng khi gửi video vào nhóm (`threadType = 1`), **`zalo_send_video` và CLI `msg send-video` chặn cứng nếu thiếu `duration > 0` (tính bằng mili-giây)** trước khi gọi Zalo.
+- **Một tài khoản Zalo chỉ giữ một kết nối WebSocket**: mọi lịch trình định kỳ trên Javis OS chạy qua `reminders` (`mode="task"`, `muc_quyen="full"`) gọi thẳng tiến trình MCP đang giữ kết nối, xem sổ tay vận hành tại `docs/dev/2026-11-zalo-7parts-ops-playbook.md`.
 
 ### Khi nào có thể thiếu tin (từ 0.183.0, javis-zalo 1.5.0)
 

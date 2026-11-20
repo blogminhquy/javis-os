@@ -144,7 +144,7 @@
       "name": "Zalo Agent MCP",
       "icon": "/static/logos/zalo.png",
       "category": "Nhắn tin",
-      "description": "MCP của javis-zalo (bản CLI Zalo riêng của Javis): đọc tin mới/lịch sử, tìm cuộc chat, biết ai vừa vào nhóm và vào lúc nào, duyệt người xin vào nhóm, đọc tag (thẻ phân loại) của cuộc chat, xem media và gửi tin bằng tài khoản Zalo cá nhân.",
+      "description": "MCP của javis-zalo (bản CLI Zalo riêng của Javis): đọc tin mới/lịch sử, tìm cuộc chat, biết ai vừa vào nhóm và vào lúc nào, duyệt người xin vào nhóm, đọc/cập nhật cài đặt nhóm (bảo toàn 9 cờ), đọc tag (thẻ phân loại) của cuộc chat, tạo/đọc/khoá poll, xem media, thu hồi tin và gửi tin/file/thoại/video bằng tài khoản Zalo cá nhân.",
       "status": "beta",
       "transport": "stdio",
       "command": "npx",
@@ -188,10 +188,25 @@
           "zalo_list_threads",
           "zalo_search_threads",
           "zalo_view_media",
-          "zalo_get_labels"
+          "zalo_get_labels",
+          "zalo_get_group_settings",
+          "zalo_get_poll"
         ],
         "write": ["zalo_mark_read"],
-        "danger": ["zalo_send_message", "zalo_send_link", "zalo_send_typing", "zalo_send_file", "zalo_add_reaction", "zalo_review_join_requests"]
+        "danger": [
+          "zalo_send_message",
+          "zalo_send_link",
+          "zalo_send_typing",
+          "zalo_send_file",
+          "zalo_send_voice",
+          "zalo_send_video",
+          "zalo_undo_message",
+          "zalo_add_reaction",
+          "zalo_review_join_requests",
+          "zalo_update_group_settings",
+          "zalo_create_poll",
+          "zalo_lock_poll"
+        ]
       },
       "default_perm": "full",
       "companion_pack": "javis.zalo",
