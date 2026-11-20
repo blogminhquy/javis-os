@@ -1097,6 +1097,8 @@
     if (act === "copy") return menuCopy(id);
     if (act === "profile") { closeRowMenu(false); return showProfile(id); }
     if (act === "block") return menuBlock(id);
+    if (act === "unblock") return menuUnblock(id);
+    if (act === "leave") return menuLeave(id);
     if (act === "delete") return menuDelete(id);
     runRowAction(id, act);
   }
@@ -1175,14 +1177,57 @@
     var c = rmItem(id);
     if (!c) return closeRowMenu(false);
     closeRowMenu(false);
-    if (!confirm(window.t(window.JavisConvFilters.chatKind(c) === "zalo_private" ? "ht.block_q_zalo" : "ht.block_q_fb", { ten: convName(c) }))) return;
+    var F = window.JavisConvFilters, k = F.chatKind(c), remote = F.platformActs(c).indexOf("block") >= 0;
+    var q = !remote ? "ht.block_q_local" : k === "zalo_private" ? "ht.block_q_zalo" : "ht.block_q_fb";
+    if (!confirm(window.t(q, { ten: convName(c) }))) return;
     try {
       await api("/conversations/" + id + "/block", { method: "POST" });
       c.metadata = Object.assign({}, c.metadata || {}, { blocked: true });
       c.mode = "human";
-      alert(window.t("ht.blocked", { ten: convName(c) }));
+      c.hidden = 1;
+      if (!_q) _items = _items.filter(function (it) { return it.id !== id || _statusLoc === "hidden"; });
+      alert(window.t(remote ? "ht.blocked" : "ht.blocked_local", { ten: convName(c) }));
     } catch (e) { alert(window.t("ht.rm_err", { err: e.message })); }
     _dauVet = "";
+    veDanhSach();
+    tai(true);
+  }
+
+  async function menuUnblock(id) {
+    var c = rmItem(id);
+    if (!c) return closeRowMenu(false);
+    closeRowMenu(false);
+    if (!confirm(window.t("ht.unblock_q", { ten: convName(c) }))) return;
+    try {
+      var d = await api("/conversations/" + id + "/unblock", { method: "POST" });
+      var md = Object.assign({}, c.metadata || {});
+      delete md.blocked;
+      c.metadata = md;
+      c.hidden = 0;
+      if (d && d.conversation) c.mode = d.conversation.mode;
+      if (!_q && _statusLoc === "hidden") _items = _items.filter(function (it) { return it.id !== id; });
+    } catch (e) { alert(window.t("ht.rm_err", { err: e.message })); }
+    _dauVet = "";
+    veDanhSach();
+    tai(true);
+  }
+
+  async function menuLeave(id) {
+    var c = rmItem(id);
+    if (!c) return closeRowMenu(false);
+    closeRowMenu(false);
+    if (!confirm(window.t("ht.leave_q", { ten: convName(c) }))) return;
+    try {
+      await api("/conversations/" + id + "/leave", { method: "POST" });
+      c.metadata = Object.assign({}, c.metadata || {}, { left: true });
+      c.mode = "human";
+      c.hidden = 1;
+      if (!_q) _items = _items.filter(function (it) { return it.id !== id || _statusLoc === "hidden"; });
+      if (_conv && _conv.id === id && !_q && _statusLoc !== "hidden") dongThread();
+      alert(window.t("ht.left", { ten: convName(c) }));
+    } catch (e) { alert(window.t("ht.rm_err", { err: e.message })); }
+    _dauVet = "";
+    veDanhSach();
     tai(true);
   }
 

@@ -655,6 +655,8 @@ def register(app, deps: ConversationsDeps):
 
     @router.post("/conversations/{conv_id}/block")
     async def conversations_block(conv_id: int):
+        """Block on the platform where it allows it (Messenger, a Zalo personal chat), else in Javis only. Either way
+        the bot stays quiet here, the chat leaves the inbox and new messages from it stay out of sight."""
         import conversation_actions as ca
         c = conversations.chi_tiet(conv_id)
         if not c:
@@ -662,9 +664,45 @@ def register(app, deps: ConversationsDeps):
         r = await ca.block(c)
         if not r.get("ok"):
             return JSONResponse(r, status_code=400)
-        # Nobody to answer any more: the bot stays quiet here, and the chat says why.
+        # Remember who answered before, so Unblock gives the chat back as it was.
+        conversations._set_meta_key(conv_id, "blocked_prev_mode", str(c.get("mode") or "ai"))
         conversations.dat_che_do(conv_id, "human")
         conversations._set_meta_key(conv_id, "blocked", True)
+        conversations.set_hidden(conv_id, True)
+        return {"ok": True, "remote": bool(r.get("remote")), "conversation": conversations.chi_tiet(conv_id)}
+
+    @router.post("/conversations/{conv_id}/unblock")
+    async def conversations_unblock(conv_id: int):
+        import conversation_actions as ca
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        r = await ca.unblock(c)
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=400)
+        meta = c.get("metadata") or {}
+        prev = str(meta.get("blocked_prev_mode") or "")
+        if prev and prev != "human":
+            conversations.dat_che_do(conv_id, prev)
+        conversations._set_meta_key(conv_id, "blocked", None)
+        conversations._set_meta_key(conv_id, "blocked_prev_mode", None)
+        conversations.set_hidden(conv_id, False)
+        return {"ok": True, "remote": bool(r.get("remote")), "conversation": conversations.chi_tiet(conv_id)}
+
+    @router.post("/conversations/{conv_id}/leave")
+    async def conversations_leave(conv_id: int):
+        """Leave the group on its platform (a Zalo group). The chat stays in Javis, marked and hidden, so its history
+        is not lost; Delete removes it for good."""
+        import conversation_actions as ca
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        r = await ca.leave(c)
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=400)
+        conversations.dat_che_do(conv_id, "human")
+        conversations._set_meta_key(conv_id, "left", True)
+        conversations.set_hidden(conv_id, True)
         return {"ok": True, "conversation": conversations.chi_tiet(conv_id)}
 
     @router.post("/conversations/{conv_id}/delete")
