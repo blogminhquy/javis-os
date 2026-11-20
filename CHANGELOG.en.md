@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.607.0] - 2026-11-20
+### Improved
+- **"Ungrouped" gets a red dot too.** A chat in no project with an unread reply now puts a red dot on Ungrouped in the project picker, just like a project. Reading it or moving it into a project clears the dot.
+
 ## [0.606.1] - 2026-11-20
 ### Fixed
 - **Connecting a second Zalo account no longer cuts the first one off.** Two reports on 19 and 20/11/2026: one bot per account in two brains, and right after the second account's QR was scanned the first bot's card read "Another session of this account keeps taking the Zalo connection" and the bot missed most messages, with no Zalo Web open anywhere.

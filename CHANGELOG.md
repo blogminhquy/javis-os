@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.607.0] - 2026-11-20
+### Cải thiện
+- **"Chưa xếp nhóm" cũng có chấm đỏ.** Cuộc chat chưa thuộc dự án nào mà có câu trả lời chưa đọc thì mục Chưa xếp nhóm trong ô chọn dự án hiện chấm đỏ, giống các dự án. Đọc xong hoặc xếp cuộc đó vào một dự án thì chấm tự tắt.
+
 ## [0.606.1] - 2026-11-20
 ### Sửa lỗi
 - **Kết nối nick Zalo thứ hai không còn làm nick thứ nhất mất kết nối.** Hai người báo ngày 19 và 20/11/2026: mỗi nick một bot ở hai brain, vừa quét QR nick thứ hai thì thẻ bot của nick thứ nhất báo "Một phiên khác của cùng nick đang giành kết nối Zalo" và bot lỡ phần lớn tin, dù không ai mở Zalo Web.
