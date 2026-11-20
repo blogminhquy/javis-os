@@ -195,11 +195,12 @@ def test_open_marks_ok_signed_out_and_error(tmp_path):
 
 def test_fetch_sends_cookies_only_to_their_host_on_every_hop(monkeypatch):
     """A page that redirects to another site must not carry the sign-in along."""
-    seen, ua = [], []
+    seen, ua, nav = [], [], []
 
     def handler(req):
         seen.append((str(req.url), req.headers.get("cookie", "")))
         ua.append(req.headers.get("user-agent", ""))
+        nav.append(req.headers.get("sec-fetch-mode", ""))
         if req.url.host == "shop.vn":
             return httpx.Response(302, headers={"location": "https://tracker.example/next"})
         return httpx.Response(200, text="<title>T</title><p>ok</p>")
@@ -219,9 +220,11 @@ def test_fetch_sends_cookies_only_to_their_host_on_every_hop(monkeypatch):
     assert seen[0] == ("https://shop.vn/a", "sid=SECRET")
     assert seen[1] == ("https://tracker.example/next", "")
     assert "Chrome/" in ua[0] and "JavisWatch" not in ua[0]           # a signed-in fetch looks like a browser
-    seen.clear(); ua.clear()
+    assert nav == ["navigate", "navigate"]                            # Facebook answers 400 without Sec-Fetch-*
+    seen.clear(); ua.clear(); nav.clear()
     asyncio.run(ww.fetch("https://shop.vn/a"))
     assert "JavisWatch" in ua[0] and seen[0][1] == ""                 # an anonymous watch still says who it is
+    assert nav == ["", ""]                                            # and does not pretend to be a browser
 
 
 # ---------------------------------------------------------------- routes
