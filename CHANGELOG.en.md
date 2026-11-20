@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.609.1] - 2026-11-20
+### Fixed
+- **Self-learned profiles no longer say "shop owner".** A profile now calls the person in the chat the subject and describes them, for example how they are addressed and how they refer to themselves, which fits bots that are not used for business too. Existing profiles change at their next update.
+
 ## [0.609.0] - 2026-11-20
 ### Added
 - **Leave a Zalo group from the "..." menu of the Conversations page.** The chat history stays in Javis, under the Hidden filter.
