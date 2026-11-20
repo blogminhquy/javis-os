@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.607.1] - 2026-11-20
+### Fixed
+- **The personal Zalo bot reads link cards.** A link someone sent (shown by Zalo as a card with a title and a picture) was filed as "other", so the bot skipped it, even when the sender tagged the bot. A link card is now read as a text message with its title, description and link.
+- **The inbox and the history keep the link.** A link card no longer shows only the page's description: the link itself is there too, also for messages brought back from the history (javis-zalo 1.14.0).
+
 ## [0.607.0] - 2026-11-20
 ### Improved
 - **"Ungrouped" gets a red dot too.** A chat in no project with an unread reply now puts a red dot on Ungrouped in the project picker, just like a project. Reading it or moving it into a project clears the dot.
