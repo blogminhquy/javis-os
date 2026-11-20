@@ -153,6 +153,12 @@ def _find(d, cid):
     return next((c for c in d["connections"] if c.get("id") == cid), None)
 
 
+def _clean_tool_names(raw) -> list:
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [s for s in dict.fromkeys(str(x or "").strip() for x in raw) if s]
+
+
 def _public(c):
     """Bản che secret trả ra frontend (giữ tên key, ẩn giá trị)."""
     h = c.get("headers") or {}
@@ -164,6 +170,8 @@ def _public(c):
         "transport": c.get("transport"), "url": c.get("url"), "auth": c.get("auth"),
         "enabled": bool(c.get("enabled")), "perm": c.get("perm") or "full",
         "deny_tools": c.get("deny_tools") or [], "is_default": bool(c.get("is_default")),
+        "owner_only": bool(c.get("owner_only")),
+        "owner_only_tools": _clean_tool_names(c.get("owner_only_tools")),
         "command": c.get("command", ""), "args": c.get("args") or [],
         "header_keys": list(h.keys()), "env_keys": list(e.keys()), "secret_keys": list(s.keys()),
     }
@@ -298,6 +306,8 @@ def add_connection(connector_id, data):
         "perm": data.get("perm") if data.get("perm") in mcp_catalog.PERM_RANK
                 else ((con or {}).get("default_perm") or "full"),
         "deny_tools": data.get("deny_tools") or [],
+        "owner_only": bool(data.get("owner_only")),
+        "owner_only_tools": _clean_tool_names(data.get("owner_only_tools")),
         "is_default": not any(c.get("connector_id") == connector_id for c in d["connections"]),
     }
     d["connections"].append(conn)
@@ -327,6 +337,10 @@ def update_connection(cid, patch):
         c["config"] = patch["config"]
     if "enabled" in patch and patch["enabled"] is not None:
         c["enabled"] = bool(patch["enabled"])
+    if "owner_only" in patch and patch["owner_only"] is not None:
+        c["owner_only"] = bool(patch["owner_only"])
+    if patch.get("owner_only_tools") is not None:
+        c["owner_only_tools"] = _clean_tool_names(patch["owner_only_tools"])
     doi_dang_nhap = False
     # `prune`: form Sửa MCP gửi ĐỦ danh sách tên header/env còn giữ. Tên nào vắng mặt là người
     # dùng đã bấm xoá dòng đó. Không có cờ này thì chỉ gộp thêm, và một header gõ sai tên sẽ
@@ -649,6 +663,8 @@ def resolved(enabled_only=True):
             "secrets": secrets if (con or {}).get("internal") else {},
             "config": c.get("config") or {},
             "perm": c.get("perm") or "full", "deny_tools": c.get("deny_tools") or [],
+            "owner_only": bool(c.get("owner_only")),
+            "owner_only_tools": _clean_tool_names(c.get("owner_only_tools")),
             "is_default": bool(c.get("is_default")), "auth": c.get("auth"), "connector": con,
         })
     return out
@@ -693,6 +709,8 @@ def add_server(data):
         "auth": data.get("auth") or "header",
         "perm": data.get("perm") if data.get("perm") in mcp_catalog.PERM_RANK else "full",
         "deny_tools": data.get("deny_tools"),
+        "owner_only": bool(data.get("owner_only")),
+        "owner_only_tools": data.get("owner_only_tools"),
     })
     if err:
         print(f"[mcp_store] add_server: {err}", file=sys.stderr)

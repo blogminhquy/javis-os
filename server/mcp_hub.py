@@ -219,6 +219,25 @@ OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "
                               # at once. A customer must never plant a server in the owner's tool list.
                               "javis_add_mcp"})
 
+OWNER_SCOPE_DENIED = "owner_scope_required"
+
+
+def _conn_tool_owner_only(conn, tool) -> bool:
+    if not isinstance(conn, dict):
+        return False
+    if conn.get("owner_only"):
+        return True
+    names = conn.get("owner_only_tools") or ()
+    return bool(names) and str(tool or "") in names
+
+
+def _live_owner_turn(for_bot: bool = False) -> bool:
+    """Live owner turn only (`la_chu` set by the host, never a bot turn or a background/team turn)."""
+    if for_bot:
+        return False
+    turn = turn_context.current() or {}
+    return turn.get("la_chu") is True and not str(turn.get("bot_id") or "").strip()
+
 
 # ============================================================
 # Audit
@@ -499,6 +518,12 @@ def _guard(ent, fn, mode):
     connector = mcp_catalog.get(conn.get("connector_id"))
 
     async def _call(args):
+        if _conn_tool_owner_only(conn, tool) and not _live_owner_turn():
+            _audit_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
+                           "connector": conn.get("connector_id"), "label": conn.get("label"),
+                           "tool": tool, "mode": mode, "cls": "read", "ok": False, "ms": 0,
+                           "err": OWNER_SCOPE_DENIED, **team_gate.audit_fields()})
+            return "ERROR: " + OWNER_SCOPE_DENIED
         cls = mcp_catalog.classify(connector, tool, args)
         ok, why = mcp_catalog.allowed(connector, conn.get("perm"), mode, tool, args)
         gated_ask = False
@@ -2010,9 +2035,10 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # `bo_cache_phien` reads it there.
     pins_key = tool_pins.key(vault_root, bot=for_bot)
     pins = tool_pins.pinned(pins_key)
+    owner_scope = _live_owner_turn(for_bot)
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
            bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx, bool(for_bot),
-           pins, str(_sid_ctx or ""))
+           owner_scope, pins, str(_sid_ctx or ""))
     if tool_allowlist is not None:
         tool_allowlist = tuple(sorted(set(tool_allowlist)))
         key = key[:-1] + (tool_allowlist,) + key[-1:]
@@ -2063,6 +2089,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         if not raw:
             continue
         conn = raw["conn"]
+        if not owner_scope and _conn_tool_owner_only(conn, raw["tool"]):
+            continue
         connector = mcp_catalog.get(conn.get("connector_id"))
         # A gated Team step (0.207.0) lists like full: an outside action must be callable so the gate can stop it and
         # turn it into an approval request, and run it once approved. The call itself is still capped (`_guard`).
@@ -2236,6 +2264,7 @@ def registry_inventory(mode="full", vault_root=None, include_plugins=True, inclu
         key = ((mode or 'full').strip().lower(), str(vault_root or ''), bool(include_plugins),
             bool(include_ambient), bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root),
             getattr(coding_ctx_cua_phien, 'permission_mode', '') or '', False,
+            _live_owner_turn(False),
             tool_pins.pinned(tool_pins.key(vault_root)),
             str((getattr(coding_ctx_cua_phien, 'session_id', '') if workspace_root else '') or ''))
         ent = task_scope._hub_cache.get(key) or {}
