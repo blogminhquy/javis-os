@@ -336,11 +336,96 @@ async def _wa_turn():
 
 calls = run(_wa_turn())
 texts = [c[1]["text"]["body"] for c in calls if c[1].get("type") == "text"]
-check("WhatsApp turn: read receipt with typing indicator sent first",
-      calls and calls[0][1].get("status") == "read" and "typing_indicator" in calls[0][1], calls[:1])
+reads = [c[1] for c in calls if c[1].get("status") == "read"]
+check("WhatsApp turn: marked read on arrival, typing only once the turn starts",
+      len(reads) >= 2 and "typing_indicator" not in reads[0] and "typing_indicator" in reads[1], reads)
 check("WhatsApp turn: answer goes to the sender, Markdown converted, tool trail attached",
       texts and texts[-1].startswith("*Revenue* up 12%") and "pos_statistics" in texts[-1], texts)
 
+
+
+# ============================================================
+# 8d. WhatsApp parity audit (2026-11-20)
+# ============================================================
+async def _wa_blocked():
+    """A bot the owner paused (precheck says no): read, but never "typing..."."""
+    calls = []
+    bot = whatsapp_bot.WhatsAppBot({"phone_number_id": "111", "access_token": "EAA" + "x" * 50,
+                                    "app_secret": "a" * 32}, "", None, precheck_fn=lambda t, m: {},
+                                   giau_trang_thai=True)
+
+    async def fake_post(client, path, payload):
+        calls.append(payload)
+        return {"ok": True}
+    bot._post_json = fake_post
+    await bot._on_message({"id": "wamid.1", "from": "8490", "type": "text", "text": {"body": "hi"}}, {})
+    if bot._client:
+        await bot._client.aclose()
+    return calls
+
+blocked = run(_wa_blocked())
+check("WhatsApp: a paused bot marks read but shows no typing indicator",
+      blocked and not any("typing_indicator" in c for c in blocked), blocked)
+
+
+async def _wa_text(msg):
+    bot = whatsapp_bot.WhatsAppBot({"phone_number_id": "111", "access_token": "EAA" + "x" * 50,
+                                    "app_secret": "a" * 32}, "", None)
+    return await bot._message_text(None, msg, "8490")
+
+order = run(_wa_text({"type": "order", "order": {"catalog_id": "C1", "text": "giao chiều nay", "product_items": [
+    {"product_retailer_id": "AO-01", "quantity": "2", "item_price": "150000", "currency": "VND"},
+    {"product_retailer_id": "QUAN-02", "quantity": 1, "item_price": 200000, "currency": "VND"}]}}))
+check("WhatsApp: a catalog order reaches the bot with items, total and note",
+      "AO-01 x2" in order and "QUAN-02 x1" in order and "500000 VND" in order and "giao chiều nay" in order, order)
+contact = run(_wa_text({"type": "contacts", "contacts": [
+    {"name": {"formatted_name": "Lan"}, "phones": [{"phone": "+84 90 111"}], "emails": [{"email": "l@x.vn"}]}]}))
+check("WhatsApp: a shared contact card reaches the bot", "Lan: +84 90 111; l@x.vn" in contact, contact)
+form = run(_wa_text({"type": "interactive", "interactive": {"type": "nfm_reply",
+                     "nfm_reply": {"response_json": '{"size": "M"}'}}}))
+check("WhatsApp: a Flow (form) answer reaches the bot", '{"size": "M"}' in form, form)
+loc = run(_wa_text({"type": "location", "location": {"latitude": 10.7, "longitude": 106.6,
+                                                     "name": "Shop", "address": "1 Le Loi"}}))
+check("WhatsApp: a location keeps its name and address", "Shop - 1 Le Loi" in loc, loc)
+check("WhatsApp: reactions stay silent", run(_wa_text({"type": "reaction", "reaction": {"emoji": "👍"}})) == "")
+notes = whatsapp_bot.context_notes({"context": {"referred_product": {"product_retailer_id": "AO-01"}},
+                                    "referral": {"headline": "Sale 50%", "source_url": "https://fb.me/x"}})
+check("WhatsApp: product asked about and the ad the customer came from are noted",
+      "AO-01" in notes and "Sale 50%" in notes and "https://fb.me/x" in notes, notes)
+
+
+class _WaResp:
+    def __init__(self, code, body):
+        self.status_code, self._body = code, body
+
+    def json(self):
+        return self._body
+
+
+async def _wa_rate_limit():
+    seq = [_WaResp(400, {"error": {"code": 131056, "message": "pair rate limit"}}), _WaResp(200, {"messages": [{}]})]
+
+    class C:
+        n = 0
+
+        async def post(self, *a, **k):
+            C.n += 1
+            return seq.pop(0)
+    bot = whatsapp_bot.WhatsAppBot({"phone_number_id": "111", "access_token": "EAA" + "x" * 50,
+                                    "app_secret": "a" * 32}, "", None)
+    real_sleep = asyncio.sleep
+
+    async def no_sleep(s):
+        await real_sleep(0)
+    whatsapp_bot.asyncio.sleep = no_sleep
+    try:
+        d = await bot._post_json(C(), "111/messages", {"x": 1})
+    finally:
+        whatsapp_bot.asyncio.sleep = real_sleep
+    return d, C.n
+
+d, n = run(_wa_rate_limit())
+check("WhatsApp: a rate-limit refusal waits and sends again", d.get("ok") and n == 2, (d, n))
 
 async def _slack_turn():
     calls = []

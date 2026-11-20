@@ -24,6 +24,18 @@ Rules of the platform that shape the code, not just the docs:
      indicator (sent with the read receipt) and the tool trail rides on the answer.
   3. Formatting is WhatsApp's own: *bold*, _italic_, ~strike~, ```mono```. 4096 chars max.
   4. Private chats only through this API; groups are not supported here.
+
+Audit of 2026-11-20 (parity with Messenger, Telegram and Slack):
+  - The typing indicator starts with the TURN, not on arrival. On arrival the message is only
+    marked read. Before, a customer whose chat the owner had taken over, or whose bot was
+    paused, saw "typing..." for 25 seconds and then nothing.
+  - Message types that were dropped in silence now reach the bot as text: a catalog ORDER, a
+    shared CONTACT card, a WhatsApp Flow answer, a location's name and address, the product a
+    customer asks about from the catalog, and the ad a customer came from (click-to-WhatsApp).
+  - Rate limits (HTTP 429, codes 130429, 131056, 80007) wait and try again: the message was
+    refused, not sent, so a retry cannot double it.
+  - Files: a video goes out as a playable video, and an image too big for WhatsApp's image limit
+    goes as a document instead of failing.
 """
 from __future__ import annotations
 
@@ -52,6 +64,10 @@ MAX_MSG = 4000
 MAX_DEDUPE = 4000
 MAX_DOWNLOAD_MB = 20
 TYPING_EVERY = 20.0          # the indicator lasts up to 25 s or until the next message
+MAX_IMAGE_MB = 5             # Cloud API media limits: larger images go as a document
+MAX_VIDEO_MB = 16
+RATE_LIMIT_CODES = (130429, 131056, 80007)
+RATE_LIMIT_RETRIES = 2
 
 # phone_number_id -> WhatsAppBot currently running for it.
 _REGISTRY: dict = {}
@@ -109,6 +125,68 @@ def _chunks(text: str, size: int = MAX_MSG) -> list:
     if text.strip():
         out.append(text)
     return out
+
+
+def _int(x):
+    try:
+        return int(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def order_text(order: dict) -> str:
+    """A catalog order (the customer tapped "Send to business" in the cart) as one readable line
+    per item. Before 2026-11-20 the whole order was dropped: the shop never saw it."""
+    lines = []
+    total = 0.0
+    cur = ""
+    for it in order.get("product_items") or []:
+        qty = _int(it.get("quantity")) or 1
+        try:
+            price = float(it.get("item_price") or 0)
+        except (TypeError, ValueError):
+            price = 0.0
+        cur = str(it.get("currency") or cur)
+        total += qty * price
+        lines.append(f"- {it.get('product_retailer_id')} x{qty} @ {it.get('item_price')} {cur}".rstrip())
+    head = localefmt.chu("[Khách đặt hàng qua catalog WhatsApp", "[The customer placed an order from the WhatsApp catalog")
+    head += f" (catalog {order.get('catalog_id')})" if order.get("catalog_id") else ""
+    body = "\n".join(lines)
+    if lines:
+        body += "\n" + localefmt.chu("Tổng", "Total") + f": {total:g} {cur}".rstrip()
+    note = str(order.get("text") or "").strip()
+    return (head + ":]\n" + body + (("\n" + note) if note else "")).strip()
+
+
+def contacts_text(contacts: list) -> str:
+    """Shared contact cards -> "name: phone, phone" lines."""
+    out = []
+    for c in contacts[:5]:
+        name = str(((c.get("name") or {}).get("formatted_name")) or "")
+        phones = ", ".join(str(ph.get("phone") or ph.get("wa_id") or "") for ph in (c.get("phones") or [])
+                           if ph.get("phone") or ph.get("wa_id"))
+        emails = ", ".join(str(e.get("email") or "") for e in (c.get("emails") or []) if e.get("email"))
+        out.append(f"- {name}: " + "; ".join(x for x in (phones, emails) if x))
+    if not out:
+        return ""
+    return localefmt.chu("[Khách gửi danh bạ:]", "[The customer shared contacts:]") + "\n" + "\n".join(out)
+
+
+def context_notes(msg: dict) -> str:
+    """Where this message came from, when WhatsApp says: the catalog product the customer asks
+    about, or the click-to-WhatsApp ad they tapped. Both arrive alongside an ordinary message."""
+    notes = []
+    prod = (msg.get("context") or {}).get("referred_product") or {}
+    if prod.get("product_retailer_id"):
+        notes.append(localefmt.chu(f"[Khách hỏi về sản phẩm {prod['product_retailer_id']} trong catalog]",
+                                   f"[The customer asks about product {prod['product_retailer_id']} from the catalog]"))
+    ref = msg.get("referral") or {}
+    if ref:
+        what = " - ".join(x for x in (str(ref.get("headline") or ""), str(ref.get("body") or "")[:200]) if x)
+        src = str(ref.get("source_url") or "")
+        notes.append(localefmt.chu("[Khách nhắn tới từ quảng cáo", "[The customer came from an ad")
+                     + (f": {what}" if what else "") + (f" ({src})" if src else "") + "]")
+    return "\n".join(notes)
 
 
 def verify_signature(raw_body: bytes, header: str, secrets_list) -> bool:
@@ -202,20 +280,29 @@ class WhatsAppBot(HangLuot):
         return {"Authorization": f"Bearer {self.token}"}
 
     async def _post_json(self, client, path, payload):
-        try:
-            r = await client.post(f"{GRAPH}/{path}", json=payload, headers=self._headers())
+        """POST to Graph. A rate-limit refusal waits and tries again (the message was refused,
+        not sent, so the retry cannot deliver it twice); any other failure returns at once."""
+        for attempt in range(RATE_LIMIT_RETRIES + 1):
+            try:
+                r = await client.post(f"{GRAPH}/{path}", json=payload, headers=self._headers())
+            except Exception as e:
+                return {"ok": False, "error": f"{type(e).__name__}: {e}", "net_error": True}
             try:
                 d = r.json() or {}
             except Exception:
                 d = {}
-            if r.status_code >= 300 or d.get("error"):
-                e = d.get("error") or {}
-                return {"ok": False, "code": e.get("code") or r.status_code,
-                        "error": _explain_error(e.get("code"), e.get("message") or f"HTTP {r.status_code}")}
-            d["ok"] = True
-            return d
-        except Exception as e:
-            return {"ok": False, "error": f"{type(e).__name__}: {e}", "net_error": True}
+            if r.status_code < 300 and not d.get("error"):
+                d["ok"] = True
+                return d
+            e = d.get("error") or {}
+            code = e.get("code") or r.status_code
+            limited = r.status_code == 429 or _int(code) in RATE_LIMIT_CODES
+            if limited and attempt < RATE_LIMIT_RETRIES:
+                await asyncio.sleep(2 * (attempt + 1))
+                continue
+            return {"ok": False, "code": code,
+                    "error": _explain_error(e.get("code"), e.get("message") or f"HTTP {r.status_code}")}
+        return {"ok": False, "error": _explain_error(130429)}
 
     async def _send_one(self, client, to, text):
         # `preview_url` on (owner report 19/11/2026: a link the bot sent showed as bare text): WhatsApp then shows the
@@ -264,7 +351,13 @@ class WhatsAppBot(HangLuot):
             return False, f"{type(e).__name__}: {e}"
         import mimetypes
         mime = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
-        kind = "image" if mime in ("image/jpeg", "image/png") else "document"
+        mb = len(data) / (1024 * 1024)
+        if mime in ("image/jpeg", "image/png") and mb <= MAX_IMAGE_MB:
+            kind = "image"
+        elif mime in ("video/mp4", "video/3gpp") and mb <= MAX_VIDEO_MB:
+            kind = "video"
+        else:
+            kind = "document"      # anything else, and media over WhatsApp's own size limits
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as c:
             try:
                 r = await c.post(f"{GRAPH}/{self.phone_number_id}/media", headers=self._headers(),
@@ -285,13 +378,15 @@ class WhatsAppBot(HangLuot):
                 "messaging_product": "whatsapp", "to": str(chat), "type": kind, kind: body})
             return (True, "") if res.get("ok") else (False, res.get("error", ""))
 
-    async def _read_and_type(self, client, message_id):
-        """Read receipt plus typing indicator in one call (Cloud API, 2025)."""
+    async def _read_and_type(self, client, message_id, typing=True):
+        """Read receipt, plus the typing indicator when `typing` (Cloud API, 2025: the indicator
+        only exists attached to a read receipt)."""
         if not message_id:
             return
-        await self._post_json(client, f"{self.phone_number_id}/messages", {
-            "messaging_product": "whatsapp", "status": "read", "message_id": message_id,
-            "typing_indicator": {"type": "text"}})
+        body = {"messaging_product": "whatsapp", "status": "read", "message_id": message_id}
+        if typing:
+            body["typing_indicator"] = {"type": "text"}
+        await self._post_json(client, f"{self.phone_number_id}/messages", body)
 
     # ---- Inbound ----------------------------------------------------------------------
     def _seen_before(self, mid) -> bool:
@@ -324,8 +419,17 @@ class WhatsAppBot(HangLuot):
             return str((msg.get("text") or {}).get("body") or "").strip()
         if mtype == "interactive":
             it = msg.get("interactive") or {}
+            if it.get("type") == "nfm_reply":
+                # The answer to a WhatsApp Flow (a form): the fields the customer filled in.
+                nfm = it.get("nfm_reply") or {}
+                return localefmt.chu(f"[Khách gửi biểu mẫu WhatsApp: {nfm.get('response_json') or nfm.get('body') or ''}]",
+                                     f"[The customer submitted a WhatsApp form: {nfm.get('response_json') or nfm.get('body') or ''}]")
             rep = it.get("button_reply") or it.get("list_reply") or {}
             return str(rep.get("title") or "").strip()
+        if mtype == "order":
+            return order_text(msg.get("order") or {})
+        if mtype == "contacts":
+            return contacts_text(msg.get("contacts") or [])
         if mtype == "button":
             return str((msg.get("button") or {}).get("text") or "").strip()
         if mtype in ("image", "document", "audio", "video", "sticker"):
@@ -369,8 +473,10 @@ class WhatsAppBot(HangLuot):
             return (note + ("\n" + caption if caption else "")).strip()
         if mtype == "location":
             loc = msg.get("location") or {}
-            return f"[location: {loc.get('latitude')}, {loc.get('longitude')} {loc.get('name') or ''}]".strip()
-        return ""
+            place = " - ".join(x for x in (str(loc.get("name") or ""), str(loc.get("address") or "")) if x)
+            return (f"[location: {loc.get('latitude')}, {loc.get('longitude')}"
+                    + (f" {place}" if place else "") + "]")
+        return ""      # reactions, edits, system notices: nothing for the bot to answer
 
     async def _safe_message(self, msg, contacts):
         try:
@@ -401,7 +507,12 @@ class WhatsAppBot(HangLuot):
         text = await self._message_text(client, msg, chat)
         if not text:
             return
-        await self._read_and_type(client, msg.get("id"))
+        notes = context_notes(msg)
+        if notes:
+            text = notes + "\n" + text
+        # Read now, typing only once a turn really starts (`_handle_turn`): a bot the owner has
+        # paused or taken over must not show "typing..." and then say nothing.
+        await self._read_and_type(client, msg.get("id"), typing=False)
         meta["_wa_mid"] = msg.get("id")
         await self._dispatch(client, chat, text, meta)
 
@@ -415,7 +526,9 @@ class WhatsAppBot(HangLuot):
         files = []
         tools = []
         t0 = time.monotonic()
-        keep = asyncio.create_task(self._keep_typing(client, (meta or {}).get("_wa_mid")))
+        mid = (meta or {}).get("_wa_mid")
+        await self._read_and_type(client, mid)
+        keep = asyncio.create_task(self._keep_typing(client, mid))
 
         async def progress(txt):
             name = ten_tool(txt)
@@ -541,6 +654,12 @@ _ERRORS = {
              "could not deliver to this number (no WhatsApp, or blocked)"),
     100: ("tham số sai, thường là phone number id không đúng", "invalid parameter, usually a wrong phone number id"),
     80007: ("vượt hạn mức gửi của WhatsApp, thử lại sau", "WhatsApp rate limit reached, try again later"),
+    130429: ("số này đang gửi quá nhanh, WhatsApp tạm chặn, thử lại sau",
+             "this number is sending too fast and WhatsApp is throttling it, try again later"),
+    131056: ("gửi quá nhiều tin cho cùng một người trong thời gian ngắn, thử lại sau",
+             "too many messages to the same person in a short time, try again later"),
+    131053: ("WhatsApp không nhận file này (sai định dạng hoặc quá lớn)",
+             "WhatsApp refused this file (unsupported type or too large)"),
 }
 
 
