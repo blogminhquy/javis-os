@@ -30,6 +30,21 @@
     var area = document.getElementById("chatArea");
     return !!(area && area.getClientRects().length);
   }
+  // 2026-11-20 (owner): "a chat still working, already read, keeps the folder dot on; it should show only once it has
+  // finished and is unread". A running chat shows its spinner, not a dot, and the chat on screen is being read, so
+  // both are left out of every unread count the server makes (the `skip` query of /projects and the rail).
+  function isRunning(sid) { return !!(sid && window.JavisRunning && window.JavisRunning.has(sid)); }
+  function unreadSkipIds() {
+    var ids = [];
+    if (window.JavisRunning) window.JavisRunning.forEach(function (id) { if (id && ids.length < 50) ids.push(String(id)); });
+    var cur = currentId();
+    if (cur && chatOnScreen() && ids.indexOf(cur) < 0) ids.push(cur);
+    return ids;
+  }
+  function unreadSkipQuery() {
+    var ids = unreadSkipIds();
+    return ids.length ? "&skip=" + encodeURIComponent(ids.join(",")) : "";
+  }
   // One timer per chat: a quick switch from chat A to chat B must still report A as read.
   var readTimers = {};
   function markRead(sid) {
@@ -193,7 +208,7 @@
     var requestedBrain = brain(), request = ++projectRequest;
     var previousLabel = projLabelHtml();
     try {
-      var d = await (await fetch("/projects?brain=" + encodeURIComponent(requestedBrain))).json();
+      var d = await (await fetch("/projects?brain=" + encodeURIComponent(requestedBrain) + unreadSkipQuery())).json();
       if (request !== projectRequest || requestedBrain !== brain()) return;
       projects = d.projects || [];
       ungroupedUnread = Number(d.ungrouped_unread) || 0;
@@ -2627,7 +2642,7 @@
     // 2026-11-19 (owner: "những tin chấm đỏ mà chưa đọc em sắp xếp kéo lên trên đầu"): unread chats form their own
     // group right under the pinned ones. The server already puts them on the first page (unread_first=1); this pass
     // only keeps the open chat, which counts as read, in its date group instead of under "Unread".
-    function laChuaDoc(s) { return !!s.unread && !(s.id === cur && chatOnScreen()); }
+    function laChuaDoc(s) { return !!s.unread && !isRunning(s.id) && !(s.id === cur && chatOnScreen()); }
     items = pins.concat(items.filter(function (s) { return !s.pinned && laChuaDoc(s); }),
                         items.filter(function (s) { return !s.pinned && !laChuaDoc(s); }));
     items.forEach(function (s) {
@@ -2679,7 +2694,7 @@
       // already filtered to that very project, where every row would repeat the same name.
       var pid = (!kenhLoc && s.project_id && s.project_id !== curProject()) ? String(s.project_id) : "";
       var pTag = projById(pid);
-      var chuaDoc = !!s.unread;
+      var chuaDoc = !!s.unread && !isRun;   // still working: the spinner says so, the dot waits for the end
       if (chuaDoc && s.id === cur && chatOnScreen()) { chuaDoc = false; s.unread = false; markRead(s.id); }
       // 2026-11-09: a pinned row shows a small pin before its title (no bar on the left any more); every other action
       // is in the row's "..." menu (moMenuDong).
@@ -3168,7 +3183,7 @@
     loadList();
   }
 
-  window.JavisChatSide = { mount: mount, refresh: refresh, tab: chonTab,
+  window.JavisChatSide = { mount: mount, refresh: refresh, tab: chonTab, unreadSkipQuery: unreadSkipQuery,
                            chip: renderProjChip, moKhung: openProjDrawer,
                            moKhungCuoc: openCuocDrawer,
                            // Trang Cộng sự mở đúng ngăn kéo này cho MỘT trợ lý (nút "File &

@@ -76,6 +76,19 @@ with tempfile.TemporaryDirectory() as tmp:
     assert ungrouped() == base + 1, "Taking it out of its project brings the dot back"
     store.mark_read(loose)
     assert ungrouped() == base, "Reading the chat clears the ungrouped dot"
+
+    # 2026-11-20 (owner): a chat still running (or open on screen) is not unread yet; the dashboard skips it.
+    working = chat(second)
+    assert counts()[second] == 1
+    assert {p["id"]: p["unread_count"] for p in store.list_projects(brain="/b", skip=[working])}[second] == 0, \
+        "A running chat does not light its project folder"
+    store.set_project(working, None)
+    assert store.count_unread(brain=["/b"], project="none", skip=[working]) == ungrouped() - 1, \
+        "A running chat does not light the ungrouped row"
+    summary, skipped = store.unread_summary(["/b"]), store.unread_summary(["/b"], skip=[working, "", "x' OR 1"])
+    assert skipped["chat"] == summary["chat"] - 1, "A running chat does not light the rail"
+    assert store.count_unread(brain=["/b"], project="none", skip=["s%d" % i for i in range(500)]) == ungrouped(), \
+        "A long skip list is capped, never a huge query"
     store._conn.close()
 
 print("OK - project unread counts")

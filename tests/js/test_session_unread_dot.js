@@ -25,6 +25,11 @@ check("unread row gets has-unread and a red dot", rl.includes('(chuaDoc ? " has-
 check("the dot is labelled for screen readers", /ci-unread" role="img" title="' \+ esc\(window\.t\("sess\.unread"\)\) \+ '" aria-label=/.test(rl));
 check("the chat on screen shows no dot and is reported read",
   /if \(chuaDoc && s\.id === cur && chatOnScreen\(\)\) \{ chuaDoc = false; s\.unread = false; markRead\(s\.id\); \}/.test(rl));
+check("a chat still running shows its spinner, not a dot (owner 2026-11-20)",
+  rl.includes("var chuaDoc = !!s.unread && !isRun;") && rl.includes("!!s.unread && !isRunning(s.id)"));
+const RAIL = fs.readFileSync(path.join(__dirname, "../../dashboard/rail-unread.js"), "utf8");
+check("the rail skips running chats and counts again when a run ends",
+  RAIL.includes("unreadSkipQuery()") && RAIL.includes('"javis:chat-turn"'));
 
 // ---- the events ----
 check("every chat change marks the chat on screen read",
