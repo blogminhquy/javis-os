@@ -60,7 +60,8 @@ function appCtx(extra) {
   const st = { fetches: [], drawn: [], answers };
   const ctx = Object.assign({
     TIN_MOI_LUOT: 30, savedSessionId: null, convo: [], handsFree: false, sessionOpenSeq: 0, currentBrainPath: () => "b",
-    tatRanhTay() {}, boViecPhienCu() {}, Date, Map, JSON, Promise, encodeURIComponent, setTimeout,
+    tatRanhTay() {}, boViecPhienCu() {}, Date, Map, JSON, Promise, encodeURIComponent, setTimeout, clearTimeout,
+    _OPEN_SLOW_MS: 8000, _hideOpenNotice() {}, _showOpenNotice() {},   // the slow/failed line: test_chat_open_notice.js
     navigator: {},
     fetch: (url) => {
       const id = decodeURIComponent(url.split("/")[2].split("?")[0]);
