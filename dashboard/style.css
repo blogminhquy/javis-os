@@ -5145,6 +5145,30 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-rmeta > span { display: inline-flex; align-items: center; gap: 5px; }
 .gh-rmeta .ic, .gh-rmeta .cp-ic { width: 14px; height: 14px; flex: none; }
 .gh-rmeta .gh-on { color: var(--green); }
+/* Brain backup on the signed-in GitHub account (backup-link.js, 20/11/2026). */
+#lnBackupBox [hidden] { display: none !important; }
+.bl-host { display: flex; flex-direction: column; gap: 10px; margin: 0 0 12px; max-width: 680px; }
+.bl-host .si-actions { margin: 0; }
+.bl-gh .cp-ic, .bl-host .s-btn .cp-ic { width: 18px; height: 18px; flex: none; }
+.bl-gh { display: inline-flex; align-items: center; gap: 8px; }
+.bl-acc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.bl-acc .gh-acc { cursor: default; }
+.bl-acc .gh-acc:hover { background: transparent; }
+.bl-repo .gh-rti a { color: inherit; text-decoration: none; }
+.bl-repo .gh-rti a:hover { text-decoration: underline; }
+.bl-ib { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--surface-1, var(--bg2)); color: var(--text2); cursor: pointer; }
+.bl-ib:hover { background: var(--surface-3, var(--bg3)); color: var(--text); }
+.bl-ib.danger { color: var(--red); }
+.bl-ib .ic { width: 18px; height: 18px; }
+.bl-form { display: flex; flex-direction: column; gap: 12px; }
+.bl-list { max-height: min(60vh, 520px); overflow-y: auto; }
+.bl-pick { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; background: var(--surface-1, var(--bg2)); }
+.bl-pick:hover { background: var(--surface-3, var(--bg3)); }
+.bl-pick:disabled { opacity: .6; cursor: default; }
+.bl-q { width: 100%; font-size: 16px; }
+.bl-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
+.bl-steps .s-btn, .bl-steps .s-btn-ghost { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
 .gh-sw { position: relative; width: 44px; height: 26px; flex: none; border-radius: 999px; border: 0; background: var(--surface-3, var(--bg3)); cursor: pointer; padding: 0; }
 .gh-sw span { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; }
 .gh-sw[aria-checked="true"] { background: var(--accent); }
