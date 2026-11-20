@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.614.1] - 2026-11-20
+### Fixed
+- **Reopening a chat no longer shows an old copy silently.** When the server is slow or fails, the chat says it is showing the copy kept on this device, with a Retry button, instead of passing the old messages off as current.
+- **A chat that never finishes loading now says so.** After a few seconds Javis says the chat is taking long and offers Retry.
+- **One message that fails to draw no longer hides the ones after it.** It shows as plain text, the rest of the chat is complete, and the error is logged on the Health page.
+
 ## [0.614.0] - 2026-11-20
 ### Improved
 - **WhatsApp bots read catalog orders.** Before, when a customer sent their cart the bot ignored the whole order. It now sees each product, the quantity, the total and the note. Shared contacts, WhatsApp Flow forms, and a location's name and address also reach the bot.

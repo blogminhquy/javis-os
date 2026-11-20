@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.614.1] - 2026-11-20
+### Sửa lỗi
+- **Mở lại hội thoại không còn lặng lẽ hiện bản cũ.** Máy chủ trả lời chậm hoặc lỗi thì khung chat báo rõ đang hiện bản lưu trên máy, kèm nút Thử lại, thay vì để tin cũ nằm đó như thể đã mới nhất.
+- **Hội thoại tải mãi không mở được nay có lời báo.** Sau vài giây chờ, Javis nói cuộc trò chuyện đang tải lâu và cho bấm Thử lại.
+- **Một tin hiển thị lỗi không còn làm mất các tin sau nó.** Tin đó hiện dạng chữ thường, các tin còn lại vẫn đủ, và lỗi được ghi vào trang Sức khoẻ để dễ tìm nguyên nhân.
+
 ## [0.614.0] - 2026-11-20
 ### Cải thiện
 - **Bot WhatsApp đọc được đơn đặt hàng từ catalog.** Trước đây khách bấm gửi giỏ hàng thì bot bỏ qua cả đơn. Giờ bot thấy từng sản phẩm, số lượng, tổng tiền và lời nhắn kèm theo. Danh bạ khách gửi, biểu mẫu WhatsApp Flow, tên và địa chỉ của vị trí cũng tới được bot.
