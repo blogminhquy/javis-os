@@ -24,6 +24,10 @@ process gone); `[unverified]` means the request went out and nothing could confi
 means nothing was done because doing it would be a guess; `[started]` means it is under way; a
 failure stays `ERROR: [failed] ...` so the hub still counts it as an error. A launcher returning
 is not proof: on Windows `os.startfile` returns the moment a shell starts, not when an app does.
+
+Remote control page (1.1.0): `remote.py` serves /ext/desktop-apps/ for the owner's phone (lock,
+volume, screen, clipboard, files, power, plus these same open/close functions). It adds no model
+tool, so the prompt budget stays the same.
 """
 from __future__ import annotations
 
@@ -628,3 +632,31 @@ def register(ctx):
                                                  "force": {"type": "boolean"}},
                 "required": ["name"]},
     )
+    if hasattr(ctx, "register_http"):
+        _register_remote(ctx)
+
+
+def _load_remote():
+    """remote.py sits next to this file; the plugin host loads plugin.py alone, so load it by path."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("javis_desktop_apps_remote", Path(__file__).with_name("remote.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_REMOTE = None   # the loaded remote.py, kept so tests can swap its system functions
+
+
+def _register_remote(ctx) -> None:
+    global _REMOTE
+    remote = _REMOTE = _load_remote()
+    # Late-bound lambdas: tests swap this module's functions after register() ran.
+    remote.register_routes(ctx, remote.Core(
+        check_ready=lambda: check_ready(),
+        open_app=lambda args, c: _open(args, c),
+        close_app=lambda args, c: _close(args, c),
+        list_running=lambda: _list_running(),
+        installed=lambda: _installed(),
+        protected=_PROTECTED,
+    ))
