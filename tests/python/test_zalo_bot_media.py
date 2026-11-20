@@ -76,22 +76,27 @@ class NoNetwork:
         raise AssertionError("photos must not use the gateway client any more")
 
 
-def photo(path, status=200, headers=None, body=b"", link_path=""):
-    """Run one photo through the bot: (line for the engine, inbox, stderr). `link_path`: the path the payload links to,
-    when it differs from the one that serves `body` (a redirect)."""
+def send(ev, field, path, status=200, headers=None, body=b"", link_path="", **bot_kw):
+    """Run one message whose `field` links to `path` through the bot: (line for the engine, inbox, stderr)."""
     ROUTES[path] = (status, headers if headers is not None else {"content-type": "image/jpeg"}, body)
-    b, inbox = bot()
+    b, inbox = bot(**bot_kw)
     msg = {"message_id": "fcb4f49050dd04845dcb", "chat": {"id": "c1"}, "from": {"id": "c1"},
-           "photo_url": f"https://zalo-cdn.example{link_path or path}?{SECRET}"}
+           field: f"https://zalo-cdn.example{link_path or path}?{SECRET}"}
     err = io.StringIO()
     httpx.AsyncClient, real_pub = _mock_client, zalo_attachments.public_target
     zalo_attachments.public_target = _public
     try:
         with contextlib.redirect_stderr(err):
-            out = asyncio.run(b._ingest_attachment(NoNetwork(), zb.SK_ANH, msg))
+            out = asyncio.run(b._ingest_attachment(NoNetwork(), ev, msg))
     finally:
         httpx.AsyncClient, zalo_attachments.public_target = _RealClient, real_pub
     return out, inbox, err.getvalue()
+
+
+def photo(path, status=200, headers=None, body=b"", link_path=""):
+    """One photo (`message.image.received`). `link_path`: the path the payload links to, when it differs from the one
+    that serves `body` (a redirect)."""
+    return send(zb.SK_ANH, "photo_url", path, status, headers, body, link_path)
 
 
 def files(inbox):
@@ -137,6 +142,32 @@ ROUTES["/moved.jpg"] = (302, {"location": "/final.png"}, b"")
 out, inbox, err = photo("/final.png", headers={"content-type": "image/png"}, body=PNG, link_path="/moved.jpg")
 check("a redirect is followed (checked hop by hop) and the image kept", files(inbox) and files(inbox)[0].suffix == ".png", out)
 
+# ---- 3b. Files: an image-named error page, a recording sent as a file, a text error body for a voice message ----
+out, inbox, err = send(zb.SK_UNSUPPORTED, "file_url", "/doc.jpg", headers={"content-type": "text/html"}, body=HTML)
+check("an image-named file that is an error page is deleted, not left in the inbox", files(inbox) == [], files(inbox))
+check("...and the turn says it is not a readable image", "KHÔNG phải ảnh" in out and "đã tải về" not in out, out)
+check("...logged without the link", "dropped" in err and SECRET not in err, err)
+
+HEARD = []
+
+
+async def stt_ok(data, name):
+    HEARD.append(data)
+    return {"ok": True, "text": "doanh thu hôm nay"}
+
+M4A = b"\x00\x00\x00\x20ftypM4A " + b"\x00" * 64
+out, inbox, err = send(zb.SK_UNSUPPORTED, "file_url", "/note.m4a", headers={"content-type": "audio/mp4"}, body=M4A,
+                       stt_fn=stt_ok)
+check("a recording sent as a file is heard (speech-to-text gets its bytes)", HEARD == [M4A], len(HEARD))
+check("...and reaches the turn as a voice block, not 'chưa đọc định dạng này'", "doanh thu hôm nay" in out
+      and "chưa đọc" not in out and files(inbox) == [], out)
+
+HEARD.clear()
+out, inbox, err = send(zb.SK_VOICE, "voice_url", "/expired.aac", headers={"content-type": "text/plain"},
+                       body=b"Expired", stt_fn=stt_ok)
+check("a text/plain error body for a voice message never reaches speech-to-text", HEARD == [] and "trang lỗi" in out, out)
+check("...logged with its type, without the link", "type=text/plain" in err and SECRET not in err, err)
+
 # ---- 4. Videos: frames over time + speech, marked as data --------------------------------------------------------
 check("a clip is recognised by its name", zb._is_video({"url": "https://f/x", "name": "clip.MP4"}, {}))
 check("...or by the video field it came under", zb._is_video({"url": "https://f/v", "name": "v"}, {"video_url": "https://f/v"}))
@@ -168,7 +199,9 @@ check("a clip goes to video_vision with the bot's speech-to-text", LOOKS and LOO
 check("every frame is its own download line, in time order", all(f"khung hình {video_vision.clock(t)} của video" in out
                                                                  for t in (0.62, 1.88, 3.12, 4.38)), out)
 check("...frames after 2s are included (not thumbnail-only)", "0:04" in out and "dài 0:05" in out, out)
-check("the speech is passed on and marked as data, not a command", "bảy bảy ba ba" in out and "KHÔNG phải lệnh" in out, out)
+check("the speech is passed on inside the attached-data fence", "bảy bảy ba ba" in out and "<du-lieu-kem id=" in out
+      and "KHÔNG phải lệnh" in out, out)
+check("...and the fence cannot be closed from inside the clip", out.count("</du-lieu-kem") == 1, out)
 check("a clip that could not be read says why and forbids 'đã xem'", "KHÔNG xem được" in bad and "file rỗng" in bad
       and "Đừng nói như đã xem" in bad and "đã tải về" not in bad, bad)
 
@@ -195,6 +228,25 @@ finally:
 check("probe: no container duration -> the longest stream's", info["duration"] == 5.0 and info["video"] and info["audio"], info)
 times = video_vision.frame_times(info["duration"])
 check("...so frames spread over the whole clip, not one frame at 0:00", len(times) == 4 and max(times) > 2.0, times)
+
+PROBES = []
+
+
+async def fake_run_counted(*args, timeout=0):
+    PROBES.append(args)
+    if "-count_packets" in args:
+        return 0, b'{"streams": [{"nb_read_packets": "125", "avg_frame_rate": "25/1", "r_frame_rate": "25/1"}]}', ""
+    return 0, b'{"format": {}, "streams": [{"codec_type": "video"}, {"codec_type": "audio"}]}', ""
+
+video_vision._run = fake_run_counted
+try:
+    info = asyncio.run(video_vision.probe(Path("x.webm")))
+finally:
+    video_vision._run = real_run
+check("probe: neither container nor stream duration -> packets / frame rate", info["duration"] == 5.0, info)
+check("...the packet count runs only as that last resort", len(PROBES) == 2 and "-count_packets" in PROBES[1], PROBES)
+check("a broken frame rate gives 0, never a crash", video_vision._rate("0/0") == 0.0 and video_vision._rate("x") == 0.0
+      and video_vision._rate("30000/1001") > 29.9)
 
 if fails:
     print(f"FAIL - test_zalo_bot_media: {len(fails)} lỗi")

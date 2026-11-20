@@ -84,7 +84,35 @@ async def probe(path: Path) -> dict:
     dur = _secs((data.get("format") or {}).get("duration"))
     if dur <= 0:
         dur = max([_secs(s.get("duration")) for s in streams] or [0.0])
+    if dur <= 0 and "video" in kinds:
+        dur = await _counted_duration(path)
     return {"duration": dur, "video": "video" in kinds, "audio": "audio" in kinds}
+
+
+def _rate(v) -> float:
+    """Frames per second from an ffprobe rate like "30000/1001" or "25", 0 when unusable."""
+    try:
+        num, _, den = str(v or "").partition("/")
+        r = float(num) / float(den or 1)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return 0.0
+    return r if 0 < r < 1000 else 0.0
+
+
+async def _counted_duration(path: Path) -> float:
+    """Clip length from its video packet count and frame rate: the last resort when neither the container nor the
+    stream states a duration (some WebM/MKV and streamed recordings). Reads the whole file, so it runs only then."""
+    code, out, _err = await _run("ffprobe", "-v", "error", "-count_packets", "-select_streams", "v:0", "-show_entries",
+                                 "stream=nb_read_packets,avg_frame_rate,r_frame_rate", "-of", "json", str(path))
+    if code != 0:
+        return 0.0
+    try:
+        s = (json.loads(out.decode("utf-8", "replace") or "{}").get("streams") or [{}])[0]
+        packets = int(s.get("nb_read_packets") or 0)
+    except (ValueError, TypeError, IndexError, AttributeError):
+        return 0.0
+    fps = _rate(s.get("avg_frame_rate")) or _rate(s.get("r_frame_rate"))
+    return round(packets / fps, 2) if packets > 0 and fps else 0.0
 
 
 def frame_times(duration: float, n: int = FRAMES) -> List[float]:
