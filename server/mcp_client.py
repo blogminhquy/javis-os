@@ -688,13 +688,44 @@ class SessionPool:
         # a session whose handshake failed under a waiter, and the new one must not read as a first
         # start. Cleared by the next successful tools/list.
         self._init_errors = {}
+        # The event loop the sessions run on, learned at each `_get`. A session dropped from a worker thread is
+        # closed there (see `_close_later`).
+        self._loop = None
+        self._closing = set()   # close tasks in flight: the loop only keeps a weak reference to a task
 
     def _close_later(self, obj):
+        """Close a session the pool just dropped, without waiting for it.
+
+        Field reports 19-20/11/2026: two Zalo accounts in two brains, and signing in the second one cut the first one
+        off for good ("another session of this account keeps taking the connection"). The QR sign-in saves its
+        connection from a worker thread (`zalo_login._reader`), and `mcp_hub.invalidate_cache` dropped every session
+        from there. With no running loop in that thread this method used to do nothing, so the first account's
+        `javis-zalo mcp start` kept running outside the pool while the read loop started a second one on the same
+        HOME: two sessions of one account evicting each other. Windows and macOS never reaped the orphan
+        (`mcp_orphans.reap_same_home` needs /proc). Now the close runs on the sessions' own loop, and with no loop
+        known the process tree is killed right here."""
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(obj.close())
+            here = asyncio.get_running_loop()
         except RuntimeError:
-            pass   # không có event loop (test sync) → GC tự dọn
+            here = None
+        home = self._loop
+        if here is not None and (home is None or home is here or home.is_closed()):
+            t = here.create_task(obj.close())
+            self._closing.add(t)
+            t.add_done_callback(self._closing.discard)
+            return
+        if home is not None and not home.is_closed() and home.is_running():
+            try:
+                asyncio.run_coroutine_threadsafe(obj.close(), home)
+                return
+            except RuntimeError:
+                pass        # the loop shut down between the check and the call: kill below
+        kill = getattr(obj, "_kill_tree", None)
+        if callable(kill) and getattr(obj, "proc", None) is not None:
+            try:
+                kill()
+            except Exception as e:      # noqa: BLE001 - closing must never raise into the caller
+                print(f"[mcp_client] close from a thread: {type(e).__name__}: {e}", file=sys.stderr)
 
     def _sweep(self):
         now = time.time()
@@ -720,6 +751,10 @@ class SessionPool:
         return McpHttpSession(spec.get("url", ""), spec.get("headers"))
 
     def _get(self, spec):
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
         self._sweep()
         key = spec.get("key") or _spec_hash(spec)
         h = _spec_hash(spec)
@@ -807,6 +842,11 @@ class SessionPool:
         A discovery or health check that gives up on it must leave it running: closing it kills
         `npx`/`uvx` in the middle of an install. See McpStdioSession.ensure_init."""
         return self.is_starting_key(spec.get("key") or _spec_hash(spec))
+
+    def holds_spec(self, spec) -> bool:
+        """A session is open for this spec's key, with this very spec, and not marked stale."""
+        ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
+        return bool(ent and not ent.get("stale") and ent["hash"] == _spec_hash(spec))
 
     def is_starting_key(self, key) -> bool:
         """`is_starting` by pool key (the connection id), for callers that have no spec."""

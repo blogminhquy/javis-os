@@ -58,7 +58,12 @@ const l2 = T.linkRowHtml({ url: "https://docs.google.com/d/1", label: "Kế ho�
 check("a named link: the name, then the site and the day", l2.includes(">Kế hoạch<") && l2.includes("docs.google.com") && l2.includes('data-info-del-link="l9"'));
 
 // ---- the storage view ----
-const files = [0, 0.1, 1, 1.2, 9].map((d, i) => ({ name: "f" + i + ".md", path: "f" + i + ".md", exists: true, size: 2048, ts: now - d * DAY }));
+// Counted back from noon today, local time: from `now`, 0.1 and 1.2 days back crossed midnight whenever the run started
+// before 04:48 (CI 20/11/2026 at 04:10 UTC grouped "1.2 days ago" under the day before yesterday).
+const noon = new Date();
+noon.setHours(12, 0, 0, 0);
+const files = [0, 0.1, 1, 1.2, 9].map((d, i) => ({ name: "f" + i + ".md", path: "f" + i + ".md", exists: true, size: 2048,
+  ts: noon.getTime() / 1000 - d * DAY }));
 const A = { kind: "file", q: "", page: 0, items: files, total: 45, state: "done" };
 const view = T.assetsHtml(A, { images: 17, files: 45, links: 27 });
 check("a back button to Info and three tabs with their totals", view.includes('data-as-back="1"') && view.includes(vi["teams.storage_title"])

@@ -72,7 +72,64 @@ def _qr_from_event(obj, home):
     return ""
 
 
+def account_ids(home) -> set:
+    """Zalo account ids (ownId) signed in under one session folder: the CLI's `accounts.json` registry plus its
+    `credentials/cred_<ownId>.json` files. Empty when the folder holds neither."""
+    base = os.path.join(str(home or ""), ".zalo-agent-cli")
+    ids = set()
+    try:
+        with open(os.path.join(base, "accounts.json"), encoding="utf-8") as f:
+            data = json.load(f)
+        rows = data.get("accounts") if isinstance(data, dict) else data
+        for a in rows if isinstance(rows, list) else []:
+            if isinstance(a, dict) and str(a.get("ownId") or "").strip():
+                ids.add(str(a["ownId"]).strip())
+    except (OSError, ValueError):
+        pass
+    try:
+        for name in os.listdir(os.path.join(base, "credentials")):
+            if name.startswith("cred_") and name.endswith(".json") and len(name) > 10:
+                ids.add(name[5:-5])
+    except OSError:
+        pass
+    return ids
+
+
+def _same_account(own_ids: set, home: str):
+    """The saved Zalo connection already signed in as one of `own_ids`, in another folder than `home`, or None.
+
+    Field reports 19-20/11/2026: a second Zalo connection is only safe when it is another account. Zalo keeps one live
+    socket per account, so two connections of the same nick evict each other and both bots miss most messages. The
+    phone that scans the QR decides the account, and nothing on the page showed it was the nick already connected."""
+    if not own_ids:
+        return None
+    try:
+        conns = mcp_store.resolved(enabled_only=False)
+    except Exception:       # noqa: BLE001 - unsure means do not block a sign-in
+        return None
+    for c in conns:
+        if c.get("connector_id") != "zalo":
+            continue
+        h = str(((c.get("env") or {}).get("HOME")) or ((c.get("config") or {}).get("home_dir")) or "")
+        if not h or os.path.realpath(h) == os.path.realpath(home):
+            continue
+        if own_ids & account_ids(h):
+            return c
+    return None
+
+
 def _finish_ok(sess, obj):
+    own = {str(obj.get(k)).strip() for k in ("ownId", "own_id") if str(obj.get(k) or "").strip()}
+    dup = _same_account(own | account_ids(sess["home"]), sess["home"])
+    if dup:
+        ten = str(dup.get("label") or "Zalo")
+        sess.update(state="error", duplicate=True, error=localefmt.chu(
+            f"Nick Zalo vừa quét đã kết nối sẵn ở \"{ten}\". Hai kết nối cùng một nick sẽ giành nhau và bot lỡ tin, nên "
+            "Javis không thêm kết nối này. Muốn nối nick khác: mở app Zalo bằng nick đó rồi quét lại.",
+            f"The Zalo account you scanned is already connected as \"{ten}\". Two connections of one account take the "
+            "connection from each other and the bots miss messages, so Javis did not add this one. To connect another "
+            "account, open the Zalo app signed in as that account and scan again."))
+        return
     label = (obj.get("displayName") or obj.get("display_name") or obj.get("name")
              or obj.get("ownId") or obj.get("own_id") or sess["label"] or "Zalo")
     cid, err = mcp_store.add_connection("zalo", {
@@ -132,6 +189,15 @@ def _reader(sid):
             rc = proc.wait(timeout=5)
         except Exception:
             rc = None
+        if sess.get("duplicate"):
+            # The same account signed in a second time: end the sign-in process and drop its fresh session folder,
+            # which holds a working login of that account nobody would ever close.
+            cancel(sid, keep=True)
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                pass
+            shutil.rmtree(sess["home"], ignore_errors=True)
         # CLI thoát êm sau khi đã hiện QR mà chưa bắt được event success → coi là thành công
         if sess.get("state") not in ("done", "error"):
             if rc == 0 and got_qr:

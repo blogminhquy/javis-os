@@ -2269,13 +2269,35 @@ def invalidate_cache():
     _STORE_MTIME.drop()
     _ambient_cache["ts"] = 0.0   # ép nạp lại danh sách connector tài khoản ở lần discover kế
     try:
+        keep = _single_socket_unchanged()
         for c in mcp_store.list_connections():
+            if c["id"] in keep:
+                continue
             # A session still in its first package download is closed as soon as its handshake
             # is over, not now: killing it mid-install leaves a half-installed npx folder that npx
             # reuses forever. The new credentials or the disabled state apply right after.
             mcp_client.pool.invalidate(c["id"], defer_if_starting=True)
     except Exception:
         pass
+
+
+def _single_socket_unchanged() -> set:
+    """Ids of live sessions that `invalidate_cache` leaves running: an account connector holding ONE live socket per
+    account (catalog `isolate_home`, i.e. personal Zalo), still enabled, its session started with exactly the spec it
+    has now. Signing in a second Zalo account used to restart the first one's javis-zalo two or three times (sign-in,
+    status poll, companion pack), and every restart is a fresh Zalo login during which messages are missed. A real
+    change still restarts it: a new spec makes `SessionPool._get` replace the session, a disabled connection is not in
+    the list, and a re-login closes the session itself (`/connect/relogin`)."""
+    keep = set()
+    try:
+        for r in mcp_store.resolved(enabled_only=True):
+            if (r.get("transport") or "") == "stdio" and (r.get("connector") or {}).get("isolate_home") \
+                    and mcp_client.pool.holds_spec(mcp_client._conn_spec(r)):
+                keep.add(r["id"])
+    except Exception as e:      # noqa: BLE001 - unsure means restart, as before
+        print(f"[mcp_hub] invalidate_cache keep: {type(e).__name__}: {e}", file=sys.stderr)
+        return set()
+    return keep
 
 
 # ============================================================
