@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.613.0] - 2026-11-20
+### Thêm mới
+- **Trang Tài khoản có dòng "Quên mật khẩu hiện tại?"** ngay dưới nút Đổi mật khẩu. Trên Windows và Mac, bấm vào là Javis mở thư mục cài đặt và chọn sẵn file reset, chỉ cần bấm đúp. Trên VPS, Docker, Hostinger thì hiện các bước đặt lại.
+- **Mac có file `reset-auth.command`** làm đúng việc của `reset-auth.bat` trên Windows: xoá mật khẩu cũ để đặt lại từ đầu.
+### Sửa lỗi
+- **File reset không còn mở lại bộ cài đặt lần đầu** (model, kênh, khoá API giữ nguyên), và trên Mac mật khẩu cũ không còn tự quay lại ở lần khởi động sau.
+
 ## [0.612.0] - 2026-11-20
 ### Cải thiện
 - **Bot Slack trả lời đúng thread.** Trước đây, đang trả lời câu hỏi ở thread này mà có người nhắn ở thread khác cùng kênh thì câu trả lời có thể rơi nhầm sang thread kia. Giờ mỗi câu trả lời luôn về đúng thread của câu hỏi.
