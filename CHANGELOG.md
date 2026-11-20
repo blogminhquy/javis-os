@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.611.0] - 2026-11-20
+### Thêm mới
+- **Kết nối Asana.** Trang Kết nối có thẻ Asana dùng MCP chính chủ bản V2: Javis tìm và đọc việc, dự án, hạn chót, tạo và cập nhật việc, thêm bình luận. Đăng nhập ngay trong dashboard, chạy được cả trên VPS.
+- Cần tạo một MCP app trong Asana một lần (khoảng 5 phút), thẻ có hướng dẫn từng bước. Mặc định ở mức Chỉ đọc.
+
 ## [0.610.2] - 2026-11-20
 ### Sửa lỗi
 - **Nhờ Javis tự sửa mã nguồn Javis không còn đỏ lỗi "không có quyền ghi vào blogminhquy/javis-os" ở máy người dùng.** Trước đây mọi máy đều tải repo gốc về, sửa cả lượt rồi mới hỏng ở bước đẩy. Giờ máy không có quyền ghi thì Javis không tải, không sửa, mà viết sẵn một báo lỗi kèm hướng sửa và đưa link mở trang tạo Issue cho nhà phát triển. Bạn đọc lại, bấm Submit là gửi, không cần token hay quyền gì thêm.
