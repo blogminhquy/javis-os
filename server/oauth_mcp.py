@@ -442,8 +442,11 @@ async def start_auth(conn_id, redirect_uri, _retry=0):
         scope_param = auth.get("scope_param") or "scope"
         scope_sep = auth.get("scope_sep") or " "
         extra_params = dict(auth.get("authorize_params") or {})
-        add_resource = False
-        resource = ""
+        # `auth.resource` (RFC 8707): some providers with a pre-registered client still bind the token to a fixed
+        # resource that is NOT the transport URL (Asana V2: server /v2/mcp, resource /v2). Declared in the catalog
+        # because it cannot be discovered here; authorize, code exchange and refresh all send the same value.
+        resource = str(auth.get("resource") or "").strip()
+        add_resource = bool(resource)
         provider = (auth.get("provider") or "").strip().lower()
     else:
         if not conn.get("url"):

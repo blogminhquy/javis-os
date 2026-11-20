@@ -981,6 +981,85 @@
       "purge_warning": "Xoá kết nối này là mất phiên Google đã dán. Muốn dùng lại phải lấy lại cookie từ trình duyệt một lần nữa.",
       "risk": "Kết nối này dùng COOKIE PHIÊN Google, credential tương đương đang đăng nhập tài khoản Google của bạn, không phải OAuth giới hạn phạm vi như Gmail hay Lịch.\n\nMức Chỉ đọc: liệt kê notebook, đọc nguồn, xem trạng thái. Không đụng gì.\n\nMức Ghi nháp: thêm quyền tạo notebook, thêm nguồn, lưu ghi chú, hỏi đáp trong notebook và tạo tóm tắt/audio ở Studio - những thứ này tiêu quota NotebookLM của bạn.\n\nMức Toàn quyền: thêm quyền XOÁ notebook, xoá nguồn, và CHIA SẺ notebook cho người khác. Chia sẻ nhầm thì gỡ lại được nhưng người ta đã đọc rồi, nên nó nằm ở mức cao nhất.\n\nnotebooklm-py là thư viện KHÔNG chính thức, chạy trên giao thức nội bộ của NotebookLM. Google đổi giao thức lúc nào cũng có thể làm kết nối này gãy.",
       "rate_limit": { "calls_per_min": 20 }
+    },
+    {
+      "id": "asana",
+      "name": "Asana",
+      "icon": "/static/logos/asana.svg",
+      "category": "Văn phòng",
+      "description": "Việc và dự án trong Asana qua MCP chính chủ (V2): tìm việc, xem dự án, tiến độ, người phụ trách, hạn chót, tạo và cập nhật việc, bình luận. Đăng nhập Asana trong dashboard, chạy được cả trên VPS. Cần tạo một MCP app trong Asana 1 lần (~5 phút).",
+      "status": "beta",
+      "transport": "http",
+      "url": "https://mcp.asana.com/v2/mcp",
+      "auth": {
+        "type": "oauth",
+        "authorize_url": "https://app.asana.com/-/oauth_authorize",
+        "token_url": "https://app.asana.com/-/oauth_token",
+        "_resource_doc": "Asana V2 (developers.asana.com, Connecting MCP clients to Asana's V2 server): server MCP nằm ở /v2/mcp nhưng token gắn với resource https://mcp.asana.com/v2 (KHÔNG có /mcp). Asana không cho tự đăng ký app (DCR), nên phải đi nhánh EXPLICIT với Client ID/Secret của MCP app người dùng tự tạo, và nhánh đó không tự dò được resource: khai cứng ở đây. Asana khuyên KHÔNG gửi scope (quyền đi theo quyền của người đăng nhập), nên không khai scopes. Bản V1 (https://mcp.asana.com/sse) đã tắt, đừng dùng.",
+        "resource": "https://mcp.asana.com/v2",
+        "fields": [
+          {
+            "key": "client_id",
+            "label": "Client ID (MCP app của Asana)",
+            "placeholder": "Ví dụ: 1209876543210987"
+          },
+          {
+            "key": "client_secret",
+            "label": "Client secret",
+            "placeholder": "Dán client secret của MCP app"
+          }
+        ],
+        "guide": "Asana chỉ cho các app được tạo sẵn đăng nhập vào MCP V2, nên bạn tạo một MCP app của riêng mình 1 lần, khoảng 5 phút:\n1. Mở trang Developer console của Asana (nút bên dưới), bấm Create new app, chọn loại MCP app.\n2. Vào mục OAuth của app, thêm đúng địa chỉ chuyển hướng (redirect URL) này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\nĐịa chỉ phải khớp từng ký tự, kể cả cổng và dấu / cuối.\n3. Copy Client ID và Client secret của app, dán vào hai ô bên dưới rồi bấm Kết nối.\n4. Trang Asana mở ra, chọn workspace rồi bấm Allow.\n\nJavis thấy và làm được đúng những gì tài khoản Asana của bạn thấy và làm được, không hơn.\nMuốn Javis chỉ xem thì giữ mức Chỉ đọc.\n\nBáo lỗi 'redirect_uri does not match' thì soát lại bước 2: thiếu https, sai cổng hoặc thừa dấu / là Asana từ chối.",
+        "guide_url": "https://developers.asana.com/docs/integrating-with-asanas-mcp-server",
+        "steps": [
+          {
+            "text": "Mở Developer console của Asana, bấm Create new app và chọn loại MCP app.",
+            "link": "https://app.asana.com/0/my-apps",
+            "link_label": "Mở Developer console"
+          },
+          {
+            "text": "Vào mục OAuth của app, thêm địa chỉ dưới đây vào ô Redirect URL. Phải khớp từng ký tự, kể cả cổng và dấu / cuối.",
+            "copy": "redirect"
+          },
+          {
+            "text": "Copy Client ID và Client secret của app, dán vào hai ô bên dưới rồi bấm Kết nối. Trang Asana mở ra, chọn workspace rồi bấm Allow."
+          }
+        ],
+        "setup": {
+          "links": [
+            {
+              "label": "Mở Developer console của Asana",
+              "url": "https://app.asana.com/0/my-apps"
+            },
+            {
+              "label": "Hướng dẫn MCP của Asana",
+              "url": "https://developers.asana.com/docs/integrating-with-asanas-mcp-server"
+            }
+          ]
+        }
+      },
+      "_tool_meta_doc": "Phân loại theo tiền tố động từ thay vì danh sách tên cứng: bộ tool của Asana V2 còn đổi, glob giữ đúng hàng rào cho tool mới. Xoá nằm ở nhóm nguy hiểm vì không hoàn tác được từ chat.",
+      "tool_meta": {
+        "read": [
+          "get_*",
+          "list_*",
+          "search_*",
+          "*_typeahead*"
+        ],
+        "write": [
+          "create_*",
+          "update_*",
+          "add_*",
+          "set_*",
+          "duplicate_*"
+        ],
+        "danger": [
+          "delete_*",
+          "remove_*"
+        ]
+      },
+      "default_perm": "readonly",
+      "risk": "Asana MCP làm việc bằng chính quyền của tài khoản Asana bạn đăng nhập.\n\nMức Chỉ đọc: tìm và đọc việc, dự án, người phụ trách, tiến độ, bình luận. Không đổi gì.\n\nMức Ghi nháp: thêm quyền tạo việc, sửa việc (tên, hạn, người phụ trách, trạng thái xong), thêm bình luận. Đồng đội thấy ngay và có thể nhận thông báo.\n\nMức Toàn quyền: thêm quyền XOÁ việc, dự án hoặc gỡ người khỏi việc. Xoá trong Asana vào thùng rác, nhưng Javis không khôi phục giúp được.\n\nWorkspace đông người thì nên bắt đầu ở Chỉ đọc rồi nâng dần."
     }
   ]
 }
