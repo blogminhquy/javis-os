@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.610.0] - 2026-11-20
+### Improved
+- **Mark the open chat as unread.** The "..." menu of the chat you are reading now has this option too. The red dot shows at once and stays until you open another chat and come back, so unfinished work is easy to flag for later.
+
 ## [0.609.1] - 2026-11-20
 ### Fixed
 - **Self-learned profiles no longer say "shop owner".** A profile now calls the person in the chat the subject and describes them, for example how they are addressed and how they refer to themselves, which fits bots that are not used for business too. Existing profiles change at their next update.
