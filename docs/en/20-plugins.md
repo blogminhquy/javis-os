@@ -350,6 +350,41 @@ tools Javis already has, that door carries five tools only the outside AI sees (
 - The five tools are **never** in Javis's own toolset: they appear only when the package's door calls
   `mcp_hub.tra_loi_jsonrpc(..., gate={"source": "<AI name>"})`.
 
+### Saving Claude Code and Codex sessions automatically (Javis Sync)
+
+A coding agent busy writing code almost never calls `javis_chat_note` by itself. **Javis Sync**
+(`tools/javis-sync/javis_sync.py`) does it automatically: it runs on the machine with Claude Code or Codex, as Claude
+Code's **Stop hook** and Codex's **notify** program. After each turn it sends the owner's prompt and the agent's final
+answer (not the tool calls in between) to `POST /chat/external` on Javis.
+
+- Each outside session gets its own conversation: **From Claude Code: <project folder>: <first prompt>** or **From
+  Codex: ...**, saved through the normal chat path, so it lands in History, `memory/conversations` and self-learning.
+  Javis runs no model for it and spends no quota.
+- API keys in the text are masked before saving. Very long text is cut, with a line saying how much is missing.
+- When Javis is off or unreachable, unsent turns are kept and sent on the next run; a turn Javis already has is
+  skipped, never duplicated.
+- The hook never breaks Claude Code or Codex: failures only go to `~/.javis-sync/sync.log`.
+
+Set it up once per machine (Python 3.8 or newer):
+
+1. In Javis: **Integrations** page, **API tokens** tab, create a token with scope **chat**.
+2. On the machine running Claude Code / Codex:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/tools/javis-sync/javis_sync.py
+python3 javis_sync.py install --url https://<your-javis-domain> --token jvs_...
+```
+
+`install` tests the connection first and installs nothing on a wrong URL or token. It copies the script to
+`~/.javis-sync/`, adds the hook to `~/.claude/settings.json` and a `notify` line to `~/.codex/config.toml` (with a
+`.bak` backup). If Codex already had a notify program, it keeps running: Javis Sync chains it. Only one side: add
+`--claude` or `--codex`. Sessions already open pick the hook up after a restart.
+
+- The first turn of a Claude Code session also sends what was said before the install.
+- Status: `python3 ~/.javis-sync/javis_sync.py status`. Remove: `... uninstall` (restores Codex's previous notify).
+- Never send one folder: add its path to `"exclude"` in `~/.javis-sync/config.json`. Pause one shell:
+  `JAVIS_SYNC_OFF=1`.
+
 ## Quick reference of buttons and states
 
 | What you see | Meaning / action |

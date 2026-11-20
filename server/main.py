@@ -31235,6 +31235,24 @@ async def chat_job_status(job_id: str, request: Request):
     return {"ok": True, **view}
 
 
+@app.post("/chat/external")
+async def chat_external(payload: dict = Body(...)):
+    """Save finished turns of the owner's own Claude Code or Codex session into Javis (owner, 20/11/2026).
+
+    Called by `tools/javis-sync/javis_sync.py`, the Claude Code Stop hook and Codex `notify` program, with an API
+    token (scope `chat` is enough). Body: {"source": "claude-code"|"codex", "session": id, "project": folder name,
+    "turns": [{"id", "user", "assistant"}]}, or {"check": true} to test the URL and token without saving anything.
+    Runs no Javis turn: see `chat_bridge.log_transcript`. 409 when the owner is chatting in that conversation right
+    now (the hook keeps the turns and sends them next time)."""
+    if payload.get("check"):
+        return {"ok": True, "sources": sorted(chat_bridge.TRANSCRIPT_SOURCES)}
+    out = await chat_bridge.log_transcript(payload.get("source") or "", payload.get("session") or "",
+                                           payload.get("turns"), str(payload.get("project") or ""))
+    if out.get("ok"):
+        return out
+    return JSONResponse(out, status_code=409 if out.get("busy") else 400)
+
+
 @app.post("/telegram/send-file")
 async def telegram_send_file(payload: dict = Body(...)):
     """Gửi 1 file qua Telegram tới chat whitelist. Agent gọi bằng curl từ localhost

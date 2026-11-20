@@ -758,6 +758,144 @@ async def ghi_chep(nguon: str, ten: str = "", hoi: str = "", tra_loi: str = "", 
     return {"ok": True, "id": row["id"], "title": row.get("title") or ""}
 
 
+# ─────────────────────────── coding-agent transcripts ───────────────────────────
+# Owner, 20/11/2026: "hook tự động cho cả Claude Code và Codex". The Gate tools only save what the outside AI chooses
+# to send, and a coding agent busy writing code almost never calls javis_chat_note, so its sessions never reached
+# Javis. `tools/javis-sync/javis_sync.py` runs as a Claude Code Stop hook and as Codex's `notify` program and posts
+# each finished turn (the owner's prompt, the agent's final answer) to POST /chat/external, which lands here. Nothing
+# runs on Javis's side: each turn goes through the same save path as a Gate note (History, memory/conversations, the
+# learning queue), one Javis conversation per outside session, titled "From Claude Code: <project>: <first prompt>".
+
+TRANSCRIPT_SOURCES = {"claude-code": "Claude Code", "codex": "Codex"}
+TRANSCRIPT_BOOK = STATE_DIR / "gate-transcripts.json"   # {"<source>|<session>": {"sid": ..., "seen": [turn ids]}}
+MAX_TRANSCRIPT_TEXT = 8000      # per prompt and per answer; longer text is cut with a marker, never refused
+MAX_TRANSCRIPT_TURNS = 50       # per request; the hook sends what is left on its next run
+MAX_TRANSCRIPT_SEEN = 1000      # turn ids remembered per session, so a retried request never saves a turn twice
+_SESSION_RE = re.compile(r"^[A-Za-z0-9._:@-]{1,200}$")
+_TRANSCRIPT_LOCK = asyncio.Lock()
+
+
+def transcript_block(source: str) -> str:
+    """Head of a saved transcript prompt: the same prefix as `khoi` (the dashboard strips it and shows "from Claude
+    Code"), and it tells the model the answer under it was the outside agent's, not Javis's."""
+    n = ten_nguon(source)
+    return (f"{KHOI_GATE} {n}. Transcript of the owner's own {n} session, saved so Javis keeps the context. The reply "
+            f"saved under this message was written by {n}, not by Javis. Not a request to act.]\n\n")
+
+
+def _transcript_book() -> Dict[str, dict]:
+    try:
+        d = json.loads(TRANSCRIPT_BOOK.read_text(encoding="utf-8"))
+        return {str(k): v for k, v in d.items() if isinstance(v, dict)} if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_transcript_book(d: Dict[str, dict]) -> None:
+    TRANSCRIPT_BOOK.parent.mkdir(parents=True, exist_ok=True)
+    tmp = TRANSCRIPT_BOOK.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(TRANSCRIPT_BOOK)
+
+
+def _transcript_text(value: Any) -> str:
+    """One prompt or answer as stored: secrets masked (it lands in the brain, which is often a git repo), long text cut
+    with a marker that says how much is missing."""
+    import secret_redact
+    s = secret_redact.redact_secrets(str(value or "").replace("\r\n", "\n").strip())
+    if len(s) > MAX_TRANSCRIPT_TEXT:
+        s = s[:MAX_TRANSCRIPT_TEXT].rstrip() + f"\n\n[... {len(s) - MAX_TRANSCRIPT_TEXT} more characters not saved]"
+    return s
+
+
+def _transcript_title(name: str, project: str, first_prompt: str) -> str:
+    words = re.sub(r"\s+", " ", str(first_prompt or "")).strip()
+    project = re.sub(r"\s+", " ", str(project or "")).strip()[:40]
+    head = f"{project}: {_cat(words, 50)}" if project and words else (project or _cat(words, 60) or "session")
+    return _cat(localefmt.chu(f"Từ {name}: {head}", f"From {name}: {head}"), 90)
+
+
+async def log_transcript(source: str, session: str, turns: Any, project: str = "") -> dict:
+    """Save finished turns of an outside coding agent's session into its own Javis conversation. Runs no Javis turn.
+
+    `turns`: [{"id": unique per turn, "user": the owner's prompt, "assistant": the agent's final answer}], oldest
+    first. A turn whose id was saved before is skipped, so the hook can resend after a timeout. Answers
+    {"ok", "id", "title", "saved", "skipped"}, or {"ok": False, "error", "busy"?} (busy: the owner is chatting in that
+    conversation right now; the hook keeps the turns and sends them next time)."""
+    if "luu" not in _HOST:
+        return {"ok": False, "error": "transcripts are not ready"}
+    src = str(source or "").strip().lower()
+    name = TRANSCRIPT_SOURCES.get(src)
+    if not name:
+        return {"ok": False, "error": "source must be one of: " + ", ".join(TRANSCRIPT_SOURCES)}
+    session = str(session or "").strip()
+    if not _SESSION_RE.match(session):
+        return {"ok": False, "error": "session must be 1-200 letters, digits or ._:@-"}
+    if not isinstance(turns, list):
+        return {"ok": False, "error": "turns must be a list"}
+    if len(turns) > MAX_TRANSCRIPT_TURNS:
+        return {"ok": False, "error": f"at most {MAX_TRANSCRIPT_TURNS} turns per request"}
+    clean = []
+    for t in turns:
+        if not isinstance(t, dict):
+            continue
+        user, answer = _transcript_text(t.get("user")), _transcript_text(t.get("assistant"))
+        if user or answer:
+            clean.append((str(t.get("id") or "").strip()[:200], user, answer))
+    st = _store()
+    async with _TRANSCRIPT_LOCK:
+        book = _transcript_book()
+        key = f"{src}|{session}"
+        entry = book.get(key) or {}
+        seen = [str(x) for x in (entry.get("seen") or [])]
+        todo = [t for t in clean if not (t[0] and t[0] in seen)]
+        skipped = len(clean) - len(todo)
+        row = st.get_session(str(entry.get("sid") or "")) if entry.get("sid") else None
+        if not todo:
+            return {"ok": True, "id": (row or {}).get("id") or "", "title": (row or {}).get("title") or "",
+                    "saved": 0, "skipped": skipped}
+        if not row:
+            latest = (st.list_sessions(limit=1) or [{}])[0]
+            sid = st.create_session(brain=latest.get("brain") or "brain", engine="gate", model=name,
+                                    title=_transcript_title(name, project, todo[0][1]), channel="web")
+            row = st.get_session(sid) or {}
+            entry = {"sid": sid, "seen": seen}
+        elif _dang_chay(row["id"]):
+            return {"ok": False, "busy": True,
+                    "error": "the owner is chatting in that conversation right now; send these turns again later"}
+        saved = 0
+        brain = row.get("brain") or "brain"
+        none_said = localefmt.chu(f"({name} không trả lời bằng chữ ở lượt này.)",
+                                  f"({name} gave no text answer in this turn.)")
+        for tid, user, answer in todo:
+            msg = transcript_block(name) + (user or "(no prompt text)")
+            reply = answer or none_said
+            try:
+                await _rt().publish({"type": "external_message", "session_id": row["id"], "content": msg,
+                                     "source": name})
+            except Exception:  # noqa: BLE001 - an open tab missing one live bubble must not lose the turn
+                pass
+            mid = await _HOST["luu"](row["id"], brain, msg, reply)
+            if not mid:
+                break
+            try:
+                import sessions
+                await _rt().publish({"type": "push", "content": reply, "session_id": row["id"],
+                                     "message_id": int(mid), "content_sha": sessions.content_sha(reply)})
+            except Exception:  # noqa: BLE001
+                pass
+            saved += 1
+            if tid:
+                seen.append(tid)
+        entry["sid"] = row["id"]
+        entry["seen"] = seen[-MAX_TRANSCRIPT_SEEN:]
+        book[key] = entry
+        _save_transcript_book(book)
+    if saved < len(todo):
+        return {"ok": False, "error": "a turn was not saved", "id": row["id"], "saved": saved, "skipped": skipped}
+    return {"ok": True, "id": row["id"], "title": row.get("title") or "", "saved": saved, "skipped": skipped}
+
+
 # ─────────────────────────── tool cho cửa Gate ───────────────────────────
 
 _ID = {"type": "string", "description": "Conversation id from javis_chat_find."}

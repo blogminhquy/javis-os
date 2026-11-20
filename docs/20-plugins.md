@@ -353,6 +353,40 @@ cụ Javis đã có, cửa này có thêm năm công cụ chỉ AI bên ngoài t
 - Năm công cụ **không bao giờ** có trong bộ công cụ của chính Javis: chúng chỉ hiện khi cửa của gói gọi
   `mcp_hub.tra_loi_jsonrpc(..., gate={"source": "<tên AI>"})`.
 
+### Tự lưu hội thoại Claude Code và Codex (Javis Sync)
+
+AI viết code bận làm việc nên gần như không tự gọi `javis_chat_note`. **Javis Sync**
+(`tools/javis-sync/javis_sync.py`) lo việc đó tự động: nó chạy trên máy có Claude Code hoặc Codex, làm **Stop hook**
+của Claude Code và chương trình **notify** của Codex. Mỗi lượt xong, nó gửi câu anh gõ và câu trả lời cuối của AI (không
+gửi các bước gọi công cụ ở giữa) lên `POST /chat/external` của Javis.
+
+- Mỗi phiên bên ngoài là một hội thoại riêng: **Từ Claude Code: <thư mục dự án>: <câu đầu>** hay **Từ Codex: ...**,
+  đi đúng đường lưu lượt chat nên vào Lịch sử, `memory/conversations` và vòng tự học. Javis không chạy model nào, không
+  tốn hạn mức.
+- API key lọt vào câu chữ được che trước khi lưu. Câu quá dài thì cắt, kèm dòng ghi còn bao nhiêu ký tự.
+- Javis tắt hay mất mạng thì lượt chưa gửi được giữ lại, lần sau gửi bù; lượt nào Javis có rồi thì bỏ qua, không trùng.
+- Hook không bao giờ làm hỏng Claude Code hay Codex: lỗi chỉ ghi vào `~/.javis-sync/sync.log`.
+
+Cài một lần trên mỗi máy (cần Python 3.8 trở lên):
+
+1. Trong Javis: trang **Tích hợp**, tab **Token API**, tạo một token phạm vi **chat**.
+2. Trên máy chạy Claude Code / Codex:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/tools/javis-sync/javis_sync.py
+python3 javis_sync.py install --url https://<tên-miền-javis> --token jvs_...
+```
+
+Lệnh `install` thử kết nối trước, sai URL hay token thì không cài gì. Nó chép script vào `~/.javis-sync/`, thêm hook vào
+`~/.claude/settings.json` và dòng `notify` vào `~/.codex/config.toml` (có sao lưu `.bak`). Codex đang có chương trình
+notify khác thì chương trình đó vẫn chạy tiếp, Javis Sync gọi nối sau nó. Chỉ cài một bên: thêm `--claude` hoặc `--codex`.
+Phiên đang mở nhận hook sau khi khởi động lại.
+
+- Lượt đầu tiên của một phiên Claude Code gửi bù cả phần đã nói trước khi cài.
+- Xem tình trạng: `python3 ~/.javis-sync/javis_sync.py status`. Gỡ: `... uninstall` (trả lại notify cũ của Codex).
+- Không gửi một thư mục: thêm đường dẫn vào `"exclude"` trong `~/.javis-sync/config.json`. Tạm tắt một cửa sổ:
+  `JAVIS_SYNC_OFF=1`.
+
 ## Bảng tra nhanh nút và trạng thái
 
 | Bạn thấy | Ý nghĩa / thao tác |
