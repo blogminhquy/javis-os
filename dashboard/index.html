@@ -619,6 +619,11 @@
          page, so hidden (.model-bar:empty). The model chip moved into the composer in 0.153.0. -->
     <div class="model-bar" id="modelBar"></div>
 
+    <!-- What this chat works on, just above the composer (owner, 21/11/2026, after Claude's own PR chip): the GitHub
+         repo chip (github-connect.js) moved here out of the button row, where it squeezed the model and Effort chips
+         on a phone. Hidden while empty. In CHAT_NODE_IDS (console.js), so it follows the composer to the Chat page. -->
+    <div class="ctx-strip" id="ctxStrip" hidden></div>
+
     <!-- ===== Composer: ONE rounded card in the style of Claude (0.153.0) =====
          Top: attached images and files. Middle: text box. Bottom: "+", model chip, effort chip,
          Fast mode bolt, pinned folder chip, then mic and send. Popovers open just above that bottom row (2026-11-14).

@@ -190,6 +190,24 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
   check("git step texts have no em or en dash", gitKeys.every(k => !/[\u2013\u2014]/.test(vi[k] + en[k])));
 }
 
+// Owner, 21/11/2026: "chuyển cái phần repo của GitHub out ra khỏi khung chat giống như ở bên phía màn hình của Claude".
+// The chip lives in the strip above the composer, so the button row keeps its room for the model and Effort chips.
+{
+  const rc = js.slice(js.indexOf("function renderChip()"), js.indexOf("var chipIcon = null;"));
+  check("the repo chip lives in #ctxStrip, not in the composer's button row",
+    rc.includes('getElementById("ctxStrip")') && !rc.includes("cpChips") && !rc.includes("limitBtn"));
+  check("the strip hides itself once nothing is in it", rc.includes("host.hidden = !host.children.length") && rc.includes("host.hidden = false"));
+  check("the strip sits right above the composer card, hidden at first",
+    /<div class="model-bar" id="modelBar"><\/div>\s*<!--[\s\S]*?-->\s*<div class="ctx-strip" id="ctxStrip" hidden><\/div>\s*<!--[\s\S]*?-->\s*<div class="hud-voice" id="hudVoice">/.test(html));
+  check("the strip follows the composer to the Chat page", /CHAT_NODE_IDS = \[[^\]]*"modelBar", "ctxStrip", "hudVoice"/.test(consoleJs));
+  const css = read("dashboard/style.css");
+  check("the strip lines up with the composer card and the chip may use its whole width",
+    css.includes(".ctx-strip { display: flex; gap: 8px; margin: 0 16px 2px;") && css.includes(".ctx-strip .cp-pin.gh-chip { max-width: 100%; }")
+    && css.includes(".ctx-strip { margin: 0 10px 0; }"));
+  check("the chip is a 36px pill with 14px text, room for the full repo name",
+    css.includes(".ctx-strip .cp-pin { height: 36px;") && js.includes("chipText(list, narrow() ? 28 : 44)"));
+}
+
 const keys = Array.from(new Set((js.match(/tw\("(gh\.[a-z_]+)"/g) || []).map(m => m.slice(4, -1))));
 check("every gh.* key used exists in vi.json and en.json", keys.length > 20 && keys.every(k => vi[k] && en[k]));
 check("Vietnamese texts carry diacritics", /Kết nối/.test(vi["gh.connect"]) && /Gỡ khỏi brain/.test(vi["gh.remove_brain"]));

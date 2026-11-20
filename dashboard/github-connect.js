@@ -504,23 +504,25 @@
   function announce() {
     try { window.dispatchEvent(new CustomEvent("javis:github-repos-changed", { detail: { sid: sid(), repos: attached } })); } catch (e) {}
   }
+  // The chip lives in the strip above the composer (#ctxStrip), not in its button row (owner, 21/11/2026: "chuyển phần
+  // repo của GitHub ra khỏi khung chat giống như bên Claude", it squeezed the model and Effort chips on a phone).
   function renderChip() {
-    var host = document.getElementById("cpChips");
+    var host = document.getElementById("ctxStrip");
     if (!host) return;
     var chip = document.getElementById("ghChip");
     var list = held ? held : names();
-    if (!list.length) { if (chip) chip.remove(); return; }
+    if (!list.length) { if (chip) chip.remove(); host.hidden = !host.children.length; return; }
     if (!chip) {
       chip = document.createElement("button");
       chip.type = "button"; chip.id = "ghChip"; chip.className = "cp-pin gh-chip";
       chip.addEventListener("click", function (e) { e.stopPropagation(); if (window.JavisComposerMenu) window.JavisComposerMenu.openItem("github"); });
     }
-    var after = document.getElementById("pinChip") || document.getElementById("limitBtn");
-    if (chip.parentElement !== host || chip.previousElementSibling !== after) host.insertBefore(chip, after ? after.nextSibling : null);
+    if (chip.parentElement !== host) host.appendChild(chip);
+    host.hidden = false;
     var base = chipBase();
     chip.title = list.join("\n") + (base ? "\n" + tw("gh.chip_branch", { branch: base }) : "");
     chip.setAttribute("aria-label", tw("gh.chip_label", { names: list.join(", ") }) + (base ? ", " + tw("gh.chip_branch", { branch: base }) : ""));
-    chip.innerHTML = LOGO + "<span>" + esc(chipText(list, narrow() ? 10 : 18)) + "</span>" +
+    chip.innerHTML = LOGO + "<span>" + esc(chipText(list, narrow() ? 28 : 44)) + "</span>" +
       (base ? '<span class="gh-chip-br">' + BRANCH + esc(base) + "</span>" : "") + (chipIcon ? iconHtml(chipIcon) : "");
     var st = chip.querySelector(".gh-st");
     if (st) st.addEventListener("click", function (e) { e.stopPropagation(); openDetail(sid()); });
