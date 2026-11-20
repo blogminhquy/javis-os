@@ -870,7 +870,7 @@ class TelegramBot(HangLuot):
         d = Path(ddir) if ddir else Path("telegram-inbox")
         d.mkdir(parents=True, exist_ok=True)
         dest = d / f"video_{msg.get('message_id')}_{int(time.time())}.mp4"
-        dest.write_bytes(data)
+        await asyncio.to_thread(dest.write_bytes, data)     # up to 20MB: off the event loop
         msg["_video_path"] = str(dest)
         if self.giau_trang_thai:
             return _with_cap("[Người dùng gửi một video qua Telegram]")
