@@ -100,9 +100,17 @@ Khi đã có mật khẩu, khối **Tài khoản đăng nhập** hiện dòng "�
 
 Đổi mỗi tên đăng nhập thì các phiên khác vẫn sống, vì mật khẩu chưa đổi.
 
-**Quên mật khẩu hiện tại** thì không có đường vòng nào trong dashboard, phải sửa từ máy chủ.
+**Quên mật khẩu hiện tại** thì không có đường vòng nào ngay trong dashboard, phải làm trên máy chạy Javis. Ngay dưới nút **Đổi mật khẩu** có dòng **Quên mật khẩu hiện tại?** chỉ đúng đường cho máy của bạn:
+
+- **Windows và Mac, đang dùng Javis trên chính máy đó:** bấm dòng này là Javis mở thư mục cài đặt và chọn sẵn file **`reset-auth.bat`** (Mac: **`reset-auth.command`**). Bấm đúp file đó. Mật khẩu cũ bị xoá hẳn, kèm xác thực 2 lớp, mọi thiết bị bị đăng xuất. Mở lại Javis, vào **Tài khoản** rồi đặt mật khẩu mới như lần đầu. Javis chỉ mở thư mục chứ không tự chạy file, để một máy đang đăng nhập bỏ đó không xoá được mật khẩu nếu không có ai ngồi trước máy.
+- **Mở Javis từ máy khác (điện thoại, qua tunnel):** dòng này hiện cách làm trong nút (i): ra máy tính đang chạy Javis rồi bấm đúp file như trên.
+- **Docker, Hostinger, VPS:** dòng này hiện các bước đặt lại bằng biến môi trường bên dưới.
+
+Script không mở lại bộ cài đặt lần đầu (model, kênh, khoá API giữ nguyên). Nó cũng xoá `JAVIS_ADMIN_PASSWORD` và `JAVIS_ADMIN_USER` khỏi file `.env` của bản cài (bản Mac cài bằng `install.sh` có hai dòng này), vì để lại thì lần khởi động sau Javis sẽ đặt lại đúng mật khẩu cũ.
 
 Chạy bằng Docker/Hostinger (từ 0.77.1): đổi `JAVIS_ADMIN_PASSWORD` (và `JAVIS_ADMIN_USER` nếu muốn) trong ô Environment rồi Redeploy. Lúc khởi động, Javis thấy giá trị env khác lần trước nên đặt lại tài khoản admin theo nó: 2FA giữ nguyên, mọi phiên đăng nhập cũ bị huỷ. Env để nguyên thì không có gì thay đổi, nên mật khẩu bạn đổi trong dashboard không bị env ghi đè mỗi lần khởi động lại.
+
+VPS cài thẳng bằng `install.sh` (systemd): SSH vào máy chủ, sửa dòng `JAVIS_ADMIN_PASSWORD` trong file `.env` ở thư mục cài Javis thành mật khẩu mới (chưa có thì thêm), rồi chạy `sudo systemctl restart javis`. Javis đặt lại tài khoản theo giá trị mới như trên Hostinger.
 
 Cách thủ công (máy không dùng env):
 
@@ -295,7 +303,8 @@ Về cookie `secure`: mặc định Javis **không** ép cookie `secure` để c
 | ✅ Đã lưu tài khoản. | Tài khoản đăng nhập | Đặt mật khẩu thành công |
 | ⚠ Mật khẩu tối thiểu 8 ký tự. | Tài khoản đăng nhập | Giao diện chặn trước khi gửi lên server, cùng ngưỡng với server |
 | ⚠ Sai mật khẩu hiện tại. | Tài khoản đăng nhập | Ô **Mật khẩu hiện tại** gõ sai, không có gì bị đổi |
-| **Quên mật khẩu?** | Màn đăng nhập | Bấm vào hiện hướng dẫn xoá khối `"auth"` trong `server/settings.json` rồi khởi động lại |
+| **Quên mật khẩu?** | Màn đăng nhập | Bấm vào hiện hướng dẫn chạy `reset-auth.bat` (Mac: `reset-auth.command`), hoặc đổi `JAVIS_ADMIN_PASSWORD` trên máy chủ |
+| **Quên mật khẩu hiện tại?** | Tài khoản, dưới nút Đổi mật khẩu | Windows/Mac: mở thư mục và chọn sẵn file reset. Máy chủ: hiện các bước trong nút (i) |
 
 ## Mẹo
 
@@ -327,7 +336,7 @@ Bạn đang vào Javis bằng một tên miền mà Javis chưa biết, trong l�
 Bạn đang gọi API Javis từ một trang khác (script, tiện ích, iframe của bên thứ ba). Đây là lớp chống CSRF chặn đúng việc của nó. Nếu đó là công cụ của chính bạn, thêm hostname của nó vào `JAVIS_ALLOWED_HOSTS`.
 
 **Quên mật khẩu.**
-Trên Windows, repo có sẵn script **`reset-auth.bat`** ở thư mục gốc dự án: chạy nó là xoá tài khoản/mật khẩu trong `server/settings.json` và đưa app về bộ cài đặt (nó in "OK - da xoa mat khau." rồi hướng dẫn khởi động lại). Nếu không dùng được script: sửa/xoá phần `auth` trong `settings.json` ở thư mục state (Docker: `/data/state`) rồi khởi động lại; hoặc đặt lại admin bằng `JAVIS_ADMIN_PASSWORD` sau khi đã xoá phần `auth` cũ.
+Trên Windows và Mac, thư mục cài Javis có sẵn **`reset-auth.bat`** (Windows) và **`reset-auth.command`** (Mac). Bấm đúp là mật khẩu cũ bị xoá; mở lại Javis rồi vào Tài khoản đặt mật khẩu mới. Đang đăng nhập sẵn thì vào **Tài khoản**, bấm **Quên mật khẩu hiện tại?** để Javis mở đúng thư mục. Nếu không dùng được script: sửa/xoá phần `auth` trong `settings.json` ở thư mục state (Docker: `/data/state`) rồi khởi động lại; hoặc đặt lại admin bằng `JAVIS_ADMIN_PASSWORD` sau khi đã xoá phần `auth` cũ.
 
 **Đổi máy/khôi phục backup xong thì mọi API key trống trơn.**
 Bạn chép `settings.json` mà không chép `.secret_key` đi cùng. Không có cách khôi phục: nhập lại key ở trang Models, Kênh và Cài đặt. Lần sau nhớ mang cả hai tệp.

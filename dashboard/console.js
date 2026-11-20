@@ -7458,6 +7458,42 @@
     };
   }
 
+  // "Forgot your current password?" under the change-password form (owner 2026-11-20). Changing a password needs the
+  // current one, so the way back starts on the machine: on a Windows / Mac install seen from that same computer the
+  // button reveals reset-auth.bat / reset-auth.command in Explorer / Finder (revealed, never run from here); anywhere
+  // else (VPS, Docker, the desktop opened from a phone) the same label opens the steps in the (i) popup.
+  async function renderForgot(box) {
+    if (!box) return;
+    let h = {};
+    try { h = await (await fetch("/auth/reset-help")).json(); } catch (e) { h = {}; }
+    if (!document.body.contains(box)) return;
+    const label = t("cs.ac_forgot");
+    const file = h.file || "";
+    const J = window.JavisInfo || { pair: (html) => '<div class="info-body">' + html + "</div>" };
+    const li = (k, p) => "<li>" + esc(t(k, p)) + "</li>";
+    if (h.can_open) {
+      box.innerHTML = `<div class="ac-forgot-row"><button type="button" class="ac-forgot-btn" id="acForgotOpen">${ic("folder-open")}<span>${esc(label)}</span></button>${infoBtn()}</div>`
+        + infoBody("<ol class=\"ac-forgot-steps\">" + li("cs.ac_forgot_desk1", { file }) + li("cs.ac_forgot_desk2") + li("cs.ac_forgot_desk3") + "</ol>")
+        + '<div class="gcard-meta" id="acForgotStatus" role="status"></div>';
+      const st = document.getElementById("acForgotStatus");
+      document.getElementById("acForgotOpen").onclick = async () => {
+        st.textContent = t("common.loading");
+        try {
+          const r = await (await fetch("/auth/reset-help/open", { method: "POST" })).json();
+          st.innerHTML = r.ok ? OK_ICON + " " + esc(t("cs.ac_forgot_opened", { file: r.file || file }))
+            : Icons.warn(r.error || t("cs.ac_err_dot"));
+        } catch (e) { st.innerHTML = WARN_ICON + " " + esc(t("cs.ch_net_err")); }
+      };
+      return;
+    }
+    const steps = h.kind === "docker"
+      ? J.pair("<ol class=\"ac-forgot-steps\">" + li("cs.ac_forgot_docker1") + li("cs.ac_forgot_docker2") + li("cs.ac_forgot_docker3") + "</ol>", label)
+      : h.kind === "linux"
+        ? J.pair("<ol class=\"ac-forgot-steps\">" + li("cs.ac_forgot_linux1") + li("cs.ac_forgot_linux2") + li("cs.ac_forgot_linux3") + "</ol>", label)
+        : J.pair("<ol class=\"ac-forgot-steps\">" + li("cs.ac_forgot_far1", { file }) + li("cs.ac_forgot_desk2") + li("cs.ac_forgot_desk3") + "</ol>", label);
+    box.innerHTML = '<div class="ac-forgot-row">' + steps + "</div>";
+  }
+
   // ---- Trang Tài khoản: workspace + đăng nhập ----
   async function renderAccount(el) {
     el.innerHTML = `<div class="pg-loading pg-page">${esc(t("common.loading"))}</div>`;
@@ -7495,6 +7531,7 @@
             ${auth.has_password ? '<button class="gcard-btn ghost" id="acLogout">' + esc(window.t("cs.ac_logout")) + '</button><button class="gcard-btn ghost" id="acDisable">' + esc(window.t("cs.ac_disable")) + '</button>' : ""}
           </div>
           <div class="gcard-meta" id="acStatus"></div>
+          ${auth.has_password ? '<div class="ac-forgot" id="acForgot"></div>' : ""}
         </div>
       </div>
       </div>
@@ -7547,6 +7584,7 @@
       };
     });
     renderSecurity();
+    renderForgot(document.getElementById("acForgot"));
     const wsStatus = document.getElementById("acWsStatus");
     document.getElementById("acWsSave").onclick = async () => {
       wsStatus.textContent = window.t("settings.saving");

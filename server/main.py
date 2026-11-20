@@ -11680,6 +11680,68 @@ async def files_open_local(request: Request, path: str = Form(...), brain: str =
     return {"ok": True, "action": action, "path": str(target)}
 
 
+# ---- Forgot the current password: Account page help (owner request 2026-11-20) ----
+# The dashboard needs the current password before it changes one, so the way back starts on the machine itself. On a
+# desktop install the Account page reveals the reset script in Explorer / Finder; everywhere else it shows the steps.
+_RESET_SCRIPTS = {"windows": "reset-auth.bat", "mac": "reset-auth.command"}
+
+
+def _reset_kind() -> str:
+    if os.path.exists("/.dockerenv"):
+        return "docker"
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "mac"
+    return "linux"
+
+
+def _reset_script(kind: str):
+    """The reset script for this install, or None when it cannot do the job: not a desktop install, the file is
+    missing, or settings.json lives somewhere the script does not look (it reads <repo>/server unless told)."""
+    name = _RESET_SCRIPTS.get(kind)
+    if not name:
+        return None
+    root = Path(__file__).resolve().parent.parent
+    script = root / name
+    try:
+        same_state = Path(cfgmod.SETTINGS_PATH).resolve() == (root / "server" / "settings.json").resolve()
+    except Exception:  # noqa: BLE001
+        same_state = False
+    return script if script.is_file() and same_state else None
+
+
+@app.get("/auth/reset-help")
+async def auth_reset_help(request: Request):
+    """What the Account page offers under "Forgot your current password?": `can_open` = a button that reveals the
+    reset script on this computer, otherwise the steps for `kind` (docker, linux, or a desktop seen from afar)."""
+    kind = _reset_kind()
+    script = _reset_script(kind)
+    return {"kind": kind, "file": _RESET_SCRIPTS.get(kind, ""),
+            "can_open": bool(script) and _local_open_here(request) and local_open.can_launch()}
+
+
+@app.post("/auth/reset-help/open")
+async def auth_reset_help_open(request: Request):
+    """Show the reset script selected in Explorer / Finder. Only REVEALS it: running it stays a deliberate double
+    click on the machine, so an unattended signed-in browser cannot change the password without the current one."""
+    if not _local_open_here(request):
+        return JSONResponse({"error": localefmt.chu(
+            "Chỉ mở được khi bạn dùng Javis ngay trên máy đang chạy nó.",
+            "This only works when you use Javis on the computer that runs it.")}, status_code=403)
+    script = _reset_script(_reset_kind())
+    if not script:
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy file đặt lại mật khẩu trên máy này.",
+                                                    "The password reset file is not on this computer.")},
+                            status_code=404)
+    try:
+        local_open.launch("reveal", script)
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": localefmt.chu("Không mở được thư mục: ", "Could not open the folder: ") + str(e)},
+                            status_code=500)
+    return {"ok": True, "file": script.name, "folder": str(script.parent)}
+
+
 # ---- CHIA SẺ CÔNG KHAI một file (nút Chia sẻ trong trình sửa) ----
 # Người cầm link KHÔNG đăng nhập, nên đây là mặt tiền công khai duy nhất chạm vào file trong
 # brain. Ba điều giữ nó lành:

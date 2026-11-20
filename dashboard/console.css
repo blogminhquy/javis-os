@@ -1422,6 +1422,19 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .aud-err { font-size: 12px; opacity: .8; margin-top: 2px; }
 
 
+/* "Forgot your current password?" under the change-password form (Account page, 2026-11-20). A quiet text link: it
+   is the way out for a few owners, not an action for everyone, so it must not compete with "Change password". */
+.ac-forgot { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline, var(--surface-2)); }
+.ac-forgot-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-height: 36px; }
+.ac-forgot-btn, .ac-forgot .info-i.with-text { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px;
+  margin-left: -6px; border: 0; border-radius: 8px; background: none; cursor: pointer; font: inherit; font-size: 16px;
+  color: var(--accent); }
+.ac-forgot-btn svg { width: 18px; height: 18px; flex: none; }
+.ac-forgot-btn:hover, .ac-forgot .info-i.with-text:hover { background: var(--surface-2); }
+.ac-forgot-steps { padding-left: 1.5em; }
+.ac-forgot-steps li + li { margin-top: 6px; }
+@media (max-width: 600px) { .ac-forgot-row { min-height: 44px; } .ac-forgot-btn, .ac-forgot .info-i.with-text { min-height: 44px; } }
+
 /* Xác thực 2 lớp (trang Tài khoản) */
 .tfa-card .tfa-warn { color: var(--warn-ink); font-weight: 600; }
 .tfa-steps { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
