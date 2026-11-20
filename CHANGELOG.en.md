@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.609.0] - 2026-11-20
+### Added
+- **Leave a Zalo group from the "..." menu of the Conversations page.** The chat history stays in Javis, under the Hidden filter.
+- **Block is offered on every channel.** Messenger and Zalo block on the platform; other channels block in Javis: the bot goes quiet, the chat is hidden and new messages do not bring it back.
+- **Unblock** for a blocked chat, which restores its previous reply mode.
+
 ## [0.608.0] - 2026-11-20
 ### Improved
 - **The Plugins page is rebuilt in the Tasks page style.** A left column filters by status and source, All is one list sorted by name, and your own tools and Javis Store tools carry a tag.
