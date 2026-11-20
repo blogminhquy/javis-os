@@ -24,7 +24,23 @@ Differences from Telegram that change behaviour, not just names:
   4. No typing indicator exists for bots. The owner sees one status message that is edited as
      tools run, then becomes the tool-trail line; customer bots show nothing.
   5. Slack's markup is mrkdwn, not Markdown: `*bold*`, `_italic_`, `<url|text>`. `md_to_mrkdwn`
-     converts the common cases; anything it misses still reads fine as plain text.
+     converts the common cases; anything it misses still reads fine as plain text. Slack also
+     escapes `&`, `<`, `>` in both directions: outbound text escapes them (a raw `<` would be read
+     as a control sequence), inbound text is decoded by `inbound_text` so the model reads `a < b`,
+     `@Kim` and `#sales` instead of `a &lt; b`, `<@U123>` and `<#C123|sales>`.
+
+Audit of 2026-11-20 (parity with Telegram, Discord and Lark):
+  - Each turn answers into the thread of ITS message (`meta["thread_ts"]`). A per-chat slot was
+    overwritten by any newer message in another thread of the same channel, so a running answer
+    could land in the wrong thread.
+  - "Inside a thread the bot already replied in" survives a restart: an unknown thread is checked
+    once with conversations.replies, so customers continuing an old thread are not ignored.
+  - Channels have a name (`chat_title`, conversations.info) in the bot inbox and the group list,
+    and the bot reports being added to or removed from a channel, like Telegram does.
+  - A rate-limited call (HTTP 429) waits for Retry-After and tries again instead of dropping the
+    answer.
+  Scopes added for these (channels:read, groups:read, mpim:*) are optional: an app installed from
+  the older manifest keeps working and simply has no channel names or join/leave events.
 """
 from __future__ import annotations
 
@@ -53,6 +69,9 @@ STATUS_EDIT_EVERY = 2.5     # seconds between edits of the owner's status messag
 RECONNECT_MAX = 60          # cap of the reconnect back-off, seconds
 
 _RE_MENTION = re.compile(r"<@([A-Z0-9]+)(?:\|[^>]*)?>")
+MAX_CACHE = 500             # names and thread checks kept per bot
+RATE_LIMIT_RETRIES = 2
+RATE_LIMIT_MAX_WAIT = 30    # seconds; a longer Retry-After is not worth holding a reply for
 
 
 def split_tokens(raw) -> tuple:
@@ -70,14 +89,22 @@ def split_tokens(raw) -> tuple:
     return bot, app
 
 
+def escape(text: str) -> str:
+    """Slack's three control characters. `>` at the start of a line stays raw: it is a quote."""
+    t = str(text or "").replace("&", "&amp;").replace("<", "&lt;")
+    return re.sub(r"(?<!^)(?<!\n)>", "&gt;", t)
+
+
 def md_to_mrkdwn(text: str) -> str:
-    """Markdown as the engines write it -> Slack mrkdwn. Code blocks are left untouched."""
+    """Markdown as the engines write it -> Slack mrkdwn. Code blocks keep their content (only
+    escaped, as Slack requires everywhere)."""
     parts = re.split(r"(```.*?```)", str(text or ""), flags=re.S)
     out = []
     for i, p in enumerate(parts):
         if i % 2 == 1:
-            out.append(p)
+            out.append(escape(p))
             continue
+        p = escape(p)
         p = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", r"\1", p)                 # images: keep the alt
         p = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r"<\2|\1>", p)   # links
         p = re.sub(r"^#{1,6}\s+(.+?)\s*#*$", r"*\1*", p, flags=re.M)       # headings -> bold
@@ -86,6 +113,37 @@ def md_to_mrkdwn(text: str) -> str:
         p = re.sub(r"~~(.+?)~~", r"~\1~", p)
         out.append(p)
     return "".join(out)
+
+
+_RE_ANGLE = re.compile(r"<([^<>\n]+)>")
+
+
+def inbound_text(text: str, names=None) -> str:
+    """Slack's wire format -> what a person typed. `names` maps user id -> display name.
+
+    `<@U1>` -> `@Kim`, `<#C1|sales>` -> `#sales`, `<!here>` -> `@here`, `<url|label>` ->
+    `label (url)`, `<url>` -> `url`, then `&lt; &gt; &amp;` back to `< > &`."""
+    names = names or {}
+
+    def _one(m):
+        body = m.group(1)
+        ref, _, label = body.partition("|")
+        if ref.startswith("@"):
+            return "@" + (label or names.get(ref[1:]) or ref[1:])
+        if ref.startswith("#"):
+            return "#" + (label or ref[1:])
+        if ref.startswith("!"):
+            if ref.startswith("!subteam^"):
+                return label or "@team"
+            return "@" + (label or ref[1:].split("^")[0])
+        if ref.startswith("mailto:"):
+            return label or ref[7:]
+        if label and label != ref and label != re.sub(r"^https?://", "", ref):
+            return f"{label} ({ref})"
+        return ref
+
+    t = _RE_ANGLE.sub(_one, str(text or ""))
+    return t.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
 
 def _chunks(text: str, size: int = MAX_MSG) -> list:
@@ -141,30 +199,48 @@ class SlackBot(HangLuot):
         self._thread = {}             # chat -> thread_ts to reply into
         self._threads_joined = set()  # (chat, thread_ts) the bot has replied in
         self._names = {}              # user id -> display name cache
+        self._channel_names = {}      # channel id -> "#name" ("" when unknown or a DM)
+        self._thread_checked = {}     # (chat, thread_ts) -> the bot has a reply in it
 
     # ---- HTTP -------------------------------------------------------------------------
-    async def _api(self, client, method, token=None, **payload):
-        """Call a Web API method with JSON. Always returns a dict; network errors become
-        `{"ok": False, "error": ..., "net_error": True}` so callers handle one shape."""
-        try:
-            r = await client.post(SLACK_API.format(method=method), json=payload or {},
-                                  headers={"Authorization": f"Bearer {token or self.token}",
-                                           "Content-Type": "application/json; charset=utf-8"})
+    async def _request(self, client, method, token=None, json_body=None, form=None):
+        """POST one Web API method. Always returns a dict; network errors become
+        `{"ok": False, "error": ..., "net_error": True}` so callers handle one shape.
+
+        HTTP 429 (Slack's rate limit, about one message per second per channel) waits for
+        Retry-After and tries again: before, a burst of chunks or a busy channel lost the rest of
+        the answer with only a log line."""
+        headers = {"Authorization": f"Bearer {token or self.token}"}
+        if json_body is not None:
+            headers["Content-Type"] = "application/json; charset=utf-8"
+        for attempt in range(RATE_LIMIT_RETRIES + 1):
+            try:
+                if json_body is not None:
+                    r = await client.post(SLACK_API.format(method=method), json=json_body, headers=headers)
+                else:
+                    r = await client.post(SLACK_API.format(method=method), data=form or {}, headers=headers)
+            except Exception as e:
+                return {"ok": False, "error": f"{type(e).__name__}: {e}", "net_error": True}
+            if r.status_code == 429 and attempt < RATE_LIMIT_RETRIES:
+                try:
+                    wait = int(r.headers.get("Retry-After") or 1)
+                except (TypeError, ValueError):
+                    wait = 1
+                await asyncio.sleep(max(1, min(wait, RATE_LIMIT_MAX_WAIT)))
+                continue
             try:
                 return r.json() or {}
             except Exception:
-                return {"ok": False, "error": f"HTTP {r.status_code}"}
-        except Exception as e:
-            return {"ok": False, "error": f"{type(e).__name__}: {e}", "net_error": True}
+                return {"ok": False, "error": "ratelimited" if r.status_code == 429 else f"HTTP {r.status_code}"}
+        return {"ok": False, "error": "ratelimited"}
+
+    async def _api(self, client, method, token=None, **payload):
+        """Call a Web API method with a JSON body."""
+        return await self._request(client, method, token=token, json_body=payload or {})
 
     async def _api_form(self, client, method, **data):
-        """A few methods (users.info, files.getUploadURLExternal) only take form fields."""
-        try:
-            r = await client.post(SLACK_API.format(method=method), data=data,
-                                  headers={"Authorization": f"Bearer {self.token}"})
-            return r.json() or {}
-        except Exception as e:
-            return {"ok": False, "error": f"{type(e).__name__}: {e}", "net_error": True}
+        """A few methods (users.info, conversations.*, files.getUploadURLExternal) only take form fields."""
+        return await self._request(client, method, form=data)
 
     async def _post(self, client, chat, text, thread_ts=None):
         payload = {"channel": chat, "text": md_to_mrkdwn(text), "unfurl_links": False}
@@ -172,13 +248,14 @@ class SlackBot(HangLuot):
             payload["thread_ts"] = thread_ts
         return await self._api(client, "chat.postMessage", **payload)
 
-    async def _send(self, client, chat, text, reply_markup=None):
+    async def _send(self, client, chat, text, reply_markup=None, thread_ts=None):
         """Send an answer, split into readable chunks. `reply_markup` is accepted and ignored
-        so `bot_gateway._dispatch` can call every channel the same way."""
+        so `bot_gateway._dispatch` can call every channel the same way. `thread_ts` is the thread
+        of the turn being answered; without it, the thread of the chat's latest message."""
         if not str(text or "").strip() and self.giau_trang_thai:
             return
         text = text or localefmt.chu("(không có nội dung)", "(no content)")
-        thread = self._thread.get(chat)
+        thread = thread_ts or self._thread.get(chat)
         for chunk in _chunks(text):
             d = await self._post(client, chat, chunk, thread)
             if d.get("ok") and thread:
@@ -201,7 +278,7 @@ class SlackBot(HangLuot):
                     return False, _explain_error(d.get("error"))
         return True, ""
 
-    async def send_file(self, path, caption="", chat=None):
+    async def send_file(self, path, caption="", chat=None, thread_ts=None):
         """Upload a file with the current Slack flow: getUploadURLExternal -> PUT the bytes ->
         completeUploadExternal (files.upload was retired in 2025). Returns (ok, error)."""
         chat = chat or (self.chat_ids[0] if self.chat_ids else "")
@@ -228,7 +305,7 @@ class SlackBot(HangLuot):
             payload = {"files": [{"id": d.get("file_id"), "title": p.name}], "channel_id": chat}
             if caption:
                 payload["initial_comment"] = md_to_mrkdwn(str(caption))[:3000]
-            thread = self._thread.get(chat)
+            thread = thread_ts or self._thread.get(chat)
             if thread:
                 payload["thread_ts"] = thread
             d2 = await self._api(c, "files.completeUploadExternal", **payload)
@@ -260,10 +337,61 @@ class SlackBot(HangLuot):
         prof = ((d.get("user") or {}).get("profile") or {})
         name = (prof.get("display_name") or prof.get("real_name")
                 or (d.get("user") or {}).get("name") or "")
-        if len(self._names) > 500:
+        if len(self._names) > MAX_CACHE:
             self._names.clear()
         self._names[uid] = str(name)
         return self._names[uid]
+
+    async def _channel_name(self, client, chat) -> str:
+        """"#sales" for a channel, "" for a DM or when the app lacks channels:read/groups:read
+        (an app made from the pre-2026-11-20 manifest). Cached, failures included, so a missing
+        scope costs one call per channel, not one per message."""
+        chat = str(chat or "")
+        if not chat or chat.startswith("D"):
+            return ""
+        if chat in self._channel_names:
+            return self._channel_names[chat]
+        d = await self._api_form(client, "conversations.info", channel=chat)
+        ch = d.get("channel") or {}
+        name = ""
+        # A group DM's name is machine-made ("mpdm-kim--an-1"): leave it out, the inbox shows people.
+        if d.get("ok") and ch.get("name") and not ch.get("is_im") and not ch.get("is_mpim"):
+            name = "#" + str(ch["name"])
+        if len(self._channel_names) > MAX_CACHE:
+            self._channel_names.clear()
+        if d.get("ok") or not d.get("net_error"):
+            self._channel_names[chat] = name
+        return name
+
+    async def _bot_in_thread(self, client, chat, thread) -> bool:
+        """Has the bot replied inside this thread? Known threads answer from memory; an unknown
+        one (the bot restarted since, or the thread is older) is read once with
+        conversations.replies, so "continue a thread the bot answered" works after a restart."""
+        key = (str(chat or ""), str(thread or ""))
+        if not all(key):
+            return False
+        if key in self._threads_joined:
+            return True
+        if key in self._thread_checked:
+            return self._thread_checked[key]
+        d = await self._api_form(client, "conversations.replies", channel=key[0], ts=key[1], limit="200")
+        found = bool(self.bot_id) and any(str(m.get("user") or "") == self.bot_id
+                                          for m in (d.get("messages") or []))
+        if found:
+            self._threads_joined.add(key)
+        if len(self._thread_checked) > MAX_CACHE:
+            self._thread_checked.clear()
+        if not d.get("net_error"):
+            self._thread_checked[key] = found
+        return found
+
+    async def _inbound(self, client, text) -> str:
+        """Message text as the person meant it (see `inbound_text`), other people's mentions by name."""
+        names = {}
+        for uid in set(_RE_MENTION.findall(str(text or ""))):
+            if uid != self.bot_id:
+                names[uid] = await self._display_name(client, uid)
+        return inbound_text(text, names)
 
     # ---- Inbound ----------------------------------------------------------------------
     def _seen_before(self, key) -> bool:
@@ -289,22 +417,29 @@ class SlackBot(HangLuot):
 
     async def _build_meta(self, client, ev) -> dict:
         ctype = str(ev.get("channel_type") or "")
-        private = ctype == "im" or str(ev.get("channel") or "").startswith("D")
+        chat = str(ev.get("channel") or "")
+        private = ctype == "im" or chat.startswith("D")
         uid = str(ev.get("user") or "")
         name = await self._display_name(client, uid)
         thread = str(ev.get("thread_ts") or "")
+        mentioned = self._is_mentioned(ev)
+        in_thread = False
+        if thread and not private:
+            in_thread = (chat, thread) in self._threads_joined
+            if not in_thread and not mentioned:
+                in_thread = await self._bot_in_thread(client, chat, thread)
         return {
             "platform": "slack",
-            "chat_id": str(ev.get("channel") or ""),
+            "chat_id": chat,
             "chat_type": "private" if private else "group",
-            "chat_title": "",
+            "chat_title": "" if private else await self._channel_name(client, chat),
             "user_name": name,
             "username": name,
             "user_id": uid,
             "message_id": str(ev.get("ts") or ""),
             "bot_username": self.bot_username,
-            "mentioned": self._is_mentioned(ev),
-            "reply_to_bot": bool(thread) and (str(ev.get("channel") or ""), thread) in self._threads_joined,
+            "mentioned": mentioned,
+            "reply_to_bot": in_thread,
         }
 
     async def _ingest_files(self, client, ev, meta) -> str:
@@ -352,6 +487,9 @@ class SlackBot(HangLuot):
 
     async def _on_event(self, client, ev):
         etype = ev.get("type")
+        if etype in ("member_joined_channel", "member_left_channel", "channel_left", "group_left"):
+            await self._on_membership(client, ev)
+            return
         if etype not in ("message", "app_mention"):
             return
         # Messages the bot itself posted, edits, deletes and joins all come through as
@@ -377,7 +515,7 @@ class SlackBot(HangLuot):
             await self._send(client, chat, localefmt.chu(
                 "Bạn không có quyền dùng bot Javis này.", "You are not allowed to use this Javis bot."))
             return
-        text = self._strip_mention(ev.get("text"))
+        text = await self._inbound(client, self._strip_mention(ev.get("text")))
         # Slack claims every message that starts with "/" as a slash command and refuses it
         # ("not a valid command") before Javis ever sees it. So "!stop", "!new"... stand in for
         # the bot commands the other channels type with a slash.
@@ -392,16 +530,41 @@ class SlackBot(HangLuot):
         if meta["chat_type"] != "private":
             thread = thread or str(ev.get("ts") or "")
         self._thread[chat] = thread or None
+        # The turn keeps ITS thread: `_thread[chat]` moves on as soon as someone writes in
+        # another thread of the same channel, and the answer must not follow it there.
+        meta["thread_ts"] = thread
         await self._dispatch(client, chat, text, meta)
 
-    async def _report_group(self, meta):
+    async def _report_group(self, meta, kind="thay_nhom"):
         if not self.event_fn:
             return
         try:
-            await self.event_fn("thay_nhom", {"chat_id": meta.get("chat_id", ""), "chat_title": "",
-                                              "chat_type": meta.get("chat_type", ""), "chat_id_moi": ""})
+            await self.event_fn(kind, {"chat_id": meta.get("chat_id", ""),
+                                       "chat_title": meta.get("chat_title", ""),
+                                       "chat_type": meta.get("chat_type", ""), "chat_id_moi": ""})
         except Exception as e:
             print(f"[slack group event] {type(e).__name__}: {e}", file=sys.stderr)
+
+    async def _on_membership(self, client, ev):
+        """The bot was added to or removed from a channel (Telegram's `vao_nhom` / `roi_nhom`).
+        Joining lists the channel on the Chatbot page right away, before anyone calls the bot;
+        leaving clears it so the page stops offering a channel the bot is no longer in."""
+        etype = ev.get("type")
+        chat = str(ev.get("channel") or "")
+        if not chat:
+            return
+        if etype in ("member_joined_channel", "member_left_channel"):
+            if not self.bot_id or str(ev.get("user") or "") != self.bot_id:
+                return      # someone else joined or left: not the bot's business
+        kind = "vao_nhom" if etype == "member_joined_channel" else "roi_nhom"
+        if kind == "roi_nhom":
+            self._channel_names.pop(chat, None)
+            self._threads_joined = {k for k in self._threads_joined if k[0] != chat}
+            self._thread_checked = {k: v for k, v in self._thread_checked.items() if k[0] != chat}
+            title = ""
+        else:
+            title = await self._channel_name(client, chat)
+        await self._report_group({"chat_id": chat, "chat_title": title, "chat_type": "group"}, kind)
 
     # ---- One turn ---------------------------------------------------------------------
     async def _handle_turn(self, client, chat, text, meta=None):
@@ -410,7 +573,7 @@ class SlackBot(HangLuot):
         t0 = time.monotonic()
         status_ts = None
         last_edit = 0.0
-        thread = self._thread.get(chat)
+        thread = str((meta or {}).get("thread_ts") or "") or self._thread.get(chat)
 
         if not self.giau_trang_thai:
             d = await self._post(client, chat, localefmt.chu("⏳ Đang làm...", "⏳ Working..."), thread)
@@ -445,18 +608,18 @@ class SlackBot(HangLuot):
             # The status message becomes the tool trail: proof of what Javis touched, left in
             # the conversation the same way Telegram leaves it.
             await self._api(client, "chat.update", channel=chat, ts=status_ts,
-                            text=dong_vet(tools, time.monotonic() - t0))
+                            text=escape(dong_vet(tools, time.monotonic() - t0)))
         if silent and not str(reply or "").strip() and not files:
             return
         if str(reply or "").strip() or not files:
-            await self._send(client, chat, reply)
+            await self._send(client, chat, reply, thread_ts=thread)
         for f in files:
             fpath, fcap = (f.get("path"), f.get("caption", "")) if isinstance(f, dict) else (f, "")
-            ok, err = await self.send_file(fpath, fcap, chat=chat)
+            ok, err = await self.send_file(fpath, fcap, chat=chat, thread_ts=thread)
             if not ok:
                 print(f"[slack send file] {fpath}: {err}", file=sys.stderr)
                 if not self.giau_trang_thai:
-                    await self._send(client, chat, f"⚠ {Path(str(fpath)).name}: {err}")
+                    await self._send(client, chat, f"⚠ {Path(str(fpath)).name}: {err}", thread_ts=thread)
 
     # ---- Socket Mode loop -------------------------------------------------------------
     async def _open_socket_url(self, client) -> str:
