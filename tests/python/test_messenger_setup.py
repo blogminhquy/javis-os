@@ -127,10 +127,10 @@ check("connect succeeds from a short user token", r.get("ok"), r)
 check("the stored token is the Page token", r.get("page_token") == PAGE_TOKEN)
 check("page name read", r.get("page_name") == "Em Mị làm nông", r.get("page_name"))
 # 0.434.0: `feed` joins the two message fields, for Page comments. 2026-11-18: `message_echoes` too, so the bot sees
-# what a staff member sends from the Page inbox.
+# what a staff member sends from the Page inbox. 2026-11-20: `messaging_referrals`, for ad clicks.
 check("app webhook registered with both fields, echoes and feed",
-      g.webhook and g.webhook["fields"] == ["messages", "messaging_postbacks", "message_echoes", "feed"], g.webhook)
-check("page subscribed", g.page_fields == ["messages", "messaging_postbacks", "message_echoes", "feed"], g.page_fields)
+      g.webhook and g.webhook["fields"] == ["messages", "messaging_postbacks", "message_echoes", "messaging_referrals", "feed"], g.webhook)
+check("page subscribed", g.page_fields == ["messages", "messaging_postbacks", "message_echoes", "messaging_referrals", "feed"], g.page_fields)
 check("exchange used the app secret", any(p == "oauth/access_token" for _, p, _ in g.calls))
 chk = r.get("check") or {}
 check("checklist all green", chk.get("ok"), [i for i in chk.get("items", []) if i["ok"] is False])

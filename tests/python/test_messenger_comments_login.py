@@ -209,11 +209,12 @@ async def _subscribe(refuse_feed):
         return await messenger_bot.subscribe_page(c, PAGE, TOKEN), asked
 
 r, asked = run(_subscribe(False))
-check("subscribe asks for messages, postbacks, echoes and feed", r == {"ok": True, "feed": True}
-      and asked == ["messages,messaging_postbacks,message_echoes,feed"], (r, asked))
+check("subscribe asks for messages, postbacks, echoes, referrals and feed", r == {"ok": True, "feed": True}
+      and asked == ["messages,messaging_postbacks,message_echoes,messaging_referrals,feed"], (r, asked))
 r, asked = run(_subscribe(True))
 check("feed refused: the Page is still subscribed for messages",
-      r.get("ok") and r.get("feed") is False and asked[-1] == "messages,messaging_postbacks,message_echoes", (r, asked))
+      r.get("ok") and r.get("feed") is False
+      and asked[-1] == "messages,messaging_postbacks,message_echoes,messaging_referrals", (r, asked))
 
 import messenger_setup  # noqa: E402
 item = messenger_setup.comments_item(["pages_messaging"], ["messages"])

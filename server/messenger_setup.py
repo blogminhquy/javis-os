@@ -26,7 +26,7 @@ from typing import Optional
 import httpx
 
 import localefmt
-from messenger_bot import (ECHO_FIELD, FEED_FIELD, GRAPH, IG_OBJECT, IG_WEBHOOK_FIELDS, SUBSCRIBED_FIELDS, _explain_error,
+from messenger_bot import (ECHO_FIELD, FEED_FIELD, REFERRAL_FIELD, GRAPH, IG_OBJECT, IG_WEBHOOK_FIELDS, SUBSCRIBED_FIELDS, _explain_error,
                            appsecret_proof, subscribe_page, whoami)
 
 WEBHOOK_PATH = "/messenger/webhook"
@@ -157,14 +157,17 @@ async def set_app_webhook(client, app_id: str, app_secret: str, callback_url: st
     `callback_url` with the verify token while this request is open, so Javis must be reachable
     at that address for it to succeed."""
     params = {"object": "page", "callback_url": callback_url,
-              "fields": SUBSCRIBED_FIELDS + "," + ECHO_FIELD + "," + FEED_FIELD,
+              "fields": SUBSCRIBED_FIELDS + "," + ECHO_FIELD + "," + REFERRAL_FIELD + "," + FEED_FIELD,
               "include_values": "true", "verify_token": verify_token,
               "access_token": _app_token(app_id, app_secret)}
     d = await _post(client, f"{app_id}/subscriptions", params)
     if not d.get("error") and d.get("success"):
         return {"ok": True, "feed": True}
-    # `feed` (comments) is optional: never lose the message webhook over it.
-    d = await _post(client, f"{app_id}/subscriptions", {**params, "fields": SUBSCRIBED_FIELDS + "," + ECHO_FIELD})
+    # `feed` (comments) and `messaging_referrals` (ad clicks) are optional: never lose the message webhook over them.
+    d = await _post(client, f"{app_id}/subscriptions",
+                    {**params, "fields": SUBSCRIBED_FIELDS + "," + ECHO_FIELD + "," + REFERRAL_FIELD})
+    if d.get("error") or not d.get("success"):
+        d = await _post(client, f"{app_id}/subscriptions", {**params, "fields": SUBSCRIBED_FIELDS + "," + ECHO_FIELD})
     if d.get("error") or not d.get("success"):
         d = await _post(client, f"{app_id}/subscriptions", {**params, "fields": SUBSCRIBED_FIELDS})
     if d.get("error") or not d.get("success"):
