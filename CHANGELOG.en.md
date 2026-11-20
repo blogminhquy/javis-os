@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.608.0] - 2026-11-20
+### Improved
+- **The Plugins page is rebuilt in the Tasks page style.** A left column filters by status and source, All is one list sorted by name, and your own tools and Javis Store tools carry a tag.
+- **Each row shows only the name, one line of description, the permission in plain words and a switch.** Tap a row for its commands, version and Remove. Remove asks first on the page and can be undone.
+- **One "Add a tool" button gathers the three ways in:** Javis Store, asking Javis in chat, and a .zip file. The "Install from .zip" button still stands on its own beside it.
+- **The browser and the offline listener moved to "Software on this machine"**, and their Remove button is no longer solid colored. On a phone the left column becomes a row of chips with a round + in the corner.
+
 ## [0.607.2] - 2026-11-20
 ### Fixed
 - **The chat folder's red dot shows only for a chat that has finished and is unread.** A chat still working shows its spinner and no longer lights the folder, the "Ungrouped" row, its own row or the side menu. The chat open on screen is not counted either. The dot appears once a run ends and you have not looked at it.
