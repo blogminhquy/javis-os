@@ -186,6 +186,14 @@ check("zalo_send_link is in the danger group: it sends a message (v1.13.0)",
       "zalo_send_link" in zalo["tool_meta"]["danger"])
 check("zalo_send_typing is in the danger group: the contact sees \"typing\" (0.414.0)",
       "zalo_send_typing" in zalo["tool_meta"]["danger"])
+check("7-part Zalo MCP read tools are classified in tool_meta.read",
+      all(t in zalo["tool_meta"]["read"] for t in ("zalo_get_group_settings", "zalo_get_poll")))
+check("7-part Zalo MCP mutation/outbound tools are classified in tool_meta.danger",
+      all(t in zalo["tool_meta"]["danger"] for t in (
+          "zalo_update_group_settings", "zalo_undo_message",
+          "zalo_create_poll", "zalo_lock_poll",
+          "zalo_send_voice", "zalo_send_video",
+      )))
 
 check("no em dash in this file or zalo_cli.py", chr(0x2014) not in open(__file__, encoding="utf-8").read()
       and chr(0x2014) not in (SERVER / "zalo_cli.py").read_text(encoding="utf-8"))

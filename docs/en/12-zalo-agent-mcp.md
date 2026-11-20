@@ -31,7 +31,8 @@ MCP process: sign in by QR, read or search conversations and send messages throu
 - A phone already signed in to the Zalo account you want to connect.
 - Javis started and you able to sign in to the dashboard.
 
-Javis pins `javis-zalo` to a release tag (currently `v1.2.0`) and installs it straight from that
+Javis pins `javis-zalo` to a release tag (currently `v1.14.0`, kept identical across
+`system/mcp-catalog.json`, `server/zalo_cli.py` and `server/zalo_login.py`) and installs it straight from that
 tag's tarball on GitHub, with no npm account or Git needed. Only the `zca-js` library underneath
 follows its official npm releases. Since 0.83.0 Javis runs this build instead of the third-party
 `zalo-agent-cli` 1.6.2; connections signed in earlier switch over without a new QR scan.
@@ -62,8 +63,8 @@ Right after you sign Zalo in to Javis, the Inbox only holds messages from the mo
 
 | Tool | What it does | Action level |
 |---|---|---|
-| `zalo_get_messages` | Read new messages in the buffer, supports a cursor | Read |
-| `zalo_get_history` | Fetch the history of one chat (groups too), paginated, with `replyTo` and `mentions` | Read |
+| `zalo_get_messages` | Read new messages in the buffer using `since` | Read |
+| `zalo_get_history` | Fetch the history of one chat (groups too), paginated, with `replyTo`, `mentions` and `cliMsgId` | Read |
 | `zalo_search_history` | Search history across every chat by sender or date range | Read |
 | `zalo_get_group_joins` | Who joined a group and when, filtered by group, person or date range | Read |
 | `zalo_list_join_requests` | Who is waiting to join a group that requires approval | Read |
@@ -72,13 +73,31 @@ Right after you sign Zalo in to Javis, the Inbox only holds messages from the mo
 | `zalo_search_threads` | Find a group or person by name | Read |
 | `zalo_get_labels` | The tags (labels) the owner set on chats in the Zalo app, for one chat or all (javis-zalo 1.6.0 and later) | Read |
 | `zalo_view_media` | Download/open an image, audio or video on the server (the brain does not see it, see `zalo_read_images` below) | Read |
+| `zalo_get_group_settings` | Read group info and all 9 group setting flags plus admin status (`isAdmin`) | Read |
+| `zalo_update_group_settings` | Update one or more group setting flags (such as `lockSendMsg`) while preserving the other 8 flags | Dangerous |
+| `zalo_get_poll` | Read poll details with normalized voter objects `{ id, name }` | Read |
+| `zalo_create_poll` | Create a group poll directly over MCP | Dangerous |
+| `zalo_lock_poll` | Lock a group poll (one-way: a locked poll cannot be reopened) | Dangerous |
 | `zalo_mark_read` | Mark as handled up to a cursor | Write |
-| `zalo_send_message` | Send a message to a person or group | Dangerous |
+| `zalo_send_message` | Send a message to a person or group (returns `messageId` and `cliMsgId`) | Dangerous |
+| `zalo_send_link` | Send a URL as a rich preview link card | Dangerous |
+| `zalo_send_typing` | Send a typing indicator to a conversation | Dangerous |
 | `zalo_send_file` | Send files (Excel, PDF, Word...) with a message, only files in the session outbox (see "Sending images and files") | Dangerous |
+| `zalo_send_voice` | Send a voice message from a valid `https:` URL (`ttl >= 0`) | Dangerous |
+| `zalo_send_video` | Send a video from a valid `https:` URL and `https:` thumbnail (groups with `threadType = 1` require `duration > 0` ms) | Dangerous |
+| `zalo_undo_message` | Recall a sent message using `msgId` and `cliMsgId` | Dangerous |
+| `zalo_add_reaction` | Add a reaction to a message | Dangerous |
 
-The list follows the `javis-zalo` 1.5.0 source. History only covers what arrived since the MCP
+History only covers what arrived since the MCP
 connected, plus what Zalo replays on connect (roughly the last two weeks); nothing older is
 available through any API.
+
+### Group settings, polls, message recall and voice/video over MCP
+
+- **Preserving all 9 group setting flags (`zalo_get_group_settings`, `zalo_update_group_settings`)**: changing one flag (for example `lockSendMsg` for `22:30 -> 05:30` Vietnam quiet hours) reads the group's current settings first and preserves the other 8 flags in the 9-flag set (`blockName`, `signAdminMsg`, `setTopicOnly`, `enableMsgHistory`, `joinAppr`, `lockCreatePost`, `lockCreatePoll`, `lockSendMsg`, `lockViewMember`). The connected account must be a group admin (`isAdmin: true`); if the group has `blocked_members` or non-zero fields that `zca-js` cannot preserve (`addMemberOnly`, `bannFeature`, `dirtyMedia`, `banDuration`), the tool refuses the write so no group setting is silently lost.
+- **Poll lifecycle (`zalo_create_poll`, `zalo_get_poll`, `zalo_lock_poll`)**: `zalo_get_poll` normalizes voters into `{ id, name }` and resolves display names from group member profiles or user info (unless `isAnonymous: true`). **The Zalo API does not allow reopening a locked poll**: `zalo_lock_poll` is permanent, so starting a new round requires calling `zalo_create_poll` to create a new poll, or toggling `lockCreatePoll` via `zalo_update_group_settings`.
+- **Recalling messages (`zalo_undo_message`)**: requires both `msgId` and `cliMsgId` returned by send tools and stored on buffered/history messages.
+- **Sending voice and video (`zalo_send_voice`, `zalo_send_video`)**: requires `https:` URLs and `ttl >= 0`, without logging signed URLs. For group video sends (`threadType = 1`), **`zalo_send_video` and CLI `msg send-video` hard-require `duration > 0` (milliseconds)** before calling Zalo.
 
 ### When a message may be missing (since 0.183.0, javis-zalo 1.5.0)
 

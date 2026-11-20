@@ -40,6 +40,7 @@ from typing import Any, List, Optional, Tuple
 import winproc
 
 CONNECTOR_ID = "zalo"
+# Ghim đồng bộ 3 chỗ (system/mcp-catalog.json, server/zalo_cli.py, server/zalo_login.py); nâng tag mới phải thêm tag cũ vào lenh_cu trong catalog.
 CLI_PACKAGE = "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.14.0"  # ghim đúng bản mà connector Zalo đang chạy
 CLI_NAME = "javis-zalo"                   # tên gói trong package.json của bản ghim: thư mục trong node_modules
 DEFAULT_TIMEOUT = 120                     # tải file lên Zalo có thể lâu, nhưng không lâu vô hạn

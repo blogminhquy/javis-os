@@ -41,12 +41,18 @@ check("kết nối Zalo đã đăng nhập bằng bản 1.6.2 tự sang bản m�
 expected_read = {
     "zalo_get_messages", "zalo_get_history", "zalo_list_threads",
     "zalo_search_threads", "zalo_view_media", "zalo_search_history", "zalo_get_group_joins",
-    "zalo_list_join_requests", "zalo_get_labels",
+    "zalo_list_join_requests", "zalo_get_labels", "zalo_get_group_settings", "zalo_get_poll",
 }
-check("catalog lists all nine read tools", set(zalo["tool_meta"]["read"]) == expected_read)
-check("mark-read là ghi và send-message là nguy hiểm",
+expected_danger = {
+    "zalo_send_message", "zalo_send_link", "zalo_send_typing", "zalo_send_file",
+    "zalo_send_voice", "zalo_send_video", "zalo_undo_message", "zalo_add_reaction",
+    "zalo_review_join_requests", "zalo_update_group_settings", "zalo_create_poll", "zalo_lock_poll",
+}
+check("catalog lists all eleven read tools", set(zalo["tool_meta"]["read"]) == expected_read)
+check("catalog lists all twelve danger tools", set(zalo["tool_meta"]["danger"]) == expected_danger)
+check("mark-read là ghi và các tool gửi/sửa cài đặt nhóm/poll/thu hồi là nguy hiểm",
       mcp_catalog.classify(zalo, "zalo_mark_read") == "write"
-      and mcp_catalog.classify(zalo, "zalo_send_message") == "danger")
+      and all(mcp_catalog.classify(zalo, t) == "danger" for t in expected_danger))
 
 check("backend không còn listener/webhook Zalo cũ",
       "zalo_listener_feature" not in main_src
@@ -69,8 +75,8 @@ check("hai plugin Zalo cũ đã được gỡ",
 
 guide_url = "https://github.com/blogminhquy/javis-os/blob/main/docs/12-zalo.md"
 check("catalog trỏ nút hướng dẫn đến doc GitHub", zalo["auth"]["guide_url"] == guide_url)
-check("doc nêu đủ mười một tool và link repo javis-zalo",
-      all(name in doc for name in expected_read | {"zalo_mark_read", "zalo_send_message", "zalo_review_join_requests"})
+check("doc nêu đủ các tool MCP Zalo và link repo javis-zalo",
+      all(name in doc for name in expected_read | {"zalo_mark_read"} | expected_danger)
       and "https://github.com/blogminhquy/javis-zalo" in doc)
 check("prompt cho gửi trực tiếp, không phụ thuộc listener/tool cũ",
       "do NOT demand a listener be" in prompt
