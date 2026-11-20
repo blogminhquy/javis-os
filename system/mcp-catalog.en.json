@@ -308,7 +308,11 @@
     "text": "In the app's OAuth section, add the address below as a Redirect URL. It must match character for character, port and trailing / included."
    },
    {
-    "text": "Copy the app's Client ID and Client secret into the two boxes below, then press Connect. Asana's page opens: pick the workspace and press Allow."
+    "text": "Copy the app's Client ID and Client secret into the two boxes below, then press Connect."
+   },
+   {
+    "text": "Asana's page opens: pick the workspace and press Allow. If it says 'redirect_uri does not match', check step 2 again. For more detail, see Asana's MCP guide.",
+    "link_label": "Asana's MCP guide"
    }
   ],
   "setup": {

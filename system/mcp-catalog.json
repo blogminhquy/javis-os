@@ -1022,7 +1022,12 @@
             "copy": "redirect"
           },
           {
-            "text": "Copy Client ID và Client secret của app, dán vào hai ô bên dưới rồi bấm Kết nối. Trang Asana mở ra, chọn workspace rồi bấm Allow."
+            "text": "Copy Client ID và Client secret của app, dán vào hai ô bên dưới rồi bấm Kết nối."
+          },
+          {
+            "text": "Trang Asana mở ra, chọn workspace rồi bấm Allow. Báo lỗi 'redirect_uri does not match' thì soát lại bước 2. Cần thêm chi tiết thì xem hướng dẫn MCP của Asana.",
+            "link": "https://developers.asana.com/docs/integrating-with-asanas-mcp-server",
+            "link_label": "Hướng dẫn MCP của Asana"
           }
         ],
         "setup": {
