@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.606.1] - 2026-11-20
+### Fixed
+- **Connecting a second Zalo account no longer cuts the first one off.** Two reports on 19 and 20/11/2026: one bot per account in two brains, and right after the second account's QR was scanned the first bot's card read "Another session of this account keeps taking the Zalo connection" and the bot missed most messages, with no Zalo Web open anywhere.
+- **Scanning the QR with an account that is already connected is refused right away**, instead of adding a second connection. The message names the connection that holds that account. To connect another account, open the Zalo app signed in as it and scan again.
+
 ## [0.606.0] - 2026-11-20
 ### Improved
 - **Javis finds the right tool far more often when many sources are connected.** Everyday requests such as "today's POS revenue", "Zalo message history" or "Google Ads cost" now reach the right tool, even when tool descriptions are in English. On 55 real test requests, hits rose from 20 to 55.
