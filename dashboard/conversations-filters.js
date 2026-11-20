@@ -149,8 +149,10 @@
     if (x.channel === "threads") return "threads_comment";
     return "";
   }
+  // "block" here means blocked ON THE PLATFORM; every other chat is still offered Block, done in Javis only (owner,
+  // 2026-11-20: "chặn thì ở các kênh luôn"). "leave" leaves a Zalo group (owner, same day: "nút rời nhóm ở zalo").
   var CAN = { messenger_dm: ["profile", "block"], ig_dm: ["profile"], fb_comment: ["delete_remote"], ig_comment: ["delete_remote"],
-              zalo_private: ["profile", "block", "delete_remote"], zalo_group: ["delete_remote"],
+              zalo_private: ["profile", "block", "delete_remote"], zalo_group: ["delete_remote", "leave"],
               // Threads (0.448.0): only the author can delete a reply, so Delete hides it under the post.
               threads_comment: ["profile", "delete_remote"] };
   function platformActs(c) { return CAN[chatKind(c)] || []; }
@@ -180,9 +182,14 @@
                         : { act: "hide", icon: "eye-off", key: "ht.rm_hide", sub: tt("ht.rm_hide_sub") });
     var can = platformActs(x);
     if (can.indexOf("profile") >= 0) items.push({ act: "profile", icon: "circle-user", key: "ht.rm_profile" });
-    if (can.indexOf("block") >= 0 && !(x.metadata && x.metadata.blocked)) items.push({ act: "block", icon: "ban", key: "ht.rm_block" });
+    var k = chatKind(x), meta = x.metadata || {};
+    // Block on every channel: on the platform where it allows it, else in Javis only (the second line says which).
+    if (meta.blocked) items.push({ act: "unblock", icon: "circle-check", key: "ht.rm_unblock" });
+    else items.push({ act: "block", icon: "ban", key: "ht.rm_block",
+                      sub: tt(can.indexOf("block") < 0 ? "ht.rm_block_sub_local" : k === "messenger_dm" ? "ht.rm_block_sub_fb" : "ht.rm_block_sub_zalo") });
+    if (can.indexOf("leave") >= 0 && !meta.left)
+      items.push({ act: "leave", icon: "log-out", key: "ht.rm_leave", danger: true, sub: tt("ht.rm_leave_sub") });
     // Delete is always there: where the platform allows it the chat (or the comment) goes there too, else only in Javis.
-    var k = chatKind(x);
     items.push({ act: "delete", icon: "trash-2", key: "ht.rm_delete", danger: true,
                  sub: tt(k === "fb_comment" || k === "ig_comment" ? "ht.rm_delete_sub_cmt" : k === "threads_comment" ? "ht.rm_delete_sub_th" :
                    can.indexOf("delete_remote") >= 0 ?

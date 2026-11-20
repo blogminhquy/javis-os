@@ -411,10 +411,14 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
                     (tk_id, customer_id, e["bot_id"], e["external_chat_id"], e["chat_type"],
                      tieu_de, now, now))
                 conv = db.execute(
-                    "SELECT id, unread_count, message_count FROM conversations"
+                    "SELECT id, unread_count, message_count, metadata_json FROM conversations"
                     " WHERE channel_account_id=? AND external_chat_id=?",
                     (tk_id, e["external_chat_id"])).fetchone()
                 conv_id = int(conv["id"])
+                # Blocked by the owner (row menu Block, on every channel since 2026-11-20): its messages are still
+                # stored, but never count as unread and never bring the chat back into the inbox.
+                cmeta = _loads(conv["metadata_json"], {})
+                blocked = isinstance(cmeta, dict) and bool(cmeta.get("blocked"))
 
                 # 4. Tin - chống trùng theo id tin của kênh
                 if e["external_message_id"]:
@@ -436,13 +440,13 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
 
                 # 5. Cập nhật hội thoại: tin cuối, số tin, chưa đọc (chỉ đếm tin KHÁCH)
                 tom = e["text"].strip().replace("\n", " ")[:200] or f"[{e['message_type']}]"
-                them_chua_doc = 1 if e["sender_type"] == "customer" and dem_chua_doc else 0
+                them_chua_doc = 1 if e["sender_type"] == "customer" and dem_chua_doc and not blocked else 0
                 # A phone number or email in the CUSTOMER's own words marks the conversation for the "has phone/email" filter.
                 contact = find_contact(e["text"]) if e["sender_type"] == "customer" else ""
                 # A NEW customer message brings a hidden conversation back into the inbox (owner's rule for "Hide
                 # conversation": a customer is never missed). Old messages imported from history (dem_chua_doc=False)
                 # and messages from the bot or the owner leave it hidden.
-                unhide = 1 if e["sender_type"] == "customer" and dem_chua_doc else 0
+                unhide = 1 if e["sender_type"] == "customer" and dem_chua_doc and not blocked else 0
                 # A message written late (`late`: recovered from the Zalo history, see
                 # `zalo_personal_channel.catch_up`) may be older than the last one stored: it must not become the
                 # "last message" of the conversation. Live messages keep the old rule (the last written is the last).

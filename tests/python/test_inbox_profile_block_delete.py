@@ -9,7 +9,11 @@ Guarded, in order of what would hurt most if it broke:
   2. A comment thread deletes the TOP-LEVEL comment on its platform; a Zalo chat is deleted on Zalo with the right
      thread type; a Messenger or Instagram direct message is only removed from Javis (Meta has no delete API).
   3. Block: Messenger through the Page's block list with the PSID, Zalo through `friend block`; the chat is then
-     taken over so the bot stays quiet. Instagram, comments and other channels are refused, never half done.
+     taken over so the bot stays quiet and hidden. Every other channel (2026-11-20, owner: "chặn thì ở các kênh
+     luôn") is blocked in Javis only: no platform call, and new messages neither count as unread nor unhide the chat.
+     Unblock lifts the platform block and gives the chat back its reply mode.
+  6. Leave a Zalo group (2026-11-20, owner: "nút rời nhóm ở zalo"): `group leave` with the group id; a refused leave
+     changes nothing; other chats are refused.
   4. Profile: Messenger name and picture (no profile link, said in words), Instagram with its instagram.com link,
      Zalo from `friend info`.
   5. The table the dashboard reads matches what the server does.
@@ -60,7 +64,7 @@ async def fake_graph(method, path, token, params=None, client=None):
         return {"name": "Lan Nguyễn", "profile_pic": "https://pic/x.jpg"}
     if method == "GET":
         return {"name": "Lan", "username": "lan.nguyen", "profile_pic": "https://pic/ig.jpg"}
-    if path.endswith("/blocked"):
+    if method == "POST" and path.endswith("/blocked"):
         return {json.loads(params["psid"])[0]: True}
     return {"success": True}
 
@@ -103,7 +107,7 @@ check("capabilities by kind of chat",
       and ca.capabilities({"channel": "messenger", "external_chat_id": "cmt:1"}) == ["delete_remote"]
       and ca.capabilities({"channel": "messenger", "external_chat_id": "igc:1"}) == ["delete_remote"]
       and ca.capabilities({"channel": "zalo_personal", "external_chat_id": "5"}) == ["block", "delete_remote", "profile"]
-      and ca.capabilities({"channel": "zalo_personal", "external_chat_id": "g", "chat_type": "group"}) == ["delete_remote"]
+      and ca.capabilities({"channel": "zalo_personal", "external_chat_id": "g", "chat_type": "group"}) == ["delete_remote", "leave"]
       and ca.capabilities({"channel": "telegram", "external_chat_id": "5"}) == [])
 
 # ============================================================
@@ -139,10 +143,36 @@ check("a blocked chat is taken over (the bot stays quiet) and marked", d["mode"]
 CLI.clear()
 r = cl.post(f"/conversations/{zp}/block").json()
 check("Zalo block: friend block with the user id", r.get("ok") and CLI == [(["friend", "block"], ["9001"], [])], (r, CLI))
+d = conversations.chi_tiet(zp)
+check("a blocked chat is hidden from the inbox", d["hidden"] == 1 and d["metadata"].get("blocked"), d)
 GRAPH.clear()
-for chat in (ig, conv("messenger", aid, "cmt:1_2")):
-    check("Instagram and comment threads cannot be blocked, Meta is not called",
-          cl.post(f"/conversations/{chat}/block").status_code == 400 and not GRAPH, GRAPH)
+CLI.clear()
+for chat in (ig, conv("messenger", aid, "cmt:1_2"), conv("telegram", "tg9", "4242")):
+    r = cl.post(f"/conversations/{chat}/block").json()
+    d = conversations.chi_tiet(chat)
+    check("no block API (Instagram, comments, Telegram): blocked in Javis only, no platform call",
+          r.get("ok") and r.get("remote") is False and not GRAPH and not CLI and d["mode"] == "human"
+          and d["metadata"].get("blocked") and d["hidden"] == 1, (r, GRAPH, CLI, d))
+tgb = conversations.conversation_id_of("telegram", "tg9", "4242")
+before = conversations.chi_tiet(tgb)["unread_count"]
+conv("telegram", "tg9", "4242", text="mua không")
+d = conversations.chi_tiet(tgb)
+check("a new message from a blocked chat is stored but stays hidden and unread-free",
+      d["hidden"] == 1 and d["unread_count"] == before and d["last_message"] == "mua không", d)
+botc = conv("telegram", "tg9", "4343")
+conversations.dat_che_do(botc, "ai")
+cl.post(f"/conversations/{botc}/block")
+r = cl.post(f"/conversations/{botc}/unblock").json()
+d = conversations.chi_tiet(botc)
+check("Unblock in Javis: the bot answers again, the chat is back, the mark is gone",
+      r.get("ok") and d["mode"] == "ai" and d["hidden"] == 0 and not d["metadata"].get("blocked"), (r, d))
+GRAPH.clear()
+r = cl.post(f"/conversations/{dm}/unblock").json()
+check("Unblock on Messenger: the Page's block list, DELETE with the PSID",
+      r.get("ok") and r.get("remote") and GRAPH == [("DELETE", f"{PAGE}/blocked", {"psid": "555"})], (r, GRAPH))
+CLI.clear()
+r = cl.post(f"/conversations/{zp}/unblock").json()
+check("Unblock on Zalo: friend unblock with the user id", r.get("ok") and CLI == [(["friend", "unblock"], ["9001"], [])], (r, CLI))
 MODE["graph"] = "fail"
 dm2 = conv("messenger", aid, "556")
 r = cl.post(f"/conversations/{dm2}/block")
@@ -189,6 +219,26 @@ check("Zalo refuses: nothing deleted in Javis either", r.status_code == 400 and 
 MODE["cli"] = "ok"
 r = cl.post(f"/conversations/{tg}/delete").json()
 check("any other channel: removed from Javis", r.get("ok") and conversations.chi_tiet(tg) is None, r)
+
+# ============================================================
+# 6. Leave a Zalo group
+# ============================================================
+zg2 = conv("zalo_personal", "zconn1", "g88", chat_type="group", name="Nhóm khách sỉ")
+MODE["cli"] = "fail"
+r = cl.post(f"/conversations/{zg2}/leave")
+d = conversations.chi_tiet(zg2)
+check("Zalo refuses to let the account leave: nothing changes in Javis",
+      r.status_code == 400 and not d["metadata"].get("left") and d["hidden"] == 0, (r.json(), d))
+MODE["cli"] = "ok"
+CLI.clear()
+r = cl.post(f"/conversations/{zg2}/leave").json()
+d = conversations.chi_tiet(zg2)
+check("Leave group: group leave with the group id, the chat kept (history), marked, hidden, bot quiet",
+      r.get("ok") and CLI == [(["group", "leave"], ["g88"], [])] and d["metadata"].get("left") and d["hidden"] == 1
+      and d["mode"] == "human", (r, CLI, d))
+CLI.clear()
+for other in (conv("zalo_personal", "zconn1", "9003"), conv("telegram", "tg9", "-1001", chat_type="group")):
+    check("only a Zalo group can be left", cl.post(f"/conversations/{other}/leave").status_code == 400 and not CLI, CLI)
 
 print()
 if _fails:
