@@ -8045,7 +8045,7 @@
       const dung = Number(t.last_used_at) > 0
         ? window.t("cs.tk_last_used") + " " + new Date(Number(t.last_used_at) * 1000).toLocaleString(LOC())
         : window.t("cs.tk_never_used");
-      const pv = window.t(t.scope === "chat" ? "cs.tk_scope_chat" : "cs.tk_scope_full");
+      const pv = window.t(t.scope === "chat" ? "cs.tk_scope_chat" : t.scope === "sync" ? "cs.tk_scope_sync" : "cs.tk_scope_full");
       return `<div class="tk-row">
         <div class="tk-info">
           <b>${esc(t.name || window.t("cs.tk_noname"))}</b>

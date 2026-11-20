@@ -2487,11 +2487,14 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
     method = msg.get("method") or ""
     params = msg.get("params") or {}
     if method == "initialize":
-        return {"jsonrpc": "2.0", "id": mid, "result": {
-            "protocolVersion": params.get("protocolVersion") or mcp_client.PROTOCOL,
-            "capabilities": {"tools": {}},
-            "serverInfo": {"name": "javis-hub", "version": "1.0"},
-        }}
+        res = {"protocolVersion": params.get("protocolVersion") or mcp_client.PROTOCOL,
+               "capabilities": {"tools": {}},
+               "serverInfo": {"name": "javis-hub", "version": "1.0"}}
+        if gate is not None:
+            # Javis Gate (20/11/2026): tells a coding agent to offer Javis Sync, so connecting Gate is the whole setup.
+            import chat_bridge
+            res["instructions"] = chat_bridge.GATE_INSTRUCTIONS
+        return {"jsonrpc": "2.0", "id": mid, "result": res}
     if method.startswith("notifications/"):
         return None
     if method == "ping":
@@ -2530,7 +2533,8 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
             import chat_bridge
             if name in chat_bridge.TOOLS:
                 result = await chat_bridge.goi_tool(name, params.get("arguments") or {}, mode,
-                                                    (gate or {}).get("source") or "")
+                                                    (gate or {}).get("source") or "",
+                                                    base_url=str((gate or {}).get("base_url") or ""))
                 return {"jsonrpc": "2.0", "id": mid, "result": {
                     "content": [{"type": "text", "text": result}],
                     "isError": result.startswith("ERROR:"),
