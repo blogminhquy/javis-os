@@ -23527,7 +23527,14 @@ def _agent_history_channels(brain, channel) -> list:
 
     2026-11-08 (owner: admin chats on Zalo "không hiện lịch sử chat lên trên Javis, nhất là nối với một agent"): the
     owner's chats from the admin channels and the CLI join too. Javis Core's history holds the plain ones (Javis Core
-    is who answers there); an agent's holds the ones routed to it, stored as `<channel>@<slug>` (`_owner_store_channel`)."""
+    is who answers there); an agent's holds the ones routed to it, stored as `<channel>@<slug>` (`_owner_store_channel`).
+
+    2026-11-20 (owner: "không có lịch sử đoạn chat của kênh telegram trên agent khi nối với bot"): a bot is matched by
+    the brain its chats are STORED under (`_brain_key`, what `_tg_answer` writes), not by the raw string in the bot
+    record. A bot saved with another spelling of the same brain (an absolute path from an older version or a moved
+    brain folder, while the dashboard sends "brain") answered fine but its chats never reached the agent's history.
+    The agent slug is compared in NFC too, so "javis-vũ" from a macOS file name still matches."""
+    import unicodedata
     ch = str(channel or "").strip()
     if not ch.startswith("agent:"):
         return []
@@ -23536,13 +23543,14 @@ def _agent_history_channels(brain, channel) -> list:
         return list(OWNER_TURN_CHANNELS)
     keys = {str(k) for k in (_brain_keys(brain) or [])}
     out = [f"{c}@{slug}" for c in OWNER_TURN_CHANNELS]
+    nfc = lambda s: unicodedata.normalize("NFC", str(s or ""))  # noqa: E731
     try:
         for b in chatbot_store.list_bots():
             a = b.get("agent") or {}
-            if str(a.get("slug")) != slug:
+            if nfc(a.get("slug")) != nfc(slug):
                 continue
-            # Phiên của bot được lưu với brain CỦA BOT (xem `_tg_answer`), nên so brain đó.
-            if keys and str(b.get("brain")) not in keys:
+            # Phiên của bot được lưu với brain CỦA BOT (xem `_tg_answer`), nên so brain đó, theo đúng khoá kho đã ghi.
+            if keys and str(b.get("brain")) not in keys and _brain_key(b.get("brain")) not in keys:
                 continue
             kenh = "bot:" + str(b.get("slug") or b.get("id"))
             if kenh not in out:
