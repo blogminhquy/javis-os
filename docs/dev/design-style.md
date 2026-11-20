@@ -133,6 +133,9 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 - **Phó nhóm nổi bật trong danh sách thành viên của team** (18/11: "tag phó nhóm trong cài đặt team nổi bật lên một
   chút vì phó nhóm sẽ điều phối toàn bộ team"): đứng ngay dưới trưởng nhóm, nền màu nhấn nhạt, viền trái màu nhấn,
   huy hiệu "Phó nhóm" có ngôi sao. Ảnh và chữ vẫn thẳng mép trái với các hàng khác.
+- **Đã có cột lọc thì danh sách không chia nhóm lại** (20/11, trang Công cụ: "phần tất cả ấy không cần chia ra thành 3
+  phần mà thêm tag vào là được rồi, vì đã phân lại ở sidebar rồi mà"). Mục Tất cả là một danh sách liền, xếp theo tên;
+  nguồn của từng dòng là một tag nhỏ, và loại mặc định (có sẵn) không cần tag.
 - **Đặt chỗ theo việc:** thứ bấm nhiều ở trên, thứ nguy hiểm ở cuối. Khung viết bài, khung bình luận ghim ở chỗ dễ với.
 
 ## 6. Nút, icon, điều khiển

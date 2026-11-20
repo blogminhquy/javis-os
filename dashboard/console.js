@@ -670,6 +670,8 @@
     if (cv) cv.classList.toggle("cview-hoi-thoai", id === "conversations" || id === "chatbots");
     // 0.422.0: the Tasks page carries its own title at the top of its left column (owner's design), no page header.
     if (cv) cv.classList.toggle("cview-nv", id === "tasks");
+    // 2026-11-20: the Plugins page took the Tasks page's shape, its own title at the top of its left column.
+    if (cv) cv.classList.toggle("cview-pl", id === "plugins");
     // 2026-11-09 (owner): the Account page's own Account | Security tabs sit at the very top, no page header above them.
     // The Webhook page does the same with its Webhook | Token API tabs.
     if (cv) cv.classList.toggle("cview-tk", id === "account" || id === "webhooks");
@@ -1983,316 +1985,368 @@
   // Trang Tự cải thiện (Nhiệm vụ tự động chạy nền)
   // ============================================
   // ============================================
-  // Trang PLUGINS - tool/hook native cho mọi engine (bundled / toàn cục / brain)
+  // Plugins page ("Công cụ"). Redesigned 2026-11-20 from an HTML mock-up the owner approved: "thiết kế lại trang plugin
+  // cho nó tối giản, dễ hiểu hơn ... các nút trong cũng không được đẹp kiểu như trang nhiệm vụ". Same shape as the Tasks
+  // page: a left column that filters (status, source, software on this machine), ONE flat list of rows sorted by name
+  // (owner: "phần tất cả không cần chia ra thành 3 phần mà thêm tag vào"), and a drawer for everything else (commands,
+  // slug, version, folder, remove). One "Add a tool" button gathers the three ways in (store, chat, .zip); the .zip
+  // button also stays on its own beside it (owner: "bị thiếu nút cài file zip rồi"). Phone: the left column becomes a
+  // row of chips, "+" floats in the corner and the drawer slides up from the bottom.
   // ============================================
-  // ---- Công cụ TUỲ CHỌN: thứ Javis dùng được nhưng không cài sẵn ----
-  // Đặt ở ĐẦU trang Công cụ vì đây là câu trả lời cho "vì sao Javis không mở được trình duyệt"
-  // - người dùng đi tìm câu đó sẽ tới trang này trước. Thẻ Playwright ở trang Kết nối cũng
-  // nhắc sang đây, vì chỗ người ta PHÁT HIỆN ra mình thiếu lại là lúc đang đấu kết nối.
+  // The left-column choice survives leaving the page and coming back. The Connections page sets it to "machine" when it
+  // sends someone here because Playwright has no browser (nhacCongCuThieu).
+  let _plView = "all";
+  // Polls /tools/optional only while a download runs, so the progress line moves.
   let _ctTimer = null;
-  async function veCongCuTuyChon(host) {
-    clearTimeout(_ctTimer); _ctTimer = null;
-    let d = { tools: [] };
-    try { d = await (await fetch("/tools/optional")).json(); } catch (e) { return; }
-    if (!d.ok || !(d.tools || []).length) return;
-    host.innerHTML = "";
-    let dangCai = false;
-
-    (d.tools || []).forEach(ct => {
-      if (ct.trang_thai === "dang_cai") dangCai = true;
-      const mau = { san_sang: "var(--green)", dang_cai: "var(--warn-ink)", chua_cai: "var(--text3)" }[ct.trang_thai] || "var(--text3)";
-      const nhan = { san_sang: window.t("cs.ct_san_sang"), dang_cai: window.t("cs.ct_dang_cai"), chua_cai: window.t("cs.ct_chua_cai") }[ct.trang_thai] || ct.trang_thai;
-      const cham = ct.trang_thai === "chua_cai" ? "○" : "●";
-      const card = document.createElement("div");
-      card.className = "wf-card" + (ct.trang_thai === "san_sang" ? "" : " off");
-      const dl = ct.dung_luong ? " · " + esc(ct.dung_luong)
-        : (ct.trang_thai === "chua_cai" && ct.dung_luong_uoc ? " · " + esc(ct.dung_luong_uoc) : "");
-      card.innerHTML =
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
-        + '<div style="min-width:0">'
-        // Server description: two clamped lines, the full text in (i) when it is long (0.214.0).
-        + '<div style="font-weight:600">' + esc(ct.ten) + ((ct.mo_ta || "").length > 100 ? infoBtn() : "") + '</div>'
-        + '<div class="j-clamp2" style="color:var(--text3);font-size:13px;margin-top:3px">' + esc(ct.mo_ta) + '</div>'
-        + ((ct.mo_ta || "").length > 100 ? infoBody(esc(ct.mo_ta)) : "")
-        + '<div style="color:var(--text3);font-size:12.5px;margin-top:6px;word-break:break-all">' + esc(ct.ly_do || "") + dl + '</div>'
-        + (ct.tien_do && ct.trang_thai === "dang_cai"
-            ? '<div style="color:var(--warn-ink);font-size:12.5px;margin-top:5px">' + esc(ct.tien_do) + '</div>' : "")
-        + (ct.loi ? '<div style="color:var(--red);font-size:12.5px;margin-top:5px">' + esc(ct.loi) + '</div>' : "")
-        + '</div>'
-        + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0">'
-        + '<span style="color:' + mau + ';font-size:12.5px;white-space:nowrap">' + cham + ' ' + esc(nhan) + '</span>'
-        + '<span class="ct-nut"></span>'
-        + '</div></div>';
-      const oNut = card.querySelector(".ct-nut");
-      if (ct.trang_thai === "dang_cai") {
-        oNut.innerHTML = '<span style="color:var(--text3);font-size:12px">…</span>';
-      } else if (ct.go_duoc) {
-        const b = document.createElement("button");
-        b.className = "s-btn ghost"; b.textContent = window.t("cs.ct_go");
-        b.onclick = async () => {
-          if (!confirm(window.t("cs.ct_xac_nhan_go"))) return;
-          b.disabled = true;
-          try {
-            await fetch("/tools/optional/remove", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: ct.id })
-            });
-          } catch (e) {}
-          veCongCuTuyChon(host);
-        };
-        oNut.appendChild(b);
-      } else if (ct.trang_thai === "chua_cai") {
-        const b = document.createElement("button");
-        b.className = "s-btn"; b.textContent = window.t(ct.loi ? "cs.ct_cai_lai" : "cs.ct_cai");
-        b.onclick = async () => {
-          b.disabled = true; b.textContent = window.t("cs.ct_dang_cai");
-          try {
-            await fetch("/tools/optional/install", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: ct.id })
-            });
-          } catch (e) {}
-          veCongCuTuyChon(host);
-        };
-        oNut.appendChild(b);
-      }
-      host.appendChild(card);
-    });
-    // Đang tải thì hỏi lại để dòng tiến độ nhúc nhích. Dừng hẳn khi xong: một vòng hỏi chạy
-    // mãi trên một trang không ai nhìn là thứ chỉ tốn pin.
-    if (dangCai) _ctTimer = setTimeout(() => veCongCuTuyChon(host), 2000);
-  }
-
-  // 0.249.0 (owner, 20/10/2026: "phần plugin có thể thêm thanh tìm kiếm được không, dùng lâu tạo
-  // thêm nhiều plugin thì tìm để bật tắt rất lâu"). The page was one long column of tall cards,
-  // the 20 built-in plugins first and the user's own ones last, with no search and no filter.
-  // Now: a search box (accent-insensitive, matches name, slug, description and tool names), an
-  // All / On / Off filter, the user's own plugins first, then store packs, then built-ins, and a
-  // compact card with an on/off switch on the right, the same shape as the Skills page.
-  let _plStatus = "all";
   function _injectPluginCss() {
     if (document.getElementById("pl-css")) return;
     const css = `
-    .pl-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 6px}
-    .pl-search{flex:1 1 300px;max-width:560px;display:flex;align-items:center;gap:8px;height:42px;padding:0 10px 0 12px;border:1px solid var(--hairline);border-radius:10px;background:var(--field-bg);color:var(--text3)}
+    .pl-root{position:relative;font-size:16px}
+    .pl-root .ic{width:18px;height:18px;flex:none}
+    .pl-desk{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;align-items:start}
+    .pl-side{position:sticky;top:0;display:flex;flex-direction:column;gap:2px;padding-bottom:12px}
+    .pl-title{font-size:22px;font-weight:700;margin:4px 10px 10px}
+    .pl-li{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 10px;border:0;border-radius:10px;background:none;color:var(--text);font:inherit;font-size:16px;text-align:left;cursor:pointer}
+    .pl-li:hover{background:var(--surface-2)}
+    .pl-li[aria-current="true"]{background:var(--surface-3);font-weight:600}
+    .pl-li .ic{color:var(--text3)}
+    .pl-li[aria-current="true"] .ic{color:var(--accent)}
+    .pl-li.err,.pl-li.err .ic{color:var(--red)}
+    .pl-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pl-n{color:var(--text3);font-size:14px;font-variant-numeric:tabular-nums}
+    .pl-sec{margin:16px 10px 6px;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text3)}
+    .pl-sfoot{margin-top:14px;padding-top:12px;border-top:1px solid var(--hairline)}
+    .pl-main{min-width:0;padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+    .pl-top{position:sticky;top:-24px;z-index:3;margin-top:-24px;padding:24px 0 12px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+    .pl-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .pl-head h2{flex:1;min-width:0;margin:0;font-size:21px}
+    .pl-head h2 small{margin-left:8px;color:var(--text3);font-weight:500;font-size:16px;font-variant-numeric:tabular-nums}
+    .pl-search{display:flex;align-items:center;gap:10px;padding:0 8px 0 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);color:var(--text3)}
     .pl-search:focus-within{border-color:var(--accent-line)}
-    .pl-search input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:var(--text);font-size:16px}
+    .pl-search input{flex:1;min-width:0;min-height:44px;border:0;outline:0;background:none;color:var(--text);font:inherit;font-size:16px}
     .pl-search input::-webkit-search-cancel-button{display:none}
-    .pl-clear{flex:none;width:30px;height:30px;border:0;border-radius:8px;background:var(--surface-2);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center}
-    .pl-clear[hidden]{display:none}
-    .pl-seg{display:flex;gap:3px;padding:3px;border-radius:10px;background:var(--surface-2);flex-wrap:wrap}
-    .pl-seg button{height:36px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text2);font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}
-    .pl-seg button.sel{background:var(--panel-solid);color:var(--text);box-shadow:var(--shadow-1)}
-    .pl-seg button .n{margin-left:5px;color:var(--text3);font-variant-numeric:tabular-nums}
-    .pl-seg button.err{color:var(--red)}
-    .pl-sum{font-size:13px;color:var(--text3);margin:0 0 14px}
-    .pl-zipw{display:flex;align-items:center;gap:4px;margin-left:auto}
-    .pl-zip{display:inline-flex;align-items:center;gap:6px;height:42px;font-size:16px;white-space:nowrap}
-    .pl-group{display:flex;align-items:baseline;gap:8px;margin:18px 0 8px;font-size:14px;font-weight:600;color:var(--text2)}
-    .pl-group:first-child{margin-top:4px}
-    .pl-group .n{font-weight:500;color:var(--text3);font-variant-numeric:tabular-nums}
-    .cview-section .pl-group > .n{order:0;flex-basis:auto}   /* the phone rule for section titles drops a span to its own line */
-    .pl-group .pl-goto{margin-left:auto;font-size:13.5px;font-weight:500;min-height:32px;white-space:nowrap}
-    .pl-card.noright{padding-right:14px}
-    .pl-list{display:flex;flex-direction:column;gap:8px}
-    .pl-card{display:flex;align-items:flex-start;gap:8px;padding:12px 6px 12px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--panel-bg)}
-    .pl-card:hover{border-color:var(--accent-line)}
-    .pl-card.err{border-color:var(--danger-line)}
-    .pl-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
-    .pl-card.off .pl-main{opacity:.6}
-    .pl-nm{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:15px;font-weight:600;color:var(--text)}
-    .pl-nm .ic{color:var(--text3)}
-    .pl-slug{font-size:12.5px;font-weight:400;color:var(--text3)}
-    .pl-badge{font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--hairline);color:var(--text2)}
-    .pl-ds{font-size:14px;line-height:1.5;color:var(--text2)}
-    .pl-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--text3)}
-    .pl-chip{padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--text2)}
-    .pl-st{padding:2px 8px;border-radius:999px;font-weight:500}
+    .pl-clear{flex:none;width:32px;height:32px;border:0;border-radius:8px;background:none;color:var(--text3);cursor:pointer;display:grid;place-items:center}
+    .pl-clear:hover{background:var(--surface-2)}
+    .pl-clear[hidden],.pl-search[hidden]{display:none}
+    .pl-chips{display:none}
+    .pl-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font:inherit;font-weight:600;cursor:pointer;white-space:nowrap;text-decoration:none}
+    .pl-btn:hover{background:var(--surface-3)}
+    .pl-btn.sm{min-height:34px;padding:0 12px;font-size:14.5px}
+    .pl-btn.pri{background:var(--accent-solid);border-color:var(--accent-solid);color:var(--on-accent)}
+    .pl-btn.ghost{background:none}
+    .pl-btn.danger{color:var(--red)}
+    .pl-btn:disabled{opacity:.5;cursor:default}
+    .pl-btn .ic{width:17px;height:17px}
+    .pl-gate{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid var(--warn-line);border-radius:12px;background:var(--warn-wash);color:var(--warn-ink);font-size:15px}
+    .pl-list{background:var(--surface-1);border:1px solid var(--hairline);border-radius:16px;overflow:hidden}
+    .pl-row{display:flex;align-items:center;gap:6px;padding-right:6px;border-bottom:1px solid var(--hairline)}
+    .pl-row:last-child{border-bottom:0}
+    .pl-row:hover{background:var(--surface-1)}
+    .pl-rmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:13px 6px 13px 16px;border:0;background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer}
+    .pl-nm{font-weight:600;font-size:16.5px;overflow-wrap:anywhere}
+    .pl-row.off .pl-nm{color:var(--text3)}
+    .pl-ds{color:var(--text2);font-size:14.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+    .pl-ds.two{-webkit-line-clamp:2}
+    .pl-meta{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;margin-top:1px;color:var(--text3);font-size:13.5px}
+    .pl-meta > span{display:inline-flex;align-items:center;gap:6px}
+    .pl-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;background:currentColor}
+    .p-readonly{color:var(--green)} .p-safe{color:var(--link-ink)} .p-full{color:var(--accent-ink)}
+    .pl-tag{padding:1px 8px;border-radius:999px;font-weight:600;font-size:12.5px;background:var(--surface-2);color:var(--text2)}
+    .pl-tag.mine{background:var(--accent-wash-2);color:var(--accent-ink)}
+    .pl-tag.pack{background:var(--info-wash);color:var(--link-ink)}
+    .pl-st{padding:1px 8px;border-radius:999px;font-weight:600;font-size:12.5px}
     .pl-st.warn{background:var(--warn-wash);color:var(--warn-ink)}
     .pl-st.bad{background:var(--danger-wash);color:var(--red)}
-    .pl-err{font-size:13px;color:var(--red);word-break:break-word}
-    .pl-act{border:0;background:transparent;padding:2px 4px;font-size:12.5px;color:var(--link-ink);cursor:pointer;text-decoration:none}
-    .pl-act:hover{text-decoration:underline}
-    .pl-act.del{color:var(--red)}
-    .pl-right{flex:none;display:flex;align-items:center;min-height:44px}
-    .pl-right .s-btn-ghost{white-space:nowrap}
     .pl-sw{flex:none;display:flex;align-items:center;justify-content:center;width:56px;height:44px;padding:0;border:0;background:transparent;cursor:pointer}
     .pl-sw:focus-visible{outline:2px solid var(--accent-solid);outline-offset:2px;border-radius:8px}
-    .pl-tr{position:relative;display:block;width:40px;height:22px;border-radius:999px;background:var(--surface-3);transition:background .15s}
-    .pl-kn{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(28,26,36,.3);transition:left .15s}
+    .pl-tr{position:relative;display:block;width:44px;height:26px;border-radius:999px;background:var(--surface-3);transition:background .15s}
+    .pl-kn{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(28,26,36,.3);transition:left .15s}
     .pl-sw[aria-checked="true"] .pl-tr{background:var(--accent-solid)}
-    .pl-sw[aria-checked="true"] .pl-kn{left:20px}
+    .pl-sw[aria-checked="true"] .pl-kn{left:21px}
     .pl-sw:disabled{opacity:.5;cursor:wait}
-    .pl-empty{padding:18px;text-align:center;color:var(--text3);font-size:14px}
-    .pl-empty button{margin-left:6px}
+    .pl-bypack{flex:none;display:inline-flex;align-items:center;gap:2px;min-height:44px;padding:0 6px 0 10px;border:0;border-radius:10px;background:none;color:var(--text3);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}
+    .pl-bypack:hover{background:var(--surface-2);color:var(--text)}
+    .pl-bypack .ic{width:15px;height:15px}
+    .pl-empty{padding:28px 16px;text-align:center;color:var(--text3)}
+    .pl-empty .pl-btn{margin-top:10px}
+    .pl-fold{display:flex;align-items:center;gap:8px;min-height:44px;margin:16px 4px 4px;border:0;background:none;color:var(--text3);font:inherit;font-size:15px;cursor:pointer}
+    .pl-fold .ic{transition:transform .15s}
+    .pl-fold[aria-expanded="true"] .ic{transform:rotate(90deg)}
+    .pl-intro{margin:2px 4px 14px;max-width:640px;color:var(--text2);font-size:15px}
+    .pl-mrow{display:flex;align-items:center;gap:14px;padding:14px 14px 14px 16px;border-bottom:1px solid var(--hairline)}
+    .pl-mrow:last-child{border-bottom:0}
+    .pl-mic{width:40px;height:40px;flex:none;border-radius:12px;background:var(--surface-2);color:var(--text2);display:grid;place-items:center}
+    .pl-mic .ic{width:20px;height:20px}
+    .pl-mbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .pl-mbody .pl-nm{display:flex;align-items:center;gap:6px}
+    .pl-mst{display:inline-flex;align-items:center;gap:6px;font-size:13.5px}
+    .pl-mst.ok{color:var(--green)} .pl-mst.busy{color:var(--info-ink)} .pl-mst.none{color:var(--text3)}
+    .pl-why{color:var(--text3);font-size:13.5px;overflow-wrap:anywhere}
+    .pl-why.busy{color:var(--info-ink)} .pl-why.bad{color:var(--red)}
+    .pl-fab{display:none}
+    .pl-scrim{position:fixed;inset:0;z-index:60;background:var(--scrim)}
+    .pl-drawer{position:fixed;top:0;right:0;bottom:0;z-index:61;width:min(440px,100vw);overflow-y:auto;background:var(--panel-solid);border-left:1px solid var(--hairline);box-shadow:var(--shadow-3);padding:16px 22px calc(28px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px;font-size:16px;color:var(--text)}
+    .pl-dh{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--text3);font-size:14px}
+    .pl-dh > span{display:inline-flex;align-items:center;gap:8px}
+    .pl-x{width:40px;height:40px;flex:none;border:0;border-radius:10px;background:none;color:var(--text2);cursor:pointer;display:grid;place-items:center}
+    .pl-x:hover{background:var(--surface-2)}
+    .pl-dtitle{display:flex;align-items:flex-start;gap:12px}
+    .pl-dtitle h3{flex:1;min-width:0;margin:6px 0 0;font-size:21px;line-height:1.3;overflow-wrap:anywhere}
+    .pl-ddesc{margin:0;color:var(--text2);line-height:1.55;overflow-wrap:anywhere}
+    .pl-note{padding:10px 12px;border-radius:12px;background:var(--surface-2);color:var(--text2);font-size:15px}
+    .pl-note.bad{background:var(--danger-wash);color:var(--red);overflow-wrap:anywhere}
+    .pl-blk{display:flex;flex-direction:column;gap:8px;padding-top:14px;border-top:1px solid var(--hairline)}
+    .pl-cap{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text3)}
+    .pl-permbox{display:flex;align-items:flex-start;gap:10px}
+    .pl-permbox .ic{margin-top:3px}
+    .pl-permbox b{display:block}
+    .pl-permbox p{margin:2px 0 0;color:var(--text2);font-size:15px}
+    .pl-cmds{display:flex;flex-wrap:wrap;gap:6px}
+    .pl-cmd{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;background:var(--surface-2);color:var(--text2);font-family:var(--mono);font-size:13px;overflow-wrap:anywhere}
+    .pl-cmd .ic{width:13px;height:13px}
+    .pl-kv{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:32px;font-size:15px}
+    .pl-kv > span:first-child{flex:none;color:var(--text3)}
+    .pl-kv > span:last-child{min-width:0;text-align:right;overflow-wrap:anywhere}
+    .pl-kv code{font-family:var(--mono);font-size:13px}
+    .pl-acts{display:flex;flex-wrap:wrap;gap:8px}
+    .pl-sheet{position:fixed;z-index:61;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,calc(100vw - 32px));max-height:86vh;overflow-y:auto;background:var(--panel-solid);border:1px solid var(--hairline);border-radius:18px;box-shadow:var(--shadow-3);padding:14px;font-size:16px;color:var(--text)}
+    .pl-sheet-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 2px 0 6px}
+    .pl-sheet-h b{font-size:18px;overflow-wrap:anywhere}
+    .pl-opt{display:flex;align-items:flex-start;gap:14px;width:100%;padding:12px;border:0;border-radius:12px;background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer}
+    .pl-opt:hover{background:var(--surface-2)}
+    .pl-opt .pl-mic{width:42px;height:42px}
+    .pl-opt.first .pl-mic{background:var(--accent-wash-2);color:var(--accent)}
+    .pl-opt b{display:block;font-size:16px}
+    .pl-opt span span{color:var(--text3);font-size:14.5px}
+    .pl-sheet-foot{display:flex;padding:8px 12px 2px;color:var(--text3);font-size:14px}
+    .pl-confirm p{margin:6px 6px 14px;color:var(--text2)}
+    .pl-confirm .pl-acts{justify-content:flex-end}
+    .pl-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;max-width:calc(100vw - 32px);padding:12px 16px;border-radius:12px;background:var(--text);color:var(--bg);font-size:15px;box-shadow:var(--shadow-2);display:flex;align-items:center;gap:14px}
+    .pl-toast[hidden]{display:none}
+    .pl-toast button{border:0;background:none;color:var(--accent);font:inherit;font-weight:700;cursor:pointer;padding:4px}
     @media (max-width: 860px){
-      .pl-search{flex-basis:100%;max-width:none}
-      .pl-seg{width:100%}
-      .pl-seg button{flex:1 1 auto;padding:0 8px}
-      .pl-zipw{margin-left:0}
-      .pl-ds,.pl-nm{font-size:16px}
-      .pl-card{padding:12px 2px 12px 12px}
-      .pl-card.noright{padding-right:12px}
-    }`;
+      .pl-desk{display:block}
+      .pl-side{display:none}
+      .pl-top{top:-16px;margin-top:-16px;padding-top:12px}
+      .pl-head h2{font-size:22px}
+      .pl-head .pl-addbtn{display:none}
+      .pl-head .pl-btn{min-height:40px;padding:0 12px;font-size:15px}
+      .pl-chips{display:flex;gap:8px;overflow-x:auto;margin:12px -14px 0;padding:0 14px 2px;scrollbar-width:none}
+      .pl-chips::-webkit-scrollbar{display:none}
+      .pl-chipf{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border:1px solid var(--hairline);border-radius:999px;background:var(--surface-1);color:var(--text2);font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+      .pl-chipf[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--bg)}
+      .pl-chipf[aria-pressed="true"] .pl-n{color:inherit;opacity:.7}
+      .pl-nm{font-size:17px}
+      .pl-ds{font-size:15px;-webkit-line-clamp:2}
+      .pl-rmain{padding:14px 4px 14px 14px}
+      .pl-mrow{flex-wrap:wrap}
+      .pl-mrow > .pl-btn{margin-left:54px}
+      .pl-fab{display:grid;place-items:center;position:fixed;right:max(18px,env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:20;width:56px;height:56px;border-radius:50%;border:0;background:var(--accent-solid);color:var(--on-accent);cursor:pointer;box-shadow:var(--shadow-2)}
+      .pl-fab .ic{width:26px;height:26px}
+      .pl-drawer{top:auto;left:0;width:100vw;max-height:88vh;border-left:0;border-top:1px solid var(--hairline);border-radius:20px 20px 0 0;padding-top:10px}
+      .pl-toast{bottom:calc(90px + env(safe-area-inset-bottom,0px))}
+    }
+    @media (prefers-reduced-motion: reduce){.pl-tr,.pl-kn,.pl-fold .ic{transition:none}}`;
     const st = document.createElement("style"); st.id = "pl-css"; st.textContent = css; document.head.appendChild(st);
   }
 
   async function renderPlugins(el) {
     _injectExtraCss();
     _injectPluginCss();
-    const myGen = _renderGen;   // chống race: đổi trang → load dở tự bỏ
-    el.innerHTML = `<div class="cview-section"><div class="empty pg-loading">${esc(t("common.loading"))}</div></div>`;
+    const myGen = _renderGen;   // a page switch bumps _renderGen: a late load must not draw into the next page
+    el.innerHTML = `<div class="empty pg-loading">${esc(t("common.loading"))}</div>`;
+    const tt = (k, o) => window.t(k, o);
 
-    const SRC = { bundled: [window.t("cs.pl_src_bundled"), "var(--green)"], pack: [window.t("cs.pl_src_pack"), "var(--accent, #7c5cff)"], user: [window.t("cs.pl_src_user"), "var(--link-ink)"], vault: [window.t("cs.pl_src_vault"), "var(--warn-ink)"] };
-    const MM = { readonly: window.t("cs.pl_mm_readonly"), safe: window.t("cs.pl_mm_safe"), full: window.t("cs.pl_mm_full") };
-    // Group order = how often a person comes to toggle them: their own plugins, then what they
-    // installed from the store, then the ones that ship with Javis.
-    const GROUPS = [["mine", "cs.pl_grp_mine"], ["pack", "cs.pl_grp_pack"], ["bundled", "cs.pl_grp_bundled"]];
-    const groupOf = (p) => p.source === "bundled" ? "bundled" : p.source === "pack" ? "pack" : "mine";
+    const PERM = {
+      readonly: { label: "cs.pl_perm_readonly", long: "cs.pl_perm_readonly_long", icon: "eye" },
+      safe: { label: "cs.pl_perm_safe", long: "cs.pl_perm_safe_long", icon: "pencil" },
+      full: { label: "cs.pl_perm_full", long: "cs.pl_perm_full_long", icon: "send" },
+    };
+    const permOf = (p) => (PERM[p.min_mode] ? p.min_mode : "readonly");
+    // User and vault plugins are both "yours"; the vault ones also carry a "this brain" tag.
+    const srcOf = (p) => p.source === "bundled" ? "bundled" : p.source === "pack" ? "pack" : "mine";
     const stateOf = (p) => p.error ? "err" : p.enabled ? "on" : "off";
-    const TOOLS_SHOWN = 4;
-    const ui = { q: "", data: null, refocus: "" };
+    const VIEWS = [
+      { k: "all", label: "cs.pl_f_all", icon: "layers" },
+      { k: "on", label: "cs.pl_f_on", icon: "circle-check" },
+      { k: "off", label: "cs.pl_f_off", icon: "circle" },
+      { k: "err", label: "cs.pl_f_err", icon: "triangle-alert" },
+      { k: "mine", label: "cs.pl_grp_mine", icon: "user", sec: "cs.pl_sec_source" },
+      { k: "pack", label: "cs.pl_grp_pack", icon: "package" },
+      { k: "bundled", label: "cs.pl_v_bundled", title: "cs.pl_grp_bundled", icon: "sparkle" },
+      { k: "machine", label: "cs.pl_v_machine", chip: "cs.pl_v_machine_short", icon: "cpu", sec: "cs.pl_sec_machine" },
+    ];
+    const SRC_ICON = { mine: "user", pack: "package", bundled: "sparkle" };
+    // Views that mix sources: there a row says where it comes from with a tag. Built-in is the default, so it gets none.
+    const MIXED = new Set(["all", "on", "off", "err"]);
+    const ui = { q: "", data: null, tools: [], refocus: "", rmOpen: false, openSlug: "" };
 
     // Accent-insensitive, every word must match somewhere: "lich dang" finds "Lịch đăng bài".
     const haystack = (p) => _vtNoAccent([p.name, p.slug, p.description, p.author,
       (p.tools || []).join(" "), (p.hooks || []).join(" ")].join(" "));
     const matches = (p, words) => { const h = haystack(p); return words.every(w => h.includes(w)); };
+    const typed = () => _vtNoAccent(ui.q).split(/\s+/).filter(Boolean);
+    const plugins = () => (ui.data && ui.data.plugins) || [];
+    const findP = (slug) => plugins().find(p => p.slug === slug);
+    const inView = (p, k) => (MIXED.has(k) ? (k === "all" || stateOf(p) === k) : srcOf(p) === k);
+    const count = (k) => k === "machine" ? ui.tools.length : plugins().filter(p => !p.removed && inView(p, k)).length;
 
-    function card(p) {
-      const div = document.createElement("div");
+    // ---------- toast and layers (drawer, sheets) hang off <body>, so leaving the page removes them ----------
+    let layer = null, lastFocus = null, toastEl = null, toastTimer = 0;
+    function closeLayer(quiet) {
+      if (!layer) return;
+      layer.remove(); layer = null; ui.openSlug = "";
+      if (!quiet && lastFocus && lastFocus.isConnected) { try { lastFocus.focus({ preventScroll: true }); } catch (e) {} }
+    }
+    function openLayer(html) {
+      const keep = layer ? lastFocus : document.activeElement;
+      closeLayer(true);
+      lastFocus = keep;
+      layer = document.createElement("div");
+      layer.className = "pl-layer";
+      layer.innerHTML = `<div class="pl-scrim" data-close></div>${html}`;
+      layer.addEventListener("click", onClick);
+      document.body.appendChild(layer);
+      const f = layer.querySelector("[data-autofocus]") || layer.querySelector(".pl-x") || layer.querySelector("button");
+      if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
+    }
+    function toast(msg, undo) {
+      if (!toastEl || !toastEl.isConnected) {
+        toastEl = document.createElement("div");
+        toastEl.className = "pl-toast"; toastEl.setAttribute("role", "status");
+        document.body.appendChild(toastEl);
+      }
+      toastEl.innerHTML = `<span>${esc(msg)}</span>` + (undo ? `<button type="button">${esc(tt("cs.pl_undo"))}</button>` : "");
+      toastEl.hidden = false;
+      const b = toastEl.querySelector("button");
+      if (b) b.onclick = () => { toastEl.hidden = true; undo(); };
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { if (toastEl) toastEl.hidden = true; }, 5000);
+    }
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (layer) { e.preventDefault(); closeLayer(); }
+    };
+    document.addEventListener("keydown", onKey);
+    _pageLeave = () => {
+      closeLayer(true);
+      document.removeEventListener("keydown", onKey);
+      clearTimeout(_ctTimer); _ctTimer = null;
+      if (toastEl) toastEl.remove();
+    };
+
+    // ---------- rows ----------
+    const swHtml = (p) => `<button type="button" class="pl-sw" role="switch" aria-checked="${p.enabled ? "true" : "false"}" data-sw="${esc(p.slug)}" title="${esc(tt(p.enabled ? "studio.tog_on" : "studio.tog_off"))}" aria-label="${esc(tt("cs.pl_sw_aria", { ten: p.name }))}"><span class="pl-tr"><span class="pl-kn"></span></span></button>`;
+    function tagHtml(p) {
+      if (p.source === "vault") return `<span class="pl-tag mine">${esc(tt("cs.pl_src_vault"))}</span>`;
+      if (!MIXED.has(_plView)) return "";
+      if (srcOf(p) === "mine") return `<span class="pl-tag mine">${esc(tt("cs.pl_tag_mine"))}</span>`;
+      if (srcOf(p) === "pack") return `<span class="pl-tag pack">${esc(tt("cs.pl_tag_pack"))}</span>`;
+      return "";
+    }
+    function rowHtml(p) {
+      const pk = permOf(p);
       const state = stateOf(p);
-      div.className = "pl-card" + (state === "off" ? " off" : "") + (state === "err" ? " err" : "");
-      div.dataset.slug = p.slug;
-      // Server descriptions run 150-400 chars: two clamped lines on the card, the full text in (i).
-      const dongDai = (p.description || "").length > 100;
-      const tools = (p.tools || []).map(x => [x, "wrench"]).concat((p.hooks || []).map(h => [h, "webhook"]));
-      const chips = tools.slice(0, TOOLS_SHOWN).map(([x, icn]) => `<span class="pl-chip">${ic(icn)} ${esc(x)}</span>`).join("")
-        + (tools.length > TOOLS_SHOWN ? `<span class="pl-chip" title="${esc(tools.slice(TOOLS_SHOWN).map(x => x[0]).join(", "))}">+${tools.length - TOOLS_SHOWN}</span>` : "");
-      const stChip = p.error ? `<span class="pl-st bad">${WARN_ICON} ${esc(window.t("app.err_low"))}</span>`
-        : p.gated ? `<span class="pl-st warn">${WARN_ICON} ${esc(window.t("cs.pl_st_gated"))}</span>`
-        : (p.enabled && !p.loaded) ? `<span class="pl-st warn">${esc(window.t("cs.pl_st_idle"))}</span>` : "";
-      // The group heading already says where a plugin comes from; only "this brain only" needs saying.
-      const badge = p.source === "vault" ? `<span class="pl-badge" style="color:${SRC.vault[1]}">${esc(SRC.vault[0])}</span>` : "";
-      const meta = [MM[p.min_mode] ? esc(window.t("cs.pl_minmode", { muc: MM[p.min_mode] })) : "",
-                    p.version ? `v${esc(p.version)}` : ""].filter(Boolean).join(" · ");
-      const acts = (p.page ? `<a class="pl-act" href="${esc(safeHref(p.page))}" target="_blank" rel="noopener">${esc(window.t("cs.pl_open_page"))} ↗</a>` : "")
-        + (p.removed ? `<button type="button" class="pl-act undel">${esc(window.t("store.reinstall"))}</button>` : "")
-        + (p.source !== "pack" && !p.removed ? `<button type="button" class="pl-act del">${esc(window.t("proj.remove_short"))}</button>` : "");
-      // The right column holds the switch and nothing else (0.420.0). A text button there took half a phone's width and
-      // squeezed the name and description into a sliver: store plugins get one "manage" link on their group heading, a
-      // removed plugin's "reinstall" sits with the other actions under the text.
-      const right = p.source === "pack" || p.removed ? ""
-        : `<button type="button" class="pl-sw" role="switch" aria-checked="${p.enabled ? "true" : "false"}" title="${esc(window.t(p.enabled ? "studio.tog_on" : "studio.tog_off"))}" aria-label="${esc(window.t("cs.pl_sw_aria", { ten: p.name }))}"><span class="pl-tr"><span class="pl-kn"></span></span></button>`;
-      if (!right) div.classList.add("noright");
-      div.innerHTML = `
-        <div class="pl-main">
-          <div class="pl-nm">${ic("puzzle")} <span>${esc(p.name)}</span> <span class="pl-slug">${esc(p.slug)}</span>${badge}${dongDai ? infoBtn() : ""}</div>
-          ${p.description ? `<div class="pl-ds j-clamp2">${esc(p.description)}</div>` : ""}${dongDai ? infoBody(esc(p.description)) : ""}
-          <div class="pl-meta">${stChip}${chips}${meta ? `<span>${meta}</span>` : ""}${acts}</div>
-          ${p.error ? `<div class="pl-err">${esc(p.error)}</div>` : ""}
-        </div>
-        ${right ? `<div class="pl-right">${right}</div>` : ""}`;
-      // "Gỡ" khác "Tắt" ở Ý ĐỊNH, nên thẻ rời hẳn khỏi danh sách chính chứ không chỉ mờ đi.
-      // Không xoá file trong bản cài: cây code read-only trên Docker, và git pull sẽ mọc lại.
-      const doiGo = async (go) => {
-        const fd = new FormData();
-        fd.append("slug", p.slug); fd.append("removed", go ? "1" : "0"); fd.append("brain", fbrain());
-        let r = {}; try { r = await (await fetch("/plugins/remove", { method: "POST", body: fd })).json(); } catch (e) { r = { error: e.message }; }
-        if (r && r.error) alert(r.error);
-        load();
-      };
-      const nutDel = div.querySelector(".del");
-      if (nutDel) nutDel.onclick = () => {
-        if (confirm(window.t("cs.pl_del_confirm", { ten: p.name }))) doiGo(true);
-      };
-      const nutUn = div.querySelector(".undel");
-      if (nutUn) nutUn.onclick = () => doiGo(false);
-      const sw = div.querySelector(".pl-sw");
-      if (sw) sw.onclick = async () => {
-        sw.disabled = true;
-        ui.refocus = p.slug;   // the card is redrawn: hand the keyboard focus to its new switch
-        const fd = new FormData();
-        fd.append("slug", p.slug); fd.append("enabled", p.enabled ? "0" : "1"); fd.append("brain", fbrain());
-        let r = {}; try { r = await (await fetch("/plugins/toggle", { method: "POST", body: fd })).json(); } catch (e) { r = { error: e.message }; }
-        if (r && r.error) alert(r.error);
-        else if (r && r.note) alert(r.note);
-        load();
-      };
-      return div;
+      const st = p.error ? `<span class="pl-st bad">${esc(tt("cs.pl_st_err"))}</span>`
+        : p.gated ? `<span class="pl-st warn">${esc(tt("cs.pl_st_gated"))}</span>`
+        : (p.enabled && !p.loaded) ? `<span class="pl-st warn">${esc(tt("cs.pl_st_idle"))}</span>` : "";
+      const n = (p.tools || []).length;
+      // A store plugin follows its whole pack, so it is switched and removed in the store: no switch here, a small
+      // "By pack >" that opens the drawer with the way there.
+      const right = p.removed
+        ? `<button type="button" class="pl-btn sm ghost" data-restore="${esc(p.slug)}">${ic("undo-2")}${esc(tt("store.reinstall"))}</button>`
+        : p.source === "pack"
+          ? `<button type="button" class="pl-bypack" data-open="${esc(p.slug)}">${esc(tt("cs.pl_by_pack"))}${ic("chevron-right")}</button>`
+          : swHtml(p);
+      return `<div class="pl-row${state === "off" ? " off" : ""}" data-slug="${esc(p.slug)}">`
+        + `<button type="button" class="pl-rmain" data-open="${esc(p.slug)}">`
+        + `<span class="pl-nm">${esc(p.name)}</span>`
+        + (p.description ? `<span class="pl-ds">${esc(p.description)}</span>` : "")
+        + `<span class="pl-meta"><span class="p-${pk}"><i class="pl-dot"></i>${esc(tt(PERM[pk].label))}</span>`
+        + `<span>${esc(tt("cs.pl_n_cmds", { count: n }))}${(p.hooks || []).length ? " · " + esc(tt("cs.pl_has_hook")) : ""}</span>`
+        + st + tagHtml(p) + `</span></button>${right}</div>`;
     }
 
-    // Redraws only the list, never the toolbar: a toggle reloads the data, and rebuilding the
-    // search box would drop what the person typed and the keyboard focus with it.
+    // ---------- left column (desktop) and chips (phone): the same list of views ----------
+    function drawNav() {
+      const side = el.querySelector("#plSide"), chips = el.querySelector("#plChips");
+      if (!side || !chips) return;
+      const views = VIEWS.filter(v => !((v.k === "err" || v.k === "machine") && !count(v.k)));
+      if (!views.some(v => v.k === _plView)) _plView = "all";
+      let h = `<div class="pl-title">${esc(tt("page.plugins.label"))}</div>`;
+      views.forEach(v => {
+        if (v.sec) h += `<div class="pl-sec">${esc(tt(v.sec))}</div>`;
+        h += `<button type="button" class="pl-li${v.k === "err" ? " err" : ""}" data-view="${v.k}" aria-current="${_plView === v.k}">${ic(v.icon)}<span class="pl-lbl">${esc(tt(v.label))}</span><span class="pl-n">${count(v.k)}</span></button>`;
+      });
+      h += `<div class="pl-sfoot"><button type="button" class="pl-li" data-store>${ic("package")}<span class="pl-lbl">${esc(tt("cs.pl_open_store"))}</span>${ic("chevron-right")}</button></div>`;
+      side.innerHTML = h;
+      chips.innerHTML = views.map(v => `<button type="button" class="pl-chipf" data-view="${v.k}" aria-pressed="${_plView === v.k}">${esc(tt(v.chip || v.label))}<span class="pl-n">${count(v.k)}</span></button>`).join("");
+    }
+
+    // ---------- software on this machine ----------
+    function drawMachine(host) {
+      const ST = { san_sang: ["ok", "cs.ct_san_sang"], dang_cai: ["busy", "cs.ct_dang_cai"], chua_cai: ["none", "cs.ct_chua_cai"] };
+      const ICON = { browser: "globe", local_ear: "mic" };
+      host.innerHTML = `<p class="pl-intro">${esc(tt("cs.ct_intro"))}</p><div class="pl-list">` + ui.tools.map(ct => {
+        const s = ST[ct.trang_thai] || ST.chua_cai;
+        const size = ct.dung_luong || (ct.trang_thai === "chua_cai" ? ct.dung_luong_uoc : "") || "";
+        // Server description: two clamped lines, the full text in (i) when it is long (0.214.0).
+        const longD = (ct.mo_ta || "").length > 100;
+        const btn = ct.trang_thai === "dang_cai"
+          ? `<button type="button" class="pl-btn sm ghost" disabled>${esc(tt("cs.ct_dang_cai"))}</button>`
+          : ct.go_duoc ? `<button type="button" class="pl-btn sm ghost" data-mrm="${esc(ct.id)}">${esc(tt("cs.ct_go"))}</button>`
+          : ct.trang_thai === "chua_cai" ? `<button type="button" class="pl-btn sm pri" data-minst="${esc(ct.id)}">${esc(tt(ct.loi ? "cs.ct_cai_lai" : "cs.ct_cai"))}</button>` : "";
+        return `<div class="pl-mrow"><span class="pl-mic">${ic(ICON[ct.id] || "cpu")}</span><div class="pl-mbody">`
+          + `<span class="pl-nm">${esc(ct.ten)}${longD ? infoBtn() : ""}</span>${longD ? infoBody(esc(ct.mo_ta)) : ""}`
+          + (ct.mo_ta ? `<span class="pl-ds two">${esc(ct.mo_ta)}</span>` : "")
+          + `<span class="pl-mst ${s[0]}"><i class="pl-dot"></i>${esc(tt(s[1]))}${size ? " · " + esc(size) : ""}</span>`
+          + (ct.ly_do ? `<span class="pl-why">${esc(ct.ly_do)}</span>` : "")
+          + (ct.tien_do && ct.trang_thai === "dang_cai" ? `<span class="pl-why busy">${esc(ct.tien_do)}</span>` : "")
+          + (ct.loi ? `<span class="pl-why bad">${esc(ct.loi)}</span>` : "")
+          + `</div>${btn}</div>`;
+      }).join("") + `</div>`;
+    }
+
+    // Redraws the list and the left column, never the search box: a toggle reloads the data, and rebuilding the box
+    // would drop what the person typed and the keyboard focus with it.
     function drawList() {
-      const host = document.getElementById("plCards");
-      const d = ui.data;
-      if (!host || !d) return;
-      const plugins = (d.plugins || []).slice()
-        .sort((a, b) => (a.name || "").localeCompare(b.name || "", LOC()));
-      const words = _vtNoAccent(ui.q).split(/\s+/).filter(Boolean);
-      const live = plugins.filter(p => !p.removed);
-      const found = words.length ? live.filter(p => matches(p, words)) : live;
-      const cnt = { all: found.length, on: 0, off: 0, err: 0 };
-      found.forEach(p => { cnt[stateOf(p)]++; });
-      if (_plStatus === "err" && !cnt.err) _plStatus = "all";
-      const shown = _plStatus === "all" ? found : found.filter(p => stateOf(p) === _plStatus);
-
-      const seg = document.getElementById("plSeg");
-      if (seg) {
-        const opts = [["all", "cs.pl_f_all"], ["on", "cs.pl_f_on"], ["off", "cs.pl_f_off"]].concat(cnt.err ? [["err", "cs.pl_f_err"]] : []);
-        seg.innerHTML = opts.map(([k, key]) => `<button type="button" data-st="${k}" class="${_plStatus === k ? "sel" : ""}${k === "err" ? " err" : ""}" aria-pressed="${_plStatus === k}">${esc(window.t(key))}<span class="n">${cnt[k]}</span></button>`).join("");
-        seg.querySelectorAll("[data-st]").forEach(b => { b.onclick = () => { _plStatus = b.dataset.st; drawList(); }; });
+      const host = el.querySelector("#plCards");
+      if (!host || !ui.data) return;
+      drawNav();
+      const title = el.querySelector("#plTitle"), rm = el.querySelector("#plRemoved");
+      const machine = _plView === "machine";
+      el.querySelector("#plSearchBox").hidden = machine;
+      if (machine) {
+        title.textContent = tt("cs.pl_v_machine");
+        rm.innerHTML = "";
+        drawMachine(host);
+        return;
       }
-      const sum = document.getElementById("plSum");
-      if (sum) sum.textContent = window.t("cs.pl_summary", { count: live.length, on: live.filter(p => p.enabled).length });
-
-      host.innerHTML = "";
-      if (!live.length) {
-        host.innerHTML = `<div class="empty">${esc(window.t("cs.pl_empty_a"))} ${esc(d.global_dir || window.t("cs.pl_dir_fallback"))} ${esc(window.t("cs.pl_empty_b"))}</div>`;
+      const words = typed();
+      const all = plugins().slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", LOC()));
+      const shown = all.filter(p => !p.removed && inView(p, _plView) && (!words.length || matches(p, words)));
+      const v = VIEWS.find(x => x.k === _plView) || VIEWS[0];
+      title.innerHTML = `${esc(tt(v.title || v.label))}<small>${shown.length}</small>`;
+      if (!all.some(p => !p.removed)) {
+        host.innerHTML = `<div class="pl-empty">${esc(tt("cs.pl_empty_a"))} ${esc(ui.data.global_dir || tt("cs.pl_dir_fallback"))} ${esc(tt("cs.pl_empty_b"))}</div>`;
       } else if (!shown.length) {
-        const box = document.createElement("div");
-        box.className = "pl-empty";
-        box.innerHTML = esc(words.length ? window.t("cs.pl_no_match", { q: ui.q.trim() }) : window.t("cs.pl_no_match_f"))
-          + (words.length ? ` <button type="button" class="s-btn-ghost">${esc(window.t("cs.pl_clear"))}</button>` : "");
-        const b = box.querySelector("button");
-        if (b) b.onclick = () => setQuery("");
-        host.appendChild(box);
+        host.innerHTML = words.length
+          ? `<div class="pl-empty">${esc(tt("cs.pl_no_match", { q: ui.q.trim() }))}<br><button type="button" class="pl-btn sm" data-clear>${esc(tt("cs.pl_clear"))}</button></div>`
+          : _plView === "mine"
+            ? `<div class="pl-empty">${esc(tt("cs.pl_empty_mine"))}<br><button type="button" class="pl-btn sm" data-ask-chat>${ic("message-circle")}${esc(tt("cs.pl_empty_mine_btn"))}</button></div>`
+            : _plView === "pack"
+              ? `<div class="pl-empty">${esc(tt("cs.pl_no_match_f"))}<br><button type="button" class="pl-btn sm" data-store>${ic("package")}${esc(tt("cs.pl_open_store"))}</button></div>`
+              : `<div class="pl-empty">${esc(tt("cs.pl_no_match_f"))}</div>`;
       } else {
-        GROUPS.forEach(([g, key]) => {
-          const items = shown.filter(p => groupOf(p) === g);
-          if (!items.length) return;
-          const h = document.createElement("h3");
-          h.className = "pl-group";
-          h.innerHTML = `${esc(window.t(key))} <span class="n">${items.length}</span>`
-            + (g === "pack" ? `<button type="button" class="pl-act pl-goto" data-goto-packs="1">${esc(window.t("cs.pl_manage_store"))} →</button>` : "");
-          // Plugin đến từ gói thì bật/tắt và gỡ đều làm ở Kho cài đặt - nó đi theo cả gói, và có
-          // đúng MỘT chỗ gỡ thì người dùng không phải đoán gỡ ở đâu mới là gỡ thật.
-          const nutGoto = h.querySelector("[data-goto-packs]");
-          if (nutGoto) nutGoto.onclick = () => {
-            const s = window.Alpine && Alpine.store("nav");
-            if (s && s.go) s.go("packs");
-          };
-          const list = document.createElement("div");
-          list.className = "pl-list";
-          items.forEach(p => list.appendChild(card(p)));
-          host.appendChild(h); host.appendChild(list);
-        });
+        host.innerHTML = `<div class="pl-list">${shown.map(rowHtml).join("")}</div>`;
       }
-
-      const daGo = plugins.filter(p => p.removed && (!words.length || matches(p, words)));
-      const det = document.getElementById("plRemoved");
-      if (det) {
-        det.hidden = !daGo.length;
-        det.querySelector(".pl-rm-n").textContent = window.t("cs.pl_removed_n", { count: daGo.length });
-        const hostGo = det.querySelector("#plGo");
-        hostGo.innerHTML = "";
-        const list = document.createElement("div");
-        list.className = "pl-list";
-        daGo.forEach(p => list.appendChild(card(p)));
-        hostGo.appendChild(list);
-      }
+      // "Remove" differs from "off" in intent, so a removed plugin leaves the list for a folded section at the bottom.
+      const gone = all.filter(p => p.removed && (!words.length || matches(p, words)));
+      rm.innerHTML = !gone.length ? ""
+        : `<button type="button" class="pl-fold" data-fold aria-expanded="${ui.rmOpen}">${ic("chevron-right")}${esc(tt("cs.pl_removed_head"))} (${gone.length})</button>`
+          + (ui.rmOpen ? `<div class="pl-list">${gone.map(rowHtml).join("")}</div>` : "");
       if (ui.refocus) {
-        const sw = host.querySelector(`.pl-card[data-slug="${CSS.escape(ui.refocus)}"] .pl-sw`);
+        const sw = el.querySelector(`.pl-row[data-slug="${CSS.escape(ui.refocus)}"] .pl-sw`);
         ui.refocus = "";
         if (sw) sw.focus({ preventScroll: true });
       }
@@ -2300,66 +2354,195 @@
 
     function setQuery(q) {
       ui.q = q;
-      const inp = document.getElementById("plSearch");
+      const inp = el.querySelector("#plSearch");
       if (inp && inp.value !== q) inp.value = q;
-      const x = document.getElementById("plClear");
+      const x = el.querySelector("#plClear");
       if (x) x.hidden = !q;
       drawList();
     }
 
-    // Built once per visit. Later loads (after a toggle) only refill the banner and the list.
-    function buildShell(d) {
-      const wrap = document.createElement("div");
-      wrap.className = "cview-section";
-      // Khối "Công cụ tuỳ chọn" đứng TRƯỚC danh sách plugin: nó trả lời câu hỏi người dùng
-      // mang tới trang này ("sao Javis không mở được trình duyệt"), và trang Kết nối gửi người
-      // ta tới đây đúng vì nó. 0.249.0: nó ẩn hẳn khi không có công cụ nào, trước đây tiêu đề
-      // vẫn đứng đó với một khoảng trống bên dưới.
-      wrap.innerHTML = `<div id="ctTuyChon" style="margin-bottom:22px" hidden></div>`
-        + `<div id="plGate"></div>`
-        + `<div class="pl-bar">`
-        +   `<label class="pl-search">${ic("search")}<input type="search" id="plSearch" autocomplete="off" spellcheck="false" placeholder="${esc(window.t("cs.pl_search_ph"))}" aria-label="${esc(window.t("cs.pl_search_ph"))}">`
-        +   `<button type="button" class="pl-clear" id="plClear" aria-label="${esc(window.t("cs.pl_clear"))}" title="${esc(window.t("cs.pl_clear"))}" hidden>${ic("x")}</button></label>`
-        +   `<div class="pl-seg" id="plSeg" role="group" aria-label="${esc(window.t("cs.pl_filter_aria"))}"></div>`
-        // Install from .zip (owner, 2026-10-25): the flow lives in packs.js next to the pack zip
-        // flow, so both share one picker, one zip rule set on the server and one style of screen.
-        +   `<div class="pl-zipw"><button type="button" class="s-btn-ghost pl-zip" id="plZip">${ic("file-up")} ${esc(window.t("plzip.btn"))}</button>${infoBtn()}</div>`
-        + `</div>`
-        + infoBody(esc(window.t("plzip.btn_info")))
-        // The folder path and how to add a plugin are help, not state: both sit in one (i).
-        + `<div class="pl-sum"><span id="plSum"></span>${infoBtn()}</div>${infoBody(`${esc(window.t("cs.pl_dir_a"))} <code>${esc(d.global_dir || "")}</code> ${esc(window.t("cs.pl_dir_b"))} <code>plugin.yaml</code> + <code>plugin.py</code>${esc(window.t("cs.pl_dir_c"))}<br>${esc(window.t("cs.pl_intro_a"))} <b>tool</b> ${esc(window.t("cs.pl_intro_b"))} <b>hook</b> ${esc(window.t("cs.pl_intro_c"))}`)}`
-        + `<div id="plCards"></div>`
-        + `<details id="plRemoved" style="margin-top:22px" hidden><summary style="cursor:pointer;color:var(--text3)">◆ ${esc(window.t("cs.pl_removed_head"))} <span class="pl-rm-n" style="opacity:.7"></span></summary><div id="plGo" style="margin-top:10px"></div></details>`;
-      const oCt = wrap.querySelector("#ctTuyChon");
-      oCt.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(window.t("cs.ct_head"))}</h3>`
-        + `<p style="color:var(--text3);font-size:13px;max-width:720px;margin:0 0 10px">${esc(window.t("cs.ct_intro"))}</p>`
-        + `<div id="ctCards"></div>`;
-      const ctCards = oCt.querySelector("#ctCards");
-      veCongCuTuyChon(ctCards).then(() => { oCt.hidden = !ctCards.children.length; });
-      const inp = wrap.querySelector("#plSearch");
+    // ---------- drawer and sheets ----------
+    function openDetail(p) {
+      const pk = permOf(p), src = srcOf(p);
+      const head = p.source === "vault" ? tt("cs.pl_src_vault") : tt(src === "mine" ? "cs.pl_grp_mine" : src === "pack" ? "cs.pl_grp_pack" : "cs.pl_grp_bundled");
+      const cmds = (p.tools || []).map(x => `<span class="pl-cmd">${ic("wrench")}${esc(x)}</span>`).join("")
+        + (p.hooks || []).map(x => `<span class="pl-cmd">${ic("webhook")}${esc(x)}</span>`).join("");
+      const nCmds = (p.tools || []).length + (p.hooks || []).length;
+      const notes = (p.source === "pack" ? `<div class="pl-note">${esc(tt("cs.pl_d_pack_note"))}</div>` : "")
+        + (src === "mine" && !p.enabled && !p.removed ? `<div class="pl-note">${esc(tt("cs.pl_d_off_note"))}</div>` : "")
+        + (p.gated ? `<div class="pl-note">${esc(tt("cs.pl_gate_head"))}</div>` : "")
+        + (p.error ? `<div class="pl-note bad">${esc(p.error)}</div>` : "");
+      const kv = (k, v) => `<div class="pl-kv"><span>${esc(tt(k))}</span><span>${v}</span></div>`;
+      const facts = kv("cs.pl_d_slug", `<code>${esc(p.slug)}</code>`)
+        + (p.version ? kv("cs.pl_d_version", esc(p.version)) : "")
+        + (p.author ? kv("cs.pl_d_author", esc(p.author)) : "")
+        + (src === "mine" && p.dir ? kv("cs.pl_d_dir", `<code>${esc(p.dir)}</code>`) : "");
+      const acts = (p.page ? `<a class="pl-btn" href="${esc(safeHref(p.page))}" target="_blank" rel="noopener">${ic("external-link")}${esc(tt("cs.pl_open_page"))}</a>` : "")
+        + (p.source === "pack" ? `<button type="button" class="pl-btn" data-store>${ic("package")}${esc(tt("cs.pl_manage_store"))}</button>` : "")
+        + (p.removed ? `<button type="button" class="pl-btn" data-restore="${esc(p.slug)}">${ic("undo-2")}${esc(tt("store.reinstall"))}</button>` : "");
+      // The dangerous action stands alone at the very end.
+      const danger = p.source === "pack" || p.removed ? ""
+        : `<div class="pl-blk"><div class="pl-acts"><button type="button" class="pl-btn ghost danger" data-rm="${esc(p.slug)}">${ic("trash-2")}${esc(tt("cs.pl_d_remove"))}</button></div></div>`;
+      openLayer(`<aside class="pl-drawer" role="dialog" aria-modal="true" aria-label="${esc(p.name)}">`
+        + `<div class="pl-dh"><span>${ic(SRC_ICON[src])}${esc(head)}</span><button type="button" class="pl-x" data-close aria-label="${esc(tt("common.close"))}">${ic("x")}</button></div>`
+        + `<div class="pl-dtitle"><h3>${esc(p.name)}</h3>${p.source === "pack" || p.removed ? "" : swHtml(p)}</div>`
+        + notes
+        + (p.description ? `<p class="pl-ddesc">${esc(p.description)}</p>` : "")
+        + `<div class="pl-blk"><span class="pl-cap">${esc(tt("cs.pl_d_perm"))}</span><div class="pl-permbox p-${pk}">${ic(PERM[pk].icon)}<div><b>${esc(tt(PERM[pk].label))}</b><p>${esc(tt(PERM[pk].long))}</p></div></div></div>`
+        + (nCmds ? `<div class="pl-blk"><span class="pl-cap">${esc(tt("cs.pl_d_cmds", { count: nCmds }))}</span><div class="pl-cmds">${cmds}</div></div>` : "")
+        + `<div class="pl-blk">${facts}</div>`
+        + (acts ? `<div class="pl-acts">${acts}</div>` : "")
+        + danger + `</aside>`);
+      ui.openSlug = p.slug;
+    }
+
+    function openAdd() {
+      const dir = esc((ui.data && ui.data.global_dir) || "");
+      openLayer(`<div class="pl-sheet" role="dialog" aria-modal="true" aria-label="${esc(tt("cs.pl_add"))}">`
+        + `<div class="pl-sheet-h"><b>${esc(tt("cs.pl_add"))}</b><button type="button" class="pl-x" data-close aria-label="${esc(tt("common.close"))}">${ic("x")}</button></div>`
+        + `<button type="button" class="pl-opt first" data-store data-autofocus><span class="pl-mic">${ic("package")}</span><span><b>${esc(tt("cs.pl_add_store_t"))}</b><span>${esc(tt("cs.pl_add_store_d"))}</span></span></button>`
+        + `<button type="button" class="pl-opt" data-ask-chat><span class="pl-mic">${ic("message-circle")}</span><span><b>${esc(tt("cs.pl_add_chat_t"))}</b><span>${esc(tt("cs.pl_add_chat_d"))}</span></span></button>`
+        + `<button type="button" class="pl-opt" data-zip><span class="pl-mic">${ic("file-up")}</span><span><b>${esc(tt("plzip.btn"))}</b><span>${esc(tt("cs.pl_add_zip_d"))}</span></span></button>`
+        + `<div class="pl-sheet-foot">${infoPair(`${esc(tt("cs.pl_dir_a"))} <code>${dir}</code> ${esc(tt("cs.pl_dir_b"))} <code>plugin.yaml</code> + <code>plugin.py</code>${esc(tt("cs.pl_dir_c"))}<br>${esc(tt("cs.pl_intro_a"))} <b>tool</b> ${esc(tt("cs.pl_intro_b"))} <b>hook</b> ${esc(tt("cs.pl_intro_c"))}<br><br>${esc(tt("plzip.btn_info"))}`)}</div></div>`);
+    }
+
+    function confirmSheet(title, body, yesAttr, yesLabel) {
+      openLayer(`<div class="pl-sheet pl-confirm" role="alertdialog" aria-modal="true" aria-label="${esc(title)}">`
+        + `<div class="pl-sheet-h"><b>${esc(title)}</b></div><p>${esc(body)}</p>`
+        + `<div class="pl-acts"><button type="button" class="pl-btn ghost" data-close data-autofocus>${esc(tt("common.cancel"))}</button>`
+        + `<button type="button" class="pl-btn danger" ${yesAttr}>${ic("trash-2")}${esc(yesLabel)}</button></div></div>`);
+    }
+
+    // ---------- actions ----------
+    const post = async (url, fields) => {
+      const fd = new FormData();
+      Object.entries(fields).forEach(([k, v]) => fd.append(k, v));
+      fd.append("brain", fbrain());
+      try { return await (await fetch(url, { method: "POST", body: fd })).json(); } catch (e) { return { error: e.message }; }
+    };
+    async function toggle(p, btn) {
+      if (btn) btn.disabled = true;
+      ui.refocus = p.slug;   // the row is redrawn: hand the keyboard focus to its new switch
+      const r = await post("/plugins/toggle", { slug: p.slug, enabled: p.enabled ? "0" : "1" });
+      if (r && r.error) alert(r.error);
+      else if (r && r.note) alert(r.note);
+      else toast(tt(p.enabled ? "cs.pl_t_off" : "cs.pl_t_on", { ten: p.name }));
+      await load();
+    }
+    // Remove does not delete the files of the install: the code tree is read-only on Docker, and a git pull would bring
+    // them back. The plugin is marked removed and its tools leave every brain.
+    async function setRemoved(p, removed) {
+      const r = await post("/plugins/remove", { slug: p.slug, removed: removed ? "1" : "0" });
+      if (r && r.error) { alert(r.error); return load(); }
+      if (removed) toast(tt("cs.pl_t_removed", { ten: p.name }), () => setRemoved(p, false));
+      else toast(tt("cs.pl_t_restored", { ten: p.name }));
+      await load();
+    }
+    async function machineAction(id, what) {
+      try {
+        await fetch(`/tools/optional/${what}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+      } catch (e) {}
+      await loadTools();
+    }
+    function pickZip() {
+      // Called straight from the click: the browser opens a file picker only inside the user's gesture. packs.js is
+      // already loaded when this page draws (NHOM_TRANG.plugins).
+      if (!window.JavisPacks || !window.JavisPacks.caiPluginZip) return;
+      window.JavisPacks.caiPluginZip({
+        brain: fbrain(), maxMb: (ui.data && ui.data.zip_max_mb) || 25,
+        // After an install: clear search and filter so the new (off) row shows, focus its switch.
+        xong: (r) => {
+          _plView = "all";
+          setQuery("");
+          if (r && r.kind === "plugin" && r.slug) ui.refocus = r.slug;
+          load();
+        },
+      });
+    }
+    const goStore = () => _goiNhom("packs", () => {
+      // Pass this page too, so the store draws a way back here.
+      if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho("tool", "plugins", VIEW_META.plugins ? VIEW_META.plugins.label : "plugins");
+      else { const s = window.Alpine && Alpine.store("nav"); if (s && s.go) s.go("packs"); }
+    });
+    // "Ask Javis in chat": opens the chat with a started sentence, never sends it, and never overwrites a draft.
+    function askInChat() {
+      const s = window.Alpine && Alpine.store("nav");
+      if (s && s.go) s.go("chat");
+      setTimeout(() => {
+        const inp = document.getElementById("chatInput");
+        if (!inp) return;
+        if (!inp.value.trim()) { inp.value = tt("cs.pl_chat_prompt"); inp.dispatchEvent(new Event("input", { bubbles: true })); }
+        try { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
+      }, 150);
+    }
+
+    // One click handler for the page and for whatever layer is open.
+    function onClick(e) {
+      const b = e.target.closest("button, [data-close]");
+      if (!b) return;
+      const d = b.dataset;
+      if (d.view) {
+        _plView = d.view;
+        setQuery("");
+        el.scrollTop = 0;
+        return;
+      }
+      if (d.sw) { const p = findP(d.sw); if (p) toggle(p, b); return; }
+      if (d.open) { const p = findP(d.open); if (p) openDetail(p); return; }
+      if (d.add !== undefined) { openAdd(); return; }
+      if (d.close !== undefined) { closeLayer(); return; }
+      if (d.zip !== undefined) { closeLayer(true); pickZip(); return; }
+      if (d.store !== undefined) { closeLayer(true); goStore(); return; }
+      if (d.askChat !== undefined) { closeLayer(true); askInChat(); return; }
+      if (d.rm) {
+        const p = findP(d.rm);
+        if (p) confirmSheet(tt("cs.pl_rm_q", { ten: p.name }), tt("cs.pl_rm_body"), `data-rm-yes="${esc(p.slug)}"`, tt("cs.ct_go"));
+        return;
+      }
+      if (d.rmYes) { const p = findP(d.rmYes); closeLayer(true); if (p) setRemoved(p, true); return; }
+      if (d.restore) { const p = findP(d.restore); closeLayer(true); if (p) setRemoved(p, false); return; }
+      if (d.fold !== undefined) { ui.rmOpen = !ui.rmOpen; drawList(); const f = el.querySelector("[data-fold]"); if (f) f.focus(); return; }
+      if (d.clear !== undefined) { setQuery(""); return; }
+      if (d.mrm) {
+        const ct = ui.tools.find(x => x.id === d.mrm);
+        if (ct) confirmSheet(tt("cs.ct_rm_q", { ten: ct.ten }), tt("cs.ct_rm_body"), `data-mrm-yes="${esc(ct.id)}"`, tt("cs.ct_go"));
+        return;
+      }
+      if (d.mrmYes) { closeLayer(true); machineAction(d.mrmYes, "remove"); return; }
+      if (d.minst) { b.disabled = true; b.textContent = tt("cs.ct_dang_cai"); machineAction(d.minst, "install"); return; }
+    }
+
+    // ---------- shell, built once per visit ----------
+    function buildShell() {
+      const ph = esc(tt("cs.pl_search_ph"));
+      el.innerHTML = `<div class="pl-root"><div class="pl-desk">`
+        + `<nav class="pl-side" id="plSide" aria-label="${esc(tt("cs.pl_filter_aria"))}"></nav>`
+        + `<div class="pl-main"><div class="pl-top">`
+        +   `<div class="pl-head"><h2 id="plTitle"></h2>`
+        +     `<button type="button" class="pl-btn" data-zip>${ic("file-up")}<span>${esc(tt("plzip.btn"))}</span></button>`
+        +     `<button type="button" class="pl-btn pri pl-addbtn" data-add>${ic("plus")}<span>${esc(tt("cs.pl_add"))}</span></button></div>`
+        +   `<label class="pl-search" id="plSearchBox">${ic("search")}<input type="search" id="plSearch" autocomplete="off" spellcheck="false" placeholder="${ph}" aria-label="${ph}">`
+        +     `<button type="button" class="pl-clear" id="plClear" aria-label="${esc(tt("cs.pl_clear"))}" title="${esc(tt("cs.pl_clear"))}" hidden>${ic("x")}</button></label>`
+        +   `<div class="pl-chips" id="plChips" role="group" aria-label="${esc(tt("cs.pl_filter_aria"))}"></div>`
+        + `</div><div id="plGate"></div><div id="plCards"></div><div id="plRemoved"></div></div></div>`
+        + `<button type="button" class="pl-fab" data-add aria-label="${esc(tt("cs.pl_add"))}">${ic("plus")}</button></div>`;
+      el.addEventListener("click", onClick);
+      const inp = el.querySelector("#plSearch");
       inp.addEventListener("input", () => setQuery(inp.value));
-      inp.addEventListener("keydown", (e) => { if (e.key === "Escape" && inp.value) { e.preventDefault(); setQuery(""); } });
-      wrap.querySelector("#plClear").onclick = () => { setQuery(""); inp.focus(); };
-      const zip = wrap.querySelector("#plZip");
-      // Không qua _goiNhom: caiPluginZip mở hộp chọn file, trình duyệt chỉ cho mở NGAY trong cú bấm. packs.js đã nạp
-      // sẵn khi trang Plugin vẽ (NHOM_TRANG.plugins).
-      zip.onclick = () => {
-        if (!window.JavisPacks || !window.JavisPacks.caiPluginZip) return;
-        window.JavisPacks.caiPluginZip({
-          brain: fbrain(), maxMb: (ui.data && ui.data.zip_max_mb) || 25,
-          // After an install: clear search and filter so the new (off) card shows, focus its switch.
-          xong: (r) => {
-            _plStatus = "all";
-            setQuery("");
-            if (r && r.kind === "plugin" && r.slug) ui.refocus = r.slug;
-            load();
-          },
-        });
-      };
-      el.innerHTML = "";
-      const tab = hangTabKho("plugins");
-      if (tab) el.appendChild(tab);
-      el.appendChild(wrap);
+      inp.addEventListener("keydown", (e) => { if (e.key === "Escape" && inp.value) { e.preventDefault(); e.stopPropagation(); setQuery(""); } });
+      el.querySelector("#plClear").onclick = (e) => { e.stopPropagation(); setQuery(""); inp.focus(); };
+    }
+
+    async function loadTools() {
+      clearTimeout(_ctTimer); _ctTimer = null;
+      let d = null;
+      try { d = await (await fetch("/tools/optional")).json(); } catch (e) {}
+      if (myGen !== _renderGen) return;
+      ui.tools = (d && d.ok && d.tools) || [];
+      const installing = ui.tools.some(x => x.trang_thai === "dang_cai");
+      // Ask again only while a download runs; a loop on a page nobody watches only costs battery.
+      if (installing) _ctTimer = setTimeout(loadTools, 2000);
+      drawList();
     }
 
     async function load() {
@@ -2369,12 +2552,22 @@
       if (myGen !== _renderGen) return;
       const first = !ui.data;
       ui.data = d;
-      if (first || !document.getElementById("plCards")) buildShell(d);
-      const gate = document.getElementById("plGate");
-      if (gate) gate.innerHTML = (!d.user_gate) ? `<div style="margin-bottom:14px;padding:11px 13px;border:1px solid rgba(224,160,74,.5);border-radius:10px;background:rgba(224,160,74,.08);color:var(--warn-ink);font-size:13px;line-height:1.55"><b>${WARN_ICON} ${esc(window.t("cs.pl_gate_head"))}</b>${infoBtn()}${infoBody(`${esc(window.t("cs.pl_gate_a"))} <code>JAVIS_ENABLE_USER_PLUGINS=false</code> ${esc(window.t("cs.pl_gate_b"))}`)}</div>` : "";
+      if (first || !document.getElementById("plCards")) buildShell();
+      const gate = el.querySelector("#plGate");
+      if (gate) gate.innerHTML = (!d.user_gate) ? `<div class="pl-gate">${WARN_ICON}<b>${esc(tt("cs.pl_gate_head"))}</b>${infoBtn()}${infoBody(`${esc(tt("cs.pl_gate_a"))} <code>JAVIS_ENABLE_USER_PLUGINS=false</code> ${esc(tt("cs.pl_gate_b"))}`)}</div>` : "";
       drawList();
+      // The drawer shows what the server says now (a switch flipped inside it, an error that appeared).
+      if (ui.openSlug && layer && layer.querySelector(".pl-drawer")) {
+        const p = findP(ui.openSlug);
+        if (p && !p.removed) {
+          openDetail(p);
+          const sw = layer && layer.querySelector(".pl-sw");
+          if (sw) sw.focus({ preventScroll: true });
+        } else closeLayer(true);
+      }
     }
     load();
+    loadTools();
   }
 
   // ============================================
@@ -5703,6 +5896,7 @@
     if (a) a.onclick = (e) => {
       e.preventDefault();
       try { m.remove(); } catch (err) {}
+      _plView = "machine";   // land on "Software on this machine", where the browser is installed
       try { Alpine.store("nav").go("plugins"); } catch (err) {}
     };
   }
