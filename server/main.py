@@ -2757,7 +2757,8 @@ def _side_work_paused() -> str:
     auto-learning) must wait, "" otherwise. It waits when the plan that work would run on has used most of
     its 5-hour allowance (plan_limits.side_pause) and resumes by itself after the reset. Never raises."""
     try:
-        st = plan_limits.side_pause(aux_engine.read_spec(tag="learn").get("provider"))
+        _spec = aux_engine.read_spec(tag="learn")
+        st = plan_limits.side_pause(_spec.get("provider"), model=str(_spec.get("model") or ""))
     except Exception:   # noqa: BLE001 - a broken meter must not stop that work for good
         return ""
     if not st.get("paused"):
@@ -3853,6 +3854,13 @@ def _clear_pin_limit(provider: str) -> bool:
     itself, with no way to undo it from the page (owner's report, 05/11/2026). True when a mark was lifted."""
     prov = str(provider or "")
     had = _PIN_LIMITED.pop(prov, None) is not None
+    try:
+        # 20/11/2026: the usage ring's "ran out" mark goes with it. It used to outlive the pick, so the ring stayed red
+        # for up to an hour after the owner switched to a model the plan still ran (owner's report, Team plan at 66%).
+        import plan_limits
+        plan_limits.clear_het(prov)
+    except Exception as e:  # noqa: BLE001
+        print(f"[routing] clear ring mark {prov}: {type(e).__name__}: {e}", file=sys.stderr)
     try:
         m = cfgmod.read_settings().get("model") or {}
         if not (plan_accounts.in_use(prov) and plan_accounts.has_extra(m, prov)):
@@ -20895,6 +20903,7 @@ async def _chat_socket(ws):
             # Lượt này vấp "hết lượt gói thuê bao"? Bốn nhánh engine thuê bao ghi vào đây qua
             # `_limit_frame`; cuối lượt đọc ra để lưu câu báo và hẹn tự chạy lại.
             _limit_state = {}
+            _turn_t0 = time.time()   # 20/11/2026: a refusal older than this turn goes once the turn answers
             _turn_acc = {}     # 0.355.0: provider -> plan account THIS turn runs on (the one that rests on a quota error)
 
             def _limit_frame(raw, engine_hint, model=""):
@@ -20917,9 +20926,9 @@ async def _chat_socket(ws):
                 try:
                     import plan_limits
                     if noi:
-                        plan_limits.ghi_het(engine_hint, float(lim.reset_epoch or 0))
+                        plan_limits.ghi_het(engine_hint, float(lim.reset_epoch or 0), model=model or "")
                     elif engine_hint in ("grok-cli", "antigravity-cli") and plan_limits.la_het_han_muc(raw):
-                        plan_limits.ghi_het(engine_hint)
+                        plan_limits.ghi_het(engine_hint, model=model or "")
                         _limit_state["quota"] = True   # 0.354.0: the next route may take over
                         if engine_hint == "grok-cli":
                             _note_pin_limit("grok-cli", account=_turn_acc.get("grok-cli"))   # 0.353.0: that account rests
@@ -22216,6 +22225,16 @@ async def _chat_socket(ws):
             if final_text:
                 await _persist_turn(store, conv_sid, brain, user_message, final_text,
                                     turn_started=(_mem_snap or {}).get("t0") or 0)
+                if not _limit_state.get("quota"):
+                    # 20/11/2026: the plan just answered, so an older "ran out" mark on the ring goes (or, when it was
+                    # another model's refusal, stays on that model only). Before, only a fresh meter report lifted it,
+                    # and Claude Code sends one only when its limit state changes.
+                    try:
+                        import plan_limits
+                        _ok_model = api_model or (mcfg.get("claude_model") if prov == "anthropic-cli" else "")
+                        await asyncio.to_thread(plan_limits.lift_het, prov, str(_ok_model or ""), _turn_t0)
+                    except Exception as _e:  # noqa: BLE001 - a meter must never break a turn
+                        print(f"[plan limits] lift: {type(_e).__name__}: {_e}", file=sys.stderr)
                 if _limit_state.get("quota") and not ws.untouched():
                     # 0.354.0: out of quota halfway (words written or tools run): the turn stops where it is, never
                     # reruns by itself (a tool may have sent or posted something). A "Run again" card under the answer

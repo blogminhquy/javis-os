@@ -36,24 +36,47 @@
     return { key: "lim.reset_m", vars: { m: Math.max(1, m) } };
   }
 
+  // 20/11/2026 (owner's report: red at 66% and 58% after a refusal on one model, still red after switching). A model id
+  // reduced to what tells two picks apart, and whether two may be the same model; same rule as plan_limits.same_model.
+  function modelKey(m) {
+    var k = String(m || "").trim().toLowerCase().split("/").pop().replace(/\[[^\]]*\]$/, "").replace(/[-@]\d{8}$/, "");
+    return k.indexOf("claude-") === 0 ? k.slice(7) : k;
+  }
+  function sameModel(a, b) {
+    var ka = modelKey(a), kb = modelKey(b);
+    if (!ka || !kb || ka === kb) return true;
+    var s = ka.length < kb.length ? ka : kb, l = s === ka ? kb : ka;
+    return s.indexOf("-") < 0 && l.indexOf(s + "-") === 0;
+  }
+  // Does a refusal paint THIS model red? Not when it was another model's refusal: that model hit a limit of its own
+  // (Opus, Fable credits...), and the plan's own meters decide. A refusal proven to be one model's (`scoped`) needs a
+  // known current model to match.
+  function hetApplies(het, model) {
+    if (!het) return false;
+    if (het.scoped) return !!(het.model && model && sameModel(het.model, model));
+    return sameModel(het.model || "", model || "");
+  }
+
   // Header next to "Plan usage limits": the brand, then the plan when the server could name it ("Claude · Max").
   function whoText(brain, plan) {
     var b = BRAND[brain] || "";
     return plan ? b + " · " + plan : b;
   }
 
-  var api = { brainOf: brainOf, level: level, resetParts: resetParts, whoText: whoText, NONE_KEY: NONE_KEY };
+  var api = { brainOf: brainOf, level: level, resetParts: resetParts, whoText: whoText, NONE_KEY: NONE_KEY,
+    sameModel: sameModel, hetApplies: hetApplies };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document === "undefined") return;
 
   var $ = function (id) { return document.getElementById(id); };
   var tw = function (k, v) { return window.t ? window.t(k, v) : k; };
   var LOC = function () { return (window.JavisI18n && window.JavisI18n.locale()) || "vi-VN"; };
-  var data = null, provider = "", busy = null, lastFetch = 0, names = {};
+  var data = null, provider = "", model = "", busy = null, lastFetch = 0, names = {};
 
   function cur() {
     var b = brainOf(provider, data && data.plan);
-    return { brain: b, d: b && data ? data[b] : null };
+    var d = b && data ? data[b] : null;
+    return { brain: b, d: d, het: !!(d && hetApplies(d.het, model)) };
   }
   function resetText(w) {
     var r = resetParts(w && w.resets_at, Date.now() / 1000);
@@ -76,13 +99,15 @@
     if (btn.parentElement) btn.parentElement.classList.toggle("has-ring", !!c.brain);
     if (!c.brain) { closePop(); return; }
     var n = data && data.nguong, d = c.d;
-    var pct = d ? d.max : 0;
-    var lv = d ? (d.muc || level(pct, n && n.canh_bao, n && n.sat)) : "none";
+    // Another model's refusal: the ring shows the meters alone (older servers send no meter_* and keep their own).
+    var own = d && d.het && !c.het && d.meter_muc;
+    var pct = d ? (own ? d.meter_max : d.max) : 0;
+    var lv = d ? ((own ? d.meter_muc : d.muc) || level(pct, n && n.canh_bao, n && n.sat)) : "none";
     btn.dataset.muc = lv;
     var fg = btn.querySelector(".lim-fg");
     if (fg) fg.setAttribute("stroke-dasharray", Math.max(d ? 3 : 0, Math.min(100, pct)) + " 100");
     var lines = [tw("lim.title")];
-    if (d && d.het) lines.push(tw("lim.het_short"));
+    if (c.het) lines.push(tw("lim.het_short"));
     if (d && d.five_hour) lines.push(tw("lim.session") + ": " + d.five_hour.pct + "%");
     if (d && d.seven_day) lines.push(tw("lim.week") + ": " + d.seven_day.pct + "%");
     if (!d) lines.push(tw(c.brain === "grok" || c.brain === "agy" ? "lim.no_meter" : "lim.none_short"));
@@ -107,16 +132,21 @@
     var c = cur(), d = c.d, n = data && data.nguong;
     var meter = d && (d.five_hour || d.seven_day);
     pop.innerHTML = '<div class="lim-head"><span class="lim-h"></span><span class="lim-who"></span></div>' +
-      (d && d.het ? '<div class="lim-het"><p class="lim-het-h"></p><p class="lim-het-r"></p></div>' : "") +
+      (c.het ? '<div class="lim-het"><p class="lim-het-h"></p><p class="lim-het-r"></p></div>' : "") +
+      (d && d.het && !c.het ? '<p class="lim-het-o"></p>' : "") +
       (meter ? row(d.five_hour, n) + row(d.seven_day, n) + '<p class="lim-at"></p>' : "") +
       (!meter ? '<p class="lim-none"></p>' : "");
     pop.querySelector(".lim-h").textContent = tw("lim.title");
     pop.querySelector(".lim-who").textContent = whoText(c.brain, names[c.brain] || "");
     if (d && d.het) {
       var hAt = new Date(d.het.at * 1000).toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" });
-      pop.querySelector(".lim-het-h").textContent = tw("lim.het", { time: hAt });
-      pop.querySelector(".lim-het-r").textContent = d.het.reset ? resetText({ resets_at: d.het.reset })
-        : tw("lim.het_no_reset", { brand: BRAND[c.brain] });
+      if (c.het) {
+        pop.querySelector(".lim-het-h").textContent = tw("lim.het", { time: hAt });
+        pop.querySelector(".lim-het-r").textContent = d.het.reset ? resetText({ resets_at: d.het.reset })
+          : tw("lim.het_no_reset", { brand: BRAND[c.brain] });
+      } else {
+        pop.querySelector(".lim-het-o").textContent = tw("lim.het_other", { model: d.het.model, time: hAt });
+      }
     }
     if (!meter) {
       // Claude or ChatGPT before the first turn, or Grok and Antigravity, which never send a meter.
@@ -190,11 +220,14 @@
     }).catch(function () { return data; }).then(function (d) { busy = null; return d; });
     return busy;
   }
-  // model-picker.js calls this whenever the effective model changes.
-  function setProvider(p) {
+  // model-picker.js calls this whenever the composer repaints, with the model it shows. A new provider or model reads
+  // the meters again: picking a model lifts the old refusal on the server, and the ring must not keep the old red.
+  function setProvider(p, m) {
+    var changed = (p || "") !== provider || (m || "") !== model;
     provider = p || "";
+    model = m || "";
     paintRing();
-    if (BRAIN[provider] && !data) refresh(true);
+    if (BRAIN[provider] && (!data || changed)) refresh(true);
   }
 
   document.addEventListener("click", function (e) {

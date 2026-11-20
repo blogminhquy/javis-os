@@ -460,6 +460,7 @@
   "lim.no_meter": "No percentage reported, red only when a turn is refused for quota",
   "lim.het": "Limit reached at {time}",
   "lim.het_no_reset": "{brand} gives no reset time. If the next turn is refused too, the ring stays red.",
+  "lim.het_other": "{model} hit its own limit at {time}; the model in use still runs",
   "lim.none_grok": "Grok Build reports no plan usage percentage. The ring turns red only when Grok refuses a turn for plan quota.",
   "lim.none_agy": "Antigravity reports no plan usage percentage. The ring turns red only when Antigravity refuses a turn for plan quota.",
   "rail.expand": "Expand sidebar",

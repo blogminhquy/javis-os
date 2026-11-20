@@ -2769,6 +2769,8 @@ textarea.sug-ghosted::placeholder { color: transparent; }
 .lim-het { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--red) 12%, transparent); }
 .lim-het-h { margin: 0; font-size: 14px; font-weight: 600; color: var(--red); }
 .lim-het-r { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: var(--text2); }
+/* Another model's own limit: one quiet line, the ring follows the meters. */
+.lim-het-o { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: var(--warn-ink); }
 .lim-at, .lim-none { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: var(--text3); }
 .lim-none { color: var(--text2); }
 .eff-lbl { color: var(--text2); }

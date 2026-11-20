@@ -460,6 +460,7 @@
   "lim.no_meter": "Không báo số %, chỉ đỏ khi bị từ chối vì hết hạn mức",
   "lim.het": "Đã chạm hạn mức lúc {time}",
   "lim.het_no_reset": "{brand} không báo giờ làm mới. Lượt sau mà vẫn bị từ chối thì vòng tròn đỏ tiếp.",
+  "lim.het_other": "{model} chạm hạn mức riêng lúc {time}, model đang chọn vẫn chạy",
   "lim.none_grok": "Grok Build không báo số % hạn mức gói. Vòng tròn chỉ chuyển đỏ khi Grok từ chối một lượt vì hết hạn mức.",
   "lim.none_agy": "Antigravity không báo số % hạn mức gói. Vòng tròn chỉ chuyển đỏ khi Antigravity từ chối một lượt vì hết hạn mức.",
   "rail.expand": "Mở rộng thanh bên",

@@ -293,7 +293,7 @@
     const fi = $("effFast");
     if (fi) fi.hidden = !on;
     if (effSlider && effSlider.refreshFast) effSlider.refreshFast();
-    try { if (window.JavisPlanLimit) window.JavisPlanLimit.setProvider(eff.provider); } catch (e) {}
+    try { if (window.JavisPlanLimit) window.JavisPlanLimit.setProvider(eff.provider, eff.model); } catch (e) {}
   }
   // FAST_STATE_BEGIN
   // Tooltip line for the last Fast mode state a brain reported (server: fast_mode.states()).
@@ -595,6 +595,8 @@
       sessionPin = null;
     }
     await loadState(); await refreshRoute(); renderBar();   // the route too: picking a card lifts its out-of-quota mark
+    // ...and the usage ring's red mark with it (server: _clear_pin_limit), so the ring reads the meters again now.
+    try { if (window.JavisPlanLimit) window.JavisPlanLimit.refresh(); } catch (e) {}
     // The new model may lock or unlock the slider.
     if (sheetIsOpen()) effMount();
     else if (effIsOpen()) { effClose(); effOpen(); }
