@@ -8,13 +8,19 @@ because the file had grown to 33,167 characters against a limit of 32,768. The `
 
 The fix inlines a compact copy (tools/sync_guard.py). This test keeps the file under the limit
 with room left for the installer's own edits in that editor (a domain in the Traefik labels, a
-port, a name). It counts both characters and UTF-8 bytes: Hostinger does not publish which one it
-measures, and the Vietnamese comments make the byte count the larger of the two.
+port, a name). Hostinger does not publish what it measures, so every plausible way of counting must
+fit: characters, UTF-8 bytes, and the text once it is encoded for transport.
+
+Owner report 2026-11-21: the Hostinger link failed again while docker-compose.yml deployed fine.
+The file was 28,386 characters then, under the limit, but 35,485 once JSON-encoded: an encoder
+that escapes non-ASCII writes every Vietnamese letter as six characters. The comments are now
+English and ASCII only, and this test also counts the encoded forms.
 
 Over budget? Shorten comments in docker-compose.hostinger.yml (the long explanations belong in
-docs/ or in docker/guard.py), never the settings themselves.
+docs/dev/hostinger-compose.md or in docker/guard.py), never the settings themselves.
 """
 from _paths import ROOT  # noqa: E402,F401
+import json
 import sys
 
 FAIL = []
@@ -37,6 +43,19 @@ check(f"under hPanel's {HPANEL_LIMIT} characters", chars <= HPANEL_LIMIT)
 check(f"under {HPANEL_LIMIT} bytes too", size <= HPANEL_LIMIT)
 check(f"leaves {EDIT_ROOM} for the installer's edits, counted in characters", chars <= BUDGET)
 check(f"leaves {EDIT_ROOM} for the installer's edits, counted in bytes", size <= BUDGET)
+
+# Encoded for transport. JSON as JavaScript writes it keeps non-ASCII; as PHP writes it by default,
+# non-ASCII becomes \uXXXX and every "/" becomes "\/". The quotes around the string are not counted.
+js_json = len(json.dumps(text, ensure_ascii=False)) - 2
+php_json = len(json.dumps(text, ensure_ascii=True)) - 2 + text.count("/")
+print(f"JSON-encoded: {js_json} (non-ASCII kept), {php_json} (non-ASCII and slashes escaped)")
+check(f"leaves {EDIT_ROOM} for the installer's edits, JSON-encoded", js_json <= BUDGET)
+check(f"leaves {EDIT_ROOM} for the installer's edits, JSON-encoded with non-ASCII and slashes escaped",
+      php_json <= BUDGET)
+non_ascii = sorted({c for c in text if ord(c) > 127})
+check("ASCII only (an escaped non-ASCII character costs six)", not non_ascii)
+if non_ascii:
+    print("non-ASCII characters:", "".join(non_ascii[:40]))
 
 if FAIL:
     print("\nFAILED:", ", ".join(FAIL))
