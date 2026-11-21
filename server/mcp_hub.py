@@ -1816,7 +1816,10 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
             listed = {t.get("fn") for t in pool} | set(visible_route)
             near = [f for f in tool_finder.suggest_names(name, [f for f in full_route if f in listed or not pool])
                     if f not in (_LAZY_SEARCH, _LAZY_RUN)]
-            same_tail = [f for f in near if f.lower().split("__")[-1] == name.lower().split("__")[-1]]
+            # Only auto-match a bare name without a namespace prefix; an explicit "ns__tool" must never
+            # silently dispatch to another account or connector.
+            same_tail = ([] if "__" in name else
+                         [f for f in near if f.lower().split("__")[-1] == name.lower().split("__")[-1]])
             if len(same_tail) == 1:
                 name = same_tail[0]
             else:
