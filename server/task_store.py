@@ -1449,7 +1449,8 @@ class TaskStore:
                 raise
         return self.get_task(task_id), ""
 
-    def set_acceptance(self, task_id: str, state: str, why: str = "") -> Optional[dict]:
+    def set_acceptance(self, task_id: str, state: str, why: str = "",
+                       handoff: Optional[list] = None) -> Optional[dict]:
         """Record a re-check of a finished job (0.411.0). `state`: "checking" while it runs, "ai" when it passed,
         "failed" when it did not, "unverified" when the checker could not run again. Only a done or review job is
         touched. A failed re-check goes straight to the owner as `acceptance_failed` (fix and run again, or accept
@@ -1476,6 +1477,11 @@ class TaskStore:
                     self._event(task_id, "acceptance_failed", reason[:500])
                 else:
                     meta["acceptance_check"] = state
+                    if handoff:
+                        # 2026-11-21: steps the checker moved to the owner ("Left for you") on a passing re-check.
+                        old = [str(x) for x in (meta.get("handoff") or []) if str(x).strip()]
+                        meta["handoff"] = (old + [str(x).strip() for x in handoff
+                                                  if str(x).strip() and str(x).strip() not in old])[:10]
                     self._db.execute("UPDATE tasks SET metadata_json=?, updated_at=? WHERE id=?",
                                      (_json(meta), now(), task_id))
                     if state != "checking":
