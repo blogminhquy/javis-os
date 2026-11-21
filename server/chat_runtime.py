@@ -71,6 +71,9 @@ class ChatRuntime:
     def __init__(self) -> None:
         self._clients: Dict[str, _Client] = {}
         self._jobs: Dict[str, ChatJob] = {}
+        self._stop_epochs: Dict[str, int] = {}
+        self._waiters: Dict[str, set[asyncio.Task]] = {}
+        self._last_tags: Dict[str, str] = {}
 
     def add_client(self, client_id: str, writer: Writer, on_drop: Optional[Callable[[], None]] = None) -> None:
         """`on_drop()` closes the page's socket when the runtime gives up on it (stuck sends)."""
@@ -115,6 +118,11 @@ class ChatRuntime:
             task=task, tag=tag,
             runtime_task_id=runtime_task_id, runtime_step_id=runtime_step_id,
         )
+        if session_id and tag:
+            self._last_tags.pop(session_id, None)
+            self._last_tags[session_id] = tag
+            while len(self._last_tags) > 2000:
+                self._last_tags.pop(next(iter(self._last_tags)), None)
         # Before the task can run (no await since it was created), so the row exists before the job can end.
         if turn is not None and self.on_start is not None:
             try:
@@ -148,7 +156,57 @@ class ChatRuntime:
         if job and job.task is task:
             self._jobs.pop(session_id, None)
 
+    def stop_epoch(self, session_id: str) -> int:
+        """Return the monotonic stop counter for `session_id` (0 if never stopped)."""
+        sid = str(session_id or "")
+        return self._stop_epochs.get(sid, 0) if sid else 0
+
+    def register_waiter(self, session_id: str, task: Optional[asyncio.Task]) -> int:
+        """Track a continuation waiter task for `session_id`, remove it when done, and return current epoch."""
+        sid = str(session_id or "")
+        if sid and task is not None:
+            self._waiters.setdefault(sid, set()).add(task)
+
+            def _discard(done: asyncio.Task, s: str = sid) -> None:
+                bucket = self._waiters.get(s)
+                if bucket is not None:
+                    bucket.discard(done)
+                    if not bucket:
+                        self._waiters.pop(s, None)
+
+            if task.done():
+                _discard(task)
+            else:
+                task.add_done_callback(_discard)
+        return self.stop_epoch(sid)
+
+    def _bump_stop_and_cancel_waiters(self, session_id: str) -> None:
+        sid = str(session_id or "")
+        if not sid:
+            return
+        self._stop_epochs[sid] = self._stop_epochs.get(sid, 0) + 1
+        for waiter in self._waiters.pop(sid, set()):
+            if not waiter.done():
+                waiter.cancel()
+
+    def sessions_matching(self, tag_prefix: str) -> list[str]:
+        """Return session ids whose active job or orphan waiter matches `tag_prefix`."""
+        pfx = str(tag_prefix or "")
+        sids = [sid for sid, job in list(self._jobs.items()) if job.tag.startswith(pfx)]
+        seen = set(sids)
+        for sid in list(self._waiters):
+            if sid in seen or sid in self._jobs:
+                continue
+            stem = f"chat:{sid[:12]}:"
+            last = self._last_tags.get(sid, "")
+            if (pfx in ("", "chat", "chat:") or stem.startswith(pfx)
+                    or pfx.startswith(stem) or (last and last.startswith(pfx))):
+                sids.append(sid)
+        return sids
+
     def cancel_session(self, session_id: str) -> Optional[str]:
+        """Increment stop epoch, cancel queued waiters, and cancel the active job for `session_id`."""
+        self._bump_stop_and_cancel_waiters(session_id)
         job = self.get_job(session_id)
         if not job:
             return None
@@ -157,15 +215,16 @@ class ChatRuntime:
         return job.tag
 
     def cancel_matching(self, tag_prefix: str) -> list[str]:
-        """Huỷ asyncio job theo prefix; trả tag để caller giết subprocess."""
+        """Cancel matching jobs, increment their stop epochs, and cancel their queued waiters."""
+        pfx = str(tag_prefix or "")
         tags: list[str] = []
-        for job in list(self._jobs.values()):
-            if not job.tag.startswith(tag_prefix):
-                continue
-            tags.append(job.tag)
-            if not job.task.done():
-                job.task.cancel()
-            # Giữ entry tới finally của job để client vẫn nhận turn_done.
+        for sid in self.sessions_matching(pfx):
+            job = self._jobs.get(sid)
+            if job and job.tag.startswith(pfx):
+                tags.append(job.tag)
+                if not job.task.done():
+                    job.task.cancel()
+            self._bump_stop_and_cancel_waiters(sid)
         return tags
 
     def snapshot(self) -> list[dict]:

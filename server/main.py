@@ -1782,6 +1782,18 @@ async def root():
     return HTMLResponse(html, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
+def _clear_session_continuations(session_id: str) -> None:
+    """Discard queued mid-turn steers, quota resumes, and pending background follow-ups on Stop."""
+    sid = str(session_id or "").strip()
+    if not sid:
+        return
+    steer_inbox.INBOX.drop(sid)
+    limit_resume.REGISTRY.cancel(sid)
+    tien_trinh_nen.clear_followup_instruction(f"{WEB_CHAT_PREFIX}{sid}")
+    if "_NOI_TIEP_WEB" in globals():
+        _NOI_TIEP_WEB.pop(sid, None)
+
+
 @app.post("/stop")
 async def stop(payload: dict = Body(None)):
     """Nút Stop: ngắt lệnh CHAT đang chạy, không đụng tới metrics/loop nền.
@@ -1792,14 +1804,20 @@ async def stop(payload: dict = Body(None)):
     tag = str(data.get("tag") or "").strip()
     if session_id:
         job_tag = _CHAT_RUNTIME.cancel_session(session_id)
+        _clear_session_continuations(session_id)
         n = cancel_all(job_tag) if job_tag else 0
         return {"ok": True, "cancelled": max(1, n) if job_tag else 0}
     # chỉ chấp nhận tag họ chat - chặn lạm dụng endpoint này để giết loop/workflow nền
     prefix = tag if tag.startswith("chat:") else "chat"
+    matched_sids = _CHAT_RUNTIME.sessions_matching(prefix)
     job_tags = _CHAT_RUNTIME.cancel_matching(prefix)
     n = cancel_all(prefix)
+    for _sid in matched_sids:
+        _clear_session_continuations(_sid)
     if job_tags:
         n = max(n, len(job_tags))
+    if matched_sids:
+        n = max(n, len(matched_sids))
     return {"ok": True, "cancelled": n}
 
 
@@ -22550,6 +22568,7 @@ async def _chat_socket(ws):
             # Local import: tests exec run_turn from its source in a namespace without this module's globals.
             from improvement_task_skill_turn import TaskSkillTurn as _TaskSkillTurn
             _task_skills = _TaskSkillTurn()
+            _cancelled = False
             try:
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
@@ -22598,6 +22617,7 @@ async def _chat_socket(ws):
                     "COMPLETED_WITH_ERROR" if runtime_trace and runtime_trace.had_error else "COMPLETED",
                 )
             except asyncio.CancelledError:
+                _cancelled = True
                 _engine_outcome_turn(conv_sid, "cancelled")
                 _CONTEXT_RUNTIME.finish(runtime_trace, "CANCELLED", "cancelled")
                 await send_raw({"type": "system", "content": localefmt.chu("Đã dừng lượt này.", "Stopped this turn."),
@@ -22614,10 +22634,11 @@ async def _chat_socket(ws):
                 _task_skills.close()
                 luot_dang_chay.ket_thuc(_khoa_luot)
                 _steer_left = steer_inbox.INBOX.close(conv_sid, turn_tag, _steer_tok)
-                if _steer_left:
+                if _steer_left and not _cancelled:
                     # Sent while this turn ran but never read by it: the next turn of this chat, right after this one.
+                    _steer_epoch = _CHAT_RUNTIME.stop_epoch(conv_sid) if hasattr(_CHAT_RUNTIME, "stop_epoch") else None
                     asyncio.create_task(_start_steer_turn(conv_sid, [i["text"] for i in _steer_left], brain,
-                                                          [i["id"] for i in _steer_left]))
+                                                          [i["id"] for i in _steer_left], stop_epoch=_steer_epoch))
                 tien_trinh_nen.bo_tag(turn_tag)   # lượt lỗi/bị dừng không tới bước nhận nuôi
                 turn_context.reset(_luot_token)
                 context_runtime.reset_trace(_trace_token)
@@ -23081,15 +23102,24 @@ async def _chat_socket(ws):
                 _TG_SESS.pop(khoa_mach, None)
             await push_to_chat(conv_sid, out or "(việc nền xong nhưng không có nội dung)", viec=viec)
 
-        async def _start_steer_turn(conv_sid, texts, brain, ids):
+        async def _start_steer_turn(conv_sid, texts, brain, ids, stop_epoch=None):
             """0.206.0: messages sent while a turn was running that it never read (a one-shot CLI engine, or it was
             already writing its final answer) run as the next turn of the same chat, once that turn has ended. They are
             in the history already (stored when they arrived), so only the engine gets the wrapped prompt."""
-            for _ in range(1200):
-                if not _CHAT_RUNTIME.get_job(conv_sid):
-                    break
-                await asyncio.sleep(0.5)
-            else:
+            epoch0 = _CHAT_RUNTIME.stop_epoch(conv_sid) if stop_epoch is None else stop_epoch
+            _CHAT_RUNTIME.register_waiter(conv_sid, asyncio.current_task())
+            try:
+                for _ in range(1200):
+                    if _CHAT_RUNTIME.stop_epoch(conv_sid) != epoch0:
+                        return
+                    if not _CHAT_RUNTIME.get_job(conv_sid):
+                        break
+                    await asyncio.sleep(0.5)
+                else:
+                    return
+            except asyncio.CancelledError:
+                return
+            if _CHAT_RUNTIME.stop_epoch(conv_sid) != epoch0:
                 return
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
@@ -23106,7 +23136,7 @@ async def _chat_socket(ws):
             except Exception:
                 pass
 
-        async def _start_followup_turn(conv_sid, text, brain, do_sau):
+        async def _start_followup_turn(conv_sid, text, brain, do_sau, stop_epoch=None):
             """Lượt nối tiếp sau khi một việc chạy nền xong (tien_trinh_nen, 0.64.66).
 
             Là một job chat bình thường của server, y như lượt tự chạy lại của limit_resume: tab
@@ -23114,13 +23144,24 @@ async def _chat_socket(ws):
             đang chat dở thì đợi lượt đó xong rồi mới chen vào (tối đa 10 phút), không cắt
             ngang. Tin mở lượt được lưu như một tin người dùng có đánh dấu rõ, để mở lại hội
             thoại vẫn hiểu vì sao Javis tự nói tiếp."""
-            for _ in range(120):
-                if not _CHAT_RUNTIME.get_job(conv_sid):
-                    break
-                await asyncio.sleep(5)
-            else:
-                await push_to_chat(conv_sid, "Việc chạy nền đã xong nhưng hội thoại bận quá lâu "
-                                   "nên chưa làm tiếp được. Nhắn \"làm tiếp\" để làm nốt.")
+            epoch0 = _CHAT_RUNTIME.stop_epoch(conv_sid) if stop_epoch is None else stop_epoch
+            _CHAT_RUNTIME.register_waiter(conv_sid, asyncio.current_task())
+            try:
+                for _ in range(120):
+                    if _CHAT_RUNTIME.stop_epoch(conv_sid) != epoch0:
+                        return
+                    if not _CHAT_RUNTIME.get_job(conv_sid):
+                        break
+                    await asyncio.sleep(5)
+                else:
+                    if _CHAT_RUNTIME.stop_epoch(conv_sid) != epoch0:
+                        return
+                    await push_to_chat(conv_sid, "Việc chạy nền đã xong nhưng hội thoại bận quá lâu "
+                                       "nên chưa làm tiếp được. Nhắn \"làm tiếp\" để làm nốt.")
+                    return
+            except asyncio.CancelledError:
+                return
+            if _CHAT_RUNTIME.stop_epoch(conv_sid) != epoch0:
                 return
             store.append_message(conv_sid, "user", text)
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
@@ -23254,6 +23295,7 @@ async def _chat_socket(ws):
                     _tag = _CHAT_RUNTIME.cancel_session(_sid)
                     if _tag:
                         cancel_all(_tag)     # giết subprocess engine của đúng lượt đó
+                    _clear_session_continuations(_sid)
                     continue
                 if action == "steer":
                     # 0.206.0: a message typed while this chat's turn is still running (steer_inbox.py). Stored now as the
@@ -23276,7 +23318,9 @@ async def _chat_socket(ws):
                     else:
                         # The turn just ended (or too many are waiting): this message is its own next turn.
                         _mode, _id = "after", 0
-                        asyncio.create_task(_start_steer_turn(_sid, [_txt], _row.get("brain") or "brain", []))
+                        _steer_epoch = _CHAT_RUNTIME.stop_epoch(_sid)
+                        asyncio.create_task(_start_steer_turn(_sid, [_txt], _row.get("brain") or "brain", [],
+                                                              stop_epoch=_steer_epoch))
                     await send_client({"type": "steer_ack", "session_id": _sid, "client_id": _cid,
                                        "steer_id": _id, "mode": _mode})
                     continue
@@ -23503,8 +23547,11 @@ async def _chat_socket(ws):
                 runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
                 # Để lại cách mở lượt nối tiếp cho phiên này: việc chạy nền mà lượt này bỏ lại xong
                 # thì tien_trinh_nen gọi tới đây để làm nốt (ghép tiếng, kiểm tra, gửi file...).
-                _NOI_TIEP_WEB[conv_sid] = (lambda _t, _d, _s=conv_sid, _b=brain:
-                                           _start_followup_turn(_s, _t, _b, _d))
+                _NOI_TIEP_WEB[conv_sid] = (
+                    lambda _t, _d, _s=conv_sid, _b=brain, _ep=(
+                        _CHAT_RUNTIME.stop_epoch(conv_sid) if hasattr(_CHAT_RUNTIME, "stop_epoch") else None
+                    ): _start_followup_turn(_s, _t, _b, _d, stop_epoch=_ep)
+                )
                 # Phiên workflow:<slug>: mỗi tin là một lần chạy quy trình, không phải một lượt
                 # hỏi bộ não chính - rẽ nhánh TRƯỚC cả Voice V2, vì trang Cộng sự không có mic.
                 # Khung Trò chuyện đã GỌI cộng sự này bằng lệnh "/" (dashboard gửi kèm mỗi tin).
@@ -28783,6 +28830,7 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
     if cmd == "stop":
         # Chỉ giết subprocess Claude của CHÍNH chat này (tag telegram:<chat>), không đụng người khác.
         cancel_all(f"telegram:{chat_key}")
+        tien_trinh_nen.clear_followup_instruction(chat_key)
         return {"reply": "⏹ Đã dừng lệnh đang chạy."}
     if cmd in ("reset", "new", "clear"):
         # `_tg_session` chứ không `_TG_SESS.get`: sau restart phiên RAM chưa tồn tại nhưng liên

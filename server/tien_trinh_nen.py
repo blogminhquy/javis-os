@@ -417,6 +417,25 @@ def dat_loi_dan(chat_id: str, text: str) -> None:
         _LOI_DAN[cid] = {"text": t[:2000], "ts": time.time()}
 
 
+def clear_followup_instruction(chat_id: str) -> bool:
+    """Clear pending and active background follow-up instructions for chat_id on explicit stop."""
+    cid = str(chat_id or "").strip()
+    if not cid:
+        return False
+    changed = False
+    with _KHOA:
+        had_pending = _LOI_DAN.pop(cid, None) is not None
+        for v in _VIEC.values():
+            if (v.get("chat_id") == cid and v.get("trang_thai") == "run"
+                    and (v.get("noi_tiep") or v.get("sau_khi_xong"))):
+                v["noi_tiep"] = False
+                v["sau_khi_xong"] = ""
+                changed = True
+    if changed:
+        _luu()
+    return bool(had_pending or changed)
+
+
 def _lay_loi_dan(chat_id: str) -> str:
     with _KHOA:
         d = _LOI_DAN.pop(str(chat_id or ""), None)
