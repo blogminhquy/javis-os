@@ -4,8 +4,9 @@
 
 A message a staff member writes in the Zalo OA app or the Page inbox was recorded, but the chat stayed with the bot, so
 the customer's next message was answered by the bot over the staff member. Now the bot stays out of that chat for its
-"step aside after you type" time (`nhuong_tay_phut`: blank = 10 minutes, 0 = never), counted from the staff member's
-last message, and answers again by itself afterwards. The chat stays in "ai" mode.
+"step aside after you type" time (`nhuong_tay_phut`), counted from the staff member's last message, and answers again
+by itself afterwards. The chat stays in "ai" mode. Off unless the owner sets a number: blank or 0 = never (owner,
+2026-11-22).
 
 What the channel sends by itself (a welcome message, an automatic reply seconds after the customer's message) must not
 count, or the bot would go quiet for every new customer.
@@ -51,7 +52,8 @@ async def engine(text, meta=None, progress=None, channel="telegram", bot=None):
 
 
 rt.wire(answer=engine, brain_root=lambda b: str(BRAIN), read_agent=lambda b, s: ({"name": "Hoa"}, ""))
-bot_id, _err = chatbot_store.create_bot({"name": "Shop bot", "agent_slug": "cskh", "brain": "b", "token": "1:staff"})
+bot_id, _err = chatbot_store.create_bot({"name": "Shop bot", "agent_slug": "cskh", "brain": "b", "token": "1:staff",
+                                         "nhuong_tay_phut": "10"})
 answer = rt._make_answer_fn(bot_id)
 CFG = chatbot_store.get_bot(bot_id)
 T0 = time.time()
@@ -88,8 +90,9 @@ def mode_of(chat):
 # ============================================================
 # 1. The step-aside time comes from the bot's own setting
 # ============================================================
-check("blank setting: 10 minutes", rt.staff_yield_seconds({}) == 600 and rt.staff_yield_seconds({"nhuong_tay_phut": ""}) == 600
-      and rt.staff_yield_seconds({"nhuong_tay_phut": None}) == 600)
+check("blank setting: the bot never steps aside for staff (owner's default)",
+      rt.staff_yield_seconds({}) == 0 and rt.staff_yield_seconds({"nhuong_tay_phut": ""}) == 0
+      and rt.staff_yield_seconds({"nhuong_tay_phut": None}) == 0)
 check("a number of minutes is used", rt.staff_yield_seconds({"nhuong_tay_phut": 3}) == 180
       and rt.staff_yield_seconds({"nhuong_tay_phut": "5"}) == 300)
 check("0 = never step aside", rt.staff_yield_seconds({"nhuong_tay_phut": 0}) == 0)
@@ -171,6 +174,17 @@ try:
 finally:
     chatbot_store.get_bot = real_get
 check("a bot set to 0 minutes never steps aside", calls == 1 and out.get("text"), (out, calls))
+
+H = "chat-h"
+customer_row(H, "Alo", T0 - 90, "h1")
+staff(H, mid="oa-h")
+chatbot_store.get_bot = lambda bid: dict(real_get(bid) or {}, nhuong_tay_phut=None) if bid == bot_id else real_get(bid)
+try:
+    out, calls = turn(H, "Còn hàng không?", received_at=T0 + 30)
+finally:
+    chatbot_store.get_bot = real_get
+check("a bot with the setting left blank never steps aside either (the default)", calls == 1 and out.get("text"),
+      (out, calls))
 
 check("a group chat is never held back by a staff mark",
       rt.staff_yielding(CFG, dict(meta_of(E), chat_type="group"), T0 + 20) is False

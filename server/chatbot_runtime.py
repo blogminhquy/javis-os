@@ -905,23 +905,27 @@ _STAFF_CHANNEL_LABEL = {"zalo_oa": "Zalo OA", "messenger": "Messenger"}
 # ---- The bot steps aside after a staff member answers from the channel's own app (issue #1693) ----
 # Owner, 2026-11-22: "như Zalo cá nhân sẽ phù hợp". Since 2026-11-18 a message a staff member writes in the Zalo OA app
 # or the Page inbox is recorded, but the chat stayed with the bot: the customer's next message was answered by the bot
-# over the staff member, asking again what the staff member had just asked. Now the bot stays out of that chat for the
-# bot's own "step aside after you type" time (`nhuong_tay_phut`, the setting personal Zalo already uses; blank = 10
-# minutes, 0 = never), counted from the staff member's last message. The chat stays in "ai" mode: nothing has to be
-# handed back, the bot simply answers again once the time has passed.
+# over the staff member, asking again what the staff member had just asked. Now the bot can stay out of that chat for
+# the bot's own "step aside after you type" time (`nhuong_tay_phut`, the setting personal Zalo already uses), counted
+# from the staff member's last message. The chat stays in "ai" mode: nothing has to be handed back, the bot simply
+# answers again once the time has passed.
+#
+# Off unless the owner sets a number (owner, 2026-11-22: "anh muốn đặt mặc định là 0"): blank or 0 = the bot never steps
+# aside for staff, as before. Personal Zalo keeps its own default of 10 minutes for a blank setting
+# (`zalo_personal_channel.TAY_IM`).
 #
 # What the channel sends by itself must not count, or the bot would go quiet for every new customer (seen on a real OA):
 # the welcome message to a new follower (no customer message in the chat yet), and the automatic reply that arrives a
 # few seconds after the customer's message. A person does not answer within STAFF_AUTO_REPLY_S seconds.
-STAFF_YIELD_DEFAULT_S = 600
+STAFF_YIELD_DEFAULT_S = 0
 STAFF_AUTO_REPLY_S = 10
 _STAFF_AT: Dict[tuple, float] = {}      # (channel, account id, chat id) -> time of the staff member's last message
 _STAFF_AT_MAX = 2000
 
 
 def staff_yield_seconds(cfg: dict) -> int:
-    """How long the bot stays out of a chat after a staff message: the bot's `nhuong_tay_phut`, 0 = never; not set = the
-    default 10 minutes."""
+    """How long the bot stays out of a chat after a staff message: the bot's `nhuong_tay_phut` in minutes. Not set or
+    0 = never (the default, owner 2026-11-22)."""
     v = (cfg or {}).get("nhuong_tay_phut")
     if v is None or str(v).strip() == "":
         return STAFF_YIELD_DEFAULT_S
