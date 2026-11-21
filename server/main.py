@@ -15296,7 +15296,8 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
                 kenh = str((get_store().get_session(sid) or {}).get("channel") or "")
                 # 0.205.0: a muted partner's report still lands in its chat and the bell, just quietly.
                 if kenh.startswith("agent:") and _partner_muted(get_store().get_session(sid) or {}):
-                    quiet = muted = True
+                    quiet = True
+                    muted = True
             except Exception as e:
                 print(f"[inbox] không đọc được kênh của phiên {sid[:8]}: "
                       f"{type(e).__name__}: {e}", file=sys.stderr)
