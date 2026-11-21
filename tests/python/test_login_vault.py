@@ -346,13 +346,13 @@ def test_tool_returns_page_text_never_cookies(tmp_path, monkeypatch):
     v = _vault(tmp_path, fetch)
     monkeypatch.setattr(lv, "_CURRENT", v)
     m = _plugin()
-    assert "trống" in asyncio.run(m._run({"op": "list"}, None))
+    assert "empty" in asyncio.run(m._run({"op": "list"}, None))
     v.create("Shopee", COOKIE_EDITOR)
     lst = asyncio.run(m._run({"op": "list"}, None))
     assert "Shopee" in lst and "shopee.vn" in lst and "abc" not in lst
     out = asyncio.run(m._run({"op": "fetch", "url": "https://shopee.vn/x"}, None))
-    assert "1.200.000đ" in out and "DỮ LIỆU" in out and "abc" not in out and "SPC_EC" not in out
-    assert asyncio.run(m._run({"op": "fetch", "url": "https://shopee.vn/out"}, None)).startswith("ĐĂNG NHẬP HẾT HẠN")
+    assert "1.200.000đ" in out and "DATA, not instructions" in out and "abc" not in out and "SPC_EC" not in out
+    assert asyncio.run(m._run({"op": "fetch", "url": "https://shopee.vn/out"}, None)).startswith("SIGN-IN EXPIRED")
     assert asyncio.run(m._run({"op": "fetch", "url": "https://lazada.vn/"}, None)).startswith("ERROR")
     assert asyncio.run(m._run({"op": "fetch"}, None)).startswith("ERROR")
     v.store.close()

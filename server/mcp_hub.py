@@ -194,6 +194,8 @@ def allow_patterns():
 # `javis_team` (0.173.0) creates, edits and deletes team chats and writes assistant files: owner-only for the same reason.
 # `javis_watch` (0.239.0) makes the server fetch an address on a schedule and message the owner: not a customer's call.
 # `javis_login` (0.251.0) opens pages signed in as the owner (login vault): a customer must never browse as them.
+# Its op=browser (2026-11-21) puts a sign-in into the Playwright browser; `discover_all` then also keeps that
+# browser's own tools away from a bot.
 OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "javis_team", "javis_memory",
                               "javis_watch", "javis_login",
                               # 0.403.0: changes which notices reach the owner. A customer must never mute the owner.
@@ -2058,9 +2060,15 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
 
     tools_spec, route = [], {}
     hidden = {}          # conn_id -> {"perm", "ns", "tools"} - tool CÓ THẬT nhưng bị quyền lọc
+    # 2026-11-21: once the browser has held one of the owner's sign-ins (javis_login op=browser), a customer bot
+    # gets no tool of that browser connection at all: whoever drives it browses as the owner.
+    import browser_login
+    owner_browser = for_bot and browser_login.in_use()
     for t in raw_tools:
         raw = raw_route.get(t["fn"])
         if not raw:
+            continue
+        if owner_browser and browser_login.is_browser_spec(raw.get("spec")):
             continue
         conn = raw["conn"]
         connector = mcp_catalog.get(conn.get("connector_id"))
@@ -2259,6 +2267,17 @@ def bo_cache_phien(sid: str) -> int:
     for k in bo:
         _cache.pop(k, None)
     return len(bo)
+
+
+def drop_bot_cache() -> int:
+    """Forget the tool lists built for customer bots, so the next bot turn builds its list again. Called when the
+    browser first takes one of the owner's sign-ins (browser_login.py): a bot must lose that browser now, not when
+    the cache ages out. Unlike `invalidate_cache` this closes no session: the browser that was just signed in
+    keeps running. The key's tenth field is `for_bot` (see `discover_all`). Returns how many entries went."""
+    gone = [k for k in list(_cache) if isinstance(k, tuple) and len(k) > 9 and k[9] is True]
+    for k in gone:
+        _cache.pop(k, None)
+    return len(gone)
 
 
 def invalidate_cache():
