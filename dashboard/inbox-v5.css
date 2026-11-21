@@ -235,6 +235,9 @@
 .ib-fld select { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--bg3); color: var(--text);
   font: inherit; font-size: 16px; width: 100%; }
 .ib-fld .ib-hint { margin: 0; }
+/* Block / Leave group / Delete at the foot of Info: the "..." menu's rows, at a 44px touch size. */
+.ib-sec.ib-acts { padding: 8px; gap: 2px; border-bottom: 0; }
+.ib-acts .ht-rm-it { min-height: 44px; }
 
 /* toast with Undo */
 .ib-toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 80; display: flex; gap: 14px; align-items: center;
