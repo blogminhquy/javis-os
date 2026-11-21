@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.622.3] - 2026-11-22
+### Fixed
+- **Long answers ring the phone again.** Since 0.602.0 a long answer, a finished background job and a Javis Gate task sent no push, even with "notify every answer" on. The phone rings again when that chat is not on your screen. The bell in Javis stays as tidy as before.
+
 ## [0.622.2] - 2026-11-22
 ### Fixed
 - **The Hostinger install link is smaller, so hPanel does not refuse it for its length.** `docker-compose.hostinger.yml` had been cut below hPanel's limit of 32,768 characters, but if hPanel counts the text after encoding it, the file was still over (35,485), because every accented Vietnamese letter in the comments costs six characters. The comments are now short, in English and ASCII only: the file is 23,917 characters, and about 25,000 once encoded. Every setting is unchanged, and the explanations moved to `docs/dev/hostinger-compose.md`.
