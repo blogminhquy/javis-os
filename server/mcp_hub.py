@@ -50,6 +50,7 @@ import tool_finder
 import tool_images
 import tool_pins
 import tool_result_shaper
+import zalo_voice_history
 import tool_result_reuse   # 2026-11-17: compact JSON + per-turn repeat references for CLI engines
 import section_select   # 2026-11-18: load the parts of a long menu-style skill a task needs
 import tool_result_tools
@@ -467,6 +468,9 @@ def _shaped_call(call, ent, fn, scope):
             result = await call(args)
         if audience == "":
             return result                       # an internal caller: exactly as before, and not measured
+        if tool == zalo_voice_history.TOOL:
+            # A model reading Zalo history also gets what each voice message said (zalo_voice_history).
+            result = await zalo_voice_history.enrich(result)
         text = result if isinstance(result, str) else str(result)
         if len(text) < tool_result_shaper.MIN_SHAPE_CHARS:
             # nothing to parse or store: decided inline, counted in memory
