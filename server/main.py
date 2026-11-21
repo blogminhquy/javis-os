@@ -30503,7 +30503,8 @@ def _chan_ngoai_le(raw, cu, xac_nhan):
 
 
 @app.get("/chatbots/chats")
-async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60, chon: str = ""):
+async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60, chon: str = "",
+                         chat_type: str = ""):
     """Các cuộc chat ĐÃ BIẾT (người và nhóm) cho ô "chọn người và nhóm" của form bot.
 
     Nguồn là Hộp thư (`conversations`) nên có tên hiển thị thật thay vì id. `account_ids` (cách nhau
@@ -30524,7 +30525,7 @@ async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", l
     cho = chatbot_runtime.nhom_cho(bot_id) if bot else []
     can_ten = [x.strip() for x in str(chon or "").split(",") if x.strip()]
     can_ten += [str(x) for x in list((bot or {}).get("groups") or []) + list((bot or {}).get("people") or [])]
-    return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot),
+    return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot, chat_type=chat_type),
             "ten": chatbot_cuoc_chat.ten_da_chon(tk, can_ten)}
 
 

@@ -186,6 +186,13 @@ mot = chatbot_cuoc_chat.danh_sach(bot5.get("accounts") or [], "", 1, [], bot5)
 by1 = {d["id"]: d for d in mot}
 check("dòng đã chọn không bị giới hạn trang cắt mất, và mang tên thật",
       by1.get(P, {}).get("ten") == "Học viên A" and by1.get(G, {}).get("ten") == "Lớp Javis OS", mot)
+private_chats = chatbot_cuoc_chat.danh_sach(
+    bot5["accounts"], limit=1, cho=[{"chat_id": G2, "loai": "group"}], bot=bot5, chat_type="private")
+check("group chats and approvals cannot take up the private chat limit",
+      {d["id"] for d in private_chats} == {P, Q}, private_chats)
+group_chats = chatbot_cuoc_chat.danh_sach(
+    bot5["accounts"], q="Lớp", bot=bot5, chat_type="group")
+check("group search still matches group names", [d["id"] for d in group_chats] == [G], group_chats)
 chatbot_runtime._ghi_nhom_cho(b5, {"chat_id": G2, "chat_type": "group", "chat_title": "Nhóm lạ"}, "hi")
 ds2 = chatbot_cuoc_chat.danh_sach(bot5.get("accounts") or [], "", 50, chatbot_runtime.nhom_cho(b5), bot5)
 check("cuộc chat đang chờ duyệt được đánh dấu `cho`", {d["id"]: d for d in ds2}[G2]["cho"])
