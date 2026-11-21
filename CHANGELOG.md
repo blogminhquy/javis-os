@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.622.6] - 2026-11-22
+### Sửa lỗi
+- **CI không còn thỉnh thoảng treo 20 phút ở bài kiểm tra Webhook.** Hàm chờ Webhook rảnh việc có lúc rơi vào vòng lặp vô hạn trên Python 3.12 (bản mà CI và Docker đang dùng), nên một lượt kiểm tra đứng im tới khi bị dừng. Lỗi xảy ra khoảng 6 lần trong 830 lượt gần đây.
+- Phần chờ của mục Sự cố có cùng lỗi và được sửa cùng lúc. Người dùng không thấy gì khác trên màn hình.
+
 ## [0.622.5] - 2026-11-22
 ### Sửa lỗi
 - **Gọi tool kèm tên nguồn không còn tự nhảy sang tài khoản khác.** Khi gọi một tool có kèm nguồn đã tắt hoặc bị ẩn, Javis sẽ báo lỗi kèm gợi ý tên đúng thay vì tự động chạy sang tài khoản khác trùng tên tool; gọi tên ngắn không kèm nguồn vẫn tự khớp như cũ.
