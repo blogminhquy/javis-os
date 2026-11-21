@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.622.2] - 2026-11-22
+### Sửa lỗi
+- **Link cài Hostinger gọn hơn để hPanel không từ chối vì quá dài.** File `docker-compose.hostinger.yml` từng được rút xuống dưới trần 32.768 ký tự của hPanel, nhưng nếu hPanel đếm sau khi mã hoá nội dung thì file vẫn vượt trần (35.485), vì mỗi chữ tiếng Việt có dấu trong phần chú thích tốn sáu ký tự. Chú thích trong file nay viết ngắn, bằng tiếng Anh không dấu: file còn 23.917 ký tự, và khoảng 25.000 sau khi mã hoá. Mọi cài đặt giữ nguyên, phần giải thích chuyển sang `docs/dev/hostinger-compose.md`.
+
 ## [0.622.1] - 2026-11-22
 ### Cải thiện
 - **Khung chat nằm thấp xuống, sát đáy màn hình hơn.** Khoảng trống thừa dưới hàng chọn model đã được cắt bớt, ở trang chính, Trò chuyện, Coding và Cộng sự.
