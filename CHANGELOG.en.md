@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.619.2] - 2026-11-21
+### Fixed
+- **Background jobs no longer stall on criteria a machine cannot meet.** The specifier could write done-criteria such as listening to voice lines, approving, uploading a 67 MB file through a 10 MB tool, or another job's step, so a job that had finished its real work failed the check on every run. The specifier now knows what the background engine can reach and moves those steps to a **Left for you** section on the job card, outside the acceptance check.
+- **The checker no longer sends a job back for steps only a person can do.** When every unmet criterion needs a person or is past a tool's limit, and the worker said why with the file path, the job counts as done and those steps move to "Left for you". The result message lists them too and rings so they are not missed.
+
 ## [0.619.1] - 2026-11-21
 ### Fixed
 - **The plan usage ring no longer stays red after switching models.** Picking another model, or finishing a normal turn, rereads the meters at once instead of keeping the old red for up to an hour.
