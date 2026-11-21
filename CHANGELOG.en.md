@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.622.6] - 2026-11-22
+### Fixed
+- **CI no longer hangs for 20 minutes now and then in the Webhook test.** The wait for the Webhook worker to go idle could fall into an endless loop on Python 3.12 (the version CI and the Docker image use), so a test run stood still until it was stopped. It happened about 6 times in the last 830 runs.
+- The wait of the Incident desk had the same fault and is fixed with it. Nothing changes on screen.
+
 ## [0.622.5] - 2026-11-22
 ### Fixed
 - **Qualified tool calls no longer fall back to a different account.** Calling a tool with an explicit source prefix that is unavailable now returns an error with suggested names instead of silently running a same-named tool on another account; bare tool names without a prefix still auto-resolve as before.
