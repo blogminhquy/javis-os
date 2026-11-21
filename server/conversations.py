@@ -1103,10 +1103,10 @@ def state_rows(channel: str = "", bot_id: str = "", q: str = "", status: str = "
     return rows
 
 
-def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: int = 80) -> List[dict]:
-    """Các cuộc chat ĐÃ BIẾT của một tài khoản kênh (theo id NGOÀI của tài khoản, như
-    `channel_accounts` giữ), mới nhất trước. Cho ô chọn người/nhóm của form bot."""
-    return danh_sach(account_id=_tai_khoan_id(channel, account_id), q=q, limit=limit)
+def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: int = 80, *,
+                           chat_type: str = "") -> List[dict]:
+    """List known chats for a channel account, filtering by chat type before applying the limit."""
+    return danh_sach(account_id=_tai_khoan_id(channel, account_id), q=q, limit=limit, chat_type=chat_type)
 
 
 def ten_theo_chat_id(account_keys: List[str], chat_ids: List[str]) -> Dict[str, dict]:

@@ -3859,13 +3859,17 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 /* Ô chọn người và nhóm: tab Nhóm / Người, ô tìm, danh sách tick, thêm bằng id. */
 .cb-pk { margin-top: 10px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
   background: var(--surface-1); }
-.cb-pk-h { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--surface-3);
+.cb-pk-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; background: var(--surface-3);
   border-bottom: 1px solid var(--border); }
-.cb-pk-tabs { display: flex; gap: 4px; }
+.cb-pk-tabs { display: flex; flex-shrink: 0; gap: 4px; }
 .cb-pk-tab { background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 10px;
-  font-size: 13px; color: var(--text3); cursor: pointer; font-weight: 600; }
+  min-height: 44px; white-space: nowrap; font-size: 13px; color: var(--text3); cursor: pointer; font-weight: 600; }
 .cb-pk-tab.on { background: var(--bg2); color: var(--text); border-color: var(--border); }
 .cb-form input.cb-pk-q { margin-left: auto; max-width: 190px; padding: 5px 9px; font-size: 13px; }
+.cb-form .cb-pk-h input.cb-pk-q { flex: 1 1 142px; min-width: 0; min-height: 44px; font-size: 16px; }
+@media (max-width: 420px) {
+  .cb-form .cb-pk-h input.cb-pk-q { max-width: none; }
+}
 .cb-pk-body { max-height: 220px; overflow-y: auto; }
 .cb-form label.cb-pk-li { display: flex; align-items: center; gap: 10px; margin: 0; padding: 8px 12px;
   border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text); font-weight: 400;

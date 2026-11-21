@@ -452,6 +452,10 @@ check("chọn 'mọi cuộc chat' phải tick xác nhận rủi ro (server cũng
 check("ô chọn người/nhóm lấy danh sách từ Hộp thư qua /chatbots/chats, không bắt dán id",
   /\/chatbots\/chats\?account_ids=/.test(CB) && /id="cbPkQ"/.test(CB) && /id="cbPkAdd"/.test(CB) &&
   tu("cb2.pk_cho", "Chờ bạn cho phép"));
+check("the chosen-recipient picker defaults to private chats and requests the active chat type",
+  CB.includes('co ? ["private", "group"] : ["private"]') &&
+  CB.includes('"&chat_type=" + encodeURIComponent(pkTab)') &&
+  VI["cb2.pk_nguoi"] === "Nhắn riêng" && EN["cb2.pk_nguoi"] === "Private");
 check("kênh không có nhóm thì ẨN thẻ 'mọi cuộc chat' và đổi chữ hai thẻ còn lại",
   /aud_moi_t/.test(CB) && /aud_chon_ko_t/.test(CB));
 check("thẻ bot có một dòng 'Trả lời: ...' và menu '...' cho việc phụ",
