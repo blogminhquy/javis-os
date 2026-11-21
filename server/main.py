@@ -15290,12 +15290,13 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         # đường rời trang). Hỏng thì bỏ qua - kênh là thứ làm ĐẸP đường về, không phải điều
         # kiện để lưu thư.
         kenh = ""
+        muted = False
         if sid:
             try:
                 kenh = str((get_store().get_session(sid) or {}).get("channel") or "")
                 # 0.205.0: a muted partner's report still lands in its chat and the bell, just quietly.
                 if kenh.startswith("agent:") and _partner_muted(get_store().get_session(sid) or {}):
-                    quiet = True
+                    quiet = muted = True
             except Exception as e:
                 print(f"[inbox] không đọc được kênh của phiên {sid[:8]}: "
                       f"{type(e).__name__}: {e}", file=sys.stderr)
@@ -15318,11 +15319,19 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
     if item.get("duplicate"):
         return item   # the same report was already filed: no second bell, no second push
     if hidden:
-        # Not in the bell, no push: the chat's dot and the rail dot (rail-unread.js) carry it. They refresh now.
+        # Not in the bell: the chat's dot and the rail dot (rail-unread.js) carry it. They refresh now.
         try:
             await _CHAT_RUNTIME.publish({"type": "chat_unread", "session_id": sid})
         except Exception as e:  # noqa: BLE001 - the rail dot then shows on its next refresh
             print(f"[inbox] chat_unread WebSocket: {type(e).__name__}: {e}", file=sys.stderr)
+        # Owner, 2026-11-21 ("đang bị mất thông báo đẩy"): 0.602.0 took the push away together with the bell entry, so a
+        # long answer, a background job's follow-up and a Gate task no longer rang a phone in a pocket, where the red
+        # dot cannot be seen. A chat turn's answer (push_if_away) rings the phone again when the notice would have
+        # rung (loud) or the owner turned on "notify every answer". Still nothing in the bell, and a muted partner
+        # stays quiet.
+        if push_if_away and not muted and (dec.get("verdict") == "loud"
+                                           or turn_done_notice.every_turn(cfgmod.read_settings())):
+            _push_chat_answer(sid, text)
         return item
     try:
         # Ai đang mở dashboard thì chấm đỏ trên chuông phải nhảy NGAY, không đợi lần
@@ -16624,16 +16633,28 @@ def _bao_luot_xong_ngan(conv_sid: str, final_text: str) -> bool:
     no bell entry. The phone stays quiet when a tab in front of the owner shows this chat (sw.js asks the tab).
     True when a push was scheduled."""
     try:
-        st = cfgmod.read_settings()
-        if not turn_done_notice.every_turn(st) or not conv_sid or not webpush.so_sub():
+        if not turn_done_notice.every_turn(cfgmod.read_settings()) or not conv_sid:
             return False
         import chat_bridge as _cb
         if _cb.co_viec(conv_sid):
             return False
-        body = turn_done_notice.push_text(channel_context.strip_control_blocks(final_text))
+        return _push_chat_answer(conv_sid, final_text)
+    except Exception as e:  # noqa: BLE001 - a missed doorbell never fails the turn
+        print(f"[turn push] {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+
+
+def _push_chat_answer(conv_sid: str, final_text: str) -> bool:
+    """Push "Javis has answered" for one dashboard chat, with no bell entry. The phone stays quiet when a tab in front
+    of the owner shows this chat (sw.js asks the tab). Shared by a short turn under "notify every answer" and by a
+    chat answer whose bell entry is hidden (`_bo_vao_hom_thu`). True when a push was scheduled. Never raises."""
+    try:
+        if not conv_sid or not webpush.so_sub():
+            return False
+        body = turn_done_notice.push_text(channel_context.strip_control_blocks(str(final_text or "")))
         if not body:
             return False
-        if (st.get("push") or {}).get("preview") == "hidden":
+        if (cfgmod.read_settings().get("push") or {}).get("preview") == "hidden":
             body = localefmt.chu("Javis đã trả lời xong.", "Javis has answered.")
         # Not awaited: a dead subscription waits up to 15 s and the turn is already over. One notice per chat: a newer
         # answer replaces the older one (tag).
