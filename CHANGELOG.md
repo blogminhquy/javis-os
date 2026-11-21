@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.622.1] - 2026-11-22
+### Cải thiện
+- **Khung chat nằm thấp xuống, sát đáy màn hình hơn.** Khoảng trống thừa dưới hàng chọn model đã được cắt bớt, ở trang chính, Trò chuyện, Coding và Cộng sự.
+
 ## [0.622.0] - 2026-11-22
 ### Thêm mới
 - **Javis bấm nút và điền form được bằng cookie đã cất.** Trước đây trang Cookies chỉ cho Javis đọc trang. Giờ Javis nạp phiên đăng nhập vào trình duyệt (kết nối Playwright) rồi thao tác như bạn. Cần có kết nối Playwright ở trang Kết nối.

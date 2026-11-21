@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.622.1] - 2026-11-22
+### Improved
+- **The chat box sits lower, closer to the bottom of the screen.** The extra empty space under the model row is trimmed on Home, Chat, Coding and Agents.
+
 ## [0.622.0] - 2026-11-22
 ### Added
 - **Javis can click and fill forms with a stored cookie.** The Cookies page used to let Javis read pages only. Now Javis puts the sign-in into the browser (the Playwright connection) and works on the page like you would. The Playwright connection must be added on the Connections page.
