@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.622.4] - 2026-11-22
+### Fixed
+- **Team steps and Kanban jobs retry on their own after a brief network drop.** Errors like "can't assign requested address" or a failed DNS lookup (getaddrinfo) after a Wi-Fi switch, waking from sleep or turning on a VPN now count as temporary, instead of blocking the whole job until someone presses Retry.
+
 ## [0.622.3] - 2026-11-22
 ### Fixed
 - **Long answers ring the phone again.** Since 0.602.0 a long answer, a finished background job and a Javis Gate task sent no push, even with "notify every answer" on. The phone rings again when that chat is not on your screen. The bell in Javis stays as tidy as before.
