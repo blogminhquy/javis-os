@@ -2747,6 +2747,10 @@ textarea.sug-ghosted::placeholder { color: transparent; }
    of the screen in view, so the first rows are never cut off. model-picker.js (POP_ANCHOR) sets both values. */
 .hud-voice .mb-pop, .hud-voice .eff-pop, .hud-voice .cp-menu { bottom: var(--cp-pop-bottom, calc(100% + 6px)); }
 .hud-voice .mb-pop { max-height: min(62vh, var(--cp-pop-room, 62vh)); }
+/* 21/11/2026: model, Effort and plan usage open right above their chips under the card, over the card (owner: "khi ấn
+   vào model nó phải hiện model ở trên khung chọn model"). Written after the rules above so it wins at equal weight. */
+.hud-voice .mb-pop, .hud-voice .eff-pop { bottom: var(--cp-chip-pop-bottom, var(--cp-pop-bottom, calc(100% + 6px))); }
+.hud-voice .mb-pop { max-height: min(62vh, var(--cp-chip-pop-room, var(--cp-pop-room, 62vh))); }
 .hud-voice .cp-menu { max-height: min(60vh, 440px, var(--cp-pop-room, 60vh)); }
 /* Phone sheet wrappers (2026-11-11): boxless on a computer, so the three popovers still place themselves against the
    card. Up to 860px they become one sheet from the bottom, see the phone block of the composer above. */

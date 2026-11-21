@@ -546,11 +546,14 @@
   const POP_GAP = 6;     // between the popover and the row, as it was between the popover and the card
   const POP_MIN = 160;   // a few rows at least, even in a very short window
   // 21/11/2026: the card is one row and the chips sit under it. The row itself has no box (display: contents), so the
-  // mic and send group (#cpRight) marks its top: a popover still opens just above the card's last line.
+  // mic and send group (#cpRight) marks its top: the + menu still opens just above the card's last line. The model list,
+  // Effort and plan usage open right above THEIR chips under the card, over the card itself, as Claude's do (owner,
+  // 21/11/2026: "khi ấn vào model nó phải hiện model ở trên khung chọn model"); before, the whole card sat between them.
   function placePops() {
-    const card = $("hudVoice"), row = $("cpRight");
+    const card = $("hudVoice"), row = $("cpRight"), under = $("cpUnder");
     if (!card || !row || row.offsetParent !== card) return;
     card.style.setProperty("--cp-pop-bottom", Math.max(POP_GAP, card.clientHeight - row.offsetTop + POP_GAP) + "px");
+    const chips = under && under.offsetParent === card ? under : row;
     // The highest point a popover may reach: under the global header, and inside every box that clips its overflow
     // (the console view, a page body), or its top rows are cut off.
     let top = 0;
@@ -562,6 +565,9 @@
     }
     const room = Math.floor(row.getBoundingClientRect().top - POP_GAP - top - 8);
     card.style.setProperty("--cp-pop-room", Math.max(POP_MIN, room) + "px");
+    card.style.setProperty("--cp-chip-pop-bottom", (card.clientHeight - chips.offsetTop + POP_GAP) + "px");
+    const chipRoom = Math.floor(chips.getBoundingClientRect().top - POP_GAP - top - 8);
+    card.style.setProperty("--cp-chip-pop-room", Math.max(POP_MIN, chipRoom) + "px");
   }
   const anyPopOpen = () => ANCHORED_POPS.some((id) => { const p = $(id); return !!(p && !p.hidden); });
   function watchPops() {
