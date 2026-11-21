@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.619.1] - 2026-11-21
+### Sửa lỗi
+- **Vòng hạn mức gói hết kẹt đỏ sau khi đổi model.** Chọn model khác, hoặc chat xong một lượt bình thường, là vòng tròn đọc lại số ngay thay vì giữ màu đỏ cũ tới 1 tiếng.
+- **Một model chạm hạn mức riêng không còn làm đỏ cả gói.** Ví dụ Opus hay Fable bị chặn riêng thì vòng tròn vẫn theo số phiên 5 giờ và tuần, kèm một dòng nhắc tên model đó.
+
 ## [0.619.0] - 2026-11-21
 ### Cải thiện
 - **Khung chat gọn một hàng như Claude.** Trong khung chỉ còn nút +, ô chữ, ghi âm và gửi, chữ và các nút thẳng một hàng giữa.
