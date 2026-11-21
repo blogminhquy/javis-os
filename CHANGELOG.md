@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.620.1] - 2026-11-21
+### Sửa lỗi
+- Khi chọn người để bot tự trả lời, form mở ngay danh sách nhắn riêng. Kết quả tìm người được lọc riêng với nhóm.
+
 ## [0.620.0] - 2026-11-21
 ### Thêm mới
 - **Chặn, Rời nhóm, Xoá ngay trong bảng Thông tin của cuộc chat.** Ba thao tác của menu "..." trên danh sách giờ có sẵn ở cuối bảng Thông tin, cùng chữ và cùng dòng nhỏ nói nó có làm trên Zalo hay Fanpage không.

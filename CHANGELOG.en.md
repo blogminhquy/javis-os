@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.620.1] - 2026-11-21
+### Fixed
+- The chatbot reply picker opens on direct messages when choosing who it should reply to. People and groups have separate search results.
+
 ## [0.620.0] - 2026-11-21
 ### Added
 - **Block, Leave group and Delete right in a chat's Info panel.** The three actions of the "..." menu in the list now sit at the foot of the Info panel, with the same words and the same small line saying whether it also happens on Zalo or the Page.
