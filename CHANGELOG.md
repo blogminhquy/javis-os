@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.622.0] - 2026-11-22
+### Thêm mới
+- **Javis bấm nút và điền form được bằng cookie đã cất.** Trước đây trang Cookies chỉ cho Javis đọc trang. Giờ Javis nạp phiên đăng nhập vào trình duyệt (kết nối Playwright) rồi thao tác như bạn. Cần có kết nối Playwright ở trang Kết nối.
+- **Cảnh báo rủi ro khi thêm cookie.** Form thêm cookie nói rõ Javis làm việc thật bằng tài khoản của bạn và rủi ro do bạn tự chịu, chi tiết nằm trong nút (i).
+- **Mỗi thẻ có công tắc "Cho bấm và điền form".** Cookie cất từ trước mặc định vẫn chỉ đọc, bạn tự bật khi muốn. Tắt hoặc xoá thì Javis gỡ luôn phiên khỏi trình duyệt.
+### Bảo mật
+- **Chatbot trả lời khách không dùng được trình duyệt đã đăng nhập.** Từ lúc trình duyệt giữ một đăng nhập của bạn, chatbot khách mất kết nối trình duyệt đó.
+
 ## [0.621.0] - 2026-11-22
 ### Thêm mới
 - **Nút X rõ ràng để bỏ repository.** Viên repository dưới khung chat có nút X, bấm một lần là bỏ. Trong bảng chọn, mỗi repository đã chọn cũng có nút X riêng. Viên thư mục ghim bên cạnh và viên repository ở trang Nhóm có cùng nút này.
