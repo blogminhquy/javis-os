@@ -2014,7 +2014,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   min-height: 0; padding: 14px 12px; border-right: 1px solid var(--glass-brd);
   background: var(--surface-1); }
 .ws-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0;
-  padding: 14px 18px 16px; }
+  padding: 14px 18px 8px; }
 .ws-slot { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 /* Các node chat MƯỢN của app là mục flex của cột này, và mặc định flex-shrink của một mục
    flex là 1 - tức là ai cũng có thể bị bóp lại. Đoạn hội thoại (.transcript) thì KHÔNG bị,
@@ -4267,8 +4267,9 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 /* 0.449.0: GitHub repos and /skill in a team chat (team-github.js, teams.js). */
 .tm-gh-pop { width: min(360px, calc(100vw - 16px)); }
 .tm-gh-pop .gh-results { max-height: min(50vh, 360px); overflow-y: auto; }
-.tm-chip-gh { background: var(--accent-wash, rgba(255, 122, 60, .12)); border-color: transparent; padding-right: 10px; }
+.tm-chip-gh { background: var(--accent-wash, rgba(255, 122, 60, .12)); border-color: transparent; }
 .tm-chip-gh svg { color: var(--accent); }
+.tm-chip.is-busy { opacity: .55; pointer-events: none; }
 button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-size: 12.5px; color: var(--accent); cursor: pointer; }
 .tm-skill-chip { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 4px; padding: 1px 8px; border-radius: 999px;
   background: var(--accent-wash, rgba(255, 122, 60, .12)); color: var(--accent); font-size: 13.5px; font-family: var(--mono, monospace); }

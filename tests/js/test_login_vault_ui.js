@@ -50,6 +50,30 @@ check("add form asks name, cookies, site and test page", ["name", "text", "site"
 const intro = LV.introHtml();
 check("(i) text explains export, safety and the IP caveat", intro.includes("Cookie-Editor") && intro.includes("mã hoá") && intro.includes("VPS"));
 check("update form has no name field", !LV.pasteFormHtml(false).includes('data-f="name"'));
+
+// 2026-11-21: Javis can click and fill forms with a sign-in (Playwright browser). Owner: "khi add cookies nhớ cảnh báo
+// người dùng có thể chịu rủi ro". The add form says the risk in the open, before Save, and each card has its own switch.
+check("add form states the risk before the Save button", form.includes('class="lv-risk"')
+  && form.indexOf('class="lv-risk"') < form.indexOf('data-f="save"') && form.includes(VI["lv.risk"]));
+check("the risk line fits in the open, its detail sits behind (i)", VI["lv.risk"].length <= 100 && EN["lv.risk"].length <= 100
+  && ["lv.risk_key", "lv.risk_act", "lv.risk_inject", "lv.risk_seen", "lv.risk_lock", "lv.risk_own"].every((k) => LV.riskHtml().includes(VI[k]))
+  && /infoPair\(riskMoreHtml\(\), tw\("lv\.risk_more"\)\)/.test(D("login-vault.js")));
+check("the risk says who carries it and that Javis acts for real", /tự chịu/.test(VI["lv.risk"]) && /risk is yours/.test(EN["lv.risk"])
+  && /không hoàn tác/.test(VI["lv.risk_act_h"]) && /khoá tài khoản/.test(VI["lv.risk_lock"])
+  && /tài khoản riêng cho Javis/.test(VI["lv.risk_key"]));
+check("update form does not repeat the risk", !LV.pasteFormHtml(false).includes("lv-risk"));
+h = LV.cardHtml(Object.assign({}, base, { allow_act: true, in_browser: true }), NOW);
+check("card has a second switch for clicking and filling forms", /data-act="toggle-act" checked/.test(h) && h.includes("Cho bấm và điền form"));
+check("card says when the sign-in sits in Javis's browser", h.includes(VI["lv.in_browser"]));
+h = LV.cardHtml(Object.assign({}, base, { allow_act: false }), NOW);
+check("a sign-in stored as read-only shows the act switch off", /data-act="toggle-act">/.test(h) && !h.includes(VI["lv.in_browser"]));
+h = LV.cardHtml(Object.assign({}, base, { allow_ai: false, allow_act: true }), NOW);
+check("act switch is disabled while the sign-in itself is off", /class="lv-allow dis"><input type="checkbox" data-act="toggle-act" checked disabled>/.test(h));
+check("turning the act switch on asks the owner to confirm the risk", /this\.checked && !confirm\(tw\("lv\.act_q"/.test(D("login-vault.js"))
+  && /tự chịu/.test(VI["lv.act_q"]));
+check("a session left in the browser is reported after switching off", /if \(r\.warning\) alert\(r\.warning\)/.test(D("login-vault.js")));
+check("(i) text no longer promises read-only", !/chỉ đọc trang/.test(VI["lv.intro_note"]) && /Playwright/.test(VI["lv.intro_note"])
+  && /Playwright/.test(EN["lv.intro_note"]));
 check("both forms can take a cookie file", [true, false].every((w) => { const f = LV.pasteFormHtml(w);
   return f.includes('data-f="file"') && /type="file" data-f="filein" accept="[^"]*\.json[^"]*\.txt/.test(f); }));
 check("file name suggests the entry name", LV.nameFromFile("shopee.vn.json") === "shopee.vn"

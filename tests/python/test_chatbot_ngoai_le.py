@@ -256,7 +256,7 @@ check("inbox: every other chat runs at the bot's level", mucs[3:4] == ["suggest"
 import chatbot_cuoc_chat  # noqa: E402
 import conversations  # noqa: E402
 _goc = conversations.cuoc_chat_cua_tai_khoan
-conversations.cuoc_chat_cua_tai_khoan = lambda kenh, aid, q, n: (
+conversations.cuoc_chat_cua_tai_khoan = lambda kenh, aid, q, n, **kwargs: (
     [{"external_chat_id": "u_me", "chat_type": "private", "customer_name": "Mẹ", "last_message_at": 5}]
     if aid == ACC else [])
 try:

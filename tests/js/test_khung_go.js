@@ -44,10 +44,15 @@ check("CSS: the card is ONE row (+, text, mic and send), 24px corners before the
   && css.includes(".hud-voice .cp-plus { grid-column: 1; grid-row: 2; margin-bottom: 4px; }")
   && css.includes(".hud-voice .cp-right { grid-column: 3; grid-row: 2; display: flex; align-items: center; gap: 6px; min-height: 40px; }"));
 check("CSS: the row under the card hangs below its border and the card keeps room for it",
-  /\.cp-under \{ position: absolute; top: calc\(100% \+ 4px\);/.test(css) && /margin: 4px 16px calc\(12px \+ var\(--cp-under-h\)\);/.test(css));
+  /\.cp-under \{ position: absolute; top: calc\(100% \+ 2px\);/.test(css) && /margin: 4px 16px calc\(4px \+ var\(--cp-under-h\)\);/.test(css));
+// 21/11/2026 (owner: "cho anh nút x rõ ràng khi ghim ở khung chat"): each chip is a group, name plus X. Icons only on a
+// phone with both pinned, and each icon keeps its X.
 check("CSS: a phone shows folder and repos as icons only when both are pinned",
-  css.includes(".cp-ctx.is-two .cp-pin { width: 40px; padding: 0; justify-content: center; flex: none; }")
-  && css.includes(".cp-ctx.is-two .cp-pin > span, .cp-ctx.is-two .gh-chip-br { display: none; }"));
+  css.includes(".cp-ctx.is-two .cp-pin-open { width: 36px; padding: 0; justify-content: center; }")
+  && css.includes(".cp-ctx.is-two .cp-pin-open > span, .cp-ctx.is-two .cp-pin > .gh-st { display: none; }"));
+check("CSS: the X of a pin is always drawn, and reaches 44px tall on a touch screen",
+  /\.cp-pin \.cp-pin-x \.cp-ic \{[^}]*background: var\(--bg3\)/.test(css) && !/\.cp-ctx\.is-two[^{]*\.cp-pin-x[^{]*\{[^}]*display: none/.test(css)
+  && css.includes("@media (pointer: coarse) { .cp-pin-x { width: 34px; } .cp-pin-x::after { content: \"\"; position: absolute; inset: -5px 0; } }"));
 check("CSS: an empty #modelBar is hidden", css.indexOf(".model-bar:empty { display: none; }") !== -1);
 check("CSS: no old phone order rules left", css.indexOf(".hud-voice .attach-btn { order: 1;") === -1);
 

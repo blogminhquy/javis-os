@@ -16151,12 +16151,16 @@ task_stats_feature = task_stats.register(app, task_stats.TaskStatsDeps(
 
 # 0.251.0: login vault (login_vault.py). The owner's sign-in cookies, encrypted, reused by javis_login and by
 # page watches. Its routes need a real dashboard session: an API token can neither read nor add a sign-in.
+# 2026-11-21: a sign-in can also go into the Playwright browser (browser_login.py); switching one off or deleting
+# it takes it out of that browser again.
+import browser_login  # noqa: E402
 import login_vault  # noqa: E402
 
 login_vault.register(app, login_vault.LoginVaultDeps(
     state_dir=lambda: cfgmod.STATE_DIR,
     has_session=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
     fetch=web_watch.fetch,
+    forget_browser=browser_login.forget,
 ))
 
 
@@ -30503,7 +30507,8 @@ def _chan_ngoai_le(raw, cu, xac_nhan):
 
 
 @app.get("/chatbots/chats")
-async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60, chon: str = ""):
+async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60, chon: str = "",
+                         chat_type: str = ""):
     """Các cuộc chat ĐÃ BIẾT (người và nhóm) cho ô "chọn người và nhóm" của form bot.
 
     Nguồn là Hộp thư (`conversations`) nên có tên hiển thị thật thay vì id. `account_ids` (cách nhau
@@ -30524,7 +30529,7 @@ async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", l
     cho = chatbot_runtime.nhom_cho(bot_id) if bot else []
     can_ten = [x.strip() for x in str(chon or "").split(",") if x.strip()]
     can_ten += [str(x) for x in list((bot or {}).get("groups") or []) + list((bot or {}).get("people") or [])]
-    return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot),
+    return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot, chat_type=chat_type),
             "ten": chatbot_cuoc_chat.ten_da_chon(tk, can_ten)}
 
 

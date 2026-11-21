@@ -6,6 +6,30 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.622.1] - 2026-11-22
+### Cải thiện
+- **Khung chat nằm thấp xuống, sát đáy màn hình hơn.** Khoảng trống thừa dưới hàng chọn model đã được cắt bớt, ở trang chính, Trò chuyện, Coding và Cộng sự.
+
+## [0.622.0] - 2026-11-22
+### Thêm mới
+- **Javis bấm nút và điền form được bằng cookie đã cất.** Trước đây trang Cookies chỉ cho Javis đọc trang. Giờ Javis nạp phiên đăng nhập vào trình duyệt (kết nối Playwright) rồi thao tác như bạn. Cần có kết nối Playwright ở trang Kết nối.
+- **Cảnh báo rủi ro khi thêm cookie.** Form thêm cookie nói rõ Javis làm việc thật bằng tài khoản của bạn và rủi ro do bạn tự chịu, chi tiết nằm trong nút (i).
+- **Mỗi thẻ có công tắc "Cho bấm và điền form".** Cookie cất từ trước mặc định vẫn chỉ đọc, bạn tự bật khi muốn. Tắt hoặc xoá thì Javis gỡ luôn phiên khỏi trình duyệt.
+### Bảo mật
+- **Chatbot trả lời khách không dùng được trình duyệt đã đăng nhập.** Từ lúc trình duyệt giữ một đăng nhập của bạn, chatbot khách mất kết nối trình duyệt đó.
+
+## [0.621.0] - 2026-11-22
+### Thêm mới
+- **Nút X rõ ràng để bỏ repository.** Viên repository dưới khung chat có nút X, bấm một lần là bỏ. Trong bảng chọn, mỗi repository đã chọn cũng có nút X riêng. Viên thư mục ghim bên cạnh và viên repository ở trang Nhóm có cùng nút này.
+- **Khó bấm nhầm hơn.** Dòng repository đã chọn không còn tự bỏ khi chạm vào, chỉ nút X mới bỏ. Repository chưa chọn có dấu cộng, chạm một lần là thêm.
+### Sửa lỗi
+- **Repository không còn "nhảy về" cái cũ.** Trước đây đổi sang repository khác mà cái cũ còn thay đổi chưa lưu thì cả lần đổi bị từ chối, cái mới chọn cũng mất theo. Giờ thêm và bỏ là hai việc riêng, cái mới luôn được giữ.
+- **Không còn kẹt khi repository có thay đổi chưa lưu.** Javis hỏi ngay tại dòng đó: giữ lại, hay bỏ và xoá các thay đổi. Trước đây chỉ hiện một câu lỗi kèm đường dẫn máy chủ và không có cách nào bỏ.
+
+## [0.620.1] - 2026-11-21
+### Sửa lỗi
+- Khi chọn người để bot tự trả lời, form mở ngay danh sách nhắn riêng. Kết quả tìm người được lọc riêng với nhóm.
+
 ## [0.620.0] - 2026-11-21
 ### Thêm mới
 - **Chặn, Rời nhóm, Xoá ngay trong bảng Thông tin của cuộc chat.** Ba thao tác của menu "..." trên danh sách giờ có sẵn ở cuối bảng Thông tin, cùng chữ và cùng dòng nhỏ nói nó có làm trên Zalo hay Fanpage không.

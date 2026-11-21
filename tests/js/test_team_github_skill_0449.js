@@ -63,14 +63,16 @@ check("the chip and the picker have styles", css.indexOf(".tm-chip-gh") >= 0 && 
 check("chip text: first repo's short name, +N for the rest", TG.chipText(["a/web", "a/api"], 18) === "web +1");
 check("chip text is cut on a narrow screen", TG.chipText(["a/a-very-long-repository-name"], 10).length === 10);
 check("no repo: no chip text", TG.chipText([], 18) === "");
-check("toggle adds and removes", TG.toggle(["a/x"], "a/y").join() === "a/x,a/y" && TG.toggle(["a/x", "a/y"], "a/x").join() === "a/y");
-check("sameSet ignores order", TG.sameSet(["a", "b"], ["b", "a"]) && !TG.sameSet(["a"], ["a", "b"]));
-let v = TG.split([{ full_name: "a/x" }, { full_name: "a/y" }], ["a/y"], "");
-check("chosen repos come first", v.all.map(function (r) { return r.full_name; }).join() === "a/y,a/x" && v.selected.length === 1);
-v = TG.split([{ full_name: "a/x" }], ["a/z"], "");
-check("a chosen repo the list lacks stays listed so it can be unticked", v.selected.length === 1 && v.selected[0].full_name === "a/z");
-v = TG.split([{ full_name: "a/x" }], ["a/z"], "x");
-check("while searching, only what matches", v.all.length === 1 && v.all[0].full_name === "a/x");
+// 21/11/2026: the list itself is the main chat's (github-connect.js, JavisGithubRepos.list), so a team chat, a project
+// and an assistant get the same X and the same one-change-per-request rule. tests/js/test_github_repo_picker.js runs it.
+const tgJs = fs.readFileSync(path.join(ROOT, "dashboard", "team-github.js"), "utf8");
+check("the team picker draws the shared repo list", /G\.list\(box, \{/.test(tgJs) && !/function split\(/.test(tgJs));
+check("a team chat adds one repo and detaches one repo, never the whole list",
+  /"\/repos", \{ brain: brain, add: name \}/.test(tgJs) && /"\/detach", \{ brain: brain, full_name: name, force: force \? "1" : "" \}/.test(tgJs));
+check("a project or an assistant still saves its list of names", /saveList\(names\(\)\.filter\(/.test(tgJs) && /saveList\(names\(\)\.concat\(/.test(tgJs));
+check("the team repo chip has an X like the folder chip", /class="tm-chip-x" data-gh-remove="1"/.test(teamsJs) && /if \(d\.ghRemove\) return removeTeamRepos\(\);/.test(teamsJs));
+check("a repo with unsaved work opens the picker on the question instead of failing silently",
+  /stop\.d\.code === "work_at_risk"\) openGithubPanel\(\{ name: stop\.name, risk: stop\.d\.risk, count: stop\.d\.count \}\)/.test(teamsJs));
 
 [["team-github.js", fs.readFileSync(path.join(ROOT, "dashboard", "team-github.js"), "utf8")]].forEach(function (f) {
   check(f[0] + " has no em dash", f[1].indexOf("—") < 0);
