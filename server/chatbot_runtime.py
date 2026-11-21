@@ -902,6 +902,81 @@ STAFF_NAME = ("Nhân viên", "Staff")
 _STAFF_CHANNEL_LABEL = {"zalo_oa": "Zalo OA", "messenger": "Messenger"}
 
 
+# ---- The bot steps aside after a staff member answers from the channel's own app (issue #1693) ----
+# Owner, 2026-11-22: "như Zalo cá nhân sẽ phù hợp". Since 2026-11-18 a message a staff member writes in the Zalo OA app
+# or the Page inbox is recorded, but the chat stayed with the bot: the customer's next message was answered by the bot
+# over the staff member, asking again what the staff member had just asked. Now the bot stays out of that chat for the
+# bot's own "step aside after you type" time (`nhuong_tay_phut`, the setting personal Zalo already uses; blank = 10
+# minutes, 0 = never), counted from the staff member's last message. The chat stays in "ai" mode: nothing has to be
+# handed back, the bot simply answers again once the time has passed.
+#
+# What the channel sends by itself must not count, or the bot would go quiet for every new customer (seen on a real OA):
+# the welcome message to a new follower (no customer message in the chat yet), and the automatic reply that arrives a
+# few seconds after the customer's message. A person does not answer within STAFF_AUTO_REPLY_S seconds.
+STAFF_YIELD_DEFAULT_S = 600
+STAFF_AUTO_REPLY_S = 10
+_STAFF_AT: Dict[tuple, float] = {}      # (channel, account id, chat id) -> time of the staff member's last message
+_STAFF_AT_MAX = 2000
+
+
+def staff_yield_seconds(cfg: dict) -> int:
+    """How long the bot stays out of a chat after a staff message: the bot's `nhuong_tay_phut`, 0 = never; not set = the
+    default 10 minutes."""
+    v = (cfg or {}).get("nhuong_tay_phut")
+    if v is None or str(v).strip() == "":
+        return STAFF_YIELD_DEFAULT_S
+    try:
+        return max(0, int(v)) * 60
+    except (TypeError, ValueError):
+        return STAFF_YIELD_DEFAULT_S
+
+
+def _staff_key(cfg: dict, meta: dict) -> tuple:
+    aid, kenh = _tai_khoan_cua(cfg, meta or {})
+    return (kenh, aid, str((meta or {}).get("chat_id") or ""))
+
+
+def note_staff_message(cfg: dict, meta: dict, sent_at: float, last_customer_at: Optional[float]) -> bool:
+    """Remember that a staff member just wrote in this chat. False, and nothing remembered, when the message looks
+    automatic: the customer never wrote here (a welcome message), or it came within STAFF_AUTO_REPLY_S seconds of the
+    customer's last message (an automatic reply)."""
+    if last_customer_at is None or abs(float(sent_at) - float(last_customer_at)) < STAFF_AUTO_REPLY_S:
+        return False
+    if len(_STAFF_AT) >= _STAFF_AT_MAX:
+        for k in sorted(_STAFF_AT, key=_STAFF_AT.get)[:_STAFF_AT_MAX // 2]:
+            _STAFF_AT.pop(k, None)
+    _STAFF_AT[_staff_key(cfg, meta)] = float(sent_at)
+    return True
+
+
+def staff_yielding(cfg: dict, meta: dict, now: Optional[float] = None) -> bool:
+    """True while the bot should stay out of this private chat because a staff member answered from the channel's own
+    app less than `staff_yield_seconds` ago.
+
+    `meta["received_at"]` is when the customer's message reached Javis (the transports set it; missing = now). A staff
+    message within STAFF_AUTO_REPLY_S seconds of it is the channel's automatic reply to this very message, recorded
+    before the customer's turn got here: it is forgotten and the bot answers."""
+    if str((meta or {}).get("chat_type") or "private") != "private":
+        return False
+    key = _staff_key(cfg, meta)
+    at = _STAFF_AT.get(key)
+    if not at:
+        return False
+    now = time.time() if now is None else float(now)
+    try:
+        received = float((meta or {}).get("received_at") or now)
+    except (TypeError, ValueError):
+        received = now
+    window = staff_yield_seconds(cfg)
+    if window <= 0 or now - at >= window:
+        _STAFF_AT.pop(key, None)
+        return False
+    if abs(received - at) < STAFF_AUTO_REPLY_S:
+        _STAFF_AT.pop(key, None)
+        return False
+    return True
+
+
 async def record_staff_message(bot_id: str, tt: dict) -> int:
     """A message a STAFF member sent from the channel's own app (Zalo OA app, Page inbox), 2026-11-18. Returns how many
     inbox rows were written.
@@ -924,11 +999,26 @@ async def record_staff_message(bot_id: str, tt: dict) -> int:
         mid = str(tt.get("message_id") or "")
         files = [f for f in (tt.get("files") or []) if isinstance(f, dict) and f.get("path")][:10]
         sender = localefmt.chu(*STAFF_NAME)
+        # Read BEFORE the rows below are written: whether this is a person or the channel's automatic message is
+        # judged against what the customer had written so far (`note_staff_message`).
+        aid_staff, kenh_staff = _tai_khoan_cua(cfg, meta)
+        last_customer_at = conversations.last_customer_message_at(kenh_staff, aid_staff, chat)
+
+        def step_aside(count: int) -> int:
+            if count > 0:
+                try:
+                    note_staff_message(cfg, meta, float(tt.get("ts") or time.time()), last_customer_at)
+                except Exception as e:      # noqa: BLE001 - the message is recorded; the bot just does not step aside
+                    print(f"[chatbot {bot_id}] staff yield not set: {type(e).__name__}: {e}", file=sys.stderr)
+            return count
+
         if not files:
+            if not words:
+                return 0        # nothing a person wrote and no file: not recorded, and no reason to step aside
             r = conversations.ghi_su_kien(_su_kien_bot(
                 cfg, meta, sender_type="human", sender_name=sender, message_type="text", text=words,
                 external_message_id=mid, metadata={"staff_app": label}))
-            return 1 if (r or {}).get("ok") and not (r or {}).get("trung") else 0
+            return step_aside(1 if (r or {}).get("ok") and not (r or {}).get("trung") else 0)
         written = 0
         for i, f in enumerate(files):
             is_image = f.get("kind") == "image"
@@ -948,7 +1038,7 @@ async def record_staff_message(bot_id: str, tt: dict) -> int:
                           "file_content": chat_files.file_block("staff", name, ok, content)}))
             if (r or {}).get("ok") and not (r or {}).get("trung"):
                 written += 1
-        return written
+        return step_aside(written)
     except Exception as e:      # noqa: BLE001 - recording a staff message must never cost anything else
         print(f"[chatbot {bot_id}] recording a staff message failed: {type(e).__name__}: {e}", file=sys.stderr)
         return 0
@@ -2101,6 +2191,13 @@ def _make_answer_fn(bot_id: str):
         aid_luot, kenh_luot = _tai_khoan_cua(cfg, meta or {})
         if conversations.che_do(kenh_luot, aid_luot, chat_id) == "human":
             _rp_retract(rp_dec, "taken_over")
+            return {"text": "", "files": [], "im_lang": True}
+        # A staff member answered this customer from the channel's own app a moment ago (Zalo OA app, Page inbox):
+        # the bot stays out for its step-aside time. The customer's message is in the inbox (written above).
+        if staff_yielding(cfg, meta or {}):
+            _rp_retract(rp_dec, "taken_over")
+            print(f"[chatbot {bot_id}] stepping aside in chat {chat_id}: a staff member answered from the channel app",
+                  file=sys.stderr)
             return {"text": "", "files": [], "im_lang": True}
         _compose_started(on_compose)
 

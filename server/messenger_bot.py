@@ -792,7 +792,7 @@ class MessengerBot(HangLuot):
         if instagram and not instagram_of(self.account_id).get("on"):
             return
         chat = (IG_PREFIX + sender) if instagram else sender
-        self.last_inbound = time.time()
+        received_at = self.last_inbound = time.time()
         client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(60.0))
         self._client = client
         name = await (self._name_of(client, sender, True) if instagram else self._name_of(client, sender))
@@ -801,6 +801,9 @@ class MessengerBot(HangLuot):
             "user_name": name, "username": name, "user_id": chat,
             "message_id": mid, "bot_username": self.bot_username,
             "mentioned": False, "reply_to_bot": bool(msg.get("reply_to")),
+            # When the message reached Javis, before any download: `chatbot_runtime.staff_yielding` tells the Page's
+            # automatic reply to this message from a staff member's answer by it.
+            "received_at": received_at,
         }
         if instagram:
             meta["instagram"] = True

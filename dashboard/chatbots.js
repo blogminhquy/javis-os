@@ -1046,8 +1046,8 @@
                 ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
             '</div>' +
             infoBody(esc(window.t("cb.hint_gio_truc"))) +
-            // Owner yield (0.172.0, personal Zalo only): minutes the bot stays out of a chat after the owner types into it
-            // by hand; 0 = never. Left blank = not set: the channel default (10 minutes, groups silent as before), shown
+            // Owner yield (0.172.0 personal Zalo; Zalo OA and Messenger since issue #1693): minutes the bot stays out of a
+            // chat after the owner, or a staff member in the channel's own app, types into it by hand; 0 = never. Left blank = not set: the channel default (10 minutes, groups silent as before), shown
             // as a placeholder so saving the form does not turn an unset bot into an explicit 10.
             '<div class="cb-gio-truc">' +
               '<label for="cbNhuongTay">' + esc(window.t("cb.nhuong_tay")) + infoBtn() +
