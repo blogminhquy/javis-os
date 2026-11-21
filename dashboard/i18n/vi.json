@@ -3849,7 +3849,7 @@
   "ht.block_q_local": "Chặn \"{ten}\" trong Javis? Bot sẽ không trả lời nữa, cuộc chat bị ẩn và tin mới không làm nó hiện lại. Kênh này không cho chặn hẳn từ ứng dụng.",
   "ht.blocked_local": "Đã chặn \"{ten}\" trong Javis. Xem lại ở bộ lọc Đã ẩn.",
   "ht.unblock_q": "Bỏ chặn \"{ten}\"?",
-  "ht.leave_q": "Rời nhóm \"{ten}\" trên Zalo và xoá cuộc chat này khỏi Javis? Không hoàn tác được. Muốn vào lại phải có người mời hoặc có link nhóm.",
+  "ht.leave_q": "Rời nhóm \"{ten}\" trên Zalo và xoá cuộc chat này khỏi Javis? Không hoàn tác được.",
   "ht.left": "Đã rời nhóm \"{ten}\" và xoá cuộc chat khỏi Javis.",
   "ht.deleted": "Đã xoá hội thoại với \"{ten}\".",
   "ht.rm_delete": "Xoá hội thoại",
