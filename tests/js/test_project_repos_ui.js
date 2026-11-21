@@ -58,10 +58,12 @@ const TG = read("team-github.js");
 check("signed in with the app, the + row opens the app's page on GitHub",
   G.addReposUrl({ source: "app", install_url: "https://github.com/apps/x/installations/new" }) === "https://github.com/apps/x/installations/new");
 check("a pasted token gets no GitHub link", G.addReposUrl({ source: "token", install_url: "https://x" }) === "" && G.addReposUrl(null) === "");
+// 21/11/2026: one list for every picker (github-connect.js, JavisGithubRepos.list); team-github.js only wires it.
+const GC = read("github-connect.js");
 check("the picker draws the + row under its list, like the chat composer",
-  /'<div class="gh-foot"><div class="cp-pin-err" role="status"><\/div>' \+ footRow\(addUrl\)/.test(TG)
-  && TG.includes('tw("gh.add_on_github")') && TG.includes('tw("gh.connect_more")'));
-check("the list is fetched again on return from GitHub", /if \(away\) \{ away = false; fetchList\(\); \}/.test(TG));
+  /'<div class="gh-foot"><div class="cp-pin-err" role="status"><\/div>' \+ footRow\(addUrl\)/.test(GC)
+  && GC.includes('tw("gh.add_on_github")') && GC.includes('tw("gh.connect_more")') && /G\.list\(box, \{/.test(TG) && TG.includes("addUrl: addUrl"));
+check("the list is fetched again on return from GitHub", /if \(away\) \{ away = false; load\(\); \}/.test(GC));
 check("the + row sits under the list in the drawer and the create box",
   read("style.css").includes(".pd-repo-box .gh-foot, .tmp-repo-box .gh-foot { position: static;"));
 

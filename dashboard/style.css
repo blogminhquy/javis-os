@@ -1673,9 +1673,10 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cp-ctx { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
 .cp-ctx[hidden] { display: none; }
 .cp-under .cp-chips { flex: none; margin-left: auto; gap: 2px; }
-.cp-under .cp-ctx .cp-pin { height: 34px; padding: 0 10px; gap: 6px; font-size: 14px; border-color: transparent;
+.cp-under .cp-ctx .cp-pin { height: 34px; font-size: 14px; border-color: transparent;
   background: transparent; color: var(--text2); max-width: 100%; min-width: 0; }
-.cp-under .cp-ctx .cp-pin:hover, .cp-under .cp-ctx .cp-pin:focus-visible { background: var(--bg3); border-color: transparent; }
+.cp-under .cp-ctx .cp-pin-open { gap: 6px; }
+.cp-under .cp-ctx .cp-pin-open:hover, .cp-under .cp-ctx .cp-pin-open:focus-visible { background: var(--bg3); }
 .cp-under .cp-ctx .cp-pin.gh-chip { max-width: 100%; }
 .cp-under .cp-ctx .gh-chip-br { font-size: 13px; max-width: 140px; }
 .cp-under .mb-chip, .cp-under .cp-eff { height: 34px; padding: 0 10px; font-size: 14px; background: transparent;
@@ -1766,19 +1767,32 @@ textarea.sug-ghosted::placeholder { color: transparent; }
   .eff-fast[aria-pressed="true"], .eff-fast[aria-pressed="true"] svg { animation: none; }
 }
 /* Pinned working folder chip, right after the usage ring (composer-folder.js, 0.158.0). */
-.cp-pin { display: inline-flex; align-items: center; gap: 5px; height: 30px; max-width: 190px; padding: 0 10px;
+/* 21/11/2026 (owner: "cho anh nút x rõ ràng khi ghim ở khung chat"): the chip is a group. .cp-pin-open (icon and
+   name) opens the panel, .cp-pin-x at the far end removes the pin; the repo chip keeps its status icon between them. */
+.cp-pin { display: inline-flex; align-items: center; gap: 0; height: 30px; max-width: 190px; padding: 0;
   border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text2);
-  font: inherit; font-size: 12.5px; cursor: pointer; flex: 0 1 auto; min-width: 0; }
-.cp-pin:hover, .cp-pin:focus-visible { border-color: var(--accent); color: var(--text); }
+  font: inherit; font-size: 12.5px; flex: 0 1 auto; min-width: 0; }
+.cp-pin-open { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; height: 100%; padding: 0 4px 0 10px;
+  border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.cp-pin-open:hover, .cp-pin-open:focus-visible { color: var(--text); outline: none; }
 .cp-pin .cp-ic { width: 14px; height: 14px; flex: none; }
 .cp-pin span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The X: a round mark that is always drawn, never only on hover (a phone has no hover). Its tap area is wider than
+   the mark, and on a touch screen reaches 44px tall through ::after. */
+.cp-pin-x { position: relative; flex: none; display: grid; place-items: center; width: 30px; height: 100%; padding: 0; border: 0;
+  background: transparent; color: var(--text2); cursor: pointer; }
+.cp-pin .cp-pin-x .cp-ic { box-sizing: border-box; width: 22px; height: 22px; padding: 5px; border-radius: 50%; background: var(--bg3); }
+.cp-pin-x:hover .cp-ic, .cp-pin-x:focus-visible .cp-ic { background: var(--danger-wash); color: var(--danger-ink); }
+.cp-pin-x:focus-visible { outline: none; }
+.cp-pin.is-busy { opacity: .55; pointer-events: none; }
+@media (pointer: coarse) { .cp-pin-x { width: 34px; } .cp-pin-x::after { content: ""; position: absolute; inset: -5px 0; } }
 .cp-pin-gone span { text-decoration: line-through; opacity: .7; }
 .cp-pin-err { color: var(--warn-ink); font-size: 12.5px; padding: 4px 10px; }
 .cp-pin-more { flex: none; font-size: 11.5px; color: var(--text3); }
 .cp-pin-current { cursor: default; color: var(--text); }
 .cp-pin-current:hover { background: transparent; }
 .cp-pin-err:empty { display: none; }
-@media (max-width: 860px) { .cp-pin { max-width: 120px; padding: 0 8px; } }
+@media (max-width: 860px) { .cp-pin { max-width: 120px; } .cp-pin-open { padding: 0 3px 0 8px; } }
 .mic-big {
   background: transparent; border: 1px solid transparent; color: var(--text2);
   width: 34px; height: 34px; border-radius: 50%; cursor: pointer; flex-shrink: 0;
@@ -1871,12 +1885,13 @@ textarea.sug-ghosted::placeholder { color: transparent; }
   }
   .hud-voice .voice-input { min-height: 40px; max-height: 40vh; padding: 8px 4px; font-size: 16px; }
   .cp-under { padding: 0 2px; }
-  .cp-under .cp-ctx .cp-pin { padding: 0 8px; }
   /* Folder AND repos pinned (owner, 21/11/2026): two names do not fit beside the model pill, so both chips show their
-     icon only. The names stay in their tooltip and their panel, a tap away. One pin alone keeps its name. */
-  .cp-ctx.is-two .cp-pin { width: 40px; padding: 0; justify-content: center; flex: none; }
-  .cp-ctx.is-two .cp-pin > span, .cp-ctx.is-two .gh-chip-br { display: none; }
-  .cp-ctx.is-two .cp-pin svg { width: 18px; height: 18px; }
+     icon only. The names stay in their tooltip and their panel, a tap away. One pin alone keeps its name.
+     Each icon keeps its X (same day: "cho anh nút x rõ ràng"), so a pin never needs its panel to come off. */
+  .cp-ctx.is-two .cp-pin { flex: none; }
+  .cp-ctx.is-two .cp-pin-open { width: 36px; padding: 0; justify-content: center; }
+  .cp-ctx.is-two .cp-pin-open > span, .cp-ctx.is-two .cp-pin > .gh-st { display: none; }
+  .cp-ctx.is-two .cp-pin-open > svg { width: 18px; height: 18px; }
   /* Under the card the pill sits on the page, not in the card: no fill, the outline alone (as in the approved mock). */
   .cp-under #cpChips > .cp-limit, .cp-under #cpChips > .mb-chip, .cp-under #cpChips > .cp-eff { background: transparent; }
   .hud-voice .mb-pop { width: min(340px, calc(100vw - 32px)); }
@@ -5237,8 +5252,8 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 /* Repo and branch picker in the + menu (0.368.0, after Claude Code's picker): sections, grouped rows, two-line names. */
 .gh-sec { padding: 10px 10px 4px; font-size: 12.5px; color: var(--text3); font-weight: 600; }
 .gh-group { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-.gh-group > .cp-mi { border-radius: 0; }
-.gh-group > .cp-mi + .cp-mi { border-top: 1px solid var(--border); }
+.gh-group .cp-mi { border-radius: 0; }
+.gh-group > * + * { border-top: 1px solid var(--border); }
 .gh-group > .cp-mi:hover, .gh-group > .cp-mi:focus-visible { background: var(--bg2); }
 .cp-menu [hidden] { display: none; }
 .gh-two { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -5246,6 +5261,31 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-name { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gh-tick { flex: none; display: inline-flex; color: var(--accent, #3b82f6); }
 .gh-tick svg { width: 18px; height: 18px; }
+/* 21/11/2026 (owner: "cho anh nút x rõ ràng ... tìm xem khi thao tác có dễ bị chọn nhầm không"). A chosen repo is a
+   row that does nothing with an X at its end; any other repo is one tap to add, marked with a +. */
+.cp-mi.gh-on { cursor: default; padding-right: 6px; }
+.gh-row-x { flex: none; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--border);
+  border-radius: 50%; background: var(--bg2); color: var(--text2); cursor: pointer; }
+.gh-row-x .cp-ic { width: 16px; height: 16px; }
+.gh-row-x:hover, .gh-row-x:focus-visible, .gh-sel.is-asking .gh-row-x { background: var(--danger-wash); border-color: var(--danger-ink);
+  color: var(--danger-ink); outline: none; }
+.gh-add { flex: none; display: grid; place-items: center; width: 36px; height: 36px; color: var(--text3); }
+.gh-add .cp-ic { width: 18px; height: 18px; }
+.gh-repo:hover .gh-add, .gh-repo:focus-visible .gh-add { color: var(--accent); }
+.gh-busy { flex: none; font-size: 13px; color: var(--text3); padding-right: 6px; }
+.gh-sel.is-busy .gh-two { opacity: .6; }
+/* A repo with unsaved work asks on its own row before it leaves the chat. */
+.gh-ask { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid var(--border);
+  background: var(--warn-wash); }
+.gh-ask-t { font-size: 15px; line-height: 1.5; color: var(--text); }
+.gh-ask-act { display: flex; flex-wrap: wrap; gap: 8px; }
+.gh-ask-keep, .gh-ask-go { flex: 1 1 auto; min-height: 44px; padding: 0 14px; border-radius: 10px; font: inherit; font-size: 15px;
+  font-weight: 600; cursor: pointer; }
+.gh-ask-keep { border: 1px solid var(--border); background: var(--bg2); color: var(--text); }
+.gh-ask-go { border: 1px solid var(--danger-ink); background: transparent; color: var(--danger-ink); }
+.gh-ask-keep:hover, .gh-ask-keep:focus-visible { background: var(--bg3); outline: none; }
+.gh-ask-go:hover, .gh-ask-go:focus-visible { background: var(--danger-wash); outline: none; }
+@media (pointer: coarse) { .gh-row-x, .gh-add { width: 44px; height: 44px; } }
 .gh-results { display: flex; flex-direction: column; gap: 2px; }
 /* Where the list has a max-height (project drawer, create-team box, team chat pop-up) it must scroll. A group clips its
    own overflow, so without this the browser shrinks the groups instead and "Selected" is cut to a sliver (2026-11-16). */
@@ -5263,7 +5303,7 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   text-overflow: ellipsis; white-space: nowrap; }
 .gh-chip-br .cp-ic { width: 12px; height: 12px; }
 .cp-pin.gh-chip { max-width: 260px; }
-.cp-pin.gh-chip > span:first-of-type { min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-pin.gh-chip .cp-pin-open > span:first-of-type { min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 860px) { .cp-pin.gh-chip { max-width: 200px; } .gh-chip-br { max-width: 64px; } }
 .gh-checks-box { width: 100%; min-height: 160px; font-family: var(--mono, ui-monospace, monospace); font-size: 16px; line-height: 1.45; resize: vertical; }
 /* "Sign in with GitHub" (0.430.0): one wide button first, the token box under a thin "or" rule, a big readable code. */
@@ -5298,7 +5338,7 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 .gh-sub-stuck::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--danger-ink, #b3261e); margin-left: 1px; }
 @keyframes gh-pulse { 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .gh-working svg { animation: none; } }
-.gh-chip .gh-st { margin-left: 2px; padding: 0; }
+.gh-chip .gh-st { flex: none; margin: 0 2px; padding: 4px; }
 .gh-detail-body { display: flex; flex-direction: column; gap: 14px; padding: 6px 2px 4px; font-size: 16px; max-height: 70vh; overflow-y: auto; }
 .gh-row { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .gh-row-head code { font-size: 16px; word-break: break-all; }
