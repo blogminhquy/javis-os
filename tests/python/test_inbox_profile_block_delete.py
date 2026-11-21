@@ -12,8 +12,8 @@ Guarded, in order of what would hurt most if it broke:
      taken over so the bot stays quiet and hidden. Every other channel (2026-11-20, owner: "chặn thì ở các kênh
      luôn") is blocked in Javis only: no platform call, and new messages neither count as unread nor unhide the chat.
      Unblock lifts the platform block and gives the chat back its reply mode.
-  6. Leave a Zalo group (2026-11-20, owner: "nút rời nhóm ở zalo"): `group leave` with the group id; a refused leave
-     changes nothing; other chats are refused.
+  6. Leave a Zalo group (2026-11-20, owner: "nút rời nhóm ở zalo"): `group leave` with the group id, then the chat
+     is removed from Javis (owner, 2026-11-21); a refused leave changes nothing; other chats are refused.
   4. Profile: Messenger name and picture (no profile link, said in words), Instagram with its instagram.com link,
      Zalo from `friend info`.
   5. The table the dashboard reads matches what the server does.
@@ -228,15 +228,46 @@ MODE["cli"] = "fail"
 r = cl.post(f"/conversations/{zg2}/leave")
 d = conversations.chi_tiet(zg2)
 check("Zalo refuses to let the account leave: nothing changes in Javis",
-      r.status_code == 400 and not d["metadata"].get("left") and d["hidden"] == 0, (r.json(), d))
+      r.status_code == 400 and d is not None and not d["metadata"].get("left") and d["hidden"] == 0, (r.json(), d))
 MODE["cli"] = "ok"
 CLI.clear()
 r = cl.post(f"/conversations/{zg2}/leave").json()
-d = conversations.chi_tiet(zg2)
-check("Leave group: group leave with the group id, the chat kept (history), marked, hidden, bot quiet",
-      r.get("ok") and CLI == [(["group", "leave"], ["g88"], [])] and d["metadata"].get("left") and d["hidden"] == 1
-      and d["mode"] == "human", (r, CLI, d))
+# Owner, 2026-11-21: leaving a group also removes its chat from Javis's database (it used to stay, marked and hidden).
+check("Leave group: group leave with the group id, then the chat and its messages are gone from Javis",
+      r.get("ok") and r.get("deleted") and CLI == [(["group", "leave"], ["g88"], [])]
+      and conversations.chi_tiet(zg2) is None and not conversations.tin_nhan(zg2), (r, CLI))
+# The "X left the group" notice Zalo posts right after, and any old message handed over again, do not reopen it.
+r2 = conversations.ghi_su_kien({"channel": "zalo_personal", "account_id": "zconn1", "external_chat_id": "g88",
+                               "chat_type": "group", "sender_type": "customer", "sender_id": "u1", "sender_name": "Lan",
+                               "text": "Javis Vũ đã rời nhóm", "external_message_id": "leave-notice"})
+check("a left group is not reopened by the notice that follows the leave",
+      r2.get("ok") and r2.get("trung") and r2.get("deleted")
+      and not [c for c in conversations.danh_sach(limit=200) if c.get("external_chat_id") == "g88"], r2)
 CLI.clear()
+
+# ============================================================
+# 7. A deleted chat stays deleted (owner, 2026-11-21: "ấn vào xoá thì nó không xoá khỏi màn hình hội thoại")
+# ============================================================
+# The Zalo read loop re-reads its whole buffer after a restart and tells an old message from a new one only by its row
+# in the inbox, which the delete removed: the chat came back a few seconds or a restart later.
+import time as _time  # noqa: E402
+old_ev = {"channel": "telegram", "account_id": "tg9", "external_chat_id": "7701", "chat_type": "private",
+          "sender_type": "customer", "sender_id": "7701", "sender_name": "Minh", "text": "tin cũ",
+          "external_message_id": "m-old", "created_at": _time.time() - 60}
+gone = conversations.ghi_su_kien(dict(old_ev))["conversation_id"]
+check("delete it", cl.post(f"/conversations/{gone}/delete").json().get("ok") and conversations.chi_tiet(gone) is None)
+r2 = conversations.ghi_su_kien(dict(old_ev))
+r3 = conversations.ghi_su_kien(dict(old_ev, external_message_id="m-old-2", created_at=_time.time() - 30))
+check("its old messages handed over again write nothing and open no conversation",
+      all(x.get("ok") and x.get("trung") and x.get("deleted") for x in (r2, r3))
+      and not [c for c in conversations.danh_sach(limit=200) if c.get("external_chat_id") == "7701"], (r2, r3))
+r4 = conversations.ghi_su_kien(dict(old_ev, external_message_id="m-new", text="tin mới", created_at=_time.time() + 5))
+d4 = conversations.chi_tiet(r4.get("conversation_id") or 0) or {}
+check("a message sent after the delete opens the chat again, with only that message",
+      r4.get("ok") and not r4.get("trung") and d4.get("message_count") == 1 and r4["conversation_id"] != gone, (r4, d4))
+r5 = conversations.ghi_su_kien(dict(old_ev))
+check("and from then on the chat is a normal one (the mark is gone)", r5.get("ok") and not r5.get("deleted"), r5)
+
 for other in (conv("zalo_personal", "zconn1", "9003"), conv("telegram", "tg9", "-1001", chat_type="group")):
     check("only a Zalo group can be left", cl.post(f"/conversations/{other}/leave").status_code == 400 and not CLI, CLI)
 

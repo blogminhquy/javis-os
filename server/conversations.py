@@ -152,6 +152,12 @@ CREATE TABLE IF NOT EXISTS conversation_tags(
     PRIMARY KEY(conversation_id, tag_id)
 );
 CREATE INDEX IF NOT EXISTS ix_conv_tag ON conversation_tags(tag_id, conversation_id);
+CREATE TABLE IF NOT EXISTS deleted_chats(
+    channel_account_id TEXT NOT NULL,
+    external_chat_id TEXT NOT NULL,
+    deleted_at REAL NOT NULL,
+    PRIMARY KEY(channel_account_id, external_chat_id)
+);
 """
 
 _lock = threading.RLock()
@@ -368,6 +374,21 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
             db = _conn()
             db.execute("BEGIN IMMEDIATE")
             try:
+                # 0. A chat the owner deleted (or a group they left) is not brought back by its OLD messages. A channel
+                # can hand those over again: the Zalo read loop re-reads its whole buffer after a restart, and the only
+                # thing that told a replayed message from a new one was its row here, which the delete removed. A
+                # message sent AFTER the delete is a new chat: the mark goes and the conversation opens again.
+                gone = db.execute(
+                    "SELECT deleted_at FROM deleted_chats WHERE channel_account_id=? AND external_chat_id=?",
+                    (tk_id, e["external_chat_id"])).fetchone()
+                if gone:
+                    if float(ts or 0) <= float(gone["deleted_at"]):
+                        db.execute("COMMIT")
+                        return {"ok": True, "trung": True, "deleted": True, "conversation_id": 0, "message_id": 0,
+                                "customer_id": None}
+                    db.execute("DELETE FROM deleted_chats WHERE channel_account_id=? AND external_chat_id=?",
+                               (tk_id, e["external_chat_id"]))
+
                 # 1. Tài khoản kênh
                 db.execute(
                     "INSERT INTO channel_accounts(id, channel, external_account_id, display_name,"
@@ -1246,14 +1267,23 @@ def set_hidden(conversation_id: int, hidden: bool) -> bool:
     return cur.rowcount > 0
 
 
-def delete_conversation(conversation_id: int) -> bool:
+def delete_conversation(conversation_id: int, quiet_s: float = 0.0) -> bool:
     """Remove a conversation, its messages and its tags from the inbox for good (row menu "Delete", 0.447.0). The
-    customer record stays: it may have other conversations, and a new message simply opens a new conversation."""
+    customer record stays: it may have other conversations, and a new message simply opens a new conversation.
+
+    The chat is remembered in `deleted_chats` with the time of the delete, so a message from BEFORE it that the channel
+    hands over again (see `ghi_su_kien`, step 0) does not bring the chat back. `quiet_s` pushes that time into the
+    future: leaving a group makes its platform post "X left the group" a moment later, which must not reopen it."""
     cid = int(conversation_id)
     with _lock:
         db = _conn()
         db.execute("BEGIN IMMEDIATE")
         try:
+            row = db.execute("SELECT channel_account_id, external_chat_id FROM conversations WHERE id=?", (cid,)).fetchone()
+            if row:
+                db.execute("INSERT OR REPLACE INTO deleted_chats(channel_account_id, external_chat_id, deleted_at)"
+                           " VALUES(?,?,?)", (row["channel_account_id"], row["external_chat_id"],
+                                              _now() + max(0.0, float(quiet_s or 0))))
             db.execute("DELETE FROM messages WHERE conversation_id=?", (cid,))
             db.execute("DELETE FROM conversation_tags WHERE conversation_id=?", (cid,))
             cur = db.execute("DELETE FROM conversations WHERE id=?", (cid,))

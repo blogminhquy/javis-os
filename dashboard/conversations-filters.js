@@ -197,6 +197,11 @@
     return items;
   }
 
+  // The Info panel's own actions (owner, 2026-11-21: "xoá, rời nhóm, chặn ngay trong phần thông tin, giống menu sidebar"):
+  // the same rows as the "..." menu, so the two never disagree on what a chat allows or what each row says.
+  var INFO_ACTS = ["block", "unblock", "leave", "delete"];
+  function infoActItems(c) { return rowMenuItems(c).filter(function (it) { return INFO_ACTS.indexOf(it.act) >= 0; }); }
+
   // HTML of the menu's rows. `icon(name)` draws a Lucide icon (window.ic); `done` is the act that just finished and
   // shows its confirmation instead of its label (copy: "Copied").
   function rowMenuHtml(items, icon, done) {
@@ -238,6 +243,6 @@
   window.JavisConvFilters = {
     emptyState: emptyState, sanitize: sanitize, load: load, save: save, activeCount: activeCount, query: query,
     tagChips: tagChips, tagChip: tagChip, tagColor: tagColor,
-    TAG_COLORS: TAG_COLORS, rowMenuItems: rowMenuItems, rowMenuHtml: rowMenuHtml, chatKind: chatKind, platformActs: platformActs, tagMenuHtml: tagMenuHtml, WHOS: WHOS,
+    TAG_COLORS: TAG_COLORS, rowMenuItems: rowMenuItems, infoActItems: infoActItems, rowMenuHtml: rowMenuHtml, chatKind: chatKind, platformActs: platformActs, tagMenuHtml: tagMenuHtml, WHOS: WHOS,
   };
 })();

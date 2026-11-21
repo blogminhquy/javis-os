@@ -177,6 +177,33 @@ const newCss = CSS.slice(CSS.indexOf("/* Row menu \"...\""), CSS.indexOf(".ht-rs
 const small = [...newCss.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => +m[1]).filter((n) => n < 16);
 check("menu text is at least 16px", newCss.length > 2000 && !small.length, small.join(","));
 check("CSS colours come from theme tokens (light and dark)", !/#[0-9a-f]{3,6}\b(?![^;]*var\()/i.test(newCss.replace(/var\(--red, #e5484d\)/g, "")));
+// Owner, 2026-11-21: Block, Leave group and Delete also sit at the foot of the Info panel, "giống menu sidebar".
+const infoActs = (c) => F.infoActItems(c).map((x) => x.act);
+check("Info actions: the menu's Block / Leave / Delete rows, nothing else",
+  JSON.stringify(infoActs(zg)) === JSON.stringify(["block", "leave", "delete"]) &&
+  JSON.stringify(infoActs({ ...base, channel: "zalo_personal", external_chat_id: "55", metadata: { blocked: true } })) === JSON.stringify(["unblock", "delete"]) &&
+  JSON.stringify(infoActs({ ...zg, metadata: { left: true } })) === JSON.stringify(["block", "delete"]) &&
+  F.infoActItems(zg).find((x) => x.act === "delete").danger === true);
+const PI = CV.slice(CV.indexOf("  function paintInfo() {"), CV.indexOf("  async function saveNote("));
+check("Info draws them with the menu's HTML (no menu roles) and runs the menu's own functions",
+  /\+ infoActsHtml\(c\);/.test(PI) && /F\.rowMenuHtml\(items, ic\)\.replace\(\/ role="menuitem\[a-z\]\*"\/g, ""\)/.test(CV) &&
+  /act === "block"\) menuBlock\(c\.id\)/.test(PI) && /act === "unblock"\) menuUnblock\(c\.id\)/.test(PI) &&
+  /act === "leave"\) menuLeave\(c\.id\)/.test(PI) && /act === "delete"\) menuDelete\(c\.id\)/.test(PI));
+check("a Block / Unblock / Leave reaches the open chat, which redraws its header and Info",
+  (CV.match(/syncOpen\(id, c\);/g) || []).length === 2 && /function syncOpen\(id, c\)/.test(CV) &&
+  /!!\(c\.metadata && c\.metadata\.blocked\), !!\(c\.metadata && c\.metadata\.left\)/.test(CV));
+
+// Owner, 2026-11-21: leaving a group deletes its chat from Javis too; and "ấn vào xoá thì nó không xoá khỏi màn hình".
+const DC = CV.slice(CV.indexOf("  function dropConv(id) {"), CV.indexOf("  async function menuToggleTag("));
+check("Delete and Leave both drop the chat: list, open chat, cache, and a list answer already on its way",
+  /_gone\[id\] = true;/.test(DC) && /_items = _items\.filter\(function \(it\) \{ return it\.id !== id; \}\);/.test(DC) &&
+  /if \(_chon === id\) dongThread\(\);/.test(DC) && /boCache\(id\);/.test(DC) && (DC.match(/dropConv\(id\);/g) || []).length === 2 &&
+  /\(d\.items \|\| \[\]\)\.filter\(function \(it\) \{ return !_gone\[it\.id\]; \}\)/.test(CV));
+check("Leave says before it happens that the chat is deleted from Javis; both end with a toast, not a second dialog",
+  /Javis/.test(VI["ht.leave_q"]) && /xoá/.test(VI["ht.leave_q"]) && /delete/.test(EN["ht.leave_q"]) &&
+  /toast\(window\.t\("ht\.left", \{ ten: ten \}\)\)/.test(DC) && /toast\(window\.t\("ht\.deleted", \{ ten: ten \}\)\)/.test(DC) &&
+  !!VI["ht.deleted"] && !!EN["ht.deleted"] && !/alert\(window\.t\("ht\.left"/.test(CV));
+
 ["ellipsis", "mail-open", "eye-off", "pin-off", "eye", "copy", "chevron-left", "chevron-right", "ban", "log-out", "circle-check"].forEach((n) => {
   check("icon '" + n + "' is in the bundle", ICONS.indexOf('"' + n + '"') > 0);
 });
