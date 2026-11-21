@@ -186,8 +186,14 @@ class IncidentDesk:
         return "scheduled"
 
     async def wait_idle(self) -> None:
+        # A finished task leaves `_tasks` in its done callback, one pass of the event loop later. Waiting for it with
+        # gather() gives the loop no pass on Python 3.12+ (see webhook_worker.wait_idle), so that case sleeps a pass.
         while self._tasks:
-            await asyncio.gather(*list(self._tasks), return_exceptions=True)
+            running = [t for t in self._tasks if not t.done()]
+            if running:
+                await asyncio.gather(*running, return_exceptions=True)
+            else:
+                await asyncio.sleep(0)
 
     async def _intake(self, source: str, ref: str, **kw) -> None:
         now = time.time()
