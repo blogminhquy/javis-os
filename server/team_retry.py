@@ -43,7 +43,11 @@ TRANSIENT_RE = re.compile(
     r"overloaded|rate[\s_-]?limit|too many requests|\b(?:429|502|503|504|529)\b|temporar(?:y|ily)"
     r"|service unavailable|bad gateway|gateway time-?out|server error|api_error|internal error"
     r"|connection (?:reset|refused|error|aborted|closed|lost)|econnreset|econnrefused|network|socket hang up"
-    r"|read timed out|timed out while|try again", re.I)
+    r"|read timed out|timed out while|try again"
+    # The machine's network dropping for a moment (Wi-Fi switch, sleep, VPN): macOS says "can't assign requested
+    # address", Linux "cannot assign", DNS fails with getaddrinfo / "nodename nor servname".
+    r"|(?:can'?t|cannot) assign requested address|eaddrnotavail|getaddrinfo|nodename nor servname"
+    r"|name or service not known", re.I)
 PLAN_NAMES = {"claude-code": "Claude", "codex": "ChatGPT", "grok-cli": "SuperGrok", "antigravity-cli": "Google"}
 
 
