@@ -7106,6 +7106,7 @@
   "nv.orch.on_ok": "Đã bật AI tự vận hành.",
   "nv.orch.off_ok": "Đã tắt AI tự vận hành. Việc mới sẽ chờ.",
   "nv.cap.progress": "Tiến trình",
+  "nv.handoff.cap": "Để lại cho bạn",
   "nv.acc.cap": "Máy tự kiểm chưa qua",
   "nv.cap.result": "Kết quả",
   "nv.prog.queue": "Đang chờ tới lượt.",

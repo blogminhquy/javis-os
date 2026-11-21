@@ -7106,6 +7106,7 @@
   "nv.orch.on_ok": "AI self-driving is on.",
   "nv.orch.off_ok": "AI self-driving is off. New tasks will wait.",
   "nv.cap.progress": "Progress",
+  "nv.handoff.cap": "Left for you",
   "nv.acc.cap": "Automatic check did not pass",
   "nv.cap.result": "Result",
   "nv.prog.queue": "Waiting its turn.",
