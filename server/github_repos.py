@@ -78,7 +78,16 @@ REPO_CACHE_S = 60.0
 
 
 class RepoError(Exception):
-    """A failure worth showing as is (already localized)."""
+    """A failure worth showing as is (already localized).
+
+    `code` names a failure the dashboard answers itself instead of only printing the sentence ("work_at_risk": it asks
+    whether to detach anyway); `data` carries what it needs for that. Both go out next to `error` (routes/github.py).
+    """
+
+    def __init__(self, msg: str = "", code: str = "", data: Optional[Dict[str, Any]] = None):
+        super().__init__(msg)
+        self.code = code
+        self.data = dict(data or {})
 
 
 def _c(vi: str, en: str) -> str:
@@ -876,6 +885,44 @@ def attach(sid: str, brain: str, brain_root: str, full_names: List[str]) -> Dict
     return session_view(sid, brain)
 
 
+def _attach_one(sid: str, brain: str, brain_root: str, full_name: str) -> Dict[str, Any]:
+    """Bind ONE more repo to the chat, after what it already has, with its worktree. Nothing else is touched.
+
+    A folder bound without its worktree would put the engine in the shared clone, so a failure takes the binding off
+    again before it is raised."""
+    rec = ensure_clone(brain, brain_root, full_name)
+    ids = [r["id"] for r in coding_store.thu_muc_cua_phien(sid)]
+    fresh = rec["folder_id"] not in ids
+    try:
+        if fresh:
+            coding_store.dat_rang_buoc(sid, thu_muc_ids=ids + [rec["folder_id"]])
+        ensure_worktree(sid, rec)
+    except Exception:
+        if fresh:
+            try:
+                coding_store.dat_rang_buoc(sid, thu_muc_ids=ids)
+            except Exception:  # noqa: BLE001
+                pass
+        raise
+    return rec
+
+
+def add(sid: str, brain: str, brain_root: str, full_name: str) -> Dict[str, Any]:
+    """Attach one repo to a conversation and leave its other repos alone (the "+" of the picker, 2026-11-21).
+
+    The picker used to send the whole list (`attach`) for every tick. One repo that could not come off (unsaved work)
+    then refused the request as a whole, so the repo just ticked was dropped with it and the chat "jumped back" to the
+    old one. Adding and removing are separate requests now: this one, and `detach`."""
+    sid = str(sid or "").strip()
+    if not sid:
+        raise RepoError(_c("Thiếu mã cuộc trò chuyện.", "Missing conversation id."))
+    n = norm_full_name(full_name)
+    on_chat = {str(r.get("repo") or "").lower() for r in coding_store.thu_muc_cua_phien(sid) if r.get("nguon") == SOURCE}
+    if n.lower() not in on_chat:
+        _attach_one(sid, brain, brain_root, n)
+    return session_view(sid, brain)
+
+
 # ============================================================
 # Repos a chat inherits from its project or its assistant (2026-11-15)
 # ============================================================
@@ -949,21 +996,9 @@ def seed_session(sid: str, brain: str, brain_root: str, full_names: List[str]) -
         if n.lower() in on_chat:
             marked.append(n)          # already picked in the composer: nothing to add, only remember it was offered
             continue
-        ids: List[str] = []
-        rec: Dict[str, Any] = {}
         try:
-            rec = ensure_clone(brain, brain_root, n)
-            ids = [r["id"] for r in coding_store.thu_muc_cua_phien(sid)]
-            if rec["folder_id"] not in ids:
-                coding_store.dat_rang_buoc(sid, thu_muc_ids=ids + [rec["folder_id"]])
-            ensure_worktree(sid, rec)
+            rec = _attach_one(sid, brain, brain_root, n)
         except Exception as e:  # noqa: BLE001 - one repo failing must not stop the turn or the other repos
-            # A folder bound without its worktree would put the engine in the shared clone: take it off again.
-            if rec.get("folder_id") and rec["folder_id"] not in ids:
-                try:
-                    coding_store.dat_rang_buoc(sid, thu_muc_ids=ids)
-                except Exception:  # noqa: BLE001
-                    pass
             out["failed"].append({"full_name": n, "error": str(e) or type(e).__name__})
             continue
         out["attached"].append(rec.get("full_name") or n)
@@ -982,16 +1017,28 @@ def _rec_for_folder(brain: str, folder: Dict[str, Any]) -> Optional[Dict[str, An
         return None
 
 
-def _work_at_risk(path: str) -> str:
-    """Why deleting `path` would lose work, or "" when it is safe."""
+def _risk_of(path: str) -> tuple:
+    """What deleting `path` would lose: ("dirty", 0) for edits not committed, ("unpushed", n) for commits GitHub does
+    not have, ("", 0) when it is safe."""
     if not Path(path).is_dir():
-        return ""
+        return "", 0
     if is_dirty(path):
-        return _c("còn sửa đổi chưa commit", "has uncommitted changes")
+        return "dirty", 0
     n = unpushed_count(path)
-    if n:
+    return ("unpushed", n) if n else ("", 0)
+
+
+def _risk_text(kind: str, n: int) -> str:
+    if kind == "dirty":
+        return _c("còn sửa đổi chưa commit", "has uncommitted changes")
+    if kind == "unpushed":
         return _c(f"còn {n} commit chưa đẩy lên GitHub", f"has {n} commit(s) not pushed to GitHub")
     return ""
+
+
+def _work_at_risk(path: str) -> str:
+    """Why deleting `path` would lose work, or "" when it is safe."""
+    return _risk_text(*_risk_of(path))
 
 
 def _remove_worktree(clone: str, wt: str) -> None:
@@ -1012,10 +1059,13 @@ def detach(sid: str, full_name: str, brain: str = "", force: bool = False) -> Di
     folder = folders[0]
     wt = coding_store.worktree_thu_muc(sid, folder["id"])
     if wt and not force:
-        risk = _work_at_risk(wt)
-        if risk:
+        kind, n = _risk_of(wt)
+        if kind:
+            risk = _risk_text(kind, n)
+            # The code lets the picker ask "detach anyway?" on that row (force) instead of leaving a dead end.
             raise RepoError(_c(f"Chưa bỏ được {full_name} khỏi cuộc trò chuyện: nhánh của cuộc này {risk} (tại {wt}).",
-                               f"Cannot detach {full_name}: this chat's branch {risk} (at {wt})."))
+                               f"Cannot detach {full_name}: this chat's branch {risk} (at {wt})."),
+                            code="work_at_risk", data={"full_name": full_name, "risk": kind, "count": n})
     if wt:
         _remove_worktree(folder["duong_dan"], wt)
     coding_store.dat_worktree_thu_muc(sid, folder["id"], "")

@@ -27,8 +27,10 @@
     POST /github/session/{sid}/review/skip     full_name: drop the open findings and merge when CI is green
     POST /github/session/{sid}/next            text: a job to start once this chat's PRs are merged; cancel=<id>
     GET  /github/session/{sid}?brain=          repos attached to a conversation, with its branch and worktree
-    POST /github/session/{sid}/repos           brain, repos (comma separated full names): set the chat's repos
-    POST /github/session/{sid}/detach          brain, full_name, force: remove one repo from this chat only
+    POST /github/session/{sid}/repos           brain, repos (comma separated full names): set the chat's repos;
+                                               or brain, add (one full name): attach one more and keep the rest
+    POST /github/session/{sid}/detach          brain, full_name, force: remove one repo from this chat only. Refused
+                                               with code "work_at_risk" (risk, count) while work would be lost
     POST /github/session/{sid}/base            brain, full_name, branch: the base branch this chat works from
 
 Every handler runs its git and HTTP work in a worker thread: a clone can take minutes and must not block the loop.
@@ -56,15 +58,20 @@ class GitHubDeps:
 _DEPS: Optional[GitHubDeps] = None
 
 
-def _err(msg: str, status: int = 400):
-    return JSONResponse({"ok": False, "error": msg}, status_code=status)
+def _err(msg: str, status: int = 400, code: str = "", data: Optional[dict] = None):
+    body = {"ok": False, "error": msg}
+    if code:
+        # A failure the dashboard answers itself (github_repos.RepoError.code), with what it needs for that.
+        body.update(data or {})
+        body["code"] = code
+    return JSONResponse(body, status_code=status)
 
 
 async def _call(fn, *args, **kw):
     try:
         out = await run_in_threadpool(fn, *args, **kw)
     except github_repos.RepoError as e:
-        return _err(str(e))
+        return _err(str(e), code=getattr(e, "code", ""), data=getattr(e, "data", None))
     if isinstance(out, dict):
         return {"ok": True, **out}
     return {"ok": True, "items": out}
@@ -271,7 +278,11 @@ def _make_router() -> APIRouter:
         return await _call(view)
 
     @r.post("/github/session/{sid}/repos")
-    async def gh_session_repos(sid: str, brain: str = Form(""), repos: str = Form("")):
+    async def gh_session_repos(sid: str, brain: str = Form(""), repos: str = Form(""), add: str = Form("")):
+        """`add`: one full name to attach next to what the chat has (the picker's "+"). Without it `repos` sets the
+        whole list, which detaches what is left out."""
+        if str(add or "").strip():
+            return await _call(github_repos.add, sid, brain, _root(brain), str(add).strip())
         names = [x.strip() for x in str(repos or "").split(",") if x.strip()]
         return await _call(github_repos.attach, sid, brain, _root(brain), names)
 
