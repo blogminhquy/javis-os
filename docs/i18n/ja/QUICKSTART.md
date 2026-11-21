@@ -1,4 +1,4 @@
-<!-- translated-from: QUICKSTART.en.md sha256:2f4928f341af -->
+<!-- translated-from: QUICKSTART.en.md sha256:338011fb77ad -->
 # Javis OS - クイックスタート
 
 *[English](../../../QUICKSTART.en.md) · [Tiếng Việt](../../../QUICKSTART.md) · [简体中文](../zh/QUICKSTART.md) · [Español](../es/QUICKSTART.md) · **日本語** · [हिन्दी](../hi/QUICKSTART.md) · [Português](../pt-BR/QUICKSTART.md) · [한국어](../ko/QUICKSTART.md) · [Русский](../ru/QUICKSTART.md) · [Deutsch](../de/QUICKSTART.md) · [Français](../fr/QUICKSTART.md) · [Bahasa Indonesia](../id/QUICKSTART.md)*
@@ -11,13 +11,31 @@
 
 Javis を普通のアプリのようにインストールできます。ファイルを 1 つダウンロードして開けば、毎日クリックする JAVIS OS アイコンができます。インストーラーはパソコンに足りないもの（Git、Python、Node、AI ブレイン）を確認し、足りない分だけをインストールします。
 
-- **Windows 10/11:** [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe) をダウンロードし、ダブルクリックして最後まで Next を押します。黒いウィンドウに進行状況が表示されます（数分）。完了するとデスクトップとスタートメニューに JAVIS OS アイコンができます。
-- **macOS 11 以降:** [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg) をダウンロードして開き、**JAVIS OS** を **Applications** にドラッグしてから Launchpad で開きます。初回はターミナルが開いてインストールします（Javis の管理者アカウントの設定と、Mac のパスワードを一度求められることがあります）。
+- **Windows 10/11:** [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe) をダウンロードし、ダブルクリックして最後まで Next を押します。インストールの進行状況は Setup ウィンドウの中に手順ごとに表示され（数分）、別の黒いウィンドウは開きません。完了するとデスクトップとスタートメニューに JAVIS OS アイコンができます。
+- **macOS 11 以降:** **ターミナル**を開き（Launchpad で Terminal と入力）、次の 1 行を貼り付けて Enter を押します。この方法でインストールすると macOS の警告は表示されません:
+  ```
+  curl -fsSL https://raw.githubusercontent.com/blogminhquy/javis-os/main/packaging/macos/get-javis.sh | bash
+  ```
+  このコマンドは Javis をダウンロードし、**JAVIS OS** を **Applications** にコピーして、そのターミナルウィンドウ内でそのままインストールします（Javis の管理者アカウントの設定と、Mac のパスワードを一度求められることがあります）。終わったら Launchpad から JAVIS OS を開きます。
+
+  ファイルで入れたい場合は、[JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg) をダウンロードして開き、**JAVIS OS** を **Applications** にドラッグしてから Launchpad で開きます。まだ Apple Developer ID で署名されていないため、初回は macOS にブロックされます。許可する方法は下の「ブロックされた場合」にあります。
 
 アイコンをクリックすると Javis は専用ウィンドウ（アドレスバーなし）で開き、パソコンの起動時に自動で動き、アプリ内の **Update** ボタンも通常どおり使えます。データはユーザーフォルダ内の `JavisOS` フォルダにあり、アプリをアンインストールしてもこのフォルダは残ります。
 
-どちらのインストーラーもまだコード署名されていないため、初回に確認が表示されます:
+**Windows: 警告画面なしでインストールする方法（おすすめ）。** Windows 用インストーラーはまだコード署名されていないため、ブラウザーでダウンロードすると初回はブロックされます。代わりに 1 行を貼り付ければ、Javis ロゴ付きの同じインストーラーがブロックされずに開きます。スタートを押して `PowerShell` と入力して開き、次の 1 行を貼り付けて Enter を押します:
+```
+irm https://raw.githubusercontent.com/blogminhquy/javis-os/main/packaging/windows/get-javis.ps1 | iex
+```
+
+インストーラーがパソコンで何を変更するか、誰が署名するか、Javis が何をどこへ送るかは、[Code signing policy](../../../docs/code-signing-policy.md) · [Privacy policy](../../../PRIVACY.md)（英語）をご覧ください。
+
+すでにブラウザーでファイルをダウンロードしてブロックされた場合:
+- Edge や Chrome で「JavisOS-Setup.exe isn't commonly downloaded」と表示されファイルが保存されないとき: ダウンロード欄でその行にマウスを合わせ、3 点メニューをクリックして **Keep** を選び、続けて **Show more**、**Keep anyway** を押します。
 - Windows で「Windows protected your PC」と出たら、**More info** を押してから **Run anyway** を押します。
+- ウイルス対策ソフトがファイルを削除する、または Windows が **Run anyway** ボタンなしでブロックするとき（Smart App Control が有効）: .exe を使わずにインストールします。[Git](https://git-scm.com/download/win) をインストールし、PowerShell を開いて次の 1 行を貼り付け、Enter を押します。完了すると Javis が http://localhost:7777 で開き、パソコンの起動時に自動で動きます:
+  ```
+  git clone https://github.com/blogminhquy/javis-os.git "$env:USERPROFILE\JavisOS"; cd "$env:USERPROFILE\JavisOS"; powershell -ExecutionPolicy Bypass -File install.ps1
+  ```
 - macOS で開けないと表示されたら、**System Settings → Privacy & Security** を開き、下にスクロールして **Open Anyway** を押し、もう一度 JAVIS OS を開きます。
 
 ## 方法 1 - Hostinger VPS（Docker Manager、ワンクリック）
