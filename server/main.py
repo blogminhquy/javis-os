@@ -18023,6 +18023,9 @@ async def _start_scheduler():
         _threading.Thread(target=_cat_nhom_cu_nen, daemon=True, name="cat-nhom-cu").start()
     except Exception as e:
         print(f"[conversations cắt nhóm] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+    # A model reading zalo_get_history hears its voice messages with the same ears (zalo_voice_history, 21/11/2026).
+    import zalo_voice_history
+    zalo_voice_history.HEAR = _stt_nghe
     try:
         # Bot chuyên trách: nối bộ giám sát rồi bật những con đang để BẬT. Nối ở đây chứ không
         # để module tự import main - vòng import là thứ byte-compile không thấy, chỉ chết lúc
