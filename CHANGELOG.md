@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.620.0] - 2026-11-21
+### Thêm mới
+- **Chặn, Rời nhóm, Xoá ngay trong bảng Thông tin của cuộc chat.** Ba thao tác của menu "..." trên danh sách giờ có sẵn ở cuối bảng Thông tin, cùng chữ và cùng dòng nhỏ nói nó có làm trên Zalo hay Fanpage không.
+- **Rời nhóm Zalo thì xoá luôn cuộc chat khỏi Javis.** Trước đây cuộc chat còn nằm lại ở bộ lọc Đã ẩn. Câu hỏi xác nhận nói rõ điều này trước khi làm.
+### Sửa lỗi
+- **Cuộc chat đã xoá không tự hiện lại.** Sau khi xoá, tin cũ của cuộc chat đó (Zalo đọc lại bộ đệm mỗi lần khởi động lại) dựng lại đúng cuộc chat vừa xoá. Giờ chỉ một tin gửi sau lúc xoá mới mở lại nó. Dòng vừa xoá cũng không còn nháy lại trên danh sách trong vài giây.
+- **Chặn hay bỏ chặn cuộc chat đang mở thì khung chat và bảng Thông tin đổi theo ngay.**
+
 ## [0.619.2] - 2026-11-21
 ### Sửa lỗi
 - **Việc nền không còn bị chặn mãi vì điều kiện máy không làm được.** Trước đây AI đặc tả có thể ghi vào điều kiện hoàn thành những bước như nghe kiểm giọng, duyệt, tải file 67 MB qua công cụ chỉ nhận 10 MB, hay bước của việc khác. Việc đã làm xong phần chính vẫn trượt nghiệm thu mỗi lần chạy. Nay AI đặc tả biết engine nền đang dùng làm được gì và tách các bước đó ra mục **Để lại cho bạn** trên thẻ việc, không tính vào nghiệm thu.

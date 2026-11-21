@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.620.0] - 2026-11-21
+### Added
+- **Block, Leave group and Delete right in a chat's Info panel.** The three actions of the "..." menu in the list now sit at the foot of the Info panel, with the same words and the same small line saying whether it also happens on Zalo or the Page.
+- **Leaving a Zalo group also deletes its chat from Javis.** It used to stay under the Hidden filter. The confirmation says so before anything happens.
+### Fixed
+- **A deleted chat no longer comes back by itself.** After a delete, the chat's old messages (Zalo re-reads its buffer after every restart) rebuilt the very chat just deleted. Now only a message sent after the delete opens it again. The deleted row no longer flickers back in the list for a few seconds either.
+- **Blocking or unblocking the open chat updates the chat header and the Info panel at once.**
+
 ## [0.619.2] - 2026-11-21
 ### Fixed
 - **Background jobs no longer stall on criteria a machine cannot meet.** The specifier could write done-criteria such as listening to voice lines, approving, uploading a 67 MB file through a 10 MB tool, or another job's step, so a job that had finished its real work failed the check on every run. The specifier now knows what the background engine can reach and moves those steps to a **Left for you** section on the job card, outside the acceptance check.
