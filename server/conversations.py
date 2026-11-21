@@ -709,6 +709,20 @@ def first_message_at(channel: str, account_id: str, external_chat_id: str) -> Op
         return None
 
 
+def last_customer_message_at(channel: str, account_id: str, external_chat_id: str) -> Optional[float]:
+    """Time of the newest CUSTOMER message stored in this chat, None when the customer never wrote. Never raises."""
+    try:
+        with _lock:
+            r = _conn().execute(
+                "SELECT MAX(m.created_at) FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? AND m.sender_type='customer'",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id))).fetchone()
+        return float(r[0]) if r and r[0] is not None else None
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] last customer message read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return None
+
+
 def own_messages_between(channel: str, account_id: str, external_chat_id: str, start: float, end: float,
                          n: int = 50) -> list:
     """Messages this account sent in a chat (the bot, or the owner from the inbox or the phone) with `start <=

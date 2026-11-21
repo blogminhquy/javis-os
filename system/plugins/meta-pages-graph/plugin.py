@@ -30,17 +30,26 @@ CONNECTOR_ID = "facebook-pages"
 MESSENGER = "messenger-card"
 
 
-def _connected_id():
-    """id kết nối facebook-pages ĐÃ đăng nhập (None nếu chưa). Import lười để load không phụ thuộc."""
+def _connected_ids():
+    """Ids of every "facebook-pages" connection that is switched ON and signed in, in the order they were added.
+
+    A connection turned off on the Connections page is never used (2026-11-21: it was, because only the sign-in was
+    checked). Several connections are all used: `_pages` merges their Pages, see `_token`. Lazy imports so the plugin
+    loads without the server modules."""
     try:
         import mcp_store
         import oauth_mcp
     except Exception:
-        return None
-    for c in mcp_store.list_connections():
-        if c.get("connector_id") == CONNECTOR_ID and oauth_mcp.status(c["id"]).get("connected"):
-            return c["id"]
-    return None
+        return []
+    return [c["id"] for c in mcp_store.list_connections()
+            if c.get("connector_id") == CONNECTOR_ID and c.get("enabled", True)
+            and oauth_mcp.status(c["id"]).get("connected")]
+
+
+def _connected_id():
+    """The first usable "facebook-pages" connection, or None."""
+    ids = _connected_ids()
+    return ids[0] if ids else None
 
 
 def _messenger_pages():
@@ -72,12 +81,21 @@ def _check():
 
 
 async def _token():
-    cid = _connected_id()
-    if not cid:
+    """What `_pages` reads the Pages with: one user token (a single connection, as before), a tuple of user tokens
+    (several connections: each sign-in sees its own Pages, and the tools work on all of them), `MESSENGER`, or None."""
+    ids = _connected_ids()
+    if not ids:
         return MESSENGER if _messenger_pages() else None
     import oauth_mcp
-    hdr = await oauth_mcp.auth_headers(cid)      # tự refresh token ~60 ngày khi sắp hết hạn
-    return (hdr.get("Authorization", "") or "").replace("Bearer ", "").strip() or None
+    tokens = []
+    for cid in ids:
+        hdr = await oauth_mcp.auth_headers(cid)      # tự refresh token ~60 ngày khi sắp hết hạn
+        tok = (hdr.get("Authorization", "") or "").replace("Bearer ", "").strip()
+        if tok and tok not in tokens:
+            tokens.append(tok)
+    if not tokens:
+        return None
+    return tokens[0] if len(tokens) == 1 else tuple(tokens)
 
 
 async def _get(path, params, token):
@@ -137,9 +155,25 @@ def _fmt(d):
 
 
 async def _pages(user_token):
-    """Danh sách Trang user quản lý, mỗi Trang kèm access_token RIÊNG. Trả (list, err)."""
+    """Danh sách Trang user quản lý, mỗi Trang kèm access_token RIÊNG. Trả (list, err).
+
+    `user_token` may be a tuple (several "facebook-pages" connections, see `_token`): the Pages of every sign-in,
+    each once. Before 2026-11-21 only the first connection was ever read, so a Page of the second one could not be
+    reached. A sign-in that fails does not hide the Pages of the others; the error shows only when none answers."""
     if user_token == MESSENGER:
         return _messenger_pages(), None
+    if isinstance(user_token, (tuple, list)):
+        merged, seen, first_err = [], set(), None
+        for tok in user_token:
+            pages, err = await _pages(tok)
+            if err:
+                first_err = first_err or err
+                continue
+            for p in pages or []:
+                if str(p.get("id")) not in seen:
+                    seen.add(str(p.get("id")))
+                    merged.append(p)
+        return (None, first_err) if first_err and not merged else (merged, None)
     d = await _get("me/accounts", {"fields": "id,name,category,access_token,tasks", "limit": 200}, user_token)
     if isinstance(d, dict) and d.get("error"):
         return None, _fmt(d)
