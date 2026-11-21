@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.622.5] - 2026-11-22
+### Sửa lỗi
+- **Gọi tool kèm tên nguồn không còn tự nhảy sang tài khoản khác.** Khi gọi một tool có kèm nguồn đã tắt hoặc bị ẩn, Javis sẽ báo lỗi kèm gợi ý tên đúng thay vì tự động chạy sang tài khoản khác trùng tên tool; gọi tên ngắn không kèm nguồn vẫn tự khớp như cũ.
+
 ## [0.622.4] - 2026-11-22
 ### Sửa lỗi
 - **Bước của Team và việc Kanban tự chạy lại khi máy mất mạng chốc lát.** Lỗi kiểu "can't assign requested address" hay lỗi tra tên miền (getaddrinfo) lúc đổi Wi-Fi, máy ngủ dậy, bật VPN giờ được coi là lỗi tạm thời, không còn chặn cả việc chờ bấm Thử lại.

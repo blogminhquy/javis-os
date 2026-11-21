@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.622.5] - 2026-11-22
+### Fixed
+- **Qualified tool calls no longer fall back to a different account.** Calling a tool with an explicit source prefix that is unavailable now returns an error with suggested names instead of silently running a same-named tool on another account; bare tool names without a prefix still auto-resolve as before.
+
 ## [0.622.4] - 2026-11-22
 ### Fixed
 - **Team steps and Kanban jobs retry on their own after a brief network drop.** Errors like "can't assign requested address" or a failed DNS lookup (getaddrinfo) after a Wi-Fi switch, waking from sleep or turning on a VPN now count as temporary, instead of blocking the whole job until someone presses Retry.
