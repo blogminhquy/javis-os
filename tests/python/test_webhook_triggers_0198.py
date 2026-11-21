@@ -196,6 +196,16 @@ async def main():
     unfill(q["id"])
 
     # two copies arriving at the same time run once
+    # Issue #1690: an instruction of up to 5000 characters is kept whole, on create and on edit; only what is beyond
+    # that is cut (it was 2000, and a 4000-character instruction lost half of itself without a word).
+    long_text = "Bước " + "x" * 4995                        # 5000 characters
+    lg, _lt, lerr = feat.create("/b", name="long", target="task", text=long_text)
+    check("a 5000-character instruction is stored whole", not lerr and lg["text"] == long_text and len(lg["text"]) == 5000)
+    check("and read back whole", feat.store().hook_get(lg["id"])["text"] == long_text)
+    lg2, lerr2, _code = feat.update(lg["id"], {"text": "y" * 4500})
+    check("a 4500-character edit is stored whole", not lerr2 and lg2["text"] == "y" * 4500)
+    lg3, _e, _c = feat.update(lg["id"], {"text": "z" * 6000})
+    check("beyond the cap is cut at 5000", len(lg3["text"]) == 5000 == wt.TEXT_MAX)
     c, ctok, _ = feat.create("/b", name="c", target="task", text="t")
     before = len(task_calls)
     res = await asyncio.gather(*[feat.accept(c["id"], ctok, b"{}", "application/json", idem_key="evt-same")

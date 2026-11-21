@@ -390,7 +390,7 @@ async def messenger_tests():
     check("one connection: a missing posting permission says how to fix it",
           "pages_manage_posts" in plug2._fmt({"error": {"code": 200, "message": "(#200) not allowed"}}))
     # A facebook-pages connection still wins when present.
-    plug2._connected_id = lambda: "cfbp"
+    plug2._connected_ids = lambda: ["cfbp"]
     import oauth_mcp
 
     async def _hdr(cid):
@@ -403,6 +403,84 @@ async def messenger_tests():
         oauth_mcp.auth_headers = orig
 
 asyncio.run(messenger_tests())
+
+
+# ---- 5. Several facebook-pages connections (issue #1691): every enabled sign-in is used, a disabled one never ----
+spec3 = importlib.util.spec_from_file_location(
+    "meta_pages_graph_multi", str(ROOT / "system" / "plugins" / "meta-pages-graph" / "plugin.py"))
+plug3 = importlib.util.module_from_spec(spec3)
+spec3.loader.exec_module(plug3)
+
+
+async def multi_connection_tests():
+    import mcp_store
+    import oauth_mcp
+    conns = [{"id": "A", "connector_id": "facebook-pages", "enabled": True},
+             {"id": "B", "connector_id": "facebook-pages", "enabled": True},
+             {"id": "C", "connector_id": "facebook-pages", "enabled": True},      # never signed in
+             {"id": "X", "connector_id": "google-sheets", "enabled": True}]
+    signed_in = {"A", "B", "X"}
+    asked = []
+
+    async def _hdr(cid):
+        return {"Authorization": "Bearer TOK" + cid}
+
+    async def _fake_get(path, params, token):
+        asked.append((path, token))
+        if path == "me/accounts":
+            if token == "TOKA":
+                return {"data": [{"id": "PA", "name": "Shop A", "access_token": "PTOKA"},
+                                 {"id": "PS", "name": "Shared", "access_token": "PTOKS_A"}]}
+            if token == "TOKB":
+                return {"data": [{"id": "PB", "name": "Shop B", "access_token": "PTOKB"},
+                                 {"id": "PS", "name": "Shared", "access_token": "PTOKS_B"}]}
+            return {"error": {"message": "bad token"}}
+        return {"data": [{"id": path, "message": "post"}]}
+
+    orig = (mcp_store.list_connections, oauth_mcp.status, oauth_mcp.auth_headers)
+    mcp_store.list_connections = lambda: [dict(c) for c in conns]
+    oauth_mcp.status = lambda cid: {"connected": cid in signed_in}
+    oauth_mcp.auth_headers = _hdr
+    plug3._get = _fake_get
+    plug3._messenger_pages = lambda: []
+    try:
+        check("several connections: every enabled, signed-in one is used, in order",
+              plug3._connected_ids() == ["A", "B"] and plug3._connected_id() == "A")
+        tok = await plug3._token()
+        check("several connections: one token per connection", tok == ("TOKA", "TOKB"))
+        pages, err = await plug3._pages(tok)
+        check("several connections: the Pages of both sign-ins, a shared Page once",
+              err is None and [p["id"] for p in pages] == ["PA", "PS", "PB"])
+        r = await plug3._list({}, None)
+        check("several connections: fb_pages_list shows both and no token",
+              "Shop A" in r and "Shop B" in r and "PTOK" not in r and "TOKA" not in r)
+        asked.clear()
+        r = await plug3._posts({"page_id": "PB"}, None)
+        check("several connections: a Page of the SECOND connection is read with its own Page token",
+              ("PB/feed", "PTOKB") in asked and not r.startswith("ERROR"))
+        # A turned OFF: its token is never used, and its Pages are gone.
+        conns[0]["enabled"] = False
+        asked.clear()
+        check("a disabled connection is skipped", plug3._connected_ids() == ["B"])
+        check("a disabled connection: the remaining one gives a plain token", await plug3._token() == "TOKB")
+        r = await plug3._list({}, None)
+        check("a disabled connection: its token is never sent and its Pages are not listed",
+              "Shop B" in r and "Shop A" not in r and all(t != "TOKA" for _p, t in asked))
+        # All off: nothing connected (no Messenger card either).
+        conns[1]["enabled"] = False
+        check("every connection disabled: not connected", plug3._connected_id() is None and await plug3._token() is None
+              and "Chưa nối Fanpage" in (plug3._check() or ""))
+        # One sign-in broken: the other still answers; both broken: the error comes out.
+        conns[0]["enabled"] = conns[1]["enabled"] = True
+        pages, err = await plug3._pages(("TOKBAD", "TOKB"))
+        check("one failing sign-in does not hide the other's Pages",
+              err is None and [p["id"] for p in pages] == ["PB", "PS"])
+        pages, err = await plug3._pages(("TOKBAD", "TOKBAD2"))
+        check("every sign-in failing: the error is reported", pages is None and "bad token" in str(err))
+    finally:
+        mcp_store.list_connections, oauth_mcp.status, oauth_mcp.auth_headers = orig
+
+asyncio.run(multi_connection_tests())
 
 # Reels upload streams the file in pieces (a 1GB video must not sit in memory whole) and declares its size.
 def _check_rupload_streams():

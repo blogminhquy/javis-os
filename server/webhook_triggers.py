@@ -69,7 +69,9 @@ WORKER_MAX = webhook_worker.WORKER_MAX
 SWEEP_S = webhook_worker.SWEEP_S
 HISTORY_KEEP = 20
 MAX_HOOKS = 100
-TEXT_MAX = 2000
+# The instruction a hook runs ("task" target). 5000 since 2026-11-21 (issue #1690): 2000 cut longer instructions
+# without a word. The dashboard stops typing at the same number (`WH_TEXT_MAX` in webhooks.js).
+TEXT_MAX = 5000
 VALID_TARGETS = ("workflow", "task")
 VALID_LEVELS = ("suggest", "auto", "full")
 NOTIFY_MODES = ("all", "errors_only", "daily_digest", "none")

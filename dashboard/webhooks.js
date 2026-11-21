@@ -45,6 +45,9 @@
     return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
   }
 
+  // The longest instruction a hook keeps (`TEXT_MAX` in server/webhook_triggers.py). The box stops there, so nothing
+  // typed is cut after saving.
+  var WH_TEXT_MAX = 5000;
   var LEVEL_KEY = { suggest: "wh.level_suggest", auto: "wh.level_auto", full: "wh.level_full" };
   var STATUS_KEY = { done: "wh.st_done", failed: "wh.st_failed", waiting: "wh.st_waiting", silent: "wh.st_silent",
     queued: "wh.st_queued", running: "wh.st_running", unknown: "wh.st_unknown", dead: "wh.st_dead",
@@ -621,7 +624,7 @@
       + '" aria-label="' + esc(tw("wh.wf_search_ph")) + '" aria-controls="whWorkflow" hidden>'
       + '<select id="whWorkflow"></select><span id="whWfCount" class="wh-wfcount" aria-live="polite"></span></div>'
       + '<div class="wh-fld"><label id="whTextLabel" for="whText">' + esc(tw(target === "task" ? "wh.text_task" : "wh.text_wf"))
-      + '</label><textarea id="whText" placeholder="' + esc(tw("wh.text_ph")) + '">' + esc(h.text || "") + "</textarea></div>"
+      + '</label><textarea id="whText" maxlength="' + WH_TEXT_MAX + '" placeholder="' + esc(tw("wh.text_ph")) + '">' + esc(h.text || "") + "</textarea></div>"
       + '<div class="wh-fld"><label>' + esc(tw("wh.level")) + '</label><div class="wh-seg" id="whLevel">'
       + seg("l", "suggest", "wh.level_suggest", level === "suggest") + seg("l", "auto", "wh.level_auto", level === "auto")
       + seg("l", "full", "wh.level_full", level === "full") + "</div></div>";
