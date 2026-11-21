@@ -1654,10 +1654,11 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   /* One rounded card in the style of Claude (0.153.0). ONE row since 21/11/2026 (owner: "text khởi đầu ngang hàng và ở
      giữa luôn nút + với các nút cho gọn"): "+", the text box, then mic and send, on one centre line; attached files on
      a row above them. A longer text grows the card and the buttons stay on its last line. The row under the card
-     (#cpUnder) hangs below the border, so the bottom margin keeps its room (--cp-under-h). */
+     (#cpUnder) hangs below the border, so the bottom margin keeps its room (--cp-under-h). Owner, 21/11/2026 ("còn thừa
+     quá nhiều khung bên dưới"): that room is now exactly the row (2px gap + 34px chips) and only 4px more below it. */
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; column-gap: 6px; row-gap: 0;
-  --cp-under-h: 40px;
-  margin: 4px 16px calc(12px + var(--cp-under-h)); padding: 6px 8px;
+  --cp-under-h: 36px;
+  margin: 4px 16px calc(4px + var(--cp-under-h)); padding: 6px 8px;
   border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
   transition: border-color .15s;
 }
@@ -1668,7 +1669,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .hud-voice .cp-right { grid-column: 3; grid-row: 2; display: flex; align-items: center; gap: 6px; min-height: 40px; }
 .hud-voice > .attach-bar { grid-row: 1; }
 /* Under the card, outside its border: what the chat works on on the left, model, Effort and usage on the right. */
-.cp-under { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; display: flex; align-items: center;
+.cp-under { position: absolute; top: calc(100% + 2px); left: -1px; right: -1px; display: flex; align-items: center;
   justify-content: space-between; gap: 8px; min-width: 0; padding: 0 4px; }
 .cp-ctx { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
 .cp-ctx[hidden] { display: none; }
@@ -1880,7 +1881,7 @@ textarea.sug-ghosted::placeholder { color: transparent; }
    a computer (it sat in the page header from 0.182.0); its picker opens above the card and never runs past the screen. ===== */
 @media (max-width: 860px) {
   .hud-voice {
-    margin: 6px 10px calc(6px + var(--cp-under-h)); padding: 5px 6px;
+    margin: 6px 10px calc(4px + var(--cp-under-h)); padding: 5px 6px;
     border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
   }
   .hud-voice .voice-input { min-height: 40px; max-height: 40vh; padding: 8px 4px; font-size: 16px; }

@@ -44,7 +44,7 @@ check("CSS: the card is ONE row (+, text, mic and send), 24px corners before the
   && css.includes(".hud-voice .cp-plus { grid-column: 1; grid-row: 2; margin-bottom: 4px; }")
   && css.includes(".hud-voice .cp-right { grid-column: 3; grid-row: 2; display: flex; align-items: center; gap: 6px; min-height: 40px; }"));
 check("CSS: the row under the card hangs below its border and the card keeps room for it",
-  /\.cp-under \{ position: absolute; top: calc\(100% \+ 4px\);/.test(css) && /margin: 4px 16px calc\(12px \+ var\(--cp-under-h\)\);/.test(css));
+  /\.cp-under \{ position: absolute; top: calc\(100% \+ 2px\);/.test(css) && /margin: 4px 16px calc\(4px \+ var\(--cp-under-h\)\);/.test(css));
 // 21/11/2026 (owner: "cho anh nút x rõ ràng khi ghim ở khung chat"): each chip is a group, name plus X. Icons only on a
 // phone with both pinned, and each icon keeps its X.
 check("CSS: a phone shows folder and repos as icons only when both are pinned",
