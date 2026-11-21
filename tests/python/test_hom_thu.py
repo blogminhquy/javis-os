@@ -231,8 +231,9 @@ check("cảnh báo ngân sách vào hòm với nhãn hệ thống",
       '_notify_owner("", tin, kind="system", source="cost",' in _mp)   # 0.403.0: + its group for Javis Core
 
 _tk = (ROOT / "server" / "tasks.py").read_text(encoding="utf-8")
-check("CANARY: việc Kanban vẫn giữ luật cũ (xong thì lặng, chặn/chờ duyệt thì kêu)",
-      'quiet=(status == "done")' in _tk)
+# 2026-11-21: a done job that leaves steps for the owner ("Left for you", `handoff`) rings like a review.
+check("CANARY: việc Kanban vẫn giữ luật cũ (xong thì lặng, chặn/chờ duyệt thì kêu, còn bước để lại cho chủ thì kêu)",
+      'quiet=(status == "done" and not clean_lines((task.get("metadata") or {}).get(HANDOFF)))' in _tk)
 
 
 # ─────────── 5. Nhắc hẹn phải đi qua cùng một cửa ───────────
