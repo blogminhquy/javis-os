@@ -88,5 +88,6 @@
  "kanban.hint_msg": "content: the message sent to Javis in chat for the owner, never shown as page text",
  "bpick.delete_msg": "confirm: inline delete-brain confirmation under the row the user chose to delete",
  "bpick.default_msg": "confirm: inline make-default confirmation under the row the user starred",
- "bpick.import_lead": "content: the upload view the user opened from the brain picker"
+ "bpick.import_lead": "content: the upload view the user opened from the brain picker",
+ "lv.act_q": "confirm: asked before letting Javis click and fill forms with a stored sign-in"
 }

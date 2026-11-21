@@ -4,12 +4,16 @@ The owner signs in on their own browser, exports the cookies of that site and pa
 "Kho đăng nhập" page. Four shapes are read: a Cookie-Editor JSON export, a Playwright storage state,
 a Netscape cookies.txt and a bare `Cookie:` header. Javis then uses that sign-in to:
 
-- open a page behind it for every engine (plugin tool `javis_login`, op=fetch), and
-- check a page behind it on a schedule (web_watch, a watch with `login_id`).
+- open a page behind it for every engine (plugin tool `javis_login`, op=fetch),
+- check a page behind it on a schedule (web_watch, a watch with `login_id`), and
+- since 2026-11-21 put it into the browser the Playwright connection drives, so Javis can click and fill forms
+  signed in (`javis_login` op=browser, browser_login.py). Only a sign-in whose "act" switch is on goes there.
 
 Rules this module keeps:
 
-- Cookie VALUES never reach a model. Tools return page text and the login's name, never the cookies.
+- Cookie VALUES never come out of this module to a model. Tools return page text and the login's name, never the
+  cookies. (A sign-in placed in the browser is then as visible to the model driving that browser as it is to a
+  person sitting at it; the Cookies page says so before the owner adds one.)
 - Values are encrypted at rest (`secrets_store.encrypt_required`). No working encryption means the
   vault refuses to save, instead of writing sign-ins to disk in the clear.
 - A cookie only goes to a host it was issued for (domain, path, secure and expiry are checked on
@@ -258,7 +262,13 @@ def looks_signed_out(final_url: str, title: str = "", status: int = 0) -> bool:
 # Store
 # ============================================================
 _COLS = ("id", "name", "domains", "cookies_enc", "origins_enc", "count", "allow_ai", "test_url", "status",
-         "status_note", "checked_at", "used_at", "uses", "expires_at", "created_at", "updated_at")
+         "status_note", "checked_at", "used_at", "uses", "expires_at", "created_at", "updated_at",
+         "allow_act", "browser_at")
+# Added after 0.251.0. `allow_act`: Javis may click and fill forms with this sign-in (rows stored under the old
+# "read only" promise keep 0 until the owner switches it on). `browser_at`: when this sign-in was last placed in
+# the browser, 0 = not there, or its cookies were replaced since, or another account of the same site took over.
+_ADDED_COLS = {"allow_act": "INTEGER NOT NULL DEFAULT 0", "browser_at": "REAL NOT NULL DEFAULT 0"}
+META_BROWSER = "browser_signed_in"   # set once the browser has ever held a sign-in (mcp_hub hides it from bots)
 STATUSES = ("unknown", "ok", "signed_out", "error")
 
 
@@ -282,7 +292,12 @@ class Store:
                 used_at REAL NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0,
                 expires_at REAL NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
             """)
+        have = {r["name"] for r in self._db.execute("PRAGMA table_info(logins)").fetchall()}
+        for col, decl in _ADDED_COLS.items():
+            if col not in have:
+                self._db.execute(f"ALTER TABLE logins ADD COLUMN {col} {decl}")
         self._db.commit()
         try:
             import os
@@ -332,6 +347,17 @@ class Store:
             r = self._db.execute("SELECT * FROM logins WHERE lower(name)=lower(?)", (str(name or "").strip(),)).fetchone()
         return dict(r) if r else None
 
+    def meta(self, key: str) -> str:
+        with self._lock:
+            r = self._db.execute("SELECT v FROM meta WHERE k=?", (key,)).fetchone()
+        return r["v"] if r else ""
+
+    def set_meta(self, key: str, value: str) -> None:
+        with self._lock:
+            self._db.execute("INSERT INTO meta(k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v",
+                             (key, str(value)))
+            self._db.commit()
+
 
 # ============================================================
 # Feature
@@ -343,6 +369,8 @@ class LoginVaultDeps:
     has_session: Callable[[Request], bool]
     # async fetch(url, cookies) -> (final_url, title, text); raises web_watch.FetchError
     fetch: Optional[Callable] = None
+    # async forget_browser(domains) -> "" once those sites' cookies are out of the browser, else why not
+    forget_browser: Optional[Callable] = None
 
 
 def _encrypt(obj) -> str:
@@ -382,7 +410,8 @@ class LoginVault:
         except ValueError:
             domains = []
         return {"id": row["id"], "name": row["name"], "domains": domains, "count": row.get("count") or 0,
-                "allow_ai": bool(row.get("allow_ai")), "test_url": row.get("test_url") or "",
+                "allow_ai": bool(row.get("allow_ai")), "allow_act": bool(row.get("allow_act")),
+                "in_browser": bool(row.get("browser_at")), "test_url": row.get("test_url") or "",
                 "status": row.get("status") or "unknown", "status_note": row.get("status_note") or "",
                 "checked_at": row.get("checked_at") or 0, "used_at": row.get("used_at") or 0,
                 "uses": row.get("uses") or 0, "expires_at": exp, "expired": bool(exp and exp <= now),
@@ -392,8 +421,16 @@ class LoginVault:
         row = self.store.get(lid)
         return _decrypt(row["cookies_enc"]) if row else []
 
-    def pick(self, url: str, login: str = "", only_allowed: bool = True) -> tuple[Optional[dict], list, str]:
-        """(row, cookies, error) for opening `url`. `login` = id or name; empty = the one whose cookies fit."""
+    def pick(self, url: str, login: str = "", only_allowed: bool = True,
+             act: bool = False) -> tuple[Optional[dict], list, str]:
+        """(row, cookies, error) for opening `url`. `login` = id or name; empty = the one whose cookies fit.
+        `act`: the caller will click and fill forms with it, so the sign-in's own "act" switch must be on too."""
+        def read_only(row):
+            return localefmt.chu(
+                f"Đăng nhập '{row['name']}' đang ở mức chỉ đọc. Chủ bật 'Cho bấm và điền form' ở thẻ đó trong "
+                "trang Cookies thì Javis mới thao tác được.",
+                f"The sign-in '{row['name']}' is read-only. The owner turns on 'Let Javis click and fill forms' on "
+                "its card on the Cookies page before Javis can act with it.")
         if login:
             row = self.store.get(login) or self.store.find_name(login)
             if not row:
@@ -402,22 +439,29 @@ class LoginVault:
             if only_allowed and not row.get("allow_ai"):
                 return None, [], localefmt.chu(f"Đăng nhập '{row['name']}' đang tắt quyền cho Javis dùng.",
                                                f"The sign-in '{row['name']}' is not allowed for Javis.")
+            if act and not row.get("allow_act"):
+                return None, [], read_only(row)
             ck = _decrypt(row["cookies_enc"])
             if not matches(ck, url):
                 return None, [], localefmt.chu(f"Đăng nhập '{row['name']}' không dùng cho địa chỉ này.",
                                                f"The sign-in '{row['name']}' does not cover this address.")
             return row, ck, ""
         host = (urlparse(str(url or "")).hostname or "").lower()
-        best = None
+        best, held_back = None, None
         for row in self.store.list():
             if only_allowed and not row.get("allow_ai"):
                 continue
             ck = _decrypt(row["cookies_enc"])
             if matches(ck, url):
+                if act and not row.get("allow_act"):
+                    held_back = held_back or row
+                    continue
                 # Prefer the one that worked last and was used most recently.
                 score = (row.get("status") == "ok", row.get("used_at") or 0)
                 if best is None or score > best[0]:
                     best = (score, row, ck)
+        if not best and held_back:
+            return None, [], read_only(held_back)
         if not best:
             return None, [], localefmt.chu(f"Trang Cookies chưa có đăng nhập nào cho {host or 'địa chỉ này'}.",
                                            f"The Cookies page has no sign-in for {host or 'this address'}.")
@@ -433,7 +477,8 @@ class LoginVault:
         now = time.time()
         row = {"id": "lg_" + secrets.token_hex(5), "name": name, "domains": json.dumps(domains_of(cookies)),
                "cookies_enc": _encrypt(cookies), "origins_enc": _encrypt(origins) if origins else "",
-               "count": len(cookies), "allow_ai": 1, "test_url": self._test_url(test_url, cookies),
+               "count": len(cookies), "allow_ai": 1, "allow_act": 1,   # the add form states the risk first
+               "test_url": self._test_url(test_url, cookies),
                "status": "unknown", "expires_at": last_expiry(cookies), "created_at": now, "updated_at": now}
         return self.view(self.store.add(row))
 
@@ -445,8 +490,43 @@ class LoginVault:
         upd = self.store.update(lid, cookies_enc=_encrypt(cookies), origins_enc=_encrypt(origins) if origins else "",
                                 count=len(cookies), domains=json.dumps(domains_of(cookies)),
                                 expires_at=last_expiry(cookies), status="unknown", status_note="",
-                                updated_at=time.time())
+                                browser_at=0, updated_at=time.time())   # the browser's copy is the old one now
         return self.view(upd)
+
+    # ---------- the browser's copy (browser_login.py) ----------
+    def browser_in_use(self) -> bool:
+        """True once the browser has ever held one of these sign-ins. It never goes back by itself: the browser
+        profile outlives a deleted row, so a customer bot stays away from that browser for good."""
+        return bool(self.store.meta(META_BROWSER))
+
+    def claim_browser(self, lid: str) -> bool:
+        """Record that this sign-in is the one the browser now holds for its sites. Another account of a site it
+        shares is no longer there (one cookie jar per site). True the first time any sign-in goes in."""
+        row = self.store.get(lid)
+        if not row:
+            return False
+        mine = set(json.loads(row.get("domains") or "[]"))
+        for other in self.store.list():
+            if other["id"] != lid and other.get("browser_at") and mine & set(json.loads(other.get("domains") or "[]")):
+                self.store.update(other["id"], browser_at=0)
+        self.store.update(lid, browser_at=time.time())
+        first = not self.browser_in_use()
+        if first:
+            self.store.set_meta(META_BROWSER, str(int(time.time())))
+        return first
+
+    def release_browser(self, lid: str) -> None:
+        self.store.update(lid, browser_at=0)
+
+    def save_browser_cookies(self, lid: str, cookies: list) -> None:
+        """Keep what the browser holds after a signed-in page load: sites renew their session cookies as they are
+        used, and the copy here would otherwise expire sooner than the one in the browser."""
+        row = self.store.get(lid)
+        if not row or not cookies:
+            return
+        cookies = cookies[:MAX_COOKIES]
+        self.store.update(lid, cookies_enc=_encrypt(cookies), count=len(cookies),
+                          domains=json.dumps(domains_of(cookies)), expires_at=last_expiry(cookies))
 
     @staticmethod
     def _test_url(test_url: str, cookies: list) -> str:
@@ -468,6 +548,8 @@ class LoginVault:
         action = str(action or "").strip().lower()
         if action in ("allow", "deny"):
             return self.view(self.store.update(lid, allow_ai=int(action == "allow"), updated_at=time.time()))
+        if action in ("allow_act", "deny_act"):
+            return self.view(self.store.update(lid, allow_act=int(action == "allow_act"), updated_at=time.time()))
         if action == "rename":
             name = str(p.get("name") or "").strip()[:MAX_NAME]
             if not name:
@@ -484,8 +566,28 @@ class LoginVault:
         if action == "delete":
             self.store.delete(lid)
             return {"id": lid, "deleted": True}
-        raise VaultError(localefmt.chu("Thao tác chỉ nhận: allow, deny, rename, test_url, replace, delete, check",
-                                       "Action must be allow, deny, rename, test_url, replace, delete or check"))
+        raise VaultError(localefmt.chu(
+            "Thao tác chỉ nhận: allow, deny, allow_act, deny_act, rename, test_url, replace, delete, check",
+            "Action must be allow, deny, allow_act, deny_act, rename, test_url, replace, delete or check"))
+
+    async def leave_browser(self, row: Optional[dict]) -> str:
+        """Take a sign-in the owner just switched off or deleted out of the browser too. "" when nothing is left
+        there, else a sentence for the owner: the switch is saved either way, and they must know the browser
+        still holds the session."""
+        if not row or not row.get("browser_at") or not self.deps.forget_browser:
+            return ""
+        try:
+            why = await self.deps.forget_browser(json.loads(row.get("domains") or "[]"))
+        except Exception as e:  # noqa: BLE001 - the owner gets a sentence, not a stack trace
+            why = f"{type(e).__name__}: {e}"
+        if not why:
+            self.release_browser(row["id"])
+            return ""
+        return localefmt.chu(
+            f"Đã lưu, nhưng chưa gỡ được phiên '{row['name']}' khỏi trình duyệt của Javis ({why}). Muốn chắc "
+            "chắn, hãy đăng xuất phiên đó ngay trên trang web.",
+            f"Saved, but the session '{row['name']}' could not be removed from Javis's browser ({why}). To be "
+            "sure, sign that session out on the website itself.")
 
     # ---------- using ----------
     def mark(self, lid: str, status: str, note: str = "", used: bool = False) -> None:
@@ -570,9 +672,18 @@ class LoginVault:
                 return denied()
             p = payload or {}
             try:
-                if str(p.get("action") or "") == "check":
+                action = str(p.get("action") or "").strip().lower()
+                if action == "check":
                     return {"ok": True, "login": await self.check(str(p.get("id") or ""))}
-                return {"ok": True, "login": self.control(str(p.get("id") or ""), str(p.get("action") or ""), p)}
+                before = self.store.get(str(p.get("id") or ""))
+                out = {"ok": True, "login": self.control(str(p.get("id") or ""), action, p)}
+                if action in ("deny", "deny_act", "delete"):
+                    warning = await self.leave_browser(before)
+                    if warning:
+                        out["warning"] = warning
+                    elif action != "delete":
+                        out["login"] = self.view(self.store.get(before["id"]))
+                return out
             except VaultError as e:
                 return bad(e)
 
