@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.619.0] - 2026-11-21
+### Improved
+- **The chat box is one row, like Claude.** Inside it only +, the text box, the mic and send remain, all on one centre line.
+- **Model, Effort and the usage ring move under the box, on the right.** The pinned folder and the GitHub repos share that row, on the left.
+- **With both a folder and repos pinned, a phone shows them as icons** so nothing is cut; one pin alone keeps its name. A tap still opens the picker.
+
 ## [0.618.0] - 2026-11-21
 ### Added
 - **Claude Code and Codex sessions are saved into Javis automatically.** Each finished turn, your prompt and the agent's final answer, appears in History as "From Claude Code: ..." or "From Codex: ...", and feeds self-learning.
