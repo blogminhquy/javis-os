@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.622.4] - 2026-11-22
+### Sửa lỗi
+- **Bước của Team và việc Kanban tự chạy lại khi máy mất mạng chốc lát.** Lỗi kiểu "can't assign requested address" hay lỗi tra tên miền (getaddrinfo) lúc đổi Wi-Fi, máy ngủ dậy, bật VPN giờ được coi là lỗi tạm thời, không còn chặn cả việc chờ bấm Thử lại.
+
 ## [0.622.3] - 2026-11-22
 ### Sửa lỗi
 - **Câu trả lời dài lại báo về điện thoại.** Từ bản 0.602.0, câu trả lời chạy lâu, việc chạy nền xong và việc của Javis Gate không còn đẩy thông báo, dù đã bật "báo mỗi câu trả lời". Giờ điện thoại lại rung khi bạn không mở đúng cuộc chat đó. Chuông trong Javis vẫn gọn như cũ.
