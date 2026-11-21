@@ -8,6 +8,16 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.623.0] - 2026-11-22
+### Added
+- **The number of images a bot sends per reply is adjustable.** The default stays at 4. A machine that needs more (showing a room or product samples) sets `JAVIS_BOT_MAX_IMAGES`, up to 20, then restarts Javis.
+### Improved
+- **The bot can step aside when staff answer from the Zalo OA app or the Page inbox.** It still does not by default. With a number in the bot's "Step aside after you type" box, after a staff member answers a customer there the bot stays out of that chat for that many minutes and then answers again by itself. The channel's welcome message and automatic reply do not count as staff.
+### Fixed
+- **The personal Zalo bot no longer says "no information" after you typed by hand.** The turn that hands the chat back to the bot carries a note from Javis, and that note leaked into the document search, so the search missed. The bot now searches with the customer's words only.
+- **Facebook Pages uses the right connection.** With two Facebook Pages connections only the first was ever used, even after you turned it off. A connection that is off is now never used, and the Pages of every connection that is on can be seen and posted to. Meta Ads also skips a connection that is off.
+- **Webhook instructions can be up to 5,000 characters.** Everything after character 2,000 used to be cut without a word. The box now stops at exactly 5,000.
+
 ## [0.622.6] - 2026-11-22
 ### Fixed
 - **CI no longer hangs for 20 minutes now and then in the Webhook test.** The wait for the Webhook worker to go idle could fall into an endless loop on Python 3.12 (the version CI and the Docker image use), so a test run stood still until it was stopped. It happened about 6 times in the last 830 runs.
