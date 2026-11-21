@@ -293,7 +293,7 @@
     const fi = $("effFast");
     if (fi) fi.hidden = !on;
     if (effSlider && effSlider.refreshFast) effSlider.refreshFast();
-    try { if (window.JavisPlanLimit) window.JavisPlanLimit.setProvider(eff.provider); } catch (e) {}
+    try { if (window.JavisPlanLimit) window.JavisPlanLimit.setProvider(eff.provider, eff.model); } catch (e) {}
   }
   // FAST_STATE_BEGIN
   // Tooltip line for the last Fast mode state a brain reported (server: fast_mode.states()).
@@ -376,6 +376,11 @@
     effClose(); closePlus(); closeLimit();
     dropKeyboard();
     pop.hidden = false; renderPop();
+    // 21/11/2026: the chip sits under the card on the right now, so the list opens over it (as Effort and usage do), kept
+    // inside the card, instead of at the card's left edge.
+    const btn = $("mbOpen"), card = pop.offsetParent;
+    const maxLeft = card ? Math.max(8, card.clientWidth - pop.offsetWidth - 8) : 8;
+    pop.style.left = (btn ? Math.min(btn.offsetLeft, maxLeft) : 8) + "px";
   }
   function close() {
     if (sheetIsOpen()) { sheetClose(); return; }
@@ -540,10 +545,15 @@
   const ANCHORED_POPS = ["mbPop", "effPop", "limitPop", "plusMenu"];
   const POP_GAP = 6;     // between the popover and the row, as it was between the popover and the card
   const POP_MIN = 160;   // a few rows at least, even in a very short window
+  // 21/11/2026: the card is one row and the chips sit under it. The row itself has no box (display: contents), so the
+  // mic and send group (#cpRight) marks its top: the + menu still opens just above the card's last line. The model list,
+  // Effort and plan usage open right above THEIR chips under the card, over the card itself, as Claude's do (owner,
+  // 21/11/2026: "khi ấn vào model nó phải hiện model ở trên khung chọn model"); before, the whole card sat between them.
   function placePops() {
-    const card = $("hudVoice"), row = $("cpRow");
+    const card = $("hudVoice"), row = $("cpRight"), under = $("cpUnder");
     if (!card || !row || row.offsetParent !== card) return;
     card.style.setProperty("--cp-pop-bottom", Math.max(POP_GAP, card.clientHeight - row.offsetTop + POP_GAP) + "px");
+    const chips = under && under.offsetParent === card ? under : row;
     // The highest point a popover may reach: under the global header, and inside every box that clips its overflow
     // (the console view, a page body), or its top rows are cut off.
     let top = 0;
@@ -555,6 +565,9 @@
     }
     const room = Math.floor(row.getBoundingClientRect().top - POP_GAP - top - 8);
     card.style.setProperty("--cp-pop-room", Math.max(POP_MIN, room) + "px");
+    card.style.setProperty("--cp-chip-pop-bottom", (card.clientHeight - chips.offsetTop + POP_GAP) + "px");
+    const chipRoom = Math.floor(chips.getBoundingClientRect().top - POP_GAP - top - 8);
+    card.style.setProperty("--cp-chip-pop-room", Math.max(POP_MIN, chipRoom) + "px");
   }
   const anyPopOpen = () => ANCHORED_POPS.some((id) => { const p = $(id); return !!(p && !p.hidden); });
   function watchPops() {
@@ -595,6 +608,8 @@
       sessionPin = null;
     }
     await loadState(); await refreshRoute(); renderBar();   // the route too: picking a card lifts its out-of-quota mark
+    // ...and the usage ring's red mark with it (server: _clear_pin_limit), so the ring reads the meters again now.
+    try { if (window.JavisPlanLimit) window.JavisPlanLimit.refresh(); } catch (e) {}
     // The new model may lock or unlock the slider.
     if (sheetIsOpen()) effMount();
     else if (effIsOpen()) { effClose(); effOpen(); }

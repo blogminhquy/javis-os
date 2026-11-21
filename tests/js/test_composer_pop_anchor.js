@@ -29,6 +29,14 @@ check("the four popovers live in the card", ["mbPop", "effPop", "limitPop", "plu
 const top = card.replace(/<!--[\s\S]*?-->/g, "");
 check("#cpRow is a direct child of the card (opened right after the text box)",
   /<\/textarea>\s*<div class="cp-row" id="cpRow">/.test(top));
+// 21/11/2026: the row is one line with no box of its own (display: contents); #cpRight, the mic and send group, is a
+// direct child of it and so is measured against the card.
+check("#cpRight (mic and send) sits in #cpRow, so its offsetTop is the row's line in the card",
+  /<div class="cp-row" id="cpRow">[\s\S]*?<div class="cp-right" id="cpRight">/.test(top));
+
+// 21/11/2026: the model chip sits under the card on the right, so its list opens over it, kept inside the card.
+check("the model list opens over its chip, not at the card's left edge",
+  /function open\(\) \{[\s\S]*?pop\.hidden = false; renderPop\(\);[\s\S]*?const btn = \$\("mbOpen"\), card = pop\.offsetParent;[\s\S]*?pop\.style\.left = \(btn \? Math\.min\(btn\.offsetLeft, maxLeft\) : 8\) \+ "px";/.test(mp));
 
 // ---- CSS ----
 check("in the card the popovers take their bottom from --cp-pop-bottom (the old place is the fallback)",
@@ -59,8 +67,11 @@ function fakePage(o) {
   clip.parentElement = body;
   const cardEl = { clientHeight: o.cardH, parentElement: plain, style: { setProperty: (k, v) => { vars[k] = v; } } };
   const row = { offsetTop: o.rowTop, offsetParent: cardEl, getBoundingClientRect: () => ({ top: o.rowScreenTop }) };
+  // 21/11/2026: the chips hang under the card (#cpUnder); without one in the fake page the code falls back to the row.
+  const under = o.underTop === undefined ? null
+    : { offsetTop: o.underTop, offsetParent: cardEl, getBoundingClientRect: () => ({ top: o.underScreenTop }) };
   const pops = { mbPop: { hidden: false }, effPop: { hidden: true }, limitPop: { hidden: true }, plusMenu: { hidden: true } };
-  const els = Object.assign({ hudVoice: cardEl, cpRow: row }, pops);
+  const els = Object.assign({ hudVoice: cardEl, cpRight: row, cpUnder: under }, pops);
   const document = {
     readyState: "complete", body,
     querySelector: (s) => (s === ".hud-top" ? { getBoundingClientRect: () => ({ height: 52, bottom: 52 }) } : null),
@@ -94,6 +105,22 @@ try {
   r3.api.placePops();
   check("never squeezed below a few rows (160px)", r3.vars["--cp-pop-room"] === "160px", r3.vars["--cp-pop-room"]);
 } catch (e) { check("the block runs on other layouts", false, String(e)); }
+
+// Owner, 21/11/2026: "khi ấn vào model nó phải hiện model ở trên khung chọn model". A one-row card 54px tall, its row at
+// 6px, the chips 5px under its border (offsetTop 59) at 754px on screen: model, Effort and usage open 6px above the chips,
+// over the card; the + menu still opens above the card's row.
+try {
+  const r4 = fakePage({ clipTop: 52, cardH: 54, rowTop: 6, rowScreenTop: 701, underTop: 59, underScreenTop: 754 });
+  r4.api.placePops();
+  check("the chip popovers sit 6px above the chips (54 - 59 + 6 = 1px from the card's bottom)",
+    r4.vars["--cp-chip-pop-bottom"] === "1px", r4.vars["--cp-chip-pop-bottom"]);
+  check("their room runs from the chips up (754 - 6 - 52 - 8 = 688px)", r4.vars["--cp-chip-pop-room"] === "688px", r4.vars["--cp-chip-pop-room"]);
+  check("the + menu keeps its place above the card's row (54 - 6 + 6 = 54px)", r4.vars["--cp-pop-bottom"] === "54px", r4.vars["--cp-pop-bottom"]);
+} catch (e) { check("the block runs with chips under the card", false, String(e)); }
+check("CSS: model and Effort (and usage, an .eff-pop) take the chips' values, written after the shared rule",
+  css.indexOf(".hud-voice .mb-pop, .hud-voice .eff-pop { bottom: var(--cp-chip-pop-bottom, var(--cp-pop-bottom, calc(100% + 6px))); }")
+    > css.indexOf(".hud-voice .mb-pop, .hud-voice .eff-pop, .hud-voice .cp-menu { bottom: var(--cp-pop-bottom, calc(100% + 6px)); }")
+  && css.includes(".hud-voice .mb-pop { max-height: min(62vh, var(--cp-chip-pop-room, var(--cp-pop-room, 62vh))); }"));
 
 // ---- Team chat: the same rule ----
 const draw = (tm.match(/function drawComposer\(\) \{[\s\S]*?\n {2}\}\n/) || [""])[0];

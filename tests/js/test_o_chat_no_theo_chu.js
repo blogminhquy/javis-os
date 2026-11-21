@@ -27,8 +27,9 @@ const base = (css.match(/\n\.voice-input \{[^}]*\}/) || [""])[0];
 check("tìm thấy khối .voice-input gốc", !!base);
 check("CSS gốc không còn ghim max-height:90px chặn autosize", base.indexOf("max-height: 90px") === -1);
 check("CSS gốc chỉ giữ lưới đỡ theo màn hình (max-height 45vh)", base.indexOf("max-height: 45vh") !== -1);
-check("hàng nhập neo nút ở đáy khi ô cao lên (align-items: flex-end)",
-  /\.hud-voice \{[^}]*align-items: flex-end/s.test(css));
+// 21/11/2026: the card is a one-row grid now; "end" keeps the buttons on the last line exactly as flex-end did.
+check("hàng nhập neo nút ở đáy khi ô cao lên (align-items: end)",
+  /\.hud-voice \{[^}]*align-items: (flex-)?end/s.test(css));
 
 // JS: trần nở theo ngữ cảnh - trang Trò chuyện 40% màn hình, màn chính 200px.
 check("autosize vẫn theo scrollHeight", app.indexOf("chatInput.scrollHeight") !== -1);

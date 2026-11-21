@@ -68,11 +68,17 @@
   function announce() {
     try { window.dispatchEvent(new CustomEvent("javis:pinned-folder-changed", { detail: { sid: sid(), folder: folder } })); } catch (e) {}
   }
+  // The row under the composer card (#cpCtx, owner 21/11/2026), first in it, before the GitHub repos. It hides while
+  // empty, and with a folder AND repos pinned a phone shows both as icons only (.is-two; same rule in github-connect.js).
+  function syncCtx(host) {
+    host.hidden = !host.children.length;
+    host.classList.toggle("is-two", host.children.length > 1);
+  }
   function renderChip() {
-    var host = document.getElementById("cpChips");
+    var host = document.getElementById("cpCtx");
     if (!host) return;
     var chip = document.getElementById("pinChip");
-    if (!folder) { if (chip) chip.remove(); return; }
+    if (!folder) { if (chip) chip.remove(); syncCtx(host); return; }
     if (!chip) {
       chip = document.createElement("button");
       chip.type = "button"; chip.id = "pinChip"; chip.className = "cp-pin";
@@ -81,15 +87,14 @@
         if (window.JavisComposerMenu) window.JavisComposerMenu.openItem("folder");
       });
     }
-    // 0.329.0: right after the plan usage ring, which took the old bolt's place.
-    var ring = document.getElementById("limitBtn");
-    if (chip.parentElement !== host || chip.previousElementSibling !== ring) host.insertBefore(chip, ring ? ring.nextSibling : null);
+    if (chip.parentElement !== host || chip.previousElementSibling) host.insertBefore(chip, host.firstChild);
+    syncCtx(host);
     chip.classList.toggle("cp-pin-gone", folder.exists === false);
     chip.title = folder.path + (folder.exists === false ? "\n" + tw("cp.pin_gone") : "") + (inBrain ? "" : "\n" + tw("cp.pin_outside")) +
       (extras.length ? "\n" + tw("cp.pin_extra", { names: extras.join(", ") }) : "");
     chip.setAttribute("aria-label", tw("cp.pin_folder") + ": " + folder.name);
     // Extra folders bound before 0.158.0 still reach the prompt: show them as +N instead of hiding them.
-    chip.innerHTML = icon() + "<span>" + esc(chipLabel(folder.name, narrow() ? 10 : 18)) + "</span>" +
+    chip.innerHTML = icon() + "<span>" + esc(chipLabel(folder.name, narrow() ? 28 : 44)) + "</span>" +
       (extras.length ? '<span class="cp-pin-more">+' + extras.length + "</span>" : "");
   }
   function apply(d) {

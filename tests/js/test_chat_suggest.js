@@ -443,7 +443,7 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
   check("no Tab chip on any screen: not made, not styled, no screen hands over its button row",
     !SRC.includes('textContent = "Tab"') && !/sug-tab/.test(SRC + cssTab) && !/chipHost/.test(SRC + app + teams));
   check("main chat: the buttons of the composer row are all still there",
-    ["plusBtn", "cpChips", "mbOpen"].every(id => html.includes('id="' + id + '"')) && html.includes('class="cp-gap"'));
+    ["plusBtn", "cpChips", "mbOpen", "cpRight", "cpUnder"].every(id => html.includes('id="' + id + '"')));
   // Owner, 2026-11-13, later: "ở phiên bản máy tính ... không có mũi tên >". The > is for every screen.
   const go = cssTab.slice(cssTab.indexOf("\n.sug-go { display: inline-flex;"));
   check("the > shows on a computer too (no media query hides it), with no border and no background, and takes a click",

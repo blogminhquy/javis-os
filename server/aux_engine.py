@@ -740,10 +740,12 @@ def _note_plan_limit(e, error) -> None:
             return                      # an API key has no plan to run out of
         import plan_limits
         hit = limit_learner.parse_subscription_limit(str(error or ""), engine_hint=hint)
+        model = getattr(e, "model", "")
+        model = model if isinstance(model, str) else ""
         if hit is not None:
-            plan_limits.ghi_het(hint, float(hit.reset_epoch or 0))
+            plan_limits.ghi_het(hint, float(hit.reset_epoch or 0), model=model)
         elif hint in ("grok-cli", "antigravity-cli") and plan_limits.la_het_han_muc(error):
-            plan_limits.ghi_het(hint)
+            plan_limits.ghi_het(hint, model=model)
     except Exception as exc:  # noqa: BLE001 - a meter must never break the routing
         print(f"[aux router] plan limit: {type(exc).__name__}: {exc}", file=sys.stderr)
 

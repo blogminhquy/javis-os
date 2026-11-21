@@ -1651,24 +1651,46 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .voice-focus-resume[hidden] { display: none; }
 .hud-voice {
   position: relative;
-  /* One rounded card in the style of Claude (0.153.0): attachments, text box and button row stacked.
-     Each child stretches to full width (align-self: stretch below); flex-end keeps children from
-     drifting to the middle when the card grows. */
-  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
-  margin: 4px 16px 16px; padding: 10px 12px 8px;
+  /* One rounded card in the style of Claude (0.153.0). ONE row since 21/11/2026 (owner: "text khởi đầu ngang hàng và ở
+     giữa luôn nút + với các nút cho gọn"): "+", the text box, then mic and send, on one centre line; attached files on
+     a row above them. A longer text grows the card and the buttons stay on its last line. The row under the card
+     (#cpUnder) hangs below the border, so the bottom margin keeps its room (--cp-under-h). */
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; column-gap: 6px; row-gap: 0;
+  --cp-under-h: 40px;
+  margin: 4px 16px calc(12px + var(--cp-under-h)); padding: 6px 8px;
   border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
   transition: border-color .15s;
 }
-.hud-voice > * { align-self: stretch; }
+.hud-voice > * { grid-column: 1 / -1; }
+.hud-voice > .cp-row { display: contents; }
+.hud-voice > .voice-input { grid-column: 2; grid-row: 2; min-height: 40px; padding: 8px 4px; line-height: 24px; }
+.hud-voice .cp-plus { grid-column: 1; grid-row: 2; margin-bottom: 4px; }
+.hud-voice .cp-right { grid-column: 3; grid-row: 2; display: flex; align-items: center; gap: 6px; min-height: 40px; }
+.hud-voice > .attach-bar { grid-row: 1; }
+/* Under the card, outside its border: what the chat works on on the left, model, Effort and usage on the right. */
+.cp-under { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; display: flex; align-items: center;
+  justify-content: space-between; gap: 8px; min-width: 0; padding: 0 4px; }
+.cp-ctx { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
+.cp-ctx[hidden] { display: none; }
+.cp-under .cp-chips { flex: none; margin-left: auto; gap: 2px; }
+.cp-under .cp-ctx .cp-pin { height: 34px; padding: 0 10px; gap: 6px; font-size: 14px; border-color: transparent;
+  background: transparent; color: var(--text2); max-width: 100%; min-width: 0; }
+.cp-under .cp-ctx .cp-pin:hover, .cp-under .cp-ctx .cp-pin:focus-visible { background: var(--bg3); border-color: transparent; }
+.cp-under .cp-ctx .cp-pin.gh-chip { max-width: 100%; }
+.cp-under .cp-ctx .gh-chip-br { font-size: 13px; max-width: 140px; }
+.cp-under .mb-chip, .cp-under .cp-eff { height: 34px; padding: 0 10px; font-size: 14px; background: transparent;
+  border-color: transparent; font-weight: 500; }
+.cp-under .mb-chip { color: var(--text); }
+.cp-under .cp-eff { color: var(--text2); }
+.cp-under .mb-chip:hover, .cp-under .cp-eff:hover, .cp-under .cp-eff[aria-expanded="true"] { background: var(--bg3); border-color: transparent; }
+.cp-under .cp-limit { width: 34px; height: 34px; }
 .hud-voice:focus-within { border-color: var(--accent-line); }
 /* The attachment strip sits inside the card: drop the 20px side margin of the full-width strip. Written as
    .has-items.attach-bar (not .attach-bar.has-items) so the base block below stays the first with that name. */
 .hud-voice .attach-bar { padding: 0 2px; }
 .hud-voice .has-items.attach-bar { padding: 2px 2px 6px; }
 .model-bar:empty { display: none; }
-.cp-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .cp-chips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; }
-.cp-gap { flex: 1 1 auto; }
 /* The suggestion is drawn on a mirror layer over the box (2026-11-13), same font, padding and width (chat-suggest.js
    copies them): the typed part unseen, only there to take up its room, then the rest in grey exactly where the typed
    text ends. An empty box is drawn the same way and hides its own placeholder text (.sug-ghosted), so a long
@@ -1784,8 +1806,11 @@ textarea.sug-ghosted::placeholder { color: transparent; }
    While recording the row swaps to the dictation bar: X, live level meter, timer, stop square, then send. */
 .dict-bar { display: none; flex: 1 1 auto; min-width: 0; align-items: center; gap: 8px; height: 34px; }
 .hud-voice.dictating .dict-bar { display: flex; }
-.hud-voice.dictating .cp-plus, .hud-voice.dictating .cp-chips, .hud-voice.dictating .cp-gap,
+.hud-voice.dictating .cp-plus, .hud-voice.dictating .cp-under,
 .hud-voice.dictating .dict-btn, .hud-voice.dictating #voiceBtn { display: none; }
+/* One-row card (21/11/2026): while recording the text takes the whole first line and the dictation bar the second. */
+.hud-voice.dictating > .voice-input { grid-column: 1 / -1; }
+.hud-voice.dictating .cp-right { grid-column: 1 / -1; grid-row: 3; }
 /* 0.231.0: send is hidden while the box is empty (voice chat takes its place), but while dictating it is the
    "stop and send" button, so it stays even before the first word lands. */
 .hud-voice.dictating #sendBtn { display: flex !important; }
@@ -1841,11 +1866,19 @@ textarea.sug-ghosted::placeholder { color: transparent; }
    a computer (it sat in the page header from 0.182.0); its picker opens above the card and never runs past the screen. ===== */
 @media (max-width: 860px) {
   .hud-voice {
-    margin: 6px 10px 8px; padding: 8px 8px 6px; gap: 2px;
+    margin: 6px 10px calc(6px + var(--cp-under-h)); padding: 5px 6px;
     border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
-    align-items: flex-end;
   }
-  .hud-voice .voice-input { min-height: 36px; max-height: 40vh; padding: 6px 6px; font-size: 16px; }
+  .hud-voice .voice-input { min-height: 40px; max-height: 40vh; padding: 8px 4px; font-size: 16px; }
+  .cp-under { padding: 0 2px; }
+  .cp-under .cp-ctx .cp-pin { padding: 0 8px; }
+  /* Folder AND repos pinned (owner, 21/11/2026): two names do not fit beside the model pill, so both chips show their
+     icon only. The names stay in their tooltip and their panel, a tap away. One pin alone keeps its name. */
+  .cp-ctx.is-two .cp-pin { width: 40px; padding: 0; justify-content: center; flex: none; }
+  .cp-ctx.is-two .cp-pin > span, .cp-ctx.is-two .gh-chip-br { display: none; }
+  .cp-ctx.is-two .cp-pin svg { width: 18px; height: 18px; }
+  /* Under the card the pill sits on the page, not in the card: no fill, the outline alone (as in the approved mock). */
+  .cp-under #cpChips > .cp-limit, .cp-under #cpChips > .mb-chip, .cp-under #cpChips > .cp-eff { background: transparent; }
   .hud-voice .mb-pop { width: min(340px, calc(100vw - 32px)); }
 
   /* ONE PILL (owner, 11/11/2026: model, Effort and plan usage "gọn hơn" on a phone). The ring, the model chip and the
@@ -2714,6 +2747,10 @@ textarea.sug-ghosted::placeholder { color: transparent; }
    of the screen in view, so the first rows are never cut off. model-picker.js (POP_ANCHOR) sets both values. */
 .hud-voice .mb-pop, .hud-voice .eff-pop, .hud-voice .cp-menu { bottom: var(--cp-pop-bottom, calc(100% + 6px)); }
 .hud-voice .mb-pop { max-height: min(62vh, var(--cp-pop-room, 62vh)); }
+/* 21/11/2026: model, Effort and plan usage open right above their chips under the card, over the card (owner: "khi ấn
+   vào model nó phải hiện model ở trên khung chọn model"). Written after the rules above so it wins at equal weight. */
+.hud-voice .mb-pop, .hud-voice .eff-pop { bottom: var(--cp-chip-pop-bottom, var(--cp-pop-bottom, calc(100% + 6px))); }
+.hud-voice .mb-pop { max-height: min(62vh, var(--cp-chip-pop-room, var(--cp-pop-room, 62vh))); }
 .hud-voice .cp-menu { max-height: min(60vh, 440px, var(--cp-pop-room, 60vh)); }
 /* Phone sheet wrappers (2026-11-11): boxless on a computer, so the three popovers still place themselves against the
    card. Up to 860px they become one sheet from the bottom, see the phone block of the composer above. */
@@ -2769,6 +2806,8 @@ textarea.sug-ghosted::placeholder { color: transparent; }
 .lim-het { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--red) 12%, transparent); }
 .lim-het-h { margin: 0; font-size: 14px; font-weight: 600; color: var(--red); }
 .lim-het-r { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: var(--text2); }
+/* Another model's own limit: one quiet line, the ring follows the meters. */
+.lim-het-o { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: var(--warn-ink); }
 .lim-at, .lim-none { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: var(--text3); }
 .lim-none { color: var(--text2); }
 .eff-lbl { color: var(--text2); }

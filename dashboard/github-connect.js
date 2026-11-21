@@ -504,26 +504,34 @@
   function announce() {
     try { window.dispatchEvent(new CustomEvent("javis:github-repos-changed", { detail: { sid: sid(), repos: attached } })); } catch (e) {}
   }
+  // The chip lives in the row under the composer card (#cpCtx), after the pinned folder (owner, 21/11/2026: "sắp xếp
+  // lại khung giống của Claude"); it used to squeeze the model and Effort chips in the card's button row.
   function renderChip() {
-    var host = document.getElementById("cpChips");
+    var host = document.getElementById("cpCtx");
     if (!host) return;
     var chip = document.getElementById("ghChip");
     var list = held ? held : names();
-    if (!list.length) { if (chip) chip.remove(); return; }
+    if (!list.length) { if (chip) chip.remove(); syncCtx(host); return; }
     if (!chip) {
       chip = document.createElement("button");
       chip.type = "button"; chip.id = "ghChip"; chip.className = "cp-pin gh-chip";
       chip.addEventListener("click", function (e) { e.stopPropagation(); if (window.JavisComposerMenu) window.JavisComposerMenu.openItem("github"); });
     }
-    var after = document.getElementById("pinChip") || document.getElementById("limitBtn");
-    if (chip.parentElement !== host || chip.previousElementSibling !== after) host.insertBefore(chip, after ? after.nextSibling : null);
+    if (chip.parentElement !== host || chip.nextElementSibling) host.appendChild(chip);
+    syncCtx(host);
     var base = chipBase();
     chip.title = list.join("\n") + (base ? "\n" + tw("gh.chip_branch", { branch: base }) : "");
     chip.setAttribute("aria-label", tw("gh.chip_label", { names: list.join(", ") }) + (base ? ", " + tw("gh.chip_branch", { branch: base }) : ""));
-    chip.innerHTML = LOGO + "<span>" + esc(chipText(list, narrow() ? 10 : 18)) + "</span>" +
+    chip.innerHTML = LOGO + "<span>" + esc(chipText(list, narrow() ? 28 : 44)) + "</span>" +
       (base ? '<span class="gh-chip-br">' + BRANCH + esc(base) + "</span>" : "") + (chipIcon ? iconHtml(chipIcon) : "");
     var st = chip.querySelector(".gh-st");
     if (st) st.addEventListener("click", function (e) { e.stopPropagation(); openDetail(sid()); });
+  }
+  // Same rule in composer-folder.js: the row hides while empty, and with folder AND repos pinned a phone shows both as
+  // icons only (.is-two, owner 21/11/2026), so a name is never cut to "ja...".
+  function syncCtx(host) {
+    host.hidden = !host.children.length;
+    host.classList.toggle("is-two", host.children.length > 1);
   }
   var chipIcon = null;
   // A base branch other than the default rides on the chip, so the chat shows where its work will land.
