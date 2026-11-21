@@ -26,6 +26,7 @@ and would fill this same vault.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import secrets
@@ -397,6 +398,8 @@ class LoginVault:
     def __init__(self, deps: LoginVaultDeps):
         self.deps = deps
         self.store = Store(Path(deps.state_dir()) / "login_vault.sqlite3")
+        # Read once: mcp_hub asks on every tool list it builds for a bot, and that must not touch the disk.
+        self._browser_used = bool(self.store.meta(META_BROWSER))
         self.router = self._make_router()
 
     # ---------- reading ----------
@@ -497,7 +500,7 @@ class LoginVault:
     def browser_in_use(self) -> bool:
         """True once the browser has ever held one of these sign-ins. It never goes back by itself: the browser
         profile outlives a deleted row, so a customer bot stays away from that browser for good."""
-        return bool(self.store.meta(META_BROWSER))
+        return self._browser_used
 
     def claim_browser(self, lid: str) -> bool:
         """Record that this sign-in is the one the browser now holds for its sites. Another account of a site it
@@ -510,9 +513,10 @@ class LoginVault:
             if other["id"] != lid and other.get("browser_at") and mine & set(json.loads(other.get("domains") or "[]")):
                 self.store.update(other["id"], browser_at=0)
         self.store.update(lid, browser_at=time.time())
-        first = not self.browser_in_use()
+        first = not self._browser_used
         if first:
             self.store.set_meta(META_BROWSER, str(int(time.time())))
+            self._browser_used = True
         return first
 
     def release_browser(self, lid: str) -> None:
@@ -581,7 +585,7 @@ class LoginVault:
         except Exception as e:  # noqa: BLE001 - the owner gets a sentence, not a stack trace
             why = f"{type(e).__name__}: {e}"
         if not why:
-            self.release_browser(row["id"])
+            await asyncio.to_thread(self.release_browser, row["id"])
             return ""
         return localefmt.chu(
             f"Đã lưu, nhưng chưa gỡ được phiên '{row['name']}' khỏi trình duyệt của Javis ({why}). Muốn chắc "
@@ -675,14 +679,18 @@ class LoginVault:
                 action = str(p.get("action") or "").strip().lower()
                 if action == "check":
                     return {"ok": True, "login": await self.check(str(p.get("id") or ""))}
-                before = self.store.get(str(p.get("id") or ""))
-                out = {"ok": True, "login": self.control(str(p.get("id") or ""), action, p)}
+                lid = str(p.get("id") or "")
+
+                def change():
+                    return self.store.get(lid), self.control(lid, action, p)
+                before, login = await asyncio.to_thread(change)
+                out = {"ok": True, "login": login}
                 if action in ("deny", "deny_act", "delete"):
                     warning = await self.leave_browser(before)
                     if warning:
                         out["warning"] = warning
                     elif action != "delete":
-                        out["login"] = self.view(self.store.get(before["id"]))
+                        out["login"] = self.view(await asyncio.to_thread(self.store.get, lid))
                 return out
             except VaultError as e:
                 return bad(e)

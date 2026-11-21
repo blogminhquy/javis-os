@@ -20,6 +20,7 @@ Rules kept here:
 - After a page load that looks signed in, what the browser holds for those sites is saved back, encrypted, so
   op=fetch and page watches keep working with the renewed session.
 - One browser, one cookie jar: opens run one at a time (`_LOCK`).
+- The vault is SQLite: every call into it from here goes to a worker thread, never on the event loop.
 - A customer bot never reaches a browser that has held a sign-in (`in_use`, read by mcp_hub.discover_all).
 """
 from __future__ import annotations
@@ -173,6 +174,10 @@ async def find() -> Browser:
                                      f"The browser connection is not usable: {why}"))
 
 
+async def _off_loop(fn, *args):
+    return await asyncio.to_thread(fn, *args)
+
+
 def _domain(c: dict) -> str:
     return str(c.get("domain") or "").lstrip(".").lower()
 
@@ -213,7 +218,7 @@ async def open_signed_in(url: str, login: str = "") -> dict:
     if not url.lower().startswith(("http://", "https://")):
         return {"ok": False, "error": localefmt.chu("url phải bắt đầu bằng http:// hoặc https://",
                                                     "url must start with http:// or https://")}
-    row, stored, err = vault.pick(url, login, act=True)
+    row, stored, err = await _off_loop(vault.pick, url, login, True, True)
     if err:
         return {"ok": False, "error": err}
     try:
@@ -234,25 +239,25 @@ async def open_signed_in(url: str, login: str = "") -> dict:
                     await browser.clear(held)
                 todo = live
             refused = await browser.add(todo) if todo else []
-            if vault.claim_browser(row["id"]):
+            if await _off_loop(vault.claim_browser, row["id"]):
                 _hide_from_bots()
             text = await browser.navigate(url)
             if text.startswith("ERROR:"):
                 note = _scrub(text[6:], stored)
-                vault.mark(row["id"], "error", note, used=True)
+                await _off_loop(vault.mark, row["id"], "error", note, True)
                 return {"ok": False, "login": row["name"], "error": note}
             final_url, title = _page(text)
             if login_vault.looks_signed_out(final_url, title):
                 note = localefmt.chu("Trang chuyển về màn đăng nhập", "The site sent us to its sign-in page")
-                vault.mark(row["id"], "signed_out", note, used=True)
-                vault.release_browser(row["id"])      # the next open puts the stored copy in whole again
+                await _off_loop(vault.mark, row["id"], "signed_out", note, True)
+                await _off_loop(vault.release_browser, row["id"])   # the next open puts the stored copy in whole again
                 return {"ok": False, "signed_out": True, "login": row["name"], "final_url": final_url,
                         "title": title, "error": note}
-            vault.mark(row["id"], "ok", title[:120], used=True)
+            await _off_loop(vault.mark, row["id"], "ok", title[:120], True)
             if final_url:                              # only a page we could read counts as "signed in"
                 kept = merge(stored, [c for c in await browser.cookies() if _domain(c) in sites])
                 if kept != stored:
-                    vault.save_browser_cookies(row["id"], kept)
+                    await _off_loop(vault.save_browser_cookies, row["id"], kept)
         except BrowserError as e:
             return {"ok": False, "login": row["name"], "error": localefmt.chu(
                 f"Trình duyệt chưa nhận được đăng nhập: {e}", f"The browser did not take the sign-in: {e}")}
