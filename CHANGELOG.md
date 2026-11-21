@@ -6,6 +6,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.623.0] - 2026-11-22
+### Thêm mới
+- **Chỉnh được số ảnh bot gửi mỗi câu trả lời.** Mặc định vẫn 4 ảnh. Máy nào cần nhiều hơn (cho khách xem phòng, xem mẫu) thì đặt biến `JAVIS_BOT_MAX_IMAGES`, tối đa 20, rồi khởi động lại Javis.
+### Cải thiện
+- **Bot có thể nhường khi nhân viên trả lời từ app Zalo OA hoặc hộp thư Trang.** Mặc định vẫn không nhường. Ghi số phút vào ô "Nhường khi bạn nhắn tay" của bot thì khi nhân viên vừa trả lời khách ở đó, bot im trong cuộc chat ấy chừng ấy phút rồi tự trả lời lại. Tin chào mừng và tin tự trả lời của kênh không tính là nhân viên.
+### Sửa lỗi
+- **Bot Zalo cá nhân không còn nói "chưa có thông tin" sau khi bạn nhắn tay.** Lượt bot nhận lại cuộc chat có kèm một dòng ghi chú của Javis, và dòng đó lọt vào câu tìm tài liệu nên bot tìm trượt. Giờ bot chỉ tìm theo đúng lời khách.
+- **Facebook Trang dùng đúng kết nối.** Có hai kết nối Facebook Trang thì trước đây chỉ kết nối đầu tiên được dùng, kể cả khi bạn đã tắt nó. Giờ kết nối đang tắt không bao giờ được dùng, và Trang của mọi kết nối đang bật đều thấy và đăng được. Meta Ads cũng bỏ qua kết nối đang tắt.
+- **Nội dung webhook dài tới 5.000 ký tự.** Trước đây phần sau ký tự thứ 2.000 bị cắt mà không báo. Ô nhập giờ dừng đúng ở 5.000.
+
 ## [0.622.6] - 2026-11-22
 ### Sửa lỗi
 - **CI không còn thỉnh thoảng treo 20 phút ở bài kiểm tra Webhook.** Hàm chờ Webhook rảnh việc có lúc rơi vào vòng lặp vô hạn trên Python 3.12 (bản mà CI và Docker đang dùng), nên một lượt kiểm tra đứng im tới khi bị dừng. Lỗi xảy ra khoảng 6 lần trong 830 lượt gần đây.
