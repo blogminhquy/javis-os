@@ -245,7 +245,16 @@ flowchart LR
 > [!IMPORTANT]
 > Javis runs an AI brain with **full rights** on the machine. When it runs publicly (Docker, VPS, Hostinger), Javis **forces login by itself**: opening the app shows a create-account or sign-in screen, and nobody can drive it without a password.
 
-> 💻 **On your own Windows or Mac computer?** Download the installer and open it like any app: [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe) (Windows 10/11) or [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg) (macOS 11+). It checks what is missing (Git, Python, Node, AI brains), installs it, and leaves a JAVIS OS icon to click. Steps: [QUICKSTART.en.md](QUICKSTART.en.md).
+> 💻 **On your own Windows or Mac computer?** Javis installs like any app: it checks what is missing (Git, Python, Node, AI brains), installs it, and leaves a JAVIS OS icon to click.
+>
+> - **Windows 10/11:** download [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe) and open it.
+> - **macOS 11+:** open **Terminal** (Launchpad, type Terminal), paste this line and press Enter. Installed this way, macOS shows no warning:
+>   ```
+>   curl -fsSL https://raw.githubusercontent.com/blogminhquy/javis-os/main/packaging/macos/get-javis.sh | bash
+>   ```
+>   Prefer a file? [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg) installs the same app. It is not signed with an Apple Developer ID yet, so macOS blocks the first open until you allow it under **System Settings → Privacy & Security → Open Anyway**.
+>
+> Steps: [QUICKSTART.en.md](QUICKSTART.en.md).
 
 <details open>
 <summary><b>Option 1: Hostinger Docker Manager (domain + HTTPS, one click)</b></summary>
