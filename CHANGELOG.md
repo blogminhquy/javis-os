@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.619.0] - 2026-11-21
+### Cải thiện
+- **Khung chat gọn một hàng như Claude.** Trong khung chỉ còn nút +, ô chữ, ghi âm và gửi, chữ và các nút thẳng một hàng giữa.
+- **Model, mức suy nghĩ, vòng hạn mức chuyển xuống dưới khung, bên phải.** Thư mục đang ghim và repo GitHub nằm cùng hàng, bên trái.
+- **Ghim cả thư mục lẫn repo thì điện thoại chỉ hiện icon** cho khỏi chật; ghim một thứ thì vẫn hiện tên. Bấm vào vẫn mở bảng chọn như cũ.
+
 ## [0.618.0] - 2026-11-21
 ### Thêm mới
 - **Hội thoại Claude Code và Codex tự lưu vào Javis.** Mỗi lượt xong, câu anh gõ và câu trả lời cuối hiện trong Lịch sử dưới tên "Từ Claude Code: ..." hay "Từ Codex: ...", và vào vòng tự học.
