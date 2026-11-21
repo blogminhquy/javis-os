@@ -1187,6 +1187,7 @@ class TaskStore:
         transient: bool = False,
         not_before: float = 0.0,
         keep_attempt: bool = False,
+        metadata: Optional[dict] = None,
     ) -> Optional[dict]:
         """`transient=True` -> về ready để thử lại (còn lượt). `not_before` hoãn lần thử tới
         mốc đó; `keep_attempt` không tính lần vấp này vào `attempts` (hết hạn mức gói thuê bao
@@ -1203,7 +1204,8 @@ class TaskStore:
             task_id, worker_id, "ready" if retry else "blocked",
             result=result, error=reason, block_kind=kind,
             block_reason=reason, event_type="retry_scheduled" if retry else "blocked",
-            metadata=task.get("metadata") or {}, artifacts=task.get("artifacts") or [],
+            metadata=(task.get("metadata") or {}) if metadata is None else metadata,
+            artifacts=task.get("artifacts") or [],
             not_before=float(not_before or 0.0) if retry else 0.0,
             keep_attempt=bool(keep_attempt and retry),
         )
@@ -1211,6 +1213,7 @@ class TaskStore:
     def ask(
         self, task_id: str, worker_id: str, question: str, result: str = "",
         extra_meta: Optional[dict] = None, qa_extra: Optional[dict] = None,
+        clear_keys: tuple[str, ...] = (),
     ) -> Optional[dict]:
         """Chặn việc ở `needs_input` VÀ ghi câu hỏi vào `metadata.qa` (0.235.0).
 
@@ -1226,6 +1229,8 @@ class TaskStore:
         if not task:
             return None
         meta = dict(task.get("metadata") or {})
+        for key in clear_keys:
+            meta.pop(key, None)
         qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
         qa.append({
             "q": (question or "").strip()[:QA_TEXT_MAX],
