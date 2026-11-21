@@ -42,6 +42,7 @@ import mcp_store
 import once_ledger
 import turn_ledger
 import scout
+import code_mode
 import secret_guard
 import skill_router
 import skill_usage
@@ -438,6 +439,9 @@ def _shape_and_log(text, fn, conn, tool, scope):
 # use it, and a line costs far less per turn than listing the whole tool.
 SCOUT_HINT = (" javis_scout(task): giao model nền ĐỌC dữ liệu nặng (nhiều nguồn, nhiều trang, kỳ dài) rồi chỉ trả "
               "về kết luận; gọi qua {run}.")
+# Same idea for javis_code (code_mode.py): one line, in English like every new prompt text.
+CODE_MODE_HINT = (" javis_code(code): run a read-only Python script that chains several tool reads and returns only "
+                  "what it prints; call via {run}.")
 
 
 def _shape_view(result, name, scope):
@@ -1867,7 +1871,9 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
                                   f"tham số tool để gọi tiếp qua {_LAZY_RUN}; nếu khớp nguồn tài khoản "
                                   "Claude thì trả hướng dẫn gọi thẳng tool native mcp__<tên>__*."
                                   + (SCOUT_HINT.format(run=_LAZY_RUN)
-                                     if any(t.get("fn") == scout.TOOL for t in pool) else "")),
+                                     if any(t.get("fn") == scout.TOOL for t in pool) else "")
+                                  + (CODE_MODE_HINT.format(run=_LAZY_RUN)
+                                     if any(t.get("fn") == code_mode.TOOL for t in pool) else "")),
                   "schema": {"type": "object", "properties": {
                       "query": {"type": "string",
                                 "description": "Việc cần làm / nguồn / từ khoá, vd 'doanh thu POS hôm nay'"}},
@@ -2120,6 +2126,13 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         q_entry["full_route"] = query_route      # every route behind the tool search too (job_recipes.replay)
         tools_spec.append(q_spec)
         route[q_spec["fn"]] = q_entry
+        # javis_code: a read-only script that chains several reads and returns only what it prints (code_mode.py).
+        # Same reach as javis_query (declared reads only, through the guarded routes), but it runs code the model
+        # wrote, so never for a customer bot.
+        if code_mode.enabled() and not for_bot:
+            c_spec, c_entry = code_mode.build(query_route, str(vault_root or ""))
+            tools_spec.append(c_spec)
+            route[c_spec["fn"]] = c_entry
     # javis_scout: a read-only run on the background model that returns only its findings (scout.py). Never for a
     # customer bot (it starts a run on the owner's background model), and absent when no runner is configured.
     # Not in OWNER_ONLY_TOOLS on purpose: that set lists tools every owner session HAS, and this one is optional.

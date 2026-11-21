@@ -209,6 +209,9 @@ line each, grouped by area.
 - `tool_result_view.py`: the older explicit `result_view` of `javis_run_tool`.
 - `scout.py`: the `javis_scout` tool, a read-only run on the background model that returns only
   its findings (the runner is `main._scout_run`).
+- `code_mode.py`: the `javis_code` tool. Runs a short model-written Python script in an isolated
+  child process; its only reach is `call(tool, args)` on declared read-only connection tools
+  through the guarded routes, and only what it prints comes back.
 
 **Background work**: `tasks.py`, `task_store.py`, `self_improve.py`, `reminders.py`,
 `cron_util.py`, `inbox.py`, `webpush.py`, `background_status.py`, `tien_trinh_nen.py`,

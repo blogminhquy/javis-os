@@ -202,9 +202,10 @@ From this version the hub shapes a result before the model reads it, the same wa
 - **Large results** are stored whole (encrypted, deleted after 24 hours). The model gets a view: the totals, the field names, a few whole records and a reference.
 - **Reading back or computing** is done with the `javis_query` tool: pick fields, page through, or run one read-only SQL query over all records. It can also page through a read tool by itself and compute, so a full month report no longer has to pass through the context.
 
-Two features come with it:
+Three features come with it:
 
 - **Scout (`javis_scout`).** The main model can hand a read across several sources to the **background model** you chose on the Models page. A scout can only read, and only its findings return to the chat. If it cannot run, the main model does the reading itself as before.
+- **Read-only scripts (`javis_code`).** The model writes a short Python script that chains several read calls (paging, looking up each order, joining two sources), computes, and prints only the result. The raw data never passes through the chat. The script runs in its own process with no keys, no files and no network, and can call only plainly read-only tools.
 - **Recipes for recurring jobs.** After the same run on two different days, Javis fetches the data itself before the model starts. It does so only when every reading of the dates gives the same result that day; otherwise the job runs as before. Only calls that are plainly reads are repeated, and a job whose period is not written as `YYYY-MM-DD` (a month `2026-11`, a week number, `01/11/2026`) is never turned into a recipe. If the model still has to call a source again after the data was fetched for it, the recipe is dropped after two such runs. Each recipe is a file in `<brain>/Javis/recipes/`; delete the file to forget it.
 
 In a long turn, two more savings take nothing away from the model:
