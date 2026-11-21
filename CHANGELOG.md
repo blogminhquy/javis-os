@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.624.0] - 2026-11-22
+### Thêm mới
+- **Javis chạy được code đọc dữ liệu (`javis_code`).** Model viết một đoạn Python ngắn, gọi nối nhiều tool đọc (lật trang, tra từng đơn, ghép hai nguồn), tự tính rồi chỉ trả phần kết quả, nên dữ liệu thô không chiếm token trong khung chat.
+- **Chỉ đọc, chạy cách ly.** Đoạn code chạy trong tiến trình riêng, không có khoá, không đọc file, không ra mạng, và chỉ gọi được tool đọc rõ ràng qua đúng lớp kiểm quyền như bình thường.
+- **Có trần an toàn.** Tối đa 40 lần gọi, 120 giây mỗi lượt. Không chạy được thì model tự gọi tool như cũ. Tắt bằng `JAVIS_CODE_MODE=0`.
+
 ## [0.623.0] - 2026-11-22
 ### Thêm mới
 - **Chỉnh được số ảnh bot gửi mỗi câu trả lời.** Mặc định vẫn 4 ảnh. Máy nào cần nhiều hơn (cho khách xem phòng, xem mẫu) thì đặt biến `JAVIS_BOT_MAX_IMAGES`, tối đa 20, rồi khởi động lại Javis.

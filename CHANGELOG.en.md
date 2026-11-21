@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.624.0] - 2026-11-22
+### Added
+- **Javis can run read-only scripts (`javis_code`).** The model writes a short Python script that chains several read calls (paging, looking up each order, joining two sources), computes, and returns only the result, so raw data no longer costs tokens in the chat.
+- **Read only and isolated.** The script runs in its own process with no keys, no files and no network, and can call only plainly read-only tools through the usual permission checks.
+- **Safe caps.** At most 40 calls and 120 seconds per run. If it cannot run, the model calls the tools itself as before. Turn it off with `JAVIS_CODE_MODE=0`.
+
 ## [0.623.0] - 2026-11-22
 ### Added
 - **The number of images a bot sends per reply is adjustable.** The default stays at 4. A machine that needs more (showing a room or product samples) sets `JAVIS_BOT_MAX_IMAGES`, up to 20, then restarts Javis.
