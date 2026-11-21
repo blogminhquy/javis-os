@@ -27,6 +27,8 @@ import sys
 import tempfile
 import time
 
+import winproc
+
 TOOL = "javis_code"
 ANSWER_CHARS = 7000
 OUTPUT_CHARS_MAX = 400_000          # what the child may print in total
@@ -267,7 +269,7 @@ async def run(route: dict, code: str, scope: str = "") -> str:
     boot = {"code": code, "max_calls": max_calls, "modules": list(ALLOWED_MODULES), "output_max": OUTPUT_CHARS_MAX,
             "cpu_s": _env_int("JAVIS_CODE_MODE_CPU_S", CPU_S_DEFAULT, 1, 600),
             "mem_mb": _env_int("JAVIS_CODE_MODE_MEM_MB", MEM_MB_DEFAULT, 128, 8192)}
-    workdir = tempfile.mkdtemp(prefix="javis-code-")
+    workdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="javis-code-")
     started = time.time()
     used: dict = {}
     done = None
@@ -278,7 +280,7 @@ async def run(route: dict, code: str, scope: str = "") -> str:
             sys.executable, "-I", "-S", "-c", CHILD,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             cwd=workdir, env=_child_env(),
-            limit=RPC_LINE_MAX)
+            limit=RPC_LINE_MAX, **winproc.kwargs_no_window())
 
         async def _talk():
             nonlocal done
@@ -319,7 +321,7 @@ async def run(route: dict, code: str, scope: str = "") -> str:
                 await asyncio.wait_for(proc.wait(), timeout=5)
             except Exception:  # noqa: BLE001
                 pass
-        shutil.rmtree(workdir, ignore_errors=True)
+        await asyncio.to_thread(shutil.rmtree, workdir, ignore_errors=True)
     if done is None:
         tail = ""
         try:
