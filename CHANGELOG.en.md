@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.621.0] - 2026-11-22
+### Added
+- **A clear X to remove a repository.** The repository chip under the chat box has an X: one tap removes it. In the picker, every chosen repository has its own X too. The pinned folder chip next to it and the repository chip on the Teams page get the same X.
+- **Harder to tap the wrong thing.** A chosen repository no longer drops when its row is touched, only its X removes it. Any other repository shows a plus: one tap adds it.
+### Fixed
+- **A repository no longer "jumps back" to the old one.** Switching to another repository while the old one held unsaved changes used to be refused as a whole, so the new pick was lost too. Adding and removing are separate now, and the new pick always stays.
+- **No more dead end on a repository with unsaved changes.** Javis asks right on that row: keep it, or remove it and delete the changes. Before, there was only an error with a server path and no way to remove it.
+
 ## [0.620.1] - 2026-11-21
 ### Fixed
 - The chatbot reply picker opens on direct messages when choosing who it should reply to. People and groups have separate search results.

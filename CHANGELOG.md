@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.621.0] - 2026-11-22
+### Thêm mới
+- **Nút X rõ ràng để bỏ repository.** Viên repository dưới khung chat có nút X, bấm một lần là bỏ. Trong bảng chọn, mỗi repository đã chọn cũng có nút X riêng. Viên thư mục ghim bên cạnh và viên repository ở trang Nhóm có cùng nút này.
+- **Khó bấm nhầm hơn.** Dòng repository đã chọn không còn tự bỏ khi chạm vào, chỉ nút X mới bỏ. Repository chưa chọn có dấu cộng, chạm một lần là thêm.
+### Sửa lỗi
+- **Repository không còn "nhảy về" cái cũ.** Trước đây đổi sang repository khác mà cái cũ còn thay đổi chưa lưu thì cả lần đổi bị từ chối, cái mới chọn cũng mất theo. Giờ thêm và bỏ là hai việc riêng, cái mới luôn được giữ.
+- **Không còn kẹt khi repository có thay đổi chưa lưu.** Javis hỏi ngay tại dòng đó: giữ lại, hay bỏ và xoá các thay đổi. Trước đây chỉ hiện một câu lỗi kèm đường dẫn máy chủ và không có cách nào bỏ.
+
 ## [0.620.1] - 2026-11-21
 ### Sửa lỗi
 - Khi chọn người để bot tự trả lời, form mở ngay danh sách nhắn riêng. Kết quả tìm người được lọc riêng với nhóm.
