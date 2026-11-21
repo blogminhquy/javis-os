@@ -763,6 +763,9 @@ class TasksFeature:
                 if passed and why:
                     # The checker moved steps only the owner can do over to "Left for you" (2026-11-21).
                     metadata[HANDOFF] = merge_handoff(metadata.get(HANDOFF), why.splitlines())
+                if how == "empty" and not passed:
+                    score.fail(job_scorecard.CAUSE_MODEL, str(why or "")[:120])
+                    job_scorecard.settle(score)
                 if how in ("ai", "heuristic"):
                     # A check that could not run says nothing; one that ran is the strongest signal there is.
                     if passed:
@@ -779,7 +782,7 @@ class TasksFeature:
                         self.store.acceptance_failed, tid, worker_id,
                         why or localefmt.chu("Worker báo chưa làm xong.", "The worker says it did not finish."),
                         result=result, metadata=metadata, artifacts=self._artifacts(result, root),
-                        needs_approval=bool(task.get("needs_approval")), auto_fix=(how == "ai"))
+                        needs_approval=bool(task.get("needs_approval")), auto_fix=(how in ("ai", "empty")))
                     if final_task and final_task.get("status") == "ready":
                         self.wake()
                     return
@@ -1331,8 +1334,9 @@ plainly that acting on its own is allowed; otherwise auto, so the kernel stops i
             cli.disallowed_tools = disallowed or None
         except Exception:
             pass
-        acceptance = task.get("metadata", {}).get("acceptance") or []
-        handoff = clean_lines(task.get("metadata", {}).get(HANDOFF))
+        meta_exec = task.get("metadata") or {}
+        acceptance = meta_exec.get("acceptance") or meta_exec.get(FIXED_ACCEPTANCE) or []
+        handoff = clean_lines(meta_exec.get(HANDOFF))
         left = ("\nLEFT FOR THE OWNER (not yours: do not attempt, it is not checked; prepare what they need):\n"
                 + "\n".join("- " + x for x in handoff) + "\n") if handoff else ""
         prompt = f"""
@@ -1546,10 +1550,11 @@ and how you verified it. Write the report in the language of the goal.
     async def _check_acceptance(self, task: dict, result: str) -> tuple[bool, str, str]:
         """(passed, why, how) - an independent pass over the worker's report.
 
-        `how` records what decided it: "ai" (a separate read-only session checked every
-        criterion, opening the files it names), "heuristic" (no verdict, but the report itself
-        says it is unfinished), "unverified" (the checker could not run; the job is kept as done
-        and the metadata says it was not checked), "none" (no criteria and nothing admitted).
+        `how` records what decided it: "empty" (worker output was empty), "ai" (a separate
+        read-only session checked every criterion, opening the files it names), "heuristic" (no
+        verdict, but the report itself says it is unfinished), "unverified" (the checker could not
+        run; the job is kept as done and the metadata says it was not checked), "none" (no
+        criteria and nothing admitted).
 
         On a pass `why` lists, one per line, the steps the checker moved to the owner (`handoff`): conditions the
         worker could not reach, which its report explains with the file path. Empty when there are none.
@@ -1557,9 +1562,16 @@ and how you verified it. Write the report in the language of the goal.
         Not fail-closed on a checker that cannot run: the worker already finished on the same
         engine, and re-running a whole job (maybe one that already sent or posted something)
         because the cheap check failed is worse than a done job marked unverified."""
+        if not str(result or "").strip():
+            return (
+                False,
+                localefmt.chu("Worker không trả về kết quả nào (đầu ra rỗng).", "The worker returned an empty result."),
+                "empty",
+            )
+        meta = task.get("metadata") or {}
         admitted = self._admits_unfinished(result)
         criteria = [str(x).strip() for x in
-                    ((task.get("metadata") or {}).get("acceptance") or []) if str(x).strip()]
+                    (meta.get("acceptance") or meta.get(FIXED_ACCEPTANCE) or []) if str(x).strip()]
         if not criteria:
             return (False, admitted, "heuristic") if admitted else (True, "", "none")
         try:
@@ -1941,14 +1953,28 @@ Return ONLY one line of JSON, no markdown:
         if status == "blocked":
             await self._gom_bao(task)
             return
+        acc_check = str((task.get("metadata") or {}).get("acceptance_check") or "")
+        unverified = status in ("done", "review") and acc_check == "unverified"
         labels = {
             "review": localefmt.chu("đã làm xong, chờ bạn duyệt kết quả", "is done and its result awaits your review"),
             "done": localefmt.chu("đã hoàn thành", "is complete"),
             "blocked": localefmt.chu("bị chặn, cần bạn xem", "is blocked and needs you"),
         }
-        icon = "✅" if status in ("review", "done") else "⚠"
-        dau = localefmt.chu(f"{icon} Việc '{task.get('title', '')}' {labels.get(status, status)}.",
-                            f"{icon} Job '{task.get('title', '')}' {labels.get(status, status)}.")
+        icon = "⚠" if unverified or status not in ("review", "done") else "✅"
+        if unverified:
+            if status == "review":
+                dau = localefmt.chu(
+                    f"{icon} Việc '{task.get('title', '')}' đã làm xong và đang chờ bạn duyệt, nhưng máy tự kiểm chưa xác minh được.",
+                    f"{icon} Job '{task.get('title', '')}' finished and awaits your review, but acceptance verification is unverified.",
+                )
+            else:
+                dau = localefmt.chu(
+                    f"{icon} Việc '{task.get('title', '')}' đã hoàn thành nhưng máy tự kiểm chưa xác minh được.",
+                    f"{icon} Job '{task.get('title', '')}' finished, but acceptance verification is unverified.",
+                )
+        else:
+            dau = localefmt.chu(f"{icon} Việc '{task.get('title', '')}' {labels.get(status, status)}.",
+                                f"{icon} Job '{task.get('title', '')}' {labels.get(status, status)}.")
         # HAI bản, vì hai kênh chịu được hai thứ khác nhau - và bản trước chỉ có một, nên ai
         # ngồi trên web cũng chỉ nhận được mẩu 240 ký tự dành cho Telegram (chủ repo báo
         # 2026-09-08: "việc ngầm chạy xong nó không đẩy hết kết quả lên màn chat hiện tại").
@@ -1991,6 +2017,10 @@ Return ONLY one line of JSON, no markdown:
         # Chỉ `blocked` (kẹt, cần gỡ) và `review` (chờ duyệt) mới kêu, vì đó là thứ CẦN người
         # dùng ra tay. Chủ repo chốt 01/09/2026: đang chat mà chuông kêu liên hồi vì mấy việc
         # nền tự chạy xong là phiền, trong khi anh đã thấy kết quả ngay trong khung chat rồi.
+        card_meta = {"kind": "task", "status": status, "title": str(task.get("title") or ""),
+                     "id": str(task.get("id") or "")}
+        if acc_check:
+            card_meta["acceptance_check"] = acc_check
         try:
             await self.deps.report(
                 task.get("chat_id", ""),
@@ -1998,8 +2028,7 @@ Return ONLY one line of JSON, no markdown:
                 # A done job that leaves steps for the owner still needs them, so it rings like a review.
                 quiet=(status == "done" and not clean_lines((task.get("metadata") or {}).get(HANDOFF))),
                 ngan=channel_context.strip_control_blocks("\n\n".join(parts_ngan)),
-                viec={"kind": "task", "status": status, "title": str(task.get("title") or ""),
-                      "id": str(task.get("id") or "")},
+                viec=card_meta,
                 web=channel_context.strip_control_blocks(web),
                 **_report_extra(self.deps.report, task.get("brain_root"),
                                 f"task:{task.get('id', '')}:{status}:{task.get('current_run_id') or task.get('updated_at') or ''}",
@@ -2029,6 +2058,16 @@ Return ONLY one line of JSON, no markdown:
         reason stays in `block_reason` for the drawer's technical detail. "" when there is nothing to say."""
         st, kind = str(task.get("status") or ""), str(task.get("block_kind") or "")
         reason = str(task.get("block_reason") or "").strip()
+        if st in ("done", "review") and str((task.get("metadata") or {}).get("acceptance_check") or "") == "unverified":
+            if st == "review":
+                return localefmt.chu(
+                    "Đã chạy xong và đang chờ bạn duyệt, nhưng kết quả chưa được xác minh do bộ kiểm tra gặp lỗi.",
+                    "Finished and awaiting review, but acceptance is unverified because the checker failed.",
+                )
+            return localefmt.chu(
+                "Đã chạy xong nhưng kết quả chưa qua máy tự kiểm do bộ kiểm tra gặp lỗi.",
+                "Finished without passing automatic verification because the checker failed.",
+            )
         if st == "review":
             return localefmt.chu("Đã làm xong, đang chờ bạn xem và duyệt kết quả.",
                                  "Done, waiting for you to look at the result and approve it.")
@@ -2202,7 +2241,8 @@ Return ONLY one line of JSON, no markdown:
         if task.get("status") not in ("done", "review"):
             return {"ok": False, "error": localefmt.chu("Chỉ kiểm lại được việc đã xong",
                                                         "Only a finished job can be checked again")}
-        if not ((task.get("metadata") or {}).get("acceptance") or []):
+        meta_v = task.get("metadata") or {}
+        if not (meta_v.get("acceptance") or meta_v.get(FIXED_ACCEPTANCE) or []):
             return {"ok": False, "error": localefmt.chu("Việc này không có điều kiện hoàn thành để kiểm",
                                                         "This job has no completion criteria to check")}
         # A check left at "checking" by a restart is not running: only a check alive in this process blocks a new one.

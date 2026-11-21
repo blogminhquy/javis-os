@@ -218,5 +218,39 @@ check("old page ids open the Tasks page", /kanban: "tasks", selfimprove: "tasks"
 check("the page asks which chatbot made which job", /getJSON\("\/tasks\/bots\?brain=" \+ enc\)/.test(js));
 check("the page exposes mount and unmount", /window\.JavisTasks = \{ mount: mount, unmount: unmount/.test(js));
 
+// ---- unverified acceptance honesty on done and review Kanban cards ----
+const um = M.model({
+  brain: "/b/main",
+  kanban: {
+    operations: {
+      attention: [{ id: "ur", title: "Review draft", status: "review", needs_approval: 1, created_at: at(30, 8), metadata: { acceptance_check: "unverified" } }],
+      history: [
+        { id: "ud", title: "Done draft", status: "done", result: "Draft ready.", updated_at: at(30, 9), metadata: { acceptance_check: "unverified" } },
+        { id: "ok", title: "Verified job", status: "done", result: "All checked.", updated_at: at(30, 9), metadata: { acceptance_check: "ai" } },
+      ],
+    },
+  },
+}, now);
+const uById = id => um.items.find(i => i.id === id);
+check("model marks unverified on both done and review Kanban items only",
+  uById("k:ud").unverified === true && uById("k:ur").unverified === true && uById("k:ok").unverified === false);
+
+const vm = require("node:vm");
+const rCtx = { window: { t: k => k, ic: () => "" }, document: {}, localStorage: { getItem: () => null, setItem() {} } };
+vm.createContext(rCtx);
+vm.runInContext(
+  js.replace("window.JavisTasks = {", "window._t = { chip: chip, row: row, detailHtml: detailHtml, setAi: function (a) { S = { ai: a, sel: null, hidden: {} }; } };\n  window.JavisTasks = {"),
+  rCtx
+);
+rCtx.window._t.setAi(um);
+const doneRow = rCtx.window._t.row(uById("k:ud")), doneDet = rCtx.window._t.detailHtml(uById("k:ud"));
+const revRow = rCtx.window._t.row(uById("k:ur")), revDet = rCtx.window._t.detailHtml(uById("k:ur"));
+check("done unverified card shows unverified chip and warning note without duplicating chip",
+  rCtx.window._t.chip(uById("k:ud")).includes("nv.st.unverified") && doneRow.includes("nv.acc.unverified")
+  && (doneDet.match(/nv\.st\.unverified/g) || []).length === 1 && doneDet.includes("nv.acc.unverified"));
+check("review unverified card keeps Needs you chip and adds unverified warning in row and details",
+  rCtx.window._t.chip(uById("k:ur")).includes("nv.st.ask") && revRow.includes("nv.acc.unverified")
+  && revDet.includes("nv.st.ask") && revDet.includes("nv.st.unverified") && revDet.includes("nv.acc.unverified"));
+
 console.log(fails ? `\n${fails} FAILED` : "\nall passed");
 process.exit(fails ? 1 : 0);

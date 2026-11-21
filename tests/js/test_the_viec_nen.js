@@ -123,5 +123,25 @@ m = msgGia("x");
 V.ve(m, { kind: "loop", status: "timeout", title: "a" });
 check("loại không có nhãn riêng thì rơi về nhãn chung", m._bubble._html.indexOf("Việc nền quá giờ") !== -1);
 
+// ---- 7. Unverified acceptance state on done and review task cards ----
+r = V.tach('<!-- JAVIS_VIEC: {"kind":"task","status":"review","title":"Draft","id":"t9","acceptance_check":"unverified"} -->\nBody');
+check("tach preserves acceptance_check when present", r.viec && r.viec.status === "review" && r.viec.acceptance_check === "unverified");
+global.ic = (name) => "<ic:" + name + ">";
+try {
+  m = msgGia("<p>Body</p>");
+  V.ve(m, { kind: "task", status: "done", title: "Draft", id: "t9", acceptance_check: "unverified" });
+  check("unverified done card sets viec-unverified, warning icon, and unverified label",
+    m.classList.contains("viec-done") && m.classList.contains("viec-unverified")
+    && m._bubble._html.includes("<ic:triangle-alert>") && m._bubble._html.includes(VI["viec.st_unverified"]));
+  m = msgGia("<p>Body</p>");
+  V.ve(m, { kind: "task", status: "review", title: "Draft", id: "t10", acceptance_check: "unverified" });
+  check("unverified review card sets viec-review, viec-unverified, and warning label",
+    m.classList.contains("viec-review") && m.classList.contains("viec-unverified")
+    && m._bubble._html.includes("<ic:triangle-alert>") && m._bubble._html.includes(VI["viec.st_unverified"]));
+  m = msgGia("<p>Body</p>");
+  V.ve(m, { kind: "task", status: "done", title: "Ok", id: "t11", acceptance_check: "ai" });
+  check("verified done card does not get viec-unverified", !m.classList.contains("viec-unverified") && m._bubble._html.includes(VI["viec.st_done"]));
+} finally { delete global.ic; }
+
 if (fails.length) { console.log("\n" + fails.length + " FAIL"); process.exit(1); }
 console.log("\nTất cả ok");

@@ -4361,7 +4361,7 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
    việc của giọng nói là chữ nghiêng mờ 12.5px. Nay: một dòng đầu có icon trạng thái, tên việc
    và nút mở trang Việc; viền trái mang màu trạng thái; chữ tối thiểu 16px cho điện thoại. */
 .msg-viec .bubble { border-left: 3px solid var(--ok-line); }
-.msg-viec.viec-blocked .bubble, .msg-viec.viec-timeout .bubble { border-left-color: var(--warn-line); }
+.msg-viec.viec-blocked .bubble, .msg-viec.viec-timeout .bubble, .msg-viec.viec-unverified .bubble { border-left-color: var(--warn-line); }
 .msg-viec.viec-failed .bubble { border-left-color: var(--red); }
 .msg-viec.viec-cancelled .bubble { border-left-color: var(--hairline); }
 .msg-viec.viec-hoi .bubble { border-left-color: var(--link-ink); }
@@ -4481,7 +4481,7 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
   font-family: var(--font); font-size: 16px; line-height: 1.4;
 }
 .viec-head .viec-ico { display: inline-flex; color: var(--green); }
-.viec-blocked .viec-head .viec-ico, .viec-timeout .viec-head .viec-ico { color: var(--warn-ink); }
+.viec-blocked .viec-head .viec-ico, .viec-timeout .viec-head .viec-ico, .viec-unverified .viec-head .viec-ico { color: var(--warn-ink); }
 .viec-failed .viec-head .viec-ico { color: var(--red); }
 .viec-cancelled .viec-head .viec-ico { color: var(--text3); }
 .viec-head .viec-ico svg { width: 18px; height: 18px; }
