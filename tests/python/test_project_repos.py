@@ -241,7 +241,9 @@ check("the drawer saves through <its route>/repos with the team picker", 'pdPost
       and "window.JavisTeamGithub.panel(box, {" in ui and "save: luuRepos" in ui)
 check("the picker is loaded on demand on pages that lack it", 'window.JavisNapCham.cho("teams")' in ui)
 gh = (ROOT / "dashboard" / "team-github.js").read_text(encoding="utf-8")
-check("the team picker can save somewhere other than a chat", "opts.save ? Promise.resolve(opts.save(want))" in gh)
+# 21/11/2026: the list is the shared one (github-connect.js); a project saves its names through opts.save as before.
+check("the team picker can save somewhere other than a chat",
+      "Promise.resolve(opts.save(next))" in gh and "if (opts.save) return saveList(" in gh)
 tm = (ROOT / "dashboard" / "teams.js").read_text(encoding="utf-8")
 check("a new team gets the repos picked in the create box", "attachNewTeamRepos(r.j.team, repos, missed > 0)" in tm
       and re.search(r'fetch\("/github/session/" \+ q\(sid\) \+ "/repos"', tm) is not None)

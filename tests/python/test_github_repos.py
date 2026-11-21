@@ -141,6 +141,46 @@ check("the second repo branches from its own default branch",
 # ---- 4. Detach and remove guards ----
 err = raises(github_repos.detach, "chat-one", "acme/app", BRAIN)
 check("detach refuses while this chat's worktree has unsaved edits", "acme/app" in err)
+
+# 21/11/2026 (owner, on a user's report: "đổi về Brain của anh cứ lâu lâu lại nhảy qua Javis OS"). The picker sent the
+# chat's WHOLE list for every tick; one repo that could not come off refused it all, so the repo just ticked was lost
+# too. Adding and removing are separate now (`add`, `detach`), and the refusal carries a code the picker can answer.
+fake.add_repo("acme/docs")
+try:
+    github_repos.detach("chat-one", "acme/app", BRAIN)
+    refusal = None
+except github_repos.RepoError as e:
+    refusal = e
+check("the refusal carries a code and what is at risk, for the picker to ask 'remove anyway?'",
+      refusal is not None and refusal.code == "work_at_risk" and refusal.data == {"full_name": "acme/app", "risk": "dirty", "count": 0})
+old_way = raises(github_repos.attach, "chat-one", BRAIN, BRAIN, ["acme/lib", "acme/docs"])
+check("the old whole-list request: swapping the dirty repo for another is refused as a whole",
+      "acme/app" in old_way and "acme/docs" not in [r["full_name"] for r in github_repos.session_repos("chat-one", BRAIN)])
+view_add = github_repos.add("chat-one", BRAIN, BRAIN, "acme/docs")
+names_add = [r["full_name"] for r in view_add["repos"]]
+check("add attaches ONE more repo and leaves the others, the dirty one included", names_add == ["acme/app", "acme/lib", "acme/docs"])
+docs = [r for r in view_add["repos"] if r["full_name"] == "acme/docs"][0]
+check("the added repo has this chat's own worktree", Path(docs["worktree"]).is_dir() and docs["branch"] == "javis/chatone")
+check("the dirty repo's edits are untouched by the add", (wt1 / "src/main.py").read_text() == "print('one')\n")
+fetches = len([c for c in fake.calls if c[1] == "/repos/acme/app"])
+again = github_repos.add("chat-one", BRAIN, BRAIN, "acme/docs")
+check("adding a repo the chat already has changes nothing and asks GitHub nothing about the others",
+      [r["full_name"] for r in again["repos"]] == names_add and len([c for c in fake.calls if c[1] == "/repos/acme/app"]) == fetches)
+check("add needs a conversation", "conversation" in raises(github_repos.add, "", BRAIN, BRAIN, "acme/docs").lower()
+      or "cuộc" in raises(github_repos.add, "", BRAIN, BRAIN, "acme/docs"))
+out = github_repos.detach("chat-one", "acme/docs", BRAIN)
+check("the added repo detaches again while the dirty one stays", out["detached"]
+      and [r["full_name"] for r in github_repos.session_repos("chat-one", BRAIN)] == ["acme/app", "acme/lib"])
+
+# "Remove anyway": force takes the repo off a second chat although it holds unsaved edits; the clone stays.
+github_repos.add("chat-force", BRAIN, BRAIN, "acme/app")
+wtf = Path(github_repos.session_repos("chat-force", BRAIN)[0]["worktree"])
+(wtf / "src" / "main.py").write_text("print('force')\n", encoding="utf-8")
+check("without force the dirty worktree keeps the repo on the chat", "acme/app" in raises(github_repos.detach, "chat-force", "acme/app", BRAIN))
+out = github_repos.detach("chat-force", "acme/app", BRAIN, force=True)
+check("with force the repo leaves the chat and its worktree goes", out["detached"] and not wtf.exists()
+      and not github_repos.session_repos("chat-force", BRAIN))
+check("force never touches the clone or the other chats' worktrees", clone.is_dir() and wt1.is_dir() and wt2.is_dir())
 git(["checkout", "--", "src/main.py"], wt1)
 out = github_repos.detach("chat-one", "acme/lib", BRAIN)
 check("a clean repo detaches", out["detached"] and len(github_repos.session_repos("chat-one", BRAIN)) == 1)
@@ -183,6 +223,37 @@ check("deleting a chat keeps a worktree with unsaved work", out["kept"] == [str(
 out = github_repos.forget_session("chat-z")
 check("deleting a chat removes its clean worktree", not out["kept"] and not wtz.exists())
 check("the binding of the deleted chat is gone", coding_store.rang_buoc("chat-z") == {})
+
+# ---- The routes of the picker (21/11/2026): add one, detach one, and a refusal the dashboard can answer ----
+fake.add_repo("acme/web", files={"README.md": "web\n"})
+fake.add_repo("acme/api", files={"README.md": "api\n"})
+from fastapi import FastAPI  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+import routes.github as gh_routes  # noqa: E402
+
+_app = FastAPI()
+gh_routes.register(_app, gh_routes.GitHubDeps(brain_root=lambda b: b))
+_c = TestClient(_app)
+r = _c.post("/github/session/chat-r/repos", data={"brain": BRAIN, "add": "acme/web"}).json()
+check("POST /repos with add attaches that one repo", r["ok"] and [x["full_name"] for x in r["repos"]] == ["acme/web"])
+r = _c.post("/github/session/chat-r/repos", data={"brain": BRAIN, "add": "acme/api"}).json()
+check("a second add keeps the first", r["ok"] and [x["full_name"] for x in r["repos"]] == ["acme/web", "acme/api"])
+wtr = Path(r["repos"][0]["worktree"])
+(wtr / "README.md").write_text("edited\n", encoding="utf-8")
+resp = _c.post("/github/session/chat-r/detach", data={"brain": BRAIN, "full_name": "acme/web"})
+body = resp.json()
+check("a refused detach answers 400 with code, risk and the repo, next to the sentence",
+      resp.status_code == 400 and body["ok"] is False and body["code"] == "work_at_risk" and body["risk"] == "dirty"
+      and body["full_name"] == "acme/web" and "acme/web" in body["error"])
+r = _c.get("/github/session/chat-r", params={"brain": BRAIN}).json()
+check("the refused repo and the other one are both still on the chat", [x["full_name"] for x in r["repos"]] == ["acme/web", "acme/api"])
+r = _c.post("/github/session/chat-r/detach", data={"brain": BRAIN, "full_name": "acme/web", "force": "1"}).json()
+check("force=1 is the person's 'remove anyway'", r["ok"] and r["detached"] and not wtr.exists())
+r = _c.post("/github/session/chat-r/repos", data={"brain": BRAIN, "repos": "acme/web"}).json()
+check("without add, repos still sets the whole list (the first message of a new chat)",
+      r["ok"] and [x["full_name"] for x in r["repos"]] == ["acme/web"])
+resp = _c.post("/github/session/chat-r/repos", data={"brain": BRAIN, "add": "acme/none"})
+check("an add that fails says why, without a code", resp.status_code == 400 and "code" not in resp.json() and "acme/none" in resp.json()["error"])
 
 fake.close()
 print()

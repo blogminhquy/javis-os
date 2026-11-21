@@ -91,6 +91,9 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   bên trái; model, mức suy nghĩ, vòng hạn mức bên phải. Ghim cả thư mục lẫn repo thì trên điện thoại hai chip chỉ còn
   icon; ghim một thứ thì hiện tên ("sử dụng cách 1 nếu là add 2 thứ cùng lúc ... nếu chỉ thư mục hoặc repo thì vẫn hiện
   như bây giờ").
+- **Viên ghim dưới khung chat có nút X (21/11):** "cho anh nút x rõ ràng khi ghim ở khung chat cũng như ở trên mục lựa
+  chọn". Viên thư mục và viên repo là một nhóm: tên mở bảng chọn, nút X ở cuối bỏ ghim trong một lần chạm. Nút X luôn
+  hiện (nền tròn nhạt), không chờ rê chuột, kể cả khi hai viên chỉ còn icon. Trang Nhóm theo cùng kiểu.
 - **Nút cài app:** luôn có nút "Cài lên điện thoại" trong menu; đã cài thì ẩn đi.
 
 ## 4. Màu, sáng và tối
@@ -156,6 +159,12 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   - kéo để đổi chỗ;
   - không có mũi tên lên xuống;
   - không có nút mắt ẩn hiện.
+- **Danh sách chọn nhiều mục, chống bấm nhầm (21/11, bảng chọn repo):** "tìm xem khi thao tác có dễ bị chọn nhầm
+  không". Mục đã chọn là một dòng KHÔNG bấm được, chỉ nút X ở cuối dòng mới bỏ; mục chưa chọn có dấu cộng, chạm một lần
+  là thêm. Không dùng kiểu "chạm cả dòng để bật tắt dấu tích": dấu tích trông như chọn một, và một lần chạm lạc là mất
+  mục. Thêm và bỏ là hai yêu cầu riêng, cái này lỗi không được hoàn lại cái kia.
+- **Việc bị chặn vì sẽ mất dữ liệu thì hỏi ngay tại dòng đó,** hai nút: giữ lại, hoặc vẫn làm (đỏ, nói rõ mất gì). Không
+  để một câu lỗi ở cuối bảng rồi hết đường đi.
 - **Ô tích có hiệu lực ngay,** không bắt bấm Lưu riêng.
 - **Ít lựa chọn thì dùng nút chọn tròn (radio),** đừng dùng hộp thả xuống.
 - **Nút nguy hiểm** (ngắt, xoá, chạy lại) đứng riêng, ở cuối, màu đỏ, không đặt sát nút hay bấm như nút Chép.
@@ -274,6 +283,7 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
 | Dải công cụ cạnh chọn model | bỏ hẳn | **chỉ 3 công cụ gần nhất** |
 | Tên vai trong team | trưởng nhóm, rồi điều phối | **phó nhóm** cho cộng sự dẫn team, **trưởng nhóm** là bạn (17/11) |
 | Chip repo GitHub ở khung chat | trong hàng nút, rồi một dải trên khung | **dưới khung, bên trái, cùng thư mục ghim**; model và Effort cũng xuống dưới, khung còn một hàng (21/11) |
+| Bảng chọn repo | chạm cả dòng để bật tắt dấu tích | **dòng đã chọn có nút X, dòng chưa chọn có dấu cộng**; viên dưới khung chat cũng có nút X (21/11) |
 | Việc team chờ bạn trong khung chat | thẻ dài ở đầu khung chat | **viên thuốc một dòng trên khung nhập** như việc nền ở chat chính, tự ẩn khi bạn đã nhắn sau lúc việc dừng (17/11) |
 
 ## 12. Trích lời chủ theo thời gian
@@ -330,3 +340,5 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
   - "khi đã nhắn ở khung chat xử lý vấn đề thông báo rồi thì phải tự tắt cái thông báo đó đi";
   - "mấy cái phần chia việc với Làm này cũng cần làm kiểu tag trông cho đẹp, chia việc trên 1 dòng thôi";
   - "thứ tự sẽ là Việc, thông tin, rồi mới đến team" (chưa có việc thì mở tab Thông tin).
+- **21/11:** "ở phần github repo cho anh nút x rõ ràng khi ghim ở khung chat cũng như ở trên mục lựa chọn, tìm xem khi
+  thao tác có dễ bị chọn nhầm không".
