@@ -2,7 +2,10 @@
  *
  * The owner signs in on their own browser, exports that site's cookies and pastes them here. The server
  * (server/login_vault.py) encrypts them; Javis then opens pages behind that sign-in (tool javis_login) and
- * page watches can use it. This page adds, checks, updates, switches off and deletes sign-ins. It never
+ * page watches can use it. Since 2026-11-21 Javis can also click and fill forms with a sign-in, in the
+ * Playwright browser: each card has its own switch for that, and the add form states the risk before the
+ * owner saves (owner: "khi add cookies nhớ cảnh báo người dùng có thể chịu rủi ro").
+ * This page adds, checks, updates, switches off and deletes sign-ins. It never
  * receives a cookie back from the server: the list carries names, domains and status only. A cookie file
  * (Cookie-Editor JSON, cookies.txt) is read in the browser and goes in as the same text a paste would.
  *
@@ -71,6 +74,9 @@
       '<span class="' + (lg.expired ? "lv-bad" : (soon ? "lv-warnt" : "")) + '">' + esc(expiryText(lg, now)) + "</span>",
     ];
     if (lg.uses) meta.push(esc(tw("lv.used", { n: lg.uses, t: fmtTime(lg.used_at) })));
+    if (lg.in_browser) meta.push(esc(tw("lv.in_browser")));
+    // Acting needs the sign-in itself to be on, so the second switch greys out with the first.
+    var canAct = !!lg.allow_ai;
     return '<div class="lv-card' + (lg.allow_ai ? "" : " off") + '" data-id="' + esc(lg.id) + '">'
       + '<div class="lv-top">'
       + '<div class="lv-name"><span class="lv-ic">' + ic("cookie") + "</span><b>" + esc(lg.name) + "</b></div>"
@@ -82,6 +88,9 @@
       + (lg.status !== "ok" && lg.status_note ? '<div class="lv-note">' + esc(lg.status_note) + "</div>" : "")
       + '<label class="lv-allow"><input type="checkbox" data-act="toggle"' + (lg.allow_ai ? " checked" : "") + ">"
       + '<span class="lv-sw"></span>' + esc(tw("lv.allow")) + "</label>"
+      + '<label class="lv-allow' + (canAct ? "" : " dis") + '"><input type="checkbox" data-act="toggle-act"'
+      + (lg.allow_act ? " checked" : "") + (canAct ? "" : " disabled") + ">"
+      + '<span class="lv-sw"></span>' + esc(tw("lv.allow_act")) + "</label>"
       + '<div class="lv-actions">'
       + '<button class="s-btn-ghost" data-act="check">' + ic("rotate-cw") + " " + esc(tw("lv.check")) + "</button>"
       + '<button class="s-btn-ghost" data-act="replace">' + ic("clipboard-paste") + " " + esc(tw("lv.update")) + "</button>"
@@ -89,6 +98,18 @@
       + "</div>"
       + '<div class="lv-slot"></div>'
       + "</div>";
+  }
+
+  /* The risk, said before the owner saves a new sign-in: one short line in the open (an account is at stake),
+     the detail behind (i). Keys in an array like INTRO, so every long line lands in the (i) block. */
+  var RISK = ["lv.risk_key", "lv.risk_act", "lv.risk_inject", "lv.risk_seen", "lv.risk_lock", "lv.risk_own"];
+  function riskMoreHtml() {
+    // Same shape as the guide's "Safety" and "Note" lines: a bold lead-in to scan, then the sentence.
+    return RISK.map(function (k) { return "<p><b>" + esc(tw(k + "_h")) + ":</b> " + esc(tw(k)) + "</p>"; }).join("");
+  }
+  function riskHtml() {
+    return '<div class="lv-risk" role="note">' + ic("triangle-alert") + '<div class="lv-risk-body"><span>' + esc(tw("lv.risk"))
+      + "</span>" + infoPair(riskMoreHtml(), tw("lv.risk_more")) + "</div></div>";
   }
 
   function pasteFormHtml(withName) {
@@ -103,6 +124,7 @@
       + esc(tw("lv.site_ph")) + '"></div>'
       + (withName ? '<div class="si-field"><label>' + esc(tw("lv.test_url")) + '</label><input data-f="test_url" placeholder="'
         + esc(tw("lv.test_url_ph")) + '"></div>' : "")
+      + (withName ? riskHtml() : "")
       + '<div class="lv-form-act"><button class="s-btn" data-f="save">' + esc(tw(withName ? "lv.save" : "lv.save_update")) + "</button>"
       + '<button class="s-btn-ghost" data-f="cancel">' + esc(tw("lv.cancel")) + "</button>"
       + '<span class="lv-msg" role="status"></span></div>'
@@ -249,6 +271,8 @@
       if (card) card.classList.remove("busy");
       if (!r.ok) { alert(r.error || tw("lv.err_net")); return r; }
       await load();
+      // Saved, but the session could not be taken out of Javis's browser: the owner must know it is still there.
+      if (r.warning) alert(r.warning);
       return r;
     }
 
@@ -286,6 +310,11 @@
         card.querySelector('[data-act="toggle"]').onchange = function () {
           act(lg.id, this.checked ? "allow" : "deny");
         };
+        card.querySelector('[data-act="toggle-act"]').onchange = function () {
+          // Switching it on lets Javis act for real with this account, so the owner confirms the risk first.
+          if (this.checked && !confirm(tw("lv.act_q", { ten: lg.name }))) { this.checked = false; return; }
+          act(lg.id, this.checked ? "allow_act" : "deny_act");
+        };
         card.querySelector('[data-act="check"]').onclick = function () { act(lg.id, "check"); };
         card.querySelector('[data-act="more"]').onclick = function () { moreMenu(card, lg); };
         card.querySelector('[data-act="replace"]').onclick = function () {
@@ -319,7 +348,7 @@
     load();
   }
 
-  var api_ = { mount: mount, introHtml: introHtml, cardHtml: cardHtml, expiryText: expiryText, needsSite: needsSite, pasteFormHtml: pasteFormHtml,
+  var api_ = { mount: mount, introHtml: introHtml, riskHtml: riskHtml, cardHtml: cardHtml, expiryText: expiryText, needsSite: needsSite, pasteFormHtml: pasteFormHtml,
     nameFromFile: nameFromFile };
   if (typeof window !== "undefined") window.JavisLoginVault = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;

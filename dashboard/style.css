@@ -4427,6 +4427,15 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .lv-allow { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; cursor: pointer; align-self: flex-start;
   min-height: 32px; }
 .lv-allow input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.lv-allow.dis { opacity: .5; cursor: default; }
+/* The risk of handing over a sign-in, said in the add form before Save: one line in the open, the detail behind (i). */
+.lv-risk { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--warn-line); background: var(--warn-wash); font-size: 16px; line-height: 1.5; color: var(--text); }
+.lv-risk > .ic { flex: none; margin-top: 4px; color: var(--warn-ink); }
+/* The sentence and its (i) share one left edge: side by side when there is room, the (i) under the sentence on a phone. */
+.lv-risk-body { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.lv-risk-body > span:first-child { flex: 1 1 240px; min-width: 0; }
+.lv-risk .info-i.with-text { padding-left: 0; }
 .lv-sw { position: relative; width: 38px; height: 22px; flex: none; border-radius: 999px; background: var(--bg3);
   border: 1px solid var(--border); transition: background .18s ease; }
 .lv-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
