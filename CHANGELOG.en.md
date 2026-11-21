@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.622.0] - 2026-11-22
+### Added
+- **Javis can click and fill forms with a stored cookie.** The Cookies page used to let Javis read pages only. Now Javis puts the sign-in into the browser (the Playwright connection) and works on the page like you would. The Playwright connection must be added on the Connections page.
+- **A risk warning when you add a cookie.** The add form says plainly that Javis acts for real with your account and that the risk is yours, with the detail behind the (i) button.
+- **Each card has a "Let Javis click and fill forms" switch.** Cookies stored earlier stay read-only until you turn it on. Switching it off or deleting the cookie also removes the session from the browser.
+### Security
+- **Customer chatbots cannot use the signed-in browser.** Once the browser holds one of your sign-ins, customer chatbots lose that browser connection.
+
 ## [0.621.0] - 2026-11-22
 ### Added
 - **A clear X to remove a repository.** The repository chip under the chat box has an X: one tap removes it. In the picker, every chosen repository has its own X too. The pinned folder chip next to it and the repository chip on the Teams page get the same X.
