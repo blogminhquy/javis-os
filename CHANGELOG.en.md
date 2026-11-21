@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.619.1] - 2026-11-21
+### Fixed
+- **The plan usage ring no longer stays red after switching models.** Picking another model, or finishing a normal turn, rereads the meters at once instead of keeping the old red for up to an hour.
+- **One model hitting its own limit no longer paints the whole plan red.** When only Opus or Fable is refused, the ring follows the 5-hour and weekly meters and a short line names that model.
+
 ## [0.619.0] - 2026-11-21
 ### Improved
 - **The chat box is one row, like Claude.** Inside it only +, the text box, the mic and send remain, all on one centre line.
