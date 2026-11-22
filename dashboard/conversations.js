@@ -2400,7 +2400,7 @@
         var ios = D.isIOS && D.isIOS();
         setNote(window.t(code === "denied" ? (ios ? "dict.denied_ios" : "dict.denied")
           : code === "service" ? (ios ? "dict.service_ios" : "dict.service") : code === "unsupported" ? "dict.unsupported"
-          : code === "nothing" ? "dict.nothing" : "dict.failed"), true);
+          : code === "nothing" ? (D.nothingKey ? D.nothingKey() : "dict.nothing") : "dict.failed"), true);
       }
     });
     _dict = dict;

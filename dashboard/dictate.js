@@ -82,6 +82,19 @@
    made at a speech bitrate (32 kbit/s Opus, not on iOS), about a quarter of the browser's default size, so a long
    dictation uploads faster. With localStorage "javis.debug.dictate" = "1" the console shows how long each step took.
 
+   2026-11-22: the phone path works like the ChatGPT and Claude apps, and stop gives the text back at once (owner: "ở
+   điện thoại ấn vào thì nó không chép được lời và không nhìn thấy cái sóng âm", "chức năng viết lại lời đang bị quá
+   chậm", ChatGPT and Claude transcribe smoothly with their own model and are fast on stop).
+   - The ear answer is remembered across page loads (localStorage "javis.dictate.ear") and asked as soon as the script
+     loads. A press made before the first answer of a fresh page used to count as "no ear", so a phone ran the browser's
+     recognizer (no meter, and in an iPhone app often no words at all) instead of recording for the model.
+   - Text an ear heard (a speech model: the ChatGPT plan, Groq, OpenAI, Gemini) is already what the ChatGPT app shows on
+     stop, so its rewrite is asked with `quick`: only a model that answers in a second may polish it, never a
+     subscription CLI, and the browser waits at most QUICK_POLISH_WAIT_MS. The browser's own words keep the full rewrite.
+   - opts.onHeard(kind) reports the recognizer's own events ("sound", "silence", "result"), so a screen with a level
+     meter can still draw a moving wave when a phone runs the recognizer alone and no mic stream exists to measure.
+   - nothingKey(): the note for "nothing heard". On a phone with no ear it says how to get one (sign in to ChatGPT).
+
    joinText and buildRun are pure so node tests can run them. */
 (function () {
   "use strict";
@@ -163,20 +176,36 @@
     } catch (e) { return undefined; }
   }
 
-  var earKind = null;   // cached answer of GET /voice/ear: "upload", "" (none) or null (not asked yet)
+  // The last answer of GET /voice/ear survives a reload (2026-11-22, see the note at the top). Only "upload" or "".
+  var EAR_KEY = "javis.dictate.ear";
+  function storedEar() {
+    try {
+      var v = typeof localStorage !== "undefined" ? localStorage.getItem(EAR_KEY) : null;
+      return v === "upload" || v === "" ? v : null;
+    } catch (e) { return null; }
+  }
+  function storeEar(v) {
+    try { if (typeof localStorage !== "undefined") localStorage.setItem(EAR_KEY, v); } catch (e) { /* private mode */ }
+  }
+
+  var earKind = storedEar();   // cached answer of GET /voice/ear: "upload", "" (none) or null (not asked yet)
   var earAt = 0;        // asked again after a minute, so a key added on the Models page counts without a reload
   function askEar() {
-    var fresh = earKind !== null && Date.now() - earAt < 60000;
+    var fresh = earKind !== null && earAt > 0 && Date.now() - earAt < 60000;
     if (fresh || typeof fetch !== "function") return Promise.resolve(earKind || "");
     return fetch("/voice/ear", { credentials: "same-origin" }).then(function (r) { return r.json(); })
-      .then(function (j) { earKind = j && j.kind === "upload" ? "upload" : ""; earAt = Date.now(); return earKind; },
+      .then(function (j) {
+        earKind = j && j.kind === "upload" ? "upload" : ""; earAt = Date.now(); storeEar(earKind); return earKind;
+      },
         // A network hiccup is not "the server has no ear": keep what we knew (0.419.0).
         function () { if (earKind === null) earKind = ""; earAt = Date.now(); return earKind; });
   }
 
   // Ask in the background so a press finds the answer already there and can open the mic inside the tap (0.419.0).
+  // 2026-11-22: right away as well, not only 1.5 seconds after load: a press in the first seconds needs it too.
   function warmEar() { try { askEar(); } catch (e) { /* the next press asks again */ } }
   if (typeof document !== "undefined" && typeof window !== "undefined" && window.addEventListener) {
+    setTimeout(warmEar, 0);
     window.addEventListener("load", function () { setTimeout(warmEar, 1500); });
     document.addEventListener("visibilitychange", function () { if (!document.hidden) warmEar(); });
   }
@@ -214,7 +243,8 @@
   // of the model that chat runs on;
   // onError(code) with "unsupported", "denied", "service" (0.419.0: the device's speech service is off), "failed" or "nothing" (0.339.0: the run ended with no word at all,
   // reported only when no other error was); onStream(stream | null) when given also opens the mic for a level meter
-  // even without an upload ear (0.230.0). Returns { start, stop, cancel, active, busy }.
+  // even without an upload ear (0.230.0); onHeard("sound" | "silence" | "result") the recognizer's own events
+  // (2026-11-22), for a wave when there is no mic stream to measure. Returns { start, stop, cancel, active, busy }.
   function create(opts) {
     opts = opts || {};
     var rec = null, media = null, stream = null, chunks = [], on = false, spoken = "", cancelled = false;
@@ -321,11 +351,17 @@
     }
 
     // The last step of every recording (2026-11-06): the model rewrites the sentence with the chat as context.
-    function polish(text) {
+    // `quick` (2026-11-22): the ear heard it, so only a model that answers in a second polishes it.
+    function polish(text, quick) {
       if (!text || opts.polish === false) return Promise.resolve(text);
       var ctx = [];
       try { ctx = typeof opts.context === "function" ? (opts.context() || []) : []; } catch (e) { ctx = []; }
-      return polishText(text, ctx);
+      return polishText(text, ctx, quick ? QUICK_POLISH_WAIT_MS : 0, quick);
+    }
+
+    function heard(kind) {
+      if (!opts.onHeard) return;
+      try { opts.onHeard(kind); } catch (e) { /* a drawing problem never stops the recording */ }
     }
 
     function finish() {
@@ -355,10 +391,11 @@
       heard.then(function (text) {
         if (debugOn()) { try { console.debug("[dictate] heard after " + (Date.now() - stopAt) + " ms"); } catch (x) {} }
         if (cancelled) return "";
-        // The ear's text when there is one, else what the browser heard.
+        // The ear's text when there is one (a speech model: quick polish only), else what the browser heard.
+        var byEar = !!text;
         text = text || spoken;
         if (!text) return "";
-        return polish(text);
+        return polish(text, byEar);
       }).then(function (text) {
         finishing = false;
         if (debugOn()) { try { console.debug("[dictate] ready after " + (Date.now() - stopAt) + " ms"); } catch (x) {} }
@@ -391,8 +428,12 @@
         }
         // The whole list, every time: words kept from earlier runs, then this run's text.
         spoken = joinText(kept, buildRun(e.results, android));
+        heard("result");
         if (opts.onText) opts.onText(spoken, false);
       };
+      // The recognizer's own sense of sound, for a wave on a phone that has no mic stream to measure (2026-11-22).
+      r.onsoundstart = r.onspeechstart = function () { if (rec === r && !cancelled) heard("sound"); };
+      r.onsoundend = r.onspeechend = function () { if (rec === r && !cancelled) heard("silence"); };
       r.onerror = function (e) {
         // The page is in the background: the browser cut the run, the owner did nothing wrong (2026-11-08).
         if (pageHidden() && !(e && e.error === "service-not-allowed")) { interrupted = true; return; }
@@ -548,11 +589,13 @@
   // How long the rewrite may take before the words go in as heard. A subscription brain (Claude Code, Codex) starts a
   // CLI for it, which takes a few seconds; an API key answers in about one.
   var POLISH_WAIT_MS = 25000;
+  // After an ear (2026-11-22): the server asks no CLI then, so a longer wait would only mean a stuck network.
+  var QUICK_POLISH_WAIT_MS = 12000;
 
   // The whole recording rewritten by the server (POST /stt/fix with `final`, server/transcript_fix.py): what the owner
   // meant, in context, not just a word list. `context` is a few recent messages of the chat. Any failure, odd answer or
   // no answer in time gives the words back unchanged. Shared by every chat screen's mic.
-  function polishText(text, context, waitMs) {
+  function polishText(text, context, waitMs, quick) {
     var raw = String(text == null ? "" : text);
     if (!raw.trim() || typeof fetch !== "function") return Promise.resolve(raw);
     var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -565,7 +608,7 @@
     try {
       req = fetch("/stt/fix", { method: "POST", credentials: "same-origin", signal: ctl ? ctl.signal : undefined,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: raw, final: true, context: (context || []).slice(-6) }) });
+        body: JSON.stringify({ text: raw, final: true, quick: !!quick, context: (context || []).slice(-6) }) });
     } catch (e) { clearTimeout(timer); return Promise.resolve(raw); }
     var asked = Promise.resolve(req).then(function (r) { return r.json(); })
       .then(function (d) { clearTimeout(timer); return !gaveUp && d && d.ok && d.text ? String(d.text) : raw; },
@@ -588,10 +631,18 @@
     return out;
   }
 
-  // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
+  // The i18n key of the "nothing was heard" note (2026-11-22). A phone with no ear ran the browser's recognizer, which
+  // an iPhone app often cannot use at all: the note says how to give the phone a model that listens. `nav` and `ear`
+  // are injectable for node tests.
+  function nothingKey(nav, ear) {
+    ear = ear === undefined ? earKind : ear;
+    return isPhone(nav) && ear !== "upload" ? "dict.nothing_phone" : "dict.nothing";
+  }
+
+  // The ear the last press found: "upload" (a model listens again on stop), "" (browser text only) or null.
   var api = { create: create, joinText: joinText, buildRun: buildRun, polishText: polishText,
     recentMessages: recentMessages, isPhoneUA: isPhoneUA, plan: plan, isPhone: isPhone, isIOS: isIOS,
-    isAndroid: isAndroid, recorderOptions: recorderOptions,
+    isAndroid: isAndroid, recorderOptions: recorderOptions, nothingKey: nothingKey,
     ear: function () { return earKind; }, warm: askEar };
   if (typeof window !== "undefined") window.JavisDictate = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -369,6 +369,7 @@
   "dict.denied": "Javis chưa được dùng micro. Bấm ổ khoá trên thanh địa chỉ, cho phép Micro rồi thử lại.",
   "dict.failed": "Ghi âm thành chữ bị lỗi, thử lại nhé.",
   "dict.nothing": "Chưa nghe ra chữ nào. Nói gần micro hơn rồi thử lại.",
+  "dict.nothing_phone": "Chưa nghe ra chữ nào. Đăng nhập ChatGPT ở trang Models để điện thoại chép lời ổn định.",
   "dict.no_ear": "Câu pha tiếng Anh sẽ nghe chuẩn hơn khi có API key Groq (miễn phí) hoặc OpenAI ở trang Models.",
   "call.connecting": "Đang kết nối",
   "call.listening": "Đang nghe",
