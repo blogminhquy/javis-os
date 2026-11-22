@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.4] - 2026-11-22
+### Improved
+- **Phone: model, Effort and the plan ring are three buttons again**, as on a computer, in slightly smaller text so the whole model name fits. Each button opens its own sheet.
+### Fixed
+- **The Effort frame sits even.** "Recommended" moved up beside the chosen level, so no empty line is left under the slider.
+- The model list no longer shows a cut-off strip of text above the search box while scrolling.
+
 ## [0.628.3] - 2026-11-22
 ### Security
 - **Every GitHub connect, account switch and disconnect goes in the security log.** It names the Javis account, the real IP and the device, and alerts the owner. A token renewal by Javis is not logged.
