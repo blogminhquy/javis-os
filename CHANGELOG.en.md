@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.5] - 2026-11-22
+### Improved
+- **The pinned folder and GitHub repos sit in a tray on top of the composer**, as in Claude's app. The tray has its own row, so a phone shows both names even when both are pinned.
+- Under the composer only the model, Effort and the plan usage ring remain.
+
 ## [0.628.4] - 2026-11-22
 ### Improved
 - **Phone: model, Effort and the plan ring are three buttons again**, as on a computer, in slightly smaller text so the whole model name fits. Each button opens its own sheet.
