@@ -47,7 +47,7 @@ conv.chat_type = "group"; conv.title = "Nhóm học viên";
 const inGroup = renderReaction({ metadata: { reaction: { emoji: "👍", target_text: "" } } }, "khach", "");
 check("in a group (the chat is named after the group) it says 'Khách'", inGroup.indexOf("Khách thả cảm xúc vào một tin") !== -1);
 check("the bot's own reaction still says the bot", renderReaction({ metadata: { reaction: { emoji: "👍" } } }, "bot", "").indexOf(vi["ht.bot"]) !== -1);
-check("veTin hands reaction rows to renderReaction", /if \(t\.message_type === "reaction"\) return renderReaction\(t, lop, ai\);/.test(CV));
+check("renderMessage hands reaction rows to renderReaction", /if \(t\.message_type === "reaction"\) return renderReaction\(t, side, who\);/.test(CV));
 ["ht.react_on", "ht.react_any", "ht.react_off", "ht.react_cust"].forEach(k => check(k + " in vi and en with the same placeholders",
   !!vi[k] && !!en[k] && JSON.stringify((vi[k].match(/\{\w+\}/g) || []).sort()) === JSON.stringify((en[k].match(/\{\w+\}/g) || []).sort())));
 check("CSS for the reaction line", CSS.indexOf(".ht-react-row") !== -1 && CSS.indexOf(".ht-react-emoji") !== -1);

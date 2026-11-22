@@ -88,7 +88,7 @@ check("ảnh chủ shop gửi (tin human, loại image) cũng thành ảnh", own
 const cv = fs.readFileSync(path.join(__dirname, "../../dashboard/conversations.js"), "utf8");
 check("hòm thư phân tích ảnh cho mọi tin không phải chữ, không chỉ tin của khách",
   /var wantMedia = t\.sender_type === "customer" \|\| \(t\.message_type && t\.message_type !== "text"\);/.test(cv)
-  && /if \(coMedia\) \{[\s\S]{0,200}?\} else if \(t\.sender_type === "ai" && window\.mdToHtml\)/.test(cv));
+  && /if \(hasMedia\) \{[\s\S]{0,200}?\} else if \(t\.sender_type === "ai" && window\.mdToHtml\)/.test(cv));
 const cr = fs.readFileSync(path.join(__dirname, "../../dashboard/chat-render.js"), "utf8");
 check("lightbox mở ảnh trang khác không gửi referrer (CDN Zalo chặn)", /img\.referrerPolicy = "no-referrer"/.test(cr));
 
