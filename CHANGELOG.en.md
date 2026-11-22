@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.1] - 2026-11-22
+### Security
+- **A lost password no longer lets a stranger create an account.** On a machine that had an owner, a missing password locks the account form for remote visitors. It opens only on the machine running Javis, or for 24 hours after `python tools/reset_auth.py`. A blocked try shows up as an alert in the security log.
+- **With `JAVIS_ADMIN_PASSWORD` set, the account comes back at once** when the password goes missing, without a restart. Turning sign-in off on purpose still holds until the next start.
+- **Saving settings can no longer erase the owner's password,** except through the sign-in off switch and the reset tool. A save that tries is blocked and raises an alert.
+- **The security log records the visitor's real IP** behind Cloudflare and proxies, not Cloudflare's. The wrong-password lockout also counts per real visitor, so someone guessing passwords no longer locks the owner out too.
+- Tests run on a machine in use no longer touch its real settings, brain folders or password.
+
 ## [0.628.0] - 2026-11-22
 ### Improved
 - **Reading a chat back, you can tell the AI from people at a glance.** Each agent message shows that agent's own icon, its name and an AI tag. A person's message shows a person icon and their real name.

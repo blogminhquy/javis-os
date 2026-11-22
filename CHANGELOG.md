@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.1] - 2026-11-22
+### Bảo mật
+- **Mất mật khẩu không còn mở cửa cho người lạ tạo tài khoản.** Máy đã từng có chủ mà mật khẩu biến mất thì trang tạo tài khoản bị khoá khi mở từ xa, chỉ mở trên chính máy chạy Javis, hoặc trong 24 giờ sau khi chạy `python tools/reset_auth.py`. Lần thử bị chặn có cảnh báo trong nhật ký bảo mật.
+- **Có `JAVIS_ADMIN_PASSWORD` thì tài khoản tự về lại ngay** khi mật khẩu bị mất, không phải đợi khởi động lại. Tắt đăng nhập có chủ ý thì vẫn giữ nguyên đến lần khởi động sau.
+- **Lưu cài đặt không còn xoá được mật khẩu của chủ,** trừ đúng nút tắt đăng nhập và công cụ đặt lại. Lần lưu nào định xoá sẽ bị chặn và có cảnh báo.
+- **Nhật ký bảo mật ghi IP thật của người truy cập** qua Cloudflare và proxy, không còn ghi IP của Cloudflare. Khoá đăng nhập sai nhiều lần cũng tính theo từng người thật, nên một người dò mật khẩu không khoá luôn cả chủ.
+- Test chạy trên máy đang dùng không còn đụng vào cài đặt, thư mục não hay mật khẩu thật.
+
 ## [0.628.0] - 2026-11-22
 ### Cải thiện
 - **Đọc lại hội thoại là biết ngay tin nào do AI, tin nào do người.** Dưới mỗi tin của agent có icon riêng của agent đó, tên agent và nhãn AI. Tin người nhắn có icon người kèm tên thật.
