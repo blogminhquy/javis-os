@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.2] - 2026-11-22
+### Sửa lỗi
+- **Thông báo có link không còn tràn viền.** Thẻ ở chuông chỉ hiện chữ của link, không in nguyên địa chỉ dài, và chữ dài vẫn xuống dòng trong thẻ.
+### Cải thiện
+- **Khung chat trên điện thoại thành hai dòng.** Ô chữ nằm trọn dòng trên, nút cộng, ghi âm và gửi ở dòng dưới. Máy tính giữ một hàng. Áp cho chat chính, Nhóm và Hội thoại.
+
 ## [0.628.1] - 2026-11-22
 ### Bảo mật
 - **Mất mật khẩu không còn mở cửa cho người lạ tạo tài khoản.** Máy đã từng có chủ mà mật khẩu biến mất thì trang tạo tài khoản bị khoá khi mở từ xa, chỉ mở trên chính máy chạy Javis, hoặc trong 24 giờ sau khi chạy `python tools/reset_auth.py`. Lần thử bị chặn có cảnh báo trong nhật ký bảo mật.

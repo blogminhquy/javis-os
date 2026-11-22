@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.2] - 2026-11-22
+### Fixed
+- **Notices with a link no longer run past the card.** A bell card shows the link's words, not the whole address, and a long word wraps inside the card.
+### Improved
+- **The phone chat box has two lines.** The text box takes the top line, with plus, mic and send on the line below. A computer keeps one row. Applies to the main chat, Teams and Conversations.
+
 ## [0.628.1] - 2026-11-22
 ### Security
 - **A lost password no longer lets a stranger create an account.** On a machine that had an owner, a missing password locks the account form for remote visitors. It opens only on the machine running Javis, or for 24 hours after `python tools/reset_auth.py`. A blocked try shows up as an alert in the security log.
