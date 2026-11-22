@@ -349,8 +349,10 @@ check("main: only the web chat Codex engine gets a warm key", src.count("ccli.wa
 check("main: the first output of a turn is timed", '"engine.first_output"' in src and "[turn timing]" in src)
 check("main: typing asks the pool to prewarm", 'action == "typing"' in src and "warm_pool.POOL.prewarm(" in src)
 check("main: warm processes close at shutdown", "await warm_pool.POOL.close_all()" in src)
-check("main: Claude sign-in (both ways) and sign-out drop the warm Claude processes",
-      src.count('warm_pool.POOL.drop_kind("claude")') == 3)
+# 2026-11-22: saving and removing the long-lived Claude token (claude_auth.TOKEN) drop them too: a warm `claude` keeps
+# the credentials it started with.
+check("main: Claude sign-in (both ways), the long-lived token (saved, removed) and sign-out drop the warm Claude processes",
+      src.count('warm_pool.POOL.drop_kind("claude")') == 5)
 check("main: ChatGPT disconnect drops the warm Codex processes", src.count('warm_pool.POOL.drop_kind("codex")') == 1)
 app = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8", errors="replace")
 check("dashboard: the composer sends a throttled typing hint", 'action: "typing"' in app and "20000" in app)
