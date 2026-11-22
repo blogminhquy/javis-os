@@ -15524,7 +15524,7 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         if hidden:
             quiet = True
         item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label, title=title,
-                         summary=summary or notice_text.summary(text, title or inbox._tieu_de(text)),
+                         summary=summary or notice_text.summary(text, title or inbox._title_from_text(text)),
                          read=bool(quiet), channel=kenh, brain=brain, dedup=dedup, routing=routing,
                          group=dec.get("group") or "", level=dec.get("level") or "", sig=dec.get("sig") or "",
                          filtered=filtered, why=dec.get("why") or "", hidden=hidden)
@@ -15606,7 +15606,7 @@ def _notify_decide(text, *, kind="answer", source="", quiet=False, level="", gro
     try:
         g = notify_policy.group_of(source=source, kind=kind, viec=viec, dedup=dedup, group=group)
         lv = notify_policy.level_of(level=level, quiet=quiet, group=g)
-        return notify_policy.decide(g, lv, title or inbox._tieu_de(text))
+        return notify_policy.decide(g, lv, title or inbox._title_from_text(text))
     except Exception as e:  # noqa: BLE001
         print(f"[notify policy] decide failed: {type(e).__name__}: {e}", file=sys.stderr)
         return {"group": group or "other", "level": level or ("info" if quiet else "important"), "sig": "",

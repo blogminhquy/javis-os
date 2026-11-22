@@ -226,8 +226,11 @@
   .ib-v5 .ht-msg { max-width: 82%; }
   .ib-v5 .ht-bubble { font-size: 16px; }
   .ib-v5 .ht-compose { padding: 6px 8px 10px; }
-  .ib-v5 .ib-cin { flex-wrap: nowrap; }
-  .ib-v5 .ib-cin textarea { flex-basis: auto; font-size: 16px; }
+  /* Two rows, the same as the main chat on a phone (owner, 22/11/2026): the box on its own line on top, mic, AI reply
+     and send as round icons on the right of the line below. */
+  .ib-v5 .ib-cin { flex-wrap: wrap; align-items: center; }
+  .ib-v5 .ib-cin textarea { flex-basis: 100%; font-size: 16px; }
+  .ib-v5 .ib-cin .ib-mic { margin-left: auto; }
   .ib-v5 .ib-cin .s-btn, .ib-v5 .ib-cin .s-btn-ghost { flex: none; width: 40px; min-height: 40px; padding: 0; justify-content: center;
     border-radius: 20px; }
   .ib-v5 .ib-cin .s-btn span, .ib-v5 .ib-cin .s-btn-ghost span { display: none; }

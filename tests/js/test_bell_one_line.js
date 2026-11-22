@@ -8,7 +8,10 @@ const path = require("path");
 const src = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "notifications.js"), "utf8");
 const m = src.match(/ {2}function dongPhu\(item\) \{[\s\S]*?\n {2}\}\n/);
 assert.ok(m, "dongPhu() is in notifications.js");
-const dongPhu = new Function(m[0] + "; return dongPhu;")();
+// dongPhu() reads a markdown link's words through plainLinks() (22/11/2026), so the helper is loaded with it.
+const helper = src.match(/ {2}function plainLinks\(s\) \{[\s\S]*?\n {2}\}\n/);
+assert.ok(helper, "plainLinks() is in notifications.js");
+const dongPhu = new Function(helper[0] + m[0] + "; return dongPhu;")();
 
 const T = "Em kiểm tra hướng dẫn và lượt nhắc đến hạn, rồi đối chiếu lịch sử khách trước khi gửi.";
 assert.strictEqual(dongPhu({ title: T, body: T }), "", "the owner's screenshot: title and text the same, one line");

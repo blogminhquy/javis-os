@@ -86,8 +86,10 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   ("chỉ ẩn ở điện thoại thôi, đừng ẩn ở máy tính").
 - **Khung chọn ở khung chat:** trên điện thoại, vòng hạn mức, model và mức suy luận gộp thành một viên, bấm mở một bảng
   (11/11).
-- **Khung chat kiểu Claude (21/11):** trong khung chỉ một hàng, nút +, ô chữ, ghi âm và gửi, chữ và các nút cùng một tâm
-  ("text khởi đầu ngang hàng và ở giữa luôn nút + với các nút cho gọn"). Dưới khung, ngoài viền: thư mục đang ghim và repo
+- **Khung chat kiểu Claude (21/11, sửa 22/11):** trên máy tính trong khung chỉ một hàng, nút +, ô chữ, ghi âm và gửi,
+  chữ và các nút cùng một tâm ("text khởi đầu ngang hàng và ở giữa luôn nút + với các nút cho gọn"). Trên điện thoại hai
+  dòng: ô chữ trọn dòng trên, dưới nó nút + bên trái, ghi âm và gửi bên phải ("ở điện thoại đẩy lên dòng bên trên thì sẽ
+  phù hợp hơn"). Áp cho cả chat chính, Nhóm và Hội thoại. Dưới khung, ngoài viền: thư mục đang ghim và repo
   bên trái; model, mức suy nghĩ, vòng hạn mức bên phải. Ghim cả thư mục lẫn repo thì trên điện thoại hai chip chỉ còn
   icon; ghim một thứ thì hiện tên ("sử dụng cách 1 nếu là add 2 thứ cùng lúc ... nếu chỉ thư mục hoặc repo thì vẫn hiện
   như bây giờ").
@@ -282,6 +284,7 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
 | Sao ưu tiên | 3 sao một ngày | **1 sao** |
 | Dải công cụ cạnh chọn model | bỏ hẳn | **chỉ 3 công cụ gần nhất** |
 | Tên vai trong team | trưởng nhóm, rồi điều phối | **phó nhóm** cho cộng sự dẫn team, **trưởng nhóm** là bạn (17/11) |
+| Khung chat trên điện thoại | một hàng: +, ô chữ, ghi âm, gửi (21/11) | **hai dòng: ô chữ ở trên, + bên trái và ghi âm, gửi bên phải ở dưới**; máy tính giữ một hàng (22/11) |
 | Chip repo GitHub ở khung chat | trong hàng nút, rồi một dải trên khung | **dưới khung, bên trái, cùng thư mục ghim**; model và Effort cũng xuống dưới, khung còn một hàng (21/11) |
 | Bảng chọn repo | chạm cả dòng để bật tắt dấu tích | **dòng đã chọn có nút X, dòng chưa chọn có dấu cộng**; viên dưới khung chat cũng có nút X (21/11) |
 | Việc team chờ bạn trong khung chat | thẻ dài ở đầu khung chat | **viên thuốc một dòng trên khung nhập** như việc nền ở chat chính, tự ẩn khi bạn đã nhắn sau lúc việc dừng (17/11) |
@@ -342,3 +345,5 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
   - "thứ tự sẽ là Việc, thông tin, rồi mới đến team" (chưa có việc thì mở tab Thông tin).
 - **21/11:** "ở phần github repo cho anh nút x rõ ràng khi ghim ở khung chat cũng như ở trên mục lựa chọn, tìm xem khi
   thao tác có dễ bị chọn nhầm không".
+- **22/11:** chữ gợi ý ô chat cùng hàng với nút + và ghi âm "không phù hợp ... ở điện thoại đẩy lên dòng bên trên thì sẽ
+  phù hợp hơn"; thông báo có link dài "bị tràn viền".

@@ -56,6 +56,13 @@ check("the block gives title, line and act", meta == {"title": "Đã nhắc 2 kh
 check("without the block the headline is the first reporting line",
       NT.headline(clean) == "Đã gửi 2 tin nhắc cho khách đến hạn hôm nay.", NT.headline(clean))
 check("the summary is the next reporting line", NT.summary(clean, NT.headline(clean)) == "Chị Lan: gia hạn")
+# Owner, 22/11/2026: a raw markdown link in a bell card ran its unbroken URL past the card's edge. A card line keeps
+# only the link's words.
+_link = "Xong.\nVào [Javis OS K8 Buổi 2](https://www.google.com/calendar/event?eid=a2E4dTM4Zm5z) lúc 20:00"
+check("a card line keeps a markdown link's words only", NT.summary(_link, "Xong.") == "Vào Javis OS K8 Buổi 2 lúc 20:00",
+      NT.summary(_link, "Xong."))
+check("a headline keeps a markdown link's words only",
+      NT.headline("[Báo cáo tuần](https://x.io/r?id=1) đã xong") == "Báo cáo tuần đã xong")
 broken, m2 = NT.split_block("Kết quả\n<!-- JAVIS_NOTIFY: {not json} -->")
 check("a broken block is removed and ignored", broken == "Kết quả" and m2 == {}, (broken, m2))
 check("act true is read", NT.split_block('x <!-- JAVIS_NOTIFY: {"title":"t","act":true} -->')[1]["act"] is True)

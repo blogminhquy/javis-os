@@ -38,6 +38,7 @@ import uuid
 from pathlib import Path
 
 from config import STATE_DIR
+from notice_text import plain_links  # a title keeps a markdown link's words only (22/11/2026)
 
 STORE = STATE_DIR / "inbox.json"
 
@@ -91,7 +92,7 @@ def _save(d: dict) -> None:
         print(f"[inbox] ghi {STORE.name} lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-def _tieu_de(text: str) -> str:
+def _title_from_text(text: str) -> str:
     """Rút tiêu đề từ chính nội dung: dòng đầu CÓ CHỮ, bỏ dấu markdown.
 
     Người gọi (`_notify_owner`) chỉ có một khối văn bản, không có trường tiêu đề riêng.
@@ -107,7 +108,7 @@ def _tieu_de(text: str) -> str:
         s = dong.strip().lstrip("#*->•").strip()
         # Chỉ gỡ KÝ HIỆU nhấn (đậm, nghiêng dạng __, mã inline), không đụng dấu câu: một
         # tiêu đề mất dấu hai chấm hay dấu ngoặc thì đọc còn khó hơn là thừa hai ngôi sao.
-        s = re.sub(r"\*\*|__|`", "", s).strip()
+        s = plain_links(re.sub(r"\*\*|__|`", "", s)).strip()
         if s:
             return s[:MAX_TITLE]
     import localefmt
@@ -141,7 +142,7 @@ def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "
     item = {
         "id": uuid.uuid4().hex[:12],
         "kind": kind if kind in KINDS else "answer",
-        "title": (str(title).strip()[:MAX_TITLE] or _tieu_de(text)) if title else _tieu_de(text),
+        "title": (plain_links(title).strip()[:MAX_TITLE] or _title_from_text(text)) if title else _title_from_text(text),
         "body": str(text or "").strip()[:MAX_BODY],
         "ts": time.time(),
         "read": bool(read),

@@ -43,6 +43,17 @@ check("CSS: the card is ONE row (+, text, mic and send), 24px corners before the
   && css.includes(".hud-voice > .voice-input { grid-column: 2; grid-row: 2; min-height: 40px; padding: 8px 4px; line-height: 24px; }")
   && css.includes(".hud-voice .cp-plus { grid-column: 1; grid-row: 2; margin-bottom: 4px; }")
   && css.includes(".hud-voice .cp-right { grid-column: 3; grid-row: 2; display: flex; align-items: center; gap: 6px; min-height: 40px; }"));
+// Owner, 22/11/2026 ("ở điện thoại đẩy lên dòng bên trên thì sẽ phù hợp hơn"): on a phone the text box takes the whole
+// top line, so its placeholder stays on one line, and "+", mic and send sit on the line below. The rules above (one row)
+// stay for a computer; the phone block overrides them.
+const phoneCard = (css.match(/\n@media \(max-width: 860px\) \{\n  \.hud-voice \{[\s\S]*?\n\}/) || [""])[0];
+check("CSS: a phone shows TWO rows, the box alone on top, + on the left and mic and send on the right below",
+  phoneCard.includes(".hud-voice > .voice-input { grid-column: 1 / -1; grid-row: 2; padding: 8px 6px 4px; }")
+  && phoneCard.includes(".hud-voice .cp-plus { grid-column: 1; grid-row: 3; align-self: center; margin-bottom: 0; }")
+  && phoneCard.includes(".hud-voice .cp-right { grid-column: 3; grid-row: 3; }"));
+check("CSS: dictating still wins on a phone (bar on the full second line), its rules outrank the phone ones",
+  css.includes(".hud-voice.dictating .cp-right { grid-column: 1 / -1; grid-row: 3; }")
+  && css.includes(".hud-voice.dictating > .voice-input { grid-column: 1 / -1; }"));
 check("CSS: the row under the card hangs below its border and the card keeps room for it",
   /\.cp-under \{ position: absolute; top: calc\(100% \+ 2px\);/.test(css) && /margin: 4px 16px calc\(4px \+ var\(--cp-under-h\)\);/.test(css));
 // 21/11/2026 (owner: "cho anh nút x rõ ràng khi ghim ở khung chat"): each chip is a group, name plus X. Icons only on a
