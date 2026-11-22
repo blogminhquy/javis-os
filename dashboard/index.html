@@ -621,11 +621,15 @@
 
     <!-- ===== Composer: ONE rounded card in the style of Claude (0.153.0) =====
          Owner, 21/11/2026 ("sắp xếp lại khung giống của Claude"): the card is ONE row, "+", the text box, then mic and
-         send, all on one centre line (attached files above it). Under the card, outside its border, #cpUnder: the
-         pinned folder and the GitHub repos on the left (icons only on a phone when both are pinned), model, Effort
-         and the plan usage ring on the right. Popovers open just above the card (model-picker.js placePops).
+         send, all on one centre line (attached files above it). On top of the card, a tray (#cpCtx, 22/11/2026): the
+         pinned folder and the GitHub repos. Under the card, outside its border, #cpUnder: model, Effort and the plan
+         usage ring on the right. Popovers open just above the card (model-picker.js placePops).
          Phone (2026-11-11): ring, model and effort are drawn as one pill and open one sheet from the bottom. -->
     <div class="hud-voice" id="hudVoice">
+      <!-- The tray ON TOP of the card (owner, 22/11/2026: "đưa folder và repo github lên khung trên ... dễ nhìn hơn trên
+           điện thoại"): what this chat works on, the pinned folder then the GitHub repos (their two scripts
+           fill it). Hidden while nothing is pinned; with its own full row both names show on a phone. -->
+      <div class="cp-ctx" id="cpCtx" hidden></div>
       <button id="voiceFocusResume" class="voice-focus-resume" hidden></button>
       <div class="attach-bar" id="attachBar"></div>
       <input type="file" id="fileInput" multiple style="display:none">
@@ -671,10 +675,9 @@
           </button>
         </div>
       </div>
-      <!-- Under the card (owner, 21/11/2026): what this chat works on (the pinned folder, then the GitHub repos; their
-           scripts fill #cpCtx) on the left, model, Effort and the plan usage ring on the right. -->
+      <!-- Under the card (owner, 21/11/2026): model, Effort and the plan usage ring on the right. The pinned folder and
+           the repos moved to the tray on top of the card (#cpCtx, 22/11/2026). -->
       <div class="cp-under" id="cpUnder">
-        <div class="cp-ctx" id="cpCtx" hidden></div>
         <div class="cp-chips" id="cpChips">
           <button type="button" class="mb-chip" id="mbOpen" title="Đổi model / nhà cung cấp" data-i18n-title="mb.open">
             <span class="mb-dot"></span>

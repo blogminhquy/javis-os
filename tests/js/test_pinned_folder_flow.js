@@ -77,9 +77,9 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
   let e = makeEnv();
   await e.api.pin("projects/shop");
   check("pin on an empty chat is held: chip shows, no request sent", e.chip() && /shop/.test(e.chip().innerHTML) && e.calls.length === 0);
-  // 21/11/2026 (owner): the folder sits under the composer card, first in #cpCtx, before the GitHub repos; with both
-  // pinned the row is marked .is-two, and a phone then shows both as icons only.
-  check("the folder chip lands first in the row under the card, before the repo chip",
+  // The folder sits first in #cpCtx (a tray on top of the composer card since 22/11/2026), before the GitHub repos;
+  // with both pinned the tray is marked .is-two.
+  check("the folder chip lands first in the tray, before the repo chip",
     e.host.children[0] === e.chip() && e.host.children[1] && e.host.children[1].id === "ghChip" && e.host.hidden === false);
   check("folder and repos together mark the row .is-two", e.host.classList.contains("is-two"));
   check("claimPending without a session id returns null and keeps the pin", e.api.claimPending(null) === null && e.calls.length === 0);

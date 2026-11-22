@@ -1659,7 +1659,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
      (#cpUnder) hangs below the border, so the bottom margin keeps its room (--cp-under-h). Owner, 21/11/2026 ("còn thừa
      quá nhiều khung bên dưới"): that room is now exactly the row (2px gap + 34px chips) and only 4px more below it. */
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; column-gap: 6px; row-gap: 0;
-  --cp-under-h: 36px;
+  --cp-under-h: 36px; --cp-ctx-h: 40px;
   margin: 4px 16px calc(4px + var(--cp-under-h)); padding: 6px 8px;
   border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
   transition: border-color .15s;
@@ -1673,15 +1673,25 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* Under the card, outside its border: what the chat works on on the left, model, Effort and usage on the right. */
 .cp-under { position: absolute; top: calc(100% + 2px); left: -1px; right: -1px; display: flex; align-items: center;
   justify-content: space-between; gap: 8px; min-width: 0; padding: 0 4px; }
+/* The tray ON TOP of the card (owner, 22/11/2026: "đưa folder và repo github lên khung trên kiểu như này sẽ dễ nhìn hơn
+   trên điện thoại", Claude's app): the pinned folder and the GitHub repos on a grey tab that sits on the card's top
+   border, a little narrower than the card. It hangs above the border (absolute, outside the grid), so the card keeps
+   its room with a top margin while the tray shows (--cp-ctx-h). A full row of its own: both names fit on a phone. */
 .cp-ctx { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
 .cp-ctx[hidden] { display: none; }
+.hud-voice > .cp-ctx { position: absolute; grid-column: auto; grid-row: auto; bottom: calc(100% + 1px); left: 12px; right: 12px;
+  height: var(--cp-ctx-h); padding: 0 6px; border: 1px solid var(--border); border-bottom: 0;
+  border-radius: 16px 16px 0 0; background: var(--bg3); overflow: hidden; }
+.hud-voice:has(> .cp-ctx:not([hidden])) { margin-top: calc(4px + var(--cp-ctx-h)); }
+.hud-voice:has(> .cp-ctx:not([hidden])) > .voice-focus-resume { bottom: calc(100% + 6px + var(--cp-ctx-h)); }
 .cp-under .cp-chips { flex: none; margin-left: auto; gap: 2px; }
-.cp-under .cp-ctx .cp-pin { height: 34px; font-size: 14px; border-color: transparent;
+.hud-voice > .cp-ctx .cp-pin { flex: 0 1 auto; height: 34px; font-size: 14px; border-color: transparent;
   background: transparent; color: var(--text2); max-width: 100%; min-width: 0; }
-.cp-under .cp-ctx .cp-pin-open { gap: 6px; }
-.cp-under .cp-ctx .cp-pin-open:hover, .cp-under .cp-ctx .cp-pin-open:focus-visible { background: var(--bg3); }
-.cp-under .cp-ctx .cp-pin.gh-chip { max-width: 100%; }
-.cp-under .cp-ctx .gh-chip-br { font-size: 13px; max-width: 140px; }
+.hud-voice > .cp-ctx .cp-pin-open { gap: 6px; }
+.hud-voice > .cp-ctx .cp-pin-open:hover, .hud-voice > .cp-ctx .cp-pin-open:focus-visible { background: var(--bg2); }
+.hud-voice > .cp-ctx .cp-pin .cp-pin-x .cp-ic { background: var(--bg2); }
+.hud-voice > .cp-ctx .cp-pin.gh-chip { max-width: 100%; }
+.hud-voice > .cp-ctx .gh-chip-br { font-size: 13px; max-width: 140px; }
 .cp-under .mb-chip, .cp-under .cp-eff { height: 34px; padding: 0 10px; font-size: 14px; background: transparent;
   border-color: transparent; font-weight: 500; }
 .cp-under .mb-chip { color: var(--text); }
@@ -1894,13 +1904,10 @@ textarea.sug-ghosted::placeholder { color: transparent; }
   .hud-voice .cp-plus { grid-column: 1; grid-row: 3; align-self: center; margin-bottom: 0; }
   .hud-voice .cp-right { grid-column: 3; grid-row: 3; }
   .cp-under { padding: 0 2px; }
-  /* Folder AND repos pinned (owner, 21/11/2026): two names do not fit beside the model pill, so both chips show their
-     icon only. The names stay in their tooltip and their panel, a tap away. One pin alone keeps its name.
-     Each icon keeps its X (same day: "cho anh nút x rõ ràng"), so a pin never needs its panel to come off. */
-  .cp-ctx.is-two .cp-pin { flex: none; }
-  .cp-ctx.is-two .cp-pin-open { width: 36px; padding: 0; justify-content: center; }
-  .cp-ctx.is-two .cp-pin-open > span, .cp-ctx.is-two .cp-pin > .gh-st { display: none; }
-  .cp-ctx.is-two .cp-pin-open > svg { width: 18px; height: 18px; }
+  /* The tray on top (22/11/2026) has a row of its own, so folder AND repos keep their names on a phone (the icons-only
+     rule of 21/11 was for the row under the card, shared with the model pill). Two long names split the row and each
+     ends in "…"; the full name stays in its tooltip and panel. Each chip keeps its X. */
+  .hud-voice > .cp-ctx { left: 10px; right: 10px; padding: 0 4px; }
   .hud-voice .mb-pop { width: min(340px, calc(100vw - 32px)); }
 
   /* THREE CHIPS (owner, 22/11/2026: "ở điện thoại có đủ không gian ... thành 3 nút [như] trên máy tính", text "nhỏ hơn
