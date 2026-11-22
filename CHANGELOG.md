@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.627.0] - 2026-11-22
+### Thêm mới
+- **Tài khoản Claude phụ cũng dùng token dài hạn.** Nút **Thêm tài khoản** và **Đăng nhập lại** trên thẻ Claude Code nay lấy token 1 năm cho riêng tài khoản đó (link rồi dán mã, như tài khoản 1), nên tài khoản phụ không còn bị đăng xuất giữa chừng. Token lưu mã hoá trong thư mục của tài khoản, Gỡ tài khoản là xoá luôn. Mỗi lượt chạy trên tài khoản nào thì dùng đúng token của tài khoản đó.
+- **Dòng tài khoản hiện ngày hết hạn token,** và trước một tuần chuông nhắc mỗi ngày một lần, kèm tên tài khoản.
+### Cải thiện
+- **Số ngày còn lại của token làm tròn lên:** token vừa lấy hiện "còn 365 ngày" thay vì 364.
+
 ## [0.626.0] - 2026-11-22
 ### Thêm mới
 - **Claude Code kết nối bằng token dài hạn, chỉ một cổng.** Thẻ Claude Code ở trang Models nay chỉ còn nút **Kết nối Claude**: Javis tự chạy `claude setup-token`, hiện link, bạn đăng nhập claude.ai và dán mã, xong là Claude Code chạy bằng token đó. Phiên đăng nhập kiểu cũ có thể hết hạn giữa chừng ("this login reached its time limit") và làm bot, việc nền dừng lại; token thì không bị đăng xuất giữa chừng. Có nút **Dán token** cho token tạo ở máy khác. Token được mã hoá khi lưu và không bao giờ gửi ra trình duyệt.

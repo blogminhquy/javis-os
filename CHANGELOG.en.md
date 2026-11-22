@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.627.0] - 2026-11-22
+### Added
+- **Extra Claude accounts use a long-lived token too.** **Add an account** and **Sign in again** on the Claude Code card now get a one-year token for that account alone (a link, then the code, as for account 1), so an extra account is no longer signed out midway. The token is kept encrypted in the account's folder and removing the account removes it. A turn on an account runs on that account's own token.
+- **An account's row shows when its token ends,** and a week before, the bell reminds you once a day, naming the account.
+### Improved
+- **A token's days left are rounded up:** a fresh token reads "365 days left", not 364.
+
 ## [0.626.0] - 2026-11-22
 ### Added
 - **Claude Code connects with a long-lived token, one way in.** The Claude Code card on the Models page now has a single **Connect Claude** button: Javis runs `claude setup-token`, shows the link, you sign in to claude.ai and paste the code, and Claude Code runs on that token. The old sign-in could run out midway ("this login reached its time limit") and stop bots and background work; the token is never signed out midway. **Paste a token** takes one made on another machine. The token is stored encrypted and never sent to the browser.
