@@ -768,7 +768,7 @@
   "models.tok_ph": "Dán token (sk-ant-oat01-…)",
   "models.tok_save": "Lưu token",
   "models.tok_saved": "Token ••••{tail}",
-  "models.tok_soon": "hết hạn {ngay}, bấm Lấy token mới",
+  "models.tok_until": "hết hạn {ngay} (còn {n} ngày)",
   "models.tok_expired": "Token đã hết hạn, lấy token mới",
   "models.tok_bad": "Token không hợp lệ.",
   "models.tok_s1": "Mở link này, đăng nhập claude.ai để tạo token:",

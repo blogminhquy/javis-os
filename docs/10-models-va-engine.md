@@ -96,7 +96,7 @@ Khi đã kết nối bằng token, card có các nút **Lấy token mới**, **D
 
 **Dán token làm ở nơi khác.** Nút nhỏ **Dán token** nhận một token bạn đã tạo bằng lệnh `claude setup-token` trên bất kỳ máy nào (token bắt đầu bằng `sk-ant-oat01-`). Dán vào ô rồi bấm **Lưu token**. Trên **Windows** không có bước tự động nên thẻ không có nút Kết nối Claude: mở terminal, gõ `claude setup-token`, làm theo, rồi dán token vào ô trên thẻ.
 
-**Token dùng được 1 năm.** Anthropic cho mỗi token chạy một năm, Javis không đổi được điều đó. Thẻ không đếm ngược; chỉ trong hai tuần cuối thẻ mới báo token sắp hết hạn kèm ngày, và từ một tuần trước Javis để một thông báo mỗi ngày trong chuông. Bấm **Lấy token mới** trên thẻ, đăng nhập claude.ai thêm một lần là có thêm một năm. Token vẫn chạy bằng gói Claude của bạn, nên lưu ý về chạy nền trên gói vẫn giữ nguyên.
+**Token dùng được 1 năm.** Anthropic cho mỗi token chạy một năm, Javis không đổi được điều đó. Thẻ hiện ngày hết hạn và số ngày còn lại, chuyển màu vàng trong hai tuần cuối, và từ một tuần trước Javis để một thông báo mỗi ngày trong chuông. Bấm **Lấy token mới** trên thẻ, đăng nhập claude.ai thêm một lần là có thêm một năm. Token vẫn chạy bằng gói Claude của bạn, nên lưu ý về chạy nền trên gói vẫn giữ nguyên.
 
 **Máy còn chạy bằng đăng nhập cũ.** Máy đã đăng nhập trước đợt đổi này vẫn chạy bình thường cho tới khi phiên đăng nhập đó hết hạn. Thẻ của máy đó hiện **● Đã kết nối** kèm nút **Chuyển sang token dài hạn**: bấm vào là đi đúng các bước link và mã ở trên để lấy token dùng 1 năm.
 
@@ -509,7 +509,7 @@ Từ 0.42.1 trở về trước có lỗi ở đúng chỗ này: chỉ mạch c�
 | **Kết nối Claude** | Card Claude Code (chưa kết nối) | Javis chạy `claude setup-token` và hiện link đăng nhập claude.ai để lấy token dài hạn (dùng 1 năm) |
 | **Xác nhận mã** | Card Claude Code, sau khi bấm Kết nối Claude | Gửi mã trang claude.ai đưa cho bạn |
 | **Dán token** / **Lưu token** | Card Claude Code | Dán token làm bằng `claude setup-token` ở nơi khác (bắt đầu bằng `sk-ant-oat01-`) rồi lưu |
-| **Token ••••** | Card Claude Code (đã kết nối bằng token) | Đang chạy bằng token dài hạn; hai tuần cuối ghi thêm ngày hết hạn |
+| **Token ••••** | Card Claude Code (đã kết nối bằng token) | Đang chạy bằng token dài hạn, kèm ngày hết hạn và số ngày còn lại |
 | **Lấy token mới** | Card Claude Code (đã kết nối bằng token) | Đăng nhập claude.ai thêm một lần để có token mới, dùng thêm 1 năm |
 | **Chuyển sang token dài hạn** | Card Claude Code (máy còn đăng nhập kiểu cũ) | Lấy token dài hạn thay cho phiên đăng nhập cũ có thể hết hạn giữa chừng |
 | **Ngắt** | Card Claude Code | Ngắt kết nối, Javis quên luôn token |

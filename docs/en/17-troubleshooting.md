@@ -86,7 +86,7 @@ When you run the Claude engine, Javis runs Claude Code on a **long-lived token**
 
 A machine still on the old sign-in shows a **Switch to a long-lived token** button on the card: click it so work is not stopped midway. Javis keeps the token (encrypted) in its own settings, so it survives updates. See also [Models and engines](10-models-and-engines.md).
 
-**The token expires soon or has expired.** Anthropic lets each token run for a year. In the last two weeks the Claude Code card shows the expiry date; from a week before, Javis puts one notice a day in the bell. Click **Get a new token** on the card and sign in to claude.ai once more for another year.
+**The token expires soon or has expired.** Anthropic lets each token run for a year. The Claude Code card always shows the expiry date and turns amber in the last two weeks; from a week before, Javis puts one notice a day in the bell. Click **Get a new token** on the card and sign in to claude.ai once more for another year.
 
 ## The Files page errors at "Loading..."
 

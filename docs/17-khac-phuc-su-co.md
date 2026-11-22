@@ -86,7 +86,7 @@ Khi bạn chạy engine Claude, Javis chạy Claude Code bằng một **token d�
 
 Máy còn chạy bằng kiểu đăng nhập cũ thì thẻ hiện nút **Chuyển sang token dài hạn**: bấm vào để khỏi bị dừng giữa chừng. Javis lưu token (đã mã hoá) trong cài đặt của chính nó nên không mất khi update. Xem thêm [Models & engine](10-models-va-engine.md).
 
-**Token sắp hết hạn hoặc đã hết hạn.** Anthropic cho mỗi token dùng 1 năm. Hai tuần cuối, thẻ Claude Code báo ngày hết hạn; từ một tuần trước, Javis để một thông báo mỗi ngày trong chuông. Bấm **Lấy token mới** trên thẻ, đăng nhập claude.ai thêm một lần là có thêm một năm.
+**Token sắp hết hạn hoặc đã hết hạn.** Anthropic cho mỗi token dùng 1 năm. Thẻ Claude Code luôn hiện ngày hết hạn và chuyển màu vàng trong hai tuần cuối; từ một tuần trước, Javis để một thông báo mỗi ngày trong chuông. Bấm **Lấy token mới** trên thẻ, đăng nhập claude.ai thêm một lần là có thêm một năm.
 
 ## Trang Tệp tin báo lỗi ở "Đang tải..."
 

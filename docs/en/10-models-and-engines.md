@@ -96,7 +96,7 @@ Once connected on a token, the card has **Get a new token**, **Paste a token** a
 
 **A token made elsewhere.** The small **Paste a token** button takes a token you made with `claude setup-token` on any machine (it starts with `sk-ant-oat01-`). Paste it into the box and click **Save token**. On **Windows** the automatic step is not available, so the card has no Connect Claude button: open a terminal, run `claude setup-token`, follow it, then paste the token into the box on the card.
 
-**The token lasts one year.** Anthropic lets each token run for a year, and Javis cannot change that. The card shows no countdown; only in the last two weeks does it say the token expires soon, with the date, and from a week before Javis puts one notice a day in the bell. Click **Get a new token** on the card and sign in to claude.ai once more for another year. The token still runs your Claude plan, so the note about background work on a plan still applies.
+**The token lasts one year.** Anthropic lets each token run for a year, and Javis cannot change that. The card shows the expiry date and the days left, turns amber in the last two weeks, and from a week before Javis puts one notice a day in the bell. Click **Get a new token** on the card and sign in to claude.ai once more for another year. The token still runs your Claude plan, so the note about background work on a plan still applies.
 
 **A machine still on the old sign-in.** A machine signed in before this change keeps working until that sign-in runs out. Its card shows **● Connected** with a **Switch to a long-lived token** button, which takes the same link and code steps above to get a one-year token.
 
@@ -506,7 +506,7 @@ Up to and including 0.42.1 there was a bug in exactly this place: only ChatGPT/C
 | **Connect Claude** | Claude Code card (not connected) | Javis runs `claude setup-token` and shows a claude.ai sign-in link to get a long-lived token (lasts a year) |
 | **Confirm code** | Claude Code card, after clicking Connect Claude | Sends the code the claude.ai page gave you |
 | **Paste a token** / **Save token** | Claude Code card | Paste a token made with `claude setup-token` elsewhere (it starts with `sk-ant-oat01-`) and save it |
-| **Token ••••** | Claude Code card (connected on a token) | Runs on the long-lived token; in the last two weeks it adds the expiry date |
+| **Token ••••** | Claude Code card (connected on a token) | Runs on the long-lived token, with its expiry date and the days left |
 | **Get a new token** | Claude Code card (connected on a token) | Sign in to claude.ai once more for a new token, good for another year |
 | **Switch to a long-lived token** | Claude Code card (machine still on the old sign-in) | Get a long-lived token in place of the old sign-in, which can run out midway |
 | **Disconnect** | Claude Code card | Disconnects, and Javis forgets the token |

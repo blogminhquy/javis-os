@@ -768,7 +768,7 @@
   "models.tok_ph": "Paste the token (sk-ant-oat01-…)",
   "models.tok_save": "Save token",
   "models.tok_saved": "Token ••••{tail}",
-  "models.tok_soon": "expires {ngay}, click Get a new token",
+  "models.tok_until": "expires {ngay} ({n} days left)",
   "models.tok_expired": "The token has expired, get a new one",
   "models.tok_bad": "That token is not valid.",
   "models.tok_s1": "Open this link and sign in to claude.ai to make the token:",

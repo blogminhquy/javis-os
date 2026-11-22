@@ -5381,11 +5381,13 @@
     const disc = inOrd ? "" : `<button class="gcard-btn ghost danger" type="button" id="cliLogout">${esc(t("models.disconnect"))}</button>`;
     const pasteBtn = auto ? `<button class="gcard-btn ghost" type="button" data-tok-paste="1">${esc(t("models.tok_paste"))}</button>` : "";
     if (mode === "saved") {
-      // Owner 22/11/2026: "connected is connected", no countdown. Anthropic ends the token after a year and only a new
-      // sign-in makes another, so the card speaks up only in the last two weeks (the bell does a week before).
+      // Anthropic ends each token after a year and only a new sign-in makes another, so the card shows the date (owner
+      // 22/11/2026: "since it is the rule, keep showing the date"), turns amber in the last two weeks, and the bell
+      // reminds a week before.
       const day = tk.expires_at ? new Date(tk.expires_at * 1000).toLocaleDateString(LOC(), { dateStyle: "medium" }) : "";
       const warn = !!tk.expires_at && (tk.expired || (tk.days_left || 0) <= 14);
-      const when = !warn ? "" : tk.expired ? t("models.tok_expired") : t("models.tok_soon", { ngay: day });
+      const when = !tk.expires_at ? "" : tk.expired ? t("models.tok_expired")
+        : t("models.tok_until", { ngay: day, n: Math.max(0, tk.days_left || 0) });
       return `<div class="prov-tok-row${warn ? " warn" : ""}">${ic(warn ? "triangle-alert" : "key-round")}
           <span>${esc(t("models.tok_saved", { tail: tk.tail || "" }))}${when ? " · " + esc(when) : ""}</span>${infoBtn()}</div>
         ${help}
