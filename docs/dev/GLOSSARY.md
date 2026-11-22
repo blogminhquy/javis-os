@@ -217,7 +217,7 @@ frequent first; the meaning column gives the compound in which a word usually ap
 | `kenh` | kênh | channel | `kenhLoc` |
 | `ket` | kết | result (`kết quả`); connection (`kết nối`); end (`kết thúc`) | `ket_qua`, `ket_thuc` |
 | `khac` | khác | other, different | `kenhKhac` |
-| `khach` | khách | customer, guest | `record_customer_message` |
+| `khach` | khách | customer, guest | `_KHACH_CHUA_DAP` |
 | `khi` | khi | when | `xoa_khi_rong` |
 | `kho` | kho | store, repository | `ghi_kho` |
 | `khoa` | khoá | key; lock | `khoa_chinh`, `_KHOA_NGON_NGU_RE` |
