@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.3] - 2026-11-22
+### Bảo mật
+- **Mỗi lần kết nối, đổi tài khoản hay ngắt GitHub đều vào nhật ký bảo mật.** Ghi tài khoản Javis đã làm, IP thật và thiết bị, rồi báo ngay cho chủ. Javis tự gia hạn token thì không ghi.
+### Sửa lỗi
+- **Kiểm tra GitHub bị lỗi thì hiện "Không kiểm tra được", không còn báo nhầm "Chưa kết nối".** Áp dụng cho thẻ GitHub, khung chat, Team và ô sao lưu brain, kèm lý do và nút Thử lại.
+
 ## [0.628.2] - 2026-11-22
 ### Sửa lỗi
 - **Thông báo có link không còn tràn viền.** Thẻ ở chuông chỉ hiện chữ của link, không in nguyên địa chỉ dài, và chữ dài vẫn xuống dòng trong thẻ.
