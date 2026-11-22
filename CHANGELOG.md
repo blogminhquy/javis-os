@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.0] - 2026-11-22
+### Cải thiện
+- **Đọc lại hội thoại là biết ngay tin nào do AI, tin nào do người.** Dưới mỗi tin của agent có icon riêng của agent đó, tên agent và nhãn AI. Tin người nhắn có icon người kèm tên thật.
+- Áp cho mọi kênh trong Hộp thư: Zalo, Messenger, WhatsApp, Telegram. Tin cũ ghi chung chung là "Bot" nay hiện đúng tên agent của cuộc chat.
+
 ## [0.627.0] - 2026-11-22
 ### Thêm mới
 - **Tài khoản Claude phụ cũng dùng token dài hạn.** Nút **Thêm tài khoản** và **Đăng nhập lại** trên thẻ Claude Code nay lấy token 1 năm cho riêng tài khoản đó (link rồi dán mã, như tài khoản 1), nên tài khoản phụ không còn bị đăng xuất giữa chừng. Token lưu mã hoá trong thư mục của tài khoản, Gỡ tài khoản là xoá luôn. Mỗi lượt chạy trên tài khoản nào thì dùng đúng token của tài khoản đó.
