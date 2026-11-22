@@ -551,7 +551,8 @@
   function announce() {
     try { window.dispatchEvent(new CustomEvent("javis:github-repos-changed", { detail: { sid: sid(), repos: attached } })); } catch (e) {}
   }
-  // The chip lives in the row under the composer card (#cpCtx), after the pinned folder (owner, 21/11/2026: "sắp xếp
+  // The chip lives in the tray on top of the composer card (#cpCtx, 22/11/2026), after the pinned folder. On 21/11/2026
+  // it went under the card (owner: "sắp xếp
   // lại khung giống của Claude"); it used to squeeze the model and Effort chips in the card's button row.
   // Owner, 21/11/2026: "cho anh nút x rõ ràng khi ghim ở khung chat". The chip is a group now: the name opens the
   // panel, the status icon opens the detail, and an X at its far end takes the repos off the chat.
@@ -610,8 +611,8 @@
       } else if (window.JavisAttach) window.JavisAttach.note(stop.d.error || tw("gh.err_net"));
     });
   }
-  // Same rule in composer-folder.js: the row hides while empty, and with folder AND repos pinned a phone shows both as
-  // icons only (.is-two, owner 21/11/2026), so a name is never cut to "ja...".
+  // Same rule in composer-folder.js: the tray hides while empty, and .is-two marks folder AND repos. Since 22/11/2026
+  // the tray has a row of its own, so a phone keeps both names (they shrink with "…" instead of going icons only).
   function syncCtx(host) {
     host.hidden = !host.children.length;
     host.classList.toggle("is-two", host.children.length > 1);

@@ -91,10 +91,13 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 - **Khung chat kiểu Claude (21/11, sửa 22/11):** trên máy tính trong khung chỉ một hàng, nút +, ô chữ, ghi âm và gửi,
   chữ và các nút cùng một tâm ("text khởi đầu ngang hàng và ở giữa luôn nút + với các nút cho gọn"). Trên điện thoại hai
   dòng: ô chữ trọn dòng trên, dưới nó nút + bên trái, ghi âm và gửi bên phải ("ở điện thoại đẩy lên dòng bên trên thì sẽ
-  phù hợp hơn"). Áp cho cả chat chính, Nhóm và Hội thoại. Dưới khung, ngoài viền: thư mục đang ghim và repo
-  bên trái; model, mức suy nghĩ, vòng hạn mức bên phải. Ghim cả thư mục lẫn repo thì trên điện thoại hai chip chỉ còn
-  icon; ghim một thứ thì hiện tên ("sử dụng cách 1 nếu là add 2 thứ cùng lúc ... nếu chỉ thư mục hoặc repo thì vẫn hiện
-  như bây giờ").
+  phù hợp hơn"). Áp cho cả chat chính, Nhóm và Hội thoại. Dưới khung, ngoài viền: model, mức suy nghĩ, vòng hạn mức
+  bên phải.
+- **Thư mục và repo ở khay trên khung chat (22/11, thay luật 21/11):** "đưa folder và repo github lên khung trên kiểu
+  như này sẽ dễ nhìn hơn trên điện thoại" (kèm ảnh app Claude). Thư mục đang ghim và repo nằm trong một khay xám dính
+  trên mép khung, hẹp hơn khung một chút, bo hai góc trên; chưa ghim gì thì khay ẩn. Khay có hàng riêng nên trên điện
+  thoại ghim cả hai vẫn hiện đủ tên (bỏ kiểu chỉ còn icon của 21/11), tên dài thì cắt "…", nút X luôn còn. Trang Nhóm
+  vốn để chip thư mục, repo ngay trên ô nhập nên giữ nguyên.
 - **Viên ghim dưới khung chat có nút X (21/11):** "cho anh nút x rõ ràng khi ghim ở khung chat cũng như ở trên mục lựa
   chọn". Viên thư mục và viên repo là một nhóm: tên mở bảng chọn, nút X ở cuối bỏ ghim trong một lần chạm. Nút X luôn
   hiện (nền tròn nhạt), không chờ rê chuột, kể cả khi hai viên chỉ còn icon. Trang Nhóm theo cùng kiểu.
@@ -288,7 +291,7 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
 | Tên vai trong team | trưởng nhóm, rồi điều phối | **phó nhóm** cho cộng sự dẫn team, **trưởng nhóm** là bạn (17/11) |
 | Model, mức suy nghĩ, hạn mức ở khung chat trên điện thoại | gộp một viên, mở một bảng chứa cả ba (11/11) | **3 nút riêng như máy tính, mỗi nút mở bảng của nó, chữ nhỏ hơn** (22/11) |
 | Khung chat trên điện thoại | một hàng: +, ô chữ, ghi âm, gửi (21/11) | **hai dòng: ô chữ ở trên, + bên trái và ghi âm, gửi bên phải ở dưới**; máy tính giữ một hàng (22/11) |
-| Chip repo GitHub ở khung chat | trong hàng nút, rồi một dải trên khung | **dưới khung, bên trái, cùng thư mục ghim**; model và Effort cũng xuống dưới, khung còn một hàng (21/11) |
+| Chip repo GitHub ở khung chat | trong hàng nút, rồi một dải trên khung, rồi dưới khung bên trái (21/11) | **khay xám dính trên mép khung, cùng thư mục ghim, hiện đủ tên cả trên điện thoại** (22/11) |
 | Bảng chọn repo | chạm cả dòng để bật tắt dấu tích | **dòng đã chọn có nút X, dòng chưa chọn có dấu cộng**; viên dưới khung chat cũng có nút X (21/11) |
 | Việc team chờ bạn trong khung chat | thẻ dài ở đầu khung chat | **viên thuốc một dòng trên khung nhập** như việc nền ở chat chính, tự ẩn khi bạn đã nhắn sau lúc việc dừng (17/11) |
 
@@ -351,3 +354,4 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
 - **22/11:** chữ gợi ý ô chat cùng hàng với nút + và ghi âm "không phù hợp ... ở điện thoại đẩy lên dòng bên trên thì sẽ
   phù hợp hơn"; thông báo có link dài "bị tràn viền".
 - **22/11:** khung Effort "đang bị lệch"; điện thoại "có đủ không gian để hiển thị để ấn thành 3 nút trên máy tính rồi".
+- **22/11:** "anh muốn đổi lại đưa folder và repo github lên khung trên kiểu như này sẽ dễ nhìn hơn trên điện thoại".
