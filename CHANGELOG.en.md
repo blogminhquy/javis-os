@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.625.1] - 2026-11-22
+### Fixed
+- **Bots no longer post a model's sign-in error into a customer group.** When Claude Code's sign-in ran out it printed "Failed to authenticate: this login reached its time limit..." as an answer, and a bot sent it to a Telegram group as is. Every lost sign-in sentence (Claude Code, ChatGPT, Grok, Antigravity) is now stopped on every channel: the customer gets nothing, the turn runs on another connected model when there is one, and the owner's bell says to sign in again on the Models page.
+- **A model signed in later is really used as a fallback.** The Models page lists a model connected later (for example Antigravity signed in with `agy`) at the end of the usage order, but Javis only tried the models saved in the order, so when Claude Code and ChatGPT both lost their sign-in, customer bots, background jobs and workflows never moved to Antigravity. Javis now walks the order the Models page shows. A team member whose own model cannot run also falls back to a model that can, not to a signed-out main model.
+- **ChatGPT no longer signs itself out.** When Javis refreshed the ChatGPT token itself (a bot reply, an image, a voice turn, the model list), it saved the new token in its own settings only. The next Codex turn saw Codex's login file differ, took it for the newer one and copied the spent token over the new one, so OpenAI answered "refresh token was already used" and ChatGPT was signed out. Javis now compares when each pair was issued, writes the new pair to Codex's file at once, and never lets two refreshes of one token run together.
+- **The owner's Telegram says a lost sign-in in plain words.** Instead of the CLI's advice to run a terminal command, the owner reads that the model lost its sign-in and to sign in again on the Models page, as on the web chat.
+
 ## [0.625.0] - 2026-11-22
 ### Fixed
 - **Phone dictation records for real from the first press.** Javis remembers that the machine has a model that listens (ChatGPT, Groq, OpenAI, Gemini), so the phone records and lets that model transcribe, with a real wave, like the ChatGPT app.
