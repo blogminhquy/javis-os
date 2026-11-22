@@ -925,10 +925,19 @@ def auth_status_folder(folder) -> dict:
     cli = find_claude_cli()
     if not cli or not folder:
         return {"connected": False}
+    env = {**os.environ, "CLAUDE_CONFIG_DIR": str(folder)}
+    # Ask with the account's own long-lived token (2026-11-22), never account 1's from the server's environment.
+    env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+    try:
+        import plan_accounts
+        own = plan_accounts.claude_token(folder)
+    except Exception:  # noqa: BLE001
+        own = ""
+    if own:
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = own
     try:
         r = subprocess.run([cli, "auth", "status", "--json"], capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=15, creationflags=_no_window(),
-                           env={**os.environ, "CLAUDE_CONFIG_DIR": str(folder)})
+                           errors="replace", timeout=15, creationflags=_no_window(), env=env)
         d = json.loads((r.stdout or "").strip() or "{}")
         return {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
                 "plan": _ten_goi_dong(d.get("subscriptionType", "") or "", d.get("email", ""), folder=folder)}

@@ -288,6 +288,8 @@ on_engine_down = None     # main.py gắn: async fn(text) gửi Telegram MỘT l
 # Called on every probe in that window; the receiver keeps it to one notice a day.
 on_claude_token_soon = None
 TOKEN_REMIND_DAYS = 7
+# main.py sets it: fn() run on every probe, for checks of their own (the tokens of extra Claude accounts). Never raises.
+on_probe = None
 
 # Mẫu lỗi đăng nhập trong OUTPUT một lượt chạy engine (vụ 2026-07-27: Claude CLI hết phiên,
 # mọi task trả "Failed to authenticate: OAuth session expired and could not be refreshed").
@@ -536,6 +538,11 @@ def probe_engines() -> None:
     đúng lỗi khách gặp (banner đỏ 'bộ não claude mất đăng nhập' trên máy chưa từng cài
     Claude). Đèn do lượt chạy bật (source=run) không bị probe đè sang xanh - lỗi lúc
     chạy là bằng chứng mạnh hơn suy đoán từ file token."""
+    if on_probe:
+        try:
+            on_probe()
+        except Exception as e:  # noqa: BLE001 - a side check never touches the lights
+            print(f"[engine health] probe hook: {type(e).__name__}: {e}", file=sys.stderr)
     live = engines_in_use()
     for name in [n for n in _engines if n not in live]:
         _engines.pop(name, None)
