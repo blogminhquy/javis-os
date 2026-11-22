@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.0] - 2026-11-22
+### Improved
+- **Reading a chat back, you can tell the AI from people at a glance.** Each agent message shows that agent's own icon, its name and an AI tag. A person's message shows a person icon and their real name.
+- Works on every inbox channel: Zalo, Messenger, WhatsApp, Telegram. Older messages stored as a plain "Bot" now show the chat's agent name.
+
 ## [0.627.0] - 2026-11-22
 ### Added
 - **Extra Claude accounts use a long-lived token too.** **Add an account** and **Sign in again** on the Claude Code card now get a one-year token for that account alone (a link, then the code, as for account 1), so an extra account is no longer signed out midway. The token is kept encrypted in the account's folder and removing the account removes it. A turn on an account runs on that account's own token.
