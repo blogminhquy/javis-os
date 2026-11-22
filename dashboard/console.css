@@ -423,6 +423,17 @@ button.ord-mi:hover, button.ord-mi:focus-visible { background: var(--bg3); }
 .prov-auth-opt input { margin-top: 3px; flex: 0 0 auto; }
 .prov-auth-opt b { color: var(--text); font-weight: 600; }
 .prov-auth-opt i { color: var(--text3); }
+/* Long-lived Claude token (2026-11-22): the saved token's line and its buttons, under "Runs on". */
+.prov-tok { margin-top: 8px; }
+.prov-tok-row { display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 1.5; color: var(--text2); }
+.prov-tok-row > svg { flex: 0 0 auto; width: 18px; height: 18px; color: var(--green, var(--text2)); }
+.prov-tok-row.warn { color: var(--warn-ink); }
+.prov-tok-row.warn > svg { color: var(--warn-ink); }
+.prov-tok .prov-action { margin-top: 8px; }
+.prov-tok .prov-code[hidden] { display: none; }
+/* A destructive button in a card row: last, pushed right, red (design-style 6). */
+.gcard-btn.ghost.danger { margin-left: auto; color: var(--red); border-color: var(--danger-line); }
+.gcard-btn.ghost.danger:hover { background: var(--danger-wash); color: var(--red); border-color: var(--red); }
 .prov-auth-warn { font-size: 16px; line-height: 1.55; color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
 
 /* Auxiliary model chips */

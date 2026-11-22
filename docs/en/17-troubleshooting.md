@@ -26,7 +26,8 @@ A great many errors disappear after one of these, so try them before worrying:
 | **Port 7777 is held** and the new build will not come up | Kill the old process FIRST, then start again. Windows: run `stop-javis.bat`, or `taskkill /F /PID <pid>` with the PID holding the port. Docker: `docker compose down` then `docker compose up -d`. |
 | **Hostinger cannot pull the image** | Set the GHCR package to **Public** (GitHub, the repo, Packages, choose `javis-os`, Package settings, Visibility = Public). Then wait for the GitHub Action build to finish (the repo's Actions tab) and Deploy again. |
 | Opening the app shows the **create-admin screen** on a public server | No admin exists yet, so whoever opens the link first can create it. Create the account now (password at least 8 characters), or next time preset the env vars `JAVIS_ADMIN_USER` and `JAVIS_ADMIN_PASSWORD` at deploy time and sign straight in. Once inside, turn on 2FA. |
-| **Claude reports it is not signed in** (Javis cannot answer) | Sign the Claude "brain" in once. In the app: open **Models**, on the Claude Code card click **Sign in to Claude**, open the link, paste the code if asked. By command: `claude auth login --claudeai` (on Docker, run it in the App terminal). |
+| **Claude reports it is not signed in** (Javis cannot answer) | Connect the Claude "brain" once. In the app: open **Models**, on the Claude Code card click **Connect Claude**, open the link, paste the code if the page shows one and click **Confirm code**. Fallback by command: `claude auth login --claudeai` (on Docker, run it in the App terminal), though that kind of sign-in can run out midway. |
+| **The Claude token expires soon / has expired** | The long-lived Claude token lasts a year. Open **Models**, on the Claude Code card click **Get a new token** and sign in to claude.ai once more for another year. |
 | **The Files page errors at "Loading..."** | The server has no Files endpoint yet (a 404). **Restart the server** to load the new endpoint, then press **Ctrl+Shift+R**. |
 | Images in old conversations show a grey **Image expired** box | By design: `attachments/` and `inbox/` are a cache, and files over 30 days (or when the 300MB ceiling is passed) are cleared. See "Old images and files disappear" below for how to keep them or turn clearing off. |
 | Voice / microphone will not turn on | Browsers only grant microphone permission over **HTTPS** (or on localhost). Opening `http://<ip>:7777` is always blocked. Use an `https://` URL (Hostinger `*.hstgr.cloud`, Cloudflare Tunnel, or a custom domain with SSL). See [Branding and custom domains](15-branding-and-domains.md). |
@@ -77,12 +78,15 @@ Security details and how to set a password: [Security and accounts](14-security-
 
 ## Claude reports it is not signed in
 
-When you run the Claude engine, Javis borrows the `claude` CLI's own login session on the machine: sign in once and it survives every restart and update. If Javis does not answer or reports it is not signed in:
+When you run the Claude engine, Javis runs Claude Code on a **long-lived token** taken from the Claude Code card: connect once and it lasts a year, survives every restart and update, and is never signed out midway. If Javis does not answer or reports it is not signed in:
 
-1. **In the interface:** open **Models** (the **Connections** group on the left nav rail). On the Claude Code card, the status line reads **○ Not signed in**. Click **Sign in to Claude**, the app shows a link; open it to sign in to claude.ai; if the page shows a code, paste it into the field and click **Send code**. When it finishes, the status changes to **● Connected**. There is a **↻ Check again** button to refresh the status.
-2. **By command:** run `claude auth login --claudeai` once (on Docker, run it in the **App terminal**), open the link, paste the code.
+1. **In the interface:** open **Models** (the **Connections** group on the left nav rail). On the Claude Code card, the status line reads **○ Not signed in**. Click **Connect Claude**, the app shows a link; open it to sign in to claude.ai; if the page shows a code, paste it into the box and click **Confirm code** (on a machine with a browser there may be no code, and the card finishes by itself in a few seconds). When it finishes, the status changes to **● Connected**. There is a **↻ Check again** button to refresh the status.
+2. **A token made elsewhere:** run `claude setup-token` on any machine (on Windows this is the only way), then on the Claude Code card click **Paste a token**, paste the token (it starts with `sk-ant-oat01-`) and click **Save token**.
+3. **Fallback by command:** run `claude auth login --claudeai` once (on Docker, run it in the **App terminal**), open the link, paste the code. This is the old kind of sign-in, which can run out midway.
 
-The login token lives in `~/.claude` (Docker: the `claude-auth` volume), so it survives updates. If you already signed in on another machine, you can copy the `~/.claude` folder across. See also [Models and engines](10-models-and-engines.md).
+A machine still on the old sign-in shows a **Switch to a long-lived token** button on the card: click it so work is not stopped midway. Javis keeps the token (encrypted) in its own settings, so it survives updates. See also [Models and engines](10-models-and-engines.md).
+
+**The token expires soon or has expired.** Anthropic lets each token run for a year. The Claude Code card always shows the expiry date and turns amber in the last two weeks; from a week before, Javis puts one notice a day in the bell. Click **Get a new token** on the card and sign in to claude.ai once more for another year.
 
 ## The Files page errors at "Loading..."
 

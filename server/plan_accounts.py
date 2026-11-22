@@ -466,6 +466,9 @@ def _claude_use(engine, folder) -> None:
         if d and hasattr(o, "env"):
             env = dict(getattr(o, "env", None) or {}) or dict(os.environ)
             env["CLAUDE_CONFIG_DIR"] = d
+            # 2026-11-22: the CLI reads CLAUDE_CODE_OAUTH_TOKEN before its config folder, so account 1's long-lived
+            # token (claude_auth.TOKEN) would run every extra account on account 1's plan.
+            env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
             o.env = env
         return o
 

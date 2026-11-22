@@ -4017,6 +4017,10 @@
         // Ô chọn nguồn xác thực. Cả hai lựa chọn giữ NGUYÊN năng lực (Bash, WebFetch, MCP, nối
         // phiên cũ); khác nhau ở chỗ ai trả tiền và ai chịu rủi ro. Javis cố ý không tắt cứng
         // đường subscription - chủ máy tự cân, nhưng phải cân khi đã BIẾT, nên có cảnh báo.
+        // Owner 22/11/2026: one way in. Connecting gets a long-lived (1-year) token with a link and a code, the same
+        // steps the old sign-in took, and it is never signed out midway; an Anthropic API key has its own card
+        // ("Anthropic (API)"). The buttons are drawn by refreshClaudeCard once /claude/status answers. A machine still
+        // set to the API key here keeps that choice, checked, so it knows what runs and can move off it.
         const byKey = p.auth_mode === "api_key";
         return `${cardOpen(p, ord)}
           <div class="prov-head${ord ? " ord-head" : ""}">
@@ -4032,18 +4036,19 @@
           ${cliWarn("claude")}
           <div id="cliAction"></div>
           <div class="prov-note" id="cliUpd"></div>
-          <div class="prov-auth">
+          ${byKey ? `<div class="prov-auth">
             <div class="prov-auth-title">${esc(t("models.auth_title"))}${infoBtn()}</div>
-            ${p.auth_warning ? `<div class="prov-auth-warn">${WARN_ICON} ${esc(t("models.auth_warn_short"))}</div>` : ""}
-            ${infoBody(`<div class="prov-auth-note">${esc(t("models.auth_note"))}</div>
-              <div class="prov-auth-note"><b>${esc(t("models.auth_key"))}</b> ${esc(t("models.auth_key_d"))}</div>
-              ${p.auth_warning ? `<div class="prov-auth-warn">${WARN_ICON} ${esc(p.auth_warning)}</div>` : ""}`)}
-            <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="subscription" ${byKey ? "" : "checked"}>
+            ${infoBody(`<div class="prov-auth-note"><b>${esc(t("models.auth_key"))}</b> ${esc(t("models.auth_key_d"))}</div>
+              <div class="prov-auth-note">${esc(t("models.auth_key_gone"))}</div>`)}
+            <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="subscription">
               <span><b>${esc(t("models.auth_sub"))}</b> ${esc(t("models.auth_sub_d"))}</span></label>
-            <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="api_key" ${byKey ? "checked" : ""}>
+            <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="api_key" checked>
               <span><b>${esc(t("models.auth_key"))}</b>
               ${p.auth_api_key_set ? "" : ` <i>${esc(t("models.auth_key_none"))}</i>`}</span></label>
-          </div>
+          </div>` : p.auth_warning ? `<div class="prov-auth">
+            <div class="prov-auth-warn">${WARN_ICON} ${esc(t("models.auth_warn_short"))}${infoBtn()}</div>
+            ${infoBody(`<div class="prov-auth-warn">${WARN_ICON} ${esc(p.auth_warning)}</div>`)}
+          </div>` : ""}
           ${planAccts(p, ord)}
           ${ordActs(p, ord, { check: "data-cccheck", add: ord && multiPlan.indexOf(p.id) >= 0 && !byKey ? "plan" : "" })}
         </div>`;
@@ -4181,6 +4186,7 @@
         renderModelsCloudTab(el);
       };
     });
+
     el.querySelectorAll(".gcard-btn[data-pk]").forEach(b => {
       b.onclick = async () => {
         const pid = b.dataset.pk;
@@ -5238,50 +5244,52 @@
     // lần hết giờ (hay gặp lúc đổi Main Model, khi trang cùng lúc gọi mấy tiến trình con) là
     // thẻ bày ra nút Đăng nhập, người dùng tưởng mất tài khoản rồi đi nối lại - trong khi
     // chẳng có gì mất cả (chủ repo báo 2026-08-13). Chưa biết thì nói là chưa biết.
+    const inOrd = !!(act.closest && act.closest(".ord-card"));
+    const box = (mode) => {
+      act.innerHTML = `<div class="prov-tok" id="cliTok">${claudeTokenBox(d, mode, inOrd)}</div>`;
+      bindClaudeToken(el);
+    };
+    // A machine still on an Anthropic API key here (before 22/11/2026): its choice above says what runs.
+    if (d.auth_mode === "api_key") {
+      st.className = "prov-status" + (d.connected ? " on" : "");
+      st.textContent = d.connected ? t("models.st_connected") + " · " + t("models.auth_key") : t("models.st_no_login");
+      act.innerHTML = "";
+      return;
+    }
+    if (d.auth_mode === "token" && d.auth_token && d.auth_token.set) {
+      st.className = "prov-status" + (d.auth_token.expired ? "" : " on");
+      st.textContent = d.auth_token.expired ? t("models.tok_expired") : t("models.st_connected") + acctNameTag("anthropic-cli");
+      box("saved");
+      return;
+    }
+    // KHÔNG hỏi được KHÁC hẳn "chưa đăng nhập", và trước bản này hai thứ đó vẽ y như nhau: một
+    // lần hết giờ (hay gặp lúc đổi Main Model, khi trang cùng lúc gọi mấy tiến trình con) là
+    // thẻ bày ra nút Đăng nhập, người dùng tưởng mất tài khoản rồi đi nối lại - trong khi
+    // chẳng có gì mất cả (chủ repo báo 2026-08-13). Chưa biết thì nói là chưa biết.
     if (!d.connected && d.unknown) {
       st.className = "prov-status";
       st.textContent = t("models.st_unknown");
-      act.innerHTML = `<div class="prov-action">
-          <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button>
-          <button class="gcard-btn ghost" id="cliLogin">${esc(t("models.login_claude"))}</button></div>
-        <div id="cliMsg" class="prov-msg">${d.error ? esc(d.error) : ""}</div>
-        <div class="prov-steps">
+      box("gate");
+      act.insertAdjacentHTML("beforeend", `<div class="prov-steps">
           ${esc(t("models.cli_unk1"))} <b>${esc(t("models.cli_unk2"))}</b>
           ${esc(t("models.cli_unk3"))}
-        </div>`;
-      el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
-      el.querySelector("#cliLogin").onclick = () => startClaudeLogin(el);
+        </div>`);
       return;
     }
     if (d.connected) {
+      // Still on the CLI's own sign-in (before 22/11/2026): it keeps running until it runs out; one button moves it
+      // to a long-lived token so it is not signed out midway.
       st.className = "prov-status on";
       st.textContent = t("models.st_connected") + acctLine("anthropic-cli", [d.email, d.plan])
         + (d.stale ? " · " + t("models.st_stale") : "");
-      // A card in the usage order has Disconnect in its own button row (and its ⋯ sheet), so none here.
-      if (act.closest && act.closest(".ord-card")) { act.innerHTML = ""; return; }
-      act.innerHTML = `<div class="prov-action"><button class="gcard-btn ghost" id="cliLogout">${esc(t("models.disconnect"))}</button></div>`;
-      el.querySelector("#cliLogout").onclick = async () => {
-        // Signing out drops the plan login on this machine and only a fresh sign-in brings it
-        // back, so one stray tap must not do it (customer report 0.270, code 19).
-        if (!confirm(t("models.cc_logout_confirm"))) return;
-        const b = el.querySelector("#cliLogout"); b.disabled = true; b.textContent = t("models.disconnecting");
-        try { await fetch("/claude/logout", { method: "POST" }); } catch (e) {}
-        refreshClaudeCard(el);
-      };
-    } else {
-      // The status line stays short; a CLI error (it can run to several sentences) goes in the
-      // message line under the buttons, where it has the full width of the card.
-      st.className = "prov-status";
-      st.textContent = t("models.st_no_login");
-      act.innerHTML = `<div class="prov-action">
-          ${acctNameField("anthropic-cli")}<button class="gcard-btn" id="cliLogin">${esc(t("models.login_claude"))}</button>
-          <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button>${infoBtn()}</div>
-        <div id="cliMsg" class="prov-msg">${d.error ? Icons.warn(d.error) : ""}</div>
-        ${infoBody(`${esc(t("models.cli_login_note"))}
-          <div class="prov-cmd"><code>claude auth login --claudeai</code></div>`)}`;
-      el.querySelector("#cliLogin").onclick = () => startClaudeLogin(el);
-      el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
+      box("switch");
+      return;
     }
+    // The status line stays short; a CLI error (it can run to several sentences) goes in the
+    // message line under the buttons, where it has the full width of the card.
+    st.className = "prov-status";
+    st.textContent = t("models.st_no_login");
+    box("gate");
   }
 
   // Dòng "Claude Code bản nào + nút Cập nhật". Danh sách model của gói Claude đọc từ chính
@@ -5354,37 +5362,134 @@
     };
   }
 
-  async function startClaudeLogin(el) {
-    const name = takeAcctName(el, "anthropic-cli");
-    if (name === null) return;
-    try { await savePlanName("anthropic-cli", name); } catch (e) {}
-    const act = el.querySelector("#cliAction");
-    const msg = el.querySelector("#cliMsg");
-    if (msg) msg.textContent = t("models.getting_link");
+  // ---- Long-lived Claude token (2026-11-22): `claude setup-token` run by Javis, or a token pasted ----
+  // Owner's report: the plan's sign-in "reached its time limit" and every bot and job stopped. A one-year token is
+  // Anthropic's own answer for unattended runs; the card gets one with a link and a code, like Sign in with Claude.
+  // `mode`: "gate" (not connected: the one way in), "saved" (runs on the token), "switch" (still on the old sign-in).
+  // `d`: /claude/status. `inOrd`: the card sits in the usage order, whose own row already has Disconnect.
+  function claudeTokenBox(d, mode, inOrd) {
+    const tk = d.auth_token || {};
+    const auto = d.auth_token_auto !== false;
+    const help = infoBody(`${esc(t(mode === "switch" ? "models.tok_switch_info" : "models.tok_info"))}
+      <div class="prov-cmd"><code>claude setup-token</code></div>
+      <div>${esc(t("models.tok_info_plan"))}</div>`);
+    const paste = `<div class="prov-action prov-code" id="cliTokPaste"${auto ? " hidden" : ""}>
+        <input class="js-input" id="cliTokIn" type="password" placeholder="${esc(t("models.tok_ph"))}"
+          autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+        <button class="gcard-btn ghost" type="button" data-tok-save="1">${esc(t("models.tok_save"))}</button>
+      </div>`;
+    const disc = inOrd ? "" : `<button class="gcard-btn ghost danger" type="button" id="cliLogout">${esc(t("models.disconnect"))}</button>`;
+    const pasteBtn = auto ? `<button class="gcard-btn ghost" type="button" data-tok-paste="1">${esc(t("models.tok_paste"))}</button>` : "";
+    if (mode === "saved") {
+      // Anthropic ends each token after a year and only a new sign-in makes another, so the card shows the date (owner
+      // 22/11/2026: "since it is the rule, keep showing the date"), turns amber in the last two weeks, and the bell
+      // reminds a week before.
+      const day = tk.expires_at ? new Date(tk.expires_at * 1000).toLocaleDateString(LOC(), { dateStyle: "medium" }) : "";
+      const warn = !!tk.expires_at && (tk.expired || (tk.days_left || 0) <= 14);
+      const when = !tk.expires_at ? "" : tk.expired ? t("models.tok_expired")
+        : t("models.tok_until", { ngay: day, n: Math.max(0, tk.days_left || 0) });
+      return `<div class="prov-tok-row${warn ? " warn" : ""}">${ic(warn ? "triangle-alert" : "key-round")}
+          <span>${esc(t("models.tok_saved", { tail: tk.tail || "" }))}${when ? " · " + esc(when) : ""}</span>${infoBtn()}</div>
+        ${help}
+        <div class="prov-action">
+          ${auto ? `<button class="gcard-btn${warn ? "" : " ghost"}" type="button" data-tok-get="1">${esc(t("models.tok_new"))}</button>` : ""}
+          ${pasteBtn}${disc}
+        </div>
+        ${paste}
+        <div id="cliTokMsg" class="prov-msg"></div>`;
+    }
+    if (mode === "switch") {
+      return `<div class="prov-action">
+          ${auto ? `<button class="gcard-btn ghost" type="button" data-tok-get="1">${esc(t("models.tok_switch"))}</button>` : pasteBtn}
+          ${infoBtn()}${disc}
+        </div>
+        ${help}
+        ${paste}
+        <div id="cliTokMsg" class="prov-msg"></div>`;
+    }
+    return `<div class="prov-action">
+        ${acctNameField("anthropic-cli")}${auto ? `<button class="gcard-btn" type="button" data-tok-get="1">${esc(t("models.tok_connect"))}</button>` : ""}
+        ${pasteBtn}
+        <button class="gcard-btn ghost" type="button" id="cliRecheck">${esc(t("models.recheck"))}</button>${infoBtn()}
+      </div>
+      ${help}
+      ${paste}
+      <div id="cliTokMsg" class="prov-msg">${d.error ? Icons.warn(d.error) : ""}</div>`;
+  }
+
+  function bindClaudeToken(el) {
+    const box = el.querySelector("#cliTok");
+    if (!box) return;
+    const msg = () => box.querySelector("#cliTokMsg");
+    const done = () => { renderModelsCloudTab(el); };
+    const pasteBtn = box.querySelector("[data-tok-paste]");
+    if (pasteBtn) pasteBtn.onclick = () => {
+      const row = box.querySelector("#cliTokPaste");
+      if (!row) return;
+      row.hidden = false;
+      const inp = row.querySelector("#cliTokIn");
+      if (inp) inp.focus();
+    };
+    const inp = box.querySelector("#cliTokIn");
+    const saveBtn = box.querySelector("[data-tok-save]");
+    if (inp && saveBtn) inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveBtn.click(); } });
+    if (saveBtn) saveBtn.onclick = async () => {
+      const val = ((inp && inp.value) || "").replace(/\s+/g, "");
+      if (!val) { if (inp) inp.focus(); return; }
+      saveBtn.disabled = true;
+      const fd = new FormData(); fd.append("token", val);
+      let r;
+      try { r = await (await fetch("/claude/token", { method: "POST", body: fd })).json(); }
+      catch (e) { saveBtn.disabled = false; const m = msg(); if (m) m.textContent = t("common.net_err"); return; }
+      saveBtn.disabled = false;
+      if (r && r.ok) { done(); return; }
+      const m = msg(); if (m) m.innerHTML = Icons.warn((r && r.error) || t("models.tok_bad"));
+    };
+    const discBtn = box.querySelector("#cliLogout");
+    if (discBtn) discBtn.onclick = async () => {
+      // Disconnecting drops the token (and the CLI's own sign-in); only connecting again brings it back.
+      if (!confirm(t("models.cc_logout_confirm"))) return;
+      discBtn.disabled = true; discBtn.textContent = t("models.disconnecting");
+      try { await fetch("/claude/logout", { method: "POST" }); } catch (e) {}
+      done();
+    };
+    const re = box.querySelector("#cliRecheck");
+    if (re) re.onclick = () => refreshClaudeCard(el, true);
+    const getBtn = box.querySelector("[data-tok-get]");
+    if (getBtn) getBtn.onclick = async () => {
+      const name = takeAcctName(el, "anthropic-cli");
+      if (name === null) return;
+      try { await savePlanName("anthropic-cli", name); } catch (e) {}
+      startClaudeToken(el, box);
+    };
+  }
+
+  async function startClaudeToken(el, box) {
+    const m0 = box.querySelector("#cliTokMsg");
+    if (m0) m0.textContent = t("models.getting_link");
     let r;
-    try { r = await (await fetch("/claude/login-start", { method: "POST" })).json(); }
-    catch (e) { if (msg) msg.textContent = t("common.net_err"); return; }
-    if (!r.ok) { if (msg) msg.innerHTML = Icons.warn(r.error || t("models.cant_start")); return; }
-    if (act) act.innerHTML = `
+    try { r = await (await fetch("/claude/token/start", { method: "POST" })).json(); }
+    catch (e) { if (m0) m0.textContent = t("common.net_err"); return; }
+    if (!r || !r.ok) { if (m0) m0.innerHTML = Icons.warn((r && r.error) || t("models.cant_start")); return; }
+    box.innerHTML = `
       <div class="prov-note" style="line-height:1.7">
-        <b>1)</b> ${esc(t("models.cli_s1"))}<br>
+        <b>1)</b> ${esc(t("models.tok_s1"))}<br>
         <a href="${esc(safeHref(r.url))}" target="_blank" rel="noopener" style="color:var(--link-ink);word-break:break-all">${esc(r.url || t("models.no_link"))}</a><br>
         <b>2)</b> ${esc(t("models.cli_s2"))}
         <div class="gcard-meta">${esc(t("models.cli_s2_nocode"))}</div>
         <div class="prov-action prov-code">
-          <input class="js-input" id="cliCode" placeholder="${esc(t("models.code_ph"))}"
+          <input class="js-input" id="cliTokCode" placeholder="${esc(t("models.code_ph"))}"
             autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
-          <button class="gcard-btn" id="cliCodeBtn">${esc(t("models.code_send"))}</button>
+          <button class="gcard-btn" type="button" id="cliTokCodeBtn">${esc(t("models.code_send"))}</button>
         </div>
-        <span id="cliMsg2" class="gcard-meta"></span>
+        <span id="cliTokMsg2" class="gcard-meta"></span>
       </div>`;
-    const m2 = el.querySelector("#cliMsg2");
+    const m2 = box.querySelector("#cliTokMsg2");
+    const ci = box.querySelector("#cliTokCode"), cb = box.querySelector("#cliTokCodeBtn");
     let stopped = false, busy = false, timer = 0;
     const t0 = Date.now();
-    // 0.438.7 (owner report 02/11/2026): on a machine with a browser the CLI opens the sign-in itself and gets the
-    // answer over localhost, so the web page only says "You're all set up" and never shows a code. This used to ask
-    // /claude/status, whose 90 s cache kept saying "signed out" until the page was reloaded. /claude/login-poll asks
-    // the sign-in process itself, and the card also asks the moment the user comes back to this tab.
+    // On a machine with a browser the command finishes by itself after the sign-in (the page shows no code, owner
+    // report 02/11/2026), so the card asks the command itself, and asks again the moment the owner comes back here.
     const stop = () => {
       stopped = true; clearTimeout(timer);
       window.removeEventListener("focus", now); document.removeEventListener("visibilitychange", now);
@@ -5392,27 +5497,20 @@
     const poll = async () => {
       if (stopped || busy) return;
       clearTimeout(timer);
-      if (!el.isConnected) { stop(); return; }
-      if (Date.now() - t0 > 10 * 60 * 1000) { stop(); if (m2) m2.textContent = t("models.timeout_retry"); return; }
+      if (!el.isConnected || Date.now() - t0 > 15 * 60 * 1000) { stop(); return; }
       busy = true;
-      let d = null; try { d = await (await fetch("/claude/login-poll")).json(); } catch (e) {}
+      let d = null; try { d = await (await fetch("/claude/token/poll")).json(); } catch (e) {}
       busy = false;
       if (stopped) return;
-      if (d && d.connected) { stop(); refreshClaudeCard(el); return; }
+      if (d && d.token) { stop(); renderModelsCloudTab(el); return; }
       if (d && d.ended) { stop(); if (m2) m2.innerHTML = Icons.warn(d.error || t("models.login_incomplete")); return; }
-      timer = setTimeout(poll, 2000);
+      timer = setTimeout(poll, 2500);
     };
     const now = () => { if (!document.hidden) poll(); };
     window.addEventListener("focus", now);
     document.addEventListener("visibilitychange", now);
-    timer = setTimeout(poll, 2000);
-    // 0.308.0 (owner screenshot 24/10/2026): this row used to be a bare flex div, where the global .gcard-btn
-    // width:100% let the button take the whole row and squeezed the code box to 24px. It is a .prov-action row now
-    // (button sized to its text, box takes the rest and wraps under on a phone). The box gets focus once the link is
-    // opened, Enter sends, and the pasted code loses stray spaces and line breaks (the code itself has none).
-    const cb = el.querySelector("#cliCodeBtn");
-    const ci = el.querySelector("#cliCode");
-    const link = act ? act.querySelector("a[href]") : null;
+    timer = setTimeout(poll, 2500);
+    const link = box.querySelector("a[href]");
     if (link && ci) link.addEventListener("click", () => setTimeout(() => ci.focus(), 300));
     if (ci && cb) ci.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); cb.click(); } });
     if (cb) cb.onclick = async () => {
@@ -5423,11 +5521,17 @@
       cb.disabled = true;
       const fd = new FormData(); fd.append("code", code);
       let rr;
-      try { rr = await (await fetch("/claude/login-code", { method: "POST", body: fd })).json(); }
+      try { rr = await (await fetch("/claude/token/code", { method: "POST", body: fd })).json(); }
       catch (e) { cb.disabled = false; if (m2) m2.textContent = t("common.net_err"); return; }
       cb.disabled = false;
-      if (rr.ok) { stop(); refreshClaudeCard(el); }
-      else if (m2) m2.innerHTML = Icons.warn(rr.error || t("models.code_wrong"));
+      if (rr && rr.ok) { stop(); renderModelsCloudTab(el); return; }
+      // After a refused code Claude wants a fresh sign-in, so the way on is a new link, right under the reason.
+      if (m2) {
+        m2.innerHTML = Icons.warn((rr && rr.error) || t("models.code_wrong"))
+          + `<div class="prov-action"><button class="gcard-btn ghost" type="button" data-tok-again="1">${esc(t("models.tok_again"))}</button></div>`;
+        const again = m2.querySelector("[data-tok-again]");
+        if (again) again.onclick = () => { stop(); startClaudeToken(el, box); };
+      }
     };
   }
 

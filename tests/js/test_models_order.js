@@ -119,11 +119,14 @@ check("Connect another provider unfolds every card in place, no sheet",
   && /\.ord-more\[aria-expanded="true"\] \.ord-more-c \{ transform: rotate\(180deg\); \}/.test(D("console.css")));
 // Owner 07/11/2026: the first sign-in of every card asks for the account's name, so accounts never read alike.
 const RC = JS.slice(JS.indexOf("async function refreshClaudeCard"), JS.indexOf("function veCapNhatClaude"));
+// 2026-11-22: the Claude Code card's one way in (a long-lived token) is drawn by claudeTokenBox.
+const TB = JS.slice(JS.indexOf("function claudeTokenBox("), JS.indexOf("function bindClaudeToken("));
 check("first sign-in: a name box on ChatGPT, Grok, Antigravity, Claude Code and an API card's first key",
   /\$\{acctNameField\(p\.id\)\}<button class="gcard-btn" data-oauth-login="1">/.test(CL)
   && /\$\{acctNameField\(p\.id\)\}<button class="gcard-btn" data-groklogin="1">/.test(CL)
   && /\$\{on \? "" : acctNameField\(p\.id\)\}<button class="gcard-btn ghost" data-agycheck="1">/.test(CL)
-  && /\$\{acctNameField\("anthropic-cli"\)\}<button class="gcard-btn" id="cliLogin">/.test(RC)
+  && /\$\{acctNameField\("anthropic-cli"\)\}\$\{auto \? `<button class="gcard-btn" type="button" data-tok-get="1">/.test(TB)
+  && /box\("gate"\)/.test(RC)
   && /!on && multiKey\.indexOf\(p\.id\) >= 0 \? acctNameField\(p\.id\)/.test(CL));
 check("the sign-in waits for the name and saves it as account 1's label before the link opens",
   /const name = takeAcctName\(el, pid\);\s*if \(name === null\) return;\s*try \{ await savePlanName\(pid, name\); \}/.test(JS)

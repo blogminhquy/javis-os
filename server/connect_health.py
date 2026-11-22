@@ -56,6 +56,7 @@ _EN = {
     "Phiên đăng nhập Claude Code đã hết hạn và không tự làm mới được.":
         "The Claude Code session has expired and could not refresh itself.",
     "Chưa kết nối ChatGPT (OAuth).": "ChatGPT (OAuth) is not connected.",
+    "Token dài hạn của Claude đã hết hạn.": "The long-lived Claude token has expired.",
     "Đang khởi động (lần chạy đầu có thể phải tải gói cài đặt) - chưa phải lỗi. Chờ một lát rồi "
     "bấm Kiểm tra.":
         "Still starting (a first run may be downloading its package) - not an error yet. Wait a "
@@ -283,6 +284,10 @@ def forget(conn_id) -> None:
 
 _engines: dict = {}       # name -> {ok, message, source, ts, notified}
 on_engine_down = None     # main.py gắn: async fn(text) gửi Telegram MỘT lần khi não chuyển chết
+# main.py sets it (2026-11-22): fn(token_info) when the long-lived Claude token has TOKEN_REMIND_DAYS or fewer days left.
+# Called on every probe in that window; the receiver keeps it to one notice a day.
+on_claude_token_soon = None
+TOKEN_REMIND_DAYS = 7
 
 # Mẫu lỗi đăng nhập trong OUTPUT một lượt chạy engine (vụ 2026-07-27: Claude CLI hết phiên,
 # mọi task trả "Failed to authenticate: OAuth session expired and could not be refreshed").
@@ -556,8 +561,23 @@ def probe_engines() -> None:
     # (flag_engine_auth_error có mẫu "invalid api key"), giống mọi provider API khác.
     try:
         import claude_auth
-        if claude_auth.che_do() == claude_auth.API_KEY and claude_auth.api_key():
+        mode = claude_auth.che_do()
+        if mode == claude_auth.API_KEY and claude_auth.api_key():
             ok, msg = True, ""
+        elif mode == claude_auth.TOKEN and claude_auth.oauth_token():
+            # 2026-11-22: a long-lived token has no login file to read; it is good until its year is up. A token
+            # Anthropic refused before then is caught by the run itself (flag_engine_auth_error).
+            info = claude_auth.token_info()
+            ok = not info.get("expired")
+            msg = "" if ok else "Token dài hạn của Claude đã hết hạn."
+            # Anthropic ends the token after a year and only a new sign-in makes another: a week before, the owner
+            # hears it in the bell, so the bots never stop over it.
+            if ok and info.get("expires_at") and int(info.get("days_left", 999)) <= TOKEN_REMIND_DAYS \
+                    and on_claude_token_soon:
+                try:
+                    on_claude_token_soon(info)
+                except Exception as e:  # noqa: BLE001 - a missed reminder never touches the light
+                    print(f"[engine health] token reminder: {type(e).__name__}: {e}", file=sys.stderr)
         else:
             ok, msg = probe_claude_credentials()
     except Exception:

@@ -21,7 +21,8 @@ def check(name, cond, them=""):
 
 js = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 css = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
-i = js.find('id="cliCode"')
+# 2026-11-22: the card's one way in gets a long-lived token (startClaudeToken); its code box keeps these rules.
+i = js.find('id="cliTokCode"')
 row = js[js.rfind("<div", 0, i):i]
 check("the code row is a .prov-action row (button sized to its text)", 'class="prov-action prov-code"' in row, row)
 check("no inline flex:1 that lets the button win", 'style="flex:1"' not in js[i:i + 300])
@@ -32,7 +33,8 @@ check("the box grows, never shrinks below its text, wraps the button under on a 
       "flex: 1 1 240px" in rule and "min-width: 0" in rule, rule)
 check("16px text (no iOS zoom, readable)", "font-size: 16px" in rule, rule)
 check("no autocorrect on a code", 'autocapitalize="off"' in js[i:i + 400] and 'spellcheck="false"' in js[i:i + 400])
-body = js[js.find('const cb = el.querySelector("#cliCodeBtn");'):js.find("// ---- ChatGPT OAuth device-code")]
+body = js[js.find('const ci = box.querySelector("#cliTokCode")'):js.find("// ---- ChatGPT OAuth device-code")]
+check("the code box is there", i > 0 and len(body) > 200, i)
 check("Enter sends", 'e.key === "Enter"' in body)
 check("stray spaces and line breaks are removed from the pasted code", ".replace(/\\s+/g, \"\")" in body, body[:400])
 check("empty code: says what to do instead of sending", "models.code_empty" in body)
