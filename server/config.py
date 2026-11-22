@@ -1013,8 +1013,12 @@ def update_settings(patch: dict) -> dict:
         return cfg
 
 
-def write_settings(cfg):
+def write_settings(cfg, *, clear_account: bool = False):
     """THAY TOÀN BỘ settings.json bằng `cfg` - một cấu hình ĐẦY ĐỦ lấy từ read_settings() rồi sửa.
+
+    The owner's password is never dropped by a save (incident 2026-11-22, see _keep_owner_account): a `cfg` without
+    one keeps the account on disk. Only a caller that clears the account on purpose passes `clear_account=True`
+    (POST /auth/disable, after the current password and 2FA code).
 
     Lưới an toàn (0.86.2): `cfg` thiếu khoá gốc mà mọi cấu hình đầy đủ đều có (read_settings luôn
     trộn đủ mặc định) thì chắc chắn là một MẢNH truyền nhầm. Ba chỗ từng làm vậy từ 0.71.0
@@ -1025,7 +1029,7 @@ def write_settings(cfg):
         raise TypeError("write_settings cần một dict cấu hình đầy đủ")
     with _SETTINGS_LOCK:
         # MẢNH = thiếu quá nửa khoá gốc. Mảnh thật chỉ có một, hai khoá; còn cấu hình đầy đủ mà bỏ
-        # hẳn một mục có chủ đích (đặt lại tài khoản: `pop("auth")` rồi ghi) vẫn phải xoá được.
+        # hẳn một mục có chủ đích vẫn phải xoá được (riêng tài khoản thì phải kèm clear_account=True).
         thieu = [k for k in _DEFAULT if k not in cfg]
         if len(thieu) * 2 > len(_DEFAULT):
             import traceback
@@ -1036,8 +1040,56 @@ def write_settings(cfg):
             day_du = read_settings()
             _deep_merge(day_du, json.loads(json.dumps(cfg)))
             cfg = day_du
+        # The blank-config net first, on what the caller handed in: with the account put back, a config read back as
+        # defaults would look installed and pass it, wiping models and channels.
         _chan_ghi_trang(cfg)
+        if not clear_account:
+            cfg = _keep_owner_account(cfg)
         _write_settings_full(cfg)
+
+
+# Parts of the account block a save may not drop by accident. 2FA is kept by its own rules (kept_totp, the blob guard
+# in _write_settings_full); it is carried here only when the new block has none at all.
+_OWNER_KEYS = ("username", "password_hash", "salt", "env_applied")
+
+
+def _keep_owner_account(cfg):
+    """`cfg` with the owner's account put back when it would have been dropped. Returns a new dict when it changes.
+
+    Owner incident 2026-11-22 (and 2026-11-12): the password vanished from settings.json, and with no password
+    POST /auth/setup is open to anyone, so a stranger created an account. Whatever wrote it (a test run against the
+    live state folder is the likely one, see tests/python/_live_env.py), it went through write_settings with an
+    account block that had no password while the file still had one. Every path that changes the password writes a
+    new one; only POST /auth/disable means to clear it, and it says so. Anything else gets the account back, an
+    alert in the security log, and a line in the server log naming the caller."""
+    a = cfg.get("auth")
+    if isinstance(a, dict) and str(a.get("password_hash") or ""):
+        return cfg
+    try:
+        disk = _doc_file_settings()
+    except Exception:  # noqa: BLE001 - unreadable file: _chan_ghi_trang decides, nothing here to keep
+        return cfg
+    da = disk.get("auth") if isinstance(disk.get("auth"), dict) else {}
+    if not str(da.get("password_hash") or ""):
+        return cfg
+    keep = dict(a) if isinstance(a, dict) else {}
+    for k in _OWNER_KEYS:
+        if k in da:
+            keep[k] = da[k]
+    if not isinstance(keep.get("totp"), dict) and isinstance(da.get("totp"), dict):
+        keep["totp"] = da["totp"]     # still encrypted as on disk; encrypt() leaves it as it is
+    import traceback
+    where = " | ".join(f"{os.path.basename(f.filename)}:{f.lineno} {f.name}"
+                       for f in traceback.extract_stack(limit=8)[:-2])
+    print(f"[config] REFUSED to drop the owner's password from settings.json; the account was kept. "
+          f"Called from: {where[-400:]}", file=__import__("sys").stderr)
+    try:
+        import security_log
+        security_log.record("account_clear_blocked", user=str(da.get("username") or ""), source="write_settings",
+                            detail=f"from {where[-260:]}")
+    except Exception:  # noqa: BLE001
+        pass
+    return {**cfg, "auth": keep}
 
 
 def _da_cai_dat(d) -> bool:
@@ -1054,8 +1106,9 @@ def _chan_ghi_trang(cfg) -> None:
     lần đọc hỏng trả về mặc định: ghi nó xuống là xoá tài khoản, model, khoá API và mọi kênh (chủ repo
     15/10/2026, lúc lưu kênh Lark). Chặn và báo to thay vì ghi.
 
-    Đặt lại tài khoản có chủ đích (lấy cấu hình đầy đủ, `pop("auth")` rồi ghi) vẫn đi qua: các mục khác
-    vẫn giữ giá trị trên đĩa, không mục nào bị kéo về mặc định."""
+    Đặt lại tài khoản có chủ đích (lấy cấu hình đầy đủ, `pop("auth")` rồi ghi với `clear_account=True`) vẫn
+    đi qua: các mục khác vẫn giữ giá trị trên đĩa, không mục nào bị kéo về mặc định. Thiếu `clear_account`
+    thì lưới này cho qua nhưng _keep_owner_account giữ lại mật khẩu của chủ (2026-11-22)."""
     if _da_cai_dat(cfg) or not SETTINGS_PATH.exists():
         return
     try:
@@ -1155,10 +1208,46 @@ def _read_stamp() -> dict:
         return {}
 
 
-def _write_stamp(parts: dict) -> None:
+def _empty_part(name: str) -> str:
+    return _auth_parts({})[name]
+
+
+# Events that only happen once an owner account exists.
+_OWNER_EVENTS = {"login_ok", "login_new_network", "setup", "password_changed", "username_changed", "2fa_enabled",
+                 "env_account_created", "env_account_reset"}
+
+
+def _owner_evidence(stamp: dict, cfg=None) -> bool:
+    """For a stamp written before the owner mark (or none): did this machine ever have an owner account?"""
+    parts = stamp.get("parts") if isinstance(stamp.get("parts"), dict) else {}
+    if parts.get("password") not in (None, _empty_part("password")):
+        return True
+    if parts.get("2fa") not in (None, _empty_part("2fa")):
+        return True
+    try:
+        if totp_enabled(cfg) or totp_hong(cfg):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import security_log
+        return bool(security_log.recent(1, _OWNER_EVENTS))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _write_stamp(parts: dict, *, owner=None) -> None:
+    """Record the account block's fingerprint. `owner` is sticky: once an owner account existed it stays True, so a
+    password that later vanishes does not make Javis look like a new install (see owner_known). Only POST
+    /auth/disable sets it back to False, through release_owner."""
+    prev = _read_stamp()
+    if owner is None:
+        owner = bool(prev.get("owner")) if "owner" in prev else _owner_evidence(prev)
+        owner = owner or parts.get("password") != _empty_part("password")
     p = _stamp_path()
     tmp = p.with_name(f".{p.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    tmp.write_text(json.dumps({"fp": _parts_fp(parts), "parts": parts, "ts": time.time()}), encoding="utf-8")
+    tmp.write_text(json.dumps({"fp": _parts_fp(parts), "parts": parts, "owner": bool(owner), "ts": time.time()}),
+                   encoding="utf-8")
     os.replace(tmp, p)
     try:
         os.chmod(p, 0o600)
@@ -1170,6 +1259,60 @@ def _stamp_auth(raw_auth) -> None:
     parts = _auth_parts(raw_auth)
     if _read_stamp().get("fp") != _parts_fp(parts):
         _write_stamp(parts)
+
+
+def owner_known(cfg=None) -> bool:
+    """This machine has had an owner account, whether or not it still has a password.
+
+    Owner incident 2026-11-22: once the password was gone, Javis looked exactly like a new install and showed the
+    account form to anyone who opened the page. With an owner on record the form stays shut to other devices (see
+    main.auth_setup). The sticky mark in .auth_stamp.json answers; a stamp from before it falls back to evidence: a
+    password or 2FA in the stamp, a 2FA block still in settings.json, or an owner event in the security log."""
+    stamp = _read_stamp()
+    if "owner" in stamp:
+        return bool(stamp.get("owner"))
+    return _owner_evidence(stamp, cfg)
+
+
+def release_owner() -> None:
+    """The owner turned login off on purpose (POST /auth/disable): the next account form is a first one again."""
+    with _SETTINGS_LOCK:
+        try:
+            raw = _doc_file_settings()
+            _write_stamp(_auth_parts(raw.get("auth")), owner=False)
+        except Exception as e:  # noqa: BLE001
+            print(f"[config] release_owner: {type(e).__name__}: {e}", file=__import__('sys').stderr)
+
+
+# Left by tools/reset_auth.py: the owner, on the machine, asked to set a new password from any device. Valid one day,
+# used up by the next account created.
+SETUP_REOPEN_SEC = 24 * 3600
+
+
+def _reopen_path() -> Path:
+    return SETTINGS_PATH.with_name(".setup_reopen")
+
+
+def setup_reopen_valid() -> bool:
+    try:
+        ts = float(json.loads(_reopen_path().read_text(encoding="utf-8")).get("ts") or 0)
+    except Exception:  # noqa: BLE001 - missing or unreadable: not reopened
+        return False
+    return -300 <= time.time() - ts <= SETUP_REOPEN_SEC
+
+
+def clear_setup_reopen() -> None:
+    try:
+        _reopen_path().unlink()
+    except OSError:
+        pass
+
+
+def setup_locked(cfg=None) -> bool:
+    """The account form is shut to every device but the machine itself: no account now, an owner before, and no
+    fresh reopen mark from the reset tool."""
+    cfg = cfg or read_settings()
+    return not auth_enabled(cfg) and owner_known(cfg) and not setup_reopen_valid()
 
 
 def auth_guard_check(grace: float = None):
@@ -1978,6 +2121,32 @@ def provision_admin_from_env():
     write_settings(cfg)
     clear_sessions()
     return "reset"
+
+
+def restore_admin_from_env() -> str:
+    """No account right now but JAVIS_ADMIN_PASSWORD is set: put the account back at once, 2FA kept.
+
+    Boot does this already (provision_admin_from_env); this covers a password that vanished while Javis runs, so the
+    window in which the account form is the only thing on the page is the time to the next page load, not to the
+    next restart. Only for a password that went missing: after the owner turned login off on purpose (owner_known is
+    False then) the account comes back at the next boot, as it always did. Returns "created" or ""."""
+    if not clean_password(os.getenv("JAVIS_ADMIN_PASSWORD", "")):
+        return ""
+    with _SETTINGS_LOCK:
+        if auth_enabled() or not owner_known():
+            return ""
+        done = provision_admin_from_env()
+    if done == "created":
+        clear_sessions()
+        try:
+            import security_log
+            security_log.record("env_account_created", user=os.getenv("JAVIS_ADMIN_USER", "admin").strip() or "admin",
+                                detail="account was missing; restored from environment", source="JAVIS_ADMIN_PASSWORD")
+        except Exception:  # noqa: BLE001
+            pass
+        print("[auth] The account was missing from settings.json; restored from JAVIS_ADMIN_PASSWORD (2FA kept).",
+              file=__import__('sys').stderr)
+    return done
 
 
 def reset_2fa_from_env():

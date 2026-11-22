@@ -5380,6 +5380,14 @@ async function initAuthGate() {
   // gọi API thật sự (chat, file...) tự lộ ra nếu phiên đã hết hạn thật.
   if (!s) return;
   if (s.authed) { _authedThisPage = true; initSetup(); return; }
+  if (s.needs_setup && s.setup_locked) {
+    // The owner's password went missing (owner incident 2026-11-22): the server refuses a new account from here, so
+    // show the sign-in page with the way back instead of a form anyone could have filled in.
+    authOverlay.classList.add("open");
+    const err = document.getElementById("authErr");
+    if (err) err.textContent = window.t("app.setup_locked");
+    return;
+  }
   if (s.needs_setup) {
     _wizardMandatory = !!s.require_login;
     const wz = document.getElementById("setupWizard");

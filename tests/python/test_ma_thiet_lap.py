@@ -61,7 +61,8 @@ check("CANARY: đã có admin thì /auth/setup từ chối, không tạo đè",
       r.status_code == 400 and cfgmod.read_settings()["auth"]["username"] == "quy", r.text)
 
 # ---- 3. Client cũ còn gửi setup_token ----
-s = cfgmod.read_settings(); s.pop("auth", None); cfgmod.write_settings(s)
+# Như máy mới: không tài khoản, chưa có chủ (từ 2026-11-22 mất mật khẩu của chủ thì form bị khoá với máy khác).
+s = cfgmod.read_settings(); s.pop("auth", None); cfgmod.write_settings(s, clear_account=True); cfgmod.release_owner()
 r = client.post("/auth/setup", data={"username": "cu", "password": "matkhau-client-cu", "setup_token": "gi-cung-duoc"})
 check("client cũ gửi kèm setup_token vẫn tạo được, không lỗi", r.status_code == 200 and r.json().get("ok"), r.text)
 

@@ -118,6 +118,8 @@ Cách thủ công (máy không dùng env):
 2. Xoá (hoặc làm rỗng) khối `"auth"` trong `settings.json` ở thư mục state (Docker: `/data/state/settings.json`).
 3. Đặt `JAVIS_ADMIN_PASSWORD` (và `JAVIS_ADMIN_USER` nếu muốn) rồi khởi động lại. Javis tạo lại admin từ biến môi trường lúc boot.
 
+Bỏ qua bước 3 thì trang tạo tài khoản **không mở cho thiết bị khác**: máy đã có chủ mà mật khẩu mất thì chỉ trình duyệt trên chính máy chạy Javis tạo được tài khoản mới, hoặc mọi thiết bị trong 24 giờ sau khi chạy `python tools/reset_auth.py` trên máy chủ. Chặn như vậy để mật khẩu lỡ bị mất cũng không ai lạ vào tạo tài khoản được (vụ 22/11/2026). Mỗi lần chặn có cảnh báo trong nhật ký bảo mật, kèm IP thật của người thử.
+
 ### D. Đăng xuất
 
 1. Vào **Tài khoản**.
@@ -336,7 +338,7 @@ Bạn đang vào Javis bằng một tên miền mà Javis chưa biết, trong l�
 Bạn đang gọi API Javis từ một trang khác (script, tiện ích, iframe của bên thứ ba). Đây là lớp chống CSRF chặn đúng việc của nó. Nếu đó là công cụ của chính bạn, thêm hostname của nó vào `JAVIS_ALLOWED_HOSTS`.
 
 **Quên mật khẩu.**
-Trên Windows và Mac, thư mục cài Javis có sẵn **`reset-auth.bat`** (Windows) và **`reset-auth.command`** (Mac). Bấm đúp là mật khẩu cũ bị xoá; mở lại Javis rồi vào Tài khoản đặt mật khẩu mới. Đang đăng nhập sẵn thì vào **Tài khoản**, bấm **Quên mật khẩu hiện tại?** để Javis mở đúng thư mục. Nếu không dùng được script: sửa/xoá phần `auth` trong `settings.json` ở thư mục state (Docker: `/data/state`) rồi khởi động lại; hoặc đặt lại admin bằng `JAVIS_ADMIN_PASSWORD` sau khi đã xoá phần `auth` cũ.
+Trên Windows và Mac, thư mục cài Javis có sẵn **`reset-auth.bat`** (Windows) và **`reset-auth.command`** (Mac). Bấm đúp là mật khẩu cũ bị xoá; mở lại Javis rồi vào Tài khoản đặt mật khẩu mới. Đang đăng nhập sẵn thì vào **Tài khoản**, bấm **Quên mật khẩu hiện tại?** để Javis mở đúng thư mục. Nếu không dùng được script: sửa/xoá phần `auth` trong `settings.json` ở thư mục state (Docker: `/data/state`) rồi khởi động lại; hoặc đặt lại admin bằng `JAVIS_ADMIN_PASSWORD` sau khi đã xoá phần `auth` cũ. Xoá tay mà không đặt `JAVIS_ADMIN_PASSWORD` thì chỉ tạo được tài khoản mới từ trình duyệt trên chính máy chạy Javis (xem mục C).
 
 **Đổi máy/khôi phục backup xong thì mọi API key trống trơn.**
 Bạn chép `settings.json` mà không chép `.secret_key` đi cùng. Không có cách khôi phục: nhập lại key ở trang Models, Kênh và Cài đặt. Lần sau nhớ mang cả hai tệp.

@@ -79,9 +79,10 @@ check("legacy hash with a trailing space: typed exactly still works",
       c.verify_password("co-dau-cach-cu ", cfg))
 
 # ---- 4. JAVIS_ADMIN_PASSWORD with stray whitespace (pasted into Hostinger) ----
+# Clearing the account takes clear_account=True: an ordinary save never drops the owner's password (2026-11-22).
 cfg = c.read_settings()
 cfg.pop("auth", None)
-c.write_settings(cfg)
+c.write_settings(cfg, clear_account=True)
 os.environ["JAVIS_ADMIN_PASSWORD"] = "  mat-khau-hostinger \n"
 os.environ["JAVIS_ADMIN_USER"] = " admin "
 check("env with whitespace: admin created", c.provision_admin_from_env() == "created")
@@ -113,9 +114,11 @@ os.environ.pop("JAVIS_ADMIN_USER", None)
 import main   # noqa: E402
 from fastapi.testclient import TestClient   # noqa: E402
 
+# A new install: no account and no owner yet, so the account form is open to this (non-local) test client.
 cfg = c.read_settings()
 cfg.pop("auth", None)
-c.write_settings(cfg)
+c.write_settings(cfg, clear_account=True)
+c.release_owner()
 cl = TestClient(main.app)
 r = cl.post("/auth/setup", data={"username": "Phong", "password": "mat-khau-moi-1 "})
 check(f"setup screen: account created ({r.status_code})", r.status_code == 200 and r.json().get("ok"))
@@ -155,7 +158,8 @@ check("password change: stored without surrounding spaces",
 
 cfg = c.read_settings()
 cfg.pop("auth", None)
-c.write_settings(cfg)
+c.write_settings(cfg, clear_account=True)
+c.release_owner()
 r = TestClient(main.app).post("/auth/setup", data={"username": "x", "password": "        "})
 check(f"setup: an all-space password is refused ({r.status_code})", r.status_code == 400)
 check("setup: and nothing was stored", not c.auth_enabled())

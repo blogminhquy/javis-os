@@ -14,6 +14,11 @@ What it clears:
 What it keeps: `setup_done` and everything else (models, channels, keys), so Javis does NOT reopen the first-run
 wizard, which would also ask for the AI brain again.
 
+What it adds: `.setup_reopen` next to settings.json. Once an owner account has existed, Javis refuses a new account
+from any device but the machine itself (owner incident 2026-11-22: a lost password let a stranger create one through
+Cloudflare). Running this tool is the owner's proof, so for 24 hours the account form opens from any device again,
+and the first account created closes it.
+
 It writes the file directly and leaves .auth_stamp.json alone on purpose: a running Javis sees the account block
 change outside the app and ends every signed-in session (config.auth_guard_check). Nothing needs a restart.
 
@@ -26,6 +31,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +74,11 @@ def write_atomic(path: Path, text: str) -> None:
         pass
 
 
+def reopen_setup(settings: Path) -> None:
+    """Let any device create the next account for a day (config.setup_reopen_valid reads this file)."""
+    write_atomic(settings.with_name(".setup_reopen"), json.dumps({"ts": time.time()}))
+
+
 def say(vi: str, en: str) -> None:
     print(f"  {vi}\n  {en}")
 
@@ -95,6 +106,11 @@ def main(argv=None) -> int:
         say(f"Không đọc được {path} ({e}). Không sửa gì cả.", f"Could not read {path} ({e}). Nothing changed.")
         return 1
     write_atomic(path, json.dumps(clear_auth(data), ensure_ascii=False, indent=2))
+    try:
+        reopen_setup(path)
+    except OSError as e:
+        say(f"Chưa mở được trang tạo tài khoản ({e}). Hãy đặt mật khẩu mới ngay trên máy chủ (http://127.0.0.1).",
+            f"Could not reopen the account form ({e}). Set the new password on the server itself (http://127.0.0.1).")
     env = Path(args.env_file)
     if env.is_file():
         try:
@@ -106,8 +122,8 @@ def main(argv=None) -> int:
                 f"Could not remove the old password from {env} ({e}). Delete the JAVIS_ADMIN_PASSWORD line by hand.")
     say("Xong, mật khẩu cũ đã bị xoá. Mọi thiết bị đang đăng nhập bị đăng xuất.",
         "Done, the old password is gone. Every signed-in device is signed out.")
-    say("Mở lại Javis rồi vào Tài khoản để đặt mật khẩu mới.",
-        "Open Javis again and set a new password on the Account page.")
+    say("Mở lại Javis rồi đặt mật khẩu mới trong vòng 24 giờ.",
+        "Open Javis again and set a new password within 24 hours.")
     return 0
 
 
