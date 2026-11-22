@@ -90,6 +90,10 @@ _AUTH_FINAL_PATTERNS = ("please run /login", "not logged in", "invalid api key",
                         "log out and sign in again")
 _AUTH_FINAL_MAX = 400   # câu lỗi đăng nhập luôn ngắn; final dài là nội dung thật, đừng nghi oan
 
+# Providers signed in as the Models page counts them, `fn(settings) -> [id, ...]` (main._routing_connected_ids, set by
+# main at import). None when this module runs alone: the chain then follows the saved order only, as before 2026-11-22.
+CONNECTED_IDS = None
+
 
 def final_loi_dang_nhap(text: str) -> bool:
     """Final này có phải câu báo mất đăng nhập của engine CLI không."""
@@ -1302,8 +1306,20 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         # Settings not yet moved to 0.350.0 have no stored order: MAIN plus every API card holding a key, which is
         # exactly what the migration will store.
         conn = None
-        if not model_routing.stored_order(m):
+        stored = model_routing.stored_order(m)
+        if not stored:
             conn = [model_routing.main_provider(m)] + [p for p in API_PROVIDERS if api_key_for(p, s)]
+        elif CONNECTED_IDS is not None:
+            # 2026-11-22: a card signed in after the order was saved (Antigravity signs in from a terminal) joins the
+            # chain at the end, as the Models page draws it. Claude Code and ChatGPT were both signed out and the jobs
+            # never reached the Antigravity that was signed in. Cards of the saved order all stay, as before.
+            try:
+                extra = [p for p in (CONNECTED_IDS(s) or []) if p not in stored]
+            except Exception as e:  # noqa: BLE001 - the saved order still runs
+                print(f"[aux router] signed-in cards: {type(e).__name__}: {e}", file=sys.stderr)
+                extra = []
+            if extra:
+                conn = stored + extra
         chain, claude_used = [], []
         # A plan's quota belongs to the account, not the model: a second Claude step after Claude ran dry would only
         # cost another failed call, so each plan provider appears once.
