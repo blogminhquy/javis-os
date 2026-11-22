@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.3] - 2026-11-22
+### Security
+- **Every GitHub connect, account switch and disconnect goes in the security log.** It names the Javis account, the real IP and the device, and alerts the owner. A token renewal by Javis is not logged.
+### Fixed
+- **A failed GitHub check now reads "Could not check" instead of a false "Not connected".** This covers the GitHub card, the chat box, Teams and the brain backup box, with the reason and a Retry button.
+
 ## [0.628.2] - 2026-11-22
 ### Fixed
 - **Notices with a link no longer run past the card.** A bell card shows the link's words, not the whole address, and a long word wraps inside the card.
