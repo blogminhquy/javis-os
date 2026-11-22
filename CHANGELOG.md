@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.625.1] - 2026-11-22
+### Sửa lỗi
+- **Bot không còn gửi câu lỗi đăng nhập của model vào nhóm khách.** Khi Claude Code hết phiên, nó in câu "Failed to authenticate: this login reached its time limit..." như một câu trả lời, và bot gửi nguyên câu đó vào nhóm Telegram. Nay mọi câu báo mất đăng nhập (Claude Code, ChatGPT, Grok, Antigravity) đều bị chặn ở mọi kênh: khách không nhận gì, lượt đó tự chạy bằng model khác đã kết nối nếu có, còn chuông thông báo của chủ nói rõ cần vào trang Models đăng nhập lại.
+- **Model đăng nhập sau giờ thật sự được dùng làm dự phòng.** Trang Models xếp model kết nối sau (ví dụ Antigravity đăng nhập bằng lệnh `agy`) ở cuối thứ tự dùng, nhưng Javis chỉ thử các model đã lưu trong thứ tự, nên khi Claude Code và ChatGPT cùng mất đăng nhập thì bot khách, việc nền và workflow không chuyển sang Antigravity. Nay Javis thử đúng thứ tự trang Models đang hiện. Thành viên Team có model riêng không chạy được cũng lùi về model đang chạy được, không lùi về model chính đã mất đăng nhập.
+- **ChatGPT không còn tự mất đăng nhập.** Khi Javis tự làm mới token ChatGPT (lúc bot trả lời, tạo ảnh, giọng nói, tải danh sách model), nó chỉ lưu mã mới vào cài đặt của Javis. Lượt Codex kế tiếp thấy file đăng nhập của Codex khác đi, tưởng đó là mã mới hơn và chép mã cũ đã dùng đè lên mã mới, nên OpenAI báo "refresh token was already used" và ChatGPT bị đăng xuất. Nay Javis so thời điểm cấp để biết bộ nào mới thật, ghi mã mới sang file của Codex ngay, và không để hai lượt cùng làm mới một mã một lúc.
+- **Kênh Telegram của chủ báo mất đăng nhập bằng câu dễ hiểu.** Thay cho câu tiếng Anh bảo gõ lệnh trong terminal, chủ đọc "model mất đăng nhập, vào trang Models đăng nhập lại", giống khung chat web.
+
 ## [0.625.0] - 2026-11-22
 ### Sửa lỗi
 - **Mic chép lời trên điện thoại ghi âm thật ngay từ lần bấm đầu.** Javis nhớ máy đang có mô hình nghe (ChatGPT, Groq, OpenAI, Gemini), nên điện thoại ghi âm rồi để mô hình đó chép, có sóng âm thật, giống app ChatGPT.
