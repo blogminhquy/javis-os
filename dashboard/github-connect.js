@@ -1186,5 +1186,6 @@
   // `statusState` / `whyText`: the one rule for reading GET /github/status, so a failed check reads "Could not check"
   // on every screen.
   window.JavisGithubRepos = { mount: mount, connect: connect, claimPending: claimPending, refresh: refresh, decorate: decorate, openDetail: openDetail,
-    current: function () { return attached.slice(); }, logo: LOGO, list: repoList, statusState: statusState, whyText: whyText };
+    current: function () { return attached.slice(); }, logo: LOGO, list: repoList };
+  Object.assign(window.JavisGithubRepos, { statusState: statusState, whyText: whyText });
 })();
