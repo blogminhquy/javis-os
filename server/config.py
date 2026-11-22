@@ -126,6 +126,11 @@ _DEFAULT = {
         #       chỉ định cho sản phẩm bên thứ ba (xem claude_auth.CANH_BAO_SUBSCRIPTION).
         # Đổi ở trang Models. Cả hai đều giữ NGUYÊN năng lực: Bash, WebFetch, MCP, nối phiên cũ.
         "claude_auth": "subscription",
+        # "token" (2026-11-22): the plan signed in with a long-lived token from `claude setup-token`, handed to
+        # `claude` as CLAUDE_CODE_OAUTH_TOKEN (claude_auth.py). Encrypted at rest; `_at` is when it was saved,
+        # since the token lives one year from then.
+        "claude_oauth_token": "",
+        "claude_oauth_token_at": 0,
         # Daily `claude update` (claude_update.py). The switch sits on the Claude Code card of the
         # Models page; env JAVIS_CLAUDE_AUTO_UPDATE=0 still forces it off over this value.
         "claude_auto_update": True,
@@ -540,6 +545,8 @@ _SECRET_PATHS = (
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
     "model.groq_api_key", "model.deepseek_api_key", "model.ollama_key", "model.ollama_local_key", "model.openai_compat_key",
     "model.anthropic_compat_key",
+    # The long-lived Claude Code token (2026-11-22): it runs the owner's plan for a year, like a password.
+    "model.claude_oauth_token",
     # 0.350.0: keys of every account in a provider card (model_routing). Account ids are generated,
     # so the whole dict is secret.
     "model.account_keys.*",

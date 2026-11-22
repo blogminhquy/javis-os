@@ -98,6 +98,7 @@ import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản G
 import grok_cli          # bộ não thứ 11: Grok Build CLI (`grok`) - gói SuperGrok / X Premium+
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
+import claude_setup_token   # 2026-11-22: `claude setup-token` run from the Models card (a one-year token)
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import model_routing   # 0.350.0: provider order, per-card model/effort, several accounts per provider
 import plan_limits     # the plan's 5-hour and weekly meters (side work pauses near the limit)
@@ -2661,6 +2662,9 @@ def _providers_view(cfg):
             # dashboard: chỉ server mới biết model việc nền đang trỏ vào đâu.
             item["auth_mode"] = claude_auth.che_do(cfg)
             item["auth_api_key_set"] = bool(claude_auth.api_key(cfg))
+            # 2026-11-22: the long-lived token (never the token itself), and whether this machine can get one by itself.
+            item["auth_token"] = claude_auth.token_info(cfg)
+            item["auth_token_auto"] = claude_setup_token.supported()
             item["auth_warning"] = claude_auth.canh_bao_neu_can(cfg)
             # Cùng lý do với cli_found của Codex: key_field=None làm configured luôn True,
             # nhưng bản cài tay thiếu binary `claude` thì chat chết ngay lượt đầu.
@@ -6256,6 +6260,9 @@ def claude_status(refresh: bool = False):
     d["auto_update_env_off"] = claude_update.env_off()
     # 2026-11-10: the Claude Agent SDK package follows the same switch (sdk_update.py). A file read, no subprocess.
     d["sdk"] = sdk_update.status()
+    # 2026-11-22: which credentials the turns run with, and the long-lived token's dates (never the token).
+    d["auth_mode"] = claude_auth.che_do()
+    d["auth_token"] = claude_auth.token_info()
     return d
 
 
@@ -6871,12 +6878,113 @@ def claude_login_poll():
 @app.post("/claude/logout")
 def claude_logout():
     d = claude_auth_logout()
+    # Disconnect on the card means Claude Code stops here (2026-11-22): a long-lived token would keep it signed in.
+    _claude_token_forget()
     warm_pool.POOL.drop_kind("claude")   # 0.387.0: a warm `claude` keeps the login it started with
     try:
         connect_health.probe_engines()   # ngắt chủ động → đèn phải đổi ngay, khỏi chờ vòng quét
     except Exception:
         pass
     return d
+
+
+# ---- Long-lived Claude Code token (2026-11-22, claude_auth.TOKEN) ----
+# Owner's report: the plan's sign-in "reached its time limit and cannot be renewed" and every bot and job stopped. A
+# token from `claude setup-token` lives a year and is Anthropic's own answer for unattended runs. The card gets one by
+# running the command (claude_setup_token: link, then the code the page shows) or takes one pasted.
+def _claude_token_save(raw) -> dict:
+    tok = claude_auth.clean_token(raw)
+    if not claude_auth.valid_token(tok):
+        return {"ok": False, "error": localefmt.chu(
+            "Đây không phải token dài hạn của Claude. Token đúng bắt đầu bằng sk-ant-oat01-.",
+            "This is not a long-lived Claude token. A real one starts with sk-ant-oat01-.")}
+    cfg = cfgmod.read_settings()
+    m = cfg.setdefault("model", {})
+    m["claude_oauth_token"] = tok
+    m["claude_oauth_token_at"] = int(time.time())
+    m["claude_auth"] = claude_auth.TOKEN
+    cfgmod.write_settings(cfg)
+    claude_cli.auth_quen_cache()
+    warm_pool.POOL.drop_kind("claude")
+    connect_health.engine_reconnected("claude")
+    _plan_main_signed_in("anthropic-cli")
+    print("[claude token] a long-lived token was saved; Claude Code runs on it", file=sys.stderr)
+    return {"ok": True, "token": claude_auth.token_info()}
+
+
+def _claude_token_soon(info: dict) -> None:
+    """A week before the long-lived token ends (Anthropic gives a year): one bell notice a day with the one step to
+    take. Called by connect_health's probe, which runs every few minutes."""
+    try:
+        day = time.strftime("%d/%m/%Y", time.localtime(int(info.get("expires_at") or 0)))
+        inbox.add(localefmt.chu(
+            f"Token dài hạn của Claude hết hạn ngày {day}. Vào trang Models, thẻ Claude Code, bấm Lấy token mới "
+            "(đăng nhập claude.ai một lần) để bot và việc nền không bị dừng.",
+            f"The long-lived Claude token expires on {day}. On the Models page, Claude Code card, click Get a new "
+            "token (one claude.ai sign-in) so bots and background work do not stop."),
+            kind="system", source="engine", level="important",
+            dedup=f"claude-token-soon:{time.strftime('%Y-%m-%d')}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[claude token] reminder: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+@app.post("/claude/token")
+def claude_token_save(token: str = Form("")):
+    """A token pasted on the card (made by `claude setup-token` on any machine)."""
+    return _claude_token_save(token)
+
+
+def _claude_token_forget() -> bool:
+    """Forget the long-lived token and leave token mode. True when there was one."""
+    claude_setup_token.stop()
+    cfg = cfgmod.read_settings()
+    m = cfg.setdefault("model", {})
+    had = bool(m.get("claude_oauth_token"))
+    if not had and claude_auth.che_do(cfg) != claude_auth.TOKEN:
+        return False
+    m["claude_oauth_token"] = ""
+    m["claude_oauth_token_at"] = 0
+    if claude_auth.che_do(cfg) == claude_auth.TOKEN:
+        m["claude_auth"] = claude_auth.SUBSCRIPTION
+    cfgmod.write_settings(cfg)
+    claude_cli.auth_quen_cache()
+    return had
+
+
+@app.delete("/claude/token")
+def claude_token_remove():
+    """Forget the token; Claude Code goes back to the machine's own sign-in."""
+    had = _claude_token_forget()
+    warm_pool.POOL.drop_kind("claude")
+    try:
+        connect_health.probe_engines()
+    except Exception:  # noqa: BLE001
+        pass
+    return {"ok": True, "removed": had}
+
+
+@app.post("/claude/token/start")
+def claude_token_start():
+    """Run `claude setup-token` and hand back its sign-in link."""
+    return claude_setup_token.start(find_claude_cli())
+
+
+@app.post("/claude/token/code")
+def claude_token_code(code: str = Form("")):
+    """The code the sign-in page showed: typed into the command, and the token it prints is saved."""
+    d = claude_setup_token.send_code(code)
+    if not d.get("ok"):
+        return d
+    return _claude_token_save(claude_setup_token.take_token() or d.get("token") or "")
+
+
+@app.get("/claude/token/poll")
+def claude_token_poll():
+    """The command may finish without a code (a browser on the machine running Javis answers it): save the token."""
+    d = claude_setup_token.poll()
+    if d.get("token"):
+        return _claude_token_save(claude_setup_token.take_token() or d["token"])
+    return {"ok": not d.get("ended"), **{k: v for k, v in d.items() if k != "token"}}
 
 
 # ---- MCP do Javis quản lý (engine Claude Code) ----
@@ -7544,6 +7652,8 @@ def settings_get():
         safe["model"][kf + "_set"] = bool(k)
     # 0.350.0: account keys never leave the server. The Models page gets each card's accounts with the last 4 characters.
     safe["model"].pop("account_keys", None)
+    # The long-lived Claude token (2026-11-22) never leaves either; the card reads `auth_token` of its provider entry.
+    safe["model"].pop("claude_oauth_token", None)
     safe["model"]["accounts"] = {
         pid: [{"id": a["id"], "label": a["label"], "enabled": a["enabled"],
                "key": ("••••" + a["key"][-4:]) if a["key"] else "",
@@ -7749,9 +7859,8 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # Giá trị lạ về "subscription" thay vì báo lỗi - đây là ô hai lựa chọn, gõ sai thì lui
         # về cái không tốn tiền của người dùng chứ không làm chết đường chat.
         if "claude_auth" in patch:
-            m["claude_auth"] = (claude_auth.API_KEY
-                                if str(patch["claude_auth"] or "").strip().lower() == claude_auth.API_KEY
-                                else claude_auth.SUBSCRIPTION)
+            _ca = str(patch["claude_auth"] or "").strip().lower()
+            m["claude_auth"] = _ca if _ca in claude_auth.MODES else claude_auth.SUBSCRIPTION
         if "auxiliary" in patch:   # model phụ cho việc nền (provider + model)
             aux_patch = patch["auxiliary"] or {}
             aux = m.setdefault("auxiliary", {})
@@ -17436,6 +17545,7 @@ async def _start_scheduler():
         # 0.403.0: the AI engine down is urgent (nothing works); connections broken after a restart are important.
         connect_health.on_engine_down = lambda text: _loop_notify(text, source="engine", level="urgent")
         connect_health.on_connections_down = lambda text: _loop_notify(text, source="connections", level="important")
+        connect_health.on_claude_token_soon = _claude_token_soon
         connect_health.start()   # vòng check sức khoẻ kết nối + probe đèn báo não
     except Exception as e:
         print(f"[connect health start] {e}", file=_sys.stderr)
@@ -22110,7 +22220,7 @@ async def _chat_socket(ws):
                                 store.set_cli_session_id(conv_sid, _cli_sid)
                                 # 0.202.0: this chat may be kept warm across a short break (off by default).
                                 try:
-                                    if claude_auth.che_do() == claude_auth.SUBSCRIPTION:
+                                    if claude_auth.on_plan():
                                         cli.session_id = _cli_sid
                                         _KEEPWARM.note_turn(conv_sid, cli, int(event.get("tokens_in", 0) or 0))
                                 except Exception:
@@ -35534,7 +35644,7 @@ async def plan_limits_get(goi: int = 0):
     d = await asyncio.to_thread(plan_limits.doc)
     # On an API key a brain bills per token: no plan, so no ring for it.
     grok_k = await asyncio.to_thread(grok_cli.auth_status)
-    co_goi = {"anthropic-cli": not claude_auth.env_cho_cli(), "openai-oauth": True,
+    co_goi = {"anthropic-cli": claude_auth.on_plan(), "openai-oauth": True,
               "grok-cli": grok_k.get("method") != "xai-api-key", "antigravity-cli": True}
     ten = {}
     if goi:

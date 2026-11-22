@@ -878,13 +878,24 @@ def auth_status(bo_qua_cache: bool = False):
         # 8 giây cho đường VẼ TRANG, 25 giây cho nút "Kiểm tra lại" (bo_qua_cache=True). Người
         # bấm nút thì sẵn lòng chờ; người chỉ mở trang thì không, và họ không có cách nào biết
         # mình đang chờ cái gì.
+        # The same credentials the turns run with (claude_auth.env_cho_cli): with a long-lived token saved
+        # (2026-11-22) the CLI reports "oauth_token" and is signed in whatever its own login file says.
+        try:
+            import claude_auth
+            _env = claude_auth.env_cho_cli()
+        except Exception:  # noqa: BLE001 - an unreadable setting only means the plain check
+            _env = {}
         r = subprocess.run([cli, "auth", "status", "--json"], capture_output=True, text=True,
                            encoding="utf-8", errors="replace",
-                           timeout=25 if bo_qua_cache else 8, creationflags=_no_window())
+                           timeout=25 if bo_qua_cache else 8, creationflags=_no_window(),
+                           env=({**os.environ, **_env} if _env else None))
         d = json.loads((r.stdout or "").strip() or "{}")
         goi = d.get("subscriptionType", "") or ""
+        am = str(d.get("authMethod", "") or "")
         ra = {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
-              "plan": _ten_goi_dong(goi, d.get("email", "")) or d.get("authMethod", ""), "org": d.get("orgName", ""),
+              # "oauth_token" is how the CLI names a long-lived token: a method, not a plan name to show.
+              "plan": _ten_goi_dong(goi, d.get("email", "")) or ("" if am == "oauth_token" else am),
+              "org": d.get("orgName", ""), "auth_method": am,
               # The plan CODE alone (pro, max...), never the auth method: the usage ring names the plan (0.329.0).
               "goi": goi,
               # The plan's name as Anthropic names it today ("Ultra"), read from the CLI's own profile copy.

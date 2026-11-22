@@ -31,6 +31,10 @@ function grab(head) {
 }
 const fnCard = grab("async function refreshClaudeCard(");
 const fnUpd = grab("function veCapNhatClaude(");
+// 2026-11-22: the card's buttons (the one connect gate, Disconnect included) come from these two.
+const fnBox = grab("function claudeTokenBox(");
+const fnBind = grab("function bindClaudeToken(");
+check("claudeTokenBox and bindClaudeToken are in console.js", !!fnBox && !!fnBind);
 check("refreshClaudeCard is in console.js", !!fnCard);
 check("veCapNhatClaude is in console.js", !!fnUpd);
 
@@ -51,6 +55,8 @@ function makeEl() {
       },
       get innerHTML() { return this._html; },
       querySelector(sel) { return sel.startsWith("#") ? (byId[sel.slice(1)] || null) : null; },
+      addEventListener() {},
+      insertAdjacentHTML(where, v) { this.innerHTML = this._html + v; },
     };
   }
   const el = node("page");
@@ -69,7 +75,10 @@ function load(opts) {
     infoBtn: () => '<button class="info-i"></button>',
     infoBody: (h) => '<div class="info-body">' + h + "</div>",
     renderModelsCloudTab: () => {},
-    startClaudeLogin: () => {},
+    startClaudeToken: () => {},
+    takeAcctName: () => "",
+    savePlanName: async () => {},
+    ic: (n) => "<svg data-ic=\"" + n + "\"></svg>",
     acctNameTag: () => "",
     acctLine: (pid, own) => (own || []).filter(Boolean).map((x) => " · " + x).join(""),
     acctNameField: () => "",
@@ -82,7 +91,8 @@ function load(opts) {
     },
   };
   vm.createContext(ctx);
-  vm.runInContext(fnUpd + "\n" + fnCard + "\nthis.refreshClaudeCard = refreshClaudeCard; this.veCapNhatClaude = veCapNhatClaude;", ctx);
+  vm.runInContext(fnUpd + "\n" + fnBox + "\n" + fnBind + "\n" + fnCard
+    + "\nthis.refreshClaudeCard = refreshClaudeCard; this.veCapNhatClaude = veCapNhatClaude;", ctx);
   return { ctx, calls };
 }
 
