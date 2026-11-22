@@ -311,12 +311,12 @@ The cards of three plan providers, **ChatGPT (Codex)**, **Grok Build** and **Cla
 2. Read the gentle warning: "Several accounts on one plan carry a lock risk, though Javis has no reported case. If it happens, please tell the developer through Issues on Javis's GitHub."
 3. Press **Get the sign-in link**, open the link on any device, and sign in with the account you want to add.
    - **ChatGPT** and **Grok Build**: the card shows a link plus a code. Once you sign in it finishes on its own: the page checks every 3 seconds, for up to 15 minutes.
-   - **Claude Code**: the card shows a link. After signing in, paste the code shown back into the box on the card and press **Confirm**.
+   - **Claude Code**: the card shows a link. After signing in, paste the code shown back into the box on the card and press **Confirm**. Since 22/11/2026 an extra account also gets a **long-lived token** like account 1 (Javis runs `claude setup-token` for that account alone), so it is never signed out midway. The token is kept encrypted in the account's folder; removing the account removes the token. An extra account on the old sign-in keeps working until it runs out; **Sign in again** moves it to a token.
 4. To stop a sign-in that has not finished, press **Cancel**.
 
 **The Accounts list.** With 2 or more accounts the card shows an **Accounts** block with an (i) button:
 
-- Each row is numbered 1, 2, 3... with its state: **Signed in**, **Not signed in**, **Off** or **Out of quota, back at HH:MM**.
+- Each row is numbered 1, 2, 3... with its state: **Signed in**, **Not signed in**, **Off** or **Out of quota, back at HH:MM**. A Claude account on a token also shows its expiry date and the days left; a week before, the bell reminds you once a day, naming the account.
 - The account carrying the work has a green **Chat uses this** or a purple **Background uses this** label.
 - Reorder with the up / down arrows, or drag the row.
 - The **⋯** button at the end of a row: **Turn off** / **Turn on**; accounts other than account 1 also get **Sign in again** and **Remove**. Removing deletes that account's sign-in folder on this machine. Account 1 cannot be removed here.

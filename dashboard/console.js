@@ -3829,9 +3829,15 @@
       const rows = n < 2 ? "" : list.map((a, i) => {
         const isCur = !!cur && cur.id === a.id;
         const name = a.label || (a.main ? t("models.pacct_main") : t("models.pacct_n", { n: i + 1 }));
-        const st = !a.enabled ? t("models.acct_off") : !a.signed_in ? t("models.pacct_out") : a.resting_until > nowS
+        // A Claude account on a long-lived token (2026-11-22) also shows when the token ends (Anthropic gives a year).
+        const tokEnd = a.signed_in && a.token_expires_at
+          ? " · " + (a.token_expired ? t("models.tok_expired")
+            : t("models.tok_until", { ngay: new Date(a.token_expires_at * 1000).toLocaleDateString(LOC(), { dateStyle: "medium" }),
+                                      n: Math.max(0, a.token_days_left || 0) }))
+          : "";
+        const st = (!a.enabled ? t("models.acct_off") : !a.signed_in ? t("models.pacct_out") : a.resting_until > nowS
           ? t("models.acct_rest", { gio: new Date(a.resting_until * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })
-          : t("models.pacct_ok");
+          : t("models.pacct_ok")) + tokEnd;
         const cls = !a.enabled ? "off" : !a.signed_in ? "off" : a.resting_until > nowS ? "rest" : "ready";
         const pills = (isCur && useChat ? `<span class="ord-pill chat">${esc(t("models.acct_chat"))}</span>` : "")
           + (isCur && useBg ? `<span class="ord-pill bg">${esc(t("models.acct_bg"))}</span>` : "");
@@ -4833,7 +4839,9 @@
           if (d && d.ok) { done(); return; }
           msg.innerHTML = WARN_ICON + " " + esc((d && d.error) || t("app.err_cap"));
         };
-        return;
+        // Claude (2026-11-22, `claude setup-token`): a browser on the machine running Javis finishes it without a
+        // code, so the sheet also asks, like ChatGPT and Grok below.
+        if (pid !== "anthropic-cli") return;
       }
       // ChatGPT and Grok finish on the web: ask every 3 seconds, for up to 15 minutes (the code's lifetime).
       const han = Date.now() + 15 * 60 * 1000;

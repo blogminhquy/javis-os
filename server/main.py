@@ -6521,7 +6521,8 @@ def grok_status():
 # ---- Extra accounts on a subscription plan card (plan_accounts, 0.353.0) ----
 # Account 1 keeps its own card controls above. An extra account signs in into its own folder: ChatGPT through
 # Javis's device-code flow (tokens written to that folder's auth.json), Grok through `grok login --device-auth`,
-# Claude Code through `claude auth login` (a link, then a code pasted back). One sign-in runs at a time.
+# Claude Code through `claude setup-token` (a link, then a code pasted back; since 2026-11-22 a long-lived token kept in
+# the account's folder). One sign-in runs at a time.
 _PLAN_LOGIN: dict = {}
 
 
@@ -6549,7 +6550,9 @@ def _plan_login_fresh(provider: str, account_id: str, folder) -> bool:
         elif kind == "agy":
             f = plan_accounts.agy_token_file(folder)
         else:
-            f = Path(folder) / ".credentials.json"
+            f = Path(folder) / plan_accounts._CLAUDE_TOKEN    # 2026-11-22: extra accounts sign in with a token
+            if not f.exists():
+                f = Path(folder) / ".credentials.json"
             if not f.exists():
                 return sys.platform == "darwin"   # macOS keeps Claude's token in the Keychain: no file to date
         return bool(f) and Path(f).stat().st_mtime >= since
@@ -6600,15 +6603,24 @@ async def plan_account_login_start(request: Request):
         if d.get("xong") and _plan_login_fresh(prov, aid, folder):
             return _plan_login_ok(prov, aid)
         return {"ok": True, "account_id": aid, "url": d.get("url", ""), "code": d.get("code", ""), "needs_code": False}
-    d = await asyncio.to_thread(claude_cli.auth_login_ui_start, plan_accounts.env_for(prov, folder))
+    # Claude Code (2026-11-22): a long-lived token from `claude setup-token`, like account 1, so the account is never
+    # signed out midway. The command runs with the account's folder; the token is kept in that folder.
+    d = await asyncio.to_thread(claude_setup_token.start, find_claude_cli(), plan_accounts.env_for(prov, folder))
     if not d.get("ok"):
+        _PLAN_LOGIN.pop(aid, None)
         return d
-    for _ in range(40):          # the login link shows within a few seconds
-        u = claude_cli._LOGIN.get("url")
-        if u:
-            break
-        await asyncio.sleep(0.25)
-    return {"ok": True, "account_id": aid, "url": claude_cli._LOGIN.get("url", ""), "code": "", "needs_code": True}
+    return {"ok": True, "account_id": aid, "url": d.get("url", ""), "code": "", "needs_code": True}
+
+
+def _plan_claude_token_done(prov: str, aid: str, token: str) -> dict:
+    """An extra Claude account's `setup-token` printed its token: keep it in the account's folder, finish the sign-in."""
+    folder = plan_accounts.home(prov, aid)
+    if not claude_auth.valid_token(token) or not plan_accounts.save_claude_token(folder, claude_auth.clean_token(token)):
+        return {"ok": False, "error": localefmt.chu("Không lưu được token của tài khoản này.",
+                                                    "Could not save this account's token.")}
+    claude_setup_token.stop()
+    warm_pool.POOL.drop_kind("claude")   # a warm `claude` keeps the credentials it started with
+    return _plan_login_ok(prov, aid)
 
 
 @app.post("/plan-accounts/login-code")
@@ -6621,11 +6633,9 @@ async def plan_account_login_code(request: Request):
     prov, aid = str(body.get("provider") or ""), str(body.get("account_id") or "")
     if prov != "anthropic-cli" or aid not in _PLAN_LOGIN:
         return {"ok": False, "error": localefmt.chu("Chưa bắt đầu đăng nhập.", "Sign-in has not started.")}
-    d = await asyncio.to_thread(claude_cli.auth_login_ui_code, str(body.get("code") or ""))
-    folder = plan_accounts.home(prov, aid)
-    if d.get("ok") or ((await asyncio.to_thread(claude_cli.auth_status_folder, folder)).get("connected")
-                       and _plan_login_fresh(prov, aid, folder)):
-        return _plan_login_ok(prov, aid)
+    d = await asyncio.to_thread(claude_setup_token.send_code, str(body.get("code") or ""))
+    if d.get("ok"):
+        return _plan_claude_token_done(prov, aid, claude_setup_token.take_token() or d.get("token") or "")
     return {"ok": False, "error": d.get("error") or localefmt.chu("Đăng nhập chưa xong.", "Sign-in not finished.")}
 
 
@@ -6651,9 +6661,12 @@ async def plan_account_login_poll(provider: str = "", account_id: str = ""):
         if plan_accounts.agy_token_file(folder) and _plan_login_fresh(provider, account_id, folder):
             return _plan_login_ok(provider, account_id)
         return {"ok": True, "connected": False}
-    d = await asyncio.to_thread(claude_cli.auth_status_folder, folder)
-    if d.get("connected") and _plan_login_fresh(provider, account_id, folder):
-        return _plan_login_ok(provider, account_id)
+    # Claude: a browser on the machine running Javis finishes `setup-token` without a code; its token is kept then.
+    d = await asyncio.to_thread(claude_setup_token.poll)
+    if d.get("token"):
+        return _plan_claude_token_done(provider, account_id, claude_setup_token.take_token() or d["token"])
+    if d.get("ended"):
+        return {"ok": False, "connected": False, "error": d.get("error", "")}
     return {"ok": True, "connected": False}
 
 
@@ -6673,6 +6686,7 @@ async def plan_account_login_cancel(request: Request):
         if plan_accounts.KIND[prov] == "grok":
             grok_cli.logout_huy_tien_trinh()
         elif plan_accounts.KIND[prov] == "claude":
+            claude_setup_token.stop()
             try:
                 proc = claude_cli._LOGIN.get("proc")
                 if proc and proc.poll() is None:
@@ -6926,6 +6940,28 @@ def _claude_token_soon(info: dict) -> None:
             dedup=f"claude-token-soon:{time.strftime('%Y-%m-%d')}")
     except Exception as e:  # noqa: BLE001
         print(f"[claude token] reminder: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def _claude_account_tokens_soon() -> None:
+    """The same reminder for each EXTRA Claude account signed in with a long-lived token (2026-11-22): a week before
+    it ends, one bell notice a day per account, naming it."""
+    m = cfgmod.read_settings().get("model") or {}
+    for i, a in enumerate(plan_accounts.accounts(m, "anthropic-cli")):
+        if a["id"] == plan_accounts.MAIN:
+            continue
+        ti = plan_accounts.claude_token_info(plan_accounts.home("anthropic-cli", a["id"], create=False))
+        if not ti.get("token_expires_at") or ti.get("token_expired") \
+                or int(ti.get("token_days_left", 999)) > connect_health.TOKEN_REMIND_DAYS:
+            continue
+        name = a.get("label") or localefmt.chu(f"tài khoản {i + 1}", f"account {i + 1}")
+        day = time.strftime("%d/%m/%Y", time.localtime(int(ti["token_expires_at"])))
+        inbox.add(localefmt.chu(
+            f"Token của tài khoản Claude {name} hết hạn ngày {day}. Vào trang Models, thẻ Claude Code, mở tài khoản đó "
+            "và bấm Đăng nhập lại (đăng nhập claude.ai một lần) để tài khoản không bị dừng.",
+            f"The token of Claude account {name} expires on {day}. On the Models page, Claude Code card, open that "
+            "account and click Sign in again (one claude.ai sign-in) so it does not stop."),
+            kind="system", source="engine", level="important",
+            dedup=f"claude-token-soon:{a['id']}:{time.strftime('%Y-%m-%d')}")
 
 
 @app.post("/claude/token")
@@ -17546,6 +17582,7 @@ async def _start_scheduler():
         connect_health.on_engine_down = lambda text: _loop_notify(text, source="engine", level="urgent")
         connect_health.on_connections_down = lambda text: _loop_notify(text, source="connections", level="important")
         connect_health.on_claude_token_soon = _claude_token_soon
+        connect_health.on_probe = _claude_account_tokens_soon
         connect_health.start()   # vòng check sức khoẻ kết nối + probe đèn báo não
     except Exception as e:
         print(f"[connect health start] {e}", file=_sys.stderr)

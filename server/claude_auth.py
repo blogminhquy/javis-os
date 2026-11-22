@@ -30,6 +30,8 @@ module này là bảo đảm họ cân nó khi đã BIẾT, chứ không phải 
 """
 from __future__ import annotations
 
+import math
+
 import config as cfgmod
 
 SUBSCRIPTION = "subscription"
@@ -118,9 +120,14 @@ def token_info(settings: dict = None, now: float = None) -> dict:
     if at:
         exp = at + TOKEN_DAYS * 86400
         out["expires_at"] = int(exp)
-        out["days_left"] = int((exp - now) // 86400)
+        out["days_left"] = token_days_left(exp, now)
         out["expired"] = exp <= now
     return out
+
+
+def token_days_left(expires_at: float, now: float) -> int:
+    """Days left, rounded up: a token saved a minute ago has 365 days left, not 364, and its last hours count as one."""
+    return max(0, math.ceil((float(expires_at) - float(now)) / 86400))
 
 
 def env_cho_cli(settings: dict = None) -> dict:

@@ -50,6 +50,10 @@ _SHARED = {"codex": ("*.toml",), "grok": ("config.toml",), "claude": ("settings.
 # Claude keeps user-scope MCP servers (added through Claude Code's own MCP, `--scope user`) in `.claude.json` NEXT TO the
 # config folder, together with that login's account data. Only its `mcpServers` list is carried over (0.355.0).
 _MARK = ".javis-signed-in"
+# 2026-11-22 (owner): an extra Claude account signs in with a long-lived token from `claude setup-token`, like account 1
+# (claude_auth.TOKEN), so its sign-in never runs out midway. The token lives in the account's own folder, encrypted, so
+# it goes with the folder when the account is removed.
+_CLAUDE_TOKEN = ".javis-claude-token.json"
 
 
 def supported(provider: str) -> bool:
@@ -168,6 +172,57 @@ def mark_signed_in(provider: str, folder) -> None:
         pass
 
 
+def claude_token(folder) -> str:
+    """The long-lived token an extra Claude account signed in with, "" when it has none (or it cannot be read)."""
+    if not folder:
+        return ""
+    try:
+        d = json.loads((Path(folder) / _CLAUDE_TOKEN).read_text(encoding="utf-8")) or {}
+        import secrets_store
+        return str(secrets_store.decrypt(d.get("token") or "") or "").strip()
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def save_claude_token(folder, token: str) -> bool:
+    """Keep an extra Claude account's token in its folder, encrypted, readable by this user only. True when saved."""
+    if not folder or not token:
+        return False
+    import secrets_store
+    f = Path(folder) / _CLAUDE_TOKEN
+    tmp = f.with_name(f.name + ".tmp")
+    try:
+        tmp.write_text(json.dumps({"token": secrets_store.encrypt(str(token).strip()), "at": int(time.time())}),
+                       encoding="utf-8")
+        try:
+            os.chmod(tmp, 0o600)
+        except OSError:
+            pass
+        os.replace(tmp, f)
+        return True
+    except OSError:
+        return False
+
+
+def claude_token_info(folder, now: float = None) -> dict:
+    """The card's view of an extra account's token (never the token): set, saved, expires, days left."""
+    tok = claude_token(folder)
+    if not tok:
+        return {}
+    try:
+        at = float((json.loads((Path(folder) / _CLAUDE_TOKEN).read_text(encoding="utf-8")) or {}).get("at") or 0)
+    except (OSError, ValueError, AttributeError):
+        at = 0.0
+    import claude_auth
+    out = {"token_set": True}
+    if at:
+        now = time.time() if now is None else now
+        exp = at + claude_auth.TOKEN_DAYS * 86400
+        out.update(token_expires_at=int(exp), token_days_left=claude_auth.token_days_left(exp, now),
+                   token_expired=exp <= now)
+    return out
+
+
 def signed_in(provider: str, account_id: str) -> bool:
     """Whether an account can run. Account 1 counts as signed in: its own card already says when it is not."""
     if account_id == MAIN:
@@ -190,6 +245,8 @@ def signed_in(provider: str, account_id: str) -> bool:
             return False
     if kind == "agy":
         return bool(agy_token_file(folder))
+    if claude_token(folder):
+        return True
     if (folder / ".credentials.json").exists():
         return True
     # Only macOS keeps the Claude token in the Keychain, where no file proves it; elsewhere a missing credentials
@@ -342,6 +399,20 @@ def view(m: dict, provider: str) -> list:
                "resting_until": model_routing.resting_until(provider, a["id"])}
         if row["signed_in"]:
             row.update(identity(provider, a["id"]))
+        if KIND.get(provider) == "claude":
+            # The token's dates (2026-11-22): account 1's from the card's own token, an extra one's from its folder.
+            if a["id"] == MAIN:
+                try:
+                    import claude_auth
+                    if claude_auth.che_do() == claude_auth.TOKEN:
+                        ti = claude_auth.token_info()
+                        if ti.get("set") and ti.get("expires_at"):
+                            row.update(token_set=True, token_expires_at=ti["expires_at"],
+                                       token_days_left=ti.get("days_left", 0), token_expired=bool(ti.get("expired")))
+                except Exception:  # noqa: BLE001
+                    pass
+            else:
+                row.update(claude_token_info(home(provider, a["id"], create=False)))
         out.append(row)
     return out
 
@@ -449,8 +520,10 @@ def _claude_drop_foreign_thread(engine, folder) -> None:
 def _claude_use(engine, folder) -> None:
     """Claude runs through claude-agent-sdk; its options are built per run, so the account's folder is added to
     the environment the SDK hands the `claude` process. The engine file itself is pinned (improvement profile),
-    so this wraps the built options instead of editing it."""
+    so this wraps the built options instead of editing it. An extra account signed in with a long-lived token
+    (2026-11-22) gets that token, never account 1's."""
     engine.claude_config_dir = str(folder) if folder else None
+    engine.claude_account_token = claude_token(folder) if folder else ""
     # Wrapped once PER INSTANCE: background work copies the chat's engine (copy.copy) for a second account, and the
     # copy must build options from its own attributes, not through the original's closure.
     if getattr(engine, "_javis_wrap_owner", None) is engine:
@@ -467,8 +540,12 @@ def _claude_use(engine, folder) -> None:
             env = dict(getattr(o, "env", None) or {}) or dict(os.environ)
             env["CLAUDE_CONFIG_DIR"] = d
             # 2026-11-22: the CLI reads CLAUDE_CODE_OAUTH_TOKEN before its config folder, so account 1's long-lived
-            # token (claude_auth.TOKEN) would run every extra account on account 1's plan.
+            # token (claude_auth.TOKEN) would run every extra account on account 1's plan. An extra account's own
+            # token takes its place.
             env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+            own = getattr(engine, "claude_account_token", "") or ""
+            if own:
+                env["CLAUDE_CODE_OAUTH_TOKEN"] = own
             o.env = env
         return o
 

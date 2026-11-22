@@ -311,12 +311,12 @@ Thẻ của ba nhà chạy bằng gói **ChatGPT (Codex)**, **Grok Build** và *
 2. Đọc dòng cảnh báo nhẹ: "Nhiều tài khoản cho một gói có nguy cơ bị khoá, dù Javis chưa ghi nhận ca nào. Nếu gặp, hãy báo cho nhà phát triển qua mục Issues trên GitHub của Javis."
 3. Bấm **Lấy link đăng nhập**, mở link trên máy nào cũng được, rồi đăng nhập đúng tài khoản cần thêm.
    - **ChatGPT** và **Grok Build**: thẻ hiện link kèm một mã. Đăng nhập xong là tự hoàn tất: trang kiểm tra mỗi 3 giây, chờ tối đa 15 phút.
-   - **Claude Code**: thẻ hiện link. Đăng nhập xong, dán mã hiện ra vào ô trên thẻ rồi bấm **Xác nhận**.
+   - **Claude Code**: thẻ hiện link. Đăng nhập xong, dán mã hiện ra vào ô trên thẻ rồi bấm **Xác nhận**. Từ 22/11/2026 tài khoản phụ cũng nhận **token dài hạn** như tài khoản 1 (Javis chạy `claude setup-token` cho riêng tài khoản đó), nên không bị đăng xuất giữa chừng. Token lưu mã hoá trong thư mục của tài khoản; Gỡ tài khoản là xoá luôn token. Tài khoản phụ đăng nhập kiểu cũ vẫn chạy tới khi phiên hết hạn; bấm **Đăng nhập lại** là chuyển sang token.
 4. Muốn dừng một lần đăng nhập chưa xong thì bấm **Huỷ**.
 
 **Danh sách Tài khoản.** Có từ 2 tài khoản trở lên thì thẻ hiện khối **Tài khoản** kèm nút (i):
 
-- Mỗi dòng đánh số 1, 2, 3... kèm trạng thái: **Đã đăng nhập**, **Chưa đăng nhập**, **Đã tắt** hoặc **Hết lượt, mở lại HH:MM**.
+- Mỗi dòng đánh số 1, 2, 3... kèm trạng thái: **Đã đăng nhập**, **Chưa đăng nhập**, **Đã tắt** hoặc **Hết lượt, mở lại HH:MM**. Tài khoản Claude chạy bằng token có thêm ngày hết hạn và số ngày còn lại; trước một tuần, chuông nhắc mỗi ngày một lần, kèm tên tài khoản.
 - Tài khoản đang gánh việc có nhãn xanh **Chat đang dùng** hoặc nhãn tím **Việc nền đang dùng**.
 - Đổi thứ tự bằng mũi tên lên / xuống, hoặc kéo dòng.
 - Nút **⋯** cuối dòng: **Tắt** / **Bật**; với các tài khoản khác tài khoản 1 có thêm **Đăng nhập lại** và **Gỡ**. Gỡ là xoá thư mục đăng nhập của tài khoản đó trên máy này. Tài khoản 1 không gỡ ở đây được.
