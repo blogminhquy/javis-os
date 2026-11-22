@@ -142,6 +142,46 @@ def _la_token_cua_javis(dtok, o):
     return False
 
 
+def _disk_is_newer(dtok, o):
+    """Whether the pair in ~/.codex/auth.json was issued AFTER the pair Javis holds (2026-11-22).
+
+    Different refresh tokens used to mean "Codex CLI rotated it, take the disk pair". They also mean the opposite:
+    Javis refreshed (bots, image, voice, the model list all call `valid_creds`) and saved the new pair to settings
+    only, so the disk still held the refresh token Javis had just spent. The next Codex turn then copied that dead
+    token over the live one, the live one was lost, and both Javis and Codex were told "refresh token was already
+    used" (owner's report: ChatGPT signed out for no reason). The access tokens decide: the one that expires later
+    was issued later. When either cannot be read, the disk wins, as before."""
+    d_exp = _decode_jwt_claims((dtok or {}).get("access_token") or "").get("exp")
+    if not d_exp:
+        return True
+    j_exp = _decode_jwt_claims((o or {}).get("access_token") or "").get("exp")
+    try:
+        if j_exp:
+            return float(d_exp) >= float(j_exp)
+        return float(d_exp) - 60 >= float((o or {}).get("expires_at") or 0)
+    except (TypeError, ValueError):
+        return True
+
+
+def _write_codex_file(o, access_token, account_id):
+    """Write Javis's pair to ~/.codex/auth.json in one step (a temporary file, then a rename), so a Codex process
+    reading it never sees half a file."""
+    path = _codex_auth_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".javis-tmp")
+    tmp.write_text(json.dumps({
+        "OPENAI_API_KEY": None,
+        "tokens": {
+            "id_token": o.get("id_token", ""),
+            "access_token": access_token,
+            "refresh_token": o.get("refresh_token", ""),
+            "account_id": account_id,
+        },
+        "last_refresh": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+    }), encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def _nhan_token_tu_codex(dtok):
     """Codex CLI vừa tự xoay refresh_token: kéo bộ MỚI của nó về settings.json.
 
@@ -424,30 +464,55 @@ def valid_creds():
         return None
     if o.get("access_token") and time.time() < (o.get("expires_at") or 0):
         return {"access_token": o["access_token"], "account_id": o.get("account_id", "")}
-    # Hết hạn. TRƯỚC khi tự refresh, xem Codex CLI đã xoay giúp chưa: mã trên đĩa khác mã
-    # trong tay ta nghĩa là nó xoay rồi, và OpenAI đã huỷ mã của ta ngay lúc đó. Refresh bằng
-    # mã chết vừa chắc chắn hỏng, vừa đẩy ta vào nhánh `stale` một cách vô cớ.
-    dtok = doc_codex_auth()
-    drt = (dtok.get("refresh_token") or "").strip()
-    if drt and drt != (o.get("refresh_token") or "").strip() and _cung_tai_khoan(dtok, o):
-        o = _nhan_token_tu_codex(dtok)
+    # One refresh at a time (2026-11-22): two threads refreshing the same refresh token is the second one told "already
+    # used". The one that waited reads what the first one saved.
+    with _MAIN_REFRESH_LOCK:
+        o = cfgmod.read_settings()["model"].get("openai_oauth") or {}
         if o.get("access_token") and time.time() < (o.get("expires_at") or 0):
             return {"access_token": o["access_token"], "account_id": o.get("account_id", "")}
-    rt = o.get("refresh_token")
-    if rt:
-        try:
-            r = httpx.post(OAUTH_TOKEN_URL, data={
-                "grant_type": "refresh_token", "client_id": CLIENT_ID, "refresh_token": rt,
-            }, headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA}, timeout=30)
-            r.raise_for_status()
-            _save_tokens(r.json())
-            o = cfgmod.read_settings()["model"]["openai_oauth"]
-            return {"access_token": o["access_token"], "account_id": o.get("account_id", "")}
-        except Exception:
-            pass
-    if o.get("access_token"):
-        return {"access_token": o["access_token"], "account_id": o.get("account_id", ""), "stale": True}
-    return None
+        # Hết hạn. TRƯỚC khi tự refresh, xem Codex CLI đã xoay giúp chưa: mã trên đĩa MỚI HƠN mã
+        # trong tay ta nghĩa là nó xoay rồi, và OpenAI đã huỷ mã của ta ngay lúc đó. Refresh bằng
+        # mã chết vừa chắc chắn hỏng, vừa đẩy ta vào nhánh `stale` một cách vô cớ. Mã trên đĩa
+        # CŨ HƠN là mã Javis vừa tiêu (`_disk_is_newer`): kéo nó về là tự giết phiên.
+        dtok = doc_codex_auth()
+        drt = (dtok.get("refresh_token") or "").strip()
+        if (drt and drt != (o.get("refresh_token") or "").strip() and _cung_tai_khoan(dtok, o)
+                and _disk_is_newer(dtok, o)):
+            o = _nhan_token_tu_codex(dtok)
+            if o.get("access_token") and time.time() < (o.get("expires_at") or 0):
+                return {"access_token": o["access_token"], "account_id": o.get("account_id", "")}
+        rt = o.get("refresh_token")
+        if rt:
+            try:
+                r = httpx.post(OAUTH_TOKEN_URL, data={
+                    "grant_type": "refresh_token", "client_id": CLIENT_ID, "refresh_token": rt,
+                }, headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA}, timeout=30)
+                r.raise_for_status()
+                _save_tokens(r.json())
+                o = cfgmod.read_settings()["model"]["openai_oauth"]
+                _mirror_to_codex(o, dtok)
+                return {"access_token": o["access_token"], "account_id": o.get("account_id", "")}
+            except Exception:
+                pass
+        if o.get("access_token"):
+            return {"access_token": o["access_token"], "account_id": o.get("account_id", ""), "stale": True}
+        return None
+
+
+# valid_creds refreshes the main ChatGPT account under this lock (extra accounts have _EXTRA_CREDS_LOCK).
+_MAIN_REFRESH_LOCK = threading.Lock()
+
+
+def _mirror_to_codex(o, dtok):
+    """Javis just refreshed: the pair on disk holds the refresh token it spent. Write the new pair there at once
+    (2026-11-22), so a Codex turn never refreshes with the spent one. Only over Javis's own bridged pair (the same
+    account); an empty disk is left to `write_codex_auth`, another account's `codex login` is never touched."""
+    if not (dtok or {}).get("refresh_token") or not _cung_tai_khoan(dtok, o):
+        return
+    try:
+        _write_codex_file(o, o.get("access_token", ""), o.get("account_id", ""))
+    except Exception:  # noqa: BLE001 - the next Codex turn writes it through write_codex_auth
+        pass
 
 
 
@@ -577,26 +642,16 @@ def write_codex_auth():
     if drt:
         if not _cung_tai_khoan(dtok, o):
             return False
-        if drt != (o.get("refresh_token") or "").strip():
+        if drt != (o.get("refresh_token") or "").strip() and _disk_is_newer(dtok, o):
             _nhan_token_tu_codex(dtok)
             return True
+        # An OLDER pair on disk is the one Javis already spent (2026-11-22): it is overwritten below, never taken.
     creds = valid_creds()
     if not creds or not creds.get("access_token") or creds.get("stale"):
         return False
     o = cfgmod.read_settings()["model"].get("openai_oauth") or {}
     try:
-        path = _codex_auth_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({
-            "OPENAI_API_KEY": None,
-            "tokens": {
-                "id_token": o.get("id_token", ""),
-                "access_token": creds["access_token"],
-                "refresh_token": o.get("refresh_token", ""),
-                "account_id": creds.get("account_id", ""),
-            },
-            "last_refresh": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
-        }), encoding="utf-8")
+        _write_codex_file(o, creds["access_token"], creds.get("account_id", ""))
         return True
     except Exception:
         return False
