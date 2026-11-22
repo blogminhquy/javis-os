@@ -81,9 +81,9 @@ check("sheet: survives the 5-second redraw, drawn again from _msheet", /'<div cl
 check("closing the chat on a phone also closes Info and the sheet", /_infoN = false; _msheet = false;/.test(fn("function dongThread() {")));
 
 // ---- 5. messages and composer ----
-const tin = fn("function veTin(t) {");
+const tin = fn("function renderMessage(t) {");
 check("who and when go under the bubble; a private chat's customer is not named again", tin.indexOf('class="ht-bubble"') < tin.indexOf('class="ht-msg-h"') &&
-  /if \(lop === "khach" && _conv && _conv\.chat_type !== "group"\) ai = "";/.test(tin));
+  /if \(side === "khach" && _conv && _conv\.chat_type !== "group"\) who = "";/.test(tin));
 const comp = fn("function veCompose(c) {");
 check("composer: one card; the draft (or the 'A.I. is writing' box in its place) sits on top of the box inside it",
   /'<div class="ib-cbox">' \+\s*\(writing && V \? V\.workingHtml\(aiWorkView\(\), ic\) : draft && V \? V\.draftHtml/.test(comp) && /has-draft/.test(comp));

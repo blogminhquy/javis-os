@@ -334,14 +334,14 @@ import chatbot_runtime  # noqa: E402
 import chatbot_store  # noqa: E402
 
 recorded = []
-orig = (chatbot_store.get_bot, chatbot_store.ap_ngoai_le, chatbot_runtime.ghi_tin_khach)
+orig = (chatbot_store.get_bot, chatbot_store.ap_ngoai_le, chatbot_runtime.record_customer_message)
 chatbot_store.get_bot = lambda bid: {"id": bid, "name": "Bot", "brain": "x"}
 chatbot_store.ap_ngoai_le = lambda cfg, meta: cfg
-chatbot_runtime.ghi_tin_khach = lambda cfg, meta, text: recorded.append((meta.get("chat_id"), text))
+chatbot_runtime.record_customer_message = lambda cfg, meta, text: recorded.append((meta.get("chat_id"), text))
 try:
     out = run(chatbot_runtime._make_answer_fn("b1")("Còn size M không?", {"chat_id": "cmt:1", "log_only": True}, None))
 finally:
-    chatbot_store.get_bot, chatbot_store.ap_ngoai_le, chatbot_runtime.ghi_tin_khach = orig
+    chatbot_store.get_bot, chatbot_store.ap_ngoai_le, chatbot_runtime.record_customer_message = orig
 check("log-only turn records the comment and stays silent",
       out.get("im_lang") and recorded == [("cmt:1", "Còn size M không?")], (out, recorded))
 

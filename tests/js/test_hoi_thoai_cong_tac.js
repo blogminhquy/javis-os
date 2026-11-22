@@ -82,7 +82,7 @@ check("setWho: a toast with Undo puts the old state back (not for Dismiss)", /to
   /setWho\(now, wasOn \? wasMode : "off", false, true\)/.test(sw));
 check("the old two-state switch and status line are gone", !/ht-seg|renderStatusLine|renderActions|function doiMode|ht\.sw_|ht\.st_/.test(CV) &&
   !/\.ht-seg|\.ht-status|\.ht-act/.test(OLDCSS));
-check("'Bot im: lý do' nằm TRONG vùng tin, ngay sau tin cuối", /_msgs\.map\(veTin\)\.join\(""\) \+ renderSilenceLine\(c\)/.test(CV));
+check("'Bot im: lý do' nằm TRONG vùng tin, ngay sau tin cuối", /_msgs\.map\(renderMessage\)\.join\(""\) \+ renderSilenceLine\(c\)/.test(CV));
 check("lý do lấy nhãn từ bộ phán xử (codeLabel), kèm điểm/ngưỡng khi có; mã lạ thì hiện nguyên mã",
   /RP\.codeLabel\(s\.code\)/.test(CV) && /toFixed\(2\)/.test(CV) && /function codeLabel\(code\)/.test(RP) &&
   /CODE_LB\[code\] \? tt\(CODE_LB\[code\]\) : String\(code \|\| ""\)/.test(RP));

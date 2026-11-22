@@ -206,17 +206,17 @@ import conversations  # noqa: E402
 cfg = {"id": "bot_names", "name": "Bot", "channel": "messenger", "accounts": []}
 base = {"platform": "messenger", "chat_id": PSID, "chat_type": "private", "chat_title": "", "user_id": PSID,
         "account_id": "acc_names"}
-chatbot_runtime.ghi_tin_khach(cfg, dict(base, user_name="Trần Thị Mai", username="Trần Thị Mai", message_id="w1"), "Chào shop")
-chatbot_runtime.ghi_tin_khach(cfg, dict(base, user_name="", username="", message_id="w2"), "Còn size M không?")
+chatbot_runtime.record_customer_message(cfg, dict(base, user_name="Trần Thị Mai", username="Trần Thị Mai", message_id="w1"), "Chào shop")
+chatbot_runtime.record_customer_message(cfg, dict(base, user_name="", username="", message_id="w2"), "Còn size M không?")
 cid = conversations.conversation_id_of("messenger", "acc_names", PSID)
 c = conversations.chi_tiet(cid) or {}
 check("a later message without a name keeps the conversation title and the customer name",
       c.get("title") == "Trần Thị Mai" and c.get("customer_name") == "Trần Thị Mai" and c.get("message_count") == 2, c)
 
-chatbot_runtime.ghi_tin_khach(cfg, dict(base, chat_id="24000000000777", user_id="24000000000777", user_name="",
+chatbot_runtime.record_customer_message(cfg, dict(base, chat_id="24000000000777", user_id="24000000000777", user_name="",
                                         username="", message_id="w3"), "Hi")
 cid2 = conversations.conversation_id_of("messenger", "acc_names", "24000000000777")
-chatbot_runtime.ghi_tin_khach(cfg, dict(base, chat_id="24000000000777", user_id="24000000000777", user_name="Mai",
+chatbot_runtime.record_customer_message(cfg, dict(base, chat_id="24000000000777", user_id="24000000000777", user_name="Mai",
                                         username="Mai", message_id="w4"), "Shop ơi")
 c2 = conversations.chi_tiet(cid2) or {}
 check("a name found later fills a conversation that started nameless", c2.get("title") == "Mai"

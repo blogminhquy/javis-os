@@ -1029,7 +1029,7 @@ async def record_staff_message(bot_id: str, tt: dict) -> int:
         if not files:
             if not words:
                 return 0        # nothing a person wrote and no file: not recorded, and no reason to step aside
-            r = conversations.ghi_su_kien(_su_kien_bot(
+            r = conversations.ghi_su_kien(_bot_event(
                 cfg, meta, sender_type="human", sender_name=sender, message_type="text", text=words,
                 external_message_id=mid, metadata={"staff_app": label}))
             return step_aside(1 if (r or {}).get("ok") and not (r or {}).get("trung") else 0)
@@ -1044,7 +1044,7 @@ async def record_staff_message(bot_id: str, tt: dict) -> int:
                                   f"[Staff sent an image on {label}, downloaded to: {f['path']}]") if is_image else
                     localefmt.chu(f"[Nhân viên gửi file qua {label}, đã tải về: {f['path']}]",
                                   f"[Staff sent a file on {label}, downloaded to: {f['path']}]"))
-            r = conversations.ghi_su_kien(_su_kien_bot(
+            r = conversations.ghi_su_kien(_bot_event(
                 cfg, meta, sender_type="human", sender_name=sender, message_type="image" if is_image else "file",
                 text=line + ("\n" + words if words and i == 0 else ""),
                 external_message_id=(mid if i == 0 else f"{mid}#{i}") if mid else "",
@@ -1596,7 +1596,7 @@ def _make_precheck_fn(bot_id: str):
             goi_bot = ((m.get("chat_type") or "private") == "private" or m.get("mentioned")
                        or m.get("reply_to_bot") or cfg.get("reply_when") == "always")
             if goi_bot:
-                ghi_tin_khach(cfg, m, text)
+                record_customer_message(cfg, m, text)
             return {}
         if ly_do == "nguoi_chua_chon":
             # Người ngoài danh sách (audience `chon`): im TUYỆT ĐỐI, nhưng nổi lên hàng chờ duyệt
@@ -1719,9 +1719,9 @@ def _make_command_fn(bot_cfg: dict):
         # `bot_cfg` là bản ghi lúc bật bot; đủ dùng vì id, tên, kênh không đổi khi bot đang chạy.
         m = dict(meta or {})
         m.setdefault("chat_id", chat)
-        ghi_tin_khach(bot_cfg, m, ("/" + str(cmd or "").lstrip("/") + (" " + arg if arg else "")).strip())
+        record_customer_message(bot_cfg, m, ("/" + str(cmd or "").lstrip("/") + (" " + arg if arg else "")).strip())
         if res and res.get("reply"):
-            ghi_tin_bot(bot_cfg, m, res["reply"])
+            record_bot_message(bot_cfg, m, res["reply"])
         return res
 
     async def _cmd_goc(cmd, arg, chat, meta=None):
@@ -1837,7 +1837,7 @@ def _kenh_kho(cfg: dict, meta: dict = None) -> str:
     return _tai_khoan_cua(cfg, meta or {})[1]
 
 
-def _su_kien_bot(cfg: dict, meta: dict, **phan) -> dict:
+def _bot_event(cfg: dict, meta: dict, **fields) -> dict:
     meta = meta or {}
     aid, kenh = _tai_khoan_cua(cfg, meta)
     ev = {
@@ -1849,15 +1849,15 @@ def _su_kien_bot(cfg: dict, meta: dict, **phan) -> dict:
         "chat_type": meta.get("chat_type") or "private",
         "chat_title": meta.get("chat_title") or "",
     }
-    ev.update(phan)
+    ev.update(fields)
     return ev
 
 
-def ghi_tin_khach(cfg: dict, meta: dict, text: str) -> None:
-    """Tin KHÁCH gửi tới bot. Nuốt mọi lỗi: kho hỏng không được làm gãy câu trả lời."""
+def record_customer_message(cfg: dict, meta: dict, text: str) -> None:
+    """A message a CUSTOMER sent to the bot. Swallows every error: a broken store must not break the answer."""
     try:
         meta = meta or {}
-        conversations.ghi_su_kien(_su_kien_bot(
+        conversations.ghi_su_kien(_bot_event(
             cfg, meta, sender_type="customer",
             sender_id=str(meta.get("user_id") or meta.get("username") or ""),
             sender_name=meta.get("user_name") or meta.get("username") or "",
@@ -1924,7 +1924,7 @@ def _bao_hop_thu(bot_id: str, cfg: dict, meta: dict, loi: str) -> None:
         print(f"[chatbot {bot_id}] báo chuông lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None,
+def record_bot_message(cfg: dict, meta: dict, text: str, error: str = "", files=None,
                 zalo_sending: bool = False) -> int:
     """Record a bot answer in the inbox; return its unique message row id.
 
@@ -1935,14 +1935,17 @@ def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None,
         if not str(text or "").strip() and not files:
             return 0
         md = {}
-        if loi:
-            md["loi"] = str(loi)[:300]
+        if error:
+            md["loi"] = str(error)[:300]      # the stored key stays "loi": the dashboard reads it
         if files:
             md["files"] = [str((f.get("path") if isinstance(f, dict) else f) or "")[:300]
                            for f in list(files)[:10]]
         if zalo_sending:
             md["zalo_delivery"] = {"state": "sending"}
-        result = conversations.ghi_su_kien(_su_kien_bot(
+        if cfg.get("icon"):
+            # Which agent wrote it, as the inbox draws it: the bot's own icon next to its name (owner, 2026-11-22).
+            md["bot_icon"] = str(cfg.get("icon"))[:40]
+        result = conversations.ghi_su_kien(_bot_event(
             cfg, meta, sender_type="ai", sender_name=cfg.get("name") or "",
             message_type="text", text=text, metadata=md))
         return int((result or {}).get("message_id") or 0)
@@ -2147,7 +2150,7 @@ def _make_answer_fn(bot_id: str):
             return {"text": "", "files": [], "im_lang": True, "refused": "permission_ceiling"}
         if (meta or {}).get("log_only"):
             # Recorded for the inbox only, no turn (0.434.0: Page comments in "inbox" mode, the owner answers them).
-            ghi_tin_khach(cfg, meta or {}, text)
+            record_customer_message(cfg, meta or {}, text)
             return {"text": "", "files": [], "im_lang": True}
         meta = _rp_named_meta(cfg, text, meta)
         _nho_neu_khong_goi(bot_id, cfg, meta, text)
@@ -2180,7 +2183,7 @@ def _make_answer_fn(bot_id: str):
                 # vẫn vào Hộp thư cho người trực đọc.
                 aid_p, kenh_p = _tai_khoan_cua(cfg, meta or {})
                 if conversations.che_do(kenh_p, aid_p, chat_id) == "human":
-                    ghi_tin_khach(cfg, meta or {}, text)
+                    record_customer_message(cfg, meta or {}, text)
                     chatbot_reply_policy.log_rail(chatbot_reply_policy_store, ev, profile, "taken_over")
                     return {"text": "", "files": [], "im_lang": True}
                 dec = await chatbot_reply_policy.decide(
@@ -2205,7 +2208,7 @@ def _make_answer_fn(bot_id: str):
         # Không còn trần số câu trả lời nào (chủ gỡ 2026-10-07): mỗi người mỗi giờ ở 0.85.4, lúc bot TỰ lên
         # tiếng trong nhóm ở 0.85.5. Nói hay im là việc của bộ phán xử và mô hình.
         # Hộp thư hội thoại: ghi tin khách TRƯỚC khi gọi engine, để lượt gãy vẫn còn tin khách.
-        ghi_tin_khach(cfg, meta or {}, text)
+        record_customer_message(cfg, meta or {}, text)
         # Người thật đã TIẾP QUẢN cuộc chat này ở trang Hội thoại thì bot im: tin khách vẫn vào
         # kho (dòng trên), chỉ không gọi engine. Lượt đang chạy dở lúc bấm Tiếp quản vẫn trả
         # lời nốt - chấp nhận ở V1, vì cắt ngang một câu đang gửi còn khó hiểu hơn với khách.
@@ -2441,8 +2444,8 @@ def _make_answer_fn(bot_id: str):
                 conversations.save_draft(cid_draft, dap_ghi, conversations.last_customer_message_id(cid_draft))
             return {"text": "", "files": [], "im_lang": True, "draft": True}
         # Câu bot nói vào Hộp thư hội thoại, cạnh tin khách. Lượt gãy thì `dap` rỗng nên không ghi gì: khách không nhận tin nào.
-        receipt_row = ghi_tin_bot(
-            cfg, meta or {}, dap_ghi, loi=loi_ky_thuat, files=(out or {}).get("files"),
+        receipt_row = record_bot_message(
+            cfg, meta or {}, dap_ghi, error=loi_ky_thuat, files=(out or {}).get("files"),
             zalo_sending=(kenh_luot == "zalo_personal" and not loi_ky_thuat))
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
@@ -2774,7 +2777,7 @@ def manual_done(conv: dict, msgs: list, text: str, meta: dict) -> dict:
     out = {"taught": False}
     if not cfg:
         return out
-    ghi_tin_bot(cfg, meta, text)
+    record_bot_message(cfg, meta, text)
     try:
         if cfg.get("reply_when") == "auto":
             PolicyHooks(bot_id).replied(meta, text)
@@ -2836,7 +2839,7 @@ async def try_message(bot_id: str, text: str, chat_type: str = "private", mentio
     độ Tự đánh giá, câu trả lời của Agent) và trả lại bot SẼ nói hay im, vì sao, nói gì.
 
     Lời hứa "không gửi ra ngoài" giữ bằng cấu trúc, không bằng lời dặn:
-      - không gọi kênh nào, không ghi Hộp thư (`ghi_tin_khach`/`ghi_tin_bot`), không ghi nhật ký bot;
+      - không gọi kênh nào, không ghi Hộp thư (`record_customer_message`/`record_bot_message`), không ghi nhật ký bot;
       - bộ phán xử chạy trên kho chỉ đọc, không kiểm và không tiêu hạn mức tự nói;
       - Agent chạy ở mức Chỉ đọc dù bot đặt mức cao hơn (mức Đọc tài liệu giữ nguyên vì tool của nó chỉ đọc): một
         lượt thử không được đặt đơn hay gửi tin qua tool;

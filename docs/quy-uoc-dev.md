@@ -104,6 +104,11 @@ ngoài Việt Nam, họ phải đọc được mã mà không cần biết tiế
   `vocabulary`, `split_vocabulary`, `BASE_VOCABULARY`, `MAX_VOCABULARY`).
 - **Không đổi tên những thứ đã thành hợp đồng** khi chưa có đường chuyển đổi: khoá trong file settings, khoá JSON
   mà dashboard hay máy khác đọc (ví dụ `hotwords_goc` của `/voice/options`), tên route, tên tool gửi cho model.
+- **Luật cứng từ 2026-11-22** (chủ repo: "lưu cái luật này cứng vào bên trong hệ thống, tất cả các hàm, các biến phải
+  sử dụng bằng tiếng Anh"): `tests/python/test_english_identifiers.py` đỏ khi có tên tiếng Việt MỚI (hàm, lớp, biến,
+  tham số, tên file) trong `server/`, `tools/`, `cli/`, `dashboard/`. Tên cũ nằm trong
+  `tests/python/english_identifiers_baseline.json`, được ở yên tới khi PR đụng cụm đó. **Không bao giờ thêm tên mới vào
+  file mốc để cho xanh**, viết bằng tiếng Anh. Đổi tên xong không cần sửa file mốc.
 - **Không phải là tên nên không theo mục này:** chữ hiện lên màn hình (đi qua i18n, xem mục trên), prompt gửi cho
   model (tiếng Anh, xem mục trên), regex nhận câu tiếng Việt người dùng nói, nội dung ghi vào brain.
 

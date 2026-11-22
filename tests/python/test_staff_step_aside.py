@@ -70,7 +70,7 @@ def staff(chat, text="Em gửi chị báo giá ạ", mid="", ts=None, files=None
 
 
 def customer_row(chat, text, at, mid):
-    ev = rt._su_kien_bot(CFG, meta_of(chat), sender_type="customer", sender_name="Lan", text=text,
+    ev = rt._bot_event(CFG, meta_of(chat), sender_type="customer", sender_name="Lan", text=text,
                          external_message_id=mid)
     ev["created_at"] = at
     return conversations.ghi_su_kien(ev)

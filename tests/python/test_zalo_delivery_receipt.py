@@ -35,7 +35,7 @@ meta = {"account_id": "zalo-test", "_kenh": "zalo_personal",
 
 
 def save_ai(text="Dạ em kiểm tra rồi"):
-    rid = chatbot_runtime.ghi_tin_bot(cfg, meta, text, zalo_sending=True)
+    rid = chatbot_runtime.record_bot_message(cfg, meta, text, zalo_sending=True)
     c = conversations.conversation_id_of("zalo_personal", "zalo-test", "group-123")
     row = next((m for m in conversations.tin_nhan(c, limit=50) if m["id"] == rid), None)
     return rid, row
