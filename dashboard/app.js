@@ -5382,10 +5382,15 @@ async function initAuthGate() {
   if (s.authed) { _authedThisPage = true; initSetup(); return; }
   if (s.needs_setup && s.setup_locked) {
     // The owner's password went missing (owner incident 2026-11-22): the server refuses a new account from here, so
-    // show the sign-in page with the way back instead of a form anyone could have filled in.
+    // show the sign-in page with the way back instead of a form anyone could have filled in. One short line stays out;
+    // the steps to get back in fold into the (i) button (docs/quy-uoc-dev.md, "Chữ giải thích gập vào nút (i)").
     authOverlay.classList.add("open");
     const err = document.getElementById("authErr");
-    if (err) err.textContent = window.t("app.setup_locked");
+    if (err) {
+      const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      err.innerHTML = esc(window.t("app.setup_locked")) + (window.JavisInfo
+        ? " " + window.JavisInfo.pair(esc(window.t("app.setup_locked_how")), window.t("info.more")) : "");
+    }
     return;
   }
   if (s.needs_setup) {
