@@ -295,7 +295,12 @@ check("móc gắn lúc tạo engine Claude (không phải lúc nạp main: khở
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 i = src.rfind('@app.get("/plan-limits")')
 check("route /plan-limits đăng ký sau star_nudge", i > src.rfind("star_nudge_routes.register"))
-check("Claude chỉ tính là gói khi không chạy bằng API key", "not claude_auth.env_cho_cli()" in src[i:])
+# 2026-11-22: a long-lived token (claude_auth.TOKEN) is the plan too, so the test is "no API key", not "no env at all".
+import claude_auth  # noqa: E402
+check("Claude chỉ tính là gói khi không chạy bằng API key", '"anthropic-cli": claude_auth.on_plan()' in src[i:]
+      and claude_auth.on_plan({"model": {"claude_auth": "token", "claude_oauth_token": "sk-ant-oat01-" + "a" * 40}})
+      and claude_auth.on_plan({"model": {"claude_auth": "subscription"}})
+      and not claude_auth.on_plan({"model": {"claude_auth": "api_key", "anthropic_api_key": "sk-ant-api03-x"}}))
 than = src[i:i + 2500]
 check("Grok chạy API key xAI thì không có gói", '"grok-cli": grok_k.get("method") != "xai-api-key"' in than)
 check("tên gói chỉ hỏi khi mở bảng (goi=1)", "if goi:" in than and "claude_auth_status" in than)
