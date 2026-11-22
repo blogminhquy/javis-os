@@ -49,6 +49,7 @@ log = logging.getLogger("javis.team_runner")
 LEASE_REQUEUE_MAX = 2   # số lần một bước được chạy lại vì mất quyền giữ trợ lý trước khi chặn việc
 
 DIRECTIVE_RE = re.compile(r"<!--\s*JAVIS_TEAM:\s*(.*?)-->", re.S)
+UNCLOSED_DIRECTIVE_RE = re.compile(r"<!--\s*JAVIS_TEAM:[\s\S]*$", re.S)
 # Op được phép theo vai của lượt (spec 15.2, Quyền giới hạn). Lượt trò chuyện không mở việc, không nhờ ai.
 OPS_BY_ROLE = {
     "leader_reply": {"propose_job"},
@@ -312,26 +313,42 @@ EngineFn = Callable[[dict], Awaitable[dict]]
 _UNPINNED = object()
 
 
-def parse_directives(text: str) -> tuple[str, list, list]:
-    """Tách khối JAVIS_TEAM khỏi câu trả lời. Trả (chữ sạch, danh sách op, ghi chú lỗi)."""
+def _parse_directives(text: str) -> tuple[str, list, list, int]:
+    """Extract JAVIS_TEAM directive blocks and return (clean_text, ops, notes, malformed_count)."""
     ops: list = []
     notes: list = []
+    malformed = 0
 
     def take(m: re.Match) -> str:
+        nonlocal malformed
         raw = m.group(1).strip()
         try:
             obj = json.loads(raw)
         except Exception:
+            malformed += 1
             notes.append("Khối JAVIS_TEAM hỏng (không đọc được JSON), đã bỏ")
             return ""
         if not isinstance(obj, dict) or not isinstance(obj.get("op"), str):
+            malformed += 1
             notes.append("Khối JAVIS_TEAM thiếu op, đã bỏ")
             return ""
         ops.append(obj)
         return ""
 
     clean = DIRECTIVE_RE.sub(take, text or "")
-    return clean.strip(), ops, notes
+    if UNCLOSED_DIRECTIVE_RE.search(clean):
+        clean = UNCLOSED_DIRECTIVE_RE.sub("", clean)
+        malformed += 1
+        notes.append(localefmt.chu(
+            "Khối JAVIS_TEAM hỏng (thiếu dấu đóng -->), đã bỏ",
+            "Malformed JAVIS_TEAM block (missing closing -->), skipped"))
+    return clean.strip(), ops, notes, malformed
+
+
+def parse_directives(text: str) -> tuple[str, list, list]:
+    """Tách khối JAVIS_TEAM khỏi câu trả lời. Trả (chữ sạch, danh sách op, ghi chú lỗi)."""
+    clean, ops, notes, _ = _parse_directives(text)
+    return clean, ops, notes
 
 
 def _sha(text: str) -> str:
@@ -3094,7 +3111,7 @@ class TeamRunner:
         ra đến muộn (thành viên rời, huỷ, sửa yêu cầu, đổi trưởng nhóm, agent đã xoá hay tạo lại cùng slug) chỉ là bằng
         chứng trên tin nhóm, không ghi gì vào bộ nhớ agent. Bài học ghi đúng một lần mỗi lượt (`claim_commit`)."""
         raw = str(res.get("text") or "")
-        clean, ops, notes = parse_directives(raw)
+        clean, ops, notes, malformed_directives = _parse_directives(raw)
         commit = res.get("commit")
         with self.accept_lock:
             status = self._still_valid(team_id, agent_key, role, task, step)
@@ -3188,6 +3205,8 @@ class TeamRunner:
             kept, extra = vet(self._team(team_id), role, kept, notes, task, step)
         elif not applied:
             kept = []
+        if malformed_directives:
+            extra = dict(extra, malformed_directives=malformed_directives)
         meta = {"role": role, "status": status, "applied": applied, "turn_id": turn_id, "notes": notes,
                 "sha": _sha(raw)}
         if status == "lease_lost":
@@ -4329,6 +4348,12 @@ class TeamRunner:
             if not assigns and (out.get("extra") or {}).get("assign_dropped"):
                 self.teams.finish_step(sid, "failed", mid, False, "không giao được cho ai")
                 return self._block(task["id"], "failed", "Kế hoạch giao việc cho người không có trong nhóm")
+            if not assigns and (out.get("extra") or {}).get("malformed_directives"):
+                self.teams.finish_step(sid, "failed", mid, False, localefmt.chu(
+                    "lệnh giao việc hỏng cú pháp", "malformed assignment directive"))
+                return self._block(task["id"], "failed", localefmt.chu(
+                    "Kế hoạch có lệnh JAVIS_TEAM bị hỏng cú pháp nên chưa giao được cho ai",
+                    "Plan contained a malformed JAVIS_TEAM directive, so no work was assigned"))
             self.teams.finish_step(sid, "done", mid, True)
             if not assigns:
                 return self._finish(team, task["id"], mid, out["text"], int(step["job_revision"]))
