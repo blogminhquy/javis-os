@@ -445,6 +445,7 @@
   "fast.state_off": "Fast mode is off ({reason}).",
   "cps.title": "Model and effort",
   "cps.close": "Close",
+  "cps.model": "Select model",
   "lim.title": "Plan usage limits",
   "lim.session": "5-hour session",
   "lim.week": "Weekly",

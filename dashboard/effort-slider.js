@@ -38,14 +38,16 @@
     var value = LEVELS.indexOf(opt.value) < 0 ? "off" : opt.value;
     var fast = opt.fast || null;
     el.innerHTML =
+      // "Recommended" sits in the head beside the level (owner, 22/11/2026, the frame looked lopsided): as its own row
+      // under the track it kept an empty line there whenever another level was picked.
       '<div class="eff-head"><span class="eff-lbl"></span><span class="eff-val"></span>' +
+      (opt.locked ? "" : '<span class="eff-rec"></span>') +
       (fast ? '<button type="button" class="eff-fast" aria-label="Fast mode">' + BOLT + "</button>" : "") + "</div>" +
       (opt.locked ? '<p class="eff-locked"></p>' :
         '<div class="eff-ends"><span class="eff-faster"></span><span class="eff-smarter"></span></div>' +
         '<div class="eff-track" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="5">' +
         '<canvas class="eff-cv" aria-hidden="true"></canvas><div class="eff-ticks" aria-hidden="true">' +
-        '<i></i><i></i><i></i><i></i><i></i><i></i></div><div class="eff-thumb" aria-hidden="true"></div></div>' +
-        '<div class="eff-rec"></div>');
+        '<i></i><i></i><i></i><i></i><i></i><i></i></div><div class="eff-thumb" aria-hidden="true"></div></div>');
     el.querySelector(".eff-lbl").textContent = tw("eff.head");
     var valEl = el.querySelector(".eff-val");
     var fastOn = !!(fast && fast.supported && fast.on);
@@ -107,7 +109,7 @@
       track.setAttribute("aria-valuenow", String(i));
       track.setAttribute("aria-valuetext", tw(LABEL_KEY[value]));
       track.title = value === "ultra" ? tw("eff.ultra_hint") : "";
-      rec.style.visibility = value === "medium" ? "visible" : "hidden";
+      rec.hidden = value !== "medium";
     }
     function draw(t) {
       raf = 0;
