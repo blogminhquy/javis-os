@@ -26780,6 +26780,24 @@ def _tg_signin_out(out: str, prov: str, account: str = None) -> bool:
     return True
 
 
+def _tg_signin_answer(out, prov: str, bot=None, acted: bool = False):
+    """A channel turn whose ANSWER is only the plan CLI's sign-in failure, returned as the error string it is
+    (2026-11-22). Owner's screenshot: a Full-access bot posted Claude Code's "Failed to authenticate: this login reached
+    its time limit ... Run claude auth login" into a customer Telegram group, because the CLI prints it as the answer
+    and every guard downstream waits for an error string. As a string the turn moves on to the next route like any lost
+    sign-in, a customer bot sends nothing and rings the owner's bell, and it is never stored as an answer.
+
+    A customer bot uses the strict check (`signin_loss.is_signin_answer`): "Please log out and sign in again" may be its
+    real reply. Nothing changes after a tool ran or when files came back: then the turn did work."""
+    if not isinstance(out, dict) or acted or out.get("files"):
+        return out
+    txt = str(out.get("text") or "").strip()
+    if not txt:
+        return out
+    hit = signin_loss.is_signin_answer(txt) if bot else _signin_lost_text(prov, txt, answer=True)
+    return ("⚠ " + txt) if hit else out
+
+
 def _tg_turn_account(sess, prov: str):
     """The plan account a channel turn just ran on: plan_accounts.use left it on that chat's engine object."""
     eng = (sess or {}).get({"openai-oauth": "codex", "grok-cli": "grok", "anthropic-cli": "cli"}.get(prov, ""))
@@ -26926,6 +26944,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             text, meta, _hop_progress, chat_id=chat_id, sess=sess, brain=brain,
             mcfg=mcfg, prov=prov, kind=kind, api_key=api_key, api_model=api_model,
             store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
+        out = _tg_signin_answer(out, prov, bot=bot, acted=_hop_acted[0])
         # 0.354.0 (spec 6.4): out of quota before any tool ran -> the same message again on the next route, with
         # one progress line saying why. Customer bots keep their own model and never hop on quota.
         # 2026-11-12: a plan that lost its SIGN-IN hops too, and here a customer bot hops as well: its agent's model
@@ -26958,6 +26977,11 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                 text, meta, _hop_progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
                 prov=prov, kind=kind, api_key=api_key, api_model=api_model,
                 store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
+            out = _tg_signin_answer(out, prov, bot=bot, acted=_hop_acted[0])
+        if not bot and isinstance(out, str) and _signin_lost_text(prov, out):
+            # No route took the turn: the owner reads what happened and what to do, as on the web chat, not the CLI's
+            # own sentence about `claude auth login` on a machine they may not have a terminal on.
+            out = _signin_lost_message(prov, out.lstrip("⚠ ").strip())
 
         if agent and isinstance(out, dict):
             # The agent prompt asks for JAVIS_LESSON / JAVIS_RULE lines and says they are saved. The
@@ -27170,6 +27194,12 @@ async def _bot_doc_stream(stream, *, progress, runtime_trace, prov, api_model):
     except Exception as e:
         print(f"[bot {prov}] {type(e).__name__}: {e}", file=__import__('sys').stderr)
         loi.append(str(e))
+    if signin_loss.is_signin_answer(out):
+        # 2026-11-22: Claude Code prints a lost sign-in ("Failed to authenticate: this login reached its time limit...")
+        # as the answer, and a bot posted it to a customer group. It is the turn's error: the caller returns it as a
+        # failed turn, which the customer never sees, and it never joins the bot's chat history.
+        loi.insert(0, out.strip())
+        out = ""
     return out, loi
 
 

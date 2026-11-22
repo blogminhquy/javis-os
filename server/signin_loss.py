@@ -62,3 +62,32 @@ def is_signin_error(text, answer: bool = False) -> bool:
         if _HTTP_401.search(line) or any(p in line for p in _PATTERNS):
             return True
     return False
+
+
+# How a CLI's own sign-in failure starts when it is printed as the answer (lower case). Claude Code 2.1.x said, to a
+# customer's Telegram group on 22/11/2026: "Failed to authenticate: this login reached its time limit and cannot be
+# renewed. Run claude auth login to sign in again, or use claude setup-token and set CLAUDE_CODE_OAUTH_TOKEN for
+# unattended jobs".
+_ANSWER_START = re.compile(
+    r"^\W*(failed to authenticate|not logged in|please run /login|oauth (?:token|session)\b|not authenticated"
+    r"|not signed in|login required|unauthenticated|your access token could not be refreshed|your refresh token"
+    r"|401 unauthorized|chatgpt 401\b|api error: 401\b)")
+# What only a CLI names when it tells you how to sign in again. A support answer that tells a customer to "log out and
+# sign in again" names none of these, so it is still sent.
+_ANSWER_HINTS = ("/login", "auth login", "setup-token", "oauth", "refresh token", "access token", "codex login",
+                 "grok login")
+
+
+def is_signin_answer(text) -> bool:
+    """Whether a reply is nothing but a plan CLI's sign-in failure, strictly enough for text that may be a real answer
+    to a customer (2026-11-22).
+
+    `is_signin_error(answer=True)` is right for the owner, who reads the sentence anyway. A customer bot needs more:
+    "Please log out and sign in again" can be a real answer from a support bot. So the short error line must also
+    start the way the CLIs start it, or name something only a CLI names (`/login`, `claude auth login`, an OAuth or
+    refresh token)."""
+    raw = str(text or "").strip()
+    if not is_signin_error(raw, answer=True):
+        return False
+    low = raw.lower()
+    return bool(_ANSWER_START.search(low)) or any(h in low for h in _ANSWER_HINTS)
