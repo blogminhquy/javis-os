@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.625.0] - 2026-11-22
+### Fixed
+- **Phone dictation records for real from the first press.** Javis remembers that the machine has a model that listens (ChatGPT, Groq, OpenAI, Gemini), so the phone records and lets that model transcribe, with a real wave, like the ChatGPT app.
+- **The wave always moves while the phone listens.** Even on the browser's own recognizer. A wave that stays still means nothing is heard, and the note says how to fix it.
+### Improved
+- **Stop gives the text back almost at once.** Text a speech model heard is already punctuated, so Javis no longer waits for Claude Code or Codex to rewrite it, and only polishes it when a model answers in about a second.
+- **A Gemini key now hears the dictation mic too,** and a Gemini main brain listens with its own model.
+
 ## [0.624.0] - 2026-11-22
 ### Added
 - **Javis can run read-only scripts (`javis_code`).** The model writes a short Python script that chains several read calls (paging, looking up each order, joining two sources), computes, and returns only the result, so raw data no longer costs tokens in the chat.
