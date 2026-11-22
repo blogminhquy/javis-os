@@ -106,7 +106,10 @@ check("phones: no page title, icon-only tabs with the name kept for screen reade
   /\.ht-page \.ht-tab-t \{ position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect\(0 0 0 0\);/.test(CSS));
 check("phones: an open chat takes the whole page", /\.ht-page:has\(\.ht-wrap\.thread-on\) \.ht-top \{ display: none; \}/.test(CSS) &&
   /\.cview\.cview-hoi-thoai:has\(\.ht-wrap\.thread-on\) \.cview-body \{ padding: 0; \}/.test(CSS));
-check("phones: one-row composer with round icon buttons, 16px text in the box and the bubbles", /\.ib-v5 \.ib-cin \{ flex-wrap: nowrap; \}/.test(CSS) &&
+// Owner, 22/11/2026: two rows on a phone, as in the main chat: the box alone on top, the round icons on the right below.
+check("phones: two-row composer (box on top, round icon buttons on the right below), 16px text in the box and the bubbles",
+  /\.ib-v5 \.ib-cin \{ flex-wrap: wrap; align-items: center; \}/.test(CSS) &&
+  /\.ib-v5 \.ib-cin textarea \{ flex-basis: 100%; font-size: 16px; \}/.test(CSS) && /\.ib-v5 \.ib-cin \.ib-mic \{ margin-left: auto; \}/.test(CSS) &&
   /\.ib-v5 \.ib-cin \.s-btn span, \.ib-v5 \.ib-cin \.s-btn-ghost span \{ display: none; \}/.test(CSS) && /\.ib-v5 \.ht-bubble \{ font-size: 16px; \}/.test(CSS));
 const sizes = [...CSS.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => +m[1]);
 check("no text under 11px", sizes.length > 20 && sizes.every((n) => n >= 11), sizes.filter((n) => n < 11).join(","));

@@ -390,8 +390,10 @@ button, input, select, textarea { font-family: inherit; }
 .noti-list { flex: 1 1 auto; min-height: 90px; overflow-y: auto; padding: 8px; }
 .noti-list::-webkit-scrollbar { width: 5px; }
 .noti-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+/* overflow-wrap (22/11/2026): a long unbroken word in a notice (a bare URL, a code) wraps inside the card instead of
+   running past its right edge and making the whole list scroll sideways. */
 .noti-card {
-  position: relative; display: block; width: 100%; margin: 0 0 6px; padding: 12px 12px 11px 15px;
+  position: relative; display: block; width: 100%; margin: 0 0 6px; padding: 12px 12px 11px 15px; overflow-wrap: anywhere;
   color: inherit; text-align: left; background: var(--surface-1);
   border: 1px solid transparent; border-radius: 11px;
   cursor: pointer; transition: border-color .16s, background .16s, transform .16s;
@@ -1885,6 +1887,12 @@ textarea.sug-ghosted::placeholder { color: transparent; }
     border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
   }
   .hud-voice .voice-input { min-height: 40px; max-height: 40vh; padding: 8px 4px; font-size: 16px; }
+  /* TWO rows on a phone (owner, 22/11/2026: "ở điện thoại đẩy lên dòng bên trên thì sẽ phù hợp hơn"): the text box
+     takes the whole top line, so its placeholder fits on one line, and "+", mic and send sit on the line below it,
+     "+" on the left, the rest on the right, as in Claude's app. A computer keeps the one-row card. */
+  .hud-voice > .voice-input { grid-column: 1 / -1; grid-row: 2; padding: 8px 6px 4px; }
+  .hud-voice .cp-plus { grid-column: 1; grid-row: 3; align-self: center; margin-bottom: 0; }
+  .hud-voice .cp-right { grid-column: 3; grid-row: 3; }
   .cp-under { padding: 0 2px; }
   /* Folder AND repos pinned (owner, 21/11/2026): two names do not fit beside the model pill, so both chips show their
      icon only. The names stay in their tooltip and their panel, a tap away. One pin alone keeps its name.

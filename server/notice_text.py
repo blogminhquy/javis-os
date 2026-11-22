@@ -51,6 +51,15 @@ _NARRATION = re.compile(
     re.I,
 )
 _MARKUP = re.compile(r"\*\*|__|`")
+# A markdown link or image, `[words](url)` / `![alt](url)`: a card line and the phone's lock screen show its words only.
+# Owner, 22/11/2026: a reminder's "... là [Javis OS K8 Buổi 2](https://www.google.com/calendar/event?eid=...)" put the
+# raw link in the bell card, and the unbroken URL ran past the card's edge.
+_MD_LINK = re.compile(r"!?\[([^\]\n]+)\]\([^)\s]*\)")
+
+
+def plain_links(s) -> str:
+    """`[words](url)` -> `words` (images keep their alt text); other brackets stay."""
+    return _MD_LINK.sub(r"\1", str(s or ""))
 _LEAD = "#*->•⚠✅⏰ \t"
 
 
@@ -80,7 +89,7 @@ def split_block(text: str) -> tuple:
 
 def clean_line(s) -> str:
     """One line for a card: markdown marks and leading bullets or status emoji removed, spaces collapsed."""
-    s = _MARKUP.sub("", str(s or "")).strip().lstrip(_LEAD).strip()
+    s = plain_links(_MARKUP.sub("", str(s or ""))).strip().lstrip(_LEAD).strip()
     return " ".join(s.split())
 
 

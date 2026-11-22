@@ -3722,6 +3722,11 @@ body.kb-open .tm-composer { padding-bottom: 8px; }
   .tm-bar-x { min-width: 44px; min-height: 44px; }
   .tm-plus-menu button { min-height: 48px; }
   .tm-input { min-height: 44px; padding: 11px 14px; }
+  /* Two rows, the same as the main chat on a phone (owner, 22/11/2026): the box on its own line on top, then "+" on
+     the left and mic and send on the right of the line below. */
+  .tm-row { flex-wrap: wrap; align-items: center; }
+  .tm-row .tm-input { order: -1; flex-basis: 100%; }
+  .tm-row .tm-mic { margin-left: auto; }
   .tm-add select, .tm-add .ws-btn, .tm-field input, .tm-field select { min-height: 44px; }
   /* 375px: six 44px emoji plus gaps fit the width of the long-press sheet. */
   .tm-sheet .tm-rx-pick { flex: 1 1 0; min-width: 40px; }
