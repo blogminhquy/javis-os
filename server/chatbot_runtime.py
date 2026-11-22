@@ -53,6 +53,7 @@ import chatbot_tu_dong
 import conversations
 import limit_learner
 import localefmt
+import signin_loss
 import vision_input
 
 # Kênh -> lớp vận chuyển: tra SỔ ĐĂNG KÝ KÊNH (server/channels). Trước 0.61.0 là một bảng chép
@@ -228,12 +229,16 @@ _TU_MO_CHAT = " Đã tìm kỹ mà vẫn không có thì nói bạn chưa có th
 # from the bot, tagged to the person who asked. Matched only when the notice IS the whole short reply
 # (limit_learner.subscription_dominates), never when a real answer quotes it.
 _CAU_ENGINE_RE = re.compile(
-    r"^\s*(API Error\b|Credit balance is too low|Invalid API key|Please run /login|Not logged in"
+    r"^\s*(API Error\b|Credit balance is too low|Invalid API key|API key not found|Please run /login|Not logged in"
     r"|Prompt is too long|Execution error\b)", re.IGNORECASE)
 
 
 def engine_notice(text: str) -> str:
-    """The reply itself, when it is an engine/plan notice that must never reach a customer; "" otherwise."""
+    """The reply itself, when it is an engine/plan notice that must never reach a customer; "" otherwise.
+
+    2026-11-22 (owner's screenshot of a customer Telegram group): a bot posted Claude Code's "Failed to authenticate:
+    this login reached its time limit ... Run claude auth login" as its reply, quoting the customer. A lost sign-in in
+    any CLI's wording is now caught here too (`signin_loss.is_signin_answer`), the last gate before every channel."""
     t = str(text or "").strip()
     if not t or len(t) > limit_learner.DOMINATES_MAX_CHARS:
         return ""
@@ -242,7 +247,12 @@ def engine_notice(text: str) -> str:
             return t
     except Exception:      # noqa: BLE001 - the detector must never cost the customer a reply
         pass
-    return t if _CAU_ENGINE_RE.search(t) else ""
+    if _CAU_ENGINE_RE.search(t):
+        return t
+    try:
+        return t if signin_loss.is_signin_answer(t) else ""
+    except Exception:      # noqa: BLE001
+        return ""
 
 
 # Zalo CÁ NHÂN của chủ (0.64.80). Khác Telegram/Zalo Bot ở chỗ người nhắn tới không chỉ là khách:
@@ -1892,12 +1902,19 @@ def _bao_hop_thu(bot_id: str, cfg: dict, meta: dict, loi: str) -> None:
     nhom = str((meta or {}).get("chat_title") or "") if (meta or {}).get("chat_type") == "group" else ""
     noi = (f" trong nhóm {nhom}" if nhom else "")
     noi_en = (f" in the group {nhom}" if nhom else "")
+    # A lost sign-in (2026-11-22) has one fix, and it is not on the Chatbot page: say it first.
+    try:
+        signed_out = signin_loss.is_signin_error(loi)
+    except Exception:      # noqa: BLE001
+        signed_out = False
+    fix = localefmt.chu("Model của bot mất đăng nhập: vào trang Models đăng nhập lại. ",
+                        "The bot's model lost its sign-in: sign in again on the Models page. ") if signed_out else ""
     text = localefmt.chu(
         f"Bot {ten_bot} đang lỗi, chưa trả lời được {ai or 'khách'}{noi}\n\n"
-        f"Lỗi: {str(loi)[:300]}\n\nKhách không nhận được tin nào. Mở trang Chatbot để trả lời tay hoặc xem "
+        f"Lỗi: {str(loi)[:300]}\n\nKhách không nhận được tin nào. {fix}Mở trang Chatbot để trả lời tay hoặc xem "
         "nhật ký bot. Các lượt hỏng tiếp theo không báo lại cho tới khi bot chạy được.",
         f"Bot {ten_bot} is failing and could not answer {ai or 'a customer'}{noi_en}\n\n"
-        f"Error: {str(loi)[:300]}\n\nThe customer received nothing. Open the Chatbot page to reply by hand or "
+        f"Error: {str(loi)[:300]}\n\nThe customer received nothing. {fix}Open the Chatbot page to reply by hand or "
         "read the bot log. Further failures are not reported again until the bot works.")
     try:
         r = fn(text)

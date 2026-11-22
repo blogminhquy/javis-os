@@ -2511,6 +2511,21 @@ def _routing_connected_ids(cfg) -> list:
         return []
 
 
+def _routing_order(mcfg, connected=None) -> list:
+    """The usage order a turn walks to find a card that can run: the saved order, then every card signed in since
+    it was saved, at the end, exactly as the Models page draws it (`_routing_view`).
+
+    2026-11-22 (owner): Claude Code and ChatGPT were both signed out, Antigravity was signed in, and neither the bots
+    nor the background jobs moved to it. Only an API key joins the saved order when it is added; a plan card signed in
+    later (Antigravity signs in from a terminal with `agy`, outside Javis) was drawn on the page as the last fallback
+    but never tried. An empty or unknown list of signed-in cards keeps the saved order as it is."""
+    return model_routing.order(mcfg or {}, connected or None)
+
+
+# Background jobs (aux_engine.swap) count new cards the same way; aux_engine cannot import main.
+aux_engine.CONNECTED_IDS = lambda cfg: _routing_connected_ids(cfg)
+
+
 def _routing_telegram_chat_keys(cfg) -> list:
     """Telegram chats the owner talks in: configured ids plus every chat the bot remembers (not customer bots)."""
     keys = [str(x) for x in tg_parse_ids((cfg.get("telegram") or {}).get("chat_id", ""))]
@@ -3734,10 +3749,13 @@ def _chat_provider(mcfg):
         # Only cards still signed in can take over (the stored order keeps a card that lost its login until the
         # Models page saves again). Computed here only, MAIN being unable to run is the rare path.
         try:
-            signed_in = set(_routing_connected_ids(cfgmod.read_settings()))
+            connected = _routing_connected_ids(cfgmod.read_settings())
+            signed_in = set(connected)
         except Exception:  # noqa: BLE001
-            signed_in = None
-        for cand in model_routing.order(mcfg)[1:]:
+            connected, signed_in = None, None
+        for cand in _routing_order(mcfg, connected):
+            if cand == prov:
+                continue
             if (signed_in is None or cand in signed_in) and _route_ready(mcfg, cand):
                 prov, model = cand, model_routing.profile(mcfg, cand)["model"]
                 break
@@ -4077,10 +4095,11 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_a
                   f"{old_lab or f'account {old_no}'} {why_en}.")
         return {"route": (prov, kind, key, model), "status": localefmt.chu(vi, en), "tried": tried}
     try:
-        signed_in = set(_routing_connected_ids(cfgmod.read_settings()))
+        connected = _routing_connected_ids(cfgmod.read_settings())
+        signed_in = set(connected)
     except Exception:  # noqa: BLE001
-        signed_in = None
-    for cand in model_routing.order(mcfg):
+        connected, signed_in = None, None
+    for cand in _routing_order(mcfg, connected):
         if cand in tried or (signed_in is not None and cand not in signed_in) or not _route_ready(mcfg, cand):
             continue
         cd = _provider_def(cand) or {}
@@ -26782,6 +26801,24 @@ def _tg_signin_out(out: str, prov: str, account: str = None) -> bool:
     return True
 
 
+def _tg_signin_answer(out, prov: str, bot=None, acted: bool = False):
+    """A channel turn whose ANSWER is only the plan CLI's sign-in failure, returned as the error string it is
+    (2026-11-22). Owner's screenshot: a Full-access bot posted Claude Code's "Failed to authenticate: this login reached
+    its time limit ... Run claude auth login" into a customer Telegram group, because the CLI prints it as the answer
+    and every guard downstream waits for an error string. As a string the turn moves on to the next route like any lost
+    sign-in, a customer bot sends nothing and rings the owner's bell, and it is never stored as an answer.
+
+    A customer bot uses the strict check (`signin_loss.is_signin_answer`): "Please log out and sign in again" may be its
+    real reply. Nothing changes after a tool ran or when files came back: then the turn did work."""
+    if not isinstance(out, dict) or acted or out.get("files"):
+        return out
+    txt = str(out.get("text") or "").strip()
+    if not txt:
+        return out
+    hit = signin_loss.is_signin_answer(txt) if bot else _signin_lost_text(prov, txt, answer=True)
+    return ("⚠ " + txt) if hit else out
+
+
 def _tg_turn_account(sess, prov: str):
     """The plan account a channel turn just ran on: plan_accounts.use left it on that chat's engine object."""
     eng = (sess or {}).get({"openai-oauth": "codex", "grok-cli": "grok", "anthropic-cli": "cli"}.get(prov, ""))
@@ -26928,6 +26965,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             text, meta, _hop_progress, chat_id=chat_id, sess=sess, brain=brain,
             mcfg=mcfg, prov=prov, kind=kind, api_key=api_key, api_model=api_model,
             store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
+        out = _tg_signin_answer(out, prov, bot=bot, acted=_hop_acted[0])
         # 0.354.0 (spec 6.4): out of quota before any tool ran -> the same message again on the next route, with
         # one progress line saying why. Customer bots keep their own model and never hop on quota.
         # 2026-11-12: a plan that lost its SIGN-IN hops too, and here a customer bot hops as well: its agent's model
@@ -26960,6 +26998,11 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                 text, meta, _hop_progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
                 prov=prov, kind=kind, api_key=api_key, api_model=api_model,
                 store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
+            out = _tg_signin_answer(out, prov, bot=bot, acted=_hop_acted[0])
+        if not bot and isinstance(out, str) and _signin_lost_text(prov, out):
+            # No route took the turn: the owner reads what happened and what to do, as on the web chat, not the CLI's
+            # own sentence about `claude auth login` on a machine they may not have a terminal on.
+            out = _signin_lost_message(prov, out.lstrip("⚠ ").strip())
 
         if agent and isinstance(out, dict):
             # The agent prompt asks for JAVIS_LESSON / JAVIS_RULE lines and says they are saved. The
@@ -27172,6 +27215,12 @@ async def _bot_doc_stream(stream, *, progress, runtime_trace, prov, api_model):
     except Exception as e:
         print(f"[bot {prov}] {type(e).__name__}: {e}", file=__import__('sys').stderr)
         loi.append(str(e))
+    if signin_loss.is_signin_answer(out):
+        # 2026-11-22: Claude Code prints a lost sign-in ("Failed to authenticate: this login reached its time limit...")
+        # as the answer, and a bot posted it to a customer group. It is the turn's error: the caller returns it as a
+        # failed turn, which the customer never sees, and it never joins the bot's chat history.
+        loi.insert(0, out.strip())
+        out = ""
     return out, loi
 
 
@@ -32076,6 +32125,29 @@ def _agent_spec_available(spec: dict, settings: dict = None) -> tuple:
     return aux_engine.availability(spec, settings)
 
 
+def _team_main(settings, tools: bool = False) -> dict:
+    """The main model a team turn falls back to when the assistant's own model cannot run: MAIN while it can run,
+    else the first card of the usage order that can, among those this kind of turn supports (2026-11-22).
+
+    Owner: Claude Code (MAIN) and ChatGPT were both signed out, Antigravity was signed in, and team members whose own
+    model was signed out "fell back to the main model", the very Claude Code that could not run. A text-only team turn
+    runs only on Claude Code, ChatGPT or an API card (`team_engine.text_only_supported`); a turn with tools also on
+    Grok Build and Antigravity."""
+    em = _effective_main(settings or {})
+    m = (settings or {}).get("model") or {}
+    try:
+        if _route_ready(m, em["provider"]):
+            return em
+        connected = _routing_connected_ids(settings or {})
+        fits = team_engine.tools_supported if tools else team_engine.text_only_supported
+        for cand in _routing_order(m, connected):
+            if cand != em["provider"] and cand in connected and fits(cand) and _route_ready(m, cand):
+                return {"provider": cand, "model": model_routing.profile(m, cand).get("model") or ""}
+    except Exception as e:  # noqa: BLE001 - the turn then runs on MAIN and reports its own error, as before
+        print(f"[team] fallback card: {type(e).__name__}: {e}", file=sys.stderr)
+    return em
+
+
 def _team_quota_next(provider: str, eng, error) -> dict:
     """`_step_quota_next` for a failed team turn: only an error the ENGINE reported counts, never a tool call the
     text-only contract refused or an empty answer.
@@ -32267,10 +32339,10 @@ def _team_engine_for(team, agent_key, role):
     info = _team_agent_info(root, agent_key) or {}
     settings = cfgmod.read_settings() or {}
     spec = team_engine.choose_spec(
-        info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+        info.get("model") or "", info.get("model_provider") or "", _team_main(settings),
         _agent_model_provider, lambda sp: _agent_spec_available(sp, settings))
     tool_spec = team_engine.choose_spec(
-        info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+        info.get("model") or "", info.get("model_provider") or "", _team_main(settings, tools=True),
         _agent_model_provider, lambda sp: _agent_spec_available(sp, settings), tools=True)
 
     def _build_tools(system, tag, gate_id=""):
