@@ -37,7 +37,13 @@
    brain rewrites the whole sentence in context (dictate.js polish, server/transcript_fix.py) and THAT sentence lands
    in the box, or is sent when Send or Enter ended the recording. A phone still gets the text only at the end.
 
-   2026-11-08: a hidden tab no longer stops the recording (see dictate.js for how the background is handled). */
+   2026-11-08: a hidden tab no longer stops the recording (see dictate.js for how the background is handled).
+
+   2026-11-22: the wave always moves while the phone hears (owner: "không nhìn thấy cái sóng âm" on a phone). A phone
+   with no ear runs the browser's recognizer alone and may not open a second mic capture for the meter (0.339.0), so
+   there was no level to draw and the wave stayed a flat dotted line. With no analyser the bars now follow the
+   recognizer's own events (dictate.js onHeard): they rise while it hears sound or hands back words and fall when it
+   reports silence, so a wave that never moves means the phone is not hearing at all. waveLevel is pure for node tests. */
 (function () {
   "use strict";
 
@@ -72,7 +78,18 @@
     return false;
   }
 
-  var pure = { fmtTime: fmtTime, levelOf: levelOf, enterSendsFrom: enterSendsFrom, MAX_SECONDS: MAX_SECONDS };
+  // One bar of the wave when there is no mic stream to measure (2026-11-22): from the recognizer's events, not the mic.
+  // `voice` the recognizer says it hears sound now, `since` ms since its last result. A soft wobble, never random, so
+  // the same moment always draws the same bar.
+  function waveLevel(voice, since, now) {
+    var on = voice || (since >= 0 && since < 700);
+    if (!on) return 0;
+    var wobble = Math.abs(Math.sin(now / 97)) * 0.45 + Math.abs(Math.sin(now / 41)) * 0.25;
+    return Math.min(1, 0.3 + wobble);
+  }
+
+  var pure = { fmtTime: fmtTime, levelOf: levelOf, waveLevel: waveLevel, enterSendsFrom: enterSendsFrom,
+    MAX_SECONDS: MAX_SECONDS };
   if (typeof module !== "undefined" && module.exports) module.exports = pure;
   if (typeof document === "undefined") return;
   window.JavisComposerDictate = pure;
@@ -96,7 +113,7 @@
 
   // state: "idle" | "listening" | "transcribing"
   var S = { dict: null, state: "idle", base: "", heard: "", sendAfter: false, startedAt: 0, clock: null,
-    ctx: null, src: null, analyser: null, buf: null, raf: 0, levels: [], lastPush: 0 };
+    ctx: null, src: null, analyser: null, buf: null, raf: 0, levels: [], lastPush: 0, voice: false, resultAt: 0 };
 
   function note(key) {
     try { if (window.JavisNoteFlash) window.JavisNoteFlash(tw(key)); } catch (e) {}
@@ -125,7 +142,8 @@
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       if (!S.ctx) S.ctx = new AC();
-      if (S.ctx.state === "suspended" && S.ctx.resume) S.ctx.resume();
+      // iOS also reports "interrupted" after another app took the audio: any state but running needs a resume.
+      if (S.ctx.state !== "running" && S.ctx.resume) S.ctx.resume();
       S.src = S.ctx.createMediaStreamSource(stream);
       S.analyser = S.ctx.createAnalyser();
       S.analyser.fftSize = 512;
@@ -144,9 +162,14 @@
     if (S.state !== "listening") return;
     var cv = $("dictWave");
     if (cv && cv.clientWidth) {
-      if (S.analyser && now - S.lastPush > 70) {
-        S.analyser.getByteTimeDomainData(S.buf);
-        S.levels.push(levelOf(S.buf));
+      if (now - S.lastPush > 70) {
+        if (S.analyser) {
+          S.analyser.getByteTimeDomainData(S.buf);
+          S.levels.push(levelOf(S.buf));
+        } else {
+          // No mic stream (a phone on the browser's recognizer): the recognizer's own events move the wave.
+          S.levels.push(waveLevel(S.voice, S.resultAt ? Date.now() - S.resultAt : -1, now));
+        }
         S.lastPush = now;
       }
       var dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight || 28;
@@ -254,6 +277,8 @@
     S.heard = "";
     S.sendAfter = false;
     S.levels = [];
+    S.voice = false;
+    S.resultAt = 0;
     var live = !(D.isPhoneUA && D.isPhoneUA());
     S.dict = D.create({
       // A computer shows the words in the box while speaking; the final (rewritten) text is written by finished().
@@ -263,6 +288,10 @@
         if (!final && live && S.state === "listening") writeInput(D.joinText(S.base, S.heard));
       },
       context: chatContext,
+      onHeard: function (kind) {
+        if (kind === "result") S.resultAt = Date.now();
+        else S.voice = kind === "sound";
+      },
       // The open chat: a partner's chat (or one pinned to a model) is heard by that model's vendor (2026-11-08).
       session: function () { return window.JavisChatApi && window.JavisChatApi.sid ? window.JavisChatApi.sid() : ""; },
       onState: function (st) {
@@ -276,7 +305,7 @@
         var ios = D.isIOS && D.isIOS();
         note(code === "denied" ? (ios ? "dict.denied_ios" : "dict.denied")
           : code === "service" ? (ios ? "dict.service_ios" : "dict.service") : code === "unsupported" ? "dict.unsupported"
-          : code === "nothing" ? "dict.nothing" : "dict.failed");
+          : code === "nothing" ? (D.nothingKey ? D.nothingKey() : "dict.nothing") : "dict.failed");
       },
       onStream: onStream
     });

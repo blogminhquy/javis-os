@@ -19535,9 +19535,9 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: s
 async def stt_fix_route(request: Request):
     """Fix what the mic heard (2026-11-06), see transcript_fix.py.
 
-    Body {"text": "...", "final": true, "context": ["recent message", ...]}: the main brain rewrites the whole
-    sentence in context. Without `final` (a page from before): the older word-level fix. Never an error: any trouble
-    gives back the result of the word rules.
+    Body {"text": "...", "final": true, "context": ["recent message", ...], "quick": bool}: the main brain rewrites the
+    whole sentence in context; with `quick` (the ear heard it) never through a subscription CLI. Without `final` (a
+    page from before): the older word-level fix. Never an error: any trouble gives back the result of the word rules.
     """
     try:
         body = await request.json()
@@ -19552,7 +19552,9 @@ async def stt_fix_route(request: Request):
     if (body or {}).get("final"):
         ctx = (body or {}).get("context") or []
         ctx = [str(c)[:300] for c in ctx[-6:]] if isinstance(ctx, list) else []
-        return {"ok": True, **await transcript_fix.rewrite_transcript(cfg, text, ctx)}
+        # `quick` (2026-11-22): a speech model heard the text, so only a model that answers in a second may polish it.
+        quick = bool((body or {}).get("quick"))
+        return {"ok": True, **await transcript_fix.rewrite_transcript(cfg, text, ctx, quick=quick)}
     return {"ok": True, **await transcript_fix.fix_transcript(cfg, text)}
 
 

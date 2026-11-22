@@ -3036,7 +3036,7 @@
         var ios = D.isIOS && D.isIOS();
         setNote(tw(code === "denied" ? (ios ? "dict.denied_ios" : "teams.mic_denied")
           : code === "service" ? (ios ? "dict.service_ios" : "dict.service") : code === "unsupported" ? "teams.mic_unsupported"
-          : code === "nothing" ? "dict.nothing" : "teams.mic_failed"));
+          : code === "nothing" ? (D.nothingKey ? D.nothingKey() : "dict.nothing") : "teams.mic_failed"));
       }
     });
     S.dict.start();
