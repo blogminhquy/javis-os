@@ -26,7 +26,8 @@ check("repo synced through GitHub: linked", bl.phase({ repo_url: "https://github
 check("repo with a pasted token: linked even without GitHub",
   bl.phase({ repo_url: "https://github.com/a/b", token_source: "token" }, { connected: false }) === "linked");
 check("repo but no token from anywhere: lost", bl.phase({ repo_url: "https://github.com/a/b", token_source: "" }, { connected: false }) === "lost");
-check("missing answers do not throw", bl.phase(null, null) === "connect");
+// 22/11/2026: no GitHub answer is "could not check", not "connect" (tests/js/test_github_status_unknown.js).
+check("missing answers do not throw, and say the check failed", bl.phase(null, null) === "unknown");
 
 // ---- repo name ----
 check("GitHub URL shows owner/repo", bl.repoName("https://github.com/acme/javis-brain-backup") === "acme/javis-brain-backup");

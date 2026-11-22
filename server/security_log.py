@@ -56,6 +56,11 @@ EVENTS: Dict[str, str] = {
     # that would have dropped the owner's password was refused (config.write_settings).
     "setup_blocked": "alert",
     "account_clear_blocked": "alert",
+    # 2026-11-22: after that takeover the owner found GitHub signed out and nothing said who did it
+    # (github_repos._log_conn_change).
+    "github_connected": "alert",
+    "github_changed": "alert",
+    "github_disconnected": "alert",
 }
 
 _LOCK = threading.Lock()
