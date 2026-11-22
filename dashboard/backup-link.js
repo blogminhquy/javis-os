@@ -6,6 +6,8 @@
  *   pick     GitHub connected, no repo: "Create a private repo" or "Pick an existing one", one tap each
  *   linked   the repo, the account it syncs with, "Change" and "Stop syncing"
  *   lost     linked through GitHub but GitHub was disconnected: say so and offer to reconnect
+ *   unknown  no repo, and the GitHub check failed (network, an expired Javis session): "Could not check" and a retry,
+ *            never "Connect GitHub" for an account that may well be connected (owner, 22/11/2026)
  * A pasted token keeps working: "Use my own token" opens the old form (console.js, #bkManual).
  * The server never sends a token back. Pure helpers are exported for node tests. Never use the em dash here.
  */
@@ -13,11 +15,18 @@
   "use strict";
 
   // ---- pure helpers ----
+  // The rule of the GitHub card (github-connect.js statusState), kept here so node tests can load this file alone;
+  // tests/js/test_github_status_unknown.js holds the two copies together. Only a real answer may say "not connected".
+  function statusState(st) {
+    if (!st || st.ok === false || st.auth_required || typeof st.connected !== "boolean") return "unknown";
+    return st.connected ? "on" : "off";
+  }
   // bk: GET /backup/status, gh: GET /github/status.
   function phase(bk, gh) {
-    bk = bk || {}; gh = gh || {};
+    bk = bk || {};
     if (bk.repo_url) return bk.token_source ? "linked" : "lost";
-    return gh.connected ? "pick" : "connect";
+    var s = statusState(gh);
+    return s === "on" ? "pick" : s === "off" ? "connect" : "unknown";
   }
   // "owner/repo" of a GitHub URL, the last part of any other URL, "" when there is none.
   function repoName(url) {
@@ -32,7 +41,7 @@
     return /github\.com/i.test(String(url || "")) && n.indexOf("/") > 0 ? "https://github.com/" + n : "";
   }
 
-  var pure = { phase: phase, repoName: repoName, repoWeb: repoWeb };
+  var pure = { phase: phase, repoName: repoName, repoWeb: repoWeb, statusState: statusState };
   if (typeof module !== "undefined" && module.exports) module.exports = pure;
   if (typeof document === "undefined") return;
 
@@ -56,9 +65,16 @@
   function mount(host, bk, gh, opts) {
     opts = opts || {};
     var ph = phase(bk, gh);
+    gh = gh || {};
     host.setAttribute("data-phase", ph);
     var manualBtn = '<button type="button" class="s-btn-ghost" data-bl="manual">' + ic("key-round") + " " + esc(tw("bl.own_token")) + "</button>";
-    if (ph === "connect") {
+    if (ph === "unknown") {
+      var G = window.JavisGithubRepos;
+      host.innerHTML = '<div class="lv-meta">' + esc(tw("gh.panel_unknown")) + "</div>" +
+        '<div class="lv-note">' + esc(G && G.whyText ? G.whyText(gh) : tw("gh.err_net")) + "</div>" +
+        '<div class="si-actions"><button type="button" class="s-btn-ghost" data-bl="retry">' + ic("refresh-cw") + " " + esc(tw("common.retry")) + "</button>" +
+        manualBtn + "</div>";
+    } else if (ph === "connect") {
       host.innerHTML = '<div class="lv-meta">' + esc(tw("bl.connect_sub")) + "</div>" +
         '<div class="si-actions"><button type="button" class="s-btn bl-gh" data-bl="connect">' + LOGO + "<span>" + esc(tw("bl.connect")) + "</span></button>" +
         manualBtn + "</div>";
@@ -102,6 +118,7 @@
       if (window.JavisGithubRepos && window.JavisGithubRepos.connect) window.JavisGithubRepos.connect();
     });
     on("manual", function () { if (opts.showManual) opts.showManual(true); });
+    on("retry", function () { if (opts.onChange) opts.onChange(); });
     on("create", async function () {
       var b = host.querySelector('[data-bl="create"]');
       b.disabled = true; say(tw("bl.creating"));

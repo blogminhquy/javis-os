@@ -15184,6 +15184,10 @@ _SECURITY_ALERT_TEXT = {
                       "WARNING: someone tried to create a new account while the owner's password was missing. Javis refused."),
     "account_clear_blocked": ("CẢNH BÁO: một lần lưu cài đặt định xoá mật khẩu của chủ. Javis đã giữ lại mật khẩu.",
                               "WARNING: a settings save tried to erase the owner's password. Javis kept the password."),
+    "github_connected": ("GitHub vừa được kết nối vào Javis", "GitHub was just connected to Javis"),
+    "github_changed": ("Tài khoản GitHub của Javis vừa bị đổi sang tài khoản khác",
+                       "The GitHub account of Javis was just switched to another account"),
+    "github_disconnected": ("GitHub vừa bị ngắt khỏi Javis", "GitHub was just disconnected from Javis"),
 }
 
 
