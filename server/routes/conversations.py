@@ -70,6 +70,11 @@ _DUOI_XEM_THANG = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".heic", ".
 _DEPS: "ConversationsDeps" = None   # type: ignore
 
 
+# After the owner leaves a group, its platform posts "X left the group" there a moment later. That notice (and anything
+# else of the same minutes) must not reopen the chat the leave just removed from Javis.
+LEAVE_QUIET_S = 120
+
+
 def _404(msg: str = ""):
     msg = msg or localefmt.chu("không có hội thoại nào id đó", "no conversation with that id")
     return JSONResponse({"ok": False, "error": msg}, status_code=404)
@@ -519,6 +524,9 @@ def register(app, deps: ConversationsDeps):
         msgs = conversations.tin_nhan(conv_id, limit=limit, before_id=before, after_id=after)
         d["bot_name"] = _ten_bot(str(d.get("bot_id") or ""))
         bot_id = str(d.get("bot_id") or "")
+        # The agent's own icon, so its messages carry it (owner, 2026-11-22). A message keeps the icon it was sent with
+        # (`metadata.bot_icon`); this covers older messages written before that field existed.
+        d["bot_icon"] = str((chatbot_store.get_bot(bot_id) or {}).get("icon") or "") if bot_id else ""
         # Lý do bot im gắn với tin khách CUỐI của cuộc chat, không phải cuối phần trả về: nhịp chỉ hỏi tin mới có thể trả rỗng, và
         # kéo lên xem tin cũ thì phần trả về không chứa tin cuối.
         cuoi = msgs if (not moi and not before) else conversations.tin_nhan(conv_id, limit=1)
@@ -655,6 +663,8 @@ def register(app, deps: ConversationsDeps):
 
     @router.post("/conversations/{conv_id}/block")
     async def conversations_block(conv_id: int):
+        """Block on the platform where it allows it (Messenger, a Zalo personal chat), else in Javis only. Either way
+        the bot stays quiet here, the chat leaves the inbox and new messages from it stay out of sight."""
         import conversation_actions as ca
         c = conversations.chi_tiet(conv_id)
         if not c:
@@ -662,10 +672,45 @@ def register(app, deps: ConversationsDeps):
         r = await ca.block(c)
         if not r.get("ok"):
             return JSONResponse(r, status_code=400)
-        # Nobody to answer any more: the bot stays quiet here, and the chat says why.
+        # Remember who answered before, so Unblock gives the chat back as it was.
+        conversations._set_meta_key(conv_id, "blocked_prev_mode", str(c.get("mode") or "ai"))
         conversations.dat_che_do(conv_id, "human")
         conversations._set_meta_key(conv_id, "blocked", True)
-        return {"ok": True, "conversation": conversations.chi_tiet(conv_id)}
+        conversations.set_hidden(conv_id, True)
+        return {"ok": True, "remote": bool(r.get("remote")), "conversation": conversations.chi_tiet(conv_id)}
+
+    @router.post("/conversations/{conv_id}/unblock")
+    async def conversations_unblock(conv_id: int):
+        import conversation_actions as ca
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        r = await ca.unblock(c)
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=400)
+        meta = c.get("metadata") or {}
+        prev = str(meta.get("blocked_prev_mode") or "")
+        if prev and prev != "human":
+            conversations.dat_che_do(conv_id, prev)
+        conversations._set_meta_key(conv_id, "blocked", None)
+        conversations._set_meta_key(conv_id, "blocked_prev_mode", None)
+        conversations.set_hidden(conv_id, False)
+        return {"ok": True, "remote": bool(r.get("remote")), "conversation": conversations.chi_tiet(conv_id)}
+
+    @router.post("/conversations/{conv_id}/leave")
+    async def conversations_leave(conv_id: int):
+        """Leave the group on its platform (a Zalo group), then remove the chat from Javis for good (owner, 2026-11-21:
+        "rời khỏi một nhóm thì tự động xoá luôn đoạn chat đấy trên database của Javis"; before that it stayed, marked
+        and hidden). When the platform refuses, nothing is deleted here either."""
+        import conversation_actions as ca
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        r = await ca.leave(c)
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=400)
+        conversations.delete_conversation(conv_id, quiet_s=LEAVE_QUIET_S)
+        return {"ok": True, "deleted": True}
 
     @router.post("/conversations/{conv_id}/delete")
     async def conversations_delete(conv_id: int):

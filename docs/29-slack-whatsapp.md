@@ -43,7 +43,11 @@ oauth_config:
       - im:read
       - im:write
       - channels:history
+      - channels:read
       - groups:history
+      - groups:read
+      - mpim:history
+      - mpim:read
       - files:read
       - files:write
       - users:read
@@ -54,10 +58,16 @@ settings:
       - message.im
       - message.channels
       - message.groups
+      - message.mpim
+      - member_joined_channel
+      - channel_left
+      - group_left
   socket_mode_enabled: true
   org_deploy_enabled: false
   token_rotation_enabled: false
 ```
+
+**Đã tạo app theo bản hướng dẫn cũ?** App vẫn chạy bình thường. Muốn có thêm tên kênh trong hộp thư, báo khi bot được thêm vào hoặc bị gỡ khỏi kênh, và chat nhóm nhiều người (group DM), mở mục **App Manifest** của app, dán lại manifest trên, lưu, rồi **Install App → Reinstall to Workspace**. Token giữ nguyên.
 
 3. **Basic Information → App-Level Tokens → Generate Token and Scopes**: thêm scope `connections:write`, tạo, chép token bắt đầu bằng `xapp-`.
 4. **Install App → Install to Workspace**, rồi chép **Bot User OAuth Token** bắt đầu bằng `xoxb-`.

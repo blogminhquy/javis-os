@@ -19,16 +19,31 @@ chọn ở trang Models, và CẢ HAI giữ nguyên vẹn năng lực (Bash, Web
   tài khoản thì KHÔNG thuộc phạm vi đó - xem CANH_BAO_SUBSCRIPTION.
 - `api_key`: đưa `anthropic_api_key` xuống cho binary `claude` qua biến môi trường. Trả tiền
   theo lượt dùng qua Claude Console. Đây là đường Anthropic chỉ định cho sản phẩm bên thứ ba.
+- `token` (2026-11-22): the same plan, signed in with a long-lived (1-year) token made by
+  `claude setup-token`, handed to `claude` as CLAUDE_CODE_OAUTH_TOKEN. Owner's report that day: the
+  plan's sign-in "reached its time limit and cannot be renewed" and every bot and job stopped. A
+  setup-token is Anthropic's own answer for unattended runs (Claude Code names it in that very error).
+  Javis still never reads the CLI's login: the owner gives this token to Javis on purpose.
 
 Javis cố ý KHÔNG tắt cứng đường subscription: chủ máy được quyền tự cân rủi ro. Việc của
 module này là bảo đảm họ cân nó khi đã BIẾT, chứ không phải vì không ai nói.
 """
 from __future__ import annotations
 
+import math
+
 import config as cfgmod
 
 SUBSCRIPTION = "subscription"
 API_KEY = "api_key"
+TOKEN = "token"
+MODES = (SUBSCRIPTION, TOKEN, API_KEY)
+
+# A token from `claude setup-token` lives one year (the CLI says so when it makes one). Javis cannot read the date out of
+# the token, so it counts from the day the token was saved.
+TOKEN_DAYS = 365
+TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
+_TOKEN_PREFIX = "sk-ant-oat01-"
 
 # Nguyên văn dán ở trang Models và trả kèm khi đặt việc nền chạy bằng gói subscription.
 # Đừng rút gọn: người đọc cần đủ ba thứ - phạm vi gói, cái gì có thể làm mình giống bot, và lối ra.
@@ -60,10 +75,10 @@ CANH_BAO_NGAN_EN = ("Running background work on a subscription plan carries a ri
 
 
 def che_do(settings: dict = None) -> str:
-    """`subscription` (mặc định) hoặc `api_key`. Giá trị lạ trong file cấu hình về mặc định."""
+    """`subscription` (mặc định), `token` hoặc `api_key`. Giá trị lạ trong file cấu hình về mặc định."""
     s = settings if settings is not None else cfgmod.read_settings()
     v = str(((s.get("model") or {}).get("claude_auth") or "")).strip().lower()
-    return API_KEY if v == API_KEY else SUBSCRIPTION
+    return v if v in MODES else SUBSCRIPTION
 
 
 def api_key(settings: dict = None) -> str:
@@ -71,18 +86,73 @@ def api_key(settings: dict = None) -> str:
     return str(((s.get("model") or {}).get("anthropic_api_key") or "")).strip()
 
 
+def oauth_token(settings: dict = None) -> str:
+    """The long-lived token saved on the Models page, "" when there is none."""
+    s = settings if settings is not None else cfgmod.read_settings()
+    return str(((s.get("model") or {}).get("claude_oauth_token") or "")).strip()
+
+
+def clean_token(raw) -> str:
+    """A pasted token without the spaces and line breaks a copy from a terminal brings along."""
+    return "".join(str(raw or "").split())
+
+
+def valid_token(tok) -> bool:
+    """Whether `tok` looks like a token from `claude setup-token` (an API key or a login code does not)."""
+    t = clean_token(tok)
+    return t.startswith(_TOKEN_PREFIX) and len(t) >= len(_TOKEN_PREFIX) + 20 and t.replace("-", "").replace("_", "").isalnum()
+
+
+def token_info(settings: dict = None, now: float = None) -> dict:
+    """What the Models card shows about the saved token, never the token itself: set, last 4 characters, when it was
+    saved, when it runs out, days left."""
+    import time
+    s = settings if settings is not None else cfgmod.read_settings()
+    tok = oauth_token(s)
+    if not tok:
+        return {"set": False}
+    try:
+        at = float((s.get("model") or {}).get("claude_oauth_token_at") or 0)
+    except (TypeError, ValueError):
+        at = 0.0
+    now = time.time() if now is None else now
+    out = {"set": True, "tail": tok[-4:], "saved_at": int(at) if at else 0}
+    if at:
+        exp = at + TOKEN_DAYS * 86400
+        out["expires_at"] = int(exp)
+        out["days_left"] = token_days_left(exp, now)
+        out["expired"] = exp <= now
+    return out
+
+
+def token_days_left(expires_at: float, now: float) -> int:
+    """Days left, rounded up: a token saved a minute ago has 365 days left, not 364, and its last hours count as one."""
+    return max(0, math.ceil((float(expires_at) - float(now)) / 86400))
+
+
 def env_cho_cli(settings: dict = None) -> dict:
     """Biến môi trường thêm cho tiến trình `claude`. {} = để CLI tự dùng phiên đăng nhập sẵn.
 
     Chỉ trả key khi người dùng ĐÃ chọn `api_key` VÀ đã dán key. Chọn `api_key` mà bỏ trống ô
     key thì trả {} - tức lui về phiên đăng nhập sẵn có, chứ không làm chết mọi lượt chat bằng
-    một biến môi trường rỗng.
+    một biến môi trường rỗng. Same for `token` (2026-11-22): the token goes down as
+    CLAUDE_CODE_OAUTH_TOKEN, which the CLI reads before its own login; no token saved = the login.
     """
     s = settings if settings is not None else cfgmod.read_settings()
-    if che_do(s) != API_KEY:
+    mode = che_do(s)
+    if mode == TOKEN:
+        tok = oauth_token(s)
+        return {TOKEN_ENV: tok} if tok else {}
+    if mode != API_KEY:
         return {}
     k = api_key(s)
     return {"ANTHROPIC_API_KEY": k} if k else {}
+
+
+def on_plan(settings: dict = None) -> bool:
+    """Whether Claude Code runs on the owner's plan (its login or a long-lived token) rather than an API key that
+    bills per token. An API key mode with no key saved falls back to the login, so it counts as the plan."""
+    return "ANTHROPIC_API_KEY" not in env_cho_cli(settings)
 
 
 def canh_bao_neu_can(settings: dict = None) -> str:

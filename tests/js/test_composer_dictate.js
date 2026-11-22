@@ -26,9 +26,13 @@ const voiceTag = (row.match(/<button[^>]*id="voiceBtn"[\s\S]*?<\/button>/) || ["
 check("the voice chat button now draws a sound wave, not a mic", /M2 10v3M6 6v11M10 3v18/.test(voiceTag) && !/a3 3 0 0 0-3 3v8/.test(voiceTag));
 check("composer-dictate.js loads after dictate.js", html.indexOf("/static/dictate.js") !== -1
   && html.indexOf("/static/dictate.js") < html.indexOf("/static/composer-dictate.js"));
-check("CSS: while dictating the bar shows and +, chips and both voice buttons hide",
+check("CSS: while dictating the bar shows and +, the row under the card and both voice buttons hide",
   /\.hud-voice\.dictating \.dict-bar \{ display: flex; \}/.test(css)
-  && /\.hud-voice\.dictating \.cp-plus, \.hud-voice\.dictating \.cp-chips[^{]*\.dict-btn, \.hud-voice\.dictating #voiceBtn \{ display: none; \}/.test(css));
+  && /\.hud-voice\.dictating \.cp-plus, \.hud-voice\.dictating \.cp-under,\s*\.hud-voice\.dictating \.dict-btn, \.hud-voice\.dictating #voiceBtn \{ display: none; \}/.test(css));
+// One-row card (owner, 21/11/2026): while recording the text takes the first line and the dictation bar the second.
+check("CSS: while dictating the text and the dictation bar each take a whole line",
+  css.includes(".hud-voice.dictating > .voice-input { grid-column: 1 / -1; }")
+  && css.includes(".hud-voice.dictating .cp-right { grid-column: 1 / -1; grid-row: 3; }"));
 check("app.js shares its passing note for mic errors", /window\.JavisNoteFlash = ghiChuThoang;/.test(app));
 ["bar.mic", "dict.btn", "dict.stop", "dict.cancel", "dict.busy", "dict.in_call", "dict.unsupported", "dict.denied", "dict.failed"]
   .forEach(k => check("key " + k + " in vi and en", !!(vi[k] && en[k])));
@@ -55,6 +59,7 @@ function buttons(state) {
     ${grab("updateStopBtn")} ${grab("coNoiDungGui")} ${grab("coTheGuiBoSung")}
     updateStopBtn();`);
   run(state, env);
+  buttons.last = env;
   const shown = b => b.style.display !== "none";
   return ["dict", "voiceBtn", "stopBtn", "sendBtn"].filter(k => shown(env[k])).join(",");
 }
@@ -62,7 +67,17 @@ check("empty box: mic and voice chat, no send", buttons({}) === "dict,voiceBtn")
 check("typed text: voice chat turns into send", buttons({ text: "chào" }) === "dict,sendBtn");
 check("an attachment alone also shows send", buttons({ atts: [{ path: "a.png" }] }) === "dict,sendBtn");
 check("Javis answering, empty box: mic and stop", buttons({ processing: true }) === "dict,stopBtn");
-check("Javis answering with typed text: stop and send (add-on)", buttons({ processing: true, text: "thêm" }) === "dict,stopBtn,sendBtn");
+// 2026-11-19 (owner): typing while Javis works turns Stop into the add-on send, one button in one spot.
+check("Javis answering with typed text: Stop turns into send (add-on)", buttons({ processing: true, text: "thêm" }) === "dict,sendBtn");
+check("Javis answering with an attachment: send takes Stop's spot", buttons({ processing: true, atts: [{ path: "a.png" }] }) === "dict,sendBtn");
+check("the send in Stop's spot is unlocked when text arrives without a keystroke",
+  /if \(isProcessing\) sendBtn\.disabled = !boSung \|\| \(sendBtn\.dataset \|\| \{\}\)\.wsLock === "1";/.test(app));
+buttons({ processing: true, atts: [{ path: "a.png" }] });
+check("an attachment added while Javis works: the send is pressable", buttons.last.sendBtn.disabled === false);
+buttons({ processing: true });
+check("empty box while Javis works: send stays locked behind Stop", buttons.last.sendBtn.disabled === true);
+check("dictating while Javis works: Stop steps aside for send", /\.hud-voice\.dictating #stopBtn \{ display: none !important; \}/.test(css));
+check("Javis speaking aloud, nothing running: Stop stays", buttons({ speaking: true, text: "thêm" }) === "dict,stopBtn");
 check("in a call: the red hang-up stays, the dictate mic steps aside", buttons({ call: true }) === "voiceBtn");
 check("the box value is watched, so code that empties or fills it flips the button too",
   /Object\.defineProperty\(chatInput, "value"/.test(app) && /set\(v\) \{ d\.set\.call\(this, v\); try \{ updateStopBtn\(\); \}/.test(app));

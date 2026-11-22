@@ -92,6 +92,8 @@ check("lớp phủ nằm trên mọi thứ", /z-index:\s*[45]\d{3}/.test(than(".
 check("ảnh mặc định vừa màn",
       /max-width:\s*100%/.test(than(".jv-lb-img")) && /max-height:\s*100%/.test(than(".jv-lb-img")));
 check("có chế độ xem cỡ thật", /max-width:\s*none/.test(than(".jv-lb.that .jv-lb-img")));
+check("cỡ thật: ảnh nhỏ hơn khung vẫn nằm giữa, không dạt sang trái",
+      /margin:\s*auto/.test(than(".jv-lb.that .jv-lb-img")), than(".jv-lb.that .jv-lb-img"));
 check("khoá cuộn nền khi đang xem", /overflow:\s*hidden/.test(than("body.jv-lb-open")));
 check("khung ảnh cuộn được khi xem cỡ thật", /overflow:\s*auto/.test(than(".jv-lb-khung")));
 check("con trỏ zoom-in trên ảnh chat vẫn đúng nghĩa", /cursor:\s*zoom-in/.test(than(".chat-img")));

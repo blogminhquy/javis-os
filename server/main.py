@@ -79,6 +79,7 @@ _write_update_state = update_state.write_state
 _record_boot_version = update_state.record_boot_version
 _update_outcome = update_state.update_outcome
 import git_brain
+import backup_github   # brain backup on the signed-in GitHub account (20/11/2026)
 import engine
 import vision_input
 import borrowed_eyes   # mắt mượn: bộ não khác xem hộ ảnh khi model của bot không xem được (0.94.0)
@@ -97,6 +98,7 @@ import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản G
 import grok_cli          # bộ não thứ 11: Grok Build CLI (`grok`) - gói SuperGrok / X Premium+
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
+import claude_setup_token   # 2026-11-22: `claude setup-token` run from the Models card (a one-year token)
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import model_routing   # 0.350.0: provider order, per-card model/effort, several accounts per provider
 import plan_limits     # the plan's 5-hour and weekly meters (side work pauses near the limit)
@@ -2510,6 +2512,21 @@ def _routing_connected_ids(cfg) -> list:
         return []
 
 
+def _routing_order(mcfg, connected=None) -> list:
+    """The usage order a turn walks to find a card that can run: the saved order, then every card signed in since
+    it was saved, at the end, exactly as the Models page draws it (`_routing_view`).
+
+    2026-11-22 (owner): Claude Code and ChatGPT were both signed out, Antigravity was signed in, and neither the bots
+    nor the background jobs moved to it. Only an API key joins the saved order when it is added; a plan card signed in
+    later (Antigravity signs in from a terminal with `agy`, outside Javis) was drawn on the page as the last fallback
+    but never tried. An empty or unknown list of signed-in cards keeps the saved order as it is."""
+    return model_routing.order(mcfg or {}, connected or None)
+
+
+# Background jobs (aux_engine.swap) count new cards the same way; aux_engine cannot import main.
+aux_engine.CONNECTED_IDS = lambda cfg: _routing_connected_ids(cfg)
+
+
 def _routing_telegram_chat_keys(cfg) -> list:
     """Telegram chats the owner talks in: configured ids plus every chat the bot remembers (not customer bots)."""
     keys = [str(x) for x in tg_parse_ids((cfg.get("telegram") or {}).get("chat_id", ""))]
@@ -2645,6 +2662,9 @@ def _providers_view(cfg):
             # dashboard: chỉ server mới biết model việc nền đang trỏ vào đâu.
             item["auth_mode"] = claude_auth.che_do(cfg)
             item["auth_api_key_set"] = bool(claude_auth.api_key(cfg))
+            # 2026-11-22: the long-lived token (never the token itself), and whether this machine can get one by itself.
+            item["auth_token"] = claude_auth.token_info(cfg)
+            item["auth_token_auto"] = claude_setup_token.supported()
             item["auth_warning"] = claude_auth.canh_bao_neu_can(cfg)
             # Cùng lý do với cli_found của Codex: key_field=None làm configured luôn True,
             # nhưng bản cài tay thiếu binary `claude` thì chat chết ngay lượt đầu.
@@ -2756,7 +2776,8 @@ def _side_work_paused() -> str:
     auto-learning) must wait, "" otherwise. It waits when the plan that work would run on has used most of
     its 5-hour allowance (plan_limits.side_pause) and resumes by itself after the reset. Never raises."""
     try:
-        st = plan_limits.side_pause(aux_engine.read_spec(tag="learn").get("provider"))
+        _spec = aux_engine.read_spec(tag="learn")
+        st = plan_limits.side_pause(_spec.get("provider"), model=str(_spec.get("model") or ""))
     except Exception:   # noqa: BLE001 - a broken meter must not stop that work for good
         return ""
     if not st.get("paused"):
@@ -3732,10 +3753,13 @@ def _chat_provider(mcfg):
         # Only cards still signed in can take over (the stored order keeps a card that lost its login until the
         # Models page saves again). Computed here only, MAIN being unable to run is the rare path.
         try:
-            signed_in = set(_routing_connected_ids(cfgmod.read_settings()))
+            connected = _routing_connected_ids(cfgmod.read_settings())
+            signed_in = set(connected)
         except Exception:  # noqa: BLE001
-            signed_in = None
-        for cand in model_routing.order(mcfg)[1:]:
+            connected, signed_in = None, None
+        for cand in _routing_order(mcfg, connected):
+            if cand == prov:
+                continue
             if (signed_in is None or cand in signed_in) and _route_ready(mcfg, cand):
                 prov, model = cand, model_routing.profile(mcfg, cand)["model"]
                 break
@@ -3852,6 +3876,13 @@ def _clear_pin_limit(provider: str) -> bool:
     itself, with no way to undo it from the page (owner's report, 05/11/2026). True when a mark was lifted."""
     prov = str(provider or "")
     had = _PIN_LIMITED.pop(prov, None) is not None
+    try:
+        # 20/11/2026: the usage ring's "ran out" mark goes with it. It used to outlive the pick, so the ring stayed red
+        # for up to an hour after the owner switched to a model the plan still ran (owner's report, Team plan at 66%).
+        import plan_limits
+        plan_limits.clear_het(prov)
+    except Exception as e:  # noqa: BLE001
+        print(f"[routing] clear ring mark {prov}: {type(e).__name__}: {e}", file=sys.stderr)
     try:
         m = cfgmod.read_settings().get("model") or {}
         if not (plan_accounts.in_use(prov) and plan_accounts.has_extra(m, prov)):
@@ -4068,10 +4099,11 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_a
                   f"{old_lab or f'account {old_no}'} {why_en}.")
         return {"route": (prov, kind, key, model), "status": localefmt.chu(vi, en), "tried": tried}
     try:
-        signed_in = set(_routing_connected_ids(cfgmod.read_settings()))
+        connected = _routing_connected_ids(cfgmod.read_settings())
+        signed_in = set(connected)
     except Exception:  # noqa: BLE001
-        signed_in = None
-    for cand in model_routing.order(mcfg):
+        connected, signed_in = None, None
+    for cand in _routing_order(mcfg, connected):
         if cand in tried or (signed_in is not None and cand not in signed_in) or not _route_ready(mcfg, cand):
             continue
         cd = _provider_def(cand) or {}
@@ -6228,6 +6260,9 @@ def claude_status(refresh: bool = False):
     d["auto_update_env_off"] = claude_update.env_off()
     # 2026-11-10: the Claude Agent SDK package follows the same switch (sdk_update.py). A file read, no subprocess.
     d["sdk"] = sdk_update.status()
+    # 2026-11-22: which credentials the turns run with, and the long-lived token's dates (never the token).
+    d["auth_mode"] = claude_auth.che_do()
+    d["auth_token"] = claude_auth.token_info()
     return d
 
 
@@ -6486,7 +6521,8 @@ def grok_status():
 # ---- Extra accounts on a subscription plan card (plan_accounts, 0.353.0) ----
 # Account 1 keeps its own card controls above. An extra account signs in into its own folder: ChatGPT through
 # Javis's device-code flow (tokens written to that folder's auth.json), Grok through `grok login --device-auth`,
-# Claude Code through `claude auth login` (a link, then a code pasted back). One sign-in runs at a time.
+# Claude Code through `claude setup-token` (a link, then a code pasted back; since 2026-11-22 a long-lived token kept in
+# the account's folder). One sign-in runs at a time.
 _PLAN_LOGIN: dict = {}
 
 
@@ -6514,7 +6550,9 @@ def _plan_login_fresh(provider: str, account_id: str, folder) -> bool:
         elif kind == "agy":
             f = plan_accounts.agy_token_file(folder)
         else:
-            f = Path(folder) / ".credentials.json"
+            f = Path(folder) / plan_accounts._CLAUDE_TOKEN    # 2026-11-22: extra accounts sign in with a token
+            if not f.exists():
+                f = Path(folder) / ".credentials.json"
             if not f.exists():
                 return sys.platform == "darwin"   # macOS keeps Claude's token in the Keychain: no file to date
         return bool(f) and Path(f).stat().st_mtime >= since
@@ -6565,15 +6603,24 @@ async def plan_account_login_start(request: Request):
         if d.get("xong") and _plan_login_fresh(prov, aid, folder):
             return _plan_login_ok(prov, aid)
         return {"ok": True, "account_id": aid, "url": d.get("url", ""), "code": d.get("code", ""), "needs_code": False}
-    d = await asyncio.to_thread(claude_cli.auth_login_ui_start, plan_accounts.env_for(prov, folder))
+    # Claude Code (2026-11-22): a long-lived token from `claude setup-token`, like account 1, so the account is never
+    # signed out midway. The command runs with the account's folder; the token is kept in that folder.
+    d = await asyncio.to_thread(claude_setup_token.start, find_claude_cli(), plan_accounts.env_for(prov, folder))
     if not d.get("ok"):
+        _PLAN_LOGIN.pop(aid, None)
         return d
-    for _ in range(40):          # the login link shows within a few seconds
-        u = claude_cli._LOGIN.get("url")
-        if u:
-            break
-        await asyncio.sleep(0.25)
-    return {"ok": True, "account_id": aid, "url": claude_cli._LOGIN.get("url", ""), "code": "", "needs_code": True}
+    return {"ok": True, "account_id": aid, "url": d.get("url", ""), "code": "", "needs_code": True}
+
+
+def _plan_claude_token_done(prov: str, aid: str, token: str) -> dict:
+    """An extra Claude account's `setup-token` printed its token: keep it in the account's folder, finish the sign-in."""
+    folder = plan_accounts.home(prov, aid)
+    if not claude_auth.valid_token(token) or not plan_accounts.save_claude_token(folder, claude_auth.clean_token(token)):
+        return {"ok": False, "error": localefmt.chu("Không lưu được token của tài khoản này.",
+                                                    "Could not save this account's token.")}
+    claude_setup_token.stop()
+    warm_pool.POOL.drop_kind("claude")   # a warm `claude` keeps the credentials it started with
+    return _plan_login_ok(prov, aid)
 
 
 @app.post("/plan-accounts/login-code")
@@ -6586,11 +6633,9 @@ async def plan_account_login_code(request: Request):
     prov, aid = str(body.get("provider") or ""), str(body.get("account_id") or "")
     if prov != "anthropic-cli" or aid not in _PLAN_LOGIN:
         return {"ok": False, "error": localefmt.chu("Chưa bắt đầu đăng nhập.", "Sign-in has not started.")}
-    d = await asyncio.to_thread(claude_cli.auth_login_ui_code, str(body.get("code") or ""))
-    folder = plan_accounts.home(prov, aid)
-    if d.get("ok") or ((await asyncio.to_thread(claude_cli.auth_status_folder, folder)).get("connected")
-                       and _plan_login_fresh(prov, aid, folder)):
-        return _plan_login_ok(prov, aid)
+    d = await asyncio.to_thread(claude_setup_token.send_code, str(body.get("code") or ""))
+    if d.get("ok"):
+        return _plan_claude_token_done(prov, aid, claude_setup_token.take_token() or d.get("token") or "")
     return {"ok": False, "error": d.get("error") or localefmt.chu("Đăng nhập chưa xong.", "Sign-in not finished.")}
 
 
@@ -6616,9 +6661,12 @@ async def plan_account_login_poll(provider: str = "", account_id: str = ""):
         if plan_accounts.agy_token_file(folder) and _plan_login_fresh(provider, account_id, folder):
             return _plan_login_ok(provider, account_id)
         return {"ok": True, "connected": False}
-    d = await asyncio.to_thread(claude_cli.auth_status_folder, folder)
-    if d.get("connected") and _plan_login_fresh(provider, account_id, folder):
-        return _plan_login_ok(provider, account_id)
+    # Claude: a browser on the machine running Javis finishes `setup-token` without a code; its token is kept then.
+    d = await asyncio.to_thread(claude_setup_token.poll)
+    if d.get("token"):
+        return _plan_claude_token_done(provider, account_id, claude_setup_token.take_token() or d["token"])
+    if d.get("ended"):
+        return {"ok": False, "connected": False, "error": d.get("error", "")}
     return {"ok": True, "connected": False}
 
 
@@ -6638,6 +6686,7 @@ async def plan_account_login_cancel(request: Request):
         if plan_accounts.KIND[prov] == "grok":
             grok_cli.logout_huy_tien_trinh()
         elif plan_accounts.KIND[prov] == "claude":
+            claude_setup_token.stop()
             try:
                 proc = claude_cli._LOGIN.get("proc")
                 if proc and proc.poll() is None:
@@ -6843,12 +6892,135 @@ def claude_login_poll():
 @app.post("/claude/logout")
 def claude_logout():
     d = claude_auth_logout()
+    # Disconnect on the card means Claude Code stops here (2026-11-22): a long-lived token would keep it signed in.
+    _claude_token_forget()
     warm_pool.POOL.drop_kind("claude")   # 0.387.0: a warm `claude` keeps the login it started with
     try:
         connect_health.probe_engines()   # ngắt chủ động → đèn phải đổi ngay, khỏi chờ vòng quét
     except Exception:
         pass
     return d
+
+
+# ---- Long-lived Claude Code token (2026-11-22, claude_auth.TOKEN) ----
+# Owner's report: the plan's sign-in "reached its time limit and cannot be renewed" and every bot and job stopped. A
+# token from `claude setup-token` lives a year and is Anthropic's own answer for unattended runs. The card gets one by
+# running the command (claude_setup_token: link, then the code the page shows) or takes one pasted.
+def _claude_token_save(raw) -> dict:
+    tok = claude_auth.clean_token(raw)
+    if not claude_auth.valid_token(tok):
+        return {"ok": False, "error": localefmt.chu(
+            "Đây không phải token dài hạn của Claude. Token đúng bắt đầu bằng sk-ant-oat01-.",
+            "This is not a long-lived Claude token. A real one starts with sk-ant-oat01-.")}
+    cfg = cfgmod.read_settings()
+    m = cfg.setdefault("model", {})
+    m["claude_oauth_token"] = tok
+    m["claude_oauth_token_at"] = int(time.time())
+    m["claude_auth"] = claude_auth.TOKEN
+    cfgmod.write_settings(cfg)
+    claude_cli.auth_quen_cache()
+    warm_pool.POOL.drop_kind("claude")
+    connect_health.engine_reconnected("claude")
+    _plan_main_signed_in("anthropic-cli")
+    print("[claude token] a long-lived token was saved; Claude Code runs on it", file=sys.stderr)
+    return {"ok": True, "token": claude_auth.token_info()}
+
+
+def _claude_token_soon(info: dict) -> None:
+    """A week before the long-lived token ends (Anthropic gives a year): one bell notice a day with the one step to
+    take. Called by connect_health's probe, which runs every few minutes."""
+    try:
+        day = time.strftime("%d/%m/%Y", time.localtime(int(info.get("expires_at") or 0)))
+        inbox.add(localefmt.chu(
+            f"Token dài hạn của Claude hết hạn ngày {day}. Vào trang Models, thẻ Claude Code, bấm Lấy token mới "
+            "(đăng nhập claude.ai một lần) để bot và việc nền không bị dừng.",
+            f"The long-lived Claude token expires on {day}. On the Models page, Claude Code card, click Get a new "
+            "token (one claude.ai sign-in) so bots and background work do not stop."),
+            kind="system", source="engine", level="important",
+            dedup=f"claude-token-soon:{time.strftime('%Y-%m-%d')}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[claude token] reminder: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def _claude_account_tokens_soon() -> None:
+    """The same reminder for each EXTRA Claude account signed in with a long-lived token (2026-11-22): a week before
+    it ends, one bell notice a day per account, naming it."""
+    m = cfgmod.read_settings().get("model") or {}
+    for i, a in enumerate(plan_accounts.accounts(m, "anthropic-cli")):
+        if a["id"] == plan_accounts.MAIN:
+            continue
+        ti = plan_accounts.claude_token_info(plan_accounts.home("anthropic-cli", a["id"], create=False))
+        if not ti.get("token_expires_at") or ti.get("token_expired") \
+                or int(ti.get("token_days_left", 999)) > connect_health.TOKEN_REMIND_DAYS:
+            continue
+        name = a.get("label") or localefmt.chu(f"tài khoản {i + 1}", f"account {i + 1}")
+        day = time.strftime("%d/%m/%Y", time.localtime(int(ti["token_expires_at"])))
+        inbox.add(localefmt.chu(
+            f"Token của tài khoản Claude {name} hết hạn ngày {day}. Vào trang Models, thẻ Claude Code, mở tài khoản đó "
+            "và bấm Đăng nhập lại (đăng nhập claude.ai một lần) để tài khoản không bị dừng.",
+            f"The token of Claude account {name} expires on {day}. On the Models page, Claude Code card, open that "
+            "account and click Sign in again (one claude.ai sign-in) so it does not stop."),
+            kind="system", source="engine", level="important",
+            dedup=f"claude-token-soon:{a['id']}:{time.strftime('%Y-%m-%d')}")
+
+
+@app.post("/claude/token")
+def claude_token_save(token: str = Form("")):
+    """A token pasted on the card (made by `claude setup-token` on any machine)."""
+    return _claude_token_save(token)
+
+
+def _claude_token_forget() -> bool:
+    """Forget the long-lived token and leave token mode. True when there was one."""
+    claude_setup_token.stop()
+    cfg = cfgmod.read_settings()
+    m = cfg.setdefault("model", {})
+    had = bool(m.get("claude_oauth_token"))
+    if not had and claude_auth.che_do(cfg) != claude_auth.TOKEN:
+        return False
+    m["claude_oauth_token"] = ""
+    m["claude_oauth_token_at"] = 0
+    if claude_auth.che_do(cfg) == claude_auth.TOKEN:
+        m["claude_auth"] = claude_auth.SUBSCRIPTION
+    cfgmod.write_settings(cfg)
+    claude_cli.auth_quen_cache()
+    return had
+
+
+@app.delete("/claude/token")
+def claude_token_remove():
+    """Forget the token; Claude Code goes back to the machine's own sign-in."""
+    had = _claude_token_forget()
+    warm_pool.POOL.drop_kind("claude")
+    try:
+        connect_health.probe_engines()
+    except Exception:  # noqa: BLE001
+        pass
+    return {"ok": True, "removed": had}
+
+
+@app.post("/claude/token/start")
+def claude_token_start():
+    """Run `claude setup-token` and hand back its sign-in link."""
+    return claude_setup_token.start(find_claude_cli())
+
+
+@app.post("/claude/token/code")
+def claude_token_code(code: str = Form("")):
+    """The code the sign-in page showed: typed into the command, and the token it prints is saved."""
+    d = claude_setup_token.send_code(code)
+    if not d.get("ok"):
+        return d
+    return _claude_token_save(claude_setup_token.take_token() or d.get("token") or "")
+
+
+@app.get("/claude/token/poll")
+def claude_token_poll():
+    """The command may finish without a code (a browser on the machine running Javis answers it): save the token."""
+    d = claude_setup_token.poll()
+    if d.get("token"):
+        return _claude_token_save(claude_setup_token.take_token() or d["token"])
+    return {"ok": not d.get("ended"), **{k: v for k, v in d.items() if k != "token"}}
 
 
 # ---- MCP do Javis quản lý (engine Claude Code) ----
@@ -7516,6 +7688,8 @@ def settings_get():
         safe["model"][kf + "_set"] = bool(k)
     # 0.350.0: account keys never leave the server. The Models page gets each card's accounts with the last 4 characters.
     safe["model"].pop("account_keys", None)
+    # The long-lived Claude token (2026-11-22) never leaves either; the card reads `auth_token` of its provider entry.
+    safe["model"].pop("claude_oauth_token", None)
     safe["model"]["accounts"] = {
         pid: [{"id": a["id"], "label": a["label"], "enabled": a["enabled"],
                "key": ("••••" + a["key"][-4:]) if a["key"] else "",
@@ -7721,9 +7895,8 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # Giá trị lạ về "subscription" thay vì báo lỗi - đây là ô hai lựa chọn, gõ sai thì lui
         # về cái không tốn tiền của người dùng chứ không làm chết đường chat.
         if "claude_auth" in patch:
-            m["claude_auth"] = (claude_auth.API_KEY
-                                if str(patch["claude_auth"] or "").strip().lower() == claude_auth.API_KEY
-                                else claude_auth.SUBSCRIPTION)
+            _ca = str(patch["claude_auth"] or "").strip().lower()
+            m["claude_auth"] = _ca if _ca in claude_auth.MODES else claude_auth.SUBSCRIPTION
         if "auxiliary" in patch:   # model phụ cho việc nền (provider + model)
             aux_patch = patch["auxiliary"] or {}
             aux = m.setdefault("auxiliary", {})
@@ -8059,10 +8232,12 @@ def _do_backup(brain: str = "") -> dict:
     Cập nhật last_backup/last_status/last_report."""
     cfg = cfgmod.read_settings()
     b = cfg.get("backup", {}) or {}
-    if not (b.get("repo_url") and b.get("token")):
-        return {"ok": False, "error": localefmt.chu("Chưa cấu hình repository URL + token", "Repository URL and token are not configured yet")}
+    tok = backup_github.effective_token(b)
+    if not (b.get("repo_url") and tok):
+        return {"ok": False, "error": localefmt.chu("Chưa chọn repository để đồng bộ. Kết nối GitHub rồi chọn một repository riêng tư.",
+                                                    "No repository to sync with yet. Connect GitHub, then pick a private repository.")}
     mirror = str(cfgmod.STATE_DIR / "brains-backup")   # repo mirror riêng (tránh nested git từng brain)
-    res = git_brain.sync_brains(BRAINS_DIR, mirror, b["repo_url"], b["token"], b.get("branch") or "main",
+    res = git_brain.sync_brains(BRAINS_DIR, mirror, b["repo_url"], tok, b.get("branch") or "main",
                                 trash_dir=str(cfgmod.STATE_DIR / "brain-trash"),
                                 protected_names={_default_brain_dir().name},
                                 sync_images=bool(b.get("sync_images")))
@@ -8110,6 +8285,10 @@ def backup_status(brain: str = Query("brain")):
         "interval_hours": b.get("interval_hours", 6),
         "sync_images": bool(b.get("sync_images")),
         "token_set": bool(b.get("token")),
+        # Where the sync token comes from: "github" (the Connections page sign-in), "token" (pasted here) or "".
+        "use_github": bool(b.get("use_github")),
+        "token_source": backup_github.token_source(b),
+        "ready": backup_github.ready(b),
         "last_backup": b.get("last_backup", 0.0),
         "last_status": b.get("last_status", ""),
         "last_report": b.get("last_report") or {},
@@ -8131,6 +8310,7 @@ async def backup_config(
         b["repo_url"] = repo_url.strip()
     if token:                     # chỉ ghi khi có token MỚI (tránh xoá bằng chuỗi che ••••)
         b["token"] = token.strip()
+        b["use_github"] = False   # a token pasted here is chosen on purpose: it wins over the GitHub connection
     if branch:
         b["branch"] = branch.strip() or "main"
     if enabled is not None:
@@ -8151,12 +8331,42 @@ async def backup_test():
     """Kiểm tra token + repo hợp lệ (git ls-remote) trước khi bật auto."""
     cfg = cfgmod.read_settings()
     b = cfg.get("backup", {}) or {}
-    return await asyncio.to_thread(git_brain.remote_reachable, b.get("repo_url", ""), b.get("token", ""))
+    return await asyncio.to_thread(git_brain.remote_reachable, b.get("repo_url", ""), backup_github.effective_token(b))
 
 
 @app.post("/backup/now")
 async def backup_now(brain: str = Form("brain")):
     return await asyncio.to_thread(_do_backup, brain)
+
+
+async def _backup_link_call(fn, *args):
+    """Run a backup_github step off the event loop; its errors are localized and safe to show."""
+    try:
+        out = await asyncio.to_thread(fn, *args)
+    except backup_github.BackupLinkError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    return {"ok": True, "items": out} if isinstance(out, list) else {"ok": True, **out}
+
+
+@app.get("/backup/github/repos")
+async def backup_github_repos():
+    """Private repos of the connected GitHub account, for the one-tap backup picker."""
+    return await _backup_link_call(backup_github.repos)
+
+
+@app.post("/backup/github/link")
+async def backup_github_link(full_name: str = Form("")):
+    return await _backup_link_call(backup_github.link, full_name)
+
+
+@app.post("/backup/github/create")
+async def backup_github_create(name: str = Form("")):
+    return await _backup_link_call(backup_github.create, name)
+
+
+@app.post("/backup/github/unlink")
+async def backup_github_unlink():
+    return await _backup_link_call(backup_github.unlink)
 
 
 _OR_MODELS_CACHE = {"data": None, "ts": 0.0}
@@ -9734,7 +9944,7 @@ def _eager_brain_sync() -> None:
     6-hour round, so the other machines learn it before they can undo it. Background and best effort."""
     try:
         _b = cfgmod.read_settings().get("backup", {}) or {}
-        if _b.get("enabled") and _b.get("repo_url") and _b.get("token") and git_brain.has_git():
+        if _b.get("enabled") and backup_github.ready(_b) and git_brain.has_git():
             _t = asyncio.create_task(asyncio.to_thread(_do_backup))
             _DELETE_SYNC_TASKS.add(_t)
             _t.add_done_callback(_DELETE_SYNC_TASKS.discard)
@@ -11678,6 +11888,68 @@ async def files_open_local(request: Request, path: str = Form(...), brain: str =
         return JSONResponse({"error": localefmt.chu("Không mở được file: ", "Could not open the file: ") + str(e)},
                             status_code=500)
     return {"ok": True, "action": action, "path": str(target)}
+
+
+# ---- Forgot the current password: Account page help (owner request 2026-11-20) ----
+# The dashboard needs the current password before it changes one, so the way back starts on the machine itself. On a
+# desktop install the Account page reveals the reset script in Explorer / Finder; everywhere else it shows the steps.
+_RESET_SCRIPTS = {"windows": "reset-auth.bat", "mac": "reset-auth.command"}
+
+
+def _reset_kind() -> str:
+    if os.path.exists("/.dockerenv"):
+        return "docker"
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "mac"
+    return "linux"
+
+
+def _reset_script(kind: str):
+    """The reset script for this install, or None when it cannot do the job: not a desktop install, the file is
+    missing, or settings.json lives somewhere the script does not look (it reads <repo>/server unless told)."""
+    name = _RESET_SCRIPTS.get(kind)
+    if not name:
+        return None
+    root = Path(__file__).resolve().parent.parent
+    script = root / name
+    try:
+        same_state = Path(cfgmod.SETTINGS_PATH).resolve() == (root / "server" / "settings.json").resolve()
+    except Exception:  # noqa: BLE001
+        same_state = False
+    return script if script.is_file() and same_state else None
+
+
+@app.get("/auth/reset-help")
+async def auth_reset_help(request: Request):
+    """What the Account page offers under "Forgot your current password?": `can_open` = a button that reveals the
+    reset script on this computer, otherwise the steps for `kind` (docker, linux, or a desktop seen from afar)."""
+    kind = _reset_kind()
+    script = _reset_script(kind)
+    return {"kind": kind, "file": _RESET_SCRIPTS.get(kind, ""),
+            "can_open": bool(script) and _local_open_here(request) and local_open.can_launch()}
+
+
+@app.post("/auth/reset-help/open")
+async def auth_reset_help_open(request: Request):
+    """Show the reset script selected in Explorer / Finder. Only REVEALS it: running it stays a deliberate double
+    click on the machine, so an unattended signed-in browser cannot change the password without the current one."""
+    if not _local_open_here(request):
+        return JSONResponse({"error": localefmt.chu(
+            "Chỉ mở được khi bạn dùng Javis ngay trên máy đang chạy nó.",
+            "This only works when you use Javis on the computer that runs it.")}, status_code=403)
+    script = _reset_script(_reset_kind())
+    if not script:
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy file đặt lại mật khẩu trên máy này.",
+                                                    "The password reset file is not on this computer.")},
+                            status_code=404)
+    try:
+        local_open.launch("reveal", script)
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": localefmt.chu("Không mở được thư mục: ", "Could not open the folder: ") + str(e)},
+                            status_code=500)
+    return {"ok": True, "file": script.name, "folder": str(script.parent)}
 
 
 # ---- CHIA SẺ CÔNG KHAI một file (nút Chia sẻ trong trình sửa) ----
@@ -15182,12 +15454,14 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         # đường rời trang). Hỏng thì bỏ qua - kênh là thứ làm ĐẸP đường về, không phải điều
         # kiện để lưu thư.
         kenh = ""
+        muted = False
         if sid:
             try:
                 kenh = str((get_store().get_session(sid) or {}).get("channel") or "")
                 # 0.205.0: a muted partner's report still lands in its chat and the bell, just quietly.
                 if kenh.startswith("agent:") and _partner_muted(get_store().get_session(sid) or {}):
                     quiet = True
+                    muted = True
             except Exception as e:
                 print(f"[inbox] không đọc được kênh của phiên {sid[:8]}: "
                       f"{type(e).__name__}: {e}", file=sys.stderr)
@@ -15210,11 +15484,19 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
     if item.get("duplicate"):
         return item   # the same report was already filed: no second bell, no second push
     if hidden:
-        # Not in the bell, no push: the chat's dot and the rail dot (rail-unread.js) carry it. They refresh now.
+        # Not in the bell: the chat's dot and the rail dot (rail-unread.js) carry it. They refresh now.
         try:
             await _CHAT_RUNTIME.publish({"type": "chat_unread", "session_id": sid})
         except Exception as e:  # noqa: BLE001 - the rail dot then shows on its next refresh
             print(f"[inbox] chat_unread WebSocket: {type(e).__name__}: {e}", file=sys.stderr)
+        # Owner, 2026-11-21 ("đang bị mất thông báo đẩy"): 0.602.0 took the push away together with the bell entry, so a
+        # long answer, a background job's follow-up and a Gate task no longer rang a phone in a pocket, where the red
+        # dot cannot be seen. A chat turn's answer (push_if_away) rings the phone again when the notice would have
+        # rung (loud) or the owner turned on "notify every answer". Still nothing in the bell, and a muted partner
+        # stays quiet.
+        if push_if_away and not muted and (dec.get("verdict") == "loud"
+                                           or turn_done_notice.every_turn(cfgmod.read_settings())):
+            _push_chat_answer(sid, text)
         return item
     try:
         # Ai đang mở dashboard thì chấm đỏ trên chuông phải nhảy NGAY, không đợi lần
@@ -16043,12 +16325,16 @@ task_stats_feature = task_stats.register(app, task_stats.TaskStatsDeps(
 
 # 0.251.0: login vault (login_vault.py). The owner's sign-in cookies, encrypted, reused by javis_login and by
 # page watches. Its routes need a real dashboard session: an API token can neither read nor add a sign-in.
+# 2026-11-21: a sign-in can also go into the Playwright browser (browser_login.py); switching one off or deleting
+# it takes it out of that browser again.
+import browser_login  # noqa: E402
 import login_vault  # noqa: E402
 
 login_vault.register(app, login_vault.LoginVaultDeps(
     state_dir=lambda: cfgmod.STATE_DIR,
     has_session=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
     fetch=web_watch.fetch,
+    forget_browser=browser_login.forget,
 ))
 
 
@@ -16512,16 +16798,28 @@ def _bao_luot_xong_ngan(conv_sid: str, final_text: str) -> bool:
     no bell entry. The phone stays quiet when a tab in front of the owner shows this chat (sw.js asks the tab).
     True when a push was scheduled."""
     try:
-        st = cfgmod.read_settings()
-        if not turn_done_notice.every_turn(st) or not conv_sid or not webpush.so_sub():
+        if not turn_done_notice.every_turn(cfgmod.read_settings()) or not conv_sid:
             return False
         import chat_bridge as _cb
         if _cb.co_viec(conv_sid):
             return False
-        body = turn_done_notice.push_text(channel_context.strip_control_blocks(final_text))
+        return _push_chat_answer(conv_sid, final_text)
+    except Exception as e:  # noqa: BLE001 - a missed doorbell never fails the turn
+        print(f"[turn push] {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+
+
+def _push_chat_answer(conv_sid: str, final_text: str) -> bool:
+    """Push "Javis has answered" for one dashboard chat, with no bell entry. The phone stays quiet when a tab in front
+    of the owner shows this chat (sw.js asks the tab). Shared by a short turn under "notify every answer" and by a
+    chat answer whose bell entry is hidden (`_bo_vao_hom_thu`). True when a push was scheduled. Never raises."""
+    try:
+        if not conv_sid or not webpush.so_sub():
+            return False
+        body = turn_done_notice.push_text(channel_context.strip_control_blocks(str(final_text or "")))
         if not body:
             return False
-        if (st.get("push") or {}).get("preview") == "hidden":
+        if (cfgmod.read_settings().get("push") or {}).get("preview") == "hidden":
             body = localefmt.chu("Javis đã trả lời xong.", "Javis has answered.")
         # Not awaited: a dead subscription waits up to 15 s and the turn is already over. One notice per chat: a newer
         # answer replaces the older one (tag).
@@ -17283,6 +17581,8 @@ async def _start_scheduler():
         # 0.403.0: the AI engine down is urgent (nothing works); connections broken after a restart are important.
         connect_health.on_engine_down = lambda text: _loop_notify(text, source="engine", level="urgent")
         connect_health.on_connections_down = lambda text: _loop_notify(text, source="connections", level="important")
+        connect_health.on_claude_token_soon = _claude_token_soon
+        connect_health.on_probe = _claude_account_tokens_soon
         connect_health.start()   # vòng check sức khoẻ kết nối + probe đèn báo não
     except Exception as e:
         print(f"[connect health start] {e}", file=_sys.stderr)
@@ -17399,7 +17699,7 @@ async def _start_scheduler():
                 # 4) Đồng bộ GitHub tự động (2 CHIỀU): đủ interval → kéo về + hoà nhập + đẩy lên
                 try:
                     bcfg = cfgmod.read_settings().get("backup", {}) or {}
-                    if bcfg.get("enabled") and bcfg.get("repo_url") and bcfg.get("token") and git_brain.has_git():
+                    if bcfg.get("enabled") and backup_github.ready(bcfg) and git_brain.has_git():
                         interval = max(1, int(bcfg.get("interval_hours", 6))) * 3600
                         if time.time() - float(bcfg.get("last_backup", 0)) >= interval:
                             await asyncio.to_thread(_do_backup)   # 1 lần: toàn bộ thư mục brains, 2 chiều
@@ -19401,9 +19701,9 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: s
 async def stt_fix_route(request: Request):
     """Fix what the mic heard (2026-11-06), see transcript_fix.py.
 
-    Body {"text": "...", "final": true, "context": ["recent message", ...]}: the main brain rewrites the whole
-    sentence in context. Without `final` (a page from before): the older word-level fix. Never an error: any trouble
-    gives back the result of the word rules.
+    Body {"text": "...", "final": true, "context": ["recent message", ...], "quick": bool}: the main brain rewrites the
+    whole sentence in context; with `quick` (the ear heard it) never through a subscription CLI. Without `final` (a
+    page from before): the older word-level fix. Never an error: any trouble gives back the result of the word rules.
     """
     try:
         body = await request.json()
@@ -19418,7 +19718,9 @@ async def stt_fix_route(request: Request):
     if (body or {}).get("final"):
         ctx = (body or {}).get("context") or []
         ctx = [str(c)[:300] for c in ctx[-6:]] if isinstance(ctx, list) else []
-        return {"ok": True, **await transcript_fix.rewrite_transcript(cfg, text, ctx)}
+        # `quick` (2026-11-22): a speech model heard the text, so only a model that answers in a second may polish it.
+        quick = bool((body or {}).get("quick"))
+        return {"ok": True, **await transcript_fix.rewrite_transcript(cfg, text, ctx, quick=quick)}
     return {"ok": True, **await transcript_fix.fix_transcript(cfg, text)}
 
 
@@ -20795,6 +21097,7 @@ async def _chat_socket(ws):
             # Lượt này vấp "hết lượt gói thuê bao"? Bốn nhánh engine thuê bao ghi vào đây qua
             # `_limit_frame`; cuối lượt đọc ra để lưu câu báo và hẹn tự chạy lại.
             _limit_state = {}
+            _turn_t0 = time.time()   # 20/11/2026: a refusal older than this turn goes once the turn answers
             _turn_acc = {}     # 0.355.0: provider -> plan account THIS turn runs on (the one that rests on a quota error)
 
             def _limit_frame(raw, engine_hint, model=""):
@@ -20817,9 +21120,9 @@ async def _chat_socket(ws):
                 try:
                     import plan_limits
                     if noi:
-                        plan_limits.ghi_het(engine_hint, float(lim.reset_epoch or 0))
+                        plan_limits.ghi_het(engine_hint, float(lim.reset_epoch or 0), model=model or "")
                     elif engine_hint in ("grok-cli", "antigravity-cli") and plan_limits.la_het_han_muc(raw):
-                        plan_limits.ghi_het(engine_hint)
+                        plan_limits.ghi_het(engine_hint, model=model or "")
                         _limit_state["quota"] = True   # 0.354.0: the next route may take over
                         if engine_hint == "grok-cli":
                             _note_pin_limit("grok-cli", account=_turn_acc.get("grok-cli"))   # 0.353.0: that account rests
@@ -21954,7 +22257,7 @@ async def _chat_socket(ws):
                                 store.set_cli_session_id(conv_sid, _cli_sid)
                                 # 0.202.0: this chat may be kept warm across a short break (off by default).
                                 try:
-                                    if claude_auth.che_do() == claude_auth.SUBSCRIPTION:
+                                    if claude_auth.on_plan():
                                         cli.session_id = _cli_sid
                                         _KEEPWARM.note_turn(conv_sid, cli, int(event.get("tokens_in", 0) or 0))
                                 except Exception:
@@ -22116,6 +22419,16 @@ async def _chat_socket(ws):
             if final_text:
                 await _persist_turn(store, conv_sid, brain, user_message, final_text,
                                     turn_started=(_mem_snap or {}).get("t0") or 0)
+                if not _limit_state.get("quota"):
+                    # 20/11/2026: the plan just answered, so an older "ran out" mark on the ring goes (or, when it was
+                    # another model's refusal, stays on that model only). Before, only a fresh meter report lifted it,
+                    # and Claude Code sends one only when its limit state changes.
+                    try:
+                        import plan_limits
+                        _ok_model = api_model or (mcfg.get("claude_model") if prov == "anthropic-cli" else "")
+                        await asyncio.to_thread(plan_limits.lift_het, prov, str(_ok_model or ""), _turn_t0)
+                    except Exception as _e:  # noqa: BLE001 - a meter must never break a turn
+                        print(f"[plan limits] lift: {type(_e).__name__}: {_e}", file=sys.stderr)
                 if _limit_state.get("quota") and not ws.untouched():
                     # 0.354.0: out of quota halfway (words written or tools run): the turn stops where it is, never
                     # reruns by itself (a tool may have sent or posted something). A "Run again" card under the answer
@@ -23340,8 +23653,18 @@ async def _gate_bao(sid: str, brain: str, body: str, label: str, dedup: str) -> 
     return bool(item) and not item.get("dropped")
 
 
+def _gate_base_url() -> str:
+    """Javis Gate: this Javis's public https address for the Javis Sync install command, or "" when unknown (the tool
+    then asks the outside AI, which knows the URL it connected to). Order: the domain set in Settings, DOMAIN_NAME,
+    the link the login page found by itself (routes/domain.py)."""
+    import routes.domain as _domain
+    d = _domain._norm_domain((cfgmod.read_settings().get("domain") or {}).get("custom") or "") \
+        or _domain._norm_domain(os.getenv("DOMAIN_NAME", ""))
+    return f"https://{d}" if d else str(_domain._AUTO.get("url") or "")
+
+
 chat_bridge.gan(lambda ws: _chat_socket(ws), lambda: _CHAT_RUNTIME, _gate_luu_luot,
-                models=_gate_models, model_cua=_gate_chat_model, bao=_gate_bao,
+                models=_gate_models, model_cua=_gate_chat_model, bao=_gate_bao, base_url=_gate_base_url,
                 # `_pin_chat_model` sits with the /sessions routes further down: looked up when called.
                 ghim=lambda sid, prov, model: _pin_chat_model(sid, prov, model))
 
@@ -23499,7 +23822,7 @@ async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Quer
 @app.get("/sessions")
 def sessions_list(brain: str = Query(None), limit: int = Query(50),
                         project: str = Query(""), channel: str = Query(""), bots: int = Query(0),
-                        archived: int = Query(0)):
+                        archived: int = Query(0), unread_first: int = Query(0)):
     """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project.
     channel: bỏ trống = loại các kênh cộng sự (agent:/workflow:); có giá trị = đúng kênh đó
     (trang Cộng sự mở một trợ lý/quy trình).
@@ -23507,12 +23830,14 @@ def sessions_list(brain: str = Query(None), limit: int = Query(50),
     xin cái này). Mặc định 0: lúc trang Cộng sự chọn "phiên gần nhất để mở tiếp" (limit=1) mà lẫn phiên của khách
     vào thì tin chủ gõ sẽ rơi vào cuộc chat của khách.
     archived: 1 = only the archived chats (the history column's "Archived" view, 2026-11-09). Every answer also carries
-    `archived_count`, the number behind the "Archived" row at the bottom of the column."""
+    `archived_count`, the number behind the "Archived" row at the bottom of the column.
+    unread_first: 1 = unread chats right after the pinned ones (the history column, 2026-11-19)."""
     keys = _brain_keys(brain)
     also = _agent_history_channels(brain, channel) if bots else []
     store = get_store()
     return {"sessions": store.list_sessions(limit=limit, brain=keys, project=project or None, channel=channel or None,
-                                            also_channels=also, archived_only=bool(archived)),
+                                            also_channels=also, archived_only=bool(archived),
+                                            unread_first=bool(unread_first)),
             "archived_count": store.count_archived(brain=keys, project=project or None, channel=channel or None,
                                                    also_channels=also)}
 
@@ -23525,7 +23850,14 @@ def _agent_history_channels(brain, channel) -> list:
 
     2026-11-08 (owner: admin chats on Zalo "không hiện lịch sử chat lên trên Javis, nhất là nối với một agent"): the
     owner's chats from the admin channels and the CLI join too. Javis Core's history holds the plain ones (Javis Core
-    is who answers there); an agent's holds the ones routed to it, stored as `<channel>@<slug>` (`_owner_store_channel`)."""
+    is who answers there); an agent's holds the ones routed to it, stored as `<channel>@<slug>` (`_owner_store_channel`).
+
+    2026-11-20 (owner: "không có lịch sử đoạn chat của kênh telegram trên agent khi nối với bot"): a bot is matched by
+    the brain its chats are STORED under (`_brain_key`, what `_tg_answer` writes), not by the raw string in the bot
+    record. A bot saved with another spelling of the same brain (an absolute path from an older version or a moved
+    brain folder, while the dashboard sends "brain") answered fine but its chats never reached the agent's history.
+    The agent slug is compared in NFC too, so "javis-vũ" from a macOS file name still matches."""
+    import unicodedata
     ch = str(channel or "").strip()
     if not ch.startswith("agent:"):
         return []
@@ -23534,13 +23866,14 @@ def _agent_history_channels(brain, channel) -> list:
         return list(OWNER_TURN_CHANNELS)
     keys = {str(k) for k in (_brain_keys(brain) or [])}
     out = [f"{c}@{slug}" for c in OWNER_TURN_CHANNELS]
+    nfc = lambda s: unicodedata.normalize("NFC", str(s or ""))  # noqa: E731
     try:
         for b in chatbot_store.list_bots():
             a = b.get("agent") or {}
-            if str(a.get("slug")) != slug:
+            if nfc(a.get("slug")) != nfc(slug):
                 continue
-            # Phiên của bot được lưu với brain CỦA BOT (xem `_tg_answer`), nên so brain đó.
-            if keys and str(b.get("brain")) not in keys:
+            # Phiên của bot được lưu với brain CỦA BOT (xem `_tg_answer`), nên so brain đó, theo đúng khoá kho đã ghi.
+            if keys and str(b.get("brain")) not in keys and _brain_key(b.get("brain")) not in keys:
                 continue
             kenh = "bot:" + str(b.get("slug") or b.get("id"))
             if kenh not in out:
@@ -23612,12 +23945,19 @@ def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = 
                                           also_channels=_agent_history_channels(brain, channel) if bots else [])}
 
 
+def _unread_skip(skip: str) -> list:
+    """`skip` query of the unread counts: comma-separated chat ids the dashboard sees running or has open on screen.
+    Owner 2026-11-20: a dot means a chat that has finished and is not read yet."""
+    return [x for x in (skip or "").split(",") if x.strip()]
+
+
 @app.get("/sessions/unread-summary")
-def sessions_unread_summary(brain: str = Query(None)):
+def sessions_unread_summary(brain: str = Query(None), skip: str = Query("")):
     """How many chats have a reply the owner has not read, per rail entry (owner, 2026-11-19: "answers of partners,
     chats and teams need no notification, a red dot on the menu is enough"). `chat`: chats of the Chat page;
-    `workspace`: chats with a partner or a workflow (Partners page). Teams count on their own (`GET /teams/unread`)."""
-    return {"ok": True, **get_store().unread_summary(_brain_keys(brain))}
+    `workspace`: chats with a partner or a workflow (Partners page). Teams count on their own (`GET /teams/unread`).
+    `skip`: chats still running or open on screen, not counted (_unread_skip)."""
+    return {"ok": True, **get_store().unread_summary(_brain_keys(brain), skip=_unread_skip(skip))}
 
 
 @app.get("/sessions/{session_id}")
@@ -23739,6 +24079,10 @@ async def sessions_message_pin(session_id: str, message_id: int, request: Reques
 # lặng lẽ giữa lượt thì không.
 PHIEN_TS_MAX_FILE = 200        # trần một cuộc, đủ cho cuộc dài nhất mà không đổ ra vô hạn
 PHIEN_TS_MAX_LINK = 200
+# 2026-11-19 (owner: "phần file với link trong nhóm cần phân trang"): the team's archive asks one kind a page at a time
+# (`kind`, `q`, `offset`, `limit`), so it reaches every file and link, not only the newest 200 of the plain call.
+ASSET_KINDS = ("image", "file", "link")
+ASSET_PAGE_MAX = 100
 
 
 def _ts_trong_brain(broot: Path, duong: Path):
@@ -23757,8 +24101,13 @@ def _ts_trong_brain(broot: Path, duong: Path):
 
 
 @app.get("/sessions/{session_id}/assets")
-def sessions_assets(session_id: str, brain: str = Query("")):
+def sessions_assets(session_id: str, brain: str = Query(""), kind: str = Query(""), q: str = Query(""),
+                    offset: int = Query(0), limit: int = Query(20)):
     """File Javis đã tạo và link đã nhắc trong CUỘC TRÒ CHUYỆN này.
+
+    Without `kind`: the newest 200 files and 200 links, as before, plus `counts` (images, files, links) that are the true
+    totals even when a list is cut. With `kind` = image | file | link: one page of that kind, newest first, filtered by
+    every word of `q` (no accents, any case, in the name, label, path, url or description): `items`, `total`, `offset`.
 
     Ứng viên file có hai nguồn, và luật giữ khác nhau vì độ tin cậy khác nhau:
 
@@ -23769,10 +24118,49 @@ def sessions_assets(session_id: str, brain: str = Query("")):
       trong lời giải thích trông y hệt đường dẫn thật, nên nó phải tự chứng minh bằng cách
       tồn tại.
     """
+    got = _session_asset_lists(session_id, brain)
+    if got is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    b, ra_file, ra_link = got
+    if kind:
+        if kind not in ASSET_KINDS:
+            return JSONResponse({"ok": False, "error": localefmt.chu("Loại không hợp lệ", "Unknown kind")}, status_code=400)
+        rows = ra_link if kind == "link" else [f for f in ra_file if bool(f.get("image")) == (kind == "image")]
+        rows = _assets_matching(rows, q)
+        rows.sort(key=lambda x: -(x.get("ts") or 0))     # stable: the same time keeps the order of the plain list
+        lim = max(1, min(int(limit or 0), ASSET_PAGE_MAX))
+        off = max(0, int(offset or 0))
+        return {"ok": True, "brain": b, "kind": kind, "total": len(rows), "offset": off, "limit": lim,
+                "items": rows[off:off + lim]}
+    images = sum(1 for f in ra_file if f.get("image"))
+    return {"ok": True, "brain": b,
+            "files": ra_file[:PHIEN_TS_MAX_FILE],
+            "links": ra_link[:PHIEN_TS_MAX_LINK],
+            "counts": {"images": images, "files": len(ra_file) - images, "links": len(ra_link)}}
+
+
+def _assets_matching(rows: list, query: str) -> list:
+    """The rows whose name, label, path, url or description holds every word of `query` (no accents, any case)."""
+    words = [w for w in sessions.SessionStore.fold_text(query or "").split() if w]
+    if not words:
+        return list(rows)
+    fold = sessions.SessionStore.fold_text
+    out = []
+    for r in rows:
+        hay = fold(" ".join(str(r.get(k) or "") for k in ("name", "label", "brain_path", "url", "description")))
+        if all(w in hay for w in words):
+            out.append(r)
+    return out
+
+
+def _session_asset_lists(session_id: str, brain: str = ""):
+    """(brain, files, links) of one conversation, every row (no cap), or None when there is no such conversation.
+
+    Files: the ones the owner attached first, then the ones found in the messages, newest first. Links the same."""
     store = get_store()
     sess = store.get_session(session_id)
     if not sess:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return None
     b = (brain or sess.get("brain") or "brain").strip() or "brain"
     broot = Path(_brain_root(b)).resolve()
     ceil = _files_root(b)
@@ -23829,9 +24217,7 @@ def sessions_assets(session_id: str, brain: str = Query("")):
     ra_link = tay_link + [l for l in ra_link if l["url"] not in url_tay]
     for f in ra_file:
         f.pop("_that", None)
-    return {"ok": True, "brain": b,
-            "files": ra_file[:PHIEN_TS_MAX_FILE],
-            "links": ra_link[:PHIEN_TS_MAX_LINK]}
+    return b, ra_file, ra_link
 
 
 def _cuoc_tai_lieu_tay(session_id: str, sess: dict):
@@ -24240,8 +24626,13 @@ def sessions_set_project(session_id: str, project_id: str = Form(""),
 # Project = nhóm hội thoại người dùng tự gom. Xoá project chỉ GỠ NHÃN, không xoá hội thoại.
 # ============================================================
 @app.get("/projects")
-def projects_list(brain: str = Query(None)):
-    return {"projects": get_store().list_projects(brain=brain)}
+def projects_list(brain: str = Query(None), skip: str = Query("")):
+    """`ungrouped_unread`: unread chats in no project, the dot on "Chưa xếp nhóm" (2026-11-20). `skip`: chats still
+    running or open on screen, left out of every unread count (_unread_skip)."""
+    store = get_store()
+    ids = _unread_skip(skip)
+    return {"projects": store.list_projects(brain=brain, skip=ids),
+            "ungrouped_unread": store.count_unread(brain=_brain_keys(brain), project="none", skip=ids)}
 
 
 @app.post("/projects")
@@ -26557,6 +26948,24 @@ def _tg_signin_out(out: str, prov: str, account: str = None) -> bool:
     return True
 
 
+def _tg_signin_answer(out, prov: str, bot=None, acted: bool = False):
+    """A channel turn whose ANSWER is only the plan CLI's sign-in failure, returned as the error string it is
+    (2026-11-22). Owner's screenshot: a Full-access bot posted Claude Code's "Failed to authenticate: this login reached
+    its time limit ... Run claude auth login" into a customer Telegram group, because the CLI prints it as the answer
+    and every guard downstream waits for an error string. As a string the turn moves on to the next route like any lost
+    sign-in, a customer bot sends nothing and rings the owner's bell, and it is never stored as an answer.
+
+    A customer bot uses the strict check (`signin_loss.is_signin_answer`): "Please log out and sign in again" may be its
+    real reply. Nothing changes after a tool ran or when files came back: then the turn did work."""
+    if not isinstance(out, dict) or acted or out.get("files"):
+        return out
+    txt = str(out.get("text") or "").strip()
+    if not txt:
+        return out
+    hit = signin_loss.is_signin_answer(txt) if bot else _signin_lost_text(prov, txt, answer=True)
+    return ("⚠ " + txt) if hit else out
+
+
 def _tg_turn_account(sess, prov: str):
     """The plan account a channel turn just ran on: plan_accounts.use left it on that chat's engine object."""
     eng = (sess or {}).get({"openai-oauth": "codex", "grok-cli": "grok", "anthropic-cli": "cli"}.get(prov, ""))
@@ -26703,6 +27112,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             text, meta, _hop_progress, chat_id=chat_id, sess=sess, brain=brain,
             mcfg=mcfg, prov=prov, kind=kind, api_key=api_key, api_model=api_model,
             store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
+        out = _tg_signin_answer(out, prov, bot=bot, acted=_hop_acted[0])
         # 0.354.0 (spec 6.4): out of quota before any tool ran -> the same message again on the next route, with
         # one progress line saying why. Customer bots keep their own model and never hop on quota.
         # 2026-11-12: a plan that lost its SIGN-IN hops too, and here a customer bot hops as well: its agent's model
@@ -26735,6 +27145,11 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                 text, meta, _hop_progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
                 prov=prov, kind=kind, api_key=api_key, api_model=api_model,
                 store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
+            out = _tg_signin_answer(out, prov, bot=bot, acted=_hop_acted[0])
+        if not bot and isinstance(out, str) and _signin_lost_text(prov, out):
+            # No route took the turn: the owner reads what happened and what to do, as on the web chat, not the CLI's
+            # own sentence about `claude auth login` on a machine they may not have a terminal on.
+            out = _signin_lost_message(prov, out.lstrip("⚠ ").strip())
 
         if agent and isinstance(out, dict):
             # The agent prompt asks for JAVIS_LESSON / JAVIS_RULE lines and says they are saved. The
@@ -26947,6 +27362,12 @@ async def _bot_doc_stream(stream, *, progress, runtime_trace, prov, api_model):
     except Exception as e:
         print(f"[bot {prov}] {type(e).__name__}: {e}", file=__import__('sys').stderr)
         loi.append(str(e))
+    if signin_loss.is_signin_answer(out):
+        # 2026-11-22: Claude Code prints a lost sign-in ("Failed to authenticate: this login reached its time limit...")
+        # as the answer, and a bot posted it to a customer group. It is the turn's error: the caller returns it as a
+        # failed turn, which the customer never sees, and it never joins the bot's chat history.
+        loi.insert(0, out.strip())
+        out = ""
     return out, loi
 
 
@@ -30306,7 +30727,8 @@ def _chan_ngoai_le(raw, cu, xac_nhan):
 
 
 @app.get("/chatbots/chats")
-async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60, chon: str = ""):
+async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60, chon: str = "",
+                         chat_type: str = ""):
     """Các cuộc chat ĐÃ BIẾT (người và nhóm) cho ô "chọn người và nhóm" của form bot.
 
     Nguồn là Hộp thư (`conversations`) nên có tên hiển thị thật thay vì id. `account_ids` (cách nhau
@@ -30327,7 +30749,7 @@ async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", l
     cho = chatbot_runtime.nhom_cho(bot_id) if bot else []
     can_ten = [x.strip() for x in str(chon or "").split(",") if x.strip()]
     can_ten += [str(x) for x in list((bot or {}).get("groups") or []) + list((bot or {}).get("people") or [])]
-    return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot),
+    return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot, chat_type=chat_type),
             "ten": chatbot_cuoc_chat.ten_da_chon(tk, can_ten)}
 
 
@@ -31105,6 +31527,24 @@ async def chat_job_status(job_id: str, request: Request):
     return {"ok": True, **view}
 
 
+@app.post("/chat/external")
+async def chat_external(payload: dict = Body(...)):
+    """Save finished turns of the owner's own Claude Code or Codex session into Javis (owner, 20/11/2026).
+
+    Called by `tools/javis-sync/javis_sync.py`, the Claude Code Stop hook and Codex `notify` program, with an API
+    token (scope `chat` is enough). Body: {"source": "claude-code"|"codex", "session": id, "project": folder name,
+    "turns": [{"id", "user", "assistant"}]}, or {"check": true} to test the URL and token without saving anything.
+    Runs no Javis turn: see `chat_bridge.log_transcript`. 409 when the owner is chatting in that conversation right
+    now (the hook keeps the turns and sends them next time)."""
+    if payload.get("check"):
+        return {"ok": True, "sources": sorted(chat_bridge.TRANSCRIPT_SOURCES)}
+    out = await chat_bridge.log_transcript(payload.get("source") or "", payload.get("session") or "",
+                                           payload.get("turns"), str(payload.get("project") or ""))
+    if out.get("ok"):
+        return out
+    return JSONResponse(out, status_code=409 if out.get("busy") else 400)
+
+
 @app.post("/telegram/send-file")
 async def telegram_send_file(payload: dict = Body(...)):
     """Gửi 1 file qua Telegram tới chat whitelist. Agent gọi bằng curl từ localhost
@@ -31832,6 +32272,29 @@ def _agent_spec_available(spec: dict, settings: dict = None) -> tuple:
     return aux_engine.availability(spec, settings)
 
 
+def _team_main(settings, tools: bool = False) -> dict:
+    """The main model a team turn falls back to when the assistant's own model cannot run: MAIN while it can run,
+    else the first card of the usage order that can, among those this kind of turn supports (2026-11-22).
+
+    Owner: Claude Code (MAIN) and ChatGPT were both signed out, Antigravity was signed in, and team members whose own
+    model was signed out "fell back to the main model", the very Claude Code that could not run. A text-only team turn
+    runs only on Claude Code, ChatGPT or an API card (`team_engine.text_only_supported`); a turn with tools also on
+    Grok Build and Antigravity."""
+    em = _effective_main(settings or {})
+    m = (settings or {}).get("model") or {}
+    try:
+        if _route_ready(m, em["provider"]):
+            return em
+        connected = _routing_connected_ids(settings or {})
+        fits = team_engine.tools_supported if tools else team_engine.text_only_supported
+        for cand in _routing_order(m, connected):
+            if cand != em["provider"] and cand in connected and fits(cand) and _route_ready(m, cand):
+                return {"provider": cand, "model": model_routing.profile(m, cand).get("model") or ""}
+    except Exception as e:  # noqa: BLE001 - the turn then runs on MAIN and reports its own error, as before
+        print(f"[team] fallback card: {type(e).__name__}: {e}", file=sys.stderr)
+    return em
+
+
 def _team_quota_next(provider: str, eng, error) -> dict:
     """`_step_quota_next` for a failed team turn: only an error the ENGINE reported counts, never a tool call the
     text-only contract refused or an empty answer.
@@ -32023,10 +32486,10 @@ def _team_engine_for(team, agent_key, role):
     info = _team_agent_info(root, agent_key) or {}
     settings = cfgmod.read_settings() or {}
     spec = team_engine.choose_spec(
-        info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+        info.get("model") or "", info.get("model_provider") or "", _team_main(settings),
         _agent_model_provider, lambda sp: _agent_spec_available(sp, settings))
     tool_spec = team_engine.choose_spec(
-        info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+        info.get("model") or "", info.get("model_provider") or "", _team_main(settings, tools=True),
         _agent_model_provider, lambda sp: _agent_spec_available(sp, settings), tools=True)
 
     def _build_tools(system, tag, gate_id=""):
@@ -35218,7 +35681,7 @@ async def plan_limits_get(goi: int = 0):
     d = await asyncio.to_thread(plan_limits.doc)
     # On an API key a brain bills per token: no plan, so no ring for it.
     grok_k = await asyncio.to_thread(grok_cli.auth_status)
-    co_goi = {"anthropic-cli": not claude_auth.env_cho_cli(), "openai-oauth": True,
+    co_goi = {"anthropic-cli": claude_auth.on_plan(), "openai-oauth": True,
               "grok-cli": grok_k.get("method") != "xai-api-key", "antigravity-cli": True}
     ten = {}
     if goi:

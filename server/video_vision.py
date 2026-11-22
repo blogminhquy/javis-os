@@ -196,6 +196,31 @@ async def _look(url: str, dest: Path, msg_id: str, transcribe: Optional[Transcri
         res["why"] = "không tải được video: " + why
         return res
     try:
+        return await _frames_of(Path(saved), dest, stem, transcribe, res)
+    finally:
+        Path(saved).unlink(missing_ok=True)
+
+
+async def look_file(path, dest: Path, msg_id: str, transcribe: Optional[Transcribe] = None) -> dict:
+    """Same as `look` for a video a gateway already saved on disk (Telegram, 2026-11-20: its file links carry the bot
+    token, so the clip is downloaded by the gateway instead of handing the link around). The file is left in place:
+    it sits in the bot brain's inbox with every other file a customer sent. Same result shape as `look`."""
+    res = {"frames": [], "duration": 0.0, "speech": "", "heard": False, "why": ""}
+    p = Path(str(path or ""))
+    if not p.is_file():
+        res["why"] = "không thấy file video đã tải về"
+        return res
+    if not available():
+        res["why"] = "máy chủ Javis chưa cài ffmpeg"
+        return res
+    import image_vision
+    stem = "video_" + (image_vision.SAFE_PART.sub("_", str(msg_id or ""))[:40] or str(int(time.time())))
+    return await _frames_of(p, Path(dest), stem, transcribe, res)
+
+
+async def _frames_of(saved: Path, dest: Path, stem: str, transcribe: Optional[Transcribe], res: dict) -> dict:
+    """Frames and speech of one local clip into `res`. Never raises."""
+    try:
         info = await probe(saved)
         if not info["video"]:
             res["why"] = "file tải về không phải video đọc được"
@@ -221,8 +246,6 @@ async def _look(url: str, dest: Path, msg_id: str, transcribe: Optional[Transcri
         res["frames"] = []
         res["why"] = f"xử lý video lỗi: {type(e).__name__}"
         return res
-    finally:
-        Path(saved).unlink(missing_ok=True)
 
 
 def note(res: dict, earlier: str = "") -> str:

@@ -10,7 +10,7 @@ function harness() {
   const events = {}, timers = new Map(), requests = [], pending = [], storage = new Map();
   let nextTimer = 0;
   const barDot = { hidden: true };
-  const menuDots = ["a", "b"].map(id => ({
+  const menuDots = ["a", "b", "none"].map(id => ({
     getAttribute: () => id,
     dot: { hidden: true },
     querySelector() { return this.dot; },
@@ -59,7 +59,9 @@ function harness() {
     api: window.test, window, bar, barDot, menuDots, requests,
     emit(name, detail) { for (const fn of events[name] || []) fn({ detail }); },
     flush() { const batch = [...timers.values()]; timers.clear(); for (const fn of batch) fn(); },
-    respond(projects, index = 0) { pending.splice(index, 1)[0]({ json: async () => ({ projects }) }); },
+    respond(projects, index = 0, ungrouped = 0) {
+      pending.splice(index, 1)[0]({ json: async () => ({ projects, ungrouped_unread: ungrouped }) });
+    },
   };
 }
 
@@ -101,6 +103,45 @@ async function main() {
   await new Promise(setImmediate);
   assert.equal(h.menuDots[0].dot.hidden, true, "Reading the final reply clears the open picker dot");
   assert.equal(h.barDot.hidden, true);
+
+  // 2026-11-20 (owner): unread chats in no project light "Chưa xếp nhóm" and the selector, like a project does.
+  h.api.select("b");
+  h.api.refreshProjects();
+  h.flush();
+  h.respond([{ id: "a", name: "A", unread_count: 0 }, { id: "b", name: "B", unread_count: 0 }], 0, 2);
+  await new Promise(setImmediate);
+  assert.equal(h.menuDots[2].dot.hidden, false, "An open picker lights the ungrouped row");
+  assert.equal(h.barDot.hidden, false, "Ungrouped unread chats light the selector");
+  h.api.openProjMenu({});
+  const none = h.window.menuRows.find(row => row.projectId === "none");
+  assert.ok(none && none.unread, "The ungrouped row carries the unread dot");
+  h.api.select("none");
+  h.api.openProjMenu({});
+  assert.equal(h.window.menuRows.find(row => row.projectId === "none").unread, false,
+    "Viewing the ungrouped chats: their own rows already have dots");
+  h.api.renderProjBar();
+  assert.match(h.bar.innerHTML, /cs-proj-unread[^>]*hidden/, "No folder alert for the list on screen");
+  h.api.select("b");
+  h.api.refreshProjects();
+  h.flush();
+  h.respond([{ id: "a", name: "A", unread_count: 0 }, { id: "b", name: "B", unread_count: 0 }], 0, 0);
+  await new Promise(setImmediate);
+  assert.equal(h.menuDots[2].dot.hidden, true, "Reading the last ungrouped chat clears its dot");
+  assert.equal(h.barDot.hidden, true);
+
+  // 2026-11-20 (owner): chats still running, and the chat open on screen, are skipped by the folder counts.
+  h.window.JavisRunning = new Set(["run1", "run2"]);
+  h.api.refreshProjects();
+  h.flush();
+  assert.match(h.requests[h.requests.length - 1], /&skip=run1%2Crun2$/, "Running chats are left out of folder counts");
+  h.respond([{ id: "a", name: "A", unread_count: 0 }, { id: "b", name: "B", unread_count: 0 }], 0, 0);
+  await new Promise(setImmediate);
+  h.window.JavisRunning = new Set();
+  h.api.refreshProjects();
+  h.flush();
+  assert.doesNotMatch(h.requests[h.requests.length - 1], /skip=/, "Nothing running: no skip list");
+  h.respond([{ id: "a", name: "A", unread_count: 0 }, { id: "b", name: "B", unread_count: 0 }], 0, 0);
+  await new Promise(setImmediate);
 
   const old = h.api.loadProjects();
   const latest = h.api.loadProjects();

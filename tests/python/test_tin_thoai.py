@@ -191,11 +191,23 @@ out = chay(_bot(_stt_no)._ingest_attachment(None, _voice_msg()))
 check("stt_fn ném ngoại lệ -> nuốt lại thành câu nói, không gãy vòng nhận tin",
       bool(out) and "bùm" in out)
 
-# --- video vẫn chưa xem được, nhưng câu từ chối không được nói lây sang voice ---
-out = chay(_bot(_stt_ok)._ingest_attachment(None, {"message_id": 8, "chat": {"id": "9"},
-                                                   "video": {"file_id": "V"}}))
-check("video -> vẫn báo chưa xem được", "video" in out.lower() and "chưa xem được" in out)
-check("câu từ chối video KHÔNG nhắc voice nữa", "voice" not in out.lower())
+# --- video (2026-11-20): saved and handed to the runtime to watch; never mixed up with voice ---
+_vdir = tempfile.mkdtemp(prefix="javis-tgvideo-")
+_vbot = tb.TelegramBot("tok", "", answer_fn=None, stt_fn=_stt_ok, download_dir=_vdir)
+_vmsg = {"message_id": 8, "chat": {"id": "9"}, "video": {"file_id": "V", "file_size": 1000}}
+out = chay(_vbot._ingest_attachment(None, _vmsg))
+check("video -> saved in the download folder and marked for the runtime",
+      "video" in out.lower() and _vmsg.get("_video_path", "").startswith(_vdir)
+      and os.path.isfile(_vmsg["_video_path"]))
+check("video -> meta carries video_path", _vbot._build_meta(_vmsg).get("video_path") == _vmsg["_video_path"])
+check("câu về video KHÔNG nhắc voice", "voice" not in out.lower())
+_hbot = tb.TelegramBot("tok", "", answer_fn=None, download_dir=_vdir, giau_trang_thai=True)
+_hmsg = {"message_id": 9, "chat": {"id": "9"}, "video": {"file_id": "V"}}
+out = chay(_hbot._ingest_attachment(None, _hmsg))
+check("customer bot -> no server path in the text", _vdir not in out and bool(_hmsg.get("_video_path")))
+_big = {"message_id": 10, "chat": {"id": "9"}, "video": {"file_id": "V", "file_size": 30 * 1024 * 1024}}
+out = chay(_vbot._ingest_attachment(None, _big))
+check("video over 20MB -> says it cannot be watched, nothing saved", "20MB" in out and not _big.get("_video_path"))
 
 # --- audio (file nhạc/ghi âm gửi dạng audio) đi chung đường thoại ---
 out = chay(_bot(_stt_ok)._ingest_attachment(None, {"message_id": 9, "chat": {"id": "9"},

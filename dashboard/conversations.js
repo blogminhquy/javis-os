@@ -710,7 +710,7 @@
       // Hỏi Zalo một số có thể mất vài giây: người dùng đã gõ tiếp thì kết quả này cũ, không được đè lên kết quả mới hơn.
       if (hoi !== _q) return;
       if (!im || d.phone_lookup) veSdt(d.phone_lookup, false);
-      var dau = d.items || [];
+      var dau = (d.items || []).filter(function (it) { return !_gone[it.id]; });
       var duoi = im ? _items.slice(soDong) : [];       // phần đã tải sâu hơn nhịp hỏi: giữ nguyên
       _items = dau.concat(duoi);
       if (!duoi.length) _conDS = dau.length >= soDong;
@@ -1097,6 +1097,8 @@
     if (act === "copy") return menuCopy(id);
     if (act === "profile") { closeRowMenu(false); return showProfile(id); }
     if (act === "block") return menuBlock(id);
+    if (act === "unblock") return menuUnblock(id);
+    if (act === "leave") return menuLeave(id);
     if (act === "delete") return menuDelete(id);
     runRowAction(id, act);
   }
@@ -1144,6 +1146,16 @@
   // ---- View profile, Block, Delete (0.447.0) ----
   function convName(c) { return (c && (c.title || c.customer_name || c.external_chat_id)) || ""; }
 
+  // The row in the list and the open chat are two objects: a Block, Unblock or Leave run from either place (the "..."
+  // menu or Info) is copied onto the other, and the open chat redraws its header and Info at once.
+  function syncOpen(id, c) {
+    if (!_conv || _conv.id !== id) return;
+    if (_conv !== c) { _conv.metadata = c.metadata; _conv.mode = c.mode; _conv.hidden = c.hidden; }
+    boCache(id);
+    _dauVetTin = "";
+    veThread();
+  }
+
   async function showProfile(id) {
     var c = rmItem(id) || (_conv && _conv.id === id ? _conv : null) || { id: id };
     var box = el('<div class="ht-modal"><div class="ht-form ht-prof" role="dialog" aria-label="' + esc(window.t("ht.rm_profile")) + '">' +
@@ -1175,15 +1187,70 @@
     var c = rmItem(id);
     if (!c) return closeRowMenu(false);
     closeRowMenu(false);
-    if (!confirm(window.t(window.JavisConvFilters.chatKind(c) === "zalo_private" ? "ht.block_q_zalo" : "ht.block_q_fb", { ten: convName(c) }))) return;
+    var F = window.JavisConvFilters, k = F.chatKind(c), remote = F.platformActs(c).indexOf("block") >= 0;
+    var q = !remote ? "ht.block_q_local" : k === "zalo_private" ? "ht.block_q_zalo" : "ht.block_q_fb";
+    if (!confirm(window.t(q, { ten: convName(c) }))) return;
     try {
       await api("/conversations/" + id + "/block", { method: "POST" });
       c.metadata = Object.assign({}, c.metadata || {}, { blocked: true });
       c.mode = "human";
-      alert(window.t("ht.blocked", { ten: convName(c) }));
+      c.hidden = 1;
+      if (!_q) _items = _items.filter(function (it) { return it.id !== id || _statusLoc === "hidden"; });
+      syncOpen(id, c);
+      alert(window.t(remote ? "ht.blocked" : "ht.blocked_local", { ten: convName(c) }));
     } catch (e) { alert(window.t("ht.rm_err", { err: e.message })); }
     _dauVet = "";
+    veDanhSach();
     tai(true);
+  }
+
+  async function menuUnblock(id) {
+    var c = rmItem(id);
+    if (!c) return closeRowMenu(false);
+    closeRowMenu(false);
+    if (!confirm(window.t("ht.unblock_q", { ten: convName(c) }))) return;
+    try {
+      var d = await api("/conversations/" + id + "/unblock", { method: "POST" });
+      var md = Object.assign({}, c.metadata || {});
+      delete md.blocked;
+      c.metadata = md;
+      c.hidden = 0;
+      if (d && d.conversation) c.mode = d.conversation.mode;
+      if (!_q && _statusLoc === "hidden") _items = _items.filter(function (it) { return it.id !== id; });
+      syncOpen(id, c);
+    } catch (e) { alert(window.t("ht.rm_err", { err: e.message })); }
+    _dauVet = "";
+    veDanhSach();
+    tai(true);
+  }
+
+  // A chat removed for good (Delete, or leaving its group): out of the list, the open chat and the quick-return cache.
+  // `_gone` keeps it out of a list answer that was already on its way when the delete went through (the 5-second
+  // refresh, or a request merged with one sent just before): without it the row came back until the next refresh.
+  var _gone = {};
+  function dropConv(id) {
+    _gone[id] = true;
+    _items = _items.filter(function (it) { return it.id !== id; });
+    if (_chon === id) dongThread();
+    boCache(id);
+    if (_conv && _conv.id === id) _conv = null;      // never the fallback of a later menu action
+    _dauVet = "";
+    veDanhSach();
+    tai(true);
+  }
+
+  // Leaving a group also removes its chat from Javis (owner, 2026-11-21); the question says so before it happens.
+  async function menuLeave(id) {
+    var c = rmItem(id);
+    if (!c) return closeRowMenu(false);
+    closeRowMenu(false);
+    var ten = convName(c);
+    if (!confirm(window.t("ht.leave_q", { ten: ten }))) return;
+    try {
+      await api("/conversations/" + id + "/leave", { method: "POST" });
+    } catch (e) { return alert(window.t("ht.rm_err", { err: e.message })); }
+    dropConv(id);
+    toast(window.t("ht.left", { ten: ten }));
   }
 
   async function menuDelete(id) {
@@ -1194,16 +1261,13 @@
     var q = k === "fb_comment" ? "ht.del_q_fbc" : k === "ig_comment" ? "ht.del_q_igc" : k === "threads_comment" ? "ht.del_q_thc" :
       remote ? "ht.del_q_zalo" :
       (k === "messenger_dm" || k === "ig_dm") ? "ht.del_q_meta" : "ht.del_q_local";
-    if (!confirm(window.t(q, { ten: convName(c) }))) return;
+    var ten = convName(c);
+    if (!confirm(window.t(q, { ten: ten }))) return;
     try {
       await api("/conversations/" + id + "/delete", { method: "POST" });
     } catch (e) { return alert(window.t("ht.rm_err", { err: e.message })); }
-    _items = _items.filter(function (it) { return it.id !== id; });
-    if (_conv && _conv.id === id) dongThread();
-    boCache(id);
-    _dauVet = "";
-    veDanhSach();
-    tai(true);
+    dropConv(id);
+    toast(window.t("ht.deleted", { ten: ten }));
   }
 
   async function menuToggleTag(convId, tagId, btn) {
@@ -1407,7 +1471,7 @@
     var c = _conv || {}, u = _msgs[_msgs.length - 1] || {};
     return JSON.stringify([c.id, c.mode, c.bot_id, c.bot_name, c.title, c.customer_name, c.channel, c.chat_type, c.account_name,
       c.tags || [], c.contact || "", c.note || "", c.profile_at || 0, c.who, c.who_code, c.ai_allowed, c.ai_pending, c.draft || null, c.reply_when,
-      c.yield_min, _silence, _running, u.sender_type]);
+      c.yield_min, !!(c.metadata && c.metadata.blocked), !!(c.metadata && c.metadata.left), _silence, _running, u.sender_type]);
   }
 
   // Chèn tin mới vào cuối khung, trước dòng "Bot im" nếu có. Đang ở đáy thì trượt theo tin mới; đang đọc tin cũ thì đứng yên.
@@ -1415,7 +1479,7 @@
     var m = _host && _host.querySelector(".ht-thread .ht-msgs");
     if (!m) return veThread();
     var oDay = m.scrollHeight - m.scrollTop - m.clientHeight < 80;
-    var html = moi.map(veTin).join("");
+    var html = moi.map(renderMessage).join("");
     var sil = m.querySelector(".ht-silent");
     if (sil) sil.insertAdjacentHTML("beforebegin", html); else m.insertAdjacentHTML("beforeend", html);
     if (oDay) m.scrollTop = m.scrollHeight;
@@ -1447,7 +1511,7 @@
         var tuDay = m2.scrollHeight - m2.scrollTop;
         var cuNut = m2.querySelector(".ht-older");
         if (cuNut) cuNut.parentNode.removeChild(cuNut);
-        m2.insertAdjacentHTML("afterbegin", nutTinCu() + cu.map(veTin).join(""));
+        m2.insertAdjacentHTML("afterbegin", nutTinCu() + cu.map(renderMessage).join(""));
         m2.scrollTop = m2.scrollHeight - tuDay;
         noiTinCu(m2);
         tiep = _conCu && m2.clientHeight > 0 && m2.scrollHeight <= m2.clientHeight + 40;      // tin ngắn chưa đủ cao để cuộn: tải tiếp cho tới khi cuộn được
@@ -1517,7 +1581,7 @@
           esc(V ? V.whoSentence(c) : "") + '</span></span>' +
         (threeModes ? (c.mode === "human" ? '<button type="button" class="ib-link ib-back-ai">' + esc(window.t("ib.back_ai")) + '</button>' : "") : bar) +
       '</div>' +
-      '<div class="ht-msgs">' + nutTinCu() + _msgs.map(veTin).join("") + renderSilenceLine(c) + '</div>' +
+      '<div class="ht-msgs">' + nutTinCu() + _msgs.map(renderMessage).join("") + renderSilenceLine(c) + '</div>' +
       (guiDuoc ? veCompose(c) : '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>') +
       '<div class="ib-msheet"' + (_msheet && threeModes ? "" : " hidden") + '>' + (_msheet && threeModes && V ? V.modeSheetHtml(c, ic) : "") + '</div>';
     box.querySelector(".ht-back").onclick = dongThread;
@@ -1703,7 +1767,7 @@
         '<div class="ht-tagrow"></div>' + (prof ? "" : noteBox) + '</div>' +
       profSec + ai +
       '<div class="ib-sec"><h4>' + ic("plug") + ' ' + esc(t("ib.i_channel")) + '</h4><div class="ib-line">' + logoKenh(c.channel) + ' <span>' +
-        esc(k.nhan) + (accLabel(c) ? ' · ' + esc(accLabel(c)) : "") + '</span></div></div>';
+        esc(k.nhan) + (accLabel(c) ? ' · ' + esc(accLabel(c)) : "") + '</span></div></div>' + infoActsHtml(c);
     veTagRow();
     var note = p.querySelector(".ib-notebox");
     note.value = _noteEdit && _noteEdit.id === c.id ? _noteEdit.text : (c.note || "");
@@ -1721,6 +1785,24 @@
     };
     var mk = p.querySelector(".ib-make-bot");
     if (mk) mk.onclick = function () { makeBot(c); };
+    p.querySelectorAll(".ib-acts .ht-rm-it").forEach(function (b) {
+      b.onclick = function () {
+        var act = b.dataset.act;
+        if (act === "block") menuBlock(c.id);
+        else if (act === "unblock") menuUnblock(c.id);
+        else if (act === "leave") menuLeave(c.id);
+        else if (act === "delete") menuDelete(c.id);
+      };
+    });
+  }
+
+  // Block / Unblock, Leave group, Delete at the foot of Info: the rows of the "..." menu (same labels, same second line
+  // saying whether it also happens on Zalo or the Page), run by the same functions. Plain buttons here, not menu items.
+  function infoActsHtml(c) {
+    var F = window.JavisConvFilters;
+    var items = F && F.infoActItems ? F.infoActItems(c) : [];
+    if (!items.length) return "";
+    return '<div class="ib-sec ib-acts">' + F.rowMenuHtml(items, ic).replace(/ role="menuitem[a-z]*"/g, "") + '</div>';
   }
 
   async function saveNote(id) {
@@ -2318,7 +2400,7 @@
         var ios = D.isIOS && D.isIOS();
         setNote(window.t(code === "denied" ? (ios ? "dict.denied_ios" : "dict.denied")
           : code === "service" ? (ios ? "dict.service_ios" : "dict.service") : code === "unsupported" ? "dict.unsupported"
-          : code === "nothing" ? "dict.nothing" : "dict.failed"), true);
+          : code === "nothing" ? (D.nothingKey ? D.nothingKey() : "dict.nothing") : "dict.failed"), true);
       }
     });
     _dict = dict;
@@ -2423,76 +2505,113 @@
     image_unconfirmed: "ht.zalo_why.image_unconfirmed", bot_stopped: "ht.zalo_why.bot_stopped",
     interrupted: "ht.zalo_why.interrupted", stale: "ht.zalo_why.stale" };
 
-  function veTin(t) {
-    var lop = t.sender_type === "customer" ? "khach" : t.sender_type === "ai" ? "bot"
-            : t.sender_type === "human" ? "nguoi" : "hethong";
-    var ai = t.sender_type === "customer" ? (t.sender_name || "")
-           : t.sender_type === "ai" ? (t.sender_name || window.t("ht.bot"))
-           : t.sender_type === "human" ? window.t("ht.ban") : "";
-    if (t.message_type === "reaction") return renderReaction(t, lop, ai);
-    var than;
-    // Ảnh và file khách gửi (0.171.0, ht-media.js): ảnh hiện thẳng trong bong bóng, file thành thẻ bấm tải về. Chỉ còn chú
-    // thích thật của khách đi kèm; dòng "đã tải về: <đường dẫn máy chủ>" và link ảnh trần không hiện ra nữa.
+  // Names written by older code that say nothing about who it was: an AI reply stored as "Bot" (a draft the owner sent)
+  // and a person stored as "Ban"/"You" (the server writes the Vietnamese word, matched here as data, never shown). They
+  // fall back to the agent's real name and to "You" respectively.
+  var GENERIC_NAMES = { "bot": 1, "b\u1ea1n": 1, "you": 1 };
+  function isGenericName(s) { return !s || !!GENERIC_NAMES[String(s).trim().toLowerCase()]; }
+
+  // Who wrote an outgoing message, readable by anyone looking back at the chat (owner, 2026-11-22: show the agent's name
+  // on every message the agent wrote, with that agent's own icon). The agent gets its icon (the one the message was sent
+  // with, else the chat's bot's, else the AI sparkles), its name and an "AI" tag; a person gets a person icon and their
+  // name (the owner's Zalo name, "Staff", or "You").
+  function senderName(t) {
+    if (t.sender_type === "ai") {
+      return !isGenericName(t.sender_name) ? String(t.sender_name)
+        : (_conv && _conv.bot_name) || window.t("ht.bot");
+    }
+    if (t.sender_type === "human") return !isGenericName(t.sender_name) ? String(t.sender_name) : window.t("ht.ban");
+    return t.sender_type === "customer" ? (t.sender_name || "") : "";
+  }
+  function agentIcon(t) {
+    var name = (t.metadata && t.metadata.bot_icon) || (_conv && _conv.bot_icon) || "";
+    // An icon this dashboard does not ship would draw a "?": the AI sparkles say more.
+    var known = name && (!window.Icons || !window.Icons.has || window.Icons.has(name));
+    return ic(known ? name : "sparkles");
+  }
+  function senderHtml(t, side, name) {
+    if (side === "bot") {
+      return '<span class="ht-who ai" title="' + esc(window.t("ht.who_ai_tip")) + '">' + agentIcon(t) + '<b>' + esc(name) +
+        '</b><span class="ht-who-tag">' + esc(window.t("ht.who_ai")) + '</span></span>';
+    }
+    if (side === "nguoi") {
+      return '<span class="ht-who human" title="' + esc(window.t("ht.who_human_tip")) + '">' + ic("user-round") +
+        '<b>' + esc(name) + '</b></span>';
+    }
+    return name ? esc(name) : "";
+  }
+
+  // One message of the open chat. `side` is the CSS class of the row (khach = customer, bot = AI agent, nguoi = a person
+  // of the business, hethong = system); those class names are a CSS contract shared with every inbox stylesheet.
+  function renderMessage(t) {
+    var side = t.sender_type === "customer" ? "khach" : t.sender_type === "ai" ? "bot"
+             : t.sender_type === "human" ? "nguoi" : "hethong";
+    var who = senderName(t);
+    if (t.message_type === "reaction") return renderReaction(t, side, who);
+    var body;
+    // Photos and files (0.171.0, ht-media.js): a photo shows inside the bubble, a file becomes a card to download. Only
+    // the customer's real caption comes with it; the "downloaded to: <server path>" line and bare image links are hidden.
     // Owner, 2026-10-25: a photo the owner (or the bot) sends must show as a photo too, so they can check what went out;
     // it used to read "image https://...zdn.vn/....jpg". Any non-text message goes through the same parser.
     var wantMedia = t.sender_type === "customer" || (t.message_type && t.message_type !== "text");
     var media = (wantMedia && window.JavisHtMedia) ? window.JavisHtMedia.phanTich(t, t.conversation_id) : null;
-    var coMedia = !!(media && (media.anh || media.file));
-    if (coMedia) {
-      than = window.JavisHtMedia.html(media, esc, ic, window.t) + (media.chu ? '<div class="ht-chu-thich">' + esc(media.chu) + '</div>' : "");
+    var hasMedia = !!(media && (media.anh || media.file));
+    if (hasMedia) {
+      body = window.JavisHtMedia.html(media, esc, ic, window.t) + (media.chu ? '<div class="ht-chu-thich">' + esc(media.chu) + '</div>' : "");
     } else if (t.sender_type === "ai" && window.mdToHtml) {
-      try { than = window.mdToHtml(t.text || "", ""); } catch (e) { than = esc(t.text || ""); }
+      try { body = window.mdToHtml(t.text || "", ""); } catch (e) { body = esc(t.text || ""); }
     } else {
-      than = esc(t.text || "");
+      body = esc(t.text || "");
     }
-    var loai = (t.message_type && t.message_type !== "text" && !coMedia)
+    var typeTag = (t.message_type && t.message_type !== "text" && !hasMedia)
       ? '<span class="ht-loai">' + ic(t.message_type === "image" ? "image" : t.message_type === "audio" ? "mic" : "paperclip") +
         ' ' + esc(t.message_type) + '</span>' : "";
-    var loi = t.metadata && t.metadata.loi
+    var errorHtml = t.metadata && t.metadata.loi
       ? '<div class="ht-msg-loi">' + ic("triangle-alert") + ' ' + esc(t.metadata.loi) + '</div>' : "";
     // A bot answer in the inbox is not proof of successful Zalo transmission: the receipt comes from the transport's
     // result, not the model output. A reply that went out shows nothing (the normal case needs no line); only one
     // still going out, not sent, or of unknown outcome says so, with the reason.
-    var dl = t.sender_type === "ai" && t.metadata && t.metadata.zalo_delivery;
+    var delivery = t.sender_type === "ai" && t.metadata && t.metadata.zalo_delivery;
     var deliveryHtml = "";
-    if (dl && ZALO_RECEIPT[dl.state]) {
-      var why = ZALO_WHY[dl.reason] ? window.t(ZALO_WHY[dl.reason]) : (dl.error || "");
-      var bad = dl.state === "failed" || dl.state === "unknown";
+    if (delivery && ZALO_RECEIPT[delivery.state]) {
+      var why = ZALO_WHY[delivery.reason] ? window.t(ZALO_WHY[delivery.reason]) : (delivery.error || "");
+      var bad = delivery.state === "failed" || delivery.state === "unknown";
       deliveryHtml = '<div class="' + (bad ? "ht-msg-loi" : "ht-msg-h") + '">' + (bad ? ic("triangle-alert") + ' ' : '') +
-        esc(window.t(ZALO_RECEIPT[dl.state])) + (why ? ' · ' + esc(why) : '') + '</div>';
+        esc(window.t(ZALO_RECEIPT[delivery.state])) + (why ? ' · ' + esc(why) : '') + '</div>';
     }
     if (t.metadata && t.metadata.private_reply_to) {
       var ig = isInstagram(_conv);
-      loai = '<span class="ht-loai ht-priv-tag">' + (ig ? badgeOf({ channel: "messenger", external_chat_id: "ig:" }, "13px") :
-        logoKenh("messenger", "13px")) + ' ' + esc(window.t(ig ? "ht.priv_sent_ig" : "ht.priv_sent")) + '</span>' + loai;
+      typeTag = '<span class="ht-loai ht-priv-tag">' + (ig ? badgeOf({ channel: "messenger", external_chat_id: "ig:" }, "13px") :
+        logoKenh("messenger", "13px")) + ' ' + esc(window.t(ig ? "ht.priv_sent_ig" : "ht.priv_sent")) + '</span>' + typeTag;
     }
     // Who and when go under the bubble (0.397.0). A private chat's customer is named in the head already, so only a
     // group shows who wrote each message.
-    if (lop === "khach" && _conv && _conv.chat_type !== "group") ai = "";
-    return '<div class="ht-msg ' + lop + '">' +
-      '<div class="ht-bubble">' + loai + than + '</div>' + loi + deliveryHtml +
-      '<div class="ht-msg-h">' + esc(ai) + (ai ? ' · ' : '') + esc(gio(t.created_at)) + '</div>' +
+    if (side === "khach" && _conv && _conv.chat_type !== "group") who = "";
+    var whoHtml = senderHtml(t, side, who);
+    return '<div class="ht-msg ' + side + '">' +
+      '<div class="ht-bubble">' + typeTag + body + '</div>' + errorHtml + deliveryHtml +
+      '<div class="ht-msg-h">' + whoHtml + (whoHtml ? ' · ' : '') + esc(gio(t.created_at)) + '</div>' +
     '</div>';
   }
 
   // An emoji reaction (0.334.0): one small line beside the side that reacted, the emoji and what it was put on, instead
   // of a bubble that would read as something they wrote.
-  function renderReaction(t, lop, ai) {
+  function renderReaction(t, side, name) {
     var r = (t.metadata && t.metadata.reaction) || {};
-    var bieu = r.emoji || r.code || "";
+    var emoji = r.emoji || r.code || "";
     var quote = String(r.target_text || "").replace(/\s+/g, " ").trim();
     if (quote.length > 80) quote = quote.slice(0, 79) + "…";
-    // Who reacted follows the side it came from (owner, 2026-10-28: a customer's heart read "Bot thả cảm xúc"). A
-    // customer reaction often has no sender name: a one-to-one chat is named after that customer; a group says "Customer".
+    // Who reacted follows the side it came from (owner, 2026-10-28: a customer's heart read as the bot's). A customer
+    // reaction often has no sender name: a one-to-one chat is named after that customer; a group says "Customer".
     var c = _conv || {};
-    var who = ai || (lop === "khach" ? (c.chat_type !== "group" && (c.customer_name || c.title)) || window.t("ht.react_cust")
-                     : lop === "nguoi" ? window.t("ht.ban") : window.t("ht.bot"));
-    var cau = r.removed ? window.t("ht.react_off", { who: who })
-            : quote ? window.t("ht.react_on", { who: who, quote: "\u201c" + quote + "\u201d" })
-            : window.t("ht.react_any", { who: who });
-    return '<div class="ht-msg ht-react ' + lop + (r.removed ? " off" : "") + '">' +
-      '<div class="ht-react-row"><span class="ht-react-emoji">' + esc(bieu) + '</span>' +
-      '<span class="ht-react-txt">' + esc(cau) + ' · ' + esc(gio(t.created_at)) + '</span></div>' +
+    var who = name || (side === "khach" ? (c.chat_type !== "group" && (c.customer_name || c.title)) || window.t("ht.react_cust")
+                       : side === "nguoi" ? window.t("ht.ban") : window.t("ht.bot"));
+    var line = r.removed ? window.t("ht.react_off", { who: who })
+             : quote ? window.t("ht.react_on", { who: who, quote: "“" + quote + "”" })
+             : window.t("ht.react_any", { who: who });
+    return '<div class="ht-msg ht-react ' + side + (r.removed ? " off" : "") + '">' +
+      '<div class="ht-react-row"><span class="ht-react-emoji">' + esc(emoji) + '</span>' +
+      '<span class="ht-react-txt">' + esc(line) + ' · ' + esc(gio(t.created_at)) + '</span></div>' +
     '</div>';
   }
 

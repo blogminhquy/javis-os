@@ -170,6 +170,63 @@ check("a plain text message from the owner is never taken for the card blindly",
 check("another chat's card is not this chat's echo",
       not zc._is_link_echo("zalo-1", "u99", own_card, raw))
 
+# ============================================================
+# 6. A link card someone else sends is read as text (field report 20/11/2026)
+# ============================================================
+ART = "https://claude.ai/public/artifacts/abc"
+DESC = "Try out Artifacts created by Claude users"
+CONN = {"id": "zalo-1", "label": "Zalo"}
+GROUP = {"g1": {"type": "group", "name": "Nhóm"}}
+live_card = {"id": "c1", "threadId": "g1", "threadType": "group", "senderId": "u50", "senderName": "Lan",
+             "type": "chat.recommended", "text": DESC, "timestamp": 1763600000000,
+             "attachment": {"type": "chat.recommended", "url": ART, "description": "@Zalo xem giúp cái này"}}
+ev = zc.chuan_hoa_tin(CONN, live_card, GROUP)
+check("CANARY: a link card from a customer is a text message, not 'other'", ev and ev["message_type"] == "text", ev)
+check("its text holds the title, the description and the link, one per line",
+      ev and ev["text"] == f"@Zalo xem giúp cái này\n{DESC}\n{ART}", ev and ev["text"])
+check("the card's parts stay in the metadata",
+      ev and ev["metadata"].get("link_card") == {"url": ART, "title": "@Zalo xem giúp cái này", "description": DESC},
+      ev and ev["metadata"])
+zc._ID_MINH.pop("zalo-1", None)
+check("a tag written in the card's title reaches the tag check",
+      ev and zc.nhan_dien_goi("zalo-1", ev, ("Zalo",))[0], ev and ev["text"])
+
+typed = dict(live_card, attachment={"type": "chat.recommended", "url": ART, "description": f"xem nè {ART}"})
+ev = zc.chuan_hoa_tin(CONN, typed, GROUP)
+check("a link already in the title is not repeated", ev and ev["text"] == f"xem nè {ART}\n{DESC}", ev and ev["text"])
+
+raw_content = {"id": "c2", "threadId": "g1", "threadType": "group", "senderId": "u50", "msgType": "chat.recommended",
+               "content": {"title": "Claude", "description": DESC, "href": ART, "action": "recommened.link"}}
+ev = zc.chuan_hoa_tin(CONN, raw_content, GROUP)
+check("an older MCP handing over the raw content still gives the link",
+      ev and ev["message_type"] == "text" and ev["text"] == f"Claude\n{DESC}\n{ART}", ev)
+
+contact = {"id": "c3", "threadId": "g1", "threadType": "group", "senderId": "u50", "msgType": "chat.recommended",
+           "content": {"title": "Minh", "description": "", "href": "https://s120.ava.zdn.vn/a.jpg",
+                       "action": "recommened.user"}}
+ev = zc.chuan_hoa_tin(CONN, contact, GROUP)
+check("a shared contact (same message type) is not taken for a link card",
+      ev and ev["message_type"] == "other" and "link_card" not in ev["metadata"], ev)
+
+no_link = {"id": "c4", "threadId": "g1", "threadType": "group", "senderId": "u50", "type": "chat.recommended",
+           "text": DESC}
+ev = zc.chuan_hoa_tin(CONN, no_link, GROUP)
+check("a card without any link stays as it was", ev and ev["message_type"] == "other" and ev["text"] == DESC, ev)
+
+plain = {"id": "c5", "threadId": "g1", "threadType": "group", "senderId": "u50", "type": "text", "text": f"đây {ART}"}
+ev = zc.chuan_hoa_tin(CONN, plain, GROUP)
+check("CANARY: a plain text message is untouched", ev and ev["text"] == f"đây {ART}" and "link_card" not in ev["metadata"])
+
+# The bot's own card, read as text now, is still its echo, even when Zalo shows another link than the one sent.
+zc._LINK_ECHOES.clear()
+ok, err = send("u13", f"Link {MEET}")
+own = zc.chuan_hoa_tin(CONN, {"id": "c6", "threadId": "u13", "threadType": "dm", "isSelf": True,
+                              "type": "chat.recommended", "text": "Google Meet",
+                              "attachment": {"type": "chat.recommended", "url": "https://meet.google.com/x",
+                                             "description": "Google Meet"}}, {})
+check("own card read as text: still matched blindly right after the bot's card",
+      own and own["message_type"] == "text" and zc._is_link_echo("zalo-1", "u13", own), own)
+
 print()
 if _fails:
     print(f"{len(_fails)} FAIL: " + ", ".join(_fails))

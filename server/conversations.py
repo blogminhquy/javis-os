@@ -152,6 +152,12 @@ CREATE TABLE IF NOT EXISTS conversation_tags(
     PRIMARY KEY(conversation_id, tag_id)
 );
 CREATE INDEX IF NOT EXISTS ix_conv_tag ON conversation_tags(tag_id, conversation_id);
+CREATE TABLE IF NOT EXISTS deleted_chats(
+    channel_account_id TEXT NOT NULL,
+    external_chat_id TEXT NOT NULL,
+    deleted_at REAL NOT NULL,
+    PRIMARY KEY(channel_account_id, external_chat_id)
+);
 """
 
 _lock = threading.RLock()
@@ -368,6 +374,21 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
             db = _conn()
             db.execute("BEGIN IMMEDIATE")
             try:
+                # 0. A chat the owner deleted (or a group they left) is not brought back by its OLD messages. A channel
+                # can hand those over again: the Zalo read loop re-reads its whole buffer after a restart, and the only
+                # thing that told a replayed message from a new one was its row here, which the delete removed. A
+                # message sent AFTER the delete is a new chat: the mark goes and the conversation opens again.
+                gone = db.execute(
+                    "SELECT deleted_at FROM deleted_chats WHERE channel_account_id=? AND external_chat_id=?",
+                    (tk_id, e["external_chat_id"])).fetchone()
+                if gone:
+                    if float(ts or 0) <= float(gone["deleted_at"]):
+                        db.execute("COMMIT")
+                        return {"ok": True, "trung": True, "deleted": True, "conversation_id": 0, "message_id": 0,
+                                "customer_id": None}
+                    db.execute("DELETE FROM deleted_chats WHERE channel_account_id=? AND external_chat_id=?",
+                               (tk_id, e["external_chat_id"]))
+
                 # 1. Tài khoản kênh
                 db.execute(
                     "INSERT INTO channel_accounts(id, channel, external_account_id, display_name,"
@@ -411,10 +432,14 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
                     (tk_id, customer_id, e["bot_id"], e["external_chat_id"], e["chat_type"],
                      tieu_de, now, now))
                 conv = db.execute(
-                    "SELECT id, unread_count, message_count FROM conversations"
+                    "SELECT id, unread_count, message_count, metadata_json FROM conversations"
                     " WHERE channel_account_id=? AND external_chat_id=?",
                     (tk_id, e["external_chat_id"])).fetchone()
                 conv_id = int(conv["id"])
+                # Blocked by the owner (row menu Block, on every channel since 2026-11-20): its messages are still
+                # stored, but never count as unread and never bring the chat back into the inbox.
+                cmeta = _loads(conv["metadata_json"], {})
+                blocked = isinstance(cmeta, dict) and bool(cmeta.get("blocked"))
 
                 # 4. Tin - chống trùng theo id tin của kênh
                 if e["external_message_id"]:
@@ -436,13 +461,13 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
 
                 # 5. Cập nhật hội thoại: tin cuối, số tin, chưa đọc (chỉ đếm tin KHÁCH)
                 tom = e["text"].strip().replace("\n", " ")[:200] or f"[{e['message_type']}]"
-                them_chua_doc = 1 if e["sender_type"] == "customer" and dem_chua_doc else 0
+                them_chua_doc = 1 if e["sender_type"] == "customer" and dem_chua_doc and not blocked else 0
                 # A phone number or email in the CUSTOMER's own words marks the conversation for the "has phone/email" filter.
                 contact = find_contact(e["text"]) if e["sender_type"] == "customer" else ""
                 # A NEW customer message brings a hidden conversation back into the inbox (owner's rule for "Hide
                 # conversation": a customer is never missed). Old messages imported from history (dem_chua_doc=False)
                 # and messages from the bot or the owner leave it hidden.
-                unhide = 1 if e["sender_type"] == "customer" and dem_chua_doc else 0
+                unhide = 1 if e["sender_type"] == "customer" and dem_chua_doc and not blocked else 0
                 # A message written late (`late`: recovered from the Zalo history, see
                 # `zalo_personal_channel.catch_up`) may be older than the last one stored: it must not become the
                 # "last message" of the conversation. Live messages keep the old rule (the last written is the last).
@@ -681,6 +706,20 @@ def first_message_at(channel: str, account_id: str, external_chat_id: str) -> Op
         return float(r[0]) if r and r[0] is not None else None
     except Exception as ex:      # noqa: BLE001
         print(f"[conversations] first message read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return None
+
+
+def last_customer_message_at(channel: str, account_id: str, external_chat_id: str) -> Optional[float]:
+    """Time of the newest CUSTOMER message stored in this chat, None when the customer never wrote. Never raises."""
+    try:
+        with _lock:
+            r = _conn().execute(
+                "SELECT MAX(m.created_at) FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? AND m.sender_type='customer'",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id))).fetchone()
+        return float(r[0]) if r and r[0] is not None else None
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] last customer message read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
         return None
 
 
@@ -1078,10 +1117,10 @@ def state_rows(channel: str = "", bot_id: str = "", q: str = "", status: str = "
     return rows
 
 
-def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: int = 80) -> List[dict]:
-    """Các cuộc chat ĐÃ BIẾT của một tài khoản kênh (theo id NGOÀI của tài khoản, như
-    `channel_accounts` giữ), mới nhất trước. Cho ô chọn người/nhóm của form bot."""
-    return danh_sach(account_id=_tai_khoan_id(channel, account_id), q=q, limit=limit)
+def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: int = 80, *,
+                           chat_type: str = "") -> List[dict]:
+    """List known chats for a channel account, filtering by chat type before applying the limit."""
+    return danh_sach(account_id=_tai_khoan_id(channel, account_id), q=q, limit=limit, chat_type=chat_type)
 
 
 def ten_theo_chat_id(account_keys: List[str], chat_ids: List[str]) -> Dict[str, dict]:
@@ -1242,14 +1281,23 @@ def set_hidden(conversation_id: int, hidden: bool) -> bool:
     return cur.rowcount > 0
 
 
-def delete_conversation(conversation_id: int) -> bool:
+def delete_conversation(conversation_id: int, quiet_s: float = 0.0) -> bool:
     """Remove a conversation, its messages and its tags from the inbox for good (row menu "Delete", 0.447.0). The
-    customer record stays: it may have other conversations, and a new message simply opens a new conversation."""
+    customer record stays: it may have other conversations, and a new message simply opens a new conversation.
+
+    The chat is remembered in `deleted_chats` with the time of the delete, so a message from BEFORE it that the channel
+    hands over again (see `ghi_su_kien`, step 0) does not bring the chat back. `quiet_s` pushes that time into the
+    future: leaving a group makes its platform post "X left the group" a moment later, which must not reopen it."""
     cid = int(conversation_id)
     with _lock:
         db = _conn()
         db.execute("BEGIN IMMEDIATE")
         try:
+            row = db.execute("SELECT channel_account_id, external_chat_id FROM conversations WHERE id=?", (cid,)).fetchone()
+            if row:
+                db.execute("INSERT OR REPLACE INTO deleted_chats(channel_account_id, external_chat_id, deleted_at)"
+                           " VALUES(?,?,?)", (row["channel_account_id"], row["external_chat_id"],
+                                              _now() + max(0.0, float(quiet_s or 0))))
             db.execute("DELETE FROM messages WHERE conversation_id=?", (cid,))
             db.execute("DELETE FROM conversation_tags WHERE conversation_id=?", (cid,))
             cur = db.execute("DELETE FROM conversations WHERE id=?", (cid,))

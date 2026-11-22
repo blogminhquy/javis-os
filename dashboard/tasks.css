@@ -153,6 +153,8 @@
 .nv-sec2 { border-top: 1px solid var(--hairline); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
 .nv-cap { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text3); }
 .nv-res { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.nv-left { margin: 0; padding-left: 1.2em; line-height: 1.5; overflow-wrap: anywhere; }
+.nv-left li + li { margin-top: 4px; }
 .nv-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .nv-acts.end { justify-content: flex-end; }
 .nv-kv { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; }

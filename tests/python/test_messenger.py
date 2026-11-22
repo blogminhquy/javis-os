@@ -395,6 +395,111 @@ finally:
     (main.cfgmod.read_settings, main.cfgmod.update_settings, main._ms_account_secrets,
      messenger_bot.handle_webhook) = orig
 
+# ============================================================
+# Parity audit (2026-11-20): ads, stickers, video, stories, retries
+# ============================================================
+async def _audit_turns():
+    seen = []
+
+    async def answer(text, meta, progress):
+        seen.append((text, dict(meta)))
+        return {"text": "ok"}
+
+    bot = messenger_bot.MessengerBot({"page_id": PAGE, "access_token": TOKEN, "app_secret": SECRET}, "",
+                                     answer, giau_trang_thai=True)
+
+    async def fake_post(client, path, payload):
+        return {"ok": True}
+
+    async def fake_name(client, psid, instagram=False):
+        return "Khách"
+
+    bot._post_json = fake_post
+    bot._name_of = fake_name
+
+    async def turn(event):
+        await bot._on_event(event)
+        for task in list(bot._current.values()):
+            await task
+        await asyncio.sleep(0)
+
+    # 1. First message of a click-to-Messenger ad carries the referral.
+    await turn(ev("a1", "Còn hàng không?", sender="601", referral={
+        "source": "ADS", "type": "OPEN_THREAD", "ad_id": "123", "ads_context_data": {"ad_title": "Áo khoác sale 50%"}}))
+    # 2. Existing chat opened from an m.me link: the referral arrives alone, the person types after.
+    messenger_bot._REGISTRY.clear()
+    messenger_bot._REGISTRY[PAGE] = bot
+    await messenger_bot.handle_webhook({"object": "page", "entry": [{"id": PAGE, "messaging": [
+        {"sender": {"id": "602"}, "recipient": {"id": PAGE}, "referral": {"source": "SHORTLINK", "ref": "tet-2027"}}]}]})
+    messenger_bot._REGISTRY.clear()
+    await turn(ev("a2", "Cho em hỏi giá", sender="602"))
+    await turn(ev("a2b", "Thêm câu nữa", sender="602"))
+    # 3. Thumbs-up like and a sticker: words, nothing downloaded.
+    await turn(ev("a3", "", sender="603", attachments=[{"type": "image", "payload": {
+        "url": "https://scontent.example/like.png", "sticker_id": 369239263222822}}]))
+    await turn(ev("a4", "", sender="604", attachments=[{"type": "image", "payload": {
+        "url": "https://scontent.example/s.png", "sticker_id": 1234}}]))
+    # 4. A video is handed to the runtime to watch.
+    await turn(ev("a5", "Lỗi thế này", sender="605", attachments=[{"type": "video", "payload": {
+        "url": "https://video.example/clip.mp4"}}]))
+    # 5. Instagram story reply.
+    await turn(ev("a6", "Đẹp quá", sender="606", reply_to={"story": {"url": "https://ig.example/story/1", "id": "s1"}}))
+    if bot._client:
+        await bot._client.aclose()
+    return seen
+
+seen = run(_audit_turns())
+by = {m.get("chat_id"): (t, m) for t, m in seen}
+check("ad click: the ad title reaches the bot with the first message",
+      "Áo khoác sale 50%" in by.get("601", ("", {}))[0] and "Còn hàng không?" in by["601"][0], by.get("601"))
+t602 = [t for t, m in seen if m.get("chat_id") == "602"]
+check("m.me ref that came alone is put on the person's next message, once",
+      len(t602) == 2 and "tet-2027" in t602[0] and "Cho em hỏi giá" in t602[0] and "tet-2027" not in t602[1], t602)
+check("thumbs-up like said in words", "👍" in by.get("603", ("", {}))[0], by.get("603"))
+check("sticker said in words, not downloaded", "sticker" in by.get("604", ("", {}))[0].lower(), by.get("604"))
+check("video handed to the runtime to watch",
+      by.get("605", ("", {}))[1].get("video_url") == "https://video.example/clip.mp4", by.get("605"))
+check("Instagram story reply named", "story" in by.get("606", ("", {}))[0] and "Đẹp quá" in by["606"][0], by.get("606"))
+check("referral note: website chat plugin",
+      "website" in messenger_bot.referral_note({"source": "CUSTOMER_CHAT_PLUGIN"}).lower())
+check("referral note: nothing for an empty referral", messenger_bot.referral_note({}) == "")
+
+
+class _R:
+    def __init__(self, code, body):
+        self.status_code, self._b = code, body
+
+    def json(self):
+        return self._b
+
+
+async def _retry(first_code):
+    seq = [_R(400, {"error": {"code": first_code, "message": "x"}}), _R(200, {"message_id": "m"})]
+
+    class C:
+        n = 0
+
+        async def post(self, *a, **k):
+            C.n += 1
+            return seq.pop(0)
+    bot = messenger_bot.MessengerBot({"page_id": PAGE, "access_token": TOKEN, "app_secret": SECRET}, "", None)
+    real = asyncio.sleep
+
+    async def fast(_s):
+        await real(0)
+    messenger_bot.asyncio.sleep = fast
+    try:
+        d = await bot._post_json(C(), f"{PAGE}/messages", {"x": 1})
+    finally:
+        messenger_bot.asyncio.sleep = real
+    return d, C.n
+
+for code in (613, 1200):
+    d, n = run(_retry(code))
+    check(f"code {code}: waits and sends again", d.get("ok") and n == 2, (d, n))
+d, n = run(_retry(551))
+check("a real refusal (551 blocked) is not retried", not d.get("ok") and n == 1, (d, n))
+
 print()
 if _fails:
     print(f"{len(_fails)} FAIL:")

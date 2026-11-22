@@ -90,7 +90,9 @@ check("switch on, window clamped to 30 minutes", r.json().get("enabled") is True
 check("status reflects the switch", c.get("/cache-keepwarm").json()["enabled"] is True)
 c.post("/cache-keepwarm", json={"enabled": False})
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-check("only subscription chats are noted", "claude_auth.che_do() == claude_auth.SUBSCRIPTION" in src
+# 2026-11-22: "subscription" now covers the plan signed in with a long-lived token too (claude_auth.on_plan); a chat
+# billed to an API key is still never kept warm.
+check("only subscription chats are noted", "if claude_auth.on_plan():\n                                        cli.session_id = _cli_sid" in src
       and "_KEEPWARM.note_turn(conv_sid, cli" in src)
 eng = (ROOT / "server" / "claude_sdk_engine.py").read_text(encoding="utf-8")
 check("ping forks without saving and denies tools", "fork_session = True" in eng and "no-session-persistence" in eng

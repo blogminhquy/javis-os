@@ -1312,6 +1312,13 @@
       : it.st === "done" ? (it.result || tw("nv.log.empty")) : it.st === "ask" ? (it.reason || tw("nv.st.ask")) : it.st === "calm" ? (it.reason || tw("nv.st.calm"))
       : it.st === "run" ? tw("nv.st.run") : it.st === "cancel" ? tw("nv.st.cancel") : it.st === "queue" ? tw("nv.prog.queue") : tw("nv.prog.sched");
     h += '<div class="nv-sec2"><div class="nv-cap">' + esc(it.st === "done" ? tw("nv.cap.result") : it.blockKind === "acceptance_failed" && it.st === "ask" ? tw("nv.acc.cap") : tw("nv.cap.progress")) + '</div><div class="nv-res">' + esc(prog) + "</div>" + (acts ? '<div class="nv-acts">' + acts + "</div>" : "") + "</div>";
+    // 2026-11-21: steps only the owner can do (listen, approve, upload a file past a tool's cap), set aside by the
+    // specifier or the checker instead of failing the job over them.
+    var left = !isRep && it.src === "kanban" ? ((it.raw && it.raw.metadata) || {}).handoff : null;
+    if (left && left.length) {
+      h += '<div class="nv-sec2"><div class="nv-cap">' + esc(tw("nv.handoff.cap")) + '</div><ul class="nv-left">'
+        + left.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>";
+    }
     if (!isRep && it.src === "kanban" && it.st === "ask" && it.blockKind === "needs_input") {
       h += '<form class="nv-sec2 nv-answer" data-answer="' + esc(it.id) + '"><label class="nv-cap" for="nvAns">' + esc(tw("nv.answer")) + '</label><textarea id="nvAns" class="nv-ta" required></textarea><div class="nv-acts"><button type="submit" class="nv-btn pri">' + esc(tw("nv.send")) + "</button></div></form>";
     }

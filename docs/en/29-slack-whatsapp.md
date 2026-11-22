@@ -43,7 +43,11 @@ oauth_config:
       - im:read
       - im:write
       - channels:history
+      - channels:read
       - groups:history
+      - groups:read
+      - mpim:history
+      - mpim:read
       - files:read
       - files:write
       - users:read
@@ -54,10 +58,16 @@ settings:
       - message.im
       - message.channels
       - message.groups
+      - message.mpim
+      - member_joined_channel
+      - channel_left
+      - group_left
   socket_mode_enabled: true
   org_deploy_enabled: false
   token_rotation_enabled: false
 ```
+
+**Already made the app from an older version of this guide?** It keeps working. To also get channel names in the inbox, the join and leave notices, and group DMs, open the app's **App Manifest**, paste the manifest above again, save, then **Install App → Reinstall to Workspace**. The tokens stay the same.
 
 3. **Basic Information → App-Level Tokens → Generate Token and Scopes**: add the scope `connections:write`, generate, copy the token that starts with `xapp-`.
 4. **Install App → Install to Workspace**, then copy the **Bot User OAuth Token** that starts with `xoxb-`.

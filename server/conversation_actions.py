@@ -1,4 +1,4 @@
-"""Inbox row actions that reach the platform (0.447.0): view profile, block, delete.
+"""Inbox row actions that reach the platform (0.447.0): view profile, block, delete, leave a group.
 
 The owner asked for what Messenger's own row menu offers ("View profile", "Block", "Delete chat"), on Facebook Pages
 and on Zalo. What each platform allows through its API decides what each action really does, and the dashboard says
@@ -7,8 +7,12 @@ so before anyone clicks:
   - Profile. Messenger: name and picture from the User Profile API; Facebook never gives an app the person's profile
     link. Instagram: name, @username, picture and a link to instagram.com/<username>. Zalo personal account: display
     name, Zalo name, avatar and phone when the person shares it (`javis-zalo friend info`). Groups have no profile.
-  - Block. Messenger: the Page's block list (`POST /<page>/blocked` with the PSID). Zalo personal account:
-    `javis-zalo friend block`. Instagram and comment threads: the API has no block, so the action is not offered.
+  - Block (offered on EVERY channel since the owner asked on 2026-11-20: "chặn thì ở các kênh luôn"). Messenger: the
+    Page's block list (`POST /<page>/blocked` with the PSID). Zalo personal account: `javis-zalo friend block`. Every
+    other chat (Instagram, comments, Telegram, a Zalo group...) has no block in its API, so it is blocked in Javis only:
+    the bot stays quiet, the chat is hidden and new messages never bring it back or count as unread (`unblock` undoes
+    it, and on Messenger and Zalo also lifts the block on the platform).
+  - Leave (2026-11-20, owner: "nút rời nhóm ở zalo"). A Zalo group the account is in: `javis-zalo group leave`.
   - Delete. A Facebook or Instagram comment thread: the top-level comment is deleted on the platform (its replies go
     with it). A Threads reply (0.448.0) cannot be deleted by anyone but its author, so it is hidden under the post. Zalo personal account: the conversation is deleted on Zalo (`javis-zalo conv delete`). Messenger and
     Instagram direct messages: Meta lets no app delete them, so only the copy in Javis goes. In every case the
@@ -25,7 +29,7 @@ from typing import Optional
 import channel_accounts
 import localefmt
 
-PROFILE, BLOCK, DELETE_REMOTE = "profile", "block", "delete_remote"
+PROFILE, BLOCK, DELETE_REMOTE, LEAVE = "profile", "block", "delete_remote", "leave"
 
 
 def _raw_account(c: dict) -> str:
@@ -52,14 +56,15 @@ def kind(c: dict) -> str:
     return ""
 
 
-# What each kind of chat can do on its platform. The dashboard reads the same table (`capabilities`).
+# What each kind of chat can do on its platform. The dashboard reads the same table (`capabilities`). BLOCK here means
+# blocked ON THE PLATFORM; every other chat can still be blocked in Javis only (see `block`).
 _CAN = {
     "messenger_dm": {PROFILE, BLOCK},
     "ig_dm": {PROFILE},
     "fb_comment": {DELETE_REMOTE},
     "ig_comment": {DELETE_REMOTE},
     "zalo_private": {PROFILE, BLOCK, DELETE_REMOTE},
-    "zalo_group": {DELETE_REMOTE},
+    "zalo_group": {DELETE_REMOTE, LEAVE},
     # Threads (0.448.0): the profile is threads.net/@username; only the author may delete a reply, so "delete" hides it.
     "threads_comment": {PROFILE, DELETE_REMOTE},
 }
@@ -159,10 +164,13 @@ async def profile(c: dict) -> dict:
 
 
 async def block(c: dict) -> dict:
-    """Block the person of a one-to-one chat on the platform. {"ok"} or {"ok": False, "error"}."""
+    """Block the person of a chat on the platform when it allows it. {"ok", "remote": bool} or {"ok": False, "error"}.
+
+    `remote` False: the platform has no block, so the caller blocks in Javis only (never an error: the owner asked for
+    Block on every channel)."""
     k = kind(c)
     if BLOCK not in _CAN.get(k, set()):
-        return _no(localefmt.chu("chặn", "blocking"))
+        return {"ok": True, "remote": False}
     who = str(c.get("external_chat_id") or "")
     if k == "messenger_dm":
         cr = _messenger_creds(c)
@@ -170,12 +178,44 @@ async def block(c: dict) -> dict:
                          {"psid": json.dumps([who])})
         if d.get("error") or not d.get(who, True):
             return {"ok": False, "error": _graph_error(d, "block failed")}
-        return {"ok": True}
+        return {"ok": True, "remote": True}
     sess, err = _zalo_conn(c)
     if not sess:
         return {"ok": False, "error": err}
     import zalo_cli
     ok, _d, err = await zalo_cli.run_cli(sess, ["friend", "block"], [who], timeout=40)
+    return {"ok": True, "remote": True} if ok else {"ok": False, "error": str(err or "")[:300]}
+
+
+async def unblock(c: dict) -> dict:
+    """Lift a block on the platform where `block` put one there. {"ok", "remote": bool} or {"ok": False, "error"}."""
+    k = kind(c)
+    if BLOCK not in _CAN.get(k, set()):
+        return {"ok": True, "remote": False}
+    who = str(c.get("external_chat_id") or "")
+    if k == "messenger_dm":
+        cr = _messenger_creds(c)
+        d = await _graph("DELETE", f"{cr.get('page_id', '')}/blocked", cr.get("access_token", ""), {"psid": who})
+        if d.get("error") or not d.get("success", True):
+            return {"ok": False, "error": _graph_error(d, "unblock failed")}
+        return {"ok": True, "remote": True}
+    sess, err = _zalo_conn(c)
+    if not sess:
+        return {"ok": False, "error": err}
+    import zalo_cli
+    ok, _d, err = await zalo_cli.run_cli(sess, ["friend", "unblock"], [who], timeout=40)
+    return {"ok": True, "remote": True} if ok else {"ok": False, "error": str(err or "")[:300]}
+
+
+async def leave(c: dict) -> dict:
+    """Leave a group on its platform (a Zalo group). {"ok"} or {"ok": False, "error"}."""
+    if LEAVE not in _CAN.get(kind(c), set()):
+        return _no(localefmt.chu("rời nhóm", "leaving a group"))
+    sess, err = _zalo_conn(c)
+    if not sess:
+        return {"ok": False, "error": err}
+    import zalo_cli
+    ok, _d, err = await zalo_cli.run_cli(sess, ["group", "leave"], [str(c.get("external_chat_id") or "")], timeout=40)
     return {"ok": True} if ok else {"ok": False, "error": str(err or "")[:300]}
 
 

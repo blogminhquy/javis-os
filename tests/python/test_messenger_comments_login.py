@@ -209,11 +209,12 @@ async def _subscribe(refuse_feed):
         return await messenger_bot.subscribe_page(c, PAGE, TOKEN), asked
 
 r, asked = run(_subscribe(False))
-check("subscribe asks for messages, postbacks, echoes and feed", r == {"ok": True, "feed": True}
-      and asked == ["messages,messaging_postbacks,message_echoes,feed"], (r, asked))
+check("subscribe asks for messages, postbacks, echoes, referrals and feed", r == {"ok": True, "feed": True}
+      and asked == ["messages,messaging_postbacks,message_echoes,messaging_referrals,feed"], (r, asked))
 r, asked = run(_subscribe(True))
 check("feed refused: the Page is still subscribed for messages",
-      r.get("ok") and r.get("feed") is False and asked[-1] == "messages,messaging_postbacks,message_echoes", (r, asked))
+      r.get("ok") and r.get("feed") is False
+      and asked[-1] == "messages,messaging_postbacks,message_echoes,messaging_referrals", (r, asked))
 
 import messenger_setup  # noqa: E402
 item = messenger_setup.comments_item(["pages_messaging"], ["messages"])
@@ -333,14 +334,14 @@ import chatbot_runtime  # noqa: E402
 import chatbot_store  # noqa: E402
 
 recorded = []
-orig = (chatbot_store.get_bot, chatbot_store.ap_ngoai_le, chatbot_runtime.ghi_tin_khach)
+orig = (chatbot_store.get_bot, chatbot_store.ap_ngoai_le, chatbot_runtime.record_customer_message)
 chatbot_store.get_bot = lambda bid: {"id": bid, "name": "Bot", "brain": "x"}
 chatbot_store.ap_ngoai_le = lambda cfg, meta: cfg
-chatbot_runtime.ghi_tin_khach = lambda cfg, meta, text: recorded.append((meta.get("chat_id"), text))
+chatbot_runtime.record_customer_message = lambda cfg, meta, text: recorded.append((meta.get("chat_id"), text))
 try:
     out = run(chatbot_runtime._make_answer_fn("b1")("Còn size M không?", {"chat_id": "cmt:1", "log_only": True}, None))
 finally:
-    chatbot_store.get_bot, chatbot_store.ap_ngoai_le, chatbot_runtime.ghi_tin_khach = orig
+    chatbot_store.get_bot, chatbot_store.ap_ngoai_le, chatbot_runtime.record_customer_message = orig
 check("log-only turn records the comment and stays silent",
       out.get("im_lang") and recorded == [("cmt:1", "Còn size M không?")], (out, recorded))
 

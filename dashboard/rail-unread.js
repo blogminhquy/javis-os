@@ -26,7 +26,11 @@
     if (!st) return;
     busy = true;
     var b = encodeURIComponent(brain());
-    Promise.all([getJson("/sessions/unread-summary?brain=" + b), getJson("/teams/unread?brain=" + b)]).then(function (res) {
+    // Chats still running or open on screen are not unread yet (sessions-ui.js unreadSkipQuery, owner 2026-11-20).
+    var skip = "";
+    try { skip = (window.JavisChatSide && window.JavisChatSide.unreadSkipQuery && window.JavisChatSide.unreadSkipQuery()) || ""; }
+    catch (e) { skip = ""; }
+    Promise.all([getJson("/sessions/unread-summary?brain=" + b + skip), getJson("/teams/unread?brain=" + b)]).then(function (res) {
       busy = false;
       var s = res[0] || {}, tm = res[1] || {};
       var next = { chat: Number(s.chat) > 0, workspace: Number(s.workspace) > 0, teams: Number(tm.teams) > 0 };
@@ -46,6 +50,14 @@
 
   ["javis:session-read", "javis:agent-read", "javis:team-event", "javis:chat-activity"].forEach(function (name) {
     window.addEventListener(name, function () { soon(); });
+  });
+  // A chat turn that ends can leave an unread answer the counts skipped while it ran: count again when the set of
+  // running chats changes (javis:chat-turn also fires on every step, so compare the set, not the event).
+  var lastRunning = "";
+  window.addEventListener("javis:chat-turn", function () {
+    var now = "";
+    try { now = window.JavisRunning ? Array.from(window.JavisRunning).sort().join(",") : ""; } catch (e) { now = ""; }
+    if (now !== lastRunning) { lastRunning = now; soon(); }
   });
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") soon(200); });
   document.addEventListener("change", function (e) { if (e.target && e.target.id === "graphSource") soon(800); });

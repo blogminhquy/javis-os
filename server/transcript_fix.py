@@ -43,6 +43,13 @@ is tried, and when none keeps the language the words stay as heard.
   - POST /stt/fix cut the text at 2000 characters and the cut rewrite replaced the whole dictation. A dictation over
     `MAX_REWRITE_CHARS` now keeps every word and only gets the word rules.
 Each rewrite logs how long each step took (numbers only), so a slow one can be traced.
+
+2026-11-22 (owner: "chức năng viết lại lời của Javis đang bị quá chậm", ChatGPT and Claude give the text back at once
+after stop): a sentence a speech MODEL heard (the ear: the ChatGPT plan, Groq, OpenAI, Gemini) is already punctuated
+and spelled, which is all the ChatGPT and Claude apps do on stop. The browser asks for it with `quick`, and then
+`rewrite_transcript` only tries what answers in about a second (a main brain on an API key, the quick API key) and never
+starts a subscription CLI: no quick model on the machine means the word rules alone, at once. The browser's own words
+(no ear) still get the full rewrite, the main brain's CLI included: they need it.
 """
 from __future__ import annotations
 
@@ -398,11 +405,23 @@ async def _ask_quick_api(pick, prompt: str, sentence: str) -> str:
     return choice["message"]["content"] or ""
 
 
-async def rewrite_transcript(cfg: dict, text, context=None) -> dict:
+def rewrite_tries(cfg: dict, quick: bool = False) -> list:
+    """Names of the models a rewrite asks, in order: "main" and/or the quick key's provider. Pure, for tests.
+
+    Fast first: a main brain on an API key, else the quick API key and then the main brain's CLI. `quick` (the text came
+    from a speech model, see the 2026-11-22 note at the top) leaves the CLI out."""
+    cli = main_is_cli(cfg or {})
+    pick = pick_quick_api(cfg or {})
+    main = ["main"] if _ASK is not None and not (quick and cli) else []
+    fast = [pick[0]] if pick is not None and _ask_quick_api is not None else []
+    return fast + main if cli else main + fast
+
+
+async def rewrite_transcript(cfg: dict, text, context=None, quick: bool = False) -> dict:
     """Return {"text": the sentence the owner meant, "source": "main" | <provider> | "rules", "ai": bool}.
 
     Order, fast first: a main brain on an API key, else the quickest API key on the machine and then the main brain's
-    CLI; the word-level rules when nothing gives a usable rewrite. Never raises.
+    CLI; the word-level rules when nothing gives a usable rewrite. `quick`: never the CLI (rewrite_tries). Never raises.
     """
     original = " ".join(str(text or "").split())
     if not original:
@@ -418,19 +437,25 @@ async def rewrite_transcript(cfg: dict, text, context=None) -> dict:
         print(f"[transcript_fix] {len(original)} chars is too long to rewrite, kept every word (rules only)",
               file=sys.stderr)
         return {"text": by_rules, "source": "rules", "ai": False}
+    names = rewrite_tries(cfg, quick)
+    if not names:
+        # Nothing to ask (in quick mode: no model that answers in a second): the words as heard, now.
+        print(f"[transcript_fix] rewrite {len(by_rules)} chars in {time.monotonic() - t0:.1f}s: rules {rules_s:.2f}s, "
+              f"no model to ask{' quickly' if quick else ''} -> kept the rules", file=sys.stderr)
+        return {"text": by_rules, "source": "rules", "ai": False}
     terms = _terms(cfg)
     ctx = [" ".join(str(c).split())[:300] for c in (context or []) if str(c or "").strip()][-6:]
     cache_key = (by_rules, tuple(ctx))
     if cache_key in _rewrite_cache:
         return dict(_rewrite_cache[cache_key])
     prompt = build_rewrite_prompt(by_rules, terms, ctx)
-    main = [("main", lambda: _ASK(prompt), MAIN_TIMEOUT_S)] if _ASK is not None else []
     pick = pick_quick_api(cfg or {})
-    quick = ([(pick[0], lambda: _ask_quick_api(pick, prompt, by_rules), quick_timeout(by_rules))]
-             if pick is not None and _ask_quick_api is not None else [])
-    tries = quick + main if main_is_cli(cfg or {}) else main + quick
+    runs = {"main": (lambda: _ASK(prompt), MAIN_TIMEOUT_S)}
+    if pick is not None:
+        runs[pick[0]] = (lambda: _ask_quick_api(pick, prompt, by_rules), quick_timeout(by_rules))
+    tries = [(n, runs[n][0], runs[n][1]) for n in names if n in runs]
     deadline = t0 + BUDGET_S
-    steps = [f"rules {rules_s:.2f}s"]
+    steps = [f"rules {rules_s:.2f}s" + (", quick" if quick else "")]
     result = None
     for source, run, limit in tries:
         left = deadline - time.monotonic()

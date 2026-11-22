@@ -48,6 +48,8 @@ class FakeGitHub:
         self.device = {"pending": 1, "slow": False, "deny": False, "expires_in": 0, "refresh_token": "",
                        "refreshed_token": "", "client_ids": [], "polls": 0}
         self.installs = 1
+        # POST /user/repos: False answers 403 like a "Sign in with GitHub" token (no Administration permission).
+        self.can_create = True
         self.lock = threading.Lock()
         handler = self._handler()
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -79,6 +81,16 @@ class FakeGitHub:
         self.repos[full_name] = {"full_name": full_name, "default_branch": default_branch, "private": private,
                                  "clone_url": bare.as_uri(), "bare": str(bare),
                                  "permissions": {"push": push, "pull": True, "admin": False}, "description": ""}
+        self.pulls.setdefault(full_name, [])
+        return bare
+
+    def add_empty_repo(self, full_name, private=True, push=True):
+        """A repo with no commit yet, as GitHub makes it (POST /user/repos without auto_init)."""
+        bare = self.root / (full_name.replace("/", "__") + ".git")
+        git(["init", "-q", "--bare", "-b", "main", str(bare)], self.root)
+        self.repos[full_name] = {"full_name": full_name, "default_branch": "main", "private": private,
+                                 "clone_url": bare.as_uri(), "bare": str(bare),
+                                 "permissions": {"push": push, "pull": True, "admin": True}, "description": ""}
         self.pulls.setdefault(full_name, [])
         return bare
 
@@ -317,6 +329,15 @@ class FakeGitHub:
                 if path == "/user":
                     h = {"X-OAuth-Scopes": fake.scopes} if fake.scopes is not None else {}
                     return self._send(200, {"login": fake.login, "id": 4242}, headers=h)
+                if path == "/user/repos" and method == "POST":
+                    if not fake.can_create:
+                        return self._send(403, {"message": "Resource not accessible by integration"})
+                    fn = f"{fake.login}/{body.get('name') or ''}"
+                    if fn in fake.repos:
+                        return self._send(422, {"message": "Repository creation failed.",
+                                                "errors": [{"message": "name already exists on this account"}]})
+                    fake.add_empty_repo(fn, private=bool(body.get("private")))
+                    return self._send(201, fake.repos[fn])
                 if path == "/user/repos":
                     page = int(q.get("page") or 1)
                     items = list(fake.repos.values()) if page == 1 else []

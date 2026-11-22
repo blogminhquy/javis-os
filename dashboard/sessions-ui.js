@@ -30,6 +30,31 @@
     var area = document.getElementById("chatArea");
     return !!(area && area.getClientRects().length);
   }
+  // 2026-11-20 (owner): "a chat still working, already read, keeps the folder dot on; it should show only once it has
+  // finished and is unread". A running chat shows its spinner, not a dot, and the chat on screen is being read, so
+  // both are left out of every unread count the server makes (the `skip` query of /projects and the rail).
+  function isRunning(sid) { return !!(sid && window.JavisRunning && window.JavisRunning.has(sid)); }
+  // 2026-11-20 (owner: "thêm nút đánh dấu chưa đọc thì sẽ hiện lại các phần chấm đỏ, dễ kiểm soát những việc chưa hoàn
+  // thành hơn"): "Mark as unread" also works on the chat open on screen. That chat is kept unread while it stays open,
+  // so its dot shows at once, and is read again only once the owner opens another chat and comes back, or a new turn
+  // starts in it.
+  var heldUnread = null;
+  function isHeldUnread(sid) {
+    if (!heldUnread) return false;
+    if (heldUnread !== currentId() || isRunning(heldUnread)) { heldUnread = null; return false; }
+    return sid === heldUnread;
+  }
+  function unreadSkipIds() {
+    var ids = [];
+    if (window.JavisRunning) window.JavisRunning.forEach(function (id) { if (id && ids.length < 50) ids.push(String(id)); });
+    var cur = currentId();
+    if (cur && chatOnScreen() && !isHeldUnread(cur) && ids.indexOf(cur) < 0) ids.push(cur);
+    return ids;
+  }
+  function unreadSkipQuery() {
+    var ids = unreadSkipIds();
+    return ids.length ? "&skip=" + encodeURIComponent(ids.join(",")) : "";
+  }
   // One timer per chat: a quick switch from chat A to chat B must still report A as read.
   var readTimers = {};
   function markRead(sid) {
@@ -42,7 +67,7 @@
   }
   function markCurrentRead() {
     var sid = currentId();
-    if (sid && chatOnScreen()) { markRead(sid); clearDot(sid); }
+    if (sid && chatOnScreen() && !isHeldUnread(sid)) { markRead(sid); clearDot(sid); }
   }
   // Drop the dot of one chat from the rows on screen and from the cached list, without reloading.
   function clearDot(sid) {
@@ -113,6 +138,7 @@
   var PROJ_KEY = "javis.chatside.project";
   var projects = [];      // [{id,name,icon,session_count}] của brain đang xem
   var projBar = null;
+  var ungroupedUnread = 0; // unread chats in no project (/projects ungrouped_unread), the dot on "Chưa xếp nhóm"
   var projectRefreshTimer = null, projectRequest = 0;
 
   function projKey() { return PROJ_KEY + "." + brain(); }
@@ -133,6 +159,18 @@
   function projectNeedsAttention(p) {
     return p.id !== curProject() && Number(p.unread_count) > 0;
   }
+  // 2026-11-20 (owner): chats in no project light "Chưa xếp nhóm" the same way, so they are easy to spot.
+  function ungroupedNeedsAttention() {
+    return curProject() !== "none" && ungroupedUnread > 0;
+  }
+  function anyNeedsAttention() {
+    return ungroupedNeedsAttention() || projects.some(projectNeedsAttention);
+  }
+  function rowNeedsAttention(id) {
+    if (id === "none") return ungroupedNeedsAttention();
+    var p = projById(id);
+    return !!(p && projectNeedsAttention(p));
+  }
   function projectUnreadHtml(unread) {
     var label = esc(window.t("sess.proj_unread"));
     return '<span class="cs-proj-unread" role="img" title="' + label + '" aria-label="' + label + '"' +
@@ -141,13 +179,12 @@
   function updateProjectUnread() {
     if (projBar) {
       var dot = projBar.querySelector(".cs-proj-unread");
-      if (dot) dot.hidden = !projects.some(projectNeedsAttention);
+      if (dot) dot.hidden = !anyNeedsAttention();
     }
     // Update an open picker in place so a reply or a read in another tab never closes it or steals focus.
     if (menuEl) menuEl.querySelectorAll("[data-unread-project]").forEach(function (row) {
-      var p = projById(row.getAttribute("data-unread-project"));
       var dot = row.querySelector(".cs-proj-unread");
-      if (dot) dot.hidden = !(p && projectNeedsAttention(p));
+      if (dot) dot.hidden = !rowNeedsAttention(row.getAttribute("data-unread-project"));
     });
   }
   function refreshProjects() {
@@ -181,9 +218,10 @@
     var requestedBrain = brain(), request = ++projectRequest;
     var previousLabel = projLabelHtml();
     try {
-      var d = await (await fetch("/projects?brain=" + encodeURIComponent(requestedBrain))).json();
+      var d = await (await fetch("/projects?brain=" + encodeURIComponent(requestedBrain) + unreadSkipQuery())).json();
       if (request !== projectRequest || requestedBrain !== brain()) return;
       projects = d.projects || [];
+      ungroupedUnread = Number(d.ungrouped_unread) || 0;
     } catch (e) { return; }
     // Project đang mở vừa bị xoá (ở tab khác, hoặc brain khác) → về "Tất cả". Không có nhát
     // này thì danh sách rỗng trơn mà người dùng không hiểu vì sao.
@@ -218,7 +256,7 @@
     projBar.innerHTML =
       '<button class="cs-proj-cur" type="button" title="' + esc(window.t("sess.proj_pick_title")) + '">' +
         '<span class="cs-proj-name">' + projLabelHtml() + '</span>' +
-        projectUnreadHtml(projects.some(projectNeedsAttention)) +
+        projectUnreadHtml(anyNeedsAttention()) +
         '<span class="cs-proj-caret">' + ic("chevron-down") + '</span>' +
       '</button>' +
       (cur ? '<button class="cs-proj-x" type="button" title="' + esc(window.t("sess.proj_clear_title")) + '">' + ic("x") + '</button>' : '') +
@@ -242,7 +280,9 @@
     var cur = curProject();
     var rows = [
       { label: window.t("sess.proj_all"), icon: "layers", on: !cur, run: function () { chonProject(""); } },
-      { label: window.t("sess.proj_none"), icon: "circle", on: cur === "none", run: function () { chonProject("none"); } },
+      // projectId "none" puts the unread dot on this row too; no real project id is ever "none" (ids are uuid hex).
+      { label: window.t("sess.proj_none"), icon: "circle", on: cur === "none", projectId: "none",
+        unread: ungroupedNeedsAttention(), run: function () { chonProject("none"); } },
     ];
     if (projects.length) rows.push({ sep: true });
     projects.forEach(function (p) {
@@ -2364,7 +2404,7 @@
     var r = await fetch("/sessions?brain=" + encodeURIComponent(b) + "&limit=" + (shown + 1) +
                         (p ? "&project=" + encodeURIComponent(p) : "") +
                         (kenhLoc ? "&channel=" + encodeURIComponent(kenhLoc) + (kenhLoc.indexOf("agent:") === 0 ? "&bots=1" : "") : "") +
-                        (arch ? "&archived=1" : ""));
+                        (arch ? "&archived=1" : "") + "&unread_first=1");
     var data = await r.json();
     archCount = Number(data.archived_count) || 0;
     // `kenh` nằm trong khoá cache: thiếu nó thì lần mở trang Cộng sự kế tiếp vẽ tạm bằng danh
@@ -2609,10 +2649,17 @@
     if (archView) listEl.appendChild(dauLuuTru());
     var cur = currentId(), lastGroup = null;
     var pins = items.filter(function (s) { return s.pinned; });
+    // 2026-11-19 (owner: "những tin chấm đỏ mà chưa đọc em sắp xếp kéo lên trên đầu"): unread chats form their own
+    // group right under the pinned ones. The server already puts them on the first page (unread_first=1); this pass
+    // only keeps the open chat, which counts as read, in its date group instead of under "Unread".
+    function laChuaDoc(s) { return !!s.unread && !isRunning(s.id) && !(s.id === cur && chatOnScreen() && !isHeldUnread(s.id)); }
+    items = pins.concat(items.filter(function (s) { return !s.pinned && laChuaDoc(s); }),
+                        items.filter(function (s) { return !s.pinned && !laChuaDoc(s); }));
     items.forEach(function (s) {
       // Mục ghim gom thành MỘT nhóm trên đầu, không xếp theo thời gian nữa - ghim chính là để
       // thoát khỏi thứ tự thời gian. Server đã sắp pinned trước nên chỉ cần đổi nhãn nhóm.
-      var g = s.pinned ? window.t("sess.grp_pinned") : groupOf(s.updated_at || 0);
+      var g = s.pinned ? window.t("sess.grp_pinned")
+        : laChuaDoc(s) ? window.t("sess.unread") : groupOf(s.updated_at || 0);
       if (g !== lastGroup) {
         var head = el('<div class="cside-group">' + g + '</div>');
         // 0.454.0: the pinned group gets a Reorder button (two or more pinned chats).
@@ -2657,8 +2704,8 @@
       // already filtered to that very project, where every row would repeat the same name.
       var pid = (!kenhLoc && s.project_id && s.project_id !== curProject()) ? String(s.project_id) : "";
       var pTag = projById(pid);
-      var chuaDoc = !!s.unread;
-      if (chuaDoc && s.id === cur && chatOnScreen()) { chuaDoc = false; s.unread = false; markRead(s.id); }
+      var chuaDoc = !!s.unread && !isRun;   // still working: the spinner says so, the dot waits for the end
+      if (chuaDoc && s.id === cur && chatOnScreen() && !isHeldUnread(s.id)) { chuaDoc = false; s.unread = false; markRead(s.id); }
       // 2026-11-09: a pinned row shows a small pin before its title (no bar on the left any more); every other action
       // is in the row's "..." menu (moMenuDong).
       var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + (s.pinned ? " ghim" : "") + (chuaDoc ? " has-unread" : "") + (s.archived ? " archived" : "") + '">' +
@@ -2903,7 +2950,7 @@
       smItem("share", "share-2", "sess.share_link") +
       smItem("export", "download", "sess.export_md");
     if (s.unread) h2 += smItem("read", "mail-open", "sess.mark_read");
-    else if (s.id !== currentId()) h2 += smItem("unread", "mail", "sess.mark_unread");
+    else if (!isRunning(s.id)) h2 += smItem("unread", "mail", "sess.mark_unread");
     h2 += smSep() + smItem("archive", "archive", "sess.archive") +
       smItem("delete", "trash-2", "common.delete", { danger: true });
     return h2;
@@ -3013,10 +3060,19 @@
       return;
     }
     if (act === "pin") { dongMenuDong(false); return togglePin(s, s.timKiem); }
-    if (act === "read") { dongMenuDong(false); markRead(s.id); clearDot(s.id); return; }
+    if (act === "read") {
+      dongMenuDong(false);
+      if (heldUnread === s.id) heldUnread = null;
+      markRead(s.id); clearDot(s.id); return;
+    }
     if (act === "unread") {
+      if (s.id === currentId()) heldUnread = s.id;
+      // A read still waiting in its timer would undo this the moment it lands.
+      if (readTimers[s.id]) { clearTimeout(readTimers[s.id]); delete readTimers[s.id]; }
       return ketQua(await post("/sessions/" + encodeURIComponent(s.id) + "/unread", {}).then(function (r) {
-        cached = null; taiLaiSau(s); return r;
+        cached = null; taiLaiSau(s); refreshProjects();
+        try { if (window.JavisRailUnread) window.JavisRailUnread.refresh(); } catch (e) {}
+        return r;
       }));
     }
     if (act === "archive") return ketQua(await luuTru(s, true));
@@ -3146,7 +3202,7 @@
     loadList();
   }
 
-  window.JavisChatSide = { mount: mount, refresh: refresh, tab: chonTab,
+  window.JavisChatSide = { mount: mount, refresh: refresh, tab: chonTab, unreadSkipQuery: unreadSkipQuery,
                            chip: renderProjChip, moKhung: openProjDrawer,
                            moKhungCuoc: openCuocDrawer,
                            // Trang Cộng sự mở đúng ngăn kéo này cho MỘT trợ lý (nút "File &

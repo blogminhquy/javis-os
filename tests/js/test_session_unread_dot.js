@@ -24,7 +24,12 @@ const rl = SRC.slice(SRC.indexOf("function renderList(items, hasMore)"), SRC.ind
 check("unread row gets has-unread and a red dot", rl.includes('(chuaDoc ? " has-unread" : "")') && rl.includes('class="ci-unread"'));
 check("the dot is labelled for screen readers", /ci-unread" role="img" title="' \+ esc\(window\.t\("sess\.unread"\)\) \+ '" aria-label=/.test(rl));
 check("the chat on screen shows no dot and is reported read",
-  /if \(chuaDoc && s\.id === cur && chatOnScreen\(\)\) \{ chuaDoc = false; s\.unread = false; markRead\(s\.id\); \}/.test(rl));
+  /if \(chuaDoc && s\.id === cur && chatOnScreen\(\) && !isHeldUnread\(s\.id\)\) \{ chuaDoc = false; s\.unread = false; markRead\(s\.id\); \}/.test(rl));
+check("a chat still running shows its spinner, not a dot (owner 2026-11-20)",
+  rl.includes("var chuaDoc = !!s.unread && !isRun;") && rl.includes("!!s.unread && !isRunning(s.id)"));
+const RAIL = fs.readFileSync(path.join(__dirname, "../../dashboard/rail-unread.js"), "utf8");
+check("the rail skips running chats and counts again when a run ends",
+  RAIL.includes("unreadSkipQuery()") && RAIL.includes('"javis:chat-turn"'));
 
 // ---- the events ----
 check("every chat change marks the chat on screen read",
@@ -61,10 +66,12 @@ function harness(opts) {
     listEl: { querySelectorAll: () => rows },
     cached: { items: [{ id: "a", unread: true }, { id: "b", unread: true }] },
   };
-  const api = new Function("document", "fetch", "setTimeout", "env",
+  env.window = { JavisRunning: new Set(opts.running || []) };
+  const api = new Function("document", "fetch", "setTimeout", "env", "window",
     "var listEl = env.listEl, cached = env.cached; function currentId() { return env.current; }\n" + helpers +
-    "\nreturn { chatOnScreen: chatOnScreen, markRead: markRead, markCurrentRead: markCurrentRead, clearDot: clearDot };")(
-    env.document, env.fetch, env.setTimeout, env);
+    "\nreturn { chatOnScreen: chatOnScreen, markRead: markRead, markCurrentRead: markCurrentRead, clearDot: clearDot," +
+    " unreadSkipIds: unreadSkipIds, isHeldUnread: isHeldUnread, hold: function (sid) { heldUnread = sid; } };")(
+    env.document, env.fetch, env.setTimeout, env, env.window);
   const flush = () => { while (timers.length) timers.shift()(); };
   return { api, posts, rows, env, flush };
 }
@@ -95,6 +102,32 @@ check("no chat open: nothing is read", h.posts.length === 0);
 h = harness({ visible: true, chatShown: true, current: "a" });
 h.api.clearDot("b");
 check("clearDot from another tab touches only that row", !h.rows[1].classList.contains("has-unread") && h.rows[0].classList.contains("has-unread") && h.posts.length === 0);
+
+// ---- "Mark as unread" on the chat open on screen (owner 2026-11-20) ----
+const menu = SRC.slice(SRC.indexOf("var h2 = smItem(\"pin\""), SRC.indexOf("function veMenuDong("));
+check("the open chat's menu offers Mark as unread too", menu.includes('else if (!isRunning(s.id)) h2 += smItem("unread", "mail", "sess.mark_unread");')
+  && !menu.includes("s.id !== currentId()"));
+const act = SRC.slice(SRC.indexOf('if (act === "unread") {'), SRC.indexOf('if (act === "archive")'));
+check("marking the open chat unread holds it and drops a pending read",
+  act.includes("if (s.id === currentId()) heldUnread = s.id;") && act.includes("clearTimeout(readTimers[s.id])"));
+check("the rail and project dots count again after marking unread",
+  act.includes("refreshProjects();") && act.includes("window.JavisRailUnread.refresh()"));
+
+h = harness({ visible: true, chatShown: true, current: "a" });
+h.api.hold("a");
+h.api.markCurrentRead(); h.flush();
+check("held chat on screen: not read, dot stays", h.posts.length === 0 && h.rows[0].classList.contains("has-unread"));
+check("held chat is counted unread (not skipped)", h.api.unreadSkipIds().indexOf("a") < 0);
+h.env.current = "b";
+h.api.markCurrentRead(); h.flush();
+check("opening another chat releases the hold", h.api.isHeldUnread("a") === false && h.posts.map((p) => p[0]).join() === "/sessions/b/read");
+h.env.current = "a";
+h.api.markCurrentRead(); h.flush();
+check("coming back to it reads it again", h.posts.map((p) => p[0]).join() === "/sessions/b/read,/sessions/a/read");
+
+h = harness({ visible: true, chatShown: true, current: "a", running: ["a"] });
+h.api.hold("a");
+check("a new turn in the held chat releases the hold", h.api.isHeldUnread("a") === false);
 
 // ---- the look ----
 check("the dot is red", /\.ci-unread \{[^}]*background: var\(--red\)/.test(STYLE));

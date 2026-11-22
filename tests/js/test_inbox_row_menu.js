@@ -58,10 +58,10 @@ check("no count from an old server reads 0", win.JavisInboxV5.filterMenuHtml({},
 // ---- 2. what the menu offers ----
 const acts = (c) => F.rowMenuItems(c).filter((x) => !x.sep).map((x) => x.act);
 const base = { id: 1, unread_count: 0, pinned: 0, tags: [], mode: "ai", bot_id: "", contact: "", hidden: 0 };
-check("plain chat: unread, pin, tags, hide, delete (no mode without a bot, no copy without a contact)",
-  JSON.stringify(acts(base)) === JSON.stringify(["unread", "pin", "tags", "hide", "delete"]), acts(base));
+check("plain chat: unread, pin, tags, hide, block, delete (no mode without a bot, no copy without a contact)",
+  JSON.stringify(acts(base)) === JSON.stringify(["unread", "pin", "tags", "hide", "block", "delete"]), acts(base));
 check("unread chat offers 'mark read'; pinned offers 'unpin'; hidden offers 'unhide'",
-  JSON.stringify(acts({ ...base, unread_count: 2, pinned: 1, hidden: 1 })) === JSON.stringify(["read", "unpin", "tags", "unhide", "delete"]));
+  JSON.stringify(acts({ ...base, unread_count: 2, pinned: 1, hidden: 1 })) === JSON.stringify(["read", "unpin", "tags", "unhide", "block", "delete"]));
 const withBot = F.rowMenuItems({ ...base, bot_id: "b", mode: "human" });
 const ai = withBot.find((x) => x.act === "mode_ai"), me = withBot.find((x) => x.act === "mode_human");
 const dr = withBot.find((x) => x.act === "mode_draft");
@@ -81,26 +81,43 @@ check("tags row opens a second view and lists the chat's tags",
   F.rowMenuItems({ ...base, tags: [{ id: 1, name: "VIP" }, { id: 2, name: "Sỉ" }] }).find((x) => x.act === "tags").sub === "VIP, Sỉ" &&
   F.rowMenuItems(base).find((x) => x.act === "tags").more === true);
 check("hide says the chat comes back when the customer writes", F.rowMenuItems(base).find((x) => x.act === "hide").sub === "ht.rm_hide_sub");
-check("no conversation: still a sane menu", acts(null).length === 5);
+check("no conversation: still a sane menu", acts(null).length === 6);
 
 // 0.447.0: View profile, Block, Delete, by what the platform allows (owner: "xoá, block, view profile").
 const tail = (c) => acts({ ...base, ...c }).slice(4);
 check("Messenger chat: profile, block, delete (in Javis only)",
   JSON.stringify(tail({ channel: "messenger", external_chat_id: "123" })) === JSON.stringify(["profile", "block", "delete"]) &&
   F.rowMenuItems({ ...base, channel: "messenger", external_chat_id: "123" }).find((x) => x.act === "delete").sub === "ht.rm_delete_sub_local");
-check("a blocked Messenger chat no longer offers Block",
-  JSON.stringify(tail({ channel: "messenger", external_chat_id: "123", metadata: { blocked: true } })) === JSON.stringify(["profile", "delete"]));
-check("Instagram chat: profile and delete, no block (no API)",
-  JSON.stringify(tail({ channel: "messenger", external_chat_id: "ig:9" })) === JSON.stringify(["profile", "delete"]));
-check("comment threads: delete only, which deletes the comment online",
-  ["cmt:1", "igc:1"].every((id) => JSON.stringify(tail({ channel: "messenger", external_chat_id: id })) === JSON.stringify(["delete"]) &&
+check("a blocked Messenger chat offers Unblock instead of Block",
+  JSON.stringify(tail({ channel: "messenger", external_chat_id: "123", metadata: { blocked: true } })) === JSON.stringify(["profile", "unblock", "delete"]));
+check("Instagram chat: profile, block in Javis only (no API), delete",
+  JSON.stringify(tail({ channel: "messenger", external_chat_id: "ig:9" })) === JSON.stringify(["profile", "block", "delete"]) &&
+  F.rowMenuItems({ ...base, channel: "messenger", external_chat_id: "ig:9" }).find((x) => x.act === "block").sub === "ht.rm_block_sub_local");
+// 2026-11-20, owner: "chặn thì ở các kênh luôn chứ ko chỉ ở zalo".
+check("Block on every channel; the second line says where it blocks",
+  ["telegram", "whatsapp", "web"].every((ch) => acts({ ...base, channel: ch, external_chat_id: "7" }).indexOf("block") >= 0) &&
+  F.rowMenuItems({ ...base, channel: "messenger", external_chat_id: "123" }).find((x) => x.act === "block").sub === "ht.rm_block_sub_fb" &&
+  F.rowMenuItems({ ...base, channel: "zalo_personal", external_chat_id: "55" }).find((x) => x.act === "block").sub === "ht.rm_block_sub_zalo" &&
+  F.rowMenuItems({ ...base, channel: "telegram", external_chat_id: "7" }).find((x) => x.act === "block").sub === "ht.rm_block_sub_local");
+check("comment threads: block in Javis, delete which deletes the comment online",
+  ["cmt:1", "igc:1"].every((id) => JSON.stringify(tail({ channel: "messenger", external_chat_id: id })) === JSON.stringify(["block", "delete"]) &&
     F.rowMenuItems({ ...base, channel: "messenger", external_chat_id: id }).find((x) => x.act === "delete").sub === "ht.rm_delete_sub_cmt"));
-check("Zalo personal: profile, block, delete (on Zalo too); a group only delete",
+check("Zalo personal: profile, block, delete (on Zalo too); a group: block, leave, delete",
   JSON.stringify(tail({ channel: "zalo_personal", external_chat_id: "55" })) === JSON.stringify(["profile", "block", "delete"]) &&
-  JSON.stringify(tail({ channel: "zalo_personal", external_chat_id: "g1", chat_type: "group" })) === JSON.stringify(["delete"]) &&
+  JSON.stringify(tail({ channel: "zalo_personal", external_chat_id: "g1", chat_type: "group" })) === JSON.stringify(["block", "leave", "delete"]) &&
   F.rowMenuItems({ ...base, channel: "zalo_personal", external_chat_id: "55" }).find((x) => x.act === "delete").sub === "ht.rm_delete_sub_zalo");
-check("Threads reply: profile and delete, which hides the reply on Threads (0.448.0)",
-  JSON.stringify(tail({ channel: "threads", external_chat_id: "1799" })) === JSON.stringify(["profile", "delete"]) &&
+// 2026-11-20, owner: "cho anh nút rời nhóm ở zalo nhé".
+const zg = { ...base, channel: "zalo_personal", external_chat_id: "g1", chat_type: "group" };
+check("Leave group: Zalo groups only, danger style, says it leaves on Zalo; gone once left",
+  F.rowMenuItems(zg).find((x) => x.act === "leave").danger === true &&
+  F.rowMenuItems(zg).find((x) => x.act === "leave").sub === "ht.rm_leave_sub" &&
+  acts({ ...zg, metadata: { left: true } }).indexOf("leave") < 0 &&
+  acts({ ...base, channel: "zalo_personal", external_chat_id: "55" }).indexOf("leave") < 0 &&
+  acts({ ...base, channel: "telegram", external_chat_id: "-100", chat_type: "group" }).indexOf("leave") < 0);
+check("the menu runs Unblock and Leave", /act === "unblock"\) return menuUnblock/.test(CV) && /act === "leave"\) return menuLeave/.test(CV) &&
+  /"\/conversations\/" \+ id \+ "\/unblock"/.test(CV) && /"\/conversations\/" \+ id \+ "\/leave"/.test(CV));
+check("Threads reply: profile, block, delete which hides the reply on Threads (0.448.0)",
+  JSON.stringify(tail({ channel: "threads", external_chat_id: "1799" })) === JSON.stringify(["profile", "block", "delete"]) &&
   F.rowMenuItems({ ...base, channel: "threads", external_chat_id: "1799" }).find((x) => x.act === "delete").sub === "ht.rm_delete_sub_th");
 check("Delete is drawn in the danger style", F.rowMenuHtml(F.rowMenuItems(base), icon).includes('ht-rm-it danger" role="menuitem" data-act="delete"'));
 
@@ -160,7 +177,34 @@ const newCss = CSS.slice(CSS.indexOf("/* Row menu \"...\""), CSS.indexOf(".ht-rs
 const small = [...newCss.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => +m[1]).filter((n) => n < 16);
 check("menu text is at least 16px", newCss.length > 2000 && !small.length, small.join(","));
 check("CSS colours come from theme tokens (light and dark)", !/#[0-9a-f]{3,6}\b(?![^;]*var\()/i.test(newCss.replace(/var\(--red, #e5484d\)/g, "")));
-["ellipsis", "mail-open", "eye-off", "pin-off", "eye", "copy", "chevron-left", "chevron-right"].forEach((n) => {
+// Owner, 2026-11-21: Block, Leave group and Delete also sit at the foot of the Info panel, "giống menu sidebar".
+const infoActs = (c) => F.infoActItems(c).map((x) => x.act);
+check("Info actions: the menu's Block / Leave / Delete rows, nothing else",
+  JSON.stringify(infoActs(zg)) === JSON.stringify(["block", "leave", "delete"]) &&
+  JSON.stringify(infoActs({ ...base, channel: "zalo_personal", external_chat_id: "55", metadata: { blocked: true } })) === JSON.stringify(["unblock", "delete"]) &&
+  JSON.stringify(infoActs({ ...zg, metadata: { left: true } })) === JSON.stringify(["block", "delete"]) &&
+  F.infoActItems(zg).find((x) => x.act === "delete").danger === true);
+const PI = CV.slice(CV.indexOf("  function paintInfo() {"), CV.indexOf("  async function saveNote("));
+check("Info draws them with the menu's HTML (no menu roles) and runs the menu's own functions",
+  /\+ infoActsHtml\(c\);/.test(PI) && /F\.rowMenuHtml\(items, ic\)\.replace\(\/ role="menuitem\[a-z\]\*"\/g, ""\)/.test(CV) &&
+  /act === "block"\) menuBlock\(c\.id\)/.test(PI) && /act === "unblock"\) menuUnblock\(c\.id\)/.test(PI) &&
+  /act === "leave"\) menuLeave\(c\.id\)/.test(PI) && /act === "delete"\) menuDelete\(c\.id\)/.test(PI));
+check("a Block / Unblock / Leave reaches the open chat, which redraws its header and Info",
+  (CV.match(/syncOpen\(id, c\);/g) || []).length === 2 && /function syncOpen\(id, c\)/.test(CV) &&
+  /!!\(c\.metadata && c\.metadata\.blocked\), !!\(c\.metadata && c\.metadata\.left\)/.test(CV));
+
+// Owner, 2026-11-21: leaving a group deletes its chat from Javis too; and "ấn vào xoá thì nó không xoá khỏi màn hình".
+const DC = CV.slice(CV.indexOf("  function dropConv(id) {"), CV.indexOf("  async function menuToggleTag("));
+check("Delete and Leave both drop the chat: list, open chat, cache, and a list answer already on its way",
+  /_gone\[id\] = true;/.test(DC) && /_items = _items\.filter\(function \(it\) \{ return it\.id !== id; \}\);/.test(DC) &&
+  /if \(_chon === id\) dongThread\(\);/.test(DC) && /boCache\(id\);/.test(DC) && (DC.match(/dropConv\(id\);/g) || []).length === 2 &&
+  /\(d\.items \|\| \[\]\)\.filter\(function \(it\) \{ return !_gone\[it\.id\]; \}\)/.test(CV));
+check("Leave says before it happens that the chat is deleted from Javis; both end with a toast, not a second dialog",
+  /Javis/.test(VI["ht.leave_q"]) && /xoá/.test(VI["ht.leave_q"]) && /delete/.test(EN["ht.leave_q"]) &&
+  /toast\(window\.t\("ht\.left", \{ ten: ten \}\)\)/.test(DC) && /toast\(window\.t\("ht\.deleted", \{ ten: ten \}\)\)/.test(DC) &&
+  !!VI["ht.deleted"] && !!EN["ht.deleted"] && !/alert\(window\.t\("ht\.left"/.test(CV));
+
+["ellipsis", "mail-open", "eye-off", "pin-off", "eye", "copy", "chevron-left", "chevron-right", "ban", "log-out", "circle-check"].forEach((n) => {
   check("icon '" + n + "' is in the bundle", ICONS.indexOf('"' + n + '"') > 0);
 });
 check("cache-busters bumped", /conversations\.js\?v=(1[5-9]|[2-9]\d)/.test(HTML) && /conversations-filters\.js\?v=[4-9]/.test(HTML) &&

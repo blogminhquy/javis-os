@@ -606,6 +606,19 @@ def tim(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None,
             for d, p, n, m in ra[:k]]
 
 
+# Lines Javis itself adds to a customer's turn for the model to read: the hand-over note of a turn held while the owner
+# was typing (`zalo_personal_channel.gop_cho_chu`), the "your previous answer was not sent" note, and the line saying
+# an earlier photo rides along (`channels/zalo_personal.py`). They are not the customer's words. Issue #1701
+# (2026-11-21): the 30 words of the hand-over note went into the document search with the question, diluted it below
+# `PHU_SAN`, and the bot answered "no information" about a schedule that was in its documents.
+_JAVIS_NOTE = re.compile(r"^[ \t]*\[(?:Ghi chú của Javis|Kèm ảnh khách gửi lúc)[^\n]*$", re.M)
+
+
+def customer_words(text: Any) -> str:
+    """`text` without the note lines Javis added to the turn: what the customer actually wrote, for searching."""
+    return _JAVIS_NOTE.sub("", str(text or "")).strip()
+
+
 def thu_thap(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None,
              chat_id: Any = None, files: Optional[Iterable[str]] = None) -> dict:
     """Khối tài liệu nhét vào prompt cho MỘT câu hỏi.
@@ -613,7 +626,10 @@ def thu_thap(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = 
     Trả `{"co": bool, "khoi": str, "nguon": [path...]}`. `co=False` nghĩa là brain không có gì
     khớp - lúc đó prompt phải nói thẳng ra như vậy thay vì im lặng đưa một khối rỗng, vì im
     lặng thì model tự lấp bằng trí nhớ chung của nó.
+
+    Only the customer's words are searched: notes Javis added to the turn are dropped first (`customer_words`).
     """
+    cau_hoi = customer_words(cau_hoi)
     try:
         hit = tim(root, cau_hoi, k, extra, chat_id, files)
     except Exception as e:

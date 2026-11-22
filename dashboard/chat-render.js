@@ -1763,7 +1763,17 @@
         veZoom();
         return;
       }
-      _lb.classList.toggle("that");             // vua man <-> co that (1:1), keo xem chi tiet
+      // vua man <-> co that (1:1), keo xem chi tiet. Vao co that thi giu diem vua bam nam ngay duoi con tro,
+      // de anh lon hon man hinh khong mo ra o goc trai tren ma dung cho nguoi xem muon soi.
+      var doDuoc = typeof img.getBoundingClientRect === "function" && typeof ev.clientX === "number";
+      var r0 = doDuoc ? img.getBoundingClientRect() : null;
+      var rx = r0 && r0.width ? (ev.clientX - r0.left) / r0.width : 0.5;
+      var ry = r0 && r0.height ? (ev.clientY - r0.top) / r0.height : 0.5;
+      if (_lb.classList.toggle("that") && r0) {
+        var r1 = img.getBoundingClientRect();
+        khung.scrollLeft += r1.left + rx * r1.width - ev.clientX;
+        khung.scrollTop += r1.top + ry * r1.height - ev.clientY;
+      }
     });
     _lb.addEventListener("click", function (ev) {
       var b = ev.target.closest ? ev.target.closest("[data-lb]") : null;

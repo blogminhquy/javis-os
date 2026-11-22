@@ -112,12 +112,13 @@ check("CANARY: KHÔNG tải trình duyệt vào ảnh (đó là việc của nú
 
 # ---- 9. Giao diện: nút ở trang Công cụ, nhắc ở form Kết nối, hỏi ở trình hướng dẫn ----
 cs = open(os.path.join(ROOT, "dashboard", "console.js"), encoding="utf-8").read()
-check("trang Công cụ có khối công cụ tuỳ chọn", 'id="ctTuyChon"' in cs and "veCongCuTuyChon" in cs)
+# 2026-11-20: the block became the "Software on this machine" view of the Plugins page.
+check("trang Công cụ có mục phần mềm trên máy", 'k: "machine"' in cs and "function drawMachine(host)" in cs)
 check("form đấu Playwright nhắc khi máy còn thiếu", "nhacCongCuThieu" in cs and 'id="ctNhac"' in cs)
 check("nhắc cũng nhận biết theo LỆNH, khớp với phía server",
       'dau.indexOf("playwright")' in cs)
 check("chỉ hỏi lại tiến độ khi ĐANG tải, không quay vòng vô ích",
-      re.search(r"if \(dangCai\) _ctTimer = setTimeout", cs) is not None)
+      re.search(r"if \(installing\) _ctTimer = setTimeout", cs) is not None)
 
 ap = open(os.path.join(ROOT, "dashboard", "app.js"), encoding="utf-8").read()
 ix = open(os.path.join(ROOT, "dashboard", "index.html"), encoding="utf-8").read()

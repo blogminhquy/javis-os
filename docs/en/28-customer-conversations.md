@@ -103,6 +103,7 @@ Two things to know:
 - **Customer**: name, nick or Page, the phone or email they left, **tags** (add, remove, create on the spot) and, in a private chat, the **customer profile** (since 12/11/2026, the note box before that): the AI writes down what is worth remembering about the customer after each chat and the bot reads it when it answers; you can still edit or add to it (saved when you click out of the box; it belongs to the customer, so their other chats show it too). Details in [Chatbots](25-chatbots.md), "Does the bot remember a customer over the long run?". A group keeps a plain **note** only you see.
 - **AI in this chat**: who replies (off here, or one of the three modes); for groups **the AI speaks up when** (called by name, it sees a need, every message); **when you type yourself, the AI waits** how long. The last two are settings of the whole bot, and the panel says so. A link opens the bot's settings.
 - **Channel**: the logo, the channel and the nick or Page.
+- **Block, Leave group, Delete chat** (since 21/11/2026): the three actions of the "..." menu in the list also sit at the foot of this panel, with the same words and the same small line saying whether it also happens on Zalo or the Page. **Leave group** (a Zalo group) leaves on Zalo, then deletes the chat from Javis too. A deleted chat does not come back because of its old messages: only a message sent AFTER the delete opens it again.
 
 ## The Channels tab
 

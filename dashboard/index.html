@@ -40,8 +40,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=180">
-  <link rel="stylesheet" href="/static/console.css?v=144">
+  <link rel="stylesheet" href="/static/style.css?v=181">
+  <link rel="stylesheet" href="/static/console.css?v=146">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chưa chọn gì thì SÁNG (2026-11-05; trước đó là "auto"). Chế độ "auto" (0.74.0) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
@@ -620,8 +620,10 @@
     <div class="model-bar" id="modelBar"></div>
 
     <!-- ===== Composer: ONE rounded card in the style of Claude (0.153.0) =====
-         Top: attached images and files. Middle: text box. Bottom: "+", model chip, effort chip,
-         Fast mode bolt, pinned folder chip, then mic and send. Popovers open just above that bottom row (2026-11-14).
+         Owner, 21/11/2026 ("sắp xếp lại khung giống của Claude"): the card is ONE row, "+", the text box, then mic and
+         send, all on one centre line (attached files above it). Under the card, outside its border, #cpUnder: the
+         pinned folder and the GitHub repos on the left (icons only on a phone when both are pinned), model, Effort
+         and the plan usage ring on the right. Popovers open just above the card (model-picker.js placePops).
          Phone (2026-11-11): ring, model and effort are drawn as one pill and open one sheet from the bottom. -->
     <div class="hud-voice" id="hudVoice">
       <button id="voiceFocusResume" class="voice-focus-resume" hidden></button>
@@ -633,6 +635,46 @@
                 title="Thêm file, lệnh, kết nối" data-i18n-title="cp.plus" aria-label="Thêm file, lệnh, kết nối" data-i18n-aria="cp.plus">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
+        <div class="cp-right" id="cpRight">
+          <!-- Dictation bar (composer-dictate.js, 0.230.0): replaces +, chips, mic and voice chat while recording.
+               X drops the recording, the meter shows the mic level, the square stops and keeps the text to edit,
+               and the send button next to it stops and sends. -->
+          <div class="dict-bar" id="dictBar">
+            <button type="button" class="dict-cancel" id="dictCancel" title="Huỷ ghi âm" data-i18n-title="dict.cancel" aria-label="Huỷ ghi âm" data-i18n-aria="dict.cancel">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+            <canvas class="dict-wave" id="dictWave" aria-hidden="true"></canvas>
+            <span class="dict-busy" id="dictBusy" hidden data-i18n="dict.busy">Đang viết lại câu cho đúng...</span>
+            <span class="dict-time" id="dictTime" aria-live="off">0:00</span>
+            <button type="button" class="dict-stop" id="dictStop" title="Dừng ghi, giữ chữ để sửa" data-i18n-title="dict.stop" aria-label="Dừng ghi, giữ chữ để sửa" data-i18n-aria="dict.stop">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+            </button>
+          </div>
+          <!-- Two voice buttons (0.230.0): the mic records speech into the text box (nothing is sent by itself),
+               the sound-wave button is the live voice chat (#voiceBtn, unchanged behaviour). -->
+          <button type="button" class="mic-big dict-btn" id="dictBtn" title="Ghi âm thành chữ" data-i18n-title="dict.btn" aria-label="Ghi âm thành chữ" data-i18n-aria="dict.btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+            </svg>
+          </button>
+          <button type="button" class="mic-big" id="voiceBtn" title="Đàm thoại: nói chuyện trực tiếp với Javis" data-i18n-title="bar.mic" aria-label="Đàm thoại: nói chuyện trực tiếp với Javis" data-i18n-aria="bar.mic">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/>
+            </svg>
+          </button>
+          <button type="button" class="stop-btn" id="stopBtn" title="Ngắt lệnh / dừng đọc (Esc)" data-i18n-title="bar.stop" style="display:none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          </button>
+          <button type="button" class="send-btn" id="sendBtn" aria-label="Gửi" data-i18n-aria="bar.send">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          </button>
+        </div>
+      </div>
+      <!-- Under the card (owner, 21/11/2026): what this chat works on (the pinned folder, then the GitHub repos; their
+           scripts fill #cpCtx) on the left, model, Effort and the plan usage ring on the right. -->
+      <div class="cp-under" id="cpUnder">
+        <div class="cp-ctx" id="cpCtx" hidden></div>
         <div class="cp-chips" id="cpChips">
           <button type="button" class="mb-chip" id="mbOpen" title="Đổi model / nhà cung cấp" data-i18n-title="mb.open">
             <span class="mb-dot"></span>
@@ -650,40 +692,6 @@
             <svg width="20" height="20" viewBox="0 0 36 36" aria-hidden="true"><circle class="lim-bg" cx="18" cy="18" r="14" pathLength="100"/><circle class="lim-fg" cx="18" cy="18" r="14" pathLength="100" stroke-dasharray="0 100"/></svg>
           </button>
         </div>
-        <span class="cp-gap"></span>
-        <!-- Dictation bar (composer-dictate.js, 0.230.0): replaces +, chips, mic and voice chat while recording.
-             X drops the recording, the meter shows the mic level, the square stops and keeps the text to edit,
-             and the send button next to it stops and sends. -->
-        <div class="dict-bar" id="dictBar">
-          <button type="button" class="dict-cancel" id="dictCancel" title="Huỷ ghi âm" data-i18n-title="dict.cancel" aria-label="Huỷ ghi âm" data-i18n-aria="dict.cancel">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button>
-          <canvas class="dict-wave" id="dictWave" aria-hidden="true"></canvas>
-          <span class="dict-busy" id="dictBusy" hidden data-i18n="dict.busy">Đang viết lại câu cho đúng...</span>
-          <span class="dict-time" id="dictTime" aria-live="off">0:00</span>
-          <button type="button" class="dict-stop" id="dictStop" title="Dừng ghi, giữ chữ để sửa" data-i18n-title="dict.stop" aria-label="Dừng ghi, giữ chữ để sửa" data-i18n-aria="dict.stop">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
-          </button>
-        </div>
-        <!-- Two voice buttons (0.230.0): the mic records speech into the text box (nothing is sent by itself),
-             the sound-wave button is the live voice chat (#voiceBtn, unchanged behaviour). -->
-        <button type="button" class="mic-big dict-btn" id="dictBtn" title="Ghi âm thành chữ" data-i18n-title="dict.btn" aria-label="Ghi âm thành chữ" data-i18n-aria="dict.btn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
-          </svg>
-        </button>
-        <button type="button" class="mic-big" id="voiceBtn" title="Đàm thoại: nói chuyện trực tiếp với Javis" data-i18n-title="bar.mic" aria-label="Đàm thoại: nói chuyện trực tiếp với Javis" data-i18n-aria="bar.mic">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/>
-          </svg>
-        </button>
-        <button type="button" class="stop-btn" id="stopBtn" title="Ngắt lệnh / dừng đọc (Esc)" data-i18n-title="bar.stop" style="display:none">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-        </button>
-        <button type="button" class="send-btn" id="sendBtn" aria-label="Gửi" data-i18n-aria="bar.send">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-        </button>
       </div>
       <!-- Phone sheet (model-picker.js, 2026-11-11): on a phone the model chip, the Effort chip and the plan ring read as
            ONE pill, and tapping it opens ONE sheet from the bottom holding the three panels below (plan usage, Effort,
@@ -933,8 +941,9 @@
         <div class="auth-err" id="authErr"></div>
         <div class="auth-help"><span id="authForgot" data-i18n="auth.forgot">Quên mật khẩu?</span></div>
         <div class="auth-reset" id="authResetInfo" style="display:none">
-          <span data-i18n="auth.reset1">Mở file</span> <code>server/settings.json</code><span data-i18n="auth.reset2">, xóa khối</span> <code>"auth"</code> <span data-i18n="auth.reset3">(hoặc đặt rỗng), rồi chạy</span>
-          <code>stop-javis.bat</code> → <code>start-javis.vbs</code>. <span data-i18n="auth.reset4">Mở lại sẽ về bộ cài đặt để tạo tài khoản mới.</span>
+          <span data-i18n="auth.reset1">Trên máy tính chạy Javis, mở thư mục cài Javis rồi bấm đúp</span> <code>reset-auth.bat</code>
+          <span data-i18n="auth.reset2">(Mac:</span> <code>reset-auth.command</code><span data-i18n="auth.reset3">).</span>
+          <span data-i18n="auth.reset4">Mật khẩu cũ bị xoá, mở lại Javis rồi vào Tài khoản đặt mật khẩu mới.</span>
           <div class="auth-reset-srv" data-i18n="auth.reset_server">Chạy trên máy chủ (Docker, Hostinger): đổi JAVIS_ADMIN_PASSWORD trong Environment rồi Redeploy. Javis đặt lại mật khẩu theo giá trị mới, 2FA giữ nguyên.</div>
         </div>
       </div>
@@ -1051,18 +1060,18 @@
   "/static/packs.js?v=7"
  ],
  "hoithoai": [
-  "/static/inbox-v5.css?v=13",
-  "/static/inbox-compact.css?v=5",
+  "/static/inbox-v5.css?v=15",
+  "/static/inbox-compact.css?v=6",
   "/static/date-range.css?v=1",
   "/static/chatbots-reply-policy.js?v=1",
   "/static/chatbots-try.js?v=1",
-  "/static/chatbots.js?v=20",
-  "/static/conversations-filters.js?v=6",
+  "/static/chatbots.js?v=21",
+  "/static/conversations-filters.js?v=8",
   "/static/date-range.js?v=1",
   "/static/inbox-v5.js?v=4",
   "/static/inbox-channels.js?v=5",
   "/static/inbox-stats.js?v=4",
-  "/static/conversations.js?v=31"
+  "/static/conversations.js?v=34"
  ],
  "usage": [
   "/static/usage.js?v=3"
@@ -1193,7 +1202,9 @@
   <script src="/static/model-picker.js?v=21"></script>
   <script src="/static/composer-plus.js?v=4"></script>
   <script src="/static/composer-folder.js?v=4"></script>
-  <script src="/static/github-connect.js?v=6"></script>
+  <script src="/static/github-connect.js?v=7"></script>
+  <!-- Brain backup on the signed-in GitHub account (20/11/2026): the top of the sync box on the Self-learning page. -->
+  <script src="/static/backup-link.js?v=1"></script>
   <script src="/static/branding.js?v=11"></script>
   <script src="/static/quick-settings.js?v=11"></script>
   <script src="/static/remote-access.js?v=2"></script>
@@ -1245,10 +1256,10 @@
   <script src="/static/health-panel.js?v=1"></script>
   <!-- Watch tab of the Recurring work page (0.239.0): token-free web page watching (server/web_watch.py). -->
   <script src="/static/web-watch.js?v=3"></script>
-  <script src="/static/login-vault.js?v=2"></script>
+  <script src="/static/login-vault.js?v=3"></script>
   <script src="/static/messenger-connect.js?v=4"></script>
   <script src="/static/voice-catalog.js?v=1"></script>
-  <script src="/static/console.js?v=215"></script>
+  <script src="/static/console.js?v=217"></script>
   <script src="/static/mobile-chat.js?v=17"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=4"></script>

@@ -83,7 +83,8 @@ async function chatCache() {
   const drawn = [];
   const ctx = {
     TIN_MOI_LUOT: 30, savedSessionId: null, convo: [], handsFree: false, sessionOpenSeq: 0, currentBrainPath: () => "b",
-    tatRanhTay() {}, boViecPhienCu() {}, Date, Map, JSON, Promise, encodeURIComponent,
+    tatRanhTay() {}, boViecPhienCu() {}, Date, Map, JSON, Promise, encodeURIComponent, setTimeout, clearTimeout,
+    _OPEN_SLOW_MS: 8000, _hideOpenNotice() {}, _showOpenNotice() {},   // the slow/failed line: test_chat_open_notice.js
     fetch: (url) => { fetches++; const id = decodeURIComponent(url.split("/")[2].split("?")[0]);
       return Promise.resolve({ json: () => Promise.resolve(JSON.parse(JSON.stringify(answers[id]))) }); },
   };

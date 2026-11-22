@@ -618,7 +618,7 @@ class ZaloOABot(HangLuot):
         chat = str((ev.get("sender") or {}).get("id") or ev.get("user_id") or "")
         if not chat or chat == self.oa_id:
             return
-        self.last_inbound = time.time()
+        received_at = self.last_inbound = time.time()
         client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(60.0))
         self._client = client
         name = await self._name_of(client, chat)
@@ -627,6 +627,9 @@ class ZaloOABot(HangLuot):
             "user_name": name, "username": name, "user_id": chat,
             "message_id": str(msg.get("msg_id") or ""), "bot_username": self.bot_username,
             "mentioned": False, "reply_to_bot": False,
+            # When the message reached Javis, before any download: `chatbot_runtime.staff_yielding` tells the OA's
+            # automatic reply to this message from a staff member's answer by it.
+            "received_at": received_at,
         }
         if self.chat_ids and chat not in self.chat_ids:
             await self._send(client, chat, localefmt.chu(

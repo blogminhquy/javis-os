@@ -19,8 +19,15 @@ function check(name, cond) { console.log((cond ? "ok   " : "FAIL ") + name); if 
 check("chip text: first repo name only, +N for the rest", gh.chipText(["acme/app", "acme/lib"], 18) === "app +1");
 check("chip text: long names are cut", gh.chipText(["acme/a-very-long-repository-name"], 10).length === 10);
 check("chip text: nothing attached means no chip", gh.chipText([], 18) === "");
-check("toggle adds then removes", JSON.stringify(gh.toggle(gh.toggle([], "a/b"), "a/b")) === "[]");
-check("sameSet ignores order", gh.sameSet(["a/b", "c/d"], ["c/d", "a/b"]) && !gh.sameSet(["a/b"], ["a/b", "c/d"]));
+{
+  // 21/11/2026: the list no longer toggles a set and sends it whole; see tests/js/test_github_repo_picker.js.
+  let v = gh.splitRows([{ full_name: "a/x" }, { full_name: "a/y" }], ["a/y"], "");
+  check("chosen repos come first", v.all.map(r => r.full_name).join() === "a/y,a/x" && v.selected.length === 1);
+  v = gh.splitRows([{ full_name: "a/x" }], ["a/z"], "");
+  check("a chosen repo the list lacks stays listed so it can be removed", v.selected.length === 1 && v.selected[0].full_name === "a/z");
+  v = gh.splitRows([{ full_name: "a/x" }], ["a/z"], "x");
+  check("while searching, only what matches", v.all.length === 1 && v.all[0].full_name === "a/x");
+}
 
 // Status icons (spec 12.1)
 check("no GitHub work: no icon", gh.iconSpec({ state: "" }) === null && gh.iconSpec(null) === null);
@@ -78,7 +85,7 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
 {
   const pan = js.slice(js.indexOf("function panel(box, menuApi)"), js.indexOf("// 4. Status icons"));
   check("the GitHub panel opens on the short menu once repos are attached, else on the repo list",
-    /\(held \|\| names\(\)\.length\) \? homeView\(box, menuApi\) : reposView\(box, menuApi, false\)/.test(pan));
+    /if \(!\(held \|\| names\(\)\.length\)\) reposView\(box, menuApi, false\);\s*else if \(askOnOpen\) reposView\(box, menuApi, true\);\s*else homeView\(box, menuApi\);/.test(pan));
   check("the menu offers Change repo and Change branch", pan.includes('data-gh-go="repos"') && pan.includes('data-gh-go="branch"'));
   check("the repo list splits Selected from the rest", pan.includes("gh.sec_selected") && pan.includes("gh.sec_repos"));
   check("several repos: pick the repo, then its branch", pan.includes("branchReposView") && pan.includes("branchView(box, menuApi, repos["));
@@ -92,11 +99,12 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
 // 0.432.4 (owner, 01/11/2026): ticking a repo attaches it at once; no Attach button at the foot of a long list, and
 // the footer stays pinned while the list scrolls.
 {
-  const rv = js.slice(js.indexOf("function reposView(box, menuApi, canBack)"), js.indexOf("// Several repos: pick the repo first"));
+  const rv = js.slice(js.indexOf("function repoList(box, o)"), js.indexOf("// Several repos: pick the repo first"));
   check("the repo list has no Attach button any more", !rv.includes("data-apply") && !rv.includes("gh.apply_"));
-  check("a tick toggles the repo and syncs it to the chat right away", /chosen = toggle\(chosen, r\.full_name\); draw\(\); sync\(\);/.test(rv));
-  check("only one change is in flight; later ticks ride on the next request", /if \(busy\) return;/.test(rv) && /sent = list;[\s\S]*sync\(\);/.test(rv));
-  check("a refused change puts the ticks back and says why", /if \(msg\) \{ chosen = sent\.slice\(\); err\.textContent = msg; draw\(\);/.test(rv));
+  // 21/11/2026: a tap adds ONE repo and an X removes ONE, each its own request (test_github_repo_picker.js runs them).
+  check("a tap on a repo adds it to the chat right away", /run\(shown\[\+b\.getAttribute\("data-gh-i"\)\], "add", false\)/.test(rv));
+  check("only one change is in flight; later ones wait their turn", /chain = chain\.then\(function \(\) \{/.test(rv));
+  check("a refused change says why", /err\.textContent = \(d && d\.error\) \|\| tw\("gh\.err_net"\)/.test(rv));
   const css = fs.readFileSync(path.join(ROOT, "dashboard/style.css"), "utf8");
   check("the picker footer is pinned to the bottom of the + menu", /\.gh-foot \{ position: sticky; bottom: -6px;/.test(css));
 }
@@ -114,9 +122,9 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
 
 // 0.438.1 (owner, 01/11/2026): a shortcut to add repos on GitHub from the chat picker, for an app sign-in.
 {
-  const rv = js.slice(js.indexOf("function reposView(box, menuApi, canBack)"), js.indexOf("// Several repos: pick the repo first"));
+  const rv = js.slice(js.indexOf("// The \"+\" row at the foot of the list"), js.indexOf("// Several repos: pick the repo first"));
   check("the picker footer offers Add repos on GitHub for an app sign-in, Connect more otherwise",
-    /addUrl \? '<a class="cp-mi gh-more-conn" data-gh-add="1" target="_blank"[^]*gh\.add_on_github[^]*: '<button[^]*gh\.connect_more/.test(rv));
+    /addUrl\s*\? '<a class="cp-mi gh-more-conn" data-gh-add="1" target="_blank"[^]*gh\.add_on_github[^]*: '<button[^]*gh\.connect_more/.test(rv));
   check("only an app sign-in gets the shortcut", /ghStatus\.source === "app" && ghStatus\.install_url/.test(js));
   check("an empty list points to the same shortcut", /gh\.none_found"\)\) \+\s*\(addUrl \? ' <a data-gh-add="1"/.test(rv));
   check("coming back to the tab after GitHub reloads the list", /if \(away\) \{ away = false; load\(\); \}/.test(rv) && rv.includes('addEventListener("visibilitychange", onBack)'));
@@ -188,6 +196,21 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
   check("the manual-install line names the button actually shown", vi["gh.git_cmd"].includes("{btn}") && en["gh.git_cmd"].includes("{btn}") &&
     sg.includes('tw("gh.git_cmd", { btn: again })') && sg.includes("esc(again)"));
   check("git step texts have no em or en dash", gitKeys.every(k => !/[\u2013\u2014]/.test(vi[k] + en[k])));
+}
+
+// Owner, 21/11/2026: "sắp xếp lại khung giống của Claude". The repo chip sits in the row under the composer card
+// (#cpCtx), after a pinned folder; with both pinned a phone shows both as icons only (.is-two).
+{
+  const rc = js.slice(js.indexOf("function renderChip()"), js.indexOf("var chipIcon = null;"));
+  check("the repo chip lives in #cpCtx under the card, not in the card's button row",
+    rc.includes('getElementById("cpCtx")') && !rc.includes("cpChips") && !rc.includes("ctxStrip") && !rc.includes("limitBtn"));
+  check("it goes last in that row, after a pinned folder", rc.includes("host.appendChild(chip)"));
+  check("the row hides while empty and marks folder plus repos as .is-two",
+    rc.includes("syncCtx(host)") && /function syncCtx\(host\) \{\s*host\.hidden = !host\.children\.length;\s*host\.classList\.toggle\("is-two", host\.children\.length > 1\);/.test(js));
+  check("#cpCtx sits under the card, before the model, Effort and usage chips, hidden at first",
+    /<div class="cp-under" id="cpUnder">\s*<div class="cp-ctx" id="cpCtx" hidden><\/div>\s*<div class="cp-chips" id="cpChips">/.test(html));
+  check("no strip above the card any more", !html.includes('id="ctxStrip"') && !consoleJs.includes('"ctxStrip"'));
+  check("room for the full repo name", js.includes("chipText(list, narrow() ? 28 : 44)"));
 }
 
 const keys = Array.from(new Set((js.match(/tw\("(gh\.[a-z_]+)"/g) || []).map(m => m.slice(4, -1))));

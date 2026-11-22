@@ -423,6 +423,17 @@ button.ord-mi:hover, button.ord-mi:focus-visible { background: var(--bg3); }
 .prov-auth-opt input { margin-top: 3px; flex: 0 0 auto; }
 .prov-auth-opt b { color: var(--text); font-weight: 600; }
 .prov-auth-opt i { color: var(--text3); }
+/* Long-lived Claude token (2026-11-22): the saved token's line and its buttons, under "Runs on". */
+.prov-tok { margin-top: 8px; }
+.prov-tok-row { display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 1.5; color: var(--text2); }
+.prov-tok-row > svg { flex: 0 0 auto; width: 18px; height: 18px; color: var(--green, var(--text2)); }
+.prov-tok-row.warn { color: var(--warn-ink); }
+.prov-tok-row.warn > svg { color: var(--warn-ink); }
+.prov-tok .prov-action { margin-top: 8px; }
+.prov-tok .prov-code[hidden] { display: none; }
+/* A destructive button in a card row: last, pushed right, red (design-style 6). */
+.gcard-btn.ghost.danger { margin-left: auto; color: var(--red); border-color: var(--danger-line); }
+.gcard-btn.ghost.danger:hover { background: var(--danger-wash); color: var(--red); border-color: var(--red); }
 .prov-auth-warn { font-size: 16px; line-height: 1.55; color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
 
 /* Auxiliary model chips */
@@ -1226,16 +1237,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   body.brain-max .brain-max-btn .bmx-out { display: block; }
   body.brain-max .brain-max-btn { color: var(--accent-ink); border-color: var(--accent-line); }
 
-  /* Ô nhập luôn nằm trong visual viewport của Safari/Chrome iOS và chừa safe area. */
+  /* Ô nhập luôn nằm trong visual viewport của Safari/Chrome iOS và chừa safe area. Since 21/11/2026 every bottom
+     margin here also keeps the room of the row under the card (#cpUnder, --cp-under-h in style.css), which hangs
+     below the card's border. */
   .hud-voice {
     min-width: 0;
-    margin: 5px 8px max(7px, env(safe-area-inset-bottom, 0px));
+    margin: 5px 8px calc(max(7px, env(safe-area-inset-bottom, 0px)) + var(--cp-under-h, 0px));
   }
   .hud-voice .voice-input { min-width: 0; }
   /* Trang quản lý (Trò chuyện, Coding, Cộng sự) mượn ô nhập vào một cột đã có lề đáy riêng.
      Trước đây lề an toàn cộng CHỒNG lên lề cột (34 + 12px), ô nhập đứng lửng cách đáy màn
      hình gần 50px. Nay lề an toàn chuyển xuống cột, ô nhập không tự chừa thêm. */
-  .cview .hud-voice { margin-bottom: 0; }
+  .cview .hud-voice { margin-bottom: var(--cp-under-h, 0px); }
   .cview .chatpage-main, .cview .ws-main { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
 
   /* BÀN PHÍM ĐANG MỞ (lớp do mobile-chat.js gắn theo visualViewport). Vạch Home nằm dưới bàn
@@ -1256,8 +1269,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     top: calc(var(--vv-top, 0px) + var(--topbar-h)); bottom: auto;
     height: calc(var(--vv-h, 100dvh) - var(--topbar-h));
   }
-  body.kb-open .hud-voice { margin-bottom: 6px; }
-  body.kb-open .cview .hud-voice { margin-bottom: 0; }
+  body.kb-open .hud-voice { margin-bottom: calc(6px + var(--cp-under-h, 0px)); }
+  body.kb-open .cview .hud-voice { margin-bottom: var(--cp-under-h, 0px); }
   body.kb-open .cview .chatpage-main, body.kb-open .cview .ws-main { padding-bottom: 6px; }
   .cview-head { padding: 14px 16px; }
   .cview-title { font-size: 16px; }
@@ -1421,6 +1434,19 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .aud-ts { opacity: .55; font-size: 12px; margin-right: 6px; }
 .aud-err { font-size: 12px; opacity: .8; margin-top: 2px; }
 
+
+/* "Forgot your current password?" under the change-password form (Account page, 2026-11-20). A quiet text link: it
+   is the way out for a few owners, not an action for everyone, so it must not compete with "Change password". */
+.ac-forgot { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline, var(--surface-2)); }
+.ac-forgot-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-height: 36px; }
+.ac-forgot-btn, .ac-forgot .info-i.with-text { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px;
+  margin-left: -6px; border: 0; border-radius: 8px; background: none; cursor: pointer; font: inherit; font-size: 16px;
+  color: var(--accent); }
+.ac-forgot-btn svg { width: 18px; height: 18px; flex: none; }
+.ac-forgot-btn:hover, .ac-forgot .info-i.with-text:hover { background: var(--surface-2); }
+.ac-forgot-steps { padding-left: 1.5em; }
+.ac-forgot-steps li + li { margin-top: 6px; }
+@media (max-width: 600px) { .ac-forgot-row { min-height: 44px; } .ac-forgot-btn, .ac-forgot .info-i.with-text { min-height: 44px; } }
 
 /* Xác thực 2 lớp (trang Tài khoản) */
 .tfa-card .tfa-warn { color: var(--warn-ink); font-weight: 600; }
@@ -1999,7 +2025,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   min-height: 0; padding: 14px 12px; border-right: 1px solid var(--glass-brd);
   background: var(--surface-1); }
 .ws-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0;
-  padding: 14px 18px 16px; }
+  padding: 14px 18px 8px; }
 .ws-slot { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 /* Các node chat MƯỢN của app là mục flex của cột này, và mặc định flex-shrink của một mục
    flex là 1 - tức là ai cũng có thể bị bóp lại. Đoạn hội thoại (.transcript) thì KHÔNG bị,
@@ -2718,6 +2744,13 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-msg.bot, .ht-msg.nguoi { align-self: flex-end; align-items: flex-end; }
 .ht-msg.hethong { align-self: center; max-width: 90%; }
 .ht-msg-h { font-size: 11.5px; color: var(--text3); margin: 0 4px 3px; }
+/* Who wrote an outgoing message (2026-11-22): the agent's own icon, name and an "AI" tag, or a person's icon and name. */
+.ht-who { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
+.ht-who b { font-weight: 600; color: var(--text2); }
+.ht-who .ic { flex: none; }
+.ht-who.ai, .ht-who.ai b { color: var(--accent-ink, var(--accent)); }
+.ht-who-tag { font-size: 0.8em; font-weight: 700; letter-spacing: 0.04em; padding: 0 5px; border-radius: 6px; line-height: 1.5;
+  background: var(--accent-wash); border: 1px solid var(--accent-line); }
 .ht-bubble { padding: 8px 12px; border-radius: 14px; font-size: 14px; line-height: 1.5; color: var(--text);
   background: var(--surface-2); border: 1px solid var(--hairline); white-space: pre-wrap; word-break: break-word; }
 .ht-msg.bot .ht-bubble { background: var(--accent-wash); border-color: var(--accent-line); }
@@ -3079,6 +3112,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ac-page { max-width: 760px; }
 /* The Account page has no page header (owner, 2026-11-09): its Account | Security tabs take that place, flush at the top. */
 .cview.cview-tk .cview-head { display: none; }
+/* Plugins page (2026-11-20): its own title sits at the top of its left column, like the Tasks page. */
+.cview.cview-pl .cview-head { display: none; }
 .cview.cview-tk .cview-body { padding-top: 0; }
 .cview.cview-tk .ach-tabs.tabs-top { padding-top: 12px; }
 .tk-intro { margin: 0 0 10px; }
@@ -4250,8 +4285,9 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 /* 0.449.0: GitHub repos and /skill in a team chat (team-github.js, teams.js). */
 .tm-gh-pop { width: min(360px, calc(100vw - 16px)); }
 .tm-gh-pop .gh-results { max-height: min(50vh, 360px); overflow-y: auto; }
-.tm-chip-gh { background: var(--accent-wash, rgba(255, 122, 60, .12)); border-color: transparent; padding-right: 10px; }
+.tm-chip-gh { background: var(--accent-wash, rgba(255, 122, 60, .12)); border-color: transparent; }
 .tm-chip-gh svg { color: var(--accent); }
+.tm-chip.is-busy { opacity: .55; pointer-events: none; }
 button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-size: 12.5px; color: var(--accent); cursor: pointer; }
 .tm-skill-chip { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 4px; padding: 1px 8px; border-radius: 999px;
   background: var(--accent-wash, rgba(255, 122, 60, .12)); color: var(--accent); font-size: 13.5px; font-family: var(--mono, monospace); }
@@ -4304,6 +4340,50 @@ button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-s
   background: var(--bg); color: var(--text); font: inherit; font-size: 15px; }
 .tm-info-addlink input:focus { outline: none; border-color: var(--accent); }
 @media (pointer: coarse) { .tm-chip-x { width: 36px; height: 36px; } .tm-info-addlink input { font-size: 16px; } }
+/* 19/11/2026 (owner: "phân trang ... như Zalo xem tất cả rồi vào kho lưu trữ"): Info shows the newest few, "See all" opens
+   the storage view in the same panel. A file row: a tile with its extension in the colour of its kind, the name, one line
+   with the size (and the day on Info). */
+.tm-info-all { display: flex; justify-content: center; width: 100%; min-height: 40px; margin-top: 10px; font-size: 15px; font-weight: 500; }
+.tm-info-list li.tm-as-row { flex-wrap: nowrap; align-items: center; gap: 10px; }
+.tm-as-list { gap: 4px; }
+.tm-as-row { padding: 4px 0; }
+.tm-as-type { --ft: var(--text3); display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 9px;
+  color: var(--ft); background: color-mix(in srgb, var(--ft) 14%, transparent); font-size: 11px; font-weight: 700;
+  letter-spacing: .02em; line-height: 1; overflow: hidden; }
+.tm-as-type[data-long] { font-size: 9.5px; letter-spacing: 0; }
+.tm-info-list .tm-as-type svg, .tm-as-type .ic { width: 18px; height: 18px; color: inherit; }
+.tm-as-type[data-ft="pdf"] { --ft: var(--red); }
+.tm-as-type[data-ft="doc"], .tm-as-type[data-ft="link"] { --ft: var(--link-ink); }
+.tm-as-type[data-ft="sheet"] { --ft: var(--green); }
+.tm-as-type[data-ft="slide"], .tm-as-type[data-ft="dir"] { --ft: var(--accent); }
+.tm-as-type[data-ft="zip"] { --ft: var(--warn-ink); }
+.tm-as-type[data-ft="media"] { --ft: var(--accent2); }
+.tm-as-type[data-ft="code"] { --ft: var(--text2); }
+.tm-as-main { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
+.tm-info-list .tm-as-main .tm-as-name { flex: none; font-size: 15px; line-height: 1.4; }
+.tm-as-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-width: 0; color: var(--text3); font-size: 13px; line-height: 1.4; }
+.tm-as-dot { color: var(--text3); }
+.tm-as-gone { display: inline-flex; align-items: center; gap: 4px; color: var(--warn-ink); }
+.tm-info-list .tm-as-gone svg { width: 13px; height: 13px; color: inherit; }
+.tm-as-main .tm-info-desc { order: 0; flex: none; padding-left: 0; margin-top: 2px; }
+/* The storage view: back, three tabs with their totals, then the search box with the pager beside it. The head stays on
+   top while the page scrolls, so the pager is always at hand. */
+.tm-as-head { position: sticky; top: -4px; z-index: 2; display: flex; flex-direction: column; gap: 8px; margin: 0 -14px; padding: 8px 14px 10px;
+  background: var(--bg); border-bottom: 1px solid var(--border); }
+.tm-as-back { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; min-height: 36px; padding: 0 8px 0 0; border: 0;
+  background: none; color: var(--text); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+.tm-as-back .ic { width: 20px; height: 20px; }
+.tm-as-back:hover { color: var(--accent-ink); }
+.tm-as-tabs { display: flex; gap: 2px; padding: 4px; border-radius: 12px; background: var(--surface-2); }
+.tm-as-tools { display: flex; align-items: center; gap: 4px; }
+.tm-side .tm-as-search { flex: 1 1 auto; min-width: 0; margin: 0; }
+.tm-as-pg:empty { display: none; }
+.tm-as-pg .tm-jb-pg { margin-left: 0; }
+.tm-as-day h5 { margin: 14px 0 8px; font-size: 14px; font-weight: 600; color: var(--text2); }
+.tm-as-imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tm-as-imgs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; }
+.tm-as-empty { padding: 18px 0; text-align: center; }
+@media (pointer: coarse) { .tm-info-all, .tm-as-back { min-height: 44px; } }
 
 
 /* 0.191.0 (owner, 16/10/2026): drag the list edge narrow enough and the column becomes a strip of avatars only
@@ -4932,3 +5012,17 @@ button.tm-quote-src:hover, button.tm-quote-src:focus-visible { border-color: var
   border-radius: 12px; cursor: pointer; }
 .tm-wm .tm-radio:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); }
 .tm-wm .tm-radio input { margin: 3px 0 0; flex: none; }
+
+/* 2026-11-19 (owner: "tạo team với nhập team ở trên 1 hàng thôi đừng xuống dòng 2 hàng... nếu kéo về thu nhỏ quá thì chỉ
+   hiện icon thôi"): the team list bar never wraps and a label never breaks inside its button. When the two labels do not
+   fit, teams.js (fitListBar) adds .tm-chi-icon and both buttons keep only their icons. The folded strip (.tm-mini) shows
+   Import as an icon too, under Create. */
+.tm-list-bar { flex-wrap: nowrap; }
+.tm-list-bar .ws-btn { white-space: nowrap; flex: none; }
+.tm-list-bar.tm-chi-icon .tm-new, .tm-list-bar.tm-chi-icon .tm-import { font-size: 0; gap: 0; padding: 8px; }
+.tm-list-bar.tm-chi-icon .ws-btn svg, .tm-list-bar.tm-chi-icon .ws-btn .ic { width: 18px; height: 18px; }
+@media (min-width: 1061px) {
+  .tm-page.tm-mini .tm-list-bar { flex-direction: column; gap: 6px; }
+  .tm-page.tm-mini .tm-new, .tm-page.tm-mini .tm-import { font-size: 0; gap: 0; padding: 8px; margin-left: 0; }
+  .tm-page.tm-mini .tm-import svg, .tm-page.tm-mini .tm-import .ic { width: 18px; height: 18px; }
+}

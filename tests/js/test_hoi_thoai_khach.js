@@ -89,7 +89,7 @@ check("dien thoai: mo hoi thoai la them lop thread-on, co nut quay lai",
 check("chu chinh len 16px tren man nhỏ (chuan doc cua chu repo)",
       /@media \(max-width: 900px\) \{[\s\S]*\.ht-bubble[^}]*font-size: 16px/.test(CSS));
 check("cau bot ve qua mdToHtml (co loc), tin khach chi escape",
-      SRC.includes("window.mdToHtml(t.text") && SRC.includes("than = esc(t.text"));
+      SRC.includes("window.mdToHtml(t.text") && SRC.includes("body = esc(t.text"));
 check("the bot o trang Chatbot co nut mo hop thu loc theo bot",
       CB.includes("JavisConversations.mo({ bot_id: b.id })"));
 // ------------------------------------------------------------------ the tai khoan kenh

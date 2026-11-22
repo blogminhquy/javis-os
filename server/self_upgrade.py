@@ -15,7 +15,8 @@ things were missing, and this is what the tool `javis_improve` (system/plugins/j
    items.
 3. A path for Javis's own code. `attach_source` attaches the official repo to the chat through GitHub in chat
    (github_repos.attach): the server checks, pushes, opens the PR, follows CI and merges on green as for any repo, then
-   the Release workflow numbers the version. `schedule_update` starts the same update as the Update button once that
+   the Release workflow numbers the version. Only on an install whose GitHub account can push to it (its
+   maintainers); every other install gets a prefilled issue link instead (`report_url`, 2026-11-20). `schedule_update` starts the same update as the Update button once that
    release is out, after the current turn has ended, so the answer is saved before the restart. The updater rolls
    back by itself when the new version does not come up healthy.
 
@@ -352,21 +353,78 @@ def source_status(sid: str, brain_root: str) -> dict:
             if str(r.get("full_name") or "").lower() == SOURCE_REPO.lower():
                 attached = r
     return {"repo": SOURCE_REPO, "connected": bool(st.get("connected")), "has_git": bool(st.get("has_git")),
-            "attached": attached}
+            "attached": attached, "can_write": bool(attached) or can_write_source()}
+
+
+def can_write_source() -> bool:
+    """True only when GitHub says the connected account may push to the official repo, i.e. a maintainer's install.
+
+    Every install ships `op=source`, so before 2026-11-20 a user's Javis cloned the public repo, edited it for a whole
+    turn and then failed the push with "account X cannot write to blogminhquy/javis-os". Owner, 20/11/2026: keep the
+    value (users sending fixes) without that dead end, the smallest way: no write access means no clone and no edit,
+    the model writes a bug report instead (`report_url`). Not connected, or GitHub not answering who may push
+    (`permissions` missing, 401/403/404), counts as no. Any other failure (network) raises, so a maintainer whose
+    GitHub hiccups is told to retry rather than handed a report link."""
+    import github_repos
+    from github_api import GitHubError
+    if not github_repos.status().get("connected"):
+        return False
+    try:
+        meta = github_repos.client().repo(SOURCE_REPO)
+    except GitHubError as e:
+        if e.status in (401, 403, 404):
+            return False
+        raise ImproveError(_c(f"Không hỏi được GitHub về {SOURCE_REPO}: {e}. Thử lại sau ít phút.",
+                              f"Could not ask GitHub about {SOURCE_REPO}: {e}. Try again in a few minutes."))
+    except github_repos.RepoError:
+        return False
+    except Exception as e:  # noqa: BLE001 - network and the like
+        raise ImproveError(_c(f"Không hỏi được GitHub về {SOURCE_REPO} ({type(e).__name__}). Thử lại sau ít phút.",
+                              f"Could not ask GitHub about {SOURCE_REPO} ({type(e).__name__}). Try again in a few "
+                              "minutes."))
+    return (meta.get("permissions") or {}).get("push") is True
+
+
+REPORT_URL_MAX = 7500      # GitHub answers 414 a little above 8 KB of URL; keep room for the browser
+_REPORT_CUT = "\n\n_(... cut to fit the link, details on request)_"
+
+
+def report_url(title: str, body: str, version: str = "") -> str:
+    """A link that opens a new issue on the official repo, title and body filled in. Nothing is sent: the person reads
+    it and presses Submit themselves (owner, 20/11/2026: the fix proposal of an install that cannot push)."""
+    from urllib.parse import quote
+    title = " ".join(str(title or "").split())[:200]
+    if not title:
+        raise ImproveError(_c("Thiếu title: một dòng nói lỗi hay đề xuất là gì.",
+                              "Missing title: one line saying what the bug or proposal is."))
+    body = str(body or "").strip()
+    if version:
+        body += f"\n\n---\nJavis v{version}"
+    base = f"https://github.com/{SOURCE_REPO}/issues/new?title={quote(title, safe='')}&body="
+    room = REPORT_URL_MAX - len(base)
+    if len(quote(body, safe="")) <= room:
+        return base + quote(body, safe="")
+    lo, hi = 0, len(body)
+    while lo < hi:                                # longest prefix whose encoded form fits next to the cut note
+        mid = (lo + hi + 1) // 2
+        if len(quote(body[:mid] + _REPORT_CUT, safe="")) <= room:
+            lo = mid
+        else:
+            hi = mid - 1
+    return base + quote(body[:lo].rstrip() + _REPORT_CUT, safe="")
 
 
 def attach_source(sid: str, brain_root: str) -> dict:
-    """Attach the official repo to this chat next to whatever it already has. Returns its row (worktree, branch)."""
+    """Attach the official repo to this chat next to whatever it already has. Returns its row (worktree, branch).
+
+    Only on an install that can push to it (`can_write_source`). Anywhere else nothing is cloned and the answer is
+    `{"report": True}`: the model writes a bug report with `report_url` instead of editing code it can never send."""
     import github_repos
     if not sid:
         raise ImproveError(_c("Chỉ gắn được trong một khung chat web (chưa rõ mã phiên).",
                               "Only inside a web chat (no session id)."))
-    st = github_repos.status()
-    if not st.get("connected"):
-        raise ImproveError(_c("GitHub chưa kết nối. Vào trang Kết nối, thẻ GitHub, dán token có quyền vào repository "
-                              f"{SOURCE_REPO} (Contents, Pull requests, Workflows: Read and write).",
-                              "GitHub is not connected. On the Connections page, GitHub card, paste a token with access "
-                              f"to {SOURCE_REPO} (Contents, Pull requests, Workflows: Read and write)."))
+    if not can_write_source():
+        return {"repo": SOURCE_REPO, "report": True, "attached": None}
     have = [r["full_name"] for r in github_repos.session_repos(sid, brain_root) if r.get("full_name")]
     if SOURCE_REPO.lower() not in {h.lower() for h in have}:
         try:
@@ -376,10 +434,6 @@ def attach_source(sid: str, brain_root: str) -> dict:
     got = source_status(sid, brain_root)
     if not got["attached"]:
         raise ImproveError(_c("Gắn repository không thành công.", "Attaching the repository did not work."))
-    if got["attached"].get("can_push") is False:
-        got["note"] = _c("Token chỉ có quyền đọc repository này: Javis sửa được trên máy nhưng không đẩy, không mở PR được. "
-                         "Cần quyền Contents và Pull requests ghi.", "The token can only read this repository: Javis can edit "
-                         "locally but cannot push or open a PR. Contents and Pull requests need write access.")
     return got
 
 

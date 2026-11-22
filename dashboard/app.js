@@ -45,10 +45,15 @@ let stopTag = null;        // tag phiên chat server phát qua message hello →
 
 function updateStopBtn() {
   const active = isProcessing || voice.isSpeaking();
-  stopBtn.style.display = active ? "flex" : "none";
-  // 0.206.0: while Javis works, typed text can still go out (as an add-on to the running turn), so the send button
-  // comes back next to Stop as soon as there is something to send.
+  // 0.206.0: while Javis works, typed text can still go out (as an add-on to the running turn).
+  // 2026-11-19 (owner: "khi gõ trong lúc 1 lệnh đang chạy thì anh muốn nút ngắt lệnh chuyển thành nút gửi thêm việc
+  // đang làm để không tốn thêm diện tích"): Stop and the add-on send share ONE spot. Text or an attachment in the box
+  // turns Stop into send; emptying the box brings Stop back.
   const boSung = coTheGuiBoSung();
+  stopBtn.style.display = active && !boSung ? "flex" : "none";
+  // With Stop gone, the send in its spot must be pressable: text that arrives without a keystroke (dictation, an
+  // attachment) only reaches this function, not syncActiveUI, so the lock is refreshed here too.
+  if (isProcessing) sendBtn.disabled = !boSung || (sendBtn.dataset || {}).wsLock === "1";
   // 0.231.0: two buttons (owner 2026-10-19). An empty box shows the voice chat button; text or an attachment turns
   // it into send. In a call the button stays the red hang-up and the dictate mic steps aside.
   const goi = handsFreeActive();
@@ -1222,9 +1227,12 @@ async function _dongBoNeuLech(isRetry) {
     const cungVai = !!c && ((m.role === "assistant") === (c.role === "javis"));
     const chuSv = m.role === "user" ? chuNguoiGo(m.content || "") : (m.content || "");
     if (!cungVai || _chuanTinSo(chuSv) !== _chuanTinSo(c.text)) openStoredSession(sid);
+    else _hideOpenNotice();   // what is on screen is current after all
   } catch (e) {
     // A phone just back from sleep often has no network for a second or two: ask once more instead of giving up.
     if (!isRetry) setTimeout(() => _dongBoNeuLech(true), 2000);
+    // Customer report, 2026-11-20: giving up used to be silent, so the copy this browser kept looked current.
+    else if (sid === savedSessionId && seq === sessionOpenSeq && convo.length) _showOpenNotice(sid, "stale");
   }
 }
 
@@ -2348,7 +2356,8 @@ function restoreSession() {
   // Dựng lại bong bóng hội thoại
   const _traLoi = [];   // T2: các câu trả lời vừa dựng lại, để refresh() sửa reaction và gắn mã còn thiếu
   _dangDungLoat = true;   // one scroll at the end, not one per bubble (see chatScroll)
-  try { convo.forEach((t, i) => {
+  // 2026-11-20: each kept message on its own (_safeDraw), so one that fails no longer ends the restore there.
+  try { convo.forEach((t, i) => _safeDraw(() => {
     // t.ts vắng mặt ở tin lưu từ trước bản này -> truyền 0 để ẩn giờ thay vì hiện giờ F5.
     if (t.role === "user") {
       if (t.goalRound && window.JavisLenh && window.JavisLenh.vongHtml) { appendGoalRound(t.goalRound, false); return; }
@@ -2368,7 +2377,8 @@ function restoreSession() {
     if (t.pinned && t.mid != null) datGhim(el, true);
     // Chip chỉ sống lại ở tin CUỐI: có tin sau nó nghĩa là câu hỏi đã được trả lời rồi.
     if (t.ask) window.JavisAsk.render(el, t.ask, i === convo.length - 1);
-  }); } finally { _dangDungLoat = false; }
+  }, { role: t.role === "user" ? "user" : "assistant", content: t.text, ts: (t.ts || 0) / 1000, id: t.mid,
+       content_sha: t.sha }, t.brain || s.brain)); } finally { _dangDungLoat = false; }
   // Bản lưu cục bộ có thể giữ reaction cũ (đổi ở máy khác) hay thiếu mã tin: hỏi lại đủ số tin vừa dựng (tối đa 200).
   try { if (window.JavisChatReactions && savedSessionId) window.JavisChatReactions.refresh(savedSessionId, _traLoi); } catch (e) {}
   if (convo.length) { scrollBottom(true); ghimDay(sessionOpenSeq); }
@@ -2391,6 +2401,45 @@ const TIN_MOI_LUOT = 30;
 // {sid, brain, ts, id, con, dangTai} - ts/id là con trỏ tới tin GIÀ NHẤT đang hiện.
 let _tinCu = null;
 let _moiTinCu = null, _quanSatMoi = null;
+
+// ---- One bad message must not cut a chat short (customer report, 2026-11-20) ----------------------------------
+// A customer saw an old last message on the computer for a week while the phone showed the new ones, and one chat of
+// 193 messages would not open at all. Drawing a chat ran every message inside one try/catch that swallowed errors: a
+// message the renderer choked on stopped the drawing there, so the screen ended on an older message, and nothing was
+// logged. Now each message is drawn on its own; one that fails is shown as plain text and reported to the Health page.
+function _reportCaught(where, err) {
+  try { if (window.JavisLoiMayKhach && window.JavisLoiMayKhach.report) window.JavisLoiMayKhach.report(where, err); } catch (e) {}
+  try { console.error("[javis] " + where, err); } catch (e) {}
+}
+// A stored message as plain text: no markdown, no cards, hidden blocks removed. Returns its entry for convo.
+function _drawPlainMessage(m, brain) {
+  if (!m || (m.role !== "user" && m.role !== "assistant")) return null;
+  const ts = m.ts ? Math.round(m.ts * 1000) : 0;
+  const raw = String(m.content || "");
+  let text = raw;
+  try { text = (m.role === "user" ? chuNguoiGo(raw) : raw).replace(/<!--[\s\S]*?-->/g, "").trim(); } catch (e) {}
+  const div = document.createElement("div");
+  div.className = "msg " + (m.role === "user" ? "msg-user" : "msg-javis") + " msg-plain";
+  if (m.role === "user") div.dataset.text = text;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+  div.appendChild(bubble);
+  chatAppend(div);
+  return m.role === "user"
+    ? { role: "user", text, atts: [], ts }
+    : { role: "javis", text, atts: [], ts, brain, mid: m.id, sha: m.content_sha || "" };
+}
+// Draws one stored message through `draw`; if it throws, reports it and falls back to plain text (unless the bubble
+// already made it on screen and only an extra after it failed).
+function _safeDraw(draw, m, brain) {
+  const before = chatArea.querySelectorAll(".msg").length;
+  try { return draw(); } catch (e) {
+    _reportCaught("chat.message", e);
+    if (chatArea.querySelectorAll(".msg").length > before) return null;
+    try { return _drawPlainMessage(m, brain); } catch (e2) { return null; }
+  }
+}
 
 // Dựng lại MỘT tin đã lưu thành bong bóng, trả về mục tương ứng cho convo (null nếu bỏ qua).
 // Dùng chung cho lượt mở hội thoại và lượt chèn ngược, để hai đường không trôi lệch nhau.
@@ -2508,7 +2557,7 @@ async function taiTinCu() {
     _dangChenCu = true;
     _neoChenCu = _moiTinCu ? _moiTinCu.nextSibling : dauKhungChat();
     const them = [];
-    ngoaiAlpine(() => ds.forEach(m => { const t = veTinDaLuu(m, st.brain, st.sid); if (t) them.push(t); }));
+    ngoaiAlpine(() => ds.forEach(m => { const t = _safeDraw(() => veTinDaLuu(m, st.brain, st.sid), m, st.brain); if (t) them.push(t); }));
     _neoChenCu = null; _dangChenCu = false;
     convo = them.concat(convo);
     st.ts = ds[0].ts; st.id = ds[0].id; st.con = !!d.has_more;
@@ -2546,6 +2595,8 @@ const _WARM_FRESH_MS = 10 * 60 * 1000;        // ...unless a copy this fresh is 
 const _phienCache = new Map();               // id -> { sess, at }
 const _phienDangTai = new Map();             // id -> Promise<sess> (gộp các lượt hỏi trùng)
 let _phienMoLuc = null;                      // { id, len } - độ dài convo lúc mở, để biết cuộc đã đổi khi rời đi
+const _OPEN_SLOW_MS = 8000;                  // a chat's answer slower than this gets a line saying so
+let _openNoticeEl = null;                    // that line, while it is on screen (_showOpenNotice)
 // The copies kept by earlier visits, read once at start (oldest first, so the newest stay last in the LRU order).
 // openStoredSession waits for this read only while it races the server's answer.
 let _keptChatsLoading = null;
@@ -2636,6 +2687,7 @@ async function openStoredSession(id, stillCurrent, opts) {
   // brain switch end it. Outside a call this still cancels capture, as before.
   if (handsFree) boViecPhienCu(); else tatRanhTay();
   const ticket = ++sessionOpenSeq;
+  _hideOpenNotice();
   _quenPhienNeuDoi();
   const conHieuLuc = () => ticket === sessionOpenSeq && (!stillCurrent || stillCurrent());
   // Performance (2026-11-05): a chat the caller has JUST created (Partners page, New conversation) has no messages,
@@ -2663,15 +2715,63 @@ async function openStoredSession(id, stillCurrent, opts) {
     _veLaiPhien(id, daCo.sess, ticket, false);
     veRoi = _vanTayPhien(daCo.sess);
   }
+  // Customer report, 2026-11-20: the server's answer could take forever (or fail) and nothing said so. The kept copy
+  // stayed on screen as if current, and a chat with no copy just did not open. Now a slow or failed answer shows one
+  // line under the chat, with a Retry button. A late answer still lands and removes the line.
+  const slow = setTimeout(() => { if (conHieuLuc()) _showOpenNotice(id, daCo ? "stale" : "slow"); }, _OPEN_SLOW_MS);
   try {
     const sess = await fresh;
-    if (!conHieuLuc() || !sess || sess.error) return;
+    if (!conHieuLuc()) return;
+    if (!sess || sess.error) {
+      if (sess && sess.error === "not found") {
+        _phienCache.delete(id);
+        try { if (window.JavisChatCache) window.JavisChatCache.del(id); } catch (e) {}
+      }
+      _showOpenNotice(id, daCo ? "stale" : "failed");
+      return;
+    }
+    _hideOpenNotice();
     // Bản mới y hệt bản đã vẽ: giữ nguyên màn (không nháy, không mất chỗ cuộn).
     if (veRoi && veRoi === _vanTayPhien(sess)) return;
     // Người dùng đã gửi tin trong lúc chờ (convo dài thêm): đừng xoá trắng lượt họ đang thấy.
     if (veRoi && _phienMoLuc && _phienMoLuc.id === id && convo.length !== _phienMoLuc.len) return;
     _veLaiPhien(id, sess, ticket, !!veRoi);
-  } catch (e) {}
+  } catch (e) {
+    // Network gone after fetch-gop.js's retries, or an HTML error page instead of JSON.
+    if (conHieuLuc()) _showOpenNotice(id, daCo ? "stale" : "failed");
+  } finally { clearTimeout(slow); }
+}
+
+// The line that says a chat could not be brought up to date (see openStoredSession). `kind`:
+//   "slow"   nothing drawn yet for the chat just picked, the server is taking long;
+//   "stale"  a copy kept in this browser is on screen, the newest messages are not loaded;
+//   "failed" the chat could not be loaded at all.
+function _hideOpenNotice() {
+  if (_openNoticeEl && _openNoticeEl.parentNode) _openNoticeEl.parentNode.removeChild(_openNoticeEl);
+  _openNoticeEl = null;
+}
+function _showOpenNotice(id, kind) {
+  _hideOpenNotice();
+  const el = document.createElement("div");
+  el.className = "msg msg-ghichu msg-open-notice";
+  el.setAttribute("role", "status");
+  const text = document.createElement("span");
+  const keys = { slow: "app.open_slow", stale: "app.open_stale", failed: "app.open_failed" };
+  text.textContent = window.t(keys[kind] || keys.failed);
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "older-btn";
+  btn.textContent = window.t("app.open_retry");
+  btn.onclick = () => {
+    _hideOpenNotice();
+    _phienDangTai.delete(id);   // the read that hung is not joined again: ask the server afresh
+    openStoredSession(id);
+  };
+  el.appendChild(text);
+  el.appendChild(btn);
+  chatAppend(el);
+  scrollBottom();
+  _openNoticeEl = el;
 }
 
 // `capNhat`: lượt vẽ LẠI cùng một cuộc vì bản mới khác bản trong bộ nhớ. Các phần ăn theo việc ĐỔI cuộc (báo danh
@@ -2685,7 +2785,7 @@ function _veLaiPhien(id, sess, ticket, capNhat) {
     chatArea.innerHTML = "";
     const ds = sess.messages || [];
     _dangDungLoat = true;
-    try { ngoaiAlpine(() => ds.forEach(m => { const t = veTinDaLuu(m, sess.brain, id); if (t) convo.push(t); })); }
+    try { ngoaiAlpine(() => ds.forEach(m => { const t = _safeDraw(() => veTinDaLuu(m, sess.brain, id), m, sess.brain); if (t) convo.push(t); })); }
     finally { _dangDungLoat = false; }
     _drawUnacked(id, ds);
     _tinCu = ds.length
@@ -2726,7 +2826,10 @@ function _veLaiPhien(id, sess, ticket, capNhat) {
     // Dải việc nền đánh dấu "việc CỦA hội thoại này" theo chat_id, nên đổi phiên là nó sai
     // ngay. Xoá rồi hỏi lại thay vì để chip của phiên trước nằm lại vài giây.
     try { if (window.JavisBackground) window.JavisBackground.reset(); } catch (e) {}
-  } catch (e) {}
+  } catch (e) {
+    // Still swallowed (one broken extra must not take the chat page down), but no longer silent.
+    try { _reportCaught("chat.open", e); } catch (e2) {}
+  }
 }
 // Xoá trắng khung chat về trạng thái "hội thoại mới" - dùng chung cho nút + Hội thoại mới
 // và lúc ĐỔI BRAIN (không focus input để đổi brain không bật bàn phím trên mobile).

@@ -70,20 +70,22 @@ Mục cuối là **4. Múi giờ**, chọn sẵn theo múi giờ của máy bạ
 
 Bấm **Bắt đầu dùng Javis →** để lưu và vào app. Wizard đồng thời đặt luôn một model mặc định cho nhà cung cấp bạn chọn: `sonnet` cho Claude Code, `gpt-5.5` cho ChatGPT, `openai/gpt-4o-mini` cho OpenRouter. Đổi lại ở trang Models bất cứ lúc nào.
 
-### Bước 5: Đăng nhập Claude làm bộ não
+### Bước 5: Kết nối Claude làm bộ não
 
-Đây là bước quan trọng nhất nếu bạn chọn Claude Code. Wizard chỉ lưu lựa chọn nhà cung cấp, việc đăng nhập Claude thực hiện ở trang **Models** (nhóm **Kết nối**):
+Đây là bước quan trọng nhất nếu bạn chọn Claude Code. Wizard chỉ lưu lựa chọn nhà cung cấp, việc kết nối Claude thực hiện ở trang **Models** (nhóm **Kết nối**):
 
 1. Vào mục **Models** trên rail bên trái.
 2. Tìm thẻ **Claude Code**. Trạng thái ban đầu là "○ Chưa đăng nhập".
-3. Bấm nút **Đăng nhập Claude**.
+3. Gõ một cái tên vào ô **Tên tài khoản** cho khỏi lẫn về sau, rồi bấm nút **Kết nối Claude**. Javis tự chạy lệnh `claude setup-token`.
 4. Javis hiện một đường link. Bấm mở link đó (mở trong tab mới) để đăng nhập tại claude.ai.
-5. Nếu sau khi đăng nhập trang hiện một mã code, dán mã đó vào ô **dán code (nếu có)** rồi bấm **Gửi code**. Một số luồng không cần dán code, Javis tự dò lại trạng thái mỗi 3 giây và cập nhật thẻ.
-6. Khi xong, trạng thái thẻ đổi thành "● Đã kết nối" (kèm email/gói nếu có).
+5. Nếu sau khi đăng nhập trang hiện một mã code, dán mã đó vào ô **Dán mã vào đây** rồi bấm **Xác nhận mã**. Trên máy có trình duyệt, trang có thể không hiện mã nào: cứ quay lại Javis, thẻ tự xong sau vài giây.
+6. Khi xong, Javis lưu token (đã mã hoá) và trạng thái thẻ đổi thành "● Đã kết nối".
 
-Đây là luồng device-code: bạn không cần nhập API key. Cách này chạy được cả trên VPS không có màn hình. Nếu bạn có quyền vào terminal của server, cũng có thể đăng nhập một lần bằng lệnh `claude auth login --claudeai` thay cho các bước trên.
+Bạn không cần nhập API key. Token này dùng được **1 năm** (Anthropic đặt hạn đó) và không bao giờ bị đăng xuất giữa chừng như kiểu đăng nhập cũ. Gần hết hạn, Javis nhắc trong chuông; bấm **Lấy token mới** trên thẻ và đăng nhập thêm một lần là có thêm một năm. Cách này chạy được cả trên VPS không có màn hình.
 
-Nút **↻ Kiểm tra lại** trên thẻ dùng để nạp lại trạng thái đăng nhập bất cứ lúc nào. Nút **Ngắt** dùng để đăng xuất Claude khỏi Javis.
+Đã có token làm ở máy khác bằng lệnh `claude setup-token` (bắt đầu bằng `sk-ant-oat01-`)? Bấm nút nhỏ **Dán token**, dán vào rồi bấm **Lưu token**. Trên **Windows** không có bước tự động: mở terminal, gõ `claude setup-token`, rồi dán token vào thẻ theo cách này.
+
+Nút **↻ Kiểm tra lại** trên thẻ dùng để nạp lại trạng thái khi chưa kết nối. Nút **Ngắt** dùng để ngắt Claude khỏi Javis, Javis quên luôn token. Lệnh `claude auth login --claudeai` trong terminal của server vẫn dùng được như đường lui, nhưng đó là kiểu đăng nhập cũ, có thể hết hạn giữa chừng.
 
 Engine Claude của Javis chạy qua **Claude Agent SDK**, nhưng SDK vẫn gọi tới `claude` CLI trên máy, nên máy chạy Javis phải cài sẵn `claude` thì đăng nhập và MCP native mới hoạt động.
 
@@ -237,9 +239,11 @@ Khi Javis chạy công khai (nghe trên `0.0.0.0`, tức VPS/Docker/Hostinger) m
 | Nút / dòng chữ | Ở đâu | Làm gì |
 |---|---|---|
 | **Bắt đầu dùng Javis →** | Wizard | Lưu workspace, tài khoản, nhà cung cấp rồi vào app |
-| **Đăng nhập Claude** | Models, thẻ Claude Code | Bắt đầu luồng device-code, hiện link claude.ai |
-| **Gửi code** | Models, sau khi bấm Đăng nhập Claude | Gửi mã code lấy từ trang claude.ai |
-| **↻ Kiểm tra lại** | Models, thẻ Claude Code | Nạp lại trạng thái đăng nhập |
+| **Kết nối Claude** | Models, thẻ Claude Code | Javis chạy `claude setup-token`, hiện link claude.ai để lấy token dài hạn |
+| **Xác nhận mã** | Models, sau khi bấm Kết nối Claude | Gửi mã code lấy từ trang claude.ai |
+| **Dán token** | Models, thẻ Claude Code | Dán token làm ở nơi khác bằng `claude setup-token` |
+| **Lấy token mới** | Models, thẻ Claude Code (đã kết nối) | Đăng nhập claude.ai thêm một lần để có token dùng thêm 1 năm |
+| **↻ Kiểm tra lại** | Models, thẻ Claude Code | Nạp lại trạng thái khi chưa kết nối |
 | **Ngắt** | Models | Đăng xuất nhà cung cấp khỏi Javis |
 | **Đổi model ▾** | Models, mục Main Model và Model việc nền | Mở bảng chọn model |
 | **Về mặc định** | Models, mục Model việc nền | Trả việc nền về model mặc định của Claude Code |
@@ -254,7 +258,7 @@ Khi Javis chạy công khai (nghe trên `0.0.0.0`, tức VPS/Docker/Hostinger) m
 ## Mẹo
 
 - Nếu chỉ chạy máy cá nhân và không sợ người lạ, cứ để trống mật khẩu ở wizard để vào nhanh. Bạn có thể đặt mật khẩu sau ở trang **Tài khoản**.
-- Sau khi vào app, nếu thấy báo chưa đăng nhập Claude, quay lại **Models** bấm **Đăng nhập Claude** một lần là xong.
+- Sau khi vào app, nếu thấy báo chưa đăng nhập Claude, quay lại **Models** bấm **Kết nối Claude** một lần là xong.
 - Đổi avatar và tên miền ở **Cài đặt → Chung**; giọng nói và tốc độ ở **Cài đặt → Giọng nói**.
 - Sau khi cập nhật phiên bản, nếu giao diện không đổi, nhấn Ctrl+Shift+R để tải lại trang sạch.
 - Chọn một model rẻ ở **Model việc nền** ngay từ đầu: loop, việc Kanban, nhắc hẹn, tự học và tiêu hoá nguồn chạy khá nhiều, để chung model đắt là tốn hạn mức nhanh. Theo dõi con số thật ở trang [Mức dùng](23-muc-dung-token.md).
@@ -263,8 +267,9 @@ Khi Javis chạy công khai (nghe trên `0.0.0.0`, tức VPS/Docker/Hostinger) m
 
 - **Báo "Mật khẩu tối thiểu 8 ký tự":** đặt mật khẩu dài từ 8 ký tự trở lên.
 - **Báo "Đã có tài khoản - hãy đăng nhập":** admin đã được tạo trước đó (ví dụ qua env). Dùng màn đăng nhập với tài khoản/mật khẩu đã đặt.
-- **Claude báo chưa đăng nhập:** vào **Models**, bấm **Đăng nhập Claude**, mở link, dán code nếu được hỏi. Hoặc chạy `claude auth login --claudeai` trong terminal server.
-- **Quên mật khẩu admin:** ở màn đăng nhập bấm "Quên mật khẩu?" để xem hướng dẫn. Cách xử lý là mở file `server/settings.json`, xóa khối `"auth"` (hoặc đặt rỗng), rồi khởi động lại server; mở lại app sẽ về wizard để tạo tài khoản mới. Xem thêm [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md).
+- **Claude báo chưa đăng nhập:** vào **Models**, ở thẻ Claude Code bấm **Kết nối Claude**, mở link, dán mã nếu trang hiện mã rồi bấm **Xác nhận mã**. Máy còn chạy kiểu đăng nhập cũ thì bấm **Chuyển sang token dài hạn**. Đường lui: chạy `claude auth login --claudeai` trong terminal server.
+- **Claude báo token sắp hết hạn hoặc đã hết hạn:** vào **Models**, thẻ Claude Code, bấm **Lấy token mới** rồi đăng nhập claude.ai thêm một lần.
+- **Quên mật khẩu admin:** ở màn đăng nhập bấm "Quên mật khẩu?" để xem hướng dẫn. Trên Windows bấm đúp `reset-auth.bat` trong thư mục cài Javis (Mac: `reset-auth.command`): mật khẩu cũ bị xoá, mở lại Javis rồi vào Tài khoản đặt mật khẩu mới. Trên máy chủ thì đổi `JAVIS_ADMIN_PASSWORD` rồi khởi động lại. Xem thêm [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md).
 - **Sai quá nhiều lần khi đăng nhập, bị báo "Quá nhiều lần sai":** Javis khóa tạm để chống dò mật khẩu. Đợi ít phút rồi thử lại.
 - **Bấm cập nhật nhưng báo "Đang cập nhật rồi, chờ chút.":** một lần cập nhật khác đang chạy. Chờ tiến trình chạy xong rồi thử lại.
 - **Docker/VPS báo "image Docker còn đang đóng gói":** bản mới vừa phát hành, image Docker thường xong sau 2 đến 5 phút. Thử lại sau ít phút. Nếu Watchtower chạy xong mà không thay được bản mới, trang báo lý do và nút bấm lại được ngay.

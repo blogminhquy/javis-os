@@ -35,7 +35,7 @@ CLAUDE_MD_PATH = Path(__file__).resolve().parent.parent / "CLAUDE.md"
 # sha256 of the CLAUDE.md this contract was checked against. Changing CLAUDE.md fails
 # tests/python/test_background_prompt.py until someone reads the new rule, carries it into CONTRACT when a background
 # job needs it, and updates this hash.
-REVIEWED_CLAUDE_MD_SHA256 = "e91e1937e92713517e0107817a418d80f936adda0338623e1c2d4ddf150ec798"
+REVIEWED_CLAUDE_MD_SHA256 = "fc88178f6c94535b88aa073f154d958ace5ab1d76ecd3164b96f52f4a2796a1a"
 DEFAULT_BASIS_POINTS = 1000   # 10% of background jobs
 SALT = "background-prompt-v1"
 

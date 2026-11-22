@@ -936,7 +936,7 @@
     var chon = { group: {}, private: {} };
     ((b && b.groups) || []).forEach(function (x) { chon.group[x] = true; });
     ((b && b.people) || []).forEach(function (x) { chon.private[x] = true; });
-    var pkTab = "group", chats = [], pkQ = "", pkSeq = 0, pkHen = null;
+    var pkTab = null, chats = [], pkQ = "", pkSeq = 0, pkHen = null;
     // Tên của mọi cuộc chat từng thấy trong lần mở form này (server trả `ten` cho các dòng đang tick). Dòng đang tick mà
     // danh sách hiện tại không có (ô tìm lọc mất, hoặc cũ hơn trang đầu) lấy tên ở đây, không hiện id trần (chủ, 18/11/2026).
     var tenBiet = {};
@@ -989,8 +989,8 @@
             '<div class="cb-pk" id="cbPk" style="display:none">' +
               '<div class="cb-pk-h">' +
                 '<div class="cb-pk-tabs">' +
-                  '<button type="button" class="cb-pk-tab" data-t="group"></button>' +
                   '<button type="button" class="cb-pk-tab" data-t="private"></button>' +
+                  '<button type="button" class="cb-pk-tab" data-t="group"></button>' +
                 '</div>' +
                 '<input id="cbPkQ" class="cb-pk-q" placeholder="' + esc(window.t("cb2.pk_tim")) + '">' +
               '</div>' +
@@ -1046,8 +1046,8 @@
                 ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
             '</div>' +
             infoBody(esc(window.t("cb.hint_gio_truc"))) +
-            // Owner yield (0.172.0, personal Zalo only): minutes the bot stays out of a chat after the owner types into it
-            // by hand; 0 = never. Left blank = not set: the channel default (10 minutes, groups silent as before), shown
+            // Owner yield (0.172.0 personal Zalo; Zalo OA and Messenger since issue #1693): minutes the bot stays out of a
+            // chat after the owner, or a staff member in the channel's own app, types into it by hand; 0 = never. Left blank = not set: the channel default (10 minutes, groups silent as before), shown
             // as a placeholder so saving the form does not turn an unset bot into an explicit 10.
             '<div class="cb-gio-truc">' +
               '<label for="cbNhuongTay">' + esc(window.t("cb.nhuong_tay")) + infoBtn() +
@@ -1211,7 +1211,8 @@
     function veTabPk() {
       box.querySelectorAll(".cb-pk-tab").forEach(function (t) {
         var loai = t.dataset.t;
-        t.textContent = window.t(loai === "group" ? "cb2.pk_nhom" : "cb2.pk_nguoi") + " " + demChon(loai);
+        var count = demChon(loai);
+        t.textContent = window.t(loai === "group" ? "cb2.pk_nhom" : "cb2.pk_nguoi") + (count ? " " + count : "");
         t.classList.toggle("on", loai === pkTab);
       });
     }
@@ -1240,15 +1241,18 @@
       });
     }
     async function taiChats() {
-      var ids = tkDangChon().map(function (a) { return a.id; }).join(",");
-      if (!ids && !sua) { chats = []; vePk(); return; }
+      clearTimeout(pkHen);
       var lan = ++pkSeq;
+      var ids = tkDangChon().map(function (a) { return a.id; }).join(",");
+      chats = [];
+      veTabPk();
+      if (!ids) { vePk(); return; }
       box.querySelector("#cbPkBody").innerHTML = '<div class="cb-pk-rong">' + esc(window.t("cb2.pk_dang_tai")) + '</div>';
       var dangTick = demChonIds("group").concat(demChonIds("private")).slice(0, 300).join(",");
       try {
         var d = await api("/chatbots/chats?account_ids=" + encodeURIComponent(ids) +
           (sua ? "&bot_id=" + encodeURIComponent(b.id) : "") +
-          "&q=" + encodeURIComponent(pkQ) + "&limit=80" +
+          "&chat_type=" + encodeURIComponent(pkTab) + "&q=" + encodeURIComponent(pkQ) + "&limit=80" +
           (dangTick ? "&chon=" + encodeURIComponent(dangTick) : ""));
         if (lan !== pkSeq) return;       // có lần tải mới hơn rồi
         chats = d.chats || [];
@@ -1258,10 +1262,16 @@
       vePk();
     }
     box.querySelectorAll(".cb-pk-tab").forEach(function (t) {
-      t.onclick = function () { pkTab = t.dataset.t; vePk(); apGoiY(); };
+      t.onclick = function () {
+        if (pkTab === t.dataset.t) return;
+        pkTab = t.dataset.t;
+        apGoiY();
+        taiChats();
+      };
     });
     box.querySelector("#cbPkQ").oninput = function () {
       pkQ = this.value.trim();
+      ++pkSeq;
       clearTimeout(pkHen);
       pkHen = setTimeout(taiChats, 250);
     };
@@ -1319,7 +1329,7 @@
       if (!ids) { nlChats = []; veNlPick(); return; }
       try {
         var d = await api("/chatbots/chats?account_ids=" + encodeURIComponent(ids) +
-          "&q=" + encodeURIComponent(nlQ) + "&limit=80");
+          "&chat_type=private&q=" + encodeURIComponent(nlQ) + "&limit=80");
         if (lan !== nlSeq) return;
         // Private chats only, and only rows the inbox ties to an account: an exception without one never matches.
         nlChats = (d.chats || []).filter(function (c) { return c.loai === "private" && c.tk; });
@@ -1401,7 +1411,7 @@
       box.querySelector("#cbAckAudBox").style.display =
         (aud === "all" || aud === "auto") && !(sua && b.audience === "all") ? "" : "none";
       box.querySelector("#cbAckAudT").textContent = window.t(aud === "auto" ? "cb2.aud_auto_ack" : "cb2.aud_all_ack");
-      var tabs = aud === "nhom" ? (co ? ["group"] : []) : aud === "chon" ? (co ? ["group", "private"] : ["private"]) : [];
+      var tabs = aud === "nhom" ? (co ? ["group"] : []) : aud === "chon" ? (co ? ["private", "group"] : ["private"]) : [];
       if (tabs.length && tabs.indexOf(pkTab) < 0) pkTab = tabs[0];
       box.querySelector("#cbPk").style.display = tabs.length ? "" : "none";
       box.querySelectorAll(".cb-pk-tab").forEach(function (t) {
@@ -1429,8 +1439,14 @@
       apGoiY();
       veRw();
       if (tabs.length) taiChats();
+      else {
+        clearTimeout(pkHen);
+        ++pkSeq;
+      }
     }
-    box.querySelectorAll('input[name="cbAud"]').forEach(function (i) { i.onchange = apDoiTuong; });
+    box.querySelectorAll('input[name="cbAud"]').forEach(function (i) {
+      i.onchange = function () { pkTab = null; apDoiTuong(); };
+    });
 
     // Dòng tóm tắt ở đầu bước 2: bot này sẽ trả lời ở đâu, và lối quay lại đổi. Không có nó thì sang
     // bước 2 là mất dấu lựa chọn vừa làm.

@@ -43,7 +43,8 @@ check("renderPage waits for the page's group, and stops if the user moved on mea
   /await window\.JavisNapCham\.cho\(nhomCan\);\n\s+if \(gen !== _renderGen\) return;/.test(con));
 check("the Settings usage tab waits for usage.js itself", /if \(!window\.JavisUsage && window\.JavisNapCham\) await window\.JavisNapCham\.cho\("usage"\);/.test(con));
 check("the zip plugin button is not deferred (the file picker only opens inside the click)",
-  /zip\.onclick = \(\) => \{\n\s+if \(!window\.JavisPacks/.test(con));
+  /if \(d\.zip !== undefined\) \{ closeLayer\(true\); pickZip\(\); return; \}/.test(con)
+  && /function pickZip\(\) \{\n(\s+\/\/[^\n]*\n)*\s+if \(!window\.JavisPacks/.test(con));
 check("a notice for a team chat loads teams.js and opens it, instead of falling back to the main chat",
   /window\.JavisNapCham\.goi\(\["congviec", "teams"\]/.test(read("dashboard/notifications.js")));
 const ws = read("dashboard/workspace.js");

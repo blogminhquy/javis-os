@@ -130,14 +130,27 @@ class WebhookWorker:
             await asyncio.wait(list(self._active.values()) + [w], return_when=asyncio.FIRST_COMPLETED)
             w.cancel()
 
+    def _running(self) -> list:
+        """The pump and the runs still going. A task that has finished stays in `_tasks` until its done callback
+        takes it out, one pass of the event loop later: it is not something to wait for."""
+        return [t for t in self._tasks if t is not self._sweeper and not t.done()]
+
     async def wait_idle(self) -> None:
-        """Wait until nothing is due or running in this process (tests, shutdown)."""
+        """Wait until nothing is due or running in this process (tests, shutdown).
+
+        Only tasks that are still running are waited for (2026-11-21). The loop used to wait for everything in
+        `_tasks`, and a task that had just finished was still in there. Since Python 3.12 `asyncio.gather()` over
+        finished tasks returns a future that is already done, and awaiting that never hands control back to the event
+        loop. So the done callback that removes the task never ran, and this loop span for ever on one core without
+        a word (test_webhook_spec_matrix killed at the 1200 s limit, 6 times in about 830 CI runs)."""
         while True:
-            pending = [t for t in self._tasks if t is not self._sweeper]
+            pending = self._running()
             if pending:
                 await asyncio.gather(*pending, return_exceptions=True)
                 continue
             if not await asyncio.to_thread(self.store().has_claimable):
+                if self._running():
+                    continue        # a run that ended while the store was asked started the pump again: wait for it
                 await self.deliver_notifications()
                 return
             self._kick()

@@ -6,6 +6,257 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.0] - 2026-11-22
+### Cải thiện
+- **Đọc lại hội thoại là biết ngay tin nào do AI, tin nào do người.** Dưới mỗi tin của agent có icon riêng của agent đó, tên agent và nhãn AI. Tin người nhắn có icon người kèm tên thật.
+- Áp cho mọi kênh trong Hộp thư: Zalo, Messenger, WhatsApp, Telegram. Tin cũ ghi chung chung là "Bot" nay hiện đúng tên agent của cuộc chat.
+
+## [0.627.0] - 2026-11-22
+### Thêm mới
+- **Tài khoản Claude phụ cũng dùng token dài hạn.** Nút **Thêm tài khoản** và **Đăng nhập lại** trên thẻ Claude Code nay lấy token 1 năm cho riêng tài khoản đó (link rồi dán mã, như tài khoản 1), nên tài khoản phụ không còn bị đăng xuất giữa chừng. Token lưu mã hoá trong thư mục của tài khoản, Gỡ tài khoản là xoá luôn. Mỗi lượt chạy trên tài khoản nào thì dùng đúng token của tài khoản đó.
+- **Dòng tài khoản hiện ngày hết hạn token,** và trước một tuần chuông nhắc mỗi ngày một lần, kèm tên tài khoản.
+### Cải thiện
+- **Số ngày còn lại của token làm tròn lên:** token vừa lấy hiện "còn 365 ngày" thay vì 364.
+
+## [0.626.0] - 2026-11-22
+### Thêm mới
+- **Claude Code kết nối bằng token dài hạn, chỉ một cổng.** Thẻ Claude Code ở trang Models nay chỉ còn nút **Kết nối Claude**: Javis tự chạy `claude setup-token`, hiện link, bạn đăng nhập claude.ai và dán mã, xong là Claude Code chạy bằng token đó. Phiên đăng nhập kiểu cũ có thể hết hạn giữa chừng ("this login reached its time limit") và làm bot, việc nền dừng lại; token thì không bị đăng xuất giữa chừng. Có nút **Dán token** cho token tạo ở máy khác. Token được mã hoá khi lưu và không bao giờ gửi ra trình duyệt.
+- **Nhắc trước khi token hết hạn.** Anthropic cho mỗi token dùng 1 năm. Thẻ hiện ngày hết hạn và số ngày còn lại; trước khoảng một tuần, chuông thông báo nhắc mỗi ngày một lần, bấm **Lấy token mới** là xong.
+### Cải thiện
+- **Bỏ lựa chọn "Chạy bằng" trên thẻ Claude Code.** Muốn trả theo lượt dùng bằng API key thì dùng thẻ **Anthropic (API)** riêng. Máy đang đăng nhập kiểu cũ vẫn chạy bình thường và có nút **Chuyển sang token dài hạn**; nút **Ngắt** xoá luôn token.
+- **Mỗi tài khoản Claude phụ chạy đúng tài khoản của nó,** không mượn token của tài khoản 1.
+
+## [0.625.1] - 2026-11-22
+### Sửa lỗi
+- **Bot không còn gửi câu lỗi đăng nhập của model vào nhóm khách.** Khi Claude Code hết phiên, nó in câu "Failed to authenticate: this login reached its time limit..." như một câu trả lời, và bot gửi nguyên câu đó vào nhóm Telegram. Nay mọi câu báo mất đăng nhập (Claude Code, ChatGPT, Grok, Antigravity) đều bị chặn ở mọi kênh: khách không nhận gì, lượt đó tự chạy bằng model khác đã kết nối nếu có, còn chuông thông báo của chủ nói rõ cần vào trang Models đăng nhập lại.
+- **Model đăng nhập sau giờ thật sự được dùng làm dự phòng.** Trang Models xếp model kết nối sau (ví dụ Antigravity đăng nhập bằng lệnh `agy`) ở cuối thứ tự dùng, nhưng Javis chỉ thử các model đã lưu trong thứ tự, nên khi Claude Code và ChatGPT cùng mất đăng nhập thì bot khách, việc nền và workflow không chuyển sang Antigravity. Nay Javis thử đúng thứ tự trang Models đang hiện. Thành viên Team có model riêng không chạy được cũng lùi về model đang chạy được, không lùi về model chính đã mất đăng nhập.
+- **ChatGPT không còn tự mất đăng nhập.** Khi Javis tự làm mới token ChatGPT (lúc bot trả lời, tạo ảnh, giọng nói, tải danh sách model), nó chỉ lưu mã mới vào cài đặt của Javis. Lượt Codex kế tiếp thấy file đăng nhập của Codex khác đi, tưởng đó là mã mới hơn và chép mã cũ đã dùng đè lên mã mới, nên OpenAI báo "refresh token was already used" và ChatGPT bị đăng xuất. Nay Javis so thời điểm cấp để biết bộ nào mới thật, ghi mã mới sang file của Codex ngay, và không để hai lượt cùng làm mới một mã một lúc.
+- **Kênh Telegram của chủ báo mất đăng nhập bằng câu dễ hiểu.** Thay cho câu tiếng Anh bảo gõ lệnh trong terminal, chủ đọc "model mất đăng nhập, vào trang Models đăng nhập lại", giống khung chat web.
+
+## [0.625.0] - 2026-11-22
+### Sửa lỗi
+- **Mic chép lời trên điện thoại ghi âm thật ngay từ lần bấm đầu.** Javis nhớ máy đang có mô hình nghe (ChatGPT, Groq, OpenAI, Gemini), nên điện thoại ghi âm rồi để mô hình đó chép, có sóng âm thật, giống app ChatGPT.
+- **Sóng âm luôn chạy khi điện thoại đang nghe.** Kể cả lúc chỉ dùng bộ nhận giọng của trình duyệt. Sóng đứng yên nghĩa là máy không nghe được gì, và câu báo chỉ cách sửa.
+### Cải thiện
+- **Bấm dừng là có chữ gần như ngay.** Chữ do mô hình nghe chép đã có dấu câu, nên Javis không còn chờ Claude Code hay Codex viết lại nữa, chỉ sửa nhanh khi có model trả lời trong khoảng một giây.
+- **Khoá Gemini cũng nghe được mic chép lời,** và bộ não Gemini nghe bằng chính model của nó.
+
+## [0.624.0] - 2026-11-22
+### Thêm mới
+- **Javis chạy được code đọc dữ liệu (`javis_code`).** Model viết một đoạn Python ngắn, gọi nối nhiều tool đọc (lật trang, tra từng đơn, ghép hai nguồn), tự tính rồi chỉ trả phần kết quả, nên dữ liệu thô không chiếm token trong khung chat.
+- **Chỉ đọc, chạy cách ly.** Đoạn code chạy trong tiến trình riêng, không có khoá, không đọc file, không ra mạng, và chỉ gọi được tool đọc rõ ràng qua đúng lớp kiểm quyền như bình thường.
+- **Có trần an toàn.** Tối đa 40 lần gọi, 120 giây mỗi lượt. Không chạy được thì model tự gọi tool như cũ. Tắt bằng `JAVIS_CODE_MODE=0`.
+
+## [0.623.0] - 2026-11-22
+### Thêm mới
+- **Chỉnh được số ảnh bot gửi mỗi câu trả lời.** Mặc định vẫn 4 ảnh. Máy nào cần nhiều hơn (cho khách xem phòng, xem mẫu) thì đặt biến `JAVIS_BOT_MAX_IMAGES`, tối đa 20, rồi khởi động lại Javis.
+### Cải thiện
+- **Bot có thể nhường khi nhân viên trả lời từ app Zalo OA hoặc hộp thư Trang.** Mặc định vẫn không nhường. Ghi số phút vào ô "Nhường khi bạn nhắn tay" của bot thì khi nhân viên vừa trả lời khách ở đó, bot im trong cuộc chat ấy chừng ấy phút rồi tự trả lời lại. Tin chào mừng và tin tự trả lời của kênh không tính là nhân viên.
+### Sửa lỗi
+- **Bot Zalo cá nhân không còn nói "chưa có thông tin" sau khi bạn nhắn tay.** Lượt bot nhận lại cuộc chat có kèm một dòng ghi chú của Javis, và dòng đó lọt vào câu tìm tài liệu nên bot tìm trượt. Giờ bot chỉ tìm theo đúng lời khách.
+- **Facebook Trang dùng đúng kết nối.** Có hai kết nối Facebook Trang thì trước đây chỉ kết nối đầu tiên được dùng, kể cả khi bạn đã tắt nó. Giờ kết nối đang tắt không bao giờ được dùng, và Trang của mọi kết nối đang bật đều thấy và đăng được. Meta Ads cũng bỏ qua kết nối đang tắt.
+- **Nội dung webhook dài tới 5.000 ký tự.** Trước đây phần sau ký tự thứ 2.000 bị cắt mà không báo. Ô nhập giờ dừng đúng ở 5.000.
+
+## [0.622.6] - 2026-11-22
+### Sửa lỗi
+- **CI không còn thỉnh thoảng treo 20 phút ở bài kiểm tra Webhook.** Hàm chờ Webhook rảnh việc có lúc rơi vào vòng lặp vô hạn trên Python 3.12 (bản mà CI và Docker đang dùng), nên một lượt kiểm tra đứng im tới khi bị dừng. Lỗi xảy ra khoảng 6 lần trong 830 lượt gần đây.
+- Phần chờ của mục Sự cố có cùng lỗi và được sửa cùng lúc. Người dùng không thấy gì khác trên màn hình.
+
+## [0.622.5] - 2026-11-22
+### Sửa lỗi
+- **Gọi tool kèm tên nguồn không còn tự nhảy sang tài khoản khác.** Khi gọi một tool có kèm nguồn đã tắt hoặc bị ẩn, Javis sẽ báo lỗi kèm gợi ý tên đúng thay vì tự động chạy sang tài khoản khác trùng tên tool; gọi tên ngắn không kèm nguồn vẫn tự khớp như cũ.
+
+## [0.622.4] - 2026-11-22
+### Sửa lỗi
+- **Bước của Team và việc Kanban tự chạy lại khi máy mất mạng chốc lát.** Lỗi kiểu "can't assign requested address" hay lỗi tra tên miền (getaddrinfo) lúc đổi Wi-Fi, máy ngủ dậy, bật VPN giờ được coi là lỗi tạm thời, không còn chặn cả việc chờ bấm Thử lại.
+
+## [0.622.3] - 2026-11-22
+### Sửa lỗi
+- **Câu trả lời dài lại báo về điện thoại.** Từ bản 0.602.0, câu trả lời chạy lâu, việc chạy nền xong và việc của Javis Gate không còn đẩy thông báo, dù đã bật "báo mỗi câu trả lời". Giờ điện thoại lại rung khi bạn không mở đúng cuộc chat đó. Chuông trong Javis vẫn gọn như cũ.
+
+## [0.622.2] - 2026-11-22
+### Sửa lỗi
+- **Link cài Hostinger gọn hơn để hPanel không từ chối vì quá dài.** File `docker-compose.hostinger.yml` từng được rút xuống dưới trần 32.768 ký tự của hPanel, nhưng nếu hPanel đếm sau khi mã hoá nội dung thì file vẫn vượt trần (35.485), vì mỗi chữ tiếng Việt có dấu trong phần chú thích tốn sáu ký tự. Chú thích trong file nay viết ngắn, bằng tiếng Anh không dấu: file còn 23.917 ký tự, và khoảng 25.000 sau khi mã hoá. Mọi cài đặt giữ nguyên, phần giải thích chuyển sang `docs/dev/hostinger-compose.md`.
+
+## [0.622.1] - 2026-11-22
+### Cải thiện
+- **Khung chat nằm thấp xuống, sát đáy màn hình hơn.** Khoảng trống thừa dưới hàng chọn model đã được cắt bớt, ở trang chính, Trò chuyện, Coding và Cộng sự.
+
+## [0.622.0] - 2026-11-22
+### Thêm mới
+- **Javis bấm nút và điền form được bằng cookie đã cất.** Trước đây trang Cookies chỉ cho Javis đọc trang. Giờ Javis nạp phiên đăng nhập vào trình duyệt (kết nối Playwright) rồi thao tác như bạn. Cần có kết nối Playwright ở trang Kết nối.
+- **Cảnh báo rủi ro khi thêm cookie.** Form thêm cookie nói rõ Javis làm việc thật bằng tài khoản của bạn và rủi ro do bạn tự chịu, chi tiết nằm trong nút (i).
+- **Mỗi thẻ có công tắc "Cho bấm và điền form".** Cookie cất từ trước mặc định vẫn chỉ đọc, bạn tự bật khi muốn. Tắt hoặc xoá thì Javis gỡ luôn phiên khỏi trình duyệt.
+### Bảo mật
+- **Chatbot trả lời khách không dùng được trình duyệt đã đăng nhập.** Từ lúc trình duyệt giữ một đăng nhập của bạn, chatbot khách mất kết nối trình duyệt đó.
+
+## [0.621.0] - 2026-11-22
+### Thêm mới
+- **Nút X rõ ràng để bỏ repository.** Viên repository dưới khung chat có nút X, bấm một lần là bỏ. Trong bảng chọn, mỗi repository đã chọn cũng có nút X riêng. Viên thư mục ghim bên cạnh và viên repository ở trang Nhóm có cùng nút này.
+- **Khó bấm nhầm hơn.** Dòng repository đã chọn không còn tự bỏ khi chạm vào, chỉ nút X mới bỏ. Repository chưa chọn có dấu cộng, chạm một lần là thêm.
+### Sửa lỗi
+- **Repository không còn "nhảy về" cái cũ.** Trước đây đổi sang repository khác mà cái cũ còn thay đổi chưa lưu thì cả lần đổi bị từ chối, cái mới chọn cũng mất theo. Giờ thêm và bỏ là hai việc riêng, cái mới luôn được giữ.
+- **Không còn kẹt khi repository có thay đổi chưa lưu.** Javis hỏi ngay tại dòng đó: giữ lại, hay bỏ và xoá các thay đổi. Trước đây chỉ hiện một câu lỗi kèm đường dẫn máy chủ và không có cách nào bỏ.
+
+## [0.620.1] - 2026-11-21
+### Sửa lỗi
+- Khi chọn người để bot tự trả lời, form mở ngay danh sách nhắn riêng. Kết quả tìm người được lọc riêng với nhóm.
+
+## [0.620.0] - 2026-11-21
+### Thêm mới
+- **Chặn, Rời nhóm, Xoá ngay trong bảng Thông tin của cuộc chat.** Ba thao tác của menu "..." trên danh sách giờ có sẵn ở cuối bảng Thông tin, cùng chữ và cùng dòng nhỏ nói nó có làm trên Zalo hay Fanpage không.
+- **Rời nhóm Zalo thì xoá luôn cuộc chat khỏi Javis.** Trước đây cuộc chat còn nằm lại ở bộ lọc Đã ẩn. Câu hỏi xác nhận nói rõ điều này trước khi làm.
+### Sửa lỗi
+- **Cuộc chat đã xoá không tự hiện lại.** Sau khi xoá, tin cũ của cuộc chat đó (Zalo đọc lại bộ đệm mỗi lần khởi động lại) dựng lại đúng cuộc chat vừa xoá. Giờ chỉ một tin gửi sau lúc xoá mới mở lại nó. Dòng vừa xoá cũng không còn nháy lại trên danh sách trong vài giây.
+- **Chặn hay bỏ chặn cuộc chat đang mở thì khung chat và bảng Thông tin đổi theo ngay.**
+
+## [0.619.2] - 2026-11-21
+### Sửa lỗi
+- **Việc nền không còn bị chặn mãi vì điều kiện máy không làm được.** Trước đây AI đặc tả có thể ghi vào điều kiện hoàn thành những bước như nghe kiểm giọng, duyệt, tải file 67 MB qua công cụ chỉ nhận 10 MB, hay bước của việc khác. Việc đã làm xong phần chính vẫn trượt nghiệm thu mỗi lần chạy. Nay AI đặc tả biết engine nền đang dùng làm được gì và tách các bước đó ra mục **Để lại cho bạn** trên thẻ việc, không tính vào nghiệm thu.
+- **Người nghiệm thu không đẩy việc về chạy lại vì phần chỉ người làm được.** Nếu mọi điều kiện còn thiếu đều cần người hoặc vượt giới hạn công cụ, và worker đã nói rõ lý do kèm đường dẫn file, việc được coi là xong và phần đó chuyển sang "Để lại cho bạn". Tin báo kết quả cũng ghi rõ các bước này và rung chuông để bạn không bỏ sót.
+
+## [0.619.1] - 2026-11-21
+### Sửa lỗi
+- **Vòng hạn mức gói hết kẹt đỏ sau khi đổi model.** Chọn model khác, hoặc chat xong một lượt bình thường, là vòng tròn đọc lại số ngay thay vì giữ màu đỏ cũ tới 1 tiếng.
+- **Một model chạm hạn mức riêng không còn làm đỏ cả gói.** Ví dụ Opus hay Fable bị chặn riêng thì vòng tròn vẫn theo số phiên 5 giờ và tuần, kèm một dòng nhắc tên model đó.
+
+## [0.619.0] - 2026-11-21
+### Cải thiện
+- **Khung chat gọn một hàng như Claude.** Trong khung chỉ còn nút +, ô chữ, ghi âm và gửi, chữ và các nút thẳng một hàng giữa.
+- **Model, mức suy nghĩ, vòng hạn mức chuyển xuống dưới khung, bên phải.** Thư mục đang ghim và repo GitHub nằm cùng hàng, bên trái.
+- **Ghim cả thư mục lẫn repo thì điện thoại chỉ hiện icon** cho khỏi chật; ghim một thứ thì vẫn hiện tên. Bấm vào vẫn mở bảng chọn như cũ.
+
+## [0.618.0] - 2026-11-21
+### Thêm mới
+- **Hội thoại Claude Code và Codex tự lưu vào Javis.** Mỗi lượt xong, câu anh gõ và câu trả lời cuối hiện trong Lịch sử dưới tên "Từ Claude Code: ..." hay "Từ Codex: ...", và vào vòng tự học.
+- **Cài chỉ bằng một câu "ok".** Nối Claude Code hay Codex vào Javis Gate là nó hỏi có bật Javis Sync không; đồng ý là nó tự cài trên máy, không phải gõ lệnh hay chép token.
+- **Không tốn hạn mức, không lo mất.** Javis không chạy model cho việc này, API key được che trước khi lưu, Javis tắt thì lượt chờ gửi bù sau. Token của nó chỉ lưu được hội thoại, không làm được gì khác.
+
+## [0.617.1] - 2026-11-20
+### Sửa lỗi
+- **Thẻ cookie Facebook đọc được trang trở lại.** Khi mở trang bằng cookie trên trang Cookies, Javis giờ gửi kèm các header điều hướng như trình duyệt thật (`Sec-Fetch-*`, `Accept`, `Upgrade-Insecure-Requests`). Trước đó Facebook trả lỗi 400 trước cả khi xét tới cookie, nên thẻ còn sống vẫn báo "lần gần nhất không tải được".
+
+## [0.617.0] - 2026-11-20
+### Thêm mới
+- **Đồng bộ brain 2 chiều nối bằng tài khoản GitHub đã đăng nhập.** Ở trang Tự học, bấm Kết nối GitHub rồi Tạo repo riêng tư hoặc Chọn repo có sẵn. Không còn phải tự tạo token và dán URL.
+- **Nối xong là đồng bộ ngay và bật tự động.** Máy thứ hai chọn cùng repo là kéo brain về.
+- **Ai đang dùng token riêng vẫn chạy như cũ,** và có nút chuyển sang tài khoản GitHub đã đăng nhập để khỏi lo token hết hạn.
+### Cải thiện
+- Công tắc Tự động và Đồng bộ cả ảnh có hiệu lực ngay, không cần bấm Lưu.
+
+## [0.616.0] - 2026-11-20
+### Cải thiện
+- **Nhóm Telegram có chủ đề (topic): bot trả lời đúng chủ đề người ta hỏi**, thay vì dồn hết về mục General. Trong nhóm, câu trả lời còn trích đúng tin được hỏi, nên đông người vẫn biết bot đang trả lời ai.
+- **Khách gửi nhiều ảnh một lúc thì bot trả lời một lần**, xem đủ cả bộ ảnh, không còn trả lời tách thành hai ba lượt.
+- **Bot xem được video khách gửi** (cắt vài khung hình, nghe cả lời nói nếu có key chuyển giọng nói). Vị trí, danh bạ, sticker và bình chọn khách gửi cũng tới được bot, trước đây bị bỏ qua.
+- **Telegram giới hạn tần suất thì bot chờ rồi gửi lại**, câu trả lời dài được chia đúng chỗ xuống đoạn, video bot gửi đi xem được ngay trong chat.
+
+## [0.615.0] - 2026-11-20
+### Cải thiện
+- **Bot Messenger biết khách tới từ quảng cáo nào.** Khách bấm quảng cáo "Gửi tin nhắn", link m.me có mã, hay khung chat trên website: bot thấy tên quảng cáo hoặc mã link, kể cả khi khách mở lại một cuộc chat cũ từ quảng cáo rồi mới gõ.
+- **Bot xem được video khách gửi** (cắt vài khung hình, nghe cả lời nói nếu có key chuyển giọng nói), thay vì chỉ nhận một đường link không mở được.
+- **Sticker và nút thích (👍) được hiểu đúng là cảm xúc**, bot không còn tải về rồi tả lại như một bức ảnh. Trên Instagram, khách trả lời story hay nhắc tài khoản trong story thì bot biết.
+- **Messenger giới hạn tần suất hoặc tạm lỗi gửi thì bot chờ rồi gửi lại**, không mất câu trả lời.
+
+## [0.614.1] - 2026-11-20
+### Sửa lỗi
+- **Mở lại hội thoại không còn lặng lẽ hiện bản cũ.** Máy chủ trả lời chậm hoặc lỗi thì khung chat báo rõ đang hiện bản lưu trên máy, kèm nút Thử lại, thay vì để tin cũ nằm đó như thể đã mới nhất.
+- **Hội thoại tải mãi không mở được nay có lời báo.** Sau vài giây chờ, Javis nói cuộc trò chuyện đang tải lâu và cho bấm Thử lại.
+- **Một tin hiển thị lỗi không còn làm mất các tin sau nó.** Tin đó hiện dạng chữ thường, các tin còn lại vẫn đủ, và lỗi được ghi vào trang Sức khoẻ để dễ tìm nguyên nhân.
+
+## [0.614.0] - 2026-11-20
+### Cải thiện
+- **Bot WhatsApp đọc được đơn đặt hàng từ catalog.** Trước đây khách bấm gửi giỏ hàng thì bot bỏ qua cả đơn. Giờ bot thấy từng sản phẩm, số lượng, tổng tiền và lời nhắn kèm theo. Danh bạ khách gửi, biểu mẫu WhatsApp Flow, tên và địa chỉ của vị trí cũng tới được bot.
+- **Bot biết khách tới từ quảng cáo nào** (quảng cáo bấm vào nhắn WhatsApp) và khách đang hỏi sản phẩm nào trong catalog, để trả lời đúng ý.
+- **Bot đang tạm dừng hoặc bạn đang tiếp quản thì khách không còn thấy "đang soạn tin..." rồi im luôn.** Dòng đó chỉ hiện khi bot thật sự trả lời.
+- **WhatsApp giới hạn tần suất thì bot chờ rồi gửi lại**, video gửi đi xem được ngay trong chat, ảnh quá cỡ tự gửi thành tài liệu thay vì báo lỗi.
+
+## [0.613.0] - 2026-11-20
+### Thêm mới
+- **Trang Tài khoản có dòng "Quên mật khẩu hiện tại?"** ngay dưới nút Đổi mật khẩu. Trên Windows và Mac, bấm vào là Javis mở thư mục cài đặt và chọn sẵn file reset, chỉ cần bấm đúp. Trên VPS, Docker, Hostinger thì hiện các bước đặt lại.
+- **Mac có file `reset-auth.command`** làm đúng việc của `reset-auth.bat` trên Windows: xoá mật khẩu cũ để đặt lại từ đầu.
+### Sửa lỗi
+- **File reset không còn mở lại bộ cài đặt lần đầu** (model, kênh, khoá API giữ nguyên), và trên Mac mật khẩu cũ không còn tự quay lại ở lần khởi động sau.
+
+## [0.612.0] - 2026-11-20
+### Cải thiện
+- **Bot Slack trả lời đúng thread.** Trước đây, đang trả lời câu hỏi ở thread này mà có người nhắn ở thread khác cùng kênh thì câu trả lời có thể rơi nhầm sang thread kia. Giờ mỗi câu trả lời luôn về đúng thread của câu hỏi.
+- **Khách nhắn tiếp trong thread cũ vẫn được trả lời sau khi Javis khởi động lại**, không bị coi là người khác nói chuyện với nhau.
+- **Hộp thư hiện tên kênh Slack** (ví dụ #sales), và bot báo ngay khi được thêm vào hoặc bị gỡ khỏi một kênh, giống Telegram. Chữ khách gõ như `a < b`, `@Kim`, đường link giờ tới Javis đúng như khách gõ.
+- **Slack đang giới hạn tần suất thì bot chờ rồi gửi lại**, không mất nửa câu trả lời. App tạo theo hướng dẫn cũ vẫn chạy; muốn có tên kênh thì dán lại manifest mới và cài lại app (docs/29-slack-whatsapp.md).
+
+## [0.611.0] - 2026-11-20
+### Thêm mới
+- **Kết nối Asana.** Trang Kết nối có thẻ Asana dùng MCP chính chủ bản V2: Javis tìm và đọc việc, dự án, hạn chót, tạo và cập nhật việc, thêm bình luận. Đăng nhập ngay trong dashboard, chạy được cả trên VPS.
+- Cần tạo một MCP app trong Asana một lần (khoảng 5 phút), thẻ có hướng dẫn từng bước. Mặc định ở mức Chỉ đọc.
+
+## [0.610.2] - 2026-11-20
+### Sửa lỗi
+- **Nhờ Javis tự sửa mã nguồn Javis không còn đỏ lỗi "không có quyền ghi vào blogminhquy/javis-os" ở máy người dùng.** Trước đây mọi máy đều tải repo gốc về, sửa cả lượt rồi mới hỏng ở bước đẩy. Giờ máy không có quyền ghi thì Javis không tải, không sửa, mà viết sẵn một báo lỗi kèm hướng sửa và đưa link mở trang tạo Issue cho nhà phát triển. Bạn đọc lại, bấm Submit là gửi, không cần token hay quyền gì thêm.
+
+## [0.610.1] - 2026-11-20
+### Sửa lỗi
+- **Hội thoại của bot Telegram (và mọi kênh bot khác) hiện lại trong lịch sử của cộng sự nối với bot.** Bot nào được lưu brain theo một cách viết khác của cùng brain đó (đường dẫn đầy đủ từ bản cũ, có dấu `/` ở cuối, hay thư mục brain đã dời chỗ) vẫn trả lời bình thường, nhưng cuộc chat của nó không bao giờ lên cột Lịch sử của cộng sự. Giờ Javis so theo brain mà hội thoại thực sự được lưu, và tên cộng sự có dấu tiếng Việt cũng khớp dù file tạo trên macOS.
+
+## [0.610.0] - 2026-11-20
+### Cải thiện
+- **Đánh dấu chưa đọc được cả hội thoại đang mở.** Menu "..." của hội thoại đang xem giờ cũng có nút này. Bấm xong chấm đỏ hiện ngay và giữ nguyên, tới khi bạn mở hội thoại khác rồi quay lại, nên dễ đánh dấu những việc chưa xong để quay lại sau.
+
+## [0.609.1] - 2026-11-20
+### Sửa lỗi
+- **Hồ sơ tự học không còn ghi "chủ cửa hàng".** Hồ sơ giờ gọi người đang chat là "đối tượng" và lấy họ làm chủ thể, ví dụ "đối tượng được gọi là anh Việt, đối tượng xưng anh", hợp cả khi bot không dùng cho kinh doanh. Hồ sơ cũ đổi theo ở lần cập nhật kế tiếp.
+
+## [0.609.0] - 2026-11-20
+### Thêm mới
+- **Rời nhóm Zalo ngay ở menu "..." của trang Hội thoại.** Lịch sử chat vẫn giữ trong Javis, ở bộ lọc Đã ẩn.
+- **Nút Chặn có ở mọi kênh.** Messenger và Zalo chặn thật trên nền tảng; kênh khác chặn trong Javis: bot im, chat ẩn đi, tin mới không làm nó hiện lại.
+- **Thêm Bỏ chặn** cho cuộc chat đã chặn, trả lại đúng chế độ trả lời trước đó.
+
+## [0.608.0] - 2026-11-20
+### Cải thiện
+- **Trang Công cụ (Plugins) làm lại gọn như trang Nhiệm vụ.** Cột trái lọc theo trạng thái và nguồn, mục Tất cả là một danh sách liền xếp theo tên, công cụ của bạn và từ Javis Store có tag riêng.
+- **Mỗi dòng chỉ còn tên, một dòng mô tả, mức quyền bằng chữ dễ hiểu và công tắc.** Bấm vào dòng để xem lệnh, phiên bản và nút Gỡ. Gỡ hỏi lại ngay trong trang và có Hoàn tác.
+- **Nút "Thêm công cụ" gom ba cách thêm:** Javis Store, nhờ Javis tạo trong chat, cài từ tệp .zip. Nút "Cài từ tệp .zip" vẫn đứng riêng cạnh đó.
+- **Trình duyệt và Bộ nghe offline chuyển sang mục "Phần mềm trên máy"**, nút Gỡ không còn tô màu đặc. Trên điện thoại cột trái thành hàng chip, nút + tròn ở góc.
+
+## [0.607.2] - 2026-11-20
+### Sửa lỗi
+- **Chấm đỏ ở thư mục hội thoại chỉ hiện khi chat đã xong mà chưa đọc.** Chat còn đang chạy hiện vòng xoay chứ không làm sáng chấm đỏ ở thư mục, ở dòng "Chưa xếp nhóm", ở chính dòng chat và ở menu bên trái. Chat đang mở trên màn hình cũng không bị tính. Lượt chạy xong mà chưa được xem thì chấm đỏ mới hiện.
+
+## [0.607.1] - 2026-11-20
+### Sửa lỗi
+- **Bot Zalo cá nhân đọc được tin dạng thẻ link.** Trước đây một link người khác gửi (Zalo hiện thành thẻ có tiêu đề và ảnh) bị xếp vào loại "khác" nên bot bỏ qua, kể cả khi người gửi tag bot. Giờ thẻ link được đọc như tin chữ, gồm tiêu đề, mô tả và địa chỉ link.
+- **Hộp thư và lịch sử giữ lại địa chỉ link.** Tin thẻ link không còn chỉ hiện dòng mô tả của trang mà có cả link để bấm, kể cả tin nhập lại từ lịch sử (javis-zalo 1.14.0).
+
+## [0.607.0] - 2026-11-20
+### Cải thiện
+- **"Chưa xếp nhóm" cũng có chấm đỏ.** Cuộc chat chưa thuộc dự án nào mà có câu trả lời chưa đọc thì mục Chưa xếp nhóm trong ô chọn dự án hiện chấm đỏ, giống các dự án. Đọc xong hoặc xếp cuộc đó vào một dự án thì chấm tự tắt.
+
+## [0.606.1] - 2026-11-20
+### Sửa lỗi
+- **Kết nối nick Zalo thứ hai không còn làm nick thứ nhất mất kết nối.** Hai người báo ngày 19 và 20/11/2026: mỗi nick một bot ở hai brain, vừa quét QR nick thứ hai thì thẻ bot của nick thứ nhất báo "Một phiên khác của cùng nick đang giành kết nối Zalo" và bot lỡ phần lớn tin, dù không ai mở Zalo Web.
+- **Quét QR bằng nick đã kết nối thì Javis báo ngay, không tạo kết nối thứ hai.** Câu báo nêu tên kết nối đang giữ nick đó. Muốn nối nick khác, mở app Zalo bằng nick đó rồi quét lại.
+
+## [0.606.0] - 2026-11-20
+### Cải thiện
+- **Javis tìm đúng tool hơn hẳn khi có nhiều nguồn.** Câu hỏi đời thường như "doanh thu hôm nay trên POS", "lịch sử tin nhắn Zalo", "chi phí Google Ads" giờ ra đúng tool, kể cả khi mô tả tool viết tiếng Anh. Trên bộ 55 câu thử thật, tỉ lệ tìm trúng từ 20 lên 55.
+- **Nêu tên nguồn là ra danh sách tool của nguồn đó**, và nhiều tài khoản cùng loại (ba shop POS, hai Zalo) được gộp một dòng, không còn chiếm chỗ của tool khác.
+- **Gọi tool thiếu tiền tố hay gõ sai tên vẫn chạy** nếu chỉ có một tool khớp, nhiều tool khớp thì Javis nêu tên để chọn. Kết quả tìm cũng ngắn hơn để vẫn tiết kiệm token.
+
+## [0.605.0] - 2026-11-20
+### Cải thiện
+- **Hội thoại chưa đọc lên đầu danh sách.** Các cuộc có chấm đỏ giờ gom thành nhóm **Chưa đọc** ngay dưới nhóm Đã ghim, kể cả cuộc cũ nằm tận trang sau. Đọc xong thì cuộc đó về lại đúng chỗ theo ngày.
+
+## [0.604.0] - 2026-11-20
+### Thêm mới
+- **Tab Thông tin của team gọn lại như Zalo.** Ảnh, File, Link mỗi mục chỉ hiện vài cái mới nhất, kèm nút **Xem tất cả**.
+- **Kho lưu trữ:** bấm Xem tất cả là mở ngay trong bảng bên, có ba tab Ảnh, File, Link, ô tìm không cần dấu, xếp theo ngày và phân trang 20 mục một trang.
+- Mỗi file có ô màu ghi đuôi file, dung lượng, và báo **File không còn** khi file đã bị xoá hay dời đi. Team có hơn 200 file giờ xem được hết.
+
+## [0.603.1] - 2026-11-20
+### Sửa lỗi
+- **Phóng to ảnh trong chat không còn dạt sang trái.** Bấm vào ảnh để xem cỡ thật, ảnh nhỏ hơn màn hình giờ nằm giữa, ảnh lớn hơn thì mở đúng chỗ vừa bấm.
+
 ## [0.603.0] - 2026-11-19
 ### Cải thiện
 - **Tab Đã học và Tài liệu chia trang, mỗi trang 20 mục.** Danh sách dài có ô tìm (gõ không dấu vẫn ra) và nút Thêm đứng ngay trên đầu, khỏi phải cuộn hết danh sách.

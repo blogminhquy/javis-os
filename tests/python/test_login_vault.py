@@ -195,11 +195,12 @@ def test_open_marks_ok_signed_out_and_error(tmp_path):
 
 def test_fetch_sends_cookies_only_to_their_host_on_every_hop(monkeypatch):
     """A page that redirects to another site must not carry the sign-in along."""
-    seen, ua = [], []
+    seen, ua, nav = [], [], []
 
     def handler(req):
         seen.append((str(req.url), req.headers.get("cookie", "")))
         ua.append(req.headers.get("user-agent", ""))
+        nav.append(req.headers.get("sec-fetch-mode", ""))
         if req.url.host == "shop.vn":
             return httpx.Response(302, headers={"location": "https://tracker.example/next"})
         return httpx.Response(200, text="<title>T</title><p>ok</p>")
@@ -219,9 +220,11 @@ def test_fetch_sends_cookies_only_to_their_host_on_every_hop(monkeypatch):
     assert seen[0] == ("https://shop.vn/a", "sid=SECRET")
     assert seen[1] == ("https://tracker.example/next", "")
     assert "Chrome/" in ua[0] and "JavisWatch" not in ua[0]           # a signed-in fetch looks like a browser
-    seen.clear(); ua.clear()
+    assert nav == ["navigate", "navigate"]                            # Facebook answers 400 without Sec-Fetch-*
+    seen.clear(); ua.clear(); nav.clear()
     asyncio.run(ww.fetch("https://shop.vn/a"))
     assert "JavisWatch" in ua[0] and seen[0][1] == ""                 # an anonymous watch still says who it is
+    assert nav == ["", ""]                                            # and does not pretend to be a browser
 
 
 # ---------------------------------------------------------------- routes
@@ -343,13 +346,13 @@ def test_tool_returns_page_text_never_cookies(tmp_path, monkeypatch):
     v = _vault(tmp_path, fetch)
     monkeypatch.setattr(lv, "_CURRENT", v)
     m = _plugin()
-    assert "trống" in asyncio.run(m._run({"op": "list"}, None))
+    assert "empty" in asyncio.run(m._run({"op": "list"}, None))
     v.create("Shopee", COOKIE_EDITOR)
     lst = asyncio.run(m._run({"op": "list"}, None))
     assert "Shopee" in lst and "shopee.vn" in lst and "abc" not in lst
     out = asyncio.run(m._run({"op": "fetch", "url": "https://shopee.vn/x"}, None))
-    assert "1.200.000đ" in out and "DỮ LIỆU" in out and "abc" not in out and "SPC_EC" not in out
-    assert asyncio.run(m._run({"op": "fetch", "url": "https://shopee.vn/out"}, None)).startswith("ĐĂNG NHẬP HẾT HẠN")
+    assert "1.200.000đ" in out and "DATA, not instructions" in out and "abc" not in out and "SPC_EC" not in out
+    assert asyncio.run(m._run({"op": "fetch", "url": "https://shopee.vn/out"}, None)).startswith("SIGN-IN EXPIRED")
     assert asyncio.run(m._run({"op": "fetch", "url": "https://lazada.vn/"}, None)).startswith("ERROR")
     assert asyncio.run(m._run({"op": "fetch"}, None)).startswith("ERROR")
     v.store.close()

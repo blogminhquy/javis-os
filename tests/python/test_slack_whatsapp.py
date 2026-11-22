@@ -336,11 +336,96 @@ async def _wa_turn():
 
 calls = run(_wa_turn())
 texts = [c[1]["text"]["body"] for c in calls if c[1].get("type") == "text"]
-check("WhatsApp turn: read receipt with typing indicator sent first",
-      calls and calls[0][1].get("status") == "read" and "typing_indicator" in calls[0][1], calls[:1])
+reads = [c[1] for c in calls if c[1].get("status") == "read"]
+check("WhatsApp turn: marked read on arrival, typing only once the turn starts",
+      len(reads) >= 2 and "typing_indicator" not in reads[0] and "typing_indicator" in reads[1], reads)
 check("WhatsApp turn: answer goes to the sender, Markdown converted, tool trail attached",
       texts and texts[-1].startswith("*Revenue* up 12%") and "pos_statistics" in texts[-1], texts)
 
+
+
+# ============================================================
+# 8d. WhatsApp parity audit (2026-11-20)
+# ============================================================
+async def _wa_blocked():
+    """A bot the owner paused (precheck says no): read, but never "typing..."."""
+    calls = []
+    bot = whatsapp_bot.WhatsAppBot({"phone_number_id": "111", "access_token": "EAA" + "x" * 50,
+                                    "app_secret": "a" * 32}, "", None, precheck_fn=lambda t, m: {},
+                                   giau_trang_thai=True)
+
+    async def fake_post(client, path, payload):
+        calls.append(payload)
+        return {"ok": True}
+    bot._post_json = fake_post
+    await bot._on_message({"id": "wamid.1", "from": "8490", "type": "text", "text": {"body": "hi"}}, {})
+    if bot._client:
+        await bot._client.aclose()
+    return calls
+
+blocked = run(_wa_blocked())
+check("WhatsApp: a paused bot marks read but shows no typing indicator",
+      blocked and not any("typing_indicator" in c for c in blocked), blocked)
+
+
+async def _wa_text(msg):
+    bot = whatsapp_bot.WhatsAppBot({"phone_number_id": "111", "access_token": "EAA" + "x" * 50,
+                                    "app_secret": "a" * 32}, "", None)
+    return await bot._message_text(None, msg, "8490")
+
+order = run(_wa_text({"type": "order", "order": {"catalog_id": "C1", "text": "giao chiều nay", "product_items": [
+    {"product_retailer_id": "AO-01", "quantity": "2", "item_price": "150000", "currency": "VND"},
+    {"product_retailer_id": "QUAN-02", "quantity": 1, "item_price": 200000, "currency": "VND"}]}}))
+check("WhatsApp: a catalog order reaches the bot with items, total and note",
+      "AO-01 x2" in order and "QUAN-02 x1" in order and "500000 VND" in order and "giao chiều nay" in order, order)
+contact = run(_wa_text({"type": "contacts", "contacts": [
+    {"name": {"formatted_name": "Lan"}, "phones": [{"phone": "+84 90 111"}], "emails": [{"email": "l@x.vn"}]}]}))
+check("WhatsApp: a shared contact card reaches the bot", "Lan: +84 90 111; l@x.vn" in contact, contact)
+form = run(_wa_text({"type": "interactive", "interactive": {"type": "nfm_reply",
+                     "nfm_reply": {"response_json": '{"size": "M"}'}}}))
+check("WhatsApp: a Flow (form) answer reaches the bot", '{"size": "M"}' in form, form)
+loc = run(_wa_text({"type": "location", "location": {"latitude": 10.7, "longitude": 106.6,
+                                                     "name": "Shop", "address": "1 Le Loi"}}))
+check("WhatsApp: a location keeps its name and address", "Shop - 1 Le Loi" in loc, loc)
+check("WhatsApp: reactions stay silent", run(_wa_text({"type": "reaction", "reaction": {"emoji": "👍"}})) == "")
+notes = whatsapp_bot.context_notes({"context": {"referred_product": {"product_retailer_id": "AO-01"}},
+                                    "referral": {"headline": "Sale 50%", "source_url": "https://fb.me/x"}})
+check("WhatsApp: product asked about and the ad the customer came from are noted",
+      "AO-01" in notes and "Sale 50%" in notes and "https://fb.me/x" in notes, notes)
+
+
+class _WaResp:
+    def __init__(self, code, body):
+        self.status_code, self._body = code, body
+
+    def json(self):
+        return self._body
+
+
+async def _wa_rate_limit():
+    seq = [_WaResp(400, {"error": {"code": 131056, "message": "pair rate limit"}}), _WaResp(200, {"messages": [{}]})]
+
+    class C:
+        n = 0
+
+        async def post(self, *a, **k):
+            C.n += 1
+            return seq.pop(0)
+    bot = whatsapp_bot.WhatsAppBot({"phone_number_id": "111", "access_token": "EAA" + "x" * 50,
+                                    "app_secret": "a" * 32}, "", None)
+    real_sleep = asyncio.sleep
+
+    async def no_sleep(s):
+        await real_sleep(0)
+    whatsapp_bot.asyncio.sleep = no_sleep
+    try:
+        d = await bot._post_json(C(), "111/messages", {"x": 1})
+    finally:
+        whatsapp_bot.asyncio.sleep = real_sleep
+    return d, C.n
+
+d, n = run(_wa_rate_limit())
+check("WhatsApp: a rate-limit refusal waits and sends again", d.get("ok") and n == 2, (d, n))
 
 async def _slack_turn():
     calls = []
@@ -367,6 +452,159 @@ check("Slack turn: status message, then the answer, both in the thread",
 check("Slack turn: answer converted to mrkdwn", posts and posts[-1]["text"] == "*Revenue* up 12%", posts)
 check("Slack turn: status message becomes the tool trail",
       updates and "pos_statistics" in updates[-1]["text"], updates)
+
+# ============================================================
+# 8c. Slack parity audit (2026-11-20)
+# ============================================================
+check("Slack outbound: & < > escaped, line-start quote kept, links still links",
+      slack_bot.md_to_mrkdwn("> q a<b & c>d [s](https://x.io/?a=1&b=2)")
+      == "> q a&lt;b &amp; c&gt;d <https://x.io/?a=1&amp;b=2|s>")
+check("Slack inbound: mentions, channels, links and entities read as typed",
+      slack_bot.inbound_text("hi <@U1> in <#C9|sales> <!here> <https://x.io|x.io> "
+                             "<https://a.b|docs> a &lt; b &amp; c", {"U1": "Kim"})
+      == "hi @Kim in #sales @here https://x.io docs (https://a.b) a < b & c")
+
+
+class FakeApi(slack_bot.SlackBot):
+    """Records Web API calls; answers conversations.* from small tables."""
+    def __init__(self, owner=True, replies=None, channels_info=None):
+        super().__init__("xoxb-1 xapp-1", "", None, giau_trang_thai=not owner)
+        self.bot_id = "UBOT"
+        self.calls = []
+        self.replies = replies or {}
+        self.channels_info = channels_info or {}
+        self.dispatched = []
+        self.events = []
+
+        async def event_fn(kind, info):
+            self.events.append((kind, info))
+        self.event_fn = event_fn
+
+    async def _request(self, client, method, token=None, json_body=None, form=None):
+        args = json_body if json_body is not None else (form or {})
+        self.calls.append((method, args))
+        if method == "conversations.replies":
+            return {"ok": True, "messages": self.replies.get(args.get("ts"), [])}
+        if method == "conversations.info":
+            ch = self.channels_info.get(args.get("channel"))
+            return {"ok": True, "channel": ch} if ch else {"ok": False, "error": "missing_scope"}
+        if method == "users.info":
+            return {"ok": True, "user": {"profile": {"display_name": "Kim"}}}
+        return {"ok": True, "ts": "9.9"}
+
+    async def _dispatch(self, client, chat, text, meta=None):
+        self.dispatched.append((chat, text, dict(meta or {})))
+
+
+async def _audit():
+    out = {}
+    # A thread the bot answered before a restart: memory is empty, the API says the bot is in it.
+    p = FakeApi(replies={"5.0": [{"user": "U2", "ts": "5.0"}, {"user": "UBOT", "ts": "5.1"}]},
+                channels_info={"C1": {"id": "C1", "name": "sales"}})
+    await p._on_event(None, {"type": "message", "channel": "C1", "channel_type": "channel", "user": "U2",
+                             "text": "and yesterday?", "ts": "5.2", "thread_ts": "5.0"})
+    await p._on_event(None, {"type": "message", "channel": "C1", "channel_type": "channel", "user": "U2",
+                             "text": "again", "ts": "5.3", "thread_ts": "5.0"})
+    await p._on_event(None, {"type": "message", "channel": "C1", "channel_type": "channel", "user": "U2",
+                             "text": "not ours", "ts": "6.1", "thread_ts": "6.0"})
+    out["dispatched"] = p.dispatched
+    out["replies_calls"] = sum(1 for c in p.calls if c[0] == "conversations.replies")
+    out["info_calls"] = sum(1 for c in p.calls if c[0] == "conversations.info")
+
+    # Channel without channels:read: no name, asked once.
+    q = FakeApi(owner=False)
+    await q._on_event(None, {"type": "app_mention", "channel": "C7", "user": "U2", "text": "<@UBOT> hi", "ts": "7.1"})
+    await q._on_event(None, {"type": "app_mention", "channel": "C7", "user": "U2", "text": "<@UBOT> yo", "ts": "7.2"})
+    out["no_scope_titles"] = [d[2].get("chat_title") for d in q.dispatched]
+    out["no_scope_info_calls"] = sum(1 for c in q.calls if c[0] == "conversations.info")
+
+    # Join / leave.
+    r = FakeApi(owner=False, channels_info={"C3": {"id": "C3", "name": "support"}})
+    await r._on_event(None, {"type": "member_joined_channel", "user": "U9", "channel": "C3"})
+    await r._on_event(None, {"type": "member_joined_channel", "user": "UBOT", "channel": "C3"})
+    await r._on_event(None, {"type": "channel_left", "channel": "C3"})
+    out["events"] = r.events
+    return out
+
+a = run(_audit())
+d = a["dispatched"]
+check("Slack: a thread the bot answered before a restart is still answered",
+      [x[1] for x in d] == ["and yesterday?", "again"] and all(x[2]["reply_to_bot"] for x in d), d)
+check("Slack: a thread the bot never spoke in stays people talking", not any(x[1] == "not ours" for x in d), d)
+check("Slack: each thread is looked up once, not per message", a["replies_calls"] == 2, a["replies_calls"])
+check("Slack: channel name in chat_title, looked up once", d and d[0][2]["chat_title"] == "#sales"
+      and a["info_calls"] == 1, (d, a["info_calls"]))
+check("Slack: the turn carries its own thread", d and d[0][2]["thread_ts"] == "5.0", d)
+check("Slack: no channels:read scope means no name, and one failed lookup only",
+      a["no_scope_titles"] == ["", ""] and a["no_scope_info_calls"] == 1, a)
+check("Slack: bot added to / removed from a channel is reported like Telegram",
+      [(k, i["chat_id"], i["chat_title"]) for k, i in a["events"]]
+      == [("vao_nhom", "C3", "#support"), ("roi_nhom", "C3", "")], a["events"])
+
+
+async def _thread_race():
+    """Turn A (thread 1.0) is running when a message in thread 2.0 of the same channel arrives:
+    A's answer must still go into thread 1.0."""
+    posts = []
+    gate = asyncio.Event()
+
+    async def answer(text, meta, progress):
+        await gate.wait()
+        return {"text": "answer A"}
+
+    bot = slack_bot.SlackBot("xoxb-1 xapp-1", "", answer, giau_trang_thai=True)
+
+    async def fake_api(client, method, token=None, **payload):
+        if method == "chat.postMessage":
+            posts.append(payload)
+        return {"ok": True, "ts": "9.9"}
+    bot._api = fake_api
+    bot._thread["C1"] = "1.0"
+    t = asyncio.create_task(bot._handle_turn(None, "C1", "q A", {"chat_type": "group", "thread_ts": "1.0"}))
+    await asyncio.sleep(0)
+    bot._thread["C1"] = "2.0"          # what _on_event does for the newer message
+    gate.set()
+    await t
+    return posts
+
+posts = run(_thread_race())
+check("Slack: a running answer stays in its own thread when another thread speaks up",
+      [p.get("thread_ts") for p in posts] == ["1.0"], posts)
+
+
+class _Resp:
+    def __init__(self, code, body, headers=None):
+        self.status_code, self._body, self.headers = code, body, headers or {}
+
+    def json(self):
+        return self._body
+
+
+async def _rate_limit():
+    seq = [_Resp(429, {"ok": False, "error": "ratelimited"}, {"Retry-After": "1"}), _Resp(200, {"ok": True, "ts": "1"})]
+
+    class C:
+        n = 0
+
+        async def post(self, *a, **k):
+            C.n += 1
+            return seq.pop(0)
+    bot = slack_bot.SlackBot("xoxb-1 xapp-1", "", None)
+    real_sleep = asyncio.sleep
+    waited = []
+
+    async def no_sleep(s):
+        waited.append(s)
+        await real_sleep(0)
+    slack_bot.asyncio.sleep = no_sleep
+    try:
+        d = await bot._api(C(), "chat.postMessage", channel="C1", text="x")
+    finally:
+        slack_bot.asyncio.sleep = real_sleep
+    return d, C.n, waited
+
+d, n, waited = run(_rate_limit())
+check("Slack: HTTP 429 waits Retry-After and sends again", d.get("ok") and n == 2 and waited == [1], (d, n, waited))
 
 # ============================================================
 # 9. Registry, store and prompt

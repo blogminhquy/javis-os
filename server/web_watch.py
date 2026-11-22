@@ -65,6 +65,16 @@ USER_AGENT = ("Mozilla/5.0 (compatible; JavisWatch/1.0; +https://github.com/blog
 # serve a bare page, so those requests look like the desktop browser the cookies came from.
 BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
               "Chrome/141.0.0.0 Safari/537.36")
+# A browser UA alone is not enough: Facebook (and other sites behind the same kind of bot filter) answers 400 to a
+# page load that lacks the navigation headers every real browser sends, before it even looks at the cookies.
+BROWSER_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
 
 
 # ============================================================
@@ -345,9 +355,11 @@ async def fetch(url: str, cookies: Optional[list] = None) -> tuple[str, str, str
     import httpx
 
     cur = str(url or "").strip()
+    base = {"User-Agent": BROWSER_UA if cookies else USER_AGENT, "Accept-Language": "vi,en;q=0.8"}
+    if cookies:
+        base.update(BROWSER_HEADERS)
     async with httpx.AsyncClient(follow_redirects=False, timeout=httpx.Timeout(30.0, connect=10.0),
-                                 headers={"User-Agent": BROWSER_UA if cookies else USER_AGENT,
-                                          "Accept-Language": "vi,en;q=0.8"}) as cl:
+                                 headers=base) as cl:
         for _ in range(MAX_REDIRECTS + 1):
             await asyncio.to_thread(check_url, cur)
             hdr = {}

@@ -86,7 +86,7 @@ _HOST: Dict[str, Callable] = {}
 
 def gan(chay_socket: Callable, runtime: Callable, luu_luot: Optional[Callable] = None, *,
         models: Optional[Callable] = None, ghim: Optional[Callable] = None, model_cua: Optional[Callable] = None,
-        bao: Optional[Callable] = None) -> None:
+        bao: Optional[Callable] = None, base_url: Optional[Callable] = None) -> None:
     """main gọi một lần: `chay_socket(ws)` là vòng nhận tin của khung chat, `runtime()` trả `_CHAT_RUNTIME`,
     `luu_luot(sid, brain, tin_chu, tra_loi)` (async) lưu một lượt đã có sẵn câu trả lời qua đúng đường lưu lượt
     chat (Lịch sử, nhật ký, tự học) và trả mã tin của câu trả lời.
@@ -98,7 +98,7 @@ def gan(chay_socket: Callable, runtime: Callable, luu_luot: Optional[Callable] =
     _HOST["runtime"] = runtime
     if luu_luot is not None:
         _HOST["luu"] = luu_luot
-    for ten, fn in (("models", models), ("ghim", ghim), ("model_cua", model_cua), ("bao", bao)):
+    for ten, fn in (("models", models), ("ghim", ghim), ("model_cua", model_cua), ("bao", bao), ("base_url", base_url)):
         if fn is not None:
             _HOST[ten] = fn
 
@@ -758,6 +758,199 @@ async def ghi_chep(nguon: str, ten: str = "", hoi: str = "", tra_loi: str = "", 
     return {"ok": True, "id": row["id"], "title": row.get("title") or ""}
 
 
+# ─────────────────────────── coding-agent transcripts ───────────────────────────
+# Owner, 20/11/2026: "hook tự động cho cả Claude Code và Codex". The Gate tools only save what the outside AI chooses
+# to send, and a coding agent busy writing code almost never calls javis_chat_note, so its sessions never reached
+# Javis. `tools/javis-sync/javis_sync.py` runs as a Claude Code Stop hook and as Codex's `notify` program and posts
+# each finished turn (the owner's prompt, the agent's final answer) to POST /chat/external, which lands here. Nothing
+# runs on Javis's side: each turn goes through the same save path as a Gate note (History, memory/conversations, the
+# learning queue), one Javis conversation per outside session, titled "From Claude Code: <project>: <first prompt>".
+
+TRANSCRIPT_SOURCES = {"claude-code": "Claude Code", "codex": "Codex"}
+TRANSCRIPT_BOOK = STATE_DIR / "gate-transcripts.json"   # {"<source>|<session>": {"sid": ..., "seen": [turn ids]}}
+MAX_TRANSCRIPT_TEXT = 8000      # per prompt and per answer; longer text is cut with a marker, never refused
+MAX_TRANSCRIPT_TURNS = 50       # per request; the hook sends what is left on its next run
+MAX_TRANSCRIPT_SEEN = 1000      # turn ids remembered per session, so a retried request never saves a turn twice
+_SESSION_RE = re.compile(r"^[A-Za-z0-9._:@-]{1,200}$")
+_TRANSCRIPT_LOCK = asyncio.Lock()
+
+
+def transcript_block(source: str) -> str:
+    """Head of a saved transcript prompt: the same prefix as `khoi` (the dashboard strips it and shows "from Claude
+    Code"), and it tells the model the answer under it was the outside agent's, not Javis's."""
+    n = ten_nguon(source)
+    return (f"{KHOI_GATE} {n}. Transcript of the owner's own {n} session, saved so Javis keeps the context. The reply "
+            f"saved under this message was written by {n}, not by Javis. Not a request to act.]\n\n")
+
+
+def _transcript_book() -> Dict[str, dict]:
+    try:
+        d = json.loads(TRANSCRIPT_BOOK.read_text(encoding="utf-8"))
+        return {str(k): v for k, v in d.items() if isinstance(v, dict)} if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_transcript_book(d: Dict[str, dict]) -> None:
+    TRANSCRIPT_BOOK.parent.mkdir(parents=True, exist_ok=True)
+    tmp = TRANSCRIPT_BOOK.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(TRANSCRIPT_BOOK)
+
+
+def _transcript_text(value: Any) -> str:
+    """One prompt or answer as stored: secrets masked (it lands in the brain, which is often a git repo), long text cut
+    with a marker that says how much is missing."""
+    import secret_redact
+    s = secret_redact.redact_secrets(str(value or "").replace("\r\n", "\n").strip())
+    if len(s) > MAX_TRANSCRIPT_TEXT:
+        s = s[:MAX_TRANSCRIPT_TEXT].rstrip() + f"\n\n[... {len(s) - MAX_TRANSCRIPT_TEXT} more characters not saved]"
+    return s
+
+
+def _transcript_title(name: str, project: str, first_prompt: str) -> str:
+    words = re.sub(r"\s+", " ", str(first_prompt or "")).strip()
+    project = re.sub(r"\s+", " ", str(project or "")).strip()[:40]
+    head = f"{project}: {_cat(words, 50)}" if project and words else (project or _cat(words, 60) or "session")
+    return _cat(localefmt.chu(f"Từ {name}: {head}", f"From {name}: {head}"), 90)
+
+
+async def log_transcript(source: str, session: str, turns: Any, project: str = "") -> dict:
+    """Save finished turns of an outside coding agent's session into its own Javis conversation. Runs no Javis turn.
+
+    `turns`: [{"id": unique per turn, "user": the owner's prompt, "assistant": the agent's final answer}], oldest
+    first. A turn whose id was saved before is skipped, so the hook can resend after a timeout. Answers
+    {"ok", "id", "title", "saved", "skipped"}, or {"ok": False, "error", "busy"?} (busy: the owner is chatting in that
+    conversation right now; the hook keeps the turns and sends them next time)."""
+    if "luu" not in _HOST:
+        return {"ok": False, "error": "transcripts are not ready"}
+    src = str(source or "").strip().lower()
+    name = TRANSCRIPT_SOURCES.get(src)
+    if not name:
+        return {"ok": False, "error": "source must be one of: " + ", ".join(TRANSCRIPT_SOURCES)}
+    session = str(session or "").strip()
+    if not _SESSION_RE.match(session):
+        return {"ok": False, "error": "session must be 1-200 letters, digits or ._:@-"}
+    if not isinstance(turns, list):
+        return {"ok": False, "error": "turns must be a list"}
+    if len(turns) > MAX_TRANSCRIPT_TURNS:
+        return {"ok": False, "error": f"at most {MAX_TRANSCRIPT_TURNS} turns per request"}
+    clean = []
+    for t in turns:
+        if not isinstance(t, dict):
+            continue
+        user, answer = _transcript_text(t.get("user")), _transcript_text(t.get("assistant"))
+        if user or answer:
+            clean.append((str(t.get("id") or "").strip()[:200], user, answer))
+    st = _store()
+    async with _TRANSCRIPT_LOCK:
+        book = _transcript_book()
+        key = f"{src}|{session}"
+        entry = book.get(key) or {}
+        seen = [str(x) for x in (entry.get("seen") or [])]
+        todo = [t for t in clean if not (t[0] and t[0] in seen)]
+        skipped = len(clean) - len(todo)
+        row = st.get_session(str(entry.get("sid") or "")) if entry.get("sid") else None
+        if not todo:
+            return {"ok": True, "id": (row or {}).get("id") or "", "title": (row or {}).get("title") or "",
+                    "saved": 0, "skipped": skipped}
+        if not row:
+            latest = (st.list_sessions(limit=1) or [{}])[0]
+            sid = st.create_session(brain=latest.get("brain") or "brain", engine="gate", model=name,
+                                    title=_transcript_title(name, project, todo[0][1]), channel="web")
+            row = st.get_session(sid) or {}
+            entry = {"sid": sid, "seen": seen}
+        elif _dang_chay(row["id"]):
+            return {"ok": False, "busy": True,
+                    "error": "the owner is chatting in that conversation right now; send these turns again later"}
+        saved = 0
+        brain = row.get("brain") or "brain"
+        none_said = localefmt.chu(f"({name} không trả lời bằng chữ ở lượt này.)",
+                                  f"({name} gave no text answer in this turn.)")
+        for tid, user, answer in todo:
+            msg = transcript_block(name) + (user or "(no prompt text)")
+            reply = answer or none_said
+            try:
+                await _rt().publish({"type": "external_message", "session_id": row["id"], "content": msg,
+                                     "source": name})
+            except Exception:  # noqa: BLE001 - an open tab missing one live bubble must not lose the turn
+                pass
+            mid = await _HOST["luu"](row["id"], brain, msg, reply)
+            if not mid:
+                break
+            try:
+                import sessions
+                await _rt().publish({"type": "push", "content": reply, "session_id": row["id"],
+                                     "message_id": int(mid), "content_sha": sessions.content_sha(reply)})
+            except Exception:  # noqa: BLE001
+                pass
+            saved += 1
+            if tid:
+                seen.append(tid)
+        entry["sid"] = row["id"]
+        entry["seen"] = seen[-MAX_TRANSCRIPT_SEEN:]
+        book[key] = entry
+        _save_transcript_book(book)
+    if saved < len(todo):
+        return {"ok": False, "error": "a turn was not saved", "id": row["id"], "saved": saved, "skipped": skipped}
+    return {"ok": True, "id": row["id"], "title": row.get("title") or "", "saved": saved, "skipped": skipped}
+
+
+SYNC_SCRIPT_URL = "https://raw.githubusercontent.com/blogminhquy/javis-os/main/tools/javis-sync/javis_sync.py"
+MAX_SYNC_TOKENS = 20
+_URL_RE = re.compile(r"^https?://[A-Za-z0-9.-]+(:\d{1,5})?(/[^\s'\"]*)?$")
+
+# Sent with `initialize` at the Gate door only (MCP `instructions`): the owner wants "connect Gate and that's it", but a
+# Gate cannot see the outside chat (MCP only shows it the tool calls), so a coding agent with a shell sets up the hook
+# itself, after one yes from the owner.
+GATE_INSTRUCTIONS = (
+    "This server is the owner's Javis, their personal assistant. Javis keeps context from the owner's other AI chats. "
+    "If you are a coding agent with a shell (Claude Code, Codex) and the file ~/.javis-sync/config.json does not exist "
+    "on this machine, ask the owner once, in their language, whether to turn on Javis Sync (every turn of this coding "
+    "agent saved into Javis automatically). If they agree, call javis_sync_setup and run the command it returns. Do not "
+    "ask again in this session if they decline. Without Javis Sync, call javis_chat_note when the owner settles "
+    "something worth remembering.")
+
+
+def sync_setup(source: str, javis_url: str = "", system: str = "", gate_url: str = "") -> dict:
+    """Javis Gate: mint a `sync` API token and give the outside AI the one command that installs Javis Sync on its
+    machine. The token reaches only POST /chat/external, which saves transcripts: what javis_chat_note does already.
+
+    Address order: `javis_url` from the AI, then `gate_url` (the public address the Gate package answered on, the one
+    the AI already reaches, javis.gate 2.2.3+), then this server's own guess (`_gate_base_url` in main)."""
+    import config as cfgmod
+    url = str(javis_url or "").strip().rstrip("/") or str(gate_url or "").strip().rstrip("/")
+    if not url and "base_url" in _HOST:
+        try:
+            url = str(_HOST["base_url"]() or "").strip().rstrip("/")
+        except Exception:  # noqa: BLE001 - an unknown address asks the AI for it below
+            url = ""
+    if not url:
+        return {"ok": False, "error": (
+            "Javis does not know its public address. Call javis_sync_setup again with javis_url = the scheme and host "
+            "of this MCP server's URL in your own MCP config (for example https://javis.example.com).")}
+    if not _URL_RE.match(url):
+        return {"ok": False, "error": "javis_url must look like https://javis.example.com"}
+    mine = [t for t in cfgmod.list_api_tokens() if t.get("scope") == "sync"]
+    if len(mine) >= MAX_SYNC_TOKENS:
+        return {"ok": False, "error": (
+            f"Javis already has {len(mine)} Javis Sync tokens. Ask the owner to revoke unused ones on the Integrations "
+            "page, API tokens tab, then try again.")}
+    tok = cfgmod.create_api_token(f"Javis Sync ({ten_nguon(source)})", "sync")["token"]
+    win = str(system or "").strip().lower().startswith("win")
+    if win:
+        cmd = (f"irm {SYNC_SCRIPT_URL} -OutFile $env:TEMP\\javis_sync.py; "
+               f"python $env:TEMP\\javis_sync.py install --url {url} --token {tok}")
+    else:
+        cmd = (f"curl -fsSL {SYNC_SCRIPT_URL} -o /tmp/javis_sync.py && "
+               f"python3 /tmp/javis_sync.py install --url {url} --token {tok}")
+    return {"ok": True, "command": cmd, "shell": "powershell" if win else "sh",
+            "how": ("Run the command in a shell on THIS machine (it adds a Claude Code Stop hook and a Codex notify "
+                    "line, with backups, and tests the connection first), then tell the owner in one or two "
+                    "sentences that Javis Sync is on and sessions show up in Javis History as 'From Claude Code: ...' "
+                    "or 'From Codex: ...' after the agent restarts. Do not repeat the token in chat.")}
+
+
 # ─────────────────────────── tool cho cửa Gate ───────────────────────────
 
 _ID = {"type": "string", "description": "Conversation id from javis_chat_find."}
@@ -842,6 +1035,17 @@ TOOLS: Dict[str, dict] = {
             "decided": {"type": "string", "description": "What the owner decided, and why. Empty if nothing yet."},
             "id": {"type": "string", "description": "Optional: a Javis conversation id to note into instead."}}},
     },
+    "javis_sync_setup": {
+        "muc": "ghi",
+        "description": (
+            "Turn on Javis Sync on this machine: every Claude Code / Codex turn (the owner's prompt and your final "
+            "answer) then saves into Javis automatically, through a Stop hook / notify program. Call it when the owner "
+            "agrees to Javis Sync or asks for it, then run the returned command in your shell. Pass javis_url only if "
+            "the tool asks for it; system='windows' on Windows."),
+        "schema": {"type": "object", "properties": {
+            "javis_url": {"type": "string", "description": "Optional: Javis's address, e.g. https://javis.example.com."},
+            "system": {"type": "string", "description": "Optional: 'windows' for a PowerShell command."}}},
+    },
     "javis_chat_result": {
         "muc": "doc",
         "description": (
@@ -883,7 +1087,7 @@ def _so(v: Any, mac_dinh: int) -> int:
         return mac_dinh
 
 
-async def goi_tool(ten: str, args: Optional[dict], mode: str, nguon: str) -> str:
+async def goi_tool(ten: str, args: Optional[dict], mode: str, nguon: str, base_url: str = "") -> str:
     """Chạy một tool Gate, trả chuỗi (JSON) như mọi tool của hub. Lỗi bắt đầu bằng `ERROR:`."""
     a = args if isinstance(args, dict) else {}
     t = TOOLS.get(ten)
@@ -901,6 +1105,8 @@ async def goi_tool(ten: str, args: Optional[dict], mode: str, nguon: str) -> str
         elif ten == "javis_chat_note":
             kq = await ghi_chep(nguon, str(a.get("title") or ""), str(a.get("asked") or ""),
                                 str(a.get("answered") or ""), str(a.get("decided") or ""), str(a.get("id") or ""))
+        elif ten == "javis_sync_setup":
+            kq = sync_setup(nguon, str(a.get("javis_url") or ""), str(a.get("system") or ""), base_url)
         elif ten == "javis_chat_models":
             kq = ds_model(str(a.get("id") or ""), str(a.get("query") or ""))
         elif ten == "javis_chat_updates":

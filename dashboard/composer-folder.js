@@ -39,6 +39,7 @@
   if (typeof document === "undefined") return;
 
   var state = createPinState(), folder = null, inBrain = false, extras = [];
+  var XIC = '<svg class="cp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   function tw(k, v) { return window.t ? window.t(k, v) : k; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function brain() { try { return (window.JavisSessions && window.JavisSessions.brain()) || "brain"; } catch (e) { return "brain"; } }
@@ -68,29 +69,41 @@
   function announce() {
     try { window.dispatchEvent(new CustomEvent("javis:pinned-folder-changed", { detail: { sid: sid(), folder: folder } })); } catch (e) {}
   }
+  // The row under the composer card (#cpCtx, owner 21/11/2026), first in it, before the GitHub repos. It hides while
+  // empty, and with a folder AND repos pinned a phone shows both as icons only (.is-two; same rule in github-connect.js).
+  function syncCtx(host) {
+    host.hidden = !host.children.length;
+    host.classList.toggle("is-two", host.children.length > 1);
+  }
   function renderChip() {
-    var host = document.getElementById("cpChips");
+    var host = document.getElementById("cpCtx");
     if (!host) return;
     var chip = document.getElementById("pinChip");
-    if (!folder) { if (chip) chip.remove(); return; }
+    if (!folder) { if (chip) chip.remove(); syncCtx(host); return; }
+    // 21/11/2026 (owner: "cho anh nút x rõ ràng khi ghim ở khung chat"): the chip is a group, as the repo chip next
+    // to it (github-connect.js). The name opens the panel; the X at its far end unpins, one tap instead of three.
     if (!chip) {
-      chip = document.createElement("button");
-      chip.type = "button"; chip.id = "pinChip"; chip.className = "cp-pin";
+      chip = document.createElement("span");
+      chip.id = "pinChip"; chip.className = "cp-pin";
       chip.addEventListener("click", function (e) {
         e.stopPropagation();
+        if (e.target && e.target.closest && e.target.closest(".cp-pin-x")) {
+          pin("").then(function (msg) { if (msg && window.JavisAttach) window.JavisAttach.note(msg); });
+          return;
+        }
         if (window.JavisComposerMenu) window.JavisComposerMenu.openItem("folder");
       });
     }
-    // 0.329.0: right after the plan usage ring, which took the old bolt's place.
-    var ring = document.getElementById("limitBtn");
-    if (chip.parentElement !== host || chip.previousElementSibling !== ring) host.insertBefore(chip, ring ? ring.nextSibling : null);
+    if (chip.parentElement !== host || chip.previousElementSibling) host.insertBefore(chip, host.firstChild);
+    syncCtx(host);
     chip.classList.toggle("cp-pin-gone", folder.exists === false);
     chip.title = folder.path + (folder.exists === false ? "\n" + tw("cp.pin_gone") : "") + (inBrain ? "" : "\n" + tw("cp.pin_outside")) +
       (extras.length ? "\n" + tw("cp.pin_extra", { names: extras.join(", ") }) : "");
-    chip.setAttribute("aria-label", tw("cp.pin_folder") + ": " + folder.name);
     // Extra folders bound before 0.158.0 still reach the prompt: show them as +N instead of hiding them.
-    chip.innerHTML = icon() + "<span>" + esc(chipLabel(folder.name, narrow() ? 10 : 18)) + "</span>" +
-      (extras.length ? '<span class="cp-pin-more">+' + extras.length + "</span>" : "");
+    chip.innerHTML = '<button type="button" class="cp-pin-open" aria-label="' + esc(tw("cp.pin_folder") + ": " + folder.name) + '">' +
+      icon() + "<span>" + esc(chipLabel(folder.name, narrow() ? 28 : 44)) + "</span>" +
+      (extras.length ? '<span class="cp-pin-more">+' + extras.length + "</span>" : "") + "</button>" +
+      '<button type="button" class="cp-pin-x" title="' + esc(tw("cp.pin_unpin")) + '" aria-label="' + esc(tw("cp.pin_unpin")) + '">' + XIC + "</button>";
   }
   function apply(d) {
     folder = (d && d.folder) || null;

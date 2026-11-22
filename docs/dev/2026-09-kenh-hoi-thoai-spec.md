@@ -14,7 +14,7 @@ Trước 0.61.0, "kiến thức về một kênh" nằm rải ở tám chỗ (`c
 
 ## Bộ giám sát
 
-`chatbot_runtime._RUNNING[bot_id] = {"pollers": {account_id: transport}, ...}`: mỗi tài khoản một poller. Callback của poller được bọc bằng `_gan_tai_khoan` để MỌI meta mang `account_id`; `_su_kien_bot` ghi vào kho theo tài khoản đó, `che_do` (tiếp quản) cũng tra theo tài khoản đó. `status(bot_id)` trả trạng thái XẤU NHẤT làm trạng thái chung, kèm `accounts: [...]` từng poller.
+`chatbot_runtime._RUNNING[bot_id] = {"pollers": {account_id: transport}, ...}`: mỗi tài khoản một poller. Callback của poller được bọc bằng `_gan_tai_khoan` để MỌI meta mang `account_id`; `_bot_event` ghi vào kho theo tài khoản đó, `che_do` (tiếp quản) cũng tra theo tài khoản đó. `status(bot_id)` trả trạng thái XẤU NHẤT làm trạng thái chung, kèm `accounts: [...]` từng poller.
 
 ## API
 

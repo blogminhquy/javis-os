@@ -1,4 +1,4 @@
-<!-- translated-from: QUICKSTART.en.md sha256:2f4928f341af -->
+<!-- translated-from: QUICKSTART.en.md sha256:338011fb77ad -->
 # Javis OS - Быстрый старт
 
 *[English](../../../QUICKSTART.en.md) · [Tiếng Việt](../../../QUICKSTART.md) · [简体中文](../zh/QUICKSTART.md) · [Español](../es/QUICKSTART.md) · [日本語](../ja/QUICKSTART.md) · [हिन्दी](../hi/QUICKSTART.md) · [Português](../pt-BR/QUICKSTART.md) · [한국어](../ko/QUICKSTART.md) · **Русский** · [Deutsch](../de/QUICKSTART.md) · [Français](../fr/QUICKSTART.md) · [Bahasa Indonesia](../id/QUICKSTART.md)*
@@ -11,13 +11,31 @@
 
 Установите Javis как обычное приложение: скачайте один файл, откройте его, и у вас появится значок JAVIS OS для ежедневного запуска. Установщик проверяет, чего не хватает на компьютере (Git, Python, Node, ИИ-движки), и ставит только это.
 
-- **Windows 10/11:** скачайте [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe), дважды щёлкните и нажимайте Next до конца. Чёрное окно показывает ход установки (несколько минут). После этого на рабочем столе и в меню «Пуск» появится значок JAVIS OS.
-- **macOS 11 и новее:** скачайте [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg), откройте, перетащите **JAVIS OS** в **Applications** и запустите из Launchpad. В первый раз откроется Терминал для установки (он может один раз попросить создать учётную запись администратора Javis и ввести пароль Mac).
+- **Windows 10/11:** скачайте [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe), дважды щёлкните и нажимайте Next до конца. Ход установки показывается прямо в окне Setup, шаг за шагом (несколько минут), без отдельного чёрного окна. После этого на рабочем столе и в меню «Пуск» появится значок JAVIS OS.
+- **macOS 11 и новее:** откройте **Терминал** (Launchpad, введите Terminal), вставьте эту строку и нажмите Enter. При такой установке macOS не показывает предупреждений:
+  ```
+  curl -fsSL https://raw.githubusercontent.com/blogminhquy/javis-os/main/packaging/macos/get-javis.sh | bash
+  ```
+  Команда скачивает Javis, копирует **JAVIS OS** в **Applications** и устанавливает его прямо в этом окне Терминала (она может один раз попросить создать учётную запись администратора Javis и ввести пароль Mac). После этого откройте JAVIS OS из Launchpad.
+
+  Удобнее файл? Скачайте [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg), откройте, перетащите **JAVIS OS** в **Applications** и запустите из Launchpad. Файл пока не подписан Apple Developer ID, поэтому macOS заблокирует первый запуск: как его разрешить, написано ниже, в разделе о заблокированных загрузках.
 
 По щелчку на значке Javis открывается в отдельном окне (без адресной строки), запускается вместе с компьютером, а кнопка **Update** в приложении работает как обычно. Данные хранятся в папке `JavisOS` в папке пользователя; удаление приложения эту папку не трогает.
 
-Оба установщика пока не подписаны, поэтому компьютер один раз переспросит:
+**Windows: установка без экрана предупреждения (рекомендуется).** Установщик для Windows пока не подписан, поэтому загрузку через браузер в первый раз блокируют. Вместо этого вставьте одну строку, и вы получите тот же установщик с логотипом Javis, без блокировки: нажмите «Пуск», введите `PowerShell`, откройте его, вставьте эту строку и нажмите Enter:
+```
+irm https://raw.githubusercontent.com/blogminhquy/javis-os/main/packaging/windows/get-javis.ps1 | iex
+```
+
+Что установщики меняют на компьютере, кто их подписывает и что Javis отправляет и куда: [Code signing policy](../../../docs/code-signing-policy.md) · [Privacy policy](../../../PRIVACY.md) (на английском).
+
+Если вы уже скачали файл браузером и его заблокировали:
+- Edge или Chrome пишет "JavisOS-Setup.exe isn't commonly downloaded" и не сохраняет файл: в окне Downloads наведите курсор на эту строку, нажмите на три точки, выберите **Keep**, затем **Show more** и **Keep anyway**.
 - Windows пишет "Windows protected your PC": нажмите **More info**, затем **Run anyway**.
+- Антивирус удаляет файл, или Windows блокирует его без кнопки **Run anyway** (включён Smart App Control): установите без .exe. Установите [Git](https://git-scm.com/download/win), откройте PowerShell, вставьте эту строку и нажмите Enter. По окончании Javis откроется по адресу http://localhost:7777 и будет запускаться вместе с компьютером:
+  ```
+  git clone https://github.com/blogminhquy/javis-os.git "$env:USERPROFILE\JavisOS"; cd "$env:USERPROFILE\JavisOS"; powershell -ExecutionPolicy Bypass -File install.ps1
+  ```
 - macOS сообщает, что не может открыть приложение: откройте **System Settings → Privacy & Security**, прокрутите вниз, нажмите **Open Anyway** и снова откройте JAVIS OS.
 
 ## Вариант 1 - VPS на Hostinger (Docker Manager, в один клик)

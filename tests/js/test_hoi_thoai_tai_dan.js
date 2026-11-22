@@ -59,7 +59,7 @@ check("CANARY: chỉ vẽ lại phần đầu khung khi chữ ký đổi, hoặc
 check("chữ ký gồm mọi thứ phần đầu khung phụ thuộc (chế độ, bot chạy, lý do im, tin cuối do ai gửi)",
   /function metaSig\(\)/.test(CV) && /c\.mode, c\.bot_id, c\.bot_name/.test(CV) && /_silence, _running, u\.sender_type/.test(CV));
 check("chèn tin mới trước dòng 'Bot im', và chỉ trượt theo khi người đọc đang ở đáy", /sil\.insertAdjacentHTML\("beforebegin", html\)/.test(CV) &&
-  /var oDay = m\.scrollHeight - m\.scrollTop - m\.clientHeight < 80;\s*\n\s*var html = moi\.map\(veTin\)/.test(CV) && /if \(oDay\) m\.scrollTop = m\.scrollHeight;/.test(CV));
+  /var oDay = m\.scrollHeight - m\.scrollTop - m\.clientHeight < 80;\s*\n\s*var html = moi\.map\(renderMessage\)/.test(CV) && /if \(oDay\) m\.scrollTop = m\.scrollHeight;/.test(CV));
 check("vẽ lại cả khung khi cần thì giữ nguyên chỗ đang đọc (đo theo đáy), không kéo về đầu", /var tuDay = cuon \? cuon\.scrollHeight - cuon\.scrollTop : 0;/.test(CV) &&
   /else if \(cuon\) m\.scrollTop = m\.scrollHeight - tuDay;/.test(CV));
 
@@ -67,7 +67,7 @@ check("vẽ lại cả khung khi cần thì giữ nguyên chỗ đang đọc (đ
 check("kéo gần đầu khung hoặc bấm nút thì tải 40 tin cũ hơn theo con trỏ before", /m\.onscroll = function \(\) \{ if \(_conCu && m\.scrollTop < 120\) taiCu\(\); \};/.test(CV) &&
   /"\/messages\?before=" \+ _msgs\[0\]\.id \+ "&limit=" \+ TIN_TRANG/.test(CV) && /class="ht-older"/.test(CV));
 check("CANARY: chèn tin cũ lên đầu rồi giữ chỗ bằng cách đo theo ĐÁY khung", /var tuDay = m2\.scrollHeight - m2\.scrollTop;/.test(CV) &&
-  /m2\.scrollTop = m2\.scrollHeight - tuDay;/.test(CV) && /insertAdjacentHTML\("afterbegin", nutTinCu\(\) \+ cu\.map\(veTin\)\.join\(""\)\)/.test(CV));
+  /m2\.scrollTop = m2\.scrollHeight - tuDay;/.test(CV) && /insertAdjacentHTML\("afterbegin", nutTinCu\(\) \+ cu\.map\(renderMessage\)\.join\(""\)\)/.test(CV));
 check("chỉ một lượt tải tin cũ chạy một lúc, và bỏ kết quả nếu đã sang hội thoại khác", /if \(_dangTaiCu \|\| !_conCu \|\| !_chon \|\| !_msgs\.length \|\| !_host\) return;/.test(CV) &&
   /if \(_chon !== id\) \{ _dangTaiCu = false; return; \}/.test(CV));
 check("tin còn ngắn chưa cuộn được thì tải tiếp, nhưng CANARY: chỉ khi khung đã đo được", /_conCu && m\.clientHeight > 0 && m\.scrollHeight <= m\.clientHeight \+ 40\) taiCu\(\)/.test(CV) &&

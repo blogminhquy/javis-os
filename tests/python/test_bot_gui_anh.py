@@ -90,6 +90,16 @@ nhieu = " ".join(f"![](attachments/{x})" for x in ("a.jpg", "b.png", "c.webp", "
 t, f = bot_images.pick(nhieu, B)
 check("tối đa 4 ảnh mỗi lần, ảnh thứ 5 ở lại trong chữ",
       len(f) == bot_images.MAX_IMAGES == 4 and t == "![](attachments/e.jpeg)", (t, len(f)))
+# The cap is 4 unless the machine sets JAVIS_BOT_MAX_IMAGES (issue #1634), clamped to 1..20.
+check("image cap from the environment: unset, empty or junk gives 4",
+      [bot_images.max_images_from_env(x) for x in ("", "  ", "abc", "4.5")] == [4, 4, 4, 4])
+check("image cap from the environment: a number is used, clamped to 1..20",
+      [bot_images.max_images_from_env(x) for x in ("12", " 20 ", "0", "-3", "500")] == [12, 20, 1, 1, 20])
+_cap = bot_images.MAX_IMAGES
+bot_images.MAX_IMAGES = 5
+t, f = bot_images.pick(nhieu, B)
+bot_images.MAX_IMAGES = _cap
+check("a raised cap sends the fifth image too", len(f) == 5 and t == "", (t, len(f)))
 t, f = bot_images.pick("![](attachments/a.jpg) ![](attachments/a.jpg)", B)
 check("cùng một ảnh viết hai lần chỉ gửi một lần", len(f) == 1 and t == "", (t, f))
 

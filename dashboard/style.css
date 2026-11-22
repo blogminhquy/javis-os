@@ -1588,6 +1588,13 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 }
 /* 0.354.0: the turn moved to the next route (out of quota). Stays in the chat, readable on a phone. */
 .msg-ghichu.msg-doiduong { font-size: 16px; opacity: 1; padding: 4px 12px; }
+/* 2026-11-20: a chat that could not be brought up to date says so, with a Retry button (app.js _showOpenNotice).
+   Readable on a phone, wraps instead of overflowing. */
+.msg-ghichu.msg-open-notice { font-size: 16px; opacity: 1; padding: 6px 12px; display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: center; gap: 8px; color: var(--text2, var(--text3)); }
+.msg-open-notice .older-btn { font-size: 15px; padding: 5px 16px; color: var(--accent); border-color: var(--accent); }
+/* A stored message the renderer could not draw, shown as plain text instead of cutting the chat short. */
+.msg-plain .bubble { white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Trả lời của lệnh "/" hệ thống (/status, /usage, /tasks...). Nền nhạt, chữ nhỏ hơn và viền
    trái màu nhấn: nhìn ra ngay đây là KẾT QUẢ LỆNH của giao diện chứ không phải lời của model. */
 .msg-lenh .bubble {
@@ -1644,24 +1651,48 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .voice-focus-resume[hidden] { display: none; }
 .hud-voice {
   position: relative;
-  /* One rounded card in the style of Claude (0.153.0): attachments, text box and button row stacked.
-     Each child stretches to full width (align-self: stretch below); flex-end keeps children from
-     drifting to the middle when the card grows. */
-  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
-  margin: 4px 16px 16px; padding: 10px 12px 8px;
+  /* One rounded card in the style of Claude (0.153.0). ONE row since 21/11/2026 (owner: "text khởi đầu ngang hàng và ở
+     giữa luôn nút + với các nút cho gọn"): "+", the text box, then mic and send, on one centre line; attached files on
+     a row above them. A longer text grows the card and the buttons stay on its last line. The row under the card
+     (#cpUnder) hangs below the border, so the bottom margin keeps its room (--cp-under-h). Owner, 21/11/2026 ("còn thừa
+     quá nhiều khung bên dưới"): that room is now exactly the row (2px gap + 34px chips) and only 4px more below it. */
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; column-gap: 6px; row-gap: 0;
+  --cp-under-h: 36px;
+  margin: 4px 16px calc(4px + var(--cp-under-h)); padding: 6px 8px;
   border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
   transition: border-color .15s;
 }
-.hud-voice > * { align-self: stretch; }
+.hud-voice > * { grid-column: 1 / -1; }
+.hud-voice > .cp-row { display: contents; }
+.hud-voice > .voice-input { grid-column: 2; grid-row: 2; min-height: 40px; padding: 8px 4px; line-height: 24px; }
+.hud-voice .cp-plus { grid-column: 1; grid-row: 2; margin-bottom: 4px; }
+.hud-voice .cp-right { grid-column: 3; grid-row: 2; display: flex; align-items: center; gap: 6px; min-height: 40px; }
+.hud-voice > .attach-bar { grid-row: 1; }
+/* Under the card, outside its border: what the chat works on on the left, model, Effort and usage on the right. */
+.cp-under { position: absolute; top: calc(100% + 2px); left: -1px; right: -1px; display: flex; align-items: center;
+  justify-content: space-between; gap: 8px; min-width: 0; padding: 0 4px; }
+.cp-ctx { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
+.cp-ctx[hidden] { display: none; }
+.cp-under .cp-chips { flex: none; margin-left: auto; gap: 2px; }
+.cp-under .cp-ctx .cp-pin { height: 34px; font-size: 14px; border-color: transparent;
+  background: transparent; color: var(--text2); max-width: 100%; min-width: 0; }
+.cp-under .cp-ctx .cp-pin-open { gap: 6px; }
+.cp-under .cp-ctx .cp-pin-open:hover, .cp-under .cp-ctx .cp-pin-open:focus-visible { background: var(--bg3); }
+.cp-under .cp-ctx .cp-pin.gh-chip { max-width: 100%; }
+.cp-under .cp-ctx .gh-chip-br { font-size: 13px; max-width: 140px; }
+.cp-under .mb-chip, .cp-under .cp-eff { height: 34px; padding: 0 10px; font-size: 14px; background: transparent;
+  border-color: transparent; font-weight: 500; }
+.cp-under .mb-chip { color: var(--text); }
+.cp-under .cp-eff { color: var(--text2); }
+.cp-under .mb-chip:hover, .cp-under .cp-eff:hover, .cp-under .cp-eff[aria-expanded="true"] { background: var(--bg3); border-color: transparent; }
+.cp-under .cp-limit { width: 34px; height: 34px; }
 .hud-voice:focus-within { border-color: var(--accent-line); }
 /* The attachment strip sits inside the card: drop the 20px side margin of the full-width strip. Written as
    .has-items.attach-bar (not .attach-bar.has-items) so the base block below stays the first with that name. */
 .hud-voice .attach-bar { padding: 0 2px; }
 .hud-voice .has-items.attach-bar { padding: 2px 2px 6px; }
 .model-bar:empty { display: none; }
-.cp-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .cp-chips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; }
-.cp-gap { flex: 1 1 auto; }
 /* The suggestion is drawn on a mirror layer over the box (2026-11-13), same font, padding and width (chat-suggest.js
    copies them): the typed part unseen, only there to take up its room, then the rest in grey exactly where the typed
    text ends. An empty box is drawn the same way and hides its own placeholder text (.sug-ghosted), so a long
@@ -1737,19 +1768,32 @@ textarea.sug-ghosted::placeholder { color: transparent; }
   .eff-fast[aria-pressed="true"], .eff-fast[aria-pressed="true"] svg { animation: none; }
 }
 /* Pinned working folder chip, right after the usage ring (composer-folder.js, 0.158.0). */
-.cp-pin { display: inline-flex; align-items: center; gap: 5px; height: 30px; max-width: 190px; padding: 0 10px;
+/* 21/11/2026 (owner: "cho anh nút x rõ ràng khi ghim ở khung chat"): the chip is a group. .cp-pin-open (icon and
+   name) opens the panel, .cp-pin-x at the far end removes the pin; the repo chip keeps its status icon between them. */
+.cp-pin { display: inline-flex; align-items: center; gap: 0; height: 30px; max-width: 190px; padding: 0;
   border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text2);
-  font: inherit; font-size: 12.5px; cursor: pointer; flex: 0 1 auto; min-width: 0; }
-.cp-pin:hover, .cp-pin:focus-visible { border-color: var(--accent); color: var(--text); }
+  font: inherit; font-size: 12.5px; flex: 0 1 auto; min-width: 0; }
+.cp-pin-open { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; height: 100%; padding: 0 4px 0 10px;
+  border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.cp-pin-open:hover, .cp-pin-open:focus-visible { color: var(--text); outline: none; }
 .cp-pin .cp-ic { width: 14px; height: 14px; flex: none; }
 .cp-pin span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The X: a round mark that is always drawn, never only on hover (a phone has no hover). Its tap area is wider than
+   the mark, and on a touch screen reaches 44px tall through ::after. */
+.cp-pin-x { position: relative; flex: none; display: grid; place-items: center; width: 30px; height: 100%; padding: 0; border: 0;
+  background: transparent; color: var(--text2); cursor: pointer; }
+.cp-pin .cp-pin-x .cp-ic { box-sizing: border-box; width: 22px; height: 22px; padding: 5px; border-radius: 50%; background: var(--bg3); }
+.cp-pin-x:hover .cp-ic, .cp-pin-x:focus-visible .cp-ic { background: var(--danger-wash); color: var(--danger-ink); }
+.cp-pin-x:focus-visible { outline: none; }
+.cp-pin.is-busy { opacity: .55; pointer-events: none; }
+@media (pointer: coarse) { .cp-pin-x { width: 34px; } .cp-pin-x::after { content: ""; position: absolute; inset: -5px 0; } }
 .cp-pin-gone span { text-decoration: line-through; opacity: .7; }
 .cp-pin-err { color: var(--warn-ink); font-size: 12.5px; padding: 4px 10px; }
 .cp-pin-more { flex: none; font-size: 11.5px; color: var(--text3); }
 .cp-pin-current { cursor: default; color: var(--text); }
 .cp-pin-current:hover { background: transparent; }
 .cp-pin-err:empty { display: none; }
-@media (max-width: 860px) { .cp-pin { max-width: 120px; padding: 0 8px; } }
+@media (max-width: 860px) { .cp-pin { max-width: 120px; } .cp-pin-open { padding: 0 3px 0 8px; } }
 .mic-big {
   background: transparent; border: 1px solid transparent; color: var(--text2);
   width: 34px; height: 34px; border-radius: 50%; cursor: pointer; flex-shrink: 0;
@@ -1777,11 +1821,17 @@ textarea.sug-ghosted::placeholder { color: transparent; }
    While recording the row swaps to the dictation bar: X, live level meter, timer, stop square, then send. */
 .dict-bar { display: none; flex: 1 1 auto; min-width: 0; align-items: center; gap: 8px; height: 34px; }
 .hud-voice.dictating .dict-bar { display: flex; }
-.hud-voice.dictating .cp-plus, .hud-voice.dictating .cp-chips, .hud-voice.dictating .cp-gap,
+.hud-voice.dictating .cp-plus, .hud-voice.dictating .cp-under,
 .hud-voice.dictating .dict-btn, .hud-voice.dictating #voiceBtn { display: none; }
+/* One-row card (21/11/2026): while recording the text takes the whole first line and the dictation bar the second. */
+.hud-voice.dictating > .voice-input { grid-column: 1 / -1; }
+.hud-voice.dictating .cp-right { grid-column: 1 / -1; grid-row: 3; }
 /* 0.231.0: send is hidden while the box is empty (voice chat takes its place), but while dictating it is the
    "stop and send" button, so it stays even before the first word lands. */
 .hud-voice.dictating #sendBtn { display: flex !important; }
+/* 2026-11-19 (owner): Stop and send share one spot while Javis works. Dictating is typing by voice, so Stop steps aside
+   for send here too, even before the first words reach the box. */
+.hud-voice.dictating #stopBtn { display: none !important; }
 /* The voice chat button sits where send appears, so it wears the same filled circle: one spot, two jobs. In a call
    it turns red (.in-call) as before. */
 #voiceBtn:not(.in-call):not(.handsfree) { background: var(--accent-solid); color: var(--on-accent); border-color: transparent; }
@@ -1831,11 +1881,20 @@ textarea.sug-ghosted::placeholder { color: transparent; }
    a computer (it sat in the page header from 0.182.0); its picker opens above the card and never runs past the screen. ===== */
 @media (max-width: 860px) {
   .hud-voice {
-    margin: 6px 10px 8px; padding: 8px 8px 6px; gap: 2px;
+    margin: 6px 10px calc(4px + var(--cp-under-h)); padding: 5px 6px;
     border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
-    align-items: flex-end;
   }
-  .hud-voice .voice-input { min-height: 36px; max-height: 40vh; padding: 6px 6px; font-size: 16px; }
+  .hud-voice .voice-input { min-height: 40px; max-height: 40vh; padding: 8px 4px; font-size: 16px; }
+  .cp-under { padding: 0 2px; }
+  /* Folder AND repos pinned (owner, 21/11/2026): two names do not fit beside the model pill, so both chips show their
+     icon only. The names stay in their tooltip and their panel, a tap away. One pin alone keeps its name.
+     Each icon keeps its X (same day: "cho anh nút x rõ ràng"), so a pin never needs its panel to come off. */
+  .cp-ctx.is-two .cp-pin { flex: none; }
+  .cp-ctx.is-two .cp-pin-open { width: 36px; padding: 0; justify-content: center; }
+  .cp-ctx.is-two .cp-pin-open > span, .cp-ctx.is-two .cp-pin > .gh-st { display: none; }
+  .cp-ctx.is-two .cp-pin-open > svg { width: 18px; height: 18px; }
+  /* Under the card the pill sits on the page, not in the card: no fill, the outline alone (as in the approved mock). */
+  .cp-under #cpChips > .cp-limit, .cp-under #cpChips > .mb-chip, .cp-under #cpChips > .cp-eff { background: transparent; }
   .hud-voice .mb-pop { width: min(340px, calc(100vw - 32px)); }
 
   /* ONE PILL (owner, 11/11/2026: model, Effort and plan usage "gọn hơn" on a phone). The ring, the model chip and the
@@ -2704,6 +2763,10 @@ textarea.sug-ghosted::placeholder { color: transparent; }
    of the screen in view, so the first rows are never cut off. model-picker.js (POP_ANCHOR) sets both values. */
 .hud-voice .mb-pop, .hud-voice .eff-pop, .hud-voice .cp-menu { bottom: var(--cp-pop-bottom, calc(100% + 6px)); }
 .hud-voice .mb-pop { max-height: min(62vh, var(--cp-pop-room, 62vh)); }
+/* 21/11/2026: model, Effort and plan usage open right above their chips under the card, over the card (owner: "khi ấn
+   vào model nó phải hiện model ở trên khung chọn model"). Written after the rules above so it wins at equal weight. */
+.hud-voice .mb-pop, .hud-voice .eff-pop { bottom: var(--cp-chip-pop-bottom, var(--cp-pop-bottom, calc(100% + 6px))); }
+.hud-voice .mb-pop { max-height: min(62vh, var(--cp-chip-pop-room, var(--cp-pop-room, 62vh))); }
 .hud-voice .cp-menu { max-height: min(60vh, 440px, var(--cp-pop-room, 60vh)); }
 /* Phone sheet wrappers (2026-11-11): boxless on a computer, so the three popovers still place themselves against the
    card. Up to 860px they become one sheet from the bottom, see the phone block of the composer above. */
@@ -2759,6 +2822,8 @@ textarea.sug-ghosted::placeholder { color: transparent; }
 .lim-het { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--red) 12%, transparent); }
 .lim-het-h { margin: 0; font-size: 14px; font-weight: 600; color: var(--red); }
 .lim-het-r { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: var(--text2); }
+/* Another model's own limit: one quiet line, the ring follows the meters. */
+.lim-het-o { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: var(--warn-ink); }
 .lim-at, .lim-none { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: var(--text3); }
 .lim-none { color: var(--text2); }
 .eff-lbl { color: var(--text2); }
@@ -2866,8 +2931,10 @@ body.jv-lb-open { overflow: hidden; }        /* khoá cuộn nền để lăn ch
 .jv-lb.pinch .jv-lb-khung { overflow: hidden; }
 .jv-lb.pinch .jv-lb-img { cursor: grab; }
 /* Bấm vào ảnh -> xem cỡ thật để soi chi tiết, kéo trong khung để xem phần khuất. */
+/* Ảnh nhỏ hơn khung thì vẫn nằm GIỮA (margin:auto), ảnh lớn hơn khung thì margin auto về 0 nên không bị
+   cắt mất mép trái/trên như justify-content:center (chủ repo báo 2026-11-19: zoom lên ảnh dạt sang trái). */
 .jv-lb.that .jv-lb-khung { align-items: flex-start; justify-content: flex-start; }
-.jv-lb.that .jv-lb-img { max-width: none; max-height: none; cursor: zoom-out; }
+.jv-lb.that .jv-lb-img { max-width: none; max-height: none; margin: auto; flex: none; cursor: zoom-out; }
 @media (max-width: 700px) {
   .jv-lb-bar { padding: 8px 10px; }
   .jv-lb-nut button { padding: 6px 9px; }
@@ -3808,13 +3875,17 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 /* Ô chọn người và nhóm: tab Nhóm / Người, ô tìm, danh sách tick, thêm bằng id. */
 .cb-pk { margin-top: 10px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
   background: var(--surface-1); }
-.cb-pk-h { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--surface-3);
+.cb-pk-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; background: var(--surface-3);
   border-bottom: 1px solid var(--border); }
-.cb-pk-tabs { display: flex; gap: 4px; }
+.cb-pk-tabs { display: flex; flex-shrink: 0; gap: 4px; }
 .cb-pk-tab { background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 10px;
-  font-size: 13px; color: var(--text3); cursor: pointer; font-weight: 600; }
+  min-height: 44px; white-space: nowrap; font-size: 13px; color: var(--text3); cursor: pointer; font-weight: 600; }
 .cb-pk-tab.on { background: var(--bg2); color: var(--text); border-color: var(--border); }
 .cb-form input.cb-pk-q { margin-left: auto; max-width: 190px; padding: 5px 9px; font-size: 13px; }
+.cb-form .cb-pk-h input.cb-pk-q { flex: 1 1 142px; min-width: 0; min-height: 44px; font-size: 16px; }
+@media (max-width: 420px) {
+  .cb-form .cb-pk-h input.cb-pk-q { max-width: none; }
+}
 .cb-pk-body { max-height: 220px; overflow-y: auto; }
 .cb-form label.cb-pk-li { display: flex; align-items: center; gap: 10px; margin: 0; padding: 8px 12px;
   border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text); font-weight: 400;
@@ -4357,6 +4428,15 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .lv-allow { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; cursor: pointer; align-self: flex-start;
   min-height: 32px; }
 .lv-allow input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.lv-allow.dis { opacity: .5; cursor: default; }
+/* The risk of handing over a sign-in, said in the add form before Save: one line in the open, the detail behind (i). */
+.lv-risk { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--warn-line); background: var(--warn-wash); font-size: 16px; line-height: 1.5; color: var(--text); }
+.lv-risk > .ic { flex: none; margin-top: 4px; color: var(--warn-ink); }
+/* The sentence and its (i) share one left edge: side by side when there is room, the (i) under the sentence on a phone. */
+.lv-risk-body { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.lv-risk-body > span:first-child { flex: 1 1 240px; min-width: 0; }
+.lv-risk .info-i.with-text { padding-left: 0; }
 .lv-sw { position: relative; width: 38px; height: 22px; flex: none; border-radius: 999px; background: var(--bg3);
   border: 1px solid var(--border); transition: background .18s ease; }
 .lv-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
@@ -5133,6 +5213,30 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-rmeta > span { display: inline-flex; align-items: center; gap: 5px; }
 .gh-rmeta .ic, .gh-rmeta .cp-ic { width: 14px; height: 14px; flex: none; }
 .gh-rmeta .gh-on { color: var(--green); }
+/* Brain backup on the signed-in GitHub account (backup-link.js, 20/11/2026). */
+#lnBackupBox [hidden] { display: none !important; }
+.bl-host { display: flex; flex-direction: column; gap: 10px; margin: 0 0 12px; max-width: 680px; }
+.bl-host .si-actions { margin: 0; }
+.bl-gh .cp-ic, .bl-host .s-btn .cp-ic { width: 18px; height: 18px; flex: none; }
+.bl-gh { display: inline-flex; align-items: center; gap: 8px; }
+.bl-acc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.bl-acc .gh-acc { cursor: default; }
+.bl-acc .gh-acc:hover { background: transparent; }
+.bl-repo .gh-rti a { color: inherit; text-decoration: none; }
+.bl-repo .gh-rti a:hover { text-decoration: underline; }
+.bl-ib { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--surface-1, var(--bg2)); color: var(--text2); cursor: pointer; }
+.bl-ib:hover { background: var(--surface-3, var(--bg3)); color: var(--text); }
+.bl-ib.danger { color: var(--red); }
+.bl-ib .ic { width: 18px; height: 18px; }
+.bl-form { display: flex; flex-direction: column; gap: 12px; }
+.bl-list { max-height: min(60vh, 520px); overflow-y: auto; }
+.bl-pick { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; background: var(--surface-1, var(--bg2)); }
+.bl-pick:hover { background: var(--surface-3, var(--bg3)); }
+.bl-pick:disabled { opacity: .6; cursor: default; }
+.bl-q { width: 100%; font-size: 16px; }
+.bl-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
+.bl-steps .s-btn, .bl-steps .s-btn-ghost { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
 .gh-sw { position: relative; width: 44px; height: 26px; flex: none; border-radius: 999px; border: 0; background: var(--surface-3, var(--bg3)); cursor: pointer; padding: 0; }
 .gh-sw span { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; }
 .gh-sw[aria-checked="true"] { background: var(--accent); }
@@ -5162,8 +5266,8 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 /* Repo and branch picker in the + menu (0.368.0, after Claude Code's picker): sections, grouped rows, two-line names. */
 .gh-sec { padding: 10px 10px 4px; font-size: 12.5px; color: var(--text3); font-weight: 600; }
 .gh-group { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-.gh-group > .cp-mi { border-radius: 0; }
-.gh-group > .cp-mi + .cp-mi { border-top: 1px solid var(--border); }
+.gh-group .cp-mi { border-radius: 0; }
+.gh-group > * + * { border-top: 1px solid var(--border); }
 .gh-group > .cp-mi:hover, .gh-group > .cp-mi:focus-visible { background: var(--bg2); }
 .cp-menu [hidden] { display: none; }
 .gh-two { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -5171,6 +5275,31 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-name { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gh-tick { flex: none; display: inline-flex; color: var(--accent, #3b82f6); }
 .gh-tick svg { width: 18px; height: 18px; }
+/* 21/11/2026 (owner: "cho anh nút x rõ ràng ... tìm xem khi thao tác có dễ bị chọn nhầm không"). A chosen repo is a
+   row that does nothing with an X at its end; any other repo is one tap to add, marked with a +. */
+.cp-mi.gh-on { cursor: default; padding-right: 6px; }
+.gh-row-x { flex: none; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--border);
+  border-radius: 50%; background: var(--bg2); color: var(--text2); cursor: pointer; }
+.gh-row-x .cp-ic { width: 16px; height: 16px; }
+.gh-row-x:hover, .gh-row-x:focus-visible, .gh-sel.is-asking .gh-row-x { background: var(--danger-wash); border-color: var(--danger-ink);
+  color: var(--danger-ink); outline: none; }
+.gh-add { flex: none; display: grid; place-items: center; width: 36px; height: 36px; color: var(--text3); }
+.gh-add .cp-ic { width: 18px; height: 18px; }
+.gh-repo:hover .gh-add, .gh-repo:focus-visible .gh-add { color: var(--accent); }
+.gh-busy { flex: none; font-size: 13px; color: var(--text3); padding-right: 6px; }
+.gh-sel.is-busy .gh-two { opacity: .6; }
+/* A repo with unsaved work asks on its own row before it leaves the chat. */
+.gh-ask { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid var(--border);
+  background: var(--warn-wash); }
+.gh-ask-t { font-size: 15px; line-height: 1.5; color: var(--text); }
+.gh-ask-act { display: flex; flex-wrap: wrap; gap: 8px; }
+.gh-ask-keep, .gh-ask-go { flex: 1 1 auto; min-height: 44px; padding: 0 14px; border-radius: 10px; font: inherit; font-size: 15px;
+  font-weight: 600; cursor: pointer; }
+.gh-ask-keep { border: 1px solid var(--border); background: var(--bg2); color: var(--text); }
+.gh-ask-go { border: 1px solid var(--danger-ink); background: transparent; color: var(--danger-ink); }
+.gh-ask-keep:hover, .gh-ask-keep:focus-visible { background: var(--bg3); outline: none; }
+.gh-ask-go:hover, .gh-ask-go:focus-visible { background: var(--danger-wash); outline: none; }
+@media (pointer: coarse) { .gh-row-x, .gh-add { width: 44px; height: 44px; } }
 .gh-results { display: flex; flex-direction: column; gap: 2px; }
 /* Where the list has a max-height (project drawer, create-team box, team chat pop-up) it must scroll. A group clips its
    own overflow, so without this the browser shrinks the groups instead and "Selected" is cut to a sliver (2026-11-16). */
@@ -5188,7 +5317,7 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   text-overflow: ellipsis; white-space: nowrap; }
 .gh-chip-br .cp-ic { width: 12px; height: 12px; }
 .cp-pin.gh-chip { max-width: 260px; }
-.cp-pin.gh-chip > span:first-of-type { min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-pin.gh-chip .cp-pin-open > span:first-of-type { min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 860px) { .cp-pin.gh-chip { max-width: 200px; } .gh-chip-br { max-width: 64px; } }
 .gh-checks-box { width: 100%; min-height: 160px; font-family: var(--mono, ui-monospace, monospace); font-size: 16px; line-height: 1.45; resize: vertical; }
 /* "Sign in with GitHub" (0.430.0): one wide button first, the token box under a thin "or" rule, a big readable code. */
@@ -5223,7 +5352,7 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 .gh-sub-stuck::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--danger-ink, #b3261e); margin-left: 1px; }
 @keyframes gh-pulse { 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .gh-working svg { animation: none; } }
-.gh-chip .gh-st { margin-left: 2px; padding: 0; }
+.gh-chip .gh-st { flex: none; margin: 0 2px; padding: 4px; }
 .gh-detail-body { display: flex; flex-direction: column; gap: 14px; padding: 6px 2px 4px; font-size: 16px; max-height: 70vh; overflow-y: auto; }
 .gh-row { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .gh-row-head code { font-size: 16px; word-break: break-all; }

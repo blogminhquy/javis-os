@@ -53,6 +53,7 @@ import chatbot_tu_dong
 import conversations
 import limit_learner
 import localefmt
+import signin_loss
 import vision_input
 
 # Kênh -> lớp vận chuyển: tra SỔ ĐĂNG KÝ KÊNH (server/channels). Trước 0.61.0 là một bảng chép
@@ -228,12 +229,16 @@ _TU_MO_CHAT = " Đã tìm kỹ mà vẫn không có thì nói bạn chưa có th
 # from the bot, tagged to the person who asked. Matched only when the notice IS the whole short reply
 # (limit_learner.subscription_dominates), never when a real answer quotes it.
 _CAU_ENGINE_RE = re.compile(
-    r"^\s*(API Error\b|Credit balance is too low|Invalid API key|Please run /login|Not logged in"
+    r"^\s*(API Error\b|Credit balance is too low|Invalid API key|API key not found|Please run /login|Not logged in"
     r"|Prompt is too long|Execution error\b)", re.IGNORECASE)
 
 
 def engine_notice(text: str) -> str:
-    """The reply itself, when it is an engine/plan notice that must never reach a customer; "" otherwise."""
+    """The reply itself, when it is an engine/plan notice that must never reach a customer; "" otherwise.
+
+    2026-11-22 (owner's screenshot of a customer Telegram group): a bot posted Claude Code's "Failed to authenticate:
+    this login reached its time limit ... Run claude auth login" as its reply, quoting the customer. A lost sign-in in
+    any CLI's wording is now caught here too (`signin_loss.is_signin_answer`), the last gate before every channel."""
     t = str(text or "").strip()
     if not t or len(t) > limit_learner.DOMINATES_MAX_CHARS:
         return ""
@@ -242,7 +247,12 @@ def engine_notice(text: str) -> str:
             return t
     except Exception:      # noqa: BLE001 - the detector must never cost the customer a reply
         pass
-    return t if _CAU_ENGINE_RE.search(t) else ""
+    if _CAU_ENGINE_RE.search(t):
+        return t
+    try:
+        return t if signin_loss.is_signin_answer(t) else ""
+    except Exception:      # noqa: BLE001
+        return ""
 
 
 # Zalo CÁ NHÂN của chủ (0.64.80). Khác Telegram/Zalo Bot ở chỗ người nhắn tới không chỉ là khách:
@@ -560,8 +570,9 @@ async def anh_cho_bot(text_engine: str, meta: dict, cfg: dict) -> tuple:
     elif meta.get("co_anh") and not url and not paths:
         _ghi_ly_do_anh(cfg, "tin ảnh tới mà không kèm link ảnh nào (bản Zalo đang chạy không gửi link)")
     video_note = ""
-    if meta.get("video_url"):
+    if meta.get("video_url") or meta.get("video_path"):
         # 0.433.0: a video becomes a few frames (plus its speech when a speech-to-text key is set), after any photo.
+        # `video_path` (2026-11-20): a clip the gateway already saved in the bot's brain (Telegram).
         frames, video_note = await video_cho_bot(meta, root, cfg)
         paths.extend(frames[:max(0, vision_input.MAX_IMAGES - len(paths))])
     if not paths:
@@ -610,8 +621,20 @@ async def video_cho_bot(meta: dict, root: Path, cfg: dict) -> tuple:
     chat = image_vision.SAFE_PART.sub("_", str(meta.get("chat_id") or "chat"))[:64] or "chat"
     dest = image_vision.image_gen._attachments_dir(root) / "zalo" / chat
     msg_id = str(meta.get("video_msg") or meta.get("message_id") or "")
+    local = str(meta.get("video_path") or "")
+    if local and not url:
+        # Only a clip inside this bot's own brain, the same rule as a photo (`vision_input.take_image_markers`).
+        try:
+            rp = Path(local).resolve()
+            inside = Path(root).resolve() in rp.parents
+        except OSError:
+            inside = False
+        if not inside:
+            return [], video_vision.note({"frames": [], "why": "file video nằm ngoài brain của bot"})
     try:
-        res = await asyncio.wait_for(video_vision.look(url, dest, msg_id, _hear_for(cfg)), VIDEO_TOI_DA_GIAY)
+        job = (video_vision.look(url, dest, msg_id, _hear_for(cfg)) if url
+               else video_vision.look_file(local, dest, msg_id, _hear_for(cfg)))
+        res = await asyncio.wait_for(job, VIDEO_TOI_DA_GIAY)
     except asyncio.TimeoutError:
         res = {"frames": [], "why": "xử lý video quá lâu"}
     except Exception as e:      # noqa: BLE001 - a video we cannot get must never cost the customer the reply
@@ -889,6 +912,85 @@ STAFF_NAME = ("Nhân viên", "Staff")
 _STAFF_CHANNEL_LABEL = {"zalo_oa": "Zalo OA", "messenger": "Messenger"}
 
 
+# ---- The bot steps aside after a staff member answers from the channel's own app (issue #1693) ----
+# Owner, 2026-11-22: "như Zalo cá nhân sẽ phù hợp". Since 2026-11-18 a message a staff member writes in the Zalo OA app
+# or the Page inbox is recorded, but the chat stayed with the bot: the customer's next message was answered by the bot
+# over the staff member, asking again what the staff member had just asked. Now the bot can stay out of that chat for
+# the bot's own "step aside after you type" time (`nhuong_tay_phut`, the setting personal Zalo already uses), counted
+# from the staff member's last message. The chat stays in "ai" mode: nothing has to be handed back, the bot simply
+# answers again once the time has passed.
+#
+# Off unless the owner sets a number (owner, 2026-11-22: "anh muốn đặt mặc định là 0"): blank or 0 = the bot never steps
+# aside for staff, as before. Personal Zalo keeps its own default of 10 minutes for a blank setting
+# (`zalo_personal_channel.TAY_IM`).
+#
+# What the channel sends by itself must not count, or the bot would go quiet for every new customer (seen on a real OA):
+# the welcome message to a new follower (no customer message in the chat yet), and the automatic reply that arrives a
+# few seconds after the customer's message. A person does not answer within STAFF_AUTO_REPLY_S seconds.
+STAFF_YIELD_DEFAULT_S = 0
+STAFF_AUTO_REPLY_S = 10
+_STAFF_AT: Dict[tuple, float] = {}      # (channel, account id, chat id) -> time of the staff member's last message
+_STAFF_AT_MAX = 2000
+
+
+def staff_yield_seconds(cfg: dict) -> int:
+    """How long the bot stays out of a chat after a staff message: the bot's `nhuong_tay_phut` in minutes. Not set or
+    0 = never (the default, owner 2026-11-22)."""
+    v = (cfg or {}).get("nhuong_tay_phut")
+    if v is None or str(v).strip() == "":
+        return STAFF_YIELD_DEFAULT_S
+    try:
+        return max(0, int(v)) * 60
+    except (TypeError, ValueError):
+        return STAFF_YIELD_DEFAULT_S
+
+
+def _staff_key(cfg: dict, meta: dict) -> tuple:
+    aid, kenh = _tai_khoan_cua(cfg, meta or {})
+    return (kenh, aid, str((meta or {}).get("chat_id") or ""))
+
+
+def note_staff_message(cfg: dict, meta: dict, sent_at: float, last_customer_at: Optional[float]) -> bool:
+    """Remember that a staff member just wrote in this chat. False, and nothing remembered, when the message looks
+    automatic: the customer never wrote here (a welcome message), or it came within STAFF_AUTO_REPLY_S seconds of the
+    customer's last message (an automatic reply)."""
+    if last_customer_at is None or abs(float(sent_at) - float(last_customer_at)) < STAFF_AUTO_REPLY_S:
+        return False
+    if len(_STAFF_AT) >= _STAFF_AT_MAX:
+        for k in sorted(_STAFF_AT, key=_STAFF_AT.get)[:_STAFF_AT_MAX // 2]:
+            _STAFF_AT.pop(k, None)
+    _STAFF_AT[_staff_key(cfg, meta)] = float(sent_at)
+    return True
+
+
+def staff_yielding(cfg: dict, meta: dict, now: Optional[float] = None) -> bool:
+    """True while the bot should stay out of this private chat because a staff member answered from the channel's own
+    app less than `staff_yield_seconds` ago.
+
+    `meta["received_at"]` is when the customer's message reached Javis (the transports set it; missing = now). A staff
+    message within STAFF_AUTO_REPLY_S seconds of it is the channel's automatic reply to this very message, recorded
+    before the customer's turn got here: it is forgotten and the bot answers."""
+    if str((meta or {}).get("chat_type") or "private") != "private":
+        return False
+    key = _staff_key(cfg, meta)
+    at = _STAFF_AT.get(key)
+    if not at:
+        return False
+    now = time.time() if now is None else float(now)
+    try:
+        received = float((meta or {}).get("received_at") or now)
+    except (TypeError, ValueError):
+        received = now
+    window = staff_yield_seconds(cfg)
+    if window <= 0 or now - at >= window:
+        _STAFF_AT.pop(key, None)
+        return False
+    if abs(received - at) < STAFF_AUTO_REPLY_S:
+        _STAFF_AT.pop(key, None)
+        return False
+    return True
+
+
 async def record_staff_message(bot_id: str, tt: dict) -> int:
     """A message a STAFF member sent from the channel's own app (Zalo OA app, Page inbox), 2026-11-18. Returns how many
     inbox rows were written.
@@ -911,11 +1013,26 @@ async def record_staff_message(bot_id: str, tt: dict) -> int:
         mid = str(tt.get("message_id") or "")
         files = [f for f in (tt.get("files") or []) if isinstance(f, dict) and f.get("path")][:10]
         sender = localefmt.chu(*STAFF_NAME)
+        # Read BEFORE the rows below are written: whether this is a person or the channel's automatic message is
+        # judged against what the customer had written so far (`note_staff_message`).
+        aid_staff, kenh_staff = _tai_khoan_cua(cfg, meta)
+        last_customer_at = conversations.last_customer_message_at(kenh_staff, aid_staff, chat)
+
+        def step_aside(count: int) -> int:
+            if count > 0:
+                try:
+                    note_staff_message(cfg, meta, float(tt.get("ts") or time.time()), last_customer_at)
+                except Exception as e:      # noqa: BLE001 - the message is recorded; the bot just does not step aside
+                    print(f"[chatbot {bot_id}] staff yield not set: {type(e).__name__}: {e}", file=sys.stderr)
+            return count
+
         if not files:
-            r = conversations.ghi_su_kien(_su_kien_bot(
+            if not words:
+                return 0        # nothing a person wrote and no file: not recorded, and no reason to step aside
+            r = conversations.ghi_su_kien(_bot_event(
                 cfg, meta, sender_type="human", sender_name=sender, message_type="text", text=words,
                 external_message_id=mid, metadata={"staff_app": label}))
-            return 1 if (r or {}).get("ok") and not (r or {}).get("trung") else 0
+            return step_aside(1 if (r or {}).get("ok") and not (r or {}).get("trung") else 0)
         written = 0
         for i, f in enumerate(files):
             is_image = f.get("kind") == "image"
@@ -927,7 +1044,7 @@ async def record_staff_message(bot_id: str, tt: dict) -> int:
                                   f"[Staff sent an image on {label}, downloaded to: {f['path']}]") if is_image else
                     localefmt.chu(f"[Nhân viên gửi file qua {label}, đã tải về: {f['path']}]",
                                   f"[Staff sent a file on {label}, downloaded to: {f['path']}]"))
-            r = conversations.ghi_su_kien(_su_kien_bot(
+            r = conversations.ghi_su_kien(_bot_event(
                 cfg, meta, sender_type="human", sender_name=sender, message_type="image" if is_image else "file",
                 text=line + ("\n" + words if words and i == 0 else ""),
                 external_message_id=(mid if i == 0 else f"{mid}#{i}") if mid else "",
@@ -935,7 +1052,7 @@ async def record_staff_message(bot_id: str, tt: dict) -> int:
                           "file_content": chat_files.file_block("staff", name, ok, content)}))
             if (r or {}).get("ok") and not (r or {}).get("trung"):
                 written += 1
-        return written
+        return step_aside(written)
     except Exception as e:      # noqa: BLE001 - recording a staff message must never cost anything else
         print(f"[chatbot {bot_id}] recording a staff message failed: {type(e).__name__}: {e}", file=sys.stderr)
         return 0
@@ -1479,7 +1596,7 @@ def _make_precheck_fn(bot_id: str):
             goi_bot = ((m.get("chat_type") or "private") == "private" or m.get("mentioned")
                        or m.get("reply_to_bot") or cfg.get("reply_when") == "always")
             if goi_bot:
-                ghi_tin_khach(cfg, m, text)
+                record_customer_message(cfg, m, text)
             return {}
         if ly_do == "nguoi_chua_chon":
             # Người ngoài danh sách (audience `chon`): im TUYỆT ĐỐI, nhưng nổi lên hàng chờ duyệt
@@ -1602,9 +1719,9 @@ def _make_command_fn(bot_cfg: dict):
         # `bot_cfg` là bản ghi lúc bật bot; đủ dùng vì id, tên, kênh không đổi khi bot đang chạy.
         m = dict(meta or {})
         m.setdefault("chat_id", chat)
-        ghi_tin_khach(bot_cfg, m, ("/" + str(cmd or "").lstrip("/") + (" " + arg if arg else "")).strip())
+        record_customer_message(bot_cfg, m, ("/" + str(cmd or "").lstrip("/") + (" " + arg if arg else "")).strip())
         if res and res.get("reply"):
-            ghi_tin_bot(bot_cfg, m, res["reply"])
+            record_bot_message(bot_cfg, m, res["reply"])
         return res
 
     async def _cmd_goc(cmd, arg, chat, meta=None):
@@ -1720,7 +1837,7 @@ def _kenh_kho(cfg: dict, meta: dict = None) -> str:
     return _tai_khoan_cua(cfg, meta or {})[1]
 
 
-def _su_kien_bot(cfg: dict, meta: dict, **phan) -> dict:
+def _bot_event(cfg: dict, meta: dict, **fields) -> dict:
     meta = meta or {}
     aid, kenh = _tai_khoan_cua(cfg, meta)
     ev = {
@@ -1732,15 +1849,15 @@ def _su_kien_bot(cfg: dict, meta: dict, **phan) -> dict:
         "chat_type": meta.get("chat_type") or "private",
         "chat_title": meta.get("chat_title") or "",
     }
-    ev.update(phan)
+    ev.update(fields)
     return ev
 
 
-def ghi_tin_khach(cfg: dict, meta: dict, text: str) -> None:
-    """Tin KHÁCH gửi tới bot. Nuốt mọi lỗi: kho hỏng không được làm gãy câu trả lời."""
+def record_customer_message(cfg: dict, meta: dict, text: str) -> None:
+    """A message a CUSTOMER sent to the bot. Swallows every error: a broken store must not break the answer."""
     try:
         meta = meta or {}
-        conversations.ghi_su_kien(_su_kien_bot(
+        conversations.ghi_su_kien(_bot_event(
             cfg, meta, sender_type="customer",
             sender_id=str(meta.get("user_id") or meta.get("username") or ""),
             sender_name=meta.get("user_name") or meta.get("username") or "",
@@ -1785,12 +1902,19 @@ def _bao_hop_thu(bot_id: str, cfg: dict, meta: dict, loi: str) -> None:
     nhom = str((meta or {}).get("chat_title") or "") if (meta or {}).get("chat_type") == "group" else ""
     noi = (f" trong nhóm {nhom}" if nhom else "")
     noi_en = (f" in the group {nhom}" if nhom else "")
+    # A lost sign-in (2026-11-22) has one fix, and it is not on the Chatbot page: say it first.
+    try:
+        signed_out = signin_loss.is_signin_error(loi)
+    except Exception:      # noqa: BLE001
+        signed_out = False
+    fix = localefmt.chu("Model của bot mất đăng nhập: vào trang Models đăng nhập lại. ",
+                        "The bot's model lost its sign-in: sign in again on the Models page. ") if signed_out else ""
     text = localefmt.chu(
         f"Bot {ten_bot} đang lỗi, chưa trả lời được {ai or 'khách'}{noi}\n\n"
-        f"Lỗi: {str(loi)[:300]}\n\nKhách không nhận được tin nào. Mở trang Chatbot để trả lời tay hoặc xem "
+        f"Lỗi: {str(loi)[:300]}\n\nKhách không nhận được tin nào. {fix}Mở trang Chatbot để trả lời tay hoặc xem "
         "nhật ký bot. Các lượt hỏng tiếp theo không báo lại cho tới khi bot chạy được.",
         f"Bot {ten_bot} is failing and could not answer {ai or 'a customer'}{noi_en}\n\n"
-        f"Error: {str(loi)[:300]}\n\nThe customer received nothing. Open the Chatbot page to reply by hand or "
+        f"Error: {str(loi)[:300]}\n\nThe customer received nothing. {fix}Open the Chatbot page to reply by hand or "
         "read the bot log. Further failures are not reported again until the bot works.")
     try:
         r = fn(text)
@@ -1800,7 +1924,7 @@ def _bao_hop_thu(bot_id: str, cfg: dict, meta: dict, loi: str) -> None:
         print(f"[chatbot {bot_id}] báo chuông lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None,
+def record_bot_message(cfg: dict, meta: dict, text: str, error: str = "", files=None,
                 zalo_sending: bool = False) -> int:
     """Record a bot answer in the inbox; return its unique message row id.
 
@@ -1811,14 +1935,17 @@ def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None,
         if not str(text or "").strip() and not files:
             return 0
         md = {}
-        if loi:
-            md["loi"] = str(loi)[:300]
+        if error:
+            md["loi"] = str(error)[:300]      # the stored key stays "loi": the dashboard reads it
         if files:
             md["files"] = [str((f.get("path") if isinstance(f, dict) else f) or "")[:300]
                            for f in list(files)[:10]]
         if zalo_sending:
             md["zalo_delivery"] = {"state": "sending"}
-        result = conversations.ghi_su_kien(_su_kien_bot(
+        if cfg.get("icon"):
+            # Which agent wrote it, as the inbox draws it: the bot's own icon next to its name (owner, 2026-11-22).
+            md["bot_icon"] = str(cfg.get("icon"))[:40]
+        result = conversations.ghi_su_kien(_bot_event(
             cfg, meta, sender_type="ai", sender_name=cfg.get("name") or "",
             message_type="text", text=text, metadata=md))
         return int((result or {}).get("message_id") or 0)
@@ -2023,7 +2150,7 @@ def _make_answer_fn(bot_id: str):
             return {"text": "", "files": [], "im_lang": True, "refused": "permission_ceiling"}
         if (meta or {}).get("log_only"):
             # Recorded for the inbox only, no turn (0.434.0: Page comments in "inbox" mode, the owner answers them).
-            ghi_tin_khach(cfg, meta or {}, text)
+            record_customer_message(cfg, meta or {}, text)
             return {"text": "", "files": [], "im_lang": True}
         meta = _rp_named_meta(cfg, text, meta)
         _nho_neu_khong_goi(bot_id, cfg, meta, text)
@@ -2056,7 +2183,7 @@ def _make_answer_fn(bot_id: str):
                 # vẫn vào Hộp thư cho người trực đọc.
                 aid_p, kenh_p = _tai_khoan_cua(cfg, meta or {})
                 if conversations.che_do(kenh_p, aid_p, chat_id) == "human":
-                    ghi_tin_khach(cfg, meta or {}, text)
+                    record_customer_message(cfg, meta or {}, text)
                     chatbot_reply_policy.log_rail(chatbot_reply_policy_store, ev, profile, "taken_over")
                     return {"text": "", "files": [], "im_lang": True}
                 dec = await chatbot_reply_policy.decide(
@@ -2081,13 +2208,20 @@ def _make_answer_fn(bot_id: str):
         # Không còn trần số câu trả lời nào (chủ gỡ 2026-10-07): mỗi người mỗi giờ ở 0.85.4, lúc bot TỰ lên
         # tiếng trong nhóm ở 0.85.5. Nói hay im là việc của bộ phán xử và mô hình.
         # Hộp thư hội thoại: ghi tin khách TRƯỚC khi gọi engine, để lượt gãy vẫn còn tin khách.
-        ghi_tin_khach(cfg, meta or {}, text)
+        record_customer_message(cfg, meta or {}, text)
         # Người thật đã TIẾP QUẢN cuộc chat này ở trang Hội thoại thì bot im: tin khách vẫn vào
         # kho (dòng trên), chỉ không gọi engine. Lượt đang chạy dở lúc bấm Tiếp quản vẫn trả
         # lời nốt - chấp nhận ở V1, vì cắt ngang một câu đang gửi còn khó hiểu hơn với khách.
         aid_luot, kenh_luot = _tai_khoan_cua(cfg, meta or {})
         if conversations.che_do(kenh_luot, aid_luot, chat_id) == "human":
             _rp_retract(rp_dec, "taken_over")
+            return {"text": "", "files": [], "im_lang": True}
+        # A staff member answered this customer from the channel's own app a moment ago (Zalo OA app, Page inbox):
+        # the bot stays out for its step-aside time. The customer's message is in the inbox (written above).
+        if staff_yielding(cfg, meta or {}):
+            _rp_retract(rp_dec, "taken_over")
+            print(f"[chatbot {bot_id}] stepping aside in chat {chat_id}: a staff member answered from the channel app",
+                  file=sys.stderr)
             return {"text": "", "files": [], "im_lang": True}
         _compose_started(on_compose)
 
@@ -2310,8 +2444,8 @@ def _make_answer_fn(bot_id: str):
                 conversations.save_draft(cid_draft, dap_ghi, conversations.last_customer_message_id(cid_draft))
             return {"text": "", "files": [], "im_lang": True, "draft": True}
         # Câu bot nói vào Hộp thư hội thoại, cạnh tin khách. Lượt gãy thì `dap` rỗng nên không ghi gì: khách không nhận tin nào.
-        receipt_row = ghi_tin_bot(
-            cfg, meta or {}, dap_ghi, loi=loi_ky_thuat, files=(out or {}).get("files"),
+        receipt_row = record_bot_message(
+            cfg, meta or {}, dap_ghi, error=loi_ky_thuat, files=(out or {}).get("files"),
             zalo_sending=(kenh_luot == "zalo_personal" and not loi_ky_thuat))
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
@@ -2643,7 +2777,7 @@ def manual_done(conv: dict, msgs: list, text: str, meta: dict) -> dict:
     out = {"taught": False}
     if not cfg:
         return out
-    ghi_tin_bot(cfg, meta, text)
+    record_bot_message(cfg, meta, text)
     try:
         if cfg.get("reply_when") == "auto":
             PolicyHooks(bot_id).replied(meta, text)
@@ -2705,7 +2839,7 @@ async def try_message(bot_id: str, text: str, chat_type: str = "private", mentio
     độ Tự đánh giá, câu trả lời của Agent) và trả lại bot SẼ nói hay im, vì sao, nói gì.
 
     Lời hứa "không gửi ra ngoài" giữ bằng cấu trúc, không bằng lời dặn:
-      - không gọi kênh nào, không ghi Hộp thư (`ghi_tin_khach`/`ghi_tin_bot`), không ghi nhật ký bot;
+      - không gọi kênh nào, không ghi Hộp thư (`record_customer_message`/`record_bot_message`), không ghi nhật ký bot;
       - bộ phán xử chạy trên kho chỉ đọc, không kiểm và không tiêu hạn mức tự nói;
       - Agent chạy ở mức Chỉ đọc dù bot đặt mức cao hơn (mức Đọc tài liệu giữ nguyên vì tool của nó chỉ đọc): một
         lượt thử không được đặt đơn hay gửi tin qua tool;

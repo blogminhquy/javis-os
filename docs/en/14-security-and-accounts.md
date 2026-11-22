@@ -100,7 +100,15 @@ Afterwards **every other session is destroyed** (other machines, other browsers,
 
 Changing only the username leaves other sessions alive, since the password did not change.
 
-**If you forget the current password** there is no back door in the dashboard, you have to fix it from the server:
+**If you forget the current password** there is no back door inside the dashboard: it is done on the machine that runs Javis. Right under **Change password** a **Forgot your current password?** line shows the way for your install:
+
+- **Windows and Mac, using Javis on that same computer:** clicking it opens the install folder with **`reset-auth.bat`** (Mac: **`reset-auth.command`**) already selected. Double-click that file. The old password is gone for good, two-step sign-in too, and every device is signed out. Open Javis again, go to **Account** and set a new password like the first time. Javis only opens the folder and never runs the file itself, so a signed-in machine left unattended cannot lose its password without someone at the keyboard.
+- **Javis opened from another device (phone, tunnel):** the line shows the steps in its (i) popup: go to the computer that runs Javis and double-click the file as above.
+- **Docker, Hostinger, VPS:** the line shows the environment-variable steps below.
+
+The script does not reopen the first-run wizard (models, channels and API keys stay). It also removes `JAVIS_ADMIN_PASSWORD` and `JAVIS_ADMIN_USER` from the install's `.env` (a Mac installed with `install.sh` has both), because leaving them would make Javis put the old password back at the next start.
+
+Manual way on a server:
 
 1. Stop the container (or stop Javis).
 2. Delete (or empty) the `"auth"` block in `settings.json` in the state folder (Docker: `/data/state/settings.json`).
@@ -291,7 +299,8 @@ About the `secure` cookie: by default Javis does **not** force it, so it runs ov
 | ✅ Account saved. | Login account | The password was set successfully |
 | ⚠ Password must be at least 8 characters. | Login account | The interface blocks before sending, at the same threshold as the server |
 | ⚠ Current password is wrong. | Login account | The **Current password** field was typed wrong, nothing was changed |
-| **Forgot your password?** | Sign-in screen | Clicking it explains how to delete the `"auth"` block in `server/settings.json` and restart |
+| **Forgot your password?** | Sign-in screen | Clicking it explains how to run `reset-auth.bat` (Mac: `reset-auth.command`), or change `JAVIS_ADMIN_PASSWORD` on a server |
+| **Forgot your current password?** | Account, under Change password | Windows/Mac: opens the folder with the reset file selected. Server: shows the steps in the (i) popup |
 
 ## Tips
 
@@ -325,7 +334,9 @@ You are calling the Javis API from another page (a script, an extension, a third
 **You forgot the password.**
 On Docker or Hostinger (since 0.77.1): change `JAVIS_ADMIN_PASSWORD` (and `JAVIS_ADMIN_USER` if you like) in the Environment box and redeploy. At startup Javis sees the env value differs from last time and resets the admin to it; 2FA stays on and every old session is signed out. Leaving the env unchanged changes nothing, so a password you set in the dashboard is not overwritten on every restart.
 
-On Windows the repo ships a **`reset-auth.bat`** script in the project root: running it clears the account and password in `server/settings.json` and returns the app to setup (it prints an OK line then tells you to restart). If the script is not usable: edit or delete the `auth` section of `settings.json` in the state folder (Docker: `/data/state`) then restart; or set the admin again with `JAVIS_ADMIN_PASSWORD` after deleting the old `auth` section.
+A VPS installed directly with `install.sh` (systemd): SSH in, set the `JAVIS_ADMIN_PASSWORD` line of the `.env` file in the Javis install folder to the new password (add it if missing), then run `sudo systemctl restart javis`. Javis resets the account to the new value, as on Hostinger.
+
+On Windows and Mac the Javis install folder ships **`reset-auth.bat`** (Windows) and **`reset-auth.command`** (Mac). Double-click it and the old password is gone; open Javis again and set a new one on the Account page. Still signed in? Go to **Account** and click **Forgot your current password?** so Javis opens the right folder. If the script is not usable: edit or delete the `auth` section of `settings.json` in the state folder (Docker: `/data/state`) then restart; or set the admin again with `JAVIS_ADMIN_PASSWORD` after deleting the old `auth` section.
 
 **After changing machines or restoring a backup, every API key is empty.**
 You copied `settings.json` without `.secret_key`. There is no recovery: re-enter the keys on the Models page, the Admin channels page and Settings. Next time bring both files.

@@ -16,24 +16,43 @@ function check(name, cond) { console.log((cond ? "ok   " : "FAIL ") + name); if 
 
 const card = (html.match(/<div class="hud-voice" id="hudVoice">[\s\S]*?<!-- \/hudVoice -->/) || [""])[0];
 check("the #hudVoice card is found (ends with the <!-- /hudVoice --> marker)", !!card);
-["voiceFocusResume", "attachBar", "fileInput", "chatInput", "cpRow", "plusBtn", "cpChips",
+["voiceFocusResume", "attachBar", "fileInput", "chatInput", "cpRow", "plusBtn", "cpRight", "cpUnder", "cpCtx", "cpChips",
  "mbOpen", "effBtn", "effTxt", "limitBtn", "voiceBtn", "stopBtn", "sendBtn", "mbPop", "effPop", "limitPop", "plusMenu"].forEach(id => {
   check("the card contains #" + id, card.indexOf('id="' + id + '"') !== -1);
 });
 const order = ["attachBar", "chatInput", "cpRow"].map(id => card.indexOf('id="' + id + '"'));
 check("attachments on top, text box in the middle, button row at the bottom", order[0] < order[1] && order[1] < order[2]);
 const row = card.slice(card.indexOf('id="cpRow"'));
-check("button row: + before the chips, mic and send at the end",
-  row.indexOf('id="plusBtn"') < row.indexOf('id="cpChips"') && row.indexOf('id="cpChips"') < row.indexOf('id="voiceBtn"')
-  && row.indexOf('id="voiceBtn"') < row.indexOf('id="sendBtn"'));
+// Owner, 21/11/2026 ("sắp xếp lại khung giống của Claude"): the card keeps +, mic and send; the chips sit under it.
+const rowOnly = row.slice(0, row.indexOf('id="cpUnder"'));
+check("button row: + first, then mic and send together on the right, no chip in the card's row",
+  rowOnly.indexOf('id="plusBtn"') < rowOnly.indexOf('id="cpRight"') && rowOnly.indexOf('id="cpRight"') < rowOnly.indexOf('id="dictBtn"')
+  && rowOnly.indexOf('id="dictBtn"') < rowOnly.indexOf('id="voiceBtn"') && rowOnly.indexOf('id="voiceBtn"') < rowOnly.indexOf('id="sendBtn"')
+  && rowOnly.indexOf('id="cpChips"') === -1 && rowOnly.indexOf('id="cpCtx"') === -1);
+check("under the card: pinned folder and repos (#cpCtx) on the left, then model, Effort and usage (#cpChips)",
+  /<div class="cp-under" id="cpUnder">\s*<div class="cp-ctx" id="cpCtx" hidden><\/div>\s*<div class="cp-chips" id="cpChips">/.test(card));
 check("#attachBtn is gone from the page", html.indexOf('id="attachBtn"') === -1);
 check("#modelBar stays, empty, right before the card", /<div class="model-bar" id="modelBar"><\/div>\s*(<!--[\s\S]*?-->\s*)*<div class="hud-voice" id="hudVoice">/.test(html));
 check("no folder upload input (0.158.0: a folder is pinned, not uploaded)", card.indexOf('id="folderInput"') === -1);
 check("the textarea keeps id first and rows=1", /<textarea id="chatInput"[^>]*rows="1"/.test(card));
 check("no disabled attribute on #voiceBtn", !/id="voiceBtn"[^>]*disabled/.test(card));
 
-check("CSS: the card stacks vertically, 24px corners before the --bg2 background",
-  /\.hud-voice \{[^}]*flex-direction: column[^}]*align-items: flex-end[^}]*border-radius: 24px;[^}]*background: var\(--bg2\)/s.test(css));
+check("CSS: the card is ONE row (+, text, mic and send), 24px corners before the --bg2 background",
+  /\.hud-voice \{[^}]*display: grid; grid-template-columns: auto minmax\(0, 1fr\) auto; align-items: end;[^}]*border-radius: 24px;[^}]*background: var\(--bg2\)/s.test(css)
+  && css.includes(".hud-voice > .cp-row { display: contents; }")
+  && css.includes(".hud-voice > .voice-input { grid-column: 2; grid-row: 2; min-height: 40px; padding: 8px 4px; line-height: 24px; }")
+  && css.includes(".hud-voice .cp-plus { grid-column: 1; grid-row: 2; margin-bottom: 4px; }")
+  && css.includes(".hud-voice .cp-right { grid-column: 3; grid-row: 2; display: flex; align-items: center; gap: 6px; min-height: 40px; }"));
+check("CSS: the row under the card hangs below its border and the card keeps room for it",
+  /\.cp-under \{ position: absolute; top: calc\(100% \+ 2px\);/.test(css) && /margin: 4px 16px calc\(4px \+ var\(--cp-under-h\)\);/.test(css));
+// 21/11/2026 (owner: "cho anh nút x rõ ràng khi ghim ở khung chat"): each chip is a group, name plus X. Icons only on a
+// phone with both pinned, and each icon keeps its X.
+check("CSS: a phone shows folder and repos as icons only when both are pinned",
+  css.includes(".cp-ctx.is-two .cp-pin-open { width: 36px; padding: 0; justify-content: center; }")
+  && css.includes(".cp-ctx.is-two .cp-pin-open > span, .cp-ctx.is-two .cp-pin > .gh-st { display: none; }"));
+check("CSS: the X of a pin is always drawn, and reaches 44px tall on a touch screen",
+  /\.cp-pin \.cp-pin-x \.cp-ic \{[^}]*background: var\(--bg3\)/.test(css) && !/\.cp-ctx\.is-two[^{]*\.cp-pin-x[^{]*\{[^}]*display: none/.test(css)
+  && css.includes("@media (pointer: coarse) { .cp-pin-x { width: 34px; } .cp-pin-x::after { content: \"\"; position: absolute; inset: -5px 0; } }"));
 check("CSS: an empty #modelBar is hidden", css.indexOf(".model-bar:empty { display: none; }") !== -1);
 check("CSS: no old phone order rules left", css.indexOf(".hud-voice .attach-btn { order: 1;") === -1);
 

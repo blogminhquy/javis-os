@@ -204,9 +204,10 @@ Từ bản này, hub xử lý kết quả trước khi model đọc, giống nha
 - **Kết quả lớn** được cất nguyên vẹn (mã hoá, tự xoá sau 24 giờ). Model nhận phần gọn: tổng số, tên các trường, vài bản ghi trọn vẹn và một mã tham chiếu.
 - **Đọc lại hoặc tính toán** bằng tool `javis_query`: chọn trường, lật trang, hoặc chạy một câu SQL chỉ đọc trên toàn bộ bản ghi. Nó cũng tự lật nhiều trang của một tool đọc rồi tính, nên báo cáo cả tháng không còn phải đi qua ngữ cảnh.
 
-Hai tính năng đi kèm:
+Ba tính năng đi kèm:
 
 - **Trinh sát (`javis_scout`).** Việc đọc nhiều nguồn có thể được model chính giao cho **model việc nền** bạn đã chọn ở trang Models. Trinh sát chỉ được đọc, và chỉ kết luận quay về khung chat. Không chạy được thì model chính tự làm như trước.
+- **Chạy code đọc dữ liệu (`javis_code`).** Model viết một đoạn Python ngắn, gọi nhiều tool đọc nối tiếp nhau (lật trang, tra chi tiết từng đơn, ghép hai nguồn), tự tính rồi chỉ in ra kết quả. Dữ liệu thô không đi qua khung chat. Đoạn code chạy trong tiến trình riêng, không có khoá, không đọc file, không ra mạng, và chỉ gọi được tool đọc rõ ràng.
 - **Công thức cho việc định kỳ.** Sau hai lần chạy giống nhau ở hai ngày khác nhau, Javis tự lấy sẵn dữ liệu trước khi model bắt đầu. Javis chỉ làm vậy khi mọi cách hiểu về ngày tháng đều cho cùng một kết quả trong hôm đó, còn không thì chạy như cũ. Chỉ các lệnh đọc rõ ràng mới được lặp lại, và việc nào dùng kỳ không ở dạng `YYYY-MM-DD` (tháng `2026-11`, số tuần, `01/11/2026`) thì không bao giờ được ghi thành công thức. Nếu model vẫn phải tự gọi lại nguồn sau khi đã có dữ liệu lấy sẵn, công thức bị loại sau hai lần. Mỗi công thức là một file trong `<brain>/Javis/recipes/`, xoá file là quên.
 
 Trong một lượt dài còn hai cách bớt nữa, không làm mất gì của model:

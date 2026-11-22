@@ -101,10 +101,12 @@ check("no sign-in: not waiting, not connected", not d.get("waiting") and not d.g
 
 # ---- 4. The card asks the sign-in process, not the cached status, and asks again when the user comes back ----
 js = (Path(ROOT) / "dashboard" / "console.js").read_text(encoding="utf-8")
-i = js.index("async function startClaudeLogin")
+# 2026-11-22: the card's one way in is a long-lived token (`claude setup-token`); a browser on the same machine
+# finishes it without a code too, so it keeps the same rule: ask the command itself, and again on coming back.
+i = js.index("async function startClaudeToken")
 body = js[i:js.index("\n  }\n", i)]
-check("the card polls /claude/login-poll", "/claude/login-poll" in body)
-check("the card no longer polls the cached /claude/status", '"/claude/status"' not in body)
+check("the card polls the command itself (/claude/token/poll)", "/claude/token/poll" in body)
+check("the card does not poll the cached /claude/status", '"/claude/status"' not in body)
 check("the card asks again when the tab gets focus", '"focus"' in body and "visibilitychange" in body)
 main = (Path(SERVER) / "main.py").read_text(encoding="utf-8")
 check("the server has /claude/login-poll", '@app.get("/claude/login-poll")' in main)

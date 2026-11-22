@@ -126,6 +126,11 @@ _DEFAULT = {
         #       chỉ định cho sản phẩm bên thứ ba (xem claude_auth.CANH_BAO_SUBSCRIPTION).
         # Đổi ở trang Models. Cả hai đều giữ NGUYÊN năng lực: Bash, WebFetch, MCP, nối phiên cũ.
         "claude_auth": "subscription",
+        # "token" (2026-11-22): the plan signed in with a long-lived token from `claude setup-token`, handed to
+        # `claude` as CLAUDE_CODE_OAUTH_TOKEN (claude_auth.py). Encrypted at rest; `_at` is when it was saved,
+        # since the token lives one year from then.
+        "claude_oauth_token": "",
+        "claude_oauth_token_at": 0,
         # Daily `claude update` (claude_update.py). The switch sits on the Claude Code card of the
         # Models page; env JAVIS_CLAUDE_AUTO_UPDATE=0 still forces it off over this value.
         "claude_auto_update": True,
@@ -252,7 +257,9 @@ _DEFAULT = {
     # không đòi lại dung lượng. Dùng nhiều máy chung repo thì bật trên MỌI máy (dù đã có rào
     # chống máy tắt xoá chéo ảnh của máy bật - xem git_brain._sync_mirror). Khi bật, máy dọn
     # media tự BỎ QUA attachments/ để ảnh vừa backup không bị dọn rồi lệnh xoá lan đi các máy.
-    "backup": {"enabled": False, "repo_url": "", "token": "", "branch": "main",
+    # use_github: the sync rides on the GitHub connection (Connections page) instead of a pasted token
+    # (backup_github.py, 20/11/2026).
+    "backup": {"enabled": False, "repo_url": "", "token": "", "branch": "main", "use_github": False,
                "interval_hours": 6, "sync_images": False,
                "last_backup": 0.0, "last_status": ""},
     "dashboard": {
@@ -538,6 +545,8 @@ _SECRET_PATHS = (
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
     "model.groq_api_key", "model.deepseek_api_key", "model.ollama_key", "model.ollama_local_key", "model.openai_compat_key",
     "model.anthropic_compat_key",
+    # The long-lived Claude Code token (2026-11-22): it runs the owner's plan for a year, like a password.
+    "model.claude_oauth_token",
     # 0.350.0: keys of every account in a provider card (model_routing). Account ids are generated,
     # so the whole dict is secret.
     "model.account_keys.*",
@@ -1754,6 +1763,11 @@ TOKEN_PREFIX = "jvs_"
 # Đường mà token scope `chat` được đi. Danh sách TRẮNG, khớp theo tiền tố: thiếu tên nào thì
 # token đó bị từ chối chứ không lọt - fail-closed, đúng nếp của mọi hàng rào khác trong Javis.
 TOKEN_SCOPE_CHAT = ("/chat", "/version", "/health", "/sessions")
+# Scope `sync` (20/11/2026): only saves Claude Code / Codex transcripts (POST /chat/external, see chat_bridge
+# `log_transcript`). Javis Gate mints one when the owner turns Javis Sync on from an outside AI, so connecting Gate is
+# all the setup there is. It can do what javis_chat_note already does and nothing else: no chat turn, no reading.
+TOKEN_SCOPE_SYNC = ("/chat/external",)
+TOKEN_SCOPES = ("full", "chat", "sync")
 
 
 def _load_tokens():
@@ -1788,7 +1802,7 @@ def create_api_token(name: str, scope: str = "full") -> dict:
     item = {
         "id": "tok_" + secrets.token_hex(6),
         "name": (str(name or "").strip() or "không tên")[:60],
-        "scope": "chat" if str(scope) == "chat" else "full",
+        "scope": str(scope) if str(scope) in TOKEN_SCOPES else "full",
         "hash": _token_hash(raw),
         "prefix": raw[:12],
         "created_at": _time.time(),
@@ -1828,6 +1842,8 @@ def verify_api_token(raw: str, path: str = ""):
     h = _token_hash(raw)
     for x in _load_tokens():
         if secrets.compare_digest(str(x.get("hash") or ""), h):
+            if str(x.get("scope")) == "sync" and str(path) not in TOKEN_SCOPE_SYNC:
+                return None
             if str(x.get("scope")) == "chat" and path:
                 # 2026-11-05 audit: a bare startswith let "/chat" match "/chatbots*" (create, edit, delete bots,
                 # read their logs). A listed path matches itself and what lies under it, nothing that merely

@@ -147,7 +147,8 @@
       var ios = D && D.isIOS && D.isIOS();
       return tw(code === "denied" ? (ios ? "dict.denied_ios" : "dict.denied")
         : code === "service" ? (ios ? "dict.service_ios" : "dict.service")
-        : code === "unsupported" ? "dict.unsupported" : code === "nothing" ? "dict.nothing" : "dict.failed");
+        : code === "unsupported" ? "dict.unsupported"
+        : code === "nothing" ? (D && D.nothingKey ? D.nothingKey() : "dict.nothing") : "dict.failed");
     }
 
     function start() {

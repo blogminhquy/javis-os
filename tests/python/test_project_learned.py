@@ -492,8 +492,9 @@ for _lang in ("vi", "en"):
 check("styles exist for the new rows", ".pd-nrow" in css and ".pd-row-desc" in css and ".pd-ntext" in css)
 tm = (ROOT / "dashboard" / "teams.js").read_text(encoding="utf-8")
 ccss = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
+# 19/11/2026: the line sits under the name, inside the row's name column (`.tm-as-main`), and the pencil follows it.
 check("the team panel shows each document's line and a pencil to write it",
-      "descLine(f) + descBtn(f, \"file\")" in tm and "descLine(l) + descBtn(l, \"link\")" in tm
+      "descLine(f) + \"</span>\" + descBtn(f, \"file\")" in tm and "descLine(l) + \"</span>\" + descBtn(l, \"link\")" in tm
       and 'if (d.infoDesc) return describeDoc(' in tm and 'assetPost("/describe", f)' in tm and ".tm-info-desc" in ccss)
 check("the team panel escapes the line", 'esc(x.description)' in tm)
 

@@ -7,7 +7,8 @@ khi Chrome nghe không cứu được câu đã mất hẳn thông tin ("John Sm
 biết về nick liên quân"), nên phải để một model nghe chính âm thanh.
 
 Module này lo hai việc:
-  - CHỌN tai cho lượt nói (`select_ear`, `order`), từ khoá `voice.ear` = auto | chatgpt | groq | openai | off.
+  - CHỌN tai cho lượt nói (`select_ear`, `order`), từ khoá `voice.ear` = auto | chatgpt | groq | openai | off
+    (auto also reaches the Gemini ear, 2026-11-22).
   - Chạy tai dạng TẢI LÊN (`transcribe_upload`): trình duyệt ghi âm, hết câu gửi file lên /stt.
 
 Ba lớp rào cho chữ của tai, giống nhau với mọi tai:
@@ -39,13 +40,18 @@ EARS = {
     # English words in it stayed as Chrome heard it ("Claude Code" -> "lót code"). gpt-4o-transcribe keeps both.
     # The model is OpenAI's newest transcribe model (stt_models), so the label names no version.
     "openai": {"label": "OpenAI transcribe", "kind": "upload", "key_field": "openai_api_key"},
+    # 2026-11-22: a Gemini key hears the dashboard mic too (voice messages already used it, stt.listen_any), so a
+    # Gemini brain dictates with its own model and a phone with only that key records instead of relying on the
+    # browser's recognizer. Not one of CHOICES: auto picks it, the settings list stays as it was.
+    "gemini": {"label": "Gemini", "kind": "upload", "key_field": "gemini_api_key"},
 }
 
 # Thứ tự khi `auto` mà bộ não chính không có tai cùng hãng. Xếp theo bộ đo tools/stt_bench:
 # có số mới thì sửa ở đây.
 # Groq stays first: it is the ear tools/stt_bench measured. The ChatGPT plan comes next (2026-11-08): it costs the
 # owner nothing beyond the plan they pay for, so it goes before the OpenAI key, which bills every minute.
-RANKING = ("groq", "chatgpt", "openai")
+# Gemini last: an LLM asked to write down the audio, slower than a transcription endpoint (2026-11-22).
+RANKING = ("groq", "chatgpt", "openai", "gemini")
 
 # Provider của bộ não chính (main._effective_main) -> tai cùng hãng. Owner, 2026-11-08: "no setting, the ear follows
 # the main model in use: on ChatGPT use the ChatGPT plan's ear, and the same for the others". Claude, Antigravity and
@@ -56,6 +62,7 @@ BRAIN_EAR = {
     "openai-oauth": "chatgpt",
     "groq": "groq",
     "openai": "openai",
+    "gemini": "gemini",
 }
 
 # Mã lý do, trang Cài đặt dịch qua khoá i18n `settings.ear_reason_<mã>`.
@@ -239,5 +246,7 @@ async def _hear(cfg: dict, name: str, data: bytes, filename: str, lang, hotwords
                                       lang, hotwords=hotwords)
     if name == "openai":
         return await stt.openai_nghe(data, filename, m.get("openai_api_key", ""), "", lang, hotwords=hotwords)
+    if name == "gemini":
+        return await stt.gemini_nghe(data, filename, m.get("gemini_api_key", ""), "", lang, hotwords=hotwords)
     return await stt.groq_nghe(data, filename, m.get("groq_api_key", ""), v.get("stt_model") or "", lang,
                                hotwords=hotwords)
