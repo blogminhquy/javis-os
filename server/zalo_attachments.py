@@ -112,7 +112,7 @@ async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0, diag: dict = N
                             # empty body for a moment after a photo is sent. The old bare download took that 2xx as the
                             # photo and saved 0 bytes. Ask again a few times, within the same overall time budget.
                             if waits >= len(ACCEPTED_BACKOFF):
-                                return None, "máy chủ file trả HTTP 202 (file chưa sẵn sàng trên máy chủ Zalo)"
+                                return None, "file server returned HTTP 202 (file not ready on Zalo server)"
                             delay = retry_after(response.headers.get("retry-after"), ACCEPTED_BACKOFF[waits])
                             waits += 1
                             await response.aclose()
