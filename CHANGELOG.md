@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.4] - 2026-11-22
+### Cải thiện
+- **Điện thoại: model, mức suy nghĩ và vòng hạn mức tách lại thành 3 nút** như trên máy tính, chữ nhỏ hơn một chút để hiện trọn tên model. Bấm nút nào mở bảng của riêng nút đó.
+### Sửa lỗi
+- **Khung Effort hết lệch.** Chữ "Recommended" lên cùng hàng với mức đang chọn, không còn chừa một dòng trống dưới thanh trượt.
+- Danh sách model không còn lộ một dải chữ bị cắt phía trên ô tìm khi cuộn.
+
 ## [0.628.3] - 2026-11-22
 ### Bảo mật
 - **Mỗi lần kết nối, đổi tài khoản hay ngắt GitHub đều vào nhật ký bảo mật.** Ghi tài khoản Javis đã làm, IP thật và thiết bị, rồi báo ngay cho chủ. Javis tự gia hạn token thì không ghi.
