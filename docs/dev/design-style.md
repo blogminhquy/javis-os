@@ -84,8 +84,10 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 - **Luôn có đường thoát:** nút đóng; nút Back đóng ảnh, PDF, popup. Nút nổi không được che dòng cuối.
 - **Điện thoại theo máy tính** nếu được ("làm giống bản máy tính luôn"). Chỉ ẩn trên điện thoại thứ thật sự thừa ở đó
   ("chỉ ẩn ở điện thoại thôi, đừng ẩn ở máy tính").
-- **Khung chọn ở khung chat:** trên điện thoại, vòng hạn mức, model và mức suy luận gộp thành một viên, bấm mở một bảng
-  (11/11).
+- **Khung chọn ở khung chat (22/11, thay luật 11/11):** trên điện thoại model, mức suy nghĩ và vòng hạn mức là 3 nút riêng
+  như máy tính, chữ 13px cho hiện trọn tên ("ở điện thoại có đủ không gian để hiển thị để ấn thành 3 nút trên máy tính
+  rồi, với cho text nhỏ hơn một chút ở điện thoại để có thêm thông tin"). Bấm nút nào thì bảng kéo lên chỉ chứa phần của
+  nút đó. Trong bảng chữ 15px (ô tìm vẫn 16px).
 - **Khung chat kiểu Claude (21/11, sửa 22/11):** trên máy tính trong khung chỉ một hàng, nút +, ô chữ, ghi âm và gửi,
   chữ và các nút cùng một tâm ("text khởi đầu ngang hàng và ở giữa luôn nút + với các nút cho gọn"). Trên điện thoại hai
   dòng: ô chữ trọn dòng trên, dưới nó nút + bên trái, ghi âm và gửi bên phải ("ở điện thoại đẩy lên dòng bên trên thì sẽ
@@ -284,6 +286,7 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
 | Sao ưu tiên | 3 sao một ngày | **1 sao** |
 | Dải công cụ cạnh chọn model | bỏ hẳn | **chỉ 3 công cụ gần nhất** |
 | Tên vai trong team | trưởng nhóm, rồi điều phối | **phó nhóm** cho cộng sự dẫn team, **trưởng nhóm** là bạn (17/11) |
+| Model, mức suy nghĩ, hạn mức ở khung chat trên điện thoại | gộp một viên, mở một bảng chứa cả ba (11/11) | **3 nút riêng như máy tính, mỗi nút mở bảng của nó, chữ nhỏ hơn** (22/11) |
 | Khung chat trên điện thoại | một hàng: +, ô chữ, ghi âm, gửi (21/11) | **hai dòng: ô chữ ở trên, + bên trái và ghi âm, gửi bên phải ở dưới**; máy tính giữ một hàng (22/11) |
 | Chip repo GitHub ở khung chat | trong hàng nút, rồi một dải trên khung | **dưới khung, bên trái, cùng thư mục ghim**; model và Effort cũng xuống dưới, khung còn một hàng (21/11) |
 | Bảng chọn repo | chạm cả dòng để bật tắt dấu tích | **dòng đã chọn có nút X, dòng chưa chọn có dấu cộng**; viên dưới khung chat cũng có nút X (21/11) |
@@ -347,3 +350,4 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
   thao tác có dễ bị chọn nhầm không".
 - **22/11:** chữ gợi ý ô chat cùng hàng với nút + và ghi âm "không phù hợp ... ở điện thoại đẩy lên dòng bên trên thì sẽ
   phù hợp hơn"; thông báo có link dài "bị tràn viền".
+- **22/11:** khung Effort "đang bị lệch"; điện thoại "có đủ không gian để hiển thị để ấn thành 3 nút trên máy tính rồi".

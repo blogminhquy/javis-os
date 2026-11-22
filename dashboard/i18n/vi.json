@@ -445,6 +445,7 @@
   "fast.state_off": "Fast mode đang tắt ({reason}).",
   "cps.title": "Model và mức suy nghĩ",
   "cps.close": "Đóng",
+  "cps.model": "Chọn model",
   "lim.title": "Hạn mức gói",
   "lim.session": "Phiên 5 giờ",
   "lim.week": "Tuần",
