@@ -207,7 +207,7 @@ check("and runs again", wait_for(lambda: rt.MANAGER.status()["state"] == "runnin
 pid_named = rt.MANAGER._proc.pid
 cfg = c.read_settings()
 cfg["auth"] = {"username": "admin"}
-c.write_settings(cfg)
+c.write_settings(cfg, clear_account=True)     # an ordinary save keeps the owner's password (2026-11-22)
 check("password removed -> cloudflared stopped within seconds", wait_for(lambda: not alive(pid_named), 8))
 _why = rt.MANAGER.status()["error"].lower() if wait_for(lambda: rt.MANAGER.status()["state"] == "error") else ""
 check("... and the status says why", "mật khẩu" in _why or "password" in _why, _why)
@@ -303,7 +303,7 @@ check("no cloudflared started in tailscale mode", rt.MANAGER._proc is None or rt
 offs = serve_offs()
 cfg = c.read_settings()
 cfg["auth"] = {"username": "admin"}
-c.write_settings(cfg)
+c.write_settings(cfg, clear_account=True)
 check("password removed -> tailscale serve switched off", wait_for(lambda: serve_offs() > offs, 8))
 check("... and state error", wait_for(lambda: rt.MANAGER.status()["state"] == "error"))
 

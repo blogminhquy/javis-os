@@ -47,6 +47,23 @@ CHAY_RIENG = frozenset({
 })
 
 
+def child_env(base=None) -> dict:
+    """The environment every test file gets: this one, minus the live machine's folders and deploy settings.
+
+    Owner incident 2026-11-22: Javis runs these tests inside its own container, whose environment points at the real
+    settings.json and holds the admin password, and a test then wrote the owner's account. See tests/python/_live_env.py.
+    """
+    sys.path.insert(0, str(PY_DIR))
+    try:
+        import _live_env
+    finally:
+        sys.path.remove(str(PY_DIR))
+    env = _live_env.scrub(dict(os.environ if base is None else base))
+    env.update(PYTHONIOENCODING="utf-8", JAVIS_NO_REAL_JUDGE_ENGINE="1", JAVIS_NO_REAL_REVIEW_ENGINE="1",
+               JAVIS_NO_REAL_TEAM_ENGINE="1", JAVIS_NO_STT_MODEL_DISCOVERY="1")
+    return env
+
+
 def trinh_thong_dich() -> str:
     """Ưu tiên .venv của dự án - python hệ thống thường thiếu fastapi/yaml."""
     for p in (ROOT / ".venv" / "Scripts" / "python.exe", ROOT / ".venv" / "bin" / "python"):
@@ -254,8 +271,7 @@ def main() -> int:
     node = shutil.which("node")
     # Chốt trung tâm (review T3 J P2-2): MỌI test chạy qua đây đều không dựng được engine phán xử hay lượt học thật, kể cả
     # test không nạp tests/python/_paths.py. `agent_judge.Judge` từ chối mọi hàm hỏi model chưa đánh dấu là engine giả.
-    env = dict(os.environ, PYTHONIOENCODING="utf-8", JAVIS_NO_REAL_JUDGE_ENGINE="1", JAVIS_NO_REAL_REVIEW_ENGINE="1",
-               JAVIS_NO_REAL_TEAM_ENGINE="1", JAVIS_NO_STT_MODEL_DISCOVERY="1")
+    env = child_env()
 
     viec = []
     if not chi_js:

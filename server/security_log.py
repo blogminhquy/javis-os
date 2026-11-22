@@ -52,6 +52,10 @@ EVENTS: Dict[str, str] = {
     "env_2fa_reset": "alert",
     "auth_changed_outside": "alert",
     "agent_secret_blocked": "warn",
+    # 2026-11-22: someone tried to create an account after the owner's password vanished (main.auth_setup), and a save
+    # that would have dropped the owner's password was refused (config.write_settings).
+    "setup_blocked": "alert",
+    "account_clear_blocked": "alert",
 }
 
 _LOCK = threading.Lock()
@@ -140,25 +144,77 @@ def drain_alerts() -> List[dict]:
 
 
 # ---- Where a request comes from ----
-def client_ip(request) -> str:
-    """The sender's address. Behind a proxy on this machine or the private network (Caddy, Traefik, Docker) the address
-    the proxy appended to X-Forwarded-For is used; a request straight from a public address cannot pick its own."""
-    host = request.client.host if getattr(request, "client", None) else ""
+# Owner incident 2026-11-22: a stranger created an account on a VPS behind Cloudflare and Traefik, and the log named
+# only the Cloudflare edge (172.71.219.14). The old rule took the LAST X-Forwarded-For entry, which behind Cloudflare is
+# the edge, never the visitor; the sign-in lockout counted per edge too, so one stranger locked out the owner.
+#
+# The rule now: start at the address that connected, and step left through X-Forwarded-For only while the hop is one
+# we trust to have written it (a proxy on this machine or the private network). The first hop that is neither a local
+# proxy nor Cloudflare is the visitor. A Cloudflare hop names the visitor in CF-Connecting-IP, which only Cloudflare
+# can set: on any other hop that header is the visitor's own words and is ignored.
+#
+# Cloudflare's published edge ranges, https://www.cloudflare.com/ips/ (checked 2026-11-22). They change rarely; an
+# edge missing here is logged as itself, which is what happened before, never as an address the visitor picked.
+CLOUDFLARE_NETS = tuple(ipaddress.ip_network(n) for n in (
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18",
+    "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+    "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+    "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32", "2a06:98c0::/29",
+    "2c0f:f248::/32"))
+
+# Where a reverse proxy of this machine connects from: loopback, the private ranges (Docker, LAN) and IPv6 ULA.
+# Written out instead of `is_private`, which also counts the documentation ranges and would trust a visitor there.
+PROXY_NETS = tuple(ipaddress.ip_network(n) for n in (
+    "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7"))
+
+
+def _addr(value):
     try:
-        direct = ipaddress.ip_address(host)
-        behind = direct.is_loopback or direct.is_private
+        a = ipaddress.ip_address(str(value or "").strip())
     except ValueError:
-        behind = False
-    if behind:
-        for h in ("x-forwarded-for", "x-real-ip", "cf-connecting-ip"):
-            raw = request.headers.get(h, "") or ""
-            last = raw.split(",")[-1].strip()
-            if last:
-                try:
-                    return str(ipaddress.ip_address(last))
-                except ValueError:
-                    pass
-    return host
+        return None
+    if a.version == 6 and a.ipv4_mapped:
+        a = a.ipv4_mapped
+    return a
+
+
+def _in(a, nets) -> bool:
+    return any(a.version == n.version and a in n for n in nets)
+
+
+def is_cloudflare(value) -> bool:
+    a = _addr(value)
+    return a is not None and _in(a, CLOUDFLARE_NETS)
+
+
+def client_ip(request) -> str:
+    """The visitor's address, as far as hops we trust can tell. A request straight from a public address cannot pick
+    its own; behind Cloudflare it is CF-Connecting-IP; behind a local proxy it is the entry that proxy appended."""
+    host = request.client.host if getattr(request, "client", None) else ""
+    cur = _addr(host)
+    if cur is None:
+        return host
+    if not (_in(cur, PROXY_NETS) or _in(cur, CLOUDFLARE_NETS)):
+        return str(cur)
+    headers = request.headers
+    hops = [h.strip() for h in (headers.get("x-forwarded-for", "") or "").split(",") if h.strip()]
+    if not hops and headers.get("x-real-ip"):
+        hops = [headers.get("x-real-ip")]
+    for raw in reversed(hops):
+        if _in(cur, CLOUDFLARE_NETS):
+            break
+        a = _addr(raw)
+        if a is None:
+            break        # an entry that is not an address: the last good hop is as far as anyone vouches
+        cur = a
+        if not (_in(a, PROXY_NETS) or _in(a, CLOUDFLARE_NETS)):
+            return str(a)
+    if _in(cur, CLOUDFLARE_NETS) or cur.is_loopback:
+        # A Cloudflare hop, or cloudflared on this machine that passed no X-Forwarded-For.
+        visitor = _addr(headers.get("cf-connecting-ip", ""))
+        if visitor is not None:
+            return str(visitor)
+    return str(cur)
 
 
 def request_meta(request) -> tuple:

@@ -7833,7 +7833,8 @@
     setup: "change", username_changed: "change", password_changed: "change", "2fa_enabled": "change",
     "2fa_disabled": "change", "2fa_recovery_regenerated": "change", token_created: "change", token_revoked: "change",
     login_disabled: "change", env_account_created: "change", env_account_reset: "change", env_2fa_reset: "change",
-    auth_changed_outside: "change", agent_secret_blocked: "change",
+    auth_changed_outside: "change", agent_secret_blocked: "change", setup_blocked: "change",
+    account_clear_blocked: "change",
   };
   let _secFilter = "all";
 
