@@ -70,20 +70,22 @@ The last section is **4. Timezone**, preselected from the timezone of the device
 
 Press **Start using Javis →** to save and enter the app. The wizard also sets a default model for the provider you chose: `sonnet` for Claude Code, `gpt-5.5` for ChatGPT, `openai/gpt-4o-mini` for OpenRouter. Change it on the Models page whenever you like.
 
-### Step 5: Sign in to Claude as the brain
+### Step 5: Connect Claude as the brain
 
-This is the important step if you chose Claude Code. The wizard only saves the provider choice; signing in to Claude happens on the **Models** page (**Connections** group):
+This is the important step if you chose Claude Code. The wizard only saves the provider choice; connecting Claude happens on the **Models** page (**Connections** group):
 
 1. Open **Models** on the left rail.
 2. Find the **Claude Code** card. It starts at "○ Not signed in".
-3. Press **Sign in to Claude**.
+3. Type a name in the **Account name** box so it is never mixed up later, then press **Connect Claude**. Javis runs `claude setup-token` itself.
 4. Javis shows a link. Open it (in a new tab) and sign in at claude.ai.
-5. If the page shows a code afterwards, paste it into the **paste code (if any)** box and press **Send code**. Some flows need no code; Javis re-checks status every 3 seconds and updates the card.
-6. When it is done, the card reads "● Connected" (with the email/plan when available).
+5. If the page shows a code afterwards, paste it into the **Paste the code here** box and press **Confirm code**. On a machine with a browser the page may show no code: just come back to Javis and the card finishes by itself in a few seconds.
+6. When it is done, Javis saves the token (encrypted) and the card reads "● Connected".
 
-This is a device-code flow: no API key required. It works on a headless VPS. If you have terminal access to the server you can instead sign in once with `claude auth login --claudeai`.
+No API key required. The token lasts **one year** (Anthropic sets that) and is never signed out midway like the old sign-in. Near the end Javis reminds you in the bell; press **Get a new token** on the card and sign in once more for another year. It works on a headless VPS too.
 
-The **↻ Re-check** button on the card reloads the sign-in status at any time. **Disconnect** signs Claude out of Javis.
+Already have a token made elsewhere with `claude setup-token` (it starts with `sk-ant-oat01-`)? Press the small **Paste a token** button, paste it and press **Save token**. On **Windows** the automatic step is not available: open a terminal, run `claude setup-token`, then paste the token into the card this way.
+
+The **↻ Check again** button on the card reloads the status while not connected. **Disconnect** disconnects Claude from Javis and forgets the token. `claude auth login --claudeai` in the server terminal still works as a fallback, but that is the old kind of sign-in, which can run out midway.
 
 The Javis Claude engine runs through the **Claude Agent SDK**, but the SDK still calls the `claude` CLI on the machine, so the machine running Javis must have `claude` installed for sign-in and native MCP to work.
 
@@ -237,9 +239,11 @@ When Javis runs publicly (listening on `0.0.0.0`, i.e. VPS/Docker/Hostinger) wit
 | Button / label | Where | What it does |
 |---|---|---|
 | **Start using Javis →** | Wizard | Saves the workspace, account and provider, then enters the app |
-| **Sign in to Claude** | Models, Claude Code card | Starts the device-code flow and shows the claude.ai link |
-| **Send code** | Models, after pressing Sign in to Claude | Submits the code taken from claude.ai |
-| **↻ Re-check** | Models, Claude Code card | Reloads the sign-in status |
+| **Connect Claude** | Models, Claude Code card | Javis runs `claude setup-token` and shows the claude.ai link to get a long-lived token |
+| **Confirm code** | Models, after pressing Connect Claude | Submits the code taken from claude.ai |
+| **Paste a token** | Models, Claude Code card | Paste a token made elsewhere with `claude setup-token` |
+| **Get a new token** | Models, Claude Code card (connected) | Sign in to claude.ai once more for a token good for another year |
+| **↻ Check again** | Models, Claude Code card | Reloads the status while not connected |
 | **Disconnect** | Models | Signs the provider out of Javis |
 | **Change model ▾** | Models, Main Model and Background-work model | Opens the model picker |
 | **Reset to default** | Models, Background-work model | Returns background work to the Claude Code default |
@@ -254,7 +258,7 @@ When Javis runs publicly (listening on `0.0.0.0`, i.e. VPS/Docker/Hostinger) wit
 ## Tips
 
 - If you only run this on a personal machine and are not worried about strangers, leave the wizard password empty for a fast entry. You can set one later on the **Account** page.
-- If the app reports Claude is not signed in after you get in, go back to **Models** and press **Sign in to Claude** once.
+- If the app reports Claude is not signed in after you get in, go back to **Models** and press **Connect Claude** once.
 - Avatar and domain live under **Settings → General**; voice and speed under **Settings → Voice**.
 - If the interface does not change after a version update, press Ctrl+Shift+R for a clean reload.
 - Pick a cheap **Background-work model** from the start: loops, Kanban work, reminders, self-learning and source ingestion run a lot, and leaving them on an expensive model burns quota fast. Watch the real figures on the [Usage](../23-muc-dung-token.md) page.
@@ -263,7 +267,8 @@ When Javis runs publicly (listening on `0.0.0.0`, i.e. VPS/Docker/Hostinger) wit
 
 - **"Password must be at least 8 characters":** use a password of 8 characters or more.
 - **"An account already exists - please sign in":** an admin was created earlier (through env vars, for instance). Use the sign-in screen with those credentials.
-- **Claude reports it is not signed in:** go to **Models**, press **Sign in to Claude**, open the link, paste the code if asked. Or run `claude auth login --claudeai` in the server terminal.
+- **Claude reports it is not signed in:** go to **Models**, on the Claude Code card press **Connect Claude**, open the link, paste the code if the page shows one and press **Confirm code**. On a machine still on the old sign-in, press **Switch to a long-lived token**. Fallback: run `claude auth login --claudeai` in the server terminal.
+- **Claude says the token expires soon or has expired:** go to **Models**, Claude Code card, press **Get a new token** and sign in to claude.ai once more.
 - **Forgot the admin password:** press "Forgot password?" on the sign-in screen for instructions. On Windows double-click `reset-auth.bat` in the Javis install folder (Mac: `reset-auth.command`): the old password is gone, open Javis again and set a new one on the Account page. On a server change `JAVIS_ADMIN_PASSWORD` and restart. See [Security & accounts](../14-bao-mat-tai-khoan.md).
 - **Too many failed sign-ins, "Too many attempts":** Javis locks temporarily to stop password guessing. Wait a few minutes and try again.
 - **Update says "Already updating, hold on.":** another update is in flight. Wait for it to finish and try again.

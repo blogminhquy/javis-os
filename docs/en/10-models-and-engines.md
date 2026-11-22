@@ -61,7 +61,7 @@ The table below lists the available providers. **Connected** providers sit in th
 
 | Provider (on-screen label) | Connection type | Notes |
 |---|---|---|
-| **Claude Code** | Claude Code sign-in, no key needed | Full MCP/skills/shell. Usually the default MAIN card |
+| **Claude Code** | Click **Connect Claude** to get a long-lived token for your Claude plan (lasts a year), no key needed | Full MCP/skills/shell. Usually the default MAIN card |
 | **OpenAI OAuth (ChatGPT)** | Device code (ChatGPT plan sign-in) | Runs through Codex, wires the Connections store through the hub and uses skills through the router |
 | **xAI Grok Build CLI** | Sign in **on the Models page itself** (device code), no key needed | Uses your existing **SuperGrok / X Premium+** plan. Runs through the `grok` binary. Full MCP/skills/shell, and can resume a conversation thread. It is the **only CLI card that can sign in while Javis runs on a VPS**, see [B1a](#b1a-connecting-grok-build-cli-using-a-supergrok--x-premium-plan) |
 | **Google Antigravity CLI** | Type `agy` **once in a terminal**, no key needed | Google's designated replacement for Gemini CLI. Runs through the `agy` binary. Full MCP/skills/shell, and can pick **exactly the Antigravity IDE model lineup** (non-Google models included) |
@@ -83,16 +83,26 @@ Each provider card shows **● Connected** or **○ Not connected**, the number 
 
 This is the default engine. It can use every tool, skill and memory, plus run shell commands. It is not mandatory: if you have no Claude plan, skip this and go straight to section B (ChatGPT) or C (API keys), where Javis has the same functionality minus shell commands.
 
-1. Open **Models** and find the **Claude Code** card (while it is not signed in, it sits behind the **＋ Connect another provider** button at the bottom of the page).
-2. If you are not signed in, the card reads **○ Not signed in** with two buttons: **Sign into Claude** and **↻ Re-check**. If the machine running Javis has no `claude` command, the card reads **○ Claude Code not installed**, shows one install box (Docker build: update Javis; manual install: one command to copy) and offers only **↻ Re-check**.
-3. Click **Sign into Claude**. Javis shows "**1)** Open this link to sign into claude.ai" with the link.
-4. Open that link and sign into your claude.ai account.
-5. If the page shows **a code**, paste it into the "paste code (if any)" field and click **Send code**. Some flows need no code: Javis waits and re-checks every 3 seconds, and the card updates once connected. After 5 minutes it reports a timeout and asks you to retry.
-6. When done, the card switches to **● Connected** with your email and plan.
+Since 22/11/2026 the Claude Code card has one way in: a **long-lived token** for your Claude plan. The old sign-in (`claude auth login`) can run out midway, saying the login reached its time limit and cannot be renewed, and that stops bots and background work. The token is never signed out midway.
 
-The **↻ Re-check** button only appears while signed out, for when you just signed in from a terminal and want Javis to look again. Once connected, the card has just one **Disconnect** button.
+1. Open **Models** and find the **Claude Code** card (while it is not connected, it sits behind the **＋ Connect another provider** button at the bottom of the page).
+2. If it is not connected, the card reads **○ Not signed in** with an **Account name** box and the buttons **Connect Claude**, **Paste a token** and **↻ Check again**. If the machine running Javis has no `claude` command, the card reads **○ Claude Code not installed**, shows one install box (Docker build: update Javis; manual install: one command to copy) and offers only **↻ Check again**.
+3. Type a name in the **Account name** box (for example "Work Gmail") so it is never mixed up later, then click **Connect Claude**. Javis runs `claude setup-token` itself and shows "**1)** Open this link and sign in to claude.ai to make the token:" with the link.
+4. Open that link and sign in to your claude.ai account.
+5. If the page shows **a code**, paste it into the "Paste the code here" box and click **Confirm code**. On a machine with a browser the page may show no code: just come back to Javis and the card finishes by itself in a few seconds. If the code is refused, click **Get a new link** to start again.
+6. When done, Javis saves the token (encrypted) and Claude Code runs on it. The card switches to **● Connected**, with a **Token ••••** line underneath showing the token's last four characters.
 
-This works on a headless VPS too. If you prefer the command line, run `claude auth login --claudeai` in a terminal.
+Once connected on a token, the card has **Get a new token**, **Paste a token** and **Disconnect**. **Disconnect** also makes Javis forget the token. **↻ Check again** only appears while not connected, for when you just did something in a terminal and want Javis to look again.
+
+**A token made elsewhere.** The small **Paste a token** button takes a token you made with `claude setup-token` on any machine (it starts with `sk-ant-oat01-`). Paste it into the box and click **Save token**. On **Windows** the automatic step is not available, so the card has no Connect Claude button: open a terminal, run `claude setup-token`, follow it, then paste the token into the box on the card.
+
+**The token lasts one year.** Anthropic lets each token run for a year, and Javis cannot change that. The card shows no countdown; only in the last two weeks does it say the token expires soon, with the date, and from a week before Javis puts one notice a day in the bell. Click **Get a new token** on the card and sign in to claude.ai once more for another year. The token still runs your Claude plan, so the note about background work on a plan still applies.
+
+**A machine still on the old sign-in.** A machine signed in before this change keeps working until that sign-in runs out. Its card shows **● Connected** with a **Switch to a long-lived token** button, which takes the same link and code steps above to get a one-year token.
+
+**To pay per use with an API key**, use the separate **Anthropic (API)** card (section C). The Claude Code card no longer has the **Runs on** choice (plan or API key). Only a machine that was already set to the API key on the Claude card still sees that old choice, so it can move back to the plan.
+
+This works on a headless VPS too. `claude auth login --claudeai` in a terminal still works as a fallback, but that is the old kind of sign-in, which can run out midway.
 
 ### B. Connecting ChatGPT with a subscription
 
@@ -283,7 +293,7 @@ Each card remembers its own model and Effort, so reordering never loses any card
 
 **How it ties to the chat composer.** The composer works as before: picking a model on the model chip under the chat pins it for that session and also changes the main model. Picking a model from **another provider** there moves that provider's card **to the top** as MAIN; the other cards keep their order and the old MAIN becomes Fallback 1. The composer's model list now **shows connected providers only**.
 
-**Plan provider cards** (Claude Code, ChatGPT, Grok Build, Antigravity) keep their sign-in controls inside the card: the **Runs on** choice (your signed-in plan or an Anthropic API key) and the **↻ Update Claude Code** button on the Claude card, **Re-check**, **Disconnect** and so on, as in sections A, B, B1a and B1b. Since 0.353.0 the ChatGPT, Grok Build and Claude Code cards accept several accounts (see section D1), while Antigravity stays at one account; API provider cards accept several keys (see section C).
+**Plan provider cards** (Claude Code, ChatGPT, Grok Build, Antigravity) keep their connection controls inside the card: the **Connect Claude**, **Get a new token**, **Paste a token** and **↻ Update Claude Code** buttons on the Claude card, **Re-check**, **Disconnect** and so on, as in sections A, B, B1a and B1b. Since 0.353.0 the ChatGPT, Grok Build and Claude Code cards accept several accounts (see section D1), while Antigravity stays at one account; API provider cards accept several keys (see section C).
 
 With no provider signed in yet, the block says "No provider is signed in yet. Press Connect another provider below."
 
@@ -325,7 +335,7 @@ The cards of three plan providers, **ChatGPT (Codex)**, **Grok Build** and **Cla
 - Switching account mid-conversation starts a fresh CLI thread for that turn, and Javis reloads the history.
 - Usage meters, image generation, voice and the ChatGPT paths that do not use the Codex CLI still use account 1.
 - Antigravity stays at one account (its token is in the OS keyring).
-- Claude Code on an Anthropic API key has no account list.
+- A machine that was already set to an Anthropic API key on the Claude Code card has no account list there. For several Anthropic keys, add them to the **Anthropic (API)** card (section C).
 - On macOS, a Claude account counts as signed in once Javis saw the sign-in finish (the token lives in the Keychain).
 
 ### D2. Running out of quota during a chat turn (from 0.354.0)
@@ -491,10 +501,16 @@ Up to and including 0.42.1 there was a bug in exactly this place: only ChatGPT/C
 | **Get the sign-in link** | The add-account box | Get the link (ChatGPT, Grok with a code) to sign in the account being added; for Claude Code paste the code and press **Confirm** |
 | **Accounts** list | Plan provider card with 2 or more accounts | Used top to bottom; states **Signed in** / **Not signed in** / **Off** / **Out of quota, back at HH:MM**; **⋯** for Turn off / Turn on, Sign in again, Remove |
 | **＋ Connect another provider (N)** | Bottom of the page | Show the N providers not yet connected, to sign in / paste a key |
-| **○ Not signed in** | Claude Code card | Claude Code is not signed in on this machine |
+| **○ Not signed in** | Claude Code card | Claude Code is not connected on this machine |
 | **○ Claude Code not installed** | Claude Code card | The machine running Javis has no `claude` command; follow the install box on the card |
-| **Sign into Claude** | Claude Code card | Start the link-based sign-in flow |
-| **↻ Re-check** | Claude Code card (only while signed out) | Re-query the sign-in state |
+| **Connect Claude** | Claude Code card (not connected) | Javis runs `claude setup-token` and shows a claude.ai sign-in link to get a long-lived token (lasts a year) |
+| **Confirm code** | Claude Code card, after clicking Connect Claude | Sends the code the claude.ai page gave you |
+| **Paste a token** / **Save token** | Claude Code card | Paste a token made with `claude setup-token` elsewhere (it starts with `sk-ant-oat01-`) and save it |
+| **Token ••••** | Claude Code card (connected on a token) | Runs on the long-lived token; in the last two weeks it adds the expiry date |
+| **Get a new token** | Claude Code card (connected on a token) | Sign in to claude.ai once more for a new token, good for another year |
+| **Switch to a long-lived token** | Claude Code card (machine still on the old sign-in) | Get a long-lived token in place of the old sign-in, which can run out midway |
+| **Disconnect** | Claude Code card | Disconnects, and Javis forgets the token |
+| **↻ Check again** | Claude Code card (only while not connected) | Re-query the connection state |
 | **Sign into ChatGPT** | OpenAI OAuth card | Sign in with a device code |
 | **Through the browser** | OpenAI OAuth card | The fallback when the workspace blocks device codes |
 | **Connect** | API provider card not yet connected | Save the first key; the provider joins the end of the Usage order |
