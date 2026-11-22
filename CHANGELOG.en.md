@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.626.0] - 2026-11-22
+### Added
+- **Claude Code connects with a long-lived token, one way in.** The Claude Code card on the Models page now has a single **Connect Claude** button: Javis runs `claude setup-token`, shows the link, you sign in to claude.ai and paste the code, and Claude Code runs on that token. The old sign-in could run out midway ("this login reached its time limit") and stop bots and background work; the token is never signed out midway. **Paste a token** takes one made on another machine. The token is stored encrypted and never sent to the browser.
+- **A reminder before the token ends.** Anthropic lets each token run for a year. The card shows the expiry date and the days left; about a week before, the bell reminds you once a day, and **Get a new token** is all it takes.
+### Improved
+- **The "Runs on" choice is gone from the Claude Code card.** To pay per use with an API key, use the separate **Anthropic (API)** card. A machine still on the old sign-in keeps working and gets a **Switch to a long-lived token** button; **Disconnect** also forgets the token.
+- **Each extra Claude account runs on its own account,** never on account 1's token.
+
 ## [0.625.1] - 2026-11-22
 ### Fixed
 - **Bots no longer post a model's sign-in error into a customer group.** When Claude Code's sign-in ran out it printed "Failed to authenticate: this login reached its time limit..." as an answer, and a bot sent it to a Telegram group as is. Every lost sign-in sentence (Claude Code, ChatGPT, Grok, Antigravity) is now stopped on every channel: the customer gets nothing, the turn runs on another connected model when there is one, and the owner's bell says to sign in again on the Models page.

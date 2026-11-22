@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.626.0] - 2026-11-22
+### Thêm mới
+- **Claude Code kết nối bằng token dài hạn, chỉ một cổng.** Thẻ Claude Code ở trang Models nay chỉ còn nút **Kết nối Claude**: Javis tự chạy `claude setup-token`, hiện link, bạn đăng nhập claude.ai và dán mã, xong là Claude Code chạy bằng token đó. Phiên đăng nhập kiểu cũ có thể hết hạn giữa chừng ("this login reached its time limit") và làm bot, việc nền dừng lại; token thì không bị đăng xuất giữa chừng. Có nút **Dán token** cho token tạo ở máy khác. Token được mã hoá khi lưu và không bao giờ gửi ra trình duyệt.
+- **Nhắc trước khi token hết hạn.** Anthropic cho mỗi token dùng 1 năm. Thẻ hiện ngày hết hạn và số ngày còn lại; trước khoảng một tuần, chuông thông báo nhắc mỗi ngày một lần, bấm **Lấy token mới** là xong.
+### Cải thiện
+- **Bỏ lựa chọn "Chạy bằng" trên thẻ Claude Code.** Muốn trả theo lượt dùng bằng API key thì dùng thẻ **Anthropic (API)** riêng. Máy đang đăng nhập kiểu cũ vẫn chạy bình thường và có nút **Chuyển sang token dài hạn**; nút **Ngắt** xoá luôn token.
+- **Mỗi tài khoản Claude phụ chạy đúng tài khoản của nó,** không mượn token của tài khoản 1.
+
 ## [0.625.1] - 2026-11-22
 ### Sửa lỗi
 - **Bot không còn gửi câu lỗi đăng nhập của model vào nhóm khách.** Khi Claude Code hết phiên, nó in câu "Failed to authenticate: this login reached its time limit..." như một câu trả lời, và bot gửi nguyên câu đó vào nhóm Telegram. Nay mọi câu báo mất đăng nhập (Claude Code, ChatGPT, Grok, Antigravity) đều bị chặn ở mọi kênh: khách không nhận gì, lượt đó tự chạy bằng model khác đã kết nối nếu có, còn chuông thông báo của chủ nói rõ cần vào trang Models đăng nhập lại.
