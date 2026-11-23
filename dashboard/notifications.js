@@ -464,7 +464,7 @@
     render();
   }
   // Owner, 2026-11-23: the phone's buzzes in numbers, the daily budget and the digest, on top of the filter.
-  function vePush() {
+  function renderPushStats() {
     var ps = state.pushStats;
     if (!ps || !ps.ok) return "";
     var line = esc(window.t("noti.push_week", { sent: ps.sent, rate: Math.round((ps.open_rate || 0) * 100) }));
@@ -484,7 +484,7 @@
       (least ? "<h5>" + esc(window.t("noti.push_least")) + '</h5><ul class="noti-fl">' + least + "</ul>" : "") +
       "<h5>" + esc(window.t("noti.groups_title")) + "</h5>";
   }
-  function luuPush(data) {
+  function savePushSettings(data) {
     var f = new FormData(); f.append("section", "push"); f.append("data", JSON.stringify(data));
     fetch("/settings", { method: "POST", body: f }).then(function () { return taiBoLoc(); }).catch(function () {});
   }
@@ -519,15 +519,15 @@
       return '<li><span>' + esc(c.text || "") + "</span>" + (c.undone ? '<small>' + esc(window.t("noti.undone")) + "</small>"
         : '<button type="button" class="noti-text-btn" data-undo="' + esc(c.id) + '">' + esc(window.t("noti.undo")) + "</button>") + "</li>";
     }).join("");
-    list.innerHTML = head + '<div class="noti-filter">' + info + vePush() + rows +
+    list.innerHTML = head + '<div class="noti-filter">' + info + renderPushStats() + rows +
       "<h5>" + esc(window.t("noti.rules_title")) + "</h5>" + (rules ? '<ul class="noti-fl">' + rules + "</ul>" : '<p class="noti-fl-empty">' + esc(window.t("noti.none")) + "</p>") +
       "<h5>" + esc(window.t("noti.changes_title")) + "</h5>" + (changes ? '<ul class="noti-fl">' + changes + "</ul>" : '<p class="noti-fl-empty">' + esc(window.t("noti.none")) + "</p>") +
       "</div>";
     noiDanhSach(list);
     var pb = list.querySelector("select[data-push-budget]");
-    if (pb) pb.addEventListener("change", function () { luuPush({ daily_budget: parseInt(pb.value, 10) || 0 }); });
+    if (pb) pb.addEventListener("change", function () { savePushSettings({ daily_budget: parseInt(pb.value, 10) || 0 }); });
     var pd = list.querySelector("input[data-push-digest]");
-    if (pd) pd.addEventListener("change", function () { luuPush({ digest: pd.checked ? "on" : "off" }); });
+    if (pd) pd.addEventListener("change", function () { savePushSettings({ digest: pd.checked ? "on" : "off" }); });
     list.querySelectorAll("select[data-grp]").forEach(function (sel) {
       sel.addEventListener("change", function () { guiBoLoc("/notify/policy/group", { group: sel.dataset.grp, mode: sel.value }); });
     });
