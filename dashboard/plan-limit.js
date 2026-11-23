@@ -92,6 +92,7 @@
   function paintRing() {
     var btn = $("limitBtn");
     if (!btn) return;
+    paintTop();
     var c = cur();
     btn.hidden = !c.brain;
     // Phone (2026-11-11): the ring is the left end of the one pill it forms with the model and Effort chips; the row
@@ -126,10 +127,60 @@
       '<i class="lim-' + lv + '" style="width:' + Math.min(100, w.pct) + '%"></i></div>' +
       (rs ? '<div class="lim-reset"></div>' : "") + "</div>";
   }
-  function paintPop() {
-    var pop = $("limitPop");
+  // Header widget brain: the brain in use when it is on a plan, else Claude (the plan most users watch).
+  function topCur() {
+    var c = cur();
+    if (c.brain && c.d && (c.d.five_hour || c.d.seven_day)) return c;
+    var d = data && data.claude;
+    return d && (d.five_hour || d.seven_day) ? { brain: "claude", d: d } : { brain: "", d: null };
+  }
+  // Absolute reset time ("Resets Sat 03:20"), the same wording as the popover once past a day.
+  function absReset(w) {
+    if (!w || !w.resets_at) return "";
+    var d = new Date(w.resets_at * 1000);
+    return tw("lim.reset_at", { when: d.toLocaleDateString(LOC(), { weekday: "short" }) + " " +
+      d.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" }) });
+  }
+  function topOpen() { var p = $("limTopPop"); return !!(p && !p.hidden); }
+  function closeTop() {
+    var p = $("limTopPop"), b = $("limTopBtn");
+    if (p) p.hidden = true;
+    if (b) b.setAttribute("aria-expanded", "false");
+  }
+  function paintTop() {
+    var wrap = $("limTopWrap"), btn = $("limTopBtn");
+    if (!wrap || !btn) return;
+    var c = topCur();
+    wrap.hidden = !c.brain;
+    if (!c.brain) { closeTop(); return; }
+    var n = data && data.nguong, d = c.d, pct = d.max || 0;
+    btn.dataset.muc = d.muc || level(pct, n && n.canh_bao, n && n.sat);
+    var fg = btn.querySelector(".lim-fg");
+    if (fg) fg.setAttribute("stroke-dasharray", Math.max(3, Math.min(100, pct)) + " 100");
+    var txt = $("limTopTxt");
+    if (txt) {
+      txt.textContent = "";
+      [[d.five_hour, "5h"], [d.seven_day, tw("lim.week")]].forEach(function (x) {
+        if (!x[0]) return;
+        var row = document.createElement("span"), a = document.createElement("b"), r = document.createElement("i");
+        row.className = "lim-top-row";
+        a.textContent = x[1] + " " + x[0].pct + "%";
+        r.textContent = absReset(x[0]);
+        row.appendChild(a); row.appendChild(r); txt.appendChild(row);
+      });
+    }
+    var tip = [tw("lim.title")];
+    if (d.five_hour) tip.push(tw("lim.session") + ": " + d.five_hour.pct + "%");
+    if (d.seven_day) tip.push(tw("lim.week") + ": " + d.seven_day.pct + "%");
+    btn.title = tip.join("\n");
+    if (topOpen()) paintPop($("limTopPop"), c);
+  }
+
+  function paintPop(pop, c) {
+    pop = pop || $("limitPop");
     if (!pop) return;
-    var c = cur(), d = c.d, n = data && data.nguong;
+    c = c || cur();
+    var d = c.d, n = data && data.nguong;
     var meter = d && (d.five_hour || d.seven_day);
     pop.innerHTML = '<div class="lim-head"><span class="lim-h"></span><span class="lim-who"></span></div>' +
       (c.het ? '<div class="lim-het"><p class="lim-het-h"></p><p class="lim-het-r"></p></div>' : "") +
@@ -231,15 +282,29 @@
   }
 
   document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target : null;
+    if (t && t.closest("#limTopBtn")) {
+      if (topOpen()) closeTop();
+      else {
+        var tp = $("limTopPop"), tb = $("limTopBtn");
+        if (tp && tb) { tp.hidden = false; tb.setAttribute("aria-expanded", "true"); paintPop(tp, topCur()); refresh(true, true); }
+      }
+      return;
+    }
+    if (topOpen() && !(t && t.closest("#limTopPop"))) closeTop();
     if (sheetOwns()) return;
     if (e.target.closest && e.target.closest("#limitBtn")) { popOpen() ? closePop() : openPop(); return; }
     if (popOpen() && !(e.target.closest && e.target.closest("#limitPop"))) closePop();
   });
   document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && topOpen()) { closeTop(); var tb2 = $("limTopBtn"); if (tb2) tb2.focus(); }
     if (e.key === "Escape" && popOpen() && !sheetOwns()) { closePop(); var b = $("limitBtn"); if (b) b.focus(); }
   });
 
   window.addEventListener("javis:i18n", paintRing);
+  // Header widget: load once at start, then every 2 minutes (the server rate-limits itself; fetch-gop.js merges calls).
+  refresh(true);
+  setInterval(function () { if (!document.hidden) refresh(true); }, 120000);
 
   api.setProvider = setProvider;
   api.refresh = function () { return refresh(true); };

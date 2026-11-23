@@ -2829,6 +2829,28 @@ textarea.sug-ghosted::placeholder { color: transparent; }
 .lim-het-o { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: var(--warn-ink); }
 .lim-at, .lim-none { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: var(--text3); }
 .lim-none { color: var(--text2); }
+/* Header plan usage button beside the bell (plan-limit.js). */
+.lim-top-wrap { position: relative; display: inline-flex; }
+.lim-top-wrap[hidden] { display: none; }
+.lim-top-btn svg { transform: rotate(-90deg); width: 18px; height: 18px; }
+.lim-top-btn circle { fill: none; stroke-width: 4.5; }
+.lim-top-btn .lim-bg { stroke: var(--border); }
+.lim-top-btn .lim-fg { stroke-linecap: round; stroke: var(--text3); transition: stroke-dasharray .4s ease, stroke .2s; }
+.lim-top-btn[data-muc="ok"] .lim-fg { stroke: var(--green, #3fb27f); }
+.lim-top-btn[data-muc="warn"] .lim-fg { stroke: var(--warn-ink); }
+.lim-top-btn[data-muc="bad"] .lim-fg { stroke: var(--red); }
+.lim-top-btn[data-muc="bad"] { border-color: var(--red); }
+.lim-top-btn { height: 34px; gap: 9px; padding: 0 12px; }
+.lim-top-txt { display: flex; flex-direction: row; align-items: center; gap: 12px; line-height: 1; }
+.lim-top-row + .lim-top-row { padding-left: 12px; border-left: 1px solid var(--border); }
+.lim-top-row { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.lim-top-row b { font-size: 12px; font-weight: 700; color: var(--text-hi); font-variant-numeric: tabular-nums; }
+.lim-top-row i { font-style: normal; font-size: 10.5px; font-weight: 500; color: var(--text3); }
+.lim-top-pop { position: absolute; top: calc(100% + 8px); right: 0; z-index: 70; width: min(320px, calc(100vw - 32px));
+  padding: 14px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-3); }
+.lim-top-pop[hidden] { display: none; }
+@media (max-width: 1300px) { .lim-top-row i { display: none; } }
+@media (max-width: 720px) { .lim-top-txt { display: none; } .lim-top-btn { width: 34px; min-width: 34px; padding: 0; } }
 .eff-lbl { color: var(--text2); }
 .eff-val { color: var(--accent-ink); font-weight: 600; }
 .eff-ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--text2); margin: 12px 0 6px; }
