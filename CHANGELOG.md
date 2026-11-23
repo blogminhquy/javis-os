@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.631.5] - 2026-11-24
+### Sửa lỗi
+- Hội thoại Claude ít bị mở luồng mới không cần thiết khi một lượt dùng nhiều công cụ, giúp giữ ngữ cảnh và tiến trình ấm.
+
 ## [0.631.4] - 2026-11-23
 ### Cải thiện
 - **Javis khởi động lại nhanh hơn khoảng 13 giây.** Bản cài bằng Docker đã biên dịch sẵn mã, nên sau mỗi lần cập nhật không còn phải chờ lâu mới dùng được.
