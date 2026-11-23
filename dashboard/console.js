@@ -4009,6 +4009,7 @@
           </div>`}
           ${off ? `<div class="ord-offnote">${ic("info")}<span>${esc(t("models.agy_off_note"))}</span></div>` : ""}
           ${on ? planAccts(p, ord) : ""}
+          ${on ? `<div id="agyUpd" class="gcard-meta"></div>` : ""}
           ${ordActs(p, ord, { check: "data-agycheck", add: on && multiPlan.indexOf(p.id) >= 0 ? "plan" : "" })}
           <div class="prov-action" style="flex-wrap:wrap">
             ${off
@@ -4278,6 +4279,18 @@
     if (ol) ol.onclick = named("openai-oauth", () => startOauthLogin(el));
     const ob = el.querySelector("[data-oauth-browser]");
     if (ob) ob.onclick = named("openai-oauth", () => startOauthBrowser(el));
+    // 2026-11-23 (spec Antigravity): which agy runs, when it last updated and whether that failed, so a model that
+    // is missing from the picker can be told apart from an agy that stopped updating.
+    const agu = el.querySelector("#agyUpd");
+    if (agu) fetch("/antigravity/status").then(r => r.json()).then(d => {
+      const cn = (d && d.cap_nhat) || {};
+      const parts = [];
+      const ver = (d && d.phien_ban) || cn.sau || cn.truoc;
+      if (ver) parts.push(t("models.agy_ver", { v: ver }));
+      if (cn.ts) parts.push(t("models.cc_upd_last", { luc: new Date(cn.ts * 1000).toLocaleString(LOC(), { dateStyle: "short", timeStyle: "short" }) }));
+      agu.innerHTML = esc(parts.join(" · "))
+        + (cn.ok === false && cn.error ? `<div>${Icons.warn(t("models.cc_upd_fail") + " " + cn.error)}</div>` : "");
+    }).catch(() => {});
     const agk = el.querySelector("[data-agycheck]");
     if (agk) agk.onclick = async () => {
       const msg = el.querySelector("#agyMsg");

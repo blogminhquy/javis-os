@@ -49,36 +49,37 @@ def _dat_ca_ba(s, sid):
     s.set_cli_session_id(sid, "claude-mach")
     s.set_codex_thread_id(sid, "codex-thread")
     s.set_grok_session_id(sid, "grok-mach")
+    s.set_agy_conversation_id(sid, "main|agy-thread")
 
 
 def _doc(s, sid):
     r = s.get_session(sid) or {}
     return (r.get("cli_session_id") or "", r.get("codex_thread_id") or "",
-            r.get("grok_session_id") or "")
+            r.get("grok_session_id") or "", r.get("agy_conversation_id") or "")
 
 
 # ============================================================
 # 1. Kho phiên: giữ đúng mạch của engine đang chạy, dọn sạch phần còn lại
 # ============================================================
-for nhan, giu in (("cli", 0), ("codex", 1), ("grok-cli", 2)):
+for nhan, giu in (("cli", 0), ("codex", 1), ("grok-cli", 2), ("antigravity-cli", 3)):
     s = _kho()
     sid = s.get_or_create(None, brain="brain", engine=nhan, model="m")
     _dat_ca_ba(s, sid)
     da_don = s.clear_native_threads(sid, keep=nhan)
     sau = _doc(s, sid)
     check(f"engine {nhan}: giữ mạch của chính nó", bool(sau[giu]), sau)
-    check(f"engine {nhan}: dọn mạch hai engine kia",
+    check(f"engine {nhan}: dọn mạch các engine kia",
           sum(1 for i, v in enumerate(sau) if v and i != giu) == 0, sau)
-    check(f"engine {nhan}: báo lại đúng thứ đã dọn", len(da_don) == 2, da_don)
+    check(f"engine {nhan}: báo lại đúng thứ đã dọn", len(da_don) == 3, da_don)
 
-# Engine KHÔNG giữ mạch riêng (Antigravity, mọi engine API) -> dọn sạch cả ba.
+# Engine KHÔNG giữ mạch riêng (mọi engine API) -> dọn sạch hết. Antigravity có mạch riêng từ khi nối `--conversation`.
 # Đây chính là ca người dùng gặp: đang Claude Code, đổi sang một model API.
-for nhan in ("antigravity-cli", "openrouter", "gemini", "groq", "ollama", ""):
+for nhan in ("openrouter", "gemini", "groq", "ollama", ""):
     s = _kho()
     sid = s.get_or_create(None, brain="brain", engine="cli", model="m")
     _dat_ca_ba(s, sid)
     s.clear_native_threads(sid, keep=nhan)
-    check(f"engine {nhan or '(trống)'}: dọn sạch cả ba mạch", _doc(s, sid) == ("", "", ""))
+    check(f"engine {nhan or '(trống)'}: dọn sạch mọi mạch", _doc(s, sid) == ("", "", "", ""))
 
 # Gọi khi không có mạch nào -> không nổ, không báo đã dọn gì
 s = _kho()

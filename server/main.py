@@ -6486,6 +6486,8 @@ def antigravity_status():
     d["tu_cai"] = cli_autoinstall.state("agy")
     d["huong_dan"] = antigravity_cli.login_huong_dan()
     d["cap_nhat"] = agy_update.doc_trang_thai()
+    # The card names the agy actually installed, even before the first daily `agy update` has run.
+    d["phien_ban"] = claude_update.phien_ban(d["cli_path"]) if d["cli_path"] else ""
     return d
 
 
@@ -21469,10 +21471,8 @@ async def _chat_socket(ws):
                 steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: one-shot CLI, messages wait for the end
                 # ===== Gói SuperGrok / X Premium+ qua GROK BUILD CLI - tool native + MCP hub =====
                 #
-                # CÓ nối lại mạch như nhánh Gemini/Codex, khác nhánh `agy` ngay dưới: `grok`
-                # tự sinh id phiên rồi phát ra trong dòng sự kiện, nên Javis chỉ ĐỌC LẠI id đó
-                # chứ không tự bịa ra một cái. Không có chuyện lưu nhầm một id sai dạng rồi
-                # lượt sau nối vào mạch không tồn tại - lý do khiến `agy` phải bỏ resume.
+                # CÓ nối lại mạch như nhánh Gemini/Codex: `grok` tự sinh id phiên rồi phát ra trong
+                # dòng sự kiện, nên Javis chỉ ĐỌC LẠI id đó chứ không tự bịa ra một cái.
                 actual_model = api_model or None
                 sysprompt, _sub_plan = await _subscription_system_prompt(
                     "grok-cli", actual_model or "", kind)
@@ -21566,11 +21566,13 @@ async def _chat_socket(ws):
                 steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: one-shot CLI, messages wait for the end
                 # ===== Gói Google qua ANTIGRAVITY CLI (`agy`) - tool native + MCP hub =====
                 #
-                # CỐ Ý chưa nối lại mạch hội thoại của CLI như nhánh Gemini/Codex ngay trên.
-                # `agy` có `--conversation <uuid>`, nhưng chưa ai đo được nó trên máy thật, mà
-                # lưu một id sai vào SQLite thì lượt sau nối vào mạch không tồn tại và hỏng câm.
-                # Nên mỗi lượt mở mạch mới và mồi lại bằng transcript đã lưu - tốn token hơn
-                # nhưng KHÔNG mất ngữ cảnh. Đo được cờ đó rồi thì nâng lên đúng khuôn Gemini.
+                # Resumes its thread with `--conversation <id>` like the Grok branch above, main chat only (background,
+                # Team and workflow turns stay one-shot). Measured on agy 1.5.14, 2026-11-23: resuming works on argv and
+                # stdin, keeps the thread across a model switch, and cuts the fresh input of a turn by about half. A
+                # thread agy cannot find (another Google account, cleaned up) does NOT fail: agy opens a new one and
+                # answers blind, so AntigravityCLI.query() stops at the new id and reruns this same turn on a fresh
+                # thread primed with the saved transcript (`fresh_prompt`). The id is stored with the account that
+                # owns it, and `JAVIS_AGY_RESUME=0` turns all of this off (every turn bootstraps, as before).
                 actual_model = api_model or None
                 sysprompt, _sub_plan = await _subscription_system_prompt(
                     "antigravity-cli", actual_model or "", kind)
@@ -21599,9 +21601,32 @@ async def _chat_socket(ws):
                     # Ngân sách RIÊNG cho agy (xem compaction.AGY_BOOTSTRAP_MAX_CHARS): gói này
                     # gửi lại nguyên mỗi lượt, và trên Windows nó thành file ngữ cảnh mà model
                     # phải tự đọc - dài quá là đọc cụt rồi trả lời câu hỏi cũ.
-                    _a_prompt = compaction.bootstrap_prompt(
+                    _a_fresh = compaction.bootstrap_prompt(
                         _a_raw, _a_cur, max_chars=compaction.AGY_BOOTSTRAP_MAX_CHARS,
                         summary=_row0.get("compact_summary") or "")
+                    _a_owner = str(_turn_acc.get("antigravity-cli") or "")
+                    _a_held, _, _a_thread = (_row0.get("agy_conversation_id") or "").strip().rpartition("|")
+                    if _a_held != _a_owner or not antigravity_cli.resume_enabled():
+                        _a_thread = ""      # another account's thread is not found there anyway: skip the try
+                    if _a_thread and compaction.nen_mach_thue_bao(
+                            _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                            rotated_at=_row0.get("thread_rotated_msg")):
+                        _a_thread = ""
+                        await asyncio.to_thread(store.clear_agy_conversation_id, conv_sid)
+                        await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
+                        _CONTEXT_RUNTIME.record_runtime_event(
+                            runtime_trace, "thread.rotated",
+                            {"engine": "antigravity-cli",
+                             "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                             "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
+                        await ws.send_text(json.dumps({
+                            "type": "tool_call", "tool": "javis_nen_mach",
+                            "content": localefmt.chu("⚙ Mạch hội thoại đã dài, Javis mở mạch mới.",
+                                                     "⚙ The conversation thread got long, Javis started a new one.")}))
+                    if _a_thread:
+                        acli.session_id = _a_thread
+                        acli.fresh_prompt = _a_fresh
+                    _a_prompt = _a_cur if _a_thread else _a_fresh
                     _CONTEXT_RUNTIME.observe_payload(
                         runtime_trace,
                         [{"role": "system", "content": sysprompt},
@@ -21623,10 +21648,19 @@ async def _chat_socket(ws):
                         elif et == "final":
                             final_text = ev.get("content") or ""
                         elif et == "usage":
-                            await asyncio.to_thread(store.set_last_input_tokens, conv_sid, int(ev.get("input_tokens") or 0))
+                            # How big the thread is now (fresh + cached input of the last call), which is what
+                            # tells the next turn to start a new thread before it outgrows the model.
+                            await asyncio.to_thread(store.set_last_input_tokens, conv_sid,
+                                                    int(ev.get("context_tokens") or ev.get("input_tokens") or 0))
                         elif et == "error":
                             await ws.send_text(_limit_frame(
                                 ev.get("content") or "", "antigravity-cli", actual_model or ""))
+                    if (final_text and acli.session_id and not acli.was_stopped
+                            and antigravity_cli.resume_enabled()):
+                        await asyncio.to_thread(store.set_agy_conversation_id, conv_sid,
+                                                f"{_a_owner}|{acli.session_id}")
+                    elif _a_thread and acli.thread_lost:
+                        await asyncio.to_thread(store.clear_agy_conversation_id, conv_sid)
                     final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "antigravity-cli",

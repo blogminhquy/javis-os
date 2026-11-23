@@ -266,20 +266,42 @@ Antigravity dùng đúng mẫu đó, kèm test.
 ====================================================================================================
 9. NHẬT KÝ ĐO (phiên làm việc ghi vào đây)
 ====================================================================================================
-  Máy: (Linux / Docker / VPS)        Bản agy:            Gói Google:
-  H1:
-  H2:
-  H3:
-  H4:
-  H5:
-  H6:
-  M1:
-  M2:
-  M3:
-  M4:
-  M5:
-  M6:
-  M7:
-  M8:
-  M9:
-  Tên tool MCP trong stream (mục 4):
+  Máy: Linux, container Javis (user javis)   Bản agy: 1.5.14 (agy-update.json: ok, 18:36 UTC 22/11, không lỗi)
+  Gói Google: đăng nhập tài khoản cá nhân; CLI không in được loại gói. Đo 23/11/2026.
+  H1: loại. Bản 1.5.14 là bản mới nhất, cập nhật tự động chạy được, không lỗi.
+  H2: loại. `agy models | cat -A`: dòng đầu "Fetching available models...", rồi 6 dòng TAB:
+      gemini-3.8-flash-high/medium/low, claude-sonnet-4-6, claude-opus-4-6-thinking, gpt-oss-120b-medium.
+      Javis bóc đủ 6. `agy models --output-format json` của 1.5.14 báo "flags provided but not defined":
+      Javis tự lùi sang bản chữ, không mất model nào. Đã thêm mẫu thật vào tests/python/test_agy_resume.py.
+  H3: loại. Tài khoản phụ acc_28e31a5be1 (đã đăng nhập) liệt kê đúng 6 model như tài khoản chính;
+      ba tài khoản phụ còn lại báo "Please sign in".
+  H4: chưa đo bằng HTTP; danh sách sống đã trùng 6 model nên không đổi kết luận.
+  H5: GỐC LỖI. `agy --model gemini-4-hydrogen` (cả carbon, neon, hydrogen) thoát 1: "is not recognized as
+      a known model or custom model in settings". Changelog agy: Hydrogen/Carbon thêm cho đăng nhập bằng
+      GEMINI_API_KEY, Hydrogen/Carbon/Neon cho Application Default Credentials (AGY_ADC_AUTH) và
+      enterprise model gateway; Neon cho GEMINI_API_KEY từ 1.5.13. Đăng nhập Google cá nhân không được cấp.
+      Không phải lỗi của Javis.
+  H6: không áp dụng.
+  M1: init có conversation_id ở tầng ngoài, trùng id trong mọi step và result. Input lượt 1: 9781 token.
+  M2: --conversation <id> trả lời đúng "7", cùng id. Step usage: input 2425 + cache_read 7770.
+      result.usage CỘNG DỒN cả mạch (num_turns 2, input 12206 = 9781 + 2425): phải lấy usage từ step.
+  M3: id bịa -> KHÔNG lỗi: stderr `warning: conversation "<id>" not found`, exit 0, init mang id MỚI,
+      model trả lời mù và còn chạy tool (ls, read_file, thử gọi MCP). Tín hiệu duy nhất: id ở init khác id
+      đã xin -> Javis dừng ngay ở init rồi chạy lại cùng lượt bằng mạch mới + bootstrap.
+  M4: đi stdin (không -p) nối mạch được, cùng id, trả lời đúng.
+  M5: đổi --model claude-sonnet-4-6 giữa mạch vẫn nhớ, init.model là model mới.
+  M6: HOME tài khoản khác + id của tài khoản chính -> y như M3 (not found, id mới, exit 0). Javis lưu id
+      kèm tài khoản ("<tài khoản>|<id>") và bỏ qua id của tài khoản khác.
+  M7: lượt nối mạch: input không cache ~= sysprompt gửi lại (~7.8k token) + cache_read phần mạch cũ.
+      Mạch phình ~7.8k token mỗi lượt vì sysprompt gửi lại mỗi lượt (đề xuất sau: chỉ gửi khi đổi).
+  M8 (sysprompt giả = 29.279 ký tự đầu CLAUDE.md, một mẫu, lịch sử ngắn):
+      lượt | cũ: chữ đầu / tổng       | nối mạch: chữ đầu / tổng
+      1    | 6.2s / 7.8s (in 17135)   | 5.7s / 7.2s (in 17189)
+      2    | 9.7s / 10.5s (in 17185)  | 7.0s / 9.0s (in 7828 + cache 17221)
+      3    | 10.3s / 12.1s (in 17286) | 9.0s / 10.9s (in 8085 + cache 25098)
+      Nhanh hơn 1-2.7s, token không cache giảm ~55%. Lịch sử càng dài càng lợi (cách cũ mồi tới 45k ký tự).
+  M9: chưa đo (không có bản agy mới để thử cập nhật).
+  Tên tool MCP trong stream (mục 4): tool_name "call_mcp_tool", parameters {"ServerName":"javis",
+      "ToolName":"<tool>","Arguments":{...}}; lỗi quyền "permission check failed for mcp \"javis/<tool>\"".
+      agy còn chép schema từng tool ra ~/.gemini/antigravity-cli/mcp/<server>/<tool>.json.
+      mcp_hub._amb_tools đã gọi đúng tên này cho nguồn agy_config.

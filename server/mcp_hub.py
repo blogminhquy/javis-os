@@ -731,10 +731,14 @@ def _amb_where(s):
 
 
 def _amb_tools(s):
-    """How the engine names this connector's tools. Claude Code and Codex: mcp__<server>__<tool>. Grok Build and
-    Antigravity name MCP tools their own way, so they get the server's name instead of a pattern nobody checked."""
-    if (s.get("source") or "claude") in ("claude", "codex_config"):
+    """How the engine names this connector's tools. Claude Code and Codex: mcp__<server>__<tool>. Antigravity
+    (measured on agy 1.5.14, 2026-11-23) reaches every MCP tool through one generic `call_mcp_tool` with
+    ServerName and ToolName. Grok Build is not measured yet, so it gets the server's name, not a guessed pattern."""
+    source = s.get("source") or "claude"
+    if source in ("claude", "codex_config"):
         return f"mcp__{_amb_prefix(s)}__*"
+    if source == "agy_config":
+        return f"call_mcp_tool (ServerName '{s.get('name')}')"
     return f"tool của MCP '{s.get('name')}'"
 
 

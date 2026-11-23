@@ -306,6 +306,47 @@ def _la_loi_tam_thoi(loi: str) -> bool:
     return any(k in l for k in _LOI_TAM_THOI) or any(k in l for k in _MA_TAM_THOI)
 
 
+def _turn_usage(steps: list) -> dict:
+    """One `usage` event from the per-step usage agy streams (each step counts its own call).
+
+    `context_tokens` is how big the thread is now (last call's fresh plus cached input), the number the main chat
+    watches to start a new thread before it outgrows the model.
+    """
+    def num(u: dict, key: str) -> int:
+        try:
+            return int(u.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0
+    inp = sum(num(u, "input_tokens") for u in steps)
+    out = sum(num(u, "output_tokens") for u in steps)
+    cached = sum(num(u, "cache_read_tokens") for u in steps)
+    last = steps[-1]
+    return {"type": "usage", "input_tokens": inp, "output_tokens": out,
+            "total_tokens": sum(num(u, "total_tokens") for u in steps) or inp + out + cached,
+            "cached": cached,
+            "context_tokens": num(last, "input_tokens") + num(last, "cache_read_tokens")}
+
+
+def resume_enabled() -> bool:
+    """Whether the main chat resumes its agy thread. `JAVIS_AGY_RESUME=0` turns it off (back to bootstrap)."""
+    return (os.environ.get("JAVIS_AGY_RESUME") or "").strip().lower() not in ("0", "false", "off", "no")
+
+
+def _keeps_thread(error: str) -> bool:
+    """An error a fresh thread would not fix, so a resumed turn that hit it must not be rerun.
+
+    Signed out, out of quota, rate limited, an unknown model, a flag clash, a timeout or Google having a bad moment:
+    each would fail again on a fresh thread, and the rerun would only double the wait.
+    """
+    low = (error or "").lower()
+    if not low:
+        return False
+    if _la_loi_chua_dang_nhap(low) or _la_loi_xung_effort(low) or _la_het_gio_luot(low) or _la_loi_tam_thoi(low):
+        return True
+    return any(k in low for k in ("quota", "exhausted", "rate limit", "insufficient", "permission denied",
+                                  "unauthor", "not recognized as a known model", "invalid model"))
+
+
 # Chờ bao lâu trước mỗi lần hỏi lại. Ngắn thôi: người dùng đang ngồi nhìn màn hình chat, chờ
 # quá nửa phút thì thà báo lỗi để họ tự quyết còn hơn. Hai nhịp là đủ vượt một cơn 503 chớp
 # nhoáng, mà tổng thời gian xấu nhất vẫn dưới 10 giây cộng thời gian chạy.
@@ -637,7 +678,7 @@ def _viet_file_ngu_canh(cwd: str, noi_dung: str) -> tuple[str, str]:
 def cau_hoi_moi_nhat(prompt: str) -> str:
     """Bóc ĐÚNG tin nhắn mới nhất của người dùng ra khỏi gói prompt Javis gửi cho `agy`.
 
-    Vì `agy` không nối lại mạch, mỗi lượt Javis gửi cả lịch sử hội thoại đã gói bằng
+    Lượt không nối mạch (việc nền, lượt đầu, mạch đã mất) gửi cả lịch sử hội thoại đã gói bằng
     `compaction.bootstrap_prompt`: lịch sử cũ ở trên, rồi một dòng đánh dấu, rồi câu hỏi hiện
     tại ở CUỐI. Chỗ nào cần "câu hỏi thật" (lời nhắc trên dòng lệnh khi đi đường file) phải lấy
     phần SAU dấu đó. Bản trước lấy 1500 ký tự ĐẦU của cả gói, tức là tiêu đề khối lịch sử cộng
@@ -1380,6 +1421,15 @@ class AntigravityCLI:
         self.instructions = instructions
         self.session_id = None          # có giá trị -> nối lại mạch cũ
         self._session_moi = None
+        # Resuming the main chat's thread (`--conversation`, measured on agy 1.5.14). `fresh_prompt` is the full
+        # bootstrap prompt (history + question) to fall back to in the same turn when the old thread is gone;
+        # without it nothing resumes. `thread_lost` tells the caller the thread it asked for was not used.
+        self.fresh_prompt: Optional[str] = None
+        self.thread_lost = False
+        self._resume_requested: Optional[str] = None
+        self._last_raw_errors: list = []
+        self._was_stopped = False
+        self._abandoned = False         # this run asked for a thread it did not get: query() reruns fresh
         self.mode = "suggest"
         # File mcp_config riêng cho ĐÚNG lượt này. Chỉ dùng được nếu bản `agy` trên máy có cờ
         # nhận file cấu hình (hỏi `co_co` trước khi truyền). Có thì hết cảnh hai brain chạy cùng
@@ -1461,8 +1511,69 @@ class AntigravityCLI:
             return "argv"     # vừa dòng lệnh thì cứ đường cũ, đã chạy tốt trên Linux/macOS
         return duong_prompt_dai(self.cli_path)
 
+    @property
+    def was_stopped(self) -> bool:
+        """The last turn was killed (Stop, deadline): the main chat does not save its thread then."""
+        return self._was_stopped
+
     async def query(self, prompt: str) -> AsyncIterator[dict]:
+        """One chat turn. Resumes `session_id` when the caller gave a `fresh_prompt` to fall back to.
+
+        Measured on agy 1.5.14 (2026-11-23): `--conversation <id>` of a thread that does not exist (another account,
+        cleaned up, typo) does NOT fail. agy prints `warning: conversation "<id>" not found` on stderr, opens a NEW
+        thread, exits 0 and lets the model answer blind, even running tools to hunt for the missing context. The
+        only clean signal is the `init` event carrying a different id, so the run is stopped right there, before any
+        text or tool, and the turn starts over in a fresh thread primed with `fresh_prompt`.
+        """
+        resume = bool(self.session_id) and self.fresh_prompt is not None
+        self.thread_lost = False
+        self._was_stopped = False
+        if resume and not (await asyncio.to_thread(co_co, "--conversation")
+                           and await asyncio.to_thread(co_co, "--output-format")):
+            # A CLI without these cannot resume, or cannot tell us it opened another thread: prime a fresh one.
+            self.session_id, prompt, resume = None, self.fresh_prompt, False
+        if not resume:
+            async for ev in self._query_once(prompt):
+                yield ev
+            return
+        asked = self._resume_requested = self.session_id
+        self._abandoned = False
+        held: list = []
+        got_final = touched = False
+        try:
+            async for ev in self._query_once(prompt):
+                kind = ev.get("type")
+                if kind == "error":
+                    held.append(ev)      # may belong to a broken thread that the fresh run below replaces
+                    continue
+                if kind == "tool_call":
+                    touched = True
+                if kind == "final":
+                    got_final = True
+                    for h in held:
+                        yield h
+                    held = []
+                yield ev
+        finally:
+            self._resume_requested = None
+        seen = list(self._last_raw_errors) + [str(h.get("content") or "") for h in held]
+        broken = (not got_final and not touched and not self._was_stopped
+                  and not any(_keeps_thread(x) for x in seen))
+        if not self._abandoned and not broken:
+            for h in held:
+                yield h
+            return
+        print(f"[antigravity] thread {asked} {'not found' if self._abandoned else 'gave no answer'}, "
+              f"starting a fresh thread in this turn", file=sys.stderr)
+        self.thread_lost = True
+        self._abandoned = False
+        self.session_id = None
+        async for ev in self._query_once(self.fresh_prompt):
+            yield ev
+
+    async def _query_once(self, prompt: str) -> AsyncIterator[dict]:
         """Một lượt chat. Tự chọn đường đưa prompt, và tự thử lại nếu đường đó không tới nơi."""
+        self._last_raw_errors = []
         if not self.cli_path:
             yield {"type": "error",
                    "content": localefmt.chu(
@@ -1491,6 +1602,8 @@ class AntigravityCLI:
         # một chỗ phát lỗi, mà lượt thử lại bên dưới cũng không bị lộ câu lỗi của lượt hỏng.
         async for ev in self._mot_luot(full, prompt, duong, ket, giu_loi=True):
             yield ev
+        if self._abandoned:
+            return      # the resumed thread is gone; query() starts a fresh one
         # Model đã khoá mức nghĩ mà Javis còn kèm `--effort`: `agy` chết ngay lúc đọc cờ (xem
         # `model_khoa_effort`). Bỏ cờ rồi chạy lại NGAY trong lượt này - người dùng vẫn nhận
         # câu trả lời, chỉ mất phần độ sâu mà chính tên model đã ấn định sẵn.
@@ -1502,6 +1615,8 @@ class AntigravityCLI:
             ket = {}
             async for ev in self._mot_luot(full, prompt, duong, ket, giu_loi=True):
                 yield ev
+            if self._abandoned:
+                return      # the resumed thread is gone; query() starts a fresh one
         # Nhà cung cấp gãy TẠM THỜI (503 UNAVAILABLE, timeout, bad gateway...): chờ một nhịp rồi
         # hỏi lại. Ba điều kiện, thiếu một là không thử:
         #   - lỗi thuộc loại chờ-là-hết (xem `_la_loi_tam_thoi`), không phải chưa đăng nhập/hết
@@ -1523,6 +1638,8 @@ class AntigravityCLI:
             ket = {}
             async for ev in self._mot_luot(full, prompt, duong, ket, giu_loi=True):
                 yield ev
+            if self._abandoned:
+                return      # the resumed thread is gone; query() starts a fresh one
             if not ket.get("text") and not (ket.get("cac_loi") or []):
                 ket = _ket_hong      # lượt sau câm hẳn thì giữ câu lỗi cũ, đừng để trắng tay
         # Vượt trần dòng lệnh: chạy lại NGAY bằng đường không có trần. Không có nhánh này thì
@@ -1537,6 +1654,8 @@ class AntigravityCLI:
             ket = {}
             async for ev in self._mot_luot(full, prompt, _duong_lui, ket, giu_loi=True):
                 yield ev
+            if self._abandoned:
+                return      # the resumed thread is gone; query() starts a fresh one
             duong = _duong_lui
         # Prompt KHÔNG TỚI NƠI có hai hình dạng, và bản trước chỉ bắt được một:
         #   - chạy xong, không lỗi, không lấy một chữ (bản CLI nuốt stdin);
@@ -1555,6 +1674,11 @@ class AntigravityCLI:
         _hong_dau = "�" in (ket.get("text") or "")
         _thu_lai = duong.startswith("stdin") and (
             _hong_dau or (not ket.get("text") and (_loi_thieu_prompt or not ket.get("loi"))))
+        if _thu_lai and self._resume_requested:
+            # A resumed turn going wrong on stdin says nothing about stdin itself: do not pin the file path for
+            # good on its account, and the file path never resumes anyway. Rerun on a fresh thread (query()).
+            self._abandoned = True
+            return
         if _thu_lai:
             _vi_sao = ("stdin làm hỏng dấu tiếng Việt" if _hong_dau
                        else "công thức stdin bị CLI từ chối" if _loi_thieu_prompt
@@ -1565,6 +1689,8 @@ class AntigravityCLI:
             ket = {}
             async for ev in self._mot_luot(full, prompt, "file", ket):
                 yield ev
+            if self._abandoned:
+                return      # the resumed thread is gone; query() starts a fresh one
             # Đường file cũng hỏng dấu, mà lượt stdin thì có chữ: giữ lượt nào cũng vậy thôi,
             # lấy lượt sau cho nhất quán rồi nói thẳng là lỗi nằm trong CLI.
             if _hong_dau and not ket.get("text"):
@@ -1583,6 +1709,7 @@ class AntigravityCLI:
                 else:
                     _noi = _l
                 yield {"type": "error", "content": _noi}
+        self._last_raw_errors = list(ket.get("cac_loi") or [])
         text = ket.get("text") or ""
         if text:
             # Không nuốt chuyện này: trả lời mà thiếu system prompt thì vẫn trôi chảy, người dùng
@@ -1627,6 +1754,12 @@ class AntigravityCLI:
         thể được thử lại bằng đường khác, mà một câu lỗi tiếng Anh hiện lên rồi câu trả lời hiện
         sau chỉ làm người dùng hoang mang.
         """
+        if duong == "file" and self.session_id and self._resume_requested:
+            # The file path never resumes (see below), so a resumed turn sent this way would reach a NEW thread
+            # holding only the question: the whole conversation silently gone. Let query() prime a fresh one.
+            self._abandoned = True
+            ket.update(text="", loi=False, cac_loi=[], abandoned=True)
+            return
         tep_ngu_canh = ten_ngu_canh = ""
         prompt_argv = full
         them_args: list[str] = []
@@ -1844,7 +1977,16 @@ class AntigravityCLI:
                     elif _kq == "da_thu":
                         da_thu_doc = True
                 _n = len(cac_manh)
-                for ra in self._doi_su_kien(ev, cac_manh, chan):
+                if "_exit" in ev and isinstance(ev.get("_exit"), int) and ev["_exit"] < 0:
+                    self._was_stopped = True      # killed (Stop, deadline): never rerun this turn on our own
+                _ra = self._doi_su_kien(ev, cac_manh, chan)
+                if self._resume_requested and self.session_id != self._resume_requested:
+                    # `init` came back with ANOTHER id: agy did not find the thread and opened a new one (see
+                    # query()). Stop now, before the model answers or runs a tool without the conversation.
+                    self._abandoned = True
+                    stop_requested.set()
+                    break
+                for ra in _ra:
                     if ra.get("type") == "tool_call":
                         co_tool = True      # đã đụng thế giới bên ngoài -> KHÔNG được chạy lại
                         sau_tool = True
@@ -1928,6 +2070,13 @@ class AntigravityCLI:
         # dạng CLI thật không dùng - nên trước bản này mọi lần agy gọi công cụ đều rơi vào hư
         # không: khung chat không vẽ được tiến trình nào, và `co_tool` không bật lên nên Javis
         # tưởng lượt đó chưa đụng gì bên ngoài và cho phép chạy lại.
+        # Usage of THIS turn = the sum of the steps' own usage. `result.usage` cannot be used for it: on a resumed
+        # thread it adds up the whole conversation (measured on agy 1.5.14: turn 2 reported 9781 + 2425 input).
+        _u = ev.get("usage")
+        if (isinstance(chan, dict) and isinstance(_u, dict) and t not in ("result", "final", "done", "complete")
+                and str(ev.get("state") or "").upper() == "DONE"):
+            _steps = chan.setdefault("_step_usage", {})
+            _steps[str(ev.get("step_index") if ev.get("step_index") is not None else len(_steps))] = _u
         if str(ev.get("step_type") or "").lower() == "tool":
             # `state` đi ACTIVE rồi DONE cho CÙNG một `step_index`, nên phải đếm theo index
             # chứ không theo số dòng - không thì một lần gọi hiện thành hai bước.
@@ -1978,14 +2127,17 @@ class AntigravityCLI:
         ra = []
         if t in ("result", "final", "done", "complete"):
             st = ev.get("stats") or ev.get("usage") or {}
-            if isinstance(st, dict) and st:
+            steps = list(((chan or {}).get("_step_usage") or {}).values())
+            if steps:
+                ra.append(_turn_usage(steps))
+            elif isinstance(st, dict) and st:
                 ra.append({"type": "usage",
                            "input_tokens": int(st.get("input_tokens")
                                                or st.get("prompt_tokens") or 0),
                            "output_tokens": int(st.get("output_tokens")
                                                 or st.get("completion_tokens") or 0),
                            "total_tokens": int(st.get("total_tokens") or 0),
-                           "cached": int(st.get("cached") or 0)})
+                           "cached": int(st.get("cached") or st.get("cache_read_tokens") or 0)})
             if str(ev.get("status") or "").lower() == "error":
                 e = ev.get("error") or {}
                 tin = str(e.get("message") if isinstance(e, dict) else e) or ""

@@ -745,6 +745,7 @@
   "models.login_claude": "Sign in with Claude",
   "models.via_browser": "Via browser",
   "models.cc_upd_btn": "↻ Update Claude Code",
+  "models.agy_ver": "Antigravity CLI {v}",
   "models.cc_upd_ver": "Claude Code {v}",
   "models.cc_upd_last": "last checked {luc}",
   "models.cc_upd_running": "Updating, this can take a minute or two…",

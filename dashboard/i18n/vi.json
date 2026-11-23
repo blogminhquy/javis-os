@@ -745,6 +745,7 @@
   "models.login_claude": "Đăng nhập Claude",
   "models.via_browser": "Qua trình duyệt",
   "models.cc_upd_btn": "↻ Cập nhật Claude Code",
+  "models.agy_ver": "Antigravity CLI {v}",
   "models.cc_upd_ver": "Claude Code {v}",
   "models.cc_upd_last": "lần kiểm gần nhất {luc}",
   "models.cc_upd_running": "Đang cập nhật, có thể mất một hai phút…",

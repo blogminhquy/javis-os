@@ -223,8 +223,11 @@ gx = mcp_hub._ambient_for("grok")
 check("Grok: ~/.grok/config.toml read, javis left out", [s["name"] for s in gx] == ["composio"], gx)
 ax = mcp_hub._ambient_for("antigravity")
 check("Antigravity: mcp_config.json read, javis and disabled left out", [s["name"] for s in ax] == ["notion"], ax)
-check("Grok and Antigravity are not given a made-up mcp__ pattern",
-      mcp_hub._amb_tools(gx[0]) == "tool của MCP 'composio'" and mcp_hub._amb_tools(ax[0]) == "tool của MCP 'notion'")
+check("Grok (not measured) is not given a made-up mcp__ pattern",
+      mcp_hub._amb_tools(gx[0]) == "tool của MCP 'composio'")
+# Measured on agy 1.5.14 (2026-11-23): MCP tools go through call_mcp_tool {"ServerName", "ToolName", "Arguments"}.
+check("Antigravity gets its measured call_mcp_tool naming",
+      mcp_hub._amb_tools(ax[0]) == "call_mcp_tool (ServerName 'notion')", mcp_hub._amb_tools(ax[0]))
 check("Codex keeps its mcp__ pattern", mcp_hub._amb_tools(cx[0]) == "mcp__composio__*")
 _t, rr = mcp_hub._lazy_tools_and_route([], {}, pool, route, 8, ambient=ax)
 ans = json.loads(asyncio.run(rr["javis_search_tools"]["call"]({"query": "tạo trang notion"})))
