@@ -87,8 +87,8 @@ nj = (ROOT / "dashboard" / "notifications.js").read_text(encoding="utf-8")
 check("pressing the notice opens the Javis Store on the packs with an update",
       'item.channel === "store:updates"' in nj and 'window.JavisPacks.moKho("all", "", "", "", true)' in nj)
 pj = (ROOT / "dashboard" / "packs.js").read_text(encoding="utf-8")
-check("moKho can open on the 'has an update' group", "function moKho(loai, tuTrang, nhanTrang, tim, chiBanMoi)" in pj
-      and "_nhomCho = !!chiBanMoi" in pj and '_kho.nhom = nhomDau ? "Có bản mới" : "Tất cả"' in pj)
+check("moKho can open on the 'has an update' group", "function moKho(loai, tuTrang, nhanTrang, tim, onlyUpdates)" in pj
+      and "_openUpdatesNext = !!onlyUpdates" in pj and '_kho.nhom = onlyUpdates ? "Có bản mới" : "Tất cả"' in pj)
 import json  # noqa: E402
 vi = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 en = json.loads((ROOT / "dashboard" / "i18n" / "en.json").read_text(encoding="utf-8"))
