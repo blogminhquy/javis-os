@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.10] - 2026-11-23
+### Sửa lỗi
+- **Chat bằng Codex không còn bỏ sót MCP anh tự thêm vào Codex.** Các MCP khai trong `~/.codex/config.toml` (ví dụ Composio, Notion gắn thẳng vào Codex) vốn gọi được, nhưng ô tìm tool và danh sách kết nối của Javis không nhắc tới, nên model trả lời là chưa có tool. Giờ cả hai đều nêu tên chúng và chỉ cách gọi thẳng, giống connector của tài khoản Claude.
+
 ## [0.628.9] - 2026-11-23
 ### Sửa lỗi
 - **Dán ảnh vào khung chat lúc đang có lời nhắc không còn bị chữ đè lên ảnh.** Chữ gợi ý màu xám đi theo ô nhập khi dải file đính kèm hiện ra và đẩy ô xuống.
