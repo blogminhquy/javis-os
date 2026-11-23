@@ -109,6 +109,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # App source.
 COPY . .
 
+# Bytecode for server/, compiled once at build time (speed review 2026-11-23). PYTHONDONTWRITEBYTECODE=1 above and the
+# read-only /app mean the running server can never write a .pyc, so without this step every start recompiled all of
+# server/ (534 modules, a 36,000-line main.py): `import main` measured 20.4 s from source against 7.2 s with bytecode
+# on a 2 vCPU machine, about 13 s of "dashboard unreachable" on every restart and update. compileall writes the files
+# whatever PYTHONDONTWRITEBYTECODE says (that switch only stops the import system writing them). The step fails the
+# build on a syntax error, and tests/python/test_image_bytecode.py fails when the step goes missing.
+RUN python -m compileall -q server
+
 # Non-root runtime user. Code stays root-owned + read-only; state on volumes.
 RUN useradd -u 10001 -m -d /home/javis javis \
     && mkdir -p /data/state /data/vault /brains /home/javis/.claude /home/javis/.codex \

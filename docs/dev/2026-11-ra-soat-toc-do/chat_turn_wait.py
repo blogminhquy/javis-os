@@ -9,7 +9,9 @@ no session id.
 Where the numbers come from. Every owner turn writes one `engine.first_output` event with `ms`, counted from the
 start of `_do_turn` (server/main.py) to the first thing the engine sends back, and `warm` (true when the turn took a
 process the warm pool already had running). `task.started` and `task.finished` give the wait before `_do_turn` and
-the length of the whole turn.
+the length of the whole turn. Since 2026-11-23 a cold turn also carries `cold`, the reason it found no process
+(`thread_rotated`, `idle_expired`, `new_chat`, `config_changed` with `cold_parts`...): the "why cold" table reads it.
+Turns recorded before that have no reason and show as "(not recorded)".
 """
 from __future__ import annotations
 
@@ -68,6 +70,8 @@ def main(argv=None) -> int:
         ms = float(p.get("ms") or 0)
         t_turn0 = at - ms / 1000
         rows.append({"engine": p.get("engine") or "?", "warm": bool(p.get("warm")), "ms": ms, "at": at,
+                     "cold": p.get("cold") or "(not recorded)", "cold_parts": p.get("cold_parts") or [],
+                     "ahead": bool(p.get("opened_ahead")),
                      "task": task, "channel": channel.get(task, "?"), "model": model.get(step, "?"),
                      "before_ms": (t_turn0 - started[task]) * 1000 if task in started else None,
                      "turn_s": finished[task] - started[task] if task in started and task in finished else None})
@@ -84,6 +88,23 @@ def main(argv=None) -> int:
     for eng in sorted({r["engine"] for r in rows}):
         for warm in (False, True):
             line(f"{eng}, {'warm' if warm else 'cold'}", [r["ms"] for r in rows if r["engine"] == eng and r["warm"] == warm])
+
+    print("\n== why cold (share of ALL turns of the engine), ms ==")
+    for eng in sorted({r["engine"] for r in rows}):
+        sub = [r for r in rows if r["engine"] == eng]
+        cold = [r for r in sub if not r["warm"]]
+        for why in sorted({r["cold"] for r in cold}, key=lambda w: -sum(1 for r in cold if r["cold"] == w)):
+            v = [r["ms"] for r in cold if r["cold"] == why]
+            line(f"{eng}, {why} ({100 * len(v) / len(sub):.1f}%)", v)
+        changed = defaultdict(int)
+        for r in cold:
+            for part in r["cold_parts"]:
+                changed[part] += 1
+        if changed:
+            print("    parts that changed:", dict(sorted(changed.items(), key=lambda kv: -kv[1])))
+        ahead = [r["ms"] for r in sub if r["warm"] and r["ahead"]]
+        if ahead:
+            line(f"{eng}, WARM on a thread opened ahead ({100 * len(ahead) / len(sub):.1f}%)", ahead)
 
     print("\n== by model, ms ==")
     for key in sorted({(r["engine"], r["model"]) for r in rows}):

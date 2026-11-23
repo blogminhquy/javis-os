@@ -81,6 +81,13 @@ def goi():
     return asyncio.run(main.list_brains())
 
 
+def forget_counts():
+    """Empty the note-count memory of /brains (section 6), so a section that swaps the counter sees it run."""
+    kept_counts = getattr(main, "_brain_note_counts", None)
+    if kept_counts is not None:
+        kept_counts.clear()
+
+
 r = goi()
 ten = {b["name"]: b for b in r["brains"]}
 # "Brain Default" do _default_brain_dir() tự tạo (hành vi đúng: brain khởi đầu luôn có mặt).
@@ -170,7 +177,9 @@ async def _duong_dong_bo():
 
 try:
     main._count_md = _count_cham
+    forget_counts()             # the slow counter must really run
     tre_async = asyncio.run(do_do_tre(_duong_that))
+    forget_counts()
     tre_sync = asyncio.run(do_do_tre(_duong_dong_bo))
 finally:
     main._count_md = _count_that
@@ -198,11 +207,77 @@ def _count_no(root, cap):
 
 try:
     main._count_md = _count_no
+    forget_counts()
     r3 = goi()
     ten3 = {b["name"]: b for b in r3["brains"]}
     check("một brain lỗi khi đếm vẫn được liệt kê (notes=0)",
           "Brain A" in ten3 and ten3["Brain A"]["notes"] == 0)
     check("các brain khác vẫn đếm bình thường", ten3["Brain B"]["notes"] == 3)
+finally:
+    main._count_md = that_count
+
+# ---- 6. The count is remembered: a second read does not walk the disk again (speed review 2026-11-23) ----
+# Measured on a real machine: /brains took 302 ms (p95 519 ms) because every call counted every brain again, and the
+# dashboard calls it twice while it opens. Counted by calls, not by the clock, so a busy CI machine cannot flip it.
+calls = []
+
+
+def _count_spy(root, cap):
+    calls.append(str(root))
+    return that_count(root, cap)
+
+
+def notes_of(result, name):
+    return next(b for b in result["brains"] if b["name"] == name)["notes"]
+
+
+try:
+    main._count_md = _count_spy
+    forget_counts()
+    first = goi()
+    n_first = len(calls)
+    check(f"a first read counts every brain once ({n_first} counts for {len(first['brains'])} brains)",
+          n_first == len(first["brains"]))
+    second = goi()
+    check(f"a second read within the fresh window counts nothing ({len(calls) - n_first} more counts)",
+          len(calls) == n_first)
+    check("and returns the same numbers", [b["notes"] for b in second["brains"]] == [b["notes"] for b in first["brains"]])
+
+    # A new brain is counted at once, without recounting the others.
+    dung_brain("Brain C", 4)
+    before = len(calls)
+    third = goi()
+    check("a brain that just appeared is listed with its real count", notes_of(third, "Brain C") == 4)
+    check(f"and only that one was counted ({len(calls) - before} counts)", len(calls) - before == 1)
+
+    # A note written into a known brain shows once the fresh window has passed, never later.
+    (BASE / "Brain C" / "notes" / "extra.md").write_text("# new\n", encoding="utf-8")
+    check("inside the window the kept number is served", notes_of(goi(), "Brain C") == 4)
+    ttl = getattr(main, "_BRAIN_NOTE_COUNT_TTL_S", None)
+    check(f"the window is at most one minute ({ttl})", isinstance(ttl, (int, float)) and 0 < ttl <= 60)
+    real_monotonic = time.monotonic
+    try:
+        main.time.monotonic = lambda: real_monotonic() + float(ttl or 0) + 1
+        check("after the window the brain is counted again and shows the new note", notes_of(goi(), "Brain C") == 5)
+    finally:
+        main.time.monotonic = real_monotonic
+
+    # A count that failed is not remembered: the next read tries again instead of showing 0 for a minute.
+    def _count_fail_once(root, cap):
+        raise OSError("disk hiccup")
+
+    forget_counts()
+    main._count_md = _count_fail_once
+    check("a failed count lists the brain with 0", notes_of(goi(), "Brain A") == 0)
+    main._count_md = _count_spy
+    check("and the next read counts it for real", notes_of(goi(), "Brain A") == 12)
+
+    # Memory stays one number per brain that exists: a deleted brain leaves nothing behind.
+    import shutil
+    shutil.rmtree(BASE / "Brain C")
+    goi()
+    kept_paths = {k[0] for k in getattr(main, "_brain_note_counts", {})}
+    check("a deleted brain is dropped from the count memory", str(BASE / "Brain C") not in kept_paths)
 finally:
     main._count_md = that_count
 

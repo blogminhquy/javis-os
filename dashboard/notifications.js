@@ -276,17 +276,29 @@
       try { window.JavisTeams.open(nhom); return; } catch (e) {}
     }
     var cs = congSuCuaThu(item);
-    if (cs && window.JavisWorkspace && window.JavisWorkspace.openCommand) {
+    // 2026-11-23: workspace.js is a lazy file. Load its group, then open the partner; if it still is not there, open
+    // the session in the main chat as before.
+    var openInChat = function () {
       try {
-        window.JavisWorkspace.openCommand(cs.loai, cs.slug, item.session_id);
-        return;
+        if (window.Alpine && Alpine.store("nav") && Alpine.store("nav").active !== "home"
+            && Alpine.store("nav").active !== "chat") Alpine.store("nav").go("home");
       } catch (e) {}
+      try { if (window.JavisSessions) window.JavisSessions.open(item.session_id); } catch (e) {}
+    };
+    if (cs && (window.JavisWorkspace || window.JavisNapCham)) {
+      var openPartner = function () {
+        try {
+          if (window.JavisWorkspace && window.JavisWorkspace.openCommand) {
+            window.JavisWorkspace.openCommand(cs.loai, cs.slug, item.session_id);
+            return;
+          }
+        } catch (e) {}
+        openInChat();
+      };
+      if (window.JavisNapCham) window.JavisNapCham.goi("congviec", openPartner); else openPartner();
+      return;
     }
-    try {
-      if (window.Alpine && Alpine.store("nav") && Alpine.store("nav").active !== "home"
-          && Alpine.store("nav").active !== "chat") Alpine.store("nav").go("home");
-    } catch (e) {}
-    try { if (window.JavisSessions) window.JavisSessions.open(item.session_id); } catch (e) {}
+    openInChat();
   }
   // Javis Core (0.187.0, spec 7.3): the notice goes into this person's own Javis Core chat, with its source and time,
   // and the chat opens there. The shared notice itself never changes.
@@ -298,7 +310,10 @@
         body: JSON.stringify({ source: src, id: id, brain: brain }) })).json();
       if (!r || !r.id) return;
       closePanel();
-      if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", "javis-core", r.id);
+      var openCore = function () {
+        if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", "javis-core", r.id);
+      };
+      if (window.JavisNapCham) window.JavisNapCham.goi("congviec", openCore); else openCore();
     } catch (e) {}
   }
   function phanHoiHtml(item) {

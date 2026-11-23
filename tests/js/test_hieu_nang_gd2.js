@@ -26,8 +26,11 @@ check("no lazy file is also loaded eagerly", all.every(u => {
   const f = u.split("?")[0];
   return !new RegExp('<script src="' + f.replace(/[.]/g, "\\.") + '\\?').test(html) && !new RegExp('<link rel="stylesheet" href="' + f.replace(/[.]/g, "\\.") + '\\?').test(html);
 }));
-check("files that wire things at load stay eager (studio.js binds the Studio button, openStudio is used by app.js)",
-  /<script src="\/static\/studio\.js\?v=/.test(html) && !all.some(u => /studio\.js/.test(u)));
+// 2026-11-23: studio.js itself became a lazy file. The two things it wired at load moved to app.js, which stays eager.
+check("what is wired at load stays eager (app.js binds the Studio button and owns openStudio)",
+  /<script src="\/static\/app\.js\?v=/.test(html) && !all.some(u => /\/app\.js/.test(u))
+  && /window\.openStudio = /.test(read("dashboard/app.js")) && /getElementById\("studioOpenBtn"\)/.test(read("dashboard/app.js"))
+  && !/window\.openStudio = /.test(read("dashboard/studio.js")));
 check("the conversations CSS loads before its JS in the same group",
   lazy.hoithoai[0].indexOf("inbox-v5.css") > 0 && lazy.hoithoai[1].indexOf("inbox-compact.css") > 0);
 check("the shared pulse parts load before teams.js (teams needs JavisAgentJudge)", lazy.congviec.some(u => /agent-judge-ui/.test(u)));

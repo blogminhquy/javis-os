@@ -370,10 +370,14 @@
       var go = ev.target && ev.target.closest && ev.target.closest(".rsa-goto-ws");
       // Mở đúng tab Trợ lý (JavisNav.go thì rơi vào tab đang nhớ dở, có thể là Quy trình).
       if (go) {
-        try {
-          if (window.JavisWorkspace && window.JavisWorkspace.openTab) window.JavisWorkspace.openTab("agent");
-          else window.JavisNav.go("workspace");
-        } catch (e) {}
+        // 2026-11-23: workspace.js is a lazy file. Load its group, then open the tab.
+        var openTab = function () {
+          try {
+            if (window.JavisWorkspace && window.JavisWorkspace.openTab) window.JavisWorkspace.openTab("agent");
+            else window.JavisNav.go("workspace");
+          } catch (e) {}
+        };
+        try { if (window.JavisNapCham) window.JavisNapCham.goi("congviec", openTab); else openTab(); } catch (e) {}
         return;
       }
       var btn = ev.target && ev.target.closest && ev.target.closest(".rsa-assign");
