@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.631.4] - 2026-11-23
+### Improved
+- **Javis restarts about 13 seconds faster.** The Docker image now ships its code precompiled, so an update no longer leaves you waiting before you can use it.
+- **The chat turn right after Javis trims a long conversation no longer starts from cold.** Javis opens the new session ahead of time as soon as it knows the next turn needs one. Switch it off with `JAVIS_WARM_NEW_THREAD=0`.
+- **The dashboard opens lighter.** The code for the Partners page, the Skill editor and the Messenger card loads only when you open those pages, about 10% less code to run at start. The three counters on the home screen also stop downloading the whole agent list.
+- **Javis now records why a chat turn had to wait** (new chat, just trimmed, idle too long, settings changed), so the next fix lands on the real slow spot.
+
 ## [0.631.3] - 2026-11-23
 ### Improved
 - **Windows installer signing can be tried with SignPath's test certificate.** The test-signed file is kept on the workflow run for checking, and the release keeps the unsigned file until the production certificate arrives.
