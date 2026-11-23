@@ -619,6 +619,71 @@ def _ambient_refresh():
         _ambient_cache["refreshing"] = False
 
 
+def _ambient_kind(include_ambient):
+    """Which engine's own connectors a hub request should be told about: "claude", "codex" or "".
+
+    include_ambient is True for the Claude engine (its historic meaning) or the engine name. 2026-11-23: Codex has
+    its own MCP servers too (`[mcp_servers.*]` in ~/.codex/config.toml, e.g. Composio or Notion added straight to
+    Codex). Codex calls them natively, but the hub never named them, so javis_search_tools answered "no tool" and
+    javis_connections left them out, the same blind spot the Claude account connectors had before."""
+    if include_ambient is True:
+        return "claude"
+    k = str(include_ambient or "").strip().lower()
+    return k if k in ("claude", "codex") else ""
+
+
+_codex_native_cache = {"sig": None, "servers": []}
+
+
+def _codex_native_servers():
+    """MCP servers in the user's own Codex config (not Javis' hub): [{"name", "prefix", "source"}]. Codex names
+    their tools mcp__<server>__<tool>. Read from disk, cached on the file's mtime; [] when unreadable."""
+    try:
+        import tomllib
+        import claude_cli
+        p = claude_cli._codex_home() / "config.toml"
+        st = p.stat()
+        sig = (str(p), st.st_mtime_ns, st.st_size)
+    except Exception:
+        return []
+    c = _codex_native_cache
+    if c["sig"] == sig:
+        return list(c["servers"])
+    servers = []
+    try:
+        cfg = tomllib.loads(p.read_text(encoding="utf-8"))
+        names = dict(cfg.get("mcp_servers") or {})
+        for prof in (cfg.get("profiles") or {}).values():
+            names.update((prof or {}).get("mcp_servers") or {})
+        for name, conf in names.items():
+            if name == "javis" or (isinstance(conf, dict) and conf.get("enabled") is False):
+                continue
+            servers.append({"name": str(name), "prefix": re.sub(r"[^A-Za-z0-9_-]", "_", str(name)),
+                            "source": "codex_config"})
+    except Exception as e:
+        print(f"[hub codex ambient] {type(e).__name__}: {e}", file=sys.stderr)
+    c.update(sig=sig, servers=servers)
+    return list(servers)
+
+
+def _amb_prefix(s):
+    return s.get("prefix") or _ambient_prefix(s.get("name"))
+
+
+def _amb_where(s):
+    return "cấu hình Codex riêng" if s.get("source") == "codex_config" else "tài khoản Claude"
+
+
+def _ambient_for(kind):
+    """The engine's own connectors for an _ambient_kind: Claude account connectors, or the user's own Codex
+    servers. Claude goes through _ambient_servers() unchanged (tests stand in for it)."""
+    if kind == "claude":
+        return _ambient_servers()
+    if kind == "codex" and _ambient_enabled():
+        return _codex_native_servers()
+    return []
+
+
 def _ambient_servers():
     """Connector tài khoản Claude đang 'Connected' (KHÔNG chặn): trả cache, làm mới ở thread nền
     khi hết hạn. Lần đầu trả [] rồi ấm dần các lần sau. Tắt qua settings mcp.ambient_hint=false."""
@@ -650,7 +715,7 @@ def _match_ambient(ambient, query):
     for s in ambient:
         name = str(s.get("name") or "")
         nwords = set(_WORD_RE.findall(name.lower()))
-        if (name.lower() and name.lower() in q) or (nwords & terms) or _ambient_prefix(name).lower() in q:
+        if (name.lower() and name.lower() in q) or (nwords & terms) or _amb_prefix(s).lower() in q:
             out.append(s)
             continue
         if tool_finder.fold(name).replace(" ", "") in tool_finder.GATEWAY_NAMES:
@@ -854,10 +919,11 @@ def _connections_json(include_ambient=False, hidden=None, bo_qua=None, owner_cha
         out.append(rec)
     # Connector đấu vào TÀI KHOẢN Claude (Drive/Gmail/lịch...): engine Claude đã có sẵn dưới dạng
     # tool native mcp__<server>__* → chỉ model gọi THẲNG, KHÔNG bọc qua javis_run_tool/hub.
-    if include_ambient:
-        for s in _ambient_servers():
-            out.append({"connector": s["name"], "label": s["name"], "source": "claude_account",
-                        "goi_the_nao": f"Đã có sẵn trong danh sách tool: mcp__{_ambient_prefix(s['name'])}__* "
+    kind = _ambient_kind(include_ambient)
+    if kind:
+        for s in _ambient_for(kind):
+            out.append({"connector": s["name"], "label": s["name"], "source": s.get("source") or "claude_account",
+                        "goi_the_nao": f"Đã có sẵn trong danh sách tool: mcp__{_amb_prefix(s)}__* "
                                        "- GỌI THẲNG, không qua javis_run_tool."})
     elif owner_chat:
         # 0.228.0: an engine with no Claude account (Anthropic API, OpenAI API...) never gets these connectors. Not
@@ -1596,7 +1662,7 @@ def _connector_menu(pool, ambient=None):
             d += " [cổng tới app đã nối: " + ", ".join(apps[:15]) + "]"
         parts.append(f"{ns} ({v['label']}, {v['n']} tool){d}")
     for s in (ambient or []):
-        parts.append(f"mcp__{_ambient_prefix(s['name'])}__* ({s['name']}, tài khoản Claude - "
+        parts.append(f"mcp__{_amb_prefix(s)}__* ({s['name']}, {_amb_where(s)} - "
                      "tool native, gọi thẳng)")
     return "; ".join(parts)
 
@@ -1852,14 +1918,19 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
                                         "đúng tài khoản người dùng nói tới; chưa rõ thì hỏi lại, đừng đoán.")
             payload["goi_the_nao"] = (f"Gọi tool bằng {_LAZY_RUN}(name=<name>, args={{...}}). "
                                      "Nếu cổng làm mất khoá trong args, dùng args_json là chuỗi JSON object thay args.")
-        if amb:
-            # Connector tài khoản Claude: tool native đã có sẵn trong danh sách tool của engine.
-            payload["tai_khoan_claude"] = [
-                {"connector": s["name"],
-                 "goi_the_nao": f"Tool native mcp__{_ambient_prefix(s['name'])}__* đã có sẵn - GỌI THẲNG "
-                                f"(KHÔNG qua {_LAZY_RUN}). Không thấy trong danh sách tool thì nguồn này "
-                                "chưa được engine nạp (kiểm tra kết nối ở trang Model/Kết nối)."}
-                for s in amb]
+        for key, src in (("tai_khoan_claude", "claude"), ("codex_rieng", "codex_config")):
+            # The engine's own connectors (Claude account, or the user's own Codex config): their native tools are
+            # already in the engine's tool list, called straight, never through the hub.
+            group = [s for s in amb if (s.get("source") or "claude") == src]
+            if group:
+                payload[key] = [
+                    {"connector": s["name"],
+                     "goi_the_nao": f"Tool native mcp__{_amb_prefix(s)}__* đã có sẵn - GỌI THẲNG "
+                                    f"(KHÔNG qua {_LAZY_RUN}). Không thấy trong danh sách tool thì nguồn này "
+                                    + ("chưa được engine nạp (kiểm tra kết nối ở trang Model/Kết nối)."
+                                       if src == "claude" else
+                                       "chưa bật trong ~/.codex/config.toml hoặc Codex chưa khởi động lại.")}
+                    for s in group]
         return json.dumps(payload, ensure_ascii=False)
 
     async def _run(args):
@@ -2004,7 +2075,8 @@ def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=Fal
             visible_tools.append(by_fn[fn])
             visible_route[fn] = {**ent, "call": _counted(ent["call"], pins_key, fn, size)}
     _, _, top_k = _lazy_config()
-    ambient = _ambient_servers() if include_ambient else []
+    kind = _ambient_kind(include_ambient)
+    ambient = _ambient_for(kind)
     return _lazy_tools_and_route(visible_tools, visible_route, pool, route, top_k, ambient, hidden,
                                  pins_key=pins_key, scope=scope)
 
@@ -2093,7 +2165,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # `bo_cache_phien` reads it there.
     pins_key = tool_pins.key(vault_root, bot=for_bot)
     pins = tool_pins.pinned(pins_key)
-    key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
+    key = (mode, str(vault_root or ""), bool(include_plugins), _ambient_kind(include_ambient),
            bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx, bool(for_bot),
            pins, str(_sid_ctx or ""))
     if tool_allowlist is not None:
@@ -2319,7 +2391,7 @@ def registry_inventory(mode="full", vault_root=None, include_plugins=True, inclu
                        force_lazy=False, staging=False, workspace_root=None, coding_ctx_cua_phien=None):
     """Trả snapshot pre-lazy đã cache; không discover I/O và không lộ ra model."""
     key = ((mode or "full").strip().lower(), str(vault_root or ""),
-           bool(include_plugins), bool(include_ambient), bool(force_lazy), bool(staging))
+           bool(include_plugins), _ambient_kind(include_ambient), bool(force_lazy), bool(staging))
     from improvement_task_skill_scope import current
     task_scope = current(vault_root or '')
     if task_scope is not None:
@@ -2330,7 +2402,7 @@ def registry_inventory(mode="full", vault_root=None, include_plugins=True, inclu
             lang = ''
         task_scope.manifests(lang)
         key = ((mode or 'full').strip().lower(), str(vault_root or ''), bool(include_plugins),
-            bool(include_ambient), bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root),
+            _ambient_kind(include_ambient), bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root),
             getattr(coding_ctx_cua_phien, 'permission_mode', '') or '', False,
             tool_pins.pinned(tool_pins.key(vault_root)),
             str((getattr(coding_ctx_cua_phien, 'session_id', '') if workspace_root else '') or ''))
@@ -2679,7 +2751,7 @@ async def handle_http(request):
     include_plugins = (request.headers.get("x-javis-no-plugins") or "").strip() != "1"
     # Chỉ engine Claude (config claude_config_path gắn X-Javis-Engine=claude) mới có tool native
     # mcp__* của connector tài khoản Claude → chỉ nó cần gợi ý ambient. Codex/engine API không có.
-    include_ambient = (request.headers.get("x-javis-engine") or "").strip().lower() == "claude"
+    include_ambient = _ambient_kind((request.headers.get("x-javis-engine") or "").strip().lower())
     # Codex chạy MCP qua HTTP hub (khác Claude SDK đấu plugin in-process), nên nếu không mang
     # brain hiện tại thì plugin javis_schedule có tool nhưng không biết phải đọc kho cron nào.
     # Header chỉ nhận đường dẫn thư mục có thật; thiếu header thì `resolve_vault` suy ra brain
@@ -2700,6 +2772,9 @@ async def handle_http(request):
                 raise ValueError("invalid tool allowlist")
         except (ValueError, TypeError):
             return JSONResponse({"error": "invalid_tool_allowlist"}, status_code=400)
+        # A gated step answers only its own tool list, and its Codex runs with the user's own servers disabled
+        # (workflow_codex): naming them would point at tools that are not there.
+        include_ambient = ""
     # Who is talking (`turn` for tool hooks). The CLI engine of a chat turn sends the opaque key
     # that turn issued; the header names nobody by itself, so a forged or stale key is just None.
     # ALWAYS bind, even to None: this request must never inherit a turn from whatever context
@@ -2909,7 +2984,10 @@ def codex_profile(mode="full"):
                  "startup_timeout_sec = 20",
                  "[mcp_servers.javis.http_headers]",
                  f'{_toml_str("Authorization")} = {_toml_str("Bearer " + hub_token())}',
-                 f'{_toml_str("X-Javis-Mode")} = {_toml_str(mode)}', ""]
+                 f'{_toml_str("X-Javis-Mode")} = {_toml_str(mode)}',
+                 # Tells the hub this is Codex, so search and javis_connections name the user's own Codex MCP
+                 # servers (Codex calls them natively, outside the hub): see _ambient_kind.
+                 f'{_toml_str("X-Javis-Engine")} = {_toml_str("codex")}', ""]
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("\n".join(lines), encoding="utf-8")
         try:
