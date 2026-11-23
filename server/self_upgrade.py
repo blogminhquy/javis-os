@@ -16,15 +16,14 @@ things were missing, and this is what the tool `javis_improve` (system/plugins/j
 3. A path for Javis's own code. `attach_source` attaches the official repo to the chat through GitHub in chat
    (github_repos.attach): the server checks, pushes, opens the PR, follows CI and merges on green as for any repo, then
    the Release workflow numbers the version. Only on an install whose GitHub account can push to it (its
-   maintainers); every other install gets a prefilled issue link instead (`report_url`, 2026-11-20). `schedule_update` starts the same update as the Update button once that
-   release is out, after the current turn has ended, so the answer is saved before the restart. The updater rolls
-   back by itself when the new version does not come up healthy.
+   maintainers); every other install gets a prefilled issue link instead (`report_url`, 2026-11-20). Putting that
+   release on this install is the owner's own press of the Update button: nothing here starts an update (owner,
+   23/11/2026: "anh không muốn tự update mà người dùng phải vào trang update để cập nhật lên").
 
 Plain functions with explicit arguments; main.py wires the update entry point (`wire`). Nothing here calls a model.
 """
 from __future__ import annotations
 
-import asyncio
 import difflib
 import hashlib
 import json
@@ -44,7 +43,6 @@ MAX_CHARS = 200_000
 DIFF_LINES = 60
 HISTORY_KEEP = 300
 SKILL_DESC_MAX = 150                         # the skill router cuts descriptions at 150 characters (CLAUDE.md)
-UPDATE_WAIT_S = 180.0                        # wait at most this long for the current turn to end before updating
 
 # Areas of the brain an owner-requested improvement may change, by the first path parts.
 _AREAS = (("agents",), ("skills",), ("workflows",), ("Javis", "loops"), ("memory",))
@@ -52,7 +50,7 @@ _AREAS = (("agents",), ("skills",), ("workflows",), ("Javis", "loops"), ("memory
 _DENY_NAMES = {"learning.json", "forgotten.json"}
 
 _LOCK = threading.RLock()
-_UPDATE: dict = {"start": None, "versions": None, "turn_busy": None, "task": None}
+_UPDATE: dict = {"versions": None}
 
 
 class ImproveError(ValueError):
@@ -437,19 +435,16 @@ def attach_source(sid: str, brain_root: str) -> dict:
     return got
 
 
-# ── updating this install ─────────────────────────────────────────────────────────────────────────────────────────
+# ── versions (read only) ────────────────────────────────────────────────────────────────────────────────────────────
+# Owner, 23/11/2026: "anh không muốn tự update mà người dùng phải vào trang update để cập nhật lên". Until then
+# `javis_improve op=update` started the Update button's path by itself after the turn, so a merged fix put the machine
+# on the new release with nobody pressing anything. Now this module only READS the versions; the update itself is the
+# owner's press of the button on the Update page (Settings, Updates).
 
-def wire(start: Optional[Callable[[], Awaitable[dict]]] = None,
-         versions: Optional[Callable[[], Awaitable[tuple]]] = None,
-         turn_busy: Optional[Callable[[str], bool]] = None) -> None:
-    """main.py: `start()` = the Update button (returns its JSON), `versions()` = (current, latest),
-    `turn_busy(chat_id)` = a turn is still running in that chat."""
-    if start is not None:
-        _UPDATE["start"] = start
+def wire(versions: Optional[Callable[[], Awaitable[tuple]]] = None) -> None:
+    """main.py: `versions()` = (current, latest)."""
     if versions is not None:
         _UPDATE["versions"] = versions
-    if turn_busy is not None:
-        _UPDATE["turn_busy"] = turn_busy
 
 
 def _newer(a: str, b: str) -> bool:
@@ -469,50 +464,7 @@ async def versions() -> tuple:
         return "", ""
 
 
-async def schedule_update(chat_id: str = "", *, wait_s: float = UPDATE_WAIT_S, poll_s: float = 2.0,
-                          sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep) -> dict:
-    """Start the update once a newer release exists, after the turn in `chat_id` has ended (so the answer is saved
-    before the server restarts). Returns at once with what will happen; the update runs in the background."""
-    if _UPDATE.get("start") is None:
-        return {"ok": False, "error": _c("Máy chủ chưa nối đường cập nhật.", "The update path is not wired.")}
+async def update_hint() -> dict:
+    """What `op=update` answers: the versions and whether a newer release exists. Starts nothing."""
     cur, latest = await versions()
-    if not latest:
-        return {"ok": False, "error": _c("Chưa đọc được bản mới nhất trên GitHub, thử lại sau ít phút.",
-                                         "Could not read the latest release from GitHub, try again in a few minutes.")}
-    if not _newer(latest, cur):
-        return {"ok": False, "current": cur, "latest": latest, "error": _c(
-            f"Máy đang ở bản mới nhất v{cur}. Thay đổi vừa merge chưa thành bản phát hành: workflow Release thường ra số "
-            "mới vài phút sau merge, rồi image Docker đóng gói thêm 2 đến 5 phút. Thử lại sau.",
-            f"This install is on the latest release v{cur}. The merged change is not released yet: the Release workflow "
-            "numbers it a few minutes after the merge, and the Docker image takes 2 to 5 more minutes. Try again later.")}
-    task = _UPDATE.get("task")
-    if task is not None and not task.done():
-        return {"ok": True, "current": cur, "latest": latest, "already": True}
-
-    async def run():
-        busy = _UPDATE.get("turn_busy")
-        waited = 0.0
-        await sleep(poll_s)
-        while busy is not None and chat_id and waited < wait_s:
-            try:
-                if not busy(chat_id):
-                    break
-            except Exception:  # noqa: BLE001
-                break
-            await sleep(poll_s)
-            waited += poll_s
-        try:
-            res = await _UPDATE["start"]()
-        except Exception as ex:  # noqa: BLE001
-            res = {"ok": False, "error": f"{type(ex).__name__}: {ex}"}
-        _UPDATE["last"] = res
-        if not (res or {}).get("ok"):
-            print(f"[self_upgrade] update did not start: {(res or {}).get('error')}", flush=True)
-        return res
-
-    _UPDATE["task"] = asyncio.ensure_future(run())
-    return {"ok": True, "current": cur, "latest": latest}
-
-
-def last_update() -> Optional[dict]:
-    return _UPDATE.get("last")
+    return {"current": cur, "latest": latest, "newer": bool(cur and latest and _newer(latest, cur))}

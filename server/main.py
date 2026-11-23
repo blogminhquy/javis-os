@@ -14193,7 +14193,8 @@ _AGENT_TOOLKIT_BLOCK = (
     # 2026-11-15 (owner): asked to improve, an assistant may change itself and the whole system, with undo.
     "- CHỦ bảo cải tiến (chính bạn, trợ lý khác, skill, quy trình, cả Javis): làm luôn bằng `javis_improve` "
     "(op=save có sao lưu cho file của bạn agents/<slug>.md, skill, workflow, bộ nhớ; op=source để sửa mã nguồn "
-    "Javis qua GitHub; op=update để máy lên bản mới), rồi báo đổi gì và mã hoàn tác. Không ai yêu cầu thì "
+    "Javis qua GitHub), rồi báo đổi gì và mã hoàn tác. Javis KHÔNG tự cập nhật: có bản mới thì bảo chủ vào Cài đặt → "
+    "Cập nhật và tự bấm nút. Không ai yêu cầu thì "
     "không tự sửa, chỉ đề xuất.\n"
 )
 # Câu "chỉ hai lối" ở trên ĐÚNG khi trợ lý chưa bật Cộng hưởng. Bật rồi thì có lối thứ ba (javis_goal); để nguyên câu
@@ -18482,8 +18483,8 @@ async def do_update():
 
 
 async def _update_core():
-    """The body of POST /update, shared with `javis_improve op=update` (a route handler is never called as a plain
-    function, test_handler_khong_goi_truc_tiep). Returns a dict, or a JSONResponse when it refuses."""
+    """The body of POST /update, which only the Update button calls: nothing in Javis starts an update by itself
+    (owner, 23/11/2026). Returns a dict, or a JSONResponse when it refuses."""
     import sys as _sys
     import subprocess
     import datetime as _dt
@@ -18589,24 +18590,15 @@ async def _update_core():
         return JSONResponse({"ok": False, "error": str(e), "manual": "./update.sh"}, status_code=500)
 
 
-async def _self_upgrade_start() -> dict:
-    """`javis_improve op=update` (2026-11-15): the very same path as the Update button, its answer as a dict."""
-    res = await _update_core()
-    if isinstance(res, dict):
-        return res
-    try:
-        return json.loads(bytes(res.body).decode("utf-8"))
-    except Exception:  # noqa: BLE001
-        return {"ok": False, "error": localefmt.chu("Cập nhật không bắt đầu được.", "The update did not start.")}
-
-
 async def _self_upgrade_versions() -> tuple:
     cur = _read_version()
     latest, _err = await _latest_remote_version(cur)
     return cur, latest
 
 
-self_upgrade.wire(start=_self_upgrade_start, versions=_self_upgrade_versions, turn_busy=luot_dang_chay.has_turn)
+# Versions only: `javis_improve op=update` tells the owner what is out and sends them to the Update page. It never
+# starts an update (owner, 23/11/2026: "người dùng phải vào trang update để cập nhật lên").
+self_upgrade.wire(versions=_self_upgrade_versions)
 
 
 # ============================================================
