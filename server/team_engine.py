@@ -37,9 +37,13 @@ CODEX = aux_engine.CODEX
 
 # Công cụ native của Codex tắt được bằng `-c features.<tên>=false`. Tên lạ với một bản Codex bị bỏ qua (đã thử), nên
 # danh sách được phép dài hơn những gì một bản cụ thể có.
+# 23/11/2026 (field report, GPT-6 astra): tắt riêng `code_mode_host` thì Codex 0.171 vẫn đưa model công cụ chạy mã của
+# code mode, model gọi nó và nhận "code-mode host is disabled", rồi báo lên nhóm là "chưa đọc được cấu hình". Tắt luôn
+# `code_mode` và `code_mode_only` để lượt chỉ chữ không còn công cụ đó.
 CODEX_OFF_FEATURES = ("shell_tool", "unified_exec", "view_image", "goals", "apps", "multi_agent", "image_generation",
                       "browser_use", "browser_use_external", "computer_use", "plugins", "tool_suggest", "skill_search",
-                      "sleep_tool", "code_mode_host", "in_app_browser", "shell_snapshot", "js_repl", "memories")
+                      "sleep_tool", "code_mode", "code_mode_only", "code_mode_host",
+                      "in_app_browser", "shell_snapshot", "js_repl", "memories")
 
 
 class TeamEngineUnavailable(RuntimeError):

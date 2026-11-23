@@ -3101,14 +3101,25 @@ def dat_codex_hub_bat_buoc(extra_config):
     return extra_config
 
 
-def dat_codex_team_gated(extra_config):
+def dat_codex_team_gated(extra_config, tat_server=()):
     """0.207.0: one Codex process of a GATED Team step (team_gate.py): hub level `gated` (the gate decides outside
     actions), no ChatGPT apps (they bypass the hub) and no shell network in its workspace sandbox, whatever the user's
-    own Codex config says. Chat and workflow Codex processes never get this."""
+    own Codex config says. Chat and workflow Codex processes never get this.
+
+    `tat_server`: the user's own top-level Codex MCP servers (main._codex_user_mcp_servers). Codex would call them
+    natively, outside the gate, so they are switched off for this process only; the user's config.toml is untouched.
+    A name that is not a plain config key raises ValueError (main._team_gate_support refuses those first)."""
+    for name in tat_server:
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", str(name)) or name == "javis":
+            raise ValueError("cannot switch off Codex MCP server: " + str(name))
     dat_codex_mode(extra_config, "gated")
     dat_codex_tat_app(extra_config)
     extra_config[:] = [x for x in extra_config if not str(x).startswith("sandbox_workspace_write.network_access=")]
     extra_config.append("sandbox_workspace_write.network_access=false")
+    for name in tat_server:
+        key = "mcp_servers." + name + ".enabled="
+        extra_config[:] = [x for x in extra_config if not str(x).startswith(key)]
+        extra_config.append(key + "false")
     return extra_config
 
 
