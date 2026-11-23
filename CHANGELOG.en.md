@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.631.3] - 2026-11-23
+### Improved
+- **Windows installer signing can be tried with SignPath's test certificate.** The test-signed file is kept on the workflow run for checking, and the release keeps the unsigned file until the production certificate arrives.
+
 ## [0.631.2] - 2026-11-23
 ### Fixed
 - **Javis no longer updates itself.** After fixing its own code and merging, the assistant used to run the Update button's steps by itself, so the machine moved to the new version with nobody pressing anything. Now it only says a new version is out and points you to Settings → Updates to press the button yourself.

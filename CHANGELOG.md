@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.631.3] - 2026-11-23
+### Cải thiện
+- **Ký số bộ cài Windows chạy thử được với chứng chỉ test của SignPath.** Bản ký thử nằm ở trang lượt chạy để tải về kiểm tra, còn bản phát hành vẫn giữ file chưa ký cho tới khi có chứng chỉ thật.
+
 ## [0.631.2] - 2026-11-23
 ### Sửa lỗi
 - **Javis không còn tự cập nhật.** Trước đây sau khi sửa mã nguồn và merge, trợ lý tự chạy quy trình của nút Cập nhật nên máy lên bản mới mà không ai bấm. Giờ trợ lý chỉ báo đã có bản mới và nhắc bạn vào Cài đặt → Cập nhật để tự bấm nút.
