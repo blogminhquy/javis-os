@@ -16,6 +16,8 @@ import os
 import tempfile
 
 os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-toolgateway-"))
+# The Codex hub profile is written under ~/.codex: keep it out of the real home.
+os.environ["HOME"] = tempfile.mkdtemp(prefix="javis-toolgateway-home-")
 
 import tool_finder  # noqa: E402
 import mcp_hub  # noqa: E402
@@ -164,6 +166,45 @@ check("'gửi tin zalo' -> nothing", amb("gửi tin zalo cho Lan") == [], amb("g
 ans = ask("tạo issue github", ambient=AMB)
 check("the hub answer points at the account's Composio connector too",
       [a["connector"] for a in ans.get("tai_khoan_claude", [])] == ["Composio"], ans.get("tai_khoan_claude"))
+
+# ---- 5. The user's own Codex MCP servers ----------------------------------------------------------------------
+# Composio or Notion added straight to ~/.codex/config.toml: Codex calls them natively, outside the hub. The hub
+# never named them, so a Codex turn searching for "notion" heard "no tool" (owner request 2026-11-23).
+import claude_cli  # noqa: E402
+
+_home = tempfile.mkdtemp(prefix="javis-codexhome-")
+os.environ["CODEX_HOME"] = _home
+with open(os.path.join(_home, "config.toml"), "w", encoding="utf-8") as f:
+    f.write('model = "gpt-5"\n\n[mcp_servers.composio]\nurl = "https://connect.composio.dev/mcp"\n\n'
+            '[mcp_servers.notion]\ncommand = "npx"\n\n[mcp_servers.old]\ncommand = "x"\nenabled = false\n\n'
+            '[mcp_servers.javis]\nurl = "http://127.0.0.1/hub/mcp"\n')
+check("CODEX_HOME is honoured", str(claude_cli._codex_home()) == _home)
+check("_ambient_kind: Claude stays Claude", mcp_hub._ambient_kind(True) == "claude"
+      and mcp_hub._ambient_kind("claude") == "claude")
+check("_ambient_kind: codex", mcp_hub._ambient_kind("codex") == "codex")
+check("_ambient_kind: anything else is off", mcp_hub._ambient_kind("") == "" and mcp_hub._ambient_kind("grok") == ""
+      and mcp_hub._ambient_kind(False) == "")
+cx = mcp_hub._ambient_for("codex")
+check("Codex servers are read, javis and disabled ones left out",
+      [s["name"] for s in cx] == ["composio", "notion"], cx)
+check("... marked as the Codex config", all(s["source"] == "codex_config" for s in cx))
+check("Codex search: 'tạo trang notion' names both", [s["name"] for s in mcp_hub._match_ambient(cx, "tạo trang notion")]
+      == ["composio", "notion"])
+
+_t, rr = mcp_hub._lazy_tools_and_route([], {}, pool, route, 8, ambient=cx)
+desc = next(t["description"] for t in _t if t["fn"] == "javis_search_tools")
+check("the source menu names Codex's own servers", "mcp__notion__* (notion, cấu hình Codex riêng" in desc, desc[-300:])
+ans = json.loads(asyncio.run(rr["javis_search_tools"]["call"]({"query": "tạo trang notion"})))
+check("the search answer points at Codex's own servers",
+      [a["connector"] for a in ans.get("codex_rieng", [])] == ["composio", "notion"], ans.get("codex_rieng"))
+check("... not filed as Claude account connectors", "tai_khoan_claude" not in ans)
+check("... with the Codex hint", "config.toml" in ans["codex_rieng"][0]["goi_the_nao"])
+cj = json.loads(mcp_hub._connections_json(include_ambient="codex"))
+check("javis_connections lists them on Codex",
+      [c["connector"] for c in cj if c.get("source") == "codex_config"] == ["composio", "notion"])
+check("the Codex hub profile tells the hub it is Codex",
+      'X-Javis-Engine" = "codex"' in open(mcp_hub.codex_profile_path(), encoding="utf-8").read()
+      if mcp_hub.codex_profile("full") else False)
 
 print()
 if _fails:
