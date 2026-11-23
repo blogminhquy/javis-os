@@ -2498,7 +2498,8 @@ def _make_answer_fn(bot_id: str):
                 conversations.save_draft(cid_draft, dap_ghi, conversations.last_customer_message_id(cid_draft))
             return {"text": "", "files": [], "im_lang": True, "draft": True}
         # Câu bot nói vào Hộp thư hội thoại, cạnh tin khách. Lượt gãy thì `dap` rỗng nên không ghi gì: khách không nhận tin nào.
-        receipt_row = record_bot_message(
+        # `_defer_delivery`: the channel's transport records the reply itself, once the provider accepted it.
+        receipt_row = 0 if (meta or {}).get("_defer_delivery") else record_bot_message(
             cfg, meta or {}, dap_ghi, error=loi_ky_thuat, files=(out or {}).get("files"),
             zalo_sending=(kenh_luot == "zalo_personal" and not loi_ky_thuat))
         if goi_nguoi:
@@ -3136,7 +3137,13 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
             **chung,
         )
         tb.account_id = aid
-        tb.start()
+        tb.javis_bot_id = bot_id    # NOT `bot_id`: Telegram and Slack transports use that for the platform's own id
+        try:
+            tb.start()
+        except ValueError as e:     # a transport may refuse a bad account mapping at start: skip that account
+            loi.append(str(e) or localefmt.chu(f"Không khởi động được tài khoản {nhan_kenh}",
+                                               f"Could not start the {nhan_kenh} account"))
+            continue
         pollers[aid] = tb
     if not pollers:
         return False, "; ".join(loi) or localefmt.chu(f"Chưa có token {nhan_kenh} cho bot này",
@@ -3184,7 +3191,9 @@ def stop_bot(bot_id: str) -> bool:
 
 
 def _trang_thai_poller(tb) -> dict:
-    song = bool(tb._task and not tb._task.done())
+    # A webhook transport has no polling task: it is alive while `webhook_active` says so.
+    task = getattr(tb, "_task", None)
+    song = bool(getattr(tb, "webhook_active", False) or (task and not task.done()))
     tt = getattr(tb, "status", "off")
     state = ("error" if tt in ("error", "conflict") else
              "running" if (song and tt == "polling") else
@@ -3250,7 +3259,8 @@ def sync_all() -> dict:
             stop_bot(bid)
     ok, loi = 0, {}
     for bid in muon:
-        if bid in _RUNNING and any(tb._task and not tb._task.done()
+        if bid in _RUNNING and any(getattr(tb, "webhook_active", False) or
+                                   (getattr(tb, "_task", None) and not tb._task.done())
                                    for tb in _RUNNING[bid].get("pollers", {}).values()):
             ok += 1
             continue

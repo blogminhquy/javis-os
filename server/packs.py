@@ -58,6 +58,7 @@ import threading
 from pathlib import Path
 
 import fastyaml
+import localefmt
 from config import STATE_DIR
 
 # Gốc CÂY MÃ NGUỒN, để đọc VERSION. Neo vào `__file__` y như `main`, `system_sync`,
@@ -281,7 +282,7 @@ def _nap_mot(thu_muc, id_da_co, vao_loi=None) -> dict:
     pid = thu_muc.name
     ban = {"id": pid, "dir": str(thu_muc), "ok": False, "error": "", "enabled": True,
            "name": {}, "description": {}, "version": "", "author": {}, "tier": "data",
-           "connectors": [], "_con_objs": [], "built_in": []}
+           "connectors": [], "_con_objs": [], "built_in": [], "channels": []}
     lo_thay = (vao_loi or {}).get(pid) or set()
 
     manifest = next((thu_muc / t for t in MANIFEST_TEN if (thu_muc / t).is_file()), None)
@@ -364,11 +365,67 @@ def _nap_mot(thu_muc, id_da_co, vao_loi=None) -> dict:
 
     ban["_con_objs"] = cons
     ban["connectors"] = [c["id"] for c in cons]
+    ban["channels"] = _check_channels(m, thu_muc, loi)
     ban["tier"] = _tier(thu_muc, cons)
     ban["ok"] = True
     if loi:
         ban["error"] = "; ".join(loi)   # gói vẫn dùng được phần lành, nhưng phải NÓI ra phần hỏng
     return ban
+
+
+def _check_channels(m: dict, thu_muc: Path, loi: list) -> list:
+    """`provides.channels`: inbox channel modules this pack adds, as paths relative to the pack.
+
+    Only `channels/<name>.py` inside the pack is accepted. A bad entry is dropped and reported, like a bad
+    connector: the rest of the pack keeps working. Whether the code may RUN is decided at load time by
+    `code_allowed`, the same gate as pack plugins."""
+    ra = []
+    for rel in ((m.get("provides") or {}).get("channels") or []):
+        rel = str(rel or "").strip().replace("\\", "/")
+        if not re.match(r"^channels/[a-z][a-z0-9_]{0,40}\.py$", rel):
+            loi.append(f"{rel}: " + localefmt.chu("kênh phải là channels/<tên>.py", "a channel must be channels/<name>.py"))
+            continue
+        p = (thu_muc / rel).resolve()
+        try:
+            if thu_muc.resolve() not in p.parents or not p.is_file():
+                loi.append(f"{rel}: " + localefmt.chu("không có trong gói", "not found in the pack"))
+                continue
+        except OSError as e:
+            loi.append(f"{rel}: {e}")
+            continue
+        ra.append(rel)
+    return ra
+
+
+def channel_files() -> list:
+    """Inbox channel modules of ENABLED packs, as [(pack_id, absolute path)]. Read by `channels._nap`.
+
+    Lists paths only; `code_allowed` decides whether one may be imported."""
+    ra = []
+    for ban in _quet()[0]:
+        if not ban.get("ok") or ban.get("enabled") is False:
+            continue
+        for rel in ban.get("channels") or []:
+            ra.append((ban["id"], Path(ban["dir"]) / rel))
+    return ra
+
+
+def code_allowed(pid: str) -> tuple:
+    """May the code of pack `pid` run? (ok, reason). Same rule as pack plugins (`plugins_host._pack_duoc_nap`):
+    the pack went through the installer, and the code on disk still matches the digest the owner agreed to."""
+    try:
+        from plugins_host import _digest_thu_muc
+    except Exception as e:  # noqa: BLE001
+        return False, f"could not check the pack's code: {e}"
+    actual = _digest_thu_muc(PACKS_DIR / pid)
+    if not actual:
+        return True, ""
+    if not da_dong_y_ma(pid):
+        return False, "the pack did not go through the installer, so its code does not run"
+    recorded = digest_ma(pid)
+    if recorded and recorded != actual:
+        return False, "the pack's code changed since the owner agreed to install it"
+    return True, ""
 
 
 def _quet():
@@ -404,7 +461,7 @@ def _quet():
                                   "name": {}, "description": {}, "enabled": False,
                                   "version": str(hang.get("version") or ""),
                                   "author": {}, "tier": str(hang.get("tier") or "data"),
-                                  "connectors": []})
+                                  "connectors": [], "channels": []})
                     continue
                 ban = _nap_mot(d, id_da_co, vao_loi)
                 ban["enabled"] = True

@@ -208,16 +208,27 @@ def register(app, deps: ChannelsDeps):
                                       label: str = Form(""), bot_username: str = Form(""),
                                       brain: str = Form("")):
         """Thêm tài khoản token. Chưa kiểm (không có bot_username) thì kiểm luôn ở đây."""
+        channel = str(channel or "").strip().lower()
         if _generated_key(channel):
             return _create_generated(channel, label, brain)
         ext = str(bot_username or "").strip()
         meta = {}
+        p = _prepare_token(channel, token, None)
+        if p is not None:
+            if not p.get("ok"):
+                return _400(p.get("error") or localefmt.chu("Token không hợp lệ", "Invalid token"),
+                            code=p.get("code") or "invalid_credentials")
+            # A channel that rewrites its credential is always verified here, whatever the form sent as username.
+            token, ext = p["token"], ""
         if not ext:
             r = await verify_token(channel, token)
             if isinstance(r, JSONResponse) or not r.get("ok"):
-                return r if isinstance(r, JSONResponse) else _400(r.get("error") or localefmt.chu("Token không hợp lệ", "Invalid token"))
+                return r if isinstance(r, JSONResponse) else _400(
+                    r.get("error") or localefmt.chu("Token không hợp lệ", "Invalid token"),
+                    code=r.get("code") or "invalid_credentials")
             ext = r.get("username") or ""
             meta = {k: r[k] for k in ("vao_duoc_nhom", "account_type", "bot_name") if k in r}
+            meta.update(r.get("meta") or {})
         aid, loi = channel_accounts.create_account({
             "channel": channel, "token": token, "label": label, "external_id": ext, "meta": meta,
             # Thêm từ brain nào thì thuộc brain đó (0.62.4). Không truyền = chưa gán chủ, thẻ
@@ -250,17 +261,33 @@ def register(app, deps: ChannelsDeps):
                                       settings: str = Form(None)):
         patch = {}
         cur = channel_accounts.get_account(account_id)
-        m = channels.module((cur or {}).get("channel") or "")
-        if cur and _generated_key(cur.get("channel") or ""):
-            if token.strip():
-                # The stored secret is the HASH of a generated key: a pasted value would never match any call.
-                return _400(localefmt.chu("Khoá của kênh này do Javis sinh: dùng nút Xoay khoá.",
-                                          "Javis generates this channel's key: use Rotate key."))
-            if isinstance(settings, str) and callable(getattr(m, "clean_settings", None)):
-                st, loi = m.clean_settings(settings)
-                if loi:
-                    return _400(loi)
-                patch["meta"] = {**(cur.get("meta") or {}), **st}
+        cur_channel = (cur or {}).get("channel") or ""
+        m = channels.module(cur_channel)
+        if cur and _generated_key(cur_channel) and token.strip():
+            # The stored secret is the HASH of a generated key: a pasted value would never match any call.
+            return _400(localefmt.chu("Khoá của kênh này do Javis sinh: dùng nút Xoay khoá.",
+                                      "Javis generates this channel's key: use Rotate key."))
+        # Numeric account settings, for any channel module that declares them (not only generated-key ones).
+        if cur and isinstance(settings, str) and callable(getattr(m, "clean_settings", None)):
+            st, loi = m.clean_settings(settings)
+            if loi:
+                return _400(loi)
+            patch["meta"] = {**(cur.get("meta") or {}), **st}
+        p = _prepare_token(cur_channel, token, channel_accounts.get_token(account_id)) if cur and token.strip() else None
+        if p is not None:
+            if not p.get("ok"):
+                return _400(p.get("error") or localefmt.chu("Token không hợp lệ", "Invalid token"),
+                            code=p.get("code") or "invalid_credentials")
+            token = p["token"]
+            r = await verify_token(cur_channel, token, account_id=account_id)
+            if isinstance(r, JSONResponse):
+                return r
+            if not r.get("ok"):
+                return _400(r.get("error") or localefmt.chu("Token không hợp lệ", "Invalid token"),
+                            code=r.get("code") or "invalid_credentials")
+            bot_username = r.get("username") or ""
+            if r.get("meta"):
+                patch["meta"] = {**(patch.get("meta") or cur.get("meta") or {}), **r["meta"]}
         if label.strip():
             patch["label"] = label
         # `brain` không gửi = KHÔNG đụng (client cũ giữ nguyên hành vi). Gửi chuỗi rỗng = gỡ
@@ -466,7 +493,8 @@ async def verify_token(channel: str, token: str, account_id: str = "", bot_id: s
             "partner answer in the admin chat, type /agent <name> right in Zalo.")}
     r = await m.verify_token(tok)
     if not r.get("ok"):
-        return {"ok": False, "error": r.get("error") or localefmt.chu(f"Token không hợp lệ ({s.nhan} từ chối).",
+        return {"ok": False, "code": r.get("code") or "invalid_credentials",
+                "error": r.get("error") or localefmt.chu(f"Token không hợp lệ ({s.nhan} từ chối).",
                                                                   f"Invalid token ({s.nhan} rejected it).")}
     username = r.get("username") or ""
     # Trùng: tài khoản nào đã giữ đúng con bot này (theo kênh). Sửa chính nó thì bỏ qua.
@@ -493,4 +521,22 @@ async def verify_token(channel: str, token: str, account_id: str = "", bot_id: s
     for k in ("vao_duoc_nhom", "account_type"):
         if k in r:
             ra[k] = r[k]
+    # Optional account meta a channel module wants stored (pack channels); shown only through PUBLIC_META.
+    if isinstance(r.get("meta"), dict):
+        ra["meta"] = r["meta"]
     return ra
+
+
+def _prepare_token(channel: str, new: str, old):
+    """Optional channel hook `prepare_token(new, old) -> {"ok", "token"} | {"ok": False, "error", "code"}`.
+
+    Lets a channel turn what the form sent into the credential it stores (merge a partial edit into the stored one,
+    refuse a change of provider identity) before it is verified. None when the channel has no such hook."""
+    fn = getattr(channels.module(channel), "prepare_token", None)
+    if not callable(fn):
+        return None
+    try:
+        r = fn(str(new or ""), old)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "code": "invalid_credentials"}
+    return r if isinstance(r, dict) else {"ok": False, "code": "invalid_credentials"}

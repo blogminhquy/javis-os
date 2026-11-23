@@ -1869,6 +1869,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   border: 1px solid color-mix(in srgb, var(--danger-ink, #b3261e) 32%, transparent); }
 .pkm-canh.do .pkm-canh-tieu { color: var(--danger-ink, #b3261e); }
 .pkm-canh code { font-size: 12px; overflow-wrap: anywhere; }
+/* What a pack's inbox channel may do: one short line per power, plain bullets on the card's left edge. */
+.pkm-ds { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .pkm-canh .mp-input { width: 100%; margin-top: 4px; background: var(--sunken);
   border: 1px solid var(--border); color: var(--text); border-radius: 9px; padding: 10px 12px;
   font: inherit; font-size: 14px; }
