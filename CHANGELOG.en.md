@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.8] - 2026-11-23
+### Fixed
+- **The phone no longer buzzes while you read on the computer.** Every answer used to reach the phone even while that very chat was open on the computer, so talking and chatting made the phone ring non-stop. Each Javis tab now tells the server which chat you are viewing: while you are viewing it on any device, an answer in that chat pushes to no device. Once you step away (tab hidden, another app, no mouse or keyboard for 2 minutes) notifications work as before. Background results, reminders and urgent notices still arrive as usual.
+
 ## [0.628.7] - 2026-11-23
 ### Fixed
 - **Tool search no longer misses apps behind Composio.** Composio shows only a few shared tools (search, run, connect an account) while hundreds of Gmail, Notion, Slack, GitHub... tools sit hidden behind them. Asking for "gmail" used to return Resend and "send a slack message" returned Zalo, so the model said the app was not connected. Javis now reads the apps you connected in Composio, puts the Composio gateway first with a two-step guide when you name one, and suggests a connected app when you only describe the job ("read my latest email").
