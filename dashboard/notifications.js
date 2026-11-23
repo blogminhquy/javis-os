@@ -244,7 +244,8 @@
     if (item.channel === "store:updates" && (window.JavisPacks || window.JavisNapCham)) {
       closePanel();
       // packs.js nạp chậm (nap-cham.js, 0.417.0).
-      var moStore = function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(""); };
+      // 2026-11-23: straight to the "has an update" group, so the packs to update are all that shows.
+      var moStore = function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho("all", "", "", "", true); };
       if (window.JavisNapCham) window.JavisNapCham.goi("packs", moStore); else moStore();
       return;
     }

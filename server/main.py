@@ -9087,6 +9087,7 @@ IMG_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
 # vì trong container code tree /app là read-only + chạy user non-root → makedirs ném
 # PermissionError → HTTP 500 khi upload. (config.py cùng nguyên tắc cho settings/branding.)
 STAGING = cfgmod.STATE_DIR / ".staging"
+from urllib.parse import urlparse as parse_url  # host of a webhook address (_tailnet_only_warning)
 from urllib.parse import quote as urlquote   # dựng URL /upload/raw cho tên file có dấu
 
 def _default_brain_dir() -> Path:
@@ -29919,6 +29920,23 @@ def _ms_account_secrets() -> list:
     return out
 
 
+def _tailnet_only_warning(url: str) -> str:
+    """A warning when the webhook address is a Tailscale name (*.ts.net). Javis's Tailscale mode uses
+    `tailscale serve`, which only devices in the owner's tailnet can open, so Zalo or Meta never reach
+    it (Zalo reports a timeout, HTTP 408). A test from the server itself succeeds because the server is
+    in the tailnet, which hides the cause (2026-11-23, Seul Clinic)."""
+    host = (parse_url(url).hostname or "").lower()
+    if not host.endswith(".ts.net"):
+        return ""
+    return localefmt.chu(
+        "Địa chỉ .ts.net của Tailscale chỉ máy trong tailnet của bạn mở được, máy chủ Zalo hay Facebook ở ngoài "
+        "Internet không gọi tới được (Zalo báo lỗi 408). Dùng tên miền riêng trỏ vào Javis (Cài đặt, Tên miền) "
+        "hoặc Cloudflare Tunnel, mở Javis bằng địa chỉ đó rồi mở lại form này.",
+        "A Tailscale .ts.net address only opens for devices in your tailnet, so Zalo's or Facebook's servers on "
+        "the Internet cannot reach it (Zalo reports HTTP 408). Point your own domain at Javis (Settings, Domain) "
+        "or use a Cloudflare Tunnel, open Javis through that address, then reopen this form.")
+
+
 @app.get("/channels/webhook-info")
 async def channels_webhook_info(request: Request, channel: str = ""):
     """Address and verify token to paste into the platform for a channel that receives messages
@@ -29927,7 +29945,7 @@ async def channels_webhook_info(request: Request, channel: str = ""):
     if kenh == "zalo_oa":
         url = _zo_webhook_url(request)
         return {"ok": True, "webhook_url": url, "verify_token": "", "https": url.startswith("https://"),
-                "site_verify": True, "site_codes": _zo_site_codes(),
+                "warning": _tailnet_only_warning(url), "site_verify": True, "site_codes": _zo_site_codes(),
                 "oauth_redirect": url[: -len("/zalo-oa/webhook")] + zalo_oa_oauth.CALLBACK_PATH}
     if kenh == "wechat":
         url = _wc_webhook_url(request)
@@ -29947,7 +29965,7 @@ async def channels_webhook_info(request: Request, channel: str = ""):
         request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
     url = base + "/messenger/webhook"
     return {"ok": True, "webhook_url": url, "verify_token": _ms_verify_token(),
-            "https": url.startswith("https://")}
+            "https": url.startswith("https://"), "warning": _tailnet_only_warning(url)}
 
 
 @app.get("/messenger/webhook")
@@ -30576,16 +30594,30 @@ def _zo_account_secrets() -> list:
     return out
 
 
+_zo_unsigned_logged = [0.0]
+
+
 @app.post("/zalo-oa/webhook")
 async def zalo_oa_webhook(request: Request):
     """Inbound Zalo OA events. Public URL, so nothing is trusted before the signature check; a
-    request no known OA secret key signed is dropped with 401 and never handed to a bot."""
+    request no known OA secret key signed is dropped and never handed to a bot.
+
+    The drop answers 200, not 401 (2026-11-23, Seul Clinic). Zalo saves a webhook only after the
+    "Kiểm tra" button gets 200 OK, and that test arrives BEFORE Javis can know the OA secret key:
+    Zalo shows the key once the webhook is saved, and the Javis form needs the key to create the
+    account. A 401 there left the owner stuck on both sides. Nothing reaches a bot either way, so
+    a 200 for an unsigned request gives a forger nothing."""
     raw = await _read_capped_body(request)
     if raw is None:
         return PlainTextResponse("too large", status_code=413)
     sig = request.headers.get("x-zevent-signature", "") or request.headers.get("mac", "")
     if not zalo_oa_bot.verify_signature(raw, sig, _zo_account_secrets()):
-        return PlainTextResponse("bad signature", status_code=401)
+        now = time.time()
+        if now - _zo_unsigned_logged[0] > 60:
+            _zo_unsigned_logged[0] = now
+            print("[zalo_oa webhook] dropped a request no saved OA secret key signed (Zalo's setup test, "
+                  "a missing or wrong OA secret key, or a stranger)", file=sys.stderr)
+        return {"ok": True, "events": 0}
     try:
         payload = json.loads(raw.decode("utf-8") or "{}")
     except Exception:

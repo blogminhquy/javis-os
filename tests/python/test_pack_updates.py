@@ -47,6 +47,8 @@ check("one bell notice for all new versions", item and item.get("kind") == "syst
       item)
 check("it names each pack with old and new version", item and "1.3.0 → 1.4.0" in item["body"]
       and "1.9.0 → 1.10.0" in item["body"], item and item["body"])
+check("2026-11-23: the notice rings by default (not filed under Filtered)",
+      item and not item.get("filtered") and not item.get("read"), item)
 check("it says Javis never updates on its own", item and ("không tự cập nhật" in item["body"]
                                                        or "never updates on its own" in item["body"]))
 check("the same versions do not ring again", PU.notify(ups) is None)
@@ -82,8 +84,11 @@ check("no timer runs the Store check any more", "pack_updates.tick" not in src a
 check("the check rides on the dashboard opening (/version)",
       "asyncio.create_task(pack_updates.on_open())" in src[src.index('@app.get("/version")'):][:800])
 nj = (ROOT / "dashboard" / "notifications.js").read_text(encoding="utf-8")
-check("pressing the notice opens the Javis Store",
-      'item.channel === "store:updates"' in nj and "window.JavisPacks.moKho(\"\")" in nj)
+check("pressing the notice opens the Javis Store on the packs with an update",
+      'item.channel === "store:updates"' in nj and 'window.JavisPacks.moKho("all", "", "", "", true)' in nj)
+pj = (ROOT / "dashboard" / "packs.js").read_text(encoding="utf-8")
+check("moKho can open on the 'has an update' group", "function moKho(loai, tuTrang, nhanTrang, tim, chiBanMoi)" in pj
+      and "_nhomCho = !!chiBanMoi" in pj and '_kho.nhom = nhomDau ? "Có bản mới" : "Tất cả"' in pj)
 import json  # noqa: E402
 vi = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 en = json.loads((ROOT / "dashboard" / "i18n" / "en.json").read_text(encoding="utf-8"))

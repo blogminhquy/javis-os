@@ -40,7 +40,10 @@ DEFAULT_MODE = "urgent"            # owner, 2026-10-29: "mặc định chỉ tin
 # by default, so they reach the owner the way a person's message would. Every other group keeps DEFAULT_MODE.
 # Owner, 2026-11-23: "answer" is the push of a dashboard chat answer (push_policy.py). It rings as before by default
 # ("all"); the owner can lower it or turn it off here, and Javis Core mutes it when the owner keeps ignoring it.
-GROUP_DEFAULT_MODE = {"suggest": "important", "answer": "all"}
+# Owner, 2026-11-23: "nếu có plugin trong store có phiên bản mới thì có thông báo cập nhật". A Store update is an "info"
+# notice of the group "update", so under the global "urgent" default it was filed under Filtered, already read, and
+# nobody saw it. The group rings on everything by default; it only gets one notice per new version (pack_updates).
+GROUP_DEFAULT_MODE = {"suggest": "important", "answer": "all", "update": "all"}
 
 # Group names as shown (vi, en). The dashboard has its own i18n keys; these are for the chat tool and Core's messages.
 GROUP_NAMES = {

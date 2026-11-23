@@ -235,6 +235,9 @@
   let _loaiCho = "";
   // Từ khoá điền sẵn vào ô tìm, cùng vòng đời với `_loaiCho`: đặt một lần rồi xoá ngay.
   let _timCho = "";
+  // "Open on the has-an-update group", same life as `_loaiCho`. The bell's "Store has updates" notice sets "Có bản mới" so the
+  // owner lands on just the packs to update (2026-11-23), not on the whole Store.
+  let _nhomCho = false;
   // Trang đã dẫn người dùng sang kho, để vẽ nút quay lại. `null` = vào thẳng từ thanh bên.
   //
   // HAI biến chứ không một, và đây là lý do: `_veTrang` là ý định của MỘT lần bấm tab, còn
@@ -696,7 +699,7 @@
   // Danh mục cũ hơn ngần này (giây) thì trang Kho tự lấy lại một lần ở nền. Xem `veKho`.
   const CU_QUA = 30 * 60;
 
-  async function veKho(el, host, lamMoi, loaiDau, timDau) {
+  async function veKho(el, host, lamMoi, loaiDau, timDau, nhomDau) {
     host.innerHTML = '<div class="mp-empty">' + tw("store.catalog_loading") + '</div>';
     let d;
     try { d = await (await fetch("/packs/store" + (lamMoi ? "?refresh=1" + brainQuery("&") : brainQuery("?")))).json(); }
@@ -717,7 +720,7 @@
     _kho.trang = 1;
     _kho.tim = timDau || "";
     if (loaiDau && LOAI[loaiDau]) _kho.loai = loaiDau;
-    _kho.nhom = "Tất cả";
+    _kho.nhom = nhomDau ? "Có bản mới" : "Tất cả";
     veLuoi(el, host);
 
     // Danh mục cache 6 giờ ở phía server (`packs_store.TTL`). Với việc TÌM một gói mới thì 6
@@ -1413,9 +1416,11 @@
     // lần vẽ lại mà không dính sang lượt sau.
     const loaiDau = _loaiCho;
     const timDau = _timCho;
+    const nhomDau = _nhomCho;
     const veTrang = _veLuot;
     _loaiCho = "";
     _timCho = "";
+    _nhomCho = false;
 
     el.innerHTML =
       // Nút quay lại: chỉ hiện khi VÀO TỪ một trang năng lực. Vào thẳng từ thanh bên thì không
@@ -1443,7 +1448,7 @@
       if (s && s.go) s.go(veTrang.id);
     };
     const hostKho = document.getElementById("pkKho");
-    if (hostKho) veKho(el, hostKho, false, loaiDau, timDau);
+    if (hostKho) veKho(el, hostKho, false, loaiDau, timDau, nhomDau);
   }
 
   // Mở kho với một loại đã lọc sẵn. Tab "Kho cài đặt" trên trang Trợ lý / Kỹ năng / Quy
@@ -1453,10 +1458,12 @@
   // `tim` là từ khoá điền sẵn vào ô tìm. Dùng cho đường "kết nối này đang dừng vì dịch vụ của
   // nó đã ra kho" trên trang Kết nối: bấm một nút là tới thẳng đúng gói cần cài, thay vì thả
   // người dùng vào một kho vài chục mục rồi bảo họ tự tìm cái vừa biến mất.
-  function moKho(loai, tuTrang, nhanTrang, tim) {
+  // `chiBanMoi` opens on the "Có bản mới" group: only the installed packs with a newer version.
+  function moKho(loai, tuTrang, nhanTrang, tim, chiBanMoi) {
     _loaiCho = LOAI[loai] ? loai : "";
     _veTrang = tuTrang ? { id: tuTrang, nhan: nhanTrang || tuTrang } : null;
     _timCho = tim || "";
+    _nhomCho = !!chiBanMoi;
     if (window.Alpine && Alpine.store("nav")) Alpine.store("nav").go("packs");
   }
 
