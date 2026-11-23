@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.630.0] - 2026-11-23
+### Thêm mới
+- **Hẹn giờ đăng bài Fanpage ngay trong lịch của Facebook.** Bài chữ, bài một ảnh và album nhiều ảnh nhận thêm giờ hẹn. Bài nằm chờ trong lịch Meta Business Suite của Trang, không còn phải qua hàng đợi của công cụ khác. Giờ không ghi múi giờ được hiểu theo múi giờ của bạn, giờ quá gần (dưới 10 phút) bị chặn kèm lý do trước khi gửi.
+- **Công cụ `fb_page_scheduled` xem các bài đang chờ đăng.** Liệt kê bài đã hẹn theo thứ tự giờ đăng, để đối chiếu với Sheet hoặc lấy id bài cần huỷ, cần sửa chữ.
+
 ## [0.629.2] - 2026-11-23
 ### Sửa lỗi
 - **Nhóm ở quyền "cần duyệt" chạy được trên ChatGPT (Codex) dù máy có MCP riêng của Codex.** Trước đây chỉ cần `~/.codex/config.toml` có một MCP ngoài Javis (ví dụ `node_repl`) là mọi bước Làm bị từ chối và bảo đổi sang Claude Code. Giờ Javis tắt riêng các MCP đó cho đúng lượt chạy, file cấu hình của bạn giữ nguyên, giống cách workflow vẫn làm.
