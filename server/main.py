@@ -8761,7 +8761,8 @@ async def _fetch_provider_models(provider, m):
     if provider == "openai-oauth":
         # app-server là subprocess đồng bộ; chạy ở worker để request FastAPI
         # khác không đứng hình trong lúc Codex nạp catalog.
-        return await asyncio.to_thread(openai_oauth.list_models, openai_oauth.valid_creds())
+        # The account a Codex run uses now, not account 1 (2026-11-23): see openai_oauth.list_models.
+        return await asyncio.to_thread(openai_oauth.list_models, plan_accounts.current(m, provider))
     if provider == "grok-cli":
         # Chạy ở worker: `list_models` có thể đẻ tiến trình con (`grok --help` để dò cờ, rồi
         # `grok models` nếu bản này có) và mất vài giây.
@@ -8831,7 +8832,7 @@ def _remember_catalog(cfg, d, ids):
         print(f"[models] không ghi được catalog {key}: {e}", file=sys.stderr)
 
 
-def _vi_sao_khong_co_model(provider: str, m: dict, cause: str = "") -> str:
+def _why_no_models(provider: str, m: dict, cause: str = "") -> str:
     """Vì sao provider này không trả về model nào - viết cho NGƯỜI ĐỌC, không phải log.
 
     Hầu hết đường lấy model hỏng theo kiểu IM LẶNG: hàm trả None chứ không ném lỗi, nên phía
@@ -8842,7 +8843,8 @@ def _vi_sao_khong_co_model(provider: str, m: dict, cause: str = "") -> str:
     """
     d = _provider_def(provider) or {}
     if provider == "openai-oauth":
-        if not (openai_oauth.valid_creds() or {}).get("access_token"):
+        # The sign-in of the account the list was asked from (2026-11-23), not always account 1's.
+        if not (openai_oauth.valid_creds_for(plan_accounts.current(m, provider)) or {}).get("access_token"):
             return localefmt.chu("Chưa kết nối ChatGPT (hoặc phiên đăng nhập đã hết hạn) - "
                                  "đăng nhập lại ở thẻ ChatGPT.",
                                  "ChatGPT is not connected (or the sign-in expired) - "
@@ -8913,8 +8915,11 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
     fallback = _gop_giu_thu_tu(d.get("default_models", []),
                                cat.get(d.get("catalog_key", "")) or [])
     now = time.time()
+    # ChatGPT's list belongs to one plan account (2026-11-23): a list kept while another account ran is not reused
+    # once the owner switches accounts or one rests out of quota. Every other provider keeps "" here.
+    account = plan_accounts.current(m, provider) if provider == "openai-oauth" else ""
     c = _PROV_MODELS_CACHE.get(provider)
-    if not refresh and c and (now - c["ts"]) < 600 and c.get("ids"):
+    if not refresh and c and (now - c["ts"]) < 600 and c.get("ids") and c.get("account", "") == account:
         return {"models": c["ids"], "live": True, "cached": True}
     is_gateway = provider in adv_keys.PROVIDERS
     asked_base = (m.get(adv_keys._SPEC[provider]["legacy"] + "_base") or "") if is_gateway else ""
@@ -8938,17 +8943,17 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
         moved = (m_now.get(adv_keys._SPEC[provider]["legacy"] + "_base") or "") not in (
             asked_base, *[u[1] for u in _openai_list_urls(asked_base)])
         if ids and not moved:
-            _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
+            _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now, "account": account}
             _remember_catalog(cfg, d, ids)
         if ids:
             return {"models": ids, "live": True}
-        return {"models": fallback, "live": False, "error": _vi_sao_khong_co_model(provider, m_now, cause)}
+        return {"models": fallback, "live": False, "error": _why_no_models(provider, m_now, cause)}
     if ids:
-        _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
+        _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now, "account": account}
         _remember_catalog(cfg, d, ids)
         return {"models": ids, "live": True}
     return {"models": fallback, "live": False,
-            "error": last_err or _vi_sao_khong_co_model(provider, m)}
+            "error": last_err or _why_no_models(provider, m)}
 
 
 @app.get("/provider/models")

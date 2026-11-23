@@ -50,6 +50,7 @@ import config as cfgmod
 import localefmt
 import codex_models
 
+PROVIDER = "openai-oauth"   # this card's id in the Models list and in plan_accounts
 CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 AUTH_BASE = "https://auth.openai.com"
 DEVICE_USERCODE_URL = AUTH_BASE + "/api/accounts/deviceauth/usercode"
@@ -703,22 +704,45 @@ def _list_models_backend(creds):
     return None
 
 
-def list_models(creds):
+def list_models(account_key=None):
     """Lấy model LIVE từ chính Codex, không ghim version model trong Javis.
 
     Nguồn chính là ``codex app-server`` / ``model/list``: cùng catalog và cùng
     quyền account mà model picker chính thức của Codex dùng. Endpoint backend
     trực tiếp chỉ còn là đường tương thích cho Codex CLI cũ.
+
+    ``account_key``: the plan account to ask (``plan_accounts``). None asks the account a Codex run uses now
+    (``plan_accounts.current``), so the picker shows the models of the account that will answer.
+
+    2026-11-23 (owner's report, "the Models page shows only 3 GPT models"): this always asked account 1. It wrote
+    account 1's tokens into the shared ~/.codex and asked the app-server there, even with account 1 (Free) switched
+    off and a Plus account on. Every refresh of the picker then wrote the Free list (3 models) back over the Plus list
+    (10). An extra account is now asked in its own login folder, and the shared folder is left alone.
     """
-    if not creds or not creds.get("access_token"):
-        return None
-    # Javis có luồng OAuth riêng; bắc cầu token sang kho Codex trước để
-    # app-server nhìn đúng account ngay cả khi user chưa từng chạy `codex login`.
-    write_codex_auth()
-    live = codex_models.list_models()
+    import plan_accounts
+
+    aid = account_key or plan_accounts.current(cfgmod.read_settings().get("model") or {}, PROVIDER)
+    if aid == plan_accounts.MAIN:
+        creds = valid_creds()
+        if not creds or not creds.get("access_token"):
+            return None
+        # Javis có luồng OAuth riêng; bắc cầu token sang kho Codex trước để
+        # app-server nhìn đúng account ngay cả khi user chưa từng chạy `codex login`.
+        write_codex_auth()
+        live = codex_models.list_models()
+    else:
+        if not plan_accounts.signed_in(PROVIDER, aid):
+            return None
+        folder = plan_accounts.home(PROVIDER, aid)
+        if not folder:
+            return None
+        plan_accounts.prepare(PROVIDER, folder)   # the same config.toml a chat turn on this account gets
+        live = codex_models.list_models(codex_home=str(folder))
+        creds = None
     if live and live.get("models"):
         return live["models"]
-    return _list_models_backend(creds)
+    # Old Codex CLI without model/list: ask the backend with the SAME account's token, never account 1's.
+    return _list_models_backend(creds if creds is not None else valid_creds_for(aid))
 
 
 def disconnect():

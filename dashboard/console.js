@@ -5057,27 +5057,38 @@
       sh.body.innerHTML = `<input class="mb-search" type="search" enterkeyhint="search" placeholder="${esc(t("mpick.search_ph"))}">`
         + `<div class="ord-mlist"></div>`;
       const ML = window.JavisModelList;
-      let ids = ML ? ML.peek(pid) : [], q = "";
+      // Every open asks the server again (2026-11-23, owner's report "the Models page shows only 3 GPT models"). It
+      // used to open on `peek` and ask only when nothing was in hand, so a list kept from earlier stayed for good: 3
+      // models of a switched-off account while the account in use had 10. What is in hand is drawn at once, with a
+      // "loading" line under it, and the fresh list replaces it when it comes.
+      let ids = ML ? ML.peek(pid) : [], q = "", loading = !!ML;
       const row = (id) => {
         const on = id === (cur.model || "");
         return `<div class="mb-item${on ? " cur" : ""}" role="option" tabindex="0" aria-selected="${on}" data-m="${esc(id)}"><span class="tick">${on ? ic("check", { cls: "ic-ok" }) : ""}</span><span class="ord-mname">${esc(id || defName(pid))}</span></div>`;
       };
+      const wait = `<div class="mb-empty pg-loading">${esc(t("mpick.loading"))}</div>`;
       const draw = () => {
         const box = sh.body.querySelector(".ord-mlist");
-        if (ids == null) { box.innerHTML = `<div class="mb-empty pg-loading">${esc(t("mpick.loading"))}</div>`; return; }
+        if (ids == null) { box.innerHTML = wait; return; }
         const f = q.trim().toLowerCase();
         const hit = (id) => !f || (id || defName(pid)).toLowerCase().includes(f);
         const now = cur.model || "";
         const rest = ids.filter(id => id && id !== now).sort((a, b) => a.localeCompare(b));
         const top = [""].concat(now ? [now] : []).filter(hit);
         const all = rest.filter(hit);
-        box.innerHTML = !top.length && !all.length ? `<div class="mb-empty">${esc(t("mpick.no_match"))}</div>`
+        box.innerHTML = (!top.length && !all.length ? `<div class="mb-empty">${esc(t("mpick.no_match"))}</div>`
           : top.map(row).join("") + (all.length ? `<div class="mb-prov ord-msec"><span>${esc(t("models.sheet_all"))}</span></div>`
-            + all.slice(0, 200).map(row).join("") : "");
+            + all.slice(0, 200).map(row).join("") : ""))
+          + (loading ? wait : "");   // last, so the rows above never jump when the fresh list lands
       };
       draw();
       opened(btn, sh);
-      if (ids == null && ML) ML.models(pid).then(x => { ids = x; if (openPop && openPop.el === pop) draw(); });
+      if (ML) ML.refresh(pid).then(x => {
+        loading = false;
+        // An empty answer does not wipe a list already in hand (the server or the network failed this once).
+        if ((x && x.length) || ids == null) ids = x || [];
+        if (openPop && openPop.el === pop) draw();
+      });
       const inp = sh.body.querySelector(".mb-search");
       inp.oninput = () => { q = inp.value; draw(); };
       sh.body.onclick = (e) => {
