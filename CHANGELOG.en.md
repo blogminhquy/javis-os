@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.7] - 2026-11-23
+### Fixed
+- **Tool search no longer misses apps behind Composio.** Composio shows only a few shared tools (search, run, connect an account) while hundreds of Gmail, Notion, Slack, GitHub... tools sit hidden behind them. Asking for "gmail" used to return Resend and "send a slack message" returned Zalo, so the model said the app was not connected. Javis now reads the apps you connected in Composio, puts the Composio gateway first with a two-step guide when you name one, and suggests a connected app when you only describe the job ("read my latest email").
+- **Claude account connectors are found by the job, not only by name.** "Read my latest email" now points to the Gmail connector, "appointments this week" to Google Calendar, and a Composio connector on the Claude account matches when you mention Notion, Slack, GitHub...
+
 ## [0.628.6] - 2026-11-23
 ### Fixed
 - **The Effort slider thumb is no longer off-center.** It stays in the middle of the track at any height and lines up with the stop dots.
