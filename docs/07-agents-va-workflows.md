@@ -67,7 +67,7 @@ Bảo Javis hay một trợ lý "cải tiến chính em", "sửa lại skill vi�
 - **Sửa trong brain có sao lưu.** Vai trò, hướng dẫn, skill, model của chính trợ lý (`agents/<slug>.md`), trợ lý khác, skill, workflow, vòng lặp, bộ nhớ và `CLAUDE.md` của brain. Mỗi lần sửa có một mã, kèm vài dòng cho thấy đổi gì.
 - **Hoàn tác bằng lời.** Nói "hoàn tác #12" là file về đúng bản trước; file vừa tạo thì bị xoá. Lần hoàn tác cũng có mã nên hoàn tác ngược lại được.
 - **Sửa cả mã nguồn Javis.** Cần thẻ GitHub đã kết nối với token có quyền vào repo `blogminhquy/javis-os`. Trợ lý tự gắn repo vào khung chat, sửa trên nhánh riêng; hết lượt Javis tự kiểm ở máy, mở PR, theo dõi CI và merge khi xanh (mục [GitHub ngay trong khung chat](34-github-trong-chat.md)). Workflow Release ra số phiên bản mới.
-- **Tự cập nhật.** Khi bản mới đã phát hành, bảo "cập nhật đi": Javis chờ lượt chat xong rồi chạy đúng quy trình của nút Cập nhật, tự lùi về bản cũ nếu bản mới không lên.
+- **Lên bản mới do bạn bấm.** Javis không tự cập nhật. Khi bản mới đã phát hành, Javis chỉ báo số phiên bản và nhắc bạn vào **Cài đặt → Cập nhật** để tự bấm nút Cập nhật; bản mới không lên thì máy tự lùi về bản cũ như mọi lần.
 
 Chỉ **bạn ra lệnh** mới sửa được: chat của bạn, hay việc Kanban và nhắc hẹn bạn đã giao. Lượt tự thức của Auto và bot nói với khách không tự sửa, chỉ đề xuất. Plugin vẫn đi đường riêng (`javis_plugin`, luôn tắt cho tới khi bạn bật).
 

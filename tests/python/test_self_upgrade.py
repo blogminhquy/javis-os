@@ -12,8 +12,9 @@ scope: everything in the brain and Javis's own code. Checked here, no model, no 
 - a definition file that would no longer load is refused (frontmatter, skill description over 150 characters);
 - Javis's own code: attached next to the chat's other repos only on an install that can push to the official repo;
   anywhere else (no write access, GitHub not connected) nothing is cloned and op=report gives a prefilled issue link;
-- update: refused while no newer release exists, otherwise starts the Update button's path after the turn ends;
-- the tool is owner-only in the hub and needs Full access for source and update.
+- update: only reads the versions and sends the owner to the Update page, it NEVER starts an update (owner,
+  23/11/2026: "anh không muốn tự update mà người dùng phải vào trang update để cập nhật lên");
+- the tool is owner-only in the hub and needs Full access for source.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -206,43 +207,24 @@ check("nội dung quá dài: cắt cho vừa link, có ghi chú đã cắt", len
       and "cut to fit" in parse_qs(urlparse(big).query)["body"][0], len(big))
 check("thiếu tiêu đề: từ chối", bool(raises(SU.report_url, "  ", "nội dung")))
 
-# ═════ tự cập nhật ═════
-calls = {"start": 0, "busy": [True, True, False]}
-
-
-async def _start():
-    calls["start"] += 1
-    return {"ok": True, "mode": "native"}
-
-
-def _busy(chat_id):
-    return calls["busy"].pop(0) if calls["busy"] else False
-
-
-async def _no_sleep(_s):
-    await asyncio.sleep(0)
-
-
-async def scenario():
-    SU.wire(start=_start, versions=lambda: _v("0.562.0", "0.562.0"), turn_busy=_busy)
-    same = await SU.schedule_update("web:s1", sleep=_no_sleep)
-    SU.wire(versions=lambda: _v("0.562.0", "0.563.0"))
-    ok = await SU.schedule_update("web:s1", sleep=_no_sleep, poll_s=0.01)
-    again = await SU.schedule_update("web:s1", sleep=_no_sleep)
-    await SU._UPDATE["task"]
-    return same, ok, again
-
-
+# ═════ không tự cập nhật (chủ 23/11/2026) ═════
 async def _v(a, b):
     return a, b
 
 
-same, ok, again = asyncio.run(scenario())
-check("chưa có bản mới hơn: không cập nhật, nói rõ chờ Release", not same["ok"] and "Release" in same["error"]
-      and calls["start"] in (0, 1), same)
-check("có bản mới: hẹn cập nhật, trả bản hiện tại và bản mới", ok["ok"] and ok["latest"] == "0.563.0", ok)
-check("hẹn hai lần: không chạy đôi", again.get("already") or again.get("ok"), again)
-check("cập nhật chạy SAU khi lượt chat kết thúc, đúng một lần", calls["start"] == 1 and calls["busy"] == [], calls)
+async def hints():
+    SU.wire(versions=lambda: _v("0.562.0", "0.562.0"))
+    same = await SU.update_hint()
+    SU.wire(versions=lambda: _v("0.562.0", "0.563.0"))
+    newer = await SU.update_hint()
+    return same, newer
+
+
+same, newer = asyncio.run(hints())
+check("chưa có bản mới hơn: newer=False", same == {"current": "0.562.0", "latest": "0.562.0", "newer": False}, same)
+check("có bản mới: newer=True, chỉ báo, không làm gì", newer["newer"] and newer["latest"] == "0.563.0", newer)
+check("self_upgrade không còn đường tự chạy cập nhật",
+      not hasattr(SU, "schedule_update") and "start" not in SU._UPDATE, sorted(SU._UPDATE))
 check("so phiên bản theo số", SU._newer("0.563.0", "0.562.9") and not SU._newer("0.562.0", "0.562.0")
       and SU._newer("1.0.0", "0.999.9"))
 
@@ -254,11 +236,11 @@ ctx = plugins_host.PluginContext("javis-improve", "bundled", ROOT / "system/plug
 mod.register(ctx)
 tool = ctx._tools[0]
 check("tool javis_improve đăng ký", tool["name"] == "javis_improve")
-check("đọc trạng thái chạy ở mọi mức; sửa brain cần safe; mã nguồn và cập nhật chỉ Full",
+check("đọc trạng thái và xem bản mới chạy ở mọi mức; sửa brain cần safe; mã nguồn chỉ Full",
       plugins_host._required_mode(tool, {"op": "status"}) == "readonly"
       and plugins_host._required_mode(tool, {"op": "save"}) == "safe"
       and plugins_host._required_mode(tool, {"op": "source"}) == "full"
-      and plugins_host._required_mode(tool, {"op": "update"}) == "full"
+      and plugins_host._required_mode(tool, {"op": "update"}) == "readonly"
       and plugins_host._required_mode(tool, {"op": "report"}) == "readonly"
       and not plugins_host._min_mode_ok(plugins_host._required_mode(tool, {"op": "save"}), "suggest"))
 check("chỉ phiên của chủ thấy tool (bot khách không)", "javis_improve" in mcp_hub.OWNER_ONLY_TOOLS)
@@ -297,10 +279,13 @@ check("tool: trạng thái chỉ đúng file của chính trợ lý, thay đổi
       "agents/lan.md" in out and "Thay đổi gần đây" in out and "v0.562.0" in out, out)
 out = call({"op": "history"}, turn_context.make("pulse"))
 check("tool: xem lịch sử không cần quyền chủ", out.startswith("#"), out)
-out = call({"op": "update"}, turn_context.make("pulse"))
-check("tool: cập nhật từ lượt tự thức bị từ chối", out.startswith("ERROR") and "CHỦ" in out, out)
 out = call({"op": "update"}, owner)
-check("tool: chủ bảo cập nhật mà chưa có bản mới thì nói rõ", out.startswith("ERROR") and "Release" in out, out)
+check("tool: op=update không cập nhật, chỉ sang trang Cập nhật", "KHÔNG có gì được cập nhật" in out
+      and "Cài đặt → Cập nhật" in out and "bản mới nhất v0.562.0" in out, out)
+SU.wire(versions=lambda: _v("0.562.0", "0.563.0"))
+out = call({"op": "update"}, turn_context.make("pulse"))
+check("tool: có bản mới thì báo số, vẫn không cập nhật", "bản mới v0.563.0" in out and "tự bấm nút" in out, out)
+SU.wire(versions=lambda: _v("0.562.0", "0.562.0"))
 
 out = call({"op": "report", "title": "Lỗi gửi ảnh Zalo", "body": "Ảnh 12 MB không gửi được."},
            turn_context.make("pulse"))
@@ -318,11 +303,16 @@ check("tool: op=source trên máy không ghi được: dặn không sửa code, 
       "do NOT edit" in out and "op=report" in out and "Not attached" in out, out)
 
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-check("main: nối đường cập nhật của nút Cập nhật, phiên bản và lượt đang chạy",
-      "self_upgrade.wire(start=_self_upgrade_start, versions=_self_upgrade_versions, turn_busy=luot_dang_chay.has_turn)"
-      in src and "res = await _update_core()" in src and "return await _update_core()" in src)
+check("main: chỉ nối phiên bản, không nối đường chạy cập nhật; /update chỉ nút bấm gọi",
+      "self_upgrade.wire(versions=_self_upgrade_versions)" in src and "_self_upgrade_start" not in src
+      and src.count("await _update_core()") == 1)
 check("prompt trợ lý: chủ bảo cải tiến thì dùng javis_improve, không ai bảo thì chỉ đề xuất",
       "CHỦ bảo cải tiến" in src and "`javis_improve`" in src)
+check("prompt trợ lý: không tự cập nhật, chỉ sang trang Cập nhật", "Javis KHÔNG tự cập nhật" in src
+      and "op=update để máy lên bản mới" not in src)
+plugin_src = (ROOT / "system/plugins/javis-improve/plugin.py").read_text(encoding="utf-8")
+check("op=source không còn dặn gọi op=update sau merge", "op=update để máy này cập nhật" not in plugin_src
+      and "KHÔNG tự lên bản" in plugin_src)
 claude_md = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 core = (ROOT / "system" / "agents" / "javis-core.md").read_text(encoding="utf-8")
 check("CLAUDE.md và vai Javis Core: cải tiến khi chủ yêu cầu qua javis_improve",
