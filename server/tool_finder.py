@@ -334,6 +334,15 @@ class Index:
                 if c >= 3 and c >= 0.4 * ns_size[ns] and c >= 0.8 * df[w] and w not in _STOP and len(w) >= 3:
                     keys.add(w)
             self.sources[ns]["keys"] = keys
+        # Gateways (Composio...): sources reached through the apps behind them, see gateway_info.
+        by_ns = defaultdict(list)
+        for t, _nw, _dw, ns in self.docs:
+            by_ns[ns].append(t)
+        self.gateways = {}
+        for ns, tools in by_ns.items():
+            gw = gateway_info(tools, source_desc.get(ns) or "")
+            if gw:
+                self.gateways[ns] = gw
 
     # --- scoring -----------------------------------------------------------------------------------------------
     def _tool_score(self, doc, groups):
@@ -391,10 +400,53 @@ class Index:
                 fixed[w] = m[0]
         return fixed
 
+    def gateways_for(self, query: str, scope=()):
+        """Gateways that reach what the request asks for: [{"ns", "tool", "apps", "connected", "named"}].
+
+        named=True: the request names an app the gateway reaches ("gmail", "notion"), so its search tool is the
+        way in. named=False: the request is about something one of the gateway's CONNECTED apps does ("đọc
+        email" with Gmail connected) and names no source of the pool; offered next to the hits, not above."""
+        if not self.gateways:
+            return []
+        cands = {a for gw in self.gateways.values() for a in gw["connected"]}
+        named = apps_in(query, cands)
+        out = []
+        for ns, gw in self.gateways.items():
+            apps = [a for a in named if _covers(gw, a)]
+            if apps:
+                out.append({"ns": ns, "tool": gw["tool"], "apps": apps,
+                            "connected": [a for a in apps if a in gw["connected"]], "named": True})
+            elif not named and not scope:
+                rel = related_apps(query, gw["connected"])
+                if rel:
+                    out.append({"ns": ns, "tool": gw["tool"], "apps": rel, "connected": rel, "named": False})
+        return out
+
     def search(self, query: str):
-        """Ranked result for one request: dict(hits=[(tool, score)], scope=[ns], browse=bool, other=[...]).
-        hits are in-scope tools that match the request; browse=True means the request only named a source,
-        so hits are that source's tools in their own order; other are better matches outside the scope."""
+        """Ranked result for one request: dict(hits=[(tool, score)], scope=[ns], browse=bool, other=[...],
+        via=[gateway]). hits are in-scope tools that match the request; browse=True means the request only named
+        a source, so hits are that source's tools in their own order; other are better matches outside the
+        scope; via are gateways (Composio...) whose hidden tools reach what was asked, see gateways_for."""
+        res = self._search(query)
+        q = str(query or "").strip()
+        if not q or res["hits"] and res["hits"][0][1] >= 100.0:
+            res.setdefault("via", [])
+            return res
+        via = self.gateways_for(q, [ns for ns in res["scope"] if ns not in self.gateways])
+        res["via"] = via
+        named = [v for v in via if v["named"]]
+        if named and not any(ns not in self.gateways for ns in res["scope"]):
+            # The app lives only behind a gateway: its search tool comes first. What else matched stays below,
+            # it is not what was asked for when the request names an app no other source carries.
+            top = (res["hits"][0][1] if res["hits"] else 1.0) + 1.0
+            front = [(v["tool"], top) for v in named]
+            ids = {id(t) for t, _s in front}
+            res["hits"] = front + [h for h in res["hits"] if id(h[0]) not in ids]
+            res["browse"] = False
+            res["scope"] = [v["ns"] for v in named]
+        return res
+
+    def _search(self, query: str):
         q = str(query or "").strip()
         if not q:
             return {"hits": [], "scope": [], "browse": False, "other": []}
@@ -463,6 +515,171 @@ class Index:
                 listing = [(d[0], 0.0) for d in self.docs if d[3] in scope]
                 return {"hits": listing, "scope": scope, "browse": True, "other": []}
         return {"hits": _cut(hits), "scope": [], "browse": False, "other": []}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Gateways: one source that hides hundreds of tools behind its own search
+# ---------------------------------------------------------------------------------------------------------------
+# Composio (and Rube, Zapier, Pipedream...) lists a handful of meta tools: a search, an executor, a connection
+# manager. The app tools behind them (GMAIL_SEND_EMAIL, NOTION_CREATE_PAGE, SLACK_SEND_MESSAGE...) never appear in
+# the tool list, so the index above has nothing to match "gmail" or "notion" against: the request went to whatever
+# else said "email" (Resend, Zalo) and the model concluded the app was not connected (owner report 2026-11-23).
+# A gateway is matched by the APPS it reaches instead of by its own tool text.
+#
+# Key: app id as gateways spell it. Value: (aliases people type, words of what the app is for). Aliases are proper
+# names only; a generic word ("sheet", "lich") is a concept, matched through the app's words, not its name.
+_APP_ROWS = [
+    ("gmail", "gmail", "email mail"),
+    ("googlecalendar", "google calendar|googlecalendar|gcal|lich google", "calendar event"),
+    ("googledrive", "google drive|googledrive|gdrive", "file document drive"),
+    ("googlesheets", "google sheets|google sheet|googlesheets|gsheet|gsheets", "sheet spreadsheet"),
+    ("googledocs", "google docs|google doc|googledocs|gdoc", "document"),
+    ("googleslides", "google slides|googleslides", "slide presentation"),
+    ("google_analytics", "google analytics|googleanalytics|ga4", "traffic pageview"),
+    ("google_search_console", "google search console|search console", "seo impression"),
+    ("google_maps", "google maps|google map|googlemaps", "map place"),
+    ("googleads", "google ads|googleads", "ad ads campaign"),
+    ("youtube", "youtube", "video"),
+    ("notion", "notion", "note database"),
+    ("slack", "slack", "channel"),
+    ("discord", "discord", "channel"),
+    ("microsoft_teams", "microsoft teams|ms teams", "meeting"),
+    ("outlook", "outlook", "email mail"),
+    ("onedrive", "onedrive|one drive", "file"),
+    ("share_point", "sharepoint|share point", "file document"),
+    ("github", "github", "issue repository"),
+    ("gitlab", "gitlab", "issue repository"),
+    ("linear", "linear", "issue"),
+    ("jira", "jira", "issue ticket"),
+    ("trello", "trello", "card board"),
+    ("asana", "asana", "task project"),
+    ("clickup", "clickup", "task"),
+    ("airtable", "airtable", "record"),
+    ("hubspot", "hubspot", "crm deal"),
+    ("salesforce", "salesforce", "crm deal"),
+    ("zendesk", "zendesk", "ticket"),
+    ("intercom", "intercom", "ticket"),
+    ("twitter", "twitter|tweet", "tweet"),
+    ("instagram", "instagram|insta", "reel"),
+    ("facebook", "facebook|fb", "fanpage"),
+    ("metaads", "meta ads|facebook ads|fb ads", "ad ads campaign"),
+    ("linkedin", "linkedin", "post"),
+    ("tiktok", "tiktok", "video"),
+    ("pinterest", "pinterest", "pin"),
+    ("shopify", "shopify", "order product"),
+    ("stripe", "stripe", "payment"),
+    ("mailchimp", "mailchimp", "newsletter"),
+    ("calendly", "calendly", "booking"),
+    ("zoom", "zoom", "meeting"),
+    ("dropbox", "dropbox", "file"),
+    ("figma", "figma", "design"),
+    ("canva", "canva", "design"),
+    ("whatsapp", "whatsapp", "message"),
+    ("telegram", "telegram", "message"),
+    ("ahrefs", "ahrefs", "backlink seo"),
+    ("wordpress", "wordpress", "post blog"),
+    ("webflow", "webflow", "page"),
+    ("supabase", "supabase", "database"),
+]
+
+# Sources that are gateways by name, for a connector whose tools Javis never sees (a claude.ai account connector).
+GATEWAY_NAMES = {"composio", "rube", "zapier", "pipedream"}
+
+# A tool that searches a hidden tool set: COMPOSIO_SEARCH_TOOLS, RUBE_SEARCH_TOOLS, search_tools, get_more_tools.
+_GATEWAY_TOOL_RE = re.compile(r"(?:^|_)(?:search|find|discover|get_more|list_available)_?tools?$", re.I)
+# "Composio connects 500+ apps": a gateway that reaches any app, not only the ones its description names.
+_UNIVERSAL_RE = re.compile(r"\b\d{3,}\s*\+?\s*(?:apps|integrations|toolkits|services)\b", re.I)
+# "User has manually connected the apps: gmail, googlecalendar, ...": what this account has really connected.
+_CONNECTED_RE = re.compile(r"connected\s+(?:the\s+)?(?:apps|toolkits|accounts)\s*:\s*([^\n.]+)", re.I)
+
+
+def _compact(text: str) -> str:
+    return "".join(words(text))
+
+
+def _build_apps():
+    apps = {}
+    for aid, aliases, what in _APP_ROWS:
+        al = [tuple(words(a)) for a in aliases.split("|") if words(a)]
+        apps[aid] = {"aliases": al, "compact": {"".join(a) for a in al} | {_compact(aid)},
+                     "words": {stem(w) for w in what.split()}}
+    return apps
+
+
+APPS = _build_apps()
+_APP_BY_COMPACT = {c: aid for aid, a in APPS.items() for c in a["compact"]}
+
+
+def app_id(slug: str) -> str:
+    """Canonical id of an app however a gateway spells it ("googlecalendar", "google_calendar", "Google
+    Calendar"); an unknown app keeps its own slug without a trailing "_mcp"."""
+    s = re.sub(r"[_\s-]*mcp$", "", fold(str(slug or "")).strip())
+    return _APP_BY_COMPACT.get(_compact(s), s.replace(" ", "_"))
+
+
+def _app_aliases(aid: str):
+    a = APPS.get(aid)
+    if a:
+        return a["aliases"], a["compact"]
+    w = tuple(words(aid.replace("_", " ")))
+    return ([w] if w else []), ({"".join(w)} if w else set())
+
+
+def apps_in(text: str, candidates=None):
+    """App ids named in `text`, in order of first mention. candidates: app ids to look for beyond the table."""
+    toks = words(text)
+    if not toks:
+        return []
+    joined = set(toks)
+    out = []
+    for aid in list(APPS) + [c for c in (candidates or ()) if c not in APPS]:
+        aliases, compact = _app_aliases(aid)
+        hit = any(c in joined for c in compact)
+        if not hit:
+            for al in aliases:
+                n = len(al)
+                if n and any(tuple(toks[i:i + n]) == al for i in range(len(toks) - n + 1)):
+                    hit = True
+                    break
+        if hit:
+            out.append(aid)
+    return out
+
+
+def gateway_info(tools, extra_desc=""):
+    """{"tool": search tool, "connected": [app ids], "listed": [app ids], "universal": bool} when these tools (one
+    source) are a gateway, else None. connected: apps the account has really connected, read from the search
+    tool's own description; listed: apps the descriptions name as reachable."""
+    search = next((t for t in tools if _GATEWAY_TOOL_RE.search(str(t.get("name") or t.get("fn") or "")
+                                                                 .split("__")[-1])), None)
+    if not search:
+        return None
+    text = " ".join(str(t.get("description") or "") for t in tools) + " " + str(extra_desc or "")
+    connected = []
+    for m in _CONNECTED_RE.finditer(text):
+        for part in m.group(1).split(","):
+            aid = app_id(part)
+            if aid and aid not in connected:
+                connected.append(aid)
+    return {"tool": search, "connected": connected, "listed": apps_in(text),
+            "universal": bool(_UNIVERSAL_RE.search(text))}
+
+
+def _covers(gw, aid):
+    return aid in gw["connected"] or aid in gw["listed"] or (gw["universal"] and aid in APPS)
+
+
+def query_words(query: str):
+    """Every word a request asks for, concepts expanded: "đọc email" -> {email, mail, message, get, read...}."""
+    groups, loose = parse_query(query)
+    return {w for g in groups for w in g} | set(loose)
+
+
+def related_apps(query: str, app_ids):
+    """Apps of `app_ids` the request is about without naming them ("đọc email" -> gmail, "lịch hôm nay" ->
+    googlecalendar), by what each app is for."""
+    qw = query_words(query)
+    return [a for a in app_ids if APPS.get(a) and APPS[a]["words"] & qw]
 
 
 def _cut(hits):

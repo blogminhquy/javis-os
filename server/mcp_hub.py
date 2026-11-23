@@ -642,10 +642,23 @@ def _match_ambient(ambient, query):
         return []
     terms = set(_WORD_RE.findall(q))
     out = []
+    # 2026-11-23: matching the connector NAME alone missed most requests. "đọc email mới nhất" never says
+    # "Gmail", and a Composio connector on the Claude account is named "Composio" while the request says
+    # "notion" or "slack". An app connector now also matches by what the app is for, and a gateway connector by
+    # any app it can reach.
+    named_apps = tool_finder.apps_in(q)
     for s in ambient:
         name = str(s.get("name") or "")
         nwords = set(_WORD_RE.findall(name.lower()))
         if (name.lower() and name.lower() in q) or (nwords & terms) or _ambient_prefix(name).lower() in q:
+            out.append(s)
+            continue
+        if tool_finder.fold(name).replace(" ", "") in tool_finder.GATEWAY_NAMES:
+            if named_apps:
+                out.append(s)
+            continue
+        own = tool_finder.apps_in(name)
+        if own and (set(own) & set(named_apps) or tool_finder.related_apps(q, own)):
             out.append(s)
     return out
 
@@ -1573,13 +1586,68 @@ def _connector_menu(pool, ambient=None):
                         "desc": desc, "n": 0}
         seen[ns]["n"] += 1
     parts = []
+    gw_apps = _gateway_apps(pool)
     for ns, v in seen.items():
         d = (": " + v["desc"][:70]) if v["desc"] else ""
+        apps = gw_apps.get(ns)
+        if apps:
+            # A gateway's few meta tools say nothing of the hundreds behind them: name the apps the account has
+            # connected, so the model knows "gmail" is reachable before it searches at all.
+            d += " [cổng tới app đã nối: " + ", ".join(apps[:15]) + "]"
         parts.append(f"{ns} ({v['label']}, {v['n']} tool){d}")
     for s in (ambient or []):
         parts.append(f"mcp__{_ambient_prefix(s['name'])}__* ({s['name']}, tài khoản Claude - "
                      "tool native, gọi thẳng)")
     return "; ".join(parts)
+
+
+def _gateway_apps(pool):
+    """namespace -> apps the account has connected behind a gateway source (Composio...), from the gateway's own
+    search tool description. Sources that are not gateways are absent."""
+    by_ns = {}
+    for t in pool:
+        by_ns.setdefault(t.get("namespace") or t.get("server") or "?", []).append(t)
+    out = {}
+    for ns, tools in by_ns.items():
+        try:
+            gw = tool_finder.gateway_info(tools)
+        except Exception:
+            gw = None
+        if gw and gw["connected"]:
+            out[ns] = gw["connected"]
+    return out
+
+
+def _gateway_guide(via, pool):
+    """How to reach a tool hidden behind a gateway, one entry per gateway the request reaches. The catalog's
+    `gateway` block names the executor and the arguments of the search; without one the search tool's schema,
+    already in the hits, is the guide."""
+    out = []
+    for v in via:
+        t = v["tool"]
+        con = mcp_catalog.get(t.get("connector_id")) or {}
+        g = con.get("gateway") or {}
+        ns = v["ns"]
+        pre = str(t.get("fn") or "")[: -len(str(t.get("name") or ""))] if t.get("name") else ""
+        apps = ", ".join(v["apps"])
+        item = {"cong": str(t.get("label") or ns), "ung_dung": v["apps"],
+                "tim_tool_an": t.get("fn")}
+        if v["connected"]:
+            item["da_noi"] = v["connected"]
+        steps = [f"Tool của {apps} KHÔNG nằm trong danh sách Javis: chúng ẩn sau cổng {item['cong']}. "
+                 f"Bước 1: {_LAZY_RUN}(name='{t.get('fn')}', args="
+                 + json.dumps(g.get("search_args") or {"query": "<việc cần làm>"}, ensure_ascii=False) + ")."]
+        if g.get("execute_tool"):
+            steps.append(f"Bước 2: chạy tool tìm được bằng {_LAZY_RUN}(name='{pre}{g['execute_tool']}', "
+                         "args=...) đúng theo schema nó trả về.")
+        if g.get("note"):
+            steps.append(str(g["note"]))
+        if not v["named"]:
+            steps.append("Chỉ là gợi ý: người dùng chưa nêu tên app. Nếu một tool ở trên đã làm đúng việc thì "
+                         "dùng nó.")
+        item["cach_goi"] = " ".join(steps)
+        out.append(item)
+    return out
 
 
 def _source_descs(pool):
@@ -1698,13 +1766,17 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
         res = _index().search(q)
         amb = _match_ambient(ambient, q)
         hits = res["hits"]
-        if not hits and not amb:
+        via = res.get("via") or []
+        if not hits and not amb and not via:
             hint = _hidden_hint(hidden)
             return ("Không thấy tool khớp. Nguồn đang đấu: " + (menu or "(chưa có nguồn nào)")
                     + f". Gọi lại {_LAZY_SEARCH} với TÊN NGUỒN (liệt kê mọi tool của nguồn đó) hoặc mô tả việc "
                       "bằng từ khác, tiếng Việt hay tiếng Anh đều được."
                     + (" " + hint if hint else ""))
         payload = {}
+        if via:
+            # Before the hits: when the app lives behind a gateway, this is the answer, not the hits below it.
+            payload["qua_cong"] = _gateway_guide(via, pool)
         hint = _hidden_hint(hidden, {t.get("namespace") for t, _s in hits})
         if hint:
             payload["luu_y_quyen"] = hint
