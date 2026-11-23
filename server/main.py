@@ -22408,8 +22408,9 @@ async def _chat_socket(ws):
                 # Cùng luật với Codex: mạch phình quá ngưỡng thì thôi --resume, mở mạch mới.
                 # Claude Code cũng tự quản transcript nên Javis chỉ có đúng con số token vào
                 # của lượt trước làm dấu hiệu.
+                _claude_context = compaction.subscription_context_tokens(_row0, "claude-code")
                 _cli_xoay_mach = bool(cli.session_id) and compaction.nen_mach_thue_bao(
-                    _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                    _claude_context, msg_count=_row0.get("msg_count"),
                     rotated_at=_row0.get("thread_rotated_msg"))
                 if _cli_xoay_mach:
                     cli.session_id = None
@@ -22418,16 +22419,17 @@ async def _chat_socket(ws):
                     _CONTEXT_RUNTIME.record_runtime_event(
                         runtime_trace, "thread.rotated",
                         {"engine": "claude-code",
-                         "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                         "last_input_tokens": _claude_context,
+                         "basis": "last_request" if _row0.get("last_context_provider") == "claude-code" else "turn_total",
                          "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
                     await ws.send_text(json.dumps({
                         "type": "tool_call", "tool": "javis_nen_mach",
                         "content": localefmt.chu(
                             "⚙ Mạch hội thoại đã dài "
-                            f"({int(_row0.get('last_input_tokens') or 0):,} token mỗi lượt), "
+                            f"({_claude_context:,} token), "
                             "Javis mở mạch mới.",
                             "⚙ The conversation thread got long "
-                            f"({int(_row0.get('last_input_tokens') or 0):,} tokens per turn), "
+                            f"({_claude_context:,} tokens), "
                             "Javis started a new one."),
                     }))
                 # Stable prompt (0.445.0, #975): plain chats only. An agent DM keeps its own prompt, which has
@@ -22487,8 +22489,13 @@ async def _chat_socket(ws):
                     """Một lần gọi `claude`. Trả True nếu mạch cũ không còn (resume trượt)."""
                     nonlocal final_text, _streamed, _cli_sid, _cost, _ctx_in, _ctx_cache, _cli_err
                     resume_failed = False
+                    last_request_input = 0
+                    await asyncio.to_thread(store.clear_last_context_input_tokens, conv_sid, "claude-code")
                     async for event in claude_warm.query(cli, prompt, conv_sid):
                         etype = event["type"]
+                        if etype == "request_context":
+                            last_request_input = event.get("input_tokens", 0)
+                            continue
                         if etype == "warm":
                             _note_warm(event)
                             continue
@@ -22520,6 +22527,8 @@ async def _chat_socket(ws):
                             _cost = event.get("cost_usd")
                             if _cli_sid:
                                 store.set_cli_session_id(conv_sid, _cli_sid)
+                                if last_request_input > 0 and not event.get("is_error") and not event.get("resume_failed"):
+                                    await asyncio.to_thread(store.set_last_context_input_tokens, conv_sid, last_request_input, "claude-code")
                                 # 0.202.0: this chat may be kept warm across a short break (off by default).
                                 try:
                                     if claude_auth.on_plan():
@@ -22691,7 +22700,7 @@ async def _chat_socket(ws):
                 # for one opened ahead on a new thread (same slot, old one closed first, no extra RAM).
                 try:
                     _row_end = await asyncio.to_thread(store.get_session, conv_sid) or {}
-                    if compaction.next_turn_rotates(_row_end.get("last_input_tokens"), _row_end.get("msg_count"),
+                    if prov == "anthropic-cli" and compaction.next_turn_rotates(compaction.subscription_context_tokens(_row_end, "claude-code"), _row_end.get("msg_count"),
                                                     _row_end.get("thread_rotated_msg")):
                         await claude_warm.prepare_new_thread(conv_sid)
                 except Exception as _e:  # noqa: BLE001 - a missed head start only costs the seconds it would save

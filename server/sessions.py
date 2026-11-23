@@ -2355,6 +2355,9 @@ class SessionStore:
             return
 
         def _ghi(c):
+            row = c.execute("SELECT cli_session_id FROM sessions WHERE id=?", (session_id,)).fetchone()
+            if row and row[0] != cli_session_id:
+                subscription_context_store.clear(c, session_id, "claude-code")
             ts = time.time()
             c.execute(
                 "UPDATE sessions SET cli_session_id = ?, updated_at = ? WHERE id = ?",
@@ -2390,11 +2393,11 @@ class SessionStore:
 
     def clear_cli_session_id(self, session_id: str) -> None:
         """Mạch Claude Code thành stale khi engine khác chen một lượt vào cùng hội thoại."""
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET cli_session_id = NULL "
-            "WHERE id = ? AND cli_session_id IS NOT NULL",
-            (session_id,),
-        ))
+        def clear(c):
+            c.execute("UPDATE sessions SET cli_session_id = NULL "
+                      "WHERE id = ? AND cli_session_id IS NOT NULL", (session_id,))
+            subscription_context_store.clear(c, session_id, "claude-code")
+        self._write(clear)
 
     def set_gemini_session_id(self, session_id: str, gemini_id: str) -> None:
         """Gắn mạch native của Gemini CLI vào hội thoại để lượt sau `--resume` đúng chỗ."""
@@ -2456,6 +2459,8 @@ class SessionStore:
                 continue
             if cot == "codex_thread_id":
                 self.clear_codex_thread_id(session_id)    # also drops its request measurement
+            elif cot == "cli_session_id":
+                self.clear_cli_session_id(session_id)
             else:
                 self._write(lambda c, _cot=cot: c.execute(
                     f"UPDATE sessions SET {_cot} = NULL WHERE id = ? AND {_cot} IS NOT NULL",

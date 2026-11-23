@@ -1530,6 +1530,14 @@ def _cai_dem_cache() -> bool:
 
     def map_message(msg):
         out = goc(msg)
+        if type(msg).__name__ == "AssistantMessage" and not getattr(msg, "parent_tool_use_id", None):
+            usage = getattr(msg, "usage", None)
+            keys = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+            if isinstance(usage, dict) and all(type(usage.get(k, 0)) is int and usage.get(k, 0) >= 0 for k in keys):
+                count = sum(usage.get(k, 0) for k in keys)
+            else:
+                count = 0
+            out[0].insert(0, {"type": "request_context", "input_tokens": count})
         if type(msg).__name__ == "ResultMessage":
             try:
                 n = int((getattr(msg, "usage", None) or {}).get("cache_read_input_tokens") or 0)
