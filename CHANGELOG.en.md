@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.631.5] - 2026-11-24
+### Fixed
+- Claude conversations no longer open new threads unnecessarily when a turn uses many tools, helping keep context and the process warm.
+
 ## [0.631.4] - 2026-11-23
 ### Improved
 - **Javis restarts about 13 seconds faster.** The Docker image now ships its code precompiled, so an update no longer leaves you waiting before you can use it.
