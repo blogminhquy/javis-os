@@ -29,7 +29,7 @@ STORE = STATE_DIR / "notify_policy.json"
 _LOCK = threading.RLock()
 
 GROUPS = ("job", "reminder", "question", "agent", "suggest", "team", "incident", "connection", "chatbot", "cost", "update",
-          "other")
+          "answer", "other")
 LEVELS = ("info", "important", "urgent")
 RANK = {"info": 0, "important": 1, "urgent": 2}
 MODES = ("all", "important", "urgent", "off")
@@ -38,7 +38,9 @@ DEFAULT_MODE = "urgent"            # owner, 2026-10-29: "mặc định chỉ tin
 # Owner, 2026-11-14: what an assistant finds on its own with Auto on "is not a notification any more, it is a suggestion or
 # a reminder". Its reminders go to "reminder" (urgent); its suggestions get their own group that rings from "important"
 # by default, so they reach the owner the way a person's message would. Every other group keeps DEFAULT_MODE.
-GROUP_DEFAULT_MODE = {"suggest": "important"}
+# Owner, 2026-11-23: "answer" is the push of a dashboard chat answer (push_policy.py). It rings as before by default
+# ("all"); the owner can lower it or turn it off here, and Javis Core mutes it when the owner keeps ignoring it.
+GROUP_DEFAULT_MODE = {"suggest": "important", "answer": "all"}
 
 # Group names as shown (vi, en). The dashboard has its own i18n keys; these are for the chat tool and Core's messages.
 GROUP_NAMES = {
@@ -47,7 +49,8 @@ GROUP_NAMES = {
     "suggest": ("Gợi ý của trợ lý", "Assistant suggestions"),
     "team": ("Nhóm làm việc", "Teams"), "incident": ("Sự cố", "Incidents"),
     "connection": ("Kết nối và đăng nhập", "Connections and sign-in"), "chatbot": ("Chatbot và khách", "Chatbot and customers"),
-    "cost": ("Chi phí", "Costs"), "update": ("Cập nhật", "Updates"), "other": ("Khác", "Other"),
+    "cost": ("Chi phí", "Costs"), "update": ("Cập nhật", "Updates"), "answer": ("Câu trả lời chat", "Chat answers"),
+    "other": ("Khác", "Other"),
 }
 MODE_NAMES = {"all": ("Tất cả", "Everything"), "important": ("Đáng chú ý trở lên", "Important and up"),
               "urgent": ("Chỉ tin khẩn", "Urgent only"), "off": ("Tắt", "Off")}

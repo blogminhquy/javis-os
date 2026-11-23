@@ -26,14 +26,15 @@
   // its rules kept quiet are `filtered` and live under "Filtered"; every card takes the owner's feedback in the
   // two buttons, "Needed" / "Not needed" (owner, 2026-10-29: emoji go on the notice once it is opened in Javis Core's
   // chat, where every answer already takes the six reactions); the "Filter" view sets each group's mode, undoes changes.
-  var GROUPS = ["reminder", "suggest", "question", "chatbot", "connection", "incident", "job", "agent", "team", "cost", "update",
-    "other"];
+  var GROUPS = ["reminder", "suggest", "question", "chatbot", "connection", "incident", "job", "agent", "team", "answer", "cost",
+    "update", "other"];
   var MODES = ["all", "important", "urgent", "off"];
   // Full keys spelled out, so the i18n check finds every one of them.
   var GROUP_KEY = { reminder: "noti.grp_reminder", question: "noti.grp_question", chatbot: "noti.grp_chatbot",
     connection: "noti.grp_connection", incident: "noti.grp_incident", job: "noti.grp_job", agent: "noti.grp_agent",
     suggest: "noti.grp_suggest",
-    team: "noti.grp_team", cost: "noti.grp_cost", update: "noti.grp_update", other: "noti.grp_other" };
+    team: "noti.grp_team", answer: "noti.grp_answer", cost: "noti.grp_cost", update: "noti.grp_update", other: "noti.grp_other" };
+  var BUDGETS = [5, 8, 12, 20, 0];
   var MODE_KEY = { all: "noti.mode_all", important: "noti.mode_important", urgent: "noti.mode_urgent", off: "noti.mode_off" };
   function icon(n) { return typeof window.ic === "function" ? window.ic(n) : ""; }
   function loadAn() {
@@ -457,8 +458,35 @@
   }
   // The "Filter" view: each group's mode, the per-kind rules, Javis Core's recent changes (each can be undone).
   async function taiBoLoc() {
+    var st = fetch("/push/stats", { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return null; });
     try { state.policy = await (await fetch("/notify/policy", { cache: "no-store" })).json(); } catch (e) { state.policy = { ok: false }; }
+    state.pushStats = await st;
     render();
+  }
+  // Owner, 2026-11-23: the phone's buzzes in numbers, the daily budget and the digest, on top of the filter.
+  function vePush() {
+    var ps = state.pushStats;
+    if (!ps || !ps.ok) return "";
+    var line = esc(window.t("noti.push_week", { sent: ps.sent, rate: Math.round((ps.open_rate || 0) * 100) }));
+    var today = ps.budget ? esc(window.t("noti.push_today", { n: ps.today, max: ps.budget })) : "";
+    var least = (ps.least_opened || []).map(function (k) {
+      return "<li><span>" + esc(k.label) + " <small>" + esc(window.t("noti.push_opened", { o: k.opened, n: k.sent })) + "</small></span></li>";
+    }).join("");
+    var opts = BUDGETS.map(function (b) {
+      return '<option value="' + b + '"' + (ps.budget === b ? " selected" : "") + ">" +
+        esc(b ? window.t("noti.push_budget_n", { n: b }) : window.t("noti.push_budget_none")) + "</option>";
+    }).join("");
+    return '<p class="noti-push-stat">' + line + (today ? "<br>" + today : "") + "</p>" +
+      '<label class="noti-fg"><span class="noti-fg-n">' + esc(window.t("noti.push_budget")) + "</span>" +
+      '<select data-push-budget="1">' + opts + "</select></label>" +
+      '<label class="noti-fg"><span class="noti-fg-n">' + esc(window.t("noti.push_digest", { times: (ps.digest_times || []).join(", ") })) + "</span>" +
+      '<input type="checkbox" data-push-digest="1"' + (ps.digest ? " checked" : "") + "></label>" +
+      (least ? "<h5>" + esc(window.t("noti.push_least")) + '</h5><ul class="noti-fl">' + least + "</ul>" : "") +
+      "<h5>" + esc(window.t("noti.groups_title")) + "</h5>";
+  }
+  function luuPush(data) {
+    var f = new FormData(); f.append("section", "push"); f.append("data", JSON.stringify(data));
+    fetch("/settings", { method: "POST", body: f }).then(function () { return taiBoLoc(); }).catch(function () {});
   }
   async function guiBoLoc(url, body) {
     try {
@@ -491,11 +519,15 @@
       return '<li><span>' + esc(c.text || "") + "</span>" + (c.undone ? '<small>' + esc(window.t("noti.undone")) + "</small>"
         : '<button type="button" class="noti-text-btn" data-undo="' + esc(c.id) + '">' + esc(window.t("noti.undo")) + "</button>") + "</li>";
     }).join("");
-    list.innerHTML = head + '<div class="noti-filter">' + info + rows +
+    list.innerHTML = head + '<div class="noti-filter">' + info + vePush() + rows +
       "<h5>" + esc(window.t("noti.rules_title")) + "</h5>" + (rules ? '<ul class="noti-fl">' + rules + "</ul>" : '<p class="noti-fl-empty">' + esc(window.t("noti.none")) + "</p>") +
       "<h5>" + esc(window.t("noti.changes_title")) + "</h5>" + (changes ? '<ul class="noti-fl">' + changes + "</ul>" : '<p class="noti-fl-empty">' + esc(window.t("noti.none")) + "</p>") +
       "</div>";
     noiDanhSach(list);
+    var pb = list.querySelector("select[data-push-budget]");
+    if (pb) pb.addEventListener("change", function () { luuPush({ daily_budget: parseInt(pb.value, 10) || 0 }); });
+    var pd = list.querySelector("input[data-push-digest]");
+    if (pd) pd.addEventListener("change", function () { luuPush({ digest: pd.checked ? "on" : "off" }); });
     list.querySelectorAll("select[data-grp]").forEach(function (sel) {
       sel.addEventListener("change", function () { guiBoLoc("/notify/policy/group", { group: sel.dataset.grp, mode: sel.value }); });
     });

@@ -508,6 +508,8 @@ button, input, select, textarea { font-family: inherit; }
   border-bottom: 1px solid var(--hairline); line-height: 1.45; }
 .noti-fl li small { color: var(--text3); }
 .noti-fl-empty { margin: 0; color: var(--text3); }
+.noti-push-stat { margin: 4px 0 6px; color: var(--text); line-height: 1.5; }
+.noti-fg input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
 @media (pointer: coarse) {
   .noti-axis { height: 36px; font-size: 14px; }
   .noti-filter { font-size: 15px; }

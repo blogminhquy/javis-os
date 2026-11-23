@@ -198,6 +198,7 @@ import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ 
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
 import tien_trinh_nen     # lệnh chạy ngầm engine bỏ lại: nhận theo dõi, xong tự báo + làm tiếp
 import push_presence      # which chat the owner is reading on any device: no push about it (2026-11-23)
+import push_policy        # what earns a buzz: learning, daily budget, digest, urgent check (2026-11-23)
 import turn_done_notice   # a long chat turn that finishes rings the bell (the owner has left the screen)
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
@@ -8058,6 +8059,14 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         if "turn_done" in patch:
             # 2026-11-17: "all" = every dashboard answer rings when the owner is not looking at that chat.
             cfg.setdefault("push", {})["turn_done"] = "all" if patch.get("turn_done") == "all" else "long"
+        if "daily_budget" in patch:
+            # 2026-11-23: buzzes a day before what is not urgent waits for the digest (push_policy.py). 0 = no limit.
+            try:
+                cfg.setdefault("push", {})["daily_budget"] = max(0, min(push_policy.BUDGET_MAX, int(patch["daily_budget"])))
+            except (TypeError, ValueError):
+                pass
+        if "digest" in patch:
+            cfg.setdefault("push", {})["digest"] = "off" if patch.get("digest") == "off" else "on"
     elif section == "zalo_bot":
         # Cùng khuôn với telegram. Id Zalo là chuỗi HEX chứ không phải số, nhưng `tg_parse_ids`
         # chỉ tách và bỏ trùng chứ không ép kiểu nên dùng chung được.
@@ -15472,7 +15481,7 @@ def huy_viec_nen_giong(conv_sid: str) -> int:
 
 async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
                           quiet=False, brain="", dedup="", routing="", level="", group="", decision=None, viec=None,
-                          push_if_away=False, title="", summary=""):
+                          push_if_away=False, title="", summary="", push_body=None):
     """Để lại MỘT mẩu thư cho mọi kết quả chạy nền, rồi rung chuông đẩy nếu có đăng ký.
 
     Vì sao đặt ở đây chứ không ở từng nơi sinh việc: `_notify_owner` là CỬA DUY NHẤT mà
@@ -15492,8 +15501,9 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         text, meta = notice_text.split_block(text)
         title = title or meta.get("title") or ""
         summary = summary or meta.get("line") or ""
-        if meta.get("act") and not level:
-            level = "urgent"
+        if meta and push_body is None:
+            push_body = meta.get("line") or ""
+        level = _act_level(meta, level, source=source, label=label, title=title)
         dec = decision or _notify_decide(text, kind=kind, source=source, quiet=quiet, level=level, group=group,
                                          viec=viec, dedup=dedup, title=title)
         if dec.get("verdict") == "drop":
@@ -15538,6 +15548,13 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         return None
     if item.get("duplicate"):
         return item   # the same report was already filed: no second bell, no second push
+    if (filtered and not hidden and not muted and dec.get("level") == "important"
+            and dec.get("why") in ("mode", "repeat", "budget") and dec.get("group") != "answer"):
+        # Worth a look but not a buzz (owner, 2026-11-23): counted in the next digest push (push_policy.py).
+        try:
+            push_policy.queue_digest(item.get("id") or "", dec.get("group") or "other", item.get("title") or "")
+        except Exception as e:  # noqa: BLE001
+            print(f"[push policy] digest queue: {type(e).__name__}: {e}", file=sys.stderr)
     if hidden:
         # Not in the bell: the chat's dot and the rail dot (rail-unread.js) carry it. They refresh now.
         try:
@@ -15572,14 +15589,20 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         url = f"/?mo_thu={item['id']}"
         # 0.187.0: "hide content" in the bell's settings shows only that something arrived; the text is read after
         # opening Javis, where login is checked again.
-        title, body = item["title"], (item.get("summary") or item["body"])[:200]
+        # Owner, 2026-11-23: two lines, the result then the next step. The second line is the summary or nothing,
+        # never the start of the report cut mid-sentence.
+        title, body = item["title"], ((item.get("summary") or "") if push_body is None else push_body)[:160]
         if (cfgmod.read_settings().get("push") or {}).get("preview") == "hidden":
             title, body = "Javis", localefmt.chu("Bạn có tin mới trong Javis.", "You have a new message in Javis.")
         # KHÔNG await: mỗi đăng ký chết là một request chờ tới 15 giây, mà việc rung chuông
         # không được phép giữ chân cái đã xong. Hòm thư đã ghi rồi - push chỉ là chuông cửa.
         # Giữ tham chiếu tới task, không thì bộ dọn rác có thể nuốt nó giữa chừng.
+        nid = ""
+        if webpush.so_sub() and not (push_if_away and push_presence.watching(sid)):
+            nid = push_policy.record_push(f"{dec.get('group') or 'other'}|{dec.get('sig') or ''}", "bell",
+                                          label=item["title"], level=dec.get("level") or "")
         t = asyncio.create_task(
-            webpush.gui_het(title, body, url, tag=f"javis-{item['id']}", phien_hop_le=_phien_con_hieu_luc(),
+            webpush.gui_het(title, body, url, tag=f"javis-{item['id']}", phien_hop_le=_phien_con_hieu_luc(), nid=nid,
                             **({"quiet_if_visible": True, "session_id": sid} if push_if_away else {})))
         _PUSH_TASKS.add(t)
         t.add_done_callback(_PUSH_TASKS.discard)
@@ -15605,13 +15628,34 @@ def _chat_has_own_dot(sid: str, channel: str) -> bool:
         return False
 
 
+def _act_level(meta: dict, level: str, source: str = "", label: str = "", title: str = "") -> str:
+    """The level a run's JAVIS_NOTIFY block earns (notice_text.split_block). An explicit `level` wins. `act` makes it
+    urgent only with a valid `why` and when the job does not claim it on most runs (push_policy.act_check, owner
+    2026-11-23); otherwise important. No block: `level` unchanged."""
+    if level or not meta or "act" not in meta:
+        return level
+    try:
+        key = f"{source}|{notify_policy.signature(label or title or meta.get('title') or '')}"
+        ok = push_policy.act_check(key, bool(meta.get("act")), meta.get("why") or "")
+    except Exception as e:  # noqa: BLE001 - a broken store never loses the notice
+        print(f"[push policy] act check: {type(e).__name__}: {e}", file=sys.stderr)
+        ok = bool(meta.get("act"))
+    if ok:
+        return "urgent"
+    return "important" if meta.get("act") else level
+
+
 def _notify_decide(text, *, kind="answer", source="", quiet=False, level="", group="", viec=None, dedup="",
                    title="") -> dict:
     """Javis Core's verdict on one notice (0.403.0, `notify_policy.decide`). Never raises: a broken rule store rings."""
     try:
         g = notify_policy.group_of(source=source, kind=kind, viec=viec, dedup=dedup, group=group)
         lv = notify_policy.level_of(level=level, quiet=quiet, group=g)
-        return notify_policy.decide(g, lv, title or inbox._title_from_text(text))
+        dec = notify_policy.decide(g, lv, title or inbox._title_from_text(text))
+        if dec.get("verdict") == "loud" and push_policy.over_budget(dec.get("level") or lv, cfgmod.read_settings()):
+            # Owner, 2026-11-23: today's buzzes are spent; what is not urgent waits for the digest instead.
+            dec = dict(dec, verdict="quiet", why="budget")
+        return dec
     except Exception as e:  # noqa: BLE001
         print(f"[notify policy] decide failed: {type(e).__name__}: {e}", file=sys.stderr)
         return {"group": group or "other", "level": level or ("info" if quiet else "important"), "sig": "",
@@ -15731,8 +15775,9 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     web = notice_text.split_block(web)[0] if web else web
     title = title or meta.get("title") or ""
     summary = summary or meta.get("line") or ""
-    if meta.get("act") and not level:
-        level = "urgent"
+    # The push's second line (owner, 2026-11-23): the run's own next step, empty when it wrote one and there is none.
+    push_body = (meta.get("line") or "") if meta else None
+    level = _act_level(meta, level, source=source, label=label, title=title)
     # 0.403.0: Javis Core's verdict first, so a filtered notice is neither copied to its chat nor sent to Telegram.
     dec = _notify_decide(text, kind=kind, source=source, quiet=quiet, level=level, group=group, viec=viec, dedup=dedup,
                          title=title)
@@ -15746,7 +15791,8 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     chat = route.get("chat") or ""
     vao_hom = await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{chat}" if chat else "", text, kind=kind, label=label,
                                     source=source, quiet=quiet, brain=route.get("brain") or "", dedup=dedup,
-                                    routing=route.get("routing") or "", decision=dec, title=title, summary=summary)
+                                    routing=route.get("routing") or "", decision=dec, title=title, summary=summary,
+                                    push_body=push_body)
     if vao_hom and vao_hom.get("duplicate"):
         return True, ""   # filed before: a retry must not post or ring a second time
     if vao_hom and vao_hom.get("dropped") and not chat and not route.get("external"):
@@ -16873,16 +16919,33 @@ def _push_chat_answer(conv_sid: str, final_text: str) -> bool:
     try:
         if not conv_sid or not webpush.so_sub():
             return False
-        body = turn_done_notice.push_text(channel_context.strip_control_blocks(str(final_text or "")))
+        body = turn_done_notice.push_line(channel_context.strip_control_blocks(str(final_text or "")))
         if not body:
             return False
-        if (cfgmod.read_settings().get("push") or {}).get("preview") == "hidden":
-            body = localefmt.chu("Javis đã trả lời xong.", "Javis has answered.")
+        # Owner, 2026-11-23: chat answers pass the bell's filter too (group "answer": the owner's mode, a kind Javis Core
+        # muted because the owner kept ignoring it), ring once per chat per 10 minutes, and count in today's budget.
+        dec = notify_policy.decide("answer", "important", "chat answer", record=False)
+        if dec.get("verdict") != "loud":
+            return False
+        settings = cfgmod.read_settings()
+        if (push_presence.watching(conv_sid) or push_policy.chat_throttled(conv_sid)
+                or push_policy.over_budget("important", settings)):
+            return False
+        # Two lines that say something: the chat's name, then the answer's first line that reports.
+        title = ""
+        try:
+            title = str((get_store().get_session(conv_sid) or {}).get("title") or "").strip()
+        except Exception:  # noqa: BLE001
+            title = ""
+        title = notice_text.short_name(title, 60) if title else "Javis"
+        if (settings.get("push") or {}).get("preview") == "hidden":
+            title, body = "Javis", localefmt.chu("Javis đã trả lời xong.", "Javis has answered.")
+        nid = push_policy.record_push(push_policy.ANSWER_KEY, "answer", label=title, sid=conv_sid)
         # Not awaited: a dead subscription waits up to 15 s and the turn is already over. One notice per chat: a newer
         # answer replaces the older one (tag).
         t = asyncio.create_task(webpush.gui_het(
-            "Javis", body, f"/?mo_phien={conv_sid}", tag=f"javis-turn-{conv_sid[:24]}",
-            phien_hop_le=_phien_con_hieu_luc(), quiet_if_visible=True, session_id=conv_sid))
+            title, body, f"/?mo_phien={conv_sid}", tag=f"javis-turn-{conv_sid[:24]}",
+            phien_hop_le=_phien_con_hieu_luc(), quiet_if_visible=True, session_id=conv_sid, nid=nid))
         _PUSH_TASKS.add(t)
         t.add_done_callback(_PUSH_TASKS.discard)
         return True
@@ -19341,6 +19404,83 @@ async def push_subscribe(request: Request, payload: dict = Body(None)):
     ok, err = webpush.dang_ky(p.get("subscription") or p, str(p.get("nhan") or ""),
                               phien=_phien_bam(request.cookies.get("javis_session", "")))
     return {"ok": ok, "error": err, "subs": webpush.so_sub()}
+
+
+@app.post("/push/engage")
+async def push_engage(payload: dict = Body(None)):
+    """sw.js: the owner tapped ("open") or swiped away ("close") one push (push_policy.py learns from it)."""
+    p = payload or {}
+    s = push_policy.engage(str(p.get("nid") or ""), str(p.get("ev") or ""))
+    if s and p.get("ev") == "close":
+        await _push_learn()
+    return {"ok": bool(s)}
+
+
+@app.get("/push/stats")
+async def push_stats():
+    """The last 7 days of pushes for the bell's filter: how many, how many opened, the kinds opened least."""
+    return {"ok": True, **push_policy.stats(settings=cfgmod.read_settings())}
+
+
+def _push_seen_elsewhere(s: dict) -> bool:
+    """A chat-answer push whose chat the owner read on some device afterwards: not ignored, read another way."""
+    return bool(s.get("kind") == "answer" and s.get("sid") and push_presence.seen_after(s["sid"], s.get("ts") or 0))
+
+
+async def _push_learn() -> list:
+    """Mute the kinds the owner keeps ignoring (push_policy.learn), as rules Javis Core set and the owner can undo in
+    the bell's filter. Javis Core says it in its chat. Returns the changes. Never raises."""
+    changes = []
+    try:
+        for cand in push_policy.learn(seen=_push_seen_elsewhere):
+            g, _, sig = cand["key"].partition("|")
+            c = notify_policy.set_rule(g, sig, "mute", set_by="core", label=cand.get("label") or sig,
+                                       reason=cand.get("reason") or "")
+            push_policy.mark_learned(cand["key"])
+            if c:
+                changes.append(c)
+        if changes:
+            await _core_say("", "\n".join(notify_policy.describe(c) for c in changes))
+    except Exception as e:  # noqa: BLE001
+        print(f"[push policy] learn: {type(e).__name__}: {e}", file=sys.stderr)
+    return changes
+
+
+async def _push_digest_tick() -> bool:
+    """Send the digest when its time came (push_policy.DIGEST_TIMES) and something waited for it. True when sent."""
+    slot = push_policy.digest_due()
+    if not slot:
+        return False
+    settings = cfgmod.read_settings()
+    items = push_policy.take_digest(slot)
+    if not items or not push_policy.digest_on(settings) or not webpush.so_sub():
+        return False
+    title, body = push_policy.digest_text(items)
+    if (settings.get("push") or {}).get("preview") == "hidden":
+        title, body = "Javis", localefmt.chu("Bạn có tin mới trong Javis.", "You have a new message in Javis.")
+    nid = push_policy.record_push(push_policy.DIGEST_KEY, "digest", label=title)
+    await webpush.gui_het(title, body, "/?mo_thu=digest", tag="javis-digest", phien_hop_le=_phien_con_hieu_luc(),
+                          nid=nid)
+    return True
+
+
+@app.on_event("startup")
+async def _push_policy_loop_start():
+    """Every minute: the digest when due; every hour: learn from the pushes nobody opened (push_policy.py)."""
+    async def _loop():
+        n = 0
+        while True:
+            try:
+                await asyncio.sleep(60)
+                await _push_digest_tick()
+                n += 1
+                if n % 60 == 0:
+                    await _push_learn()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                print(f"[push policy] loop: {type(e).__name__}: {e}", file=sys.stderr)
+    _PUSH_TASKS.add(asyncio.create_task(_loop()))
 
 
 @app.post("/push/presence")

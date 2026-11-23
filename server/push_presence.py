@@ -22,6 +22,8 @@ MAX_TABS = 200        # a bound on the table: a flood of fake tab ids cannot gro
 
 _LOCK = threading.Lock()
 _TABS: dict = {}      # tab id -> {"sid": chat id, "active": bool, "ts": time}
+_SEEN: dict = {}      # chat id -> the last time some tab reported it read (push_policy: a push read elsewhere)
+SEEN_KEEP = 500
 
 
 def _clean(now: float) -> None:
@@ -40,6 +42,11 @@ def report(tab: str, session_id: str, active: bool, now: float = None) -> bool:
     now = time.time() if now is None else now
     with _LOCK:
         _TABS[tab] = {"sid": str(session_id or "")[:128], "active": bool(active), "ts": now}
+        if active and session_id:
+            _SEEN[str(session_id)[:128]] = now
+            if len(_SEEN) > SEEN_KEEP:
+                for k in sorted(_SEEN, key=_SEEN.get)[:len(_SEEN) - SEEN_KEEP]:
+                    del _SEEN[k]
         _clean(now)
     return True
 
@@ -54,7 +61,14 @@ def watching(session_id: str, now: float = None) -> bool:
         return any(v["active"] and v["sid"] == sid and now - v["ts"] <= FRESH_S for v in _TABS.values())
 
 
+def seen_after(session_id: str, ts: float) -> bool:
+    """True when some tab showed this chat to the owner after `ts` (since the server started)."""
+    with _LOCK:
+        return float(_SEEN.get(str(session_id or ""), 0)) > float(ts or 0)
+
+
 def reset() -> None:
     """Forget every tab (tests)."""
     with _LOCK:
         _TABS.clear()
+        _SEEN.clear()

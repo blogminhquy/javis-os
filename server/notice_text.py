@@ -11,7 +11,8 @@ ours are hard to read and people skip them". Two causes, both fixed here:
 2. Nobody wrote a headline at all. A background run can now end with one hidden block,
    `<!-- JAVIS_NOTIFY: {"title": "...", "line": "...", "act": true} -->`, written by the model that did the work and
    knows what matters. `split_block` takes it out of the text (channels never show it) and the bell uses it.
-   `act` is the model saying the owner has to do or decide something; only then does a scheduled run ring.
+   `act` is the model saying the owner has to do or decide something; only then does a scheduled run ring, and only
+   with a `why` from URGENT_WHY (push_policy.act_check, 2026-11-23). `line` is the owner's next step, or empty.
 
 Pure functions, no I/O: reminders.py, tasks.py and main.py call them.
 """
@@ -22,6 +23,8 @@ import re
 
 TITLE_MAX = 90
 LINE_MAX = 160
+# The reasons an "act" (urgent) claim may give (owner, 2026-11-23); any other claim is lowered to important.
+URGENT_WHY = ("error", "money", "customer", "question", "deadline")
 
 _BLOCK_RE = re.compile(r"<!--\s*JAVIS_NOTIFY\s*:\s*(\{.*?\})\s*-->", re.S)
 
@@ -29,12 +32,13 @@ _BLOCK_RE = re.compile(r"<!--\s*JAVIS_NOTIFY\s*:\s*(\{.*?\})\s*-->", re.S)
 # the language of the job). Kept short: it rides on every scheduled run.
 PROMPT = (
     "At the very end of your answer add one hidden line for the owner's notification bell, exactly like this:\n"
-    '<!-- JAVIS_NOTIFY: {"title": "...", "line": "...", "act": false} -->\n'
-    "- title: at most 8 words, what came OUT of this run in plain words, in the job's language "
-    "(\"3 customers due today, 2 messages sent\"), never what you were going to do (\"Checking the list...\").\n"
-    "- line: one short sentence with the key number or detail, or \"\".\n"
-    "- act: true ONLY when the owner must do or decide something now (a failure they must fix, a customer "
-    "complaint, money at risk, a question only they can answer). Routine runs are false."
+    '<!-- JAVIS_NOTIFY: {"title": "...", "line": "...", "act": false, "why": ""} -->\n'
+    "- title: at most 8 words, the RESULT with its key number, in the job's language "
+    "(\"Order #1234 cancelled, 1.2M lost\"), never what you were going to do (\"Checking the list...\").\n"
+    "- line: the one thing the owner should do now, at most 10 words (\"Call the customer back before 5 pm\"), "
+    "or \"\" when there is nothing to do.\n"
+    "- act: true ONLY when the owner must act now; then why is one of error, money, customer, question, deadline. "
+    "Routine runs are false. A run that claims act on most runs loses it."
 )
 
 # Lines that narrate the work instead of reporting it. Vietnamese: a first person subject, then an optional
@@ -80,8 +84,10 @@ def split_block(text: str) -> tuple:
             title = clean_line(d.get("title"))[:TITLE_MAX]
             line = clean_line(d.get("line"))[:LINE_MAX]
             act = d.get("act")
+            why = str(d.get("why") or "").strip().lower()
             meta = {"title": title, "line": line,
-                    "act": act is True or str(act).strip().lower() in ("true", "1", "yes")}
+                    "act": act is True or str(act).strip().lower() in ("true", "1", "yes"),
+                    "why": why if why in URGENT_WHY else ""}
     cleaned = _BLOCK_RE.sub("", raw)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned, meta

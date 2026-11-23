@@ -233,6 +233,10 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   xin duyệt, nhắc hẹn chủ tự đặt, lỗi chủ phải sửa, và lần chạy tự báo có chuyện cần chủ ra tay. Việc chạy theo lịch
   chạy trót lọt không kêu. Tiêu đề thông báo nói KẾT QUẢ trong một dòng ngắn, không thuật lại việc đang làm
   ("Em kiểm tra..."), dòng dưới không lặp lại tiêu đề.
+- **Thông báo điện thoại: hai dòng phải có ích** (chủ chốt 23/11/2026: "thông báo hai dòng cũng được, nhưng cần hữu ích
+  và hiệu quả hơn"). Dòng 1 là kết quả kèm con số, dòng 2 là việc chủ cần làm, không có thì để trống; câu trả lời chat
+  lấy tên cuộc chat làm dòng 1, không dùng chữ "Javis". Chỉ rung khi chủ phải làm gì, việc đó gấp và chủ chưa biết;
+  tin đáng xem mà không gấp vào bản tin gộp; có trần số lần rung mỗi ngày (`server/push_policy.py`).
 - **Tạo động lực:** trang Nhiệm vụ có chuỗi ngày, sao, gợi ý việc khi trống (kiểu trò chơi, 04/11).
 
 ## 9. Trang HTML của gói trong Javis Store

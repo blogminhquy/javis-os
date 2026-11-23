@@ -133,7 +133,7 @@ check("logout drops that device, the other one stays", left == ["Phone"], left)
 seen = []
 
 
-async def fake_push(title, body, url="/", tag="javis", phien_hop_le=None):
+async def fake_push(title, body, url="/", tag="javis", phien_hop_le=None, **_kw):
     seen.append((title, body))
     return 1, 0, []
 
@@ -150,7 +150,8 @@ try:
           seen and seen[-1][0] == "Javis" and "12.500.000" not in seen[-1][1], seen)
     client.post("/settings", data={"section": "push", "data": '{"preview": "full"}'})
     asyncio.get_event_loop().run_until_complete(go())
-    check("full preview again: the text is back", seen and "12.500.000" in seen[-1][1], seen)
+    # Owner, 2026-11-23: two push lines, the result then the next step; a one-line report is all title.
+    check("full preview again: the text is back", seen and "12.500.000" in seen[-1][0] + seen[-1][1], seen)
 finally:
     webpush.gui_het = orig
 check("the inbox keeps the full report whatever the preview", "12.500.000" in inbox.danh_sach(1)[0]["body"])
