@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.9] - 2026-11-23
+### Fixed
+- **Pasting an image while a suggestion is showing no longer overlaps the image.** The grey suggestion follows the box when the attachment strip appears and pushes it down.
+
 ## [0.628.8] - 2026-11-23
 ### Fixed
 - **The phone no longer buzzes while you read on the computer.** Every answer used to reach the phone even while that very chat was open on the computer, so talking and chatting made the phone ring non-stop. Each Javis tab now tells the server which chat you are viewing: while you are viewing it on any device, an answer in that chat pushes to no device. Once you step away (tab hidden, another app, no mouse or keyboard for 2 minutes) notifications work as before. Background results, reminders and urgent notices still arrive as usual.
