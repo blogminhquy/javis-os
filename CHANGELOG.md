@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.629.0] - 2026-11-23
+### Thêm mới
+- **Nhắn "chạy lại CI" là Javis chạy lại các job đỏ của PR.** Javis theo dõi kết quả như mọi lần. Token GitHub cần quyền Actions là Read and write.
+### Cải thiện
+- **Job CI đỏ mà GitHub không có log thì Javis tự chạy lại một lần.** Repo private hết phút Actions hay chạm hạn mức chi tiêu hay gặp cảnh này. Lượt sửa ghi rõ vì sao không có log, model không còn đoán bừa lỗi trong code.
+
 ## [0.628.10] - 2026-11-23
 ### Sửa lỗi
 - **Chat bằng Codex không còn bỏ sót MCP anh tự thêm vào Codex.** Các MCP khai trong `~/.codex/config.toml` (ví dụ Composio, Notion gắn thẳng vào Codex) vốn gọi được, nhưng ô tìm tool và danh sách kết nối của Javis không nhắc tới, nên model trả lời là chưa có tool. Giờ cả hai đều nêu tên chúng và chỉ cách gọi thẳng, giống connector của tài khoản Claude.
