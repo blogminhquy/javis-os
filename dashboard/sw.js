@@ -77,7 +77,7 @@ self.addEventListener("push", (event) => {
     // tag: thông báo cùng tag thì cái mới ĐÈ cái cũ thay vì xếp chồng. Server đặt tag theo
     // id mẩu thư nên mỗi kết quả đúng một dòng, gửi lại không nhân đôi.
     tag: d.tag || "javis",
-    data: { url: d.url || "/" },
+    data: { url: d.url || "/", nid: d.nid || "" },
     renotify: true,
   };
   event.waitUntil((async () => {
@@ -98,10 +98,24 @@ self.addEventListener("push", (event) => {
   })());
 });
 
+// What the owner did with a push (owner, 2026-11-23): a tap or a swipe teaches Javis which kinds are worth a buzz
+// (server/push_policy.py). Fire and forget: a lost report only means one data point less.
+function engage(notification, ev) {
+  const nid = notification && notification.data && notification.data.nid;
+  if (!nid) return Promise.resolve();
+  return fetch("/push/engage", { method: "POST", headers: { "Content-Type": "application/json" },
+                                 body: JSON.stringify({ nid: nid, ev: ev }) }).catch(() => {});
+}
+
+self.addEventListener("notificationclose", (event) => {
+  event.waitUntil(engage(event.notification, "close"));
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil((async () => {
+    await engage(event.notification, "open");
     const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     // Đã mở Javis ở đâu đó thì FOCUS đúng tab đó rồi nhắn cho nó mở mẩu thư, chứ đừng mở
     // thêm một tab thứ hai - người dùng sẽ có hai bản Javis chạy song song, mỗi bản một

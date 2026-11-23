@@ -342,7 +342,7 @@ def huy_theo_phien(phien: str) -> int:
 
 
 async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", phien_hop_le=None,
-                  quiet_if_visible: bool = False, session_id: str = "") -> tuple:
+                  quiet_if_visible: bool = False, session_id: str = "", nid: str = "") -> tuple:
     """Đẩy MỘT thông báo tới MỌI trình duyệt đã đăng ký. Trả (số_gửi_được, số_bị_dọn, chi_tiết).
 
     Gửi cho tất cả là cố ý: bật/tắt là việc của từng thiết bị, nên đã bật ở đâu thì ở đó phải
@@ -366,6 +366,9 @@ async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", p
     if not subs:
         return 0, 0, []
     msg = {"title": tieu_de, "body": than, "url": url, "tag": tag}
+    if nid:
+        # push_policy.record_push's id: sw.js reports a tap or a swipe on it, so Javis learns what is worth a buzz.
+        msg["nid"] = str(nid)
     if quiet_if_visible:
         # A notice about something the owner may be watching already (a long chat turn that just ended): the device
         # where Javis is open and in front of them shows no notification (dashboard/sw.js).

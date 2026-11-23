@@ -52,7 +52,7 @@ body = ("Em kiểm tra lượt đến hạn.\n\n**Đã gửi 2 tin nhắc** cho 
 clean, meta = NT.split_block(body)
 check("the block is taken out of the text", "JAVIS_NOTIFY" not in clean and "Đã gửi 2 tin nhắc" in clean, clean)
 check("the block gives title, line and act", meta == {"title": "Đã nhắc 2 khách đến hạn", "line": "Chị Lan, anh Tú",
-                                                      "act": False}, meta)
+                                                      "act": False, "why": ""}, meta)
 check("without the block the headline is the first reporting line",
       NT.headline(clean) == "Đã gửi 2 tin nhắc cho khách đến hạn hôm nay.", NT.headline(clean))
 check("the summary is the next reporting line", NT.summary(clean, NT.headline(clean)) == "Chị Lan: gia hạn")
@@ -169,10 +169,16 @@ check("a run that says the owner must act rings", it and not it.get("read") and 
 # A JAVIS_NOTIFY block reaching _notify_owner directly (webhook, any producer): taken out, used as the title.
 sid = main.get_store().create_session(brain=KB)
 out.clear()
-run(main._notify_owner("web:" + sid, 'Đã xử lý.\n<!-- JAVIS_NOTIFY: {"title": "Webhook: 1 đơn mới", "act": true} -->',
+run(main._notify_owner("web:" + sid, 'Đã xử lý.\n<!-- JAVIS_NOTIFY: {"title": "Webhook: 1 đơn mới", "act": true, "why": "customer"} -->',
                        kind="report", source="webhook"))
 check("no channel ever shows the block", out and all("JAVIS_NOTIFY" not in o[1] for o in out), out)
 check("act in the block files an urgent notice with its title", (items().get("Webhook: 1 đơn mới") or {}).get("level") == "urgent")
+# Owner, 2026-11-23: an urgent claim with no reason from the list is lowered to important.
+run(main._notify_owner("web:" + sid, 'Đã xử lý.\n<!-- JAVIS_NOTIFY: {"title": "Webhook: 2 đơn mới", "act": true} -->',
+                       kind="report", source="webhook"))
+check("act without a reason is not urgent",
+      main._act_level({"act": True, "why": ""}, "", source="webhook", title="Webhook: 2 đơn mới") == "important"
+      and (items().get("Webhook: 2 đơn mới") or {}).get("level") != "urgent")
 
 # A plain answer in a chat with its own dot: not in the bell, the rail hears about it.
 n0 = len(inbox.danh_sach(500))
