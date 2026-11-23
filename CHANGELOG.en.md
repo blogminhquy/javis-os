@@ -8,6 +8,17 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.631.0] - 2026-11-23
+### Added
+- **Notifications learn from how you use them.** Every phone notification records whether you tapped or swiped it away. A kind you ignored 5 times in a row, or opened less than 20% of the time, stops buzzing, and Javis Core says so in one line in its chat. Undo it in the bell's filter. An urgent notice is never silenced this way.
+- **A daily limit on buzzes**, 8 by default, set in the filter (5, 8, 12, 20 or no limit). Past it, what is not urgent waits for the digest; urgent still buzzes.
+- **A digest at 11:30 and 17:30.** Notices worth a look but not urgent come as one buzz, for example "5 notices worth a look in the bell: Job results 3, Assistant suggestions 2". It can be turned off in the filter.
+- **The bell's filter shows the last 7 days:** how many buzzes, the share you opened, the kinds opened least.
+### Improved
+- **Two notification lines that say something.** The first is the result with its number, the second is what you should do, or nothing. No more report cut off mid-sentence on the second line.
+- **A chat answer is titled with its chat instead of "Javis"**, and its second line is the conclusion, not the opening. Each chat buzzes at most once in 10 minutes, and "Chat answers" has its own group in the filter to lower or turn off.
+- **Urgent needs a reason:** an error to fix, money, a customer, a question waiting for you, or a deadline. Without one it is lowered to important. A job that claims urgent on more than half its runs loses it.
+
 ## [0.630.0] - 2026-11-23
 ### Added
 - **Schedule Facebook Page posts into Facebook's own calendar.** Text posts, single photos and multi-photo albums take a scheduled time. The post waits in the Page's Meta Business Suite calendar instead of another tool's queue. A time with no timezone is read in yours, and a time too close (under 10 minutes) is refused with the reason before anything is sent.
