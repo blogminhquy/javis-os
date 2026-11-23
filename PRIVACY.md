@@ -28,6 +28,7 @@ Javis is a tool for talking to AI models and to the services you connect. When y
 - **Web search and web pages** the AI opens at your request are fetched from the sites concerned.
 - **Voice** features send audio or text to the speech service you selected.
 - **GitHub backup**, when you turn it on, pushes your brain to the private repository you name.
+- **GitHub sign-in**, when you connect it, uses the Javis OS GitHub App. The app can act only on the repositories you install it on. There it has read and write access to nearly every repository permission: code, pull requests, issues, Actions and workflows, checks, secrets, webhooks, deployments, Pages, packages and more. It has no Administration access, so it cannot delete a repository or change its settings, and it asks for nothing on your account or organization. The access token stays on your Javis; it is not sent to the JAVIS OS project. You can narrow the repositories or remove the app at any time on GitHub under Settings, Applications.
 
 Nothing in this list happens until you configure it.
 
