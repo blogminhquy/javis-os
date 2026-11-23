@@ -19,7 +19,7 @@ Open **Connections**. The **GitHub** card is always first: it is built into Javi
 If the install fails, the dialog shows the exact command to run by hand, **Try again** and **Skip, connect anyway**. A git installed by hand while Javis runs is picked up right away, no restart. A connected card on a machine without git has its own **Install git** button.
 
 1. On github.com: **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
-2. Pick the repos Javis may work on. Grant **Contents**, **Pull requests**, **Workflows** (Read and write); **Checks**, **Actions**, **Commit statuses**, **Metadata** (Read).
+2. Pick the repos Javis may work on. Grant **Contents**, **Pull requests**, **Workflows**, **Actions** (Read and write); **Checks**, **Commit statuses**, **Metadata** (Read). Actions needs Read and write so Javis can read the log of a red CI run and rerun the job when you ask; with Read only, Javis still reads the log but cannot rerun.
 3. Paste the token into the GitHub card and press **Connect**.
 
 Already using [brain backup to GitHub](18-github-backup.md)? Press **Use the brain-backup token** to share it; Javis checks its permissions first. A classic `ghp_...` token needs the `repo` and `workflow` scopes.
@@ -42,6 +42,8 @@ Javis does this on its own:
 2. **Commit, push, open a PR** (as a draft) under your GitHub account.
 3. **Watch CI** on exactly the pushed commit. A new commit never inherits the green result of an older one.
 4. **Red CI**: Javis opens a fix turn in that same conversation, with the logs. At most **3 rounds**, then it reports being stuck with the reason. Red on the base branch too means it is not this job's fault; Javis does not widen the job.
+   - **A job that never ran or a broken runner:** Javis reruns it once on its own. A red job GitHub has no log for (a private repo out of Actions minutes, a spending limit) counts as one. The fix round says why there is no log, so the model does not go hunting for a bug in the code.
+   - **Want another try:** say "rerun the CI". Javis reruns the PR's red jobs and keeps following them; the token needs Actions set to Read and write.
 5. **Cross review (your call, off by default)**: a model reads the diff and reports only bugs with a concrete failure path. Javis no longer reviews on its own unless you say so.
    - **Turn it on for a repo:** GitHub card, the repo's "..." menu, **Cross review**, switch on **Review before merging**. From then on every commit with green CI is reviewed before the merge.
    - **Review a PR any time:** press the GitHub icon next to the conversation, pick a model and press **Review now**. Or say "review this PR", "review it with DeepSeek". The PR does not merge until the review is done.
