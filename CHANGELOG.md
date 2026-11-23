@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.8] - 2026-11-23
+### Sửa lỗi
+- **Đang đọc trên máy tính thì điện thoại không rung nữa.** Trước đây mỗi câu trả lời đều báo sang điện thoại, kể cả khi bạn đang xem đúng đoạn chat đó trên máy tính, nên vừa nói vừa chat là điện thoại báo liên tục. Giờ mỗi tab Javis báo cho máy chủ biết bạn đang xem chat nào: còn đang xem ở bất kỳ máy nào thì câu trả lời trong chat đó không đẩy thông báo tới máy nào cả. Bạn rời màn hình (ẩn tab, sang ứng dụng khác, không chạm chuột hay bàn phím 2 phút) thì thông báo hoạt động lại như cũ. Kết quả việc nền, nhắc lịch và tin khẩn vẫn báo bình thường.
+
 ## [0.628.7] - 2026-11-23
 ### Sửa lỗi
 - **Tìm tool không còn bỏ sót app nằm sau Composio.** Composio chỉ hiện vài tool chung (tìm, chạy, nối tài khoản), còn hàng trăm tool của Gmail, Notion, Slack, GitHub... nằm ẩn phía sau. Trước đây hỏi "gmail" thì Javis trả về Resend, hỏi "gửi tin slack" thì ra Zalo, rồi kết luận là chưa nối app. Giờ Javis đọc danh sách app bạn đã nối trong Composio, nhắc tên app nào thì đưa cổng Composio lên đầu kèm hướng dẫn gọi hai bước, và hỏi theo việc ("đọc email mới nhất") cũng được gợi ý app đã nối.
