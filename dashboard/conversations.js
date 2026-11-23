@@ -1671,6 +1671,7 @@
       // While the words arrive by themselves the box is read only: typing would be overwritten by the next result.
       ta.readOnly = dictOn(c);
     }
+    bindPics(c, box, ta);
     paintInfo();
   }
 
@@ -2326,6 +2327,109 @@
 
   function replyBox() { return _host && _host.querySelector(".ht-thread .ib-cin textarea"); }
 
+  // ---------------------------------------------------------------- Images from this computer
+  // The owner sends images straight from the computer (owner, 2026-11-23): the image button, Ctrl+V in the box, or
+  // dropping files on the chat. They wait in a tray above the box and go out with Send, the typed words after them.
+  // Only channels the server can send images on (`routes/conversations.py` IMAGE_SEND_CHANNELS).
+  var IMAGE_CHANNELS = ["zalo_personal"];
+  var MAX_PICS = 10, MAX_PIC_BYTES = 20 * 1024 * 1024;
+  var _pics = { conv: 0, items: [] };     // items: [{file, url}], kept across the 5-second redraw
+
+  function canSendImages(c) { return !!c && IMAGE_CHANNELS.indexOf(String(c.channel || "")) >= 0; }
+  function picsOf(c) { return c && _pics.conv === c.id ? _pics.items : []; }
+
+  function clearPics() {
+    _pics.items.forEach(function (p) { try { URL.revokeObjectURL(p.url); } catch (e) { /* ignore */ } });
+    _pics = { conv: 0, items: [] };
+  }
+
+  function picHtml(c) {
+    var lab = window.t("ib.pic_add");
+    return '<button type="button" class="s-btn-ghost ib-pic" title="' + esc(lab) + '" aria-label="' + esc(lab) + '">' + ic("image") +
+      '</button><input type="file" class="ib-pic-in" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>';
+  }
+
+  function picTrayHtml(c) {
+    var items = picsOf(c);
+    if (!items.length) return "";
+    var rm = esc(window.t("ib.pic_remove"));
+    return '<div class="ib-pics">' + items.map(function (p, i) {
+      return '<span class="ib-pic-it"><img src="' + esc(p.url) + '" alt="' + esc(p.file.name || "") + '">' +
+        '<button type="button" class="ib-pic-x" data-i="' + i + '" title="' + rm + '" aria-label="' + rm + '">' + ic("x") + '</button></span>';
+    }).join("") + '</div>';
+  }
+
+  // Only image files are taken; anything else (or a pasted text) is left alone.
+  function addPics(c, files) {
+    if (!canSendImages(c)) return false;
+    var list = Array.prototype.filter.call(files || [], function (f) { return f && /^image\/(png|jpeg|gif|webp)$/i.test(f.type || ""); });
+    if (!list.length) return false;
+    if (_pics.conv !== c.id) { clearPics(); _pics.conv = c.id; }
+    var err = "";
+    list.forEach(function (f) {
+      if (f.size > MAX_PIC_BYTES) { err = window.t("ib.pic_big", { ten: f.name || "" }); return; }
+      if (_pics.items.length >= MAX_PICS) { err = window.t("ib.pic_max", { n: MAX_PICS }); return; }
+      // A pasted screenshot has no real name: give it one with the right extension, the server checks it.
+      var name = f.name && /\.(png|jpe?g|gif|webp)$/i.test(f.name) ? f.name : "image." + (String(f.type).split("/")[1] || "png").replace("jpeg", "jpg");
+      var file = name === f.name ? f : new File([f], name, { type: f.type });
+      _pics.items.push({ file: file, url: URL.createObjectURL(file) });
+    });
+    setNote(err, !!err);
+    paintPics(c);
+    return true;
+  }
+
+  function paintPics(c) {
+    var box = _host && _host.querySelector(".ht-thread .ib-cbox");
+    if (!box) return;
+    var old = box.querySelector(".ib-pics");
+    var html = picTrayHtml(c);
+    if (old) old.outerHTML = html || "";
+    else if (html) box.querySelector(".ib-cin").insertAdjacentHTML("beforebegin", html);
+    bindPicTray(c);
+  }
+
+  function bindPicTray(c) {
+    var tray = _host && _host.querySelector(".ht-thread .ib-pics");
+    if (!tray) return;
+    tray.querySelectorAll(".ib-pic-x").forEach(function (b) {
+      b.onclick = function () {
+        var i = Number(b.dataset.i), p = _pics.items[i];
+        if (p) { try { URL.revokeObjectURL(p.url); } catch (e) { /* ignore */ } _pics.items.splice(i, 1); }
+        paintPics(c);
+        var ta = replyBox(); if (ta) ta.focus();
+      };
+    });
+  }
+
+  // Wires the image button, paste and drop for the open chat. `box` is the .ht-thread element (it outlives redraws).
+  function bindPics(c, box, ta) {
+    if (!canSendImages(c)) { box.ondragover = box.ondrop = box.ondragleave = null; return; }
+    var btn = box.querySelector(".ib-pic"), inp = box.querySelector(".ib-pic-in");
+    if (btn && inp) {
+      btn.onclick = function () { inp.click(); };
+      inp.onchange = function () { addPics(c, inp.files); inp.value = ""; if (ta) ta.focus(); };
+    }
+    if (ta) ta.onpaste = function (e) {
+      var files = e.clipboardData && e.clipboardData.files;
+      if (files && files.length && addPics(c, files)) e.preventDefault();
+    };
+    var hasFiles = function (e) {
+      var ty = e.dataTransfer && e.dataTransfer.types;
+      return !!ty && Array.prototype.indexOf.call(ty, "Files") >= 0;
+    };
+    box.ondragover = function (e) { if (!hasFiles(e)) return; e.preventDefault(); box.classList.add("ib-drop"); };
+    box.ondragleave = function (e) { if (!box.contains(e.relatedTarget)) box.classList.remove("ib-drop"); };
+    box.ondrop = function (e) {
+      box.classList.remove("ib-drop");
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      addPics(c, e.dataTransfer.files);
+      if (ta) ta.focus();
+    };
+    bindPicTray(c);
+  }
+
   function paintMic() {
     var b = _host && _host.querySelector(".ht-thread .ib-mic");
     if (b && _conv) b.outerHTML = micHtml(_conv);
@@ -2442,9 +2546,11 @@
       (cmt ? privToggleHtml(priv, c) : "") +
       '<div class="ib-cbox">' +
       (writing && V ? V.workingHtml(aiWorkView(), ic) : draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
+      (canSendImages(c) && !priv ? picTrayHtml(c) : "") +
       '<div class="ib-cin">' +
         '<textarea rows="1" placeholder="' + esc(ph) + '" aria-label="' + esc(t("ib.cin_aria")) + '"></textarea>' +
         micHtml(c) +
+        (canSendImages(c) && !priv ? picHtml(c) : "") +
         (laBot && !priv ? '<button type="button" class="s-btn-ghost ib-ask"' + (_aiBusy ? " disabled" : "") + ' title="' + esc(t("ib.ai_reply_t")) +
           '" aria-label="' + esc(t("ib.ai_reply")) + '">' +
           (_aiBusy === "ask" ? spin() : ic("sparkles")) + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +
@@ -2473,11 +2579,20 @@
     var nut = box && box.querySelector(".ht-send");
     if (!ta || _dangGui) return;
     var txt = ta.value.trim();
-    if (!txt) return;
+    var pics = canPrivate(c) && _privFor === c.id ? [] : picsOf(c).slice();
+    if (!txt && !pics.length) return;
     _dangGui = true;
     ta.disabled = true; if (nut) nut.disabled = true;
     try {
-      if (canPrivate(c) && _privFor === c.id) {
+      if (pics.length) {
+        var f = new FormData();
+        pics.forEach(function (p) { f.append("files", p.file, p.file.name); });
+        f.append("text", txt);
+        var sent = await api("/conversations/" + c.id + "/reply-images", { method: "POST", body: f });
+        clearPics();
+        // The images went out but the words after them did not: keep the words in the box to send again.
+        if (sent && sent.warning) throw new Error(sent.warning);
+      } else if (canPrivate(c) && _privFor === c.id) {
         await api("/conversations/" + c.id + "/private-reply", { method: "POST", body: fd({ text: txt }) });
         // One private message per comment: back to public replies, so the next Send does not hit Meta's limit.
         _privFor = 0;

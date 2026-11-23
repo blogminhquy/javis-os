@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from fastapi import APIRouter, Form, Query
+from fastapi import APIRouter, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -168,6 +168,141 @@ async def owner_reply(conv_id: int, text: str, sender_name: str = "Bạn", via: 
     conversations.clear_draft(c["id"])
     return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
             "conversation": conversations.chi_tiet(c["id"])}
+
+
+# Images the owner sends from the inbox composer: only the channels that can send an image from Javis.
+IMAGE_SEND_CHANNELS = ("zalo_personal",)
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+MAX_IMAGES = 10
+MAX_IMAGE_BYTES = 20 * 1024 * 1024
+# Where those images are kept, inside `attachments/` of the chat's brain, so `/conversations/{id}/media` can show them.
+SENT_DIR = ("attachments", "sent")
+
+
+def _safe_image_name(name: str) -> str:
+    stem = Path(str(name or "")).stem
+    keep = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in stem).strip("-")[:40] or "image"
+    return keep
+
+
+def _sent_dir(c: dict) -> Optional[Path]:
+    """The folder an owner's image for chat `c` is saved in: `attachments/sent/` of the chat's brain (its bot's, else
+    its account's), else of the default brain."""
+    if not _DEPS or not _DEPS.brain_root:
+        return None
+    roots = [g.parent for g in _media_roots(c)]
+    try:
+        root = roots[0] if roots else Path(_DEPS.brain_root("")).resolve()
+    except Exception:      # noqa: BLE001
+        return None
+    return root.joinpath(*SENT_DIR)
+
+
+def _media_roots(c: dict) -> list:
+    """`inbox/` and `attachments/` of the brain of the bot on duty for chat `c`, and of the brain tied to its channel
+    account. Plus `attachments/sent/` of the default brain, where an owner's image lands when the chat has no brain."""
+    if not _DEPS or not _DEPS.brain_root:
+        return []
+    brains = []
+    bot = chatbot_store.get_bot(str(c.get("bot_id") or "")) if c.get("bot_id") else None
+    if bot and bot.get("brain"):
+        brains.append(str(bot["brain"]))
+    for key in (str(c.get("channel_account_id") or ""), _tk_goc(c)):
+        try:
+            a = channel_accounts.get_account(key) if key else None
+        except Exception:      # noqa: BLE001 - a broken account record must not break the inbox
+            a = None
+        if a and a.get("brain"):
+            brains.append(str(a["brain"]))
+    roots = []
+    for b in dict.fromkeys(brains):
+        try:
+            root = Path(_DEPS.brain_root(b)).resolve()
+        except Exception:      # noqa: BLE001
+            continue
+        roots += [root / d for d in _THU_MUC_MEDIA]
+    return roots
+
+
+async def owner_send_images(conv_id: int, images: list, caption: str = "") -> dict:
+    """Send images (`[(file name, bytes)]`) into conversation `conv_id` as the owner, then `caption` as a text message
+    when there is one. Each image is saved in the chat's brain and recorded as a `human` image message, so the inbox
+    shows what went out. Takes the chat over from its bot, like typing in the inbox. Returns a dict with `ok`."""
+    c = conversations.chi_tiet(int(conv_id or 0))
+    if not c:
+        return {"ok": False, "code": "not_found",
+                "error": localefmt.chu("không có hội thoại nào id đó", "no conversation with that id")}
+    channel = str(c.get("channel") or "")
+    if channel not in IMAGE_SEND_CHANNELS:
+        return {"ok": False, "code": "unsupported", "error": localefmt.chu(
+            "Kênh này chưa gửi được ảnh từ Javis, hiện chỉ Zalo cá nhân gửi được",
+            "This channel cannot send images from Javis yet; only personal Zalo can")}
+    if not images:
+        return {"ok": False, "code": "empty", "error": localefmt.chu("chưa chọn ảnh nào", "no image chosen")}
+    if len(images) > MAX_IMAGES:
+        return {"ok": False, "code": "too_many", "error": localefmt.chu(
+            f"mỗi lần gửi tối đa {MAX_IMAGES} ảnh", f"at most {MAX_IMAGES} images per send")}
+    for name, data in images:
+        if Path(str(name or "")).suffix.lower() not in IMAGE_EXTS:
+            return {"ok": False, "code": "bad_type", "error": localefmt.chu(
+                f"'{name}' không phải ảnh (nhận png, jpg, gif, webp)", f"'{name}' is not an image (png, jpg, gif, webp)")}
+        if not data:
+            return {"ok": False, "code": "empty", "error": localefmt.chu(f"'{name}' rỗng", f"'{name}' is empty")}
+        if len(data) > MAX_IMAGE_BYTES:
+            return {"ok": False, "code": "too_big", "error": localefmt.chu(
+                f"'{name}' lớn quá 20 MB", f"'{name}' is larger than 20 MB")}
+    folder = _sent_dir(c)
+    if folder is None:
+        return {"ok": False, "code": "no_folder", "error": localefmt.chu(
+            "không tìm được thư mục để lưu ảnh", "no folder to save the image in")}
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    paths = []
+    for i, (name, data) in enumerate(images):
+        p = folder / f"{stamp}-{i + 1}-{_safe_image_name(name)}{Path(str(name)).suffix.lower()}"
+        p.write_bytes(data)
+        paths.append(str(p))
+    raw = _tk_goc(c)
+    thread = str(c.get("external_chat_id") or "")
+    chat_type = str(c.get("chat_type") or "private")
+    import channels.zalo_personal as zp
+    import zalo_personal_channel as zc
+    # Remember BEFORE sending: each image comes back in the read loop as the account's own message, and is recorded
+    # here already (else the inbox shows it twice).
+    zc.ghi_da_gui_anh(raw, thread, len(paths))
+    try:
+        ok, err = await zp.gui_anh({"id": raw}, thread, paths, chat_type)
+    except Exception as e:      # noqa: BLE001
+        ok, err = False, f"{type(e).__name__}: {e}"
+    if not ok:
+        return {"ok": False, "code": "send_failed", "error": err or localefmt.chu("không gửi được ảnh", "could not send the image")}
+    try:
+        zc.bo_cho_chu(raw, thread)
+    except Exception:      # noqa: BLE001
+        pass
+    for p in paths:
+        conversations.ghi_su_kien({
+            "channel": channel, "account_id": raw, "account_name": c.get("account_name") or "",
+            "bot_id": c.get("bot_id") or "", "external_chat_id": thread, "chat_type": chat_type,
+            "chat_title": c.get("title") if chat_type == "group" else "",
+            "sender_type": "human", "sender_name": "Bạn", "message_type": "image",
+            "text": f"[image downloaded to: {p}]", "metadata": {"tu_javis": True},
+        })
+    caption = str(caption or "").strip()
+    if caption:
+        r = await owner_reply(c["id"], caption)
+        if not r.get("ok"):
+            # The images are out: `ok` stays true so the page does not send them twice; `warning` says the words did not go.
+            return {"ok": True, "sent_images": len(paths), "conversation": conversations.chi_tiet(c["id"]),
+                    "warning": localefmt.chu(f"Đã gửi {len(paths)} ảnh nhưng lời nhắn kèm chưa đi: {r.get('error')}",
+                                             f"Sent {len(paths)} image(s) but the message with them failed: {r.get('error')}")}
+        return dict(r, sent_images=len(paths))
+    tiep_quan = False
+    if c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
+        conversations.dat_che_do(c["id"], "human")
+        tiep_quan = True
+    conversations.clear_draft(c["id"])
+    return {"ok": True, "sent_images": len(paths), "tiep_quan": tiep_quan, "conversation": conversations.chi_tiet(c["id"])}
 
 
 def register(app, deps: ConversationsDeps):
@@ -578,6 +713,19 @@ def register(app, deps: ConversationsDeps):
             return r
         return JSONResponse(r, status_code=404 if r.get("code") == "not_found" else 400)
 
+    @router.post("/conversations/{conv_id}/reply-images")
+    async def conversations_reply_images(conv_id: int, files: list[UploadFile] = File(...), text: str = Form("")):
+        """The owner sends images from the computer into a chat (paste, drop or the image button of the composer),
+        with an optional message after them. Personal Zalo only for now; see `owner_send_images`."""
+        images = []
+        for f in (files or [])[:MAX_IMAGES + 1]:
+            data = await f.read(MAX_IMAGE_BYTES + 1)
+            images.append((str(f.filename or "image.png"), data))
+        r = await owner_send_images(conv_id, images, text)
+        if r.get("ok"):
+            return r
+        return JSONResponse(r, status_code=404 if r.get("code") == "not_found" else 400)
+
     def _private_target(msgs: list, wanted: str = "") -> tuple:
         """The comment a private message answers (0.446.0): `wanted` when it is one of the customer's comments in this
         thread, else the newest customer comment that has not had one yet. Returns (comment, all_used)."""
@@ -942,28 +1090,15 @@ def register(app, deps: ConversationsDeps):
 
     def _goc_media(c: dict) -> list:
         """Các thư mục được phép phát media của hội thoại này: inbox/ và attachments/ trong brain của bot trực nó, và
-        brain gắn với tài khoản kênh."""
-        if not _DEPS or not _DEPS.brain_root:
-            return []
-        brains = []
-        bot = chatbot_store.get_bot(str(c.get("bot_id") or "")) if c.get("bot_id") else None
-        if bot and bot.get("brain"):
-            brains.append(str(bot["brain"]))
-        for key in (str(c.get("channel_account_id") or ""), _tk_goc(c)):
+        brain gắn với tài khoản kênh. Plus `attachments/sent/` of the default brain, where an owner's image for a chat
+        with no brain is saved (`owner_send_images`)."""
+        roots = _media_roots(c)
+        if not roots and _DEPS and _DEPS.brain_root:
             try:
-                a = channel_accounts.get_account(key) if key else None
-            except Exception:      # noqa: BLE001 - a broken account record must not break the inbox
-                a = None
-            if a and a.get("brain"):
-                brains.append(str(a["brain"]))
-        goc = []
-        for b in dict.fromkeys(brains):
-            try:
-                root = Path(_DEPS.brain_root(b)).resolve()
+                roots = [Path(_DEPS.brain_root("")).resolve().joinpath(*SENT_DIR)]
             except Exception:      # noqa: BLE001
-                continue
-            goc += [root / d for d in _THU_MUC_MEDIA]
-        return goc
+                roots = []
+        return roots
 
     @router.get("/conversations/{conv_id}/media")
     async def conversations_media(conv_id: int, p: str = Query(...), dl: int = Query(0)):

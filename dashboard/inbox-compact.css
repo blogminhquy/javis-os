@@ -156,6 +156,17 @@
 .ib-v5 .ib-cin .ib-mic:disabled { opacity: .7; cursor: default; }
 @keyframes ib-mic-rec { 0%, 100% { box-shadow: 0 0 0 0 rgba(214, 69, 69, .45); } 50% { box-shadow: 0 0 0 6px rgba(214, 69, 69, 0); } }
 @media (prefers-reduced-motion: reduce) { .ib-v5 .ib-cin .ib-mic.is-rec { animation: none; } }
+/* Images from this computer (2026-11-23): an icon button like the mic, a tray of thumbnails above the box, and the chat
+   outlined while files are dragged over it. */
+.ib-v5 .ib-cin .ib-pic { width: 38px; padding: 0; justify-content: center; color: var(--text2); border: 1px solid transparent; background: none; }
+.ib-v5 .ib-cin .ib-pic:hover { color: var(--text); border-color: var(--border); }
+.ib-pics { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 8px 0; }
+.ib-pic-it { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg3); }
+.ib-pic-it img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ib-pic-x { position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .6); color: #fff; }
+.ib-pic-x:hover { background: rgba(0, 0, 0, .8); }
+.ht-thread.ib-drop { outline: 2px dashed var(--ib-ai, #7c5cff); outline-offset: -6px; }
 
 /* ---- Info panel ---- */
 .ib-v5 .ht-info { width: 300px; font-size: 14px; }
