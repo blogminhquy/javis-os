@@ -509,6 +509,7 @@ Javis OS es gratuito y de código abierto, y sigue siendo una sola persona la qu
 
 <div align="center">
 <br>
+<a href="https://nguyenminhquy.com"><img src="../../assets/author.webp" width="96" height="96" alt="Minh Quý"></a><br>
 <b><a href="https://javisos.com">javisos.com</a></b><br>
-Hecho con ☕ en Vietnam por <b><a href="https://minhquy.vn">Minh Quý</a></b>
+Hecho con ☕ en Vietnam por <b><a href="https://nguyenminhquy.com">Minh Quý</a></b>
 </div>

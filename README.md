@@ -520,6 +520,7 @@ Can't donate? Using Javis, sending feedback or opening a pull request counts as 
 
 <div align="center">
 <br>
+<a href="https://nguyenminhquy.com"><img src="docs/assets/author.webp" width="96" height="96" alt="Minh Quý"></a><br>
 <b><a href="https://javisos.com">javisos.com</a></b><br>
-Made with ☕ in Vietnam by <b><a href="https://minhquy.vn">Minh Quý</a></b>
+Made with ☕ in Vietnam by <b><a href="https://nguyenminhquy.com">Minh Quý</a></b>
 </div>
