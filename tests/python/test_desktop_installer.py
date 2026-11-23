@@ -271,7 +271,7 @@ check("workflow publishes through packaging/publish-desktop.sh on the fixed 'des
 check("workflow publishes only from main", "github.ref == 'refs/heads/main'" in wf)
 check("the desktop release never becomes 'latest'", "--latest=false" in publish)
 check("the publish step knows whether the build was signed, and that 'Run workflow' forces a new .exe",
-      "SIGNED: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' || vars.SIGNPATH_ORGANIZATION_ID != '' }}" in wf
+      "SIGNED: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' || (vars.SIGNPATH_ORGANIZATION_ID != '' && !startsWith(vars.SIGNPATH_SIGNING_POLICY_SLUG, 'test')) }}" in wf
       and "FORCE: ${{ github.event_name == 'workflow_dispatch' }}" in wf)
 
 # ---- the unsigned .exe keeps its file hash until something inside it changes (2026-11-12) ----
@@ -395,6 +395,14 @@ check("the SignPath token is a secret, never a variable or a literal",
       "api-token: ${{ secrets.SIGNPATH_API_TOKEN }}" in sign_job)
 check("the signed file is checked before it is handed on",
       "Get-AuthenticodeSignature" in sign_job and 'if ($sig.Status -ne "Valid")' in sign_job)
+# SignPath's test-signing policy (2026-11-23): a self-signed certificate, so the check accepts it,
+# but it must never reach the release. The job keeps it under its own artifact name, reports
+# signed=false, and the publish fingerprint stays unsigned.
+check("CANARY: a test-signed .exe is kept on the run, never published",
+      "TEST_SIGNING: ${{ startsWith(vars.SIGNPATH_SIGNING_POLICY_SLUG, 'test') }}" in sign_job
+      and "signed: ${{ steps.plan.outputs.replace == 'true' && !startsWith(vars.SIGNPATH_SIGNING_POLICY_SLUG, 'test') }}" in sign_job
+      and "'JavisOS-Setup-testsigned' || 'JavisOS-Setup-signed'" in sign_job
+      and "name: JavisOS-Setup-testsigned" not in publish_job)
 check("CANARY: publish picks artifacts by name (signed and unsigned .exe share one file name)",
       "merge-multiple" not in publish_job and publish_job.count("actions/download-artifact@v4") == 3
       and "name: JavisOS-Setup-signed" in publish_job
