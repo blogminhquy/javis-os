@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.631.2] - 2026-11-23
+### Sửa lỗi
+- **Javis không còn tự cập nhật.** Trước đây sau khi sửa mã nguồn và merge, trợ lý tự chạy quy trình của nút Cập nhật nên máy lên bản mới mà không ai bấm. Giờ trợ lý chỉ báo đã có bản mới và nhắc bạn vào Cài đặt → Cập nhật để tự bấm nút.
+
 ## [0.631.1] - 2026-11-23
 ### Sửa lỗi
 - **Lưu được webhook Zalo OA.** Bấm Kiểm tra trên Zalo giờ nhận 200 dù Javis chưa có OA secret key (tin chưa ký vẫn bị bỏ, không tới bot), nên hết cảnh kẹt hai đầu: Zalo chỉ hiện khoá sau khi lưu webhook, còn Javis cần khoá mới tạo kênh.
