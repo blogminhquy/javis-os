@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.629.2] - 2026-11-23
+### Fixed
+- **Teams that need approvals run on ChatGPT (Codex) even when Codex has MCP servers of its own.** One server outside Javis in `~/.codex/config.toml` (such as `node_repl`) used to refuse every Work step and send the owner to Claude Code. Javis now switches those servers off for that run only and leaves your config file as it is, as workflows already did.
+- **Text-only team turns on Codex no longer report "code-mode host is disabled".** Newer Codex still offered the model its run-code tool with only the host off, so the model called it and told the team it could not read the config. Text-only turns now switch code mode off entirely.
+
 ## [0.629.1] - 2026-11-23
 ### Fixed
 - **Grok Build and Antigravity chats no longer miss MCP servers you added straight to those CLIs.** Servers in `~/.grok/config.toml` or `~/.gemini/config/mcp_config.json` (Composio or Notion added to the CLI directly) could always be called, but Javis' tool search and connection list never named them, so the model said there was no tool. Both now name them and say to call them directly, like Codex and the Claude account connectors.

@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.629.2] - 2026-11-23
+### Sửa lỗi
+- **Nhóm ở quyền "cần duyệt" chạy được trên ChatGPT (Codex) dù máy có MCP riêng của Codex.** Trước đây chỉ cần `~/.codex/config.toml` có một MCP ngoài Javis (ví dụ `node_repl`) là mọi bước Làm bị từ chối và bảo đổi sang Claude Code. Giờ Javis tắt riêng các MCP đó cho đúng lượt chạy, file cấu hình của bạn giữ nguyên, giống cách workflow vẫn làm.
+- **Lượt chỉ chữ của nhóm trên Codex hết báo "code-mode host is disabled".** Codex bản mới vẫn đưa model công cụ chạy mã dù đã tắt phần host, model gọi rồi báo lên nhóm là chưa đọc được cấu hình. Giờ lượt chỉ chữ tắt hẳn code mode.
+
 ## [0.629.1] - 2026-11-23
 ### Sửa lỗi
 - **Chat bằng Grok Build hay Antigravity không còn bỏ sót MCP anh tự thêm vào hai CLI đó.** Các MCP khai trong `~/.grok/config.toml` hoặc `~/.gemini/config/mcp_config.json` (ví dụ Composio, Notion gắn thẳng vào CLI) vốn gọi được, nhưng ô tìm tool và danh sách kết nối của Javis không nhắc tới, nên model trả lời là chưa có tool. Giờ cả hai đều nêu tên chúng và nói rõ là gọi thẳng, giống Codex và connector của tài khoản Claude.
