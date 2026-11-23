@@ -164,19 +164,14 @@ DEFAULT_TZ = "Asia/Ho_Chi_Minh"
 
 
 def _owner_tz():
-    """The owner's timezone from Settings (localefmt), Vietnam when the server modules are absent."""
-    from zoneinfo import ZoneInfo
-    name = DEFAULT_TZ
+    """The owner's timezone from Settings (localefmt.tz, which already falls back to the default). Outside the server
+    process, the default zone by name."""
     try:
         import localefmt
-        name = localefmt.valid_tz(localefmt.ten_tz()) or DEFAULT_TZ
+        return localefmt.tz()
     except Exception:
-        pass
-    try:
-        return ZoneInfo(name)
-    except Exception:
-        from datetime import timedelta, timezone
-        return timezone(timedelta(hours=7))
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(DEFAULT_TZ)
 
 
 def _local_text(epoch):
