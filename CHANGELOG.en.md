@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.629.0] - 2026-11-23
+### Added
+- **Say "rerun the CI" and Javis reruns the PR's red jobs.** Javis follows the result as usual. The GitHub token needs Actions set to Read and write.
+### Improved
+- **A red CI job with no log on GitHub is rerun once on its own.** This is what a private repo out of Actions minutes or over its spending limit looks like. The fix round says why there is no log, so the model no longer guesses at a bug in the code.
+
 ## [0.628.10] - 2026-11-23
 ### Fixed
 - **Codex chats no longer miss MCP servers you added straight to Codex.** Servers in `~/.codex/config.toml` (Composio or Notion added to Codex directly) could always be called, but Javis' tool search and connection list never named them, so the model said there was no tool. Both now name them and say how to call them directly, like the Claude account connectors.
