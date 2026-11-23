@@ -279,6 +279,8 @@
     const batSan = !coMa || !!tuy.batSan;
     const py = (d.py_files || []);
     const kn = (d.connectors || []);
+    // Inbox channels the pack adds: file stem only ("channels/zernio.py" -> "zernio").
+    const packChannels = (d.channels || []).map(x => String(x).replace(/^.*\//, "").replace(/\.py$/, ""));
     const vt = vaultTom(d.vault);
     // Mỗi ô trong bảng là MỘT câu hỏi người cài thật sự hỏi, nên ô nào không có câu trả lời
     // thì biến mất chứ không hiện một dòng trống.
@@ -335,6 +337,16 @@
           ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
             + tw("store.inspect.community.title") + '</div><div>'
             + tw("store.inspect.community.body") + '</div></div>' : "")
+      // A pack channel talks to customers under the shop's name: say what it may do before the code warning,
+      // one plain line per power, so "runs code" is never the only thing the owner reads.
+      + (packChannels.length
+          ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("inbox")
+            + tw("store.inspect.channel.title", { name: packChannels.map(x => '<code>' + esc(x) + '</code>').join(", ") })
+            + '</div><ul class="pkm-ds">'
+            + [tw("store.inspect.channel.inbox"), tw("store.inspect.channel.customers"),
+               tw("store.inspect.channel.webhook"), tw("store.inspect.channel.code")]
+                .map(x => '<li>' + x + '</li>').join("")
+            + '</ul></div>' : "")
       // Khối cảnh báo cho gói có mã: KHÔNG gập được, không icon ổ khoá, không làm mềm chữ.
       // `permissions` trong manifest là lời khai của tác giả, không có tầng nào chặn, và
       // `min_mode` chỉ giới hạn cái MODEL được gọi chứ không giới hạn cái mã làm được.

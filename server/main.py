@@ -26,6 +26,7 @@ import asyncio
 import dataclasses
 import glob
 import hashlib
+import inspect
 import ipaddress
 # `sys` phải nằm ở ĐẦU file: rải rác trong file có chỗ `import sys` cục bộ, nhưng cũng có chỗ
 # dùng sys.stderr mà quên import - và vì chúng nằm trong nhánh `except` (đường ghi log lỗi),
@@ -30023,6 +30024,26 @@ async def channels_webhook_info(request: Request, channel: str = ""):
                     "HTTPS rồi mở lại form này để lấy đúng địa chỉ.",
                     "WeChat can only call a public address on port 443 (https) or 80. Open Javis through its "
                     "HTTPS domain, then reopen this form to get the right address.")}
+    # Optional channel hook (pack channels): `webhook_info(base_url, params) -> dict`, sync or async. A dict with
+    # "ok": False is an error; its "status" (default 400) is the HTTP status. The route itself stays owner-only.
+    hook = getattr(channels.module(kenh), "webhook_info", None) if kenh != "messenger" else None
+    if callable(hook):
+        base = web_security.external_base(
+            request.url.scheme, request.url.netloc,
+            request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
+        try:
+            r = hook(base, dict(request.query_params))
+            if inspect.isawaitable(r):
+                r = await r
+        except Exception as e:  # noqa: BLE001
+            print(f"[webhook-info] {kenh}: {type(e).__name__}: {e}", file=sys.stderr)
+            r = {"ok": False, "error": localefmt.chu("Kênh này chưa trả được địa chỉ webhook",
+                                                     "This channel could not give its webhook address"), "status": 502}
+        r = dict(r or {})
+        if r.get("ok") is False:
+            return JSONResponse(r, status_code=int(r.pop("status", 400) or 400))
+        r.pop("status", None)
+        return {"ok": True, **r}
     if kenh != "messenger":
         return JSONResponse({"ok": False, "error": localefmt.chu("Kênh này không dùng webhook",
                                                                  "This channel does not use a webhook")},

@@ -380,6 +380,9 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
         "id": pid, "name": ban["name"], "description": ban["description"],
         "version": ban["version"], "author": ban.get("author") or {},
         "tier": ban["tier"], "connectors": ban["connectors"], "plugins": plugin_slugs,
+        # Inbox channels the pack adds (`provides.channels`). The consent screen spells out what a channel may do:
+        # it talks to customers under the shop's name and opens a public webhook, which "runs code" alone does not say.
+        "channels": list(ban.get("channels") or []),
         # Agent, workflow và skill ghi vào BRAIN của người dùng chứ không nằm trong thư mục
         # gói, nên chúng phải hiện lên màn hình xác nhận rõ ràng hơn cả connector: đây là thứ
         # duy nhất trong gói đụng tới nơi người dùng tự viết.

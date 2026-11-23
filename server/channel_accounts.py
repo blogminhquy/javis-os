@@ -115,6 +115,13 @@ def _public(a: dict) -> dict:
     out["channel_label"] = s.nhan if s else str(a.get("channel") or "")
     out["logo"] = s.logo if s else ""
     out.setdefault("meta", {})
+    # A channel may keep provider details in meta that the page must not see: `PUBLIC_META` lists what may leave.
+    # Account settings the channel declares (`account_settings_spec`) are always kept: the form edits them.
+    m = channels.module(a.get("channel") or "")
+    keep = getattr(m, "PUBLIC_META", None)
+    if isinstance(keep, (tuple, list, set, frozenset)):
+        keep = set(keep) | {str(x.get("key")) for x in channels._account_settings(m)}
+        out["meta"] = {k: v for k, v in (out["meta"] or {}).items() if k in keep}
     return out
 
 
