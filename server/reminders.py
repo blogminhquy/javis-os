@@ -314,9 +314,12 @@ def missed_slots(rem: dict, slot: float, now: float) -> int:
     return min(int((now - slot) // (rep * 60.0)), MISSED_COUNT_CAP)
 
 
-def _fmt_vn(ts) -> str:
+def _fmt_vn(ts, tz=None) -> str:
+    """`tz`: the timezone already looked up by a caller that formats many times in one request. Each `VN_TZ()` reads
+    the settings, which decodes the whole settings file, so a list of reminders passes one in (2026-11-23: GET
+    /reminders spent 536 lookups on 500 stored reminders)."""
     try:
-        return datetime.fromtimestamp(float(ts), VN_TZ()).strftime("%H:%M %d/%m/%Y")
+        return datetime.fromtimestamp(float(ts), tz or VN_TZ()).strftime("%H:%M %d/%m/%Y")
     except Exception:
         return "?"
 
@@ -586,11 +589,13 @@ class RemindersFeature:
         self._register(brain)
         return rem
 
-    def _view(self, r: dict) -> dict:
+    def _view(self, r: dict, tz=None) -> dict:
+        """`tz`: the timezone, looked up once by a caller that renders a whole list (see `_fmt_vn`)."""
         cron = r.get("cron", "") or ""
+        tz = tz or VN_TZ()
         return {"id": r.get("id"), "text": r.get("text"), "label": r.get("label"),
                 "mode": r.get("mode"), "status": r.get("status"),
-                "due_at": r.get("due_at"), "due_human": _fmt_vn(r.get("due_at", 0)),
+                "due_at": r.get("due_at"), "due_human": _fmt_vn(r.get("due_at", 0), tz),
                 "chat_id": r.get("chat_id"), "repeat_min": r.get("repeat_min", 0),
                 # cron_human: "0 7 * * *" đọc thành "7:00 mỗi ngày". Thẻ việc chỉ hiện biểu thức
                 # thô thì người dùng không biết lịch chạy lúc nào - đúng lỗi khách báo.
@@ -606,7 +611,7 @@ class RemindersFeature:
                 "created_by": r.get("created_by", ""), "bot_id": r.get("bot_id", ""),
                 # the Partners-page assistant it runs as ("" = Javis).
                 "agent": r.get("agent", ""),
-                "next_runs": next_runs(cron) if cron and r.get("status") == "pending" else [],
+                "next_runs": next_runs(cron, tz=tz) if cron and r.get("status") == "pending" else [],
                 "result": (r.get("result") or "")[:500], "error": r.get("error", ""),
                 # issue 1480: slots skipped because an earlier run was late or long (0 = none so far).
                 "missed_total": int(r.get("missed_total") or 0), "missed_last": int(r.get("missed_last") or 0),
@@ -710,7 +715,8 @@ class RemindersFeature:
         a paused one shows its switch off instead of vanishing)."""
         rems = [r for r in self._load(brain).get("reminders", []) if r.get("status") in LIVE_STATUSES]
         rems.sort(key=lambda r: float(r.get("due_at") or 0))
-        return [self._view(r) for r in rems]
+        tz = VN_TZ()                # once for the whole list, not once per reminder
+        return [self._view(r, tz) for r in rems]
 
     def _find(self, data: dict, rid: str):
         return next((r for r in data.get("reminders", []) if r.get("id") == rid), None)
@@ -783,7 +789,8 @@ class RemindersFeature:
         brain (/viec/all) - tránh main.py thò vào _load/_view riêng tư."""
         rems = [r for r in self._load(brain).get("reminders", []) if r.get("status") == "pending"]
         rems.sort(key=lambda r: float(r.get("due_at") or 0))
-        return [self._view(r) for r in rems]
+        tz = VN_TZ()                # once for the whole list, not once per reminder
+        return [self._view(r, tz) for r in rems]
 
     def move(self, from_brain: str, to_brain: str, rid: str) -> dict:
         """Dời 1 nhắc hẹn sang brain khác, giữ nguyên id + mọi field (cron/due_at/chat_id...).
@@ -1438,9 +1445,11 @@ class RemindersFeature:
         def reminders_list(brain: str = Query("brain")):
             rems = sorted(self._load(brain).get("reminders", []),
                           key=lambda r: float(r.get("due_at", 0)))
-            pending = [self._view(r) for r in rems if r.get("status") == "pending"]
-            paused = [self._view(r) for r in rems if r.get("status") == "paused"]
-            history = [self._view(r) for r in rems if r.get("status") not in LIVE_STATUSES][-30:]
+            tz = VN_TZ()            # once for the whole request, not once per reminder
+            pending = [self._view(r, tz) for r in rems if r.get("status") == "pending"]
+            paused = [self._view(r, tz) for r in rems if r.get("status") == "paused"]
+            # Cut to the 30 that are returned BEFORE rendering: the store keeps hundreds of finished reminders.
+            history = [self._view(r, tz) for r in [r for r in rems if r.get("status") not in LIVE_STATUSES][-30:]]
             ready, why = self.notify_status()
             return {"pending": pending, "paused": paused, "history": history,
                     "counts": {"pending": len(pending)},
@@ -1592,15 +1601,17 @@ def _truthy(v) -> bool:
     return str(v or "").strip().lower() in ("1", "true", "yes", "on")
 
 
-def next_runs(cron: str, count: int = NEXT_RUNS_SHOWN, after: Optional[float] = None) -> list:
+def next_runs(cron: str, count: int = NEXT_RUNS_SHOWN, after: Optional[float] = None, tz=None) -> list:
     """The next `count` firings of a cron schedule as [{"at", "human"}], so a person confirms a
-    schedule by its dates instead of decoding "0 9 1 * *". Empty on a bad expression."""
+    schedule by its dates instead of decoding "0 9 1 * *". Empty on a bad expression.
+    `tz`: a timezone the caller already looked up (see `_fmt_vn`); looked up once here otherwise."""
     out = []
     t = _now() if after is None else float(after)
     try:
+        tz = tz or VN_TZ()
         for _ in range(max(0, int(count))):
-            t = cron_util.cron_next(cron, t, VN_TZ())
-            out.append({"at": t, "human": _fmt_vn(t)})
+            t = cron_util.cron_next(cron, t, tz)
+            out.append({"at": t, "human": _fmt_vn(t, tz)})
     except Exception:
         return []
     return out

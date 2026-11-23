@@ -2859,7 +2859,11 @@
       if (mo) mo.onclick = function () {
         dong();
         try { window.JavisNav.go("mcp"); } catch (e) {}
-        setTimeout(function () { try { window.JavisMessenger && window.JavisMessenger.openForm(null); } catch (e) {} }, 400);
+        // 2026-11-23: messenger-connect.js loads with the lazy group "packs" (the Connections page waits for it too).
+        setTimeout(function () {
+          var openForm = function () { try { window.JavisMessenger && window.JavisMessenger.openForm(null); } catch (e) {} };
+          try { if (window.JavisNapCham) window.JavisNapCham.goi("packs", openForm); else openForm(); } catch (e) {}
+        }, 400);
       };
       box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.classList.toggle("on", n.dataset.k === id); });
       hienWebhook(k);

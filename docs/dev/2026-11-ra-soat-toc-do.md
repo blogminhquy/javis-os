@@ -2,6 +2,7 @@
 
 Bản 0.631.0, đo trên máy đang chạy thật (Docker, 2 vCPU, 8 GB RAM, không swap), dữ liệu thật: brain mặc định
 5.420 file .md, 142 skill, 2.877 cuộc chat, 45.863 tin nhắn. Lượt này chỉ đo và báo cáo, không sửa mã sản phẩm.
+Ba việc ở mục 6 đã làm ở lượt sau, số đo trước và sau nằm ở mục 11.
 
 Mọi con số dưới đây là số vừa đo trong ngày 23/11/2026, lệnh ở mục 9. Chỗ nào ghi "dự kiến" là phép tính từ số
 đã đo, phải đo lại sau khi sửa. Chỗ không đo được ghi rõ ở mục 8.
@@ -378,3 +379,145 @@ chúng sang `tools/`.
 - `dashboard_load_bench.mjs`: mở dashboard bằng Playwright, máy tính và điện thoại 390px, có giả lập 4G chậm.
 - `api_read_bench.py`: đo các lần đọc API trên dữ liệu thật, không mở cổng, không đăng nhập.
 - `chat_turn_wait.py`: thời gian chờ chữ đầu của lượt chat từ `runtime.db`, mở ở chế độ chỉ đọc.
+
+## 11. Đã làm ba việc ở mục 6 và số đo sau khi sửa (23/11/2026)
+
+Mã ở cùng PR với mục này. Số "trước" và "sau" dưới đây đo cùng lúc, cùng máy, cùng lệnh, để không lẫn với tải
+máy (tải lúc đo lại thấp hơn lúc rà soát, nên số "trước" ở đây cũng thấp hơn số ở mục 3).
+
+### 11.1 Việc 1: A1 đến A4
+
+| Chỗ sửa | Trước | Sau | Cách đo |
+|---|---|---|---|
+| `/brains` | 253 ms (496) | 5,5 ms (6,6) | `api_read_bench.py`, 7 lần, tải 2,5 đến 3 |
+| `/reminders` | 120 ms (128) | 25 ms (29) | như trên |
+| `/viec/all` | 54 ms (67) | 34 ms (38) | như trên |
+| Ba con số đếm ở màn chính | 239 KB thô, 75 KB sau nén | 17 KB thô, 4,4 KB sau nén | cỡ trả về của `/agents` |
+| Khởi động máy chủ | 20,4 giây | 7,2 giây | số của mục 3.4, CHƯA đo lại |
+
+Đối chứng không sửa trong cùng hai lần chạy: `/skills` 66 và 68 ms, `/teams` 39 và 43 ms. Tức là chênh lệch ở
+bảng là do mã, không do tải.
+
+- **A1.** `Dockerfile` chạy `python -m compileall -q server` lúc dựng image. Không dựng được image trong máy này,
+  nên con số 13 giây vẫn là số của mục 3.4 (đo bằng cách bật tắt bytecode trên cùng mã). Phải xem lại ở lần
+  khởi động đầu sau khi cập nhật: dòng `import main` trong log.
+- **A2.** `/brains` nhớ số đếm ghi chú của mỗi brain 60 giây (`_brain_note_count` trong `server/main.py`). Bộ nhớ
+  có một mục cho mỗi brain và bỏ mục của brain đã xoá, không lớn theo số hội thoại. Số đếm có thể trễ tối đa
+  60 giây sau khi thêm hay xoá ghi chú.
+- **A3.** `/reminders` và `/viec/all` tra múi giờ một lần cho cả danh sách (`server/reminders.py`).
+- **A4.** `loadBrainStats` gọi `/agents?prompt=0` (`dashboard/app.js`).
+
+### 11.2 Việc 2: A7 rồi B1
+
+**A7, đã ghi lý do.** Sự kiện `engine.first_output` có thêm ba trường: `cold` (lý do nguội), `cold_parts` (phần
+cấu hình nào đổi, khi lý do là `config_changed`) và `opened_ahead` (lượt này dùng tiến trình mở sẵn cho luồng
+mới). Các giá trị hay gặp của `cold`: `new_chat`, `thread_rotated`, `thread_lost`, `idle_expired`,
+`config_changed`, `evicted`, `process_died`, `busy`, `warm_start_failed`, và nhóm không bao giờ dùng tiến trình ấm
+(`not_owner_chat`, `gated_engine`, `trial_profile`, `engine_not_sdk`, `pool_off`). Danh sách đủ nằm ở
+`warm_pool.take`, `claude_warm.ineligible_reason` và `main._cold_reason`. `chat_turn_wait.py` in thêm bảng theo lý
+do. Sự kiện cũ không có trường này, nên bảng chỉ đầy dần từ sau khi cập nhật.
+
+Vì sự kiện cũ không ghi lý do, lý do của 14 ngày qua được dựng lại từ dữ liệu sẵn có (thứ tự lượt trong từng
+cuộc, khoảng cách giữa hai lượt, lượt nào bị xoay luồng) để B1 không phải đoán. Trên 724 lượt Claude:
+
+| Lý do | Tỉ lệ |
+|---|---|
+| Vừa xoay luồng ở chính lượt này | 38,3% |
+| Ấm | 34,9% |
+| Để yên quá 300 giây | 12,6% |
+| Lượt đầu của cuộc | 9,4% |
+| Còn lại | 4,8% |
+
+**B1, đã sửa nguồn lớn nhất.** Lượt bị xoay luồng trước đây không bao giờ tìm trong kho tiến trình ấm vì nó không
+có phiên để nối. Bây giờ ngay sau khi lưu một lượt, nếu `compaction.next_turn_rotates` thấy lượt kế sẽ xoay,
+Javis đóng tiến trình cũ và mở sẵn một tiến trình trên luồng mới (`claude_warm.prepare_new_thread`,
+`warm_pool.swap_recipe`). Đóng trước rồi mới mở, nên vẫn là một tiến trình cho mỗi cuộc, RAM không tăng.
+
+Giới hạn, nói thẳng:
+
+- Mới kiểm bằng tiến trình `claude` giả trong test (`tests/python/test_warm_new_thread_turn.py`), không mở phiên
+  thật vì sẽ tiêu gói của chủ máy. Hiệu quả thật phải đọc từ `engine.first_output` sau khi cập nhật: lượt có
+  `opened_ahead` phải gần 5,6 giây chứ không phải 12,2 giây.
+- Trên dữ liệu cũ, 194 trong 276 lượt xoay luồng (70%) có system prompt khác lượt trước. Tiến trình mở sẵn vẫn
+  phục vụ các lượt này, đúng luật của mọi lượt ấm (ngữ cảnh của lượt đi trong tin nhắn đầu, #1329). Riêng lượt
+  có tin nhắn không phải văn bản thuần (kèm ảnh) thì ngữ cảnh nằm trong system prompt, nên lượt đó vẫn chạy
+  nguội và ghi `cold_parts: ["new_thread_prompt"]`.
+- Đoán sai (lượt kế hoá ra vẫn nối luồng cũ) tốn đúng một lần khởi động nguội, và sự kiện ghi `resume` trong
+  `cold_parts`.
+- Tắt bằng `JAVIS_WARM_NEW_THREAD=0`.
+
+**Việc cần chủ máy quyết, chưa đổi.** Javis xoay luồng Claude theo tổng token của cả lượt. Số đo thật: cỡ
+luồng thật (đầu vào của lần gọi cuối) có trung vị 159.889 token, lớn nhất 175.388, trong khi 24% lượt có tổng
+cả lượt trên 1 triệu token vì một lượt gọi model nhiều lần. Đổi Claude sang cách đo theo lần gọi cuối như Codex
+đã làm (#999) sẽ bớt hẳn số lần xoay, tức bớt chính nguồn 38% ở trên, nhưng nó đổi lúc gom gọn hội thoại và chi
+phí token, nên không gộp vào PR sửa tốc độ.
+
+Hai nguồn nguội còn lại chưa đụng: để yên quá 300 giây (12,6%; kéo dài thời gian giữ thì tốn RAM theo số cuộc
+đang mở, trái ràng buộc của lượt rà soát) và lượt đầu của cuộc (9,4%; hướng "một chỗ ấm dự phòng cho cuộc chat
+mới kế tiếp" ở B1 của mục 5 vẫn còn nguyên, chưa làm).
+
+### 11.3 Việc 3: B2
+
+Chuyển sang nhóm nạp chậm sẵn có (`<script id="javis-lazy">` trong `dashboard/index.html`), không thêm bundler:
+
+- Nhóm `congviec`: `studio.js`, `workspace.js`, `improvement-candidates.js`, `improvement-experiments.js`,
+  `improvement-candidates.css`.
+- Nhóm `packs`: `messenger-connect.js`.
+
+Hai thứ `studio.js` gắn lúc mở app (nút Studio và `window.openStudio`) chuyển sang `app.js`. Mọi chỗ ở trang khác
+gọi vào các file này (lệnh `/agent` trong chat chính, link cộng sự, thông báo, menu linh vật, link cài đặt
+Resonance, gợi ý Messenger ở trang Hội thoại) đều nạp nhóm trước rồi mới gọi.
+
+| Gói khởi động | Trước | Sau | Bớt |
+|---|---|---|---|
+| File nguồn nạp lúc mở | 3.572 KB, 123 file | 3.208 KB, 118 file | 364 KB |
+| Gói máy chủ phục vụ, mã phải chạy | 2.122 KB | 1.885 KB | 237 KB (11,2%) |
+| Gói máy chủ phục vụ, sau nén | 584 KB | 522 KB | 62,5 KB (10,7%) |
+
+**Mili giây trên điện thoại: chưa thấy lợi vượt khỏi nhiễu.** Đo bằng `dashboard_load_bench.mjs` trên hai máy chủ
+thử (mã trước và mã sau, dữ liệu tạm, dừng ở màn đăng nhập), ba vòng xen kẽ, mỗi vòng 3 lần, điện thoại 390px,
+4G chậm, CPU chậm 4 lần. Trung vị từng vòng:
+
+| Vòng (tải máy) | Lần đầu, trước | Lần đầu, sau | Lần sau, trước | Lần sau, sau |
+|---|---|---|---|---|
+| 1 (4,7) | 7.956 ms | 9.566 ms | 3.426 ms | 3.533 ms |
+| 2 (4,6 và 4,9) | 8.389 ms | 7.493 ms | 3.749 ms | 2.995 ms |
+| 3 (3,3 và 2,8) | 8.008 ms | 8.045 ms | 2.661 ms | 3.191 ms |
+| Trung vị ba vòng | 8.008 ms | 8.045 ms | 3.426 ms | 3.191 ms |
+
+Thời gian chạy script của lần đầu: trước 1.530, 2.034, 1.362 ms; sau 2.663, 1.272, 1.935 ms. Dữ liệu tải qua
+mạng ở lần đầu: trước trung bình 1.325 KB, sau 1.262 KB (bớt 63 KB, khớp với gói sau nén).
+
+Đọc bảng này cho đúng:
+
+- Chênh lệch giữa các vòng của cùng một bản (1.600 đến 2.000 ms) lớn hơn nhiều so với lợi mong đợi từ việc bớt
+  11% mã. Máy 2 nhân đang chạy việc khác, nên phép đo này không tách nổi vài trăm mili giây.
+- Thứ chắc chắn đo được là số byte: 237 KB mã không còn phải phân tích và chạy lúc mở, 62,5 KB không còn phải
+  tải trước màn đầu.
+- Số ở đây thấp hơn mục 3.2 (12,2 và 7,9 giây) vì máy chủ thử gần như trống và dừng ở màn đăng nhập. Chỉ so
+  trước với sau trong cùng bảng, không so với mục 3.2.
+- Muốn có số mili giây tin được: đo lại trên bản thật lúc máy rảnh, hoặc trên điện thoại thật.
+
+Để lại trong gói khởi động có chủ ý, vì màn chat dùng ngay lúc mở: `github-connect.js`, `file-editor.js`,
+`graph.js`, `coding.js`, `voice.js`, `dictate.js`, `dataview.js`, `editor-cmds.js`, `pet.js`. Muốn rút tiếp các
+file này phải tách phần màn chat dùng ra khỏi phần chỉ một trang dùng, là việc lớn hơn một lần chuyển nhóm.
+
+Đã kiểm trong trình duyệt thật trên máy chủ thử: lúc trang sẵn sàng, `JavisWorkspace`, `JavisStudio` và
+`JavisMessenger` chưa nạp, `window.openStudio` vẫn gọi được; mở trang Cộng sự, trang Skills và thẻ Messenger ở
+trang Kết nối đều vẽ đúng, không lỗi trang; gõ lệnh `/agent` hai lần trong lúc mã còn đang tải thì chỉ mở cộng
+sự đúng một lần.
+
+### 11.4 Test canh
+
+- `tests/python/test_image_bytecode.py`: Dockerfile còn biên dịch sẵn `server`.
+- `tests/python/test_brains_dem.py` (mục 6): `/brains` không đếm lại trong 60 giây, và bỏ mục của brain đã xoá.
+- `tests/python/test_reminders_list_timezone_once.py`: một lần tra múi giờ cho cả danh sách.
+- `tests/js/test_brain_stats_light_list.js`: ba con số đếm dùng `prompt=0`.
+- `tests/python/test_warm_cold_reason.py`, `tests/python/test_warm_new_thread_turn.py`: lý do nguội và tiến trình
+  mở sẵn cho luồng mới.
+- `tests/js/test_startup_bundle_single_page.js`: các file đã chuyển không quay lại gói khởi động, mọi chỗ gọi
+  đều nạp nhóm trước, và trần 3.260 KB cho mã nguồn nạp lúc mở (chỉ được giảm).
+
+Hai test có sẵn phải đổi cho khớp vị trí mới của mã, không nới: `tests/js/test_hieu_nang_gd2.js` (trước canh
+`studio.js` nạp lúc mở để giữ nút Studio; nay canh `app.js` nạp lúc mở, giữ `window.openStudio` và nút đó) và
+`tests/js/test_studio_chon_model_agent.js` (thứ tự nạp đọc từ nhóm nạp chậm thay vì từ thẻ script).

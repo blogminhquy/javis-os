@@ -41,6 +41,7 @@ class ClaudeHandle(warm_pool.Handle):
         self.lane = lane
         self.cli = None          # the engine of the turn now running (hook and stderr target)
         self.parts = None        # fingerprint parts it was last released with (to log what changed on a miss)
+        self.new_thread = None   # (parts, recipe) of the same process on a NEW thread, see prepare_new_thread
         self.dead = False
 
     def alive(self) -> bool:
@@ -97,15 +98,22 @@ class ClaudeHandle(warm_pool.Handle):
             cli._on_stderr(line)
 
 
-def eligible(cli) -> bool:
-    """Only the owner's dashboard chat engine: SDK engine, no allowlist (background lanes), no trial profile."""
+def ineligible_reason(cli) -> str:
+    """Why this engine never uses a warm process, "" when it may. Only the owner's dashboard chat engine does: SDK
+    engine, no allowlist (background lanes), no trial profile."""
     if warm_pool.budget_mb() <= 0:
-        return False
-    if type(cli).__name__ != "ClaudeSDK" or getattr(cli, "trial_profile", None) is not None:
-        return False
+        return "pool_off"
+    if type(cli).__name__ != "ClaudeSDK":
+        return "engine_not_sdk"
+    if getattr(cli, "trial_profile", None) is not None:
+        return "trial_profile"
     if cli.allowed_tools or getattr(cli, "team_gate", None) or cli.max_wall_s:
-        return False
-    return str(cli.tag or "").startswith("chat:")
+        return "gated_engine"
+    return "" if str(cli.tag or "").startswith("chat:") else "not_owner_chat"
+
+
+def eligible(cli) -> bool:
+    return not ineligible_reason(cli)
 
 
 def _stat(p) -> str:
@@ -142,7 +150,29 @@ def changed_parts(old: dict, new: dict) -> list:
     return sorted(k for k in set(old) | set(new) if old.get(k) != new.get(k))
 
 
-def fingerprint_parts(cli, opts) -> dict:
+def _prompt_mark(text) -> str:
+    return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
+
+
+def new_thread_parts(parts: dict) -> dict:
+    """The parts of the same process when it is opened ahead on a NEW thread: nothing to resume. The system prompt
+    text is left out, as it is for a resumed process: a warm process always runs on the prompt it started with."""
+    return {**parts, "resume": "", "new_thread_prompt": ""}
+
+
+def fingerprint_parts(cli, opts, own_prompt: bool = False) -> dict:
+    """`own_prompt`: this turn starts a thread and its per-turn context rides in the SYSTEM prompt (a prompt that is
+    not plain text cannot carry it, see main._with_turn_context). A process opened ahead does not have that context,
+    so the prompt text counts for this one turn and such a process never matches."""
+    parts = _base_parts(cli, opts)
+    if own_prompt and not parts["resume"]:
+        raw = getattr(opts, "system_prompt", None)
+        parts["new_thread_prompt"] = _prompt_mark(str(getattr(cli, "system_prompt", "") or "")
+                                                  + "\x00" + (raw if isinstance(raw, str) else ""))
+    return parts
+
+
+def _base_parts(cli, opts) -> dict:
     import turn_context
     servers = {}
     raw = getattr(opts, "mcp_servers", None)
@@ -180,6 +210,7 @@ def fingerprint_parts(cli, opts) -> dict:
         "mcp_servers": servers, "plugins": plugins, "auth_env": hashlib.sha256(json.dumps(auth).encode()).hexdigest(),
         "mode": cli.javis_mode, "vault": str(cli.javis_vault or ""), "hooks": bool(getattr(opts, "hooks", None)),
         "resume": str(getattr(opts, "resume", None) or ""),
+        "new_thread_prompt": "",       # filled only by fingerprint_parts(own_prompt=True)
         # Claude Code reads these at start-up only: a new skill or a CLAUDE.md edit needs a new process.
         "claude_md": _stat(os.path.join(cwd, "CLAUDE.md")),
         "skills": _skills_stat(os.path.join(cwd, ".claude", "skills")),
@@ -226,9 +257,10 @@ async def _open(opts, handle: ClaudeHandle):
     return handle
 
 
-def _recipe(cli, opts, sysprompt_text: Optional[str]):
+def _recipe(cli, opts, sysprompt_text: Optional[str], parts: Optional[dict] = None):
     """Reopen the same process later (prewarm) on the session it ended with. The prompt file of the turn is gone by
-    then, so it is written again for the start-up and removed after."""
+    then, so it is written again for the start-up and removed after. `parts` are the fingerprint parts it is opened
+    for, kept on the handle so a later miss can name what changed."""
     import copy
 
     async def _again() -> ClaudeHandle:
@@ -242,6 +274,7 @@ def _recipe(cli, opts, sysprompt_text: Optional[str]):
             o.extra_args = extra
         handle = ClaudeHandle(None, turn_lane.Lane())
         handle.cli = cli
+        handle.parts = parts
         o = _warm_options(cli, o, handle)
         try:
             return await _open(o, handle)
@@ -369,7 +402,9 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
     afterwards when the pool has room. Same events as `ClaudeSDK.query`."""
     import tien_trinh_nen
     mark_background(cli, tien_trinh_nen.mark_for(getattr(cli, "tag", "")) or key)
-    if not key or not eligible(cli) or not cli.is_available():
+    never = "no_key" if not key else ineligible_reason(cli) or ("" if cli.is_available() else "engine_unavailable")
+    if never:
+        yield {"type": "warm", "warm": False, "cold": never}
         async for ev in cold_query(cli, prompt):
             yield ev
         return
@@ -382,9 +417,56 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
             yield ev
 
 
-def _options_and_fingerprint(cli):
+def _warm_event(warm: bool, why: dict, opened_ahead: bool = False) -> dict:
+    """What the caller learns once the message is sent: served warm, or cold and why. `opened_ahead` marks a new
+    thread served by the process prepare_new_thread opened for it."""
+    ev = {"type": "warm", "warm": bool(warm)}
+    if warm and opened_ahead:
+        ev["opened_ahead"] = True
+    if not warm:
+        ev["cold"] = why.get("cold") or "unknown"
+        if why.get("cold_parts") and ev["cold"] in ("config_changed", "new_thread"):
+            ev["cold_parts"] = list(why["cold_parts"])[:12]
+    return ev
+
+
+def _new_thread_plan(cli, opts, parts_now: dict, sysprompt_text):
+    """(parts, recipe) to reopen this very configuration on a NEW thread. Nothing is opened here."""
+    import copy
+    fresh = copy.copy(opts)
+    fresh.resume = None
+    parts = new_thread_parts(parts_now)
+    return parts, _recipe(cli, fresh, sysprompt_text, parts)
+
+
+async def prepare_new_thread(key: str) -> bool:
+    """The next turn of this conversation will start a new thread (main decides, compaction.next_turn_rotates): swap
+    its idle process, which resumes the old thread and so cannot serve that turn, for one opened ahead on a new
+    thread. Same slot, the old process is closed first, so no extra RAM. True when the swap was scheduled.
+
+    Measured 2026-11-23 on two weeks of real turns: 38% of Claude turns ran cold for this one reason.
+
+    The new process starts on the system prompt of the turn that just ended, not of the turn it will serve. That is
+    the rule every warm turn already lives by (the fingerprint leaves the prompt text out), and requiring the same
+    text would defeat this: on the same two weeks the prompt differed from the previous turn's on 70% of rotated
+    turns. JAVIS_WARM_NEW_THREAD=0 switches the head start off."""
+    if os.environ.get("JAVIS_WARM_NEW_THREAD", "1").strip().lower() in ("0", "false", "off", "no"):
+        return False
+    try:
+        slot = warm_pool.POOL.peek(key)
+        plan = getattr(slot.handle, "new_thread", None) if slot is not None and not slot.busy else None
+        if not plan or slot.kind != "claude":
+            return False
+        parts, recipe = plan
+        return warm_pool.POOL.swap_recipe(key, "claude", _hash_parts(parts), recipe)
+    except Exception as e:  # noqa: BLE001 - a missed head start only costs the seconds it would have saved
+        print(f"[claude warm] prepare new thread: {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+
+
+def _options_and_fingerprint(cli, own_prompt: bool = False):
     opts = cli._options()
-    parts = fingerprint_parts(cli, opts)
+    parts = fingerprint_parts(cli, opts, own_prompt)
     return opts, _hash_parts(parts), parts
 
 
@@ -404,16 +486,26 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
     cli._stderr_tail.clear()
     loop = asyncio.get_running_loop()
     # Off the loop: _options loads plugins and writes the prompt file, the fingerprint stats a few files.
-    opts, fp, parts = await asyncio.to_thread(_options_and_fingerprint, cli)
-    if cli.session_id and allow_warm:
+    own_prompt = not cli.session_id and not isinstance(prompt, str)
+    opts, fp, parts = await asyncio.to_thread(_options_and_fingerprint, cli, own_prompt)
+    why = {} if allow_warm else {"cold": "warm_start_failed"}
+    if allow_warm:
         held = warm_pool.POOL.peek(key)
         if held is not None and held.fingerprint != fp and getattr(held.handle, "parts", None):
-            print(f"[claude warm] {key[:12]}: config changed ({', '.join(changed_parts(held.handle.parts, parts))}),"
-                  f" opening a new process", file=sys.stderr)
-    slot = warm_pool.POOL.take(key, "claude", fp) if (cli.session_id and allow_warm) else None
+            why["cold_parts"] = changed_parts(held.handle.parts, parts)
+            if cli.session_id:
+                print(f"[claude warm] {key[:12]}: config changed ({', '.join(why['cold_parts'])}),"
+                      f" opening a new process", file=sys.stderr)
+    # A turn without a session (a new or a rotated thread) only finds a process when prepare_new_thread opened one
+    # ahead for exactly this configuration; otherwise it runs cold as it always did.
+    slot = warm_pool.POOL.take(key, "claude", fp, why) if allow_warm else None
     if slot is not None and not slot.handle.quiet():
         warm_pool.POOL.release(slot, keep=False)
         slot = None
+        why["cold"] = "leftover_output"
+    if not cli.session_id and (why.get("cold") == "not_held" or (
+            why.get("cold") == "config_changed" and "resume" in why.get("cold_parts", ()))):
+        why["cold"] = "new_thread"      # nothing kept, or what was kept belongs to the thread this turn leaves behind
     handle: Optional[ClaudeHandle] = None
     if slot is not None:
         handle = slot.handle
@@ -458,7 +550,7 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
             if slot is not None:
                 raise _WarmStartFailed(f"{type(e).__name__}: {e}")
             raise
-        yield {"type": "warm", "warm": slot is not None}
+        yield _warm_event(slot is not None, why, opened_ahead=slot is not None and not cli.session_id)
         agen = client.receive_response().__aiter__()
         bg = claude_bg_wait.BackgroundWait(claude_bg_wait.bg_wait_cap())   # 0.453.0, issue #898 item 1
         while True:
@@ -587,12 +679,13 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
                 parts_now = await asyncio.to_thread(fingerprint_parts, cli, opts)
                 fp_now = _hash_parts(parts_now)
                 handle.parts = parts_now
+                handle.new_thread = _new_thread_plan(cli, opts, parts_now, sysprompt_text)
                 if slot is not None:
-                    slot.recipe = _recipe(cli, opts, sysprompt_text)   # a later prewarm resumes this session
+                    slot.recipe = _recipe(cli, opts, sysprompt_text, parts_now)   # a later prewarm resumes this session
                     warm_pool.POOL.release(slot, fingerprint=fp_now)
                 else:
                     new = warm_pool.POOL.admit(key, "claude", fp_now, handle,
-                                               recipe=_recipe(cli, opts, sysprompt_text))
+                                               recipe=_recipe(cli, opts, sysprompt_text, parts_now))
                     if new is not None:
                         warm_pool.POOL.release(new)
                     else:

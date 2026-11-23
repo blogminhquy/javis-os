@@ -526,9 +526,13 @@
   // Hai đường vào giống hệt link file: cú bấm thường (chat-render.js) và deep-link "#cs=".
   function moCongSu(spec) {
     const m = /^(agent|workflow):([^:]+)(?::(.+))?$/.exec(String(spec == null ? "" : spec).trim());
-    if (!m || !window.JavisWorkspace) return false;
-    window.JavisWorkspace.openCommand(m[1], m[2]).then((ok) => {
-      if (ok && m[3] && window.JavisSessions) window.JavisSessions.open(m[3]);
+    // 2026-11-23: workspace.js is a lazy file, so "not loaded yet" is no longer "no such page": load, then open.
+    if (!m || !(window.JavisWorkspace || window.JavisNapCham)) return false;
+    _goiNhom("congviec", () => {
+      if (!window.JavisWorkspace) return;
+      window.JavisWorkspace.openCommand(m[1], m[2]).then((ok) => {
+        if (ok && m[3] && window.JavisSessions) window.JavisSessions.open(m[3]);
+      });
     });
     return true;
   }
@@ -609,6 +613,8 @@
     workspace: ["congviec"], teams: ["congviec", "teams"], packs: ["packs"], plugins: ["packs"], mcp: ["packs"],
     conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"],
     tasks: ["nhiemvu"],
+    // 2026-11-23: studio.js and workspace.js load with "congviec", so every page in STUDIO_PAGES waits for it too.
+    skills: ["congviec"],
   };
   // Performance (2026-11-05): pointing at (or touching) a page in the side rail starts loading that page's code, so by the
   // time the click lands it is usually there. Costs nothing on a group that is already loaded.

@@ -79,8 +79,9 @@ check("CANARY: không còn <select> cho model của agent",
 check("vẫn còn một ô mang id agModel để chỗ lưu đọc ra (nay là input ẩn)",
   /id="agModel"/.test(FN) && FN.indexOf('box.querySelector("#agModel").value') !== -1);
 check("model-list.js được nạp TRƯỚC studio.js trong index.html",
-  HTML.indexOf("/static/model-list.js") !== -1
-  && HTML.indexOf("/static/model-list.js") < HTML.indexOf("/static/studio.js"));
+  // 2026-11-23: studio.js is a lazy file, listed in the javis-lazy block near the top of index.html, so a raw
+  // position no longer says which runs first. The shared helper knows eager files run before lazy ones.
+  require("./_thu_tu_nap.js").napTruoc("model-list.js", ["studio.js"], HTML));
 check("model-list.js cũng được nạp trước model-picker.js (thanh chat dùng chung)",
   HTML.indexOf("/static/model-list.js") < HTML.indexOf("/static/model-picker.js"));
 

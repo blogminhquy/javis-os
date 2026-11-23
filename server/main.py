@@ -1236,6 +1236,19 @@ def _javis_core_block(session_id: str) -> str:
 _STABLE_CLOCK_NOTE = context_compiler.STABLE_CLOCK_NOTE
 
 
+def _cold_reason(cold, rotated=False, lost=False) -> str:
+    """The reason a chat turn ran cold, as stored in `engine.first_output`. The engine only knows the turn had no
+    thread to resume ("new_thread"); main knows which of the three it was: Javis rotated a long thread
+    ("thread_rotated"), the old thread was gone and the turn was retried ("thread_lost"), or the chat is new
+    ("new_chat"). Any other reason (idle_expired, config_changed, evicted...) is kept as the engine gave it."""
+    reason = str(cold or "unknown")
+    if lost:
+        return "thread_lost"
+    if reason == "new_thread":
+        return "thread_rotated" if rotated else "new_chat"
+    return reason
+
+
 def _with_turn_context(cli, plan, prompt, sysprompt):
     """(prompt, system prompt) of a Claude Code turn, with the plan's per-turn context where the model reads it (#1329).
 
@@ -9735,6 +9748,30 @@ def _safe_brain_name(name: str) -> str:
 
 _BRAINS_MD_CAP = 5000       # trần đếm .md mỗi brain cho dropdown chọn brain
 
+# The note count of each brain, remembered for a minute (speed review 2026-11-23). GET /brains counted every brain's
+# .md files again on every call: 302 ms (p95 519 ms) on a real 5,420-note vault, and the dashboard calls it twice while
+# it opens. Memory is one number per brain folder that exists, never per chat. A count can be up to a minute behind a
+# note that was just written; a brain that just appeared is counted at once, and a failed count is never remembered.
+_BRAIN_NOTE_COUNT_TTL_S = 60.0
+_brain_note_counts: dict = {}               # (brain path, cap) -> (count, time.monotonic() of the count)
+_brain_note_counts_lock = __import__("threading").Lock()  # two reads at once (the dashboard's start-up) count each brain once
+
+
+def _brain_note_count(path: str, cap: int) -> int:
+    """`_count_md(path, cap)`, served from memory while it is fresh. Raises what the count raises."""
+    key = (path, cap)
+    hit = _brain_note_counts.get(key)
+    if hit is not None and 0 <= time.monotonic() - hit[1] < _BRAIN_NOTE_COUNT_TTL_S:
+        return hit[0]
+    with _brain_note_counts_lock:
+        hit = _brain_note_counts.get(key)       # the read that held the lock may just have counted it
+        if hit is not None and 0 <= time.monotonic() - hit[1] < _BRAIN_NOTE_COUNT_TTL_S:
+            return hit[0]
+        started = time.monotonic()
+        count = _count_md(path, cap)
+        _brain_note_counts[key] = (count, started)
+        return count
+
 
 def _list_brains_sync() -> dict:
     """Phần quét đĩa của GET /brains. Tách ra để chạy trong to_thread.
@@ -9762,7 +9799,7 @@ def _list_brains_sync() -> dict:
             if not p.is_dir() or p.name.startswith("."):
                 continue
             try:
-                notes = _count_md(str(p), _BRAINS_MD_CAP)
+                notes = _brain_note_count(str(p), _BRAINS_MD_CAP)
             except Exception:
                 notes = 0
             try:
@@ -9776,6 +9813,10 @@ def _list_brains_sync() -> dict:
                         "is_default": is_default})
     except Exception as e:
         return {"dir": str(base), "brains": [], "error": str(e)}
+    # Counts of brains that are gone are dropped, so the memory never outgrows the list of brains.
+    listed = {b["path"] for b in out}
+    for key in [k for k in list(_brain_note_counts) if k[0] not in listed]:
+        _brain_note_counts.pop(key, None)
     # 0.431.0: the owner's order first (brain picker, Reorder), then by display label read like a person does.
     try:
         order = (cfgmod.read_settings() or {}).get(brain_order.SETTINGS_KEY) or []
@@ -21264,23 +21305,42 @@ async def _chat_socket(ws):
             _t_turn0 = time.monotonic()
             _first_out = {}
 
+            def _note_warm(ev):
+                """What the engine said once the message was sent: served warm, or cold and why (2026-11-23)."""
+                _first_out["warm"] = bool(ev.get("warm"))
+                _first_out["opened_ahead"] = bool(ev.get("opened_ahead"))
+                _first_out.pop("cold", None)
+                _first_out.pop("cold_parts", None)
+                if not _first_out["warm"]:
+                    _first_out["cold"] = _cold_reason(ev.get("cold"), rotated=_first_out.get("rotated"),
+                                                      lost=_first_out.get("lost"))
+                    if ev.get("cold_parts"):
+                        _first_out["cold_parts"] = list(ev["cold_parts"])
+
             def _note_first_output(engine_name, warm=None):
                 """0.382.0: how long the owner waited for the engine's first sign of life (text, tool or error), and
-                whether a warm process served it. Once per turn; the numbers behind the speed work."""
+                whether a warm process served it. Once per turn; the numbers behind the speed work.
+                2026-11-23: a cold turn also says why, so the next speed fix aims at the real cause."""
                 if "ms" in _first_out:
                     if warm is not None:
                         _first_out["warm"] = warm
                     return
                 _first_out["ms"] = int((time.monotonic() - _t_turn0) * 1000)
                 _first_out.setdefault("warm", bool(warm))
+                _payload = {"engine": engine_name, "ms": _first_out["ms"], "warm": _first_out["warm"]}
+                if _first_out["warm"] and _first_out.get("opened_ahead"):
+                    _payload["opened_ahead"] = True     # a new thread, served by the process opened ahead for it
+                if not _first_out["warm"] and _first_out.get("cold"):
+                    _payload["cold"] = _first_out["cold"]
+                    if _first_out.get("cold_parts"):
+                        _payload["cold_parts"] = _first_out["cold_parts"]
                 try:
-                    _CONTEXT_RUNTIME.record_runtime_event(
-                        runtime_trace, "engine.first_output",
-                        {"engine": engine_name, "ms": _first_out["ms"], "warm": _first_out["warm"]})
+                    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "engine.first_output", _payload)
                 except Exception:  # noqa: BLE001 - a timing note must never break a turn
                     pass
                 print(f"[turn timing] {conv_sid[:12]} engine={engine_name} first_output_ms={_first_out['ms']} "
-                      f"warm={_first_out['warm']}", file=sys.stderr)
+                      f"warm={_first_out['warm']}"
+                      + (f" cold={_payload['cold']}" if _payload.get("cold") else ""), file=sys.stderr)
             # 0.190.0: what the brain's memory looks like before the turn, for the "Đã nhớ · Hoàn tác" line and the
             # empty-claim check after it (memory_receipt).
             # Users, 07/11/2026: these walks run in a thread. A brain on a synced drive (Google Drive, OneDrive) can
@@ -21824,6 +21884,7 @@ async def _chat_socket(ws):
                         _codex_ctx, msg_count=_row0.get("msg_count"),
                         rotated_at=_row0.get("thread_rotated_msg")):
                     stored_codex_thread = ""
+                    _first_out["rotated"] = True
                     await asyncio.to_thread(store.clear_codex_thread_id, conv_sid)
                     await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
                     _CONTEXT_RUNTIME.record_runtime_event(
@@ -21881,7 +21942,7 @@ async def _chat_socket(ws):
                         async for ev in ccli.query(prompt):
                             et = ev["type"]
                             if et == "session":
-                                _first_out["warm"] = bool(ev.get("warm"))
+                                _note_warm({"warm": ev.get("warm"), "cold": ev.get("cold")})
                             else:
                                 _note_first_output("codex", _first_out.get("warm"))
                             if et == "session":
@@ -21950,6 +22011,7 @@ async def _chat_socket(ws):
                                 "the context from saved history.")
                         }))
                         ccli.session_id = None
+                        _first_out["lost"] = True
                         _fallback = compaction.bootstrap_prompt(
                             _codex_raw, _codex_current,
                             summary=_row0.get("compact_summary") or "")
@@ -22351,6 +22413,7 @@ async def _chat_socket(ws):
                     rotated_at=_row0.get("thread_rotated_msg"))
                 if _cli_xoay_mach:
                     cli.session_id = None
+                    _first_out["rotated"] = True
                     await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
                     _CONTEXT_RUNTIME.record_runtime_event(
                         runtime_trace, "thread.rotated",
@@ -22427,7 +22490,7 @@ async def _chat_socket(ws):
                     async for event in claude_warm.query(cli, prompt, conv_sid):
                         etype = event["type"]
                         if etype == "warm":
-                            _first_out["warm"] = bool(event.get("warm"))
+                            _note_warm(event)
                             continue
                         _note_first_output("claude-code", _first_out.get("warm"))
                         if etype in ("tool_call", "tool_result"):
@@ -22498,6 +22561,7 @@ async def _chat_socket(ws):
                             "the context from saved history.")
                     }))
                     cli.session_id = None
+                    _first_out["lost"] = True
                     _cli_raw2 = [{"role": _m["role"], "content": _m["content"]}
                                  for _m in (await asyncio.to_thread(store.get_messages, conv_sid))[:-1]
                                  if _m["role"] in ("user", "assistant") and _m.get("content")]
@@ -22621,6 +22685,17 @@ async def _chat_socket(ws):
             if final_text:
                 await _persist_turn(store, conv_sid, brain, user_message, final_text,
                                     turn_started=(_mem_snap or {}).get("t0") or 0)
+                # 2026-11-23: two weeks of real turns showed 38% of Claude turns cold because Javis had just rotated
+                # the thread, so the process kept for the old thread never matched. The answer is saved, so the
+                # rule the next turn will apply can be read now: when it will rotate, the idle process is swapped
+                # for one opened ahead on a new thread (same slot, old one closed first, no extra RAM).
+                try:
+                    _row_end = await asyncio.to_thread(store.get_session, conv_sid) or {}
+                    if compaction.next_turn_rotates(_row_end.get("last_input_tokens"), _row_end.get("msg_count"),
+                                                    _row_end.get("thread_rotated_msg")):
+                        await claude_warm.prepare_new_thread(conv_sid)
+                except Exception as _e:  # noqa: BLE001 - a missed head start only costs the seconds it would save
+                    print(f"[warm new thread] {type(_e).__name__}: {_e}", file=sys.stderr)
                 if not _limit_state.get("quota"):
                     # 20/11/2026: the plan just answered, so an older "ran out" mark on the ring goes (or, when it was
                     # another model's refusal, stays on that model only). Before, only a fresh meter report lifted it,
