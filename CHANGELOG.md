@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.6] - 2026-11-23
+### Sửa lỗi
+- **Nút tròn trên thanh Độ sâu suy nghĩ không còn lệch lên trên.** Nút nằm giữa thanh ở mọi cỡ, và thẳng hàng với các chấm mốc.
+
 ## [0.628.5] - 2026-11-22
 ### Cải thiện
 - **Thư mục đang ghim và repo GitHub lên khay phía trên khung chat**, giống app Claude. Khay có hàng riêng nên trên điện thoại ghim cả hai vẫn thấy đủ tên, không còn chỉ là icon.

@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.628.6] - 2026-11-23
+### Fixed
+- **The Effort slider thumb is no longer off-center.** It stays in the middle of the track at any height and lines up with the stop dots.
+
 ## [0.628.5] - 2026-11-22
 ### Improved
 - **The pinned folder and GitHub repos sit in a tray on top of the composer**, as in Claude's app. The tray has its own row, so a phone shows both names even when both are pinned.
