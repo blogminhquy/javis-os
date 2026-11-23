@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.631.1] - 2026-11-23
+### Fixed
+- **The Zalo OA webhook can be saved.** Zalo's Check button now gets 200 even before Javis has the OA secret key (unsigned events are still dropped and reach no bot), which ends the deadlock: Zalo shows the key only after the webhook is saved, and Javis needs the key to create the channel.
+- **The Zalo OA and Messenger forms warn about a .ts.net address.** A Tailscale address only opens inside the tailnet, so Zalo cannot reach it (HTTP 408). The form says to use your own domain or a Cloudflare Tunnel.
+- **Photos customers send on Zalo OA are no longer saved as 0-byte files.** Javis retries like a browser, tries the thumbnail, and when it still cannot download, keeps Zalo's original address in the message instead of saving an empty file.
+- **Links customers share on Zalo OA are no longer lost.** A link card is read even when Zalo does not put the address under `url`, with its title and description.
+- **A Store update really rings the bell.** The default "urgent only" filter used to file this notice under Filtered. Pressing it now opens the Store on the "has an update" group.
+
 ## [0.631.0] - 2026-11-23
 ### Added
 - **Notifications learn from how you use them.** Every phone notification records whether you tapped or swiped it away. A kind you ignored 5 times in a row, or opened less than 20% of the time, stops buzzing, and Javis Core says so in one line in its chat. Undo it in the bell's filter. An urgent notice is never silenced this way.

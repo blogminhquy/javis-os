@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.631.1] - 2026-11-23
+### Sửa lỗi
+- **Lưu được webhook Zalo OA.** Bấm Kiểm tra trên Zalo giờ nhận 200 dù Javis chưa có OA secret key (tin chưa ký vẫn bị bỏ, không tới bot), nên hết cảnh kẹt hai đầu: Zalo chỉ hiện khoá sau khi lưu webhook, còn Javis cần khoá mới tạo kênh.
+- **Form Zalo OA và Messenger cảnh báo địa chỉ .ts.net.** Địa chỉ Tailscale chỉ mở trong tailnet nên Zalo không gọi tới được (lỗi 408). Form nói rõ cần tên miền riêng hoặc Cloudflare Tunnel.
+- **Ảnh khách gửi qua Zalo OA không còn thành tệp 0 byte.** Javis thử lại kiểu trình duyệt, thử ảnh thu nhỏ, và nếu vẫn không tải được thì giữ nguyên đường dẫn gốc của Zalo trong tin thay vì lưu một tệp rỗng.
+- **Link khách chia sẻ qua Zalo OA không còn bị mất.** Thẻ link được đọc cả khi Zalo không để địa chỉ ở trường `url`, kèm tiêu đề và mô tả.
+- **Store có bản mới thì chuông kêu thật.** Thông báo này trước bị bộ lọc mặc định "chỉ tin khẩn" xếp vào mục Đã lọc. Bấm vào thông báo giờ mở Store đúng nhóm "Có bản mới".
+
 ## [0.631.0] - 2026-11-23
 ### Thêm mới
 - **Thông báo tự học từ cách bạn dùng.** Mỗi thông báo trên điện thoại được ghi lại là bạn bấm mở hay gạt bỏ. Loại nào bạn bỏ qua 5 lần liền, hoặc mở dưới 20%, Javis Core tự thôi cho rung và báo một dòng trong chat của nó. Hoàn tác được ở Bộ lọc của chuông. Tin khẩn không bao giờ bị tắt kiểu này.
