@@ -1956,7 +1956,6 @@ textarea.sug-ghosted::placeholder { color: transparent; }
   .cp-sheet.is-open .eff-head { font-size: 15px; min-height: 34px; }
   .cp-sheet.is-open .eff-ends { margin: 8px 0 6px; font-size: 13px; }
   .cp-sheet.is-open .eff-track { height: 32px; }
-  .cp-sheet.is-open .eff-thumb { top: 5px; }
   .cp-sheet.is-open .eff-locked { font-size: 14px; }
   /* Plan usage, compact: one line per meter (name, when it resets, percent) over a thin bar. The reset time takes
      the room left on that line and goes onto a second one when a narrow phone or a long wording needs it. The sheet
@@ -2836,9 +2835,9 @@ textarea.sug-ghosted::placeholder { color: transparent; }
 .eff-track { position: relative; height: 28px; border-radius: 999px; background: var(--bg3); overflow: hidden; cursor: pointer; touch-action: none; }
 .eff-track:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .eff-cv { position: absolute; inset: 0; width: 100%; height: 100%; }
-.eff-ticks { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 13px; pointer-events: none; }
+.eff-ticks { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 11px; pointer-events: none; }
 .eff-ticks i { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); opacity: .6; }
-.eff-thumb { position: absolute; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-1); transition: left .18s; }
+.eff-thumb { position: absolute; top: 50%; margin-top: -11px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-1); transition: left .18s; }
 .eff-rec { align-self: center; font-size: 12px; color: var(--text3); white-space: nowrap; }
 .eff-rec[hidden] { display: none; }
 .eff-locked { margin: 10px 0 2px; font-size: 13px; color: var(--text2); line-height: 1.45; }
