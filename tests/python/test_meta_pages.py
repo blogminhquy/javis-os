@@ -52,12 +52,13 @@ ctx = _Ctx()
 plug.register(ctx)
 _real_rupload = plug._rupload   # later sections swap in fakes; the streaming check below needs the real one
 byname = {t["name"]: t for t in ctx.tools}
-check("plugin: đủ 10 tool", set(byname) == {"fb_pages_list", "fb_page_posts", "fb_page_comments",
-                                            "fb_page_post", "fb_page_photo", "fb_page_album",
+check("plugin: đủ 11 tool", set(byname) == {"fb_pages_list", "fb_page_posts", "fb_page_comments",
+                                            "fb_page_scheduled", "fb_page_post", "fb_page_photo", "fb_page_album",
                                             "fb_page_video", "fb_page_edit", "fb_page_delete",
                                             "fb_page_reply"})
 check("plugin: tool đọc = readonly",
-      all(byname[n]["min_mode"] == "readonly" for n in ("fb_pages_list", "fb_page_posts", "fb_page_comments")))
+      all(byname[n]["min_mode"] == "readonly" for n in ("fb_pages_list", "fb_page_posts", "fb_page_comments",
+                                                         "fb_page_scheduled")))
 check("plugin: tool ghi (đăng/ảnh/album/video/sửa/xoá/trả lời) = full",
       all(byname[n]["min_mode"] == "full"
           for n in ("fb_page_post", "fb_page_photo", "fb_page_album", "fb_page_video",
@@ -288,6 +289,93 @@ async def handler_tests():
     seq.clear()
     await plug._publish_album({"photos": "https://ex.com/1.jpg, https://ex.com/2.jpg"}, _CtxNoVault())
     check("fb_page_album: photos dạng chuỗi phẩy vẫn hiểu", len(seq) == 3 and seq[-1][0] == "P1/feed")
+
+    # ---- Hẹn giờ (23/11/2026): bài nằm trong lịch của Trang, không đăng ngay ----
+    import time as _time
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo as _Z
+    plug._owner_tz = lambda: _Z("Asia/Ho_Chi_Minh")
+    future = int(_time.time()) + 3 * 86400
+    seq.clear()
+    r_sp = await plug._publish({"message": "Sale cuối tuần", "schedule_at": future}, None)
+    f = seq[-1]
+    check("hẹn giờ fb_page_post: POST P1/feed published=false + scheduled_publish_time + SCHEDULED",
+          f[0] == "P1/feed" and f[1].get("published") == "false"
+          and f[1].get("scheduled_publish_time") == str(future)
+          and f[1].get("unpublished_content_type") == "SCHEDULED" and f[2] == "PTOKA")
+    check("hẹn giờ fb_page_post: trả scheduled + giờ đọc được", '"scheduled": true' in r_sp
+          and '"scheduled_for"' in r_sp and "fb_page_delete" in r_sp)
+    seq.clear()
+    await plug._publish({"message": "Đăng ngay"}, None)
+    check("không hẹn giờ: bài đăng ngay, không có trường hẹn giờ",
+          "published" not in seq[-1][1] and "scheduled_publish_time" not in seq[-1][1])
+
+    # Giờ không múi giờ đọc theo múi giờ của chủ
+    naive = _dt.fromtimestamp(future, _Z("Asia/Ho_Chi_Minh")).replace(second=0, microsecond=0)
+    ts, err = plug._parse_schedule({"schedule_at": naive.strftime("%Y-%m-%dT%H:%M")})
+    check("schedule_at ISO không múi giờ = giờ Việt Nam", err is None and ts == int(naive.timestamp()))
+    ts2, _e2 = plug._parse_schedule({"schedule_at": naive.strftime("%Y-%m-%d %H:%M")})
+    check("schedule_at có dấu cách thay T vẫn hiểu", ts2 == ts)
+    ts_ms, _e3 = plug._parse_schedule({"schedule_at": str(future * 1000)})
+    check("schedule_at mili giây quy về giây", ts_ms == future)
+    check("schedule_at rỗng = đăng ngay", plug._parse_schedule({"schedule_at": ""}) == (None, None))
+    _n, e_soon = plug._parse_schedule({"schedule_at": int(_time.time()) + 300})
+    check("schedule_at dưới 10 phút: ERROR nói rõ luật 10 phút", e_soon and e_soon.startswith("ERROR")
+          and "10 phút" in e_soon)
+    _n, e_bad = plug._parse_schedule({"schedule_at": "thứ hai tuần sau"})
+    check("schedule_at không đọc được: ERROR kèm mẫu", e_bad and e_bad.startswith("ERROR") and "2026-11-25T09:00" in e_bad)
+    seq.clear()
+    r_soon = await plug._publish({"message": "x", "schedule_at": int(_time.time()) + 60}, None)
+    check("giờ hẹn quá gần: không gọi Facebook", r_soon.startswith("ERROR") and not seq)
+
+    # Album hẹn giờ: ảnh up temporary=true, bài /feed mang trường hẹn giờ
+    seq.clear()
+    filecalls.clear()
+    r_sa = await plug._publish_album({"photos": ["https://ex.com/1.jpg", "attachments/a.jpg"], "message": "Album",
+                                      "schedule_at": future}, _CtxVault())
+    check("hẹn giờ album: ảnh URL up published=false + temporary=true",
+          seq[0][0] == "P1/photos" and seq[0][1].get("published") == "false" and seq[0][1].get("temporary") == "true")
+    check("hẹn giờ album: ảnh file up temporary=true",
+          filecalls["args"][2].get("temporary") == "true" and filecalls["args"][2].get("published") == "false")
+    f = seq[-1]
+    check("hẹn giờ album: một bài /feed, đủ ảnh, có giờ hẹn",
+          f[0] == "P1/feed" and f[1].get("scheduled_publish_time") == str(future)
+          and json.loads(f[1].get("attached_media[1]", "{}")).get("media_fbid") == "PH1"
+          and '"photos": 2' in r_sa and '"scheduled": true' in r_sa)
+    seq.clear()
+    await plug._publish_album({"photos": ["https://ex.com/1.jpg", "https://ex.com/2.jpg"]}, _CtxNoVault())
+    check("album đăng ngay: ảnh KHÔNG temporary", "temporary" not in seq[0][1])
+
+    # Ảnh đơn hẹn giờ: up temporary rồi gom vào MỘT bài /feed (đường Meta ghi trong tài liệu)
+    seq.clear()
+    r_sph = await plug._publish_photo({"photo": "https://ex.com/1.jpg", "message": "Một ảnh",
+                                       "schedule_at": future}, _CtxNoVault())
+    check("hẹn giờ fb_page_photo: up temporary rồi /feed có giờ hẹn + caption",
+          len(seq) == 2 and seq[0][1].get("temporary") == "true" and seq[1][0] == "P1/feed"
+          and seq[1][1].get("message") == "Một ảnh" and seq[1][1].get("scheduled_publish_time") == str(future)
+          and '"scheduled": true' in r_sph)
+
+    # fb_page_scheduled: đọc lịch chờ, sắp theo giờ đăng, kèm giờ đọc được
+    got = {}
+
+    async def _fake_get_sched(path, params, token):
+        got["call"] = (path, params, token)
+        if path == "me/accounts":
+            return pages_data
+        return {"data": [{"id": "P1_B", "message": "sau", "scheduled_publish_time": future + 3600},
+                         {"id": "P1_A", "message": "trước", "scheduled_publish_time": float(future)}]}
+
+    old_get = plug._get
+    plug._get = _fake_get_sched
+    r_sc = await plug._scheduled({}, None)
+    plug._get = old_get
+    check("fb_page_scheduled: đọc P1/scheduled_posts bằng token Trang",
+          got["call"][0] == "P1/scheduled_posts" and got["call"][2] == "PTOKA")
+    sc = json.loads(r_sc)
+    check("fb_page_scheduled: sắp theo giờ đăng, có scheduled_for",
+          [r["id"] for r in sc["data"]] == ["P1_A", "P1_B"] and sc["data"][0].get("scheduled_for")
+          and sc["count"] == 2)
+    check("fb_page_scheduled: KHÔNG lộ token", "PTOKA" not in r_sc)
 
     # fb_page_edit: sửa message bài đã đăng, tự suy Trang từ post_id
     seq.clear()

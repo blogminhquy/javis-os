@@ -112,7 +112,7 @@ Nếu tool bị chặn vì mức quyền, câu trả lời sẽ chứa nguyên v
 | Tạo và xem ảnh (ChatGPT) | `image-chatgpt` | `javis_generate_image`, `javis_describe_image` | ghi (safe); xem ảnh: chỉ đọc | Bật |
 | Đọc video YouTube | `youtube-read` | `javis_youtube_read` | chỉ đọc | Bật |
 | Meta Ads (Graph API) | `meta-ads-graph` | `meta_ads_accounts`, `meta_ads_insights`, `meta_ads_campaigns`, `meta_ads_get` | chỉ đọc | Bật |
-| Facebook Trang (Graph API) | `meta-pages-graph` | `fb_pages_list`, `fb_page_posts`, `fb_page_comments`, `fb_page_post`, `fb_page_photo`, `fb_page_album`, `fb_page_video`, `fb_page_edit`, `fb_page_delete`, `fb_page_reply` | toàn quyền | Bật |
+| Facebook Trang (Graph API) | `meta-pages-graph` | `fb_pages_list`, `fb_page_posts`, `fb_page_comments`, `fb_page_scheduled`, `fb_page_post`, `fb_page_photo`, `fb_page_album`, `fb_page_video`, `fb_page_edit`, `fb_page_delete`, `fb_page_reply` | toàn quyền | Bật |
 | Nhật ký dùng tool | `tool-audit` | `javis_tool_stats` + hook `post_tool_call` | chỉ đọc | **Tắt** |
 
 Từng cái làm được gì:
