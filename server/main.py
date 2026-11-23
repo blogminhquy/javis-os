@@ -197,6 +197,7 @@ import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
 import tien_trinh_nen     # lệnh chạy ngầm engine bỏ lại: nhận theo dõi, xong tự báo + làm tiếp
+import push_presence      # which chat the owner is reading on any device: no push about it (2026-11-23)
 import turn_done_notice   # a long chat turn that finishes rings the bell (the owner has left the screen)
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
@@ -16835,6 +16836,8 @@ async def _bao_luot_dai_xong(conv_sid: str, brain, turn_tag: str, user_message: 
     text = str(final_text or "")
     if not turn_done_notice.should_notify(elapsed, user_message, text):
         return _bao_luot_xong_ngan(conv_sid, text)
+    if push_presence.watching(conv_sid):
+        return False   # the owner is reading this chat on some device: the answer is on screen, a bell copy is clutter
     import chat_bridge as _cb
     if _cb.co_viec(conv_sid):
         return False   # work an outside AI sent: chat_bridge rings once, and only if that AI did not read the answer
@@ -19338,6 +19341,14 @@ async def push_subscribe(request: Request, payload: dict = Body(None)):
     ok, err = webpush.dang_ky(p.get("subscription") or p, str(p.get("nhan") or ""),
                               phien=_phien_bam(request.cookies.get("javis_session", "")))
     return {"ok": ok, "error": err, "subs": webpush.so_sub()}
+
+
+@app.post("/push/presence")
+async def push_presence_report(payload: dict = Body(None)):
+    """A dashboard tab says which chat it shows and whether the owner is in front of it (push.js). While a chat is read
+    on one device, an answer in it rings no other device either (push_presence.py)."""
+    p = payload or {}
+    return {"ok": push_presence.report(str(p.get("tab") or ""), str(p.get("session_id") or ""), bool(p.get("active")))}
 
 
 @app.post("/push/unsubscribe")
