@@ -150,6 +150,57 @@
     });
   }
 
+  // Presence (owner, 2026-11-23: "I read the answer on the computer and the phone still buzzes"). sw.js only sees the
+  // tabs of its own device, so every tab also tells the server which chat it shows and whether the owner is in front
+  // of it: visible, and the window focused or touched in the last two minutes (talking to Javis while looking at
+  // another window still counts). While a chat is read anywhere, an answer in it rings no device (push_presence.py).
+  // Sent on every change, then every 30 s while active; "inactive" goes out the moment the tab is hidden.
+  var TAB_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  var lastInput = Date.now(), lastSent = 0, lastKey = "";
+  function presenceState() {
+    var sid = "";
+    try { sid = (window.JavisSessions && window.JavisSessions.current()) || ""; } catch (e) {}
+    var visible = document.visibilityState === "visible";
+    var focused = false;
+    try { focused = document.hasFocus(); } catch (e) {}
+    return { session_id: String(sid), active: !!(sid && visible && (focused || Date.now() - lastInput < 120000)) };
+  }
+  function sendPresence(force) {
+    var st = presenceState(), key = st.session_id + "|" + st.active, now = Date.now();
+    if (!force && key === lastKey && (!st.active || now - lastSent < 30000)) return;
+    if (!lastKey && !st.active && !force) { lastKey = key; return; }   // nothing to retract on a tab never active
+    lastKey = key; lastSent = now;
+    var body = JSON.stringify({ tab: TAB_ID, session_id: st.session_id, active: st.active });
+    try {
+      if (!st.active && navigator.sendBeacon) {
+        navigator.sendBeacon("/push/presence", new Blob([body], { type: "application/json" }));
+        return;
+      }
+      fetch("/push/presence", { method: "POST", headers: { "Content-Type": "application/json" }, body: body,
+                                keepalive: true }).catch(function () {});
+    } catch (e) {}
+  }
+  function touched() { lastInput = Date.now(); sendPresence(false); }
+  function startPresence() {
+    ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (n) {
+      window.addEventListener(n, touched, { passive: true, capture: true });
+    });
+    document.addEventListener("visibilitychange", function () { sendPresence(false); });
+    window.addEventListener("focus", function () { sendPresence(false); });
+    window.addEventListener("blur", function () { setTimeout(function () { sendPresence(false); }, 50); });
+    window.addEventListener("pagehide", function () {
+      lastKey = "x"; lastInput = 0;
+      try {
+        navigator.sendBeacon && navigator.sendBeacon("/push/presence", new Blob([JSON.stringify(
+          { tab: TAB_ID, session_id: "", active: false })], { type: "application/json" }));
+      } catch (e) {}
+    });
+    // A chat switch has no single event to hang on: a cheap local check every 5 s, a request only on change or heartbeat.
+    setInterval(function () { sendPresence(false); }, 5000);
+  }
+  // A missing browser API (an old engine, a test harness) costs only the presence report, never the push switch.
+  try { startPresence(); } catch (e) {}
+
   // Đã cấp quyền từ lần trước thì lặng lẽ đăng ký lại lúc tải trang. Không hỏi gì cả - việc
   // hỏi đã xong rồi; đây chỉ là dựng lại đăng ký sau khi xoá cache hoặc đổi khoá server.
   // Trừ khi người dùng đã bấm Tắt ở trình duyệt này: khi đó chỉ nút Bật mới bật lại.

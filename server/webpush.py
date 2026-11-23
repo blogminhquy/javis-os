@@ -352,6 +352,12 @@ async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", p
     Dọn ngay tại chỗ, không thì danh sách phình mãi và mỗi lần báo lại tốn thêm một request
     chắc chắn hỏng. Mọi mã lỗi KHÁC đều được giữ lại trên đăng ký để màn hình nói ra được.
     """
+    if quiet_if_visible and session_id:
+        # The owner is reading this chat right now on some device (owner, 2026-11-23: "I read it on the computer and
+        # the phone still buzzes"). The service worker only sees its own device's tabs, so this check is the server's.
+        import push_presence
+        if push_presence.watching(session_id):
+            return 0, 0, []
     subs = danh_sach_sub()
     # `phien_hop_le` (0.187.0): the set of logins still valid, or None when login is not required. A device bound to
     # a login that ended (logout elsewhere, expiry) is skipped: it may now be someone else's browser.
