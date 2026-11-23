@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.631.4] - 2026-11-23
+### Cải thiện
+- **Javis khởi động lại nhanh hơn khoảng 13 giây.** Bản cài bằng Docker đã biên dịch sẵn mã, nên sau mỗi lần cập nhật không còn phải chờ lâu mới dùng được.
+- **Lượt chat ngay sau khi Javis gom gọn một cuộc dài không còn phải chờ khởi động lại từ đầu.** Javis mở sẵn phiên mới ngay khi biết lượt kế sẽ cần. Tắt bằng `JAVIS_WARM_NEW_THREAD=0`.
+- **Mở dashboard nhẹ hơn.** Mã của trang Cộng sự, trình sửa Skill và thẻ Messenger chỉ tải khi mở tới các trang đó, bớt khoảng 10% mã phải chạy lúc mở. Ba con số đếm ở màn chính cũng thôi tải trọn danh sách agent.
+- **Javis ghi lại vì sao một lượt chat phải chờ lâu** (cuộc mới, vừa gom gọn, để yên quá lâu, đổi cấu hình), để lần sau sửa đúng chỗ chậm.
+
 ## [0.631.3] - 2026-11-23
 ### Cải thiện
 - **Ký số bộ cài Windows chạy thử được với chứng chỉ test của SignPath.** Bản ký thử nằm ở trang lượt chạy để tải về kiểm tra, còn bản phát hành vẫn giữ file chưa ký cho tới khi có chứng chỉ thật.
