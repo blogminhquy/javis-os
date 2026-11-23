@@ -23,6 +23,7 @@ import json
 import os
 import sys
 import tempfile
+from pathlib import Path
 import time
 import types
 
@@ -266,6 +267,56 @@ n0 = state["n"]
 ok, err = run(zo.ZaloOABot("", "", None, giau_trang_thai=True, account_id=aid).send_text(USER, "Dạ"))
 check("-216 on send refreshes and retries once", ok and state["n"] == n0 + 1, (ok, err, state["n"]))
 
+# 5b. Shared links and photos (2026-11-23, Seul Clinic): a link card left only the caption in the inbox, and
+# four customer photos were saved as 0-byte files.
+check("a link under url is read with its title",
+      zo.link_text({"url": "https://shop.vn/sp", "title": "Kem", "thumbnail": "https://z/t.jpg"})
+      == "[link: https://shop.vn/sp | Kem]")
+check("a link under another key or nested is still read",
+      "https://shop.vn/a" in zo.link_text({"data": {"href": "https://shop.vn/a"}, "description": "Mô tả"}))
+check("a thumbnail alone is not taken for the link", zo.link_text({"thumbnail": "https://z/t.jpg"}) == "")
+
+
+class FakeResp:
+    def __init__(self, content, status=200, ctype="image/jpeg"):
+        self.content, self.status_code, self.headers = content, status, {"content-type": ctype}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
+
+
+class FakeCDN:
+    """Empty to a bare request, the photo to a browser-like one (what Zalo's file server did)."""
+    def __init__(self, empty_always=False):
+        self.calls, self.empty_always = [], empty_always
+
+    async def get(self, url, headers=None, **kw):
+        self.calls.append((url, bool(headers)))
+        if self.empty_always or not headers:
+            return FakeResp(b"")
+        return FakeResp(b"\xff\xd8photo")
+
+
+dl_dir = Path(tempfile.mkdtemp(prefix="zo-dl-"))
+pb = zo.ZaloOABot(pasted, "", None, giau_trang_thai=True, download_dir=str(dl_dir))
+cdn = FakeCDN()
+t = run(pb._attachment_text(cdn, {"type": "image", "payload": {"url": "https://zdn/p.jpg"}}, USER))
+saved = list(dl_dir.glob("*"))
+check("an empty first answer is retried as a browser and the photo saved", len(saved) == 1
+      and saved[0].stat().st_size > 0 and str(saved[0]) in t, (t, cdn.calls))
+cdn = FakeCDN(empty_always=True)
+t = run(pb._attachment_text(cdn, {"type": "image", "payload": {"url": "https://zdn/q.jpg",
+                                                                "thumbnail": "https://zdn/q_t.jpg"}}, USER))
+check("an image that stays empty writes no 0-byte file and keeps Zalo's address",
+      len(list(dl_dir.glob("*"))) == 1 and "https://zdn/q.jpg" in t, t)
+check("the thumbnail is tried before giving up", any(u == "https://zdn/q_t.jpg" for u, _ in cdn.calls), cdn.calls)
+t = run(pb._attachment_text(FakeCDN(), {"type": "link", "payload": {"href": "https://shop.vn/b"}}, USER))
+check("a link attachment reaches the bot text", "https://shop.vn/b" in t, t)
+t = run(pb._event_text(FakeCDN(), {"event_name": "user_send_link", "message": {
+    "text": "Đây e nha", "attachments": [{"type": "link", "payload": {"url": "https://shop.vn/c"}}]}}, USER))
+check("caption and link arrive together", "Đây e nha" in t and "https://shop.vn/c" in t, t)
+
 # ============================================================
 # 6. Endpoints (TestClient)
 # ============================================================
@@ -282,10 +333,18 @@ async def fake_handle(payload):
     return 1
 zo.handle_webhook = fake_handle
 try:
+    # Unsigned or badly signed: dropped, never handed over, but answered 200. Zalo's "Kiểm tra" test
+    # needs 200 OK and comes before Javis can know the OA secret key (Zalo shows it after the save).
     r = client.post("/zalo-oa/webhook", content=body, headers={"X-ZEvent-Signature": "mac=00"})
-    check("POST with a bad signature is refused", r.status_code == 401 and not handled, r.status_code)
+    check("POST with a bad signature is dropped with 200",
+          r.status_code == 200 and r.json().get("events") == 0 and not handled, (r.status_code, r.text))
     r = client.post("/zalo-oa/webhook", content=body)
-    check("POST without a signature is refused", r.status_code == 401, r.status_code)
+    check("POST without a signature is dropped with 200", r.status_code == 200 and not handled, r.status_code)
+    r = client.post("/zalo-oa/webhook", content=b'{"app_id":"999","event_name":"user_send_text"}')
+    check("Zalo's setup test (no account knows this app yet) gets 200", r.status_code == 200 and not handled,
+          r.status_code)
+    r = client.post("/zalo-oa/webhook", content=b"")
+    check("an empty test POST gets 200", r.status_code == 200 and not handled, r.status_code)
     r = client.post("/zalo-oa/webhook", content=body, headers={"X-ZEvent-Signature": "mac=" + mac})
     check("POST signed with the account's OA secret key is handed over", r.status_code == 200 and len(handled) == 1,
           (r.status_code, r.text))
@@ -295,6 +354,10 @@ finally:
 r = client.get("/channels/webhook-info", params={"channel": "zalo_oa"})
 check("webhook-info gives the Zalo OA address", r.status_code == 200 and r.json()["webhook_url"].endswith("/zalo-oa/webhook")
       and r.json().get("site_verify") is True, r.text)
+check("a normal address carries no tailnet warning", not r.json().get("warning"), r.text)
+check("a Tailscale .ts.net address warns that Zalo cannot reach it",
+      ".ts.net" in main._tailnet_only_warning("https://srv1.tail1234.ts.net/zalo-oa/webhook"))
+check("a public domain gets no tailnet warning", main._tailnet_only_warning("https://example.com/zalo-oa/webhook") == "")
 r = client.get("/zalo_verifierABCdef123456.html")
 check("an unknown verifier file is 404", r.status_code == 404, r.status_code)
 r = client.post("/zalo-oa/site-verification", json={"code": "zalo_verifierABCdef123456.html"})

@@ -126,7 +126,7 @@ def oa_bot():
     b = zo.ZaloOABot('{"oa_id": "%s"}' % OA, "", None, giau_trang_thai=True, account_id="acc-oa",
                      event_fn=ev_fn, download_dir=str(INBOX))
 
-    async def dl(client, url):
+    async def dl(client, url, fallbacks=()):
         return b"%PDF-1.4 fake", "application/pdf"
     b._download = dl
     b._client = object()
