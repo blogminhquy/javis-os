@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.630.0] - 2026-11-23
+### Added
+- **Schedule Facebook Page posts into Facebook's own calendar.** Text posts, single photos and multi-photo albums take a scheduled time. The post waits in the Page's Meta Business Suite calendar instead of another tool's queue. A time with no timezone is read in yours, and a time too close (under 10 minutes) is refused with the reason before anything is sent.
+- **New `fb_page_scheduled` tool lists posts waiting to go out.** Scheduled posts in order of their time, to check against a sheet or to find the id of one to cancel or edit.
+
 ## [0.629.2] - 2026-11-23
 ### Fixed
 - **Teams that need approvals run on ChatGPT (Codex) even when Codex has MCP servers of its own.** One server outside Javis in `~/.codex/config.toml` (such as `node_repl`) used to refuse every Work step and send the owner to Claude Code. Javis now switches those servers off for that run only and leaves your config file as it is, as workflows already did.
