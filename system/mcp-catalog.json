@@ -24,6 +24,11 @@
         "guide": "Làm 1 lần:\n1. Vào Composio For You → Connect my agent và chọn ứng dụng MCP client.\n2. Sao chép consumer key dạng ck_* trong hướng dẫn kết nối. Javis gửi key qua header x-consumer-api-key tới https://connect.composio.dev/mcp.\nKhông dùng Project API key ak_* hoặc MCP server tạo trong Platform.\n3. Dán key vào đây, bấm Kết nối. Nếu đã có kết nối Javis, chọn Kết nối lại trên thẻ Composio để thay key rồi bấm Kiểm tra.\n\nKết nối Calendar hoặc app khác ở Composio For You → Connect Apps.\nKết nối app không tự cập nhật consumer key đã lưu trong Javis. Sau khi đấu, Javis có thể tìm tool, mở link đăng nhập app và chạy hành động qua Composio.\n\nLƯU Ý: ở mức Chỉ đọc, Javis đọc được dữ liệu các app đã nối (xem lịch, đọc mail, liệt kê file...) và xem danh sách tài khoản đã nối. Muốn Javis sửa, gửi hoặc xoá thì nâng lên Toàn quyền.",
         "guide_url": "https://docs.composio.dev/docs/composio-connect"
       },
+      "gateway": {
+        "execute_tool": "COMPOSIO_MULTI_EXECUTE_TOOL",
+        "search_args": {"queries": [{"use_case": "<việc cần làm, viết bằng tiếng Anh, kèm tên app>"}], "session": {"generate_id": true}},
+        "note": "Kết quả tìm báo app chưa có kết nối thì gọi COMPOSIO_MANAGE_CONNECTIONS để lấy link đăng nhập và đưa link đó cho người dùng. Đừng nói không có tool trước khi đã tìm qua cổng."
+      },
       "tool_meta": {
         "read": ["COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS", "COMPOSIO_WAIT_FOR_CONNECTIONS"],
         "write": ["COMPOSIO_MANAGE_CONNECTIONS"],
