@@ -161,7 +161,10 @@ def subscription_context_tokens(row, provider):
                 return measured
         except (TypeError, ValueError):
             pass
-    return int(row.get("last_input_tokens") or 0)
+    try:
+        return int(row.get("last_input_tokens") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def next_turn_rotates(last_input_tokens, msg_count, rotated_at) -> bool:

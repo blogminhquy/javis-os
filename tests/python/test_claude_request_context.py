@@ -44,6 +44,10 @@ class ClaudeRequestContextTests(unittest.TestCase):
         self.assertEqual(compaction.subscription_context_tokens(row, 'claude-code'), 1200000)
         self.assertTrue(compaction.next_turn_rotates(1200000, 10, 0))
 
+    def test_invalid_legacy_token_count_does_not_crash_rotation(self):
+        tokens = compaction.subscription_context_tokens({'last_input_tokens': 'invalid'}, 'claude-code')
+        self.assertFalse(compaction.nen_mach_thue_bao(tokens))
+
     def test_context_follows_claude_thread(self):
         from sessions import SessionStore
         with tempfile.TemporaryDirectory() as tmp:
