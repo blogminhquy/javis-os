@@ -499,6 +499,12 @@ const pause = () => new Promise((r) => setTimeout(r, WAIT * 4));   // longer tha
     draw.includes('if (host.style && getComputedStyle(host).position === "static") host.style.position = "relative";')
     && draw.indexOf('host.style.position = "relative"') < draw.indexOf("ghost.style.top = (el.offsetTop + el.clientTop)"));
 
+  // Owner, 23/11/2026 (a pasted image over the grey suggestion): the attachment strip pushes the box down with no size
+  // change, so the observer must key on the box's place and also watch the card around it.
+  const follow = SRC.slice(SRC.indexOf("function follow("), SRC.indexOf("function drawGhost(") );
+  check("a box pushed down with the same size moves the suggestion too: the observer keys on its place and watches the card",
+    /offsetTop/.test(follow) && /offsetLeft/.test(follow) && /ro\.observe\(el\.parentNode\)/.test(follow));
+
   if (fails) { console.log("\n" + fails + " FAIL"); process.exit(1); }
   console.log("\nOK - chat_suggest: all pass");
 })();

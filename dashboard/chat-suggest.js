@@ -223,12 +223,18 @@
       } catch (e) {}
       if (typeof ResizeObserver === "function") {
         try {
+          // Owner, 23/11/2026 (a pasted image over the grey suggestion): the attachment strip above the box grows over
+          // 0.2s and pushes the box DOWN without changing its size, so the size alone never told us. The place is
+          // part of the key now, and the card around the box is watched too (it grows as the strip does).
           var seen = "";
-          new ResizeObserver(function () {
-            var now = el.clientWidth + "x" + el.clientHeight;
+          var key = function () { return el.clientWidth + "x" + el.clientHeight + "@" + el.offsetLeft + "," + el.offsetTop; };
+          var ro = new ResizeObserver(function () {
+            var now = key();
             if (now !== seen && shownOn === el) show();
-            seen = el.clientWidth + "x" + el.clientHeight;
-          }).observe(el);
+            seen = key();
+          });
+          ro.observe(el);
+          if (el.parentNode && el.parentNode.nodeType === 1) ro.observe(el.parentNode);
         } catch (e) {}
       }
     }
