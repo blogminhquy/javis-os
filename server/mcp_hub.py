@@ -620,50 +620,106 @@ def _ambient_refresh():
 
 
 def _ambient_kind(include_ambient):
-    """Which engine's own connectors a hub request should be told about: "claude", "codex" or "".
+    """Which engine's own connectors a hub request should be told about: "claude", "codex", "grok", "antigravity"
+    or "".
 
-    include_ambient is True for the Claude engine (its historic meaning) or the engine name. 2026-11-23: Codex has
-    its own MCP servers too (`[mcp_servers.*]` in ~/.codex/config.toml, e.g. Composio or Notion added straight to
-    Codex). Codex calls them natively, but the hub never named them, so javis_search_tools answered "no tool" and
-    javis_connections left them out, the same blind spot the Claude account connectors had before."""
+    include_ambient is True for the Claude engine (its historic meaning) or the engine name. 2026-11-23: the CLI
+    engines have their own MCP servers too, outside Javis' hub: `[mcp_servers.*]` in ~/.codex/config.toml or
+    ~/.grok/config.toml, `mcpServers` in Antigravity's ~/.gemini/config/mcp_config.json (Composio or Notion added
+    straight to the CLI). The CLI calls them natively, but the hub never named them, so javis_search_tools answered
+    "no tool" and javis_connections left them out, the same blind spot the Claude account connectors had before."""
     if include_ambient is True:
         return "claude"
     k = str(include_ambient or "").strip().lower()
-    return k if k in ("claude", "codex") else ""
+    return k if k in _NATIVE_SOURCES or k == "claude" else ""
 
 
-_codex_native_cache = {"sig": None, "servers": []}
+def _codex_config_files():
+    import claude_cli
+    return [claude_cli._codex_home() / "config.toml"]
+
+
+def _grok_config_files():
+    # The user's personal Grok config. Javis writes only its own `javis` entry into <brain>/.grok/config.toml.
+    return [Path.home() / ".grok" / "config.toml"]
+
+
+def _agy_config_files():
+    import antigravity_cli
+    return list(antigravity_cli._duong_mcp_home())
+
+
+# engine -> (files to read, the key holding the servers, source label). Codex and Grok write TOML, agy writes JSON.
+_NATIVE_SOURCES = {
+    "codex": (_codex_config_files, "mcp_servers", "codex_config"),
+    "grok": (_grok_config_files, "mcp_servers", "grok_config"),
+    "antigravity": (_agy_config_files, "mcpServers", "agy_config"),
+}
+_native_cache = {}
+
+
+def _native_servers(kind):
+    """MCP servers in one CLI engine's own config (not Javis' hub): [{"name", "prefix", "source"}]. Read from disk,
+    cached on each file's mtime; the `javis` entry and disabled ones left out; [] when nothing is readable."""
+    files_fn, key, source = _NATIVE_SOURCES[kind]
+    try:
+        files = [Path(f) for f in files_fn()]
+    except Exception:
+        return []
+    sig = []
+    for f in files:
+        try:
+            st = f.stat()
+            sig.append((str(f), st.st_mtime_ns, st.st_size))
+        except OSError:
+            sig.append((str(f), 0, 0))
+    sig = tuple(sig)
+    c = _native_cache.get(kind)
+    if c and c["sig"] == sig:
+        return list(c["servers"])
+    servers, seen = [], set()
+    for f in files:
+        if not f.is_file():
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+            if f.suffix == ".toml":
+                import tomllib
+                cfg = tomllib.loads(text)
+            else:
+                cfg = json.loads(text or "{}")
+            names = dict(cfg.get(key) or {})
+            for prof in ((cfg.get("profiles") or {}).values() if kind == "codex" else ()):
+                names.update((prof or {}).get(key) or {})
+        except Exception as e:
+            print(f"[hub {kind} ambient] {f}: {type(e).__name__}: {e}", file=sys.stderr)
+            continue
+        for name, conf in names.items():
+            conf = conf if isinstance(conf, dict) else {}
+            if name == "javis" or name in seen or conf.get("enabled") is False or conf.get("disabled") is True:
+                continue
+            seen.add(name)
+            servers.append({"name": str(name), "prefix": re.sub(r"[^A-Za-z0-9_-]", "_", str(name)),
+                            "source": source})
+    _native_cache[kind] = {"sig": sig, "servers": servers}
+    return list(servers)
 
 
 def _codex_native_servers():
-    """MCP servers in the user's own Codex config (not Javis' hub): [{"name", "prefix", "source"}]. Codex names
-    their tools mcp__<server>__<tool>. Read from disk, cached on the file's mtime; [] when unreadable."""
-    try:
-        import tomllib
-        import claude_cli
-        p = claude_cli._codex_home() / "config.toml"
-        st = p.stat()
-        sig = (str(p), st.st_mtime_ns, st.st_size)
-    except Exception:
-        return []
-    c = _codex_native_cache
-    if c["sig"] == sig:
-        return list(c["servers"])
-    servers = []
-    try:
-        cfg = tomllib.loads(p.read_text(encoding="utf-8"))
-        names = dict(cfg.get("mcp_servers") or {})
-        for prof in (cfg.get("profiles") or {}).values():
-            names.update((prof or {}).get("mcp_servers") or {})
-        for name, conf in names.items():
-            if name == "javis" or (isinstance(conf, dict) and conf.get("enabled") is False):
-                continue
-            servers.append({"name": str(name), "prefix": re.sub(r"[^A-Za-z0-9_-]", "_", str(name)),
-                            "source": "codex_config"})
-    except Exception as e:
-        print(f"[hub codex ambient] {type(e).__name__}: {e}", file=sys.stderr)
-    c.update(sig=sig, servers=servers)
-    return list(servers)
+    return _native_servers("codex")
+
+
+# source -> (where the connector lives, its key in a search answer, what to check when its tools are missing).
+_AMB_SOURCES = {
+    "claude": ("tài khoản Claude", "tai_khoan_claude",
+               "chưa được engine nạp (kiểm tra kết nối ở trang Model/Kết nối)."),
+    "codex_config": ("cấu hình Codex riêng", "codex_rieng",
+                     "chưa bật trong ~/.codex/config.toml hoặc Codex chưa khởi động lại."),
+    "grok_config": ("cấu hình Grok riêng", "grok_rieng",
+                    "chưa bật trong ~/.grok/config.toml hoặc Grok chưa khởi động lại."),
+    "agy_config": ("cấu hình Antigravity riêng", "antigravity_rieng",
+                   "chưa bật trong ~/.gemini/config/mcp_config.json hoặc agy chưa khởi động lại."),
+}
 
 
 def _amb_prefix(s):
@@ -671,16 +727,24 @@ def _amb_prefix(s):
 
 
 def _amb_where(s):
-    return "cấu hình Codex riêng" if s.get("source") == "codex_config" else "tài khoản Claude"
+    return _AMB_SOURCES.get(s.get("source") or "claude", _AMB_SOURCES["claude"])[0]
+
+
+def _amb_tools(s):
+    """How the engine names this connector's tools. Claude Code and Codex: mcp__<server>__<tool>. Grok Build and
+    Antigravity name MCP tools their own way, so they get the server's name instead of a pattern nobody checked."""
+    if (s.get("source") or "claude") in ("claude", "codex_config"):
+        return f"mcp__{_amb_prefix(s)}__*"
+    return f"tool của MCP '{s.get('name')}'"
 
 
 def _ambient_for(kind):
-    """The engine's own connectors for an _ambient_kind: Claude account connectors, or the user's own Codex
-    servers. Claude goes through _ambient_servers() unchanged (tests stand in for it)."""
+    """The engine's own connectors for an _ambient_kind: Claude account connectors, or the servers in a CLI
+    engine's own config. Claude goes through _ambient_servers() unchanged (tests stand in for it)."""
     if kind == "claude":
         return _ambient_servers()
-    if kind == "codex" and _ambient_enabled():
-        return _codex_native_servers()
+    if kind in _NATIVE_SOURCES and _ambient_enabled():
+        return _native_servers(kind)
     return []
 
 
@@ -923,7 +987,7 @@ def _connections_json(include_ambient=False, hidden=None, bo_qua=None, owner_cha
     if kind:
         for s in _ambient_for(kind):
             out.append({"connector": s["name"], "label": s["name"], "source": s.get("source") or "claude_account",
-                        "goi_the_nao": f"Đã có sẵn trong danh sách tool: mcp__{_amb_prefix(s)}__* "
+                        "goi_the_nao": f"Đã có sẵn trong danh sách tool: {_amb_tools(s)} "
                                        "- GỌI THẲNG, không qua javis_run_tool."})
     elif owner_chat:
         # 0.228.0: an engine with no Claude account (Anthropic API, OpenAI API...) never gets these connectors. Not
@@ -1662,7 +1726,7 @@ def _connector_menu(pool, ambient=None):
             d += " [cổng tới app đã nối: " + ", ".join(apps[:15]) + "]"
         parts.append(f"{ns} ({v['label']}, {v['n']} tool){d}")
     for s in (ambient or []):
-        parts.append(f"mcp__{_amb_prefix(s)}__* ({s['name']}, {_amb_where(s)} - "
+        parts.append(f"{_amb_tools(s)} ({s['name']}, {_amb_where(s)} - "
                      "tool native, gọi thẳng)")
     return "; ".join(parts)
 
@@ -1918,18 +1982,16 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
                                         "đúng tài khoản người dùng nói tới; chưa rõ thì hỏi lại, đừng đoán.")
             payload["goi_the_nao"] = (f"Gọi tool bằng {_LAZY_RUN}(name=<name>, args={{...}}). "
                                      "Nếu cổng làm mất khoá trong args, dùng args_json là chuỗi JSON object thay args.")
-        for key, src in (("tai_khoan_claude", "claude"), ("codex_rieng", "codex_config")):
-            # The engine's own connectors (Claude account, or the user's own Codex config): their native tools are
-            # already in the engine's tool list, called straight, never through the hub.
+        for src, (_where, key, missing) in _AMB_SOURCES.items():
+            # The engine's own connectors (Claude account, or the CLI's own config): their native tools are already
+            # in the engine's tool list, called straight, never through the hub.
             group = [s for s in amb if (s.get("source") or "claude") == src]
             if group:
                 payload[key] = [
                     {"connector": s["name"],
-                     "goi_the_nao": f"Tool native mcp__{_amb_prefix(s)}__* đã có sẵn - GỌI THẲNG "
+                     "goi_the_nao": f"Tool native {_amb_tools(s)} đã có sẵn - GỌI THẲNG "
                                     f"(KHÔNG qua {_LAZY_RUN}). Không thấy trong danh sách tool thì nguồn này "
-                                    + ("chưa được engine nạp (kiểm tra kết nối ở trang Model/Kết nối)."
-                                       if src == "claude" else
-                                       "chưa bật trong ~/.codex/config.toml hoặc Codex chưa khởi động lại.")}
+                                    + missing}
                     for s in group]
         return json.dumps(payload, ensure_ascii=False)
 
@@ -2926,7 +2988,8 @@ def antigravity_config_path(mode="full", vault_root=None):
     Hình dạng entry lấy từ `antigravity_cli.hub_entry` - KHÔNG viết tay `httpUrl` như bên Gemini.
     """
     mode = (mode or "full").strip().lower()
-    headers = {"Authorization": f"Bearer {hub_token()}", "X-Javis-Mode": mode}
+    headers = {"Authorization": f"Bearer {hub_token()}", "X-Javis-Mode": mode,
+               "X-Javis-Engine": "antigravity"}
     hau_to = ""
     if vault_root:
         try:

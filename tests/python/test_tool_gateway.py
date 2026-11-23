@@ -182,7 +182,7 @@ check("CODEX_HOME is honoured", str(claude_cli._codex_home()) == _home)
 check("_ambient_kind: Claude stays Claude", mcp_hub._ambient_kind(True) == "claude"
       and mcp_hub._ambient_kind("claude") == "claude")
 check("_ambient_kind: codex", mcp_hub._ambient_kind("codex") == "codex")
-check("_ambient_kind: anything else is off", mcp_hub._ambient_kind("") == "" and mcp_hub._ambient_kind("grok") == ""
+check("_ambient_kind: anything else is off", mcp_hub._ambient_kind("") == "" and mcp_hub._ambient_kind("gemini") == ""
       and mcp_hub._ambient_kind(False) == "")
 cx = mcp_hub._ambient_for("codex")
 check("Codex servers are read, javis and disabled ones left out",
@@ -205,6 +205,38 @@ check("javis_connections lists them on Codex",
 check("the Codex hub profile tells the hub it is Codex",
       'X-Javis-Engine" = "codex"' in open(mcp_hub.codex_profile_path(), encoding="utf-8").read()
       if mcp_hub.codex_profile("full") else False)
+
+# ---- 6. Grok Build and Antigravity: their own MCP servers too --------------------------------------------------
+_h = os.environ["HOME"]
+os.makedirs(os.path.join(_h, ".grok"), exist_ok=True)
+with open(os.path.join(_h, ".grok", "config.toml"), "w", encoding="utf-8") as f:
+    f.write('[mcp_servers.composio]\nurl = "https://connect.composio.dev/mcp"\n\n'
+            '[mcp_servers.javis]\nurl = "http://127.0.0.1/hub/mcp"\n')
+os.makedirs(os.path.join(_h, ".gemini", "config"), exist_ok=True)
+with open(os.path.join(_h, ".gemini", "config", "mcp_config.json"), "w", encoding="utf-8") as f:
+    json.dump({"mcpServers": {"notion": {"serverUrl": "https://mcp.notion.com/mcp"},
+                              "cu": {"command": "x", "disabled": True},
+                              "javis": {"serverUrl": "http://127.0.0.1/hub/mcp"}}}, f)
+check("_ambient_kind knows grok and antigravity",
+      mcp_hub._ambient_kind("grok") == "grok" and mcp_hub._ambient_kind("antigravity") == "antigravity")
+gx = mcp_hub._ambient_for("grok")
+check("Grok: ~/.grok/config.toml read, javis left out", [s["name"] for s in gx] == ["composio"], gx)
+ax = mcp_hub._ambient_for("antigravity")
+check("Antigravity: mcp_config.json read, javis and disabled left out", [s["name"] for s in ax] == ["notion"], ax)
+check("Grok and Antigravity are not given a made-up mcp__ pattern",
+      mcp_hub._amb_tools(gx[0]) == "tool của MCP 'composio'" and mcp_hub._amb_tools(ax[0]) == "tool của MCP 'notion'")
+check("Codex keeps its mcp__ pattern", mcp_hub._amb_tools(cx[0]) == "mcp__composio__*")
+_t, rr = mcp_hub._lazy_tools_and_route([], {}, pool, route, 8, ambient=ax)
+ans = json.loads(asyncio.run(rr["javis_search_tools"]["call"]({"query": "tạo trang notion"})))
+check("an Antigravity search names its own Notion server",
+      [a["connector"] for a in ans.get("antigravity_rieng", [])] == ["notion"], ans.get("antigravity_rieng"))
+check("... with the Antigravity hint", "mcp_config.json" in ans["antigravity_rieng"][0]["goi_the_nao"])
+cj = json.loads(mcp_hub._connections_json(include_ambient="grok"))
+check("javis_connections lists Grok's own servers",
+      [c["connector"] for c in cj if c.get("source") == "grok_config"] == ["composio"])
+_agy = mcp_hub.antigravity_config_path("full", None)
+check("the Antigravity hub file tells the hub it is Antigravity",
+      json.load(open(_agy, encoding="utf-8"))["mcpServers"]["javis"]["headers"].get("X-Javis-Engine") == "antigravity")
 
 print()
 if _fails:
