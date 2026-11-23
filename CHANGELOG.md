@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.628.7] - 2026-11-23
+### Sửa lỗi
+- **Tìm tool không còn bỏ sót app nằm sau Composio.** Composio chỉ hiện vài tool chung (tìm, chạy, nối tài khoản), còn hàng trăm tool của Gmail, Notion, Slack, GitHub... nằm ẩn phía sau. Trước đây hỏi "gmail" thì Javis trả về Resend, hỏi "gửi tin slack" thì ra Zalo, rồi kết luận là chưa nối app. Giờ Javis đọc danh sách app bạn đã nối trong Composio, nhắc tên app nào thì đưa cổng Composio lên đầu kèm hướng dẫn gọi hai bước, và hỏi theo việc ("đọc email mới nhất") cũng được gợi ý app đã nối.
+- **Connector gắn tài khoản Claude được tìm thấy theo việc, không chỉ theo tên.** "Đọc email mới nhất" giờ chỉ tới connector Gmail, "lịch hẹn tuần này" tới Google Calendar, và một connector Composio trên tài khoản Claude khớp khi bạn nhắc Notion, Slack, GitHub...
+
 ## [0.628.6] - 2026-11-23
 ### Sửa lỗi
 - **Nút tròn trên thanh Độ sâu suy nghĩ không còn lệch lên trên.** Nút nằm giữa thanh ở mọi cỡ, và thẳng hàng với các chấm mốc.
