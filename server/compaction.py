@@ -152,6 +152,21 @@ def nen_mach_thue_bao(last_input_tokens, nguong: int = SUBSCRIPTION_THREAD_MAX_T
     return hien_tai - moc >= max(1, int(min_msgs or 1))
 
 
+def subscription_context_tokens(row, provider):
+    """Use a measured request for this provider, otherwise keep the legacy turn total."""
+    if row.get("last_context_provider") == provider:
+        try:
+            measured = int(row.get("last_context_input_tokens") or 0)
+            if measured > 0:
+                return measured
+        except (TypeError, ValueError):
+            pass
+    try:
+        return int(row.get("last_input_tokens") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def next_turn_rotates(last_input_tokens, msg_count, rotated_at) -> bool:
     """Whether the NEXT turn of this conversation will open a new thread, asked right after a turn ended.
 
