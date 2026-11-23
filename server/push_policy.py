@@ -86,8 +86,14 @@ def _save(d: dict) -> None:
         print(f"[push policy] cannot save: {e}", file=sys.stderr)
 
 
+def _local(ts: float) -> datetime:
+    """`ts` on the owner's clock (Settings timezone): the day a budget counts and the digest's 11:30 are theirs."""
+    import localefmt
+    return datetime.fromtimestamp(ts, localefmt.tz())
+
+
 def _date(ts: float) -> str:
-    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+    return _local(ts).strftime("%Y-%m-%d")
 
 
 def _vi() -> bool:
@@ -277,7 +283,7 @@ def queue_digest(item_id: str, group: str, title: str, now: Optional[float] = No
 def digest_due(now: Optional[float] = None) -> str:
     """The digest slot ("YYYY-MM-DD HH:MM") due now and not sent yet, or ""."""
     now = _now() if now is None else now
-    dt = datetime.fromtimestamp(now)
+    dt = _local(now)
     hhmm = dt.strftime("%H:%M")
     past = [t for t in DIGEST_TIMES if t <= hhmm]
     if not past:

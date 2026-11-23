@@ -27,7 +27,16 @@ def check(name, cond, extra=""):
 
 
 DAY = 86400
-T0 = datetime(2026, 11, 23, 9, 0).timestamp()
+import localefmt  # noqa: E402
+
+TZ = localefmt.tz()   # the digest and the day follow the owner's clock, not the server's
+
+
+def at(*a):
+    return datetime(*a, tzinfo=TZ).timestamp()
+
+
+T0 = at(2026, 11, 23, 9, 0)
 
 # --- C. budget ---
 PP.reset()
@@ -94,8 +103,8 @@ check("stats carry today's budget", st["today"] == 3 and st["budget"] == 8 and s
 
 # --- D. digest ---
 PP.reset()
-morning = datetime(2026, 11, 23, 10, 0).timestamp()
-noon = datetime(2026, 11, 23, 11, 31).timestamp()
+morning = at(2026, 11, 23, 10, 0)
+noon = at(2026, 11, 23, 11, 31)
 check("no digest before its time", PP.digest_due(now=morning) == "")
 PP.queue_digest("i1", "job", "Report A", now=morning)
 PP.queue_digest("i2", "job", "Report B", now=morning)
