@@ -170,11 +170,28 @@ check("api gated: built at the gated hub level", seen and seen[0]["mode"] == tea
 seen, task, tm, t = one_job("grok", aux_engine.GROK_CLI)
 check("grok gated: refused before the engine (shared config file), with the reason",
       not seen and task["status"] == "team_blocked" and "Grok" in (task["block_reason"] or ""), task["block_reason"])
-with patch.object(main, "_codex_user_mcp_servers", return_value=["github"]), \
-        patch.object(main.claude_cli, "codex_sandbox_cho_mode", return_value="workspace-write"):
+# 23/11/2026 (field report, `node_repl`): the user's own top-level Codex servers no longer refuse the step. They are
+# switched off for this one process, as a restricted workflow step already did.
+with patch.object(main, "_codex_user_mcp_servers", return_value=["github", "node_repl"]), \
+        patch.object(main.claude_cli, "codex_sandbox_cho_mode", return_value="workspace-write"), \
+        patch.object(main.openai_oauth, "write_codex_auth", return_value=None):
     seen, task, tm, t = one_job("codex-extra", aux_engine.CODEX)
-check("codex gated with the user's own MCP servers: refused, named", not seen and "github" in (task["block_reason"] or ""),
-      task["block_reason"])
+e = seen[0]["eng"] if seen else None
+check("codex gated with the user's own MCP servers: runs, each server off for this process only",
+      e is not None and "mcp_servers.github.enabled=false" in e.extra_config
+      and "mcp_servers.node_repl.enabled=false" in e.extra_config and task["status"] != "team_blocked",
+      (task["status"], task["block_reason"], getattr(e, "extra_config", None)))
+# A name an override cannot express (or a server under Javis's own profile) still refuses, named.
+with patch.object(main, "_codex_user_mcp_servers", return_value=["my.server"]), \
+        patch.object(main.claude_cli, "codex_sandbox_cho_mode", return_value="workspace-write"):
+    seen, task, tm, t = one_job("codex-extra-bad", aux_engine.CODEX)
+check("codex gated with a server name -c cannot switch off: refused, named",
+      not seen and "my.server" in (task["block_reason"] or ""), task["block_reason"])
+with patch.object(main, "_codex_profile_mcp_servers", return_value=["prof_srv"]), \
+        patch.object(main.claude_cli, "codex_sandbox_cho_mode", return_value="workspace-write"):
+    seen, task, tm, t = one_job("codex-extra-prof", aux_engine.CODEX)
+check("codex gated with a server under Javis's own Codex profile: refused, named",
+      not seen and "prof_srv" in (task["block_reason"] or ""), task["block_reason"])
 
 # Antigravity: cannot pre-block its own tools -> refused with an explanation, nothing built
 seen, task, tm, t = one_job("agy", aux_engine.ANTIGRAVITY)

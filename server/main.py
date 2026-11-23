@@ -32180,20 +32180,35 @@ _TEAM_ENGINE_BUILD_TOOLS_REAL = team_engine.build_tools
 TEAM_WORK_MODE = "full"
 
 
-def _codex_user_mcp_servers():
-    """MCP servers in the user's own Codex config besides Javis' hub: Codex would call them without the gate."""
+def _codex_config_toml():
+    """The user's own ~/.codex/config.toml as a dict, {} when missing or unreadable."""
     try:
         import tomllib
         p = claude_cli._codex_home() / "config.toml"
-        if not p.is_file():
-            return []
-        cfg = tomllib.loads(p.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 - unreadable config: nothing known to add
+        return tomllib.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    except Exception:  # noqa: BLE001 - unreadable config: nothing known
+        return {}
+
+
+def _codex_user_mcp_servers():
+    """Top-level MCP servers in the user's own Codex config besides Javis' hub: Codex would call them without the gate.
+
+    Only the top level: a restricted Codex process switches each of them off with `-c mcp_servers.<name>.enabled=false`,
+    which merges onto the existing table. A server that lives only under another `[profiles.X]` is not loaded by a
+    Javis run (it uses its own profile), and the same override would create a half entry with no command."""
+    return sorted(n for n in ((_codex_config_toml().get("mcp_servers") or {}).keys()) if n != "javis")
+
+
+def _codex_profile_mcp_servers():
+    """MCP servers declared under the profile Javis runs Codex with: an override cannot switch those off safely."""
+    try:
+        prof = ((_codex_config_toml().get("profiles") or {}).get(mcp_hub.codex_profile_name()) or {})
+    except Exception:  # noqa: BLE001
         return []
-    names = set((cfg.get("mcp_servers") or {}).keys())
-    for prof in (cfg.get("profiles") or {}).values():
-        names |= set(((prof or {}).get("mcp_servers") or {}).keys())
-    return sorted(n for n in names if n != "javis")
+    return sorted(n for n in ((prof.get("mcp_servers") or {}).keys()) if n != "javis")
+
+
+_CODEX_SERVER_NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
 
 def _team_gate_support(provider):
@@ -32208,11 +32223,16 @@ def _team_gate_support(provider):
         if not _hub_enabled():
             return {"ok": False, "approved_actions": False,
                     "reason": "MCP Hub đang tắt nên Codex gọi thẳng các kết nối, không qua cổng duyệt của Javis"}
-        extra = _codex_user_mcp_servers()
+        # 23/11/2026 (field report, `node_repl`): the user's own top-level Codex servers are switched off for the
+        # gated step's process (mcp_hub.dat_codex_team_gated), as a restricted workflow step already does, instead
+        # of refusing the whole step. Only a name an override cannot express, or a server under Javis's own profile,
+        # still refuses.
+        extra = [n for n in _codex_user_mcp_servers() if not _CODEX_SERVER_NAME_RE.fullmatch(n)]
+        extra += _codex_profile_mcp_servers()
         if extra:
             return {"ok": False, "approved_actions": False,
                     "reason": ("Codex trên máy này có MCP riêng ngoài Javis (" + ", ".join(extra[:5]) + ") mà Javis không "
-                               "chặn được trước khi chạy")}
+                               "tắt riêng cho lượt này được")}
     deny = True
     if prov == aux_engine.GROK_CLI:
         try:
@@ -32604,7 +32624,7 @@ def _team_engine_for(team, agent_key, role):
             # Natives stay in Codex's own `auto` sandbox (no network); hub tools get the gated level and the turn key,
             # so an approved outside action can pass the gate and nothing else can.
             # Review 0.207.0: also no ChatGPT apps (Gmail, Slack... outside the hub) and no shell network.
-            mcp_hub.dat_codex_team_gated(eng.extra_config)
+            mcp_hub.dat_codex_team_gated(eng.extra_config, tat_server=_codex_user_mcp_servers())
             eng.hub_turn = True
         if tool_spec.get("provider") == aux_engine.CODEX:
             try:
