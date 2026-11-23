@@ -13,6 +13,8 @@ Ops:
 - review [repo] [provider]: a person asked for a cross review of the chat's PR now. Runs in the background, findings
   reach the chat; the merge waits for it. Default reviewer: the chat's own engine and model.
 - review_skip [repo]: the person chose to skip the open findings; merges when CI is green.
+- rerun [repo]: the person asked to rerun the PR's red CI (a job that never ran, a flaky runner). Reruns the failed
+  GitHub Actions jobs of the PR's head; needs Actions "Read and write" on Javis's GitHub token.
 """
 from __future__ import annotations
 
@@ -83,10 +85,12 @@ def _chay(args, ctx) -> str:
             return f"ERROR: {e}"
         return (f"Đã xếp việc kế tiếp #{out['id']}. Khi mọi PR của khung chat này đã merge và kiểm tra sau merge "
                 "qua, Javis tự mở một lượt mới để làm việc này. Nói với người dùng đúng như vậy, đừng hứa tự báo.")
-    if op in ("review", "review_skip"):
+    if op in ("review", "review_skip", "rerun"):
         repo = _repo(sid, str((args or {}).get("repo") or "").strip())
         if repo.startswith("ERROR"):
             return repo
+        if op == "rerun":
+            return _rerun(sid, repo)
         if op == "review":
             return _review(sid, repo, str((args or {}).get("provider") or "").strip())
         return _skip(sid, repo)
@@ -96,7 +100,7 @@ def _chay(args, ctx) -> str:
         except (TypeError, ValueError):
             return "ERROR: id phải là số (xem op=status)."
         return "Đã bỏ việc kế tiếp." if out["cancelled"] else "Không có việc kế tiếp đang chờ mang mã đó."
-    return "ERROR: op phải là status, next, cancel, review hoặc review_skip."
+    return "ERROR: op phải là status, next, cancel, review, review_skip hoặc rerun."
 
 
 def _repo(sid: str, name: str) -> str:
@@ -109,7 +113,7 @@ def _repo(sid: str, name: str) -> str:
     if len(rows) == 1:
         return rows[0]["full_name"]
     if not rows:
-        return "ERROR: khung chat này chưa có PR nào đang mở để review."
+        return "ERROR: khung chat này chưa có PR nào đang mở."
     return "ERROR: có nhiều PR đang mở, hỏi lại người dùng repo nào: " + ", ".join(r["full_name"] for r in rows)
 
 
@@ -123,6 +127,17 @@ async def _review(sid: str, repo: str, provider: str) -> str:
         return f"ERROR: {e}"
     return (f"Đã bắt đầu review chéo {repo} bằng {out['reviewer']}. Chạy nền, kết quả tự hiện trong khung chat này, "
             "Javis chưa merge cho tới khi có kết quả. Nói với người dùng đúng như vậy, đừng hứa tự báo.")
+
+
+async def _rerun(sid: str, repo: str) -> str:
+    import github_repos
+    import github_work
+    try:
+        out = await github_work.rerun_ci(sid, repo)
+    except github_repos.RepoError as e:
+        return f"ERROR: {e}"
+    return (f"Đã chạy lại CI của {repo}: {', '.join(out['rerun'])}. Javis theo dõi kết quả, xanh thì merge theo cài đặt "
+            "của repo, đỏ thì mở lượt sửa như thường. Nói với người dùng đúng như vậy, đừng hứa tự báo.")
 
 
 async def _skip(sid: str, repo: str) -> str:
@@ -147,13 +162,14 @@ def register(ctx):
         "op=cancel id=...: bỏ một việc đang chờ. "
         "op=review [repo] [provider]: CHỈ khi người dùng bảo review chéo PR, chạy nền, mặc định bằng chính engine đang "
         "chat. op=review_skip [repo]: người dùng chọn bỏ qua các phát hiện review và merge. Người dùng bảo sửa các "
-        "phát hiện thì bạn tự sửa code ngay trong lượt này.",
+        "phát hiện thì bạn tự sửa code ngay trong lượt này. op=rerun [repo]: người dùng bảo chạy lại CI đỏ của PR "
+        "(job chưa chạy, máy chạy CI lỗi); không dùng để né một lỗi thật trong code.",
         _chay,
         schema={
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["status", "next", "cancel", "review", "review_skip"]},
-                "repo": {"type": "string", "description": "owner/repo khi khung chat có nhiều PR (op=review, review_skip)"},
+                "op": {"type": "string", "enum": ["status", "next", "cancel", "review", "review_skip", "rerun"]},
+                "repo": {"type": "string", "description": "owner/repo khi khung chat có nhiều PR (op=review, review_skip, rerun)"},
                 "provider": {"type": "string", "description": "Engine review khi người dùng chỉ định, vd deepseek, groq, gemini, anthropic-cli (op=review)"},
                 "text": {"type": "string", "description": "Việc kế tiếp (op=next)"},
                 "id": {"type": "integer", "description": "Mã việc kế tiếp (op=cancel)"},

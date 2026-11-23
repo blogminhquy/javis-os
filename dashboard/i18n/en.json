@@ -6855,7 +6855,7 @@
   "gh.disconnect_q": "Disconnect GitHub? Downloaded repositories stay on this machine.",
   "gh.dialog_head": "Connect GitHub",
   "gh.token": "GitHub token",
-  "gh.token_how": "On github.com go to Settings, Developer settings, Personal access tokens, Fine-grained tokens, Generate new token. Pick the repositories Javis may work on and grant: Contents (Read and write), Pull requests (Read and write), Workflows (Read and write), Checks, Actions, Commit statuses and Metadata (Read). Paste the github_pat_... string here. A classic token (ghp_...) needs the repository and workflow scopes.",
+  "gh.token_how": "On github.com go to Settings, Developer settings, Personal access tokens, Fine-grained tokens, Generate new token. Pick the repositories Javis may work on and grant: Contents, Pull requests, Workflows and Actions (Read and write), Checks, Commit statuses and Metadata (Read). Paste the github_pat_... string here. A classic token (ghp_...) needs the repository and workflow scopes.",
   "gh.signin": "Sign in with GitHub",
   "gh.signin_sub": "No token to make. You choose which repositories Javis can see.",
   "gh.signin_how": "Javis uses a GitHub App called Javis OS. Press the button and Javis shows a short code. Open the GitHub page, paste the code and press Authorize; there is no token to make or copy. Then install the app on the repositories you want Javis to work on; a repository without it stays invisible to Javis. The app only asks for Contents, Pull requests, Workflows (read and write) and Checks, Commit statuses, Actions (read only). It works on a VPS with no browser too. To revoke it, go to GitHub, Settings, Applications.",

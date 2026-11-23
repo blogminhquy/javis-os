@@ -6855,7 +6855,7 @@
   "gh.disconnect_q": "Ngắt kết nối GitHub? Các repository đã tải về vẫn còn trên máy.",
   "gh.dialog_head": "Kết nối GitHub",
   "gh.token": "Token GitHub",
-  "gh.token_how": "Vào github.com, Settings, Developer settings, Personal access tokens, Fine-grained tokens, bấm Generate new token. Chọn các repository cho Javis làm việc, rồi bật quyền: Contents (Read and write), Pull requests (Read and write), Workflows (Read and write), Checks, Actions, Commit statuses và Metadata (Read). Dán chuỗi github_pat_... vào đây. Token kiểu cũ (ghp_...) cần quyền repository và workflow.",
+  "gh.token_how": "Vào github.com, Settings, Developer settings, Personal access tokens, Fine-grained tokens, bấm Generate new token. Chọn các repository cho Javis làm việc, rồi bật quyền: Contents, Pull requests, Workflows và Actions (Read and write), Checks, Commit statuses và Metadata (Read). Dán chuỗi github_pat_... vào đây. Token kiểu cũ (ghp_...) cần quyền repository và workflow.",
   "gh.signin": "Đăng nhập bằng GitHub",
   "gh.signin_sub": "Không cần tạo token. Bạn tự chọn repository nào Javis được vào.",
   "gh.signin_how": "Javis dùng GitHub App tên Javis OS. Bấm nút, Javis hiện một mã ngắn. Mở trang GitHub, dán mã, bấm Authorize là xong, không phải tạo hay chép token. Sau đó cài app vào những repository bạn muốn Javis làm việc, repository nào không cài thì Javis không thấy. App chỉ xin các quyền: Contents, Pull requests, Workflows (đọc và ghi), Checks, Commit statuses, Actions (chỉ đọc). Chạy được cả trên VPS không có trình duyệt. Muốn thu hồi thì vào GitHub, Settings, Applications.",

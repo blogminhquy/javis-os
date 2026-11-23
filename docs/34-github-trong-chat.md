@@ -19,7 +19,7 @@ Mở **Kết nối**. Thẻ **GitHub** luôn nằm đầu danh sách, có sẵn 
 Không cài được thì hộp thoại hiện đúng lệnh để cài tay, nút **Thử lại** và nút **Bỏ qua, kết nối luôn**. Git cài tay trong lúc Javis đang chạy cũng được nhận ngay, không phải khởi động lại. Thẻ đã kết nối mà máy thiếu git có nút **Cài git** riêng.
 
 1. Trên github.com: **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
-2. Chọn các repo cho Javis làm việc. Bật quyền: **Contents**, **Pull requests**, **Workflows** (Read and write); **Checks**, **Actions**, **Commit statuses**, **Metadata** (Read).
+2. Chọn các repo cho Javis làm việc. Bật quyền: **Contents**, **Pull requests**, **Workflows**, **Actions** (Read and write); **Checks**, **Commit statuses**, **Metadata** (Read). Actions cần Read and write để Javis đọc log CI đỏ và chạy lại job khi bạn bảo; chỉ có Read thì Javis vẫn đọc được log nhưng không chạy lại được.
 3. Dán token vào thẻ GitHub, bấm **Kết nối**.
 
 Đã bật [sao lưu brain lên GitHub](18-sao-luu-github.md)? Bấm **Dùng token sao lưu brain** để dùng chung, Javis kiểm quyền trước. Token cũ dạng `ghp_...` cần quyền `repo` và `workflow`.
@@ -42,6 +42,8 @@ Javis tự làm, không cần bạn nhắc:
 2. **Commit, đẩy lên, mở PR** (dạng nháp) dưới tên tài khoản GitHub của bạn.
 3. **Theo dõi CI** theo đúng commit vừa đẩy. Commit mới không bao giờ thừa hưởng kết quả xanh của commit cũ.
 4. **CI đỏ**: Javis mở lượt sửa ngay trong cuộc trò chuyện đó, kèm log. Tối đa **3 vòng**, quá thì báo kẹt kèm lý do. Đỏ cả trên nhánh chính thì báo không phải lỗi của việc này, không sửa lan.
+   - **Job không chạy hay máy chạy CI lỗi:** Javis tự chạy lại một lần. Job đỏ mà GitHub không có log (repo private hết phút Actions, chạm hạn mức chi tiêu) cũng tính là trường hợp này. Lượt sửa ghi rõ vì sao không có log để model không đoán bừa lỗi trong code.
+   - **Muốn chạy lại thêm:** nhắn "chạy lại CI". Javis chạy lại các job đỏ của PR và theo dõi tiếp, token cần quyền Actions là Read and write.
 5. **Review chéo (bạn quyết định, mặc định tắt)**: một model đọc diff và chỉ nêu lỗi có đường gây hỏng cụ thể. Javis không tự review nữa, trừ khi bạn bảo.
    - **Bật cho một repo:** thẻ GitHub, dấu ba chấm của repo, **Review chéo**, bật **Review trước khi merge**. Từ đó mỗi commit có CI xanh được review trước khi merge.
    - **Review một PR bất kỳ lúc nào:** bấm biểu tượng GitHub cạnh cuộc trò chuyện, chọn model rồi bấm **Review ngay**. Hoặc nhắn "review PR này", "review bằng DeepSeek". PR chưa merge cho tới khi review xong.

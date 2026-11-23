@@ -38,6 +38,8 @@ class FakeGitHub:
         self.required = {}        # (full_name, branch) -> list | None (None = 403)
         self.logs = {}            # job id -> text
         self.reruns = []          # job ids
+        self.log_status = {}      # job id -> HTTP status of its log (403 no Actions access, 404 the job never ran)
+        self.rerun_status = None  # HTTP status every rerun answers with, None = 201
         self.calls = []           # (method, path)
         self.comments = []        # (full_name, number, body)
         self.scopes = scopes
@@ -439,7 +441,11 @@ class FakeGitHub:
                 if m5:
                     job = int(m5.group(1))
                     if m5.group(2) == "logs":
+                        if job in fake.log_status:
+                            return self._send(fake.log_status[job], {"message": "Resource not accessible"})
                         return self._send(200, text=fake.logs.get(job, "log line\n"))
+                    if fake.rerun_status:
+                        return self._send(fake.rerun_status, {"message": "Resource not accessible by integration"})
                     fake.reruns.append(job)
                     return self._send(201, {})
                 return self._send(404, {"message": "Not Found"})
