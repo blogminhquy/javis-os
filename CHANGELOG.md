@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.629.1] - 2026-11-23
+### Sửa lỗi
+- **Chat bằng Grok Build hay Antigravity không còn bỏ sót MCP anh tự thêm vào hai CLI đó.** Các MCP khai trong `~/.grok/config.toml` hoặc `~/.gemini/config/mcp_config.json` (ví dụ Composio, Notion gắn thẳng vào CLI) vốn gọi được, nhưng ô tìm tool và danh sách kết nối của Javis không nhắc tới, nên model trả lời là chưa có tool. Giờ cả hai đều nêu tên chúng và nói rõ là gọi thẳng, giống Codex và connector của tài khoản Claude.
+
 ## [0.629.0] - 2026-11-23
 ### Thêm mới
 - **Nhắn "chạy lại CI" là Javis chạy lại các job đỏ của PR.** Javis theo dõi kết quả như mọi lần. Token GitHub cần quyền Actions là Read and write.

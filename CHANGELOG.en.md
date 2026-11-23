@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.629.1] - 2026-11-23
+### Fixed
+- **Grok Build and Antigravity chats no longer miss MCP servers you added straight to those CLIs.** Servers in `~/.grok/config.toml` or `~/.gemini/config/mcp_config.json` (Composio or Notion added to the CLI directly) could always be called, but Javis' tool search and connection list never named them, so the model said there was no tool. Both now name them and say to call them directly, like Codex and the Claude account connectors.
+
 ## [0.629.0] - 2026-11-23
 ### Added
 - **Say "rerun the CI" and Javis reruns the PR's red jobs.** Javis follows the result as usual. The GitHub token needs Actions set to Read and write.
