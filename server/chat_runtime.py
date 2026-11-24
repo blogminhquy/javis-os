@@ -6,6 +6,7 @@ vì vậy đóng/F5 tab không được phép huỷ job đang chạy.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Dict, Optional
@@ -56,6 +57,11 @@ class ChatJob:
     text: str = ""
     runtime_task_id: str = ""
     runtime_step_id: str = ""
+    # When the job was registered, and whether Stop cancelled it (cancel_session, cancel_matching). Both live and go
+    # with the job: whoever holds the job (a message queued behind it, the Stop handler) reads them, nothing is kept
+    # per session once the job is gone.
+    started: float = field(default_factory=time.time)
+    stopped: bool = False
 
 
 class ChatRuntime:
@@ -152,6 +158,7 @@ class ChatRuntime:
         job = self.get_job(session_id)
         if not job:
             return None
+        job.stopped = True
         if not job.task.done():
             job.task.cancel()
         return job.tag
@@ -163,6 +170,7 @@ class ChatRuntime:
             if not job.tag.startswith(tag_prefix):
                 continue
             tags.append(job.tag)
+            job.stopped = True
             if not job.task.done():
                 job.task.cancel()
             # Giữ entry tới finally của job để client vẫn nhận turn_done.

@@ -1414,8 +1414,9 @@ function handleMessage(data) {
     try { if (window.JavisBackground) window.JavisBackground.refresh(); } catch (e) {}
     return;
   }
-  if (data.type === "steer_ack" || data.type === "steer_read" || data.type === "steer_turn") {
+  if (data.type === "steer_ack" || data.type === "steer_read" || data.type === "steer_turn" || data.type === "steer_dropped") {
     // 0.206.0: a message sent while Javis works was received, read by the running turn, or is now its own turn.
+    // steer_dropped: Stop ended the turn it waited for, so it will not run by itself (server _start_steer_turn).
     try { trangThaiBoSung(data); } catch (e) {}
     // 0.455.0: the running turn took the message in, so its answer now covers it: move that answer below it.
     if (data.type === "steer_read" && isActive && t) { try { moveTurnBelow(t); } catch (e) {} }
@@ -3102,7 +3103,10 @@ function trangThaiBoSung(data) {
   } else {
     // The running /goal round read the owner's message: its verdict now covers it (chat-lenh.js boSungDaDoc).
     if (data.type === "steer_read") { try { if (window.JavisLenh) window.JavisLenh.boSungDaDoc(data.session_id); } catch (e) {} }
-    (data.ids || []).forEach(id => ghi(_boSungEl["s" + id], data.type === "steer_read" ? "app.steer_read" : "app.steer_turn"));
+    const key = data.type === "steer_read" ? "app.steer_read" : data.type === "steer_dropped" ? "app.steer_dropped" : "app.steer_turn";
+    (data.ids || []).forEach(id => ghi(_boSungEl["s" + id], key));
+    // A message that waited without a steer id (too many queued) is named by the client_id it was sent with.
+    (data.client_ids || []).forEach(c => ghi(_boSungEl[c], key));
   }
 }
 // 0.455.0: a message sent while Javis works was read by the running turn (steer_read). The step block and answer

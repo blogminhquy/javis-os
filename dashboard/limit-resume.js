@@ -87,7 +87,8 @@
       return out;
     }
     if (state === "cancelled") {
-      out.text = tw("lres.cancelled");
+      // reason "stopped": the owner pressed Stop in this chat (server _stop_web_chat), not a new message.
+      out.text = tw(info.reason === "stopped" ? "lres.cancelled_stop" : "lres.cancelled");
       out.showNow = false;
       return out;
     }

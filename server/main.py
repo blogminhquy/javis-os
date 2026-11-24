@@ -1801,6 +1801,31 @@ async def root():
     return HTMLResponse(html, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
+async def _stop_web_chat(session_id: str) -> "str | None":
+    """Stop of one web chat (the dashboard's stopCurrent: the Stop button, /stop, a voice barge-in). Cancels its
+    running turn and what would otherwise start later by itself because of that turn; the page sends this over the
+    socket and over HTTP, so a second call finds nothing left to do.
+
+    - The running turn: cancelled and marked stopped, so the messages typed while it ran do not start a turn of their
+      own afterwards (`_start_steer_turn`), like a Telegram or Zalo /stop drops its queue.
+    - The pending javis_job op=then instruction of this chat, and the follow-up of a background job started during
+      the stopped turn (tien_trinh_nen.drop_stopped_followups). Jobs of earlier turns, follow-up turns already waiting
+      and GitHub fix rounds are left alone: Stop stops this turn, not the background work.
+    - A pending quota auto re-run of this chat, with the same `resume` event a new message sends when it drops one,
+      so the "will re-run at HH:MM" card does not stay.
+
+    Returns the tag of the stopped turn (to kill its engine processes with), None when no turn was running."""
+    sid = str(session_id or "").strip()
+    if not sid:
+        return None
+    job = _CHAT_RUNTIME.get_job(sid)
+    tag = _CHAT_RUNTIME.cancel_session(sid)
+    tien_trinh_nen.drop_stopped_followups(f"{WEB_CHAT_PREFIX}{sid}", since=job.started if job else None)
+    if limit_resume.REGISTRY.cancel(sid):
+        await _CHAT_RUNTIME.publish({"type": "resume", "session_id": sid, "state": "cancelled", "reason": "stopped"})
+    return tag
+
+
 @app.post("/stop")
 async def stop(payload: dict = Body(None)):
     """Nút Stop: ngắt lệnh CHAT đang chạy, không đụng tới metrics/loop nền.
@@ -1810,7 +1835,7 @@ async def stop(payload: dict = Body(None)):
     session_id = str(data.get("session_id") or "").strip()
     tag = str(data.get("tag") or "").strip()
     if session_id:
-        job_tag = _CHAT_RUNTIME.cancel_session(session_id)
+        job_tag = await _stop_web_chat(session_id)
         n = cancel_all(job_tag) if job_tag else 0
         return {"ok": True, "cancelled": max(1, n) if job_tag else 0}
     # chỉ chấp nhận tag họ chat - chặn lạm dụng endpoint này để giết loop/workflow nền
@@ -23008,9 +23033,11 @@ async def _chat_socket(ws):
                 luot_dang_chay.ket_thuc(_khoa_luot)
                 _steer_left = steer_inbox.INBOX.close(conv_sid, turn_tag, _steer_tok)
                 if _steer_left:
-                    # Sent while this turn ran but never read by it: the next turn of this chat, right after this one.
+                    # Sent while this turn ran but never read by it: the next turn of this chat, right after this one,
+                    # unless Stop ended this turn (`after`: this turn's job, see _start_steer_turn).
                     asyncio.create_task(_start_steer_turn(conv_sid, [i["text"] for i in _steer_left], brain,
-                                                          [i["id"] for i in _steer_left]))
+                                                          [i["id"] for i in _steer_left],
+                                                          after=_CHAT_RUNTIME.get_job(conv_sid)))
                 tien_trinh_nen.bo_tag(turn_tag)   # lượt lỗi/bị dừng không tới bước nhận nuôi
                 turn_context.reset(_luot_token)
                 context_runtime.reset_trace(_trace_token)
@@ -23474,15 +23501,27 @@ async def _chat_socket(ws):
                 _TG_SESS.pop(khoa_mach, None)
             await push_to_chat(conv_sid, out or "(việc nền xong nhưng không có nội dung)", viec=viec)
 
-        async def _start_steer_turn(conv_sid, texts, brain, ids):
+        async def _start_steer_turn(conv_sid, texts, brain, ids, after=None, client_ids=()):
             """0.206.0: messages sent while a turn was running that it never read (a one-shot CLI engine, or it was
             already writing its final answer) run as the next turn of the same chat, once that turn has ended. They are
-            in the history already (stored when they arrived), so only the engine gets the wrapped prompt."""
+            in the history already (stored when they arrived), so only the engine gets the wrapped prompt.
+
+            `after`: the job (chat_runtime.ChatJob) of the turn they were sent to. When Stop ended it they do not run:
+            the owner asked Javis to stop, not to go on with what they typed meanwhile (Telegram and Zalo /stop drop
+            theirs too). The page is told (`steer_dropped`, by steer id, or by `client_ids` for a message that had
+            none) so no message still says it runs next; they stay in the history and can be sent again."""
             for _ in range(1200):
                 if not _CHAT_RUNTIME.get_job(conv_sid):
                     break
                 await asyncio.sleep(0.5)
             else:
+                return
+            if after is not None and after.stopped:
+                try:
+                    await _CHAT_RUNTIME.publish({"type": "steer_dropped", "session_id": conv_sid,
+                                                 "ids": list(ids or []), "client_ids": [c for c in client_ids if c]})
+                except Exception:
+                    pass
                 return
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
@@ -23644,7 +23683,7 @@ async def _chat_socket(ws):
                     continue
                 if action == "stop":
                     _sid = payload.get("session_id") or ""
-                    _tag = _CHAT_RUNTIME.cancel_session(_sid)
+                    _tag = await _stop_web_chat(_sid)
                     if _tag:
                         cancel_all(_tag)     # giết subprocess engine của đúng lượt đó
                     continue
@@ -23667,9 +23706,11 @@ async def _chat_socket(ws):
                     elif _goal:
                         _mode, _id = "goal", 0
                     else:
-                        # The turn just ended (or too many are waiting): this message is its own next turn.
+                        # The turn just ended (or too many are waiting): this message is its own next turn, unless Stop
+                        # ends the turn it waits behind (`after`, see _start_steer_turn).
                         _mode, _id = "after", 0
-                        asyncio.create_task(_start_steer_turn(_sid, [_txt], _row.get("brain") or "brain", []))
+                        asyncio.create_task(_start_steer_turn(_sid, [_txt], _row.get("brain") or "brain", [],
+                                                              after=_CHAT_RUNTIME.get_job(_sid), client_ids=[_cid]))
                     await send_client({"type": "steer_ack", "session_id": _sid, "client_id": _cid,
                                        "steer_id": _id, "mode": _mode})
                     continue

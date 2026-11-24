@@ -440,6 +440,37 @@ def gan_loi_dan_cho_viec_dang_chay(chat_id: str, text: str) -> Optional[dict]:
     return dict(v)
 
 
+def drop_stopped_followups(chat_id: str, since: Optional[float] = None) -> int:
+    """The owner pressed Stop in this chat: what the stopped turn asked to do after its background work no longer
+    starts a turn by itself. Two things only:
+
+    - the pending instruction (javis_job op=then) of this chat, which a stopped turn never hands to a job because it
+      never reaches the adoption step; left there it would attach to a later turn's job for up to TUOI_LOI_DAN;
+    - the follow-up of a job of this chat that is still running and was started during the stopped turn
+      (`bat_dau >= since`, `since` = when that turn started; None = no turn was running, so no job qualifies).
+
+    A job started in an earlier turn keeps its follow-up, and every job keeps running and still reports when it ends:
+    Stop stops the turn, not the background work. Returns how many follow-ups were dropped."""
+    cid = str(chat_id or "").strip()
+    if not cid:
+        return 0
+    dropped, changed = 0, False
+    with _KHOA:
+        if _LOI_DAN.pop(cid, None) is not None:
+            dropped += 1
+        if since is not None:
+            for v in _VIEC.values():
+                if (v.get("chat_id") == cid and v.get("trang_thai") == "run"
+                        and float(v.get("bat_dau") or 0) >= float(since)
+                        and (v.get("noi_tiep") or v.get("sau_khi_xong"))):
+                    v["noi_tiep"], v["sau_khi_xong"] = False, ""
+                    dropped += 1
+                    changed = True
+    if changed:
+        _luu()
+    return dropped
+
+
 def nhan_nuoi_theo_tag(tag: str, brain_root: str, chat_id: str, *, hua: bool = False,
                        do_sau: int = 0) -> List[dict]:
     """Hết lượt: nhóm tiến trình nào của engine còn sống thì nhận theo dõi.
