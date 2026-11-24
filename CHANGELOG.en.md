@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.634.1] - 2026-11-24
+### Fixed
+- **Personal Zalo bots no longer go quiet for 10 minutes after a long answer.** Later parts of the bot's own message were filed as the owner typing, so the bot stepped aside and skipped customers. Customer bots also find an Agent's documents when the path was saved from the drive (computers without sign-in).
+- **Chatbot stats no longer count Javis's own messages as manual replies.** Messages sent with the inbox tool or a Zalo tool count as A.I., and the bot on duty no longer steps aside for them.
+- **Codex can call Javis tools again.** Since Codex 0.163, background jobs on Codex had every hub tool refused; that works now. Background Codex jobs also start when the hub is off.
+- **Notes from claude.ai land in the brain you are using.** Javis Gate no longer opens its notes conversation in the brain of a chat pinned long ago.
+
 ## [0.634.0] - 2026-11-24
 ### Improved
 - **Antigravity shows its thinking while you wait.** The chat used to sit still for 12 to 18 seconds and then drop the whole answer at once. Now what the model is weighing appears from about second 4 to 7, updates every few seconds, and folds into the steps block.

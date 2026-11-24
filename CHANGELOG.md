@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.634.1] - 2026-11-24
+### Sửa lỗi
+- **Bot Zalo cá nhân không còn im 10 phút sau một câu trả lời dài.** Đoạn sau của câu bot gửi từng bị ghi nhầm là chủ nhắn tay, nên bot nhường và bỏ tin khách. Bot chăm khách cũng tìm thấy tài liệu của Agent khi đường dẫn được lưu từ ổ đĩa (máy không đăng nhập).
+- **Thống kê Chatbot không còn tính tin Javis tự gửi là "Trả lời tay".** Tin gửi qua công cụ Hộp thư hay công cụ Zalo được tính là A.I., và bot đang trực không còn tưởng chủ vừa nhắn mà nhường.
+- **Codex gọi được công cụ của Javis trở lại.** Từ Codex 0.163, việc nền chạy Codex bị từ chối mọi công cụ hub; giờ đã thông. Việc nền Codex cũng chạy được khi tắt hub.
+- **Ghi chép từ claude.ai vào đúng brain đang dùng.** Javis Gate không còn mở hội thoại ghi chép trong brain của một cuộc chat đã ghim từ lâu.
+
 ## [0.634.0] - 2026-11-24
 ### Cải thiện
 - **Antigravity hiện suy nghĩ trong lúc chờ.** Trước đây khung chat đứng im 12 đến 18 giây rồi câu trả lời mới đổ ra một lần. Giờ ý model đang cân nhắc hiện ngay từ khoảng giây thứ 4 đến 7, cập nhật vài giây một lần, gập gọn trong khối các bước.
