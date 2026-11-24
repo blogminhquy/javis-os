@@ -251,9 +251,10 @@ async def fetch_media(client, url: str, kind: str) -> tuple:
     count only: the link is signed, so it is never logged nor put in the reason (an httpx error message quotes it)."""
     seen = {"status": None, "type": "", "bytes": 0}
     try:
-        async with asyncio.timeout(MEDIA_BUDGET_SECONDS):
-            data, why = await _media_tries(client, url, seen)
-    except TimeoutError:
+        # wait_for, not asyncio.timeout: install.sh still accepts Python 3.10, which has no asyncio.timeout, and there
+        # asyncio.TimeoutError is not the builtin TimeoutError.
+        data, why = await asyncio.wait_for(_media_tries(client, url, seen), MEDIA_BUDGET_SECONDS)
+    except (asyncio.TimeoutError, TimeoutError):
         data, why = None, f"no file within {MEDIA_BUDGET_SECONDS:g} seconds"
     if data is None:
         print(f"[zalo {kind}] download failed: {why} (host={urlparse(url).hostname or '?'}, status={seen['status']}, "
