@@ -81,8 +81,18 @@ tok = turn_context.bind(turn_context.make("reminder", job="reminder:x"))
 try:
     check("2 hub off -> hub_turn off", cc.hub_turn is False)
     check("2 hub off -> no override", not _override(cc._build_args()))
+    # Brain and level overrides would be a `javis` entry with headers and no url: Codex refuses the whole config.
+    half = [a for a in cc._build_args() if str(a).startswith("mcp_servers.javis.")]
+    check("2 hub off -> no mcp_servers.javis override at all (no half entry)", not half, half)
 finally:
     turn_context.reset(tok)
+
+cc = _build(profile=None)
+half = [a for a in cc._build_args() if str(a).startswith("mcp_servers.javis.")]
+check("3 no profile -> no mcp_servers.javis override at all", not half, half)
+cc = _build()
+check("1 hub on -> brain and level overrides still set",
+      any(str(a).startswith("mcp_servers.javis.http_headers.X-Javis-Mode=") for a in cc._build_args()))
 
 cc = _build(profile=None)
 tok = turn_context.bind(turn_context.make("reminder", job="reminder:x"))

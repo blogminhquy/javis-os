@@ -1059,12 +1059,17 @@ def _build_codex(spec, claude_cli_obj, mode, tag, codex_profile=None):
         cc.hub_turn = bool(cc.profile) and bool(cfgmod.read_settings().get("mcp", {}).get("hub", True))
     except Exception as e:  # noqa: BLE001 - no key means "nobody", never a broken job
         print(f"[aux codex turn] {e}", file=sys.stderr)
+    # Brain and level ride as `-c mcp_servers.javis.http_headers.*` overrides, which only make sense when the profile's
+    # `javis` entry IS the hub. With the hub off (or no profile) there is no `javis` entry, and a header override alone
+    # creates a half entry without `url`: Codex then refuses to load its config ("invalid transport in
+    # mcp_servers.javis") and the background job never starts. Same rule as `hub_turn` above.
     try:
         import mcp_hub
-        mcp_hub.dat_codex_vault(cc.extra_config, getattr(claude_cli_obj, "javis_vault", None))
-        # The job's own level, not the profile's `full` (see mcp_hub.dat_codex_mode).
-        mcp_hub.dat_codex_mode(cc.extra_config,
-                               mode or getattr(claude_cli_obj, "javis_mode", None) or "full")
+        if cc.hub_turn:
+            mcp_hub.dat_codex_vault(cc.extra_config, getattr(claude_cli_obj, "javis_vault", None))
+            # The job's own level, not the profile's `full` (see mcp_hub.dat_codex_mode).
+            mcp_hub.dat_codex_mode(cc.extra_config,
+                                   mode or getattr(claude_cli_obj, "javis_mode", None) or "full")
     except Exception as e:
         print(f"[aux codex vault] {e}", file=sys.stderr)
     # Việc nền theo lịch: hub bắt buộc, không app ChatGPT - xem mcp_hub.CODEX_REQUIRED_KEY. Chat
