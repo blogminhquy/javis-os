@@ -46,16 +46,17 @@
   // Loai cong cu -> KHOA i18n cua dong tu nguoi doc duoc (viet du khoa de test_i18n soi duoc).
   // Ten lay theo cac engine that (Claude Code, Codex,
   // Grok, Antigravity, API); ten la thi giu nguyen ten cong cu, khong doan.
+  // Antigravity names measured on agy 1.5.15 (init.tools): replace_file_content, sed_file, invoke_subagent...
   var LOAI = [
     [/^(bash|shell|run_shell_command|command_execution|local_shell_call|run_terminal_command|run_command|exec)$/, "app.step_v_run"],
-    [/^(read|read_file|view|view_file|notebookread|read_many_files|cat)$/, "app.step_v_read"],
+    [/^(read|read_file|view|view_file|view_file_outline|notebookread|read_many_files|cat)$/, "app.step_v_read"],
     [/^(write|write_file|create_file|write_to_file)$/, "app.step_v_write"],
-    [/^(edit|multiedit|notebookedit|str_replace|str_replace_editor|apply_patch|edit_file|replace|patch)$/, "app.step_v_edit"],
+    [/^(edit|multiedit|notebookedit|str_replace|str_replace_editor|apply_patch|edit_file|replace|patch|replace_file_content|multi_replace_file_content|sed_file|notebook_edit)$/, "app.step_v_edit"],
     [/^(grep|search_file_content|grep_search|codebase_search)$/, "app.step_v_grep"],
     [/^(glob|ls|list_directory|list_dir|find|find_by_name)$/, "app.step_v_find"],
     [/^(webfetch|web_fetch|fetch|read_url_content|fetch_url)$/, "app.step_v_web"],
     [/^(websearch|web_search|web_search_call|google_search|search_web)$/, "app.step_v_search"],
-    [/^(task|agent)$/, "app.step_v_agent"],
+    [/^(task|agent|invoke_subagent|browser_subagent)$/, "app.step_v_agent"],
     [/^(todowrite|todo_write|update_plan|todo_list|javis_plan|taskcreate|taskupdate)$/, "app.step_v_todo"],
     [/^(skill|javis_use_skill)$/, "app.step_v_skill"]
   ];

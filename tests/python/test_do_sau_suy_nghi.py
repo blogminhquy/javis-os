@@ -246,7 +246,9 @@ _ag_khoa = _EngineGia2("gemini-3.8-flash-medium")
 _m_khoa = srv._cli_do_sau_khac(_ag_khoa, antigravity_cli, "high", "hỏi")
 check("CANARY: model đuôi -medium/-high thì TUYỆT ĐỐI không đặt effort (CLI thoát mã 1)",
       _ag_khoa.effort is None, _ag_khoa.effort)
-check("và độ sâu không mất trắng: rơi về câu nhắc trong prompt", _m_khoa != "hỏi", _m_khoa)
+# 2026-11-24: the model's name already sets the depth. The old fallback appended the "think it
+# through" line anyway, which tripled thinking tokens and doubled the wait for the first word.
+check("a model with its depth in its name gets the message untouched, no extra nudge", _m_khoa == "hỏi", _m_khoa)
 _ag_thuong = _EngineGia2("claude-sonnet-4-6")
 srv._cli_do_sau_khac(_ag_thuong, antigravity_cli, "high", "hỏi")
 check("model KHÔNG khoá thì vẫn đặt cờ như cũ (đừng vá quá tay)",
