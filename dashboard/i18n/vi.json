@@ -4088,7 +4088,7 @@
   "cb.tk_khoa": "Đang do bot {bot} trực",
   "cb.tk_khoa_brain": "(brain {brain})",
   "ht.kenh_khong_gui": "{kenh} chưa gửi được tin từ Javis. Bạn trả lời trong app của kênh như bình thường.",
-  "ht.gui_ph": "Nhập câu trả lời… Enter để gửi, Shift+Enter xuống dòng",
+  "ht.gui_ph": "Nhập trả lời, Enter để gửi",
   "ht.gui": "Gửi",
   "ht.loi_gui": "Không gửi được:",
   "ht.them_tk": "Thêm kênh",

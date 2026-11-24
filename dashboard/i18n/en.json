@@ -4088,7 +4088,7 @@
   "cb.tk_khoa": "Served by bot {bot}",
   "cb.tk_khoa_brain": "(brain {brain})",
   "ht.kenh_khong_gui": "{kenh} cannot send from Javis yet. Reply in the channel's own app as usual.",
-  "ht.gui_ph": "Type a reply… Enter sends, Shift+Enter adds a line",
+  "ht.gui_ph": "Type a reply, Enter to send",
   "ht.gui": "Send",
   "ht.loi_gui": "Could not send:",
   "ht.them_tk": "Add a channel",

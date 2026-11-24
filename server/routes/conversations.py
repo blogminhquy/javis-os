@@ -565,7 +565,8 @@ def register(app, deps: ConversationsDeps):
             return _404()
         _attach_state([d], _StateCtx(_hesitant()))
         moi = after > 0
-        if not moi and _post_card_due(d):
+        # Only when the chat is opened (the first page), never on the 5-second poll (`after`) or scrolling up (`before`).
+        if not moi and not before and _post_card_due(d):
             asyncio.create_task(_fill_post_card(dict(d)))
         msgs = conversations.tin_nhan(conv_id, limit=limit, before_id=before, after_id=after)
         d["bot_name"] = _ten_bot(str(d.get("bot_id") or ""))
