@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.638.0] - 2026-11-24
+### Added
+- **Ask Javis to send images and files to a customer from chat.** Say "send Lan the price list" and Javis takes the image or file already in the brain (for example in `attachments/`) and sends it into that customer's chat, on its own channel, with a message if you want one. Sent images show in the inbox as with the + button.
+- Only files inside the brain in use can be sent, never hidden folders. Messenger keeps its 24-hour rule as for text: past it, Javis says why and sends nothing.
+
 ## [0.637.1] - 2026-11-24
 ### Fixed
 - **A background job's card in the chat now warns when its result was not checked.** The Tasks page already showed the yellow label, but the card in the chat still showed a green "done".
