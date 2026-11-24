@@ -763,6 +763,19 @@ class TeamRunner:
             log.warning("skill block: %s: %s", type(ex).__name__, ex)
             return ""
 
+    def _step_actor(self, team_id: str, agent_key) -> str:
+        """Actor của bước: agent_key nếu là thành viên đang hoạt động của nhóm và đúng dạng slug. Trưởng nhóm
+        (LEADER_SLOT) hay lạ -> "" (guard DENY ghi, fail-closed)."""
+        key = str(agent_key or "")
+        if not key or key == LEADER_SLOT:
+            return ""
+        try:
+            if not self.teams.is_active_member(team_id, key):
+                return ""
+        except Exception:  # noqa: BLE001 - không kiểm được thành viên -> không actor
+            return ""
+        return turn_context._actor_id(key)
+
     def _lock_for(self, agent_key: str) -> asyncio.Lock:
         loop = asyncio.get_running_loop()
         if self._locks_loop is not loop:
@@ -2922,8 +2935,12 @@ class TeamRunner:
             if req.get("tool_turn") and req.get("work_mode") != team_gate.FULL and self.approvals is not None:
                 gate = team_gate.open_gate(self.approvals, team_id, task_id or "", step_id or "")
                 req["team_gate"] = gate.gate_id
-                ctx_tok = turn_context.bind(turn_context.make("team", chat_id=team_id, team_gate=gate.gate_id,
-                                                              provider=prep["engine"]))
+            if req.get("tool_turn"):
+                # Actor đáng tin cho guard ghi Drive: slug của thành viên đang làm bước này (kiểm trong nhóm), không từ text.
+                # Bước FULL không có cổng: team_gate rỗng, hành vi cổng không đổi.
+                ctx_tok = turn_context.bind(turn_context.make(
+                    "team", chat_id=team_id, team_gate=(gate.gate_id if gate is not None else ""),
+                    provider=prep["engine"], actor=self._step_actor(team_id, agent_key)))
             try:
                 limit = self.turn_timeout if role in REPLY_ROLES else self.step_timeout
                 async with contextlib.AsyncExitStack() as held:
