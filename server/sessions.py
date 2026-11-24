@@ -567,6 +567,11 @@ def _sach_icon(icon: Optional[str]) -> Optional[str]:
     return v if _ICON_RE.match(v) else None
 
 
+# The column holding a chat's Antigravity conversation (agy --conversation, 2026-11-24). It is Gemini CLI's old
+# column: see the comment on `gemini_session_id` in the schema for why it is not a new one.
+AGY_THREAD_COLUMN = "gemini_session_id"
+
+
 class SessionStore:
     """Kho hội thoại SQLite thread-safe (1 connection + app-lock, WAL)."""
 
@@ -652,16 +657,16 @@ class SessionStore:
                               # Mạch native của Gemini CLI (UUID). Cùng vai với codex_thread_id
                               # nhưng phải là cột RIÊNG: đổi bộ não giữa chừng mà dùng chung một
                               # cột là lượt sau đưa UUID của engine này cho engine kia resume.
+                              # Since 2026-11-24 it holds Antigravity's conversation id instead
+                              # (AGY_THREAD_COLUMN): Gemini CLI left in 0.50.0, and a NEW column
+                              # would be refused by the improvement trials' schema check, whose
+                              # column list is pinned by the native qualification evidence.
                               ("gemini_session_id", "TEXT"),
                               # Mạch native của Grok Build CLI. Cột RIÊNG, cùng lý do như
                               # gemini_session_id ngay trên: đổi bộ não giữa chừng mà dùng
                               # chung một cột là lượt sau đưa id của engine này cho engine kia
                               # resume, và nó nối vào một mạch không tồn tại rồi hỏng câm.
                               ("grok_session_id", "TEXT"),
-                              # Antigravity's conversation (agy --conversation, 2026-11-24). Its own
-                              # column for the same reason: a switch of brain mid-chat must never
-                              # hand one engine's id to another.
-                              ("agy_conversation_id", "TEXT"),
                               # Luồng của engine ChatGPT Web, đã gỡ ở 0.64.20. Cột VẪN khai
                               # báo để DB cũ và DB mới cùng một hình dạng; không ai đọc ghi
                               # nó nữa. Xoá cột SQLite là phải dựng lại cả bảng, không đáng.
@@ -2403,21 +2408,6 @@ class SessionStore:
             subscription_context_store.clear(c, session_id, "claude-code")
         self._write(clear)
 
-    def set_gemini_session_id(self, session_id: str, gemini_id: str) -> None:
-        """Gắn mạch native của Gemini CLI vào hội thoại để lượt sau `--resume` đúng chỗ."""
-        if not gemini_id:
-            return
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET gemini_session_id = ?, updated_at = ? WHERE id = ?",
-            (gemini_id, time.time(), session_id),
-        ))
-
-    def clear_gemini_session_id(self, session_id: str) -> None:
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET gemini_session_id = NULL "
-            "WHERE id = ? AND gemini_session_id IS NOT NULL",
-            (session_id,),
-        ))
 
     def set_grok_session_id(self, session_id: str, grok_id: str) -> None:
         """Gắn mạch native của Grok Build CLI vào hội thoại để lượt sau `--resume` đúng chỗ."""
@@ -2436,18 +2426,19 @@ class SessionStore:
         ))
 
     def set_agy_conversation_id(self, session_id: str, conversation_id: str) -> None:
-        """The Antigravity conversation of this chat, resumed by the next turn (agy_warm.py)."""
+        """The Antigravity conversation of this chat, resumed by the next turn (agy_warm.py). Stored in
+        AGY_THREAD_COLUMN, the column Gemini CLI used before it was removed."""
         if not conversation_id:
             return
         self._write(lambda c: c.execute(
-            "UPDATE sessions SET agy_conversation_id = ?, updated_at = ? WHERE id = ?",
+            f"UPDATE sessions SET {AGY_THREAD_COLUMN} = ?, updated_at = ? WHERE id = ?",
             (conversation_id, time.time(), session_id),
         ))
 
     def clear_agy_conversation_id(self, session_id: str) -> None:
         self._write(lambda c: c.execute(
-            "UPDATE sessions SET agy_conversation_id = NULL "
-            "WHERE id = ? AND agy_conversation_id IS NOT NULL",
+            f"UPDATE sessions SET {AGY_THREAD_COLUMN} = NULL "
+            f"WHERE id = ? AND {AGY_THREAD_COLUMN} IS NOT NULL",
             (session_id,),
         ))
 
@@ -2460,7 +2451,7 @@ class SessionStore:
     _MACH_NATIVE = {"cli": "cli_session_id",
                     "codex": "codex_thread_id",
                     "grok-cli": "grok_session_id",
-                    "antigravity-cli": "agy_conversation_id"}
+                    "antigravity-cli": AGY_THREAD_COLUMN}
 
     def clear_native_threads(self, session_id: str, keep: str = "") -> List[str]:
         """Vô hiệu mạch native của MỌI engine, TRỪ engine `keep` đang chạy lượt này.

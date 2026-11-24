@@ -21815,7 +21815,7 @@ async def _chat_socket(ws):
                         "model": actual_model or "", "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)}))
                 else:
-                    _a_thread = ((_row0.get("agy_conversation_id") or "").strip()
+                    _a_thread = ((_row0.get(sessions.AGY_THREAD_COLUMN) or "").strip()
                                if agy_warm.enabled() else "")
                     if _a_thread and compaction.nen_mach_thue_bao(
                             _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
@@ -21901,7 +21901,7 @@ async def _chat_socket(ws):
                                 ev.get("content") or "", "antigravity-cli", actual_model or ""))
                     # Keep the thread only when it answered on the stream path; a one-shot or failed turn
                     # leaves the next one to open a new thread with the whole context.
-                    if acli.resumable and acli.session_id:
+                    if getattr(acli, "resumable", False) and acli.session_id:
                         await asyncio.to_thread(store.set_agy_conversation_id, conv_sid, acli.session_id)
                     elif _a_thread:
                         await asyncio.to_thread(store.clear_agy_conversation_id, conv_sid)

@@ -374,7 +374,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
         cap = cli.turn_cap()
         deadline = (time.monotonic() + cap) if cap > 0 else None
         pieces: list = []
-        chan: dict = {}
+        chan: dict = {"stream_turn": True}     # usage: sum this turn's steps (antigravity_cli._doi_su_kien)
         errors: list = []
         names: dict = {}
         params_by_id: dict = {}

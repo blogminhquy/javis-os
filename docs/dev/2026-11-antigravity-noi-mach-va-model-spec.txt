@@ -272,6 +272,10 @@ Antigravity dùng đúng mẫu đó, kèm test.
       tin đầu của mạch; lượt sau chỉ gửi header ngắn (`_turn_facts_header`) cộng câu mới.
     - Đi thẳng tiến trình ấm `--input-format stream-json` trong warm_pool (`server/agy_warm.py`) thay vì
       chỉ nối mạch trên tiến trình nguội. Công tắc là `JAVIS_AGY_RESUME=0` như 3.3 d.
+    - KHÔNG thêm cột `agy_conversation_id` (trái 3.3 a): bộ kiểm schema của tự cải tiến
+      (`improvement_trial_sql_context._schema`) từ chối bảng `sessions` có cột ngoài danh sách, mà danh
+      sách đó nằm trong file bị ghim hash bởi bằng chứng native qualification. Id mạch dùng lại cột
+      `gemini_session_id` (bỏ không từ khi gỡ Gemini CLI ở 0.50.0), tên ở `sessions.AGY_THREAD_COLUMN`.
   Máy chủ repo: Windows 11, agy 1.5.15, gemini-3.8-flash-low, thư mục thử trong scratchpad.
   M1: `init` có `conversation_id`, cùng id ở `result.conversation_id`. Ở stream-json, `init` ra ~2,5 s sau
       khi mở tiến trình, TRƯỚC khi gửi tin nào.

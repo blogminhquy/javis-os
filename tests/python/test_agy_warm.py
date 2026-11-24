@@ -275,11 +275,14 @@ def test_sessions_keep_and_clear_the_conversation(tmp_path):
     ss = sessions.SessionStore(db_path=tmp_path / "chat.db")
     sid = ss.get_or_create(None, brain="b", engine="antigravity-cli", model="m")
     ss.set_agy_conversation_id(sid, "conv-1")
-    assert ss.get_session(sid)["agy_conversation_id"] == "conv-1"
+    assert ss.get_session(sid)[sessions.AGY_THREAD_COLUMN] == "conv-1"
     assert ss.clear_native_threads(sid, keep="antigravity-cli") == []
-    assert ss.get_session(sid)["agy_conversation_id"] == "conv-1"
+    assert ss.get_session(sid)[sessions.AGY_THREAD_COLUMN] == "conv-1"
     assert "antigravity-cli" in ss.clear_native_threads(sid, keep="codex"), "another engine ran a turn"
-    assert not ss.get_session(sid)["agy_conversation_id"]
+    assert not ss.get_session(sid)[sessions.AGY_THREAD_COLUMN]
+    # A new column would make the improvement trials refuse the sessions database (its allowed list is pinned).
+    import improvement_trial_sql_context as trial_sql
+    assert sessions.AGY_THREAD_COLUMN in trial_sql._SESSION_COLUMNS
 
 
 def test_main_wires_the_chat_branch():
@@ -288,7 +291,8 @@ def test_main_wires_the_chat_branch():
     branch = src[start:src.index('elif prov == "openai-oauth":', start)]
     assert "acli.stream_turns = True" in branch and "acli.warm_key = conv_sid" in branch
     assert "acli.resume_prompt" in branch and "stable=_a_stable" in branch
-    assert "if acli.resumable and acli.session_id:" in branch, "only a thread that answered is stored"
+    stored_only_when_answered = 'if getattr(acli, "resumable", False) and acli.session_id:'
+    assert stored_only_when_answered in branch, "only a thread that answered is stored"
     assert "compaction.nen_mach_thue_bao(" in branch, "a long thread rotates like Grok's"
     assert src.count("warm_pool.POOL.drop_kind(agy_warm.KIND)") >= 2, "sign-out and reconnect drop warm agy"
 

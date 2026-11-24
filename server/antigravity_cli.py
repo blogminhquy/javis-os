@@ -2136,7 +2136,9 @@ class AntigravityCLI:
         ra = []
         if t in ("result", "final", "done", "complete"):
             st = ev.get("stats") or ev.get("usage") or {}
-            _steps = chan.get("_turn_usage") if isinstance(chan, dict) else None
+            # Only a stream turn (agy_warm) sums its steps: there `result` is the process's running total. A one-shot
+            # process reports the turn's own numbers in `result` already.
+            _steps = chan.get("_turn_usage") if isinstance(chan, dict) and chan.get("stream_turn") else None
             if _steps:
                 st = dict(_steps, total_tokens=_steps["input_tokens"] + _steps["output_tokens"])
             if isinstance(st, dict) and st:
