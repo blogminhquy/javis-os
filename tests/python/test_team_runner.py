@@ -965,4 +965,68 @@ j = r.submit(TID, "Việc lần lượt", as_job=True, client_msg_id="w6")
 run(r.dispatch_once(wait=True))
 check("0.260.0 một chỗ mỗi việc: bước Làm chạy lần lượt", live["peak"] == 1
       and ts.get_task(j["task_id"])["status"] == "done", live)
+
+# Regression: malformed JAVIS_TEAM directive in plan step must block instead of finishing as done.
+ss_m, ts_m, tm_m, fake_m, r_m, _pub_m, _inbox_m, _gone_m = world("malformed_plan")
+team_m = make_team(tm_m, ss_m, "Malformed Plan")
+
+# 1. Unclosed directive block (missing closing -->) with no valid assign.
+fake_m.say("ag_lan", "plan", 'Plan 3 parts.\n<!-- JAVIS_TEAM: {"op": "assign", "agent": "ag_minh", "brief": "do x"}}')
+job_unclosed = r_m.submit(team_m["team_id"], "Unclosed plan directive", as_job=True, client_msg_id="mp1")
+run(r_m.dispatch_once(wait=True))
+task_unclosed = ts_m.get_task(job_unclosed["task_id"])
+plan_msg_unclosed = [m for m in msgs(ss_m, team_m) if m["task_id"] == job_unclosed["task_id"] and m["meta"].get("role") == "plan"][0]
+plan_steps_unclosed = tm_m.steps(job_unclosed["task_id"])
+check("plan with unclosed JAVIS_TEAM directive blocks instead of finishing done",
+      task_unclosed["status"] == "team_blocked" and task_unclosed["block_kind"] == "failed"
+      and plan_steps_unclosed[0]["status"] == "failed"
+      and not plan_msg_unclosed["meta"].get("job_result")
+      and "JAVIS_TEAM" not in plan_msg_unclosed["content"]
+      and any("-->" in n for n in plan_msg_unclosed["meta"].get("notes", []))
+      and [c["role"] for c in fake_m.calls] == ["plan"],
+      (task_unclosed["status"], task_unclosed["block_kind"], plan_steps_unclosed[0]["status"], plan_msg_unclosed["meta"]))
+ts_m.team_cancel(job_unclosed["task_id"])
+
+# 2. Closed-but-invalid JSON directive with no valid assign.
+fake_m.calls.clear()
+fake_m.say("ag_lan", "plan", "Plan.\n<!-- JAVIS_TEAM: {broken -->")
+job_bad_json = r_m.submit(team_m["team_id"], "Broken JSON plan directive", as_job=True, client_msg_id="mp2")
+run(r_m.dispatch_once(wait=True))
+task_bad_json = ts_m.get_task(job_bad_json["task_id"])
+plan_msg_bad_json = [m for m in msgs(ss_m, team_m) if m["task_id"] == job_bad_json["task_id"] and m["meta"].get("role") == "plan"][0]
+plan_steps_bad_json = tm_m.steps(job_bad_json["task_id"])
+check("plan with invalid JSON JAVIS_TEAM directive and no assigns blocks instead of finishing done",
+      task_bad_json["status"] == "team_blocked" and task_bad_json["block_kind"] == "failed"
+      and plan_steps_bad_json[0]["status"] == "failed"
+      and not plan_msg_bad_json["meta"].get("job_result")
+      and any("JSON" in n for n in plan_msg_bad_json["meta"].get("notes", []))
+      and [c["role"] for c in fake_m.calls] == ["plan"],
+      (task_bad_json["status"], task_bad_json["block_kind"], plan_steps_bad_json[0]["status"]))
+ts_m.team_cancel(job_bad_json["task_id"])
+
+# 3. Multi-line unclosed directive followed by a valid closed directive fails regex JSON parse and blocks cleanly.
+fake_m.calls.clear()
+fake_m.say("ag_lan", "plan",
+           'Plan.\n<!-- JAVIS_TEAM: {"op": "assign", "agent": "ag_minh", "brief": "a"}}\n'
+           '<!-- JAVIS_TEAM: {"op": "assign", "agent": "ag_hoa", "brief": "b"} -->')
+job_swallowed = r_m.submit(team_m["team_id"], "Swallowed plan directive", as_job=True, client_msg_id="mp3")
+run(r_m.dispatch_once(wait=True))
+task_swallowed = ts_m.get_task(job_swallowed["task_id"])
+check("plan where unclosed directive breaks subsequent block blocks instead of finishing done",
+      task_swallowed["status"] == "team_blocked" and task_swallowed["block_kind"] == "failed"
+      and [c["role"] for c in fake_m.calls] == ["plan"],
+      (task_swallowed["status"], task_swallowed["block_kind"], [c["role"] for c in fake_m.calls]))
+ts_m.team_cancel(job_swallowed["task_id"])
+
+# 4. Plain-text plan without any directive marker still completes directly as done.
+fake_m.calls.clear()
+fake_m.say("ag_lan", "plan", "Small task, handled directly: finished.")
+job_plain = r_m.submit(team_m["team_id"], "Plain plan", as_job=True, client_msg_id="mp4")
+run(r_m.dispatch_once(wait=True))
+task_plain = ts_m.get_task(job_plain["task_id"])
+plan_msg_plain = [m for m in msgs(ss_m, team_m) if m["task_id"] == job_plain["task_id"] and m["meta"].get("role") == "plan"][0]
+check("plain-text plan without JAVIS_TEAM marker still finishes done",
+      task_plain["status"] == "done" and plan_msg_plain["meta"].get("job_result") is True,
+      (task_plain["status"], plan_msg_plain["meta"]))
+
 raise SystemExit(1 if fails else 0)
