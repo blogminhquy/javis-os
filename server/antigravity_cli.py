@@ -1439,6 +1439,17 @@ class AntigravityCLI:
         # Chỉ tới được dòng lệnh khi `co_effort` thấy bản CLI này khai đủ cờ lẫn giá trị.
         self.effort = None
         self.include_dirs: list[str] = []
+        # The stream path (agy_warm.py, 2026-11-24). main sets these for the owner's dashboard chat only:
+        #   stream_turns  - run the turn on a long-lived agy that can resume `session_id`;
+        #   warm_key      - the conversation, so the process stays in warm_pool for the next turn;
+        #   resume_prompt - what to send when the thread really continues (per-turn facts + the new
+        #                   message); `query(prompt)` then carries the whole context for a new thread.
+        # After the turn `session_id` is the thread agy ran and `resumable` says it may be stored.
+        self.stream_turns = False
+        self.warm_key = ""
+        self.resume_prompt: Optional[str] = None
+        self.resumable = False
+        self.retry_one_shot = False
         # Time cap for one turn in seconds, 0 = none (the default since 2026-11-07, see `turn_cap_seconds`). The old
         # 900s default stopped heavy tool work half way. Read it through `turn_cap()`, which adds the suggest-mode net.
         self.timeout = turn_cap_seconds()
@@ -1455,6 +1466,45 @@ class AntigravityCLI:
 
     def is_available(self) -> bool:
         return self.cli_path is not None
+
+    def engine_env(self):
+        """The environment agy starts with (None = the server's own)."""
+        try:   # what agy's shell leaves running is adopted after the turn (tien_trinh_nen.ENV_MARK)
+            import tien_trinh_nen
+            env = tien_trinh_nen.mark_env(None, self.tag)
+        except Exception:  # noqa: BLE001
+            env = None
+        # An extra Google account (plan_accounts, Linux only): agy runs with that account's own HOME and keeps
+        # its token in a file there instead of the machine's one keyring login.
+        if getattr(self, "agy_home", None):
+            env = dict(env if env is not None else os.environ)
+            env["HOME"] = self.agy_home
+            env["GEMINI_FORCE_FILE_STORAGE"] = "true"
+        return env
+
+    def stream_args(self, conversation_id: str = "") -> list[str]:
+        """argv of an agy that stays up and takes one turn per stdin line (agy_warm.py).
+
+        Same model, permission, effort, MCP and folder flags as `_build_args`, but no `-p` and no
+        `--print-timeout`: in this mode the timeout would cap the life of the whole process, so
+        agy_warm keeps its own deadline per turn.
+        """
+        args = [self.cli_path]
+        if self.model and co_co("--model"):
+            args += ["--model", self.model]
+        args += co_quyen_cho_mode(self.mode)
+        if not model_khoa_effort(self.model):
+            args += co_effort(self.effort)
+        if self.mcp_config and co_co("--mcp-config", "--mcp-config-file"):
+            args += ["--mcp-config", self.mcp_config]
+        args += ["--input-format", "stream-json", "--output-format", "stream-json"]
+        if conversation_id:
+            args += ["--conversation", conversation_id]
+        if co_co("--add-dir"):
+            for d in self.include_dirs:
+                args += ["--add-dir", str(d)]
+        args += list(self.extra_args)
+        return args
 
     def _build_args(self, prompt_argv: Optional[str], noi_mach: bool = True,
                     them: Optional[list] = None, ct_stdin: str = "") -> list[str]:
@@ -1522,6 +1572,22 @@ class AntigravityCLI:
                        f"running Javis:\n\n`{lenh_cai()}`\n\nThen type `agy` once to sign "
                        f"in to Google.")}
             return
+        self.resumable = False
+        if self.stream_turns and co_co("--input-format"):
+            import agy_warm
+            if agy_warm.enabled():
+                self.retry_one_shot = False
+                try:
+                    async for ev in agy_warm.run(self, prompt):
+                        yield ev
+                    if not self.retry_one_shot:
+                        return
+                    print("[antigravity] stream turn failed before any work, one-shot turn instead", file=sys.stderr)
+                except agy_warm.Fallback as e:
+                    print(f"[antigravity] stream path unavailable ({e}), one-shot turn", file=sys.stderr)
+                # The one-shot turn opens a new thread carrying the whole context, never stored for a resume.
+                self.session_id = None
+                self.resumable = False
         full = (self.instructions.strip() + "\n\n" + prompt) if self.instructions else prompt
         # Ba đường đưa prompt cho CLI, xếp theo mức trung thực giảm dần:
         #   argv  - nhét thẳng vào dòng lệnh. Nguyên vẹn, nhưng đụng trần của hệ điều hành.
@@ -1736,17 +1802,7 @@ class AntigravityCLI:
         def doc_luong():
             proc = None
             try:
-                try:   # what agy's shell leaves running is adopted after the turn (tien_trinh_nen.ENV_MARK)
-                    import tien_trinh_nen
-                    _env = tien_trinh_nen.mark_env(None, self.tag)
-                except Exception:  # noqa: BLE001
-                    _env = None
-                # An extra Google account (plan_accounts, Linux only): agy runs with that account's own HOME and keeps
-                # its token in a file there instead of the machine's one keyring login.
-                if getattr(self, "agy_home", None):
-                    _env = dict(_env if _env is not None else os.environ)
-                    _env["HOME"] = self.agy_home
-                    _env["GEMINI_FORCE_FILE_STORAGE"] = "true"
+                _env = self.engine_env()
                 proc = subprocess.Popen(
                     args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,
@@ -2004,6 +2060,19 @@ class AntigravityCLI:
             _gop.update({k: v for k, v in ev.items() if k != t})
             ev = _gop
 
+        # Usage per model call rides on the agent_response steps (agy 1.5.15): input_tokens leaves the
+        # cached part out, so one call's context is input + cache_read. The `result` total is the sum
+        # for a one-shot process but the RUNNING TOTAL of the whole process in stream mode, so the
+        # turn's own numbers are summed here and the last call gives the thread's size.
+        if isinstance(chan, dict) and str(ev.get("step_type") or "").lower() == "agent_response":
+            _u = ev.get("usage")
+            if isinstance(_u, dict) and _u:
+                _tot = chan.setdefault("_turn_usage", {"input_tokens": 0, "output_tokens": 0,
+                                                       "cache_read_tokens": 0})
+                for _k in _tot:
+                    _tot[_k] += int(_u.get(_k) or 0)
+                chan["_context_tokens"] = int(_u.get("input_tokens") or 0) + int(_u.get("cache_read_tokens") or 0)
+
         # LOẠI bước thật nằm ở `step_type`, không phải ở tầng ngoài. Đo trên agy 1.2.8: mọi
         # bước đều đi chung một tên sự kiện `step_update`, và bước gọi công cụ là
         #   {"step_type":"tool","tool_name":"run_command","state":"ACTIVE"|"DONE",
@@ -2067,8 +2136,15 @@ class AntigravityCLI:
         ra = []
         if t in ("result", "final", "done", "complete"):
             st = ev.get("stats") or ev.get("usage") or {}
+            _steps = chan.get("_turn_usage") if isinstance(chan, dict) else None
+            if _steps:
+                st = dict(_steps, total_tokens=_steps["input_tokens"] + _steps["output_tokens"])
             if isinstance(st, dict) and st:
+                _cached = int(st.get("cache_read_tokens") or st.get("cached") or 0)
                 ra.append({"type": "usage",
+                           # the thread's size at the turn's last model call (0 = not reported)
+                           "context_tokens": int((chan or {}).get("_context_tokens") or 0)
+                           or int(st.get("input_tokens") or 0) + _cached,
                            "input_tokens": int(st.get("input_tokens")
                                                or st.get("prompt_tokens") or 0),
                            "output_tokens": int(st.get("output_tokens")

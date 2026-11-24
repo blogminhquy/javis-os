@@ -266,6 +266,33 @@ Antigravity dùng đúng mẫu đó, kèm test.
 ====================================================================================================
 9. NHẬT KÝ ĐO (phiên làm việc ghi vào đây)
 ====================================================================================================
+  2026-11-24, việc B (nối mạch) ĐÃ LÀM, khác thiết kế 3.3 ở hai chỗ theo số đo của chủ repo trên VPS:
+    - KHÔNG gửi lại system prompt ở lượt nối mạch (trái 3.3 b): gửi lại 58 KB làm chậm hơn cả không nối
+      mạch (chữ đầu 5,30 s so với 4,82 s) và phình mạch từ 27k lên 47,5k token. System prompt đi một lần ở
+      tin đầu của mạch; lượt sau chỉ gửi header ngắn (`_turn_facts_header`) cộng câu mới.
+    - Đi thẳng tiến trình ấm `--input-format stream-json` trong warm_pool (`server/agy_warm.py`) thay vì
+      chỉ nối mạch trên tiến trình nguội. Công tắc là `JAVIS_AGY_RESUME=0` như 3.3 d.
+  Máy chủ repo: Windows 11, agy 1.5.15, gemini-3.8-flash-low, thư mục thử trong scratchpad.
+  M1: `init` có `conversation_id`, cùng id ở `result.conversation_id`. Ở stream-json, `init` ra ~2,5 s sau
+      khi mở tiến trình, TRƯỚC khi gửi tin nào.
+  M2: `--conversation <id>` nhớ đúng ("PAPAYA"), id trong `init` GIỐNG id cũ.
+  M3: id lạ (11111111-...): thoát 0, KHÔNG lỗi, stderr `warning: conversation "..." not found`, mở mạch mới
+      với id KHÁC. Lưới an toàn: so id trong `init` với id đã xin TRƯỚC khi gửi tin; khác thì gửi đủ ngữ
+      cảnh (cold = thread_lost).
+  M4: thay bằng stdin stream-json: dòng 208 KB (mọi ký tự ngoài ASCII thoát dạng \uXXXX) đọc trọn, tiếng
+      Việt ra đúng số token như gửi UTF-8.
+  M5, M6, M9: chưa đo riêng. Đổi model, tài khoản hay bản agy đổi dấu vân tay của ô ấm nên mở tiến trình
+      mới; đổi tài khoản thì mạch cũ không có ở HOME kia, rơi vào lưới M3.
+  M7: `usage` của từng bước `agent_response`: input KHÔNG gồm phần cache, ngữ cảnh = input + cache_read.
+      `result.usage` ở stream-json là TỔNG CỘNG DỒN cả tiến trình, nên Javis tự cộng theo bước của lượt.
+  M8 (số của chủ repo trên VPS, ngữ cảnh 58 KB, gemini-4-hydrogen-high): cách cũ chữ đầu 11,60 s / xong
+      14,71 s; nối mạch nguội không gửi lại 58 KB 3,66 s / 4,40 s; tiến trình ấm lượt 2-4 1,59-2,68 s /
+      2,19-2,87 s, cache 92%. Máy chủ repo, đường code mới với agy thật: lượt 1 (mạch mới) 5,39 s, lượt 2
+      ấm 3,41 s, lượt 3 nối mạch trên tiến trình mới 4,08 s (vẫn nhớ), lượt 4 ấm 2,39 s.
+  Tên tool MCP trong stream (mục 4): mọi tool MCP đi qua MỘT tool native `call_mcp_tool` với tham số
+      `ServerName`, `ToolName`, `Arguments` (hub Javis bọc thêm `javis_run_tool` {name, args}); không có
+      tên dạng `<server>_<tool>`. Khung chat nay bóc ra tên tool thật (antigravity_cli.unwrap_mcp_call).
+
   Máy: (Linux / Docker / VPS)        Bản agy:            Gói Google:
   H1:
   H2:

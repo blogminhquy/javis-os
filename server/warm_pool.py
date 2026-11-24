@@ -27,7 +27,7 @@ import threading
 import time
 from typing import Awaitable, Callable, Dict, Optional
 
-SLOT_MB = {"claude": 300, "codex": 80}
+SLOT_MB = {"claude": 300, "codex": 80, "agy": 300}   # agy: 248-271 MB RSS measured on 1.5.15
 DEFAULT_IDLE_S = 300.0
 MAX_BUDGET_MB = 1200
 # A recipe older than this is not worth a speculative start. 12 h (0.387.0, was 1 h) so a chat left over lunch or
@@ -109,7 +109,8 @@ def budget_mb(in_use_mb: float = 0.0) -> float:
 
 
 class Handle:
-    """What an engine keeps in a slot. Subclasses: claude_warm.ClaudeHandle, codex_steer.CodexHandle."""
+    """What an engine keeps in a slot. Subclasses: claude_warm.ClaudeHandle, codex_steer.CodexHandle,
+    agy_warm.AgyHandle."""
     kind = ""
 
     def alive(self) -> bool:
