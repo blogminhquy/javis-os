@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.637.0] - 2026-11-24
+### Added
+- **Javis hears voice messages when it reads personal Zalo history.** A background job or brain reading `zalo_get_history` now sees what each voice message said, heard by the same ears as Telegram. Each message is heard once, so a job checking every 5 minutes costs nothing extra. Without an ear the message says why, so the sender is asked to type instead of guessed at.
+
 ## [0.636.0] - 2026-11-24
 ### Added
 - **Store packs can add inbox channels.** A pack listing `provides.channels: [channels/<name>.py]` adds a channel to the Chatbot and Conversations pages without core edits. It loads only while the pack is enabled and its code still matches what the owner agreed to; changed code needs consent again. A pack can never replace a built-in channel, and a broken one only loses itself.
