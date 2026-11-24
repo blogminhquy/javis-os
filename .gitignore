@@ -224,3 +224,6 @@ server/client_errors.tmp
 # Desktop installers built by packaging/ (CI publishes them on the "desktop" release)
 /dist/
 packaging/windows/Vietnamese.isl
+
+# Drive write-scope guard: ID thư mục và account riêng của cài đặt (không đưa lên repo)
+server/drive_guard.local.json
