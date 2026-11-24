@@ -107,7 +107,9 @@ async def _hear(url: str) -> dict:
             saved, why = await zalo_attachments.fetch_file({"url": url, "name": name}, Path(d), MAX_BYTES)
             if not saved:
                 return {"error": f"không tải được tin thoại: {why}"}
-            res = await HEAR(Path(saved).read_bytes(), Path(saved).name)
+            # Read off the event loop: a voice note can be a few MB and the loop serves every chat.
+            audio = await asyncio.to_thread(Path(saved).read_bytes)
+            res = await HEAR(audio, Path(saved).name)
     except Exception as e:      # noqa: BLE001 - a broken ear must never cost the history
         return {"error": f"không nghe được tin thoại ({type(e).__name__})"}
     text = str((res or {}).get("text") or "").strip()
