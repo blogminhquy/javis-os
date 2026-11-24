@@ -27,6 +27,9 @@ import os
 import re
 import threading
 import time
+
+# Thời hạn thẻ duyệt lệnh ghi Drive ngoài vùng (giây, từ lúc tạo thẻ). Hết hạn -> DENY, phải tạo thẻ mới.
+DRIVE_APPROVAL_TTL_S = 30 * 60
 import unicodedata
 from typing import Any, Awaitable, Callable, Optional
 
@@ -4479,6 +4482,9 @@ class TeamRunner:
         text = str(out.get("text") or "")
         fps = [{"fp": b["fp"], "label": b.get("label") or b.get("name"),
                 "call": self._call_text(b.get("kind") or "hub", b.get("name") or "", b.get("args"))} for b in blocked]
+        # Ghi ngoài vùng Drive: thẻ BẮT BUỘC có hạn (drive-scope không chấp nhận thẻ không hạn). Hạn tính từ lúc tạo thẻ.
+        drive_deadline = (time.time() + DRIVE_APPROVAL_TTL_S
+                          if any(b.get("kind") == team_gate.DRIVE_KIND for b in blocked) else None)
         if req:
             for a in req.get("actions") or []:
                 tool = a["tool"]
@@ -4498,14 +4504,15 @@ class TeamRunner:
                     fps.append({"fp": fp, "label": label, "call": self._call_text(kind, tool, args)})
             return {"kind": "action" if fps else "plan", "title": req["title"], "action": req["action"],
                     "scope": req.get("scope", ""), "impact": req.get("impact", ""), "evidence": req.get("evidence", []),
-                    "deadline_at": req.get("deadline_at"), "fingerprints": fps[:team_gate.MAX_BLOCKED]}
+                    "deadline_at": req.get("deadline_at") or drive_deadline,
+                    "fingerprints": fps[:team_gate.MAX_BLOCKED]}
         if fps:
             labels = "; ".join(f["label"] for f in fps)
             return {"kind": "action", "title": f"{self._name(team, step['agent_key'])} cần làm {len(fps)} hành động ra "
                                                f"ngoài phạm vi",
                     "action": f"Javis đã chặn trước khi chạy: {labels}", "scope": task.get("title") or "",
                     "impact": "", "evidence": [team_approval.excerpt(text, 600)] if text.strip() else [],
-                    "deadline_at": None, "fingerprints": fps}
+                    "deadline_at": drive_deadline, "fingerprints": fps}
         # The prose net: only in a gated team, and never on the step the owner just approved (its rerun may repeat the
         # question; the owner already answered it, so the result is taken). Review 0.207.0, P2.
         gated = (self._team(team["team_id"]).get("work_mode") or team_gate.GATED) != team_gate.FULL
