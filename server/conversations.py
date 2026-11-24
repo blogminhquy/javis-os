@@ -1927,7 +1927,10 @@ def xoa_trang_thai(tien_to: str) -> None:
 # để gắn đúng loại tin; nội dung vẫn giữ nguyên vì phần chữ sau đó là caption hoặc lời nói.
 _DAU_MEDIA = (
     ("ảnh", "image"), ("hình", "image"), ("tin thoại", "audio"), ("voice", "audio"),
-    ("audio", "audio"), ("video", "video"), ("sticker", "sticker"), ("file", "file"),
+    ("audio", "audio"), ("video", "video"), ("sticker", "sticker"),
+    # Zalo Bot's note for a photo it could not download is in English and names the "file server" in its reason
+    # ("[The user sent a photo on Zalo, but..."): "photo" goes before "file", after the other media words.
+    ("photo", "image"), ("file", "file"),
     ("tài liệu", "file"), ("document", "file"),
 )
 
