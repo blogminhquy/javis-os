@@ -66,11 +66,23 @@
   // any other repo is one tap to add, each change is its own request.
   // 2026-11-15: `opts.save(names)` replaces the chat routes, so the same picker sets the repos of a PROJECT or an
   // ASSISTANT (sessions-ui.js drawer). It returns a promise of the server's answer ({ok, repos} or {ok: false, error}).
-  function panel(box, opts) {
+  // 2026-11-22: a failed check (network, an expired Javis session, a page that is not JSON) reads "Could not check" with
+  // a retry, by the rule of the main composer (github-connect.js, JavisGithubRepos.statusState); before, it read "not
+  // connected" like a real signed-out GitHub.
+  function panel(box, opts, fresh) {
     box.innerHTML = '<div class="cp-empty pg-loading">' + esc(tw("gh.loading")) + "</div>";
-    api("/github/status").then(function (st) {
+    api(fresh ? "/github/status?refresh=1" : "/github/status").then(function (st) {
       if (!box.isConnected) return;
-      if (!st || !st.connected) {
+      var G = window.JavisGithubRepos;
+      var state = G && G.statusState ? G.statusState(st) : "unknown";
+      if (state === "unknown") {
+        box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.panel_unknown")) + "<br>" +
+          esc(G && G.whyText ? G.whyText(st) : tw("gh.err_net")) + "</div>" +
+          '<button type="button" class="cp-mi" data-tg-retry="1"><span class="cp-mi-lbl">' + esc(tw("common.retry")) + "</span></button>";
+        box.querySelector("[data-tg-retry]").onclick = function () { panel(box, opts, true); };
+        return;
+      }
+      if (state === "off") {
         box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.panel_not_connected")) + "</div>" +
           '<button type="button" class="cp-mi" data-tg-conn="1"><span class="cp-mi-lbl">' + esc(tw("gh.open_connections")) + "</span></button>";
         box.querySelector("[data-tg-conn]").onclick = function () { opts.close(); if (opts.connections) opts.connections(); };

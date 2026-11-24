@@ -40,7 +40,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=181">
+  <link rel="stylesheet" href="/static/style.css?v=183">
   <link rel="stylesheet" href="/static/console.css?v=146">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -621,11 +621,15 @@
 
     <!-- ===== Composer: ONE rounded card in the style of Claude (0.153.0) =====
          Owner, 21/11/2026 ("sắp xếp lại khung giống của Claude"): the card is ONE row, "+", the text box, then mic and
-         send, all on one centre line (attached files above it). Under the card, outside its border, #cpUnder: the
-         pinned folder and the GitHub repos on the left (icons only on a phone when both are pinned), model, Effort
-         and the plan usage ring on the right. Popovers open just above the card (model-picker.js placePops).
+         send, all on one centre line (attached files above it). On top of the card, a tray (#cpCtx, 22/11/2026): the
+         pinned folder and the GitHub repos. Under the card, outside its border, #cpUnder: model, Effort and the plan
+         usage ring on the right. Popovers open just above the card (model-picker.js placePops).
          Phone (2026-11-11): ring, model and effort are drawn as one pill and open one sheet from the bottom. -->
     <div class="hud-voice" id="hudVoice">
+      <!-- The tray ON TOP of the card (owner, 22/11/2026: "đưa folder và repo github lên khung trên ... dễ nhìn hơn trên
+           điện thoại"): what this chat works on, the pinned folder then the GitHub repos (their two scripts
+           fill it). Hidden while nothing is pinned; with its own full row both names show on a phone. -->
+      <div class="cp-ctx" id="cpCtx" hidden></div>
       <button id="voiceFocusResume" class="voice-focus-resume" hidden></button>
       <div class="attach-bar" id="attachBar"></div>
       <input type="file" id="fileInput" multiple style="display:none">
@@ -671,10 +675,9 @@
           </button>
         </div>
       </div>
-      <!-- Under the card (owner, 21/11/2026): what this chat works on (the pinned folder, then the GitHub repos; their
-           scripts fill #cpCtx) on the left, model, Effort and the plan usage ring on the right. -->
+      <!-- Under the card (owner, 21/11/2026): model, Effort and the plan usage ring on the right. The pinned folder and
+           the repos moved to the tray on top of the card (#cpCtx, 22/11/2026). -->
       <div class="cp-under" id="cpUnder">
-        <div class="cp-ctx" id="cpCtx" hidden></div>
         <div class="cp-chips" id="cpChips">
           <button type="button" class="mb-chip" id="mbOpen" title="Đổi model / nhà cung cấp" data-i18n-title="mb.open">
             <span class="mb-dot"></span>
@@ -1047,21 +1050,27 @@
        Nhóm nào trang nào cần: console.js renderPage. Trang rảnh thì nạp nốt ở nền theo đúng thứ tự dưới đây. -->
   <script id="javis-lazy" type="application/json">{
  "congviec": [
+  "/static/improvement-candidates.css?v=3",
   "/static/agent-jobs.js?v=8",
   "/static/agent-pulse.js?v=4",
   "/static/agent-lessons-ui.js?v=4",
-  "/static/agent-judge-ui.js?v=2"
+  "/static/agent-judge-ui.js?v=2",
+  "/static/improvement-experiments.js?v=1",
+  "/static/improvement-candidates.js?v=3",
+  "/static/studio.js?v=49",
+  "/static/workspace.js?v=36"
  ],
  "teams": [
   "/static/team-github.js?v=1",
   "/static/teams.js?v=35"
  ],
  "packs": [
+  "/static/messenger-connect.js?v=4",
   "/static/packs.js?v=7"
  ],
  "hoithoai": [
   "/static/inbox-v5.css?v=15",
-  "/static/inbox-compact.css?v=6",
+  "/static/inbox-compact.css?v=8",
   "/static/date-range.css?v=1",
   "/static/chatbots-reply-policy.js?v=1",
   "/static/chatbots-try.js?v=1",
@@ -1071,7 +1080,7 @@
   "/static/inbox-v5.js?v=4",
   "/static/inbox-channels.js?v=5",
   "/static/inbox-stats.js?v=4",
-  "/static/conversations.js?v=34"
+  "/static/conversations.js?v=36"
  ],
  "usage": [
   "/static/usage.js?v=3"
@@ -1146,7 +1155,7 @@
   <script src="/static/chat-goal.js?v=1"></script>
   <script src="/static/chat-lenh.js?v=3"></script>
   <script src="/static/chat-acts.js?v=7"></script>
-  <script src="/static/chat-suggest.js?v=3"></script>
+  <script src="/static/chat-suggest.js?v=4"></script>
   <!-- One POST /upload with progress and stall watch, shared by the main chat and the Team chat (app.js, teams.js). -->
   <script src="/static/chat-upload.js?v=1"></script>
   <!-- Stick to the latest message, the jump button and its "New messages" pill, shared by app.js and teams.js. -->
@@ -1218,18 +1227,14 @@
        teams.js, which open it instead of prompt(). -->
   <script src="/static/text-edit-dialog.js?v=1"></script>
   <script src="/static/sessions-ui.js?v=31"></script>
-  <link rel="stylesheet" href="/static/improvement-candidates.css?v=3">
-  <script src="/static/improvement-experiments.js?v=1"></script>
-  <script src="/static/improvement-candidates.js?v=3"></script>
   <script src="/static/agent-picker.js?v=1"></script>
-  <script src="/static/studio.js?v=49"></script>
-  <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
-       console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
+  <!-- studio.js (with the skill review it opens) and workspace.js load with the lazy group "congviec" since
+       2026-11-23: only the Skills, partners and Teams pages run them. window.openStudio and the Studio button,
+       which studio.js used to wire at start-up, live in app.js. -->
   <!-- Tab Công việc của trợ lý (0.142.0): nạp TRƯỚC workspace.js, workspace.js gọi window.JavisAgentJobs. -->
   <script src="/static/pulse-seen.js?v=1"></script>
   <!-- Tag filter bar and tag picker shared by Cộng sự and Team (0.195.0): load BEFORE workspace.js and teams.js. -->
   <script src="/static/tag-picker.js?v=1"></script>
-  <script src="/static/workspace.js?v=36"></script>
   <!-- Hộp chọn thành viên kiểu Zalo (0.142.0): nạp TRƯỚC teams.js, teams.js gọi window.JavisTeamPicker. -->
   <script src="/static/team-picker.js?v=2"></script>
   <!-- Bộ phán xử nói / chờ / im của từng trợ lý (T3 phần J 0.156.0): lịch sử quyết định và nút sửa. Nạp TRƯỚC teams.js
@@ -1238,7 +1243,7 @@
   <script src="/static/dictate.js?v=7"></script>
   <script src="/static/composer-dictate.js?v=8"></script>
   <!-- Trang Hội thoại (hộp thư khách): nạp TRƯỚC console.js để renderConversations uỷ quyền được. -->
-  <script src="/static/ht-media.js?v=3"></script>
+  <script src="/static/ht-media.js?v=4"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <!-- Trang Code (terminal): nạp TRƯỚC console.js để renderCode ủy quyền được. File này CHỈ có
        phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->
@@ -1257,17 +1262,17 @@
   <!-- Watch tab of the Recurring work page (0.239.0): token-free web page watching (server/web_watch.py). -->
   <script src="/static/web-watch.js?v=3"></script>
   <script src="/static/login-vault.js?v=3"></script>
-  <script src="/static/messenger-connect.js?v=4"></script>
+  <!-- messenger-connect.js loads with the lazy group "packs" (2026-11-23): only the Connections page draws it. -->
   <script src="/static/voice-catalog.js?v=1"></script>
   <script src="/static/console.js?v=217"></script>
   <script src="/static/mobile-chat.js?v=17"></script>
   <script src="/static/brain-view.js?v=1"></script>
-  <script src="/static/push.js?v=4"></script>
+  <script src="/static/push.js?v=5"></script>
   <script src="/static/install-nudge.js?v=3"></script>
   <!-- Mời tặng sao GitHub (0.324.0): thẻ hiện ở khoảnh khắc vui, xem server/star_nudge.py. -->
   <link rel="stylesheet" href="/static/star-nudge.css?v=3">
   <script src="/static/star-nudge.js?v=2"></script>
-  <script src="/static/notifications.js?v=15"></script>
+  <script src="/static/notifications.js?v=16"></script>
   <script src="/static/rail-unread.js?v=1"></script>
   <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
        (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->

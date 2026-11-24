@@ -509,6 +509,7 @@ Tidak bisa berdonasi? Menggunakan Javis, mengirim masukan, atau membuka pull req
 
 <div align="center">
 <br>
+<a href="https://nguyenminhquy.com"><img src="../../assets/author.webp" width="96" height="96" alt="Minh Quý"></a><br>
 <b><a href="https://javisos.com">javisos.com</a></b><br>
-Dibuat dengan ☕ di Vietnam oleh <b><a href="https://minhquy.vn">Minh Quý</a></b>
+Dibuat dengan ☕ di Vietnam oleh <b><a href="https://nguyenminhquy.com">Minh Quý</a></b>
 </div>

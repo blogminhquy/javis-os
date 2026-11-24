@@ -1,0 +1,316 @@
+SPEC: ANTIGRAVITY (agy) - MODEL MỚI KHÔNG HIỆN, VÀ NỐI MẠCH ĐỂ NHANH HƠN
+Ngày viết: 2026-11-23. Người viết: phiên Claude Code không có agy (chỉ đọc mã, chưa đo trên binary).
+Người làm: một phiên Claude Code chạy trên máy Linux có `agy` ĐÃ ĐĂNG NHẬP gói Google trả phí.
+
+====================================================================================================
+0. ĐỌC TRƯỚC KHI LÀM
+====================================================================================================
+
+Spec này có hai việc, làm theo thứ tự:
+
+  Việc A. Model mới của Antigravity (Hydrogen, Carbon, Neon) không hiện trong trình chọn model của
+          Javis, dù người dùng đã đăng ký gói trả phí.
+  Việc B. Antigravity chậm và hay quên ngữ cảnh vì mỗi lượt chat mở một mạch `agy` mới. Bật nối
+          mạch bằng `--conversation`, theo khuôn Grok đang chạy ổn.
+
+Làm A trước: A nhỏ, ít rủi ro, và các phép đo của A (đúng tài khoản, đúng bản `agy`) cũng là điều
+kiện để đo B cho đúng.
+
+Luật chung của repo, bắt buộc:
+  - Đọc `docs/quy-uoc-dev.md` trước khi tạo nhánh, commit hay merge.
+  - Mỗi PR thêm một file `changelog.d/<slug>.md`. KHÔNG sửa VERSION, CHANGELOG.md, CHANGELOG.en.md.
+  - Không dùng ký tự gạch dài (em dash, en dash) ở bất kỳ đâu: mã, chú thích, tài liệu, changelog.
+  - Chữ mới hiện lên màn hình đi qua `t("...")` (dashboard) hoặc `localefmt.chu(...)` (server).
+  - CI xanh mới merge. Mỗi việc A và B là một PR riêng, để gỡ một cái không kéo theo cái kia.
+  - Nguyên tắc đã có trong `antigravity_cli.py`: KHÔNG thêm bảng model chép tay. `agy models` là
+    nguồn chân lý. Mọi thứ "chưa đo" trong spec này phải ĐO trên binary trước khi tin.
+
+Ghi lại mọi kết quả đo (lệnh, phiên bản agy, đầu ra thật đã che token) vào cuối file này, mục 9,
+để phiên sau không phải đo lại.
+
+====================================================================================================
+1. BỐI CẢNH: ĐƯỜNG ĐI HIỆN TẠI (số dòng tính trên main ngày 2026-11-23, bản 0.628.10)
+====================================================================================================
+
+Danh sách model:
+  - `server/antigravity_cli.py:888` `list_models()`: chạy `agy models --output-format json` (nếu
+    `--help` có cờ đó), bóc bằng `_tach_model` (dòng 857). Hỏng thì chạy `agy models` chữ thuần,
+    bóc từng dòng: tách theo TAB hoặc 2+ khoảng trắng, lấy cột đầu, BỎ dòng nào cột đầu còn khoảng
+    trắng.
+  - `server/main.py:8747` gọi `list_models` cho provider `antigravity-cli`.
+  - `server/main.py:8879` `provider_models_index`: cache RAM 10 phút (`_PROV_MODELS_CACHE`, dòng
+    8453), ghi danh sách live vào settings (`_remember_catalog`). Gọi live hỏng thì trả danh sách
+    dự phòng (mặc định + catalog đã nhớ) kèm `live: False`.
+  - `server/agy_update.py`: tự chạy `agy update` mỗi 24 giờ, trạng thái ở `STATE_DIR/agy-update.json`,
+    hiện ra trang Models qua `GET /antigravity/status` (khoá `cap_nhat`). Bản `agy` đổi thì cache
+    model bị xoá (`main.py` `_cap_nhat_agy`).
+  - Tài khoản Google phụ (`server/plan_accounts.py`, chỉ Linux): mỗi tài khoản chạy `agy` với HOME
+    riêng và `GEMINI_FORCE_FILE_STORAGE=true` (`AntigravityCLI.agy_home`, `antigravity_cli.py`
+    khoảng dòng 1694). `list_models()` KHÔNG nhận HOME nào, tức nó luôn hỏi tài khoản 1 của máy.
+
+Một lượt chat (nhánh `elif prov == "antigravity-cli":` ở `server/main.py:21565`):
+  - Mỗi lượt tạo `AntigravityCLI` mới, KHÔNG đặt `session_id`, nên không bao giờ truyền
+    `--conversation`. Chú thích ở đó nói rõ lý do: chưa ai đo được cờ này trên máy thật.
+  - Prompt = system prompt (khoảng 36.000 ký tự trên brain trống, nhiều hơn khi có ký ức) + lịch sử
+    gói bằng `compaction.bootstrap_prompt` (trần `AGY_BOOTSTRAP_MAX_CHARS` = 45.000 ký tự,
+    `server/compaction.py:70`) + câu hỏi mới.
+  - `AntigravityCLI.query` (`antigravity_cli.py:1464`) chọn đường đưa prompt: argv nếu vừa (Linux
+    tới 120.000 byte, Windows 30.000 đơn vị UTF-16), không thì stdin (công thức đo bằng mã canary)
+    hoặc file ngữ cảnh mà model phải tự mở ra đọc.
+  - `_doi_su_kien` (dòng 1877) đã nhặt `conversation_id` từ sự kiện `init` vào `self.session_id`
+    (đo trên agy 1.1.12: `{"event":"init","conversation_id":"...","init":{...}}`), nhưng không ai
+    lưu id đó lại.
+  - `_build_args` (dòng 1410) đã biết truyền `--conversation <id>` khi `session_id` có giá trị và
+    `--help` khai cờ đó.
+
+Mẫu để chép: nhánh Grok ngay trên (`main.py:21468` tới khoảng 21560): đọc `grok_session_id` của
+phiên, xoay mạch bằng `compaction.nen_mach_thue_bao`, mạch cũ thì chỉ gửi câu mới, mạch mới thì mồi
+bằng transcript, `--resume` lỗi mà không có chữ nào thì xoá id.
+
+====================================================================================================
+2. VIỆC A: MODEL MỚI KHÔNG HIỆN
+====================================================================================================
+
+2.1 Triệu chứng
+  Google đã đưa model mới vào Antigravity (người dùng gọi là Hydrogen, Carbon, Neon; trong repo đã có
+  dấu vết `gemini-4-hydrogen`, Gemini 4 Argon, Gemini 4 Carbon ở `server/engine.py:1132` và
+  `server/usage_pricing.json`). Người dùng trả phí mở trình chọn model của Javis cho Antigravity
+  không thấy các model đó.
+
+2.2 Giả thuyết, xếp theo khả năng. Đo từng cái, ghi kết quả vào mục 9.
+
+  H1. `agy` trên máy là bản cũ, chưa biết model mới.
+      Đo:
+        agy --version
+        cat "$JAVIS_STATE_DIR/agy-update.json"     (hoặc gọi GET /antigravity/status, xem cap_nhat)
+        agy update && agy --version
+      Dấu hiệu: `agy-update.json` có `error`, hoặc `ts` cũ hơn 24 giờ, hoặc bản sau `agy update`
+      khác bản trước. Trong Docker, `agy` nằm ở `~/.local/bin` của user chạy Javis: kiểm tra
+      quyền ghi.
+      Sửa nếu đúng: nếu `agy update` hỏng (quyền, mạng, cú pháp lệnh đổi) thì sửa `agy_update.py`;
+      nếu chạy được mà không ai biết nó hỏng thì hiện lỗi đó rõ trên thẻ Antigravity ở trang Models.
+
+  H2. Bộ đọc của Javis bỏ sót dòng của `agy models` (định dạng đổi theo bản mới).
+      Đo, chép NGUYÊN VĂN cả hai đầu ra (dùng `cat -A` để thấy TAB):
+        agy models | cat -A
+        agy models --output-format json
+        cd server && python3 -c "import antigravity_cli as a; print(a.list_models())"
+      So số model `agy` in ra với số model Javis bóc được. Các kiểu hỏng cần soi:
+        - Cột cách nhau bằng MỘT khoảng trắng hoặc " - ": dòng bị bỏ vì cột đầu còn khoảng trắng.
+        - Có dòng tiêu đề nhóm, đánh dấu "(new)", "(preview)", ký hiệu đầu dòng lạ.
+        - JSON có hình dạng mới: lồng một tầng (`{"model": {"id": ...}}`), chia nhóm theo khoá khác
+          `models/data/items/result` (ví dụ `available`, `groups`, `tiers`), hoặc có trường kiểu
+          `available: false` / `locked`.
+      Sửa nếu đúng: sửa `_tach_model` và bộ đọc chữ thuần cho đúng hình dạng THẬT. Thêm đúng đầu ra
+      thật (đã che thông tin riêng) làm mẫu vàng trong `tests/python/test_antigravity_cli.py`, cả
+      chữ thuần lẫn JSON, giống mục mẫu vàng của `test_grok_cli.py`.
+
+  H3. Javis hỏi sai tài khoản.
+      `list_models()` luôn chạy với HOME của máy (tài khoản 1). Nếu tài khoản trả phí là tài khoản
+      Google PHỤ (thẻ Antigravity, mục tài khoản, chỉ có trên Linux) thì danh sách là của tài khoản
+      1, có thể là gói miễn phí.
+      Đo:
+        agy models                                                  (tài khoản 1)
+        HOME=<thư mục tài khoản phụ> GEMINI_FORCE_FILE_STORAGE=true agy models
+      Thư mục tài khoản phụ: xem `plan_accounts.py` (`default_home`, cách đặt `agy_home`).
+      Sửa nếu đúng: `list_models(home=None)` nhận HOME; trình chọn lấy danh sách của tài khoản đang
+      được dùng, hoặc HỢP danh sách của mọi tài khoản đã đăng nhập (ghi rõ chọn cách nào và vì sao).
+      Khoá cache `_PROV_MODELS_CACHE` phải tách theo tài khoản nếu danh sách khác nhau.
+
+  H4. Cache cũ che danh sách mới.
+      Cache RAM 10 phút ở server, catalog nhớ trong settings, và có thể cả cache ở
+      `dashboard/model-picker.js`. Nếu lần gọi live hỏng, Javis trả danh sách dự phòng (cũ) với
+      `live: False`, và người dùng không biết đó là danh sách cũ.
+      Đo: gọi `GET /provider/models?provider=antigravity-cli&refresh=1` và xem `live`, `error`.
+      Sửa nếu đúng: khi `live` là False, trình chọn phải nói rõ "đang hiện danh sách đã lưu" kèm lý
+      do, và có nút làm mới gọi `refresh=1`.
+
+  H5. `agy models` không liệt kê model đó, dù tài khoản dùng được.
+      (Google tung dần theo tài khoản, hoặc model chỉ có trong IDE.)
+      Đo:
+        agy --model <slug của model mới> -p "trả lời đúng chữ OK" --output-format stream-json
+      Slug lấy từ IDE hoặc từ tài liệu của Google; thử cả biến thể có đuôi mức nghĩ (-low/-high).
+      Nếu chạy được mà `agy models` không liệt kê: cho phép GÕ TAY tên model cho Antigravity trong
+      trình chọn (xem các provider khác đã có ô gõ tay chưa ở `dashboard/model-picker.js`), và ghi
+      rõ trong giao diện rằng đây là model ngoài danh sách của CLI.
+
+  H6. Model hiện ra nhưng chạy lỗi vì mức nghĩ.
+      Model mới có thể tự mang mức nghĩ trong tên. `model_khoa_effort` (`antigravity_cli.py:204`)
+      xử lý đuôi -low/-medium/-high/...; nếu tên mới dùng kiểu khác, `--effort` sẽ xung đột. Không
+      phải lỗi "không thấy model" nhưng hay đi kèm: chạy thử mỗi model mới một lượt sau khi nó hiện.
+
+2.3 Kết quả cần đạt
+  - Trình chọn hiện ĐÚNG những gì `agy models` in ra cho tài khoản đang dùng, kể cả Hydrogen,
+    Carbon, Neon nếu tài khoản có.
+  - Thẻ Antigravity ở trang Models cho thấy: bản `agy`, lần cập nhật gần nhất và lỗi nếu có, số model
+    đọc được. Đủ để người dùng tự biết vì sao thiếu model mà không cần hỏi.
+  - Mẫu vàng đầu ra thật của `agy models` (chữ và JSON) nằm trong test.
+  - Mỗi model mới chạy được một lượt chat thật (ghi lại ở mục 9).
+
+====================================================================================================
+3. VIỆC B: NỐI MẠCH CHO ANTIGRAVITY
+====================================================================================================
+
+3.1 Vì sao chậm và hay quên
+  - Mỗi lượt là một mạch mới: model đọc lại khoảng 36.000 ký tự system prompt cộng tới 45.000 ký tự
+    lịch sử, không được hưởng bộ nhớ đệm phía Google của mạch trước.
+  - Lịch sử bị cắt ở 45.000 ký tự, nên chat dài thì quên đoạn đầu. Kết quả công cụ (file đã đọc,
+    lệnh đã chạy) của các lượt trước mất hết, chỉ còn chữ trả lời.
+  - Trên Windows gói dài đi qua file ngữ cảnh, model phải tự mở đọc, có lúc đọc cụt rồi trả lời lạc
+    đề (xem chú thích `cau_hoi_moi_nhat`).
+
+3.2 BẮT BUỘC ĐO TRƯỚC KHI VIẾT MÃ. Chạy trong một thư mục thử, ghi đầu ra vào mục 9.
+
+  M1. Mạch mới trả id ở đâu:
+        agy -p "Nhớ giúp tôi số 7. Chỉ trả lời: đã nhớ." --output-format stream-json
+      Xác nhận sự kiện `init` có `conversation_id`, và id đó có còn xuất hiện ở sự kiện cuối không.
+  M2. Nối mạch có nhớ không:
+        agy --conversation <id ở M1> -p "Số vừa rồi là số mấy?" --output-format stream-json
+      Phải trả lời 7. Ghi lại: id trong `init` của lượt này giống hay khác id cũ (nếu khác thì lượt
+      sau phải dùng id MỚI).
+  M3. Id sai hoặc đã mất: chạy `--conversation 00000000-0000-0000-0000-000000000000`. Ghi mã thoát,
+      câu lỗi, và có in chữ trả lời nào không. Đây là tín hiệu để code biết mà mở mạch mới.
+  M4. Nối mạch qua stdin (đường Javis dùng khi prompt dài):
+        printf 'Số vừa rồi là số mấy?' | agy --conversation <id> --output-format stream-json
+      Thử đúng công thức stdin mà máy đã đo (`STATE_DIR/antigravity-duong-prompt.json`).
+  M5. Đổi `--model` giữa hai lượt cùng một mạch: chạy được không, hay phải mở mạch mới.
+  M6. Đổi tài khoản (HOME khác) với cùng id: chắc chắn hỏng, ghi câu lỗi.
+  M7. Token: so `input_tokens` trong sự kiện usage của lượt nối mạch với lượt mạch mới. Xác nhận
+      lượt nối mạch có tính cả lịch sử phía Google hay không, và có số cache đọc không.
+  M8. Thời gian: với system prompt THẬT của Javis (lấy bằng cách in `sysprompt` ở nhánh chat, hoặc
+      gọi `POST /antigravity/check`), đo thời gian tới chữ đầu tiên (`text_delta` đầu) và tổng thời
+      gian cho 3 lượt liên tiếp, cách cũ và cách nối mạch. Ghi bảng:
+        lượt | cách cũ: chữ đầu / tổng | nối mạch: chữ đầu / tổng
+  M9. Sau `agy update` id cũ còn nối được không.
+
+  Chỉ viết mã khi M1, M2, M3 cho kết quả đúng. Nếu M2 không nhớ hoặc M3 in câu trả lời bừa mà không
+  báo lỗi, DỪNG, ghi lại ở mục 9 và báo chủ repo: nối mạch không an toàn trên bản agy này.
+
+3.3 Thiết kế (theo khuôn Grok, cộng một lưới an toàn Grok chưa có)
+
+  a) Lưu id theo phiên chat:
+     - `server/sessions.py`: thêm cột `agy_conversation_id TEXT` vào danh sách ALTER TABLE (cạnh
+       `grok_session_id`, khoảng dòng 660), thêm `set_agy_conversation_id` / `clear_...` (cạnh
+       dòng 2415), và thêm `"antigravity-cli": "agy_conversation_id"` vào `_MACH_NATIVE` (dòng 2437)
+       để đổi bộ não giữa chừng thì mạch Antigravity tự bị dọn (`clear_native_threads`,
+       `main.py:23512`, nhãn engine là "antigravity-cli").
+     - `server/improvement_trial_sql_context.py`: thêm cột mới vào `_SESSION_COLUMNS`.
+     - Lưu kèm tài khoản đã tạo mạch (ví dụ cột hoặc tiền tố id) để đổi tài khoản thì bỏ mạch (M6).
+
+  b) Nhánh chat (`main.py:21565`):
+     - Đọc id. Xoay mạch bằng `compaction.nen_mach_thue_bao` y như Grok (dùng `last_input_tokens`).
+     - Có id: `acli.session_id = id`, prompt = CHỈ câu mới (`_a_cur`). System prompt vẫn gửi kèm
+       qua `instructions` như Grok, vì nó đổi theo từng lượt (giờ, kênh, ký ức). Nếu M7/M8 cho thấy
+       gửi lại system prompt làm mạch phình nhanh, ghi số liệu và đề xuất cách gọn hơn cho chủ repo,
+       KHÔNG tự đổi trong PR này.
+     - Không có id: như cũ, mồi bằng `bootstrap_prompt`.
+     - Lượt nối mạch lỗi mà không có chữ nào (dấu hiệu theo M3): xoá id rồi CHẠY LẠI NGAY trong lượt
+       đó bằng cách cũ (mạch mới + bootstrap), để người dùng không nhận lượt hỏng. Grok hiện chỉ xoá
+       id cho lượt sau; ở đây làm tốt hơn.
+     - Thành công: lưu `acli.session_id` (id mới nhất theo M2).
+     - Không lưu id nếu lượt bị Dừng giữa chừng hoặc hết hạn mức (xem cách nhánh Grok và Codex làm).
+
+  c) Các chỗ khác gọi `AntigravityCLI` (`main.py:4687`, `main.py:28162`, việc nền, Team, workflow):
+     giữ nguyên một lượt một mạch. Chỉ chat chính (dashboard, Telegram nếu dùng chung nhánh) nối
+     mạch. Ghi rõ trong PR.
+
+  d) Công tắc: biến môi trường `JAVIS_AGY_RESUME=0` tắt nối mạch, quay về cách cũ. Mặc định bật
+     khi M1-M3 đã đo đúng.
+
+  e) `CLAUDE.md` dòng 20 đang viết "Antigravity CLI has shell and its own tools, but Javis does not
+     resume its thread." Sửa cho đúng sự thật mới. File này có trần ngân sách
+     (`tests/python/test_prompt_budget.py`): sửa ngắn, chạy test đó.
+
+  f) Sửa chú thích "CỐ Ý chưa nối lại mạch..." ở đầu nhánh chat cho khớp, kèm phiên bản agy đã đo.
+
+3.4 Test cần thêm (`tests/python/test_antigravity_cli.py` hoặc file mới)
+  - Có id thì lệnh có `--conversation <id>` và prompt chỉ có câu mới; không có id thì có bootstrap.
+  - Sự kiện `init` của lượt nối mạch trả id mới thì id mới được lưu.
+  - Lượt nối mạch lỗi rỗng: id bị xoá và lượt chạy lại bằng bootstrap trong cùng lượt.
+  - Đổi engine giữa chừng: `clear_native_threads` dọn `agy_conversation_id`.
+  - `JAVIS_AGY_RESUME=0`: không bao giờ truyền `--conversation`.
+  - Mẫu vàng: dùng đúng các dòng stream đo được ở M1, M2, M3.
+
+3.5 Kết quả cần đạt
+  - Bảng đo M8 cho thấy lượt thứ 2 và 3 nhanh hơn rõ (ghi số thật, không ước lượng).
+  - Hỏi lại một chi tiết từ đầu một cuộc chat dài (dài hơn 45.000 ký tự) thì Antigravity vẫn nhớ.
+  - Không có lượt nào trả về rỗng vì mạch hỏng (lưới an toàn ở 3.3 b).
+
+====================================================================================================
+4. LIÊN QUAN: PR blogminhquy/javis-os#1761 (đã làm, cần đo thêm một điểm)
+====================================================================================================
+
+PR đó làm hub kể cho Antigravity biết các MCP người dùng tự thêm vào
+`~/.gemini/config/mcp_config.json`. Hiện Javis gọi tên chúng là "tool của MCP '<tên>'" vì CHƯA
+BIẾT `agy` đặt tên tool MCP thế nào. Khi đo M1-M8, nếu có lượt gọi tool MCP, xem trường
+`tool_name` trong sự kiện `step_update` (step_type "tool"). Nếu tên có mẫu ổn định (ví dụ
+`<server>_<tool>` hay `mcp__<server>__<tool>`), sửa `_amb_tools` trong `server/mcp_hub.py` cho
+Antigravity dùng đúng mẫu đó, kèm test.
+
+====================================================================================================
+5. KHÔNG LÀM TRONG HAI PR NÀY
+====================================================================================================
+  - Không thêm bảng model chép tay cho Antigravity.
+  - Không đổi đường đưa prompt (argv, stdin, file) ngoài phần nối mạch cần.
+  - Không bật nối mạch cho việc nền, Team, workflow.
+  - Không đổi cách xoay mạch của Codex hay Grok.
+
+====================================================================================================
+6. BÀN GIAO CHO CHỦ REPO (nói ngắn, đọc được trên điện thoại)
+====================================================================================================
+  - Nguyên nhân thật của việc A là giả thuyết nào (H1 tới H6), kèm bằng chứng đo.
+  - Bảng đo M8 trước và sau.
+  - Link hai PR, trạng thái CI, số phiên bản sau khi phát hành.
+  - Điều gì vẫn chưa đo được và vì sao.
+
+====================================================================================================
+9. NHẬT KÝ ĐO (phiên làm việc ghi vào đây)
+====================================================================================================
+  2026-11-24, việc B (nối mạch) ĐÃ LÀM, khác thiết kế 3.3 ở hai chỗ theo số đo của chủ repo trên VPS:
+    - KHÔNG gửi lại system prompt ở lượt nối mạch (trái 3.3 b): gửi lại 58 KB làm chậm hơn cả không nối
+      mạch (chữ đầu 5,30 s so với 4,82 s) và phình mạch từ 27k lên 47,5k token. System prompt đi một lần ở
+      tin đầu của mạch; lượt sau chỉ gửi header ngắn (`_turn_facts_header`) cộng câu mới.
+    - Đi thẳng tiến trình ấm `--input-format stream-json` trong warm_pool (`server/agy_warm.py`) thay vì
+      chỉ nối mạch trên tiến trình nguội. Công tắc là `JAVIS_AGY_RESUME=0` như 3.3 d.
+    - KHÔNG thêm cột `agy_conversation_id` (trái 3.3 a): bộ kiểm schema của tự cải tiến
+      (`improvement_trial_sql_context._schema`) từ chối bảng `sessions` có cột ngoài danh sách, mà danh
+      sách đó nằm trong file bị ghim hash bởi bằng chứng native qualification. Id mạch dùng lại cột
+      `gemini_session_id` (bỏ không từ khi gỡ Gemini CLI ở 0.50.0), tên ở `sessions.AGY_THREAD_COLUMN`.
+  Máy chủ repo: Windows 11, agy 1.5.15, gemini-3.8-flash-low, thư mục thử trong scratchpad.
+  M1: `init` có `conversation_id`, cùng id ở `result.conversation_id`. Ở stream-json, `init` ra ~2,5 s sau
+      khi mở tiến trình, TRƯỚC khi gửi tin nào.
+  M2: `--conversation <id>` nhớ đúng ("PAPAYA"), id trong `init` GIỐNG id cũ.
+  M3: id lạ (11111111-...): thoát 0, KHÔNG lỗi, stderr `warning: conversation "..." not found`, mở mạch mới
+      với id KHÁC. Lưới an toàn: so id trong `init` với id đã xin TRƯỚC khi gửi tin; khác thì gửi đủ ngữ
+      cảnh (cold = thread_lost).
+  M4: thay bằng stdin stream-json: dòng 208 KB (mọi ký tự ngoài ASCII thoát dạng \uXXXX) đọc trọn, tiếng
+      Việt ra đúng số token như gửi UTF-8.
+  M5, M6, M9: chưa đo riêng. Đổi model, tài khoản hay bản agy đổi dấu vân tay của ô ấm nên mở tiến trình
+      mới; đổi tài khoản thì mạch cũ không có ở HOME kia, rơi vào lưới M3.
+  M7: `usage` của từng bước `agent_response`: input KHÔNG gồm phần cache, ngữ cảnh = input + cache_read.
+      `result.usage` ở stream-json là TỔNG CỘNG DỒN cả tiến trình, nên Javis tự cộng theo bước của lượt.
+  M8 (số của chủ repo trên VPS, ngữ cảnh 58 KB, gemini-4-hydrogen-high): cách cũ chữ đầu 11,60 s / xong
+      14,71 s; nối mạch nguội không gửi lại 58 KB 3,66 s / 4,40 s; tiến trình ấm lượt 2-4 1,59-2,68 s /
+      2,19-2,87 s, cache 92%. Máy chủ repo, đường code mới với agy thật: lượt 1 (mạch mới) 5,39 s, lượt 2
+      ấm 3,41 s, lượt 3 nối mạch trên tiến trình mới 4,08 s (vẫn nhớ), lượt 4 ấm 2,39 s.
+  Tên tool MCP trong stream (mục 4): mọi tool MCP đi qua MỘT tool native `call_mcp_tool` với tham số
+      `ServerName`, `ToolName`, `Arguments` (hub Javis bọc thêm `javis_run_tool` {name, args}); không có
+      tên dạng `<server>_<tool>`. Khung chat nay bóc ra tên tool thật (antigravity_cli.unwrap_mcp_call).
+
+  Máy: (Linux / Docker / VPS)        Bản agy:            Gói Google:
+  H1:
+  H2:
+  H3:
+  H4:
+  H5:
+  H6:
+  M1:
+  M2:
+  M3:
+  M4:
+  M5:
+  M6:
+  M7:
+  M8:
+  M9:
+  Tên tool MCP trong stream (mục 4):

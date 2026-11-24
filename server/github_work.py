@@ -826,14 +826,45 @@ def _ci_snapshot(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"pr": pr, "head": head, "items": items, "required": required}
 
 
-def _failed_logs(row: Dict[str, Any], failed: List[Dict[str, Any]]) -> str:
+# Why a red job came with no log. The fix turn used to get only a link, and the engine went looking for a bug in code
+# that builds fine (owner, 23/11/2026: javisos-blog PR #58, a private repo whose job left no log at all).
+NO_LOG_DENIED = ("GitHub từ chối cho đọc log của job này (GitHub {status}): token GitHub của Javis thiếu quyền Actions "
+                 "(Read). Người dùng cấp thêm ở thẻ GitHub trên trang Kết nối. Không có log thì đừng đoán lỗi trong code.")
+NO_LOG_NEVER_RAN = ("GitHub không có log cho job này: job gần như chắc chưa hề chạy (repo private hết phút GitHub "
+                    "Actions, chạm hạn mức chi tiêu, hoặc máy chạy CI lỗi). Nếu đúng commit này "
+                    "chạy xanh ở máy thì lỗi không nằm ở code: nói rõ vậy, không sửa gì, và chỉ người dùng "
+                    "mở link job để đọc dòng lỗi.")
+NO_LOG_UNREACHABLE = "Không tải được log của job này ({error})."
+
+
+def _failed_logs_info(row: Dict[str, Any], failed: List[Dict[str, Any]]) -> Tuple[str, bool]:
+    """Logs of the failed jobs for the fix turn, plus whether every Actions job among them left no log at all (it never
+    ran: worth one rerun, like a runner failure). A job whose log GitHub refuses or cannot send says why."""
     gh = github_repos.client()
-    parts = []
+    parts, never_ran, jobs = [], 0, 0
     for f in failed[:3]:
-        log = gh.job_log(row["full_name"], f["job_id"]) if f.get("job_id") else ""
-        tail = _redact(log)[-LOG_TAIL:] if log else ""
-        parts.append(f"Kiểm tra đỏ: {f['name']} ({f.get('url') or ''})" + (f"\n```\n{tail}\n```" if tail else ""))
-    return "\n\n".join(parts)
+        log, note = "", ""
+        if f.get("job_id"):
+            jobs += 1
+            try:
+                log = gh.job_log(row["full_name"], f["job_id"], strict=True)
+                if not log.strip():
+                    note, never_ran = NO_LOG_NEVER_RAN, never_ran + 1
+            except GitHubError as e:
+                if e.status in (401, 403):
+                    note = NO_LOG_DENIED.format(status=e.status)
+                elif e.status in (404, 410):
+                    note, never_ran = NO_LOG_NEVER_RAN, never_ran + 1
+                else:
+                    note = NO_LOG_UNREACHABLE.format(error=e)
+        tail = _redact(log)[-LOG_TAIL:] if log.strip() else ""
+        parts.append(f"Kiểm tra đỏ: {f['name']} ({f.get('url') or ''})" + (f"\n```\n{tail}\n```" if tail else "")
+                     + (f"\n{note}" if note else ""))
+    return "\n\n".join(parts), bool(jobs) and never_ran == jobs
+
+
+def _failed_logs(row: Dict[str, Any], failed: List[Dict[str, Any]]) -> str:
+    return _failed_logs_info(row, failed)[0]
 
 
 def _base_also_red(row: Dict[str, Any], failed_names: List[str]) -> bool:
@@ -917,7 +948,7 @@ async def on_red(row: Dict[str, Any], snap: Dict[str, Any]) -> Dict[str, Any]:
     if snap.get("required"):
         failed = [x for x in failed if x["name"] in snap["required"]] or failed
     names = [x["name"] for x in failed]
-    logs = await asyncio.to_thread(_failed_logs, row, failed)
+    logs, never_ran = await asyncio.to_thread(_failed_logs_info, row, failed)
     if await asyncio.to_thread(_base_also_red, row, names):
         reason = _c(f"CI đỏ ({', '.join(names)}) nhưng nhánh {row.get('base_branch')} cũng đỏ đúng các kiểm tra đó: "
                     "không phải lỗi của thay đổi này. Javis không sửa lan ra ngoài phạm vi.",
@@ -927,7 +958,8 @@ async def on_red(row: Dict[str, Any], snap: Dict[str, Any]) -> Dict[str, Any]:
         await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"basered:{sid}:{fn}:{row['head_sha']}")
         return st().get(sid, fn) or row
     # One rerun, only for a failure that looks like the runner and not the code (spec 9.3).
-    if not row.get("rerun_used") and _INFRA.search(logs or "") and any(x.get("job_id") for x in failed):
+    # A job that left no log at all never ran (minutes, spending limit, runner): same treatment.
+    if not row.get("rerun_used") and (never_ran or _INFRA.search(logs or "")) and any(x.get("job_id") for x in failed):
         if st().mark_step(f"rerun:{sid}:{fn}:{row['head_sha']}"):
             try:
                 gh = github_repos.client()
@@ -941,8 +973,12 @@ async def on_red(row: Dict[str, Any], snap: Dict[str, Any]) -> Dict[str, Any]:
             except (GitHubError, github_repos.RepoError):
                 pass
     why = _c(f"CI đỏ: {', '.join(names) or '?'}", f"CI failed: {', '.join(names) or '?'}")
-    await _say(sid, f"**{fn}**: {why}{_pr_tail(row)}", False, once=f"red:{sid}:{fn}:{row['head_sha']}")
-    await request_fix(row, why, logs, f"{sid}:{fn}:ci:{row['head_sha']}")
+    # A rerun a person asked for (`rerun_ci`) that fails again is a new result on the same commit: it gets its own
+    # notice and fix round instead of meeting the step keys of the first red.
+    again = int((row.get("gate") or {}).get("reruns") or 0)
+    tag = f"{row['head_sha']}:rerun{again}" if again else row["head_sha"]
+    await _say(sid, f"**{fn}**: {why}{_pr_tail(row)}", False, once=f"red:{sid}:{fn}:{tag}")
+    await request_fix(row, why, logs, f"{sid}:{fn}:ci:{tag}")
     return st().get(sid, fn) or row
 
 
@@ -1548,6 +1584,55 @@ async def review_skip(sid: str, full_name: str, merge: bool = True) -> Dict[str,
     if merge and row.get("integ") == "ready" and row.get("ci") in ("green", "no_ci"):
         return await merge_by_person(sid, full_name)
     return {"row": _row_view(row)}
+
+
+def _rerun_denied(status: int) -> str:
+    return _c(f"GitHub không cho chạy lại (GitHub {status}): token GitHub của Javis cần quyền Actions là Read and "
+              "write. Cấp thêm ở thẻ GitHub trên trang Kết nối rồi thử lại.",
+              f"GitHub refused the rerun (GitHub {status}): Javis's GitHub token needs Actions set to Read and write. "
+              "Grant it on the GitHub card of the Connections page, then try again.")
+
+
+async def rerun_ci(sid: str, full_name: str) -> Dict[str, Any]:
+    """A person asked to rerun the failed CI of the chat's PR (owner, 23/11/2026: "how do I let you do that?"). Reruns
+    the failed GitHub Actions jobs of the PR's current head; the watcher then follows the new result as usual, and a
+    second red on the same commit gets its own notice and fix round."""
+    row = st().get(sid, full_name)
+    if not row or not row.get("pr_number"):
+        raise github_repos.RepoError(_c("Cuộc này chưa có PR cho repository đó.", "This chat has no PR for that repository."))
+    if row.get("integ") == "merged":
+        raise github_repos.RepoError(_c("PR đã merge, không còn CI nào để chạy lại.", "The PR is merged, no CI to rerun."))
+    try:
+        snap = await asyncio.to_thread(_ci_snapshot, row)
+    except GitHubError as e:
+        raise github_repos.RepoError(_c(f"Chưa đọc được CI từ GitHub ({e}).", f"Could not read CI from GitHub ({e}).")) from None
+    jobs = [x for x in snap["items"] if x.get("job_id") and (x["conclusion"] in _BAD or x["conclusion"] == "cancelled")]
+    if not jobs:
+        if any(x["status"] != "completed" for x in snap["items"]):
+            raise github_repos.RepoError(_c("CI đang chạy, chưa có job đỏ nào để chạy lại.",
+                                            "CI is still running; no failed job to rerun yet."))
+        raise github_repos.RepoError(_c("Không có job GitHub Actions nào đỏ hoặc bị huỷ để chạy lại.",
+                                        "No failed or cancelled GitHub Actions job to rerun."))
+    gh = github_repos.client()
+    for x in jobs:
+        try:
+            await asyncio.to_thread(gh.rerun_job, full_name, x["job_id"])
+        except GitHubError as e:
+            if e.status in (401, 403):
+                raise github_repos.RepoError(_rerun_denied(e.status)) from None
+            raise github_repos.RepoError(_c(f"GitHub không chạy lại được {x['name']} ({e}).",
+                                            f"GitHub could not rerun {x['name']} ({e}).")) from None
+    gate = dict(row.get("gate") or {})
+    gate["reruns"] = int(gate.get("reruns") or 0) + 1
+    # The person chose to try this commit again: an old "stuck on this commit" mark must not hold back its green.
+    gate.pop("stuck_head", None)
+    # rerun_used: the automatic rerun is not spent a second time on top of the person's.
+    row = st().update(sid, full_name, head_sha=snap["head"], ci="running", pushed_at=time.time(), exec="running",
+                      stuck_reason="", rerun_used=1, gate=gate)
+    names = ", ".join(x["name"] for x in jobs)
+    await _say(sid, _c(f"**{full_name}**: đã chạy lại CI ({names}). Javis theo dõi kết quả như mọi lần.",
+                       f"**{full_name}**: CI rerun started ({names}). Javis follows the result as usual."), True)
+    return {"rerun": [x["name"] for x in jobs], "row": _row_view(row)}
 
 
 def _is_review_turn(user_message: str) -> bool:

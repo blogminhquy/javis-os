@@ -1000,8 +1000,13 @@
       // openTab() để mở đúng tab, chứ JavisNav.go("workspace") thì rơi vào tab đang nhớ dở
       // từ lần trước và cú bấm "Quy trình" có khi mở ra danh sách trợ lý.
       if (id === "agent" || id === "workflow") {
-        try { if (window.JavisWorkspace) { window.JavisWorkspace.openTab(id); return; } } catch (err) {}
-        id = "workspace";
+        // 2026-11-23: workspace.js is a lazy file. Load its group, then open the tab; without it, the page itself.
+        var openTab = function () {
+          try { if (window.JavisWorkspace) { window.JavisWorkspace.openTab(id); return; } } catch (err) {}
+          try { window.JavisNav && window.JavisNav.go("workspace"); } catch (err) {}
+        };
+        if (window.JavisNapCham) window.JavisNapCham.goi("congviec", openTab); else openTab();
+        return;
       }
       try { window.JavisNav && window.JavisNav.go(id); } catch (err) {}
     });

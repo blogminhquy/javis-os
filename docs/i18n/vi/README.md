@@ -486,8 +486,10 @@ Không tiện donate cũng không sao - dùng Javis, góp ý, hay gửi một Pu
 
 <div align="center">
 
+<a href="https://nguyenminhquy.com"><img src="../../assets/author.webp" width="96" height="96" alt="Minh Quý"></a><br>
+
 **[javisos.com](https://javisos.com)**
 
-Made with ☕ by **[Minh Quý](https://minhquy.vn)** · Repo: `github.com/blogminhquy/javis-os`
+Made with ☕ by **[Minh Quý](https://nguyenminhquy.com)** · Repo: `github.com/blogminhquy/javis-os`
 
 </div>

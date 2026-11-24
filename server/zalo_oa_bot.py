@@ -54,6 +54,7 @@ from pathlib import Path
 import httpx
 
 import chat_files
+import image_vision
 import localefmt
 import stt
 from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool
@@ -66,6 +67,82 @@ CHANNEL = "zalo_oa"
 MAX_MSG = 1900               # Zalo allows 2000 per text; keep a margin
 MAX_DEDUPE = 4000
 MAX_DOWNLOAD_MB = 20
+# Zalo's file servers have answered an empty 200 to a bare script request (2026-11-23, Seul Clinic: four
+# customer photos saved as 0-byte files). The second try looks like the Zalo web app.
+BROWSER_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                                 "Chrome/126.0 Safari/537.36",
+                   "Accept": "image/avif,image/webp,image/*,*/*;q=0.8", "Referer": "https://chat.zalo.me/"}
+# A photo the customer has just sent is sometimes not on Zalo's file server yet, and the server answers 200 with an empty
+# body (issue #1733, 22/11/2026). After a whole pass over every address came back empty, `_download` waits this long
+# (seconds) and tries again, once per entry. Kept short: the customer is waiting for the bot's answer meanwhile.
+EMPTY_RETRY_WAITS = (1.0, 2.0)
+_sleep = asyncio.sleep       # tests swap this for a no-op so the waits cost nothing
+_LINK_KEYS = ("url", "href", "link", "share_url", "link_url", "src")
+_THUMB_KEYS = ("thumbnail", "thumb", "thumb_url", "thumbnail_url")
+_EXT_BY_MIME = {"image/jpeg": ".jpg", "image/jpg": ".jpg", "image/pjpeg": ".jpg", "image/png": ".png",
+                "image/gif": ".gif", "image/webp": ".webp", "application/pdf": ".pdf"}
+_NAME_EXT = re.compile(r"\.([A-Za-z0-9]{2,5})(?:\?|$)")
+
+
+class EmptyDownload(RuntimeError):
+    """Zalo answered with an empty body on every try: there is no file to save or show."""
+
+
+def file_extension(data: bytes, mime: str = "", name_or_url: str = "", image: bool = False) -> str:
+    """The extension a downloaded Zalo file is saved under. The vision path only treats a file with an image extension
+    as a photo (`vision_input.is_image_path`), so a photo saved without one is a photo no brain looks at (issue #1733:
+    Zalo's CDN labelled a real JPEG `application/octet-stream` on an address with no extension).
+
+    Order: the first bytes (JPEG, PNG, GIF, WebP, PDF), the Content-Type, the extension in the file name or address,
+    then `.jpg` for something Zalo sent as an image. Anything else gets no extension rather than a wrong one."""
+    head = bytes(data[:16] if data else b"")
+    sniffed = image_vision.sniff_image_type(head)
+    if sniffed:
+        return _EXT_BY_MIME[sniffed]
+    if head.startswith(b"%PDF"):
+        return ".pdf"
+    ext = _EXT_BY_MIME.get(str(mime or "").split(";")[0].strip().lower(), "")
+    if ext:
+        return ext
+    m = _NAME_EXT.search(str(name_or_url or ""))
+    if m:
+        return "." + m.group(1).lower()
+    return ".jpg" if image else ""
+
+
+def payload_links(pl) -> list:
+    """Every http(s) address in an attachment payload: the named link keys first, then any other string that
+    is an address (nested too), thumbnails last. Zalo does not always put a shared link under `url`, and a
+    card whose address was not read left only the customer's caption in the inbox (2026-11-23)."""
+    first, rest, thumbs = [], [], []
+
+    def walk(v, key=""):
+        if isinstance(v, dict):
+            for k, x in v.items():
+                walk(x, str(k).lower())
+        elif isinstance(v, list):
+            for x in v:
+                walk(x, key)
+        elif isinstance(v, str) and v.strip().lower().startswith(("http://", "https://")):
+            (thumbs if key in _THUMB_KEYS else first if key in _LINK_KEYS else rest).append(v.strip())
+
+    walk(pl)
+    out = []
+    for u in first + rest + thumbs:
+        if u not in out:
+            out.append(u)
+    return out
+
+
+def link_text(pl) -> str:
+    """What a shared link card says, for the bot and the inbox: the address, then its title and description."""
+    pl = pl if isinstance(pl, dict) else {}
+    links = [u for u in payload_links({k: v for k, v in pl.items() if str(k).lower() not in _THUMB_KEYS})]
+    words = [str(pl.get(k) or "").strip() for k in ("title", "description", "desc")]
+    words = [w for i, w in enumerate(words) if w and w not in words[:i] and w not in links]
+    if not links and not words:
+        return ""
+    return "[link: " + " | ".join(links[:3] + words) + "]"
 MAX_IMAGE_MB = 1             # upload/image refuses larger files
 MAX_FILE_MB = 5              # upload/file: pdf, doc, docx only
 REFRESH_MARGIN = 30 * 60     # refresh this long before the access token runs out
@@ -534,12 +611,40 @@ class ZaloOABot(HangLuot):
             self._seen.discard(self._seen_order.popleft())
         return False
 
-    async def _download(self, client, url) -> tuple:
-        r = await client.get(url, timeout=httpx.Timeout(180.0), follow_redirects=True)
-        r.raise_for_status()
-        if len(r.content) > MAX_DOWNLOAD_MB * 1024 * 1024:
-            raise RuntimeError(f"larger than {MAX_DOWNLOAD_MB}MB")
-        return r.content, str(r.headers.get("content-type") or "").split(";")[0].strip()
+    async def _download(self, client, url, fallbacks=()) -> tuple:
+        """(bytes, mime) of the first address that gives a non-empty file: each address plainly, then with browser
+        headers. An empty answer is never a file (it used to be saved as a 0-byte photo the bot could not see).
+
+        When a pass came back empty somewhere, the file may simply not be ready yet: wait `EMPTY_RETRY_WAITS` and pass
+        again. Errors (404, timeout...) are not retried this way. Raises `EmptyDownload` when an address stayed empty."""
+        urls = [url, *[f for f in fallbacks if f and f != url]]
+        last, empty = None, False
+        for wait in (0.0, *EMPTY_RETRY_WAITS):
+            if wait:
+                await _sleep(wait)
+            empty = False
+            for u in urls:
+                for headers in (None, BROWSER_HEADERS):
+                    try:
+                        r = await client.get(u, headers=headers, timeout=httpx.Timeout(180.0), follow_redirects=True)
+                        r.raise_for_status()
+                    except Exception as e:  # noqa: BLE001 - try the next way, report the last failure
+                        last = e
+                        continue
+                    if len(r.content) > MAX_DOWNLOAD_MB * 1024 * 1024:
+                        raise RuntimeError(f"larger than {MAX_DOWNLOAD_MB}MB")
+                    if r.content:
+                        return r.content, str(r.headers.get("content-type") or "").split(";")[0].strip()
+                    empty = True
+            if not empty:
+                break
+        # Empty is the more useful failure to report: the customer can send the photo again.
+        raise EmptyDownload("Zalo returned an empty file") if empty or last is None else last
+
+    @staticmethod
+    def _thumbs(pl) -> list:
+        pl = pl if isinstance(pl, dict) else {}
+        return [str(pl.get(k)) for k in _THUMB_KEYS if str(pl.get(k) or "").startswith(("http://", "https://"))]
 
     async def _attachment_text(self, client, att, chat) -> str:
         atype = str(att.get("type") or "")
@@ -551,16 +656,34 @@ class ZaloOABot(HangLuot):
         if atype == "sticker":
             return localefmt.chu("[Người dùng gửi một nhãn dán]", "[The user sent a sticker]")
         if atype == "link":
-            return str(pl.get("url") or pl.get("description") or "").strip()
+            return link_text(pl)
+        if atype not in ("image", "gif", "video", "file", "audio", "voice"):
+            # A card type this code does not know (business card, shared post...): keep whatever it says rather than
+            # dropping it, and log its shape so the next case can be read properly.
+            print(f"[zalo_oa] attachment type {atype!r} keys {sorted(pl) if isinstance(pl, dict) else type(pl)}",
+                  file=sys.stderr)
+            return link_text(pl) if isinstance(pl, dict) else ""
+        if not url:
+            url = (payload_links(pl) or [""])[0]
         if not url:
             return ""
         if atype in ("video", "gif"):
             return localefmt.chu(f"[Người dùng gửi một video qua Zalo OA: {url}]",
                                  f"[The user sent a video on Zalo OA: {url}]")
         try:
-            data, mime = await self._download(client, url)
+            data, mime = await self._download(client, url, self._thumbs(pl) if atype == "image" else ())
         except Exception as e:
-            return f"[{atype}: {type(e).__name__}: {e}]"
+            # Keep Zalo's own address: a person or a plugin can still open it while Zalo serves it.
+            if atype == "image" and isinstance(e, EmptyDownload):
+                return localefmt.chu(
+                    f"[Người dùng gửi ảnh qua Zalo OA nhưng Zalo trả về tệp rỗng nên chưa ai xem được ảnh. "
+                    f"Hãy nhờ khách gửi lại ảnh: {url}]",
+                    f"[The user sent an image on Zalo OA but Zalo returned an empty file, so nobody can see it yet. "
+                    f"Ask them to send it again: {url}]")
+            if atype == "image":
+                return localefmt.chu(f"[Người dùng gửi ảnh qua Zalo OA nhưng Javis chưa tải được ({e}): {url}]",
+                                     f"[The user sent an image on Zalo OA but Javis could not download it ({e}): {url}]")
+            return f"[{atype}: {type(e).__name__}: {e}: {url}]"
         if atype in ("audio", "voice"):
             if not self.stt_fn:
                 return stt.loi_thanh_dong("thieu_key")
@@ -571,16 +694,8 @@ class ZaloOABot(HangLuot):
             if not (kq or {}).get("ok"):
                 return (kq or {}).get("noi_voi_javis") or stt.loi_thanh_dong("loi")
             return stt.khoi_thoai(kq.get("text"), "Zalo OA")
-        ddir = self.download_dir(chat) if callable(self.download_dir) else self.download_dir
-        d = Path(ddir) if ddir else Path("zalo-oa-inbox")
-        d.mkdir(parents=True, exist_ok=True)
-        ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
-               "application/pdf": ".pdf"}.get(mime, "")
-        if not ext:
-            m = re.search(r"\.([A-Za-z0-9]{2,5})(?:\?|$)", str(pl.get("name") or url))
-            ext = "." + m.group(1).lower() if m else ""
-        dest = d / f"zalo_oa_{int(time.time() * 1000)}{ext}"
-        dest.write_bytes(data)
+        dest = await asyncio.to_thread(self._save, chat, data, mime, str(pl.get("name") or url), "zalo_oa",
+                                       atype == "image")
         if atype == "image":
             return localefmt.chu(f"[Người dùng gửi ảnh qua Zalo OA, đã tải về: {dest}]",
                                  f"[The user sent an image on Zalo OA, downloaded to: {dest}]")
@@ -677,17 +792,18 @@ class ZaloOABot(HangLuot):
             name = str(pl.get("name") or "").strip()
             if atype in ("image", "gif", "file") and url:
                 try:
-                    data, mime = await self._download(client, url)
+                    data, mime = await self._download(client, url, self._thumbs(pl) if atype == "image" else ())
                 except Exception as e:
-                    notes.append(f"[{atype} {name}: {type(e).__name__}: {e}]")
+                    notes.append(f"[{atype} {name}: {type(e).__name__}: {e}: {url}]")
                     continue
-                dest = await asyncio.to_thread(self._save, chat, data, mime, name or url, "zalo_oa_staff")
+                dest = await asyncio.to_thread(self._save, chat, data, mime, name or url, "zalo_oa_staff",
+                                               kind == "image")
                 files.append({"path": str(dest), "kind": kind,
                               "name": name or ("photo" if kind == "image" else "file")})
             elif atype == "sticker":
                 notes.append("[sticker]")
             elif atype == "link":
-                notes.append(str(pl.get("url") or pl.get("description") or "").strip())
+                notes.append(link_text(pl))
             elif url:
                 notes.append(f"[{atype}: {url}]")
         words = "\n".join([t for t in notes if t] + ([text] if text else [])).strip()
@@ -697,16 +813,14 @@ class ZaloOABot(HangLuot):
             "chat_id": chat, "account_id": self.account_id, "message_id": mid, "text": words, "files": files,
             "platform": CHANNEL, "ts": time.time()})
 
-    def _save(self, chat, data, mime, name_or_url, prefix):
+    def _save(self, chat, data, mime, name_or_url, prefix, image=False):
+        """Write one downloaded file into the chat's download folder, named by `file_extension`. Never an empty file."""
+        if not data:
+            raise EmptyDownload("Zalo returned an empty file")
         ddir = self.download_dir(chat) if callable(self.download_dir) else self.download_dir
         d = Path(ddir) if ddir else Path("zalo-oa-inbox")
         d.mkdir(parents=True, exist_ok=True)
-        ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
-               "application/pdf": ".pdf"}.get(mime, "")
-        if not ext:
-            m = re.search(r"\.([A-Za-z0-9]{2,5})(?:\?|$)", str(name_or_url or ""))
-            ext = "." + m.group(1).lower() if m else ""
-        dest = d / f"{prefix}_{int(time.time() * 1000)}{ext}"
+        dest = d / f"{prefix}_{int(time.time() * 1000)}{file_extension(data, mime, name_or_url, image)}"
         dest.write_bytes(data)
         return dest
 

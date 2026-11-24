@@ -106,3 +106,23 @@ def push_text(final_text: str, limit: int = PUSH_BODY) -> str:
     if len(t) > limit:
         t = t[:limit - 3].rstrip() + "..."
     return t
+
+
+PUSH_LINE = 120
+_HEADING = re.compile(r"^\s*#{1,6}\s")
+
+
+def push_line(final_text: str, limit: int = PUSH_LINE) -> str:
+    """The second line of a chat-answer push (owner, 2026-11-23: two lines that say something). The answer's first
+    line that reports: no heading, no "Let me check..." narration, no lead-in ending with a colon; plain text, cut at
+    `limit`. Falls back to `push_text` when every line is skipped."""
+    import notice_text
+    body = _FENCE.sub("\n", str(final_text or ""))
+    for raw in body.splitlines():
+        if not raw.strip() or _HEADING.match(raw):
+            continue
+        line = push_text(raw, limit=10 ** 6)
+        if not line or line.endswith(":") or notice_text.is_narration(line):
+            continue
+        return line if len(line) <= limit else line[:limit - 3].rstrip() + "..."
+    return push_text(final_text, limit=limit)

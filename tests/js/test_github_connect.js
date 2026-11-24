@@ -198,17 +198,17 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
   check("git step texts have no em or en dash", gitKeys.every(k => !/[\u2013\u2014]/.test(vi[k] + en[k])));
 }
 
-// Owner, 21/11/2026: "sắp xếp lại khung giống của Claude". The repo chip sits in the row under the composer card
-// (#cpCtx), after a pinned folder; with both pinned a phone shows both as icons only (.is-two).
+// Owner, 21/11/2026: "sắp xếp lại khung giống của Claude". The repo chip sits in #cpCtx, after a pinned folder; since
+// 22/11/2026 that is a tray on top of the composer card ("đưa folder và repo github lên khung trên").
 {
   const rc = js.slice(js.indexOf("function renderChip()"), js.indexOf("var chipIcon = null;"));
-  check("the repo chip lives in #cpCtx under the card, not in the card's button row",
+  check("the repo chip lives in #cpCtx, not in the card's button row",
     rc.includes('getElementById("cpCtx")') && !rc.includes("cpChips") && !rc.includes("ctxStrip") && !rc.includes("limitBtn"));
   check("it goes last in that row, after a pinned folder", rc.includes("host.appendChild(chip)"));
   check("the row hides while empty and marks folder plus repos as .is-two",
     rc.includes("syncCtx(host)") && /function syncCtx\(host\) \{\s*host\.hidden = !host\.children\.length;\s*host\.classList\.toggle\("is-two", host\.children\.length > 1\);/.test(js));
-  check("#cpCtx sits under the card, before the model, Effort and usage chips, hidden at first",
-    /<div class="cp-under" id="cpUnder">\s*<div class="cp-ctx" id="cpCtx" hidden><\/div>\s*<div class="cp-chips" id="cpChips">/.test(html));
+  check("#cpCtx is the tray on top of the card, hidden at first",
+    /<div class="hud-voice" id="hudVoice">\s*(<!--[\s\S]*?-->\s*)*<div class="cp-ctx" id="cpCtx" hidden><\/div>/.test(html));
   check("no strip above the card any more", !html.includes('id="ctxStrip"') && !consoleJs.includes('"ctxStrip"'));
   check("room for the full repo name", js.includes("chipText(list, narrow() ? 28 : 44)"));
 }

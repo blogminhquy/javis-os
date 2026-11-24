@@ -67,7 +67,7 @@ Tell Javis or an assistant "improve yourself", "rework the email skill", "improv
 - **Changes in the brain, with a backup.** The assistant's own role, instructions, skills and model (`agents/<slug>.md`), other assistants, skills, workflows, loops, memory and the brain's `CLAUDE.md`. Every change gets an id and a few lines showing what changed.
 - **Undo by saying so.** "Undo #12" puts the file back as it was; a file it created is removed. The undo has an id too, so it can be undone.
 - **Javis's own code too.** Needs the GitHub card connected with a token that can reach `blogminhquy/javis-os`. The assistant attaches the repo to the chat and works on its own branch; after the turn Javis checks locally, opens a PR, follows CI and merges on green (see [GitHub in chat](34-github-in-chat.md)). The Release workflow numbers the new version.
-- **It updates itself.** Once the new version is released, say "update now": Javis waits for the chat turn to end, then runs exactly what the Update button runs, and rolls back by itself if the new version does not come up.
+- **You press Update.** Javis never updates itself. Once a new version is released, Javis only tells you its number and points you to **Settings → Updates**, where you press Update yourself; if the new version does not come up, the machine rolls back as always.
 
 Only **you** can order it: your own chat, or a Kanban job or reminder you set up. Auto's own wake-ups and customer-facing bots never change themselves; they only suggest. Plugins keep their own path (`javis_plugin`, always off until you turn them on).
 

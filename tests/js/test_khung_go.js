@@ -29,8 +29,12 @@ check("button row: + first, then mic and send together on the right, no chip in 
   rowOnly.indexOf('id="plusBtn"') < rowOnly.indexOf('id="cpRight"') && rowOnly.indexOf('id="cpRight"') < rowOnly.indexOf('id="dictBtn"')
   && rowOnly.indexOf('id="dictBtn"') < rowOnly.indexOf('id="voiceBtn"') && rowOnly.indexOf('id="voiceBtn"') < rowOnly.indexOf('id="sendBtn"')
   && rowOnly.indexOf('id="cpChips"') === -1 && rowOnly.indexOf('id="cpCtx"') === -1);
-check("under the card: pinned folder and repos (#cpCtx) on the left, then model, Effort and usage (#cpChips)",
-  /<div class="cp-under" id="cpUnder">\s*<div class="cp-ctx" id="cpCtx" hidden><\/div>\s*<div class="cp-chips" id="cpChips">/.test(card));
+// Owner, 22/11/2026 ("đưa folder và repo github lên khung trên ... dễ nhìn hơn trên điện thoại"): the pinned folder and
+// the repos sit in a tray on top of the card, first in it; under the card only model, Effort and usage remain.
+check("the tray of pinned folder and repos (#cpCtx) opens the card, hidden at first",
+  /<div class="hud-voice" id="hudVoice">\s*(<!--[\s\S]*?-->\s*)*<div class="cp-ctx" id="cpCtx" hidden><\/div>/.test(card));
+check("under the card: only model, Effort and usage (#cpChips), no folder or repo row",
+  /<div class="cp-under" id="cpUnder">\s*<div class="cp-chips" id="cpChips">/.test(card));
 check("#attachBtn is gone from the page", html.indexOf('id="attachBtn"') === -1);
 check("#modelBar stays, empty, right before the card", /<div class="model-bar" id="modelBar"><\/div>\s*(<!--[\s\S]*?-->\s*)*<div class="hud-voice" id="hudVoice">/.test(html));
 check("no folder upload input (0.158.0: a folder is pinned, not uploaded)", card.indexOf('id="folderInput"') === -1);
@@ -43,13 +47,28 @@ check("CSS: the card is ONE row (+, text, mic and send), 24px corners before the
   && css.includes(".hud-voice > .voice-input { grid-column: 2; grid-row: 2; min-height: 40px; padding: 8px 4px; line-height: 24px; }")
   && css.includes(".hud-voice .cp-plus { grid-column: 1; grid-row: 2; margin-bottom: 4px; }")
   && css.includes(".hud-voice .cp-right { grid-column: 3; grid-row: 2; display: flex; align-items: center; gap: 6px; min-height: 40px; }"));
+// Owner, 22/11/2026 ("ở điện thoại đẩy lên dòng bên trên thì sẽ phù hợp hơn"): on a phone the text box takes the whole
+// top line, so its placeholder stays on one line, and "+", mic and send sit on the line below. The rules above (one row)
+// stay for a computer; the phone block overrides them.
+const phoneCard = (css.match(/\n@media \(max-width: 860px\) \{\n  \.hud-voice \{[\s\S]*?\n\}/) || [""])[0];
+check("CSS: a phone shows TWO rows, the box alone on top, + on the left and mic and send on the right below",
+  phoneCard.includes(".hud-voice > .voice-input { grid-column: 1 / -1; grid-row: 2; padding: 8px 6px 4px; }")
+  && phoneCard.includes(".hud-voice .cp-plus { grid-column: 1; grid-row: 3; align-self: center; margin-bottom: 0; }")
+  && phoneCard.includes(".hud-voice .cp-right { grid-column: 3; grid-row: 3; }"));
+check("CSS: dictating still wins on a phone (bar on the full second line), its rules outrank the phone ones",
+  css.includes(".hud-voice.dictating .cp-right { grid-column: 1 / -1; grid-row: 3; }")
+  && css.includes(".hud-voice.dictating > .voice-input { grid-column: 1 / -1; }"));
 check("CSS: the row under the card hangs below its border and the card keeps room for it",
   /\.cp-under \{ position: absolute; top: calc\(100% \+ 2px\);/.test(css) && /margin: 4px 16px calc\(4px \+ var\(--cp-under-h\)\);/.test(css));
-// 21/11/2026 (owner: "cho anh nút x rõ ràng khi ghim ở khung chat"): each chip is a group, name plus X. Icons only on a
-// phone with both pinned, and each icon keeps its X.
-check("CSS: a phone shows folder and repos as icons only when both are pinned",
-  css.includes(".cp-ctx.is-two .cp-pin-open { width: 36px; padding: 0; justify-content: center; }")
-  && css.includes(".cp-ctx.is-two .cp-pin-open > span, .cp-ctx.is-two .cp-pin > .gh-st { display: none; }"));
+// 22/11/2026: the tray hangs on the card's top border (a grey tab, rounded top corners) and the card keeps its room
+// above while the tray shows. With a row of its own, a phone keeps both names (no icons-only rule any more).
+check("CSS: the tray sits on the card's top border and the card makes room for it",
+  /\.hud-voice > \.cp-ctx \{ position: absolute; grid-column: auto; grid-row: auto; bottom: calc\(100% \+ 1px\);[^}]*border-bottom: 0;[^}]*border-radius: 16px 16px 0 0; background: var\(--bg3\)/.test(css)
+  && css.includes(".hud-voice:has(> .cp-ctx:not([hidden])) { margin-top: calc(4px + var(--cp-ctx-h)); }")
+  && /--cp-ctx-h: 40px;/.test(css));
+check("CSS: a phone keeps the names of folder and repos when both are pinned",
+  !css.includes(".cp-ctx.is-two .cp-pin-open > span, .cp-ctx.is-two .cp-pin > .gh-st { display: none; }")
+  && !css.includes(".cp-ctx.is-two .cp-pin-open { width: 36px;"));
 check("CSS: the X of a pin is always drawn, and reaches 44px tall on a touch screen",
   /\.cp-pin \.cp-pin-x \.cp-ic \{[^}]*background: var\(--bg3\)/.test(css) && !/\.cp-ctx\.is-two[^{]*\.cp-pin-x[^{]*\{[^}]*display: none/.test(css)
   && css.includes("@media (pointer: coarse) { .cp-pin-x { width: 34px; } .cp-pin-x::after { content: \"\"; position: absolute; inset: -5px 0; } }"));

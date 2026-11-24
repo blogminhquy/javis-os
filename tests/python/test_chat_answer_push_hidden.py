@@ -62,8 +62,11 @@ def set_push(**kv):
 async def run():
     sid = store.create_session("Chat", channel="web")
     sid = sid["id"] if isinstance(sid, dict) else sid
+    store.rename(sid, "Video render")
 
-    async def turn(tag, question, answer, seconds):
+    async def turn(tag, question, answer, seconds, fresh=True):
+        if fresh:
+            main.push_policy.reset()   # one buzz per chat per 10 minutes (2026-11-23): each scenario starts clean
         pushes.clear()
         await main._bao_luot_dai_xong(sid, "brain", tag, question, answer, seconds)
         await asyncio.sleep(0.05)
@@ -84,10 +87,17 @@ async def run():
     check("a tap opens the chat", len(a) > 2 and a[2] == f"/?mo_phien={sid}", a)
     check("the push carries the answer", len(a) > 1 and "second video" in a[1], a)
     check("nothing is added to the bell", len(inbox.danh_sach(50)) == bell_before)
+    got = await turn("t2b", "one more thing", "Done too.", 400, fresh=False)
+    check("a second answer in the same chat within 10 minutes stays quiet", got == [], got)
     got = await turn("t3", FOLLOWUP + " ffmpeg", "The audio is added.", 5)
     check("every answer: a background job's follow-up pushes", len(got) == 1, got)
+    check("the push is titled with the chat, not 'Javis'", got and got[0][0][0] == "Video render", got)
     got = await turn("t3", FOLLOWUP + " ffmpeg", "The audio is added.", 5)
     check("the same turn does not push twice", got == [], got)
+    notify_policy.set_mode("answer", "off")
+    got = await turn("t3b", "render once more", "Another video is done.", 400)
+    check("chat answers turned off in the filter: no push", got == [], got)
+    notify_policy.set_mode("answer", "all")
 
     set_push(preview="hidden")
     got = await turn("t4", "render a third", "A secret result.", 400)

@@ -464,7 +464,10 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
     resume_requested = bool(cli.session_id)
     t_start = time.time()
     loop = asyncio.get_running_loop()
-    slot = warm_pool.POOL.take(warm_key, "codex", fp) if (warm_key and cli.session_id) else None
+    why: dict = {}
+    slot = warm_pool.POOL.take(warm_key, "codex", fp, why) if (warm_key and cli.session_id) else None
+    if slot is None and not why.get("cold"):
+        why["cold"] = "new_thread" if warm_key else "no_key"     # no thread to resume, or a lane that keeps none
     proc = rpc = None
     seen: list = []
     started = False
@@ -553,7 +556,8 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                 raise Fallback(f"{type(e).__name__}: {e}")
         started = True
         cli.session_id = thread_id
-        yield {"type": "session", "session_id": thread_id, "warm": slot is not None}
+        yield {"type": "session", "session_id": thread_id, "warm": slot is not None,
+               **({} if slot is not None else {"cold": why.get("cold")})}
 
         IDLE = tran_watchdog("JAVIS_CLAUDE_IDLE_TIMEOUT", "0")
         TOOL_IDLE = tran_watchdog("JAVIS_CLAUDE_TOOL_TIMEOUT", "0")

@@ -26,14 +26,15 @@
   // its rules kept quiet are `filtered` and live under "Filtered"; every card takes the owner's feedback in the
   // two buttons, "Needed" / "Not needed" (owner, 2026-10-29: emoji go on the notice once it is opened in Javis Core's
   // chat, where every answer already takes the six reactions); the "Filter" view sets each group's mode, undoes changes.
-  var GROUPS = ["reminder", "suggest", "question", "chatbot", "connection", "incident", "job", "agent", "team", "cost", "update",
-    "other"];
+  var GROUPS = ["reminder", "suggest", "question", "chatbot", "connection", "incident", "job", "agent", "team", "answer", "cost",
+    "update", "other"];
   var MODES = ["all", "important", "urgent", "off"];
   // Full keys spelled out, so the i18n check finds every one of them.
   var GROUP_KEY = { reminder: "noti.grp_reminder", question: "noti.grp_question", chatbot: "noti.grp_chatbot",
     connection: "noti.grp_connection", incident: "noti.grp_incident", job: "noti.grp_job", agent: "noti.grp_agent",
     suggest: "noti.grp_suggest",
-    team: "noti.grp_team", cost: "noti.grp_cost", update: "noti.grp_update", other: "noti.grp_other" };
+    team: "noti.grp_team", answer: "noti.grp_answer", cost: "noti.grp_cost", update: "noti.grp_update", other: "noti.grp_other" };
+  var BUDGETS = [5, 8, 12, 20, 0];
   var MODE_KEY = { all: "noti.mode_all", important: "noti.mode_important", urgent: "noti.mode_urgent", off: "noti.mode_off" };
   function icon(n) { return typeof window.ic === "function" ? window.ic(n) : ""; }
   function loadAn() {
@@ -243,7 +244,8 @@
     if (item.channel === "store:updates" && (window.JavisPacks || window.JavisNapCham)) {
       closePanel();
       // packs.js nạp chậm (nap-cham.js, 0.417.0).
-      var moStore = function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(""); };
+      // 2026-11-23: straight to the "has an update" group, so the packs to update are all that shows.
+      var moStore = function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho("all", "", "", "", true); };
       if (window.JavisNapCham) window.JavisNapCham.goi("packs", moStore); else moStore();
       return;
     }
@@ -274,17 +276,29 @@
       try { window.JavisTeams.open(nhom); return; } catch (e) {}
     }
     var cs = congSuCuaThu(item);
-    if (cs && window.JavisWorkspace && window.JavisWorkspace.openCommand) {
+    // 2026-11-23: workspace.js is a lazy file. Load its group, then open the partner; if it still is not there, open
+    // the session in the main chat as before.
+    var openInChat = function () {
       try {
-        window.JavisWorkspace.openCommand(cs.loai, cs.slug, item.session_id);
-        return;
+        if (window.Alpine && Alpine.store("nav") && Alpine.store("nav").active !== "home"
+            && Alpine.store("nav").active !== "chat") Alpine.store("nav").go("home");
       } catch (e) {}
+      try { if (window.JavisSessions) window.JavisSessions.open(item.session_id); } catch (e) {}
+    };
+    if (cs && (window.JavisWorkspace || window.JavisNapCham)) {
+      var openPartner = function () {
+        try {
+          if (window.JavisWorkspace && window.JavisWorkspace.openCommand) {
+            window.JavisWorkspace.openCommand(cs.loai, cs.slug, item.session_id);
+            return;
+          }
+        } catch (e) {}
+        openInChat();
+      };
+      if (window.JavisNapCham) window.JavisNapCham.goi("congviec", openPartner); else openPartner();
+      return;
     }
-    try {
-      if (window.Alpine && Alpine.store("nav") && Alpine.store("nav").active !== "home"
-          && Alpine.store("nav").active !== "chat") Alpine.store("nav").go("home");
-    } catch (e) {}
-    try { if (window.JavisSessions) window.JavisSessions.open(item.session_id); } catch (e) {}
+    openInChat();
   }
   // Javis Core (0.187.0, spec 7.3): the notice goes into this person's own Javis Core chat, with its source and time,
   // and the chat opens there. The shared notice itself never changes.
@@ -296,7 +310,10 @@
         body: JSON.stringify({ source: src, id: id, brain: brain }) })).json();
       if (!r || !r.id) return;
       closePanel();
-      if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", "javis-core", r.id);
+      var openCore = function () {
+        if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", "javis-core", r.id);
+      };
+      if (window.JavisNapCham) window.JavisNapCham.goi("congviec", openCore); else openCore();
     } catch (e) {}
   }
   function phanHoiHtml(item) {
@@ -333,26 +350,33 @@
       render();
     } catch (e) { state.note[item.id] = window.t("noti.react_err"); render(); }
   }
+  // A markdown link shows its words only: `[Javis OS K8 Buổi 2](https://...)` -> `Javis OS K8 Buổi 2`, images keep their
+  // alt text. Owner, 22/11/2026: the raw link printed in a card's title and its unbroken URL ran past the card's edge.
+  // The server strips links from new notices; this covers the ones already in the bell, whose title was cut at 120
+  // characters, often in the middle of the URL (no closing bracket).
+  function plainLinks(s) {
+    return String(s || "").replace(/!?\[([^\]\n]+)\]\((?:[^)\s]*\)|[^)\s]*$)/g, "$1");
+  }
   // The line under the title (owner, 2026-11-19: "the notices are hard to read"). The server's one-line `summary` when
   // there is one; else the text without the title it starts with. A card used to print the title twice when the text
   // was a single sentence.
   function dongPhu(item) {
     // Owner, 19/11/2026: "headline and content the same: one line, not two". Compared without punctuation, marks,
     // spaces or case, so "- **Em kiểm tra ...**" under "Em kiểm tra ..." also counts as the same line.
-    function gon(s) { return String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""); }
+    function gon(s) { return plainLinks(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""); }
     var tieuDe = gon(item.title);
     function trung(dong) {
       var d = gon(dong);
       return !!d && !!tieuDe && (d.indexOf(tieuDe) === 0 || tieuDe.indexOf(d) === 0);
     }
-    if (item.summary) return trung(item.summary) ? "" : item.summary;
+    if (item.summary) return trung(item.summary) ? "" : plainLinks(item.summary);
     var than = String(item.body || "").trim();
     // The title is the text's first line, cut at 120 characters: drop that whole line, never leave its cut-off tail
     // ("...is not signed in on this machine.)") as a line of its own.
     var xuong = than.indexOf("\n");
     var dau = xuong < 0 ? than : than.slice(0, xuong);
     if (trung(dau)) than = xuong < 0 ? "" : than.slice(xuong + 1).trim();
-    return than.replace(/\*\*|__|`/g, "");
+    return plainLinks(than.replace(/\*\*|__|`/g, ""));
   }
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
@@ -364,7 +388,7 @@
       '<div class="noti-card-top"><span class="noti-kind ' + esc(item.kind || "answer") + '">' +
       esc(nhanLoai(item.kind)) + '</span><span class="noti-top-r"><span class="noti-time">' + esc(thoiGian(item.ts)) +
       "</span>" + nutX() + "</span></div>" +
-      "<h4>" + esc(item.title || window.t("noti.msg_title")) + "</h4>" +
+      "<h4>" + esc(plainLinks(item.title) || window.t("noti.msg_title")) + "</h4>" +
       (dongPhu(item) ? '<p class="noti-card-body">' + esc(dongPhu(item)) + "</p>" : "") +
       (why ? '<span class="noti-why">' + esc(window.t(why)) + "</span>" : "") +
       (phu ? '<span class="noti-cta">' + phu + "</span>" : "") + phanHoiHtml(item) + "</article>";
@@ -450,8 +474,35 @@
   }
   // The "Filter" view: each group's mode, the per-kind rules, Javis Core's recent changes (each can be undone).
   async function taiBoLoc() {
+    var st = fetch("/push/stats", { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return null; });
     try { state.policy = await (await fetch("/notify/policy", { cache: "no-store" })).json(); } catch (e) { state.policy = { ok: false }; }
+    state.pushStats = await st;
     render();
+  }
+  // Owner, 2026-11-23: the phone's buzzes in numbers, the daily budget and the digest, on top of the filter.
+  function renderPushStats() {
+    var ps = state.pushStats;
+    if (!ps || !ps.ok) return "";
+    var line = esc(window.t("noti.push_week", { sent: ps.sent, rate: Math.round((ps.open_rate || 0) * 100) }));
+    var today = ps.budget ? esc(window.t("noti.push_today", { n: ps.today, max: ps.budget })) : "";
+    var least = (ps.least_opened || []).map(function (k) {
+      return "<li><span>" + esc(k.label) + " <small>" + esc(window.t("noti.push_opened", { o: k.opened, n: k.sent })) + "</small></span></li>";
+    }).join("");
+    var opts = BUDGETS.map(function (b) {
+      return '<option value="' + b + '"' + (ps.budget === b ? " selected" : "") + ">" +
+        esc(b ? window.t("noti.push_budget_n", { n: b }) : window.t("noti.push_budget_none")) + "</option>";
+    }).join("");
+    return '<p class="noti-push-stat">' + line + (today ? "<br>" + today : "") + "</p>" +
+      '<label class="noti-fg"><span class="noti-fg-n">' + esc(window.t("noti.push_budget")) + "</span>" +
+      '<select data-push-budget="1">' + opts + "</select></label>" +
+      '<label class="noti-fg"><span class="noti-fg-n">' + esc(window.t("noti.push_digest", { times: (ps.digest_times || []).join(", ") })) + "</span>" +
+      '<input type="checkbox" data-push-digest="1"' + (ps.digest ? " checked" : "") + "></label>" +
+      (least ? "<h5>" + esc(window.t("noti.push_least")) + '</h5><ul class="noti-fl">' + least + "</ul>" : "") +
+      "<h5>" + esc(window.t("noti.groups_title")) + "</h5>";
+  }
+  function savePushSettings(data) {
+    var f = new FormData(); f.append("section", "push"); f.append("data", JSON.stringify(data));
+    fetch("/settings", { method: "POST", body: f }).then(function () { return taiBoLoc(); }).catch(function () {});
   }
   async function guiBoLoc(url, body) {
     try {
@@ -484,11 +535,15 @@
       return '<li><span>' + esc(c.text || "") + "</span>" + (c.undone ? '<small>' + esc(window.t("noti.undone")) + "</small>"
         : '<button type="button" class="noti-text-btn" data-undo="' + esc(c.id) + '">' + esc(window.t("noti.undo")) + "</button>") + "</li>";
     }).join("");
-    list.innerHTML = head + '<div class="noti-filter">' + info + rows +
+    list.innerHTML = head + '<div class="noti-filter">' + info + renderPushStats() + rows +
       "<h5>" + esc(window.t("noti.rules_title")) + "</h5>" + (rules ? '<ul class="noti-fl">' + rules + "</ul>" : '<p class="noti-fl-empty">' + esc(window.t("noti.none")) + "</p>") +
       "<h5>" + esc(window.t("noti.changes_title")) + "</h5>" + (changes ? '<ul class="noti-fl">' + changes + "</ul>" : '<p class="noti-fl-empty">' + esc(window.t("noti.none")) + "</p>") +
       "</div>";
     noiDanhSach(list);
+    var pb = list.querySelector("select[data-push-budget]");
+    if (pb) pb.addEventListener("change", function () { savePushSettings({ daily_budget: parseInt(pb.value, 10) || 0 }); });
+    var pd = list.querySelector("input[data-push-digest]");
+    if (pd) pd.addEventListener("change", function () { savePushSettings({ digest: pd.checked ? "on" : "off" }); });
     list.querySelectorAll("select[data-grp]").forEach(function (sel) {
       sel.addEventListener("change", function () { guiBoLoc("/notify/policy/group", { group: sel.dataset.grp, mode: sel.value }); });
     });

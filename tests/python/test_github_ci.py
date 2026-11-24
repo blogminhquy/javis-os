@@ -195,6 +195,56 @@ check("a runner failure is rerun once instead of a fix round", 801 in fake.rerun
 run(w.tick())
 check("a second failure on the same commit is real: a fix round", len(turns) == n_turns + 1)
 
+# ---- a red job with no log at all (owner 23/11/2026, javisos-blog PR #58: the job never ran) ----
+(wt / "src/a.py").write_text("a = 200\n", encoding="utf-8")
+run(w.after_turn("chat", BRAIN, "log trống"))
+fake.set_checks(row()["head_sha"], [("Build", "completed", "failure", 901)])
+fake.log_status[901] = 404
+n_turns = len(turns)
+run(w.tick())
+check("a job that left no log never ran: rerun once, no fix round", 901 in fake.reruns and len(turns) == n_turns)
+run(w.tick())
+check("red again with no log: the fix round says the job never ran, not to guess a bug in the code",
+      len(turns) == n_turns + 1 and "chưa hề chạy" in turns[-1][1] and "Actions" in turns[-1][1])
+
+(wt / "src/a.py").write_text("a = 201\n", encoding="utf-8")
+run(w.after_turn("chat", BRAIN, "log bị chặn"))
+fake.set_checks(row()["head_sha"], [("Build", "completed", "failure", 902)])
+fake.log_status[902] = 403
+n_turns = len(turns)
+run(w.tick())
+check("a log GitHub refuses is a missing token permission: no rerun, the fix round names Actions (Read)",
+      902 not in fake.reruns and len(turns) == n_turns + 1 and "Actions" in turns[-1][1] and "403" in turns[-1][1])
+
+# ---- a person asks to rerun the red CI (javis_github op=rerun) ----
+n_turns, n_posts = len(turns), len(posted)
+out = run(w.rerun_ci("chat", "acme/app"))
+check("rerun_ci reruns the failed Actions job of the PR head", out["rerun"] == ["Build"] and fake.reruns[-1] == 902
+      and row()["ci"] == "running" and row()["exec"] == "running")
+check("rerun_ci tells the chat", len(posted) == n_posts + 1 and posted[-1][0] == "chat" and posted[-1][2] is True)
+run(w.tick())
+check("red again after the person's rerun: a new notice and a new fix round on the same commit",
+      len(turns) == n_turns + 1 and any("Build" in t for _, t, _ in posted[n_posts + 1:]))
+run(w.tick())
+check("criterion 10 still holds after a rerun: repeated ticks start nothing new", len(turns) == n_turns + 1)
+
+fake.rerun_status = 403
+try:
+    run(w.rerun_ci("chat", "acme/app"))
+    denied = ""
+except github_repos.RepoError as e:
+    denied = str(e)
+fake.rerun_status = None
+check("a rerun GitHub refuses says the token needs Actions Read and write", "Read and write" in denied)
+
+fake.set_checks(row()["head_sha"], [("Build", "completed", "success", 903)])
+try:
+    run(w.rerun_ci("chat", "acme/app"))
+    nothing = ""
+except github_repos.RepoError as e:
+    nothing = str(e)
+check("nothing red: rerun_ci refuses instead of rerunning a green job", bool(nothing) and 903 not in fake.reruns)
+
 # ---- cancelled ----
 (wt / "src/a.py").write_text("a = 101\n", encoding="utf-8")
 run(w.after_turn("chat", BRAIN, "lại nữa"))

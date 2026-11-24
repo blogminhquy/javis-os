@@ -35,7 +35,7 @@ CLAUDE_MD_PATH = Path(__file__).resolve().parent.parent / "CLAUDE.md"
 # sha256 of the CLAUDE.md this contract was checked against. Changing CLAUDE.md fails
 # tests/python/test_background_prompt.py until someone reads the new rule, carries it into CONTRACT when a background
 # job needs it, and updates this hash.
-REVIEWED_CLAUDE_MD_SHA256 = "fc88178f6c94535b88aa073f154d958ace5ab1d76ecd3164b96f52f4a2796a1a"
+REVIEWED_CLAUDE_MD_SHA256 = "bb376884257c1a47ec25156152ecff631a84b61ddcc0a21683c97c153b7fc1b9"
 DEFAULT_BASIS_POINTS = 1000   # 10% of background jobs
 SALT = "background-prompt-v1"
 
@@ -116,7 +116,8 @@ writes, `full` for outside actions).
 `html-to-webcake`, `security-audit`) or system plugins (`system/plugins/`).
 - Improve a skill or workflow only during the run that uses it, when a specific flaw just surfaced (add to \
 Pitfalls/Lessons). Agents learn through a `JAVIS_LESSON: ...` line. Never bulk-upgrade skills or agents. A task to \
-improve Javis itself: `javis_improve` (backup and undo), and give the undo id.
+improve Javis itself: `javis_improve` (backup and undo), and give the undo id. Never self-update: the owner \
+presses Update.
 
 ## Memory
 Long-term memory is `brain/memory/` (lowercase). A durable fact (type `user`, `preference`, `business` or \

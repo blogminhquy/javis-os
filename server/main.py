@@ -197,6 +197,8 @@ import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
 import tien_trinh_nen     # lệnh chạy ngầm engine bỏ lại: nhận theo dõi, xong tự báo + làm tiếp
+import push_presence      # which chat the owner is reading on any device: no push about it (2026-11-23)
+import push_policy        # what earns a buzz: learning, daily budget, digest, urgent check (2026-11-23)
 import turn_done_notice   # a long chat turn that finishes rings the bell (the owner has left the screen)
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
@@ -251,6 +253,7 @@ import agent_notify  # 0.205.0: unread and mute for private partner chats
 import steer_inbox  # 0.206.0: messages the owner sends while a turn runs
 import codex_steer  # 0.213.0: Codex chat turns on app-server take those messages mid-way
 import warm_pool  # 0.382.0: engine processes kept warm between the owner's chat turns
+import agy_warm  # 2026-11-24: Antigravity chat turns on a warm agy that resumes its conversation
 import claude_warm  # 0.382.0: Claude Code chat turns on a warm process
 import codex_realtime  # ChatGPT Live: một Codex app-server sống lâu, realtime trên gói ChatGPT (0.65.17)
 import voice_persona  # a voice call from a partner's chat speaks as that partner
@@ -492,7 +495,9 @@ def _token_ok(request, path: str) -> bool:
     raw = _bearer(request)
     if not raw:
         return False
-    ip = request.client.host if request.client else ""
+    # The real caller, through Cloudflare and local proxies (2026-11-22): per edge address, one stranger guessing tokens
+    # banned every caller that came through the same Cloudflare edge.
+    ip = security_log.client_ip(request)
     if cfgmod.token_ip_banned(ip):
         return False
     entry = cfgmod.verify_api_token(raw, path)
@@ -1232,6 +1237,19 @@ def _javis_core_block(session_id: str) -> str:
 _STABLE_CLOCK_NOTE = context_compiler.STABLE_CLOCK_NOTE
 
 
+def _cold_reason(cold, rotated=False, lost=False) -> str:
+    """The reason a chat turn ran cold, as stored in `engine.first_output`. The engine only knows the turn had no
+    thread to resume ("new_thread"); main knows which of the three it was: Javis rotated a long thread
+    ("thread_rotated"), the old thread was gone and the turn was retried ("thread_lost"), or the chat is new
+    ("new_chat"). Any other reason (idle_expired, config_changed, evicted...) is kept as the engine gave it."""
+    reason = str(cold or "unknown")
+    if lost:
+        return "thread_lost"
+    if reason == "new_thread":
+        return "thread_rotated" if rotated else "new_chat"
+    return reason
+
+
 def _with_turn_context(cli, plan, prompt, sysprompt):
     """(prompt, system prompt) of a Claude Code turn, with the plan's per-turn context where the model reads it (#1329).
 
@@ -1859,6 +1877,8 @@ def _env_bat(ten: str) -> bool:
 @app.get("/auth/status")
 async def auth_status(request: Request):
     cfg = cfgmod.read_settings()
+    if not cfgmod.auth_enabled(cfg) and cfgmod.restore_admin_from_env():
+        cfg = cfgmod.read_settings()
     enabled = cfgmod.auth_enabled(cfg)
     require = cfgmod.require_login()
     has_session = cfgmod.valid_session(request.cookies.get("javis_session", ""))
@@ -1866,6 +1886,9 @@ async def auth_status(request: Request):
     authed = has_session or (not enabled and not require)
     return {"needs_setup": not enabled, "auth_required": enabled or require,
             "require_login": require, "authed": authed,
+            # The password is gone but an owner had one: the account form is shut here (see auth_setup), so the
+            # dashboard shows the sign-in page with the way back instead of a form that would only refuse.
+            "setup_locked": (not enabled) and cfgmod.setup_locked(cfg) and not _on_this_machine(request),
             # 2FA lộ ra ở đây là CỐ Ý và không phải rò rỉ: màn đăng nhập cần biết có hỏi ô mã
             # hay không, mà việc "tài khoản này có 2FA" thì kẻ tấn công cũng biết ngay sau lần
             # nhập mật khẩu đầu tiên. Số mã khôi phục còn lại thì chỉ trả khi ĐÃ đăng nhập.
@@ -1885,8 +1908,27 @@ async def auth_status(request: Request):
 async def auth_setup(request: Request, username: str = Form(...), password: str = Form(...),
                      setup_token: str = Form("")):
     cfg = cfgmod.read_settings()
+    if not cfgmod.auth_enabled(cfg) and cfgmod.restore_admin_from_env():
+        cfg = cfgmod.read_settings()
     if cfgmod.auth_enabled(cfg):
         return JSONResponse({"ok": False, "error": localefmt.chu("Đã có tài khoản - hãy đăng nhập.", "An account already exists - please sign in.")}, status_code=400)
+    # Owner incident 2026-11-22 (and 2026-11-12): the owner's password vanished from settings.json, and with no
+    # password this form looked like a first install to anyone, so a stranger's phone created "trolytina" through
+    # Cloudflare. Once an owner account has existed, only the machine itself (a browser on it, no tunnel or proxy in
+    # between) may create the next one, or any device for a day after the owner ran tools/reset_auth.py.
+    # JAVIS_ADMIN_PASSWORD, when set, already brought the account back just above.
+    if cfgmod.setup_locked(cfg) and not _on_this_machine(request):
+        _sec(request, "setup_blocked", user=(username or "").strip()[:80],
+             detail="no password on file but an owner account existed; the form only opens on the machine itself")
+        return JSONResponse({"ok": False, "setup_locked": True, "error": localefmt.chu(
+            "Máy này đã có chủ nhưng mật khẩu đang bị mất, nên không tạo tài khoản mới từ đây được. Chủ máy lấy "
+            "lại quyền bằng một trong hai cách: đặt JAVIS_ADMIN_PASSWORD (Environment của VPS hoặc tệp .env) rồi "
+            "khởi động lại Javis, hoặc chạy python tools/reset_auth.py trên máy chủ rồi đặt mật khẩu mới trong "
+            "vòng 24 giờ.",
+            "This Javis already has an owner but the password is missing, so a new account cannot be created from "
+            "here. The owner gets back in either way: set JAVIS_ADMIN_PASSWORD (the VPS Environment or the .env "
+            "file) and restart Javis, or run python tools/reset_auth.py on the server and set a new password "
+            "within 24 hours.")}, status_code=403)
     # MÃ THIẾT LẬP đã bỏ (0.64.47, chủ dự án chốt 24/09): lần đầu chỉ cần tên + mật khẩu, bảo
     # vệ tiếp theo là 2FA. `setup_token` vẫn nhận nhưng bỏ qua, để client cũ còn gửi không lỗi.
     # Máy cài bằng install.sh có admin sẵn từ .env nên màn này không bao giờ hiện ra ở đó.
@@ -1898,6 +1940,7 @@ async def auth_setup(request: Request, username: str = Form(...), password: str 
     cfg["auth"] = {**cfgmod.kept_totp(cfg), "username": username.strip() or "admin",
                    "password_hash": h, "salt": salt}
     cfgmod.write_settings(cfg)
+    cfgmod.clear_setup_reopen()
     _sec(request, "setup", user=username.strip() or "admin")
     return _session_cookie(JSONResponse({"ok": True}), _new_login_session(request, username.strip() or "admin", "setup"),
                            request)
@@ -1934,11 +1977,15 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
     Thứ tự kiểm CÓ CHỦ Ý: mật khẩu trước, mã sau. Đảo lại là biến ô mã thành một máy dò xem
     tài khoản nào đã bật 2FA, cho người còn chưa biết mật khẩu.
     """
-    ip = request.client.host if request.client else "?"
+    # Per visitor, read through Cloudflare and local proxies (2026-11-22): per edge address, one stranger guessing
+    # passwords through a Cloudflare edge locked out the owner coming through the same edge.
+    ip = security_log.client_ip(request) or "?"
     if _login_locked(ip):
         _sec(request, "login_locked", user=username)
         return JSONResponse({"ok": False, "error": localefmt.chu("Quá nhiều lần sai - thử lại sau ít phút.", "Too many failed attempts - try again in a few minutes.")}, status_code=429)
     cfg = cfgmod.read_settings()
+    if not cfgmod.auth_enabled(cfg) and cfgmod.restore_admin_from_env():
+        cfg = cfgmod.read_settings()
     if not cfgmod.auth_enabled(cfg):
         return {"ok": True, "note": localefmt.chu("auth chưa bật", "auth is not enabled")}
     if not cfgmod.username_matches(username, cfg) or not cfgmod.verify_password(password, cfg):
@@ -2253,6 +2300,18 @@ def _direct_local_request(request: Request) -> bool:
 _LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 
+def _on_this_machine(request: Request) -> bool:
+    """A browser on the machine running Javis: loopback, no tunnel or proxy hop, and a loopback Host (a page that
+    rebinds its own name to 127.0.0.1 carries its own name). Cross-site posts are already refused by _csrf_guard."""
+    if not _direct_local_request(request):
+        return False
+    try:
+        host = web_security.host_only(request.headers.get("host") or "")
+    except Exception:  # noqa: BLE001
+        return False
+    return host.strip("[]") in _LOOPBACK_HOSTS
+
+
 def _local_tool_call(request: Request) -> bool:
     """A login-exempt call from a tool on this machine (javis_schedule, an engine's curl), never from a web page.
 
@@ -2294,7 +2353,7 @@ async def auth_disable(request: Request, password: str = Form(""), code: str = F
             "mở dashboard ngay trên máy cá nhân chạy Javis.",
             "Login cannot be turned off on a server reachable from outside (VPS, Docker, tunnel). "
             "It can only be turned off from the personal machine running Javis.")}, status_code=403)
-    ip = request.client.host if request.client else "?"
+    ip = security_log.client_ip(request) or "?"
     if _login_locked(ip):
         return JSONResponse({"ok": False, "error": localefmt.chu("Quá nhiều lần sai - thử lại sau ít phút.", "Too many failed attempts - try again in a few minutes.")}, status_code=429)
     cfg = cfgmod.read_settings()
@@ -2325,7 +2384,10 @@ async def auth_disable(request: Request, password: str = Form(""), code: str = F
     a.update(username="", password_hash="", salt="")
     a.pop("env_applied", None)
     cfg["auth"] = a
-    cfgmod.write_settings(cfg)
+    # The one save that clears the account on purpose (config._keep_owner_account refuses every other one), and the
+    # owner chose it: the next account form is a first one again (config.owner_known).
+    cfgmod.write_settings(cfg, clear_account=True)
+    cfgmod.release_owner()
     cfgmod.clear_sessions()
     _sec(request, "login_disabled")
     return {"ok": True}
@@ -4670,14 +4732,29 @@ async def _cli_sub_doc(g, prompt, model):
     """Một lượt engine CLI (Antigravity hoặc Grok) -> hợp đồng sự kiện của `_api_stream`.
 
     Dùng chung được vì hai engine đã phát cùng một hợp đồng {tool_call, final, usage, error};
-    viết lại là hai bản dễ lệch nhau."""
+    viết lại là hai bản dễ lệch nhau.
+
+    2026-11-24: the engines' `delta` pieces go out as `text` as they come, the way
+    `_claude_sub_doc` streams Claude Code. Before, this path dropped them and even a one-line
+    answer appeared only once the CLI had exited. `final` then only adds what the pieces did not
+    carry (a warning the engine appends at the end), never the whole answer a second time."""
     yield {"type": "meta", "model": model}
+    streamed = ""
     async for ev in g.query(prompt):
         et = ev.get("type")
-        if et == "final":
+        if et == "delta":
             txt = ev.get("content") or ""
             if txt:
+                streamed += txt
                 yield {"type": "text", "content": txt}
+        elif et == "final":
+            txt = ev.get("content") or ""
+            if txt and not streamed:
+                yield {"type": "text", "content": txt}
+            elif txt:
+                shown = streamed.strip()
+                if txt.startswith(shown) and txt[len(shown):].strip():
+                    yield {"type": "text", "content": txt[len(shown):]}
         elif et == "tool_call":
             yield {"type": "tool_call", "tool": ev.get("name") or "",
                    "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
@@ -5927,12 +6004,16 @@ def _cli_do_sau_khac(cli, mod, reasoning, message):
 
     Chốt chặn ĐẦU TIÊN cho ca "model tự mang mức nghĩ trong tên" (Antigravity:
     `gemini-3.8-flash-medium`): với model đó, cờ `--effort` đúng cú pháp vẫn làm CLI thoát mã 1
-    kèm "conflicts with --effort", mất trọn lượt chat. Nên hỏi module trước, và rơi về câu nhắc
-    trong prompt y như mọi bản CLI không có cờ - chọn model coi như đã chọn mức nghĩ rồi.
+    kèm "conflicts with --effort", mất trọn lượt chat. Nên hỏi module trước.
+
+    Such a model gets the message untouched (owner's measurement, 2026-11-24): picking
+    `gemini-4-hydrogen-high` already picked the depth, and the old fallback that appended the
+    "think it through" line on top tripled its thinking tokens (428 -> 1,492) and pushed the first
+    word from 5.4 s to 11.6 s, even for an owner who chose -low or -medium to go fast.
     """
     khoa = getattr(mod, "model_khoa_effort", None)
     if khoa and khoa(getattr(cli, "model", "") or ""):
-        return _nhac_suy_nghi(reasoning, message)
+        return message
     co = _co_effort_lui(mod, reasoning)
     if co:
         try:
@@ -6025,6 +6106,10 @@ def _write_codex_profile():
     bản Javis chạy chung một $HOME không ghi đè profile của nhau - xem chú thích ở hàm đó."""
     if _hub_enabled():
         return mcp_hub.codex_profile("full")
+    # Hub off: deliberately NO `default_tools_approval_mode` here (unlike mcp_hub.codex_profile, #1722). These servers
+    # are called straight from Codex, with no hub to enforce X-Javis-Mode, so Codex's own approval check is the only
+    # thing that keeps a sandboxed suggest/auto job from outside actions. A job at full runs Codex with no sandbox,
+    # where Codex asks no approval, so it still reaches them.
     path = mcp_hub.codex_profile_path()
     lines, seen = [], set()
     for s in mcp_store.servers_for_client():
@@ -6074,7 +6159,9 @@ def _apply_grok_hub(cli, vault_root=None, mode="full"):
         return cli
     hub = None
     if _hub_enabled():
-        headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}", "X-Javis-Mode": mode}
+        # X-Javis-Engine: the hub then names the MCP servers in the user's own grok config (mcp_hub._ambient_kind).
+        headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}", "X-Javis-Mode": mode,
+                   "X-Javis-Engine": "grok"}
         try:
             headers["X-Javis-Vault"] = str(Path(root).expanduser().resolve())
         except Exception:
@@ -6104,13 +6191,16 @@ def _apply_antigravity_hub(cli, vault_root=None, mode="full"):
         return cli
     hub = None
     if _hub_enabled():
-        headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}", "X-Javis-Mode": mode}
+        # X-Javis-Engine: the hub then names the MCP servers in the user's own antigravity config (mcp_hub._ambient_kind).
+        headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}", "X-Javis-Mode": mode,
+                   "X-Javis-Engine": "antigravity"}
         try:
             headers["X-Javis-Vault"] = str(Path(root).expanduser().resolve())
         except Exception:
             headers["X-Javis-Vault"] = str(root)
         hub = antigravity_cli.hub_entry(mcp_hub.hub_url(), headers)
     antigravity_cli.ghi_mcp_settings(root, hub)
+    cli.hub_entry = hub      # agy acp gets it on the session, not from the shared HOME file (agy_acp.mcp_servers)
     try:
         cli.mcp_config = mcp_hub.antigravity_config_path(mode, root) if hub else None
     except Exception as e:
@@ -6776,6 +6866,7 @@ async def antigravity_logout():
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     antigravity_cli.forget_status()
+    warm_pool.POOL.drop_kind(agy_warm.KIND)   # a warm agy keeps the sign-in it started with
     _PROV_MODELS_CACHE.pop("antigravity-cli", None)
     _PIN_LIMITED.pop("antigravity-cli", None)
     try:
@@ -6790,6 +6881,7 @@ async def antigravity_reconnect():
     """Switch the Antigravity card back on and ask `agy` again whether it is signed in."""
     await asyncio.to_thread(cfgmod.update_settings, {"model": {antigravity_cli._OFF_KEY: False}})
     antigravity_cli.forget_status()
+    warm_pool.POOL.drop_kind(agy_warm.KIND)   # a warm agy keeps the sign-in it started with
     _PROV_MODELS_CACHE.pop("antigravity-cli", None)
     d = await asyncio.to_thread(antigravity_cli.auth_status, True)
     return {"ok": True, "connected": bool(d.get("connected")), "error": d.get("error", "")}
@@ -8011,6 +8103,14 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         if "turn_done" in patch:
             # 2026-11-17: "all" = every dashboard answer rings when the owner is not looking at that chat.
             cfg.setdefault("push", {})["turn_done"] = "all" if patch.get("turn_done") == "all" else "long"
+        if "daily_budget" in patch:
+            # 2026-11-23: buzzes a day before what is not urgent waits for the digest (push_policy.py). 0 = no limit.
+            try:
+                cfg.setdefault("push", {})["daily_budget"] = max(0, min(push_policy.BUDGET_MAX, int(patch["daily_budget"])))
+            except (TypeError, ValueError):
+                pass
+        if "digest" in patch:
+            cfg.setdefault("push", {})["digest"] = "off" if patch.get("digest") == "off" else "on"
     elif section == "zalo_bot":
         # Cùng khuôn với telegram. Id Zalo là chuỗi HEX chứ không phải số, nhưng `tg_parse_ids`
         # chỉ tách và bỏ trùng chứ không ép kiểu nên dùng chung được.
@@ -8688,7 +8788,8 @@ async def _fetch_provider_models(provider, m):
     if provider == "openai-oauth":
         # app-server là subprocess đồng bộ; chạy ở worker để request FastAPI
         # khác không đứng hình trong lúc Codex nạp catalog.
-        return await asyncio.to_thread(openai_oauth.list_models, openai_oauth.valid_creds())
+        # The account a Codex run uses now, not account 1 (2026-11-23): see openai_oauth.list_models.
+        return await asyncio.to_thread(openai_oauth.list_models, plan_accounts.current(m, provider))
     if provider == "grok-cli":
         # Chạy ở worker: `list_models` có thể đẻ tiến trình con (`grok --help` để dò cờ, rồi
         # `grok models` nếu bản này có) và mất vài giây.
@@ -8758,7 +8859,7 @@ def _remember_catalog(cfg, d, ids):
         print(f"[models] không ghi được catalog {key}: {e}", file=sys.stderr)
 
 
-def _vi_sao_khong_co_model(provider: str, m: dict, cause: str = "") -> str:
+def _why_no_models(provider: str, m: dict, cause: str = "") -> str:
     """Vì sao provider này không trả về model nào - viết cho NGƯỜI ĐỌC, không phải log.
 
     Hầu hết đường lấy model hỏng theo kiểu IM LẶNG: hàm trả None chứ không ném lỗi, nên phía
@@ -8769,7 +8870,8 @@ def _vi_sao_khong_co_model(provider: str, m: dict, cause: str = "") -> str:
     """
     d = _provider_def(provider) or {}
     if provider == "openai-oauth":
-        if not (openai_oauth.valid_creds() or {}).get("access_token"):
+        # The sign-in of the account the list was asked from (2026-11-23), not always account 1's.
+        if not (openai_oauth.valid_creds_for(plan_accounts.current(m, provider)) or {}).get("access_token"):
             return localefmt.chu("Chưa kết nối ChatGPT (hoặc phiên đăng nhập đã hết hạn) - "
                                  "đăng nhập lại ở thẻ ChatGPT.",
                                  "ChatGPT is not connected (or the sign-in expired) - "
@@ -8840,8 +8942,11 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
     fallback = _gop_giu_thu_tu(d.get("default_models", []),
                                cat.get(d.get("catalog_key", "")) or [])
     now = time.time()
+    # ChatGPT's list belongs to one plan account (2026-11-23): a list kept while another account ran is not reused
+    # once the owner switches accounts or one rests out of quota. Every other provider keeps "" here.
+    account = plan_accounts.current(m, provider) if provider == "openai-oauth" else ""
     c = _PROV_MODELS_CACHE.get(provider)
-    if not refresh and c and (now - c["ts"]) < 600 and c.get("ids"):
+    if not refresh and c and (now - c["ts"]) < 600 and c.get("ids") and c.get("account", "") == account:
         return {"models": c["ids"], "live": True, "cached": True}
     is_gateway = provider in adv_keys.PROVIDERS
     asked_base = (m.get(adv_keys._SPEC[provider]["legacy"] + "_base") or "") if is_gateway else ""
@@ -8865,17 +8970,17 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
         moved = (m_now.get(adv_keys._SPEC[provider]["legacy"] + "_base") or "") not in (
             asked_base, *[u[1] for u in _openai_list_urls(asked_base)])
         if ids and not moved:
-            _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
+            _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now, "account": account}
             _remember_catalog(cfg, d, ids)
         if ids:
             return {"models": ids, "live": True}
-        return {"models": fallback, "live": False, "error": _vi_sao_khong_co_model(provider, m_now, cause)}
+        return {"models": fallback, "live": False, "error": _why_no_models(provider, m_now, cause)}
     if ids:
-        _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
+        _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now, "account": account}
         _remember_catalog(cfg, d, ids)
         return {"models": ids, "live": True}
     return {"models": fallback, "live": False,
-            "error": last_err or _vi_sao_khong_co_model(provider, m)}
+            "error": last_err or _why_no_models(provider, m)}
 
 
 @app.get("/provider/models")
@@ -9027,6 +9132,7 @@ IMG_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
 # vì trong container code tree /app là read-only + chạy user non-root → makedirs ném
 # PermissionError → HTTP 500 khi upload. (config.py cùng nguyên tắc cho settings/branding.)
 STAGING = cfgmod.STATE_DIR / ".staging"
+from urllib.parse import urlparse as parse_url  # host of a webhook address (_tailnet_only_warning)
 from urllib.parse import quote as urlquote   # dựng URL /upload/raw cho tên file có dấu
 
 def _default_brain_dir() -> Path:
@@ -9674,6 +9780,30 @@ def _safe_brain_name(name: str) -> str:
 
 _BRAINS_MD_CAP = 5000       # trần đếm .md mỗi brain cho dropdown chọn brain
 
+# The note count of each brain, remembered for a minute (speed review 2026-11-23). GET /brains counted every brain's
+# .md files again on every call: 302 ms (p95 519 ms) on a real 5,420-note vault, and the dashboard calls it twice while
+# it opens. Memory is one number per brain folder that exists, never per chat. A count can be up to a minute behind a
+# note that was just written; a brain that just appeared is counted at once, and a failed count is never remembered.
+_BRAIN_NOTE_COUNT_TTL_S = 60.0
+_brain_note_counts: dict = {}               # (brain path, cap) -> (count, time.monotonic() of the count)
+_brain_note_counts_lock = __import__("threading").Lock()  # two reads at once (the dashboard's start-up) count each brain once
+
+
+def _brain_note_count(path: str, cap: int) -> int:
+    """`_count_md(path, cap)`, served from memory while it is fresh. Raises what the count raises."""
+    key = (path, cap)
+    hit = _brain_note_counts.get(key)
+    if hit is not None and 0 <= time.monotonic() - hit[1] < _BRAIN_NOTE_COUNT_TTL_S:
+        return hit[0]
+    with _brain_note_counts_lock:
+        hit = _brain_note_counts.get(key)       # the read that held the lock may just have counted it
+        if hit is not None and 0 <= time.monotonic() - hit[1] < _BRAIN_NOTE_COUNT_TTL_S:
+            return hit[0]
+        started = time.monotonic()
+        count = _count_md(path, cap)
+        _brain_note_counts[key] = (count, started)
+        return count
+
 
 def _list_brains_sync() -> dict:
     """Phần quét đĩa của GET /brains. Tách ra để chạy trong to_thread.
@@ -9701,7 +9831,7 @@ def _list_brains_sync() -> dict:
             if not p.is_dir() or p.name.startswith("."):
                 continue
             try:
-                notes = _count_md(str(p), _BRAINS_MD_CAP)
+                notes = _brain_note_count(str(p), _BRAINS_MD_CAP)
             except Exception:
                 notes = 0
             try:
@@ -9715,6 +9845,10 @@ def _list_brains_sync() -> dict:
                         "is_default": is_default})
     except Exception as e:
         return {"dir": str(base), "brains": [], "error": str(e)}
+    # Counts of brains that are gone are dropped, so the memory never outgrows the list of brains.
+    listed = {b["path"] for b in out}
+    for key in [k for k in list(_brain_note_counts) if k[0] not in listed]:
+        _brain_note_counts.pop(key, None)
     # 0.431.0: the owner's order first (brain picker, Reorder), then by display label read like a person does.
     try:
         order = (cfgmod.read_settings() or {}).get(brain_order.SETTINGS_KEY) or []
@@ -14132,7 +14266,8 @@ _AGENT_TOOLKIT_BLOCK = (
     # 2026-11-15 (owner): asked to improve, an assistant may change itself and the whole system, with undo.
     "- CHỦ bảo cải tiến (chính bạn, trợ lý khác, skill, quy trình, cả Javis): làm luôn bằng `javis_improve` "
     "(op=save có sao lưu cho file của bạn agents/<slug>.md, skill, workflow, bộ nhớ; op=source để sửa mã nguồn "
-    "Javis qua GitHub; op=update để máy lên bản mới), rồi báo đổi gì và mã hoàn tác. Không ai yêu cầu thì "
+    "Javis qua GitHub), rồi báo đổi gì và mã hoàn tác. Javis KHÔNG tự cập nhật: có bản mới thì bảo chủ vào Cài đặt → "
+    "Cập nhật và tự bấm nút. Không ai yêu cầu thì "
     "không tự sửa, chỉ đề xuất.\n"
 )
 # Câu "chỉ hai lối" ở trên ĐÚNG khi trợ lý chưa bật Cộng hưởng. Bật rồi thì có lối thứ ba (javis_goal); để nguyên câu
@@ -15134,6 +15269,14 @@ _SECURITY_ALERT_TEXT = {
     "env_2fa_reset": ("2FA được gỡ bằng JAVIS_RESET_2FA", "2FA removed with JAVIS_RESET_2FA"),
     "auth_changed_outside": ("CẢNH BÁO: file cài đặt bị sửa tài khoản từ BÊN NGOÀI Javis. Mọi phiên đã bị đăng xuất.",
                              "WARNING: the account in the settings file was changed OUTSIDE Javis. Every session was signed out."),
+    "setup_blocked": ("CẢNH BÁO: có người thử tạo tài khoản mới khi mật khẩu của chủ đang bị mất. Javis đã chặn.",
+                      "WARNING: someone tried to create a new account while the owner's password was missing. Javis refused."),
+    "account_clear_blocked": ("CẢNH BÁO: một lần lưu cài đặt định xoá mật khẩu của chủ. Javis đã giữ lại mật khẩu.",
+                              "WARNING: a settings save tried to erase the owner's password. Javis kept the password."),
+    "github_connected": ("GitHub vừa được kết nối vào Javis", "GitHub was just connected to Javis"),
+    "github_changed": ("Tài khoản GitHub của Javis vừa bị đổi sang tài khoản khác",
+                       "The GitHub account of Javis was just switched to another account"),
+    "github_disconnected": ("GitHub vừa bị ngắt khỏi Javis", "GitHub was just disconnected from Javis"),
 }
 
 
@@ -15417,7 +15560,7 @@ def huy_viec_nen_giong(conv_sid: str) -> int:
 
 async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
                           quiet=False, brain="", dedup="", routing="", level="", group="", decision=None, viec=None,
-                          push_if_away=False, title="", summary=""):
+                          push_if_away=False, title="", summary="", push_body=None):
     """Để lại MỘT mẩu thư cho mọi kết quả chạy nền, rồi rung chuông đẩy nếu có đăng ký.
 
     Vì sao đặt ở đây chứ không ở từng nơi sinh việc: `_notify_owner` là CỬA DUY NHẤT mà
@@ -15437,8 +15580,9 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         text, meta = notice_text.split_block(text)
         title = title or meta.get("title") or ""
         summary = summary or meta.get("line") or ""
-        if meta.get("act") and not level:
-            level = "urgent"
+        if meta and push_body is None:
+            push_body = meta.get("line") or ""
+        level = _act_level(meta, level, source=source, label=label, title=title)
         dec = decision or _notify_decide(text, kind=kind, source=source, quiet=quiet, level=level, group=group,
                                          viec=viec, dedup=dedup, title=title)
         if dec.get("verdict") == "drop":
@@ -15474,7 +15618,7 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         if hidden:
             quiet = True
         item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label, title=title,
-                         summary=summary or notice_text.summary(text, title or inbox._tieu_de(text)),
+                         summary=summary or notice_text.summary(text, title or inbox._title_from_text(text)),
                          read=bool(quiet), channel=kenh, brain=brain, dedup=dedup, routing=routing,
                          group=dec.get("group") or "", level=dec.get("level") or "", sig=dec.get("sig") or "",
                          filtered=filtered, why=dec.get("why") or "", hidden=hidden)
@@ -15483,6 +15627,13 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         return None
     if item.get("duplicate"):
         return item   # the same report was already filed: no second bell, no second push
+    if (filtered and not hidden and not muted and dec.get("level") == "important"
+            and dec.get("why") in ("mode", "repeat", "budget") and dec.get("group") != "answer"):
+        # Worth a look but not a buzz (owner, 2026-11-23): counted in the next digest push (push_policy.py).
+        try:
+            push_policy.queue_digest(item.get("id") or "", dec.get("group") or "other", item.get("title") or "")
+        except Exception as e:  # noqa: BLE001
+            print(f"[push policy] digest queue: {type(e).__name__}: {e}", file=sys.stderr)
     if hidden:
         # Not in the bell: the chat's dot and the rail dot (rail-unread.js) carry it. They refresh now.
         try:
@@ -15517,14 +15668,20 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         url = f"/?mo_thu={item['id']}"
         # 0.187.0: "hide content" in the bell's settings shows only that something arrived; the text is read after
         # opening Javis, where login is checked again.
-        title, body = item["title"], (item.get("summary") or item["body"])[:200]
+        # Owner, 2026-11-23: two lines, the result then the next step. The second line is the summary or nothing,
+        # never the start of the report cut mid-sentence.
+        title, body = item["title"], ((item.get("summary") or "") if push_body is None else push_body)[:160]
         if (cfgmod.read_settings().get("push") or {}).get("preview") == "hidden":
             title, body = "Javis", localefmt.chu("Bạn có tin mới trong Javis.", "You have a new message in Javis.")
         # KHÔNG await: mỗi đăng ký chết là một request chờ tới 15 giây, mà việc rung chuông
         # không được phép giữ chân cái đã xong. Hòm thư đã ghi rồi - push chỉ là chuông cửa.
         # Giữ tham chiếu tới task, không thì bộ dọn rác có thể nuốt nó giữa chừng.
+        nid = ""
+        if webpush.so_sub() and not (push_if_away and push_presence.watching(sid)):
+            nid = push_policy.record_push(f"{dec.get('group') or 'other'}|{dec.get('sig') or ''}", "bell",
+                                          label=item["title"], level=dec.get("level") or "")
         t = asyncio.create_task(
-            webpush.gui_het(title, body, url, tag=f"javis-{item['id']}", phien_hop_le=_phien_con_hieu_luc(),
+            webpush.gui_het(title, body, url, tag=f"javis-{item['id']}", phien_hop_le=_phien_con_hieu_luc(), nid=nid,
                             **({"quiet_if_visible": True, "session_id": sid} if push_if_away else {})))
         _PUSH_TASKS.add(t)
         t.add_done_callback(_PUSH_TASKS.discard)
@@ -15550,13 +15707,34 @@ def _chat_has_own_dot(sid: str, channel: str) -> bool:
         return False
 
 
+def _act_level(meta: dict, level: str, source: str = "", label: str = "", title: str = "") -> str:
+    """The level a run's JAVIS_NOTIFY block earns (notice_text.split_block). An explicit `level` wins. `act` makes it
+    urgent only with a valid `why` and when the job does not claim it on most runs (push_policy.act_check, owner
+    2026-11-23); otherwise important. No block: `level` unchanged."""
+    if level or not meta or "act" not in meta:
+        return level
+    try:
+        key = f"{source}|{notify_policy.signature(label or title or meta.get('title') or '')}"
+        ok = push_policy.act_check(key, bool(meta.get("act")), meta.get("why") or "")
+    except Exception as e:  # noqa: BLE001 - a broken store never loses the notice
+        print(f"[push policy] act check: {type(e).__name__}: {e}", file=sys.stderr)
+        ok = bool(meta.get("act"))
+    if ok:
+        return "urgent"
+    return "important" if meta.get("act") else level
+
+
 def _notify_decide(text, *, kind="answer", source="", quiet=False, level="", group="", viec=None, dedup="",
                    title="") -> dict:
     """Javis Core's verdict on one notice (0.403.0, `notify_policy.decide`). Never raises: a broken rule store rings."""
     try:
         g = notify_policy.group_of(source=source, kind=kind, viec=viec, dedup=dedup, group=group)
         lv = notify_policy.level_of(level=level, quiet=quiet, group=g)
-        return notify_policy.decide(g, lv, title or inbox._tieu_de(text))
+        dec = notify_policy.decide(g, lv, title or inbox._title_from_text(text))
+        if dec.get("verdict") == "loud" and push_policy.over_budget(dec.get("level") or lv, cfgmod.read_settings()):
+            # Owner, 2026-11-23: today's buzzes are spent; what is not urgent waits for the digest instead.
+            dec = dict(dec, verdict="quiet", why="budget")
+        return dec
     except Exception as e:  # noqa: BLE001
         print(f"[notify policy] decide failed: {type(e).__name__}: {e}", file=sys.stderr)
         return {"group": group or "other", "level": level or ("info" if quiet else "important"), "sig": "",
@@ -15676,8 +15854,9 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     web = notice_text.split_block(web)[0] if web else web
     title = title or meta.get("title") or ""
     summary = summary or meta.get("line") or ""
-    if meta.get("act") and not level:
-        level = "urgent"
+    # The push's second line (owner, 2026-11-23): the run's own next step, empty when it wrote one and there is none.
+    push_body = (meta.get("line") or "") if meta else None
+    level = _act_level(meta, level, source=source, label=label, title=title)
     # 0.403.0: Javis Core's verdict first, so a filtered notice is neither copied to its chat nor sent to Telegram.
     dec = _notify_decide(text, kind=kind, source=source, quiet=quiet, level=level, group=group, viec=viec, dedup=dedup,
                          title=title)
@@ -15691,7 +15870,8 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     chat = route.get("chat") or ""
     vao_hom = await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{chat}" if chat else "", text, kind=kind, label=label,
                                     source=source, quiet=quiet, brain=route.get("brain") or "", dedup=dedup,
-                                    routing=route.get("routing") or "", decision=dec, title=title, summary=summary)
+                                    routing=route.get("routing") or "", decision=dec, title=title, summary=summary,
+                                    push_body=push_body)
     if vao_hom and vao_hom.get("duplicate"):
         return True, ""   # filed before: a retry must not post or ring a second time
     if vao_hom and vao_hom.get("dropped") and not chat and not route.get("external"):
@@ -16682,6 +16862,9 @@ async def _nhan_nuoi_tien_trinh(tag: str, brain: str, owner_chat: str, final_tex
         # Còn nhóm sống thì đợi một nhịp ân hạn: tiến trình phụ của engine (MCP stdio) hay nán
         # lại vài trăm mili giây rồi mới thoát; nhận nuôi ngay là báo nhầm. Không có gì sống
         # thì không đợi, lượt thường không chậm thêm chút nào.
+        # An engine that answered before exiting (Antigravity) is waited for first, so its own
+        # shutdown is never taken for left-behind work. The answer is already on screen by now.
+        await asyncio.to_thread(tien_trinh_nen.wait_engine_exit, tag)
         if tien_trinh_nen.co_nhom_song(tag):
             await asyncio.sleep(2.0)
         hua = bool(background_status.detect_promise(final_text or ""))
@@ -16781,6 +16964,8 @@ async def _bao_luot_dai_xong(conv_sid: str, brain, turn_tag: str, user_message: 
     text = str(final_text or "")
     if not turn_done_notice.should_notify(elapsed, user_message, text):
         return _bao_luot_xong_ngan(conv_sid, text)
+    if push_presence.watching(conv_sid):
+        return False   # the owner is reading this chat on some device: the answer is on screen, a bell copy is clutter
     import chat_bridge as _cb
     if _cb.co_viec(conv_sid):
         return False   # work an outside AI sent: chat_bridge rings once, and only if that AI did not read the answer
@@ -16816,16 +17001,33 @@ def _push_chat_answer(conv_sid: str, final_text: str) -> bool:
     try:
         if not conv_sid or not webpush.so_sub():
             return False
-        body = turn_done_notice.push_text(channel_context.strip_control_blocks(str(final_text or "")))
+        body = turn_done_notice.push_line(channel_context.strip_control_blocks(str(final_text or "")))
         if not body:
             return False
-        if (cfgmod.read_settings().get("push") or {}).get("preview") == "hidden":
-            body = localefmt.chu("Javis đã trả lời xong.", "Javis has answered.")
+        # Owner, 2026-11-23: chat answers pass the bell's filter too (group "answer": the owner's mode, a kind Javis Core
+        # muted because the owner kept ignoring it), ring once per chat per 10 minutes, and count in today's budget.
+        dec = notify_policy.decide("answer", "important", "chat answer", record=False)
+        if dec.get("verdict") != "loud":
+            return False
+        settings = cfgmod.read_settings()
+        if (push_presence.watching(conv_sid) or push_policy.chat_throttled(conv_sid)
+                or push_policy.over_budget("important", settings)):
+            return False
+        # Two lines that say something: the chat's name, then the answer's first line that reports.
+        title = ""
+        try:
+            title = str((get_store().get_session(conv_sid) or {}).get("title") or "").strip()
+        except Exception:  # noqa: BLE001
+            title = ""
+        title = notice_text.short_name(title, 60) if title else "Javis"
+        if (settings.get("push") or {}).get("preview") == "hidden":
+            title, body = "Javis", localefmt.chu("Javis đã trả lời xong.", "Javis has answered.")
+        nid = push_policy.record_push(push_policy.ANSWER_KEY, "answer", label=title, sid=conv_sid)
         # Not awaited: a dead subscription waits up to 15 s and the turn is already over. One notice per chat: a newer
         # answer replaces the older one (tag).
         t = asyncio.create_task(webpush.gui_het(
-            "Javis", body, f"/?mo_phien={conv_sid}", tag=f"javis-turn-{conv_sid[:24]}",
-            phien_hop_le=_phien_con_hieu_luc(), quiet_if_visible=True, session_id=conv_sid))
+            title, body, f"/?mo_phien={conv_sid}", tag=f"javis-turn-{conv_sid[:24]}",
+            phien_hop_le=_phien_con_hieu_luc(), quiet_if_visible=True, session_id=conv_sid, nid=nid))
         _PUSH_TASKS.add(t)
         t.add_done_callback(_PUSH_TASKS.discard)
         return True
@@ -18357,8 +18559,8 @@ async def do_update():
 
 
 async def _update_core():
-    """The body of POST /update, shared with `javis_improve op=update` (a route handler is never called as a plain
-    function, test_handler_khong_goi_truc_tiep). Returns a dict, or a JSONResponse when it refuses."""
+    """The body of POST /update, which only the Update button calls: nothing in Javis starts an update by itself
+    (owner, 23/11/2026). Returns a dict, or a JSONResponse when it refuses."""
     import sys as _sys
     import subprocess
     import datetime as _dt
@@ -18464,24 +18666,15 @@ async def _update_core():
         return JSONResponse({"ok": False, "error": str(e), "manual": "./update.sh"}, status_code=500)
 
 
-async def _self_upgrade_start() -> dict:
-    """`javis_improve op=update` (2026-11-15): the very same path as the Update button, its answer as a dict."""
-    res = await _update_core()
-    if isinstance(res, dict):
-        return res
-    try:
-        return json.loads(bytes(res.body).decode("utf-8"))
-    except Exception:  # noqa: BLE001
-        return {"ok": False, "error": localefmt.chu("Cập nhật không bắt đầu được.", "The update did not start.")}
-
-
 async def _self_upgrade_versions() -> tuple:
     cur = _read_version()
     latest, _err = await _latest_remote_version(cur)
     return cur, latest
 
 
-self_upgrade.wire(start=_self_upgrade_start, versions=_self_upgrade_versions, turn_busy=luot_dang_chay.has_turn)
+# Versions only: `javis_improve op=update` tells the owner what is out and sends them to the Update page. It never
+# starts an update (owner, 23/11/2026: "người dùng phải vào trang update để cập nhật lên").
+self_upgrade.wire(versions=_self_upgrade_versions)
 
 
 # ============================================================
@@ -19284,6 +19477,91 @@ async def push_subscribe(request: Request, payload: dict = Body(None)):
     ok, err = webpush.dang_ky(p.get("subscription") or p, str(p.get("nhan") or ""),
                               phien=_phien_bam(request.cookies.get("javis_session", "")))
     return {"ok": ok, "error": err, "subs": webpush.so_sub()}
+
+
+@app.post("/push/engage")
+async def push_engage(payload: dict = Body(None)):
+    """sw.js: the owner tapped ("open") or swiped away ("close") one push (push_policy.py learns from it)."""
+    p = payload or {}
+    s = push_policy.engage(str(p.get("nid") or ""), str(p.get("ev") or ""))
+    if s and p.get("ev") == "close":
+        await _push_learn()
+    return {"ok": bool(s)}
+
+
+@app.get("/push/stats")
+async def push_stats():
+    """The last 7 days of pushes for the bell's filter: how many, how many opened, the kinds opened least."""
+    return {"ok": True, **push_policy.stats(settings=cfgmod.read_settings())}
+
+
+def _push_seen_elsewhere(s: dict) -> bool:
+    """A chat-answer push whose chat the owner read on some device afterwards: not ignored, read another way."""
+    return bool(s.get("kind") == "answer" and s.get("sid") and push_presence.seen_after(s["sid"], s.get("ts") or 0))
+
+
+async def _push_learn() -> list:
+    """Mute the kinds the owner keeps ignoring (push_policy.learn), as rules Javis Core set and the owner can undo in
+    the bell's filter. Javis Core says it in its chat. Returns the changes. Never raises."""
+    changes = []
+    try:
+        for cand in push_policy.learn(seen=_push_seen_elsewhere):
+            g, _, sig = cand["key"].partition("|")
+            c = notify_policy.set_rule(g, sig, "mute", set_by="core", label=cand.get("label") or sig,
+                                       reason=cand.get("reason") or "")
+            push_policy.mark_learned(cand["key"])
+            if c:
+                changes.append(c)
+        if changes:
+            await _core_say("", "\n".join(notify_policy.describe(c) for c in changes))
+    except Exception as e:  # noqa: BLE001
+        print(f"[push policy] learn: {type(e).__name__}: {e}", file=sys.stderr)
+    return changes
+
+
+async def _push_digest_tick() -> bool:
+    """Send the digest when its time came (push_policy.DIGEST_TIMES) and something waited for it. True when sent."""
+    slot = push_policy.digest_due()
+    if not slot:
+        return False
+    settings = cfgmod.read_settings()
+    items = push_policy.take_digest(slot)
+    if not items or not push_policy.digest_on(settings) or not webpush.so_sub():
+        return False
+    title, body = push_policy.digest_text(items)
+    if (settings.get("push") or {}).get("preview") == "hidden":
+        title, body = "Javis", localefmt.chu("Bạn có tin mới trong Javis.", "You have a new message in Javis.")
+    nid = push_policy.record_push(push_policy.DIGEST_KEY, "digest", label=title)
+    await webpush.gui_het(title, body, "/?mo_thu=digest", tag="javis-digest", phien_hop_le=_phien_con_hieu_luc(),
+                          nid=nid)
+    return True
+
+
+@app.on_event("startup")
+async def _push_policy_loop_start():
+    """Every minute: the digest when due; every hour: learn from the pushes nobody opened (push_policy.py)."""
+    async def _loop():
+        n = 0
+        while True:
+            try:
+                await asyncio.sleep(60)
+                await _push_digest_tick()
+                n += 1
+                if n % 60 == 0:
+                    await _push_learn()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                print(f"[push policy] loop: {type(e).__name__}: {e}", file=sys.stderr)
+    _PUSH_TASKS.add(asyncio.create_task(_loop()))
+
+
+@app.post("/push/presence")
+async def push_presence_report(payload: dict = Body(None)):
+    """A dashboard tab says which chat it shows and whether the owner is in front of it (push.js). While a chat is read
+    on one device, an answer in it rings no other device either (push_presence.py)."""
+    p = payload or {}
+    return {"ok": push_presence.report(str(p.get("tab") or ""), str(p.get("session_id") or ""), bool(p.get("active")))}
 
 
 @app.post("/push/unsubscribe")
@@ -21062,23 +21340,42 @@ async def _chat_socket(ws):
             _t_turn0 = time.monotonic()
             _first_out = {}
 
+            def _note_warm(ev):
+                """What the engine said once the message was sent: served warm, or cold and why (2026-11-23)."""
+                _first_out["warm"] = bool(ev.get("warm"))
+                _first_out["opened_ahead"] = bool(ev.get("opened_ahead"))
+                _first_out.pop("cold", None)
+                _first_out.pop("cold_parts", None)
+                if not _first_out["warm"]:
+                    _first_out["cold"] = _cold_reason(ev.get("cold"), rotated=_first_out.get("rotated"),
+                                                      lost=_first_out.get("lost"))
+                    if ev.get("cold_parts"):
+                        _first_out["cold_parts"] = list(ev["cold_parts"])
+
             def _note_first_output(engine_name, warm=None):
                 """0.382.0: how long the owner waited for the engine's first sign of life (text, tool or error), and
-                whether a warm process served it. Once per turn; the numbers behind the speed work."""
+                whether a warm process served it. Once per turn; the numbers behind the speed work.
+                2026-11-23: a cold turn also says why, so the next speed fix aims at the real cause."""
                 if "ms" in _first_out:
                     if warm is not None:
                         _first_out["warm"] = warm
                     return
                 _first_out["ms"] = int((time.monotonic() - _t_turn0) * 1000)
                 _first_out.setdefault("warm", bool(warm))
+                _payload = {"engine": engine_name, "ms": _first_out["ms"], "warm": _first_out["warm"]}
+                if _first_out["warm"] and _first_out.get("opened_ahead"):
+                    _payload["opened_ahead"] = True     # a new thread, served by the process opened ahead for it
+                if not _first_out["warm"] and _first_out.get("cold"):
+                    _payload["cold"] = _first_out["cold"]
+                    if _first_out.get("cold_parts"):
+                        _payload["cold_parts"] = _first_out["cold_parts"]
                 try:
-                    _CONTEXT_RUNTIME.record_runtime_event(
-                        runtime_trace, "engine.first_output",
-                        {"engine": engine_name, "ms": _first_out["ms"], "warm": _first_out["warm"]})
+                    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "engine.first_output", _payload)
                 except Exception:  # noqa: BLE001 - a timing note must never break a turn
                     pass
                 print(f"[turn timing] {conv_sid[:12]} engine={engine_name} first_output_ms={_first_out['ms']} "
-                      f"warm={_first_out['warm']}", file=sys.stderr)
+                      f"warm={_first_out['warm']}"
+                      + (f" cold={_payload['cold']}" if _payload.get("cold") else ""), file=sys.stderr)
             # 0.190.0: what the brain's memory looks like before the turn, for the "Đã nhớ · Hoàn tác" line and the
             # empty-claim check after it (memory_receipt).
             # Users, 07/11/2026: these walks run in a thread. A brain on a synced drive (Google Drive, OneDrive) can
@@ -21497,14 +21794,20 @@ async def _chat_socket(ws):
                 steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: one-shot CLI, messages wait for the end
                 # ===== Gói Google qua ANTIGRAVITY CLI (`agy`) - tool native + MCP hub =====
                 #
-                # CỐ Ý chưa nối lại mạch hội thoại của CLI như nhánh Gemini/Codex ngay trên.
-                # `agy` có `--conversation <uuid>`, nhưng chưa ai đo được nó trên máy thật, mà
-                # lưu một id sai vào SQLite thì lượt sau nối vào mạch không tồn tại và hỏng câm.
-                # Nên mỗi lượt mở mạch mới và mồi lại bằng transcript đã lưu - tốn token hơn
-                # nhưng KHÔNG mất ngữ cảnh. Đo được cờ đó rồi thì nâng lên đúng khuôn Gemini.
+                # 2026-11-24 (agy 1.5.15, measured): the chat resumes agy's own conversation
+                # on a process kept warm between turns: `agy acp`, which also streams the model's thinking
+                # (agy_acp.py), else the stream-json mode (agy_warm.py, `--conversation`), both in warm_pool. The
+                # instructions and the transcript go only into the FIRST message of a thread; a continued
+                # thread gets the per-turn facts and the new message. agy opens a new conversation without
+                # a word for an id it does not know, so agy_warm checks the id in `init` before sending and
+                # falls back to the whole context. JAVIS_AGY_RESUME=0 restores one process per turn.
                 actual_model = api_model or None
+                # Stable prompt (#975) for plain chats, as on the Claude Code lane: the clock and the
+                # session line travel in the per-turn header, since a continued thread keeps its first
+                # message's prompt.
+                _a_stable = not _persona
                 sysprompt, _sub_plan = await _subscription_system_prompt(
-                    "antigravity-cli", actual_model or "", kind)
+                    "antigravity-cli", actual_model or "", kind, stable=_a_stable)
                 acli = antigravity_cli.AntigravityCLI(cwd=_cwd_luot_chat(_row0, brain), model=actual_model,
                                                       tag=turn_tag, instructions=sysprompt)
                 acli.mode = _muc_quyen_luot_chat(_row0, user_message)
@@ -21523,29 +21826,78 @@ async def _chat_socket(ws):
                         "model": actual_model or "", "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)}))
                 else:
+                    _a_thread = ((_row0.get(sessions.AGY_THREAD_COLUMN) or "").strip()
+                               if agy_warm.enabled() else "")
+                    if _a_thread and compaction.nen_mach_thue_bao(
+                            _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                            rotated_at=_row0.get("thread_rotated_msg")):
+                        _a_thread = ""
+                        await asyncio.to_thread(store.clear_agy_conversation_id, conv_sid)
+                        await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
+                        _CONTEXT_RUNTIME.record_runtime_event(
+                            runtime_trace, "thread.rotated",
+                            {"engine": "antigravity-cli",
+                             "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                             "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
+                        _first_out["rotated"] = True
+                        await ws.send_text(json.dumps({
+                            "type": "tool_call", "tool": "javis_nen_mach",
+                            "content": localefmt.chu("⚙ Mạch hội thoại đã dài, Javis mở mạch mới.",
+                                                     "⚙ The conversation thread got long, Javis started a new one.")}))
+                    acli.session_id = _a_thread or None
+                    acli.stream_turns = True
+                    acli.warm_key = conv_sid     # the process stays for the next turn (warm_pool)
                     _a_cur = _cli_do_sau_khac(acli, antigravity_cli, reasoning, user_message)
                     _a_raw = [{"role": _m["role"], "content": _m["content"]}
                               for _m in (await asyncio.to_thread(store.get_messages, conv_sid))[:-1]
                               if _m["role"] in ("user", "assistant") and _m.get("content")]
-                    # Ngân sách RIÊNG cho agy (xem compaction.AGY_BOOTSTRAP_MAX_CHARS): gói này
-                    # gửi lại nguyên mỗi lượt, và trên Windows nó thành file ngữ cảnh mà model
-                    # phải tự đọc - dài quá là đọc cụt rồi trả lời câu hỏi cũ.
+                    # Ngân sách RIÊNG cho agy (xem compaction.AGY_BOOTSTRAP_MAX_CHARS): a new thread (and
+                    # the one-shot fallback) carries this whole package; on Windows the one-shot path turns
+                    # it into a context file the model must read itself.
                     _a_prompt = compaction.bootstrap_prompt(
                         _a_raw, _a_cur, max_chars=compaction.AGY_BOOTSTRAP_MAX_CHARS,
                         summary=_row0.get("compact_summary") or "")
+                    if _a_stable:
+                        # First message of a thread: every per-turn fact plus the plan's turn context (#1329).
+                        _a_head = "\n".join(x for x in (
+                            _turn_facts_header(brain, conv_sid or "", _lang_qd.lang, first=True),
+                            getattr(_sub_plan, "turn_context", "") or "") if x)
+                        _a_prompt = (_a_head + "\n" + _a_prompt) if _a_head else _a_prompt
+                        _a_next = _turn_facts_header(brain, conv_sid or "", _lang_qd.lang, first=False)
+                        acli.resume_prompt = (_a_next + "\n" + _a_cur) if _a_next else _a_cur
+                    else:
+                        # An agent chat keeps its own prompt with its own clock: a continued thread only
+                        # needs the send time in front of the message.
+                        acli.resume_prompt = _gio_luot_noi_mach(acli, _a_cur, _lang_qd.lang)
                     _CONTEXT_RUNTIME.observe_payload(
                         runtime_trace,
                         [{"role": "system", "content": sysprompt},
-                         {"role": "user", "content": _a_prompt}],
+                         {"role": "user", "content": acli.resume_prompt if _a_thread else _a_prompt}],
                         provider="antigravity-cli", model=actual_model or "")
                     async for ev in acli.query(_a_prompt):
                         et = ev.get("type")
+                        if et == "session":
+                            # The stream path says whether a warm process served the turn and, if not, why.
+                            _note_warm({"warm": ev.get("warm"), "cold": ev.get("cold")})
+                            continue
+                        if "warm" not in _first_out:
+                            _note_warm({"warm": False, "cold": "one_shot_process"})
+                        _note_first_output("antigravity-cli", _first_out.get("warm"))
                         if et == "tool_call":
                             await ws.send_text(json.dumps({
                                 "type": "tool_call", "tool": ev.get("name", ""),
                                 "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                                 "content": localefmt.chu(f"⚙ Đang gọi: {ev.get('name', '')}",
                                                          f"⚙ Calling: {ev.get('name', '')}")}))
+                        elif et == "tool_result":
+                            # Marks the step done; without it every step kept spinning until the turn ended.
+                            await ws.send_text(json.dumps({"type": "tool_result",
+                                                           "content": str(ev.get("content") or "")[:200]}))
+                        elif et == "thinking":
+                            # A summary of the model's thinking (agy acp, agy_acp.py), shown in the steps block
+                            # while the answer is not written yet. Never read aloud, never part of the answer.
+                            if ev.get("content"):
+                                await ws.send_text(json.dumps({"type": "thinking", "content": ev["content"]}))
                         elif et == "delta":
                             # 0.438.6: chữ xem trước, hiện ngay từng mẩu; `final` mới là câu trả lời.
                             if ev.get("content"):
@@ -21554,10 +21906,21 @@ async def _chat_socket(ws):
                         elif et == "final":
                             final_text = ev.get("content") or ""
                         elif et == "usage":
-                            await asyncio.to_thread(store.set_last_input_tokens, conv_sid, int(ev.get("input_tokens") or 0))
+                            # The thread's size at the turn's last model call (input + cached), which the
+                            # rotation check above reads on the next turn.
+                            await asyncio.to_thread(
+                                store.set_last_input_tokens, conv_sid,
+                                int(ev.get("context_tokens") or 0)
+                                or int(ev.get("input_tokens") or 0) + int(ev.get("cached") or 0))
                         elif et == "error":
                             await ws.send_text(_limit_frame(
                                 ev.get("content") or "", "antigravity-cli", actual_model or ""))
+                    # Keep the thread only when it answered on the stream path; a one-shot or failed turn
+                    # leaves the next one to open a new thread with the whole context.
+                    if getattr(acli, "resumable", False) and acli.session_id:
+                        await asyncio.to_thread(store.set_agy_conversation_id, conv_sid, acli.session_id)
+                    elif _a_thread:
+                        await asyncio.to_thread(store.clear_agy_conversation_id, conv_sid)
                     final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "antigravity-cli",
@@ -21622,6 +21985,7 @@ async def _chat_socket(ws):
                         _codex_ctx, msg_count=_row0.get("msg_count"),
                         rotated_at=_row0.get("thread_rotated_msg")):
                     stored_codex_thread = ""
+                    _first_out["rotated"] = True
                     await asyncio.to_thread(store.clear_codex_thread_id, conv_sid)
                     await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
                     _CONTEXT_RUNTIME.record_runtime_event(
@@ -21679,7 +22043,7 @@ async def _chat_socket(ws):
                         async for ev in ccli.query(prompt):
                             et = ev["type"]
                             if et == "session":
-                                _first_out["warm"] = bool(ev.get("warm"))
+                                _note_warm({"warm": ev.get("warm"), "cold": ev.get("cold")})
                             else:
                                 _note_first_output("codex", _first_out.get("warm"))
                             if et == "session":
@@ -21748,6 +22112,7 @@ async def _chat_socket(ws):
                                 "the context from saved history.")
                         }))
                         ccli.session_id = None
+                        _first_out["lost"] = True
                         _fallback = compaction.bootstrap_prompt(
                             _codex_raw, _codex_current,
                             summary=_row0.get("compact_summary") or "")
@@ -22144,25 +22509,28 @@ async def _chat_socket(ws):
                 # Cùng luật với Codex: mạch phình quá ngưỡng thì thôi --resume, mở mạch mới.
                 # Claude Code cũng tự quản transcript nên Javis chỉ có đúng con số token vào
                 # của lượt trước làm dấu hiệu.
+                _claude_context = compaction.subscription_context_tokens(_row0, "claude-code")
                 _cli_xoay_mach = bool(cli.session_id) and compaction.nen_mach_thue_bao(
-                    _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                    _claude_context, msg_count=_row0.get("msg_count"),
                     rotated_at=_row0.get("thread_rotated_msg"))
                 if _cli_xoay_mach:
                     cli.session_id = None
+                    _first_out["rotated"] = True
                     await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
                     _CONTEXT_RUNTIME.record_runtime_event(
                         runtime_trace, "thread.rotated",
                         {"engine": "claude-code",
-                         "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                         "last_input_tokens": _claude_context,
+                         "basis": "last_request" if _row0.get("last_context_provider") == "claude-code" else "turn_total",
                          "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
                     await ws.send_text(json.dumps({
                         "type": "tool_call", "tool": "javis_nen_mach",
                         "content": localefmt.chu(
                             "⚙ Mạch hội thoại đã dài "
-                            f"({int(_row0.get('last_input_tokens') or 0):,} token mỗi lượt), "
+                            f"({_claude_context:,} token), "
                             "Javis mở mạch mới.",
                             "⚙ The conversation thread got long "
-                            f"({int(_row0.get('last_input_tokens') or 0):,} tokens per turn), "
+                            f"({_claude_context:,} tokens), "
                             "Javis started a new one."),
                     }))
                 # Stable prompt (0.445.0, #975): plain chats only. An agent DM keeps its own prompt, which has
@@ -22222,10 +22590,15 @@ async def _chat_socket(ws):
                     """Một lần gọi `claude`. Trả True nếu mạch cũ không còn (resume trượt)."""
                     nonlocal final_text, _streamed, _cli_sid, _cost, _ctx_in, _ctx_cache, _cli_err
                     resume_failed = False
+                    last_request_input = 0
+                    await asyncio.to_thread(store.clear_last_context_input_tokens, conv_sid, "claude-code")
                     async for event in claude_warm.query(cli, prompt, conv_sid):
                         etype = event["type"]
+                        if etype == "request_context":
+                            last_request_input = event.get("input_tokens", 0)
+                            continue
                         if etype == "warm":
-                            _first_out["warm"] = bool(event.get("warm"))
+                            _note_warm(event)
                             continue
                         _note_first_output("claude-code", _first_out.get("warm"))
                         if etype in ("tool_call", "tool_result"):
@@ -22255,6 +22628,8 @@ async def _chat_socket(ws):
                             _cost = event.get("cost_usd")
                             if _cli_sid:
                                 store.set_cli_session_id(conv_sid, _cli_sid)
+                                if last_request_input > 0 and not event.get("is_error") and not event.get("resume_failed"):
+                                    await asyncio.to_thread(store.set_last_context_input_tokens, conv_sid, last_request_input, "claude-code")
                                 # 0.202.0: this chat may be kept warm across a short break (off by default).
                                 try:
                                     if claude_auth.on_plan():
@@ -22296,6 +22671,7 @@ async def _chat_socket(ws):
                             "the context from saved history.")
                     }))
                     cli.session_id = None
+                    _first_out["lost"] = True
                     _cli_raw2 = [{"role": _m["role"], "content": _m["content"]}
                                  for _m in (await asyncio.to_thread(store.get_messages, conv_sid))[:-1]
                                  if _m["role"] in ("user", "assistant") and _m.get("content")]
@@ -22419,6 +22795,17 @@ async def _chat_socket(ws):
             if final_text:
                 await _persist_turn(store, conv_sid, brain, user_message, final_text,
                                     turn_started=(_mem_snap or {}).get("t0") or 0)
+                # 2026-11-23: two weeks of real turns showed 38% of Claude turns cold because Javis had just rotated
+                # the thread, so the process kept for the old thread never matched. The answer is saved, so the
+                # rule the next turn will apply can be read now: when it will rotate, the idle process is swapped
+                # for one opened ahead on a new thread (same slot, old one closed first, no extra RAM).
+                try:
+                    _row_end = await asyncio.to_thread(store.get_session, conv_sid) or {}
+                    if prov == "anthropic-cli" and compaction.next_turn_rotates(compaction.subscription_context_tokens(_row_end, "claude-code"), _row_end.get("msg_count"),
+                                                    _row_end.get("thread_rotated_msg")):
+                        await claude_warm.prepare_new_thread(conv_sid)
+                except Exception as _e:  # noqa: BLE001 - a missed head start only costs the seconds it would save
+                    print(f"[warm new thread] {type(_e).__name__}: {_e}", file=sys.stderr)
                 if not _limit_state.get("quota"):
                     # 20/11/2026: the plan just answered, so an older "ran out" mark on the ring goes (or, when it was
                     # another model's refusal, stays on that model only). Before, only a fresh meter report lifted it,
@@ -27260,10 +27647,11 @@ def _tg_ket(clean_out, files, canh_bao="", loi=(), khach=False):
 
     `khach=True` (a full-access dedicated bot, 0.102.1): the person reading is a CUSTOMER, not the owner.
     The system warning and the mid-turn error then go to `canh_bao`, which the bot log shows the owner,
-    instead of being glued to the reply ("⚠ Có lỗi giữa lượt: ..." in a customer group)."""
+    instead of being glued to the reply ("⚠ Có lỗi giữa lượt: ..." in a customer group). It also carries no files
+    (issue #1785): a bot chat receives only the images its Agent embeds, picked later by `chatbot_runtime`."""
     if khach:
         ghi_chu = [str(canh_bao or "").strip()] + (["Có lỗi giữa lượt: " + str(loi[0])] if loi else [])
-        ket = {"text": clean_out or "", "files": files or []}
+        ket = {"text": clean_out or "", "files": []}
         if any(ghi_chu):
             ket["canh_bao"] = " · ".join(x for x in ghi_chu if x)[:500]
         return ket
@@ -28268,7 +28656,10 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             await _nuot_codex(compaction.codex_bootstrap_prompt(_raw, _hien_tai))
         if not out:
             return "⚠ " + (loi[0] if loi else "Codex không trả về nội dung nào.")
-        files = channel_context.collect_turn_files(
+        # A dedicated bot at "full" gathers no files (issue #1785), in a customer's chat or the owner's own: the turn's
+        # working files are not for that chat, and leaving the reply's `![](...)` in place lets `chatbot_runtime` send
+        # only the images the Agent embedded.
+        files = [] if _bot_full else channel_context.collect_turn_files(
             out, written, t0, cwd=_brain_root(brain), exclude=sess["sent"],
             vault_root=_brain_root(brain),
         )
@@ -28344,7 +28735,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         _tg_compact_bg(sess, prov, api_key, api_model)
         # MCP đa-model có thể tạo ảnh/file dù engine không có tool Write native. Thu đường dẫn
         # Markdown giống nhánh Codex/Claude để OpenRouter cũng gửi media thật qua Telegram.
-        files = channel_context.collect_turn_files(
+        # Not for a dedicated bot at "full" (issue #1785, see the Codex branch).
+        files = [] if _bot_full else channel_context.collect_turn_files(
             out, [], t0, cwd=_brain_root(brain), exclude=sess["sent"],
             vault_root=_brain_root(brain),
         )
@@ -28452,9 +28844,9 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # File sinh ra trong lượt → bot gửi đính kèm SAU câu trả lời (xem telegram_bot._handle_turn).
         # vault_root = brain phiên này: ảnh Javis tạo nhúng dạng ![](attachments/x.png) (path tương
         # đối) được resolve về gốc vault để tự đính kèm về ĐÚNG người đang chat, khỏi phải curl.
-        files = channel_context.collect_turn_files(out, written, t0,
-                                                   cwd=_brain_root(brain), exclude=sess["sent"],
-                                                   vault_root=_brain_root(brain))
+        # Not for a dedicated bot at "full" (issue #1785, see the Codex branch).
+        files = [] if _bot_full else channel_context.collect_turn_files(
+            out, written, t0, cwd=_brain_root(brain), exclude=sess["sent"], vault_root=_brain_root(brain))
         # Lọc SAU collect_turn_files: hàm đó dò đường dẫn file trong text gốc, lọc trước là mất dấu.
         clean_out = channel_context.strip_attached_media(
             channel_context.strip_control_blocks(out), files, _brain_root(brain)
@@ -29710,6 +30102,23 @@ def _ms_account_secrets() -> list:
     return out
 
 
+def _tailnet_only_warning(url: str) -> str:
+    """A warning when the webhook address is a Tailscale name (*.ts.net). Javis's Tailscale mode uses
+    `tailscale serve`, which only devices in the owner's tailnet can open, so Zalo or Meta never reach
+    it (Zalo reports a timeout, HTTP 408). A test from the server itself succeeds because the server is
+    in the tailnet, which hides the cause (2026-11-23, Seul Clinic)."""
+    host = (parse_url(url).hostname or "").lower()
+    if not host.endswith(".ts.net"):
+        return ""
+    return localefmt.chu(
+        "Địa chỉ .ts.net của Tailscale chỉ máy trong tailnet của bạn mở được, máy chủ Zalo hay Facebook ở ngoài "
+        "Internet không gọi tới được (Zalo báo lỗi 408). Dùng tên miền riêng trỏ vào Javis (Cài đặt, Tên miền) "
+        "hoặc Cloudflare Tunnel, mở Javis bằng địa chỉ đó rồi mở lại form này.",
+        "A Tailscale .ts.net address only opens for devices in your tailnet, so Zalo's or Facebook's servers on "
+        "the Internet cannot reach it (Zalo reports HTTP 408). Point your own domain at Javis (Settings, Domain) "
+        "or use a Cloudflare Tunnel, open Javis through that address, then reopen this form.")
+
+
 @app.get("/channels/webhook-info")
 async def channels_webhook_info(request: Request, channel: str = ""):
     """Address and verify token to paste into the platform for a channel that receives messages
@@ -29718,7 +30127,7 @@ async def channels_webhook_info(request: Request, channel: str = ""):
     if kenh == "zalo_oa":
         url = _zo_webhook_url(request)
         return {"ok": True, "webhook_url": url, "verify_token": "", "https": url.startswith("https://"),
-                "site_verify": True, "site_codes": _zo_site_codes(),
+                "warning": _tailnet_only_warning(url), "site_verify": True, "site_codes": _zo_site_codes(),
                 "oauth_redirect": url[: -len("/zalo-oa/webhook")] + zalo_oa_oauth.CALLBACK_PATH}
     if kenh == "wechat":
         url = _wc_webhook_url(request)
@@ -29738,7 +30147,7 @@ async def channels_webhook_info(request: Request, channel: str = ""):
         request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
     url = base + "/messenger/webhook"
     return {"ok": True, "webhook_url": url, "verify_token": _ms_verify_token(),
-            "https": url.startswith("https://")}
+            "https": url.startswith("https://"), "warning": _tailnet_only_warning(url)}
 
 
 @app.get("/messenger/webhook")
@@ -30367,16 +30776,30 @@ def _zo_account_secrets() -> list:
     return out
 
 
+_zo_unsigned_logged = [0.0]
+
+
 @app.post("/zalo-oa/webhook")
 async def zalo_oa_webhook(request: Request):
     """Inbound Zalo OA events. Public URL, so nothing is trusted before the signature check; a
-    request no known OA secret key signed is dropped with 401 and never handed to a bot."""
+    request no known OA secret key signed is dropped and never handed to a bot.
+
+    The drop answers 200, not 401 (2026-11-23, Seul Clinic). Zalo saves a webhook only after the
+    "Kiểm tra" button gets 200 OK, and that test arrives BEFORE Javis can know the OA secret key:
+    Zalo shows the key once the webhook is saved, and the Javis form needs the key to create the
+    account. A 401 there left the owner stuck on both sides. Nothing reaches a bot either way, so
+    a 200 for an unsigned request gives a forger nothing."""
     raw = await _read_capped_body(request)
     if raw is None:
         return PlainTextResponse("too large", status_code=413)
     sig = request.headers.get("x-zevent-signature", "") or request.headers.get("mac", "")
     if not zalo_oa_bot.verify_signature(raw, sig, _zo_account_secrets()):
-        return PlainTextResponse("bad signature", status_code=401)
+        now = time.time()
+        if now - _zo_unsigned_logged[0] > 60:
+            _zo_unsigned_logged[0] = now
+            print("[zalo_oa webhook] dropped a request no saved OA secret key signed (Zalo's setup test, "
+                  "a missing or wrong OA secret key, or a stranger)", file=sys.stderr)
+        return {"ok": True, "events": 0}
     try:
         payload = json.loads(raw.decode("utf-8") or "{}")
     except Exception:
@@ -32111,20 +32534,35 @@ _TEAM_ENGINE_BUILD_TOOLS_REAL = team_engine.build_tools
 TEAM_WORK_MODE = "full"
 
 
-def _codex_user_mcp_servers():
-    """MCP servers in the user's own Codex config besides Javis' hub: Codex would call them without the gate."""
+def _codex_config_toml():
+    """The user's own ~/.codex/config.toml as a dict, {} when missing or unreadable."""
     try:
         import tomllib
         p = claude_cli._codex_home() / "config.toml"
-        if not p.is_file():
-            return []
-        cfg = tomllib.loads(p.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 - unreadable config: nothing known to add
+        return tomllib.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    except Exception:  # noqa: BLE001 - unreadable config: nothing known
+        return {}
+
+
+def _codex_user_mcp_servers():
+    """Top-level MCP servers in the user's own Codex config besides Javis' hub: Codex would call them without the gate.
+
+    Only the top level: a restricted Codex process switches each of them off with `-c mcp_servers.<name>.enabled=false`,
+    which merges onto the existing table. A server that lives only under another `[profiles.X]` is not loaded by a
+    Javis run (it uses its own profile), and the same override would create a half entry with no command."""
+    return sorted(n for n in ((_codex_config_toml().get("mcp_servers") or {}).keys()) if n != "javis")
+
+
+def _codex_profile_mcp_servers():
+    """MCP servers declared under the profile Javis runs Codex with: an override cannot switch those off safely."""
+    try:
+        prof = ((_codex_config_toml().get("profiles") or {}).get(mcp_hub.codex_profile_name()) or {})
+    except Exception:  # noqa: BLE001
         return []
-    names = set((cfg.get("mcp_servers") or {}).keys())
-    for prof in (cfg.get("profiles") or {}).values():
-        names |= set(((prof or {}).get("mcp_servers") or {}).keys())
-    return sorted(n for n in names if n != "javis")
+    return sorted(n for n in ((prof.get("mcp_servers") or {}).keys()) if n != "javis")
+
+
+_CODEX_SERVER_NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
 
 def _team_gate_support(provider):
@@ -32139,11 +32577,16 @@ def _team_gate_support(provider):
         if not _hub_enabled():
             return {"ok": False, "approved_actions": False,
                     "reason": "MCP Hub đang tắt nên Codex gọi thẳng các kết nối, không qua cổng duyệt của Javis"}
-        extra = _codex_user_mcp_servers()
+        # 23/11/2026 (field report, `node_repl`): the user's own top-level Codex servers are switched off for the
+        # gated step's process (mcp_hub.dat_codex_team_gated), as a restricted workflow step already does, instead
+        # of refusing the whole step. Only a name an override cannot express, or a server under Javis's own profile,
+        # still refuses.
+        extra = [n for n in _codex_user_mcp_servers() if not _CODEX_SERVER_NAME_RE.fullmatch(n)]
+        extra += _codex_profile_mcp_servers()
         if extra:
             return {"ok": False, "approved_actions": False,
                     "reason": ("Codex trên máy này có MCP riêng ngoài Javis (" + ", ".join(extra[:5]) + ") mà Javis không "
-                               "chặn được trước khi chạy")}
+                               "tắt riêng cho lượt này được")}
     deny = True
     if prov == aux_engine.GROK_CLI:
         try:
@@ -32535,7 +32978,7 @@ def _team_engine_for(team, agent_key, role):
             # Natives stay in Codex's own `auto` sandbox (no network); hub tools get the gated level and the turn key,
             # so an approved outside action can pass the gate and nothing else can.
             # Review 0.207.0: also no ChatGPT apps (Gmail, Slack... outside the hub) and no shell network.
-            mcp_hub.dat_codex_team_gated(eng.extra_config)
+            mcp_hub.dat_codex_team_gated(eng.extra_config, tat_server=_codex_user_mcp_servers())
             eng.hub_turn = True
         if tool_spec.get("provider") == aux_engine.CODEX:
             try:

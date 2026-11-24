@@ -1084,7 +1084,8 @@ class LearnFeature:
             schema_bits.append(
                 '"facts":[{"slug":"kebab","title":"..","hook":"1 dòng","body":"markdown ngắn",'
                 '"kind":"user|business|preference|decision|reference","provenance":"user|source|assistant",'
-                '"supersedes":"slug-cũ-hoặc-rỗng","confidence":0..3}]')
+                '"supersedes":"old-slug-or-empty; never this fact\'s own slug, an update takes a new slug",'
+                '"confidence":0..3}]')
         if caps.get("wiki"):
             schema_bits.append(
                 '"wiki":[{"title":"Tên Khái Niệm","body":"markdown; MỖI câu cụ thể kết bằng [[nguồn]]; '
@@ -1404,8 +1405,16 @@ class LearnFeature:
                         pass
                     fp = facts_dir / f"{slug}.md"
                     sup = _slugify(f.get("supersedes") or "")
-                    if fp.exists() and not sup:
-                        continue   # append-only: đã có, không đè
+                    if fp.exists():
+                        # Append-only, with no exception (#1800): an existing fact file is never rewritten.
+                        # A fork that "supersedes" its own slug used to skip this guard and replace the whole
+                        # file (history, lessons, created date) with a one-paragraph summary. A real update
+                        # needs a NEW slug whose `supersedes` names the old one.
+                        if sup == slug:
+                            rep["blocked"].append(f"fact '{slug}': supersedes itself, not overwritten")
+                        continue
+                    # Javis bans the long dashes in anything it writes; a fork still produces them.
+                    body = re.sub(r"\s*[–—]\s*", " - ", body)
                     if sup:
                         old = facts_dir / f"{sup}.md"
                         if old.exists():

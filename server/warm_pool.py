@@ -27,7 +27,7 @@ import threading
 import time
 from typing import Awaitable, Callable, Dict, Optional
 
-SLOT_MB = {"claude": 300, "codex": 80}
+SLOT_MB = {"claude": 300, "codex": 80, "agy": 300}   # agy: 248-271 MB RSS measured on 1.5.15
 DEFAULT_IDLE_S = 300.0
 MAX_BUDGET_MB = 1200
 # A recipe older than this is not worth a speculative start. 12 h (0.387.0, was 1 h) so a chat left over lunch or
@@ -109,7 +109,8 @@ def budget_mb(in_use_mb: float = 0.0) -> float:
 
 
 class Handle:
-    """What an engine keeps in a slot. Subclasses: claude_warm.ClaudeHandle, codex_steer.CodexHandle."""
+    """What an engine keeps in a slot. Subclasses: claude_warm.ClaudeHandle, codex_steer.CodexHandle,
+    agy_warm.AgyHandle."""
     kind = ""
 
     def alive(self) -> bool:
@@ -146,19 +147,26 @@ class Pool:
         self._reaper: Optional[asyncio.Task] = None
         self._prewarming: set = set()
         self._gen: Dict[str, int] = {}           # key -> bumped by every turn that looks for its slot
+        # key -> why its process last left the pool. Read by take() to say why a turn runs cold (2026-11-23: 65% of
+        # Claude turns were cold and nothing recorded the reason). One short word per conversation, capped.
+        self._gone: Dict[str, str] = {}
         self.stats = {"hits": 0, "misses": 0, "admitted": 0, "refused": 0, "evicted": 0, "expired": 0,
                       "prewarmed": 0}
 
     # ---- turn side ----
-    def take(self, key: str, kind: str, fingerprint: str) -> Optional[Slot]:
+    def take(self, key: str, kind: str, fingerprint: str, why: Optional[dict] = None) -> Optional[Slot]:
         """The warm slot of this conversation when it matches, marked busy. None = run cold. A slot that no longer
-        matches (other config, dead process, other event loop) is closed."""
+        matches (other config, dead process, other event loop) is closed.
+        `why`, when given, receives why["cold"]: one word for the reason of a miss (see _miss_reason)."""
         if not key or budget_mb() <= 0:
+            if why is not None:
+                why["cold"] = "pool_off"
             return None
         stale = None
         with self._lock:
             self._gen[key] = self._gen.get(key, 0) + 1   # a prewarm started before this turn must not land after it
             slot = self._slots.get(key)
+            reason = ""
             if slot is not None and not slot.busy:
                 try:
                     same_loop = slot.loop is asyncio.get_running_loop()
@@ -169,11 +177,34 @@ class Pool:
                     slot.turns += 1
                     self.stats["hits"] += 1
                     return slot
+                reason = ("engine_changed" if slot.kind != kind else
+                          "config_changed" if slot.fingerprint != fingerprint else
+                          "other_loop" if not same_loop else "process_died")
                 stale = self._slots.pop(key)
+            elif slot is not None:
+                reason = "busy"
+            elif key in self._prewarming:
+                reason = "prewarm_not_ready"
+            else:
+                reason = self._gone.get(key) or "not_held"
+            self._gone.pop(key, None)       # the next miss must not repeat a reason that is no longer the cause
             self.stats["misses"] += 1
+        if why is not None:
+            why["cold"] = reason
         if stale is not None:
             self._close_soon(stale)
         return None
+
+    def _note_gone(self, key: str, reason: str) -> None:
+        """Remember why this conversation's process left the pool (caller holds no lock)."""
+        with self._lock:
+            self._note_gone_locked(key, reason)
+
+    def _note_gone_locked(self, key: str, reason: str) -> None:
+        self._gone.pop(key, None)
+        self._gone[key] = reason
+        while len(self._gone) > MAX_RECIPES:          # insertion order = oldest first
+            self._gone.pop(next(iter(self._gone)))
 
     def peek(self, key: str) -> Optional[Slot]:
         """The slot of this conversation, untouched (to explain a miss)."""
@@ -209,12 +240,15 @@ class Pool:
                 evict.append(s)
                 used -= s.weight
                 self.stats["evicted"] += 1
+                self._note_gone_locked(s.key, "evicted")
             if used + weight > cap:
                 self.stats["refused"] += 1
                 admitted = None
+                self._note_gone_locked(key, "prewarm_no_room" if gen is not None else "no_room")
             else:
                 admitted = Slot(key, kind, fingerprint, handle, recipe)
                 self._slots[key] = admitted
+                self._gone.pop(key, None)
                 self.stats["admitted"] += 1
         for s in evict:
             self._remember(s)
@@ -236,6 +270,7 @@ class Pool:
                 return
             if mine:
                 self._slots.pop(slot.key, None)
+                self._note_gone_locked(slot.key, "turn_not_clean" if not keep else "process_died")
         self._remember(slot)
         self._close_soon(slot)
 
@@ -245,6 +280,7 @@ class Pool:
         with self._lock:
             if self._slots.get(slot.key) is slot:
                 self._slots.pop(slot.key, None)
+                self._note_gone_locked(slot.key, "background_tasks")
 
     # ---- prewarm ----
     def remember(self, key: str, kind: str, fingerprint: str, recipe) -> None:
@@ -280,13 +316,45 @@ class Pool:
             print(f"[warm pool] prewarm {type(e).__name__}: {e}", file=sys.stderr)
             return False
 
-    async def _prewarm(self, key: str, rec: tuple, gen: int) -> None:
+    def swap_recipe(self, key: str, kind: str, fingerprint: str, recipe) -> bool:
+        """The idle process of this conversation will not fit its next turn (the thread is about to be replaced): close
+        it and open `recipe` in its place, ahead of that turn. The old process is closed BEFORE the new one starts, so
+        the conversation never holds two. True when the swap was scheduled; a busy or missing slot is left alone.
+        Like any prewarm, the new process gives way when a turn arrives before it is ready."""
+        try:
+            if not key or recipe is None or budget_mb() <= 0:
+                return False
+            with self._lock:
+                old = self._slots.get(key)
+                if old is None or old.busy or old.kind != kind or key in self._prewarming:
+                    return False
+                self._slots.pop(key, None)
+                rec = (kind, fingerprint, recipe, time.monotonic())
+                self._recipes.pop(key, None)
+                self._recipes[key] = rec
+                self._prewarming.add(key)
+                gen = self._gen.get(key, 0)
+            self._keep_task(asyncio.get_running_loop().create_task(self._prewarm(key, rec, gen, close_first=old)))
+            return True
+        except Exception as e:  # noqa: BLE001
+            print(f"[warm pool] swap {type(e).__name__}: {e}", file=sys.stderr)
+            with self._lock:
+                self._prewarming.discard(key)
+            return False
+
+    async def _prewarm(self, key: str, rec: tuple, gen: int, close_first: Optional[Slot] = None) -> None:
         kind, fingerprint, recipe, _ = rec
         handle = None
         try:
+            if close_first is not None:
+                try:
+                    await close_first.handle.close()
+                except Exception as e:  # noqa: BLE001
+                    print(f"[warm pool] close {close_first.kind} {type(e).__name__}: {e}", file=sys.stderr)
             with self._lock:
                 used = sum(s.weight for s in self._slots.values())
             if used + SLOT_MB.get(kind, 300) > budget_mb(used):
+                self._note_gone(key, "prewarm_no_room")
                 return     # no room without evicting someone actually in use recently: not worth a guess
             handle = await recipe()
             slot = self.admit(key, kind, fingerprint, handle, recipe, may_evict=False, gen=gen)
@@ -298,6 +366,7 @@ class Pool:
             self.release(slot)
         except Exception as e:  # noqa: BLE001 - a failed guess costs nothing but the attempt
             print(f"[warm pool] prewarm {key[:12]} failed: {type(e).__name__}: {e}", file=sys.stderr)
+            self._note_gone(key, "prewarm_failed")
             if handle is not None:
                 try:
                     await handle.close()
@@ -360,6 +429,7 @@ class Pool:
                 if now - s.last_used > limit or not s.handle.alive():
                     out.append(self._slots.pop(key))
                     self.stats["expired"] += 1
+                    self._note_gone_locked(key, "idle_expired" if s.handle.alive() else "process_died")
         for s in out:
             print(f"[warm pool] closed idle {s.kind} {s.key[:12]} after {s.turns + 1} turn(s)", file=sys.stderr)
             self._remember(s)
@@ -373,6 +443,7 @@ class Pool:
             out = [s for s in self._slots.values() if s.kind == kind]
             for s in out:
                 self._slots.pop(s.key, None)
+                self._note_gone_locked(s.key, "account_changed")
             for key in [k for k, r in self._recipes.items() if r[0] == kind]:
                 self._recipes.pop(key, None)
         for s in out:
@@ -385,6 +456,7 @@ class Pool:
         with self._lock:
             s = self._slots.pop(key, None)
             self._recipes.pop(key, None)
+            self._gone.pop(key, None)
         if s is not None and not s.busy:
             self._close_soon(s)
         # A busy slot is no longer in the table, so its turn's release() closes it.
@@ -394,6 +466,7 @@ class Pool:
             slots = list(self._slots.values())
             self._slots.clear()
             self._recipes.clear()
+            self._gone.clear()
         for s in slots:
             try:
                 await s.handle.close()

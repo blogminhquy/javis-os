@@ -386,15 +386,17 @@ image_gen._host_ok[0] = ""
 image_gen._catalog_models = lambda: ["gpt-5.5"]
 _goc_live = openai_oauth.list_models
 _hoi_live = []
-openai_oauth.list_models = lambda creds: (_hoi_live.append(1), ["gpt-5.6-luna"])[1]
+openai_oauth.list_models = lambda account_key=None: (_hoi_live.append(account_key), ["gpt-5.6-luna"])[1]
 _goi_m = _install_theo_model({"gpt-5.6-luna"})
 r_live = asyncio.run(image_gen.generate_chatgpt("x", vault_root=vault))
 check("danh mục cũ: hỏi danh sách live rồi tạo ảnh được", r_live.get("ok") is True
       and _goi_m == ["gpt-5.5", "gpt-5.6-luna"] and len(_hoi_live) == 1)
+check("the live list is asked of the account making the image, not whichever account 1 is",
+      _hoi_live == ["main"])
 
 # Không model nào chạy: báo lỗi gốc, kèm các model đã thử và chỗ cần làm.
 image_gen._host_ok[0] = ""
-openai_oauth.list_models = lambda creds: []
+openai_oauth.list_models = lambda account_key=None: []
 _goi_m = _install_theo_model(set())
 r_het = asyncio.run(image_gen.generate_chatgpt("x", vault_root=vault))
 check("hết model: ok False, giữ mã lỗi và nêu model đã thử",

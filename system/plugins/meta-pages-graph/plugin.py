@@ -154,6 +154,85 @@ def _fmt(d):
     return json.dumps(d, ensure_ascii=False, default=str)
 
 
+# Scheduled posts (23/11/2026, owner: a post must sit in the Page's own Meta Business Suite calendar, not in another
+# tool's queue). Meta takes `published=false` + `scheduled_publish_time` on /feed; photos of such a post are uploaded
+# with `temporary=true` (graph-api/reference/page/photos). Meta wants the time at least 10 minutes ahead. Its upper
+# bound reads differently across Meta's own pages (30 days, 75 days, 6 months), so it is left to Meta's own error.
+MIN_LEAD_S = 10 * 60
+_LEAD_MARGIN_S = 60   # the request itself takes a moment: 10 minutes sharp would be refused on arrival
+DEFAULT_TZ = "Asia/Ho_Chi_Minh"
+
+
+def _owner_tz():
+    """The owner's timezone from Settings (localefmt.tz, which already falls back to the default). Outside the server
+    process, the default zone by name."""
+    try:
+        import localefmt
+        return localefmt.tz()
+    except Exception:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(DEFAULT_TZ)
+
+
+def _local_text(epoch):
+    from datetime import datetime
+    try:
+        return datetime.fromtimestamp(float(epoch), _owner_tz()).strftime("%H:%M %d/%m/%Y")
+    except (TypeError, ValueError, OverflowError, OSError):
+        return ""
+
+
+def _parse_schedule(args, now=None):
+    """`schedule_at` of a publishing tool -> (epoch seconds, None), (None, None) when absent, or (None, "ERROR: ...").
+
+    Takes a Unix time (seconds or milliseconds) or an ISO date and time ("2026-11-25T09:00", "2026-11-25 09:00",
+    with or without an offset). A time with no offset is read in the owner's timezone, the clock they think in."""
+    import time
+    from datetime import datetime
+    raw = (args or {}).get("schedule_at")
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None, None
+    now = time.time() if now is None else now
+    ts = None
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        ts = float(raw)
+    else:
+        txt = str(raw).strip()
+        if txt.replace(".", "", 1).isdigit():
+            ts = float(txt)
+        else:
+            try:
+                dt = datetime.fromisoformat(txt.replace("Z", "+00:00").replace("/", "-"))
+            except ValueError:
+                return None, ("ERROR: không hiểu giờ hẹn '" + txt[:40] + "'. Dùng dạng 2026-11-25T09:00 (giờ theo "
+                              "múi giờ của bạn) hoặc Unix time.")
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_owner_tz())
+            ts = dt.timestamp()
+    if ts > 1e12:   # milliseconds
+        ts /= 1000.0
+    ts = int(ts)
+    if ts < now + MIN_LEAD_S + _LEAD_MARGIN_S:
+        return None, ("ERROR: Facebook chỉ nhận giờ hẹn cách bây giờ ít nhất 10 phút. Giờ vừa đưa: "
+                      + (_local_text(ts) or str(ts)) + ", bây giờ: " + _local_text(now) + ". Chọn giờ muộn hơn, "
+                      "hoặc bỏ schedule_at để đăng ngay.")
+    return ts, None
+
+
+def _schedule_fields(ts):
+    """The /feed fields that make a post wait for `ts` in the Page's own scheduled list."""
+    return {"published": "false", "scheduled_publish_time": str(int(ts)), "unpublished_content_type": "SCHEDULED"}
+
+
+def _scheduled_result(out, ts):
+    """Add what the owner checks against to a publishing tool's answer."""
+    if ts:
+        out.update({"scheduled": True, "scheduled_publish_time": int(ts), "scheduled_for": _local_text(ts),
+                    "note": ("Bài đang chờ trong lịch của Trang (Meta Business Suite > Lịch), chưa hiện công khai. "
+                             "Xem lại bằng fb_page_scheduled; huỷ bằng fb_page_delete với post_id này.")})
+    return out
+
+
 async def _pages(user_token):
     """Danh sách Trang user quản lý, mỗi Trang kèm access_token RIÊNG. Trả (list, err).
 
@@ -269,6 +348,9 @@ async def _publish(args, ctx):
     link = str(args.get("link") or "").strip()
     if not msg and not link:
         return "ERROR: cần 'message' (nội dung bài) hoặc 'link'."
+    ts, serr = _parse_schedule(args)
+    if serr:
+        return serr
     pid, ptok, pname, err = await _resolve_page(args, token)
     if err:
         return err
@@ -277,11 +359,13 @@ async def _publish(args, ctx):
         data["message"] = msg
     if link:
         data["link"] = link
+    if ts:
+        data.update(_schedule_fields(ts))
     d = await _post(f"{pid}/feed", data, ptok)
     if isinstance(d, dict) and d.get("error"):
         return _fmt(d)
-    return json.dumps({"ok": True, "page": pname,
-                       "post_id": d.get("id") if isinstance(d, dict) else None},
+    return json.dumps(_scheduled_result({"ok": True, "page": pname,
+                                         "post_id": d.get("id") if isinstance(d, dict) else None}, ts),
                       ensure_ascii=False, default=str)
 
 
@@ -374,10 +458,19 @@ async def _publish_photo(args, cctx):
     url, path, err = _resolve_media(args.get("photo") or args.get("image") or "", cctx)
     if err:
         return err
+    ts, serr = _parse_schedule(args)
+    if serr:
+        return serr
     pid, ptok, pname, perr = await _resolve_page(args, token)
     if perr:
         return perr
     caption = str(args.get("message") or args.get("caption") or "").strip()
+    if ts:
+        # A scheduled photo is a /feed post with the photo attached, like an album of one (Meta's documented path).
+        mid, merr = await _upload_unpublished(pid, ptok, url, path, temporary=True)
+        if merr:
+            return merr
+        return await _feed_with_media(pid, ptok, pname, [mid], caption, ts)
     data = {"caption": caption} if caption else {}
     if url:
         d = await _post(f"{pid}/photos", {**data, "url": url}, ptok)
@@ -546,6 +639,9 @@ async def _publish_album(args, cctx):
         return "ERROR: album cần ít nhất 2 ảnh trong 'photos' (1 ảnh thì dùng fb_page_photo)."
     if len(photos) > 10:
         return f"ERROR: Meta cho tối đa 10 ảnh một bài, đang có {len(photos)}. Bớt lại hoặc chia 2 bài."
+    ts, serr = _parse_schedule(args)
+    if serr:
+        return serr
     pid, ptok, pname, perr = await _resolve_page(args, token)
     if perr:
         return perr
@@ -554,28 +650,80 @@ async def _publish_album(args, cctx):
         url, path, err = _resolve_media(ref, cctx)
         if err:
             return f"{err} (ảnh thứ {i + 1}: {str(ref)[:80]})"
-        if url:
-            d = await _post(f"{pid}/photos", {"url": url, "published": "false"}, ptok)
-        else:
-            d = await _post_file(f"{pid}/photos", path, {"published": "false"}, ptok)
-        if isinstance(d, dict) and d.get("error"):
-            return _fmt(d) + f" (ảnh thứ {i + 1})"
-        mid = (d or {}).get("id") if isinstance(d, dict) else None
-        if not mid:
-            return f"ERROR: Facebook không trả id cho ảnh thứ {i + 1}."
+        mid, merr = await _upload_unpublished(pid, ptok, url, path, temporary=bool(ts))
+        if merr:
+            return merr + f" (ảnh thứ {i + 1})"
         media_ids.append(mid)
+    return await _feed_with_media(pid, ptok, pname, media_ids, str(args.get("message") or "").strip(), ts)
+
+
+async def _upload_unpublished(pid, ptok, url, path, temporary=False):
+    """Upload one photo without publishing it -> (photo id, None) or (None, "ERROR: ..."). `temporary=True` for a
+    photo of a scheduled post: Meta requires it there, and drops an unused one after about 24 hours."""
+    data = {"published": "false"}
+    if temporary:
+        data["temporary"] = "true"
+    if url:
+        d = await _post(f"{pid}/photos", {**data, "url": url}, ptok)
+    else:
+        d = await _post_file(f"{pid}/photos", path, data, ptok)
+    if isinstance(d, dict) and d.get("error"):
+        return None, _fmt(d)
+    mid = (d or {}).get("id") if isinstance(d, dict) else None
+    if not mid:
+        return None, "ERROR: Facebook không trả id cho ảnh."
+    return mid, None
+
+
+async def _feed_with_media(pid, ptok, pname, media_ids, msg, ts=None):
+    """ONE /feed post carrying the uploaded photos, published now or waiting for `ts`."""
     data = {}
-    msg = str(args.get("message") or "").strip()
     if msg:
         data["message"] = msg
     for i, mid in enumerate(media_ids):
         data[f"attached_media[{i}]"] = json.dumps({"media_fbid": mid})
+    if ts:
+        data.update(_schedule_fields(ts))
     d = await _post(f"{pid}/feed", data, ptok)
     if isinstance(d, dict) and d.get("error"):
         return _fmt(d)
-    return json.dumps({"ok": True, "page": pname, "photos": len(media_ids),
-                       "post_id": d.get("id") if isinstance(d, dict) else None},
+    return json.dumps(_scheduled_result({"ok": True, "page": pname, "photos": len(media_ids),
+                                         "post_id": d.get("id") if isinstance(d, dict) else None}, ts),
                       ensure_ascii=False, default=str)
+
+
+async def _scheduled(args, ctx):
+    """Posts waiting in the Page's own scheduled list (Meta Business Suite calendar), soonest first."""
+    token = await _token()
+    if not token:
+        return "ERROR: " + (_check() or "chưa kết nối")
+    pid, ptok, pname, err = await _resolve_page(args, token)
+    if err:
+        return err
+    args = args or {}
+    try:
+        limit = max(1, min(100, int(args.get("limit") or 25)))
+    except (TypeError, ValueError):
+        limit = 25
+    d = await _get(f"{pid}/scheduled_posts",
+                   {"fields": "id,message,scheduled_publish_time,created_time,permalink_url", "limit": limit}, ptok)
+    if isinstance(d, dict) and d.get("error"):
+        return _fmt(d)
+    rows = []
+    for p in (d or {}).get("data") or []:
+        if not isinstance(p, dict):
+            continue
+        row = dict(p)
+        when = p.get("scheduled_publish_time")
+        try:
+            row["scheduled_publish_time"] = int(float(when))
+            row["scheduled_for"] = _local_text(when)
+        except (TypeError, ValueError):
+            pass
+        rows.append(row)
+    rows.sort(key=lambda r: r.get("scheduled_publish_time") if isinstance(r.get("scheduled_publish_time"), int)
+              else 0)
+    return _fmt({"page": pname, "count": len(rows), "data": rows})
 
 
 async def _edit_post(args, cctx):
@@ -689,12 +837,24 @@ def register(ctx):
             "required": ["post_id"]},
     )
     ctx.register_tool(
+        name="fb_page_scheduled", min_mode="readonly", check_fn=_check, handler=_scheduled,
+        description=("Đọc các bài ĐANG CHỜ ĐĂNG (đã hẹn giờ) trong lịch của một Trang: id bài, nội dung, giờ sẽ đăng. "
+                     "Dùng để đối chiếu lịch đăng hay tìm post_id cần huỷ (fb_page_delete) hoặc sửa chữ "
+                     "(fb_page_edit). Bỏ trống page nếu chỉ có 1 Trang."),
+        schema={"type": "object", "properties": {
+            "page_id": {"type": "string", "description": "id Trang (bỏ trống nếu chỉ có 1 Trang)"},
+            "page": {"type": "string", "description": "tên Trang (thay cho page_id)"},
+            "limit": {"type": "integer", "description": "Số bài tối đa (mặc định 25)"}}},
+    )
+    ctx.register_tool(
         name="fb_page_post", min_mode="full", check_fn=_check, handler=_publish,
         description=("ĐĂNG một bài lên Trang của bạn - hành động THẬT, công khai. Cần message (nội dung) và/hoặc "
-                     "link. Bỏ trống page nếu chỉ có 1 Trang; nhiều Trang thì truyền page_id/page."),
+                     "link. schedule_at = hẹn giờ: bài nằm trong lịch của Trang (Meta Business Suite) tới giờ đó. "
+                     "Bỏ trống page nếu chỉ có 1 Trang; nhiều Trang thì truyền page_id/page."),
         schema={"type": "object", "properties": {
             "message": {"type": "string", "description": "Nội dung bài đăng"},
             "link": {"type": "string", "description": "Link đính kèm (tuỳ chọn)"},
+            "schedule_at": {"type": "string", "description": "Hẹn giờ đăng (tuỳ chọn): 2026-11-25T09:00 theo múi giờ của bạn, hoặc Unix time. Ít nhất 10 phút nữa. Bỏ trống = đăng ngay"},
             "page_id": {"type": "string", "description": "id Trang (bỏ trống nếu chỉ có 1 Trang)"},
             "page": {"type": "string", "description": "tên Trang (thay cho page_id)"}}},
     )
@@ -702,10 +862,11 @@ def register(ctx):
         name="fb_page_photo", min_mode="full", check_fn=_check, handler=_publish_photo,
         description=("ĐĂNG ẢNH lên Trang của bạn - hành động THẬT, công khai. photo = đường dẫn file ảnh "
                      "trong vault (vd attachments/anh.jpg) hoặc URL http(s). message = caption tuỳ chọn. "
-                     "Bỏ trống page nếu chỉ có 1 Trang."),
+                     "schedule_at = hẹn giờ đăng (vào lịch của Trang). Bỏ trống page nếu chỉ có 1 Trang."),
         schema={"type": "object", "properties": {
             "photo": {"type": "string", "description": "Đường dẫn ảnh trong vault hoặc URL http(s)"},
             "message": {"type": "string", "description": "Caption cho ảnh (tuỳ chọn)"},
+            "schedule_at": {"type": "string", "description": "Hẹn giờ đăng (tuỳ chọn): 2026-11-25T09:00 theo múi giờ của bạn, hoặc Unix time. Ít nhất 10 phút nữa. Bỏ trống = đăng ngay"},
             "page_id": {"type": "string", "description": "id Trang (bỏ trống nếu chỉ có 1 Trang)"},
             "page": {"type": "string", "description": "tên Trang (thay cho page_id)"}},
             "required": ["photo"]},
@@ -714,11 +875,12 @@ def register(ctx):
         name="fb_page_album", min_mode="full", check_fn=_check, handler=_publish_album,
         description=("ĐĂNG ALBUM: nhiều ảnh (2-10) gom vào MỘT bài trên Trang - hành động THẬT, công khai. "
                      "photos = danh sách đường dẫn ảnh trong vault hoặc URL http(s). message = caption chung. "
-                     "Một ảnh thì dùng fb_page_photo."),
+                     "schedule_at = hẹn giờ đăng (vào lịch của Trang). Một ảnh thì dùng fb_page_photo."),
         schema={"type": "object", "properties": {
             "photos": {"type": "array", "items": {"type": "string"},
                        "description": "2-10 ảnh: đường dẫn trong vault hoặc URL http(s)"},
             "message": {"type": "string", "description": "Caption chung của album (tuỳ chọn)"},
+            "schedule_at": {"type": "string", "description": "Hẹn giờ đăng (tuỳ chọn): 2026-11-25T09:00 theo múi giờ của bạn, hoặc Unix time. Ít nhất 10 phút nữa. Bỏ trống = đăng ngay"},
             "page_id": {"type": "string", "description": "id Trang (bỏ trống nếu chỉ có 1 Trang)"},
             "page": {"type": "string", "description": "tên Trang (thay cho page_id)"}},
             "required": ["photos"]},

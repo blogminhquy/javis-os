@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from fastapi import APIRouter, Form, Query
+from fastapi import APIRouter, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -83,6 +83,75 @@ def _404(msg: str = ""):
 def _tk_goc(c: dict) -> str:
     key = str(c.get("channel_account_id") or "")
     return key.split(":", 1)[1] if ":" in key else key
+
+
+# Images and files the owner sends from the inbox (+ button, 2026-11-24): kept here so the chat can show them, one
+# folder per conversation, and served by /conversations/<id>/media like what customers send.
+SENT_DIR_NAME = "inbox_sent"
+MAX_SENT_FILE = 25 * 1024 * 1024      # Messenger's limit, the lowest of the channels that take files
+_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
+
+
+def _sent_dir(conv_id: int) -> Path:
+    from config import STATE_DIR
+    return Path(STATE_DIR) / SENT_DIR_NAME / str(int(conv_id))
+
+
+def _store_sent_file(dest: Path, data: bytes) -> None:
+    """Write a sent file into its conversation's folder. Disk work, so the route runs it in a thread."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+
+
+def _safe_name(name: str) -> str:
+    """A file name kept as the customer will see it, minus path parts and characters a file system refuses."""
+    base = Path(str(name or "").replace("\\", "/")).name.strip()
+    base = "".join(ch for ch in base if ch not in '<>:"|?*' and ord(ch) >= 32).strip(" .")
+    return base[:120] or "file"
+
+
+# Conversation ids whose post card is being read, and when a read last came back empty (2026-11-24).
+_POST_FILLING: set = set()
+_POST_MISSED: dict = {}
+POST_RETRY_S = 3600
+
+
+def _post_card_due(c: dict, now: Optional[float] = None) -> bool:
+    """A Facebook or Instagram comment thread whose card is missing or old enough for its image link to have expired,
+    and that is not being read now nor came back empty within the last hour."""
+    import messenger_bot
+    chat = str(c.get("external_chat_id") or "")
+    if c.get("channel") != "messenger" or not chat.startswith((messenger_bot.COMMENT_PREFIX, messenger_bot.IG_COMMENT_PREFIX)):
+        return False
+    cid = int(c.get("id") or 0)
+    now = time.time() if now is None else now
+    if not cid or cid in _POST_FILLING or now - _POST_MISSED.get(cid, 0) < POST_RETRY_S:
+        return False
+    card = (c.get("metadata") or {}).get("post")
+    return not isinstance(card, dict) or now - float(card.get("at") or 0) >= messenger_bot.POST_CARD_TTL
+
+
+async def _fill_post_card(c: dict) -> None:
+    """Read the post a comment thread sits under and keep it on the conversation. Threads recorded before cards existed
+    get theirs the first time they are opened; the open itself never waits for it."""
+    cid = int(c.get("id") or 0)
+    _POST_FILLING.add(cid)
+    try:
+        import messenger_bot
+        bot = messenger_bot.MessengerBot(channel_accounts.get_token(_tk_goc(c)), "", None, giau_trang_thai=True)
+        old = (c.get("metadata") or {}).get("post")
+        card = await bot.post_card(str(c.get("external_chat_id") or ""),
+                                   str(old.get("id") or "") if isinstance(old, dict) else "")
+        if card:
+            conversations.set_post_card(cid, card)
+            _POST_MISSED.pop(cid, None)
+        else:
+            _POST_MISSED[cid] = time.time()
+    except Exception as e:      # noqa: BLE001 - a missing card never breaks the inbox
+        _POST_MISSED[cid] = time.time()
+        print(f"[inbox post card] {type(e).__name__}: {e}", file=sys.stderr)
+    finally:
+        _POST_FILLING.discard(cid)
 
 
 async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Optional[dict] = None):
@@ -521,6 +590,9 @@ def register(app, deps: ConversationsDeps):
             return _404()
         _attach_state([d], _StateCtx(_hesitant()))
         moi = after > 0
+        # Only when the chat is opened (the first page), never on the 5-second poll (`after`) or scrolling up (`before`).
+        if not moi and not before and _post_card_due(d):
+            asyncio.create_task(_fill_post_card(dict(d)))
         msgs = conversations.tin_nhan(conv_id, limit=limit, before_id=before, after_id=after)
         d["bot_name"] = _ten_bot(str(d.get("bot_id") or ""))
         bot_id = str(d.get("bot_id") or "")
@@ -660,6 +732,63 @@ def register(app, deps: ConversationsDeps):
             return _404()
         r = await ca.profile(c)
         return r if r.get("ok") else JSONResponse(r, status_code=400)
+
+    @router.post("/conversations/{conv_id}/send-file")
+    async def conversations_send_file(conv_id: int, file: UploadFile = File(...), text: str = Form("")):
+        """The owner sends one image or file from the inbox (+ button, 2026-11-24), with an optional caption.
+
+        Kept under the state folder so the chat shows it like a customer's photo, sent through the channel's
+        `send_file`, then recorded as the owner's message; the chat is taken over from its bot as when the owner types.
+        A Facebook comment takes an image only, an Instagram comment no file at all."""
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        kenh, chat = str(c.get("channel") or ""), str(c.get("external_chat_id") or "")
+        name = _safe_name(file.filename or "")
+        image = Path(name).suffix.lower() in _IMAGE_SUFFIXES
+        if chat.startswith("igc:") or (chat.startswith("cmt:") and not image):
+            return JSONResponse({"ok": False, "code": "comment_text_only", "error": localefmt.chu(
+                "Bình luận Instagram chỉ nhận chữ, bình luận Facebook chỉ nhận ảnh",
+                "An Instagram comment takes text only, a Facebook comment an image only")}, status_code=400)
+        data = await file.read(MAX_SENT_FILE + 1)
+        if not data:
+            return JSONResponse({"ok": False, "code": "empty", "error": localefmt.chu("file rỗng", "empty file")},
+                                status_code=400)
+        if len(data) > MAX_SENT_FILE:
+            return JSONResponse({"ok": False, "code": "too_big", "error": localefmt.chu(
+                f"file lớn quá {MAX_SENT_FILE // 1048576} MB", f"file larger than {MAX_SENT_FILE // 1048576} MB")},
+                status_code=413)
+        import uuid
+        dest = _sent_dir(conv_id) / f"{uuid.uuid4().hex[:8]}_{name}"
+        await run_in_threadpool(_store_sent_file, dest, data)
+        caption = str(text or "").strip()[:1000]
+        raw = _tk_goc(c)
+        s = channels.spec(kenh)
+        tk = {"id": raw, "channel": kenh}
+        if s and s.kind == "bot":
+            a = channel_accounts.get_account(raw) or {}
+            tk.update({k: a.get(k) for k in ("label", "external_id")})
+            tk["token"] = channel_accounts.get_token(raw)
+        ok, err = await channels.send_file(kenh, tk, chat, str(dest), caption, str(c.get("chat_type") or "private"))
+        if not ok:
+            await run_in_threadpool(dest.unlink, True)
+            return JSONResponse({"ok": False, "code": "send_failed",
+                                 "error": err or localefmt.chu("không gửi được", "could not send")}, status_code=400)
+        r = conversations.ghi_su_kien({
+            "channel": kenh, "account_id": raw, "account_name": c.get("account_name") or "",
+            "bot_id": c.get("bot_id") or "", "external_chat_id": chat, "chat_type": c.get("chat_type"),
+            "chat_title": c.get("title") if c.get("chat_type") == "group" else "",
+            "sender_type": "human", "sender_name": "Bạn", "message_type": "image" if image else "file",
+            "text": caption or f"[{name}]",
+            "metadata": {"tu_javis": True, "sent_file": {"p": str(dest), "name": name, "size": len(data)}},
+        })
+        tiep_quan = False
+        if c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
+            conversations.dat_che_do(c["id"], "human")
+            tiep_quan = True
+        conversations.clear_draft(c["id"])
+        return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
+                "conversation": conversations.chi_tiet(c["id"])}
 
     @router.post("/conversations/{conv_id}/block")
     async def conversations_block(conv_id: int):
@@ -963,6 +1092,10 @@ def register(app, deps: ConversationsDeps):
             except Exception:      # noqa: BLE001
                 continue
             goc += [root / d for d in _THU_MUC_MEDIA]
+        try:
+            goc.append(_sent_dir(int(c.get("id") or 0)).resolve())
+        except Exception:      # noqa: BLE001
+            pass
         return goc
 
     @router.get("/conversations/{conv_id}/media")

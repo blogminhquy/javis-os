@@ -51,6 +51,7 @@ import config as cfgmod
 import localefmt
 import conversations
 import zalo_push
+import zalo_sent_ledger
 
 CONNECTOR_ID = "zalo"
 KENH = "zalo_personal"
@@ -676,7 +677,11 @@ async def nhap_lich_su(conn_id: str, ngay: int = NHAP_NGAY) -> dict:
 #   3. A recovered message is never handed to the bot (it is late; the owner sees it unread in the inbox). The owner's
 #      own recovered message still counts as typing by hand, so the bot keeps yielding in that chat.
 #   4. The account's own message is skipped when the inbox already holds the same sentence from the bot or the owner
-#      around that time (written before Zalo gave it an id); that row gets the id instead.
+#      around that time (written before Zalo gave it an id); that row gets the id instead. A long answer leaves as
+#      several messages but is ONE inbox row, which keeps the id of its first part, so a later part is also skipped
+#      when it lies inside a stored message of the account (field report #1734). So is an echo the live feed already
+#      recognised (`_echo_id_seen`) or one the bot just sent (`_own_echo`). Written as the owner's, such a part made
+#      the bot step aside for `nhuong_tay_phut` after every long answer.
 #   5. Stickers and short emoji stay out, as in the live feed (javis-zalo `ThreadFilter.shouldKeep`).
 #   6. A message from before this server started reading the account is only written when the inbox already holds an
 #      older message of that chat (a hole in a chat it follows), so turning an account on never pulls hours of old
@@ -684,6 +689,7 @@ async def nhap_lich_su(conn_id: str, ngay: int = NHAP_NGAY) -> dict:
 RECONCILE_WINDOW = 2 * 3600  # a filed message older than this is never written (an old replay, not a hole of now)
 RECONCILE_MIN_AGE = 90       # seconds a new line waits so the live read gets its message first
 RECONCILE_OWN_MATCH_S = 600  # rule 4 looks this far around the message's time
+RECONCILE_PART_MIN = 8       # rule 4: characters a message needs to be matched as a part of a longer stored one
 HISTORY_FILE = (".zalo-agent-cli", "history.jsonl")
 HISTORY_READ_MAX = 4 * 1024 * 1024   # bytes read per turn at most (a big replay is read over several turns)
 HISTORY_TAIL = 512 * 1024            # bytes looked at after a start or a rewrite of the file
@@ -714,18 +720,29 @@ def _live_feed_keeps(ev: dict) -> bool:
 
 
 def _own_already_stored(conn_id: str, ev: dict) -> bool:
-    """Rule 4. True when the inbox already holds this sentence of the account around the message's time."""
+    """Rule 4. True when the inbox already holds this sentence of the account around the message's time, whole or
+    as one part of a longer message."""
     echo = _chuan(ev.get("text"))
     if not echo:
         return False
     ts = float(ev.get("created_at") or time.time())
-    for row in conversations.own_messages_between(KENH, conn_id, ev["external_chat_id"],
-                                                  ts - RECONCILE_OWN_MATCH_S, ts + RECONCILE_OWN_MATCH_S):
+    rows = conversations.own_messages_between(KENH, conn_id, ev["external_chat_id"],
+                                              ts - RECONCILE_OWN_MATCH_S, ts + RECONCILE_OWN_MATCH_S)
+    for row in rows:
         if str(row.get("external_message_id") or ""):
             continue        # a message Zalo already named: another one, even with the same words ("ok" twice)
         sent = _chuan(row.get("text"))
         if sent and (echo == sent or sent.startswith(echo[:80]) or echo.startswith(sent[:80])):
             conversations.set_message_id(int(row["id"]), str(ev.get("external_message_id") or ""))
+            return True
+    if len(echo) < RECONCILE_PART_MIN:
+        return False
+    # A later part of an answer sent in several messages (`channels.zalo_personal.gui`): its row holds the whole answer
+    # and usually has the first part's id already. Only a STRICT part counts, so the same words sent again stay a
+    # message of their own. The first 80 characters are enough, as above: Zalo may change a long message's end.
+    for row in rows:
+        sent = _chuan(row.get("text"))
+        if len(sent) > len(echo) and (echo in sent or echo[:80] in sent):
             return True
     return False
 
@@ -797,7 +814,7 @@ def catch_up(conn: dict, messages: List[dict], now: Optional[float] = None) -> i
     tt = _TT.setdefault(cid, {})
     names = tt.get("ten") or {}
     oldest = now - RECONCILE_WINDOW
-    by_chat: Dict[str, List[dict]] = {}
+    by_chat: Dict[str, List[tuple]] = {}
     for m in messages:
         if not isinstance(m, dict) or not _is_dm(m, names):
             continue
@@ -806,25 +823,34 @@ def catch_up(conn: dict, messages: List[dict], now: Optional[float] = None) -> i
             continue
         if float(ev.get("created_at") or 0) < oldest or not _live_feed_keeps(ev):
             continue
-        by_chat.setdefault(ev["external_chat_id"], []).append(ev)
+        by_chat.setdefault(ev["external_chat_id"], []).append((ev, m))
     written = 0
     first_read = float(tt.get("first_read") or now)
-    for chat, evs in by_chat.items():
-        known = conversations.known_message_ids(KENH, cid, chat, [e["external_message_id"] for e in evs])
-        evs.sort(key=lambda e: float(e.get("created_at") or 0))
+    for chat, pairs in by_chat.items():
+        known = conversations.known_message_ids(KENH, cid, chat, [e["external_message_id"] for e, _m in pairs])
+        pairs.sort(key=lambda p: float(p[0].get("created_at") or 0))
         first_stored = None
-        for ev in evs:
+        for ev, m in pairs:
             if known is not None and ev["external_message_id"] in known:
                 continue
+            if _echo_id_seen(cid, chat, ev["external_message_id"]):
+                continue        # rule 4: the live feed already took this message for an echo of the bot
             at = float(ev.get("created_at") or 0)
             if at < first_read:
                 if first_stored is None:
                     first_stored = conversations.first_message_at(KENH, cid, chat) or float("inf")
                 if at < first_stored:
                     continue        # rule 6
-            if ev["sender_type"] == "human" and _own_already_stored(cid, ev):
-                continue
-            ev["metadata"] = dict(ev.get("metadata") or {}, recovered=True)
+            if ev["sender_type"] == "human":
+                # Rule 4. Both checks run: the first uses up what the bot remembered sending, the second gives the
+                # stored row its id. Only a message that is neither is the owner typing by hand (rule 3).
+                echo = _own_echo(cid, ev, m, blind=False)
+                if _own_already_stored(cid, ev) or echo:
+                    continue
+            # Issue #1775: an own message Javis sent with a Zalo tool is its work, not the owner typing.
+            sent_by_javis = ev["sender_type"] == "human" and zalo_sent_ledger.take(cid, ev)
+            ev["metadata"] = dict(ev.get("metadata") or {}, recovered=True,
+                                  **(zalo_sent_ledger.MARK if sent_by_javis else {}))
             r = conversations.ghi_su_kien(ev, late=True)
             if not (r.get("ok") and not r.get("trung")):
                 continue
@@ -832,7 +858,7 @@ def catch_up(conn: dict, messages: List[dict], now: Optional[float] = None) -> i
             if known is None:
                 known = set()
             known.add(ev["external_message_id"])
-            if ev["sender_type"] == "human":
+            if ev["sender_type"] == "human" and not sent_by_javis:
                 key = (cid, chat)
                 _TAY[key] = max(float(_TAY.get(key) or 0), at)
     if written:
@@ -969,21 +995,20 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
             # Tin chủ gửi đi. Tiếng vọng của câu BOT vừa gửi thì bỏ (bot đã tự ghi câu đó vào
             # Hộp thư, ghi thêm lần nữa là hiện hai lần, lần hai mang nhãn "người thật"). Còn
             # lại là chủ tự tay nhắn: nhớ giờ để bot nhường cuộc chat đó.
-            if _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"]):
-                _is_link_echo(conn["id"], ev["external_chat_id"], ev, m, blind=False)    # its card record too
-                attach_echo_id(conn["id"], ev)
+            if _own_echo(conn["id"], ev, m):
                 trung += 1
                 continue
-            if (ev.get("message_type") == "image" and _la_vong_anh(conn["id"], ev["external_chat_id"])) or (
-                    _is_link_echo(conn["id"], ev["external_chat_id"], ev, m)):
-                attach_echo_id(conn["id"], ev)
-                trung += 1
-                continue
-            _TAY[(conn["id"], ev["external_chat_id"])] = float(ev.get("created_at") or time.time())
-            # Chủ đã vào cuộc: mấy tin khách đang gom chờ là việc của chủ, không phải của bot. This holds even when
-            # the bot is set to yield 0 minutes: 0 means "do not go quiet", not "repeat what I just answered".
-            _GOM.pop((conn["id"], ev["external_chat_id"]), None)
-            bo_cho_chu(conn["id"], ev["external_chat_id"])
+            if zalo_sent_ledger.take(conn["id"], ev):
+                # Issue #1775: Javis sent this one itself with a Zalo tool (a schedule, a report, an admin chat turn).
+                # The inbox keeps it, marked as Javis's work (counted as A.I., not as a manual reply), and it is not
+                # the owner stepping in: the bot on duty neither steps aside nor drops what it is waiting on.
+                ev["metadata"] = dict(ev.get("metadata") or {}, **zalo_sent_ledger.MARK)
+            else:
+                _TAY[(conn["id"], ev["external_chat_id"])] = float(ev.get("created_at") or time.time())
+                # Chủ đã vào cuộc: mấy tin khách đang gom chờ là việc của chủ, không phải của bot. This holds even when
+                # the bot is set to yield 0 minutes: 0 means "do not go quiet", not "repeat what I just answered".
+                _GOM.pop((conn["id"], ev["external_chat_id"]), None)
+                bo_cho_chu(conn["id"], ev["external_chat_id"])
         elif _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"], TIENG_VONG_TOI_THIEU):
             # Ví dụ trong tài liệu của MCP không có cờ "tin của chính mình", nên câu bot vừa gửi
             # có thể quay về như tin của một KHÁCH. Để lọt thì trong nhóm bot sẽ tự trả lời chính
@@ -1816,13 +1841,40 @@ def ghi_da_gui_anh(conn_id: str, thread: str, so: int = 1) -> None:
             _DA_GUI_ANH.pop(k, None)
 
 
+_ECHO_IDS: Dict[tuple, float] = {}  # (account, chat, Zalo message id) -> when the live feed took it for an echo
+ECHO_IDS_MAX = 5000
+
+
+def _remember_echo_id(conn_id: str, thread: str, msg_id: str) -> None:
+    """The live feed took this message for an echo of the bot. Remembered for the history catch-up, which sees the
+    same message again ~90 s later: a long answer is one inbox row holding only its first part's id, so the id of a
+    later part (or of an image the bot sent) is stored nowhere, and the catch-up wrote it as the owner typing by hand
+    (field report #1734). Kept as long as the catch-up may still write a message (RECONCILE_WINDOW)."""
+    if not msg_id:
+        return
+    now = time.time()
+    _ECHO_IDS[(str(conn_id), str(thread), str(msg_id))] = now
+    if len(_ECHO_IDS) > ECHO_IDS_MAX:
+        for k in [k for k, at in _ECHO_IDS.items() if now - at >= RECONCILE_WINDOW]:
+            _ECHO_IDS.pop(k, None)
+        for k in list(_ECHO_IDS)[:max(0, len(_ECHO_IDS) - ECHO_IDS_MAX // 2)]:
+            _ECHO_IDS.pop(k, None)      # still too many: the oldest go first (a dict keeps insertion order)
+
+
+def _echo_id_seen(conn_id: str, thread: str, msg_id: str) -> bool:
+    at = _ECHO_IDS.get((str(conn_id), str(thread), str(msg_id or "")))
+    return at is not None and time.time() - at < RECONCILE_WINDOW
+
+
 def attach_echo_id(conn_id: str, ev: dict) -> bool:
     """The echo of a message this account sent came back with Zalo's id: give the inbox row of that message the id
     (0.334.0, `conversations.own_messages_without_id`). A customer's reaction names the message by it. Matched like
-    the echo itself (same text, or one starts with the other: a long answer goes out in parts). Never raises."""
+    the echo itself (same text, or one starts with the other: a long answer goes out in parts). Every echo passes here,
+    so its id is also remembered for the history catch-up (`_remember_echo_id`). Never raises."""
     msg_id = str((ev or {}).get("external_message_id") or "")
     if not msg_id:
         return False
+    _remember_echo_id(conn_id, str(ev.get("external_chat_id") or ""), msg_id)
     echo = _chuan((ev or {}).get("text"))
     try:
         for row in conversations.own_messages_without_id(KENH, str(conn_id), str(ev.get("external_chat_id") or ""),
@@ -1963,6 +2015,21 @@ def _la_tieng_vong(conn_id: str, thread: str, text: str, toi_thieu: int = 0) -> 
             return True
     _DA_GUI[khoa] = ds
     return False
+
+
+def _own_echo(conn_id: str, ev: dict, msg: Any = None, blind: bool = True) -> bool:
+    """True when this message of the account is the echo of what the bot (or the inbox) just sent: a sentence or one
+    part of a long answer (`ghi_da_gui`), an image (`ghi_da_gui_anh`) or a link card (`remember_link_echo`). The record
+    is used up and the inbox row of that message gets Zalo's id (`attach_echo_id`). `blind`: see `_is_link_echo`
+    (the history catch-up passes False: it runs long after the card went out)."""
+    thread = ev["external_chat_id"]
+    if _la_tieng_vong(conn_id, thread, ev["text"]):
+        _is_link_echo(conn_id, thread, ev, msg, blind=False)    # its card record too
+    elif not ((ev.get("message_type") == "image" and _la_vong_anh(conn_id, thread))
+              or _is_link_echo(conn_id, thread, ev, msg, blind=blind)):
+        return False
+    attach_echo_id(conn_id, ev)
+    return True
 
 
 def tay_im_cua(conn_id: str) -> int:

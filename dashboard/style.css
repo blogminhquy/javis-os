@@ -390,8 +390,10 @@ button, input, select, textarea { font-family: inherit; }
 .noti-list { flex: 1 1 auto; min-height: 90px; overflow-y: auto; padding: 8px; }
 .noti-list::-webkit-scrollbar { width: 5px; }
 .noti-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+/* overflow-wrap (22/11/2026): a long unbroken word in a notice (a bare URL, a code) wraps inside the card instead of
+   running past its right edge and making the whole list scroll sideways. */
 .noti-card {
-  position: relative; display: block; width: 100%; margin: 0 0 6px; padding: 12px 12px 11px 15px;
+  position: relative; display: block; width: 100%; margin: 0 0 6px; padding: 12px 12px 11px 15px; overflow-wrap: anywhere;
   color: inherit; text-align: left; background: var(--surface-1);
   border: 1px solid transparent; border-radius: 11px;
   cursor: pointer; transition: border-color .16s, background .16s, transform .16s;
@@ -506,6 +508,8 @@ button, input, select, textarea { font-family: inherit; }
   border-bottom: 1px solid var(--hairline); line-height: 1.45; }
 .noti-fl li small { color: var(--text3); }
 .noti-fl-empty { margin: 0; color: var(--text3); }
+.noti-push-stat { margin: 4px 0 6px; color: var(--text); line-height: 1.5; }
+.noti-fg input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
 @media (pointer: coarse) {
   .noti-axis { height: 36px; font-size: 14px; }
   .noti-filter { font-size: 15px; }
@@ -1554,6 +1558,11 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .steps-sum-now:not(:empty)::before { content: "· "; }
 /* Bước cuối đang chạy: đậm hơn một chút để mắt biết đang đứng ở đâu trong danh sách. */
 .steps-list .step-live { color: var(--text2); }
+/* The model's thinking (Antigravity, agy_acp.py): a paragraph worth reading once the block is opened, so it wraps
+   instead of being cut to one line, in italics to set it apart from the tool steps. */
+.steps-list .step-think {
+  white-space: normal; overflow: visible; font-style: italic; line-height: 1.45; max-width: 640px;
+}
 /* The turn's plan (chat-steps.js planHtml): the engine's own checklist, open even while the step list is folded.
    Larger than the steps around it because this is the part people read, on a phone too. */
 .steps-plan {
@@ -1657,7 +1666,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
      (#cpUnder) hangs below the border, so the bottom margin keeps its room (--cp-under-h). Owner, 21/11/2026 ("còn thừa
      quá nhiều khung bên dưới"): that room is now exactly the row (2px gap + 34px chips) and only 4px more below it. */
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; column-gap: 6px; row-gap: 0;
-  --cp-under-h: 36px;
+  --cp-under-h: 36px; --cp-ctx-h: 40px;
   margin: 4px 16px calc(4px + var(--cp-under-h)); padding: 6px 8px;
   border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
   transition: border-color .15s;
@@ -1671,15 +1680,25 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* Under the card, outside its border: what the chat works on on the left, model, Effort and usage on the right. */
 .cp-under { position: absolute; top: calc(100% + 2px); left: -1px; right: -1px; display: flex; align-items: center;
   justify-content: space-between; gap: 8px; min-width: 0; padding: 0 4px; }
+/* The tray ON TOP of the card (owner, 22/11/2026: "đưa folder và repo github lên khung trên kiểu như này sẽ dễ nhìn hơn
+   trên điện thoại", Claude's app): the pinned folder and the GitHub repos on a grey tab that sits on the card's top
+   border, a little narrower than the card. It hangs above the border (absolute, outside the grid), so the card keeps
+   its room with a top margin while the tray shows (--cp-ctx-h). A full row of its own: both names fit on a phone. */
 .cp-ctx { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
 .cp-ctx[hidden] { display: none; }
+.hud-voice > .cp-ctx { position: absolute; grid-column: auto; grid-row: auto; bottom: calc(100% + 1px); left: 12px; right: 12px;
+  height: var(--cp-ctx-h); padding: 0 6px; border: 1px solid var(--border); border-bottom: 0;
+  border-radius: 16px 16px 0 0; background: var(--bg3); overflow: hidden; }
+.hud-voice:has(> .cp-ctx:not([hidden])) { margin-top: calc(4px + var(--cp-ctx-h)); }
+.hud-voice:has(> .cp-ctx:not([hidden])) > .voice-focus-resume { bottom: calc(100% + 6px + var(--cp-ctx-h)); }
 .cp-under .cp-chips { flex: none; margin-left: auto; gap: 2px; }
-.cp-under .cp-ctx .cp-pin { height: 34px; font-size: 14px; border-color: transparent;
+.hud-voice > .cp-ctx .cp-pin { flex: 0 1 auto; height: 34px; font-size: 14px; border-color: transparent;
   background: transparent; color: var(--text2); max-width: 100%; min-width: 0; }
-.cp-under .cp-ctx .cp-pin-open { gap: 6px; }
-.cp-under .cp-ctx .cp-pin-open:hover, .cp-under .cp-ctx .cp-pin-open:focus-visible { background: var(--bg3); }
-.cp-under .cp-ctx .cp-pin.gh-chip { max-width: 100%; }
-.cp-under .cp-ctx .gh-chip-br { font-size: 13px; max-width: 140px; }
+.hud-voice > .cp-ctx .cp-pin-open { gap: 6px; }
+.hud-voice > .cp-ctx .cp-pin-open:hover, .hud-voice > .cp-ctx .cp-pin-open:focus-visible { background: var(--bg2); }
+.hud-voice > .cp-ctx .cp-pin .cp-pin-x .cp-ic { background: var(--bg2); }
+.hud-voice > .cp-ctx .cp-pin.gh-chip { max-width: 100%; }
+.hud-voice > .cp-ctx .gh-chip-br { font-size: 13px; max-width: 140px; }
 .cp-under .mb-chip, .cp-under .cp-eff { height: 34px; padding: 0 10px; font-size: 14px; background: transparent;
   border-color: transparent; font-weight: 500; }
 .cp-under .mb-chip { color: var(--text); }
@@ -1885,40 +1904,28 @@ textarea.sug-ghosted::placeholder { color: transparent; }
     border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
   }
   .hud-voice .voice-input { min-height: 40px; max-height: 40vh; padding: 8px 4px; font-size: 16px; }
+  /* TWO rows on a phone (owner, 22/11/2026: "ở điện thoại đẩy lên dòng bên trên thì sẽ phù hợp hơn"): the text box
+     takes the whole top line, so its placeholder fits on one line, and "+", mic and send sit on the line below it,
+     "+" on the left, the rest on the right, as in Claude's app. A computer keeps the one-row card. */
+  .hud-voice > .voice-input { grid-column: 1 / -1; grid-row: 2; padding: 8px 6px 4px; }
+  .hud-voice .cp-plus { grid-column: 1; grid-row: 3; align-self: center; margin-bottom: 0; }
+  .hud-voice .cp-right { grid-column: 3; grid-row: 3; }
   .cp-under { padding: 0 2px; }
-  /* Folder AND repos pinned (owner, 21/11/2026): two names do not fit beside the model pill, so both chips show their
-     icon only. The names stay in their tooltip and their panel, a tap away. One pin alone keeps its name.
-     Each icon keeps its X (same day: "cho anh nút x rõ ràng"), so a pin never needs its panel to come off. */
-  .cp-ctx.is-two .cp-pin { flex: none; }
-  .cp-ctx.is-two .cp-pin-open { width: 36px; padding: 0; justify-content: center; }
-  .cp-ctx.is-two .cp-pin-open > span, .cp-ctx.is-two .cp-pin > .gh-st { display: none; }
-  .cp-ctx.is-two .cp-pin-open > svg { width: 18px; height: 18px; }
-  /* Under the card the pill sits on the page, not in the card: no fill, the outline alone (as in the approved mock). */
-  .cp-under #cpChips > .cp-limit, .cp-under #cpChips > .mb-chip, .cp-under #cpChips > .cp-eff { background: transparent; }
+  /* The tray on top (22/11/2026) has a row of its own, so folder AND repos keep their names on a phone (the icons-only
+     rule of 21/11 was for the row under the card, shared with the model pill). Two long names split the row and each
+     ends in "…"; the full name stays in its tooltip and panel. Each chip keeps its X. */
+  .hud-voice > .cp-ctx { left: 10px; right: 10px; padding: 0 4px; }
   .hud-voice .mb-pop { width: min(340px, calc(100vw - 32px)); }
 
-  /* ONE PILL (owner, 11/11/2026: model, Effort and plan usage "gọn hơn" on a phone). The ring, the model chip and the
-     Effort chip keep their place in #cpChips but are drawn joined, in the style of Claude's "Fable 5.2 High" chip:
-     ring first (order), model name in the main ink, level in the quiet ink, one caret at the end. Any of the three
-     opens the same sheet (model-picker.js). The -6px margins take back the row's gap between the joined parts. */
-  #cpChips > .cp-limit, #cpChips > .mb-chip, #cpChips > .cp-eff {
-    height: 34px; font-size: 14px; background: var(--bg3); border-color: var(--border);
-  }
-  #cpChips > .cp-limit { order: -1; width: 32px; margin-right: -6px; padding: 0 0 0 6px;
-    border-right: 0; border-radius: 999px 0 0 999px; }
-  #cpChips > .cp-limit svg { width: 18px; height: 18px; }
-  #cpChips > .mb-chip { margin-right: -6px; padding: 0 3px 0 12px; border-right: 0; border-radius: 999px 0 0 999px;
-    color: var(--text); font-weight: 600; }
-  #cpChips.has-ring > .mb-chip { padding-left: 6px; border-left: 0; border-radius: 0; }
-  #cpChips > .mb-chip .mb-caret { display: none; }
-  /* With the ring leading the pill the plain green dot says nothing more; the amber one (fallback, broken pin) stays. */
-  #cpChips.has-ring > .mb-chip:not(.is-fallback):not(.is-pin-broken) .mb-dot { display: none; }
-  #cpChips > .cp-eff { padding: 0 11px 0 4px; border-left: 0; border-radius: 0 999px 999px 0;
-    color: var(--text2); font-weight: 500; }
-  #cpChips > .cp-limit:focus-visible, #cpChips > .mb-chip:focus-visible, #cpChips > .cp-eff:focus-visible { outline-offset: -2px; }
+  /* THREE CHIPS (owner, 22/11/2026: "ở điện thoại có đủ không gian ... thành 3 nút [như] trên máy tính", text "nhỏ hơn
+     một chút ... để có thêm thông tin"). Model, Effort and the plan ring stand apart as on a computer, in 13px so the
+     whole model name fits; each opens the sheet with its own panel (model-picker.js). This replaced the one joined
+     pill of 11/11/2026. */
+  #cpChips > .mb-chip, #cpChips > .cp-eff { height: 34px; padding: 0 8px; font-size: 13px; }
+  #cpChips > .cp-limit { width: 34px; }
 
-  /* ONE SHEET from the bottom. While open #cpSheet sits in <body> (model-picker.js moves it) and dims the screen;
-     its card stacks plan usage, Effort and the model list, and only the model list scrolls. */
+  /* THE SHEET from the bottom. While open #cpSheet sits in <body> (model-picker.js moves it) and dims the screen;
+     its card holds the panel of the chip tapped: plan usage, Effort or the model list (only the list scrolls). */
   .cp-sheet.is-open { display: flex; flex-direction: column; justify-content: flex-end; position: fixed; inset: 0;
     z-index: 3400; background: var(--scrim, rgba(0, 0, 0, .45)); animation: cps-fade .16s ease-out; }
   .cp-sheet.is-open .cp-sheet-card { display: flex; flex-direction: column; gap: 10px; min-height: 0; max-height: 88%;
@@ -1934,38 +1941,41 @@ textarea.sug-ghosted::placeholder { color: transparent; }
     background: var(--bg3); color: var(--text); display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; }
   .cp-sheet-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .cp-sheet-title { flex: 1 1 auto; min-width: 0; margin-right: 40px; text-align: center; font-size: 17px;
+  .cp-sheet-title { flex: 1 1 auto; min-width: 0; margin-right: 40px; text-align: center; font-size: 16px;
     font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* One panel per sheet (the chip tapped), so a panel needs no order: it is the only one shown. */
   .cp-sheet.is-open .mb-pop, .cp-sheet.is-open .eff-pop { position: static; width: auto; max-height: none;
     box-shadow: none; border-radius: 16px; }
-  .cp-sheet.is-open .lim-pop { order: 1; flex: none; padding: 12px 14px; }
-  .cp-sheet.is-open #effPop { order: 2; flex: none; padding: 10px 14px 12px; }
-  .cp-sheet.is-open .mb-pop { order: 3; flex: 1 1 auto; min-height: 96px; overflow: auto; overscroll-behavior: contain;
-    padding: 8px; }
-  /* Rows for a thumb, text no smaller than 14px; 16px in the search box so iOS does not zoom in on focus. */
-  .cp-sheet.is-open .mb-search { position: sticky; top: 0; z-index: 1; font-size: 16px; padding: 11px 13px;
-    margin-bottom: 4px; border-radius: 12px; }
-  .cp-sheet.is-open .mb-item { font-size: 16px; min-height: 46px; padding: 10px 12px; border-radius: 10px; }
-  .cp-sheet.is-open .mb-prov { font-size: 14px; min-height: 40px; padding: 10px 8px 4px; }
-  .cp-sheet.is-open .mb-empty, .cp-sheet.is-open .mb-link, .cp-sheet.is-open .mb-follow { font-size: 15px; }
+  .cp-sheet.is-open .lim-pop { flex: none; padding: 12px 14px; }
+  .cp-sheet.is-open #effPop { flex: none; padding: 12px 14px 14px; }
+  /* No top padding: the sticky search must meet the panel's top edge, or the rows scrolled under it show through
+     the gap above it (iOS sticks it inside the padding). */
+  .cp-sheet.is-open .mb-pop { flex: 1 1 auto; min-height: 96px; overflow: auto; overscroll-behavior: contain;
+    padding: 0 8px 8px; }
+  /* Rows for a thumb in 15px (owner, 22/11/2026: a little smaller, more on screen); 16px in the search box so iOS
+     does not zoom in on focus. */
+  .cp-sheet.is-open .mb-search { position: sticky; top: 0; z-index: 1; font-size: 16px; padding: 10px 12px;
+    margin: 8px 0 4px; border-radius: 12px; }
+  .cp-sheet.is-open .mb-item { font-size: 15px; min-height: 44px; padding: 9px 12px; border-radius: 10px; }
+  .cp-sheet.is-open .mb-prov { font-size: 13px; min-height: 38px; padding: 10px 8px 4px; }
+  .cp-sheet.is-open .mb-empty, .cp-sheet.is-open .mb-link, .cp-sheet.is-open .mb-follow { font-size: 14px; }
   .cp-sheet.is-open .mb-follow { min-height: 44px; }
-  .cp-sheet.is-open .eff-head { font-size: 16px; min-height: 34px; }
-  .cp-sheet.is-open .eff-ends { margin: 6px 0; font-size: 14px; }
+  .cp-sheet.is-open .eff-head { font-size: 15px; min-height: 34px; }
+  .cp-sheet.is-open .eff-ends { margin: 8px 0 6px; font-size: 13px; }
   .cp-sheet.is-open .eff-track { height: 32px; }
-  .cp-sheet.is-open .eff-thumb { top: 5px; }
-  .cp-sheet.is-open .eff-rec { font-size: 13px; margin-top: 4px; }
   .cp-sheet.is-open .eff-locked { font-size: 14px; }
   /* Plan usage, compact: one line per meter (name, when it resets, percent) over a thin bar. The reset time takes
-     the room left on that line and goes onto a second one when a narrow phone or a long wording needs it. */
+     the room left on that line and goes onto a second one when a narrow phone or a long wording needs it. The sheet
+     head already says "Plan usage limits", so the panel keeps only who the plan is. */
   .cp-sheet.is-open .lim-head { margin: 0; }
-  .cp-sheet.is-open .lim-h { font-size: 16px; }
-  .cp-sheet.is-open .lim-who { font-size: 14px; }
+  .cp-sheet.is-open .lim-h { display: none; }
+  .cp-sheet.is-open .lim-who { font-size: 13px; }
   .cp-sheet.is-open .lim-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px;
     align-items: baseline; margin-top: 8px; }
   .cp-sheet.is-open .lim-row-h { display: contents; }
-  .cp-sheet.is-open .lim-name { font-size: 15px; white-space: nowrap; }
+  .cp-sheet.is-open .lim-name { font-size: 14px; white-space: nowrap; }
   .cp-sheet.is-open .lim-reset { grid-row: 1; grid-column: 2; text-align: right; line-height: 1.3; }
-  .cp-sheet.is-open .lim-pct { grid-row: 1; grid-column: 3; min-width: 38px; text-align: right; font-size: 15px; }
+  .cp-sheet.is-open .lim-pct { grid-row: 1; grid-column: 3; min-width: 38px; text-align: right; font-size: 14px; }
   .cp-sheet.is-open .lim-bar { grid-row: 2; grid-column: 1 / -1; height: 6px; margin: 5px 0 0; }
   .cp-sheet.is-open .lim-at { margin-top: 8px; }
   .cp-sheet.is-open .lim-none { margin-top: 6px; font-size: 14px; }
@@ -2832,10 +2842,11 @@ textarea.sug-ghosted::placeholder { color: transparent; }
 .eff-track { position: relative; height: 28px; border-radius: 999px; background: var(--bg3); overflow: hidden; cursor: pointer; touch-action: none; }
 .eff-track:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .eff-cv { position: absolute; inset: 0; width: 100%; height: 100%; }
-.eff-ticks { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 13px; pointer-events: none; }
+.eff-ticks { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 11px; pointer-events: none; }
 .eff-ticks i { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); opacity: .6; }
-.eff-thumb { position: absolute; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-1); transition: left .18s; }
-.eff-rec { font-size: 12px; color: var(--text3); margin-top: 6px; padding-left: calc(40% - 18px); }
+.eff-thumb { position: absolute; top: 50%; margin-top: -11px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-1); transition: left .18s; }
+.eff-rec { align-self: center; font-size: 12px; color: var(--text3); white-space: nowrap; }
+.eff-rec[hidden] { display: none; }
 .eff-locked { margin: 10px 0 2px; font-size: 13px; color: var(--text2); line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) { .eff-thumb { transition: none; } }
 .mb-search { width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--border);

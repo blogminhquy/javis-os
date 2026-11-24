@@ -55,13 +55,25 @@ check("thư mới nhất đứng đầu", inbox.danh_sach()[0]["title"] == "Xong
 # Tiêu đề đi thẳng ra thông báo đẩy của hệ điều hành, nơi không ai dịch markdown. Cắt kiểu cũ
 # (chỉ lstrip) để lại cái đuôi "**" lơ lửng ngay giữa màn hình khoá.
 check("tiêu đề bỏ dấu nhấn markdown ở CẢ HAI ĐẦU",
-      inbox._tieu_de("**Nhắc bạn:** họp lúc 3h") == "Nhắc bạn: họp lúc 3h",
-      inbox._tieu_de("**Nhắc bạn:** họp lúc 3h"))
+      inbox._title_from_text("**Nhắc bạn:** họp lúc 3h") == "Nhắc bạn: họp lúc 3h",
+      inbox._title_from_text("**Nhắc bạn:** họp lúc 3h"))
 check("CANARY: dấu câu trong tiêu đề giữ nguyên",
-      inbox._tieu_de("- **Kết quả:** 12 đơn (tăng 3)") == "Kết quả: 12 đơn (tăng 3)",
-      inbox._tieu_de("- **Kết quả:** 12 đơn (tăng 3)"))
+      inbox._title_from_text("- **Kết quả:** 12 đơn (tăng 3)") == "Kết quả: 12 đơn (tăng 3)",
+      inbox._title_from_text("- **Kết quả:** 12 đơn (tăng 3)"))
 check("CANARY: tiêu đề không có markdown thì y nguyên",
-      inbox._tieu_de("✅ Loop 'sang' vừa chạy (cron).") == "✅ Loop 'sang' vừa chạy (cron).")
+      inbox._title_from_text("✅ Loop 'sang' vừa chạy (cron).") == "✅ Loop 'sang' vừa chạy (cron).")
+# Owner, 22/11/2026 (screenshot): a reminder starting "Anh ơi, 20:00 tối nay là [Javis OS K8 Buổi 2](https://www.google.com/
+# calendar/event?eid=...)" put the whole raw link in the bell card's title, and the unbroken URL ran past the card's
+# edge. A markdown link keeps only its words, in a title made from the text and in one passed in.
+_cal = "Anh ơi, 20:00 tối nay là [Javis OS K8 Buổi 2](https://www.google.com/calendar/event?eid=a2E4dTM4Zm5zbDRk) nhé"
+check("a markdown link in the title keeps only its words",
+      inbox._title_from_text(_cal) == "Anh ơi, 20:00 tối nay là Javis OS K8 Buổi 2 nhé", inbox._title_from_text(_cal))
+_given = inbox.add("x", title="Xem [lịch](https://calendar.google.com/x?eid=abc) tối nay", read=True)
+check("a markdown link in a title passed in keeps only its words", _given["title"] == "Xem lịch tối nay", _given["title"])
+check("an image link keeps its alt text",
+      inbox._title_from_text("![Ảnh bìa](https://x.io/a.png) xong") == "Ảnh bìa xong")
+check("CANARY: brackets that are not a link stay",
+      inbox._title_from_text("Đơn [mới] (3 cái)") == "Đơn [mới] (3 cái)", inbox._title_from_text("Đơn [mới] (3 cái)"))
 check("tiêu đề bỏ dấu markdown mở đầu", inbox.danh_sach()[0]["title"][0] != "#")
 check("đếm chưa đọc = 2", inbox.so_chua_doc() == 2)
 

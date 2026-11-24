@@ -52,10 +52,17 @@ body = ("Em kiểm tra lượt đến hạn.\n\n**Đã gửi 2 tin nhắc** cho 
 clean, meta = NT.split_block(body)
 check("the block is taken out of the text", "JAVIS_NOTIFY" not in clean and "Đã gửi 2 tin nhắc" in clean, clean)
 check("the block gives title, line and act", meta == {"title": "Đã nhắc 2 khách đến hạn", "line": "Chị Lan, anh Tú",
-                                                      "act": False}, meta)
+                                                      "act": False, "why": ""}, meta)
 check("without the block the headline is the first reporting line",
       NT.headline(clean) == "Đã gửi 2 tin nhắc cho khách đến hạn hôm nay.", NT.headline(clean))
 check("the summary is the next reporting line", NT.summary(clean, NT.headline(clean)) == "Chị Lan: gia hạn")
+# Owner, 22/11/2026: a raw markdown link in a bell card ran its unbroken URL past the card's edge. A card line keeps
+# only the link's words.
+_link = "Xong.\nVào [Javis OS K8 Buổi 2](https://www.google.com/calendar/event?eid=a2E4dTM4Zm5z) lúc 20:00"
+check("a card line keeps a markdown link's words only", NT.summary(_link, "Xong.") == "Vào Javis OS K8 Buổi 2 lúc 20:00",
+      NT.summary(_link, "Xong."))
+check("a headline keeps a markdown link's words only",
+      NT.headline("[Báo cáo tuần](https://x.io/r?id=1) đã xong") == "Báo cáo tuần đã xong")
 broken, m2 = NT.split_block("Kết quả\n<!-- JAVIS_NOTIFY: {not json} -->")
 check("a broken block is removed and ignored", broken == "Kết quả" and m2 == {}, (broken, m2))
 check("act true is read", NT.split_block('x <!-- JAVIS_NOTIFY: {"title":"t","act":true} -->')[1]["act"] is True)
@@ -162,10 +169,16 @@ check("a run that says the owner must act rings", it and not it.get("read") and 
 # A JAVIS_NOTIFY block reaching _notify_owner directly (webhook, any producer): taken out, used as the title.
 sid = main.get_store().create_session(brain=KB)
 out.clear()
-run(main._notify_owner("web:" + sid, 'Đã xử lý.\n<!-- JAVIS_NOTIFY: {"title": "Webhook: 1 đơn mới", "act": true} -->',
+run(main._notify_owner("web:" + sid, 'Đã xử lý.\n<!-- JAVIS_NOTIFY: {"title": "Webhook: 1 đơn mới", "act": true, "why": "customer"} -->',
                        kind="report", source="webhook"))
 check("no channel ever shows the block", out and all("JAVIS_NOTIFY" not in o[1] for o in out), out)
 check("act in the block files an urgent notice with its title", (items().get("Webhook: 1 đơn mới") or {}).get("level") == "urgent")
+# Owner, 2026-11-23: an urgent claim with no reason from the list is lowered to important.
+run(main._notify_owner("web:" + sid, 'Đã xử lý.\n<!-- JAVIS_NOTIFY: {"title": "Webhook: 2 đơn mới", "act": true} -->',
+                       kind="report", source="webhook"))
+check("act without a reason is not urgent",
+      main._act_level({"act": True, "why": ""}, "", source="webhook", title="Webhook: 2 đơn mới") == "important"
+      and (items().get("Webhook: 2 đơn mới") or {}).get("level") != "urgent")
 
 # A plain answer in a chat with its own dot: not in the bell, the rail hears about it.
 n0 = len(inbox.danh_sach(500))

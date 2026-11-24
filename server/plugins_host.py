@@ -1096,11 +1096,20 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
             except Exception as e:
                 return f"ERROR: tool plugin '{name}' lỗi: {type(e).__name__}: {e}"
 
+        run = _run
+        if name.startswith("zalo_send"):
+            # Issue #1775: a pack tool that sends into a personal Zalo chat (`zalo_send_image`, `zalo_send_mention`):
+            # its echo is Javis's work, not the owner typing. The account is not known here, so it matches the chat.
+            import zalo_sent_ledger
+
+            async def run(a):
+                return await zalo_sent_ledger.sending("", name, a or {}, _run)
+
         if min_mode == "full":
             # 0.238.0: an outside action (send, post, order) runs once per Kanban job, even when the job runs again.
             import once_ledger
-            return await once_ledger.run(name, args or {}, _run)
-        return await _run(args)
+            return await once_ledger.run(name, args or {}, run)
+        return await run(args)
 
     return _call
 

@@ -129,12 +129,8 @@
   // vẫn truyền tên trang cũ (dải .bstat trong index.html, nút Studio trên thanh đầu), nên đổi
   // tên ở ĐÂY thay vì đi sửa từng nút: gọi go("agents") bây giờ là đi tới một trang không tồn
   // tại, rail không sáng mục nào và khung giữa trắng trơn.
-  const TRANG_CU = { agents: "workspace", workflows: "workspace" };
-  window.openStudio = (tab) => {
-    const id = TRANG_CU[tab] || tab || "workspace";
-    if (window.JavisNav && window.JavisNav.go) window.JavisNav.go(id);
-    else if (window.Alpine) Alpine.store("nav").go(id);
-  };
+  // 2026-11-23: this file loads with the lazy group "congviec", so window.openStudio and the Studio button, which
+  // must work from the first second, moved to app.js together with this renaming of the old page names.
   window.JavisStudio = {
     workflows: loadWorkflows, agents: loadAgents, skills: loadSkills,
     // Trang Cộng sự mượn chính hai trình sửa này (xem editAgent/editWorkflow) + nút Xuất.
@@ -144,9 +140,6 @@
     // Lọc/đếm tag của trang agent, để test chạy đúng mã thật (gọi lúc dùng: các hàm khai sau dòng này).
     tags: () => ({ demTag, tagCap, locTheoNhom, khungNhomHtml, TAG_NONE }),
   };
-  const _studioBtn = document.getElementById("studioOpenBtn");
-  if (_studioBtn) _studioBtn.addEventListener("click", () => window.openStudio("workspace"));
-
   const refreshStats = () => { if (window.loadBrainStats) window.loadBrainStats(); };
 
   // ===== Khung NHÓM: cột nhóm bên trái + ô tìm - DÙNG CHUNG cho Workflows / Agents / Skills =====

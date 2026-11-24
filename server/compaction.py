@@ -152,6 +152,34 @@ def nen_mach_thue_bao(last_input_tokens, nguong: int = SUBSCRIPTION_THREAD_MAX_T
     return hien_tai - moc >= max(1, int(min_msgs or 1))
 
 
+def subscription_context_tokens(row, provider):
+    """Use a measured request for this provider, otherwise keep the legacy turn total."""
+    if row.get("last_context_provider") == provider:
+        try:
+            measured = int(row.get("last_context_input_tokens") or 0)
+            if measured > 0:
+                return measured
+        except (TypeError, ValueError):
+            pass
+    try:
+        return int(row.get("last_input_tokens") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def next_turn_rotates(last_input_tokens, msg_count, rotated_at) -> bool:
+    """Whether the NEXT turn of this conversation will open a new thread, asked right after a turn ended.
+
+    The same rule as `nen_mach_thue_bao`, one message later: the next turn stores the owner's message before it
+    decides. Used to open the new thread's process ahead (claude_warm.prepare_new_thread), so it must never say yes
+    where the real rule says no: a wrong yes closes a process the next turn could have reused."""
+    try:
+        count = int(msg_count or 0) + 1
+    except (TypeError, ValueError):
+        return False
+    return nen_mach_thue_bao(last_input_tokens, msg_count=count, rotated_at=rotated_at)
+
+
 SUMMARY_HEADER = ("[Tóm tắt phần đầu hội thoại - đã nén để tiết kiệm context. "
                   "Coi đây là ký ức về những gì hai bên đã trao đổi trước đó:]\n")
 

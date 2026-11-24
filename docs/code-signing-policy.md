@@ -2,7 +2,7 @@
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
-> **Status (2026-11-13):** the application to SignPath Foundation is being prepared. Until it is accepted, `JavisOS-Setup.exe` is published **unsigned**, and Windows shows a warning when you download or open it. [QUICKSTART](../QUICKSTART.en.md) explains how to install anyway. This page describes how signing works once it is on.
+> **Status (2026-11-23):** SignPath Foundation accepted the project. Signing is being tested with the `test-signing` policy; the production certificate follows SignPath's review. Until then, `JavisOS-Setup.exe` is published **unsigned**, and Windows shows a warning when you download or open it. [QUICKSTART](../QUICKSTART.en.md) explains how to install anyway. This page describes how signing works once it is on.
 
 ## What is signed
 
@@ -76,6 +76,8 @@ The artifact the workflow submits is the zip GitHub makes of one file, so the ar
   </zip-file>
 </artifact-configuration>
 ```
+
+**Testing first.** With `SIGNPATH_SIGNING_POLICY_SLUG` set to `test-signing`, press **Run workflow** on *Desktop installers*. The job signs with SignPath's self-signed test certificate, checks that a signature is there, and keeps the file as the run artifact `JavisOS-Setup-testsigned` (Windows shows the signature as not trusted, which is expected). The release keeps the unsigned `.exe`: a test certificate never reaches users. Once SignPath imports the production certificate, change the variable to `release-signing`.
 
 After that, a change to the installer on `main` (or **Run workflow** by hand) creates a signing request. It waits up to two hours for the approval at SignPath, then the signed file replaces the published one. A run that does not change the installer asks for nothing and keeps the published file, so its hash and its reputation stay.
 

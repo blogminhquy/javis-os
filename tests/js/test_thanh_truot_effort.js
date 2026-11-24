@@ -41,5 +41,13 @@ check("the canvas is only resized when the track size changes", /if \(cv\.width 
 check("a cancelled touch drag stops dragging", /pointercancel/.test(srcSlider) && /lostpointercapture/.test(srcSlider));
 check("the effort popover is kept inside the card", /function effOpen\(\)[\s\S]{0,1500}pop\.offsetWidth[\s\S]{0,200}Math\.min\(btn\.offsetLeft, maxLeft\)/.test(picker));
 check("the unused effortLabel export is gone", picker.indexOf("effortLabel") === -1);
+
+// Owner 23/11/2026: on the Models page the track is 36px high but the thumb was pinned at top:3px, so it sat above center.
+const styleCss = fs.readFileSync(path.join(ROOT, "dashboard/style.css"), "utf8");
+const thumbRule = (styleCss.match(/\n\.eff-thumb \{[^}]*\}/) || [""])[0];
+check("the thumb is centered on the track whatever its height (top 50% and a -11px margin, no fixed top)",
+  /top: 50%/.test(thumbRule) && /margin-top: -11px/.test(thumbRule) && !/top: \d+px/.test(thumbRule), thumbRule);
+check("the stop dots share the thumb's travel: dot centers run from 13px to width-13px",
+  /\.eff-ticks \{[^}]*padding: 0 11px/.test(styleCss));
 if (fails.length) { console.log("\nFAIL - test_thanh_truot_effort: " + fails.length); process.exit(1); }
 console.log("\nOK - test_thanh_truot_effort: all pass");

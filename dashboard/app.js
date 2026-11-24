@@ -1479,6 +1479,15 @@ function handleMessage(data) {
       const _plan = (data.plan && window.JavisSteps && window.JavisSteps.planLine) ? window.JavisSteps.planLine(t && t.buoc) : "";
       showActivity(escapeHtml(_plan || _nhan));
     }
+  } else if (data.type === "thinking") {
+    // A summary of the model's thinking (Antigravity over agy acp, server/agy_acp.py): one more step of the block, and
+    // the chip says what the model is weighing until the answer starts streaming.
+    if (t && window.JavisSteps) t.buoc = window.JavisSteps.nhan(t.buoc, data);
+    emitTurnProgress(sid);
+    if (isActive) {
+      veKhoiBuoc(t, true);
+      if (t && !t.bubble && window.JavisSteps) showActivity(Icons.msg("brain", window.JavisSteps.nhanDong(data)));
+    }
   } else if (data.type === "tool_result") {
     if (t && window.JavisSteps) t.buoc = window.JavisSteps.nhan(t.buoc, data);
     emitTurnProgress(sid);
@@ -1920,6 +1929,8 @@ function _drawUnacked(id, ds) {
 const _gocCongSu = {};
 // Đang nạp lại danh sách lệnh "/" trước khi gửi một tin (xem sendMessage).
 let _choNapLenh = null;
+// The partners page's code (workspace.js, a lazy file) is on its way for a "/agent" or "/workflow" command.
+let _partnerCodeLoad = null;
 
 // `opts.wfRun`: tin này đến từ nút CHẠY của trang Cộng sự. Server dùng cờ đó để không
 // đoán lại ý người dùng (xem workflow_chat.quyet_dinh_luot): bấm đúng nút Chạy thì chạy,
@@ -1953,13 +1964,19 @@ function sendMessage(text, opts) {
     return;
   }
   if (_slash.type === "agent" || _slash.type === "workflow") {
-    if (!window.JavisWorkspace) return;
+    // 2026-11-23: workspace.js is a lazy file. Not there yet: load its group first, then open the partner below.
+    // A second Enter while it loads opens nothing twice.
+    if (!window.JavisWorkspace && (!window.JavisNapCham || _partnerCodeLoad)) return;
     // Khung chat NGƯỜI DÙNG đang đứng lúc gõ lệnh. Gõ "/quy-trinh" là trang nhảy hẳn sang
     // Cộng sự, việc chạy ở đó, và khung Trò chuyện vừa rời đi không bao giờ biết kết quả ra
     // sao - đúng chỗ chủ dự án thấy vô lý. Nhớ lại nguồn rồi gửi kèm mỗi tin, để server đẩy
     // kết quả NGƯỢC về đây kèm link mở lại cuộc hội thoại đã làm việc đó.
     const goc = savedSessionId;
-    window.JavisWorkspace.openCommand(_slash.type, _slash.slug).then(function (opened) {
+    const openPartner = () => (window.JavisWorkspace ? window.JavisWorkspace.openCommand(_slash.type, _slash.slug) : false);
+    const loaded = () => { _partnerCodeLoad = null; return openPartner(); };
+    const opening = window.JavisWorkspace ? openPartner()
+      : (_partnerCodeLoad = window.JavisNapCham.cho("congviec").then(loaded, loaded));
+    Promise.resolve(opening).then(function (opened) {
       if (!opened) return;
       if (goc && savedSessionId && savedSessionId !== goc) _gocCongSu[savedSessionId] = goc;
       chatInput.value = _slash.message || "";
@@ -4450,7 +4467,9 @@ async function loadBrainStats() {
   const b = encodeURIComponent(currentBrainPath());
   try {
     const [a, s, w] = await Promise.all([
-      fetch(`/agents?brain=${b}`).then(r => r.json()).catch(() => ({})),
+      // prompt=0: only the length is used here, and the full list carries every assistant's system prompt (measured
+      // 2026-11-23: 75 KB gzipped against 4 KB). Same address as the "/" menu and the + menu, so fetch-gop.js can share it.
+      fetch(`/agents?prompt=0&brain=${b}`).then(r => r.json()).catch(() => ({})),
       fetch(`/skills?brain=${b}`).then(r => r.json()).catch(() => ({})),
       fetch(`/workflows?brain=${b}`).then(r => r.json()).catch(() => ({})),
     ]);
@@ -4461,6 +4480,17 @@ async function loadBrainStats() {
 }
 window.loadBrainStats = loadBrainStats;   // Studio gọi lại sau khi tạo/xoá
 
+// window.openStudio = go to a page that Studio used to hold. Here since 2026-11-23, when studio.js became a lazy
+// file: the Studio button in the header and the count strip below must work from the first second. The pages
+// "agents" and "workflows" are gone, both merged into the partners page, and old buttons still pass the old names.
+const STUDIO_OLD_PAGES = { agents: "workspace", workflows: "workspace" };
+window.openStudio = (tab) => {
+  const id = STUDIO_OLD_PAGES[tab] || tab || "workspace";
+  if (window.JavisNav && window.JavisNav.go) window.JavisNav.go(id);
+  else if (window.Alpine) Alpine.store("nav").go(id);
+};
+const _studioOpenBtn = document.getElementById("studioOpenBtn");
+if (_studioOpenBtn) _studioOpenBtn.addEventListener("click", () => window.openStudio("workspace"));
 document.querySelectorAll(".bstat").forEach(btn =>
   btn.addEventListener("click", () => {
     if (window.openStudio) window.openStudio(btn.dataset.tab);
@@ -5380,6 +5410,19 @@ async function initAuthGate() {
   // gọi API thật sự (chat, file...) tự lộ ra nếu phiên đã hết hạn thật.
   if (!s) return;
   if (s.authed) { _authedThisPage = true; initSetup(); return; }
+  if (s.needs_setup && s.setup_locked) {
+    // The owner's password went missing (owner incident 2026-11-22): the server refuses a new account from here, so
+    // show the sign-in page with the way back instead of a form anyone could have filled in. One short line stays out;
+    // the steps to get back in fold into the (i) button (docs/quy-uoc-dev.md, "Chữ giải thích gập vào nút (i)").
+    authOverlay.classList.add("open");
+    const err = document.getElementById("authErr");
+    if (err) {
+      const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      err.innerHTML = esc(window.t("app.setup_locked")) + (window.JavisInfo
+        ? " " + window.JavisInfo.pair(esc(window.t("app.setup_locked_how")), window.t("info.more")) : "");
+    }
+    return;
+  }
   if (s.needs_setup) {
     _wizardMandatory = !!s.require_login;
     const wz = document.getElementById("setupWizard");

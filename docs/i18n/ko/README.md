@@ -509,6 +509,7 @@ Javis OS는 무료 오픈 소스이며, 아직 한 사람이 코드를 쓰고 �
 
 <div align="center">
 <br>
+<a href="https://nguyenminhquy.com"><img src="../../assets/author.webp" width="96" height="96" alt="Minh Quý"></a><br>
 <b><a href="https://javisos.com">javisos.com</a></b><br>
-베트남에서 ☕ 와 함께 <b><a href="https://minhquy.vn">Minh Quý</a></b> 가 만들었습니다
+베트남에서 ☕ 와 함께 <b><a href="https://nguyenminhquy.com">Minh Quý</a></b> 가 만들었습니다
 </div>

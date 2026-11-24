@@ -342,7 +342,7 @@ def huy_theo_phien(phien: str) -> int:
 
 
 async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", phien_hop_le=None,
-                  quiet_if_visible: bool = False, session_id: str = "") -> tuple:
+                  quiet_if_visible: bool = False, session_id: str = "", nid: str = "") -> tuple:
     """Đẩy MỘT thông báo tới MỌI trình duyệt đã đăng ký. Trả (số_gửi_được, số_bị_dọn, chi_tiết).
 
     Gửi cho tất cả là cố ý: bật/tắt là việc của từng thiết bị, nên đã bật ở đâu thì ở đó phải
@@ -352,6 +352,12 @@ async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", p
     Dọn ngay tại chỗ, không thì danh sách phình mãi và mỗi lần báo lại tốn thêm một request
     chắc chắn hỏng. Mọi mã lỗi KHÁC đều được giữ lại trên đăng ký để màn hình nói ra được.
     """
+    if quiet_if_visible and session_id:
+        # The owner is reading this chat right now on some device (owner, 2026-11-23: "I read it on the computer and
+        # the phone still buzzes"). The service worker only sees its own device's tabs, so this check is the server's.
+        import push_presence
+        if push_presence.watching(session_id):
+            return 0, 0, []
     subs = danh_sach_sub()
     # `phien_hop_le` (0.187.0): the set of logins still valid, or None when login is not required. A device bound to
     # a login that ended (logout elsewhere, expiry) is skipped: it may now be someone else's browser.
@@ -360,6 +366,9 @@ async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", p
     if not subs:
         return 0, 0, []
     msg = {"title": tieu_de, "body": than, "url": url, "tag": tag}
+    if nid:
+        # push_policy.record_push's id: sw.js reports a tap or a swipe on it, so Javis learns what is worth a buzz.
+        msg["nid"] = str(nid)
     if quiet_if_visible:
         # A notice about something the owner may be watching already (a long chat turn that just ended): the device
         # where Javis is open and in front of them shows no notification (dashboard/sw.js).

@@ -13,9 +13,10 @@ Ops:
   on an install that can push to it; anywhere else nothing is attached and the answer asks for op=report.
 - report title body: a link opening a prefilled issue on Javis's repo, for an install that cannot push. Nothing is
   sent: the person reads it and presses Submit (owner, 20/11/2026: keep users' fixes coming, without the failed push).
-- update: once the release with the change is out, update this install after the current turn ends.
+- update: read only. Says whether a newer release exists and sends the owner to the Update page to press Update
+  there. It never starts an update (owner, 23/11/2026: no self-update, the person updates from the Update page).
 
-Only a turn the owner started may save, undo, attach the source or update (`self_upgrade.owner_turn`): the owner's own
+Only a turn the owner started may save, undo or attach the source (`self_upgrade.owner_turn`): the owner's own
 chat, or a Kanban job or reminder they set up. Auto's wake-ups and customer bots get a refusal and may only suggest.
 Owner only: `mcp_hub.OWNER_ONLY_TOOLS` lists it, so a customer-facing bot never sees it.
 """
@@ -118,6 +119,20 @@ async def _status(args, ctx, turn) -> str:
     return "\n".join(lines)
 
 
+def _update_text(out: dict) -> str:
+    cur, latest = out.get("current") or "?", out.get("latest") or "?"
+    page = "Cài đặt → Cập nhật (Settings → Updates)"
+    if not out.get("latest"):
+        head = f"Đang chạy v{cur}. Chưa đọc được bản mới nhất trên GitHub."
+    elif out.get("newer"):
+        head = f"Đang chạy v{cur}, đã có bản mới v{latest}."
+    else:
+        head = (f"Đang chạy bản mới nhất v{cur}. Thay đổi vừa merge thường thành bản phát hành vài phút sau, image "
+                "Docker thêm 2 đến 5 phút.")
+    return (head + f" KHÔNG có gì được cập nhật: Javis không tự cập nhật. Nói với chủ vào {page} và tự bấm nút "
+            "Cập nhật ở đó khi muốn lên bản mới. Đừng nói là đã hẹn hay đang cập nhật.")
+
+
 async def _run(args, ctx) -> str:
     args = args or {}
     op = str(args.get("op") or "").strip().lower()
@@ -130,6 +145,9 @@ async def _run(args, ctx) -> str:
         return "\n".join(_line(c) for c in rows) if rows else "Chưa có thay đổi nào qua javis_improve."
     if op not in OPS:
         return "ERROR: op phải là " + ", ".join(OPS) + "."
+    if op == "update":   # reads the versions, starts nothing: no owner check needed
+        out = await SU.update_hint()
+        return _update_text(out)
     if op == "report":   # builds a link, sends nothing: no owner check needed
         try:
             cur, _latest = await SU.versions()
@@ -177,19 +195,9 @@ async def _run(args, ctx) -> str:
                 "Trước khi sửa: đọc CLAUDE.md và docs/quy-uoc-dev.md trong thư mục đó. Mỗi PR thêm đúng một file "
                 "changelog.d/<slug>.md, không sửa VERSION hay CHANGELOG. Sửa nhỏ, có test.",
                 "Hết lượt có sửa code, Javis TỰ kiểm tra ở máy, đẩy, mở PR, theo dõi CI và merge khi xanh (xem "
-                "javis_github op=status). Workflow Release ra số phiên bản mới sau merge. Khi đó gọi "
-                "javis_improve op=update để máy này cập nhật. Đừng hứa tự báo lại.",
+                "javis_github op=status). Workflow Release ra số phiên bản mới sau merge. Máy này KHÔNG tự lên bản "
+                "mới: nói với chủ khi có bản mới thì vào Cài đặt → Cập nhật và bấm Cập nhật. Đừng hứa tự báo lại.",
             ] if x)
-        if op == "update":
-            sid = _sid(args, ctx, turn)
-            out = await SU.schedule_update(f"web:{sid}" if sid else "")
-            if not out.get("ok"):
-                return "ERROR: " + str(out.get("error") or "không bắt đầu được cập nhật.")
-            if out.get("already"):
-                return f"Đã hẹn cập nhật lên v{out['latest']} rồi, đang chờ lượt này kết thúc."
-            return (f"Sẽ cập nhật từ v{out['current']} lên v{out['latest']} ngay sau khi lượt này kết thúc (giống nút "
-                    "Cập nhật). Máy khởi động lại khoảng 1 phút; bản mới không lên được thì tự lùi về bản cũ. Nói "
-                    "với chủ đúng như vậy.")
     except SU.ImproveError as e:
         return f"ERROR: {e}"
     return "ERROR: op không hợp lệ."
@@ -208,7 +216,8 @@ def register(ctx):
         "merges on green CI. Only an install that can push to Javis's repo gets it; elsewhere use op=report. "
         "op=report {title, body}: a link to a prefilled issue for Javis's developer (bug or fix proposal); nothing "
         "is sent until the person presses Submit. "
-        "op=update: once the release with the change is out, update this install after the turn ends. "
+        "op=update: read only, says whether a newer release exists; it never updates. Only the owner updates, by "
+        "pressing Update on the Settings, Updates page, so point them there. "
         "Changes only on the owner's word; Auto's wake-ups and customer bots only suggest. After a change, tell the "
         "owner what changed and the undo id.",
         _run,
@@ -232,10 +241,10 @@ def register(ctx):
             "required": ["op"],
         },
         # Reading what can be improved runs anywhere; changing brain files needs `safe` (they are files of the brain);
-        # attaching the source repo and updating the install reach outside the brain, so only at Full access. A report
-        # only builds a link the person submits themselves, so it runs anywhere.
+        # attaching the source repo reaches outside the brain, so only at Full access. A report only builds a link the
+        # person submits themselves, and update only reads the versions, so both run anywhere.
         min_mode="readonly",
         op_modes={"status": "readonly", "history": "readonly", "save": "safe", "undo": "safe", "source": "full",
-                  "report": "readonly", "update": "full"},
+                  "report": "readonly", "update": "readonly"},
         emoji="🛠️",
     )

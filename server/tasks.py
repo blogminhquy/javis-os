@@ -252,6 +252,21 @@ def _report_extra(fn, brain, dedup, level: str = "") -> dict:
     return out
 
 
+_STALE_RUN_META_KEYS = ("fallback_from", "fallback_reason")
+
+
+def _merge_run_metadata(prev_meta: Optional[dict], run_meta: Optional[dict], **extra) -> dict:
+    """Copy previous task metadata, drop stale fallback fields, and merge current run metadata."""
+    out = dict(prev_meta or {})
+    for key in _STALE_RUN_META_KEYS:
+        out.pop(key, None)
+    if run_meta:
+        out.update(run_meta)
+    if extra:
+        out.update(extra)
+    return out
+
+
 @dataclass
 class TasksDeps:
     brain_root: Callable[[str], str]
@@ -730,14 +745,22 @@ class TasksFeature:
                     "transient",
                     error,
                     result=result,
-                    transient=self._is_transient(error))
+                    transient=self._is_transient(error),
+                    metadata=_merge_run_metadata(task.get("metadata"), metadata))
             elif needs_input and sandbox_refused(metadata, result):
                 final_task = await asyncio.to_thread(self.store.block, tid, worker_id, SANDBOX_BLOCK_KIND,
-                                                     sandbox_block_reason(), result=result, transient=False)
+                                                     sandbox_block_reason(), result=result, transient=False,
+                                                     metadata=_merge_run_metadata(task.get("metadata"), metadata))
             elif needs_input:
                 _wf_wait = (metadata or {}).get("wf_wait")
-                final_task = await asyncio.to_thread(self.store.ask, tid, worker_id, self._needs_input_reason(result, task_store.QA_TEXT_MAX),
-                    result=result, qa_extra={"wf_wait": _wf_wait} if _wf_wait else None)
+                _ask_meta = {k: v for k, v in (metadata or {}).items()
+                             if k in ("provider", "model", "fallback_from", "fallback_reason",
+                                      "execution_mode", "tool_calls")}
+                final_task = await asyncio.to_thread(
+                    self.store.ask, tid, worker_id, self._needs_input_reason(result, task_store.QA_TEXT_MAX),
+                    result=result, extra_meta=_ask_meta or None,
+                    qa_extra={"wf_wait": _wf_wait} if _wf_wait else None,
+                    clear_keys=_STALE_RUN_META_KEYS)
             elif channel_context.is_silent_report(result):
                 # Issue 1483: "[SILENT]" means nothing to report, the same flag reminders and webhooks honour. The job
                 # is done, its result stays on the card, the acceptance check is skipped (an empty-looking answer
@@ -745,8 +768,8 @@ class TasksFeature:
                 score.ok()
                 job_scorecard.settle(score)
                 final_task = await asyncio.to_thread(self.store.complete, tid, worker_id, result, needs_approval=False,
-                    metadata={**(task.get("metadata") or {}), **(metadata or {}), "acceptance_check": "silent",
-                              "silent": True, "run_seconds": round(time.monotonic() - t_run)},
+                    metadata=_merge_run_metadata(task.get("metadata"), metadata, acceptance_check="silent",
+                                                 silent=True, run_seconds=round(time.monotonic() - t_run)),
                     artifacts=self._artifacts(result, root))
                 await asyncio.to_thread(self.store.promote_dependencies, root)
             else:
@@ -757,9 +780,11 @@ class TasksFeature:
                 # Done (t_784c7a7b8fd6, run run_34d581306b1b47).
                 passed, why, how = await self._check_acceptance(task, result)
                 # Giữ metadata cũ (sổ hỏi đáp `qa`, điều kiện hoàn thành) dưới phần lần chạy này thêm.
-                metadata = {**(task.get("metadata") or {}), **(metadata or {}), "acceptance_check": how,
-                            # 0.411.0: how long the run took, shown on the card.
-                            "run_seconds": round(time.monotonic() - t_run)}
+                metadata = _merge_run_metadata(
+                    task.get("metadata"), metadata, acceptance_check=how,
+                    # 0.411.0: how long the run took, shown on the card.
+                    run_seconds=round(time.monotonic() - t_run),
+                )
                 if passed and why:
                     # The checker moved steps only the owner can do over to "Left for you" (2026-11-21).
                     metadata[HANDOFF] = merge_handoff(metadata.get(HANDOFF), why.splitlines())
@@ -1361,7 +1386,9 @@ then say so plainly in the report: what is left, why you cannot do it, and the p
 owner needs. When finished, report briefly: what you did, which data/files/artifacts were created,
 and how you verified it. Write the report in the language of the goal.
 """.strip()
+        cfg_spec = aux_engine.read_spec(tag=getattr(cli, "tag", None) or f"dispatch:{task.get('id')}:execute")
         result, error, tool_calls = await self._query(cli, prompt)
+        exec_info = aux_engine.execution_info(cli, configured=cfg_spec)
         return (
             result[:MAX_RESULT_CHARS],
             error,
@@ -1371,7 +1398,7 @@ and how you verified it. Write the report in the language of the goal.
                 "capability": task.get("capability"),
                 "execution_mode": mode,
                 "tool_calls": tool_calls[-100:],
-                "provider": aux_engine.read_spec().get("provider"),
+                **exec_info,
             },
         )
 
@@ -2048,8 +2075,8 @@ Return ONLY one line of JSON, no markdown:
     # is opened: shipping every report every 3 seconds was most of the board's weight.
     CARD_RESULT_CHARS = 600
     # Metadata a card or the drawer reads. `tool_calls` (up to 100 names) and the like stay in the store.
-    CARD_META_KEYS = ("qa", "acceptance", "acceptance_check", "agent", "effort", "provider", "specifier",
-                      "once_pending", "run_seconds", HANDOFF)
+    CARD_META_KEYS = ("qa", "acceptance", "acceptance_check", "agent", "effort", "provider", "model",
+                      "fallback_from", "fallback_reason", "specifier", "once_pending", "run_seconds", HANDOFF)
 
     @staticmethod
     def _calm(task: dict) -> str:

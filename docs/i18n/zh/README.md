@@ -509,6 +509,7 @@ Javis OS 免费且开源，目前仍是一个人在写代码、支付测试服�
 
 <div align="center">
 <br>
+<a href="https://nguyenminhquy.com"><img src="../../assets/author.webp" width="96" height="96" alt="Minh Quý"></a><br>
 <b><a href="https://javisos.com">javisos.com</a></b><br>
-由 <b><a href="https://minhquy.vn">Minh Quý</a></b> 在越南用 ☕ 制作
+由 <b><a href="https://nguyenminhquy.com">Minh Quý</a></b> 在越南用 ☕ 制作
 </div>

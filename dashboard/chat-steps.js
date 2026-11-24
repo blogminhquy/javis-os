@@ -46,16 +46,17 @@
   // Loai cong cu -> KHOA i18n cua dong tu nguoi doc duoc (viet du khoa de test_i18n soi duoc).
   // Ten lay theo cac engine that (Claude Code, Codex,
   // Grok, Antigravity, API); ten la thi giu nguyen ten cong cu, khong doan.
+  // Antigravity names measured on agy 1.5.15 (init.tools): replace_file_content, sed_file, invoke_subagent...
   var LOAI = [
     [/^(bash|shell|run_shell_command|command_execution|local_shell_call|run_terminal_command|run_command|exec)$/, "app.step_v_run"],
-    [/^(read|read_file|view|view_file|notebookread|read_many_files|cat)$/, "app.step_v_read"],
+    [/^(read|read_file|view|view_file|view_file_outline|notebookread|read_many_files|cat)$/, "app.step_v_read"],
     [/^(write|write_file|create_file|write_to_file)$/, "app.step_v_write"],
-    [/^(edit|multiedit|notebookedit|str_replace|str_replace_editor|apply_patch|edit_file|replace|patch)$/, "app.step_v_edit"],
+    [/^(edit|multiedit|notebookedit|str_replace|str_replace_editor|apply_patch|edit_file|replace|patch|replace_file_content|multi_replace_file_content|sed_file|notebook_edit)$/, "app.step_v_edit"],
     [/^(grep|search_file_content|grep_search|codebase_search)$/, "app.step_v_grep"],
     [/^(glob|ls|list_directory|list_dir|find|find_by_name)$/, "app.step_v_find"],
     [/^(webfetch|web_fetch|fetch|read_url_content|fetch_url)$/, "app.step_v_web"],
     [/^(websearch|web_search|web_search_call|google_search|search_web)$/, "app.step_v_search"],
-    [/^(task|agent)$/, "app.step_v_agent"],
+    [/^(task|agent|invoke_subagent|browser_subagent)$/, "app.step_v_agent"],
     [/^(todowrite|todo_write|update_plan|todo_list|javis_plan|taskcreate|taskupdate)$/, "app.step_v_todo"],
     [/^(skill|javis_use_skill)$/, "app.step_v_skill"]
   ];
@@ -78,6 +79,7 @@
   // day: test_icons.py cam emoji trong file dashboard. Luat rong nay cung ben hon khi server
   // doi sang dau khac.
   function nhanBuoc(ev) {
+    if (ev && ev.type === "thinking") return tw("app.step_v_think") + ": " + gist(ev.content);
     var ten = String((ev && ev.tool) || "").trim();
     var ct = String((ev && ev.detail) || "").replace(/\s+/g, " ").trim();
     var loai = loaiCongCu(tenGon(ten));
@@ -86,6 +88,31 @@
     var noi = String((ev && ev.content) || "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
     if (noi) return noi;
     return ten || tw("app.step_unknown");
+  }
+
+  /* ---------- The model's thinking (Antigravity over agy acp, server/agy_acp.py, 24/11/2026) ----------
+     agy sends a summary of what the model is weighing every few seconds while the answer is not written yet: 12 to 18
+     seconds on Gemini Flash High, which the chat used to show as an empty wait. Each summary is one step of the block,
+     read in full when the block is opened; the chip and the folded line show its first sentence. Thinking is not a
+     tool call: it does not count in "Ran N steps". */
+  var THINK_MAX = 1500;
+  var GIST_MAX = 120;
+  function oneLine(t) {
+    return String(t == null ? "" : t).replace(/\s+/g, " ").trim();
+  }
+  // The chip's short line: a summary that opens with a bold title ("**Weighing the options**") gives the title,
+  // else the first sentence.
+  function gist(t) {
+    var title = oneLine(t).match(/^\*\*([^*]{3,100})\*\*/);
+    if (title) return title[1].trim();
+    var s = oneLine(t).replace(/\*\*/g, "");
+    var m = s.match(/^(.+?[.!?])(\s|$)/);
+    if (m && m[1].length >= 20) s = m[1];
+    return s.length > GIST_MAX ? s.slice(0, GIST_MAX - 1).replace(/\s+\S*$/, "") + "…" : s;
+  }
+  function hasThought(ds) {
+    for (var i = 0; i < ds.length; i++) if (ds[i] && ds[i].thought) return true;
+    return false;
   }
 
   function chuanHoa(st) {
@@ -186,6 +213,15 @@
       if (ev && ev.plan) plan = applyPlan(plan, ev.plan);
       return withPlan({ ds: ds, so: cu.so + 1 }, plan);
     }
+    if (loai === "thinking") {
+      var thought = oneLine(ev && ev.content).replace(/\*\*/g, "");
+      if (!thought) return cu;
+      if (thought.length > THINK_MAX) thought = thought.slice(0, THINK_MAX - 1) + "…";
+      var steps = cu.ds.concat([{ tool: "", label: tw("app.step_v_think") + ": " + thought, xong: true,
+                                  thought: true, gist: gist(ev.content) }]);
+      if (steps.length > TRAN) steps = steps.slice(steps.length - TRAN);
+      return withPlan({ ds: steps, so: cu.so }, plan);
+    }
     if (loai === "tool_result") {
       if (plan) plan = planResult(plan, ev && ev.content);
       // Danh dau buoc dang chay la xong. Khung tool_result lac long (chua co buoc nao) thi bo
@@ -211,7 +247,9 @@
      xam "Da chay 0 buoc" duoi moi cau chao hoi la rac. */
   function tomTat(st) {
     var cu = chuanHoa(st);
-    return { hien: cu.ds.length > 0, so: cu.so, nhan: tw("app.steps_done", { n: cu.so }) };
+    var onlyThought = cu.so === 0 && hasThought(cu.ds);     // the model only thought, no tool ran
+    return { hien: cu.ds.length > 0, so: cu.so,
+             nhan: onlyThought ? tw("app.steps_thought") : tw("app.steps_done", { n: cu.so }) };
   }
 
   function icon(name) {
@@ -265,11 +303,24 @@
     el._st = st; el._dangChay = !!dangChay;
     var cu = chuanHoa(st);
     var txt = el.querySelector(".steps-sum-text");
-    if (txt) txt.textContent = dangChay ? tw("app.steps_running_n", { n: cu.so }) : tomTat(cu).nhan;
+    var cuoi = cu.ds.length ? cu.ds[cu.ds.length - 1] : null;
+    if (txt) {
+      txt.textContent = !dangChay ? tomTat(cu).nhan
+        : (cu.so === 0 && cuoi && cuoi.thought) ? tw("app.steps_thinking")
+        : tw("app.steps_running_n", { n: cu.so });
+    }
     var now = el.querySelector(".steps-sum-now");
     if (now) {
-      var cuoi = cu.ds.length ? cu.ds[cu.ds.length - 1] : null;
-      now.textContent = (dangChay && cuoi) ? cuoi.label : "";
+      // A thought shows its first sentence here (the whole of it is in the list), without the "Thinking:" in front
+      // when the line already says the model is thinking.
+      var line = "";
+      if (dangChay && cuoi && cuoi.thought) {
+        var short = cuoi.gist || gist(cuoi.label.replace(/^[^:]*:\s*/, ""));
+        line = cu.so === 0 ? short : tw("app.step_v_think") + ": " + short;
+      } else if (dangChay && cuoi) {
+        line = cuoi.label;
+      }
+      now.textContent = line;
     }
     var pl = el.querySelector(".steps-plan");
     if (pl) {
@@ -281,7 +332,7 @@
       ds.innerHTML = cu.ds.map(function (b, i) {
         var song = dangChay && i === cu.ds.length - 1 && !b.xong;
         return '<div class="step' + (song ? " step-live" : "") + (b.xong ? " step-done" : "") +
-               '" title="' + esc(b.label) + '">' + esc(b.label) + "</div>";
+               (b.thought ? " step-think" : "") + '" title="' + esc(b.label) + '">' + esc(b.label) + "</div>";
       }).join("");
     }
     el.classList.toggle("steps-fold", el._moTay !== true);

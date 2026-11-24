@@ -68,12 +68,29 @@
     return "failed";
   }
 
+  // What one answer of GET /github/status says (owner, 22/11/2026). Only a real answer of the server ({ok: true,
+  // connected: true|false}) may say "not connected". A network error, an expired Javis session (401), a page that is
+  // not JSON or no answer at all says nothing about GitHub: the screens show "Could not check" and a retry. Before,
+  // they drew all of those as "Not connected", and after the account takeover the owner could not tell which it was.
+  //   on / off / unknown
+  function statusState(st) {
+    if (!st || st.ok === false || st.auth_required || typeof st.connected !== "boolean") return "unknown";
+    return st.connected ? "on" : "off";
+  }
+  // The line under "Could not check": {key} of a text, or {text} the server sent.
+  function unknownWhy(st) {
+    if (st && st.auth_required) return { key: "gh.unknown_signed_out" };
+    var e = st && typeof st.error === "string" && st.error !== "unauthorized" ? st.error : "";
+    return e ? { text: e } : { key: "gh.err_net" };
+  }
+
   var pure = { chipText: chipText, splitRows: splitRows, askSpec: askSpec, removeLabel: removeLabel, iconSpec: iconSpec,
-    addToConnCount: addToConnCount, gitPhase: gitPhase };
+    addToConnCount: addToConnCount, gitPhase: gitPhase, statusState: statusState, unknownWhy: unknownWhy };
   if (typeof module !== "undefined" && module.exports) module.exports = pure;
   if (typeof document === "undefined") return;
 
   function tw(k, v) { return window.t ? window.t(k, v) : k; }
+  function whyText(st) { var w = unknownWhy(st); return w.text || tw(w.key); }
   // The "Connected" heading counts MCP accounts (data-n, drawn by console.js) plus what the built-in cards add,
   // each under its own data-* key (github-connect.js: data-gh, messenger-connect.js: data-fb), so neither card
   // overwrites the other's share. Returns the new total.
@@ -153,10 +170,24 @@
       : '<button class="conn-chip add" type="button" data-gh-open>＋ ' + esc(tw("gh.connect")) + "</button>") + "</div>";
     return '<div class="prov-card conn-card gh-card">' + head + warn + noGit + repos + acts + "</div>";
   }
-  async function loadCard() {
+  // The card when the check failed: "Could not check", the reason, and a retry. The connection count is left alone,
+  // since nobody knows whether GitHub counts.
+  function unknownCardHtml(st) {
+    return '<div class="prov-card conn-card gh-card gh-unknown"><div class="prov-head"><span class="conn-ico gh-logo">' + LOGO +
+      '</span><div class="prov-info"><div class="prov-name">GitHub</div><div class="prov-status j-clamp2">' + esc(tw("gh.status_unknown")) +
+      "</div></div></div>" + '<div class="lv-note">' + esc(whyText(st)) + "</div>" +
+      '<div class="conn-accounts"><button class="conn-chip" type="button" data-gh-retry>' + esc(tw("common.retry")) + "</button></div></div>";
+  }
+  async function loadCard(fresh) {
     if (!cardHost) return;
-    var st = await api("/github/status");
-    if (!st || st.ok === false) { cardHost.innerHTML = '<div class="lv-note">' + esc((st && st.error) || tw("gh.err_net")) + "</div>"; return; }
+    var st = await api(fresh === true ? "/github/status?refresh=1" : "/github/status");
+    if (!cardHost) return;
+    if (statusState(st) === "unknown") {
+      cardHost.innerHTML = unknownCardHtml(st);
+      var again = cardHost.querySelector("[data-gh-retry]");
+      if (again) again.onclick = function () { again.disabled = true; loadCard(true); };
+      return;
+    }
     var local = [];
     if (st.connected) {
       var l = await api("/github/local?brain=" + encodeURIComponent(pageBrain()));
@@ -520,7 +551,8 @@
   function announce() {
     try { window.dispatchEvent(new CustomEvent("javis:github-repos-changed", { detail: { sid: sid(), repos: attached } })); } catch (e) {}
   }
-  // The chip lives in the row under the composer card (#cpCtx), after the pinned folder (owner, 21/11/2026: "sắp xếp
+  // The chip lives in the tray on top of the composer card (#cpCtx, 22/11/2026), after the pinned folder. On 21/11/2026
+  // it went under the card (owner: "sắp xếp
   // lại khung giống của Claude"); it used to squeeze the model and Effort chips in the card's button row.
   // Owner, 21/11/2026: "cho anh nút x rõ ràng khi ghim ở khung chat". The chip is a group now: the name opens the
   // panel, the status icon opens the detail, and an X at its far end takes the repos off the chat.
@@ -579,8 +611,8 @@
       } else if (window.JavisAttach) window.JavisAttach.note(stop.d.error || tw("gh.err_net"));
     });
   }
-  // Same rule in composer-folder.js: the row hides while empty, and with folder AND repos pinned a phone shows both as
-  // icons only (.is-two, owner 21/11/2026), so a name is never cut to "ja...".
+  // Same rule in composer-folder.js: the tray hides while empty, and .is-two marks folder AND repos. Since 22/11/2026
+  // the tray has a row of its own, so a phone keeps both names (they shrink with "…" instead of going icons only).
   function syncCtx(host) {
     host.hidden = !host.children.length;
     host.classList.toggle("is-two", host.children.length > 1);
@@ -677,19 +709,31 @@
       b.setAttribute("aria-expanded", k.hidden ? "false" : "true");
       b.classList.toggle("on", !k.hidden);
     });
-    api("/github/status").then(function (st) {
-      ghStatus = st || null;
-      if (!st || !st.connected) {
-        box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.panel_not_connected")) + "</div>" +
-          '<button type="button" class="cp-mi" data-go-connect="1">' + LOGO + '<span class="cp-mi-lbl">' + esc(tw("gh.open_connections")) + "</span></button>";
-        box.querySelector("[data-go-connect]").onclick = function () { menuApi.close(); goConnections(); };
-        return;
-      }
-      // The chip's X on a repo with unsaved work lands straight on the list, where that row asks what to do.
-      if (!(held || names().length)) reposView(box, menuApi, false);
-      else if (askOnOpen) reposView(box, menuApi, true);
-      else homeView(box, menuApi);
-    });
+    // A retry reads the status again inside the same box; the click handler above stays the only one.
+    function load(fresh) {
+      if (fresh) box.innerHTML = '<div class="cp-empty pg-loading">' + esc(tw("gh.loading")) + "</div>";
+      api(fresh ? "/github/status?refresh=1" : "/github/status").then(function (st) {
+        var state = statusState(st);
+        ghStatus = state === "unknown" ? null : st;
+        if (state === "unknown") {
+          box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.panel_unknown")) + "<br>" + esc(whyText(st)) + "</div>" +
+            '<button type="button" class="cp-mi" data-gh-retry="1">' + ic("refresh-cw") + '<span class="cp-mi-lbl">' + esc(tw("common.retry")) + "</span></button>";
+          box.querySelector("[data-gh-retry]").onclick = function () { load(true); };
+          return;
+        }
+        if (state === "off") {
+          box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.panel_not_connected")) + "</div>" +
+            '<button type="button" class="cp-mi" data-go-connect="1">' + LOGO + '<span class="cp-mi-lbl">' + esc(tw("gh.open_connections")) + "</span></button>";
+          box.querySelector("[data-go-connect]").onclick = function () { menuApi.close(); goConnections(); };
+          return;
+        }
+        // The chip's X on a repo with unsaved work lands straight on the list, where that row asks what to do.
+        if (!(held || names().length)) reposView(box, menuApi, false);
+        else if (askOnOpen) reposView(box, menuApi, true);
+        else homeView(box, menuApi);
+      });
+    }
+    load(false);
   }
   // Status read when the panel opened: tells the repo list whether "add repos on GitHub" applies.
   var ghStatus = null;
@@ -1140,6 +1184,9 @@
 
   // `logo`: the GitHub mark, so other chat screens (Teams) show the same logo as the main chat (2026-11-06).
   // `list`: the one repo list, for the pickers of team-github.js (team chat, project, assistant).
+  // `statusState` / `whyText`: the one rule for reading GET /github/status, so a failed check reads "Could not check"
+  // on every screen.
   window.JavisGithubRepos = { mount: mount, connect: connect, claimPending: claimPending, refresh: refresh, decorate: decorate, openDetail: openDetail,
     current: function () { return attached.slice(); }, logo: LOGO, list: repoList };
+  Object.assign(window.JavisGithubRepos, { statusState: statusState, whyText: whyText });
 })();

@@ -509,6 +509,7 @@ Du kannst nicht spenden? Javis zu nutzen, Feedback zu schicken oder einen Pull R
 
 <div align="center">
 <br>
+<a href="https://nguyenminhquy.com"><img src="../../assets/author.webp" width="96" height="96" alt="Minh Quý"></a><br>
 <b><a href="https://javisos.com">javisos.com</a></b><br>
-Mit ☕ in Vietnam gemacht von <b><a href="https://minhquy.vn">Minh Quý</a></b>
+Mit ☕ in Vietnam gemacht von <b><a href="https://nguyenminhquy.com">Minh Quý</a></b>
 </div>

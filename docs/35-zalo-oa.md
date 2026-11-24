@@ -27,13 +27,14 @@ Kênh này khác hai kênh Zalo có sẵn:
 
 ## 2. Xác thực tên miền và đặt webhook
 
-Zalo chỉ gửi tin vào một địa chỉ HTTPS trên tên miền đã xác thực.
+Zalo chỉ gửi tin vào một địa chỉ HTTPS trên tên miền đã xác thực, và máy chủ Zalo phải gọi tới được địa chỉ đó từ Internet. Địa chỉ `.ts.net` của chế độ Tailscale trong Javis chỉ máy trong tailnet của bạn mở được, nên Zalo không gọi tới (form Javis có cảnh báo). Dùng tên miền riêng (Cài đặt, Tên miền) hoặc Cloudflare Tunnel.
 
 1. Mở Javis **bằng tên miền HTTPS**, vào **Chatbot**, tab **Bot**, bấm **Thêm kênh**, chọn **Zalo OA**. Form hiện **Địa chỉ webhook** và ô **Mã xác thực tên miền Zalo**.
 2. Trên Zalo, mục **Xác thực tên miền**, nhập tên miền của Javis, chọn cách xác thực bằng **file HTML**. Zalo cho tên file dạng `zalo_verifier<mã>.html`.
 3. Dán tên file đó (hoặc thẻ meta Zalo đưa) vào ô của Javis, bấm **Lưu mã**. Javis bắt đầu phục vụ đúng file đó. Quay lại Zalo bấm **Xác thực**.
 4. Vào mục **Webhook** của app, dán **Địa chỉ webhook** Javis hiện (dạng `https://<tên miền>/zalo-oa/webhook`), bật các sự kiện **user_send_text**, **user_send_image**, **user_send_file**, **user_send_audio**, **user_send_sticker**, **user_send_location**. Bật thêm **oa_send_text**, **oa_send_image**, **oa_send_file** để bot thấy tin và file nhân viên gửi cho khách từ app OA (xem mục dưới).
-5. Ở mục Webhook có **OA secret key** (khóa bí mật của OA). Chép lại: Javis dùng nó để kiểm chữ ký từng tin, tin không đúng chữ ký bị bỏ.
+5. Bấm **Kiểm tra** rồi **Cập nhật**. Lúc này Javis chưa có OA secret key nên chưa kiểm được chữ ký, nhưng vẫn trả 200 cho lượt thử của Zalo (tin chưa ký thì bỏ, không tới bot nào), nên Zalo lưu được webhook.
+6. Lưu xong, mục Webhook hiện **OA secret key** (khóa bí mật của OA). Chép lại cho bước 4 bên dưới: Javis dùng nó để kiểm chữ ký từng tin, tin không đúng chữ ký bị bỏ.
 
 ## 3. Khai báo Callback URL cho OAuth v4 (một lần)
 
@@ -77,6 +78,7 @@ Vẫn dùng được nếu bạn chưa khai báo Callback URL.
 - **Lỗi -230 hoặc báo khách lâu không nhắn:** Zalo chỉ cho OA trả lời trong một khung thời gian sau tin cuối của khách. Khách nhắn lại là mở lại.
 - **Lỗi -224:** gói dịch vụ của OA chưa cho dùng tính năng này qua API. Kiểm tra gói ở [oa.zalo.me](https://oa.zalo.me).
 - **Bot không biết báo giá nhân viên vừa gửi:** bật các sự kiện oa_send_text, oa_send_image, oa_send_file ở mục Webhook của app. Từ đó tin nhân viên gửi từ app OA hiện trong Hộp thư (nhãn Nhân viên), và bot đọc được nội dung file: PDF, Word, Excel đọc thẳng, ảnh thì nhờ một bộ não đã kết nối có mắt (model chính, gói ChatGPT hoặc Claude Code) đọc hộ. Bot chỉ ghi nhận, không tự trả lời tin của nhân viên.
+- **Bấm Kiểm tra webhook, Zalo báo lỗi 408:** máy chủ Zalo không gọi tới được Javis trong thời gian chờ. Hay gặp nhất là địa chỉ `.ts.net` (Tailscale chỉ mở trong tailnet). Thử từ chính máy chủ thì vẫn chạy, vì máy chủ nằm trong tailnet, nên đừng dựa vào lượt thử đó. Thử bằng điện thoại tắt Wi-Fi, tắt Tailscale, mở `https://<địa chỉ>/zalo-oa/webhook`: không mở được là Zalo cũng không tới được.
 - **Không có tin nào tới:** kiểm tra webhook đúng địa chỉ HTTPS của Javis và đã bật sự kiện user_send_*. Zalo bỏ webhook nếu Javis không trả lời nhiều lần liền, khi đó bật lại ở trang app.
 
 Javis không đọc lại được tin nhắn cũ của OA trước lúc nối: Hộp thư bắt đầu từ tin đầu tiên tới qua webhook.

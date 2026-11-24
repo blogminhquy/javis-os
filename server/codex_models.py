@@ -144,11 +144,14 @@ def _normalize_items(items: Any) -> list[dict]:
 
 
 def list_models(timeout: float = 20.0, cli_path: Optional[str] = None,
-                popen_factory=subprocess.Popen) -> Optional[dict]:
+                popen_factory=subprocess.Popen, codex_home: Optional[str] = None) -> Optional[dict]:
     """Gọi Codex app-server ``model/list``.
 
     Trả ``None`` khi CLI cũ/chưa cài/chưa đăng nhập để caller dùng nguồn dự
     phòng. Không để subprocess sống sót sau request.
+
+    ``codex_home``: the login folder of an extra ChatGPT account (plan_accounts), so the list is that account's own.
+    None asks account 1's folder, as before.
     """
     cli = cli_path or find_codex_cli()
     if not cli:
@@ -200,7 +203,7 @@ def list_models(timeout: float = 20.0, cli_path: Optional[str] = None,
             errors="replace",
             bufsize=1,
             creationflags=_no_window(),
-            env=codex_env(),
+            env=codex_env(codex_home),
         )
         threading.Thread(target=reader, name="javis-codex-models", daemon=True).start()
         send({

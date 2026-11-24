@@ -773,6 +773,32 @@ class _FallbackChain:
 
     def __init__(self, engines):
         object.__setattr__(self, "_engines", [e for e in (engines or []) if e is not None])
+        object.__setattr__(self, "_last_run", {})
+
+    @staticmethod
+    def _link_spec(e) -> tuple[str, str]:
+        prov = str(
+            getattr(e, "account_provider", None)
+            or getattr(e, "provider", None)
+            or _PLAN_CLASS_PROVIDER.get(type(e).__name__)
+            or CLAUDE
+        )
+        mod = str(getattr(e, "model", None) or "")
+        return prov, mod
+
+    def last_run(self) -> dict:
+        return dict(object.__getattribute__(self, "_last_run") or {})
+
+    @classmethod
+    def _error_run_info(cls, link, err_text: str, engines, p_prov: str, p_model: str, reason: str) -> dict:
+        if link is None:
+            return {"provider": p_prov, "model": p_model, "error": err_text[:240]}
+        prov, mod = cls._link_spec(link)
+        info = {"provider": prov, "model": mod, "error": err_text[:240]}
+        if engines and link is not engines[0]:
+            info["fallback_from"] = p_prov
+            info["fallback_reason"] = str(reason or "primary unavailable")[:240]
+        return info
 
     def _all(self):
         return object.__getattribute__(self, "_engines")
@@ -840,11 +866,24 @@ class _FallbackChain:
     async def query(self, prompt: str):
         fail = "chuỗi engine việc nền rỗng"
         dau = ""      # lỗi của mắt xích ĐẦU TIÊN thật sự chạy - thường là lỗi có nghĩa nhất
+        engines = self._all()
+        p_prov, p_model = self._link_spec(engines[0]) if engines else ("", "")
+        skip_reason = ""
+        if engines:
+            now = time.monotonic()
+            rem = _resting(engines[0], now)
+            if rem > now:
+                skip_reason = f"{p_prov} in cooldown ({int(rem - now)}s)"
+        last_ran_engine = None
+        primary_err = ""
+        object.__setattr__(self, "_last_run", {})
         for e in self._order():
             try:
                 if not e.is_available():
                     fail = f"{self._name(e)} không sẵn sàng"
+                    skip_reason = skip_reason or fail
                     continue
+                last_ran_engine = e
                 got_final, got_error, acted = False, None, False
                 async for ev in _query_retrying_hub(e, prompt, self._name(e)):
                     t = (ev or {}).get("type")
@@ -860,6 +899,11 @@ class _FallbackChain:
                                   "không thử mắt kế tiếp.", file=sys.stderr)
                             # Giữ cả lỗi của mắt TRƯỚC (vd Claude hết lượt gói): tasks._het_luot
                             # đọc nó để hoãn tới giờ gói mở lại. Lý do hub đứng đầu vì ô lỗi bị cắt.
+                            if engines and e is engines[0] and not primary_err:
+                                primary_err = str(got_error)
+                            object.__setattr__(self, "_last_run", self._error_run_info(
+                                e, str(got_error), engines, p_prov, p_model, primary_err or skip_reason or dau,
+                            ))
                             yield {"type": "error",
                                    "content": got_error + (f" | {dau}" if dau else "")}
                             return
@@ -894,8 +938,16 @@ class _FallbackChain:
                 if got_final:
                     _COOLDOWN.pop(_cool_key(e), None)            # it works again: no more rest
                     _score_link(e)
+                    c_prov, c_model = self._link_spec(e)
+                    run_info = {"provider": c_prov, "model": c_model}
+                    if engines and e is not engines[0]:
+                        run_info["fallback_from"] = p_prov
+                        run_info["fallback_reason"] = str(dau or skip_reason or "primary unavailable")[:240]
+                    object.__setattr__(self, "_last_run", run_info)
                     return                                       # mắt này chạy ngon → xong
                 fail = got_error or f"{self._name(e)} kết thúc mà không có final"
+                if engines and e is engines[0] and not primary_err:
+                    primary_err = str(fail)
                 _score_link(e, fail)
                 self._rest(e, fail)
                 if acted:
@@ -904,10 +956,15 @@ class _FallbackChain:
                     # says why. This is what lets `full` jobs have a fallback chain at all.
                     print(f"[aux router] {self._name(e)} hỏng SAU khi đã gọi công cụ - dừng, không chạy lại "
                           "bằng engine khác.", file=sys.stderr)
+                    object.__setattr__(self, "_last_run", self._error_run_info(
+                        e, str(fail), engines, p_prov, p_model, primary_err or skip_reason or dau,
+                    ))
                     yield {"type": "error", "content": str(fail) + (f" | {dau}" if dau and dau != str(fail) else "")}
                     return
             except Exception as exc:
                 fail = f"{self._name(e)}: {type(exc).__name__}: {exc}"
+                if engines and e is engines[0] and not primary_err:
+                    primary_err = str(fail)
                 _score_link(e, fail)
                 self._rest(e, fail)
             print(f"[aux router] {self._name(e)} lỗi → thử mắt xích kế tiếp. Lý do: {str(fail)[:300]}",
@@ -917,7 +974,40 @@ class _FallbackChain:
         # là câu "hết lượt gói Claude" của mắt đầu bị nuốt, và hàng đợi việc không nhận ra để hoãn
         # tới giờ gói mở lại (tasks._het_luot đọc câu này).
         noi = str(fail) if (not dau or dau == str(fail)) else f"{dau} | {fail}"
+        object.__setattr__(self, "_last_run", self._error_run_info(
+            last_ran_engine, noi, engines, p_prov, p_model, primary_err or skip_reason,
+        ))
         yield {"type": "error", "content": noi}
+
+
+def execution_info(engine, configured: dict = None) -> dict:
+    """Return actual provider/model and fallback metadata from an engine or fallback chain."""
+    info = {}
+    if isinstance(engine, _FallbackChain):
+        info = engine.last_run()
+        if not info.get("provider"):
+            engines = engine._all()
+            if engines:
+                prov, mod = _FallbackChain._link_spec(engines[0])
+                info = {"provider": prov, "model": mod}
+    elif engine is not None:
+        prov, mod = _FallbackChain._link_spec(engine)
+        info = {"provider": prov, "model": mod}
+    if not info.get("provider") and isinstance(configured, dict):
+        info["provider"] = str(configured.get("provider") or CLAUDE)
+        if not info.get("model"):
+            info["model"] = str(configured.get("model") or "")
+    if "fallback_from" not in info and isinstance(configured, dict):
+        cfg_prov = str(configured.get("provider") or "").strip()
+        if cfg_prov and info.get("provider") and info["provider"] != cfg_prov:
+            info["fallback_from"] = cfg_prov
+            info.setdefault("fallback_reason", "configured provider unavailable")
+    return {
+        k: v
+        for k, v in info.items()
+        if k in ("provider", "model", "fallback_from", "fallback_reason")
+        and (v != "" or k in ("provider", "model"))
+    }
 
 
 def cli_cho_bash(cli) -> bool:
@@ -969,12 +1059,17 @@ def _build_codex(spec, claude_cli_obj, mode, tag, codex_profile=None):
         cc.hub_turn = bool(cc.profile) and bool(cfgmod.read_settings().get("mcp", {}).get("hub", True))
     except Exception as e:  # noqa: BLE001 - no key means "nobody", never a broken job
         print(f"[aux codex turn] {e}", file=sys.stderr)
+    # Brain and level ride as `-c mcp_servers.javis.http_headers.*` overrides, which only make sense when the profile's
+    # `javis` entry IS the hub. With the hub off (or no profile) there is no `javis` entry, and a header override alone
+    # creates a half entry without `url`: Codex then refuses to load its config ("invalid transport in
+    # mcp_servers.javis") and the background job never starts. Same rule as `hub_turn` above.
     try:
         import mcp_hub
-        mcp_hub.dat_codex_vault(cc.extra_config, getattr(claude_cli_obj, "javis_vault", None))
-        # The job's own level, not the profile's `full` (see mcp_hub.dat_codex_mode).
-        mcp_hub.dat_codex_mode(cc.extra_config,
-                               mode or getattr(claude_cli_obj, "javis_mode", None) or "full")
+        if cc.hub_turn:
+            mcp_hub.dat_codex_vault(cc.extra_config, getattr(claude_cli_obj, "javis_vault", None))
+            # The job's own level, not the profile's `full` (see mcp_hub.dat_codex_mode).
+            mcp_hub.dat_codex_mode(cc.extra_config,
+                                   mode or getattr(claude_cli_obj, "javis_mode", None) or "full")
     except Exception as e:
         print(f"[aux codex vault] {e}", file=sys.stderr)
     # Việc nền theo lịch: hub bắt buộc, không app ChatGPT - xem mcp_hub.CODEX_REQUIRED_KEY. Chat

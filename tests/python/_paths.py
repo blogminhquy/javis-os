@@ -48,6 +48,13 @@ _os.environ["JAVIS_SKIP_BROWSER"] = "1"
 # No test asks Groq, OpenAI or Google for their model lists (server/stt_models.py, 2026-11-08).
 _os.environ["JAVIS_NO_STT_MODEL_DISCOVERY"] = "1"
 
+# A test started inside a live Javis container must not see its state folder, brains or admin password (owner incident
+# 2026-11-22, see _live_env.py). Before the temp folder below moves, so a folder a test made earlier in the system temp
+# folder still counts as a temp one.
+sys.path.insert(0, str(Path(__file__).resolve().parent)) if str(Path(__file__).resolve().parent) not in sys.path else None
+import _live_env  # noqa: E402
+_live_env.scrub()
+
 
 # ─────────── Thư mục tạm: một thư mục riêng cho mỗi tiến trình test, tự xoá khi thoát ───────────
 #

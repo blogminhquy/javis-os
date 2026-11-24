@@ -526,9 +526,13 @@
   // Hai đường vào giống hệt link file: cú bấm thường (chat-render.js) và deep-link "#cs=".
   function moCongSu(spec) {
     const m = /^(agent|workflow):([^:]+)(?::(.+))?$/.exec(String(spec == null ? "" : spec).trim());
-    if (!m || !window.JavisWorkspace) return false;
-    window.JavisWorkspace.openCommand(m[1], m[2]).then((ok) => {
-      if (ok && m[3] && window.JavisSessions) window.JavisSessions.open(m[3]);
+    // 2026-11-23: workspace.js is a lazy file, so "not loaded yet" is no longer "no such page": load, then open.
+    if (!m || !(window.JavisWorkspace || window.JavisNapCham)) return false;
+    _goiNhom("congviec", () => {
+      if (!window.JavisWorkspace) return;
+      window.JavisWorkspace.openCommand(m[1], m[2]).then((ok) => {
+        if (ok && m[3] && window.JavisSessions) window.JavisSessions.open(m[3]);
+      });
     });
     return true;
   }
@@ -609,6 +613,8 @@
     workspace: ["congviec"], teams: ["congviec", "teams"], packs: ["packs"], plugins: ["packs"], mcp: ["packs"],
     conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"],
     tasks: ["nhiemvu"],
+    // 2026-11-23: studio.js and workspace.js load with "congviec", so every page in STUDIO_PAGES waits for it too.
+    skills: ["congviec"],
   };
   // Performance (2026-11-05): pointing at (or touching) a page in the side rail starts loading that page's code, so by the
   // time the click lands it is usually there. Costs nothing on a group that is already loaded.
@@ -5051,27 +5057,38 @@
       sh.body.innerHTML = `<input class="mb-search" type="search" enterkeyhint="search" placeholder="${esc(t("mpick.search_ph"))}">`
         + `<div class="ord-mlist"></div>`;
       const ML = window.JavisModelList;
-      let ids = ML ? ML.peek(pid) : [], q = "";
+      // Every open asks the server again (2026-11-23, owner's report "the Models page shows only 3 GPT models"). It
+      // used to open on `peek` and ask only when nothing was in hand, so a list kept from earlier stayed for good: 3
+      // models of a switched-off account while the account in use had 10. What is in hand is drawn at once, with a
+      // "loading" line under it, and the fresh list replaces it when it comes.
+      let ids = ML ? ML.peek(pid) : [], q = "", loading = !!ML;
       const row = (id) => {
         const on = id === (cur.model || "");
         return `<div class="mb-item${on ? " cur" : ""}" role="option" tabindex="0" aria-selected="${on}" data-m="${esc(id)}"><span class="tick">${on ? ic("check", { cls: "ic-ok" }) : ""}</span><span class="ord-mname">${esc(id || defName(pid))}</span></div>`;
       };
+      const wait = `<div class="mb-empty pg-loading">${esc(t("mpick.loading"))}</div>`;
       const draw = () => {
         const box = sh.body.querySelector(".ord-mlist");
-        if (ids == null) { box.innerHTML = `<div class="mb-empty pg-loading">${esc(t("mpick.loading"))}</div>`; return; }
+        if (ids == null) { box.innerHTML = wait; return; }
         const f = q.trim().toLowerCase();
         const hit = (id) => !f || (id || defName(pid)).toLowerCase().includes(f);
         const now = cur.model || "";
         const rest = ids.filter(id => id && id !== now).sort((a, b) => a.localeCompare(b));
         const top = [""].concat(now ? [now] : []).filter(hit);
         const all = rest.filter(hit);
-        box.innerHTML = !top.length && !all.length ? `<div class="mb-empty">${esc(t("mpick.no_match"))}</div>`
+        box.innerHTML = (!top.length && !all.length ? `<div class="mb-empty">${esc(t("mpick.no_match"))}</div>`
           : top.map(row).join("") + (all.length ? `<div class="mb-prov ord-msec"><span>${esc(t("models.sheet_all"))}</span></div>`
-            + all.slice(0, 200).map(row).join("") : "");
+            + all.slice(0, 200).map(row).join("") : ""))
+          + (loading ? wait : "");   // last, so the rows above never jump when the fresh list lands
       };
       draw();
       opened(btn, sh);
-      if (ids == null && ML) ML.models(pid).then(x => { ids = x; if (openPop && openPop.el === pop) draw(); });
+      if (ML) ML.refresh(pid).then(x => {
+        loading = false;
+        // An empty answer does not wipe a list already in hand (the server or the network failed this once).
+        if ((x && x.length) || ids == null) ids = x || [];
+        if (openPop && openPop.el === pop) draw();
+      });
       const inp = sh.body.querySelector(".mb-search");
       inp.oninput = () => { q = inp.value; draw(); };
       sh.body.onclick = (e) => {
@@ -7833,7 +7850,8 @@
     setup: "change", username_changed: "change", password_changed: "change", "2fa_enabled": "change",
     "2fa_disabled": "change", "2fa_recovery_regenerated": "change", token_created: "change", token_revoked: "change",
     login_disabled: "change", env_account_created: "change", env_account_reset: "change", env_2fa_reset: "change",
-    auth_changed_outside: "change", agent_secret_blocked: "change",
+    auth_changed_outside: "change", agent_secret_blocked: "change", setup_blocked: "change",
+    account_clear_blocked: "change", github_connected: "change", github_changed: "change", github_disconnected: "change",
   };
   let _secFilter = "all";
 

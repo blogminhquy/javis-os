@@ -1,10 +1,12 @@
-/* Phone composer (2026-11-11): the plan ring, the model chip and the Effort chip read as ONE pill, and a tap on any of
-   them opens ONE sheet from the bottom with plan usage, Effort and the model list. A computer keeps its three popovers.
+/* Phone composer: model, Effort and the plan ring are three chips as on a computer (owner, 22/11/2026), and each opens
+   the sheet from the bottom with ITS panel only. A computer keeps its three popovers.
 
        node tests/js/test_phone_model_sheet.js
 
 Owner, 11/11/2026: "Ở điện thoại anh muốn sắp xếp lại mức suy luận và lựa chọn mô hình cũng như hiển thị mức dùng của gói
 được gọn hơn", with the Claude app's "Fable 5.2 High" chip and its Select model sheet as the reference.
+Owner, 22/11/2026: "ở điện thoại có đủ không gian để hiển thị để ấn thành 3 nút trên máy tính rồi, với cho text nhỏ hơn
+một chút ở điện thoại để có thêm thông tin", and the Effort frame "đang bị lệch" (an empty "Recommended" row under it).
 */
 "use strict";
 const fs = require("fs");
@@ -33,7 +35,7 @@ check("the head has a close button and a title, both through i18n",
   && /id="cpSheetTitle" data-i18n="cps\.title"/.test(sheet));
 check("the three chips are still three buttons in #cpChips (a computer shows them apart)",
   ["mbOpen", "effBtn", "limitBtn"].every((id) => card.indexOf('id="' + id + '"') !== -1));
-["cps.title", "cps.close"].forEach((k) => check("key " + k + " in vi and en", !!vi[k] && !!en[k]));
+["cps.title", "cps.close", "cps.model"].forEach((k) => check("key " + k + " in vi and en", !!vi[k] && !!en[k]));
 
 // ---- CSS ----
 check("a computer: the wrappers have no box, so the popovers still place against the card",
@@ -41,23 +43,22 @@ check("a computer: the wrappers have no box, so the popovers still place against
 // The phone block of the composer: from its opening to the keyframes that follow it.
 const phone = (css.match(/@media \(max-width: 860px\) \{\s*\.hud-voice \{[\s\S]*?\n\}\n@keyframes cps-fade/) || [""])[0];
 check("the phone block of the composer is found", !!phone);
-check("phone: the ring leads the pill and each part drops the border it shares",
-  /#cpChips > \.cp-limit \{ order: -1;[^}]*border-right: 0; border-radius: 999px 0 0 999px; \}/.test(phone)
-  && /#cpChips > \.mb-chip \{[^}]*border-right: 0; border-radius: 999px 0 0 999px;/.test(phone)
-  && /#cpChips\.has-ring > \.mb-chip \{[^}]*border-left: 0; border-radius: 0; \}/.test(phone)
-  && /#cpChips > \.cp-eff \{[^}]*border-left: 0; border-radius: 0 999px 999px 0;/.test(phone));
-check("phone: one caret for the pill, and the plain green dot gives way to the ring (the amber one stays)",
-  phone.includes("#cpChips > .mb-chip .mb-caret { display: none; }")
-  && phone.includes("#cpChips.has-ring > .mb-chip:not(.is-fallback):not(.is-pin-broken) .mb-dot { display: none; }"));
-check("phone: the pill is 34px tall with 14px text", /#cpChips > \.cp-limit, #cpChips > \.mb-chip, #cpChips > \.cp-eff \{\s*height: 34px; font-size: 14px;/.test(phone));
+check("phone: the three chips stand apart (no joined pill any more)",
+  !/#cpChips > \.cp-limit \{ order: -1;/.test(phone) && !/border-radius: 999px 0 0 999px/.test(phone)
+  && !phone.includes("#cpChips > .mb-chip .mb-caret { display: none; }"));
+check("phone: the chips are 34px tall with 13px text, so the whole model name fits",
+  /#cpChips > \.mb-chip, #cpChips > \.cp-eff \{ height: 34px; padding: 0 8px; font-size: 13px; \}/.test(phone));
 check("phone: the open sheet covers the screen above the other layers and dims it",
   /\.cp-sheet\.is-open \{[^}]*position: fixed; inset: 0;\s*z-index: 3400; background: var\(--scrim/.test(phone));
-check("phone: the panels stop floating and stack as usage, Effort, model list",
+check("phone: the panels stop floating inside the sheet, and only the model list scrolls",
   /\.cp-sheet\.is-open \.mb-pop, \.cp-sheet\.is-open \.eff-pop \{ position: static; width: auto;/.test(phone)
-  && /\.cp-sheet\.is-open \.lim-pop \{ order: 1;/.test(phone) && /\.cp-sheet\.is-open #effPop \{ order: 2;/.test(phone)
-  && /\.cp-sheet\.is-open \.mb-pop \{ order: 3; flex: 1 1 auto;[^}]*overflow: auto;/.test(phone));
-check("phone: 16px in the search box (no iOS zoom) and rows tall enough for a thumb",
-  /\.cp-sheet\.is-open \.mb-search \{[^}]*font-size: 16px;/.test(phone) && /\.cp-sheet\.is-open \.mb-item \{ font-size: 16px; min-height: 46px;/.test(phone));
+  && /\.cp-sheet\.is-open \.mb-pop \{ flex: 1 1 auto;[^}]*overflow: auto;/.test(phone));
+check("phone: no top padding over the sticky search, so no row shows through above it",
+  /\.cp-sheet\.is-open \.mb-pop \{[^}]*padding: 0 8px 8px; \}/.test(phone)
+  && /\.cp-sheet\.is-open \.mb-search \{ position: sticky; top: 0;/.test(phone));
+check("phone: 16px in the search box (no iOS zoom), 15px rows still tall enough for a thumb",
+  /\.cp-sheet\.is-open \.mb-search \{[^}]*font-size: 16px;/.test(phone) && /\.cp-sheet\.is-open \.mb-item \{ font-size: 15px; min-height: 44px;/.test(phone));
+check("phone: the usage panel drops its own title (the sheet head says it)", phone.includes(".cp-sheet.is-open .lim-h { display: none; }"));
 check("phone: a usage meter is one line over a thin bar",
   /\.cp-sheet\.is-open \.lim-row \{ display: grid; grid-template-columns: auto minmax\(0, 1fr\) auto;/.test(phone)
   && phone.includes(".cp-sheet.is-open .lim-row-h { display: contents; }")
@@ -71,9 +72,12 @@ check("reduced motion: no slide", /@media \(prefers-reduced-motion: reduce\) \{\
 const blk = (mp.match(/\/\/ SHEET_BEGIN[\s\S]*?\/\/ SHEET_END/) || [""])[0];
 check("the sheet block is found", !!blk);
 check("the sheet is for the same width as the rest of the phone layout (860px)", blk.includes('window.matchMedia("(max-width: 860px)")'));
-check("opening: the sheet moves to <body>, then all three panels are drawn",
-  /document\.body\.appendChild\(s\);\s*s\.classList\.add\("is-open"\);/.test(blk) && /pop\.hidden = false;/.test(blk)
-  && /effMount\(\);/.test(blk) && /JavisPlanLimit\.showInSheet\(\)/.test(blk));
+check("opening: the sheet moves to <body>, then draws only the panel asked for, under its own title",
+  /document\.body\.appendChild\(s\);\s*s\.classList\.add\("is-open"\);/.test(blk)
+  && /if \(part === "model"\) \{\s*pop\.hidden = false;/.test(blk)
+  && /\} else if \(part === "eff"\) effMount\(\);/.test(blk) && /else \{ try \{ if \(window\.JavisPlanLimit[^}]*showInSheet\(\)/.test(blk)
+  && blk.includes('const SHEET_TITLE = { model: "cps.model", eff: "eff.title", limit: "lim.title" };')
+  && blk.includes("ttl.textContent = window.t(SHEET_TITLE[part]);"));
 check("closing: every panel is hidden and the sheet goes back into the card",
   /s\.classList\.remove\("is-open"\);\s*if \(pop\) pop\.hidden = true;\s*effUnmount\(\);\s*closeLimit\(\);/.test(blk)
   && /sheetHome\.parent\.insertBefore\(s, next\);/.test(blk));
@@ -81,15 +85,23 @@ check("the card is a modal dialog only while it is a sheet",
   /card\.setAttribute\("role", "dialog"\);/.test(blk) && /\["role", "aria-modal", "aria-labelledby"\]\.forEach\(\(a\) => card\.removeAttribute\(a\)\)/.test(blk));
 check("a window going wider than a phone closes the sheet", /if \(sheetIsOpen\(\) && !sheetMq\.matches\) sheetClose\(\);/.test(blk));
 check("the head can be pulled down to close", /end\(dy > 70\)/.test(blk) && /#cpSheetHead/.test(blk));
-check("a tap on any of the three chips toggles the one sheet; only the dim part or X closes it",
-  /if \(e\.target\.closest\("#mbOpen, #effBtn, #limitBtn"\)\) \{ up \? sheetClose\(\) : sheetOpen\(\); return; \}/.test(mp)
+check("each chip opens the sheet with its own panel; only the dim part or X closes it",
+  /if \(chip\) \{ up \? sheetClose\(\) : sheetOpen\(chip\.id === "effBtn" \? "eff" : chip\.id === "limitBtn" \? "limit" : "model"\); return; \}/.test(mp)
   && /if \(e\.target\.closest\("#cpSheetClose"\) \|\| !e\.target\.closest\("#cpSheetCard"\)\) \{ sheetClose\(\); return; \}/.test(mp));
 check("/model and the other callers reach the sheet through the same open() and close()",
-  /function open\(\) \{[\s\S]{0,120}if \(sheetMode\(\)\) \{ sheetOpen\(\); return; \}/.test(mp)
+  /function open\(\) \{[\s\S]{0,120}if \(sheetMode\(\)\) \{ sheetOpen\("model"\); return; \}/.test(mp)
+  && /function effOpen\(\) \{[\s\S]{0,120}if \(sheetMode\(\)\) \{ sheetOpen\("eff"\); return; \}/.test(mp)
   && /function close\(\) \{\s*if \(sheetIsOpen\(\)\) \{ sheetClose\(\); return; \}/.test(mp)
   && /function effClose\(\) \{\s*if \(sheetIsOpen\(\)\) \{ sheetClose\(\); return; \}/.test(mp));
-check("Escape closes the sheet", /if \(sheetIsOpen\(\)\) \{ sheetClose\(\); const m = \$\("mbOpen"\); if \(m\) m\.focus\(\); return; \}/.test(mp));
-check("a model picked in the sheet redraws the slider (it may lock or unlock)", /if \(sheetIsOpen\(\)\) effMount\(\);/.test(mp));
+check("Escape closes the sheet and gives focus back to the chip that opened it",
+  /if \(sheetIsOpen\(\)\) \{\s*const m = \$\(SHEET_CHIPS\[\["model", "eff", "limit"\]\.indexOf\(sheetPart\)\] \|\| "mbOpen"\);\s*sheetClose\(\); if \(m\) m\.focus\(\); return;/.test(mp));
+check("a new model redraws an open Effort sheet (it may lock or unlock)", /if \(sheetIsOpen\(\) && sheetPart === "eff"\) effMount\(\);/.test(mp));
+
+// ---- effort-slider.js: "Recommended" in the head, not a row that leaves a gap under the track ----
+const es = fs.readFileSync(path.join(D, "effort-slider.js"), "utf8");
+check("Recommended sits in the head beside the level", /<span class="eff-val"><\/span>' \+\s*(?:\/\/[^\n]*\n\s*)*\(opt\.locked \? "" : '<span class="eff-rec"><\/span>'\)/.test(es));
+check("no Recommended row under the track any more", !es.includes('<div class="eff-rec">') && /rec\.hidden = value !== "medium";/.test(es)
+  && css.includes(".eff-rec[hidden] { display: none; }"));
 
 // ---- plan-limit.js ----
 check("the ring tells the row it is there (the pill rounds its left end on it)",

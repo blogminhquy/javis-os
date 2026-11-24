@@ -211,11 +211,14 @@ class GitHub:
             raise
         return str(((d or {}).get("commit") or {}).get("sha") or "")
 
-    def job_log(self, full_name: str, job_id: int) -> str:
-        """Plain-text log of one Actions job ("" when GitHub does not give one)."""
+    def job_log(self, full_name: str, job_id: int, strict: bool = False) -> str:
+        """Plain-text log of one Actions job ("" when GitHub does not give one). `strict` raises the GitHubError
+        instead, so the caller can tell a token without Actions access (403) from a job that never ran (404/410)."""
         try:
             r = self.request("GET", f"/repos/{full_name}/actions/jobs/{int(job_id)}/logs", raw=True)
         except GitHubError:
+            if strict:
+                raise
             return ""
         return r.text or ""
 

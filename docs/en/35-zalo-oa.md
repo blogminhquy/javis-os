@@ -27,13 +27,14 @@ This channel is different from the two Zalo channels Javis already had:
 
 ## 2. Verify the domain and set the webhook
 
-Zalo only delivers to an HTTPS address on a verified domain.
+Zalo only delivers to an HTTPS address on a verified domain, and Zalo's servers must reach that address from the Internet. The `.ts.net` address of Javis's Tailscale mode only opens for devices in your tailnet, so Zalo cannot call it (the Javis form warns about this). Use your own domain (Settings, Domain) or a Cloudflare Tunnel.
 
 1. Open Javis **through its HTTPS domain**, go to **Chatbot**, **Bots**, choose **Add channel**, pick **Zalo OA**. The form shows the **Webhook address** and a **Zalo domain verification code** box.
 2. On Zalo, under **Domain verification**, enter Javis's domain and choose verification by **HTML file**. Zalo gives a file name like `zalo_verifier<code>.html`.
 3. Paste that file name (or the meta tag Zalo shows) into Javis's box and press **Save code**. Javis now serves that exact file. Go back to Zalo and press **Verify**.
 4. Open the app's **Webhook** section, paste the **Webhook address** Javis shows (like `https://<domain>/zalo-oa/webhook`) and enable the events **user_send_text**, **user_send_image**, **user_send_file**, **user_send_audio**, **user_send_sticker**, **user_send_location**. Also enable **oa_send_text**, **oa_send_image**, **oa_send_file** so the bot sees what staff send customers from the OA app (see below).
-5. The Webhook section also shows the **OA secret key**. Copy it: Javis checks the signature of every event with it and drops anything not signed with it.
+5. Press **Check** (Kiểm tra), then **Update**. Javis does not have the OA secret key yet so it cannot check signatures, but it still answers Zalo's test with 200 (an unsigned event is dropped and reaches no bot), so Zalo saves the webhook.
+6. Once saved, the Webhook section shows the **OA secret key**. Copy it for step 4 below: Javis checks the signature of every event with it and drops anything not signed with it.
 
 ## 3. Register the Callback URL for OAuth v4 (once)
 
@@ -77,6 +78,7 @@ Still works if you have not registered the Callback URL.
 - **Error -230 or "the customer has not written for too long":** Zalo only lets the OA reply within a window after the customer's last message. It reopens when they write again.
 - **Error -224:** the OA's service package does not allow this through the API. Check the package on [oa.zalo.me](https://oa.zalo.me).
 - **The bot does not know the quote a staff member just sent:** enable the oa_send_text, oa_send_image and oa_send_file events in the app's Webhook section. Messages staff send from the OA app then show in the Inbox (labelled Staff) and the bot reads the files: PDF, Word and Excel directly, photos through a connected brain that can see (your main model, the ChatGPT plan or Claude Code). The bot only records them, it does not answer staff messages.
+- **Zalo reports HTTP 408 when you check the webhook:** Zalo's servers could not reach Javis in time. Most often the address is a `.ts.net` one (Tailscale only opens inside the tailnet). A test from the server itself still works because the server is in the tailnet, so do not rely on it. Try from a phone with Wi-Fi and Tailscale off, opening `https://<address>/zalo-oa/webhook`: if it does not open, Zalo cannot reach it either.
 - **No messages arrive at all:** check the webhook points to Javis's HTTPS address and the user_send_* events are on. Zalo drops a webhook that fails several times in a row; turn it back on in the app page.
 
 Javis cannot read OA messages from before the connection: the Inbox starts with the first event that arrives through the webhook.

@@ -1,0 +1,22 @@
+{
+ "version": 1,
+ "day": {
+  "date": "",
+  "count": 0
+ },
+ "sent": [],
+ "chat_last": {},
+ "digest": {
+  "queue": [
+   {
+    "id": "93127ab31475",
+    "group": "job",
+    "title": "kết quả",
+    "ts": 1795416623.7577264
+   }
+  ],
+  "last_slot": ""
+ },
+ "act": {},
+ "learned": {}
+}

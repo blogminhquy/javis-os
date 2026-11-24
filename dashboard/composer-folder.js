@@ -69,8 +69,8 @@
   function announce() {
     try { window.dispatchEvent(new CustomEvent("javis:pinned-folder-changed", { detail: { sid: sid(), folder: folder } })); } catch (e) {}
   }
-  // The row under the composer card (#cpCtx, owner 21/11/2026), first in it, before the GitHub repos. It hides while
-  // empty, and with a folder AND repos pinned a phone shows both as icons only (.is-two; same rule in github-connect.js).
+  // The tray on top of the composer card (#cpCtx; under it on 21/11/2026, on top since 22/11), first in it, before the
+  // GitHub repos. It hides while empty; .is-two marks folder AND repos (same rule in github-connect.js).
   function syncCtx(host) {
     host.hidden = !host.children.length;
     host.classList.toggle("is-two", host.children.length > 1);

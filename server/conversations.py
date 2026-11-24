@@ -294,6 +294,8 @@ def chuan_hoa(ev: dict) -> dict:
         external_message_id  id tin phía kênh, dùng chống trùng (tuỳ chọn)
         created_at           epoch giây (mặc định: bây giờ)
         metadata             dict tuỳ ý (đường dẫn file tạm, tên file, ...)
+        conversation_metadata  dict merged into the CONVERSATION's metadata (optional; the post a comment
+                             thread sits under, 2026-11-24)
 
     Không ném lỗi với dữ liệu thiếu: sự kiện thiếu `channel`/`external_chat_id` mới bị từ chối
     (trả về dict có `loi`), vì thiếu hai thứ đó thì không biết xếp tin vào đâu.
@@ -321,6 +323,9 @@ def chuan_hoa(ev: dict) -> dict:
     meta = ev.get("metadata")
     if not isinstance(meta, dict):
         meta = {}
+    conv_meta = ev.get("conversation_metadata")
+    if not isinstance(conv_meta, dict):
+        conv_meta = {}
     return {
         "channel": kenh,
         "account_id": account_id,
@@ -339,6 +344,7 @@ def chuan_hoa(ev: dict) -> dict:
         "external_message_id": _s(ev.get("external_message_id"), 200).strip(),
         "created_at": ts,
         "metadata": meta,
+        "conversation_metadata": conv_meta,
     }
 
 
@@ -440,6 +446,11 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
                 # stored, but never count as unread and never bring the chat back into the inbox.
                 cmeta = _loads(conv["metadata_json"], {})
                 blocked = isinstance(cmeta, dict) and bool(cmeta.get("blocked"))
+                if e["conversation_metadata"]:
+                    merged = dict(cmeta) if isinstance(cmeta, dict) else {}
+                    merged.update(e["conversation_metadata"])
+                    if merged != cmeta:
+                        db.execute("UPDATE conversations SET metadata_json=? WHERE id=?", (_json(merged), conv_id))
 
                 # 4. Tin - chống trùng theo id tin của kênh
                 if e["external_message_id"]:
@@ -1519,6 +1530,13 @@ def _set_meta_key(conversation_id: int, key: str, value) -> bool:
     return True
 
 
+def set_post_card(conversation_id: int, card: dict) -> bool:
+    """Keep the post a comment thread sits under (`metadata.post`, 2026-11-24). An empty card leaves what is there."""
+    if not isinstance(card, dict) or not card:
+        return False
+    return _set_meta_key(conversation_id, "post", card)
+
+
 def conversation_id_of(channel: str, account_id: str, external_chat_id: str) -> int:
     """Id of the conversation for a channel key, 0 when there is none yet."""
     try:
@@ -1746,6 +1764,23 @@ def _trung_vi(xs: list) -> Optional[float]:
     return round(v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2, 1)
 
 
+# Issue #1775 (82 "manual replies" on a Zalo account nobody types on): a `human` row Javis itself sent is machine work.
+# Such a row carries `metadata.tu_javis` with a `via` naming the machine path: "tool" when an engine sent it with
+# `inbox_reply` (routes.conversations.owner_reply) or with a Zalo tool (zalo_sent_ledger.MARK). `tu_javis` WITHOUT a
+# `via` is the owner pressing Send in the inbox (perhaps on a bot draft): a person, so it stays a manual reply. A new
+# machine path that writes `human` rows adds its `via` here.
+JAVIS_SENT_VIA = ("tool",)
+# The sender as the Stats tab counts it: "javis" for such a row, else the stored sender. The LIKE test keeps the JSON
+# functions off every other row (the Stats query can see hundreds of thousands), and `json_valid` keeps an odd stored
+# value from failing the whole query.
+_STATS_SENDER = (
+    "CASE WHEN m.sender_type='human' AND m.metadata_json LIKE '%\"via\"%' THEN"
+    " (CASE WHEN json_valid(m.metadata_json) AND json_extract(m.metadata_json, '$.tu_javis')=1"
+    " AND json_extract(m.metadata_json, '$.via') IN (" + ",".join("'%s'" % v for v in JAVIS_SENT_VIA) + ")"
+    " THEN 'javis' ELSE 'human' END)"
+    " ELSE m.sender_type END")
+
+
 def insights(since: float, until: float, account: str = "") -> dict:
     """Numbers for the Stats tab (Chatbot v5) between two timestamps: messages the A.I. sent, messages the owner sent,
     customer messages, the average wait of a customer for the first answer (A.I. or owner), and the same counts per
@@ -1759,7 +1794,10 @@ def insights(since: float, until: float, account: str = "") -> dict:
 
     0.401.0 (owner, 2026-10-29: "ở nick Javis Vũ anh không trả lời tý nào mà nó tính 45% câu do A.I. lo"): the totals mixed
     every account, so one account's hand replies lowered another one's A.I. share. `account` (the inbox account key,
-    `"<channel>:<id>"`) keeps one account only, and `by_account` gives each account its own A.I., hand and customer counts."""
+    `"<channel>:<id>"`) keeps one account only, and `by_account` gives each account its own A.I., hand and customer counts.
+
+    Issue #1775: a message Javis itself sent (a tool, a schedule, an admin chat turn) counts as A.I., not as a hand reply
+    (`_STATS_SENDER`); it is not counted for the chat's bot in `by_bot`."""
     import localefmt
     tz = localefmt.tz()
     with _lock:
@@ -1767,7 +1805,7 @@ def insights(since: float, until: float, account: str = "") -> dict:
         cur_rows = db.cursor()
         cur_rows.row_factory = None         # plain tuples: this loop can see hundreds of thousands of rows
         rows = cur_rows.execute(
-            "SELECT m.conversation_id, m.sender_type, m.created_at, a.channel, c.bot_id, a.id"
+            "SELECT m.conversation_id, " + _STATS_SENDER + ", m.created_at, a.channel, c.bot_id, a.id"
             " FROM messages m JOIN conversations c ON c.id=m.conversation_id"
             " JOIN channel_accounts a ON a.id=c.channel_account_id"
             " WHERE m.created_at>=? AND m.created_at<? AND m.sender_type IN ('customer','ai','human')"
@@ -1794,6 +1832,9 @@ def insights(since: float, until: float, account: str = "") -> dict:
     ai_rest = 0
     for cid, who, ts, channel, bot_id, acc_id in rows:
         ts = float(ts or 0)
+        sent_by_javis = who == "javis"
+        if sent_by_javis:
+            who = "ai"          # machine work (see _STATS_SENDER), though not the answer of the chat's bot
         if cid != cur:
             cur, start = cid, None
         ch = by_channel.get(channel or "")
@@ -1816,7 +1857,7 @@ def insights(since: float, until: float, account: str = "") -> dict:
                 start = ts
         else:
             if who == "ai":
-                if bot_id:
+                if bot_id and not sent_by_javis:
                     by_bot[bot_id] = by_bot.get(bot_id, 0) + 1
                 if gio >= NGHI_TU or gio < NGHI_DEN:
                     ai_rest += 1

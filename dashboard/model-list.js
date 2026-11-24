@@ -29,15 +29,15 @@
   // Cache HẾT HẠN thì trả ngay bản cũ và làm mới NGẦM (stale-while-revalidate). Trước đây
   // hết 5 phút là lần bấm sau phải chờ trọn một lượt tải live - với Codex (ép refresh=1) là
   // vài giây popup trống trơn, chủ repo báo 27/09 "ấn vào danh sách model load rất chậm".
-  const DANG_TAI = {};                  // provider id -> Promise đang bay (gộp các lần gọi trùng)
+  const IN_FLIGHT = {};                 // provider id -> the request on its way (repeat calls share it)
   // 2026-11-13: an EMPTY answer is not a list to keep. It used to sit in the cache for five minutes and then be
   // handed out once more while the refresh ran, so one slow gateway (or a card fixed a moment ago on the Models
   // page) left the picker saying "no model list" long after the list was there. An empty entry is asked again on
   // the next open, and it carries the server's reason so the picker can say WHY (`why`).
   const EMPTY_MS = 4000;                // only spares the server a burst of repeats while one popup redraws
   let GEN = 0;                          // bumped by clearCache: an answer asked for before it is not kept
-  function tai(pid) {
-    if (DANG_TAI[pid]) return DANG_TAI[pid];
+  function load(pid) {
+    if (IN_FLIGHT[pid]) return IN_FLIGHT[pid];
     // Codex: catalog tĩnh của nó vốn rỗng nên phải ép lấy live.
     const force = pid === "openai-oauth" ? "&refresh=1" : "";
     const gen = GEN;
@@ -54,23 +54,29 @@
         return c && c.models.length ? { models: c.models, ts: Date.now(), why: "" } : { models: [], ts: Date.now(), why: "" };
       })
       .then((e) => {
-        if (DANG_TAI[pid] === p) delete DANG_TAI[pid];
+        if (IN_FLIGHT[pid] === p) delete IN_FLIGHT[pid];
         if (gen === GEN) CACHE[pid] = e;   // the Models page changed a key meanwhile: this answer is the old one
         return e.models;
       });
-    DANG_TAI[pid] = p;
+    IN_FLIGHT[pid] = p;
     return p;
   }
   async function models(pid) {
     const c = CACHE[pid];
     if (c) {
       const age = Date.now() - c.ts;
-      if (!c.models.length) return age >= EMPTY_MS ? tai(pid) : c.models;
-      if (age >= CACHE_MS) tai(pid);
+      if (!c.models.length) return age >= EMPTY_MS ? load(pid) : c.models;
+      if (age >= CACHE_MS) load(pid);
       return c.models;
     }
-    return tai(pid);
+    return load(pid);
   }
+  /** Ask the server again NOW, whatever is in hand, and resolve with the fresh list (2026-11-23).
+   *  The Models page picker used to open on `peek` and asked only when nothing was in hand, so a list kept
+   *  from earlier (3 models of the account that was switched off) stayed on screen for good. A picker that
+   *  must show what is true now draws what `peek` has and redraws with this. A request already on its way
+   *  is shared, not sent twice. */
+  function refresh(pid) { return load(pid); }
   /** Danh sách đang có sẵn (kể cả đã cũ), hoặc null khi chưa từng tải: để người gọi biết có
    *  phải chờ mạng hay không mà vẽ khung trước. An empty answer that is due for another try counts as "not
    *  loaded", so the caller draws "loading" and asks again instead of repeating the old empty list. */
@@ -86,7 +92,7 @@
   function clearCache() {
     GEN++;
     Object.keys(CACHE).forEach((k) => delete CACHE[k]);
-    Object.keys(DANG_TAI).forEach((k) => delete DANG_TAI[k]);
+    Object.keys(IN_FLIGHT).forEach((k) => delete IN_FLIGHT[k]);
   }
 
   // Dựng HTML thân bảng chọn. Trả chuỗi; người gọi tự nhét vào khung của mình rồi tự bắt sự
@@ -215,5 +221,5 @@
     return html;
   }
 
-  window.JavisModelList = { models, peek, why, render, clearCache };
+  window.JavisModelList = { models, peek, refresh, why, render, clearCache };
 })();

@@ -50,6 +50,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -116,6 +117,43 @@ def _write_conn(conn: Dict[str, Any]) -> None:
     empty = {"source": "", "token": "", "refresh_token": "", "expires_at": 0, "login": "", "user_id": 0, "missing": [],
              "connected_at": 0}
     _settings().update_settings({"github": {**empty, **(conn or {})}})
+
+
+_SOURCE_NAMES = {"own": "token", "app": "sign-in", "backup": "backup token"}
+
+
+def _conn_label(conn: Dict[str, Any]) -> str:
+    login = str(conn.get("login") or "").strip()
+    src = str(conn.get("source") or "")
+    return f"@{login or '?'} ({_SOURCE_NAMES.get(src, src or '?')})"
+
+
+def _log_conn_change(before: Dict[str, Any], after: Dict[str, Any], who: Optional[Dict[str, str]]) -> None:
+    """One line in the security log when the connection is made, swapped for another account or removed.
+
+    Owner incident 2026-11-22: GitHub was found signed out after a stranger took over the Javis account, and nothing
+    told who did it. `who` is {ip, ua, user} of the request (routes/github.py); a call from code has none and is
+    marked "internal". Reconnecting the same account and a token renewal are not changes and write nothing. Never
+    records the token."""
+    had = bool(before.get("source"))
+    has = bool(after.get("source"))
+    if had and has:
+        if (before.get("login"), before.get("source")) == (after.get("login"), after.get("source")):
+            return
+        event, detail = "github_changed", f"{_conn_label(after)}, was {_conn_label(before)}"
+    elif has:
+        event, detail = "github_connected", _conn_label(after)
+    elif had:
+        event, detail = "github_disconnected", _conn_label(before)
+    else:
+        return
+    who = who or {}
+    try:
+        import security_log
+        security_log.record(event, ip=who.get("ip", ""), ua=who.get("ua", ""), user=who.get("user", ""),
+                            detail=detail, source="" if who else "internal")
+    except Exception as e:  # noqa: BLE001 - the log must never undo a connect or disconnect the person asked for
+        print(f"[github] security log: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def backup_token() -> str:
@@ -204,22 +242,29 @@ def _is_classic(tok: str) -> bool:
     return not (tok or "").startswith(_NON_CLASSIC_PREFIXES)
 
 
-def connect(tok: str) -> Dict[str, Any]:
+def _replace_conn(conn: Dict[str, Any], who: Optional[Dict[str, str]]) -> None:
+    """A connect or disconnect the person asked for: store it, and log it when the account changes."""
+    before = _read_conn()
+    _write_conn(conn)
+    _log_conn_change(before, conn, who)
+
+
+def connect(tok: str, who: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     tok = (tok or "").strip()
     info = _check_token(tok)
-    _write_conn({"source": "own", "token": tok, "login": info["login"], "user_id": info["id"],
-                 "missing": info["missing"], "connected_at": _now()})
+    _replace_conn({"source": "own", "token": tok, "login": info["login"], "user_id": info["id"],
+                   "missing": info["missing"], "connected_at": _now()}, who)
     _REPO_CACHE.update(at=0.0, items=[])
     return status()
 
 
-def connect_app(fields: Dict[str, Any]) -> Dict[str, Any]:
+def connect_app(fields: Dict[str, Any], who: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """Store the token "Sign in with GitHub" just received (github_oauth.poll). Checked like a pasted token."""
     tok = str((fields or {}).get("access_token") or "").strip()
     info = _check_token(tok, app=True)
-    _write_conn({"source": "app", "token": tok, "refresh_token": str(fields.get("refresh_token") or ""),
-                 "expires_at": float(fields.get("expires_at") or 0), "login": info["login"], "user_id": info["id"],
-                 "missing": info["missing"], "connected_at": _now()})
+    _replace_conn({"source": "app", "token": tok, "refresh_token": str(fields.get("refresh_token") or ""),
+                   "expires_at": float(fields.get("expires_at") or 0), "login": info["login"], "user_id": info["id"],
+                   "missing": info["missing"], "connected_at": _now()}, who)
     _REPO_CACHE.update(at=0.0, items=[])
     _INSTALL_CACHE.update(at=0.0, n=-1)
     return status()
@@ -247,19 +292,19 @@ def _installs(tok: str) -> int:
     return n
 
 
-def connect_backup() -> Dict[str, Any]:
+def connect_backup(who: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     tok = backup_token()
     if not tok:
         raise RepoError(_c("Chưa có token sao lưu brain để dùng chung.", "There is no brain-backup token to reuse."))
     info = _check_token(tok)
-    _write_conn({"source": "backup", "login": info["login"], "user_id": info["id"], "missing": info["missing"],
-                 "connected_at": _now()})
+    _replace_conn({"source": "backup", "login": info["login"], "user_id": info["id"], "missing": info["missing"],
+                   "connected_at": _now()}, who)
     _REPO_CACHE.update(at=0.0, items=[])
     return status()
 
 
-def disconnect() -> Dict[str, Any]:
-    _write_conn({})
+def disconnect(who: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    _replace_conn({}, who)
     _REPO_CACHE.update(at=0.0, items=[])
     _INSTALL_CACHE.update(at=0.0, n=-1)
     return status()

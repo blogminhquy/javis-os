@@ -105,6 +105,12 @@ IG_WEBHOOK_FIELDS = "messages,messaging_postbacks,comments"
 COMMENT_MODES = ("off", "inbox", "reply")
 COMMENT_MODE_DEFAULT = "inbox"
 MAX_COMMENT = 7900            # a comment takes 8000 characters
+# The post a comment thread sits under, shown as a card at the top of the thread (2026-11-24, as Pancake does).
+POST_FIELDS = "message,permalink_url,full_picture,attachments{title,description}"
+IG_MEDIA_FIELDS = "media{id,caption,permalink,media_url,thumbnail_url,media_type}"
+POST_CARD_TTL = 3 * 86400     # Meta's image links expire after a few days: an older card is read again
+MAX_POST_TEXT = 500
+MAX_POSTS = 500
 NAME_RETRY_S = 600            # a sender whose name lookup failed is looked up again after 10 minutes, not per message
 MAX_NAMES = 2000
 
@@ -287,6 +293,33 @@ def comment_note(post: str = "", instagram: bool = False) -> str:
             + ". Câu trả lời của bạn hiện công khai ngay dưới bình luận này, ai cũng đọc được: trả lời ngắn gọn, "
               "lịch sự, không nêu số điện thoại, địa chỉ hay thông tin riêng của khách; cần trao đổi riêng thì mời "
               "khách nhắn tin cho " + ("tài khoản Instagram" if instagram else "Page") + ".]")
+
+
+def post_id_of_comment(comment_id: str, page_id: str) -> str:
+    """The post a Page comment sits under, from the comment id alone: a comment on a Page post is `<post>_<comment>`
+    and the post's full id is `<page id>_<post>`. Empty when the id has another shape."""
+    parts = str(comment_id or "").split("_")
+    if len(parts) != 2 or not all(x.isdigit() for x in parts) or not str(page_id or "").isdigit():
+        return ""
+    return f"{page_id}_{parts[0]}"
+
+
+def post_card_of(d: dict, instagram: bool = False) -> dict:
+    """A Graph post (Facebook) or media (Instagram) -> {id, url, text, image}, missing parts left out.
+    A post with no words of its own (a shared link, a video) takes the title or description of its attachment."""
+    d = d if isinstance(d, dict) else {}
+    if instagram:
+        video = str(d.get("media_type") or "").upper() == "VIDEO"
+        text, url = d.get("caption"), d.get("permalink")
+        image = d.get("thumbnail_url") if video else (d.get("media_url") or d.get("thumbnail_url"))
+    else:
+        text, url, image = d.get("message"), d.get("permalink_url"), d.get("full_picture")
+        if not str(text or "").strip():
+            att = ((d.get("attachments") or {}).get("data") or [{}])[0] or {}
+            text = att.get("title") or att.get("description") or ""
+    text = re.sub(r"\s+", " ", str(text or "")).strip()[:MAX_POST_TEXT]
+    out = {"id": str(d.get("id") or ""), "url": str(url or ""), "text": text, "image": str(image or "")}
+    return {k: v for k, v in out.items() if v}
 
 
 def comment_mode(account_id: str) -> str:
@@ -893,24 +926,51 @@ class MessengerBot(HangLuot):
         except Exception as e:
             print(f"[messenger comment] {type(e).__name__}: {e}", file=sys.stderr)
 
-    async def _post_text(self, client, post_id, instagram: bool = False) -> str:
-        """The first words of the post a comment sits under, for the inbox title and for the bot.
-        Cached; empty when the token may not read it."""
-        if not post_id:
-            return ""
-        if post_id in self._posts:
-            return self._posts[post_id]
-        txt = ""
-        try:
-            field = "caption" if instagram else "message"
-            r = await client.get(f"{GRAPH}/{post_id}", params={"fields": field, "access_token": self.token})
-            txt = re.sub(r"\s+", " ", str((r.json() or {}).get(field) or "")).strip()
-        except Exception:
-            txt = ""
-        if len(self._posts) > 500:
-            self._posts.clear()
-        self._posts[post_id] = txt
-        return txt
+    async def _post_card(self, client, chat, post_id="", permalink="") -> dict:
+        """The post comment thread `chat` sits under: {id, url, text, image, at}, for the card at the top of the thread
+        and for the bot (2026-11-24). Empty when nothing could be read.
+
+        Facebook: the post (its id from the webhook, else from the comment id `<post>_<comment>`), and when the token
+        may not read it, the comment's own link, which opens the post at that comment. Instagram: the comment's media.
+        Cached per post, so many comments under one post cost one read."""
+        chat = str(chat or "")
+        ig = chat.startswith(IG_COMMENT_PREFIX)
+        root = chat[len(IG_COMMENT_PREFIX if ig else COMMENT_PREFIX):]
+        if not root:
+            return {}
+        if ig:
+            d, _ = await self._graph_read(client, root, {"fields": IG_MEDIA_FIELDS})
+            card = post_card_of(d.get("media") or {}, True)
+        else:
+            pid = str(post_id or "") or post_id_of_comment(root, self.page_id)
+            hit = self._posts.get(pid) if pid else None
+            if hit and time.time() - float(hit.get("at") or 0) < POST_CARD_TTL:
+                return dict(hit)
+            d, _ = await self._graph_read(client, pid, {"fields": POST_FIELDS}) if pid else ({}, "")
+            card = post_card_of(d)
+            card["id"] = card.get("id") or pid
+            if not card.get("url"):
+                card["url"] = str(permalink or "")
+            if not card.get("url"):
+                c, _ = await self._graph_read(client, root, {"fields": "permalink_url"})
+                card["url"] = str(c.get("permalink_url") or "")
+            card = {k: v for k, v in card.items() if v}
+        if not (card.get("url") or card.get("text") or card.get("image")):
+            return {}
+        card["at"] = time.time()
+        if card.get("id") and not ig:
+            if len(self._posts) > MAX_POSTS:
+                self._posts.clear()
+            self._posts[card["id"]] = dict(card)
+        return card
+
+    async def post_card(self, chat, post_id="", permalink="") -> dict:
+        """`_post_card` for a caller outside the webhook (the inbox, for threads recorded before cards existed)."""
+        client = self._client
+        if client is not None:
+            return await self._post_card(client, chat, post_id, permalink)
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0)) as c:
+            return await self._post_card(c, chat, post_id, permalink)
 
     async def _on_comment(self, com):
         if self._stop or self._seen_before("c" + com["comment_id"]):
@@ -936,7 +996,8 @@ class MessengerBot(HangLuot):
         text = "\n".join(x for x in parts if x).strip()
         if not text:
             return
-        post = await (self._post_text(client, com.get("post_id"), True) if ig else self._post_text(client, com.get("post_id")))
+        card = await self._post_card(client, chat, com.get("post_id", ""), com.get("permalink", ""))
+        post = str(card.get("text") or "")
         short = (post[:60] + "...") if len(post) > 60 else post
         title = (localefmt.chu("Bình luận Instagram", "Instagram comment") if ig
                  else localefmt.chu("Bình luận", "Comment")) + (f": {short}" if short else "")
@@ -949,6 +1010,9 @@ class MessengerBot(HangLuot):
             # For the model only, never the inbox (see `ghi_chu_dau` in chatbot_runtime).
             "ghi_chu_dau": comment_note(post, ig),
         }
+        if card:
+            # Kept on the conversation (not the message): the inbox draws it as the card at the top of the thread.
+            meta["conversation_metadata"] = {"post": card}
         if ig:
             meta["instagram"] = True
         if mode == "inbox":

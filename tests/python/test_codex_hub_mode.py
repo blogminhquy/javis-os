@@ -23,7 +23,13 @@ except Exception:
     pass
 
 import aux_engine  # noqa: E402
+import config as cfgmod  # noqa: E402
 import mcp_hub  # noqa: E402
+
+# The overrides only exist when the profile's `javis` entry is the hub (hub on, profile written): without it they
+# would be a half entry Codex refuses to load (see aux_engine._build_codex).
+cfgmod.read_settings = lambda: {"mcp": {"hub": True}}
+HUB_PROFILE = lambda: "javis-test"  # noqa: E731
 
 _fails = []
 
@@ -41,12 +47,12 @@ def _mode_overrides(cfg):
 base = SimpleNamespace(cwd=str(_TMP), tag="dispatch:t1", system_prompt="", javis_vault=str(_TMP),
                        javis_mode="full")
 for mode, want in (("suggest", '"suggest"'), ("auto", '"auto"'), ("full", '"full"')):
-    cc = aux_engine._build_codex({"provider": "codex", "model": ""}, base, mode, "dispatch:t1")
+    cc = aux_engine._build_codex({"provider": "codex", "model": ""}, base, mode, "dispatch:t1", HUB_PROFILE)
     ov = _mode_overrides(cc.extra_config)
     check(f"CANARY: a {mode} job pins X-Javis-Mode={mode}", ov == [f"{mcp_hub.CODEX_MODE_KEY}={want}"], ov)
 
 cc = aux_engine._build_codex({"provider": "codex"}, SimpleNamespace(**{**vars(base), "javis_mode": "auto"}),
-                             None, "reminder")
+                             None, "reminder", HUB_PROFILE)
 check("no explicit mode: the engine's own javis_mode is used",
       _mode_overrides(cc.extra_config) == [f'{mcp_hub.CODEX_MODE_KEY}="auto"'], cc.extra_config)
 

@@ -509,6 +509,7 @@ Javis OS मुफ़्त और open source है, और इसका code 
 
 <div align="center">
 <br>
+<a href="https://nguyenminhquy.com"><img src="../../assets/author.webp" width="96" height="96" alt="Minh Quý"></a><br>
 <b><a href="https://javisos.com">javisos.com</a></b><br>
-<b><a href="https://minhquy.vn">Minh Quý</a></b> ने वियतनाम में ☕ के साथ बनाया
+<b><a href="https://nguyenminhquy.com">Minh Quý</a></b> ने वियतनाम में ☕ के साथ बनाया
 </div>

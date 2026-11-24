@@ -8,6 +8,176 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.635.0] - 2026-11-24
+### Added
+- **A + button in the inbox reply box sends images and files to the customer.** Pick one or more, see them above the box, press Send and they go out on the customer's own channel (Messenger, Telegram, WhatsApp, personal Zalo, Zalo OA, Lark, Slack, WeChat). The typed words go as the caption of the first one. What was sent shows in the chat right away. A Facebook comment takes images; an Instagram comment takes text only, so it has no + button. Up to 25 MB per file.
+### Improved
+- **The reply box hint is shorter**, "Type a reply, Enter to send", so it no longer wraps in a narrow chat.
+- A comment thread's post card is only read again when the chat is opened, not while scrolling back through older messages.
+
+## [0.634.1] - 2026-11-24
+### Fixed
+- **Personal Zalo bots no longer go quiet for 10 minutes after a long answer.** Later parts of the bot's own message were filed as the owner typing, so the bot stepped aside and skipped customers. Customer bots also find an Agent's documents when the path was saved from the drive (computers without sign-in).
+- **Chatbot stats no longer count Javis's own messages as manual replies.** Messages sent with the inbox tool or a Zalo tool count as A.I., and the bot on duty no longer steps aside for them.
+- **Codex can call Javis tools again.** Since Codex 0.163, background jobs on Codex had every hub tool refused; that works now. Background Codex jobs also start when the hub is off.
+- **Notes from claude.ai land in the brain you are using.** Javis Gate no longer opens its notes conversation in the brain of a chat pinned long ago.
+
+## [0.634.0] - 2026-11-24
+### Improved
+- **Antigravity shows its thinking while you wait.** The chat used to sit still for 12 to 18 seconds and then drop the whole answer at once. Now what the model is weighing appears from about second 4 to 7, updates every few seconds, and folds into the steps block.
+- **Chats start and resume about 1 second faster.** Antigravity now runs through `agy`'s ACP mode, and existing chats carry on as before.
+- An older `agy` without ACP keeps the previous way on its own, nothing to do.
+
+## [0.633.3] - 2026-11-24
+### Fixed
+- **Record actual model execution and fallback evidence for background jobs.** Background job records and card payloads now retain the actual provider, model, original provider, and fallback reason across execution, failure, and input-wait paths, and clear stale fallback fields on clean retries.
+
+## [0.633.2] - 2026-11-24
+### Fixed
+- **Team jobs no longer falsely mark as done when an assignment directive is malformed.** When a plan contains a broken or unclosed assignment block, the job stops with a clear error instead of finishing with zero work steps.
+
+## [0.633.1] - 2026-11-24
+### Fixed
+- **Zalo bots no longer send work files by mistake.** At Full access (the owner's own chat with the bot included), files written during the turn such as logs, `.md` files and scripts in `/tmp` went out as images. A bot now sends only the images its reply embeds with `![](...)`.
+- **Zalo OA bots can see the photos customers send.** A photo Zalo serves without an extension is saved as `.jpg`/`.png`; a photo not ready yet is fetched again, and if it stays empty the bot asks the customer to resend instead of saying it cannot see it.
+- **Self-learning no longer overwrites a memory and flags fewer false conflicts.** An existing memory is never replaced by a summary. Shared labels like "GROUP:" or the heading the core writes for learned lessons no longer mark two unrelated memories as conflicting.
+
+## [0.633.0] - 2026-11-24
+### Added
+- **Facebook and Instagram comment threads show their post.** A card under the chat head shows the post's picture, its first lines and a button that opens it, as Pancake does. A post with only a picture or video takes its attachment's title; when the Page may not read the post, the card still links to the comment. Older comment threads get their card the first time they are opened.
+
+## [0.632.2] - 2026-11-24
+### Improved
+- **The GitHub card now describes the Javis OS app's new permissions.** The app asks for read and write on nearly every repository permission (not Administration), so Javis can rerun a CI job. If you installed the app earlier, accept the new permissions in the request GitHub sends you.
+
+## [0.632.1] - 2026-11-24
+### Fixed
+- **The ChatGPT model list comes from the account in use.** With account 1 (a Free plan) switched off and a Plus account on, the Models page used to show only the 3 models of the switched-off account. The picker now shows every model of the account that answers your chats.
+- **Opening the model picker loads a fresh list.** It used to keep an old list once it had one, so reloading the page or signing out changed nothing.
+
+## [0.632.0] - 2026-11-24
+### Improved
+- **Antigravity answers as fast as Claude and ChatGPT from the second turn on.** Each chat keeps an Antigravity process running and resumes its own conversation, so later turns neither restart it nor reread all the rules and history: the first word arrives after about 2 to 3 seconds instead of 10 or more.
+- **Antigravity remembers the whole of a long chat,** files it read and commands it ran included, instead of only the last 45,000 characters of history.
+- On Windows a long question no longer detours through a context file. If Antigravity loses the thread, Javis sends the full context again within the same turn; set `JAVIS_AGY_RESUME=0` to go back to the old way.
+
+## [0.631.6] - 2026-11-24
+### Improved
+- **Antigravity answers a few seconds sooner every turn.** The answer is final as soon as the model is done, without waiting 2 to 3 more seconds for Antigravity to shut down; a model with its depth in its name (such as `-high`) no longer gets Javis's extra "think it through" line, so the first word comes nearly twice as fast.
+- **Antigravity's progress block says what each step does:** "Run command: git status", "Read file: wiki/a.md", the real tool name instead of `call_mcp_tool`, and a finished step stops spinning.
+- **Text streams in on Telegram and dedicated bots** with Antigravity or Grok, instead of appearing all at once at the end of the turn.
+
+## [0.631.5] - 2026-11-24
+### Fixed
+- Claude conversations no longer open new threads unnecessarily when a turn uses many tools, helping keep context and the process warm.
+
+## [0.631.4] - 2026-11-23
+### Improved
+- **Javis restarts about 13 seconds faster.** The Docker image now ships its code precompiled, so an update no longer leaves you waiting before you can use it.
+- **The chat turn right after Javis trims a long conversation no longer starts from cold.** Javis opens the new session ahead of time as soon as it knows the next turn needs one. Switch it off with `JAVIS_WARM_NEW_THREAD=0`.
+- **The dashboard opens lighter.** The code for the Partners page, the Skill editor and the Messenger card loads only when you open those pages, about 10% less code to run at start. The three counters on the home screen also stop downloading the whole agent list.
+- **Javis now records why a chat turn had to wait** (new chat, just trimmed, idle too long, settings changed), so the next fix lands on the real slow spot.
+
+## [0.631.3] - 2026-11-23
+### Improved
+- **Windows installer signing can be tried with SignPath's test certificate.** The test-signed file is kept on the workflow run for checking, and the release keeps the unsigned file until the production certificate arrives.
+
+## [0.631.2] - 2026-11-23
+### Fixed
+- **Javis no longer updates itself.** After fixing its own code and merging, the assistant used to run the Update button's steps by itself, so the machine moved to the new version with nobody pressing anything. Now it only says a new version is out and points you to Settings → Updates to press the button yourself.
+
+## [0.631.1] - 2026-11-23
+### Fixed
+- **The Zalo OA webhook can be saved.** Zalo's Check button now gets 200 even before Javis has the OA secret key (unsigned events are still dropped and reach no bot), which ends the deadlock: Zalo shows the key only after the webhook is saved, and Javis needs the key to create the channel.
+- **The Zalo OA and Messenger forms warn about a .ts.net address.** A Tailscale address only opens inside the tailnet, so Zalo cannot reach it (HTTP 408). The form says to use your own domain or a Cloudflare Tunnel.
+- **Photos customers send on Zalo OA are no longer saved as 0-byte files.** Javis retries like a browser, tries the thumbnail, and when it still cannot download, keeps Zalo's original address in the message instead of saving an empty file.
+- **Links customers share on Zalo OA are no longer lost.** A link card is read even when Zalo does not put the address under `url`, with its title and description.
+- **A Store update really rings the bell.** The default "urgent only" filter used to file this notice under Filtered. Pressing it now opens the Store on the "has an update" group.
+
+## [0.631.0] - 2026-11-23
+### Added
+- **Notifications learn from how you use them.** Every phone notification records whether you tapped or swiped it away. A kind you ignored 5 times in a row, or opened less than 20% of the time, stops buzzing, and Javis Core says so in one line in its chat. Undo it in the bell's filter. An urgent notice is never silenced this way.
+- **A daily limit on buzzes**, 8 by default, set in the filter (5, 8, 12, 20 or no limit). Past it, what is not urgent waits for the digest; urgent still buzzes.
+- **A digest at 11:30 and 17:30.** Notices worth a look but not urgent come as one buzz, for example "5 notices worth a look in the bell: Job results 3, Assistant suggestions 2". It can be turned off in the filter.
+- **The bell's filter shows the last 7 days:** how many buzzes, the share you opened, the kinds opened least.
+### Improved
+- **Two notification lines that say something.** The first is the result with its number, the second is what you should do, or nothing. No more report cut off mid-sentence on the second line.
+- **A chat answer is titled with its chat instead of "Javis"**, and its second line is the conclusion, not the opening. Each chat buzzes at most once in 10 minutes, and "Chat answers" has its own group in the filter to lower or turn off.
+- **Urgent needs a reason:** an error to fix, money, a customer, a question waiting for you, or a deadline. Without one it is lowered to important. A job that claims urgent on more than half its runs loses it.
+
+## [0.630.0] - 2026-11-23
+### Added
+- **Schedule Facebook Page posts into Facebook's own calendar.** Text posts, single photos and multi-photo albums take a scheduled time. The post waits in the Page's Meta Business Suite calendar instead of another tool's queue. A time with no timezone is read in yours, and a time too close (under 10 minutes) is refused with the reason before anything is sent.
+- **New `fb_page_scheduled` tool lists posts waiting to go out.** Scheduled posts in order of their time, to check against a sheet or to find the id of one to cancel or edit.
+
+## [0.629.2] - 2026-11-23
+### Fixed
+- **Teams that need approvals run on ChatGPT (Codex) even when Codex has MCP servers of its own.** One server outside Javis in `~/.codex/config.toml` (such as `node_repl`) used to refuse every Work step and send the owner to Claude Code. Javis now switches those servers off for that run only and leaves your config file as it is, as workflows already did.
+- **Text-only team turns on Codex no longer report "code-mode host is disabled".** Newer Codex still offered the model its run-code tool with only the host off, so the model called it and told the team it could not read the config. Text-only turns now switch code mode off entirely.
+
+## [0.629.1] - 2026-11-23
+### Fixed
+- **Grok Build and Antigravity chats no longer miss MCP servers you added straight to those CLIs.** Servers in `~/.grok/config.toml` or `~/.gemini/config/mcp_config.json` (Composio or Notion added to the CLI directly) could always be called, but Javis' tool search and connection list never named them, so the model said there was no tool. Both now name them and say to call them directly, like Codex and the Claude account connectors.
+
+## [0.629.0] - 2026-11-23
+### Added
+- **Say "rerun the CI" and Javis reruns the PR's red jobs.** Javis follows the result as usual. The GitHub token needs Actions set to Read and write.
+### Improved
+- **A red CI job with no log on GitHub is rerun once on its own.** This is what a private repo out of Actions minutes or over its spending limit looks like. The fix round says why there is no log, so the model no longer guesses at a bug in the code.
+
+## [0.628.10] - 2026-11-23
+### Fixed
+- **Codex chats no longer miss MCP servers you added straight to Codex.** Servers in `~/.codex/config.toml` (Composio or Notion added to Codex directly) could always be called, but Javis' tool search and connection list never named them, so the model said there was no tool. Both now name them and say how to call them directly, like the Claude account connectors.
+
+## [0.628.9] - 2026-11-23
+### Fixed
+- **Pasting an image while a suggestion is showing no longer overlaps the image.** The grey suggestion follows the box when the attachment strip appears and pushes it down.
+
+## [0.628.8] - 2026-11-23
+### Fixed
+- **The phone no longer buzzes while you read on the computer.** Every answer used to reach the phone even while that very chat was open on the computer, so talking and chatting made the phone ring non-stop. Each Javis tab now tells the server which chat you are viewing: while you are viewing it on any device, an answer in that chat pushes to no device. Once you step away (tab hidden, another app, no mouse or keyboard for 2 minutes) notifications work as before. Background results, reminders and urgent notices still arrive as usual.
+
+## [0.628.7] - 2026-11-23
+### Fixed
+- **Tool search no longer misses apps behind Composio.** Composio shows only a few shared tools (search, run, connect an account) while hundreds of Gmail, Notion, Slack, GitHub... tools sit hidden behind them. Asking for "gmail" used to return Resend and "send a slack message" returned Zalo, so the model said the app was not connected. Javis now reads the apps you connected in Composio, puts the Composio gateway first with a two-step guide when you name one, and suggests a connected app when you only describe the job ("read my latest email").
+- **Claude account connectors are found by the job, not only by name.** "Read my latest email" now points to the Gmail connector, "appointments this week" to Google Calendar, and a Composio connector on the Claude account matches when you mention Notion, Slack, GitHub...
+
+## [0.628.6] - 2026-11-23
+### Fixed
+- **The Effort slider thumb is no longer off-center.** It stays in the middle of the track at any height and lines up with the stop dots.
+
+## [0.628.5] - 2026-11-22
+### Improved
+- **The pinned folder and GitHub repos sit in a tray on top of the composer**, as in Claude's app. The tray has its own row, so a phone shows both names even when both are pinned.
+- Under the composer only the model, Effort and the plan usage ring remain.
+
+## [0.628.4] - 2026-11-22
+### Improved
+- **Phone: model, Effort and the plan ring are three buttons again**, as on a computer, in slightly smaller text so the whole model name fits. Each button opens its own sheet.
+### Fixed
+- **The Effort frame sits even.** "Recommended" moved up beside the chosen level, so no empty line is left under the slider.
+- The model list no longer shows a cut-off strip of text above the search box while scrolling.
+
+## [0.628.3] - 2026-11-22
+### Security
+- **Every GitHub connect, account switch and disconnect goes in the security log.** It names the Javis account, the real IP and the device, and alerts the owner. A token renewal by Javis is not logged.
+### Fixed
+- **A failed GitHub check now reads "Could not check" instead of a false "Not connected".** This covers the GitHub card, the chat box, Teams and the brain backup box, with the reason and a Retry button.
+
+## [0.628.2] - 2026-11-22
+### Fixed
+- **Notices with a link no longer run past the card.** A bell card shows the link's words, not the whole address, and a long word wraps inside the card.
+### Improved
+- **The phone chat box has two lines.** The text box takes the top line, with plus, mic and send on the line below. A computer keeps one row. Applies to the main chat, Teams and Conversations.
+
+## [0.628.1] - 2026-11-22
+### Security
+- **A lost password no longer lets a stranger create an account.** On a machine that had an owner, a missing password locks the account form for remote visitors. It opens only on the machine running Javis, or for 24 hours after `python tools/reset_auth.py`. A blocked try shows up as an alert in the security log.
+- **With `JAVIS_ADMIN_PASSWORD` set, the account comes back at once** when the password goes missing, without a restart. Turning sign-in off on purpose still holds until the next start.
+- **Saving settings can no longer erase the owner's password,** except through the sign-in off switch and the reset tool. A save that tries is blocked and raises an alert.
+- **The security log records the visitor's real IP** behind Cloudflare and proxies, not Cloudflare's. The wrong-password lockout also counts per real visitor, so someone guessing passwords no longer locks the owner out too.
+- Tests run on a machine in use no longer touch its real settings, brain folders or password.
+
 ## [0.628.0] - 2026-11-22
 ### Improved
 - **Reading a chat back, you can tell the AI from people at a glance.** Each agent message shows that agent's own icon, its name and an AI tag. A person's message shows a person icon and their real name.

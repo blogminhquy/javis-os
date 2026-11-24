@@ -527,6 +527,14 @@ check("T5 điện thoại: ẩn linh vật trên trang Nhóm; 0.176 bỏ đầu 
 check("T5 khung soạn một hàng: nút +, ô chữ, mic, nút gửi; ô chữ không còn chiếm trọn hàng",
       /class="tm-plus" aria-haspopup="menu"/.test(teamsJs) && /textarea class="tm-input" rows="1"/.test(teamsJs)
       && !/\.tm-input \{ flex-basis: 100%; \}/.test(css) && /\.tm-row \{ display: flex; align-items: flex-end;/.test(css));
+// Owner, 22/11/2026: on a phone the box takes its own line on top, "+" left and mic and send right on the line below
+// (the same two rows as the main chat). A computer keeps the one row above.
+const tmPhone = (css.match(/@media \(max-width: 760px\) \{\n  \.tm-page, [\s\S]*?\n\}/) || [""])[0];
+check("T5 điện thoại: khung soạn hai dòng, ô chữ trọn dòng trên, + bên trái và mic, gửi bên phải dòng dưới",
+      tmPhone.includes(".tm-row { flex-wrap: wrap; align-items: center; }")
+      && tmPhone.includes(".tm-row .tm-input { order: -1; flex-basis: 100%; }")
+      && tmPhone.includes(".tm-row .tm-mic { margin-left: auto; }")
+      && !/^\.tm-row \{[^}]*flex-wrap/m.test(css));
 check("T5 ô chữ tự cao tới khoảng năm dòng", /Math\.min\(input\.scrollHeight \|\| 0, INPUT_MAX_PX\)/.test(teamsJs)
       && /\.tm-input \{[^}]*max-height: 132px/.test(css));
 check("T5 khung soạn chừa vùng an toàn đáy máy", /\.tm-composer \{[^}]*env\(safe-area-inset-bottom/.test(css));

@@ -41,7 +41,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, List, Optional
 
-from fastapi import APIRouter, Form, Query
+from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -85,6 +85,23 @@ def _connected(res):
     return res
 
 
+def _who(request: Request) -> dict:
+    """Who asked, for the security log (owner, 2026-11-22): the real IP, the device and the Javis account. A caller
+    with an API token is named by its token id; anyone else got past the sign-in as the one owner account."""
+    import security_log
+    ip, ua = security_log.request_meta(request)
+    tid = str(getattr(request.state, "api_token_id", "") or "")
+    if tid:
+        user = f"api token {tid}"
+    else:
+        try:
+            import config as cfgmod
+            user = str(((cfgmod.read_settings().get("auth") or {}).get("username")) or "")
+        except Exception:  # noqa: BLE001
+            user = ""
+    return {"ip": ip, "ua": ua, "user": user}
+
+
 def _root(brain: str) -> str:
     return _DEPS.brain_root(brain) if _DEPS else brain
 
@@ -110,10 +127,10 @@ def _make_router() -> APIRouter:
         return {"ok": True, **(await run_in_threadpool(git_setup.start))}
 
     @r.post("/github/connect")
-    async def gh_connect(token: str = Form(""), use_backup: str = Form("")):
+    async def gh_connect(request: Request, token: str = Form(""), use_backup: str = Form("")):
         if str(use_backup).strip() in ("1", "true", "on"):
-            return _connected(await _call(github_repos.connect_backup))
-        return _connected(await _call(github_repos.connect, token))
+            return _connected(await _call(github_repos.connect_backup, _who(request)))
+        return _connected(await _call(github_repos.connect, token, _who(request)))
 
     @r.post("/github/oauth/start")
     async def gh_oauth_start():
@@ -124,13 +141,13 @@ def _make_router() -> APIRouter:
             return _err(str(e))
 
     @r.post("/github/oauth/poll")
-    async def gh_oauth_poll():
+    async def gh_oauth_poll(request: Request):
         """The token never leaves the server: on success it is checked, stored encrypted, and status is returned."""
         import github_oauth
         out = await run_in_threadpool(github_oauth.poll)
         if out.get("status") != "done":
             return {"ok": out.get("status") != "error", **out}
-        res = await _call(github_repos.connect_app, out["token"])
+        res = await _call(github_repos.connect_app, out["token"], _who(request))
         if isinstance(res, dict):
             res["status"] = "connected"
         return _connected(res)
@@ -142,8 +159,8 @@ def _make_router() -> APIRouter:
         return {"ok": True}
 
     @r.post("/github/disconnect")
-    async def gh_disconnect():
-        return await _call(github_repos.disconnect)
+    async def gh_disconnect(request: Request):
+        return await _call(github_repos.disconnect, _who(request))
 
     @r.get("/github/repos")
     async def gh_repos(q: str = Query(""), brain: str = Query("")):

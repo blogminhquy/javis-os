@@ -85,8 +85,11 @@ def items():
 st = NP.status()
 # Owner, 2026-11-14: an assistant's own suggestions (Auto) are their own group and ring from "important"; every other
 # group keeps the 2026-10-29 default.
-check("every group starts on 'urgent only', assistant suggestions on 'important'",
-      all(g["mode"] == ("important" if g["group"] == "suggest" else "urgent") and g["set_by"] == "default"
+# Owner, 2026-11-23: chat answers (group "answer") ring as before, on "all"; the owner lowers them here.
+# Owner, 2026-11-23: Store updates (group "update") ring too, on "all": one notice per new version.
+check("every group starts on 'urgent only', assistant suggestions on 'important', chat answers and updates on 'all'",
+      all(g["mode"] == {"suggest": "important", "answer": "all", "update": "all"}.get(g["group"], "urgent")
+          and g["set_by"] == "default"
           for g in st["groups"]) and st["default"] == "urgent" and len(st["groups"]) == len(NP.GROUPS), st["groups"])
 check("levels: a reminder and a question are urgent, a quiet notice is info, the rest important",
       NP.level_of(group="reminder") == "urgent" and NP.level_of(group="question") == "urgent" and

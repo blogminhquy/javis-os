@@ -457,7 +457,7 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
             if not hang_doi and not da_hoi_live and err and model_rejected(0, err) and not _HOST_ENV:
                 # All known host models were denied. Refresh the supported list once.
                 da_hoi_live = True
-                live = await _live_models(creds)
+                live = await _live_models(account_key)
                 hang_doi = [m for m in host_model_candidates(live) if m not in da_thu]
             if not hang_doi or len(da_thu) >= MAX_HOST_TRIES + 2:
                 break
@@ -512,11 +512,13 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
             "provider": "openai-codex", "prompt": prompt, "refs": len(data_urls), "model": da_thu[-1]}
 
 
-async def _live_models(creds: dict) -> list:
-    """Danh sách model live của tài khoản (Codex app-server / backend). Hỏng thì []."""
+async def _live_models(account_key: str) -> list:
+    """Danh sách model live của tài khoản (Codex app-server / backend). Hỏng thì [].
+
+    `account_key` is the plan account this image is being made on, so the list is that account's own (2026-11-23)."""
     import asyncio
     try:
-        ids = await asyncio.to_thread(openai_oauth.list_models, creds)
+        ids = await asyncio.to_thread(openai_oauth.list_models, account_key)
     except Exception:
         return []
     return _clean_models(ids)

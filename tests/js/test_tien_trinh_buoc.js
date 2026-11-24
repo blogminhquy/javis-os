@@ -219,5 +219,62 @@ check("plan card: no pulse once the turn ended", pbox.innerHTML.indexOf("plan-li
 const nop = S.ve(null, S.nhan(null, goi("Bash", "x")), false).querySelector(".steps-plan");
 check("plan card: hidden without a plan", nop.hidden === true);
 
+// ---- Antigravity tool names (agy 1.5.15 init.tools, 2026-11-24) --------------------------
+const agyStep = (name, detail) => S.nhan(null, { type: "tool_call", tool: name, detail: detail }).ds[0].label;
+const editLabel = agyStep("Edit", "a.md").split(":")[0];
+check("agy replace_file_content reads as an edit", agyStep("replace_file_content", "a.md").split(":")[0] === editLabel,
+  agyStep("replace_file_content", "a.md"));
+check("agy multi_replace_file_content reads as an edit",
+  agyStep("multi_replace_file_content", "a.md").split(":")[0] === editLabel);
+check("agy sed_file reads as an edit", agyStep("sed_file", "a.md").split(":")[0] === editLabel);
+const agentLabel = agyStep("Task", "x").split(":")[0];
+check("agy invoke_subagent reads as an agent", agyStep("invoke_subagent", "x").split(":")[0] === agentLabel);
+const runLabel = agyStep("Bash", "ls").split(":")[0];
+check("agy run_command with its command line", agyStep("run_command", "git status") === runLabel + ": git status",
+  agyStep("run_command", "git status"));
+
+// ---- The model's thinking (Antigravity over agy acp, server/agy_acp.py, 2026-11-24) ----------
+// agy sends a summary of its thinking every few seconds before the first word of the answer. Each one is a step
+// read in full when the block is opened; it is not a tool call, so it never counts in "Ran N steps".
+const THOUGHT = "**Weighing weekly tracking**\n\nWeekly revenue tracking gives a small shop a faster signal than a " +
+  "monthly review. It lets the owner react within days instead of weeks, which matters with thin cash reserves.";
+const nghi1 = S.nhan(null, { type: "thinking", content: THOUGHT });
+check("thinking: one step", nghi1.ds.length === 1 && nghi1.ds[0].thought === true);
+check("thinking: not counted as a tool step", nghi1.so === 0);
+check("thinking: done at once (a tool result never marks it)", nghi1.ds[0].xong === true);
+check("thinking: whole text on one line, no markdown stars",
+  nghi1.ds[0].label.indexOf("\n") === -1 && nghi1.ds[0].label.indexOf("**") === -1 &&
+  nghi1.ds[0].label.indexOf("thin cash reserves.") !== -1, nghi1.ds[0].label);
+check("thinking: empty summary adds nothing", S.nhan(nghi1, { type: "thinking", content: "  \n " }).ds.length === 1);
+check("thinking: the block shows for a thinking-only turn", S.tomTat(nghi1).hien === true);
+check("thinking: a thinking-only turn reads as thought, not as zero steps",
+  S.tomTat(nghi1).nhan === "Đã suy nghĩ", S.tomTat(nghi1).nhan);
+const chip = S.nhanDong({ type: "thinking", content: THOUGHT });
+check("thinking: a bold title is the chip's line", chip === "Suy nghĩ: Weighing weekly tracking", chip);
+const prose = S.nhanDong({ type: "thinking", content: "Weekly revenue tracking gives a faster signal. It also helps." });
+check("thinking: else the first sentence", prose === "Suy nghĩ: Weekly revenue tracking gives a faster signal.", prose);
+const long = S.nhanDong({ type: "thinking", content: "word ".repeat(80) });
+check("thinking: the chip stays short", long.length <= "Suy nghĩ: ".length + 120 && /…$/.test(long), long.length);
+// Thinking, then a tool, then its result: the result marks the tool, never the thought.
+let mix = S.nhan(nghi1, goi("run_command", "git status"));
+mix = S.nhan(mix, { type: "tool_result", content: "ok" });
+check("thinking + tool: one tool step counted", mix.so === 1 && mix.ds.length === 2);
+check("thinking + tool: the result marks the tool", mix.ds[1].xong === true && mix.ds[0].thought === true);
+check("thinking + tool: summary counts tools only", S.tomTat(mix).nhan === "Đã chạy 1 bước", S.tomTat(mix).nhan);
+// Drawing: running with only thinking says so; the thought wraps in the opened list.
+const nel = S.ve(null, nghi1, true);
+check("thinking: running line says thinking", nel.querySelector(".steps-sum-text").textContent === "Đang suy nghĩ",
+  nel.querySelector(".steps-sum-text").textContent);
+const nowTxt = nel.querySelector(".steps-sum-now").textContent;
+check("thinking: folded line shows the gist without the prefix", nowTxt === "Weighing weekly tracking", nowTxt);
+check("thinking: step drawn with its own class", nel.querySelector(".steps-list").innerHTML.indexOf("step-think") !== -1);
+const mel = S.ve(null, S.nhan(mix, { type: "thinking", content: "Now reading the file." }), true);
+check("thinking after a tool: line counts the tool and names the thought",
+  mel.querySelector(".steps-sum-text").textContent.indexOf("1") !== -1 &&
+  mel.querySelector(".steps-sum-now").textContent === "Suy nghĩ: Now reading the file.",
+  mel.querySelector(".steps-sum-now").textContent);
+check("thinking: escaped in the list", S.ve(null, S.nhan(null, { type: "thinking", content: "<img src=x>" }), false)
+  .querySelector(".steps-list").innerHTML.indexOf("<img") === -1);
+
 console.log(fails.length ? "\n" + fails.length + " FAIL" : "\nTất cả xanh");
 process.exit(fails.length ? 1 : 0);

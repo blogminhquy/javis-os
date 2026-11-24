@@ -509,6 +509,7 @@ Não pode doar? Usar o Javis, mandar feedback ou abrir um pull request também c
 
 <div align="center">
 <br>
+<a href="https://nguyenminhquy.com"><img src="../../assets/author.webp" width="96" height="96" alt="Minh Quý"></a><br>
 <b><a href="https://javisos.com">javisos.com</a></b><br>
-Feito com ☕ no Vietnã por <b><a href="https://minhquy.vn">Minh Quý</a></b>
+Feito com ☕ no Vietnã por <b><a href="https://nguyenminhquy.com">Minh Quý</a></b>
 </div>

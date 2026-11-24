@@ -150,3 +150,13 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private"):
                                     "this Lark account has no App ID / App Secret yet")
     bot = Transport(token, "", None, giau_trang_thai=True)
     return await bot.send_text(chat_id, text)
+
+
+async def send_file(tk: dict, chat_id: str, path: str, caption: str = "", chat_type: str = "private"):
+    """Send one image or file the owner picked in the inbox (2026-11-24). `(ok, error)`, as `gui`."""
+    token = str(tk.get("token") or "").strip()
+    if not token:
+        return False, localefmt.chu("tài khoản Lark này chưa có App ID / App Secret",
+                                    "this Lark account has no App ID / App Secret yet")
+    bot = Transport(token, "", None, giau_trang_thai=True)
+    return await bot.send_file(path, caption, chat=chat_id)
