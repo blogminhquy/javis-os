@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.641.1] - 2026-11-24
+### Improved
+- **Several members at work now take one row.** Their pictures sit side by side with "3 members are working"; tap the up arrow to see each one.
+### Fixed
+- **No more empty band under the input on phones.** The Teams page and the other pages now fit the real screen height, like the main chat.
+
 ## [0.641.0] - 2026-11-24
 ### Added
 - **Pin messages to the top of a chat, like Zalo.** A pin bar above the chat shows the newest pin. "+N pinned" opens the whole list, and "..." offers "Move to top" and "Unpin". Tapping a pin goes to that message, even an old one not loaded yet.

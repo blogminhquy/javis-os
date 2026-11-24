@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.641.1] - 2026-11-24
+### Cải thiện
+- **Nhiều cộng sự cùng làm chỉ còn một hàng.** Ảnh xếp sát nhau kèm câu "3 cộng sự đang làm việc"; bấm mũi tên lên để xem từng người.
+### Sửa lỗi
+- **Hết dải trống dưới ô nhập trên điện thoại.** Trang Nhóm và các trang quản lý giờ bám đúng chiều cao màn hình như khung chat chính.
+
 ## [0.641.0] - 2026-11-24
 ### Thêm mới
 - **Ghim tin nhắn lên đầu cuộc chat, như Zalo.** Thanh ghim nằm trên khung chat, hiện tin ghim mới nhất. Bấm "+N ghim" mở cả danh sách, nút "..." có "Đưa lên đầu" và "Bỏ ghim". Bấm một tin ghim là nhảy tới đúng tin đó, kể cả tin cũ chưa tải.
