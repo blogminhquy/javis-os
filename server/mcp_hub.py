@@ -498,6 +498,26 @@ def _shaped_call(call, ent, fn, scope):
     return _call
 
 
+def _drive_guard_wrap(call, conn, tool, fn):
+    """Guard ghi Google Drive/Docs/Sheets (drive_guard_hub). Off mặc định: trả nguyên call. Lỗi import -> nguyên call."""
+    try:
+        import drive_guard_hub
+        return drive_guard_hub.wrap(call, conn, tool, fn)
+    except Exception as e:  # noqa: BLE001 - guard lỗi KHÔNG được làm hỏng hub; chỉ bật khi có cờ enforce
+        print(f"[drive guard] không gắn được: {type(e).__name__}: {e}", file=sys.stderr)
+        return call
+
+
+def _register_drive_invoker(raw, fn):
+    """Đăng ký invoker KHÔNG bọc guard cho drive_guard_hub (đọc metadata Drive). Không đăng ký được -> guard DENY ghi."""
+    try:
+        import drive_guard_hub
+        drive_guard_hub.register_invoker(
+            lambda args: mcp_client.call_route({fn: {"spec": raw["spec"], "tool": raw["tool"]}}, fn, args))
+    except Exception as e:  # noqa: BLE001
+        print(f"[drive guard] không đăng ký được invoker: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def _guard(ent, fn, mode):
     """Bọc 1 route entry MCP thành async call có kiểm quyền + audit."""
     conn = ent["conn"]
@@ -2286,6 +2306,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         if owner_browser and browser_login.is_browser_spec(raw.get("spec")):
             continue
         conn = raw["conn"]
+        if conn.get("connector_id") == "composio" and raw["tool"] == "COMPOSIO_MULTI_EXECUTE_TOOL":
+            _register_drive_invoker(raw, t["fn"])
         connector = mcp_catalog.get(conn.get("connector_id"))
         # A gated Team step (0.207.0) lists like full: an outside action must be callable so the gate can stop it and
         # turn it into an approval request, and run it once approved. The call itself is still capped (`_guard`).
@@ -2308,7 +2330,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             continue
         tools_spec.append(t)
         route[t["fn"]] = {
-            "call": _guard(raw, t["fn"], mode), "conn": conn, "tool": raw["tool"],
+            "call": _drive_guard_wrap(_guard(raw, t["fn"], mode), conn, raw["tool"], t["fn"]),
+            "conn": conn, "tool": raw["tool"],
             # Metadata dùng bởi Registry/Resolver shadow; không tham gia dispatch.
             "source_type": "mcp", "source_id": conn.get("id") or conn.get("namespace"),
             "effect": cls,
