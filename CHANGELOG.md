@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.635.1] - 2026-11-24
+### Sửa lỗi
+- **Lượt chạy nền trả kết quả trống không còn được báo hoàn thành.** Nếu kết quả trả về rỗng (ngoài trường hợp đánh dấu im lặng có chủ đích), việc sẽ được gửi lại để tự sửa tối đa một vòng rồi tạm dừng chờ bạn kiểm tra thay vì báo xong.
+- **Cảnh báo rõ khi kết quả chưa được kiểm chứng tự động.** Khi bộ kiểm tra gặp lỗi hoặc trả về dữ liệu không hợp lệ, thông báo kết quả và thẻ việc sẽ gắn biểu tượng cảnh báo cùng giải thích rõ để bạn tự rà lại.
+- **Vẫn kiểm tra tiêu chí cố định khi bỏ qua bước chuẩn bị.** Các việc có sẵn điều kiện hoàn thành cố định luôn được đối chiếu đủ thay vì bị bỏ qua.
+
 ## [0.635.0] - 2026-11-24
 ### Thêm mới
 - **Nút + trong ô trả lời của hộp thư: gửi ảnh và file cho khách.** Chọn một hay nhiều ảnh, file, xem trước ngay trên ô nhập, bấm Gửi là đi qua đúng kênh của khách (Messenger, Telegram, WhatsApp, Zalo cá nhân, Zalo OA, Lark, Slack, WeChat). Chữ đang gõ đi kèm làm chú thích của file đầu. Ảnh và file đã gửi hiện ngay trong khung chat. Bình luận Facebook nhận ảnh, bình luận Instagram chỉ nhận chữ nên không có nút +. Tối đa 25 MB mỗi file.
