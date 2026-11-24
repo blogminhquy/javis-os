@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.638.0] - 2026-11-24
+### Thêm mới
+- **Nhờ Javis gửi ảnh, file cho khách ngay từ chat.** Nói "gửi chị Lan bảng giá" là Javis lấy ảnh hay file có sẵn trong brain (ví dụ trong `attachments/`) và gửi vào đúng cuộc chat của khách, qua đúng kênh, kèm lời nhắn nếu có. Ảnh đã gửi hiện trong hộp thư như khi bạn bấm nút +.
+- Chỉ gửi được file nằm trong brain đang dùng, không gửi thư mục ẩn. Messenger vẫn giữ luật 24 giờ như tin chữ: quá hạn thì Javis báo rõ lý do, không gửi gì.
+
 ## [0.637.1] - 2026-11-24
 ### Sửa lỗi
 - **Thẻ việc nền trong khung chat hiện cảnh báo khi kết quả chưa được kiểm.** Trước đây trang Nhiệm vụ đã hiện nhãn vàng nhưng thẻ trong chat vẫn hiện "xong" màu xanh.
