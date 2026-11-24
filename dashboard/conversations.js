@@ -358,6 +358,7 @@
                         (_tkMoiBrain ? "&tat_ca=1" : ""));
       _tk = d.accounts || [];
       if (d.channels) _kenhDS = d.channels;
+      if (window.Icons && Icons.learnChannels) Icons.learnChannels(_kenhDS);
       var vet = JSON.stringify(_tk);
       if (im && vet === _dauVetTK) return false;
       _dauVetTK = vet;
@@ -767,6 +768,7 @@
       if (d.quick_counts) _quick = d.quick_counts;
       if (d.tags) _tags = d.tags;
       if (d.channels) _kenhDS = d.channels;
+      if (window.Icons && Icons.learnChannels) Icons.learnChannels(_kenhDS);
       var vet = JSON.stringify([_items, _stats, _facets, _botList, _conDS, _tags, _whoCounts, _quick]);
       if (im && vet === _dauVet) return;
       _dauVet = vet;
@@ -3072,6 +3074,217 @@
   //
   // `opts.onXong(account)`: gọi khi tài khoản đã tạo xong, để nơi gọi tự làm tiếp (form bot
   // tích sẵn tài khoản vừa nối). Không truyền thì chỉ nạp lại tab Tài khoản bot như cũ.
+  // Declared account form (`TOKEN_FORM` of a channel module, served as `k.token_form`): fields drawn from data, so a
+  // channel with a structured credential (a connection to pick, an account picked from a list, a secret)
+  // needs no code here. The sent fields are joined into ONE JSON object posted as the token. Option lists come only
+  // from /ext/ routes (the server refuses any other URL); a select that depends on other fields POSTs them as a form
+  // body, so a typed key never lands in a URL. `account` set = edit: an untouched form sends no token (no change).
+  // `covered` ({network: channel label}): networks a core channel already answers. A select option on one of them
+  // (`options.network`) is never picked by itself, and picking it shows a warning the owner must tick before saving.
+  function drawTokenForm(host, form, account, onChange, covered) {
+    var dirty = false, gen = {}, self = {};
+    covered = covered || {};
+    host._tokenForm = self;
+    var md = (account && account.meta) || {};
+    function initialOf(f) {
+      if (!account || !f.initial) return "";
+      if (f.initial === "external_id") return account.external_id || "";
+      var v = md[f.initial.slice(5)];
+      return v == null ? "" : String(v);
+    }
+    host.innerHTML = form.fields.map(function (f) {
+      var id = "htF_" + f.key;
+      var o = '<div class="ht-ftk" data-k="' + esc(f.key) + '"><label for="' + id + '">' + esc(f.label) +
+        (f.hint ? ' ' + infoBtn() : "") + '</label>' + (f.hint ? infoBody(esc(f.hint)) : "");
+      if (f.type === "select") {
+        o += '<div class="cb-row"><select id="' + id + '"></select>' + (f.options.from.length
+          ? '<button type="button" class="s-btn-ghost" data-load="' + esc(f.key) + '">' +
+            esc(f.options.button || window.t("ht.form_load")) + '</button>' : "") + '</div>' +
+          '<div class="cb-hint" data-st="' + esc(f.key) + '" role="status"></div>' +
+          (f.options.network ? '<div class="ht-dup" data-dup="' + esc(f.key) + '" role="alert" hidden></div>' : "");
+      } else {
+        var input = '<input id="' + id + '" type="' + (f.type === "password" ? "password" : "text") +
+          '" autocomplete="off" value="' + esc(initialOf(f)) + '">';
+        // `generate`: the value is a secret WE make (e.g. a webhook secret pasted into the provider's settings).
+        o += f.generate ? '<div class="cb-row">' + input +
+          '<button type="button" class="s-btn-ghost" data-gen="' + esc(f.key) + '">' + esc(window.t("ht.form_generate")) + '</button>' +
+          '<button type="button" class="s-btn-ghost" data-copy="' + esc(f.key) + '">' + esc(window.t("ht.form_copy")) + '</button>' +
+          '</div><div class="cb-hint" data-st="' + esc(f.key) + '" role="status"></div>' : input;
+      }
+      return o + '</div>';
+    }).join("");
+    function node(k) { return host.querySelector("#htF_" + k); }
+    function val(k) { var n = node(k); return n ? String(n.value || "").trim() : ""; }
+    function fieldOf(k) { return form.fields.filter(function (f) { return f.key === k; })[0]; }
+    function status(k, m) { var n = host.querySelector('[data-st="' + k + '"]'); if (n) n.textContent = m || ""; }
+    function applyHidden() {
+      form.fields.forEach(function (f) {
+        if (!f.hidden_when) return;
+        var w = host.querySelector('.ht-ftk[data-k="' + f.key + '"]');
+        var hide = !!val(f.hidden_when);
+        if (w) w.hidden = hide;
+        if (hide && node(f.key)) node(f.key).value = "";
+      });
+    }
+    function emptyOption(f) { return '<option value="">' + esc(f.options.empty || window.t("ht.form_choose")) + '</option>'; }
+    function fillLabel(tpl, item) {
+      return String(tpl).replace(/\{([a-z0-9_]+)\}/g, function (_, k) { return item[k] == null ? "" : String(item[k]); });
+    }
+    function itemOf(f) {
+      var sel = node(f.key), opt = sel && sel.options[sel.selectedIndex];
+      return opt && opt.dataset.i != null && sel._items ? sel._items[Number(opt.dataset.i)] : null;
+    }
+    function networkOf(f, item) {
+      return f.options.network && item && item[f.options.network] != null ? String(item[f.options.network]).toLowerCase() : "";
+    }
+    // The duplicate warning under a select whose picked item is on a covered network. The saved pick of an edit is
+    // not asked again (the server lets an unchanged network through).
+    function showDuplicate(f) {
+      var box = host.querySelector('[data-dup="' + f.key + '"]');
+      if (!box) return;
+      var net = networkOf(f, itemOf(f));
+      var keep = account && node(f.key)._restored && val(f.key) === node(f.key)._restored;
+      if (!net || !covered[net] || keep) { box.hidden = true; box.innerHTML = ""; box._net = ""; return; }
+      if (box._net === net) return;
+      box._net = net;
+      var name = net.charAt(0).toUpperCase() + net.slice(1);
+      box.innerHTML = '<div class="ht-dup-title">' + esc(window.t("ht.dup_title", { network: name, channel: covered[net] })) +
+        '</div><div>' + esc(window.t("ht.dup_body")) + '</div>' +
+        '<label class="ht-dup-ack"><input type="checkbox" data-ack="' + esc(f.key) + '"> ' +
+        esc(window.t("ht.dup_ack", { network: name })) + '</label>';
+      box.hidden = false;
+    }
+    async function loadOptions(f, automatic) {
+      var my = gen[f.key] = (gen[f.key] || 0) + 1;
+      var sel = node(f.key), op = f.options;
+      var body = {}, any = false;
+      op.from.forEach(function (k) { var v = val(k); if (v) { body[k] = v; any = true; } });
+      if (op.from.length && !any) { sel.innerHTML = emptyOption(f); status(f.key, ""); return; }
+      status(f.key, window.t("ht.form_loading"));
+      try {
+        var r = op.from.length ? await api(op.url, { method: "POST", body: fd(body) }) : await api(op.url);
+        if (my !== gen[f.key] || host._tokenForm !== self) return;
+        var list = Array.isArray(r[op.list]) ? r[op.list] : [];
+        sel._items = list;
+        sel.innerHTML = emptyOption(f) + list.map(function (it, i) {
+          var net = networkOf(f, it);
+          return '<option value="' + esc(it[op.value]) + '" data-i="' + i + '">' + esc(fillLabel(op.label, it)) +
+            (net && covered[net] ? " · " + esc(window.t("ht.dup_option", { channel: covered[net] })) : "") + '</option>';
+        }).join("");
+        status(f.key, list.length ? "" : window.t("ht.form_empty"));
+        // Edit form: the saved value (`initial`), once, if the list still has it.
+        var saved = initialOf(f);
+        if (saved && !sel._restored && list.some(function (it) { return String(it[op.value]) === saved; })) {
+          sel._restored = saved;
+          sel.value = saved;
+          sel.selectedIndex = Array.prototype.map.call(sel.options, function (x) { return x.value; }).indexOf(saved);
+          applyHidden();
+          changed(f.key);
+        } else if (op.auto_single && list.length === 1 && !account && !dirty && !covered[networkOf(f, list[0])]) {
+          sel.value = String(list[0][op.value]);
+          pick(f);
+        }
+        showDuplicate(f);
+      } catch (e) { if (my === gen[f.key] && host._tokenForm === self) status(f.key, e.message); }
+      if (!automatic) dirty = true;
+    }
+    function pick(f) {
+      var it = itemOf(f);
+      if (it) Object.keys(f.options.fill).forEach(function (k) {
+        var n = node(k); if (n && it[f.options.fill[k]] != null) n.value = String(it[f.options.fill[k]]);
+      });
+      showDuplicate(f);
+      applyHidden();
+      changed(f.key);
+    }
+    // A field changed: reload the selects that depend on a SELECT (typed fields reload with their button).
+    function changed(k) {
+      var f0 = fieldOf(k);
+      form.fields.forEach(function (f) {
+        if (f.type !== "select" || f.options.from.indexOf(k) < 0) return;
+        if (f0 && f0.type === "select") loadOptions(f, true);
+        else { gen[f.key] = (gen[f.key] || 0) + 1; node(f.key).innerHTML = emptyOption(f); showDuplicate(f); }
+      });
+      if (onChange) { try { onChange(k); } catch (e) {} }
+    }
+    form.fields.forEach(function (f) {
+      var n = node(f.key);
+      if (f.type === "select") {
+        n.innerHTML = emptyOption(f);
+        n.onchange = function () { dirty = true; pick(f); };
+        var b = host.querySelector('[data-load="' + f.key + '"]');
+        if (b) b.onclick = function () { loadOptions(f, false); };
+        if (!f.options.from.length) loadOptions(f, true);
+      } else {
+        n.oninput = function () { dirty = true; applyHidden(); changed(f.key); };
+        var bg = f.generate && host.querySelector('[data-gen="' + f.key + '"]');
+        if (bg) bg.onclick = function () {
+          var b = new Uint8Array(32);
+          (window.crypto || globalThis.crypto).getRandomValues(b);
+          n.value = Array.prototype.map.call(b, function (x) { return ("0" + x.toString(16)).slice(-2); }).join("");
+          n.type = "text";          // shown, so the owner can copy it into the provider's settings
+          status(f.key, window.t("ht.form_generated"));
+          n.oninput();
+        };
+        var bc = f.generate && host.querySelector('[data-copy="' + f.key + '"]');
+        if (bc) bc.onclick = async function () {
+          if (!n.value) { status(f.key, window.t("ht.form_nothing_to_copy")); return; }
+          try { await navigator.clipboard.writeText(n.value); status(f.key, window.t("ht.form_copied")); }
+          catch (e) { n.type = "text"; if (n.select) n.select(); status(f.key, window.t("ht.form_copy_by_hand")); }
+        };
+      }
+    });
+    applyHidden();
+    self.value = val;
+    // The network the owner acknowledged on the duplicate warning ("" = none shown). Throws while it is unticked.
+    self.ackedNetwork = function () {
+      var out = "";
+      form.fields.forEach(function (f) {
+        var box = host.querySelector('[data-dup="' + f.key + '"]');
+        if (!box || box.hidden || !box._net) return;
+        var tick = box.querySelector('[data-ack="' + f.key + '"]');
+        if (!tick || !tick.checked) throw new Error(window.t("ht.dup_need_ack"));
+        out = box._net;
+      });
+      return out;
+    };
+    // The token to post: "" for an untouched edit, otherwise the JSON of the sent fields. Throws on a missing field.
+    self.token = function () {
+      if (account && !dirty) return "";
+      var out = {}, missing = [];
+      form.fields.forEach(function (f) {
+        var v = val(f.key);
+        var needed = f.required || (f.required_unless && !val(f.required_unless));
+        var w = host.querySelector('.ht-ftk[data-k="' + f.key + '"]');
+        if (needed && !v && !(w && w.hidden)) missing.push(f.label);
+        if (f.send && v) out[f.key] = v;
+      });
+      if (missing.length) throw new Error(window.t("ht.form_missing", { fields: missing.join(", ") }));
+      self.ackedNetwork();
+      return JSON.stringify(out);
+    };
+    return self;
+  }
+
+  // {network: label of the core channel answering it}, for the duplicate warning of a declared form.
+  function coveredNetworks() {
+    var out = {};
+    _kenhDS.forEach(function (k) {
+      if (k.pack) return;
+      (k.networks || []).forEach(function (n) { if (!out[n]) out[n] = k.nhan || k.id; });
+    });
+    return out;
+  }
+
+  // Query string of the webhook-info call for a declared form (`webhook_params`: query param -> field key).
+  function webhookQuery(k, f) {
+    var wp = (k.token_form && k.token_form.webhook_params) || {};
+    return Object.keys(wp).map(function (q) {
+      var v = f ? f.value(wp[q]) : "";
+      return v ? "&" + encodeURIComponent(q) + "=" + encodeURIComponent(v) : "";
+    }).join("");
+  }
+
   async function moThemTK(opts) {
     opts = opts || {};
     // Gọi từ tab Chatbot thì sổ kênh có thể chưa nạp: không có nó thì modal hiện ra trống trơn.
@@ -3079,7 +3292,7 @@
     var kenhBot = _kenhDS.filter(function (k) { return k.kind === "bot"; });
     var kenhKhac = _kenhDS.filter(function (k) { return k.kind !== "bot"; });
     var chon = kenhBot.length ? kenhBot[0].id : "";
-    var uname = "", meta = {};
+    var uname = "", meta = {}, tokenForm = null;
     var box = el('<div class="ht-modal"><div class="ht-form">' +
       '<h3>' + esc(window.t("ht.them_tk")) + '</h3>' +
       '<label>' + esc(window.t("ht.lb_loai_kenh")) + '</label>' +
@@ -3098,6 +3311,7 @@
       '<div class="cb-hint ht-card-hint" id="htCardHint" hidden></div>' +
       '<div id="htTokenPart">' +
       '<label id="htTokenLabel"></label>' +
+      '<div id="htFormTK" hidden></div>' +
       '<div class="cb-row" id="htTokenRow"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
         '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
       '<div class="cb-hint" id="htTokenNote"></div>' +
@@ -3135,7 +3349,15 @@
       if (g) lab.insertAdjacentHTML("beforeend", ' · <a class="ht-guide" href="' + esc(g) + '" target="_blank" rel="noopener">'
         + esc(window.t("ht.huong_dan")) + " ↗</a>");
       // Internal API (0.459.0): Javis generates the key on Save, so there is no token to paste or check.
-      box.querySelector("#htTokenRow").hidden = !!k.khoa_tu_sinh;
+      box.querySelector("#htTokenRow").hidden = !!k.khoa_tu_sinh || !!(k.token_form && k.token_form.fields);
+      // A declared form replaces the token box; the hint under it stays.
+      var fhost = box.querySelector("#htFormTK");
+      fhost.hidden = !(k.token_form && k.token_form.fields);
+      tokenForm = fhost.hidden ? null : drawTokenForm(fhost, k.token_form, null, function (key) {
+        var wp = k.token_form.webhook_params || {};
+        if (Object.keys(wp).some(function (q) { return wp[q] === key; })) hienWebhook(k);
+      }, coveredNetworks());
+      if (!tokenForm) fhost.innerHTML = "";
       if (k.khoa_tu_sinh) lab.textContent = window.t("ht.khoa_lb");
       box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + (k.khoa_tu_sinh ? "" : " " + window.t("cb.token_rieng"));
       // A channel with its own card on the Connections page (Messenger, 0.436.2): connecting there is quicker and a Page
@@ -3170,10 +3392,14 @@
       o.innerHTML = "";
       if (!k.webhook) return;
       try {
-        var r = await api("/channels/webhook-info?channel=" + encodeURIComponent(k.id));
+        var r = await api("/channels/webhook-info?channel=" + encodeURIComponent(k.id) + "&config_only=1" + webhookQuery(k, tokenForm));
         if (chon !== k.id) return;
         o.innerHTML = '<b>' + esc(window.t("ht.wh_url")) + '</b> <code>' + esc(r.webhook_url || "") + '</code>' +
           (r.verify_token ? '<br><b>' + esc(window.t("ht.wh_token")) + '</b> <code>' + esc(r.verify_token) + '</code>' : "") +
+          // Extra lines a channel's webhook_info hook adds (signature header, events to subscribe...).
+          (Array.isArray(r.extra) ? r.extra.map(function (x) {
+            return '<br><b>' + esc(x && x.label) + '</b> <code>' + esc(x && x.value) + '</code>';
+          }).join("") : "") +
           (r.https ? "" : '<br><span class="cb-warn">' + esc(window.t(r.site_verify ? "ht.zo_can_https" : "ht.wh_can_https")) + '</span>') +
           // A warning the server words itself, for a channel whose rule is not "HTTPS only" (WeChat: port 443 or 80).
           (r.warning ? '<br><span class="cb-warn">' + esc(r.warning) + '</span>' : "") +
@@ -3259,7 +3485,11 @@
       } catch (e) { note.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>'; }
     };
     box.querySelector(".ht-save").onclick = async function () {
-      var t = box.querySelector("#htToken").value.trim();
+      var t, ack = "";
+      try {
+        t = tokenForm ? tokenForm.token() : box.querySelector("#htToken").value.trim();
+        if (tokenForm) ack = tokenForm.ackedNetwork();
+      } catch (e) { return alert(e.message); }
       var k = kenhCua(chon);
       if (!chon) return alert(window.t("ht.khong_kenh_token"));
       if (!t && !k.khoa_tu_sinh) return alert(window.t("cb.dan_token_kenh", { kenh: k.nhan }) + "\n\n" + (k.lay_token || ""));
@@ -3269,7 +3499,7 @@
           channel: chon, token: t, label: box.querySelector("#htLabel").value.trim(), bot_username: uname,
           // Thêm từ brain nào thì thuộc brain đó: tab này lọc theo brain, tài khoản vừa thêm
           // mà không gắn chủ thì nó lơ lửng ở mọi brain.
-          brain: brain() }) });
+          brain: brain(), dup_ack: ack }) });
         moi = r.account || (r.id ? { id: r.id, channel: chon } : null);
         khoa = r.secret || "";
       } catch (e) { return alert(window.t("ht.loi_doi") + " " + e.message); }
@@ -3341,22 +3571,28 @@
     };
   }
 
+  // Numeric account settings (`account_settings_spec`), shown on the edit form of any channel that declares them.
+  function accountSettingsHtml(k, md) {
+    return (k.cai_dat_tk || []).map(function (f) {
+      var v = md[f.key] != null ? md[f.key] : f.default;
+      return '<label>' + esc(f.nhan) + '</label><input class="ht-cai-dat" type="number" inputmode="numeric" data-k="' +
+        esc(f.key) + '" min="' + esc(f.min) + '" max="' + esc(f.max) + '" value="' + esc(v) + '">';
+    }).join("");
+  }
+
   function moSuaTK(a) {
     var k = kenhCua(a.channel);
     var uname = "";
     var tuSinh = !!k.khoa_tu_sinh;
     var md = a.meta || {};
+    var hasForm = !!(k.token_form && k.token_form.fields);
     // Generated-key channel: no token field, the key's first characters, a Rotate button and the account's limits.
-    var phanKhoa = tuSinh
+    // A channel with a declared form draws it here instead of the token box (filled from the saved account).
+    var phanKhoa = hasForm ? '<div id="htFormTK"></div>' + accountSettingsHtml(k, md) : tuSinh
       ? '<label>' + esc(window.t("ht.khoa_lb")) + '</label>' +
         '<div class="cb-row"><code id="htKhoaDau">' + esc((md.key_prefix || "") + "…") + '</code>' +
           '<button class="s-btn-ghost" id="htXoayKhoa" type="button">' + esc(window.t("ht.khoa_xoay")) + '</button></div>' +
-        '<div class="cb-hint">' + esc(window.t("ht.khoa_tran")) + '</div>' +
-        (k.cai_dat_tk || []).map(function (f) {
-          var v = md[f.key] != null ? md[f.key] : f.default;
-          return '<label>' + esc(f.nhan) + '</label><input class="ht-cai-dat" type="number" inputmode="numeric" data-k="' +
-            esc(f.key) + '" min="' + esc(f.min) + '" max="' + esc(f.max) + '" value="' + esc(v) + '">';
-        }).join("")
+        '<div class="cb-hint">' + esc(window.t("ht.khoa_tran")) + '</div>' + accountSettingsHtml(k, md)
       : '<label>Token ' + esc(k.nhan) + ' ' + esc(window.t("cb.token_de_trong")) + '</label>' +
         '<div class="cb-row"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
           '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
@@ -3365,7 +3601,7 @@
         (a.channel === "zalo_oa" ? '<div class="cb-hint ht-zo-oauth"><div>' +
           '<button class="s-btn-ghost" id="htZoOauth" type="button">' + esc(window.t("ht.zo_oauth_lai")) + '</button> ' +
           infoBtn() + '</div>' + infoBody(esc(window.t("ht.zo_oauth_lai_hd"))) +
-          '<div id="htZoOauthNote"></div></div>' : "");
+          '<div id="htZoOauthNote"></div></div>' : "") + accountSettingsHtml(k, md);
     var box = el('<div class="ht-modal"><div class="ht-form">' +
       '<h3>' + esc(window.t("ht.sua_tk")) + ' - ' + esc(a.label) + '</h3>' +
       '<label>' + esc(window.t("ht.lb_nhan_tk")) + '</label>' +
@@ -3386,6 +3622,7 @@
         '<button class="s-btn ht-save" type="button">' + esc(window.t("common.save")) + '</button>' +
       '</div></div></div>');
     document.body.appendChild(box);
+    var tokenForm = hasForm ? drawTokenForm(box.querySelector("#htFormTK"), k.token_form, a, null, coveredNetworks()) : null;
     var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
     box.onmousedown = function (e) { if (e.target === box) dong(); };
     box.querySelector(".ht-close").onclick = dong;
@@ -3430,7 +3667,8 @@
         var oBr = box.querySelector("#htBrain");
         var oTok = box.querySelector("#htToken");
         var than = { label: box.querySelector("#htLabel").value.trim(),
-                     token: oTok ? oTok.value.trim() : "", bot_username: uname };
+                     token: tokenForm ? tokenForm.token() : (oTok ? oTok.value.trim() : ""), bot_username: uname };
+        if (tokenForm && than.token) than.dup_ack = tokenForm.ackedNetwork();
         if (oBr) than.brain = oBr.value;   // không có ô (kind account) thì KHÔNG gửi = không đụng
         var oCd = box.querySelectorAll(".ht-cai-dat");
         if (oCd.length) {

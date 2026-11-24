@@ -120,7 +120,8 @@ def _public(a: dict) -> dict:
     m = channels.module(a.get("channel") or "")
     keep = getattr(m, "PUBLIC_META", None)
     if isinstance(keep, (tuple, list, set, frozenset)):
-        keep = set(keep) | {str(x.get("key")) for x in channels._account_settings(m)}
+        # `network` is the core's own record of the account's social network (see `covered_networks`).
+        keep = set(keep) | {str(x.get("key")) for x in channels._account_settings(m)} | {"network"}
         out["meta"] = {k: v for k, v in (out["meta"] or {}).items() if k in keep}
     return out
 
