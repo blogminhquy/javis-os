@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.639.0] - 2026-11-24
+### Added
+- **Pick the default brain for Javis Gate.** The Javis Gate card on the Connections page has a brain selector: when claude.ai or ChatGPT does not name a brain, it reads and writes this one, instead of whichever brain you touched last. Leave it on "Brain used last" and nothing changes.
+- **Outside AIs write to the right brain.** With several brains, ChatGPT and Claude ask you which one before writing, and every write result says which brain it went to.
+
 ## [0.638.1] - 2026-11-24
 ### Fixed
 - **Stop now stops for good.** Messages typed while Javis was answering no longer start a new turn right after Stop; their line reads "Not run: the turn was stopped" and they stay in the chat to send again.

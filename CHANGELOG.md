@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.639.0] - 2026-11-24
+### Thêm mới
+- **Chọn brain mặc định cho Javis Gate.** Thẻ Javis Gate ở trang Kết nối có ô chọn brain: claude.ai hay ChatGPT không nêu tên brain thì đọc, ghi vào brain này, không còn lạc sang brain bạn vừa đụng tới. Để "Brain dùng gần nhất" thì mọi thứ y như cũ.
+- **AI bên ngoài chọn đúng brain.** Có nhiều brain thì ChatGPT, Claude hỏi bạn brain nào trước khi ghi, và mọi kết quả ghi đều nói đã ghi vào brain nào.
+
 ## [0.638.1] - 2026-11-24
 ### Sửa lỗi
 - **Bấm Dừng là dừng hẳn.** Tin gõ thêm trong lúc Javis đang trả lời không còn tự chạy thành lượt mới ngay sau khi bấm Dừng; dòng dưới tin đổi thành "Chưa làm tin này: lượt đã bị dừng", tin vẫn nằm trong khung chat để gửi lại.
