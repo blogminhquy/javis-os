@@ -120,10 +120,10 @@ async def _comment_turn(mode, com):
         calls.append((path, payload))
         return {"ok": True, "id": "555_900"}
 
-    async def fake_post_text(client, post_id):
-        return "Áo thun cotton mùa hè, giảm 20% hôm nay"
+    async def fake_post_card(client, chat, post_id="", permalink=""):
+        return {"id": post_id, "url": "https://www.facebook.com/p/1", "text": "Áo thun cotton mùa hè, giảm 20% hôm nay"}
     bot._post_json = fake_post
-    bot._post_text = fake_post_text
+    bot._post_card = fake_post_card
     orig = messenger_bot.comment_mode
     messenger_bot.comment_mode = lambda aid: mode
     try:

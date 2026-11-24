@@ -6985,6 +6985,8 @@
   "msc.ig_on": "Receive Instagram messages and comments",
   "msc.ig_off": "Instagram off",
   "msc.ig_saved": "Instagram setting saved.",
+  "ht.post_under": "Comment on the post",
+  "ht.post_open": "Open the original post",
   "ht.ig_comment": "Instagram comment",
   "ht.priv_sent_ig": "Sent privately on Instagram",
   "th.add": "Connect Threads",

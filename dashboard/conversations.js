@@ -179,6 +179,22 @@
     return x.indexOf("cmt:") === 0 ? "fbc" : x.indexOf("igc:") === 0 ? "igc" : x.indexOf("ig:") === 0 ? "ig" : "";
   }
   function isComment(c) { var k = chatKind(c); return k === "fbc" || k === "igc" || k === "thc"; }
+  // The post a comment thread sits under (2026-11-24, as Pancake shows it): a card under the head with the post's
+  // picture and first words, opening the post on Facebook or Instagram. The server keeps it in `metadata.post`.
+  function postCardHtml(c) {
+    var p = isComment(c) && c.metadata && c.metadata.post;
+    if (!p || !(p.url || p.text || p.image)) return "";
+    var url = /^https:\/\//.test(String(p.url || "")) ? String(p.url) : "";
+    var img = /^https:\/\//.test(String(p.image || "")) ? String(p.image) : "";
+    var inner =
+      '<span class="ib-post-img">' + ic("file-text") + (img ? '<img src="' + esc(img) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : "") + '</span>' +
+      '<span class="ib-post-t"><small>' + esc(window.t("ht.post_under")) + '</small>' +
+        '<span class="ib-post-x">' + esc(p.text || window.t("ht.post_open")) + '</span></span>' +
+      (url ? '<span class="ib-post-go">' + ic("external-link") + '</span>' : "");
+    return url
+      ? '<a class="ib-post" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" title="' + esc(window.t("ht.post_open")) + '">' + inner + '</a>'
+      : '<div class="ib-post">' + inner + '</div>';
+  }
   // Only a private direct-message chat has one customer, so only it has a customer profile. The server says which
   // (`profile_chat`, see conversations.is_profile_chat): a group and a comment thread do not.
   function hasProfile(c) { return !!(c && c.profile_chat); }
@@ -1471,7 +1487,8 @@
     var c = _conv || {}, u = _msgs[_msgs.length - 1] || {};
     return JSON.stringify([c.id, c.mode, c.bot_id, c.bot_name, c.title, c.customer_name, c.channel, c.chat_type, c.account_name,
       c.tags || [], c.contact || "", c.note || "", c.profile_at || 0, c.who, c.who_code, c.ai_allowed, c.ai_pending, c.draft || null, c.reply_when,
-      c.yield_min, !!(c.metadata && c.metadata.blocked), !!(c.metadata && c.metadata.left), _silence, _running, u.sender_type]);
+      c.yield_min, !!(c.metadata && c.metadata.blocked), !!(c.metadata && c.metadata.left), _silence, _running, u.sender_type,
+      (c.metadata && c.metadata.post) || null]);
   }
 
   // Chèn tin mới vào cuối khung, trước dòng "Bot im" nếu có. Đang ở đáy thì trượt theo tin mới; đang đọc tin cũ thì đứng yên.
@@ -1576,6 +1593,7 @@
         '<button type="button" class="s-btn-ghost ib-info-btn" aria-expanded="' + infoOpen() + '" aria-label="' + esc(window.t("ib.info_t")) +
           '" title="' + esc(window.t("ib.info_t")) + '">' + ic("info") + '</button>' +
       '</div>' +
+      postCardHtml(c) +
       '<div class="ib-aibar w-' + who + '"' + (calm ? " hidden" : "") + '>' +
         '<span class="ib-say"><span class="ib-dot w-' + who + '"></span><span><b>' + esc(V ? V.whoLabel(who) : "") + ':</b> ' +
           esc(V ? V.whoSentence(c) : "") + '</span></span>' +
@@ -1584,6 +1602,8 @@
       '<div class="ht-msgs">' + nutTinCu() + _msgs.map(renderMessage).join("") + renderSilenceLine(c) + '</div>' +
       (guiDuoc ? veCompose(c) : '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>') +
       '<div class="ib-msheet"' + (_msheet && threeModes ? "" : " hidden") + '>' + (_msheet && threeModes && V ? V.modeSheetHtml(c, ic) : "") + '</div>';
+    var postImg = box.querySelector(".ib-post-img img");
+    if (postImg) postImg.onerror = function () { postImg.remove(); };
     box.querySelector(".ht-back").onclick = dongThread;
     box.querySelector(".ib-info-btn").onclick = function () { setInfo(!infoOpen()); };
     box.querySelector(".ib-htag-add").onclick = function () { _tagPop = true; _tagEdit = 0; _tagErr = ""; setInfo(true); };
