@@ -105,9 +105,10 @@
 
   // ---- the "Filter" menu: categories on the left, the options of the open one on the right (like Pancake's) ----------
   // `st`: the sanitised filter state; `tags`: the owner's tags; `facets`, `bots`: from the list endpoint.
-  function filterCats(st) {
-    var s = st || {};
-    return [
+  // #1633: the Network category shows only when some chat has a network (`facets.networks`) or one is picked.
+  function filterCats(st, facets) {
+    var s = st || {}, nets = (facets && facets.networks) || {};
+    var cats = [
       { id: "time", icon: "calendar", key: "ib.f_time", n: s.when ? 1 : 0 },
       { id: "tagsAny", icon: "tag", key: "ib.f_tags_any", n: (s.tagsAny || []).length },
       { id: "tagsNone", icon: "tag", key: "ib.f_tags_none", n: (s.tagsNone || []).length },
@@ -118,6 +119,31 @@
       // "Phone or email" left this menu on 2026-11-24: "Has phone" on the quick row covers it.
       { id: "pinned", icon: "pin", key: "ib.f_pin", n: s.pinned ? 1 : 0 },
     ];
+    if (s.network || Object.keys(nets).length) cats.push({ id: "network", icon: "globe", key: "ib.f_network", n: s.network ? 1 : 0 });
+    return cats;
+  }
+
+  // #1633: logos of networks a chat can reach only through a channel bridging several (a Store pack). Kept here, not
+  // in icons.js, so they load with the inbox rather than at start-up; a network icons.js already draws keeps its own.
+  var TT = 'd="M10.2 10.4v1.6a3 3 0 1 0 2.4 3V5.6h1.6c.2 1.6 1.4 2.9 3 3.1v1.7a5 5 0 0 1-3-1v5.6a4.6 4.6 0 1 1-4-4.6z"';
+  if (window.Icons && window.Icons.learnChannels) window.Icons.learnChannels([
+    { id: "tiktok", nhan: "TikTok", mau: "#000000", logo_svg: '<rect width="24" height="24" rx="7" fill="#000"/>' +
+      '<path fill="#25F4EE" ' + TT + ' transform="translate(-.6 -.4)"/><path fill="#FE2C55" ' + TT +
+      ' transform="translate(.6 .4)"/><path fill="#fff" ' + TT + '/>' },
+    { id: "linkedin", nhan: "LinkedIn", mau: "#0A66C2", logo_svg: '<rect width="24" height="24" rx="5" fill="#0A66C2"/>' +
+      '<rect x="5.6" y="9.6" width="2.8" height="8.4" fill="#fff"/><circle cx="7" cy="6.8" r="1.6" fill="#fff"/>' +
+      '<path fill="#fff" d="M10.6 9.6h2.7v1.2c.4-.8 1.4-1.4 2.8-1.4 2.6 0 3.3 1.6 3.3 3.9V18h-2.8v-4.2c0-1.1-.3-1.9-1.4' +
+      '-1.9s-1.8.8-1.8 1.9V18h-2.8z"/>' },
+    { id: "x", nhan: "X", mau: "#000000", logo_svg: '<rect width="24" height="24" rx="7" fill="#000"/>' +
+      '<path fill="#fff" d="M6 6h3.6l2.9 4 3.4-4h1.8l-4.4 5.1L18.2 18h-3.6l-3.1-4.3L7.8 18H6l4.6-5.3z"/>' },
+    { id: "youtube", nhan: "YouTube", mau: "#FF0000", logo_svg: '<rect x="1.5" y="5" width="21" height="14" rx="4.5" ' +
+      'fill="#FF0000"/><path fill="#fff" d="M10 8.8v6.4l5.6-3.2z"/>' }
+  ]);
+
+  // A network's display name: the logo set's name (Icons.kenhNhan), else the id capitalised.
+  function networkName(n) {
+    var I = window.Icons;
+    return (I && I.kenhNhan && I.kenhNhan(n)) || (n ? String(n).charAt(0).toUpperCase() + String(n).slice(1) : "");
   }
 
   function radio(name, value, cur, text) {
@@ -128,7 +154,7 @@
 
   function filterMenuHtml(st, cat, tags, facets, bots, icon, tagChip) {
     var I = icon || noIcon, s = st || {}, f = facets || {}, c = cat || "time";
-    var cats = filterCats(s).map(function (k) {
+    var cats = filterCats(s, f).map(function (k) {
       return '<button type="button" class="ib-fm-cat' + (k.id === c ? " on" : "") + '" data-cat="' + k.id + '">' + I(k.icon) +
         '<span>' + esc(tt(k.key)) + '</span>' + (k.n ? '<span class="ib-fm-n">' + k.n + '</span>' : "") + '</button>';
     }).join("");
@@ -164,6 +190,13 @@
         radio("ib-time", "", cur, tt("dr.all")) + ((DR && DR.PRESETS) || []).map(function (p) {
           return radio("ib-time", p, cur, DR.label({ preset: p }));
         }).join("");
+    } else if (c === "network") {
+      var nets = f.networks || {};
+      o = radio("ib-net", "", s.network, tt("ib.f_network_all"));
+      Object.keys(nets).sort(function (a, b) { return networkName(a).localeCompare(networkName(b)); }).forEach(function (n) {
+        o += radio("ib-net", n, s.network, networkName(n) + " (" + (Number(nets[n]) || 0) + ")");
+      });
+      if (s.network && !(s.network in nets)) o += radio("ib-net", s.network, s.network, networkName(s.network) + " (0)");
     } else if (c === "last") {
       o = radio("ib-last", "", s.lastBy, tt("ib.f_last_any")) + radio("ib-last", "customer", s.lastBy, tt("ib.f_last_customer")) +
         radio("ib-last", "ai", s.lastBy, tt("ib.f_last_ai")) + radio("ib-last", "human", s.lastBy, tt("ib.f_last_you"));
@@ -193,6 +226,7 @@
     var LAST = { customer: "ib.fc_last_customer", ai: "ib.fc_last_ai", human: "ib.fc_last_human" };
     if (LAST[s.lastBy]) out.push({ k: "lastBy", v: "", text: tt(LAST[s.lastBy]) });
     if (s.pinned) out.push({ k: "pinned", v: "", text: tt("ib.fc_pinned") });
+    if (s.network) out.push({ k: "network", v: "", text: tt("ib.fc_network", { n: networkName(s.network) }) });
     return out;
   }
 

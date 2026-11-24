@@ -2289,6 +2289,8 @@ def _bot_event(cfg: dict, meta: dict, **fields) -> dict:
         "external_chat_id": str(meta.get("chat_id") or ""),
         "chat_type": meta.get("chat_type") or "private",
         "chat_title": meta.get("chat_title") or "",
+        # #1633: a channel reaching several social networks names the chat's one (conversations.chat_network).
+        "network": meta.get("network") or "",
     }
     ev.update(fields)
     return ev

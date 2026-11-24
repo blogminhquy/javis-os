@@ -77,6 +77,7 @@
   // channel accounts (the channel picker) and tags any/none (the Filter menu). Saved with the rest by JavisConvFilters.
   var _who = "you", _accs = [], _tagsAny = [], _tagsNone = [], _whoCounts = null;
   var _when = null, _lastBy = "", _pinned = "";   // when the last message came, who wrote it, pinned only (Filter menu)
+  var _network = "";                              // one social network (#1633, Filter menu)
   var _pick = false, _pickQ = "", _fm = false, _fmCat = "time";   // channel picker / Filter menu open, picker search, menu category
   var _wm = false;          // the "who" dropdown of the list is open
   // Info panel: closed until the owner opens it (owner, 2026-10-29: the chat gets the room), and remembered in this browser.
@@ -207,7 +208,26 @@
   function hasProfile(c) { return !!(c && c.profile_chat); }
   // Only Facebook and Instagram comments can be answered privately (Meta's Private Replies); Threads cannot.
   function canPrivate(c) { var k = chatKind(c); return k === "fbc" || k === "igc"; }
-  function isInstagram(c) { var k = chatKind(c); return k === "ig" || k === "igc"; }
+  // #1633: the social network a chat came from (server `conversations.chat_network`), so a channel reaching several
+  // (Messenger: Facebook and Instagram; a Store pack bridging TikTok, LinkedIn...) shows the right logo per chat. A row
+  // without one (an older server, a stand-in object) falls back to Messenger's "ig:" / "igc:" chat ids.
+  var HOME_NETWORK = { messenger: "facebook" };   // a channel's own network: its chats keep the channel's logo
+  function networkOf(c) {
+    var n = String((c && c.network) || "").toLowerCase();
+    if (/^[a-z0-9][a-z0-9_.-]{0,31}$/.test(n)) return n;
+    var k = chatKind(c);
+    return k === "ig" || k === "igc" ? "instagram" : "";
+  }
+  function homeNetwork(ch) { return HOME_NETWORK[ch] || kenhCua(ch).logo || ch || ""; }
+  // The network to show instead of the channel: set, not the channel's own, and one with a logo.
+  function shownNetwork(c) {
+    var n = networkOf(c);
+    return n && n !== homeNetwork(c && c.channel) && window.Icons && Icons.kenh && Icons.kenh(n) ? n : "";
+  }
+  function networkName(n) {
+    return (window.Icons && Icons.kenhNhan && Icons.kenhNhan(n)) || (n ? n.charAt(0).toUpperCase() + n.slice(1) : "");
+  }
+  function isInstagram(c) { return networkOf(c) === "instagram"; }
   function commentLogo(size, c) {
     var k = chatKind(c);
     return (window.Icons && Icons.kenh) ? Icons.kenh(k === "igc" ? "igcomment" : k === "thc" ? "thcomment" : "fbcomment",
@@ -216,14 +236,15 @@
   // The badge on the avatar: a comment box for a comment thread, the Instagram mark for an Instagram message.
   function badgeOf(c, size) {
     if (isComment(c)) return commentLogo(size, c);
-    if (isInstagram(c)) return (window.Icons && Icons.kenh) ? Icons.kenh("instagram", { size: size }) : "";
-    return logoKenh(c.channel, size);
+    var n = shownNetwork(c);
+    return n ? Icons.kenh(n, { size: size }) : logoKenh(c.channel, size);
   }
   function chipOf(c) {
     var k = chatKind(c);
     if (k === "fbc" || k === "igc" || k === "thc") return '<span class="ht-chip">' + commentLogo("13px", c) + " " +
       esc(window.t(k === "igc" ? "ht.ig_comment" : k === "thc" ? "ht.th_comment" : "ht.fb_comment")) + "</span>";
-    if (k === "ig") return '<span class="ht-chip">' + badgeOf(c, "13px") + " Instagram</span>";
+    var n = shownNetwork(c);
+    if (n) return '<span class="ht-chip">' + badgeOf(c, "13px") + " " + esc(networkName(n)) + "</span>";
     return chipKenh(c.channel);
   }
   function nangLuc(id, khoa) { return !!((kenhCua(id).nang_luc || {})[khoa]); }
@@ -383,7 +404,7 @@
       _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || "";
       _accs = _cho.account_key ? [_cho.account_key] : [];
       _who = ""; _statusLoc = ""; _typeLoc = ""; _tagsAny = []; _tagsNone = []; _q = "";
-      _when = null; _lastBy = ""; _pinned = ""; _kind = ""; _phone = "";
+      _when = null; _lastBy = ""; _pinned = ""; _kind = ""; _phone = ""; _network = "";
       _cho = null;
       saveFilters();
     } else if (F) {
@@ -391,6 +412,7 @@
       _botLoc = saved.bot; _statusLoc = saved.status; _typeLoc = saved.type; _kenhLoc = saved.channel;
       _who = saved.who; _accs = saved.accs; _tagsAny = saved.tagsAny; _tagsNone = saved.tagsNone;
       _when = saved.when; _lastBy = saved.lastBy; _pinned = saved.pinned; _kind = saved.kind; _phone = saved.phone;
+      _network = saved.network;
     }
     _pick = false; _fm = false; _wm = false;
     body.innerHTML =
@@ -476,7 +498,7 @@
   function filterState() {
     return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc,
              who: _who, accs: _accs, tagsAny: _tagsAny, tagsNone: _tagsNone, when: _when, lastBy: _lastBy, pinned: _pinned,
-             kind: _kind, phone: _phone };
+             kind: _kind, phone: _phone, network: _network };
   }
   function saveFilters() { if (window.JavisConvFilters) window.JavisConvFilters.save(filterState()); }
   function onFilterChange() { saveFilters(); paintHead(); tai(); }
@@ -557,6 +579,7 @@
     else if (k === "when") _when = null;
     else if (k === "lastBy") _lastBy = "";
     else if (k === "pinned") _pinned = "";
+    else if (k === "network") _network = "";
   }
 
   // ---- the two popovers: channel picker and Filter menu. One open at a time; they redraw only on the owner's own
@@ -644,6 +667,7 @@
     else if (t.classList.contains("ib-fm-pinned")) _pinned = t.checked ? "1" : "";
     else if (t.name === "ib-time") _when = t.dataset.v ? { preset: t.dataset.v } : null;
     else if (t.name === "ib-last") _lastBy = t.dataset.v;
+    else if (t.name === "ib-net") _network = t.dataset.v;
     else return;
     onFilterChange();
     var sel = t.dataset.tag != null ? 'input[data-tag="' + t.dataset.tag + '"]' : t.name ? 'input[name="' + t.name + '"][data-v="' + t.dataset.v + '"]'
@@ -673,7 +697,7 @@
   // "Clear" in the Filter menu, and the same button on an empty list the filters emptied (`quick`: that one also resets
   // the quick row, which can empty the list as well).
   function clearMenuFilters(quick) {
-    _tagsAny = []; _tagsNone = []; _typeLoc = _botLoc = _statusLoc = _lastBy = _pinned = ""; _when = null;
+    _tagsAny = []; _tagsNone = []; _typeLoc = _botLoc = _statusLoc = _lastBy = _pinned = _network = ""; _when = null;
     if (quick === true) { _kind = ""; _phone = ""; }
     onFilterChange();
   }
@@ -834,7 +858,7 @@
       closeRowMenu(false);
       var coNguon = _tk.some(function (a) { return a.ghi; });
       var loc = !!(_q || _kenhLoc || _botLoc || _accs.length || _statusLoc || _typeLoc || _tagsAny.length || _tagsNone.length ||
-        _when || _lastBy || _pinned || _kind || _phone);
+        _when || _lastBy || _pinned || _network || _kind || _phone);
       // Only the quick "who" filter hides everything (no chat needs you right now): say it kindly, one tap shows them all.
       if (_who && !loc && (_whoCounts ? ["you", "ai", "owner", "log"].some(function (w) { return _whoCounts[w]; }) : coNguon)) {
         box.innerHTML = '<div class="ht-empty">' + ic(_who === "you" ? "circle-check" : "messages-square") +
