@@ -1996,13 +1996,44 @@ def bot_doc_files(cfg: dict) -> tuple:
     import agent_assets
     out = []
     for f in agent_assets.doc(meta or {}).get("files") or []:
-        try:
-            rel = (agent_root / str(f.get("path") or "")).resolve().relative_to(root).as_posix()
-        except (OSError, ValueError):
-            continue        # outside the bot's brain (an Agent kept in another brain): not readable by this bot
+        rel = agent_doc_rel(agent_root, root, str(f.get("path") or ""))
         if rel and rel != ".":
             out.append(rel)
     return tuple(out)
+
+
+def agent_doc_rel(agent_root: Path, root: Path, stored: str) -> str:
+    """Where one file of an Agent's Documents section lies in the bot's brain `root`, as a path relative to it, or ""
+    when it lies outside (an Agent kept in another brain: not readable by this bot). Both roots are resolved.
+
+    The Documents drawer stores a path from the BROWSE CEILING (`main._files_ceiling`), which on a computer without a
+    login is the whole drive: an Agent in "D:/du an/brains/Brain Default" lists "du an/brains/Brain Default/wiki/x.md".
+    Read from the brain, that file does not exist, so the bot had no document and told customers it had no information
+    (field report #1699). So when the path does not lead to something from the Agent's brain, the part after the brain
+    folder's own name is tried: the same file whatever the ceiling was, even in a brain copied somewhere else. What
+    matches must still lie inside the bot's brain."""
+    import unicodedata
+    raw = str(stored or "").strip().replace("\\", "/")
+
+    def inside(p: Path) -> str:
+        try:
+            return p.resolve().relative_to(root).as_posix()
+        except (OSError, ValueError):
+            return ""
+
+    direct = agent_root / raw
+    rel = inside(direct)
+    if rel and direct.exists():
+        return rel
+    name = unicodedata.normalize("NFC", agent_root.name).casefold()
+    parts = [x for x in raw.split("/") if x]
+    for i, part in enumerate(parts[:-1]):
+        if name and unicodedata.normalize("NFC", part).casefold() == name:
+            found = agent_root.joinpath(*parts[i + 1:])
+            hit = inside(found)
+            if hit and found.exists():
+                return hit
+    return rel
 
 
 def bot_doc_files_by_id(bot_id: str) -> tuple:
