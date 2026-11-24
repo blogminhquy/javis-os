@@ -280,6 +280,24 @@ async def gui(kenh: str, tk: dict, chat_id: str, text: str, chat_type: str = "pr
         return False, f"{type(e).__name__}: {e}"
 
 
+async def send_file(kenh: str, tk: dict, chat_id: str, path: str, caption: str = "", chat_type: str = "private"):
+    """Send one image or file through a channel (2026-11-24, the inbox's + button). `(ok, error)`.
+
+    Only a channel with the `gui_file` capability AND a module `send_file(tk, chat_id, path, caption, chat_type)`."""
+    import localefmt
+    s = spec(kenh)
+    m = module(kenh)
+    if not s or not m:
+        return False, localefmt.chu(f"kênh '{kenh}' không có trong sổ đăng ký", f"channel '{kenh}' is not in the registry")
+    if not s.nl("gui_file") or not hasattr(m, "send_file"):
+        return False, localefmt.chu(f"{s.nhan} chưa gửi được ảnh hay file từ Javis",
+                                    f"{s.nhan} cannot send images or files from Javis yet")
+    try:
+        return await m.send_file(tk, str(chat_id), str(path), str(caption or ""), chat_type or "private")
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+
+
 def reset_cho_test() -> None:
     """Chỉ cho test: nạp lại sổ (sau khi monkeypatch một module kênh)."""
     global _DS

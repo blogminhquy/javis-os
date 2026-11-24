@@ -56,6 +56,14 @@
         "/media?p=" + encodeURIComponent(p) + (taiVe ? "&dl=1" : "");
     };
     var ra = { anh: "", file: null, chu: chuThich(text) };
+    // An image or file the owner sent from the inbox (+ button, 2026-11-24): kept on this machine, served the same way.
+    var sent = md.sent_file && typeof md.sent_file === "object" && md.sent_file.p ? md.sent_file : null;
+    if (sent) {
+      var sentName = String(sent.name || tenFile(sent.p));
+      if (DUOI_ANH.test(sentName)) ra.anh = quaMay(String(sent.p), false);
+      else ra.file = { href: quaMay(String(sent.p), true), ten: sentName, coDung: coDungLuong(sent.size) };
+      return ra;
+    }
     if (loai === "image" || (duong && DUOI_ANH.test(duong))) {
       if (laHttps(md.image_url)) ra.anh = String(md.image_url).trim();
       else if (duong) ra.anh = quaMay(duong, false);
@@ -102,6 +110,8 @@
       return (DUOI_ANH.test(ten) ? tw("ht.anh") : ten) + (cap ? ": " + cap : "");
     }
     if (laHttps(s.trim()) && (DUOI_ANH.test(s.trim()) || /zdn\.vn\//i.test(s))) return tw("ht.anh");
+    var bracket = /^\[([^\]\n]+)\]$/.exec(s.trim());
+    if (bracket && DUOI_ANH.test(bracket[1])) return tw("ht.anh");
     return s;
   }
 

@@ -170,6 +170,24 @@ a.ib-post:hover .ib-post-go { color: var(--accent); }
 .ib-v5 .ib-cin .ib-mic:disabled { opacity: .7; cursor: default; }
 @keyframes ib-mic-rec { 0%, 100% { box-shadow: 0 0 0 0 rgba(214, 69, 69, .45); } 50% { box-shadow: 0 0 0 6px rgba(214, 69, 69, 0); } }
 @media (prefers-reduced-motion: reduce) { .ib-v5 .ib-cin .ib-mic.is-rec { animation: none; } }
+/* + button and the files picked with it, waiting above the box (2026-11-24). + sits left of the box on a computer, at
+   the left of the second row on a phone (the box takes the first row there). */
+.ib-v5 .ib-cin .ib-plus { order: -1; width: 38px; padding: 0; justify-content: center; color: var(--text2); border: 1px solid transparent; background: none; }
+.ib-v5 .ib-cin .ib-plus:hover { color: var(--text); border-color: var(--border); }
+/* A file card inside the owner's own blue bubble: white text and icons, a light edge, so the size line stays readable. */
+.ib-v5 .ht-msg.nguoi .ht-file { color: #fff; border-color: rgba(255, 255, 255, .55); }
+.ib-v5 .ht-msg.nguoi .ht-file-ico, .ib-v5 .ht-msg.nguoi .ht-file-dl, .ib-v5 .ht-msg.nguoi .ht-file-meta { color: rgba(255, 255, 255, .85); }
+.ib-v5 .ib-cin .ib-plus svg { width: 20px; height: 20px; }
+.ib-files { display: flex; gap: 8px; padding: 8px 8px 0; overflow-x: auto; }
+.ib-file { position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; height: 56px; max-width: 220px;
+  border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface-2); overflow: hidden; }
+.ib-file img { width: 56px; height: 56px; object-fit: cover; display: block; }
+.ib-file-ico { display: grid; place-items: center; width: 36px; color: var(--text3); }
+.ib-file-ico svg { width: 18px; height: 18px; }
+.ib-file-n { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 30px; }
+.ib-file-x { position: absolute; top: 2px; right: 2px; width: 28px; height: 28px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 14px; background: rgba(0, 0, 0, .55); color: #fff; cursor: pointer; }
+.ib-file-x svg { width: 13px; height: 13px; }
 
 /* ---- Info panel ---- */
 .ib-v5 .ht-info { width: 300px; font-size: 14px; }
@@ -244,6 +262,8 @@ a.ib-post:hover .ib-post-go { color: var(--accent); }
      and send as round icons on the right of the line below. */
   .ib-v5 .ib-cin { flex-wrap: wrap; align-items: center; }
   .ib-v5 .ib-cin textarea { flex-basis: 100%; font-size: 16px; }
+  .ib-v5 .ib-cin textarea { order: -2; }
+  .ib-v5 .ib-cin .ib-plus { order: -1; }
   .ib-v5 .ib-cin .ib-mic { margin-left: auto; }
   .ib-v5 .ib-cin .s-btn, .ib-v5 .ib-cin .s-btn-ghost { flex: none; width: 40px; min-height: 40px; padding: 0; justify-content: center;
     border-radius: 20px; }
