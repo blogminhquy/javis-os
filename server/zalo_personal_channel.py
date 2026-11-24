@@ -51,6 +51,7 @@ import config as cfgmod
 import localefmt
 import conversations
 import zalo_push
+import zalo_sent_ledger
 
 CONNECTOR_ID = "zalo"
 KENH = "zalo_personal"
@@ -824,7 +825,10 @@ def catch_up(conn: dict, messages: List[dict], now: Optional[float] = None) -> i
                     continue        # rule 6
             if ev["sender_type"] == "human" and _own_already_stored(cid, ev):
                 continue
-            ev["metadata"] = dict(ev.get("metadata") or {}, recovered=True)
+            # Issue #1775: an own message Javis sent with a Zalo tool is its work, not the owner typing.
+            sent_by_javis = ev["sender_type"] == "human" and zalo_sent_ledger.take(cid, ev)
+            ev["metadata"] = dict(ev.get("metadata") or {}, recovered=True,
+                                  **(zalo_sent_ledger.MARK if sent_by_javis else {}))
             r = conversations.ghi_su_kien(ev, late=True)
             if not (r.get("ok") and not r.get("trung")):
                 continue
@@ -832,7 +836,7 @@ def catch_up(conn: dict, messages: List[dict], now: Optional[float] = None) -> i
             if known is None:
                 known = set()
             known.add(ev["external_message_id"])
-            if ev["sender_type"] == "human":
+            if ev["sender_type"] == "human" and not sent_by_javis:
                 key = (cid, chat)
                 _TAY[key] = max(float(_TAY.get(key) or 0), at)
     if written:
@@ -979,11 +983,17 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
                 attach_echo_id(conn["id"], ev)
                 trung += 1
                 continue
-            _TAY[(conn["id"], ev["external_chat_id"])] = float(ev.get("created_at") or time.time())
-            # Chủ đã vào cuộc: mấy tin khách đang gom chờ là việc của chủ, không phải của bot. This holds even when
-            # the bot is set to yield 0 minutes: 0 means "do not go quiet", not "repeat what I just answered".
-            _GOM.pop((conn["id"], ev["external_chat_id"]), None)
-            bo_cho_chu(conn["id"], ev["external_chat_id"])
+            if zalo_sent_ledger.take(conn["id"], ev):
+                # Issue #1775: Javis sent this one itself with a Zalo tool (a schedule, a report, an admin chat turn).
+                # The inbox keeps it, marked as Javis's work (counted as A.I., not as a manual reply), and it is not
+                # the owner stepping in: the bot on duty neither steps aside nor drops what it is waiting on.
+                ev["metadata"] = dict(ev.get("metadata") or {}, **zalo_sent_ledger.MARK)
+            else:
+                _TAY[(conn["id"], ev["external_chat_id"])] = float(ev.get("created_at") or time.time())
+                # Chủ đã vào cuộc: mấy tin khách đang gom chờ là việc của chủ, không phải của bot. This holds even when
+                # the bot is set to yield 0 minutes: 0 means "do not go quiet", not "repeat what I just answered".
+                _GOM.pop((conn["id"], ev["external_chat_id"]), None)
+                bo_cho_chu(conn["id"], ev["external_chat_id"])
         elif _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"], TIENG_VONG_TOI_THIEU):
             # Ví dụ trong tài liệu của MCP không có cờ "tin của chính mình", nên câu bot vừa gửi
             # có thể quay về như tin của một KHÁCH. Để lọt thì trong nhóm bot sẽ tự trả lời chính

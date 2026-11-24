@@ -55,6 +55,7 @@ import tool_result_reuse   # 2026-11-17: compact JSON + per-turn repeat referenc
 import section_select   # 2026-11-18: load the parts of a long menu-style skill a task needs
 import tool_result_tools
 import turn_context
+import zalo_sent_ledger   # issue #1775: a Zalo message a model sends is Javis's, not the owner's hand
 from config import STATE_DIR
 
 _TOKEN_PATH = STATE_DIR / ".hub_token"
@@ -531,16 +532,26 @@ def _guard(ent, fn, mode):
                            "err": why[:200], "args_keys": sorted((args or {}).keys()), **team_gate.audit_fields()})
             return "ERROR: " + why
         t0 = time.time()
+
+        def _direct(a):
+            return mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, a)
+
+        async def _send(a):
+            # Issue #1775: a Zalo message a model sends comes back to the inbox as the account's own. Noting it here
+            # first lets the read loop file it as Javis's work, not the owner typing (zalo_sent_ledger.py).
+            if zalo_sent_ledger.is_send_tool(tool):
+                return await zalo_sent_ledger.sending(conn["id"], tool, a, _direct)
+            return await _direct(a)
+
         if cls == "read":
-            result = await mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, args)
+            result = await _send(args)
         else:
             # 16/11/2026: a chat turn that acts outside is marked, so a restart in the middle of it does not run the
             # whole turn again by itself (turn_ledger.py). A turn that only read things is safe to run again.
             turn_ledger.mark_acted(str((turn_context.current() or {}).get("session_id") or ""))
             # 0.238.0: a Kanban job that runs again must not send, post or order twice (once_ledger.py).
             # Outside a background job this calls straight through.
-            result = await once_ledger.run(
-                fn, args, lambda a: mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, a))
+            result = await once_ledger.run(fn, args, _send)
         _audit_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
                        "connector": conn.get("connector_id"), "label": conn.get("label"),
                        "tool": tool, "mode": mode, "cls": cls,
