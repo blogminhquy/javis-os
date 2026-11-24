@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.632.2] - 2026-11-24
+### Cải thiện
+- **Thẻ GitHub nói đúng bộ quyền mới của app Javis OS.** App giờ xin đọc và ghi trên gần như mọi quyền của repository (trừ Administration), nên Javis chạy lại được job CI. Ai cài app từ trước cần bấm chấp nhận quyền mới trong yêu cầu GitHub gửi.
+
 ## [0.632.1] - 2026-11-24
 ### Sửa lỗi
 - **Danh sách model ChatGPT lấy đúng tài khoản đang chạy.** Tắt tài khoản 1 (gói Free) và bật một tài khoản Plus, trang Models trước đây vẫn chỉ hiện 3 model của tài khoản đã tắt. Giờ bộ chọn hiện đủ model của tài khoản đang trả lời chat.
