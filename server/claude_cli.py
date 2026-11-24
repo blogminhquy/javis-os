@@ -1437,6 +1437,12 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
     except Exception as e:  # noqa: BLE001 - reported, never a broken turn
         print(f"[result reuse] Claude hook not installed: {type(e).__name__}: {e}", file=sys.stderr)
     try:
+        # Guard ghi Drive: cấm direct connector claude.ai khi JAVIS_DRIVE_WRITE_GUARD=enforce (no-op khi off/shadow).
+        import drive_write_guard
+        drive_write_guard.install_direct_deny()
+    except Exception as e:  # noqa: BLE001 - never breaks a turn
+        print(f"[drive guard] direct deny not installed: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
         # 2026-11-09 (owner incident): every Claude turn refuses tool calls on Javis' secret files (secret_guard.py).
         import claude_secret_hook
         claude_secret_hook.install()
