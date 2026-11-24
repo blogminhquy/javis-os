@@ -7,8 +7,14 @@ github.com/login/device and presses Authorize, and Javis polls until GitHub hand
 a VPS with no browser.
 
 Why a GitHub App and not an OAuth App: the person picks which repos Javis can see by installing the app on them
-(github.com/apps/javis-os/installations/new), and the token only carries the app's fine-grained permissions
-(Contents, Pull requests, Workflows read/write; Checks, Commit statuses, Actions read).
+(github.com/apps/javis-os/installations/new), and the token only carries the app's fine-grained permissions.
+Since 2026-11-23 the app asks for read and write on nearly every repository permission (Actions, Checks, Commit
+statuses, Contents, Pull requests, Workflows, Issues, Secrets, Webhooks, Deployments, Pages, Packages and the rest;
+Projects is admin; Codespaces metadata, Repository license policy and Metadata are read, GitHub's ceiling for them).
+Administration and Single file stay off, so Javis cannot delete a repo or change its settings, and the app asks for
+nothing at account, organization or enterprise level. A person who installed the app earlier keeps the old set
+(Contents, Pull requests, Workflows read/write; Checks, Commit statuses, Actions read) until they accept the
+permission request GitHub sends them, so a write call such as `rerun_job` can still answer 403 for them.
 
 The app was registered with expiring user tokens turned off, so the token normally lasts until the person revokes
 it. If GitHub still sends `expires_in` and a `refresh_token` (the setting was flipped later), they are kept and
