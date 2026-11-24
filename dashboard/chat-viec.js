@@ -60,14 +60,17 @@
     try { v = JSON.parse(m[1]); } catch (e) { v = null; }
     if (!v || typeof v !== "object") return { clean: clean, viec: null };
     var st = String(v.status || "done");
+    var acc = v && v.acceptance_check ? String(v.acceptance_check).slice(0, 40) : "";
+    var card = {
+      kind: String(v.kind || "task"),
+      status: TRANG_THAI[st] ? st : "done",
+      title: String(v.title || "").slice(0, 200),
+      id: String(v.id || "")
+    };
+    if (acc) card.acceptance_check = acc;
     return {
       clean: clean,
-      viec: {
-        kind: String(v.kind || "task"),
-        status: TRANG_THAI[st] ? st : "done",
-        title: String(v.title || "").slice(0, 200),
-        id: String(v.id || "")
-      }
+      viec: card
     };
   }
 
@@ -89,8 +92,13 @@
     try { window.Alpine.store("nav").go(trang); } catch (err) { location.hash = "#p=" + trang; }
   }
 
+  function isUnverified(card) {
+    return !!(card && (card.status === "done" || card.status === "review") && card.acceptance_check === "unverified");
+  }
+
   // Nhan theo LOAI truoc ("viec.loop_done": "Vong lap vua chay"), khong co thi nhan chung.
   function nhanCua(viec) {
+    if (isUnverified(viec)) return tw("viec.st_unverified");
     var rieng = "viec." + viec.kind + "_" + viec.status;
     var chu = tw(rieng);
     if (chu && chu !== rieng) return chu;
@@ -98,6 +106,7 @@
   }
 
   function iconCua(viec) {
+    if (isUnverified(viec)) return "triangle-alert";
     if (viec.kind === "reminder" && viec.status === "done") return "alarm-clock";
     return (TRANG_THAI[viec.status] || TRANG_THAI.done).ic;
   }
@@ -169,6 +178,7 @@
     }
     msgEl.classList.add("msg-viec");
     msgEl.classList.add("viec-" + viec.status);
+    if (isUnverified(viec)) msgEl.classList.add("viec-unverified");
     var bubble = msgEl.querySelector(".bubble");
     if (bubble && bubble.insertAdjacentHTML) bubble.insertAdjacentHTML("afterbegin", dauThe(viec));
     if (viec.status === "hoi" && viec.id && bubble && bubble.insertAdjacentHTML) {

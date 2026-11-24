@@ -104,7 +104,8 @@
           id: "k:" + c.id, src: "kanban", ref: c.id, title: c.title || c.intent || "", desc: c.intent || "",
           who: agentOf(c) === CORE ? whoOf("k:" + c.id, c.created_by) : agentOf(c), st: st, date: ts.date || (FIN[st] ? null : today), time: ts.time, rep: "",
           result: c.result || "", reason: c.block_reason || "", blockKind: c.block_kind || "", status: c.status,
-          needsApproval: !!c.needs_approval, took: Number(md.run_seconds || 0), at: when || c.created_at || 0, raw: c
+          needsApproval: !!c.needs_approval, unverified: (c.status === "done" || c.status === "review") && String(md.acceptance_check || "") === "unverified",
+          took: Number(md.run_seconds || 0), at: when || c.created_at || 0, raw: c
         };
         items.push(it);
         if (st === "done" || st === "cancel") log.push({ at: it.at, title: it.title, text: it.result, who: it.who, ok: st === "done", ref: it.id });
@@ -692,6 +693,7 @@
   }
   function chip(it) {
     if (it.over) return '<span class="nv-chip c-over">' + esc(tw("nv.st.over", { d: shortDate(it.date) })) + "</span>";
+    if (it.unverified && it.st === "done") return '<span class="nv-chip s-ask">' + esc(tw("nv.st.unverified")) + "</span>";
     var k = { run: "nv.st.run", ask: "nv.st.ask", calm: "nv.st.calm", queue: "nv.st.queue", cancel: "nv.st.cancel" }[it.st];
     return k ? '<span class="nv-chip s-' + it.st + '">' + esc(tw(k)) + "</span>" : "";
   }
@@ -834,6 +836,7 @@
       + '<span class="nv-tm">' + time + '</span><span class="nv-st">' + lead + "</span>"
       + '<span class="nv-body"><span class="nv-ti">' + esc(it.title) + "</span>" + meta(it)
       + (it.st === "ask" && it.reason ? '<span class="nv-note c-ask">' + esc(it.reason) + "</span>" : "")
+      + (it.unverified && it.st !== "calm" && !it.reason ? '<span class="nv-note c-ask">' + esc(tw("nv.acc.unverified")) + "</span>" : "")
       + (it.st === "calm" && it.reason ? '<span class="nv-note">' + esc(it.reason) + "</span>" : "") + "</span>"
       + (chips ? '<span class="nv-chipcol">' + chips + "</span>" : "") + "</button>"
       + (it.src === "mine" ? '<span class="nv-ra">' + (task ? triIcons(it) : hOver ? habitOverIcons(it) : "") + sb + "</span>"
@@ -1297,7 +1300,8 @@
     if (it.src === "mine") return mineDetail(it, phone);
     var isRep = !!it.sc;
     var r = isRep ? it : S.ai.recurring.find(function (x) { return x.id === it.id; });
-    var h = '<div class="nv-dhead">' + (isRep ? "" : chip(it)) + "<h3>" + esc(it.title) + "</h3>" + (it.desc && it.desc !== it.title ? '<div class="nv-desc">' + esc(it.desc) + "</div>" : "") + "</div>";
+    var dchip = isRep ? "" : chip(it) + (it.unverified && it.st !== "done" ? '<span class="nv-chip s-ask">' + esc(tw("nv.st.unverified")) + "</span>" : "");
+    var h = '<div class="nv-dhead">' + dchip + "<h3>" + esc(it.title) + "</h3>" + (it.desc && it.desc !== it.title ? '<div class="nv-desc">' + esc(it.desc) + "</div>" : "") + "</div>";
     var acts = "";
     if (isRep) {
       acts = it.running ? '<button type="button" class="nv-btn" data-act="rstop" data-id="' + esc(it.id) + '">' + ic("square") + esc(tw("nv.a.stop")) + "</button>"
@@ -1311,7 +1315,8 @@
     var prog = isRep ? (it.on ? tw("nv.rep.next", { t: it.next ? whenText(it.next) : "-" }) : tw("nv.rep.off"))
       : it.st === "done" ? (it.result || tw("nv.log.empty")) : it.st === "ask" ? (it.reason || tw("nv.st.ask")) : it.st === "calm" ? (it.reason || tw("nv.st.calm"))
       : it.st === "run" ? tw("nv.st.run") : it.st === "cancel" ? tw("nv.st.cancel") : it.st === "queue" ? tw("nv.prog.queue") : tw("nv.prog.sched");
-    h += '<div class="nv-sec2"><div class="nv-cap">' + esc(it.st === "done" ? tw("nv.cap.result") : it.blockKind === "acceptance_failed" && it.st === "ask" ? tw("nv.acc.cap") : tw("nv.cap.progress")) + '</div><div class="nv-res">' + esc(prog) + "</div>" + (acts ? '<div class="nv-acts">' + acts + "</div>" : "") + "</div>";
+    var warn = it.unverified ? '<div class="nv-note c-ask">' + esc(tw("nv.acc.unverified")) + "</div>" : "";
+    h += '<div class="nv-sec2"><div class="nv-cap">' + esc(it.st === "done" ? tw("nv.cap.result") : it.blockKind === "acceptance_failed" && it.st === "ask" ? tw("nv.acc.cap") : tw("nv.cap.progress")) + '</div>' + warn + '<div class="nv-res">' + esc(prog) + "</div>" + (acts ? '<div class="nv-acts">' + acts + "</div>" : "") + "</div>";
     // 2026-11-21: steps only the owner can do (listen, approve, upload a file past a tool's cap), set aside by the
     // specifier or the checker instead of failing the job over them.
     var left = !isRep && it.src === "kanban" ? ((it.raw && it.raw.metadata) || {}).handoff : null;
