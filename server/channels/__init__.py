@@ -50,6 +50,12 @@ Optional module attributes (0.459.0, internal API channel):
     clean_settings(data), account_settings_spec()   numeric account settings edited on the account form
     MAX_ACCOUNTS_PER_BOT = <n>    how many accounts of this channel one bot may serve (default 20, see
                                   `max_accounts_per_bot`)
+    TOKEN_FORM = {...}            the account form as declared fields instead of one token box (see `_token_form`)
+    NETWORKS = ("<network>", ...) social networks a CORE channel answers (default: its `logo`). A pack channel that
+                                  can reach one of them again is warned about it, see `covered_networks`.
+
+Pack channels may also set `SPEC.logo_svg`: their own logo, the inner SVG of a 24x24 viewBox, filtered to plain
+drawing elements (`_clean_svg`), so icons.js does not need to know them.
 """
 from __future__ import annotations
 
@@ -92,6 +98,8 @@ class KenhSpec:
     en: Dict[str, str] = field(default_factory=dict)
     # Id of the Store pack that added this channel ("" for core channels).
     pack: str = ""
+    # Logo of a channel that icons.js does not know (pack channels): inner SVG of a 24x24 viewBox.
+    logo_svg: str = ""
 
     def nl(self, khoa: str) -> bool:
         return bool(self.nang_luc.get(khoa, NANG_LUC_MAC_DINH.get(khoa, False)))
@@ -150,6 +158,7 @@ def _nap() -> Dict[str, KenhSpec]:
                 print(f"[channels] pack {pid}: channel '{spec.id}' already exists, skipped", file=sys.stderr)
                 continue
             spec.pack = pid
+            spec.logo_svg = _clean_svg(spec.logo_svg)
         nl = dict(NANG_LUC_MAC_DINH)
         nl.update(spec.nang_luc or {})
         # Hai năng lực suy ra từ chính module, không tin lời khai: có hàm mới có năng lực.
@@ -220,6 +229,73 @@ def reload_registry() -> None:
     global _DS, _DS_SIG
     _DS, _DS_SIG = None, None
     _MOD.clear()
+
+
+# Whitelist for `SPEC.logo_svg`. The logo is put into the page as markup, so anything outside plain drawing
+# (script, foreignObject, event handlers, links, external references, style) is refused, and the WHOLE logo is
+# dropped rather than repaired: a pack channel without a logo still reads fine next to its name.
+_SVG_TAGS = {"g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "defs",
+             "lineargradient", "radialgradient", "stop", "title"}
+_SVG_ATTRS = {"d", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "width", "height",
+              "points", "fill", "fill-rule", "clip-rule", "fill-opacity", "stroke", "stroke-width",
+              "stroke-linecap", "stroke-linejoin", "stroke-opacity", "opacity", "transform", "id",
+              "offset", "stop-color", "stop-opacity", "gradientunits", "gradienttransform"}
+_SVG_BAD_VALUE = re.compile(r"url\(\s*(?!#)|javascript:|data:|expression|[<>]", re.I)
+
+
+def _clean_svg(svg: str) -> str:
+    svg = str(svg or "").strip()
+    if not svg or len(svg) > 8000:
+        return ""
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring('<svg xmlns="http://www.w3.org/2000/svg">' + svg + "</svg>")
+    except ET.ParseError:
+        return ""
+    for el in root.iter():
+        if el is root:
+            continue
+        if el.tag.split("}")[-1].lower() not in _SVG_TAGS:
+            return ""
+        for k, v in el.attrib.items():
+            if k.split("}")[-1].lower() not in _SVG_ATTRS or _SVG_BAD_VALUE.search(str(v)):
+                return ""
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+    return "".join(ET.tostring(c, encoding="unicode") for c in root).replace(' xmlns="http://www.w3.org/2000/svg"', "")
+
+
+_NETWORK = re.compile(r"^[a-z][a-z0-9_]{0,29}$")
+
+
+def channel_networks(channel_id: str) -> List[str]:
+    """Networks one channel answers: its module's `NETWORKS`, else its logo id (Telegram -> telegram)."""
+    s = spec(channel_id)
+    if not s:
+        return []
+    nets = getattr(_MOD.get(s.id), "NETWORKS", None)
+    if nets is None:
+        nets = (s.logo or s.id,)
+    return [n for n in (str(x or "").strip().lower() for x in nets) if _NETWORK.match(n)]
+
+
+def covered_networks() -> Dict[str, str]:
+    """{network: core channel id} for every network a CORE channel already answers (Messenger: facebook, instagram).
+
+    A pack channel that bridges many networks can reach one of these again; the same customer would then
+    arrive twice and could be answered twice under the shop's name, so the account form warns and the account routes
+    refuse that pick without an explicit acknowledgement."""
+    out: Dict[str, str] = {}
+    for s in danh_sach():
+        if s.pack:
+            continue
+        for n in channel_networks(s.id):
+            out.setdefault(n, s.id)
+    return out
+
+
+def clean_network(v) -> str:
+    v = str(v or "").strip().lower()
+    return v if _NETWORK.match(v) else ""
 
 
 def danh_sach() -> List[KenhSpec]:
@@ -304,6 +380,10 @@ def cho_giao_dien() -> List[dict]:
         out.append({
             "id": s.id, "nhan": _chu_spec(s, "nhan"), "kind": s.kind, "logo": s.logo, "mau": s.mau,
             "pack": s.pack,
+            # Pack channels draw their own logo (icons.js does not know them), see `Icons.learnChannels`.
+            "logo_svg": s.logo_svg,
+            # Networks a core channel answers; the account form warns before a pack channel answers one again.
+            "networks": [] if s.pack else channel_networks(s.id),
             "lay_token": _chu_spec(s, "lay_token"), "tom_tat": _chu_spec(s, "tom_tat"),
             "tien_to_ten": s.tien_to_ten,
             "nang_luc": dict(s.nang_luc),
@@ -323,8 +403,95 @@ def cho_giao_dien() -> List[dict]:
             "khoa_tu_sinh": bool(getattr(_MOD.get(s.id), "GENERATED_KEY", False)),
             "tran_muc_quyen": str(getattr(_MOD.get(s.id), "PERMISSION_CEILING", "") or ""),
             "cai_dat_tk": _account_settings(_MOD.get(s.id)),
+            # Declarative credential form (pack channels): fields the dashboard draws instead of one token box.
+            "token_form": _token_form(_MOD.get(s.id)),
         })
     return out
+
+
+# `TOKEN_FORM` (optional module attribute): the account form as DATA, so a channel with a structured credential
+# (several ids, a connection to pick, accounts to list) needs no code in conversations.js and a pack ships no
+# dashboard JS. The dashboard joins the sent fields into one JSON object and posts it as the token; the module's
+# `prepare_token` / `verify_token` read it as usual. Anything outside this shape is dropped here, field by field:
+#
+#   {"fields": [{"key": "account_id", "type": "text" | "password" | "select", "label": str | {"vi","en"},
+#                "hint": ..., "required": bool, "required_unless": "<other key>", "hidden_when": "<other key>",
+#                "send": bool (default True), "initial": "external_id" | "meta.<key>",
+#                "generate": bool (text/password only: Generate + Copy buttons, a random 64-hex-char secret),
+#                "options": {"url": "/ext/<slug>/<path>", "list": "<array key>", "value": "<item key>",
+#                            "label": "@{username} ({platform})", "empty": label, "from": ["<keys>"],
+#                            "fill": {"<field key>": "<item key>"}, "button": label, "auto_single": bool,
+#                            "network": "<item key>"}}],
+#    "webhook_params": {"<query param>": "<field key>"}}
+#
+# A select with `options.from` POSTs those fields as a form body (a typed key never lands in a URL); without it,
+# a GET. Option URLs must stay under /ext/ (plugin routes), so a declared form can never call a core route.
+# `options.network` names the item key holding the item's social network: an item on a network a core channel already
+# answers (`covered_networks`) is never picked by itself and asks for an acknowledgement when the owner picks it.
+_FORM_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+_FORM_URL = re.compile(r"^/ext/[a-z0-9][a-z0-9._-]{0,63}(/[A-Za-z0-9._-]+){1,4}$")
+_FORM_TYPES = ("text", "password", "select")
+
+
+def _form_text(v, limit: int = 300) -> str:
+    import localefmt
+    if isinstance(v, dict):
+        vi, en = str(v.get("vi") or ""), str(v.get("en") or "")
+        v = localefmt.chu(vi or en, en or vi) if (vi or en) else ""
+    return str(v or "")[:limit] if isinstance(v, str) else ""
+
+
+def _form_key(v) -> str:
+    v = str(v or "")
+    return v if _FORM_KEY.match(v) else ""
+
+
+def _token_form(m) -> dict:
+    tf = getattr(m, "TOKEN_FORM", None)
+    if not isinstance(tf, dict) or not isinstance(tf.get("fields"), list):
+        return {}
+    try:
+        fields = []
+        for f in tf["fields"][:12]:
+            if not isinstance(f, dict) or not _form_key(f.get("key")) or f.get("type") not in _FORM_TYPES:
+                continue
+            o = {"key": f["key"], "type": f["type"], "label": _form_text(f.get("label"), 120) or f["key"],
+                 "hint": _form_text(f.get("hint")), "required": bool(f.get("required")),
+                 "send": f.get("send", True) is not False}
+            if f["type"] in ("text", "password") and f.get("generate") is True:
+                o["generate"] = True     # dashboard adds Generate + Copy (a random 256-bit hex value)
+            for k in ("required_unless", "hidden_when"):
+                if _form_key(f.get(k)):
+                    o[k] = f[k]
+            ini = str(f.get("initial") or "")
+            if ini == "external_id" or (ini.startswith("meta.") and _form_key(ini[5:])):
+                o["initial"] = ini
+            if f["type"] == "select":
+                op = f.get("options") if isinstance(f.get("options"), dict) else {}
+                url = str(op.get("url") or "")
+                if not _FORM_URL.match(url) or any(p in (".", "..") for p in url.split("/")):
+                    continue
+                o["options"] = {
+                    "url": url, "list": _form_key(op.get("list")) or "items",
+                    "value": _form_key(op.get("value")) or "id",
+                    "label": str(op.get("label") or "{" + (_form_key(op.get("value")) or "id") + "}")[:80],
+                    "empty": _form_text(op.get("empty"), 120),
+                    "from": [k for k in (op.get("from") or []) if _form_key(k)][:4],
+                    "fill": {k: v for k, v in (op.get("fill") or {}).items() if _form_key(k) and _form_key(v)},
+                    "button": _form_text(op.get("button"), 60),
+                    "auto_single": bool(op.get("auto_single")),
+                    "network": _form_key(op.get("network")),
+                }
+            fields.append(o)
+        if not fields:
+            return {}
+        keys = {f["key"] for f in fields}
+        wp = tf.get("webhook_params") if isinstance(tf.get("webhook_params"), dict) else {}
+        return {"fields": fields,
+                "webhook_params": {k: v for k, v in wp.items() if _form_key(k) and v in keys}}
+    except Exception as e:  # noqa: BLE001 - a broken form must not take the channel list down
+        print(f"[channels] token form of {getattr(m, '__name__', m)}: {type(e).__name__}: {e}", file=sys.stderr)
+        return {}
 
 
 def _account_settings(m) -> List[dict]:

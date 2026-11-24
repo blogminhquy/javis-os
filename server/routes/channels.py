@@ -206,7 +206,7 @@ def register(app, deps: ChannelsDeps):
     @router.post("/channels/accounts")
     async def channels_account_create(channel: str = Form(...), token: str = Form(""),
                                       label: str = Form(""), bot_username: str = Form(""),
-                                      brain: str = Form("")):
+                                      brain: str = Form(""), dup_ack: str = Form("")):
         """Thêm tài khoản token. Chưa kiểm (không có bot_username) thì kiểm luôn ở đây."""
         channel = str(channel or "").strip().lower()
         if _generated_key(channel):
@@ -229,6 +229,11 @@ def register(app, deps: ChannelsDeps):
             ext = r.get("username") or ""
             meta = {k: r[k] for k in ("vao_duoc_nhom", "account_type", "bot_name") if k in r}
             meta.update(r.get("meta") or {})
+            refused = _covered_network_refusal(channel, r.get("network"), dup_ack)
+            if refused:
+                return refused
+            if r.get("network"):
+                meta["network"] = r["network"]
         aid, loi = channel_accounts.create_account({
             "channel": channel, "token": token, "label": label, "external_id": ext, "meta": meta,
             # Thêm từ brain nào thì thuộc brain đó (0.62.4). Không truyền = chưa gán chủ, thẻ
@@ -258,7 +263,7 @@ def register(app, deps: ChannelsDeps):
     @router.post("/channels/accounts/{account_id}/update")
     async def channels_account_update(account_id: str, label: str = Form(""), token: str = Form(""),
                                       bot_username: str = Form(""), brain: str = Form(None),
-                                      settings: str = Form(None)):
+                                      settings: str = Form(None), dup_ack: str = Form("")):
         patch = {}
         cur = channel_accounts.get_account(account_id)
         cur_channel = (cur or {}).get("channel") or ""
@@ -286,8 +291,17 @@ def register(app, deps: ChannelsDeps):
                 return _400(r.get("error") or localefmt.chu("Token không hợp lệ", "Invalid token"),
                             code=r.get("code") or "invalid_credentials")
             bot_username = r.get("username") or ""
+            # An edit that keeps the network the account already had is not asked again: an account saved before
+            # this check (or acknowledged once) stays editable.
+            recorded = str((cur.get("meta") or {}).get("network") or "")
+            if r.get("network") and r["network"] != recorded:
+                refused = _covered_network_refusal(cur_channel, r["network"], dup_ack, legacy=not recorded)
+                if refused:
+                    return refused
             if r.get("meta"):
                 patch["meta"] = {**(patch.get("meta") or cur.get("meta") or {}), **r["meta"]}
+            if r.get("network"):
+                patch["meta"] = {**(patch.get("meta") or cur.get("meta") or {}), "network": r["network"]}
         if label.strip():
             patch["label"] = label
         # `brain` không gửi = KHÔNG đụng (client cũ giữ nguyên hành vi). Gửi chuỗi rỗng = gỡ
@@ -524,7 +538,35 @@ async def verify_token(channel: str, token: str, account_id: str = "", bot_id: s
     # Optional account meta a channel module wants stored (pack channels); shown only through PUBLIC_META.
     if isinstance(r.get("meta"), dict):
         ra["meta"] = r["meta"]
+    # The social network behind the account (a pack channel that bridges several), see `_covered_network_refusal`.
+    net = channels.clean_network(r.get("network"))
+    if net:
+        ra["network"] = net
     return ra
+
+
+def _covered_network_refusal(channel: str, network, ack: str, legacy: bool = False):
+    """400 when a channel account would answer a network a CORE channel already answers, without the owner's ack.
+
+    Messenger already answers Facebook and Instagram. A pack channel bridging many networks could connect
+    the same Instagram account again: one customer message would arrive twice and could get two replies under the
+    shop's name. The account form shows that warning and sends `dup_ack=<network>` once the owner ticks it; this check
+    makes the warning impossible to skip from outside the form. `legacy`: an account saved before the core recorded a
+    network, edited without a change of identity, is let through so it is never locked."""
+    net = channels.clean_network(network)
+    covered = channels.covered_networks()
+    if not net or net not in covered or covered[net] == channel or legacy:
+        return None
+    if str(ack or "").strip().lower() == net:
+        return None
+    s = channels.spec(covered[net])
+    by = s.nhan if s else covered[net]
+    return _400(localefmt.chu(
+        f"{net.capitalize()} đã nối qua kênh {by}. Nối thêm ở đây thì khách nhắn một lần, bot thấy hai lần và có thể "
+        "trả lời hai lần. Hãy xác nhận trên form nếu vẫn muốn nối.",
+        f"{net.capitalize()} is already connected through the {by} channel. Connecting it here too means one customer "
+        "message arrives twice and may be answered twice. Confirm on the form if you still want it."),
+        code="network_covered_by_core")
 
 
 def _prepare_token(channel: str, new: str, old):

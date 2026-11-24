@@ -183,6 +183,7 @@
       _bots = d.bots || [];
       _mucDS = d.muc_quyen || [];
       _kenhDS = d.kenh || [];
+      if (window.Icons && Icons.learnChannels) Icons.learnChannels(_kenhDS);
       _tkRanh = d.tai_khoan || [];
       _tkBan = d.tai_khoan_ban || [];
       var vet = JSON.stringify(_bots);
@@ -893,6 +894,7 @@
       try {
         var d = await api("/chatbots?brain=" + encodeURIComponent(brain()));
         _kenhDS = d.kenh || _kenhDS;
+        if (window.Icons && Icons.learnChannels) Icons.learnChannels(_kenhDS);
         _tkRanh = d.tai_khoan || [];
         _tkBan = d.tai_khoan_ban || _tkBan;
       } catch (e) {}

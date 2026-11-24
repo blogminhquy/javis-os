@@ -1,4 +1,4 @@
-"""A Store pack can add an inbox channel (`provides.channels`) without touching `_MODULES`.
+"""A Store pack can add an inbox channel (`provides.channels`) without touching `_MODULES` or icons.js.
 
     python tests/run.py pack_channels
 
@@ -11,6 +11,7 @@ Guarded here:
 3. A disabled or removed pack's channel disappears from the registry AND from `module()`.
 4. A pack can never replace a core channel id, and a broken module just leaves its channel out.
 5. The manifest only accepts `channels/<name>.py` inside the pack.
+6. `logo_svg` reaches the dashboard only as plain drawing; anything scriptable drops the whole logo.
 """
 from _paths import ROOT, SERVER, DASHBOARD  # noqa: E402,F401
 import json
@@ -34,10 +35,13 @@ def check(name, cond, extra=""):
         fails.append(name)
 
 
-def channel_src(cid: str, extra: str = "") -> str:
+LOGO = '<rect width="24" height="24" rx="6" fill="#6366F1"/><path fill="#fff" d="M7 7h10L7 17h10"/>'
+
+
+def channel_src(cid: str, extra: str = "", logo: str = LOGO) -> str:
     return (
         "from channels import KenhSpec\n"
-        f"SPEC = KenhSpec(id={cid!r}, nhan='Demo {cid}', kind='bot', mau='#6366F1')\n"
+        f"SPEC = KenhSpec(id={cid!r}, nhan='Demo {cid}', kind='bot', mau='#6366F1', logo_svg={logo!r})\n"
         "class Transport:\n    pass\n"
         "async def gui(*a, **k):\n    return True\n"
         "WEBHOOK_PATH = '/ext/demo/webhook'\n" + extra
@@ -82,8 +86,9 @@ check("pack channel is tagged with its pack", s is not None and s.pack == "demo-
 check("pack channel can carry a bot (Transport found)", s is not None and s.nl("bot"))
 check("module() returns the pack module", getattr(channels.module("demo"), "WEBHOOK_PATH", "") == "/ext/demo/webhook")
 ui = {k["id"]: k for k in channels.cho_giao_dien()}
-check("dashboard list carries the pack id", ui.get("demo", {}).get("pack") == "demo-pack", ui.get("demo"))
-check("core channels carry an empty pack id", ui["telegram"]["pack"] == "")
+check("dashboard list carries logo_svg and pack", ui.get("demo", {}).get("logo_svg", "").startswith("<rect")
+      and ui["demo"].get("pack") == "demo-pack", ui.get("demo"))
+check("core channels keep an empty logo_svg", ui["telegram"]["logo_svg"] == "" and ui["telegram"]["pack"] == "")
 
 # 2. Code gate.
 d = write_pack("demo-pack", {}, ["channels/demo.py"])
@@ -121,6 +126,16 @@ m = {"provides": {"channels": ["channels/x.py", "../x.py", "channels/../../x.py"
 ok_paths = packs._check_channels(m, Path(STATE) / "packs" / "nope", loi)
 check("manifest keeps only channels/<name>.py", ok_paths == [] or ok_paths == ["channels/x.py"], ok_paths)
 check("bad manifest paths are reported", len(loi) >= 5, loi)
+
+# 6. SVG filter.
+check("plain drawing kept", channels._clean_svg(LOGO).startswith("<rect"))
+for bad in ('<script>alert(1)</script>', '<path onload="x()" d="M0 0"/>', '<a href="x"><path d="M0 0"/></a>',
+            '<path fill="url(http://x/y)" d="M0 0"/>', '<foreignObject/>', '<path d="M0 0" style="x"/>',
+            '<image href="data:image/png;base64,AA"/>', '<use href="#a"/>', '<path d="M0 0"', "x" * 9000):
+    check("unsafe logo dropped: " + bad[:40], channels._clean_svg(bad) == "")
+write_pack("svg-pack", {"channels/svgx.py": channel_src("svgx", logo='<path d="M0 0" onclick="x()"/>')},
+           ["channels/svgx.py"])
+check("unsafe logo never reaches the dashboard", {k["id"]: k for k in channels.cho_giao_dien()}["svgx"]["logo_svg"] == "")
 
 print()
 print("FAILED: " + ", ".join(fails) if fails else "all ok")
