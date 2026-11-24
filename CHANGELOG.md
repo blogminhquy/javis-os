@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.637.1] - 2026-11-24
+### Sửa lỗi
+- **Thẻ việc nền trong khung chat hiện cảnh báo khi kết quả chưa được kiểm.** Trước đây trang Nhiệm vụ đã hiện nhãn vàng nhưng thẻ trong chat vẫn hiện "xong" màu xanh.
+
 ## [0.637.0] - 2026-11-24
 ### Thêm mới
 - **Javis nghe được tin thoại khi đọc lịch sử Zalo cá nhân.** Việc chạy nền hay bộ não đọc `zalo_get_history` giờ thấy luôn nội dung mỗi tin thoại, nghe bằng cùng bộ nghe với Telegram. Mỗi tin chỉ nghe một lần, nên việc trực 5 phút không tốn thêm. Chưa có bộ nghe thì tin ghi rõ lý do để hỏi người gửi gõ chữ, không đoán.

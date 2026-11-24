@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.637.1] - 2026-11-24
+### Fixed
+- **A background job's card in the chat now warns when its result was not checked.** The Tasks page already showed the yellow label, but the card in the chat still showed a green "done".
+
 ## [0.637.0] - 2026-11-24
 ### Added
 - **Javis hears voice messages when it reads personal Zalo history.** A background job or brain reading `zalo_get_history` now sees what each voice message said, heard by the same ears as Telegram. Each message is heard once, so a job checking every 5 minutes costs nothing extra. Without an ear the message says why, so the sender is asked to type instead of guessed at.
