@@ -110,6 +110,30 @@ def _safe_name(name: str) -> str:
     return base[:120] or "file"
 
 
+MAX_CAPTION = 1000      # the words that ride with a sent file
+
+
+def is_image_name(name: str) -> bool:
+    return Path(str(name or "")).suffix.lower() in _IMAGE_SUFFIXES
+
+
+def file_refusal(c: dict, name: str) -> Optional[dict]:
+    """Why conversation `c` cannot take the file `name`, asked before anything is stored or sent; None when it can.
+
+    A Facebook comment takes an image only, an Instagram comment no file at all, and the channel must carry files
+    (`channels.can_send_file`). Shared by the inbox route and the `inbox_reply` tool, which checks every file first."""
+    channel, chat = str(c.get("channel") or ""), str(c.get("external_chat_id") or "")
+    if chat.startswith("igc:") or (chat.startswith("cmt:") and not is_image_name(name)):
+        return {"ok": False, "code": "comment_text_only", "error": localefmt.chu(
+            "Bình luận Instagram chỉ nhận chữ, bình luận Facebook chỉ nhận ảnh",
+            "An Instagram comment takes text only, a Facebook comment an image only")}
+    if not channels.can_send_file(channel):
+        label = channels.nhan_giao_dien(channel)
+        return {"ok": False, "code": "unsupported", "error": localefmt.chu(
+            f"{label} chưa gửi được ảnh hay file từ Javis", f"{label} cannot send images or files from Javis yet")}
+    return None
+
+
 # Conversation ids whose post card is being read, and when a read last came back empty (2026-11-24).
 _POST_FILLING: set = set()
 _POST_MISSED: dict = {}
@@ -176,24 +200,41 @@ async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Option
     if not s:
         return False, localefmt.chu(f"kênh '{kenh}' không có trong sổ đăng ký",
                                     f"channel '{kenh}' is not in the registry")
-    tk = {"id": raw, "channel": kenh}
-    if s.kind == "bot":
-        a = channel_accounts.get_account(raw) or {}
-        tk.update({k: a.get(k) for k in ("label", "external_id")})
-        tk["token"] = channel_accounts.get_token(raw)
+    tk = _send_account(c)
     extra = {}
     if tieng_vong and kenh == "zalo_personal" and reply_to and str(c.get("chat_type") or "") == "group":
         extra["mention"] = {"uid": reply_to.get("sender_id"), "name": reply_to.get("sender_name")}
     kq = await channels.gui(kenh, tk, str(c.get("external_chat_id") or ""), txt, str(c.get("chat_type") or "private"), **extra)
-    if tieng_vong and kenh == "zalo_personal" and kq and kq[0]:
-        # Hộp thư vừa trả lời chat này: tiếng vọng của câu này bị lọc ở vòng đọc nên không tính là chủ nhắn tay,
-        # phải tự báo kẻo 10 phút sau bot trả lời lại tin khách đã có người đáp (0.136.0).
-        try:
-            import zalo_personal_channel as zc
-            zc.bo_cho_chu(raw, str(c.get("external_chat_id") or ""))
-        except Exception:      # noqa: BLE001
-            pass
+    if tieng_vong and kq and kq[0]:
+        _mark_owner_answered(c)
     return kq
+
+
+def _send_account(c: dict) -> dict:
+    """The account a message into chat `c` goes out from, as a channel's `gui` and `send_file` take it: the raw id,
+    plus the label, external id and token of a bot account."""
+    channel, raw = str(c.get("channel") or ""), _tk_goc(c)
+    account = {"id": raw, "channel": channel}
+    s = channels.spec(channel)
+    if s and s.kind == "bot":
+        a = channel_accounts.get_account(raw) or {}
+        account.update({k: a.get(k) for k in ("label", "external_id")})
+        account["token"] = channel_accounts.get_token(raw)
+    return account
+
+
+def _mark_owner_answered(c: dict) -> None:
+    """Personal Zalo: the inbox (or an engine through it) just answered chat `c`. The echo of that send is filtered in
+    the read loop, so it does not count as the owner writing by hand; say it here, or 10 minutes later the bot answers
+    a customer message someone already answered (0.136.0). Other channels hold no such wait."""
+    if str(c.get("channel") or "") != "zalo_personal":
+        return
+    raw = _tk_goc(c)
+    try:
+        import zalo_personal_channel as zc
+        zc.bo_cho_chu(raw, str(c.get("external_chat_id") or ""))
+    except Exception:      # noqa: BLE001
+        pass
 
 
 async def owner_reply(conv_id: int, text: str, sender_name: str = "Bạn", via: str = "",
@@ -236,6 +277,60 @@ async def owner_reply(conv_id: int, text: str, sender_name: str = "Bạn", via: 
     # The owner answered by hand: an A.I. draft still waiting is no longer needed (Chatbot v5).
     conversations.clear_draft(c["id"])
     return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
+            "conversation": conversations.chi_tiet(c["id"])}
+
+
+async def owner_send_file(conv_id: int, name: str, data: bytes, caption: str = "", sender_name: str = "Bạn",
+                          via: str = "", take_over: bool = True) -> dict:
+    """Send one image or file (`data`, shown to the customer as `name`) into conversation `conv_id` as the owner, with
+    an optional `caption`, on the conversation's own channel. The one send path behind the inbox + button (2026-11-24)
+    and the `inbox_reply` tool's `files` (issue #1802).
+
+    The file is kept under the state folder so the chat shows it like a customer's photo, sent through the channel's
+    `send_file`, then recorded as the owner's image or file message (`metadata.sent_file`). The platform's own rules
+    apply as for a text reply (Messenger's 24-hour window: Meta refuses and the error says so). A failed send records
+    nothing and keeps no file. `via` and `take_over` as in `owner_reply`. Returns a dict with `ok`, else `code` and
+    `error` (not_found, comment_text_only, unsupported, empty, too_big, send_failed)."""
+    c = conversations.chi_tiet(int(conv_id or 0))
+    if not c:
+        return {"ok": False, "code": "not_found",
+                "error": localefmt.chu("không có hội thoại nào id đó", "no conversation with that id")}
+    channel, chat = str(c.get("channel") or ""), str(c.get("external_chat_id") or "")
+    name = _safe_name(name)
+    refused = file_refusal(c, name)
+    if refused:
+        return refused
+    if not data:
+        return {"ok": False, "code": "empty", "error": localefmt.chu("file rỗng", "empty file")}
+    if len(data) > MAX_SENT_FILE:
+        return {"ok": False, "code": "too_big", "error": localefmt.chu(
+            f"file lớn quá {MAX_SENT_FILE // 1048576} MB", f"file larger than {MAX_SENT_FILE // 1048576} MB")}
+    import uuid
+    dest = _sent_dir(c["id"]) / f"{uuid.uuid4().hex[:8]}_{name}"
+    await run_in_threadpool(_store_sent_file, dest, data)
+    caption = str(caption or "").strip()[:MAX_CAPTION]
+    ok, err = await channels.send_file(channel, _send_account(c), chat, str(dest), caption,
+                                       str(c.get("chat_type") or "private"))
+    if not ok:
+        await run_in_threadpool(dest.unlink, True)
+        return {"ok": False, "code": "send_failed", "error": err or localefmt.chu("không gửi được", "could not send")}
+    _mark_owner_answered(c)
+    meta = {"tu_javis": True, "sent_file": {"p": str(dest), "name": name, "size": len(data)}}
+    if via:
+        meta["via"] = via
+    r = conversations.ghi_su_kien({
+        "channel": channel, "account_id": _tk_goc(c), "account_name": c.get("account_name") or "",
+        "bot_id": c.get("bot_id") or "", "external_chat_id": chat, "chat_type": c.get("chat_type"),
+        "chat_title": c.get("title") if c.get("chat_type") == "group" else "",
+        "sender_type": "human", "sender_name": sender_name, "message_type": "image" if is_image_name(name) else "file",
+        "text": caption or f"[{name}]", "metadata": meta,
+    })
+    took_over = False
+    if take_over and c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
+        conversations.dat_che_do(c["id"], "human")
+        took_over = True
+    conversations.clear_draft(c["id"])
+    return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": took_over,
             "conversation": conversations.chi_tiet(c["id"])}
 
 
@@ -736,59 +831,13 @@ def register(app, deps: ConversationsDeps):
     @router.post("/conversations/{conv_id}/send-file")
     async def conversations_send_file(conv_id: int, file: UploadFile = File(...), text: str = Form("")):
         """The owner sends one image or file from the inbox (+ button, 2026-11-24), with an optional caption.
-
-        Kept under the state folder so the chat shows it like a customer's photo, sent through the channel's
-        `send_file`, then recorded as the owner's message; the chat is taken over from its bot as when the owner types.
-        A Facebook comment takes an image only, an Instagram comment no file at all."""
-        c = conversations.chi_tiet(conv_id)
-        if not c:
-            return _404()
-        kenh, chat = str(c.get("channel") or ""), str(c.get("external_chat_id") or "")
-        name = _safe_name(file.filename or "")
-        image = Path(name).suffix.lower() in _IMAGE_SUFFIXES
-        if chat.startswith("igc:") or (chat.startswith("cmt:") and not image):
-            return JSONResponse({"ok": False, "code": "comment_text_only", "error": localefmt.chu(
-                "Bình luận Instagram chỉ nhận chữ, bình luận Facebook chỉ nhận ảnh",
-                "An Instagram comment takes text only, a Facebook comment an image only")}, status_code=400)
+        See `owner_send_file`: the chat is taken over from its bot as when the owner types."""
         data = await file.read(MAX_SENT_FILE + 1)
-        if not data:
-            return JSONResponse({"ok": False, "code": "empty", "error": localefmt.chu("file rỗng", "empty file")},
-                                status_code=400)
-        if len(data) > MAX_SENT_FILE:
-            return JSONResponse({"ok": False, "code": "too_big", "error": localefmt.chu(
-                f"file lớn quá {MAX_SENT_FILE // 1048576} MB", f"file larger than {MAX_SENT_FILE // 1048576} MB")},
-                status_code=413)
-        import uuid
-        dest = _sent_dir(conv_id) / f"{uuid.uuid4().hex[:8]}_{name}"
-        await run_in_threadpool(_store_sent_file, dest, data)
-        caption = str(text or "").strip()[:1000]
-        raw = _tk_goc(c)
-        s = channels.spec(kenh)
-        tk = {"id": raw, "channel": kenh}
-        if s and s.kind == "bot":
-            a = channel_accounts.get_account(raw) or {}
-            tk.update({k: a.get(k) for k in ("label", "external_id")})
-            tk["token"] = channel_accounts.get_token(raw)
-        ok, err = await channels.send_file(kenh, tk, chat, str(dest), caption, str(c.get("chat_type") or "private"))
-        if not ok:
-            await run_in_threadpool(dest.unlink, True)
-            return JSONResponse({"ok": False, "code": "send_failed",
-                                 "error": err or localefmt.chu("không gửi được", "could not send")}, status_code=400)
-        r = conversations.ghi_su_kien({
-            "channel": kenh, "account_id": raw, "account_name": c.get("account_name") or "",
-            "bot_id": c.get("bot_id") or "", "external_chat_id": chat, "chat_type": c.get("chat_type"),
-            "chat_title": c.get("title") if c.get("chat_type") == "group" else "",
-            "sender_type": "human", "sender_name": "Bạn", "message_type": "image" if image else "file",
-            "text": caption or f"[{name}]",
-            "metadata": {"tu_javis": True, "sent_file": {"p": str(dest), "name": name, "size": len(data)}},
-        })
-        tiep_quan = False
-        if c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
-            conversations.dat_che_do(c["id"], "human")
-            tiep_quan = True
-        conversations.clear_draft(c["id"])
-        return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
-                "conversation": conversations.chi_tiet(c["id"])}
+        r = await owner_send_file(conv_id, file.filename or "", data, text)
+        if r.get("ok"):
+            return r
+        code = r.get("code")
+        return JSONResponse(r, status_code=404 if code == "not_found" else 413 if code == "too_big" else 400)
 
     @router.post("/conversations/{conv_id}/block")
     async def conversations_block(conv_id: int):
