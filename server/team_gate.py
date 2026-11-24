@@ -28,6 +28,7 @@ import os
 import re
 import secrets
 import shlex
+import sys
 import threading
 from pathlib import Path
 from typing import Any, Optional
@@ -192,11 +193,39 @@ def decide(g: Gate, kind: str, name: str, args: Any, label: str) -> tuple:
     return False, BLOCK_NOTE
 
 
+def _roster_exempt(g: Gate, name: Any, args: Any) -> tuple:
+    """Ngoại lệ phạm vi (drive_write_guard.scope_exempt): chỉ khi actor của lượt là ĐÚNG thành viên đang hoạt động của
+    nhóm và ĐÚNG bước đang chạy, và guard Drive đang enforce. Mọi lỗi/không khớp -> (False, lý do), giữ nguyên gated."""
+    try:
+        import drive_write_guard as dwg
+        actor = str((turn_context.current() or {}).get("actor") or "")
+        if not actor or g.store is None or not g.team_id or not g.step_id:
+            return False, "thiếu actor, nhóm hoặc bước"
+        step = g.store.step(g.step_id)
+        if not step or str(step.get("task_id") or "") != g.task_id:
+            return False, "bước không thuộc việc đang chạy"
+        by_slug = [m for m in g.store.members(g.team_id) if m.get("status") == "active"
+                   and m.get("slug_at_join") == actor]
+        if len(by_slug) != 1 or by_slug[0].get("agent_key") != step.get("agent_key"):
+            return False, "actor không khớp đúng thành viên đang chạy của nhóm (trùng hoặc lệch slug)"
+        return dwg.scope_exempt(actor, str(name or ""), args, dwg.COMPOSIO_ACCOUNT, dwg.current_mode())
+    except Exception as e:  # noqa: BLE001 - fail-closed: không kiểm được thì không miễn
+        return False, f"lỗi kiểm ngoại lệ ({type(e).__name__})"
+
+
 def hub_check(name: str, args: Any, label: str = "") -> tuple:
-    """For the hub and plugin host, on a call the `gated` level refuses but `full` would allow."""
+    """For the hub and plugin host, on a call the `gated` level refuses but `full` would allow.
+    Ngoại lệ phạm vi (chỉ tạo file văn bản trong WRITE_ROOT của chính actor, khi guard enforce) không cần duyệt."""
     g = current()
     if g is None:
         return False, NO_GATE_NOTE
+    ok, why = _roster_exempt(g, name, args)
+    if ok:
+        with g.lock:
+            g.passed.append({"fp": team_approval.fingerprint("hub", str(name), args), "approval_id": "",
+                             "kind": "hub", "name": str(name)[:120]})
+        print(f"[team gate] ngoại lệ phạm vi: {str(name)[:80]} - {why}", file=sys.stderr)
+        return True, ""
     return decide(g, "hub", name, args, label or name)
 
 

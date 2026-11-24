@@ -34,6 +34,8 @@ Nguyên tắc fail-closed:
 """
 from __future__ import annotations
 
+import ast
+import json
 import os
 from typing import Callable, Iterable, Optional
 
@@ -211,7 +213,7 @@ def _decide(actor, tool, args, parents_of, depth) -> dict:
         return {"allow": False, "reason": f"proxy {raw_method.strip().upper()} không được phép qua hub"}
 
     if tool == "COMPOSIO_MULTI_EXECUTE_TOOL":
-        subs = args.get("tools")
+        subs = parse_multi_tools(args)
         if not isinstance(subs, list) or not subs:
             return {"allow": False, "reason": "tool cổng không có danh sách lệnh con"}
         for sub in subs:
@@ -322,3 +324,75 @@ def install_direct_deny() -> bool:
     _options.__wrapped__ = original
     cls._options = _options
     return True
+
+
+# ---- Ngoại lệ phạm vi cho cổng duyệt của nhóm (team gate) ----
+# Chỉ MỘT dạng: tạo file văn bản thuần trong WRITE_ROOT của chính Agent, qua một lệnh con duy nhất, account đã cấu hình.
+# Chỉ có tác dụng khi guard đang ENFORCE (route đã đi qua drive_guard_hub.wrap và được ALLOW theo metadata).
+# Mọi thứ khác (update/trash/move/ACL, Shared, Governance, folder khác, nhiều lệnh con, tham số lạ) giữ nguyên gated.
+EXEMPT_CREATE_TOOL = "GOOGLEDRIVE_CREATE_FILE_FROM_TEXT"
+EXEMPT_MIME = "text/plain"
+EXEMPT_TOP_KEYS = frozenset({"session_id", "tools"})
+EXEMPT_SUB_KEYS = frozenset({"tool_slug", "account", "arguments"})
+EXEMPT_ARG_KEYS = frozenset({"file_name", "text_content", "mime_type", "parent_id"})
+EXEMPT_NAME_MAX = 200
+EXEMPT_TEXT_MAX = 200_000
+
+
+def parse_multi_tools(args) -> Optional[list]:
+    """Danh sách lệnh con của COMPOSIO_MULTI_EXECUTE_TOOL. `tools` có thể là list hoặc chuỗi (JSON hoặc literal Python).
+    Chỉ phân tích dữ liệu (json / ast.literal_eval), không exec. Không đọc được -> None (fail-closed)."""
+    raw = args.get("tools") if isinstance(args, dict) else None
+    if isinstance(raw, str):
+        text = raw.strip()
+        try:
+            raw = json.loads(text)
+        except ValueError:
+            try:
+                raw = ast.literal_eval(text)
+            except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+                return None
+    return raw if isinstance(raw, list) else None
+
+
+def scope_exempt(actor: Optional[str], tool: str, args, account: str, mode: str) -> tuple:
+    """(True, lý do) khi lệnh là tạo file văn bản mới trong WRITE_ROOT của CHÍNH actor. Mọi trường hợp khác -> (False, lý do).
+    Không tin tên folder do agent khai: đích phải đúng WRITE_ROOTS[actor] và account phải đúng account đã cấu hình."""
+    if mode != "enforce":
+        return False, "guard không ở enforce: không có ngoại lệ"
+    if not actor or actor not in WRITE_ROOTS:
+        return False, "actor không có WRITE_ROOT đã duyệt"
+    own = WRITE_ROOTS[actor]
+    if not own or own in PROTECTED_ROOTS.values():
+        return False, "WRITE_ROOT không hợp lệ"
+    if str(tool or "").strip().upper() != "COMPOSIO_MULTI_EXECUTE_TOOL":
+        return False, "chỉ ngoại lệ cho tool cổng multi"
+    if not isinstance(args, dict) or not set(args) <= EXEMPT_TOP_KEYS:
+        return False, "tham số ngoài danh sách cho phép"
+    if not account:
+        return False, "chưa cấu hình account Composio"
+    subs = parse_multi_tools(args)
+    if not subs or len(subs) != 1 or not isinstance(subs[0], dict):
+        return False, "phải đúng một lệnh con"
+    sub = subs[0]
+    if not set(sub) <= EXEMPT_SUB_KEYS:
+        return False, "lệnh con có khóa lạ"
+    if sub.get("tool_slug") != EXEMPT_CREATE_TOOL:
+        return False, "lệnh con không phải tạo file văn bản"
+    if sub.get("account") != account:
+        return False, "sai account"
+    a = sub.get("arguments")
+    if not isinstance(a, dict) or not set(a) <= EXEMPT_ARG_KEYS:
+        return False, "tham số lệnh con ngoài danh sách"
+    if a.get("parent_id") != own:
+        return False, "đích không phải WRITE_ROOT của chính actor"
+    if a.get("mime_type") != EXEMPT_MIME:
+        return False, "không phải file văn bản thuần"
+    name = a.get("file_name")
+    if (not isinstance(name, str) or not name.strip() or len(name) > EXEMPT_NAME_MAX
+            or "/" in name or "\\" in name or name.strip() in (".", "..")):
+        return False, "tên file không hợp lệ"
+    text = a.get("text_content")
+    if not isinstance(text, str) or len(text) > EXEMPT_TEXT_MAX:
+        return False, "nội dung không hợp lệ"
+    return True, "tạo file văn bản mới trong WRITE_ROOT của chính actor"
