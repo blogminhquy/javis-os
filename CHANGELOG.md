@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.632.0] - 2026-11-24
+### Cải thiện
+- **Antigravity trả lời nhanh như Claude và ChatGPT từ lượt thứ hai.** Mỗi cuộc chat giữ một tiến trình Antigravity chạy sẵn và nối tiếp đúng mạch hội thoại, nên lượt sau không phải khởi động lại, không phải đọc lại toàn bộ luật và lịch sử: chữ đầu về sau khoảng 2 đến 3 giây thay vì 10 giây trở lên.
+- **Antigravity nhớ trọn cuộc chat dài,** kể cả file đã đọc và lệnh đã chạy ở các lượt trước, thay vì chỉ thấy 45.000 ký tự lịch sử gần nhất.
+- Trên Windows, câu hỏi dài không còn phải đi vòng qua file ngữ cảnh. Nếu Antigravity làm mất mạch, Javis tự gửi lại đủ ngữ cảnh ngay trong lượt đó; đặt `JAVIS_AGY_RESUME=0` để quay về cách cũ.
+
 ## [0.631.6] - 2026-11-24
 ### Cải thiện
 - **Antigravity trả lời sớm hơn vài giây mỗi lượt.** Câu trả lời chốt ngay khi model nói xong, không còn đợi Antigravity tự tắt thêm 2 đến 3 giây; với model đã ghi sẵn mức nghĩ trong tên (như `-high`), Javis không chèn thêm câu ép nghĩ, chữ đầu về nhanh gần gấp đôi.

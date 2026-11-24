@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.632.0] - 2026-11-24
+### Improved
+- **Antigravity answers as fast as Claude and ChatGPT from the second turn on.** Each chat keeps an Antigravity process running and resumes its own conversation, so later turns neither restart it nor reread all the rules and history: the first word arrives after about 2 to 3 seconds instead of 10 or more.
+- **Antigravity remembers the whole of a long chat,** files it read and commands it ran included, instead of only the last 45,000 characters of history.
+- On Windows a long question no longer detours through a context file. If Antigravity loses the thread, Javis sends the full context again within the same turn; set `JAVIS_AGY_RESUME=0` to go back to the old way.
+
 ## [0.631.6] - 2026-11-24
 ### Improved
 - **Antigravity answers a few seconds sooner every turn.** The answer is final as soon as the model is done, without waiting 2 to 3 more seconds for Antigravity to shut down; a model with its depth in its name (such as `-high`) no longer gets Javis's extra "think it through" line, so the first word comes nearly twice as fast.
