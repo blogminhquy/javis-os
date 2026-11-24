@@ -97,6 +97,12 @@ def _sent_dir(conv_id: int) -> Path:
     return Path(STATE_DIR) / SENT_DIR_NAME / str(int(conv_id))
 
 
+def _store_sent_file(dest: Path, data: bytes) -> None:
+    """Write a sent file into its conversation's folder. Disk work, so the route runs it in a thread."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+
+
 def _safe_name(name: str) -> str:
     """A file name kept as the customer will see it, minus path parts and characters a file system refuses."""
     base = Path(str(name or "").replace("\\", "/")).name.strip()
@@ -752,11 +758,9 @@ def register(app, deps: ConversationsDeps):
             return JSONResponse({"ok": False, "code": "too_big", "error": localefmt.chu(
                 f"file lớn quá {MAX_SENT_FILE // 1048576} MB", f"file larger than {MAX_SENT_FILE // 1048576} MB")},
                 status_code=413)
-        folder = _sent_dir(conv_id)
-        folder.mkdir(parents=True, exist_ok=True)
         import uuid
-        dest = folder / f"{uuid.uuid4().hex[:8]}_{name}"
-        dest.write_bytes(data)
+        dest = _sent_dir(conv_id) / f"{uuid.uuid4().hex[:8]}_{name}"
+        await run_in_threadpool(_store_sent_file, dest, data)
         caption = str(text or "").strip()[:1000]
         raw = _tk_goc(c)
         s = channels.spec(kenh)
@@ -767,7 +771,7 @@ def register(app, deps: ConversationsDeps):
             tk["token"] = channel_accounts.get_token(raw)
         ok, err = await channels.send_file(kenh, tk, chat, str(dest), caption, str(c.get("chat_type") or "private"))
         if not ok:
-            dest.unlink(missing_ok=True)
+            await run_in_threadpool(dest.unlink, True)
             return JSONResponse({"ok": False, "code": "send_failed",
                                  "error": err or localefmt.chu("không gửi được", "could not send")}, status_code=400)
         r = conversations.ghi_su_kien({
