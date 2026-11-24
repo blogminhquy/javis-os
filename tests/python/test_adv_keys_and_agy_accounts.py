@@ -225,7 +225,8 @@ if linux:
     check("account 1 keeps the machine's own login", e.agy_home is None)
 agy_src = (Path(SERVER) / "antigravity_cli.py").read_text(encoding="utf-8")
 check("the agy process gets HOME and file storage for an extra account",
-      'getattr(self, "agy_home", None)' in agy_src and '_env["GEMINI_FORCE_FILE_STORAGE"] = "true"' in agy_src)
+      'getattr(self, "agy_home", None)' in agy_src and 'env["GEMINI_FORCE_FILE_STORAGE"] = "true"' in agy_src
+      and "def engine_env(self)" in agy_src and agy_src.count("self.engine_env()") >= 1)
 check("the chat turn picks the Antigravity account to run",
       '_turn_acc["antigravity-cli"] = _plan_account_apply(acli, "antigravity-cli", mcfg)' in src)
 
