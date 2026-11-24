@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.632.1] - 2026-11-24
+### Fixed
+- **The ChatGPT model list comes from the account in use.** With account 1 (a Free plan) switched off and a Plus account on, the Models page used to show only the 3 models of the switched-off account. The picker now shows every model of the account that answers your chats.
+- **Opening the model picker loads a fresh list.** It used to keep an old list once it had one, so reloading the page or signing out changed nothing.
+
 ## [0.632.0] - 2026-11-24
 ### Improved
 - **Antigravity answers as fast as Claude and ChatGPT from the second turn on.** Each chat keeps an Antigravity process running and resumes its own conversation, so later turns neither restart it nor reread all the rules and history: the first word arrives after about 2 to 3 seconds instead of 10 or more.
