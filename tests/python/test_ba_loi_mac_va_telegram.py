@@ -81,7 +81,7 @@ check("đăng nhập ChatGPT xong thì cho phép hỏi lại (bộ nhớ 'đã h
 # 2. Rỗng thì phải nói VÌ SAO, và nói được câu dùng được
 # ============================================================
 _m = c.read_settings()["model"]
-_ly_do = main._vi_sao_khong_co_model("openai-oauth", _m)
+_ly_do = main._why_no_models("openai-oauth", _m)
 check("đã kết nối + không thấy Codex CLI -> chỉ đúng việc phải làm",
       "Codex" in _ly_do and ("npm i -g @openai/codex" in _ly_do),
       _ly_do)
@@ -90,16 +90,16 @@ check("và nhắc được cả lối thoát cho máy cài chỗ lạ", "JAVIS_C
 _cu = main.openai_oauth.valid_creds
 try:
     main.openai_oauth.valid_creds = lambda: {}
-    _ly_do2 = main._vi_sao_khong_co_model("openai-oauth", _m)
+    _ly_do2 = main._why_no_models("openai-oauth", _m)
 finally:
     main.openai_oauth.valid_creds = _cu
 check("chưa kết nối thì nói chưa kết nối, không đổ cho Codex",
       "Chưa kết nối ChatGPT" in _ly_do2 and "npm i" not in _ly_do2, _ly_do2)
 
 check("provider API thiếu key -> nói thiếu key",
-      "API key" in main._vi_sao_khong_co_model("openrouter", {}))
+      "API key" in main._why_no_models("openrouter", {}))
 check("không có gì để nói thì im, không bịa lý do",
-      main._vi_sao_khong_co_model("anthropic-cli", _m) == "")
+      main._why_no_models("anthropic-cli", _m) == "")
 
 # Lý do phải ĐI RA TỚI người dùng, không dừng ở server.
 _r = asyncio.get_event_loop().run_until_complete(
