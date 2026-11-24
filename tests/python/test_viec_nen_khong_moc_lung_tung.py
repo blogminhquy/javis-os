@@ -94,6 +94,9 @@ check("tên việc chứa '-->' không làm vỡ khối", k.count("-->") == 1, k
 check("strip_control_blocks bóc khối cho Telegram/Zalo/hòm thư",
       channel_context.strip_control_blocks(k + "\nKết quả") == "Kết quả")
 check("viec rỗng thì không có khối", ns["khoi_viec"](None) == "" and ns["khoi_viec"]({}) == "")
+# #1737: the chat card shows a warning instead of a green "done" when the automatic check could not run.
+k = ns["khoi_viec"]({"kind": "task", "status": "done", "title": "x", "id": "t2", "acceptance_check": "unverified"})
+check("the block carries acceptance_check so the chat card can warn", '"acceptance_check": "unverified"' in k, k)
 check("push_to_chat gắn khối SAU khi bóc (không tự bóc mất)",
       re.search(r"clean = channel_context\.strip_control_blocks\(text or \"\"\)\.strip\(\)[\s\S]{0,400}"
                 r"_k = khoi_viec\(viec\)", MAIN) is not None)
