@@ -85,6 +85,16 @@ check("tên ảnh Zalo lấy từ đường dẫn", M.tenAnh("https://s120-ava-t
 // 0.318.0 (owner, 25/10/2026): a photo the owner or the bot sent read "image https://...jpg" instead of showing.
 const ownerPhoto = M.phanTich({ sender_type: "human", message_type: "image", text: "https://f120-zpc.zdn.vn/jpg/1/a.jpg" }, "c1");
 check("ảnh chủ shop gửi (tin human, loại image) cũng thành ảnh", ownerPhoto.anh === "https://f120-zpc.zdn.vn/jpg/1/a.jpg");
+// The owner's own image or file sent with the inbox + button (2026-11-24): served from this machine.
+const sentImg = M.phanTich({ sender_type: "human", message_type: "image", text: "Mẫu này chị nhé",
+  metadata: { sent_file: { p: "/state/inbox_sent/7/ab_mau.png", name: "mau.png", size: 10 } } }, "7");
+check("an image sent with + shows as a photo with its caption",
+  sentImg.anh === "/conversations/7/media?p=" + encodeURIComponent("/state/inbox_sent/7/ab_mau.png") && sentImg.chu === "Mẫu này chị nhé");
+const sentDoc = M.phanTich({ sender_type: "human", message_type: "file", text: "[bao-gia.pdf]",
+  metadata: { sent_file: { p: "/state/inbox_sent/7/ab_bao-gia.pdf", name: "bao-gia.pdf", size: 2048 } } }, "7");
+check("a file sent with + is a download card, no bracketed text",
+  sentDoc.file && sentDoc.file.ten === "bao-gia.pdf" && sentDoc.file.coDung === "2 KB" && /&dl=1$/.test(sentDoc.file.href) && sentDoc.chu === "");
+check("the chat list says Photo for an image sent with no caption", M.tomTat("[mau.png]", (k) => k) === "ht.anh");
 const cv = fs.readFileSync(path.join(__dirname, "../../dashboard/conversations.js"), "utf8");
 check("hòm thư phân tích ảnh cho mọi tin không phải chữ, không chỉ tin của khách",
   /var wantMedia = t\.sender_type === "customer" \|\| \(t\.message_type && t\.message_type !== "text"\);/.test(cv)

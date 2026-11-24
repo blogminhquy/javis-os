@@ -15,6 +15,7 @@ import asyncio
 import re
 import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 from channels import KenhSpec
@@ -601,6 +602,35 @@ async def gui_anh(tk: dict, chat_id: str, paths, chat_type: str = "private"):
         return False, localefmt.chu("không có ảnh hoặc thư mục phiên để gửi", "no image or session folder to send with")
     loai = "1" if str(chat_type or "") == "group" else "0"
     ok, _data, err = await zalo_cli.run_cli({"home": home}, ["msg", "send-image"], [str(chat_id)] + ds, ["-t", loai])
+    return (True, "") if ok else (False, str(err or "")[:300])
+
+
+IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+
+
+async def send_file(tk: dict, chat_id: str, path: str, caption: str = "", chat_type: str = "private"):
+    """Send one image or file the owner picked in the inbox (2026-11-24). `(ok, error)`, as `gui`.
+
+    An image goes the way the bot's images go (`gui_anh`), a caption after it as its own message; any other file
+    through the MCP file tool (`zalo_cli.send_files`), which takes the caption itself. Each is remembered as our own
+    send first, so its echo is not taken for the owner writing by hand."""
+    import zalo_cli
+    import zalo_personal_channel as zc
+    conn = zc.ket_noi_theo_id(str(tk.get("id") or tk.get("external_id") or ""))
+    if not conn:
+        return False, localefmt.chu("tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt)",
+                                     "this Zalo account is no longer on the Connections page (or is turned off)")
+    cid, f = str(conn.get("id") or ""), Path(str(path))
+    if f.suffix.lower() in IMAGE_SUFFIXES:
+        zc.ghi_da_gui_anh(cid, str(chat_id), 1)
+        ok, err = await gui_anh({"id": cid}, chat_id, [str(f)], chat_type)
+        if ok and str(caption or "").strip():
+            zc.ghi_da_gui(cid, str(chat_id), caption)
+            return await gui({"id": cid}, chat_id, caption, chat_type)
+        return ok, err
+    zc.ghi_da_gui(cid, str(chat_id), caption or f.name)
+    ok, _data, err = await zalo_cli.send_files(cid, zalo_cli.home_of(conn), str(chat_id), [f],
+                                               1 if str(chat_type or "") == "group" else 0, caption)
     return (True, "") if ok else (False, str(err or "")[:300])
 
 

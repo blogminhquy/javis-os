@@ -57,3 +57,12 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private"):
         return False, localefmt.chu("tài khoản Telegram này chưa có token", "this Telegram account has no token yet")
     bot = _Transport()(token, "", None, giau_trang_thai=True)
     return await bot.send_text(chat_id, text)
+
+
+async def send_file(tk: dict, chat_id: str, path: str, caption: str = "", chat_type: str = "private"):
+    """Send one image or file the owner picked in the inbox (2026-11-24). `(ok, error)`, as `gui`."""
+    token = str(tk.get("token") or "").strip()
+    if not token:
+        return False, localefmt.chu("tài khoản Telegram này chưa có token", "this Telegram account has no token yet")
+    bot = _Transport()(token, "", None, giau_trang_thai=True)
+    return await bot.send_file(path, caption, chat=chat_id)

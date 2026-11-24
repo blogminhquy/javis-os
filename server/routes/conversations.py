@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from fastapi import APIRouter, Form, Query
+from fastapi import APIRouter, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -83,6 +83,25 @@ def _404(msg: str = ""):
 def _tk_goc(c: dict) -> str:
     key = str(c.get("channel_account_id") or "")
     return key.split(":", 1)[1] if ":" in key else key
+
+
+# Images and files the owner sends from the inbox (+ button, 2026-11-24): kept here so the chat can show them, one
+# folder per conversation, and served by /conversations/<id>/media like what customers send.
+SENT_DIR_NAME = "inbox_sent"
+MAX_SENT_FILE = 25 * 1024 * 1024      # Messenger's limit, the lowest of the channels that take files
+_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
+
+
+def _sent_dir(conv_id: int) -> Path:
+    from config import STATE_DIR
+    return Path(STATE_DIR) / SENT_DIR_NAME / str(int(conv_id))
+
+
+def _safe_name(name: str) -> str:
+    """A file name kept as the customer will see it, minus path parts and characters a file system refuses."""
+    base = Path(str(name or "").replace("\\", "/")).name.strip()
+    base = "".join(ch for ch in base if ch not in '<>:"|?*' and ord(ch) >= 32).strip(" .")
+    return base[:120] or "file"
 
 
 # Conversation ids whose post card is being read, and when a read last came back empty (2026-11-24).
@@ -708,6 +727,65 @@ def register(app, deps: ConversationsDeps):
         r = await ca.profile(c)
         return r if r.get("ok") else JSONResponse(r, status_code=400)
 
+    @router.post("/conversations/{conv_id}/send-file")
+    async def conversations_send_file(conv_id: int, file: UploadFile = File(...), text: str = Form("")):
+        """The owner sends one image or file from the inbox (+ button, 2026-11-24), with an optional caption.
+
+        Kept under the state folder so the chat shows it like a customer's photo, sent through the channel's
+        `send_file`, then recorded as the owner's message; the chat is taken over from its bot as when the owner types.
+        A Facebook comment takes an image only, an Instagram comment no file at all."""
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        kenh, chat = str(c.get("channel") or ""), str(c.get("external_chat_id") or "")
+        name = _safe_name(file.filename or "")
+        image = Path(name).suffix.lower() in _IMAGE_SUFFIXES
+        if chat.startswith("igc:") or (chat.startswith("cmt:") and not image):
+            return JSONResponse({"ok": False, "code": "comment_text_only", "error": localefmt.chu(
+                "Bình luận Instagram chỉ nhận chữ, bình luận Facebook chỉ nhận ảnh",
+                "An Instagram comment takes text only, a Facebook comment an image only")}, status_code=400)
+        data = await file.read(MAX_SENT_FILE + 1)
+        if not data:
+            return JSONResponse({"ok": False, "code": "empty", "error": localefmt.chu("file rỗng", "empty file")},
+                                status_code=400)
+        if len(data) > MAX_SENT_FILE:
+            return JSONResponse({"ok": False, "code": "too_big", "error": localefmt.chu(
+                f"file lớn quá {MAX_SENT_FILE // 1048576} MB", f"file larger than {MAX_SENT_FILE // 1048576} MB")},
+                status_code=413)
+        folder = _sent_dir(conv_id)
+        folder.mkdir(parents=True, exist_ok=True)
+        import uuid
+        dest = folder / f"{uuid.uuid4().hex[:8]}_{name}"
+        dest.write_bytes(data)
+        caption = str(text or "").strip()[:1000]
+        raw = _tk_goc(c)
+        s = channels.spec(kenh)
+        tk = {"id": raw, "channel": kenh}
+        if s and s.kind == "bot":
+            a = channel_accounts.get_account(raw) or {}
+            tk.update({k: a.get(k) for k in ("label", "external_id")})
+            tk["token"] = channel_accounts.get_token(raw)
+        ok, err = await channels.send_file(kenh, tk, chat, str(dest), caption, str(c.get("chat_type") or "private"))
+        if not ok:
+            dest.unlink(missing_ok=True)
+            return JSONResponse({"ok": False, "code": "send_failed",
+                                 "error": err or localefmt.chu("không gửi được", "could not send")}, status_code=400)
+        r = conversations.ghi_su_kien({
+            "channel": kenh, "account_id": raw, "account_name": c.get("account_name") or "",
+            "bot_id": c.get("bot_id") or "", "external_chat_id": chat, "chat_type": c.get("chat_type"),
+            "chat_title": c.get("title") if c.get("chat_type") == "group" else "",
+            "sender_type": "human", "sender_name": "Bạn", "message_type": "image" if image else "file",
+            "text": caption or f"[{name}]",
+            "metadata": {"tu_javis": True, "sent_file": {"p": str(dest), "name": name, "size": len(data)}},
+        })
+        tiep_quan = False
+        if c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
+            conversations.dat_che_do(c["id"], "human")
+            tiep_quan = True
+        conversations.clear_draft(c["id"])
+        return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
+                "conversation": conversations.chi_tiet(c["id"])}
+
     @router.post("/conversations/{conv_id}/block")
     async def conversations_block(conv_id: int):
         """Block on the platform where it allows it (Messenger, a Zalo personal chat), else in Javis only. Either way
@@ -1010,6 +1088,10 @@ def register(app, deps: ConversationsDeps):
             except Exception:      # noqa: BLE001
                 continue
             goc += [root / d for d in _THU_MUC_MEDIA]
+        try:
+            goc.append(_sent_dir(int(c.get("id") or 0)).resolve())
+        except Exception:      # noqa: BLE001
+            pass
         return goc
 
     @router.get("/conversations/{conv_id}/media")

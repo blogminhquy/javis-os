@@ -63,6 +63,8 @@
   var _host = null, _timer = null, _tab = "inbox";
   var _items = [], _stats = {}, _dauVet = "";
   var _kenhLoc = "", _botLoc = "", _q = "";
+  var _files = {};                      // conversation id -> images or files picked with + and not sent yet (2026-11-24)
+  var MAX_FILE = 25 * 1024 * 1024;      // the server's limit (routes/conversations.py MAX_SENT_FILE)
   var _privFor = 0;                     // id of the comment thread whose composer is set to "Message privately" (0.446.0)
   // The mic of the reply box (owner, 2026-11-05: "thêm nút chép lời để nói bằng giọng nói rồi chép lại, khỏi phải gõ").
   // dictate.js does the listening; the state lives here because the 5-second redraw rebuilds the box.
@@ -1674,6 +1676,14 @@
       ta.oninput = grow;
       if (nhapDo) grow();
       box.querySelector(".ht-send").onclick = function () { gui(c); };
+      var plus = box.querySelector(".ib-plus"), plusIn = box.querySelector(".ib-plus-in");
+      if (plus && plusIn) {
+        plus.onclick = function () { plusIn.click(); };
+        plusIn.onchange = function () { addFiles(c, plusIn.files); };
+      }
+      box.querySelectorAll(".ib-file-x").forEach(function (b) {
+        b.onclick = function () { dropFile(c, Number(b.getAttribute("data-i")) || 0); };
+      });
       box.querySelectorAll(".ht-priv-o").forEach(function (b) {
         b.onclick = function () {
           var on = b.getAttribute("data-priv") === "1";
@@ -2440,6 +2450,42 @@
 
   // Ô trả lời khách: Gửi (gửi nguyên văn) và A.I. trả lời (chữ trong ô là lệnh cho A.I.). Nói rõ trước khi bấm gửi: gửi từ đây
   // là TIẾP QUẢN (bot đang trực sẽ im ở cuộc này), và với kênh tài khoản cá nhân thì tin đi dưới tên chính bạn.
+  // The + button (2026-11-24): pick images or files, see them above the box, Send sends them with the typed words as
+  // the caption of the first one. A Facebook comment takes an image, an Instagram comment and a private reply nothing.
+  function fileMode(c, priv) {
+    var k = chatKind(c);
+    if (priv || k === "igc" || k === "thc" || !nangLuc(c.channel, "gui_file")) return "";
+    return k === "fbc" ? "image" : "any";
+  }
+  function pendingFiles(c) { return (c && _files[c.id]) || []; }
+  function filesHtml(c) {
+    var ds = pendingFiles(c);
+    if (!ds.length) return "";
+    return '<div class="ib-files">' + ds.map(function (f, i) {
+      var img = /^image\//.test(f.file.type || "") && f.url;
+      return '<span class="ib-file" title="' + esc(f.file.name) + '">' +
+        (img ? '<img src="' + esc(f.url) + '" alt="">' : '<span class="ib-file-ico">' + ic("paperclip") + '</span><span class="ib-file-n">' + esc(f.file.name) + '</span>') +
+        '<button type="button" class="ib-file-x" data-i="' + i + '" aria-label="' + esc(window.t("ht.file_remove")) + '">' + ic("x") + '</button></span>';
+    }).join("") + '</div>';
+  }
+  function addFiles(c, list) {
+    var ds = _files[c.id] || (_files[c.id] = []);
+    var big = [];
+    Array.prototype.forEach.call(list || [], function (f) {
+      if (f.size > MAX_FILE) { big.push(f.name); return; }
+      ds.push({ file: f, url: /^image\//.test(f.type || "") && window.URL && URL.createObjectURL ? URL.createObjectURL(f) : "" });
+    });
+    if (big.length) alert(window.t("ht.file_big", { ten: big.join(", "), mb: MAX_FILE / 1048576 }));
+    _dauVetTin = "";
+    veThread();
+  }
+  function dropFile(c, i) {
+    var ds = _files[c.id] || [];
+    var f = ds.splice(i, 1)[0];
+    if (f && f.url && window.URL && URL.revokeObjectURL) URL.revokeObjectURL(f.url);
+    if (!ds.length) delete _files[c.id];
+    veThread();
+  }
   function veCompose(c) {
     var V = window.JavisInboxV5, k = kenhCua(c.channel), t = window.t;
     var laBot = !!c.bot_id;
@@ -2458,13 +2504,18 @@
     var writing = (_aiBusy === "ask" || _aiBusy === "redo") && _aiWork && _aiWork.conv === c.id;
     var cmt = canPrivate(c), priv = cmt && _privFor === c.id;
     if (priv) ph = t("ht.priv_ph");
+    var fm = fileMode(c, priv);
     return '<div class="ht-compose' + (draft || writing ? " has-draft" : "") + '">' + noteHtml() +
       (cmt ? privToggleHtml(priv, c) : "") +
       '<div class="ib-cbox">' +
       (writing && V ? V.workingHtml(aiWorkView(), ic) : draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
+      filesHtml(c) +
       '<div class="ib-cin">' +
         '<textarea rows="1" placeholder="' + esc(ph) + '" aria-label="' + esc(t("ib.cin_aria")) + '"></textarea>' +
         micHtml(c) +
+        (fm ? '<button type="button" class="s-btn-ghost ib-plus" title="' + esc(t(fm === "image" ? "ht.file_add_img" : "ht.file_add")) +
+          '" aria-label="' + esc(t(fm === "image" ? "ht.file_add_img" : "ht.file_add")) + '">' + ic("plus") + '</button>' +
+          '<input type="file" class="ib-plus-in" hidden multiple' + (fm === "image" ? ' accept="image/*"' : "") + '>' : "") +
         (laBot && !priv ? '<button type="button" class="s-btn-ghost ib-ask"' + (_aiBusy ? " disabled" : "") + ' title="' + esc(t("ib.ai_reply_t")) +
           '" aria-label="' + esc(t("ib.ai_reply")) + '">' +
           (_aiBusy === "ask" ? spin() : ic("sparkles")) + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +
@@ -2493,15 +2544,26 @@
     var nut = box && box.querySelector(".ht-send");
     if (!ta || _dangGui) return;
     var txt = ta.value.trim();
-    if (!txt) return;
+    var ds = fileMode(c, canPrivate(c) && _privFor === c.id) ? pendingFiles(c).slice() : [];
+    if (!txt && !ds.length) return;
     _dangGui = true;
     ta.disabled = true; if (nut) nut.disabled = true;
     try {
-      if (canPrivate(c) && _privFor === c.id) {
+      // Picked files first, one by one; the typed words ride as the caption of the first, so nothing is sent twice.
+      while (ds.length) {
+        var f = ds[0];
+        await api("/conversations/" + c.id + "/send-file", { method: "POST", body: fd({ file: f.file, text: txt }) });
+        txt = ""; ta.value = "";
+        ds.shift();
+        var left = _files[c.id] || [];
+        if (left[0] === f) { left.shift(); if (f.url && window.URL && URL.revokeObjectURL) URL.revokeObjectURL(f.url); }
+        if (!left.length) delete _files[c.id];
+      }
+      if (txt && canPrivate(c) && _privFor === c.id) {
         await api("/conversations/" + c.id + "/private-reply", { method: "POST", body: fd({ text: txt }) });
         // One private message per comment: back to public replies, so the next Send does not hit Meta's limit.
         _privFor = 0;
-      } else {
+      } else if (txt) {
         await api("/conversations/" + c.id + "/reply", { method: "POST", body: fd({ text: txt }) });
       }
       ta.value = "";

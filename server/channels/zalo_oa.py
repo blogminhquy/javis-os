@@ -69,3 +69,14 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private"):
                                     "this Zalo OA account has no credentials yet")
     bot = _Transport()(token, "", None, giau_trang_thai=True, account_id=aid)
     return await bot.send_text(chat_id, text)
+
+
+async def send_file(tk: dict, chat_id: str, path: str, caption: str = "", chat_type: str = "private"):
+    """Send one image or file the owner picked in the inbox (2026-11-24). `(ok, error)`, as `gui`."""
+    token = str(tk.get("token") or "").strip()
+    aid = str(tk.get("id") or "")
+    if not token and not aid:
+        return False, localefmt.chu("tài khoản Zalo OA này chưa có thông tin đăng nhập",
+                                    "this Zalo OA account has no credentials yet")
+    bot = _Transport()(token, "", None, giau_trang_thai=True, account_id=aid)
+    return await bot.send_file(path, caption, chat=chat_id)
