@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.641.0] - 2026-11-24
+### Added
+- **Pin messages to the top of a chat, like Zalo.** A pin bar above the chat shows the newest pin. "+N pinned" opens the whole list, and "..." offers "Move to top" and "Unpin". Tapping a pin goes to that message, even an old one not loaded yet.
+- **Chatbot page:** any message, the customer's or yours, can be pinned. On a computer, hover a message and press the pin beside its time. On a phone, hold the message. A pinned message in a Zalo group survives the trim of old group messages.
+- **Partners and Chat:** pinned answers (the pin under an answer) show in the same pin bar, which stays at the top while the chat scrolls.
+### Fixed
+- **The status line above a Chatbot page chat is no longer half hidden** when its sentence wraps to two lines.
+
 ## [0.640.0] - 2026-11-24
 ### Added
 - **Conversations get a quick row: All, Messages, Comments.** A Facebook Page no longer mixes comments with Messenger chats, and each choice shows how many chats it holds.
