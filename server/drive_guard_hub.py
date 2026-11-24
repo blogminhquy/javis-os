@@ -101,6 +101,14 @@ def _lookup(cache: dict[str, list[str]]):
     return parents_of
 
 
+def refuse_gated(reason: str):
+    """Hàm thay thế cho lệnh ghi Drive khi cấu hình guard lỗi: luôn trả lỗi rõ, không gọi Composio."""
+    async def _refused(args):
+        print(f"[drive guard] TỪ CHỐI (cấu hình lỗi): {reason}", file=sys.stderr)
+        return f"ERROR: Javis chặn ghi Drive/Docs/Sheets: cấu hình guard lỗi ({reason}). Sửa cấu hình rồi khởi động lại."
+    return _refused
+
+
 def wrap(call, conn: dict, tool: str, fn: str = "", env=None):
     """Bọc route call của tool Composio. Trả call gốc khi off hoặc không phải tool cổng."""
     mode = g.current_mode(env)
@@ -111,12 +119,15 @@ def wrap(call, conn: dict, tool: str, fn: str = "", env=None):
     gated = up in _GATED_TOOLS or (up.startswith("COMPOSIO_") and up not in g._COMPOSIO_SAFE)
     if str((conn or {}).get("connector_id") or "") != "composio" or not gated:
         return call
+    # FAIL-SECURE: mode lạ, hoặc enforce/shadow mà đợt thiếu/sai -> TỪ CHỐI lệnh gated, không pass-through.
+    # Không bao giờ "chỉ ghi log rồi cho qua" khi cấu hình lỗi. Chỉ sửa cấu hình rồi khởi động lại mới mở lại.
+    if mode == "invalid":
+        return refuse_gated(f"{g.MODE_ENV} không hợp lệ (chỉ off, shadow, enforce)")
     state, _ = g.pilot_status(env)
     if state != "ok":
-        # Không có đợt hợp lệ: KHÔNG áp guard lên ai (không chặn diện rộng ngoài ý muốn). Ghi lỗi to để sửa cấu hình.
-        print(f"[drive guard {mode}] CẤU HÌNH LỖI: {g.PILOT_ENV} {state}. Guard KHÔNG áp dụng cho lệnh {tool}. "
-              f"Đặt danh sách slug rõ ràng (không dùng '*') để bật.", file=sys.stderr)
-        return call
+        print(f"[drive guard {mode}] CẤU HÌNH LỖI: {g.PILOT_ENV} {state}. Từ chối lệnh {tool} cho đến khi sửa.",
+              file=sys.stderr)
+        return refuse_gated(f"{g.PILOT_ENV} {state}: đặt danh sách slug rõ ràng, không dùng '*'")
 
     async def _guarded(args):
         a = args if isinstance(args, dict) else {}

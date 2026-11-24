@@ -121,8 +121,12 @@ MAX_NEST = 3
 
 
 def current_mode(env: Optional[dict] = None) -> str:
-    raw = ((env if env is not None else os.environ).get(MODE_ENV) or "off").strip().lower()
-    return raw if raw in MODES else "off"
+    """off | shadow | enforce. Chưa đặt -> off. Giá trị LẠ (gõ sai, ví dụ 'enfroce') -> 'invalid': fail-secure,
+    không được âm thầm coi là off."""
+    raw = ((env if env is not None else os.environ).get(MODE_ENV) or "").strip().lower()
+    if not raw:
+        return "off"
+    return raw if raw in MODES else "invalid"
 
 
 def is_read_tool(tool: str) -> bool:

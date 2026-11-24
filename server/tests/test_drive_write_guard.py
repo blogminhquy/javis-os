@@ -228,8 +228,11 @@ class Modes(unittest.TestCase):
     def test_default_mode_is_off(self):
         self.assertEqual(g.current_mode({}), "off")
 
-    def test_invalid_mode_falls_back_to_off(self):
-        self.assertEqual(g.current_mode({g.MODE_ENV: "ENFORCE!"}), "off")
+    def test_invalid_mode_is_not_silently_off(self):
+        self.assertEqual(g.current_mode({g.MODE_ENV: "ENFORCE!"}), "invalid")
+        self.assertEqual(g.current_mode({g.MODE_ENV: "enfroce"}), "invalid")
+        self.assertEqual(g.current_mode({}), "off")
+        self.assertEqual(g.current_mode({g.MODE_ENV: "  "}), "off")
 
     def test_shadow_and_off_never_block(self):
         d = dec(ACTOR, "GOOGLEDRIVE_TRASH_FILE", {"file_id": "other-file"})

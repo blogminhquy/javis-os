@@ -104,33 +104,49 @@ class PilotScopeTests(_Base):
         out, calls, _ = self._go("javis-vu", ENV)
         self.assertGuarded(out, calls)
 
-    def test_env_without_pilot_does_not_fall_back_to_os_environ_widening(self):
-        # env truyền vào KHÔNG có pilot: guard không áp lên ai (config lỗi), kể cả khi os.environ có đợt.
+    def test_env_without_pilot_does_not_fall_back_to_os_environ(self):
+        # env truyền vào KHÔNG có pilot: từ chối (config lỗi), kể cả khi os.environ có đợt.
         os.environ[g.PILOT_ENV] = LEADERS
         out, calls, log = self._go("javis-vu", {"JAVIS_DRIVE_WRITE_GUARD": "enforce"})
-        self.assertPassthrough(out, calls)
-        self.assertIn("CẤU HÌNH LỖI", log)
+        self.assertTrue(str(out).startswith("ERROR:"), out)
+        self.assertEqual(calls, [])
 
 
 class PilotFailSafeTests(_Base):
-    def test_enforce_with_missing_pilot_applies_to_nobody(self):
-        out, calls, log = self._go("javis-vu", {"JAVIS_DRIVE_WRITE_GUARD": "enforce"})
-        self.assertPassthrough(out, calls)
-        self.assertIn("CẤU HÌNH LỖI", log)
-        self.assertIn("unset", log)
+    """Cấu hình lỗi trong enforce/shadow: TỪ CHỐI mọi lệnh gated (không pass-through, không log-rồi-cho-qua)."""
 
-    def test_enforce_with_wildcard_pilot_applies_to_nobody(self):
+    def assertRefused(self, out, calls):
+        self.assertTrue(str(out).startswith("ERROR:"), out)
+        self.assertIn("cấu hình guard lỗi", str(out))
+        self.assertEqual(calls, [])
+
+    def test_enforce_with_missing_pilot_refuses_everyone(self):
+        for actor in ("javis-vu", SPECIALIST, None):
+            out, calls, log = self._go(actor, {"JAVIS_DRIVE_WRITE_GUARD": "enforce"})
+            self.assertRefused(out, calls)
+        self.assertIn("CẤU HÌNH LỖI", log)
+
+    def test_enforce_with_wildcard_pilot_refuses_everyone(self):
         out, calls, log = self._go(SPECIALIST, {"JAVIS_DRIVE_WRITE_GUARD": "enforce",
                                                 "JAVIS_DRIVE_GUARD_PILOT": "*"})
-        self.assertPassthrough(out, calls)
+        self.assertRefused(out, calls)
         self.assertIn("invalid", log)
 
-    def test_shadow_with_missing_pilot_applies_to_nobody(self):
+    def test_shadow_with_missing_pilot_refuses_too(self):
         out, calls, _ = self._go("javis-vu", {"JAVIS_DRIVE_WRITE_GUARD": "shadow"})
-        self.assertPassthrough(out, calls)
+        self.assertRefused(out, calls)
+
+    def test_typo_in_mode_refuses_instead_of_off(self):
+        out, calls, _ = self._go(SPECIALIST, {"JAVIS_DRIVE_WRITE_GUARD": "enfroce",
+                                              "JAVIS_DRIVE_GUARD_PILOT": LEADERS})
+        self.assertRefused(out, calls)
 
     def test_guard_off_never_intervenes(self):
         out, calls, _ = self._go("javis-vu", {"JAVIS_DRIVE_WRITE_GUARD": "off", "JAVIS_DRIVE_GUARD_PILOT": LEADERS})
+        self.assertPassthrough(out, calls)
+
+    def test_off_with_broken_pilot_still_passthrough(self):
+        out, calls, _ = self._go("javis-vu", {"JAVIS_DRIVE_WRITE_GUARD": "off", "JAVIS_DRIVE_GUARD_PILOT": "*"})
         self.assertPassthrough(out, calls)
 
     def test_shadow_with_valid_pilot_logs_but_calls_through(self):
