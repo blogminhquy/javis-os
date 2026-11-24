@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.635.1] - 2026-11-24
+### Fixed
+- **Empty background run outputs no longer count as done.** When a non-silent run returns blank output, the job gets one bounded retry and then blocks for review instead of reporting completion.
+- **Unverified acceptance results surface an explicit warning.** When the automatic checker fails or returns invalid output, the completion notice and task card switch to a warning and explain that the result was not verified.
+- **Preset completion criteria still run without preparation.** Jobs created with fixed acceptance criteria are checked against them even when the preparation step did not run.
+
 ## [0.635.0] - 2026-11-24
 ### Added
 - **A + button in the inbox reply box sends images and files to the customer.** Pick one or more, see them above the box, press Send and they go out on the customer's own channel (Messenger, Telegram, WhatsApp, personal Zalo, Zalo OA, Lark, Slack, WeChat). The typed words go as the caption of the first one. What was sent shows in the chat right away. A Facebook comment takes images; an Instagram comment takes text only, so it has no + button. Up to 25 MB per file.
