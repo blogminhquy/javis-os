@@ -236,21 +236,30 @@ check("bỏ qua giá trị không phải http", zb._lay_url({"voice": "abc"}, ("
 
 
 class _ZClient:
-    """Client giả cho phần TẢI FILE của Zalo (bot tự gọi client.get vào URL trong payload)."""
+    """Client giả cho phần TẢI FILE của Zalo (bot tự gọi client.get vào URL trong payload). Since PR #1642 the voice
+    download goes through `zb.fetch_media` on this same client (it honours HTTPS_PROXY), with retries on an empty body."""
 
-    def __init__(self, noi_dung=b"AUDIO"):
-        self.noi_dung = noi_dung
+    def __init__(self, body=b"AUDIO", status=200, ctype=""):
+        self.body, self.status, self.ctype = body, status, ctype
+        self.calls = 0
 
-    async def get(self, url, timeout=None):
-        return _ZResp(self.noi_dung)
+    async def get(self, url, **kw):
+        self.calls += 1
+        return _ZResp(self.body, self.status, self.ctype)
 
 
 class _ZResp:
-    def __init__(self, noi_dung):
-        self.content = noi_dung
+    def __init__(self, body, status=200, ctype=""):
+        self.content = body
+        self.status_code = status
+        self.headers = {"content-type": ctype} if ctype else {}
 
-    def raise_for_status(self):
-        return None
+
+async def _no_wait(_s):
+    return None
+
+
+zb._sleep = _no_wait
 
 
 def _zbot(stt_fn=None):
@@ -295,6 +304,29 @@ check("ảnh Zalo vẫn dùng _lay_url với bộ khoá của ảnh",
 out = chay(_zbot(_stt_ok)._ingest_attachment(_ZClient(), zb.SK_STICKER,
                                              {"message_id": "s", "chat": {"id": "z"}}))
 check("sticker Zalo vẫn báo không có chữ để đọc", "sticker" in out.lower())
+
+# PR #1642: an empty body or an error page never reaches speech-to-text, and the note names the failing step.
+_stt_calls = []
+
+
+async def _count_stt(data, name):
+    _stt_calls.append(data)
+    return {"ok": True, "text": "must not get here"}
+
+_empty = _ZClient(b"")
+out = chay(_zbot(_count_stt)._ingest_attachment(_empty, zb.SK_VOICE, _zvoice()))
+check("Zalo voice: an empty body is asked again, then the note says the download failed",
+      _empty.calls == 2 * (1 + len(zb.MEDIA_RETRY_WAITS)) and "could NOT download the recording" in out
+      and "not ready" in out)
+out = chay(_zbot(_count_stt)._ingest_attachment(_ZClient(b"<html><body>403 Forbidden</body></html>", ctype="text/html"),
+                                                zb.SK_VOICE, _zvoice()))
+check("Zalo voice: an HTML error page is named as such", "error page instead of the recording" in out)
+out = chay(_zbot(_count_stt)._ingest_attachment(_ZClient(b"Expired", ctype="text/plain"), zb.SK_VOICE, _zvoice()))
+check("Zalo voice: a text/plain error body is refused too", "error page instead of the recording" in out)
+out = chay(_zbot(_count_stt)._ingest_attachment(_ZClient(b"gone", status=404), zb.SK_VOICE, _zvoice()))
+check("Zalo voice: an HTTP error names the status", "could NOT download the recording" in out and "HTTP 404" in out)
+check("...and none of them reached speech-to-text", _stt_calls == [])
+check("...nor claimed it was heard", stt.MARK_THOAI not in out)
 
 
 # ============================================================

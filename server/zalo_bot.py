@@ -199,6 +199,99 @@ def _with_suffix(path: Path) -> Path:
         return path
 
 
+# ---- Photos and voice messages ----------------------------------------------------------------------------------------
+# Owner report 2026-11-20 (PR #1642): three photos in a row were saved as 0-byte .jpg files and announced to the model as
+# downloaded. Zalo's file server answered HTTP 202, or 200 with an empty body, while the photo was not ready yet, and the
+# bare `client.get` wrote whatever came back. Same fault and same cure as Zalo OA (#1733, `zalo_oa_bot.ZaloOABot._download`):
+# ask plainly, then with the Zalo web app's headers; an empty or 202 answer means "not ready yet" and is asked again after
+# each of these waits. Kept short: the poll loop waits for it.
+#
+# The request goes through the gateway's own client, which honours HTTPS_PROXY: a server that reaches the internet only
+# through a proxy must keep its photos and voice messages. Never `zalo_attachments.fetch_file` (direct, pinned IP) here.
+MEDIA_RETRY_WAITS = (1.0, 2.0)
+MEDIA_BUDGET_SECONDS = 180.0      # the whole download, retries included: the per-request timeout photos always had
+_sleep = asyncio.sleep            # tests swap this for a no-op so the waits cost nothing
+
+
+async def _media_tries(client, url: str, seen: dict) -> tuple:
+    """(bytes, "") of the first non-empty 2xx answer that is not a 202, else (None, reason). `seen` gets the last
+    answer's status, content type and size, for the failure log."""
+    import zalo_oa_bot
+    why = ""
+    for wait in (0.0, *MEDIA_RETRY_WAITS):
+        if wait:
+            await _sleep(wait)
+        not_ready = False
+        for headers in (None, zalo_oa_bot.BROWSER_HEADERS):
+            try:
+                r = await client.get(url, headers=headers, timeout=httpx.Timeout(MEDIA_BUDGET_SECONDS),
+                                     follow_redirects=True)
+            except Exception as e:  # noqa: BLE001 - try the next way; the reason never quotes the signed link
+                why = f"network error ({type(e).__name__})"
+                continue
+            data = r.content or b""
+            seen.update(status=r.status_code, bytes=len(data),
+                        type=str(r.headers.get("content-type") or "").split(";")[0].strip().lower()[:80])
+            if r.status_code == 202 or (200 <= r.status_code < 300 and not data):
+                not_ready = True
+                continue
+            if not 200 <= r.status_code < 300:
+                why = f"Zalo's file server answered HTTP {r.status_code}"
+                continue
+            return data, ""
+        if not not_ready:
+            return None, why or "no answer"
+    return None, "Zalo's file server answered HTTP 202 or an empty file on every try (the file was not ready)"
+
+
+async def fetch_media(client, url: str, kind: str) -> tuple:
+    """(bytes, content type, "") of one photo or voice-message link, or (None, "", reason). Never an empty body.
+
+    `client` is the gateway's (proxy-honouring) client. A failure is logged with host, HTTP status, content type and byte
+    count only: the link is signed, so it is never logged nor put in the reason (an httpx error message quotes it)."""
+    seen = {"status": None, "type": "", "bytes": 0}
+    try:
+        async with asyncio.timeout(MEDIA_BUDGET_SECONDS):
+            data, why = await _media_tries(client, url, seen)
+    except TimeoutError:
+        data, why = None, f"no file within {MEDIA_BUDGET_SECONDS:g} seconds"
+    if data is None:
+        print(f"[zalo {kind}] download failed: {why} (host={urlparse(url).hostname or '?'}, status={seen['status']}, "
+              f"type={seen['type'] or '?'}, bytes={seen['bytes']})", file=sys.stderr)
+        return None, "", why
+    return data, seen["type"], ""
+
+
+def not_a_recording(data: bytes, content_type: str) -> bool:
+    """True when a body that should be a voice recording is an error page or an API message (HTML, JSON, XML, plain
+    text). A body `stt` recognises as audio never counts, whatever its label; an unknown binary body is left to
+    speech-to-text, which knows more formats than the sniffer."""
+    if stt._sniff_audio(data):
+        return False
+    ct = str(content_type or "").split(";")[0].strip().lower()
+    return (data[:64].lstrip()[:1] in (b"<", b"{", b"[") or ct.startswith("text/")
+            or ct in ("application/json", "application/xml", "application/problem+json"))
+
+
+def _save_new(folder: Path, stem: str, ext: str, data: bytes) -> Path:
+    """Write `data` as a new file `<stem><ext>` in `folder` (`_1`, `_2`... when the name is taken). Whole or not at all:
+    the bytes go to a `.part` file renamed once complete. Never an empty file. Blocking: run it off the event loop."""
+    if not data:
+        raise ValueError("empty file")
+    folder.mkdir(parents=True, exist_ok=True)
+    dest, i = folder / f"{stem}{ext}", 1
+    while dest.exists():
+        dest = folder / f"{stem}_{i}{ext}"
+        i += 1
+    part = dest.with_name(dest.name + ".part")
+    try:
+        part.write_bytes(data)
+        part.replace(dest)
+    finally:
+        part.unlink(missing_ok=True)
+    return dest
+
+
 def _chat_type(raw, chat_id: str = "", sender_id: str = "") -> str:
     """Zalo dùng PRIVATE/GROUP, Javis dùng private/group ở mọi nơi khác (xem
     `chatbot_runtime._ly_do_im`). Quy về MỘT bảng chữ ngay tại cửa vào, chứ đừng bắt mỗi
@@ -494,12 +587,17 @@ class ZaloBot(HangLuot):
                       f"{str(msg)[:400]}", file=sys.stderr)
             return stt.loi_thanh_dong("loi", "Zalo không kèm đường dẫn file ghi âm nên Javis "
                                              "không tải về nghe được")
-        try:
-            rr = await client.get(url, timeout=httpx.Timeout(180.0))
-            rr.raise_for_status()
-            data = rr.content
-        except Exception as e:
-            return stt.loi_thanh_dong("loi", f"không tải được file ghi âm ({type(e).__name__}: {e})")
+        # Never hand speech-to-text an empty body or an error page: it would fail or "hear" nothing, and the note would
+        # blame the listening step for a download that never brought the recording.
+        data, ctype, why = await fetch_media(client, url, "voice")
+        if data is None:
+            return (f"[The user sent a voice message on Zalo, but Javis could NOT download the recording ({why}). Javis "
+                    "has not heard it: do not guess what it says; ask them to send it again or type it.]")
+        if not_a_recording(data, ctype):
+            print(f"[zalo voice] downloaded body is not a recording (type={ctype or '?'}, {len(data)} bytes), dropped",
+                  file=sys.stderr)
+            return ("[The user sent a voice message on Zalo, but Zalo's file server returned an error page instead of the "
+                    "recording. Javis has not heard it: do not guess what it says; ask them to send it again or type it.]")
         if len(data) > MAX_TAI_MB * 1024 * 1024:
             return stt.loi_thanh_dong("qua_lon", f"({len(data) // (1024 * 1024)}MB, "
                                                  f"trần tải về của Javis là {MAX_TAI_MB}MB)")
@@ -574,32 +672,33 @@ class ZaloBot(HangLuot):
         if not url:
             return _with_cap("[Người dùng gửi một ảnh qua Zalo nhưng Javis không lấy được "
                              "đường dẫn ảnh.]")
+        # Nothing is written or announced as downloaded unless it is a real image: an empty body, an error page or a
+        # 202 "not ready" answer used to be saved as a 0-byte .jpg the model was told it could look at (2026-11-20).
+        data, ctype, why = await fetch_media(client, url, "photo")
+        if data is None:
+            return _with_cap(f"[The user sent a photo on Zalo, but Javis could NOT download it ({why}). Javis has not seen "
+                             "this photo: do not claim to have seen it; say the download failed and ask them to send it "
+                             "again.]")
+        if len(data) > MAX_TAI_MB * 1024 * 1024:
+            return _with_cap(f"[Người dùng gửi một ảnh lớn hơn {MAX_TAI_MB}MB, Javis không "
+                             "tải về.]")
+        import image_vision
+        if not image_vision.sniff_image_type(data[:16]):
+            print(f"[zalo photo] downloaded body is not JPEG/PNG/GIF/WebP (type={ctype or '?'}, {len(data)} bytes), "
+                  "dropped", file=sys.stderr)
+            return _with_cap("[The user sent a photo on Zalo, but what Zalo's file server returned is NOT a readable "
+                             "image (an error page or an unsupported format). Javis has not seen this photo: do not claim "
+                             "to have seen it; ask them to send it again or send a screenshot.]")
+        import zalo_oa_bot
+        # Named by its first bytes (#1733): a PNG behind a ".jpg" link is saved as .png, so the vision path reads it right.
+        stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", f"zalo_{msg.get('message_id') or int(time.time())}")
         try:
-            rr = await client.get(url, timeout=httpx.Timeout(180.0))
-            rr.raise_for_status()
-            noi_dung = rr.content
-            if len(noi_dung) > MAX_TAI_MB * 1024 * 1024:
-                return _with_cap(f"[Người dùng gửi một ảnh lớn hơn {MAX_TAI_MB}MB, Javis không "
-                                 "tải về.]")
-            d = self._inbox(msg)
-            d.mkdir(parents=True, exist_ok=True)
-            duoi = ".jpg"
-            for k in (".png", ".webp", ".gif", ".jpeg", ".jpg"):
-                if k in url.lower():
-                    duoi = k
-                    break
-            safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_",
-                          f"zalo_{msg.get('message_id') or int(time.time())}{duoi}")
-            dest = d / safe
-            i = 1
-            while dest.exists():
-                dest = d / f"{Path(safe).stem}_{i}{Path(safe).suffix}"
-                i += 1
-            dest.write_bytes(noi_dung)
-            return _with_cap(f"[Người dùng gửi một ảnh qua Zalo, đã tải về: {dest}]")
-        except Exception as e:
-            return _with_cap(f"[Người dùng gửi một ảnh qua Zalo nhưng tải về hỏng: "
-                             f"{type(e).__name__}: {e}]")
+            dest = await asyncio.to_thread(_save_new, self._inbox(msg), stem,
+                                           zalo_oa_bot.file_extension(data, ctype, url, image=True), data)
+        except OSError as e:
+            return _with_cap(f"[The user sent a photo on Zalo, but Javis could not save it ({type(e).__name__}). Javis has "
+                             "not seen this photo: do not claim to have seen it.]")
+        return _with_cap(f"[Người dùng gửi một ảnh qua Zalo, đã tải về: {dest}]")
 
     async def send_text(self, chat, text):
         """Gửi MỘT tin chữ và nói kết quả: (ok, lỗi). Cùng lý do với `TelegramBot.send_text`."""
