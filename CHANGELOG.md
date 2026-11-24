@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.632.1] - 2026-11-24
+### Sửa lỗi
+- **Danh sách model ChatGPT lấy đúng tài khoản đang chạy.** Tắt tài khoản 1 (gói Free) và bật một tài khoản Plus, trang Models trước đây vẫn chỉ hiện 3 model của tài khoản đã tắt. Giờ bộ chọn hiện đủ model của tài khoản đang trả lời chat.
+- **Mở bộ chọn model là tải lại danh sách mới.** Trước đây đã có danh sách cũ là không hỏi lại, nên tải lại trang hay đăng xuất cũng không đổi gì.
+
 ## [0.632.0] - 2026-11-24
 ### Cải thiện
 - **Antigravity trả lời nhanh như Claude và ChatGPT từ lượt thứ hai.** Mỗi cuộc chat giữ một tiến trình Antigravity chạy sẵn và nối tiếp đúng mạch hội thoại, nên lượt sau không phải khởi động lại, không phải đọc lại toàn bộ luật và lịch sử: chữ đầu về sau khoảng 2 đến 3 giây thay vì 10 giây trở lên.
