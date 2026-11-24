@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.632.2] - 2026-11-24
+### Improved
+- **The GitHub card now describes the Javis OS app's new permissions.** The app asks for read and write on nearly every repository permission (not Administration), so Javis can rerun a CI job. If you installed the app earlier, accept the new permissions in the request GitHub sends you.
+
 ## [0.632.1] - 2026-11-24
 ### Fixed
 - **The ChatGPT model list comes from the account in use.** With account 1 (a Free plan) switched off and a Plus account on, the Models page used to show only the 3 models of the switched-off account. The picker now shows every model of the account that answers your chats.
