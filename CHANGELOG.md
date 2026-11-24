@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.638.1] - 2026-11-24
+### Sửa lỗi
+- **Bấm Dừng là dừng hẳn.** Tin gõ thêm trong lúc Javis đang trả lời không còn tự chạy thành lượt mới ngay sau khi bấm Dừng; dòng dưới tin đổi thành "Chưa làm tin này: lượt đã bị dừng", tin vẫn nằm trong khung chat để gửi lại.
+- **Lời dặn "xong thì làm tiếp" của lượt bị dừng và lịch tự chạy lại khi hết hạn mức của khung chat đó cũng được bỏ.** Việc chạy nền vẫn chạy và vẫn báo khi xong; việc của các lượt trước và vòng sửa GitHub giữ nguyên.
+
 ## [0.638.0] - 2026-11-24
 ### Thêm mới
 - **Nhờ Javis gửi ảnh, file cho khách ngay từ chat.** Nói "gửi chị Lan bảng giá" là Javis lấy ảnh hay file có sẵn trong brain (ví dụ trong `attachments/`) và gửi vào đúng cuộc chat của khách, qua đúng kênh, kèm lời nhắn nếu có. Ảnh đã gửi hiện trong hộp thư như khi bạn bấm nút +.

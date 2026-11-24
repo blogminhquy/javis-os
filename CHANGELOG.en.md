@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.638.1] - 2026-11-24
+### Fixed
+- **Stop now stops for good.** Messages typed while Javis was answering no longer start a new turn right after Stop; their line reads "Not run: the turn was stopped" and they stay in the chat to send again.
+- **The stopped turn's "when done, continue" instruction and the chat's quota auto re-run are dropped too.** Background work keeps running and still reports when it ends; jobs of earlier turns and GitHub fix rounds are left as they were.
+
 ## [0.638.0] - 2026-11-24
 ### Added
 - **Ask Javis to send images and files to a customer from chat.** Say "send Lan the price list" and Javis takes the image or file already in the brain (for example in `attachments/`) and sends it into that customer's chat, on its own channel, with a message if you want one. Sent images show in the inbox as with the + button.
