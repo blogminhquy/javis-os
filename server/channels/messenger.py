@@ -11,6 +11,9 @@ from __future__ import annotations
 from channels import KenhSpec
 import localefmt
 
+# The Page inbox and Instagram DMs (with comments) of the connected Pages.
+NETWORKS = ("facebook", "instagram")
+
 SPEC = KenhSpec(
     id="messenger", nhan="Messenger", kind="bot", logo="messenger", mau="#0866FF",
     lay_token=("Cần Javis có tên miền HTTPS. Ở developers.facebook.com tạo app, thêm sản phẩm Messenger, gắn "
