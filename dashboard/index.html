@@ -41,6 +41,7 @@
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
   <link rel="stylesheet" href="/static/style.css?v=183">
+  <link rel="stylesheet" href="/static/pin-bar.css?v=1">
   <link rel="stylesheet" href="/static/console.css?v=147">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -1070,8 +1071,8 @@
   "/static/packs.js?v=7"
  ],
  "hoithoai": [
-  "/static/inbox-v5.css?v=15",
-  "/static/inbox-compact.css?v=8",
+  "/static/inbox-v5.css?v=16",
+  "/static/inbox-compact.css?v=9",
   "/static/date-range.css?v=1",
   "/static/chatbots-reply-policy.js?v=1",
   "/static/chatbots-try.js?v=1",
@@ -1081,7 +1082,7 @@
   "/static/inbox-v5.js?v=4",
   "/static/inbox-channels.js?v=5",
   "/static/inbox-stats.js?v=4",
-  "/static/conversations.js?v=36"
+  "/static/conversations.js?v=37"
  ],
  "usage": [
   "/static/usage.js?v=3"
@@ -1199,6 +1200,9 @@
   <script src="/static/incoming-call.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
   <script src="/static/app.js?v=166"></script>
+  <!-- Pinned answers bar above the main chat, Partners and Chat (chat-pins.js, 2026-11-24). After app.js: it reads
+       window.JavisChatPinHost. -->
+  <script src="/static/chat-pins.js?v=1"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=4"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -1245,6 +1249,8 @@
   <script src="/static/composer-dictate.js?v=8"></script>
   <!-- Trang Hội thoại (hộp thư khách): nạp TRƯỚC console.js để renderConversations uỷ quyền được. -->
   <script src="/static/ht-media.js?v=4"></script>
+  <!-- Pinned messages bar (pin-bar.js, 2026-11-24): Chatbot customer chats and the main chat (Partners, Chat). -->
+  <script src="/static/pin-bar.js?v=1"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <!-- Trang Code (terminal): nạp TRƯỚC console.js để renderCode ủy quyền được. File này CHỈ có
        phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->

@@ -1,0 +1,57 @@
+/* pin-bar.css - the pinned messages bar (pin-bar.js, 2026-11-24), the same on the Chatbot page's customer chats and
+   in the main chat (Partners, Chat). Owner, Zalo screenshots: one bar with the first pin, "+N pinned" opening the list,
+   "..." with "Move to top" and "Unpin". Zalo's 14px, like the other compact lists beside a chat. The host gives the
+   bar's box `position: relative` and its side gap as --pin-x, which the open list lines up with. */
+.pb-bar, .pb-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-1); }
+.pb-bar { padding: 2px 6px 2px 4px; }
+.pb-row { position: relative; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pb-go { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 6px; border: 0;
+  border-radius: 9px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.pb-go:hover { background: var(--surface-2); }
+.pb-ic { flex: none; display: inline-flex; color: var(--accent); }
+.pb-ic svg { width: 22px; height: 22px; }
+.pb-t { min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+.pb-t b { font-size: 14px; font-weight: 600; }
+.pb-line { font-size: 14px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-mic { display: inline-flex; vertical-align: -2px; margin-right: 3px; color: var(--text3); }
+.pb-mic svg { width: 14px; height: 14px; }
+.pb-row.gone .pb-line { color: var(--text3); }
+.pb-more { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 8px 0 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg2); color: var(--text); font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; }
+.pb-more:hover, .pb-more[aria-expanded="true"] { border-color: var(--accent-line); background: var(--accent-wash); }
+.pb-more svg, .pb-less svg { width: 16px; height: 16px; }
+.pb-dots { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 0;
+  border-radius: 8px; background: none; color: var(--text2); cursor: pointer; }
+.pb-dots:hover, .pb-dots[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+.pb-dots svg { width: 18px; height: 18px; }
+.pb-menu { position: absolute; right: 0; top: calc(100% - 2px); z-index: 7; min-width: 180px; display: flex; flex-direction: column;
+  padding: 4px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-2); }
+.pb-mi { min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit;
+  font-size: 15px; text-align: left; cursor: pointer; }
+.pb-mi + .pb-mi { border-top: 1px solid var(--hairline); border-radius: 0 0 8px 8px; }
+.pb-mi:hover, .pb-mi:focus-visible { background: var(--surface-2); outline: none; }
+.pb-mi.danger { color: var(--danger-ink); }
+/* The whole list lies over the messages (they do not jump down), at the bar's place and width. */
+.pb-panel { position: absolute; top: 8px; left: var(--pin-x, 0); right: var(--pin-x, 0); z-index: 5; display: flex; flex-direction: column;
+  max-height: min(60vh, 440px); box-shadow: var(--shadow-2); }
+.pb-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 6px 6px 14px;
+  background: var(--surface-2); border-bottom: 1px solid var(--hairline); border-radius: 12px 12px 0 0; }
+.pb-head b { font-size: 15px; font-weight: 600; }
+.pb-less { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px;
+  background: none; color: var(--text2); font: inherit; font-size: 14px; cursor: pointer; }
+.pb-less:hover { background: var(--bg2); color: var(--text); }
+.pb-list { overflow: auto; padding: 2px 6px 2px 4px; }
+.pb-list .pb-row + .pb-row { border-top: 1px solid var(--hairline); }
+/* A menu near the end of a scrolling list must not be cut off. */
+.pb-panel:has(.pb-menu), .pb-list:has(.pb-menu) { overflow: visible; max-height: none; }
+@media (max-width: 640px) {
+  .pb-more { padding: 0 6px 0 9px; }
+}
+
+/* The main chat (chat-pins.js): the bar is the first child of #chatArea and stays at its top while the chat scrolls. */
+.chat-pinbar { position: sticky; top: 0; z-index: 5; flex: none; --pin-x: 0px; }
+.chat-pinbar .pb-panel { top: 0; }
+/* A tap on a pin lights the message up for a moment where it landed (both hosts). */
+@keyframes pb-flash { 0%, 55% { box-shadow: 0 0 0 3px var(--accent-line); } 100% { box-shadow: 0 0 0 3px transparent; } }
+.msg.pin-flash .bubble { animation: pb-flash 2s ease-out; }
+@media (prefers-reduced-motion: reduce) { .msg.pin-flash .bubble { animation: none; box-shadow: 0 0 0 3px var(--accent-line); } }

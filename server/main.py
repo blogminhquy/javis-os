@@ -24493,9 +24493,20 @@ def _gan_reaction(store, session_id, msgs) -> None:
             m["pinned"] = int(m["id"]) in ghim
 
 
+@app.get("/sessions/{session_id}/pins")
+def sessions_pins(session_id: str):
+    """The pinned answers of a chat, newest pin first (2026-11-24): the pin bar above the chat (Partners, Chat) shows
+    the first and lists the rest, including answers older than what the chat has loaded."""
+    store = get_store()
+    if not store.get_session(session_id):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"ok": True, "pins": store.pinned_messages(session_id)}
+
+
 @app.post("/sessions/{session_id}/messages/{message_id}/pin")
 async def sessions_message_pin(session_id: str, message_id: int, request: Request):
-    """0.374.0: pin an answer into the chat's table of contents, or unpin it. Body {"pinned": true|false}. Only Javis's
+    """0.374.0: pin an answer into the chat's table of contents, or unpin it. Body {"pinned": true|false}, plus
+    "top": true (2026-11-24) to move a pinned answer to the front of the pin bar. Only Javis's
     answers are pinned (a question is already in the list). Writes nothing else and starts no turn."""
     try:
         body = await request.json()
@@ -24514,7 +24525,7 @@ async def sessions_message_pin(session_id: str, message_id: int, request: Reques
             return 404, localefmt.chu("Không có tin này trong cuộc trò chuyện", "No such message in this chat")
         if msg.get("role") != "assistant":
             return 409, localefmt.chu("Chỉ ghim được câu trả lời", "Only answers can be pinned")
-        store.set_message_pinned(session_id, int(message_id), body["pinned"])
+        store.set_message_pinned(session_id, int(message_id), body["pinned"], top=body.get("top") is True)
         return 200, ""
     code, err = await asyncio.to_thread(_do)
     if code != 200:

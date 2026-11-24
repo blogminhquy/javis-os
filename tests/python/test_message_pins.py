@@ -70,6 +70,24 @@ pin(S1, a2, {"pinned": True})
 pin(S2, b1, {"pinned": True})
 check("ghim của cuộc này không lẫn sang cuộc khác", pinned_in(S1) == {a1: False, a2: True} and pinned_in(S2) == {b1: True})
 
+# 2026-11-24: the pin bar above the chat (chat-pins.js) reads the whole list, newest pin first, and "Move to top".
+import time as _time  # noqa: E402
+_time.sleep(0.02)
+pin(S1, a1, {"pinned": True})
+lst = c.get(f"/sessions/{S1}/pins").json()
+check("GET /pins: newest pin first, with role, text and times", [p["message_id"] for p in lst["pins"]] == [a1, a2]
+      and lst["pins"][0]["role"] == "assistant" and lst["pins"][0]["text"].startswith("# Kế hoạch tháng 11")
+      and lst["pins"][0]["pinned_at"] > 0 and lst["pins"][0]["ts"] > 0, lst)
+_time.sleep(0.02)
+check("top=true moves a pinned answer to the front", pin(S1, a2, {"pinned": True, "top": True}).status_code == 200
+      and [p["message_id"] for p in c.get(f"/sessions/{S1}/pins").json()["pins"]] == [a2, a1])
+_time.sleep(0.02)
+pin(S1, a1, {"pinned": True})
+check("pinning again without top keeps the order", [p["message_id"] for p in c.get(f"/sessions/{S1}/pins").json()["pins"]] == [a2, a1])
+check("GET /pins of another chat lists only its own", [p["message_id"] for p in c.get(f"/sessions/{S2}/pins").json()["pins"]] == [b1])
+check("GET /pins of a missing chat: 404", c.get("/sessions/khong-co/pins").status_code == 404)
+pin(S1, a1, {"pinned": False})
+
 store.rewind_from(S1, u2)
 check("tua lại xoá câu trả lời thì ghim của nó đi theo", store.pinned_message_ids(S1, [a2]) == set()
       and not store._read("SELECT 1 FROM message_pins WHERE message_id = ?", (a2,)))

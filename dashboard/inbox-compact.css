@@ -154,6 +154,8 @@ a.ib-post:hover .ib-post-go { color: var(--accent); }
 /* the coloured bar: one slim line, only when the chat needs the owner or there is something to switch on */
 .ib-v5 .ib-aibar { min-height: 36px; box-sizing: border-box; padding: 5px 16px; gap: 8px; font-size: 13px; }
 .ib-v5 .ib-aibar[hidden] { display: none; }
+/* Never squeezed by the messages under it: a long sentence wraps to a second line instead of hiding under them. */
+.ib-v5 .ib-aibar { flex-shrink: 0; }
 .ib-v5 .ib-aibar .ib-dot { width: 8px; height: 8px; }
 .ib-v5 .ib-aibar .s-btn, .ib-v5 .ib-aibar .s-btn-ghost { font-size: 13px; padding: 4px 10px; }
 

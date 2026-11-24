@@ -725,7 +725,10 @@ def register(app, deps: ConversationsDeps):
         # kéo lên xem tin cũ thì phần trả về không chứa tin cuối.
         cuoi = msgs if (not moi and not before) else conversations.tin_nhan(conv_id, limit=1)
         # `bot_running`: giao diện cần biết bot có đang chạy để bật hay nói lý do tắt nút "Trả lời giúp tin này".
-        return {"ok": True, "conversation": d, "messages": msgs, "bot_silence": _bot_silence(d, cuoi),
+        # Pinned messages ride along (2026-11-24) so a pin made in another tab shows on the next beat; a chat with none
+        # costs nothing more.
+        pins = conversations.pins_of(conv_id) if d.get("pin_ids") else []
+        return {"ok": True, "conversation": d, "messages": msgs, "pins": pins, "bot_silence": _bot_silence(d, cuoi),
                 "has_more": (False if moi else (bool(msgs) and conversations.co_tin_cu(conv_id, msgs[0]["id"]))),
                 "bot_running": bool(bot_id and (_DEPS.bot_status(bot_id) or {}).get("running"))}
 
@@ -750,6 +753,27 @@ def register(app, deps: ConversationsDeps):
         """Ghim (pinned=1) hoặc bỏ ghim (pinned=0) một cuộc chat lên đầu hòm thư."""
         ok = conversations.dat_ghim(conv_id, str(pinned).strip().lower() not in ("0", "false", ""))
         return {"ok": True, "conversation": conversations.chi_tiet(conv_id)} if ok else _404()
+
+    @router.get("/conversations/{conv_id}/pins")
+    async def conversations_pins(conv_id: int):
+        """The messages pinned in this conversation, first = the one the bar above the messages shows."""
+        if not conversations.chi_tiet(conv_id):
+            return _404()
+        return {"ok": True, "pins": conversations.pins_of(conv_id), "max": conversations.MAX_PINS}
+
+    @router.post("/conversations/{conv_id}/pins")
+    async def conversations_pin_message(conv_id: int, message_id: int = Form(...), action: str = Form("pin")):
+        """Pin a message of this conversation (`action=pin`, it goes to the top), unpin it (`unpin`) or move it to the
+        top (`top`). Javis only: nothing is pinned on the channel itself."""
+        action = str(action or "").strip().lower()
+        if action not in ("pin", "unpin", "top"):
+            return JSONResponse({"ok": False, "error": "bad action"}, status_code=400)
+        pins, err = conversations.set_message_pin(conv_id, message_id, action)
+        if err == "too_many":
+            return JSONResponse({"ok": False, "error": "too_many", "max": conversations.MAX_PINS}, status_code=409)
+        if err:
+            return _404()
+        return {"ok": True, "pins": pins}
 
     @router.post("/conversations/{conv_id}/tags")
     async def conversations_set_tag(conv_id: int, tag_id: int = Form(...), on: str = Form("1")):
