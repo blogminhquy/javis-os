@@ -6106,6 +6106,10 @@ def _write_codex_profile():
     bản Javis chạy chung một $HOME không ghi đè profile của nhau - xem chú thích ở hàm đó."""
     if _hub_enabled():
         return mcp_hub.codex_profile("full")
+    # Hub off: deliberately NO `default_tools_approval_mode` here (unlike mcp_hub.codex_profile, #1722). These servers
+    # are called straight from Codex, with no hub to enforce X-Javis-Mode, so Codex's own approval check is the only
+    # thing that keeps a sandboxed suggest/auto job from outside actions. A job at full runs Codex with no sandbox,
+    # where Codex asks no approval, so it still reaches them.
     path = mcp_hub.codex_profile_path()
     lines, seen = [], set()
     for s in mcp_store.servers_for_client():

@@ -1764,6 +1764,23 @@ def _trung_vi(xs: list) -> Optional[float]:
     return round(v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2, 1)
 
 
+# Issue #1775 (82 "manual replies" on a Zalo account nobody types on): a `human` row Javis itself sent is machine work.
+# Such a row carries `metadata.tu_javis` with a `via` naming the machine path: "tool" when an engine sent it with
+# `inbox_reply` (routes.conversations.owner_reply) or with a Zalo tool (zalo_sent_ledger.MARK). `tu_javis` WITHOUT a
+# `via` is the owner pressing Send in the inbox (perhaps on a bot draft): a person, so it stays a manual reply. A new
+# machine path that writes `human` rows adds its `via` here.
+JAVIS_SENT_VIA = ("tool",)
+# The sender as the Stats tab counts it: "javis" for such a row, else the stored sender. The LIKE test keeps the JSON
+# functions off every other row (the Stats query can see hundreds of thousands), and `json_valid` keeps an odd stored
+# value from failing the whole query.
+_STATS_SENDER = (
+    "CASE WHEN m.sender_type='human' AND m.metadata_json LIKE '%\"via\"%' THEN"
+    " (CASE WHEN json_valid(m.metadata_json) AND json_extract(m.metadata_json, '$.tu_javis')=1"
+    " AND json_extract(m.metadata_json, '$.via') IN (" + ",".join("'%s'" % v for v in JAVIS_SENT_VIA) + ")"
+    " THEN 'javis' ELSE 'human' END)"
+    " ELSE m.sender_type END")
+
+
 def insights(since: float, until: float, account: str = "") -> dict:
     """Numbers for the Stats tab (Chatbot v5) between two timestamps: messages the A.I. sent, messages the owner sent,
     customer messages, the average wait of a customer for the first answer (A.I. or owner), and the same counts per
@@ -1777,7 +1794,10 @@ def insights(since: float, until: float, account: str = "") -> dict:
 
     0.401.0 (owner, 2026-10-29: "ở nick Javis Vũ anh không trả lời tý nào mà nó tính 45% câu do A.I. lo"): the totals mixed
     every account, so one account's hand replies lowered another one's A.I. share. `account` (the inbox account key,
-    `"<channel>:<id>"`) keeps one account only, and `by_account` gives each account its own A.I., hand and customer counts."""
+    `"<channel>:<id>"`) keeps one account only, and `by_account` gives each account its own A.I., hand and customer counts.
+
+    Issue #1775: a message Javis itself sent (a tool, a schedule, an admin chat turn) counts as A.I., not as a hand reply
+    (`_STATS_SENDER`); it is not counted for the chat's bot in `by_bot`."""
     import localefmt
     tz = localefmt.tz()
     with _lock:
@@ -1785,7 +1805,7 @@ def insights(since: float, until: float, account: str = "") -> dict:
         cur_rows = db.cursor()
         cur_rows.row_factory = None         # plain tuples: this loop can see hundreds of thousands of rows
         rows = cur_rows.execute(
-            "SELECT m.conversation_id, m.sender_type, m.created_at, a.channel, c.bot_id, a.id"
+            "SELECT m.conversation_id, " + _STATS_SENDER + ", m.created_at, a.channel, c.bot_id, a.id"
             " FROM messages m JOIN conversations c ON c.id=m.conversation_id"
             " JOIN channel_accounts a ON a.id=c.channel_account_id"
             " WHERE m.created_at>=? AND m.created_at<? AND m.sender_type IN ('customer','ai','human')"
@@ -1812,6 +1832,9 @@ def insights(since: float, until: float, account: str = "") -> dict:
     ai_rest = 0
     for cid, who, ts, channel, bot_id, acc_id in rows:
         ts = float(ts or 0)
+        sent_by_javis = who == "javis"
+        if sent_by_javis:
+            who = "ai"          # machine work (see _STATS_SENDER), though not the answer of the chat's bot
         if cid != cur:
             cur, start = cid, None
         ch = by_channel.get(channel or "")
@@ -1834,7 +1857,7 @@ def insights(since: float, until: float, account: str = "") -> dict:
                 start = ts
         else:
             if who == "ai":
-                if bot_id:
+                if bot_id and not sent_by_javis:
                     by_bot[bot_id] = by_bot.get(bot_id, 0) + 1
                 if gio >= NGHI_TU or gio < NGHI_DEN:
                     ai_rest += 1

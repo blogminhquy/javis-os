@@ -55,6 +55,7 @@ import tool_result_reuse   # 2026-11-17: compact JSON + per-turn repeat referenc
 import section_select   # 2026-11-18: load the parts of a long menu-style skill a task needs
 import tool_result_tools
 import turn_context
+import zalo_sent_ledger   # issue #1775: a Zalo message a model sends is Javis's, not the owner's hand
 from config import STATE_DIR
 
 _TOKEN_PATH = STATE_DIR / ".hub_token"
@@ -531,16 +532,26 @@ def _guard(ent, fn, mode):
                            "err": why[:200], "args_keys": sorted((args or {}).keys()), **team_gate.audit_fields()})
             return "ERROR: " + why
         t0 = time.time()
+
+        def _direct(a):
+            return mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, a)
+
+        async def _send(a):
+            # Issue #1775: a Zalo message a model sends comes back to the inbox as the account's own. Noting it here
+            # first lets the read loop file it as Javis's work, not the owner typing (zalo_sent_ledger.py).
+            if zalo_sent_ledger.is_send_tool(tool):
+                return await zalo_sent_ledger.sending(conn["id"], tool, a, _direct)
+            return await _direct(a)
+
         if cls == "read":
-            result = await mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, args)
+            result = await _send(args)
         else:
             # 16/11/2026: a chat turn that acts outside is marked, so a restart in the middle of it does not run the
             # whole turn again by itself (turn_ledger.py). A turn that only read things is safe to run again.
             turn_ledger.mark_acted(str((turn_context.current() or {}).get("session_id") or ""))
             # 0.238.0: a Kanban job that runs again must not send, post or order twice (once_ledger.py).
             # Outside a background job this calls straight through.
-            result = await once_ledger.run(
-                fn, args, lambda a: mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, a))
+            result = await once_ledger.run(fn, args, _send)
         _audit_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
                        "connector": conn.get("connector_id"), "label": conn.get("label"),
                        "tool": tool, "mode": mode, "cls": cls,
@@ -3036,6 +3047,20 @@ def codex_profile_path():
     return Path.home() / ".codex" / f"{codex_profile_name()}.config.toml"
 
 
+# The hub entry pre-approves its own tool calls in Codex (#1722). Javis never runs Codex interactively: `codex exec`
+# gets `--ask-for-approval never`, app-server `approvalPolicy: "never"` (codex_steer). Under a sandbox (`read-only` for
+# suggest and restricted workflow steps, `workspace-write` for auto and gated Team steps) Codex then refuses every hub
+# call with "MCP tool call requires approval, but approval policy is never", so background jobs read no data. The
+# hub enforces X-Javis-Mode on every call, so approving at the Codex layer does not widen what a job may do.
+# Measured against a fake Responses endpoint and a fake hub: `codex exec -s read-only -a never` (and app-server with
+# sandbox read-only) is refused without the key and succeeds with it on 0.147.0, 0.153.4, 0.162.1, 0.163.0 and
+# 0.172.0. Codex knows the key since at least 0.130.0 (it rejects an unknown value of it, naming `approve`), so no
+# version gate. It goes in the profile, the one source for every path: `-p` for exec, the `-c` flattening for
+# app-server (codex_steer.profile_overrides) and the copy an extra ChatGPT account gets (plan_accounts.prepare).
+CODEX_TOOLS_APPROVAL_KEY = "default_tools_approval_mode"
+CODEX_TOOLS_APPROVAL = "approve"
+
+
 def codex_profile(mode="full"):
     """Ghi ~/.codex/<profile>.config.toml 1 entry hub → `codex exec -p <profile>` thấy MỌI MCP của Javis."""
     path = codex_profile_path()
@@ -3045,6 +3070,7 @@ def codex_profile(mode="full"):
         lines = ["[mcp_servers.javis]",
                  f"url = {_toml_str(hub_url())}",
                  "startup_timeout_sec = 20",
+                 f"{CODEX_TOOLS_APPROVAL_KEY} = {_toml_str(CODEX_TOOLS_APPROVAL)}",
                  "[mcp_servers.javis.http_headers]",
                  f'{_toml_str("Authorization")} = {_toml_str("Bearer " + hub_token())}',
                  f'{_toml_str("X-Javis-Mode")} = {_toml_str(mode)}',
