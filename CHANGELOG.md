@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.641.0] - 2026-11-24
+### Thêm mới
+- **Ghim tin nhắn lên đầu cuộc chat, như Zalo.** Thanh ghim nằm trên khung chat, hiện tin ghim mới nhất. Bấm "+N ghim" mở cả danh sách, nút "..." có "Đưa lên đầu" và "Bỏ ghim". Bấm một tin ghim là nhảy tới đúng tin đó, kể cả tin cũ chưa tải.
+- **Trang Chatbot:** ghim được mọi tin của khách và của mình. Trên máy tính, rê chuột vào tin rồi bấm nút ghim cạnh giờ. Trên điện thoại thì nhấn giữ tin. Tin đã ghim trong nhóm Zalo không bị dọn khi nhóm cắt bớt tin cũ.
+- **Cộng sự và Trò chuyện:** câu trả lời đã ghim (nút ghim dưới câu trả lời) hiện trên cùng thanh ghim đó, đứng yên ở đầu khung khi cuộn.
+### Sửa lỗi
+- **Dòng trạng thái trên khung chat ở trang Chatbot không còn bị che mất nửa** khi câu dài xuống hai dòng.
+
 ## [0.640.0] - 2026-11-24
 ### Thêm mới
 - **Hội thoại có hàng lọc nhanh: Tất cả, Tin nhắn, Bình luận.** Trang Facebook không còn lẫn bình luận với tin Messenger, mỗi lựa chọn kèm số cuộc chat.
