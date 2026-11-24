@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.640.0] - 2026-11-24
+### Added
+- **Conversations get a quick row: All, Messages, Comments.** A Facebook Page no longer mixes comments with Messenger chats, and each choice shows how many chats it holds.
+- **A phone button keeps the customers who left a phone number.** It replaces "Has phone/email" in the Filter menu, and a saved old filter moves over by itself.
+
 ## [0.639.1] - 2026-11-24
 ### Fixed
 - **Photos and voice messages sent to Zalo Bot no longer turn into 0-byte files.** When Zalo's server does not have the file yet, Javis waits a moment and asks again, still through the server's proxy as before. If it still fails, the bot says plainly it has not seen or heard it and asks the customer to resend, without guessing.

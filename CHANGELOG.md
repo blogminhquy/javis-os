@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.640.0] - 2026-11-24
+### Thêm mới
+- **Hội thoại có hàng lọc nhanh: Tất cả, Tin nhắn, Bình luận.** Trang Facebook không còn lẫn bình luận với tin Messenger, mỗi lựa chọn kèm số cuộc chat.
+- **Nút điện thoại lọc khách đã để lại SĐT.** Nó thay mục "Có SĐT/email" trong menu Lọc, bộ lọc cũ đã lưu tự chuyển sang.
+
 ## [0.639.1] - 2026-11-24
 ### Sửa lỗi
 - **Ảnh và tin thoại gửi cho Zalo Bot không còn thành file 0 byte.** Khi máy chủ Zalo chưa kịp có file, Javis chờ chút rồi tải lại, vẫn qua proxy của máy như trước. Tải hỏng thì bot nói thật là chưa xem hay chưa nghe được và nhờ khách gửi lại, không đoán nội dung.
