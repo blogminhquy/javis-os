@@ -93,6 +93,12 @@ _DRIVE_TOOL_PREFIXES = ("GOOGLEDRIVE_", "GOOGLEDOCS_", "GOOGLESHEETS_")
 # Ghi tạo đối tượng ở vị trí do Drive chọn (root), không có tham số đích -> luôn DENY.
 _NO_DEST_CONTROL = frozenset({"GOOGLEDOCS_COPY_DOCUMENT", "GOOGLEDOCS_CREATE_DOCUMENT"})
 _CONTROL_TOOLS = frozenset({"COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_PROXY_EXECUTE"})
+# Lệnh chạy mã tùy ý phía Composio (REMOTE_BASH/WORKBENCH). Log 24/11: 36 và 25 lượt. Không phân tích được nội dung
+# nên DENY mặc định, kể cả đọc: không có đường nào bị bỏ qua.
+_OPAQUE_EXEC = frozenset({"COMPOSIO_REMOTE_BASH_TOOL", "COMPOSIO_REMOTE_WORKBENCH"})
+# Tool COMPOSIO_* đã biết là chỉ đọc danh mục, không ghi dữ liệu. Mọi COMPOSIO_* khác không có trong danh sách này
+# (và không phải tool cổng) bị DENY: fail-closed cho tool mới chưa được xét.
+_COMPOSIO_SAFE = frozenset({"COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS"})
 
 # Mọi khóa chứa ID file/sheet/doc/thư mục/drive. Cả snake_case lẫn camelCase.
 _ID_KEYS = (
@@ -214,8 +220,13 @@ def _decide(actor, tool, args, parents_of, depth) -> dict:
             name = sub.get("tool_slug")
             if not isinstance(name, str) or not name.strip():
                 return {"allow": False, "reason": "lệnh con thiếu tool_slug"}
-            if name.strip().upper() in _CONTROL_TOOLS:
+            up = name.strip().upper()
+            if up in _CONTROL_TOOLS:
                 return {"allow": False, "reason": "tool cổng lồng trong tool cổng không được phép"}
+            if up in _OPAQUE_EXEC:
+                return {"allow": False, "reason": f"{up} chạy mã tùy ý, bị chặn lồng trong cổng"}
+            if up.startswith("COMPOSIO_") and up not in _COMPOSIO_SAFE:
+                return {"allow": False, "reason": f"{up} chưa được xét an toàn (fail-closed)"}
             sub_args = sub.get("arguments")
             if not isinstance(sub_args, dict):
                 return {"allow": False, "reason": f"lệnh con {name} thiếu arguments (fail-closed)"}
@@ -223,6 +234,11 @@ def _decide(actor, tool, args, parents_of, depth) -> dict:
             if not r["allow"]:
                 return {"allow": False, "reason": f"lệnh con {name}: {r['reason']}"}
         return {"allow": True, "reason": "mọi lệnh con đều được phép"}
+
+    if tool in _OPAQUE_EXEC:
+        return {"allow": False, "reason": f"{tool} chạy mã tùy ý phía Composio, không kiểm được đích (fail-closed)"}
+    if tool.startswith("COMPOSIO_") and tool not in _COMPOSIO_SAFE:
+        return {"allow": False, "reason": f"{tool} chưa được xét an toàn (fail-closed)"}
 
     if is_read_tool(tool):
         return {"allow": True, "reason": f"đọc tường minh ({tool})"}

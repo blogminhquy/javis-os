@@ -18,7 +18,7 @@ from collections import deque
 import drive_parents as dp
 import drive_write_guard as g
 
-_GATED_TOOLS = frozenset({"COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_PROXY_EXECUTE"})
+_GATED_TOOLS = frozenset({"COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_PROXY_EXECUTE"}) | g._OPAQUE_EXEC
 MAX_NODES = 80
 
 _invoker = None  # async def(args) -> envelope; do mcp_hub đăng ký (không bọc guard)
@@ -30,9 +30,14 @@ def register_invoker(fn) -> None:
 
 
 def _actor() -> str | None:
+    """Danh tính agent của lượt: trường `actor` do host gán (Kanban/nhắc việc/nhóm), rồi tới slug trợ lý của chat.
+    Không đọc tham số tool, không đọc đầu ra model. Không có -> None -> DENY ghi (fail-closed)."""
     try:
         import turn_context
-        slug = str(((turn_context.current() or {}).get("agent") or {}).get("slug") or "").strip()
+        t = turn_context.current() or {}
+        slug = str(t.get("actor") or "").strip()
+        if not slug:
+            slug = str((t.get("agent") or {}).get("slug") or "").strip()
         return slug or None
     except Exception:  # noqa: BLE001 - không đọc được -> không actor -> fail-closed
         return None
@@ -98,7 +103,10 @@ def wrap(call, conn: dict, tool: str, fn: str = "", env=None):
     mode = g.current_mode(env)
     if mode == "off" or not call:
         return call
-    if str((conn or {}).get("connector_id") or "") != "composio" or str(tool or "") not in _GATED_TOOLS:
+    up = str(tool or "").strip().upper()
+    # Mọi tool COMPOSIO_* đều được bọc, trừ danh sách đọc danh mục đã biết. Tool mới bị guard quyết (fail-closed).
+    gated = up in _GATED_TOOLS or (up.startswith("COMPOSIO_") and up not in g._COMPOSIO_SAFE)
+    if str((conn or {}).get("connector_id") or "") != "composio" or not gated:
         return call
 
     async def _guarded(args):
