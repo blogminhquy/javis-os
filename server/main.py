@@ -6196,6 +6196,7 @@ def _apply_antigravity_hub(cli, vault_root=None, mode="full"):
             headers["X-Javis-Vault"] = str(root)
         hub = antigravity_cli.hub_entry(mcp_hub.hub_url(), headers)
     antigravity_cli.ghi_mcp_settings(root, hub)
+    cli.hub_entry = hub      # agy acp gets it on the session, not from the shared HOME file (agy_acp.mcp_servers)
     try:
         cli.mcp_config = mcp_hub.antigravity_config_path(mode, root) if hub else None
     except Exception as e:
@@ -21785,7 +21786,8 @@ async def _chat_socket(ws):
                 # ===== Gói Google qua ANTIGRAVITY CLI (`agy`) - tool native + MCP hub =====
                 #
                 # 2026-11-24 (agy 1.5.15, measured): the chat resumes agy's own conversation
-                # (`--conversation`) on a process kept warm between turns (agy_warm.py, warm_pool). The
+                # on a process kept warm between turns: `agy acp`, which also streams the model's thinking
+                # (agy_acp.py), else the stream-json mode (agy_warm.py, `--conversation`), both in warm_pool. The
                 # instructions and the transcript go only into the FIRST message of a thread; a continued
                 # thread gets the per-turn facts and the new message. agy opens a new conversation without
                 # a word for an id it does not know, so agy_warm checks the id in `init` before sending and
@@ -21882,6 +21884,11 @@ async def _chat_socket(ws):
                             # Marks the step done; without it every step kept spinning until the turn ended.
                             await ws.send_text(json.dumps({"type": "tool_result",
                                                            "content": str(ev.get("content") or "")[:200]}))
+                        elif et == "thinking":
+                            # A summary of the model's thinking (agy acp, agy_acp.py), shown in the steps block
+                            # while the answer is not written yet. Never read aloud, never part of the answer.
+                            if ev.get("content"):
+                                await ws.send_text(json.dumps({"type": "thinking", "content": ev["content"]}))
                         elif et == "delta":
                             # 0.438.6: chữ xem trước, hiện ngay từng mẩu; `final` mới là câu trả lời.
                             if ev.get("content"):

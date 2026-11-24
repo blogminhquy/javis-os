@@ -1434,6 +1434,9 @@ class AntigravityCLI:
         # nhận file cấu hình (hỏi `co_co` trước khi truyền). Có thì hết cảnh hai brain chạy cùng
         # lúc ghi đè header X-Javis-Vault của nhau trong file HOME dùng chung.
         self.mcp_config: Optional[str] = None
+        # The hub entry main wrote for this turn (`_apply_antigravity_hub`). `agy acp` does not read the workspace
+        # mcp_config, so agy_acp passes this one to the session itself.
+        self.hub_entry: Optional[dict] = None
         self.extra_args: list[str] = []
         # Độ sâu suy nghĩ (`main._cli_do_sau_khac` đặt). None = không truyền cờ nào.
         # Chỉ tới được dòng lệnh khi `co_effort` thấy bản CLI này khai đủ cờ lẫn giá trị.
@@ -1506,6 +1509,15 @@ class AntigravityCLI:
         args += list(self.extra_args)
         return args
 
+    def acp_args(self) -> list[str]:
+        """argv of `agy acp`, the Agent Client Protocol server (agy_acp.py). It takes no --model or --effort: those
+        are set on the session. The permission and folder flags are the same as on the other paths."""
+        args = [self.cli_path, "acp"] + co_quyen_cho_mode(self.mode)
+        if co_co("--add-dir"):
+            for d in self.include_dirs:
+                args += ["--add-dir", str(d)]
+        return args
+
     def _build_args(self, prompt_argv: Optional[str], noi_mach: bool = True,
                     them: Optional[list] = None, ct_stdin: str = "") -> list[str]:
         args = [self.cli_path]
@@ -1573,18 +1585,30 @@ class AntigravityCLI:
                        f"in to Google.")}
             return
         self.resumable = False
-        if self.stream_turns and co_co("--input-format"):
-            import agy_warm
-            if agy_warm.enabled():
-                self.retry_one_shot = False
+        import agy_warm
+        if self.stream_turns and agy_warm.enabled():
+            # A warm process that resumes the conversation: `agy acp` first (it streams the model's thinking,
+            # agy_acp.py), then the stream-json mode (agy_warm.py). Either one raises Fallback before it yields
+            # anything when it cannot start, and the turn moves on to the next way.
+            import agy_acp
+            ways = []
+            if agy_acp.enabled() and agy_acp.available():
+                ways.append(("acp", agy_acp.run))
+            if co_co("--input-format"):
+                ways.append(("stream-json", agy_warm.run))
+            self.retry_one_shot = False
+            for label, way in ways:
                 try:
-                    async for ev in agy_warm.run(self, prompt):
+                    async for ev in way(self, prompt):
                         yield ev
                     if not self.retry_one_shot:
                         return
-                    print("[antigravity] stream turn failed before any work, one-shot turn instead", file=sys.stderr)
+                    print(f"[antigravity] {label} turn failed before any work, one-shot turn instead",
+                          file=sys.stderr)
+                    break
                 except agy_warm.Fallback as e:
-                    print(f"[antigravity] stream path unavailable ({e}), one-shot turn", file=sys.stderr)
+                    print(f"[antigravity] {label} path unavailable ({e})", file=sys.stderr)
+            if ways:
                 # The one-shot turn opens a new thread carrying the whole context, never stored for a resume.
                 self.session_id = None
                 self.resumable = False

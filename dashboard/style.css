@@ -1558,6 +1558,11 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .steps-sum-now:not(:empty)::before { content: "· "; }
 /* Bước cuối đang chạy: đậm hơn một chút để mắt biết đang đứng ở đâu trong danh sách. */
 .steps-list .step-live { color: var(--text2); }
+/* The model's thinking (Antigravity, agy_acp.py): a paragraph worth reading once the block is opened, so it wraps
+   instead of being cut to one line, in italics to set it apart from the tool steps. */
+.steps-list .step-think {
+  white-space: normal; overflow: visible; font-style: italic; line-height: 1.45; max-width: 640px;
+}
 /* The turn's plan (chat-steps.js planHtml): the engine's own checklist, open even while the step list is folded.
    Larger than the steps around it because this is the part people read, on a phone too. */
 .steps-plan {
