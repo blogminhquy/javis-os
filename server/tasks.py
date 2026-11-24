@@ -253,6 +253,15 @@ def _report_extra(fn, brain, dedup, level: str = "") -> dict:
 
 
 @dataclass
+
+def _task_actor(task: dict) -> str:
+    """Slug agent đã được specifier chọn TỪ roster của brain (metadata.agent). Không có -> "" (fail-closed ở guard)."""
+    picked = (task.get("metadata") or {}).get("agent") if isinstance(task, dict) else None
+    if not isinstance(picked, dict):
+        return ""
+    return str(picked.get("slug") or "").strip()
+
+
 class TasksDeps:
     brain_root: Callable[[str], str]
     atomic_write_text: Callable[[Any, str], None]
@@ -694,7 +703,8 @@ class TasksFeature:
                                             extra_meta={"once_pending": True})
                 return
             tok = turn_context.bind(turn_context.make(
-                "kanban", chat_id=str(task.get("chat_id") or ""), job=job))
+                "kanban", chat_id=str(task.get("chat_id") or ""), job=job,
+                actor=_task_actor(task)))
             t_run = time.monotonic()
             try:
                 # #1165: a memory this job writes while a chat turn runs is not stamped with that chat as its source.
