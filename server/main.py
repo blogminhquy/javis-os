@@ -4731,14 +4731,29 @@ async def _cli_sub_doc(g, prompt, model):
     """Một lượt engine CLI (Antigravity hoặc Grok) -> hợp đồng sự kiện của `_api_stream`.
 
     Dùng chung được vì hai engine đã phát cùng một hợp đồng {tool_call, final, usage, error};
-    viết lại là hai bản dễ lệch nhau."""
+    viết lại là hai bản dễ lệch nhau.
+
+    2026-11-24: the engines' `delta` pieces go out as `text` as they come, the way
+    `_claude_sub_doc` streams Claude Code. Before, this path dropped them and even a one-line
+    answer appeared only once the CLI had exited. `final` then only adds what the pieces did not
+    carry (a warning the engine appends at the end), never the whole answer a second time."""
     yield {"type": "meta", "model": model}
+    streamed = ""
     async for ev in g.query(prompt):
         et = ev.get("type")
-        if et == "final":
+        if et == "delta":
             txt = ev.get("content") or ""
             if txt:
+                streamed += txt
                 yield {"type": "text", "content": txt}
+        elif et == "final":
+            txt = ev.get("content") or ""
+            if txt and not streamed:
+                yield {"type": "text", "content": txt}
+            elif txt:
+                shown = streamed.strip()
+                if txt.startswith(shown) and txt[len(shown):].strip():
+                    yield {"type": "text", "content": txt[len(shown):]}
         elif et == "tool_call":
             yield {"type": "tool_call", "tool": ev.get("name") or "",
                    "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
@@ -5988,12 +6003,16 @@ def _cli_do_sau_khac(cli, mod, reasoning, message):
 
     Chốt chặn ĐẦU TIÊN cho ca "model tự mang mức nghĩ trong tên" (Antigravity:
     `gemini-3.8-flash-medium`): với model đó, cờ `--effort` đúng cú pháp vẫn làm CLI thoát mã 1
-    kèm "conflicts with --effort", mất trọn lượt chat. Nên hỏi module trước, và rơi về câu nhắc
-    trong prompt y như mọi bản CLI không có cờ - chọn model coi như đã chọn mức nghĩ rồi.
+    kèm "conflicts with --effort", mất trọn lượt chat. Nên hỏi module trước.
+
+    Such a model gets the message untouched (owner's measurement, 2026-11-24): picking
+    `gemini-4-hydrogen-high` already picked the depth, and the old fallback that appended the
+    "think it through" line on top tripled its thinking tokens (428 -> 1,492) and pushed the first
+    word from 5.4 s to 11.6 s, even for an owner who chose -low or -medium to go fast.
     """
     khoa = getattr(mod, "model_khoa_effort", None)
     if khoa and khoa(getattr(cli, "model", "") or ""):
-        return _nhac_suy_nghi(reasoning, message)
+        return message
     co = _co_effort_lui(mod, reasoning)
     if co:
         try:
@@ -16830,6 +16849,9 @@ async def _nhan_nuoi_tien_trinh(tag: str, brain: str, owner_chat: str, final_tex
         # Còn nhóm sống thì đợi một nhịp ân hạn: tiến trình phụ của engine (MCP stdio) hay nán
         # lại vài trăm mili giây rồi mới thoát; nhận nuôi ngay là báo nhầm. Không có gì sống
         # thì không đợi, lượt thường không chậm thêm chút nào.
+        # An engine that answered before exiting (Antigravity) is waited for first, so its own
+        # shutdown is never taken for left-behind work. The answer is already on screen by now.
+        await asyncio.to_thread(tien_trinh_nen.wait_engine_exit, tag)
         if tien_trinh_nen.co_nhom_song(tag):
             await asyncio.sleep(2.0)
         hua = bool(background_status.detect_promise(final_text or ""))
@@ -21800,14 +21822,22 @@ async def _chat_socket(ws):
                         [{"role": "system", "content": sysprompt},
                          {"role": "user", "content": _a_prompt}],
                         provider="antigravity-cli", model=actual_model or "")
+                    # One cold agy process per turn, so every turn is cold (2026-11-24: the speed numbers for
+                    # Antigravity start here; runtime.db had none).
+                    _note_warm({"warm": False, "cold": "one_shot_process"})
                     async for ev in acli.query(_a_prompt):
                         et = ev.get("type")
+                        _note_first_output("antigravity-cli", False)
                         if et == "tool_call":
                             await ws.send_text(json.dumps({
                                 "type": "tool_call", "tool": ev.get("name", ""),
                                 "detail": tool_label.chi_tiet(ev), **turn_plan.fields(ev),
                                 "content": localefmt.chu(f"⚙ Đang gọi: {ev.get('name', '')}",
                                                          f"⚙ Calling: {ev.get('name', '')}")}))
+                        elif et == "tool_result":
+                            # Marks the step done; without it every step kept spinning until the turn ended.
+                            await ws.send_text(json.dumps({"type": "tool_result",
+                                                           "content": str(ev.get("content") or "")[:200]}))
                         elif et == "delta":
                             # 0.438.6: chữ xem trước, hiện ngay từng mẩu; `final` mới là câu trả lời.
                             if ev.get("content"):
@@ -21816,7 +21846,9 @@ async def _chat_socket(ws):
                         elif et == "final":
                             final_text = ev.get("content") or ""
                         elif et == "usage":
-                            await asyncio.to_thread(store.set_last_input_tokens, conv_sid, int(ev.get("input_tokens") or 0))
+                            # agy leaves the cached part out of input_tokens; the thread's real size is both.
+                            await asyncio.to_thread(store.set_last_input_tokens, conv_sid,
+                                                    int(ev.get("input_tokens") or 0) + int(ev.get("cached") or 0))
                         elif et == "error":
                             await ws.send_text(_limit_frame(
                                 ev.get("content") or "", "antigravity-cli", actual_model or ""))

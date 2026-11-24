@@ -121,6 +121,59 @@ check("luồng thật: câu trả lời vẫn đủ chữ",
       "Tôi đang tìm kiếm" in "".join(m for m in manh if m), manh)
 
 
+# ---- 8. The step label and result (owner, 2026-11-24, agy 1.5.15) -------------------------
+# The parameters reach the chat as they are, and the DONE line's output marks the step done.
+ra, _ = _chay([buoc_tool(2, "ACTIVE"), buoc_tool(2, "DONE")])
+goi = [e for e in ra if e.get("type") == "tool_call"]
+check("tool_call carries agy's own parameters", bool(goi) and goi[0].get("input") == {"CommandLine": "ls"},
+      goi[0].get("input") if goi else "")
+_done = buoc_tool(2, "DONE")
+_done["step_update"]["tool_info"]["output"] = "Command exited with code 0.\nOutput: a.txt"
+ra, _ = _chay([_done])
+kq = [e for e in ra if e.get("type") == "tool_result"]
+check("tool_result carries the tool's output", bool(kq) and "a.txt" in kq[0].get("content", ""), kq)
+
+
+def buoc_mcp(idx, params):
+    sub = {"step_index": idx, "state": "ACTIVE", "step_type": "tool", "tool_name": "call_mcp_tool",
+           "tool_info": {"name": "call_mcp_tool", "parameters": params}}
+    return {"event": "step_update", "step_update": sub}
+
+
+# Measured shape: every hub tool goes through call_mcp_tool -> javis_run_tool {name, args}.
+ra, _ = _chay([buoc_mcp(3, {"ServerName": "javis", "ToolName": "javis_run_tool",
+                            "Arguments": {"name": "javis_workflow", "args": {"op": "runs"}},
+                            "toolAction": "Calling javis_workflow", "toolSummary": "List workflow runs"})])
+goi = [e for e in ra if e.get("type") == "tool_call"]
+check("call_mcp_tool through the hub shows the real tool", bool(goi) and goi[0]["name"] == "javis_workflow", goi)
+check("its own arguments, with the model's summary for the label",
+      bool(goi) and goi[0]["input"] == {"op": "runs", "toolSummary": "List workflow runs"}, goi)
+ra, _ = _chay([buoc_mcp(4, {"ServerName": "pos", "ToolName": "pos_order",
+                            "Arguments": "{\"query\": \"today\"}"})])
+goi = [e for e in ra if e.get("type") == "tool_call"]
+check("a direct MCP tool: its name and its (JSON string) arguments",
+      bool(goi) and goi[0]["name"] == "pos_order" and goi[0]["input"] == {"query": "today"}, goi)
+ra, _ = _chay([buoc_mcp(5, {"ServerName": "javis"})])
+goi = [e for e in ra if e.get("type") == "tool_call"]
+check("no ToolName: left as call_mcp_tool, nothing invented",
+      bool(goi) and goi[0]["name"] == "call_mcp_tool", goi)
+
+import tool_label  # noqa: E402
+
+ra, _ = _chay([buoc_mcp(6, {"ServerName": "javis", "ToolName": "javis_run_tool",
+                            "Arguments": {"name": "javis_task", "args": {"title": "Viết bài"}}})])
+goi = [e for e in ra if e.get("type") == "tool_call"]
+check("hub call label reads the inner arguments", bool(goi) and tool_label.chi_tiet(goi[0]) == "Viết bài",
+      tool_label.chi_tiet(goi[0]) if goi else "")
+
+# cache_read_tokens is agy's name for cached input (1.5.15); `cached` was always 0.
+ra, _ = _chay([{"event": "result", "result": {"status": "SUCCESS", "response": "x",
+                                              "usage": {"input_tokens": 100, "output_tokens": 5,
+                                                        "cache_read_tokens": 900}}}])
+dung = [e for e in ra if e.get("type") == "usage"]
+check("usage counts cache_read_tokens", bool(dung) and dung[0]["cached"] == 900, dung)
+
+
 def test_agy_bao_buoc_tool():
     assert not _fails, _fails
 

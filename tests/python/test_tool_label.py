@@ -67,6 +67,33 @@ check("engine API kèm input trong sự kiện tool_call",
       ENG.count('"type": "tool_call", "name": fn, "input": args') == 1
       and ENG.count('"input": args}') >= 3)
 
+# Antigravity (agy 1.5.15, measured 2026-11-24): parameters come in PascalCase. A lowercase-only
+# lookup gave every agy step an empty label, so the chat listed "Run command", "Read file"
+# twenty times with nothing after them.
+check("agy run_command: CommandLine",
+      ct({"name": "run_command", "input": {"CommandLine": "git status"}}) == "git status")
+check("agy run_command: the cmd.exe /c wrapper is dropped",
+      ct({"input": {"CommandLine": 'cmd.exe /c "echo hi && dir"'}}) == "echo hi && dir")
+check("agy read_file: Path",
+      ct({"name": "read_file", "input": {"Path": "wiki/a.md"}}) == "wiki/a.md")
+check("agy view_file: AbsolutePath, shortened",
+      ct({"input": {"AbsolutePath": "C:\\Users\\admin\\.javis\\brains\\shop\\wiki\\khach-hang.md", "StartLine": 1}})
+      == "…/shop/wiki/khach-hang.md")
+check("agy write_to_file: TargetFile",
+      ct({"input": {"TargetFile": "notes/x.md", "CodeContent": "# x"}}) == "notes/x.md")
+check("agy list_dir: DirectoryPath", ct({"input": {"DirectoryPath": "wiki"}}) == "wiki")
+check("agy grep_search: the query before the folder",
+      ct({"input": {"SearchPath": "wiki", "Query": "doanh thu"}}) == "doanh thu")
+check("agy read_url_content: Url", ct({"input": {"Url": "https://x.vn/a"}}) == "https://x.vn/a")
+check("agy toolSummary (written by the model for a human) comes before the command",
+      ct({"input": {"CommandLine": "Get-ChildItem -Name", "toolSummary": "List files in wiki"}})
+      == "List files in wiki")
+check("keys match whatever their case",
+      ct({"input": {"FILE_PATH": "a.md"}}) == "a.md" and ct({"input": {"Command": "ls"}}) == "ls")
+check("agy MCP call: nested Arguments still give a label",
+      ct({"input": {"ServerName": "javis", "ToolName": "javis_run_tool",
+                    "Arguments": {"name": "javis_workflow", "args": {"op": "runs"}}}}) in ("javis_workflow",))
+
 # Không có gạch dài trong file mới
 SRC = (SERVER / "tool_label.py").read_text(encoding="utf-8")
 check("tool_label.py không có gạch dài", "\u2014" not in SRC and "\u2013" not in SRC)

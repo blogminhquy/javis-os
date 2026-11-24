@@ -885,6 +885,11 @@ def _tach_model(doc) -> list[str]:
     return ra
 
 
+# cli path -> the binary signature (`_chu_ky_cli`) that refused `models --output-format json`.
+# An upgrade changes the signature, so a newer agy is asked again.
+_MODELS_JSON_REFUSED: dict = {}
+
+
 def list_models() -> Optional[list]:
     """Danh sách model hỏi thẳng CLI. None = chưa cài CLI (phía trên còn biết mà nói lý do).
 
@@ -896,7 +901,9 @@ def list_models() -> Optional[list]:
     if not cli:
         return None
     # Bản >= 1.1.12 có --output-format cho `models`; bản cũ thì chỉ in chữ. Thử JSON trước.
-    if co_co("--output-format"):
+    # 1.5.15 dropped the flag from `models` again ("flags provided but not defined"), so every
+    # refresh paid for a failing process first. A binary that refused it once is not asked again.
+    if co_co("--output-format") and _MODELS_JSON_REFUSED.get(cli) != _chu_ky_cli(cli):
         try:
             r = subprocess.run([cli, "models", "--output-format", "json"], capture_output=True,
                                text=True, encoding="utf-8", errors="replace", timeout=30,
@@ -905,6 +912,8 @@ def list_models() -> Optional[list]:
                 ds = _tach_model(json.loads(r.stdout))
                 if ds:
                     return ds
+            elif "not defined" in ((r.stderr or "") + (r.stdout or "")):
+                _MODELS_JSON_REFUSED[cli] = _chu_ky_cli(cli)
         except Exception:
             pass
     try:
@@ -1367,6 +1376,46 @@ def trang_thai_mcp(vault_root=None) -> dict:
 # ---------------------------------------------------------------------------
 # Một lượt chạy
 # ---------------------------------------------------------------------------
+# How long agy may take to exit on its own once its `result` line is in. It needs 2-3 s to close
+# its language server, SQLite and file watchers (agy 1.5.15); a kill in the middle of that could
+# leave its conversation database half written.
+EXIT_GRACE_S = 20.0
+
+
+def end_engine_only(held: dict) -> None:
+    """Past the exit grace: stop agy itself, never its process group.
+
+    A command agy started in the background (a render, a build) lives in that group, belongs to the
+    owner and is adopted after the turn (tien_trinh_nen). `_kill_tree` would take it down with agy.
+    """
+    proc = held.get("proc") if isinstance(held, dict) else None
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        proc.terminate()
+        proc.wait(timeout=3)
+    except Exception:  # noqa: BLE001
+        try:
+            proc.kill()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def is_success_result(ev) -> bool:
+    """A raw agy line that closes the turn without an error (`{"event":"result","result":{"status":"SUCCESS"}}`).
+
+    An error result is not one: its details may still come on stderr and in the exit code, which
+    the retry logic in `query()` reads, so that turn waits for the process as before.
+    """
+    if not isinstance(ev, dict):
+        return False
+    kind = str(ev.get("type") or ev.get("event") or "").lower()
+    if kind != "result":
+        return False
+    sub = ev.get(kind) if isinstance(ev.get(kind), dict) else ev
+    return str(sub.get("status") or "SUCCESS").upper() == "SUCCESS"
+
+
 class AntigravityCLI:
     """Một lượt chạy `agy` headless. Cùng hợp đồng sự kiện với ClaudeSDK/CodexCLI/GeminiCLI."""
 
@@ -1667,6 +1716,9 @@ class AntigravityCLI:
         stop_requested = threading.Event()
         reader_finished = threading.Event()
         deadline_expired = threading.Event()
+        # Set once agy itself has exited (not its children). Adoption of left-behind work waits on it.
+        agy_gone = threading.Event()
+        held: dict = {}
 
         # agy stops itself at --print-timeout and still prints a partial answer; the watchdog only steps in after
         # that, so it does not win the race and lose the partial output (its clock starts earlier, at Popen).
@@ -1702,6 +1754,17 @@ class AntigravityCLI:
                 )
                 with _PROC_LOCK:
                     _ACTIVE_PROCS[proc] = self.tag
+                held["proc"] = proc
+
+                def watch_exit(p=proc):
+                    try:
+                        p.wait()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    agy_gone.set()
+
+                threading.Thread(target=watch_exit, daemon=True,
+                                 name=f"javis-agy-exit-{self.tag}").start()
 
                 def watch_stop():
                     # Keep cleanup independent of the cancelled asyncio task, including
@@ -1797,6 +1860,8 @@ class AntigravityCLI:
                         os.unlink(tep_ngu_canh)
                     except Exception:
                         pass
+                if proc is None:
+                    agy_gone.set()
                 reader_finished.set()
                 publish(HET)
 
@@ -1827,12 +1892,14 @@ class AntigravityCLI:
         qua_tran_argv = False
         co_tool = False
         sau_tool = False   # a tool call came since the last text: the next text starts a new paragraph
+        finished_early = False
         import text_breaks
         try:
             while True:
                 ev = await hang.get()
                 if ev is HET:
                     break
+                result_line = is_success_result(ev)
                 if ev.get("_qua_tran"):
                     qua_tran_argv = True      # query() sẽ chạy lại bằng stdin/file
                 if duong == "file" and not doc_duoc:
@@ -1864,10 +1931,27 @@ class AntigravityCLI:
                     for _m in cac_manh[_n:]:
                         if _m:
                             yield {"type": "delta", "content": _m}
+                if result_line:
+                    # The answer is complete. agy still spends 2-3 s shutting its language server
+                    # down before it exits (measured on 1.5.15), and the chat used to wait for that
+                    # with the answer already in hand. Close the turn now; the reader thread lets
+                    # agy finish on its own and only steps in after EXIT_GRACE_S.
+                    finished_early = True
+                    break
         finally:
-            stop_requested.set()
-            # A second Stop may interrupt this wait; the worker still owns cleanup.
-            await asyncio.to_thread(reader_finished.wait, 5)
+            if finished_early:
+                _t = threading.Timer(EXIT_GRACE_S, end_engine_only, args=(held,))
+                _t.daemon = True
+                _t.start()
+                try:   # adoption of left-behind work waits for agy itself to be gone (tien_trinh_nen)
+                    import tien_trinh_nen
+                    tien_trinh_nen.note_engine_exiting(self.tag, agy_gone)
+                except Exception:  # noqa: BLE001
+                    pass
+            else:
+                stop_requested.set()
+                # A second Stop may interrupt this wait; the worker still owns cleanup.
+                await asyncio.to_thread(reader_finished.wait, 5)
         ket.update(text=_chot_van("".join(cac_manh).strip(), chan.get("toan_van", "")),
                    loi=da_loi, cac_loi=cac_loi,
                    ten_ngu_canh=ten_ngu_canh, qua_tran_argv=qua_tran_argv,
@@ -1934,14 +2018,19 @@ class AntigravityCLI:
             kho = chan if isinstance(chan, dict) else {}
             da_bao = kho.setdefault("_buoc_tool", set())
             idx = str(ev.get("step_index") or ev.get("tool_id") or ev.get("id") or "")
-            ten = str(ev.get("tool_name") or (ev.get("tool_info") or {}).get("name") or "")
+            info = ev.get("tool_info") if isinstance(ev.get("tool_info"), dict) else {}
+            name = str(ev.get("tool_name") or info.get("name") or "")
+            params = info.get("parameters") if isinstance(info.get("parameters"), dict) else {}
+            name, params = unwrap_mcp_call(name, params)
             ra = []
             if idx not in da_bao:
                 da_bao.add(idx)
-                ra.append({"type": "tool_call", "name": ten, "id": idx,
-                           "input": (ev.get("tool_info") or {}).get("parameters") or {}})
+                ra.append({"type": "tool_call", "name": name, "id": idx, "input": params})
             if str(ev.get("state") or "").upper() == "DONE":
-                ra.append({"type": "tool_result", "id": idx, "status": "", "content": ""})
+                # The DONE line carries the tool's output in tool_info.output (agy 1.5.15). The chat
+                # shows a short tail of it under the step, as it does for Claude Code and Codex.
+                ra.append({"type": "tool_result", "id": idx, "status": "",
+                           "content": str(info.get("output") or "")[:2000]})
             return ra
 
         # Mở mạch: nhặt id hội thoại để lượt sau nối lại được.
@@ -1985,7 +2074,9 @@ class AntigravityCLI:
                            "output_tokens": int(st.get("output_tokens")
                                                 or st.get("completion_tokens") or 0),
                            "total_tokens": int(st.get("total_tokens") or 0),
-                           "cached": int(st.get("cached") or 0)})
+                           # agy names it cache_read_tokens (1.5.15), and its input_tokens leaves
+                           # the cached part out.
+                           "cached": int(st.get("cache_read_tokens") or st.get("cached") or 0)})
             if str(ev.get("status") or "").lower() == "error":
                 e = ev.get("error") or {}
                 tin = str(e.get("message") if isinstance(e, dict) else e) or ""
@@ -2023,6 +2114,46 @@ class AntigravityCLI:
                         cac_manh.append(vv)
                         break
         return ra
+
+
+_MCP_CALL = "call_mcp_tool"
+_HUB_RUN_TOOL = "javis_run_tool"
+
+
+def unwrap_mcp_call(name: str, params: dict) -> tuple[str, dict]:
+    """agy's `call_mcp_tool` step -> the tool really called, with its own arguments.
+
+    agy reaches every MCP tool through one native tool (measured on agy 1.5.15):
+
+        {"ServerName": "javis", "ToolName": "javis_run_tool",
+         "Arguments": {"name": "javis_workflow", "args": {"op": "runs"}},
+         "toolAction": "Calling javis_workflow", "toolSummary": "List workflow runs"}
+
+    and Javis's hub wraps once more behind `javis_run_tool` (the lazy tool tier). Shown as is, the
+    chat read "call_mcp_tool" for every hub call and nothing else. The model's own `toolSummary`
+    rides along so the step label stays readable. Anything else comes back untouched.
+    """
+    if name != _MCP_CALL or not isinstance(params, dict):
+        return name, params if isinstance(params, dict) else {}
+    lowered = {str(k).lower(): v for k, v in params.items()}
+    tool = lowered.get("toolname")
+    args = lowered.get("arguments")
+    if isinstance(args, str) and args.strip()[:1] == "{":
+        try:
+            args = json.loads(args)
+        except Exception:  # noqa: BLE001 - a label must never break a turn
+            args = None
+    if not isinstance(tool, str) or not tool.strip():
+        return name, params
+    tool = tool.strip()
+    args = args if isinstance(args, dict) else {}
+    if tool == _HUB_RUN_TOOL and isinstance(args.get("name"), str) and args["name"].strip():
+        tool = args["name"].strip()
+        args = args.get("args") if isinstance(args.get("args"), dict) else {}
+    summary = lowered.get("toolsummary")
+    if isinstance(summary, str) and summary.strip() and "toolSummary" not in args:
+        args = {**args, "toolSummary": summary.strip()}
+    return tool, args
 
 
 def _chot_van(gom: str, toan_van: str) -> str:

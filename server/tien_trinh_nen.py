@@ -559,6 +559,36 @@ def bo_tag(tag: str) -> None:
     with _KHOA:
         _NHOM_THEO_TAG.pop(str(tag or ""), None)
         _MARKS_BY_TAG.pop(str(tag or ""), None)
+        _EXITING_BY_TAG.pop(str(tag or ""), None)
+
+
+# ---------------------------------------------------------------------------------------
+# Engines that answer before they exit (Antigravity)
+# ---------------------------------------------------------------------------------------
+# 2026-11-24: Javis closes an Antigravity turn as soon as agy prints its result line, while agy
+# still spends 2-3 s shutting its own language server down. Adopted at that moment, agy's own
+# process group would pass for work the turn left behind. So the turn notes the event its reader
+# sets once agy is gone, and adoption waits for it first.
+_EXITING_BY_TAG: Dict[str, List[threading.Event]] = {}
+
+
+def note_engine_exiting(tag: str, gone: threading.Event) -> None:
+    """The engine of turn `tag` has answered and is still exiting; `gone` is set once it has."""
+    if not POSIX or not tag or gone is None:
+        return
+    with _KHOA:
+        _EXITING_BY_TAG.setdefault(str(tag), []).append(gone)
+        while len(_EXITING_BY_TAG) > 200:
+            _EXITING_BY_TAG.pop(next(iter(_EXITING_BY_TAG)))
+
+
+def wait_engine_exit(tag: str, timeout: float = 30.0) -> None:
+    """Block until every engine noted for `tag` has exited, at most `timeout` seconds in all."""
+    with _KHOA:
+        events = _EXITING_BY_TAG.pop(str(tag or ""), [])
+    end = time.monotonic() + max(0.0, timeout)
+    for gone in events:
+        gone.wait(max(0.0, end - time.monotonic()))
 
 
 def dang_chay(chat_id: str = "", brain_root: str = "") -> List[dict]:
