@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.633.2] - 2026-11-24
+### Sửa lỗi
+- **Việc nhóm không còn tự đóng xanh khi trưởng nhóm ghi lỗi thẻ giao việc.** Nếu kế hoạch làm việc có thẻ giao việc thiếu dấu đóng hoặc lỗi cú pháp, việc sẽ dừng báo lỗi rõ thay vì chốt hoàn thành giả khi chưa ai làm.
+
 ## [0.633.1] - 2026-11-24
 ### Sửa lỗi
 - **Bot Zalo không còn gửi nhầm file làm việc.** Ở mức Toàn quyền (kể cả chat riêng của chủ với bot), file ghi trong lượt như sổ nhật ký, file `.md`, script trong `/tmp` từng bị gửi đi như ảnh. Giờ bot chỉ gửi ảnh mà câu trả lời chèn bằng `![](...)`.
