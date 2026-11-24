@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.633.3] - 2026-11-24
+### Fixed
+- **Record actual model execution and fallback evidence for background jobs.** Background job records and card payloads now retain the actual provider, model, original provider, and fallback reason across execution, failure, and input-wait paths, and clear stale fallback fields on clean retries.
+
 ## [0.633.2] - 2026-11-24
 ### Fixed
 - **Team jobs no longer falsely mark as done when an assignment directive is malformed.** When a plan contains a broken or unclosed assignment block, the job stops with a clear error instead of finishing with zero work steps.
