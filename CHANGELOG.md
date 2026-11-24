@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.639.1] - 2026-11-24
+### Sửa lỗi
+- **Ảnh và tin thoại gửi cho Zalo Bot không còn thành file 0 byte.** Khi máy chủ Zalo chưa kịp có file, Javis chờ chút rồi tải lại, vẫn qua proxy của máy như trước. Tải hỏng thì bot nói thật là chưa xem hay chưa nghe được và nhờ khách gửi lại, không đoán nội dung.
+- **File và video gửi qua Zalo đang chờ máy chủ Zalo chuẩn bị thì được đợi thêm vài giây**, không còn báo nhầm là link đã hết hạn.
+- **Video không ghi thời lượng ở phần đầu file vẫn được xem đủ cả clip**, không chỉ một khung hình ở giây đầu tiên.
+
 ## [0.639.0] - 2026-11-24
 ### Thêm mới
 - **Chọn brain mặc định cho Javis Gate.** Thẻ Javis Gate ở trang Kết nối có ô chọn brain: claude.ai hay ChatGPT không nêu tên brain thì đọc, ghi vào brain này, không còn lạc sang brain bạn vừa đụng tới. Để "Brain dùng gần nhất" thì mọi thứ y như cũ.
