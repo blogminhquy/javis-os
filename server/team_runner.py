@@ -2940,6 +2940,11 @@ class TeamRunner:
             if req.get("tool_turn") and req.get("work_mode") != team_gate.FULL and self.approvals is not None:
                 gate = team_gate.open_gate(self.approvals, team_id, task_id or "", step_id or "")
                 req["team_gate"] = gate.gate_id
+            elif (req.get("tool_turn") and self.approvals is not None and step_id
+                  and team_gate.scope_route_for(self._step_actor(team_id, agent_key))):
+                # Nhóm full trong đợt guard Drive: chỉ mở cổng để xin duyệt ghi ngoài vùng (scope_only).
+                gate = team_gate.open_gate(self.approvals, team_id, task_id or "", step_id or "", scope_only=True)
+                req["team_gate"] = gate.gate_id
             if req.get("tool_turn"):
                 # Actor đáng tin cho guard ghi Drive: slug của thành viên đang làm bước này (kiểm trong nhóm), không từ text.
                 # Bước FULL không có cổng: team_gate rỗng, hành vi cổng không đổi.
