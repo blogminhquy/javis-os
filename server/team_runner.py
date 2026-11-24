@@ -764,17 +764,19 @@ class TeamRunner:
             return ""
 
     def _step_actor(self, team_id: str, agent_key) -> str:
-        """Actor của bước: agent_key nếu là thành viên đang hoạt động của nhóm và đúng dạng slug. Trưởng nhóm
+        """Actor của bước: slug của thành viên đang hoạt động của nhóm (roster) nếu đúng dạng slug. Trưởng nhóm
         (LEADER_SLOT) hay lạ -> "" (guard DENY ghi, fail-closed)."""
         key = str(agent_key or "")
         if not key or key == LEADER_SLOT:
             return ""
         try:
-            if not self.teams.is_active_member(team_id, key):
-                return ""
+            m = self.teams.member(team_id, key)
         except Exception:  # noqa: BLE001 - không kiểm được thành viên -> không actor
             return ""
-        return turn_context._actor_id(key)
+        if not m or m.get("status") != "active":
+            return ""
+        # agent_key là mã nội bộ (ag_...); actor của guard là SLUG của Agent (khóa của WRITE_ROOTS) lấy từ roster.
+        return turn_context._actor_id(str(m.get("slug_at_join") or ""))
 
     def _lock_for(self, agent_key: str) -> asyncio.Lock:
         loop = asyncio.get_running_loop()
