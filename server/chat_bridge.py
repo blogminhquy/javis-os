@@ -683,6 +683,18 @@ def _ghi_so(d: Dict[str, str]) -> None:
     tam.replace(SO_GHI_CHEP)
 
 
+def _latest_brain(st) -> str:
+    """The brain of the most recently updated conversation, where a Gate note or transcript opens a new conversation.
+
+    Not `list_sessions(limit=1)`: that list puts PINNED conversations first, so a chat pinned weeks ago in another brain
+    won and claude.ai notes landed in the wrong brain (#1726). `brain_gan_nhat` is the same "open brain" the MCP hub
+    uses for Gate file tools, so a note and a file written in one claude.ai chat go to the same brain."""
+    try:
+        return st.brain_gan_nhat() or "brain"
+    except Exception:  # noqa: BLE001 - an older store without the helper: fall back to the list
+        return (st.list_sessions(limit=1) or [{}])[0].get("brain") or "brain"
+
+
 def _phien_ghi_chep(st, nguon: str, ten: str) -> str:
     """Hội thoại "Từ <nguồn>: <tên>" của một cuộc chat bên ngoài: dùng lại nếu đã có (sổ `SO_GHI_CHEP`), mở mới
     nếu chưa có hoặc chủ đã xoá. Mở trong brain của hội thoại gần nhất, như mọi công cụ Gate khác."""
@@ -692,10 +704,9 @@ def _phien_ghi_chep(st, nguon: str, ten: str) -> str:
     sid = so.get(khoa, "")
     if sid and st.get_session(sid):
         return sid
-    gan_nhat = (st.list_sessions(limit=1) or [{}])[0]
     import localefmt
     tieu_de = localefmt.chu(f"Từ {nguon}: {ten}", f"From {nguon}: {ten}")
-    sid = st.create_session(brain=gan_nhat.get("brain") or "brain", engine="gate", model=nguon,
+    sid = st.create_session(brain=_latest_brain(st), engine="gate", model=nguon,
                             title=_cat(tieu_de, 80), channel="web")
     so[khoa] = sid
     _ghi_so(so)
@@ -855,8 +866,7 @@ async def log_transcript(source: str, session: str, turns: Any, project: str = "
             return {"ok": True, "id": (row or {}).get("id") or "", "title": (row or {}).get("title") or "",
                     "saved": 0, "skipped": skipped}
         if not row:
-            latest = (st.list_sessions(limit=1) or [{}])[0]
-            sid = st.create_session(brain=latest.get("brain") or "brain", engine="gate", model=name,
+            sid = st.create_session(brain=_latest_brain(st), engine="gate", model=name,
                                     title=_transcript_title(name, project, todo[0][1]), channel="web")
             row = st.get_session(sid) or {}
             entry = {"sid": sid, "seen": seen}
