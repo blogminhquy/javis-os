@@ -151,6 +151,12 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 - **Đã có cột lọc thì danh sách không chia nhóm lại** (20/11, trang Công cụ: "phần tất cả ấy không cần chia ra thành 3
   phần mà thêm tag vào là được rồi, vì đã phân lại ở sidebar rồi mà"). Mục Tất cả là một danh sách liền, xếp theo tên;
   nguồn của từng dòng là một tag nhỏ, và loại mặc định (có sẵn) không cần tag.
+- **Nhiều người cùng làm thì gộp một hàng** (24/11, trang Nhóm trên iPhone: "làm sao thiển thị mấy icon có trên 1 hàng
+  sát sát nhau và hiện chữ đang làm việc thôi ... muốn show ra lại ấn nút mũi tên đi lên để show"). Từ hai người trở
+  lên: ảnh chồng sát nhau, một câu đếm ("3 cộng sự đang làm việc"), mũi tên lên ở cuối hàng; bấm mới xổ danh sách từng
+  người lên trên. Một người thì giữ một dòng có tên. Mẫu ở `teams.js`, `typingHtml`.
+- **Khung trang trên điện thoại bám chiều cao đo được, không bám `bottom: 0`** (24/11, cùng ảnh: "khoảng trắng ở dưới
+  dài thế"). `.cview` dùng `--app-h` giống khung chat chính, nên ô nhập luôn nằm sát vạch Home.
 - **Đặt chỗ theo việc:** thứ bấm nhiều ở trên, thứ nguy hiểm ở cuối. Khung viết bài, khung bình luận ghim ở chỗ dễ với.
 
 ## 6. Nút, icon, điều khiển

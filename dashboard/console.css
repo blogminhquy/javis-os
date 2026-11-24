@@ -1110,7 +1110,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     margin-left: 0; width: 100%;
     height: 100vh; height: var(--app-h, 100dvh);
   }
-  .cview { left: 0; bottom: 0; }
+  /* Owner, 24/11/2026 (Teams on an iPhone, a long empty band under the input): the page layer was pinned with bottom: 0,
+     and in an app installed on iPhone that edge can sit well above the real bottom of the screen. It now takes the same
+     measured height as the main chat (.hud, --app-h from mobile-chat.js), so its input sits on the Home bar too. */
+  .cview { left: 0; bottom: auto; height: calc(var(--app-h, 100dvh) - var(--topbar-h)); }
   .cview-body { padding: 16px 14px; }
   .cgrid { grid-template-columns: 1fr; }
   .settings-page { width: 100%; gap: 10px; }
@@ -4468,7 +4471,23 @@ button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-s
 .tm-typing[hidden] { display: none; }
 .tm-typing-who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .tm-typing-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px; font-weight: 600; }
-.tm-typing-more { color: var(--text3); }
+/* Owner, 24/11/2026: two or more members working fold into ONE row (teams.js typingHtml): pictures overlapped side by
+   side, "3 members are working", an up arrow. The arrow unfolds the one-line-per-member list above the row. */
+.tm-typing.is-open { flex-direction: column; align-items: stretch; gap: 0; }
+.tm-typing-list { display: flex; flex-direction: column; gap: 6px; padding: 2px 0 6px; }
+.tm-typing-sum { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 36px; padding: 0;
+  border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tm-typing-sum .tm-typing-text { flex: 0 1 auto; min-width: 0; max-width: none; }
+.tm-typing-sum .tm-dots { margin-left: 0; flex: none; }
+.tm-typing-faces { display: inline-flex; align-items: center; flex: none; padding-left: 6px; }
+.tm-typing-faces > .tm-face, .tm-typing-faces > .tm-ava, .tm-typing-plus { width: 22px; height: 22px; margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--bg); font-size: 11px; }
+.tm-typing-plus { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 50%;
+  background: var(--surface-2); color: var(--text2); font-weight: 600; }
+.tm-typing-chev { display: inline-flex; flex: none; margin-left: auto; color: var(--text3); }
+.tm-typing-chev svg { width: 18px; height: 18px; }
+.tm-typing-sum:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+@media (max-width: 760px) { .tm-typing-sum { min-height: 44px; } }
 /* 0.192.0: a file dragged over the team chat lands in its composer; the composer says so. */
 .tm-composer.is-drop { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-wash); }
 /* A picture attached in the team composer shows itself on its chip. */

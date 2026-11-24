@@ -3398,32 +3398,50 @@
   // Owner, 16/10/2026: "các agent khác nhau trong nhóm chat khi chat phải hiện trạng thái đang trả lời, nếu không thì sẽ
   // không biết ai đang trả lời". One strip above the input, like a group chat's "is typing": each member whose turn is at
   // the engine, with its picture. Fed by the team_typing event and by GET /teams/{id} when the chat opens.
-  var TYPING_MAX = 4;
-  function typingHtml(list, members) {
+  // Owner, 24/11/2026 (iPhone, three members at work took three full lines above the input): two or more members fold
+  // into ONE row, their pictures overlapped side by side and "3 members are working", with an up arrow that unfolds the
+  // full list (one line each, the old view) above it. One member keeps the single named line, nothing to fold.
+  var TYPING_FACES = 5;
+  function typingRows(list) {
     var seen = {}, rows = [];
     (list || []).forEach(function (t) {
       if (!t || !t.agent_key || seen[t.agent_key]) return;
       seen[t.agent_key] = 1;
       rows.push(t);
     });
+    return rows;
+  }
+  function typingHtml(list, members, open) {
+    var rows = typingRows(list);
     if (!rows.length) return "";
-    var shown = rows.slice(0, TYPING_MAX);
-    return shown.map(function (t) {
+    var dots = '<span class="tm-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+    function line(t) {
       var m = memberOf(members, t.agent_key) || { name: t.agent_key };
       var name = m.name || m.slug || t.agent_key;
       var reply = /reply|volunteer/.test(String(t.role || ""));
       return '<span class="tm-typing-who">' + agentAva(m, 18) + '<span class="tm-typing-text">' +
-        esc(tw(reply ? "teams.typing_reply" : "teams.typing_work", { name: name })) + "</span>" +
-        '<span class="tm-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>';
-    }).join("") + (rows.length > TYPING_MAX
-      ? '<span class="tm-typing-more">' + esc(tw("teams.typing_more", { n: rows.length - TYPING_MAX })) + "</span>" : "");
+        esc(tw(reply ? "teams.typing_reply" : "teams.typing_work", { name: name })) + "</span>" + dots + "</span>";
+    }
+    if (rows.length === 1) return line(rows[0]);
+    var faces = rows.slice(0, TYPING_FACES).map(function (t) {
+      return agentAva(memberOf(members, t.agent_key) || { name: t.agent_key }, 22);
+    }).join("") + (rows.length > TYPING_FACES ? '<span class="tm-typing-plus">+' + (rows.length - TYPING_FACES) + "</span>" : "");
+    var label = tw(open ? "teams.typing_fold" : "teams.typing_unfold");
+    return (open ? '<div class="tm-typing-list">' + rows.map(line).join("") + "</div>" : "") +
+      '<button type="button" class="tm-typing-sum" data-typing-toggle="1" aria-expanded="' + (open ? "true" : "false") +
+      '" aria-label="' + esc(label) + '" title="' + esc(label) + '"><span class="tm-typing-faces" aria-hidden="true">' + faces +
+      '</span><span class="tm-typing-text">' + esc(tw("teams.typing_many", { n: rows.length })) + "</span>" + dots +
+      '<span class="tm-typing-chev" aria-hidden="true">' + ic(open ? "chevron-down" : "chevron-up") + "</span></button>";
   }
   function drawTyping() {
     var el = S && S.el && S.el.querySelector(".tm-typing");
     if (!el) return;
-    var h = S.team ? typingHtml(S.typing, S.team.members) : "";
+    // Back to one working member (or none): the next crowd starts folded again.
+    if (typingRows(S.typing).length < 2) S.typingOpen = false;
+    var h = S.team ? typingHtml(S.typing, S.team.members, !!S.typingOpen) : "";
     el.innerHTML = h;
     el.hidden = !h;
+    el.classList.toggle("is-open", !!S.typingOpen);
   }
 
   function drawHint() {
@@ -3768,7 +3786,7 @@
     if (S.side) S.tab = defaultTab(null, listed && listed.counts);
     S.picker = null; S.draft = null; S.picked = []; S.retrying = {};
     S.replyTo = null; S.plusOpen = false; S.renamingHead = false; forgetAtts(S.atts); S.atts = []; S.folder = null; S.repos = []; S.ghIcon = null; S.info = null; S.infoFind = null; S.assets = null;
-    S.typing = []; S.pinned = []; S.pinsOpen = false; S.unclamped = {}; S.listCache = null; S.outbox = []; stopReveal();
+    S.typing = []; S.typingOpen = false; S.pinned = []; S.pinsOpen = false; S.unclamped = {}; S.listCache = null; S.outbox = []; stopReveal();
     closeFolderPanel();
     closeGithubPanel();
     stopMic();
@@ -5613,6 +5631,7 @@
     }
     if (d.reply) return startReply(d.reply);
     if (d.copy) return copyMsg(d.copy);
+    if (d.typingToggle) { S.typingOpen = !S.typingOpen; drawTyping(); return; }
     if (d.replyCancel) {
       S.replyTo = null; S.pending = null; drawComposer();
       var ri = S.el.querySelector(".tm-input");
