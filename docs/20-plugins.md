@@ -339,7 +339,14 @@ cụ Javis đã có, cửa này có thêm năm công cụ chỉ AI bên ngoài t
 | `javis_chat_result` | Đọc câu trả lời khi Javis làm lâu | Mọi mức |
 | `javis_chat_note` | Ghi lại cuộc chat bên ngoài: chủ nói gì, đã chốt gì (từ 0.441.0) | Ghi nháp, Toàn quyền |
 | `javis_sync_setup` | Bật Javis Sync trên máy của AI viết code: trả về một lệnh cài, AI tự chạy | Ghi nháp, Toàn quyền |
+| `javis_brains` | Liệt kê các brain: tên, đường dẫn, brain mặc định, brain dùng gần nhất | Mọi mức |
 
+- **Chọn brain (#1726):** claude.ai không gửi được header nên không tự chọn được brain. Mọi công cụ đọc hay ghi
+  brain ở cửa Gate (file, ghi chép, việc, nhắc hẹn...) nhận thêm `brain` tuỳ chọn: tên brain (không phân biệt hoa
+  thường, dấu) hoặc đường dẫn, chỉ khớp với các brain có thật trên máy; tên lạ thì bị từ chối kèm danh sách tên đúng.
+  Không đưa `brain` thì dùng **Brain mặc định cho Javis Gate** chủ chọn ở thẻ Javis Gate trang Kết nối; để "Brain
+  dùng gần nhất" thì như cũ (brain của cuộc chat vừa đụng tới). Mọi kết quả ghi nói đã ghi vào brain nào, và lời dặn
+  của cửa Gate bảo AI hỏi chủ chọn brain trước khi ghi khi có nhiều brain. Luật nằm ở `server/gate_brain.py`.
 - **Tin nhắn chạy đúng như chủ gõ:** đi qua chính vòng chat của dashboard, nên chữ chạy trên mọi tab
   đang mở, có nút Dừng, lưu vào Lịch sử, ghi `memory/conversations` và vào vòng tự học. Bong bóng
   tin mang nhãn **từ ChatGPT** hay **từ Claude**.

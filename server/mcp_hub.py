@@ -2662,6 +2662,12 @@ def _brain_dang_mo() -> tuple:
     return root, nguon
 
 
+def last_used_brain() -> str:
+    """The brain a call without a header falls back to (the brain of the chat touched last, or the only brain), "" when
+    none can be told. Javis Gate's `javis_brains` marks it as `last_used` (#1726)."""
+    return _brain_dang_mo()[0] or ""
+
+
 def resolve_vault(raw_vault):
     """(vault_root, nguồn, header_hỏng) cho một lượt gọi hub.
 
@@ -2720,6 +2726,57 @@ def _ghi_chu_brain(nguon, vault_root, header_hong):
     return ra
 
 
+# Javis Gate (#1726): tools that never touch a brain. They get no `brain` argument and no brain line under their
+# result; connection tools (POS, Gmail...) are shared by every brain, so they are left out by their route instead.
+_GATE_BRAINLESS = frozenset({"javis_connections", "javis_web_search", "javis_web_fetch", _LAZY_SEARCH})
+
+
+def _declares_brain(spec) -> bool:
+    """The tool has a `brain` parameter of its own: the Gate then leaves that argument alone."""
+    props = ((spec or {}).get("schema") or {}).get("properties") or {}
+    return isinstance(props, dict) and "brain" in props
+
+
+def _gate_brain_bound(name, ent, spec) -> bool:
+    """A Gate tool whose work happens in one brain: files, skills, tasks, reminders, stored results..."""
+    if name in _GATE_BRAINLESS or (ent or {}).get("conn") or _declares_brain(spec):
+        return False
+    return bool(ent)
+
+
+def _gate_brain_spec(spec, ent):
+    """The tool as the Gate lists it: a brain-bound tool gains the optional `brain` property. A copy, never the cached
+    spec (the same list serves Javis's own engines)."""
+    if not _gate_brain_bound(spec.get("fn"), ent, spec):
+        return spec
+    import gate_brain
+    schema = dict(spec.get("schema") or {"type": "object"})
+    schema["properties"] = dict(schema.get("properties") or {}, brain=dict(gate_brain.BRAIN_PARAM))
+    return dict(spec, schema=schema)
+
+
+def _gate_take_brain(name, arguments, spec, bound):
+    """(arguments without the Gate's `brain`, the brain asked for or "").
+
+    `brain` comes off every tool that does not declare it, so a model that passes it to a web search or a POS tool does
+    not break that call; it only picks a brain for brain-bound tools. Through the lazy `javis_run_tool` it may sit in
+    the inner args of a Javis tool (not a connection tool: those are named `<source>__<tool>`)."""
+    if not isinstance(arguments, dict) or _declares_brain(spec):
+        return arguments, ""
+    args = dict(arguments)
+    wanted = args.pop("brain", None)
+    inner = args.get("args")
+    if (name == _LAZY_RUN and isinstance(inner, dict) and "brain" in inner
+            and "__" not in str(args.get("name") or "")):
+        inner = dict(inner)
+        lifted = inner.pop("brain", None)
+        args["args"] = inner
+        if wanted in (None, ""):
+            wanted = lifted
+    wanted = wanted if isinstance(wanted, str) else ("" if wanted is None else str(wanted))
+    return args, (wanted.strip() if bound else "")
+
+
 def _chan_doan_thieu_brain(header_hong):
     """Phần đuôi gắn vào lỗi khi hub không suy ra nổi brain nào. Phải nêu ĐÍCH DANH thứ còn
     thiếu và ai gây ra nó, vì đứng từ phía client thì lỗi gốc nói y như một lỗi cấu hình máy."""
@@ -2765,14 +2822,15 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
                 "prompts/list": "prompts"}[method]
         return {"jsonrpc": "2.0", "id": mid, "result": {khoa: []}}
     if method == "tools/list":
-        tools, _ = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
-                                      include_ambient=include_ambient,
-                                      for_bot=for_bot, **({"tool_allowlist": tool_allowlist}
-                                                         if tool_allowlist is not None else {}))
+        tools, listed_route = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
+                                                 include_ambient=include_ambient,
+                                                 for_bot=for_bot, **({"tool_allowlist": tool_allowlist}
+                                                                    if tool_allowlist is not None else {}))
         if gate is not None:
             # Javis Gate (0.440.0): bốn tool chat CHỈ có ở cửa cho AI bên ngoài (chat_bridge.py).
+            # #1726: every brain-bound tool also shows the optional `brain` argument there (gate_brain.py).
             import chat_bridge
-            tools = chat_bridge.tool_specs(mode) + list(tools)
+            tools = chat_bridge.tool_specs(mode) + [_gate_brain_spec(t, listed_route.get(t["fn"])) for t in tools]
         if tool_allowlist is not None:
             tools, _ = _scope_tools(tools, {t["fn"]: {} for t in tools}, tool_allowlist)
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": [
@@ -2795,13 +2853,42 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
                     "content": [{"type": "text", "text": result}],
                     "isError": result.startswith("ERROR:"),
                 }}
-        _, route = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
-                                      include_ambient=include_ambient, for_bot=for_bot,
-                                      **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
+        discover_kw = dict(include_plugins=include_plugins, include_ambient=include_ambient, for_bot=for_bot,
+                           **({"tool_allowlist": tool_allowlist} if tool_allowlist is not None else {}))
+        arguments = params.get("arguments") or {}
+        tools, route = await discover_all(mode, vault_root=vault_root, **discover_kw)
+        gate_bound = False
+        if gate is not None:
+            # #1726: the optional `brain` argument picks the brain of THIS call, among the registered brains only.
+            # The hub's permission level and the file tools' path checks stay exactly as they are: only the root moves.
+            spec = next((t for t in tools if t.get("fn") == name), None)
+            gate_bound = _gate_brain_bound(name, route.get(name), spec) and not (
+                name == _LAZY_RUN and isinstance(arguments, dict) and "__" in str(arguments.get("name") or ""))
+            arguments, wanted = _gate_take_brain(name, arguments, spec, gate_bound)
+            if wanted:
+                import gate_brain
+                picked, err = await asyncio.to_thread(gate_brain.resolve, wanted)
+                if err:
+                    return {"jsonrpc": "2.0", "id": mid, "result": {
+                        "content": [{"type": "text", "text": "ERROR: " + err}], "isError": True}}
+                vault_nguon = "argument"
+                if picked["path"] != vault_root:
+                    vault_root = picked["path"]
+                    tools, route = await discover_all(mode, vault_root=vault_root, **discover_kw)
         with tool_result_shaper.for_model():
-            result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
+            result = str(await mcp_client.call_route(route, name, arguments))
         # A CLI engine's tool loop is out of Javis's sight: compact JSON and per-turn repeat references happen here.
-        result = tool_result_reuse.lean_for_cli(result, name, params.get("arguments") or {})
+        result = tool_result_reuse.lean_for_cli(result, name, arguments)
+        if gate is not None:
+            # The Gate names the brain under every brain-bound result in English (the outside AI reads it), instead of
+            # the hub's note about the X-Javis-Vault header that claude.ai or ChatGPT cannot send anyway.
+            if gate_bound and (vault_root or result.startswith("ERROR:")):
+                import gate_brain
+                result += "\n\n" + gate_brain.result_line(vault_root, vault_nguon)
+            return {"jsonrpc": "2.0", "id": mid, "result": {
+                "content": [{"type": "text", "text": result}],
+                "isError": result.startswith("ERROR:"),
+            }}
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
         if ghi_chu:
             result += "\n\n" + ghi_chu
@@ -2900,6 +2987,13 @@ async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=F
     Claude Code, Codex và mọi engine của chính Javis không bao giờ thấy chúng.
     """
     vault_root, vault_nguon, vault_header_hong = resolve_vault(raw_vault)
+    if gate is not None and vault_nguon != "header":
+        # Javis Gate (#1726): the default brain the owner picked for the Gate beats "the brain used last". None picked
+        # (or the picked brain is gone): today's fallback stays as it was.
+        import gate_brain
+        fixed = await asyncio.to_thread(gate_brain.default_brain)
+        if fixed:
+            vault_root, vault_nguon = fixed["path"], "gate-default"
     # "read_docs" opens documents of ONE brain, the bot's, named by the X-Javis-Vault header Javis
     # writes into the bot's config. Without a valid header `resolve_vault` would fall back to the
     # brain the owner has open, i.e. hand a stranger the owner's documents. No header, no tools.

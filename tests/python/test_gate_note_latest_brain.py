@@ -74,8 +74,11 @@ class EmptyStore(FakeStore):
 check("no conversation at all falls back to the default brain name", CB._latest_brain(EmptyStore()) == "brain")
 
 src = Path(CB.__file__).read_text(encoding="utf-8")
+# Since the Gate's brain selector (#1726, 2026-11-24) both paths go through the owner's default brain for the Gate
+# first; with none picked they still land on `_latest_brain`, checked above.
 check("no Gate path picks a brain from the pinned-first list any more",
-      src.count("brain=_latest_brain(st)") == 2)
+      src.count("brain=brain or _latest_brain(st)") == 1 and src.count("brain=_gate_brain(st)") == 1
+      and "return _fixed_brain() or _latest_brain(st)" in src)
 
 if _fails:
     raise SystemExit(f"{len(_fails)} failed")
