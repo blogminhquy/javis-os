@@ -99,7 +99,7 @@ def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_
     """`authority_seq` (Resonance A4): ảnh chụp thứ tự quyền do HOST đọc trước khi engine chạy; None khi lượt không
     thuộc trợ lý nào. `provider`: engine của lượt, để hồ sơ bản nộp ghi đúng khả năng engine.
     `team_gate` (0.207.0): id cổng công cụ của một bước việc nhóm (team_gate.py), "" ngoài bước đó."""
-    return {
+    out = {
         "kenh": str(kenh or "").strip(),
         "sender_id": str(sender_id or "").strip(),
         "chat_type": "group" if str(chat_type or "").strip().lower() in _GROUP_TYPES else "private",
@@ -115,6 +115,11 @@ def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_
         "execution": execution_metadata(execution),
         "actor": _actor_id(actor),
     }
+    # Danh tính do host đưa vào nhưng KHÔNG hợp lệ (agent thiếu key/slug, actor sai định dạng): bị bỏ thành None/""
+    # như trước, nhưng đánh dấu để guard ghi (drive_write_guard) từ chối thay vì coi như lượt không có Agent.
+    if (agent is not None and out["agent"] is None) or (str(actor or "").strip() and not out["actor"]):
+        out["identity_invalid"] = True
+    return out
 
 
 # Danh tính agent THẬT của một lượt chạy nền (Kanban, nhắc việc, nhóm): slug đã xác thực do host gán

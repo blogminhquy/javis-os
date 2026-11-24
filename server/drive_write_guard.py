@@ -38,6 +38,7 @@ import ast
 import json
 import os
 import re
+import sys
 from typing import Callable, Iterable, Optional
 
 MODE_ENV = "JAVIS_DRIVE_WRITE_GUARD"
@@ -335,14 +336,92 @@ def direct_deny_rules(env: Optional[dict] = None) -> list[str]:
     return list(DIRECT_CONNECTOR_SERVERS) if current_mode(env) == "enforce" else []
 
 
-def add_direct_deny(opts, env: Optional[dict] = None):
-    """Gộp deny rule vào opts.disallowed_tools. No-op khi không enforce. Trả opts."""
-    rules = direct_deny_rules(env)
+# Công cụ chạy mã tuỳ ý / ghi file LOCAL cho 3 trưởng phòng trong đợt (canary, opt-in, chỉ enforce).
+# Ghi local có thể ảnh hưởng tạo file trong brain: đây là canary, KHÔNG bật production.
+LEADER_DENY_TOOLS = ("Bash", "Write", "Edit", "NotebookEdit")
+
+
+class LeaderGuardRefusal(RuntimeError):
+    """Từ chối khởi chạy lượt của một Agent: không xác minh được danh tính hoặc guard không cài được (fail-closed)."""
+
+
+def _read_turn() -> Optional[dict]:
+    """turn_context do HOST gán. Lỗi đọc = từ chối (không coi như không có Agent)."""
+    try:
+        import turn_context
+        return turn_context.current()
+    except Exception as e:  # noqa: BLE001 - fail-closed: không đọc được danh tính -> từ chối
+        raise LeaderGuardRefusal(f"không đọc được danh tính lượt ({type(e).__name__})") from e
+
+
+def leader_guard(env: Optional[dict] = None, turn: Optional[dict] = None) -> list[str]:
+    """Deny cho 3 trưởng phòng trong đợt. Chỉ enforce mới có tác dụng; mọi trường hợp khác trả [] hoặc từ chối.
+    - Không phải enforce: [] (off/shadow không can thiệp, không đọc danh tính).
+    - Enforce, lượt không có Agent (chat chủ, prewarm): [].
+    - Enforce, danh tính hỏng / agent thiếu slug / actor và agent lệch nhau: TỪ CHỐI.
+    - Enforce, pilot lỗi và lượt có Agent: TỪ CHỐI (không biết Agent có phải trưởng phòng không).
+    - Enforce, pilot hợp lệ, Agent trong đợt: LEADER_DENY_TOOLS. Agent ngoài đợt: [].
+    """
+    if current_mode(env) != "enforce":
+        return []
+    if turn is None:
+        turn = _read_turn()
+    if not turn:
+        return []
+    if turn.get("identity_invalid"):
+        raise LeaderGuardRefusal("danh tính Agent do host gửi không hợp lệ")
+    actor = str(turn.get("actor") or "").strip()
+    agent = turn.get("agent") or None
+    a_slug = str((agent or {}).get("slug") or "").strip() if agent else ""
+    if agent is not None and not a_slug:
+        raise LeaderGuardRefusal("Agent không có slug")
+    if actor and a_slug and actor != a_slug:
+        raise LeaderGuardRefusal("actor và Agent của lượt không khớp")
+    slug = actor or a_slug
+    if not slug:
+        return []
+    state, actors = pilot_status(env)
+    if state != "ok":
+        raise LeaderGuardRefusal(f"{PILOT_ENV} {state}: không xác định được phạm vi đợt")
+    return list(LEADER_DENY_TOOLS) if slug in actors else []
+
+
+def add_direct_deny(opts, env: Optional[dict] = None, turn: Optional[dict] = None):
+    """Gộp deny vào opts.disallowed_tools (union, không ghi đè). Off/shadow: không đọc gì, trả opts nguyên.
+    Enforce: có thể raise LeaderGuardRefusal -> lượt không chạy."""
+    mode = current_mode(env)
+    if mode in ("off", "shadow"):
+        return opts
+    if mode == "invalid":  # cấu hình lỗi: không biết guard đang ở đâu -> từ chối lượt của Agent (không fail-open)
+        t = turn if turn is not None else _read_turn()
+        if t and (t.get("identity_invalid") or t.get("agent") or t.get("actor")):
+            raise LeaderGuardRefusal(f"{MODE_ENV} không hợp lệ: từ chối lượt của Agent")
+        return opts
+    rules = direct_deny_rules(env) + leader_guard(env, turn)
     if not rules or opts is None or not hasattr(opts, "disallowed_tools"):
         return opts
     cur = list(getattr(opts, "disallowed_tools", None) or [])
     opts.disallowed_tools = cur + [r for r in rules if r not in cur]
     return opts
+
+
+def engine_entry() -> bool:
+    """Gọi khi dựng engine Claude (claude_engine). Off/shadow: cài wrapper, lỗi chỉ ghi log.
+    Enforce: wrapper không cài được -> chỉ lượt của Agent bị từ chối (chat chủ vẫn chạy)."""
+    try:
+        if install_direct_deny():
+            return True
+        err = "install trả False"
+    except Exception as e:  # noqa: BLE001 - xử lý bên dưới theo mode
+        err = f"{type(e).__name__}: {e}"
+    if current_mode(None) != "enforce":
+        print(f"[drive guard] direct deny not installed: {err}", file=sys.stderr)
+        return False
+    turn = _read_turn()
+    if turn and (turn.get("identity_invalid") or turn.get("agent") or turn.get("actor")):
+        raise LeaderGuardRefusal(f"không cài được guard ghi Drive ({err}): từ chối lượt của Agent")
+    print(f"[drive guard] direct deny not installed ({err}); lượt không có Agent, tiếp tục", file=sys.stderr)
+    return False
 
 
 def install_direct_deny() -> bool:
@@ -357,7 +436,7 @@ def install_direct_deny() -> bool:
     original = cls._options
 
     def _options(self):
-        return add_direct_deny(original(self))
+        return add_direct_deny(original(self))  # LeaderGuardRefusal lan ra: lượt không chạy (fail-closed)
 
     setattr(_options, _DIRECT_MARK, True)
     _options.__wrapped__ = original
