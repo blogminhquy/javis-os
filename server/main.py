@@ -7287,6 +7287,31 @@ def _companion_packs() -> list:
         return []
 
 
+# The Javis Gate card of the Connections page (#1726, owner 2026-11-24): the brain the Gate uses when an outside AI
+# names none (claude.ai cannot send a header). The rules live in gate_brain.py; the card is dashboard/gate-brain.js.
+@app.get("/gate/brains")
+def gate_brains_get():
+    import gate_brain
+    return gate_brain.card_state()
+
+
+@app.post("/gate/default-brain")
+async def gate_default_brain_set(request: Request):
+    """Body {"brain": "<brain folder>"}; "" means "Brain used last", the behaviour before the selector."""
+    import gate_brain
+    try:
+        data = await request.json()
+    except Exception:  # noqa: BLE001
+        data = None
+    if not isinstance(data, dict) or not isinstance(data.get("brain", ""), str):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Dữ liệu không hợp lệ", "Invalid data")},
+                            status_code=400)
+    ok, err = await asyncio.to_thread(gate_brain.set_default, data.get("brain") or "")
+    if not ok:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    return {"ok": True, "default": gate_brain.configured_folder()}
+
+
 # Trang Gói: xem, cài từ .zip, bật tắt, gỡ. Router riêng vì main.py đã quá dài; xem
 # server/routes/packs.py. Lời gọi phải nằm ĐÚNG chỗ này - route_table.json khoá thứ tự.
 import routes.packs as packs_routes   # noqa: E402

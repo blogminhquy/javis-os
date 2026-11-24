@@ -188,10 +188,16 @@ def _dang_chay(sid: str) -> bool:
         return False
 
 
-def _the(row: dict) -> dict:
+def _the(row: dict, names: Optional[Dict[str, str]] = None) -> dict:
+    """One conversation as the Gate lists it. `names` caches brain names for one listing (#1726: each row says its
+    brain, so the outside AI sends into a chat of the brain the owner means)."""
+    raw = str(row.get("brain") or "brain")
+    names = {} if names is None else names
+    if raw not in names:
+        names[raw] = _brain_name(raw)
     return {"id": row.get("id") or row.get("session_id"), "title": row.get("title") or "",
             "updated": _gio(row.get("updated_at")), "channel": row.get("channel") or "web",
-            "messages": int(row.get("msg_count") or 0),
+            "messages": int(row.get("msg_count") or 0), "brain": names[raw],
             "running": _dang_chay(str(row.get("id") or row.get("session_id") or ""))}
 
 
@@ -448,22 +454,32 @@ def cap_nhat(nguon: str) -> dict:
 
 # ─────────────────────────── bốn việc ───────────────────────────
 
-def tim(q: str = "", limit: int = 10) -> dict:
+def tim(q: str = "", limit: int = 10, brain: Optional[dict] = None) -> dict:
     """Tìm hội thoại theo TÊN trước (khớp mọi từ, không phân biệt dấu), rồi theo nội dung tin.
-    Không có từ khoá thì trả các hội thoại mới nhất của khung Trò chuyện."""
+    Không có từ khoá thì trả các hội thoại mới nhất của khung Trò chuyện.
+
+    `brain` (#1726, gate_brain.resolve): only conversations of that brain."""
     st = _store()
     limit = max(1, min(int(limit or 10), 30))
     q = str(q or "").strip()
+    names: Dict[str, str] = {}
+
+    def of_brain(row: dict) -> bool:
+        if not brain:
+            return True
+        import gate_brain
+        return gate_brain.same_brain(row.get("brain") or "brain", brain["path"])
     if not q:
-        return {"ok": True, "results": [_the(r) for r in st.list_sessions(limit=limit)]}
+        rows = [r for r in st.list_sessions(limit=400 if brain else limit) if of_brain(r)]
+        return {"ok": True, "results": [_the(r, names) for r in rows[:limit]]}
     tu = _gap(q).split()
     ra, da = [], set()
     for r in st.list_sessions(limit=400, channel="*"):
-        if not doc_duoc(r.get("channel")):
+        if not doc_duoc(r.get("channel")) or not of_brain(r):
             continue
         ten = _gap(r.get("title") or "")
         if tu and all(t in ten for t in tu):
-            ra.append(_the(r))
+            ra.append(_the(r, names))
             da.add(r["id"])
     try:
         tim_noi_dung = st.search(q, limit=40)
@@ -474,9 +490,9 @@ def tim(q: str = "", limit: int = 10) -> dict:
         if not sid or sid in da or len(ra) >= limit:
             continue
         row = st.get_session(sid) or {}
-        if not row or not doc_duoc(row.get("channel")):
+        if not row or not doc_duoc(row.get("channel")) or not of_brain(row):
             continue
-        the = _the(row)
+        the = _the(row, names)
         the["match"] = _cat(re.sub(r"\s+", " ", str(r.get("snippet") or "")), 160)
         ra.append(the)
         da.add(sid)
@@ -509,7 +525,7 @@ def doc(sid: str, n: int = 20) -> dict:
         if len(ra) >= n:
             break
     ra.reverse()
-    return {"ok": True, "id": row["id"], "title": row.get("title") or "",
+    return {"ok": True, "id": row["id"], "title": row.get("title") or "", "brain": _brain_name(row.get("brain")),
             "running": _dang_chay(row["id"]), "messages": ra,
             "older_messages": max(0, len(tin) - len(ra))}
 
@@ -549,12 +565,16 @@ def _ma_cuoi(st, sid: str) -> int:
     return max((int(m.get("id") or 0) for m in st.get_messages(sid)), default=0)
 
 
-async def gui(sid: str, text: str, nguon: str, model: Any = None, effort: Any = "") -> dict:
+async def gui(sid: str, text: str, nguon: str, model: Any = None, effort: Any = "",
+              brain: Optional[dict] = None) -> dict:
     """Đưa một tin vào hội thoại như chủ gõ. Phiên đang trả lời thì tin thành tin GÕ THÊM (lượt đang
     chạy đọc nó, hoặc nó chạy ngay sau lượt đó), y như chủ gõ thêm trong lúc Javis đang làm.
 
     `model`: ghim cho hội thoại (như thanh model của khung chat). `effort`: chỉ cho tin này. Cả hai chỉ đổi được
-    giữa hai lượt: lượt đang chạy đã chọn model và effort từ lúc bắt đầu."""
+    giữa hai lượt: lượt đang chạy đã chọn model và effort từ lúc bắt đầu.
+
+    `brain` (#1726): the brain the AI means. The conversation fixes the brain, so a conversation of another brain is
+    refused instead of written into. The result names the conversation's brain."""
     if "chay" not in _HOST:
         return {"ok": False, "error": "chat bridge is not ready"}
     st = _store()
@@ -564,6 +584,9 @@ async def gui(sid: str, text: str, nguon: str, model: Any = None, effort: Any = 
     if not gui_duoc(row.get("channel")):
         return {"ok": False, "error": "this conversation does not take messages from outside "
                                       "(only the main chat and partner chats do)"}
+    mismatch = _wrong_brain(row, brain)
+    if mismatch:
+        return {"ok": False, "error": mismatch}
     text = str(text or "").strip()
     if not text:
         return {"ok": False, "error": "message is empty"}
@@ -613,7 +636,7 @@ async def gui(sid: str, text: str, nguon: str, model: Any = None, effort: Any = 
     if not dang_chay and not _dang_chay(row["id"]) and _ma_cuoi(st, row["id"]) <= truoc:
         _bo_viec(ma_viec)
         return {"ok": False, "error": "Javis did not take the message"}
-    out = {"ok": True, "id": row["id"], "title": row.get("title") or "",
+    out = {"ok": True, "id": row["id"], "title": row.get("title") or "", "brain": _brain_name(row.get("brain")),
            "mode": "queued" if dang_chay else "started", "after_id": truoc}
     if (doi_model or eff) and "model_cua" in _HOST:
         m = dict(_HOST["model_cua"](row["id"]))
@@ -695,22 +718,82 @@ def _latest_brain(st) -> str:
         return (st.list_sessions(limit=1) or [{}])[0].get("brain") or "brain"
 
 
-def _phien_ghi_chep(st, nguon: str, ten: str) -> str:
+def _fixed_brain() -> str:
+    """Path of the default brain the owner picked for Javis Gate (gate_brain.py), "" for "Brain used last"."""
+    try:
+        import gate_brain
+        b = gate_brain.default_brain()
+    except Exception:  # noqa: BLE001 - an unreadable choice keeps the behaviour before the selector
+        return ""
+    return (b or {}).get("path") or ""
+
+
+def _gate_brain(st) -> str:
+    """Where a Gate note or transcript opens a NEW conversation when the call names no brain: the default brain the
+    owner picked for Javis Gate, else the brain used last (the behaviour before #1726's selector)."""
+    return _fixed_brain() or _latest_brain(st)
+
+
+def _last_used_path() -> str:
+    try:
+        import mcp_hub
+        return mcp_hub.last_used_brain()
+    except Exception:  # noqa: BLE001 - javis_brains then just marks no brain as last used
+        return ""
+
+
+def _brain_name(raw) -> str:
+    try:
+        import gate_brain
+        return gate_brain.label_of(raw or "brain")
+    except Exception:  # noqa: BLE001
+        return str(raw or "brain")
+
+
+def _phien_ghi_chep(st, nguon: str, ten: str, brain: str = "") -> str:
     """Hội thoại "Từ <nguồn>: <tên>" của một cuộc chat bên ngoài: dùng lại nếu đã có (sổ `SO_GHI_CHEP`), mở mới
-    nếu chưa có hoặc chủ đã xoá. Mở trong brain của hội thoại gần nhất, như mọi công cụ Gate khác."""
+    nếu chưa có hoặc chủ đã xoá. Mở trong brain của hội thoại gần nhất, như mọi công cụ Gate khác.
+
+    #1726: `brain` (a resolved brain path) is the brain the note must land in: named by the AI, or the Gate's default
+    brain. Then a conversation of this title in ANOTHER brain is not reused: the note opens one in that brain, booked
+    under "<source>|<title>|<brain>". Without one (no default picked), any conversation of that title is reused as
+    before, wherever it is."""
     nguon = ten_nguon(nguon)
     khoa = f"{nguon}|{_gap(ten)}"
+    brain = brain or _fixed_brain()
     so = _doc_so()
-    sid = so.get(khoa, "")
-    if sid and st.get_session(sid):
+    keys = [f"{khoa}|{brain}", khoa] if brain else [khoa]
+    for k in keys:
+        sid = so.get(k, "")
+        row = st.get_session(sid) if sid else None
+        if not row:
+            continue
+        if brain:
+            import gate_brain
+            if not gate_brain.same_brain(row.get("brain"), brain):
+                continue
+            if k != keys[0]:
+                so[keys[0]] = sid
+                _ghi_so(so)
         return sid
     import localefmt
     tieu_de = localefmt.chu(f"Từ {nguon}: {ten}", f"From {nguon}: {ten}")
-    sid = st.create_session(brain=_latest_brain(st), engine="gate", model=nguon,
+    sid = st.create_session(brain=brain or _latest_brain(st), engine="gate", model=nguon,
                             title=_cat(tieu_de, 80), channel="web")
-    so[khoa] = sid
+    so[keys[0]] = sid
     _ghi_so(so)
     return sid
+
+
+def _wrong_brain(row: dict, brain: Optional[dict], or_else: str = "") -> str:
+    """An error when the AI named a brain and this conversation lives in another one, else ""."""
+    if not brain:
+        return ""
+    import gate_brain
+    if gate_brain.same_brain(row.get("brain") or "brain", brain["path"]):
+        return ""
+    return (f'conversation {row.get("id")} is in the brain "{_brain_name(row.get("brain"))}", not "{brain["name"]}". '
+            f"Find a conversation of that brain with javis_chat_find (pass brain){or_else}.")
 
 
 def noi_dung_ghi_chep(nguon: str, hoi: str, tra_loi: str, chot: str) -> str:
@@ -726,8 +809,11 @@ def noi_dung_ghi_chep(nguon: str, hoi: str, tra_loi: str, chot: str) -> str:
 
 
 async def ghi_chep(nguon: str, ten: str = "", hoi: str = "", tra_loi: str = "", chot: str = "",
-                   sid: str = "") -> dict:
-    """Lưu một ghi chép của AI bên ngoài vào Javis. KHÔNG chạy lượt nào của Javis."""
+                   sid: str = "", brain: Optional[dict] = None) -> dict:
+    """Lưu một ghi chép của AI bên ngoài vào Javis. KHÔNG chạy lượt nào của Javis.
+
+    `brain` (#1726): the brain the AI named (gate_brain.resolve). With `sid` it must be that conversation's brain;
+    without, the note's own conversation opens in it. The result names the brain the note went to."""
     if "luu" not in _HOST:
         return {"ok": False, "error": "chat notes are not ready"}
     hoi, tra_loi, chot = (str(x or "").strip() for x in (hoi, tra_loi, chot))
@@ -741,6 +827,9 @@ async def ghi_chep(nguon: str, ten: str = "", hoi: str = "", tra_loi: str = "", 
         row = st.get_session(str(sid)) or {}
         if not row or not gui_duoc(row.get("channel")):
             return {"ok": False, "error": "conversation not found, or it does not take notes from outside"}
+        mismatch = _wrong_brain(row, brain, " or leave id out to note into that brain")
+        if mismatch:
+            return {"ok": False, "error": mismatch}
         if _dang_chay(row["id"]):
             return {"ok": False, "error": "that conversation is answering right now; note again in a moment, "
                                           "or leave id out to keep the note in your own log"}
@@ -748,7 +837,7 @@ async def ghi_chep(nguon: str, ten: str = "", hoi: str = "", tra_loi: str = "", 
         ten = re.sub(r"\s+", " ", str(ten or "")).strip()
         if not ten:
             return {"ok": False, "error": "title is required (the name of this chat on your side) when id is not given"}
-        row = st.get_session(_phien_ghi_chep(st, nguon, ten)) or {}
+        row = st.get_session(_phien_ghi_chep(st, nguon, ten, (brain or {}).get("path") or "")) or {}
     import localefmt
     tin = noi_dung_ghi_chep(nguon, hoi, tra_loi, chot)
     da_ghi = localefmt.chu(f"Đã ghi lại ghi chép từ {ten_nguon(nguon)}.", f"Saved the note from {ten_nguon(nguon)}.")
@@ -766,7 +855,7 @@ async def ghi_chep(nguon: str, ten: str = "", hoi: str = "", tra_loi: str = "", 
                              "content_sha": sessions.content_sha(da_ghi)})
     except Exception:
         pass
-    return {"ok": True, "id": row["id"], "title": row.get("title") or ""}
+    return {"ok": True, "id": row["id"], "title": row.get("title") or "", "brain": _brain_name(row.get("brain"))}
 
 
 # ─────────────────────────── coding-agent transcripts ───────────────────────────
@@ -866,7 +955,7 @@ async def log_transcript(source: str, session: str, turns: Any, project: str = "
             return {"ok": True, "id": (row or {}).get("id") or "", "title": (row or {}).get("title") or "",
                     "saved": 0, "skipped": skipped}
         if not row:
-            sid = st.create_session(brain=_latest_brain(st), engine="gate", model=name,
+            sid = st.create_session(brain=_gate_brain(st), engine="gate", model=name,
                                     title=_transcript_title(name, project, todo[0][1]), channel="web")
             row = st.get_session(sid) or {}
             entry = {"sid": sid, "seen": seen}
@@ -919,7 +1008,13 @@ GATE_INSTRUCTIONS = (
     "on this machine, ask the owner once, in their language, whether to turn on Javis Sync (every turn of this coding "
     "agent saved into Javis automatically). If they agree, call javis_sync_setup and run the command it returns. Do not "
     "ask again in this session if they decline. Without Javis Sync, call javis_chat_note when the owner settles "
-    "something worth remembering.")
+    "something worth remembering. "
+    # #1726: claude.ai cannot pick a brain with a header, so the choice is made in the tools, and asked for first.
+    "Javis can hold several brains (separate knowledge bases, for example work and personal). Every tool that reads or "
+    "writes a brain takes an optional brain argument (a name from javis_brains); without it Javis uses the default "
+    "brain that javis_brains shows. Before you write anything (a file, a note, a task, a reminder, a message into a "
+    "chat), call javis_brains once: if it lists more than one brain and the owner has not said which one, ask the "
+    "owner which brain to use, in their language, then pass it as brain. Every write result names the brain it used.")
 
 
 def sync_setup(source: str, javis_url: str = "", system: str = "", gate_url: str = "") -> dict:
@@ -966,15 +1061,24 @@ def sync_setup(source: str, javis_url: str = "", system: str = "", gate_url: str
 _ID = {"type": "string", "description": "Conversation id from javis_chat_find."}
 
 TOOLS: Dict[str, dict] = {
+    "javis_brains": {
+        "muc": "doc",
+        "description": (
+            "List the owner's Javis brains (separate knowledge bases): name, path, which one is the default for "
+            "your calls, and which one the owner used last. Call it before writing anything, and when the owner "
+            "names a brain, to get its exact name for the brain argument of the other tools."),
+        "schema": {"type": "object", "properties": {}},
+    },
     "javis_chat_find": {
         "muc": "doc",
         "description": (
             "Find the owner's Javis conversations by title (accents ignored) or by words in their messages. "
             "Empty query lists the most recent chats. Use this first when the owner names a chat "
-            "(for example 'the Viet Web chat')."),
+            "(for example 'the Viet Web chat'). Each result names its brain."),
         "schema": {"type": "object", "properties": {
             "query": {"type": "string", "description": "Words from the chat title or content. Empty = latest chats."},
-            "limit": {"type": "integer", "description": "Max results, 1-30 (default 10)."}}},
+            "limit": {"type": "integer", "description": "Max results, 1-30 (default 10)."},
+            "brain": {"type": "string", "description": "Optional: only chats of this brain (a name from javis_brains)."}}},
     },
     "javis_chat_read": {
         "muc": "doc",
@@ -1005,6 +1109,9 @@ TOOLS: Dict[str, dict] = {
             "effort": {"type": "string", "enum": ["off", "low", "medium", "high", "xhigh", "ultra"],
                        "description": ("Optional. How hard Javis thinks, for this message only. 'ultra' is the "
                                        "engine's maximum. Leave out to keep the conversation's own level.")},
+            "brain": {"type": "string", "description": (
+                "Optional: the brain the owner means. The conversation decides the brain; Javis refuses to send when "
+                "the conversation is in another brain.")},
             "wait_seconds": {"type": "integer",
                              "description": f"Seconds to wait for the reply, 0-{CHO_TOI_DA} (default {CHO_MAC_DINH})."}}},
     },
@@ -1037,13 +1144,16 @@ TOOLS: Dict[str, dict] = {
             "every message. asked: what the owner said, in their own words where it matters. answered: your "
             "answer in 1-5 sentences. decided: what the owner agreed or chose, and why. title: a short name for "
             "this chat, the SAME every time in this chat so notes land together. To note into one existing "
-            "Javis chat instead (for example the chat this work belongs to), pass its id."),
+            "Javis chat instead (for example the chat this work belongs to), pass its id. The result names the "
+            "brain the note went to."),
         "schema": {"type": "object", "required": ["asked"], "properties": {
             "title": {"type": "string", "description": "Short name of this chat on your side, stable across calls."},
             "asked": {"type": "string", "description": "What the owner said or asked."},
             "answered": {"type": "string", "description": "Your answer, short."},
             "decided": {"type": "string", "description": "What the owner decided, and why. Empty if nothing yet."},
-            "id": {"type": "string", "description": "Optional: a Javis conversation id to note into instead."}}},
+            "id": {"type": "string", "description": "Optional: a Javis conversation id to note into instead."},
+            "brain": {"type": "string", "description": (
+                "Optional: the brain to note into (a name from javis_brains). Leave out to use the default brain.")}}},
     },
     "javis_sync_setup": {
         "muc": "ghi",
@@ -1108,13 +1218,24 @@ async def goi_tool(ten: str, args: Optional[dict], mode: str, nguon: str, base_u
         return (f"ERROR: {ten} needs {can}. The owner can raise it on the Javis Gate page in Javis "
                 "(Plugins, Javis Gate, Open page).")
     try:
-        if ten == "javis_chat_find":
-            kq = tim(a.get("query") or "", _so(a.get("limit"), 10))
+        # #1726: the brain the AI named, resolved among the registered brains only; an unknown name stops the call.
+        brain = None
+        if ten in ("javis_chat_find", "javis_chat_note", "javis_chat_send") and str(a.get("brain") or "").strip():
+            import gate_brain
+            brain, problem = await asyncio.to_thread(gate_brain.resolve, a.get("brain"))
+            if problem:
+                return "ERROR: " + problem
+        if ten == "javis_brains":
+            import gate_brain
+            kq = await asyncio.to_thread(gate_brain.listing, _last_used_path())
+        elif ten == "javis_chat_find":
+            kq = tim(a.get("query") or "", _so(a.get("limit"), 10), brain)
         elif ten == "javis_chat_read":
             kq = doc(str(a.get("id") or ""), _so(a.get("last"), 20))
         elif ten == "javis_chat_note":
             kq = await ghi_chep(nguon, str(a.get("title") or ""), str(a.get("asked") or ""),
-                                str(a.get("answered") or ""), str(a.get("decided") or ""), str(a.get("id") or ""))
+                                str(a.get("answered") or ""), str(a.get("decided") or ""), str(a.get("id") or ""),
+                                brain)
         elif ten == "javis_sync_setup":
             kq = sync_setup(nguon, str(a.get("javis_url") or ""), str(a.get("system") or ""), base_url)
         elif ten == "javis_chat_models":
@@ -1123,7 +1244,7 @@ async def goi_tool(ten: str, args: Optional[dict], mode: str, nguon: str, base_u
             kq = cap_nhat(nguon)
         elif ten == "javis_chat_send":
             kq = await gui(str(a.get("id") or ""), str(a.get("message") or ""), nguon,
-                           a.get("model"), a.get("effort") or "")
+                           a.get("model"), a.get("effort") or "", brain)
             if kq.get("ok"):
                 cho = _so(a.get("wait_seconds"), CHO_MAC_DINH)
                 if cho > 0:

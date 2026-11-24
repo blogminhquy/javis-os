@@ -1358,6 +1358,23 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .amb-off-list[hidden], #connNone[hidden] { display: none; }
 #mcpTabDaNoi.searching .conn-guide, #mcpTabDaNoi.searching #ambWrap .mp-empty, #mcpTabDaNoi.searching #ambWrap .amb-hidden { display: none !important; }
 #mcpMessenger:not(:empty) { margin-top: 18px; }
+/* The Javis Gate card (gate-brain.js, #1726): one select, the brain the Gate uses when the outside AI names none.
+   Label and select share one row on a wide screen; on a phone the select takes the whole line under its label. */
+#mcpGate:not(:empty) { margin-top: 12px; }
+.gate-card .prov-head { align-items: center; }
+.gate-open { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  border-radius: 10px; color: var(--text2); }
+.gate-open:hover, .gate-open:focus-visible { background: var(--surface-2); color: var(--text); }
+.gate-open .ic { width: 18px; height: 18px; }
+.gate-brain-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+.gate-brain-lbl { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; color: var(--text2); }
+.gate-brain-row .gate-brain-sel { flex: 1 1 220px; max-width: 360px; width: auto; min-width: 0; margin: 0;
+  font-size: 16px; min-height: 44px; }
+.gate-brain-msg:empty { display: none; }
+.gate-brain-msg { margin-top: 8px; }
+@media (max-width: 600px) {
+  .gate-brain-row .gate-brain-sel { flex-basis: 100%; max-width: 100%; }
+}
 .amb-off { opacity: .7; }
 @media (max-width: 700px) {
   .cat-grid { grid-template-columns: 1fr; }
