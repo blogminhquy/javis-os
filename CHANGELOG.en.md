@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.635.0] - 2026-11-24
+### Added
+- **A + button in the inbox reply box sends images and files to the customer.** Pick one or more, see them above the box, press Send and they go out on the customer's own channel (Messenger, Telegram, WhatsApp, personal Zalo, Zalo OA, Lark, Slack, WeChat). The typed words go as the caption of the first one. What was sent shows in the chat right away. A Facebook comment takes images; an Instagram comment takes text only, so it has no + button. Up to 25 MB per file.
+### Improved
+- **The reply box hint is shorter**, "Type a reply, Enter to send", so it no longer wraps in a narrow chat.
+- A comment thread's post card is only read again when the chat is opened, not while scrolling back through older messages.
+
 ## [0.634.1] - 2026-11-24
 ### Fixed
 - **Personal Zalo bots no longer go quiet for 10 minutes after a long answer.** Later parts of the bot's own message were filed as the owner typing, so the bot stepped aside and skipped customers. Customer bots also find an Agent's documents when the path was saved from the drive (computers without sign-in).
