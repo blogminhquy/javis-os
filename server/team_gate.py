@@ -24,7 +24,9 @@ stop its own tools before they run at that level: a gated tool step on it is ref
 """
 from __future__ import annotations
 
+import contextvars
 import os
+import sys
 import re
 import secrets
 import shlex
@@ -178,11 +180,12 @@ def _trim(args: Any) -> Any:
     return str(args)[:600]
 
 
-def decide(g: Gate, kind: str, name: str, args: Any, label: str) -> tuple:
+def decide(g: Gate, kind: str, name: str, args: Any, label: str, need_deadline: bool = False) -> tuple:
     """(True, "") when the owner approved this exact call for this step (the approval's fingerprint is consumed now, so
     the effect can never happen twice), else (False, note) and the call is recorded for the approval card."""
     fp = team_approval.fingerprint(kind, name, args)
-    aid = g.store.consume_fingerprint(g.step_id, fp) if (g.store is not None and g.step_id) else None
+    aid = (g.store.consume_fingerprint(g.step_id, fp, need_deadline=need_deadline)
+           if (g.store is not None and g.step_id) else None)
     with g.lock:
         if aid:
             g.passed.append({"fp": fp, "approval_id": aid, "kind": kind, "name": name})
@@ -191,6 +194,51 @@ def decide(g: Gate, kind: str, name: str, args: Any, label: str) -> tuple:
             g.blocked.append({"fp": fp, "kind": kind, "name": str(name)[:120], "args": _trim(args),
                               "label": str(label or name)[:300]})
     return False, BLOCK_NOTE
+
+
+# Fingerprint của lệnh Drive ngoài vùng đã được chủ duyệt: TÁCH HẲN với duyệt "gated" chung (kind "hub"), nên một lần
+# duyệt chung không mở được lệnh ghi ngoài vùng. Ngữ cảnh chỉ được đặt bởi drive_guard_hub SAU khi sổ duyệt đã tiêu thụ
+# đúng fingerprint này; hub_check của lệnh bên trong chỉ bỏ qua khi khớp đúng.
+DRIVE_KIND = "drive-scope"
+DRIVE_PASS: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar("javis_drive_pass", default=None)
+
+
+def _actor_is_step_member(g: Gate) -> tuple:
+    """Actor của lượt là ĐÚNG thành viên đang hoạt động, đúng bước đang chạy (chống trùng slug và lệch bước)."""
+    actor = str((turn_context.current() or {}).get("actor") or "")
+    if not actor or g.store is None or not g.team_id or not g.step_id:
+        return False, "thiếu actor, nhóm hoặc bước"
+    step = g.store.step(g.step_id)
+    if not step or str(step.get("task_id") or "") != g.task_id:
+        return False, "bước không thuộc việc đang chạy"
+    by_slug = [m for m in g.store.members(g.team_id) if m.get("status") == "active"
+               and m.get("slug_at_join") == actor]
+    if len(by_slug) != 1 or by_slug[0].get("agent_key") != step.get("agent_key"):
+        return False, "actor không khớp đúng thành viên đang chạy của nhóm (trùng hoặc lệch slug)"
+    return True, ""
+
+
+def drive_scope_check(fn: str, name: str, args: Any, label: str = "") -> tuple:
+    """(ok, note, hub_fp). ok chỉ khi chủ đã duyệt ĐÚNG lệnh này cho bước này và fingerprint được tiêu thụ ngay lúc này."""
+    g = current()
+    if g is None or not g.step_id:
+        return False, NO_GATE_NOTE, None
+    try:
+        ok_actor, why = _actor_is_step_member(g)
+    except Exception:  # noqa: BLE001 - fail-closed
+        ok_actor, why = False, "lỗi kiểm actor"
+    if not ok_actor:
+        return False, f"{BLOCK_NOTE} ({why})", None
+    # Lệnh ngoài vùng bắt buộc có hạn: duyệt không hạn không bao giờ được coi là hợp lệ.
+    ok, note = decide(g, DRIVE_KIND, str(name), args, label or name, need_deadline=True)
+    if not ok:
+        return False, note, None
+    fp_hub = team_approval.fingerprint("hub", str(fn), args)
+    with g.lock:
+        aid = next((p["approval_id"] for p in reversed(g.passed) if p.get("kind") == DRIVE_KIND), "")
+    print(f"[drive guard audit] duyệt một lần: approval={aid} step={g.step_id} tool={name} "
+          f"fp={fp_hub[:12]} (đã tiêu thụ, không tự thử lại nếu lệnh lỗi)", file=sys.stderr)
+    return True, "", fp_hub
 
 
 def _roster_exempt(g: Gate, name: Any, args: Any) -> tuple:
@@ -219,6 +267,10 @@ def hub_check(name: str, args: Any, label: str = "") -> tuple:
     g = current()
     if g is None:
         return False, NO_GATE_NOTE
+    if DRIVE_PASS.get() is not None and DRIVE_PASS.get() == team_approval.fingerprint("hub", str(name), args):
+        with g.lock:
+            g.passed.append({"fp": DRIVE_PASS.get(), "approval_id": "", "kind": "drive-scope", "name": str(name)[:120]})
+        return True, ""
     ok, why = _roster_exempt(g, name, args)
     if ok:
         with g.lock:

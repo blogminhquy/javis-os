@@ -333,15 +333,17 @@ class ApprovalStore:
             self._event(c, aid, "granted_step", "host", {"step_id": step_id})
 
     # ---- use ----
-    def consume_fingerprint(self, step_id: str, fp: str) -> Optional[str]:
+    def consume_fingerprint(self, step_id: str, fp: str, need_deadline: bool = False) -> Optional[str]:
         """Let ONE approved action through: the approval granted to this step lists this fingerprint and it was not used
-        yet. Marked used in the same transaction, before the tool runs. Returns the approval id, or None."""
+        yet, and its deadline has not passed. Marked used in the same transaction, before the tool runs. Returns the
+        approval id, or None."""
         now = self.clock()
         with self._Tx(self) as c:
             rows = c.execute(
                 "SELECT a.* FROM team_approvals a JOIN team_approval_events e ON e.approval_id=a.approval_id "
-                "WHERE a.status='approved' AND e.kind='granted_step' AND json_extract(e.detail_json,'$.step_id')=?",
-                (step_id,)).fetchall()
+                "WHERE a.status='approved' AND e.kind='granted_step' AND json_extract(e.detail_json,'$.step_id')=? "
+                "AND (a.deadline_at > ? OR (a.deadline_at IS NULL AND ?=0))",
+                (step_id, now, 1 if need_deadline else 0)).fetchall()
             for r in rows:
                 fps = json.loads(r["fingerprints_json"] or "[]")
                 for f in fps:

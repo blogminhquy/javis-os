@@ -15,8 +15,11 @@ from __future__ import annotations
 import sys
 from collections import deque
 
+import asyncio
+
 import drive_parents as dp
 import drive_write_guard as g
+import team_gate
 
 _GATED_TOOLS = frozenset({"COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_PROXY_EXECUTE"}) | g._OPAQUE_EXEC
 MAX_NODES = 80
@@ -108,11 +111,20 @@ def wrap(call, conn: dict, tool: str, fn: str = "", env=None):
     gated = up in _GATED_TOOLS or (up.startswith("COMPOSIO_") and up not in g._COMPOSIO_SAFE)
     if str((conn or {}).get("connector_id") or "") != "composio" or not gated:
         return call
+    state, _ = g.pilot_status(env)
+    if state != "ok":
+        # Không có đợt hợp lệ: KHÔNG áp guard lên ai (không chặn diện rộng ngoài ý muốn). Ghi lỗi to để sửa cấu hình.
+        print(f"[drive guard {mode}] CẤU HÌNH LỖI: {g.PILOT_ENV} {state}. Guard KHÔNG áp dụng cho lệnh {tool}. "
+              f"Đặt danh sách slug rõ ràng (không dùng '*') để bật.", file=sys.stderr)
+        return call
 
     async def _guarded(args):
         a = args if isinstance(args, dict) else {}
+        actor = _actor()
+        if g.outside_pilot(actor, env):
+            # Agent ngoài đợt bật: không đổi hành vi (xem drive_write_guard.PILOT_ENV).
+            return await call(args)
         try:
-            actor = _actor()
             probe, missing = _probe()
             d = g.decide(actor, str(tool), a, probe)
             if missing:  # chỉ đọc metadata khi quyết định thật sự cần tổ tiên (lệnh chỉ-đọc không gọi Drive)
@@ -123,7 +135,19 @@ def wrap(call, conn: dict, tool: str, fn: str = "", env=None):
         print(f"[drive guard {mode}] {fn or tool}: {'ALLOW' if d['allow'] else 'DENY'} - {d['reason']}",
               file=sys.stderr)
         if g.enforce_decision(mode, d):
-            return f"ERROR: Javis chặn ghi Drive/Docs/Sheets: {d['reason']}"
+            if not d.get("approvable"):
+                return f"ERROR: Javis chặn ghi Drive/Docs/Sheets: {d['reason']}"
+            # Ngoài vùng: chỉ đi tiếp khi chủ đã duyệt ĐÚNG lệnh này cho bước đang chạy (sổ duyệt, dùng một lần).
+            ok, note, hub_fp = await asyncio.to_thread(team_gate.drive_scope_check, str(fn), str(tool), a,
+                                                       f"{d['reason']}")
+            if not ok:
+                return f"ERROR: Javis chặn ghi Drive/Docs/Sheets: {d['reason']}. {note}"
+            print(f"[drive guard {mode}] {fn or tool}: owner-approved exact call, one use", file=sys.stderr)
+            token = team_gate.DRIVE_PASS.set(hub_fp)
+            try:
+                return await call(args)
+            finally:
+                team_gate.DRIVE_PASS.reset(token)
         return await call(args)
 
     return _guarded

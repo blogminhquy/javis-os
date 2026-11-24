@@ -16,8 +16,8 @@ g.PROTECTED_ROOTS.update({"root": "SYN-ROOT", "governance": "SYN-GOV", "shared":
                           "inbox": "SYN-INBOX", "archive": "SYN-ARCHIVE"})
 
 ENV_OFF = {}
-ENV_SHADOW = {"JAVIS_DRIVE_WRITE_GUARD": "shadow"}
-ENV_ENFORCE = {"JAVIS_DRIVE_WRITE_GUARD": "enforce"}
+ENV_SHADOW = {"JAVIS_DRIVE_WRITE_GUARD": "shadow", "JAVIS_DRIVE_GUARD_PILOT": "agent-a"}
+ENV_ENFORCE = {"JAVIS_DRIVE_WRITE_GUARD": "enforce", "JAVIS_DRIVE_GUARD_PILOT": "agent-a"}
 COMPOSIO = {"connector_id": "composio"}
 WRITE = "COMPOSIO_MULTI_EXECUTE_TOOL"
 OWN = g.WRITE_ROOTS["agent-a"]

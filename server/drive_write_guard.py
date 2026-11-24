@@ -37,6 +37,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 from typing import Callable, Iterable, Optional
 
 MODE_ENV = "JAVIS_DRIVE_WRITE_GUARD"
@@ -234,7 +235,9 @@ def _decide(actor, tool, args, parents_of, depth) -> dict:
                 return {"allow": False, "reason": f"lệnh con {name} thiếu arguments (fail-closed)"}
             r = _decide(actor, name, sub_args, parents_of, depth + 1)
             if not r["allow"]:
-                return {"allow": False, "reason": f"lệnh con {name}: {r['reason']}"}
+                # Chỉ một lệnh con: cổng có thể xin duyệt đúng lệnh đó. Nhiều lệnh con: không bao giờ xin duyệt chung.
+                return {"allow": False, "reason": f"lệnh con {name}: {r['reason']}",
+                        "approvable": len(subs) == 1 and bool(r.get("approvable"))}
         return {"allow": True, "reason": "mọi lệnh con đều được phép"}
 
     if tool in _OPAQUE_EXEC:
@@ -264,12 +267,44 @@ def _decide(actor, tool, args, parents_of, depth) -> dict:
         if not i:
             return {"allow": False, "reason": "ID đích rỗng hoặc sai kiểu (fail-closed)"}
         if i in PROTECTED_ROOTS.values():
-            return {"allow": False, "reason": "đích là thư mục được bảo vệ"}
+            # approvable: chủ có thể duyệt ĐÚNG lệnh này qua cổng nhóm (drive_guard_hub), không phải chấp nhận chung.
+            return {"allow": False, "reason": "đích là thư mục được bảo vệ", "approvable": True}
 
     for i in ids:
         if not _all_within(i, own, parents_of):
-            return {"allow": False, "reason": f"ID {i} nằm ngoài WRITE_ROOT của agent"}
+            return {"allow": False, "reason": f"ID {i} nằm ngoài WRITE_ROOT của agent", "approvable": True}
     return {"allow": True, "reason": f"mọi ID nằm trong WRITE_ROOT {actor}"}
+
+
+PILOT_ENV = "JAVIS_DRIVE_GUARD_PILOT"
+
+
+_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+
+
+def pilot_status(env: Optional[dict] = None) -> tuple:
+    """(state, actors). state: "unset" (không đặt), "invalid" (có tên không phải slug, ví dụ "*"), "ok".
+    Mọi trạng thái khác "ok" đều phải coi là KHÔNG CÓ đợt: guard không được áp lên ai (xem drive_guard_hub.wrap)."""
+    raw = (env if env is not None else os.environ).get(PILOT_ENV) or ""
+    names = [x.strip() for x in raw.split(",") if x.strip()]
+    if not names:
+        return "unset", frozenset()
+    if any(not _SLUG_RE.match(x) for x in names):
+        return "invalid", frozenset()
+    return "ok", frozenset(names)
+
+
+def pilot_actors(env: Optional[dict] = None) -> Optional[frozenset]:
+    """Slug các Agent trong đợt bật. Không hợp lệ hoặc chưa đặt -> None."""
+    state, actors = pilot_status(env)
+    return actors if state == "ok" else None
+
+
+def outside_pilot(actor: Optional[str], env: Optional[dict] = None) -> bool:
+    """True khi actor ĐÃ BIẾT, đợt bật hợp lệ, và actor không nằm trong đợt: guard không can thiệp.
+    actor không xác định KHÔNG bao giờ được coi là ngoài đợt (fail-closed)."""
+    pilot = pilot_actors(env)
+    return pilot is not None and actor is not None and actor not in pilot
 
 
 def enforce_decision(mode: str, decision: dict) -> bool:
