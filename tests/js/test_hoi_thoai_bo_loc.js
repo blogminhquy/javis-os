@@ -44,7 +44,7 @@ check("dropdown builders of the pre-v5 filter row are gone", ["botOptions", "sta
   "tagOptions", "contactLabel", "botColor"].every((k) => !(k in F)));
 
 // ---- 1. hàm thuần ----
-const EMPTY = '{"bot":"","status":"","type":"","channel":"","contact":"","who":"","accs":[],"tagsAny":[],"tagsNone":[],"when":null,"lastBy":"","pinned":""}';
+const EMPTY = '{"bot":"","status":"","type":"","channel":"","who":"","accs":[],"tagsAny":[],"tagsNone":[],"when":null,"lastBy":"","pinned":"","kind":"","phone":""}';
 check("trạng thái rỗng", JSON.stringify(F.emptyState()) === EMPTY, JSON.stringify(F.emptyState()));
 check("giá trị lạ về không lọc (tình trạng, loại, who không nằm trong bảng)",
   F.sanitize({ bot: "b1", status: "hack", type: "??", channel: "zalo", who: "boss" }).status === "" &&
@@ -53,7 +53,7 @@ check("kiểu sai không làm sập", F.sanitize(null).bot === "" && F.sanitize(
   F.sanitize({ accs: "a" }).accs.length === 0 && F.sanitize({ tagsAny: [{}] }).tagsAny.length === 0);
 check("giữ giá trị hợp lệ", JSON.stringify(F.sanitize({ bot: "-", status: "unread", type: "group", channel: "telegram", who: "ai",
   accs: ["zalo:1", "zalo:1", "telegram:acc_9"], tagsAny: ["7"], tagsNone: ["8", "x"] }))
-  === '{"bot":"-","status":"unread","type":"group","channel":"telegram","contact":"","who":"ai","accs":["zalo:1","telegram:acc_9"],"tagsAny":["7"],"tagsNone":["8"],"when":null,"lastBy":"","pinned":""}');
+  === '{"bot":"-","status":"unread","type":"group","channel":"telegram","who":"ai","accs":["zalo:1","telegram:acc_9"],"tagsAny":["7"],"tagsNone":["8"],"when":null,"lastBy":"","pinned":"","kind":"","phone":""}');
 check("an old saved status moves to the matching quick filter (need_reply = Needs you, human = You are handling)",
   F.sanitize({ status: "need_reply" }).who === "you" && F.sanitize({ status: "need_reply" }).status === "" &&
   F.sanitize({ status: "human" }).who === "owner" && F.sanitize({ status: "human" }).status === "");
@@ -72,7 +72,7 @@ const q2 = F.query({ when: { from: "2026-10-01", to: "2026-10-09" }, lastBy: "cu
 check("query: from/to as days, last_by, pinned=1", /&from=2026-10-01&to=2026-10-09/.test(q2) && /&last_by=customer/.test(q2) && /&pinned=1/.test(q2));
 F.save({ bot: "b1", status: "unread", type: "private", channel: "", who: "" });
 check("lưu rồi đọc lại đúng (chosen 'All' stays All)", JSON.stringify(F.load()) ===
-  '{"bot":"b1","status":"unread","type":"private","channel":"","contact":"","who":"","accs":[],"tagsAny":[],"tagsNone":[],"when":null,"lastBy":"","pinned":""}');
+  '{"bot":"b1","status":"unread","type":"private","channel":"","who":"","accs":[],"tagsAny":[],"tagsNone":[],"when":null,"lastBy":"","pinned":"","kind":"","phone":""}');
 store["javis.inbox.filters"] = JSON.stringify({ bot: "b1" });
 check("nothing saved about who yet (first visit, pre-v5 browser): opens on Needs you", F.load().who === "you" && F.load().bot === "b1");
 store["javis.inbox.filters"] = "không phải json";
@@ -89,11 +89,26 @@ win.localStorage = oldLs;
 check("Filter count: what the Filter menu holds (who and the picker have their own controls)", F.activeCount({}) === 0 &&
   F.activeCount({ bot: "b", status: "unread" }) === 2 && F.activeCount({ bot: "b", status: "unread", type: "group", channel: "x" }) === 4 &&
   F.activeCount({ status: "hack" }) === 0 && F.activeCount({ who: "you", accs: ["zalo:1"] }) === 0 &&
-  F.activeCount({ tagsAny: ["1", "2"], tagsNone: ["3"], contact: "1" }) === 4);
+  F.activeCount({ tagsAny: ["1", "2"], tagsNone: ["3"] }) === 3 && F.activeCount({ kind: "comment", phone: "1" }) === 0);
 check("query chỉ gồm khoá đang lọc", F.query({}) === "" && F.query({ status: "unread" }) === "&status=unread" &&
   F.query({ bot: "b1", type: "group" }) === "&bot_id=b1&chat_type=group" && F.query({ who: "you" }) === "&who=you");
-check("query: waiting longest = need reply sorted waiting-first; phone/email is its own flag",
-  F.query({ status: "waiting" }) === "&status=need_reply&sort=waiting" && F.query({ contact: "1" }) === "&has_contact=1");
+check("query: waiting longest = need reply sorted waiting-first", F.query({ status: "waiting" }) === "&status=need_reply&sort=waiting");
+// The quick row (owner, 2026-11-24: "lọc tin nhắn, lọc bình luận, lọc số điện thoại riêng").
+check("quick row: kind takes All, Messages or Comments only; phone is on or off",
+  F.sanitize({ kind: "comment" }).kind === "comment" && F.sanitize({ kind: "message" }).kind === "message" &&
+  F.sanitize({ kind: "cmt" }).kind === "" && F.sanitize({ kind: "x' OR 1" }).kind === "" && F.sanitize({ kind: 1 }).kind === "" &&
+  F.sanitize({ phone: "1" }).phone === "1" && F.sanitize({ phone: true }).phone === "1" && F.sanitize({ phone: "yes" }).phone === "" &&
+  JSON.stringify(F.KINDS) === '["","message","comment"]');
+check("quick row: a browser that saved the old 'phone or email' filter gets Has phone, and the old key is gone",
+  F.sanitize({ contact: "1" }).phone === "1" && F.sanitize({ contact: true }).phone === "1" && F.sanitize({ status: "contact" }).phone === "1" &&
+  F.sanitize({ status: "contact" }).status === "" && !("contact" in F.sanitize({ contact: "1" })));
+store["javis.inbox.filters"] = JSON.stringify({ who: "", contact: "1", status: "unread" });
+check("quick row: the old saved filter comes back as Has phone on load, then saves in the new shape",
+  F.load().phone === "1" && F.load().status === "unread" && (F.save(F.load()), JSON.parse(store["javis.inbox.filters"]).phone === "1") &&
+  !("contact" in JSON.parse(store["javis.inbox.filters"])));
+check("quick row: query sends kind and has_phone (never the old has_contact)",
+  F.query({ kind: "comment" }) === "&kind=comment" && F.query({ kind: "message", phone: "1" }) === "&kind=message&has_phone=1" &&
+  F.query({ contact: "1" }) === "&has_phone=1" && F.query({ kind: "evil&x=1" }) === "" && !/has_contact/.test(MOD));
 check("query: picked accounts and tags go as comma lists", F.query({ accs: ["zalo:1", "telegram:acc_9"], tagsAny: ["1", "2"], tagsNone: ["3"] }) ===
   "&account_ids=zalo%3A1%2Ctelegram%3Aacc_9&tags_any=1,2&tags_none=3");
 check("query thoát ký tự lạ trong id bot", F.query({ bot: "a&b=c d" }) === "&bot_id=a%26b%3Dc%20d");
@@ -101,14 +116,15 @@ check("query bỏ giá trị lạ của tình trạng (không gửi lên server)
 
 // ---- 2. hợp đồng với conversations.js ----
 check("list head: search with the Filter button, the who dropdown and the channel picker, active chips, three popovers",
-  ["ht-search", "ib-fbtn", "ib-whobtn", "ib-picker", "ib-activef", "ib-pop ib-wm", "ib-pop ib-pk", "ib-pop ib-fm"].every((c) => CV.indexOf('class="' + c) > 0));
+  ["ht-search", "ib-fbtn", "ib-whobtn", "ib-picker", "ib-krow", "ib-activef", "ib-pop ib-wm", "ib-pop ib-pk", "ib-pop ib-fm"].every((c) => CV.indexOf('class="' + c) > 0));
 check("KHÔNG còn hàng dropdown cũ (bot, tình trạng, loại, kênh, thẻ) và chip tài khoản",
   !/ht-f-bot|ht-f-status|ht-f-type|ht-f-channel|ht-f-tag|ht-f-contact|ht-fclear|ht-loc-tk|_tkLoc|_tagLoc/.test(CV) && !/function paintFilters/.test(CV));
 check("gửi tham số lọc lên server qua JavisConvFilters.query", /JavisConvFilters\.query\(filterState\(\)\)/.test(CV) &&
   !/"&bot_id=" \+ encodeURIComponent\(_botLoc\)/.test(CV) && !/&account_id=/.test(CV));
 check("đọc facets, bot, who_counts từ server, dùng cho cả nhịp làm mới", /_facets = d\.facets \|\| null/.test(CV) &&
   /_botList = d\.bots \|\| \[\]/.test(CV) && /if \(d\.who_counts\) _whoCounts = d\.who_counts/.test(CV) &&
-  /JSON\.stringify\(\[_items, _stats, _facets, _botList, _conDS, _tags, _whoCounts\]\)/.test(CV));
+  /if \(d\.quick_counts\) _quick = d\.quick_counts/.test(CV) &&
+  /JSON\.stringify\(\[_items, _stats, _facets, _botList, _conDS, _tags, _whoCounts, _quick\]\)/.test(CV));
 check("the popovers redraw only on the owner's own actions, never on the 5-second refresh",
   /function paintPops\(\)/.test(CV) && !/function tai\(im\)[\s\S]*?paintPops\(\)[\s\S]*?\n  }\n/.test(CV.slice(CV.indexOf("async function tai(im)"), CV.indexOf("async function taiThem"))));
 check("a who choice, a picker tick, a menu choice or a chip x saves the filters and reloads",
@@ -119,13 +135,17 @@ check("ticking a channel ticks every nick or Page of it, not only the ones the s
   /accList\(\)\.filter\(function \(a\) \{ return a\.channel === t\.dataset\.ch; \}\)/.test(CV));
 check("khôi phục bộ lọc đã lưu khi mở hòm thư; mở từ nơi khác thì bỏ mọi bộ lọc có thể giấu cuộc chat",
   /JavisConvFilters\.load\(\)|F\.load\(\)/.test(CV) &&
-  /_who = ""; _statusLoc = ""; _typeLoc = ""; _tagsAny = \[\]; _tagsNone = \[\]; _contactLoc = ""; _q = "";/.test(CV) &&
+  /_who = ""; _statusLoc = ""; _typeLoc = ""; _tagsAny = \[\]; _tagsNone = \[\]; _q = "";\s*_when = null; _lastBy = ""; _pinned = ""; _kind = ""; _phone = "";/.test(CV) &&
+  /_kind = saved\.kind; _phone = saved\.phone;/.test(CV) && !/_contactLoc/.test(CV) &&
   /_accs = _cho\.account_key \? \[_cho\.account_key\] : \[\]/.test(CV));
-check("Filter menu 'Clear' resets every filter of the menu", /_tagsAny = \[\]; _tagsNone = \[\]; _typeLoc = _botLoc = _statusLoc = _contactLoc = _lastBy = _pinned = ""; _when = null;/.test(CV));
+check("Filter menu 'Clear' resets every filter of the menu; the empty list's button also resets the quick row",
+  /_tagsAny = \[\]; _tagsNone = \[\]; _typeLoc = _botLoc = _statusLoc = _lastBy = _pinned = ""; _when = null;\s*if \(quick === true\) \{ _kind = ""; _phone = ""; \}/.test(CV) &&
+  /if \(bo\) bo\.onclick = function \(\) \{ clearMenuFilters\(true\); \};/.test(CV) && /clearMenuFilters\(\);\n\s*paintPops\(\);/.test(CV));
 check("Escape or a click outside closes a popover and gives focus back to its button", /function watchPopOutside\(\)/.test(CV) &&
   /ev\.key !== "Escape"/.test(CV) && /focusOpener\(from\)/.test(CV));
 check("trạng thái rỗng tính cả bộ lọc mới, and only the quick filter hiding everything offers 'Show all'",
-  /var loc = !!\(_q \|\| _kenhLoc \|\| _botLoc \|\| _accs\.length \|\| _statusLoc \|\| _typeLoc \|\| _tagsAny\.length \|\| _tagsNone\.length \|\| _contactLoc \|\|\s+_when \|\| _lastBy \|\| _pinned\)/.test(CV) &&
+  /var loc = !!\(_q \|\| _kenhLoc \|\| _botLoc \|\| _accs\.length \|\| _statusLoc \|\| _typeLoc \|\| _tagsAny\.length \|\| _tagsNone\.length \|\|\s+_when \|\| _lastBy \|\| _pinned \|\| _kind \|\| _phone\)/.test(CV) &&
+  /var menuLoc = window\.JavisConvFilters\.activeCount\([^;]*\) > 0 \|\| !!\(_kind \|\| _phone\);/.test(CV) &&
   /EMPTY_WHO\[_who\]/.test(CV) && /ib-see-all/.test(CV));
 check("index.html nạp module lọc và inbox-v5 TRƯỚC conversations.js, kèm CSS", HTML.indexOf("conversations-filters.js") > 0 &&
   HTML.indexOf("conversations-filters.js") < HTML.indexOf("/static/conversations.js") &&

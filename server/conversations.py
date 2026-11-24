@@ -921,13 +921,48 @@ def khach_dang_cho(item: dict, hesitant=None) -> bool:
 
 BOT_KHONG_CO = "-"      # giá trị `bot_id` của bộ lọc để chỉ lấy cuộc chat KHÔNG có bot trực
 
+# The inbox's quick row (owner, 2026-11-24: "lọc tin nhắn, lọc bình luận, lọc số điện thoại riêng"): a Facebook Page
+# mixes Messenger chats and comment threads in one list. A comment thread is a public comment under a post: Facebook
+# `cmt:` and Instagram `igc:` on a Page (the messenger channel), and every Threads chat. Everything else, private chats
+# and groups alike, is a message. `is_comment_chat` is the same rule for one row.
+KINDS = ("message", "comment")
+_COMMENT_SQL = ("(c.channel_account_id LIKE 'threads:%' OR (c.channel_account_id LIKE 'messenger:%'"
+                " AND (c.external_chat_id LIKE 'cmt:%' OR c.external_chat_id LIKE 'igc:%')))")
+# `contact` holds a phone as `0xxxxxxxxx` or else an email (`find_contact`): a phone is a contact without "@".
+_PHONE_SQL = "(c.contact!='' AND c.contact NOT LIKE '%@%')"
+
+
+def is_comment_chat(conv: dict) -> bool:
+    """Whether a conversation row (`channel_account_id`, `external_chat_id`) is a public comment thread."""
+    c = conv or {}
+    channel = str(c.get("channel_account_id") or "").split(":", 1)[0]
+    if channel == "threads":
+        return True
+    return channel == "messenger" and str(c.get("external_chat_id") or "").startswith(("cmt:", "igc:"))
+
+
+def is_phone_contact(contact: Any) -> bool:
+    """Whether the contact a customer left (`conversations.contact`) is a phone number rather than an email."""
+    t = str(contact or "")
+    return bool(t) and "@" not in t
+
+
+def quick_match(conv: dict, kind: str = "", has_phone: bool = False) -> bool:
+    """Whether a row passes the quick row's two filters: `kind` (message | comment, anything else ignored) and
+    `has_phone`. The same rule as `danh_sach` applies in SQL."""
+    if has_phone and not is_phone_contact(conv.get("contact")):
+        return False
+    if kind in KINDS:
+        return is_comment_chat(conv) == (kind == "comment")
+    return True
+
 
 def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str = "",
               mode: str = "", limit: int = 50, offset: int = 0, status: str = "", chat_type: str = "",
               hesitant=None, tag: int = 0, has_contact: bool = False, sort: str = "",
               hidden: str = "", account_ids=None, ids=None, tags_any=None, tags_none=None,
               since: float = 0, until: float = 0, last_by: str = "", pinned: bool = False,
-              _light: bool = False, exclude_account_ids=None) -> List[dict]:
+              _light: bool = False, exclude_account_ids=None, kind: str = "", has_phone: bool = False) -> List[dict]:
     """Danh sách hội thoại, ĐÃ GHIM rồi tới MỚI NHẤT TRƯỚC, kèm tên khách và kênh.
 
     `q` tìm theo tên khách, tiêu đề, id chat, tin cuối (LIKE, không phân biệt hoa thường).
@@ -946,6 +981,10 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
     channel picker's ticks; `ids` keeps only these conversation ids, in the usual order (the inbox filters by who is
     handling a chat in Python, then asks for one page of the ids it kept); `tags_any` / `tags_none` (tag ids) keep
     conversations carrying at least one of, or none of, those tags.
+
+    The quick row (2026-11-24): `kind` ("message" | "comment", anything else ignored) keeps chats or public comment
+    threads (`_COMMENT_SQL`); `has_phone` keeps conversations whose customer left a phone number (an email alone does not
+    count, unlike `has_contact`).
     """
     n = max(1, min(int(limit or 50), MAX_STATE_ROWS if _light else MAX_DANH_SACH))
     o = max(0, int(offset or 0))
@@ -972,6 +1011,10 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
         where.append("c.id IN (SELECT conversation_id FROM conversation_tags WHERE tag_id=?)"); args.append(int(tag))
     if has_contact:
         where.append("c.contact!=''")
+    if has_phone:
+        where.append(_PHONE_SQL)
+    if kind in KINDS:
+        where.append(("" if kind == "comment" else "NOT ") + _COMMENT_SQL)
     if hidden == "exclude":
         where.append("c.hidden=0")
     elif hidden == "only":
@@ -987,7 +1030,7 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
             args += [f"%{v}%", f"%{v}%"]
         where.append("(" + " OR ".join(dk) + ")")
     cols = ("c.id, c.bot_id, c.chat_type, c.external_chat_id, c.channel_account_id, c.mode, c.last_sender_type,"
-            " c.unread_count, c.last_message, c.metadata_json, a.channel AS channel" if _light else
+            " c.unread_count, c.last_message, c.metadata_json, c.contact, a.channel AS channel" if _light else
             "c.*, a.channel AS channel, a.display_name AS account_name,"
             " k.name AS customer_name, k.external_user_id AS customer_external_id, k.phone AS customer_phone")
     sql = (
@@ -1117,14 +1160,16 @@ MAX_STATE_ROWS = 5000     # most conversations the "who is handling it" filter l
 def state_rows(channel: str = "", bot_id: str = "", q: str = "", status: str = "", chat_type: str = "",
                hesitant=None, tag: int = 0, has_contact: bool = False, hidden: str = "", account_ids=None,
                tags_any=None, tags_none=None, sort: str = "", since: float = 0, until: float = 0, last_by: str = "",
-               pinned: bool = False, exclude_account_ids=None) -> List[dict]:
+               pinned: bool = False, exclude_account_ids=None, kind: str = "", has_phone: bool = False) -> List[dict]:
     """Every conversation matching the inbox filters (newest first, at most MAX_STATE_ROWS), with only the columns the
     "who is handling it" state needs: id, bot_id, chat_type, external_chat_id, channel_account_id, channel, mode,
-    last_sender_type, unread_count, last_message, metadata. Same filters as `danh_sach`, no paging."""
+    last_sender_type, unread_count, last_message, metadata, plus `contact` for the quick row's counts. Same filters as
+    `danh_sach`, no paging."""
     rows = danh_sach(channel=channel, bot_id=bot_id, q=q, status=status, chat_type=chat_type, hesitant=hesitant,
                      tag=tag, has_contact=has_contact, hidden=hidden, account_ids=account_ids, tags_any=tags_any,
                      tags_none=tags_none, sort=sort, since=since, until=until, last_by=last_by, pinned=pinned,
-                     limit=MAX_STATE_ROWS, _light=True, exclude_account_ids=exclude_account_ids)
+                     limit=MAX_STATE_ROWS, _light=True, exclude_account_ids=exclude_account_ids, kind=kind,
+                     has_phone=has_phone)
     return rows
 
 
@@ -2205,21 +2250,14 @@ def dat_ghi_chu_khach(customer_id: int, note: str) -> bool:
 # comment thread (Facebook `cmt:`, Instagram `igc:`, every Threads chat): nobody messages the shop there, and the
 # customer linked to such a chat is only whoever wrote FIRST. Those never get a profile written from them, never show
 # one as their note and never hand one to the bot (owner, 2026-11-13: a Zalo group showed one member's profile).
-_PROFILE_CHAT_SQL = ("c.chat_type='private' AND c.channel_account_id NOT LIKE 'threads:%'"
-                     " AND NOT (c.channel_account_id LIKE 'messenger:%'"
-                     " AND (c.external_chat_id LIKE 'cmt:%' OR c.external_chat_id LIKE 'igc:%'))")
+_PROFILE_CHAT_SQL = "c.chat_type='private' AND NOT " + _COMMENT_SQL
 
 
 def is_profile_chat(conv: dict) -> bool:
     """Whether a conversation row (`chat_type`, `channel_account_id`, `external_chat_id`) is a private direct-message
     chat, the only kind that has a customer profile. The same rule as `_PROFILE_CHAT_SQL`."""
     c = conv or {}
-    if str(c.get("chat_type") or "private") != "private":
-        return False
-    channel = str(c.get("channel_account_id") or "").split(":", 1)[0]
-    if channel == "threads":
-        return False
-    return not (channel == "messenger" and str(c.get("external_chat_id") or "").startswith(("cmt:", "igc:")))
+    return str(c.get("chat_type") or "private") == "private" and not is_comment_chat(c)
 
 
 def _profile_mark(meta) -> dict:

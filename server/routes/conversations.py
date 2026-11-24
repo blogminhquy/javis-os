@@ -439,7 +439,7 @@ def register(app, deps: ConversationsDeps):
                                  sort: str = "", account_ids: str = "", who: str = "", tags_any: str = "",
                                  tags_none: str = "", date_from: str = Query("", alias="from"),
                                  date_to: str = Query("", alias="to"), last_by: str = "", pinned: int = 0,
-                                 brain: str = ""):
+                                 brain: str = "", kind: str = "", has_phone: int = 0):
         """Danh sách hội thoại mới nhất trước, kèm vài con số đầu trang (cùng bộ lọc).
 
         0.65.3: thêm `status` (unread | need_reply | human) và `chat_type` (group | private); mỗi hàng có `bot_name`;
@@ -462,14 +462,19 @@ def register(app, deps: ConversationsDeps):
 
         #1243: `brain` leaves out the conversations of channel accounts assigned to another brain, in the list, the
         counts and the facets, by the same rule as the Channels tab (`channel_accounts.keys_of_other_brains`). Without
-        it, every brain's conversations come back, as before (internal callers and "all brains")."""
+        it, every brain's conversations come back, as before (internal callers and "all brains").
+
+        The quick row (owner, 2026-11-24): `kind` (message | comment, see `conversations._COMMENT_SQL`) and
+        `has_phone=1` (the customer left a phone number; `has_contact` still means phone or email). The first page also
+        returns `quick_counts` {message, comment, phone}: how many rows each choice would show with every other filter,
+        `who` included, so a number on the row is what tapping it lists."""
         # The store work runs in a worker thread (owner, 2026-11-07: the Chatbot page loaded slowly): this list is asked
         # every 5 seconds, and done on the event loop it held up every other request of the server while it counted.
         others = channel_accounts.keys_of_other_brains(brain) if str(brain or "").strip() else []
         rows = await run_in_threadpool(_list_rows, channel, bot_id, account_id, q, mode, limit, offset, status, chat_type,
                                        tag, has_contact, sort, account_ids, who, tags_any, tags_none, date_from, date_to,
-                                       last_by, pinned, others)
-        items, who_counts, total, hesitant, extra, ctx = rows
+                                       last_by, pinned, others, kind, has_phone)
+        items, who_counts, total, hesitant, extra, ctx, quick_counts = rows
         if offset > 0:
             return {"ok": True, "items": items}
         phone_lookup = None
@@ -480,31 +485,37 @@ def register(app, deps: ConversationsDeps):
                 status=status, chat_type=chat_type, hesitant=hesitant, **extra))
             await run_in_threadpool(_attach_state, items, ctx)
         head = await run_in_threadpool(_first_page_extras, items, hesitant, bot_id, channel, account_id, others)
-        return {"ok": True, "items": items, "who_counts": who_counts, "total": total, **head, "phone_lookup": phone_lookup}
+        return {"ok": True, "items": items, "who_counts": who_counts, "quick_counts": quick_counts, "total": total, **head,
+                "phone_lookup": phone_lookup}
 
     def _list_rows(channel, bot_id, account_id, q, mode, limit, offset, status, chat_type, tag, has_contact, sort,
-                   account_ids, who, tags_any, tags_none, date_from, date_to, last_by, pinned, others=()) -> tuple:
-        """The blocking part of GET /conversations: `(items, who_counts, total, hesitant, extra, ctx)`. From the second
-        page on the rows already carry `bot_name` and `need_reply`."""
+                   account_ids, who, tags_any, tags_none, date_from, date_to, last_by, pinned, others=(), kind="",
+                   has_phone=0) -> tuple:
+        """The blocking part of GET /conversations: `(items, who_counts, total, hesitant, extra, ctx, quick_counts)`.
+        From the second page on the rows already carry `bot_name` and `need_reply`."""
         hesitant = _hesitant()
         hidden = "only" if status == "hidden" else ("" if q.strip() else "exclude")
         since, until = _day_range(date_from, date_to)
+        kind = kind if kind in conversations.KINDS else ""
         extra = dict(tag=tag, has_contact=bool(has_contact), sort=sort, hidden=hidden,
                      account_ids=_ids_param(account_ids), tags_any=_ids_param(tags_any), tags_none=_ids_param(tags_none),
                      since=since, until=until, last_by=last_by, pinned=bool(pinned),
-                     exclude_account_ids=list(others or []))
+                     exclude_account_ids=list(others or []), kind=kind, has_phone=bool(has_phone))
         ctx = _StateCtx(hesitant)
         who = who if who in inbox_state.WHO else ""
-        who_counts, total = None, None
+        who_counts, total, quick_counts = None, None, None
         if who or offset == 0:
             # The state needs the bot record, so it is worked out here rather than in SQL: every matching row once,
-            # then one page of the ids that kept the wanted `who`.
-            base = dict(extra)
+            # then one page of the ids that kept the wanted `who`. The quick row's two filters are applied here, on the
+            # same rows: its numbers need the rows of the other kind, so no second query is asked for them.
+            base = dict(extra, kind="", has_phone=False)
             if account_id:
                 base["account_ids"] = (base["account_ids"] or []) + [account_id]
-            light = conversations.state_rows(channel=channel, bot_id=bot_id, q=q, status=status, chat_type=chat_type,
-                                             hesitant=hesitant, **base)
-            states = [(r["id"], ctx.of(r)["who"]) for r in light]
+            rows_all = conversations.state_rows(channel=channel, bot_id=bot_id, q=q, status=status, chat_type=chat_type,
+                                                hesitant=hesitant, **base)
+            pairs = [(r, ctx.of(r)["who"]) for r in rows_all]
+            quick_counts = _quick_counts(pairs, who, kind, bool(has_phone))
+            states = [(r["id"], w) for r, w in pairs if conversations.quick_match(r, kind, bool(has_phone))]
             who_counts = inbox_state.count({"who": w} for _, w in states)
             # Every row the filters match (the Channels tab pages through an account's chats with it).
             total = len(states)
@@ -513,12 +524,12 @@ def register(app, deps: ConversationsDeps):
             narrowed = bool(channel or bot_id or account_id or q or status or chat_type or tag or has_contact
                             or base["account_ids"] or base["tags_any"] or base["tags_none"] or since or until
                             or base["last_by"] or pinned)
-            every = (conversations.state_rows(hesitant=hesitant, hidden="exclude",
-                                              exclude_account_ids=base["exclude_account_ids"])
-                     if narrowed else light)
+            every = ([(r, ctx.of(r)["who"]) for r in conversations.state_rows(
+                         hesitant=hesitant, hidden="exclude", exclude_account_ids=base["exclude_account_ids"])]
+                     if narrowed else pairs)
             by_acc, you_total = {}, 0
-            for r in every:
-                if ctx.of(r)["who"] == "you":
+            for r, w in every:
+                if w == "you":
                     k = str(r.get("channel_account_id") or "")
                     by_acc[k] = by_acc.get(k, 0) + 1
                     you_total += 1
@@ -541,7 +552,23 @@ def register(app, deps: ConversationsDeps):
             for it in items:
                 it["bot_name"] = _ten_bot(str(it.get("bot_id") or ""))
                 it["need_reply"] = conversations.can_tra_loi(it, hesitant)
-        return items, who_counts, total, hesitant, extra, ctx
+        return items, who_counts, total, hesitant, extra, ctx, quick_counts
+
+    def _quick_counts(pairs: list, who: str, kind: str, has_phone: bool) -> dict:
+        """The numbers on the quick row: `message` and `comment` under the phone choice, `phone` under the kind choice,
+        all under `who`. `pairs`: (row, who) of the rows matching every other filter. Each number is what the list shows
+        once that choice is tapped."""
+        out = {"message": 0, "comment": 0, "phone": 0}
+        for r, w in pairs:
+            if who and w != who:
+                continue
+            comment = conversations.is_comment_chat(r)
+            phone = conversations.is_phone_contact(r.get("contact"))
+            if phone or not has_phone:
+                out["comment" if comment else "message"] += 1
+            if phone and (not kind or comment == (kind == "comment")):
+                out["phone"] += 1
+        return out
 
     def _first_page_extras(items: list, hesitant, bot_id: str, channel: str, account_id: str, others=()) -> dict:
         """What only the first page carries (counts, filter options, tags, channels); also names each row's bot."""
