@@ -15371,7 +15371,9 @@ def khoi_viec(viec) -> str:
     `strip_control_blocks` bóc nó cho Telegram/Zalo/hòm thư như mọi khối JAVIS_* khác."""
     if not isinstance(viec, dict):
         return ""
-    gon = {k: str(viec.get(k) or "")[:200] for k in ("kind", "status", "title", "id", "call") if viec.get(k)}
+    # `acceptance_check` (#1737): "unverified" turns the card's green "done" into a warning in dashboard/chat-viec.js.
+    gon = {k: str(viec.get(k) or "")[:200]
+           for k in ("kind", "status", "title", "id", "call", "acceptance_check") if viec.get(k)}
     if not gon:
         return ""
     return "<!-- JAVIS_VIEC: " + json.dumps(gon, ensure_ascii=False).replace("-->", "- ->") + " -->"
