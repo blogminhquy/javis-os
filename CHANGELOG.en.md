@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.639.1] - 2026-11-24
+### Fixed
+- **Photos and voice messages sent to Zalo Bot no longer turn into 0-byte files.** When Zalo's server does not have the file yet, Javis waits a moment and asks again, still through the server's proxy as before. If it still fails, the bot says plainly it has not seen or heard it and asks the customer to resend, without guessing.
+- **Files and videos sent over Zalo that the Zalo server is still preparing get a few more seconds**, instead of being reported as an expired link.
+- **Videos without a duration in their header are sampled across the whole clip**, not reduced to one frame at the first second.
+
 ## [0.639.0] - 2026-11-24
 ### Added
 - **Pick the default brain for Javis Gate.** The Javis Gate card on the Connections page has a brain selector: when claude.ai or ChatGPT does not name a brain, it reads and writes this one, instead of whichever brain you touched last. Leave it on "Brain used last" and nothing changes.
