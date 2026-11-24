@@ -332,5 +332,123 @@ class ApprovalNeedIntegrationTests(ScopeRouteTests):
         self.assertIsNone(need["deadline_at"])
 
 
+class FullScopeRouteTests(ApprovalRouteTests):
+    """Nhóm full (javis-vu) trong đợt guard: cổng scope_only chỉ xin duyệt lệnh ghi Drive ngoài vùng."""
+    SLUG, KEY = "javis-vu", "javis-vu-key"
+
+    def setUp(self):
+        super().setUp()
+        dhub.prefetch_parents = _tree({"SYN-IN": ["SYN-OWN-javis-vu"], "SYN-OWN-javis-vu": []})
+        self._dwg = (mock.patch.object(g, "current_mode", return_value="enforce"),
+                     mock.patch.object(g, "pilot_status", return_value=("ok", frozenset(
+                         ["javis-vu", "alex-learning-coach", "alex-manager-affiliate"]))))
+        for m in self._dwg:
+            m.start()
+
+    def tearDown(self):
+        for m in self._dwg:
+            m.stop()
+        super().tearDown()
+
+    def _gate(self, store):
+        return team_gate.open_gate(store, "team-1", "task-1", "step-1", scope_only=True)
+
+    def _card(self, store, gate, deadline_offset=1800):
+        out, calls = self._call(self.SLUG, self.KEY, TRASH, gate_id=gate.gate_id)
+        self.assertTrue(out.startswith("ERROR:"), out)
+        self.assertEqual(calls, [])
+        self.assertEqual(len(gate.blocked), 1)
+        return store.create(team_id="team-1", task_id="task-1", step_id="step-1", team_rev=1, requested_by=self.KEY,
+                            kind="action", title="t", action="a", deadline_at=time.time() + deadline_offset,
+                            fingerprints=[{"fp": gate.blocked[0]["fp"], "label": "x", "call": "y"}])
+
+    def test_route_predicate(self):
+        with mock.patch.object(g, "current_mode", return_value="off"):
+            self.assertFalse(team_gate.scope_route_for("javis-vu"))
+        self.assertTrue(team_gate.scope_route_for("javis-vu"))
+        self.assertFalse(team_gate.scope_route_for("someone-else"))
+        self.assertFalse(team_gate.scope_route_for(""))
+
+    def test_generic_full_tools_unchanged(self):
+        store = _Store(Path(self.tmp.name) / "gen.sqlite3", self.SLUG, self.KEY)
+        gate = self._gate(store)
+        token = tc.bind(tc.make("team", actor=self.SLUG, team_gate=gate.gate_id, provider="claude"))
+        try:
+            self.assertEqual(team_gate.hub_check("some_kpi_tool", {"x": 1}), (True, ""))
+            self.assertEqual(team_gate.native_check(gate.gate_id, "Bash", {"command": "rm -rf /tmp/x"})[0], True)
+        finally:
+            tc.reset(token)
+        self.assertEqual(gate.blocked, [])
+        self.assertEqual(store.for_team("team-1"), [])
+
+    def test_non_drive_legacy_write_unaffected(self):
+        # Route không phải Composio: guard không can thiệp, đi thẳng dù enforce và có pilot.
+        calls = []
+
+        async def inner(a):
+            calls.append(a)
+            return "OK"
+        turn = tc.make("team", actor=self.SLUG, team_gate="", provider="claude")
+        token = tc.bind(turn)
+        try:
+            wrapped = dhub.wrap(inner, {"connector_id": "other"}, "SOME_LEGACY_WRITE", "fn", env=ENV)
+            out = asyncio.run(wrapped(TRASH))
+        finally:
+            tc.reset(token)
+        self.assertEqual(out, "OK")
+        self.assertEqual(len(calls), 1)
+
+    def test_no_owner_means_zero_invocations(self):
+        store = _Store(Path(self.tmp.name) / "noown.sqlite3", self.SLUG, self.KEY)
+        gate = self._gate(store)
+        self._card(store, gate)
+        out, calls = self._call(self.SLUG, self.KEY, TRASH, gate_id=gate.gate_id)
+        self.assertTrue(out.startswith("ERROR:"), out)
+        self.assertEqual(calls, [])
+
+    def test_owner_exact_card_allows_once_then_denies(self):
+        store = _Store(Path(self.tmp.name) / "ok.sqlite3", self.SLUG, self.KEY)
+        gate = self._gate(store)
+        ap = self._card(store, gate)
+        self.assertTrue(store.decide(ap["approval_id"], "approve", by="owner", decision_key="k-full-1")["ok"])
+        store.granted_step(ap["approval_id"], "step-1")
+        out, calls = self._call(self.SLUG, self.KEY, TRASH, gate_id=gate.gate_id)
+        self.assertEqual(out, "OK", out)
+        self.assertEqual(len(calls), 1)
+        out, calls = self._call(self.SLUG, self.KEY, TRASH, gate_id=gate.gate_id)
+        self.assertTrue(out.startswith("ERROR:"), out)
+        self.assertEqual(calls, [])
+
+    def test_swapped_args_and_cross_agent_denied(self):
+        store = _Store(Path(self.tmp.name) / "sw.sqlite3", self.SLUG, self.KEY)
+        gate = self._gate(store)
+        ap = self._card(store, gate)
+        store.decide(ap["approval_id"], "approve", by="owner", decision_key="k-full-2")
+        store.granted_step(ap["approval_id"], "step-1")
+        out, calls = self._call(self.SLUG, self.KEY, OTHER, gate_id=gate.gate_id)
+        self.assertTrue(out.startswith("ERROR:"), out)
+        out, calls = self._call("alex-learning-coach", "alex-learning-coach-key", TRASH, gate_id=gate.gate_id)
+        self.assertTrue(out.startswith("ERROR:"), out)
+        self.assertEqual(calls, [])
+
+    def test_expired_card_denied(self):
+        store = _Store(Path(self.tmp.name) / "exp.sqlite3", self.SLUG, self.KEY)
+        gate = self._gate(store)
+        ap = self._card(store, gate, deadline_offset=-1)
+        self.assertFalse(store.decide(ap["approval_id"], "approve", by="owner", decision_key="k-full-3")["ok"])
+        store.granted_step(ap["approval_id"], "step-1")
+        out, calls = self._call(self.SLUG, self.KEY, TRASH, gate_id=gate.gate_id)
+        self.assertTrue(out.startswith("ERROR:"), out)
+        self.assertEqual(calls, [])
+
+    def test_multi_batch_with_outside_child_is_atomic_deny(self):
+        store = _Store(Path(self.tmp.name) / "mb.sqlite3", self.SLUG, self.KEY)
+        gate = self._gate(store)
+        out, calls = self._call(self.SLUG, self.KEY, MULTI2, gate_id=gate.gate_id)
+        self.assertTrue(out.startswith("ERROR:"), out)
+        self.assertEqual(calls, [])
+        self.assertEqual(gate.blocked, [])
+
+
 if __name__ == "__main__":
     unittest.main()

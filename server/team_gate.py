@@ -92,17 +92,21 @@ _READ_VERBS = ("get", "list", "search", "read", "fetch", "query", "find", "descr
 BLOCK_NOTE = ("ERROR: Hành động này ra ngoài phạm vi nên cần chủ nhóm duyệt trước (nhóm đang ở quyền 'cần duyệt'). "
               "Javis đã ghi lại ĐÚNG lời gọi này thành yêu cầu duyệt, chưa có gì được thực hiện. Đừng tìm cách khác để làm "
               "cùng việc. Làm xong phần trong phạm vi rồi kết thúc bước, nêu ngắn gọn vì sao cần hành động này.")
-NO_GATE_NOTE = ("ERROR: Hành động ra ngoài của nhóm cần chủ nhóm duyệt, mà lời gọi này không gắn với bước nào đang mở nên "
-                "Javis không ghi được yêu cầu. Chưa có gì được thực hiện.")
+NO_GATE_NOTE = ("BLOCKED: Lệnh ghi Drive ngoài phạm vi không chạy trong chat trực tiếp, vì chat không có bước nhóm để "
+                "xin duyệt. Chưa có gì được thực hiện. Chủ muốn làm việc này thì giao cho nhóm: tạo một việc của Nhóm "
+                "(Team) để bước đó xin duyệt từng lệnh, hoặc cấp allowlist file cụ thể đã được chủ duyệt.")
 
 
 class Gate:
-    __slots__ = ("gate_id", "team_id", "task_id", "step_id", "store", "roots", "blocked", "passed", "lock", "snap")
+    __slots__ = ("gate_id", "team_id", "task_id", "step_id", "store", "roots", "blocked", "passed", "lock", "snap",
+                 "scope_only")
 
-    def __init__(self, store, team_id: str, task_id: str, step_id: str):
+    def __init__(self, store, team_id: str, task_id: str, step_id: str, scope_only: bool = False):
         self.gate_id = "tg_" + secrets.token_hex(8)
         self.team_id, self.task_id, self.step_id = team_id, task_id, step_id
         self.store = store
+        # scope_only: cổng của nhóm `full` chỉ để xin duyệt lệnh ghi Drive ngoài vùng. Mọi lệnh khác vẫn đi như full.
+        self.scope_only = bool(scope_only)
         self.roots: list = []
         self.blocked: list = []
         self.passed: list = []
@@ -114,8 +118,21 @@ _GATES: dict = {}
 _LOCK = threading.Lock()
 
 
-def open_gate(store, team_id: str, task_id: str, step_id: str) -> Gate:
-    g = Gate(store, team_id, task_id or "", step_id or "")
+def scope_route_for(actor: str) -> bool:
+    """Chỉ khi guard Drive ENFORCE, pilot hợp lệ và actor nằm trong pilot: nhóm full mở cổng scope_only để có thẻ duyệt.
+    Mọi lỗi -> False (không mở cổng, hành vi full như cũ)."""
+    try:
+        import drive_write_guard as dwg
+        if not actor or dwg.current_mode() != "enforce":
+            return False
+        state, actors = dwg.pilot_status()
+        return state == "ok" and actor in actors
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def open_gate(store, team_id: str, task_id: str, step_id: str, scope_only: bool = False) -> Gate:
+    g = Gate(store, team_id, task_id or "", step_id or "", scope_only=scope_only)
     with _LOCK:
         _GATES[g.gate_id] = g
     return g
@@ -267,6 +284,8 @@ def hub_check(name: str, args: Any, label: str = "") -> tuple:
     g = current()
     if g is None:
         return False, NO_GATE_NOTE
+    if g.scope_only:
+        return True, ""
     if DRIVE_PASS.get() is not None and DRIVE_PASS.get() == team_approval.fingerprint("hub", str(name), args):
         with g.lock:
             g.passed.append({"fp": DRIVE_PASS.get(), "approval_id": "", "kind": "drive-scope", "name": str(name)[:120]})
@@ -435,6 +454,8 @@ def native_check(gate_id: Optional[str], tool: str, inp: dict) -> tuple:
     g = get(gate_id)
     if g is None:
         return False, NO_GATE_NOTE
+    if g.scope_only:
+        return True, ""
     if classify_native(tool, inp, g.roots) == "free":
         return True, ""
     args = _native_args(tool, inp)
