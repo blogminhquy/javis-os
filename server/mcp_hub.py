@@ -503,9 +503,15 @@ def _drive_guard_wrap(call, conn, tool, fn):
     try:
         import drive_guard_hub
         return drive_guard_hub.wrap(call, conn, tool, fn)
-    except Exception as e:  # noqa: BLE001 - guard lỗi KHÔNG được làm hỏng hub; chỉ bật khi có cờ enforce
+    except Exception as e:  # noqa: BLE001 - FAIL-SECURE: guard lỗi trên route Composio -> từ chối, không bỏ qua guard
         print(f"[drive guard] không gắn được: {type(e).__name__}: {e}", file=sys.stderr)
-        return call
+        if str((conn or {}).get("connector_id") or "") != "composio":
+            return call
+        reason = f"guard không khởi động ({type(e).__name__})"
+
+        async def _refused(args):
+            return f"ERROR: Javis chặn ghi Drive/Docs/Sheets: cấu hình guard lỗi ({reason}). Sửa cấu hình rồi khởi động lại."
+        return _refused
 
 
 def _register_drive_invoker(raw, fn):
