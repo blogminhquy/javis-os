@@ -934,7 +934,8 @@ class RemindersFeature:
                 # (send, post, order) that went through in an earlier attempt of THIS firing is
                 # not repeated by a retry, and one whose outcome is unknown is not repeated either.
                 tok = turn_context.bind(turn_context.make(
-                    "reminder", chat_id=str(rem.get("chat_id") or ""), job=job))
+                    "reminder", chat_id=str(rem.get("chat_id") or ""), job=job,
+                    actor=agent_slug(rem.get("agent"))))
                 try:
                     rid_tok = _RUN_RID.set(str(rem.get("id") or ""))
                     try:
