@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.631.6] - 2026-11-24
+### Cải thiện
+- **Antigravity trả lời sớm hơn vài giây mỗi lượt.** Câu trả lời chốt ngay khi model nói xong, không còn đợi Antigravity tự tắt thêm 2 đến 3 giây; với model đã ghi sẵn mức nghĩ trong tên (như `-high`), Javis không chèn thêm câu ép nghĩ, chữ đầu về nhanh gần gấp đôi.
+- **Khối tiến trình của Antigravity ghi rõ từng bước:** "Chạy lệnh: git status", "Đọc file: wiki/a.md", tên công cụ thật thay cho `call_mcp_tool`, và bước nào xong thì thôi quay.
+- **Chữ hiện dần ở Telegram và bot chuyên trách** khi dùng Antigravity hoặc Grok, thay vì đợi hết lượt mới hiện một lần.
+
 ## [0.631.5] - 2026-11-24
 ### Sửa lỗi
 - Hội thoại Claude ít bị mở luồng mới không cần thiết khi một lượt dùng nhiều công cụ, giúp giữ ngữ cảnh và tiến trình ấm.
