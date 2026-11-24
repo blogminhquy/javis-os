@@ -442,3 +442,25 @@
 .st-dates { color: var(--text3); }
 .ib-fm-cal { margin-bottom: 6px; display: inline-flex; gap: 6px; align-items: center; font-size: 16px; }
 .ib-fm-cal.on { border-color: var(--ib-ai); color: var(--ib-ai); font-weight: 600; }
+
+/* ---- pinned messages (2026-11-24, pin-bar.js): one bar above the messages, like Zalo's ---- */
+.ht-pinbar { --pin-x: max(12px, calc((100% - 784px) / 2)); position: relative; z-index: 4; flex: none; padding: 8px var(--pin-x) 0; }
+.ht-pinbar[hidden] { display: none; }
+
+/* The pin after a message's time: always on a pinned message, on hover or keyboard focus on the others. */
+.ht-mpin { display: inline-flex; vertical-align: -2px; margin-left: 6px; padding: 0 2px; border: 0; background: none; color: var(--text3);
+  cursor: pointer; opacity: 0; }
+.ht-mpin svg { width: 14px; height: 14px; }
+.ht-msg:hover .ht-mpin, .ht-mpin:focus-visible { opacity: 1; }
+.ht-mpin:hover { color: var(--text); }
+.ht-msg.pinned .ht-mpin { opacity: 1; color: var(--accent); }
+/* Touch screens pin by holding the message: the pin there is only a mark, too small a target to tap. */
+@media (hover: none), (pointer: coarse) {
+  .ht-msg:not(.pinned) .ht-mpin { display: none; }
+  .ht-mpin { pointer-events: none; }
+}
+.ht-msg.pin-flash .ht-bubble { animation: pb-flash 2s ease-out; }
+@media (prefers-reduced-motion: reduce) { .ht-msg.pin-flash .ht-bubble { animation: none; box-shadow: 0 0 0 3px var(--accent-line); } }
+@media (max-width: 640px) {
+  .ht-pinbar { --pin-x: 8px; padding-top: 6px; }
+}

@@ -1319,18 +1319,35 @@ class SessionStore:
                           f"({','.join('?' * len(ids))})", tuple([session_id, reactor] + ids))
         return {int(r["message_id"]): self._dm_reaction(r) for r in rows}
 
-    def set_message_pinned(self, session_id: str, message_id: int, pinned: bool) -> bool:
-        """Pin or unpin one message of a chat. False when the message is not in that chat."""
+    def set_message_pinned(self, session_id: str, message_id: int, pinned: bool, top: bool = False) -> bool:
+        """Pin or unpin one message of a chat. False when the message is not in that chat.
+
+        `top` (2026-11-24, the pin bar's "Move to top"): a pinned message takes the newest pin time, so it leads the bar."""
         if self.message_row(session_id, int(message_id)) is None:
             return False
         if pinned:
-            self._write(lambda c: c.execute(
-                "INSERT OR IGNORE INTO message_pins (session_id, message_id, created_at) VALUES (?, ?, ?)",
-                (session_id, int(message_id), time.time())))
+            def _pin(c):
+                c.execute("INSERT OR IGNORE INTO message_pins (session_id, message_id, created_at) VALUES (?, ?, ?)",
+                          (session_id, int(message_id), time.time()))
+                if top:
+                    c.execute("UPDATE message_pins SET created_at = ? WHERE session_id = ? AND message_id = ?",
+                              (time.time(), session_id, int(message_id)))
+            self._write(_pin)
         else:
             self._write(lambda c: c.execute(
                 "DELETE FROM message_pins WHERE session_id = ? AND message_id = ?", (session_id, int(message_id))))
         return True
+
+    def pinned_messages(self, session_id: str, limit: int = 100, text_max: int = 600) -> List[Dict[str, Any]]:
+        """The pinned messages of a chat for the pin bar above it, newest pin first (2026-11-24): message id, role,
+        the start of the text, its time and when it was pinned."""
+        rows = self._read(
+            "SELECT m.id, m.role, substr(m.content, 1, ?) AS content, m.ts, p.created_at FROM message_pins p "
+            "JOIN messages m ON m.id = p.message_id AND m.session_id = p.session_id "
+            "WHERE p.session_id = ? ORDER BY p.created_at DESC, m.id DESC LIMIT ?",
+            (int(text_max), session_id, int(limit)))
+        return [{"message_id": int(r["id"]), "role": r["role"], "text": r["content"] or "", "ts": r["ts"],
+                 "pinned_at": r["created_at"]} for r in rows]
 
     def pinned_message_ids(self, session_id: str, message_ids: List[int]) -> set:
         """The ids among `message_ids` that are pinned in this chat (one read)."""

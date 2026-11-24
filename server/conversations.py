@@ -538,10 +538,13 @@ def _cat_nhom_mot_cuoc(db, conv_id: int, giu: int = GIU_TIN_NHOM) -> int:
     Mốc cắt là thứ tự (ORDER_KEY) của tin thứ `giu` tính từ mới nhất (theo chỉ mục `ix_msg_conv_order`, không quét cả bảng); chưa đủ
     `giu` tin thì mốc là NULL, phép so sánh không đúng với tin nào và không xoá gì. Tin nhập từ lịch sử có thể mang thứ tự âm, nên không
     lấy 0 làm mốc rỗng như trước."""
+    # A pinned message stays (2026-11-24): the owner pinned it to find it again, so the trim must not take it away.
+    keep = _pinned_ids(db, conv_id)
+    skip = f" AND id NOT IN ({','.join('?' * len(keep))})" if keep else ""
     cur = db.execute(
         f"DELETE FROM messages WHERE conversation_id=? AND {ORDER_KEY} < "
-        f"(SELECT {ORDER_KEY} FROM messages WHERE conversation_id=? ORDER BY {ORDER_KEY} DESC LIMIT 1 OFFSET ?)",
-        (int(conv_id), int(conv_id), int(giu) - 1))
+        f"(SELECT {ORDER_KEY} FROM messages WHERE conversation_id=? ORDER BY {ORDER_KEY} DESC LIMIT 1 OFFSET ?)" + skip,
+        (int(conv_id), int(conv_id), int(giu) - 1, *keep))
     return int(cur.rowcount or 0)
 
 
@@ -848,6 +851,9 @@ def set_zalo_delivery(message_id: int, state: str, error: str = "", reason: str 
 def _conv_public(r: dict) -> dict:
     d = dict(r)
     d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
+    # Pinned messages carry snapshots: the list and the 5-second poll get only their ids (`pins_of` reads the rest).
+    if isinstance(d["metadata"], dict) and "pins" in d["metadata"]:
+        d["pin_ids"] = [int(p["id"]) for p in _pin_list({"pins": d["metadata"].pop("pins")})]
     d["channel_label"] = (_channels.nhan_giao_dien(d.get("channel") or "")
                           if _channels.spec(d.get("channel") or "") else (d.get("channel") or ""))
     if not d.get("title"):
@@ -1327,6 +1333,115 @@ def dat_ghim(conversation_id: int, pinned: bool) -> bool:
         cur = db.execute("UPDATE conversations SET pinned=? WHERE id=?", (1 if pinned else 0, int(conversation_id)))
         db.commit()
     return cur.rowcount > 0
+
+
+# ============================================================
+# Pinned messages (owner, 2026-11-24, Zalo screenshots: "ghim các tin lên trên đầu để dễ dàng tìm lại")
+#
+# The owner pins messages INSIDE a conversation; a bar above the messages shows the first one, "+N" opens the list, a
+# tap goes to the message, "..." moves a pin to the top or unpins it. Kept in `metadata.pins` of the conversation, first
+# = the one the bar shows, each with a snapshot of the message so a pin still reads right once the message is gone from
+# the store. A pinned message is also kept out of the group trim (`_cat_nhom_mot_cuoc`). Javis only: nothing is pinned
+# on the channel itself. Pinning is not a new message, so `updated_at` and the list order are left alone.
+# ============================================================
+MAX_PINS = 20
+_PIN_TEXT = 500
+_PIN_META = ("image_url", "attachment", "sent_file")
+
+
+def _pin_list(meta) -> List[dict]:
+    raw = meta.get("pins") if isinstance(meta, dict) else None
+    out, seen = [], set()
+    for p in raw if isinstance(raw, list) else []:
+        try:
+            mid = int((p or {}).get("id") or 0)
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if mid > 0 and mid not in seen:
+            seen.add(mid)
+            out.append(p)
+    return out
+
+
+def _pinned_ids(db, conversation_id: int) -> List[int]:
+    r = db.execute("SELECT metadata_json FROM conversations WHERE id=?", (int(conversation_id),)).fetchone()
+    return [int(p["id"]) for p in _pin_list(_loads(r["metadata_json"], {}) if r else {})]
+
+
+def _pin_snap(m: dict) -> dict:
+    md = m.get("metadata") if isinstance(m.get("metadata"), dict) else {}
+    return {"sender_type": str(m.get("sender_type") or ""), "sender_name": str(m.get("sender_name") or ""),
+            "message_type": str(m.get("message_type") or "text"), "text": str(m.get("text") or "")[:_PIN_TEXT],
+            "created_at": m.get("created_at"), "metadata": {k: md[k] for k in _PIN_META if k in md}}
+
+
+def pins_of(conversation_id: int, meta: Optional[dict] = None) -> List[dict]:
+    """The pinned messages of a conversation, first = the one shown in the bar. Each: `message_id`, `pinned_at`, the
+    message's sender, type, text, time and media keys (read live, else the snapshot taken when it was pinned), and
+    `gone` when the message is no longer in the store. `meta`: the conversation's metadata when the caller has it."""
+    cid = int(conversation_id)
+    with _lock:
+        db = _conn()
+        if meta is None:
+            r = db.execute("SELECT metadata_json FROM conversations WHERE id=?", (cid,)).fetchone()
+            meta = _loads(r["metadata_json"], {}) if r else {}
+        pins = _pin_list(meta)
+        ids = [int(p["id"]) for p in pins]
+        rows = db.execute(f"SELECT * FROM messages WHERE conversation_id=? AND id IN ({','.join('?' * len(ids))})",
+                          (cid, *ids)).fetchall() if ids else []
+    live = {}
+    for r in rows:
+        d = _row(r)
+        d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
+        live[int(d["id"])] = _pin_snap(d)
+    out = []
+    for p in pins:
+        mid = int(p["id"])
+        snap = live.get(mid) or (p.get("snap") if isinstance(p.get("snap"), dict) else {})
+        out.append(dict(snap, message_id=mid, pinned_at=float(p.get("at") or 0), gone=mid not in live,
+                        metadata=dict(snap.get("metadata") or {})))
+    return out
+
+
+def set_message_pin(conversation_id: int, message_id: int, action: str) -> tuple:
+    """Pin (`pin`: goes to the top), unpin (`unpin`) or move to the top (`top`) one message of a conversation.
+    Returns (pins, error): pins is the new list (as `pins_of`); error is "" or one of "not_found" (no such conversation
+    or message), "too_many" (MAX_PINS already pinned)."""
+    cid, mid = int(conversation_id), int(message_id or 0)
+    with _lock:
+        db = _conn()
+        r = db.execute("SELECT metadata_json FROM conversations WHERE id=?", (cid,)).fetchone()
+        if r is None:
+            return [], "not_found"
+        meta = _loads(r["metadata_json"], {})
+        if not isinstance(meta, dict):
+            meta = {}
+        pins = _pin_list(meta)
+        mine = [p for p in pins if int(p["id"]) == mid]
+        rest = [p for p in pins if int(p["id"]) != mid]
+        if action == "unpin":
+            new = rest
+        elif action == "top":
+            if not mine:
+                return [], "not_found"
+            new = mine + rest
+        else:
+            m = db.execute("SELECT * FROM messages WHERE id=? AND conversation_id=?", (mid, cid)).fetchone()
+            if m is None:
+                return [], "not_found"
+            if not mine and len(pins) >= MAX_PINS:
+                return [], "too_many"
+            d = _row(m)
+            d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
+            new = [{"id": mid, "at": _now(), "snap": _pin_snap(d)}] + rest
+        if new:
+            meta["pins"] = new
+        else:
+            meta.pop("pins", None)
+        if new != pins:
+            db.execute("UPDATE conversations SET metadata_json=? WHERE id=?", (_json(meta), cid))
+            db.commit()
+    return pins_of(cid, meta), ""
 
 
 # ============================================================

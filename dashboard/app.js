@@ -3541,7 +3541,24 @@ async function doiGhim(msgEl, btn) {
   if (!ok) { datGhim(msgEl, !on); alert(loi || window.t("cact.pin_failed")); return; }
   const entry = (msgEl._jr && msgEl._jr.entry) || convo.find(x => x && x.role === "javis" && String(x.mid) === String(mid));
   if (entry) { entry.pinned = on; persistSession(); }
+  // 2026-11-24: the pin bar above the chat (chat-pins.js) reads the list again once the server has it.
+  try { chatArea.dispatchEvent(new CustomEvent("jv-pins-saved")); } catch (e) {}
 }
+// 2026-11-24 (owner, Zalo screenshots, "cả cộng sự cả hội thoại"): what the pin bar above the chat (chat-pins.js) needs from here:
+// the open chat, its older messages (a tap on a pin not loaded yet pages back to it) and the pin mark on a bubble when
+// the bar unpins or moves a pin.
+window.JavisChatPinHost = {
+  sid: () => savedSessionId,
+  hasOlder: () => !!(_tinCu && _tinCu.con && _tinCu.sid === savedSessionId),
+  busy: () => !!(_tinCu && _tinCu.dangTai),
+  loadOlder: () => taiTinCu(),
+  mark(mid, on) {
+    const el = [...chatArea.querySelectorAll(".msg-javis[data-mid]")].find(x => String(x.dataset.mid) === String(mid));
+    if (el) datGhim(el, on);
+    const entry = (el && el._jr && el._jr.entry) || convo.find(x => x && x.role === "javis" && String(x.mid) === String(mid));
+    if (entry) { entry.pinned = on; persistSession(); }
+  },
+};
 // 0.374.0: read one answer aloud, whatever the "read answers aloud" setting says (force). Pressing again while it is
 // still reading stops it. The button shows a stop square while that answer is being read.
 let _docTin = null;

@@ -96,6 +96,9 @@
   var _chon = null;         // id hội thoại đang mở
   var _msgs = [], _conv = null, _dauVetTin = "", _silence = null;   // _silence: vì sao bot im ở tin khách cuối
   var _running = false;     // bot của cuộc chat đang mở có đang chạy không (server cấp)
+  // Pinned messages of the open chat (2026-11-24, pin-bar.js): the list from the server (first = the bar's), whether
+  // the whole list is open, whose "..." menu is open, and the fingerprint of what the bar last drew.
+  var _pins = [], _pinsOpen = false, _pinMenu = "", _pinSig = null;
   var _soTrang = 1, _conDS = false, _dangTaiDS = false;   // phân trang danh sách: số trang đã tải, còn trang sau không
   var _conCu = false, _dangTaiCu = false, _vetMeta = "";   // khung tin: còn tin cũ không, đang tải tin cũ, chữ ký phần đầu khung
   var _actNote = null;      // {text, err}: dòng nói kết quả của lần bấm gần nhất, sống qua các lần vẽ lại khung
@@ -1356,7 +1359,7 @@
   // ---------------------------------------------------------------- một hội thoại
   async function mo(id) {
     closeRowMenu(false);
-    if (id !== _chon) { _tagPop = false; _tagEdit = 0; _tagErr = ""; _draftEdit = null; _noteEdit = null; _msheet = false; dropMic(); }
+    if (id !== _chon) { _pinsOpen = false; _pinMenu = ""; _tagPop = false; _tagEdit = 0; _tagErr = ""; _draftEdit = null; _noteEdit = null; _msheet = false; dropMic(); }
     luuCache();
     _chon = id;
     _dauVetTin = "";
@@ -1369,9 +1372,11 @@
     var cu = _cacheTin[id];
     if (cu) {
       _conv = cu.conv; _msgs = cu.msgs.slice(); _conCu = cu.conCu; _silence = cu.silence; _running = cu.running;
+      _pins = cu.pins || [];
       _vetMeta = metaSig(); _dauVetTin = "x";
       veThread();
     } else {
+      _pins = [];
       var th = _host.querySelector(".ht-thread");
       if (th) th.innerHTML = '<div class="ht-empty ht-thread-empty pg-loading">' + esc(window.t("common.loading")) + '</div>';
     }
@@ -1396,7 +1401,7 @@
     if (!_chon || !_msgs.length || !_conv || _conv.id !== _chon) return;
     var cat = _msgs.length > CACHE_TIN;
     _cacheTin[_chon] = { conv: _conv, msgs: cat ? _msgs.slice(-CACHE_TIN) : _msgs.slice(), conCu: _conCu || cat,
-                         silence: _silence, running: _running };
+                         silence: _silence, running: _running, pins: _pins };
     _cacheThu = _cacheThu.filter(function (k) { return k !== _chon; }).concat([_chon]);
     while (_cacheThu.length > CACHE_CHAT) delete _cacheTin[_cacheThu.shift()];
   }
@@ -1435,7 +1440,7 @@
                         (dau ? "limit=" + TIN_TRANG : "after=" + _msgs[_msgs.length - 1].id + "&limit=200") + (docLuon ? "&read=1" : ""));
       if (cho) await cho;
       if (_chon !== id) return;
-      _conv = d.conversation; _silence = d.bot_silence || null; _running = !!d.bot_running;
+      _conv = d.conversation; _silence = d.bot_silence || null; _running = !!d.bot_running; _pins = d.pins || [];
       if (dau) { _msgs = d.messages || []; _conCu = !!d.has_more; }
       else {
         // Hai lượt hỏi chồng nhau (nhịp và một hành động) có thể cùng nhận một tin: chỉ nhận tin mới hơn tin cuối THẬT lúc này.
@@ -1482,6 +1487,7 @@
       return;
     }
     if (moi.length) chenTin(moi);
+    if (pinSig() !== _pinSig) drawPins();
   }
 
   // Chữ ký của mọi thứ ngoài danh sách tin mà phần đầu khung dựa vào. Tin cuối do ai gửi cũng nằm đây vì nó bật/tắt nút "Trả lời giúp tin này".
@@ -1601,6 +1607,7 @@
           esc(V ? V.whoSentence(c) : "") + '</span></span>' +
         (threeModes ? (c.mode === "human" ? '<button type="button" class="ib-link ib-back-ai">' + esc(window.t("ib.back_ai")) + '</button>' : "") : bar) +
       '</div>' +
+      pinBarSlot() +
       '<div class="ht-msgs">' + nutTinCu() + _msgs.map(renderMessage).join("") + renderSilenceLine(c) + '</div>' +
       (guiDuoc ? veCompose(c) : '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>') +
       '<div class="ib-msheet"' + (_msheet && threeModes ? "" : " hidden") + '>' + (_msheet && threeModes && V ? V.modeSheetHtml(c, ic) : "") + '</div>';
@@ -1701,6 +1708,7 @@
       // While the words arrive by themselves the box is read only: typing would be overwritten by the next result.
       ta.readOnly = dictOn(c);
     }
+    bindPins(box);
     paintInfo();
   }
 
@@ -1713,6 +1721,179 @@
     sh.innerHTML = _msheet ? V.modeSheetHtml(_conv || {}, ic) : "";
     var f = _msheet ? sh.querySelector(".ib-mso.on") : _host.querySelector(".ib-mchip");
     if (f) f.focus();
+  }
+
+  // ---------------------------------------------------------------- pinned messages (2026-11-24)
+  // Owner, Zalo screenshots: pin messages of a chat to the top to find them again. pin-bar.js builds the bar; here the
+  // list is kept, drawn, changed through POST /conversations/<id>/pins, and a tap goes to the message. A message is
+  // pinned from the pin under its bubble (mouse) or by holding it (touch screen, msg-press.js).
+  var PIN_MAX = 20;         // conversations.MAX_PINS
+  function pinWho(p) {
+    var n = senderName(p);
+    if (!n && p.sender_type === "customer" && _conv && _conv.chat_type !== "group") n = _conv.customer_name || _conv.title || "";
+    return n;
+  }
+  function pinSig() {
+    var P = window.JavisPinBar;
+    return (P ? P.sig(_pins) : "") + "|" + (_pinsOpen ? 1 : 0) + "|" + _pinMenu;
+  }
+  function pinBarHtml() {
+    var P = window.JavisPinBar;
+    return P ? P.barHtml(_pins, { open: _pinsOpen, menu: _pinMenu, ic: ic, who: pinWho }) : "";
+  }
+  // The bar's place in the thread, drawn with it so the messages are measured with the bar already there.
+  function pinBarSlot() {
+    var h = pinBarHtml();
+    _pinSig = pinSig();
+    return '<div class="ht-pinbar' + (_pinsOpen && _pins.length > 1 ? " open" : "") + '"' + (h ? "" : " hidden") + '>' + h + '</div>';
+  }
+  function pinnedIds() { var o = {}; _pins.forEach(function (p) { o[p.message_id] = true; }); return o; }
+  function msgPinBtn(id, on) {
+    var k = on ? "pin.unpin" : "pin.pin";
+    return '<button type="button" class="ht-mpin" data-mpin="' + esc(id) + '" aria-pressed="' + (on ? "true" : "false") +
+      '" aria-label="' + esc(window.t(k)) + '" title="' + esc(window.t(k)) + '">' + ic("pin") + '</button>';
+  }
+  // Redraw only the bar, and the pin mark of the messages whose state changed. A reader at the bottom stays there.
+  function drawPins() {
+    var bar = _host && _host.querySelector(".ht-thread .ht-pinbar");
+    if (!bar) return;
+    var m = _host.querySelector(".ht-thread .ht-msgs");
+    var oDay = !!(m && m.scrollHeight - m.scrollTop - m.clientHeight < 80);
+    var h = pinBarHtml();
+    _pinSig = pinSig();
+    bar.innerHTML = h;
+    bar.hidden = !h;
+    bar.classList.toggle("open", _pinsOpen && _pins.length > 1);
+    if (!m) return;
+    var on = pinnedIds();
+    m.querySelectorAll(".ht-msg[data-mid]").forEach(function (x) {
+      var now = !!on[x.dataset.mid];
+      if (x.classList.contains("pinned") === now) return;
+      x.classList.toggle("pinned", now);
+      var b = x.querySelector(".ht-mpin");
+      if (b) b.outerHTML = msgPinBtn(x.dataset.mid, now);
+    });
+    if (oDay) m.scrollTop = m.scrollHeight;
+  }
+
+  async function pinAct(mid, action, quiet) {
+    var id = _chon;
+    if (!id || !mid) return;
+    _pinMenu = "";
+    try {
+      var d = await api("/conversations/" + id + "/pins", { method: "POST", body: fd({ message_id: mid, action: action }) });
+      if (_chon !== id) return;
+      _pins = d.pins || [];
+      if (_pins.length < 2) _pinsOpen = false;
+      drawPins();
+      if (action === "unpin" && !quiet) toast(window.t("pin.unpinned"), function () { pinAct(mid, "pin", true); });
+    } catch (e) {
+      drawPins();
+      toast(e.message === "too_many" ? window.t("pin.too_many", { n: PIN_MAX }) : window.t("pin.err", { err: e.message }));
+    }
+  }
+
+  // Go to a pinned message: older pages load until it is in the thread, then it is centred and lit up for a moment.
+  async function goToPin(mid) {
+    var id = _chon;
+    var p = _pins.filter(function (x) { return x.message_id === mid; })[0];
+    if (p && p.gone) return toast(window.t("pin.gone"));
+    var find = function () { return _host && _host.querySelector('.ht-thread .ht-msgs .ht-msg[data-mid="' + mid + '"]'); };
+    var el = find();
+    if (!el && _conCu) toast(window.t("pin.finding"));
+    for (var i = 0; !el && _conCu && _chon === id && i < 60; i++) {
+      if (_dangTaiCu) await new Promise(function (ok) { setTimeout(ok, 150); });
+      else await taiCu();
+      el = find();
+    }
+    if (_chon !== id) return;
+    if (!el) return toast(window.t("pin.gone"));
+    var old = document.getElementById("ibToast");
+    if (old && i) old.parentNode.removeChild(old);
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.remove("pin-flash");
+    void el.offsetWidth;          // restart the animation when the same pin is tapped twice
+    el.classList.add("pin-flash");
+    setTimeout(function () { el.classList.remove("pin-flash"); }, 2000);
+  }
+
+  function closePinPops(refocus) {
+    if (!_pinMenu && !_pinsOpen) return;
+    var back = refocus && _pinMenu;
+    _pinMenu = "";
+    if (!back) _pinsOpen = false;
+    drawPins();
+    var f = back && _host && _host.querySelector('.ht-pinbar [data-pin-menu="' + back + '"]');
+    if (f) f.focus();
+  }
+
+  // One listener per thread column: the column itself stays while its content is redrawn.
+  var _pinOutside = false;
+  function bindPins(box) {
+    if (!box || box._pinsBound) return;
+    box._pinsBound = true;
+    box.addEventListener("click", function (e) {
+      var t = e.target.closest && e.target.closest("[data-pin-go],.pb-more,.pb-less,[data-pin-menu],[data-pin-act],[data-mpin]");
+      if (!t || !box.contains(t)) return;
+      e.preventDefault();
+      if (t.hasAttribute("data-pin-act")) return pinAct(Number(t.dataset.mid), t.dataset.pinAct);
+      if (t.hasAttribute("data-mpin")) {
+        var mid = Number(t.dataset.mpin);
+        return pinAct(mid, pinnedIds()[mid] ? "unpin" : "pin");
+      }
+      if (t.hasAttribute("data-pin-menu")) {
+        _pinMenu = _pinMenu === t.dataset.pinMenu ? "" : t.dataset.pinMenu;
+        drawPins();
+        var first = _pinMenu && box.querySelector(".pb-menu .pb-mi");
+        if (first && e.detail === 0) first.focus();       // opened from the keyboard: into the menu
+        return;
+      }
+      if (t.classList.contains("pb-more")) { _pinsOpen = !_pinsOpen; _pinMenu = ""; drawPins(); return; }
+      if (t.classList.contains("pb-less")) {
+        _pinsOpen = false; _pinMenu = ""; drawPins();
+        var more = box.querySelector(".pb-more");
+        if (more) more.focus();
+        return;
+      }
+      var go = Number(t.dataset.pinGo);
+      if (_pinsOpen || _pinMenu) { _pinsOpen = false; _pinMenu = ""; drawPins(); }
+      goToPin(go);
+    });
+    box.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && (_pinMenu || _pinsOpen) && e.target.closest && e.target.closest(".ht-pinbar")) {
+        e.preventDefault(); e.stopPropagation(); closePinPops(true);
+      }
+    });
+    if (!_pinOutside) {
+      _pinOutside = true;
+      document.addEventListener("mousedown", function (ev) {
+        if (!(_pinMenu || _pinsOpen) || !_host) return;
+        var bar = _host.querySelector(".ht-thread .ht-pinbar");
+        if (bar && bar.contains(ev.target)) {
+          if (_pinMenu && !(ev.target.closest && ev.target.closest(".pb-menu, [data-pin-menu]"))) { _pinMenu = ""; drawPins(); }
+          return;
+        }
+        closePinPops(false);
+      }, true);
+    }
+    // Touch screens: hold a message for Pin / Unpin and Copy (msg-press.js), as on the Teams page.
+    var MP = window.JavisMsgPress;
+    if (MP) MP.bind(box, {
+      selector: ".ht-msg[data-mid]",
+      bubble: ".ht-bubble",
+      accept: function (el) { return !el.classList.contains("ht-react") && !el.classList.contains("hethong"); },
+      actions: function (el) {
+        var mid = Number(el.dataset.mid);
+        var t = _msgs.filter(function (x) { return x.id === mid; })[0];
+        if (!t) return [];
+        var on = !!pinnedIds()[mid];
+        var out = [{ icon: on ? "pin-off" : "pin", label: window.t(on ? "pin.unpin" : "pin.pin"),
+                     run: function () { pinAct(mid, on ? "unpin" : "pin"); } }];
+        var words = (window.JavisHtMedia ? window.JavisHtMedia.chuThich(t.text || "") : t.text) || "";
+        if (words) out.push({ icon: "copy", label: window.t("pin.copy"), run: function () { copyText(words); } });
+        return out;
+      }
+    });
   }
 
   // ---------------------------------------------------------------- Info panel (Chatbot v5)
@@ -2670,9 +2851,13 @@
     // group shows who wrote each message.
     if (side === "khach" && _conv && _conv.chat_type !== "group") who = "";
     var whoHtml = senderHtml(t, side, who);
-    return '<div class="ht-msg ' + side + '">' +
+    // Pinned messages (2026-11-24): the pin sits after the time, always shown on a pinned message (a tap unpins it),
+    // on hover or keyboard focus on the others.
+    var pinnable = !!t.id && side !== "hethong";
+    var pinned = pinnable && _pins.some(function (p) { return p.message_id === t.id; });
+    return '<div class="ht-msg ' + side + (pinned ? " pinned" : "") + '"' + (pinnable ? ' data-mid="' + esc(t.id) + '"' : "") + '>' +
       '<div class="ht-bubble">' + typeTag + body + '</div>' + errorHtml + deliveryHtml +
-      '<div class="ht-msg-h">' + whoHtml + (whoHtml ? ' · ' : '') + esc(gio(t.created_at)) + '</div>' +
+      '<div class="ht-msg-h">' + whoHtml + (whoHtml ? ' · ' : '') + esc(gio(t.created_at)) + (pinnable ? msgPinBtn(t.id, pinned) : "") + '</div>' +
     '</div>';
   }
 
