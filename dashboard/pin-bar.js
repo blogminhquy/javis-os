@@ -32,7 +32,7 @@
   }
 
   // What a pin says after "Who:": a photo reads "Photo" (with its caption), a file its name, text its first words on
-  // one line. `icon` is drawn in front of the words (the photo icon in Zalo's "🖼 Ảnh").
+  // one line. `icon` is drawn in front of the words (the photo icon Zalo puts before "Ảnh").
   function preview(p) {
     p = p || {};
     var M = media();
