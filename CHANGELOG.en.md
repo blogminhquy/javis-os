@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.636.0] - 2026-11-24
+### Added
+- **Store packs can add inbox channels.** A pack listing `provides.channels: [channels/<name>.py]` adds a channel to the Chatbot and Conversations pages without core edits. It loads only while the pack is enabled and its code still matches what the owner agreed to; changed code needs consent again. A pack can never replace a built-in channel, and a broken one only loses itself.
+- **The install screen says what a channel may do.** Before agreeing, the owner sees that the pack adds an inbox channel, receives customer messages and replies under the shop's name, opens a public webhook, and runs code on the server.
+
 ## [0.635.1] - 2026-11-24
 ### Fixed
 - **Empty background run outputs no longer count as done.** When a non-silent run returns blank output, the job gets one bounded retry and then blocks for review instead of reporting completion.

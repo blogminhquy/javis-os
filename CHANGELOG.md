@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.636.0] - 2026-11-24
+### Thêm mới
+- **Gói Store thêm được kênh hộp thư.** Gói khai `provides.channels: [channels/<tên>.py]` là có kênh mới ở trang Chatbot và Hội thoại, không phải sửa mã lõi. Kênh chỉ nạp khi gói đang bật và mã còn khớp lúc anh đồng ý cài; gói đổi mã thì phải đồng ý lại. Gói không bao giờ thay được kênh có sẵn, và một kênh lỗi chỉ mất riêng kênh đó.
+- **Màn cài gói nói rõ kênh được làm gì.** Trước khi đồng ý, anh thấy gói sẽ thêm kênh vào Hộp thư, nhận tin khách và trả lời dưới tên shop, mở webhook công khai và chạy mã trên máy chủ.
+
 ## [0.635.1] - 2026-11-24
 ### Sửa lỗi
 - **Lượt chạy nền trả kết quả trống không còn được báo hoàn thành.** Nếu kết quả trả về rỗng (ngoài trường hợp đánh dấu im lặng có chủ đích), việc sẽ được gửi lại để tự sửa tối đa một vòng rồi tạm dừng chờ bạn kiểm tra thay vì báo xong.
