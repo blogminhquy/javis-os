@@ -24,7 +24,8 @@ import sqlite_tune
 # bản cũ (id chưa có scope) phải dựng lại dù không file nào đổi.
 # v4 (0.432.1, #934): agents/*/runs/ left out, generic labels ("Vì sao:", "Áp dụng:") no longer make a subject,
 # always_on matches a path segment that starts with the word instead of any substring.
-INDEX_SCHEMA_VERSION = "memory-index-v4"
+# v5 (#1743): a subject comes only from a specific "label:" (two or more words), never from a one-word tag or a heading.
+INDEX_SCHEMA_VERSION = "memory-index-v5"
 INDEX_POLICY_VERSION = "memory-retrieval-cascade-v1"
 _WORD_RE = re.compile(r"[^\W_]{2,}", re.UNICODE)
 _WIKI_RE = re.compile(r"\[\[([^\]|#]+)")
@@ -58,7 +59,30 @@ _GENERIC_SUBJECTS = frozenset({
     "task", "ket luan", "tom tat", "chi tiet", "mo ta", "noi dung", "cap nhat", "ngay",
     "why", "how to apply", "apply", "reason", "note", "notes", "context", "source", "example", "result",
     "summary", "details", "description", "updated", "date",
+    # Section names that are also written as a label ("**Quyết định đã chốt:** ...") on many files (#1743).
+    "bai hoc tu hoc", "lien quan", "luat chu dao", "quyet dinh da chot", "related",
 })
+_LABEL_RE = re.compile(r"^[-*]?\s*([^:\n=]{2,100})\s*[:=]")
+
+
+def _label_subject(text: str, tag: str = "") -> str:
+    """The specific thing a paragraph states, from its leading label ("Giá gói Pro: 500k" -> "gia goi pro"), or "".
+
+    retrieve() pairs two recalled records of different files that share a subject as a conflict, so a subject must name
+    one specific thing (#1743). Not a subject:
+    - a generic label from _GENERIC_SUBJECTS;
+    - a one-word label: that is a tag or brand prefix ("GROUP: ...", "SOHO: ..."), and one brain had 57 unrelated files
+      start with "GROUP:". A real label right behind the tag still counts, scoped by the tag, so "GROUP: Giá gói Pro:
+      500k" and "GROUP: Giá gói Pro: 700k" still conflict ("group gia goi pro"). One level only.
+    The cost: a real one-word attribute ("Hotline: ...") no longer pairs across files.
+    """
+    match = _LABEL_RE.match(text)
+    label = _norm(match.group(1)) if match else ""
+    if not label or label in _GENERIC_SUBJECTS:
+        return ""
+    if " " in label:
+        return f"{tag} {label}"[:160] if tag else label[:160]
+    return "" if tag else _label_subject(text[match.end():].strip(), label)
 
 # A path segment that STARTS with one of these words marks a core memory (identity.md, profile/, core-facts-x.md).
 # Before 0.432.1 any substring counted, so reference-...-google-business-profile.md took two or three recall slots on
@@ -288,11 +312,11 @@ class MemoryIndex:
             ))[:20]
             topic_seed = str(meta.get("topics") or meta.get("tags") or "") + " " + title
             topics = _terms(topic_seed)[:20]
-            subject_match = re.match(r"^[-*]?\s*([^:\n=]{2,100})\s*[:=]", clean)
-            subject = _norm(subject_match.group(1)) if subject_match else ""
-            if not subject or subject in _GENERIC_SUBJECTS:
-                subject = _norm(title)
-            subject = "" if subject in _GENERIC_SUBJECTS else subject[:160]
+            # No heading fallback (#1743). A heading is a section name many files share: the core writes "## Bài học
+            # (tự học)" into every assistant's MEMORY.md, owners reuse "Liên quan" or "Quyết định đã chốt". Records of
+            # one file are never paired (same source_hash), so a heading subject could only pair two files that merely
+            # share a section name, which is never by itself a contradiction.
+            subject = _label_subject(clean)
             always_on = str(meta.get("always_on") or "").casefold() in ("1", "true", "yes", "on")
             always_on = always_on or _always_on_path(relative)
             source_ref = f"file:{relative}#L{line_start}-L{line_end}"
@@ -553,6 +577,8 @@ class MemoryIndex:
         combined = " ".join(x.get("normalized") or "" for x in ranked)
         coverage = (len(set(coverage_terms) & set(combined.split())) /
                     max(1, len(set(coverage_terms)))) if coverage_terms else 1.0
+        # A conflict: two records from different files (source_hash differs) that state different text about one
+        # specific subject. What counts as a subject is decided at index time, see _label_subject (#934, #1743).
         conflicts = []
         by_subject: dict[str, list[dict]] = {}
         for item in ranked:
