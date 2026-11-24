@@ -121,6 +121,39 @@ def test_agy_that_never_exits_is_stopped_after_the_grace(tmp_path, processes):
         asyncio.run(run())
 
 
+def test_the_grace_stops_agy_but_not_the_work_it_started(tmp_path, processes):
+    """A render agy started in the background belongs to the owner: only agy is stopped."""
+    pid_file, marker = tmp_path / "child.pid", tmp_path / "child.alive"
+    child = (f"import time; time.sleep(1.5); open({str(marker)!r}, 'w').write('alive'); time.sleep(30)")
+    code = ("import subprocess, sys\n"
+            f"c = subprocess.Popen([sys.executable, '-c', {child!r}], stdin=subprocess.DEVNULL, "
+            "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+            f"open({str(pid_file)!r}, 'w').write(str(c.pid))\n") + _fake([TEXT, RESULT_OK], linger=60)
+
+    async def run():
+        cli = driver(tmp_path, code)
+        events = await asyncio.wait_for(consume(cli), 10)
+        assert any(e.get("type") == "final" for e in events)
+        await until(lambda: processes[0].poll() is not None, timeout=8)
+        await until(marker.exists, timeout=8)
+
+    try:
+        with patch.object(agy, "co_co", return_value=False), patch.object(agy, "EXIT_GRACE_S", 0.3):
+            asyncio.run(run())
+    finally:
+        if pid_file.exists():
+            pid = int(pid_file.read_text())
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+            else:
+                import os
+                import signal
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+
+
 def test_error_result_still_waits_for_the_process(tmp_path, processes):
     async def run():
         cli = driver(tmp_path, _fake([RESULT_ERR], linger=0.8))

@@ -1382,6 +1382,25 @@ def trang_thai_mcp(vault_root=None) -> dict:
 EXIT_GRACE_S = 20.0
 
 
+def end_engine_only(held: dict) -> None:
+    """Past the exit grace: stop agy itself, never its process group.
+
+    A command agy started in the background (a render, a build) lives in that group, belongs to the
+    owner and is adopted after the turn (tien_trinh_nen). `_kill_tree` would take it down with agy.
+    """
+    proc = held.get("proc") if isinstance(held, dict) else None
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        proc.terminate()
+        proc.wait(timeout=3)
+    except Exception:  # noqa: BLE001
+        try:
+            proc.kill()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def is_success_result(ev) -> bool:
     """A raw agy line that closes the turn without an error (`{"event":"result","result":{"status":"SUCCESS"}}`).
 
@@ -1697,6 +1716,9 @@ class AntigravityCLI:
         stop_requested = threading.Event()
         reader_finished = threading.Event()
         deadline_expired = threading.Event()
+        # Set once agy itself has exited (not its children). Adoption of left-behind work waits on it.
+        agy_gone = threading.Event()
+        held: dict = {}
 
         # agy stops itself at --print-timeout and still prints a partial answer; the watchdog only steps in after
         # that, so it does not win the race and lose the partial output (its clock starts earlier, at Popen).
@@ -1732,6 +1754,17 @@ class AntigravityCLI:
                 )
                 with _PROC_LOCK:
                     _ACTIVE_PROCS[proc] = self.tag
+                held["proc"] = proc
+
+                def watch_exit(p=proc):
+                    try:
+                        p.wait()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    agy_gone.set()
+
+                threading.Thread(target=watch_exit, daemon=True,
+                                 name=f"javis-agy-exit-{self.tag}").start()
 
                 def watch_stop():
                     # Keep cleanup independent of the cancelled asyncio task, including
@@ -1827,6 +1860,8 @@ class AntigravityCLI:
                         os.unlink(tep_ngu_canh)
                     except Exception:
                         pass
+                if proc is None:
+                    agy_gone.set()
                 reader_finished.set()
                 publish(HET)
 
@@ -1905,12 +1940,12 @@ class AntigravityCLI:
                     break
         finally:
             if finished_early:
-                _t = threading.Timer(EXIT_GRACE_S, stop_requested.set)
+                _t = threading.Timer(EXIT_GRACE_S, end_engine_only, args=(held,))
                 _t.daemon = True
                 _t.start()
                 try:   # adoption of left-behind work waits for agy itself to be gone (tien_trinh_nen)
                     import tien_trinh_nen
-                    tien_trinh_nen.note_engine_exiting(self.tag, reader_finished)
+                    tien_trinh_nen.note_engine_exiting(self.tag, agy_gone)
                 except Exception:  # noqa: BLE001
                     pass
             else:
