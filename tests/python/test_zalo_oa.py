@@ -298,6 +298,9 @@ class FakeCDN:
         return FakeResp(b"\xff\xd8photo")
 
 
+async def _no_wait(_s):
+    return None
+zo._sleep = _no_wait          # the wait before re-fetching an empty photo (issue #1733) costs nothing here
 dl_dir = Path(tempfile.mkdtemp(prefix="zo-dl-"))
 pb = zo.ZaloOABot(pasted, "", None, giau_trang_thai=True, download_dir=str(dl_dir))
 cdn = FakeCDN()

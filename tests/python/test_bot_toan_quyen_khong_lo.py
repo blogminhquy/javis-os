@@ -35,7 +35,10 @@ chu = main._tg_ket("Dạ còn hàng ạ", ["a.jpg"], "⚠ Model 'x' đã tự đ
 check("owner channel unchanged: warning on top, mid-turn error at the bottom",
       chu["text"].startswith("⚠ Model") and chu["text"].endswith("⚠ Có lỗi giữa lượt: hub sập") and "canh_bao" not in chu, chu)
 khach = main._tg_ket("Dạ còn hàng ạ", ["a.jpg"], "⚠ Model 'x' đã tự đổi.\n\n", ["hub sập"], khach=True)
-check("customer bot: the reply is only the answer", khach["text"] == "Dạ còn hàng ạ" and khach["files"] == ["a.jpg"], khach)
+check("customer bot: the reply is only the answer", khach["text"] == "Dạ còn hàng ạ", khach)
+# Issue #1785: the files a turn wrote are the owner's, never a customer's (see test_bot_no_turn_files.py).
+check("customer bot: no engine-gathered file rides along", khach["files"] == [], khach)
+check("owner channel keeps its files", chu["files"] == ["a.jpg"], chu)
 check("customer bot: warning and error go to canh_bao for the bot log",
       "Model 'x'" in khach.get("canh_bao", "") and "hub sập" in khach.get("canh_bao", ""), khach)
 check("customer bot, clean turn: no canh_bao at all", "canh_bao" not in main._tg_ket("Dạ", [], "", [], khach=True))
