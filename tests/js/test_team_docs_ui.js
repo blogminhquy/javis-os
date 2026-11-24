@@ -108,8 +108,21 @@ check("pasted bytes are copied while the event runs (phones)", tj.includes("func
 check("a picture chip shows the picture", tj.includes('<img class="tm-chip-thumb" src="') && tj.includes("URL.revokeObjectURL"));
 const mem = [{ agent_key: "a", name: "Lan" }, { agent_key: "b", name: "Minh Anh" }, { agent_key: "c", name: "Hoa", status: "removed" }];
 const ty = T.typingHtml([{ agent_key: "a", role: "member_reply" }, { agent_key: "b", role: "work" }, { agent_key: "a", role: "member_reply" }], mem);
-check("typing strip: one entry per member, replying vs working, with the picture", (ty.match(/tm-typing-who/g) || []).length === 2
-  && ty.includes("Lan đang trả lời") && ty.includes("Minh Anh đang làm việc") && T.typingHtml([], mem) === "", ty);
+// Owner, 24/11/2026: two or more at work fold into one row (pictures side by side, "2 members are working", up arrow);
+// the arrow unfolds one line per member above it. One member keeps the single named line.
+const tyOpen = T.typingHtml([{ agent_key: "a", role: "member_reply" }, { agent_key: "b", role: "work" }, { agent_key: "a", role: "member_reply" }], mem, true);
+const tyOne = T.typingHtml([{ agent_key: "b", role: "work" }], mem);
+check("typing strip folded: one row, both pictures, a count, no per-member lines, a toggle that is closed",
+  !ty.includes("tm-typing-who") && (ty.match(/tm-ava /g) || []).length === 2 && ty.includes("2 cộng sự đang làm việc")
+  && ty.includes('data-typing-toggle="1"') && ty.includes('aria-expanded="false"') && T.typingHtml([], mem) === "", ty);
+check("typing strip unfolded: one entry per member, replying vs working, with the picture, list above the toggle",
+  (tyOpen.match(/tm-typing-who/g) || []).length === 2 && tyOpen.includes("Lan đang trả lời") && tyOpen.includes("Minh Anh đang làm việc")
+  && tyOpen.indexOf("tm-typing-list") < tyOpen.indexOf("tm-typing-sum") && tyOpen.includes('aria-expanded="true"'), tyOpen);
+check("typing strip with one member: the named line, nothing to fold",
+  tyOne.includes("Minh Anh đang làm việc") && !tyOne.includes("data-typing-toggle"), tyOne);
+check("the toggle flips the strip, and a new team or a single worker starts folded again",
+  tj.includes("if (d.typingToggle) { S.typingOpen = !S.typingOpen; drawTyping(); return; }")
+  && tj.includes("S.typing = []; S.typingOpen = false;") && tj.includes("if (typingRows(S.typing).length < 2) S.typingOpen = false;"));
 check("the typing strip sits above the input and follows team_typing events",
   tj.includes('<div class="tm-typing" role="status" aria-live="polite" hidden></div>') && tj.includes('d.type === "team_typing"'));
 const sa = T.mentionScan("@all làm nhé", mem, []), sx = T.mentionScan("mail@allx @Lan", mem, []);
@@ -138,7 +151,7 @@ const css2 = read("console.css");
 check("CSS: typing strip, drop target, quote mark, mention, owner flag, pinned strip, job rows",
   [".tm-typing {", ".tm-composer.is-drop", ".tm-quote-ico {", ".tm-at-me {", ".tm-msg-asks .tm-bubble", ".tm-pinbar {",
     ".tm-side-body .tm-qrow .tm-actions { flex: 1 1 100%;"].every((x) => css2.includes(x)));
-const k192 = ["teams.typing_reply", "teams.typing_work", "teams.typing_more", "teams.hint_all", "teams.mention_all", "teams.asks_you",
+const k192 = ["teams.typing_reply", "teams.typing_work", "teams.typing_many", "teams.typing_unfold", "teams.typing_fold", "teams.hint_all", "teams.mention_all", "teams.asks_you",
   "teams.quote_open", "teams.pins_title", "teams.pins_note", "teams.pins_open", "teams.pins_close", "teams.owner_tags"];
 check("0.192.0 words vi/en, no em dash", k192.every((k) => vi[k] && en[k]) && !/[–—]/.test(k192.map((k) => vi[k] + en[k]).join("")),
   k192.filter((k) => !vi[k] || !en[k]).join(","));
