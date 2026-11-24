@@ -15,8 +15,8 @@ import drive_write_guard as g  # noqa: E402
 import turn_context as tc  # noqa: E402
 
 AGENTS = [f"agent-{i}" for i in range(1, 10)]
-ENF = {"JAVIS_DRIVE_WRITE_GUARD": "enforce"}
-SHD = {"JAVIS_DRIVE_WRITE_GUARD": "shadow"}
+ENF = {"JAVIS_DRIVE_WRITE_GUARD": "enforce", "JAVIS_DRIVE_GUARD_PILOT": "agent-1,agent-2,ghost"}
+SHD = {"JAVIS_DRIVE_WRITE_GUARD": "shadow", "JAVIS_DRIVE_GUARD_PILOT": "agent-1,agent-2,ghost"}
 COMPOSIO = {"connector_id": "composio"}
 MULTI = "COMPOSIO_MULTI_EXECUTE_TOOL"
 

@@ -85,12 +85,12 @@ class HubOpaque(unittest.TestCase):
         return out, calls, buf.getvalue()
 
     def test_enforce_blocks_remote_bash(self):
-        out, calls, _ = self._go("COMPOSIO_REMOTE_BASH_TOOL", {"command": "x"}, {"JAVIS_DRIVE_WRITE_GUARD": "enforce"})
+        out, calls, _ = self._go("COMPOSIO_REMOTE_BASH_TOOL", {"command": "x"}, {"JAVIS_DRIVE_WRITE_GUARD": "enforce", "JAVIS_DRIVE_GUARD_PILOT": "agent-a"})
         self.assertTrue(out.startswith("ERROR:"))
         self.assertEqual(calls, [])
 
     def test_shadow_logs_but_calls_through(self):
-        out, calls, log = self._go("COMPOSIO_REMOTE_BASH_TOOL", {"command": "x"}, {"JAVIS_DRIVE_WRITE_GUARD": "shadow"})
+        out, calls, log = self._go("COMPOSIO_REMOTE_BASH_TOOL", {"command": "x"}, {"JAVIS_DRIVE_WRITE_GUARD": "shadow", "JAVIS_DRIVE_GUARD_PILOT": "agent-a"})
         self.assertEqual(out, "REAL")
         self.assertIn("DENY", log)
 

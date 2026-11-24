@@ -51,7 +51,7 @@ class _Store:
     def step(self, step_id):
         return self._steps.get(step_id)
 
-    def consume_fingerprint(self, step_id, fp):
+    def consume_fingerprint(self, step_id, fp, need_deadline=False):
         return None
 
 
