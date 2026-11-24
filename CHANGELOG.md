@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.634.0] - 2026-11-24
+### Cải thiện
+- **Antigravity hiện suy nghĩ trong lúc chờ.** Trước đây khung chat đứng im 12 đến 18 giây rồi câu trả lời mới đổ ra một lần. Giờ ý model đang cân nhắc hiện ngay từ khoảng giây thứ 4 đến 7, cập nhật vài giây một lần, gập gọn trong khối các bước.
+- **Mở và nối lại cuộc chat nhanh hơn khoảng 1 giây.** Antigravity chạy qua chế độ ACP của `agy`, các cuộc chat cũ vẫn nối tiếp được như trước.
+- Bản `agy` cũ chưa có ACP thì Javis tự chạy cách cũ, không cần làm gì.
+
 ## [0.633.3] - 2026-11-24
 ### Sửa lỗi
 - **Ghi nhận chính xác model thực chạy và lý do dự phòng ở việc nền.** Khi một việc nền chuyển sang model dự phòng do hết lượt hoặc lỗi, bản ghi việc và dữ liệu trả về lưu đúng nhà cung cấp, mã model thực tế đã chạy, nhà cung cấp ban đầu và lý do chuyển dự phòng, đồng thời xóa các trường dự phòng cũ khi chạy lại thành công trực tiếp bằng model chính.

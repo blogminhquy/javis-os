@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.634.0] - 2026-11-24
+### Improved
+- **Antigravity shows its thinking while you wait.** The chat used to sit still for 12 to 18 seconds and then drop the whole answer at once. Now what the model is weighing appears from about second 4 to 7, updates every few seconds, and folds into the steps block.
+- **Chats start and resume about 1 second faster.** Antigravity now runs through `agy`'s ACP mode, and existing chats carry on as before.
+- An older `agy` without ACP keeps the previous way on its own, nothing to do.
+
 ## [0.633.3] - 2026-11-24
 ### Fixed
 - **Record actual model execution and fallback evidence for background jobs.** Background job records and card payloads now retain the actual provider, model, original provider, and fallback reason across execution, failure, and input-wait paths, and clear stale fallback fields on clean retries.
