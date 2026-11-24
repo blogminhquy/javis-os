@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.633.1] - 2026-11-24
+### Sửa lỗi
+- **Bot Zalo không còn gửi nhầm file làm việc.** Ở mức Toàn quyền (kể cả chat riêng của chủ với bot), file ghi trong lượt như sổ nhật ký, file `.md`, script trong `/tmp` từng bị gửi đi như ảnh. Giờ bot chỉ gửi ảnh mà câu trả lời chèn bằng `![](...)`.
+- **Bot Zalo OA xem được ảnh khách gửi.** Ảnh Zalo trả về không có đuôi được lưu đúng `.jpg`/`.png`; ảnh chưa sẵn thì Javis thử lại, vẫn rỗng thì bot nhờ khách gửi lại thay vì nói "chưa xem được".
+- **Bộ nhớ tự học không còn ghi đè file cũ và bớt báo mâu thuẫn giả.** Một ghi nhớ đã có không bao giờ bị thay bằng bản tóm tắt. Nhãn chung như "GROUP:" hay tiêu đề "Bài học tự học" không còn làm hai ghi nhớ không liên quan bị báo là mâu thuẫn.
+
 ## [0.633.0] - 2026-11-24
 ### Thêm mới
 - **Hội thoại bình luận Facebook và Instagram hiện bài viết gốc.** Ngay dưới đầu khung chat có thẻ bài: ảnh, mấy dòng đầu của bài và nút mở bài gốc, như Pancake. Bài chỉ có ảnh hoặc video thì lấy tiêu đề đính kèm; Page chưa được đọc bài thì vẫn có link tới đúng bình luận. Các cuộc bình luận cũ tự lấy thẻ bài lần đầu được mở.

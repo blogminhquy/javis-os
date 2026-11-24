@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.633.1] - 2026-11-24
+### Fixed
+- **Zalo bots no longer send work files by mistake.** At Full access (the owner's own chat with the bot included), files written during the turn such as logs, `.md` files and scripts in `/tmp` went out as images. A bot now sends only the images its reply embeds with `![](...)`.
+- **Zalo OA bots can see the photos customers send.** A photo Zalo serves without an extension is saved as `.jpg`/`.png`; a photo not ready yet is fetched again, and if it stays empty the bot asks the customer to resend instead of saying it cannot see it.
+- **Self-learning no longer overwrites a memory and flags fewer false conflicts.** An existing memory is never replaced by a summary. Shared labels like "GROUP:" or the heading the core writes for learned lessons no longer mark two unrelated memories as conflicting.
+
 ## [0.633.0] - 2026-11-24
 ### Added
 - **Facebook and Instagram comment threads show their post.** A card under the chat head shows the post's picture, its first lines and a button that opens it, as Pancake does. A post with only a picture or video takes its attachment's title; when the Page may not read the post, the card still links to the comment. Older comment threads get their card the first time they are opened.
