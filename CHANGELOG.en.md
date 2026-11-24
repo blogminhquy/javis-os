@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.633.2] - 2026-11-24
+### Fixed
+- **Team jobs no longer falsely mark as done when an assignment directive is malformed.** When a plan contains a broken or unclosed assignment block, the job stops with a clear error instead of finishing with zero work steps.
+
 ## [0.633.1] - 2026-11-24
 ### Fixed
 - **Zalo bots no longer send work files by mistake.** At Full access (the owner's own chat with the bot included), files written during the turn such as logs, `.md` files and scripts in `/tmp` went out as images. A bot now sends only the images its reply embeds with `![](...)`.
