@@ -182,10 +182,10 @@ async def _comment_turn(mode="reply", ig_on=True):
         calls.append((path, payload))
         return {"ok": True, "id": "r1"}
 
-    async def fake_post_text(client, post_id, instagram=False):
-        return "Áo len mới về" if instagram else "?"
+    async def fake_post_card(client, chat, post_id="", permalink=""):
+        return {"text": "Áo len mới về" if chat.startswith("igc:") else "?"}
     bot._post_json = fake_post
-    bot._post_text = fake_post_text
+    bot._post_card = fake_post_card
     o_mode, o_ig = messenger_bot.comment_mode, messenger_bot.instagram_of
     messenger_bot.comment_mode = lambda a: mode
     messenger_bot.instagram_of = lambda a: {"id": IG, "username": "shop.vn", "on": ig_on}

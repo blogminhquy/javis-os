@@ -1863,7 +1863,9 @@ def record_customer_message(cfg: dict, meta: dict, text: str) -> None:
             sender_name=meta.get("user_name") or meta.get("username") or "",
             message_type=conversations.loai_tin_tu_chu(text), text=text,
             external_message_id=str(meta.get("message_id") or ""),
-            metadata={"username": meta.get("username") or ""}))
+            metadata={"username": meta.get("username") or ""},
+            # What the channel keeps on the whole conversation (the post a comment sits under, 2026-11-24).
+            conversation_metadata=meta.get("conversation_metadata") or {}))
     except Exception as e:
         print(f"[chatbot conversations] {type(e).__name__}: {e}", file=sys.stderr)
 

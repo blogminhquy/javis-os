@@ -85,6 +85,50 @@ def _tk_goc(c: dict) -> str:
     return key.split(":", 1)[1] if ":" in key else key
 
 
+# Conversation ids whose post card is being read, and when a read last came back empty (2026-11-24).
+_POST_FILLING: set = set()
+_POST_MISSED: dict = {}
+POST_RETRY_S = 3600
+
+
+def _post_card_due(c: dict, now: Optional[float] = None) -> bool:
+    """A Facebook or Instagram comment thread whose card is missing or old enough for its image link to have expired,
+    and that is not being read now nor came back empty within the last hour."""
+    import messenger_bot
+    chat = str(c.get("external_chat_id") or "")
+    if c.get("channel") != "messenger" or not chat.startswith((messenger_bot.COMMENT_PREFIX, messenger_bot.IG_COMMENT_PREFIX)):
+        return False
+    cid = int(c.get("id") or 0)
+    now = time.time() if now is None else now
+    if not cid or cid in _POST_FILLING or now - _POST_MISSED.get(cid, 0) < POST_RETRY_S:
+        return False
+    card = (c.get("metadata") or {}).get("post")
+    return not isinstance(card, dict) or now - float(card.get("at") or 0) >= messenger_bot.POST_CARD_TTL
+
+
+async def _fill_post_card(c: dict) -> None:
+    """Read the post a comment thread sits under and keep it on the conversation. Threads recorded before cards existed
+    get theirs the first time they are opened; the open itself never waits for it."""
+    cid = int(c.get("id") or 0)
+    _POST_FILLING.add(cid)
+    try:
+        import messenger_bot
+        bot = messenger_bot.MessengerBot(channel_accounts.get_token(_tk_goc(c)), "", None, giau_trang_thai=True)
+        old = (c.get("metadata") or {}).get("post")
+        card = await bot.post_card(str(c.get("external_chat_id") or ""),
+                                   str(old.get("id") or "") if isinstance(old, dict) else "")
+        if card:
+            conversations.set_post_card(cid, card)
+            _POST_MISSED.pop(cid, None)
+        else:
+            _POST_MISSED[cid] = time.time()
+    except Exception as e:      # noqa: BLE001 - a missing card never breaks the inbox
+        _POST_MISSED[cid] = time.time()
+        print(f"[inbox post card] {type(e).__name__}: {e}", file=sys.stderr)
+    finally:
+        _POST_FILLING.discard(cid)
+
+
 async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Optional[dict] = None):
     """Gửi một tin chữ vào cuộc chat qua năng lực `gui` của kênh. Trả (ok, lỗi). Dùng chung cho chủ gõ tay và cho lượt
     nhờ bot trả lời (0.65.5), để hai đường không lệch nhau ở cách dựng tài khoản gửi.
@@ -521,6 +565,8 @@ def register(app, deps: ConversationsDeps):
             return _404()
         _attach_state([d], _StateCtx(_hesitant()))
         moi = after > 0
+        if not moi and _post_card_due(d):
+            asyncio.create_task(_fill_post_card(dict(d)))
         msgs = conversations.tin_nhan(conv_id, limit=limit, before_id=before, after_id=after)
         d["bot_name"] = _ten_bot(str(d.get("bot_id") or ""))
         bot_id = str(d.get("bot_id") or "")

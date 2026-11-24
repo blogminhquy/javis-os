@@ -294,6 +294,8 @@ def chuan_hoa(ev: dict) -> dict:
         external_message_id  id tin phía kênh, dùng chống trùng (tuỳ chọn)
         created_at           epoch giây (mặc định: bây giờ)
         metadata             dict tuỳ ý (đường dẫn file tạm, tên file, ...)
+        conversation_metadata  dict merged into the CONVERSATION's metadata (optional; the post a comment
+                             thread sits under, 2026-11-24)
 
     Không ném lỗi với dữ liệu thiếu: sự kiện thiếu `channel`/`external_chat_id` mới bị từ chối
     (trả về dict có `loi`), vì thiếu hai thứ đó thì không biết xếp tin vào đâu.
@@ -321,6 +323,9 @@ def chuan_hoa(ev: dict) -> dict:
     meta = ev.get("metadata")
     if not isinstance(meta, dict):
         meta = {}
+    conv_meta = ev.get("conversation_metadata")
+    if not isinstance(conv_meta, dict):
+        conv_meta = {}
     return {
         "channel": kenh,
         "account_id": account_id,
@@ -339,6 +344,7 @@ def chuan_hoa(ev: dict) -> dict:
         "external_message_id": _s(ev.get("external_message_id"), 200).strip(),
         "created_at": ts,
         "metadata": meta,
+        "conversation_metadata": conv_meta,
     }
 
 
@@ -440,6 +446,11 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
                 # stored, but never count as unread and never bring the chat back into the inbox.
                 cmeta = _loads(conv["metadata_json"], {})
                 blocked = isinstance(cmeta, dict) and bool(cmeta.get("blocked"))
+                if e["conversation_metadata"]:
+                    merged = dict(cmeta) if isinstance(cmeta, dict) else {}
+                    merged.update(e["conversation_metadata"])
+                    if merged != cmeta:
+                        db.execute("UPDATE conversations SET metadata_json=? WHERE id=?", (_json(merged), conv_id))
 
                 # 4. Tin - chống trùng theo id tin của kênh
                 if e["external_message_id"]:
@@ -1517,6 +1528,13 @@ def _set_meta_key(conversation_id: int, key: str, value) -> bool:
                    (_json(meta), _now(), int(conversation_id)))
         db.commit()
     return True
+
+
+def set_post_card(conversation_id: int, card: dict) -> bool:
+    """Keep the post a comment thread sits under (`metadata.post`, 2026-11-24). An empty card leaves what is there."""
+    if not isinstance(card, dict) or not card:
+        return False
+    return _set_meta_key(conversation_id, "post", card)
 
 
 def conversation_id_of(channel: str, account_id: str, external_chat_id: str) -> int:
