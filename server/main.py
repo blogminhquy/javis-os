@@ -27636,10 +27636,11 @@ def _tg_ket(clean_out, files, canh_bao="", loi=(), khach=False):
 
     `khach=True` (a full-access dedicated bot, 0.102.1): the person reading is a CUSTOMER, not the owner.
     The system warning and the mid-turn error then go to `canh_bao`, which the bot log shows the owner,
-    instead of being glued to the reply ("⚠ Có lỗi giữa lượt: ..." in a customer group)."""
+    instead of being glued to the reply ("⚠ Có lỗi giữa lượt: ..." in a customer group). It also carries no files
+    (issue #1785): a bot chat receives only the images its Agent embeds, picked later by `chatbot_runtime`."""
     if khach:
         ghi_chu = [str(canh_bao or "").strip()] + (["Có lỗi giữa lượt: " + str(loi[0])] if loi else [])
-        ket = {"text": clean_out or "", "files": files or []}
+        ket = {"text": clean_out or "", "files": []}
         if any(ghi_chu):
             ket["canh_bao"] = " · ".join(x for x in ghi_chu if x)[:500]
         return ket
@@ -28644,7 +28645,10 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             await _nuot_codex(compaction.codex_bootstrap_prompt(_raw, _hien_tai))
         if not out:
             return "⚠ " + (loi[0] if loi else "Codex không trả về nội dung nào.")
-        files = channel_context.collect_turn_files(
+        # A dedicated bot at "full" gathers no files (issue #1785), in a customer's chat or the owner's own: the turn's
+        # working files are not for that chat, and leaving the reply's `![](...)` in place lets `chatbot_runtime` send
+        # only the images the Agent embedded.
+        files = [] if _bot_full else channel_context.collect_turn_files(
             out, written, t0, cwd=_brain_root(brain), exclude=sess["sent"],
             vault_root=_brain_root(brain),
         )
@@ -28720,7 +28724,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         _tg_compact_bg(sess, prov, api_key, api_model)
         # MCP đa-model có thể tạo ảnh/file dù engine không có tool Write native. Thu đường dẫn
         # Markdown giống nhánh Codex/Claude để OpenRouter cũng gửi media thật qua Telegram.
-        files = channel_context.collect_turn_files(
+        # Not for a dedicated bot at "full" (issue #1785, see the Codex branch).
+        files = [] if _bot_full else channel_context.collect_turn_files(
             out, [], t0, cwd=_brain_root(brain), exclude=sess["sent"],
             vault_root=_brain_root(brain),
         )
@@ -28828,9 +28833,9 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # File sinh ra trong lượt → bot gửi đính kèm SAU câu trả lời (xem telegram_bot._handle_turn).
         # vault_root = brain phiên này: ảnh Javis tạo nhúng dạng ![](attachments/x.png) (path tương
         # đối) được resolve về gốc vault để tự đính kèm về ĐÚNG người đang chat, khỏi phải curl.
-        files = channel_context.collect_turn_files(out, written, t0,
-                                                   cwd=_brain_root(brain), exclude=sess["sent"],
-                                                   vault_root=_brain_root(brain))
+        # Not for a dedicated bot at "full" (issue #1785, see the Codex branch).
+        files = [] if _bot_full else channel_context.collect_turn_files(
+            out, written, t0, cwd=_brain_root(brain), exclude=sess["sent"], vault_root=_brain_root(brain))
         # Lọc SAU collect_turn_files: hàm đó dò đường dẫn file trong text gốc, lọc trước là mất dấu.
         clean_out = channel_context.strip_attached_media(
             channel_context.strip_control_blocks(out), files, _brain_root(brain)

@@ -2130,6 +2130,21 @@ def _compose_started(on_compose) -> None:
         print(f"[chatbot] báo bắt đầu soạn lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
+def drop_engine_files(out):
+    """The engine's answer without the files it gathered by itself (issue #1785).
+
+    The owner's engine path lists every file the turn wrote or named (`channel_context.collect_turn_files`) so the
+    owner's Telegram gets them. A dedicated bot must not inherit that list, at any level and in any chat (a customer's,
+    or the owner's own chat raised to "full" by an exception): "whatever the turn happened to write" is work logs,
+    scripts and drafts, and with a stranger steering the model it is a leak path. What the chat receives is decided
+    after this, by `bot_images.pick`, from the images the Agent embedded in its reply. A string (a failed turn) and a
+    dict without files pass unchanged."""
+    if isinstance(out, dict) and out.get("files"):
+        out = dict(out)
+        out["files"] = []
+    return out
+
+
 def _make_answer_fn(bot_id: str):
     async def _answer(text, meta=None, progress=None):
         # The channel's "compose started" hook rides in meta (`_on_compose`, personal Zalo groups). Taken out first:
@@ -2299,6 +2314,12 @@ def _make_answer_fn(bot_id: str):
             # Không gửi gì cho khách (chủ repo 15/10/2026, xem CAU_LUOT_HONG). Phần dưới vẫn ghi nhật ký,
             # đếm bí, báo người trực; cuối hàm trả im lặng.
             out = {"text": "", "files": []}
+        # Issue #1785: a bot sends ONLY the images its Agent embeds in the reply (`bot_images.pick` below), never the
+        # files the engine gathered on its own. A turn at "full" (the bot, or one chat raised by an exception) runs the
+        # owner's engine path, which lists every file written during the turn (work logs, scripts in /tmp, draft
+        # images) for the owner's Telegram; on a bot channel that list is a leak, and Zalo rejected the non-images with
+        # "Gửi Zalo lỗi ... (N ảnh)".
+        out = drop_engine_files(out)
 
         dap = (out or {}).get("text") or ""
         # The Agent's own reaction (0.334.0, `[CAM_XUC:<name>]`): the marker always leaves the text, so it never reaches a
@@ -2381,7 +2402,7 @@ def _make_answer_fn(bot_id: str):
             if anh:
                 out = dict(out or {})
                 out["text"] = dap
-                out["files"] = list(out.get("files") or []) + anh
+                out["files"] = anh      # the only files a bot chat ever receives (see `drop_engine_files`)
         # Several short messages (0.281.0, bot_split): the channel that sends them separately keeps the marker; any
         # other channel gets one message with blank lines. The bot log and the inbox always record the joined text.
         dap_ghi = dap
