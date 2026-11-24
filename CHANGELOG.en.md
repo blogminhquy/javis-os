@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.631.6] - 2026-11-24
+### Improved
+- **Antigravity answers a few seconds sooner every turn.** The answer is final as soon as the model is done, without waiting 2 to 3 more seconds for Antigravity to shut down; a model with its depth in its name (such as `-high`) no longer gets Javis's extra "think it through" line, so the first word comes nearly twice as fast.
+- **Antigravity's progress block says what each step does:** "Run command: git status", "Read file: wiki/a.md", the real tool name instead of `call_mcp_tool`, and a finished step stops spinning.
+- **Text streams in on Telegram and dedicated bots** with Antigravity or Grok, instead of appearing all at once at the end of the turn.
+
 ## [0.631.5] - 2026-11-24
 ### Fixed
 - Claude conversations no longer open new threads unnecessarily when a turn uses many tools, helping keep context and the process warm.
