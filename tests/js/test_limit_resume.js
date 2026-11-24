@@ -52,6 +52,9 @@ d = R.describe({ state: "done", done_at: base + 60 }, base);
 check("done: noi da chay lai luc may gio", d.text === "Đã chạy lại lúc 10:01." && !d.showNow);
 d = R.describe({ state: "cancelled" }, base);
 check("cancelled: giai thich vi tin moi", /tin mới/.test(d.text) && !d.showNow);
+// Stop in the chat drops the re-run too (server _stop_web_chat sends reason "stopped"): the card says so, not "new message".
+d = R.describe({ state: "cancelled", reason: "stopped" }, base);
+check("cancelled by Stop: says the turn was stopped", /bị dừng/.test(d.text) && !/tin mới/.test(d.text) && !d.showNow);
 d = R.describe({ state: "pending", resume_at: base + 600 }, base);
 check("pending (chua co khung resume): chi nhac moc, chua co nut", d.text === "Hạn mức mở lại lúc 10:10." && !d.showNow && !d.showAuto);
 d = R.describe(null, base);

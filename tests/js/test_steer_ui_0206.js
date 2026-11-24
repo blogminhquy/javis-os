@@ -29,9 +29,16 @@ check("the send button comes back next to Stop when there is text",
   /sendBtn\.style\.display = \(active \? boSung : coNoiDung\) \? "flex" : "none";/.test(app) && /if \(isProcessing\) syncActiveUI\(\);/.test(app));
 check("not in a voice call (that has its own queue)", /isProcessing && !handsFreeActive\(\)/.test(app));
 check("status frames handled and never revive a turn",
-  /data\.type === "steer_ack" \|\| data\.type === "steer_read" \|\| data\.type === "steer_turn"/.test(app)
+  /data\.type === "steer_ack" \|\| data\.type === "steer_read" \|\| data\.type === "steer_turn" \|\| data\.type === "steer_dropped"/.test(app)
   && !/KHUNG_LUOT = \[[^\]]*steer/.test(app));
-const keys = ["app.steer_send", "app.steer_sent", "app.steer_live", "app.steer_after", "app.steer_goal", "app.steer_read", "app.steer_turn"];
+// Stop ended the turn a message waited for (server steer_dropped): its line stops saying it runs next, found by steer id
+// or, for a message queued without one, by the client_id it was sent with.
+const tb = app.slice(app.indexOf("function trangThaiBoSung(data) {"), app.indexOf("function moveTurnBelow(t) {"));
+check("steer_dropped relabels the message by steer id and by client id",
+  /data\.type === "steer_dropped" \? "app\.steer_dropped"/.test(tb) && /_boSungEl\["s" \+ id\], key/.test(tb)
+  && /\(data\.client_ids \|\| \[\]\)\.forEach\(c => ghi\(_boSungEl\[c\], key\)\)/.test(tb));
+const keys = ["app.steer_send", "app.steer_sent", "app.steer_live", "app.steer_after", "app.steer_goal", "app.steer_read", "app.steer_turn",
+  "app.steer_dropped"];
 check("strings in both languages", keys.every((k) => vi[k] && en[k]));
 check("no long dashes in the new strings", keys.every((k) => !/[–—]/.test(vi[k] + en[k])));
 
