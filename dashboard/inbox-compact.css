@@ -42,6 +42,32 @@
 .ib-v5 .ib-qn.you { background: var(--ib-you-wash); color: var(--ib-you-ink); border-radius: 8px; padding: 0 6px; font-weight: 700; }
 .ib-v5 .ib-fchip { font-size: 13px; }
 
+/* the quick row under them (owner, 2026-11-24): All / Messages / Comments as one segmented control, Has phone as an
+   on/off chip. Same height and type as the row above; a choice other than All is drawn like an active filter. In a
+   list column under 420px (every phone, the default computer column) Has phone is its icon and number, its words kept
+   for screen readers and the tooltip; a label too long for a very narrow column ends in "..." and its number stays. */
+.ib-krow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; container-type: inline-size; }
+.ib-krow:empty { display: none; }
+.ib-kseg { display: inline-flex; flex: 0 1 auto; min-width: 0; height: 34px; box-sizing: border-box; padding: 2px; gap: 2px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg2); }
+.ib-kopt, .ib-kphone { display: inline-flex; align-items: center; gap: 4px; min-width: 0; font: inherit; font-size: 13px; font-weight: 600;
+  white-space: nowrap; cursor: pointer; }
+.ib-kopt { height: 100%; padding: 0 7px; border: 0; border-radius: 8px; background: none; color: var(--text2); }
+.ib-kopt:hover { background: var(--surface-2); color: var(--text); }
+.ib-kopt.on { background: var(--surface-3); color: var(--text); }
+.ib-kopt.on:not([data-kind=""]) { background: var(--ib-ai-wash); color: var(--ib-ai-ink); }
+.ib-kt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ib-kphone { position: relative; flex: none; height: 34px; box-sizing: border-box; padding: 0 9px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg2); color: var(--text); }
+.ib-kphone:hover { border-color: var(--accent2-line); }
+.ib-kphone > svg { width: 15px; height: 15px; flex: none; color: var(--text2); }
+.ib-kphone .ib-kt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@container (min-width: 420px) { .ib-kphone .ib-kt { position: static; width: auto; height: auto; clip: auto; } }
+.ib-kphone.on { border-color: var(--ib-ai); background: var(--ib-ai-wash); color: var(--ib-ai-ink); }
+.ib-kphone.on > svg { color: currentColor; }
+.ib-kn { flex: none; font-size: 12px; font-weight: 600; color: var(--text3); font-variant-numeric: tabular-nums; }
+.ib-kopt.on .ib-kn, .ib-kphone.on .ib-kn { color: inherit; }
+
 /* the "who" menu and the two other popovers, placed under the row that opens them */
 .ib-v5 .ib-fm { top: 52px; }
 .ib-v5 .ib-pk { top: 96px; }

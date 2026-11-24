@@ -46,7 +46,15 @@ def _feature(tmp_path):
     )
     feature = TasksFeature(deps)
     feature._base_cli = lambda *a, **k: object()
+    # One event loop for the whole life of this feature. TasksFeature keeps a per-brain asyncio.Lock (_asnapshot); one
+    # first used on a loop cannot be awaited from another, and a fresh asyncio.run() per step made this file fail at
+    # random on a loaded CI runner ("Lock ... is bound to a different event loop"). Production runs on one loop.
+    feature._test_loop = asyncio.new_event_loop()
     return feature, str(brain), reports
+
+
+def _run(feature, coro):
+    return feature._test_loop.run_until_complete(coro)
 
 
 def _enqueue(feature, brain, meta=None, needs_approval=False):
@@ -64,10 +72,12 @@ def _run_once(feature, tid, execute):
 
     async def go():
         assert await feature._claim_and_spawn(tid)
-        await feature._workers[tid]
+        worker = feature._workers.get(tid)
+        if worker is not None:      # a fast worker may already have finished and removed itself
+            await worker
         return feature.store.get_task(tid)
 
-    return asyncio.run(go())
+    return _run(feature, go())
 
 
 @pytest.fixture(autouse=True)
@@ -94,7 +104,7 @@ def test_verified_ai_pass_reports_green_check(tmp_path):
 def test_empty_output_retries_once_then_blocks_while_silent_stays_quiet(tmp_path):
     feature, brain, reports = _feature(tmp_path)
     tid = _enqueue(feature, brain, {"acceptance": ["report.md exists"]})
-    passed, why, how = asyncio.run(feature._check_acceptance(feature.store.get_task(tid), "  \n "))
+    passed, why, how = _run(feature, feature._check_acceptance(feature.store.get_task(tid), "  \n "))
     assert not passed and how == "empty" and "empty" in why.lower()
 
     first = _run_once(feature, tid, _exec("  \t "))
@@ -151,7 +161,7 @@ def test_fixed_acceptance_fallback_checked_without_specifier(tmp_path):
         return '{"pass": false, "missing": "report.md missing"}', "", []
 
     feature._query = query
-    asyncio.run(feature._execute(feature.store.get_task(tid)))
+    _run(feature, feature._execute(feature.store.get_task(tid)))
     assert prompts and "report.md exists" in prompts[0]
     prompts.clear()
 
@@ -178,7 +188,7 @@ def test_fixed_acceptance_fallback_checked_without_specifier(tmp_path):
         return res
 
     feature._query = verify_pass
-    res = asyncio.run(run_verify())
+    res = _run(feature, run_verify())
     assert res["ok"] and res["started"]
     assert prompts and "report.md exists" in prompts[0]
     verified = feature.store.get_task(tid_v)

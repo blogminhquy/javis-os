@@ -44,11 +44,12 @@ const F = win.JavisConvFilters;
     JSON.stringify(F.sanitize({ tag: "1 OR 1" }).tagsAny) === "[]" && JSON.stringify(F.sanitize({ tag: 5 }).tagsAny) === '["5"]' &&
     JSON.stringify(F.sanitize({}).tagsNone) === "[]");
   check("'waiting longest' asks for need_reply sorted waiting-first", F.query({ status: "waiting" }) === "&status=need_reply&sort=waiting");
-  check("'has phone/email' asks for has_contact, not a status", F.query({ contact: "1" }) === "&has_contact=1");
-  check("'has phone/email' combines with a status", F.query({ status: "unread", contact: "1" }) === "&status=unread&has_contact=1");
-  check("a browser that saved it as a status keeps the filter", F.sanitize({ status: "contact" }).contact === "1" &&
-    F.sanitize({ status: "contact" }).status === "");
-  check("has phone/email counts as an active filter", F.activeCount({ contact: "1" }) === 1);
+  // 2026-11-24: "Has phone" on the quick row took the place of the Filter menu's "has phone/email".
+  check("'has phone' asks for has_phone, not a status", F.query({ phone: "1" }) === "&has_phone=1");
+  check("'has phone' combines with a status", F.query({ status: "unread", phone: "1" }) === "&status=unread&has_phone=1");
+  check("a browser that saved 'has phone/email' (or it as a status) gets Has phone", F.sanitize({ status: "contact" }).phone === "1" &&
+    F.sanitize({ status: "contact" }).status === "" && F.sanitize({ contact: "1" }).phone === "1");
+  check("Has phone has its own control on the quick row, so the Filter button does not count it", F.activeCount({ phone: "1" }) === 0);
   check("tag filters go to the server as comma lists", F.query({ tagsAny: ["7"], tagsNone: ["8", "9"], bot: "b" }) === "&bot_id=b&tags_any=7&tags_none=8,9");
   check("each tag counts as an active filter", F.activeCount({ tagsAny: ["7"], tagsNone: ["8"] }) === 2 && F.activeCount({ tagsAny: ["x"] }) === 0);
   vm.runInContext(src("dashboard/inbox-v5.js"), ctx);
@@ -56,7 +57,8 @@ const F = win.JavisConvFilters;
   const so = V.filterMenuHtml({}, "status", [], { status: { need_reply: 4 }, has_contact: 2 }, []);
   check("Filter menu status holds 'waiting longest' (need-reply count) and not 'has phone/email'",
     so.indexOf('data-v="waiting"> <span>ht.f_st_wait#4') > 0 && so.slice(so.indexOf("ib-fm-opts")).indexOf("contact") < 0, so);
-  check("the has phone/email choice carries its own count", V.filterMenuHtml({}, "contact", [], { has_contact: 2 }, []).indexOf("ht.f_st_contact#2") > 0);
+  check("the Filter menu no longer offers has phone/email (the quick row's Has phone does)",
+    V.filterMenuHtml({}, "pinned", [], { has_contact: 2 }, []).indexOf("contact") < 0 && !/ht\.f_st_contact|ib-fm-contact/.test(src("dashboard/inbox-v5.js")));
   const to = V.filterMenuHtml({ tagsAny: ["2"] }, "tagsAny", [{ id: 1, name: "Chăm", color: "green" }, { id: 2, name: "<i>x</i>", color: "red" }], {}, [], null, F.tagChip);
   check("Filter menu tags: every tag as a ticked or unticked chip, names escaped",
     /data-tag="1"> <span class="ht-tag"/.test(to) && /data-tag="2" checked>/.test(to) && to.indexOf("<i>") < 0, to);

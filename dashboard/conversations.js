@@ -70,7 +70,9 @@
   // dictate.js does the listening; the state lives here because the 5-second redraw rebuilds the box.
   var _dict = null, _dictState = "idle", _dictBase = "", _dictHeard = "", _dictConv = 0, _dictSend = false;
   var _statusLoc = "", _typeLoc = "";   // bộ lọc (0.65.3), lưu ở trình duyệt qua JavisConvFilters
-  var _contactLoc = "";     // 2026-10-25: "1" = only chats where the customer left a phone number or email
+  // The quick row (owner, 2026-11-24): messages or comment threads ("" = both), chats with a phone number only, and the
+  // server's numbers for them (quick_counts), null before the first answer.
+  var _kind = "", _phone = "", _quick = null;
   // Chatbot v5 (2026-10-28, docs/dev/2026-10-chatbot-v5-spec.md): who is handling the chat (the quick filters), the ticked
   // channel accounts (the channel picker) and tags any/none (the Filter menu). Saved with the rest by JavisConvFilters.
   var _who = "you", _accs = [], _tagsAny = [], _tagsNone = [], _whoCounts = null;
@@ -376,15 +378,15 @@
       // saved filters are put aside so they cannot hide the chat the owner wants to see.
       _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || "";
       _accs = _cho.account_key ? [_cho.account_key] : [];
-      _who = ""; _statusLoc = ""; _typeLoc = ""; _tagsAny = []; _tagsNone = []; _contactLoc = ""; _q = "";
-      _when = null; _lastBy = ""; _pinned = "";
+      _who = ""; _statusLoc = ""; _typeLoc = ""; _tagsAny = []; _tagsNone = []; _q = "";
+      _when = null; _lastBy = ""; _pinned = ""; _kind = ""; _phone = "";
       _cho = null;
       saveFilters();
     } else if (F) {
       var saved = F.load();
-      _botLoc = saved.bot; _statusLoc = saved.status; _typeLoc = saved.type; _kenhLoc = saved.channel; _contactLoc = saved.contact;
+      _botLoc = saved.bot; _statusLoc = saved.status; _typeLoc = saved.type; _kenhLoc = saved.channel;
       _who = saved.who; _accs = saved.accs; _tagsAny = saved.tagsAny; _tagsNone = saved.tagsNone;
-      _when = saved.when; _lastBy = saved.lastBy; _pinned = saved.pinned;
+      _when = saved.when; _lastBy = saved.lastBy; _pinned = saved.pinned; _kind = saved.kind; _phone = saved.phone;
     }
     _pick = false; _fm = false; _wm = false;
     body.innerHTML =
@@ -404,6 +406,8 @@
                   esc(window.t("ib.quick_aria")) + '"></button>' +
                 '<button type="button" class="ib-picker" aria-haspopup="dialog" aria-expanded="false"></button>' +
               '</div>' +
+              // The quick row (owner, 2026-11-24): All / Messages / Comments, and Has phone.
+              '<div class="ib-krow"></div>' +
               '<div class="ib-activef"></div>' +
               '<div class="ib-pop ib-wm" role="menu" aria-label="' + esc(window.t("ib.quick_aria")) + '" hidden></div>' +
               '<div class="ib-pop ib-pk" role="dialog" aria-label="' + esc(window.t("ib.pk_aria")) + '" hidden></div>' +
@@ -435,6 +439,14 @@
       onFilterChange();
       focusOpener(".ib-whobtn");
     };
+    body.querySelector(".ib-krow").onclick = function (e) {
+      var b = e.target.closest && e.target.closest("button");
+      if (!b) return;
+      if (b.classList.contains("ib-kphone")) _phone = _phone ? "" : "1";
+      else if (b.dataset.kind != null) _kind = b.dataset.kind;
+      else return;
+      onFilterChange();     // paintHead redraws the row and gives the focus back to the button pressed
+    };
     body.querySelector(".ib-activef").onclick = function (e) {
       var b = e.target.closest && e.target.closest("button[data-k]");
       if (!b) return;
@@ -458,8 +470,9 @@
   }
 
   function filterState() {
-    return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc, contact: _contactLoc,
-             who: _who, accs: _accs, tagsAny: _tagsAny, tagsNone: _tagsNone, when: _when, lastBy: _lastBy, pinned: _pinned };
+    return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc,
+             who: _who, accs: _accs, tagsAny: _tagsAny, tagsNone: _tagsNone, when: _when, lastBy: _lastBy, pinned: _pinned,
+             kind: _kind, phone: _phone };
   }
   function saveFilters() { if (window.JavisConvFilters) window.JavisConvFilters.save(filterState()); }
   function onFilterChange() { saveFilters(); paintHead(); tai(); }
@@ -478,7 +491,8 @@
   function youByAcc() { return (_whoCounts && _whoCounts.you_by_account) || {}; }
   function logoPick(ch) { return logoKenh(ch, "20px"); }
 
-  // The head of the list: picker summary, quick filters with counts, chips for the active filters, the Filter count.
+  // The head of the list: picker summary, quick filters with counts, the quick row, chips for the active filters, the
+  // Filter count.
   function paintHead() {
     var V = window.JavisInboxV5, F = window.JavisConvFilters;
     if (!_host || !V) return;
@@ -500,6 +514,17 @@
       var wh = V.whoButtonHtml(_who, _whoCounts, ic);
       if (wb.dataset.sig !== wh) { wb.innerHTML = wh; wb.dataset.sig = wh; }
       wb.classList.toggle("w-you", _who === "you");
+    }
+    var kr = _host.querySelector(".ib-krow");
+    if (kr) {
+      // Redrawn only when it changed (the 5-second refresh brings new numbers); a button that had the focus keeps it.
+      var kh = V.quickRowHtml(filterState(), _quick, ic);
+      if (kr.dataset.sig !== kh) {
+        var ae = document.activeElement, back = ae && kr.contains(ae) ? (ae.classList.contains("ib-kphone") ? ".ib-kphone" :
+          '.ib-kopt[data-kind="' + (ae.dataset.kind || "") + '"]') : "";
+        kr.innerHTML = kh; kr.dataset.sig = kh;
+        if (back) focusOpener(back);
+      }
     }
     var st = filterState();
     var chips = V.activeChips(st, _tags, _botList);
@@ -524,7 +549,6 @@
     else if (k === "type") _typeLoc = "";
     else if (k === "bot") _botLoc = "";
     else if (k === "status") _statusLoc = "";
-    else if (k === "contact") _contactLoc = "";
     else if (k === "channel") _kenhLoc = "";
     else if (k === "when") _when = null;
     else if (k === "lastBy") _lastBy = "";
@@ -613,14 +637,13 @@
     } else if (t.name === "ib-type") _typeLoc = t.dataset.v;
     else if (t.name === "ib-bot") _botLoc = t.dataset.v;
     else if (t.name === "ib-st") _statusLoc = t.dataset.v;
-    else if (t.classList.contains("ib-fm-contact")) _contactLoc = t.checked ? "1" : "";
     else if (t.classList.contains("ib-fm-pinned")) _pinned = t.checked ? "1" : "";
     else if (t.name === "ib-time") _when = t.dataset.v ? { preset: t.dataset.v } : null;
     else if (t.name === "ib-last") _lastBy = t.dataset.v;
     else return;
     onFilterChange();
     var sel = t.dataset.tag != null ? 'input[data-tag="' + t.dataset.tag + '"]' : t.name ? 'input[name="' + t.name + '"][data-v="' + t.dataset.v + '"]'
-      : t.classList.contains("ib-fm-pinned") ? ".ib-fm-pinned" : ".ib-fm-contact";
+      : ".ib-fm-pinned";
     paintPops();
     var again = _host && _host.querySelector(".ib-fm " + sel);
     if (again) again.focus();
@@ -643,9 +666,11 @@
     } else if (b.classList.contains("ib-fm-done")) { setPop(""); focusOpener(".ib-fbtn"); }
   }
 
-  // "Clear" in the Filter menu, and the same button on an empty list the filters emptied.
-  function clearMenuFilters() {
-    _tagsAny = []; _tagsNone = []; _typeLoc = _botLoc = _statusLoc = _contactLoc = _lastBy = _pinned = ""; _when = null;
+  // "Clear" in the Filter menu, and the same button on an empty list the filters emptied (`quick`: that one also resets
+  // the quick row, which can empty the list as well).
+  function clearMenuFilters(quick) {
+    _tagsAny = []; _tagsNone = []; _typeLoc = _botLoc = _statusLoc = _lastBy = _pinned = ""; _when = null;
+    if (quick === true) { _kind = ""; _phone = ""; }
     onFilterChange();
   }
 
@@ -736,9 +761,10 @@
       _facets = d.facets || null;
       _botList = d.bots || [];
       if (d.who_counts) _whoCounts = d.who_counts;
+      if (d.quick_counts) _quick = d.quick_counts;
       if (d.tags) _tags = d.tags;
       if (d.channels) _kenhDS = d.channels;
-      var vet = JSON.stringify([_items, _stats, _facets, _botList, _conDS, _tags, _whoCounts]);
+      var vet = JSON.stringify([_items, _stats, _facets, _botList, _conDS, _tags, _whoCounts, _quick]);
       if (im && vet === _dauVet) return;
       _dauVet = vet;
     } catch (e) {
@@ -802,8 +828,8 @@
       _rowIds = null;
       closeRowMenu(false);
       var coNguon = _tk.some(function (a) { return a.ghi; });
-      var loc = !!(_q || _kenhLoc || _botLoc || _accs.length || _statusLoc || _typeLoc || _tagsAny.length || _tagsNone.length || _contactLoc ||
-        _when || _lastBy || _pinned);
+      var loc = !!(_q || _kenhLoc || _botLoc || _accs.length || _statusLoc || _typeLoc || _tagsAny.length || _tagsNone.length ||
+        _when || _lastBy || _pinned || _kind || _phone);
       // Only the quick "who" filter hides everything (no chat needs you right now): say it kindly, one tap shows them all.
       if (_who && !loc && (_whoCounts ? ["you", "ai", "owner", "log"].some(function (w) { return _whoCounts[w]; }) : coNguon)) {
         box.innerHTML = '<div class="ht-empty">' + ic(_who === "you" ? "circle-check" : "messages-square") +
@@ -812,8 +838,8 @@
         box.querySelector(".ib-see-all").onclick = function () { _who = ""; onFilterChange(); };
         return;
       }
-      // The Filter menu emptied the list: one tap clears it, rather than pointing at channels.
-      var menuLoc = window.JavisConvFilters.activeCount(Object.assign(filterState(), { channel: "" })) > 0;
+      // The Filter menu or the quick row emptied the list: one tap clears them, rather than pointing at channels.
+      var menuLoc = window.JavisConvFilters.activeCount(Object.assign(filterState(), { channel: "" })) > 0 || !!(_kind || _phone);
       box.innerHTML = '<div class="ht-empty">' + ic("messages-square") +
         '<b>' + esc(loc || _who ? window.t("ht.khong_khop") : window.t("ht.chua_co")) +
           (!coNguon && !menuLoc ? infoBtn() : "") + '</b>' +
@@ -825,7 +851,7 @@
       var nut = box.querySelector(".ht-mo-kenh");
       if (nut) nut.onclick = function () { chonTab("kenh"); };
       var bo = box.querySelector(".ib-empty-clear");
-      if (bo) bo.onclick = clearMenuFilters;
+      if (bo) bo.onclick = function () { clearMenuFilters(true); };
       return;
     }
     var F = window.JavisConvFilters;

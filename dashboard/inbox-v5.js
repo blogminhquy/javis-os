@@ -115,7 +115,8 @@
       { id: "bot", icon: "headset", key: "ib.f_bot", n: s.bot ? 1 : 0 },
       { id: "status", icon: "mail", key: "ib.f_status", n: s.status ? 1 : 0 },
       { id: "last", icon: "message-circle", key: "ib.f_last", n: s.lastBy ? 1 : 0 },
-      { id: "contact", icon: "phone", key: "ib.f_info", n: (s.contact ? 1 : 0) + (s.pinned ? 1 : 0) },
+      // "Phone or email" left this menu on 2026-11-24: "Has phone" on the quick row covers it.
+      { id: "pinned", icon: "pin", key: "ib.f_pin", n: s.pinned ? 1 : 0 },
     ];
   }
 
@@ -167,9 +168,7 @@
       o = radio("ib-last", "", s.lastBy, tt("ib.f_last_any")) + radio("ib-last", "customer", s.lastBy, tt("ib.f_last_customer")) +
         radio("ib-last", "ai", s.lastBy, tt("ib.f_last_ai")) + radio("ib-last", "human", s.lastBy, tt("ib.f_last_you"));
     } else {
-      o = '<label class="ib-fm-o"><input type="checkbox" class="ib-fm-contact"' + (s.contact ? " checked" : "") + '> <span>' +
-        esc(tt("ht.f_st_contact", { n: Number(f.has_contact) || 0 })) + '</span></label>' +
-        '<label class="ib-fm-o"><input type="checkbox" class="ib-fm-pinned"' + (s.pinned ? " checked" : "") + '> <span>' +
+      o = '<label class="ib-fm-o"><input type="checkbox" class="ib-fm-pinned"' + (s.pinned ? " checked" : "") + '> <span>' +
         esc(tt("ib.f_pinned")) + '</span></label>';
     }
     return '<div class="ib-fm-cats"><div class="ib-fm-h">' + esc(tt("ib.f_title")) + '</div>' + cats + '</div>' +
@@ -193,9 +192,30 @@
     if (s.status) out.push({ k: "status", v: "", text: tt("ib.fc_st_" + s.status) });
     var LAST = { customer: "ib.fc_last_customer", ai: "ib.fc_last_ai", human: "ib.fc_last_human" };
     if (LAST[s.lastBy]) out.push({ k: "lastBy", v: "", text: tt(LAST[s.lastBy]) });
-    if (s.contact) out.push({ k: "contact", v: "", text: tt("ib.fc_contact") });
     if (s.pinned) out.push({ k: "pinned", v: "", text: tt("ib.fc_pinned") });
     return out;
+  }
+
+  // ---- the quick row: All / Messages / Comments, and Has phone (owner, 2026-11-24) -----------------------------------
+  // Under the "who" dropdown, like Pancake's quick filters: a Facebook Page mixes Messenger chats and comment threads in
+  // one list. `st`: the sanitised filter state; `counts`: the server's quick_counts {message, comment, phone} (what each
+  // choice would list with every other filter), null before the first answer, when no number is shown yet.
+  // "Has phone" is the phone icon and its number in a narrow list column (owner, 2026-11-04: "icon lửa và số 12 là
+  // được"); its words show once the column has room (inbox-compact.css) and are always its spoken name and tooltip.
+  var KIND_OPTS = [["", "ib.k_all"], ["message", "ib.k_msg"], ["comment", "ib.k_cmt"]];
+  function quickRowHtml(st, counts, icon) {
+    var I = icon || noIcon, s = st || {}, n = counts || null;
+    var kind = KIND_OPTS.some(function (k) { return k[0] === s.kind; }) ? s.kind : "";
+    var num = function (v) { return n ? '<span class="ib-kn">' + (Number(v) || 0) + '</span>' : ""; };
+    var seg = KIND_OPTS.map(function (k) {
+      var on = kind === k[0];
+      return '<button type="button" class="ib-kopt' + (on ? " on" : "") + '" data-kind="' + k[0] + '" aria-pressed="' + on + '">' +
+        '<span class="ib-kt">' + esc(tt(k[1])) + '</span>' + (k[0] ? num(n && n[k[0]]) : "") + '</button>';
+    }).join("");
+    var phone = tt("ib.k_phone");
+    return '<span class="ib-kseg" role="group" aria-label="' + esc(tt("ib.k_aria")) + '">' + seg + '</span>' +
+      '<button type="button" class="ib-kphone' + (s.phone ? " on" : "") + '" aria-pressed="' + !!s.phone + '" title="' + esc(phone) + '">' +
+        I("phone") + '<span class="ib-kt">' + esc(phone) + '</span>' + num(n && n.phone) + '</button>';
   }
 
   // ---- "Who replies" bar of a chat ----------------------------------------------------------------------------------
@@ -276,6 +296,7 @@
   window.JavisInboxV5 = {
     WHO: WHO, whoLabel: whoLabel, whoSentence: whoSentence, whoButtonHtml: whoButtonHtml, whoMenuHtml: whoMenuHtml,
     pickerSummary: pickerSummary, pickerHtml: pickerHtml, filterCats: filterCats, filterMenuHtml: filterMenuHtml, activeChips: activeChips,
+    quickRowHtml: quickRowHtml,
     modeBarHtml: modeBarHtml, modeChipHtml: modeChipHtml, modeSheetHtml: modeSheetHtml, draftHtml: draftHtml, workingHtml: workingHtml,
   };
 })();

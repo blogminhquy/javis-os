@@ -12,8 +12,8 @@
 
   var KEY = "javis.inbox.filters";
   // 2026-10-25, from the owner's Pancake screenshots: "waiting" is "need reply" sorted waiting-longest first ("đợi phản hồi
-  // lâu nhất"), one more choice in the status dropdown. "The customer left a phone number or email" is its own on/off
-  // filter (`contact`), so it combines with a status such as "need reply" (owner: "tách ô lọc riêng").
+  // lâu nhất"), one more choice in the status dropdown. "The customer left a phone number or email" was its own on/off
+  // filter (`contact`) in the Filter menu until the quick row's "Has phone" took its place (2026-11-24, see `KINDS`).
   // "hidden" (2026-10-25, row menu "Hide conversation"): only the chats the owner hid; every other choice leaves them out.
   var STATUSES = ["", "unread", "need_reply", "waiting", "human", "hidden"];
   // Chatbot v5 (2026-10-28): the quick filters above the list say WHO is handling a chat (server `inbox_state`), and the
@@ -24,6 +24,11 @@
   // Owner, 2026-10-28 ("lọc như kia hơi ít"): when the last message came (a quick range or days picked on the calendar,
   // date-range.js), who wrote it, and pinned chats only.
   var LAST_BY = ["", "customer", "ai", "human"];
+  // The quick row under the "who" dropdown (owner, 2026-11-24: "lọc tin nhắn, lọc bình luận, lọc số điện thoại riêng",
+  // like Pancake's quick filters): a Facebook Page mixes Messenger chats and comment threads in one list. `kind` keeps
+  // messages or comment threads (the server knows which chat is which), `phone` keeps chats where the customer left a
+  // phone number.
+  var KINDS = ["", "message", "comment"];
   var RANGES = ["today", "yesterday", "d7", "d30", "d90", "last_month", "week", "month"];
   function cleanWhen(w) {
     if (!w || typeof w !== "object") return null;
@@ -40,11 +45,12 @@
     });
   }
 
-  // `contact`: "1" keeps only chats where the customer left a phone or email. `who`: the quick filter ("" = everyone),
-  // `accs`: ticked channel account keys, `tagsAny` / `tagsNone`: tag ids (strings of digits) a chat must have / must not have.
+  // `who`: the quick filter ("" = everyone), `accs`: ticked channel account keys, `tagsAny` / `tagsNone`: tag ids
+  // (strings of digits) a chat must have / must not have. `kind`: "" | "message" | "comment"; `phone`: "1" keeps only
+  // chats where the customer left a phone number.
   function emptyState() {
-    return { bot: "", status: "", type: "", channel: "", contact: "", who: "", accs: [], tagsAny: [], tagsNone: [],
-             when: null, lastBy: "", pinned: "" };
+    return { bot: "", status: "", type: "", channel: "", who: "", accs: [], tagsAny: [], tagsNone: [],
+             when: null, lastBy: "", pinned: "", kind: "", phone: "" };
   }
   function idList(v, re, max) {
     return (Array.isArray(v) ? v : []).map(String).filter(function (x, i, a) { return re.test(x) && a.indexOf(x) === i; }).slice(0, max);
@@ -64,8 +70,6 @@
       status: status,
       type: TYPES.indexOf(r.type) >= 0 ? r.type : "",
       channel: typeof r.channel === "string" ? r.channel.slice(0, 40) : "",
-      // A browser that saved "contact" as a status (the first 0.313.0 build) keeps the filter it chose.
-      contact: r.contact === "1" || r.contact === true || r.status === "contact" ? "1" : "",
       who: who,
       accs: idList(r.accs, /^[A-Za-z0-9_.:@+-]{1,120}$/, 200),
       tagsAny: tagsAny,
@@ -73,6 +77,10 @@
       when: cleanWhen(r.when),
       lastBy: LAST_BY.indexOf(r.lastBy) >= 0 ? r.lastBy : "",
       pinned: r.pinned === "1" || r.pinned === true ? "1" : "",
+      kind: KINDS.indexOf(r.kind) >= 0 ? r.kind : "",
+      // A browser that saved the old "phone or email" filter (`contact`, or "contact" as a status in the first 0.313.0
+      // build) gets "Has phone": nearly every contact a customer leaves is a phone number.
+      phone: r.phone === "1" || r.phone === true || r.contact === "1" || r.contact === true || r.status === "contact" ? "1" : "",
     };
   }
 
@@ -89,10 +97,11 @@
     try { window.localStorage.setItem(KEY, JSON.stringify(sanitize(state))); } catch (e) { /* không lưu được thì thôi */ }
   }
 
-  // How many filters the "Filter" menu holds (the quick "who" filters and the channel picker have their own controls).
+  // How many filters the "Filter" menu holds (the "who" dropdown, the channel picker and the quick row have their own
+  // controls).
   function activeCount(state) {
     var s = sanitize(state);
-    return ["bot", "status", "type", "channel", "contact", "when", "lastBy", "pinned"].filter(function (k) { return !!s[k]; }).length +
+    return ["bot", "status", "type", "channel", "when", "lastBy", "pinned"].filter(function (k) { return !!s[k]; }).length +
       s.tagsAny.length + s.tagsNone.length;
   }
 
@@ -104,7 +113,6 @@
     else if (s.status) q += "&status=" + encodeURIComponent(s.status);
     if (s.type) q += "&chat_type=" + encodeURIComponent(s.type);
     if (s.channel) q += "&channel=" + encodeURIComponent(s.channel);
-    if (s.contact) q += "&has_contact=1";
     if (s.who) q += "&who=" + s.who;
     if (s.accs.length) q += "&account_ids=" + encodeURIComponent(s.accs.join(","));
     if (s.tagsAny.length) q += "&tags_any=" + s.tagsAny.join(",");
@@ -114,6 +122,8 @@
     if (d && d.from && d.to) q += "&from=" + d.from + "&to=" + d.to;
     if (s.lastBy) q += "&last_by=" + s.lastBy;
     if (s.pinned) q += "&pinned=1";
+    if (s.kind) q += "&kind=" + s.kind;
+    if (s.phone) q += "&has_phone=1";
     return q;
   }
 
@@ -244,5 +254,6 @@
     emptyState: emptyState, sanitize: sanitize, load: load, save: save, activeCount: activeCount, query: query,
     tagChips: tagChips, tagChip: tagChip, tagColor: tagColor,
     TAG_COLORS: TAG_COLORS, rowMenuItems: rowMenuItems, infoActItems: infoActItems, rowMenuHtml: rowMenuHtml, chatKind: chatKind, platformActs: platformActs, tagMenuHtml: tagMenuHtml, WHOS: WHOS,
+    KINDS: KINDS,
   };
 })();
