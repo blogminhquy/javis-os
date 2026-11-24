@@ -352,6 +352,13 @@ async def gui(kenh: str, tk: dict, chat_id: str, text: str, chat_type: str = "pr
         return False, f"{type(e).__name__}: {e}"
 
 
+def can_send_file(channel: str) -> bool:
+    """True when `send_file` can carry an image or file on this channel: the `gui_file` capability AND a module
+    `send_file`. Asked before anything is stored or sent (the inbox route, the `inbox_reply` tool)."""
+    s = spec(channel)
+    return bool(s and s.nl("gui_file") and hasattr(module(channel), "send_file"))
+
+
 async def send_file(kenh: str, tk: dict, chat_id: str, path: str, caption: str = "", chat_type: str = "private"):
     """Send one image or file through a channel (2026-11-24, the inbox's + button). `(ok, error)`.
 
@@ -361,7 +368,7 @@ async def send_file(kenh: str, tk: dict, chat_id: str, path: str, caption: str =
     m = module(kenh)
     if not s or not m:
         return False, localefmt.chu(f"kênh '{kenh}' không có trong sổ đăng ký", f"channel '{kenh}' is not in the registry")
-    if not s.nl("gui_file") or not hasattr(m, "send_file"):
+    if not can_send_file(kenh):
         return False, localefmt.chu(f"{s.nhan} chưa gửi được ảnh hay file từ Javis",
                                     f"{s.nhan} cannot send images or files from Javis yet")
     try:
