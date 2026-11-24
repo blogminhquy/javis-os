@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.633.3] - 2026-11-24
+### Sửa lỗi
+- **Ghi nhận chính xác model thực chạy và lý do dự phòng ở việc nền.** Khi một việc nền chuyển sang model dự phòng do hết lượt hoặc lỗi, bản ghi việc và dữ liệu trả về lưu đúng nhà cung cấp, mã model thực tế đã chạy, nhà cung cấp ban đầu và lý do chuyển dự phòng, đồng thời xóa các trường dự phòng cũ khi chạy lại thành công trực tiếp bằng model chính.
+
 ## [0.633.2] - 2026-11-24
 ### Sửa lỗi
 - **Việc nhóm không còn tự đóng xanh khi trưởng nhóm ghi lỗi thẻ giao việc.** Nếu kế hoạch làm việc có thẻ giao việc thiếu dấu đóng hoặc lỗi cú pháp, việc sẽ dừng báo lỗi rõ thay vì chốt hoàn thành giả khi chưa ai làm.
