@@ -882,9 +882,13 @@ class ZaloOABot(HangLuot):
         words = "\n".join([t for t in notes if t] + ([text] if text else [])).strip()
         if not words and not files:
             return
+        try:   # 25/11/2026: a chat the OA opened shows the customer's name, not the bare user id
+            name = await self._name_of(client, chat)
+        except Exception:  # noqa: BLE001
+            name = ""
         await self.event_fn("staff_sent", {
             "chat_id": chat, "account_id": self.account_id, "message_id": mid, "text": words, "files": files,
-            "platform": CHANNEL, "ts": time.time()})
+            "platform": CHANNEL, "ts": time.time(), "customer_name": name})
 
     def _save(self, chat, data, mime, name_or_url, prefix, image=False):
         """Write one downloaded file into the chat's download folder, named by `file_extension`. Never an empty file."""

@@ -179,15 +179,15 @@ def customer_writes(uid, name=""):
                                "sender_id": uid, "sender_name": name, "text": "chào shop"})
 
 
-customer_writes("u1")
-customer_writes("u2")
-customer_writes("u3", "Tên chủ đặt")
+customer_writes("1001")
+customer_writes("1002")
+customer_writes("1003", "Tên chủ đặt")
 check("nameless_customers lists only the nameless", sorted(conversations.nameless_customers("zalo_oa", ACC)) ==
-      ["u1", "u2"], conversations.nameless_customers("zalo_oa", ACC))
+      ["1001", "1002"], conversations.nameless_customers("zalo_oa", ACC))
 check("nameless_customers keeps to its account", conversations.nameless_customers("zalo_oa", "other") == [])
 
 b = bot(ACC)
-f = FakeZalo(detail="name", names={"u1": "Chị Mai", "u2": "Anh Hùng", "u3": "Tên Zalo"})
+f = FakeZalo(detail="name", names={"1001": "Chị Mai", "1002": "Anh Hùng", "1003": "Tên Zalo"})
 
 
 async def backfill():
@@ -197,13 +197,13 @@ async def backfill():
 n, _ = quiet(lambda: run(backfill()))
 check("backfill names every nameless customer", n == 2, n)
 rows = {r["external_chat_id"]: r for r in conversations.danh_sach(channel="zalo_oa", limit=50)}
-check("the inbox shows the new names", rows.get("u1", {}).get("title") == "Chị Mai"
-      and rows.get("u2", {}).get("title") == "Anh Hùng", {k: v.get("title") for k, v in rows.items()})
-check("a stored name is never replaced", rows.get("u3", {}).get("title") == "Tên chủ đặt",
-      rows.get("u3", {}).get("title"))
-check("u3 was never looked up", ("/v3.0/oa/user/detail", "u3") not in f.calls, f.calls)
+check("the inbox shows the new names", rows.get("1001", {}).get("title") == "Chị Mai"
+      and rows.get("1002", {}).get("title") == "Anh Hùng", {k: v.get("title") for k, v in rows.items()})
+check("a stored name is never replaced", rows.get("1003", {}).get("title") == "Tên chủ đặt",
+      rows.get("1003", {}).get("title"))
+check("the owner-named customer was never looked up", ("/v3.0/oa/user/detail", "1003") not in f.calls, f.calls)
 check("nothing left nameless", conversations.nameless_customers("zalo_oa", ACC) == [])
-check("set_customer_name refuses an empty name", conversations.set_customer_name("zalo_oa", ACC, "u1", "  ") is False)
+check("set_customer_name refuses an empty name", conversations.set_customer_name("zalo_oa", ACC, "1001", "  ") is False)
 check("backfill without an account id does nothing", run(bot("").backfill_names()) == 0)
 
 print()
