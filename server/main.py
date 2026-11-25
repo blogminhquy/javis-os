@@ -6061,6 +6061,23 @@ def _cli_fast(cli):
         pass
 
 
+def _claude_chrome_on() -> bool:
+    """JAVIS_CLAUDE_CHROME=1: Claude Code owner chat turns may drive the owner's Chrome through Claude in Chrome."""
+    return (os.environ.get("JAVIS_CLAUDE_CHROME") or "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _cli_chrome(cli, mode="full"):
+    """Claude in Chrome for an owner web chat turn: `--chrome` on the Claude Code engine, only at Full access.
+
+    The extension acts in the owner's real, signed-in Chrome and its tools are native to Claude Code, so the hub's
+    permission levels cannot gate them: a /plan turn or a coding session below Full never gets them. Set on every turn
+    (not once) because the engine object is reused and the level can change from one turn to the next."""
+    try:
+        cli.chrome = bool(_claude_chrome_on() and mode == "full")
+    except Exception:  # noqa: BLE001 - an engine without this attribute just runs without Chrome
+        pass
+
+
 def _codex_fast(cli):
     """Fast mode for Codex CLI (0.164.0): `-c service_tier=...`, replacing any earlier tier entry.
 
@@ -22597,7 +22614,9 @@ async def _chat_socket(ws):
                 cli.system_prompt = sysprompt
                 # mode: `full` cho mọi phiên như xưa nay; riêng phiên coding lấy theo chip Mức
                 # quyền của trang đó, vì ở trang ấy người dùng CHỌN mức chứ không thừa kế.
-                _apply_mcp(cli, mode=_muc_quyen_luot_chat(_row0, user_message), brain=brain)   # gắn MCP do Javis quản lý (nhiều shop POSCake...)
+                _muc_luot = _muc_quyen_luot_chat(_row0, user_message)
+                _apply_mcp(cli, mode=_muc_luot, brain=brain)   # gắn MCP do Javis quản lý (nhiều shop POSCake...)
+                _cli_chrome(cli, _muc_luot)   # Claude in Chrome: chỉ lượt chat của chủ ở mức Full, khi JAVIS_CLAUDE_CHROME bật
                 _streamed = ""      # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
                 _cli_sid = None
                 _cost = None

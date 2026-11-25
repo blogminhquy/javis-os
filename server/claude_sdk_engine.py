@@ -530,6 +530,10 @@ class ClaudeSDK:
         # 0.207.0: id of the tool gate of a gated Team step (team_gate.py). Set = a PreToolUse hook refuses an outside
         # action before it runs unless the owner approved that exact call; bypassPermissions does not skip hooks.
         self.team_gate = None
+        # Claude in Chrome: True = pass `--chrome` so this turn gets the extension's browser tools (the owner's real
+        # Chrome). main._cli_chrome sets it for an owner web chat turn at Full access when JAVIS_CLAUDE_CHROME is on.
+        # Never on a safe-background turn (allowed_tools): those tools sit outside its whitelist anyway.
+        self.chrome = False
         # True = gửi system_prompt TRẦN, bỏ preset claude_code. Đường tiết kiệm token dùng cái
         # này: cả giá trị của nó nằm ở chỗ system prompt chỉ còn vài trăm token, mà preset
         # claude_code thì tự nhét lại prompt đầy đủ của Claude Code và ăn sạch phần tiết kiệm.
@@ -873,6 +877,18 @@ class ClaudeSDK:
                 hooks = dict(kw.get("hooks") or {})
                 hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[self._team_gate_hook])]
                 kw["hooks"] = hooks
+            except Exception:
+                pass
+        # Claude in Chrome (`--chrome`): the extension's tools come from the CLI itself, so they survive
+        # --strict-mcp-config (checked with Claude Code 2.1.331). Only on a CLI that knows the flag: an unknown option
+        # makes `claude` exit and the whole turn fails.
+        if getattr(self, "chrome", False) and not self.allowed_tools and "extra_args" in fields:
+            try:
+                from claude_cli import co_co
+                if co_co("--chrome"):
+                    extra = dict(kw.get("extra_args") or {})
+                    extra["chrome"] = None
+                    kw["extra_args"] = extra
             except Exception:
                 pass
         if self.allowed_tools:
