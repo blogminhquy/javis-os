@@ -22150,6 +22150,8 @@ async def _chat_socket(ws):
                                      compaction.bootstrap_prompt(
                                          _codex_raw, _codex_current,
                                          summary=_row0.get("compact_summary") or ""))
+                    _codex_err = [False]   # an error was shown this turn (25/11/2026: no silent empty answer)
+
                     async def _consume_codex(prompt, suppress_resume_error=False):
                         # _ctx_in PHẢI khai nonlocal: nó bị `+=` ngay dưới, mà thiếu dòng này
                         # thì Python coi nó là biến CỤC BỘ của hàm con - đọc trước khi gán là
@@ -22223,6 +22225,7 @@ async def _chat_socket(ws):
                                     resume_failed = True
                                     if suppress_resume_error:
                                         continue
+                                _codex_err[0] = True
                                 await ws.send_text(_limit_frame(
                                     ev.get("content") or "", "codex", actual_model))
                         return resume_failed
@@ -22245,6 +22248,19 @@ async def _chat_socket(ws):
                             _codex_raw, _codex_current,
                             summary=_row0.get("compact_summary") or "")
                         await _consume_codex(_fallback)
+                    if not final_text and not _codex_err[0] and not ws.said.strip() and ccli.session_id:
+                        # 25/11/2026 (field report: GPT-6 astra after Claude ran out): Codex ended the turn cleanly
+                        # without one word. Ask once more in the same thread, as the Claude branch does.
+                        print(f"[codex] {conv_sid}: turn ended with no text, asking once more", file=sys.stderr)
+                        await _consume_codex(EMPTY_ANSWER_NUDGE)
+                    if not final_text and not _codex_err[0] and not ws.said.strip():
+                        await ws.send_text(json.dumps({"type": "error", "content": localefmt.chu(
+                            f"ChatGPT ({actual_model or 'Codex'}) kết thúc lượt mà không viết chữ nào, kể cả khi được "
+                            "hỏi lại. Thử gửi lại, hoặc chọn model ChatGPT khác ở thanh model: model này có thể chưa "
+                            "dùng được với gói đang đăng nhập.",
+                            f"ChatGPT ({actual_model or 'Codex'}) ended the turn without writing anything, even when "
+                            "asked again. Send again, or pick another ChatGPT model in the model bar: this one may not "
+                            "be available on the plan signed in.")}))
                     # Cùng lưới với nhánh Claude ở dưới: Codex in câu hết lượt như một
                     # agent_message thường chứ không phải turn.failed.
                     if final_text and _het_luot_ap_dao(final_text) \

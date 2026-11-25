@@ -2243,6 +2243,7 @@ class CodexCLI:
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue = asyncio.Queue()
         SENTINEL = object()
+        exit_info = {"rc": None}   # the process's exit code, read when the stream ends (25/11/2026)
 
         def reader_thread():
             proc = None
@@ -2349,9 +2350,14 @@ class CodexCLI:
                         asyncio.run_coroutine_threadsafe(queue.put(line), loop)
                 proc.wait()
                 st.join(timeout=2)
-                if proc.returncode not in (0, None) and stderr_lines and not tinfo["timed_out"]:
+                exit_info["rc"] = proc.returncode
+                # 25/11/2026: a non-zero exit is an error also with nothing on stderr (before, the chat then showed
+                # "(no content returned)"). A process killed by a signal (Stop, a cancelled turn) stays quiet as before.
+                if proc.returncode not in (0, None) and not tinfo["timed_out"] \
+                        and (stderr_lines or proc.returncode > 0):
                     asyncio.run_coroutine_threadsafe(
-                        queue.put({"__error__": codex_error_text(proc.returncode, stderr_lines)}), loop)
+                        queue.put({"__error__": codex_error_text(proc.returncode, stderr_lines or ["(no output)"])}),
+                        loop)
             except Exception as e:
                 traceback.print_exc()
                 asyncio.run_coroutine_threadsafe(queue.put({"__error__": f"Codex subprocess: {type(e).__name__}: {e}"}), loop)
@@ -2373,11 +2379,21 @@ class CodexCLI:
         # (codex_steer); they used to reach the chat glued together ("...xong.Bước tiếp...").
         import text_breaks
         shown = text_breaks.Joiner()
+        ended = False   # the turn ended (finished or failed): it has an outcome
         while True:
             item = await queue.get()
             if item is SENTINEL:
+                if not ended and (exit_info["rc"] or 0) >= 0:
+                    # 25/11/2026: Codex went away without ending the turn and without an error (exit 0 before the
+                    # end event). Say so instead of leaving an empty bubble.
+                    yield {"type": "error", "content": localefmt.chu(
+                        "Codex dừng giữa chừng, chưa trả lời và không báo lỗi. Thử gửi lại; vẫn vậy thì đổi model "
+                        "khác (model này có thể chưa dùng được với gói ChatGPT đang đăng nhập).",
+                        "Codex stopped before answering and reported no error. Send again; if it repeats, pick "
+                        "another model (this one may not be available on the ChatGPT plan signed in).")}
                 break
             if isinstance(item, dict) and "__error__" in item:
+                ended = True
                 # Lỗi chỉ có trên stderr (Codex thoát trước khi phát sự kiện JSON nào) vẫn có thể là mất
                 # rollout: gắn cờ để caller dựng lại ngữ cảnh từ lịch sử, như nhánh sự kiện JSON ở dưới.
                 yield {"type": "error", "content": item["__error__"],
@@ -2460,6 +2476,7 @@ class CodexCLI:
                     # nhưng vẫn đẩy payload lên cho caller moi đường dẫn file vừa ghi.
                     yield {"type": "item", "item": it}
             elif t == "turn.completed":
+                ended = True
                 u = ev.get("usage") or {}
                 final_text = codex_answer_text(messages)
                 # Dán lời giải thích vào chính bản báo cáo. Không dán thì thứ tới tay chủ là
@@ -2492,6 +2509,7 @@ class CodexCLI:
                     ghi_codex_ws_hong(msg)
                 yield {"type": "retry", "content": msg}
             elif t in ("error", "turn.failed", "thread.error", "stream.error"):
+                ended = True
                 msg = ev.get("message") or (ev.get("error") or {}).get("message") or json.dumps(ev)[:200]
                 yield {"type": "error", "content": "Codex: " + str(msg),
                        "resume_failed": resume_requested and _looks_like_codex_resume_error(str(msg))}

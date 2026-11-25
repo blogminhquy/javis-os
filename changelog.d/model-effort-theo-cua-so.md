@@ -10,6 +10,7 @@ title: Each chat window and assistant keeps its own model and reasoning level
 - **Trợ lý làm việc tự động giữ đúng mức suy nghĩ của mình.** Lượt team trên ChatGPT, Grok Build, Antigravity trước đây bỏ qua mức này; bước workflow chạy model API trước đây tắt hẳn suy nghĩ; chatbot trước đây theo mức của thẻ model thay vì của trợ lý.
 - **Việc Kanban giao cho trợ lý chạy bằng model và mức suy nghĩ của trợ lý đó**, không còn chạy model việc nền ở mức "thấp".
 - **Chat cũ với trợ lý theo model hiện tại của trợ lý.** Trước đây mỗi cuộc chat giữ model chụp lúc mở, đổi model ở cài đặt trợ lý không ảnh hưởng. Model anh tự chọn trong một cửa sổ vẫn được giữ.
+- **Lượt ChatGPT không còn trả về bong bóng rỗng không lý do.** Codex dừng giữa chừng hay báo lỗi rồi im thì Javis nói rõ; model trả lời rỗng thì Javis hỏi lại một lần, vẫn rỗng thì gợi ý đổi model.
 - **Tài liệu Messenger:** nói đúng dấu hiệu app Meta chưa có quyền nâng cao (chỉ thấy tin Nhân viên, tên khách là dãy số), kèm mẫu hồ sơ xét duyệt `pages_messaging`.
 
 ## en
@@ -20,4 +21,5 @@ title: Each chat window and assistant keeps its own model and reasoning level
 - **Assistants working on their own keep their reasoning level.** Team turns on ChatGPT, Grok Build and Antigravity ignored it, workflow steps on API models ran with reasoning off, and chatbots followed the model card's level instead of the assistant's.
 - **A Kanban job given to an assistant runs on that assistant's model and level**, no longer on the background model at "low".
 - **Older chats with an assistant follow the assistant's current model.** Each chat used to keep the model copied when it opened, so changing the assistant's model changed nothing. A model picked by hand in a window still stays.
+- **A ChatGPT turn no longer ends as an empty bubble with no reason.** When Codex stops midway or reports an error and then goes quiet, Javis says so; an empty answer is asked once more, then the owner is told to try another model.
 - **Messenger docs:** describe the sign of a Meta app without Advanced Access (only Staff messages, customer names as numbers) and add an App Review template for `pages_messaging`.
