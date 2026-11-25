@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.642.0] - 2026-11-25
+### Added
+- **Open one Inbox conversation from a link.** A report with a `#ht=<conversation id>` link now takes you straight to that customer's chat.
+
 ## [0.641.1] - 2026-11-24
 ### Improved
 - **Several members at work now take one row.** Their pictures sit side by side with "3 members are working"; tap the up arrow to see each one.
