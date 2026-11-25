@@ -376,6 +376,22 @@
     const m = /^#task=([kmr]:[\w.-]{1,80})$/.exec(String(hash == null ? "" : hash));
     return m ? m[1] : "";
   }
+  // `#ht=<id>` names one conversation of the Inbox (Hộp thư), so a report about a customer can carry a button that opens
+  // that chat. Only a plain positive number counts.
+  function deepLinkConv(hash) {
+    const m = /^#ht=([1-9][0-9]{0,11})$/.exec(String(hash == null ? "" : hash));
+    return m ? parseInt(m[1], 10) : 0;
+  }
+  // conversations.js loads lazily: go to its page, wait (up to ~15 s) until it is there, then open the chat.
+  async function openConvLink(id) {
+    Alpine.store("nav").go("conversations");
+    for (let i = 0; i < 150; i++) {
+      const C = window.JavisConversations;
+      if (C && typeof C.mo === "function") { C.mo({ tab: "inbox", conv: id }); return true; }
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return false;
+  }
   // Open the Tasks page, then that item. tasks.js loads lazily, so wait (up to ~15 s: a slow VPS or a phone on a weak line) until it has its data. An id
   // this brain does not have leaves the reader on the Tasks page with a line saying so, never on a blank screen.
   async function openTaskLink(id) {
@@ -537,6 +553,7 @@
     return true;
   }
   if (typeof window !== "undefined") window.JavisOpenCongSu = moCongSu;
+  if (typeof window !== "undefined") window.JavisOpenConv = openConvLink;
   // Mở note trong editor cây từ đường dẫn TƯƠNG ĐỐI GỐC BRAIN (như openNodePopup). Người gọi: click node
   // đồ thị (app.js onGraphNodeClick) VÀ wikilink [[..]] trong chat-render.js - đều truyền MỘT chuỗi path.
   // ĐỪNG gán đè hàm này bằng openNote thô: mất bước suy tên/đuôi file → note .md rơi nhánh "hãy tải về"
@@ -11345,6 +11362,8 @@
         if (p) Alpine.store("nav").go(p);
         const tk = deepLinkTask(h);
         if (tk) openTaskLink(tk);
+        const cv = deepLinkConv(h);
+        if (cv) openConvLink(cv);
       } catch (e) {}
     };
     window.addEventListener("hashchange", runDeepLink);

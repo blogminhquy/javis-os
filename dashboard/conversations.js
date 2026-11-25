@@ -3476,8 +3476,14 @@
   }
 
   // Mở trang này từ nơi khác (thẻ bot ở tab Chatbot, console.js) với tab hoặc bộ lọc sẵn.
+  // `opts.conv`: one conversation id (the `#ht=<id>` link of a report, console.js). Every filter is put aside, like openChat,
+  // so the chat is surely in the list, and the thread opens as soon as the page draws.
   function moTu(opts) {
     _cho = opts || {};
+    var convId = parseInt(_cho.conv, 10);
+    if (convId > 0) {
+      _cho = {}; _chon = convId; _msgs = []; _conv = null; _dauVetTin = ""; _vetMeta = "";
+    }
     var tabMo = chuanTab(_cho.tab || "");
     _tab = TABS.indexOf(tabMo) >= 0 ? tabMo : "inbox";
     if (_host && document.body.contains(_host)) { veTabs(); veTab(); return; }
