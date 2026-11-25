@@ -43,6 +43,7 @@ import chatbot_doc_tools
 import bot_images
 import bot_reaction
 import bot_split
+import bot_zalo_reply
 import bot_linked_docs
 import chatbot_grounding
 import chatbot_log
@@ -452,6 +453,14 @@ def build_bot_prompt(bot: dict) -> str:
     # The channel of THIS turn can put an emoji reaction on the customer's message (0.334.0, bot_reaction).
     if (bot or {}).get("_kenh_luot") in bot_reaction.CHANNELS:
         phan.append(bot_reaction.PROMPT_HINT)
+    if ((bot or {}).get("_kenh_luot") == "zalo_personal"
+            and bot.get("price_contact") and bot.get("muc_quyen") == "auto"):
+        import bot_price_request
+        phan.append(bot_price_request.PROMPT_HINT)
+        import bot_case_handoff
+        phan.append(bot_case_handoff.PROMPT_HINT)
+    if (bot or {}).get("_kenh_luot") == "zalo_personal":
+        phan.append(bot_zalo_reply.PROMPT_HINT)
     # Lượt Tự đánh giá do _make_answer_fn gắn. Cờ chứ không suy từ meta: prompt được dựng ở đây,
     # nơi không có meta của lượt.
     if (bot or {}).get("_tu_dong"):
@@ -2279,6 +2288,8 @@ def _make_answer_fn(bot_id: str):
             tl = await _tra_tai_lieu(bot_id, cfg, text, doc_scope)
         cfg["_tai_lieu"] = tl
         cfg["_kenh_luot"] = kenh_luot
+        cfg["_price_request_live"] = True
+        cfg["_price_customer_question"] = text
         cfg["_tu_dong"] = tu_dong
         cfg["_bao_chu"] = chatbot_tu_dong.private_escalation(cfg, meta or {})
         cfg["_zalo_labels"] = list((meta or {}).get("zalo_labels") or [])
@@ -2355,6 +2366,13 @@ def _make_answer_fn(bot_id: str):
         out = drop_engine_files(out)
 
         dap = (out or {}).get("text") or ""
+        # The channel sends this as part of the current reply, without granting the Agent a send tool.
+        dap, quote_target, quote_requested = bot_zalo_reply.pick(dap)
+        if quote_requested:
+            out = dict(out or {})
+            out["text"] = dap
+            if kenh_luot == "zalo_personal":
+                out["_zalo_reply_to"] = quote_target or "invalid"
         # The Agent's own reaction (0.334.0, `[CAM_XUC:<name>]`): the marker always leaves the text, so it never reaches a
         # customer; the reaction is kept only where the channel can put one. Rides along with every outcome below except
         # a reply dropped as stale.
@@ -2669,6 +2687,8 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction
         text = chu_khach or lenh
         _aid, kenh = _tai_khoan_cua(cfg, meta)
         cfg["_kenh_luot"], cfg["_tu_dong"] = kenh, False
+        cfg["_price_request_live"] = not draft
+        cfg["_price_customer_question"] = chu_khach
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh, _aid)
         cfg["_customer_profile"] = customer_profile(cfg, meta)
         text_engine = text
@@ -2713,6 +2733,9 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction
                 "error": out.strip()[:300] or localefmt.chu("Bot không soạn được câu trả lời",
                                                             "The bot could not draft a reply")}
     dap = str((out or {}).get("text") or "").strip()
+    dap, quote_target, quote_requested = bot_zalo_reply.pick(dap)
+    if quote_requested and kenh == "zalo_personal" and not draft:
+        meta["_zalo_reply_to"] = quote_target or "invalid"
     if not dap or is_silent_answer(dap):
         return {"ok": True, "silent": True, "text": "", "meta": meta}
     return {"ok": True, "silent": False, "text": bot_split.joined(dap), "meta": meta}
@@ -3009,6 +3032,10 @@ async def try_message(bot_id: str, text: str, chat_type: str = "private", mentio
                 "error": res.strip()[:300] or localefmt.chu("Bot không soạn được câu trả lời",
                                                             "The bot could not draft a reply")}
     dap = str((res or {}).get("text") or "").strip()
+    dap, quote_target, quote_requested = bot_zalo_reply.pick(dap)
+    if quote_requested:
+        out["notes"].append("quote_send_not_tested")
+        out["reply_to_message_id"] = quote_target
     note = escalation_note(dap)
     if note is not None:
         out.update(stage="agent_escalated", code="agent_escalated", escalate=True,

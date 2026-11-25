@@ -178,7 +178,8 @@ async def _fill_post_card(c: dict) -> None:
         _POST_FILLING.discard(cid)
 
 
-async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Optional[dict] = None):
+async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Optional[dict] = None,
+                   quote_target: str = ""):
     """Gửi một tin chữ vào cuộc chat qua năng lực `gui` của kênh. Trả (ok, lỗi). Dùng chung cho chủ gõ tay và cho lượt
     nhờ bot trả lời (0.65.5), để hai đường không lệch nhau ở cách dựng tài khoản gửi.
 
@@ -204,6 +205,8 @@ async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Option
     extra = {}
     if tieng_vong and kenh == "zalo_personal" and reply_to and str(c.get("chat_type") or "") == "group":
         extra["mention"] = {"uid": reply_to.get("sender_id"), "name": reply_to.get("sender_name")}
+    if kenh == "zalo_personal" and quote_target:
+        extra["reply_to"] = quote_target
     kq = await channels.gui(kenh, tk, str(c.get("external_chat_id") or ""), txt, str(c.get("chat_type") or "private"), **extra)
     if tieng_vong and kq and kq[0]:
         _mark_owner_answered(c)
@@ -1045,7 +1048,11 @@ def register(app, deps: ConversationsDeps):
                     "conversation": _detail_with_state(conv_id)}
         if progress:
             await progress("send")
-        ok, loi = await _gui_tin(c, r["text"], tieng_vong=True, reply_to=msgs[-1])
+        quote_target = str((r.get("meta") or {}).get("_zalo_reply_to") or "")
+        if quote_target:
+            ok, loi = await _gui_tin(c, r["text"], tieng_vong=True, reply_to=msgs[-1], quote_target=quote_target)
+        else:
+            ok, loi = await _gui_tin(c, r["text"], tieng_vong=True, reply_to=msgs[-1])
         if not ok:
             # Không gửi được thì trả chữ đã soạn để chủ dán vào ô nhập gửi tay, khỏi mất công soạn lại.
             return 400, {"ok": False, "code": "send_failed", "error": loi or localefmt.chu("không gửi được", "could not send"), "text": r["text"]}

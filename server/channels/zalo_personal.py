@@ -340,7 +340,7 @@ def cat_tin(text: str, toi_da: int = TIN_TOI_DA) -> list:
     return ra
 
 
-async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", mention=None):
+async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", mention=None, reply_to=""):
     """Gửi qua MCP: `threadId`, `text` và kiểu cuộc chat (0 = chat riêng, 1 = nhóm).
 
     `mention={"uid", "name"}` (chỉ có nghĩa trong nhóm): tag người đó, xem `_send_tagged`.
@@ -356,6 +356,16 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
     if not conn:
         return False, localefmt.chu("tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt)",
                                      "this Zalo account is no longer on the Connections page (or is turned off)")
+    if reply_to:
+        import bot_zalo_reply
+        try:
+            verified = await bot_zalo_reply.verify_target(conn, chat_id, 1 if chat_type == "group" else 0, reply_to)
+        except Exception as e:
+            return False, localefmt.chu(f"Không kiểm chứng được tin trích dẫn: {e}",
+                                      f"Could not verify quoted message: {e}")[:300]
+        if not verified:
+            return False, localefmt.chu("Không tìm thấy tin văn bản cần trích dẫn trong đúng tài khoản và hội thoại.",
+                                      "Quoted text message was not found in this account and conversation.")
     # Zalo shows its own tag markup as plain code (2026-10-19): keep only the "@Name", which `_send_tagged` turns into a real tag.
     sach = zalo_personal_channel.strip_mention_markup(text)
     if sach != str(text or ""):
@@ -370,6 +380,8 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
     import bot_split
     doan = [d for p in (bot_split.parts(text) or [str(text or "")]) for d in (cat_tin(p) or [])] or [str(text or "")]
     if len(doan) == 1:
+        if reply_to:
+            return await _gui_mot(conn, chat_id, doan[0], chat_type, mention, reply_to=reply_to)
         return await _gui_mot(conn, chat_id, doan[0], chat_type, mention)
     # Tin dài: gửi lần lượt từng đoạn. Mỗi đoạn về vòng đọc như một tin riêng, nên phải nhớ TỪNG đoạn là
     # tiếng vọng (người gọi chỉ nhớ cả câu). Thiếu bước này thì đoạn hai trở đi bị coi là chủ nhắn tay: Hộp thư
@@ -383,7 +395,10 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
         except Exception:      # noqa: BLE001 - không nhớ được tiếng vọng thì vẫn gửi, tệ nhất là một dòng trùng
             pass
         # Trong nhóm chỉ tag người được trả lời ở đoạn ĐẦU, kẻo một người bị tag mấy lần cho một câu trả lời.
-        ok, loi = await _gui_mot(conn, chat_id, phan, chat_type, mention if i == 0 else None)
+        if reply_to and i == 0:
+            ok, loi = await _gui_mot(conn, chat_id, phan, chat_type, mention, reply_to=reply_to)
+        else:
+            ok, loi = await _gui_mot(conn, chat_id, phan, chat_type, mention if i == 0 else None)
         if not ok:
             return False, localefmt.chu(f"đoạn {i + 1}/{len(doan)}: {loi}", f"part {i + 1}/{len(doan)}: {loi}")[:300]
     return True, ""
@@ -461,7 +476,7 @@ async def _send_link(conn: dict, chat_id: str, text: str, loai: int, url: str) -
     return True, ""
 
 
-async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=None):
+async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=None, reply_to=""):
     """Gửi MỘT tin (đã vừa trần `TIN_TOI_DA`). `(ok, lỗi)`.
 
     Markdown in the reply becomes Zalo text styles (0.413.0, `zalo_markup.to_zalo`): the customer sees bold or coloured
@@ -469,24 +484,29 @@ async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=
     import zalo_personal_channel
     loai = 1 if str(chat_type or "") == "group" else 0
     text, styles = zalo_markup.to_zalo(str(text or ""))
-    if loai == 1 and (mention or "@" in text):
+    if not reply_to and loai == 1 and (mention or "@" in text):
         r = await _send_tagged(conn, str(chat_id), text, mention, styles)
         if r is not None:
             return r
     url = first_link(text)
-    if url:
+    if url and not reply_to:
         r = await _send_link(conn, str(chat_id), text, loai, url)
         if r is not None:
             return r
-    if styles:
+    if styles and not reply_to:
         r = await _send_styled(conn, str(chat_id), text, loai, styles)
         if r is not None:
             return r
     try:
-        d = await zalo_personal_channel._goi(conn, "zalo_send_message", {
+        args = {
             "threadId": str(chat_id), "text": str(text or ""),
             "threadType": loai, "type": loai,
-        })
+        }
+        if reply_to:
+            args["replyToMsgId"] = str(reply_to)
+            if styles:
+                args["styles"] = [{"start": a, "len": n, "st": name} for a, n, name in styles]
+        d = await zalo_personal_channel._goi(conn, "zalo_send_message", args)
     except Exception as e:
         return False, str(e)[:300]
     if isinstance(d, dict) and d.get("success") is False:
@@ -1122,6 +1142,8 @@ class Transport:
                             self._set_delivery(receipt_row, "cancelled", reason="silent")
                             return
                         cau = str(out.get("text") or "").strip()
+                        if out.get("_zalo_reply_to"):
+                            meta = dict(meta, _zalo_reply_to=out["_zalo_reply_to"])
                         # 0.84.3: images the Agent asked to send, already checked by `bot_images.pick`.
                         anh = [str((f.get("path") if isinstance(f, dict) else f) or "") for f in (out.get("files") or [])]
                         anh = [x for x in anh if x]
@@ -1188,7 +1210,11 @@ class Transport:
         zc.ghi_da_gui(self.conn_id, thread, cau)
         tag = {"uid": (meta or {}).get("user_id"), "name": (meta or {}).get("user_name")} if chat_type == "group" else None
         try:
-            ok, loi = await gui({"id": self.conn_id}, thread, cau, chat_type, tag)
+            quote = str((meta or {}).get("_zalo_reply_to") or "")
+            if quote:
+                ok, loi = await gui({"id": self.conn_id}, thread, cau, chat_type, tag, reply_to=quote)
+            else:
+                ok, loi = await gui({"id": self.conn_id}, thread, cau, chat_type, tag)
         except asyncio.CancelledError:
             self._set_delivery(receipt_row, "unknown", reason="interrupted")
             raise

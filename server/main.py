@@ -27493,6 +27493,11 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         # shows them under the bot's assistant instead of Javis Core.
         # A plain string, so a hook reading the turn (a shallow copy) cannot edit it for the next reader.
         _luot["bot_id"] = str(bot["id"])
+        _luot["bot_mode"] = str(bot.get("muc_quyen") or "suggest")
+        _luot["account_id"] = str((meta or {}).get("account_id") or "")
+        _luot["message_id"] = str((meta or {}).get("message_id") or "")
+        _luot["customer_question"] = str(bot.get("_price_customer_question") or "")
+        _luot["price_request_live"] = bot.get("_price_request_live") is True
         # 0.459.0: an internal API turn opens private documents by the caller's scope list, never by its chat id. The
         # doc tools read it from the turn (chatbot_doc_tools.turn_chat_id).
         import chatbot_grounding

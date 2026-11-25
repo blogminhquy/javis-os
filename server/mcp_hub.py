@@ -503,7 +503,7 @@ def _shaped_call(call, ent, fn, scope):
     return _call
 
 
-def _guard(ent, fn, mode):
+def _guard(ent, fn, mode, *, authorize=None):
     """Bọc 1 route entry MCP thành async call có kiểm quyền + audit."""
     conn = ent["conn"]
     tool = ent["tool"]
@@ -512,6 +512,11 @@ def _guard(ent, fn, mode):
     async def _call(args):
         cls = mcp_catalog.classify(connector, tool, args)
         ok, why = mcp_catalog.allowed(connector, conn.get("perm"), mode, tool, args)
+        if authorize is not None:
+            scoped_send = tool == "zalo_send_message" or (tool == "zalo_send_file" and fn == "javis_handoff_case_images")
+            ok = (mode == "auto" and scoped_send
+                  and conn.get("perm") == "full" and authorize(args))
+            why = "" if ok else "Scoped Zalo delivery is no longer authorized."
         gated_ask = False
         if mode == team_gate.HUB_MODE and cls != "read":
             # 0.207.0: a gated Team step. Anything that is not a read is an outside action (review: a custom
@@ -2337,6 +2342,11 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         bo_qua, workspace_root=workspace_root, coding_ctx_cua_phien=coding_ctx_cua_phien, for_bot=for_bot)
     tools_spec += b_tools
     route.update(b_route)
+    if for_bot and mode == "auto":
+        import bot_price_request
+        pricing_tools, pricing_routes = bot_price_request.build_tools(mode, raw_route, _guard)
+        tools_spec.extend(pricing_tools)
+        route.update(pricing_routes)
     # javis_query: reads a stored large result back, or computes over a read-only tool's pages, so the data
     # never has to pass through the model. Its two dicts are filled further down, once every route is final.
     # Only a brain with a connected source gets it: without one nothing is ever stored, and a core tool costs
