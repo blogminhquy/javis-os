@@ -164,7 +164,20 @@ Meta's documentation says an app serving only your own Pages needs no review. If
 - `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`
 - `pages_manage_metadata`
 
-Open "App Review", **Request permissions**, describe the use and record the demo video Meta asks for. Meanwhile customers' messages still reach the inbox, and you can answer them from Meta Business Suite.
+Open "App Review", **Request permissions**, describe the use and record the demo video Meta asks for. Meanwhile the bot may **not receive ordinary customers' messages at all**: Meta only delivers messages from people with a role on the app or Page, and what the Page itself sends. Customers can still message the Page; answer them from Meta Business Suite.
+
+**Template for `pages_messaging`** (replace the Page name):
+
+> *How will this app use pages_messaging?* We use this permission only on our own Facebook Page, "<Page name>". When a customer sends the Page a message, our self-hosted assistant (Javis) receives it through the Messenger webhook, shows it in our team inbox and replies within the 24-hour standard messaging window, either automatically with answers about our products, prices and opening hours, or through a staff member who reviews the conversation. We never message people who have not written to the Page first, and we do not send promotional messages outside the 24-hour window.
+
+Demo video (1-2 minutes, screen recording, no voice needed):
+
+1. Open the Page in Messenger with an account that has **no role** on the app and send a question.
+2. Switch to Javis and open the **Inbox**: the customer's message is there.
+3. The bot answers (or a staff member replies from the Inbox).
+4. Back in the customer's Messenger: the answer arrived.
+
+Add **Business Verification** if Meta asks for it. Once approved, the permission shows "Advanced Access" and every customer's messages reach Javis, with no need to reconnect.
 
 ---
 

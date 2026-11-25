@@ -160,8 +160,12 @@ out = main._team_reasoning(c, "medium", "câu hỏi")
 check("a Claude engine in a team turn gets the effort (or the keyword on an old CLI)",
       (c.effort == "medium" and out == "câu hỏi") or (c.effort is None and out != "câu hỏi"), (c.effort, out))
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-check("an assistant's chat turn uses its own level", 'reasoning = _agent_reasoning(_read_md(_agents_dir(brain) / f"{_persona[1]}.md")[0])' in src)
-check("a Javis Core chat turn uses Javis Core's level", "reasoning = _core_reasoning(mcfg)" in src)
+# 25/11/2026: the chat turn reads its level through _session_reasoning (the window's own, then the assistant's or
+# Javis Core's); tests/python/test_model_effort_isolation.py runs it end to end.
+check("an assistant's chat turn uses its own level",
+      'return _agent_reasoning(_read_md(_agents_dir(row.get("brain") or "brain") / f"{persona[1]}.md")[0])' in src
+      and "reasoning = _session_reasoning(mcfg," in src)
+check("a Javis Core chat turn uses Javis Core's level", "return _core_reasoning(mcfg or {})" in src)
 
 print()
 if fails:

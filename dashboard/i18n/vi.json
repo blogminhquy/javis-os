@@ -2535,7 +2535,7 @@
   "fedit.save_title": "Tự lưu khi ngừng gõ (Ctrl+S lưu ngay)",
   "fedit.tab_source": "Nguồn",
   "mpick.pin": "ghim",
-  "mpick.eff_agent": "Mức suy luận riêng của trợ lý này",
+  "mpick.eff_agent": "Mức suy luận của riêng cửa sổ chat này (mặc định theo cài đặt của trợ lý)",
   "mpick.pin_broken": "ghim hỏng",
   "mpick.pin_title": "Model ghim riêng cho phiên chat này (đổi ở phiên khác không ảnh hưởng)",
   "mpick.pin_broken_title": "Model ghim của phiên không còn dùng được (provider đã bị gỡ key) - đang chạy model mặc định chung",

@@ -88,7 +88,8 @@ Switch the bot on. Javis then subscribes the Page to the app's webhook by itself
 
 - While the app is in development mode, **only people with a role on the app** (admin, developer, tester) get replies. Test with your own Facebook account: send the Page a message.
 - To answer **everyone**, switch the app to **Live**. Meta asks for a privacy policy link: use the **Privacy policy link** Javis shows on the connect form.
-- Meta's documentation says an app that only messages **your own Page** needs no App Review. Some people still see the bot blocked when replying to strangers after going Live, so test with **a Facebook account that has no role on the app**. If Meta still blocks it, submit **App Review** for **pages_messaging** (usually with business verification). Meanwhile messages from the public still land in the inbox; the bot card shows the error and why.
+- Meta's documentation says an app that only messages **your own Page** needs no App Review. Some people still see the bot blocked when replying to strangers after going Live, so test with **a Facebook account that has no role on the app**. If Meta still blocks it, submit **App Review** for **pages_messaging** (usually with business verification); a template is in the [step-by-step guide, 5.3](31-messenger-step-by-step.md).
+- **Sign that the app lacks Advanced Access:** the inbox only shows "Staff" messages (the Page's auto replies, greetings, replies typed by staff), customer names show as long numbers, and messages from people with a role on the app or Page still arrive. Meta then **does not deliver ordinary customers' messages to Javis at all**, even with the app Live (reported 24/11/2026). Javis cannot fix this on its side: request **Advanced Access** for `pages_messaging`.
 
 ## Common errors
 

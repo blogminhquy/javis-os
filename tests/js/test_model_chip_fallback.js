@@ -85,11 +85,13 @@ check("picker tick, effort lock, Fast bolt, plan ring and /model use the running
   && /function renderFast\(\) \{\s*const eff = shown\(\);/.test(mp) && /function fastTitle\(on\) \{\s*const eff = shown\(\);/.test(mp)
   && /hienTai: function \(\) \{\s*const eff = shown\(\);/.test(mp) && /function effMount\(\) \{[\s\S]{0,300}?const eff = shown\(\);/.test(mp));
 // Owner, 05/11/2026: "Effort cũng theo model dự phòng luôn".
-check("Effort chip and slider show the fallback card's own level (an assistant's chat keeps its own)",
-  /const shownEffort = \(\) => \(agentEff \? agentEff\.level : onFallback\(\) \? route\.reasoning : state\.reasoning\);/.test(mp)
+// 25/11/2026 (owner): a fallback card always shows and runs its own setting, an assistant's chat included; otherwise the
+// window's own effort, then the assistant's level or the card's.
+check("Effort chip and slider show the fallback card's own level, else the window's own, else its default",
+  /const shownEffort = \(\) => \(onFallback\(\) \? route\.reasoning : sessionEff \|\| pendingEff\s*\|\| \(agentEff \? agentEff\.level : state\.reasoning\)\);/.test(mp)
   && /const lvl = shownEffort\(\);/.test(mp) && /value: shownEffort\(\),/.test(mp));
 check("moving the slider on a fallback saves that card's own effort, not the chosen card's",
-  /async function saveEffort\(v\) \{[\s\S]*?if \(onFallback\(\)\) \{[\s\S]*?saveModel\(\{ profile: \{ provider: pid, reasoning: v \} \}\);[\s\S]*?return;\s*\}\s*state\.reasoning = v;/.test(mp)
+  /async function saveEffort\(v\) \{[\s\S]*?if \(onFallback\(\)\) \{[\s\S]*?saveModel\(\{ profile: \{ provider: pid, reasoning: v \} \}\);[\s\S]*?return;\s*\}[\s\S]*?pinEffort\(sid, v\)/.test(mp)
   && /onChange: saveEffort,/.test(mp));
 check("the Effort chip says whose level it shows", /window\.t\("mpick\.eff_fallback"/.test(mp) && vi["mpick.eff_fallback"] && en["mpick.eff_fallback"]);
 check("the choice itself is not rewritten by a fallback (only picking a model pins one)",

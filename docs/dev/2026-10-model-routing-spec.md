@@ -92,8 +92,15 @@ Việc nền có model riêng, cố định, không chạy theo MAIN. Trang Mode
 
 ### 2.6. Khung chat
 
-1. Giữ nguyên hành vi: chọn model ở chip khung chat = ghim cho phiên + đổi MAIN. Chip Effort ở
-   khung chat = Effort của thẻ MAIN.
+1. ~~Chọn model ở chip khung chat = ghim cho phiên + đổi MAIN. Chip Effort ở khung chat = Effort của
+   thẻ MAIN.~~ **Đổi 25/11/2026** (chủ: "model và suy nghĩ của các cửa sổ chat không nhảy chồng chéo
+   sang cửa sổ chat khác", "cài đặt ưu tiên của các kênh model không được tự ý đảo thứ tự"): chip
+   model **chỉ ghim cho phiên**, không đổi MAIN nên không đẩy thẻ lên đầu Thứ tự dùng. Chip Effort
+   **chỉ ghim cho phiên** (`sessions.pinned_reasoning`, `POST /sessions/{id}/reasoning`), kể cả chat
+   trợ lý và Javis Core: không ghi file trợ lý, không ghi thẻ MAIN. Phiên chưa chọn thì theo trợ lý
+   (chat trợ lý) hoặc thẻ đang chạy. Khi thẻ đã chọn hết lượt và thẻ khác chạy thay, Effort là
+   **cài đặt của thẻ chạy thay** (`main._session_reasoning`). MAIN và Thứ tự dùng chỉ đổi ở trang
+   Models.
 2. Thay đổi duy nhất: bảng chọn model ở khung chat **chỉ liệt kê nhà đã kết nối** (bỏ dòng ổ khoá
    và "+ Thêm key").
 

@@ -94,6 +94,22 @@ _AUTH_FINAL_MAX = 400   # câu lỗi đăng nhập luôn ngắn; final dài là 
 # main at import). None when this module runs alone: the chain then follows the saved order only, as before 2026-11-22.
 CONNECTED_IDS = None
 
+# Effort of one Codex / Grok Build / Antigravity link, `fn(engine, provider, level)` (main._link_effort, set by main at
+# import). 25/11/2026: those links ran at the CLI's own default whatever effort the step asked for (an assistant's own
+# level, or a fallback card's setting). None when this module runs alone: such links keep their default, as before.
+LINK_EFFORT = None
+
+
+def _apply_link_effort(engines, prov: str, level: str):
+    if LINK_EFFORT is None or not level or level == "off":
+        return engines
+    for e in engines:
+        try:
+            LINK_EFFORT(e, prov, level)
+        except Exception as ex:  # noqa: BLE001 - a depth setting must never cost the link
+            print(f"[aux] effort {prov}/{level}: {type(ex).__name__}: {ex}", file=sys.stderr)
+    return engines
+
 
 def final_loi_dang_nhap(text: str) -> bool:
     """Final này có phải câu báo mất đăng nhập của engine CLI không."""
@@ -1349,13 +1365,13 @@ def _links_for_step(step: dict, cli, mode, tag, codex_profile, settings, claude_
         return []
     try:
         if prov == CODEX:
-            return _per_account(CODEX, _build_codex(sp, cli, mode, tag, codex_profile), settings,
-                                lambda: _build_codex(sp, cli, mode, tag, codex_profile))
+            return _apply_link_effort(_per_account(CODEX, _build_codex(sp, cli, mode, tag, codex_profile), settings,
+                                                   lambda: _build_codex(sp, cli, mode, tag, codex_profile)), prov, level)
         if prov == GROK_CLI:
-            return _per_account(GROK_CLI, _build_grok(sp, cli, mode, tag), settings,
-                                lambda: _build_grok(sp, cli, mode, tag))
+            return _apply_link_effort(_per_account(GROK_CLI, _build_grok(sp, cli, mode, tag), settings,
+                                                   lambda: _build_grok(sp, cli, mode, tag)), prov, level)
         if prov == ANTIGRAVITY:
-            return [_build_antigravity(sp, cli, mode, tag)]
+            return _apply_link_effort([_build_antigravity(sp, cli, mode, tag)], prov, level)
         if prov in API_PROVIDERS:
             s = settings if settings is not None else cfgmod.read_settings()
             m = s.get("model", {}) or {}

@@ -2535,7 +2535,7 @@
   "fedit.save_title": "Saves by itself when you stop typing (Ctrl+S saves now)",
   "fedit.tab_source": "Source",
   "mpick.pin": "pinned",
-  "mpick.eff_agent": "This assistant's own reasoning level",
+  "mpick.eff_agent": "Reasoning level of this chat window only (starts from the assistant's setting)",
   "mpick.pin_broken": "pin broken",
   "mpick.pin_title": "Model pinned to this chat session (changing it in another session has no effect)",
   "mpick.pin_broken_title": "This session's pinned model no longer works (the provider lost its key) - running the shared default model",

@@ -164,7 +164,20 @@ Theo tài liệu của Meta, app chỉ phục vụ Fanpage của chính bạn th
 - `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`
 - `pages_manage_metadata`
 
-Vào mục "Xét duyệt ứng dụng", **Yêu cầu cấp quyền**, mô tả cách dùng và quay video demo theo hướng dẫn của Meta. Trong lúc chờ, tin của khách vẫn vào Hộp thư để bạn trả lời tay từ Meta Business Suite.
+Vào mục "Xét duyệt ứng dụng", **Yêu cầu cấp quyền**, mô tả cách dùng và quay video demo theo hướng dẫn của Meta. Trong lúc chờ, bot có thể **không nhận được tin của khách thường**: Meta chỉ gửi về tin của người có vai trò trong app hoặc Page, cùng tin Page tự gửi đi. Khách vẫn nhắn được cho Page, bạn trả lời tay từ Meta Business Suite.
+
+**Mẫu hồ sơ cho `pages_messaging`** (viết bằng tiếng Anh, sửa tên Page cho đúng):
+
+> *How will this app use pages_messaging?* We use this permission only on our own Facebook Page, "<Tên Page>". When a customer sends the Page a message, our self-hosted assistant (Javis) receives it through the Messenger webhook, shows it in our team inbox and replies within the 24-hour standard messaging window, either automatically with answers about our products, prices and opening hours, or through a staff member who reviews the conversation. We never message people who have not written to the Page first, and we do not send promotional messages outside the 24-hour window.
+
+Video demo (1-2 phút, quay màn hình, không cần lồng tiếng):
+
+1. Mở Fanpage trên Messenger bằng một nick **không có vai trò** trong app, gửi một câu hỏi.
+2. Chuyển sang Javis, mở **Hộp thư**: tin của khách vừa hiện ra.
+3. Bot trả lời (hoặc nhân viên bấm trả lời trong Hộp thư).
+4. Quay lại Messenger của khách: câu trả lời đã tới.
+
+Nộp kèm **Xác minh doanh nghiệp** nếu Meta yêu cầu. Duyệt xong, quyền chuyển sang "Quyền truy cập nâng cao" và tin của mọi khách sẽ về Javis, không cần kết nối lại.
 
 ---
 

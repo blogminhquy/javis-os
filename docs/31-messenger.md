@@ -88,7 +88,8 @@ Bật bot. Lúc bật, Javis tự đăng ký Page với webhook của app (bạn
 
 - Khi app còn ở chế độ phát triển, **chỉ người có vai trò trong app** (admin, developer, tester) nhận được trả lời. Thử bằng chính tài khoản Facebook của bạn: nhắn cho Page một câu.
 - Để bot trả lời **mọi người**, chuyển app sang chế độ **Live**. Meta đòi một link chính sách quyền riêng tư: dùng **Link chính sách quyền riêng tư** Javis hiện ở form kết nối.
-- Theo tài liệu của Meta, app chỉ nhắn tin cho **Fanpage của chính bạn** thì không cần App Review. Một số người vẫn gặp lỗi khi bot trả lời người lạ dù app đã Live, nên hãy thử bằng **một nick Facebook không có vai trò gì trong app**. Nếu Meta vẫn chặn, nộp **App Review** cho quyền **pages_messaging** (thường kèm xác minh doanh nghiệp). Trong lúc chờ, tin của người ngoài vẫn vào Hộp thư; thẻ bot hiện lỗi kèm lý do.
+- Theo tài liệu của Meta, app chỉ nhắn tin cho **Fanpage của chính bạn** thì không cần App Review. Một số người vẫn gặp lỗi khi bot trả lời người lạ dù app đã Live, nên hãy thử bằng **một nick Facebook không có vai trò gì trong app**. Nếu Meta vẫn chặn, nộp **App Review** cho quyền **pages_messaging** (thường kèm xác minh doanh nghiệp), mẫu hồ sơ ở [hướng dẫn từng bước, mục 5.3](31-messenger-tung-buoc.md).
+- **Dấu hiệu app chưa có quyền nâng cao:** Hộp thư chỉ có tin "Nhân viên" (tin Page tự trả lời, tin chào, tin nhân viên gõ tay), tên khách hiện thành dãy số, còn tin của người có vai trò trong app hoặc Page thì vẫn về. Khi đó Meta **không gửi tin của khách thường về Javis**, kể cả khi app đã Live (báo cáo ngày 24/11/2026). Javis không sửa được việc này từ phía mình: cần xin **Advanced Access** cho `pages_messaging`.
 
 ## Lỗi hay gặp
 

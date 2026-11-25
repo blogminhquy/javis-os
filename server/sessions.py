@@ -679,7 +679,11 @@ class SessionStore:
                               # lượt. NULL/rỗng = phiên chưa có lượt dashboard nào (hoặc phiên
                               # Telegram) → theo mặc định chung ở settings.json.
                               ("pinned_provider", "TEXT"),
-                              ("pinned_model", "TEXT")):
+                              ("pinned_model", "TEXT"),
+                              # Effort GHIM RIÊNG của phiên (owner, 25/11/2026: "model và suy nghĩ của các cửa sổ
+                              # chat không nhảy chồng chéo sang cửa sổ chat khác"). NULL = theo cài đặt (của trợ lý
+                              # trong chat trợ lý, của thẻ model trong chat thường).
+                              ("pinned_reasoning", "TEXT")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
             # Index cho cột vừa thêm phải chạy SAU vòng ALTER: DB cũ chưa có cột thì CREATE
@@ -1786,6 +1790,18 @@ class SessionStore:
         self._write(lambda c: c.execute(
             "UPDATE sessions SET pinned_provider = ?, pinned_model = ? WHERE id = ?",
             (prov, mdl, session_id)))
+        return True
+
+    def set_pinned_reasoning(self, session_id: str, level: Optional[str], *,
+                             brain: Optional[str] = None) -> bool:
+        """Ghim mức suy nghĩ cho MỘT phiên (rỗng = gỡ, phiên theo lại cài đặt). Cùng khuôn set_pinned_model."""
+        lv = (level or "").strip() or None
+        if brain and not self.get_session(session_id):
+            self.create_session(brain=brain, session_id=session_id)
+        if not self.get_session(session_id):
+            return False
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET pinned_reasoning = ? WHERE id = ?", (lv, session_id)))
         return True
 
     # ── projects (nhóm hội thoại) ──
