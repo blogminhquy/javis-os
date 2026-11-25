@@ -114,14 +114,16 @@ mg = client.get(f"/sessions/{sg}/meta").json()
 check("an agent chat whose file is unreadable is still an assistant's chat (level chip never falls back to the main chat)",
       mg.get("agent_slug") == "khong-co" and mg.get("agent_reasoning") == "medium", mg)
 
-# ---- 0.285.0: a pinned plan out of quota runs on the main chat's model until it resets ----
+# ---- 0.285.0: a pinned plan out of quota runs on another card until it resets ----
 main._PIN_LIMITED.clear()
-mcfg_t = {"main": {"provider": "openai-oauth", "model": "gpt-5"}}
+main._routing_connected_ids = lambda cfg: ["anthropic-cli", "openai-oauth"]
+mcfg_t = {"main": {"provider": "anthropic-cli", "model": "opus"}, "order": ["anthropic-cli", "openai-oauth"],
+          "profiles": {"openai-oauth": {"model": "gpt-5"}}}
 row_t = {"pinned_provider": "anthropic-cli", "pinned_model": "haiku"}
 check("a pinned chat normally runs on its pin", main._chat_provider_for_session(mcfg_t, row_t)[0] == "anthropic-cli")
 main._note_pin_limit("claude-code", 0)
-check("Claude Code out of quota: the pinned chat runs on the main chat's model",
-      main._chat_provider_for_session(mcfg_t, row_t)[0] == main._chat_provider(mcfg_t)[0] != "anthropic-cli",
+check("Claude Code out of quota: the pinned chat runs on another card",
+      main._chat_provider_for_session(mcfg_t, row_t)[0] == "openai-oauth",
       main._chat_provider_for_session(mcfg_t, row_t))
 check("...for an hour when the plan gives no reset time", 3500 < main._pin_limited_until("anthropic-cli") - __import__("time").time() <= 3600)
 main._note_pin_limit("claude-code", __import__("time").time() - 5)
@@ -159,9 +161,12 @@ c = _Claude()
 out = main._team_reasoning(c, "medium", "câu hỏi")
 check("a Claude engine in a team turn gets the effort (or the keyword on an old CLI)",
       (c.effort == "medium" and out == "câu hỏi") or (c.effort is None and out != "câu hỏi"), (c.effort, out))
-src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-check("an assistant's chat turn uses its own level", 'reasoning = _agent_reasoning(_read_md(_agents_dir(brain) / f"{_persona[1]}.md")[0])' in src)
-check("a Javis Core chat turn uses Javis Core's level", "reasoning = _core_reasoning(mcfg)" in src)
+settings_m = cfgmod.read_settings().get("model", {})
+check("an assistant's chat turn uses its own level",
+      main._chat_turn_reasoning(settings_m, main.get_store().get_session(s), "anthropic-cli", B) == "low")
+check("a Javis Core chat turn uses Javis Core's level",
+      main._chat_turn_reasoning(settings_m, main.get_store().get_session(sc), "anthropic-cli", B)
+      == main._core_reasoning(settings_m))
 
 print()
 if fails:

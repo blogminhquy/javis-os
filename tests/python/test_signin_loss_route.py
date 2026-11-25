@@ -263,18 +263,21 @@ def _mark(mp):
     check("mark: MAIN signed out -> the chat starts on the next card that can run",
           main._chat_provider(m)[0] == "groq" and main._chat_provider(m)[3] == "llama-4", str(main._chat_provider(m)))
 
-    # An agent's (or a bot's) own model is a pin: signed out, it runs on the main route instead of failing.
+    # An agent's (or a bot's) own model is a pin: signed out, it runs on the highest card that can run.
     m_pin = dict(m, order=["groq", CHATGPT, "anthropic-cli"], main={"provider": "groq", "model": "llama-4"})
     pinned = {"pinned_provider": CHATGPT, "pinned_model": "gpt-5.6-luna"}
-    check("pin: an agent set to ChatGPT runs on the main model while ChatGPT is signed out",
-          main._chat_provider_for_session(m_pin, pinned)[0] == "groq", str(main._chat_provider_for_session(m_pin, pinned)))
+    check("pin: an agent set to ChatGPT runs on the top card while ChatGPT is signed out",
+          main._chat_provider_for_session(m_pin, pinned)[0] == "groq",
+          str(main._chat_provider_for_session(m_pin, pinned)))
     mp.setattr(main, "_model_cua_agent", lambda _b, _s: {"provider": CHATGPT, "model": "gpt-5.6-luna"})
     bot = {"id": "b1", "agent": {"brain": "brain", "slug": "sales"}}
-    check("pin: a customer bot on that agent runs on the main model too", main._chat_provider_bot(m_pin, bot)[0] == "groq")
+    check("pin: a customer bot on that agent moves the same way",
+          main._chat_provider_bot(m_pin, bot)[0] == "groq")
 
     view = main._route_view(m_pin, pinned)
     check("chip: the fallback reason is the sign-in",
-          view.get("fallback") is True and view.get("reason") == "signin" and view.get("provider") == "groq", str(view))
+          view.get("fallback") is True and view.get("reason") == "signin" and view.get("provider") == "groq",
+          str(view))
     check("chip: the card is listed as signed out and never as 'out of quota until'",
           view.get("signed_out") == [CHATGPT] and CHATGPT not in (view.get("limited") or {}), str(view))
     check("chip: the sentence says sign-in", "mất đăng nhập" in view.get("content", "")

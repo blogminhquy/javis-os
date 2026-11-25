@@ -432,6 +432,9 @@ class RemindersDeps:
     # (brain, agent slug, task, output) -> output without the JAVIS_LESSON lines, written to that assistant's
     # memory and run log like a workflow step. None = the output is posted as is.
     finish_agent_run: Optional[Callable[[str, str, str, str], str]] = None
+    # (brain, agent slug, tag) -> {provider, model, reasoning} of that assistant's own settings, {} when it chose none
+    # (the background model then runs the reminder).
+    agent_spec: Optional[Callable[[str, str, str], dict]] = None
     # 0.202.0: async make_voice(brain, text) -> vault-relative mp3 path ("" on failure), and
     # async send_file(chat_id, abs_path, brain) -> (ok, err) for channels that need the file itself.
     make_voice: Optional[Callable] = None
@@ -1382,7 +1385,13 @@ class RemindersFeature:
                 if mcpf:
                     cli.mcp_config = mcpf
                     cli.mcp_strict = True
-        cli = aux_engine.apply(self.deps, cli, mode=mq, tag="reminder")
+        own = {}
+        if as_agent and self.deps.agent_spec:
+            try:
+                own = await asyncio.to_thread(self.deps.agent_spec, brain, agent, "reminder") or {}
+            except Exception as e:  # noqa: BLE001 - the reminder still runs, on the background model
+                print(f"[reminders] model of assistant '{agent}': {type(e).__name__}: {e}", file=sys.stderr)
+        cli = aux_engine.apply(self.deps, cli, mode=mq, tag="reminder", spec=own or None)
         # Trần chung cho fork nền (mặc định không giới hạn từ 2026-11-07, env JAVIS_BG_MAX_WALL_S). Số cứng 300s cũ
         # từng giết việc lịch thật đang chạy dở - xem doc tại aux_engine.bg_max_wall_s.
         cli.max_wall_s = aux_engine.bg_max_wall_s()

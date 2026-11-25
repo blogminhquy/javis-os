@@ -185,6 +185,9 @@ class LoopDeps:
     # finish_agent_run(brain, slug, task, output) -> output without the JAVIS_LESSON lines (written to its memory).
     build_agent_prompt: Optional[Callable[[str, str], str]] = None
     finish_agent_run: Optional[Callable[[str, str, str, str], str]] = None
+    # (brain, slug, tag) -> {provider, model, reasoning} of that assistant's own settings, {} when it chose none (the
+    # background model then runs the round). The independent check of a round always runs on the background model.
+    agent_spec: Optional[Callable[[str, str, str], dict]] = None
 
 
 _AGENT_SLUG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}")
@@ -823,7 +826,7 @@ class LoopFeature:
         ), ""
 
     def _make_cli(self, loop: dict, cwd: str, sysprompt: Optional[str], for_verify: bool = False,
-                  brain: str = ""):
+                  brain: str = "", spec: Optional[dict] = None):
         """Dựng CLI cho 1 vòng loop.
         - profile 'code' (nâng cao, chỉ đặt qua .md): Bash/Web + file, cwd=workspace, VẪN 0 MCP
           (fail-closed nếu không tạo được file MCP rỗng) - cho loop sửa mã repo.
@@ -905,7 +908,8 @@ class LoopFeature:
                     self.deps.apply_mcp(cli)   # deps cũ (test) không nhận mode
             else:
                 _isolate(cli)              # không có hook (vd unit test) → giữ 0-MCP như cũ
-        cli = aux_engine.apply(self.deps, cli, mode=("suggest" if for_verify else mode), tag="loop")
+        cli = aux_engine.apply(self.deps, cli, mode=("suggest" if for_verify else mode), tag="loop",
+                               spec=None if for_verify else spec)
         return cli
 
     def _chay_nen(self, brain: str, slug: str, reason: str) -> None:
@@ -1076,7 +1080,13 @@ class LoopFeature:
             # 2026-11-09: built on a worker thread. It reads every skill, agent and plugin of the brain; on the event loop it
             # froze the whole server for 2 to 5 s on the owner's VPS (GET /health/loop).
             sysprompt = await asyncio.to_thread(self.deps.build_system_prompt, brain)
-        gcli = self._make_cli(loop, cwd, sysprompt, brain=brain)
+        own = {}
+        if as_agent and self.deps.agent_spec:
+            try:
+                own = await asyncio.to_thread(self.deps.agent_spec, brain, as_agent, "loop") or {}
+            except Exception as _e:  # noqa: BLE001 - the round still runs, on the background model
+                print(f"[loops] {slug}: model of assistant '{as_agent}': {type(_e).__name__}: {_e}", file=sys.stderr)
+        gcli = self._make_cli(loop, cwd, sysprompt, brain=brain, **({"spec": own} if own else {}))
         if gcli is None:
             return _finish("Lỗi: không tạo được file MCP rỗng để cô lập (profile code từ chối chạy)", "", True)
         if not gcli.is_available():

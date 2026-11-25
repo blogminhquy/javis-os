@@ -2,7 +2,7 @@
 
     python tests/run.py pin_survives_fallback     (no network)
 
-While the card a chat is pinned to rests (its plan is out of quota or signed out), the turn runs on the main model.
+While the card a chat is pinned to rests (its plan is out of quota or signed out), the turn runs on another card.
 The stamp that anchors every dashboard chat on its model then wrote that fallback into the chat as its new pin, so
 once the quota came back the chat stayed on the fallback model. Stamping is still right for a new chat and for a
 broken pin (card gone, key removed, card disconnected); it is never right for a card that only rests.
@@ -37,6 +37,9 @@ CLAUDE_MAIN = {"main": {"provider": "anthropic-cli", "model": "opus"}, "groq_api
                "order": ["anthropic-cli", "groq"], "profiles": {"groq": {"model": "qwen3-32b"}}}
 OPENROUTER_MAIN = {"main": {"provider": "openrouter", "model": "x/y"}, "groq_api_key": "gsk_test",
                    "order": ["openrouter", "groq"], "profiles": {"groq": {"model": "qwen3-32b"}}}
+# The pinned card sits in the middle of the order: a fallback takes the highest card that can run.
+MIDDLE_PIN = {"main": {"provider": "openrouter", "model": "x/y"}, "openrouter_key": "sk-or", "groq_api_key": "gsk_test",
+              "order": ["openrouter", "anthropic-cli", "groq"], "profiles": {"groq": {"model": "qwen3-32b"}}}
 PIN_CLAUDE = {"pinned_provider": "anthropic-cli", "pinned_model": "opus"}
 PIN_BROKEN = {"pinned_provider": "openrouter", "pinned_model": "x/y"}     # no OpenRouter key: broken
 
@@ -54,15 +57,28 @@ def stamp(mcfg, row):
 # ---- 1. The reported case: a pinned plan out of quota ----
 reset()
 main._PIN_LIMITED["anthropic-cli"] = time.time() + 3600
-route, st = stamp(GROQ_MAIN, PIN_CLAUDE)
-check("pinned card out of quota: the turn runs on the main model", route[0] == "groq", route)
+route, st = stamp(MIDDLE_PIN, PIN_CLAUDE)
+check("pinned card out of quota: the turn runs on the highest card that can run", route[0] == "openrouter", route)
 check("pinned card out of quota: the pin is NOT replaced by the fallback", st is None, st)
 
 reset()
 main._SIGNED_OUT["anthropic-cli"] = time.time() + 3600
-route, st = stamp(GROQ_MAIN, PIN_CLAUDE)
-check("pinned card signed out: the turn runs on the main model", route[0] == "groq", route)
+route, st = stamp(MIDDLE_PIN, PIN_CLAUDE)
+check("pinned card signed out: the turn runs on the highest card that can run", route[0] == "openrouter", route)
 check("pinned card signed out: the pin stays", st is None, st)
+
+reset()
+main._PIN_LIMITED["anthropic-cli"] = time.time() + 3600
+route, st = stamp(dict(GROQ_MAIN, order=["groq", "openai-oauth", "openrouter", "anthropic-cli"]), PIN_CLAUDE)
+check("the lowest card out of quota: the turn moves up to the top card", route[0] == "groq" and st is None,
+      (route, st))
+
+reset()
+main._PIN_LIMITED["anthropic-cli"] = time.time() + 3600
+main._PIN_LIMITED["openai-oauth"] = time.time() + 3600
+route, st = stamp({"main": {"provider": "anthropic-cli", "model": "opus"},
+                   "order": ["openai-oauth", "anthropic-cli"]}, PIN_CLAUDE)
+check("no other card can run: the turn stays on its own card", route[0] == "anthropic-cli" and st is None, (route, st))
 
 reset()
 route, st = stamp(GROQ_MAIN, PIN_CLAUDE)
@@ -99,7 +115,7 @@ check("broken pin while the main card rests: the fallback is not stamped either"
       (route, st))
 
 # ---- 4. End to end in the session store: the chat goes back once the quota resets ----
-with tempfile.TemporaryDirectory() as td:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:   # Windows keeps conv.db open
     store = SessionStore(db_path=Path(td) / "conv.db")
     sid = store.create_session(brain="brain-a")
     store.set_pinned_model(sid, "anthropic-cli", "opus")
@@ -113,14 +129,14 @@ with tempfile.TemporaryDirectory() as td:
 
     reset()
     main._PIN_LIMITED["anthropic-cli"] = time.time() + 3600
-    r1 = turn(GROQ_MAIN)
-    r2 = turn(GROQ_MAIN)
+    r1 = turn(MIDDLE_PIN)
+    r2 = turn(MIDDLE_PIN)
     row = store.get_session(sid)
-    check("two turns during the rest run on the fallback", r1[0] == r2[0] == "groq", (r1, r2))
+    check("two turns during the rest run on the fallback", r1[0] == r2[0] == "openrouter", (r1, r2))
     check("the stored pin is still the owner's choice", (row["pinned_provider"], row["pinned_model"])
           == ("anthropic-cli", "opus"), row)
     reset()   # the quota came back
-    r3 = turn(GROQ_MAIN)
+    r3 = turn(MIDDLE_PIN)
     check("after the reset the chat is back on its pinned model", r3[0] == "anthropic-cli" and r3[3] == "opus", r3)
 
     sid2 = store.create_session(brain="brain-a")

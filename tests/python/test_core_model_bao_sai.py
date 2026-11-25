@@ -4,9 +4,9 @@
     python tests/run.py core_model_bao_sai
 
 Spec: docs/dev/2026-10-javis-core-chi-huy-thong-bao.md mục 1 và 2. Không mạng, không model.
-- Mọi chat Javis Core theo ghim của Core (`model.core_provider/core_model`), không ghim thì theo model chính, ghim riêng
-  của một chat bị bỏ qua; chọn model trên thanh model của chat Core là ghim cho cả Core; "Theo model chính" gỡ ghim;
-  chat Core không bị đóng dấu model ở lượt đầu; meta trả ghim của Core.
+- A Javis Core chat follows Core's pin (`model.core_provider/core_model`), without one the main model; an old
+  first-turn stamp is ignored. A model picked in one Core chat belongs to that window only;
+  clearing it follows Core's pin again.
 - Đèn não chỉ dò lỗi đăng nhập trong lượt lỗi hoặc kết quả một dòng ngắn; cờ "đã báo" còn sau khi khởi động lại.
 - Kiểm tra sau khởi động không tính kết nối đang tải lần đầu là hỏng.
 - Bàn sự cố: sự cố đang "cần bạn" gom các lần hỏng sau của cùng việc, không báo lại.
@@ -63,10 +63,7 @@ check("a Core chat with no Core pin follows the main model, its own old stamp is
       (prov, model) == ("anthropic-cli", "opus"), (prov, model))
 
 client = TestClient(main.app, base_url="http://127.0.0.1:8080")
-r = client.post(f"/sessions/{core}/model", data={"provider": "groq", "model": "qwen3-32b"})
-check("picking a model in a Core chat pins Javis Core as a whole", r.status_code == 200 and r.json().get("scope") == "core" and
-      mcfg().get("core_provider") == "groq" and mcfg().get("core_model") == "qwen3-32b", r.text)
-check("...and clears the chat's own old stamp", not (store.get_session(core) or {}).get("pinned_provider"))
+cfgmod.update_settings({"model": {"core_provider": "groq", "core_model": "qwen3-32b"}})
 core2 = store.create_session(brain="brain", channel=javis_core.CHANNEL)
 prov, kind, key, model = main._chat_provider_for_session(mcfg(), store.get_session(core2))
 check("a new Core chat runs on the Core pin", (prov, kind, key, model) == ("groq", "api", "gsk_test", "qwen3-32b"),
@@ -74,18 +71,34 @@ check("a new Core chat runs on the Core pin", (prov, kind, key, model) == ("groq
 prov, _, _, model = main._chat_provider_for_session(mcfg(), store.get_session(web))
 check("an ordinary chat is not touched by the Core pin", (prov, model) == ("anthropic-cli", "opus"), (prov, model))
 meta = client.get(f"/sessions/{core2}/meta").json()
-check("meta of a Core chat shows the Core pin", meta.get("pinned_provider") == "groq" and meta.get("pinned_model") == "qwen3-32b" and
-      meta.get("pin_ok") is True and meta.get("agent_slug") == javis_core.SLUG, meta)
-cfgmod.update_settings({"model": {"main": {"provider": "anthropic-cli", "model": "sonnet"}}})
-prov, _, _, model = main._chat_provider_for_session(mcfg(), store.get_session(core2))
-check("changing the main model does not move a pinned Core", (prov, model) == ("groq", "qwen3-32b"), (prov, model))
-r = client.post(f"/sessions/{core2}/model", data={"provider": "", "model": ""})
-check("'Follow the main model' clears the Core pin", r.status_code == 200 and not mcfg().get("core_provider") and
-      not mcfg().get("core_model"), mcfg())
+check("meta of an unpinned Core chat offers the Core pin as inherited, not as its own",
+      not meta.get("pinned_provider") and meta.get("inherited_pin") == {"provider": "groq", "model": "qwen3-32b"}
+      and meta.get("agent_slug") == javis_core.SLUG, meta)
+
+r = client.post(f"/sessions/{core}/model", data={"provider": "anthropic-cli", "model": "haiku"})
+check("picking a model in a Core chat leaves Javis Core's own pin alone", r.status_code == 200 and
+      mcfg().get("core_provider") == "groq" and mcfg().get("core_model") == "qwen3-32b", r.text)
+check("...and clears the chat's old stamp", not (store.get_session(core) or {}).get("pinned_provider"))
 prov, _, _, model = main._chat_provider_for_session(mcfg(), store.get_session(core))
-check("then every Core chat follows the main model again, live", (prov, model) == ("anthropic-cli", "sonnet"), (prov, model))
+check("...that window runs the model picked in it", (prov, model) == ("anthropic-cli", "haiku"), (prov, model))
+prov, _, _, model = main._chat_provider_for_session(mcfg(), store.get_session(core2))
+check("...and the other Core window does not move", (prov, model) == ("groq", "qwen3-32b"), (prov, model))
 meta = client.get(f"/sessions/{core}/meta").json()
-check("meta of a Core chat following the main model shows no pin", not meta.get("pinned_provider"), meta)
+check("meta of that window shows its own model", meta.get("pinned_provider") == "anthropic-cli"
+      and meta.get("pinned_model") == "haiku" and meta.get("pin_ok") is True and not meta.get("inherited_pin"), meta)
+
+r = client.post(f"/sessions/{core}/model", data={"provider": "", "model": ""})
+prov, _, _, model = main._chat_provider_for_session(mcfg(), store.get_session(core))
+check("clearing the window's pick follows Core's pin again", r.status_code == 200 and (prov, model) == ("groq", "qwen3-32b")
+      and mcfg().get("core_provider") == "groq", (r.text, prov, model))
+cfgmod.update_settings({"model": {"core_provider": "", "core_model": ""}})
+cfgmod.update_settings({"model": {"main": {"provider": "anthropic-cli", "model": "sonnet"}}})
+prov, _, _, model = main._chat_provider_for_session(mcfg(), store.get_session(core))
+check("with no pin anywhere every Core chat follows the main model, live", (prov, model) == ("anthropic-cli", "sonnet"),
+      (prov, model))
+meta = client.get(f"/sessions/{core}/meta").json()
+check("meta of a Core chat following the main model shows no pin",
+      not meta.get("pinned_provider") and not meta.get("inherited_pin"), meta)
 cfgmod.update_settings({"model": {"core_provider": "openrouter", "core_model": "x/y"}})
 prov, _, _, _ = main._chat_provider_for_session(mcfg(), store.get_session(core))
 check("a broken Core pin (no key) falls back to the main model", prov == "anthropic-cli", prov)

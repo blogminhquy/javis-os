@@ -146,6 +146,18 @@ CREATE TABLE IF NOT EXISTS project_order (
 );
 """
 
+# 2026-11-25: what the owner's model bar chose for ONE chat window and nowhere else: a thinking level per card
+# ("effort:<slot>") and a Javis Core window's own model ("core_model"). A table of its own for the same reason as
+# pin_order above.
+_CHOICE_SQL = """
+CREATE TABLE IF NOT EXISTS session_choices (
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    value      TEXT NOT NULL,
+    PRIMARY KEY (session_id, name)
+);
+"""
+
 # 2026-11-13: what Javis learnt about ONE project while working in it, and a one-line description of each attached
 # file and link ("which document holds what"). The owner asked for a project that fills in its own context instead of
 # a box they have to write by hand. Tables of their own for the same reason as pin_order above: the columns of
@@ -718,6 +730,7 @@ class SessionStore:
             self._conn.executescript(_DM_REACTION_SQL)
             self._conn.executescript(_MSG_PIN_SQL)
             self._conn.executescript(_ORDER_SQL)
+            self._conn.executescript(_CHOICE_SQL)
             self._conn.executescript(_PROJECT_LEARN_SQL)
             self._conn.executescript(_PROJECT_REPOS_SQL)
             had_read = self._conn.execute(
@@ -1786,6 +1799,27 @@ class SessionStore:
         self._write(lambda c: c.execute(
             "UPDATE sessions SET pinned_provider = ?, pinned_model = ? WHERE id = ?",
             (prov, mdl, session_id)))
+        return True
+
+    def window_choices(self, session_id: str) -> Dict[str, str]:
+        """{name: value} of everything chosen for one chat window (table session_choices)."""
+        rows = self._read("SELECT name, value FROM session_choices WHERE session_id = ?", (session_id,))
+        return {r["name"]: r["value"] for r in rows}
+
+    def set_window_choice(self, session_id: str, name: str, value: str, *, brain: Optional[str] = None) -> bool:
+        """Keep one choice on one chat window, "" = forget it. Like set_pinned_model, `brain` creates the row of a chat
+        whose first message has not been sent yet."""
+        if brain and not self.get_session(session_id):
+            self.create_session(brain=brain, session_id=session_id)
+        if not self.get_session(session_id):
+            return False
+        if value:
+            self._write(lambda c: c.execute(
+                "INSERT OR REPLACE INTO session_choices(session_id, name, value) VALUES (?, ?, ?)",
+                (session_id, name, value)))
+        else:
+            self._write(lambda c: c.execute(
+                "DELETE FROM session_choices WHERE session_id = ? AND name = ?", (session_id, name)))
         return True
 
     # ── projects (nhóm hội thoại) ──

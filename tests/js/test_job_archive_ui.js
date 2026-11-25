@@ -58,13 +58,11 @@ check("the assistant editor has a reasoning select, medium by default, saved wit
 check("from a team the editor has Message privately", st.includes("opts.chatButton && a && a.slug") &&
   tj.includes("St.editAgent({ slug: slug }, { chatButton: true,") && tj.includes('data-agent-chat="'));
 const mp = read("model-picker.js");
-check("in an assistant's chat the effort chip shows and sets that assistant's level",
-  mp.includes("agentEff = d && d.agent_slug ?") && mp.includes("await saveAgentEffort(agentEff.slug, v)")
-  && mp.includes("`/agents/${encodeURIComponent(slug)}/reasoning`"));
-// 0.285.0 (owner 22/10/2026): choosing a model in any assistant's chat pins that chat only, never the main chat's model.
-check("in an assistant's chat a model choice does not touch the main chat's model",
-  mp.includes("if (!agentEff) await saveModel({ main: { provider: prov, model: model } });")
-  && !/async function chonModel\(prov, model\) \{\s*await saveModel\(\{ main/.test(mp));
+// Model and effort picked in a chat belong to that window, never to the assistant's file or the default.
+check("in an assistant's chat the effort chip sets this window's level, not the assistant's",
+  mp.includes("agentEff = d && d.agent_slug ?") && mp.includes("`/sessions/${encodeURIComponent(sid)}/effort`")
+  && !mp.includes("/reasoning`") && !/saveModel\(\{ (reasoning|profile)\b/.test(mp));
+check("a model choice in any chat does not touch the main chat's model", !/saveModel\(\{ main\b/.test(mp));
 check("an assistant's chat with its own model can go back to following the main chat's model",
   mp.includes('class="mb-follow"') && mp.includes('await pinToSession(sid, "", "")'));
 const css = read("console.css");

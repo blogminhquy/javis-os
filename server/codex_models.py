@@ -14,7 +14,7 @@ import threading
 import time
 from typing import Any, Optional
 
-from claude_cli import codex_env, find_codex_cli
+from claude_cli import _codex_home, codex_env, find_codex_cli
 
 
 def _no_window() -> int:
@@ -34,7 +34,29 @@ _EFFORTS: dict = {}
 
 def efforts_for(model: str) -> list:
     """Các mức effort model này nhận, theo lời của chính Codex. [] = chưa biết."""
-    return list(_EFFORTS.get(str(model or "").strip()) or [])
+    key = str(model or "").strip()
+    return list(_EFFORTS.get(key) or cached_ladders().get(key) or [])
+
+
+_DISK: dict = {"stamp": None, "ladders": {}}
+
+
+def cached_ladders() -> dict:
+    """{model: effort levels} from the model cache Codex itself writes (`models_cache.json` in its home), so ladders
+    are known right after a restart, before anything has asked `model/list`. {} = no readable cache."""
+    try:
+        path = _codex_home() / "models_cache.json"
+        stamp = (str(path), path.stat().st_mtime_ns)
+        if stamp != _DISK["stamp"]:
+            ladders = {}
+            for item in json.loads(path.read_text(encoding="utf-8")).get("models") or []:
+                levels = [x.get("effort") for x in item.get("supported_reasoning_levels") or [] if x.get("effort")]
+                if item.get("slug"):
+                    ladders[item["slug"]] = levels
+            _DISK.update(stamp=stamp, ladders=ladders)
+        return _DISK["ladders"]
+    except (OSError, ValueError, AttributeError, TypeError):
+        return {}
 
 
 _TIERS: dict = {}
@@ -103,6 +125,29 @@ def muc_cho(model: str, muc_javis: str) -> str:
     i = _THANG.index(muc_javis)
     thap_hon = [m for m in thang if _THANG.index(m) < i]
     return thap_hon[-1] if thap_hon else thang[0]
+
+
+# The three levels every Codex model with reasoning accepts. With no ladder known at all (no `model/list` yet and no
+# cache file), these three are still passed as they are; the rarer levels wait for a real ladder. First fixed in #1291:
+# a bot set to medium ran at the config.toml default after each restart.
+COMMON_EFFORTS = ("low", "medium", "high")
+
+
+def effort_arg(model: str, level: str) -> str:
+    """Javis level -> the Codex effort to pass for this model, "" = pass nothing. From the model's own ladder when it
+    is known; one of the three common levels when no ladder is known yet."""
+    model, level = str(model or ""), str(level or "")
+    try:
+        value = muc_cho(model, level)
+    except Exception:  # noqa: BLE001 - a failed lookup must not break the turn
+        return ""
+    if value or level not in COMMON_EFFORTS:
+        return value
+    try:
+        unknown = not efforts_for(model)
+    except Exception:  # noqa: BLE001
+        unknown = False
+    return level if unknown else ""
 
 
 def _normalize_items(items: Any) -> list[dict]:

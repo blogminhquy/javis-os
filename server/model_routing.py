@@ -89,6 +89,14 @@ def order(m: dict, connected=None) -> list:
     return ok + [p for p in conn if p not in ok]
 
 
+def stand_ins(m: dict, provider: str, connected=None) -> list:
+    """Cards that may take over while `provider` cannot run, best first: the whole usage order from the top, without
+    `provider` itself (work always goes to the highest priority card that still has quota, and
+    returns to its own card once that one is back). The order itself is never rearranged; the caller skips the cards
+    that cannot run right now."""
+    return [p for p in order(m, connected) if p != provider]
+
+
 def main_provider(m: dict) -> str:
     o = stored_order(m)
     return o[0] if o else _legacy_main(m)["provider"]
@@ -369,28 +377,25 @@ def background_spec(m: dict, tier: str = "mid") -> dict:
 
 
 def background_chain(m: dict, connected=None, first: dict = None, once=()) -> list:
-    """Background order (spec 2.4.3): background model (or `first`, e.g. an assistant's own model), then
-    fallback 1, 2, ... each on the model picked on its card (its starting config when the card has none), then
-    MAIN last on its starting config. Same provider + model only once; providers in `once` (plans, whose quota
+    """Background order: the background model (or `first`, e.g. an assistant's own model), then the other cards from
+    the top of the usage order (see `stand_ins`), each on the model and effort picked on that card (its starting
+    config when the card has no model). Same provider + model only once; providers in `once` (plans, whose quota
     belongs to the account, not to the model) only once at all."""
-    o = order(m, connected)
-    steps = [dict(first or background_spec(m), step="background")]
-    tail = o[1:] + o[:1]
+    lead = dict(first or background_spec(m), step="background")
+    steps = [lead]
     known = (m or {}).get("defaults") or {}
+    # Settings from before 0.350.0 saved no order: the lead's own card stays in, so a provider that refuses the
+    # background model still gets MAIN's.
+    tail = stand_ins(m, lead.get("provider") or "", connected) if stored_order(m) else order(m, connected)
     for p in tail:
-        is_main = bool(o) and p == o[0]
         card = profile(m, p)
-        if card["model"] and not is_main:
-            # A fallback runs what the owner picked on that card. The starting config of a plan card is an empty
-            # model (the 0.350.0 migration recorded one for every provider), and with it the CLI ran its own
-            # default, usually its most expensive model, whatever the card said.
-            d = card
-        else:
-            # The provider's starting config; settings from before 0.350.0 never recorded one, so the card's own
-            # profile stands in (an empty model would not run on an API card).
-            d = default_profile(m, p) if p in known else card
-        steps.append({"provider": p, "model": d["model"], "reasoning": d["reasoning"],
-                      "step": "main" if is_main else "fallback"})
+        # A fallback runs what the owner picked on that card. The starting config of a plan card is an empty
+        # model (the 0.350.0 migration recorded one for every provider), and with it the CLI ran its own
+        # default, usually its most expensive model, whatever the card said. A card with no model of its own takes
+        # the provider's starting config; settings from before 0.350.0 never recorded one, so the card's own
+        # profile stands in (an empty model would not run on an API card).
+        d = card if card["model"] else default_profile(m, p) if p in known else card
+        steps.append({"provider": p, "model": d["model"], "reasoning": d["reasoning"], "step": "fallback"})
     out, seen = [], set()
     for s in steps:
         k = (s["provider"], "" if s["provider"] in once else s["model"])

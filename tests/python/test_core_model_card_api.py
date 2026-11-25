@@ -1,13 +1,13 @@
 """The model row on the Javis Core card (0.461.0; owner 04/11/2026: Javis Core showed no model, so it looked like it had
-none; agreed design: name the main model it follows, let the card pin it, one pin shared with the Core chat model bar).
+none; agreed design: name the main model it follows and let the card pin it).
 
     python tests/run.py core_model_card_api
 
 No network, no model.
 - GET /javis-core/model: no pin = follows the main model and says which; `run_*` is what the next Core turn runs on.
-- POST /javis-core/model pins Javis Core as a whole (same `core_provider/core_model` as the Core chat model bar), and
-  an empty provider removes the pin. Unknown provider = 400.
-- The card and the Core chat model bar read and write the same pin, both ways.
+- POST /javis-core/model pins Javis Core as a whole (`core_provider/core_model`), and an empty provider removes the
+  pin. Unknown provider = 400.
+- A Core chat starts on the card's pin; a model picked in one Core chat stays in that window.
 - A pin that cannot run (no key) says so and shows the main model as what runs.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
@@ -65,19 +65,22 @@ check("...writes the one Core pin", mcfg().get("core_provider") == "groq" and mc
 prov, _, _, model = main._chat_provider_for_session(mcfg(), store.get_session(core))
 check("...and a Core chat runs on it", (prov, model) == ("groq", "qwen3-32b"), (prov, model))
 meta = client.get(f"/sessions/{core}/meta").json()
-check("...and the Core chat model bar shows it", meta.get("pinned_provider") == "groq" and meta.get("pin_ok") is True, meta)
+check("...and the Core chat model bar shows it", meta.get("inherited_pin") == {"provider": "groq", "model": "qwen3-32b"}, meta)
 check("the main model is left alone", (mcfg().get("main") or {}).get("provider") == "anthropic-cli", mcfg().get("main"))
 
 client.post(f"/sessions/{core}/model", data={"provider": "anthropic-cli", "model": "sonnet"})
 v = client.get("/javis-core/model").json()
-check("a pin set from the Core chat shows on the card",
-      v.get("pinned_provider") == "anthropic-cli" and v.get("pinned_model") == "sonnet" and v.get("run_model") == "sonnet", v)
+check("a model picked in a Core chat does not move the card's pin",
+      v.get("pinned_provider") == "groq" and v.get("pinned_model") == "qwen3-32b", v)
 
 r = client.post("/javis-core/model", data={"provider": "", "model": "whatever"})
 d = r.json()
 check("empty provider: follow the main model again", d.get("ok") and d.get("pinned") is False and
       not mcfg().get("core_provider") and not mcfg().get("core_model"), (d, mcfg()))
-check("...and the Core chat model bar follows too", not client.get(f"/sessions/{core}/meta").json().get("pinned_provider"))
+prov, _, _, model = main._chat_provider_for_session(mcfg(), store.get_session(core))
+check("...while the window with its own pick keeps it", (prov, model) == ("anthropic-cli", "sonnet"), (prov, model))
+other = store.create_session(brain="brain", channel=javis_core.CHANNEL)
+check("...and another Core chat shows no pin", not client.get(f"/sessions/{other}/meta").json().get("inherited_pin"))
 
 r = client.post("/javis-core/model", data={"provider": "no-such-brain", "model": "x"})
 check("an unknown provider is refused and nothing changes", r.status_code == 400 and not mcfg().get("core_provider"), r.text)
@@ -90,7 +93,7 @@ cfgmod.update_settings({"model": {"core_provider": "", "core_model": ""}})
 
 src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("one writer of the Core pin", src.count('{"model": {"core_provider": prov, "core_model": mdl}}') == 1 and
-      src.count("await _set_core_pin(") == 3)
+      src.count("await _set_core_pin(") == 2)
 
 # 2026-11-05: Javis Core's card is the ordinary agent editor; its Model field saves the same pin.
 B = Path(tempfile.mkdtemp(prefix="core-card-brain-"))

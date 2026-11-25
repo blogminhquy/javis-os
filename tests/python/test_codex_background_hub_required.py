@@ -435,10 +435,13 @@ check("a team turn tag is not a scheduled background lane (no hub-required overr
       not _ae.la_viec_nen_theo_lich("team-1d2c3b4a-tu_0a1b2c3d") and not _ae.la_viec_nen_theo_lich("team-x-y-main"))
 # The allowlist (reminder, loop, dispatch:*) only works while these lanes keep passing those tags.
 REM_SRC, TASK_SRC, LOOP_SRC = SRC.get("reminders.py", ""), SRC.get("tasks.py", ""), SRC.get("self_improve.py", "")
-check('reminders still route with tag="reminder"', 'aux_engine.apply(self.deps, cli, mode=mq, tag="reminder")' in REM_SRC)
+check('reminders still route with tag="reminder"',
+      'aux_engine.apply(self.deps, cli, mode=mq, tag="reminder", spec=' in REM_SRC)
 check("Kanban runs still route with tag dispatch:<id>:<suffix>",
-      "tag=f\"dispatch:{task['id']}:" in TASK_SRC and "aux_engine.apply(self.deps, cli, mode=mode, tag=cli.tag)" in TASK_SRC)
-check('loops still route with tag="loop"', 'tag="loop")' in LOOP_SRC and "aux_engine.apply(self.deps, cli" in LOOP_SRC)
+      "tag=f\"dispatch:{task['id']}:" in TASK_SRC
+      and "aux_engine.apply(self.deps, cli, mode=mode, tag=cli.tag, spec=spec)" in TASK_SRC)
+check('loops still route with tag="loop"',
+      'tag="loop",' in LOOP_SRC and "aux_engine.apply(self.deps, cli" in LOOP_SRC)
 check("unrestricted workflow Codex agents still built directly, without the background overrides",
       "CodexCLI(cwd=vault_root, tag=\"workflow\"" in SRC.get("main.py", "")
       and "CODEX_REQUIRED_KEY" not in SRC.get("main.py", "") and "dat_codex_tat_app" not in SRC.get("main.py", ""))

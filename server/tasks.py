@@ -291,6 +291,9 @@ class TasksDeps:
     # 0.411.0: (root) -> [{slug, name, role, key}] the brain's assistants, so the specifier can hand a job to the one
     # whose speciality it matches. None or [] = no routing, the job runs as a plain Kanban job.
     agent_roster: Optional[Callable[[str], list]] = None
+    # (root, slug, tag) -> {provider, model, reasoning} of that assistant's own settings, {} when it chose none. The
+    # execution of a job that runs as an assistant uses it instead of the background model.
+    agent_spec: Optional[Callable[[str, str, str], dict]] = None
     # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken job to Javis Core (incident_desk.py).
     incident_hook: Optional[Callable] = None
     # Owner, 17/11/2026 ("tôi duyệt rồi mà cứ báo duyệt lại hoài"): (brain, slug, task_id, node, code, tools=, mode=,
@@ -732,7 +735,8 @@ class TasksFeature:
                 return
             # Soi CẢ result: nhà cung cấp hay in câu hết lượt ngay chỗ câu trả lời chứ không
             # báo lỗi, và bản trước coi đó là việc XONG với "kết quả" là một câu tiếng Anh.
-            het_luot = self._het_luot(error, "" if error else result) or self._limit_from_meta(metadata)
+            ran_on = str((metadata or {}).get("provider") or "")
+            het_luot = self._het_luot(error, "" if error else result, ran_on) or self._limit_from_meta(metadata)
             if het_luot or error:
                 # Out of plan quota, a connection, a tool that failed: none of it is about the model.
                 score.fail(job_scorecard.CAUSE_OTHER, str(error or het_luot)[:120])
@@ -882,12 +886,29 @@ class TasksFeature:
         except Exception:
             return ""
 
+    def _assistant_spec(self, task: dict, root: str, tag: str) -> dict:
+        """{provider, model, reasoning} of the assistant this job runs as; {} for a plain Kanban job, or when the
+        assistant chose neither a model nor a level. Only an assistant whose role the job really carries counts."""
+        if not self.deps.agent_spec or not self._persona(task, root):
+            return {}
+        key = str(task.get("idempotency_key") or "")
+        if key.startswith("agent:"):
+            slug = key.split(":")[2]
+        else:
+            slug = str(((task.get("metadata") or {}).get("agent") or {}).get("slug") or "")
+        try:
+            return dict(self.deps.agent_spec(root, slug, tag) or {})
+        except Exception as e:   # noqa: BLE001 - the job still runs, on the background model
+            print(f"[kanban] model of assistant {slug}: {type(e).__name__}: {e}", file=sys.stderr)
+            return {}
+
     def _base_cli(
         self,
         task: dict,
         allowed_tools: Optional[list[str]],
         mode: str,
         tag_suffix: str,
+        spec: Optional[dict] = None,
     ):
         root = str(task["brain_root"])
         system_prompt = self.deps.build_system_prompt(root)
@@ -912,7 +933,7 @@ class TasksFeature:
             if mcp_file:
                 cli.mcp_config = mcp_file
                 cli.mcp_strict = True
-        cli = aux_engine.apply(self.deps, cli, mode=mode, tag=cli.tag)
+        cli = aux_engine.apply(self.deps, cli, mode=mode, tag=cli.tag, spec=spec)
         try:
             # Trần chung cho fork nền (mặc định không giới hạn từ 2026-11-07, env JAVIS_BG_MAX_WALL_S) - việc Kanban
             # thật có thể chạy 30-60 phút, 600s cũ chặt ngang giữa chừng.
@@ -1349,8 +1370,10 @@ plainly that acting on its own is allowed; otherwise auto, so the kernel stops i
                 meta_out,
             )
 
-        cli = self._base_cli(task, tools, mode, "execute")
-        if (task.get("metadata") or {}).get("effort") == "light":
+        own = self._assistant_spec(task, str(task["brain_root"]), f"dispatch:{task.get('id')}:execute")
+        cli = self._base_cli(task, tools, mode, "execute", **({"spec": own} if own else {}))
+        # "Light" lowers the background level only: an assistant's own level is the owner's setting.
+        if not own and (task.get("metadata") or {}).get("effort") == "light":
             self._lighten(cli)
         # `disallowed` rỗng ở mức full: gán một danh sách rỗng vẫn khác gán None ở chỗ khác
         # trong mã, nên đặt None cho rõ ý "không chặn gì". Đặt `["Task"]` như ba mức dưới là
@@ -1386,7 +1409,7 @@ then say so plainly in the report: what is left, why you cannot do it, and the p
 owner needs. When finished, report briefly: what you did, which data/files/artifacts were created,
 and how you verified it. Write the report in the language of the goal.
 """.strip()
-        cfg_spec = aux_engine.read_spec(tag=getattr(cli, "tag", None) or f"dispatch:{task.get('id')}:execute")
+        cfg_spec = own or aux_engine.read_spec(tag=getattr(cli, "tag", None) or f"dispatch:{task.get('id')}:execute")
         result, error, tool_calls = await self._query(cli, prompt)
         exec_info = aux_engine.execution_info(cli, configured=cfg_spec)
         return (
@@ -1428,13 +1451,13 @@ and how you verified it. Write the report in the language of the goal.
         return TasksFeature._kep_quyen(tran, xin)
 
     @staticmethod
-    def _het_luot(error: str, result: str):
+    def _het_luot(error: str, result: str, ran_on: str = ""):
         """`SubscriptionLimit` nếu lượt vừa rồi vấp "gói thuê bao hết lượt", None nếu không.
 
         Dùng lại bộ nhận dạng của khung chat (`limit_learner.parse_subscription_limit`) chứ
         không viết bộ thứ hai. `error` được tin thẳng; `result` chỉ được tính khi câu báo CHIẾM
         cả output (`subscription_dominates`), vì một bài viết thật có thể trích câu đó."""
-        provider = str(aux_engine.read_spec().get("provider") or "")
+        provider = ran_on or str(aux_engine.read_spec().get("provider") or "")
         hint = limit_learner.ENGINE_HINT_BY_PROVIDER.get(provider, "")
         for raw, phai_ap_dao in ((error, False), (result, True)):
             raw = str(raw or "")

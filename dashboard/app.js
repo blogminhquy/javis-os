@@ -2038,7 +2038,8 @@ function sendMessage(text, opts) {
     // 2026-11-15: the first turn waits for that claim (below, with the pin and the repos), so the project's
     // instructions and its GitHub repos reach this very first message instead of the next one.
     // Model đã chọn khi khung chat còn trống -> ghim luôn cho phiên vừa sinh (model-picker.js).
-    try { if (window.JavisModelBar) window.JavisModelBar.claimPending(savedSessionId); } catch (e) {}
+    let _modelClaim = null;
+    try { if (window.JavisModelBar) _modelClaim = window.JavisModelBar.claimPending(savedSessionId); } catch (e) {}
     // A working folder pinned on the empty chat follows the session that was just minted (0.158.0).
     try { if (window.JavisPinnedFolder) _pinWait = window.JavisPinnedFolder.claimPending(savedSessionId); } catch (e) {}
     // GitHub repos picked on the empty chat (0.362.0): attached AFTER the pin, never at the same time (both rewrite
@@ -2052,6 +2053,11 @@ function sendMessage(text, opts) {
     if (_projClaim && _projClaim.then) {
       const _before = _pinWait || Promise.resolve();
       _pinWait = Promise.all([_before.catch(() => {}), _projClaim.catch(() => {})]);
+    }
+    // The first turn also waits for the model and effort picked on the empty chat.
+    if (_modelClaim) {
+      const _rest = _pinWait || Promise.resolve();
+      _pinWait = Promise.all([_rest.catch(() => {}), _modelClaim.catch(() => {})]);
     }
   }
   const sid = savedSessionId;

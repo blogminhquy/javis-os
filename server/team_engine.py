@@ -6,10 +6,10 @@ Máy để model việc nền là Codex (gói ChatGPT) thì `resonance.pick_text
 là lỗi dựng engine, còn tầng gọi bỏ kết quả lỗi đi: nhóm im lặng, không một dòng báo nào.
 
 Hợp đồng ở đây:
-- **Model:** model riêng của trợ lý (trường `model` + `model_provider` trong file agent). Trợ lý không đặt model, hay
-  provider của nó chưa cấu hình được (thiếu khoá, chưa cài CLI) thì theo **model chính** ở trang Models. KHÔNG dùng model
-  việc nền, KHÔNG tự đổi sang provider thứ ba, KHÔNG có chuỗi dự phòng: provider đã chọn không chạy được chỉ chữ thì lượt
-  báo lỗi rõ lý do trong khung chat, chủ đổi model của trợ lý hay bấm Thử lại.
+- **Model:** the assistant's own model (`model` + `model_provider` of its file), MAIN when it set none, never the
+  background model. Only while that card cannot run (out of quota, signed out, no key) does a turn move, to the
+  highest card of the usage order that can run (`main._team_spec`); with no other card able to run,
+  a card never set up falls back to the main model and a resting card reports its own limit.
 - **Quyền:** giữ nguyên giới hạn đã có của lượt nhóm (phán quyết R3): chỉ chữ, thư mục trống, không MCP, không hub.
   Sự kiện công cụ nào lọt ra vẫn làm hỏng lượt (`team_runner.TextOnlyOutcome`). Không nâng quyền, không bật Auto.
   Ngoại lệ từ 0.194.0: lượt Làm và Hỗ trợ của một việc nhóm (`team_runner.TOOL_ROLES`) chạy CÓ công cụ như chat riêng

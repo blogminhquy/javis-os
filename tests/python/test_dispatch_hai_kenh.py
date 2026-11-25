@@ -215,12 +215,30 @@ _ghi = []
 main._set_main_model = lambda s, p, m: _ghi.append((p, m))
 main.cfgmod.write_settings = lambda s: _ghi.append(("write", None))
 
+_read_settings = main.cfgmod.read_settings
+main.cfgmod.read_settings = lambda: {**_read_settings(),
+                                     "model": {"main": {"provider": "openai-oauth", "model": "gpt-4o"}}}
 kq4 = chay("chào")
 t4 = loi_text(kq4) or ""
 check("(4) model không hợp lệ: GHI LẠI model đã ép vào Settings",
       any(g[0] == "openai-oauth" and g[1] == "gpt-5.5" for g in _ghi) and ("write", None) in _ghi)
 check("(4) model không hợp lệ: BÁO cho user là đã đổi", "gpt-4o" in t4 and "gpt-5.5" in t4)
 check("(4) vẫn giữ nguyên câu trả lời thật", "Xong." in t4)
+
+# (4b) ChatGPT only stands in for another main card: the self-heal fixes its own card, MAIN and the order stay.
+_saved = []
+main.cfgmod.read_settings = lambda: {**_read_settings(), "model": {
+    "main": {"provider": "anthropic-cli", "model": "opus"}, "order": ["anthropic-cli", "openai-oauth"]}}
+main.cfgmod.write_settings = lambda s: _saved.append(s.get("model") or {})
+_ghi.clear()
+main._TG_SESS.clear()
+chay("hello")
+check("(4b) a fallback self-heal never promotes ChatGPT", not _ghi)
+check("(4b) a fallback self-heal writes the model on the ChatGPT card only", bool(_saved)
+      and _saved[-1].get("main") == {"provider": "anthropic-cli", "model": "opus"}
+      and _saved[-1].get("order") == ["anthropic-cli", "openai-oauth"]
+      and ((_saved[-1].get("profiles") or {}).get("openai-oauth") or {}).get("model") == "gpt-5.5")
+main.cfgmod.read_settings = _read_settings
 
 
 # ================================================================

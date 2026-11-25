@@ -1,10 +1,9 @@
 // model-picker.js: đổi model (đa nhà cung cấp) + effort ngay trên khung chat.
 // Thuần frontend: đọc/ghi qua /settings + /provider/models (đã có sẵn ở backend).
 //
-// MODEL THEO PHIÊN (16/08): đổi model NGAY TRONG một phiên chat = ghim model đó cho
-// riêng phiên (POST /sessions/{id}/model) + vẫn cập nhật mặc định chung như cũ. Mở lại
-// phiên cũ là thấy đúng model đã chọn trong nó; đổi model ở phiên/tab khác không kéo
-// phiên đã ghim đổi theo. Phiên chưa từng đổi tay vẫn bám mặc định chung.
+// Model and effort per chat window: a pick made here belongs to the chat in front only
+// (POST /sessions/{id}/model and /effort). It never rewrites the shared default, the usage order, a card on the Models
+// page or an assistant's file. An empty chat keeps its picks until its session id exists (claimPending).
 (function () {
   "use strict";
 
@@ -31,6 +30,9 @@
   // FAST_NOTE_END
   let state = { providers: [], main: { provider: "", model: "" }, reasoning: "off", fast: false, defaults: {} };
   let agentEff = null;   // { slug, level } while the chat in front is an assistant's (0.193.0)
+  let inheritedPin = null;   // {provider, model} a Javis Core window follows while it has no model of its own
+  let pendingEffort = null;  // {provider, level} picked on an empty chat, sent as soon as its session id exists
+  let claim = null;          // {sid, done}: those picks on their way to the server
   let sessionPin = null;   // {provider, model} phiên đang mở đã ghim; null = theo mặc định chung
   let pinBroken = false;   // phiên có ghim nhưng ghim HỎNG (provider mất key) - server đang chạy mặc định chung
   let pinLimited = 0;      // 0.285.0: the pinned plan is out of quota until this epoch; the chat runs on the main model
@@ -72,15 +74,18 @@
   const curSid = () => { try { return (window.JavisSessions && window.JavisSessions.current()) || null; } catch (e) { return null; } };
   const curBrain = () => { try { return (window.JavisSessions && window.JavisSessions.brain()) || ""; } catch (e) { return ""; } };
   // Model ĐANG HIỆU LỰC cho khung chat trước mặt: ghim của phiên thắng mặc định chung.
-  const effective = () => sessionPin || state.main;
+  const effective = () => sessionPin || pendingPin || inheritedPin || state.main;
   // What the composer SHOWS (owner, 05/11/2026: "khung chat bị chuyển thì phải chuyển luôn model ở khung đang chat"): the
   // fallback card really answering, else the chosen model. Chip, picker tick, effort lock, Fast bolt, plan ring and
   // `/model` all follow it. The choice itself (`effective`) is kept, so the chat goes back to it once its quota returns.
   const shown = () => (route && route.fallback ? { provider: route.provider, model: route.model || "" } : effective());
-  // The Effort the chip shows and the slider sets (owner, 05/11/2026: "Effort cũng theo model dự phòng luôn"): an
-  // assistant's own level in its chat, the fallback card's own level while one answers, else the chosen card's.
+  // The Effort the chip shows and the slider sets belongs to the chat window in front. A saved chat's
+  // level comes with its route (the fallback card's own while one answers); an empty chat shows the level just picked
+  // for it, else the one its card starts with.
   const onFallback = () => !!(route && route.fallback && route.reasoning);
-  const shownEffort = () => (agentEff ? agentEff.level : onFallback() ? route.reasoning : state.reasoning);
+  const pickedEffort = () => (!curSid() && pendingEffort && pendingEffort.provider === shown().provider
+    ? pendingEffort.level : "");
+  const shownEffort = () => pickedEffort() || (route && route.reasoning) || (agentEff ? agentEff.level : state.reasoning);
 
   async function saveModel(patch) {
     const fd = new FormData();
@@ -89,12 +94,11 @@
     try { await fetch("/settings", { method: "POST", body: fd }); } catch (e) {}
   }
 
-  async function saveAgentEffort(slug, level) {
+  async function pinEffort(sid, level) {
     const fd = new FormData();
     fd.append("level", level);
-    fd.append("brain", curBrain() || "brain");
-    try { await fetch(`/agents/${encodeURIComponent(slug)}/reasoning`, { method: "POST", body: fd }); } catch (e) {}
-    try { window.dispatchEvent(new CustomEvent("javis:agent-reasoning", { detail: { slug: slug, level: level } })); } catch (e) {}
+    fd.append("brain", curBrain());
+    try { await fetch(`/sessions/${encodeURIComponent(sid)}/effort`, { method: "POST", body: fd }); } catch (e) {}
   }
 
   async function pinToSession(sid, prov, model) {
@@ -103,14 +107,6 @@
     fd.append("model", model || "");
     fd.append("brain", curBrain());   // phiên chưa có hàng trong DB thì server tự tạo
     try { await fetch(`/sessions/${encodeURIComponent(sid)}/model`, { method: "POST", body: fd }); } catch (e) {}
-  }
-
-  // 0.461.0: a Javis Core chat's pin is Javis Core's pin, also shown and set as the Model of its card on the Partners
-  // page (the agent editor). The chip tells the page through one event.
-  const CORE_EVENT = "javis:core-model";
-  function coreChanged() {
-    if (!(agentEff && agentEff.slug === "javis-core")) return;
-    try { window.dispatchEvent(new CustomEvent(CORE_EVENT, { detail: { from: "chat" } })); } catch (e) {}
   }
 
   async function loadState() {
@@ -129,13 +125,16 @@
   // kết quả của phiên MỚI NHẤT được vẽ (so pinSid trước khi dùng).
   async function loadSessionPin() {
     const sid = curSid();
+    const left = pinSid;
     pinSid = sid;
     if (!sid) {
-      sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null; agentEff = null;
+      sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; inheritedPin = null;
+      if (left) { pendingPin = null; pendingEffort = null; }   // coming from a saved chat: this empty one starts clean
       await refreshRoute();
       return;
     }
-    pendingPin = null;
+    pendingPin = null; pendingEffort = null;
+    if (claim && claim.sid === sid) await claim.done;   // the picks of the empty chat reach the server first
     try {
       const r = await fetch(`/sessions/${encodeURIComponent(sid)}/meta`);
       const d = r.ok ? await r.json() : null;
@@ -149,7 +148,11 @@
       agentEff = d && d.agent_slug ? { slug: d.agent_slug, level: d.agent_reasoning || "medium" } : null;
       sessionPin = (d && d.pinned_provider && !pinBroken)
         ? { provider: d.pinned_provider, model: d.pinned_model || "" } : null;
-    } catch (e) { if (pinSid === sid) { sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; setRoute(null); } }
+      const core = d && d.inherited_pin;
+      inheritedPin = core && core.provider ? { provider: core.provider, model: core.model || "" } : null;
+    } catch (e) {
+      if (pinSid === sid) { sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; inheritedPin = null; setRoute(null); }
+    }
   }
 
   // FALLBACK_BEGIN
@@ -168,8 +171,10 @@
   // (where its first turn would run, the main card being perhaps out of quota).
   async function refreshRoute() {
     const sid = curSid();
+    const picked = !sid && pendingPin ? "?provider=" + encodeURIComponent(pendingPin.provider)
+      + "&model=" + encodeURIComponent(pendingPin.model || "") : "";
     try {
-      const r = await fetch(sid ? `/sessions/${encodeURIComponent(sid)}/meta` : "/chat/route");
+      const r = await fetch(sid ? `/sessions/${encodeURIComponent(sid)}/meta` : "/chat/route" + picked);
       const d = r.ok ? await r.json() : null;
       if (curSid() !== sid) return;
       setRoute(sid ? (d && d.route) : d);
@@ -236,11 +241,11 @@
       // the tooltip; the pin state shows as an icon (below).
       mt.textContent = fb ? chipLabel({ provider: fb.provider, model: fb.model }, runP) : chipLabel(eff, p);
       mt.title = fb ? fallbackTitle(fb, state.providers.find((x) => x.id === fb.selected_provider), runP)
-        : (p ? p.label + " · " + (eff.model || defText(eff.provider)) + "\n" : "") + (sessionPin
-        ? window.t(agentEff && agentEff.slug === "javis-core" ? "mpick.core_pin_title" : "mpick.pin_title")
+        : (p ? p.label + " · " + (eff.model || defText(eff.provider)) + "\n" : "") + (sessionPin || pendingPin
+        ? window.t("mpick.pin_title")
         : pinBroken
           ? window.t(pinLimited ? "mpick.pin_limited_title" : "mpick.pin_broken_title")
-          : window.t("mpick.follow_default"));
+          : window.t(inheritedPin ? "mpick.core_pin_title" : "mpick.follow_default"));
       // The per-session pin keeps a visible mark (owner: "chế độ ghim vẫn hoạt động nhé"): a small pin icon on the
       // chip instead of the old "· ghim" text, orange-amber when the pin is broken. Screen readers get it in words.
       const chip = $("mbOpen");
@@ -271,8 +276,8 @@
       const lvl = shownEffort();
       eb.textContent = window.t(EFF_KEY[own || (EFFORT.find((e) => e[0] === lvl) || EFFORT[0])[0]]);
       const effB = $("effBtn");
-      if (effB) effB.title = agentEff ? window.t("mpick.eff_agent")
-        : onFallback() ? window.t("mpick.eff_fallback", { nha: route.name || route.provider }) : "";
+      if (effB) effB.title = onFallback() ? window.t("mpick.eff_fallback", { nha: route.name || route.provider })
+        : agentEff ? window.t("mpick.eff_agent") : "";
     }
     renderFast();
   }
@@ -388,18 +393,15 @@
   }
   function isOpen() { const pop = $("mbPop"); return pop && !pop.hidden; }
 
-  // Where the slider's level goes: the assistant's own level, the fallback card's own effort while one answers (its card
-  // on the Models page; the chosen card's stays as it was), else the chosen card's.
+  // Where the slider's level goes: this chat window only. The server files it under the card the
+  // window runs on, so a level picked while a fallback answers leaves the chosen card's level as it was.
   async function saveEffort(v) {
-    if (agentEff) { agentEff.level = v; renderBar(); await saveAgentEffort(agentEff.slug, v); return; }
-    if (onFallback()) {
-      const pid = route.provider;
-      route.reasoning = v; renderBar();
-      await saveModel({ profile: { provider: pid, reasoning: v } });
-      await loadState(); renderBar();   // that card may be MAIN, whose effort is the chat's main level
-      return;
-    }
-    state.reasoning = v; renderBar(); await saveModel({ reasoning: v });
+    const sid = curSid();
+    if (!sid) { pendingEffort = { provider: shown().provider, level: v }; renderBar(); return; }
+    if (route) route.reasoning = v;
+    if (agentEff && !onFallback()) agentEff.level = v;
+    renderBar();
+    await pinEffort(sid, v);
   }
 
   // Effort chip (0.153.0): split from the model picker, opens a small popover with a slider.
@@ -600,20 +602,15 @@
   function closeLimit() { try { if (window.JavisPlanLimit) window.JavisPlanLimit.close(); } catch (e) {} }
   function closePlus() { try { if (window.JavisComposerMenu) window.JavisComposerMenu.close(); } catch (e) {} }
 
-  // Chọn một model: ghi mặc định chung (chat mới sau này theo cái vừa chọn) + GHIM cho phiên
-  // đang mở (phiên này giữ đúng model kể cả khi mặc định chung bị đổi ở chỗ khác). Dùng chung
-  // cho cú bấm trong bảng chọn và lệnh `/model <tên>` của khung chat.
+  // Pick a model for the chat window in front, and only for it: the shared default and the usage
+  // order are set on the Models page alone. Used by a click in the list and by the chat's `/model <name>` command.
   async function chonModel(prov, model) {
-    // 0.285.0 (owner, 22/10/2026): in an assistant's chat (any partner, Javis Core) the choice pins THAT chat only. It
-    // used to also rewrite the main chat's model. An assistant chat with no pin follows the main chat's model.
-    if (!agentEff) await saveModel({ main: { provider: prov, model: model } });
     const sid = curSid();
     if (sid) {
       sessionPin = { provider: prov, model: model };
       pinBroken = false;   // ghim mới đè ghim hỏng cũ
       pinSid = sid;
       await pinToSession(sid, prov, model);
-      coreChanged();
     } else {
       // Chat trống chưa mint id: nhớ lựa chọn, app.js gọi claimPending(sid) lúc gửi
       // tin đầu để phiên mới sinh ra đã mang đúng ghim.
@@ -678,8 +675,8 @@
     if (e.target.closest(".mb-follow")) {
       const sid = curSid();
       if (sid) await pinToSession(sid, "", "");
-      coreChanged();
       sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null;
+      if (agentEff && agentEff.slug === "javis-core") await loadSessionPin();   // back on Javis Core's own model
       await loadState(); await refreshRoute(); renderBar(); close();
       return;
     }
@@ -717,12 +714,22 @@
   // Phiên mới mint id xong (app.js gọi ngay lúc gửi tin đầu): model đã chọn khi khung
   // còn trống đi theo phiên vừa sinh, không bị phiên khác đổi mặc định chung đè mất.
   window.JavisModelBar = {
+    // Returns a promise while the picks travel, so the first turn can wait for them; null when there is nothing.
     claimPending: function (sid) {
-      if (!pendingPin || !sid) return;
-      sessionPin = pendingPin; pinSid = sid;
-      pinToSession(sid, pendingPin.provider, pendingPin.model);
-      pendingPin = null;
+      if (!sid || !(pendingPin || pendingEffort)) return null;
+      const pin = pendingPin;
+      const eff = pendingEffort && (!pin || pin.provider === pendingEffort.provider) ? pendingEffort : null;
+      if (pin) { sessionPin = pin; pinSid = sid; }
+      if (eff && route) route.reasoning = eff.level;
+      pendingPin = null; pendingEffort = null;
+      // The model first: the server files the level under the card the window runs on.
+      const done = (async () => {
+        if (pin) await pinToSession(sid, pin.provider, pin.model);
+        if (eff) await pinEffort(sid, eff.level);
+      })();
+      claim = { sid: sid, done: done };
       renderBar();
+      return done;
     },
     // Lệnh `/model` của khung chat (chat-lenh.js): mở bảng chọn, đổi theo tên, hoặc cho biết model hiện tại.
     // Trả true nếu bảng chọn có mặt để mở (thanh model ẩn thì false, chỗ gọi tự nói model hiện tại).
@@ -759,7 +766,8 @@
       // (server `_chat_provider_for_session`). Showing the main model as pinned here made an unpinned Core chat look
       // pinned, and then "change" when the main model changed (owner, 04/11/2026).
       if (agentEff && agentEff.slug === "javis-core" && pinSid === sid) return;
-      sessionPin = { provider: state.main.provider, model: state.main.model };
+      const eff = effective();
+      sessionPin = { provider: eff.provider, model: eff.model };
       pinBroken = false; pinSid = sid;
       renderBar();
     },
@@ -769,11 +777,6 @@
   window.addEventListener("javis:sessions-changed", async () => { await loadSessionPin(); renderBar(); });
   // The Models page turned Fast mode on or off from a card's Effort sheet: the composer's bolt follows at once.
   window.addEventListener("javis:fast-changed", (e) => { state.fast = !!(e.detail && e.detail.on); renderFast(); });
-  // The Core card pinned or unpinned Javis Core: an open Core chat redraws its chip.
-  window.addEventListener(CORE_EVENT, async (e) => {
-    if ((e.detail || {}).from === "chat" || !(agentEff && agentEff.slug === "javis-core")) return;
-    await loadSessionPin(); renderBar();
-  });
 
   // Từ điển về (fetch bất đồng bộ, thường SAU khi chip model đã vẽ) hoặc người dùng đổi
   // ngôn ngữ giao diện: vẽ lại chip, và vẽ lại cả bảng chọn nếu nó đang mở.

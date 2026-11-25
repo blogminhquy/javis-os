@@ -9,7 +9,7 @@ let fails = 0;
 function check(name, cond, extra) { console.log((cond ? "ok   " : "FAIL ") + name + (cond ? "" : "  [" + extra + "]")); if (!cond) fails++; }
 
 const mp = fs.readFileSync(path.join(ROOT, "dashboard", "model-picker.js"), "utf8");
-check("the chat model bar tells the page when Javis Core's pin changes", mp.includes('"javis:core-model"') && mp.includes("coreChanged()"), "");
+check("the chat model bar never writes Javis Core's own pin", !mp.includes("/javis-core/model") && !/saveModel\(\{ core_/.test(mp), "");
 
 // Owner 04/11/2026: "the Core pin does not hold, changing the main chat's model changes Core too". One cause: after a
 // message in an UNPINNED Core chat, noteStamped() drew the main model as this chat's pin (pin icon on the chip), as for

@@ -41,6 +41,7 @@ import time
 from typing import Optional
 
 import config as cfgmod
+import engine_effort
 import model_routing
 
 CLAUDE = "anthropic-cli"
@@ -1216,15 +1217,17 @@ def _build_antigravity(spec, claude_cli_obj, mode, tag):
     return ac
 
 
-def apply(deps, cli, mode: str = None, tag: str = None):
+def apply(deps, cli, mode: str = None, tag: str = None, spec: dict = None):
     """Dùng ở các nơi chạy nền sau khi đã dựng xong engine Claude.
 
     deps.aux_swap được main tiêm; thiếu nó (unit test dựng deps tối giản) thì rơi về cách
     cũ - chỉ đặt model - nên test cũ không phải sửa và hành vi không đổi.
+
+    `spec` = {provider, model, reasoning} of the assistant the job runs as; None = the background model.
     """
     fn = getattr(deps, "aux_swap", None)
     if fn:
-        return fn(cli, mode=mode, tag=tag)
+        return fn(cli, mode=mode, tag=tag, **({"spec": spec} if spec else {}))
     getter = getattr(deps, "aux_model", None)
     if getter:
         cli.model = getter() or None
@@ -1283,12 +1286,6 @@ def strip_tools(engine, base):
     return keep[0] if len(keep) == 1 else _FallbackChain(keep)
 
 
-def _cli_effort(level: str):
-    """Background effort for a Claude Code link. xhigh/ultra go to "high": an older `claude` rejects the top two values,
-    and a background job is never worth a failed run. "off" sends nothing (spec 2.3.4)."""
-    return {"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "ultra": "high"}.get(level or "")
-
-
 def _plan_accounts_for(prov: str, settings) -> list:
     """Usable accounts of a plan card that holds more than one (plan_accounts, 0.353.0); [] = run as before."""
     try:
@@ -1321,6 +1318,14 @@ def _per_account(prov: str, first, settings, more) -> list:
     return out
 
 
+def _step_effort(eng, setter) -> None:
+    """Apply a step's effort to a freshly built engine; the depth setting must never cost the step."""
+    try:
+        setter()
+    except Exception as e:  # noqa: BLE001
+        print(f"[aux router] effort {type(eng).__name__}: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def _links_for_step(step: dict, cli, mode, tag, codex_profile, settings, claude_used: list) -> list:
     """Engines for one step of the background order. An API card gives one link per usable account (key 1, key 2...);
     a plan card gives one link; a step that cannot run on this machine gives none."""
@@ -1334,9 +1339,9 @@ def _links_for_step(step: dict, cli, mode, tag, codex_profile, settings, claude_
         e = cli if not claude_used else copy.copy(cli)
         claude_used.append(e)
         e.model = sp["model"] or None
-        eff = _cli_effort(level)
-        if eff and hasattr(e, "effort"):
-            e.effort = eff
+        if hasattr(e, "effort"):
+            e.effort = None  # a copied engine must not keep the level of the step it was copied from
+            _step_effort(e, lambda: engine_effort.set_claude(e, level))
 
         def _more():
             c = copy.copy(e)
@@ -1349,13 +1354,23 @@ def _links_for_step(step: dict, cli, mode, tag, codex_profile, settings, claude_
         return []
     try:
         if prov == CODEX:
-            return _per_account(CODEX, _build_codex(sp, cli, mode, tag, codex_profile), settings,
-                                lambda: _build_codex(sp, cli, mode, tag, codex_profile))
+            def _codex():
+                c = _build_codex(sp, cli, mode, tag, codex_profile)
+                _step_effort(c, lambda: engine_effort.set_codex(c, level))
+                return c
+            return _per_account(CODEX, _codex(), settings, _codex)
         if prov == GROK_CLI:
-            return _per_account(GROK_CLI, _build_grok(sp, cli, mode, tag), settings,
-                                lambda: _build_grok(sp, cli, mode, tag))
+            def _grok():
+                import grok_cli
+                g = _build_grok(sp, cli, mode, tag)
+                _step_effort(g, lambda: engine_effort.set_flag_cli(g, grok_cli, level))
+                return g
+            return _per_account(GROK_CLI, _grok(), settings, _grok)
         if prov == ANTIGRAVITY:
-            return [_build_antigravity(sp, cli, mode, tag)]
+            import antigravity_cli
+            agy = _build_antigravity(sp, cli, mode, tag)
+            _step_effort(agy, lambda: engine_effort.set_flag_cli(agy, antigravity_cli, level))
+            return [agy]
         if prov in API_PROVIDERS:
             s = settings if settings is not None else cfgmod.read_settings()
             m = s.get("model", {}) or {}
@@ -1383,11 +1398,11 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
          codex_profile=None, settings: dict = None):
     """Engine Claude đã dựng -> ROUTER việc nền (0.350.0, docs/dev/2026-10-model-routing-spec.md part 2.4).
 
-    Order: the background model (or `spec`, e.g. an assistant's own model) -> fallback 1, 2, ... of the Models page
-    usage order, each on the model picked on its card -> MAIN last, on its starting config. An API card contributes
-    one link per usable key. The chain is the same at every permission level: a link that already called a tool and
-    then broke stops the chain (_FallbackChain), so nothing is sent twice. Before 0.350.0 the chain was fixed
-    (Claude, the main brain, OpenRouter free) and `full` jobs had none.
+    Order: the background model (or `spec`, e.g. an assistant's own model) -> the other cards from the top of the
+    Models page usage order, each on the model and effort picked on that card. An API card contributes one link per
+    usable key. The chain is the same at every permission level: a link that
+    already called a tool and then broke stops the chain (_FallbackChain), so nothing is sent twice. Before 0.350.0
+    the chain was fixed (Claude, the main brain, OpenRouter free) and `full` jobs had none.
 
     Broken config still keeps background work alive: no buildable link at all returns the caller's Claude engine.
     """
@@ -1418,18 +1433,19 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         chain, claude_used = [], []
         # A plan's quota belongs to the account, not the model: a second Claude step after Claude ran dry would only
         # cost another failed call, so each plan provider appears once.
-        for st in model_routing.background_chain(m, conn, first=first, once=(CLAUDE, CODEX, GROK_CLI, ANTIGRAVITY)):
-            chain.extend(_links_for_step(st, cli, mode, tag, codex_profile, s, claude_used))
+        steps = model_routing.background_chain(m, conn, first=first, once=(CLAUDE, CODEX, GROK_CLI, ANTIGRAVITY))
         # Automatic background model on a plan: the pick is a model Javis chose from the provider's list, and a
         # plan provider appears only once above. If the provider refuses that model (the plan does not carry it,
-        # it was withdrawn), the job must still run: one last link on MAIN's own model, as before Automatic.
+        # it was withdrawn), the job must still run: one more link on that card's own model, tried before any
+        # other card, so the job leaves its card only when the card itself cannot run it.
         if spec is None and first["provider"] in (CLAUDE, CODEX, GROK_CLI, ANTIGRAVITY) \
                 and model_routing.background_auto(m):
             main_prof = model_routing.profile(m, first["provider"])
             if (main_prof["model"] or "") != (first["model"] or ""):
-                chain.extend(_links_for_step({"provider": first["provider"], "model": main_prof["model"],
-                                              "reasoning": first["reasoning"], "step": "main"},
-                                             cli, mode, tag, codex_profile, s, claude_used))
+                steps.insert(1, {"provider": first["provider"], "model": main_prof["model"],
+                                 "reasoning": first["reasoning"], "step": "main"})
+        for st in steps:
+            chain.extend(_links_for_step(st, cli, mode, tag, codex_profile, s, claude_used))
         if not chain:
             return cli
         return chain[0] if len(chain) == 1 else _FallbackChain(chain)
