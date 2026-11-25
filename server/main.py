@@ -28683,6 +28683,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                     # 'item' = item lạ (vd bản vá file) - không in ra nhưng vẫn moi đường dẫn.
                     try:
                         written.extend(channel_context.candidate_paths_from_tool(ev.get("item")))
+                        sess["sent"].update(channel_context.paths_sent_by_tool(
+                            ev.get("name"), ev.get("item"), cwd=_brain_root(brain)))
                     except Exception:
                         pass
                 elif et == "text":
@@ -28888,6 +28890,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                     # Nhặt rộng cả đường dẫn lẫn trong lệnh Bash; tầng sau lọc "có thật + vừa đổi".
                     try:
                         written.extend(channel_context.candidate_paths_from_tool(ev.get("input") or {}))
+                        sess["sent"].update(channel_context.paths_sent_by_tool(
+                            nm, ev.get("input") or {}, cwd=_brain_root(brain)))
                     except Exception:
                         pass
                     await _p(f"⚙ Đang gọi: {nm}")

@@ -668,6 +668,49 @@ def candidate_paths_from_tool(item, _depth: int = 0) -> list:
     return uniq
 
 
+# Tool gửi file thẳng ra kênh chat ngay giữa lượt (Zalo: zalo_send_image/zalo_send_file). File nó đã gửi KHÔNG được
+# tự đính kèm lần nữa ở cuối lượt: 15/11/2026 bot Toàn quyền gửi ảnh doanh số bằng zalo_send_image, rồi cuối lượt
+# `collect_turn_files` nhặt lại chính đường dẫn đó từ payload tool call (ảnh vừa vẽ, mtime trong lượt) và gửi lần hai.
+_SEND_TOOL_RE = re.compile(r"(?:^|__|\.)(zalo_send_image|zalo_send_file|send_image|send_file|send_media)$", re.I)
+
+
+def _send_tool_named(name, payload) -> bool:
+    if name and _SEND_TOOL_RE.search(str(name).strip()):
+        return True
+    if isinstance(payload, dict):
+        for k in ("name", "tool", "tool_name"):
+            v = payload.get(k)
+            if isinstance(v, str) and _SEND_TOOL_RE.search(v.strip()):
+                return True
+        for k in ("arguments", "input", "args"):
+            v = payload.get(k)
+            if isinstance(v, str) and v.strip()[:1] == "{":
+                try:
+                    v = json.loads(v)
+                except Exception:
+                    continue
+            if isinstance(v, dict) and _send_tool_named("", v):
+                return True
+    return False
+
+
+def paths_sent_by_tool(name, payload, cwd: str = None) -> set:
+    """normcase abs paths a send tool call (zalo_send_image...) already delivered; empty for any other tool.
+    Callers add them to the turn's `exclude` set of `collect_turn_files`. Never raises."""
+    try:
+        if not _send_tool_named(name, payload):
+            return set()
+        out = set()
+        for p in candidate_paths_from_tool(payload):
+            pp = Path(str(p))
+            if not pp.is_absolute() and cwd:
+                pp = Path(cwd) / pp
+            out.add(os.path.normcase(os.path.normpath(os.path.abspath(str(pp)))))
+        return out
+    except Exception:
+        return set()
+
+
 def collect_turn_files(reply_text: str, written_paths: list, t0: float,
                        cwd: str = None, exclude: set = None, vault_root: str = None) -> list:
     """Danh sách file đáng gửi trả về kênh chat sau 1 lượt.
