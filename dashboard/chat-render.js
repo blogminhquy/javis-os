@@ -968,6 +968,9 @@
         try { spec = decodeURIComponent(spec); } catch (err) {}
         return put('<a class="jv-cs" href="' + esc(href) + '" title="' + esc(href) + '" data-cs="' + esc(spec) + '">' + chuLink(t) + "</a>");
       }
+      // Link to one Inbox conversation: "#ht=<id>". A report about a customer carries it so the owner opens that chat in one tap.
+      var ht = /^#ht=([1-9][0-9]{0,11})$/.exec(href);
+      if (ht) return put('<a class="jv-ht" href="#ht=' + ht[1] + '" data-ht="' + ht[1] + '">' + chuLink(t) + "</a>");
       if (/^(https?:|mailto:)/i.test(href)) return put('<a href="' + esc(href) + '" title="' + esc(href) + '" target="_blank" rel="noopener">' + chuLink(t) + "</a>");
       // URL that thi GIU nguyen ma hoa (do la duong dan mang); chi duong dan trong vault moi go
       // ra, vi no se di thang toi ten file tren dia. Xem decodeVaultPath.
@@ -1897,6 +1900,15 @@
         if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
         e.preventDefault();
         if (typeof window.JavisOpenCongSu === "function") window.JavisOpenCongSu(cs.getAttribute("data-cs"));
+        return;
+      }
+      // Link toi mot hoi thoai Hop thu (#ht=<id>): mo dung hoi thoai, ke ca khi bam lai cung link (hash khong doi thi
+      // khong co hashchange, nen khong dua vao do).
+      var hl = e.target.closest ? e.target.closest("a.jv-ht") : null;
+      if (hl && hl.getAttribute("data-ht")) {
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
+        e.preventDefault();
+        if (typeof window.JavisOpenConv === "function") window.JavisOpenConv(parseInt(hl.getAttribute("data-ht"), 10));
         return;
       }
       // Wikilink [[..]]: bam la DI CHUYEN toi note dich - chay CA trong ban render dang sua (ne-wys/.jvfe-modal),
