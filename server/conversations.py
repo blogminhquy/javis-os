@@ -1221,6 +1221,47 @@ def ten_theo_chat_id(account_keys: List[str], chat_ids: List[str]) -> Dict[str, 
     return out
 
 
+def nameless_customers(channel: str, account_id: str, limit: int = 300) -> List[str]:
+    """User ids of this account's people the inbox shows as a bare id, latest first: customers stored without a name,
+    and private chats with no title and no named customer (a chat the Page or OA opened before the customer wrote).
+    Only all-digit ids (Messenger PSIDs, Zalo user ids), never a comment thread. The Zalo OA and Messenger bots name
+    them at start (25/11/2026)."""
+    tk = _tai_khoan_id(channel, account_id)
+    n = max(1, int(limit))
+    with _lock:
+        rows = _conn().execute(
+            "SELECT uid FROM ("
+            " SELECT external_user_id AS uid, updated_at AS ts FROM customers WHERE channel_account_id=? AND name=''"
+            " UNION ALL"
+            " SELECT c.external_chat_id AS uid, c.updated_at AS ts FROM conversations c"
+            " LEFT JOIN customers k ON k.id=c.customer_id"
+            " WHERE c.channel_account_id=? AND c.chat_type='private' AND c.title=''"
+            " AND COALESCE(k.name,'')=''"
+            ") WHERE uid != '' AND uid NOT GLOB '*[^0-9]*' ORDER BY ts DESC LIMIT ?",
+            (tk, tk, n * 2)).fetchall()
+    return list(dict.fromkeys(str(r[0]) for r in rows))[:n]
+
+
+def set_customer_name(channel: str, account_id: str, external_user_id: str, name: str) -> bool:
+    """Give a person the inbox holds as a bare id a name: their customer row, and their private chat's title where it
+    has none (found by its customer, or by the chat id, which is the person's id on Messenger and Zalo OA). A name
+    already stored is never replaced (the owner may have renamed them). True when a row changed."""
+    name = _s(name, 200).strip()
+    uid = str(external_user_id or "")
+    if not name or not uid:
+        return False
+    tk = _tai_khoan_id(channel, account_id)
+    with _lock:
+        db = _conn()
+        a = db.execute("UPDATE customers SET name=? WHERE channel_account_id=?"
+                       " AND external_user_id=? AND name=''", (name, tk, uid)).rowcount
+        b = db.execute("UPDATE conversations SET title=? WHERE channel_account_id=? AND chat_type='private'"
+                       " AND title='' AND (external_chat_id=? OR customer_id IN (SELECT id FROM customers"
+                       " WHERE channel_account_id=? AND external_user_id=?))", (name, tk, uid, tk, uid)).rowcount
+        db.commit()
+    return (a + b) > 0
+
+
 def group_speakers(account_key: str, chat_id: str, limit: int = 300) -> List[dict]:
     """Người ĐÃ NHẮN trong một cuộc chat: `[{uid, name, ts}]`, mới nhất trước, tên là tên ở tin gần nhất của người đó.
 
