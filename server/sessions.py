@@ -202,6 +202,20 @@ CREATE TABLE IF NOT EXISTS project_repos (
 PROJECT_REPOS_MAX = 10           # repos per project: each chat of the project gets a worktree of every one
 
 # 2026-11-06: when the owner last had each chat on screen (red unread dot in every history list). Its own table for the
+# 25/11/2026: what one chat window chose for itself, beside the model pin (owner: "model và suy nghĩ của các cửa sổ
+# chat không nhảy chồng chéo sang cửa sổ chat khác"). Its own table for the same reason as session_read below: a new
+# column on `sessions` stops the qualified native trial context (improvement_trial_sql_context is hash-pinned).
+#   pinned_reasoning: the window's effort; NULL = its setting (the assistant's level, else the card's).
+#   pinned_by_owner:  1 = the owner picked `sessions.pinned_provider/model` in this window; NULL/0 = a stamp or the
+#                     assistant's model copied at creation, so an assistant's chat follows the assistant's CURRENT model.
+_PREFS_SQL = """
+CREATE TABLE IF NOT EXISTS session_prefs (
+    session_id       TEXT PRIMARY KEY,
+    pinned_reasoning TEXT,
+    pinned_by_owner  INTEGER
+);
+"""
+
 # same reason as pin_order above: a `read_at` column on `sessions` would stop the qualified native trial context.
 # A chat without a row was never read: any reply in it is unread.
 _READ_SQL = """
@@ -679,15 +693,7 @@ class SessionStore:
                               # lượt. NULL/rỗng = phiên chưa có lượt dashboard nào (hoặc phiên
                               # Telegram) → theo mặc định chung ở settings.json.
                               ("pinned_provider", "TEXT"),
-                              ("pinned_model", "TEXT"),
-                              # Effort GHIM RIÊNG của phiên (owner, 25/11/2026: "model và suy nghĩ của các cửa sổ
-                              # chat không nhảy chồng chéo sang cửa sổ chat khác"). NULL = theo cài đặt (của trợ lý
-                              # trong chat trợ lý, của thẻ model trong chat thường).
-                              ("pinned_reasoning", "TEXT"),
-                              # 1 = the owner picked `pinned_provider/model` in this window (POST /sessions/{id}/model).
-                              # NULL/0 = a stamp or the assistant's model copied at creation: an assistant's chat then
-                              # follows the assistant's CURRENT model (25/11/2026).
-                              ("pinned_by_owner", "INTEGER")):
+                              ("pinned_model", "TEXT")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
             # Index cho cột vừa thêm phải chạy SAU vòng ALTER: DB cũ chưa có cột thì CREATE
@@ -731,6 +737,7 @@ class SessionStore:
             had_read = self._conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_read'").fetchone()
             self._conn.executescript(_READ_SQL)
+            self._conn.executescript(_PREFS_SQL)
             if not had_read:
                 # Chats from before the upgrade count as read, so the history does not light up all at once.
                 self._conn.execute("INSERT OR IGNORE INTO session_read(session_id, read_at) "
@@ -1094,8 +1101,10 @@ class SessionStore:
 
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         rows = self._read("SELECT s.*, COALESCE(c.input_tokens,0) AS last_context_input_tokens, "
-                          "COALESCE(c.provider,'') AS last_context_provider FROM sessions s "
-                          "LEFT JOIN subscription_request_context c ON c.session_id=s.id WHERE s.id = ?",
+                          "COALESCE(c.provider,'') AS last_context_provider, "
+                          "p.pinned_reasoning AS pinned_reasoning, p.pinned_by_owner AS pinned_by_owner FROM sessions s "
+                          "LEFT JOIN subscription_request_context c ON c.session_id=s.id "
+                          "LEFT JOIN session_prefs p ON p.session_id=s.id WHERE s.id = ?",
                           (session_id,))
         return dict(rows[0]) if rows else None
 
@@ -1792,15 +1801,15 @@ class SessionStore:
             self.create_session(brain=brain, session_id=session_id)
         if not self.get_session(session_id):
             return False
-        if by_owner is None:   # a stamp: who chose the model does not change
-            self._write(lambda c: c.execute(
-                "UPDATE sessions SET pinned_provider = ?, pinned_model = ? WHERE id = ?",
-                (prov, mdl, session_id)))
-        else:
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET pinned_provider = ?, pinned_model = ? WHERE id = ?",
+            (prov, mdl, session_id)))
+        if by_owner is not None:   # None = a stamp: who chose the model does not change
             flag = 1 if (by_owner and prov) else 0
             self._write(lambda c: c.execute(
-                "UPDATE sessions SET pinned_provider = ?, pinned_model = ?, pinned_by_owner = ? WHERE id = ?",
-                (prov, mdl, flag, session_id)))
+                "INSERT INTO session_prefs(session_id, pinned_by_owner) VALUES(?, ?) "
+                "ON CONFLICT(session_id) DO UPDATE SET pinned_by_owner = excluded.pinned_by_owner",
+                (session_id, flag)))
         return True
 
     def set_pinned_reasoning(self, session_id: str, level: Optional[str], *,
@@ -1812,7 +1821,9 @@ class SessionStore:
         if not self.get_session(session_id):
             return False
         self._write(lambda c: c.execute(
-            "UPDATE sessions SET pinned_reasoning = ? WHERE id = ?", (lv, session_id)))
+            "INSERT INTO session_prefs(session_id, pinned_reasoning) VALUES(?, ?) "
+            "ON CONFLICT(session_id) DO UPDATE SET pinned_reasoning = excluded.pinned_reasoning",
+            (session_id, lv)))
         return True
 
     # ── projects (nhóm hội thoại) ──
@@ -2323,6 +2334,7 @@ class SessionStore:
         def _del(c):
             c.execute("DELETE FROM pin_order WHERE session_id = ?", (session_id,))   # 0.454.0
             c.execute("DELETE FROM session_read WHERE session_id = ?", (session_id,))
+            c.execute("DELETE FROM session_prefs WHERE session_id = ?", (session_id,))
             c.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         self._write(_del)
 
