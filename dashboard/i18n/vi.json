@@ -2542,6 +2542,7 @@
   "mpick.core_pin_title": "Model ghim cho Javis Core: mọi chat của Javis Core dùng model này",
   "mpick.follow_default": "Theo model mặc định chung",
   "mpick.follow_main": "Theo model của khung chat chính",
+  "mpick.follow_agent": "Theo model trong cài đặt của trợ lý",
   "mpick.pin_limited_title": "Model ghim riêng của cuộc chat này đã hết hạn mức gói, tạm chạy model của khung chat chính tới khi gói mở lại",
   "mpick.route_chosen": "Đã chọn: {model} ({why})",
   "mpick.route_running": "Đang chạy: {model} (dự phòng, lựa chọn của bạn giữ nguyên và tự quay lại khi có lượt)",

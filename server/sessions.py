@@ -683,7 +683,11 @@ class SessionStore:
                               # Effort GHIM RIÊNG của phiên (owner, 25/11/2026: "model và suy nghĩ của các cửa sổ
                               # chat không nhảy chồng chéo sang cửa sổ chat khác"). NULL = theo cài đặt (của trợ lý
                               # trong chat trợ lý, của thẻ model trong chat thường).
-                              ("pinned_reasoning", "TEXT")):
+                              ("pinned_reasoning", "TEXT"),
+                              # 1 = the owner picked `pinned_provider/model` in this window (POST /sessions/{id}/model).
+                              # NULL/0 = a stamp or the assistant's model copied at creation: an assistant's chat then
+                              # follows the assistant's CURRENT model (25/11/2026).
+                              ("pinned_by_owner", "INTEGER")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
             # Index cho cột vừa thêm phải chạy SAU vòng ALTER: DB cũ chưa có cột thì CREATE
@@ -1774,7 +1778,8 @@ class SessionStore:
         return True
 
     def set_pinned_model(self, session_id: str, provider: Optional[str],
-                         model: Optional[str], *, brain: Optional[str] = None) -> bool:
+                         model: Optional[str], *, brain: Optional[str] = None,
+                         by_owner: Optional[bool] = None) -> bool:
         """Ghim model riêng cho MỘT phiên (provider rỗng = gỡ ghim, phiên quay về mặc
         định chung). Cùng khuôn set_project: `brain` khác None thì tạo hàng nếu phiên
         chưa kịp tồn tại - dashboard mint id phía client, user có thể đổi model trước
@@ -1787,9 +1792,15 @@ class SessionStore:
             self.create_session(brain=brain, session_id=session_id)
         if not self.get_session(session_id):
             return False
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET pinned_provider = ?, pinned_model = ? WHERE id = ?",
-            (prov, mdl, session_id)))
+        if by_owner is None:   # a stamp: who chose the model does not change
+            self._write(lambda c: c.execute(
+                "UPDATE sessions SET pinned_provider = ?, pinned_model = ? WHERE id = ?",
+                (prov, mdl, session_id)))
+        else:
+            flag = 1 if (by_owner and prov) else 0
+            self._write(lambda c: c.execute(
+                "UPDATE sessions SET pinned_provider = ?, pinned_model = ?, pinned_by_owner = ? WHERE id = ?",
+                (prov, mdl, flag, session_id)))
         return True
 
     def set_pinned_reasoning(self, session_id: str, level: Optional[str], *,

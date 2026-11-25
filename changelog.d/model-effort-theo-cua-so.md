@@ -8,6 +8,8 @@ title: Each chat window and assistant keeps its own model and reasoning level
 - **Chọn model trong khung chat không còn đảo Thứ tự dùng.** Trước đây thẻ vừa chọn tự nhảy lên đầu thành model chính. Giờ thứ tự chỉ đổi ở trang Models, và việc chỉ chuyển xuống thẻ dự phòng bên dưới khi thẻ trên hết lượt.
 - **Khi một thẻ hết lượt, thẻ chạy thay dùng đúng mức suy nghĩ đã đặt cho nó** ở trang Models, trong chat, chat trợ lý, team và chatbot.
 - **Trợ lý làm việc tự động giữ đúng mức suy nghĩ của mình.** Lượt team trên ChatGPT, Grok Build, Antigravity trước đây bỏ qua mức này; bước workflow chạy model API trước đây tắt hẳn suy nghĩ; chatbot trước đây theo mức của thẻ model thay vì của trợ lý.
+- **Việc Kanban giao cho trợ lý chạy bằng model và mức suy nghĩ của trợ lý đó**, không còn chạy model việc nền ở mức "thấp".
+- **Chat cũ với trợ lý theo model hiện tại của trợ lý.** Trước đây mỗi cuộc chat giữ model chụp lúc mở, đổi model ở cài đặt trợ lý không ảnh hưởng. Model anh tự chọn trong một cửa sổ vẫn được giữ.
 - **Tài liệu Messenger:** nói đúng dấu hiệu app Meta chưa có quyền nâng cao (chỉ thấy tin Nhân viên, tên khách là dãy số), kèm mẫu hồ sơ xét duyệt `pages_messaging`.
 
 ## en
@@ -16,4 +18,6 @@ title: Each chat window and assistant keeps its own model and reasoning level
 - **Picking a model in the composer no longer reorders the usage order.** The picked card used to jump to the top as the main model. The order now changes only on the Models page, and work only moves down to a fallback card when the one above is out of quota.
 - **When a card is out of quota, the card standing in runs at the level set for it** on the Models page, in chats, assistant chats, teams and chatbots.
 - **Assistants working on their own keep their reasoning level.** Team turns on ChatGPT, Grok Build and Antigravity ignored it, workflow steps on API models ran with reasoning off, and chatbots followed the model card's level instead of the assistant's.
+- **A Kanban job given to an assistant runs on that assistant's model and level**, no longer on the background model at "low".
+- **Older chats with an assistant follow the assistant's current model.** Each chat used to keep the model copied when it opened, so changing the assistant's model changed nothing. A model picked by hand in a window still stays.
 - **Messenger docs:** describe the sign of a Meta app without Advanced Access (only Staff messages, customer names as numbers) and add an App Review template for `pages_messaging`.

@@ -4261,6 +4261,21 @@ def _pin_limited_until(provider: str, now: float = None) -> float:
     return until
 
 
+def _agent_chat_row(row):
+    """An assistant's chat whose model the owner never picked in that window follows the assistant's CURRENT model
+    (25/11/2026: "đổi model ở cài đặt cộng sự không cập nhật các cuộc chat đã mở"). Its stored pin is only a copy made
+    when the chat opened, or a stamp, so it is replaced here by the assistant's model, or cleared when the assistant is
+    on "Default" (the chat then follows MAIN). A model the owner picked in the window, and every other chat, stay."""
+    row = row or {}
+    if row.get("pinned_by_owner"):
+        return row
+    persona = workflow_chat.persona_cua_phien(row)
+    if not persona or persona[0] != "agent":
+        return row
+    g = _model_cua_agent(row.get("brain") or "brain", persona[1])
+    return {**row, "pinned_provider": (g or {}).get("provider") or "", "pinned_model": (g or {}).get("model") or ""}
+
+
 def _chat_provider_for_session(mcfg, row):
     """Provider cho MỘT phiên chat: phiên đã GHIM model riêng (user đổi model ngay trong
     phiên) thì theo ghim; chưa ghim thì rơi về _chat_provider (mặc định chung).
@@ -4275,6 +4290,8 @@ def _chat_provider_for_session(mcfg, row):
     if javis_core.is_core_channel((row or {}).get("channel")):
         _cp = _core_pin(mcfg)
         row = {"pinned_provider": _cp.get("provider") or "", "pinned_model": _cp.get("model") or ""}
+    else:
+        row = _agent_chat_row(row)
     pprov = ((row or {}).get("pinned_provider") or "").strip()
     if not pprov:
         return _chat_provider(mcfg)
@@ -4303,7 +4320,7 @@ def _chat_selected(mcfg, row) -> dict:
     """{'provider','model'} the owner CHOSE for one chat, before any fallback: the chat's own pin (Javis Core's pin in
     a Core chat), else MAIN. `_chat_provider_for_session` says where the turn really runs; the two differ while the
     chosen card is out of quota or cannot run (owner, 05/11/2026: the composer chip shows both)."""
-    row = row or {}
+    row = _agent_chat_row(row or {})
     if javis_core.is_core_channel(row.get("channel")):
         pin = _core_pin(mcfg)
     else:
@@ -25021,6 +25038,10 @@ def _sessions_meta_sync(session_id: str):
         # 0.402.0: a Javis Core chat shows the pin of Javis Core, not an old stamp of this one chat.
         _cp = _core_pin(cfgmod.read_settings().get("model", {}))
         sess["pinned_provider"], sess["pinned_model"] = _cp.get("provider") or None, _cp.get("model") or None
+    else:
+        # 25/11/2026: an assistant's chat the owner never picked a model in shows the assistant's current model.
+        _ar = _agent_chat_row(sess)
+        sess["pinned_provider"], sess["pinned_model"] = _ar.get("pinned_provider") or None, _ar.get("pinned_model") or None
     pp = (sess.get("pinned_provider") or "").strip()
     if pp:
         # Cùng cách giải nghĩa khoá với đường định tuyến (`_provider_key`), nếu không thì
@@ -25099,7 +25120,7 @@ async def _pin_chat_model(session_id: str, provider: str, model: str, brain=None
         if (_row.get("pinned_provider") or "").strip():
             get_store().set_pinned_model(session_id, "", "")   # an older stamp of this chat must not show as a pin
         return {"ok": True, "pinned_provider": _cp["provider"] or None, "pinned_model": _cp["model"] or None, "scope": "core"}
-    if not get_store().set_pinned_model(session_id, prov, model, brain=brain):
+    if not get_store().set_pinned_model(session_id, prov, model, brain=brain, by_owner=bool(prov)):
         return {"ok": False, "status": 404, "error": localefmt.chu("phiên không tồn tại", "session does not exist")}
     return {"ok": True, "pinned_provider": prov or None, "pinned_model": (model or "").strip() or None}
 
@@ -34372,6 +34393,36 @@ def _agent_persona(root, slug, agent_key=None):
 
 
 tasks_feature.deps.agent_persona = _agent_persona
+
+
+def _agent_job_spec(root, slug, agent_key=None):
+    """{provider, model, reasoning} for the work of a Kanban job given to an assistant (25/11/2026, owner: an assistant
+    working on its own uses the model and the level set on it). Its own model at its level (default medium); an
+    assistant left on "Default" model keeps the background model, at its own level when it set one. None: the job
+    runs as a plain Kanban job (no such assistant, or the slug now belongs to another assistant)."""
+    if not _agent_persona(root, slug, agent_key):
+        return None
+    try:
+        meta = _read_md(_agent_md_path(root, slug))[0] or {}
+    except Exception:  # noqa: BLE001
+        return None
+    model = str(meta.get("model") or "").strip()
+    if model:
+        return {"provider": _agent_model_provider(model, str(meta.get("model_provider") or "").strip()),
+                "model": model, "reasoning": _agent_reasoning(meta)}
+    own = _agent_own_reasoning(meta)
+    if not own:
+        return None
+    bg = aux_engine.read_spec(tag="kanban")
+    return {"provider": bg.get("provider") or aux_engine.CLAUDE, "model": bg.get("model") or "", "reasoning": own}
+
+
+def _aux_swap_spec(cli, mode, tag, spec):
+    return aux_engine.swap(cli, mode=mode, tag=tag, spec=spec, codex_profile=_write_codex_profile)
+
+
+tasks_feature.deps.agent_job_spec = _agent_job_spec
+tasks_feature.deps.aux_swap_spec = _aux_swap_spec
 
 
 def _agent_roster(root):

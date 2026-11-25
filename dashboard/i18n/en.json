@@ -2542,6 +2542,7 @@
   "mpick.core_pin_title": "Model pinned for Javis Core: every Javis Core chat uses it",
   "mpick.follow_default": "Following the shared default model",
   "mpick.follow_main": "Follow the main chat's model",
+  "mpick.follow_agent": "Follow the model set on the assistant",
   "mpick.pin_limited_title": "This chat's own model is out of plan quota; it runs on the main chat's model until the plan resets",
   "mpick.route_chosen": "Chosen: {model} ({why})",
   "mpick.route_running": "Running: {model} (fallback; your choice stays and comes back once it has quota)",

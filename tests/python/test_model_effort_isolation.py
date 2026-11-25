@@ -232,6 +232,46 @@ check("a bot on its Agent's own model thinks at the Agent's level", main._bot_tu
 check("a bot whose Agent's model rests: the stand-in card's setting", main._bot_turn_reasoning(mm, "anthropic-cli", bot_minh) == "medium")
 check("a turn with no Agent keeps the card's effort", main._bot_turn_reasoning(mm, "groq") == "low")
 
+# Kanban job given to an assistant: its model and level, not the background model at "low".
+import tasks as tasks_mod  # noqa: E402
+main._agent_persona = lambda root, slug, key=None: "persona" if slug in ("lan", "minh") else ""
+check("a job for an assistant with its own model runs that model at its level",
+      main._agent_job_spec(B, "minh") == {"provider": "openai-oauth", "model": "gpt-5.5", "reasoning": "low"},
+      main._agent_job_spec(B, "minh"))
+spec_lan = main._agent_job_spec(B, "lan")
+check("a job for an assistant on 'Default' model keeps the background model at the assistant's own level",
+      spec_lan and spec_lan["reasoning"] == "high" and spec_lan["provider"], spec_lan)
+check("an unknown assistant: a plain Kanban job", main._agent_job_spec(B, "nobody") is None)
+check("the Kanban job reads its assistant from the owner's pick or the specifier's routing",
+      tasks_mod.TasksFeature._assigned_agent({"idempotency_key": "agent:k1:minh:x"}) == ("minh", "k1")
+      and tasks_mod.TasksFeature._assigned_agent({"metadata": {"agent": {"slug": "lan", "key": "k2"}}}) == ("lan", "k2")
+      and tasks_mod.TasksFeature._assigned_agent({}) == ("", None))
+src_t = (ROOT / "server" / "tasks.py").read_text(encoding="utf-8")
+check("only the work step takes the assistant's model; a 'light' job keeps the assistant's level",
+      'spec = self._agent_spec(task) if tag_suffix == "execute" else None' in src_t
+      and 'not getattr(cli, "javis_agent_spec", None)' in src_t)
+
+# An assistant's chat follows the assistant's CURRENT model unless the owner picked one in that window.
+old_chat = store.create_session(brain=B, engine="cli", channel="agent:minh")
+store.set_pinned_model(old_chat, "anthropic-cli", "sonnet")      # copied at creation / stamped, long ago
+check("an old assistant chat runs the assistant's current model, not the model copied when it opened",
+      turn(old_chat)[0] == "openai-oauth", turn(old_chat))
+own_chat = store.create_session(brain=B, engine="cli", channel="agent:minh")
+client.post(f"/sessions/{own_chat}/model", data={"provider": "groq", "model": "qwen3-32b"}, headers=H)
+check("a model the owner picked in that window stays", turn(own_chat)[0] == "groq", turn(own_chat))
+(BR / "agents" / "minh.md").write_text("---\nname: Minh\nrole: Kho\nmodel: opus\nmodel_provider: anthropic-cli\n"
+                                       "reasoning: low\n---\nBạn là Minh.\n", encoding="utf-8", newline="\n")
+check("changing the assistant's model moves its chats that had no pick of their own",
+      turn(old_chat)[0] == "anthropic-cli" and turn(own_chat)[0] == "groq", (turn(old_chat), turn(own_chat)))
+client.post(f"/sessions/{own_chat}/model", data={"provider": ""}, headers=H)
+check("'Follow the assistant's model' clears the window's pick", turn(own_chat)[0] == "anthropic-cli", turn(own_chat))
+meta = client.get(f"/sessions/{old_chat}/meta").json()
+check("the composer shows the assistant's current model for that chat",
+      meta.get("pinned_provider") == "anthropic-cli" and meta.get("pinned_model") == "opus", meta)
+normal = store.create_session(brain=B, engine="cli", channel="web")
+store.set_pinned_model(normal, "groq", "qwen3-32b")
+check("a normal chat keeps its stamp as before", turn(normal)[0] == "groq")
+
 # ============================================================
 # 5. The usage order is never reordered from a chat
 # ============================================================

@@ -351,7 +351,7 @@
     // An assistant's chat with its own model: one row to go back to following the main chat's model (0.285.0).
     if (agentEff && (sessionPin || pinBroken)) {
       html = '<button type="button" class="mb-follow">' + (typeof ic === "function" ? ic("rotate-cw") : "") + " " +
-        window.t("mpick.follow_main") + "</button>" + html;
+        window.t(agentEff.slug === "javis-core" ? "mpick.follow_main" : "mpick.follow_agent") + "</button>" + html;
     }
     // Ô tìm đang được gõ thì giữ con trỏ ở đó sau khi vẽ lại. Mới MỞ bảng thì chỉ tự focus
     // trên máy có bàn phím thật: trên điện thoại focus là bật bàn phím ảo che nửa bảng, người
