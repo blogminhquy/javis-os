@@ -155,6 +155,12 @@ _DEFAULT = {
         # the shape of Claude Code's ANTHROPIC_BASE_URL (no /v1); Javis appends /v1/messages.
         "anthropic_compat_base": "",
         "anthropic_compat_key": "",
+        # Provider 'muse' (owner 26/11/2026): Muse through Muse Gateway (server/muse.py). The accounts and their cookies
+        # live in the gateway; Javis keeps whether the card is connected, and for a gateway on another machine or
+        # container its address and admin key (both empty = 127.0.0.1:8080 and the gateway's own config.json).
+        "muse_on": False,
+        "muse_base": "",
+        "muse_key": "",
         # --- Ollama chạy trên MÁY NHÀ (provider 'ollama-local') ---
         # Ca đặc biệt mà khối chú thích ngay trên vừa từ chối, nay mở ra nhưng KHÔNG bằng cách
         # giả định "localhost là máy người dùng". Cái Javis lưu là một ĐỊA CHỈ người dùng tự
@@ -193,6 +199,7 @@ _DEFAULT = {
             "gemini": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],  # Google Gemini API (picker load động)
             "groq": ["openai/gpt-oss-120b", "qwen3-32b"],  # Groq (picker load động)
             "deepseek": ["deepseek-flash", "deepseek-v4-pro"],                     # DeepSeek (picker load động)
+            "muse": ["muse-1"],                                                    # Muse Gateway serves one model
             # Không ghim model Codex: /provider/models lấy catalog LIVE bằng
             # codex app-server model/list và nhớ lại lần thành công gần nhất.
             "openai-oauth": [],
@@ -544,7 +551,7 @@ _SECRET_PATHS = (
     "packs.tokens.*",
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
     "model.groq_api_key", "model.deepseek_api_key", "model.ollama_key", "model.ollama_local_key", "model.openai_compat_key",
-    "model.anthropic_compat_key",
+    "model.anthropic_compat_key", "model.muse_key",
     # The long-lived Claude Code token (2026-11-22): it runs the owner's plan for a year, like a password.
     "model.claude_oauth_token",
     # 0.350.0: keys of every account in a provider card (model_routing). Account ids are generated,

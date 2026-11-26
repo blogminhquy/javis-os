@@ -37,7 +37,7 @@ Javis OS turns **Claude, ChatGPT, Gemini, Grok** and the models you choose into 
 
 🇬🇧 **English** · [🇻🇳 Tiếng Việt](docs/i18n/vi/README.md) · [🇨🇳 简体中文](docs/i18n/zh/README.md) · [🇪🇸 Español](docs/i18n/es/README.md) · [🇯🇵 日本語](docs/i18n/ja/README.md) · [🇮🇳 हिन्दी](docs/i18n/hi/README.md) · [🇧🇷 Português](docs/i18n/pt-BR/README.md) · [🇰🇷 한국어](docs/i18n/ko/README.md) · [🇷🇺 Русский](docs/i18n/ru/README.md) · [🇩🇪 Deutsch](docs/i18n/de/README.md) · [🇫🇷 Français](docs/i18n/fr/README.md) · [🇮🇩 Bahasa Indonesia](docs/i18n/id/README.md) · [🌍 Help translate](CONTRIBUTING.md#translations)
 
-[Website](https://javisos.com) · [Quick start](#-quick-start) · [Why Javis](#-why-javis) · [Brains](#-14-brains-one-toolkit) · [Features](#-features) · [Install](#-installation) · [Docs](docs/en/README.md) · [Support](#-support-javis-os)
+[Website](https://javisos.com) · [Quick start](#-quick-start) · [Why Javis](#-why-javis) · [Brains](#-15-brains-one-toolkit) · [Features](#-features) · [Install](#-installation) · [Docs](docs/en/README.md) · [Support](#-support-javis-os)
 
 <br>
 
@@ -110,7 +110,7 @@ What that buys you:
 
 | | An ordinary chatbot | **Javis OS** |
 |---|---|---|
-| **Brain** | Locked to one model, one stateless API call per message | **Swappable**: 14 providers, each with the full set of tools, MCP, skills and sessions, including models running on your own machine through Ollama |
+| **Brain** | Locked to one model, one stateless API call per message | **Swappable**: 15 providers, each with the full set of tools, MCP, skills and sessions, including models running on your own machine through Ollama |
 | **Memory** | Forgets after every session | **A living Second Brain** that remembers you and thickens with every conversation |
 | **Data** | Made up, or absent | **Real numbers** from the connections you wire in (sales, ads, calendar, email, messaging) |
 | **Work** | Answers, then waits | **Background loops, reminders and an AI-run task queue** that report back to you |
@@ -126,9 +126,9 @@ What that buys you:
 
 ---
 
-## 🧠 14 brains, one toolkit
+## 🧠 15 brains, one toolkit
 
-Pick the brain on the **Models** page and change it whenever you like. Javis supports **14 providers** today.
+Pick the brain on the **Models** page and change it whenever you like. Javis supports **15 providers** today.
 
 <p align="center">
 <img src="docs/assets/diagrams/swappable-brain.svg" width="100%" alt="Animated diagram: the Javis core in the middle with its toolkit (MCP Hub, Skills, Second Brain, Tasks, Schedules, Plugins) around it, while the brains take turns plugging in and every tool stays lit">
@@ -144,6 +144,7 @@ Pick the brain on the **Models** page and change it whenever you like. Javis sup
 | **OpenAI API** · **Anthropic API** · **Google Gemini** · **Groq** · **DeepSeek** | API key | via Javis tools |
 | **Ollama Cloud** · **Ollama on this machine** | API key, or free on your own hardware | via Javis tools |
 | **Any OpenAI-compatible or Anthropic-compatible endpoint** | Whatever that endpoint or reseller needs | via Javis tools |
+| **Muse** (Meta, through Muse Gateway) | Your Muse accounts, connected with a pasted cookie (unofficial) | via Javis tools |
 
 Every brain can call your connected MCP servers, read and write the brain, run skills, queue Kanban work, and create agents, workflows, loops and reminders. The CLI engines additionally run **shell commands**, **fetch and search the web**, and **spawn parallel sub-agents**.
 

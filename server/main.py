@@ -108,6 +108,7 @@ import model_routing   # 0.350.0: provider order, per-card model/effort, several
 import plan_limits     # the plan's 5-hour and weekly meters (side work pauses near the limit)
 import plan_accounts   # 0.353.0: several accounts on one subscription plan card (Codex, Grok, Claude Code)
 import adv_keys   # gateway lists: Advanced API key (OpenAI route) and Claude Compatible (Anthropic route)
+import muse       # Muse (Meta, muse.ai) through Muse Gateway, tools through text (owner 26/11/2026)
 import mcp_store
 import mcp_client
 import mcp_catalog
@@ -2558,11 +2559,16 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     # whatever /models returned or the model names the owner typed when connecting.
     {"id": "anthropic-compat", "label": "Anthropic Compatible", "kind": "api", "key_field": "anthropic_compat_key",
      "catalog_key": "anthropic-compat", "default_models": []},
+    # Owner 26/11/2026: Muse (Meta's app at muse.ai) as a fallback and background model, connected by pasting an
+    # account's cookie on this page. It runs through Muse Gateway (server/muse.py): the accounts and their cookies
+    # live in the gateway, Javis keeps only the gateway's address and admin key (`muse_base`, `muse_key`).
+    {"id": "muse",          "label": "Muse",                    "kind": "api", "key_field": "muse_key",
+     "catalog_key": "muse", "default_models": [muse.MODEL]},
 ]
 
 _PROVIDER_KEY_FIELDS = tuple(p["key_field"] for p in PROVIDER_DEFS if p.get("key_field"))
 # Providers addressed by an endpoint, not by an account: one key at most, no account list (0.350.0).
-_ROUTING_SINGLE_KEY = ("openai-compat", "anthropic-compat", "ollama-local")
+_ROUTING_SINGLE_KEY = ("openai-compat", "anthropic-compat", "ollama-local", "muse")
 
 
 def _card_label(p: dict) -> str:
@@ -2691,6 +2697,10 @@ def _providers_view(cfg):
             configured = bool((m.get("ollama_local_endpoint") or "").strip())
         elif p["id"] in adv_keys.PROVIDERS:
             configured = bool(adv_keys.gateways(m, p["id"]))
+        elif p["id"] == muse.PROVIDER:
+            # Signed in = an account was connected on this page and not disconnected since. The admin key may come
+            # from the gateway's own config.json, so having `muse_key` proves nothing either way.
+            configured = muse.connected(m)
         elif p["key_field"] is None:
             configured = True
         else:
@@ -2720,6 +2730,11 @@ def _providers_view(cfg):
             item["cai_lenh"] = "npm install -g @openai/codex"
             item["cli_env"] = "JAVIS_CODEX_BIN"
             item["docker"] = deploy_info.deploy_mode() == "docker"
+        if p["id"] == muse.PROVIDER:
+            # The gateway's accounts and whether it answers, from a short-lived copy: this runs inside the request
+            # that draws the page, so it never waits on the network (the page asks /provider/muse/status after).
+            item["muse"] = muse.cached_view(m)
+            item["muse_base"] = str(m.get("muse_base") or "")   # the address saved on this page, "" = default
         if p["id"] == "grok-cli":
             _k = grok_cli.auth_status()
             item["cli_found"] = bool(grok_cli.find_grok_cli())
@@ -2818,6 +2833,8 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "openai-compat"
     elif provider == "anthropic-compat":
         m["engine"] = "anthropic-compat"
+    elif provider == "muse":
+        m["engine"] = "muse"
     else:  # anthropic-cli
         m["engine"] = "cli"; m["claude_model"] = model
 
@@ -3812,6 +3829,9 @@ def _provider_key(mcfg, d):
         if not (mcfg.get("anthropic_compat_base") or "").strip():
             return ""
         return (mcfg.get("anthropic_compat_key") or "").strip() or "none"
+    if d.get("id") == muse.PROVIDER:
+        # The gateway's admin key (Models page, MUSE_ADMIN_KEY, or the gateway's config.json on this machine).
+        return (muse.admin_key(mcfg) or "none") if muse.connected(mcfg) else ""
     if not d.get("key_field"):
         return ""
     # 0.350.0: several keys per provider, used top to bottom; a key put to rest after a quota error is skipped.
@@ -3827,6 +3847,8 @@ def _route_ready(mcfg, prov) -> bool:
     if not d:
         return False
     if d.get("kind") == "api":
+        if prov == muse.PROVIDER:
+            return muse.connected(mcfg)
         if prov in adv_keys.PROVIDERS and adv_keys.gateways(mcfg, prov):
             return adv_keys.active(mcfg, prov) is not None
         if d.get("key_field") and d["id"] not in _ROUTING_SINGLE_KEY:
@@ -3914,7 +3936,7 @@ AGENT_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli
                    # Model chạy máy nhà cũng giao được việc nền cho agent. Bỏ nó ra khỏi đây
                    # là tính năng nửa vời: cài model về rồi mà chỉ chat tay được, không giao
                    # cho agent hay workflow nào chạy.
-                   "ollama-local", "openai-compat", "anthropic-compat")
+                   "ollama-local", "openai-compat", "anthropic-compat", "muse")
 
 
 def _agent_model_provider(model: str, provider: str = "") -> str:
@@ -4960,6 +4982,8 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         return engine.openai_compat_stream(key, model, messages, reasoning)
     if prov == "anthropic-compat":
         return engine.anthropic_compat_stream(key, model, messages, reasoning)
+    if prov == "muse":
+        return engine.muse_stream(key, model, messages, reasoning)
     if prov == "openai-oauth":
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
@@ -4992,7 +5016,7 @@ def _hub_enabled():
 # (`ollama-local`) từng bị sót đúng như vậy từ lúc có nhánh của nó tới 0.92.2 (người dùng Mac báo 11/10: "model báo không có
 # quyền tool", không đọc được file, không gọi được MCP).
 _API_TOOL_PROVIDERS = ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama",
-                       "ollama-local", "openai-compat", "anthropic-compat")
+                       "ollama-local", "openai-compat", "anthropic-compat", "muse")
 
 
 def _coding_ctx_luot(row, brain=None, sid="", chat_id=""):
@@ -5137,11 +5161,14 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
                 return engine.openai_compat_chat_with_mcp(key, model, messages, reasoning, tools, route)
             if prov == "anthropic-compat":
                 return engine.anthropic_compat_chat_with_mcp(key, model, messages, reasoning, tools, route)
+            if prov == "muse":
+                return engine.muse_chat_with_mcp(key, model, messages, reasoning, tools, route)
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama-local":
             return _boc(engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route))
 
-        if prov in ("openrouter", "openai", "anthropic-api", "anthropic-compat", "gemini", "groq", "deepseek", "ollama", "openai-compat"):
+        if prov in ("openrouter", "openai", "anthropic-api", "anthropic-compat", "gemini", "groq", "deepseek", "ollama",
+                    "openai-compat", "muse"):
             return _boc(engine.thu_lai_khi_tam_thoi(_vong_tool, nhan=f"{prov}/{model or 'mặc định'}+tool"))
     return _api_stream(prov, key, model, messages, reasoning)
 
@@ -5967,7 +5994,8 @@ def _api_label(prov):
     return {"openrouter": "OpenRouter", "openai": "OpenAI", "anthropic-api": "Anthropic API",
             "openai-oauth": "ChatGPT (OAuth)", "gemini": "Google Gemini",
             "groq": "Groq", "deepseek": "DeepSeek", "ollama": "Ollama",
-            "openai-compat": "OpenAI Compatible", "anthropic-compat": "Claude Compatible"}.get(prov, prov)
+            "openai-compat": "OpenAI Compatible", "anthropic-compat": "Claude Compatible",
+            "muse": "Muse"}.get(prov, prov)
 
 def _reasoning_level(mcfg):
     r = (mcfg or {}).get("reasoning", "off")
@@ -8160,7 +8188,14 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             m["anthropic_compat_base"] = new_base
             _PROV_MODELS_CACHE.pop("anthropic-compat", None)
         # Ngắt kết nối 1 provider (xoá key). Nếu nó đang là MAIN → quay về Claude Code CLI để chat không gãy.
-        if patch.get("clear_key"):
+        if patch.get("clear_key") == muse.PROVIDER:
+            # Disconnect Muse: the card leaves the usage order. The accounts stay in the gateway and the gateway's
+            # address and key stay saved, so connecting again is one paste (or none, see /provider/muse/connect).
+            m["muse_on"] = False
+            model_routing.drop_from_order(m, muse.PROVIDER)
+            if _effective_main(cfg).get("provider") == muse.PROVIDER:
+                _set_main_model(cfg, "anthropic-cli", m.get("claude_model") or "opus")
+        elif patch.get("clear_key"):
             d = _provider_def(patch["clear_key"])
             if d and d.get("key_field"):
                 m[d["key_field"]] = ""
@@ -8940,6 +8975,8 @@ async def _fetch_provider_models(provider, m):
         return ids
     if provider == "anthropic-compat":
         return await _anthropic_compat_models(m)
+    if provider == muse.PROVIDER:
+        return [muse.MODEL]   # the gateway serves one model
     if provider == "ollama":
         key = m.get("ollama_key")
         if not key:
@@ -25777,6 +25814,125 @@ async def openai_compat_connect(request: Request):
     return {"ok": True, "models": len(ids), "listed": bool(live), "id": g_id}
 
 
+# ---- Muse (owner 26/11/2026): a card on the Models page, connected by pasting a Muse account's cookie ----
+# The accounts and their cookies live in Muse Gateway (server/muse.py); these routes only relay the owner's clicks to
+# its admin API and keep two things in settings: whether the card is connected (`muse_on`) and, for a gateway on
+# another machine or container, its address and admin key.
+def _muse_settings(**fields) -> dict:
+    """Write `model.<field>` values under the settings lock and return the new model section."""
+    with cfgmod._SETTINGS_LOCK:
+        cfg = cfgmod.read_settings()
+        m = cfg.setdefault("model", {})
+        m.update(fields)
+        cfgmod.write_settings(cfg)
+        return dict(m)
+
+
+def _muse_gateway_fields(data: dict) -> dict:
+    """The gateway address and key from a form, checked: {} when the form left both empty. A blank key keeps the saved
+    one for the same address only: the key must never follow a new address the owner typed."""
+    m = cfgmod.read_settings().get("model") or {}
+    out = {}
+    raw_base = str(data.get("base") or "").strip()
+    new_base = muse.clean_base(raw_base) if raw_base else ""
+    if "base" in data and new_base != str(m.get("muse_base") or ""):
+        out["muse_base"] = new_base
+        out["muse_key"] = ""
+    key = str(data.get("key") or "").strip()
+    if key and not key.startswith("••••"):
+        out["muse_key"] = key
+    return out
+
+
+@app.get("/provider/muse/status")
+async def muse_status():
+    """The gateway's accounts and whether it answers, fresh (the card draws a cached copy first)."""
+    m = cfgmod.read_settings().get("model") or {}
+    return await asyncio.to_thread(muse.view, m)
+
+
+@app.post("/provider/muse/gateway")
+async def muse_gateway(request: Request):
+    """Save the gateway's address and admin key (a gateway in another container: http://muse:8080), then check it."""
+    data = await request.json()
+    if data.get("reset"):
+        m = _muse_settings(muse_base="", muse_key="")
+    else:
+        try:
+            fields = _muse_gateway_fields(data)
+        except muse.GatewayError as e:
+            return {"ok": False, "error": str(e)}
+        m = _muse_settings(**fields) if fields else (cfgmod.read_settings().get("model") or {})
+    v = await asyncio.to_thread(muse.view, m)
+    return {"ok": v["ok"], "error": v["error"], "base": v["base"], "key_from": v["key_from"]}
+
+
+@app.post("/provider/muse/connect")
+async def muse_connect(request: Request):
+    """Connect the Muse card with one account from a pasted cookie, the gateway's address and key first when the
+    form carries them. Without a cookie it reconnects to the accounts the gateway already has (after Disconnect)."""
+    data = await request.json()
+    label = str(data.get("label") or "").strip()[:60]
+    cookie = str(data.get("cookie") or "").strip()
+    try:
+        fields = _muse_gateway_fields(data)
+        m = _muse_settings(**fields) if fields else (cfgmod.read_settings().get("model") or {})
+        if cookie:
+            r = await asyncio.to_thread(muse.add_account, m, label, cookie)
+        else:
+            if not await asyncio.to_thread(muse.accounts, m):
+                return {"ok": False, "error": localefmt.chu("Dán cookie của một tài khoản Muse.",
+                                                            "Paste the cookie of a Muse account.")}
+            r = {"ok": True, "error": ""}
+    except muse.GatewayError as e:
+        return {"ok": False, "error": str(e)}
+    _muse_settings(muse_on=True)
+    _PROV_MODELS_CACHE.pop(muse.PROVIDER, None)   # a stale "no models" must not outlive the connection
+    if r["ok"]:
+        return {"ok": True, "error": ""}
+    return {"ok": True, "warn": localefmt.chu(f"Đã thêm, nhưng tài khoản chưa chạy được: {r['error']}",
+                                              f"Added, but the account does not work yet: {r['error']}")}
+
+
+@app.post("/provider/muse/account")
+async def muse_account(request: Request):
+    """One account of the Muse card: op = add (label, cookie), on, off, cookie (a fresh cookie), remove. Removing the
+    last account disconnects the card, as for any card on this page."""
+    data = await request.json()
+    op = str(data.get("op") or "").strip().lower()
+    aid = str(data.get("id") or "").strip()
+    m = cfgmod.read_settings().get("model") or {}
+    warn = ""
+    try:
+        if op == "add":
+            r = await asyncio.to_thread(muse.add_account, m, str(data.get("label") or ""), str(data.get("cookie") or ""))
+            warn = "" if r["ok"] else r["error"]
+        elif op in ("on", "off") and aid:
+            await asyncio.to_thread(muse.set_enabled, m, aid, op == "on")
+        elif op == "cookie" and aid:
+            r = await asyncio.to_thread(muse.replace_cookie, m, aid, str(data.get("cookie") or ""))
+            warn = "" if r["ok"] else r["error"]
+        elif op == "remove" and aid:
+            await asyncio.to_thread(muse.remove_account, m, aid)
+            if not await asyncio.to_thread(muse.accounts, m):
+                with cfgmod._SETTINGS_LOCK:
+                    cfg = cfgmod.read_settings()
+                    mm = cfg.setdefault("model", {})
+                    mm["muse_on"] = False
+                    model_routing.drop_from_order(mm, muse.PROVIDER)
+                    if _effective_main(cfg).get("provider") == muse.PROVIDER:
+                        _set_main_model(cfg, "anthropic-cli", mm.get("claude_model") or "opus")
+                    cfgmod.write_settings(cfg)
+        else:
+            return {"ok": False, "error": localefmt.chu("Thao tác không hợp lệ.", "Unknown action.")}
+    except muse.GatewayError as e:
+        return {"ok": False, "error": str(e)}
+    out = {"ok": True, "error": ""}
+    if warn:
+        out["warn"] = localefmt.chu(f"Tài khoản chưa chạy được: {warn}", f"The account does not work yet: {warn}")
+    return out
+
+
 @app.post("/provider/anthropic-compat/connect")
 async def anthropic_compat_connect(request: Request):
     """Save the base URL, key and model names of an Anthropic-compatible gateway (0.254.0), AFTER
@@ -28358,6 +28514,8 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
             return engine.openai_compat_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "anthropic-compat":
             return engine.anthropic_compat_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "muse":
+            return engine.muse_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "openai-oauth":
             creds = openai_oauth.valid_creds() or {}
             return engine.responses_with_mcp(creds.get("access_token", ""), creds.get("account_id", ""),
@@ -29291,6 +29449,7 @@ _TG_NHAN_NGAN = {
     "ollama": "Ollama",
     "openai-compat": "OpenAI Compat",
     "anthropic-compat": "Claude Compat",
+    "muse": "Muse",
 }
 _TG_MODEL_LISTS = {}   # provider -> list model id ĐÃ render (index nút ổn định khi bấm)
 _TG_PAGE = 8           # model mỗi trang (lưới 2 cột x 4 hàng)
@@ -29325,6 +29484,8 @@ def _tg_prov_ready(pid, m):
         return bool((m.get("openai_compat_base") or "").strip())
     if pid == "anthropic-compat":
         return bool((m.get("anthropic_compat_base") or "").strip())
+    if pid == muse.PROVIDER:
+        return muse.connected(m)
     kf = d.get("key_field")
     return True if kf is None else bool(m.get(kf))
 

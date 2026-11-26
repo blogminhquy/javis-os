@@ -393,6 +393,14 @@ button.ord-mi:hover, button.ord-mi:focus-visible { background: var(--bg3); }
    does not zoom in. An empty box the sign-in waits for, here or in the add-account sheet, turns red. */
 .prov-action .prov-acname { flex: 1 1 100%; max-width: 420px; font-size: 16px; }
 .prov-action .prov-acname + .gcard-btn { margin-left: 0; }
+/* Muse (26/11/2026): the pasted cookie is one long line, so its box takes the whole row, like the name above it. */
+.prov-action .muse-cookie { flex: 1 1 100%; max-width: 420px; min-height: 88px; font-size: 16px; resize: vertical;
+  font-family: inherit; }
+.prov-card .prov-help + .prov-help { margin-top: 2px; }
+.muse-steps { margin: 6px 0 0; padding-left: 22px; color: var(--text2); }
+.muse-steps li { margin: 2px 0; }
+.muse-gw { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-width: 420px; }
+.muse-gw .js-input { font-size: 16px; }
 .js-input.need:placeholder-shown { border-color: var(--red); box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 20%, transparent); }
 /* Claude sign-in code (0.308.0): the box takes the row, at least 240px before the button wraps under it on a phone;
    16px so iOS does not zoom in, monospace so a mistyped character is easy to spot. */
