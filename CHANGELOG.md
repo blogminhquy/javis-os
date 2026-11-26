@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.642.4] - 2026-11-26
+### Sửa lỗi
+- **Thanh nút trang Cộng sự trên điện thoại gọn còn một dòng.** Bỏ nút "Hội thoại mới" trùng với nút + ở đầu trang, nút "Tài liệu & Đã học" chỉ còn cái ghim, nút thu gọn bên phải không rớt xuống dòng riêng nữa.
+- **Nút + ở đầu trang mở cuộc mới của đúng trợ lý đang chọn** khi đang ở trang Cộng sự.
+
 ## [0.642.3] - 2026-11-26
 ### Sửa lỗi
 - **Javis trên Windows không còn tự "mất kết nối" phải khởi động lại.** Trước đây một kết nối bị rớt giữa chừng, hay gặp lúc máy vừa thức dậy, làm máy chủ ngừng nhận kết nối mới dù vẫn đang chạy.
