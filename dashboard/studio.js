@@ -1262,6 +1262,7 @@
 
   function renderSkillUI() {
     const panel = document.getElementById("panel-skills");
+    if (!panel) return;
     const all = _skState.skills;
     const enabledN = all.filter(s => s.enabled !== false).length;
     panel.innerHTML = `
