@@ -53,6 +53,7 @@ from pathlib import Path
 
 import httpx
 
+import bot_split
 import chat_files
 import image_vision
 import localefmt
@@ -64,7 +65,7 @@ OAUTH_URL = os.getenv("JAVIS_ZALO_OA_OAUTH", "https://oauth.zaloapp.com/v4/oa/ac
 OPENAPI = os.getenv("JAVIS_ZALO_OA_OPENAPI", "https://openapi.zalo.me")
 
 CHANNEL = "zalo_oa"
-MAX_MSG = 1900               # Zalo allows 2000 per text; keep a margin
+MAX_MSG = bot_split.CHANNELS[CHANNEL].max_len   # Zalo allows 2000 per text; keep a margin
 MAX_DEDUPE = 4000
 NAME_RETRY_S = 600            # a customer whose name lookup failed is looked up again after 10 minutes, not per message
 MAX_NAMES = 2000
@@ -536,13 +537,19 @@ class ZaloOABot(HangLuot):
     async def _send(self, client, chat, text, reply_markup=None):
         if not str(text or "").strip() and self.giau_trang_thai:
             return
-        text = md_to_plain(text or localefmt.chu("(không có nội dung)", "(no content)"))
-        for chunk in _chunks(text, MAX_MSG):
-            d = await self._send_one(client, chat, chunk)
-            if not d.get("ok"):
-                self.last_error = d.get("error", "")
-                print(f"[zalo_oa send] {d.get('error')}", file=sys.stderr)
-                break
+        text = text or localefmt.chu("(không có nội dung)", "(no content)")
+        # A bot answer the Agent split into short messages (issue #1833, bot_split): one OA message per part, a short
+        # pause between them. `_send_one` remembers each part as the bot's own echo.
+        sends = bot_split.outgoing(text, bot_split.splits(CHANNEL, chat)) if self.giau_trang_thai else [text]
+        for i, part in enumerate(sends):
+            if i:
+                await asyncio.sleep(bot_split.PART_PAUSE_S)
+            for chunk in _chunks(md_to_plain(part), MAX_MSG):
+                d = await self._send_one(client, chat, chunk)
+                if not d.get("ok"):
+                    self.last_error = d.get("error", "")
+                    print(f"[zalo_oa send] {d.get('error')}", file=sys.stderr)
+                    return
 
     async def send_text(self, chat, text):
         text = md_to_plain(str(text or "").strip())

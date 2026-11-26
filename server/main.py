@@ -31538,7 +31538,7 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           gio_truc: str = Form(""), nhuong_tay_phut: str = Form(""),
                           ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form(""),
                           nhan_ket_ban: str = Form(""), skip_labels: str = Form(""),
-                          group_typing: str = Form("")):
+                          group_typing: str = Form(""), bell_gap_min: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -31580,6 +31580,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "skip_labels": skip_labels,
         # "Đang soạn tin" in groups once the bot decided to answer (personal Zalo): "0" = off, blank = on.
         "group_typing": group_typing,
+        # Minutes between two owner bells of one chat (issue #1838): 0 = every time, blank = default 10.
+        "bell_gap_min": bell_gap_min,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)

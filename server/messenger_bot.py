@@ -67,6 +67,7 @@ from pathlib import Path
 
 import httpx
 
+import bot_split
 import chat_files
 import localefmt
 import stt
@@ -76,7 +77,7 @@ from whatsapp_bot import verify_signature  # noqa: F401  - same Meta signature s
 GRAPH_VERSION = os.getenv("JAVIS_MESSENGER_GRAPH_VERSION", os.getenv("JAVIS_WHATSAPP_GRAPH_VERSION", "v23.0"))
 GRAPH = f"https://graph.facebook.com/{GRAPH_VERSION}"
 
-MAX_MSG = 1900               # Messenger allows 2000; keep a margin for multi-byte counting
+MAX_MSG = bot_split.CHANNELS["messenger"].max_len   # Messenger allows 2000; keep a margin for multi-byte counting
 MAX_DEDUPE = 4000
 MAX_DOWNLOAD_MB = 20
 TYPING_EVERY = 15.0          # typing_on lasts about 20 s or until the next message
@@ -531,13 +532,20 @@ class MessengerBot(HangLuot):
     async def _send(self, client, chat, text, reply_markup=None):
         if not str(text or "").strip() and self.giau_trang_thai:
             return
-        text = md_to_plain(text or localefmt.chu("(không có nội dung)", "(no content)"))
-        for chunk in _chunks(text, MAX_COMMENT if is_comment_chat(chat) else MAX_MSG):
-            d = await self._send_one(client, chat, chunk)
-            if not d.get("ok"):
-                self.last_error = d.get("error", "")
-                print(f"[messenger send] {d.get('error')}", file=sys.stderr)
-                break
+        text = text or localefmt.chu("(không có nội dung)", "(no content)")
+        # A bot answer the Agent split into short messages (issue #1833, bot_split): one Messenger message per part, a
+        # short pause between them. Each part goes through `_send_one`, which remembers it as the bot's own echo. A
+        # comment thread stays one reply (the turn already joined it; this is the second lock).
+        sends = bot_split.outgoing(text, bot_split.splits(CHANNEL, chat)) if self.giau_trang_thai else [text]
+        for i, part in enumerate(sends):
+            if i:
+                await asyncio.sleep(bot_split.PART_PAUSE_S)
+            for chunk in _chunks(md_to_plain(part), MAX_COMMENT if is_comment_chat(chat) else MAX_MSG):
+                d = await self._send_one(client, chat, chunk)
+                if not d.get("ok"):
+                    self.last_error = d.get("error", "")
+                    print(f"[messenger send] {d.get('error')}", file=sys.stderr)
+                    return
 
     async def send_text(self, chat, text):
         text = md_to_plain(str(text or "").strip())

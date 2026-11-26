@@ -5,18 +5,54 @@ rất khó đọc, phần này bot tự quyết định được". The Agent dec
 messages, the channel sends each part as its own message. Javis never splits on its own (a blank line inside one
 message is normal writing), it only honours the marker.
 
-Only channels in `SPLIT_CHANNELS` send parts separately; everywhere else (and in the inbox, the bot log, a draft for
-the owner) the marker becomes a blank line, so it can never reach a customer as text.
+Which channels send parts separately is the capability table `CHANNELS` (issue #1833: personal Zalo was the only
+one, so Messenger, Zalo OA and Telegram customers got one long block). Everywhere else (and in the inbox, the bot log,
+a draft for the owner, a public comment thread) the marker becomes a blank line, so it can never reach a customer as
+text. The same table gates the prompt hint (`chatbot_runtime.build_bot_prompt`) and the join step of a turn
+(`chatbot_runtime._make_answer_fn`), so the two can never disagree.
 """
 from __future__ import annotations
 
 import re
-from typing import Any, List
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
 SPLIT_MARK = "[TACH_TIN]"
 MAX_PARTS = 4                  # more than this reads like spam: the rest is joined into the last message
-SPLIT_CHANNELS = ("zalo_personal",)
+PART_PAUSE_S = 1.2             # seconds between two parts, so they arrive in order and read like a person typing
 _MARK_RE = re.compile(r"\s*\[\s*tach_tin\s*\]\s*", re.I)
+
+
+@dataclass(frozen=True)
+class ChannelCaps:
+    """What one channel's transport does with a bot answer.
+
+    `split`: sends each part of an answer as its own message. `max_len`: the longest text one message carries; the
+    transport cuts a longer part at a paragraph, line or space (each transport reads its limit from here). `markup`:
+    how formatting shows: "zalo" (bold, italic, colour), "markdown" (Telegram MarkdownV2), "plain" (marks removed)."""
+    split: bool
+    max_len: int
+    markup: str
+
+
+CHANNELS: Dict[str, ChannelCaps] = {
+    # 1500 leaves room for the "@Name" of a group tag; Zalo refuses a text near 2000 characters.
+    "zalo_personal": ChannelCaps(True, 1500, "zalo"),
+    "zalo_oa": ChannelCaps(True, 1900, "plain"),         # Zalo allows 2000 per text
+    "messenger": ChannelCaps(True, 1900, "plain"),       # Messenger allows 2000, margin for multi-byte counting
+    "telegram": ChannelCaps(True, 3500, "markdown"),     # 4096 minus room for MarkdownV2 escapes
+}
+# Public comment threads (Facebook `cmt:`, Instagram `igc:`, see messenger_bot): one answer is one reply under one
+# comment, never a row of replies.
+COMMENT_PREFIXES = ("cmt:", "igc:")
+# Kept for callers from before the table: the channels that split at all.
+SPLIT_CHANNELS = tuple(k for k, v in CHANNELS.items() if v.split)
+
+
+def splits(channel: Any, chat_id: Any = "") -> bool:
+    """Whether an answer on this channel, in this chat, goes out as several messages."""
+    caps = CHANNELS.get(str(channel or ""))
+    return bool(caps and caps.split) and not str(chat_id or "").startswith(COMMENT_PREFIXES)
 
 PROMPT_HINT = f"""
 ## Nhắn nhiều tin ngắn
@@ -45,3 +81,12 @@ def joined(text: Any) -> str:
     if not has_mark(text):
         return str(text or "")
     return "\n\n".join(parts(text, max_parts=10 ** 6))
+
+
+def outgoing(text: Any, split: bool = True) -> List[str]:
+    """The messages a bot transport sends for one answer: one per part when `split`, else ONE message with each marker
+    turned into a blank line (a public comment thread). Either way no marker reaches a customer as text."""
+    t = str(text or "")
+    if not has_mark(t):
+        return [t]
+    return (parts(t) or [""]) if split else [joined(t)]

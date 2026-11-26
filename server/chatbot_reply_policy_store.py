@@ -38,6 +38,7 @@ MAX_LESSONS = 15
 OFFSET_LIMIT = 0.25
 OFFSET_HALF_LIFE_S = 14 * 86400
 PURGE_EVERY = 400          # số lần ghi giữa hai lần dọn
+OPEN_QUESTION_KEEP_S = 86400
 
 _lock = threading.RLock()
 _writes = 0
@@ -80,6 +81,10 @@ CREATE TABLE IF NOT EXISTS changes(
   evidence_json TEXT, status TEXT NOT NULL, status_ts REAL);
 CREATE INDEX IF NOT EXISTS idx_changes_bot ON changes(bot_id, ts);
 CREATE TABLE IF NOT EXISTS review_state(bot_id TEXT PRIMARY KEY, last_ts REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS open_questions(
+  bot_id TEXT NOT NULL, chat_id TEXT NOT NULL, addressee TEXT NOT NULL, asked_ts REAL NOT NULL,
+  asked_by TEXT NOT NULL, answer_key TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY(bot_id, chat_id, addressee));
 """
 
 # Columns added after a table first shipped. `CREATE TABLE IF NOT EXISTS` never alters an existing table, so an
@@ -728,6 +733,52 @@ def summary_between(bot_id: str, since_ts: float, until_ts: float) -> dict:
 
 
 # ============================================================
+# Open questions (issue #1852)
+# ============================================================
+# The bot, or a staff member, asked one person something in a chat, and is waiting for the answer. Ids and times only,
+# never the words. While the question is open, that person's NEXT message in that chat is the answer: the judge reads
+# it as a follow-up however late it comes (`chatbot_reply_policy.OPEN_QUESTION_S`). `answer_key` names that message, so
+# the same message judged twice (transport, then turn) gets the same answer and any later message gets none.
+def set_open_question(bot_id: str, chat_id: str, addressee: str, asked_by: str, now: Optional[float] = None) -> None:
+    now = time.time() if now is None else now
+    with _lock, _conn() as con:
+        con.execute("INSERT OR REPLACE INTO open_questions(bot_id, chat_id, addressee, asked_ts, asked_by, answer_key)"
+                    " VALUES(?,?,?,?,?,'')", (str(bot_id), str(chat_id), str(addressee), float(now), _cut(asked_by, 12)))
+    _note_write(now)
+
+
+def clear_open_question(bot_id: str, chat_id: str, addressee: str) -> None:
+    with _lock, _conn() as con:
+        con.execute("DELETE FROM open_questions WHERE bot_id=? AND chat_id=? AND addressee=?",
+                    (str(bot_id), str(chat_id), str(addressee)))
+
+
+def claim_open_question(bot_id: str, chat_id: str, addressee: str, message_key: str, message_ts: float,
+                        max_age_s: float, now: Optional[float] = None) -> str:
+    """Who asked (`bot`/`staff`) when this message answers an open question, else "". The first message of the person
+    after the question claims it; asking again with the same `message_key` gives the same answer."""
+    now = time.time() if now is None else now
+    key = _cut(message_key, 120)
+    if not key:
+        return ""
+    with _lock, _conn() as con:
+        r = con.execute("SELECT asked_ts, asked_by, answer_key FROM open_questions WHERE bot_id=? AND chat_id=?"
+                        " AND addressee=?", (str(bot_id), str(chat_id), str(addressee))).fetchone()
+        if r is None:
+            return ""
+        if now - float(r["asked_ts"]) > max_age_s:
+            con.execute("DELETE FROM open_questions WHERE bot_id=? AND chat_id=? AND addressee=?",
+                        (str(bot_id), str(chat_id), str(addressee)))
+            return ""
+        if float(message_ts) < float(r["asked_ts"]) or (r["answer_key"] and r["answer_key"] != key):
+            return ""
+        if not r["answer_key"]:
+            con.execute("UPDATE open_questions SET answer_key=? WHERE bot_id=? AND chat_id=? AND addressee=?",
+                        (key, str(bot_id), str(chat_id), str(addressee)))
+        return str(r["asked_by"] or "")
+
+
+# ============================================================
 # Quên, xoá, dọn, thống kê
 # ============================================================
 def forget(bot_id: str, chat_id: str = "", keep_log: bool = False) -> dict:
@@ -741,6 +792,7 @@ def forget(bot_id: str, chat_id: str = "", keep_log: bool = False) -> dict:
                                   (b, c)).rowcount
             con.execute("DELETE FROM threshold_offsets WHERE bot_id=? AND chat_id=?", (b, c))
             con.execute("DELETE FROM watches WHERE bot_id=? AND chat_id=?", (b, c))
+            con.execute("DELETE FROM open_questions WHERE bot_id=? AND chat_id=?", (b, c))
             if keep_log:
                 con.execute("UPDATE decisions SET label=NULL, label_weight=NULL, label_ts=NULL"
                             " WHERE bot_id=? AND chat_id=?", (b, c))
@@ -751,7 +803,7 @@ def forget(bot_id: str, chat_id: str = "", keep_log: bool = False) -> dict:
         n_cases = con.execute("DELETE FROM cases WHERE bot_id=? AND source!='bootstrap'", (b,)).rowcount
         n_les = con.execute("DELETE FROM lessons WHERE bot_id=?", (b,)).rowcount
         con.execute("DELETE FROM threshold_offsets WHERE bot_id=?", (b,))
-        for t in ("tuning", "changes", "review_state"):
+        for t in ("tuning", "changes", "review_state", "open_questions"):
             con.execute(f"DELETE FROM {t} WHERE bot_id=?", (b,))
         con.execute("DELETE FROM watches WHERE bot_id=?", (b,))
         if keep_log:
@@ -767,7 +819,7 @@ def delete_bot(bot_id: str) -> None:
     b = str(bot_id)
     with _lock, _conn() as con:
         for t in ("decisions", "cases", "watches", "role_profiles", "threshold_offsets", "lessons", "tuning",
-                  "changes", "review_state"):
+                  "changes", "review_state", "open_questions"):
             con.execute(f"DELETE FROM {t} WHERE bot_id=?", (b,))
 
 
@@ -779,6 +831,8 @@ def purge(now: Optional[float] = None) -> dict:
         b = con.execute("DELETE FROM decisions WHERE label IS NOT NULL AND ts<?", (now - LABELED_KEEP_S,)).rowcount
         c = con.execute("DELETE FROM cases WHERE ts<? AND source!='owner'", (now - LABELED_KEEP_S,)).rowcount
         d = con.execute("DELETE FROM watches WHERE expires_ts<?", (now,)).rowcount
+        # Older than any question stays open (chatbot_reply_policy.OPEN_QUESTION_S is hours): one day is plenty.
+        con.execute("DELETE FROM open_questions WHERE asked_ts<?", (now - OPEN_QUESTION_KEEP_S,))
     return {"decisions_unlabeled": a, "decisions_labeled": b, "cases": c, "watches": d}
 
 

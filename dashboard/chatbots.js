@@ -1055,6 +1055,14 @@
                 esc(b && b.nhuong_tay_phut != null ? String(b.nhuong_tay_phut) : "") + '"></label>' +
             '</div>' +
             infoBody(esc(window.t("cb.hint_nhuong_tay"))) +
+            // Owner bell gap (issue #1838): minutes between two bells of one chat when the bot leaves hard messages to the
+            // owner. Only "Tự đánh giá" escalates, so the row shows only then (`veRw`). Blank = default 10, 0 = every time.
+            '<div class="cb-gio-truc" id="cbBellBox" style="display:none">' +
+              '<label for="cbBellGap">' + esc(window.t("cb.bell_gap")) + infoBtn() +
+                ' <input type="number" id="cbBellGap" min="0" max="240" step="1" style="width:8em" placeholder="' + esc(window.t("cb.ph_bell_gap")) + '" value="' +
+                esc(b && b.bell_gap_min != null ? String(b.bell_gap_min) : "") + '"></label>' +
+            '</div>' +
+            infoBody(esc(window.t("cb.hint_bell_gap"))) +
             // Friend-request intake (0.172.0): accept requests and hand their introduction to the bot. Shown only
             // while a personal Zalo account is ticked (`apDoiTuong`): no other channel has friend requests.
             '<div id="cbKbBox" style="display:none">' +
@@ -1372,6 +1380,9 @@
       box.querySelector("#cbRwTg").style.display = coTg && v !== "mention" ? "" : "none";
       var rpBox = box.querySelector("#cbRpBox");
       if (rpBox) rpBox.style.display = v === "auto" ? "" : "none";
+      // The bell gap only matters when the bot may leave a message to the owner, i.e. in "Tự đánh giá".
+      var bellBox = box.querySelector("#cbBellBox");
+      if (bellBox) bellBox.style.display = v === "auto" && coNhomForm() ? "" : "none";
     }
     box.querySelectorAll('input[name="cbRw"]').forEach(function (i) { i.onchange = veRw; });
 
@@ -1551,6 +1562,8 @@
       if (!gioTu !== !gioDen) return alert(window.t("cb.gio_thieu"));
       var nhuong = ((box.querySelector("#cbNhuongTay") || {}).value || "").trim();
       if (nhuong !== "" && !(/^\d+$/.test(nhuong) && +nhuong <= 240)) return alert(window.t("cb.nhuong_tay_sai"));
+      var bell = ((box.querySelector("#cbBellGap") || {}).value || "").trim();
+      if (bell !== "" && !(/^\d+$/.test(bell) && +bell <= 240)) return alert(window.t("cb.bell_gap_sai"));
       if (nlDs.some(function (e) { return e.cho_giay != null && !(e.cho_giay >= 0 && e.cho_giay <= 60 && e.cho_giay % 1 === 0); })) {
         return alert(window.t("cb.ngoai_le_sai"));
       }
@@ -1573,7 +1586,7 @@
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
                     account_ids: ids.join(","),
                     gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "",
-                    nhuong_tay_phut: nhuong, ngoai_le: JSON.stringify(nlDs),
+                    nhuong_tay_phut: nhuong, bell_gap_min: bell, ngoai_le: JSON.stringify(nlDs),
                     nhan_ket_ban: coZaloCaNhan() && (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0",
                     group_typing: (box.querySelector("#cbGroupTyping") || {}).checked === false ? "0" : "1",
                     skip_labels: coZaloCaNhan() ? tagLuu() : "[]" };

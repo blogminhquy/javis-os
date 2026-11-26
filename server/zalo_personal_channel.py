@@ -1009,6 +1009,7 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
                 # the bot is set to yield 0 minutes: 0 means "do not go quiet", not "repeat what I just answered".
                 _GOM.pop((conn["id"], ev["external_chat_id"]), None)
                 bo_cho_chu(conn["id"], ev["external_chat_id"])
+                _note_staff_question(conn["id"], ev)
         elif _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"], TIENG_VONG_TOI_THIEU):
             # Ví dụ trong tài liệu của MCP không có cờ "tin của chính mình", nên câu bot vừa gửi
             # có thể quay về như tin của một KHÁCH. Để lọt thì trong nhóm bot sẽ tự trả lời chính
@@ -1031,6 +1032,18 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
                 _giao_cho_bot(conn, ev)
     _bao_xin_vao(conn, xin_vao)
     return moi, trung
+
+
+def _note_staff_question(conn_id: str, ev: dict) -> None:
+    """The owner typed into a chat by hand: if it asks one person something, the bot on duty remembers that person's
+    next message answers it (issue #1852, `chatbot_runtime.PolicyHooks.staff_wrote`)."""
+    pol = getattr(_BOTS.get(str(conn_id)), "policy", None)
+    if pol is None or not hasattr(pol, "staff_wrote"):
+        return
+    try:
+        pol.staff_wrote(ev)
+    except Exception as e:      # noqa: BLE001 - the inbox row is written; only the memory is lost
+        print(f"[zalo-personal {conn_id}] open question not noted: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def _so_nguyen(v: Any) -> Optional[int]:

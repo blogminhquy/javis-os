@@ -28,6 +28,7 @@ Xem docs/dev/2026-08-bot-chuyen-trach-spec.md.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 import secrets
 import sys
@@ -305,8 +306,14 @@ hoặc lời nhờ giúp mà tài liệu ở trên trả lời được. Nếu l
 # the Agent file like the personal Zalo paragraph: the owner's own rules read later and win.
 BAO_CHU = "[BAO_CHU]"
 BAO_CHU_NOTE_MAX = 300
-BAO_CHU_BELL_GAP_S = 600      # one bell per chat per 10 minutes: a customer firing five hard questions rings once
-_BAO_CHU_BELL: Dict[tuple, float] = {}
+# Default gap between two owner bells of one chat (a bot may set its own, `bell_gap_min`, 0 = ring every time). Issue
+# #1838: an escalation inside the gap used to be dropped, and since the customer gets no reply on an escalation, a dropped
+# bell was an unanswered customer nobody heard about. Now the first one rings at once and the ones inside the gap are
+# held and rung together when the gap ends ("the customer sent N more"), unless a person answered the chat meanwhile.
+BAO_CHU_BELL_GAP_S = 600
+_BAO_CHU_BELL: Dict[tuple, float] = {}       # (bot, chat) -> when that chat's bell last rang
+_BELL_HELD: Dict[tuple, dict] = {}           # (bot, chat) -> escalations held inside the gap, rung when it ends
+_BELL_TASKS: Dict[tuple, Any] = {}           # (bot, chat) -> the task that rings the held escalations
 _CAU_RIENG_BAO_CHU = f"""
 ## Tin nhắn RIÊNG 1-1: câu khó thì im và báo chủ
 
@@ -346,24 +353,99 @@ def is_silent_answer(dap: Any) -> bool:
     return IM_LANG.lower() in t or BAO_CHU.lower() in t
 
 
-def _bao_chu_bell(cfg: dict, meta: dict, text: str, note: str) -> bool:
-    """Ring the Javis bell for an escalated message, at most once per chat per `BAO_CHU_BELL_GAP_S`.
-    True when a bell went out. Every escalation is still in the bot log and the customer's words in the Bot inbox."""
-    key = (str(cfg.get("id") or ""), str((meta or {}).get("chat_id") or ""))
-    now = time.time()
-    if now - _BAO_CHU_BELL.get(key, 0.0) < BAO_CHU_BELL_GAP_S:
-        return False
-    if len(_BAO_CHU_BELL) > 2000:
-        _BAO_CHU_BELL.clear()
+def bell_gap_seconds(cfg: dict) -> int:
+    """Seconds between two owner bells of one chat for this bot: its `bell_gap_min`, else `BAO_CHU_BELL_GAP_S`."""
+    n = chatbot_store.clean_bell_gap((cfg or {}).get("bell_gap_min"))
+    return BAO_CHU_BELL_GAP_S if n is None else n * 60
+
+
+def _bell_meta(meta: dict) -> dict:
+    """What a held escalation keeps of the turn: enough to name the customer and find the chat again."""
+    return {k: (meta or {}).get(k) for k in ("chat_id", "chat_type", "user_id", "user_name", "account_id", "_kenh",
+                                             "platform") if (meta or {}).get(k) not in (None, "")}
+
+
+def _ring_escalation(cfg: dict, meta: dict, text: str, note: str, more: int = 0) -> bool:
+    """One bell for an escalated chat. `more` > 0: the follow-up for messages held inside the gap."""
     ai = str((meta or {}).get("user_name") or (meta or {}).get("chat_id") or "")
     hoi = " ".join(str(text or "").split())[:300]
-    ly_do = localefmt.chu(
-        f"Bot không tự trả lời tin này mà để bạn trả lời.\nKhách nhắn: {hoi}"
-        + (f"\nBot ghi chú: {note}" if note else ""),
-        f"The bot did not answer this message itself and left it to you.\nCustomer wrote: {hoi}"
-        + (f"\nBot's note: {note}" if note else ""))
-    if not _goi_chu(cfg, ai, ly_do):
+    if more:
+        ly_do = localefmt.chu(
+            f"Khách nhắn thêm {more} tin bot để bạn trả lời.\nTin mới nhất: {hoi}"
+            + (f"\nBot ghi chú: {note}" if note else ""),
+            f"The customer sent {more} more message{'s' if more > 1 else ''} the bot left to you.\nLatest: {hoi}"
+            + (f"\nBot's note: {note}" if note else ""))
+    else:
+        ly_do = localefmt.chu(
+            f"Bot không tự trả lời tin này mà để bạn trả lời.\nKhách nhắn: {hoi}"
+            + (f"\nBot ghi chú: {note}" if note else ""),
+            f"The bot did not answer this message itself and left it to you.\nCustomer wrote: {hoi}"
+            + (f"\nBot's note: {note}" if note else ""))
+    return _goi_chu(cfg, ai, ly_do)
+
+
+def _person_answered_since(cfg: dict, meta: dict, since: float) -> bool:
+    """A person (the owner, a staff member, from the inbox or the channel's app) wrote in this chat since `since`."""
+    try:
+        aid, kenh = _tai_khoan_cua(cfg, meta or {})
+        rows = conversations.tin_gan_day(kenh, aid, str((meta or {}).get("chat_id") or ""), 30)
+        return any(r.get("sender_type") == "human" and float(r.get("created_at") or 0) >= since for r in rows)
+    except Exception:      # noqa: BLE001 - cannot tell: ring, a needless bell beats a missed customer
         return False
+
+
+async def _ring_held(key: tuple, delay: float) -> None:
+    """Wait for the end of a chat's bell gap, then ring once for every escalation held in it."""
+    try:
+        await asyncio.sleep(max(0.0, delay))
+    except asyncio.CancelledError:
+        return
+    if _BELL_TASKS.get(key) is asyncio.current_task():
+        _BELL_TASKS.pop(key, None)
+    held = _BELL_HELD.pop(key, None)
+    cfg = chatbot_store.get_bot(key[0]) if held else None
+    if not held or not cfg:
+        return
+    if _person_answered_since(cfg, held["meta"], held["last"]):
+        return      # someone answered this customer after the latest held message: nothing left to tell
+    if _ring_escalation(cfg, held["meta"], held["text"], held["note"], more=held["n"]):
+        _BAO_CHU_BELL[key] = time.time()
+
+
+def _bao_chu_bell(cfg: dict, meta: dict, text: str, note: str) -> bool:
+    """Tell the owner about an escalated message. True when the owner hears about it: a bell now, or one already
+    scheduled for the end of the chat's bell gap. Every escalation is still in the bot log and the inbox.
+
+    The first escalation of a chat rings at once. Inside the gap (`bell_gap_seconds`) the next ones are held and rung
+    together once when the gap ends, so five hard questions in a row ring twice, not five times and not once."""
+    key = (str(cfg.get("id") or ""), str((meta or {}).get("chat_id") or ""))
+    now = time.time()
+    gap = bell_gap_seconds(cfg)
+    last = _BAO_CHU_BELL.get(key)
+    # A full hold table (thousands of chats at once) rings at once instead: never drop one.
+    if gap > 0 and last is not None and now - last < gap and (key in _BELL_HELD or len(_BELL_HELD) < 2000):
+        held = _BELL_HELD.setdefault(key, {"n": 0})
+        held.update(n=held["n"] + 1, last=now, text=text, note=note, meta=_bell_meta(meta))
+        task = _BELL_TASKS.get(key)
+        if task is None or task.done():
+            try:
+                _BELL_TASKS[key] = asyncio.get_running_loop().create_task(_ring_held(key, last + gap - now))
+            except RuntimeError:
+                pass        # no loop (never in a turn): the next escalation after the gap carries the count
+        return True
+    if len(_BAO_CHU_BELL) > 2000:
+        _BAO_CHU_BELL.clear()
+    task = _BELL_TASKS.pop(key, None)
+    if task is not None and not task.done():
+        task.cancel()
+    held = _BELL_HELD.pop(key, None)
+    if not _ring_escalation(cfg, meta, text, note, more=0):
+        if held:
+            _BELL_HELD[key] = held
+        return False
+    if held:
+        # Held escalations that never got their own bell (no event loop at the time): tell the owner now.
+        _ring_escalation(cfg, held["meta"], held["text"], held["note"], more=held["n"])
     _BAO_CHU_BELL[key] = now
     return True
 
@@ -447,7 +529,9 @@ def build_bot_prompt(bot: dict) -> str:
     if bot_images.channel_sends_files((bot or {}).get("_kenh_luot")):
         phan.append(bot_images.PROMPT_HINT)
     # The channel of THIS turn sends several short messages (0.281.0): the Agent may split its answer, see bot_split.
-    if (bot or {}).get("_kenh_luot") in bot_split.SPLIT_CHANNELS:
+    # `_split` is set by the turn (`_make_answer_fn`), which also knows the chat: a public comment thread never splits.
+    split = (bot or {}).get("_split")
+    if split if split is not None else bot_split.splits((bot or {}).get("_kenh_luot")):
         phan.append(bot_split.PROMPT_HINT)
     # The channel of THIS turn can put an emoji reaction on the customer's message (0.334.0, bot_reaction).
     if (bot or {}).get("_kenh_luot") in bot_reaction.CHANNELS:
@@ -1349,12 +1433,86 @@ def _rp_profile(cfg: dict, meta: dict = None, with_role: bool = True):
     return chatbot_reply_policy.apply_tuning(profile, chatbot_reply_policy_store)
 
 
+# ============================================================
+# Open questions (issue #1852): the bot remembers it is waiting for an answer
+# ============================================================
+# The judge used to see a follow-up only within FOLLOW_UP_S (3 minutes) of the bot speaking, in RAM. A customer
+# answering the bot's question two hours later without a "?" ("7kg e ơi") got `no_signal` and silence in the group.
+# Now the last message the bot, or a staff member, sent to one person in a group either opens a question (it asks
+# something, `chatbot_reply_policy.asks_question`) or closes the earlier one. While open (OPEN_QUESTION_S), that person's
+# next message in that chat is a follow-up. Kept in the judge's store, so it survives a restart. Only groups in
+# "Tự đánh giá" mode: everywhere else nothing is judged, every message the bot may answer is answered.
+def _tracks_questions(cfg: dict, meta: dict) -> bool:
+    return (cfg or {}).get("reply_when") == "auto" and _rp_is_group(meta)
+
+
+def note_open_question(cfg: dict, meta: dict, text: str, asked_by: str = "bot", addressee: str = "",
+                       now: Optional[float] = None) -> bool:
+    """The bot (`asked_by="bot"`) or a staff member (`"staff"`) just wrote `text` to one person in a chat. Opens a
+    question to that person when the text asks something, closes the earlier one otherwise. `addressee` defaults to the
+    sender of the turn (`meta.user_id`). True when a question is now open. Never raises."""
+    try:
+        if not _tracks_questions(cfg, meta):
+            return False
+        who = str(addressee or (meta or {}).get("user_id") or "").strip()
+        chat = str((meta or {}).get("chat_id") or "")
+        bot_id = str((cfg or {}).get("id") or "")
+        if not (who and chat and bot_id):
+            return False
+        if chatbot_reply_policy.asks_question(bot_split.joined(text)):
+            chatbot_reply_policy_store.set_open_question(bot_id, chat, who, asked_by, now)
+            return True
+        chatbot_reply_policy_store.clear_open_question(bot_id, chat, who)
+    except Exception as e:      # noqa: BLE001 - the memory is a help, never a reason to lose a turn
+        print(f"[reply_policy] open question not noted: {type(e).__name__}: {e}", file=sys.stderr)
+    return False
+
+
+def _open_question_of(cfg: dict, meta: dict, text: str, ts: float) -> str:
+    """Who asked ("bot"/"staff") when this message answers an open question to its sender, else ""."""
+    m = meta or {}
+    if not _tracks_questions(cfg, m) or m.get("reaction") or m.get("member_join"):
+        return ""
+    uid = str(m.get("user_id") or "")
+    if not uid:
+        return ""
+    # The same message is judged twice on personal Zalo (transport, then turn): its key must not change in between.
+    key = str(m.get("message_id") or "") or ("t:" + hashlib.sha1(f"{uid}\n{text}".encode("utf-8")).hexdigest()[:16])
+    try:
+        return chatbot_reply_policy_store.claim_open_question(
+            str(cfg.get("id") or ""), str(m.get("chat_id") or ""), uid, key, ts, chatbot_reply_policy.OPEN_QUESTION_S)
+    except Exception as e:      # noqa: BLE001
+        print(f"[reply_policy] open question not read: {type(e).__name__}: {e}", file=sys.stderr)
+        return ""
+
+
+def staff_addressee(metadata: Any) -> str:
+    """The one person a hand-typed group message is for: the only person it tags, else the sender of the message it
+    quotes. "" when it cannot tell: a message to the whole group opens no question for anyone."""
+    md = metadata if isinstance(metadata, dict) else {}
+    tagged = []
+    for m in (md.get("mentions") if isinstance(md.get("mentions"), list) else []):
+        uid = str((m.get("uid") or m.get("id") or m.get("userId") or "") if isinstance(m, dict) else (m or "")).strip()
+        if uid and uid not in tagged:
+            tagged.append(uid)
+    if tagged:
+        return tagged[0] if len(tagged) == 1 else ""
+    rt = md.get("replyTo")
+    if isinstance(rt, dict):
+        for k in ("senderId", "uidFrom", "uid", "from", "userId"):
+            v = str(rt.get(k) or "").strip()
+            if v:
+                return v
+    return ""
+
+
 def _rp_event(cfg: dict, profile, text: str, meta: dict, owner_typing: bool = False):
     now = float((meta or {}).get("ts") or time.time())
     bot_id, chat_id = str(cfg.get("id") or ""), str((meta or {}).get("chat_id") or "")
     last, addressee = chatbot_reply_policy.bot_context(bot_id, chat_id, now)
     uid = str((meta or {}).get("user_id") or "")
     return chatbot_reply_policy.Event(
+        open_question=_open_question_of(cfg, meta, text, now),
         channel=str((meta or {}).get("platform") or ""), bot_id=bot_id, chat_id=chat_id,
         chat_type=str((meta or {}).get("chat_type") or "group"), msg_id=str((meta or {}).get("message_id") or ""),
         ts=now, text=str(text or ""), sender_id=uid, sender_name=str((meta or {}).get("user_name") or ""),
@@ -1550,6 +1708,21 @@ class PolicyHooks:
             print(f"[reply_policy {self.bot_id}] chạy thử lỗi: {type(e).__name__}: {e}", file=sys.stderr)
         finally:
             self._shadow_inflight = max(0, self._shadow_inflight - 1)
+
+    def staff_wrote(self, ev: dict) -> bool:
+        """A person wrote in a chat by hand with this account (the owner on the phone, a staff member), as an inbox
+        event (`external_chat_id`, `chat_type`, `text`, `created_at`, `metadata`). A question to one person opens an
+        open question to them, like the bot's own (issue #1852). True when one is now open."""
+        cfg = chatbot_store.get_bot(self.bot_id)
+        ev = ev or {}
+        if not cfg or ev.get("message_type") not in (None, "", "text"):
+            return False
+        meta = {"chat_id": str(ev.get("external_chat_id") or ""), "chat_type": str(ev.get("chat_type") or "private")}
+        who = staff_addressee(ev.get("metadata")) if _rp_is_group(meta) else meta["chat_id"]
+        if not who:
+            return False
+        return note_open_question(cfg, meta, str(ev.get("text") or ""), "staff", who,
+                                  now=float(ev.get("created_at") or 0) or None)
 
     def replied(self, meta: dict, text: str) -> None:
         """Bot vừa nói trong nhóm: nhớ để nhận ra tin nối tiếp của đúng người được trả lời."""
@@ -2281,6 +2454,9 @@ def _make_answer_fn(bot_id: str):
             tl = await _tra_tai_lieu(bot_id, cfg, text, doc_scope)
         cfg["_tai_lieu"] = tl
         cfg["_kenh_luot"] = kenh_luot
+        # Several short messages (issue #1833): the capability table of bot_split decides, for the hint and the join below.
+        split_here = bot_split.splits(kenh_luot, chat_id)
+        cfg["_split"] = split_here
         cfg["_tu_dong"] = tu_dong
         cfg["_bao_chu"] = chatbot_tu_dong.private_escalation(cfg, meta or {})
         cfg["_zalo_labels"] = list((meta or {}).get("zalo_labels") or [])
@@ -2439,11 +2615,12 @@ def _make_answer_fn(bot_id: str):
                 out["text"] = dap
                 out["files"] = anh      # the only files a bot chat ever receives (see `drop_engine_files`)
         # Several short messages (0.281.0, bot_split): the channel that sends them separately keeps the marker; any
-        # other channel gets one message with blank lines. The bot log and the inbox always record the joined text.
+        # other channel, and a public comment thread, gets one message with blank lines. The bot log and the inbox always
+        # record the joined text.
         dap_ghi = dap
         if dap and bot_split.has_mark(dap):
             dap_ghi = bot_split.joined(dap)
-            if kenh_luot not in bot_split.SPLIT_CHANNELS:
+            if not split_here:
                 dap = dap_ghi
                 out = dict(out or {})
                 out["text"] = dap
@@ -2513,6 +2690,9 @@ def _make_answer_fn(bot_id: str):
         if loi_ky_thuat:
             # `failed`: a transport that answers a caller (internal API) must tell a failed turn from a silent one.
             return {"text": "", "files": [], "im_lang": True, "failed": True}
+        # The bot just asked this person something (or answered without asking): remember it (issue #1852).
+        if dap_ghi.strip():
+            note_open_question(cfg, meta or {}, dap_ghi)
         if receipt_row and kenh_luot == "zalo_personal":
             # Private transport metadata: the channel settles precisely this
             # inbox message after it attempts the send, not an earlier reply.
@@ -2835,6 +3015,7 @@ def manual_done(conv: dict, msgs: list, text: str, meta: dict) -> dict:
     if not cfg:
         return out
     record_bot_message(cfg, meta, text)
+    note_open_question(cfg, meta, text)
     try:
         if cfg.get("reply_when") == "auto":
             PolicyHooks(bot_id).replied(meta, text)
@@ -3283,6 +3464,13 @@ def quen_bot(bot_id: str) -> None:
     stop_bot(bot_id)
     _NHOM_CHO.pop(bot_id, None)
     _DA_BAO_HOP_THU.discard(bot_id)
+    for k in [x for x in _BELL_TASKS if x and x[0] == bot_id]:
+        task = _BELL_TASKS.pop(k, None)
+        if task is not None and not task.done():
+            task.cancel()
+    for kho in (_BAO_CHU_BELL, _BELL_HELD):
+        for k in [x for x in kho if x and x[0] == bot_id]:
+            kho.pop(k, None)
     for k in [x for x in _DA_BAO_NHOM if x and x[0] == bot_id]:
         _DA_BAO_NHOM.discard(k)
     for kho in (_BI_LIEN_TIEP,):
