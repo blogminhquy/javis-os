@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.645.0] - 2026-11-26
+### Thêm mới
+- **Bot nhớ mình đang chờ khách trả lời.** Bot hay nhân viên hỏi một khách trong nhóm, khách trả lời sau cả tiếng đồng hồ (kể cả không có dấu hỏi, như "7kg e ơi") thì bot vẫn biết đó là câu trả lời và xét để đáp lại.
+- **Bot nhắn nhiều tin ngắn trên Messenger, Zalo OA và Telegram,** như đã làm trên Zalo cá nhân. Bình luận dưới bài đăng vẫn là một câu trả lời.
+- **Chỉnh được khoảng cách giữa hai lần báo chuông** ở form bot (chế độ Tự đánh giá): để trống là 10 phút, đặt 0 thì lần nào cũng báo.
+### Sửa lỗi
+- **Không còn mất chuông báo chủ.** Khách nhắn thêm câu khó trong lúc chờ thì Javis gom lại báo một lần khi hết quãng chờ, kèm số tin và tin mới nhất, trừ khi bạn đã trả lời khách rồi.
+
 ## [0.644.0] - 2026-11-26
 ### Thêm mới
 - **Bot hỏi người phụ trách rồi báo lại khách.** Khách hỏi điều chỉ người thật biết (giá, còn hàng không, lịch trống, ngày giao), bot nhắn câu hỏi kèm một mã ngắn cho người phụ trách và báo khách là đang kiểm tra.
