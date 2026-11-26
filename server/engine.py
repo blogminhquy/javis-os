@@ -1341,6 +1341,33 @@ async def openai_compat_chat_with_mcp(api_key, model, messages, reasoning, mcp_t
         yield ev
 
 
+def muse_chat_url() -> str:
+    """Chat address of the 'muse' provider: {gateway}/v1/chat/completions (muse.base: Models page, env, default)."""
+    import config as cfgmod
+    import muse
+    return muse.chat_url(cfgmod.read_settings().get("model", {}) or {})
+
+
+async def muse_stream(api_key, model, messages, reasoning="off"):
+    """Muse through Muse Gateway, no tools (owner 26/11/2026). The gateway has no reasoning setting and serves one
+    model, and it needs the last message from the user (muse.gateway_messages folds trailing notes into one)."""
+    import muse
+    async for ev in _openai_compat_stream(muse_chat_url(), "Muse", api_key or "none", muse.MODEL,
+                                          muse.gateway_messages(messages), "off", False):
+        yield ev
+
+
+async def muse_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
+    """Muse + the MCP tool loop. Muse cannot call tools natively, so every round goes through
+    `muse.ToolTextTransport` (tools written into the prompt, calls read back from the reply)."""
+    import muse
+    headers = {"Authorization": f"Bearer {api_key or 'none'}", "Content-Type": "application/json"}
+    yield {"type": "meta", "model": muse.MODEL}
+    async for ev in _cc_tool_loop(muse_chat_url(), headers, muse.MODEL, messages, mcp_tools, mcp_route, {}, "Muse",
+                                  transport=muse.ToolTextTransport()):
+        yield ev
+
+
 async def ollama_local_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
     """Ollama máy nhà + vòng tool-calling MCP. Model local biết gọi tool (qwen3, mistral...)
     thì có đủ đồ nghề của Javis y như mọi provider API khác."""
@@ -2371,7 +2398,7 @@ def _gon_ket_qua_cu(hoi_thoai, ngan_sach: int | None = None) -> int:
 
 
 async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, reasoning_extra, label,
-                        cache_system=False, thinking_fallback=None):
+                        cache_system=False, thinking_fallback=None, transport=None):
     """Vòng Chat Completions + tool (OpenAI/OpenRouter). Non-stream từng vòng; yield tool_call + text cuối.
     cache_system=True (OpenRouter + model Claude): đánh cache_control lên system - OpenAI/Gemini
     tự cache nên không cần.
@@ -2383,7 +2410,12 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
       - a turn that must force a tool runs with thinking off from the start, because a forced
         tool_choice is also a 400 in thinking mode;
       - a 400 about thinking itself (Javis history never stored `reasoning_content` for older
-        turns) drops to thinking off for the rest of the turn instead of failing it."""
+        turns) drops to thinking off for the rest of the turn instead of failing it.
+
+    transport (Muse, 26/11/2026): an httpx transport every round is sent through instead of the network. Muse Gateway
+    has no `tools` field, so `muse.ToolTextTransport` writes the tools into the prompt and reads the calls back out of
+    the reply; this loop sees an ordinary OpenAI endpoint. Such a round is never streamed (the calls are only known
+    once the whole reply is in)."""
     import mcp_client
     tools = _mcp_to_openai_tools(mcp_tools)
     msgs = _or_mark_system(messages) if cache_system else list(messages)
@@ -2474,7 +2506,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
             )
         payload.update(reasoning_extra or {})
         async def _gui(payload=payload):
-            async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15), transport=transport) as client:
                 r = await _observed_post(lambda: client.post(url, headers=headers, json=payload))
                 # Một số endpoint OpenAI-compatible chỉ nhận "required", không nhận named choice.
                 if (r.status_code in (400, 422) and requirement_pending
@@ -2484,7 +2516,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
             return r
         # 0.438.5: vòng stream nhả chữ xem trước. Vòng đang ÉP gọi tool thì không: chữ ở vòng đó là
         # câu trả lời có thể bị loại (model lờ tool bắt buộc), không được hiện ra.
-        stream_vong = stream_vong_bat(label) and not requirement_pending
+        stream_vong = stream_vong_bat(label) and not requirement_pending and transport is None
         vong_hien = ""
         try:
             if stream_vong:
