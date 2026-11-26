@@ -58,6 +58,10 @@ TEXT_MAX = 400
 JUDGE_TEXT_MAX = 1500         # tin cần quyết
 WINDOW_TEXT_MAX = 800         # mỗi tin trong cửa sổ gần đây (tối đa WINDOW_MAX tin)
 FOLLOW_UP_S = 180
+# Issue #1852: the bot (or a staff member) asked someone a question and they answer two hours later, without a "?"
+# ("7kg e ơi"). Past FOLLOW_UP_S that was `no_signal` and the bot stayed silent in the group. While a question to that
+# person is open (store `open_questions`), their next message in that chat is a follow-up, for this long.
+OPEN_QUESTION_S = 6 * 3600
 CHAT_PACE_S = 120
 JUDGE_TIMEOUT_S = 25          # engine gói thuê bao mất vài giây chỉ để khởi động, 8 giây là quá chặt
 QUESTION_CANDIDATE = 0.5
@@ -316,6 +320,9 @@ class Event:
     # a reaction on this message itself (personal Zalo, a real message). Both off for every other channel.
     is_reaction: bool = False
     can_react: bool = False
+    # Issue #1852: this message answers a question the bot ("bot") or a staff member ("staff") asked this person in this
+    # chat, however long ago within OPEN_QUESTION_S; "" otherwise. Filled by the caller from the store.
+    open_question: str = ""
 
 
 # ============================================================
@@ -476,9 +483,57 @@ def _sig_question(ev: Event, profile: BotProfile, ctx: dict) -> dict:
     return {"value": round(min(1.0, score), 2), "evidence": ",".join(why)}
 
 
+# ============================================================
+# Does a message the bot or a staff member sent ASK the person something (issue #1852)?
+# ============================================================
+# Conservative on purpose: a false "yes" only makes that person's next message a judge candidate, a false "no" keeps
+# today's behaviour. Only the END of the message counts (its last sentence): "Chị ưng mẫu nào? Em gửi thêm ảnh nhé."
+# waits for nothing in particular. Three ways to say yes:
+#   1. the last sentence ends with "?" (emoji, closing brackets and spaces after it do not matter);
+#   2. it ends with a yes/no question word ("Anh lấy thêm không ạ", "chị nhận được hàng chưa"), with at least three
+#      words so a bare answer ("Dạ không ạ", "Chưa ạ") is not a question;
+#   3. a question word sits in its last three words ("Chị cần mấy kg ạ", "Chị ship về đâu ạ"), unless it is part of a
+#      set phrase that asks nothing ("không có gì", "không sao", "size nào cũng được").
+# Rules 2 and 3 read the words WITH their diacritics: without them "nao", "gi", "dau" are ordinary words. Text typed
+# without diacritics still gets rule 1 and the unambiguous endings "khong", "ko", "chua".
+_ASK_TAIL_POLITE = frozenset({"ạ", "a", "ah", "vậy", "thế", "ơi", "anh", "chị", "em", "bạn", "cô", "chú", "bác",
+                              "c", "e", "ac", "a/c", "anh/chị"})
+_ASK_YES_NO = frozenset({"không", "ko", "hông", "hok", "chưa", "nhỉ", "hả", "hở", "chứ", "khong", "chua"})
+_ASK_WH = frozenset({"mấy", "nào", "gì", "đâu", "sao", "nhiêu"})
+_ASK_NOT_A_QUESTION = ("không có gì", "chẳng có gì", "chả có gì", "có gì đâu", "không sao", "chẳng sao", "không đâu",
+                       "đâu có", "cũng được", "cũng đc")
+_ASK_SENTENCES = re.compile(r"(?<=[.!?？…])\s+|\n+")
+_ASK_TRAILING = re.compile(r"[^\w?？]+$", re.U)
+
+
+def asks_question(text: Any) -> bool:
+    """True when the END of this message asks the person something. See the comment above."""
+    t = _HIDDEN.sub("", _URL.sub(" ", str(text or "")))
+    sentences = [x.strip() for x in _ASK_SENTENCES.split(t) if x and x.strip()]
+    last = _ASK_TRAILING.sub("", sentences[-1]) if sentences else ""
+    if not last:
+        return False
+    if last.endswith(("?", "？")):
+        return True
+    words = raw_tokens(last)
+    while len(words) > 1 and words[-1] in _ASK_TAIL_POLITE:
+        words.pop()
+    if not words:
+        return False
+    if words[-1] in _ASK_YES_NO and len(words) >= 3:
+        return True
+    phrase = " ".join(words)
+    if any(x in phrase for x in _ASK_NOT_A_QUESTION):
+        return False
+    return any(w in _ASK_WH for w in words[-3:]) and len(words) >= 2
+
+
 @signal("follow_up")
 def _sig_follow_up(ev: Event, profile: BotProfile, ctx: dict) -> dict:
-    """Bot vừa nói ≤ 180 giây trước và tin này là của đúng người bot vừa trả lời (hoặc reply vào bot)."""
+    """Bot vừa nói ≤ 180 giây trước và tin này là của đúng người bot vừa trả lời (hoặc reply vào bot), or this message
+    answers a question the bot or a staff member asked this very person earlier (`ev.open_question`, issue #1852)."""
+    if ev.open_question:
+        return {"value": 1.0, "evidence": "open_question_" + ev.open_question}
     last = ev.bot_last_spoke_ts
     if last is None or ctx["now"] - last > FOLLOW_UP_S:
         return {"value": 0.0, "evidence": ""}
@@ -642,6 +697,8 @@ def build_prompt(ev: Event, profile: BotProfile, level: str, address: AddressRes
     sig = (f"- Ai đang được gọi: {level} ({', '.join(address.evidence) or 'không có bằng chứng'})\n"
            f"- Giống câu hỏi: {_sig(signals, 'question_score')}\n"
            f"- Tin nối tiếp sau lượt bot vừa nói: {'có' if _sig(signals, 'follow_up') >= 1 else 'không'}\n"
+           + (f"- This person is answering a question the {'bot' if ev.open_question == 'bot' else 'staff'} asked them "
+              "earlier in this chat: yes\n" if ev.open_question else "") +
            f"- Tin mở đầu bằng tag một người khác: {'có' if tagged_other else 'không'}\n"
            f"- Người gửi: {ev.sender_role}\n"
            f"- Nhịp nhóm (tin mỗi phút): {_sig(signals, 'chat_pace')}")

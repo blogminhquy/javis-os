@@ -168,6 +168,7 @@ class JavisVoice {
     if (!this.audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       this.audioCtx = new AC();
+      JavisVoice.toSpeaker(this.audioCtx);   // read-aloud is routed through this context when it runs
     }
     if (this.audioCtx.state === "suspended") this.audioCtx.resume();
     return this.audioCtx;
@@ -180,9 +181,10 @@ class JavisVoice {
       const ctx = this._ensureCtx();
       if (!this.micStream) {
         // Bật khử vọng/khử ồn: giảm việc mic nghe lại chính giọng TTS (chống tự-kích-hoạt + lồng tiếng).
-        const st = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-        });
+        // The mic picked in Settings > Voice (audio-devices.js), the default one when it is gone.
+        const micOptions = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+        const st = await (window.JavisAudioDevices ? window.JavisAudioDevices.getMic(micOptions)
+          : navigator.mediaDevices.getUserMedia({ audio: micOptions }));
         // Chỗ này là ASYNC, và cái chờ có thể rất lâu (hộp xin quyền chờ người bấm Cho phép).
         // Trong lúc chờ, trên ĐIỆN THOẠI ta có thể đã quay lại NGHE: nhận luồng này vào là hai
         // đường lại tranh mic và nhận dạng câm, đúng lỗi _nhaMicStream sinh ra để chặn. Trả
@@ -1046,6 +1048,11 @@ class JavisVoice {
   // Âm lượng loa theo trạng thái: đang nhá thì nhỏ, không thì đầy. Gọi ở MỌI chỗ gắn audio
   // mới, vì mỗi khúc TTS là một phần tử Audio khác: quên một chỗ là khúc kế tiếp bật lại âm
   // lượng đầy ngay giữa lúc đang thăm dò, hỏng hết phép so.
+  // The speaker picked in Settings > Voice (audio-devices.js, 26/11/2026); the default when none is or it is gone.
+  static toSpeaker(target) {
+    try { if (window.JavisAudioDevices) window.JavisAudioDevices.applySpeaker(target); } catch (e) {}
+  }
+
   _apAmLuong(audio) {
     try { if (audio) audio.volume = this._dangNha ? JavisVoice.NHA_GAIN : 1; } catch (e) {}
   }
@@ -1311,6 +1318,9 @@ class JavisVoice {
     this._preloaded = null;
     this.currentAudio = audio;
     this._apAmLuong(audio);    // đang nhá tiếng thăm dò thì khúc mới cũng phải nhỏ theo
+    // The speaker picked in Settings > Voice (no picker on iPhone); a pick changed mid-call applies from here on.
+    JavisVoice.toSpeaker(audio);
+    if (this.audioCtx) JavisVoice.toSpeaker(this.audioCtx);
     this._chunkIndex = i;
     // Đo mạng: từ lúc gọi play() tới lúc thật sự phát. Quá slowMs thì báo "mạng chậm" - đây là
     // số đo thật, không phải trạng thái vẽ cho có (spec Voice V1 mục 4).

@@ -328,7 +328,9 @@ main._api_stream = _stream_hong
 _sess2 = {"last": None, "sent": set()}
 r = chay("groq", "api", _sess2)
 check("lượt hỏng trả về chuỗi lỗi", isinstance(r, str) and "hết quota" in r)
-check("lượt hỏng KHÔNG để câu hỏi treo trong lịch sử", _sess2["bot"] == [])
+# Issue #1839: a failed private turn hands its RAM history back to the inbox (None = read it again next turn), where
+# the unanswered question is a real customer message; either way no dangling question stays in RAM.
+check("lượt hỏng KHÔNG để câu hỏi treo trong lịch sử", not (_sess2.get("bot") or []))
 
 
 

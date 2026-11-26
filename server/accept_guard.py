@@ -2,7 +2,8 @@
 
 When a browser drops a connection while it is being accepted, asyncio's proactor loop gets an OSError (WinError 64) and
 CLOSES the listening socket: the process lives on but refuses every new connection until it is restarted. Here a failed
-accept is logged and the loop accepts again; only a socket closed on purpose stops it. No effect off Windows.
+accept is logged and the loop accepts again after a short backoff (doubling up to RETRY_MAX_S, reset by the next
+connection served); only a socket closed on purpose stops it. No effect off Windows.
 """
 from __future__ import annotations
 
@@ -56,8 +57,12 @@ def _start_serving(self, protocol_factory, sock, sslcontext=None, server=None, b
         except exceptions.CancelledError:
             sock.close()
             return
-        except OSError as exc:      # this one connection is gone; the listener is fine, accept the next one
-            _log(exc)
+        except OSError as exc:
+            # This one connection is gone; accept the next one, after the same backoff as a failed synchronous accept.
+            # One dropped connection waits RETRY_MIN_S; a listener that is itself broken fails every future at once,
+            # and accepting again right away would spin the CPU (the log line is rate limited in `_log`).
+            retry(exc)
+            return
         if conn is not None:
             delay = RETRY_MIN_S
             try:

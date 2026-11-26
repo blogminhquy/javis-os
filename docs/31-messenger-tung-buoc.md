@@ -164,7 +164,7 @@ Theo tài liệu của Meta, app chỉ phục vụ Fanpage của chính bạn th
 - `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`
 - `pages_manage_metadata`
 
-Vào mục "Xét duyệt ứng dụng", **Yêu cầu cấp quyền**, mô tả cách dùng và quay video demo theo hướng dẫn của Meta. Trong lúc chờ, bot có thể **không nhận được tin của khách thường**: Meta chỉ gửi về tin của người có vai trò trong app hoặc Page, cùng tin Page tự gửi đi. Khách vẫn nhắn được cho Page, bạn trả lời tay từ Meta Business Suite.
+Vào mục "Xét duyệt ứng dụng", **Yêu cầu cấp quyền**, mô tả cách dùng và quay video demo theo hướng dẫn của Meta. Trong lúc chờ, bot có thể **không nhận được tin của khách thường**: Meta chỉ gửi về tin của người có vai trò trong app hoặc Page, cùng tin Page tự gửi đi. Khách vẫn nhắn được cho Page, bạn trả lời tay từ Meta Business Suite. Khi thấy Page nhắn cho từ 3 người trở lên mà không nhận được tin nào của họ trong 24 giờ, Javis tự hiện cảnh báo trên thẻ bot ở trang Chatbot; cảnh báo tự tắt khi tin của một khách thường về tới.
 
 **Mẫu hồ sơ cho `pages_messaging`** (viết bằng tiếng Anh, sửa tên Page cho đúng):
 

@@ -43,6 +43,7 @@ import once_ledger
 import turn_ledger
 import scout
 import code_mode
+import delivery_ledger   # issues #1846, #1851: what a tool delivered is not sent again
 import secret_guard
 import skill_router
 import skill_usage
@@ -556,6 +557,8 @@ def _guard(ent, fn, mode):
             # 0.238.0: a Kanban job that runs again must not send, post or order twice (once_ledger.py).
             # Outside a background job this calls straight through.
             result = await once_ledger.run(fn, args, _send)
+            # Issues #1846, #1851: what this call delivered to a chat is not sent there again by the end of the turn.
+            delivery_ledger.note_call(args, result)
         _audit_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
                        "connector": conn.get("connector_id"), "label": conn.get("label"),
                        "tool": tool, "mode": mode, "cls": cls,
@@ -2202,6 +2205,41 @@ def _scope_tools(tools, route, allowlist):
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
                        force_refresh=False, force_lazy=False, staging=False, workspace_root=None,
                        coding_ctx_cua_phien=None, for_bot=False, tool_allowlist=None):
+    """(tools_spec, route) for one mode: the shared, cached list (`_discover_all_cached`) plus the tools that belong to
+    the turn bound now (`_with_turn_tools`). See `_discover_all_cached` for the arguments."""
+    tools, route = await _discover_all_cached(
+        mode, vault_root, include_plugins, include_ambient, force_refresh=force_refresh, force_lazy=force_lazy,
+        staging=staging, workspace_root=workspace_root, coding_ctx_cua_phien=coding_ctx_cua_phien, for_bot=for_bot,
+        tool_allowlist=tool_allowlist)
+    if tool_allowlist is not None:
+        return tools, route          # a gated step answers its own list only
+    return _with_turn_tools(tools, route, mode)
+
+
+def _with_turn_tools(tools, route, mode):
+    """Add the tools of ONE turn to a list: today `ask_staff` of a dedicated bot with a staff contact (staff_requests).
+
+    Never part of the cached lists, which every turn of the same mode and brain shares. The tool decides from the turn
+    the host bound (`turn_context`) and the bot's record; it is offered only at hub mode "full" with the bot's own level
+    "full" for this chat, and checks both again when called. Outside actions are marked like a plugin's."""
+    try:
+        import staff_requests
+        extra = staff_requests.turn_tool((mode or "full").strip().lower())
+    except Exception as e:      # noqa: BLE001 - a broken extra must never cost the turn its normal tools
+        print(f"[hub] turn tools: {type(e).__name__}: {e}", file=sys.stderr)
+        extra = None
+    if not extra:
+        return tools, route
+    spec, entry = extra
+    if spec["fn"] in route:
+        return tools, route
+    entry = dict(entry, call=_outside_plugin_call(spec["fn"], entry["call"]))
+    return list(tools) + [spec], dict(route, **{spec["fn"]: entry})
+
+
+async def _discover_all_cached(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
+                               force_refresh=False, force_lazy=False, staging=False, workspace_root=None,
+                               coding_ctx_cua_phien=None, for_bot=False, tool_allowlist=None):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Javis-No-Plugins) để model không thấy tool trùng chức năng.
@@ -2266,10 +2304,11 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
 
             async def _refresh():
                 try:
-                    await discover_all(mode, vault_root, include_plugins, include_ambient, force_refresh=True,
-                                       force_lazy=force_lazy, staging=staging, workspace_root=workspace_root,
-                                       coding_ctx_cua_phien=coding_ctx_cua_phien, for_bot=for_bot,
-                                       tool_allowlist=tool_allowlist)
+                    await _discover_all_cached(mode, vault_root, include_plugins, include_ambient,
+                                               force_refresh=True, force_lazy=force_lazy, staging=staging,
+                                               workspace_root=workspace_root,
+                                               coding_ctx_cua_phien=coding_ctx_cua_phien, for_bot=for_bot,
+                                               tool_allowlist=tool_allowlist)
                 except Exception as e:  # noqa: BLE001 - the next caller simply dials again
                     print(f"[hub] background refresh failed: {type(e).__name__}: {e}", file=sys.stderr)
                 finally:

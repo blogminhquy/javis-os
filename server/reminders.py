@@ -432,6 +432,12 @@ class RemindersDeps:
     # (brain, agent slug, task, output) -> output without the JAVIS_LESSON lines, written to that assistant's
     # memory and run log like a workflow step. None = the output is posted as is.
     finish_agent_run: Optional[Callable[[str, str, str, str], str]] = None
+    # A reminder run as an assistant runs on that assistant's own model and effort, like a Kanban job given to it
+    # (ported from PR #1847). agent_job_spec(brain, slug) -> {provider, model, reasoning}, or None to keep the background
+    # model; aux_swap_spec(cli, mode, tag, spec) -> the background chain with that spec as its first link. Both are
+    # needed; None = the background model, as before.
+    agent_job_spec: Optional[Callable[[str, str], Optional[dict]]] = None
+    aux_swap_spec: Optional[Callable] = None
     # 0.202.0: async make_voice(brain, text) -> vault-relative mp3 path ("" on failure), and
     # async send_file(chat_id, abs_path, brain) -> (ok, err) for channels that need the file itself.
     make_voice: Optional[Callable] = None
@@ -1314,6 +1320,19 @@ class RemindersFeature:
             print(f"[recipes] prefetch skipped: {type(e).__name__}: {e}", file=sys.stderr)
             return ""
 
+    async def _agent_model(self, brain: str, agent: str) -> Optional[dict]:
+        """{provider, model, reasoning} of the assistant a reminder runs as, None to keep the background model."""
+        if not (agent and self.deps.agent_job_spec and self.deps.aux_swap_spec):
+            return None
+        try:
+            # Worker thread: it reads the assistant's file, like build_agent_prompt (2026-11-09).
+            spec = await asyncio.to_thread(self.deps.agent_job_spec, brain, agent)
+        except Exception as e:  # noqa: BLE001 - the job still runs, on the background model
+            print(f"[reminders] assistant '{agent}' model unreadable, background model: {type(e).__name__}: {e}",
+                  file=sys.stderr)
+            return None
+        return spec if isinstance(spec, dict) and spec.get("provider") else None
+
     async def _run_task(self, brain: str, text: str, muc_quyen: str = "", previous: str = "",
                         late_s: float = 0.0, intro: str = "", agent: str = ""):
         """mode 'task': tới giờ chạy engine làm việc user đã hẹn. Trả (kết_quả, lỗi).
@@ -1382,7 +1401,12 @@ class RemindersFeature:
                 if mcpf:
                     cli.mcp_config = mcpf
                     cli.mcp_strict = True
-        cli = aux_engine.apply(self.deps, cli, mode=mq, tag="reminder")
+        spec = await self._agent_model(brain, agent) if as_agent else None
+        if spec:
+            # The assistant's own model at its own effort first, then the usage order's fallbacks at their own settings.
+            cli = self.deps.aux_swap_spec(cli, mq, "reminder", spec)
+        else:
+            cli = aux_engine.apply(self.deps, cli, mode=mq, tag="reminder")
         # Trần chung cho fork nền (mặc định không giới hạn từ 2026-11-07, env JAVIS_BG_MAX_WALL_S). Số cứng 300s cũ
         # từng giết việc lịch thật đang chạy dở - xem doc tại aux_engine.bg_max_wall_s.
         cli.max_wall_s = aux_engine.bg_max_wall_s()

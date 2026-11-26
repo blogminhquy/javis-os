@@ -391,6 +391,23 @@ def clean_nhuong_tay(v: Any) -> Optional[int]:
     return n if 0 <= n <= NHUONG_TAY_TOI_DA else None
 
 
+# Minutes between two owner bells for one chat when the bot leaves hard messages to the owner (issue #1838). Unset =
+# `chatbot_runtime.BAO_CHU_BELL_GAP_S` (10 minutes); 0 = ring for every escalation. Messages inside the gap are never
+# dropped: they ring together once when it ends.
+BELL_GAP_MAX = 240
+
+
+def clean_bell_gap(v: Any) -> Optional[int]:
+    """A valid bell gap in minutes (0 to `BELL_GAP_MAX`), or None when unset or unreadable."""
+    if v is None or isinstance(v, bool) or str(v).strip() == "":
+        return None
+    try:
+        n = int(str(v).strip())
+    except (TypeError, ValueError):
+        return None
+    return n if 0 <= n <= BELL_GAP_MAX else None
+
+
 # Per-chat exceptions (0.172.0): ONE private chat gets its own permission level and wait time. Asked by the owner of a
 # personal Zalo nick on 2026-10-14: the bot that answers ~90 parents at "read only" must also help the owner's mother edit
 # her Word/Excel files. Raising the whole bot would hand those tools to every stranger who messages the nick; the risk
@@ -513,6 +530,31 @@ def ap_ngoai_le(cfg: dict, meta: Optional[dict]) -> dict:
     if not e:
         return cfg
     return dict(cfg, muc_quyen=e["muc_quyen"], _ngoai_le=dict(e), _muc_bot=cfg.get("muc_quyen"))
+
+
+def clean_staff_contact(v: Any) -> dict:
+    """The bot's staff contact ("Người phụ trách", 2026-11-26): ONE chat on one of the bot's channel accounts that the
+    bot asks when a customer wants something only a person knows (see staff_requests.py).
+
+    Accepts a dict or its JSON text (what the dashboard form sends). Returns {"account_id", "chat_id", "chat_type",
+    "name"}, or {} for none: an empty value, an unreadable one, or one without both ids. Scoped to the account like a
+    per-chat exception, so the same chat id on another account or channel never counts."""
+    if isinstance(v, str):
+        t = v.strip()
+        if not t:
+            return {}
+        try:
+            v = json.loads(t)
+        except ValueError:
+            return {}
+    if not isinstance(v, dict):
+        return {}
+    aid, cid = _clean_ma(v.get("account_id")), _clean_ma(v.get("chat_id"))
+    if not aid or not cid:
+        return {}
+    return {"account_id": aid, "chat_id": cid,
+            "chat_type": "group" if str(v.get("chat_type") or "") == "group" else "private",
+            "name": " ".join(str(v.get("name") or "").split())[:60]}
 
 
 def clean_bat(v: Any) -> bool:
@@ -672,6 +714,8 @@ def _public(b: dict) -> dict:
     out["gio_truc"] = parse_gio_truc(out.get("gio_truc"))[0] or {}
     # Per-chat exceptions (0.172.0). Missing key = old record = none; a broken value also reads as none (narrowest).
     out["ngoai_le"] = parse_ngoai_le(out.get("ngoai_le"))[0] or []
+    # Staff contact (2026-11-26). Missing key = old record = none: nothing changes for that bot.
+    out["staff_contact"] = clean_staff_contact(out.get("staff_contact"))
     # Bộ phán xử hội thoại nhóm (0.65.0). Thiếu khoá = bản ghi cũ = tắt; có khoá mà hỏng = phía hẹp nhất.
     import chatbot_reply_policy
     out["reply_policy"] = chatbot_reply_policy.normalize_config(out.get("reply_policy"))
@@ -1038,6 +1082,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "gio_truc": gio_truc,
             # None = not set by the owner (channel default, old group behaviour); see `clean_nhuong_tay`.
             "nhuong_tay_phut": clean_nhuong_tay(data.get("nhuong_tay_phut")),
+            # None = not set: the default gap between two owner bells of one chat (see `clean_bell_gap`).
+            "bell_gap_min": clean_bell_gap(data.get("bell_gap_min")),
             "ngoai_le": ngoai_le,
             # Tự nhận lời mời kết bạn và đọc lời giới thiệu (0.172.0, chỉ Zalo cá nhân). Mặc định TẮT: nhận kết bạn
             # là hành động ra ngoài dưới tên chủ, chỉ bật khi chủ chọn.
@@ -1046,6 +1092,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "group_typing": group_typing_on(data),
             # Zalo chat labels the bot stays out of (0.281.0, personal Zalo only), e.g. family and friends.
             "skip_labels": clean_skip_labels(data.get("skip_labels")),
+            # Staff contact the bot asks when only a person knows the answer (2026-11-26, staff_requests.py).
+            "staff_contact": clean_staff_contact(data.get("staff_contact")),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -1088,7 +1136,7 @@ _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "han
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
               "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels", "blocked",
-              "group_typing")
+              "group_typing", "bell_gap_min", "staff_contact")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -1189,6 +1237,14 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                         n = clean_nhuong_tay(v)
                         if n is not None:
                             b["nhuong_tay_phut"] = n
+                elif k == "bell_gap_min":
+                    # Blank clears it (back to the default); an unreadable value keeps the old one, like nhuong_tay_phut.
+                    if str(v if v is not None else "").strip() == "":
+                        b["bell_gap_min"] = None
+                    else:
+                        n = clean_bell_gap(v)
+                        if n is not None:
+                            b["bell_gap_min"] = n
                 elif k == "ngoai_le":
                     b["ngoai_le"] = ngoai_le_moi     # checked at the top, risk gate included
                 elif k == "nhan_ket_ban":
@@ -1197,6 +1253,9 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["group_typing"] = group_typing_on({"group_typing": v})
                 elif k == "skip_labels":
                     b["skip_labels"] = clean_skip_labels(v)
+                elif k == "staff_contact":
+                    # An empty or unreadable value clears it: the form sends "" when the owner picks "nobody".
+                    b["staff_contact"] = clean_staff_contact(v)
 
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()
@@ -1284,6 +1343,12 @@ def delete_bot(bot_id: str) -> tuple[bool, str]:
         _save(d)
     _xoa_du_lieu_phan_xu(bot_id)
     _remove_learned_mirror(gone[0])
+    try:
+        # Questions the bot asked its staff hold customers' words: they go with the bot (2026-11-26).
+        import staff_requests
+        staff_requests.delete_bot(bot_id)
+    except Exception:      # noqa: BLE001 - cleaning must not fail the delete
+        pass
     return True, ""
 
 

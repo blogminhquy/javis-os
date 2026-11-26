@@ -197,6 +197,7 @@ import zalo_oa_bot      # Zalo OA transport + webhook router (0.412.0)
 import zalo_oa_oauth    # Grant access with Zalo: OAuth v4 + PKCE for the Zalo OA form
 import wechat_bot       # WeChat Official Account transport + webhook router
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
+import delivery_ledger   # issues #1846, #1851: what already reached a chat is not sent there again
 import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
@@ -2861,6 +2862,11 @@ def _aux_swap(cli, mode=None, tag=None):
     """Engine Claude vừa dựng cho việc nền -> engine theo model phụ người dùng chọn.
     Mặc định/hỏng cấu hình thì trả lại chính engine Claude đó (việc nền không được chết)."""
     return aux_engine.swap(cli, mode=mode, tag=tag, codex_profile=_write_codex_profile)
+
+
+def _aux_swap_spec(cli, mode, tag, spec):
+    """`_aux_swap` with an explicit first link: the model and effort of the assistant a background job runs as."""
+    return aux_engine.swap(cli, mode=mode, tag=tag, spec=spec, codex_profile=_write_codex_profile)
 
 
 def _side_work_paused() -> str:
@@ -14025,9 +14031,12 @@ def _workflow_verdict(v_out: str, v_error: str = "") -> tuple[bool, str, str]:
 
 
 def _verify_failed_message(step_no, agent_name, attempts, reason) -> str:
-    return (f"Bước {step_no} ({agent_name}) chưa qua kiểm chứng sau {attempts} lượt"
-            + (f": {str(reason).strip()[:300]}" if str(reason or "").strip() else "")
-            + ". Quy trình dừng ở đây, không chạy tiếp các bước sau.")
+    why = (": " + str(reason).strip()[:300]) if str(reason or "").strip() else ""
+    return localefmt.chu(
+        f"Bước {step_no} ({agent_name}) chưa qua kiểm chứng sau {attempts} lượt{why}. "
+        "Quy trình dừng ở đây, không chạy tiếp các bước sau.",
+        f"Step {step_no} ({agent_name}) still failed its check after {attempts} tries{why}. "
+        "The workflow stopped here and did not run the steps after it.")
 
 
 async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=None,
@@ -14722,6 +14731,61 @@ def _ket_luot_agent(brain, slug, user_message, final_text, conv_sid="") -> str:
     return sach
 
 
+def _graph_owner_stop(canary, graph, result):
+    """Issue 1841: the event that ends a graph run whose failed steps ALL still failed their check after the last
+    retry, or None.
+
+    The linear runner ends such a run with `error` + `needs_input`: the owner can answer it (say what is missing, or
+    loosen the check). The graph runner ended it with `done` and an empty result, so a Kanban job read the step's own
+    `step_error` as an engine failure (retried in silence, or blocked with no question) and the run history said
+    "done". A step that broke for another reason (engine error, timeout, plan limit) is not the owner's to answer, and
+    a runtime stop (checkpoint, revision) is not a failed step: those runs keep their old ending."""
+    if getattr(result, "status", "") not in ("FAILED", "STOPPED") \
+            or getattr(result, "stop_reason", "") in agent_runtime._RUNTIME_TERMINAL_REASONS:
+        return None
+    try:
+        state = canary.load_state(result.task_id) if getattr(result, "task_id", "") else None
+    except Exception:  # noqa: BLE001 - no state to read: the run keeps its old ending
+        state = None
+    failed = [(nid, item) for nid, item in ((state or {}).get("nodes") or {}).items()
+              if isinstance(item, dict) and item.get("status") == "FAILED"]
+    if not failed or any(item.get("verified") is not False or not item.get("error") for _, item in failed):
+        return None
+    nid, item = failed[0]
+    event = {"type": "error", "needs_input": True, "content": str(item["error"])}
+    node = graph.node(nid) if graph is not None else None
+    if node is not None:
+        meta = node.metadata or {}
+        event.update(i=int(meta.get("legacy_index", meta.get("declared_index", 0)) or 0), node=nid,
+                     agent=str(node.agent or ""))
+    return event
+
+
+async def _graph_run_events(queue, task, canary, graph, end: dict):
+    """The events of one graph run from its queue, in order, with its `done` held back until the end is known.
+
+    Issue 1841: a run that stopped on a step still failing its check ends with the `_graph_owner_stop` event in place
+    of that `done`, as the linear runner does. `end["result"]` holds the run's result once the queue is closed."""
+    held = None
+    while True:
+        event = await queue.get()
+        if event is None:
+            break
+        if held is not None:
+            yield held
+            held = None
+        if event.get("type") == "done":
+            held = event
+            continue
+        yield event
+    end["result"] = await task
+    stop = _graph_owner_stop(canary, graph, end["result"])
+    if stop is not None:
+        yield stop
+    elif held is not None:
+        yield held
+
+
 async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="", mode=None):
     """Đường Phase 10: cùng engine, cùng prompt, khác ở chỗ CÓ trạng thái.
 
@@ -14865,12 +14929,10 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
             await queue.put(None)
 
     task = asyncio.create_task(drive())
-    while True:
-        event = await queue.get()
-        if event is None:
-            break
+    end: dict = {}
+    async for event in _graph_run_events(queue, task, canary, graph, end):
         yield event
-    result = await task
+    result = end["result"]
     # ESCALATED và STOPPED là dừng có chủ đích, không phải lỗi runtime.
     _CONTEXT_RUNTIME.finish(
         trace,
@@ -15260,12 +15322,10 @@ async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tool
             await queue.put(None)
 
     task = asyncio.create_task(drive())
-    while True:
-        event = await queue.get()
-        if event is None:
-            break
+    end: dict = {}
+    async for event in _graph_run_events(queue, task, canary, graph, end):
         yield event
-    result = await task
+    result = end["result"]
     _CONTEXT_RUNTIME.finish(
         trace, "COMPLETED" if result.status == "COMPLETED" else "COMPLETED_WITH_ERROR",
         result.stop_reason)
@@ -16144,6 +16204,10 @@ loop_feature = self_improve.register(app, self_improve.LoopDeps(
     mcp_allow_patterns=_loop_mcp_allow,
     build_agent_prompt=_background_agent_prompt,          # made in a partner chat -> runs as that assistant
     finish_agent_run=_finish_background_agent_run,
+    # ...on its own model and effort (ported from PR #1847); the verification run stays on the background model.
+    # A lambda: `_agent_job_spec` is defined further down, after `_agent_persona`.
+    agent_job_spec=lambda brain, slug: _agent_job_spec(brain, slug, tag="loop"),
+    aux_swap_spec=_aux_swap_spec,
 ))
 
 _LOOP_LOCK = loop_feature.lock   # shim: giữ tên cũ cho code phía dưới (scheduler)
@@ -16493,6 +16557,9 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     send_file=lambda chat_id, path, brain: _send_voice_file(chat_id, path, brain),
     build_agent_prompt=_background_agent_prompt,          # made in a partner chat -> runs as that assistant
     finish_agent_run=_finish_background_agent_run,
+    # ...on its own model and effort (ported from PR #1847). A lambda: `_agent_job_spec` is defined further down.
+    agent_job_spec=lambda brain, slug: _agent_job_spec(brain, slug, tag="reminder"),
+    aux_swap_spec=_aux_swap_spec,
 ))
 
 
@@ -16505,8 +16572,9 @@ async def _webhook_run_workflow(brain, slug, prompt, level):
         kind = ev.get("type")
         if kind == "done":
             result = ev.get("result") or result
-        elif kind in ("wait_user", "escalation") or (kind == "error" and ev.get("needs_input")):
-            needs_input = True
+        elif tasks_mod.workflow_stops_for_owner(ev):
+            # Issue 1841: a stop for the owner. The step error just before it is the same stop told to the step's row.
+            needs_input, error = True, ""
             result = (result + "\n" if result else "") + str(
                 ev.get("content") or ev.get("reason") or ev.get("prompt") or ev.get("node") or "")
         elif kind in ("error", "step_error"):
@@ -27461,6 +27529,14 @@ def _tg_conv_sid(store, sess, brain, engine_label, model, channel="telegram"):
 _TG_MOI_LAI_MAX = 20
 
 
+def _is_turn_question(stored, text) -> bool:
+    """Whether `stored`, the last user message of the session store, is the question this turn is answering. The turn
+    may send the engine more than the words it stored: a full-access bot's turn carries the photo lines and what was
+    said in the chat since its last reply (`chatbot_runtime.full_turn_catch_up`) around them."""
+    stored, text = str(stored or ""), str(text or "")
+    return stored == text or bool(stored.strip()) and stored in text
+
+
 def _tg_lich_su_kho(store, conv_sid, text):
     """Transcript đã lưu của phiên này, để MỒI LẠI ngữ cảnh sau restart.
 
@@ -27486,7 +27562,7 @@ def _tg_lich_su_kho(store, conv_sid, text):
     msgs = [{"role": m["role"], "content": m["content"]} for m in raw
             if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str)
             and m["content"].strip()]
-    if msgs and msgs[-1]["role"] == "user" and msgs[-1]["content"] == text:
+    if msgs and msgs[-1]["role"] == "user" and _is_turn_question(msgs[-1]["content"], text):
         msgs.pop()
     tom_tat = ""
     try:
@@ -27586,6 +27662,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     # giấu lệnh vào đó, model đọc được còn chủ thì không thấy. Gỡ TRƯỚC khi ghi kho vì vòng tự học đọc lại kho (0.83.2).
     if isinstance(text, str):
         text = chatbot_reply_policy.strip_hidden(text)
+    _turn_started = time.time()   # what tools deliver to this chat from now on is not sent again (delivery_ledger)
     # Who is talking, for tool hooks. Taken BEFORE `channel` is renamed to bot:<slug> below: a
     # hook needs the real channel ("zalo_personal"...), and `user_id` is the sender even in a
     # group. A dedicated bot is never the owner, whatever its permission level; every other
@@ -27596,6 +27673,13 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         # shows them under the bot's assistant instead of Javis Core.
         # A plain string, so a hook reading the turn (a shallow copy) cannot edit it for the next reader.
         _luot["bot_id"] = str(bot["id"])
+        # 2026-11-26 (staff_requests.py, `ask_staff`): the channel account, the customer's message and name, so a
+        # question for the shop's staff is tied to the right customer chat. Set by the host from the channel's meta.
+        _luot["account_id"] = str((meta or {}).get("account_id") or "")
+        _luot["chat_message_id"] = str((meta or {}).get("message_id") or "")
+        _luot["user_name"] = str((meta or {}).get("user_name") or "")[:80]
+        if (meta or {}).get("staff_relay"):
+            _luot["staff_relay"] = True      # a turn passing a staff answer on never asks the staff again
         # 0.459.0: an internal API turn opens private documents by the caller's scope list, never by its chat id. The
         # doc tools read it from the turn (chatbot_doc_tools.turn_chat_id).
         import chatbot_grounding
@@ -27790,6 +27874,11 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             runtime_trace,
             "COMPLETED_WITH_ERROR" if runtime_trace and runtime_trace.had_error else "COMPLETED",
         )
+        if not bot and isinstance(out, dict):
+            # Issues #1846, #1851: what a tool already delivered to this very chat during the turn (a photo sent with a
+            # Zalo tool, the answer sent with a send tool) is not sent again with the reply. Done after the turn is
+            # stored, which keeps the answer. A dedicated bot does the same at its own end of turn (chatbot_runtime).
+            out = _without_delivered(out, chat_id, _turn_started)
         return out
     except asyncio.CancelledError:
         _CONTEXT_RUNTIME.finish(runtime_trace, "CANCELLED", "cancelled")
@@ -27801,6 +27890,21 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     finally:
         turn_context.reset(_luot_token)
         context_runtime.reset_trace(_trace_token)
+
+
+def _without_delivered(out: dict, chat_id, since: float) -> dict:
+    """The reply `out` minus what already reached `chat_id` since `since` (`delivery_ledger`): those files go, and a
+    text identical to one already sent goes too. Nothing left to send = a quiet turn (`im_lang`), so the transport
+    sends neither an empty message nor a placeholder."""
+    said, files = delivery_ledger.trim_reply(chat_id, since, out.get("text") or "", out.get("files") or [])
+    if not said and len(files) == len(out.get("files") or []):
+        return out
+    out = dict(out, files=files)
+    if said:
+        out["text"] = ""
+        if not files:
+            out["im_lang"] = True
+    return out
 
 
 def _manual_session_probe(key: str):
@@ -27822,6 +27926,10 @@ def _manual_session_undo(key: str, keep: int) -> None:
         # (`chatbot_runtime.private_history`). Back to "not loaded": the next real turn reads it again, instead of
         # starting from the empty list this cut would leave.
         s["bot"] = None
+    # The draft turn brought the history up to date with the inbox and moved the marks of what it had read (issue
+    # #1839); the cut above takes that back out of RAM. Without the marks, the next real turn reads the inbox again.
+    s.pop(chatbot_runtime.HISTORY_MARK, None)
+    s.pop(chatbot_runtime.FULL_MARK, None)
     _tg_ngat_mach(s)
 
 
@@ -28137,6 +28245,8 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
 
     if not out:
         lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
+        # A private chat: the question waits unanswered in the inbox; the next turn reads the chat back from there.
+        chatbot_runtime.forget_private_history(sess)
         if prov == "openai-oauth" and not (openai_oauth.valid_creds() or {}).get("access_token"):
             # Codex không chạy không-tool được nên không có đường dự phòng. Nói đúng việc cần
             # làm thay vì để chủ đọc một mã lỗi HTTP.
@@ -28353,6 +28463,8 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
 
     if not out:
         lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
+        # A private chat: the question waits unanswered in the inbox; the next turn reads the chat back from there.
+        chatbot_runtime.forget_private_history(sess)
         if prov == "openai-oauth" and not (openai_oauth.valid_creds() or {}).get("access_token"):
             return ("⚠ Chưa đăng nhập được ChatGPT nên bot không gọi được model. "
                     "Vào trang Models kết nối lại tài khoản ChatGPT rồi nhắn lại.")
@@ -28482,11 +28594,13 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # gốc, MCP hub, kết nối của tài khoản Claude/ChatGPT, kỹ năng), chỉ khác hai chỗ: prompt mang
         # VAI của Agent, và brain là brain của bot. Đường tắt, nguồn chọn lọc và gateway huỷ lịch của
         # chủ bị bỏ qua vì chúng thay prompt bằng giọng Javis.
-        if _muc != "full" and sess.get("bot") is None:
-            # First turn of this chat since the server started: the history lived in RAM only, so read a private
-            # chat back from the inbox instead of meeting a returning customer as a stranger. Full-access bots
-            # take the owner's engine branches below, which rebuild their own history from the session store.
-            sess["bot"] = chatbot_runtime.private_history(bot, meta, BOT_HISTORY_MAX_MESSAGES)
+        # Issue #1839: the inbox is what the bot remembers of a private chat, on every turn, not only the first one after a
+        # restart, so what the staff, the owner or the Page wrote there reaches the bot too. Full-access bots take the
+        # owner's engine branches below, which keep their own thread: what that thread missed rides in front of the question.
+        if _muc == "full":
+            text = chatbot_runtime.full_turn_catch_up(sess, bot, meta, text, BOT_HISTORY_MAX_MESSAGES)
+        else:
+            text = chatbot_runtime.sync_private_history(sess, bot, meta, text, BOT_HISTORY_MAX_MESSAGES)
         if _muc == "full":
             _bot_full = True
             _sys_bot_full = _sys_bot
@@ -28842,7 +28956,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                 _raw = [{"role": m["role"], "content": m["content"]}
                         for m in store.get_messages(conv_sid)
                         if m.get("role") in ("user", "assistant") and m.get("content")]
-                if _raw and _raw[-1]["role"] == "user" and _raw[-1]["content"] == text:
+                if _raw and _raw[-1]["role"] == "user" and _is_turn_question(_raw[-1]["content"], text):
                     _raw.pop()
             except Exception:
                 _raw = []
@@ -31471,7 +31585,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           gio_truc: str = Form(""), nhuong_tay_phut: str = Form(""),
                           ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form(""),
                           nhan_ket_ban: str = Form(""), skip_labels: str = Form(""),
-                          group_typing: str = Form("")):
+                          group_typing: str = Form(""), bell_gap_min: str = Form(""),
+                          staff_contact: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -31513,6 +31628,10 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "skip_labels": skip_labels,
         # "Đang soạn tin" in groups once the bot decided to answer (personal Zalo): "0" = off, blank = on.
         "group_typing": group_typing,
+        # Minutes between two owner bells of one chat (issue #1838): 0 = every time, blank = default 10.
+        "bell_gap_min": bell_gap_min,
+        # Staff contact (2026-11-26): JSON {account_id, chat_id, chat_type, name}; blank = none (staff_requests.py).
+        "staff_contact": staff_contact,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
@@ -32222,6 +32341,8 @@ async def telegram_send_file(payload: dict = Body(...)):
                 sess["sent"].add(os.path.normcase(os.path.normpath(os.path.abspath(path))))
         except Exception:
             pass
+        # Issues #1846, #1851: the same record every send path keeps, checked by the end of the turn on any channel.
+        delivery_ledger.note(target or ((_TG_BOT.chat_ids or [""])[0]), files=[path])
     return {"ok": ok, "error": err}
 
 
@@ -34414,11 +34535,14 @@ def _agent_persona(root, slug, agent_key=None):
 tasks_feature.deps.agent_persona = _agent_persona
 
 
-def _agent_job_spec(root, slug, agent_key=None):
+def _agent_job_spec(root, slug, agent_key=None, tag="kanban"):
     """{provider, model, reasoning} for the work of a Kanban job given to an assistant (25/11/2026, owner: an assistant
     working on its own uses the model and the level set on it). Its own model at its level (default medium); an
     assistant left on "Default" model keeps the background model, at its own level when it set one. None: the job
-    runs as a plain Kanban job (no such assistant, or the slug now belongs to another assistant)."""
+    runs as a plain Kanban job (no such assistant, or the slug now belongs to another assistant).
+
+    Reminders and loops made in an assistant's chat use it too (ported from PR #1847), with their own `tag` for the
+    background model they would otherwise run on."""
     if not _agent_persona(root, slug, agent_key):
         return None
     try:
@@ -34432,12 +34556,8 @@ def _agent_job_spec(root, slug, agent_key=None):
     own = _agent_own_reasoning(meta)
     if not own:
         return None
-    bg = aux_engine.read_spec(tag="kanban")
+    bg = aux_engine.read_spec(tag=tag)
     return {"provider": bg.get("provider") or aux_engine.CLAUDE, "model": bg.get("model") or "", "reasoning": own}
-
-
-def _aux_swap_spec(cli, mode, tag, spec):
-    return aux_engine.swap(cli, mode=mode, tag=tag, spec=spec, codex_profile=_write_codex_profile)
 
 
 tasks_feature.deps.agent_job_spec = _agent_job_spec

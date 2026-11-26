@@ -185,6 +185,12 @@ class LoopDeps:
     # finish_agent_run(brain, slug, task, output) -> output without the JAVIS_LESSON lines (written to its memory).
     build_agent_prompt: Optional[Callable[[str, str], str]] = None
     finish_agent_run: Optional[Callable[[str, str, str, str], str]] = None
+    # ...and on that assistant's own model and effort, like a Kanban job given to it (ported from PR #1847).
+    # agent_job_spec(brain, slug) -> {provider, model, reasoning}, or None to keep the background model;
+    # aux_swap_spec(cli, mode, tag, spec) -> the background chain with that spec as its first link. The independent
+    # verification run stays on the background model. None = the background model, as before.
+    agent_job_spec: Optional[Callable[[str, str], Optional[dict]]] = None
+    aux_swap_spec: Optional[Callable] = None
 
 
 _AGENT_SLUG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}")
@@ -823,8 +829,10 @@ class LoopFeature:
         ), ""
 
     def _make_cli(self, loop: dict, cwd: str, sysprompt: Optional[str], for_verify: bool = False,
-                  brain: str = ""):
+                  brain: str = "", agent_spec: Optional[dict] = None):
         """Dựng CLI cho 1 vòng loop.
+        `agent_spec`: the model and effort of the assistant this round runs as (`_agent_model`); never for the
+        verification run, which stays on the background model.
         - profile 'code' (nâng cao, chỉ đặt qua .md): Bash/Web + file, cwd=workspace, VẪN 0 MCP
           (fail-closed nếu không tạo được file MCP rỗng) - cho loop sửa mã repo.
         - MẶC ĐỊNH (mọi loop tạo qua form): file tools + MCP do Javis quản lý (POS/ads/lịch...).
@@ -905,8 +913,24 @@ class LoopFeature:
                     self.deps.apply_mcp(cli)   # deps cũ (test) không nhận mode
             else:
                 _isolate(cli)              # không có hook (vd unit test) → giữ 0-MCP như cũ
+        if agent_spec and not for_verify and self.deps.aux_swap_spec:
+            # The assistant's own model at its own effort first, then the usage order's fallbacks at their own settings.
+            return self.deps.aux_swap_spec(cli, mode, "loop", agent_spec)
         cli = aux_engine.apply(self.deps, cli, mode=("suggest" if for_verify else mode), tag="loop")
         return cli
+
+    async def _agent_model(self, brain: str, slug: str) -> Optional[dict]:
+        """{provider, model, reasoning} of the assistant a loop round runs as, None to keep the background model."""
+        if not (slug and self.deps.agent_job_spec and self.deps.aux_swap_spec):
+            return None
+        try:
+            # Worker thread: it reads the assistant's file, like build_agent_prompt (2026-11-09).
+            spec = await asyncio.to_thread(self.deps.agent_job_spec, brain, slug)
+        except Exception as e:  # noqa: BLE001 - the round still runs, on the background model
+            print(f"[loops] assistant '{slug}' model unreadable, background model: {type(e).__name__}: {e}",
+                  file=sys.stderr)
+            return None
+        return spec if isinstance(spec, dict) and spec.get("provider") else None
 
     def _chay_nen(self, brain: str, slug: str, reason: str) -> None:
         async def _run():
@@ -1076,7 +1100,11 @@ class LoopFeature:
             # 2026-11-09: built on a worker thread. It reads every skill, agent and plugin of the brain; on the event loop it
             # froze the whole server for 2 to 5 s on the owner's VPS (GET /health/loop).
             sysprompt = await asyncio.to_thread(self.deps.build_system_prompt, brain)
-        gcli = self._make_cli(loop, cwd, sysprompt, brain=brain)
+        agent_spec = await self._agent_model(brain, as_agent) if as_agent else None
+        if agent_spec:
+            gcli = self._make_cli(loop, cwd, sysprompt, brain=brain, agent_spec=agent_spec)
+        else:
+            gcli = self._make_cli(loop, cwd, sysprompt, brain=brain)
         if gcli is None:
             return _finish("Lỗi: không tạo được file MCP rỗng để cô lập (profile code từ chối chạy)", "", True)
         if not gcli.is_available():

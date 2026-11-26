@@ -347,9 +347,12 @@ async def gui(kenh: str, tk: dict, chat_id: str, text: str, chat_type: str = "pr
     if not s.nl("tra_loi_tu_javis"):
         return False, f"{s.nhan} chưa gửi được tin từ Javis"
     try:
-        return await m.gui(tk, str(chat_id), str(text or ""), chat_type or "private", **extra)
+        kq = await m.gui(tk, str(chat_id), str(text or ""), chat_type or "private", **extra)
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
+    if kq and kq[0]:
+        _delivered(chat_id, texts=[str(text or "")])
+    return kq
 
 
 def can_send_file(channel: str) -> bool:
@@ -372,9 +375,22 @@ async def send_file(kenh: str, tk: dict, chat_id: str, path: str, caption: str =
         return False, localefmt.chu(f"{s.nhan} chưa gửi được ảnh hay file từ Javis",
                                     f"{s.nhan} cannot send images or files from Javis yet")
     try:
-        return await m.send_file(tk, str(chat_id), str(path), str(caption or ""), chat_type or "private")
+        kq = await m.send_file(tk, str(chat_id), str(path), str(caption or ""), chat_type or "private")
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
+    if kq and kq[0]:
+        _delivered(chat_id, files=[str(path)])
+    return kq
+
+
+def _delivered(chat_id, files=(), texts=()) -> None:
+    """Issues #1846, #1851: what the inbox (or the `inbox_reply` tool through it) just sent into a chat is not sent
+    there again by the end of a turn answering that chat (`delivery_ledger.trim_reply`)."""
+    try:
+        import delivery_ledger
+        delivery_ledger.note(chat_id, files=files, texts=texts)
+    except Exception:      # noqa: BLE001 - the message went out; the record is extra
+        pass
 
 
 def reset_cho_test() -> None:

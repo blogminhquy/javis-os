@@ -4,7 +4,8 @@
    shutter all pass and the call simply hears nothing. Only a person speaking can settle that: the
    meter moves for 5 seconds and the peak is reported, with a hint when it stayed near zero. The
    mic is opened with the same options as a call (echo cancellation, noise suppression, gain), so
-   what the meter shows is what Javis hears.
+   what the meter shows is what Javis hears. Since 26/11/2026 both tests use the mic and speaker picked right beside
+   them (audio-devices.js), and a finished mic test fills the pickers (the browser names devices only once allowed).
 
    Pure helpers (level, verdict) are exported for node tests; the button wiring runs only in a page. */
 (function () {
@@ -47,8 +48,9 @@
     out.textContent = t("settings.vc_mic_speak");
     var stream = null, ctx = null, peak = 0;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: {
-        echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+      var micOptions = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+      var dev = window.JavisAudioDevices;
+      stream = await (dev ? dev.getMic(micOptions) : navigator.mediaDevices.getUserMedia({ audio: micOptions }));
       var AC = window.AudioContext || window.webkitAudioContext;
       ctx = new AC();
       var an = ctx.createAnalyser();
@@ -77,6 +79,7 @@
       bar.style.width = "0%";
       if (btn) btn.disabled = false;
       running = false;
+      try { if (window.JavisAudioDevices) window.JavisAudioDevices.refresh(); } catch (e) {}
     }
   }
 
@@ -86,21 +89,32 @@
     var out = el("vcMicResult");
     try {
       var AC = window.AudioContext || window.webkitAudioContext;
-      var ctx = new AC();
-      var g = ctx.createGain();
-      g.connect(ctx.destination);
-      [[660, 0], [880, 0.25]].forEach(function (note) {
-        var o = ctx.createOscillator();
-        o.frequency.value = note[0];
-        o.connect(g);
-        o.start(ctx.currentTime + note[1]);
-        o.stop(ctx.currentTime + note[1] + 0.22);
-      });
-      g.gain.setValueAtTime(0.0001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
-      setTimeout(function () { try { ctx.close(); } catch (e) {} }, 800);
-      if (out) out.textContent = t("settings.vc_spk_played");
+      var ctx = new AC();   // made inside the press: an iPhone only lets a context made by one sound
+      var chime = function () {
+        try {
+          var g = ctx.createGain();
+          g.connect(ctx.destination);
+          [[660, 0], [880, 0.25]].forEach(function (note) {
+            var o = ctx.createOscillator();
+            o.frequency.value = note[0];
+            o.connect(g);
+            o.start(ctx.currentTime + note[1]);
+            o.stop(ctx.currentTime + note[1] + 0.22);
+          });
+          g.gain.setValueAtTime(0.0001, ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.03);
+          g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+          setTimeout(function () { try { ctx.close(); } catch (e) {} }, 800);
+          if (out) out.textContent = t("settings.vc_spk_played");
+        } catch (e) {
+          if (out) out.textContent = t("settings.vc_spk_fail");
+        }
+      };
+      var dev = window.JavisAudioDevices;
+      // Where the context can be routed, the chime waits for the picked speaker, or it would start on the default
+      // one. Elsewhere (Safari, iPhone) it plays at once, still inside the press, as before.
+      if (dev && dev.applySpeaker && typeof ctx.setSinkId === "function") dev.applySpeaker(ctx).then(chime, chime);
+      else chime();
     } catch (e) {
       if (out) out.textContent = t("settings.vc_spk_fail");
     }

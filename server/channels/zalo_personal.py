@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 from channels import KenhSpec
+import bot_split as _bot_split
 import localefmt
 import zalo_markup
 
@@ -84,7 +85,8 @@ TAG_FAIL_LIMIT = 3          # từng đó lần tag hỏng LIÊN TIẾP thì ngh
 TAG_PAUSE = 600             # giây nghỉ tag sau khi hỏng liên tiếp; tin vẫn đi bằng MCP như cũ
 # Trần một tin (0.171.2). Zalo từ chối cả tin quá dài (quanh 2000 ký tự) và khách không nhận được gì: chủ repo
 # 16/10/2026 gặp lần thứ ba, hai lần trước ở khách Khang Duy Dao. 1500 chừa chỗ cho "@Tên" khi tag trong nhóm.
-TIN_TOI_DA = 1500
+# The number lives in the channel capability table of bot_split (issue #1833), next to the other channels' limits.
+TIN_TOI_DA = _bot_split.CHANNELS["zalo_personal"].max_len
 NGHI_GIUA_DOAN = 1.2        # giây nghỉ giữa hai đoạn của một câu trả lời dài, cho giống người gõ và giữ thứ tự
 # Chỗ cắt tốt theo thứ tự ưu tiên: hết đoạn văn, hết dòng, hết câu, rồi mới tới khoảng trắng.
 _CHO_CAT = (re.compile(r"\n\s*\n"), re.compile(r"\n"), re.compile(r"[.!?…:;](?=\s)"), re.compile(r"\s"))
@@ -963,6 +965,12 @@ class Transport:
         }
         if is_reaction:
             meta["reaction"] = True
+        # Text of the message this one quotes (2026-11-26): a staff member replying to the bot's question names its
+        # request code there (staff_requests.pick). A quoted photo carries a JSON payload, not words: left out.
+        rt = md0.get("replyTo") if isinstance(md0.get("replyTo"), dict) else {}
+        quoted = str(rt.get("text") or rt.get("msg") or "").strip()
+        if quoted and not quoted.startswith("{"):
+            meta["reply_to_text"] = quoted[:1000]
         # Labels the owner put on this chat in the Zalo app (0.281.0, javis-zalo 1.6.0): the bot can skip chats tagged
         # e.g. "Gia đình" (`chatbot_runtime._ly_do_im`) and sees the tags in its prompt. Cached per connection, so this
         # await costs nothing on most messages; any failure leaves the list empty and the turn runs as before.

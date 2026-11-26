@@ -1108,8 +1108,15 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
         if min_mode == "full":
             # 0.238.0: an outside action (send, post, order) runs once per Kanban job, even when the job runs again.
             import once_ledger
-            return await once_ledger.run(name, args or {}, run)
-        return await run(args)
+            result = await once_ledger.run(name, args or {}, run)
+        else:
+            result = await run(args)
+        if min_mode != "readonly":
+            # Issues #1846, #1851: whatever this call delivered to a chat (a photo, a file, a text) is not sent there
+            # again by the end of the turn. Known by what the arguments name, never by the tool's name.
+            import delivery_ledger
+            delivery_ledger.note_call(args or {}, result, base_dir=getattr(ctx, "vault_root", None))
+        return result
 
     return _call
 

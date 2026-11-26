@@ -118,6 +118,106 @@ check("the `--help` probe runs in a worker thread", _thread is not None and _thr
       getattr(_thread, "name", None))
 
 
+# ---- 3. A failed accept FUTURE backs off like a failed synchronous accept (any platform, with fakes) ----
+# Before: the guard accepted again at once after an accept future failed. A listener that is itself broken fails every
+# future straight away, so that was a busy loop on the CPU.
+class _FakeFuture:
+    def __init__(self):
+        self.exc, self.value, self.callbacks = None, None, []
+
+    def result(self):
+        if self.exc is not None:
+            raise self.exc
+        return self.value
+
+    def exception(self):
+        return self.exc
+
+    def cancelled(self):
+        return False
+
+    def add_done_callback(self, cb):
+        self.callbacks.append(cb)
+
+    def finish(self, exc=None, value=None):
+        self.exc, self.value = exc, value
+        for cb in self.callbacks:
+            cb(self)
+
+
+class _FakeSock:
+    def fileno(self):
+        return 7
+
+
+class _FakeConn:
+    def close(self):
+        pass
+
+
+class _FakeLoop:
+    """Just what `_start_serving` touches: the proactor's accept, call_soon/call_later, transports."""
+
+    def __init__(self):
+        self._proactor = self
+        self._accept_futures = {}
+        self.pending, self.soon, self.later, self.served = [], [], [], []
+
+    def accept(self, sock):
+        fut = _FakeFuture()
+        self.pending.append(fut)
+        return fut
+
+    def call_soon(self, cb):
+        self.soon.append(cb)
+
+    def call_later(self, delay, cb):
+        self.later.append((delay, cb))
+
+    def is_closed(self):
+        return False
+
+    def _make_socket_transport(self, conn, protocol, extra=None, server=None):
+        self.served.append(conn)
+
+
+def _drive_backoff():
+    import contextlib
+    import io
+    fl = _FakeLoop()
+    accept_guard._last_log, accept_guard._dropped = 0.0, 0
+    err = io.StringIO()
+    delays, sync_reaccepts = [], 0
+    with contextlib.redirect_stderr(err):
+        accept_guard._start_serving(fl, lambda: object(), _FakeSock())
+        fl.soon.pop()()                                   # the first accept
+        for _ in range(8):                                # every accept future fails at once: a broken listener
+            n = len(fl.pending)
+            fl.pending[-1].finish(OSError(22, "The specified network name is no longer available"))
+            sync_reaccepts += len(fl.pending) - n        # accepted again inside the failure callback = a spin
+            if not fl.later:
+                break
+            delay, cb = fl.later.pop()
+            delays.append(delay)
+            cb()                                          # the timer fires: accept again
+        n = len(fl.pending)
+        fl.pending[-1].finish(value=(_FakeConn(), ("127.0.0.1", 5000)))   # a connection is served
+        served_then_accepted = bool(fl.served) and len(fl.pending) == n + 1 and not fl.later
+        fl.pending[-1].finish(OSError(64, "dropped"))
+        reset = fl.later[-1][0] if fl.later else None
+    lines = [x for x in err.getvalue().splitlines() if "[accept guard]" in x]
+    return delays, sync_reaccepts, served_then_accepted, reset, lines
+
+
+_delays, _spins, _served, _reset, _lines = _drive_backoff()
+check("a failed accept future is not followed by an immediate accept", _spins == 0, _spins)
+check("it waits, doubling up to the cap", _delays == [0.05, 0.1, 0.2, 0.4, 0.8, 1.0, 1.0, 1.0], _delays)
+check("a served connection accepts the next one at once", _served)
+check("the backoff starts again from the minimum after a served connection", _reset == accept_guard.RETRY_MIN_S,
+      _reset)
+check("the log line is rate limited across those failures", len(_lines) == 1, len(_lines))
+
+
 print()
 print(f"RED {len(_fails)}: " + "; ".join(_fails) if _fails else "GREEN: all passed")
 sys.exit(1 if _fails else 0)

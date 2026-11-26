@@ -143,6 +143,13 @@ def asks_for_input(result: str) -> bool:
     return bool(_NEEDS_INPUT_LINE_RE.search(result or ""))
 
 
+def workflow_stops_for_owner(event: dict) -> bool:
+    """Whether a workflow event ends the run waiting for the owner: an approval step, a hand-back to a person, or a stop
+    only the owner can resolve (a step that still failed its check after the last retry, a workflow switched off)."""
+    kind = (event or {}).get("type")
+    return kind in ("wait_user", "escalation") or (kind == "error" and bool((event or {}).get("needs_input")))
+
+
 EXECUTION_MODES = {"suggest", "auto", "full"}
 # Metadata key for done-criteria handed in with the job (issue 1481, `javis_task` op=add `acceptance`).
 FIXED_ACCEPTANCE = "acceptance_fixed"
@@ -1374,6 +1381,13 @@ plainly that acting on its own is allowed; otherwise auto, so the kernel stops i
                         error = event.get("content") or error
                         if kind == "error" and isinstance(event.get("limit"), dict):
                             step_limit = event["limit"]
+                    if workflow_stops_for_owner(event):
+                        # Issue 1841: the run stopped for the owner. A step that still fails its check after the last
+                        # retry first reports it on its own row (`step_error`, same text), and that error used to win:
+                        # the worker reads `error` before `needs_input`, so the job was retried in silence or blocked
+                        # with no question. What came before this stop is the same story; the job is a question now.
+                        error = ""
+                        step_limit = {}
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
             # A resume that stops again at the same step (code mismatch) yields wait_user without a code. The code is

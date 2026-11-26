@@ -85,7 +85,8 @@ check("/voice/options hỏi `agy models` ở luồng phụ",
 # ---- 3. hub dò MCP: phần đồng bộ ra luồng phụ ----
 import mcp_hub  # noqa: E402
 
-_dis = inspect.getsource(mcp_hub.discover_all)
+# 2026-11-26: the dial lives in `_discover_all_cached`; `discover_all` only adds the tools of one turn.
+_dis = inspect.getsource(mcp_hub._discover_all_cached)
 check("giải mã kho kết nối ở luồng phụ", "asyncio.to_thread(mcp_store.resolved" in _dis)
 check("dựng tool builtin (đọc mọi SKILL.md) ở luồng phụ", "_builtin_tools, mode" in _dis
       and "asyncio.to_thread(\n        _builtin_tools" in _dis)
