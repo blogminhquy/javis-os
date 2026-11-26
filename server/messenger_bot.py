@@ -113,6 +113,7 @@ MAX_POST_TEXT = 500
 MAX_POSTS = 500
 NAME_RETRY_S = 600            # a sender whose name lookup failed is looked up again after 10 minutes, not per message
 MAX_NAMES = 2000
+BACKFILL_PAUSE_S = 0.2       # between two name lookups of the start-up backfill
 
 # page_id -> MessengerBot currently running for it.
 _REGISTRY: dict = {}
@@ -915,9 +916,15 @@ class MessengerBot(HangLuot):
         words = "\n".join([t for t in notes if t] + ([text] if text else [])).strip()
         if not words and not files:
             return
+        # 25/11/2026: the Page's own messages (auto replies, greetings, ad replies) open a chat before the customer
+        # writes, and it showed as a bare PSID: the customer's name goes with the message.
+        try:
+            name = await self._name_of(client, chat)
+        except Exception:  # noqa: BLE001 - a name lookup never costs the message
+            name = ""
         await self.event_fn("staff_sent", {
             "chat_id": chat, "account_id": self.account_id, "message_id": mid, "text": words, "files": files,
-            "platform": "messenger", "ts": time.time()})
+            "platform": "messenger", "ts": time.time(), "customer_name": name})
 
     # ---- Page comments (0.434.0) -------------------------------------------------------
     async def _safe_comment(self, com):
@@ -1123,6 +1130,7 @@ class MessengerBot(HangLuot):
             _IG_REGISTRY[self.ig_id] = self
         self.status = "polling"
         self.last_error = ""
+        asyncio.create_task(self._safe_backfill())
         try:
             while not self._stop:
                 await asyncio.sleep(3600)
@@ -1131,6 +1139,44 @@ class MessengerBot(HangLuot):
                 _REGISTRY.pop(self.page_id, None)
             if self.ig_id and _IG_REGISTRY.get(self.ig_id) is self:
                 _IG_REGISTRY.pop(self.ig_id, None)
+
+    async def backfill_names(self, client=None, limit: int = 150) -> int:
+        """Name the people this Page's inbox shows as a bare PSID (25/11/2026): chats the Page opened with an auto reply
+        or a greeting before the customer wrote, and customers whose name lookup failed. Once at start, a short pause
+        between lookups so Graph is not flooded; a miss is tried again later by `_name_of`'s cool-down. Returns how
+        many got a name."""
+        if not self.account_id:
+            return 0
+        try:
+            import conversations
+            ids = await asyncio.to_thread(conversations.nameless_customers, CHANNEL, self.account_id, limit)
+        except Exception as e:  # noqa: BLE001
+            print(f"[messenger backfill] {type(e).__name__}: {e}", file=sys.stderr)
+            return 0
+        n = 0
+        own = client is None
+        client = client or httpx.AsyncClient(timeout=httpx.Timeout(20.0))
+        try:
+            for psid in ids:
+                if self._stop:
+                    break
+                name = await self._name_of(client, psid)
+                if name and await asyncio.to_thread(conversations.set_customer_name, CHANNEL, self.account_id,
+                                                    psid, name):
+                    n += 1
+                await asyncio.sleep(BACKFILL_PAUSE_S)
+        finally:
+            if own:
+                await client.aclose()
+        if ids:
+            print(f"[messenger] named {n} of {len(ids)} chats shown as a bare id on Page {self.page_id}", file=sys.stderr)
+        return n
+
+    async def _safe_backfill(self):
+        try:
+            await self.backfill_names()
+        except Exception as e:  # noqa: BLE001 - naming old chats never stops the bot
+            print(f"[messenger backfill] {type(e).__name__}: {e}", file=sys.stderr)
 
     def start(self):
         self._stop = False

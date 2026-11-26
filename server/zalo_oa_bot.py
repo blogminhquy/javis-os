@@ -66,6 +66,9 @@ OPENAPI = os.getenv("JAVIS_ZALO_OA_OPENAPI", "https://openapi.zalo.me")
 CHANNEL = "zalo_oa"
 MAX_MSG = 1900               # Zalo allows 2000 per text; keep a margin
 MAX_DEDUPE = 4000
+NAME_RETRY_S = 600            # a customer whose name lookup failed is looked up again after 10 minutes, not per message
+MAX_NAMES = 2000
+BACKFILL_MAX = 300            # nameless customers named at start, oldest store first; the rest get named when they write
 MAX_DOWNLOAD_MB = 20
 # Zalo's file servers have answered an empty 200 to a bare script request (2026-11-23, Seul Clinic: four
 # customer photos saved as 0-byte files). The second try looks like the Zalo web app.
@@ -154,6 +157,21 @@ _REGISTRY: dict = {}
 
 # ---- Credentials ------------------------------------------------------------------------
 _FIELDS = ("app_id", "app_secret", "oa_secret", "refresh_token", "access_token", "expires_at", "oa_id")
+
+
+def conversation_name(rows, uid) -> str:
+    """The person's display name in a `/v2.0/oa/conversation` page: `from_display_name` of a message they sent, or
+    `to_display_name` of one the OA sent them."""
+    uid = str(uid or "")
+    for m in rows if isinstance(rows, list) else []:
+        if not isinstance(m, dict):
+            continue
+        for side in ("from", "to"):
+            if str(m.get(f"{side}_id") or "") == uid:
+                name = str(m.get(f"{side}_display_name") or "").strip()
+                if name:
+                    return name
+    return ""
 
 
 def split_credentials(raw) -> dict:
@@ -466,6 +484,7 @@ class ZaloOABot(HangLuot):
         self._seen = set()
         self._seen_order = deque()
         self._names: dict = {}
+        self._name_retry: dict = {}     # user id -> time before which a failed name lookup is not tried again
         self._client = None
 
     # ---- HTTP -------------------------------------------------------------------------
@@ -587,16 +606,70 @@ class ZaloOABot(HangLuot):
         return True, ""
 
     async def _name_of(self, client, uid) -> str:
-        """Display name of a customer (user/detail). Empty when the OA may not read it."""
-        if uid in self._names:
+        """Display name of a customer.
+
+        `user/detail` first; when Zalo refuses it (OA package, app permission) or gives no name, the OA's recent
+        messages with that person (`conversation`), which carry `from_display_name`. A name found is kept; a miss is
+        tried again after NAME_RETRY_S and logged with Zalo's code. Before 25/11/2026 one failed call was kept as an
+        empty name until a restart, so every Zalo OA chat in the inbox showed a bare user id."""
+        uid = str(uid or "")
+        if not uid:
+            return ""
+        if self._names.get(uid):
             return self._names[uid]
-        d = await self._call(client, "GET", "/v3.0/oa/user/detail",
-                             params={"data": json.dumps({"user_id": str(uid)})})
-        name = str(((d.get("data") or {}).get("display_name")) or "").strip() if d.get("ok") else ""
-        if len(self._names) > 2000:
-            self._names.clear()
-        self._names[uid] = name
-        return name
+        now = time.time()
+        if self._name_retry.get(uid, 0) > now:
+            return ""
+        d = await self._call(client, "GET", "/v3.0/oa/user/detail", params={"data": json.dumps({"user_id": uid})})
+        data = d.get("data") if d.get("ok") and isinstance(d.get("data"), dict) else {}
+        name = str(data.get("display_name") or data.get("user_alias") or "").strip()
+        conv_err = ""
+        if not name:
+            c = await self._call(client, "GET", "/v2.0/oa/conversation",
+                                 params={"data": json.dumps({"user_id": uid, "offset": 0, "count": 10})})
+            name = conversation_name(c.get("data") if c.get("ok") else None, uid)
+            conv_err = "" if c.get("ok") else str(c.get("error") or "")
+        for cache in (self._names, self._name_retry):
+            if len(cache) > MAX_NAMES:
+                cache.clear()
+        if name:
+            self._names[uid] = name
+            self._name_retry.pop(uid, None)
+            return name
+        self._name_retry[uid] = now + NAME_RETRY_S
+        print(f"[zalo_oa] no display name for {uid} on OA {self.oa_id}: user/detail "
+              f"{'no name' if d.get('ok') else d.get('error') or 'failed'}; conversation {conv_err or 'no name'}"
+              f"; next try in {NAME_RETRY_S // 60} min", file=sys.stderr)
+        return ""
+
+    async def backfill_names(self, client=None) -> int:
+        """Name the customers of this OA the inbox holds as bare ids (every one saved while `_name_of` kept failures
+        forever). Runs once when the bot starts; returns how many got a name."""
+        if not self.account_id:
+            return 0
+        try:
+            import conversations
+            ids = await asyncio.to_thread(conversations.nameless_customers, CHANNEL, self.account_id, BACKFILL_MAX)
+        except Exception as e:
+            print(f"[zalo_oa backfill] {type(e).__name__}: {e}", file=sys.stderr)
+            return 0
+        n = 0
+        own = client is None
+        client = client or httpx.AsyncClient(timeout=httpx.Timeout(20.0))
+        try:
+            for uid in ids:
+                if self._stop:
+                    break
+                name = await self._name_of(client, uid)
+                if name and await asyncio.to_thread(conversations.set_customer_name, CHANNEL, self.account_id,
+                                                    uid, name):
+                    n += 1
+        finally:
+            if own:
+                await client.aclose()
+        if ids:
+            print(f"[zalo_oa] named {n} of {len(ids)} nameless customers on OA {self.oa_id}", file=sys.stderr)
+        return n
 
     # ---- Inbound ----------------------------------------------------------------------
     def _seen_before(self, mid) -> bool:
@@ -809,9 +882,13 @@ class ZaloOABot(HangLuot):
         words = "\n".join([t for t in notes if t] + ([text] if text else [])).strip()
         if not words and not files:
             return
+        try:   # 25/11/2026: a chat the OA opened shows the customer's name, not the bare user id
+            name = await self._name_of(client, chat)
+        except Exception:  # noqa: BLE001
+            name = ""
         await self.event_fn("staff_sent", {
             "chat_id": chat, "account_id": self.account_id, "message_id": mid, "text": words, "files": files,
-            "platform": CHANNEL, "ts": time.time()})
+            "platform": CHANNEL, "ts": time.time(), "customer_name": name})
 
     def _save(self, chat, data, mime, name_or_url, prefix, image=False):
         """Write one downloaded file into the chat's download folder, named by `file_extension`. Never an empty file."""
@@ -890,6 +967,7 @@ class ZaloOABot(HangLuot):
         _REGISTRY[self.oa_id] = self
         self.status = "polling"
         self.last_error = ""
+        asyncio.create_task(self._safe_backfill())
         try:
             while not self._stop:
                 cr = KEEPER.load(self.account_id, self._raw)
@@ -909,6 +987,12 @@ class ZaloOABot(HangLuot):
         finally:
             if _REGISTRY.get(self.oa_id) is self:
                 _REGISTRY.pop(self.oa_id, None)
+
+    async def _safe_backfill(self):
+        try:
+            await self.backfill_names()
+        except Exception as e:
+            print(f"[zalo_oa backfill] {type(e).__name__}: {e}", file=sys.stderr)
 
     def start(self):
         self._stop = False
@@ -993,6 +1077,8 @@ _ERRORS = {
     -14029: ("app trên developers.zalo.me chưa được duyệt hoặc chưa được cấp quyền cho OA này",
              "the app on developers.zalo.me is not approved or not granted access to this OA"),
     -201: ("tham số sai, thường là user id không thuộc OA này", "invalid parameter, usually a user id that does not belong to this OA"),
+    -235: ("loại OA này chưa được Zalo cho dùng tính năng này qua API (thường gặp khi đọc thông tin khách)",
+           "this OA type may not use this through the API (seen when reading customer details)"),
     -32: ("vượt hạn mức gọi API của Zalo, thử lại sau", "Zalo API rate limit reached, try again later"),
 }
 
