@@ -324,6 +324,13 @@ if (-not $NoAutostart) {
     if ($asCode -eq 0) { Ok "Tu khoi dong cung Windows: BAT (dang nhap may la Javis tu mo)" }
     else { Warn "Chua bat duoc tu khoi dong. Bat sau: javis-autostart.bat install" }
   }
+  # Watchdog: server dies or hangs mid-session -> restarted within ~3 minutes (javis-watchdog.ps1).
+  $wd = Join-Path $Root "javis-watchdog.ps1"
+  if (Test-Path $wd) {
+    $wdCode = Invoke-Capped -File (Join-Path $PSHOME "powershell.exe") -Arguments "-NoProfile -ExecutionPolicy Bypass -File `"$wd`" install" -Minutes 2 -Quiet
+    if ($wdCode -eq 0) { Ok "Watchdog: BAT (server chet hoac treo thi tu bat lai)" }
+    else { Warn "Chua bat duoc watchdog. Bat sau: javis-watchdog.bat install" }
+  }
 }
 
 # ---------------------------------------------------------------- [6] bat server

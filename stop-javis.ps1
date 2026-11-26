@@ -17,4 +17,9 @@ Get-NetTCPConnection -LocalPort 7777 -State Listen -ErrorAction SilentlyContinue
   $killed = $true
 }
 if (-not $killed) { Write-Host '  (Khong thay server nao dang chay)' }
+# Stopped on purpose: tell javis-watchdog.ps1 to leave it down. start-javis.vbs removes this file right
+# after its own stop step, so a restart through start-javis.vbs never leaves the watchdog silenced.
+$stateDir = $env:JAVIS_STATE_DIR
+if (-not $stateDir) { $stateDir = Join-Path $PSScriptRoot "server" }
+try { Set-Content -Path (Join-Path $stateDir "stopped-on-purpose") -Value (Get-Date -Format s) -Encoding ASCII -ErrorAction Stop } catch { }
 exit 0

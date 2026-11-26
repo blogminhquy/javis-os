@@ -16,6 +16,11 @@ Set sh = CreateObject("WScript.Shell")
 ' hiện tại khi môi trường có NoDefaultCurrentDirectoryInExePath (đường dẫn có "\" thì không sao).
 sh.Run "cmd /c cd /d """ & root & """ && call """ & root & "\stop-javis.bat"" > server\stop-last.log 2>&1", 0, True
 
+' stop-javis.bat just left server\stopped-on-purpose for the watchdog (javis-watchdog.ps1).
+' This is a START, so take it away again or the watchdog would stay silent forever.
+marker = root & "\server\stopped-on-purpose"
+If fso.FileExists(marker) Then fso.DeleteFile marker, True
+
 ' Keep the last 5 logs (javis-1.log is the newest): the redirect below overwrites javis.log.
 On Error Resume Next
 logBase = root & "\server\javis"
