@@ -126,6 +126,7 @@ model.accounts     = { "<provider>": [ {"id": "acc_xxxx", "label": "...", "enabl
                                        } ] }
 model.auxiliary    = {"provider": "...", "model": "...", "reasoning": "..."}   # đã có, thêm reasoning
 model.telegram_chats = { "<chat key>": {"provider": "...", "model": "..."} }  # ghim từng chat
+model.agent_chats  = { "<brain>|<slug>": {"provider": "...", "model": "..."} }  # ghim chat của từng trợ lý (26/11/2026)
 model.routing_version = 1
 ```
 
@@ -166,6 +167,7 @@ Chạy khi đọc settings mà `routing_version` < 1:
 | Chuỗi việc nền | `aux_engine.swap` dựng chuỗi từ `model_routing.background_chain(...)`, bỏ chuỗi cứng (Claude, model chính, OpenRouter free) |
 | Dừng chuyển sau khi đã gọi công cụ | `aux_engine._FallbackChain.query` nhớ đã thấy sự kiện `tool_call` |
 | Telegram ghim theo chat | `main._chat_provider_kenh` nhận chat key; lệnh `/model` ghi `telegram_chats` |
+| Ghim chat của từng trợ lý | Chip model trong chat với trợ lý (`POST /sessions/{id}/model`) ghi cửa sổ đó **và** `agent_chats`. `main._agent_chat_row` chọn theo thứ tự: model chọn trong cửa sổ, ghim chat của trợ lý, model trong cài đặt trợ lý, MAIN. Việc nền (Kanban, nhắc hẹn, loop, team, bước workflow, bot) chỉ đọc cài đặt trợ lý. Chủ 26/11/2026: "đổi ở khung chat với agent thì cũng không đổi ở chạy nền" |
 | Nấc Effort gần nhất | hàm chung `model_routing.nearest_effort(level, supported)`; Off không gửi |
 | Lưu từ trang Models | `POST /settings` mục `model` nhận `order`, `profiles`, `accounts`, `auxiliary.reasoning` |
 | Giao diện | `dashboard/console.js` (tab Cloud của trang Models), CSS trong `console.css`, chữ trong `i18n/vi.json` + `en.json` |

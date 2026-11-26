@@ -4321,19 +4321,54 @@ def _pin_limited_until(provider: str, now: float = None) -> float:
     return until
 
 
-def _agent_chat_row(row):
-    """An assistant's chat whose model the owner never picked in that window follows the assistant's CURRENT model
-    (25/11/2026: "đổi model ở cài đặt cộng sự không cập nhật các cuộc chat đã mở"). Its stored pin is only a copy made
-    when the chat opened, or a stamp, so it is replaced here by the assistant's model, or cleared when the assistant is
-    on "Default" (the chat then follows MAIN). A model the owner picked in the window, and every other chat, stay."""
+def _agent_chat_key(brain, slug) -> str:
+    """Key of one assistant's chat pin in settings (`model.agent_chats`): the normalised brain and the slug."""
+    return model_routing.agent_chat_key(_brain_key(brain or "brain"), slug)
+
+
+def _agent_chat_pin(mcfg, brain, slug) -> dict:
+    """{'provider','model'} the owner pinned for chatting with this assistant, or {} (owner, 26/11/2026)."""
+    return model_routing.agent_chat_pin(mcfg or {}, _agent_chat_key(brain, slug))
+
+
+def _set_agent_chat_pin(brain, slug, provider: str, model: str) -> None:
+    """Set or clear (empty provider) one assistant's chat pin. Only `model.agent_chats` changes: the assistant's file,
+    the Models page and every background run stay as they are. Blocking: call it from a worker thread."""
+    key = _agent_chat_key(brain, slug)
+    with cfgmod._SETTINGS_LOCK:
+        cfg = cfgmod.read_settings()
+        m = cfg.setdefault("model", {})
+        if not provider and key not in (m.get("agent_chats") or {}):
+            return   # nothing to clear: no write
+        model_routing.set_agent_chat_pin(m, key, provider, model)
+        cfgmod.write_settings(cfg)
+
+
+def _agent_chat_row(row, mcfg=None):
+    """The model an assistant's chat runs on, in order (owner, 26/11/2026: "mỗi agent có ghim riêng khi chat"):
+
+    1. a model the owner picked in THIS window (`pinned_by_owner`): one window never moves another (25/11/2026);
+    2. the assistant's chat pin (`model.agent_chats`), set by the last model the owner picked in any chat with it, so a
+       new chat, or one never picked in, opens on it. Background work never reads it;
+    3. the assistant's CURRENT model from its settings (25/11/2026: "đổi model ở cài đặt cộng sự không cập nhật các
+       cuộc chat đã mở"), or MAIN when it is on "Default".
+    A stored pin that is only a copy made when the chat opened, or a stamp, is replaced. Other chats stay as they are.
+    An assistant's chat also gets `pin_source` ("window", "agent_chat", "agent" or "" for MAIN) for the model chip."""
     row = row or {}
-    if row.get("pinned_by_owner"):
-        return row
     persona = workflow_chat.persona_cua_phien(row)
-    if not persona or persona[0] != "agent":
+    is_agent = bool(persona and persona[0] == "agent")
+    if row.get("pinned_by_owner"):
+        return {**row, "pin_source": "window"} if is_agent else row
+    if not is_agent:
         return row
-    g = _model_cua_agent(row.get("brain") or "brain", persona[1])
-    return {**row, "pinned_provider": (g or {}).get("provider") or "", "pinned_model": (g or {}).get("model") or ""}
+    brain = row.get("brain") or "brain"
+    m = mcfg if mcfg is not None else (cfgmod.read_settings().get("model") or {})
+    g, src = _agent_chat_pin(m, brain, persona[1]), "agent_chat"
+    if not g:
+        g = _model_cua_agent(brain, persona[1])
+        src = "agent" if g else ""
+    return {**row, "pinned_provider": (g or {}).get("provider") or "", "pinned_model": (g or {}).get("model") or "",
+            "pin_source": src}
 
 
 def _chat_provider_for_session(mcfg, row):
@@ -4351,7 +4386,7 @@ def _chat_provider_for_session(mcfg, row):
         _cp = _core_pin(mcfg)
         row = {"pinned_provider": _cp.get("provider") or "", "pinned_model": _cp.get("model") or ""}
     else:
-        row = _agent_chat_row(row)
+        row = _agent_chat_row(row, mcfg)
     pprov = ((row or {}).get("pinned_provider") or "").strip()
     if not pprov:
         return _chat_provider(mcfg)
@@ -4380,7 +4415,7 @@ def _chat_selected(mcfg, row) -> dict:
     """{'provider','model'} the owner CHOSE for one chat, before any fallback: the chat's own pin (Javis Core's pin in
     a Core chat), else MAIN. `_chat_provider_for_session` says where the turn really runs; the two differ while the
     chosen card is out of quota or cannot run (owner, 05/11/2026: the composer chip shows both)."""
-    row = _agent_chat_row(row or {})
+    row = _agent_chat_row(row or {}, mcfg)
     if javis_core.is_core_channel(row.get("channel")):
         pin = _core_pin(mcfg)
     else:
@@ -4591,13 +4626,12 @@ def _ear_brain_provider(cfg, row=None, agent=None) -> str:
             if g:
                 return g["provider"]
         if row:
-            if str(row.get("pinned_provider") or "").strip() or javis_core.is_core_channel(row.get("channel")):
-                return _chat_provider_for_session(mcfg, row)[0]
+            # A partner's chat runs on its window's pick, the partner's chat pin or the partner's model (26/11/2026),
+            # all worked out by `_chat_provider_for_session`.
             persona = workflow_chat.persona_cua_phien(row)
-            if persona and persona[0] == "agent":
-                g = _model_cua_agent(row.get("brain") or "brain", persona[1])
-                if g:
-                    return g["provider"]
+            if (str(row.get("pinned_provider") or "").strip() or javis_core.is_core_channel(row.get("channel"))
+                    or (persona and persona[0] == "agent")):
+                return _chat_provider_for_session(mcfg, row)[0]
     except Exception as e:  # noqa: BLE001 - choosing an ear must never cost the sentence
         print(f"[stt] ear vendor: {type(e).__name__}: {e}", file=sys.stderr)
     return _effective_main(cfg or {}).get("provider", "")
@@ -11004,6 +11038,10 @@ async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
             if f:
                 f.unlink()
     await asyncio.to_thread(_xoa)
+    try:
+        await asyncio.to_thread(_set_agent_chat_pin, brain, slug, "", "")
+    except Exception as e:  # noqa: BLE001 - a pin left behind only applies if the name is used again
+        print(f"[agent chat pin] {type(e).__name__}: {e}", file=sys.stderr)
     # A1: xoá qua host thì mã Cộng hưởng của agent này nghỉ hẳn. Tạo lại cùng tên là agent MỚI, phải bật lại; mục
     # tiêu và phiên cũ giữ mã cũ. Chưa có kho thì không tạo kho chỉ để ghi việc này.
     try:
@@ -22201,6 +22239,12 @@ async def _chat_socket(ws):
                             # so only the pin is fixed: rewriting the owner's main model here changed every other chat.
                             # Issue 1336: only a ChatGPT pin; a pin to a card that rests stays the owner's choice.
                             await asyncio.to_thread(store.set_pinned_model, conv_sid, "openai-oauth", actual_model)
+                            # 26/11/2026: a partner's chat pin holding that model is fixed too, or it comes back.
+                            _ar0 = _agent_chat_row(_row0, mcfg)
+                            _p0 = workflow_chat.persona_cua_phien(_row0)
+                            if _ar0.get("pin_source") == "agent_chat" and _p0:
+                                await asyncio.to_thread(_set_agent_chat_pin, _row0.get("brain") or brain, _p0[1],
+                                                        "openai-oauth", actual_model)
                         else:
                             _fix = cfgmod.read_settings()
                             if _effective_main(_fix)["provider"] == "openai-oauth":
@@ -25183,9 +25227,12 @@ def _sessions_meta_sync(session_id: str):
         _cp = _core_pin(cfgmod.read_settings().get("model", {}))
         sess["pinned_provider"], sess["pinned_model"] = _cp.get("provider") or None, _cp.get("model") or None
     else:
-        # 25/11/2026: an assistant's chat the owner never picked a model in shows the assistant's current model.
-        _ar = _agent_chat_row(sess)
+        # 25/11/2026: an assistant's chat the owner never picked a model in shows the assistant's current model, or
+        # (26/11/2026) the assistant's chat pin. `pin_source` tells the chip which one it is.
+        _ar = _agent_chat_row(sess, cfgmod.read_settings().get("model", {}))
         sess["pinned_provider"], sess["pinned_model"] = _ar.get("pinned_provider") or None, _ar.get("pinned_model") or None
+        if _ar.get("pin_source") is not None:
+            sess["pin_source"] = _ar["pin_source"]
     pp = (sess.get("pinned_provider") or "").strip()
     if pp:
         # Cùng cách giải nghĩa khoá với đường định tuyến (`_provider_key`), nếu không thì
@@ -25246,12 +25293,15 @@ async def agent_set_reasoning(slug: str, level: str = Form(...), brain: str = Fo
     return await asyncio.to_thread(_luu)
 
 
-async def _pin_chat_model(session_id: str, provider: str, model: str, brain=None) -> dict:
+async def _pin_chat_model(session_id: str, provider: str, model: str, brain=None, agent_pin: bool = False) -> dict:
     """Pin one chat's model, what the chat's model bar does (empty provider = follow the main model again). Shared by
     POST /sessions/{id}/model and Javis Gate (chat_bridge: the outside AI picks the model for the chat it writes in).
     A failure comes back as {"ok": False, "status", "error"}.
 
-    0.402.0: a Javis Core chat pins Javis Core as a whole (`model.core_provider/core_model`), see `_core_pin`."""
+    0.402.0: a Javis Core chat pins Javis Core as a whole (`model.core_provider/core_model`), see `_core_pin`.
+    26/11/2026: `agent_pin` (the owner's own pick on the chip) in a partner's chat also sets that partner's chat pin, so
+    its next chats open on it; an empty provider clears both, back to the model in the partner's settings. Background
+    work keeps the partner's own model either way."""
     prov = (provider or "").strip()
     if prov and not _provider_def(prov):
         return {"ok": False, "status": 400, "error": localefmt.chu(f"provider không tồn tại: {prov}",
@@ -25266,7 +25316,12 @@ async def _pin_chat_model(session_id: str, provider: str, model: str, brain=None
         return {"ok": True, "pinned_provider": _cp["provider"] or None, "pinned_model": _cp["model"] or None, "scope": "core"}
     if not get_store().set_pinned_model(session_id, prov, model, brain=brain, by_owner=bool(prov)):
         return {"ok": False, "status": 404, "error": localefmt.chu("phiên không tồn tại", "session does not exist")}
-    return {"ok": True, "pinned_provider": prov or None, "pinned_model": (model or "").strip() or None}
+    out = {"ok": True, "pinned_provider": prov or None, "pinned_model": (model or "").strip() or None}
+    persona = workflow_chat.persona_cua_phien(_row) if (_row and agent_pin) else None
+    if persona and persona[0] == "agent":
+        await asyncio.to_thread(_set_agent_chat_pin, _row.get("brain") or brain or "brain", persona[1], prov, model)
+        out["scope"] = "agent"
+    return out
 
 
 @app.post("/sessions/{session_id}/model")
@@ -25279,7 +25334,7 @@ async def sessions_set_model(session_id: str, provider: str = Form(""),
     CHỦ Ý không đi qua _set_main_model: hàm đó ghi mốc nhật ký usage cho việc đổi bộ não
     TOÀN CỤC, ghim theo phiên mà đi qua đó là rác hoá biểu đồ token."""
     out = await _pin_chat_model(session_id, provider, model,
-                                brain=_brain_key(brain) if (brain or "").strip() else None)
+                                brain=_brain_key(brain) if (brain or "").strip() else None, agent_pin=True)
     if not out.get("ok"):
         return JSONResponse({"error": out["error"]}, status_code=out["status"])
     return out
