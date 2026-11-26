@@ -1400,7 +1400,8 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
     """Engine Claude đã dựng -> ROUTER việc nền (0.350.0, docs/dev/2026-10-model-routing-spec.md part 2.4).
 
     Order: the background model (or `spec`, e.g. an assistant's own model) -> fallback 1, 2, ... of the Models page
-    usage order, each on the model picked on its card -> MAIN last, on its starting config. An API card contributes
+    usage order, each on the model picked on its card. 25/11/2026: the usage order is walked from the top (MAIN, then
+    fallback 1, 2, ...), each card at its own model and effort; MAIN used to come last. An API card contributes
     one link per usable key. The chain is the same at every permission level: a link that already called a tool and
     then broke stops the chain (_FallbackChain), so nothing is sent twice. Before 0.350.0 the chain was fixed
     (Claude, the main brain, OpenRouter free) and `full` jobs had none.

@@ -6,6 +6,7 @@ title: Each chat window and assistant keeps its own model and reasoning level
 ### Sửa lỗi
 - **Mỗi cửa sổ chat giữ model và mức suy nghĩ riêng.** Đổi ở cửa sổ này không còn kéo cửa sổ khác, trang Models hay file của trợ lý đổi theo. Chat riêng với trợ lý chạy theo mức của chính cửa sổ đó, chưa chọn thì theo cài đặt của trợ lý.
 - **Chọn model trong khung chat không còn đảo Thứ tự dùng.** Trước đây thẻ vừa chọn tự nhảy lên đầu thành model chính. Giờ thứ tự chỉ đổi ở trang Models, và việc chỉ chuyển xuống thẻ dự phòng bên dưới khi thẻ trên hết lượt.
+- **Việc nền đi đúng Thứ tự dùng.** Bắt đầu từ model việc nền đã cài; hết lượt thì xuống model chính, rồi dự phòng 1, 2... Trước đây model chính bị đẩy xuống cuối.
 - **Khi một thẻ hết lượt, thẻ chạy thay dùng đúng mức suy nghĩ đã đặt cho nó** ở trang Models, trong chat, chat trợ lý, team và chatbot.
 - **Trợ lý làm việc tự động giữ đúng mức suy nghĩ của mình.** Lượt team trên ChatGPT, Grok Build, Antigravity trước đây bỏ qua mức này; bước workflow chạy model API trước đây tắt hẳn suy nghĩ; chatbot trước đây theo mức của thẻ model thay vì của trợ lý.
 - **Việc Kanban giao cho trợ lý chạy bằng model và mức suy nghĩ của trợ lý đó**, không còn chạy model việc nền ở mức "thấp".
@@ -17,6 +18,7 @@ title: Each chat window and assistant keeps its own model and reasoning level
 ### Fixed
 - **Each chat window keeps its own model and reasoning level.** Changing one no longer moves other windows, the Models page or the assistant's file. A chat with an assistant runs at that window's own level, else the assistant's setting.
 - **Picking a model in the composer no longer reorders the usage order.** The picked card used to jump to the top as the main model. The order now changes only on the Models page, and work only moves down to a fallback card when the one above is out of quota.
+- **Background work follows the usage order.** It starts on the background model as set; when that runs out it goes to the main model, then fallback 1, 2... The main model used to come last.
 - **When a card is out of quota, the card standing in runs at the level set for it** on the Models page, in chats, assistant chats, teams and chatbots.
 - **Assistants working on their own keep their reasoning level.** Team turns on ChatGPT, Grok Build and Antigravity ignored it, workflow steps on API models ran with reasoning off, and chatbots followed the model card's level instead of the assistant's.
 - **A Kanban job given to an assistant runs on that assistant's model and level**, no longer on the background model at "low".

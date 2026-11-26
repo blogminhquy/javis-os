@@ -63,9 +63,10 @@ Việc nền có model riêng, cố định, không chạy theo MAIN. Trang Mode
 2. **Lần đầu** (người mới, hoặc lúc nâng cấp mà chưa đặt): Javis chọn sẵn **cấu hình mặc định
    của nhà cung cấp** (nhà đầu tiên đã đăng nhập): model mặc định và Effort mặc định của model đó.
    Sau đó **giữ cố định**, đổi MAIN không kéo theo.
-3. Thứ tự chạy của việc nền: **Model nền → Dự phòng 1 → Dự phòng 2 → ... → MAIN sau cùng**.
+3. Thứ tự chạy của việc nền: **Model nền → MAIN → Dự phòng 1 → Dự phòng 2 → ...** (đổi 25/11/2026, chủ: "việc nền
+   đúng thứ tự nhưng phải bắt đầu từ cài đặt việc nền"; trước đó là Model nền → Dự phòng 1 → ... → MAIN sau cùng).
    Mỗi bước dự phòng chạy **model và Effort đang chọn trên thẻ của nhà đó**; thẻ chưa chọn model thì
-   mới dùng cấu hình mặc định lúc mới đăng nhập. MAIN sau cùng vẫn chạy cấu hình mặc định của nó.
+   mới dùng cấu hình mặc định lúc mới đăng nhập. MAIN cũng chạy model và Effort trên thẻ của nó (từ 25/11/2026).
    (Chủ repo đổi ngày 12/11/2026, issue #1334: trước đó bước dự phòng luôn chạy cấu hình mặc định, mà
    từ 0.350.0 cấu hình đó là model rỗng với mọi thẻ gói, nên Claude Code tự chạy model mặc định của
    CLI, thường là model tốn hạn mức nhất, dù thẻ đã chọn model nhẹ.) Bỏ bước trùng (cùng nhà, cùng model). Nhà chạy bằng gói (Claude Code,
@@ -233,7 +234,7 @@ Mỗi bản là một PR, CI xanh thì merge, mỗi bản một số phiên bả
   không nhân đôi tài khoản hay đổi thứ tự.
 - Đổi model ở chip khung chat: thẻ nhà đó lên đầu, `model.main` và trang Models khớp nhau.
 - Tài khoản 1 đang nghỉ: chat và việc nền dùng tài khoản 2 cùng nhà trước khi sang nhà kế.
-- Việc nền: model nền hết lượt thì chạy dự phòng bằng model chọn trên thẻ của nhà đó, MAIN sau cùng.
+- Việc nền: model nền hết lượt thì đi xuống theo Thứ tự dùng từ trên (MAIN, Dự phòng 1, ...), mỗi thẻ chạy model và Effort đã chọn trên thẻ.
 - Engine việc nền đã gọi công cụ rồi mới hỏng: không chạy lại bằng engine khác.
 - Telegram: `/model x` trong chat A không đổi chat B, không đổi web. Web đổi MAIN thì chat chưa ghim
   đổi theo.
