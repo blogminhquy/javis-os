@@ -6,6 +6,7 @@ No server. Calls `channels._token_form` on stand-in modules, then reads conversa
 
 Guarded here:
 1. A well-formed form keeps its fields, labels resolve to one language, `webhook_params` only names real fields.
+7. `webhook_params` (a GET query string) never names a secret: password, generated or credential-looking fields.
 2. Option URLs must be /ext/ plugin routes: a core route, an absolute URL or a traversal drops that field.
 3. Bad keys, unknown field types and odd attributes are dropped field by field; no fields = no form.
 4. A broken TOKEN_FORM never takes the channel list down.
@@ -61,6 +62,16 @@ check("1. dependencies kept", f["fields"][2]["options"]["from"] == ["connection_
 check("1. fill drops a bad key", f["fields"][2]["options"]["fill"] == {"account_id": "id"}, f["fields"][2]["options"])
 check("1. initial kept", f["fields"][3].get("initial") == "meta.account_id" and f["fields"][4].get("initial") == "external_id")
 check("1. webhook_params only real fields", f["webhook_params"] == {"ws": "connection_id"}, f["webhook_params"])
+
+# 7. No secret in the webhook query string.
+sec = channels._token_form(mod({
+    "fields": [{"key": "connection_id", "type": "text", "label": "W"},
+               {"key": "pw", "type": "password", "label": "P"},
+               {"key": "hook", "type": "text", "label": "H", "generate": True},
+               {"key": "api_key", "type": "text", "label": "K"},
+               {"key": "webhook_secret", "type": "text", "label": "S"}],
+    "webhook_params": {"ws": "connection_id", "p": "pw", "h": "hook", "k": "api_key", "s": "webhook_secret"}}))
+check("7. webhook_params keeps only non-secret fields", sec["webhook_params"] == {"ws": "connection_id"}, sec["webhook_params"])
 
 for bad in ("/channels/accounts", "https://evil.example/x", "//evil.example/ext/a/b", "/ext/a/../../channels",
             "/ext/a", "/ext/a/b?x=1", "javascript:alert(1)"):

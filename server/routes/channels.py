@@ -291,11 +291,14 @@ def register(app, deps: ChannelsDeps):
                 return _400(r.get("error") or localefmt.chu("Token không hợp lệ", "Invalid token"),
                             code=r.get("code") or "invalid_credentials")
             bot_username = r.get("username") or ""
-            # An edit that keeps the network the account already had is not asked again: an account saved before
-            # this check (or acknowledged once) stays editable.
+            # An edit that keeps the network the account already had is not asked again. An account saved before
+            # this check (no recorded network) is let through only when its identity is unchanged: it can be
+            # re-saved, never repointed to another account on a covered network without the acknowledgement.
             recorded = str((cur.get("meta") or {}).get("network") or "")
+            same_identity = bool(cur.get("external_id")) and str(r.get("username") or "") == str(cur.get("external_id"))
             if r.get("network") and r["network"] != recorded:
-                refused = _covered_network_refusal(cur_channel, r["network"], dup_ack, legacy=not recorded)
+                refused = _covered_network_refusal(cur_channel, r["network"], dup_ack,
+                                                   legacy=not recorded and same_identity)
                 if refused:
                     return refused
             if r.get("meta"):
@@ -552,7 +555,8 @@ def _covered_network_refusal(channel: str, network, ack: str, legacy: bool = Fal
     the same Instagram account again: one customer message would arrive twice and could get two replies under the
     shop's name. The account form shows that warning and sends `dup_ack=<network>` once the owner ticks it; this check
     makes the warning impossible to skip from outside the form. `legacy`: an account saved before the core recorded a
-    network, edited without a change of identity, is let through so it is never locked."""
+    network, edited without a change of identity (same `external_id`), is let through so it is never locked; the
+    caller decides that, a repointed account is never legacy."""
     net = channels.clean_network(network)
     covered = channels.covered_networks()
     if not net or net not in covered or covered[net] == channel or legacy:

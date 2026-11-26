@@ -2937,11 +2937,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-form label { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--text2); font-weight: 600; }
 /* Duplicate warning of a declared account form: an account on a network a core channel already answers. Amber, never
    folded, with its own confirm box (the Save button refuses until it is ticked). */
-.ht-dup { margin-top: 8px; padding: 11px 13px; border-radius: 10px; font-size: 13px; line-height: 1.5; color: var(--text);
+.ht-dup { margin-top: 8px; padding: 11px 13px; border-radius: 10px; font-size: 16px; line-height: 1.5; color: var(--text);
   background: var(--warn-wash, rgba(234, 179, 8, .1)); border: 1px solid var(--warn-line, rgba(183, 121, 31, .3)); }
 .ht-dup-title { font-weight: 700; color: var(--warn-ink, #b7791f); margin-bottom: 3px; }
-.ht-form .ht-dup-ack { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 0; font-weight: 600; color: var(--text);
-  min-height: 44px; align-items: center; cursor: pointer; }
+.ht-form .ht-dup-ack { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 16px; font-weight: 600;
+  color: var(--text); min-height: 48px; cursor: pointer; }
 .ht-dup-ack input { width: 18px; height: 18px; flex: none; margin: 0; }
 .ht-form input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border);
   background: var(--bg3); color: var(--text); font-size: 14px; }

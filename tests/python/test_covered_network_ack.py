@@ -9,8 +9,9 @@ many networks, like Zernio; its verify reports the account's `network`. Guarded 
 2. Creating an account on a covered network without `dup_ack=<network>` is a 400 `network_covered_by_core`; with it,
    the account is created and `meta.network` recorded (and shown, whatever PUBLIC_META says).
 3. An uncovered network (TikTok) needs no acknowledgement.
-4. An account saved before the core recorded a network stays editable without the box (never locked out), and the
-   edit records the network; after that an unchanged network is not asked again.
+4. An account saved before the core recorded a network stays editable without the box (never locked out) as long as
+   its identity (`external_id`) is unchanged, and the edit records the network; after that an unchanged network is
+   not asked again. A legacy account repointed to another account on a covered network needs the box.
 5. `options.network` of a declared select survives `_token_form`.
 """
 from _paths import ROOT, SERVER, DASHBOARD  # noqa: E402,F401
@@ -105,6 +106,17 @@ check("4. the edit records its network", (channel_accounts.get_account(legacy)["
       channel_accounts.get_account(legacy))
 r = c.post(f"/channels/accounts/{legacy}/update", data={"token": "fb-old"})
 check("4. an unchanged recorded network is not asked again", r.status_code == 200, r.text)
+legacy2, err = channel_accounts.create_account({"channel": "bridge", "token": "P:tt-old", "label": "old2",
+                                                "external_id": "tt-old", "meta": {"platform": "tiktok"}})
+r = c.post(f"/channels/accounts/{legacy2}/update", data={"token": "ig-other"})
+check("4. a legacy account repointed to Instagram needs the ack", r.status_code == 400
+      and r.json().get("code") == "network_covered_by_core", r.text)
+check("4. the refused repoint changed nothing", channel_accounts.get_account(legacy2).get("external_id") == "tt-old",
+      channel_accounts.get_account(legacy2))
+legacy3, err = channel_accounts.create_account({"channel": "bridge", "token": "P:ig-noid", "label": "old3",
+                                                "meta": {}})
+r = c.post(f"/channels/accounts/{legacy3}/update", data={"token": "ig-noid"})
+check("4. a legacy account with no recorded identity is not waved through", r.status_code == 400, r.text)
 tt = next(a for a in channel_accounts.list_accounts("bridge") if a.get("external_id") == "tt-shop")
 r = c.post(f"/channels/accounts/{tt['id']}/update", data={"token": "ig-moved"})
 check("4. an edit that moves a TikTok account to Instagram needs the ack", r.status_code == 400
