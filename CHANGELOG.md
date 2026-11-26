@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.645.2] - 2026-11-26
+### Sửa lỗi
+- **Hết lỗi console khi rời trang Việc và trang Kỹ năng.** Bộ tự làm mới của trang Việc không còn chạy tiếp sau khi trang đã đóng, và trang Kỹ năng không còn lỗi khi khung hiển thị chưa có trên màn hình.
+
 ## [0.645.1] - 2026-11-26
 ### Sửa lỗi
 - **Việc nền cần bạn thì hỏi bạn, không lặng lẽ chạy lại.** Bước quy trình kiểm mãi không đạt, hay quy trình đang chờ bạn duyệt, giờ thành một câu hỏi ở trang Nhiệm vụ và trên chuông. Bạn trả lời là việc chạy tiếp.

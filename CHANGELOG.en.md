@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.645.2] - 2026-11-26
+### Fixed
+- **No more console errors after leaving the Tasks page or when the Skills panel is missing.** The Tasks auto-refresh stops cleanly once its page is closed, and the Skills panel exits early when its container is absent.
+
 ## [0.645.1] - 2026-11-26
 ### Fixed
 - **Background jobs that need you now ask you instead of retrying in silence.** A workflow step that keeps failing its check, or a workflow waiting for your approval, becomes a question on the Tasks page and in the bell. Answer it and the job carries on.
