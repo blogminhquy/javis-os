@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.645.4] - 2026-11-26
+### Fixed
+- **Connectors added on claude.ai (Gmail, Calendar, Drive...) work again while Claude Code runs on the long-lived token.** Claude Code gives a `claude setup-token` token model access only, never claude.ai connectors. Now, when the machine still has a full claude.ai sign-in, Javis runs on it so every connector loads, and keeps the token as the backup: once the sign-in ends, that turn runs again on the token and bots and background work keep going. The Claude Code card on the Models page says whether claude.ai connectors are on or off, with a Turn on claude.ai connectors button for a one-time sign-in.
+- **The ChatGPT browser sign-in asks for the same access as Codex.** It used to leave out ChatGPT apps and connectors, so Codex could not see them. Anyone who signed in this way signs in once more to get them.
+
 ## [0.645.3] - 2026-11-26
 ### Fixed
 - **NotebookLM no longer signs out after a few hours.** The session you paste is now kept in the connection's own file, readable only by your account, so the cookies Google rotates are saved. Existing connections switch over on their next start, with no need to paste again.
