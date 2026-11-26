@@ -164,7 +164,7 @@ Meta's documentation says an app serving only your own Pages needs no review. If
 - `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`
 - `pages_manage_metadata`
 
-Open "App Review", **Request permissions**, describe the use and record the demo video Meta asks for. Meanwhile the bot may **not receive ordinary customers' messages at all**: Meta only delivers messages from people with a role on the app or Page, and what the Page itself sends. Customers can still message the Page; answer them from Meta Business Suite.
+Open "App Review", **Request permissions**, describe the use and record the demo video Meta asks for. Meanwhile the bot may **not receive ordinary customers' messages at all**: Meta only delivers messages from people with a role on the app or Page, and what the Page itself sends. Customers can still message the Page; answer them from Meta Business Suite. When the Page writes to 3 or more people in 24 hours and none of their messages arrive, Javis shows a warning on the bot card of the Chatbot page; it goes away once an ordinary customer's message arrives.
 
 **Template for `pages_messaging`** (replace the Page name):
 

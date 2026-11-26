@@ -115,9 +115,101 @@ MAX_POSTS = 500
 NAME_RETRY_S = 600            # a sender whose name lookup failed is looked up again after 10 minutes, not per message
 MAX_NAMES = 2000
 BACKFILL_PAUSE_S = 0.2       # between two name lookups of the start-up backfill
+# Customers' messages that never arrive (field report 25/11/2026), see `DeliveryWatch`.
+DELIVERY_WINDOW_S = 24 * 3600     # how far back the watch looks
+DELIVERY_MIN_SILENT = 3           # distinct people the Page wrote to whose messages never arrived
+DELIVERY_QUIET_S = 12 * 3600      # no message in at all for this long, while the Page keeps writing
+DELIVERY_CHECK_EVERY_S = 600      # the inbox is asked at most this often
+DELIVERY_MAX_CONFIRM = 20         # people checked against the inbox in one go, newest first
+DELIVERY_MAX_IDS = 2000
 
 # page_id -> MessengerBot currently running for it.
 _REGISTRY: dict = {}
+
+
+class DeliveryWatch:
+    """Notices a Meta app that delivers only some people's messages (field report 25/11/2026). In memory, one per Page.
+
+    Without Advanced Access for `pages_messaging`, Meta sends the webhook only the Page's own messages (echoes) and
+    messages from people with a role on the app or the Page. Ordinary customers write, the Page's automatic replies
+    and staff answer them, and Javis never hears the customers: the card stays green and the owner's own test
+    messages are answered, so nobody noticed for a day.
+
+    The pattern, over the last 24 hours: the Page wrote to at least `DELIVERY_MIN_SILENT` people whose messages never
+    arrived, they are at least as many as the people it wrote to who were heard, and messages still arrive from
+    someone else (people with a role), or none at all arrived for `DELIVERY_QUIET_S` while the Page kept writing.
+    A private reply to a comment goes to someone who never wrote, so its recipient does not count (`exempt`).
+    The warning ends when someone who was not writing in when it was set sends a message. Never raises."""
+
+    def __init__(self, now=None):
+        self.started = time.time() if now is None else float(now)
+        self.sent_at: dict = {}         # PSID -> last time the Page wrote to that person
+        self.inbound_at: dict = {}      # PSID -> last time that person's message arrived
+        self.exempt_at: dict = {}       # PSID -> last private reply to that person's comment
+        self.warned = False
+        self.known_senders: set = set()  # who was writing in when the warning was set: they do not end it
+
+    @staticmethod
+    def _now(now) -> float:
+        return time.time() if now is None else float(now)
+
+    def _prune(self, now: float) -> None:
+        cut = now - DELIVERY_WINDOW_S
+        for seen in (self.sent_at, self.inbound_at, self.exempt_at):
+            for k in [k for k, t in seen.items() if t < cut]:
+                del seen[k]
+            if len(seen) > DELIVERY_MAX_IDS:
+                for k in sorted(seen, key=seen.get)[:len(seen) - DELIVERY_MAX_IDS]:
+                    del seen[k]
+
+    def sent(self, psid, now=None) -> None:
+        psid = str(psid or "")
+        if not psid or psid in self.exempt_at:
+            return
+        now = self._now(now)
+        self.sent_at[psid] = now
+        if len(self.sent_at) > DELIVERY_MAX_IDS:
+            self._prune(now)
+
+    def exempt(self, psid, now=None) -> None:
+        psid = str(psid or "")
+        if psid:
+            self.exempt_at[psid] = self._now(now)
+            self.sent_at.pop(psid, None)     # its echo may have come back before the send call returned
+
+    def inbound(self, psid, now=None) -> bool:
+        """A message from `psid` arrived. True when it ends the warning."""
+        psid = str(psid or "")
+        if not psid:
+            return False
+        now = self._now(now)
+        self.inbound_at[psid] = now
+        if len(self.inbound_at) > DELIVERY_MAX_IDS:
+            self._prune(now)
+        if self.warned and psid not in self.known_senders:
+            # An ordinary customer got through. Start over: only what the Page sends from now on counts again.
+            self.warned, self.known_senders = False, set()
+            self.sent_at.clear()
+            return True
+        return False
+
+    def suspects(self, now=None) -> list:
+        """The people the Page wrote to whose messages never arrived, newest first, when the pattern holds; else []."""
+        now = self._now(now)
+        self._prune(now)
+        silent = sorted((p for p in self.sent_at if p not in self.inbound_at), key=self.sent_at.get, reverse=True)
+        heard = len(self.sent_at) - len(silent)
+        if len(silent) < DELIVERY_MIN_SILENT or len(silent) < heard:
+            return []
+        if self.inbound_at:
+            return silent
+        # Nothing in for the whole window (or since the watch started), and the Page still writes.
+        if now - self.started >= DELIVERY_QUIET_S and now - max(self.sent_at.values()) < DELIVERY_QUIET_S:
+            return silent
+        return []
+
+    def warn(self) -> None:
+        self.warned, self.known_senders = True, set(self.inbound_at)
 
 
 def split_credentials(raw) -> dict:
@@ -459,6 +551,76 @@ class MessengerBot(HangLuot):
         self.ig_id = ""
         self.ig_username = ""
         self._referrals: dict = {}      # sender id -> referral note waiting for their first message
+        self.delivery = DeliveryWatch()
+        self.delivery_warning = ""
+        self._subscribe_note = ""
+        self._delivery_check_at = 0.0
+
+    # ---- Customers' messages that never arrive (25/11/2026), see `DeliveryWatch` --------
+    def _show_notes(self) -> None:
+        """The card's warning line (`loi_danh_tinh`): the webhook subscribe note and the delivery warning."""
+        self.loi_danh_tinh = " ".join(x for x in (self._subscribe_note, self.delivery_warning) if x)
+
+    def _note_sent(self, psid) -> None:
+        """The Page wrote to `psid` (an echo, a staff answer, a bot send). Starts the inbox check when it is due.
+        Only for a dedicated bot (`account_id`): the owner's own Messenger channel has no customers to miss."""
+        if not self.account_id:
+            return
+        try:
+            now = time.time()
+            self.delivery.sent(psid, now)
+            if self.delivery.warned or now < self._delivery_check_at or not self.delivery.suspects(now):
+                return
+            self._delivery_check_at = now + DELIVERY_CHECK_EVERY_S
+            asyncio.get_running_loop().create_task(self._check_delivery())
+        except Exception as e:  # noqa: BLE001 - a warning is never worth a lost message
+            print(f"[messenger delivery] {type(e).__name__}: {e}", file=sys.stderr)
+
+    def _note_inbound(self, psid) -> None:
+        if not self.account_id:
+            return
+        try:
+            if self.delivery.inbound(psid) and self.delivery_warning:
+                self.delivery_warning = ""
+                self._show_notes()
+                print(f"[messenger] a customer's message reached Page {self.page_id}: delivery warning cleared",
+                      file=sys.stderr)
+        except Exception as e:  # noqa: BLE001
+            print(f"[messenger delivery] {type(e).__name__}: {e}", file=sys.stderr)
+
+    def _never_heard(self, people: list) -> list:
+        """Of `people`, those with no customer message ever stored in the inbox. A restart empties the watch, so the
+        inbox is what tells a customer who wrote before it from one whose messages never arrived."""
+        import conversations
+        return [p for p in people if conversations.last_customer_message_at(CHANNEL, self.account_id, p) is None]
+
+    async def _check_delivery(self, now=None) -> bool:
+        """Set the delivery warning when the pattern holds and the inbox agrees. True when it was set. Never raises."""
+        try:
+            now = time.time() if now is None else now
+            people = self.delivery.suspects(now)
+            if not people or self.delivery.warned:
+                return False
+            silent = await asyncio.to_thread(self._never_heard, people[:DELIVERY_MAX_CONFIRM])
+            silent = [p for p in silent if p not in self.delivery.inbound_at]     # one may have written meanwhile
+            if len(silent) < DELIVERY_MIN_SILENT or self.delivery.warned:
+                return False
+            self.delivery.warn()
+            n = len(silent)
+            self.delivery_warning = localefmt.chu(
+                f"Trong 24 giờ qua Page đã nhắn cho {n} người mà Javis chưa nhận được tin nào của họ. Có thể Meta chỉ "
+                "chuyển tin của người có vai trò trong app hoặc Page: xin quyền nâng cao (Advanced Access) cho "
+                "pages_messaging, xem hướng dẫn Messenger phần 5.3.",
+                f"In the last 24 hours the Page wrote to {n} people whose messages never reached Javis. Meta may be "
+                "delivering only messages from people with a role on the app or Page: request Advanced Access for "
+                "pages_messaging, see part 5.3 of the Messenger guide.")
+            self._show_notes()
+            print(f"[messenger] Page {self.page_id} wrote to {n} people never heard from: delivery warning set",
+                  file=sys.stderr)
+            return True
+        except Exception as e:  # noqa: BLE001
+            print(f"[messenger delivery] {type(e).__name__}: {e}", file=sys.stderr)
+            return False
 
     def _remember_referral(self, ev):
         sender = str((ev.get("sender") or {}).get("id") or "")
@@ -527,6 +689,8 @@ class MessengerBot(HangLuot):
         d = await self._post_json(client, f"{self.page_id}/messages", {
             "recipient": {"id": raw_chat_id(to)}, "messaging_type": "RESPONSE", "message": message})
         chat_files.remember_id(CHANNEL, str(d.get("message_id") or "") if d.get("ok") else "")
+        if d.get("ok") and not str(to).startswith(IG_PREFIX):
+            self._note_sent(raw_chat_id(to))
         return d
 
     async def _send(self, client, chat, text, reply_markup=None):
@@ -643,6 +807,11 @@ class MessengerBot(HangLuot):
         # The person's id is only known now: remember the send so its echo is not filed as a staff message.
         chat_files.remember_sent(CHANNEL, str(d.get("recipient_id") or ""), text[:MAX_MSG],
                                  message_id=str(d.get("message_id") or ""))
+        # They commented and never wrote to the Page: no message of theirs is missing (`DeliveryWatch`).
+        try:
+            self.delivery.exempt(str(d.get("recipient_id") or ""))
+        except Exception:  # noqa: BLE001
+            pass
         return {"ok": True, "recipient_id": str(d.get("recipient_id") or ""),
                 "message_id": str(d.get("message_id") or "")}
 
@@ -831,6 +1000,8 @@ class MessengerBot(HangLuot):
         sender = str((ev.get("sender") or {}).get("id") or "")
         if not sender or sender in (self.page_id, self.ig_id):
             return
+        if not instagram:
+            self._note_inbound(sender)
         if instagram and not instagram_of(self.account_id).get("on"):
             return
         chat = (IG_PREFIX + sender) if instagram else sender
@@ -879,7 +1050,11 @@ class MessengerBot(HangLuot):
         msg = ev.get("message") or {}
         mid = str(msg.get("mid") or "")
         chat = str((ev.get("recipient") or {}).get("id") or "")
-        if self._stop or not chat or chat == self.page_id or not self.event_fn:
+        if self._stop or not chat or chat == self.page_id:
+            return
+        # Every message the Page sends, the bot's own included, tells the delivery watch who it wrote to.
+        self._note_sent(chat)
+        if not self.event_fn:
             return
         if str(msg.get("metadata") or "") == ECHO_TAG or chat_files.is_own_echo(CHANNEL, chat, message_id=mid):
             return
@@ -1111,12 +1286,13 @@ class MessengerBot(HangLuot):
             return
         # Subscribing needs pages_manage_metadata, which many Page tokens lack. A Page subscribed by
         # hand in the Meta app still delivers, so a failed subscribe is a warning, not a dead bot.
-        self.loi_danh_tinh = "" if sub.get("ok") else localefmt.chu(
+        self._subscribe_note = "" if sub.get("ok") else localefmt.chu(
             "Javis chưa tự gắn được Page vào webhook (" + sub.get("error", "") + "). Nếu Page đã được gắn tay "
             "trong app Meta (Messenger, Webhooks, Add Subscriptions) thì bot vẫn nghe; chưa thì gắn tay ở đó.",
             "Javis could not subscribe the Page to the webhook (" + sub.get("error", "") + "). If the Page was "
             "subscribed by hand in the Meta app (Messenger, Webhooks, Add Subscriptions) the bot still hears; "
             "otherwise subscribe it there.")
+        self._show_notes()
         self.bot_username = info.get("username", "")
         # Keep the Page's real name on the account, so the bot card shows it instead of the numeric Page ID
         # (a Page added by pasting its token only stored the id). Also follows a Page renamed on Facebook.
