@@ -763,6 +763,7 @@
   "models.muse_step3": "Bấm dòng đầu, chép cả dòng Cookie trong Request Headers.",
   "models.muse_step4": "Dán vào ô trên, bấm Kết nối Muse.",
   "models.muse_gw_q": "Muse Gateway ở máy khác?",
+  "models.muse_base_ph": "Địa chỉ gateway, ví dụ http://127.0.0.1:8080",
   "models.muse_key_keep": "Khoá đã lưu, để trống nếu giữ",
   "models.muse_key_ph": "Khoá quản trị (lệnh muse info)",
   "models.muse_gw_note": "Cùng máy với Javis thì để trống. Docker cạnh Javis: http://muse:8080.",

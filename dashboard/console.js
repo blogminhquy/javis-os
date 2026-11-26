@@ -3964,7 +3964,7 @@
             <li>${esc(t("models.muse_step3"))}</li><li>${esc(t("models.muse_step4"))}</li></ol></details>
         <details class="prov-help"${mu.ok === false ? " open" : ""}><summary>${esc(t("models.muse_gw_q"))}</summary>
           <div class="muse-gw">
-            <input class="js-input" data-muse-f="base" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8080" value="${esc(p.muse_base || "")}">
+            <input class="js-input" data-muse-f="base" inputmode="url" autocomplete="off" spellcheck="false" placeholder="${esc(t("models.muse_base_ph"))}" value="${esc(p.muse_base || "")}">
             <input class="js-input" data-muse-f="key" type="password" autocomplete="off" placeholder="${esc(t(mu.key_from === "page" ? "models.muse_key_keep" : "models.muse_key_ph"))}">
             <div class="gcard-meta">${esc(t("models.muse_gw_note"))}</div>
           </div></details>`;
@@ -4811,7 +4811,7 @@
       return r.warn || undefined;
     }, t("models.muse_add_note"));
     const museGwSheet = (btn) => formSheet(btn, t("models.muse_gw_t"), museInfo().base || "", [
-      { f: "base", ph: "http://127.0.0.1:8080", mode: "url", value: cardOf("muse").muse_base || "" },
+      { f: "base", ph: t("models.muse_base_ph"), mode: "url", value: cardOf("muse").muse_base || "" },
       { f: "key", ph: t(museInfo().key_from === "page" ? "models.muse_key_keep" : "models.muse_key_ph"), type: "password" },
     ], t("common.save"), async (v) => {
       const r = await musePost("/provider/muse/gateway", { base: v("base"), key: v("key") });

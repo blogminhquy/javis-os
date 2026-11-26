@@ -763,6 +763,7 @@
   "models.muse_step3": "Click the first row and copy the whole Cookie line under Request Headers.",
   "models.muse_step4": "Paste it in the box above and press Connect Muse.",
   "models.muse_gw_q": "Muse Gateway on another machine?",
+  "models.muse_base_ph": "Gateway address, for example http://127.0.0.1:8080",
   "models.muse_key_keep": "Key saved, leave empty to keep it",
   "models.muse_key_ph": "Admin key (muse info command)",
   "models.muse_gw_note": "Same machine as Javis: leave empty. Docker next to Javis: http://muse:8080.",

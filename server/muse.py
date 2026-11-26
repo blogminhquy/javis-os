@@ -248,7 +248,11 @@ def view(mcfg: dict) -> dict:
 
 def cached_view(mcfg: dict) -> dict:
     """Last known state, never blocking. `checking` is True when no state is known yet; a stale state is refreshed
-    in a background thread for the next draw."""
+    in a background thread for the next draw. A card that is not connected asks nothing of the network: its form
+    needs no accounts, and /settings stays the same from one read to the next (tests/python/test_read_batch.py)."""
+    if not connected(mcfg):
+        return {"ok": True, "error": "", "base": base(mcfg), "key_from": key_source(mcfg), "accounts": [],
+                "checking": False}
     with _view_lock:
         data, fresh = _view["data"], time.time() - _view["at"] < _VIEW_TTL_S
         start = not fresh and not _view["busy"]

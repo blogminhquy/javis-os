@@ -5167,8 +5167,7 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
         if prov == "ollama-local":
             return _boc(engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route))
 
-        if prov in ("openrouter", "openai", "anthropic-api", "anthropic-compat", "gemini", "groq", "deepseek", "ollama",
-                    "openai-compat", "muse"):
+        if prov in ("openrouter", "openai", "anthropic-api", "anthropic-compat", "gemini", "groq", "deepseek", "ollama", "openai-compat") or prov == "muse":
             return _boc(engine.thu_lai_khi_tam_thoi(_vong_tool, nhan=f"{prov}/{model or 'mặc định'}+tool"))
     return _api_stream(prov, key, model, messages, reasoning)
 
