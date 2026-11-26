@@ -14025,9 +14025,12 @@ def _workflow_verdict(v_out: str, v_error: str = "") -> tuple[bool, str, str]:
 
 
 def _verify_failed_message(step_no, agent_name, attempts, reason) -> str:
-    return (f"Bước {step_no} ({agent_name}) chưa qua kiểm chứng sau {attempts} lượt"
-            + (f": {str(reason).strip()[:300]}" if str(reason or "").strip() else "")
-            + ". Quy trình dừng ở đây, không chạy tiếp các bước sau.")
+    why = (": " + str(reason).strip()[:300]) if str(reason or "").strip() else ""
+    return localefmt.chu(
+        f"Bước {step_no} ({agent_name}) chưa qua kiểm chứng sau {attempts} lượt{why}. "
+        "Quy trình dừng ở đây, không chạy tiếp các bước sau.",
+        f"Step {step_no} ({agent_name}) still failed its check after {attempts} tries{why}. "
+        "The workflow stopped here and did not run the steps after it.")
 
 
 async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=None,
@@ -14722,6 +14725,61 @@ def _ket_luot_agent(brain, slug, user_message, final_text, conv_sid="") -> str:
     return sach
 
 
+def _graph_owner_stop(canary, graph, result):
+    """Issue 1841: the event that ends a graph run whose failed steps ALL still failed their check after the last
+    retry, or None.
+
+    The linear runner ends such a run with `error` + `needs_input`: the owner can answer it (say what is missing, or
+    loosen the check). The graph runner ended it with `done` and an empty result, so a Kanban job read the step's own
+    `step_error` as an engine failure (retried in silence, or blocked with no question) and the run history said
+    "done". A step that broke for another reason (engine error, timeout, plan limit) is not the owner's to answer, and
+    a runtime stop (checkpoint, revision) is not a failed step: those runs keep their old ending."""
+    if getattr(result, "status", "") not in ("FAILED", "STOPPED") \
+            or getattr(result, "stop_reason", "") in agent_runtime._RUNTIME_TERMINAL_REASONS:
+        return None
+    try:
+        state = canary.load_state(result.task_id) if getattr(result, "task_id", "") else None
+    except Exception:  # noqa: BLE001 - no state to read: the run keeps its old ending
+        state = None
+    failed = [(nid, item) for nid, item in ((state or {}).get("nodes") or {}).items()
+              if isinstance(item, dict) and item.get("status") == "FAILED"]
+    if not failed or any(item.get("verified") is not False or not item.get("error") for _, item in failed):
+        return None
+    nid, item = failed[0]
+    event = {"type": "error", "needs_input": True, "content": str(item["error"])}
+    node = graph.node(nid) if graph is not None else None
+    if node is not None:
+        meta = node.metadata or {}
+        event.update(i=int(meta.get("legacy_index", meta.get("declared_index", 0)) or 0), node=nid,
+                     agent=str(node.agent or ""))
+    return event
+
+
+async def _graph_run_events(queue, task, canary, graph, end: dict):
+    """The events of one graph run from its queue, in order, with its `done` held back until the end is known.
+
+    Issue 1841: a run that stopped on a step still failing its check ends with the `_graph_owner_stop` event in place
+    of that `done`, as the linear runner does. `end["result"]` holds the run's result once the queue is closed."""
+    held = None
+    while True:
+        event = await queue.get()
+        if event is None:
+            break
+        if held is not None:
+            yield held
+            held = None
+        if event.get("type") == "done":
+            held = event
+            continue
+        yield event
+    end["result"] = await task
+    stop = _graph_owner_stop(canary, graph, end["result"])
+    if stop is not None:
+        yield stop
+    elif held is not None:
+        yield held
+
+
 async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="", mode=None):
     """Đường Phase 10: cùng engine, cùng prompt, khác ở chỗ CÓ trạng thái.
 
@@ -14865,12 +14923,10 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
             await queue.put(None)
 
     task = asyncio.create_task(drive())
-    while True:
-        event = await queue.get()
-        if event is None:
-            break
+    end: dict = {}
+    async for event in _graph_run_events(queue, task, canary, graph, end):
         yield event
-    result = await task
+    result = end["result"]
     # ESCALATED và STOPPED là dừng có chủ đích, không phải lỗi runtime.
     _CONTEXT_RUNTIME.finish(
         trace,
@@ -15260,12 +15316,10 @@ async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tool
             await queue.put(None)
 
     task = asyncio.create_task(drive())
-    while True:
-        event = await queue.get()
-        if event is None:
-            break
+    end: dict = {}
+    async for event in _graph_run_events(queue, task, canary, graph, end):
         yield event
-    result = await task
+    result = end["result"]
     _CONTEXT_RUNTIME.finish(
         trace, "COMPLETED" if result.status == "COMPLETED" else "COMPLETED_WITH_ERROR",
         result.stop_reason)
@@ -16505,8 +16559,9 @@ async def _webhook_run_workflow(brain, slug, prompt, level):
         kind = ev.get("type")
         if kind == "done":
             result = ev.get("result") or result
-        elif kind in ("wait_user", "escalation") or (kind == "error" and ev.get("needs_input")):
-            needs_input = True
+        elif tasks_mod.workflow_stops_for_owner(ev):
+            # Issue 1841: a stop for the owner. The step error just before it is the same stop told to the step's row.
+            needs_input, error = True, ""
             result = (result + "\n" if result else "") + str(
                 ev.get("content") or ev.get("reason") or ev.get("prompt") or ev.get("node") or "")
         elif kind in ("error", "step_error"):
