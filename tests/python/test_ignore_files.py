@@ -97,6 +97,7 @@ CHAY = [
     "server/kanban.sqlite3", "server/tg_brain.json", "server/update_state.json",
     "server/logs/x.jsonl", "server/brain-trash/x/y.md", "server/plugins/p/plugin.py",
     "server/connector-home/x", "server/usage.json", "server/javis.log",
+    "server/plugin-scopes.json",
     "server/tools/javis-zalo/node_modules/javis-zalo/src/index.js",
 ]
 NANG = [

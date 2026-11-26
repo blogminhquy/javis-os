@@ -7851,5 +7851,15 @@
   "sec.d_wrong_pw": "wrong password",
   "sec.d_pw": "with password",
   "sec.d_pw_2fa": "password + 2FA",
-  "sec.d_setup": "first setup"
+  "sec.d_setup": "first setup",
+  "cs.pl_scope_action": "Availability",
+  "cs.pl_scope_global": "Global: every brain",
+  "cs.pl_scope_selected": "Choose one or more brains",
+  "cs.pl_scope_count": "{count} selected brain(s)",
+  "cs.pl_scope_note": "Global includes future brains. One shared plugin copy keeps its on/off state and permission level. An enabled plugin becomes available immediately to selected brains. Check plugins that use relative file paths after moving.",
+  "cs.pl_scope_save": "Save availability",
+  "cs.pl_scope_empty": "Select at least one brain.",
+  "cs.pl_scope_done": "Plugin availability updated.",
+  "cs.pl_scope_error": "Could not update plugin availability.",
+  "cs.pl_scope_unknown": "Save outcome is unknown. Close and reopen this dialog to check before trying again."
 }

@@ -20,6 +20,21 @@ Plugin cho Javis hai thứ:
 
 Tool của plugin **tôn trọng đúng 3 mức quyền** của Javis y như tool khác, nên một loop đang ở chế độ chỉ-đọc sẽ không tự gọi được tool ghi của plugin.
 
+## Phạm vi sử dụng theo brain
+
+Trong **Công cụ**, bấm tên plugin do bạn tạo/cài rồi chọn **Phạm vi sử dụng**:
+
+- **Toàn cục: mọi brain**: dùng chung ở mọi brain hiện có và brain tạo sau này.
+- **Chọn một hoặc nhiều brain**: đánh dấu các brain cần dùng rồi bấm **Lưu phạm vi**. Muốn chuyển từ brain A sang B thì bỏ A, chọn B. Muốn dùng cả hai thì chọn cả A và B.
+
+Bot/Agent dùng công cụ theo brain của mình, vẫn chịu mức quyền và chính sách công cụ hiện có. Chọn brain không tự bật plugin hay nâng quyền Bot. Nút bật/tắt của một plugin dùng chung áp dụng chung cho các brain được chọn.
+
+Lần đầu đổi phạm vi, thư mục plugin riêng được chuyển nguyên vẹn sang kho plugin người dùng dùng chung; danh sách brain được lưu ở `<JAVIS_STATE_DIR>/plugin-scopes.json`. Chỉ có một bản mã, không sao chép mỗi brain một bản. Manifest, trạng thái bật/tắt và `ctx.data_dir` được giữ; API key không được chép vào plugin. Các brain cùng chia sẻ dữ liệu do plugin lưu trong `ctx.data_dir` và quota của API dùng chung. Đây là phạm vi nạp công cụ, không phải sandbox cho mã Python.
+
+Không hỗ trợ thay phạm vi plugin hệ thống/gói cài từ kho. Nếu trùng slug ở brain khác hoặc kho toàn cục, thao tác báo lỗi và không ghi đè. Plugin dùng đường dẫn tương đối hoặc ghi dữ liệu ngay bên cạnh mã cần được kiểm tra lại sau chuyển. Hai thư mục phải ở cùng hệ thống tệp. Thay đổi áp dụng cho lần nạp/gọi tiếp theo; không hủy tác vụ plugin đã bắt đầu chạy. Plugin có trang HTTP/webhook riêng cần giữ Toàn cục vì đường HTTP không có ngữ cảnh brain.
+
+Nếu mất kết nối khi lưu, đóng hộp và mở lại để đọc phạm vi thực tế trước khi thử tiếp. Plugin chỉ xuất hiện trong danh sách của brain có quyền dùng; muốn sửa lựa chọn, mở một brain đang được chọn.
+
 ## Plugin khác Skill và MCP thế nào
 
 Ba thứ này hay bị lẫn. Phân biệt bằng câu hỏi "cái đang thiếu là gì":

@@ -26,6 +26,7 @@ server/stt_models.json
 server/stt_gate/
 server/settings.json
 server/plugins.json
+server/plugin-scopes.json
 server/plugins/
 server/plugin-data/
 server/.sessions.json

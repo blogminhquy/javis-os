@@ -36599,3 +36599,32 @@ async def plan_limits_get(goi: int = 0):
 async def batch_reads(request: Request):
     import read_batch
     return await read_batch.handle(app, request)
+
+
+import routes.plugin_move as plugin_move_routes  # noqa: E402
+
+
+def _plugin_scope_brains():
+    return [{"name": p.name, "label": brain_label.display(p), "path": str(p)}
+            for p in sorted(Path(BRAINS_DIR).iterdir())
+            if p.is_dir() and not p.is_symlink() and not p.name.startswith(".")]
+
+
+def _after_plugin_scope(roots):
+    mcp_hub.invalidate_cache()
+    failed = False
+    for root in roots:
+        try:
+            rebuild_javis_index(root)
+        except Exception:
+            failed = True
+    if failed:
+        raise RuntimeError("plugin index refresh incomplete")
+
+
+plugin_move_routes.register(app, plugin_move_routes.PluginMoveDeps(
+    co_phien=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
+    brains=_plugin_scope_brains,
+    default_root=_default_brain_dir,
+    after_move=_after_plugin_scope,
+))

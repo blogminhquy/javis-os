@@ -2144,6 +2144,12 @@
     .pl-sheet-foot{display:flex;padding:8px 12px 2px;color:var(--text3);font-size:14px}
     .pl-confirm p{margin:6px 6px 14px;color:var(--text2)}
     .pl-confirm .pl-acts{justify-content:flex-end}
+    .pl-scope-form{display:flex;flex-direction:column;gap:14px;padding:8px 6px}
+    .pl-scope-form label{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
+    .pl-scope-form input{width:18px;height:18px;flex:none;accent-color:var(--accent)}
+    .pl-scope-brains{max-height:32vh;overflow:auto;border:1px solid var(--hairline);border-radius:10px;padding:6px 12px}
+    .pl-scope-brains[hidden]{display:none}
+    .pl-scope-form p{margin:0;font-size:14px;color:var(--text2)}
     .pl-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;max-width:calc(100vw - 32px);padding:12px 16px;border-radius:12px;background:var(--text);color:var(--bg);font-size:15px;box-shadow:var(--shadow-2);display:flex;align-items:center;gap:14px}
     .pl-toast[hidden]{display:none}
     .pl-toast button{border:0;background:none;color:var(--accent);font:inherit;font-weight:700;cursor:pointer;padding:4px}
@@ -2262,6 +2268,7 @@
     const swHtml = (p) => `<button type="button" class="pl-sw" role="switch" aria-checked="${p.enabled ? "true" : "false"}" data-sw="${esc(p.slug)}" title="${esc(tt(p.enabled ? "studio.tog_on" : "studio.tog_off"))}" aria-label="${esc(tt("cs.pl_sw_aria", { ten: p.name }))}"><span class="pl-tr"><span class="pl-kn"></span></span></button>`;
     function tagHtml(p) {
       if (p.source === "vault") return `<span class="pl-tag mine">${esc(tt("cs.pl_src_vault"))}</span>`;
+      if (p.brain_scope === "selected") return `<span class="pl-tag mine">${esc(tt("cs.pl_scope_count", { count: (p.brains || []).length }))}</span>`;
       if (!MIXED.has(_plView)) return "";
       if (srcOf(p) === "mine") return `<span class="pl-tag mine">${esc(tt("cs.pl_tag_mine"))}</span>`;
       if (srcOf(p) === "pack") return `<span class="pl-tag pack">${esc(tt("cs.pl_tag_pack"))}</span>`;
@@ -2387,7 +2394,7 @@
     // ---------- drawer and sheets ----------
     function openDetail(p) {
       const pk = permOf(p), src = srcOf(p);
-      const head = p.source === "vault" ? tt("cs.pl_src_vault") : tt(src === "mine" ? "cs.pl_grp_mine" : src === "pack" ? "cs.pl_grp_pack" : "cs.pl_grp_bundled");
+      const head = p.source === "vault" ? tt("cs.pl_src_vault") : p.brain_scope === "selected" ? tt("cs.pl_scope_count", { count: (p.brains || []).length }) : tt(src === "mine" ? "cs.pl_grp_mine" : src === "pack" ? "cs.pl_grp_pack" : "cs.pl_grp_bundled");
       const cmds = (p.tools || []).map(x => `<span class="pl-cmd">${ic("wrench")}${esc(x)}</span>`).join("")
         + (p.hooks || []).map(x => `<span class="pl-cmd">${ic("webhook")}${esc(x)}</span>`).join("");
       const nCmds = (p.tools || []).length + (p.hooks || []).length;
@@ -2401,6 +2408,7 @@
         + (p.author ? kv("cs.pl_d_author", esc(p.author)) : "")
         + (src === "mine" && p.dir ? kv("cs.pl_d_dir", `<code>${esc(p.dir)}</code>`) : "");
       const acts = (p.page ? `<a class="pl-btn" href="${esc(safeHref(p.page))}" target="_blank" rel="noopener">${ic("external-link")}${esc(tt("cs.pl_open_page"))}</a>` : "")
+        + (["user", "vault"].includes(p.source) && !p.removed ? `<button type="button" class="pl-btn" data-scope="${esc(p.slug)}">${ic("layers")}${esc(tt("cs.pl_scope_action"))}</button>` : "")
         + (p.source === "pack" ? `<button type="button" class="pl-btn" data-store>${ic("package")}${esc(tt("cs.pl_manage_store"))}</button>` : "")
         + (p.removed ? `<button type="button" class="pl-btn" data-restore="${esc(p.slug)}">${ic("undo-2")}${esc(tt("store.reinstall"))}</button>` : "");
       // The dangerous action stands alone at the very end.
@@ -2417,6 +2425,57 @@
         + (acts ? `<div class="pl-acts">${acts}</div>` : "")
         + danger + `</aside>`);
       ui.openSlug = p.slug;
+    }
+
+    async function openScope(p) {
+      const brain = fbrain(), scope = p.source === "vault" ? "brain" : "global";
+      let options;
+      try {
+        options = await (await fetch(`/plugins/move-options?${new URLSearchParams({ slug: p.slug, scope, brain })}`)).json();
+        if (!options.ok) throw new Error(options.error || tt("cs.pl_scope_error"));
+      } catch (e) { toast(e.message); return; }
+      if (myGen !== _renderGen || brain !== fbrain()) return;
+      const selected = options.selected_brains;
+      const all = selected === null;
+      openLayer(`<div class="pl-sheet" role="dialog" aria-modal="true" aria-label="${esc(tt("cs.pl_scope_action"))}">`
+        + `<div class="pl-sheet-h"><b>${esc(p.name)}</b><button type="button" class="pl-x" data-close aria-label="${esc(tt("common.close"))}">${ic("x")}</button></div>`
+        + `<form class="pl-scope-form"><label><input type="radio" name="scope" value="global" ${all ? "checked" : ""}>${esc(tt("cs.pl_scope_global"))}</label>`
+        + `<label><input type="radio" name="scope" value="selected" ${all ? "" : "checked"}>${esc(tt("cs.pl_scope_selected"))}</label>`
+        + `<div class="pl-scope-brains" ${all ? "hidden" : ""}>${options.brains.map((b, i) => `<label><input type="checkbox" name="brain" value="${i}" ${(selected || []).includes(b.path) ? "checked" : ""}><span>${esc(b.label || b.name)}</span></label>`).join("")}</div>`
+        + `<p>${esc(tt("cs.pl_scope_note"))}</p><p data-scope-status role="status"></p>`
+        + `<div class="pl-acts"><button type="button" class="pl-btn ghost" data-close>${esc(tt("common.cancel"))}</button><button type="submit" class="pl-btn">${esc(tt("cs.pl_scope_save"))}</button></div></form></div>`);
+      const form = layer.querySelector("form"), status = form.querySelector("[data-scope-status]");
+      form.onchange = () => { form.querySelector(".pl-scope-brains").hidden = form.elements.scope.value === "global"; };
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        if (form.dataset.busy) return;
+        const target_scope = form.elements.scope.value;
+        const target_brains = [...form.querySelectorAll('input[name="brain"]:checked')].map(x => options.brains[Number(x.value)].path);
+        if (target_scope === "selected" && !target_brains.length) { status.textContent = tt("cs.pl_scope_empty"); return; }
+        form.dataset.busy = "1";
+        form.querySelector('button[type="submit"]').disabled = true;
+        status.textContent = tt("common.loading");
+        let result;
+        try {
+          result = await (await fetch("/plugins/move", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slug: p.slug, scope, brain, target_scope, target_brains, digest: options.digest }) })).json();
+        } catch (err) {
+          // A lost response may have committed: require readback instead of resubmitting.
+          status.textContent = tt("cs.pl_scope_unknown");
+          await load();
+          return;
+        }
+        if (myGen !== _renderGen) return;
+        if (!result.ok) {
+          delete form.dataset.busy;
+          form.querySelector('button[type="submit"]').disabled = false;
+          status.textContent = result.error || tt("cs.pl_scope_error");
+          return;
+        }
+        if (form.isConnected) closeLayer(true);
+        toast(result.warning || tt("cs.pl_scope_done"));
+        await load();
+      };
     }
 
     function openAdd() {
@@ -2512,6 +2571,7 @@
       }
       if (d.sw) { const p = findP(d.sw); if (p) toggle(p, b); return; }
       if (d.open) { const p = findP(d.open); if (p) openDetail(p); return; }
+      if (d.scope) { const p = findP(d.scope); if (p) openScope(p); return; }
       if (d.add !== undefined) { openAdd(); return; }
       if (d.close !== undefined) { closeLayer(); return; }
       if (d.zip !== undefined) { closeLayer(true); pickZip(); return; }

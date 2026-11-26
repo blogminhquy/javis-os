@@ -7851,5 +7851,15 @@
   "sec.d_wrong_pw": "sai mật khẩu",
   "sec.d_pw": "bằng mật khẩu",
   "sec.d_pw_2fa": "mật khẩu + 2FA",
-  "sec.d_setup": "lần đầu tạo"
+  "sec.d_setup": "lần đầu tạo",
+  "cs.pl_scope_action": "Phạm vi sử dụng",
+  "cs.pl_scope_global": "Toàn cục: mọi brain",
+  "cs.pl_scope_selected": "Chọn một hoặc nhiều brain",
+  "cs.pl_scope_count": "{count} brain được chọn",
+  "cs.pl_scope_note": "Toàn cục gồm cả brain tạo sau này. Dùng chung một bản plugin; giữ trạng thái bật/tắt và mức quyền. Plugin đang bật sẽ dùng được ngay ở các brain được chọn. Các file plugin dùng đường dẫn tương đối cần được kiểm tra lại sau chuyển.",
+  "cs.pl_scope_save": "Lưu phạm vi",
+  "cs.pl_scope_empty": "Chọn ít nhất một brain.",
+  "cs.pl_scope_done": "Đã cập nhật phạm vi sử dụng plugin.",
+  "cs.pl_scope_error": "Chưa cập nhật được phạm vi plugin.",
+  "cs.pl_scope_unknown": "Chưa xác nhận kết quả lưu. Đóng hộp này và mở lại để kiểm tra trước khi thử tiếp."
 }

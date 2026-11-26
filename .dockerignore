@@ -61,6 +61,7 @@ server/loop_config.json
 server/learn_config.json
 server/metrics_cache.json
 server/plugins.json
+server/plugin-scopes.json
 server/plugins/
 server/plugin-data/
 # Thư mục CHỨA CREDENTIAL do kết nối sinh ra lúc chạy. connector-cred là kho token mà một số

@@ -46,6 +46,7 @@ import fastyaml
 import mcp_catalog
 import localefmt
 import turn_context
+import plugin_scope
 from config import STATE_DIR
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -224,11 +225,11 @@ def _pack_plugin_dirs() -> List[tuple]:
         return []
 
 
-def _iter_plugin_dirs(vault_root: Optional[str]):
+def _iter_plugin_dirs(vault_root: Optional[str], *, include_vault: bool = True):
     """Yield (source, plugin_dir). source ∈ {'bundled','pack','user','vault'} (dedupe theo slug,
     nguồn SAU đè nguồn TRƯỚC): bundled (ship theo app) → pack (gói cài từ .zip) → user
     (GLOBAL_DIR, chung mọi brain) → vault (riêng 1 brain).
-    'user' và 'pack' KHÔNG phụ thuộc vault_root nên nạp được ở MỌI brain và MỌI engine.
+    'pack' dùng chung; 'user' theo plugin_scope, mặc định dùng chung mọi brain/engine.
 
     Vì sao 'pack' đứng SAU bundled mà TRƯỚC user: đặt sau bundled thì hành vi cũ
     (user/vault đè bundled) giữ nguyên bit-for-bit, không phá một shadow nào đang chạy. Còn
@@ -243,10 +244,12 @@ def _iter_plugin_dirs(vault_root: Optional[str]):
                 seen[d.name] = (source, d)
     for slug, d, _pid in _pack_plugin_dirs():
         seen[slug] = ("pack", d)
-    for source, base in (("user", GLOBAL_DIR), ("vault", vault_plugins_dir(vault_root))):
+    for source, base in (("user", GLOBAL_DIR), ("vault", vault_plugins_dir(vault_root) if include_vault else None)):
         if not base or not Path(base).is_dir():
             continue
         for d in sorted(Path(base).iterdir()):
+            if source == "user" and not plugin_scope.allowed(d.name, vault_root):
+                continue
             if d.is_dir() and any((d / e).is_file() for e in _ENTRY_FILES):
                 seen[d.name] = (source, d)   # trùng slug: nguồn sau ghi đè
     for _slug, (source, d) in seen.items():
@@ -375,9 +378,12 @@ def describe(vault_root: Optional[str] = None) -> List[dict]:
             # được, không thì nút "Mở trang" trỏ vào một đường 404.
             "page": (f"/ext/{slug}/" + (_trang_cua(manifest) or "")
                      if (_trang_cua(manifest) is not None and loaded
-                         and source in _HTTP_NGUON) else ""),
+                         and source in _HTTP_NGUON and (source != "user" or plugin_scope.allowed(slug, None))) else ""),
             "error": merr or errors.get(slug, ""),
             "dir": str(pdir),
+            "brain_scope": ("selected" if source == "user" and plugin_scope.selection(slug) is not None
+                            else "global" if source == "user" else "brain"),
+            "brains": plugin_scope.selection(slug) if source == "user" else None,
         })
     return out
 
@@ -609,6 +615,7 @@ def _signature(vault_root: Optional[str], scope_vault: bool = True) -> tuple:
 
 def _signature_now(vault_root: Optional[str], scope_vault: bool = True) -> tuple:
     sig: List[Any] = [_env_user_enabled()]
+    sig.append(repr(plugin_scope.read()))
     try:
         sig.append(_STATE_PATH.stat().st_mtime)
     except OSError:
@@ -618,7 +625,7 @@ def _signature_now(vault_root: Optional[str], scope_vault: bool = True) -> tuple
         sig.append(packs.signature())      # gói bật/tắt, cài/gỡ -> nạp lại
     except Exception:
         sig.append(None)
-    for source, pdir in _iter_plugin_dirs(vault_root if scope_vault else None):
+    for source, pdir in _iter_plugin_dirs(vault_root, include_vault=scope_vault):
         for fn in ("plugin.yaml", "plugin.yml", "plugin.py", "__init__.py"):
             p = pdir / fn
             try:
@@ -742,8 +749,7 @@ def _load_all(vault_root: Optional[str], scope_vault: bool = True) -> dict:
         hooks: Dict[str, List[Callable]] = {}
         errors: Dict[str, str] = {}
         env_ok = _env_user_enabled()
-        dirs_vault_root = vault_root if scope_vault else None
-        for source, pdir in _iter_plugin_dirs(dirs_vault_root):
+        for source, pdir in _iter_plugin_dirs(vault_root, include_vault=scope_vault):
             slug = pdir.name
             manifest, merr = _read_manifest(pdir)
             if merr:
@@ -1061,7 +1067,16 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
     check_fn = tool.get("check_fn")
     name = tool["name"]
 
+    def unavailable():
+        if getattr(ctx, "source", None) in ("user", "vault"):
+            if not ctx.dir.is_dir() or (ctx.source == "user" and not plugin_scope.allowed(ctx.slug, ctx.vault_root)):
+                return True
+        return False
+
     async def _call(args):
+        if unavailable():
+            return localefmt.chu("ERROR: Plugin không còn khả dụng trong brain này. Làm mới danh sách công cụ.",
+                                     "ERROR: plugin is no longer available in this brain. Refresh the tool list.")
         min_mode = _required_mode(tool, args)
         if str(mode or "").strip().lower() == "gated" and min_mode != "readonly":
             # 0.207.0: a gated Team step. A plugin that writes or acts (review: `javis_task` and `javis_schedule` are
@@ -1089,6 +1104,10 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
             return tu_choi
 
         async def _run(a):
+            # Approval and condition checks can await while the owner changes availability.
+            if unavailable():
+                return localefmt.chu("ERROR: Plugin không còn khả dụng trong brain này. Làm mới danh sách công cụ.",
+                                     "ERROR: plugin is no longer available in this brain. Refresh the tool list.")
             try:
                 res = handler(a or {}, ctx)
                 res = await _maybe_await(res)

@@ -8786,5 +8786,25 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 882,
+  "type": "APIRoute",
+  "path": "/plugins/move-options",
+  "name": "options",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 883,
+  "type": "APIRoute",
+  "path": "/plugins/move",
+  "name": "transfer",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

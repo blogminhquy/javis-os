@@ -20,6 +20,12 @@ A plugin gives Javis two things:
 
 Plugin tools **respect Javis's 3 permission levels** exactly like any other tool, so a loop running read-only cannot call a plugin's write tool.
 
+## Availability by brain
+
+Open **Tools**, click a user-created/installed plugin, then **Availability**. Choose **Global: every brain** (including future brains), or select one or more brains and save. To move from A to B, deselect A and select B. One shared code folder serves the selection; the shared on/off state, permission level and `ctx.data_dir` are preserved. Bots inherit availability from their brain and retain existing permission/tool policies.
+
+Brain-private folders are moved into user plugin storage and their selections are saved in `<JAVIS_STATE_DIR>/plugin-scopes.json`. Plugin data and API quota remain shared. This controls discovery and subsequent tool calls, not Python filesystem isolation or cancellation of calls already running. Built-in/store plugins cannot be moved. Conflicting slugs and symlinks are rejected without overwriting. Cross-filesystem moves are unsupported. Review plugins using relative paths after transfer. Plugins exposing HTTP pages/webhooks should stay global because HTTP has no brain context. After a lost save response, reopen the dialog to read back the outcome before retrying. To edit a selection, visit a selected brain.
+
 ## How a plugin differs from a Skill and an MCP
 
 These three get mixed up often. Tell them apart by asking "what is actually missing":
