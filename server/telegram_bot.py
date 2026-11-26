@@ -605,7 +605,15 @@ class TelegramBot(HangLuot):
             # a plain supergroup also puts `message_thread_id` on replies, and sending with it there fails.
             "thread_id": msg.get("message_thread_id") if msg.get("is_topic_message") else None,
             **({"video_path": msg["_video_path"]} if msg.get("_video_path") else {}),
+            # Text of the message this one replies to (2026-11-26): a staff member replying to the bot's question
+            # names its request code there (staff_requests.pick). Only when there is one.
+            **({"reply_to_text": self._reply_to_text(msg)} if self._reply_to_text(msg) else {}),
         }
+
+    @staticmethod
+    def _reply_to_text(msg):
+        rep = msg.get("reply_to_message") or {}
+        return str(rep.get("text") or rep.get("caption") or "")[:1000]
 
     def _co_nhac_ten(self, msg):
         """Tin này có nhắc tên CHÍNH con bot này không.

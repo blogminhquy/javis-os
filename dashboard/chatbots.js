@@ -1096,6 +1096,14 @@
             infoBody(esc(window.t("cb.hint_ngoai_le"))) +
           '</div>' +
 
+          // 7. Staff contact (2026-11-26, server/staff_requests.py): the ONE chat the bot asks when only a person knows
+          // the answer. One field, picked from the chats the inbox knows on the ticked personal Zalo / Telegram accounts.
+          '<div class="cb-sec">' + voiInfo(secH("headset", "cb.s_staff")) +
+            '<select id="cbStaff" class="cb-staff" aria-label="' + esc(window.t("cb.s_staff")) + '"></select>' +
+            '<div class="cb-hint" id="cbStaffNote" hidden></div>' +
+            infoBody(esc(window.t("cb.hint_staff"))) +
+          '</div>' +
+
           // No language picker since 2026-11-15 (owner): the bot answers each customer in the language they write.
           // That "Advanced" section held only this picker, so it went with it.
         '</div>' +
@@ -1362,6 +1370,70 @@
     };
     veNl();
 
+    // ---- Staff contact (2026-11-26): { account_id, chat_id, chat_type, name } or null. The saved chat stays listed even
+    // when the page of chats does not bring it. The server offers `ask_staff` only at Full power, so below that a short
+    // line under the field says why it would not work yet.
+    var STAFF_CHANNELS = ["zalo_personal", "telegram"];
+    var staffCur = (b && b.staff_contact && b.staff_contact.chat_id) ? Object.assign({}, b.staff_contact) : null;
+    var staffChats = [], staffSeq = 0;
+    function staffAccounts() {
+      return tkDangChon().filter(function (a) { return STAFF_CHANNELS.indexOf(a.channel) >= 0; });
+    }
+    function staffKey(aid, cid) { return aid + "\n" + cid; }
+    function drawStaff() {
+      var sel = box.querySelector("#cbStaff");
+      var accs = staffAccounts(), on = {};
+      accs.forEach(function (a) { on[a.id] = true; });
+      var rows = staffChats.filter(function (c) { return on[c.tk]; });
+      var cur = staffCur && on[staffCur.account_id] ? staffKey(staffCur.account_id, staffCur.chat_id) : "";
+      if (cur && !rows.some(function (c) { return staffKey(c.tk, c.id) === cur; })) {
+        rows.unshift({ tk: staffCur.account_id, id: staffCur.chat_id, ten: staffCur.name, loai: staffCur.chat_type });
+      }
+      sel.innerHTML = '<option value="">' + esc(window.t("cb.staff_none")) + '</option>' + rows.map(function (c) {
+        var k = staffKey(c.tk, c.id);
+        var label = (c.ten || c.id) + (c.loai === "group" ? " · " + window.t("cb.staff_group") : "") +
+          (accs.length > 1 ? " · " + nlTenTk(c.tk) : "");
+        return '<option value="' + esc(k) + '"' + (k === cur ? " selected" : "") + '>' + esc(label) + '</option>';
+      }).join("");
+      sel.disabled = !accs.length;
+      drawStaffNote();
+    }
+    function drawStaffNote() {
+      var note = box.querySelector("#cbStaffNote");
+      var msg = !staffAccounts().length ? window.t("cb.staff_no_channel")
+        : (box.querySelector("#cbStaff").value && (giaTri("cbMuc") || "suggest") !== "full") ? window.t("cb.staff_need_full")
+        : "";
+      note.textContent = msg;
+      note.hidden = !msg;
+    }
+    async function loadStaff() {
+      var ids = staffAccounts().map(function (a) { return a.id; }).join(",");
+      var turn = ++staffSeq;
+      if (!ids) { staffChats = []; drawStaff(); return; }
+      try {
+        var d = await api("/chatbots/chats?account_ids=" + encodeURIComponent(ids) + "&limit=200");
+        if (turn !== staffSeq) return;
+        // Only rows the inbox ties to an account: the contact is scoped to the account it lives on.
+        staffChats = (d.chats || []).filter(function (c) { return c.tk; });
+      } catch (e) { if (turn !== staffSeq) return; staffChats = []; }
+      drawStaff();
+    }
+    box.querySelector("#cbStaff").onchange = function () {
+      var v = this.value;
+      if (!v) {
+        staffCur = null;
+      } else {
+        var p = v.split("\n");
+        var c = staffChats.filter(function (x) { return x.tk === p[0] && x.id === p[1]; })[0] ||
+          (staffCur && staffCur.account_id === p[0] && staffCur.chat_id === p[1]
+            ? { ten: staffCur.name, loai: staffCur.chat_type } : {});
+        staffCur = { account_id: p[0], chat_id: p[1], chat_type: c.loai === "group" ? "group" : "private",
+                     name: c.ten && c.ten !== p[1] ? c.ten : "" };
+      }
+      drawStaffNote();
+    };
+    box.querySelectorAll('input[name="cbMuc"]').forEach(function (i) { i.addEventListener("change", drawStaffNote); });
+
     // ---- Chế độ lên tiếng trong nhóm
     var RW_H = { mention: "cb2.rw_mention_h", auto: "cb2.rw_auto_h", always: "cb2.rw_always_h" };
     function veRw() {
@@ -1480,11 +1552,12 @@
     // Nối lại sự kiện cho danh sách tài khoản: nó được vẽ lại sau mỗi lần nối kênh mới.
     function noiTK() {
       box.querySelectorAll(".cb-tk-o").forEach(function (n) {
-        n.onchange = function () { apDoiTuong(); veTom(); taiNl(); };
+        n.onchange = function () { apDoiTuong(); veTom(); taiNl(); loadStaff(); };
       });
       apDoiTuong();
       veTom();
       taiNl();
+      loadStaff();
     }
     noiTK();
 
@@ -1589,7 +1662,10 @@
                     nhuong_tay_phut: nhuong, bell_gap_min: bell, ngoai_le: JSON.stringify(nlDs),
                     nhan_ket_ban: coZaloCaNhan() && (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0",
                     group_typing: (box.querySelector("#cbGroupTyping") || {}).checked === false ? "0" : "1",
-                    skip_labels: coZaloCaNhan() ? tagLuu() : "[]" };
+                    skip_labels: coZaloCaNhan() ? tagLuu() : "[]",
+                    // The contact only on an account still ticked; "" clears it (2026-11-26).
+                    staff_contact: staffCur && staffAccounts().some(function (a) { return a.id === staffCur.account_id; })
+                      ? JSON.stringify(staffCur) : "" };
       if (nang.length) chung.xac_nhan_ngoai_le = "1";
       try {
         if (sua) {

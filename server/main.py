@@ -27663,6 +27663,13 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         # shows them under the bot's assistant instead of Javis Core.
         # A plain string, so a hook reading the turn (a shallow copy) cannot edit it for the next reader.
         _luot["bot_id"] = str(bot["id"])
+        # 2026-11-26 (staff_requests.py, `ask_staff`): the channel account, the customer's message and name, so a
+        # question for the shop's staff is tied to the right customer chat. Set by the host from the channel's meta.
+        _luot["account_id"] = str((meta or {}).get("account_id") or "")
+        _luot["chat_message_id"] = str((meta or {}).get("message_id") or "")
+        _luot["user_name"] = str((meta or {}).get("user_name") or "")[:80]
+        if (meta or {}).get("staff_relay"):
+            _luot["staff_relay"] = True      # a turn passing a staff answer on never asks the staff again
         # 0.459.0: an internal API turn opens private documents by the caller's scope list, never by its chat id. The
         # doc tools read it from the turn (chatbot_doc_tools.turn_chat_id).
         import chatbot_grounding
@@ -31538,7 +31545,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           gio_truc: str = Form(""), nhuong_tay_phut: str = Form(""),
                           ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form(""),
                           nhan_ket_ban: str = Form(""), skip_labels: str = Form(""),
-                          group_typing: str = Form(""), bell_gap_min: str = Form("")):
+                          group_typing: str = Form(""), bell_gap_min: str = Form(""),
+                          staff_contact: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -31582,6 +31590,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "group_typing": group_typing,
         # Minutes between two owner bells of one chat (issue #1838): 0 = every time, blank = default 10.
         "bell_gap_min": bell_gap_min,
+        # Staff contact (2026-11-26): JSON {account_id, chat_id, chat_type, name}; blank = none (staff_requests.py).
+        "staff_contact": staff_contact,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)

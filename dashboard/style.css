@@ -3843,6 +3843,9 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 /* Active hours (0.130.0): start and end side by side, they read as one range. */
 .cb-gio-truc { display: flex; gap: 12px; }
 .cb-gio-truc label { flex: 1; min-width: 0; }
+/* Staff contact (2026-11-26): one field, read and tapped on a phone, so 16px text and a 48px target. */
+.cb-form select.cb-staff { min-height: 48px; font-size: 16px; }
+.cb-form #cbStaffNote { font-size: 16px; }
 .cb-tag-list { margin: 6px 0 8px; }
 #cbTagMore { width: 100%; }
 /* ---- Form bot 0.64.85: bốn phần, thẻ chọn, nút chọn một, ô chọn người và nhóm ----

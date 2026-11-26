@@ -55,6 +55,7 @@ import conversations
 import limit_learner
 import localefmt
 import signin_loss
+import staff_requests
 import vision_input
 
 # Kênh -> lớp vận chuyển: tra SỔ ĐĂNG KÝ KÊNH (server/channels). Trước 0.61.0 là một bảng chép
@@ -566,6 +567,11 @@ def build_bot_prompt(bot: dict) -> str:
     # LAST of all, so nothing after it softens it: the owner typed this order in the inbox for this one reply.
     if lenh_chu:
         phan.append(_LENH_CHU.format(lenh=lenh_chu.replace('"', "'")))
+    # The staff's answer to a question the bot asked (2026-11-26, `relay_staff_answer`): last too, for the same reason.
+    sa = (bot or {}).get("_staff_answer")
+    if isinstance(sa, dict) and str(sa.get("answer") or "").strip():
+        phan.append(_STAFF_ANSWER.format(question=str(sa.get("question") or "").replace('"', "'"),
+                                          answer=str(sa.get("answer") or "").replace('"', "'")))
     return "\n".join(phan)
 
 
@@ -1755,6 +1761,16 @@ def _make_precheck_fn(bot_id: str):
         cfg = chatbot_store.get_bot(bot_id)
         if not cfg:
             return {}
+        # The staff contact answering a question the bot asked (2026-11-26): taken here, before any rule about who the
+        # bot answers, and passed on to the customer. Any other message, or no open request, goes on as before.
+        if cfg.get("staff_contact"):
+            try:
+                taken = staff_requests.on_staff_message(cfg, text, meta)
+            except Exception as e:      # noqa: BLE001 - a broken store must not cost the normal path
+                print(f"[chatbot {bot_id}] staff answer check failed: {type(e).__name__}: {e}", file=sys.stderr)
+                taken = None
+            if taken is not None:
+                return taken
         meta = _rp_named_meta(cfg, text, meta)      # gọi tên trơn ("nhi mai ơi") cũng là gọi bot
         _nho_neu_khong_goi(bot_id, cfg, meta, text)
         ly_do = _ly_do_im(cfg, meta or {})
@@ -3028,6 +3044,137 @@ def manual_done(conv: dict, msgs: list, text: str, meta: dict) -> dict:
     except Exception as e:      # noqa: BLE001 - việc dạy bot hỏng không được làm mất câu trả lời đã gửi
         print(f"[reply_policy {bot_id}] gắn nhãn sau khi nhờ bot trả lời lỗi: {type(e).__name__}: {e}", file=sys.stderr)
     return out
+
+
+# ============================================================
+# Ask the staff, then tell the customer (2026-11-26, staff_requests.py)
+# ============================================================
+_STAFF_ANSWER = """
+## STAFF ANSWER TO PASS ON (the customer does NOT see this part)
+
+Earlier in this chat the customer asked something only the shop's staff knew, and you asked the staff. The staff has
+now answered.
+Customer's question: "{question}"
+Staff answer: "{answer}"
+
+Write your next message to the customer: give them this answer in your own voice and your usual way of addressing them,
+as the reply to that question. Do not add details the staff did not give, and do not mention the staff, a request code
+or this note.
+"""
+_STAFF_ANSWER_TURN = ("(Note from Javis, the customer does NOT see this: the staff answered the question you were "
+                      "checking. Pass the answer on to the customer now, as your instructions say.)")
+
+
+def _send_account(channel: str, account_id: str) -> dict:
+    """The account a message goes out from, as a channel's `gui` takes it (same shape as the inbox's send)."""
+    account = {"id": str(account_id), "channel": str(channel)}
+    s = channels.spec(channel)
+    if s and s.kind == "bot":
+        a = channel_accounts.get_account(account_id) or {}
+        account.update({k: a.get(k) for k in ("label", "external_id")})
+        account["token"] = channel_accounts.get_token(account_id)
+    return account
+
+
+async def send_to_chat(channel: str, account_id: str, chat_id: str, chat_type: str, text: str,
+                       mention: Optional[dict] = None) -> tuple:
+    """Send one text message into a chat through the channel's normal transport (`channels.gui`). `(ok, error)`.
+
+    On personal Zalo the text is remembered as our own echo first, like the inbox does, or the read loop takes it for
+    the owner typing by hand and the bot steps aside in that chat. `mention` tags one person in a Zalo group."""
+    txt = str(text or "").strip()
+    if not txt:
+        return False, localefmt.chu("tin rỗng", "empty message")
+    extra = {}
+    if channel == "zalo_personal":
+        try:
+            import zalo_personal_channel as zc
+            zc.ghi_da_gui(str(account_id), str(chat_id), txt)
+        except Exception:      # noqa: BLE001 - worst case one duplicate line in the inbox
+            pass
+        if mention and chat_type == "group" and mention.get("uid"):
+            extra["mention"] = {"uid": str(mention["uid"]), "name": str(mention.get("name") or "")}
+    try:
+        return await channels.gui(channel, _send_account(channel, account_id), str(chat_id), txt,
+                                  "group" if chat_type == "group" else "private", **extra)
+    except Exception as e:      # noqa: BLE001
+        return False, f"{type(e).__name__}: {e}"
+
+
+def staff_request_failed(cfg: dict, req: dict, error: str) -> bool:
+    """Ring the owner's bell: a question for the staff could not be sent, or their answer could not be passed on."""
+    who = str((req or {}).get("customer_name") or (req or {}).get("customer_chat_id") or "")
+    q = " ".join(str((req or {}).get("question") or "").split())[:300]
+    a = " ".join(str((req or {}).get("answer") or "").split())[:500]
+    reason = localefmt.chu(
+        f"Hỏi người phụ trách hỏng: {str(error)[:200]}\nKhách hỏi: {q}" + (f"\nNgười phụ trách trả lời: {a}" if a else ""),
+        f"Asking the staff contact failed: {str(error)[:200]}\nCustomer asked: {q}" + (f"\nStaff answered: {a}" if a else ""))
+    return _goi_chu(cfg or {}, who, reason)
+
+
+async def relay_staff_answer(req: dict) -> dict:
+    """Pass the staff's answer to request `req` (already claimed, see `staff_requests.claim`) on to the customer.
+
+    A bot turn runs in the customer's chat with the answer as context (`_staff_answer` in the prompt), so the bot says it
+    in its own voice; the result goes out through the channel's normal transport and into the inbox as the bot's
+    message. A chat the owner took over, or set to "Javis drafts", gets it as a draft instead. Any failure rings the
+    owner's bell with the staff's answer, so the customer still hears back. Returns `{"ok", "sent", "draft", "error"}`."""
+    out = {"ok": False, "sent": False, "draft": False, "error": ""}
+    bot_id = str((req or {}).get("bot_id") or "")
+    cfg = chatbot_store.get_bot(bot_id)
+    if not cfg:
+        return dict(out, error="no_bot")
+    meta = {"chat_id": str(req.get("customer_chat_id") or ""), "chat_type": req.get("customer_chat_type") or "private",
+            "user_id": str(req.get("customer_user_id") or ""), "user_name": str(req.get("customer_name") or ""),
+            "username": "", "message_id": str(req.get("customer_message_id") or ""),
+            "account_id": str(req.get("account_id") or ""), "_kenh": str(req.get("channel") or ""),
+            "mentioned": True, "staff_relay": True}
+
+    def fail(code: str) -> dict:
+        staff_requests.note_error(req.get("id") or 0, code)
+        staff_request_failed(cfg, req, code)
+        return dict(out, error=code)
+
+    cfg = chatbot_store.ap_ngoai_le(cfg, meta)
+    aid, channel = _tai_khoan_cua(cfg, meta)
+    cfg["_kenh_luot"], cfg["_tu_dong"] = channel, False
+    cfg["_staff_answer"] = {"question": req.get("question") or "", "answer": req.get("answer") or ""}
+    try:
+        cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, channel, aid)
+        cfg["_customer_profile"] = customer_profile(cfg, meta)
+    except Exception:      # noqa: BLE001 - context is extra, the answer is the job
+        pass
+    try:
+        res = await _deps["answer"](_STAFF_ANSWER_TURN, meta, None, channel=channel, bot=cfg)
+    except Exception as e:      # noqa: BLE001
+        return fail(f"{type(e).__name__}: {str(e)[:200]}")
+    if isinstance(res, dict) and engine_notice(res.get("text")):
+        res = engine_notice(res.get("text"))
+    if isinstance(res, str):
+        return fail(res.strip()[:300] or "engine")
+    reply = str((res or {}).get("text") or "").strip()
+    if reply:
+        reply = bot_reaction.pick(reply)[0].strip()
+    if not reply or is_silent_answer(reply):
+        return fail(localefmt.chu("bot không viết câu trả lời", "the bot wrote no reply"))
+    joined = bot_split.joined(reply)
+    chat = meta["chat_id"]
+    chatbot_log.ghi(bot_id, {
+        "chat_id": chat, "chat_type": meta["chat_type"], "user_name": meta["user_name"],
+        "hoi": f"(#{req.get('code')}) {str(req.get('answer') or '')[:500]}", "reply": joined, "loi": "",
+        "bo_qua": "", "chuyen_nguoi": False, "bi": False, "muc_quyen": cfg.get("muc_quyen") or "suggest"})
+    if conversations.che_do(channel, aid, chat) in ("human", "draft"):
+        cid = conversations.conversation_id_of(channel, aid, chat)
+        if cid:
+            conversations.save_draft(cid, joined, conversations.last_customer_message_id(cid))
+        return dict(out, ok=True, draft=True)
+    ok, err = await send_to_chat(channel, aid, chat, meta["chat_type"],
+                                 reply if channel in bot_split.SPLIT_CHANNELS else joined,
+                                 mention={"uid": meta["user_id"], "name": meta["user_name"]})
+    if not ok:
+        return fail(str(err or "send failed")[:300])
+    record_bot_message(cfg, meta, joined)
+    return dict(out, ok=True, sent=True)
 
 
 # ============================================================
