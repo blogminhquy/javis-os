@@ -199,7 +199,15 @@ gate = new_chat()
 out = asyncio.run(main._pin_chat_model(gate, "groq", "qwen3-32b"))
 check("Javis Gate picking a model pins that conversation only, not the assistant",
       out.get("ok") and turn(gate)[0] == "groq" and not chat_pin(), (out, chat_pin()))
+pick(a, "openai-oauth", "gpt-old")
+healed = new_chat()
+main._heal_agent_chat_pin(store.get_session(healed), m(), B, "gpt-5.5")
+check("Codex self-heal fixes a ChatGPT model that left the catalog in the assistant's chat pin",
+      chat_pin() == {"provider": "openai-oauth", "model": "gpt-5.5"}, chat_pin())
 pick(a, "groq", "qwen3-32b")
+main._heal_agent_chat_pin(store.get_session(a), m(), B, "gpt-5.5")
+check("...but not from a window running its own pick", chat_pin() == {"provider": "groq", "model": "qwen3-32b"},
+      chat_pin())
 check("the chat pin is back after a pick", bool(chat_pin()))
 r = client.post("/agents/delete", data={"slug": "lan", "brain": B}, headers=H)
 check("deleting the assistant drops its chat pin", r.status_code == 200 and not chat_pin(), (r.text, chat_pin()))

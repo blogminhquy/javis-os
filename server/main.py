@@ -4344,6 +4344,14 @@ def _set_agent_chat_pin(brain, slug, provider: str, model: str) -> None:
         cfgmod.write_settings(cfg)
 
 
+def _heal_agent_chat_pin(row, mcfg, brain, model: str) -> None:
+    """Codex self-heal (26/11/2026): a partner's chat running on that partner's chat pin, whose ChatGPT model left the
+    catalog, gets the pin fixed too, or every turn reads the old model again. Blocking: call it from a worker thread."""
+    persona = workflow_chat.persona_cua_phien(row)
+    if persona and persona[0] == "agent" and _agent_chat_row(row, mcfg).get("pin_source") == "agent_chat":
+        _set_agent_chat_pin((row or {}).get("brain") or brain, persona[1], "openai-oauth", model)
+
+
 def _agent_chat_row(row, mcfg=None):
     """The model an assistant's chat runs on, in order (owner, 26/11/2026: "mỗi agent có ghim riêng khi chat"):
 
@@ -22239,12 +22247,7 @@ async def _chat_socket(ws):
                             # so only the pin is fixed: rewriting the owner's main model here changed every other chat.
                             # Issue 1336: only a ChatGPT pin; a pin to a card that rests stays the owner's choice.
                             await asyncio.to_thread(store.set_pinned_model, conv_sid, "openai-oauth", actual_model)
-                            # 26/11/2026: a partner's chat pin holding that model is fixed too, or it comes back.
-                            _ar0 = _agent_chat_row(_row0, mcfg)
-                            _p0 = workflow_chat.persona_cua_phien(_row0)
-                            if _ar0.get("pin_source") == "agent_chat" and _p0:
-                                await asyncio.to_thread(_set_agent_chat_pin, _row0.get("brain") or brain, _p0[1],
-                                                        "openai-oauth", actual_model)
+                            await asyncio.to_thread(_heal_agent_chat_pin, _row0, mcfg, brain, actual_model)
                         else:
                             _fix = cfgmod.read_settings()
                             if _effective_main(_fix)["provider"] == "openai-oauth":
