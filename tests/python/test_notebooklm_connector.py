@@ -24,6 +24,8 @@ sai mà không ai thấy, nên ba thứ sau phải có test canh:
      đóng stdout". Tái hiện cả hai chiều 14/08/2026. Đa tài khoản đã phân biệt sẵn
      bằng isolate_home (mỗi kết nối một HOME riêng theo slug) nên ô này vừa thừa
      vừa là bẫy.
+  5. PHIÊN NẰM TRONG FILE THƯ VIỆN TỰ CẬP NHẬT (issue #1859, 26/11/2026). Đưa phiên qua biến môi
+     trường thì cookie Google xoay vòng không bao giờ được lưu, kết nối chết sau vài giờ.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path
 import sys
@@ -111,6 +113,53 @@ check("có tool để kiểm tra kết nối sau khi đấu",
       (con.get("validate") or {}).get("tool") == "notebook_list")
 for chuoi in (con.get("description", ""), risk, guide):
     check("không dùng em dash", "—" not in chuoi, chuoi[:60])
+
+# ---- 5. The session lives in a file the library keeps up to date (issue #1859) ----
+# notebooklm-py reads NOTEBOOKLM_AUTH_JSON before any file and never writes back to it, so Google's rotated cookies were
+# lost and the connection signed out a few hours after each start. The paste now goes to the library's own session file.
+import os  # noqa: E402
+import stat  # noqa: E402
+import tempfile  # noqa: E402
+import mcp_store  # noqa: E402
+
+home = tempfile.mkdtemp(prefix="javis-nblm-home-")
+paste = '{"cookies":[{"name":"SID","value":"a"}],"origins":[]}'
+env = {"NOTEBOOKLM_AUTH_JSON": paste, "HOME": home}
+check("the paste is handed over as a file", mcp_store.notebooklm_session_file(env, home) is True)
+f = os.path.join(home, ".notebooklm", "profiles", "default", "storage_state.json")
+check("written where the library reads its default profile", os.path.isfile(f) and open(f).read() == paste)
+if os.name == "posix":
+    check("the session file is readable by its owner only", stat.S_IMODE(os.stat(f).st_mode) == 0o600,
+          oct(stat.S_IMODE(os.stat(f).st_mode)))
+check("the env value is removed (the library would read it before the file)", "NOTEBOOKLM_AUTH_JSON" not in env, env)
+check("CANARY: no NOTEBOOKLM_PROFILE is set (rule 4)", "NOTEBOOKLM_PROFILE" not in env, env)
+first_tag = env.get("JAVIS_NOTEBOOKLM_PASTE")
+check("a tag of the paste joins the spawn env", bool(first_tag) and len(first_tag) == 12, env)
+
+rotated = '{"cookies":[{"name":"SID","value":"rotated-by-google"}],"origins":[]}'
+open(f, "w").write(rotated)
+env2 = {"NOTEBOOKLM_AUTH_JSON": paste, "HOME": home}
+mcp_store.notebooklm_session_file(env2, home)
+check("a restart with the same paste keeps the cookies the library rotated", open(f).read() == rotated)
+check("the same paste keeps the same tag (the running server is not restarted)",
+      env2.get("JAVIS_NOTEBOOKLM_PASTE") == first_tag)
+
+new_paste = '{"cookies":[{"name":"SID","value":"new-login"}],"origins":[]}'
+env3 = {"NOTEBOOKLM_AUTH_JSON": new_paste, "HOME": home}
+mcp_store.notebooklm_session_file(env3, home)
+check("a new paste replaces the file", open(f).read() == new_paste)
+check("a new paste changes the tag, so the server restarts on it", env3.get("JAVIS_NOTEBOOKLM_PASTE") != first_tag)
+
+env4 = {"HOME": home}
+check("no paste: nothing happens", mcp_store.notebooklm_session_file(env4, home) is False and env4 == {"HOME": home})
+blocked = os.path.join(tempfile.mkdtemp(prefix="javis-nblm-blocked-"), "a-file")
+open(blocked, "w").write("x")
+env5 = {"NOTEBOOKLM_AUTH_JSON": paste}
+check("a folder that cannot be made leaves the env value as before",
+      mcp_store.notebooklm_session_file(env5, blocked) is False and env5.get("NOTEBOOKLM_AUTH_JSON") == paste)
+src = open(os.path.join(SERVER, "mcp_store.py"), encoding="utf-8").read()
+check("the spawn spec of an isolated NotebookLM connection goes through the file",
+      '"notebooklm-mcp" in (str(lenh or "")' in src and "notebooklm_session_file(env, env.get(\"HOME\") or home)" in src)
 
 if loi:
     print("\nFAIL - test_notebooklm_connector: " + str(len(loi)) + " lỗi: " + ", ".join(loi))

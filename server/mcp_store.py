@@ -6,6 +6,7 @@ Registry KẾT NỐI MCP của Javis - model v2: connector (mẫu, xem mcp_catal
 - GIỮ nguyên bộ hàm legacy (list_servers/add_server/update_server/.../servers_for_client/
   rebuild_config/disallowed_tools) để endpoint /mcp/* cũ và chế độ fallback (không hub) chạy như cũ.
 """
+import hashlib
 import json
 import os
 import re
@@ -448,6 +449,52 @@ def set_default(cid):
     return True
 
 
+NOTEBOOKLM_ENV = "NOTEBOOKLM_AUTH_JSON"
+NOTEBOOKLM_MARK = ".javis-paste.sha256"
+
+
+def notebooklm_session_file(env: dict, home: str) -> bool:
+    """Hand a pasted NotebookLM session to the library as the file it keeps up to date (issue #1859).
+
+    notebooklm-py reads `NOTEBOOKLM_AUTH_JSON` before any file and never writes back to it, so the cookies Google rotates
+    were lost and the connection signed out after a few hours. The paste is written once to
+    `<HOME>/.notebooklm/profiles/default/storage_state.json` (the connection's own isolated HOME, file 0600, folders
+    0700) and the env value is removed, so the library reads the file and saves rotated cookies into it. The file is
+    rewritten only when the owner pastes a NEW session (its hash differs from the one noted beside it), never over the
+    library's newer cookies. `JAVIS_NOTEBOOKLM_PASTE` carries a hash prefix so a new paste changes the spawn spec and
+    restarts the server. On any error the env value stays as before. True when the file is in use."""
+    raw = str((env or {}).get(NOTEBOOKLM_ENV) or "")
+    if not raw.strip() or not home:
+        return False
+    try:
+        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        folder = Path(home) / ".notebooklm" / "profiles" / "default"
+        folder.mkdir(parents=True, exist_ok=True)
+        for d in (Path(home) / ".notebooklm", folder.parent, folder):
+            try:
+                os.chmod(d, 0o700)
+            except OSError:
+                pass
+        target, mark = folder / "storage_state.json", folder / NOTEBOOKLM_MARK
+        try:
+            noted = mark.read_text(encoding="utf-8").strip()
+        except OSError:
+            noted = ""
+        if noted != digest or not target.is_file():
+            tmp = folder / ".storage_state.json.javis-tmp"
+            fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(raw)
+            os.replace(tmp, target)
+            mark.write_text(digest, encoding="utf-8")
+        env.pop(NOTEBOOKLM_ENV, None)
+        env["JAVIS_NOTEBOOKLM_PASTE"] = digest[:12]
+        return True
+    except OSError as e:
+        print(f"[mcp_store] notebooklm session file: {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+
+
 def resolved(enabled_only=True):
     """Danh sách connection ĐẦY ĐỦ (secret THẬT đã giải mã) cho hub/client nội bộ.
     TUYỆT ĐỐI không trả kết quả hàm này ra frontend.
@@ -560,6 +607,11 @@ def resolved(enabled_only=True):
                 STATE_DIR / "connector-home" / f"{c['connector_id']}-{c.get('slug')}")
             env.setdefault("HOME", home)
             env.setdefault("USERPROFILE", home)
+            # NotebookLM (issue #1859): the library saves Google's rotated cookies only to a session FILE, never back to
+            # NOTEBOOKLM_AUTH_JSON, so a session passed in the env died a few hours after each start. Matched by
+            # command, like Playwright above, so a copy from a Store pack is covered too.
+            if "notebooklm-mcp" in (str(lenh or "") + " " + " ".join(str(a) for a in args)).lower():
+                notebooklm_session_file(env, env.get("HOME") or home)
         # Field dạng FILE (vd service account JSON của Google): nội dung dán khi kết nối
         # (mã hoá trong store) → ghi ra file 0600 riêng, cấp cho tiến trình con qua env đường dẫn.
         for f in (((con or {}).get("auth") or {}).get("fields") or []):
