@@ -3099,6 +3099,16 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 }
 #voiceCard .vc-mismatch .gcard-btn { width: auto; flex: none; }
 @media (prefers-reduced-motion: reduce) { #voiceCard .vc-saved { transition: none; } }
+/* Mic and speaker of a call, each beside its test (audio-devices.js, 26/11/2026): readable text and finger-sized
+   controls, as the owner asks of every new screen (16px text, 48px tap targets). */
+#voiceCard .vc-dev .vc-lblcol { padding-top: 12px; }
+#voiceCard .vc-dev .qs-lbl { font-size: 16px; }
+#voiceCard .vc-dev .vc-sub { font-size: 16px; line-height: 1.4; }
+#voiceCard .vc-dev .v2-voice-row > select,
+#voiceCard .vc-dev .v2-voice-row > .gcard-btn { min-height: 48px; font-size: 16px; }
+/* Both test buttons one width, so the two lists end on the same edge ("Test speaker" is the longest label). */
+#voiceCard .vc-dev .v2-voice-row > .gcard-btn { min-width: 8.5em; }
+@media (max-width: 700px) { #voiceCard .vc-dev .vc-lblcol { padding-top: 8px; } }   /* label above, as the rows around */
 
 /* ---- Trang Kênh Admin (0.85.0): mỗi kênh một tab ----
    Một cột, rộng tối đa 620px: đây là trang cài đặt, phải đọc được trên điện thoại. Thanh tab cuộn

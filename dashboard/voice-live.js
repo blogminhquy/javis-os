@@ -25,6 +25,8 @@
    no sound ("khi nghe lại âm thanh thì không còn đàm thoại được", owner 2026-10-26). So stop() now only suspends the
    two contexts and keeps the remote <audio> element, all of them unlocked by the press that started the call, and
    the next session reuses them. unlock() is called inside a press; release() closes everything at hang-up.
+   Mic and speaker picked in Settings > Voice (26/11/2026, audio-devices.js): getMic() opens the chosen mic, and the
+   chosen speaker is set on outCtx (PCM path) and on the remote <audio> element (WebRTC path), again when it changes.
    Ghi chú: KHÔNG dùng ký tự em dash. */
 (function () {
   "use strict";
@@ -233,14 +235,27 @@
       try { inCtx = new AC({ sampleRate: IN_RATE }); } catch (e) { inCtx = new AC(); }
       workletLoad = null;
     }
-    if (!outCtx || outCtx.state === "closed") outCtx = new AC({ sampleRate: OUT_RATE });
+    if (!outCtx || outCtx.state === "closed") { outCtx = new AC({ sampleRate: OUT_RATE }); toSpeaker(outCtx); }
   }
+
+  // The speaker picked in Settings > Voice (audio-devices.js); the default when none is picked or it is gone.
+  function toSpeaker(target) {
+    try { var dev = window.JavisAudioDevices; if (dev && dev.applySpeaker) dev.applySpeaker(target); } catch (e) {}
+  }
+  try {
+    window.addEventListener("javis:audio-devices", function (e) {
+      if (e && e.detail && e.detail.kind !== "speaker") return;
+      if (outCtx && outCtx.state !== "closed") toSpeaker(outCtx);
+      if (rtcAudioEl) toSpeaker(rtcAudioEl);
+    });
+  } catch (e) {}
 
   function audioEl() {
     if (!rtcAudioEl) {
       rtcAudioEl = new Audio();
       rtcAudioEl.autoplay = true;
       try { rtcAudioEl.setAttribute("playsinline", ""); } catch (e) {}
+      toSpeaker(rtcAudioEl);
     }
     return rtcAudioEl;
   }
@@ -378,8 +393,11 @@
     return true;
   }
 
+  var MIC_OPTIONS = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
   function getMic() {
-    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    var dev = window.JavisAudioDevices;
+    if (dev && dev.getMic) return dev.getMic(MIC_OPTIONS);    // the chosen mic, the default when it is gone
+    return navigator.mediaDevices.getUserMedia({ audio: MIC_OPTIONS });
   }
 
   // Đường PCM (Live qua API): tiếng mic đi qua WebSocket của máy chủ.

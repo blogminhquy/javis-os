@@ -458,12 +458,26 @@
                   <select class="js-input" id="vcElModel"></select>
                 </div>
               </div>
-              <!-- Mic and speaker test (0.222.0, dashboard/mic-test.js): a person speaking is the only check
-                   a muted mic or a level slider at zero cannot pass. -->
-              <div class="qs-field">
-                <span class="qs-lbl" data-i18n="settings.vc_mic_lbl">Thử mic và loa</span>
+              <!-- Mic and speaker of a call (26/11/2026, dashboard/audio-devices.js), each beside its test (0.222.0,
+                   dashboard/mic-test.js: a person speaking is the only check a muted mic or a level slider at zero cannot
+                   pass). The speaker list hides itself where the browser cannot route sound (Safari, iPhone); its test stays. -->
+              <div class="qs-field vc-field vc-dev">
+                <div class="vc-lblcol">
+                  <label class="qs-lbl" for="vcMicSel"><span data-i18n="settings.vc_dev_mic">Mic</span> <button type="button" class="info-i" aria-expanded="false" aria-label="Xem giải thích" title="Xem giải thích" data-i18n-aria="info.more" data-i18n-title="info.more"><i data-ic="info"></i></button></label>
+                  <div class="vc-sub" id="vcDevHint" data-i18n="settings.vc_dev_need_perm" hidden>Bấm Thử mic để hiện tên các mic</div>
+                </div>
+                <div class="info-body" hidden data-i18n="settings.vc_dev_info">Cuộc gọi dùng mic và loa chọn ở đây, chỉ trên trình duyệt này. Rút thiết bị đã chọn ra thì Javis dùng cái mặc định của máy. iPhone và Safari tự chọn loa nên không có danh sách loa. Đường gọi Cơ bản nghe bằng trình duyệt thì luôn dùng mic mặc định.</div>
                 <div class="v2-voice-row">
+                  <select class="js-input" id="vcMicSel"></select>
                   <button class="gcard-btn ghost" type="button" id="vcMicTest" data-i18n="settings.vc_mic_btn">Thử mic</button>
+                </div>
+              </div>
+              <div class="qs-field vc-field vc-dev">
+                <div class="vc-lblcol">
+                  <label class="qs-lbl" for="vcSpkSel" data-i18n="settings.vc_dev_spk">Loa</label>
+                </div>
+                <div class="v2-voice-row">
+                  <select class="js-input" id="vcSpkSel" hidden></select>
                   <button class="gcard-btn ghost" type="button" id="vcSpkTest" data-i18n="settings.vc_spk_btn">Thử loa</button>
                 </div>
               </div>
@@ -1121,6 +1135,7 @@
   <script src="/static/voice-adaptive.js?v=1"></script>
   <script src="/static/voice-adaptive-ui.js?v=2"></script>
   <script src="/static/voice-attention.js?v=2"></script>
+  <script src="/static/audio-devices.js?v=1"></script>
   <script src="/static/mic-test.js?v=1" defer></script>
   <script src="/static/voice-chunker.js?v=2"></script>
   <script src="/static/voice-lang.js?v=1"></script>

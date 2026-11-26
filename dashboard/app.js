@@ -768,7 +768,9 @@ async function batNgheAmLuong() {
   let dung = false;
   _levelWake = { stop: () => { dung = true; } };   // giữ chỗ: vòng 500 ms không mở lần hai
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    const micOptions = { echoCancellation: true, noiseSuppression: true };   // the mic picked in Settings > Voice
+    const stream = await (window.JavisAudioDevices ? window.JavisAudioDevices.getMic(micOptions)
+      : navigator.mediaDevices.getUserMedia({ audio: micOptions }));
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const an = ctx.createAnalyser();
     an.fftSize = 1024;

@@ -212,7 +212,7 @@ check("the bot card shows it next to the subscribe note",
 check("the tester writing again keeps the warning", o["after_tester"] == o["warning"], o["after_tester"])
 check("a customer's message clears it, the subscribe note stays", o["after_customer"] == ("", "SUB"),
       o["after_customer"])
-check("no em dash or en dash in the warning", not any(ch in o["warning"] for ch in "—–"), o["warning"])
+check("no em dash or en dash in the warning", not any(ch in o["warning"] for ch in "\u2014\u2013"), o["warning"])
 
 
 async def restart_case():

@@ -8346,6 +8346,8 @@
     const gen = _renderGen;
     const $ = (id) => document.getElementById(id);
     if (!$("voiceCard")) return;
+    // Mic and speaker lists (audio-devices.js): names appear once the mic is allowed, so read them again here.
+    try { if (window.JavisAudioDevices) window.JavisAudioDevices.refresh(); } catch (e) {}
     let o = null;
     try { o = await (await fetch("/voice/options?brains=0", { cache: "no-store" })).json(); } catch (e) { o = null; }
     if (gen !== _renderGen) return;
