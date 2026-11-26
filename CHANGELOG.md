@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.643.0] - 2026-11-26
+### Thêm mới
+- **Chọn mic và loa cho cuộc gọi.** Trong Cài đặt, mục Giọng nói, chọn mic và loa ngay cạnh nút Thử mic, Thử loa. Rút thiết bị đã chọn ra thì Javis tự dùng cái mặc định của máy. iPhone và Safari tự chọn loa nên chỉ có ô chọn mic.
+### Cải thiện
+- **Messenger báo khi tin của khách không về.** Page nhắn cho nhiều người mà Javis không nhận được tin nào của họ thì thẻ bot hiện cảnh báo: có thể Meta chỉ chuyển tin của người có vai trò trong app, cần xin quyền nâng cao cho pages_messaging. Cảnh báo tự tắt khi tin của một khách thường về tới.
+
 ## [0.642.5] - 2026-11-26
 ### Sửa lỗi
 - **Bot nhớ đủ cả cuộc chat.** Tin nhân viên nhắn từ app Zalo OA, hộp thư Fanpage hay Hộp thư của Javis giờ bot đều đọc được, kể cả cuộc chat do nhân viên mở lời trước. Trước đây bot trả lời như chưa biết gì.

@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.643.0] - 2026-11-26
+### Added
+- **Pick the mic and speaker for calls.** In Settings, Voice, pick the mic and speaker right beside Test mic and Test speaker. If the picked device is unplugged, Javis falls back to the system default. iPhone and Safari choose the speaker themselves, so only the mic list shows there.
+### Improved
+- **Messenger tells you when customers' messages do not arrive.** When the Page writes to several people and none of their messages reach Javis, the bot card shows a warning: Meta may only be delivering messages from people with a role on the app, so request Advanced Access for pages_messaging. It clears itself once an ordinary customer's message arrives.
+
 ## [0.642.5] - 2026-11-26
 ### Fixed
 - **Bots remember the whole chat.** What staff write from the Zalo OA app, the Page inbox or the Javis inbox now reaches the bot, even in a chat the staff opened. Before, the bot answered as if it knew nothing.
