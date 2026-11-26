@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.644.0] - 2026-11-26
+### Thêm mới
+- **Bot hỏi người phụ trách rồi báo lại khách.** Khách hỏi điều chỉ người thật biết (giá, còn hàng không, lịch trống, ngày giao), bot nhắn câu hỏi kèm một mã ngắn cho người phụ trách và báo khách là đang kiểm tra.
+- **Người phụ trách trả lời là khách nhận được ngay.** Trả lời vào tin của bot, hoặc nhắn kèm mã, bot tự báo lại khách đúng cuộc chat bằng giọng của bot và ghi vào Hộp thư. Câu hỏi 24 giờ chưa ai trả lời thì hết hạn.
+- **Chọn người phụ trách ở form bot.** Một ô mới, chọn từ các cuộc chat Zalo cá nhân hoặc Telegram mà bot đang trực. Bot cần ở mức Toàn quyền; chưa chọn ai thì bot chạy y như cũ.
+
 ## [0.643.0] - 2026-11-26
 ### Thêm mới
 - **Chọn mic và loa cho cuộc gọi.** Trong Cài đặt, mục Giọng nói, chọn mic và loa ngay cạnh nút Thử mic, Thử loa. Rút thiết bị đã chọn ra thì Javis tự dùng cái mặc định của máy. iPhone và Safari tự chọn loa nên chỉ có ô chọn mic.

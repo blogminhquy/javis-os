@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.644.0] - 2026-11-26
+### Added
+- **A bot asks the staff contact, then tells the customer.** When a customer asks something only a person knows (a price, stock, a free slot, a delivery date), the bot sends the question with a short code to the staff contact and tells the customer it is checking.
+- **The staff answers, the customer hears back.** A reply to the bot's message, or a message with the code, is passed on by the bot to the right chat in its own voice and written to the inbox. A question unanswered for 24 hours expires.
+- **Pick the staff contact in the bot form.** One new field, picked from the personal Zalo or Telegram chats the bot serves. The bot needs Full power; with nobody picked the bot works exactly as before.
+
 ## [0.643.0] - 2026-11-26
 ### Added
 - **Pick the mic and speaker for calls.** In Settings, Voice, pick the mic and speaker right beside Test mic and Test speaker. If the picked device is unplugged, Javis falls back to the system default. iPhone and Safari choose the speaker themselves, so only the mic list shows there.
