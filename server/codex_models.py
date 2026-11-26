@@ -14,6 +14,7 @@ import threading
 import time
 from typing import Any, Optional
 
+import claude_cli
 from claude_cli import codex_env, find_codex_cli
 
 
@@ -31,10 +32,55 @@ def _no_window() -> int:
 # lượt chat chạy bằng mặc định của Codex, đúng như trước, chứ không hỏng.
 _EFFORTS: dict = {}
 
+# Codex writes the same ladders to `models_cache.json` in its own home each time it fetches its model list. Read as a
+# fallback so the ladder is known right after Javis restarts, before anything asks `model/list` again (ported from
+# PR #1847): until then a bot set to "xhigh" ran at Codex's default. Parsed again only when the file changes.
+_CACHE_FILE = "models_cache.json"
+_CACHE_LOCK = threading.Lock()
+_cache: dict = {"key": None, "efforts": {}}
+
+
+def _cached_efforts() -> dict:
+    """{model slug: [effort, ...]} from Codex's own models cache, {} when it is missing or unreadable. Never raises."""
+    try:
+        path = claude_cli._codex_home() / _CACHE_FILE
+        st = path.stat()
+        key = (str(path), st.st_mtime_ns, st.st_size)
+    except Exception:  # noqa: BLE001 - no cache yet (Codex never ran here), or no home folder
+        return {}
+    with _CACHE_LOCK:
+        if _cache["key"] == key:
+            return _cache["efforts"]
+    efforts: dict = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        for item in (data.get("models") if isinstance(data, dict) else None) or []:
+            if not isinstance(item, dict):
+                continue
+            slug = str(item.get("slug") or "").strip()
+            levels = []
+            for x in item.get("supported_reasoning_levels") or []:
+                level = str((x.get("effort") if isinstance(x, dict) else x) or "").strip()
+                if level and level not in levels:
+                    levels.append(level)
+            if slug and levels:
+                efforts[slug] = levels
+    except Exception:  # noqa: BLE001 - a half-written or reshaped file: no ladder from it, as before the cache
+        efforts = {}
+    with _CACHE_LOCK:
+        _cache.update(key=key, efforts=efforts)
+    return efforts
+
 
 def efforts_for(model: str) -> list:
-    """Các mức effort model này nhận, theo lời của chính Codex. [] = chưa biết."""
-    return list(_EFFORTS.get(str(model or "").strip()) or [])
+    """Các mức effort model này nhận, theo lời của chính Codex. [] = chưa biết.
+
+    The live `model/list` answer first; Codex's own models cache when that has not run since the restart."""
+    model = str(model or "").strip()
+    if not model:
+        return []
+    return list(_EFFORTS.get(model) or _cached_efforts().get(model) or [])
 
 
 _TIERS: dict = {}
