@@ -197,6 +197,7 @@ import zalo_oa_bot      # Zalo OA transport + webhook router (0.412.0)
 import zalo_oa_oauth    # Grant access with Zalo: OAuth v4 + PKCE for the Zalo OA form
 import wechat_bot       # WeChat Official Account transport + webhook router
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
+import delivery_ledger   # issues #1846, #1851: what already reached a chat is not sent there again
 import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
@@ -27528,6 +27529,14 @@ def _tg_conv_sid(store, sess, brain, engine_label, model, channel="telegram"):
 _TG_MOI_LAI_MAX = 20
 
 
+def _is_turn_question(stored, text) -> bool:
+    """Whether `stored`, the last user message of the session store, is the question this turn is answering. The turn
+    may send the engine more than the words it stored: a full-access bot's turn carries the photo lines and what was
+    said in the chat since its last reply (`chatbot_runtime.full_turn_catch_up`) around them."""
+    stored, text = str(stored or ""), str(text or "")
+    return stored == text or bool(stored.strip()) and stored in text
+
+
 def _tg_lich_su_kho(store, conv_sid, text):
     """Transcript đã lưu của phiên này, để MỒI LẠI ngữ cảnh sau restart.
 
@@ -27553,7 +27562,7 @@ def _tg_lich_su_kho(store, conv_sid, text):
     msgs = [{"role": m["role"], "content": m["content"]} for m in raw
             if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str)
             and m["content"].strip()]
-    if msgs and msgs[-1]["role"] == "user" and msgs[-1]["content"] == text:
+    if msgs and msgs[-1]["role"] == "user" and _is_turn_question(msgs[-1]["content"], text):
         msgs.pop()
     tom_tat = ""
     try:
@@ -27653,6 +27662,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     # giấu lệnh vào đó, model đọc được còn chủ thì không thấy. Gỡ TRƯỚC khi ghi kho vì vòng tự học đọc lại kho (0.83.2).
     if isinstance(text, str):
         text = chatbot_reply_policy.strip_hidden(text)
+    _turn_started = time.time()   # what tools deliver to this chat from now on is not sent again (delivery_ledger)
     # Who is talking, for tool hooks. Taken BEFORE `channel` is renamed to bot:<slug> below: a
     # hook needs the real channel ("zalo_personal"...), and `user_id` is the sender even in a
     # group. A dedicated bot is never the owner, whatever its permission level; every other
@@ -27864,6 +27874,11 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             runtime_trace,
             "COMPLETED_WITH_ERROR" if runtime_trace and runtime_trace.had_error else "COMPLETED",
         )
+        if not bot and isinstance(out, dict):
+            # Issues #1846, #1851: what a tool already delivered to this very chat during the turn (a photo sent with a
+            # Zalo tool, the answer sent with a send tool) is not sent again with the reply. Done after the turn is
+            # stored, which keeps the answer. A dedicated bot does the same at its own end of turn (chatbot_runtime).
+            out = _without_delivered(out, chat_id, _turn_started)
         return out
     except asyncio.CancelledError:
         _CONTEXT_RUNTIME.finish(runtime_trace, "CANCELLED", "cancelled")
@@ -27875,6 +27890,21 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     finally:
         turn_context.reset(_luot_token)
         context_runtime.reset_trace(_trace_token)
+
+
+def _without_delivered(out: dict, chat_id, since: float) -> dict:
+    """The reply `out` minus what already reached `chat_id` since `since` (`delivery_ledger`): those files go, and a
+    text identical to one already sent goes too. Nothing left to send = a quiet turn (`im_lang`), so the transport
+    sends neither an empty message nor a placeholder."""
+    said, files = delivery_ledger.trim_reply(chat_id, since, out.get("text") or "", out.get("files") or [])
+    if not said and len(files) == len(out.get("files") or []):
+        return out
+    out = dict(out, files=files)
+    if said:
+        out["text"] = ""
+        if not files:
+            out["im_lang"] = True
+    return out
 
 
 def _manual_session_probe(key: str):
@@ -27896,6 +27926,10 @@ def _manual_session_undo(key: str, keep: int) -> None:
         # (`chatbot_runtime.private_history`). Back to "not loaded": the next real turn reads it again, instead of
         # starting from the empty list this cut would leave.
         s["bot"] = None
+    # The draft turn brought the history up to date with the inbox and moved the marks of what it had read (issue
+    # #1839); the cut above takes that back out of RAM. Without the marks, the next real turn reads the inbox again.
+    s.pop(chatbot_runtime.HISTORY_MARK, None)
+    s.pop(chatbot_runtime.FULL_MARK, None)
     _tg_ngat_mach(s)
 
 
@@ -28211,6 +28245,8 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
 
     if not out:
         lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
+        # A private chat: the question waits unanswered in the inbox; the next turn reads the chat back from there.
+        chatbot_runtime.forget_private_history(sess)
         if prov == "openai-oauth" and not (openai_oauth.valid_creds() or {}).get("access_token"):
             # Codex không chạy không-tool được nên không có đường dự phòng. Nói đúng việc cần
             # làm thay vì để chủ đọc một mã lỗi HTTP.
@@ -28427,6 +28463,8 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
 
     if not out:
         lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
+        # A private chat: the question waits unanswered in the inbox; the next turn reads the chat back from there.
+        chatbot_runtime.forget_private_history(sess)
         if prov == "openai-oauth" and not (openai_oauth.valid_creds() or {}).get("access_token"):
             return ("⚠ Chưa đăng nhập được ChatGPT nên bot không gọi được model. "
                     "Vào trang Models kết nối lại tài khoản ChatGPT rồi nhắn lại.")
@@ -28556,11 +28594,13 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # gốc, MCP hub, kết nối của tài khoản Claude/ChatGPT, kỹ năng), chỉ khác hai chỗ: prompt mang
         # VAI của Agent, và brain là brain của bot. Đường tắt, nguồn chọn lọc và gateway huỷ lịch của
         # chủ bị bỏ qua vì chúng thay prompt bằng giọng Javis.
-        if _muc != "full" and sess.get("bot") is None:
-            # First turn of this chat since the server started: the history lived in RAM only, so read a private
-            # chat back from the inbox instead of meeting a returning customer as a stranger. Full-access bots
-            # take the owner's engine branches below, which rebuild their own history from the session store.
-            sess["bot"] = chatbot_runtime.private_history(bot, meta, BOT_HISTORY_MAX_MESSAGES)
+        # Issue #1839: the inbox is what the bot remembers of a private chat, on every turn, not only the first one after a
+        # restart, so what the staff, the owner or the Page wrote there reaches the bot too. Full-access bots take the
+        # owner's engine branches below, which keep their own thread: what that thread missed rides in front of the question.
+        if _muc == "full":
+            text = chatbot_runtime.full_turn_catch_up(sess, bot, meta, text, BOT_HISTORY_MAX_MESSAGES)
+        else:
+            text = chatbot_runtime.sync_private_history(sess, bot, meta, text, BOT_HISTORY_MAX_MESSAGES)
         if _muc == "full":
             _bot_full = True
             _sys_bot_full = _sys_bot
@@ -28916,7 +28956,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                 _raw = [{"role": m["role"], "content": m["content"]}
                         for m in store.get_messages(conv_sid)
                         if m.get("role") in ("user", "assistant") and m.get("content")]
-                if _raw and _raw[-1]["role"] == "user" and _raw[-1]["content"] == text:
+                if _raw and _raw[-1]["role"] == "user" and _is_turn_question(_raw[-1]["content"], text):
                     _raw.pop()
             except Exception:
                 _raw = []
@@ -32301,6 +32341,8 @@ async def telegram_send_file(payload: dict = Body(...)):
                 sess["sent"].add(os.path.normcase(os.path.normpath(os.path.abspath(path))))
         except Exception:
             pass
+        # Issues #1846, #1851: the same record every send path keeps, checked by the end of the turn on any channel.
+        delivery_ledger.note(target or ((_TG_BOT.chat_ids or [""])[0]), files=[path])
     return {"ok": ok, "error": err}
 
 

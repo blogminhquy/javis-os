@@ -43,6 +43,7 @@ import once_ledger
 import turn_ledger
 import scout
 import code_mode
+import delivery_ledger   # issues #1846, #1851: what a tool delivered is not sent again
 import secret_guard
 import skill_router
 import skill_usage
@@ -556,6 +557,8 @@ def _guard(ent, fn, mode):
             # 0.238.0: a Kanban job that runs again must not send, post or order twice (once_ledger.py).
             # Outside a background job this calls straight through.
             result = await once_ledger.run(fn, args, _send)
+            # Issues #1846, #1851: what this call delivered to a chat is not sent there again by the end of the turn.
+            delivery_ledger.note_call(args, result)
         _audit_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
                        "connector": conn.get("connector_id"), "label": conn.get("label"),
                        "tool": tool, "mode": mode, "cls": cls,

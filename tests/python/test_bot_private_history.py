@@ -84,7 +84,11 @@ record("c2", "customer", "ok", mid="m2")
 h2 = chatbot_runtime.private_history(BOT, meta("c2", "m2"), 100)
 check("history opens with a customer message", h2 and h2[0]["role"] == "user", h2)
 check("two customer messages in a row become one turn",
-      len(h2) == 2 and h2[0]["content"] == "Cho hỏi\ngiá áo khoác", h2)
+      len(h2) == 2 and h2[0]["content"].endswith("Cho hỏi\ngiá áo khoác"), h2)
+# Issue #1839: what the business wrote before the customer's first message is kept as a note on that message, not
+# dropped (a chat the staff or the Page opened used to read as empty).
+check("the bot's opening message is kept as a note on the first customer message",
+      "Chào anh, shop có thể giúp gì ạ?" in h2[0]["content"], h2)
 
 # The limit counts stored messages, newest kept.
 for i in range(30):

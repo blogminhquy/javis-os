@@ -640,6 +640,47 @@ def tin_gan_day(channel: str, account_id: str, external_chat_id: str, limit: int
         return []
 
 
+def history_window(channel: str, account_id: str, external_chat_id: str, limit: int = 30) -> tuple:
+    """`(rows, newest_id)`: the `limit` newest messages of one chat, oldest first, as `tin_gan_day` reads them, and the
+    highest message row id the chat holds, read under one lock (issue #1839). A bot rebuilds its history of a private
+    chat from the rows and remembers `newest_id`, so its next turn asks only for what was written after it
+    (`messages_after`). `([], 0)` when the chat has no conversation or on a read error. Never raises."""
+    n = max(1, min(int(limit or 30), MAX_TIN_MOT_LAN))
+    try:
+        with _lock:
+            db = _conn()
+            key = _tai_khoan_id(channel, account_id)
+            rows = db.execute(
+                "SELECT m.* FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? ORDER BY COALESCE(m.seq, m.id) DESC LIMIT ?",
+                (key, str(external_chat_id), n)).fetchall()
+            top = db.execute(
+                "SELECT MAX(m.id) FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=?",
+                (key, str(external_chat_id))).fetchone()
+        return [dict(r) for r in reversed(rows)], (int(top[0] or 0) if top else 0)
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] history window read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return [], 0
+
+
+def messages_after(channel: str, account_id: str, external_chat_id: str, after_id: int, limit: int = 100) -> List[dict]:
+    """Messages of one chat written after message row `after_id`, in the order they were written (row id), at most
+    `limit` (the oldest ones first). A message imported late from the history keeps its `seq` (see ORDER_KEY), so the
+    caller can tell it belongs further up. `[]` on a read error. Never raises."""
+    n = max(1, min(int(limit or 100), MAX_TIN_MOT_LAN))
+    try:
+        with _lock:
+            rows = _conn().execute(
+                "SELECT m.* FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id), int(after_id or 0), n)).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] messages after read failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return []
+
+
 def tin_theo_id(channel: str, account_id: str, external_chat_id: str, external_message_id: str) -> dict:
     """ONE stored message of a chat by the channel's own message id, `metadata` already parsed; {} if absent.
 
