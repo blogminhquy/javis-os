@@ -8,6 +8,18 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.642.2] - 2026-11-26
+### Fixed
+- **Each chat window keeps its own model and reasoning level.** Changing one no longer moves other windows, the Models page or the assistant's file. A chat with an assistant runs at that window's own level, else the assistant's setting.
+- **Picking a model in the composer no longer reorders the usage order.** The picked card used to jump to the top as the main model. The order now changes only on the Models page, and work only moves down to a fallback card when the one above is out of quota.
+- **Background work follows the usage order.** It starts on the background model as set; when that runs out it goes to the main model, then fallback 1, 2... The main model used to come last.
+- **When a card is out of quota, the card standing in runs at the level set for it** on the Models page, in chats, assistant chats, teams and chatbots.
+- **Assistants working on their own keep their reasoning level.** Team turns on ChatGPT, Grok Build and Antigravity ignored it, workflow steps on API models ran with reasoning off, and chatbots followed the model card's level instead of the assistant's.
+- **A Kanban job given to an assistant runs on that assistant's model and level**, no longer on the background model at "low".
+- **Older chats with an assistant follow the assistant's current model.** Each chat used to keep the model copied when it opened, so changing the assistant's model changed nothing. A model picked by hand in a window still stays.
+- **A ChatGPT turn no longer ends as an empty bubble with no reason.** When Codex stops midway or reports an error and then goes quiet, Javis says so; an empty answer is asked once more, then the owner is told to try another model.
+- **Messenger docs:** describe the sign of a Meta app without Advanced Access (only Staff messages, customer names as numbers) and add an App Review template for `pages_messaging`.
+
 ## [0.642.1] - 2026-11-26
 ### Fixed
 - **Zalo OA chats in the Inbox show the customer's name, not a bare id.** One refused name lookup used to leave the name empty until a restart. Javis now retries after 10 minutes, reads the name from the OA's message history when Zalo refuses the profile, and names older chats when the bot starts. A name the owner set is kept.
