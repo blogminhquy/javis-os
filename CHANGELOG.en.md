@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.642.3] - 2026-11-26
+### Fixed
+- **Javis on Windows no longer goes offline until restarted.** A connection dropped at the wrong moment, common right after the PC wakes up, used to make the server stop taking new connections while it kept running.
+- **Fewer freezes with Grok.** Checking the Grok version no longer stalls the whole app for a few seconds.
+- **The last 5 log files are kept** across restarts on Windows, so there is a trail when something goes wrong.
+
 ## [0.642.2] - 2026-11-26
 ### Fixed
 - **Each chat window keeps its own model and reasoning level.** Changing one no longer moves other windows, the Models page or the assistant's file. A chat with an assistant runs at that window's own level, else the assistant's setting.
