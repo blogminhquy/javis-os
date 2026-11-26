@@ -424,6 +424,9 @@ def cho_giao_dien() -> List[dict]:
 #                            "network": "<item key>"}}],
 #    "webhook_params": {"<query param>": "<field key>"}}
 #
+# `webhook_params` goes into a GET query string (logs, browser history), so it may only name a NON-secret field: a
+# password field, a generated secret, or a key that reads like a credential (`_SECRET_KEY`) is dropped.
+#
 # A select with `options.from` POSTs those fields as a form body (a typed key never lands in a URL); without it,
 # a GET. Option URLs must stay under /ext/ (plugin routes), so a declared form can never call a core route.
 # `options.network` names the item key holding the item's social network: an item on a network a core channel already
@@ -431,6 +434,7 @@ def cho_giao_dien() -> List[dict]:
 _FORM_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 _FORM_URL = re.compile(r"^/ext/[a-z0-9][a-z0-9._-]{0,63}(/[A-Za-z0-9._-]+){1,4}$")
 _FORM_TYPES = ("text", "password", "select")
+_SECRET_KEY = re.compile(r"(secret|password|passwd|token|api_?key|private|credential)")
 
 
 def _form_text(v, limit: int = 300) -> str:
@@ -485,10 +489,12 @@ def _token_form(m) -> dict:
             fields.append(o)
         if not fields:
             return {}
-        keys = {f["key"] for f in fields}
+        # Only fields safe to put in a URL: never a password, a generated secret or a credential-looking key.
+        public = {f["key"] for f in fields
+                  if f["type"] != "password" and not f.get("generate") and not _SECRET_KEY.search(f["key"])}
         wp = tf.get("webhook_params") if isinstance(tf.get("webhook_params"), dict) else {}
         return {"fields": fields,
-                "webhook_params": {k: v for k, v in wp.items() if _form_key(k) and v in keys}}
+                "webhook_params": {k: v for k, v in wp.items() if _form_key(k) and v in public}}
     except Exception as e:  # noqa: BLE001 - a broken form must not take the channel list down
         print(f"[channels] token form of {getattr(m, '__name__', m)}: {type(e).__name__}: {e}", file=sys.stderr)
         return {}
