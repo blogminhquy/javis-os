@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.642.5] - 2026-11-26
+### Sửa lỗi
+- **Bot nhớ đủ cả cuộc chat.** Tin nhân viên nhắn từ app Zalo OA, hộp thư Fanpage hay Hộp thư của Javis giờ bot đều đọc được, kể cả cuộc chat do nhân viên mở lời trước. Trước đây bot trả lời như chưa biết gì.
+- **Không còn gửi trùng.** Ảnh, file hay câu trả lời đã gửi qua công cụ trong lượt thì cuối lượt không gửi lại lần nữa, ở mọi kênh.
+
 ## [0.642.4] - 2026-11-26
 ### Sửa lỗi
 - **Thanh nút trang Cộng sự trên điện thoại gọn còn một dòng.** Bỏ nút "Hội thoại mới" trùng với nút + ở đầu trang, nút "Tài liệu & Đã học" chỉ còn cái ghim, nút thu gọn bên phải không rớt xuống dòng riêng nữa.

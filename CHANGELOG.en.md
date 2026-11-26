@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.642.5] - 2026-11-26
+### Fixed
+- **Bots remember the whole chat.** What staff write from the Zalo OA app, the Page inbox or the Javis inbox now reaches the bot, even in a chat the staff opened. Before, the bot answered as if it knew nothing.
+- **Nothing is sent twice.** A photo, file or answer a tool already sent during the turn is not sent again at the end of it, on every channel.
+
 ## [0.642.4] - 2026-11-26
 ### Fixed
 - **The Assistants page toolbar on a phone is one row.** The "New conversation" button that duplicated the header + is gone, "Documents & Learned" is just the paperclip, and the right panel toggle no longer drops to its own line.
