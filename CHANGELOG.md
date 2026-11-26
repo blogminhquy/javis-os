@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.642.3] - 2026-11-26
+### Sửa lỗi
+- **Javis trên Windows không còn tự "mất kết nối" phải khởi động lại.** Trước đây một kết nối bị rớt giữa chừng, hay gặp lúc máy vừa thức dậy, làm máy chủ ngừng nhận kết nối mới dù vẫn đang chạy.
+- **Bớt khựng khi dùng Grok.** Bước hỏi phiên bản Grok không còn làm cả ứng dụng đứng hình vài giây.
+- **Giữ lại 5 file log gần nhất** khi khởi động lại trên Windows, để còn dấu vết khi cần tìm lỗi.
+
 ## [0.642.2] - 2026-11-26
 ### Sửa lỗi
 - **Mỗi cửa sổ chat giữ model và mức suy nghĩ riêng.** Đổi ở cửa sổ này không còn kéo cửa sổ khác, trang Models hay file của trợ lý đổi theo. Chat riêng với trợ lý chạy theo mức của chính cửa sổ đó, chưa chọn thì theo cài đặt của trợ lý.
