@@ -288,6 +288,11 @@ class TasksDeps:
     # 0.142.0: việc giao cho một trợ lý (nút Giao việc ở tab Công việc) chạy với vai của trợ lý đó. (root, slug) -> đoạn
     # lời nhắc vai trò, rỗng khi không có. Engine, quyền và trần của Kanban giữ nguyên.
     agent_persona: Optional[Callable[[str, str, str], str]] = None
+    # 25/11/2026: {provider, model, reasoning} a job assigned to an assistant runs on (the assistant's own model and
+    # level), or None to keep the background model. `fn(root, slug, key)`; main._agent_job_spec.
+    agent_job_spec: Optional[Callable[..., Optional[dict]]] = None
+    # Background router with an explicit first step: `fn(cli, mode, tag, spec)`; main._aux_swap_spec.
+    aux_swap_spec: Optional[Callable[..., Any]] = None
     # 0.411.0: (root) -> [{slug, name, role, key}] the brain's assistants, so the specifier can hand a job to the one
     # whose speciality it matches. None or [] = no routing, the job runs as a plain Kanban job.
     agent_roster: Optional[Callable[[str], list]] = None
@@ -857,6 +862,34 @@ class TasksFeature:
     # ------------------------------------------------------------------
     # AI specification and execution lanes
     # ------------------------------------------------------------------
+    @staticmethod
+    def _assigned_agent(task: dict) -> tuple:
+        """(slug, key or None) of the assistant a job is given to, ("", None) for none. Owner's pick (`agent:` key)
+        first, then the specifier's routing (0.411.0)."""
+        key = str(task.get("idempotency_key") or "")
+        if key.startswith("agent:"):
+            parts = key[len("agent:"):].split(":")
+            if len(parts) >= 3 and parts[0] and parts[1]:
+                return parts[1], parts[0]
+            return "", None
+        picked = (task.get("metadata") or {}).get("agent")
+        if isinstance(picked, dict) and picked.get("slug"):
+            return str(picked["slug"]), (picked.get("key") or None)
+        return "", None
+
+    def _agent_spec(self, task: dict) -> Optional[dict]:
+        """The assigned assistant's own model and level for this job's work, None to run as a plain Kanban job."""
+        if not self.deps.agent_job_spec or not self.deps.aux_swap_spec:
+            return None
+        slug, key = self._assigned_agent(task)
+        if not slug:
+            return None
+        try:
+            spec = self.deps.agent_job_spec(str(task["brain_root"]), slug, key)
+        except Exception:
+            return None
+        return spec if isinstance(spec, dict) and spec.get("provider") else None
+
     def _persona(self, task: dict, root: str) -> str:
         """Vai của trợ lý được giao việc (khoá `agent:<mã>:<slug>:...`). Lỗi hay không có thì rỗng: việc vẫn chạy.
 
@@ -912,7 +945,18 @@ class TasksFeature:
             if mcp_file:
                 cli.mcp_config = mcp_file
                 cli.mcp_strict = True
-        cli = aux_engine.apply(self.deps, cli, mode=mode, tag=cli.tag)
+        # 25/11/2026 (owner: an assistant working on its own uses ITS model and level): the work step of a job given to
+        # an assistant runs on that assistant's model at its level, then the usage order's fallbacks at their own
+        # settings. The specifier and the acceptance check stay on the background model.
+        spec = self._agent_spec(task) if tag_suffix == "execute" else None
+        if spec:
+            cli = self.deps.aux_swap_spec(cli, mode, cli.tag, spec)
+            try:
+                cli.javis_agent_spec = spec
+            except Exception:
+                pass
+        else:
+            cli = aux_engine.apply(self.deps, cli, mode=mode, tag=cli.tag)
         try:
             # Trần chung cho fork nền (mặc định không giới hạn từ 2026-11-07, env JAVIS_BG_MAX_WALL_S) - việc Kanban
             # thật có thể chạy 30-60 phút, 600s cũ chặt ngang giữa chừng.
@@ -1350,7 +1394,8 @@ plainly that acting on its own is allowed; otherwise auto, so the kernel stops i
             )
 
         cli = self._base_cli(task, tools, mode, "execute")
-        if (task.get("metadata") or {}).get("effort") == "light":
+        if (task.get("metadata") or {}).get("effort") == "light" and not getattr(cli, "javis_agent_spec", None):
+            # An assistant's job keeps the assistant's own level (25/11/2026); only a plain job is made lighter.
             self._lighten(cli)
         # `disallowed` rỗng ở mức full: gán một danh sách rỗng vẫn khác gán None ở chỗ khác
         # trong mã, nên đặt None cho rõ ý "không chặn gì". Đặt `["Task"]` như ba mức dưới là

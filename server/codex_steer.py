@@ -614,6 +614,11 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     rc = proc.poll()
                     if rc is not None and rc >= 0 and rc != 0:
                         yield {"type": "error", "content": cc.codex_error_text(rc, rpc.stderr[-20:])}
+                    elif started:
+                        # 25/11/2026: gone before the turn ended, exit 0 or unknown: never an empty bubble.
+                        yield {"type": "error", "content": "Codex: " + (error_msg or localefmt.chu(
+                            "dừng giữa chừng, chưa trả lời và không báo lỗi",
+                            "stopped before answering and reported no error"))}
                 break
             last = time.monotonic()
             if not sandbox_broken and cc._SANDBOX_HONG.search(line):
@@ -707,7 +712,12 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                 status = str(turn.get("status") or "")
                 done = True
                 settle_until = time.monotonic() + STEER_SETTLE_S
-                if status == "completed":
+                if status == "completed" and not messages and error_msg:
+                    # 25/11/2026: the turn "completed" with no answer after Codex reported an error (a model the plan
+                    # does not carry, a refused request). The error is the outcome, not an empty answer.
+                    yield {"type": "error", "content": "Codex: " + error_msg,
+                           "resume_failed": resume_requested and cc._looks_like_codex_resume_error(error_msg)}
+                elif status == "completed":
                     final_text = cc.codex_answer_text(messages)
                     if sandbox_broken:
                         final_text = ((final_text + "\n\n" if final_text else "")

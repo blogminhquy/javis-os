@@ -2613,6 +2613,7 @@ def _routing_order(mcfg, connected=None) -> list:
 
 # Background jobs (aux_engine.swap) count new cards the same way; aux_engine cannot import main.
 aux_engine.CONNECTED_IDS = lambda cfg: _routing_connected_ids(cfg)
+aux_engine.LINK_EFFORT = lambda eng, prov, level: _link_effort(eng, prov, level)
 
 
 def _routing_telegram_chat_keys(cfg) -> list:
@@ -3867,6 +3868,33 @@ def _chat_reasoning(mcfg, prov) -> str:
     return r if r in engine.REASONING_LEVELS else "off"
 
 
+def _session_reasoning(mcfg, row, prov) -> str:
+    """Effort of one dashboard chat turn running on `prov` (owner, 25/11/2026). In order:
+
+    1. `prov` is not the card the chat chose (that card is out of quota or cannot run): the effort set on the card
+       that really answers, its Models page setting, whatever the chat or its assistant picked.
+    2. The chat's own effort (`pinned_reasoning`, set by the effort chip of that chat window). One window never
+       changes another, and an assistant's chat never rewrites the assistant's own setting.
+    3. An assistant's chat: the assistant's own level (default medium). A Javis Core chat: Javis Core's level.
+    4. Otherwise the effort of the card the turn runs on."""
+    row = row or {}
+    prov = str(prov or "")
+    if prov and prov != _chat_selected(mcfg, row)["provider"]:
+        return _chat_reasoning(mcfg or {}, prov)
+    own = str(row.get("pinned_reasoning") or "").strip()
+    if own in engine.REASONING_LEVELS:
+        return own
+    persona = workflow_chat.persona_cua_phien(row) if row else None
+    if persona and persona[0] == "agent":
+        try:
+            return _agent_reasoning(_read_md(_agents_dir(row.get("brain") or "brain") / f"{persona[1]}.md")[0])
+        except Exception:  # noqa: BLE001 - an unreadable file means the assistant's default level
+            return AGENT_REASONING_DEFAULT
+    if javis_core.is_core_channel(row.get("channel")):
+        return _core_reasoning(mcfg or {})
+    return _chat_reasoning(mcfg or {}, prov) if prov else "off"
+
+
 # Provider mà AGENT chạy THẬT được. Không phải mọi provider ở trang Models: aux_engine chỉ
 # dựng nổi engine cho ngần này (xem _build_codex/_build_gemini/_build_api). Bày thêm
 # antigravity-cli hay ollama vào ô chọn model của agent chỉ là hứa suông - agent sẽ lặng lẽ
@@ -4233,6 +4261,21 @@ def _pin_limited_until(provider: str, now: float = None) -> float:
     return until
 
 
+def _agent_chat_row(row):
+    """An assistant's chat whose model the owner never picked in that window follows the assistant's CURRENT model
+    (25/11/2026: "đổi model ở cài đặt cộng sự không cập nhật các cuộc chat đã mở"). Its stored pin is only a copy made
+    when the chat opened, or a stamp, so it is replaced here by the assistant's model, or cleared when the assistant is
+    on "Default" (the chat then follows MAIN). A model the owner picked in the window, and every other chat, stay."""
+    row = row or {}
+    if row.get("pinned_by_owner"):
+        return row
+    persona = workflow_chat.persona_cua_phien(row)
+    if not persona or persona[0] != "agent":
+        return row
+    g = _model_cua_agent(row.get("brain") or "brain", persona[1])
+    return {**row, "pinned_provider": (g or {}).get("provider") or "", "pinned_model": (g or {}).get("model") or ""}
+
+
 def _chat_provider_for_session(mcfg, row):
     """Provider cho MỘT phiên chat: phiên đã GHIM model riêng (user đổi model ngay trong
     phiên) thì theo ghim; chưa ghim thì rơi về _chat_provider (mặc định chung).
@@ -4247,6 +4290,8 @@ def _chat_provider_for_session(mcfg, row):
     if javis_core.is_core_channel((row or {}).get("channel")):
         _cp = _core_pin(mcfg)
         row = {"pinned_provider": _cp.get("provider") or "", "pinned_model": _cp.get("model") or ""}
+    else:
+        row = _agent_chat_row(row)
     pprov = ((row or {}).get("pinned_provider") or "").strip()
     if not pprov:
         return _chat_provider(mcfg)
@@ -4275,7 +4320,7 @@ def _chat_selected(mcfg, row) -> dict:
     """{'provider','model'} the owner CHOSE for one chat, before any fallback: the chat's own pin (Javis Core's pin in
     a Core chat), else MAIN. `_chat_provider_for_session` says where the turn really runs; the two differ while the
     chosen card is out of quota or cannot run (owner, 05/11/2026: the composer chip shows both)."""
-    row = row or {}
+    row = _agent_chat_row(row or {})
     if javis_core.is_core_channel(row.get("channel")):
         pin = _core_pin(mcfg)
     else:
@@ -4355,7 +4400,7 @@ def _route_view(mcfg, row, run=None, now: float = None) -> dict:
            "selected_name": _route_name(sel["provider"]), "fallback": prov != sel["provider"],
            # Effort of the card running (owner, 05/11/2026: the Effort chip follows a fallback card too). An assistant's
            # or Javis Core's chat thinks at its own level whatever the card; the composer shows that level there.
-           "reasoning": _chat_reasoning(mcfg or {}, prov) if prov else "off"}
+           "reasoning": _session_reasoning(mcfg or {}, row, prov) if prov else "off"}
     limited, signed_out = {}, []
     for p in _uniq_ids([sel["provider"], *model_routing.order(mcfg or {})]):
         if _signed_out_until(p, now):
@@ -6048,6 +6093,36 @@ def _cli_do_sau_khac(cli, mod, reasoning, message):
             return _nhac_suy_nghi(reasoning, message)
         return message
     return _nhac_suy_nghi(reasoning, message)
+
+
+def _link_effort(eng, prov, level) -> bool:
+    """Set the effort of one Codex / Grok Build / Antigravity engine built for background or team work (25/11/2026).
+    Same rules as a chat turn: Codex takes the level from its model's own ladder (`_codex_effort`), Grok Build and
+    Antigravity the highest flag their CLI declares at or below it, and an Antigravity model whose name carries its
+    level gets nothing. True when a level was set; the engine otherwise keeps its default."""
+    level = str(level or "")
+    if not level or level == "off":
+        return False
+    model = str(getattr(eng, "model", "") or "")
+    if prov == "openai-oauth":
+        muc = _codex_effort(model, level)
+        cfg = getattr(eng, "extra_config", None)
+        if not muc or cfg is None:
+            return False
+        cfg[:] = [x for x in cfg if not str(x).startswith("model_reasoning_effort=")]
+        cfg.append(f"model_reasoning_effort={muc}")
+        return True
+    mod = grok_cli if prov == "grok-cli" else antigravity_cli if prov == "antigravity-cli" else None
+    if mod is None or not hasattr(eng, "effort"):
+        return False
+    khoa = getattr(mod, "model_khoa_effort", None)
+    if khoa and khoa(model):
+        return False
+    co = _co_effort_lui(mod, level)
+    if not co:
+        return False
+    eng.effort = co[1]
+    return True
 
 
 def _cli_fast(cli):
@@ -14210,8 +14285,12 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             # (nhà đã chọn chết giữa chừng thì lùi về Claude/bộ não chính, không chết lặng).
             # Gọi SAU khi đã gắn javis_vault/system_prompt vì _build_* đọc lại từ engine này.
             try:
+                # 25/11/2026: the assistant's own effort goes with its model. Before, a spec without `reasoning` ran the
+                # assistant's first link at "off" whatever level it set (aux_engine.swap); the fallback links still
+                # take the effort set on their own card.
                 return aux_engine.swap(c, tag="workflow", codex_profile=_write_codex_profile,
-                                       spec={"provider": prov, "model": (model or "")})   # rotates accounts itself
+                                       spec={"provider": prov, "model": (model or ""),
+                                             "reasoning": reasoning if reasoning in engine.REASONING_LEVELS else "off"})
             except Exception as e:
                 print(f"[agent engine] {prov}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
         # Claude Code runs this step (the agent's own choice, a gated background run, or a card that could not be
@@ -21529,15 +21608,8 @@ async def _chat_socket(ws):
                                                **_route_view(mcfg, _row0, (prov, kind, api_key, api_model))}))
             except Exception as _e:  # noqa: BLE001 - a missing chip update never stops a turn
                 print(f"[route frame] {type(_e).__name__}: {_e}", file=sys.stderr)
-            reasoning = _chat_reasoning(mcfg, prov)   # 0.350.0: effort of the card this turn runs on
-            if _persona and _persona[0] == "agent":
-                # 0.193.0: an assistant's chat thinks at the assistant's own level (default medium).
-                try:
-                    reasoning = _agent_reasoning(_read_md(_agents_dir(brain) / f"{_persona[1]}.md")[0])
-                except Exception:  # noqa: BLE001 - an unreadable file keeps the main level
-                    pass
-            elif javis_core.is_core_channel((_row0 or {}).get("channel")):
-                reasoning = _core_reasoning(mcfg)       # 0.283.0: Javis Core's own level, not the main chat's
+            # 25/11/2026: the chat window's own effort, the assistant's, or the card's; a fallback card its own setting.
+            reasoning = _session_reasoning(mcfg, {**(_row0 or {}), "brain": (_row0 or {}).get("brain") or brain}, prov)
             if effort in engine.REASONING_LEVELS:
                 reasoning = effort                      # this turn only; nothing saved changes
             fast_mode.use(mcfg.get("fast") is True)
@@ -22078,6 +22150,8 @@ async def _chat_socket(ws):
                                      compaction.bootstrap_prompt(
                                          _codex_raw, _codex_current,
                                          summary=_row0.get("compact_summary") or ""))
+                    _codex_err = [False]   # an error was shown this turn (25/11/2026: no silent empty answer)
+
                     async def _consume_codex(prompt, suppress_resume_error=False):
                         # _ctx_in PHẢI khai nonlocal: nó bị `+=` ngay dưới, mà thiếu dòng này
                         # thì Python coi nó là biến CỤC BỘ của hàm con - đọc trước khi gán là
@@ -22151,6 +22225,7 @@ async def _chat_socket(ws):
                                     resume_failed = True
                                     if suppress_resume_error:
                                         continue
+                                _codex_err[0] = True
                                 await ws.send_text(_limit_frame(
                                     ev.get("content") or "", "codex", actual_model))
                         return resume_failed
@@ -22173,6 +22248,19 @@ async def _chat_socket(ws):
                             _codex_raw, _codex_current,
                             summary=_row0.get("compact_summary") or "")
                         await _consume_codex(_fallback)
+                    if not final_text and not _codex_err[0] and not ws.said.strip() and ccli.session_id:
+                        # 25/11/2026 (field report: GPT-6 astra after Claude ran out): Codex ended the turn cleanly
+                        # without one word. Ask once more in the same thread, as the Claude branch does.
+                        print(f"[codex] {conv_sid}: turn ended with no text, asking once more", file=sys.stderr)
+                        await _consume_codex(EMPTY_ANSWER_NUDGE)
+                    if not final_text and not _codex_err[0] and not ws.said.strip():
+                        await ws.send_text(json.dumps({"type": "error", "content": localefmt.chu(
+                            f"ChatGPT ({actual_model or 'Codex'}) kết thúc lượt mà không viết chữ nào, kể cả khi được "
+                            "hỏi lại. Thử gửi lại, hoặc chọn model ChatGPT khác ở thanh model: model này có thể chưa "
+                            "dùng được với gói đang đăng nhập.",
+                            f"ChatGPT ({actual_model or 'Codex'}) ended the turn without writing anything, even when "
+                            "asked again. Send again, or pick another ChatGPT model in the model bar: this one may not "
+                            "be available on the plan signed in.")}))
                     # Cùng lưới với nhánh Claude ở dưới: Codex in câu hết lượt như một
                     # agent_message thường chứ không phải turn.failed.
                     if final_text and _het_luot_ap_dao(final_text) \
@@ -24088,15 +24176,7 @@ def _gate_chat_model(sid: str) -> dict:
     row = get_store().get_session(sid) or {}
     mcfg = cfgmod.read_settings().get("model", {})
     v = _route_view(mcfg, row)
-    effort = v.get("reasoning") or "off"
-    try:
-        _p = workflow_chat.persona_cua_phien(row)
-        if _p and _p[0] == "agent":
-            effort = _agent_reasoning(_read_md(_agents_dir(row.get("brain") or "brain") / f"{_p[1]}.md")[0])
-        elif javis_core.is_core_channel(row.get("channel")):
-            effort = _core_reasoning(mcfg)
-    except Exception:  # noqa: BLE001 - an unreadable assistant file keeps the card's level, as a turn does
-        pass
+    effort = v.get("reasoning") or "off"     # _session_reasoning: the chat's own, the assistant's, or the card's
     pinned = bool(_core_pin(mcfg)) if javis_core.is_core_channel(row.get("channel")) \
         else bool(str(row.get("pinned_provider") or "").strip())
     return {"provider": v["selected_provider"], "model": v["selected_model"], "name": v["selected_name"],
@@ -24974,6 +25054,10 @@ def _sessions_meta_sync(session_id: str):
         # 0.402.0: a Javis Core chat shows the pin of Javis Core, not an old stamp of this one chat.
         _cp = _core_pin(cfgmod.read_settings().get("model", {}))
         sess["pinned_provider"], sess["pinned_model"] = _cp.get("provider") or None, _cp.get("model") or None
+    else:
+        # 25/11/2026: an assistant's chat the owner never picked a model in shows the assistant's current model.
+        _ar = _agent_chat_row(sess)
+        sess["pinned_provider"], sess["pinned_model"] = _ar.get("pinned_provider") or None, _ar.get("pinned_model") or None
     pp = (sess.get("pinned_provider") or "").strip()
     if pp:
         # Cùng cách giải nghĩa khoá với đường định tuyến (`_provider_key`), nếu không thì
@@ -25052,7 +25136,7 @@ async def _pin_chat_model(session_id: str, provider: str, model: str, brain=None
         if (_row.get("pinned_provider") or "").strip():
             get_store().set_pinned_model(session_id, "", "")   # an older stamp of this chat must not show as a pin
         return {"ok": True, "pinned_provider": _cp["provider"] or None, "pinned_model": _cp["model"] or None, "scope": "core"}
-    if not get_store().set_pinned_model(session_id, prov, model, brain=brain):
+    if not get_store().set_pinned_model(session_id, prov, model, brain=brain, by_owner=bool(prov)):
         return {"ok": False, "status": 404, "error": localefmt.chu("phiên không tồn tại", "session does not exist")}
     return {"ok": True, "pinned_provider": prov or None, "pinned_model": (model or "").strip() or None}
 
@@ -25071,6 +25155,22 @@ async def sessions_set_model(session_id: str, provider: str = Form(""),
     if not out.get("ok"):
         return JSONResponse({"error": out["error"]}, status_code=out["status"])
     return out
+
+
+@app.post("/sessions/{session_id}/reasoning")
+async def sessions_set_reasoning(session_id: str, level: str = Form(""), brain: str = Form("")):
+    """Ghim mức suy nghĩ cho MỘT cửa sổ chat (rỗng = gỡ, theo lại cài đặt). Owner, 25/11/2026: "khi chat riêng với agent
+    thì phải sử dụng model và mức suy nghĩ theo cửa sổ chat của chat đó", và các cửa sổ không nhảy chéo sang nhau. Không
+    đụng cài đặt chung, thẻ model hay file của trợ lý."""
+    lv = (level or "").strip()
+    if lv and lv not in engine.REASONING_LEVELS:
+        return JSONResponse({"error": localefmt.chu("mức suy nghĩ không hợp lệ", "invalid reasoning level")},
+                            status_code=400)
+    ok = await asyncio.to_thread(get_store().set_pinned_reasoning, session_id, lv,
+                                 brain=_brain_key(brain) if (brain or "").strip() else None)
+    if not ok:
+        return JSONResponse({"error": localefmt.chu("phiên không tồn tại", "session does not exist")}, status_code=404)
+    return {"ok": True, "pinned_reasoning": lv or None}
 
 
 @app.post("/sessions/{session_id}/project")
@@ -28280,6 +28380,28 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     return ket
 
 
+def _bot_turn_reasoning(mcfg, prov, bot=None, agent=None) -> str:
+    """Effort of a Telegram / dedicated bot turn (25/11/2026, owner: a chatbot works "theo cài đặt của agent").
+
+    A turn that borrows an assistant (a dedicated bot's Agent, an agent turn) thinks at that assistant's own level while
+    it runs on the assistant's model, or on the main model the assistant follows by choice. When that model cannot run
+    and another card stands in, the stand-in card's own setting applies. Every other turn: the card's effort (0.350.0)."""
+    card = _chat_reasoning(mcfg, prov)
+    a = ((bot or {}).get("agent") or agent or {}) if isinstance((bot or {}).get("agent") or agent or {}, dict) else {}
+    slug = str(a.get("slug") or "").strip()
+    if not slug:
+        return card
+    abrain = a.get("brain") or "brain"
+    g = _model_cua_agent(abrain, slug)
+    want = g.get("provider") if g else _effective_main({"model": mcfg or {}}).get("provider")
+    if want and want != prov:
+        return card
+    try:
+        return _agent_reasoning(_read_md(_agents_dir(abrain) / f"{slug}.md")[0])
+    except Exception:  # noqa: BLE001 - an unreadable assistant file keeps the card's level
+        return card
+
+
 async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                             prov, kind, api_key, api_model, store=None, conv_sid="",
                             channel="telegram", bot=None, agent=None):
@@ -28287,7 +28409,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     trả CHUỖI khi là thông báo lỗi (vỏ `_tg_answer` dựa vào đó để biết lượt nào đáng lưu)."""
     sess["last"] = text
     sess["sent"] = set()    # lượt mới → reset dedupe (endpoint /telegram/send-file add vào đây)
-    reasoning = _chat_reasoning(mcfg, prov)   # 0.350.0: effort of the card this turn runs on
+    reasoning = _bot_turn_reasoning(mcfg, prov, bot, agent)
     # The bolt is the owner's: customer chatbots answering strangers never inherit it.
     fast_mode.use(mcfg.get("fast") is True and not bot)
     runtime_trace = context_runtime.current_trace()
@@ -32618,9 +32740,15 @@ def _team_agent_info(root, agent_key, surface=None):
             "role": role, "reasoning": reasoning}
 
 
-def _team_reasoning(eng, level, prompt):
+def _team_reasoning(eng, level, prompt, prov: str = ""):
     """A team turn thinks at the member's own level (0.193.0): Claude Code through its effort flag (or the old keyword),
-    an API engine through its reasoning setting. Engines with neither keep their default. Returns the prompt to send."""
+    an API engine through its reasoning setting. Engines with neither keep their default. Returns the prompt to send.
+
+    25/11/2026: `prov` routes ChatGPT (Codex), Grok Build and Antigravity to their own effort setting. Before, Codex
+    had neither attribute and ran at its default, and Grok/Antigravity got Claude Code's flag mapping."""
+    if prov in ("openai-oauth", "grok-cli", "antigravity-cli"):
+        _link_effort(eng, prov, level)
+        return prompt
     if hasattr(eng, "effort"):
         return _cli_do_sau(eng, level, prompt)
     if hasattr(eng, "reasoning"):
@@ -32839,6 +32967,21 @@ def _team_main(settings, tools: bool = False) -> dict:
     except Exception as e:  # noqa: BLE001 - the turn then runs on MAIN and reports its own error, as before
         print(f"[team] fallback card: {type(e).__name__}: {e}", file=sys.stderr)
     return em
+
+
+def _team_turn_level(info, used, settings) -> str:
+    """Effort of one team turn (25/11/2026). The member's own level while it runs on its own model, or on the main model
+    it follows by choice. When its own model cannot run and the turn moved to another card (`choose_spec` note), or the
+    main model it follows is out of quota and the next card stands in, that card's own Models page setting applies."""
+    own = (info or {}).get("reasoning") or AGENT_REASONING_DEFAULT
+    used = used or {}
+    if used.get("source") != "main":
+        return own
+    m = (settings or {}).get("model") or {}
+    prov = str(used.get("provider") or "")
+    if used.get("note") or prov != _effective_main(settings or {}).get("provider"):
+        return _chat_reasoning(m, prov)
+    return own
 
 
 def _team_quota_next(provider: str, eng, error) -> dict:
@@ -33136,7 +33279,7 @@ def _team_engine_for(team, agent_key, role):
                 eng = await asyncio.to_thread(_build_tools, req["system"], tag, str(req.get("team_gate") or ""))
             else:
                 eng = await asyncio.to_thread(_build, req["system"], tag)
-            prompt = _team_reasoning(eng, info.get("reasoning") or AGENT_REASONING_DEFAULT, req["prompt"])
+            prompt = _team_reasoning(eng, _team_turn_level(info, used, settings), req["prompt"], prov)
             if tools_on:
                 # The tool spec can differ from the text one (Grok Build, Antigravity run tool turns): mark the real engine.
                 await req["engine_started"](used["provider"], used["model"])
@@ -34266,6 +34409,36 @@ def _agent_persona(root, slug, agent_key=None):
 
 
 tasks_feature.deps.agent_persona = _agent_persona
+
+
+def _agent_job_spec(root, slug, agent_key=None):
+    """{provider, model, reasoning} for the work of a Kanban job given to an assistant (25/11/2026, owner: an assistant
+    working on its own uses the model and the level set on it). Its own model at its level (default medium); an
+    assistant left on "Default" model keeps the background model, at its own level when it set one. None: the job
+    runs as a plain Kanban job (no such assistant, or the slug now belongs to another assistant)."""
+    if not _agent_persona(root, slug, agent_key):
+        return None
+    try:
+        meta = _read_md(_agent_md_path(root, slug))[0] or {}
+    except Exception:  # noqa: BLE001
+        return None
+    model = str(meta.get("model") or "").strip()
+    if model:
+        return {"provider": _agent_model_provider(model, str(meta.get("model_provider") or "").strip()),
+                "model": model, "reasoning": _agent_reasoning(meta)}
+    own = _agent_own_reasoning(meta)
+    if not own:
+        return None
+    bg = aux_engine.read_spec(tag="kanban")
+    return {"provider": bg.get("provider") or aux_engine.CLAUDE, "model": bg.get("model") or "", "reasoning": own}
+
+
+def _aux_swap_spec(cli, mode, tag, spec):
+    return aux_engine.swap(cli, mode=mode, tag=tag, spec=spec, codex_profile=_write_codex_profile)
+
+
+tasks_feature.deps.agent_job_spec = _agent_job_spec
+tasks_feature.deps.aux_swap_spec = _aux_swap_spec
 
 
 def _agent_roster(root):

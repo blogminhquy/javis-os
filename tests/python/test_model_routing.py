@@ -4,7 +4,7 @@
 
 Spec: docs/dev/2026-10-model-routing-spec.md. The owner settled every rule on the Models page mockup; this file pins
 the ones the server owns: migration from older settings, MAIN = top card, key rotation, the background order with each
-fallback on its card's model and MAIN last, and the nearest effort level.
+then the usage order from the top (MAIN first since 25/11/2026), each card on its own model, and the nearest effort level.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -129,20 +129,22 @@ m = {"order": ["anthropic-cli", "openai-oauth", "groq"],
 check("a plan provider appears once when asked (quota belongs to the account)",
       [s["provider"] for s in R.background_chain(m, once=("anthropic-cli",))] == ["anthropic-cli", "openai-oauth", "groq"])
 steps = R.background_chain(m)
-check("background model first, fallbacks next, MAIN last",
-      [s["provider"] for s in steps] == ["anthropic-cli", "openai-oauth", "groq", "anthropic-cli"], steps)
+# 25/11/2026 (owner): the background model first, then the usage order from the top (MAIN was last before).
+check("background model first, then the usage order from the top: MAIN, fallback 1, fallback 2",
+      [(s["provider"], s["step"]) for s in steps] == [("anthropic-cli", "background"), ("anthropic-cli", "main"),
+                                                     ("openai-oauth", "fallback"), ("groq", "fallback")], steps)
 # Issue 1334: a fallback step took the provider's starting config, and since 0.350.0 that is an empty model for
 # every plan card, so the model picked on the card was ignored and the CLI ran its own default (usually its most
 # expensive one). A fallback now runs the card's model and effort; the starting config only when the card has none.
 check("fallback steps run the model picked on their card, not the provider's starting config",
-      (steps[1]["model"], steps[1]["reasoning"]) == ("gpt-5.5", "high") and steps[2]["model"] == "qwen3-32b", steps)
-check("MAIN last runs its starting config, not Opus", steps[3]["model"] == "" and steps[3]["step"] == "main")
+      (steps[2]["model"], steps[2]["reasoning"]) == ("gpt-5.5", "high") and steps[3]["model"] == "qwen3-32b", steps)
+check("MAIN runs the model and effort set on its card", (steps[1]["model"], steps[1]["reasoning"]) == ("opus", "xhigh"))
 bare = json.loads(json.dumps(m))
 bare["profiles"]["openai-oauth"] = {"model": "", "reasoning": "high"}
 del bare["profiles"]["groq"]
 steps = R.background_chain(bare)
 check("a card with no model picked falls back to the provider's starting config",
-      (steps[1]["model"], steps[1]["reasoning"]) == ("", "off") and steps[2]["model"] == "llama-3.3-70b-versatile", steps)
+      (steps[2]["model"], steps[2]["reasoning"]) == ("", "off") and steps[3]["model"] == "llama-3.3-70b-versatile", steps)
 claude_fallback = {"order": ["openai-oauth", "anthropic-cli"],
                    "profiles": {"openai-oauth": {"model": "gpt-5.5", "reasoning": "high"},
                                 "anthropic-cli": {"model": "sonnet", "reasoning": "low"}},
@@ -155,7 +157,7 @@ check("Claude Code as a fallback runs the card's Sonnet, not its own default mod
       == [("openai-oauth", "gpt-5.4-mini", "background"), ("anthropic-cli", "sonnet", "fallback")], steps)
 m["auxiliary"] = {"provider": "groq", "model": "qwen3-32b"}
 check("the same provider and model is tried once",
-      [s["provider"] for s in R.background_chain(m)] == ["groq", "openai-oauth", "anthropic-cli"])
+      [s["provider"] for s in R.background_chain(m)] == ["groq", "anthropic-cli", "openai-oauth"])
 check("an assistant's own model can lead the chain",
       R.background_chain(m, first={"provider": "openai-oauth", "model": "gpt-5-codex"})[0]["model"] == "gpt-5-codex")
 
