@@ -4065,6 +4065,40 @@ def _signin_lost_message(provider: str, raw="") -> str:
         "another model." + (f" (Details: {detail})" if detail else ""))
 
 
+def _claude_login_to_token(account: str = None, now: float = None) -> bool:
+    """Claude Code account 1 ran on the machine's login with the long-lived token as backup (claude_auth.login_first,
+    2026-11-26) and the login is gone: the token takes over, so the card is NOT marked signed out. True when it did.
+
+    The owner hears it once a day: turns still run, but claude.ai connectors (Gmail, Calendar, Drive...) are off until
+    a new sign-in, because a token cannot load them."""
+    try:
+        acc = account or _PLAN_ACCOUNT_LAST.get("anthropic-cli", plan_accounts.MAIN)
+        if acc != plan_accounts.MAIN or not claude_auth.note_login_failed(now):
+            return False
+    except Exception as e:  # noqa: BLE001 - the card is then marked as before
+        print(f"[claude auth] login to token: {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+    warm_pool.POOL.drop_kind("claude")   # a warm `claude` keeps the login it started with
+    claude_cli.auth_quen_cache()
+    print("[claude auth] the login is gone: Claude Code runs on the long-lived token, claude.ai connectors are off",
+          file=sys.stderr)
+    try:
+        now = time.time() if now is None else now
+        inbox.add(localefmt.chu(
+            "Phiên đăng nhập claude.ai của Claude Code trên máy này đã hết, Javis chuyển sang token dài hạn nên bot và "
+            "việc nền vẫn chạy. Riêng các kết nối thêm trên claude.ai (Gmail, Lịch, Drive...) tạm tắt. Muốn dùng lại, "
+            "vào trang Models, thẻ Claude Code, bấm Bật kết nối claude.ai.",
+            "Claude Code's claude.ai sign-in on this machine has ended. Javis switched to the long-lived token, so bots "
+            "and background work keep running. Only the connectors added on claude.ai (Gmail, Calendar, Drive...) are "
+            "off for now. To use them again, open the Models page, Claude Code card, and click Turn on claude.ai "
+            "connectors."),
+            kind="system", source="engine",
+            dedup=f"claude-login-to-token:{time.strftime('%Y-%m-%d', time.localtime(now))}")
+    except Exception as e:  # noqa: BLE001 - a missed notice never fails the turn
+        print(f"[claude auth] login to token notice: {type(e).__name__}: {e}", file=sys.stderr)
+    return True
+
+
 def _note_signin_lost(provider: str, account: str = None, now: float = None) -> None:
     """A turn on plan card `provider` was refused for a lost sign-in: turns skip the card for `signin_loss.RETRY_S`.
 
@@ -4075,6 +4109,8 @@ def _note_signin_lost(provider: str, account: str = None, now: float = None) -> 
     if prov not in _ROUTING_PLAN_PROVIDERS:
         return
     now = time.time() if now is None else now
+    if prov == "anthropic-cli" and _claude_login_to_token(account, now):
+        return
     until = now + signin_loss.RETRY_S
     try:
         if plan_accounts.in_use(prov):
@@ -4182,6 +4218,20 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_a
     'tried': [...]}; nothing saved changes."""
     tried = list(tried or ()) + ([failed] if failed and failed not in (tried or ()) else [])
     d = _provider_def(failed) or {}
+    # 2026-11-26: Claude Code's login just died and the long-lived token took over (`_claude_login_to_token`): the same
+    # turn runs again at once on the same card. Once only: a refusal on the token marks the card as before.
+    try:
+        if (reason == "signin" and failed == "anthropic-cli" and not _signed_out_until(failed)
+                and claude_auth.token_took_over()):
+            model = model_routing.profile(mcfg, failed).get("model") or ""
+            if failed == model_routing.main_provider(mcfg):
+                model = _effective_main({"model": mcfg}).get("model") or model
+            return {"route": (failed, d.get("kind", "cli"), "", model), "tried": tried,
+                    "status": localefmt.chu("Đang dùng Claude Code bằng token dài hạn vì phiên đăng nhập claude.ai đã hết.",
+                                            "Using Claude Code on the long-lived token because the claude.ai sign-in "
+                                            "has ended.")}
+    except Exception as e:  # noqa: BLE001
+        print(f"[routing] claude token takeover: {type(e).__name__}: {e}", file=sys.stderr)
     same = None
     try:
         if plan_accounts.in_use(failed) and plan_accounts.has_extra(mcfg, failed) and _route_ready(mcfg, failed):
@@ -6463,6 +6513,12 @@ def claude_status(refresh: bool = False):
     # 2026-11-22: which credentials the turns run with, and the long-lived token's dates (never the token).
     d["auth_mode"] = claude_auth.che_do()
     d["auth_token"] = claude_auth.token_info()
+    # 2026-11-26: a token cannot load claude.ai connectors, a login with their scope can (claude_auth.login_first).
+    try:
+        d["auth_runs_on"] = claude_auth.runs_on()
+        d["auth_connectors"] = d["auth_runs_on"] == "login"
+    except Exception as e:  # noqa: BLE001 - the card still draws without the line
+        print(f"[claude status] connectors: {type(e).__name__}: {e}", file=sys.stderr)
     return d
 
 
