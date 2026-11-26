@@ -682,7 +682,7 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
     /id="wsFiles" title="' \+ esc\(nhanNutTaiLieu\(\)\) \+ '" aria-label=/.test(ws));
   check("nut + o header mo hoi thoai moi cua trang Cong su",
     /closest\("#newChatBtn"\)/.test(ws) && /S\.el\.querySelector\("#wsNewChat"\)/.test(ws) && /\}, true\);/.test(ws)
-    && /ganNutCongDauTrang\(\);/.test(ws));
+    && /bindHeaderNewChat\(\);/.test(ws));
   // veLoi() nhoi cau bao loi va nut Thu lai vao CHINH o ten, nen o ten cung phai xuong dong
   // duoc, khong thi cau loi bi cat giua chu va chu tren nut be lam hai dong.
   check("cau bao loi va nut Thu lai xuong dong rieng trong o ten",

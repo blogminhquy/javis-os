@@ -661,7 +661,7 @@
     };
     el.querySelector("#wsStore").onclick = function () { nhom("packs", function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); }); };
     el.querySelector("#wsNewChat").onclick = function () { var x = dangChon(); if (x) moPhien(x, true); };
-    ganNutCongDauTrang();
+    bindHeaderNewChat();
     var page = el.querySelector("#wsPage");
     el.querySelector("#wsLeftBtn").onclick = function () { page.classList.toggle("left-open"); };
     el.querySelector("#wsRightBtn").onclick = function () { datPhai(!phaiDangHien()); };
@@ -1049,18 +1049,18 @@
   // "New conversation" button is hidden there (console.css). That + only clicks the hidden #resetBtn, which opens
   // nothing on this page, so while this page is showing it starts a new conversation with the chosen assistant or
   // workflow instead. Bound once, in the capture phase, and inert on every other page.
-  var _congDaGan = false;
-  function ganNutCongDauTrang() {
-    if (_congDaGan || typeof document === "undefined") return;
-    _congDaGan = true;
+  var _headerNewChatBound = false;
+  function bindHeaderNewChat() {
+    if (_headerNewChatBound || typeof document === "undefined") return;
+    _headerNewChatBound = true;
     document.addEventListener("click", function (e) {
       if (!active || !S.el || !S.el.isConnected) return;
-      var nut = e.target && e.target.closest ? e.target.closest("#newChatBtn") : null;
-      if (!nut) return;
-      var moi = S.el.querySelector("#wsNewChat");
-      if (!moi) return;
+      var headerBtn = e.target && e.target.closest ? e.target.closest("#newChatBtn") : null;
+      if (!headerBtn) return;
+      var barBtn = S.el.querySelector("#wsNewChat");
+      if (!barBtn) return;
       e.preventDefault(); e.stopPropagation();
-      if (ready && dangChon()) moi.click();
+      if (ready && dangChon()) barBtn.click();
     }, true);
   }
 
