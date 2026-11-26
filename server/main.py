@@ -2863,6 +2863,11 @@ def _aux_swap(cli, mode=None, tag=None):
     return aux_engine.swap(cli, mode=mode, tag=tag, codex_profile=_write_codex_profile)
 
 
+def _aux_swap_spec(cli, mode, tag, spec):
+    """`_aux_swap` with an explicit first link: the model and effort of the assistant a background job runs as."""
+    return aux_engine.swap(cli, mode=mode, tag=tag, spec=spec, codex_profile=_write_codex_profile)
+
+
 def _side_work_paused() -> str:
     """A short reason while the work Javis starts on its own (self-learning, the next-message suggestion,
     auto-learning) must wait, "" otherwise. It waits when the plan that work would run on has used most of
@@ -16198,6 +16203,10 @@ loop_feature = self_improve.register(app, self_improve.LoopDeps(
     mcp_allow_patterns=_loop_mcp_allow,
     build_agent_prompt=_background_agent_prompt,          # made in a partner chat -> runs as that assistant
     finish_agent_run=_finish_background_agent_run,
+    # ...on its own model and effort (ported from PR #1847); the verification run stays on the background model.
+    # A lambda: `_agent_job_spec` is defined further down, after `_agent_persona`.
+    agent_job_spec=lambda brain, slug: _agent_job_spec(brain, slug, tag="loop"),
+    aux_swap_spec=_aux_swap_spec,
 ))
 
 _LOOP_LOCK = loop_feature.lock   # shim: giữ tên cũ cho code phía dưới (scheduler)
@@ -16547,6 +16556,9 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     send_file=lambda chat_id, path, brain: _send_voice_file(chat_id, path, brain),
     build_agent_prompt=_background_agent_prompt,          # made in a partner chat -> runs as that assistant
     finish_agent_run=_finish_background_agent_run,
+    # ...on its own model and effort (ported from PR #1847). A lambda: `_agent_job_spec` is defined further down.
+    agent_job_spec=lambda brain, slug: _agent_job_spec(brain, slug, tag="reminder"),
+    aux_swap_spec=_aux_swap_spec,
 ))
 
 
@@ -34469,11 +34481,14 @@ def _agent_persona(root, slug, agent_key=None):
 tasks_feature.deps.agent_persona = _agent_persona
 
 
-def _agent_job_spec(root, slug, agent_key=None):
+def _agent_job_spec(root, slug, agent_key=None, tag="kanban"):
     """{provider, model, reasoning} for the work of a Kanban job given to an assistant (25/11/2026, owner: an assistant
     working on its own uses the model and the level set on it). Its own model at its level (default medium); an
     assistant left on "Default" model keeps the background model, at its own level when it set one. None: the job
-    runs as a plain Kanban job (no such assistant, or the slug now belongs to another assistant)."""
+    runs as a plain Kanban job (no such assistant, or the slug now belongs to another assistant).
+
+    Reminders and loops made in an assistant's chat use it too (ported from PR #1847), with their own `tag` for the
+    background model they would otherwise run on."""
     if not _agent_persona(root, slug, agent_key):
         return None
     try:
@@ -34487,12 +34502,8 @@ def _agent_job_spec(root, slug, agent_key=None):
     own = _agent_own_reasoning(meta)
     if not own:
         return None
-    bg = aux_engine.read_spec(tag="kanban")
+    bg = aux_engine.read_spec(tag=tag)
     return {"provider": bg.get("provider") or aux_engine.CLAUDE, "model": bg.get("model") or "", "reasoning": own}
-
-
-def _aux_swap_spec(cli, mode, tag, spec):
-    return aux_engine.swap(cli, mode=mode, tag=tag, spec=spec, codex_profile=_write_codex_profile)
 
 
 tasks_feature.deps.agent_job_spec = _agent_job_spec
