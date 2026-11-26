@@ -600,12 +600,13 @@
   }
 
   function schedulePoll() {
+    if (!S) return;
     clearTimeout(S.poll);
     var busy = S.ai && (S.ai.items.some(function (i) { return i.st === "run"; }) || S.ai.recurring.some(function (r) { return r.running; }));
     S.poll = setTimeout(async function () {
       if (!S || !document.body.contains(S.root)) return;
       if (document.hidden || S.sheet || S.layer || S.sel || (window.JavisTaskStats && window.JavisTaskStats.isEditing())) { schedulePoll(); return; }
-      await load(); render(); schedulePoll();
+      await load(); if (!S) return; render(); schedulePoll();
     }, busy ? 5000 : 30000);
   }
 
