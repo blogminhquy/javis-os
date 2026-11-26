@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.646.0] - 2026-11-27
+### Thêm mới
+- **Muse của Meta có thẻ riêng trên trang Models.** Mở "Kết nối thêm nhà cung cấp", chọn Muse, đặt tên, dán cookie tài khoản, bấm Kết nối Muse. Muse vào Thứ tự dùng như ChatGPT hay Claude, kéo làm dự phòng hoặc chọn làm Model việc nền.
+- **Nhiều tài khoản Muse trên một thẻ.** Mỗi tài khoản một dòng: tắt, bật, dán cookie mới khi hết phiên, gỡ. Cần Muse Gateway chạy trên máy bạn hoặc trong Docker cạnh Javis.
+- **Muse làm được việc nền.** Muse không tự gọi công cụ, nên Javis dạy nó gọi bằng chữ: đọc, ghi file trong brain và dùng các kết nối như mọi bộ não khác. Đây là đường không chính thức, tài khoản dùng kiểu này có thể bị Muse khoá.
+
 ## [0.645.4] - 2026-11-26
 ### Sửa lỗi
 - **Kết nối thêm trên claude.ai (Gmail, Lịch, Drive...) dùng lại được khi Claude Code chạy bằng token dài hạn.** Token từ `claude setup-token` chỉ được Claude Code cho quyền gọi model, không kéo được kết nối claude.ai. Nay nếu máy còn phiên đăng nhập claude.ai đầy đủ, Javis chạy bằng phiên đó để có đủ kết nối, còn token giữ làm dự phòng: phiên hết thì lượt đó tự chạy lại bằng token, bot và việc nền không dừng. Thẻ Claude Code ở trang Models nói rõ kết nối claude.ai đang bật hay tắt, kèm nút Bật kết nối claude.ai để đăng nhập lại một lần.

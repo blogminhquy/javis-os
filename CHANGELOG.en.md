@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.646.0] - 2026-11-27
+### Added
+- **Meta's Muse has its own card on the Models page.** Open "Connect another provider", pick Muse, name the account, paste its cookie, press Connect Muse. Muse joins the usage order like ChatGPT or Claude, drag it in as a fallback or pick it as the background model.
+- **Several Muse accounts on one card.** One row per account: switch off or on, paste a new cookie when the session ends, remove. Needs Muse Gateway running on your machine or in Docker next to Javis.
+- **Muse can do background work.** Muse cannot call tools by itself, so Javis teaches it to call them in text: read and write brain files and use your connections like every other brain. This is an unofficial route, and accounts used this way may be locked by Muse.
+
 ## [0.645.4] - 2026-11-26
 ### Fixed
 - **Connectors added on claude.ai (Gmail, Calendar, Drive...) work again while Claude Code runs on the long-lived token.** Claude Code gives a `claude setup-token` token model access only, never claude.ai connectors. Now, when the machine still has a full claude.ai sign-in, Javis runs on it so every connector loads, and keeps the token as the backup: once the sign-in ends, that turn runs again on the token and bots and background work keep going. The Claude Code card on the Models page says whether claude.ai connectors are on or off, with a Turn on claude.ai connectors button for a one-time sign-in.
