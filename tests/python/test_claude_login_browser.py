@@ -103,9 +103,12 @@ check("no sign-in: not waiting, not connected", not d.get("waiting") and not d.g
 js = (Path(ROOT) / "dashboard" / "console.js").read_text(encoding="utf-8")
 # 2026-11-22: the card's one way in is a long-lived token (`claude setup-token`); a browser on the same machine
 # finishes it without a code too, so it keeps the same rule: ask the command itself, and again on coming back.
-i = js.index("async function startClaudeToken")
-body = js[i:js.index("\n  }\n", i)]
+# 2026-11-26: the same card also runs `claude auth login` (claude.ai connectors next to the token); both flows' addresses
+# sit in CLAUDE_FLOWS right above the function, so the table counts as part of it.
+i = js.index("const CLAUDE_FLOWS")
+body = js[i:js.index("\n  }\n", js.index("async function startClaudeToken", i))]
 check("the card polls the command itself (/claude/token/poll)", "/claude/token/poll" in body)
+check("the connectors sign-in polls its own command too (/claude/login-poll)", '"/claude/login-poll"' in body)
 check("the card does not poll the cached /claude/status", '"/claude/status"' not in body)
 check("the card asks again when the tab gets focus", '"focus"' in body and "visibilitychange" in body)
 main = (Path(SERVER) / "main.py").read_text(encoding="utf-8")

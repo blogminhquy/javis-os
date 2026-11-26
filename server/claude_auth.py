@@ -30,7 +30,10 @@ module này là bảo đảm họ cân nó khi đã BIẾT, chứ không phải 
 """
 from __future__ import annotations
 
+import json
 import math
+import os
+from pathlib import Path
 
 import config as cfgmod
 
@@ -130,6 +133,109 @@ def token_days_left(expires_at: float, now: float) -> int:
     return max(0, math.ceil((float(expires_at) - float(now)) / 86400))
 
 
+# ---- claude.ai connectors next to the long-lived token (2026-11-26) ----
+# Owner's report that day: after the switch to the token, Javis on Claude Code no longer saw the connectors added on
+# claude.ai (Google Calendar, Gmail, Drive...). Claude Code itself decides that: a token handed in as
+# CLAUDE_CODE_OAUTH_TOKEN counts as scope `user:inference` only, and the CLI loads claude.ai connectors only for a
+# login that holds `user:mcp_servers` (a full `claude auth login`). No setting gives a setup-token that scope.
+#
+# So in token mode the machine's own login goes first WHEN it carries that scope, and the token stays as the backup:
+# the turn that finds the login gone marks it (`note_login_failed`) and every turn after runs on the token, until the
+# login file changes (a new sign-in), which lifts the mark by itself. Only the file's `scopes`, `expiresAt` and whether
+# a refresh token is there are read, never a token, the same boundary as connect_health and claude_token_gate.
+# macOS keeps the login in the Keychain (no file): there the token runs as before.
+CONNECTOR_SCOPE = "user:mcp_servers"
+_LOGIN_DEAD = {"sig": None, "at": 0.0, "claimed": False}
+CLAIM_S = 60.0
+
+
+def login_file() -> Path:
+    """The CLI's login file for account 1 (its own config folder when CLAUDE_CONFIG_DIR is set for the server)."""
+    base = os.environ.get("CLAUDE_CONFIG_DIR") or ""
+    if base:
+        return Path(base) / ".credentials.json"
+    home = os.environ.get("HOME") or os.path.expanduser("~")
+    return Path(home) / ".claude" / ".credentials.json"
+
+
+def _login_sig():
+    """(file stat, expiresAt) of the login file, None when there is none. Changes whenever the CLI writes a new login."""
+    p = login_file()
+    try:
+        st = p.stat()
+        oa = (json.loads(p.read_text(encoding="utf-8")) or {}).get("claudeAiOauth") or {}
+        return (st.st_mtime_ns, st.st_size, oa.get("expiresAt"))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+
+
+def login_connectors() -> bool:
+    """Whether the machine's own Claude Code login can load claude.ai connectors: it has a refresh token and the
+    `user:mcp_servers` scope. False on a Mac (Keychain, no file) and with no login at all."""
+    try:
+        oa = (json.loads(login_file().read_text(encoding="utf-8")) or {}).get("claudeAiOauth") or {}
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+    scopes = oa.get("scopes") or []
+    return bool(oa.get("refreshToken")) and isinstance(scopes, list) and CONNECTOR_SCOPE in scopes
+
+
+def login_dead() -> bool:
+    """Whether a turn found this very login gone. A new login (the file changes) lifts the mark."""
+    sig = _LOGIN_DEAD.get("sig")
+    if sig is None:
+        return False
+    if _login_sig() != sig:
+        _LOGIN_DEAD.update(sig=None, at=0.0, claimed=False)
+        return False
+    return True
+
+
+def login_first(settings: dict = None) -> bool:
+    """Token mode with a token saved, and the login next to it can carry claude.ai connectors and is not known dead:
+    turns run on the login and the token waits as the backup."""
+    s = settings if settings is not None else cfgmod.read_settings()
+    return che_do(s) == TOKEN and bool(oauth_token(s)) and login_connectors() and not login_dead()
+
+
+def note_login_failed(now: float = None, claim: bool = True) -> bool:
+    """A turn on account 1 was refused for a lost sign-in. When that turn ran on the login with the token as backup,
+    the login is marked and the token takes the next turns: True. False when the token itself was refused (or there
+    is no token), so the caller marks the card as before.
+
+    Two places hear the same refusal: the engine's own end-of-turn check (connect_health, every Claude turn, chat or
+    background, `claim=False`) and the router (`claim=True`), which reruns the turn on the token. The router's call
+    takes over a mark the engine set moments before, once; a second refusal (now on the token) is not taken over."""
+    import time
+    now = time.time() if now is None else now
+    if login_first():
+        _LOGIN_DEAD.update(sig=_login_sig(), at=now, claimed=claim)
+        return True
+    if claim and login_dead() and not _LOGIN_DEAD.get("claimed") \
+            and 0 <= now - float(_LOGIN_DEAD.get("at") or 0) <= CLAIM_S:
+        _LOGIN_DEAD["claimed"] = True
+        return True
+    return False
+
+
+def token_took_over(now: float = None, within: float = 120.0) -> bool:
+    """Whether the token took over from a dead login in the last `within` seconds: the failed turn may run again at
+    once on the same card, now on the token."""
+    import time
+    at = float(_LOGIN_DEAD.get("at") or 0)
+    now = time.time() if now is None else now
+    return bool(at) and 0 <= now - at <= within and login_dead()
+
+
+def runs_on(settings: dict = None) -> str:
+    """What account 1's turns run on right now: "login", "token" or "api_key"."""
+    s = settings if settings is not None else cfgmod.read_settings()
+    env = env_cho_cli(s)
+    if "ANTHROPIC_API_KEY" in env:
+        return "api_key"
+    return "token" if TOKEN_ENV in env else "login"
+
+
 def env_cho_cli(settings: dict = None) -> dict:
     """Biến môi trường thêm cho tiến trình `claude`. {} = để CLI tự dùng phiên đăng nhập sẵn.
 
@@ -137,11 +243,14 @@ def env_cho_cli(settings: dict = None) -> dict:
     key thì trả {} - tức lui về phiên đăng nhập sẵn có, chứ không làm chết mọi lượt chat bằng
     một biến môi trường rỗng. Same for `token` (2026-11-22): the token goes down as
     CLAUDE_CODE_OAUTH_TOKEN, which the CLI reads before its own login; no token saved = the login.
+    2026-11-26: a login that carries claude.ai connectors goes first, the token is its backup (`login_first`).
     """
     s = settings if settings is not None else cfgmod.read_settings()
     mode = che_do(s)
     if mode == TOKEN:
         tok = oauth_token(s)
+        if tok and login_first(s):
+            return {}
         return {TOKEN_ENV: tok} if tok else {}
     if mode != API_KEY:
         return {}

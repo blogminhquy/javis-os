@@ -432,6 +432,16 @@ def flag_engine_auth_error(name, raw) -> bool:
     low = (raw or "").lower()
     if not any(p in low for p in _ENGINE_AUTH_PATTERNS):
         return False
+    if name == "claude":
+        # 2026-11-26: the machine's login ran this turn with the long-lived token as backup (claude_auth.login_first):
+        # the token takes the next turns, chat and background alike, so the light stays green.
+        try:
+            import claude_auth
+            if claude_auth.note_login_failed(claim=False):
+                print("[engine health] Claude Code's login is gone: the long-lived token takes over", file=sys.stderr)
+                return True
+        except Exception as e:  # noqa: BLE001 - the light below still tells the owner
+            print(f"[engine health] login to token: {type(e).__name__}: {e}", file=sys.stderr)
     _set_engine(name, False, "Hết phiên đăng nhập (phát hiện khi chạy).", "run")
     return True
 

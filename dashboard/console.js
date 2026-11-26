@@ -5430,10 +5430,17 @@
       const warn = !!tk.expires_at && (tk.expired || (tk.days_left || 0) <= 14);
       const when = !tk.expires_at ? "" : tk.expired ? t("models.tok_expired")
         : t("models.tok_until", { ngay: day, n: Math.max(0, tk.days_left || 0) });
+      // 2026-11-26: a token cannot load the connectors added on claude.ai (Gmail, Calendar, Drive...); the machine's
+      // own claude.ai sign-in can. With one, turns run on it and the token is the backup; without, one button signs in.
+      const conn = d.auth_connectors === true;
+      const connRow = d.auth_connectors === undefined ? "" : `<div class="prov-tok-row${conn ? "" : " warn"}">${ic(conn ? "plug" : "unplug")}
+          <span>${esc(t(conn ? "models.conn_on" : "models.conn_off"))}</span></div>`;
       return `<div class="prov-tok-row${warn ? " warn" : ""}">${ic(warn ? "triangle-alert" : "key-round")}
           <span>${esc(t("models.tok_saved", { tail: tk.tail || "" }))}${when ? " · " + esc(when) : ""}</span>${infoBtn()}</div>
+        ${connRow}
         ${help}
         <div class="prov-action">
+          ${conn || d.auth_connectors === undefined ? "" : `<button class="gcard-btn" type="button" data-conn-login="1">${esc(t("models.conn_btn"))}</button>`}
           ${auto ? `<button class="gcard-btn${warn ? "" : " ghost"}" type="button" data-tok-get="1">${esc(t("models.tok_new"))}</button>` : ""}
           ${pasteBtn}${disc}
         </div>
@@ -5504,18 +5511,30 @@
       try { await savePlanName("anthropic-cli", name); } catch (e) {}
       startClaudeToken(el, box);
     };
+    const connBtn = box.querySelector("[data-conn-login]");
+    if (connBtn) connBtn.onclick = () => startClaudeToken(el, box, "login");
   }
 
-  async function startClaudeToken(el, box) {
+  // `flow`: "token" runs `claude setup-token` (a one-year token); "login" runs `claude auth login` (2026-11-26), the
+  // full claude.ai sign-in that carries the connectors, kept next to the token as its first choice.
+  const CLAUDE_FLOWS = {
+    token: { start: "/claude/token/start", poll: "/claude/token/poll", code: "/claude/token/code", s1: "models.tok_s1",
+             done: (d) => !!(d && d.token) },
+    login: { start: "/claude/login-start", poll: "/claude/login-poll", code: "/claude/login-code", s1: "models.conn_s1",
+             done: (d) => !!(d && d.connected) },
+  };
+
+  async function startClaudeToken(el, box, flow) {
+    const F = CLAUDE_FLOWS[flow] || CLAUDE_FLOWS.token;
     const m0 = box.querySelector("#cliTokMsg");
     if (m0) m0.textContent = t("models.getting_link");
     let r;
-    try { r = await (await fetch("/claude/token/start", { method: "POST" })).json(); }
+    try { r = await (await fetch(F.start, { method: "POST" })).json(); }
     catch (e) { if (m0) m0.textContent = t("common.net_err"); return; }
     if (!r || !r.ok) { if (m0) m0.innerHTML = Icons.warn((r && r.error) || t("models.cant_start")); return; }
     box.innerHTML = `
       <div class="prov-note" style="line-height:1.7">
-        <b>1)</b> ${esc(t("models.tok_s1"))}<br>
+        <b>1)</b> ${esc(t(F.s1))}<br>
         <a href="${esc(safeHref(r.url))}" target="_blank" rel="noopener" style="color:var(--link-ink);word-break:break-all">${esc(r.url || t("models.no_link"))}</a><br>
         <b>2)</b> ${esc(t("models.cli_s2"))}
         <div class="gcard-meta">${esc(t("models.cli_s2_nocode"))}</div>
@@ -5541,10 +5560,10 @@
       clearTimeout(timer);
       if (!el.isConnected || Date.now() - t0 > 15 * 60 * 1000) { stop(); return; }
       busy = true;
-      let d = null; try { d = await (await fetch("/claude/token/poll")).json(); } catch (e) {}
+      let d = null; try { d = await (await fetch(F.poll)).json(); } catch (e) {}
       busy = false;
       if (stopped) return;
-      if (d && d.token) { stop(); renderModelsCloudTab(el); return; }
+      if (F.done(d)) { stop(); renderModelsCloudTab(el); return; }
       if (d && d.ended) { stop(); if (m2) m2.innerHTML = Icons.warn(d.error || t("models.login_incomplete")); return; }
       timer = setTimeout(poll, 2500);
     };
@@ -5563,7 +5582,7 @@
       cb.disabled = true;
       const fd = new FormData(); fd.append("code", code);
       let rr;
-      try { rr = await (await fetch("/claude/token/code", { method: "POST", body: fd })).json(); }
+      try { rr = await (await fetch(F.code, { method: "POST", body: fd })).json(); }
       catch (e) { cb.disabled = false; if (m2) m2.textContent = t("common.net_err"); return; }
       cb.disabled = false;
       if (rr && rr.ok) { stop(); renderModelsCloudTab(el); return; }
@@ -5572,7 +5591,7 @@
         m2.innerHTML = Icons.warn((rr && rr.error) || t("models.code_wrong"))
           + `<div class="prov-action"><button class="gcard-btn ghost" type="button" data-tok-again="1">${esc(t("models.tok_again"))}</button></div>`;
         const again = m2.querySelector("[data-tok-again]");
-        if (again) again.onclick = () => { stop(); startClaudeToken(el, box); };
+        if (again) again.onclick = () => { stop(); startClaudeToken(el, box, flow); };
       }
     };
   }

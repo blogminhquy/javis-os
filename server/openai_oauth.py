@@ -61,7 +61,10 @@ REDIRECT_URI = AUTH_BASE + "/deviceauth/callback"
 # Redirect của luồng browser: PHẢI khớp đúng cái codex CLI đăng ký (loopback cổng 1455) thì
 # OpenAI mới chấp nhận. Ta không thật sự bind cổng này - chỉ để user dán lại URL redirect.
 BROWSER_REDIRECT_URI = "http://localhost:1455/auth/callback"
-BROWSER_SCOPE = "openid profile email offline_access"
+# 2026-11-26: the same scopes Codex CLI asks for itself (0.172.0 binary: "openid profile email offline_access
+# api.connectors.read api.connectors.invoke"). Without the two `api.connectors.*` the ChatGPT apps and connectors added
+# on chatgpt.com are missing from Codex turns for whoever signed in through this browser flow.
+BROWSER_SCOPE = "openid profile email offline_access api.connectors.read api.connectors.invoke"
 VERIFY_URL = AUTH_BASE + "/codex/device"
 UA = "javis-os/0.3 (+device-auth)"
 
