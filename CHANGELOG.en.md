@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.642.1] - 2026-11-26
+### Fixed
+- **Zalo OA chats in the Inbox show the customer's name, not a bare id.** One refused name lookup used to leave the name empty until a restart. Javis now retries after 10 minutes, reads the name from the OA's message history when Zalo refuses the profile, and names older chats when the bot starts. A name the owner set is kept.
+- **Chats the Page or the OA opened first (auto replies, greetings, ad messages) show the customer's name, not a long number.** On Messenger and Zalo OA. Older chats shown as a number are named when the bot starts.
+
 ## [0.642.0] - 2026-11-25
 ### Added
 - **Open one Inbox conversation from a link.** A report with a `#ht=<conversation id>` link now takes you straight to that customer's chat.
