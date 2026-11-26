@@ -16,6 +16,19 @@ Set sh = CreateObject("WScript.Shell")
 ' hiện tại khi môi trường có NoDefaultCurrentDirectoryInExePath (đường dẫn có "\" thì không sao).
 sh.Run "cmd /c cd /d """ & root & """ && call """ & root & "\stop-javis.bat"" > server\stop-last.log 2>&1", 0, True
 
+' Keep the last 5 logs (javis-1.log is the newest): the redirect below overwrites javis.log.
+On Error Resume Next
+logBase = root & "\server\javis"
+If fso.FileExists(logBase & ".log") Then
+  If fso.FileExists(logBase & "-5.log") Then fso.DeleteFile logBase & "-5.log", True
+  For n = 4 To 1 Step -1
+    If fso.FileExists(logBase & "-" & n & ".log") Then fso.MoveFile logBase & "-" & n & ".log", logBase & "-" & (n + 1) & ".log"
+  Next
+  fso.MoveFile logBase & ".log", logBase & "-1.log"
+End If
+Err.Clear
+On Error GoTo 0
+
 ' Chạy server ẩn (0 = cửa sổ ẩn, False = không chờ). Output -> server\javis.log
 sh.Run "cmd /c cd /d """ & root & """ && .venv\Scripts\python.exe server\main.py > server\javis.log 2>&1", 0, False
 
