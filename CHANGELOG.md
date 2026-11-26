@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.645.4] - 2026-11-26
+### Sửa lỗi
+- **Kết nối thêm trên claude.ai (Gmail, Lịch, Drive...) dùng lại được khi Claude Code chạy bằng token dài hạn.** Token từ `claude setup-token` chỉ được Claude Code cho quyền gọi model, không kéo được kết nối claude.ai. Nay nếu máy còn phiên đăng nhập claude.ai đầy đủ, Javis chạy bằng phiên đó để có đủ kết nối, còn token giữ làm dự phòng: phiên hết thì lượt đó tự chạy lại bằng token, bot và việc nền không dừng. Thẻ Claude Code ở trang Models nói rõ kết nối claude.ai đang bật hay tắt, kèm nút Bật kết nối claude.ai để đăng nhập lại một lần.
+- **Đăng nhập ChatGPT bằng trình duyệt xin đủ quyền như Codex.** Trước đây thiếu quyền dùng app và kết nối của ChatGPT nên Codex không thấy chúng. Ai đã đăng nhập theo đường này thì đăng nhập lại một lần để có đủ.
+
 ## [0.645.3] - 2026-11-26
 ### Sửa lỗi
 - **NotebookLM không còn mất đăng nhập sau vài giờ.** Phiên bạn dán giờ được lưu vào file riêng của kết nối, chỉ máy bạn đọc được, nên cookie Google đổi định kỳ được giữ lại. Kết nối đang có tự chuyển sang cách này ở lần chạy tới, không cần dán lại.
