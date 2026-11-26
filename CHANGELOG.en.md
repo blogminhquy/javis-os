@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.642.4] - 2026-11-26
+### Fixed
+- **The Assistants page toolbar on a phone is one row.** The "New conversation" button that duplicated the header + is gone, "Documents & Learned" is just the paperclip, and the right panel toggle no longer drops to its own line.
+- **The header + starts a new conversation with the chosen assistant** while the Assistants page is open.
+
 ## [0.642.3] - 2026-11-26
 ### Fixed
 - **Javis on Windows no longer goes offline until restarted.** A connection dropped at the wrong moment, common right after the PC wakes up, used to make the server stop taking new connections while it kept running.
