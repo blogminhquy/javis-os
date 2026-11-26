@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.645.1] - 2026-11-26
+### Sửa lỗi
+- **Việc nền cần bạn thì hỏi bạn, không lặng lẽ chạy lại.** Bước quy trình kiểm mãi không đạt, hay quy trình đang chờ bạn duyệt, giờ thành một câu hỏi ở trang Nhiệm vụ và trên chuông. Bạn trả lời là việc chạy tiếp.
+- **Nhắc hẹn và loop tạo trong chat với trợ lý chạy bằng đúng model và mức suy nghĩ của trợ lý đó.** Lượt kiểm chứng của loop vẫn dùng model việc nền. Cảm ơn @tunganh0990 (#1847).
+- **ChatGPT biết các mức suy nghĩ ngay sau khi Javis khởi động lại**, không phải đợi mở trang Models.
+- **Javis trên Windows không ngốn CPU khi cổng nhận kết nối lỗi liên tục.** Mỗi lần lỗi Javis đợi một chút rồi mới thử lại.
+
 ## [0.645.0] - 2026-11-26
 ### Thêm mới
 - **Bot nhớ mình đang chờ khách trả lời.** Bot hay nhân viên hỏi một khách trong nhóm, khách trả lời sau cả tiếng đồng hồ (kể cả không có dấu hỏi, như "7kg e ơi") thì bot vẫn biết đó là câu trả lời và xét để đáp lại.

@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.645.1] - 2026-11-26
+### Fixed
+- **Background jobs that need you now ask you instead of retrying in silence.** A workflow step that keeps failing its check, or a workflow waiting for your approval, becomes a question on the Tasks page and in the bell. Answer it and the job carries on.
+- **Reminders and loops made in an assistant's chat run on that assistant's own model and thinking level.** A loop's check still runs on the background model. Thanks to @tunganh0990 (#1847).
+- **ChatGPT knows its thinking levels right after Javis restarts**, without waiting for the Models page.
+- **Javis on Windows no longer burns CPU when its port keeps failing to accept connections.** After each failure it waits a moment before trying again.
+
 ## [0.645.0] - 2026-11-26
 ### Added
 - **Bots remember they are waiting for an answer.** When the bot or a staff member asks a customer something in a group and the answer comes an hour later (even a short one without a question mark), the bot still knows it is the answer and considers replying.
