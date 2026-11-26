@@ -4078,7 +4078,8 @@ def _claude_login_to_token(account: str = None, now: float = None) -> bool:
     except Exception as e:  # noqa: BLE001 - the card is then marked as before
         print(f"[claude auth] login to token: {type(e).__name__}: {e}", file=sys.stderr)
         return False
-    warm_pool.POOL.drop_kind("claude")   # a warm `claude` keeps the login it started with
+    # No warm-pool drop here: a warm `claude` is matched on the credentials it started with (claude_warm `auth_env`),
+    # so the token's turns never reuse a process that started on the login.
     claude_cli.auth_quen_cache()
     print("[claude auth] the login is gone: Claude Code runs on the long-lived token, claude.ai connectors are off",
           file=sys.stderr)
