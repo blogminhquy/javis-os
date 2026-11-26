@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.645.3] - 2026-11-26
+### Sửa lỗi
+- **NotebookLM không còn mất đăng nhập sau vài giờ.** Phiên bạn dán giờ được lưu vào file riêng của kết nối, chỉ máy bạn đọc được, nên cookie Google đổi định kỳ được giữ lại. Kết nối đang có tự chuyển sang cách này ở lần chạy tới, không cần dán lại.
+
 ## [0.645.2] - 2026-11-26
 ### Sửa lỗi
 - **Hết lỗi console khi rời trang Việc và trang Kỹ năng.** Bộ tự làm mới của trang Việc không còn chạy tiếp sau khi trang đã đóng, và trang Kỹ năng không còn lỗi khi khung hiển thị chưa có trên màn hình.
