@@ -666,11 +666,23 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
   const i = css.indexOf("@media (max-width:600px) {");
   check("tim duoc khoi man dien thoai cua trang Cong su", i !== -1);
   const khoi = css.slice(i, i + 900);
-  check("thanh dau trang duoc phep xuong dong", /\.ws-bar \{[^}]*flex-wrap:\s*wrap/.test(khoi));
-  check("CANARY: khong con bop chu 'Hoi thoai moi' cho vua mot dong",
-    !/#wsNewChat \{[^}]*max-width:\s*110px/.test(khoi));
-  check("nut mo cot phai dat ve mep phai cua dong duoi",
-    /#wsRightBtn \{[^}]*margin-left:\s*auto/.test(khoi));
+  // 2026-11-26 (chủ dự án): hàng nút gọn lại MỘT dòng thay vì xuống dòng. Header điện thoại đã có
+  // nút + (hội thoại mới) nên nút "Hội thoại mới" của thanh ẩn đi, nút tài liệu chỉ còn cái ghim, và
+  // nút mở cột phải không còn rớt xuống dòng riêng. Tên cộng sự vẫn ở hàng riêng (.ws-id) bên dưới.
+  const j = css.indexOf("@media (max-width:860px) {\n  .ws-bar");
+  check("tim duoc khoi gon thanh cong cu tren man hep", j !== -1);
+  const gon = css.slice(j, j + 400);
+  check("thanh dau trang nam tren mot dong", /\.ws-bar \{[^}]*flex-wrap:\s*nowrap/.test(gon));
+  check("an nut Hoi thoai moi trung voi nut + o header", /\.ws-bar #wsNewChat \{[^}]*display:\s*none/.test(gon));
+  check("nut tai lieu chi con icon ghim", /\.ws-bar #wsFiles \.ws-files-lbl \{[^}]*display:\s*none/.test(gon));
+  check("nut mo cot phai dat ve mep phai", /#wsRightBtn \{[^}]*margin-left:\s*auto/.test(css));
+  check("CANARY: khoi 600px khong bat thanh xuong dong lai", !/\.ws-bar \{[^}]*flex-wrap:\s*wrap/.test(khoi));
+  const ws = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  check("nut ghim van co ten khi an chu (title + aria-label)",
+    /id="wsFiles" title="' \+ esc\(nhanNutTaiLieu\(\)\) \+ '" aria-label=/.test(ws));
+  check("nut + o header mo hoi thoai moi cua trang Cong su",
+    /closest\("#newChatBtn"\)/.test(ws) && /S\.el\.querySelector\("#wsNewChat"\)/.test(ws) && /\}, true\);/.test(ws)
+    && /bindHeaderNewChat\(\);/.test(ws));
   // veLoi() nhoi cau bao loi va nut Thu lai vao CHINH o ten, nen o ten cung phai xuong dong
   // duoc, khong thi cau loi bi cat giua chu va chu tren nut be lam hai dong.
   check("cau bao loi va nut Thu lai xuong dong rieng trong o ten",
