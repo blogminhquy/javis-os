@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.645.0] - 2026-11-26
+### Added
+- **Bots remember they are waiting for an answer.** When the bot or a staff member asks a customer something in a group and the answer comes an hour later (even a short one without a question mark), the bot still knows it is the answer and considers replying.
+- **Bots send several short messages on Messenger, Zalo OA and Telegram,** as they already did on personal Zalo. A reply under a post stays one reply.
+- **The gap between two owner bells is a setting** on the bot form (Auto-judge mode): blank means 10 minutes, 0 rings every time.
+### Fixed
+- **Owner bells are no longer lost.** If the customer sends more hard messages while waiting, Javis rings once when the gap ends, with how many there were and the latest one, unless you already answered the customer.
+
 ## [0.644.0] - 2026-11-26
 ### Added
 - **A bot asks the staff contact, then tells the customer.** When a customer asks something only a person knows (a price, stock, a free slot, a delivery date), the bot sends the question with a short code to the staff contact and tells the customer it is checking.
