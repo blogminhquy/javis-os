@@ -604,7 +604,9 @@
         '<div class="ws-main">' +
           '<div class="ws-bar">' +
             '<button type="button" class="ws-ico" id="wsLeftBtn" title="' + esc(t("ws.toggle_list")) + '">' + ic("panel-left") + '</button>' +
-            '<button type="button" class="ws-btn" id="wsFiles">' + ic("paperclip") + ' <span class="ws-files-lbl">' + esc(nhanNutTaiLieu()) + '</span></button>' +
+            // 2026-11-26 (owner): on a phone the button is the paperclip alone, so the label also lives in title/aria-label.
+            '<button type="button" class="ws-btn" id="wsFiles" title="' + esc(nhanNutTaiLieu()) + '" aria-label="' + esc(nhanNutTaiLieu()) + '">' +
+              ic("paperclip") + ' <span class="ws-files-lbl">' + esc(nhanNutTaiLieu()) + '</span></button>' +
             '<button type="button" class="ws-btn" id="wsNewChat">' + esc(t("sess.new_chat")) + '</button>' +
             // Bộ icon chưa đóng gói "panel-right" (xem icons.manifest.json) và thêm icon mới
             // phải chạy gen_icons tải mạng - lật gương panel-left bằng CSS rẻ hơn mà cùng nghĩa.
@@ -659,6 +661,7 @@
     };
     el.querySelector("#wsStore").onclick = function () { nhom("packs", function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); }); };
     el.querySelector("#wsNewChat").onclick = function () { var x = dangChon(); if (x) moPhien(x, true); };
+    ganNutCongDauTrang();
     var page = el.querySelector("#wsPage");
     el.querySelector("#wsLeftBtn").onclick = function () { page.classList.toggle("left-open"); };
     el.querySelector("#wsRightBtn").onclick = function () { datPhai(!phaiDangHien()); };
@@ -1042,6 +1045,25 @@
     veTrai(); veGiua(dangChon());
   }
 
+  // 2026-11-26 (owner): on a phone the header already has a + (#newChatBtn, mobile-chat.js), so the bar's own
+  // "New conversation" button is hidden there (console.css). That + only clicks the hidden #resetBtn, which opens
+  // nothing on this page, so while this page is showing it starts a new conversation with the chosen assistant or
+  // workflow instead. Bound once, in the capture phase, and inert on every other page.
+  var _congDaGan = false;
+  function ganNutCongDauTrang() {
+    if (_congDaGan || typeof document === "undefined") return;
+    _congDaGan = true;
+    document.addEventListener("click", function (e) {
+      if (!active || !S.el || !S.el.isConnected) return;
+      var nut = e.target && e.target.closest ? e.target.closest("#newChatBtn") : null;
+      if (!nut) return;
+      var moi = S.el.querySelector("#wsNewChat");
+      if (!moi) return;
+      e.preventDefault(); e.stopPropagation();
+      if (ready && dangChon()) moi.click();
+    }, true);
+  }
+
   // 2026-11-16 (owner): an assistant's drawer has a Learned tab next to its documents, so the button says both. A
   // workflow has no documents or lessons of its own (the button opens the chat's documents), so it keeps "Documents".
   function nhanNutTaiLieu() { return t(S.loai === "agent" ? "ws.docs_learned" : "ws.files_links"); }
@@ -1050,6 +1072,8 @@
     var el = S.el; if (!el) return;
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.classList.toggle("on", b.dataset.loai === S.loai); });
     var lbl = el.querySelector(".ws-files-lbl"); if (lbl) lbl.textContent = nhanNutTaiLieu();
+    var filesBtn = el.querySelector("#wsFiles");
+    if (filesBtn) { filesBtn.title = nhanNutTaiLieu(); filesBtn.setAttribute("aria-label", nhanNutTaiLieu()); }
     if (S.loai === "agent") {
       // Tag không có "tag trống": tag tồn tại khi có agent mang nó. Tag đang lọc vừa bị đổi tên hay
       // xoá (ở tab khác, sau F5) thì về "Tất cả agent".
