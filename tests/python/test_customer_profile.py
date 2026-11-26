@@ -380,8 +380,9 @@ esc = chatbot_runtime.customer_profile(BOT, meta_c2)
 check("a profile cannot close its own block", "</customer_profile>" not in esc and "Tên: Minh" in esc, esc)
 
 src = (SERVER / "chatbot_runtime.py").read_text(encoding="utf-8")
-check("every turn path attaches the profile (live, inbox draft, Try bot)",
-      src.count('cfg["_customer_profile"] = customer_profile(cfg, meta)') == 3)
+# 26/11/2026: the relay of a staff answer (staff_requests) is a fourth turn in the customer's chat.
+check("every turn path attaches the profile (live, inbox draft, staff answer relay, Try bot)",
+      src.count('cfg["_customer_profile"] = customer_profile(cfg, meta)') == 4)
 main_src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("the writer runs on the BACKGROUND model, text only",
       "async def _customer_profile_ask" in main_src and '_aux_swap(cli, mode="suggest", tag="customer-profile")' in main_src
