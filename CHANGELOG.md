@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.642.1] - 2026-11-26
+### Sửa lỗi
+- **Hội thoại Zalo OA trong Hộp thư hiện tên khách, không còn chỉ là mã số.** Trước đây chỉ cần một lần hỏi tên Zalo bị từ chối là Javis nhớ tên rỗng tới khi khởi động lại. Giờ Javis thử lại sau 10 phút, lấy tên từ lịch sử tin nhắn của OA khi Zalo không cho đọc hồ sơ khách, và tự điền tên cho các hội thoại cũ lúc bot khởi động. Tên chủ đã tự đặt thì giữ nguyên.
+- **Cuộc chat do Page hoặc OA mở trước (tin trả lời tự động, tin chào, tin từ quảng cáo) hiện tên khách, không còn là dãy số.** Áp dụng cho Messenger và Zalo OA. Các cuộc cũ đang hiện dãy số được tự điền tên khi bot khởi động.
+
 ## [0.642.0] - 2026-11-25
 ### Thêm mới
 - **Mở thẳng một cuộc trò chuyện trong Hộp thư.** Báo cáo có link `#ht=<mã hội thoại>` thì bấm vào là tới đúng cuộc trò chuyện của khách, không phải tự tìm.
