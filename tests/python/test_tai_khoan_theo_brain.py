@@ -13,7 +13,10 @@ loại hỏng lặng lẽ nếu sai:
   1. Thêm ở brain nào thì thuộc brain đó.
   2. Tài khoản CHƯA gán brain hiện ở MỌI brain. Nếu không thì một token có thật ngoài đời tồn
      tại mà không màn hình nào hiện ra, không ai xoá hay gắn lại được.
-  3. Bot nhận tài khoản thì tài khoản nhận brain của bot, NHƯNG không ghi đè chủ đã có.
+  3. Bot nhận tài khoản thì tài khoản nhận brain của bot. Từ 27/11/2026 form bot cho chọn kênh của MỌI brain (chủ repo:
+     "phần sửa bot thêm kênh mới trong chatbot vẫn đang không nhìn thấy tất cả các kênh đã kết nối"), nên tick một kênh
+     của brain khác vào bot là người dùng tự chuyển kênh đó sang brain của bot: hộp thư và tab Tài khoản bot đi theo
+     bot đang trả lời. Sửa bot mà KHÔNG thêm kênh mới thì không đụng tới brain của kênh đã có.
   4. Không truyền brain (mã nội bộ, poller) thì vẫn trả HẾT như cũ.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
@@ -82,13 +85,28 @@ check("nhận chủ xong thì brain khác KHÔNG còn thấy nó nữa",
       "Lơ lửng" not in ten(ca.list_accounts(brain="/n/Shop")),
       ten(ca.list_accounts(brain="/n/Shop")))
 
-# Bot ở brain khác ôm một tài khoản ĐÃ CÓ CHỦ thì không được cướp chủ: đổi chủ là việc người
-# dùng làm tay ở form sửa, không phải thứ xảy ra sau lưng.
+# Người dùng tick kênh của brain khác vào bot (form giờ hiện mọi kênh): kênh chuyển sang brain của bot, nếu không thì
+# hộp thư của brain bot giấu mất các cuộc chat bot đó đang trả lời (keys_of_other_brains lọc theo brain của kênh).
 bid2, loi2 = chatbot_store.create_bot({"name": "Bot Shop", "agent_slug": "ag",
                                        "brain": "/n/Brain-Khac", "account_ids": a_shop})
 check("tạo bot thứ hai", bool(bid2) and not loi2, loi2)
-check("bot brain khác KHÔNG cướp chủ của tài khoản đã gán",
-      ca.get_account(a_shop).get("brain") == "/n/Shop", ca.get_account(a_shop))
+check("tick kênh của brain khác vào bot thì kênh sang brain của bot",
+      ca.get_account(a_shop).get("brain") == "/n/Brain-Khac", ca.get_account(a_shop))
+ca.update_account(a_shop, {"brain": "/n/Shop"})
+ok2, loi2 = chatbot_store.update_bot(bid2, {"name": "Bot Shop 2"})
+check("sửa bot mà không thêm kênh mới thì KHÔNG đụng tới brain của kênh đã có",
+      ok2 and ca.get_account(a_shop).get("brain") == "/n/Shop", (loi2, ca.get_account(a_shop)))
+ok2, loi2 = chatbot_store.update_bot(bid2, {"account_ids": [a_shop]})
+check("lưu lại đúng danh sách kênh cũ cũng KHÔNG đụng tới brain của kênh",
+      ok2 and ca.get_account(a_shop).get("brain") == "/n/Shop", (loi2, ca.get_account(a_shop)))
+a_moi, _ = ca.create_account({"channel": "telegram", "token": "999:moi", "label": "Kênh mới", "brain": "/n/Shop"})
+ok2, loi2 = chatbot_store.update_bot(bid2, {"account_ids": [a_shop, a_moi]})
+check("sửa bot thêm một kênh của brain khác thì chỉ kênh MỚI sang brain của bot",
+      ok2 and ca.get_account(a_moi).get("brain") == "/n/Brain-Khac" and ca.get_account(a_shop).get("brain") == "/n/Shop",
+      (loi2, ca.get_account(a_moi), ca.get_account(a_shop)))
+chatbot_store.update_bot(bid2, {"account_ids": [a_shop]})
+ca.delete_account(a_moi)
+chatbot_store.delete_bot(bid2)
 
 # ---- 4. Chuyển brain bằng tay + gỡ chủ ------------------------------------------
 ok, loi = ca.update_account(a_shop, {"brain": "/n/Kyluat"})
@@ -122,8 +140,8 @@ check("CANARY: route /channels/accounts nhận brain và cờ tat_ca",
 check("CANARY: Zalo cá nhân (kind=account) KHÔNG bị lọc mất theo brain",
       '"brain": "",   # kết nối ở trang Kết nối, không thuộc brain nào' in RT)
 MAIN = (SERVER / "main.py").read_text(encoding="utf-8")
-check("CANARY: form tạo bot chỉ cho chọn tài khoản của brain đang mở",
-      "channel_accounts.list_accounts(brain=loc)" in MAIN)
+check("CANARY: form bot cho chọn kênh của MỌI brain, không lọc theo brain đang mở",
+      "channel_accounts.list_accounts(brain=loc)" not in MAIN)
 check("CANARY: di trú chạy lúc khởi động", "channel_accounts.dien_brain_con_thieu(" in MAIN)
 
 print()

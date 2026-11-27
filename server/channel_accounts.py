@@ -399,12 +399,12 @@ def ensure_from_bot(bot: dict) -> Optional[str]:
         return bid
 
 
-def nhan_brain(account_id: str, brain: str) -> bool:
-    """Tài khoản CHƯA gán brain thì nhận brain này. Đã có chủ rồi thì không đụng.
+def nhan_brain(account_id: str, brain: str, take_over: bool = False) -> bool:
+    """Tài khoản CHƯA gán brain thì nhận brain này. Đã có chủ rồi thì không đụng, trừ khi `take_over`.
 
-    Gọi khi một bot nhận tài khoản: brain của bot chính là brain của tài khoản. Cố ý KHÔNG
-    ghi đè chủ cũ - đổi chủ là việc người dùng làm tay ở form sửa tài khoản, không phải thứ
-    xảy ra sau lưng chỉ vì gắn bot của brain khác vào.
+    Gọi khi một bot nhận tài khoản: brain của bot chính là brain của tài khoản. `take_over=True` chỉ dành cho kênh người
+    dùng VỪA tick vào bot (27/11/2026: form bot hiện kênh của mọi brain, tick kênh của brain khác là tự chuyển nó sang
+    brain của bot). Sửa bot mà không thêm kênh thì không bao giờ đổi chủ sau lưng.
     """
     br = _clean_brain(brain)
     if not account_id or not br:
@@ -412,7 +412,8 @@ def nhan_brain(account_id: str, brain: str) -> bool:
     with _lock:
         d = _load()
         for a in d["accounts"]:
-            if a.get("id") != account_id or _clean_brain(a.get("brain")):
+            cu = _clean_brain(a.get("brain"))
+            if a.get("id") != account_id or (cu and not take_over) or (cu and brain_ident.same_brain(cu, br)):
                 continue
             a["brain"] = br
             a["updated_at"] = _now()

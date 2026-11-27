@@ -1142,7 +1142,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
         }
         d["bots"].append(bot)
         _save(d)
-    _nhan_brain_cho_tk(bot)
+    _nhan_brain_cho_tk(bot, account_ids_of(bot))
     try:
         # A brain copied from another machine may hold what a bot with this slug learned there: import it now, before
         # the judge writes anything of its own (see learned_mirror).
@@ -1153,19 +1153,21 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
     return bot["id"], ""
 
 
-def _nhan_brain_cho_tk(bot: dict) -> None:
+def _nhan_brain_cho_tk(bot: dict, just_added=()) -> None:
     """Tài khoản bot này giữ mà CHƯA có brain chủ thì nhận brain của bot (0.62.4).
 
     Tab Tài khoản bot lọc theo brain, nên một tài khoản không chủ là một thẻ lơ lửng hiện ở
-    mọi brain. Gắn bot vào chính là lúc biết được nó thuộc về đâu. `nhan_brain` không ghi đè
-    chủ cũ, nên gọi ở đây an toàn kể cả khi tài khoản đã có brain.
+    mọi brain. Gắn bot vào chính là lúc biết được nó thuộc về đâu. Kênh đã có chủ thì giữ chủ,
+    trừ kênh trong `just_added`: người dùng vừa tick nó vào bot (form bot hiện kênh của mọi brain
+    từ 27/11/2026), nên nó sang brain của bot, để hộp thư của brain đó không giấu chat bot đang trả lời.
     """
     br = str((bot or {}).get("brain") or "").strip()
     if not br:
         return
+    moi = set(just_added or ())
     for aid in account_ids_of(bot or {}):
         try:
-            channel_accounts.nhan_brain(aid, br)
+            channel_accounts.nhan_brain(aid, br, take_over=aid in moi)
         except Exception:      # noqa: BLE001 - kho tài khoản hỏng không được làm hỏng lưu bot
             pass
 
@@ -1217,7 +1219,7 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
             return False, loi
         if can_xac_nhan_ngoai_le(ngoai_le_moi, (get_bot(bot_id) or {}).get("ngoai_le"), patch.get("xac_nhan_ngoai_le")):
             return False, _loi(LOI_CHUA_XAC_NHAN_NGOAI_LE)
-    acc_moi = None
+    acc_moi, just_added = None, []
     if "account_ids" in patch:
         acc_moi, loi = _clean_account_ids(patch.get("account_ids"), exclude_bot=bot_id)
         if loi:
@@ -1228,6 +1230,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
             if b.get("id") != bot_id:
                 continue
             if acc_moi is not None:
+                cu = set(account_ids_of(b))
+                just_added = [a for a in acc_moi if a not in cu]
                 b["accounts"] = acc_moi
             for k in _PATCHABLE:
                 if k not in patch:
@@ -1357,7 +1361,7 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
             return False, LOI_KHONG_CO_BOT
     # Ngoài khoá: `nhan_brain` tự lấy khoá của kho tài khoản, gọi trong `with _lock` ở đây là
     # giữ hai khoá lồng nhau không cần thiết.
-    _nhan_brain_cho_tk(_da_luu)
+    _nhan_brain_cho_tk(_da_luu, just_added)
     return True, ""
 
 

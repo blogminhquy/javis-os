@@ -32372,15 +32372,14 @@ def chatbots_list(brain: str = ""):
         k for k in channels.cho_giao_dien() if (k.get("nang_luc") or {}).get("bot")
     ], "tai_khoan": [
         # Tài khoản kênh chưa bot nào trực (0.61.0): form tạo bot cho CHỌN thay vì bắt dán token.
-        # Lọc theo BRAIN đang mở (0.62.4) đúng như danh sách bot ngay trên: bot thuộc một brain,
-        # nên nó chỉ được chọn tài khoản của brain đó. Không lọc thì form vẫn bày tài khoản của
-        # brain khác, gắn vào là tạo ra một liên kết chéo brain mà tab Tài khoản bot không hiện.
-        # `loc` rỗng (lời gọi nội bộ) thì trả hết như cũ.
+        # Mọi brain thấy MỌI kênh đã nối (chủ repo 27/11/2026: "phần sửa bot thêm kênh mới trong chatbot vẫn đang không
+        # nhìn thấy tất cả các kênh đã kết nối"), cùng luật với thẻ Messenger ở trang Kết nối. Tick kênh của brain khác
+        # vào bot thì kênh sang brain của bot (chatbot_store._nhan_brain_cho_tk), nên hộp thư vẫn đi theo bot trả lời.
         #
         # Cộng thêm Zalo cá nhân (0.64.80): kết nối ở trang Kết nối, không thuộc brain nào nên
         # brain nào cũng thấy. Thiếu dòng này thì người dùng nối Zalo xong mở "Bot mới" và
         # không thấy kênh nào để chọn (chủ repo báo 29/09).
-        a for a in (channel_accounts.list_accounts(brain=loc) + channel_accounts.tai_khoan_ao())
+        a for a in (channel_accounts.list_accounts() + channel_accounts.tai_khoan_ao())
         if not chatbot_store.bots_using_account(a["id"])
     ], "tai_khoan_ban": [
         # Tài khoản đang do một BOT trực (0.65.9): form Bot mới hiện chúng mờ kèm ổ khoá, ghi rõ bot nào (và brain nào, nếu khác
@@ -32389,7 +32388,7 @@ def chatbots_list(brain: str = ""):
         {"id": a["id"], "channel": a.get("channel") or "", "label": a.get("label") or "",
          "external_id": a.get("external_id") or "", "bot_id": u[0].get("id") or "",
          "bot_name": u[0].get("name") or "", "bot_brain": u[0].get("brain") or ""}
-        for a in (channel_accounts.list_accounts(brain=loc) + channel_accounts.tai_khoan_ao())
+        for a in (channel_accounts.list_accounts() + channel_accounts.tai_khoan_ao())
         for u in [chatbot_store.bots_using_account(a["id"])] if u
     ]}
 
