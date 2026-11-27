@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.646.1] - 2026-11-27
+### Fixed
+- **Javis runs on Windows with Python 3.15 again.** Since 0.642.3, Windows machines on Python 3.15 died at startup, so the Update button rolled back to the old version. The patch that keeps the port open on Windows now takes Python 3.15's new argument, and on a Python it does not know yet it stands aside so the server still starts.
+- **Machines patched by hand update normally.** If the updater reports a conflict in `server/accept_guard.py`, drop the local change to that file and press Update again.
+### Improved
+- **A failed update says why.** When the new version does not start, the updater reads that start's own log before rolling back, keeps its last lines in update.log and shows the error line on the Update screen, instead of only "the new version failed".
+
 ## [0.646.0] - 2026-11-27
 ### Added
 - **Meta's Muse has its own card on the Models page.** Open "Connect another provider", pick Muse, name the account, paste its cookie, press Connect Muse. Muse joins the usage order like ChatGPT or Claude, drag it in as a fallback or pick it as the background model.

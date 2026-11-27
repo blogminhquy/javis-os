@@ -1412,6 +1412,7 @@
   "cs.upd_done_reload": "Đã cập nhật xong. Đang tải lại trang…",
   "cs.upd_rb_a": "Bản mới lỗi, đã",
   "cs.upd_rb_b": "tự quay về bản cũ",
+  "cs.upd_rb_cause": "Lỗi lúc khởi động:",
   "cs.upd_err": "Cập nhật lỗi.",
   "cs.upd_see": "Xem",
   "cs.upd_pulling_long": "Đang kéo bản mới về, máy chậm có thể mất vài phút. Xong trang sẽ tự tải lại.",

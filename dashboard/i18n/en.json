@@ -1412,6 +1412,7 @@
   "cs.upd_done_reload": "Update finished. Reloading the page…",
   "cs.upd_rb_a": "The new version failed, it",
   "cs.upd_rb_b": "rolled back to the old one",
+  "cs.upd_rb_cause": "Startup error:",
   "cs.upd_err": "Update failed.",
   "cs.upd_see": "See",
   "cs.upd_pulling_long": "Pulling the new version, which can take a few minutes on a slow machine. The page reloads by itself when it is done.",
