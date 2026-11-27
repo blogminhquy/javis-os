@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.658.0] - 2026-11-27
+### Added
+- **Assistant memory is searched as needed.** An assistant with a large memory no longer loads the whole file on every turn. Always loaded: the opening text, the owner rules section, sections named as rules, and sections ending with "(always)", plus a map of what the memory holds. The rest and the attached documents are searched for each message (private chat on every engine, Telegram, CLI, workflow steps, team turns), and the assistant looks up more with the new `javis_recall` tool. A 3 MB memory still costs about 1,500 characters of prompt and a search takes under 40 ms. A memory under 12,000 characters works exactly as before.
+- **Learning at write time.** Each new memory passage is read once in the background by a cheap model, which adds the questions it answers and other words for its subject, so a question in different words still finds it. Capped per day, switched off with `agent_recall.enrich: false`.
+- **The assistant's Learned tab** shows that its memory is searched as needed, and warns when the always-loaded rules have grown too long and should be merged.
+### Improved
+- **Javis's memory index updates incrementally.** Adding or editing one memory reads only that file instead of rebuilding everything (5,000 memories: from 2.8 s to 0.3 s), and a query typed without diacritics now also matches the Vietnamese letter d with a stroke.
+
 ## [0.657.0] - 2026-11-27
 ### Added
 - **Javis on Windows restarts itself when the server dies or hangs.** A background task checks Javis every minute and restarts it after three missed answers in a row, so it is back within about 3 minutes.
