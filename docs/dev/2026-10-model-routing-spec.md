@@ -168,6 +168,7 @@ Chạy khi đọc settings mà `routing_version` < 1:
 | Dừng chuyển sau khi đã gọi công cụ | `aux_engine._FallbackChain.query` nhớ đã thấy sự kiện `tool_call` |
 | Telegram ghim theo chat | `main._chat_provider_kenh` nhận chat key; lệnh `/model` ghi `telegram_chats` |
 | Ghim chat của từng trợ lý | Chip model trong chat với trợ lý (`POST /sessions/{id}/model`) ghi cửa sổ đó **và** `agent_chats`. `main._agent_chat_row` chọn theo thứ tự: model chọn trong cửa sổ, ghim chat của trợ lý, model trong cài đặt trợ lý, MAIN. Việc nền (Kanban, nhắc hẹn, loop, team, bước workflow, bot) chỉ đọc cài đặt trợ lý. Chủ 26/11/2026: "đổi ở khung chat với agent thì cũng không đổi ở chạy nền" |
+| Model cho trợ lý MỚI | `server/agent_model_pick.py` (luật, không gọi model) + `main._auto_agent_model`. Trợ lý mới để "Mặc định" (form Cộng sự, gói Store qua `pack_vault.AGENT_MODEL_HOOK`, Javis tạo trong chat sau lượt, `javis_team`, tự học) được chọn trên thẻ đầu tiên của Thứ tự dùng mà trợ lý chạy được: Claude theo dòng (Opus/Sonnet/Haiku theo độ nặng của việc), thẻ khác giữ model của thẻ. Gói Store: chọn TRƯỚC khi ghi hash, cập nhật giữ model đã chọn. Chủ 27/11/2026 |
 | Nấc Effort gần nhất | hàm chung `model_routing.nearest_effort(level, supported)`; Off không gửi |
 | Lưu từ trang Models | `POST /settings` mục `model` nhận `order`, `profiles`, `accounts`, `auxiliary.reasoning` |
 | Giao diện | `dashboard/console.js` (tab Cloud của trang Models), CSS trong `console.css`, chữ trong `i18n/vi.json` + `en.json` |

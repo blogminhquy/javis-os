@@ -105,6 +105,7 @@ import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscri
 import claude_setup_token   # 2026-11-22: `claude setup-token` run from the Models card (a one-year token)
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import model_routing   # 0.350.0: provider order, per-card model/effort, several accounts per provider
+import agent_model_pick   # 27/11/2026: a new assistant gets a model that fits, from the cards this machine runs
 import plan_limits     # the plan's 5-hour and weekly meters (side work pauses near the limit)
 import plan_accounts   # 0.353.0: several accounts on one subscription plan card (Codex, Grok, Claude Code)
 import adv_keys   # gateway lists: Advanced API key (OpenAI route) and Claude Compatible (Anthropic route)
@@ -118,6 +119,7 @@ import connect_health   # sức khoẻ kết nối: vòng check nền + phân lo
 import purge          # xoá kết nối cho sạch: chủ sở hữu duy nhất của việc dọn dấu vết
 import core_off       # năng lực MẶC ĐỊNH gỡ được: trạng thái ghi ở STATE_DIR, không sửa cây code
 import packs          # GÓI mở rộng: thả thư mục vào STATE_DIR/packs là có thêm connector
+import pack_vault     # 27/11/2026: an assistant a pack installs gets a model (AGENT_MODEL_HOOK below)
 import cred_exchange   # đổi credential hộ user (vd App Password -> Google master token) khi đấu
 import ops_index_watch   # keeps every brain's Javis/index.md current, cheaply
 import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm tool/hook cho mọi engine qua hub
@@ -3951,6 +3953,70 @@ def _agent_model_provider(model: str, provider: str = "") -> str:
     if p in AGENT_PROVIDERS:
         return p
     return "openai-oauth" if _is_codex_model(model) else "anthropic-cli"
+
+
+def _agent_model_cards(cfg=None) -> list:
+    """Cards a NEW assistant can be given a model on (owner, 27/11/2026), in the usage order of the Models page:
+    signed in, one an assistant runs on (AGENT_PROVIDERS), each with the model it runs (MAIN's model for MAIN, the
+    card's own setting otherwise, else the name of its default) and its known model list. Read only."""
+    cfg = cfg if cfg is not None else cfgmod.read_settings()
+    mcfg = cfg.get("model") or {}
+    view = {p["id"]: p for p in _providers_view(cfg) if p.get("configured") and p.get("cli_found") is not False}
+    main_m = _effective_main(cfg)
+    out = []
+    for prov in _routing_order(mcfg, list(view)):
+        if prov not in view or prov not in AGENT_PROVIDERS:
+            continue
+        if prov == "antigravity-cli" and antigravity_cli.javis_off():
+            continue
+        model = main_m.get("model") if prov == main_m.get("provider") else model_routing.profile(mcfg, prov).get("model")
+        model = str(model or "").strip() or _default_model_name(mcfg, prov)
+        if prov == "openrouter":
+            model = model or str(mcfg.get("openrouter_model") or "").strip()
+        out.append({"provider": prov, "model": model or "", "models": list(view[prov].get("models") or [])})
+    return out
+
+
+def _auto_agent_model(meta, body: str = "", cfg=None) -> dict:
+    """Frontmatter keys {model, model_provider[, reasoning]} for a NEW assistant with no model, or {} (it already has
+    one, is Javis Core, or no card can run it). See agent_model_pick. Never raises: making the assistant matters more."""
+    meta = meta or {}
+    if javis_core.is_core_slug(str(meta.get("slug") or "")) or meta.get("system"):
+        return {}
+    try:
+        return agent_model_pick.choose(meta, body, _agent_model_cards(cfg))
+    except Exception as e:  # noqa: BLE001
+        print(f"[agent model pick] {type(e).__name__}: {e}", file=sys.stderr)
+        return {}
+
+
+def _apply_auto_agent_model(path, keep=None) -> dict:
+    """Give the assistant file at `path` a model when it has none: `keep` (the model it had before a Store update put
+    the pack's copy back) or the pick of `_auto_agent_model`. Only these keys change. Returns what was written."""
+    path = Path(path)
+    picked = None
+    for _ in range(2):
+        with _AGENT_META_LOCK:
+            if not path.is_file():
+                return {}
+            meta, body = _read_md(path)
+            meta = dict(meta or {})
+            if str(meta.get("model") or "").strip():
+                return {}
+            if picked is not None:
+                if not picked:
+                    return {}
+                meta.update(picked)
+                _write_md(path, meta, body)
+                return picked
+        # The pick reads settings and the cards: done outside the lock, then the file is read again before writing.
+        keep = {k: v for k, v in (keep or {}).items() if k in ("model", "model_provider", "reasoning") and v}
+        picked = keep if keep.get("model") else _auto_agent_model(meta, body)
+    return {}
+
+
+# An assistant a Store pack puts in the brain gets its model right after the copy (pack_vault.cai).
+pack_vault.AGENT_MODEL_HOOK = lambda path, keep: _apply_auto_agent_model(path, keep=keep)
 
 
 # A subscription that ran out of quota (0.285.0, owner 22/10/2026): provider -> epoch until which a chat PINNED to it
@@ -11006,6 +11072,18 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     path = _agents_dir(brain) / f"{slug}.md"
     tags = tags if isinstance(tags, str) else None
     group = group if isinstance(group, str) else None
+    # 27/11/2026 (owner): a NEW assistant left on "Default" gets a model that fits its work, from the cards this machine
+    # runs. Editing an assistant later and choosing "Default" keeps "Default".
+    auto_model = {}
+    if creating and not core and not (model or "").strip():
+        try:
+            tag_list = (agent_tags.parse_list(tags) or []) if tags else []
+        except agent_tags.TagError:
+            tag_list = []   # the save below refuses the tags with its own message
+        auto_model = await asyncio.to_thread(
+            _auto_agent_model, {"name": name, "slug": slug, "role": role, "group": group or "", "tags": tag_list,
+                                "skills": skills_list,
+                                "reasoning": reasoning if isinstance(reasoning, str) else ""}, prompt or "")
     # Gọi thẳng hàm (test, mã nội bộ) mà không truyền thì đây là đối tượng Form(None) chứ không phải None: coi như không gửi.
     avatar_image = avatar_image if isinstance(avatar_image, str) else None
 
@@ -11058,9 +11136,14 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                 meta["chatgpt_voice"] = chatgpt_voice
             if core:
                 meta["system"] = True   # still the system assistant after any edit
+            if auto_model:
+                meta.update(auto_model)
             agent_tags.write_tags(meta, hien)
             _write_md(path, meta, (prompt.strip() or role))
-            return {"ok": True, "slug": slug, "tags": hien}
+            out = {"ok": True, "slug": slug, "tags": hien}
+            if auto_model:
+                out["auto_model"] = auto_model
+            return out
 
     return await asyncio.to_thread(_luu)
 
@@ -16384,6 +16467,7 @@ learn_feature = learn_mod.register(app, learn_mod.LearnDeps(
     state_dir=cfgmod.STATE_DIR,
     readonly_tools=READONLY_TOOLS,
     stage_agent_procedure=lambda brain, slug, text: _stage_learned_procedure(brain, slug, text),
+    pick_agent_model=lambda meta, body: _auto_agent_model(meta, body),
     side_work_paused=lambda: _side_work_paused(),
     learning_lessons=lambda brain: _learning_lessons_block(brain),
 ))
@@ -23202,6 +23286,14 @@ async def _chat_socket(ws):
                     print(f"[memory receipt] {type(_e).__name__}: {_e}", file=sys.stderr)
                 try:
                     _doi = await asyncio.to_thread(change_receipt.diff, _cap_snap, _brain_root(brain))
+                    # 27/11/2026: an assistant Javis made in this turn without a model gets one that fits.
+                    # The receipt line names the model, so the owner sees it and can change it.
+                    for _it in _doi or []:
+                        if _it.get("kind") == "agent" and _it.get("act") == "new":
+                            _am = await asyncio.to_thread(_apply_auto_agent_model,
+                                                          _brain_root(brain) / "agents" / f"{_it['id']}.md")
+                            if _am.get("model"):
+                                _it["title"] = f"{_it.get('title') or _it['id']} · {_am['model']}"
                     if _doi:
                         await push_to_chat(conv_sid, change_receipt.receipt_text(_doi),
                                            nho=change_receipt.receipt_block(_doi, _brain_key(brain)))
@@ -33800,6 +33892,9 @@ class _TeamAdmin:
         bị trống nhãn. `model`/`model_provider` (0.173.0, công cụ `javis_team`): model riêng của trợ lý; provider lạ bị bỏ
         về "" để `_agent_model_provider` suy như trợ lý cũ."""
         base = _ascii_slug(name) or "tro-ly"
+        # 27/11/2026: no model given = one that fits its work, from the cards this machine runs (agent_model_pick).
+        auto = {} if str(model or "").strip() else _auto_agent_model(
+            {"name": name, "role": role, "tags": list(tags or [])}, prompt or "")
         with _AGENT_META_LOCK:
             d = _agents_dir(root)
             d.mkdir(parents=True, exist_ok=True)
@@ -33811,6 +33906,7 @@ class _TeamAdmin:
             mp = str(model_provider or "").strip()
             if meta["model"] and mp in AGENT_PROVIDERS:
                 meta["model_provider"] = mp
+            meta.update(auto)
             agent_tags.write_tags(meta, agent_tags.normalize_tags(list(tags or []) or ["Nhóm"]))
             _write_md(d / f"{slug}.md", meta, (prompt or "").strip() or role or name)
         return slug

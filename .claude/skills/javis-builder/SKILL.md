@@ -50,12 +50,16 @@ slug: <ascii>
 role: <vai trò 1 câu>
 tags: [Marketing, Viết nội dung]   # một hay nhiều tag; ví dụ Marketing, Bán hàng, Nội dung, Vận hành, Tài chính, AI, Năng suất, Cá nhân
 skills: [slug-skill]      # [] nếu chưa gán; chỉ gán skill đã có trong skills/
-model: ""                 # "" = dùng model chính | tên model, vd sonnet, gpt-5.5, claude-sonnet-5-5, gemini-2.5-pro
-model_provider: ""        # "" = suy theo tên model | anthropic-cli, openai-oauth, anthropic-api, openai, openrouter, gemini...
+model: ""                 # "" = Javis picks one that fits (see below) | a model the owner named, e.g. sonnet, gpt-5.5
+model_provider: ""        # "" with an empty model | anthropic-cli, openai-oauth, anthropic-api, openai, openrouter, gemini...
 updated: <YYYY-MM-DD>
 ---
 <system prompt: cách làm việc, nguyên tắc, định dạng đầu ra mong muốn>
 ```
+**A new assistant's model: leave `model` empty unless the owner named one.** Right after the turn, Javis gives it a model
+that fits its work from the cards this machine runs (first card of the usage order; on Claude: Opus for code, data,
+finance, law, research; Sonnet for marketing, sales, customer care; Haiku for translation, notes, reminders). Never guess a
+model name yourself: a model the machine cannot run leaves the assistant broken. Tell the owner they can change it.
 Gán hay đổi model cho trợ lý: ưu tiên tool `javis_team` op=set_agent_model (slug, model, model_provider). Tool tự kiểm
 model_provider hợp lệ và chạy trên MỌI engine, kể cả engine API. Cùng một tên model có ở hai nhà (claude-* có ở Claude Code
 lẫn Anthropic API) thì PHẢI ghi model_provider.
