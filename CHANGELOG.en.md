@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.651.0] - 2026-11-27
+### Added
+- **Each assistant remembers the thinking level you pick in its chat.** Changing the level in a chat with an assistant also applies to new chats with it and to its chats with no level of their own. A window where you picked a level of its own keeps it. The assistant's background work keeps the level in its settings.
+- **Back to the assistant's settings in one tap.** The "Follow the model and thinking level set on the assistant" row in the model list clears both pins at once.
+
 ## [0.650.0] - 2026-11-27
 ### Added
 - **A long chat resumed after more than an hour no longer re-reads its whole thread.** The Claude Code and ChatGPT prompt cache lives about an hour. Once it has gone cold and the old thread is at least twice the size of a fresh one seeded from the saved conversation, Javis starts a fresh thread and says so in one line in the chat, saving most of the tokens that would have been written again. A chat kept warm by cache keep-warm keeps its thread.

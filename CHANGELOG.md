@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.651.0] - 2026-11-27
+### Thêm mới
+- **Mỗi trợ lý nhớ mức suy nghĩ anh chọn khi chat.** Đổi mức suy nghĩ ở khung chat với một trợ lý là chat mới, và các chat chưa chọn mức riêng với trợ lý đó, cũng dùng mức này. Cửa sổ nào anh đã chọn mức riêng thì giữ nguyên. Việc nền của trợ lý vẫn theo mức trong cài đặt.
+- **Một chạm về lại cài đặt của trợ lý.** Dòng "Theo model và mức suy nghĩ trong cài đặt của trợ lý" trong bảng chọn model gỡ cả hai ghim cùng lúc.
+
 ## [0.650.0] - 2026-11-27
 ### Thêm mới
 - **Chat dài quay lại sau hơn 1 giờ nghỉ không còn đọc lại cả mạch.** Bộ nhớ đệm của Claude Code và ChatGPT chỉ sống khoảng 1 giờ. Khi nó đã nguội và mạch cũ to gấp đôi trở lên so với một mạch mới mồi từ bản ghi hội thoại, Javis mở mạch mới và báo một dòng trong chat, đỡ được phần lớn số token phải ghi lại. Chat đang bật Giữ ấm bộ nhớ đệm thì giữ nguyên mạch.
