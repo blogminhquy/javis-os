@@ -3930,7 +3930,8 @@ def _session_reasoning(mcfg, row, prov) -> str:
        that really answers, its Models page setting, whatever the chat or its assistant picked.
     2. The chat's own effort (`pinned_reasoning`, set by the effort chip of that chat window). One window never
        changes another, and an assistant's chat never rewrites the assistant's own setting.
-    3. An assistant's chat: the assistant's own level (default medium). A Javis Core chat: Javis Core's level.
+    3. An assistant's chat: the level pinned for chatting with that assistant (27/11/2026, the last level picked in
+       any chat with it), else the assistant's own level (default medium). A Javis Core chat: Javis Core's level.
     4. Otherwise the effort of the card the turn runs on."""
     row = row or {}
     prov = str(prov or "")
@@ -3941,6 +3942,9 @@ def _session_reasoning(mcfg, row, prov) -> str:
         return own
     persona = workflow_chat.persona_cua_phien(row) if row else None
     if persona and persona[0] == "agent":
+        pinned = _agent_chat_level(mcfg, row)
+        if pinned:
+            return pinned
         try:
             return _agent_reasoning(_read_md(_agents_dir(row.get("brain") or "brain") / f"{persona[1]}.md")[0])
         except Exception:  # noqa: BLE001 - an unreadable file means the assistant's default level
@@ -4443,17 +4447,46 @@ def _agent_chat_pin(mcfg, brain, slug) -> dict:
     return model_routing.agent_chat_pin(mcfg or {}, _agent_chat_key(brain, slug))
 
 
-def _set_agent_chat_pin(brain, slug, provider: str, model: str) -> None:
-    """Set or clear (empty provider) one assistant's chat pin. Only `model.agent_chats` changes: the assistant's file,
-    the Models page and every background run stay as they are. Blocking: call it from a worker thread."""
+def _write_agent_chat(brain, slug, change, clearing: bool) -> None:
+    """Apply `change(model_section, key)` to one assistant's chat pins. Only `model.agent_chats` changes: the
+    assistant's file, the Models page and every background run stay as they are. Blocking: call it from a worker."""
     key = _agent_chat_key(brain, slug)
     with cfgmod._SETTINGS_LOCK:
         cfg = cfgmod.read_settings()
         m = cfg.setdefault("model", {})
-        if not provider and key not in (m.get("agent_chats") or {}):
+        if clearing and key not in (m.get("agent_chats") or {}):
             return   # nothing to clear: no write
-        model_routing.set_agent_chat_pin(m, key, provider, model)
+        change(m, key)
         cfgmod.write_settings(cfg)
+
+
+def _set_agent_chat_pin(brain, slug, provider: str, model: str) -> None:
+    """Set or clear (empty provider) one assistant's chat model pin; its thinking level pin stays."""
+    _write_agent_chat(brain, slug, lambda m, k: model_routing.set_agent_chat_pin(m, k, provider, model),
+                      clearing=not provider)
+
+
+def _set_agent_chat_reasoning(brain, slug, level: str) -> None:
+    """Set or clear ("") one assistant's chat thinking level pin (owner, 27/11/2026); its model pin stays."""
+    _write_agent_chat(brain, slug, lambda m, k: model_routing.set_agent_chat_reasoning(m, k, level),
+                      clearing=not level)
+
+
+def _clear_agent_chat_pins(brain, slug) -> None:
+    """Drop both chat pins of one assistant: back to its settings (and on delete, so a new one starts clean)."""
+    def _drop(m, k):
+        model_routing.set_agent_chat_pin(m, k, "", "")
+        model_routing.set_agent_chat_reasoning(m, k, "")
+    _write_agent_chat(brain, slug, _drop, clearing=True)
+
+
+def _agent_chat_level(mcfg, row) -> str:
+    """The thinking level pinned for chatting with the assistant of this chat, or "" (none, or not a partner's chat)."""
+    persona = workflow_chat.persona_cua_phien(row or {})
+    if not persona or persona[0] != "agent":
+        return ""
+    return model_routing.agent_chat_reasoning(mcfg or {}, _agent_chat_key((row or {}).get("brain") or "brain",
+                                                                           persona[1]))
 
 
 def _heal_agent_chat_pin(row, mcfg, brain, model: str) -> None:
@@ -11190,7 +11223,7 @@ async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
                 f.unlink()
     await asyncio.to_thread(_xoa)
     try:
-        await asyncio.to_thread(_set_agent_chat_pin, brain, slug, "", "")
+        await asyncio.to_thread(_clear_agent_chat_pins, brain, slug)
     except Exception as e:  # noqa: BLE001 - a pin left behind only applies if the name is used again
         print(f"[agent chat pin] {type(e).__name__}: {e}", file=sys.stderr)
     # A1: xoá qua host thì mã Cộng hưởng của agent này nghỉ hẳn. Tạo lại cùng tên là agent MỚI, phải bật lại; mục
@@ -25409,6 +25442,10 @@ def _sessions_meta_sync(session_id: str):
             sess["agent_reasoning"] = _agent_reasoning(_m)
         except Exception:  # noqa: BLE001
             pass
+        # 27/11/2026: the level pinned for chatting with this assistant wins over its settings, in the chip too.
+        _lv = _agent_chat_level(cfgmod.read_settings().get("model", {}), sess)
+        if _lv:
+            sess["agent_reasoning"], sess["agent_reasoning_pinned"] = _lv, True
     elif javis_core.is_core_channel(sess.get("channel")):
         # 0.283.0: a Javis Core chat is an assistant's chat for the level chip too, with its own level.
         sess["agent_slug"] = javis_core.SLUG
@@ -25476,7 +25513,14 @@ async def _pin_chat_model(session_id: str, provider: str, model: str, brain=None
     out = {"ok": True, "pinned_provider": prov or None, "pinned_model": (model or "").strip() or None}
     persona = workflow_chat.persona_cua_phien(_row) if (_row and agent_pin) else None
     if persona and persona[0] == "agent":
-        await asyncio.to_thread(_set_agent_chat_pin, _row.get("brain") or brain or "brain", persona[1], prov, model)
+        abrain = _row.get("brain") or brain or "brain"
+        if prov:
+            await asyncio.to_thread(_set_agent_chat_pin, abrain, persona[1], prov, model)
+        else:
+            # 27/11/2026: "Follow the assistant's settings" brings back its model AND its thinking level, in this
+            # window and in every chat with it that has no pick of its own.
+            await asyncio.to_thread(_clear_agent_chat_pins, abrain, persona[1])
+            await asyncio.to_thread(get_store().set_pinned_reasoning, session_id, "")
         out["scope"] = "agent"
     return out
 
@@ -25510,7 +25554,15 @@ async def sessions_set_reasoning(session_id: str, level: str = Form(""), brain: 
                                  brain=_brain_key(brain) if (brain or "").strip() else None)
     if not ok:
         return JSONResponse({"error": localefmt.chu("phiên không tồn tại", "session does not exist")}, status_code=404)
-    return {"ok": True, "pinned_reasoning": lv or None}
+    out = {"ok": True, "pinned_reasoning": lv or None}
+    # 27/11/2026 (owner: "ghim mức suy nghĩ theo trợ lý"): in a chat with an assistant the level picked also becomes
+    # that assistant's chat level, so its next chats open on it. Its background work keeps the level in its settings.
+    row = get_store().get_session(session_id) or {}
+    persona = workflow_chat.persona_cua_phien(row)
+    if persona and persona[0] == "agent":
+        await asyncio.to_thread(_set_agent_chat_reasoning, row.get("brain") or brain or "brain", persona[1], lv)
+        out["scope"] = "agent"
+    return out
 
 
 @app.post("/sessions/{session_id}/project")
