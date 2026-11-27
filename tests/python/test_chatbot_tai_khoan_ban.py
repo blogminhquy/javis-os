@@ -7,8 +7,9 @@ nên người dùng thấy một kênh "biến mất" mà không biết vì sao.
 mở) đang giữ. Server cấp danh sách đó; hai chỗ dễ hỏng:
   1. `tai_khoan` (kênh RẢNH, tick được) và `tai_khoan_ban` (kênh có bot) phải là hai tập KHÔNG giao nhau, hợp lại là mọi kênh của brain,
      nếu không một kênh vừa hiện tick được vừa hiện khoá, hoặc biến mất.
-  2. Lọc theo brain như cũ: kênh của brain khác không lọt vào danh sách của brain đang mở (kênh chưa gán brain thì hiện ở mọi brain),
-     nhưng kênh Ở brain này mà bot giữ nó nằm brain khác thì vẫn hiện khoá kèm `bot_brain` khác.
+  2. KHÔNG lọc theo brain nữa (chủ dự án 27/11/2026: "phần sửa bot thêm kênh mới trong chatbot vẫn đang không nhìn thấy tất cả các
+     kênh đã kết nối"): brain nào mở form cũng thấy mọi kênh đã nối. Kênh rảnh của brain khác tick được; kênh có bot hiện khoá kèm
+     `bot_brain` để giao diện ghi tên brain đang giữ.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import os
@@ -66,7 +67,7 @@ ban = {a["id"]: a for a in d["tai_khoan_ban"]}
 
 check("kênh rảnh của brain A tick được", A_RANH in ranh, ranh)
 check("kênh chưa gán brain hiện ở mọi brain và tick được", A_CHUNG in ranh)
-check("kênh của brain B không lọt vào danh sách của brain A", A_KHAC not in ranh and A_KHAC not in ban)
+check("kênh rảnh của brain B cũng hiện ở brain A và tick được", A_KHAC in ranh and A_KHAC not in ban, ranh)
 check("kênh có bot KHÔNG còn nằm trong danh sách tick được", A_NHI not in ranh and A_LAN_BRAIN_KHAC not in ranh)
 check("kênh có bot nằm trong danh sách khoá", A_NHI in ban and A_LAN_BRAIN_KHAC in ban, list(ban))
 check("CANARY: hai danh sách không giao nhau (không kênh nào vừa tick được vừa khoá)", not (ranh & set(ban)), ranh & set(ban))
@@ -78,8 +79,9 @@ check("mỗi dòng khoá có đủ trường để vẽ (kênh, nhãn, tên phí
 check("TUYỆT ĐỐI không lộ token ra giao diện", all("token" not in str(a).lower().replace("token_set", "") for a in d["tai_khoan_ban"]))
 
 d2 = cl.get("/chatbots", params={"brain": "B"}).json()
-check("đứng ở brain B: thấy kênh brain B (rảnh) và kênh chưa gán, không thấy kênh của brain A",
-      {a["id"] for a in d2["tai_khoan"]} == {A_KHAC, A_CHUNG}, {a["id"] for a in d2["tai_khoan"]})
+check("đứng ở brain B: thấy đúng cùng các kênh như ở brain A (mọi brain thấy mọi kênh)",
+      {a["id"] for a in d2["tai_khoan"]} == ranh and {a["id"] for a in d2["tai_khoan_ban"]} == set(ban),
+      ({a["id"] for a in d2["tai_khoan"]}, {a["id"] for a in d2["tai_khoan_ban"]}))
 
 check("không dùng em dash trong file này", chr(0x2014) not in open(__file__, encoding="utf-8").read())
 
