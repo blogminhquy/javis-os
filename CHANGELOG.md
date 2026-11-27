@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.652.0] - 2026-11-27
+### Cải thiện
+- **Thêm Fanpage không cần dán lại App secret.** Thẻ Facebook Messenger hiện các app đã dùng cho Trang đang nối. Bấm một app, để trống App secret rồi Đăng nhập Facebook là chọn thêm được Trang khác; Javis tự dùng App secret đã lưu. Danh sách chọn đánh dấu Trang đã nối và chỉ tick sẵn Trang mới, kèm hướng dẫn bấm Chỉnh sửa quyền truy cập khi Facebook chỉ trả lại Trang cũ.
+
 ## [0.651.1] - 2026-11-27
 ### Sửa lỗi
 - **Chấm đỏ chưa đọc của cộng sự khớp với lịch sử hội thoại.** Trước đây mở một hội thoại bất kỳ của cộng sự là số chưa đọc trên thẻ biến mất, trong khi các hội thoại khác của cộng sự đó vẫn còn chấm đỏ, và chấm đỏ ở mục Cộng sự trên menu trái không chỉ ra được cộng sự nào. Nay số trên thẻ đếm đúng các hội thoại còn chấm đỏ, kể cả cộng sự đang mở.
