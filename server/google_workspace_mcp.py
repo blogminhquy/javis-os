@@ -68,13 +68,14 @@ def _meta() -> dict:
 
 
 def _language() -> str:
-    """Accept-Language for Google's approval text: the owner's interface language, English after it."""
+    """Accept-Language for Google's approval text: the owner's interface language first, any language after it
+    (Google falls back to its default). No language code is named here: lang_registry owns those."""
     try:
         import localefmt
         lang = (localefmt.ngon_ngu_giao_dien() or "").strip()
     except Exception:
         lang = ""
-    return f"{lang}, en;q=0.8" if lang and lang != "en" else "en"
+    return f"{lang}, *;q=0.5" if lang else "*"
 
 
 def _headers(method: str, name: str = "", auth: dict | None = None) -> dict:
