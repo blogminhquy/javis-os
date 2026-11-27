@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.658.4] - 2026-11-27
+### Fixed
+- **A tidier draft box in Conversations.** When you told Javis how to answer, the draft box repeated your whole instruction in its title, which took almost half a phone screen. The title now only says Javis followed your instruction; hover it to see the instruction.
+
 ## [0.658.3] - 2026-11-27
 ### Fixed
 - **The bot form shows every connected channel.** Picking channels when creating or editing a chatbot used to list only the open brain's channels, so a Page or bot connected in another brain could not be picked. Every brain now lists every channel; a channel another bot already answers still shows greyed out with that bot and its brain. Ticking another brain's channel into a bot moves the channel to the bot's brain, so that brain's inbox shows the chats the bot answers.

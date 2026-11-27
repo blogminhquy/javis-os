@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.658.4] - 2026-11-27
+### Sửa lỗi
+- **Khung nháp ở Hội thoại gọn hơn.** Khi bạn ra lệnh cho Javis soạn câu trả lời, khung nháp trước đây chép lại nguyên văn lệnh ở dòng tiêu đề, trên điện thoại chiếm gần nửa màn hình. Giờ tiêu đề chỉ ghi "Javis soạn theo lệnh của bạn", lệnh gốc vẫn xem được khi rê chuột vào dòng này.
+
 ## [0.658.3] - 2026-11-27
 ### Sửa lỗi
 - **Sửa bot thấy đủ mọi kênh đã nối.** Phần chọn kênh khi tạo hoặc sửa chatbot trước đây chỉ hiện kênh của brain đang mở, nên Fanpage hay bot nối ở brain khác không chọn được. Giờ brain nào cũng thấy mọi kênh; kênh đang có bot khác trực vẫn hiện mờ kèm tên bot và brain. Tick một kênh của brain khác vào bot thì kênh đó chuyển sang brain của bot, để hộp thư của brain đó thấy các cuộc chat bot đang trả lời.
