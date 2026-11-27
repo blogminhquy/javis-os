@@ -407,6 +407,9 @@ class RecallIndex:
             self._db = db
             return db
 
+    def exists(self) -> bool:
+        return self._db is not None or self.path.exists()
+
     def close(self):
         with self._lock:
             if self._db is not None:
@@ -766,7 +769,9 @@ class AgentRecall:
         documents = stats
         if plan.whole and not documents:
             # Small assistant without documents: exactly as before, and its old rows (it may have been large) go.
-            self.index.drop_scope(scope_key)
+            # No index file is created just for that: most assistants never need one.
+            if self.index.exists():
+                self.index.drop_scope(scope_key)
             return Prepared(scope_key, plan, False, memory_text)
         sources = []
         if not plan.whole:

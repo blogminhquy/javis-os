@@ -50,6 +50,7 @@ def test_small_memory_is_unchanged(recall):
     assert prep.plan.whole and not prep.indexed
     assert prep.memory_text == text, "byte for byte the old behaviour"
     assert recall.recall(prep, "giá đại lý")[0] == ""
+    assert not recall.index.path.exists(), "a small assistant never creates the index file"
 
 
 def test_rules_always_loaded_and_the_rest_searchable(recall):
