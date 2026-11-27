@@ -121,7 +121,9 @@ lan2 = store.create_session(brain=B, engine="cli", channel="agent:lan")
 check("an assistant's chat starts at the assistant's own level", turn(lan) == ("anthropic-cli", "high"), turn(lan))
 client.post(f"/sessions/{lan}/reasoning", data={"level": "low"}, headers=H)
 check("its window's effort wins in that window", turn(lan)[1] == "low", turn(lan))
-check("another chat with the same assistant keeps the assistant's level", turn(lan2)[1] == "high", turn(lan2))
+# 27/11/2026 (owner: "ghim mức suy nghĩ theo trợ lý"): the level picked in a chat with an assistant is also that
+# assistant's chat level, so its chats with no level of their own follow it. Background work keeps "high" (below).
+check("another chat with no level of its own follows the assistant's chat level", turn(lan2)[1] == "low", turn(lan2))
 check("the assistant's file is not rewritten", "reasoning: high" in (BR / "agents" / "lan.md").read_text(encoding="utf-8"))
 minh = store.create_session(brain=B, engine="cli", channel="agent:minh")
 store.set_pinned_model(minh, "openai-oauth", "gpt-5.5")   # an agent chat pins its agent's model

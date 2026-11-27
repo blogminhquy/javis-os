@@ -126,7 +126,7 @@ model.accounts     = { "<provider>": [ {"id": "acc_xxxx", "label": "...", "enabl
                                        } ] }
 model.auxiliary    = {"provider": "...", "model": "...", "reasoning": "..."}   # đã có, thêm reasoning
 model.telegram_chats = { "<chat key>": {"provider": "...", "model": "..."} }  # ghim từng chat
-model.agent_chats  = { "<brain>|<slug>": {"provider": "...", "model": "..."} }  # ghim chat của từng trợ lý (26/11/2026)
+model.agent_chats  = { "<brain>|<slug>": {"provider": "...", "model": "...", "reasoning": "..."} }  # ghim chat của từng trợ lý: model (26/11/2026), mức suy nghĩ (27/11/2026)
 model.routing_version = 1
 ```
 
@@ -168,6 +168,7 @@ Chạy khi đọc settings mà `routing_version` < 1:
 | Dừng chuyển sau khi đã gọi công cụ | `aux_engine._FallbackChain.query` nhớ đã thấy sự kiện `tool_call` |
 | Telegram ghim theo chat | `main._chat_provider_kenh` nhận chat key; lệnh `/model` ghi `telegram_chats` |
 | Ghim chat của từng trợ lý | Chip model trong chat với trợ lý (`POST /sessions/{id}/model`) ghi cửa sổ đó **và** `agent_chats`. `main._agent_chat_row` chọn theo thứ tự: model chọn trong cửa sổ, ghim chat của trợ lý, model trong cài đặt trợ lý, MAIN. Việc nền (Kanban, nhắc hẹn, loop, team, bước workflow, bot) chỉ đọc cài đặt trợ lý. Chủ 26/11/2026: "đổi ở khung chat với agent thì cũng không đổi ở chạy nền" |
+| Mức suy nghĩ theo trợ lý | Chip mức suy nghĩ trong chat với trợ lý (`POST /sessions/{id}/reasoning`) ghi mức của cửa sổ đó **và** `agent_chats[...].reasoning`. `main._session_reasoning`: thẻ dự phòng đang chạy, mức của cửa sổ, mức ghim chat của trợ lý, mức trong cài đặt trợ lý. Dòng "Theo model và mức suy nghĩ trong cài đặt của trợ lý" gỡ cả hai ghim và mức của cửa sổ. Việc nền (bot, Kanban, nhắc hẹn, loop, team) chỉ đọc file trợ lý. Chủ 27/11/2026 |
 | Model cho trợ lý MỚI | `server/agent_model_pick.py` (luật, không gọi model) + `main._auto_agent_model`. Trợ lý mới để "Mặc định" (form Cộng sự, gói Store qua `pack_vault.AGENT_MODEL_HOOK`, Javis tạo trong chat sau lượt, `javis_team`, tự học) được chọn trên thẻ đầu tiên của Thứ tự dùng mà trợ lý chạy được: Claude theo dòng (Opus/Sonnet/Haiku theo độ nặng của việc), thẻ khác giữ model của thẻ. Gói Store: chọn TRƯỚC khi ghi hash, cập nhật giữ model đã chọn. Chủ 27/11/2026 |
 | Nấc Effort gần nhất | hàm chung `model_routing.nearest_effort(level, supported)`; Off không gửi |
 | Lưu từ trang Models | `POST /settings` mục `model` nhận `order`, `profiles`, `accounts`, `auxiliary.reasoning` |

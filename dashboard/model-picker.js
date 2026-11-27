@@ -155,7 +155,9 @@
       pinBroken = !!(d && d.pinned_provider && d.pin_ok === false);
       pinLimited = (d && d.pin_limited_until) || 0;
       // 0.193.0: in an assistant's chat the effort chip shows and sets that assistant's own level (default medium).
-      agentEff = d && d.agent_slug ? { slug: d.agent_slug, level: d.agent_reasoning || "medium" } : null;
+      // 27/11/2026: `pinned` = the level comes from the assistant's chat pin (the last level picked in a chat with it).
+      agentEff = d && d.agent_slug ? { slug: d.agent_slug, level: d.agent_reasoning || "medium",
+                                       pinned: !!d.agent_reasoning_pinned } : null;
       pinSource = (d && d.pin_source) || "";
       sessionEff = (d && d.pinned_reasoning) || null;
       sessionPin = (d && d.pinned_provider && !pinBroken)
@@ -356,8 +358,9 @@
     let html = await window.JavisModelList.render(o);
     if (luot !== luotVe || pop.hidden) return;
     // An assistant's chat with its own model: one row to go back to following the main chat's model (0.285.0).
+    // 27/11/2026: in a partner's chat it also shows when only the thinking level is pinned, and it brings back both.
     if (agentEff && (pinBroken || (agentEff.slug === "javis-core" ? sessionPin
-      : sessionPin && (pinSource === "window" || pinSource === "agent_chat")))) {
+      : (sessionPin && (pinSource === "window" || pinSource === "agent_chat")) || sessionEff || agentEff.pinned))) {
       html = '<button type="button" class="mb-follow">' + (typeof ic === "function" ? ic("rotate-cw") : "") + " " +
         window.t(agentEff.slug === "javis-core" ? "mpick.follow_main" : "mpick.follow_agent") + "</button>" + html;
     }

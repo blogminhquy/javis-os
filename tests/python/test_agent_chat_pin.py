@@ -215,14 +215,76 @@ check("deleting the assistant drops its chat pin", r.status_code == 200 and not 
 check("an assistant made again with the same name starts on its own settings", turn(new_chat())[0] == "openai-oauth")
 
 # ============================================================
+# 6b. The thinking level pin (owner, 27/11/2026: "làm thêm ghim mức suy nghĩ theo trợ lý")
+# ============================================================
+def level(sid, brain=B):
+    """The thinking level the next dashboard turn of `sid` runs at, as the chat turn decides it."""
+    r = store.get_session(sid) or {}
+    r = {**r, "brain": r.get("brain") or brain}
+    return main._session_reasoning(m(), r, main._chat_provider_for_session(m(), r)[0])
+
+
+def chat_level(slug="lan", brain=B):
+    return main.model_routing.agent_chat_reasoning(m(), main._agent_chat_key(brain, slug))
+
+
+pick(new_chat(), "")   # start clean: no model or level pin for Lan
+e1, e2 = new_chat(), new_chat()
+check("an assistant's chat starts at the level in its settings", level(e1) == "high" and level(e2) == "high",
+      (level(e1), level(e2)))
+r = client.post(f"/sessions/{e1}/reasoning", data={"level": "low"}, headers=H)
+check("picking a level in a chat with an assistant is accepted with the assistant's scope",
+      r.status_code == 200 and r.json().get("scope") == "agent", r.text)
+check("that window runs the level picked", level(e1) == "low", level(e1))
+check("the level is kept as the assistant's chat level", chat_level() == "low", chat_level())
+check("another chat with no level of its own follows it", level(e2) == "low", level(e2))
+e3 = new_chat()
+check("a NEW chat with the assistant opens on it", level(e3) == "low", level(e3))
+check("...and the chip is told the assistant's level is its chat pin",
+      meta(e3).get("agent_reasoning") == "low" and meta(e3).get("agent_reasoning_pinned") is True, meta(e3))
+check("the level pin does not pin a model", not chat_pin(), chat_pin())
+client.post(f"/sessions/{e2}/reasoning", data={"level": "ultra"}, headers=H)
+client.post(f"/sessions/{e1}/reasoning", data={"level": "medium"}, headers=H)
+check("a window with its own level keeps it when another window changes the assistant's level",
+      level(e2) == "ultra" and level(e3) == "medium" and chat_level() == "medium", (level(e2), level(e3)))
+check("the assistant's file keeps its own level", "reasoning: high" in (BR / "agents" / "lan.md").read_text(encoding="utf-8"))
+bot = {"agent": {"brain": B, "slug": "lan"}}
+check("its dedicated bot still thinks at the level in its settings",
+      main._bot_turn_reasoning(m(), "openai-oauth", bot) == "high")
+saved_persona = main._agent_persona
+main._agent_persona = lambda root, slug, key=None: "persona" if slug == "lan" else ""
+try:
+    check("its Kanban jobs, reminders and loops keep the level in its settings",
+          (main._agent_job_spec(B, "lan") or {}).get("reasoning") == "high", main._agent_job_spec(B, "lan"))
+finally:
+    main._agent_persona = saved_persona
+pick(e3, "groq", "qwen3-32b")
+check("a model pick keeps the level pin, and the level pick keeps the model pin",
+      chat_level() == "medium" and chat_pin() == {"provider": "groq", "model": "qwen3-32b"}, (chat_level(), chat_pin()))
+r = pick(e2, "")
+check("'Follow the model and thinking level set on the assistant' clears both pins and the window's own level",
+      r.status_code == 200 and not chat_level() and not chat_pin() and level(e2) == "high"
+      and meta(e2).get("pinned_reasoning") is None and not meta(e2).get("agent_reasoning_pinned"),
+      (chat_level(), chat_pin(), level(e2), meta(e2)))
+check("chats with no level of their own go back to the assistant's settings", level(e3) == "high", level(e3))
+web2 = store.create_session(brain=B, engine="cli", channel="web")
+client.post(f"/sessions/{web2}/reasoning", data={"level": "low", "brain": B}, headers=H)
+check("a level picked in a normal chat pins no assistant", not (m().get("agent_chats") or {}), m().get("agent_chats"))
+client.post(f"/sessions/{e1}/reasoning", data={"level": "low"}, headers=H)
+r = client.post("/agents/delete", data={"slug": "lan", "brain": B}, headers=H)
+check("deleting the assistant drops its level pin too", r.status_code == 200 and not chat_level(), chat_level())
+(BR / "agents" / "lan.md").write_text(LAN, encoding="utf-8", newline="\n")
+
+# ============================================================
 # 7. The chip
 # ============================================================
 mp = (ROOT / "dashboard" / "model-picker.js").read_text(encoding="utf-8")
 check("the chip reads where the model of an assistant's chat comes from", 'pinSource = (d && d.pin_source) || "";' in mp)
 check("the chip explains the assistant's chat pin and the assistant's settings apart",
       '"mpick.agent_chat_pin_title"' in mp and '"mpick.agent_model_title"' in mp)
-check("'Follow the model set on the assistant' shows only when the chat runs on something else",
-      'sessionPin && (pinSource === "window" || pinSource === "agent_chat")' in mp)
+check("'Follow the assistant's settings' shows only when the chat runs on something else, its level included",
+      '(sessionPin && (pinSource === "window" || pinSource === "agent_chat")) || sessionEff || agentEff.pinned' in mp)
+check("the chip reads whether the assistant's level is its chat pin", "pinned: !!d.agent_reasoning_pinned" in mp)
 check("after following, the chip reads the chat again (it shows the assistant's model, not the main one)",
       "await loadState(); await loadSessionPin(); renderBar(); close();" in mp)
 for lang in ("vi", "en"):
