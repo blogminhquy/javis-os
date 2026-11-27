@@ -668,6 +668,48 @@ _DAU_NHAC_CAU_HOI = 4000
 _DUOI_NHAC_CAU_HOI = 2000
 
 
+def _clip_request(request: str) -> str:
+    """Keep the head and the tail of a long request: the instruction sits in its first or its last sentence."""
+    if len(request) <= _TRAN_NHAC_CAU_HOI:
+        return request
+    return (request[:_DAU_NHAC_CAU_HOI].rstrip()
+            + "\n[... middle left out here, the full text is at the end of this message ...]\n"
+            + request[-_DUOI_NHAC_CAU_HOI:].lstrip())
+
+
+# The first message of a new agy thread carries Javis's whole context: no system prompt flag exists, so the
+# instructions go in front and the user's message comes LAST. agy cuts the END of a message that is too long and
+# leaves "<truncated N bytes>" in its place (owner report 2026-11-27: an assistant with a 52.8 KB memory file, asked
+# "can you make images?", saw its memory cut at line 234 and answered "your request was cut off, please resend
+# it"). Past this size the latest message is also copied to the TOP, so whatever agy cuts, the question survives.
+# Below it nothing changes. JAVIS_AGY_FIRST_MESSAGE_GUARD (bytes) moves the line; 0 copies it on every first message.
+FIRST_MESSAGE_GUARD_BYTES = 32000
+
+
+def _first_message_guard_bytes() -> int:
+    try:
+        return max(0, int(os.environ.get("JAVIS_AGY_FIRST_MESSAGE_GUARD") or FIRST_MESSAGE_GUARD_BYTES))
+    except ValueError:
+        return FIRST_MESSAGE_GUARD_BYTES
+
+
+def first_message(instructions: Optional[str], prompt: str) -> str:
+    """The text that opens a new thread: instructions, then the prompt, with the latest message copied on top
+    when the whole is long enough for agy to cut its end (see FIRST_MESSAGE_GUARD_BYTES)."""
+    instr = (instructions or "").strip()
+    text = (instr + "\n\n" + prompt) if instr else prompt
+    if len(text.encode("utf-8", errors="replace")) <= _first_message_guard_bytes():
+        return text
+    request = cau_hoi_moi_nhat(prompt)
+    if not request:
+        return text
+    return ("[LATEST USER MESSAGE, copied to the top because this message is long and its end may be cut off. "
+            "The same message is at the very end. Read the instructions below, then answer it once. If you see a "
+            "'<truncated' marker further down, part of the context is missing: still answer this message as well "
+            "as you can, never ask the user to send it again.]\n"
+            f"{_clip_request(request)}\n[END OF COPY]\n\n" + text)
+
+
 def _loi_nhac_file(duong_dan: str, cau_hoi: str) -> str:
     """Prompt NGẮN thay cho cả gói: bảo model tự mở file ngữ cảnh ra đọc.
 
@@ -1612,7 +1654,7 @@ class AntigravityCLI:
                 # The one-shot turn opens a new thread carrying the whole context, never stored for a resume.
                 self.session_id = None
                 self.resumable = False
-        full = (self.instructions.strip() + "\n\n" + prompt) if self.instructions else prompt
+        full = first_message(self.instructions, prompt)
         # Ba đường đưa prompt cho CLI, xếp theo mức trung thực giảm dần:
         #   argv  - nhét thẳng vào dòng lệnh. Nguyên vẹn, nhưng đụng trần của hệ điều hành.
         #   stdin - bơm qua ống dẫn. Cũng nguyên vẹn, không trần. Đường ĐÚNG khi prompt dài.
