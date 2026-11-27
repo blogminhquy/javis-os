@@ -6861,10 +6861,13 @@
     el.innerHTML = `<div class="pg-loading pg-page">${esc(t("common.loading"))}</div>`;
     let d;
     try { d = await (await fetch("/connect/catalog")).json(); } catch (e) { el.innerHTML = placeholder("mcp", window.t("cs.cn_load_err")); return; }
-    const cat = d.catalog || [];
     const conns = d.connections || [];
     const byId = {};
-    cat.forEach(c => byId[c.id] = c);
+    (d.catalog || []).forEach(c => byId[c.id] = c);
+    // A card another card replaces is offered only to someone who already has a connection of it (2026-11-27: the
+    // community Google Workspace card and the single Gmail / Calendar cards gave way to Google's official one).
+    // `byId` keeps every card, so existing connections still render with their own name and settings.
+    const cat = (d.catalog || []).filter(c => !c.replaced_by || conns.some(x => x.connector_id === c.id));
     byId.custom = { id: "custom", name: window.t("cs.cn_custom_name"), icon: "star", category: "Khác",
                     description: window.t("cs.cn_custom_desc"), auth_type: "apikey" };
     const st = await freshSettings();

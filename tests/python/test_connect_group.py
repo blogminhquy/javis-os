@@ -12,9 +12,9 @@ os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-connect-
 import mcp_catalog  # noqa: E402
 import mcp_store  # noqa: E402
 
-GOOGLE_GROUP = {"google-workspace", "google-tasks", "google-calendar",
+GOOGLE_GROUP = {"google-workspace-official", "google-workspace", "google-tasks", "google-calendar",
                 "gmail", "google-keep", "google-sheets"}
-STEP_CONNECTORS = {"google-workspace", "google-tasks", "google-calendar",
+STEP_CONNECTORS = {"google-workspace-official", "google-workspace", "google-tasks", "google-calendar",
                    "gmail", "google-keep"}
 
 

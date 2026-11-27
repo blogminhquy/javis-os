@@ -1,0 +1,108 @@
+{
+ "_doc": "Tool names and readOnlyHint of Google's Workspace MCP servers (/mcp/v1), read from the live servers on 2026-11-27. tools/list needs no sign-in. Used by test_google_workspace_official.py to check that every tool is classified on purpose.",
+ "services": {
+  "gmail": {
+   "apply_sensitive_message_label": false,
+   "apply_sensitive_thread_label": false,
+   "create_draft": false,
+   "create_filter": false,
+   "create_label": false,
+   "forward": false,
+   "get_draft": true,
+   "get_message": true,
+   "get_thread": true,
+   "label_message": false,
+   "label_thread": false,
+   "list_drafts": true,
+   "list_filters": true,
+   "list_labels": true,
+   "mark_message_spam": false,
+   "mark_thread_spam": false,
+   "reply": false,
+   "search_threads": true,
+   "send_message": false,
+   "trash_message": false,
+   "trash_thread": false,
+   "unlabel_message": false,
+   "unlabel_thread": false,
+   "unmark_message_spam": false,
+   "unmark_thread_spam": false,
+   "untrash_message": false,
+   "untrash_thread": false,
+   "update_draft": false,
+   "update_label": false,
+   "update_message_labels": false
+  },
+  "calendar": {
+   "create_event": false,
+   "delete_event": false,
+   "get_event": true,
+   "list_calendars": true,
+   "list_events": true,
+   "respond_to_event": false,
+   "search_events": true,
+   "suggest_time": true,
+   "update_event": false
+  },
+  "drive": {
+   "copy_file": false,
+   "create_file": false,
+   "download_file_content": true,
+   "get_file_metadata": true,
+   "get_file_permissions": true,
+   "get_shared_drive_metadata": true,
+   "list_file_revisions": true,
+   "list_recent_files": true,
+   "list_shared_drives": true,
+   "read_file_content": true,
+   "request_access": false,
+   "search_files": true,
+   "trash_file": false,
+   "update_file": false,
+   "upload_file_revision": false
+  },
+  "docs": {
+   "read_doc": true,
+   "update_doc": false
+  },
+  "sheets": {
+   "append_values": false,
+   "batch_clear_values": false,
+   "copy_sheet_to_another_spreadsheet": false,
+   "get_spreadsheet": true,
+   "get_values": true,
+   "insert_dimension": false,
+   "update_formulas": false,
+   "update_spreadsheet": false,
+   "update_values": false
+  },
+  "slides": {
+   "read_presentation": true,
+   "read_slide_page": true,
+   "read_slide_page_thumbnail": true,
+   "update_presentation": false
+  },
+  "tasks": {
+   "complete_task": false,
+   "create_task": false,
+   "delete_task": false,
+   "get_task": true,
+   "list_task_lists": true,
+   "list_tasks": true,
+   "uncomplete_task": false,
+   "undelete_task": false,
+   "update_task": false
+  },
+  "chat": {
+   "list_messages": true,
+   "search_conversations": true,
+   "search_messages": true,
+   "send_message": false
+  },
+  "people": {
+   "get_user_profile": true,
+   "search_contacts": true,
+   "search_directory_people": true
+  }
+ }
+}

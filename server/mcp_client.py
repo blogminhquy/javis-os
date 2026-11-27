@@ -65,7 +65,9 @@ _IDLE_TTL = 900          # đóng session không dùng > 15 phút
 _TOOLS_TTL = 600
 _DOWN_TTL = 60           # nguồn vừa khởi động hỏng: trả lỗi ngay trong chừng này giây (SessionPool.call_tool)
 _INTERNAL = {"botcake": "botcake_mcp", "substack": "substack_mcp",   # transport internal → tên module
-             "http_api": "http_api_mcp"}
+             "http_api": "http_api_mcp",
+             # Google's own Workspace MCP servers, nine of them behind one sign-in (google_workspace_mcp.py).
+             "google_workspace": "google_workspace_mcp"}
 
 _DIAL_SONG_SONG = 8      # số connection dò tool CÙNG LÚC (đừng để npx nổ ra 30 tiến trình)
 # The start-up warm pass opens fewer sessions at once than a chat turn's dial (2026-11-13). Nobody waits for that
@@ -1072,6 +1074,9 @@ def _conn_spec(conn):
             "secrets": conn.get("secrets") or {}, "config": conn.get("config") or {},
             "inject_args": conn.get("inject_args") or {},
             "oauth_conn_id": conn["id"] if conn.get("auth") == "oauth" else "",
+            # The hub's prefix for this connection's tools, so an internal module can name one of its own tools in
+            # what it tells the model (google_workspace_mcp: "call <namespace>__confirm_google_action").
+            "namespace": conn.get("namespace", ""),
             "label": conn.get("label", "")}
 
 
