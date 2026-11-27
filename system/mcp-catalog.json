@@ -243,9 +243,60 @@
       "default_perm": "readonly"
     },
     {
+      "id": "google-workspace-official",
+      "name": "Google Workspace",
+      "icon": "/static/logos/google-workspace.svg",
+      "key_family": "google",
+      "group_line": "Bản chính chủ Google: Gmail, Lịch, Drive, Docs, Sheets, Tasks... một lần đăng nhập, chạy cả trên VPS.",
+      "category": "Văn phòng",
+      "description": "Bản chính chủ Google: Gmail, Lịch, Drive, Docs, Sheets, Slides, Tasks, Chat và Danh bạ trong MỘT lần đăng nhập. Đăng nhập ngay trong dashboard nên chạy được cả trên VPS. Tạo OAuth client khoảng 3 phút bằng trang Personal mode của Google.",
+      "status": "beta",
+      "_transport_doc": "Google made its Workspace MCP servers and the Workspace CLI (gwscli) generally available on 2026-11-24 (developers.google.com/workspace/cli/release-notes). gwscli is a terminal client for these same servers, so Javis talks to the servers directly: the hub's permission levels and audit stay in front of every call, every brain gets the tools, and sign-in goes through Javis's own OAuth page, which works on a VPS (gwscli auth login needs a browser on the machine that runs it). One server per product, nine in all, behind one token: server/google_workspace_mcp.py fans out and prefixes each tool with its service.",
+      "transport": "internal",
+      "internal": "google_workspace",
+      "auth": {
+        "type": "oauth",
+        "provider": "google",
+        "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+        "token_url": "https://oauth2.googleapis.com/token",
+        "_scopes_doc": "The scopes Google lists per server in 'Configure the Google Workspace MCP servers' (developers.google.com/workspace/guides/configure-mcp-servers), all nine servers together. gmail.settings.basic is only for create_filter; profile is for people get_user_profile. A scope Google refuses for this account is dropped by oauth_mcp and the sign-in goes on.",
+        "scopes": ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/gmail.modify", "https://www.googleapis.com/auth/gmail.settings.basic", "https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/documents.readonly", "https://www.googleapis.com/auth/documents", "https://www.googleapis.com/auth/spreadsheets.readonly", "https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/presentations.readonly", "https://www.googleapis.com/auth/presentations", "https://www.googleapis.com/auth/calendar.calendarlist.readonly", "https://www.googleapis.com/auth/calendar.events.freebusy", "https://www.googleapis.com/auth/calendar.events.readonly", "https://www.googleapis.com/auth/calendar.events", "https://www.googleapis.com/auth/chat.spaces.readonly", "https://www.googleapis.com/auth/chat.memberships.readonly", "https://www.googleapis.com/auth/chat.messages.readonly", "https://www.googleapis.com/auth/chat.messages.create", "https://www.googleapis.com/auth/chat.users.readstate", "https://www.googleapis.com/auth/chat.users.spacesettings", "https://www.googleapis.com/auth/tasks.readonly", "https://www.googleapis.com/auth/tasks", "https://www.googleapis.com/auth/directory.readonly", "https://www.googleapis.com/auth/contacts.readonly"],
+        "authorize_params": { "access_type": "offline", "prompt": "consent", "include_granted_scopes": "true" },
+        "fields": [
+          { "key": "client_id", "label": "OAuth Client ID", "placeholder": "Ví dụ: xxxx.apps.googleusercontent.com" },
+          { "key": "client_secret", "label": "OAuth Client Secret", "placeholder": "Ví dụ: GOCSPX-..." }
+        ],
+        "guide": "Bản chính chủ của Google: chín dịch vụ (Gmail, Lịch, Drive, Docs, Sheets, Slides, Tasks, Chat, Danh bạ), một lần đăng nhập, đăng nhập ngay trong dashboard nên chạy được cả trên VPS.\nLàm 1 lần, khoảng 3 phút:\n1. Mở trang Personal mode của Google Cloud (nút bên dưới).\nTrang này tự bật mọi API cần thiết, tự tick ô 'Use this client for an AI-powered agent', và bỏ qua màn hình đồng ý lẫn bước xác minh app.\n2. Chọn project có sẵn hoặc tạo project mới, đặt tên cho client, giữ loại 'Web application'.\n3. Ở 'Authorized redirect URIs' bấm + Add URI, dán đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nChạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n4. Tick đồng ý chính sách dữ liệu của Google, bấm Continue, copy Client ID + Client Secret dán vào đây rồi bấm Kết nối.\n5. Đăng nhập Google và TICK HẾT các ô quyền. Bỏ ô nào thì đúng nhóm việc đó báo thiếu quyền.\n\nGửi thư, chia sẻ, bỏ vào thùng rác hay mời người ngoài: Google tự dừng lại hỏi trước. Javis đưa câu hỏi đó cho bạn trong khung chat, bạn đồng ý thì việc mới chạy.\n\nĐã có OAuth client của thẻ Gmail hay Lịch cũ? Dùng lại được.\nTrong Google Auth Platform > Clients, tick 'Use this client for an AI-powered agent' cho client đó và bật các API MCP (nút bên dưới).\nGửi tin Google Chat cần tài khoản Google Workspace (không phải Gmail cá nhân) và một Chat app trong project.",
+        "guide_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+        "steps": [
+          {"text": "Mở trang Personal mode của Google Cloud. Trang tự bật mọi API cần thiết, tự tick ô 'Use this client for an AI-powered agent', không phải làm màn hình đồng ý hay xác minh app.", "link": "https://console.cloud.google.com/auth/overview/personal?apis=ws,wsmcp,tasksmcp&clientType=web&isAgent=true", "link_label": "Mở Personal mode"},
+          {"text": "Chọn project có sẵn hoặc tạo project mới, đặt tên cho client. Giữ loại 'Web application'."},
+          {"text": "Ở 'Authorized redirect URIs' bấm + Add URI, dán địa chỉ dưới đây. Chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback.", "copy": "redirect"},
+          {"text": "Tick đồng ý chính sách dữ liệu, bấm Continue. Copy Client ID và Client Secret dán vào hai ô bên dưới rồi bấm Kết nối."},
+          {"text": "Trang Google mở ra: đăng nhập, bấm đồng ý và TICK HẾT các ô quyền. Bỏ ô nào thì đúng nhóm việc đó báo thiếu quyền."},
+          {"text": "Đã có OAuth client của thẻ Gmail hay Lịch cũ? Dùng lại được: tick 'Use this client for an AI-powered agent' cho client đó trong Google Auth Platform, rồi bật các API MCP.", "link": "https://console.cloud.google.com/flows/enableapi?apiid=gmailmcp.googleapis.com,drivemcp.googleapis.com,docsmcp.googleapis.com,sheetsmcp.googleapis.com,slidesmcp.googleapis.com,calendarmcp.googleapis.com,chatmcp.googleapis.com,tasksmcp.googleapis.com,people.googleapis.com", "link_label": "Bật các API MCP"}
+        ],
+        "setup": {
+          "links": [
+            { "label": "Mở Personal mode", "url": "https://console.cloud.google.com/auth/overview/personal?apis=ws,wsmcp,tasksmcp&clientType=web&isAgent=true" },
+            { "label": "Bật các API MCP", "url": "https://console.cloud.google.com/flows/enableapi?apiid=gmailmcp.googleapis.com,drivemcp.googleapis.com,docsmcp.googleapis.com,sheetsmcp.googleapis.com,slidesmcp.googleapis.com,calendarmcp.googleapis.com,chatmcp.googleapis.com,tasksmcp.googleapis.com,people.googleapis.com" }
+          ]
+        }
+      },
+      "validate": { "tool": "gmail_list_labels", "args": {} },
+      "_tool_meta_doc": "Tool names are the service plus Google's own name (google_workspace_mcp.py). read lists every tool Google marks readOnlyHint (tests/python/fixtures/google_workspace_official_tools.json, read from the live servers) plus confirm_google_action: that one only relays the owner's answer to an approval Google asked for on a call the hub already let through, and reads can need approval too (another owner's file), so it must work at Read only. Danger: mail or chat leaving the account, trash and spam, deleting events and tasks, a Gmail filter (it acts on every future mail and can forward), and request_access (it messages a file's owner). Patterns, not names, because Google adds tools while rolling out (three Sheets tools appeared on 2026-11-27 between two reads). write '*' last: a tool Google adds later is never read by accident.",
+      "tool_meta": {
+        "read": ["calendar_get_event", "calendar_list_calendars", "calendar_list_events", "calendar_search_events", "calendar_suggest_time", "chat_list_messages", "chat_search_conversations", "chat_search_messages", "docs_read_doc", "drive_download_file_content", "drive_get_file_metadata", "drive_get_file_permissions", "drive_get_shared_drive_metadata", "drive_list_file_revisions", "drive_list_recent_files", "drive_list_shared_drives", "drive_read_file_content", "drive_search_files", "gmail_get_draft", "gmail_get_message", "gmail_get_thread", "gmail_list_drafts", "gmail_list_filters", "gmail_list_labels", "gmail_search_threads", "people_get_user_profile", "people_search_contacts", "people_search_directory_people", "sheets_get_spreadsheet", "sheets_get_values", "slides_read_presentation", "slides_read_slide_page", "slides_read_slide_page_thumbnail", "tasks_get_task", "tasks_list_task_lists", "tasks_list_tasks", "confirm_google_action"],
+        "danger": ["*send*", "*_reply", "*forward*", "*_trash_*", "*_mark_*_spam", "*apply_sensitive*", "*_delete_*", "*share*", "*publish*", "gmail_create_filter", "drive_request_access"],
+        "write": ["*"]
+      },
+      "default_perm": "safe",
+      "risk": "Mức Chỉ đọc: đọc và tìm thư, lịch, file Drive, tài liệu, bảng tính, trang chiếu, việc cần làm, tin Chat, danh bạ. Không đổi gì.\n\nMức Ghi nháp (mặc định): thêm soạn nháp thư, gắn nhãn, tạo và sửa sự kiện, file, tài liệu, bảng tính, trang chiếu, việc cần làm.\n\nMức Toàn quyền: thêm GỬI thư thật (gửi, trả lời, chuyển tiếp) và gửi tin Google Chat.\nMức này cũng bỏ thư hay file vào thùng rác, đánh dấu spam, xoá sự kiện và việc cần làm, tạo bộ lọc Gmail, xin quyền vào file của người khác.\n\nLớp bảo vệ thứ hai là của chính Google: việc nhạy cảm (gửi ra ngoài, chia sẻ, bỏ vào thùng rác) thì Google dừng lại hỏi bạn trước.\nJavis không bao giờ trả lời thay bạn."
+    },
+    {
       "id": "google-sheets",
       "name": "Google Sheets",
-      "group": "google",
+      "key_family": "google",
       "group_line": "Đọc và ghi bảng tính Google Sheets.",
       "icon": "/static/logos/google-sheets.png",
       "category": "Văn phòng",
@@ -329,9 +380,11 @@
     },
     {
       "id": "google-workspace",
-      "name": "Google Workspace (Gmail, Lịch, Drive, Docs)",
+      "_replaced_by_doc": "2026-11-27: Google's own Workspace MCP servers are generally available, and the google-workspace-official card reaches all nine of them with one sign-in that works on a VPS. This card is no longer offered for NEW connections; connections already made keep running unchanged.",
+      "replaced_by": "google-workspace-official",
+      "name": "Google Workspace (bản cũ, cộng đồng)",
       "icon": "mail",
-      "group": "google",
+      "key_family": "google",
       "group_line": "Gộp Gmail, Lịch, Drive, Docs, Sheets vào MỘT kết nối. Cần máy có màn hình; VPS thì dùng thẻ Lịch và Gmail riêng.",
       "category": "Văn phòng",
       "description": "Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Tasks... trong MỘT kết nối. Tạo OAuth client 1 lần, khoảng 10 phút, có hướng dẫn từng bước. Lần đầu gọi tool Google, trình duyệt TRÊN MÁY CHẠY JAVIS mở ra để bấm đồng ý, nên máy phải có màn hình.",
@@ -409,9 +462,11 @@
     },
     {
       "id": "google-tasks",
+      "_replaced_by_doc": "2026-11-27: Google's own Workspace MCP servers are generally available, and the google-workspace-official card reaches all nine of them with one sign-in that works on a VPS. This card is no longer offered for NEW connections; connections already made keep running unchanged.",
+      "replaced_by": "google-workspace-official",
       "name": "Google Tasks",
       "icon": "list-todo",
-      "group": "google",
+      "key_family": "google",
       "group_line": "Việc cần làm: xem danh sách, thêm việc, đặt hạn, đánh dấu xong. Chỉ xin quyền Tasks.",
       "category": "Văn phòng",
       "description": "Việc cần làm trong Google Tasks: xem danh sách, thêm việc, đặt hạn, đánh dấu xong. Chỉ xin quyền Tasks, không đụng Gmail hay Drive. Đăng nhập Google bằng OAuth client tự tạo (~10 phút, có hướng dẫn).",
@@ -605,9 +660,11 @@
     },
         {
       "id": "google-calendar",
+      "_replaced_by_doc": "2026-11-27: Google's own Workspace MCP servers are generally available, and the google-workspace-official card reaches all nine of them with one sign-in that works on a VPS. This card is no longer offered for NEW connections; connections already made keep running unchanged.",
+      "replaced_by": "google-workspace-official",
       "name": "Google Calendar",
       "icon": "/static/logos/google-calendar.png",
-      "group": "google",
+      "key_family": "google",
       "group_line": "Xem lịch, tìm giờ trống, tạo sửa sự kiện. Đăng nhập ngay trong dashboard, chạy được cả trên VPS.",
       "category": "Văn phòng",
       "description": "Lịch Google qua MCP chính chủ của Google: xem lịch, tìm chỗ trống, tạo/sửa sự kiện, nhắc hẹn. Đăng nhập Google trong dashboard, chạy được cả trên VPS. Cần tạo OAuth client + ghi danh Developer Preview của Google 1 lần (~10 phút).",
@@ -670,12 +727,14 @@
     },
     {
       "id": "gmail",
+      "_replaced_by_doc": "2026-11-27: Google's own Workspace MCP servers are generally available, and the google-workspace-official card reaches all nine of them with one sign-in that works on a VPS. This card is no longer offered for NEW connections; connections already made keep running unchanged.",
+      "replaced_by": "google-workspace-official",
       "name": "Gmail",
       "icon": "/static/logos/gmail.webp",
-      "group": "google",
-      "group_line": "Đọc và tìm thư, soạn nháp, gắn nhãn. Không có tool gửi thẳng - luôn dừng ở bản nháp.",
+      "key_family": "google",
+      "group_line": "Đọc và tìm thư, soạn nháp, gắn nhãn. Gửi thư thật cần mức Toàn quyền.",
       "category": "Văn phòng",
-      "description": "Gmail qua MCP chính chủ của Google: đọc và tìm thư, soạn NHÁP, gắn nhãn sắp xếp hộp thư. Server chính chủ KHÔNG có tool gửi thẳng - luôn dừng ở bản nháp để bạn tự bấm gửi. Cần tạo OAuth client + ghi danh Developer Preview của Google 1 lần.",
+      "description": "Gmail qua MCP chính chủ của Google: đọc và tìm thư, soạn NHÁP, gắn nhãn sắp xếp hộp thư. Gửi, trả lời, chuyển tiếp và bỏ thư vào thùng rác chỉ chạy ở mức Toàn quyền. Thẻ mới Google Workspace (chính chủ Google) gộp Gmail với tám dịch vụ khác.",
       "status": "beta",
       "transport": "http",
       "url": "https://gmailmcp.googleapis.com/mcp/v1",
@@ -721,13 +780,14 @@
         "tool": "list_labels",
         "args": {}
       },
+      "_tool_meta_doc": "2026-11-27: Google's Gmail server now also sends, replies, forwards, trashes and marks spam. Before this entry named them, send_message fell to write by its name (allowed at Draft) and mark_thread_spam to read (allowed at Read only).",
       "tool_meta": {
-        "read": ["list_drafts", "get_thread", "search_threads", "list_labels"],
-        "write": ["create_draft", "create_label", "*label*"],
-        "danger": []
+        "read": ["list_drafts", "get_draft", "get_thread", "get_message", "search_threads", "list_labels", "list_filters"],
+        "write": ["create_draft", "update_draft", "create_label", "update_label", "*label*", "untrash_*", "unmark_*"],
+        "danger": ["send_message", "reply", "forward", "trash_*", "mark_*_spam", "apply_sensitive_*", "create_filter"]
       },
       "default_perm": "readonly",
-      "risk": "Mức Ghi nháp cho phép Javis SOẠN NHÁP thư và gắn, gỡ nhãn trong hộp thư của bạn.\n\nServer Gmail chính chủ không có tool gửi thẳng nên Javis không tự gửi được, luôn dừng ở bản nháp để bạn tự bấm gửi.\n\nChỉ cần đọc và tìm thư thì giữ mức Chỉ đọc."
+      "risk": "Mức Ghi nháp cho phép Javis SOẠN NHÁP thư và gắn, gỡ nhãn trong hộp thư của bạn.\n\nMức Toàn quyền thêm quyền GỬI thư thật (gửi, trả lời, chuyển tiếp), bỏ thư vào thùng rác, đánh dấu spam và tạo bộ lọc Gmail.\n\nChỉ cần đọc và tìm thư thì giữ mức Chỉ đọc."
     },
     {
       "id": "http-api",
@@ -852,7 +912,7 @@
       "id": "google-keep",
       "name": "Google Keep",
       "icon": "notebook",
-      "group": "google",
+      "key_family": "google",
       "group_line": "Ghi chú Keep: tìm, tạo, ghim. Dùng token TOÀN QUYỀN tài khoản - cân nhắc kỹ.",
       "category": "Văn phòng",
       "description": "Đọc và sửa ghi chú Google Keep: tìm note, tạo note và danh sách việc, gắn nhãn, ghim, lưu trữ. LƯU Ý: Keep không có API chính chủ nên phải dùng master token có TOÀN QUYỀN tài khoản Google, không phải OAuth giới hạn phạm vi như Gmail hay Lịch. Javis chỉ thao tác được ghi chú, nhưng token thì mở cả tài khoản nếu bị lộ.",

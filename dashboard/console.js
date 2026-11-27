@@ -6150,10 +6150,9 @@
     return i && typeof i.catLabel === "function" ? i.catLabel(x) : (x || "");
   }
 
-  // ── Nhóm connector (khối B): mọi dịch vụ Google gom về MỘT card, bấm vào chọn dịch vụ ──
+  // ── Nhóm connector (khối B): một card mở bảng chọn dịch vụ. Google không còn gom ở đây (chủ, 27/11/2026): một
+  //    thẻ Google Workspace chính chủ bấm là nối, các dịch vụ Google khác đứng riêng như mọi thẻ khác. ──
   const GROUP_META = {
-    google: { name: "Google", icon: '<span class="gico">G</span>', category: "Văn phòng",
-              desc_key: "cs.cn_g_google" },
     // Built in since 2026-11-05 (owner: a default connection next to GitHub): two ways in, token or web sign-in.
     // No category here: the card takes its members' category from the catalog, so the filter chip matches it.
     cloudflare: { name: "Cloudflare", icon: iconInner({ icon: "/static/logos/cloudflare.jpg" }), desc_key: "cs.cn_g_cloudflare" },
@@ -6864,10 +6863,13 @@
     el.innerHTML = `<div class="pg-loading pg-page">${esc(t("common.loading"))}</div>`;
     let d;
     try { d = await (await fetch("/connect/catalog")).json(); } catch (e) { el.innerHTML = placeholder("mcp", window.t("cs.cn_load_err")); return; }
-    const cat = d.catalog || [];
     const conns = d.connections || [];
     const byId = {};
-    cat.forEach(c => byId[c.id] = c);
+    (d.catalog || []).forEach(c => byId[c.id] = c);
+    // A card another card replaces is offered only to someone who already has a connection of it (2026-11-27: the
+    // community Google Workspace card and the single Gmail / Calendar cards gave way to Google's official one).
+    // `byId` keeps every card, so existing connections still render with their own name and settings.
+    const cat = (d.catalog || []).filter(c => !c.replaced_by || conns.some(x => x.connector_id === c.id));
     byId.custom = { id: "custom", name: window.t("cs.cn_custom_name"), icon: "star", category: "Khác",
                     description: window.t("cs.cn_custom_desc"), auth_type: "apikey" };
     const st = await freshSettings();

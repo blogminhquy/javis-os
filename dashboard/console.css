@@ -1313,10 +1313,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .conn-chip.conn-fix { border-color: var(--danger-line); color: var(--red); background: var(--danger-wash); }
 .conn-chip.conn-fix:hover { background: var(--danger-wash); }
 .conn-chip .cstar { color: var(--warn-ink); }
-/* Khối B: nhóm Google một cửa + wizard từng bước + kéo thả JSON + dùng lại key */
-.gico { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
-  border-radius: 9px; background: #fff; color: #4285f4; font-weight: 800; font-size: 21px;
-  font-family: Arial, sans-serif; }
+/* Khối B: wizard từng bước + kéo thả JSON + dùng lại key */
 .conn-steps { margin: 4px 0 10px; padding-left: 22px; display: flex; flex-direction: column; gap: 9px;
   font-size: 13.5px; line-height: 1.5; }
 .conn-steps li::marker { color: var(--accent); font-weight: 700; }

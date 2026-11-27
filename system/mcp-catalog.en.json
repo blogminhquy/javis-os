@@ -79,8 +79,57 @@
     "service_account": {"label": "Service account JSON (paste the WHOLE key file)", "placeholder": "e.g. { \"type\": \"service_account\", ... }"}
    }
   },
+  "google-workspace-official": {
+   "name": "Google Workspace",
+   "description": "Google's own version: Gmail, Calendar, Drive, Docs, Sheets, Slides, Tasks, Chat and Contacts with ONE sign-in. You sign in inside the dashboard, so it also works on a VPS. Making the OAuth client takes about 3 minutes with Google's Personal mode page.",
+   "group_line": "Google's own: Gmail, Calendar, Drive, Docs, Sheets, Tasks... one sign-in, works on a VPS.",
+   "risk": "Read-only: read and search mail, calendars, Drive files, documents, spreadsheets, slides, tasks, Chat messages and contacts. Changes nothing.\n\nDraft (default): adds writing mail drafts, labels, creating and editing events, files, documents, spreadsheets, slides and tasks.\n\nFull access: adds SENDING real mail (send, reply, forward) and Google Chat messages.\nIt also moves mail or files to trash, marks spam, deletes events and tasks, creates Gmail filters and requests access to other people's files.\n\nThe second safeguard is Google's own: for sensitive actions (sending outside, sharing, trashing) Google stops and asks you first.\nJavis never answers for you.",
+   "guide": "Google's own version: nine services (Gmail, Calendar, Drive, Docs, Sheets, Slides, Tasks, Chat, Contacts), one sign-in, done inside the dashboard so it also works on a VPS.\nOne-time setup, about 3 minutes:\n1. Open Google Cloud's Personal mode page (button below).\nIt enables every API needed, ticks 'Use this client for an AI-powered agent' for you, and skips the consent screen and app verification.\n2. Pick an existing project or create one, name the client, keep the type 'Web application'.\n3. Under 'Authorized redirect URIs' press + Add URI and paste exactly this address:\nhttp://localhost:7777/connect/oauth/callback\nOn a VPS also add https://<your-domain>/connect/oauth/callback\n4. Accept Google's data policy, press Continue, copy the Client ID + Client Secret here and press Connect.\n5. Sign in to Google and TICK EVERY permission box. Untick one and that group of tasks reports missing permission.\n\nSending mail, sharing, moving to trash or inviting outsiders: Google stops and asks first. Javis shows you that question in the chat, and the action runs only if you agree.\n\nAlready have an OAuth client from the old Gmail or Calendar card? Reuse it.\nIn Google Auth Platform > Clients, tick 'Use this client for an AI-powered agent' on that client and enable the MCP APIs (button below).\nSending Google Chat messages needs a Google Workspace account (not personal Gmail) and a Chat app in the project.",
+   "fields": {
+    "client_id": {
+     "label": "OAuth Client ID",
+     "placeholder": "e.g. xxxx.apps.googleusercontent.com"
+    },
+    "client_secret": {
+     "label": "OAuth Client Secret",
+     "placeholder": "e.g. GOCSPX-..."
+    }
+   },
+   "steps": [
+    {
+     "text": "Open Google Cloud's Personal mode page. It enables every API needed and ticks 'Use this client for an AI-powered agent'; no consent screen or app verification to do.",
+     "link_label": "Open Personal mode"
+    },
+    {
+     "text": "Pick an existing project or create one and name the client. Keep the type 'Web application'."
+    },
+    {
+     "text": "Under 'Authorized redirect URIs' press + Add URI and paste the address below. On a VPS also add https://<your-domain>/connect/oauth/callback."
+    },
+    {
+     "text": "Accept the data policy and press Continue. Copy the Client ID and Client Secret into the two boxes below, then press Connect."
+    },
+    {
+     "text": "The Google page opens: sign in, approve and TICK EVERY permission box. Untick one and that group of tasks reports missing permission."
+    },
+    {
+     "text": "Already have an OAuth client from the old Gmail or Calendar card? Reuse it: tick 'Use this client for an AI-powered agent' on it in Google Auth Platform, then enable the MCP APIs.",
+     "link_label": "Enable the MCP APIs"
+    }
+   ],
+   "setup": {
+    "links": [
+     {
+      "label": "Open Personal mode"
+     },
+     {
+      "label": "Enable the MCP APIs"
+     }
+    ]
+   }
+  },
   "google-workspace": {
-   "name": "Google Workspace (Gmail, Calendar, Drive, Docs)",
+   "name": "Google Workspace (old, community)",
    "description": "Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Tasks... in ONE connection. Create an OAuth client once, about 10 minutes, with step-by-step help. The first time a Google tool is called, a browser opens ON THE MACHINE RUNNING JAVIS for you to approve, so that machine needs a screen.",
    "group_line": "Gmail, Calendar, Drive, Docs and Sheets in ONE connection. Needs a machine with a screen; on a VPS use the separate Calendar and Gmail cards.",
    "risk": "Draft (the default) lets Javis draft email, create events, create documents, and also EDIT existing documents and MOVE files in Drive.\nJavis can also edit Google Form questions, add or rename tabs, append rows to Sheets, and rename or copy Drive files.\nCombined tools (manage_event, manage_task...) belong here too, so Javis can edit and delete individual calendar events or to-dos.\n\nFull access adds permission to SEND REAL EMAIL, DELETE files and mail, and RUN Apps Script functions from your Google account.\nAlso at this level: SHARE files or calendars with others, delete a whole tab, task list or contact group, create Gmail filters, publish Apps Script.\n\nIf you only need to read, lower it to Read-only.",
@@ -172,9 +221,9 @@
    }
   },
   "gmail": {
-   "description": "Gmail through Google's official MCP: read and search mail, write DRAFTS, label and sort the inbox. The official server has NO direct send tool: it always stops at a draft so you press send yourself. Needs a one-time OAuth client plus Google's Developer Preview enrolment.",
-   "group_line": "Read and search mail, write drafts, add labels. No direct send tool: always stops at a draft.",
-   "risk": "Draft lets Javis WRITE DRAFT emails and add or remove labels in your inbox.\n\nThe official Gmail server has no direct send tool, so Javis cannot send on its own: it always stops at a draft for you to send.\n\nIf you only need to read and search mail, keep Read-only.",
+   "description": "Gmail through Google's official MCP: read and search mail, write DRAFTS, label and sort the inbox. Sending, replying, forwarding and moving mail to trash only run at Full access. The new Google Workspace (Google's official) card combines Gmail with eight other services.",
+   "group_line": "Read and search mail, write drafts, add labels. Sending real mail needs Full access.",
+   "risk": "Draft lets Javis WRITE DRAFT emails and add or remove labels in your inbox.\n\nFull access adds SENDING real mail (send, reply, forward), moving mail to trash, marking spam and creating Gmail filters.\n\nIf you only need to read and search mail, keep Read-only.",
    "guide": "Google's Gmail MCP server is in Developer Preview: you must enrol in the programme (free) and enable a separate MCP API, otherwise you get a 403 even after a successful sign-in.\nOne-time setup, about 10 minutes:\n1. Enrol in the Google Workspace Developer Preview Program with the same Google account you will sign in with (button below).\n2. Go to console.cloud.google.com, create a project and enable BOTH APIs: Gmail API and Gmail MCP API (search 'Gmail MCP' in the API library, there is a button below).\n3. OAuth consent screen: choose External and add your email under Test users.\n4. Credentials > Create an OAuth client ID of type 'Web application'.\n5. Under 'Authorized redirect URIs', add exactly this address:\nhttp://localhost:7777/connect/oauth/callback\nOn a VPS also add https://<your-domain>/connect/oauth/callback\n6. Copy the Client ID and Client Secret here, then press Connect.\n\nA browser opens for you to sign in to Google and approve. If you see an 'app isn't verified' warning, press Advanced > Continue: this is your own app.\n\nYou can SHARE one OAuth client with Google Calendar; just enable the Gmail API and Gmail MCP API and add the Gmail scopes on the Data Access page.\nThe consent screen has a tick box for each permission group: TICK THEM ALL; untick one and the matching tool dies immediately.\nIf Test still reports missing permissions after signing in, re-check enrolment, enabling the APIs and declaring the scopes, the three most often skipped steps.",
    "fields": {
     "client_id": {"label": "OAuth Client ID", "placeholder": "e.g. xxxx.apps.googleusercontent.com"},

@@ -12,9 +12,11 @@ os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-connect-
 import mcp_catalog  # noqa: E402
 import mcp_store  # noqa: E402
 
-GOOGLE_GROUP = {"google-workspace", "google-tasks", "google-calendar",
+# 2026-11-27 (owner): no Google group card any more. One Google Workspace card (Google's official servers) connects in
+# one click, and every other Google service is a card of its own, like any other service.
+GOOGLE_CARDS = {"google-workspace-official", "google-workspace", "google-tasks", "google-calendar",
                 "gmail", "google-keep", "google-sheets"}
-STEP_CONNECTORS = {"google-workspace", "google-tasks", "google-calendar",
+STEP_CONNECTORS = {"google-workspace-official", "google-workspace", "google-tasks", "google-calendar",
                    "gmail", "google-keep"}
 
 
@@ -22,17 +24,20 @@ def _public():
     return {c["id"]: c for c in mcp_catalog.public_catalog()}
 
 
-def test_nhom_google_du_thanh_vien():
+def test_google_cards_stand_alone():
     pc = _public()
-    got = {cid for cid, c in pc.items() if c.get("group") == "google"}
-    assert got == GOOGLE_GROUP
-    # Google Ads KHÔNG thuộc nhóm (mảng Quảng cáo, mental model khác)
-    assert pc["google-ads"].get("group", "") == ""
+    assert not [cid for cid, c in pc.items() if c.get("group") == "google"]
+    for cid in GOOGLE_CARDS | {"google-ads"}:
+        assert pc[cid].get("group", "") == "", cid
+    js = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+    assert "desc_key: \"cs.cn_g_google\"" not in js
 
 
 def test_moi_thanh_vien_nhom_co_group_line():
     pc = _public()
-    for cid in GOOGLE_GROUP:
+    members = [cid for cid, c in pc.items() if c.get("group")]
+    assert members   # Cloudflare still opens a picker of its two ways in
+    for cid in members:
         line = pc[cid].get("group_line", "")
         assert line, cid
         assert len(line) <= 120, f"{cid}: group_line dài quá ({len(line)})"
@@ -150,7 +155,7 @@ def test_reuse_khong_from_thi_giu_nguyen():
 
 # ---- key family: every Google service lends and borrows, whatever card it sits on ----
 
-GOOGLE_KEY_FAMILY = {"google-workspace", "google-tasks", "google-calendar", "gmail", "google-keep",
+GOOGLE_KEY_FAMILY = {"google-workspace-official", "google-workspace", "google-tasks", "google-calendar", "gmail", "google-keep",
                      "google-sheets", "google-ads", "google-analytics", "google-search-console"}
 
 
