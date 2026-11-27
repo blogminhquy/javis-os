@@ -351,8 +351,20 @@
     return k ? k.mau : "";
   }
 
+  // learnChannels(list): learn logos of channels this file does not know (Store pack channels). The server
+  // sends `logo_svg` already filtered to plain drawing elements; a channel id that is already here
+  // keeps its own logo, so a pack can never repaint a core channel.
+  function learnChannels(list) {
+    (list || []).forEach(function (k) {
+      var id = String((k && (k.logo || k.id)) || "").toLowerCase();
+      if (!id || KENH[id] || !k.logo_svg) return;
+      KENH[id] = { nhan: String(k.nhan || id), mau: String(k.mau || ""), than: String(k.logo_svg), pack: true };
+    });
+  }
+
   window.ic = ic;
   window.Icons = {
+    learnChannels: learnChannels,
     ic: ic,
     kenh: kenh,
     kenhNhan: kenhNhan,

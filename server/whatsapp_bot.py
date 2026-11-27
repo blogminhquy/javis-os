@@ -53,7 +53,7 @@ import httpx
 
 import localefmt
 import stt
-from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool
+from bot_gateway import HangLuot, parse_chat_ids, ten_tool, with_trace
 
 # Graph API versions are retired about two years after release. Pin a recent one and let an
 # environment variable move it without a release when Meta retires it.
@@ -553,8 +553,7 @@ class WhatsAppBot(HangLuot):
             if silent and not str(reply or "").strip() and not files:
                 return
             if not self.giau_trang_thai:
-                trail = dong_vet(tools, time.monotonic() - t0)
-                reply = ((str(reply or "").rstrip() + "\n\n") if str(reply or "").strip() else "") + trail
+                reply = with_trace(reply, tools, time.monotonic() - t0)
             if str(reply or "").strip() or not files:
                 await self._send(client, chat, reply)
             for f in files:

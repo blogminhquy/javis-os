@@ -183,6 +183,7 @@
       _bots = d.bots || [];
       _mucDS = d.muc_quyen || [];
       _kenhDS = d.kenh || [];
+      if (window.Icons && Icons.learnChannels) Icons.learnChannels(_kenhDS);
       _tkRanh = d.tai_khoan || [];
       _tkBan = d.tai_khoan_ban || [];
       var vet = JSON.stringify(_bots);
@@ -893,6 +894,7 @@
       try {
         var d = await api("/chatbots?brain=" + encodeURIComponent(brain()));
         _kenhDS = d.kenh || _kenhDS;
+        if (window.Icons && Icons.learnChannels) Icons.learnChannels(_kenhDS);
         _tkRanh = d.tai_khoan || [];
         _tkBan = d.tai_khoan_ban || _tkBan;
       } catch (e) {}
@@ -930,6 +932,10 @@
     // "Tự động hóa tất cả" không phải một giá trị lưu riêng: nó là "mọi cuộc chat" cộng "tự đánh giá" gộp làm MỘT cú chọn
     // (lưu xuống vẫn là audience=all, reply_when=auto), nên bot đã cài như vậy từ trước tự hiện đúng thẻ này.
     var card0 = (aud0 === "all" && rw0 === "auto") ? "auto" : aud0;
+    // "Hard question in a private chat: stay quiet and tell me" (issue #1864), a tick of its own on every bot. A bot never
+    // saved with it shows what it does today: on in "Tự đánh giá", off otherwise.
+    var esc0 = b ? (b.escalate_private != null ? !!b.escalate_private : b.reply_when === "auto") : false;
+    var escTouched = false;
     var RP = window.JavisReplyPolicy;      // bộ phán xử hội thoại nhóm (0.65.0), file chatbots-reply-policy.js
     // Người/nhóm ĐANG được chọn (sự thật của form). Danh sách cuộc chat từ server chỉ là nguồn để
     // chọn; tick hay bỏ tick sửa ở đây, và lúc Lưu mới đổ ra hai danh sách groups/people.
@@ -1055,8 +1061,20 @@
                 esc(b && b.nhuong_tay_phut != null ? String(b.nhuong_tay_phut) : "") + '"></label>' +
             '</div>' +
             infoBody(esc(window.t("cb.hint_nhuong_tay"))) +
+            // Issue #1873: seconds a customer must be quiet in a private chat before the bot answers, on every channel, so
+            // three quick messages get one reply. Blank = not set (5 seconds), 0 = answer each message at once.
+            '<div class="cb-gio-truc">' +
+              '<label for="cbQuietWait">' + esc(window.t("cb.quiet_wait")) + infoBtn() +
+                ' <input type="number" id="cbQuietWait" min="0" max="60" step="1" style="width:8em" placeholder="' + esc(window.t("cb.ph_quiet_wait")) + '" value="' +
+                esc(b && b.quiet_wait_s != null ? String(b.quiet_wait_s) : "") + '"></label>' +
+            '</div>' +
+            infoBody(esc(window.t("cb.hint_quiet_wait"))) +
+            // Issue #1864: every channel, Messenger and Zalo OA included, can leave a hard private question to the owner.
+            '<label class="cb-gio-truc" for="cbEscPrivate"><input type="checkbox" id="cbEscPrivate"' +
+              (esc0 ? " checked" : "") + '> ' + esc(window.t("cb.esc_private")) + infoBtn() + '</label>' +
+            infoBody(esc(window.t("cb.hint_esc_private"))) +
             // Owner bell gap (issue #1838): minutes between two bells of one chat when the bot leaves hard messages to the
-            // owner. Only "Tự đánh giá" escalates, so the row shows only then (`veRw`). Blank = default 10, 0 = every time.
+            // owner. Shown when the bot may escalate: "Tự đánh giá" in groups, or the private tick above (`veRw`).
             '<div class="cb-gio-truc" id="cbBellBox" style="display:none">' +
               '<label for="cbBellGap">' + esc(window.t("cb.bell_gap")) + infoBtn() +
                 ' <input type="number" id="cbBellGap" min="0" max="240" step="1" style="width:8em" placeholder="' + esc(window.t("cb.ph_bell_gap")) + '" value="' +
@@ -1453,10 +1471,15 @@
       var rpBox = box.querySelector("#cbRpBox");
       if (rpBox) rpBox.style.display = v === "auto" ? "" : "none";
       // The bell gap only matters when the bot may leave a message to the owner, i.e. in "Tự đánh giá".
+      var escBox = box.querySelector("#cbEscPrivate");
+      // Picking "Tự động hóa tất cả" used to switch private escalation on by itself: keep that until the owner touches the tick.
+      if (escBox && !escTouched && tuDong) escBox.checked = true;
       var bellBox = box.querySelector("#cbBellBox");
-      if (bellBox) bellBox.style.display = v === "auto" && coNhomForm() ? "" : "none";
+      if (bellBox) bellBox.style.display = (v === "auto" && coNhomForm()) || (escBox && escBox.checked) ? "" : "none";
     }
     box.querySelectorAll('input[name="cbRw"]').forEach(function (i) { i.onchange = veRw; });
+    var escTick = box.querySelector("#cbEscPrivate");
+    if (escTick) escTick.addEventListener("change", function () { escTouched = true; veRw(); });
 
     // ---- Bot trả lời ai: ba thẻ quyết định ô chọn nào hiện, và chữ của ô đó
     function apGoiY() {
@@ -1635,6 +1658,8 @@
       if (!gioTu !== !gioDen) return alert(window.t("cb.gio_thieu"));
       var nhuong = ((box.querySelector("#cbNhuongTay") || {}).value || "").trim();
       if (nhuong !== "" && !(/^\d+$/.test(nhuong) && +nhuong <= 240)) return alert(window.t("cb.nhuong_tay_sai"));
+      var quiet = ((box.querySelector("#cbQuietWait") || {}).value || "").trim();
+      if (quiet !== "" && !(/^\d+$/.test(quiet) && +quiet <= 60)) return alert(window.t("cb.quiet_wait_sai"));
       var bell = ((box.querySelector("#cbBellGap") || {}).value || "").trim();
       if (bell !== "" && !(/^\d+$/.test(bell) && +bell <= 240)) return alert(window.t("cb.bell_gap_sai"));
       if (nlDs.some(function (e) { return e.cho_giay != null && !(e.cho_giay >= 0 && e.cho_giay <= 60 && e.cho_giay % 1 === 0); })) {
@@ -1662,6 +1687,8 @@
                     nhuong_tay_phut: nhuong, bell_gap_min: bell, ngoai_le: JSON.stringify(nlDs),
                     nhan_ket_ban: coZaloCaNhan() && (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0",
                     group_typing: (box.querySelector("#cbGroupTyping") || {}).checked === false ? "0" : "1",
+                    escalate_private: (box.querySelector("#cbEscPrivate") || {}).checked ? "1" : "0",
+                    quiet_wait_s: quiet,
                     skip_labels: coZaloCaNhan() ? tagLuu() : "[]",
                     // The contact only on an account still ticked; "" clears it (2026-11-26).
                     staff_contact: staffCur && staffAccounts().some(function (a) { return a.id === staffCur.account_id; })

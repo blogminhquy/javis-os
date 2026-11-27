@@ -87,8 +87,12 @@ check("who and when go under the bubble; a private chat's customer is not named 
 const comp = fn("function veCompose(c) {");
 check("composer: one card; the draft (or the 'A.I. is writing' box in its place) sits on top of the box inside it",
   /'<div class="ib-cbox">' \+\s*\(writing && V \? V\.workingHtml\(aiWorkView\(\), ic\) : draft && V \? V\.draftHtml/.test(comp) && /has-draft/.test(comp));
-check("composer buttons keep a spoken label when a phone shows only their icons", /class="s-btn ht-send" aria-label="'/.test(comp) &&
-  /'" aria-label="' \+ esc\(t\("ib\.ai_reply"\)\)/.test(comp));
+check("composer buttons keep a spoken label when a phone shows only their icons", /class="s-btn ht-send ib-icon-btn" title="' \+ esc\(t\("ht\.gui"\)\) \+ '" aria-label="'/.test(comp) &&
+  /'" aria-label="' \+ esc\(t\(_aiBusy === "ask" \? "ib\.ai_busy" : "ib\.ai_reply"\)\)/.test(comp));
+// Owner, 2026-11-27: Javis draft and Send show their icon only, on every screen size, the name on hover.
+check("composer: Javis draft and Send are icons only, named by their tooltip", !/<span>' \+ esc\(t\("ht\.gui"\)\)/.test(comp) &&
+  !/"ib\.ai_busy" : "ib\.ai_reply"\)\) \+ '<\/span>/.test(comp) && /class="s-btn-ghost ib-ask ib-icon-btn"/.test(comp) &&
+  /\.ib-v5 \.ib-cin \.ib-icon-btn \{ width: 38px; padding: 0;/.test(fs.readFileSync(path.join(ROOT, "dashboard/inbox-compact.css"), "utf8")));
 check("the box grows with what is typed", /ta\.style\.height = "auto"; ta\.style\.height = ta\.scrollHeight \+ "px";/.test(CV));
 
 // ---- 6. tabs ----

@@ -52,13 +52,13 @@ ctx = _Ctx()
 plug.register(ctx)
 _real_rupload = plug._rupload   # later sections swap in fakes; the streaming check below needs the real one
 byname = {t["name"]: t for t in ctx.tools}
-check("plugin: đủ 11 tool", set(byname) == {"fb_pages_list", "fb_page_posts", "fb_page_comments",
-                                            "fb_page_scheduled", "fb_page_post", "fb_page_photo", "fb_page_album",
+check("plugin: đủ 12 tool", set(byname) == {"fb_pages_list", "fb_page_posts", "fb_page_comments",
+                                            "fb_page_scheduled", "fb_page_insights", "fb_page_post", "fb_page_photo", "fb_page_album",
                                             "fb_page_video", "fb_page_edit", "fb_page_delete",
                                             "fb_page_reply"})
 check("plugin: tool đọc = readonly",
       all(byname[n]["min_mode"] == "readonly" for n in ("fb_pages_list", "fb_page_posts", "fb_page_comments",
-                                                         "fb_page_scheduled")))
+                                                         "fb_page_scheduled", "fb_page_insights")))
 check("plugin: tool ghi (đăng/ảnh/album/video/sửa/xoá/trả lời) = full",
       all(byname[n]["min_mode"] == "full"
           for n in ("fb_page_post", "fb_page_photo", "fb_page_album", "fb_page_video",

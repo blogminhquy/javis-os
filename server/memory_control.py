@@ -398,6 +398,29 @@ def background_writer(root, mode: str = "full"):
         span[2] = time.time()
 
 
+def background_active(root) -> bool:
+    """Background work (loop, reminder, Kanban job) is running in brain `root` right now. luot_dang_chay asks before it
+    guesses which chat a tool call without a turn came from: during such work the call may be that work's own."""
+    if not root:
+        return False
+    key = _brain_key(root)
+    with _LOCK:
+        return any(not end and (key == k or key.startswith(k.rstrip(os.sep) + os.sep))
+                   for k, _start, end in _WRITER_SPANS)
+
+
+def background_at(root, ts: float, slack: float = 2.0) -> bool:
+    """A background writer of brain `root` was running at time `ts` (change_receipt: a schedule or file that appeared
+    then may be that work's, not the chat turn's)."""
+    if not root:
+        return False
+    try:
+        ts = float(ts)
+    except (TypeError, ValueError):
+        return False
+    return any(start - slack <= ts <= end + slack for start, end in _writer_spans(root, ts - slack))
+
+
 def _writer_spans(mem_dir, since: float) -> List[tuple]:
     """(start, end) of background writers in the brain holding `mem_dir` that overlap `since`..now."""
     mem = _brain_key(mem_dir)

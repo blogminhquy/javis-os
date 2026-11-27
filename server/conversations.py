@@ -218,6 +218,17 @@ def _nang_cap(db: sqlite3.Connection) -> None:
         # by `ghi_su_kien`; an old store is scanned once here so conversations from before the column count too.
         db.execute("ALTER TABLE conversations ADD COLUMN contact TEXT NOT NULL DEFAULT ''")
         _backfill_contact(db)
+    if "channel_title" not in cot_hoi_thoai:
+        # Two-way names (owner, 2026-11-27): the name the CHANNEL last gave this chat, kept apart from `title`, the name
+        # Javis shows. A rename made in Javis then survives the channel repeating its old name, and a rename made on the
+        # channel (a new name the channel never gave before) still comes through. Seeded with the current title, so an
+        # old store does not take the next message as a rename.
+        db.execute("ALTER TABLE conversations ADD COLUMN channel_title TEXT NOT NULL DEFAULT ''")
+        db.execute("UPDATE conversations SET channel_title=title")
+    if "channel_name" not in cot:
+        # The same for a person: the name their own messages carry, apart from `name` (which the owner may change).
+        db.execute("ALTER TABLE customers ADD COLUMN channel_name TEXT NOT NULL DEFAULT ''")
+        db.execute("UPDATE customers SET channel_name=name")
     if "hidden" not in cot_hoi_thoai:
         # Owner, 2026-10-25 (row menu like Zalo's): "Hide conversation" takes a chat out of the normal inbox list; the
         # "Hidden" filter shows it again. A NEW customer message clears it (`ghi_su_kien`), so a customer is never missed.
@@ -348,6 +359,13 @@ def chuan_hoa(ev: dict) -> dict:
     }
 
 
+# When a name an event carries replaces the stored one (two-way names, 2026-11-27). Only a name that is neither the
+# one shown (`old`: it may be what Javis itself sent back, e.g. the owner's reply carries the group title it shows) nor
+# the one the channel gave last (`seen`: the channel repeating itself after the owner renamed the chat in Javis). So the
+# last rename wins, wherever it was made. SQL over an upsert's `excluded` row; `v` is the column.
+_NEW_NAME = "(excluded.{v} != '' AND excluded.{v} != {old} AND excluded.{v} != {seen})"
+
+
 def _tai_khoan_id(kenh: str, account_id: str) -> str:
     return f"{kenh}:{account_id}"
 
@@ -413,12 +431,15 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
                     uid = e["sender_id"] or (e["external_chat_id"] if e["chat_type"] == "private" else "")
                     if uid:
                         db.execute(
-                            "INSERT INTO customers(channel_account_id, external_user_id, name,"
-                            " created_at, updated_at) VALUES(?,?,?,?,?)"
+                            "INSERT INTO customers(channel_account_id, external_user_id, name, channel_name,"
+                            " created_at, updated_at) VALUES(?,?,?,?,?,?)"
                             " ON CONFLICT(channel_account_id, external_user_id) DO UPDATE SET"
                             " updated_at=excluded.updated_at,"
-                            " name=CASE WHEN excluded.name != '' THEN excluded.name ELSE customers.name END",
-                            (tk_id, uid, e["sender_name"], now, now))
+                            f" name=CASE WHEN {_NEW_NAME.format(v='name', old='customers.name', seen='customers.channel_name')}"
+                            " THEN excluded.name ELSE customers.name END,"
+                            f" channel_name=CASE WHEN {_NEW_NAME.format(v='name', old='customers.name', seen='customers.channel_name')}"
+                            " THEN excluded.name ELSE customers.channel_name END",
+                            (tk_id, uid, e["sender_name"], e["sender_name"], now, now))
                         customer_id = db.execute(
                             "SELECT id FROM customers WHERE channel_account_id=? AND external_user_id=?",
                             (tk_id, uid)).fetchone()[0]
@@ -426,17 +447,19 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
                 # 3. Hội thoại
                 tieu_de = e["chat_title"] or (e["sender_name"] if e["chat_type"] == "private"
                                                 and e["sender_type"] == "customer" else "")
+                renamed = _NEW_NAME.format(v="title", old="conversations.title", seen="conversations.channel_title")
                 db.execute(
                     "INSERT INTO conversations(channel_account_id, customer_id, bot_id,"
-                    " external_chat_id, chat_type, title, created_at, updated_at)"
-                    " VALUES(?,?,?,?,?,?,?,?)"
+                    " external_chat_id, chat_type, title, channel_title, created_at, updated_at)"
+                    " VALUES(?,?,?,?,?,?,?,?,?)"
                     " ON CONFLICT(channel_account_id, external_chat_id) DO UPDATE SET"
                     " updated_at=excluded.updated_at,"
                     " customer_id=COALESCE(conversations.customer_id, excluded.customer_id),"
                     " bot_id=CASE WHEN excluded.bot_id != '' THEN excluded.bot_id ELSE conversations.bot_id END,"
-                    " title=CASE WHEN excluded.title != '' THEN excluded.title ELSE conversations.title END",
+                    f" title=CASE WHEN {renamed} THEN excluded.title ELSE conversations.title END,"
+                    f" channel_title=CASE WHEN {renamed} THEN excluded.title ELSE conversations.channel_title END",
                     (tk_id, customer_id, e["bot_id"], e["external_chat_id"], e["chat_type"],
-                     tieu_de, now, now))
+                     tieu_de, tieu_de, now, now))
                 conv = db.execute(
                     "SELECT id, unread_count, message_count, metadata_json FROM conversations"
                     " WHERE channel_account_id=? AND external_chat_id=?",
@@ -897,6 +920,8 @@ def _conv_public(r: dict) -> dict:
         d["pin_ids"] = [int(p["id"]) for p in _pin_list({"pins": d["metadata"].pop("pins")})]
     d["channel_label"] = (_channels.nhan_giao_dien(d.get("channel") or "")
                           if _channels.spec(d.get("channel") or "") else (d.get("channel") or ""))
+    # How a rename from the inbox reaches the platform: "title", "alias" or "" (Javis only). See `channels.rename_kind`.
+    d["rename_remote"] = _channels.rename_kind(d.get("channel") or "", d.get("chat_type") or "")
     if not d.get("title"):
         if d.get("chat_type") == "group":
             # KHÔNG mượn tên khách: khách gắn với cuộc chat là NGƯỜI NHẮN ĐẦU TIÊN, nên nhóm
@@ -1294,13 +1319,122 @@ def set_customer_name(channel: str, account_id: str, external_user_id: str, name
     tk = _tai_khoan_id(channel, account_id)
     with _lock:
         db = _conn()
-        a = db.execute("UPDATE customers SET name=? WHERE channel_account_id=?"
-                       " AND external_user_id=? AND name=''", (name, tk, uid)).rowcount
-        b = db.execute("UPDATE conversations SET title=? WHERE channel_account_id=? AND chat_type='private'"
-                       " AND title='' AND (external_chat_id=? OR customer_id IN (SELECT id FROM customers"
-                       " WHERE channel_account_id=? AND external_user_id=?))", (name, tk, uid, tk, uid)).rowcount
+        a = db.execute("UPDATE customers SET name=?, channel_name=? WHERE channel_account_id=?"
+                       " AND external_user_id=? AND name=''", (name, name, tk, uid)).rowcount
+        b = db.execute("UPDATE conversations SET title=?, channel_title=? WHERE channel_account_id=?"
+                       " AND chat_type='private' AND title='' AND (external_chat_id=? OR customer_id IN"
+                       " (SELECT id FROM customers WHERE channel_account_id=? AND external_user_id=?))",
+                       (name, name, tk, uid, tk, uid)).rowcount
         db.commit()
     return (a + b) > 0
+
+
+def rename_conversation(conversation_id: int, name: str, *, channel_title: Optional[str] = None,
+                        alias: Optional[str] = None) -> bool:
+    """The owner renames a chat in Javis (owner, 2026-11-27: "có nút sửa tên ở trên chatbot của Javis").
+
+    `title` becomes `name`; in a chat with one person (`is_profile_chat`) that person's customer name follows, so the
+    inbox, the Info panel and the bot all use the new name. What the platform was told decides what else is stored:
+      - `channel_title`: the platform now calls the chat this too (a group renamed on Zalo or Telegram), so the next
+        message carrying that name is not taken for a rename made over there;
+      - `alias`: the nickname set on the platform for this person (a Zalo friend alias), see `sync_aliases`.
+    Neither given (a channel with no rename in its API): Javis keeps the name until the platform reports a NEW one.
+    False when there is no such conversation or the name is empty."""
+    new = _s(str(name or "").strip(), MAX_TEN).strip()
+    if not new:
+        return False
+    with _lock:
+        db = _conn()
+        r = db.execute("SELECT customer_id, chat_type, channel_account_id, external_chat_id, metadata_json"
+                       " FROM conversations WHERE id=?", (int(conversation_id),)).fetchone()
+        if r is None:
+            return False
+        meta = _loads(r["metadata_json"], {})
+        if not isinstance(meta, dict):
+            meta = {}
+        if alias is not None:
+            if str(alias).strip():
+                meta["channel_alias"] = _s(str(alias).strip(), MAX_TEN)
+            else:
+                meta.pop("channel_alias", None)
+        seen = None if channel_title is None else _s(str(channel_title).strip(), MAX_TEN)
+        db.execute("UPDATE conversations SET title=?, channel_title=COALESCE(?, channel_title), metadata_json=?,"
+                   " updated_at=? WHERE id=?", (new, seen, _json(meta), _now(), int(conversation_id)))
+        if r["customer_id"] and is_profile_chat(dict(r)):
+            db.execute("UPDATE customers SET name=?, updated_at=? WHERE id=?", (new, _now(), int(r["customer_id"])))
+        db.commit()
+    return True
+
+
+def sync_group_titles(channel: str, account_id: str, titles: Dict[str, str]) -> List[int]:
+    """Group names a channel reported in bulk (the Zalo thread list), for groups renamed on the platform while nobody
+    wrote in them. Same rule as a message (`_NEW_NAME`): only a name that is neither shown nor the one last reported
+    replaces the title. Returns the ids of the conversations renamed."""
+    tk = _tai_khoan_id(channel, account_id)
+    pairs = [(str(k), _s(str(v or "").strip(), MAX_TEN)) for k, v in (titles or {}).items()]
+    pairs = [(k, v) for k, v in pairs if k and v and v != "?"]
+    if not pairs:
+        return []
+    changed: List[int] = []
+    with _lock:
+        db = _conn()
+        for i in range(0, len(pairs), 200):
+            part = dict(pairs[i:i + 200])
+            rows = db.execute(
+                "SELECT id, external_chat_id, title, channel_title FROM conversations WHERE channel_account_id=?"
+                f" AND chat_type='group' AND external_chat_id IN ({','.join('?' * len(part))})",
+                (tk, *part.keys())).fetchall()
+            for row in rows:
+                name = part.get(str(row["external_chat_id"]))
+                if name and name != row["title"] and name != row["channel_title"]:
+                    db.execute("UPDATE conversations SET title=?, channel_title=?, updated_at=? WHERE id=?",
+                               (name, name, _now(), int(row["id"])))
+                    changed.append(int(row["id"]))
+        if changed:
+            db.commit()
+    return changed
+
+
+def sync_aliases(channel: str, account_id: str, aliases: Dict[str, str]) -> List[int]:
+    """Nicknames the owner gave people ON THE PLATFORM (Zalo friend aliases), `{user id: alias}`, the WHOLE list.
+
+    A person's messages keep carrying their own display name, so an alias never arrives with a message: it is read as
+    a list, and each private chat remembers the alias it last applied (`metadata.channel_alias`). A changed alias renames
+    the chat and its customer; a removed one gives back the name the person's messages carry (`channel_title`).
+    An alias equal to what is remembered changes nothing, so a rename made in Javis meanwhile stays. Returns the ids of
+    the conversations renamed."""
+    tk = _tai_khoan_id(channel, account_id)
+    al = {str(k): _s(str(v or "").strip(), MAX_TEN) for k, v in (aliases or {}).items() if str(k or "").strip()}
+    changed: List[int] = []
+    with _lock:
+        db = _conn()
+        rows = db.execute(
+            "SELECT c.id, c.external_chat_id, c.title, c.channel_title, c.metadata_json, c.customer_id,"
+            " k.external_user_id AS uid, k.channel_name AS k_channel FROM conversations c"
+            " LEFT JOIN customers k ON k.id=c.customer_id"
+            " WHERE c.channel_account_id=? AND c.chat_type='private'", (tk,)).fetchall()
+        for row in rows:
+            uid = str(row["uid"] or row["external_chat_id"] or "")
+            meta = _loads(row["metadata_json"], {})
+            if not isinstance(meta, dict):
+                meta = {}
+            old = str(meta.get("channel_alias") or "")
+            new = al.get(uid, "")
+            if new == old:
+                continue
+            if new:
+                meta["channel_alias"] = new
+            else:
+                meta.pop("channel_alias", None)
+            name = new or str(row["channel_title"] or row["k_channel"] or row["title"] or "")
+            db.execute("UPDATE conversations SET title=?, metadata_json=?, updated_at=? WHERE id=?",
+                       (name, _json(meta), _now(), int(row["id"])))
+            if row["customer_id"] and name:
+                db.execute("UPDATE customers SET name=? WHERE id=?", (name, int(row["customer_id"])))
+            changed.append(int(row["id"]))
+        if changed:
+            db.commit()
+    return changed
 
 
 def group_speakers(account_key: str, chat_id: str, limit: int = 300) -> List[dict]:

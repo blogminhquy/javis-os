@@ -6,6 +6,39 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.656.0] - 2026-11-27
+### Thêm mới
+- **Javis đọc được số liệu Fanpage và từng bài** (lượt xem, người xem, tương tác, lượt theo dõi, click) bằng Trang đã nối ở thẻ Facebook Messenger, không cần kết nối riêng. Cần tick "Đọc số liệu bài viết" khi nối Trang.
+- **Supabase ở mức Chỉ đọc chạy được câu SELECT** khi kết nối là máy chủ MCP chính thức của Supabase có `read_only=true`. Câu ghi, nhiều câu một lúc hay hàm có tác dụng phụ vẫn bị chặn.
+### Bảo mật
+- **Kết nối MCP tự thêm ở mức Chỉ đọc không còn chạy được tool đổi dữ liệu có tên lạ** như `apply_migration`, `reset_branch`, `pause_project` (trước đây bị nhận nhầm là tool đọc).
+
+## [0.655.0] - 2026-11-27
+### Thêm mới
+- **Bấm thông báo "bot cần người thật" là mở thẳng cuộc chat của khách** ở trang Hội thoại, không phải tự đi tìm trong lúc khách chờ.
+- **Mọi bot đều có ô "Câu khó ở chat riêng: im lặng và báo tôi"**, kể cả bot Messenger và Zalo OA. Trước đây chỉ bot có nhóm mới bật được, và bấm Lưu form còn làm mất thiết lập này.
+- **Bot chờ khách nhắn xong rồi mới trả lời một lần** trên mọi kênh (Messenger, Zalo OA, Telegram, WhatsApp...), như Zalo cá nhân đã làm. Khách bấm vài nút trả lời nhanh liền nhau thì nhận một tin gộp. Số giây chỉnh ở form bot, mặc định 5.
+- **Tắt được dòng công cụ "⚙ ... · 12s"** dưới câu trả lời trên Telegram, Zalo và mọi kênh chat của bạn, bằng một ô ở trang Kênh.
+
+## [0.654.0] - 2026-11-27
+### Thêm mới
+- **Đổi tên cuộc chat ngay trong Chatbot.** Mục "Đổi tên" ở menu "..." và nút bút chì cạnh tên trong khung Thông tin.
+- **Tên đồng bộ hai chiều với Zalo.** Đổi tên nhóm trong Javis thì nhóm trên Zalo đổi theo, đổi tên khách thì Javis đặt tên gợi nhớ cho người đó trên Zalo. Sửa tên nhóm hay tên gợi nhớ trên Zalo thì Javis cũng tự đổi theo.
+- **Nhóm Telegram cũng đổi được tên từ Javis** khi bot là quản trị viên. Kênh khác (Messenger, Zalo OA, Slack...) không cho đổi tên qua API nên tên chỉ đổi trong Javis, và vẫn tự theo khi kênh báo một tên mới.
+### Cải thiện
+- **Nút "Javis soạn" và "Gửi" chỉ còn biểu tượng,** rê chuột vào là hiện tên, cho khung chat gọn hơn.
+
+## [0.653.1] - 2026-11-27
+### Sửa lỗi
+- **Lịch do việc nền tạo không còn chen vào cuộc trò chuyện chẳng liên quan.** Trước đây, khi một luồng việc nền (ví dụ xử lý đơn POSCake) tạo lịch nhắc trong lúc anh đang chat chuyện khác, khung chat đó hiện các dòng "Đã tạo lịch · Hoàn tác", rồi tới giờ lại nhận cả thẻ "Nhắc hẹn". Giờ dòng "Đã tạo lịch" chỉ ghi những gì chính cuộc trò chuyện đó tạo, còn kết quả của lịch việc nền về hộp thư và Javis Core thay vì khung chat đang mở.
+- **Lịch tới giờ đã chạy hoặc bị tạm dừng không còn hiện thành "Đã gỡ lịch".** Chỉ lịch mà cuộc trò chuyện huỷ mới có dòng đó.
+
+## [0.653.0] - 2026-11-27
+### Thêm mới
+- **Kênh của gói có logo riêng.** Gói khai `logo_svg` là kênh hiện đúng logo ở trang Chatbot và Hội thoại. Logo được lọc sạch, chỉ giữ hình vẽ, bỏ script và liên kết ngoài.
+- **Form thêm tài khoản theo khai báo của gói.** Gói khai `TOKEN_FORM` (ô chữ, mật khẩu, danh sách chọn tải từ gói) thay cho một ô token trơn, có nút Tạo và Sao chép cho mã bí mật. Ô bí mật không bao giờ được đưa vào đường dẫn webhook. Form hiện ở cả lúc thêm lẫn lúc sửa tài khoản.
+- **Cảnh báo trả lời trùng.** Messenger đã trả lời Facebook và Instagram. Kênh của gói nối lại hai mạng đó thì các lựa chọn này để trống sẵn, chọn vào sẽ hiện cảnh báo rõ, và phải tích xác nhận mới lưu được. Máy chủ cũng chặn nếu chưa xác nhận. Tài khoản cũ vẫn lưu lại được, nhưng đổi sang tài khoản khác trên mạng đã có kênh lõi thì cũng phải xác nhận.
+
 ## [0.652.0] - 2026-11-27
 ### Cải thiện
 - **Thêm Fanpage không cần dán lại App secret.** Thẻ Facebook Messenger hiện các app đã dùng cho Trang đang nối. Bấm một app, để trống App secret rồi Đăng nhập Facebook là chọn thêm được Trang khác; Javis tự dùng App secret đã lưu. Danh sách chọn đánh dấu Trang đã nối và chỉ tick sẵn Trang mới, kèm hướng dẫn bấm Chỉnh sửa quyền truy cập khi Facebook chỉ trả lại Trang cũ.

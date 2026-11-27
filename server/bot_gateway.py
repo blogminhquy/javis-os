@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import re
 import sys
+import time
 
 import localefmt
 import steer_inbox
@@ -68,6 +69,37 @@ def ten_tool(txt) -> str:
     return nhan_ngan(m.group(1)) if m else ""
 
 
+# Owner, issue #1893 (2026-11-27): the tool trail under every answer clutters a phone chat for someone who only logs a
+# meal. One switch for every owner chat channel (settings.chat.tool_trace, default on), read through this hook, which
+# main.py points at the settings. Customer-facing bots never show a trail, whatever the switch says.
+def _trace_default() -> bool:
+    return True
+
+
+trace_on = _trace_default
+
+
+def set_trace_source(fn) -> None:
+    """Point `trace_on` at a callable returning whether owner channels show the tool trail."""
+    global trace_on
+    trace_on = fn if callable(fn) else _trace_default
+
+
+def with_trace(reply, tools, giay) -> str:
+    """The answer with the tool trail under it, or the answer alone when the owner turned the trail off."""
+    text = str(reply or "")
+    if not trace_wanted():
+        return text
+    return ((text.rstrip() + "\n\n") if text.strip() else "") + dong_vet(tools, giay)
+
+
+def trace_wanted() -> bool:
+    try:
+        return bool(trace_on())
+    except Exception:  # noqa: BLE001 - a broken settings read keeps the default
+        return True
+
+
 def dong_vet(tools, giay) -> str:
     """Dòng tổng kết một lượt, thứ sẽ NẰM LẠI trong chat vĩnh viễn.
 
@@ -118,6 +150,10 @@ def noi_tin(texts):
     return "\n".join(reversed(giu))
 
 
+GATHER_MAX_TEXTS = 20   # messages gathered while waiting for a customer to finish (noi_tin trims by characters)
+GATHER_CAP_S = 60       # never wait longer than this in total, however often the customer keeps sending
+
+
 class HangLuot:
     """Mixin: điều phối lượt trả lời theo từng chat.
 
@@ -134,6 +170,26 @@ class HangLuot:
         if d is None:
             d = self.__dict__["_steer_meta_d"] = {}
         return d
+
+    @property
+    def _gathering(self):
+        """chat -> {texts, meta, last, start} while a customer bot waits for that chat to go quiet (issue #1873)."""
+        d = self.__dict__.get("_gathering_d")
+        if d is None:
+            d = self.__dict__["_gathering_d"] = {}
+        return d
+
+    def _quiet_wait(self, chat, meta) -> float:
+        """Seconds a customer bot waits for this chat to go quiet. `quiet_wait_fn` is set by chatbot_runtime on customer
+        bots only; an owner bot, or a transport built without it (tests), answers at once as before."""
+        fn = getattr(self, "quiet_wait_fn", None)
+        if not (self.giau_trang_thai and callable(fn)):
+            return 0.0
+        try:
+            return max(0.0, min(float(GATHER_CAP_S), float(fn(chat, meta or {}) or 0)))
+        except Exception as e:  # noqa: BLE001 - a broken setting answers at once rather than never
+            print(f"[bot quiet wait] {type(e).__name__}: {e}", file=sys.stderr)
+            return 0.0
 
     def _busy(self, chat):
         t = self._current.get(chat)
@@ -193,11 +249,23 @@ class HangLuot:
         # Tin thường → chạy nền. Tuần tự THEO CHAT: chỉ chặn nếu chính chat này đang bận.
         if self._busy(chat):
             if self.giau_trang_thai:
+                g = self._gathering.get(chat)
+                if g is not None:
+                    # Still waiting for this customer to finish (issue #1873): the message joins the same turn.
+                    if len(g["texts"]) < GATHER_MAX_TEXTS:
+                        g["texts"].append(str(text or ""))
+                    g["meta"] = meta or g["meta"]
+                    g["last"] = time.monotonic()
+                    return
                 # Người thật đang gõ dở mà nghe thêm một câu thì đọc nốt rồi trả lời một thể,
                 # chứ không quay ra nói "đang xử lý câu trước". Gộp vào lượt kế tiếp.
                 self._xep_hang(chat, text, meta)
             else:
                 await self._steer(client, chat, text, meta)
+            return
+        wait = self._quiet_wait(chat, meta)
+        if wait > 0:
+            self._start_gathering(client, chat, text, meta, wait)
             return
         self._chay_luot(client, chat, text, meta)
 
@@ -258,6 +326,31 @@ class HangLuot:
         task = asyncio.create_task(self._turn(client, chat, text, meta))
         self._current[chat] = task
         task.add_done_callback(lambda t, c=chat: self._xong_luot(client, c, t))
+
+    def _start_gathering(self, client, chat, text, meta, wait):
+        """Issue #1873: a customer often sends a thought as several messages (an ad's prefilled question, then two
+        quick-reply taps 12 seconds later). Answering the first at once sent two separate replies. Wait until the chat
+        has been quiet for `wait` seconds, then answer everything in ONE turn, as personal Zalo has done since 0.128.0."""
+        task = asyncio.create_task(self._gather_then_answer(client, chat, text, meta, wait))
+        self._current[chat] = task
+        task.add_done_callback(lambda t, c=chat: self._xong_luot(client, c, t))
+
+    async def _gather_then_answer(self, client, chat, text, meta, wait):
+        now = time.monotonic()
+        g = {"texts": [str(text or "")], "meta": meta, "last": now, "start": now}
+        self._gathering[chat] = g
+        try:
+            while True:
+                due = min(g["last"] + wait, g["start"] + GATHER_CAP_S)
+                left = due - time.monotonic()
+                if left <= 0:
+                    break
+                await asyncio.sleep(left)
+        finally:
+            self._gathering.pop(chat, None)
+        if self._stop:
+            return None
+        return await self._turn(client, chat, noi_tin(g["texts"]), g["meta"])
 
     def _xong_luot(self, client, chat, task):
         """Dọn task đã xong (tránh phình theo thời gian) rồi chạy nốt phần đang xếp hàng."""

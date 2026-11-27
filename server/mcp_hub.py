@@ -511,7 +511,9 @@ def _guard(ent, fn, mode):
     """Bọc 1 route entry MCP thành async call có kiểm quyền + audit."""
     conn = ent["conn"]
     tool = ent["tool"]
-    connector = mcp_catalog.get(conn.get("connector_id"))
+    # Issue #1865: a server that enforces read-only itself (Supabase with read_only=true) may run a plain SELECT.
+    connector = mcp_catalog.with_server_read_only(mcp_catalog.get(conn.get("connector_id")),
+                                                  {"url": (ent.get("spec") or {}).get("url") or conn.get("url")})
 
     async def _call(args):
         cls = mcp_catalog.classify(connector, tool, args)
@@ -2398,7 +2400,8 @@ async def _discover_all_cached(mode="full", vault_root=None, include_plugins=Tru
         if owner_browser and browser_login.is_browser_spec(raw.get("spec")):
             continue
         conn = raw["conn"]
-        connector = mcp_catalog.get(conn.get("connector_id"))
+        connector = mcp_catalog.with_server_read_only(mcp_catalog.get(conn.get("connector_id")),
+                                                      {"url": (raw.get("spec") or {}).get("url") or conn.get("url")})
         # A gated Team step (0.207.0) lists like full: an outside action must be callable so the gate can stop it and
         # turn it into an approval request, and run it once approved. The call itself is still capped (`_guard`).
         eff = mcp_catalog.effective_perm(conn.get("perm"), "full" if mode == team_gate.HUB_MODE else mode)

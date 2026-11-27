@@ -1,9 +1,9 @@
 name: Facebook Trang (Graph API)
 name_en: "Facebook Pages (Graph API)"
 slug: meta-pages-graph
-version: 1.0.0
-description: Quản lý Trang/Fanpage Facebook qua Graph API - liệt kê Trang, đọc bài, bình luận và bài đang chờ đăng (chỉ đọc), đăng hoặc hẹn giờ bài/ảnh/album, đăng video, sửa chữ, xoá bài và trả lời bình luận (toàn quyền). Dùng Fanpage đã nối ở thẻ Facebook Messenger (trang Kết nối), hoặc kết nối "Facebook Trang" trong Kho nếu có.
-description_en: "Manages Facebook Pages through the Graph API: list Pages, read posts, comments and scheduled posts (read-only), publish or schedule posts, photos and albums, publish videos, edit text, delete posts and reply to comments (full access). Uses the Pages connected on the Facebook Messenger card (Connections page), or the store's Facebook Pages connection when present."
+version: 1.1.0
+description: Quản lý Trang/Fanpage Facebook qua Graph API - liệt kê Trang, đọc bài, bình luận, bài đang chờ đăng và số liệu Trang/bài (chỉ đọc), đăng hoặc hẹn giờ bài/ảnh/album, đăng video, sửa chữ, xoá bài và trả lời bình luận (toàn quyền). Dùng Fanpage đã nối ở thẻ Facebook Messenger (trang Kết nối), hoặc kết nối "Facebook Trang" trong Kho nếu có.
+description_en: "Manages Facebook Pages through the Graph API: list Pages, read posts, comments, scheduled posts and Page or post insights (read-only), publish or schedule posts, photos and albums, publish videos, edit text, delete posts and reply to comments (full access). Uses the Pages connected on the Facebook Messenger card (Connections page), or the store's Facebook Pages connection when present."
 author: Javis (bundled)
 enabled: true
 min_mode: full
@@ -12,6 +12,7 @@ tools:
   - fb_page_posts
   - fb_page_comments
   - fb_page_scheduled
+  - fb_page_insights
   - fb_page_post
   - fb_page_photo
   - fb_page_album

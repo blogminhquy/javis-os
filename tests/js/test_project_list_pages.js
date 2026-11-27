@@ -58,7 +58,8 @@ check("the team panel's description uses the same box", /function describeDoc[\s
 check("the box sits above the project drawer", /\.ted-wrap \{[^}]*z-index: 6000/.test(CSS) && /\.pd-wrap \{[^}]*z-index: 5000/.test(CSS));
 check("the box's text is 16px (no iPhone zoom) and a phone sheet follows the keyboard",
   /\.ted-in \{[^}]*font-size: 16px/.test(CSS) && /body\.kb-open \.ted-wrap/.test(CSS));
-check("Ctrl or Cmd+Enter saves, Escape closes", /e\.key === "Enter" && \(e\.ctrlKey \|\| e\.metaKey\)/.test(DLG_SRC) &&
+check("Ctrl or Cmd+Enter saves (plain Enter too in the one-line mode), Escape closes",
+  /e\.key === "Enter" && \(e\.ctrlKey \|\| e\.metaKey \|\| o\.singleLine\)/.test(DLG_SRC) &&
   /e\.key === "Escape"/.test(DLG_SRC));
 check("a tap outside never throws away a change", /ted-scrim"\)\.onclick = function \(\) \{\s*if \(!pending\(/.test(DLG_SRC));
 

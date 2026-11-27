@@ -383,7 +383,7 @@ def _ring_escalation(cfg: dict, meta: dict, text: str, note: str, more: int = 0)
             + (f"\nBot ghi chú: {note}" if note else ""),
             f"The bot did not answer this message itself and left it to you.\nCustomer wrote: {hoi}"
             + (f"\nBot's note: {note}" if note else ""))
-    return _goi_chu(cfg, ai, ly_do)
+    return _goi_chu(cfg, ai, ly_do, meta)
 
 
 def _person_answered_since(cfg: dict, meta: dict, since: float) -> bool:
@@ -2158,16 +2158,16 @@ def _make_command_fn(bot_cfg: dict):
             # ở trong nhóm đó, nên để công khai được. Kèm luôn chẩn đoán: xem `_chan_doan_nhom`.
             return {"reply": _chan_doan_nhom(bot_cfg.get("id") or "", chat, meta or {})}
         if c in ("nhanvien", "nhan_vien", "human"):
-            return {"reply": _bao_nhan_vien(bot_cfg, chat, "Người hỏi chủ động xin gặp người thật.")}
+            return {"reply": _bao_nhan_vien(bot_cfg, chat, "Người hỏi chủ động xin gặp người thật.", meta)}
         # Mọi lệnh khác (kể cả /brain, /model, /status của bot chủ) im lặng: nói "không có lệnh
         # đó" là tự khai còn tồn tại một tập lệnh khác ở đâu đó.
         return {"reply": "Anh chị cứ nhắn câu hỏi bình thường giúp em ạ."}
     return _cmd
 
 
-def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str) -> str:
+def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str, meta: dict = None) -> str:
     """Khách xin gặp người thật. Báo chủ ở chuông thông báo, trả về câu nói với khách."""
-    if not _goi_chu(bot_cfg, chat_id, ly_do):
+    if not _goi_chu(bot_cfg, chat_id, ly_do, dict(meta or {}, chat_id=chat_id)):
         # Không bỏ được vào chuông thì nói THẬT là chưa nối được người, và mời hỏi tiếp - đừng
         # dừng hẳn cuộc trò chuyện.
         return ("Hiện em chưa nối máy sang người trực được ạ. Anh chị cứ hỏi tiếp ở đây, "
@@ -2178,11 +2178,27 @@ def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str) -> str:
             "em hỗ trợ được tới đâu em hỗ trợ tới đó.")
 
 
-def _goi_chu(bot_cfg: dict, ai: str, ly_do: str) -> bool:
+def _chat_link(bot_cfg: dict, meta: dict) -> str:
+    """`chatbot-chat:<conversation id>` for the customer chat a bell is about, "" when it has no stored conversation.
+
+    Issue #1864 (2026-11-26): clicking "the bot needs a human" opened Javis Core, and the owner had to look for the
+    customer in the Inbox while the customer waited. With this channel the bell (and its push) opens that very chat."""
+    chat = str((meta or {}).get("chat_id") or "")
+    if not chat:
+        return ""
+    try:
+        aid, kenh = _tai_khoan_cua(bot_cfg or {}, meta or {})
+        cid = conversations.conversation_id_of(kenh, aid, chat)
+    except Exception:      # noqa: BLE001 - a missing link never costs the bell
+        return ""
+    return f"chatbot-chat:{cid}" if cid else ""
+
+
+def _goi_chu(bot_cfg: dict, ai: str, ly_do: str, meta: dict = None) -> bool:
     """Bỏ một mẩu thư "bot cần người thật" vào chuông thông báo của Javis. True nếu bỏ được.
 
     Thay cho tin Telegram gửi "người trực" (`handoff_to`) trước 0.171.2: chủ repo 16/10/2026 gom mọi
-    cảnh báo của bot về một chỗ anh ấy thật sự xem."""
+    cảnh báo của bot về một chỗ anh ấy thật sự xem. `meta` names the customer chat, so the bell opens it."""
     fn = _deps.get("notify")
     if not fn:
         return False
@@ -2192,8 +2208,12 @@ def _goi_chu(bot_cfg: dict, ai: str, ly_do: str) -> bool:
         "Mở trang Chatbot, thẻ Hòm thư bot để đọc và trả lời tay.",
         f"Bot {ten_bot} needs a human: {ai or 'a customer'}\n\n{ly_do}\n\n"
         "Open the Chatbot page, Bot inbox tab, to read and reply by hand.")
+    link = _chat_link(bot_cfg, meta or {})
     try:
-        r = fn(text)
+        try:
+            r = fn(text, channel=link) if link else fn(text)
+        except TypeError:
+            r = fn(text)        # an older notify (tests, a wired stub) takes the text only
         if asyncio.iscoroutine(r):
             asyncio.ensure_future(r)
         return True
@@ -2958,7 +2978,7 @@ def _make_answer_fn(bot_id: str):
             _goi_chu(cfg, str((meta or {}).get("user_name") or chat_id),
                      localefmt.chu(f"Bot bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}",
                                    f"The bot was stuck on {lien_tiep} messages in a row. "
-                                   f"Latest: {str(text)[:200]}"))
+                                   f"Latest: {str(text)[:200]}"), meta)
         if loi_ky_thuat:
             # `failed`: a transport that answers a caller (internal API) must tell a failed turn from a silent one.
             return {"text": "", "files": [], "im_lang": True, "failed": True}
@@ -3365,7 +3385,9 @@ def staff_request_failed(cfg: dict, req: dict, error: str) -> bool:
     reason = localefmt.chu(
         f"Hỏi người phụ trách hỏng: {str(error)[:200]}\nKhách hỏi: {q}" + (f"\nNgười phụ trách trả lời: {a}" if a else ""),
         f"Asking the staff contact failed: {str(error)[:200]}\nCustomer asked: {q}" + (f"\nStaff answered: {a}" if a else ""))
-    return _goi_chu(cfg or {}, who, reason)
+    link_meta = {"chat_id": str((req or {}).get("customer_chat_id") or ""),
+                 "account_id": str((req or {}).get("account_id") or ""), "_kenh": str((req or {}).get("channel") or "")}
+    return _goi_chu(cfg or {}, who, reason, link_meta)
 
 
 async def relay_staff_answer(req: dict) -> dict:
@@ -3724,6 +3746,10 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
         )
         tb.account_id = aid
         tb.javis_bot_id = bot_id    # NOT `bot_id`: Telegram and Slack transports use that for the platform's own id
+        # Issue #1873: every channel waits for a customer to finish typing in a private chat before answering, read
+        # live so a change on the bot form applies at once (personal Zalo gathers in its own read loop).
+        tb.quiet_wait_fn = (lambda chat, meta, _b=bot_id, _a=aid: chatbot_store.quiet_wait_of(
+            chatbot_store.get_bot(_b) or {}, {"chat_id": str(chat), **(meta or {}), "account_id": _a}))
         try:
             tb.start()
         except ValueError as e:     # a transport may refuse a bad account mapping at start: skip that account

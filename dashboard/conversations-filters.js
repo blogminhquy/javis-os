@@ -167,6 +167,16 @@
               threads_comment: ["profile", "delete_remote"] };
   function platformActs(c) { return CAN[chatKind(c)] || []; }
 
+  function renameSub(c) {
+    var r = (c && c.rename_remote) || "", channelName = (c && (c.channel_label || c.channel)) || "";
+    return tt(r === "title" ? "ht.rm_rename_sub_title" : r === "alias" ? "ht.rm_rename_sub_alias" : "ht.rm_rename_sub_local", { kenh: channelName });
+  }
+  // The rename box's one-line hint: what the new name does on the platform.
+  function renameHint(c) {
+    var r = (c && c.rename_remote) || "", channelName = (c && (c.channel_label || c.channel)) || "";
+    return tt(r === "title" ? "ht.rename_hint_title" : r === "alias" ? "ht.rename_hint_alias" : "ht.rename_hint_local", { kenh: channelName });
+  }
+
   function rowMenuItems(c) {
     var x = c || {}, items = [];
     items.push(x.unread_count > 0 ? { act: "read", icon: "mail-open", key: "ht.rm_read" }
@@ -174,6 +184,9 @@
     items.push(x.pinned ? { act: "unpin", icon: "pin-off", key: "ht.rm_unpin" } : { act: "pin", icon: "pin", key: "ht.rm_pin" });
     var nTags = (x.tags || []).length;
     items.push({ act: "tags", icon: "tag", key: "ht.rm_tags", more: true, sub: nTags ? (x.tags || []).map(function (g) { return g.name; }).join(", ") : "" });
+    // Rename (owner, 2026-11-27): on the platform too where it allows it (`rename_remote` from the server: a Zalo or
+    // Telegram group's name, a Zalo friend's nickname), else in Javis only. The second line says which.
+    items.push({ act: "rename", icon: "pencil", key: "ht.rm_rename", sub: renameSub(x) });
     if (x.bot_id && x.ai_allowed !== false) {
       // Same three modes as the "Who replies" bar of the chat (Chatbot v5): A.I. replies, A.I. drafts and I approve, I reply.
       var mode = x.mode === "human" ? "human" : x.mode === "draft" ? "draft" : "ai";
@@ -253,7 +266,7 @@
   window.JavisConvFilters = {
     emptyState: emptyState, sanitize: sanitize, load: load, save: save, activeCount: activeCount, query: query,
     tagChips: tagChips, tagChip: tagChip, tagColor: tagColor,
-    TAG_COLORS: TAG_COLORS, rowMenuItems: rowMenuItems, infoActItems: infoActItems, rowMenuHtml: rowMenuHtml, chatKind: chatKind, platformActs: platformActs, tagMenuHtml: tagMenuHtml, WHOS: WHOS,
+    TAG_COLORS: TAG_COLORS, rowMenuItems: rowMenuItems, infoActItems: infoActItems, renameHint: renameHint, rowMenuHtml: rowMenuHtml, chatKind: chatKind, platformActs: platformActs, tagMenuHtml: tagMenuHtml, WHOS: WHOS,
     KINDS: KINDS,
   };
 })();

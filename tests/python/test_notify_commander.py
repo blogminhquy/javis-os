@@ -133,7 +133,8 @@ check("CANARY: the engine down is urgent, broken connections after a restart are
       'connect_health.on_engine_down = lambda text: _loop_notify(text, source="engine", level="urgent")' in src and
       'connect_health.on_connections_down = lambda text: _loop_notify(text, source="connections", level="important")' in src)
 check("CANARY: every chatbot notice is urgent (a customer waits), team questions are urgent questions",
-      'level="urgent"))' in src.split("notify=lambda text: _bo_vao_hom_thu(\"\", text, kind=\"system\", source=\"chatbot\"")[1][:200]
+      'level="urgent", channel=channel))' in src.split(
+          "notify=lambda text, channel=\"\": _bo_vao_hom_thu(\"\", text, kind=\"system\", source=\"chatbot\"")[1][:300]
       and 'group="question" if asks else "team"' in src)
 check("a team asking the owner is recognised", bool(main._TEAM_ASKS_OWNER.search('Nhóm "Bán hàng" xin duyệt: Chạy QC')) and
       not main._TEAM_ASKS_OWNER.search('Việc nhóm "X" bị chặn: thiếu file'))

@@ -64,8 +64,49 @@ def ket_thuc(khoa: str) -> None:
     _SONG.pop(str(khoa or ""), None)
 
 
+def _caller_chat():
+    """Ai đang gọi tool, theo ngữ cảnh lượt do HOST gắn (turn_context), không theo lời model.
+
+    Trả `None` khi không có ngữ cảnh nào (engine chưa mang được khoá lượt, hoặc việc nền chạy trần), còn lại là
+    chat_id chắc chắn: `web:<phiên>` cho lượt chat dashboard, "" cho mọi lượt khác (Kanban, nhắc hẹn, nhóm, chatbot,
+    Telegram...): những lượt đó giữ đúng chat_id model truyền, như javis_schedule vẫn làm.
+
+    Chủ repo 27/11/2026: việc nền của một đơn POSCake tạo lịch nhắc, tool đoán người nhận là khung chat duy nhất
+    đang chạy, nên thẻ "Nhắc hẹn" rơi vào một cuộc trò chuyện chẳng liên quan. Lượt nền biết mình là ai thì không
+    bao giờ được mượn khung chat của người khác."""
+    try:
+        import turn_context
+        t = turn_context.current()
+    except Exception:  # noqa: BLE001 - không đọc được thì coi như không có ngữ cảnh
+        return None
+    if not t:
+        return None
+    if t.get("kenh") == "dashboard":
+        sid = str(t.get("session_id") or t.get("chat_id") or "").strip()
+        return ("web:" + sid) if sid and not sid.startswith("web:") else sid
+    return ""
+
+
+def _background_running(vault) -> bool:
+    """Brain này đang có việc nền (loop, nhắc hẹn, việc Kanban) chạy. Lời gọi không mang ngữ cảnh lượt lúc đó có thể
+    đến từ chính việc nền ấy, nên không đoán (memory_control.background_writer là chỗ cả ba bộ chạy cùng đánh dấu)."""
+    try:
+        import memory_control
+        return memory_control.background_active(vault)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def doan_chat_id(vault, now: float = 0.0) -> str:
-    """chat_id của khung chat DUY NHẤT đang chạy trên brain này, không chắc thì ""."""
+    """chat_id của khung chat DUY NHẤT đang chạy trên brain này, không chắc thì "".
+
+    Lượt có ngữ cảnh thì dùng ngữ cảnh (không đoán). Không có ngữ cảnh mà brain đang chạy việc nền thì cũng không
+    đoán: thà để kết quả về hộp thư và Javis Core còn hơn nhét vào khung chat của người không hề giao việc."""
+    known = _caller_chat()
+    if known is not None:
+        return known
+    if _background_running(vault):
+        return ""
     now = now or time.time()
     for k in [k for k, v in _DANG.items() if now - v["at"] > TUOI_TOI_DA]:
         _DANG.pop(k, None)
@@ -78,7 +119,10 @@ def doan_luot(vault, now: float = 0.0):
     """Lượt DUY NHẤT đang chạy trên brain này: {chat_id, msg_id, user_text}. Không chắc thì None.
 
     Chặt hơn `doan_chat_id`: phải đúng một lượt (không chỉ một khung chat), vì tool lập mục tiêu cần biết
-    đúng TIN NHẮN nào chứ không chỉ khung chat nào."""
+    đúng TIN NHẮN nào chứ không chỉ khung chat nào. Cùng hàng rào với `doan_chat_id`: lượt nền không mượn lượt chat."""
+    known = _caller_chat()
+    if known == "" or (known is None and _background_running(vault)):
+        return None
     now = now or time.time()
     for k in [k for k, x in _DANG.items() if now - x["at"] > TUOI_TOI_DA]:
         _DANG.pop(k, None)

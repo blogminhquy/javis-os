@@ -56,7 +56,7 @@ import httpx
 
 import localefmt
 import stt
-from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool
+from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool, trace_wanted
 
 SLACK_API = "https://slack.com/api/{method}"
 
@@ -575,7 +575,8 @@ class SlackBot(HangLuot):
         last_edit = 0.0
         thread = str((meta or {}).get("thread_ts") or "") or self._thread.get(chat)
 
-        if not self.giau_trang_thai:
+        # Trail off (issue #1893): no status message at all, so nothing is left behind in the chat.
+        if not self.giau_trang_thai and trace_wanted():
             d = await self._post(client, chat, localefmt.chu("⏳ Đang làm...", "⏳ Working..."), thread)
             status_ts = d.get("ts") if d.get("ok") else None
 

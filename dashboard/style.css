@@ -4239,6 +4239,9 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
   padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--field-bg); color: var(--text);
   font-family: inherit; font-size: 16px; line-height: 1.65; outline: none; }
 .ted-in:focus { border-color: var(--info-line); box-shadow: 0 0 0 3px var(--info-wash); }
+/* One-line value (a chat's name): no tall writing area. */
+.ted-one .ted-in, body.kb-open .ted-one .ted-in { min-height: 0; }
+.ted-one .ted-count { margin-right: auto; }
 .ted-kinds { display: flex; flex-wrap: wrap; gap: 8px; }
 .ted-kind { min-height: 36px; padding: 6px 14px; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: 15px;
   border: 1px solid var(--border); background: var(--bg); color: var(--text2); }

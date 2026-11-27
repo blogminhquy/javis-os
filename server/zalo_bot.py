@@ -51,7 +51,7 @@ import httpx
 
 import stt
 import localefmt
-from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool
+from bot_gateway import HangLuot, parse_chat_ids, ten_tool, with_trace
 
 ZALO_API = "https://bot-api.zaloplatforms.com/bot{token}/{method}"
 
@@ -801,8 +801,7 @@ class ZaloBot(HangLuot):
             # Dòng vết chỉ dành cho bot của CHỦ. Bot chuyên trách nói với khách thì tuyệt đối
             # không lộ ra công cụ nào đã chạy.
             if not self.giau_trang_thai:
-                vet = dong_vet(tools, time.monotonic() - t0)
-                reply = ((str(reply or "").rstrip() + "\n\n") if str(reply or "").strip() else "") + vet
+                reply = with_trace(reply, tools, time.monotonic() - t0)
             if str(reply or "").strip() or not files:
                 await self._send(client, chat, reply)
             for f in files:

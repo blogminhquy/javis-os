@@ -8,6 +8,39 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.656.0] - 2026-11-27
+### Added
+- **Javis reads Facebook Page and post insights** (views, viewers, engagement, follows, clicks) through the Pages connected on the Facebook Messenger card, no separate connection needed. Tick "Read post insights" when connecting the Page.
+- **Supabase at Read only can run SELECT** when the connection is Supabase's official MCP server with `read_only=true`. Writes, several statements at once and functions with side effects stay blocked.
+### Security
+- **A custom MCP connection at Read only can no longer run data-changing tools with unusual names** such as `apply_migration`, `reset_branch`, `pause_project` (they used to be taken for reads).
+
+## [0.655.0] - 2026-11-27
+### Added
+- **Clicking "the bot needs a human" opens that customer's chat** on the Inbox page, so you no longer look for them while they wait.
+- **Every bot has a "Hard question in a private chat: stay quiet and tell me" tick**, Messenger and Zalo OA bots included. Before, only bots with groups could turn it on, and saving the form switched it off again.
+- **Bots wait for the customer to finish, then answer once** on every channel (Messenger, Zalo OA, Telegram, WhatsApp...), as personal Zalo already did. A customer tapping a few quick replies gets one combined answer. Set the seconds on the bot form, 5 by default.
+- **Turn off the "⚙ ... · 12s" tool line** under answers on Telegram, Zalo and all your chat channels, with one tick on the Channels page.
+
+## [0.654.0] - 2026-11-27
+### Added
+- **Rename a chat right in Chatbot.** A "Rename" item in the "..." menu and a pencil next to the name in the Info panel.
+- **Names sync both ways with Zalo.** Renaming a group in Javis renames it on Zalo, renaming a customer sets your Zalo nickname for them. A group name or nickname changed on Zalo comes back to Javis too.
+- **Telegram groups can be renamed from Javis** when the bot is an admin. Other channels (Messenger, Zalo OA, Slack...) allow no rename through their API, so the name changes in Javis only, and still follows when the channel reports a new one.
+### Improved
+- **"Javis draft" and "Send" are icons only,** with their name on hover, for a tidier chat box.
+
+## [0.653.1] - 2026-11-27
+### Fixed
+- **Schedules made by background work no longer show up in an unrelated chat.** Before, when a background flow (for example a POSCake order flow) created a reminder while you were chatting about something else, that chat got "Created schedule · Undo" lines and later the "Reminder" cards too. Now the "Created schedule" line lists only what that chat itself made, and a background job's reminder reports to the inbox and Javis Core instead of whichever chat is open.
+- **A schedule that fired or was paused no longer shows as "Removed schedule".** Only a schedule the chat cancelled gets that line.
+
+## [0.653.0] - 2026-11-27
+### Added
+- **Pack channels show their own logo.** A pack declaring `logo_svg` gets its logo on the Chatbot and Conversations pages. The SVG is sanitized: shapes only, no scripts or outside links.
+- **Account form declared by the pack.** A pack declaring `TOKEN_FORM` (text, password, and select fields loaded from the pack) replaces the plain token box, with Generate and Copy for secrets. Secret fields never go into the webhook URL. The form appears when adding and when editing an account.
+- **Duplicate reply warning.** Messenger already answers Facebook and Instagram. When a pack channel reaches either network again, those options start unselected, picking one shows a clear warning, and saving needs a ticked acknowledgement. The server refuses it too without the acknowledgement. Existing accounts can still be re-saved, but repointing one to another account on a covered network needs the acknowledgement too.
+
 ## [0.652.0] - 2026-11-27
 ### Improved
 - **Add a Page without pasting the App secret again.** The Facebook Messenger card lists the apps your connected Pages already use. Click one, leave the App secret empty and Log in with Facebook to pick more Pages; Javis reuses the saved App secret. The picker marks Pages already connected and only ticks the new ones, with a hint to click Edit previous settings when Facebook returns only the old Pages.
