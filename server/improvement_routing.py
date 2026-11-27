@@ -3,10 +3,12 @@
 Spec 9.2 and 16.1: the skill `description` is its own behaviour surface. A routing candidate changes
 only that value; the body, every other frontmatter key, name, enabled state and group stay byte-equal.
 
-The evaluator measures Javis's own lazy router (the deterministic `LazySkillSource._score` ranking
-used for API engines) over two metadata views: the current skills, and the same skills with the
-target's candidate description. Native CLI engines choose skills by model judgement; that routing is
-not measured here and reports must say so.
+The evaluator measures a deterministic description-only router (the word-overlap `LazySkillSource._score`
+ranking) over two metadata views: the current skills, and the same skills with the target's candidate
+description. Since 2026-11-27 the live chat ranks skills with `skill_finder` (whole description, "When to use",
+learned requests) and only preloads a body it is sure of; this evaluator still scores descriptions alone, the
+way the lazy router did before. Native CLI engines choose skills by model judgement; that routing is not
+measured here and reports must say so.
 
 Case kinds: `positive` (this skill should be chosen), `negative` (no skill should be), `competing`
 (another skill should be chosen). The hard gate of spec M4: the candidate may not turn a correct

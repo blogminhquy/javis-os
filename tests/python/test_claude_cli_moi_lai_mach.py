@@ -35,7 +35,7 @@ src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 # Khoanh vùng nhánh anthropic-cli: từ marker nhánh tới chỗ gửi khung response của nó.
 i0 = src.find("PROVIDER anthropic-cli")
 check("tìm thấy nhánh anthropic-cli", i0 > 0)
-vung = src[i0:i0 + 6000]
+vung = src[i0:i0 + 7000]   # 2026-11-27: the turn's skill suggestions added three lines to this lane
 
 # 1. BẤT BIẾN CHÍNH: bootstrap gate theo "không có mạch", không phải "vừa xoay".
 i_gate = vung.find("if not cli.session_id:")

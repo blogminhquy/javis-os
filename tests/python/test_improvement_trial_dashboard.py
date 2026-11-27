@@ -188,7 +188,8 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(value["version"], 2)
         self.assertEqual(value["baseline_context"]["coverage"], "complete")
         for text in ("Kernel owner contract.", "Use a concise, warm tone.", "Brain rule.",
-                     "Always retain this project rule.", "KÊNH HỘI THOẠI HIỆN TẠI", "23/10/2026", "Perform custom work"):
+                     "Always retain this project rule.", "KÊNH HỘI THOẠI HIỆN TẠI", "23/10/2026",
+                     "- General: custom"):   # 2026-11-27: the router names skills; descriptions come per turn
             self.assertIn(text, content)
         self.assertNotIn("PRIVATE MUTABLE TARGET BODY", json.dumps(value))
         self.assertTrue(any(row["role"] == "protected" and row["kind"] == "sql" for row in value["sources"]))

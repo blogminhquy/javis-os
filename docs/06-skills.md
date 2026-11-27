@@ -16,23 +16,30 @@ Một skill trong Javis là một thư mục chứa file `SKILL.md`, đặt tạ
 
 Phần còn lại của file là nội dung hướng dẫn chi tiết cho AI khi skill chạy.
 
-Bản chuẩn (canonical) của skill nằm ở `skills/<slug>/SKILL.md` - đúng cái dashboard hiển thị và đúng cái Javis nạp qua router. Ngoài ra Javis còn giữ một bản **mirror** ở `.claude/skills/<slug>` để Claude Code nạp native. Bản mirror giống hệt bản gốc, chỉ khác một chỗ: nếu `description` dài quá 150 ký tự thì bản mirror bị rút xuống 150 ký tự kèm dấu "…" (bản trong `skills/` giữ nguyên chữ bạn viết). Chuyện này chỉ xảy ra với skill nhập từ gói ngoài hoặc viết tay qua trang Tệp tin, vì skill lưu qua biểu mẫu đã bị chặn từ trước.
+Bản chuẩn (canonical) của skill nằm ở `skills/<slug>/SKILL.md` - đúng cái dashboard hiển thị và đúng cái Javis nạp qua router. Ngoài ra Javis còn giữ một bản **mirror** ở `.claude/skills/<slug>` để Claude Code nạp native. Bản mirror giống hệt bản gốc, chỉ khác một chỗ: nếu `description` dài quá 150 ký tự thì bản mirror bị rút xuống 150 ký tự kèm dấu "…" (bản trong `skills/` giữ nguyên chữ bạn viết). Lý do: Claude Code tự liệt kê mọi skill kèm mô tả ở đầu mỗi phiên, nên bản đó giữ gọn. Javis thì đọc trọn mô tả ở `skills/`.
 
 ## Luật viết `description` (đọc trước khi tạo skill)
 
 Đây là chỗ hay làm người dùng tắc mà không hiểu vì sao. Khi bạn bấm **💾 Lưu**, server kiểm tra `description` và **từ chối lưu** nếu vi phạm một trong hai luật:
 
-**1. Tối đa 150 ký tự.** Đây không phải chuyện thẩm mỹ. Javis cắt mô tả đúng ở 150 ký tự khi bơm vào system prompt và vào mô tả tool `javis_use_skill`, nên phần dư mất im lặng và skill không route được. Lý do từ chối hiện đúng chữ: "description dài N ký tự, vượt trần 150. Router cắt đúng ở 150 nên phần dư MẤT IM LẶNG và skill không route được. Đưa ví dụ trigger xuống mục '## Khi nào dùng' trong thân file."
+**1. Tối đa 1.024 ký tự** (chuẩn Agent Skills, từ 27/11/2026; trước đó là 150). Javis đọc trọn mô tả để tìm skill, nên phần vượt trần mới bị bỏ qua. Skill nhập từ Anthropic hay kho khác viết theo chuẩn này dùng được nguyên văn.
 
 **2. Không mở đầu bằng cụm sáo rỗng.** Các cụm bị chặn: "Kích hoạt khi...", "Sử dụng skill này khi...", "Dùng skill này khi...", "Skill này dùng / Skill này được dùng...", "Use this skill when...", "Activate when...". Mọi skill đều mở y hệt nhau nên cụm đó đốt ngân sách ký tự mà không phân biệt được skill nào với skill nào. Lý do từ chối gợi ý luôn cách viết đúng: nêu thẳng năng lực, ví dụ "Tóm tắt biên bản họp thành danh sách việc cần làm."
 
-Cách viết đúng: một câu nêu thẳng skill **làm được gì**, dưới 150 ký tự. Ví dụ trigger dài, danh sách từ khoá, các tình huống chi tiết thì đưa xuống mục `## Khi nào dùng` trong **thân** file `SKILL.md` - chỗ đó không bị cắt và chỉ được đọc khi skill đã nạp. Nói gọn: phần mô tả để TÌM, thân file để LÀM.
+Cách viết đúng: câu đầu nêu thẳng skill **làm được gì**, các câu sau nói **khi nào dùng**, bằng đúng những chữ bạn hay nói khi nhờ việc đó. Ví dụ dài, danh sách tình huống thì đưa xuống mục `## Khi nào dùng` trong **thân** file `SKILL.md`: Javis cũng đọc mục đó khi tìm skill.
 
 Luật này áp cho cả biểu mẫu trên dashboard lẫn skill do trang **Tự học** đề xuất (skill vi phạm bị chặn, ghi vào danh sách bỏ qua).
 
 ## Trigger hoạt động thế nào
 
-Skill tự kích hoạt dựa trên trường `description` (và bạn cũng gọi tay được, xem mục kế tiếp). Khi bạn gõ hoặc nói một yêu cầu, Javis so khớp yêu cầu với `description` của các skill đang bật, thấy khớp thì nạp hướng dẫn tương ứng. Trên Claude Code là nạp native; trên các engine khác Javis bơm danh sách skill vào system prompt và nạp qua tool `javis_use_skill`.
+Từ 27/11/2026 Javis tìm skill theo bốn lớp:
+
+1. **Danh sách tên.** System prompt nêu tên (slug) của mọi skill đang bật, gom theo nhóm. Danh sách cố định nên không làm mất cache prompt.
+2. **Gợi ý theo lượt.** Mỗi lượt Javis chấm mọi skill theo câu bạn vừa gõ (và vài câu trước nếu câu này ngắn như "ok làm tiếp"), dựa trên trọn mô tả, mục `## Khi nào dùng`, tiêu đề và nhóm. Vài skill khớp nhất đi kèm đầu tin nhắn gửi model, cùng mô tả đầy đủ. Câu không khớp skill nào thì không kèm gì.
+3. **Tìm khi cần.** Model gọi `javis_use_skill(find=...)` để tìm skill theo việc cần làm; `javis_search_tools` và `find_skills()` trong `javis_code` cũng trả skill.
+4. **Tự học.** Skill nào được nạp sau một câu mà gợi ý bỏ sót thì câu đó được ghi cho skill ấy (`Javis/skill-routing.json`), lần sau nói tương tự là tìm ra.
+
+Ở mức tiết kiệm token, Javis nạp sẵn thân skill khi chắc chắn đó là skill cần dùng. Trên Claude Code skill vẫn nạp native như cũ.
 
 Vì vậy chất lượng của một skill phụ thuộc lớn vào cách bạn viết `description`. Mô tả nêu đúng năng lực và đúng từ khoá thì skill "bắt" đúng lúc. Mô tả chung chung sẽ khiến skill hoặc không bao giờ chạy, hoặc chạy nhầm.
 
@@ -152,7 +159,7 @@ Nếu có lỗi khi đổi trạng thái, Javis báo "Không đổi được tr�
 2. Điền các ô trong biểu mẫu:
    - **Tên skill**: tên dễ nhớ, ví dụ "Viết email bán hàng".
    - **Nhóm**: gõ tên nhóm, ví dụ "Marketing". Ô này có gợi ý sẵn các nhóm bạn đã dùng để bấm chọn cho nhất quán. Không nên để trống (sẽ vào "Chung").
-   - **Mô tả (description - quyết định khi nào skill kích hoạt)**: một câu nêu thẳng skill làm được gì, **dưới 150 ký tự**, không mở đầu bằng "Kích hoạt khi..." (xem mục "Luật viết `description`" ở trên). Viết sai luật thì server từ chối và skill không được lưu.
+   - **Mô tả (description - quyết định khi nào skill kích hoạt)**: một câu nêu thẳng skill làm được gì, **tối đa 1.024 ký tự**, không mở đầu bằng "Kích hoạt khi..." (xem mục "Luật viết `description`" ở trên). Viết sai luật thì server từ chối và skill không được lưu.
    - **Nội dung (SKILL.md - hướng dẫn cho AI)**: viết hướng dẫn chi tiết cho AI khi skill chạy (các bước, khung mẫu, quy tắc). Đây là chỗ đặt mục `## Khi nào dùng` với đầy đủ ví dụ trigger. Nếu để trống, Javis tự tạo nội dung tối thiểu từ tên và mô tả.
 3. Bấm **💾 Lưu**. Muốn bỏ thì bấm **Huỷ**.
 
@@ -229,17 +236,17 @@ Trong trang **Agents**, khi tạo hoặc sửa một agent, bạn thấy phần 
 
 ## Mẹo
 
-- Viết `description` như một dòng tựa: nêu thẳng năng lực, dưới 150 ký tự. Đẩy toàn bộ ví dụ trigger và từ khoá xuống mục `## Khi nào dùng` trong thân file - vừa không bị chặn, vừa không bị cắt.
-- Đếm ký tự trước khi lưu. 150 ký tự ngắn hơn bạn tưởng, khoảng hai câu ngắn.
+- Viết `description` câu đầu nêu thẳng năng lực, các câu sau nói khi nào dùng, bằng chữ bạn hay nói. Tối đa 1.024 ký tự.
+- Ví dụ dài và danh sách tình huống đặt ở mục `## Khi nào dùng` trong thân file: Javis đọc cả mục đó khi tìm skill.
 - Một skill nên làm một việc rõ ràng. Việc quá rộng thì trigger dễ nhầm; chia nhỏ thành nhiều skill và đặt cùng một nhóm sẽ dễ quản lý hơn.
-- Giữ số skill đang bật dưới 20 để tất cả đều nằm trong router. Skill nào chưa cần thì tắt.
+- Bật bao nhiêu skill cũng được: router nêu tên mọi skill, và mỗi lượt chỉ vài skill khớp nhất đi kèm mô tả đầy đủ.
 - Dùng nhóm nhất quán. Khi gõ ô **Nhóm**, ưu tiên chọn từ gợi ý sẵn thay vì tự chế tên mới, để cột nhóm không bị phân mảnh.
 - Muốn thử nghiệm một skill mà chưa chắc chắn, cứ tạo rồi **tắt** khi không dùng, thay vì xoá đi tạo lại.
 - Muốn chắc chắn một skill được dùng cho đúng việc, gọi tay bằng `/slug` thay vì trông chờ trigger tự bắt.
 
 ## Sự cố thường gặp
 
-- **Bấm 💾 Lưu mà skill không xuất hiện trong danh sách:** gần như chắc chắn là `description` vi phạm luật (dài quá 150 ký tự, hoặc mở đầu bằng "Kích hoạt khi..."). Server từ chối lưu và trang chỉ quay về danh sách chứ không hiện lời báo lỗi. Bấm **+ Skill** lại, rút gọn mô tả xuống dưới 150 ký tự và bỏ cụm mở đầu sáo rỗng, rồi lưu lại.
+- **Bấm 💾 Lưu mà skill không xuất hiện trong danh sách:** gần như chắc chắn là `description` vi phạm luật (dài quá 1.024 ký tự, hoặc mở đầu bằng "Kích hoạt khi..."). Server từ chối lưu và trang chỉ quay về danh sách chứ không hiện lời báo lỗi. Bấm **+ Skill** lại, rút gọn mô tả xuống dưới 1.024 ký tự và bỏ cụm mở đầu sáo rỗng, rồi lưu lại.
 - **Tạo skill nhưng Javis không tự dùng:** kiểm tra ba thứ theo thứ tự. Một, skill có đang **bật** không (thẻ không bị mờ, ô đánh dấu có tích). Hai, `description` có nêu đúng năng lực không. Ba, brain có đang bật quá 20 skill không - nếu có, skill của bạn có thể đã rơi ra ngoài router; tắt bớt skill khác hoặc gọi tay bằng `/slug`.
 - **Danh sách trống dù đã tạo skill:** đảm bảo đang xem đúng brain. Nguồn skill là `skills/` của brain đang chọn; đổi brain thì danh sách đổi theo.
 - **Bấm bật/tắt báo lỗi "Không đổi được trạng thái":** thường do quyền ghi thư mục hoặc thư mục đang bị khoá. Xem thêm [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).

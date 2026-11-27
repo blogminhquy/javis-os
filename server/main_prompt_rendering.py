@@ -165,26 +165,52 @@ def render_capability_summary(c: dict, latest_workflow_line: str = "") -> str:
     return "\n".join(parts)
 
 
-def render_skill_router(visible_metas: list, *, skills_dir, hidden_count: int = 0, description_max: int = 150) -> str:
-    """Render a host-selected, already ordered/budgeted router list."""
+SKILL_LIST_CHAR_BUDGET = 4000   # mirrors skill_router.SKILL_LIST_CHAR_BUDGET (this module imports nothing of Javis)
+
+
+def skill_router_order(metas: list) -> list:
+    """Every skill of the list in the router's fixed order: by group, then by slug, case-blind. Fixed, not by use,
+    so the system prompt stays the same from turn to turn and the provider's prompt cache keeps holding it."""
+    return sorted(metas, key=lambda s: (str(s.get("group") or "").casefold(), str(s.get("slug") or "").casefold()))
+
+
+def render_skill_router(visible_metas: list, *, skills_dir, hidden_count: int = 0, description_max: int = 150,
+                        char_budget: int = SKILL_LIST_CHAR_BUDGET) -> str:
+    """Render the skill router (2026-11-27): EVERY enabled skill named by slug, by group, and how to use them.
+
+    Until 2026-11-27 this listed skills with their descriptions cut at 150 characters, at most 40 entries and 4,000
+    characters, so a brain with 44 skills showed 21 and hid the rest. Descriptions now reach the model through the
+    turn's suggestions (skill_finder: the few that fit, whole) and the skill search, so this list only has to say
+    what exists: about 25 characters a skill. `description_max` is kept for callers of the old signature and unused.
+    Over `char_budget` (about 150 skills) the rest is counted, and the search finds them."""
     if not visible_metas and hidden_count <= 0:
         return ""
     sk_dir = skills_dir
+    by_group: dict = {}
+    for s in skill_router_order(visible_metas):
+        by_group.setdefault(str(s.get("group") or "").strip() or "General", []).append(str(s.get("slug") or ""))
     lines = ["\n\n# === SKILL KHẢ DỤNG (skill router: works on EVERY engine) ==="]
-    for s in visible_metas:
-        desc = (s.get("description") or "").replace("\n", " ")[:description_max]
-        lines.append(f"- {s['slug']} ({s['name']}): {desc}")
-    if hidden_count > 0:
-        # Nói rõ CÁCH LẤY chứ không chỉ nói còn bao nhiêu: `javis_use_skill` nạp được theo
-        # slug kể cả skill không nằm trong danh sách trên, nên một skill bị cắt vẫn dùng được
-        # nếu model biết tên. Câu cũ chỉ trỏ sang một file mà model không đọc.
-        lines.append(f"…(+{hidden_count} more skills not listed here - the full list is in "
-                     f"`Javis/index.md`, and `javis_use_skill(name=<slug>)` loads one directly "
-                     f"when you know its name)")
+    total = len(visible_metas) + max(0, hidden_count)
+    lines.append(f"{total} skills, named by group (slug only; descriptions come with the turn's suggestions):")
+    used, cut = 0, max(0, hidden_count)
+    for group, slugs in by_group.items():
+        shown = []
+        for slug in slugs:
+            if used + len(slug) + 2 > char_budget:
+                cut += 1
+                continue
+            shown.append(slug)
+            used += len(slug) + 2
+        if shown:
+            lines.append(f"- {group}: " + ", ".join(shown))
+    if cut > 0:
+        lines.append(f"…(+{cut} more skills not named here; `javis_use_skill(find=...)` finds them)")
     lines.append(
-        "HOW TO USE: when the user's request MATCHES the description of a skill above, LOAD that skill "
+        "HOW TO USE: a turn may open with \"[Skills that may fit this request...\": the skills Javis ranked best for "
+        "it, with their whole description. When the request MATCHES a skill (there, or by its name here), LOAD it "
         "and FOLLOW it - call tool `javis_use_skill(name=<slug>)` if the engine has it; otherwise open "
-        f"`{sk_dir}/<slug>/SKILL.md` with a file-reading tool and follow its instructions. "
+        f"`{sk_dir}/<slug>/SKILL.md` with a file-reading tool and follow its instructions. To find a skill for a job "
+        "no suggestion covers, `javis_use_skill(find=<what you need>)` searches every skill by its whole description. "
         "Load one only on a real match, never indiscriminately."
     )
     return "\n".join(lines)

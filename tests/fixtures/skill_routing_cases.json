@@ -1,0 +1,525 @@
+{
+ "note": "Synthetic brain for skill routing tests (skill_finder). Written for the test, not a real user's skills. expect=null: no skill should be suggested.",
+ "skills": {
+  "thu-tay-email-sequence": {
+   "name": "Thư tay email sequence",
+   "group": "Marketing",
+   "description": "Viết chuỗi email nuôi dưỡng khách hàng theo phong cách thư tay: chân thành, kể chuyện, mỗi email một ý. Dùng cho chuỗi chào mừng người mới đăng ký, chuỗi chăm sóc sau mua, chuỗi bán hàng 5 đến 7 email, email nhắc giỏ hàng bỏ quên và email kéo khách cũ quay lại.",
+   "body": "## Khi nào dùng\n- Anh chị muốn viết email chăm sóc khách sau khi mua\n- Cần chuỗi email chào mừng (welcome sequence)\n- Khách bỏ giỏ hàng, cần email nhắc\n\n## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "viral-social-post-architect": {
+   "name": "Viral social post",
+   "group": "Marketing",
+   "description": "Viết bài đăng mạng xã hội (Facebook, Threads, LinkedIn) theo lối kể chuyện sâu, có chuyển hoá tư duy, khung rõ ràng và lời kêu gọi hành động. Hợp cho bài chia sẻ bài học kinh doanh, câu chuyện cá nhân, bài định vị chuyên gia và bài kéo tương tác.",
+   "body": "## Khi nào dùng\n- Viết bài Facebook kể chuyện\n- Bài đăng LinkedIn chia sẻ bài học\n- Muốn bài có nhiều tương tác, comment\n\n## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "salepage-16-buoc": {
+   "name": "Salepage 16 bước",
+   "group": "Marketing",
+   "description": "Viết trang bán hàng dài theo khung 16 bước: tiêu đề, nỗi đau, câu chuyện, giải pháp, bằng chứng, chào giá, bảo hành, khan hiếm, câu hỏi thường gặp. Dùng khi ra mắt khoá học, ebook, sản phẩm số hoặc dịch vụ cần một landing page chuyển đổi cao.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "leadpage-squeeze": {
+   "name": "Trang thu lead",
+   "group": "Marketing",
+   "description": "Viết trang thu thập email (squeeze page) ngắn để đổi quà tặng miễn phí lấy email: tiêu đề, 3 lợi ích, nút đăng ký, dòng chống ngại.",
+   "body": "## Khi nào dùng\n- Làm trang đăng ký nhận ebook miễn phí\n- Trang opt-in lấy email\n\n## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "webcake-export": {
+   "name": "Xuất Webcake",
+   "group": "Web",
+   "description": "Chuyển một trang HTML thành file .pke mở được trong trình dựng Webcake, giữ đúng màu, chữ, ảnh và bố cục.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "facebook-ads-report": {
+   "name": "Báo cáo quảng cáo Facebook",
+   "group": "Quảng cáo",
+   "description": "Đọc số liệu Meta Ads qua kết nối, tóm tắt chi tiêu, CPA, ROAS theo chiến dịch và đề xuất tắt, tăng ngân sách hay thay mẫu quảng cáo. So sánh với kỳ trước và chỉ ra nhóm quảng cáo đang đốt tiền.",
+   "body": "## Khi nào dùng\n- Quảng cáo tuần này chạy sao\n- Chiến dịch nào đang lỗ\n- Có nên tăng ngân sách không\n\n## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "ad-copy-writer": {
+   "name": "Viết mẫu quảng cáo",
+   "group": "Quảng cáo",
+   "description": "Viết nhiều phiên bản nội dung quảng cáo ngắn (tiêu đề, mô tả, câu mở đầu video) để thử A/B trên Facebook, TikTok và Google.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "seo-audit": {
+   "name": "Kiểm tra SEO",
+   "group": "Web",
+   "description": "Audit SEO a website: crawlability, indexation, page speed, on-page tags, internal links and content gaps, with a prioritised fix list.",
+   "body": "## Khi nào dùng\n- Website không lên top Google\n- Kiểm tra SEO trang web\n\n## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "content-calendar": {
+   "name": "Lịch nội dung",
+   "group": "Marketing",
+   "description": "Lập lịch đăng bài 30 ngày cho fanpage hoặc kênh TikTok: chủ đề mỗi ngày, định dạng, giờ đăng, mục tiêu. Bám theo sản phẩm đang bán chạy và mùa vụ.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "customer-persona": {
+   "name": "Chân dung khách hàng",
+   "group": "Chiến lược",
+   "description": "Phân tích chân dung khách hàng mục tiêu theo mô hình Value Proposition Canvas: việc cần làm, nỗi đau, điều mong đạt được, rồi khớp với sản phẩm.",
+   "body": "## Khi nào dùng\n- Khách hàng của mình là ai\n- Vẽ chân dung khách hàng\n- Persona\n\n## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "sales-funnel-8-plus-2": {
+   "name": "Phễu bán hàng 8+2",
+   "group": "Chiến lược",
+   "description": "Thiết kế phễu bán hàng trọn vẹn theo mô hình 8 bước cộng 2: thu hút, thu lead, nuôi dưỡng, chào bán, bán thêm, giữ chân và giới thiệu. Ra sơ đồ phễu, nội dung từng bước và chỉ số cần đo.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "proposal-builder": {
+   "name": "Viết báo giá",
+   "group": "Bán hàng",
+   "description": "Soạn báo giá và đề xuất dịch vụ gửi khách doanh nghiệp: phạm vi công việc, tiến độ, giá, điều khoản thanh toán.",
+   "body": "## Khi nào dùng\n- Làm báo giá cho khách\n- Proposal dự án\n\n## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "objection-handling": {
+   "name": "Xử lý từ chối",
+   "group": "Bán hàng",
+   "description": "Soạn câu trả lời khi khách chê đắt, hẹn để sau, so với đối thủ hoặc nghi ngờ chất lượng, theo kịch bản tư vấn mềm, không ép.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "follow-up-messages": {
+   "name": "Tin nhắn chăm sóc lại",
+   "group": "Bán hàng",
+   "description": "Viết tin nhắn Zalo hoặc Messenger nhắn lại khách đã hỏi giá mà chưa mua, theo 3 nhịp: ngày 1, ngày 3, ngày 7.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "meeting-minutes": {
+   "name": "Biên bản họp",
+   "group": "Vận hành",
+   "description": "Tóm tắt biên bản họp hoặc ghi âm cuộc họp thành quyết định, việc cần làm, người phụ trách và hạn chót.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "sop-writer": {
+   "name": "Viết quy trình SOP",
+   "group": "Vận hành",
+   "description": "Viết quy trình chuẩn (SOP) cho một công việc lặp lại trong cửa hàng hay văn phòng: các bước đánh số, người làm, công cụ, tiêu chí đạt.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "invoice-reminder": {
+   "name": "Nhắc công nợ",
+   "group": "Tài chính",
+   "description": "Lập danh sách khách còn nợ tiền và soạn tin nhắc thanh toán lịch sự theo mức quá hạn: 7 ngày, 15 ngày, 30 ngày.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "restock-planner": {
+   "name": "Kế hoạch nhập hàng",
+   "group": "Vận hành",
+   "description": "Tính lượng hàng cần nhập lại từ tồn kho và tốc độ bán 30 ngày, cảnh báo mặt hàng sắp hết.",
+   "body": "## Khi nào dùng\n- Sắp hết hàng\n- Cần nhập thêm bao nhiêu\n\n## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "cashflow-forecast": {
+   "name": "Dự báo dòng tiền",
+   "group": "Tài chính",
+   "description": "Dự báo dòng tiền 30, 60, 90 ngày từ công nợ phải thu, phải trả và chi phí cố định; chỉ ra tuần nào thiếu tiền.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "tts-latin-phonetic": {
+   "name": "Phiên âm token Latin cho TTS tiếng Việt",
+   "group": "Nội dung",
+   "description": "Khi render voice hoặc video tiếng Việt từ script có tên miền, viết tắt tiếng Anh, tên thương hiệu, cần phiên âm các từ đó trước khi gọi TTS để tránh giọng đọc méo.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "video-script": {
+   "name": "Kịch bản video ngắn",
+   "group": "Nội dung",
+   "description": "Viết kịch bản video ngắn 30 đến 60 giây cho TikTok, Reels, Shorts: câu mở 3 giây đầu, thân, kêu gọi hành động, kèm gợi ý cảnh quay.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "youtube-summary": {
+   "name": "Tóm tắt YouTube",
+   "group": "Nội dung",
+   "description": "Summarise a YouTube video from its transcript into key ideas, quotes with timestamps and action points.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "translate-polish": {
+   "name": "Dịch và trau chuốt",
+   "group": "Nội dung",
+   "description": "Dịch văn bản Anh sang Việt hoặc Việt sang Anh cho tự nhiên như người bản xứ, giữ thuật ngữ chuyên ngành.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "proofread-vietnamese": {
+   "name": "Soát lỗi chính tả",
+   "group": "Nội dung",
+   "description": "Soát chính tả, dấu câu, lặp từ và câu lủng củng trong văn bản tiếng Việt, trả về bản đã sửa kèm danh sách lỗi.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "morning-brief": {
+   "name": "Bản tin buổi sáng",
+   "group": "Cá nhân",
+   "description": "Tổng hợp đầu ngày: lịch hẹn hôm nay, việc quá hạn, email quan trọng, thời tiết và một việc nên làm trước tiên.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "habit-coach": {
+   "name": "Huấn luyện thói quen",
+   "group": "Cá nhân",
+   "description": "Giúp xây thói quen mới theo phương pháp vòng lặp thói quen: tín hiệu, hành động nhỏ, phần thưởng, theo dõi chuỗi ngày.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "meal-planner": {
+   "name": "Thực đơn gia đình",
+   "group": "Cá nhân",
+   "description": "Lên thực đơn bữa cơm gia đình Việt cho cả tuần theo ngân sách và khẩu vị, kèm danh sách đi chợ gom theo quầy.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "workout-plan": {
+   "name": "Kế hoạch tập luyện",
+   "group": "Cá nhân",
+   "description": "Create a weekly workout plan for home or gym by goal (fat loss, strength, mobility) with sets, reps and rest days.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "travel-planner": {
+   "name": "Lịch trình du lịch",
+   "group": "Cá nhân",
+   "description": "Lập lịch trình du lịch theo ngày: điểm đến, di chuyển, ăn uống, chi phí dự kiến, gợi ý khách sạn.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "code-review": {
+   "name": "Review code",
+   "group": "Kỹ thuật",
+   "description": "Review a diff or pull request for bugs, security issues and missing tests; report findings by severity.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "sql-helper": {
+   "name": "Viết câu SQL",
+   "group": "Kỹ thuật",
+   "description": "Write and explain SQL queries for a given schema, including joins, window functions and performance hints.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "bug-triage": {
+   "name": "Phân loại lỗi",
+   "group": "Kỹ thuật",
+   "description": "Đọc báo lỗi hoặc log, tái hiện, khoanh vùng nguyên nhân và đề xuất bản sửa kèm cách kiểm.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "docx": {
+   "name": "Word documents",
+   "group": "Tài liệu",
+   "description": "Create, read and edit Word documents (.docx): headings, tables, tracked changes, comments and letterheads.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "pdf": {
+   "name": "PDF tools",
+   "group": "Tài liệu",
+   "description": "Read, merge, split, fill forms in and extract tables from PDF files.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "pptx": {
+   "name": "Slide decks",
+   "group": "Tài liệu",
+   "description": "Build or edit PowerPoint presentations (.pptx) from an outline, with layouts, speaker notes and charts.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "xlsx": {
+   "name": "Spreadsheets",
+   "group": "Tài liệu",
+   "description": "Create and edit Excel spreadsheets (.xlsx) with formulas, formatting, pivot-style summaries and charts.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "deep-research": {
+   "name": "Nghiên cứu sâu",
+   "group": "Nghiên cứu",
+   "description": "Nghiên cứu một chủ đề từ nhiều nguồn trên web, đối chiếu, trích dẫn và viết báo cáo có kết luận rõ ràng.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "competitor-analysis": {
+   "name": "Phân tích đối thủ",
+   "group": "Nghiên cứu",
+   "description": "Phân tích đối thủ cạnh tranh: sản phẩm, giá, kênh bán, thông điệp quảng cáo, điểm mạnh yếu, cơ hội khác biệt.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "job-post-builder": {
+   "name": "Tin tuyển dụng",
+   "group": "Nhân sự",
+   "description": "Viết tin tuyển dụng hấp dẫn và bộ câu hỏi phỏng vấn cho một vị trí, kèm tiêu chí chấm ứng viên.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "ingest-source": {
+   "name": "Tiêu hoá nguồn",
+   "group": "Second Brain",
+   "description": "Tiêu hoá một source thô vào Second Brain, chưng cất thành tri thức wiki tích luỹ.",
+   "body": "## Khi nào dùng\n- Lưu bài viết này vào brain\n- Ingest file PDF vào wiki\n\n## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "query-wiki": {
+   "name": "Hỏi wiki",
+   "group": "Second Brain",
+   "description": "Khai thác tri thức trong Second Brain: tổng hợp, so sánh, giả thuyết. Trả lời có trích dẫn.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "digital-product-creator": {
+   "name": "Tạo sản phẩm số",
+   "group": "Sản phẩm",
+   "description": "Biến kiến thức thành sản phẩm số bán được: chọn ý tưởng, kiểm thị trường, dựng khung ebook hoặc khoá học mini, đặt giá và kế hoạch ra mắt. Gồm cả mẫu checklist, template và bộ prompt AI đi kèm sản phẩm.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "brand-voice": {
+   "name": "Giọng thương hiệu",
+   "group": "Chiến lược",
+   "description": "Xây bộ quy tắc giọng văn thương hiệu: tính cách, từ nên dùng, từ cấm, ví dụ câu đúng và sai, để mọi nội dung viết ra cùng một chất.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  },
+  "six-needs-analyzer": {
+   "name": "Phân tích 6 nhu cầu",
+   "group": "Chiến lược",
+   "description": "Phân tích hành vi khách hàng qua 6 nhu cầu con người (chắc chắn, đa dạng, quan trọng, kết nối, phát triển, đóng góp) để chọn thông điệp bán hàng chạm đúng động lực mua.",
+   "body": "## Quy trình\n1. Đọc yêu cầu.\n2. Làm theo mẫu.\n"
+  }
+ },
+ "cases": [
+  {
+   "q": "viết giúp anh chuỗi email chăm sóc khách sau khi mua hàng",
+   "expect": "thu-tay-email-sequence"
+  },
+  {
+   "q": "khách bỏ giỏ hàng nhiều quá, soạn email nhắc họ",
+   "expect": "thu-tay-email-sequence"
+  },
+  {
+   "q": "welcome sequence cho người mới đăng ký nhận tin",
+   "expect": "thu-tay-email-sequence"
+  },
+  {
+   "q": "viết bài facebook kể chuyện về bài học khởi nghiệp của anh",
+   "expect": "viral-social-post-architect"
+  },
+  {
+   "q": "bài linkedin chia sẻ kinh nghiệm quản lý đội nhóm",
+   "expect": "viral-social-post-architect"
+  },
+  {
+   "q": "làm trang bán hàng cho khoá học email marketing sắp ra mắt",
+   "expect": "salepage-16-buoc"
+  },
+  {
+   "q": "cần landing page chuyển đổi cao cho ebook",
+   "expect": "salepage-16-buoc"
+  },
+  {
+   "q": "trang đăng ký nhận ebook miễn phí để lấy email",
+   "expect": "leadpage-squeeze"
+  },
+  {
+   "q": "chuyển file html này sang webcake",
+   "expect": "webcake-export"
+  },
+  {
+   "q": "quảng cáo tuần này chạy sao, chiến dịch nào đang lỗ",
+   "expect": "facebook-ads-report"
+  },
+  {
+   "q": "roas với cpa của các chiến dịch meta ads tháng này",
+   "expect": "facebook-ads-report"
+  },
+  {
+   "q": "viết 5 mẫu quảng cáo tiktok để test a/b",
+   "expect": "ad-copy-writer"
+  },
+  {
+   "q": "website không lên top google, kiểm tra giúp",
+   "expect": "seo-audit"
+  },
+  {
+   "q": "check page speed and indexation of my site",
+   "expect": "seo-audit"
+  },
+  {
+   "q": "lên lịch đăng bài fanpage 30 ngày tới",
+   "expect": "content-calendar"
+  },
+  {
+   "q": "khách hàng mục tiêu của sản phẩm nước mắm là ai, vẽ chân dung giúp",
+   "expect": "customer-persona"
+  },
+  {
+   "q": "thiết kế phễu bán hàng trọn vẹn cho sản phẩm số",
+   "expect": "sales-funnel-8-plus-2"
+  },
+  {
+   "q": "soạn báo giá dịch vụ chạy quảng cáo cho công ty khách",
+   "expect": "proposal-builder"
+  },
+  {
+   "q": "khách chê đắt thì trả lời sao cho mềm",
+   "expect": "objection-handling"
+  },
+  {
+   "q": "nhắn lại khách đã hỏi giá mà chưa mua",
+   "expect": "follow-up-messages"
+  },
+  {
+   "q": "tóm tắt cuộc họp sáng nay thành danh sách việc cần làm",
+   "expect": "meeting-minutes"
+  },
+  {
+   "q": "viết quy trình đóng gói đơn hàng cho nhân viên kho",
+   "expect": "sop-writer"
+  },
+  {
+   "q": "ai còn nợ tiền, soạn tin nhắc thanh toán",
+   "expect": "invoice-reminder"
+  },
+  {
+   "q": "mặt hàng nào sắp hết, cần nhập thêm bao nhiêu",
+   "expect": "restock-planner"
+  },
+  {
+   "q": "tháng sau có thiếu tiền không, dự báo dòng tiền giúp",
+   "expect": "cashflow-forecast"
+  },
+  {
+   "q": "script video có tên miền javis.vn và chữ AI, giọng đọc bị méo",
+   "expect": "tts-latin-phonetic"
+  },
+  {
+   "q": "viết kịch bản video tiktok 30 giây giới thiệu sản phẩm",
+   "expect": "video-script"
+  },
+  {
+   "q": "tóm tắt video youtube này giúp anh",
+   "expect": "youtube-summary"
+  },
+  {
+   "q": "dịch đoạn này sang tiếng anh cho tự nhiên",
+   "expect": "translate-polish"
+  },
+  {
+   "q": "soát lỗi chính tả bài viết này",
+   "expect": "proofread-vietnamese"
+  },
+  {
+   "q": "hôm nay anh có lịch gì, việc gì quá hạn",
+   "expect": "morning-brief"
+  },
+  {
+   "q": "anh muốn tập thói quen dậy sớm",
+   "expect": "habit-coach"
+  },
+  {
+   "q": "lên thực đơn bữa cơm gia đình cả tuần, kèm danh sách đi chợ",
+   "expect": "meal-planner"
+  },
+  {
+   "q": "kế hoạch tập gym giảm mỡ mỗi tuần",
+   "expect": "workout-plan"
+  },
+  {
+   "q": "lịch trình đi Đà Lạt 3 ngày 2 đêm",
+   "expect": "travel-planner"
+  },
+  {
+   "q": "review pull request này giúp",
+   "expect": "code-review"
+  },
+  {
+   "q": "viết câu sql lấy top 10 khách mua nhiều nhất",
+   "expect": "sql-helper"
+  },
+  {
+   "q": "app bị lỗi khi đăng nhập, đây là log",
+   "expect": "bug-triage"
+  },
+  {
+   "q": "tạo file word hợp đồng có bảng",
+   "expect": "docx"
+  },
+  {
+   "q": "gộp ba file pdf này thành một",
+   "expect": "pdf"
+  },
+  {
+   "q": "làm slide thuyết trình kế hoạch quý",
+   "expect": "pptx"
+  },
+  {
+   "q": "làm bảng excel tính lương có công thức",
+   "expect": "xlsx"
+  },
+  {
+   "q": "nghiên cứu sâu thị trường nước mắm truyền thống, có trích dẫn",
+   "expect": "deep-research"
+  },
+  {
+   "q": "phân tích đối thủ cạnh tranh trong ngành mỹ phẩm",
+   "expect": "competitor-analysis"
+  },
+  {
+   "q": "viết tin tuyển dụng nhân viên bán hàng kèm câu hỏi phỏng vấn",
+   "expect": "job-post-builder"
+  },
+  {
+   "q": "lưu bài viết này vào brain",
+   "expect": "ingest-source"
+  },
+  {
+   "q": "trong wiki của anh có gì về phễu bán hàng không",
+   "expect": "query-wiki"
+  },
+  {
+   "q": "anh muốn đóng gói kiến thức thành khoá học mini để bán",
+   "expect": "digital-product-creator"
+  },
+  {
+   "q": "làm bộ template và prompt AI đi kèm ebook",
+   "expect": "digital-product-creator"
+  },
+  {
+   "q": "xây giọng văn thương hiệu cho shop",
+   "expect": "brand-voice"
+  },
+  {
+   "q": "khách mua vì động lực gì, phân tích nhu cầu con người",
+   "expect": "six-needs-analyzer"
+  },
+  {
+   "q": "dùng skill thu-tay-email-sequence viết cho anh 3 email",
+   "expect": "thu-tay-email-sequence"
+  },
+  {
+   "q": "ok làm tiếp đi",
+   "expect": "video-script",
+   "recent": [
+    "viết kịch bản video tiktok 30 giây giới thiệu nước mắm"
+   ]
+  },
+  {
+   "q": "thêm 2 bản nữa",
+   "expect": "ad-copy-writer",
+   "recent": [
+    "viết mẫu quảng cáo facebook cho khoá học"
+   ]
+  },
+  {
+   "q": "chào em",
+   "expect": null
+  },
+  {
+   "q": "cảm ơn em nhé",
+   "expect": null
+  },
+  {
+   "q": "mấy giờ rồi",
+   "expect": null
+  },
+  {
+   "q": "doanh thu hôm nay bao nhiêu",
+   "expect": null
+  },
+  {
+   "q": "thời tiết Hà Nội hôm nay",
+   "expect": null
+  },
+  {
+   "q": "nhắc anh 3 giờ chiều gọi cho chị Lan",
+   "expect": null
+  },
+  {
+   "q": "tỷ giá đô hôm nay",
+   "expect": null
+  },
+  {
+   "q": "ok",
+   "expect": null
+  }
+ ]
+}

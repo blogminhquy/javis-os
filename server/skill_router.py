@@ -16,7 +16,7 @@ KHÔNG phụ thuộc cơ chế native của Claude. `.claude/skills` chỉ là b
 Mọi hàm ở đây CHỈ ĐỌC, an toàn OSError. Việc GHI/DI CHUYỂN (migration legacy → canonical, mirror
 canonical → .claude) nằm ở system_sync.py.
 
-Module này cũng sở hữu TRẦN HIỂN THỊ (SKILL_DESC_MAX / SKILL_LIST_MAX) - trước đây mỗi nơi
+Module này cũng sở hữu TRẦN MÔ TẢ (SKILL_DESC_MAX / SKILL_SUMMARY_MAX) - trước đây mỗi nơi
 tự cắt một kiểu (60 ở hub, 100 ở system prompt, 140 ở fallback) nên người viết skill không
 biết mình bị chấm theo thước nào.
 """
@@ -44,28 +44,24 @@ _KHOA_NGON_NGU_RE = re.compile(r"^(name|description)_([a-z]{2})$")
 # Thứ tự ưu tiên đọc: canonical trước, rồi các fallback (canonical "thắng" khi trùng slug).
 _READ_BASES = ("skills", ".claude/skills", ".agents")
 
-# Trần độ dài description khi bơm vào router (system prompt + mô tả tool javis_use_skill).
-# Dài hơn là BỊ CẮT IM LẶNG → phần đuôi không tới engine, skill không route được. Vì vậy
-# trần này được ÉP ở mọi chỗ GHI (POST /skills, learn.py), không chỉ cắt lúc hiển thị.
-# Ví dụ trigger đầy đủ thuộc về mục '## Khi nào dùng' trong thân file, nơi không bị cắt.
-SKILL_DESC_MAX = 150
+# Longest description a skill may have: 1,024 characters, the Agent Skills standard (2026-11-27). Skills imported
+# from Anthropic or any other store are written to it, and the old cap of 150 cut up to 85% of them.
+#
+# Until 2026-11-27 the cap was 150 because the description went into the system prompt for every skill, and a
+# longer tail was cut silently there. It no longer goes there: the prompt names the skills (slug only) and
+# `skill_finder` ranks every skill by its WHOLE description each turn, putting the few that fit in front of the
+# model. So a description can say what the skill does and when to use it, in full. Still enforced at every WRITE
+# (POST /skills, learn.py), so nothing longer is stored and then cut.
+SKILL_DESC_MAX = 1024
 
-# Số skill tối đa liệt kê trong router. Nhiều hơn → trỏ sang Javis/index.md.
-#
-# 20 là con số của thời brain còn ít skill, và nó có một tác dụng phụ không ai đo: `list_skills`
-# trả theo THỨ TỰ THƯ MỤC, nên `metas[:20]` cắt theo bảng chữ cái. Skill nào tên đứng sau thì
-# KHÔNG BAO GIỜ được router nhìn thấy - không phải vì nó kém quan trọng, mà vì nó tên vần v.
-# Một brain dùng lâu chắc chắn vượt 20, và lúc đó Javis mất skill một cách hoàn toàn tuỳ tiện,
-# im lặng (đo 2026-09-22).
-#
-# Nay có HAI trần, và chúng làm hai việc khác nhau:
-#   - SKILL_LIST_MAX: chặn danh sách dài tới mức model không đọc nổi.
-#   - SKILL_LIST_CHAR_BUDGET: chặn CHI PHÍ. Đây mới là thứ đáng chặn, vì tốn token là tốn
-#     theo ký tự chứ không theo số mục. Cùng tinh thần `mcp.lazy_char_budget` của tầng lazy
-#     tool, nơi bài học này đã học một lần rồi.
-#
-# Và thứ tự cắt không còn tuỳ tiện: `xep_theo_uu_tien` xếp skill hay dùng lên trước (xem hàm
-# đó), nên cái bị cắt là cái ít dùng nhất, không phải cái tên vần cuối.
+# The short form, where one line per skill is still shown: the mirror in `.claude/skills` that Claude Code loads
+# natively (system_sync cuts the mirror's copy there, the canonical file keeps the whole text) and the first body
+# line used when a skill has no description at all.
+SKILL_SUMMARY_MAX = 150
+
+# The old router listed skills with their descriptions and cut the list at SKILL_LIST_MAX entries and
+# SKILL_LIST_CHAR_BUDGET characters (`cat_theo_ngan_sach`, kept for the improvement trial catalog). The router now
+# names every skill, and SKILL_LIST_CHAR_BUDGET is the budget of that names list: about 150 slugs.
 SKILL_LIST_MAX = 40
 SKILL_LIST_CHAR_BUDGET = 4000
 
@@ -91,12 +87,12 @@ def validate_description(desc) -> Optional[str]:
     import localefmt   # lười: module này giữ import mức module ở stdlib + fastyaml
     if len(d) > SKILL_DESC_MAX:
         return localefmt.chu(
-            f"description dài {len(d)} ký tự, vượt trần {SKILL_DESC_MAX}. Router cắt "
-            f"đúng ở {SKILL_DESC_MAX} nên phần dư MẤT IM LẶNG và skill không route "
-            "được. Đưa ví dụ trigger xuống mục '## Khi nào dùng' trong thân file.",
-            f"description is {len(d)} characters, over the {SKILL_DESC_MAX} limit. The router cuts "
-            f"at exactly {SKILL_DESC_MAX}, so the rest is LOST SILENTLY and the skill cannot be "
-            "routed. Move trigger examples into a '## When to use' section in the body.")
+            f"description dài {len(d)} ký tự, vượt trần {SKILL_DESC_MAX} (chuẩn Agent Skills). "
+            f"Javis chỉ đọc {SKILL_DESC_MAX} ký tự đầu để tìm skill, phần dư bị bỏ qua. Rút gọn, "
+            "đưa ví dụ chi tiết xuống mục '## Khi nào dùng' trong thân file.",
+            f"description is {len(d)} characters, over the {SKILL_DESC_MAX} limit (the Agent Skills "
+            f"standard). Javis reads only the first {SKILL_DESC_MAX} characters to find a skill, so the "
+            "rest is ignored. Shorten it and move detailed examples into a '## When to use' section in the body.")
     if _DESC_BOILERPLATE_RE.match(d):
         return localefmt.chu(
             "description mở đầu bằng cụm sáo rỗng (vd 'Kích hoạt khi ...'). Mọi skill "
@@ -303,7 +299,7 @@ def _meta_of(smd: Path, lang: str = "") -> dict:
     meta, body = split_frontmatter(text)
     body = (body or "").strip()
     desc = theo_ngon_ngu(meta, "description", lang) or (
-        body.split("\n")[0][:SKILL_DESC_MAX] if body else "")
+        body.split("\n")[0][:SKILL_SUMMARY_MAX] if body else "")
     return {"name": theo_ngon_ngu(meta, "name", lang) or smd.parent.name,
             "description": desc,
             "group": meta.get("group") or "Chung"}

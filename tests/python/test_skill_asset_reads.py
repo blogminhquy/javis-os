@@ -146,12 +146,14 @@ class SkillAssetReadTests(unittest.TestCase):
         path = self.write()
         source = self.lazy()
         self.assertEqual(source.resolve(self.root, self.slug).action, 'load')
-        search = source.registry.search
+        # 2026-11-27: ranking is skill_finder's; the file changes between it and the body read.
+        import lazy_skill_runtime
+        suggest = lazy_skill_runtime.skill_finder.suggest
         def changed(*args, **kwargs):
-            rows = search(*args, **kwargs)
+            rows = suggest(*args, **kwargs)
             path.write_bytes(path.read_bytes().replace(b'Reconcile authorized amount rows.', b'Create a document from a brief.'))
             return rows
-        with patch.object(source.registry, 'search', changed):
+        with patch.object(lazy_skill_runtime.skill_finder, 'suggest', changed):
             result = source.resolve(self.root, self.slug)
         self.assertEqual(result.action, 'fallback')
         self.assertEqual(result.reason, 'source_manifest_changed')

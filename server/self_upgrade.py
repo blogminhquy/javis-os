@@ -42,7 +42,7 @@ OWNER_SCHEDULED = ("kanban", "reminder")     # background work the owner set up 
 MAX_CHARS = 200_000
 DIFF_LINES = 60
 HISTORY_KEEP = 300
-SKILL_DESC_MAX = 150                         # the skill router cuts descriptions at 150 characters (CLAUDE.md)
+SKILL_DESC_MAX = 1024                        # skill_router.SKILL_DESC_MAX: the Agent Skills standard (2026-11-27)
 
 # Areas of the brain an owner-requested improvement may change, by the first path parts.
 _AREAS = (("agents",), ("skills",), ("workflows",), ("Javis", "loops"), ("memory",))
@@ -144,9 +144,9 @@ def validate(kind: str, rel: str, text: str) -> str:
             if not desc.strip():
                 return _c("Skill cần description.", "A skill needs a description.")
             if len(desc) > SKILL_DESC_MAX:
-                return _c(f"description của skill dài {len(desc)} ký tự, tối đa {SKILL_DESC_MAX} (bộ định tuyến cắt ở "
-                          f"{SKILL_DESC_MAX}).", f"The skill description is {len(desc)} characters, at most "
-                          f"{SKILL_DESC_MAX} (the router cuts there).")
+                return _c(f"description của skill dài {len(desc)} ký tự, tối đa {SKILL_DESC_MAX} (Javis chỉ đọc "
+                          f"{SKILL_DESC_MAX} ký tự đầu để tìm skill).", f"The skill description is {len(desc)} characters, "
+                          f"at most {SKILL_DESC_MAX} (Javis reads only that much to find a skill).")
     return ""
 
 

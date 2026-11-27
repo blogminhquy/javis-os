@@ -39,7 +39,7 @@ class PatchDescriptionTests(unittest.TestCase):
         for name, raw in cases.items():
             with self.subTest(name=name), self.assertRaises(ValueError):
                 R.patch_description(raw, "Doi soat bang so lieu")
-        for bad in ("", "x" * 151, "Kích hoạt khi người dùng muốn báo cáo"):
+        for bad in ("", "x" * 1025, "Kích hoạt khi người dùng muốn báo cáo"):   # the cap is 1,024 since 2026-11-27
             with self.subTest(bad=bad[:20]), self.assertRaises(ValueError):
                 R.patch_description(SKILL, bad)
 

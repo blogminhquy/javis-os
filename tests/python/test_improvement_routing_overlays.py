@@ -121,10 +121,15 @@ class RoutingOverlayTests(base.ActivationBase):
         base.IA.configure(self.store.path, self.assets.blobs)  # importing main points read time at its own state
         candidate = self.evaluate(key="routing-prompt-eval")
         self.routing.apply(self.owner, candidate["candidate_id"], event_key="routing-prompt-apply")
-        api = main.build_adaptive_source_prompt(str(self.root), include_skills=True, routing_overlays=True)
-        cli = main.build_adaptive_source_prompt(str(self.root), include_skills=True)
+        # 2026-11-27: the router only names skills; descriptions reach the model in the turn's suggestions, and the
+        # owner's overlay is what an API turn's suggestion shows and ranks by.
+        api = main._skill_turn_head(str(self.root), "", "doi soat cong no khach hang", overlays=True)
+        cli = main._skill_turn_head(str(self.root), "", "doi soat cong no khach hang")
         self.assertIn(DESCRIPTION, api)
         self.assertNotIn(DESCRIPTION, cli)
+        router = main.build_adaptive_source_prompt(str(self.root), include_skills=True, routing_overlays=True)
+        self.assertIn("report", router)
+        self.assertNotIn(DESCRIPTION, router)
 
     def test_bound_task_scope_never_mixes_live_overlays(self):
         from unittest.mock import patch
@@ -167,7 +172,7 @@ class RoutingOverlayTests(base.ActivationBase):
         listed = client.get(f"/improvement-routing?target_id={self.target}").json()
         self.assertEqual(listed["overlays"][0]["overlay_id"], applied["overlay"]["overlay_id"])
         self.assertIn("assistant_chats", listed["coverage"]["not_served"])
-        bad = client.post("/improvement-routing/evaluate", json={"target_id": self.target, "description": "x" * 200,
+        bad = client.post("/improvement-routing/evaluate", json={"target_id": self.target, "description": "x" * 1100,
                                                                  "cases": CASES, "event_key": "http-routing-bad"})
         self.assertEqual(bad.status_code, 422)
 

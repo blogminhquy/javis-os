@@ -1147,7 +1147,7 @@
   "studio.sk_export_one": "Xuất .zip",
   "studio.sk_group_hint": "Chọn nhóm đang có để khỏi sinh thêm nhóm trùng tên.",
   "studio.sk_desc_lbl": "Mô tả",
-  "studio.sk_desc_hint": "Javis chỉ đọc {max} ký tự đầu để quyết định dùng kỹ năng này. Nói thẳng việc nó làm, để ví dụ chi tiết ở mục \"Dùng khi nào\" trong nội dung.",
+  "studio.sk_desc_hint": "Javis tìm kỹ năng theo toàn bộ mô tả này (tối đa {max} ký tự) và mục \"Dùng khi nào\" trong nội dung. Câu đầu nói thẳng việc nó làm, sau đó nói khi nào dùng, bằng chữ bạn hay nói.",
   "studio.sk_desc_over": "Mô tả dài {n} ký tự, quá {max}. Rút gọn rồi lưu lại, phần thừa Javis sẽ không đọc.",
   "studio.sk_body_lbl": "Nội dung hướng dẫn",
   "studio.sk_tab_edit": "Soạn",

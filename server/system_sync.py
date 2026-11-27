@@ -358,7 +358,9 @@ def _copy_skill_md_capped(src: Path, dst: Path) -> None:
     """copy2 nhưng rút description quá dài. Bất kỳ trục trặc nào -> chép nguyên như cũ."""
     try:
         import skill_router
-        cap = skill_router.SKILL_DESC_MAX
+        # The short form (150): Claude Code lists every mirrored skill with its description at the head of each
+        # session. Javis's own router reads the whole text from `skills/` (skill_finder).
+        cap = skill_router.SKILL_SUMMARY_MAX
         text = src.read_text(encoding="utf-8")
         new = _cap_desc(text, cap)
         if new is None:
