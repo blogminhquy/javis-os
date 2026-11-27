@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.654.0] - 2026-11-27
+### Added
+- **Rename a chat right in Chatbot.** A "Rename" item in the "..." menu and a pencil next to the name in the Info panel.
+- **Names sync both ways with Zalo.** Renaming a group in Javis renames it on Zalo, renaming a customer sets your Zalo nickname for them. A group name or nickname changed on Zalo comes back to Javis too.
+- **Telegram groups can be renamed from Javis** when the bot is an admin. Other channels (Messenger, Zalo OA, Slack...) allow no rename through their API, so the name changes in Javis only, and still follows when the channel reports a new one.
+### Improved
+- **"Javis draft" and "Send" are icons only,** with their name on hover, for a tidier chat box.
+
 ## [0.653.1] - 2026-11-27
 ### Fixed
 - **Schedules made by background work no longer show up in an unrelated chat.** Before, when a background flow (for example a POSCake order flow) created a reminder while you were chatting about something else, that chat got "Created schedule · Undo" lines and later the "Reminder" cards too. Now the "Created schedule" line lists only what that chat itself made, and a background job's reminder reports to the inbox and Javis Core instead of whichever chat is open.

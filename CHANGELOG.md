@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.654.0] - 2026-11-27
+### Thêm mới
+- **Đổi tên cuộc chat ngay trong Chatbot.** Mục "Đổi tên" ở menu "..." và nút bút chì cạnh tên trong khung Thông tin.
+- **Tên đồng bộ hai chiều với Zalo.** Đổi tên nhóm trong Javis thì nhóm trên Zalo đổi theo, đổi tên khách thì Javis đặt tên gợi nhớ cho người đó trên Zalo. Sửa tên nhóm hay tên gợi nhớ trên Zalo thì Javis cũng tự đổi theo.
+- **Nhóm Telegram cũng đổi được tên từ Javis** khi bot là quản trị viên. Kênh khác (Messenger, Zalo OA, Slack...) không cho đổi tên qua API nên tên chỉ đổi trong Javis, và vẫn tự theo khi kênh báo một tên mới.
+### Cải thiện
+- **Nút "Javis soạn" và "Gửi" chỉ còn biểu tượng,** rê chuột vào là hiện tên, cho khung chat gọn hơn.
+
 ## [0.653.1] - 2026-11-27
 ### Sửa lỗi
 - **Lịch do việc nền tạo không còn chen vào cuộc trò chuyện chẳng liên quan.** Trước đây, khi một luồng việc nền (ví dụ xử lý đơn POSCake) tạo lịch nhắc trong lúc anh đang chat chuyện khác, khung chat đó hiện các dòng "Đã tạo lịch · Hoàn tác", rồi tới giờ lại nhận cả thẻ "Nhắc hẹn". Giờ dòng "Đã tạo lịch" chỉ ghi những gì chính cuộc trò chuyện đó tạo, còn kết quả của lịch việc nền về hộp thư và Javis Core thay vì khung chat đang mở.
