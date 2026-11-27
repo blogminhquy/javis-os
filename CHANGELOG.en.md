@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.650.0] - 2026-11-27
+### Added
+- **A long chat resumed after more than an hour no longer re-reads its whole thread.** The Claude Code and ChatGPT prompt cache lives about an hour. Once it has gone cold and the old thread is at least twice the size of a fresh one seeded from the saved conversation, Javis starts a fresh thread and says so in one line in the chat, saving most of the tokens that would have been written again. A chat kept warm by cache keep-warm keeps its thread.
+- **The Usage page has a "Where Claude tokens go" table.** Counted from every Claude Code request logged on the machine: how many times and how many tokens were lost to a cold cache and to a model switch mid-chat, and the share of tokens in requests with more than 200k of context. Suggestions warn when the cold cache takes 5% or more of input tokens.
+
 ## [0.649.0] - 2026-11-27
 ### Improved
 - **Javis sees every skill.** The skill list in the prompt used to hold about 20 skills (a 44-skill brain hid 23). The prompt now names every skill, short and fixed, so the prompt cache keeps holding.
