@@ -3140,6 +3140,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ach-intro { margin: 0 0 12px; color: var(--text2); font-size: 13.5px; line-height: 1.5; }
 .ach-intro a { color: var(--accent-ink); font-weight: 600; text-decoration: none; }
 .ach-intro a:hover { text-decoration: underline; }
+/* Issue #1893: the tool trail switch under the channel tabs, one row, a 48px tap target. */
+.ach-opt { display: flex; align-items: center; gap: 6px; margin-top: 16px; min-height: 48px; }
+.ach-opt label { display: flex; align-items: center; gap: 10px; font-size: 16px; cursor: pointer; }
+.ach-opt input { width: 20px; height: 20px; }
 .ach-tabs {
   display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin;
   position: sticky; top: 0; z-index: 3; padding: 6px 0; margin-bottom: 14px;

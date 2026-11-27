@@ -7578,7 +7578,14 @@
             ${Icons.kenh(c.key, { size: "18px" })}<span>${esc(c.tab || c.title)}</span><i class="ach-dot st-${state[c.key].state}" aria-hidden="true"></i></button>`).join("")}
         </div>
         <section id="ach-panel" class="ach-panel" role="tabpanel" tabindex="0"></section>
+        <div class="ach-opt"><label for="achTrace"><input type="checkbox" id="achTrace"${(s.chat || {}).tool_trace === false ? "" : " checked"}> ${esc(t("ach.tool_trace"))}</label>${infoBtn()}</div>
+        ${infoBody(esc(t("ach.tool_trace_h")))}
       </div>`;
+    el.querySelector("#achTrace").onchange = async (e) => {   // #1893
+      const c = e.target, ok = (await saveSetting("chat", { tool_trace: c.checked })).ok;
+      if (!ok) c.checked = !c.checked;
+      toast(t(ok ? "ach.tool_trace_saved" : "ach.tool_trace_fail"), !ok);
+    };
     const go = el.querySelector("[data-ach-go]");
     if (go) go.onclick = (e) => { e.preventDefault(); navigateTo("chatbots"); };
     const keys = ADMIN_CH.map(c => c.key);

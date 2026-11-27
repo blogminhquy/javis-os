@@ -562,6 +562,44 @@ def clean_bat(v: Any) -> bool:
     return v is True or str(v if v is not None else "").strip().lower() in ("1", "true", "yes", "on")
 
 
+DEFAULT_QUIET_WAIT_S = 5      # seconds a customer must be quiet in a private chat before the bot answers
+QUIET_WAIT_MAX_S = 60
+
+
+def clean_quiet_wait(v: Any):
+    """Seconds to wait for a customer to finish typing in a private chat (issue #1873). None = not set (default 5)."""
+    if v is None or isinstance(v, bool) or str(v).strip() == "":
+        return None
+    try:
+        n = float(str(v).strip())
+    except ValueError:
+        return None
+    if n != int(n) or not 0 <= n <= QUIET_WAIT_MAX_S:
+        return None
+    return int(n)
+
+
+def quiet_wait_of(cfg: dict, meta: Optional[dict], default: float = DEFAULT_QUIET_WAIT_S) -> float:
+    """Seconds this private chat must be quiet before the bot answers: the chat's own exception (`cho_giay`), else the
+    bot's `quiet_wait_s`, else `default`. Not a private chat (a group, a comment under a post): 0, answer at once."""
+    m = meta or {}
+    if str(m.get("chat_type") or "") != "private" or m.get("comment"):
+        return 0.0
+    e = ngoai_le_cua(cfg or {}, m)
+    if e and e.get("cho_giay") is not None:
+        return float(e["cho_giay"])
+    own = (cfg or {}).get("quiet_wait_s")
+    return float(own) if own is not None else float(default)
+
+
+def clean_escalate_private(v: Any):
+    """"Hard question in a private chat: stay quiet and tell me" (issue #1864). None = the owner never set it, so the
+    bot keeps the old rule (on only in "Tự đánh giá", `reply_when == "auto"`); otherwise True/False from the form."""
+    if v is None or str(v).strip() == "":
+        return None
+    return clean_bat(v)
+
+
 def group_typing_on(cfg: dict) -> bool:
     """Personal Zalo: show "đang soạn tin" in groups once the bot has decided to answer (09/11/2026). On when the
     owner never set it, so existing bots get it without a visit to the form."""
@@ -1090,6 +1128,10 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "nhan_ket_ban": clean_bat(data.get("nhan_ket_ban")),
             # "Đang soạn tin" in groups once the bot decided to answer (personal Zalo, 09/11/2026). Default ON.
             "group_typing": group_typing_on(data),
+            # Hard question in a private chat: stay quiet and ring the owner (issue #1864). None = old rule.
+            "escalate_private": clean_escalate_private(data.get("escalate_private")),
+            # Seconds to wait for a customer to finish typing in a private chat, every channel (issue #1873).
+            "quiet_wait_s": clean_quiet_wait(data.get("quiet_wait_s")),
             # Zalo chat labels the bot stays out of (0.281.0, personal Zalo only), e.g. family and friends.
             "skip_labels": clean_skip_labels(data.get("skip_labels")),
             # Staff contact the bot asks when only a person knows the answer (2026-11-26, staff_requests.py).
@@ -1136,7 +1178,7 @@ _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "han
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
               "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels", "blocked",
-              "group_typing", "bell_gap_min", "staff_contact")
+              "group_typing", "bell_gap_min", "staff_contact", "escalate_private", "quiet_wait_s")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -1251,6 +1293,16 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["nhan_ket_ban"] = clean_bat(v)
                 elif k == "group_typing":
                     b["group_typing"] = group_typing_on({"group_typing": v})
+                elif k == "escalate_private":
+                    b["escalate_private"] = clean_escalate_private(v)
+                elif k == "quiet_wait_s":
+                    # Blank clears it (the default); an unreadable value keeps the old one, like bell_gap_min.
+                    if str(v if v is not None else "").strip() == "":
+                        b["quiet_wait_s"] = None
+                    else:
+                        n = clean_quiet_wait(v)
+                        if n is not None:
+                            b["quiet_wait_s"] = n
                 elif k == "skip_labels":
                     b["skip_labels"] = clean_skip_labels(v)
                 elif k == "staff_contact":

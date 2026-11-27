@@ -38,7 +38,7 @@ import httpx
 
 import localefmt
 import stt
-from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool
+from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool, trace_wanted
 
 API = "https://discord.com/api/v10"
 GATEWAY_QS = "/?v=10&encoding=json"
@@ -402,7 +402,7 @@ class DiscordBot(HangLuot):
             reply = reply.get("text") or ""
         if silent and not str(reply or "").strip() and not files:
             return
-        if tools and not self.giau_trang_thai:
+        if tools and not self.giau_trang_thai and trace_wanted():
             # The tool trail, proof of what Javis touched, as a small line above the answer.
             reply = f"-# {dong_vet(tools, time.monotonic() - t0)}\n{reply}"
         if str(reply or "").strip() or not files:

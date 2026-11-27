@@ -103,7 +103,15 @@ def private_escalation(cfg: dict, meta: dict) -> bool:
     answer, even a guessed one. In this mode a private chat now has a third outcome next to reply and [IM_LANG]: the
     Agent writes [BAO_CHU], nothing is sent and the owner is told in the Javis bell. Same exact match on "auto" as
     `can_danh_gia`: an odd value fails closed to the old behaviour.
+
+    Issue #1864 (2026-11-26): a bot on a channel with no groups (Messenger, Zalo OA) could never pick "Tự đánh giá",
+    so it could never stay quiet on a hard private question. `escalate_private`, a tick of its own on every bot form,
+    now decides; a bot whose owner never ticked or unticked it (None) keeps the rule above.
     """
     meta = meta or {}
-    return (str(meta.get("chat_type") or "private") == "private"
-            and (cfg or {}).get("reply_when") == "auto")
+    if str(meta.get("chat_type") or "private") != "private":
+        return False
+    own = (cfg or {}).get("escalate_private")
+    if own is not None:
+        return own is True
+    return (cfg or {}).get("reply_when") == "auto"

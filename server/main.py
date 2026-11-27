@@ -8371,6 +8371,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # javis_plan for the API brains (plan_tool.py): the "+" menu of the composer switches it on and off.
         if "plan_tool" in patch:
             cfg.setdefault("chat", {})["plan_tool"] = bool(patch["plan_tool"])
+        # The tool trail under answers on Telegram, Zalo and the other owner chat channels (issue #1893).
+        if "tool_trace" in patch:
+            cfg.setdefault("chat", {})["tool_trace"] = bool(patch["tool_trace"])
     elif section == "general":
         if "workspace_name" in patch:
             cfg["workspace_name"] = patch["workspace_name"] or "Javis OS"
@@ -16091,7 +16094,7 @@ def huy_viec_nen_giong(conv_sid: str) -> int:
 
 async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
                           quiet=False, brain="", dedup="", routing="", level="", group="", decision=None, viec=None,
-                          push_if_away=False, title="", summary="", push_body=None):
+                          push_if_away=False, title="", summary="", push_body=None, channel=""):
     """Để lại MỘT mẩu thư cho mọi kết quả chạy nền, rồi rung chuông đẩy nếu có đăng ký.
 
     Vì sao đặt ở đây chứ không ở từng nơi sinh việc: `_notify_owner` là CỬA DUY NHẤT mà
@@ -16128,7 +16131,9 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         # bộ não chính, và tin gõ tiếp bay vào phiên của trợ lý (đúng lỗi 0.59.15 đã chữa cho
         # đường rời trang). Hỏng thì bỏ qua - kênh là thứ làm ĐẸP đường về, không phải điều
         # kiện để lưu thư.
-        kenh = ""
+        # `channel`: where a notice with no chat session of its own opens (2026-11-27, issue #1864: "chatbot-chat:<id>"
+        # opens that customer chat on the Inbox page). A session's own channel below always wins.
+        kenh = str(channel or "") if not sid else ""
         muted = False
         if sid:
             try:
@@ -18636,9 +18641,10 @@ async def _start_scheduler():
                              agent_add_doc=_agent_add_doc,
                              # Lượt bot hỏng: khách không nhận gì, chủ nghe ở chuông thông báo (chủ repo 15/10/2026).
                              # 0.403.0: urgent: a customer is waiting for a person, or got no answer at all.
-                             notify=lambda text: _bo_vao_hom_thu("", text, kind="system", source="chatbot",
-                                                                 label=localefmt.chu("Chatbot", "Chatbot"),
-                                                                 level="urgent"))
+                             # 2026-11-27 (#1864): `channel` = "chatbot-chat:<id>", the bell opens that customer chat.
+                             notify=lambda text, channel="": _bo_vao_hom_thu("", text, kind="system", source="chatbot",
+                                                                             label=localefmt.chu("Chatbot", "Chatbot"),
+                                                                             level="urgent", channel=channel))
         chatbot_reply_policy.wire(ask=_reply_policy_ask)
         chatbot_reply_policy_review.wire(ask=_reply_policy_review_ask, notify=_reply_policy_notify,
                                          write_feedback=_reply_policy_write_feedback, get_bot=chatbot_store.get_bot)
@@ -27783,6 +27789,16 @@ async def runtime_task_resume(task_id: str):
 # Telegram bot - nhắn Telegram ↔ Javis (dùng engine theo Settings; CLI thì có cả MCP)
 # ============================================================
 _TG_BOT = None
+
+
+def tool_trace_on(settings=None) -> bool:
+    """Owner chat channels show the tool trail under answers (issue #1893). On unless the owner turned it off."""
+    s = settings if settings is not None else cfgmod.read_settings()
+    return (s.get("chat") or {}).get("tool_trace", True) is not False
+
+
+import bot_gateway  # noqa: E402 - the trail switch below is read by every owner chat channel
+bot_gateway.set_trace_source(tool_trace_on)
 # ĐA PHIÊN theo tài khoản: mỗi chat_id giữ NGỮ CẢNH RIÊNG để không lẫn hội thoại giữa
 # các người dùng chung 1 bot. Map chat_id(str) -> phiên:
 #   {"cli": engine Claude|None,   # session Claude riêng (giữ session_id để resume)
@@ -32279,7 +32295,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form(""),
                           nhan_ket_ban: str = Form(""), skip_labels: str = Form(""),
                           group_typing: str = Form(""), bell_gap_min: str = Form(""),
-                          staff_contact: str = Form("")):
+                          staff_contact: str = Form(""), escalate_private: str = Form(""),
+                          quiet_wait_s: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -32325,6 +32342,10 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "bell_gap_min": bell_gap_min,
         # Staff contact (2026-11-26): JSON {account_id, chat_id, chat_type, name}; blank = none (staff_requests.py).
         "staff_contact": staff_contact,
+        # Hard private question: stay quiet and ring the owner (issue #1864): "1" / "0", blank = the old rule.
+        "escalate_private": escalate_private,
+        # Seconds to wait for a customer to finish typing in a private chat, every channel (issue #1873): blank = 5.
+        "quiet_wait_s": quiet_wait_s,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)

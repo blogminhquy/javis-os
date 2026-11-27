@@ -70,7 +70,7 @@ import httpx
 
 import localefmt
 import stt
-from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool
+from bot_gateway import HangLuot, parse_chat_ids, ten_tool, with_trace
 from messenger_bot import md_to_plain
 
 API = os.getenv("JAVIS_WECHAT_API", "https://api.weixin.qq.com").rstrip("/")
@@ -755,8 +755,7 @@ class WeChatBot(HangLuot):
             if silent and not str(reply or "").strip() and not files:
                 return
             if not self.giau_trang_thai:
-                trail = dong_vet(tools, time.monotonic() - t0)
-                reply = ((str(reply or "").rstrip() + "\n\n") if str(reply or "").strip() else "") + trail
+                reply = with_trace(reply, tools, time.monotonic() - t0)
             keep.cancel()
             if str(reply or "").strip() or not files:
                 await self._send(client, chat, reply)

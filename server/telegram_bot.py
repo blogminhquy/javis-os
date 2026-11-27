@@ -42,7 +42,7 @@ import httpx
 import bot_split
 import stt
 import localefmt
-from bot_gateway import HangLuot, dong_vet, ten_tool
+from bot_gateway import HangLuot, dong_vet, ten_tool, trace_wanted
 
 
 def parse_chat_ids(raw):
@@ -909,7 +909,10 @@ class TelegramBot(HangLuot):
         # bất khả; thứ sửa được là đừng để tin nào biến mất và đừng nổ thông báo thừa.
         status_mid = None
         giu = None
-        if self.giau_trang_thai:
+        # The owner turned the tool trail off (issue #1893): the status message would end as that trail, so it is not
+        # sent at all; the "typing…" dots carry the wait, as in human mode.
+        quiet_status = self.giau_trang_thai or not trace_wanted()
+        if quiet_status:
             giu = asyncio.create_task(self._giu_typing(client, chat, thread))
         else:
             status_mid = await self._send_status(client, chat, "🤔 Javis đang xử lý…", thread, quote)
@@ -918,7 +921,7 @@ class TelegramBot(HangLuot):
         tools = []          # tên công cụ đã gọi trong lượt, giữ thứ tự, không trùng
 
         async def progress(txt):
-            if self.giau_trang_thai:
+            if quiet_status:
                 return              # đã có chấm "đang nhập…" chạy đều, không cần tin nào
             # Gom tên công cụ TRƯỚC cửa throttle. Throttle sinh ra để đỡ spam Telegram, không
             # phải để quên bớt việc đã làm: gom sau cửa thì mấy tool chạy nhanh (2 tool trong
