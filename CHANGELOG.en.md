@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.656.0] - 2026-11-27
+### Added
+- **Javis reads Facebook Page and post insights** (views, viewers, engagement, follows, clicks) through the Pages connected on the Facebook Messenger card, no separate connection needed. Tick "Read post insights" when connecting the Page.
+- **Supabase at Read only can run SELECT** when the connection is Supabase's official MCP server with `read_only=true`. Writes, several statements at once and functions with side effects stay blocked.
+### Security
+- **A custom MCP connection at Read only can no longer run data-changing tools with unusual names** such as `apply_migration`, `reset_branch`, `pause_project` (they used to be taken for reads).
+
 ## [0.655.0] - 2026-11-27
 ### Added
 - **Clicking "the bot needs a human" opens that customer's chat** on the Inbox page, so you no longer look for them while they wait.
