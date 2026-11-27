@@ -1640,7 +1640,7 @@
   "cb.bell_gap": "Ring again after (minutes)",
   "cb.esc_private": "Hard question in a private chat: stay quiet and tell me",
   "cb.quiet_wait": "Wait for the customer to finish (seconds)",
-  "cb.ph_quiet_wait": "5",
+  "cb.ph_quiet_wait": "Default 5",
   "cb.hint_quiet_wait": "Customers often send one thought as several messages, or tap a few quick replies. The bot waits until the private chat has been quiet this many seconds, then answers everything at once. Blank means 5 seconds, 0 answers each message at once. Works on every channel; groups and comments under posts are answered at once as before.",
   "cb.quiet_wait_sai": "The wait for the customer must be a whole number from 0 to 60, or blank.",
   "cb.hint_esc_private": "When a customer asks privately something the bot is not sure of (a discount, a question the documents do not cover), the bot does not guess: it stays quiet and tells you in the bell. Clicking the notice opens that customer's chat so you can answer yourself. Works on every channel, Messenger and Zalo OA included.",

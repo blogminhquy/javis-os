@@ -7581,16 +7581,10 @@
         <div class="ach-opt"><label for="achTrace"><input type="checkbox" id="achTrace"${(s.chat || {}).tool_trace === false ? "" : " checked"}> ${esc(t("ach.tool_trace"))}</label>${infoBtn()}</div>
         ${infoBody(esc(t("ach.tool_trace_h")))}
       </div>`;
-    // Issue #1893: one switch for the tool trail ("⚙ tool · 12s") on every owner chat channel, saved at once.
-    const traceBox = el.querySelector("#achTrace");
-    if (traceBox) traceBox.onchange = async () => {
-      const fd = new FormData();
-      fd.append("section", "chat");
-      fd.append("data", JSON.stringify({ tool_trace: traceBox.checked }));
-      let ok = false;
-      try { ok = !!(await (await fetch("/settings", { method: "POST", body: fd })).json()).ok; } catch (e) {}
-      if (ok) toast(t("ach.tool_trace_saved"));
-      else { traceBox.checked = !traceBox.checked; toast(t("ach.tool_trace_fail"), true); }
+    el.querySelector("#achTrace").onchange = async (e) => {   // #1893
+      const c = e.target, ok = (await saveSetting("chat", { tool_trace: c.checked })).ok;
+      if (!ok) c.checked = !c.checked;
+      toast(t(ok ? "ach.tool_trace_saved" : "ach.tool_trace_fail"), !ok);
     };
     const go = el.querySelector("[data-ach-go]");
     if (go) go.onclick = (e) => { e.preventDefault(); navigateTo("chatbots"); };

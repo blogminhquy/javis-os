@@ -69,7 +69,7 @@ check("slack: no status message when off", "if not self.giau_trang_thai and trac
 
 # ---- 4. dashboard --------------------------------------------------------------------------------------
 js = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-check("Channels page: the switch is drawn and saved", 'id="achTrace"' in js and "tool_trace: traceBox.checked" in js)
+check("Channels page: the switch is drawn and saved", 'id="achTrace"' in js and 'saveSetting("chat", { tool_trace: c.checked })' in js)
 for lang in ("vi", "en"):
     d = json.loads((ROOT / "dashboard" / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
     check(f"i18n {lang}: the switch's words exist",

@@ -1640,7 +1640,7 @@
   "cb.bell_gap": "Báo chuông lại sau (phút)",
   "cb.esc_private": "Câu khó ở chat riêng: im lặng và báo tôi",
   "cb.quiet_wait": "Chờ khách nhắn xong (giây)",
-  "cb.ph_quiet_wait": "5",
+  "cb.ph_quiet_wait": "Mặc định 5",
   "cb.hint_quiet_wait": "Khách hay nhắn một ý thành vài tin liền, hoặc bấm vài nút trả lời nhanh. Bot đợi cuộc chat riêng im lặng chừng này giây rồi trả lời một lần cho tất cả. Để trống là 5 giây, 0 là trả lời từng tin ngay. Áp cho mọi kênh; trong nhóm và bình luận dưới bài thì trả lời ngay như cũ.",
   "cb.quiet_wait_sai": "Số giây chờ khách phải là số nguyên từ 0 tới 60, hoặc để trống.",
   "cb.hint_esc_private": "Khi khách nhắn riêng một câu bot không chắc (giảm giá, câu tài liệu không có), bot không đoán mà im lặng, rồi báo bạn ở chuông thông báo. Bấm thông báo là mở thẳng cuộc chat của khách để bạn tự trả lời. Áp cho mọi kênh, kể cả Messenger và Zalo OA.",
