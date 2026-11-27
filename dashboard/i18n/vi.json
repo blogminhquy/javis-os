@@ -6739,7 +6739,7 @@
   "msc.saved_apps_how": "Bấm một app để điền App ID, để trống App secret rồi bấm Đăng nhập Facebook. Trên Facebook, nếu nó hỏi tiếp tục với quyền cũ, bấm Chỉnh sửa quyền truy cập (Edit previous settings) và tick thêm Fanpage mới. Tài khoản Facebook đăng nhập phải quản lý Fanpage đó. Trang của Business Portfolio cũng phải được giao cho tài khoản này.",
   "msc.secret_saved": "Đã lưu, để trống",
   "msc.pick_connected": "Đã nối",
-  "msc.pick_all_old": "Facebook chỉ trả về các Fanpage đã nối. Bấm Đăng nhập Facebook lại, trên Facebook chọn Chỉnh sửa quyền truy cập (Edit previous settings) rồi tick thêm Fanpage mới.",
+  "msc.pick_all_old": "Facebook chỉ trả về Fanpage đã nối. Đăng nhập lại, chọn Chỉnh sửa quyền truy cập, tick Fanpage mới.",
   "msc.pick_none": "Hãy tick ít nhất một Fanpage.",
   "msc.finished": "Đã nối {n}/{total} Trang.",
   "msc.finish": "Kết nối các Trang đã chọn",
