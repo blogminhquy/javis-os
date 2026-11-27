@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.657.0] - 2026-11-27
+### Thêm mới
+- **Javis trên Windows tự bật lại khi server chết hoặc treo.** Một tác vụ nền kiểm Javis mỗi phút, ba lần không trả lời liên tiếp thì khởi động lại, khoảng 3 phút là chạy lại.
+- **Tắt chủ động thì watchdog đứng yên.** Sau `stop-javis.bat` nó chờ tới khi bạn bật lại, và cũng không chen ngang lúc đang cập nhật.
+- **Không phải gõ lệnh:** máy đang bật "Tự bật Javis khi mở máy" tự có watchdog sau khi cập nhật, tắt mục đó thì watchdog cũng tắt theo. Gỡ hẳn bằng `javis-watchdog.bat uninstall`.
+
 ## [0.656.0] - 2026-11-27
 ### Thêm mới
 - **Javis đọc được số liệu Fanpage và từng bài** (lượt xem, người xem, tương tác, lượt theo dõi, click) bằng Trang đã nối ở thẻ Facebook Messenger, không cần kết nối riêng. Cần tick "Đọc số liệu bài viết" khi nối Trang.

@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.657.0] - 2026-11-27
+### Added
+- **Javis on Windows restarts itself when the server dies or hangs.** A background task checks Javis every minute and restarts it after three missed answers in a row, so it is back within about 3 minutes.
+- **A deliberate stop is respected.** After `stop-javis.bat` the watchdog waits until you start Javis again, and it never interrupts an update.
+- **No command to run:** a machine with "Launch Javis at startup" on gets the watchdog after updating, and turning it off removes the watchdog too. Remove it for good with `javis-watchdog.bat uninstall`.
+
 ## [0.656.0] - 2026-11-27
 ### Added
 - **Javis reads Facebook Page and post insights** (views, viewers, engagement, follows, clicks) through the Pages connected on the Facebook Messenger card, no separate connection needed. Tick "Read post insights" when connecting the Page.
