@@ -17,6 +17,7 @@ test_output*.mp3
 server/*.log
 server/watchdog-fails
 server/stopped-on-purpose
+server/watchdog-off
 server/loop_config.json
 server/learn_config.json
 server/usage.json

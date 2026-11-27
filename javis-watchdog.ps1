@@ -8,7 +8,7 @@
 # which kills whatever is left (dead or hung) and starts a fresh server.
 #
 #   javis-watchdog.bat install     register the per-user task "JavisOS Watchdog" (no admin needed)
-#   javis-watchdog.bat uninstall   remove the task
+#   javis-watchdog.bat uninstall   remove the task for good (the server will not register it again)
 #   javis-watchdog.bat check       one check (the task calls this; running it by hand is fine)
 #   javis-watchdog.bat status      installed or not + current miss count + last log lines
 #
@@ -48,6 +48,7 @@ $Threshold = [int](Get-Setting "JAVIS_WATCHDOG_FAILS" "3")
 $FailFile = Join-Path $StateDir "watchdog-fails"
 $StopMarker = Join-Path $StateDir "stopped-on-purpose"
 $LogFile = Join-Path $StateDir "watchdog.log"
+$OffMarker = Join-Path $StateDir "watchdog-off"
 $StartVbs = Join-Path $Root "start-javis.vbs"
 $RunnerVbs = Join-Path $Root "javis-watchdog.vbs"
 # The restart command lives in a variable so the test can swap it for a harmless one.
@@ -146,12 +147,20 @@ switch ($Action.ToLower()) {
       exit 1
     }
     Set-FailCount 0
+    if (Test-Path $OffMarker) { Remove-Item $OffMarker -Force -ErrorAction SilentlyContinue }
     Write-Log "installed: checks /health on port $Port every 60 seconds, $Threshold misses in a row -> start-javis.vbs"
     Write-Host "Log: $LogFile"
   }
   "uninstall" {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Host "Watchdog removed ($TaskName)."
+    # Removed by hand: the server must not register it again on its next start (server\windows_watchdog.py).
+    if (-not (Test-Path $StateDir)) { New-Item -ItemType Directory -Force -Path $StateDir | Out-Null }
+    Set-Content -Path $OffMarker -Value (Get-Date -Format s) -Encoding ASCII
+    Write-Host "Watchdog removed ($TaskName). Install it again with: javis-watchdog.bat install"
+  }
+  "remove" {
+    # Autostart was turned off in the dashboard: take the task away without opting out for good.
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
   }
   "check" { Invoke-Check }
   default {
