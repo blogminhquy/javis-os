@@ -8,6 +8,9 @@ refused every new connection until it was restarted.
 
 1. `accept_guard`: one failed accept must not close the listener (Windows only, skipped elsewhere).
 2. `GrokCLI.query`: `grok --help` must run in a worker thread, not on the event loop.
+
+And a third (2026-11-27): the guard swaps a private asyncio method, so on a Python whose asyncio passes an argument it
+does not take (3.15 added `context=`) the server died at startup. Section 4 runs on every platform and every Python.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -216,6 +219,71 @@ check("a served connection accepts the next one at once", _served)
 check("the backoff starts again from the minimum after a served connection", _reset == accept_guard.RETRY_MIN_S,
       _reset)
 check("the log line is rate limited across those failures", len(_lines) == 1, len(_lines))
+
+
+# ---- 4. The swapped method takes every argument this Python's asyncio passes (any platform) ----
+# 0.642.3 to 0.646.0 stopped every Windows server on Python 3.15 at startup: asyncio's Server._start_serving passes
+# `context=`, the guard's copy did not take it, TypeError. install() now compares the signatures before swapping.
+import inspect                                    # noqa: E402
+from asyncio import base_events, proactor_events  # noqa: E402
+
+_stock = proactor_events.BaseProactorEventLoop._start_serving
+if _stock is accept_guard._start_serving:         # installed by section 1 on Windows; the stock copy is gone
+    _stock = None
+if _stock is not None:
+    check("the guard takes every parameter of this Python's stock accept loop", accept_guard.unknown_params(_stock) == [],
+          accept_guard.unknown_params(_stock))
+
+# The exact call asyncio makes on this Python, read from its source rather than assumed.
+_src = inspect.getsource(base_events.Server._start_serving)
+_passes_context = "context=" in _src
+fl = _FakeLoop()
+try:
+    accept_guard._start_serving(fl, lambda: object(), _FakeSock(), None, None, 100, None, None,
+                                **({"context": None} if _passes_context else {}))
+    _called = len(fl.soon) == 1
+except TypeError as exc:
+    _called = exc
+check("the guard accepts the call this Python's Server makes", _called is True, _called)
+check("the guard accepts context= (3.15) on every Python", "context" in inspect.signature(accept_guard._start_serving).parameters)
+
+
+def _stock_from_the_future(self, protocol_factory, sock, sslcontext=None, server=None, backlog=100,
+                           ssl_handshake_timeout=None, ssl_shutdown_timeout=None, context=None, new_thing=None):
+    pass
+
+
+check("a parameter the guard does not know is reported", accept_guard.unknown_params(_stock_from_the_future) == ["new_thing"],
+      accept_guard.unknown_params(_stock_from_the_future))
+
+# install() on a Windows Python whose asyncio has such a parameter: the guard stands aside, stock asyncio stays in place.
+_real_platform, _real_stock = sys.platform, proactor_events.BaseProactorEventLoop._start_serving
+_err = __import__("io").StringIO()
+try:
+    sys.platform = "win32"
+    proactor_events.BaseProactorEventLoop._start_serving = _stock_from_the_future
+    with __import__("contextlib").redirect_stderr(_err):
+        _applied = accept_guard.install()
+    _kept = proactor_events.BaseProactorEventLoop._start_serving is _stock_from_the_future
+finally:
+    sys.platform = _real_platform
+    proactor_events.BaseProactorEventLoop._start_serving = _real_stock
+check("install() stands aside on an asyncio it does not know", _applied is False and _kept, (_applied, _kept))
+check("and says why in one line", "new_thing" in _err.getvalue(), _err.getvalue())
+
+# install() never raises, whatever goes wrong inside it: the server must start without the guard rather than not at all.
+try:
+    sys.platform = "win32"
+    proactor_events.BaseProactorEventLoop._start_serving = property(lambda self: None)  # not a function at all
+    with __import__("contextlib").redirect_stderr(__import__("io").StringIO()):
+        _r = accept_guard.install()
+    _raised = None
+except Exception as exc:  # noqa: BLE001
+    _r, _raised = None, exc
+finally:
+    sys.platform = _real_platform
+    proactor_events.BaseProactorEventLoop._start_serving = _real_stock
+check("install() never raises", _raised is None and _r is False, (_r, _raised))
 
 
 print()

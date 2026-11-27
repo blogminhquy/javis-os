@@ -4,9 +4,15 @@ When a browser drops a connection while it is being accepted, asyncio's proactor
 CLOSES the listening socket: the process lives on but refuses every new connection until it is restarted. Here a failed
 accept is logged and the loop accepts again after a short backoff (doubling up to RETRY_MAX_S, reset by the next
 connection served); only a socket closed on purpose stops it. No effect off Windows.
+
+The patch replaces a private asyncio method, so its signature must match the running Python's. Python 3.15 added
+`context=` and every server died at startup with a TypeError (2026-11-27). Now `install()` compares the two signatures
+first: a parameter this file does not know means a newer asyncio, and the guard stands aside (stock asyncio keeps
+serving, only without the retry) rather than drop an argument whose meaning it cannot know.
 """
 from __future__ import annotations
 
+import inspect
 import sys
 import time
 
@@ -32,7 +38,9 @@ def _log(exc) -> None:
 
 
 def _start_serving(self, protocol_factory, sock, sslcontext=None, server=None, backlog=100,
-                   ssl_handshake_timeout=None, ssl_shutdown_timeout=None):
+                   ssl_handshake_timeout=None, ssl_shutdown_timeout=None, context=None):
+    # `context` (3.15+) is accepted and unused, exactly as the stock proactor loop does: it only feeds the selector
+    # loop's per-connection tasks, and the proactor builds transports straight from the accept callback.
     from asyncio import exceptions
     delay = RETRY_MIN_S
 
@@ -88,10 +96,36 @@ def _start_serving(self, protocol_factory, sock, sslcontext=None, server=None, b
     self.call_soon(loop)
 
 
+def unknown_params(stock) -> list:
+    """Parameters of the stock `_start_serving` that ours does not take (empty = safe to swap). Unreadable = unsafe."""
+    try:
+        ours = inspect.signature(_start_serving).parameters
+        theirs = inspect.signature(stock).parameters
+    except (TypeError, ValueError):
+        return ["<signature unreadable>"]
+    return [n for n, p in theirs.items()
+            if n not in ours and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)]
+
+
 def install() -> bool:
-    """Patch the proactor loop. True when applied. Must run before the loop serves; main.py calls it at import."""
+    """Patch the proactor loop. True when applied. Must run before the loop serves; main.py calls it at import.
+
+    Never raises: a guard that cannot be applied must not keep the server from starting."""
     if sys.platform != "win32" or sys.version_info < (3, 11):
         return False
-    from asyncio import proactor_events
-    proactor_events.BaseProactorEventLoop._start_serving = _start_serving
-    return True
+    try:
+        from asyncio import proactor_events
+        stock = proactor_events.BaseProactorEventLoop._start_serving
+        if stock is _start_serving:
+            return True
+        extra = unknown_params(stock)
+        if extra:
+            print(f"[accept guard] not applied: this Python ({sys.version.split()[0]}) passes {', '.join(extra)} "
+                  "to asyncio's accept loop, which the guard does not know yet; stock asyncio serves instead",
+                  file=sys.stderr, flush=True)
+            return False
+        proactor_events.BaseProactorEventLoop._start_serving = _start_serving
+        return True
+    except Exception as exc:  # noqa: BLE001 - see the docstring
+        print(f"[accept guard] not applied: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        return False

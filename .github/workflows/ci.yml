@@ -166,6 +166,52 @@ jobs:
           fi
           exit $status
 
+  # Windows on the newest Python: start the real server and wait for /health (27/11/2026). accept_guard swaps a private
+  # asyncio method on Windows only, so the Linux jobs never ran it; Python 3.15 passed it `context=` and 0.642.3 to
+  # 0.646.0 died at startup there, which the updater then rolled back with no reason shown. Bump the version when the
+  # next Python comes out.
+  windows-newest:
+    name: Windows, newest Python (server starts)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.15"
+          allow-prereleases: true
+
+      - name: Install dependencies
+        run: |
+          python -VV
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: accept_guard on a real proactor loop
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python tests/python/test_accept_guard.py
+
+      - name: Start the server and wait for /health
+        env:
+          PYTHONIOENCODING: utf-8
+          JAVIS_PORT: "7791"
+        run: |
+          export JAVIS_STATE_DIR="$RUNNER_TEMP/javis-state"
+          mkdir -p "$JAVIS_STATE_DIR"
+          python server/main.py > "$RUNNER_TEMP/boot.log" 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS "http://127.0.0.1:$JAVIS_PORT/health" >/dev/null 2>&1; then
+              echo "/health answered after ${i}s"; ok=1; break
+            fi
+            sleep 1
+          done
+          tail -n 60 "$RUNNER_TEMP/boot.log"
+          [ "${ok:-0}" = "1" ] || { echo "The server did not answer /health within 90s"; exit 1; }
+
   # Số phiên bản do .github/workflows/release.yml đánh SAU khi merge, từ file changelog.d/<slug>.md mà mỗi PR thêm vào.
   # Job này đỏ khi PR đổi code mà thiếu file đó, hoặc file sai mẫu. PR kiểu cũ (tự sửa VERSION) vẫn qua, chỉ kèm cảnh báo.
   # PR từ fork chỉ cảnh báo: người merge thêm file giúp. Push lên main thì không có gì để kiểm.
@@ -195,7 +241,7 @@ jobs:
   # `if: always()` là bắt buộc: thiếu nó thì job phụ thuộc đỏ làm job này bị BỎ QUA, mà GitHub coi check bị bỏ qua là ĐẠT,
   # tức là PR có test đỏ vẫn merge được. Không dùng `!cancelled()` vì cùng lý do: huỷ lượt chạy thì check này phải đỏ.
   test:
-    needs: [python, chung, changelog]
+    needs: [python, chung, changelog, windows-newest]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -204,11 +250,14 @@ jobs:
           KQ_PYTHON: ${{ needs.python.result }}
           KQ_CHUNG: ${{ needs.chung.result }}
           KQ_CHANGELOG: ${{ needs.changelog.result }}
+          KQ_WINDOWS: ${{ needs.windows-newest.result }}
         run: |
           echo "Test Python (4 nhóm): $KQ_PYTHON"
           echo "Byte-compile, import, test JS: $KQ_CHUNG"
           echo "Changelog fragment: $KQ_CHANGELOG"
-          [ "$KQ_PYTHON" = "success" ] && [ "$KQ_CHUNG" = "success" ] && [ "$KQ_CHANGELOG" = "success" ] || {
+          echo "Windows, newest Python: $KQ_WINDOWS"
+          [ "$KQ_PYTHON" = "success" ] && [ "$KQ_CHUNG" = "success" ] && [ "$KQ_CHANGELOG" = "success" ] \
+            && [ "$KQ_WINDOWS" = "success" ] || {
             echo "Có job không xanh (failure / cancelled / skipped đều không tính là đạt)."
             exit 1
           }
